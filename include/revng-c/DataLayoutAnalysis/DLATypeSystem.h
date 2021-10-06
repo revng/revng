@@ -258,10 +258,12 @@ public:
                    dla::TypeLinkTag::instanceTag(std::forward<OET>(OE)));
   }
 
-  void dumpDotOnFile(const char *FName) const;
+  void dumpDotOnFile(const char *FName,
+                     bool ShowCollapsed = false) const debug_function;
 
-  void dumpDotOnFile(const std::string &FName) const {
-    dumpDotOnFile(FName.c_str());
+  void
+  dumpDotOnFile(const std::string &FName, bool ShowCollapsed = false) const {
+    dumpDotOnFile(FName.c_str(), ShowCollapsed);
   }
 
   auto getNumLayouts() const { return Layouts.size(); }
@@ -308,6 +310,10 @@ public:
   bool verifyLeafs() const;
   // Checks that there are no equality edges.
   bool verifyNoEquality() const;
+  // Checks that no union node has only one child
+  bool verifyUnions() const;
+  // Checks that no node conflicting edges.
+  bool verifyConflicts() const;
 
 private:
   // Equivalence classes between nodes. Each node is identified by an ID.
@@ -525,6 +531,15 @@ isInheritanceEdge(const llvm::GraphTraits<LayoutTypeSystemNode *>::EdgeRef &E) {
 inline bool
 isInstanceEdge(const llvm::GraphTraits<LayoutTypeSystemNode *>::EdgeRef &E) {
   return hasLinkKind<TypeLinkTag::LinkKind::LK_Instance>(E);
+}
+
+inline bool
+isInstanceOff0Edge(llvm::GraphTraits<LayoutTypeSystemNode *>::EdgeRef &E) {
+  if (not isInstanceEdge(E))
+    return false;
+
+  auto &OE = E.second->getOffsetExpr();
+  return OE.Offset == 0 and OE.Strides.empty() and OE.TripCounts.empty();
 }
 
 template<dla::TypeLinkTag::LinkKind K = dla::TypeLinkTag::LinkKind::LK_All>

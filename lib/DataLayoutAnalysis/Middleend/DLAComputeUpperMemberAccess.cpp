@@ -106,9 +106,11 @@ bool ComputeUpperMemberAccesses::runOnTypeSystem(LayoutTypeSystem &TS) {
           revng_unreachable("unexpected edge");
         }
       }
+      if (FinalSize != N->Size)
+        Changed = true;
+
       N->Size = FinalSize;
       revng_assert(FinalSize);
-      Changed = true;
     }
   }
 

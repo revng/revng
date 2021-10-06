@@ -8,10 +8,12 @@
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/ADT/FilteredGraphTraits.h"
+#include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/DebugHelper.h"
 
@@ -22,6 +24,8 @@
 using namespace llvm;
 
 using NodeAllocatorT = SpecificBumpPtrAllocator<dla::LayoutTypeSystemNode>;
+
+static Logger<> CollapsedNodePrinter("dla-print-collapsed-in-dot");
 
 void *operator new(size_t, NodeAllocatorT &NodeAllocator) {
   return NodeAllocator.Allocate();
@@ -92,7 +96,8 @@ static_assert(sizeof(Instance) == (str_len(Instance) + 1));
 static_assert(sizeof(Unexpected) == (str_len(Unexpected) + 1));
 } // end unnamed namespace
 
-void LayoutTypeSystem::dumpDotOnFile(const char *FName) const {
+void debug_function LayoutTypeSystem::dumpDotOnFile(const char *FName,
+                                                    bool ShowCollapsed) const {
   std::error_code EC;
   raw_fd_ostream DotFile(FName, EC);
   revng_check(not EC, "Could not open file for printing LayoutTypeSystem dot");
@@ -120,7 +125,9 @@ void LayoutTypeSystem::dumpDotOnFile(const char *FName) const {
       revng_unreachable();
     }
 
-    DebugPrinter->printNodeContent(*this, L, DotFile);
+    if (CollapsedNodePrinter.isEnabled() or ShowCollapsed)
+      DebugPrinter->printNodeContent(*this, L, DotFile);
+
     DotFile << "\"];\n";
   }
 
@@ -636,6 +643,43 @@ bool LayoutTypeSystem::verifyInheritanceTree() const {
       return false;
     }
   }
+  return true;
+}
+
+bool LayoutTypeSystem::verifyUnions() const {
+  using GraphNodeT = const LayoutTypeSystemNode *;
+  for (GraphNodeT Node : llvm::nodes(this)) {
+    if (Node->InterferingInfo == AllChildrenAreInterfering
+        and Node->Successors.size() <= 1) {
+      if (VerifyDLALog.isEnabled())
+        revng_check(false);
+      return false;
+    }
+  }
+
+  return true;
+}
+
+bool LayoutTypeSystem::verifyConflicts() const {
+  using GraphNodeT = const LayoutTypeSystemNode *;
+  using LinkT = const LayoutTypeSystemNode::Link;
+
+  for (GraphNodeT Node : llvm::nodes(this)) {
+    for (auto &Succ : Node->Successors) {
+
+      auto HasSameSuccAtOffset0 = [&Succ](const LinkT &L2) {
+        return isInstanceOff0Edge(L2) and (Succ.first == L2.first);
+      };
+
+      if (isInheritanceEdge(Succ)
+          and llvm::any_of(Node->Successors, HasSameSuccAtOffset0)) {
+        if (VerifyDLALog.isEnabled())
+          revng_check(false);
+        return false;
+      }
+    }
+  }
+
   return true;
 }
 

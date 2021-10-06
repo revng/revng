@@ -111,14 +111,21 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
 
   case AllChildrenAreNonInterfering: {
 
+    StructLayout::fields_container_t SFlds;
+
     // Create BaseLayout for leaf nodes
     revng_assert(not isLeaf(N) or N->Size);
     if (isLeaf(N)) {
       Layout *AccessLayout = createLayout<BaseLayout>(Layouts, N->Size);
+
+      // If the leaf has an inheritance parent, wrap the BaseLayout into a
+      // struct
+      if (llvm::any_of(N->Predecessors, isInheritanceEdge)) {
+        SFlds.push_back(AccessLayout);
+        AccessLayout = createLayout<StructLayout>(Layouts, SFlds);
+      }
       return AccessLayout;
     }
-
-    StructLayout::fields_container_t SFlds;
 
     struct OrderedChild {
       int64_t Offset;
@@ -215,10 +222,10 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
       revng_assert(StartByte >= 0LL and Size > 0ULL);
       uint64_t Start = static_cast<uint64_t>(StartByte);
       revng_assert(Start >= CurSize);
-      auto PadSize = Start - CurSize; // always >= 0;
+      auto PadSize = Start - CurSize;
       revng_assert(PadSize >= 0);
 
-      // If an unaccessed layout is known to exist, add it as padding
+      // If there is a "hole" between accesses, add it as padding
       if (PadSize) {
         Layout *Padding = createLayout<PaddingLayout>(Layouts, PadSize);
         SFlds.push_back(Padding);
@@ -253,6 +260,7 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
 
     // Look at all the instance-of edges and inheritance edges all together
     bool InheritsFromOther = false;
+    bool HasNullChild = false;
     for (auto &[Child, EdgeTag] : children_edges<const LTSN *>(N)) {
 
       revng_log(Log, "Child ID: " << Child->ID);
@@ -263,8 +271,10 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
       // Ignore children for which we haven't created a layout, because they
       // only have children from which it was not possible to create valid
       // layouts.
-      if (not ChildType)
+      if (not ChildType) {
+        revng_log(Log, "No corresponding layout for " << Child->ID);
         return nullptr;
+      }
 
       switch (EdgeTag->getKind()) {
 
@@ -291,8 +301,16 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
 
       // Bail out if we have not constructed a union field, because it means
       // that this is not a supported case yet.
-      if (nullptr != ChildType)
-        UFlds.insert(ChildType);
+
+      if (nullptr != ChildType) {
+        bool New = UFlds.insert(ChildType).second;
+
+        if (not New)
+          revng_log(Log, "Duplicate layout found, size: " << UFlds.size());
+      } else {
+        HasNullChild = true;
+        revng_log(Log, "No type created for " << Child->ID);
+      }
     }
 
     // This layout has no useful access or outgoing edges that can build the
@@ -301,10 +319,17 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
     if (UFlds.empty())
       return nullptr;
 
-    Layout *CreatedLayout = (UFlds.size() > 1ULL) ?
-                              createLayout<UnionLayout>(Layouts, UFlds) :
-                              *UFlds.begin();
-    return CreatedLayout;
+    // If a null layout was generated for one of the children, or the node has
+    // more than one parent, the union might contain only one field. In this
+    // case, there is no point in emitting a union, so a struct must be emitted.
+    if (UFlds.size() == 1) {
+      revng_assert(HasNullChild);
+      StructLayout::fields_container_t Fields;
+      Fields.push_back(*UFlds.begin());
+      return createLayout<StructLayout>(Layouts, Fields);
+    }
+
+    return createLayout<UnionLayout>(Layouts, UFlds);
   } break;
 
   case Unknown:
@@ -319,7 +344,8 @@ LayoutPtrVector makeLayouts(const LayoutTypeSystem &TS, LayoutVector &Layouts) {
     TS.dumpDotOnFile("final.dot");
 
   if (VerifyLog.isEnabled())
-    revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree());
+    revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree()
+                 and TS.verifyUnions());
 
   // Prepare the vector of layouts that correspond to actual LayoutTypePtrs
   LayoutPtrVector OrderedLayouts;
