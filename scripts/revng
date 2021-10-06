@@ -545,6 +545,7 @@ def main():
                       action="store_true",
                       help="Run programs under callgrind.")
   parser.add_argument("--prefix",
+                      action="append",
                       metavar="PREFIX",
                       help="Additional search prefix.")
 
@@ -592,7 +593,7 @@ def main():
   args, unknown_args = parser.parse_known_args(base_args)
 
   global search_prefixes
-  search_prefixes = (args.prefix or []
+  search_prefixes = ((args.prefix or [])
                      + [os.path.join(script_path, "..")])
 
   global log_commands
