@@ -510,51 +510,49 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
     if (TheCall->getIntrinsicID() == llvm::Intrinsic::assume)
       return nullptr;
 
-    Function *CalleeFun = getCallee(TheCall);
+    Value *CalleeVal = TheCall->getCalledOperand();
+    Expr *CalleeExpr = getExprForValue(CalleeVal);
+    auto *CalleePtrT = cast<llvm::PointerType>(CalleeVal->getType());
+    auto *CalleeType = cast<llvm::FunctionType>(CalleePtrT->getElementType());
 
-    Expr *CalleeExpr = getExprForValue(CalleeFun);
     revng_log(ASTBuildLog, "GOT!");
     if (ASTBuildLog.isEnabled() and CalleeExpr)
       CalleeExpr->dump();
 
-    size_t NumArgs = CalleeFun->arg_size();
-    FunctionDecl &FD = Declarator.getFunctionDecl(CalleeFun);
-    size_t NumParms = FD.param_size();
-    unsigned NumOps = TheCall->getNumArgOperands();
-    bool HasNoParms = NumParms == 0
-                      or (NumParms == 1
-                          and FD.getParamDecl(0)->getType() == ASTCtx.VoidTy);
-    revng_assert(HasNoParms or NumArgs == NumParms);
-    const bool IsVariadic = FD.isVariadic();
-    if (not FD.isVariadic())
-      revng_assert(NumArgs == NumOps);
+    size_t NumParms = CalleeType->getNumParams();
+    unsigned NumArgOps = TheCall->getNumArgOperands();
+    revng_assert(NumArgOps >= NumParms);
+    const bool IsVariadic = CalleeType->isFunctionVarArg();
+    revng_assert(NumArgOps == NumParms
+                 or (IsVariadic and NumArgOps > NumParms));
 
-    auto Args = SmallVector<Expr *, 8>(NumOps, nullptr);
-    revng_assert(not(not HasNoParms and IsVariadic));
-    if (not HasNoParms) {
-      for (unsigned OpId = 0; OpId < NumOps; ++OpId) {
+    auto Args = SmallVector<Expr *, 8>(NumArgOps, nullptr);
+    auto ArgTypes = SmallVector<clang::QualType, 8>(NumArgOps, {});
+    auto NumVariadicArgs = NumArgOps - NumParms;
+    revng_assert(IsVariadic == NumVariadicArgs != 0);
+    Function *CalleeFun = getCallee(TheCall);
+    if (NumParms) {
+      for (unsigned OpId = 0; OpId < NumParms; ++OpId) {
         Value *Operand = TheCall->getOperand(OpId);
         Expr *ArgExpr = getExprForValue(Operand);
-        QualType ArgQualTy = ArgExpr->getType();
-
-        ParmVarDecl *ParmDecl = FD.getParamDecl(OpId);
-        QualType ParmQualTy = ParmDecl->getType();
-
-        if (ParmQualTy != ArgQualTy) {
-          ArgExpr = new (ASTCtx) ParenExpr({}, {}, ArgExpr);
-          ArgExpr = createCast(ParmQualTy, ArgExpr, ASTCtx);
+        if (CalleeFun) {
+          FunctionDecl &FD = Declarator.getFunctionDecl(CalleeFun);
+          clang::QualType FormalParamType = FD.getParamDecl(OpId)->getType();
+          if (FormalParamType != ArgExpr->getType())
+            ArgExpr = createCast(FormalParamType, ArgExpr, ASTCtx);
         }
-
         Args[OpId] = ArgExpr;
+        ArgTypes[OpId] = ArgExpr->getType();
       }
     }
 
     if (IsVariadic) {
-      for (unsigned OpId = 0; OpId < NumOps; ++OpId) {
+      for (unsigned OpId = NumParms; OpId < NumArgOps; ++OpId) {
         Value *Operand = TheCall->getOperand(OpId);
         Expr *ArgExpr = getExprForValue(Operand);
 
         Args[OpId] = ArgExpr;
+        ArgTypes[OpId] = ArgExpr->getType();
       }
     }
 
@@ -564,6 +562,24 @@ Stmt *StmtBuilder::buildStmt(Instruction &I) {
                                                         ASTCtx,
                                                         TUDecl);
     QualType ReturnType = DeclCreator::getQualType(RTy);
+    if (not CalleeFun) {
+      revng_assert(not IsVariadic);
+      QualType FType = ASTCtx.getFunctionType(ReturnType, ArgTypes, {});
+      QualType FPtrType = ASTCtx.getPointerType(FType);
+      TypeSourceInfo *TI = ASTCtx.CreateTypeSourceInfo(FPtrType);
+      CalleeExpr = CStyleCastExpr::Create(ASTCtx,
+                                          FPtrType,
+                                          VK_RValue,
+                                          CK_IntegralToPointer,
+                                          CalleeExpr,
+                                          nullptr,
+                                          FPOptions(),
+                                          TI,
+                                          {},
+                                          {});
+      CalleeExpr = new (ASTCtx) ParenExpr({}, {}, CalleeExpr);
+    }
+
     return CallExpr::Create(ASTCtx,
                             CalleeExpr,
                             Args,

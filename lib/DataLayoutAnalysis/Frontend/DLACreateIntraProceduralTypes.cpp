@@ -245,29 +245,38 @@ public:
 
               if (auto *Call = dyn_cast<CallInst>(RetVal)) {
                 const Function *Callee = getCallee(Call);
-                auto CTags = FunctionTags::TagsSet::from(Callee);
-                revng_assert(CTags.contains(FunctionTags::StructInitializer));
 
-                revng_assert(not Callee->isVarArg());
+                // TODO: the other casewill need to be handled properly to be
+                // able to infer types from calls to dynamic functions.
+                // Calls to dynamic functions at the moment don't have a callee,
+                // because the callees are generated with a bunch of pointer
+                // arithmetic from integer constants.
+                if (Callee) {
 
-                auto *RetTy = cast<StructType>(Callee->getReturnType());
-                revng_assert(RetTy->getNumElements() == Callee->arg_size());
-                revng_assert(RetTy == F->getReturnType());
+                  auto CTags = FunctionTags::TagsSet::from(Callee);
+                  revng_assert(CTags.contains(FunctionTags::StructInitializer));
 
-                auto StructTypeNodes = Builder.getOrCreateLayoutTypes(*Call);
-                revng_assert(StructTypeNodes.size() == Callee->arg_size());
+                  revng_assert(not Callee->isVarArg());
 
-                for (const auto &[RetNodeNew, Arg] :
-                     llvm::zip_first(StructTypeNodes, Call->arg_operands())) {
-                  const auto &[ArgNode,
-                               New] = Builder.getOrCreateLayoutType(Arg);
-                  Changed |= New;
-                  const auto &[RetNode, NewNode] = RetNodeNew;
-                  Changed |= NewNode;
-                  Changed |= TS.addEqualityLink(RetNode, ArgNode).second;
+                  auto *RetTy = cast<StructType>(Callee->getReturnType());
+                  revng_assert(RetTy->getNumElements() == Callee->arg_size());
+                  revng_assert(RetTy == F->getReturnType());
+
+                  auto StructTypeNodes = Builder.getOrCreateLayoutTypes(*Call);
+                  revng_assert(StructTypeNodes.size() == Callee->arg_size());
+
+                  for (const auto &[RetNodeNew, Arg] :
+                       llvm::zip_first(StructTypeNodes, Call->arg_operands())) {
+                    const auto &[ArgNode,
+                                 New] = Builder.getOrCreateLayoutType(Arg);
+                    Changed |= New;
+                    const auto &[RetNode, NewNode] = RetNodeNew;
+                    Changed |= NewNode;
+                    Changed |= TS.addEqualityLink(RetNode, ArgNode).second;
+                  }
+
+                  continue;
                 }
-
-                continue;
               }
 
               auto *InsertVal = cast<InsertValueInst>(RetVal);
@@ -354,6 +363,14 @@ public:
 
         } else if (auto *C = dyn_cast<CallInst>(&I)) {
           const Function *Callee = getCallee(C);
+
+          // TODO: this case will need to be handled properly to be able to
+          // infer types from calls to dynamic functions.
+          // Calls to dynamic functions at the moment don't have a callee,
+          // because the callees are generated with a bunch of pointer
+          // arithmetic from integer constants.
+          if (not Callee)
+            continue;
 
           // Skip llvm intrinsics
           if (Callee->isIntrinsic())

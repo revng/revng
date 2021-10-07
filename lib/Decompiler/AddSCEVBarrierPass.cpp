@@ -46,6 +46,15 @@ static std::string makeTypeName(const llvm::Type *Ty) {
     Name = "i" + std::to_string(IntTy->getBitWidth());
   } else if (auto *StrucTy = llvm::dyn_cast<llvm::StructType>(Ty)) {
     Name = "struct_" + makeCIdentifier(Ty->getStructName().str());
+  } else if (auto *FunTy = llvm::dyn_cast<llvm::FunctionType>(Ty)) {
+    Name = "func_" + makeTypeName(FunTy->getReturnType());
+    if (not FunTy->params().empty()) {
+      Name += "_args";
+      for (const auto &ArgT : FunTy->params())
+        Name += "_" + makeTypeName(ArgT);
+    }
+  } else if (Ty->isVoidTy()) {
+    Name += "void";
   } else {
     revng_unreachable("cannot build Type name");
   }
