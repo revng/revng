@@ -105,5 +105,4 @@ private:
   SerializationReason Flags = None;
 };
 
-using SerializationMap = std::map<const llvm::Instruction *,
-                                  SerializationFlags>;
+using SerializationMap = std::map<llvm::Instruction *, SerializationFlags>;

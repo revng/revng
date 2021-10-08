@@ -47,7 +47,7 @@ using LatticeElement = IntersectionMonotoneSetWithTaint;
 class IntersectionMonotoneSetWithTaint {
 public:
   using Instruction = llvm::Instruction;
-  using TaintMap = std::map<const Instruction *, std::set<const Instruction *>>;
+  using TaintMap = std::map<Instruction *, std::set<const Instruction *>>;
   using const_iterator = typename TaintMap::const_iterator;
   using iterator = typename TaintMap::iterator;
   using size_type = typename TaintMap::size_type;
@@ -92,12 +92,12 @@ public:
     return TaintedPending.size();
   }
 
-  void insert(const Instruction *Key) {
+  void insert(Instruction *Key) {
     revng_assert(not IsBottom);
     TaintedPending[Key];
   }
 
-  size_type erase(const Instruction *El) {
+  size_type erase(Instruction *El) {
     revng_assert(not IsBottom);
     return TaintedPending.erase(El);
   }
@@ -107,7 +107,7 @@ public:
     return this->TaintedPending.erase(It);
   }
 
-  bool isPending(const Instruction *Key) const {
+  bool isPending(Instruction *Key) const {
     revng_assert(not IsBottom);
     return TaintedPending.count(Key);
   }
@@ -188,21 +188,21 @@ public:
   }
 };
 
-using SuccVector = llvm::SmallVector<const llvm::BasicBlock *, 2>;
+using SuccVector = llvm::SmallVector<llvm::BasicBlock *, 2>;
 
 class Analysis : public MonotoneFramework<Analysis,
-                                          const llvm::BasicBlock *,
+                                          llvm::BasicBlock *,
                                           LatticeElement,
                                           VisitType::ReversePostOrder,
                                           SuccVector> {
 private:
-  const llvm::Function &F;
+  llvm::Function &F;
   SerializationMap &ToSerialize;
   LivenessAnalysis::LivenessMap LiveIn;
 
 public:
   using Base = MonotoneFramework<Analysis,
-                                 const llvm::BasicBlock *,
+                                 llvm::BasicBlock *,
                                  LatticeElement,
                                  VisitType::ReversePostOrder,
                                  SuccVector>;
@@ -214,17 +214,16 @@ public:
     revng_assert(A.lowerThanOrEqual(B));
   }
 
-  Analysis(const llvm::Function &F, SerializationMap &ToSerialize) :
+  Analysis(llvm::Function &F, SerializationMap &ToSerialize) :
     Base(&F.getEntryBlock()), F(F), ToSerialize(ToSerialize), LiveIn() {
     Base::registerExtremal(&F.getEntryBlock());
   }
 
   [[noreturn]] void dumpFinalState() const { revng_abort(); }
 
-  SuccVector successors(const llvm::BasicBlock *BB, InterruptType &) const {
+  SuccVector successors(llvm::BasicBlock *BB, InterruptType &) const {
     SuccVector Result;
-    for (const llvm::BasicBlock *Successor :
-         make_range(succ_begin(BB), succ_end(BB)))
+    for (llvm::BasicBlock *Successor : make_range(succ_begin(BB), succ_end(BB)))
       Result.push_back(Successor);
     return Result;
   }
@@ -273,7 +272,7 @@ public:
     LiveIn = Liveness.extractLiveIn();
   }
 
-  InterruptType transfer(const llvm::BasicBlock *BB) {
+  InterruptType transfer(llvm::BasicBlock *BB) {
     using namespace llvm;
     revng_log(MarkLog,
               "transfer: BB in Function: " << BB->getParent()->getName() << '\n'
@@ -281,7 +280,7 @@ public:
 
     LatticeElement Pending = this->State[BB].copy();
 
-    for (const Instruction &I : *BB) {
+    for (Instruction &I : *BB) {
       revng_log(MarkLog,
                 "Analyzing Instr: '" << &I << "': " << dumpToString(&I));
 
@@ -384,7 +383,7 @@ public:
         // We also have to serialize all the instructions that are still pending
         // and have interfering side effects.
         for (auto PendingIt = Pending.begin(); PendingIt != Pending.end();) {
-          const auto *PendingInstr = PendingIt->first;
+          auto *PendingInstr = PendingIt->first;
           revng_log(MarkLog,
                     "Pending: '" << PendingInstr
                                  << "': " << dumpToString(PendingInstr));

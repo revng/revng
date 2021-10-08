@@ -45,7 +45,7 @@ runTestOnFunctionWithExpected(const char *Body,
   revng_check(not llvm::verifyModule(*M, &llvm::dbgs()));
 
   // main is present and has a body
-  const llvm::Function *F = M->getFunction("main");
+  llvm::Function *F = M->getFunction("main");
   revng_check(nullptr != F);
   revng_check(not F->empty());
 
