@@ -39,16 +39,9 @@ bool MarkForSerializationPass::runOnFunction(llvm::Function &F) {
     if (not F.getName().equals(TargetFunction.c_str()))
       return false;
 
-  // Compute the number of duplicates for each BasicBlock.
-  const auto &RestructurePass = getAnalysis<RestructureCFG>();
-  using MarkAnalysis::DuplicationMap;
-  const DuplicationMap &NDuplicates = RestructurePass.getNDuplicates();
-
   // Mark instructions for serialization, and write the results in ToSerialize
   ToSerialize = {};
-  MarkAnalysis::Analysis</* IgnoreDuplicatedUses */ false> Mark(F,
-                                                                NDuplicates,
-                                                                ToSerialize);
+  MarkAnalysis::Analysis Mark(F, ToSerialize);
   Mark.initialize();
   Mark.run();
 

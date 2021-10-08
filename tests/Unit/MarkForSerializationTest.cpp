@@ -49,17 +49,8 @@ runTestOnFunctionWithExpected(const char *Body,
   revng_check(nullptr != F);
   revng_check(not F->empty());
 
-  // Initialize NDuplicates. Normally this is done by the llvm pass, but for
-  // testing reason we provide it manually.
-  MarkAnalysis::DuplicationMap NDuplicates;
-  revng_check(ExpectedDups.size() == F->size());
-  for (const auto &[BB, NDup] : llvm::zip_first(*F, ExpectedDups))
-    NDuplicates[&BB] = NDup;
-
   SerializationMap Results;
-  MarkAnalysis::Analysis</* IgnoreDuplicatedUses */ false> Mark(*F,
-                                                                NDuplicates,
-                                                                Results);
+  MarkAnalysis::Analysis Mark(*F, Results);
   Mark.initialize();
   Mark.run();
 
@@ -223,48 +214,6 @@ BOOST_AUTO_TEST_CASE(BranchNone) {
   ExpectedFlagsType ExpectedFlags{
     BBSerializationFlags{ "initial_block", { None } },
     BBSerializationFlags{ "next", { AlwaysSerialize } },
-  };
-
-  runTestOnFunctionWithExpected(Body, ExpectedDups, ExpectedFlags);
-}
-
-BOOST_AUTO_TEST_CASE(Duplicated) {
-
-  const char *Body = R"LLVM(
-  %pointer = inttoptr i64 4294967296 to i64*
-  br label %next
-
-  next:
-  %loaded = load i64, i64 * %pointer
-  unreachable
-  )LLVM";
-
-  ExpectedDuplicatesType ExpectedDups{ 1, 2 };
-
-  ExpectedFlagsType ExpectedFlags{
-    BBSerializationFlags{ "initial_block", { HasDuplicatedUses, None } },
-    BBSerializationFlags{ "next", { AlwaysSerialize, AlwaysSerialize } },
-  };
-
-  runTestOnFunctionWithExpected(Body, ExpectedDups, ExpectedFlags);
-}
-
-BOOST_AUTO_TEST_CASE(DuplicatedDoesNotInduceVariable) {
-
-  const char *Body = R"LLVM(
-  %pointer = inttoptr i64 4294967296 to i64*
-  br label %next
-
-  next:
-  %loaded = load i64, i64 * %pointer
-  unreachable
-  )LLVM";
-
-  ExpectedDuplicatesType ExpectedDups{ 2, 2 };
-
-  ExpectedFlagsType ExpectedFlags{
-    BBSerializationFlags{ "initial_block", { None, None } },
-    BBSerializationFlags{ "next", { AlwaysSerialize, AlwaysSerialize } },
   };
 
   runTestOnFunctionWithExpected(Body, ExpectedDups, ExpectedFlags);

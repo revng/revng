@@ -17,9 +17,8 @@ enum SerializationReason {
   HasSideEffects = 1 << 1,
   HasInterferingSideEffects = 1 << 2,
   HasManyUses = 1 << 3,
-  HasDuplicatedUses = 1 << 4,
-  NeedsLocalVarToComputeExpr = 1 << 5,
-  NeedsManyStatements = 1 << 6,
+  NeedsLocalVarToComputeExpr = 1 << 4,
+  NeedsManyStatements = 1 << 5,
 };
 
 inline SerializationReason

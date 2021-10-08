@@ -190,8 +190,7 @@ public:
 
 using SuccVector = llvm::SmallVector<const llvm::BasicBlock *, 2>;
 
-template<bool IgnoreDuplicatedUses>
-class Analysis : public MonotoneFramework<Analysis<IgnoreDuplicatedUses>,
+class Analysis : public MonotoneFramework<Analysis,
                                           const llvm::BasicBlock *,
                                           LatticeElement,
                                           VisitType::ReversePostOrder,
@@ -199,7 +198,6 @@ class Analysis : public MonotoneFramework<Analysis<IgnoreDuplicatedUses>,
 private:
   const llvm::Function &F;
   SerializationMap &ToSerialize;
-  const DuplicationMap &NDuplicates;
   LivenessAnalysis::LivenessMap LiveIn;
 
 public:
@@ -216,18 +214,9 @@ public:
     revng_assert(A.lowerThanOrEqual(B));
   }
 
-  Analysis(const llvm::Function &F,
-           const DuplicationMap &NDuplicates,
-           SerializationMap &ToSerialize) :
-    Base(&F.getEntryBlock()),
-    F(F),
-    ToSerialize(ToSerialize),
-    NDuplicates(NDuplicates),
-    LiveIn() {
+  Analysis(const llvm::Function &F, SerializationMap &ToSerialize) :
+    Base(&F.getEntryBlock()), F(F), ToSerialize(ToSerialize), LiveIn() {
     Base::registerExtremal(&F.getEntryBlock());
-    if constexpr (IgnoreDuplicatedUses) {
-      revng_assert(NDuplicates.empty());
-    }
   }
 
   [[noreturn]] void dumpFinalState() const { revng_abort(); }
@@ -291,10 +280,6 @@ public:
                                            << BB);
 
     LatticeElement Pending = this->State[BB].copy();
-
-    size_t NBBDuplicates = 0;
-    if constexpr (not IgnoreDuplicatedUses)
-      NBBDuplicates = NDuplicates.at(BB);
 
     for (const Instruction &I : *BB) {
       revng_log(MarkLog,
@@ -373,20 +358,13 @@ public:
       switch (I.getNumUses()) {
 
       case 1: {
-        if constexpr (not IgnoreDuplicatedUses) {
-          User *U = I.uses().begin()->getUser();
-          Instruction *UserI = cast<Instruction>(U);
-          BasicBlock *UserBB = UserI->getParent();
-          auto UserNDuplicates = NDuplicates.at(UserBB);
-          if (NBBDuplicates < UserNDuplicates) {
-            ToSerialize[&I].set(HasDuplicatedUses);
-            revng_log(MarkLog, "Instr HasDuplicatedUses");
-          }
-        }
+        // Instructions with a single used do not necessarily need to be
+        // serialized.
       } break;
 
       case 0: {
-        // Do nothing
+        // Force unused instructions to be serialized. This is done to ease
+        // debugging, and could potentially be dropped in the future.
         ToSerialize[&I].set(AlwaysSerialize);
         revng_log(MarkLog, "Instr AlwaysSerialize");
       } break;

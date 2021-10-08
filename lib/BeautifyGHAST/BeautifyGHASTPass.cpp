@@ -45,9 +45,7 @@ bool BeautifyGHASTPass::runOnFunction(llvm::Function &F) {
   // Get information about which instructions are marked to be serialized.
   // Mark instructions for serialization, and write the results in ToSerialize
   SerializationMap ToSerialize = {};
-  MarkAnalysis::Analysis</* IgnoreDuplicatedUses */ true> Mark(F,
-                                                               {},
-                                                               ToSerialize);
+  MarkAnalysis::Analysis Mark(F, ToSerialize);
   Mark.initialize();
   Mark.run();
 
