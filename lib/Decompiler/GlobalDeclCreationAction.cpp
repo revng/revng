@@ -10,10 +10,11 @@
 
 #include "revng/Support/Assert.h"
 
+#include "revng-c/Support/Mangling.h"
+
 #include "ASTBuildAnalysis.h"
 #include "DecompilationHelpers.h"
 #include "IRASTTypeTranslation.h"
-#include "Mangling.h"
 
 using clang::CharacterLiteral;
 using clang::Expr;

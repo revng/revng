@@ -14,10 +14,10 @@
 #include "revng/Support/Assert.h"
 
 #include "revng-c/DataLayoutAnalysis/DLALayouts.h"
+#include "revng-c/Support/Mangling.h"
 
 #include "DecompilationHelpers.h"
 #include "IRASTTypeTranslation.h"
-#include "Mangling.h"
 
 namespace clang {
 class TranslationUnitDecl;

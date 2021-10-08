@@ -25,9 +25,9 @@
 
 #include "revng-c/DataLayoutAnalysis/DLALayouts.h"
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
+#include "revng-c/Support/Mangling.h"
 
 #include "IRASTTypeTranslation.h"
-#include "Mangling.h"
 
 std::string
 DeclCreator::getUniqueTypeNameForDecl(const llvm::Value *NamingValue) const {

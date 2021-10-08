@@ -15,8 +15,7 @@
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/MarkForSerialization/MarkForSerializationPass.h"
-
-#include "Mangling.h"
+#include "revng-c/Support/Mangling.h"
 
 struct AddSCEVBarrierPass : public llvm::FunctionPass {
 

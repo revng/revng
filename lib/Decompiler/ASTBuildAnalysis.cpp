@@ -37,12 +37,12 @@
 
 #include "revng-c/DataLayoutAnalysis/DLALayouts.h"
 #include "revng-c/DataLayoutAnalysis/SCEVBaseAddressExplorer.h"
+#include "revng-c/Support/Mangling.h"
 
 #include "ASTBuildAnalysis.h"
 #include "AddSCEVBarrierPass.h"
 #include "DecompilationHelpers.h"
 #include "IRASTTypeTranslation.h"
-#include "Mangling.h"
 
 static Logger<> ASTBuildLog("ast-builder");
 
