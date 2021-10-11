@@ -152,6 +152,9 @@ static bool linkOrderLess(const Link &A, const Link &B) {
   if (NodeOrder != order::equal)
     return NodeOrder < 0;
 
+  revng_log(CmpLog,
+            "No order between " << A.first->ID << " and " << A.first->ID
+                                << ", must recur");
   // In case the two nodes are equivalent, explore the whole subtree
   // TODO: cache the result of this comparison?
   const auto [SubtreeOrder, _, __] = exploreAndCompare(A, B);
@@ -161,6 +164,9 @@ static bool linkOrderLess(const Link &A, const Link &B) {
 
 static std::tuple<order, EdgeList, EdgeList>
 exploreAndCompare(const Link &Child1, const Link &Child2) {
+  if (Child1.first->ID == Child2.first->ID)
+    return { order::equal, { Child1 }, { Child2 } };
+
   EdgeList VisitStack1{ Child1 }, VisitStack2{ Child2 };
   EdgeList NextToVisit1, NextToVisit2;
   size_t CurIdx = 0;
@@ -188,6 +194,9 @@ exploreAndCompare(const Link &Child1, const Link &Child2) {
       const auto &[Node1, Edge1] = VisitStack1[CurIdx];
       const auto &[Node2, Edge2] = VisitStack2[CurIdx];
       revng_log(CmpLog, "Comparing " << Node1->ID << " with " << Node2->ID);
+
+      if (Node1->ID == Node2->ID)
+        continue;
 
       // TODO: handle pointer edges
       const order EdgeOrder = cmpEdgeTags(Edge1, Edge2);
@@ -246,6 +255,7 @@ mergeIfTopologicallyEq(LayoutTypeSystem &TS, Link &Child1, Link &Child2) {
 
   auto [AreEquiv, Subtree1, Subtree2] = areEquivSubtrees(Child1, Child2);
   if (AreEquiv) {
+    revng_log(CmpLog, "Equivalent!");
     // Create a map between nodes to merge and the corresponding merge
     // destination, in order to:
     // 1. avoid duplicates in merging list
@@ -312,6 +322,7 @@ mergeIfTopologicallyEq(LayoutTypeSystem &TS, Link &Child1, Link &Child2) {
     return { true, Subtree1 };
   }
 
+  revng_log(CmpLog, "Different!");
   return { false, {} };
 }
 
