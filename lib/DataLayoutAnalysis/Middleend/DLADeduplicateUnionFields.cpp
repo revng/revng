@@ -377,8 +377,6 @@ bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
         continue;
       revng_log(Log, "****** Union Node found: " << UnionNode->ID);
 
-      RemoveConflictingEdges::removeConflicts(TS, UnionNode);
-
       llvm::SmallSetVector<Link, 8> ToCompare;
       llvm::SmallSetVector<Link, 8> Visited;
 
