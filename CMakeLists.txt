@@ -193,6 +193,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
     # tests for IR Canonicalization
     add_test(NAME ir_canonicalization_${TARGET_NAME} COMMAND revng --prefix=.
       opt
+      -exit-ssa
       -add-ir-serialization-markers
       ${TARGET_NAME}_prepared.bc
       -o ${TARGET_NAME}_canonicalized.bc

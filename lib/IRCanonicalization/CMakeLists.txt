@@ -4,7 +4,8 @@
 
 revng_add_analyses_library(IRCanonicalization
 	revngc
-	AddIRSerializationMarkerPass.cpp)
+	AddIRSerializationMarkerPass.cpp
+	ExitSSAPass.cpp)
 
 target_link_libraries(IRCanonicalization
 	revngcLivenessAnalysis
