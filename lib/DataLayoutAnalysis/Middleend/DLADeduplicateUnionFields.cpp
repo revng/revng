@@ -366,6 +366,8 @@ bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
   if (Log.isEnabled())
     TS.dumpDotOnFile("before-deduplicate-union-fields.dot");
 
+  llvm::SmallPtrSet<LTSN *, 16> VisitedUnions;
+
   for (LTSN *Root : llvm::nodes(&TS)) {
     revng_assert(Root != nullptr);
     if (not isRoot(Root))
@@ -373,9 +375,11 @@ bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
 
     // Visit all Union nodes in post-order
     for (LTSN *UnionNode : post_order(Root)) {
-      if (UnionNode->InterferingInfo != AllChildrenAreInterfering)
+      if (UnionNode->InterferingInfo != AllChildrenAreInterfering
+          or VisitedUnions.contains(UnionNode))
         continue;
       revng_log(Log, "****** Union Node found: " << UnionNode->ID);
+      VisitedUnions.insert(UnionNode);
 
       llvm::SmallSetVector<Link, 8> ToCompare;
       llvm::SmallSetVector<Link, 8> Visited;
