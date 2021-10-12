@@ -42,13 +42,20 @@ void writeModel(model::Binary &Model, llvm::Module &M) {
 }
 
 bool SerializeModelWrapperPass::runOnModule(Module &M) {
-  writeModel(*getAnalysis<LoadModelWrapperPass>().get().getWriteableModel(), M);
+  auto LoadPass = getAnalysisIfAvailable<LoadModelWrapperPass>();
+  if (not LoadPass)
+    return false;
+
+  writeModel(*LoadPass->get().getWriteableModel(), M);
   return false;
 }
 
 llvm::PreservedAnalyses
 SerializeModelPass::run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM) {
-  auto &ModelWrapper = MAM.getResult<LoadModelAnalysis>(M);
-  writeModel(*ModelWrapper.getWriteableModel(), M);
+  auto *ModelWrapper = MAM.getCachedResult<LoadModelAnalysis>(M);
+  if (not ModelWrapper)
+    return PreservedAnalyses::all();
+
+  writeModel(*ModelWrapper->getWriteableModel(), M);
   return PreservedAnalyses::all();
 }
