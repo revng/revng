@@ -140,7 +140,7 @@ target_link_libraries(MarkForSerializationTest
 add_test(NAME MarkForSerializationTest COMMAND ./bin/MarkForSerializationTest)
 
 #
-# DLACollapseSingleChild
+# DLASteps
 #
 
 revng_add_private_executable(dla_steps "${SRC}/DLASteps.cpp")
