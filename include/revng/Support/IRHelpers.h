@@ -566,6 +566,16 @@ public:
     return llvm::ConstantAsMetadata::get(Constant);
   }
 
+  llvm::ConstantAsMetadata *get(int32_t Integer) {
+    auto *Constant = llvm::ConstantInt::getSigned(Int32Ty, Integer);
+    return llvm::ConstantAsMetadata::get(Constant);
+  }
+
+  llvm::ConstantAsMetadata *get(int64_t Integer) {
+    auto *Constant = llvm::ConstantInt::getSigned(Int64Ty, Integer);
+    return llvm::ConstantAsMetadata::get(Constant);
+  }
+
   llvm::MDNode *get() { return llvm::MDNode::get(C, {}); }
 
   llvm::MDTuple *tuple(const char *String) { return tuple(get(String)); }
@@ -575,6 +585,10 @@ public:
   llvm::MDTuple *tuple(uint32_t Integer) { return tuple(get(Integer)); }
 
   llvm::MDTuple *tuple(uint64_t Integer) { return tuple(get(Integer)); }
+
+  llvm::MDTuple *tuple(int32_t Integer) { return tuple(get(Integer)); }
+
+  llvm::MDTuple *tuple(int64_t Integer) { return tuple(get(Integer)); }
 
   llvm::MDTuple *tuple(llvm::ArrayRef<llvm::Metadata *> MDs) {
     return llvm::MDTuple::get(C, MDs);
@@ -659,6 +673,30 @@ template<>
 inline uint64_t QuickMetadata::extract<uint64_t>(llvm::Metadata *MD) {
   auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
   return getLimitedValue(C->getValue());
+}
+
+template<>
+inline int32_t QuickMetadata::extract<int32_t>(const llvm::Metadata *MD) {
+  auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
+  return getSignedLimitedValue(C->getValue());
+}
+
+template<>
+inline int32_t QuickMetadata::extract<int32_t>(llvm::Metadata *MD) {
+  auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
+  return getSignedLimitedValue(C->getValue());
+}
+
+template<>
+inline int64_t QuickMetadata::extract<int64_t>(const llvm::Metadata *MD) {
+  auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
+  return getSignedLimitedValue(C->getValue());
+}
+
+template<>
+inline int64_t QuickMetadata::extract<int64_t>(llvm::Metadata *MD) {
+  auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
+  return getSignedLimitedValue(C->getValue());
 }
 
 template<>
