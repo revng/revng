@@ -54,6 +54,22 @@ inline Values fromLLVMArchitecture(llvm::Triple::ArchType A) {
   }
 }
 
+/// Return the size of the pointer in bytes
+constexpr inline size_t getPointerSize(Values V) {
+  switch (V) {
+  case model::Architecture::x86:
+  case model::Architecture::arm:
+  case model::Architecture::mips:
+    return 4;
+  case model::Architecture::x86_64:
+  case model::Architecture::aarch64:
+  case model::Architecture::systemz:
+    return 8;
+  default:
+    revng_abort();
+  }
+}
+
 } // namespace model::Architecture
 
 namespace llvm::yaml {
