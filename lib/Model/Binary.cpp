@@ -313,18 +313,16 @@ bool Function::verify(VerifyHelper &VH) const {
   if (not HasEntry)
     return VH.fail();
 
-  // Prototype is present
-  if (not Prototype.isValid())
-    return VH.fail();
+  // If a prototype is present (isValid) it must verify
+  if (Prototype.isValid()) {
+    if (not Prototype.get()->verify(VH))
+      return VH.fail();
 
-  // Prototype is valid
-  if (not Prototype.get()->verify(VH))
-    return VH.fail();
-
-  const model::Type *FunctionType = Prototype.get();
-  if (not(isa<RawFunctionType>(FunctionType)
-          or isa<CABIFunctionType>(FunctionType)))
-    return VH.fail();
+    const model::Type *FunctionType = Prototype.get();
+    if (not(isa<RawFunctionType>(FunctionType)
+            or isa<CABIFunctionType>(FunctionType)))
+      return VH.fail();
+  }
 
   return true;
 }
