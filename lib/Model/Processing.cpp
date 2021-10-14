@@ -78,6 +78,13 @@ unsigned dropTypesDependingOnTypes(TupleTree<model::Binary> &Model,
     }
   }
 
+  // Reset function prototypes that reference an invalid type
+  for (auto &F : Model->Functions) {
+    if (ToDelete.count(F.Prototype.get()) != 0) {
+      F.Prototype = TypePath();
+    }
+  }
+
   // Purge dynamic functions depending on Types
   auto Begin = Model->ImportedDynamicFunctions.begin();
   for (auto It = Begin; It != Model->ImportedDynamicFunctions.end(); /**/) {
