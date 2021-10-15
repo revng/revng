@@ -147,9 +147,12 @@ AdvancedValueInfoPass::run(llvm::Function &F,
     ValuesMD.reserve(Values.size());
     for (const MaterializedValue &V : Values) {
       // TODO: we are we ignoring those with symbols
-      if (not V.hasSymbol()) {
-        ValuesMD.push_back(QMD.get(V.value()));
-      }
+      auto Offset = V.value();
+      StringRef SymbolName;
+      if (V.hasSymbol())
+        SymbolName = V.symbolName();
+
+      ValuesMD.push_back(QMD.tuple({ QMD.get(SymbolName), QMD.get(Offset) }));
     }
 
     Call->setMetadata("revng.avi", QMD.tuple(ValuesMD));

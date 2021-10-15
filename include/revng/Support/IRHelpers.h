@@ -930,6 +930,8 @@ llvm::Constant *getUniqueString(llvm::Module *M,
                                 llvm::StringRef String,
                                 const llvm::Twine &Name = llvm::Twine());
 
+llvm::StringRef extractFromConstantStringPtr(llvm::Value *V);
+
 inline llvm::User *getUniqueUser(llvm::Value *V) {
   llvm::User *Result = nullptr;
 

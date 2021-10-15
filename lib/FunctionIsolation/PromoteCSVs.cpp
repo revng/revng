@@ -535,10 +535,9 @@ void PromoteCSVs::wrapCallsToHelpers(Function *F) {
     for (Instruction &I : BB) {
       if (auto *Call = dyn_cast<CallInst>(&I)) {
         Function *Callee = getCallee(Call);
-        revng_assert(Callee != nullptr);
 
         // Ignore calls to isolated functions
-        if (not needsWrapper(Callee))
+        if (Callee == nullptr or not needsWrapper(Callee))
           continue;
 
         ToWrap.emplace_back(Call);

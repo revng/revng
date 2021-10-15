@@ -36,7 +36,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
   auto *Int8NullPtr = ConstantPointerNull::get(Int8PtrTy);
   auto *PCPtrTy = cast<PointerType>(GCBI.pcReg()->getType());
   std::initializer_list<Type *> FunctionArgsTy = {
-    Int8PtrTy, Int8PtrTy, MetaAddress::getStruct(&M), PCPtrTy, Int8PtrTy
+    Int8PtrTy, Int8PtrTy, MetaAddress::getStruct(&M), PCPtrTy
   };
   using FT = FunctionType;
   auto *Ty = FT::get(Type::getVoidTy(C), FunctionArgsTy, false);
@@ -266,8 +266,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
       const std::initializer_list<Value *> Args{ Callee,
                                                  BlockAddress::get(ReturnBB),
                                                  GCBI.toConstant(ReturnPC),
-                                                 V.LinkRegister,
-                                                 Int8NullPtr };
+                                                 V.LinkRegister };
 
       FallthroughAddresses.insert(ReturnPC);
 

@@ -492,6 +492,7 @@ IT::InstructionTranslator(IRBuilder<> &Builder,
                                 { MetaAddressStruct,
                                   Type::getInt64Ty(Context),
                                   Type::getInt32Ty(Context),
+                                  Type::getInt8PtrTy(Context),
                                   Type::getInt8PtrTy(Context) },
                                 true);
   NewPCMarker = Function::Create(NewPCMarkerTy,
@@ -610,6 +611,7 @@ IT::newInstruction(PTCInstruction *Instr,
 
   MDNode *MDOriginalInstr = nullptr;
   Constant *String = nullptr;
+  PointerType *Int8PtrTy = getStringPtrType(Context);
   if (RecordASM) {
     std::stringstream OriginalStringStream;
     disassemble(OriginalStringStream, PC, NextPC - PC);
@@ -626,7 +628,7 @@ IT::newInstruction(PTCInstruction *Instr,
     auto *MDPC = ConstantAsMetadata::get(PC.toConstant(MetaAddressStruct));
     MDOriginalInstr = MDNode::get(Context, { MDOriginalString, MDPC });
   } else {
-    String = ConstantPointerNull::get(getStringPtrType(Context));
+    String = ConstantPointerNull::get(Int8PtrTy);
   }
 
   if (!IsFirst) {
@@ -653,10 +655,12 @@ IT::newInstruction(PTCInstruction *Instr,
   // This prevents SROA from transforming them in SSA values, which is bad
   // in case we have to split a basic block
   revng_assert(MetaAddressStruct != nullptr);
+  auto *Int8NullPtr = ConstantPointerNull::get(Int8PtrTy);
   std::vector<Value *> Args = { PC.toConstant(MetaAddressStruct),
                                 Builder.getInt64(NextPC - PC),
                                 Builder.getInt32(-1),
-                                String };
+                                String,
+                                Int8NullPtr };
   for (AllocaInst *Local : Variables.locals())
     Args.push_back(Local);
 

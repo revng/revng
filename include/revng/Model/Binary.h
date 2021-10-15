@@ -22,10 +22,12 @@
 namespace model {
 class VerifyHelper;
 class Function;
+class DynamicFunction;
 class Binary;
 class FunctionEdge;
 class CallEdge;
 class BasicBlock;
+class Segment;
 } // namespace model
 
 // TODO: Prevent changing the keys. Currently we need them to be public and
@@ -71,29 +73,6 @@ enum Values {
   Unreachable,
   Count
 };
-
-inline bool hasDestination(Values V) {
-  switch (V) {
-  case Invalid:
-  case Count:
-    revng_abort();
-    break;
-  case DirectBranch:
-  case FakeFunctionCall:
-  case FakeFunctionReturn:
-  case FunctionCall:
-    return true;
-
-  case IndirectCall:
-  case Return:
-  case BrokenReturn:
-  case IndirectTailCall:
-  case LongJmp:
-  case Killer:
-  case Unreachable:
-    return false;
-  }
-}
 
 inline bool isCall(Values V) {
   switch (V) {
@@ -252,6 +231,9 @@ public:
   /// In case of a direct function call, it has to be the same as the callee.
   TypePath Prototype;
 
+  /// Name of the dynamic function being called, or empty if not a dynamic call
+  std::string DynamicFunction;
+
 public:
   CallEdge() :
     FunctionEdge(MetaAddress::invalid(), FunctionEdgeType::FunctionCall) {}
@@ -271,7 +253,12 @@ public:
   bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;
 };
-INTROSPECTION_NS(model, CallEdge, Destination, Type, Prototype);
+INTROSPECTION_NS(model,
+                 CallEdge,
+                 Destination,
+                 Type,
+                 Prototype,
+                 DynamicFunction);
 
 template<>
 struct concrete_types_traits<model::FunctionEdge> {
@@ -288,7 +275,8 @@ struct llvm::yaml::MappingTraits<model::FunctionEdge>
 
 template<>
 struct llvm::yaml::MappingTraits<model::CallEdge>
-  : public TupleLikeMappingTraits<model::CallEdge> {};
+  : public TupleLikeMappingTraits<model::CallEdge,
+                                  Fields<model::CallEdge>::DynamicFunction> {};
 
 template<>
 struct llvm::yaml::ScalarTraits<model::FunctionEdge::Key>
@@ -466,11 +454,136 @@ struct KeyedObjectTraits<model::Function> {
   };
 };
 
+/// Function defined in a dynamic library
+class model::DynamicFunction {
+public:
+  /// The name of the symbol for this dynamic function
+  std::string SymbolName;
+
+  /// An optional custom name
+  Identifier CustomName;
+
+  /// The prototype of the function
+  TypePath Prototype;
+
+  // TODO: DefiningLibrary
+
+public:
+  DynamicFunction() {}
+  DynamicFunction(const std::string &SymbolName) : SymbolName(SymbolName) {}
+  bool operator==(const model::DynamicFunction &Other) const = default;
+
+public:
+  Identifier name() const;
+
+public:
+  bool verify() const debug_function;
+  bool verify(bool Assert) const debug_function;
+  bool verify(VerifyHelper &VH) const;
+};
+
+INTROSPECTION_NS(model, DynamicFunction, SymbolName, CustomName, Prototype)
+
+template<>
+struct llvm::yaml::MappingTraits<model::DynamicFunction>
+  : public TupleLikeMappingTraits<model::DynamicFunction,
+                                  Fields<model::DynamicFunction>::CustomName> {
+};
+
+template<>
+struct KeyedObjectTraits<model::DynamicFunction> {
+
+  static auto key(const model::DynamicFunction &F) { return F.SymbolName; }
+
+  static model::DynamicFunction fromKey(const std::string &Key) {
+    return model::DynamicFunction(Key);
+  }
+};
+
+static_assert(validateTupleTree<model::DynamicFunction>(IsYamlizable));
+
+class model::Segment {
+public:
+  using Key = std::pair<MetaAddress, MetaAddress>;
+
+public:
+  MetaAddress StartAddress;
+  MetaAddress EndAddress;
+
+  uint64_t StartOffset = 0;
+  uint64_t EndOffset = 0;
+
+  bool IsReadable = false;
+  bool IsWriteable = false;
+  bool IsExecutable = false;
+
+  Identifier CustomName;
+
+public:
+  Segment() {}
+  Segment(const Key &K) : StartAddress(K.first), EndAddress(K.second) {}
+  bool operator==(const model::Segment &Other) const = default;
+
+public:
+  Identifier name() const;
+
+public:
+  bool verify() const debug_function;
+  bool verify(bool Assert) const debug_function;
+  bool verify(VerifyHelper &VH) const;
+};
+
+INTROSPECTION_NS(model,
+                 Segment,
+                 StartAddress,
+                 EndAddress,
+                 StartOffset,
+                 EndOffset,
+                 IsReadable,
+                 IsWriteable,
+                 IsExecutable,
+                 CustomName)
+
+template<>
+struct llvm::yaml::MappingTraits<model::Segment>
+  : public TupleLikeMappingTraits<model::Segment,
+                                  Fields<model::Segment>::CustomName> {};
+
+template<>
+struct KeyedObjectTraits<model::Segment> {
+
+  static model::Segment::Key key(const model::Segment &F) {
+    return { F.StartAddress, F.EndAddress };
+  }
+
+  static model::Segment fromKey(const model::Segment::Key &K) {
+    return model::Segment(K);
+  }
+};
+
+template<>
+struct llvm::yaml::ScalarTraits<model::Segment::Key>
+  : public CompositeScalar<model::Segment::Key, '-'> {};
+
+static_assert(validateTupleTree<model::Segment>(IsYamlizable));
+
 /// Data structure representing the whole binary
 class model::Binary {
 public:
   /// List of the functions within the binary
   SortedVector<model::Function> Functions;
+
+  /// List of the functions within the binary
+  SortedVector<model::DynamicFunction> ImportedDynamicFunctions;
+
+  /// Binary architecture
+  model::Architecture::Values Architecture = model::Architecture::Invalid;
+
+  /// List of segments in the original binary
+  SortedVector<model::Segment> Segments;
+
+  /// Program entry point
+  MetaAddress EntryPoint;
 
   /// The type system
   SortedVector<UpcastablePointer<model::Type>> Types;
@@ -495,7 +608,13 @@ public:
   bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;
 };
-INTROSPECTION_NS(model, Binary, Functions, Types)
+INTROSPECTION_NS(model,
+                 Binary,
+                 Functions,
+                 ImportedDynamicFunctions,
+                 Types,
+                 Architecture,
+                 Segments)
 
 template<>
 struct llvm::yaml::MappingTraits<model::Binary>
