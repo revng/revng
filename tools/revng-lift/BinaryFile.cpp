@@ -1984,7 +1984,7 @@ std::string
 BinaryFile::nameForAddress(MetaAddress Address, uint64_t Size) const {
   using interval = boost::icl::interval<MetaAddress, compareAddress>;
   std::stringstream Result;
-  const auto &SymbolMap = labels();
+  const auto &SymbolMap = labelsMap();
 
   auto End = Address.toGeneric() + Size;
   revng_assert(Address.isValid() and End.isValid());

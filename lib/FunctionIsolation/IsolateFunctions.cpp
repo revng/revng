@@ -7,6 +7,8 @@
 //
 
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/IR/DIBuilder.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/raw_os_ostream.h"
@@ -124,8 +126,6 @@ public:
 
 class IsolateFunctionsImpl {
 private:
-  using BlockToFunctionsMap = std::map<BasicBlock *,
-                                       std::pair<unsigned, Function *>>;
   using SuccessorsContainer = std::map<model::FunctionEdge, int>;
 
 private:
@@ -136,8 +136,8 @@ private:
   const model::Binary &Binary;
   Function *RaiseException = nullptr;
   Function *FunctionDispatcher = nullptr;
-  Function *CallMarker = nullptr;
-  BlockToFunctionsMap IsolatedFunctionsMap;
+  std::map<MetaAddress, Function *> IsolatedFunctionsMap;
+  std::map<StringRef, Function *> DynamicFunctionsMap;
   ConstantStringsPool Strings;
   GlobalVariable *ExceptionSourcePC;
   GlobalVariable *ExceptionDestinationPC;
@@ -157,9 +157,7 @@ public:
 
 private:
   /// Isolate the function described by \p Function
-  ///
-  /// \return a pair of the entry block in root and the newly create Function
-  std::pair<BasicBlock *, Function *> isolate(const model::Function &Function);
+  void isolate(const model::Function &Function);
 
   /// Process a basic block from the model
   void handleBasicBlock(const model::BasicBlock &Block,
@@ -170,7 +168,7 @@ private:
   ///
   /// \return a vector of boundary basic blocks
   std::vector<Boundary>
-  cloneAndIdentifyBoundaries(MetaAddress Entry,
+  cloneAndIdentifyBoundaries(const model::BasicBlock &Block,
                              ValueToValueMapTy &OldToNew,
                              FunctionBlocks &ClonedBlocks);
 
@@ -188,16 +186,25 @@ private:
 
   /// Emit a function call marker and a branch to the return address
   void createFunctionCall(IRBuilder<> &Builder,
+                          Function *Callee,
+                          const Boundary &TheBoundary);
+
+  void createFunctionCall(IRBuilder<> &Builder,
                           MetaAddress ExpectedCallee,
-                          const Boundary &TheBoundary,
-                          FunctionBlocks &ClonedBlocks);
+                          const Boundary &TheBoundary);
+
+  void createFunctionCall(BasicBlock *BB,
+                          Function *Callee,
+                          const Boundary &TheBoundary) {
+    IRBuilder<> Builder(BB);
+    createFunctionCall(Builder, Callee, TheBoundary);
+  }
 
   void createFunctionCall(BasicBlock *BB,
                           MetaAddress Callee,
-                          const Boundary &TheBoundary,
-                          FunctionBlocks &ClonedBlocks) {
+                          const Boundary &TheBoundary) {
     IRBuilder<> Builder(BB);
-    createFunctionCall(Builder, Callee, TheBoundary, ClonedBlocks);
+    createFunctionCall(Builder, Callee, TheBoundary);
   }
 
   /// Post process all the call markers, replacing them with actual calls
@@ -208,11 +215,11 @@ private:
 
   /// Create code to throw of an exception
   void throwException(IRBuilder<> &Builder,
-                      StringRef Reason,
+                      const Twine &Reason,
                       const DebugLoc &DbgLocation);
 
   void throwException(BasicBlock *BB,
-                      StringRef Reason,
+                      const Twine &Reason,
                       const DebugLoc &DbgLocation) {
     IRBuilder<> Builder(BB);
     throwException(Builder, Reason, DbgLocation);
@@ -220,10 +227,10 @@ private:
 };
 
 void IFI::throwException(IRBuilder<> &Builder,
-                         StringRef Reason,
+                         const Twine &Reason,
                          const DebugLoc &DbgLocation) {
   revng_assert(RaiseException != nullptr);
-  revng_assert(DbgLocation);
+  // revng_assert(DbgLocation);
 
   // Create the message string
   Constant *ReasonString = Strings.get(Reason.str());
@@ -269,14 +276,12 @@ void IFI::populateFunctionDispatcher() {
 
   // Create all the entries of the dispatcher
   ProgramCounterHandler::DispatcherTargets Targets;
-  for (auto &[Block, P] : IsolatedFunctionsMap) {
-    auto &[_, F] = P;
-
+  for (auto &[Address, F] : IsolatedFunctionsMap) {
     BasicBlock *Trampoline = BasicBlock::Create(Context,
                                                 F->getName() + "_trampoline",
                                                 FunctionDispatcher,
                                                 nullptr);
-    Targets.emplace_back(GCBI.getPCFromNewPC(&*Block->begin()), Trampoline);
+    Targets.emplace_back(Address, Trampoline);
 
     Builder.SetInsertPoint(Trampoline);
     Builder.CreateCall(F);
@@ -492,10 +497,7 @@ bool IFI::handleIndirectBoundary(const std::vector<Boundary> &Boundaries,
     switch (IndirectType) {
     case IndirectCall:
     case IndirectTailCall:
-      createFunctionCall(Builder,
-                         MetaAddress::invalid(),
-                         *IndirectBoundary,
-                         ClonedBlocks);
+      createFunctionCall(Builder, MetaAddress::invalid(), *IndirectBoundary);
       break;
 
     case Return:
@@ -601,7 +603,7 @@ bool IFI::handleDirectBoundary(const Boundary &TheBoundary,
 
       if (Edge.Type == model::FunctionEdgeType::FunctionCall) {
         eraseBranch(BB->getTerminator(), TheBoundary.CalleeBlock);
-        createFunctionCall(BB, Edge.Destination, TheBoundary, ClonedBlocks);
+        createFunctionCall(BB, Edge.Destination, TheBoundary);
       }
     }
   }
@@ -612,9 +614,10 @@ bool IFI::handleDirectBoundary(const Boundary &TheBoundary,
 }
 
 std::vector<Boundary>
-IFI::cloneAndIdentifyBoundaries(MetaAddress Entry,
+IFI::cloneAndIdentifyBoundaries(const model::BasicBlock &Block,
                                 ValueToValueMapTy &OldToNew,
                                 FunctionBlocks &ClonedBlocks) {
+  MetaAddress Entry = Block.Start;
   std::set<BasicBlock *> Blocks;
   for (BasicBlock *Block : GCBI.getBlocksGeneratedByPC(Entry))
     Blocks.insert(Block);
@@ -643,34 +646,6 @@ IFI::cloneAndIdentifyBoundaries(MetaAddress Entry,
     }
   }
 
-  return Boundaries;
-}
-
-void IFI::handleBasicBlock(const model::BasicBlock &Block,
-                           ValueToValueMapTy &OldToNew,
-                           FunctionBlocks &ClonedBlocks) {
-  // Sentinel to ensure we don't have more than a call within a basic block
-  SetAtMostOnce CallConsumed;
-
-  // Identify boundary blocks
-  std::vector<Boundary> Boundaries = cloneAndIdentifyBoundaries(Block.Start,
-                                                                OldToNew,
-                                                                ClonedBlocks);
-
-  // At this point, we first need to handle all the boundary blocks that
-  // represent direct jumps, then we'll take care of the (only) indirect jump,
-  // if any
-
-  SuccessorsContainer ExpectedSuccessors;
-  for (const auto &E : Block.Successors) {
-    // Ignore self-loops
-    if (E->Destination != Block.Start) {
-      ExpectedSuccessors[*E] = 0;
-    }
-  }
-
-  int IndirectCount = 0;
-
   if (TheLogger.isEnabled()) {
     TheLogger << "Boundaries: \n";
     for (const Boundary &B : Boundaries) {
@@ -688,6 +663,63 @@ void IFI::handleBasicBlock(const model::BasicBlock &Block,
       }
     }
     TheLogger << Buffer << DoLog;
+  }
+
+  return Boundaries;
+}
+
+void IFI::handleBasicBlock(const model::BasicBlock &Block,
+                           ValueToValueMapTy &OldToNew,
+                           FunctionBlocks &ClonedBlocks) {
+  if (TheLogger.isEnabled()) {
+    TheLogger << "Isolating ";
+    Block.Start.dump(TheLogger);
+    TheLogger << "-";
+    Block.End.dump(TheLogger);
+    TheLogger << DoLog;
+  }
+
+  LoggerIndent<> Indent(TheLogger);
+
+  // Sentinel to ensure we don't have more than a call within a basic block
+  SetAtMostOnce CallConsumed;
+
+  // Identify boundary blocks
+  std::vector<Boundary> Boundaries = cloneAndIdentifyBoundaries(Block.Start,
+                                                                OldToNew,
+                                                                ClonedBlocks);
+
+  // Handle call to dynamic functions
+  StringRef DynamicFunction;
+  for (const auto &Edge : Block.Successors)
+    if (auto *Call = dyn_cast<model::CallEdge>(Edge.get()))
+      if (not Call->DynamicFunction.empty())
+        DynamicFunction = Call->DynamicFunction;
+
+  if (not DynamicFunction.empty()) {
+    revng_assert(Boundaries.size() == 1);
+    const auto &TheBoundary = Boundaries[0];
+    auto *BB = TheBoundary.Block;
+
+    eraseBranch(BB->getTerminator(), TheBoundary.CalleeBlock);
+
+    createFunctionCall(BB,
+                       DynamicFunctionsMap.at(DynamicFunction),
+                       TheBoundary);
+
+    return;
+  }
+
+  // At this point, we first need to handle all the boundary blocks that
+  // represent direct jumps, then we'll take care of the (only) indirect jump,
+  // if any
+
+  SuccessorsContainer ExpectedSuccessors;
+  for (const auto &E : Block.Successors) {
+    // Ignore self-loops
+    if (E->Destination != Block.Start) {
+      ExpectedSuccessors[*E] = 0;
+    }
   }
 
   // Consume direct jumps calls
@@ -710,8 +742,7 @@ void IFI::handleBasicBlock(const model::BasicBlock &Block,
   revng_assert(not(HasIndirectBoundary and CallConsumed));
 }
 
-std::pair<BasicBlock *, Function *>
-IFI::isolate(const model::Function &Function) {
+void IFI::isolate(const model::Function &Function) {
   // Map from origina values to new ones
   ValueToValueMapTy OldToNew;
 
@@ -741,21 +772,9 @@ IFI::isolate(const model::Function &Function) {
   TheLogger << DoLog;
   LoggerIndent<> Indent(TheLogger);
 
-  for (const model::BasicBlock &Block : Function.CFG) {
-
-    if (TheLogger.isEnabled()) {
-      TheLogger << "Isolating ";
-      Block.Start.dump(TheLogger);
-      TheLogger << "-";
-      Block.End.dump(TheLogger);
-      TheLogger << DoLog;
-    }
-
-    LoggerIndent<> Indent2(TheLogger);
-
-    // Process the basic block
+  // Process each basic block
+  for (const model::BasicBlock &Block : Function.CFG)
     handleBasicBlock(Block, OldToNew, ClonedBlocks);
-  }
 
   // Create a dummy entry branching to real entry
   revng_assert(ClonedBlocks.dummyEntryBlock() == nullptr);
@@ -788,27 +807,46 @@ IFI::isolate(const model::Function &Function) {
                    true,
                    "");
   llvm::Function *NewFunction = CE.extractCodeRegion(CEAC);
-  FunctionTags::Lifted.addTo(NewFunction);
-
   revng_assert(NewFunction != nullptr);
-  NewFunction->setName(Function.name());
 
   FunctionType *FT = NewFunction->getFunctionType();
   revng_assert(FT->getReturnType()->isVoidTy());
   revng_assert(FT->getNumParams() == 0);
 
-  return { OriginalEntry, NewFunction };
+  auto *TargetFunction = IsolatedFunctionsMap.at(Function.Entry);
+
+  // Record all the blocks
+  SmallVector<BasicBlock *, 16> Blocks;
+  for (BasicBlock &BB : *NewFunction)
+    Blocks.push_back(&BB);
+
+  // Move the blocks
+  for (BasicBlock *BB : Blocks) {
+    BB->removeFromParent();
+    TargetFunction->getBasicBlockList().push_back(BB);
+  }
+
+  // Drop the temporary isolated functions and its call
+  auto UserIt = NewFunction->user_begin();
+  revng_assert(UserIt != NewFunction->user_end());
+  auto *Call = cast<CallInst>(*UserIt);
+  ++UserIt;
+  revng_assert(UserIt == NewFunction->user_end());
+  Call->eraseFromParent();
+
+  revng_assert(NewFunction->use_empty());
+  revng_assert(NewFunction->getBasicBlockList().empty());
+  NewFunction->eraseFromParent();
 }
 
 void IFI::createFunctionCall(IRBuilder<> &Builder,
                              MetaAddress ExpectedCallee,
-                             const Boundary &TheBoundary,
-                             FunctionBlocks &ClonedBlocks) {
+                             const Boundary &TheBoundary) {
+  Function *Callee = nullptr;
   BasicBlock *ExpectedCalleeBB = nullptr;
-  unsigned CalleeIndex = 0;
   if (ExpectedCallee.isValid()) {
+    Callee = IsolatedFunctionsMap.at(ExpectedCallee);
     ExpectedCalleeBB = GCBI.getBlockAt(ExpectedCallee);
-    CalleeIndex = IsolatedFunctionsMap.at(ExpectedCalleeBB).first;
   }
 
   if (TheBoundary.CalleeBlock != nullptr
@@ -820,12 +858,22 @@ void IFI::createFunctionCall(IRBuilder<> &Builder,
                 << getName(ExpectedCalleeBB) << ")");
   }
 
+  createFunctionCall(Builder, Callee, TheBoundary);
+}
+
+void IFI::createFunctionCall(IRBuilder<> &Builder,
+                             Function *Callee,
+                             const Boundary &TheBoundary) {
+
+  if (Callee == nullptr)
+    Callee = FunctionDispatcher;
+
   BasicBlock::iterator InsertPoint = Builder.GetInsertPoint();
   revng_assert(not Builder.GetInsertBlock()->empty());
-  Instruction *Old = InsertPoint == Builder.GetInsertBlock()->end() ?
-                       &*Builder.GetInsertBlock()->rbegin() :
-                       &*InsertPoint;
-  auto *NewCall = Builder.CreateCall(CallMarker, Builder.getInt32(CalleeIndex));
+  bool AtEnd = InsertPoint == Builder.GetInsertBlock()->end();
+  Instruction *Old = AtEnd ? &*Builder.GetInsertBlock()->rbegin() :
+                             &*InsertPoint;
+  auto *NewCall = Builder.CreateCall(Callee);
   NewCall->setDebugLoc(Old->getDebugLoc());
 
   if (TheBoundary.ReturnBlock != nullptr) {
@@ -833,9 +881,8 @@ void IFI::createFunctionCall(IRBuilder<> &Builder,
     Builder.CreateBr(TheBoundary.ReturnBlock);
   } else {
     if (TheLogger.isEnabled()) {
-      TheLogger << "Call to ";
-      ExpectedCallee.dump(TheLogger);
-      TheLogger << " in " << getName(TheBoundary.Block)
+      TheLogger << "Call to " << Callee->getName() << " in "
+                << getName(TheBoundary.Block)
                 << " has not been detected as a function call in the binary."
                 << DoLog;
     }
@@ -844,32 +891,6 @@ void IFI::createFunctionCall(IRBuilder<> &Builder,
                    "An instruction marked as a call has not been "
                    "identified as such in the binary",
                    Old->getDebugLoc());
-  }
-}
-
-void IFI::replaceCallMarker() const {
-  std::vector<Function *> Functions;
-  Functions.resize(IsolatedFunctionsMap.size() + 1);
-
-  Functions[0] = FunctionDispatcher;
-  for (auto [_, P] : IsolatedFunctionsMap) {
-    auto [Index, Function] = P;
-    revng_assert(Index != 0);
-    revng_assert(Function != nullptr);
-    Functions[Index] = Function;
-  }
-
-  for (auto It = CallMarker->user_begin(); It != CallMarker->user_end();) {
-    User *U = *It;
-    ++It;
-
-    auto *Call = cast<CallInst>(U);
-    Value *CallMarkerArgument = Call->getArgOperand(0);
-    unsigned Index = cast<ConstantInt>(CallMarkerArgument)->getLimitedValue();
-    Function *Callee = Functions[Index];
-    auto *NewCall = CallInst::Create(FunctionCallee{ Callee }, "", Call);
-    NewCall->setDebugLoc(Call->getDebugLoc());
-    Call->eraseFromParent();
   }
 }
 
@@ -899,18 +920,53 @@ void IFI::run() {
                                         TheModule);
   FunctionTags::FunctionDispatcher.addTo(FunctionDispatcher);
 
-  auto *CallMarkerFTy = createFunctionType<void, uint32_t>(Context);
-  CallMarker = Function::Create(CallMarkerFTy,
-                                GlobalValue::ExternalLinkage,
-                                "call_marker",
-                                TheModule);
+  auto *IsolatedFunctionType = createFunctionType<void>(Context);
 
-  unsigned I = 1;
+  // Create all the dynamic functions
+  for (const model::DynamicFunction &Function :
+       Binary.ImportedDynamicFunctions) {
+    StringRef Name = Function.SymbolName;
+    auto *NewFunction = Function::Create(IsolatedFunctionType,
+                                         GlobalValue::ExternalLinkage,
+                                         "dynamic_" + Function.name(),
+                                         TheModule);
+    FunctionTags::DynamicFunction.addTo(NewFunction);
+    auto *EntryBB = BasicBlock::Create(Context, "", NewFunction);
+    throwException(EntryBB, Twine("Dynamic call ") + Name, DebugLoc());
+
+    // TODO: implement more efficient version.
+    // if (setjmp(...) == 0) {
+    //   // First return
+    //   serialize_cpu_state();
+    //   dynamic_function();
+    //   // If we get here, it means that the external function return properly
+    //   deserialize_cpu_state();
+    //   simulate_ret();
+    //   // If the caller tail-called us, it must return immediately, without
+    //   // checking if the pc is the fallthrough of the call (which was not a
+    //   // call!)
+    // } else {
+    //   // If we get here, it means that the external function either invoked a
+    //   // callback or something else weird i going on.
+    //   deserialize_cpu_state();
+    //   throw_exception();
+    // }
+
+    DynamicFunctionsMap[Name] = NewFunction;
+  }
+
+  // Precreate all the isolated functions
   for (const model::Function &Function : Binary.Functions) {
     if (Function.Type == model::FunctionType::Fake)
       continue;
-    IsolatedFunctionsMap[GCBI.getBlockAt(Function.Entry)].first = I;
-    ++I;
+
+    auto *NewFunction = Function::Create(IsolatedFunctionType,
+                                         GlobalValue::ExternalLinkage,
+                                         "local_" + Function.name(),
+                                         TheModule);
+    IsolatedFunctionsMap[Function.Entry] = NewFunction;
+    FunctionTags::Lifted.addTo(NewFunction);
+    revng_assert(NewFunction != nullptr);
   }
 
   std::set<Function *> IsolatedFunctions;
@@ -920,18 +976,8 @@ void IFI::run() {
       continue;
 
     // Perform isolation
-    auto [EntryBlock, IsolatedFunction] = isolate(Function);
-
-    // Record new isolated function
-    BasicBlock *OriginalEntry = GCBI.getBlockAt(Function.Entry);
-    IsolatedFunctions.insert(IsolatedFunction);
-    IsolatedFunctionsMap.at(OriginalEntry).second = IsolatedFunction;
+    isolate(Function);
   }
-
-  replaceCallMarker();
-
-  this->CallMarker->eraseFromParent();
-  this->CallMarker = nullptr;
 
   revng_check(not verifyModule(*TheModule, &dbgs()));
 

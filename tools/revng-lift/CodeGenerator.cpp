@@ -40,6 +40,7 @@
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/FunctionCallIdentification/PruneRetSuccessors.h"
 #include "revng/Model/SerializeModelPass.h"
+#include "revng/StackAnalysis/ABI.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/DebugHelper.h"
@@ -1322,8 +1323,50 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   PostInstCombinePM.run(*TheModule);
 
   // Serialize an empty Model into TheModule
-  model::Binary Model;
-  writeModel(Model, *TheModule);
+  TupleTree<model::Binary> Model;
+
+  // Set the entry point
+  Model->EntryPoint = VirtualAddress;
+
+  // Set the architecture
+  auto Triple = Binary.architecture().type();
+  Model->Architecture = model::Architecture::fromLLVMArchitecture(Triple);
+
+  // Create segments
+  for (const SegmentInfo &S : Binary.segments()) {
+    model::Segment NewSegment({ S.StartVirtualAddress, S.EndVirtualAddress });
+
+    NewSegment.StartOffset = S.StartFileOffset;
+    NewSegment.EndOffset = S.EndFileOffset;
+
+    NewSegment.IsReadable = S.IsReadable;
+    NewSegment.IsWriteable = S.IsWriteable;
+    NewSegment.IsExecutable = S.IsExecutable;
+
+    Model->Segments.insert(std::move(NewSegment));
+  }
+
+  // Create a default prototype
+  auto GetDefaultPrototype = [&]<model::abi::Values A>() {
+    return abi::ABI<A>::defaultPrototype(*Model.get());
+  };
+  auto DefaultTypePath = abi::polyswitch(Arch.defaultABI(),
+                                         GetDefaultPrototype);
+
+  revng_assert(Model->ImportedDynamicFunctions.isSorted());
+
+  // Record all dynamic imported functions and assign them a default prototype
+  for (const Label &L : Binary.labels()) {
+    if (L.origin() == LabelOrigin::DynamicRelocation and L.isCode()
+        and not L.symbolName().empty()) {
+      auto &F = Model->ImportedDynamicFunctions[{ L.symbolName().str() }];
+      if (not F.Prototype.isValid())
+        F.Prototype = DefaultTypePath;
+      revng_assert(Model->ImportedDynamicFunctions.isSorted());
+    }
+  }
+
+  writeModel(*Model.get(), *TheModule);
 
   JumpTargets.finalizeJumpTargets();
 
