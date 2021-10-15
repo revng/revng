@@ -3,6 +3,8 @@
 //
 
 #include <bit>
+
+#include "revng/Model/ABI.h"
 #define BOOST_TEST_MODULE ModelType
 bool init_unit_test();
 #include "boost/test/unit_test.hpp"
@@ -457,6 +459,7 @@ BOOST_AUTO_TEST_CASE(CABIFunctionTypes) {
   // Create a C-like function type
   TypePath FunctionPath = T->recordNewType(makeType<CABIFunctionType>());
   auto *FunctionType = cast<CABIFunctionType>(FunctionPath.get());
+  FunctionType->ABI = model::abi::SystemV_x86_64;
   revng_check(T->Types.size() == 3);
 
   revng_check(not FunctionType->size().has_value());

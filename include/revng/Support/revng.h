@@ -14,6 +14,7 @@
 #include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/ELF.h"
 
+#include "revng/Model/ABI.h"
 #include "revng/Model/Register.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
@@ -287,7 +288,8 @@ public:
                llvm::StringRef JumpAsm,
                bool HasRelocationAddend,
                RelocationTypesMap RelocationTypes,
-               llvm::ArrayRef<const char> BasicBlockEndingPattern) :
+               llvm::ArrayRef<const char> BasicBlockEndingPattern,
+               model::abi::Values DefaultABI) :
     Type(static_cast<llvm::Triple::ArchType>(Type)),
     InstructionAlignment(InstructionAlignment),
     DefaultAlignment(DefaultAlignment),
@@ -305,7 +307,8 @@ public:
     JumpAsm(JumpAsm),
     HasRelocationAddend(HasRelocationAddend),
     RelocationTypes(std::move(RelocationTypes)),
-    BasicBlockEndingPattern(BasicBlockEndingPattern) {}
+    BasicBlockEndingPattern(BasicBlockEndingPattern),
+    DefaultABI(DefaultABI) {}
 
   Architecture(Architecture &&) = default;
   Architecture &operator=(Architecture &&) = default;
@@ -346,6 +349,8 @@ public:
     return BasicBlockEndingPattern;
   }
 
+  model::abi::Values defaultABI() const { return DefaultABI; }
+
 private:
   llvm::Triple::ArchType Type;
 
@@ -367,6 +372,7 @@ private:
   bool HasRelocationAddend;
   RelocationTypesMap RelocationTypes;
   llvm::ArrayRef<const char> BasicBlockEndingPattern;
+  model::abi::Values DefaultABI = model::abi::Invalid;
 };
 
 /// \brief Simple helper function asserting a pointer is not a `nullptr`

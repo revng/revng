@@ -12,6 +12,7 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/Support/MathExtras.h"
 
+#include "revng/Model/ABI.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Type.h"
 #include "revng/Model/VerifyHelper.h"
@@ -508,6 +509,30 @@ QualifiedType::size(VerifyHelper &VH) const {
   rc_return rc_recur UnqualifiedType.get()->size(VH);
 }
 
+inline RecursiveCoroutine<bool>
+isPrimitive(const model::QualifiedType &QT,
+            model::PrimitiveTypeKind::Values V) {
+  auto IsConstQualifier = [](const Qualifier &Q) {
+    return Q.Kind == model::QualifierKind::Const;
+  };
+
+  if (QT.Qualifiers.size() != 0
+      and not llvm::all_of(QT.Qualifiers, IsConstQualifier))
+    rc_return false;
+
+  const model::Type *UnqualifiedType = QT.UnqualifiedType.get();
+  if (auto *Primitive = llvm::dyn_cast<PrimitiveType>(UnqualifiedType))
+    rc_return Primitive->PrimitiveKind == V;
+  else if (auto *Typedef = llvm::dyn_cast<TypedefType>(UnqualifiedType))
+    rc_return rc_recur isPrimitive(Typedef->UnderlyingType, V);
+
+  rc_return false;
+}
+
+bool QualifiedType::isPrimitive(model::PrimitiveTypeKind::Values V) const {
+  return model::isPrimitive(*this, V);
+}
+
 std::optional<uint64_t> Type::size() const {
   VerifyHelper VH;
   return size(VH);
@@ -680,6 +705,10 @@ inline RecursiveCoroutine<bool> isScalar(const QualifiedType &QT) {
   rc_return false;
 }
 
+bool model::QualifiedType::isScalar() const {
+  return ::model::isScalar(*this);
+}
+
 static RecursiveCoroutine<bool>
 verifyImpl(VerifyHelper &VH, const StructType *T) {
   using namespace llvm;
@@ -780,6 +809,9 @@ static RecursiveCoroutine<bool>
 verifyImpl(VerifyHelper &VH, const CABIFunctionType *T) {
   if (not T->CustomName.verify(VH) or T->Kind != TypeKind::CABIFunctionType
       or not rc_recur T->ReturnType.verify(VH))
+    rc_return VH.fail();
+
+  if (T->ABI == model::abi::Invalid)
     rc_return VH.fail();
 
   for (auto &Group : llvm::enumerate(T->Arguments)) {
