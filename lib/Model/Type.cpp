@@ -672,10 +672,8 @@ inline RecursiveCoroutine<bool> isScalar(const QualifiedType &QT) {
   revng_assert(Unqualified != nullptr);
   if (llvm::isa<model::PrimitiveType>(Unqualified)) {
     rc_return true;
-  } else if (llvm::isa<model::TypedefType>(Unqualified)) {
-    QualifiedType Inner = QT;
-    Inner.Qualifiers.clear();
-    rc_return rc_recur isScalar(Inner);
+  } else if (auto *Typedef = llvm::dyn_cast<model::TypedefType>(Unqualified)) {
+    rc_return rc_recur isScalar(Typedef->UnderlyingType);
   }
 
   rc_return false;
