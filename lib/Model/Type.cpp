@@ -262,7 +262,7 @@ isValidPrimitiveSize(PrimitiveTypeKind::Values PrimKind, uint8_t BS) {
     return BS == 1 or BS == 2 or BS == 4 or BS == 8 or BS == 16;
 
   case PrimitiveTypeKind::Float:
-    return BS == 2 or BS == 4 or BS == 8 or BS == 16;
+    return BS == 2 or BS == 4 or BS == 8 or BS == 12 or BS == 16;
 
   default:
     revng_abort();
@@ -273,7 +273,6 @@ isValidPrimitiveSize(PrimitiveTypeKind::Values PrimKind, uint8_t BS) {
 
 Identifier model::PrimitiveType::name() const {
   using llvm::Twine;
-  revng_assert(isValidPrimitiveSize(PrimitiveKind, Size));
   Identifier Result;
 
   switch (PrimitiveKind) {
