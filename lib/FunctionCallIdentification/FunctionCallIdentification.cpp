@@ -242,8 +242,8 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
         Callee = Int8NullPtr;
       } else if (SuccessorsCount == 1) {
         auto *Succ = Terminator->getSuccessor(0);
-        bool isTranslated = GCBI.isTranslated(Succ);
-        Callee = isTranslated ? static_cast<Value *>(BlockAddress::get(Succ)) :
+        bool IsTranslated = GCBI.isTranslated(Succ);
+        Callee = IsTranslated ? static_cast<Value *>(BlockAddress::get(Succ)) :
                                 static_cast<Value *>(Int8NullPtr);
       } else {
         // If there are multiple successors, at least one should not be a jump

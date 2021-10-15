@@ -1060,7 +1060,7 @@ public:
     return getByPath<T>(Path, *Root);
   }
 
-  bool isValid() const {
+  bool isValid() const debug_function {
     return (*this != TupleTreeReference() and get() != nullptr);
   }
 };

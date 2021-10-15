@@ -1452,7 +1452,7 @@ void JumpTargetManager::harvestWithAVI() {
   PM.run(TheModule);
 
   //
-  // Collect all the non-PC affectign CSVs
+  // Collect all the non-PC affecting CSVs
   //
   std::set<GlobalVariable *> NonPCCSVs;
   QuickMetadata QMD(Context);

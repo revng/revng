@@ -764,17 +764,13 @@ IFI::isolate(const model::Function &Function) {
 
   // Drop all calls to `function_call`
   std::vector<Instruction *> ToDrop;
-  for (BasicBlock *BB : ClonedBlocks) {
-    for (Instruction &I : *BB) {
-      if (isCallTo(&I, "function_call")) {
+  for (BasicBlock *BB : ClonedBlocks)
+    for (Instruction &I : *BB)
+      if (isCallTo(&I, "function_call"))
         ToDrop.push_back(&I);
-      }
-    }
-  }
 
-  for (Instruction *I : ToDrop) {
+  for (Instruction *I : ToDrop)
     I->eraseFromParent();
-  }
 
   remapInstructionsInBlocks(ClonedBlocks.Blocks, OldToNew);
 
