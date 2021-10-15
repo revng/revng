@@ -2,27 +2,8 @@
 // Copyright (c) rev.ng Srls. See LICENSE.md for details.
 //
 
-#include <algorithm>
-#include <compare>
-#include <iterator>
-#include <memory>
-#include <set>
-#include <string>
-#include <type_traits>
-
 #include "llvm/ADT/PostOrderIterator.h"
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/SmallString.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/iterator_range.h"
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/raw_ostream.h"
 
-#include "revng/ADT/FilteredGraphTraits.h"
-#include "revng/Support/Assert.h"
-#include "revng/Support/Debug.h"
-
-#include "revng-c/DataLayoutAnalysis/DLALayouts.h"
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
 
 #include "../DLAHelpers.h"

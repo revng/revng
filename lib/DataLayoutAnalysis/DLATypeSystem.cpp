@@ -69,6 +69,13 @@ void LayoutTypePtr::print(raw_ostream &Out) const {
   Out << '}';
 }
 
+std::string LayoutTypePtr::toString() const {
+  std::string S;
+  llvm::raw_string_ostream OS(S);
+  print(OS);
+  return S;
+}
+
 void LayoutTypeSystemNode::print(llvm::raw_ostream &OS) const {
   OS << "LTSN ID: " << ID;
 }

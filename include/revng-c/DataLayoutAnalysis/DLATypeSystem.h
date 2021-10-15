@@ -573,6 +573,23 @@ isNotPointerEdge(const llvm::GraphTraits<LayoutTypeSystemNode *>::EdgeRef &E) {
   return not isPointerEdge(E);
 }
 
+inline bool isPointerNode(const LayoutTypeSystemNode *N) {
+  return llvm::any_of(N->Successors, isPointerEdge);
+}
+
+inline bool isStructNode(const LayoutTypeSystemNode *N) {
+  return N->InterferingInfo == AllChildrenAreNonInterfering
+         and llvm::any_of(N->Successors, isNotPointerEdge);
+}
+
+inline bool isUnionNode(const LayoutTypeSystemNode *N) {
+  return N->InterferingInfo == AllChildrenAreInterfering;
+}
+
+inline bool hasInheritanceParent(const LayoutTypeSystemNode *N) {
+  return llvm::any_of(N->Predecessors, isInheritanceEdge);
+}
+
 template<dla::TypeLinkTag::LinkKind K = dla::TypeLinkTag::LinkKind::LK_All>
 inline bool isLeaf(const LayoutTypeSystemNode *N) {
   using LTSN = const LayoutTypeSystemNode;
