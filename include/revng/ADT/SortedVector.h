@@ -9,6 +9,7 @@
 #include "revng/ADT/KeyedObjectContainer.h"
 #include "revng/ADT/KeyedObjectTraits.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/Debug.h"
 
 template<class ForwardIt, class BinaryPredicate>
 ForwardIt
@@ -353,6 +354,24 @@ public:
   BatchInsertOrAssigner batch_insert_or_assign() {
     revng_assert(not BatchInsertInProgress);
     return BatchInsertOrAssigner(*this);
+  }
+
+  /// \note This function should always return true
+  bool isSorted() const debug_function {
+    auto It = begin();
+    if (It == end())
+      return true;
+
+    while (true) {
+      const auto &Left = *It;
+      ++It;
+      if (It == end())
+        return true;
+      const auto &Right = *It;
+
+      if (not compareElements(Left, Right))
+        return false;
+    }
   }
 
 private:
