@@ -4,9 +4,12 @@
 
 cmake_policy(SET CMP0060 NEW)
 
+
 include(${CMAKE_INSTALL_PREFIX}/share/revng/qa/cmake/revng-qa.cmake)
 
 set(SRC "${CMAKE_SOURCE_DIR}/tests/Unit")
+
+include(${SRC}/FileCheckTests/CMakeLists.txt)
 
 find_package(Boost REQUIRED COMPONENTS unit_test_framework)
 
