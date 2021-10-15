@@ -19,6 +19,7 @@ endmacro()
 
 add_subdirectory(BasicAnalyses)
 add_subdirectory(Dump)
+add_subdirectory(DwarfImporter)
 add_subdirectory(FunctionCallIdentification)
 add_subdirectory(FunctionIsolation)
 add_subdirectory(Model)
