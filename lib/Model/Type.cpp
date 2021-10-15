@@ -600,9 +600,11 @@ bool Identifier::verify(VerifyHelper &VH) const {
                         isalnum);
   };
   return VH.maybeFail(not(not empty() and std::isdigit((*this)[0]))
-                      and not startswith("_") and AllAlphaNumOrUnderscore(*this)
-                      and not beginsWithReservedPrefix(*this)
-                      and not ReservedKeywords.count(llvm::StringRef(*this)));
+                        and not startswith("_")
+                        and AllAlphaNumOrUnderscore(*this)
+                        and not beginsWithReservedPrefix(*this)
+                        and not ReservedKeywords.count(llvm::StringRef(*this)),
+                      llvm::Twine(*this) + " is not a valid identifier");
 }
 
 static RecursiveCoroutine<bool>
@@ -680,10 +682,20 @@ inline RecursiveCoroutine<bool> isScalar(const QualifiedType &QT) {
 
 static RecursiveCoroutine<bool>
 verifyImpl(VerifyHelper &VH, const StructType *T) {
-  if (not T->CustomName.verify(VH) or T->Kind != TypeKind::Struct or not T->Size
-      or T->Fields.empty())
-    rc_return VH.fail();
+  using namespace llvm;
 
+  revng_assert(T->Kind == TypeKind::Struct);
+
+  if (not T->CustomName.verify(VH))
+    rc_return VH.fail("Invalid name", *T);
+
+  if (T->Size == 0)
+    rc_return VH.fail("Struct type has zero size", *T);
+
+  if (T->Fields.empty())
+    rc_return VH.fail("Struct has no fields", *T);
+
+  size_t Index = 0;
   llvm::SmallSet<llvm::StringRef, 8> Names;
   auto FieldIt = T->Fields.begin();
   auto FieldEnd = T->Fields.end();
@@ -691,16 +703,21 @@ verifyImpl(VerifyHelper &VH, const StructType *T) {
     auto &Field = *FieldIt;
 
     if (not rc_recur Field.verify(VH))
-      rc_return VH.fail();
+      rc_return VH.fail("Can't verify type of field " + llvm::Twine(Index + 1),
+                        *T);
 
     if (Field.Offset >= T->Size)
-      rc_return VH.fail();
+      rc_return VH.fail("Field " + Twine(Index + 1)
+                          + " out of struct boundaries (offset: "
+                          + Twine(Field.Offset) + ", size: " + Twine(T->Size)
+                          + ")",
+                        *T);
 
     auto MaybeSize = rc_recur Field.Type.size(VH);
 
     // Structs cannot have zero-sized fields
     if (not MaybeSize)
-      rc_return VH.fail();
+      rc_return VH.fail("Field" + Twine(Index + 1) + " is zero-sized", *T);
 
     auto FieldEndOffset = Field.Offset + *MaybeSize;
     auto NextFieldIt = std::next(FieldIt);
@@ -708,21 +725,25 @@ verifyImpl(VerifyHelper &VH, const StructType *T) {
       // If this field is not the last, check that it does not overlap with the
       // following field.
       if (FieldEndOffset > NextFieldIt->Offset)
-        rc_return VH.fail();
+        rc_return VH.fail("Field " + Twine(Index + 1)
+                            + " overlaps with the next one",
+                          *T);
     } else if (FieldEndOffset > T->Size) {
       // Otherwise, if this field is the last, check that it's not larger than
       // size.
-      rc_return VH.fail();
+      rc_return VH.fail("Last field ends outside the struct", *T);
     }
 
     if (isVoidConst(&Field.Type).IsVoid)
-      rc_return VH.fail();
+      rc_return VH.fail("Field " + Twine(Index + 1) + " is void", *T);
 
-    bool New = Field.CustomName.empty() ? true :
-                                          Names.insert(Field.CustomName).second;
-    if (not New)
-      rc_return VH.fail();
+    if (not Field.CustomName.empty()
+        and not Names.insert(Field.CustomName).second)
+      rc_return VH.fail("Collision in struct fields names", *T);
+
+    ++Index;
   }
+
   rc_return true;
 }
 
@@ -906,12 +927,14 @@ RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
     if (Q.isPointerQualifier()) {
       // Don't proceed the verification, just make sure the pointer is either
       // 32- or 64-bits
-      rc_return VH.maybeFail(Q.Size == 4 or Q.Size == 8);
+      rc_return VH.maybeFail(Q.Size == 4 or Q.Size == 8,
+                             "Only 32-bit and 64-bit pointers are currently "
+                             "supported");
 
     } else if (Q.isArrayQualifier()) {
       // Ensure there's at least one element
-      if (Q.Size <= 1)
-        rc_return VH.fail();
+      if (Q.Size < 1)
+        rc_return VH.fail("Arrays need to have at least an element");
 
       // Verify element type
       QualifiedType ElementType{ UnqualifiedType, { NextQIt, QEnd } };

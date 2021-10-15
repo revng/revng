@@ -1217,3 +1217,14 @@ private:
     visitTupleTree(*Root, Visitor, [](auto) {});
   }
 };
+
+template<typename E>
+struct NamedEnumScalarTraits {
+  template<typename T>
+  static void enumeration(T &IO, E &V) {
+    for (unsigned I = 0; I < E::Count; ++I) {
+      auto Value = static_cast<E>(I);
+      IO.enumCase(V, getName(Value).data(), Value);
+    }
+  }
+};

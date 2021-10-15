@@ -366,6 +366,7 @@ static bool isDirectEdge(model::FunctionEdgeType::Values Type) {
     return true;
 
   case Invalid:
+  case Count:
     revng_abort();
   }
 }

@@ -109,8 +109,9 @@ bool Binary::verifyTypes(VerifyHelper &VH) const {
       return VH.fail();
 
     // Ensure the names are unique
-    if (not Names.insert(Type->name()).second)
-      return VH.fail();
+    auto Name = Type->name();
+    if (not Names.insert(Name).second)
+      return VH.fail(Twine("Multiple types with the following name: ") + Name);
   }
 
   return true;
@@ -191,6 +192,7 @@ static FunctionCFG getGraph(const Function &F) {
         break;
 
       case Invalid:
+      case Count:
         revng_abort();
         break;
       }

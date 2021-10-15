@@ -68,12 +68,14 @@ enum Values {
   /// A killer basic block (killer syscall or endless loop)
   Killer,
   /// The basic block ends with an unreachable instruction
-  Unreachable
+  Unreachable,
+  Count
 };
 
 inline bool hasDestination(Values V) {
   switch (V) {
   case Invalid:
+  case Count:
     revng_abort();
     break;
   case DirectBranch:
@@ -95,6 +97,10 @@ inline bool hasDestination(Values V) {
 
 inline bool isCall(Values V) {
   switch (V) {
+  case Count:
+    revng_abort();
+    break;
+
   case FunctionCall:
   case IndirectCall:
   case IndirectTailCall:
@@ -117,34 +123,72 @@ inline bool isCall(Values V) {
 
 namespace llvm::yaml {
 template<>
-struct ScalarEnumerationTraits<model::FunctionEdgeType::Values> {
-  template<typename T>
-  static void enumeration(T &IO, model::FunctionEdgeType::Values &V) {
-    using namespace model::FunctionEdgeType;
-    IO.enumCase(V, "Invalid", Invalid);
-    IO.enumCase(V, "DirectBranch", DirectBranch);
-    IO.enumCase(V, "FakeFunctionCall", FakeFunctionCall);
-    IO.enumCase(V, "FakeFunctionReturn", FakeFunctionReturn);
-    IO.enumCase(V, "FunctionCall", FunctionCall);
-    IO.enumCase(V, "IndirectCall", IndirectCall);
-    IO.enumCase(V, "Return", Return);
-    IO.enumCase(V, "BrokenReturn", BrokenReturn);
-    IO.enumCase(V, "IndirectTailCall", IndirectTailCall);
-    IO.enumCase(V, "LongJmp", LongJmp);
-    IO.enumCase(V, "Killer", Killer);
-    IO.enumCase(V, "Unreachable", Unreachable);
-  }
-};
+struct ScalarEnumerationTraits<model::FunctionEdgeType::Values>
+  : public NamedEnumScalarTraits<model::FunctionEdgeType::Values> {};
 } // namespace llvm::yaml
 
 namespace model::FunctionEdgeType {
 
 inline llvm::StringRef getName(Values V) {
-  return getNameFromYAMLEnumScalar(V);
+  switch (V) {
+  case Invalid:
+    return "Invalid";
+  case DirectBranch:
+    return "DirectBranch";
+  case FakeFunctionCall:
+    return "FakeFunctionCall";
+  case FakeFunctionReturn:
+    return "FakeFunctionReturn";
+  case FunctionCall:
+    return "FunctionCall";
+  case IndirectCall:
+    return "IndirectCall";
+  case Return:
+    return "Return";
+  case BrokenReturn:
+    return "BrokenReturn";
+  case IndirectTailCall:
+    return "IndirectTailCall";
+  case LongJmp:
+    return "LongJmp";
+  case Killer:
+    return "Killer";
+  case Unreachable:
+    return "Unreachable";
+  case Count:
+    revng_abort();
+    break;
+  }
 }
 
 inline Values fromName(llvm::StringRef Name) {
-  return getValueFromYAMLScalar<Values>(Name);
+  if (Name == "Invalid") {
+    return Invalid;
+  } else if (Name == "DirectBranch") {
+    return DirectBranch;
+  } else if (Name == "FakeFunctionCall") {
+    return FakeFunctionCall;
+  } else if (Name == "FakeFunctionReturn") {
+    return FakeFunctionReturn;
+  } else if (Name == "FunctionCall") {
+    return FunctionCall;
+  } else if (Name == "IndirectCall") {
+    return IndirectCall;
+  } else if (Name == "Return") {
+    return Return;
+  } else if (Name == "BrokenReturn") {
+    return BrokenReturn;
+  } else if (Name == "IndirectTailCall") {
+    return IndirectTailCall;
+  } else if (Name == "LongJmp") {
+    return LongJmp;
+  } else if (Name == "Killer") {
+    return Killer;
+  } else if (Name == "Unreachable") {
+    return Unreachable;
+  } else {
+    revng_abort();
+  }
 }
 
 } // namespace model::FunctionEdgeType
@@ -159,9 +203,16 @@ public:
   using Key = std::pair<MetaAddress, model::FunctionEdgeType::Values>;
 
 public:
-  /// Edge target. If invalid, it's an indirect edge
+  /// Target of the CFG edge
+  ///
+  /// If invalid, it's an indirect edge such as a return instruction or an
+  /// indirect function call.
+  /// If valid, it's either the address of the basic block in case of a direct
+  /// branch, or, in case of a function call, the address of the callee.
   // TODO: switch to TupleTreeReference
   MetaAddress Destination;
+
+  /// Type of the CFG edge
   FunctionEdgeType::Values Type = FunctionEdgeType::Invalid;
 
 public:
@@ -190,11 +241,15 @@ public:
 };
 INTROSPECTION_NS(model, FunctionEdge, Destination, Type);
 
+/// A CFG edge to represent function calls (direct, indirect and tail calls)
 class model::CallEdge : public model::FunctionEdge {
 public:
   using Key = std::pair<MetaAddress, model::FunctionEdgeType::Values>;
 
 public:
+  /// Path to the prototype for this call site
+  ///
+  /// In case of a direct function call, it has to be the same as the callee.
   TypePath Prototype;
 
 public:
@@ -272,32 +327,60 @@ struct KeyedObjectTraits<UpcastablePointer<model::FunctionEdge>> {
 // FunctionType
 //
 namespace model::FunctionType {
+
 enum Values {
-  Invalid, ///< An invalid entry
-  Regular, ///< A normal function
-  NoReturn, ///< A noreturn function
-  Fake ///< A fake function
+  /// An invalid entry
+  Invalid,
+  /// A function with at least one return instruction
+  Regular,
+  /// A function that never returns
+  NoReturn,
+  /// A function with at least one non-proper return instruction
+  ///
+  /// This typically represents outlined function prologues.
+  // TODO: this should not be a function type, but a list of entry points, or
+  //       maybe nothing at all
+  Fake,
+  Count
 };
+
+inline llvm::StringRef getName(Values V) {
+  switch (V) {
+  case Invalid:
+    return "Invalid";
+  case Regular:
+    return "Regular";
+  case NoReturn:
+    return "NoReturn";
+  case Fake:
+    return "Fake";
+  default:
+    revng_abort();
+  }
+}
+
 } // namespace model::FunctionType
 
 namespace llvm::yaml {
 template<>
-struct ScalarEnumerationTraits<model::FunctionType::Values> {
-  static void enumeration(IO &IO, model::FunctionType::Values &V) {
-    using namespace model::FunctionType;
-    IO.enumCase(V, "Invalid", Invalid);
-    IO.enumCase(V, "Regular", Regular);
-    IO.enumCase(V, "NoReturn", NoReturn);
-    IO.enumCase(V, "Fake", Fake);
-  }
-};
+struct ScalarEnumerationTraits<model::FunctionType::Values>
+  : public NamedEnumScalarTraits<model::FunctionType::Values> {};
 } // namespace llvm::yaml
 
+/// The basic block of a function
 class model::BasicBlock {
 public:
+  /// Start address of the basic block
   MetaAddress Start;
+
+  /// End address of the basic block, i.e., the address where the last
+  /// instruction ends
   MetaAddress End;
+
+  /// Optional custom name
   Identifier CustomName;
+
+  /// List of successor edges
   SortedVector<UpcastablePointer<model::FunctionEdge>> Successors;
 
 public:
@@ -330,15 +413,25 @@ struct KeyedObjectTraits<model::BasicBlock> {
   }
 };
 
-//
-// Function
-//
+/// A function
 class model::Function {
 public:
+  /// The address of the entry point
+  ///
+  /// \note This does not necessarily correspond to the address of the basic
+  ///       block with the lowest address.
   MetaAddress Entry;
+
+  /// An optional custom name
   Identifier CustomName;
+
+  /// Type of the function
   FunctionType::Values Type = FunctionType::Invalid;
+
+  /// List of basic blocks, which represent the CFG
   SortedVector<model::BasicBlock> CFG;
+
+  /// The prototype of the function
   TypePath Prototype;
 
 public:
@@ -361,7 +454,9 @@ INTROSPECTION_NS(model, Function, Entry, CustomName, Type, CFG, Prototype)
 template<>
 struct llvm::yaml::MappingTraits<model::Function>
   : public TupleLikeMappingTraits<model::Function,
-                                  Fields<model::Function>::CustomName> {};
+                                  Fields<model::Function>::CustomName,
+                                  Fields<model::Function>::CFG,
+                                  Fields<model::Function>::Prototype> {};
 
 template<>
 struct KeyedObjectTraits<model::Function> {
@@ -371,12 +466,13 @@ struct KeyedObjectTraits<model::Function> {
   };
 };
 
-//
-// Binary
-//
+/// Data structure representing the whole binary
 class model::Binary {
 public:
+  /// List of the functions within the binary
   SortedVector<model::Function> Functions;
+
+  /// The type system
   SortedVector<UpcastablePointer<model::Type>> Types;
 
 public:
