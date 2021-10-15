@@ -134,7 +134,7 @@ def get_command(command):
 
 def build_opt_args(args):
   analysis_libraries = []
-  all = set()
+  all = dict()
   for prefix in search_prefixes:
     analyses_path = os.path.join(prefix, "lib", "revng", "analyses")
     if not os.path.isdir(analyses_path):
@@ -145,7 +145,7 @@ def build_opt_args(args):
         basename = os.path.basename(library)
         if basename not in all:
             analysis_libraries.append(library)
-            all.add(basename)
+            all[basename] = analyses_path
 
   # Identify all the libraries that are dependencies of other libraries, i.e.,
   # non-roots in the dependencies tree. Note that circular dependencies are not
@@ -155,9 +155,9 @@ def build_opt_args(args):
                                       in analysis_libraries]))
 
   # Path to libraries representing the roots in the dependency tree
-  roots = [relative(os.path.join(analyses_path, name))
+  roots = [relative(os.path.join(all[name], name))
            for name
-           in all - provided]
+           in set(list(all)) - provided]
 
   prefix = []
   libasan = [name
