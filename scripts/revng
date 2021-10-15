@@ -630,7 +630,7 @@ def main():
     assert (args.gdb + args.lldb + args.valgrind + args.callgrind) <= 1
 
     if args.gdb:
-        command_prefix += ["gdb", "--args"]
+        command_prefix += ["gdb", "-q", "--args"]
 
     if args.lldb:
         command_prefix += ["lldb", "--"]
