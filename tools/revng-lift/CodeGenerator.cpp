@@ -37,6 +37,7 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
+#include "revng/DwarfImporter/DwarfImporter.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/FunctionCallIdentification/PruneRetSuccessors.h"
 #include "revng/Model/SerializeModelPass.h"
@@ -137,6 +138,11 @@ static cl::opt<string> DebugPath("debug-path",
 static cl::opt<bool> RecordPTC("record-ptc",
                                cl::desc("create metadata for PTC"),
                                cl::cat(MainCategory));
+
+static cl::list<std::string> ImportDebugInfo("import-debug-info",
+                                             cl::desc("path"),
+                                             cl::ZeroOrMore,
+                                             cl::cat(MainCategory));
 
 static Logger<> PTCLog("ptc");
 
@@ -1352,6 +1358,13 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   };
   auto DefaultTypePath = abi::polyswitch(Arch.defaultABI(),
                                          GetDefaultPrototype);
+
+  // Import Dwarf
+  DwarfImporter Importer(Model);
+  if (ImportDebugInfo.size() > 0)
+    for (const std::string &Path : ImportDebugInfo)
+      Importer.import(Path);
+  Importer.import(Binary.binary(), "");
 
   revng_assert(Model->ImportedDynamicFunctions.isSorted());
 

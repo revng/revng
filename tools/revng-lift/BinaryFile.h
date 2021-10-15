@@ -560,6 +560,10 @@ public:
   ///         or if no symbol can be found, just the address.
   std::string nameForAddress(MetaAddress Address, uint64_t Size) const;
 
+  const llvm::object::Binary &binary() const {
+    return *BinaryHandle.getBinary();
+  }
+
 private:
   //
   // ELF-specific methods
