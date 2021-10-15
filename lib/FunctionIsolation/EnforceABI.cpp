@@ -43,11 +43,6 @@ using Register = RegisterPass<EnforceABI>;
 static Register X("enforce-abi", "Enforce ABI Pass", true, true);
 
 static Logger<> EnforceABILog("enforce-abi");
-static cl::opt<bool> DisableSafetyChecks("disable-enforce-abi-safety-checks",
-                                         cl::desc("Disable safety checks in "
-                                                  " ABI enforcing"),
-                                         cl::cat(MainCategory),
-                                         cl::init(false));
 
 class EnforceABIImpl {
 public:
