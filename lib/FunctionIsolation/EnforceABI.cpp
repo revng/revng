@@ -246,6 +246,7 @@ EnforceABIImpl::recreateFunction(Function &OldFunction,
                                        OldFunction.getParent());
   NewFunction->takeName(&OldFunction);
   NewFunction->copyAttributesFrom(&OldFunction);
+  NewFunction->copyMetadata(&OldFunction, 0);
 
   // Set argument names
   for (const auto &[LLVMArgument, ModelArgument] :
@@ -431,6 +432,9 @@ void EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   // Produce the call
   //
   auto *Result = Builder.CreateCall(Callee, Arguments);
+  GCBI.setMetaAddressMetadata(Result,
+                              "revng.callerblock.start",
+                              CallSiteBlock.Start);
   if (ReturnCSVs.size() != 1) {
     unsigned I = 0;
     for (GlobalVariable *ReturnCSV : ReturnCSVs) {

@@ -174,6 +174,7 @@ private:
 
   /// Create the code necessary to handle a direct branch in the IR
   bool handleDirectBoundary(const Boundary &TheBoundary,
+                            const model::BasicBlock &Block,
                             SuccessorsContainer &ExpectedSuccessors,
                             FunctionBlocks &ClonedBlocks);
 
@@ -187,24 +188,28 @@ private:
   /// Emit a function call marker and a branch to the return address
   void createFunctionCall(IRBuilder<> &Builder,
                           Function *Callee,
-                          const Boundary &TheBoundary);
+                          const Boundary &TheBoundary,
+                          const MetaAddress &CallerBlockAddress);
 
   void createFunctionCall(IRBuilder<> &Builder,
                           MetaAddress ExpectedCallee,
-                          const Boundary &TheBoundary);
+                          const Boundary &TheBoundary,
+                          const MetaAddress &CallerBlockAddress);
 
   void createFunctionCall(BasicBlock *BB,
                           Function *Callee,
-                          const Boundary &TheBoundary) {
+                          const Boundary &TheBoundary,
+                          const MetaAddress &CallerBlockAddress) {
     IRBuilder<> Builder(BB);
-    createFunctionCall(Builder, Callee, TheBoundary);
+    createFunctionCall(Builder, Callee, TheBoundary, CallerBlockAddress);
   }
 
   void createFunctionCall(BasicBlock *BB,
                           MetaAddress Callee,
-                          const Boundary &TheBoundary) {
+                          const Boundary &TheBoundary,
+                          const MetaAddress &CallerBlockAddress) {
     IRBuilder<> Builder(BB);
-    createFunctionCall(Builder, Callee, TheBoundary);
+    createFunctionCall(Builder, Callee, TheBoundary, CallerBlockAddress);
   }
 
   /// Post process all the call markers, replacing them with actual calls
@@ -497,7 +502,10 @@ bool IFI::handleIndirectBoundary(const std::vector<Boundary> &Boundaries,
     switch (IndirectType) {
     case IndirectCall:
     case IndirectTailCall:
-      createFunctionCall(Builder, MetaAddress::invalid(), *IndirectBoundary);
+      createFunctionCall(Builder,
+                         MetaAddress::invalid(),
+                         *IndirectBoundary,
+                         Block.Start);
       break;
 
     case Return:
@@ -565,6 +573,7 @@ bool IFI::handleIndirectBoundary(const std::vector<Boundary> &Boundaries,
 
 /// \return true if this was a call
 bool IFI::handleDirectBoundary(const Boundary &TheBoundary,
+                               const model::BasicBlock &Block,
                                SuccessorsContainer &ExpectedSuccessors,
                                FunctionBlocks &ClonedBlocks) {
   BasicBlock *BB = TheBoundary.Block;
@@ -603,7 +612,7 @@ bool IFI::handleDirectBoundary(const Boundary &TheBoundary,
 
       if (Edge.Type == model::FunctionEdgeType::FunctionCall) {
         eraseBranch(BB->getTerminator(), TheBoundary.CalleeBlock);
-        createFunctionCall(BB, Edge.Destination, TheBoundary);
+        createFunctionCall(BB, Edge.Destination, TheBoundary, Block.Start);
       }
     }
   }
@@ -705,7 +714,8 @@ void IFI::handleBasicBlock(const model::BasicBlock &Block,
 
     createFunctionCall(BB,
                        DynamicFunctionsMap.at(DynamicFunction),
-                       TheBoundary);
+                       TheBoundary,
+                       Block.Start);
 
     return;
   }
@@ -726,6 +736,7 @@ void IFI::handleBasicBlock(const model::BasicBlock &Block,
   for (const auto &Boundary : Boundaries) {
     if (not(Boundary.Successors.AnyPC or Boundary.Successors.UnexpectedPC)) {
       bool Result = handleDirectBoundary(Boundary,
+                                         Block,
                                          ExpectedSuccessors,
                                          ClonedBlocks);
       CallConsumed.setIf(Result);
@@ -841,7 +852,8 @@ void IFI::isolate(const model::Function &Function) {
 
 void IFI::createFunctionCall(IRBuilder<> &Builder,
                              MetaAddress ExpectedCallee,
-                             const Boundary &TheBoundary) {
+                             const Boundary &TheBoundary,
+                             const MetaAddress &CallerBlockAddress) {
   Function *Callee = nullptr;
   BasicBlock *ExpectedCalleeBB = nullptr;
   if (ExpectedCallee.isValid()) {
@@ -858,12 +870,13 @@ void IFI::createFunctionCall(IRBuilder<> &Builder,
                 << getName(ExpectedCalleeBB) << ")");
   }
 
-  createFunctionCall(Builder, Callee, TheBoundary);
+  createFunctionCall(Builder, Callee, TheBoundary, CallerBlockAddress);
 }
 
 void IFI::createFunctionCall(IRBuilder<> &Builder,
                              Function *Callee,
-                             const Boundary &TheBoundary) {
+                             const Boundary &TheBoundary,
+                             const MetaAddress &CallerBlockAddress) {
 
   if (Callee == nullptr)
     Callee = FunctionDispatcher;
@@ -875,6 +888,9 @@ void IFI::createFunctionCall(IRBuilder<> &Builder,
                              &*InsertPoint;
   auto *NewCall = Builder.CreateCall(Callee);
   NewCall->setDebugLoc(Old->getDebugLoc());
+  GCBI.setMetaAddressMetadata(NewCall,
+                              "revng.callerblock.start",
+                              CallerBlockAddress);
 
   if (TheBoundary.ReturnBlock != nullptr) {
     // Emit jump to fallthrough
@@ -967,6 +983,9 @@ void IFI::run() {
     IsolatedFunctionsMap[Function.Entry] = NewFunction;
     FunctionTags::Lifted.addTo(NewFunction);
     revng_assert(NewFunction != nullptr);
+    GCBI.setMetaAddressMetadata(NewFunction,
+                                "revng.function.entry",
+                                Function.Entry);
   }
 
   std::set<Function *> IsolatedFunctions;
