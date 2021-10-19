@@ -294,6 +294,7 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   RecursiveCoroutine<bool> verify(VerifyHelper &VH) const;
+  void dump() const debug_function;
 
 protected:
   bool verifyBase(VerifyHelper &VH) const;
@@ -349,6 +350,7 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;
+  void dump() const debug_function;
 
 public:
   static Qualifier createConst() { return { QualifierKind::Const, 0 }; }
@@ -490,6 +492,7 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   RecursiveCoroutine<bool> verify(VerifyHelper &VH) const;
+  void dump() const debug_function;
 };
 INTROSPECTION_NS(model, QualifiedType, UnqualifiedType, Qualifiers);
 
@@ -547,6 +550,7 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;
+  void dump() const debug_function;
 };
 INTROSPECTION_NS(model, EnumEntry, Value, CustomName, Aliases);
 
@@ -792,6 +796,7 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   RecursiveCoroutine<bool> verify(VerifyHelper &VH) const;
+  void dump() const debug_function;
 };
 INTROSPECTION_NS(model, TypedRegister, Location, Type);
 
@@ -826,6 +831,7 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   RecursiveCoroutine<bool> verify(VerifyHelper &VH) const;
+  void dump() const debug_function;
 };
 INTROSPECTION_NS(model, NamedTypedRegister, Location, Type, CustomName);
 
@@ -918,6 +924,7 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   RecursiveCoroutine<bool> verify(VerifyHelper &VH) const;
+  void dump() const debug_function;
 };
 INTROSPECTION_NS(model, Argument, Index, Type, CustomName);
 

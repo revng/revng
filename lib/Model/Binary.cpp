@@ -117,6 +117,10 @@ bool Binary::verifyTypes(VerifyHelper &VH) const {
   return true;
 }
 
+void Binary::dump() const {
+  serialize(dbg, *this);
+}
+
 bool Binary::verify() const {
   return verify(false);
 }
@@ -244,6 +248,10 @@ void Function::dumpCFG() const {
   WriteGraph(Stream, &CFG);
 }
 
+void Function::dump() const {
+  serialize(dbg, *this);
+}
+
 bool Function::verify() const {
   return verify(false);
 }
@@ -302,6 +310,10 @@ bool Function::verify(VerifyHelper &VH) const {
   return true;
 }
 
+void DynamicFunction::dump() const {
+  serialize(dbg, *this);
+}
+
 bool DynamicFunction::verify() const {
   return verify(false);
 }
@@ -330,6 +342,10 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
     return VH.fail();
 
   return true;
+}
+
+void FunctionEdge::dump() const {
+  serialize(dbg, *this);
 }
 
 bool FunctionEdge::verify() const {
@@ -383,6 +399,10 @@ bool FunctionEdge::verify(VerifyHelper &VH) const {
     return verifyFunctionEdge(VH, *this);
 }
 
+void CallEdge::dump() const {
+  serialize(dbg, *this);
+}
+
 bool CallEdge::verify() const {
   return verify(false);
 }
@@ -420,6 +440,10 @@ Identifier BasicBlock::name() const {
     return CustomName;
   else
     return Identifier(std::string("bb_") + Start.toString());
+}
+
+void BasicBlock::dump() const {
+  serialize(dbg, *this);
 }
 
 bool BasicBlock::verify() const {

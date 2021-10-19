@@ -217,6 +217,7 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;
+  void dump() const debug_function;
 };
 INTROSPECTION_NS(model, FunctionEdge, Destination, Type);
 
@@ -252,6 +253,7 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;
+  void dump() const debug_function;
 };
 INTROSPECTION_NS(model,
                  CallEdge,
@@ -384,6 +386,7 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;
+  void dump() const debug_function;
 };
 INTROSPECTION_NS(model, BasicBlock, Start, End, CustomName, Successors);
 
@@ -433,6 +436,7 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;
+  void dump() const debug_function;
 
 public:
   void dumpCFG() const debug_function;
@@ -480,6 +484,7 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;
+  void dump() const debug_function;
 };
 
 INTROSPECTION_NS(model, DynamicFunction, SymbolName, CustomName, Prototype)
@@ -531,6 +536,7 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;
+  void dump() const debug_function;
 };
 
 INTROSPECTION_NS(model,
@@ -607,6 +613,7 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;
+  void dump() const debug_function;
 };
 INTROSPECTION_NS(model,
                  Binary,

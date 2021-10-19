@@ -11,6 +11,7 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/YAMLTraits.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "revng/ADT/KeyedObjectContainer.h"
 #include "revng/ADT/KeyedObjectTraits.h"
@@ -1109,8 +1110,23 @@ struct llvm::yaml::ScalarTraits<T> {
 // TODO: `const` stuff is not YAML-serializable
 template<typename S, Yamlizable T>
 void serialize(S &Stream, T &Element) {
-  llvm::yaml::Output YAMLOutput(Stream);
-  YAMLOutput << Element;
+  if constexpr (std::is_base_of_v<llvm::raw_ostream, S>) {
+    llvm::yaml::Output YAMLOutput(Stream);
+    YAMLOutput << Element;
+  } else {
+    std::string Buffer;
+    {
+      llvm::raw_string_ostream StringStream(Buffer);
+      llvm::yaml::Output YAMLOutput(StringStream);
+      YAMLOutput << Element;
+    }
+    Stream << Buffer;
+  }
+}
+
+template<typename S, Yamlizable T>
+void serialize(S &Stream, const T &Element) {
+  serialize(Stream, const_cast<T &>(Element));
 }
 
 template<TupleTreeCompatible T>
