@@ -220,6 +220,10 @@ Identifier model::Type::name() const {
   return upcast(This, GetName, Identifier(""));
 }
 
+void Qualifier::dump() const {
+  serialize(dbg, *this);
+}
+
 bool Qualifier::verify() const {
   return verify(false);
 }
@@ -381,6 +385,10 @@ PrimitiveType::PrimitiveType(uint64_t ID) :
 
 static bool beginsWithReservedPrefix(llvm::StringRef Name) {
   return Name.startswith("unnamed_");
+}
+
+void EnumEntry::dump() const {
+  serialize(dbg, *this);
 }
 
 bool EnumEntry::verify() const {
@@ -861,6 +869,10 @@ verifyImpl(VerifyHelper &VH, const RawFunctionType *T) {
   rc_return VH.maybeFail(T->CustomName.verify(VH));
 }
 
+void Type::dump() const {
+  serialize(dbg, *this);
+}
+
 bool Type::verify() const {
   return verify(false);
 }
@@ -927,6 +939,10 @@ RecursiveCoroutine<bool> Type::verify(VerifyHelper &VH) const {
   rc_return VH.maybeFail(Result);
 }
 
+void QualifiedType::dump() const {
+  serialize(dbg, *this);
+}
+
 bool QualifiedType::verify() const {
   return verify(false);
 }
@@ -991,6 +1007,10 @@ RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
   rc_return VH.maybeFail(rc_recur UnqualifiedType.get()->verify(VH));
 }
 
+void TypedRegister::dump() const {
+  serialize(dbg, *this);
+}
+
 bool TypedRegister::verify() const {
   return verify(false);
 }
@@ -1022,6 +1042,10 @@ RecursiveCoroutine<bool> TypedRegister::verify(VerifyHelper &VH) const {
   rc_return VH.maybeFail(rc_recur Type.verify(VH));
 }
 
+void NamedTypedRegister::dump() const {
+  serialize(dbg, *this);
+}
+
 bool NamedTypedRegister::verify() const {
   return verify(false);
 }
@@ -1047,6 +1071,10 @@ bool AggregateField::verify(bool Assert) const {
 
 RecursiveCoroutine<bool> AggregateField::verify(VerifyHelper &VH) const {
   rc_return VH.maybeFail(CustomName.verify(VH) and rc_recur Type.verify(VH));
+}
+
+void Argument::dump() const {
+  serialize(dbg, *this);
 }
 
 bool Argument::verify() const {
