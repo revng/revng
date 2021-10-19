@@ -20,7 +20,10 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
     # Perform lifting
     #
     category_to_path("${CATEGORY_PATH}" CATEGORY_PATH)
-    set(COMMAND_TO_RUN "./bin/revng" lift ${INPUT_FILE} "${OUTPUT}")
+    set(COMMAND_TO_RUN
+      "${CMAKE_COMMAND}" -E env "PYTHONPATH=${CMAKE_BINARY_DIR}/python"
+      "./bin/revng" lift ${INPUT_FILE} "${OUTPUT}"
+    )
     set(DEPEND_ON revng-all-binaries)
 
     set(ACTUAL_MODEL "${OUTPUT}.yml")
@@ -34,7 +37,7 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       #
       set(TEST_NAME test-lifted-${CATEGORY}-${TARGET_NAME}-model)
       add_test(NAME ${TEST_NAME}
-        COMMAND sh -c "./bin/revng opt ${OUTPUT} --detect-abi -S | ./bin/revng dump-model --remap > ${ACTUAL_MODEL} \
+        COMMAND sh -c "export PYTHONPATH=${CMAKE_BINARY_DIR}/python; ./bin/revng opt ${OUTPUT} --detect-abi -S | ./bin/revng dump-model --remap > ${ACTUAL_MODEL} \
           && ${CMAKE_SOURCE_DIR}/scripts/revng-compare-yaml ${ACTUAL_MODEL} ${REFERENCE_MODEL}")
       set_tests_properties(${TEST_NAME} PROPERTIES LABELS "model;analysis;${CATEGORY};${CONFIGURATION};${ANALYSIS}")
 
@@ -47,6 +50,7 @@ register_derived_artifact("compiled" "lifted" ".ll" "FILE")
 macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
   if("${CATEGORY}" MATCHES "^tests_analysis.*" AND NOT "${CONFIGURATION}" STREQUAL "aarch64")
     set(COMMAND_TO_RUN
+      "${CMAKE_COMMAND}" -E env "PYTHONPATH=${CMAKE_BINARY_DIR}/python"
       "./bin/revng"
       opt
       "${INPUT_FILE}"

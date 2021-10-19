@@ -21,7 +21,7 @@ except ImportError:
 from elftools.elf.dynamic import DynamicSegment
 from elftools.elf.elffile import ELFFile
 
-from revng_dump_model import load_model
+from revng.revng_dump_model import load_model
 
 search_prefixes = []
 real_argv0 = os.environ.get("REAL_ARGV0", sys.argv[0])

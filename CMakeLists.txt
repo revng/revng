@@ -203,23 +203,6 @@ copy_to_build_and_install(PROGRAMS
   "scripts/revng-compare-yaml"
   "scripts/revng-dump-model")
 
-copy_to_build_and_install(FILES
-  bin/revng_merge_dynamic
-  "scripts/revng_merge_dynamic/__init__.py"
-  "scripts/revng_merge_dynamic/__main__.py"
-  "scripts/revng_merge_dynamic/log.py"
-  "scripts/revng_merge_dynamic/merge_dynamic.py"
-  "scripts/revng_merge_dynamic/parsed_elf.py"
-  "scripts/revng_merge_dynamic/util.py"
-  )
-
-copy_to_build_and_install(FILES
-  bin/revng_dump_model
-  "scripts/revng_dump_model/__init__.py"
-  "scripts/revng_dump_model/__main__.py"
-  "scripts/revng_dump_model/dump_model.py"
-  )
-
 #
 # Export CMake targets
 #
@@ -233,6 +216,7 @@ add_subdirectory(include)
 add_subdirectory(lib)
 add_subdirectory(tools)
 add_subdirectory(docs/)
+add_subdirectory(python)
 
 include(${CMAKE_INSTALL_PREFIX}/share/revng/qa/cmake/revng-qa.cmake)
 
