@@ -228,7 +228,7 @@ public:
 public:
   /// Path to the prototype for this call site
   ///
-  /// In case of a direct function call, it has to be the same as the callee.
+  /// In case of a direct function call, it has to be invalid.
   TypePath Prototype;
 
   /// Name of the dynamic function being called, or empty if not a dynamic call
@@ -641,3 +641,20 @@ constexpr auto OnlyKOC = [](auto *K) {
 static_assert(validateTupleTree<model::Binary>(OnlyKOC),
               "Only SortedVectors and MutableSets with YAMLizable keys are "
               "allowed");
+
+inline model::TypePath
+getPrototype(const model::Binary &Binary, const model::CallEdge &Edge) {
+  if (Edge.Type == model::FunctionEdgeType::FunctionCall) {
+    if (not Edge.DynamicFunction.empty()) {
+      // Get the dynamic function prototype
+      return Binary.ImportedDynamicFunctions.at(Edge.DynamicFunction).Prototype;
+    } else if (Edge.Destination.isValid()) {
+      // Get the function prototype
+      return Binary.Functions.at(Edge.Destination).Prototype;
+    } else {
+      revng_abort();
+    }
+  } else {
+    return Edge.Prototype;
+  }
+}

@@ -141,7 +141,6 @@ bool Binary::verify(VerifyHelper &VH) const {
           // We're in a direct call, get the callee
           const auto *Call = dyn_cast<CallEdge>(Edge.get());
 
-          model::TypePath CalleePrototype;
           if (not Call->DynamicFunction.empty()) {
             // It's a dynamic call
 
@@ -155,8 +154,6 @@ bool Binary::verify(VerifyHelper &VH) const {
             // If missing, fail
             if (It == ImportedDynamicFunctions.end())
               return VH.fail("Can't find callee");
-
-            CalleePrototype = It->Prototype;
           } else {
             // Regular call
             auto It = Functions.find(Call->Destination);
@@ -164,14 +161,7 @@ bool Binary::verify(VerifyHelper &VH) const {
             // If missing, fail
             if (It == Functions.end())
               return VH.fail("Can't find callee");
-
-            CalleePrototype = It->Prototype;
           }
-
-          // If call and callee prototypes differ, fail
-          if (Call->Prototype != CalleePrototype)
-            return VH.fail("In direct calls, function prototype of call and "
-                           "callee must be the same");
         }
       }
     }
@@ -404,14 +394,24 @@ bool CallEdge::verify(bool Assert) const {
 
 bool CallEdge::verify(VerifyHelper &VH) const {
   if (Type == model::FunctionEdgeType::FunctionCall) {
-    if (Destination.isInvalid() and DynamicFunction.empty())
+    // We're in a direct function call (either dynamic or not)
+    bool IsDynamic = not DynamicFunction.empty();
+    bool HasDestination = Destination.isValid();
+    if (not HasDestination and not IsDynamic)
       return VH.fail("Direct call is missing Destination");
-    else if (Destination.isValid() and not DynamicFunction.empty())
+    else if (HasDestination and IsDynamic)
       return VH.fail("Dynamic function calls cannot have a valid Destination");
+
+    bool HasPrototype = Prototype.isValid();
+    if (HasPrototype)
+      return VH.fail("Direct function calls must not have a prototype");
+  } else {
+    // We're in an indirect call site
+    if (not Prototype.isValid() or not Prototype.get()->verify(VH))
+      return VH.fail("Indirect call has must have a valid prototype");
   }
 
-  return VH.maybeFail(verifyFunctionEdge(VH, *this) and Prototype.isValid()
-                      and Prototype.get()->verify(VH));
+  return VH.maybeFail(verifyFunctionEdge(VH, *this));
 }
 
 Identifier BasicBlock::name() const {

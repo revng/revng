@@ -289,14 +289,14 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
         break;
 
       case BranchType::HandledCall:
-        if (SymbolName.size() > 0)
-          EdgeType = FET::IndirectCall;
-        else
-          EdgeType = FET::FunctionCall;
+        EdgeType = FET::FunctionCall;
         break;
 
       case BranchType::IndirectCall:
-        EdgeType = FET::IndirectCall;
+        if (SymbolName.size() == 0)
+          EdgeType = FET::IndirectCall;
+        else
+          EdgeType = FET::FunctionCall;
         break;
 
       case BranchType::Return:
@@ -343,24 +343,20 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
         const auto &Result = SuccessorsInserter.insert(TempEdge);
         auto *Edge = llvm::cast<CallEdge>(Result.get());
 
-        if (Destination.isValid()) {
+        if (SymbolName.size() > 0) {
+          // It's a dynamic function call
+          revng_assert(EdgeType == model::FunctionEdgeType::FunctionCall);
+          Edge->Destination = MetaAddress::invalid();
+          Edge->DynamicFunction = SymbolName.str();
 
-          if (SymbolName.size() > 0) {
-            revng_assert(EdgeType == model::FunctionEdgeType::IndirectCall);
-            Edge->Destination = MetaAddress::invalid();
-            Edge->DynamicFunction = SymbolName.str();
-            Edge->Prototype = TheBinary.ImportedDynamicFunctions
-                                .at(Edge->DynamicFunction)
-                                .Prototype;
-          } else {
-            revng_assert(EdgeType == model::FunctionEdgeType::FunctionCall);
-            // If it's a direct call, inherit the prototype from the callee
-            model::Function &Callee = TheBinary.Functions.at(Destination);
-            Edge->Prototype = Callee.Prototype;
-          }
+          // The prototype is implicitly the one of the callee
+          revng_assert(not Edge->Prototype.isValid());
+        } else if (Destination.isValid()) {
+          // It's a simple direct function call
+          revng_assert(EdgeType == model::FunctionEdgeType::FunctionCall);
 
-          revng_assert(Edge->Prototype.isValid());
-
+          // The prototype is implicitly the one of the callee
+          revng_assert(not Edge->Prototype.isValid());
         } else {
           // It's an indirect call: forge a new prototype
           auto NewType = makeType<RawFunctionType>();
@@ -408,7 +404,6 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
 
           Edge->Prototype = TheBinary.recordNewType(std::move(NewType));
         }
-
       } else {
         // Handle other successors
         llvm::BasicBlock *Successor = BB->getSingleSuccessor();

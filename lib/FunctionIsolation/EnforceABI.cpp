@@ -394,9 +394,9 @@ void EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   llvm::SmallVector<Value *, 8> Arguments;
   llvm::SmallVector<GlobalVariable *, 8> ReturnCSVs;
 
+  model::TypePath PrototypePath = getPrototype(Binary, CallSite);
   const auto &Prototype = abi::getRawFunctionTypeOrDefault(Binary,
-                                                           CallSite.Prototype
-                                                             .get());
+                                                           PrototypePath.get());
 
   bool IsIndirect = (Callee.getCallee() == FunctionDispatcher);
   if (IsIndirect) {
