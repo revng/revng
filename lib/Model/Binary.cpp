@@ -295,23 +295,27 @@ bool Function::verify(VerifyHelper &VH) const {
   if (Type == FunctionType::Fake)
     return VH.maybeFail(CFG.size() == 0);
 
-  // Verify blocks
-  bool HasEntry = false;
-  for (const BasicBlock &Block : CFG) {
+  // No CFG is fine
+  if (CFG.size() != 0) {
 
-    if (Block.Start == Entry) {
-      if (HasEntry)
-        return VH.fail();
-      HasEntry = true;
+    // Verify blocks
+    bool HasEntry = false;
+    for (const BasicBlock &Block : CFG) {
+
+      if (Block.Start == Entry) {
+        if (HasEntry)
+          return VH.fail("Found two basic blocks with the same address");
+        HasEntry = true;
+      }
+
+      for (const auto &Edge : Block.Successors)
+        if (not Edge->verify(VH))
+          return VH.fail();
     }
 
-    for (const auto &Edge : Block.Successors)
-      if (not Edge->verify(VH))
-        return VH.fail();
+    if (not HasEntry)
+      return VH.fail();
   }
-
-  if (not HasEntry)
-    return VH.fail();
 
   // If a prototype is present (isValid) it must verify
   if (Prototype.isValid()) {
