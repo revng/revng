@@ -27,7 +27,9 @@ program compiled for x86-64:
       return a + myfunction();
     }
 
-The program has been compiled as follows (note that for this step we are using the x86_64 compiler toolchain provided with orchestra, you can type ``orc install toolchain/x86-64/gcc`` to install it):
+The program has been compiled as follows (note that for this step we are using
+the x86_64 compiler toolchain provided with orchestra, you can type ``orc
+install toolchain/x86-64/gcc`` to install it):
 
 .. code-block:: sh
 
@@ -57,6 +59,42 @@ And it has been translated as follows:
 
    revng lift --debug-info ll example example.ll
 
+Preliminary concepts
+====================
+
+This section introduces preliminary concepts for proper understanding of the
+rest of this document.
+
+The ``MetaAddress``
+-------------------
+
+Before we dig any deeper, it is important to introduce a key concept in rev.ng:
+``MetaAddress``. rev.ng represents addresses through the ``MetaAddress`` data
+structure, which is composed as follows:
+
+:``uint32_t Epoch``: a unique identifier of a point in time. This field is used
+                     in order to be able to represent the fact that a program
+                     might have different code at the same address at different
+                     time during program execution.  This feature can be
+                     exploited, for instance, to capture the semantics of a
+                     program featuring self-modifying or JIT'd code.
+:``uint16_t AddressSpace``: certain architectures feature more than a single
+                            address space. This field enables rev.ng to
+                            distinguish different code/data at the same address,
+                            but in different address spaces.
+:``uint16_t Type``: this field is a tag for the type of address represented by
+                    by the current instance of MetaAddress. It can assume values
+                    such as ``Generic32`` or ``Generic64`` to represent a
+                    *generic* 32- or 64-bits wide pointer, or it can assume
+                    values such as ``Code_mips`` to denote that this address is
+                    pointing to MIPS code.  This field is particularly useful to
+                    be able to distinguish regular ARM as opposed to ARM Thumb
+                    code at the same address.
+:``uint64_t Address``: this field represents the absolute value of the
+                       ``MetaAddress``. Note that, for a ``Code_arm_thumb``
+                       ``MetaAddress`` this field actually represent the virtual
+                       address of the code, so the lowest bit will be 0.
+
 Global variables
 ================
 
@@ -73,7 +111,6 @@ that contains them (e.g., ``state_0x123``). For example:
 
 .. code-block:: llvm
 
-    @pc = global i64 0
     @rsp = global i64 0
     @rax = global i64 0
     @rdx = global i64 0
@@ -81,7 +118,7 @@ that contains them (e.g., ``state_0x123``). For example:
     @cc_dst = global i64 0
     @cc_op = global i32 0
 
-``@pc`` represents the program counter (aka ``rip``), ``@rsp`` the stack pointer
+``@rsp`` represents the stack pointer
 register, while ``@rax`` and ``@rdx`` are general purpose registers. The
 ``@cc_*`` are helper variables used to compute the CPU flags.
 
@@ -91,6 +128,28 @@ function
 
 Note that since they are global variables, the generated code interacts with
 them using load and store operations, which might sound unusual for registers.
+
+The program counter is handled in a slightly more sophisticated way.  rev.ng
+represents the current program counter as a ``MetaAddress``, therefore, instead
+of having a single CSV, we have four:
+
+.. code-block:: llvm
+
+    @pc = internal global i64 0
+    @pc_epoch = global i32 0
+    @pc_address_space = global i16 0
+    @pc_type = global i16 0
+
+``@pc`` is usually mapped on the actual PC register of the architecture (e.g.,
+``rip`` for x86-64).
+
+Note that ARM indirect branch instructions use the lowest bit of the PC to
+distinguish whether the destination is Thumb code or not.
+Upon translation of such instructions, we emit proper update of the ``@pc`` and
+``@pc_type`` CSVs.
+This means that ``@pc`` lowest bit will be off, even if the destination code is
+ARM Thumb, while ``@pc_type`` will be set to either ``Code_arm`` or
+``Code_arm_thumb`` depending on the situation.
 
 Segment variables
 -----------------
@@ -216,20 +275,22 @@ possible targets, we jump to the *dispatcher*. The dispatcher, maps (with a huge
 ``switch`` statement) the starting address of each basic block A in the input
 program to the first basic block containing the code generated due to A.
 
-:``dispatcher.entry``: the body of the dispatcher. Contains the ``switch``
-                       statement. If the requested address has not been
-                       translated, execution is diverted to
+:``dispatcher.entry``: the body of the dispatcher. Contains a set of nested
+                       ``switch`` statements. Each ``switch`` targets a
+                       different component of the ``MetaAddress`` representing
+                       the current program counter.  If the requested address
+                       has not been translated, execution is diverted to
                        ``dispatcher.external``.
 :``dispatcher.external``: the value of the program counter doesn't match any of
                           the translated ones. This basic block checks whether
                           the value falls within an executable segment of the
                           input program (using the ``is_executable`` function
-                          from ``support.c``. If it is, then rev.ng was not able
-                          to properly identify this basic block and we jump to
-                          ``dispatcher.default``. Otherwise, the program counter
-                          might be actually invalid or it could belong to a
-                          function in a dynamic library. In this case, we simply
-                          leave the translated realm and jump there.
+                          from ``support.c``). If it is, then rev.ng was not
+                          able to properly identify this basic block and we jump
+                          to ``dispatcher.default``. Otherwise, the program
+                          counter might be actually invalid or it could belong
+                          to a function in a dynamic library. In this case, we
+                          simply leave the translated realm and jump there.
 :``dispatcher.default``: calls the ``unknownPC`` function, whose definition is
                          left to the user. The default implementation in
                          ``support.c`` aborts the program execution.
@@ -326,7 +387,8 @@ In our example we have three basic blocks:
 Debug metadata
 --------------
 
-Each instruction we generate is associated with three types of metadata:
+Each instruction rev.ng generates can be associated with three types of
+metadata:
 
 :dbg: LLVM debug metadata, used to be able to step through the generated LLVM IR
       (or input assembly or tiny code).
@@ -335,9 +397,13 @@ Each instruction we generate is associated with three types of metadata:
      disassembled input instruction that generated the current instruction. The
      latter element is an integer representing the program counter associated
      with that instruction.
+     This metadata is available if the ``--record-asm`` switch was passed to
+     ``revng-lift``.
 :pi: *portable tiny code instruction* metadata, contains a string representing
      the textual representation of the TCG instruction that generated the
      current instruction.
+     This metadata is available if the ``--record-ptc`` switch was passed to
+     ``revng-lift``.
 
 Note: some optimizations passes might remove the metadata.
 
@@ -392,16 +458,19 @@ The code generated due to a certain input instruction is delimited by calls to a
 marker function ``newpc``. This function takes the following arguments plus a set
 of variadic arguments:
 
-:u64 Address: the address of the instruction leading to the generation of the
-              code coming after the call of ``newpc``.
-:u64 InstructionSize: the size of the instruction at ``Address``.
-:u1 isJT: a boolean flag indicating whether the instruction at ``Address`` is a
-          jump target or not.
-:GlobalVariable Disassembled: a reference to the global variable containing the
-                              string representing the disassembled instruction
-                              (the same as the ``!oi`` metadata).
-:u8 \*LocalVariables: a series of pointer to all the local variables used by
-                      this instruction.
+:``u64 Address``: the address of the instruction leading to the generation of
+                  the code coming after the call of ``newpc``.
+:``u64 InstructionSize``: the size of the instruction at ``Address``.
+:``u1 isJT``: a boolean flag indicating whether the instruction at ``Address``
+              is a jump target or not.
+:``GlobalVariable Disassembled``: a reference to the global variable containing
+                                  the string representing the disassembled
+                                  instruction (the same as the ``!oi``
+                                  metadata).
+:``u8 \*SymbolName``: a pointer to a string containing the name of the symbol
+                      that represents this program counter.
+:``u8 \*LocalVariables``: a series of pointer to all the local variables used by
+                          this instruction.
 
 The call to ``newpc`` prevents the optimizer to reorder instructions across its
 boundaries and perform other optimizations. This is useful during analysis and
@@ -415,12 +484,12 @@ Let's see how this works for the ``bb.myfunction`` basic block:
     bb.myfunction:                                    ; preds = %dispatcher.entry, %bb._start
 
       ; 0x00000000004000e8:  mov    eax,0x2a
-      call void (i64, i64, i32, i8*, ...) @newpc(i64 4194536, i64 5, i32 1, i8* getelementptr inbounds ([38 x i8], [38 x i8]* @disam_myfunction, i32 0, i32 0)), !oi !55, !pi !56
+      call void (i64, i64, i32, i8*, ...) @newpc(i64 4194536, i64 5, i32 1, i8* getelementptr inbounds ([38 x i8], [38 x i8]* @disam_myfunction, i32 0, i32 0), i8* null), !oi !55, !pi !56
 
       ; ...
 
       ; 0x00000000004000ed:  ret
-      call void (i64, i64, i32, i8*, ...) @newpc(i64 4194541, i64 1, i32 0, i8* getelementptr inbounds ([38 x i8], [38 x i8]* @disam_myfunction.0x5, i32 0, i32 0)), !oi !58, !pi !59
+      call void (i64, i64, i32, i8*, ...) @newpc(i64 4194541, i64 1, i32 0, i8* getelementptr inbounds ([38 x i8], [38 x i8]* @disam_myfunction.0x5, i32 0, i32 0), i8* null), !oi !58, !pi !59
 
       ; ...
 
@@ -442,18 +511,15 @@ rev.ng can detect function calls. The terminator of a basic block can be
 considered a function call if it's preceded by a call to a function called
 ``function_call``. This function takes three parameters:
 
-:BlockAddress Callee: reference to the callee basic block. The target of the
-   function call, most likely a function.
-:BlockAddress Return: reference to the return basic block. It's the basic block
-                      associated with the return address.
-:u64 ReturnPC: the return address.
-:GlobalVariable LinkRegister: reference to the CSV representing the link
-                              register for this specific function call. If null,
-                              the return address is stored on the stack.
-:GlobalVariable ExternalFunction: reference to the global variable containing a
-                                  string of the name of the external (i.e.,
-                                  library) function that this function actually
-                                  calls.
+:``BlockAddress Callee``: reference to the callee basic block. The target of the
+                          function call, most likely a function.
+:``BlockAddress Return``: reference to the return basic block. It's the basic
+                          block associated with the return address.
+:``u64 ReturnPC``: the return address.
+:``GlobalVariable LinkRegister``: reference to the CSV representing the link
+                                  register for this specific function call. If
+                                  null, the return address is stored on the
+                                  stack.
 
 In our example we had a function call in the ``_start`` basic block:
 
@@ -478,85 +544,6 @@ and the third one is the return address (``0x4000ff``). The third argument is
 null since in x86-64 the return address is stored on the top of the
 stack. Finally, the fourth argument is null since this is not a call to an
 external function.
-
-Function boundaries and ABI
----------------------------
-
-rev.ng can identify function boundaries and function arguments:
-
-.. code-block:: sh
-
-   revng opt -S example.ll -detect-abi -o example.functions.ll
-
-This information is encoded in the generated module by associating two types of
-metadata (``revng.func.entry`` and ``revng.func.member.of``) to the terminator
-instruction of each basic block.
-
-:``revng.func.entry``: denotes that the current basic block is the entry block
-   of a certain function. The associated metadata tuple
-   contains information describing the function.
-
-   :``string Name``: name of the function.
-   :``u64 Address``: address of the function.
-   :``string Type``: type of function. See the ``FunctionType`` enumeration.
-   :``GlobalVariable[] ClobberedCSV``: list of CSVs that are clobbered by this
-      function.
-   :``{ GlobalVariable, string, string }[] Arguments``: a list of triples where
-      the first entry is a CSV, the second one states its status in terms of
-      being an argument (see the ``RegisterArgument`` class) and the third one
-      its status in terms of being a return value (see the
-      ``FunctionReturnValue`` class).
-
-:``revng.func.member.of``: denotes that the current basic block is part of one
-   or more functions. For each function we have a pair containing a reference to
-   the ``revng.func.entry`` metadata of the corresponding function along with
-   the role of this basic block within that function (see the ``BranchType``
-   enumeration).
-
-In our example we had three basic blocks: ``_start``, ``_start+0x11`` and
-``myfunction``. Let's consider the first two and see what function they belong
-to:
-
-.. code-block:: llvm
-
-    define void @root(i64) !dbg !4 {
-
-    ; ...
-
-    bb._start:                                        ; preds = %dispatcher.entry, %entrypoint
-      ; ...
-      br label %bb.myfunction, !revng.func.entry !62, !revng.func.member.of !67
-
-    bb._start.0x11:                                   ; preds = %dispatcher.entry
-      ; ...
-      br label %dispatcher.entry, !revng.func.member.of !69
-
-    ; ...
-
-    }
-
-    ; ...
-
-    !62 = !{!"bb._start", i64 4194486, !"Regular", !63, !64}
-    !63 = !{i64* @rax, i64* @rdx}
-    !64 = !{!65, !66}
-    !65 = !{i64* @rax, !"NoOrDead", !"YesOrDead"}
-    !66 = !{i64* @rdx, !"NoOrDead", !"Maybe"}
-    !67 = !{!68}
-    !68 = !{!62, !"HandledCall"}
-    !69 = !{!70}
-    !70 = !{!62, !"Return"}
-
-    ; ...
-
-``bb._start`` is marked as the entry point of a ``Regular`` function with the
-same name, starting at address ``4194486``, clobbering ``rax`` and ``rdx``. The
-function ABI involves two registers (``rax`` and ``rdx``), none of them is an
-argument but ``rax`` is definitely a return register.
-
-``bb._start`` and ``bb._start.0x11`` belong to a single function,
-``bb._start``. The first basic block ends with a function call, while the second
-one ends with a return instruction.
 
 Helper functions
 ================
