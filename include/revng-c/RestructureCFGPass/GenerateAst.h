@@ -217,7 +217,7 @@ inline ASTNode *simplifyAtomicSequence(ASTTree &AST, ASTNode *RootNode) {
           LabelCasePairIt = Switch->cases().erase(LabelCasePairIt);
           LabelCasePairEnd = Switch->cases().end();
         } else {
-          LabelCasePairIt->second = AST.addSwitchBreak();
+          LabelCasePairIt->second = AST.addSwitchBreak(Switch);
         }
       } else {
         LabelCasePairIt->second = NewCaseNode;
@@ -490,14 +490,17 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
       }
 
       SwitchNode::case_container LabeledCases;
+      llvm::SmallVector<ASTNode *> SwitchBreakVector;
       ASTNode *DefaultASTNode = nullptr;
       for (const auto &[SwitchSucc, EdgeInfos] : Node->labeled_successors()) {
 
         ASTNode *ASTPointer = nullptr;
-        if (SwitchSucc == Fallthrough)
-          ASTPointer = AST.addSwitchBreak();
-        else
+        if (SwitchSucc == Fallthrough) {
+          ASTPointer = AST.addSwitchBreak(nullptr);
+          SwitchBreakVector.push_back(ASTPointer);
+        } else {
           ASTPointer = findASTNode(AST, TileToNodeMap, SwitchSucc);
+        }
 
         revng_assert(nullptr != ASTPointer);
 
@@ -586,6 +589,11 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
                                      std::move(LabeledCases),
                                      DefaultASTNode,
                                      PostDomASTNode));
+      for (ASTNode *Break : SwitchBreakVector) {
+        SwitchBreakNode *SwitchBreakCast = llvm::cast<SwitchBreakNode>(Break);
+        SwitchNode *Switch = llvm::cast<SwitchNode>(ASTObject.get());
+        SwitchBreakCast->setParentSwitch(Switch);
+      }
     } else {
       switch (Successors.size()) {
 

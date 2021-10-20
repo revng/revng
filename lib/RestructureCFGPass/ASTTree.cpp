@@ -24,6 +24,12 @@ static std::string getID() {
   return std::to_string(Counter++);
 }
 
+SwitchBreakNode *ASTTree::addSwitchBreak(SwitchNode *SN) {
+  ASTNodeList.emplace_back(new SwitchBreakNode(SN));
+  ASTNodeList.back()->setID(getNewID());
+  return llvm::cast<SwitchBreakNode>(ASTNodeList.back().get());
+}
+
 SequenceNode *ASTTree::addSequenceNode() {
   ASTNodeList.emplace_back(SequenceNode::createEmpty("sequence " + getID()));
 

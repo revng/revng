@@ -431,33 +431,6 @@ protected:
   bool BreakFromWithinSwitch = false;
 };
 
-class SwitchBreakNode : public ASTNode {
-  friend class ASTNode;
-
-public:
-  SwitchBreakNode() : ASTNode(NK_SwitchBreak, "switch break") {}
-
-protected:
-  SwitchBreakNode(const SwitchBreakNode &) = default;
-  SwitchBreakNode(SwitchBreakNode &&) = delete;
-  ~SwitchBreakNode() = default;
-
-  bool nodeIsEqual(const ASTNode *Node) const {
-    return nullptr != llvm::dyn_cast_or_null<SwitchBreakNode>(Node);
-  }
-
-public:
-  static bool classof(const ASTNode *N) {
-    return N->getKind() == NK_SwitchBreak;
-  }
-
-  ASTNode *Clone() const { return new SwitchBreakNode(*this); }
-
-  void dump(llvm::raw_fd_ostream &ASTFile);
-
-  void dumpEdge(llvm::raw_fd_ostream &ASTFile);
-};
-
 class SetNode : public ASTNode {
   friend class ASTNode;
 
@@ -581,6 +554,44 @@ protected:
   bool IsWeaved;
   bool NeedStateVariable = false; // for breaking directly out of a loop
   bool NeedLoopBreakDispatcher = false; // to dispatchg breaks out of a loop
+};
+
+class SwitchBreakNode : public ASTNode {
+  friend class ASTNode;
+
+private:
+  SwitchNode *ParentSwitch = nullptr;
+
+public:
+  SwitchBreakNode(SwitchNode *SN) :
+    ASTNode(NK_SwitchBreak, "switch break"), ParentSwitch(SN) {}
+
+protected:
+  SwitchBreakNode(const SwitchBreakNode &) = default;
+  SwitchBreakNode(SwitchBreakNode &&) = delete;
+  ~SwitchBreakNode() = default;
+
+  bool nodeIsEqual(const ASTNode *Node) const {
+    return nullptr != llvm::dyn_cast_or_null<SwitchBreakNode>(Node);
+  }
+
+public:
+  static bool classof(const ASTNode *N) {
+    return N->getKind() == NK_SwitchBreak;
+  }
+
+  ASTNode *Clone() const { return new SwitchBreakNode(*this); }
+
+  void dump(llvm::raw_fd_ostream &ASTFile);
+
+  void dumpEdge(llvm::raw_fd_ostream &ASTFile);
+
+  void setParentSwitch(SwitchNode *Switch) { ParentSwitch = Switch; }
+
+  SwitchNode *getParentSwitch() const {
+    revng_assert(ParentSwitch != nullptr);
+    return ParentSwitch;
+  }
 };
 
 inline ASTNode *ASTNode::Clone() const {
