@@ -34,6 +34,27 @@ inline llvm::StringRef getName(Values V) {
   }
 }
 
+inline uint8_t getPointerByteSize(Values V) {
+  switch (V) {
+  case Invalid:
+    return 0U;
+  case x86:
+    return 4U;
+  case x86_64:
+    return 8U;
+  case arm:
+    return 4U;
+  case aarch64:
+    return 8U;
+  case mips:
+    return 4U;
+  case systemz:
+    return 8U;
+  default:
+    revng_abort();
+  }
+}
+
 inline Values fromLLVMArchitecture(llvm::Triple::ArchType A) {
   switch (A) {
   case llvm::Triple::x86:
