@@ -34,7 +34,8 @@ bool RemoveNewPCCallsPass::runOnFunction(Function &F) {
   for (BasicBlock &BB : F) {
     for (Instruction &I : BB)
       if (auto *C = dyn_cast<CallInst>(&I))
-        if (getCallee(C)->getName() == "newpc")
+        if (auto *Callee = getCallee(C);
+            Callee and Callee->getName() == "newpc")
           ToErase.push_back(C);
   }
 

@@ -361,8 +361,8 @@ public:
         // Also, force calls to revng_init_local_sp to behave like if they had
         // many uses, so that they generate a local variable.
         if (auto *Call = dyn_cast<CallInst>(&I)) {
-          llvm::StringRef CalleeName = Call->getCalledFunction()->getName();
-          if (CalleeName == "revng_init_local_sp") {
+          auto *Callee = Call->getCalledFunction();
+          if (Callee and Callee->getName() == "revng_init_local_sp") {
             ToSerialize[&I].set(HasManyUses);
             revng_log(MarkLog, "Instr HasManyUses");
           }

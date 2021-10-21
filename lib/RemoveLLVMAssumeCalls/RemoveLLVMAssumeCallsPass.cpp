@@ -37,7 +37,8 @@ bool RemoveAssumePass::runOnFunction(Function &F) {
   for (BasicBlock &BB : F) {
     for (Instruction &I : BB)
       if (auto *C = dyn_cast<CallInst>(&I))
-        if (getCallee(C)->getName() == "llvm.assume")
+        if (auto *Callee = getCallee(C);
+            Callee and Callee->getName() == "llvm.assume")
           ToErase.push_back(C);
   }
 

@@ -39,7 +39,8 @@ bool RemoveExceptionCallsPass::runOnFunction(Function &F) {
   for (BasicBlock &BB : F) {
     for (Instruction &I : BB)
       if (auto *C = dyn_cast<CallInst>(&I))
-        if (getCallee(C)->getName() == "raise_exception_helper")
+        if (auto *Callee = getCallee(C);
+            Callee and Callee->getName() == "raise_exception_helper")
           ToErase.push_back(C);
   }
 

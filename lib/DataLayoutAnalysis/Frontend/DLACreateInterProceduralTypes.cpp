@@ -44,6 +44,15 @@ bool DLATypeSystemLLVMBuilder::createInterproceduralTypes(llvm::Module &M) {
         if (auto *Call = dyn_cast<CallInst>(&I)) {
 
           const Function *Callee = getCallee(Call);
+
+          // TODO: this case will need to be handled properly to be able to
+          // infer types from calls to dynamic functions.
+          // Calls to dynamic functions at the moment don't have a callee,
+          // because the callees are generated with a bunch of pointer
+          // arithmetic from integer constants.
+          if (not Callee)
+            continue;
+
           auto CTags = FunctionTags::TagsSet::from(Callee);
           if (Callee->isIntrinsic() or not CTags.contains(FunctionTags::Lifted))
             continue;
