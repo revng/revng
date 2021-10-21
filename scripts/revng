@@ -147,8 +147,7 @@ def get_command(command):
 
 
 def build_opt_args(args):
-    analysis_libraries = []
-    all = set()
+    all = {}
     for prefix in search_prefixes:
         analyses_path = os.path.join(prefix, "lib", "revng", "analyses")
         if not os.path.isdir(analyses_path):
@@ -158,20 +157,21 @@ def build_opt_args(args):
         for library in glob.glob(os.path.join(analyses_path, "*.so")):
             basename = os.path.basename(library)
             if basename not in all:
-                analysis_libraries.append(library)
-                all.add(basename)
+                all[basename] = library
 
     # Identify all the libraries that are dependencies of other libraries, i.e.,
-    # non-roots in the dependencies tree. Note that circular dependencies are not
-    # allowed.
+    # non-roots in the dependencies tree. Note that circular dependencies are
+    # not allowed.
     provided = set(chain.from_iterable([get_elf_needed(path)
                                         for path
-                                        in analysis_libraries]))
+                                        in all.values()]))
 
     # Path to libraries representing the roots in the dependency tree
-    roots = [relative(os.path.join(analyses_path, name))
-             for name
-             in all - provided]
+    provided_so_names = set(os.path.basename(lib) for lib in provided)
+    roots = [relative(path)
+             for basename, path
+             in all.items()
+             if basename not in provided_so_names]
 
     prefix = []
     libasan = [name
@@ -179,7 +179,8 @@ def build_opt_args(args):
                in provided
                if ("libasan." in name
                    or "libclang_rt.asan" in name)]
-    if libasan:
+    if len(libasan) == 1:
+        libasan_path = relative(libasan[0])
         original_asan_options = os.environ.get("ASAN_OPTIONS", "")
         if original_asan_options:
             asan_options = dict([option.split("=")
@@ -197,7 +198,7 @@ def build_opt_args(args):
         prefix = [get_command("sh"),
                   "-c",
                   'LD_PRELOAD={} ASAN_OPTIONS={} '
-                  'exec "$0" "$@"'.format(libasan[0], new_asan_options)]
+                  'exec "$0" "$@"'.format(libasan_path, new_asan_options)]
 
     return (prefix + [relative(get_command("opt"))]
             + interleave(roots, "-load")
@@ -571,6 +572,7 @@ def main():
                         action="store_true",
                         help="Run programs under callgrind.")
     parser.add_argument("--prefix",
+                        action="append",
                         metavar="PREFIX",
                         help="Additional search prefix.")
 
@@ -618,7 +620,7 @@ def main():
     args, unknown_args = parser.parse_known_args(base_args)
 
     global search_prefixes
-    search_prefixes = (args.prefix or []
+    search_prefixes = ((args.prefix or [])
                        + [os.path.join(script_path, "..")])
 
     global log_commands
