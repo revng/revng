@@ -57,24 +57,24 @@ public:
                                     false>;
 
   InstructionArgumentsIterator &
-  operator=(const InstructionArgumentsIterator &r) {
-    base::operator=(r);
-    TheInstruction = r.TheInstruction;
+  operator=(const InstructionArgumentsIterator &R) {
+    base::operator=(R);
+    TheInstruction = R.TheInstruction;
     return *this;
   }
 
-  InstructionArgumentsIterator(const InstructionArgumentsIterator &r) :
-    base(r), TheInstruction(r.TheInstruction) {}
+  InstructionArgumentsIterator(const InstructionArgumentsIterator &R) :
+    base(R), TheInstruction(R.TheInstruction) {}
 
-  InstructionArgumentsIterator(const InstructionArgumentsIterator &r,
+  InstructionArgumentsIterator(const InstructionArgumentsIterator &R,
                                unsigned Index) :
-    base(Index), TheInstruction(r.TheInstruction) {}
+    base(Index), TheInstruction(R.TheInstruction) {}
 
   InstructionArgumentsIterator(PTCInstruction *TheInstruction, unsigned Index) :
     base(Index), TheInstruction(TheInstruction) {}
 
-  bool isCompatible(const InstructionArgumentsIterator &r) const {
-    return TheInstruction == r.TheInstruction;
+  bool isCompatible(const InstructionArgumentsIterator &R) const {
+    return TheInstruction == R.TheInstruction;
   }
 
 public:
@@ -448,7 +448,7 @@ static unsigned getRegisterSize(unsigned Opcode) {
 ///
 /// \return a compare instruction.
 template<typename T>
-static Value *CreateICmp(T &Builder,
+static Value *createICmp(T &Builder,
                          uint64_t RawCondition,
                          Value *FirstOperand,
                          Value *SecondOperand) {
@@ -492,6 +492,7 @@ IT::InstructionTranslator(IRBuilder<> &Builder,
                                 { MetaAddressStruct,
                                   Type::getInt64Ty(Context),
                                   Type::getInt32Ty(Context),
+                                  Type::getInt8PtrTy(Context),
                                   Type::getInt8PtrTy(Context) },
                                 true);
   NewPCMarker = Function::Create(NewPCMarkerTy,
@@ -524,7 +525,7 @@ void IT::finalizeNewPCMarkers(std::string &CoveragePath) {
     // create room for more optimizations.
     if (Call->arg_size() != FixedArgCount) {
       SmallVector<Value *, 8> Args;
-      auto AI = Call->arg_begin();
+      auto *AI = Call->arg_begin();
       for (size_t Idx = 0; Idx < FixedArgCount; ++Idx, ++AI)
         Args.emplace_back(*AI);
 
@@ -610,6 +611,7 @@ IT::newInstruction(PTCInstruction *Instr,
 
   MDNode *MDOriginalInstr = nullptr;
   Constant *String = nullptr;
+  PointerType *Int8PtrTy = getStringPtrType(Context);
   if (RecordASM) {
     std::stringstream OriginalStringStream;
     disassemble(OriginalStringStream, PC, NextPC - PC);
@@ -626,7 +628,7 @@ IT::newInstruction(PTCInstruction *Instr,
     auto *MDPC = ConstantAsMetadata::get(PC.toConstant(MetaAddressStruct));
     MDOriginalInstr = MDNode::get(Context, { MDOriginalString, MDPC });
   } else {
-    String = ConstantPointerNull::get(getStringPtrType(Context));
+    String = ConstantPointerNull::get(Int8PtrTy);
   }
 
   if (!IsFirst) {
@@ -653,10 +655,12 @@ IT::newInstruction(PTCInstruction *Instr,
   // This prevents SROA from transforming them in SSA values, which is bad
   // in case we have to split a basic block
   revng_assert(MetaAddressStruct != nullptr);
+  auto *Int8NullPtr = ConstantPointerNull::get(Int8PtrTy);
   std::vector<Value *> Args = { PC.toConstant(MetaAddressStruct),
                                 Builder.getInt64(NextPC - PC),
                                 Builder.getInt32(-1),
-                                String };
+                                String,
+                                Int8NullPtr };
   for (AllocaInst *Local : Variables.locals())
     Args.push_back(Local);
 
@@ -813,7 +817,7 @@ IT::translateOpcode(PTCOpcode Opcode,
     return v{ Builder.CreateTrunc(InArguments[0], RegisterType) };
   case PTC_INSTRUCTION_op_setcond_i32:
   case PTC_INSTRUCTION_op_setcond_i64: {
-    Value *Compare = CreateICmp(Builder,
+    Value *Compare = createICmp(Builder,
                                 ConstArguments[0],
                                 InArguments[0],
                                 InArguments[1]);
@@ -822,7 +826,7 @@ IT::translateOpcode(PTCOpcode Opcode,
   }
   case PTC_INSTRUCTION_op_movcond_i32: // Resist the fallthrough temptation
   case PTC_INSTRUCTION_op_movcond_i64: {
-    Value *Compare = CreateICmp(Builder,
+    Value *Compare = createICmp(Builder,
                                 ConstArguments[0],
                                 InArguments[0],
                                 InArguments[1]);
@@ -1347,7 +1351,7 @@ IT::translateOpcode(PTCOpcode Opcode,
     } else if (Opcode == PTC_INSTRUCTION_op_brcond_i32
                || Opcode == PTC_INSTRUCTION_op_brcond_i64) {
       // Conditional jump
-      Value *Compare = CreateICmp(Builder,
+      Value *Compare = createICmp(Builder,
                                   ConstArguments[0],
                                   InArguments[0],
                                   InArguments[1]);

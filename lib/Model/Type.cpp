@@ -12,6 +12,7 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/Support/MathExtras.h"
 
+#include "revng/Model/ABI.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Type.h"
 #include "revng/Model/VerifyHelper.h"
@@ -219,6 +220,10 @@ Identifier model::Type::name() const {
   return upcast(This, GetName, Identifier(""));
 }
 
+void Qualifier::dump() const {
+  serialize(dbg, *this);
+}
+
 bool Qualifier::verify() const {
   return verify(false);
 }
@@ -262,7 +267,7 @@ isValidPrimitiveSize(PrimitiveTypeKind::Values PrimKind, uint8_t BS) {
     return BS == 1 or BS == 2 or BS == 4 or BS == 8 or BS == 16;
 
   case PrimitiveTypeKind::Float:
-    return BS == 2 or BS == 4 or BS == 8 or BS == 16;
+    return BS == 2 or BS == 4 or BS == 8 or BS == 12 or BS == 16;
 
   default:
     revng_abort();
@@ -273,7 +278,6 @@ isValidPrimitiveSize(PrimitiveTypeKind::Values PrimKind, uint8_t BS) {
 
 Identifier model::PrimitiveType::name() const {
   using llvm::Twine;
-  revng_assert(isValidPrimitiveSize(PrimitiveKind, Size));
   Identifier Result;
 
   switch (PrimitiveKind) {
@@ -381,6 +385,10 @@ PrimitiveType::PrimitiveType(uint64_t ID) :
 
 static bool beginsWithReservedPrefix(llvm::StringRef Name) {
   return Name.startswith("unnamed_");
+}
+
+void EnumEntry::dump() const {
+  serialize(dbg, *this);
 }
 
 bool EnumEntry::verify() const {
@@ -509,6 +517,30 @@ QualifiedType::size(VerifyHelper &VH) const {
   rc_return rc_recur UnqualifiedType.get()->size(VH);
 }
 
+inline RecursiveCoroutine<bool>
+isPrimitive(const model::QualifiedType &QT,
+            model::PrimitiveTypeKind::Values V) {
+  auto IsConstQualifier = [](const Qualifier &Q) {
+    return Q.Kind == model::QualifierKind::Const;
+  };
+
+  if (QT.Qualifiers.size() != 0
+      and not llvm::all_of(QT.Qualifiers, IsConstQualifier))
+    rc_return false;
+
+  const model::Type *UnqualifiedType = QT.UnqualifiedType.get();
+  if (auto *Primitive = llvm::dyn_cast<PrimitiveType>(UnqualifiedType))
+    rc_return Primitive->PrimitiveKind == V;
+  else if (auto *Typedef = llvm::dyn_cast<TypedefType>(UnqualifiedType))
+    rc_return rc_recur isPrimitive(Typedef->UnderlyingType, V);
+
+  rc_return false;
+}
+
+bool QualifiedType::isPrimitive(model::PrimitiveTypeKind::Values V) const {
+  return model::isPrimitive(*this, V);
+}
+
 std::optional<uint64_t> Type::size() const {
   VerifyHelper VH;
   return size(VH);
@@ -601,9 +633,11 @@ bool Identifier::verify(VerifyHelper &VH) const {
                         isalnum);
   };
   return VH.maybeFail(not(not empty() and std::isdigit((*this)[0]))
-                      and not startswith("_") and AllAlphaNumOrUnderscore(*this)
-                      and not beginsWithReservedPrefix(*this)
-                      and not ReservedKeywords.count(llvm::StringRef(*this)));
+                        and not startswith("_")
+                        and AllAlphaNumOrUnderscore(*this)
+                        and not beginsWithReservedPrefix(*this)
+                        and not ReservedKeywords.count(llvm::StringRef(*this)),
+                      llvm::Twine(*this) + " is not a valid identifier");
 }
 
 static RecursiveCoroutine<bool>
@@ -672,21 +706,33 @@ inline RecursiveCoroutine<bool> isScalar(const QualifiedType &QT) {
   revng_assert(Unqualified != nullptr);
   if (llvm::isa<model::PrimitiveType>(Unqualified)) {
     rc_return true;
-  } else if (llvm::isa<model::TypedefType>(Unqualified)) {
-    QualifiedType Inner = QT;
-    Inner.Qualifiers.clear();
-    rc_return rc_recur isScalar(Inner);
+  } else if (auto *Typedef = llvm::dyn_cast<model::TypedefType>(Unqualified)) {
+    rc_return rc_recur isScalar(Typedef->UnderlyingType);
   }
 
   rc_return false;
 }
 
+bool model::QualifiedType::isScalar() const {
+  return ::model::isScalar(*this);
+}
+
 static RecursiveCoroutine<bool>
 verifyImpl(VerifyHelper &VH, const StructType *T) {
-  if (not T->CustomName.verify(VH) or T->Kind != TypeKind::Struct or not T->Size
-      or T->Fields.empty())
-    rc_return VH.fail();
+  using namespace llvm;
 
+  revng_assert(T->Kind == TypeKind::Struct);
+
+  if (not T->CustomName.verify(VH))
+    rc_return VH.fail("Invalid name", *T);
+
+  if (T->Size == 0)
+    rc_return VH.fail("Struct type has zero size", *T);
+
+  if (T->Fields.empty())
+    rc_return VH.fail("Struct has no fields", *T);
+
+  size_t Index = 0;
   llvm::SmallSet<llvm::StringRef, 8> Names;
   auto FieldIt = T->Fields.begin();
   auto FieldEnd = T->Fields.end();
@@ -694,16 +740,21 @@ verifyImpl(VerifyHelper &VH, const StructType *T) {
     auto &Field = *FieldIt;
 
     if (not rc_recur Field.verify(VH))
-      rc_return VH.fail();
+      rc_return VH.fail("Can't verify type of field " + llvm::Twine(Index + 1),
+                        *T);
 
     if (Field.Offset >= T->Size)
-      rc_return VH.fail();
+      rc_return VH.fail("Field " + Twine(Index + 1)
+                          + " out of struct boundaries (offset: "
+                          + Twine(Field.Offset) + ", size: " + Twine(T->Size)
+                          + ")",
+                        *T);
 
     auto MaybeSize = rc_recur Field.Type.size(VH);
 
     // Structs cannot have zero-sized fields
     if (not MaybeSize)
-      rc_return VH.fail();
+      rc_return VH.fail("Field" + Twine(Index + 1) + " is zero-sized", *T);
 
     auto FieldEndOffset = Field.Offset + *MaybeSize;
     auto NextFieldIt = std::next(FieldIt);
@@ -711,21 +762,25 @@ verifyImpl(VerifyHelper &VH, const StructType *T) {
       // If this field is not the last, check that it does not overlap with the
       // following field.
       if (FieldEndOffset > NextFieldIt->Offset)
-        rc_return VH.fail();
+        rc_return VH.fail("Field " + Twine(Index + 1)
+                            + " overlaps with the next one",
+                          *T);
     } else if (FieldEndOffset > T->Size) {
       // Otherwise, if this field is the last, check that it's not larger than
       // size.
-      rc_return VH.fail();
+      rc_return VH.fail("Last field ends outside the struct", *T);
     }
 
     if (isVoidConst(&Field.Type).IsVoid)
-      rc_return VH.fail();
+      rc_return VH.fail("Field " + Twine(Index + 1) + " is void", *T);
 
-    bool New = Field.CustomName.empty() ? true :
-                                          Names.insert(Field.CustomName).second;
-    if (not New)
-      rc_return VH.fail();
+    if (not Field.CustomName.empty()
+        and not Names.insert(Field.CustomName).second)
+      rc_return VH.fail("Collision in struct fields names", *T);
+
+    ++Index;
   }
+
   rc_return true;
 }
 
@@ -762,6 +817,9 @@ static RecursiveCoroutine<bool>
 verifyImpl(VerifyHelper &VH, const CABIFunctionType *T) {
   if (not T->CustomName.verify(VH) or T->Kind != TypeKind::CABIFunctionType
       or not rc_recur T->ReturnType.verify(VH))
+    rc_return VH.fail();
+
+  if (T->ABI == model::abi::Invalid)
     rc_return VH.fail();
 
   for (auto &Group : llvm::enumerate(T->Arguments)) {
@@ -809,6 +867,10 @@ verifyImpl(VerifyHelper &VH, const RawFunctionType *T) {
       rc_return VH.fail();
 
   rc_return VH.maybeFail(T->CustomName.verify(VH));
+}
+
+void Type::dump() const {
+  serialize(dbg, *this);
 }
 
 bool Type::verify() const {
@@ -877,6 +939,10 @@ RecursiveCoroutine<bool> Type::verify(VerifyHelper &VH) const {
   rc_return VH.maybeFail(Result);
 }
 
+void QualifiedType::dump() const {
+  serialize(dbg, *this);
+}
+
 bool QualifiedType::verify() const {
   return verify(false);
 }
@@ -909,12 +975,14 @@ RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
     if (Q.isPointerQualifier()) {
       // Don't proceed the verification, just make sure the pointer is either
       // 32- or 64-bits
-      rc_return VH.maybeFail(Q.Size == 4 or Q.Size == 8);
+      rc_return VH.maybeFail(Q.Size == 4 or Q.Size == 8,
+                             "Only 32-bit and 64-bit pointers are currently "
+                             "supported");
 
     } else if (Q.isArrayQualifier()) {
       // Ensure there's at least one element
-      if (Q.Size <= 1)
-        rc_return VH.fail();
+      if (Q.Size < 1)
+        rc_return VH.fail("Arrays need to have at least an element");
 
       // Verify element type
       QualifiedType ElementType{ UnqualifiedType, { NextQIt, QEnd } };
@@ -937,6 +1005,10 @@ RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
   // If we get here, we either have no qualifiers or just const qualifiers:
   // recur on the underlying type
   rc_return VH.maybeFail(rc_recur UnqualifiedType.get()->verify(VH));
+}
+
+void TypedRegister::dump() const {
+  serialize(dbg, *this);
 }
 
 bool TypedRegister::verify() const {
@@ -970,6 +1042,10 @@ RecursiveCoroutine<bool> TypedRegister::verify(VerifyHelper &VH) const {
   rc_return VH.maybeFail(rc_recur Type.verify(VH));
 }
 
+void NamedTypedRegister::dump() const {
+  serialize(dbg, *this);
+}
+
 bool NamedTypedRegister::verify() const {
   return verify(false);
 }
@@ -995,6 +1071,10 @@ bool AggregateField::verify(bool Assert) const {
 
 RecursiveCoroutine<bool> AggregateField::verify(VerifyHelper &VH) const {
   rc_return VH.maybeFail(CustomName.verify(VH) and rc_recur Type.verify(VH));
+}
+
+void Argument::dump() const {
+  serialize(dbg, *this);
 }
 
 bool Argument::verify() const {

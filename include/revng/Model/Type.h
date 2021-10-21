@@ -15,6 +15,7 @@
 #include "revng/ADT/SortedVector.h"
 #include "revng/ADT/UpcastablePointer.h"
 #include "revng/ADT/UpcastablePointer/YAMLTraits.h"
+#include "revng/Model/ABI.h"
 #include "revng/Model/Register.h"
 #include "revng/Model/TupleTree.h"
 #include "revng/Support/Assert.h"
@@ -159,7 +160,28 @@ inline llvm::StringRef getName(Values V) {
   default:
     revng_abort();
   }
-  revng_abort();
+}
+
+inline model::TypeKind::Values fromName(llvm::StringRef Name) {
+  if (Name == "Invalid") {
+    return Invalid;
+  } else if (Name == "Primitive") {
+    return Primitive;
+  } else if (Name == "Enum") {
+    return Enum;
+  } else if (Name == "Typedef") {
+    return Typedef;
+  } else if (Name == "Struct") {
+    return Struct;
+  } else if (Name == "Union") {
+    return Union;
+  } else if (Name == "CABIFunctionType") {
+    return CABIFunctionType;
+  } else if (Name == "RawFunctionType") {
+    return RawFunctionType;
+  } else {
+    revng_abort();
+  }
 }
 
 } // end namespace model::TypeKind
@@ -169,26 +191,10 @@ namespace llvm::yaml {
 // Make model::TypeKind yaml-serializable, required for making model::Type
 // yaml-serializable as well
 template<>
-struct ScalarEnumerationTraits<model::TypeKind::Values> {
-  template<typename IOType>
-  static void enumeration(IOType &IO, model::TypeKind::Values &Val) {
-    using namespace model::TypeKind;
-    for (unsigned I = 0; I < Count; ++I) {
-      auto V = static_cast<Values>(I);
-      IO.enumCase(Val, getName(V).data(), V);
-    }
-  }
-};
+struct ScalarEnumerationTraits<model::TypeKind::Values>
+  : public NamedEnumScalarTraits<model::TypeKind::Values> {};
 
 } // end namespace llvm::yaml
-
-namespace model::TypeKind {
-
-inline model::TypeKind::Values fromName(llvm::StringRef Name) {
-  return getValueFromYAMLScalar<model::TypeKind::Values>(Name);
-}
-
-} // end namespace model::TypeKind
 
 namespace model::QualifierKind {
 
@@ -223,16 +229,8 @@ namespace llvm::yaml {
 // Make model::QualifierKind::Values yaml-serializable, required for making
 // model::Qualifier yaml-serializable as well
 template<>
-struct ScalarEnumerationTraits<model::QualifierKind::Values> {
-  template<typename IOType>
-  static void enumeration(IOType &IO, model::QualifierKind::Values &Val) {
-    using namespace model::QualifierKind;
-    for (unsigned I = 0; I < Count; ++I) {
-      auto V = static_cast<Values>(I);
-      IO.enumCase(Val, getName(V).data(), V);
-    }
-  }
-};
+struct ScalarEnumerationTraits<model::QualifierKind::Values>
+  : public NamedEnumScalarTraits<model::QualifierKind::Values> {};
 
 } // namespace llvm::yaml
 
@@ -296,6 +294,7 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   RecursiveCoroutine<bool> verify(VerifyHelper &VH) const;
+  void dump() const debug_function;
 
 protected:
   bool verifyBase(VerifyHelper &VH) const;
@@ -351,6 +350,7 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;
+  void dump() const debug_function;
 
 public:
   static Qualifier createConst() { return { QualifierKind::Const, 0 }; }
@@ -398,32 +398,6 @@ using TypePath = TupleTreeReference<model::Type, model::Binary>;
 
 } // end namespace model
 
-/// \brief A qualified version of a model::Type. Can have many nested qualifiers
-class model::QualifiedType {
-public:
-  TypePath UnqualifiedType;
-  std::vector<Qualifier> Qualifiers = {};
-
-public:
-  bool operator==(const model::QualifiedType &Other) const = default;
-
-public:
-  std::optional<uint64_t> size() const debug_function;
-  RecursiveCoroutine<std::optional<uint64_t>> size(VerifyHelper &VH) const;
-
-public:
-  bool verify() const debug_function;
-  bool verify(bool Assert) const debug_function;
-  RecursiveCoroutine<bool> verify(VerifyHelper &VH) const;
-};
-INTROSPECTION_NS(model, QualifiedType, UnqualifiedType, Qualifiers);
-
-/// \brief Make QualifiedType yaml-serializable
-template<>
-struct llvm::yaml::MappingTraits<model::QualifiedType>
-  : public TupleLikeMappingTraits<model::QualifiedType,
-                                  Fields<model::QualifiedType>::Qualifiers> {};
-
 namespace model::PrimitiveTypeKind {
 
 // WARNING: these end up in type IDs, changing these means breaks the file
@@ -461,7 +435,28 @@ inline llvm::StringRef getName(Values V) {
   default:
     revng_abort();
   }
-  revng_abort();
+}
+
+inline model::PrimitiveTypeKind::Values fromName(llvm::StringRef Name) {
+  if (Name == "Invalid") {
+    return Invalid;
+  } else if (Name == "Void") {
+    return Void;
+  } else if (Name == "Generic") {
+    return Generic;
+  } else if (Name == "PointerOrNumber") {
+    return PointerOrNumber;
+  } else if (Name == "Number") {
+    return Number;
+  } else if (Name == "Unsigned") {
+    return Unsigned;
+  } else if (Name == "Signed") {
+    return Signed;
+  } else if (Name == "Float") {
+    return Float;
+  } else {
+    revng_abort();
+  }
 }
 
 } // end namespace model::PrimitiveTypeKind
@@ -470,26 +465,42 @@ namespace llvm::yaml {
 
 // Make model::PrimitiveTypeKind::Values yaml-serializable
 template<>
-struct ScalarEnumerationTraits<model::PrimitiveTypeKind::Values> {
-  template<typename IOType>
-  static void enumeration(IOType &IO, model::PrimitiveTypeKind::Values &Val) {
-    using namespace model::PrimitiveTypeKind;
-    for (unsigned I = 0; I < Count; ++I) {
-      auto V = static_cast<Values>(I);
-      IO.enumCase(Val, getName(V).data(), V);
-    }
-  }
-};
+struct ScalarEnumerationTraits<model::PrimitiveTypeKind::Values>
+  : public NamedEnumScalarTraits<model::PrimitiveTypeKind::Values> {};
 
 } // end namespace llvm::yaml
 
-namespace model::PrimitiveTypeKind {
+/// \brief A qualified version of a model::Type. Can have many nested qualifiers
+class model::QualifiedType {
+public:
+  TypePath UnqualifiedType;
+  std::vector<Qualifier> Qualifiers = {};
 
-inline model::PrimitiveTypeKind::Values fromName(const llvm::Twine &Name) {
-  return getValueFromYAMLScalar<model::PrimitiveTypeKind::Values>(Name.str());
-}
+public:
+  bool operator==(const model::QualifiedType &Other) const = default;
 
-} // end namespace model::PrimitiveTypeKind
+public:
+  std::optional<uint64_t> size() const debug_function;
+  RecursiveCoroutine<std::optional<uint64_t>> size(VerifyHelper &VH) const;
+
+  bool isScalar() const;
+  bool isPrimitive(model::PrimitiveTypeKind::Values V) const;
+  bool isVoid() const { return isPrimitive(model::PrimitiveTypeKind::Void); }
+  bool isFloat() const { return isPrimitive(model::PrimitiveTypeKind::Float); }
+
+public:
+  bool verify() const debug_function;
+  bool verify(bool Assert) const debug_function;
+  RecursiveCoroutine<bool> verify(VerifyHelper &VH) const;
+  void dump() const debug_function;
+};
+INTROSPECTION_NS(model, QualifiedType, UnqualifiedType, Qualifiers);
+
+/// \brief Make QualifiedType yaml-serializable
+template<>
+struct llvm::yaml::MappingTraits<model::QualifiedType>
+  : public TupleLikeMappingTraits<model::QualifiedType,
+                                  Fields<model::QualifiedType>::Qualifiers> {};
 
 /// \brief A primitive type in model: sized integers, booleans, floats and void.
 class model::PrimitiveType : public model::Type {
@@ -539,6 +550,7 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;
+  void dump() const debug_function;
 };
 INTROSPECTION_NS(model, EnumEntry, Value, CustomName, Aliases);
 
@@ -784,6 +796,7 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   RecursiveCoroutine<bool> verify(VerifyHelper &VH) const;
+  void dump() const debug_function;
 };
 INTROSPECTION_NS(model, TypedRegister, Location, Type);
 
@@ -818,6 +831,7 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   RecursiveCoroutine<bool> verify(VerifyHelper &VH) const;
+  void dump() const debug_function;
 };
 INTROSPECTION_NS(model, NamedTypedRegister, Location, Type, CustomName);
 
@@ -888,40 +902,6 @@ V getOrDefault(const std::map<K, V> &Map, const K &Key, const V &Default) {
     return It->second;
 }
 
-namespace model::abi {
-
-enum Values { Invalid, SystemV_x86_64, Count };
-
-inline llvm::StringRef getName(Values V) {
-  switch (V) {
-  case Invalid:
-    return "Invalid";
-  case SystemV_x86_64:
-    return "SystemV_x86_64";
-  default:
-    revng_abort();
-  }
-  revng_abort();
-}
-
-} // namespace model::abi
-
-namespace llvm::yaml {
-
-template<>
-struct ScalarEnumerationTraits<model::abi::Values> {
-  template<typename IOType>
-  static void enumeration(IOType &IO, model::abi::Values &Val) {
-    using namespace model::abi;
-    for (unsigned I = 0; I < Count; ++I) {
-      auto V = static_cast<Values>(I);
-      IO.enumCase(Val, getName(V).data(), V);
-    }
-  }
-};
-
-} // namespace llvm::yaml
-
 /// \brief The argument of a function type
 ///
 /// It features an argument index (the key), a type and an optional name
@@ -944,6 +924,7 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   RecursiveCoroutine<bool> verify(VerifyHelper &VH) const;
+  void dump() const debug_function;
 };
 INTROSPECTION_NS(model, Argument, Index, Type, CustomName);
 

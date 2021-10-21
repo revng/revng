@@ -109,11 +109,16 @@ bool Binary::verifyTypes(VerifyHelper &VH) const {
       return VH.fail();
 
     // Ensure the names are unique
-    if (not Names.insert(Type->name()).second)
-      return VH.fail();
+    auto Name = Type->name();
+    if (not Names.insert(Name).second)
+      return VH.fail(Twine("Multiple types with the following name: ") + Name);
   }
 
   return true;
+}
+
+void Binary::dump() const {
+  serialize(dbg, *this);
 }
 
 bool Binary::verify() const {
@@ -139,19 +144,38 @@ bool Binary::verify(VerifyHelper &VH) const {
         if (Edge->Type == model::FunctionEdgeType::FunctionCall) {
           // We're in a direct call, get the callee
           const auto *Call = dyn_cast<CallEdge>(Edge.get());
-          auto It = Functions.find(Call->Destination);
 
-          // If missing, fail
-          if (It == Functions.end())
-            return VH.fail();
+          if (not Call->DynamicFunction.empty()) {
+            // It's a dynamic call
 
-          // If call and callee prototypes differ, fail
-          const Function &Callee = *It;
-          if (Call->Prototype != Callee.Prototype)
-            return VH.fail();
+            if (Call->Destination.isValid()) {
+              return VH.fail("Destination must be invalid for dynamic function "
+                             "calls");
+            }
+
+            auto It = ImportedDynamicFunctions.find(Call->DynamicFunction);
+
+            // If missing, fail
+            if (It == ImportedDynamicFunctions.end())
+              return VH.fail("Can't find callee \"" + Call->DynamicFunction
+                             + "\"");
+          } else {
+            // Regular call
+            auto It = Functions.find(Call->Destination);
+
+            // If missing, fail
+            if (It == Functions.end())
+              return VH.fail("Can't find callee");
+          }
         }
       }
     }
+  }
+
+  // Verify DynamicFunctions
+  for (const DynamicFunction &DF : ImportedDynamicFunctions) {
+    if (not DF.verify(VH))
+      return VH.fail();
   }
 
   //
@@ -191,6 +215,7 @@ static FunctionCFG getGraph(const Function &F) {
         break;
 
       case Invalid:
+      case Count:
         revng_abort();
         break;
       }
@@ -210,10 +235,22 @@ Identifier Function::name() const {
   }
 }
 
+Identifier DynamicFunction::name() const {
+  using llvm::Twine;
+  if (not CustomName.empty())
+    return CustomName;
+  else
+    return Identifier(SymbolName);
+}
+
 void Function::dumpCFG() const {
   FunctionCFG CFG = getGraph(*this);
   raw_os_ostream Stream(dbg);
   WriteGraph(Stream, &CFG);
+}
+
+void Function::dump() const {
+  serialize(dbg, *this);
 }
 
 bool Function::verify() const {
@@ -274,6 +311,44 @@ bool Function::verify(VerifyHelper &VH) const {
   return true;
 }
 
+void DynamicFunction::dump() const {
+  serialize(dbg, *this);
+}
+
+bool DynamicFunction::verify() const {
+  return verify(false);
+}
+
+bool DynamicFunction::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+
+bool DynamicFunction::verify(VerifyHelper &VH) const {
+  // Ensure we have a name
+  if (SymbolName.size() == 0)
+    return VH.fail("Dynamic functions must have a SymbolName");
+
+  // Prototype is present
+  if (not Prototype.isValid())
+    return VH.fail();
+
+  // Prototype is valid
+  if (not Prototype.get()->verify(VH))
+    return VH.fail();
+
+  const model::Type *FunctionType = Prototype.get();
+  if (not(isa<RawFunctionType>(FunctionType)
+          or isa<CABIFunctionType>(FunctionType)))
+    return VH.fail();
+
+  return true;
+}
+
+void FunctionEdge::dump() const {
+  serialize(dbg, *this);
+}
+
 bool FunctionEdge::verify() const {
   return verify(false);
 }
@@ -285,8 +360,37 @@ bool FunctionEdge::verify(bool Assert) const {
 
 static bool verifyFunctionEdge(VerifyHelper &VH, const FunctionEdge &E) {
   using namespace model::FunctionEdgeType;
-  return VH.maybeFail(E.Type != FunctionEdgeType::Invalid
-                      and E.Destination.isValid() == hasDestination(E.Type));
+
+  switch (E.Type) {
+  case Invalid:
+  case Count:
+    return VH.fail();
+
+  case DirectBranch:
+  case FakeFunctionCall:
+  case FakeFunctionReturn:
+    if (E.Destination.isInvalid())
+      return VH.fail();
+    break;
+  case FunctionCall: {
+    const auto &Call = cast<const CallEdge>(E);
+    if (not(E.Destination.isValid() == Call.DynamicFunction.empty()))
+      return VH.fail();
+  } break;
+
+  case IndirectCall:
+  case Return:
+  case BrokenReturn:
+  case IndirectTailCall:
+  case LongJmp:
+  case Killer:
+  case Unreachable:
+    if (E.Destination.isValid())
+      return VH.fail();
+    break;
+  }
+
+  return true;
 }
 
 bool FunctionEdge::verify(VerifyHelper &VH) const {
@@ -294,6 +398,10 @@ bool FunctionEdge::verify(VerifyHelper &VH) const {
     return VH.maybeFail(Call->verify(VH));
   else
     return verifyFunctionEdge(VH, *this);
+}
+
+void CallEdge::dump() const {
+  serialize(dbg, *this);
 }
 
 bool CallEdge::verify() const {
@@ -306,8 +414,25 @@ bool CallEdge::verify(bool Assert) const {
 }
 
 bool CallEdge::verify(VerifyHelper &VH) const {
-  return VH.maybeFail(verifyFunctionEdge(VH, *this) and Prototype.isValid()
-                      and Prototype.get()->verify(VH));
+  if (Type == model::FunctionEdgeType::FunctionCall) {
+    // We're in a direct function call (either dynamic or not)
+    bool IsDynamic = not DynamicFunction.empty();
+    bool HasDestination = Destination.isValid();
+    if (not HasDestination and not IsDynamic)
+      return VH.fail("Direct call is missing Destination");
+    else if (HasDestination and IsDynamic)
+      return VH.fail("Dynamic function calls cannot have a valid Destination");
+
+    bool HasPrototype = Prototype.isValid();
+    if (HasPrototype)
+      return VH.fail("Direct function calls must not have a prototype");
+  } else {
+    // We're in an indirect call site
+    if (not Prototype.isValid() or not Prototype.get()->verify(VH))
+      return VH.fail("Indirect call has must have a valid prototype");
+  }
+
+  return VH.maybeFail(verifyFunctionEdge(VH, *this));
 }
 
 Identifier BasicBlock::name() const {
@@ -316,6 +441,10 @@ Identifier BasicBlock::name() const {
     return CustomName;
   else
     return Identifier(std::string("bb_") + Start.toString());
+}
+
+void BasicBlock::dump() const {
+  serialize(dbg, *this);
 }
 
 bool BasicBlock::verify() const {

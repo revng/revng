@@ -227,7 +227,53 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
         break;
 
       case BranchType::InstructionLocalCFG:
-        EdgeType = FET::Invalid;
+        continue;
+
+      default:
+        break;
+      }
+
+      // Identify Source address
+      auto [Source, Size] = getPC(BB->getTerminator());
+      Source += Size;
+      revng_assert(Source.isValid());
+
+      // Identify Destination address
+      llvm::BasicBlock *JumpTargetBB = GCBI.getJumpTargetBlock(BB);
+      MetaAddress JumpTargetAddress = GCBI.getPCFromNewPC(JumpTargetBB);
+      model::BasicBlock &CurrentBlock = Function.CFG[JumpTargetAddress];
+      CurrentBlock.End = Source;
+      auto SuccessorsInserter = CurrentBlock.Successors.batch_insert();
+
+      llvm::BasicBlock *Successor = BB->getSingleSuccessor();
+      llvm::StringRef SymbolName;
+
+      MetaAddress Destination = MetaAddress::invalid();
+      if (Successor != nullptr)
+        Destination = getBasicBlockPC(Successor);
+
+      if (Destination.isValid()) {
+        revng_assert(not JumpTargetBB->empty());
+        auto *NewPCCall = getCallTo(&*Successor->begin(), "newpc");
+        revng_assert(NewPCCall != nullptr);
+
+        // Extract symbol name if any
+        auto *SymbolNameValue = NewPCCall->getArgOperand(4);
+        if (not isa<llvm::ConstantPointerNull>(SymbolNameValue)) {
+          llvm::Value *SymbolNameString = NewPCCall->getArgOperand(4);
+          SymbolName = extractFromConstantStringPtr(SymbolNameString);
+          revng_assert(SymbolName.size() != 0);
+        }
+      }
+
+      switch (Branch) {
+      case BranchType::Invalid:
+      case BranchType::FakeFunction:
+      case BranchType::RegularFunction:
+      case BranchType::NoReturnFunction:
+      case BranchType::UnhandledCall:
+      case BranchType::InstructionLocalCFG:
+        revng_abort();
         break;
 
       case BranchType::FunctionLocalCFG:
@@ -247,7 +293,10 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
         break;
 
       case BranchType::IndirectCall:
-        EdgeType = FET::IndirectCall;
+        if (SymbolName.size() == 0)
+          EdgeType = FET::IndirectCall;
+        else
+          EdgeType = FET::FunctionCall;
         break;
 
       case BranchType::Return:
@@ -275,21 +324,6 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
         break;
       }
 
-      if (EdgeType == FET::Invalid)
-        continue;
-
-      // Identify Source address
-      auto [Source, Size] = getPC(BB->getTerminator());
-      Source += Size;
-      revng_assert(Source.isValid());
-
-      // Identify Destination address
-      llvm::BasicBlock *JumpTargetBB = GCBI.getJumpTargetBlock(BB);
-      MetaAddress JumpTargetAddress = GCBI.getPCFromNewPC(JumpTargetBB);
-      model::BasicBlock &CurrentBlock = Function.CFG[JumpTargetAddress];
-      CurrentBlock.End = Source;
-      auto SuccessorsInserter = CurrentBlock.Successors.batch_insert();
-
       if (EdgeType == FET::DirectBranch) {
         // Handle direct branch
         auto Successors = GCBI.getSuccessors(BB);
@@ -304,21 +338,28 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
           SuccessorsInserter.insert(MakeEdge(Destination, EdgeType));
 
       } else if (FunctionEdgeType::isCall(EdgeType)) {
-        // Handle call
-        llvm::BasicBlock *Successor = BB->getSingleSuccessor();
-        MetaAddress Destination = MetaAddress::invalid();
-        if (Successor != nullptr)
-          Destination = getBasicBlockPC(Successor);
-
         // Record the edge in the CFG
         auto TempEdge = MakeEdge(Destination, EdgeType);
         const auto &Result = SuccessorsInserter.insert(TempEdge);
         auto *Edge = llvm::cast<CallEdge>(Result.get());
 
-        if (Destination.isValid()) {
-          // If it's a direct call, inherit the prototype from the callee
-          model::Function &Callee = TheBinary.Functions.at(Destination);
-          Edge->Prototype = Callee.Prototype;
+        const auto IDF = TheBinary.ImportedDynamicFunctions;
+        bool IsDynamicCall = (not SymbolName.empty()
+                              and IDF.count(SymbolName.str()) != 0);
+        if (IsDynamicCall) {
+          // It's a dynamic function call
+          revng_assert(EdgeType == model::FunctionEdgeType::FunctionCall);
+          Edge->Destination = MetaAddress::invalid();
+          Edge->DynamicFunction = SymbolName.str();
+
+          // The prototype is implicitly the one of the callee
+          revng_assert(not Edge->Prototype.isValid());
+        } else if (Destination.isValid()) {
+          // It's a simple direct function call
+          revng_assert(EdgeType == model::FunctionEdgeType::FunctionCall);
+
+          // The prototype is implicitly the one of the callee
+          revng_assert(not Edge->Prototype.isValid());
         } else {
           // It's an indirect call: forge a new prototype
           auto NewType = makeType<RawFunctionType>();
@@ -366,13 +407,9 @@ void commitToModel(GeneratedCodeBasicInfo &GCBI,
 
           Edge->Prototype = TheBinary.recordNewType(std::move(NewType));
         }
-
       } else {
         // Handle other successors
         llvm::BasicBlock *Successor = BB->getSingleSuccessor();
-        MetaAddress Destination = MetaAddress::invalid();
-        if (Successor != nullptr)
-          Destination = getBasicBlockPC(Successor);
 
         // Record the edge in the CFG
         SuccessorsInserter.insert(MakeEdge(Destination, EdgeType));

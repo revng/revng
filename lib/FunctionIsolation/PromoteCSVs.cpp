@@ -86,12 +86,17 @@ PromoteCSVs::PromoteCSVs(Module *M, const GeneratedCodeBasicInfo &GCBI) :
   CSVInitializers.setTags({ &FunctionTags::OpaqueCSVValue });
 
   // Record existing initializers
-  for (GlobalVariable *CSV : GCBI.csvs())
+  for (GlobalVariable *CSV : GCBI.csvs()) {
+
+    // Do not promote stack pointer and PC yet
+    if (GCBI.isSPReg(CSV))
+      continue;
+
+    CSVs.insert(CSV);
     if (auto *F = M->getFunction((Twine("init_") + CSV->getName()).str()))
       if (FunctionTags::OpaqueCSVValue.isTagOf(F))
         CSVInitializers.record(CSV->getName(), F);
-
-  copy(GCBI.csvs(), std::inserter(this->CSVs, this->CSVs.begin()));
+  }
 }
 
 // TODO: assign alias information
@@ -530,10 +535,9 @@ void PromoteCSVs::wrapCallsToHelpers(Function *F) {
     for (Instruction &I : BB) {
       if (auto *Call = dyn_cast<CallInst>(&I)) {
         Function *Callee = getCallee(Call);
-        revng_assert(Callee != nullptr);
 
         // Ignore calls to isolated functions
-        if (not needsWrapper(Callee))
+        if (Callee == nullptr or not needsWrapper(Callee))
           continue;
 
         ToWrap.emplace_back(Call);

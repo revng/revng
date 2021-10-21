@@ -281,6 +281,8 @@ public:
 
   bool hasValue() const { return isAbsoluteValue() or isBaseRelativeValue(); }
 
+  LabelOrigin::Values origin() const { return Origin; }
+
   MetaAddress address() const { return Address; }
 
   uint64_t size() const { return Size; }
@@ -485,7 +487,8 @@ public:
   const Architecture &architecture() const { return TheArchitecture; }
   std::vector<SegmentInfo> &segments() { return Segments; }
   const std::vector<SegmentInfo> &segments() const { return Segments; }
-  const LabelIntervalMap &labels() const { return LabelsMap; }
+  const LabelIntervalMap &labelsMap() const { return LabelsMap; }
+  llvm::ArrayRef<Label> labels() const { return Labels; }
   const std::set<MetaAddress> &landingPads() const { return LandingPads; }
   const std::set<MetaAddress> &codePointers() const { return CodePointers; }
   MetaAddress entryPoint() const { return EntryPoint; }
@@ -556,6 +559,10 @@ public:
   /// \return a string containing the symbol name and, if necessary an offset,
   ///         or if no symbol can be found, just the address.
   std::string nameForAddress(MetaAddress Address, uint64_t Size) const;
+
+  const llvm::object::Binary &binary() const {
+    return *BinaryHandle.getBinary();
+  }
 
 private:
   //

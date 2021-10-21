@@ -31,6 +31,7 @@ Tag FunctionDispatcher("FunctionDispatcher");
 Tag Root("Root");
 Tag CSVsAsArgumentsWrapper("CSVsAsArgumentsWrapper");
 Tag Marker("Marker");
+Tag DynamicFunction("DynamicFunction");
 
 static const char *TagsMetadataName = "revng.tags";
 

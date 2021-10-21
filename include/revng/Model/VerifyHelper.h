@@ -6,13 +6,18 @@
 
 #include <map>
 #include <set>
+#include <type_traits>
+
+#include "llvm/ADT/Twine.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "revng/Support/Assert.h"
+#include "revng/Support/Debug.h"
+
+inline Logger<> ModelVerifyLogger("model-verify");
 
 namespace model {
 class Type;
-} // namespace model
-namespace model {
 
 class VerifyHelper {
 private:
@@ -68,15 +73,45 @@ public:
   }
 
 public:
-  bool maybeFail(bool Result) const {
+  bool maybeFail(bool Result) const { return maybeFail(Result, {}); }
+
+  bool maybeFail(bool Result, const llvm::Twine &Reason) const {
     if (AssertOnFail and not Result) {
-      revng_abort();
+      revng_abort(Reason.str().c_str());
     } else {
       return Result;
     }
   }
 
+  template<typename T>
+  bool maybeFail(bool Result, const llvm::Twine &Reason, T &Element) const {
+    if (not Result) {
+      std::string Buffer;
+      {
+        llvm::raw_string_ostream StringStream(Buffer);
+        StringStream << Reason << "\n";
+        serialize(StringStream, const_cast<std::remove_const_t<T> &>(Element));
+      }
+
+      if (AssertOnFail) {
+        revng_abort(Buffer.c_str());
+      } else {
+        revng_log(ModelVerifyLogger, Buffer);
+      }
+    }
+
+    return Result;
+  }
+
   bool fail() const { return maybeFail(false); }
+  bool fail(const llvm::Twine &Reason) const {
+    return maybeFail(false, Reason);
+  }
+
+  template<typename T>
+  bool fail(const llvm::Twine &Reason, T &Element) const {
+    return maybeFail(false, Reason, Element);
+  }
 };
 
 } // namespace model

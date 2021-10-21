@@ -25,10 +25,6 @@ class Value;
 class StructType;
 class DataLayout;
 
-namespace object {
-class ObjectFile;
-};
-
 }; // namespace llvm
 
 class DebugHelper;
@@ -64,20 +60,6 @@ public:
   void serialize();
 
 private:
-  /// \brief Parse the ELF headers.
-  ///
-  /// Collect useful information such as the segments' boundaries, their
-  /// permissions, the address of program headers and the like.
-  /// From this information it produces the .li.csv file containing information
-  /// useful for linking.
-  /// This function parametric w.r.t. endianess and pointer size.
-  ///
-  /// \param TheBinary the LLVM ObjectFile representing the ELF file.
-  /// \param LinkingInfo path where the .li.csv file should be created.
-  template<typename T>
-  void parseELF(llvm::object::ObjectFile *TheBinary, bool UseSections);
-
-private:
   Architecture TargetArchitecture;
   llvm::LLVMContext &Context;
   std::unique_ptr<llvm::Module> TheModule;
@@ -89,7 +71,6 @@ private:
 
   unsigned OriginalInstrMDKind;
   unsigned PTCInstrMDKind;
-  unsigned DbgMDKind;
 
   std::string FunctionListPath;
 

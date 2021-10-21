@@ -231,6 +231,7 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t PreferedBaseAddress) :
   using namespace llvm::ELF;
   using namespace model::Register;
   Architecture::RelocationTypesMap RelocationTypes;
+  model::abi::Values DefaultABI = model::abi::Invalid;
 
   auto Arch = TheBinary->getArch();
   switch (Arch) {
@@ -331,6 +332,7 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t PreferedBaseAddress) :
     RelocationTypes[R_X86_64_64] = RD(RD::SymbolRelative, RD::Addend);
 
     BasicBlockEndingPattern = "\xcc";
+    DefaultABI = model::abi::SystemV_x86_64;
 
     break;
 
@@ -475,7 +477,8 @@ BinaryFile::BinaryFile(std::string FilePath, uint64_t PreferedBaseAddress) :
                                  JumpAsm,
                                  HasRelocationAddend,
                                  std::move(RelocationTypes),
-                                 BasicBlockEndingPattern);
+                                 BasicBlockEndingPattern,
+                                 DefaultABI);
 
   if (TheBinary->isELF()) {
     if (TheArchitecture.pointerSize() == 32) {
@@ -1981,7 +1984,7 @@ std::string
 BinaryFile::nameForAddress(MetaAddress Address, uint64_t Size) const {
   using interval = boost::icl::interval<MetaAddress, compareAddress>;
   std::stringstream Result;
-  const auto &SymbolMap = labels();
+  const auto &SymbolMap = labelsMap();
 
   auto End = Address.toGeneric() + Size;
   revng_assert(Address.isValid() and End.isValid());

@@ -43,6 +43,23 @@ Constant *buildStringPtr(Module *M, StringRef String, const Twine &Name) {
   return ConstantExpr::getBitCast(NewVariable, getStringPtrType(C));
 }
 
+StringRef extractFromConstantStringPtr(Value *V) {
+  auto *ConstantGEP = dyn_cast<ConstantExpr>(V);
+  if (ConstantGEP == nullptr)
+    return {};
+
+  auto *NoCasts = ConstantGEP->stripPointerCasts();
+  auto *GV = dyn_cast_or_null<GlobalVariable>(NoCasts);
+  if (GV == nullptr)
+    return {};
+
+  auto *Initializer = dyn_cast_or_null<ConstantDataArray>(GV->getInitializer());
+  if (Initializer == nullptr or not Initializer->isCString())
+    return {};
+
+  return Initializer->getAsCString();
+}
+
 Constant *getUniqueString(Module *M,
                           StringRef Namespace,
                           StringRef String,

@@ -52,7 +52,6 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       opt
       "${INPUT_FILE}"
       --detect-abi
-      --disable-enforce-abi-safety-checks
       --isolate
       --enforce-abi
       --promote-csvs
