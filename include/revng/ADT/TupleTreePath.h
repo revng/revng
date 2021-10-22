@@ -110,6 +110,7 @@ public:
   char *id() const override { return typeID<T>(); }
 
   void clone(TupleTreeKeyWrapper *Target) const override {
+    Target->~TupleTreeKeyWrapper();
     new (Target) ConcreteTupleTreeKeyWrapper(*get());
   }
 };
