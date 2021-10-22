@@ -232,7 +232,7 @@ exploreAndCompare(const Link &Child1, const Link &Child2) {
 
 ///\brief Check if two subtrees are equivalent, saving the visited nodes in the
 /// order in which they were compared.
-static inline std::tuple<bool, EdgeList, EdgeList>
+static std::tuple<bool, EdgeList, EdgeList>
 areEquivSubtrees(Link &Child1, Link &Child2) {
   auto [Result, Visited1, Visited2] = exploreAndCompare(Child1, Child2);
   bool AreSubtreesEqual = Result == order::equal;
@@ -250,8 +250,10 @@ areEquivSubtrees(Link &Child1, Link &Child2) {
 ///           equivalent to the subtree of \a Child1
 static std::pair<bool, EdgeList>
 mergeIfTopologicallyEq(LayoutTypeSystem &TS, Link &Child1, Link &Child2) {
-  if (Child1 == Child2)
-    return { true, {} };
+  if (Child1.first == Child2.first) {
+    revng_log(CmpLog, "Same Node!");
+    return { false, {} };
+  }
 
   auto [AreEquiv, Subtree1, Subtree2] = areEquivSubtrees(Child1, Child2);
   if (AreEquiv) {
@@ -326,6 +328,15 @@ mergeIfTopologicallyEq(LayoutTypeSystem &TS, Link &Child1, Link &Child2) {
   return { false, {} };
 }
 
+static SmallVector<Link, 2> getAllEdges(const LTSN *Src, const LTSN *Dst) {
+  SmallVector<Link, 2> Edges;
+  for (const Link &Succ : Src->Successors)
+    if (Succ.first == Dst)
+      Edges.push_back(Succ);
+
+  return Edges;
+}
+
 ///\brief Remove conflicting edges and collapse single children after merging.
 static bool
 postProcessMerge(LayoutTypeSystem &TS, const EdgeList &MergedSubtree) {
@@ -349,7 +360,7 @@ postProcessMerge(LayoutTypeSystem &TS, const EdgeList &MergedSubtree) {
   }
 
   // Merging nodes and removing conflicts might have created situations in
-  // which a node has a single child: collapse it into its parent.
+  // which a node has a single collapsible child: collapse it into its parent.
   LTSN *SubtreeRoot = MergedSubtree.begin()->first;
   for (auto &N : post_order(SubtreeRoot))
     Modified |= CollapseSingleChild::collapseSingle(TS, N);
@@ -381,51 +392,66 @@ bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
       revng_log(Log, "****** Union Node found: " << UnionNode->ID);
       VisitedUnions.insert(UnionNode);
 
-      llvm::SmallSetVector<Link, 8> ToCompare;
-      llvm::SmallSetVector<Link, 8> Visited;
+      // Since a node can be connected to the parent union by more than one
+      // edge, we keep track of the **nodes** that we have to visit and the
+      // **edges** we visited. In this way, when comparing subtrees, we consider
+      // all the edges incoming from the parent node, so that, if we to merge
+      // two nodes, we don't have to update other links in the worklist.
+      llvm::SmallSetVector<LTSN *, 8> NodesToCompare;
+      llvm::SmallSetVector<Link, 8> VisitedLinks;
 
+      // We keep a separate list of successors since we might need to re-enqueue
+      // some of them.
       for (Link Succ : UnionNode->Successors)
-        ToCompare.insert(Succ);
+        NodesToCompare.insert(Succ.first);
 
       bool UnionNodeChanged = false;
-      while (ToCompare.size() > 0) {
-        Link CurLink = ToCompare.back();
-        LTSN *CurChild = CurLink.first;
-        ToCompare.pop_back();
+      while (NodesToCompare.size() > 0) {
+        LTSN *CurChild = NodesToCompare.pop_back_val();
 
-        // Compare each pair of children of the union node
+        // Edges are copied because we are going to merge them after, and we
+        // want to avoid iterator invalidation.
+        auto CurChildEdges = getAllEdges(UnionNode, CurChild);
+
         bool Merged = false;
-        for (Link VisitedLink : Visited) {
-          LTSN *VisitedChild = VisitedLink.first;
+        for (Link VisitedLink : VisitedLinks) {
+          // A node can be connected to the parent union with more than one
+          // edge (inheritance and instance at offset 0), so consider them all
+          // when comparing the current node to the visited ones.
+          for (Link &CurLink : CurChildEdges) {
+            LTSN *VisitedNode = VisitedLink.first;
+            revng_log(Log, "Is " << CurChild->ID << " == " << VisitedNode->ID);
+            revng_assert(VisitedNode != CurChild);
 
-          revng_log(Log, "Is " << CurChild->ID << " == " << VisitedChild->ID);
-          revng_assert(VisitedChild != CurChild
-                       or cmpEdgeTags(VisitedLink.second, CurLink.second) != 0);
+            auto [IsMerged, MergedSubtree] = mergeIfTopologicallyEq(TS,
+                                                                    VisitedLink,
+                                                                    CurLink);
 
-          auto [IsMerged, MergedSubtree] = mergeIfTopologicallyEq(TS,
-                                                                  VisitedLink,
-                                                                  CurLink);
+            if (IsMerged) {
+              TypeSystemChanged = true;
+              UnionNodeChanged = true;
+              Merged = true;
+              revng_log(Log, "Merged!");
 
-          if (IsMerged) {
-            TypeSystemChanged = true;
-            UnionNodeChanged = true;
-            Merged = true;
-            revng_log(Log, "Merged!");
+              postProcessMerge(TS, MergedSubtree);
 
-            bool SubtreeChanged = postProcessMerge(TS, MergedSubtree);
-            if (SubtreeChanged) {
-              // If the subtree was modified, re-enqueue the node
-              Visited.remove(VisitedLink);
-              ToCompare.insert(VisitedLink);
+              // Re-enqueue the newly merged node
+              auto IsLinkToMergedNode = [&VisitedNode](const Link &L) {
+                return L.first == VisitedNode;
+              };
+              VisitedLinks.remove_if(IsLinkToMergedNode);
+              NodesToCompare.insert(VisitedNode);
+
+              // If the node was merged, stop comparing it with other children
+              break;
             }
-
-            // If the node was merged, stop comparing it with other children
-            break;
           }
+          if (Merged)
+            break;
         }
 
         if (not Merged) {
-          Visited.insert(CurLink);
+          VisitedLinks.insert(CurChildEdges.begin(), CurChildEdges.end());
           revng_log(Log, "Child " << CurChild->ID << " not merged");
         }
       }
