@@ -104,7 +104,6 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       # Remove LLVM's artifacts from IR
       -remove-llvmassume-calls
       -dce
-      -serialize-model
       ${INPUT_FILE}
       -o ${TARGET_NAME}_prepared.bc
       )
@@ -136,7 +135,6 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       -restructure-cfg
       -beautify-ghast
       -decompilation
-      -serialize-model
       -decompiled-dir=${TARGET_NAME}_decompiled_dir
       ${TARGET_NAME}_prepared.bc
       -o /dev/null
@@ -169,7 +167,6 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
     add_test(NAME promote_stack_pointer_${TARGET_NAME} COMMAND revng --prefix=.
       opt -S
       -promote-stack-pointer
-      -serialize-model
       ${TARGET_NAME}_prepared.ll
       -o ${TARGET_NAME}_promoted_stack.ll
       )
@@ -190,7 +187,6 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       -instcombine
       -adjust-stack-pointer
       -sroa --sroa-aggressive-phis-selects
-      -serialize-model
       ${TARGET_NAME}_promoted_stack.ll
       -o ${TARGET_NAME}_adjusted_stack.ll
       )
@@ -214,7 +210,6 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       -mark-for-serialization
       -add-scev-barrier
       -decompilation
-      -serialize-model
       -dla-flatc-dir=${TARGET_NAME}_dla_dir
       ${TARGET_NAME}_adjusted_stack.bc
       -o /dev/null
