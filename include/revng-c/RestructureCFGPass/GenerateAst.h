@@ -294,18 +294,12 @@ inline ASTNode *findASTNode(ASTTree &AST,
 
 template<class NodeT>
 inline void
-createTile(RegionCFG<NodeT> &Graph,
-           llvm::DominatorTreeBase<BasicBlockNode<NodeT>, false> &ASTDT,
-           typename RegionCFG<NodeT>::BBNodeMap &TileToNodeMap,
-           BasicBlockNode<NodeT> *Node,
-           BasicBlockNode<NodeT> *End) {
-
+connectTile(llvm::DominatorTreeBase<BasicBlockNode<NodeT>, false> &ASTDT,
+            BasicBlockNode<NodeT> *Node,
+            BasicBlockNode<NodeT> *Tile) {
   using BBNodeT = BasicBlockNode<NodeT>;
   using BasicBlockNodeTVect = std::vector<BBNodeT *>;
   using EdgeDescriptor = typename BBNodeT::EdgeDescriptor;
-
-  // Create the new tile node.
-  BBNodeT *Tile = Graph.addTile();
 
   // Move all the edges incoming in the head of the collapsed region to the tile
   // node.
@@ -326,21 +320,48 @@ createTile(RegionCFG<NodeT> &Graph,
     Updates.push_back({ Insert, Predecessor, Tile });
     ASTDT.applyUpdates(Updates);
   }
+}
 
-  // Move all the edges exiting from the postdominator node of the collapsed
-  // region to the tile node, if the `End` passed as an argument is
-  // `!= nullptr`.
+template<class NodeT>
+inline void
+createTile(RegionCFG<NodeT> &Graph,
+           llvm::DominatorTreeBase<BasicBlockNode<NodeT>, false> &ASTDT,
+           typename RegionCFG<NodeT>::BBNodeMap &TileToNodeMap,
+           BasicBlockNode<NodeT> *Node,
+           BasicBlockNode<NodeT> *End,
+           bool EndIsPartOfTile = true) {
+
+  using BBNodeT = BasicBlockNode<NodeT>;
+  using BasicBlockNodeTVect = std::vector<BBNodeT *>;
+  using EdgeDescriptor = typename BBNodeT::EdgeDescriptor;
+
+  // Create the new tile node.
+  BBNodeT *Tile = Graph.addTile();
+
+  // Connect the incoming edge to the newly created tile.
+  connectTile(ASTDT, Node, Tile);
+
   if (End != nullptr) {
+    if (EndIsPartOfTile) {
+      // If End is part of the tile, move all the edges exiting from the
+      // postdominator node of the collapsed region to the tile node
 
-    BasicBlockNodeTVect Successors;
-    for (BBNodeT *Successor : End->successors())
-      Successors.push_back(Successor);
+      BasicBlockNodeTVect Successors;
+      for (BBNodeT *Successor : End->successors())
+        Successors.push_back(Successor);
 
-    for (BBNodeT *Successor : Successors) {
-      auto Edge = extractLabeledEdge(EdgeDescriptor{ End, Successor });
-      ASTDT.deleteEdge(End, Successor);
-      addEdge(EdgeDescriptor{ Tile, Successor }, Edge.second);
-      ASTDT.insertEdge(Tile, Successor);
+      for (BBNodeT *Successor : Successors) {
+        auto Edge = extractLabeledEdge(EdgeDescriptor{ End, Successor });
+        ASTDT.deleteEdge(End, Successor);
+        addEdge(EdgeDescriptor{ Tile, Successor }, Edge.second);
+        ASTDT.insertEdge(Tile, Successor);
+      }
+    } else {
+      // Otherwise, End is a non-inlined successor of the tile.
+      // Connect it accordingly.
+      moveEdgeSource(EdgeDescriptor(Node, End), Tile);
+      ASTDT.deleteEdge(Node, End);
+      ASTDT.insertEdge(Tile, End);
     }
   }
 
@@ -685,7 +706,12 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
             if (DominatedSucc == Successor2)
               Else = findASTNode(AST, TileToNodeMap, Successor2);
           }
-          createTile(Region, ASTDT, TileToNodeMap, Node, NotDominatedSucc);
+          createTile(Region,
+                     ASTDT,
+                     TileToNodeMap,
+                     Node,
+                     NotDominatedSucc,
+                     false);
 
           // Build the `IfNode`.
           using UniqueExpr = ASTTree::expr_unique_ptr;
