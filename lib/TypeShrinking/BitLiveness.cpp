@@ -19,10 +19,10 @@
 #include "llvm/IR/Type.h"
 #include "llvm/Support/Casting.h"
 
+#include "revng/MFP/MFP.h"
 #include "revng/Support/Assert.h"
 #include "revng/TypeShrinking/BitLiveness.h"
 #include "revng/TypeShrinking/DataFlowGraph.h"
-#include "revng/TypeShrinking/MFP.h"
 
 namespace TypeShrinking {
 
@@ -33,17 +33,17 @@ struct BitLivenessAnalysis {
   using GraphType = GenericGraph<DataFlowNode> *;
   using LatticeElement = uint32_t;
   using Label = DataFlowNode *;
-  using MFPResult = MFPResult<BitLivenessAnalysis::LatticeElement>;
+  using MFPResult = MFP::MFPResult<BitLivenessAnalysis::LatticeElement>;
 
-  static uint32_t combineValues(const uint32_t &Lh, const uint32_t &Rh) {
-    return std::max(Lh, Rh);
+  uint32_t combineValues(const uint32_t &LHS, const uint32_t &RHS) const {
+    return std::max(LHS, RHS);
   }
 
-  static bool isLessOrEqual(const uint32_t &Lh, const uint32_t &Rh) {
-    return Lh <= Rh;
+  bool isLessOrEqual(const uint32_t &LHS, const uint32_t &RHS) const {
+    return LHS <= RHS;
   }
 
-  static uint32_t applyTransferFunction(DataFlowNode *L, const uint32_t E);
+  uint32_t applyTransferFunction(DataFlowNode *L, const uint32_t E) const;
 };
 
 using BitVector = llvm::BitVector;
@@ -220,8 +220,8 @@ static uint32_t transferZExt(Instruction *Ins, const uint32_t &Element) {
   return std::min(Element, getMaxOperandSize(Ins));
 }
 
-uint32_t
-BitLivenessAnalysis::applyTransferFunction(DataFlowNode *L, const uint32_t E) {
+uint32_t BitLivenessAnalysis::applyTransferFunction(DataFlowNode *L,
+                                                    const uint32_t E) const {
   auto *Ins = L->Instruction;
   uint32_t Input = E;
   // At most every bit of the result is alive
@@ -263,12 +263,13 @@ BitLivenessPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
     }
   }
 
-  auto MFPResults = getMaximalFixedPoint<BitLivenessAnalysis>(&DataFlowGraph,
-                                                              0,
-                                                              Top,
-                                                              ExtremalLabels);
+  auto MFPRes = MFP::getMaximalFixedPoint<BitLivenessAnalysis>({},
+                                                               &DataFlowGraph,
+                                                               0,
+                                                               Top,
+                                                               ExtremalLabels);
   BitLivenessPass::Result Result;
-  for (auto &[Label, MFPResult] : MFPResults)
+  for (auto &[Label, MFPResult] : MFPRes)
     Result[Label->Instruction] = MFPResult.OutValue;
 
   return Result;
