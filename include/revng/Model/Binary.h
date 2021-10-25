@@ -38,6 +38,59 @@ struct KeyedObjectTraits<MetaAddress>
   : public IdentityKeyedObjectTraits<MetaAddress> {};
 
 //
+// FunctionAttribute
+//
+
+/// Attributes for functions
+///
+/// \note These attributes can be applied both to functions and call sites
+namespace model::FunctionAttribute {
+enum Values {
+  /// Invalid value
+  Invalid,
+  /// The function does not return
+  NoReturn,
+  Count
+};
+} // namespace model::FunctionAttribute
+
+namespace llvm::yaml {
+template<>
+struct ScalarEnumerationTraits<model::FunctionAttribute::Values>
+  : public NamedEnumScalarTraits<model::FunctionAttribute::Values> {};
+} // namespace llvm::yaml
+
+template<>
+struct KeyedObjectTraits<model::FunctionAttribute::Values>
+  : public IdentityKeyedObjectTraits<model::FunctionAttribute::Values> {};
+
+namespace model::FunctionAttribute {
+
+inline llvm::StringRef getName(Values V) {
+  switch (V) {
+  case Invalid:
+    return "Invalid";
+  case NoReturn:
+    return "NoReturn";
+  case Count:
+    revng_abort();
+    break;
+  }
+}
+
+inline Values fromName(llvm::StringRef Name) {
+  if (Name == "Invalid") {
+    return Invalid;
+  } else if (Name == "NoReturn") {
+    return NoReturn;
+  } else {
+    revng_abort();
+  }
+}
+
+} // namespace model::FunctionAttribute
+
+//
 // FunctionEdgeType
 //
 
@@ -235,6 +288,13 @@ public:
   /// Name of the dynamic function being called, or empty if not a dynamic call
   std::string DynamicFunction;
 
+  /// Attributes for this function
+  ///
+  /// \note To have the effective list of attributes for this call site, you
+  ///       have to add attributes on the called function.
+  // TODO: switch to std::set
+  MutableSet<model::FunctionAttribute::Values> Attributes;
+
 public:
   CallEdge() :
     FunctionEdge(MetaAddress::invalid(), FunctionEdgeType::FunctionCall) {}
@@ -260,7 +320,8 @@ INTROSPECTION_NS(model,
                  Destination,
                  Type,
                  Prototype,
-                 DynamicFunction);
+                 DynamicFunction,
+                 Attributes);
 
 template<>
 struct concrete_types_traits<model::FunctionEdge> {
@@ -278,7 +339,8 @@ struct llvm::yaml::MappingTraits<model::FunctionEdge>
 template<>
 struct llvm::yaml::MappingTraits<model::CallEdge>
   : public TupleLikeMappingTraits<model::CallEdge,
-                                  Fields<model::CallEdge>::DynamicFunction> {};
+                                  Fields<model::CallEdge>::DynamicFunction,
+                                  Fields<model::CallEdge>::Attributes> {};
 
 template<>
 struct llvm::yaml::ScalarTraits<model::FunctionEdge::Key>
@@ -425,6 +487,10 @@ public:
   /// The prototype of the function
   TypePath Prototype;
 
+  /// Attributes for this call site
+  // TODO: switch to std::set
+  MutableSet<model::FunctionAttribute::Values> Attributes;
+
 public:
   Function(const MetaAddress &Entry) : Entry(Entry) {}
   bool operator==(const model::Function &Other) const = default;
@@ -441,14 +507,22 @@ public:
 public:
   void dumpCFG() const debug_function;
 };
-INTROSPECTION_NS(model, Function, Entry, CustomName, Type, CFG, Prototype)
+INTROSPECTION_NS(model,
+                 Function,
+                 Entry,
+                 CustomName,
+                 Type,
+                 CFG,
+                 Prototype,
+                 Attributes)
 
 template<>
 struct llvm::yaml::MappingTraits<model::Function>
   : public TupleLikeMappingTraits<model::Function,
                                   Fields<model::Function>::CustomName,
                                   Fields<model::Function>::CFG,
-                                  Fields<model::Function>::Prototype> {};
+                                  Fields<model::Function>::Prototype,
+                                  Fields<model::Function>::Attributes> {};
 
 template<>
 struct KeyedObjectTraits<model::Function> {
@@ -470,6 +544,9 @@ public:
   /// The prototype of the function
   TypePath Prototype;
 
+  /// Function attributes
+  MutableSet<model::FunctionAttribute::Values> Attributes;
+
   // TODO: DefiningLibrary
 
 public:
@@ -487,12 +564,18 @@ public:
   void dump() const debug_function;
 };
 
-INTROSPECTION_NS(model, DynamicFunction, SymbolName, CustomName, Prototype)
+INTROSPECTION_NS(model,
+                 DynamicFunction,
+                 SymbolName,
+                 CustomName,
+                 Prototype,
+                 Attributes)
 
 template<>
 struct llvm::yaml::MappingTraits<model::DynamicFunction>
   : public TupleLikeMappingTraits<model::DynamicFunction,
-                                  Fields<model::DynamicFunction>::CustomName> {
+                                  Fields<model::DynamicFunction>::CustomName,
+                                  Fields<model::DynamicFunction>::Attributes> {
 };
 
 template<>
@@ -665,4 +748,29 @@ getPrototype(const model::Binary &Binary, const model::CallEdge &Edge) {
   } else {
     return Edge.Prototype;
   }
+}
+
+inline bool hasAttribute(const model::Binary &Binary,
+                         const model::CallEdge &Edge,
+                         model::FunctionAttribute::Values Attribute) {
+  using namespace model;
+
+  if (Edge.Attributes.count(Attribute) != 0)
+    return true;
+
+  if (Edge.Type == FunctionEdgeType::FunctionCall) {
+    const MutableSet<FunctionAttribute::Values> *CalleeAttributes = nullptr;
+    if (not Edge.DynamicFunction.empty()) {
+      const auto &F = Binary.ImportedDynamicFunctions.at(Edge.DynamicFunction);
+      CalleeAttributes = &F.Attributes;
+    } else if (Edge.Destination.isValid()) {
+      CalleeAttributes = &Binary.Functions.at(Edge.Destination).Attributes;
+    } else {
+      revng_abort();
+    }
+
+    return CalleeAttributes->count(Attribute) != 0;
+  }
+
+  return false;
 }
