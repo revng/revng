@@ -189,27 +189,39 @@ private:
   void createFunctionCall(IRBuilder<> &Builder,
                           Function *Callee,
                           const Boundary &TheBoundary,
-                          const MetaAddress &CallerBlockAddress);
+                          const MetaAddress &CallerBlockAddress,
+                          bool IsNoReturn);
 
   void createFunctionCall(IRBuilder<> &Builder,
                           MetaAddress ExpectedCallee,
                           const Boundary &TheBoundary,
-                          const MetaAddress &CallerBlockAddress);
+                          const MetaAddress &CallerBlockAddress,
+                          bool IsNoReturn);
 
   void createFunctionCall(BasicBlock *BB,
                           Function *Callee,
                           const Boundary &TheBoundary,
-                          const MetaAddress &CallerBlockAddress) {
+                          const MetaAddress &CallerBlockAddress,
+                          bool IsNoReturn) {
     IRBuilder<> Builder(BB);
-    createFunctionCall(Builder, Callee, TheBoundary, CallerBlockAddress);
+    createFunctionCall(Builder,
+                       Callee,
+                       TheBoundary,
+                       CallerBlockAddress,
+                       IsNoReturn);
   }
 
   void createFunctionCall(BasicBlock *BB,
                           MetaAddress Callee,
                           const Boundary &TheBoundary,
-                          const MetaAddress &CallerBlockAddress) {
+                          const MetaAddress &CallerBlockAddress,
+                          bool IsNoReturn) {
     IRBuilder<> Builder(BB);
-    createFunctionCall(Builder, Callee, TheBoundary, CallerBlockAddress);
+    createFunctionCall(Builder,
+                       Callee,
+                       TheBoundary,
+                       CallerBlockAddress,
+                       IsNoReturn);
   }
 
   /// Post process all the call markers, replacing them with actual calls
@@ -505,7 +517,8 @@ bool IFI::handleIndirectBoundary(const std::vector<Boundary> &Boundaries,
       createFunctionCall(Builder,
                          MetaAddress::invalid(),
                          *IndirectBoundary,
-                         Block.Start);
+                         Block.Start,
+                         false);
       break;
 
     case Return:
@@ -611,8 +624,15 @@ bool IFI::handleDirectBoundary(const Boundary &TheBoundary,
       IsCall.set();
 
       if (Edge.Type == model::FunctionEdgeType::FunctionCall) {
+        auto *Call = cast<model::CallEdge>(&Edge);
         eraseBranch(BB->getTerminator(), TheBoundary.CalleeBlock);
-        createFunctionCall(BB, Edge.Destination, TheBoundary, Block.Start);
+        createFunctionCall(BB,
+                           Edge.Destination,
+                           TheBoundary,
+                           Block.Start,
+                           hasAttribute(Binary,
+                                        *Call,
+                                        model::FunctionAttribute::NoReturn));
       }
     }
   }
@@ -699,13 +719,12 @@ void IFI::handleBasicBlock(const model::BasicBlock &Block,
                                                                 ClonedBlocks);
 
   // Handle call to dynamic functions
-  StringRef DynamicFunction;
+  model::CallEdge *Call = nullptr;
   for (const auto &Edge : Block.Successors)
-    if (auto *Call = dyn_cast<model::CallEdge>(Edge.get()))
-      if (not Call->DynamicFunction.empty())
-        DynamicFunction = Call->DynamicFunction;
+    if ((Call = dyn_cast<model::CallEdge>(Edge.get())))
+      break;
 
-  if (not DynamicFunction.empty()) {
+  if (Call != nullptr and not Call->DynamicFunction.empty()) {
     revng_assert(Boundaries.size() == 1);
     const auto &TheBoundary = Boundaries[0];
     auto *BB = TheBoundary.Block;
@@ -713,9 +732,12 @@ void IFI::handleBasicBlock(const model::BasicBlock &Block,
     eraseBranch(BB->getTerminator(), TheBoundary.CalleeBlock);
 
     createFunctionCall(BB,
-                       DynamicFunctionsMap.at(DynamicFunction),
+                       DynamicFunctionsMap.at(Call->DynamicFunction),
                        TheBoundary,
-                       Block.Start);
+                       Block.Start,
+                       hasAttribute(Binary,
+                                    *Call,
+                                    model::FunctionAttribute::NoReturn));
 
     return;
   }
@@ -853,7 +875,8 @@ void IFI::isolate(const model::Function &Function) {
 void IFI::createFunctionCall(IRBuilder<> &Builder,
                              MetaAddress ExpectedCallee,
                              const Boundary &TheBoundary,
-                             const MetaAddress &CallerBlockAddress) {
+                             const MetaAddress &CallerBlockAddress,
+                             bool IsNoReturn) {
   Function *Callee = nullptr;
   BasicBlock *ExpectedCalleeBB = nullptr;
   if (ExpectedCallee.isValid()) {
@@ -870,13 +893,18 @@ void IFI::createFunctionCall(IRBuilder<> &Builder,
                 << getName(ExpectedCalleeBB) << ")");
   }
 
-  createFunctionCall(Builder, Callee, TheBoundary, CallerBlockAddress);
+  createFunctionCall(Builder,
+                     Callee,
+                     TheBoundary,
+                     CallerBlockAddress,
+                     IsNoReturn);
 }
 
 void IFI::createFunctionCall(IRBuilder<> &Builder,
                              Function *Callee,
                              const Boundary &TheBoundary,
-                             const MetaAddress &CallerBlockAddress) {
+                             const MetaAddress &CallerBlockAddress,
+                             bool IsNoReturn) {
 
   if (Callee == nullptr)
     Callee = FunctionDispatcher;
@@ -892,7 +920,11 @@ void IFI::createFunctionCall(IRBuilder<> &Builder,
                               "revng.callerblock.start",
                               CallerBlockAddress);
 
-  if (TheBoundary.ReturnBlock != nullptr) {
+  if (IsNoReturn) {
+    throwException(Builder,
+                   "We return from a noreturn function call",
+                   Old->getDebugLoc());
+  } else if (TheBoundary.ReturnBlock != nullptr) {
     // Emit jump to fallthrough
     Builder.CreateBr(TheBoundary.ReturnBlock);
   } else {
