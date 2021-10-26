@@ -30,8 +30,6 @@
 #include "clang/AST/Type.h"
 #include "clang/Basic/IdentifierTable.h"
 
-#define DISABLE_RECURSIVE_COROUTINES
-
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Support/IRHelpers.h"
 

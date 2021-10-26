@@ -18,7 +18,6 @@
 #include "llvm/Support/GenericDomTreeConstruction.h"
 #include "llvm/Support/raw_os_ostream.h"
 
-#include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"

@@ -6,6 +6,7 @@
 /// special marker calls.
 
 #include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
@@ -22,6 +23,8 @@
 #include "revng-c/Support/Mangling.h"
 #include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
 
+#include "MarkerFunctions.h"
+
 struct AddIRSerializationMarkersPass : public llvm::FunctionPass {
 public:
   static char ID;
@@ -34,39 +37,6 @@ public:
 
   bool runOnFunction(llvm::Function &F) override;
 };
-
-static std::string makeTypeName(const llvm::Type *Ty) {
-  std::string Name;
-  if (auto *PtrTy = llvm::dyn_cast<llvm::PointerType>(Ty)) {
-    Name = "ptr_to_" + makeTypeName(PtrTy->getElementType());
-  } else if (auto *IntTy = llvm::dyn_cast<llvm::IntegerType>(Ty)) {
-    Name = "i" + std::to_string(IntTy->getBitWidth());
-  } else if (auto *StrucTy = llvm::dyn_cast<llvm::StructType>(Ty)) {
-    Name = "struct";
-    if (StrucTy->isLiteral()) {
-      for (const auto *FieldTy : StrucTy->elements())
-        Name += "_" + makeTypeName(FieldTy);
-    } else {
-      Name += "_" + makeCIdentifier(Ty->getStructName().str());
-    }
-  } else if (auto *FunTy = llvm::dyn_cast<llvm::FunctionType>(Ty)) {
-    Name = "func_" + makeTypeName(FunTy->getReturnType());
-    if (not FunTy->params().empty()) {
-      Name += "_args";
-      for (const auto &ArgT : FunTy->params())
-        Name += "_" + makeTypeName(ArgT);
-    }
-  } else if (Ty->isVoidTy()) {
-    Name += "void";
-  } else {
-    revng_unreachable("cannot build Type name");
-  }
-  return Name;
-}
-
-static std::string makeMarkerName(const llvm::Type *Ty) {
-  return "revng_serialization_marker_" + makeTypeName(Ty);
-}
 
 bool AddIRSerializationMarkersPass::runOnFunction(llvm::Function &F) {
 
@@ -111,11 +81,10 @@ bool AddIRSerializationMarkersPass::runOnFunction(llvm::Function &F) {
       auto MarkerName = makeMarkerName(IType);
       auto MarkerCallee = M->getOrInsertFunction(MarkerName, IType, IType);
 
-      if (auto *MarkerF = dyn_cast<llvm::Function>(MarkerCallee.getCallee())) {
-        MarkerF->addFnAttr(llvm::Attribute::NoUnwind);
-        MarkerF->addFnAttr(llvm::Attribute::WillReturn);
-        MarkerF->addFnAttr(llvm::Attribute::InaccessibleMemOnly);
-      }
+      auto *MarkerF = cast<llvm::Function>(MarkerCallee.getCallee());
+      MarkerF->addFnAttr(llvm::Attribute::NoUnwind);
+      MarkerF->addFnAttr(llvm::Attribute::WillReturn);
+      MarkerF->addFnAttr(llvm::Attribute::InaccessibleMemOnly);
 
       // Insert a call to the SCEV barrier right after I. For now the call to
       // barrier has an undef argument, that will be fixed later.

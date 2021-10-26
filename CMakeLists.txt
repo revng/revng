@@ -191,8 +191,15 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       )
 
     # tests for IR Canonicalization
-    add_test(NAME ir_canonicalization_${TARGET_NAME} COMMAND revng --prefix=.
+    add_test(NAME ir_canonicalization_${TARGET_NAME}
+      COMMAND revng
+      --prefix=${CMAKE_BINARY_DIR}
       opt
+      -add-primitives
+      -dla
+      -make-model-gep
+      -early-cse
+      -dce
       -exit-ssa
       -add-ir-serialization-markers
       ${TARGET_NAME}_prepared.bc
