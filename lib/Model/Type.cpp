@@ -820,7 +820,7 @@ verifyImpl(VerifyHelper &VH, const CABIFunctionType *T) {
       or not rc_recur T->ReturnType.verify(VH))
     rc_return VH.fail();
 
-  if (T->ABI == model::abi::Invalid)
+  if (T->ABI == model::ABI::Invalid)
     rc_return VH.fail();
 
   for (auto &Group : llvm::enumerate(T->Arguments)) {

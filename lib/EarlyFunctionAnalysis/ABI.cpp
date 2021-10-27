@@ -19,7 +19,7 @@ static bool inWhitelist(const std::array<model::Register::Values, N> &Array,
 
 namespace abi {
 
-using namespace model::abi;
+using namespace model::ABI;
 
 ABI<SystemV_x86_64>::AnalysisResult
 ABI<SystemV_x86_64>::analyze(model::Binary &TheBinary,

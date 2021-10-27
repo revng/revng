@@ -964,7 +964,7 @@ public:
   static constexpr const auto AssociatedKind = TypeKind::CABIFunctionType;
 
   Identifier CustomName;
-  abi::Values ABI = abi::Invalid;
+  ABI::Values ABI = ABI::Invalid;
   QualifiedType ReturnType;
   SortedVector<Argument> Arguments;
   // TODO: handle variadic functions

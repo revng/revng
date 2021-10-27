@@ -129,7 +129,7 @@ private:
   size_t AltIndex;
   size_t TypesWithIdentityCount;
   DWARFContext &DICtx;
-  model::abi::Values DefaultABI;
+  model::ABI::Values DefaultABI;
   std::map<size_t, const model::Type *> Placeholders;
   std::set<const model::Type *> InvalidPrimitives;
   std::set<const DWARFDie *> InProgressDies;
@@ -149,17 +149,17 @@ public:
     // TODO: this needs to be refined
     switch (DICtx.getArch()) {
     case llvm::Triple::x86_64:
-      DefaultABI = model::abi::SystemV_x86_64;
+      DefaultABI = model::ABI::SystemV_x86_64;
       break;
     default:
-      DefaultABI = model::abi::Invalid;
+      DefaultABI = model::ABI::Invalid;
     }
   }
 
 private:
-  model::abi::Values getABI(CallingConvention CC = DW_CC_normal) const {
+  model::ABI::Values getABI(CallingConvention CC = DW_CC_normal) const {
     if (CC != DW_CC_normal)
-      return model::abi::Invalid;
+      return model::ABI::Invalid;
 
     return DefaultABI;
   }
@@ -419,7 +419,7 @@ private:
       FunctionType->CustomName = Name;
       FunctionType->ABI = getABI();
 
-      if (FunctionType->ABI == model::abi::Invalid) {
+      if (FunctionType->ABI == model::ABI::Invalid) {
         reportIgnoredDie(Die, "Unknown calling convention");
         rc_return nullptr;
       }
@@ -759,7 +759,7 @@ private:
       CC = static_cast<CallingConvention>(*MaybeCC);
     FunctionType->ABI = getABI(CC);
 
-    if (FunctionType->ABI == model::abi::Invalid) {
+    if (FunctionType->ABI == model::ABI::Invalid) {
       reportIgnoredDie(Die, "Unknown calling convention");
       return std::nullopt;
     }

@@ -467,7 +467,7 @@ BOOST_AUTO_TEST_CASE(CABIFunctionTypes) {
   // Create a C-like function type
   TypePath FunctionPath = T->recordNewType(makeType<CABIFunctionType>());
   auto *FunctionType = cast<CABIFunctionType>(FunctionPath.get());
-  FunctionType->ABI = model::abi::SystemV_x86_64;
+  FunctionType->ABI = model::ABI::SystemV_x86_64;
   revng_check(T->Types.size() == 3);
 
   revng_check(not FunctionType->size().has_value());

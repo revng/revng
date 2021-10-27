@@ -241,7 +241,7 @@ void BinaryFile::initialize(uint64_t PreferedBaseAddress) {
   using namespace llvm::ELF;
   using namespace model::Register;
   Architecture::RelocationTypesMap RelocationTypes;
-  model::abi::Values DefaultABI = model::abi::Invalid;
+  model::ABI::Values DefaultABI = model::ABI::Invalid;
 
   auto Arch = TheBinary->getArch();
   switch (Arch) {
@@ -344,7 +344,7 @@ void BinaryFile::initialize(uint64_t PreferedBaseAddress) {
     RelocationTypes[R_X86_64_64] = RD(RD::SymbolRelative, RD::Addend);
 
     BasicBlockEndingPattern = "\xcc";
-    DefaultABI = model::abi::SystemV_x86_64;
+    DefaultABI = model::ABI::SystemV_x86_64;
 
     break;
 

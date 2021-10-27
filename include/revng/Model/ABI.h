@@ -10,7 +10,7 @@
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTree.h"
 
-namespace model::abi {
+namespace model::ABI {
 
 enum Values { Invalid, SystemV_x86_64, Count };
 
@@ -26,12 +26,12 @@ inline llvm::StringRef getName(Values V) {
   revng_abort();
 }
 
-} // namespace model::abi
+} // namespace model::ABI
 
 namespace llvm::yaml {
 
 template<>
-struct ScalarEnumerationTraits<model::abi::Values>
-  : public NamedEnumScalarTraits<model::abi::Values> {};
+struct ScalarEnumerationTraits<model::ABI::Values>
+  : public NamedEnumScalarTraits<model::ABI::Values> {};
 
 } // namespace llvm::yaml
