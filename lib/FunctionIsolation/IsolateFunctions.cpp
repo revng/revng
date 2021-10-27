@@ -22,6 +22,7 @@
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/FunctionIsolation/IsolateFunctions.h"
+#include "revng/Model/Binary.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
@@ -126,7 +127,7 @@ public:
 
 class IsolateFunctionsImpl {
 private:
-  using SuccessorsContainer = std::map<model::FunctionEdge, int>;
+  using SuccessorsContainer = std::map<const model::FunctionEdge *, int>;
 
 private:
   Function *RootFunction = nullptr;
@@ -425,7 +426,7 @@ bool IFI::handleIndirectBoundary(const std::vector<Boundary> &Boundaries,
                                  const SuccessorsContainer &ExpectedSuccessors,
                                  bool CallConsumed,
                                  FunctionBlocks &ClonedBlocks) {
-  std::vector<model::FunctionEdge> RemainingEdges;
+  std::vector<const model::FunctionEdge *> RemainingEdges;
   for (auto &[Edge, EdgeUsageCount] : ExpectedSuccessors)
     if (EdgeUsageCount == 0)
       RemainingEdges.push_back(Edge);
@@ -435,8 +436,8 @@ bool IFI::handleIndirectBoundary(const std::vector<Boundary> &Boundaries,
   bool NoMore = RemainingEdges.size() == 0;
   using namespace model::FunctionEdgeType;
 
-  auto IsDirectEdge = [](const model::FunctionEdge &E) {
-    return isDirectEdge(E.Type);
+  auto IsDirectEdge = [](const model::FunctionEdge *E) {
+    return isDirectEdge(E->Type);
   };
   bool AllDirect = allOrNone(RemainingEdges, IsDirectEdge, false);
 
@@ -445,7 +446,7 @@ bool IFI::handleIndirectBoundary(const std::vector<Boundary> &Boundaries,
     // We're not out of expected successors, but they are not all direct.
     // We expect a single indirect edge.
     revng_assert(RemainingEdges.size() == 1);
-    IndirectType = RemainingEdges.begin()->Type;
+    IndirectType = (*RemainingEdges.begin())->Type;
     revng_assert(isIndirectEdge(IndirectType));
   }
 
@@ -482,8 +483,8 @@ bool IFI::handleIndirectBoundary(const std::vector<Boundary> &Boundaries,
     SortedVector<MetaAddress> ExpectedAddresses;
     {
       auto Inserter = ExpectedAddresses.batch_insert();
-      for (const model::FunctionEdge &Edge : RemainingEdges)
-        Inserter.insert(Edge.Destination);
+      for (const model::FunctionEdge *Edge : RemainingEdges)
+        Inserter.insert(Edge->Destination);
     }
 
     // Print comparison of targets mandated by the model and those identified in
@@ -594,11 +595,11 @@ bool IFI::handleDirectBoundary(const Boundary &TheBoundary,
   size_t Consumed = 0;
   for (auto &[Edge, EdgeUsageCount] : ExpectedSuccessors) {
     // Is this edge targeting who we expect?
-    if (TheBoundary.Successors.Addresses.count(Edge.Destination) == 0)
+    if (TheBoundary.Successors.Addresses.count(Edge->Destination) == 0)
       continue;
 
     bool Match = false;
-    switch (Edge.Type) {
+    switch (Edge->Type) {
     case model::FunctionEdgeType::DirectBranch:
       if (not TheBoundary.isCall())
         Match = true;
@@ -623,11 +624,11 @@ bool IFI::handleDirectBoundary(const Boundary &TheBoundary,
     if (TheBoundary.isCall()) {
       IsCall.set();
 
-      if (Edge.Type == model::FunctionEdgeType::FunctionCall) {
-        auto *Call = cast<model::CallEdge>(&Edge);
+      if (Edge->Type == model::FunctionEdgeType::FunctionCall) {
+        auto *Call = cast<model::CallEdge>(Edge);
         eraseBranch(BB->getTerminator(), TheBoundary.CalleeBlock);
         createFunctionCall(BB,
-                           Edge.Destination,
+                           Edge->Destination,
                            TheBoundary,
                            Block.Start,
                            hasAttribute(Binary,
@@ -750,7 +751,7 @@ void IFI::handleBasicBlock(const model::BasicBlock &Block,
   for (const auto &E : Block.Successors) {
     // Ignore self-loops
     if (E->Destination != Block.Start) {
-      ExpectedSuccessors[*E] = 0;
+      ExpectedSuccessors[E.get()] = 0;
     }
   }
 
