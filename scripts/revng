@@ -113,9 +113,9 @@ def get_elf_needed(path):
             if not runpath:
                 return needed
             else:
-                runpaths = [path.replace("$ORIGIN",
-                                         os.path.dirname(path))
-                            for path
+                runpaths = [runpath.replace("$ORIGIN",
+                                            os.path.dirname(path))
+                            for runpath
                             in runpath[0].split(":")]
                 absolute_needed = []
                 for lib in needed:
