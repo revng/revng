@@ -523,6 +523,31 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
       // switch and need to find it to generate the correct ast.
       if (not Fallthrough) {
 
+        // Try to handle the situation where one successor of the switch is the
+        // moral postdominator of the switch itself, being the successor of all
+        // the other cases.
+        llvm::SmallVector<BasicBlockNodeT *> SuccOfCases;
+        for (BasicBlockNodeT *Case : Successors) {
+          BasicBlockNodeT *SuccOfCase = getDirectSuccessor(Case);
+          SuccOfCases.push_back(SuccOfCase);
+        }
+
+        // For each successor, check if a certain one is successor of all the
+        // other cases.
+        BasicBlockNodeT *CandidatePostDomBB = nullptr;
+        for (BasicBlockNodeT *Case : Successors) {
+          unsigned Count = std::count(SuccOfCases.begin(),
+                                      SuccOfCases.end(),
+                                      Case);
+          if (Count == Successors.size() - 1) {
+            revng_assert(CandidatePostDomBB == nullptr);
+            CandidatePostDomBB = Case;
+          }
+        }
+        if (CandidatePostDomBB != nullptr) {
+          PostDomBB = CandidatePostDomBB;
+        }
+
         // Handle switch nodes with all but one cases inlined, by considering
         // the not inlined case also as moral postdominator of the switch.
 
