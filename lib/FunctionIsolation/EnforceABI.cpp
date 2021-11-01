@@ -31,19 +31,6 @@
 
 using namespace llvm;
 
-using StackAnalysis::FunctionCallRegisterArgument;
-using StackAnalysis::FunctionCallReturnValue;
-using StackAnalysis::FunctionRegisterArgument;
-using StackAnalysis::FunctionReturnValue;
-using StackAnalysis::FunctionsSummary;
-
-using CallSiteDescription = FunctionsSummary::CallSiteDescription;
-using FunctionDescription = FunctionsSummary::FunctionDescription;
-using FCRD = FunctionsSummary::FunctionCallRegisterDescription;
-using FunctionCallRegisterDescription = FCRD;
-using FRD = FunctionsSummary::FunctionRegisterDescription;
-using FunctionRegisterDescription = FRD;
-
 char EnforceABI::ID = 0;
 using Register = RegisterPass<EnforceABI>;
 static Register X("enforce-abi", "Enforce ABI Pass", true, true);
