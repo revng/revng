@@ -68,6 +68,12 @@ class MetaAddressRemapper:
 
         return value
 
+class SafeLoaderIgnoreUnknown(yaml.SafeLoader):
+    def ignore_unknown(self, node):
+        return self.construct_mapping(node)
+
+SafeLoaderIgnoreUnknown.add_constructor(None, SafeLoaderIgnoreUnknown.ignore_unknown)
+
 def remap_metaaddress(model):
     mar = MetaAddressRemapper()
     mar.collect(model)
@@ -115,7 +121,7 @@ def main():
                 return 0
 
             # Decode YAML
-            model = yaml.safe_load(text_model)
+            model = yaml.load(text_model, Loader=SafeLoaderIgnoreUnknown)
 
             # Remap MetaAddress
             if args.remap:
