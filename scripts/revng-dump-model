@@ -9,15 +9,18 @@ import yaml
 def log(message):
     sys.stderr.write(message + "\n")
 
+def is_metaaddress(value):
+    return (isinstance(value, str)
+            and value.startswith("0x")
+            and (":Code_" in value
+                 or ":Generic" in value))
+
 class MetaAddressRemapper:
     def __init__(self):
         self.addresses = set()
 
     def handle(self, value):
-        if (isinstance(value, str)
-            and value.startswith("0x")
-            and ":Code_" in value):
-
+        if is_metaaddress(value):
             self.addresses.add(value)
 
     def collect(self, value):
