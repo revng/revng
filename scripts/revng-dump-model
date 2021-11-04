@@ -133,6 +133,9 @@ def main():
                              sort_keys=True,
                              check_circular=False))
 
+            # Consume all remaining input
+            sys.stdin.read()
+
             return 0
 
     log("Couldn't find revng.model metadata")
