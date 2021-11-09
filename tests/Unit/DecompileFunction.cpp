@@ -17,13 +17,13 @@
 
 #include "revng-c/Decompiler/CDecompiler.h"
 
+using namespace llvm;
+
 int main(int argc, char **argv) {
   revng_check(argc == 2);
-  llvm::SMDiagnostic Errors;
-  llvm::LLVMContext TestContext;
-  std::unique_ptr<llvm::Module> M = llvm::parseIRFile(argv[1],
-                                                      Errors,
-                                                      TestContext);
+  SMDiagnostic Errors;
+  LLVMContext TestContext;
+  std::unique_ptr<Module> M = parseIRFile(argv[1], Errors, TestContext);
 
   TupleTree<model::Binary> Model = loadModel(*M);
   revng_check(not Model->Functions.empty(),
@@ -31,15 +31,16 @@ int main(int argc, char **argv) {
 
   const model::Function &F = *Model->Functions.begin();
 
-  using llvm::Twine;
-  llvm::Function *LLVMFun = M->getFunction((Twine("local_") + Twine(F.name())).str());
+  Function *LLVMFun = M->getFunction((Twine("local_") + Twine(F.name())).str());
   revng_check(LLVMFun, "Cannot find function in LLVM Module");
 
   auto FTags = FunctionTags::TagsSet::from(LLVMFun);
   revng_check(FTags.contains(FunctionTags::Lifted),
               "Function does not have the 'Lifted' Tag");
 
-  std::string CCode = decompileFunction(M.get(), (Twine("local_") + Twine(F.name())).str());
+  std::string CCode = decompileFunction(M.get(),
+                                        (Twine("local_") + Twine(F.name()))
+                                          .str());
   revng_check(not CCode.empty(), "Decompiled function is empty");
 
   return 0;
