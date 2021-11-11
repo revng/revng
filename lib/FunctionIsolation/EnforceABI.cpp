@@ -115,6 +115,7 @@ void EnforceABIImpl::run() {
                               "opaque_pc",
                               M);
   OpaquePC->addFnAttr(Attribute::NoUnwind);
+  OpaquePC->addFnAttr(Attribute::WillReturn);
   OpaquePC->addFnAttr(Attribute::ReadOnly);
   FunctionTags::OpaqueCSVValue.addTo(OpaquePC);
 
