@@ -83,6 +83,7 @@ PromoteCSVs::PromoteCSVs(Module *M, const GeneratedCodeBasicInfo &GCBI) :
 
   CSVInitializers.addFnAttribute(Attribute::ReadOnly);
   CSVInitializers.addFnAttribute(Attribute::NoUnwind);
+  CSVInitializers.addFnAttribute(Attribute::WillReturn);
   CSVInitializers.setTags({ &FunctionTags::OpaqueCSVValue });
 
   // Record existing initializers
