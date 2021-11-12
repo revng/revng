@@ -30,23 +30,6 @@ class MDNode;
 
 static const char *JTReasonMDName = "revng.jt.reasons";
 
-template<typename T>
-concept HasMetadata = requires(T &Value,
-                               const T &ConstValue,
-                               llvm::StringRef KindName,
-                               unsigned KindID,
-                               llvm::MDNode *MD) {
-  Value.setMetadata(KindName, MD);
-  Value.setMetadata(KindID, MD);
-  { ConstValue.getMetadata(KindName) } -> same_as<llvm::MDNode *>;
-  { ConstValue.getMetadata(KindID) } -> same_as<llvm::MDNode *>;
-};
-
-static_assert(HasMetadata<llvm::Instruction>);
-static_assert(HasMetadata<llvm::Function>);
-static_assert(HasMetadata<llvm::GlobalVariable>);
-static_assert(not HasMetadata<llvm::Constant>);
-
 /// \brief Pass to collect basic information about the generated code
 ///
 /// This pass provides useful information for other passes by extracting them
@@ -436,17 +419,6 @@ public:
     auto *VAM = ValueAsMetadata::get(MA.toConstant(MetaAddressStruct));
     auto *MD = MDTuple::get(getContext(RootFunction), VAM);
     U->setMetadata(Name, MD);
-  }
-
-  template<HasMetadata T>
-  MetaAddress getMetaAddressMetadata(T *U, llvm::StringRef Name) const {
-    using namespace llvm;
-
-    if (auto *MD = dyn_cast_or_null<MDTuple>(U->getMetadata(Name)))
-      if (auto *VAM = dyn_cast<ValueAsMetadata>(MD->getOperand(0)))
-        return MetaAddress::fromConstant(VAM->getValue());
-
-    return MetaAddress::invalid();
   }
 
 private:
