@@ -18,7 +18,7 @@ set(ANALYSIS_DIFF_functionsboundaries "diff -u")
 set(ANALYSIS_OPT_stack_analysis "abi-analysis")
 set(ANALYSIS_OPT_OUTPUT_stack_analysis "abi-analysis-output")
 set(ANALYSIS_SUFFIX_stack_analysis ".stack-analysis.json")
-set(ANALYSIS_DIFF_stack_analysis "${CMAKE_SOURCE_DIR}/scripts/compare-json.py --order")
+set(ANALYSIS_DIFF_stack_analysis "${CMAKE_SOURCE_DIR}/scripts/compare-yaml")
 
 set(USED_REFERENCE_FILES "")
 
@@ -56,7 +56,7 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
         set(TEST_NAME test-lifted-${CATEGORY}-${ANALYSIS}-${TARGET_NAME})
         add_test(NAME ${TEST_NAME}
           COMMAND sh -c "./bin/revng opt --${ANALYSIS_OPT_${ANALYSIS}} --${ANALYSIS_OPT_OUTPUT_${ANALYSIS}}=${ANALYSIS_OUTPUT} ${OUTPUT} --debug-log=stackanalysis -o /dev/null \
-          && ${ANALYSIS_DIFF_${ANALYSIS}} ${REFERENCE} ${ANALYSIS_OUTPUT}")
+          && ${ANALYSIS_DIFF_${ANALYSIS}} ${ANALYSIS_OUTPUT} ${REFERENCE}")
         set_tests_properties(${TEST_NAME} PROPERTIES LABELS "analysis;${CATEGORY};${CONFIGURATION};${ANALYSIS}")
 
       endif()

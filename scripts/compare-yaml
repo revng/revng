@@ -1,0 +1,342 @@
+#!/usr/bin/env python3
+
+# This script compares two YAML files. In general, the reference YAML file is
+# supposed to be included in the other one. For instance, {"a": 1, "b": 2}
+# contains {"b": 2}. This is useful for enforcing the content of certain parts
+# of a YAML file, in particular during testing.
+
+# TODO: we need to have more reliable way to detect and dereference references
+#       and ignore "fragile" keys.
+# TODO: we need to use an optional schema to know what lists are actually sets
+
+import argparse
+import re
+import sys
+import yaml
+
+from networkx import DiGraph
+from networkx.algorithms.isomorphism import DiGraphMatcher
+
+args = None
+
+fragile_keys = set(["ID"])
+
+def log(message):
+    sys.stderr.write(message + "\n")
+
+def is_reference(str):
+    return str.startswith("/Types/")
+
+def dereference(root, str):
+    assert is_reference(str)
+    match = re.match(r"/Types/.*-([^-]*)", str)
+
+    if match:
+        type_id = int(match.groups()[0])
+        for item in root["Types"]:
+            if item["ID"] == type_id:
+                return item
+
+    return None
+
+class Tag:
+    def __init__(self, tag):
+        self.tag = tag
+    def __eq__(self, other):
+        return self.tag == other.tag
+
+class YAMLMatcher(DiGraphMatcher):
+    def __init__(self, input_graph: "YAMLGraph",
+                 reference_graph: "YAMLGraph",
+                 exact):
+        super().__init__(input_graph.graph, reference_graph.graph)
+        self.input_graph = input_graph
+        self.reference_graph = reference_graph
+        self.exact = exact
+
+    def semantic_feasibility(self, input_id, reference_id):
+        input_object = self.input_graph.node_map[input_id]
+        input_type = type(input_object)
+        
+        reference_object = self.reference_graph.node_map[reference_id]
+        reference_type = type(reference_object)
+
+        same_type = reference_type is input_type
+
+        if same_type:
+            if input_type is dict:
+                input_object = YAMLGraph.filter(input_object)
+                reference_object = YAMLGraph.filter(reference_object)
+
+                if self.exact:
+                    return input_object == reference_object
+
+                for key, value in reference_object.items():
+                    if not key in input_object or input_object[key] != value:
+                        return False
+
+                return True
+            elif input_type is list:
+                return True
+            else:
+                return input_object == reference_object
+        else:
+            return False
+
+class YAMLGraph:
+    def __init__(self, root):
+        self.graph = DiGraph()
+        self.node_map = {}
+        self.root = root
+        self.visit_object(root)
+        self.node_colors = {}
+
+    def add_node(self, object):
+        object_id = id(object)
+        self.node_map[object_id] = object
+        self.graph.add_node(object_id)
+
+    def add_edge(self, source_id, destination_id, label):
+        label_object = Tag(label)
+        label_id = id(label_object)
+        self.add_node(label_object)
+        self.graph.add_edge(source_id, label_id)
+        self.graph.add_edge(label_id, destination_id)
+
+    def visit_object(self, object):
+        object_type = type(object)
+        object_id = id(object)
+
+        if object_id in self.node_map:
+            return
+
+        self.add_node(object)
+
+        if object_type is list:
+            for index, item in enumerate(object):
+                self.visit_object(item)
+                if args.exact:
+                    self.add_edge(object_id, id(item), index)
+                else:
+                    self.add_edge(object_id, id(item), "")
+        elif object_type is dict:
+            for key, value in object.items():
+                value_type = type(value)
+                if value_type is dict or value_type is list:
+                    self.visit_object(value)
+                    self.add_edge(object_id, id(value), key)
+                if value_type is str and is_reference(value):
+                    item = dereference(self.root, value)
+                    if item is not None:
+                        self.visit_object(item)
+                        self.add_edge(object_id, id(item), key)
+
+    @staticmethod
+    def filter(object):
+        assert type(object) is dict
+        filtered_dict = dict(object)
+        to_remove = []
+        for key, value in filtered_dict.items():
+            value_type = type(value)
+            if (key in fragile_keys
+                or (value_type is list
+                    or value_type is dict
+                    or value_type is str and is_reference(value))):
+                to_remove.append(key)
+
+        for key in to_remove:
+            del filtered_dict[key]
+
+        return filtered_dict
+        
+    @staticmethod
+    def get_label(object):
+        object_type = type(object)
+        if object_type is list:
+            return f"List[{len(object)}]"
+        elif object_type is Tag:
+            return str(object.tag)
+        elif object_type is dict:
+            return yaml.dump(YAMLGraph.filter(object))
+        else:
+            return str(object)
+
+    @staticmethod
+    def escape(data):
+        return data.replace('"', '\\"').replace("\n", "\\l")
+
+    def write(self, path):
+        with open(path, "w") as output_file:
+            # Emit header
+            output_file.write("digraph {\n")
+            output_file.write("  node [shape=box];\n")
+
+            # Emit nodes
+            for object_id in self.graph.nodes:
+                object = self.node_map[object_id]
+                if type(object) is Tag:
+                    source_id = list(self.graph.predecessors(object_id))[0]
+                    destination_id = list(self.graph.successors(object_id))[0]
+                    label = self.escape(self.get_label(object.tag))
+                    output_file.write(f"""  n{source_id} ->""")
+                    output_file.write(f"""  n{destination_id}""")
+                    output_file.write(f""" [label="{label}"];\n""")
+                else:
+                    extra = ""
+                    if object_id in self.node_colors:
+                        extra += f',style=filled'
+                        extra += f',fillcolor="{self.node_colors[object_id]}"'
+                    label = self.escape(self.get_label(object))
+                    output_file.write(f"""  n{object_id}""")
+                    output_file.write(f""" [label="{label}"{extra}];\n""")
+
+            # Emit footer
+            output_file.write("}\n")
+
+    def color_match(self, other, matcher):
+        colors = [
+            "#ff5f7e", "#4f7d9d", "#8873b3", "#d273b7",
+            "#f672a9", "#fb7f8c", "#ff7c43", "#ffa600"
+        ]
+        for match in matcher.match():
+            for index, (key, value) in enumerate(match.items()):
+                color = colors[index % len(colors)]
+                self.node_colors[value] = color
+                other.node_colors[key] = color
+            return
+
+    def is_subgraph(self, other, color=False):
+        matcher = YAMLMatcher(other, self)
+        result = matcher.subgraph_is_isomorphic()
+
+        if result and color:
+            self.color_match(other, match)
+
+        return result
+
+    def is_subgraph(self, other, color=False):
+        matcher = YAMLMatcher(other, self, False)
+        result = matcher.subgraph_is_isomorphic()
+
+        if result and color:
+            self.color_match(other, matcher)
+
+        return result
+
+    def is_equal(self, other, color=False):
+        matcher = YAMLMatcher(other, self, True)
+        result = matcher.is_isomorphic()
+
+        if result and color:
+            self.color_match(match)
+
+        return result
+        
+def selftest():
+    # Test --exact
+    args.exact = True
+    def test(input, reference):
+        return YAMLGraph(reference).is_equal(YAMLGraph(input))
+    assert test({}, {})
+    assert test(3, 3)
+    assert not test(2, 3)
+    assert test([3], [3])
+    assert not test([2], [3])
+    assert not test([], {})
+    assert test({"a": 2}, {"a": 2})
+    assert not test({"a": 2}, {})
+    assert not test({"a": 2, "b": 3}, {"b": 2, "a": 3})
+    assert test([1,2,3], [1,2,3])
+    assert not test([1,3,2], [1,2,3])
+
+    # Test approximate for inclusion
+    args.exact = False
+    def test(input, reference):
+        return YAMLGraph(reference).is_subgraph(YAMLGraph(input))
+    assert test({}, {})
+    assert not test({}, {"a": 2})
+    assert test([3], [3])
+    assert not test([2], [3])
+    assert not test([], {})
+    assert test({"a": 2}, {"a": 2})
+    assert test({"a": 2}, {})
+    assert test({"a": 2, "b": 3}, {"b": 3, "a": 2})
+    assert test([1,2,3], [1,2,3])
+    assert test([1,3,2], [1,2,3])
+
+    # Test references
+    reference = {
+        "a": "/Types/Type-1",
+        "Types": [{"ID": 1, "b": 3}]
+    }
+    assert test({
+                    "a": "/Types/Type-2",
+                    "Types": [{"ID": 1, "b": 5}, {"ID": 2, "b": 3}]
+                },
+                reference)
+    assert not test({
+                        "a": "/Types/Type-2",
+                         "Types": [{"ID": 1, "b": 5}, {"ID": 2, "b": 4}]
+                    }, reference)
+
+    return 0
+
+class SafeLoaderIgnoreUnknown(yaml.SafeLoader):
+    def ignore_unknown(self, node):
+        return self.construct_mapping(node)
+
+SafeLoaderIgnoreUnknown.add_constructor(None,
+                                        SafeLoaderIgnoreUnknown.ignore_unknown)
+
+def main():
+    parser = argparse.ArgumentParser(description="Compare a YAML file against "
+                                     "a reference.")
+    parser.add_argument("input",
+                        metavar="INPUT",
+                        help="The input file.")
+    parser.add_argument("reference",
+                        metavar="REFERENCE",
+                        help="The reference file.")
+    parser.add_argument("--exact",
+                        action="store_true",
+                        help=("Match exactly, containing the reference is not "
+                              + "enough."))
+    parser.add_argument("--not",
+                        action="store_true",
+                        help="If it matches, return an error.")
+    parser.add_argument("--dump-graphs",
+                        action="store_true",
+                        help="Dump INPUT.dot and REFERENCE.dot.")
+    parser.add_argument("--selftest",
+                        action="store_true",
+                        help="Run internal tests.")
+
+    global args
+    args = parser.parse_args()
+
+    if args.selftest:
+        return selftest()
+
+    with open(args.reference) as reference_file, open(args.input) as input_file:
+        reference = yaml.load(reference_file, Loader=SafeLoaderIgnoreUnknown)
+        input = yaml.load(input_file, Loader=SafeLoaderIgnoreUnknown)
+
+    reference_graph = YAMLGraph(reference)
+    input_graph = YAMLGraph(input)
+
+    if args.exact:
+        result = reference_graph.is_equal(input_graph, args.dump_graphs)
+    else:
+        result = reference_graph.is_subgraph(input_graph, args.dump_graphs)
+
+    if args.dump_graphs:
+        reference_graph.write(f"{args.reference}.dot")
+        input_graph.write(f"{args.input}.dot")
+
+    if args.__dict__["not"]:
+        result = not result
+
+    return 0 if result else 1
+
+if __name__ == "__main__":
+    sys.exit(main())
