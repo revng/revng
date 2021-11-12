@@ -282,3 +282,5 @@ extern Logger<> NRALog;
 extern Logger<> PassesLog;
 extern Logger<> ReleaseLog;
 extern Logger<> VerifyLog;
+
+void writeToFile(llvm::StringRef What, llvm::StringRef Path) debug_function;

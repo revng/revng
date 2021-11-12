@@ -115,3 +115,13 @@ void Logger<X>::setIndentation(unsigned Level) {
 // Force instantiation
 template class Logger<true>;
 template class Logger<false>;
+
+void writeToFile(llvm::StringRef What, llvm::StringRef Path) {
+  std::error_code EC;
+  llvm::raw_fd_ostream File(Path, EC);
+
+  if (EC)
+    revng_abort(llvm::Twine("Error opening file ", Path).str().c_str());
+
+  File << What;
+}
