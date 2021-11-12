@@ -281,13 +281,6 @@ def selftest():
 
     return 0
 
-class SafeLoaderIgnoreUnknown(yaml.SafeLoader):
-    def ignore_unknown(self, node):
-        return self.construct_mapping(node)
-
-SafeLoaderIgnoreUnknown.add_constructor(None,
-                                        SafeLoaderIgnoreUnknown.ignore_unknown)
-
 def main():
     parser = argparse.ArgumentParser(description="Compare a YAML file against "
                                      "a reference.")
@@ -318,8 +311,8 @@ def main():
         return selftest()
 
     with open(args.reference) as reference_file, open(args.input) as input_file:
-        reference = yaml.load(reference_file, Loader=SafeLoaderIgnoreUnknown)
-        input = yaml.load(input_file, Loader=SafeLoaderIgnoreUnknown)
+        reference = yaml.safe_load(reference_file)
+        input = yaml.safe_load(input_file)
 
     reference_graph = YAMLGraph(reference)
     input_graph = YAMLGraph(input)
