@@ -121,6 +121,13 @@ void Binary::dump() const {
   serialize(dbg, *this);
 }
 
+std::string Binary::toString() const {
+  std::string S;
+  llvm::raw_string_ostream OS(S);
+  serialize(OS, *this);
+  return S;
+}
+
 bool Binary::verify() const {
   return verify(false);
 }
