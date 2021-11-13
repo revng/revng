@@ -6,37 +6,80 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Value.h"
 
+#include "revng/Model/Binary.h"
+#include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
 
+#include "../DLAModelFuncHelpers.h"
 #include "DLATypeSystemBuilder.h"
 
 using namespace dla;
 using namespace llvm;
 
-bool DLATypeSystemLLVMBuilder::createInterproceduralTypes(llvm::Module &M) {
+using TSBuilder = DLATypeSystemLLVMBuilder;
+
+///\brief Given an llvm Function, return its prototype in the model.
+static const model::Type *
+getPrototype(const llvm::Function &F, const model::Binary &Model) {
+  auto MetaAddr = getMetaAddress(&F);
+  auto &ModelFunc = Model.Functions.at(MetaAddr);
+  return ModelFunc.Prototype.get();
+}
+
+bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
+                                           const model::Binary &Model) {
   for (const Function &F : M.functions()) {
     auto FTags = FunctionTags::TagsSet::from(&F);
     if (F.isIntrinsic() or not FTags.contains(FunctionTags::Lifted))
       continue;
     revng_assert(not F.isVarArg());
 
+    // Check if a function with the same prototype has already been visited
+    auto *Prototype = getPrototype(F, Model);
+    FuncOrCallInst FuncWithSameProto;
+    auto It = VisitedPrototypes.find(Prototype);
+    if (It == VisitedPrototypes.end())
+      VisitedPrototypes.insert({ Prototype, &F });
+    else
+      FuncWithSameProto = It->second;
+
     // Create the Function's return types
     auto FRetTypes = getOrCreateLayoutTypes(F);
+    // Add equality links between return values of function with the same
+    // prototype
+    if (not FuncWithSameProto.isNull()) {
+      auto OtherRetVals = getLayoutTypes(*FuncWithSameProto.getVal());
+      revng_assert(FRetTypes.size() == OtherRetVals.size());
+      for (auto [N1, N2] : llvm::zip(OtherRetVals, FRetTypes))
+        TS.addEqualityLink(N1, N2.first);
+    }
+
+    revng_assert(FuncWithSameProto.isNull()
+                 or F.arg_size() == FuncWithSameProto.arg_size());
 
     // Create types for the Function's arguments
-    for (const Argument &Arg : F.args()) {
+    for (const auto &Arg : llvm::enumerate(F.args())) {
       // Arguments can only be integers and pointers
-      revng_assert(isa<IntegerType>(Arg.getType())
-                   or isa<PointerType>(Arg.getType()));
-      auto N = getOrCreateLayoutTypes(Arg).size();
-      // Given that arguments can only be integers or pointers, we should only
-      // create a single LayoutType for each argument
-      revng_assert(N == 1ULL);
+      auto &ArgVal = Arg.value();
+      revng_assert(isa<IntegerType>(ArgVal.getType())
+                   or isa<PointerType>(ArgVal.getType()));
+      auto [ArgNode, _] = getOrCreateLayoutType(&ArgVal);
+      revng_assert(ArgNode);
+
+      // If there is already a Function with the same prototype, add equality
+      // edges between args
+      if (not FuncWithSameProto.isNull()) {
+        auto &OtherArg = *(FuncWithSameProto.getArg(Arg.index()));
+        auto *OtherArgNode = getLayoutType(&OtherArg);
+        revng_assert(OtherArgNode);
+        TS.addEqualityLink(ArgNode, OtherArgNode);
+      }
     }
 
     for (const BasicBlock &B : F) {

@@ -29,6 +29,7 @@
 #include "revng-c/DataLayoutAnalysis/SCEVBaseAddressExplorer.h"
 
 #include "../DLAHelpers.h"
+#include "../DLAModelFuncHelpers.h"
 #include "DLATypeSystemBuilder.h"
 
 using namespace dla;
@@ -592,6 +593,57 @@ public:
 };
 
 using Builder = DLATypeSystemLLVMBuilder;
+
+bool Builder::connectToFuncWithSamePrototype(const llvm::Function &F,
+                                             const llvm::CallInst *Call,
+                                             const model::Binary &Model) {
+  revng_assert(Call);
+  bool Changed = false;
+
+  const auto *FuncPrototype = getIndirectCallPrototype(Call, Model);
+  if (not FuncPrototype)
+    return false;
+
+  auto It = VisitedPrototypes.find(FuncPrototype);
+  if (It == VisitedPrototypes.end()) {
+    VisitedPrototypes.insert({ FuncPrototype, Call });
+  } else {
+    FuncOrCallInst OtherCall = It->second;
+    revng_assert(not OtherCall.isNull());
+
+    if (Call->getType()->isVoidTy()) {
+      revng_assert(OtherCall.getRetType()->isVoidTy());
+    } else {
+      revng_assert(not OtherCall.getRetType()->isVoidTy());
+      // Connect return values
+      auto OtherRetVals = getLayoutTypes(*OtherCall.getVal());
+      auto RetVals = getLayoutTypes(*Call);
+      revng_assert(RetVals.size() == OtherRetVals.size());
+      for (auto [N1, N2] : llvm::zip(OtherRetVals, RetVals)) {
+        Changed = true;
+        TS.addEqualityLink(N1, N2);
+      }
+    }
+
+    // Connect arguments
+    for (const auto &ArgIt : llvm::enumerate(Call->arg_operands())) {
+      // Arguments can only be integers and pointers
+      const Value *Arg1 = ArgIt.value();
+      const Value *Arg2 = OtherCall.getArg(ArgIt.index());
+      revng_assert(Arg1->getType()->isIntOrPtrTy()
+                   and Arg2->getType()->isIntOrPtrTy());
+
+      auto *Arg1Node = getLayoutType(Arg1);
+      auto *Arg2Node = getLayoutType(Arg2);
+
+      Changed = true;
+      TS.addEqualityLink(Arg1Node, Arg2Node);
+    }
+  }
+
+  return Changed;
+}
+
 bool Builder::createIntraproceduralTypes(llvm::Module &M,
                                          llvm::ModulePass *MP,
                                          const model::Binary &Model) {
@@ -773,6 +825,7 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
           // For calls we actually look at their parameters.
           for (Value *PointerVal : Call->arg_operands())
             Pointers.push_back(PointerVal);
+
         } else if (isa<PtrToIntInst>(&I) or isa<IntToPtrInst>(&I)
                    or isa<BitCastInst>(&I)) {
           Pointers.push_back(I.getOperand(0));
@@ -813,6 +866,9 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
                                                           PointerVal,
                                                           *B);
         }
+
+        if (auto *Call = dyn_cast<CallInst>(&I))
+          Changed |= connectToFuncWithSamePrototype(F, Call, Model);
       }
     }
   }

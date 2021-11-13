@@ -74,7 +74,7 @@ DLATypeSystemLLVMBuilder::getLayoutType(const Value *V, unsigned Id) {
   assertGetLayoutTypePreConditions(V, Id);
 
   LayoutTypePtr Key(V, Id);
-  return VisitedMap.at(Key);
+  return VisitedValues.at(Key);
 }
 
 std::pair<LayoutTypeSystemNode *, bool>
@@ -87,15 +87,15 @@ DLATypeSystemLLVMBuilder::getOrCreateLayoutType(const Value *V, unsigned Id) {
   assertGetLayoutTypePreConditions(V, Id);
 
   LayoutTypePtr Key(V, Id);
-  auto HintIt = VisitedMap.lower_bound(Key);
-  if (HintIt != VisitedMap.end()
-      and not VisitedMap.key_comp()(Key, HintIt->first)) {
+  auto HintIt = VisitedValues.lower_bound(Key);
+  if (HintIt != VisitedValues.end()
+      and not VisitedValues.key_comp()(Key, HintIt->first)) {
     return std::make_pair(HintIt->second, false);
   }
 
   LayoutTypeSystemNode *Res = TS.createArtificialLayoutType();
 
-  VisitedMap.emplace_hint(HintIt, Key, Res);
+  VisitedValues.emplace_hint(HintIt, Key, Res);
   return std::make_pair(Res, true);
 }
 
@@ -345,7 +345,7 @@ void DLATypeSystemLLVMBuilder::createValuesList() {
   // Can we prevent this?
   this->Values.resize(TS.getNID());
 
-  for (auto &MapIt : VisitedMap) {
+  for (auto &MapIt : VisitedValues) {
     LayoutTypePtr Ptr = MapIt.first;
     unsigned NodeID = MapIt.second->ID;
 
@@ -354,7 +354,7 @@ void DLATypeSystemLLVMBuilder::createValuesList() {
   }
 }
 
-void DLATypeSystemLLVMBuilder::dumpValuesMapping(const llvm::StringRef Name) {
+void DLATypeSystemLLVMBuilder::dumpValuesMapping(const StringRef Name) const {
   std::error_code EC;
   raw_fd_ostream OutFile(Name, EC);
   {
@@ -374,8 +374,6 @@ void DLATypeSystemLLVMBuilder::dumpValuesMapping(const llvm::StringRef Name) {
 
       if (V.isEmpty())
         OutFile << "Empty (Access Node)";
-      else if (isa<Instruction>(V.getValue()))
-        V.getValue().printAsOperand(OutFile);
       else
         V.print(OutFile);
     } else {
@@ -408,9 +406,10 @@ void DLATypeSystemLLVMBuilder::buildFromLLVMModule(llvm::Module &M,
 
   TS.setDebugPrinter(std::make_unique<LLVMTSDebugPrinter>(M, this->Values));
 
-  createInterproceduralTypes(M);
+  createInterproceduralTypes(M, Model);
   createIntraproceduralTypes(M, MP, Model);
 
   createValuesList();
-  VisitedMap.clear();
+  VisitedValues.clear();
+  VisitedPrototypes.clear();
 }
