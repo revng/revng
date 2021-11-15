@@ -1811,7 +1811,7 @@ void JumpTargetManager::harvestWithAVI() {
     }
 
     // We're jumping to a single symbol
-    bool IsPCStore = TrackedInstructionType::WrittenInPC;
+    bool IsPCStore = (TIT == TrackedInstructionType::WrittenInPC);
     if (IsPCStore and SymbolNames.size() == 1) {
       StringRef SymbolName = SymbolNames[0];
 
