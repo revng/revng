@@ -71,11 +71,7 @@ private:
 public:
   SequenceNode *addSequenceNode();
 
-  SwitchBreakNode *addSwitchBreak() {
-    ASTNodeList.emplace_back(new SwitchBreakNode());
-    ASTNodeList.back()->setID(getNewID());
-    return llvm::cast<SwitchBreakNode>(ASTNodeList.back().get());
-  }
+  SwitchBreakNode *addSwitchBreak(SwitchNode *SN);
 
   unsigned getNewID() { return IDCounter++; }
 
