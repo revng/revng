@@ -12,7 +12,8 @@ revng_add_analyses_library(Decompiler revngc
   FuncDeclCreationAction.cpp
   GlobalDeclCreationAction.cpp
   IRASTTypeTranslation.cpp
-  TypeDeclCreationAction.cpp)
+  TypeDeclCreationAction.cpp
+  AddPrimitiveTypesPass.cpp)
 
 target_link_libraries(Decompiler
   FilterForDecompilation
