@@ -1,0 +1,20 @@
+---
+Functions:
+- CFG:
+  - End: '2'
+    Start: '1'
+    Successors:
+    - Attributes:
+      - NoReturn
+      Destination: '3'
+      Type: FunctionCall
+  CustomName: _start
+  Type: NoReturn
+- CFG:
+  - End: '4'
+    Start: '3'
+    Successors:
+    - Destination: ":Invalid"
+      Type: IndirectTailCall
+  CustomName: tailcall
+  Type: NoReturn

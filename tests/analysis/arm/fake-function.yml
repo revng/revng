@@ -1,0 +1,35 @@
+---
+Functions:
+- CFG:
+  - End: '2'
+    Start: '1'
+    Successors:
+    - Destination: '3'
+      Type: FakeFunctionCall
+  - End: '3'
+    Start: '2'
+    Successors:
+    - Destination: '4'
+      Type: DirectBranch
+  - End: '4'
+    Start: '3'
+    Successors:
+    - Destination: '2'
+      Type: DirectBranch
+  - End: '5'
+    Start: '4'
+    Successors:
+    - Destination: ":Invalid"
+      Type: Return
+  CustomName: _start
+  Type: Regular
+- CustomName: prologue
+  Type: Fake
+- CFG:
+  - End: '5'
+    Start: '4'
+    Successors:
+    - Destination: ":Invalid"
+      Type: IndirectTailCall
+  CustomName: epilogue
+  Type: NoReturn

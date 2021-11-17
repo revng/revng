@@ -1,0 +1,11 @@
+---
+Functions:
+- CustomName: saofc
+  Prototype: "/Types/RawFunctionType-1"
+- CustomName: callee
+  Prototype: "/Types/RawFunctionType-2"
+Types:
+- Arguments: []
+  ID: "2"
+- Arguments: []
+  ID: "1"

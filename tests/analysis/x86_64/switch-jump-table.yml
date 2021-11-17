@@ -1,0 +1,43 @@
+---
+Functions:
+- CFG:
+  - End: '4'
+    Start: '2'
+    Successors:
+    - Destination: '4'
+      Type: DirectBranch
+    - Destination: '8'
+      Type: DirectBranch
+  - End: '5'
+    Start: '4'
+    Successors:
+    - Destination: '5'
+      Type: DirectBranch
+    - Destination: '6'
+      Type: DirectBranch
+    - Destination: '7'
+      Type: DirectBranch
+    - Destination: '8'
+      Type: DirectBranch
+  - End: '8'
+    Start: '5'
+    Successors:
+    - Destination: ":Invalid"
+      Type: Return
+  - End: '8'
+    Start: '6'
+    Successors:
+    - Destination: ":Invalid"
+      Type: Return
+  - End: '8'
+    Start: '7'
+    Successors:
+    - Destination: ":Invalid"
+      Type: Return
+  - End: '9'
+    Start: '8'
+    Successors:
+    - Destination: ":Invalid"
+      Type: Return
+  CustomName: _start
+  Type: Regular

@@ -1,0 +1,8 @@
+---
+Functions:
+- CustomName: drvofc
+  Prototype: "/Types/RawFunctionType-1"
+Types:
+- ID: "1"
+  ReturnValues:
+  - Location: rax_x86_64

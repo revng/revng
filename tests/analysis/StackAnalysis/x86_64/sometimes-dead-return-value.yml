@@ -1,0 +1,18 @@
+---
+Functions:
+- CustomName: func1
+  Prototype: "/Types/RawFunctionType-1"
+- CustomName: func2
+  Prototype: "/Types/RawFunctionType-2"
+- CustomName: callee
+  Prototype: "/Types/RawFunctionType-3"
+Types:
+- ID: "2"
+  ReturnValues:
+  - Location: rbx_x86_64
+- ID: "3"
+  ReturnValues:
+  - Location: rax_x86_64
+- ID: "1"
+  ReturnValues:
+  - Location: rax_x86_64
