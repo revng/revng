@@ -1,0 +1,8 @@
+---
+Functions:
+- CustomName: uraof
+  Prototype: "/Types/RawFunctionType-1"
+Types:
+- Arguments:
+  - Location: rax_x86_64
+  ID: "1"
