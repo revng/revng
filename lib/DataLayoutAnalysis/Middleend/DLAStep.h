@@ -97,6 +97,8 @@ public:
 //
 // After the execution of this step, the LayoutTypeSystem graph, filtered on
 // inheritance edges, should be a tree.
+// This means that there cannot be diamond-shaped inheritance relations, that
+// are collapsed in this step.
 class MakeInheritanceTree : public Step {
   static const char ID;
 

@@ -17,7 +17,10 @@ revng_add_analyses_library(DataLayoutAnalysis revngc
   Middleend/DLARemoveConflictingEdges.cpp
   Middleend/DLAStep.cpp
   Backend/DLAMakeLayouts.cpp
+  Backend/DLAMakeModelTypes.cpp
+  Backend/DLAUpdateFuncPrototypes.cpp
   DLAHelpers.cpp
+  DLAModelFuncHelpers.cpp
   DLALayouts.cpp
   DLAPass.cpp
   DLATypeSystem.cpp)

@@ -17,6 +17,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "revng/Support/Debug.h"
 
@@ -102,7 +103,10 @@ public:
     return getKind(L) == LayoutKind::Base;
   }
 
-  BaseLayout(layout_size_t S) : Layout(LayoutKind::Base, S) {}
+  Layout *PointeeLayout = nullptr;
+
+  BaseLayout(layout_size_t S, Layout *Pointee) :
+    Layout(LayoutKind::Base, S), PointeeLayout(Pointee) {}
   BaseLayout() = delete;
 
   BaseLayout(const BaseLayout &) = default;
@@ -288,6 +292,7 @@ public:
   unsigned fieldNum() const { return FieldIdx; }
 
   void print(llvm::raw_ostream &Out) const;
+  std::string toString() const debug_function;
 
   const llvm::Value &getValue() const { return *V; }
 

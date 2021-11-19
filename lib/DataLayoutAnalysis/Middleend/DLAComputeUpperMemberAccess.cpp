@@ -25,6 +25,12 @@ static Logger<> Log("dla-compute-upper-member-access");
 
 namespace dla {
 
+using LTSN = LayoutTypeSystemNode;
+using GraphNodeT = LTSN *;
+using NonPointerFilterT = EdgeFilteredGraph<GraphNodeT, isNotPointerEdge>;
+using ConstNonPointerFilterT = EdgeFilteredGraph<const LTSN *,
+                                                 isNotPointerEdge>;
+
 bool ComputeUpperMemberAccesses::runOnTypeSystem(LayoutTypeSystem &TS) {
   if (VerifyLog.isEnabled())
     revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree());
@@ -43,13 +49,13 @@ bool ComputeUpperMemberAccesses::runOnTypeSystem(LayoutTypeSystem &TS) {
 
     revng_assert(isInheritanceRoot(Root));
 
-    for (LTSN *N : post_order_ext(Root, Visited)) {
+    for (LTSN *N : post_order_ext(NonPointerFilterT(Root), Visited)) {
       revng_assert(not isLeaf(N) or N->Size);
       uint64_t FinalSize = N->Size;
 
       // Look at all the instance-of edges and inheritance edges all together.
       bool HasBaseClass = false;
-      for (auto &[Child, EdgeTag] : children_edges<const LTSN *>(N)) {
+      for (auto &[Child, EdgeTag] : children_edges<ConstNonPointerFilterT>(N)) {
         auto ChildSize = Child->Size;
         revng_assert(ChildSize > 0LL);
 

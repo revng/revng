@@ -15,6 +15,8 @@
 
 using LTSN = dla::LayoutTypeSystemNode;
 using VecToCollapseT = std::vector<LTSN *>;
+using NonPointerFilterT = EdgeFilteredGraph<LTSN *, dla::isNotPointerEdge>;
+using Link = dla::LayoutTypeSystemNode::Link;
 
 using namespace llvm;
 
@@ -37,6 +39,11 @@ bool CollapseSingleChild::collapseSingle(LayoutTypeSystem &TS,
   auto HasAtMostOneParent = [](const LTSN *Node) {
     return (Node->Predecessors.size() <= 1);
   };
+
+  if (VerifyLog.isEnabled() and not HasSingleChild(Node)) {
+    revng_assert(llvm::none_of(Node->Successors,
+                               [](const Link &L) { return isPointerEdge(L); }));
+  }
 
   // Get nodes that have a single instance or inheritance child
   if (HasSingleChild(Node) and ChildIsInstanceOrInheritance(Node)) {
@@ -87,10 +94,8 @@ bool CollapseSingleChild::runOnTypeSystem(LayoutTypeSystem &TS) {
 
   if (Log.isEnabled())
     TS.dumpDotOnFile("after-collapse-single-child.dot");
-  if (VerifyLog.isEnabled()) {
-    revng_assert(TS.verifyInheritanceDAG());
-    revng_assert(TS.verifyInheritanceTree());
-  }
+  if (VerifyLog.isEnabled())
+    revng_assert(TS.verifyInheritanceDAG() and TS.verifyInheritanceTree());
 
   return Changed;
 }

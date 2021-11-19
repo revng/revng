@@ -6,8 +6,12 @@
 
 #include "llvm/Pass.h"
 
+#include "revng/Model/Binary.h"
+
 #include "revng-c/DataLayoutAnalysis/DLALayouts.h"
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
+
+#include "../DLAModelFuncHelpers.h"
 
 namespace dla {
 
@@ -44,6 +48,7 @@ public:
 class DLATypeSystemLLVMBuilder {
 public:
   using VisitedMapT = std::map<LayoutTypePtr, LayoutTypeSystemNode *>;
+  using PrototypesMapT = std::map<const model::Type *, FuncOrCallInst>;
 
 private:
   ///\brief Separate class that add `Instance` edges
@@ -57,7 +62,10 @@ private:
   LayoutTypePtrVect Values;
 
   ///\brief Reverse map between `llvm::Value`s and Nodes
-  VisitedMapT VisitedMap;
+  VisitedMapT VisitedValues;
+  ///\brief Associate each indirect call's prototype in the model with the
+  /// first `llvm::CallInst` found with that prototype,
+  PrototypesMapT VisitedPrototypes;
 
 private:
   void assertGetLayoutTypePreConditions(const llvm::Value *V, unsigned Id);
@@ -84,8 +92,10 @@ private:
   getOrCreateLayoutTypes(const llvm::Value &V);
 
 private:
-  bool createInterproceduralTypes(llvm::Module &M);
-  bool createIntraproceduralTypes(llvm::Module &M, llvm::ModulePass *MP);
+  bool createInterproceduralTypes(llvm::Module &M, const model::Binary &Model);
+  bool createIntraproceduralTypes(llvm::Module &M,
+                                  llvm::ModulePass *MP,
+                                  const model::Binary &Model);
 
   ///\brief Collect LayoutTypePtrs and place them in the right position
   void createValuesList();
@@ -97,7 +107,7 @@ public:
   ///
   /// The mapping is reconstructed on-the-fly, therefore is expensive. The
   /// generated .csv uses _semicolons_ as separators.
-  void dumpValuesMapping(const llvm::StringRef Name);
+  void debug_function dumpValuesMapping(const llvm::StringRef Name) const;
 
 public:
   DLATypeSystemLLVMBuilder(LayoutTypeSystem &TS) : TS(TS){};
@@ -110,7 +120,16 @@ public:
   /// 2. Create a Node for each of them in the DLATypeSystem graph (TS)
   /// 3. Keep an ordered vector of LayoutTypePtrs, where each element's index
   /// corresponds to the ID of the corresponding LayoutTypeSystemNode generated
-  void buildFromLLVMModule(llvm::Module &M, llvm::ModulePass *MP);
+  void buildFromLLVMModule(llvm::Module &M,
+                           llvm::ModulePass *MP,
+                           const model::Binary &Model);
+
+  ///\brief Given a Call instruction and its containing function, check if it
+  /// shares the model prototype with another function and. If it does, connect
+  /// return values and arguments with equality links.
+  bool connectToFuncWithSamePrototype(const llvm::Function &F,
+                                      const llvm::CallInst *Call,
+                                      const model::Binary &Model);
 };
 
 } // namespace dla

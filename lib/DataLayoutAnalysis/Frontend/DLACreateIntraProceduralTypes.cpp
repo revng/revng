@@ -19,6 +19,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
+#include "revng/Model/Architecture.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
@@ -28,12 +29,14 @@
 #include "revng-c/DataLayoutAnalysis/SCEVBaseAddressExplorer.h"
 
 #include "../DLAHelpers.h"
+#include "../DLAModelFuncHelpers.h"
 #include "DLATypeSystemBuilder.h"
 
 using namespace dla;
 using namespace llvm;
+using namespace model::Architecture;
 
-static Logger<> AccessLog("dla-accesses-log");
+static Logger<> AccessLog("dla-accesses");
 
 // Returns true if an Instruction must forcibly be serialized.
 //
@@ -590,8 +593,60 @@ public:
 };
 
 using Builder = DLATypeSystemLLVMBuilder;
+
+bool Builder::connectToFuncWithSamePrototype(const llvm::Function &F,
+                                             const llvm::CallInst *Call,
+                                             const model::Binary &Model) {
+  revng_assert(Call);
+  bool Changed = false;
+
+  const auto *FuncPrototype = getIndirectCallPrototype(Call, Model);
+  if (not FuncPrototype)
+    return false;
+
+  auto It = VisitedPrototypes.find(FuncPrototype);
+  if (It == VisitedPrototypes.end()) {
+    VisitedPrototypes.insert({ FuncPrototype, Call });
+  } else {
+    FuncOrCallInst OtherCall = It->second;
+    revng_assert(not OtherCall.isNull());
+
+    if (Call->getType()->isVoidTy()) {
+      revng_assert(OtherCall.getRetType()->isVoidTy());
+    } else {
+      revng_assert(not OtherCall.getRetType()->isVoidTy());
+      // Connect return values
+      auto OtherRetVals = getLayoutTypes(*OtherCall.getVal());
+      auto RetVals = getLayoutTypes(*Call);
+      revng_assert(RetVals.size() == OtherRetVals.size());
+      for (auto [N1, N2] : llvm::zip(OtherRetVals, RetVals)) {
+        Changed = true;
+        TS.addEqualityLink(N1, N2);
+      }
+    }
+
+    // Connect arguments
+    for (const auto &ArgIt : llvm::enumerate(Call->arg_operands())) {
+      // Arguments can only be integers and pointers
+      const Value *Arg1 = ArgIt.value();
+      const Value *Arg2 = OtherCall.getArg(ArgIt.index());
+      revng_assert(Arg1->getType()->isIntOrPtrTy()
+                   and Arg2->getType()->isIntOrPtrTy());
+
+      auto *Arg1Node = getLayoutType(Arg1);
+      auto *Arg2Node = getLayoutType(Arg2);
+
+      Changed = true;
+      TS.addEqualityLink(Arg1Node, Arg2Node);
+    }
+  }
+
+  return Changed;
+}
+
 bool Builder::createIntraproceduralTypes(llvm::Module &M,
-                                         llvm::ModulePass *MP) {
+                                         llvm::ModulePass *MP,
+                                         const model::Binary &Model) {
   bool Changed = false;
   InstanceLinkAdder ILA;
 
@@ -646,12 +701,16 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
           // to types, because they are used in Load and Stores as
           // PointerOperands.
           Use *PtrUse(nullptr);
-          if (auto *Load = dyn_cast<LoadInst>(&I))
+          Value *Val(nullptr);
+          if (auto *Load = dyn_cast<LoadInst>(&I)) {
             PtrUse = &Load->getOperandUse(Load->getPointerOperandIndex());
-          else if (auto *Store = dyn_cast<StoreInst>(&I))
+            Val = &I;
+          } else if (auto *Store = dyn_cast<StoreInst>(&I)) {
             PtrUse = &Store->getOperandUse(Store->getPointerOperandIndex());
-          else
+            Val = Store->getValueOperand();
+          } else {
             continue;
+          }
           revng_assert(PtrUse != nullptr);
 
           // Find the possible base addresses of the PointerOperand
@@ -676,25 +735,34 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
           // Create Base node
           Changed |= ILA.createBaseAddrWithInstanceLink(*this, PointerVal, *B);
 
-          // Create AccessSize node
+          // Create Access node
           auto AccessSize = getLoadStoreSizeFromPtrOpUse(M, PtrUse);
-          auto *AccessSizeNode = TS.createArtificialLayoutType();
-          AccessSizeNode->Size = AccessSize;
-          AccessSizeNode->InterferingInfo = AllChildrenAreNonInterfering;
+          auto *AccessNode = TS.createArtificialLayoutType();
+          AccessNode->Size = AccessSize;
+          AccessNode->InterferingInfo = AllChildrenAreNonInterfering;
 
-          // Add link between base node and AccessSize node
+          // Add link between pointer node and access node
           revng_assert(PointerVal);
-          auto *AddrNode = getLayoutType(PointerVal);
-          revng_assert(AddrNode);
-          OffsetExpression OE{};
-          OE.Offset = 0U;
-          TS.addInstanceLink(AddrNode, AccessSizeNode, std::move(OE));
+          auto *PointerNode = getLayoutType(PointerVal);
+          revng_assert(PointerNode);
+          TS.addInstanceLink(PointerNode, AccessNode, OffsetExpression{});
 
           if (AccessLog.isEnabled()) {
             revng_assert(OutFile);
-            (*OutFile) << AddrNode->ID << ";" << *PointerVal << ";"
-                       << AccessSizeNode->ID << ";" << AccessSizeNode->Size
-                       << ";" << I << "\n";
+            (*OutFile) << PointerNode->ID << ";" << *PointerVal << ";"
+                       << AccessNode->ID << ";" << AccessNode->Size << ";" << I
+                       << "\n";
+          }
+
+          // Create pointer edge between the access node and the pointee node
+          if (AccessSize == getPointerSize(Model.Architecture)) {
+            const auto &[PointeeNode, Changed] = getOrCreateLayoutType(Val);
+            if (isa<LoadInst>(I))
+              revng_assert(not Changed);
+
+            revng_assert(PointeeNode);
+            PointeeNode->InterferingInfo = AllChildrenAreNonInterfering;
+            TS.addPointerLink(AccessNode, PointeeNode);
           }
 
           continue;
@@ -757,6 +825,7 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
           // For calls we actually look at their parameters.
           for (Value *PointerVal : Call->arg_operands())
             Pointers.push_back(PointerVal);
+
         } else if (isa<PtrToIntInst>(&I) or isa<IntToPtrInst>(&I)
                    or isa<BitCastInst>(&I)) {
           Pointers.push_back(I.getOperand(0));
@@ -797,12 +866,14 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
                                                           PointerVal,
                                                           *B);
         }
+
+        if (auto *Call = dyn_cast<CallInst>(&I))
+          Changed |= connectToFuncWithSamePrototype(F, Call, Model);
       }
     }
   }
-  if (VerifyLog.isEnabled()) {
-    revng_assert(TS.verifyConsistency());
+  if (VerifyLog.isEnabled())
     revng_assert(TS.verifyInstanceDAG());
-  }
+
   return Changed;
 }

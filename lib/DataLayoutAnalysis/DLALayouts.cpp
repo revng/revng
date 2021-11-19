@@ -103,8 +103,23 @@ std::strong_ordering Layout::structuralOrder(const Layout *A, const Layout *B) {
     return structuralOrder(ArrayA->getElem(), ArrayB->getElem());
   } break;
 
-  case LayoutKind::Padding:
+  case LayoutKind::Padding: {
+    return A->size() <=> B->size();
+  } break;
+
   case LayoutKind::Base: {
+    auto *BaseA = llvm::cast<BaseLayout>(A);
+    auto *BaseB = llvm::cast<BaseLayout>(B);
+
+    // Discriminate between pointer and non-pointer layouts
+    if (BaseA->PointeeLayout and not BaseB->PointeeLayout)
+      return std::strong_ordering::greater;
+    if (BaseB->PointeeLayout and not BaseA->PointeeLayout)
+      return std::strong_ordering::less;
+    if (BaseA->PointeeLayout and BaseB->PointeeLayout)
+      return BaseA->PointeeLayout <=> BaseB->PointeeLayout;
+
+    // Both are scalars
     return A->size() <=> B->size();
   } break;
 
@@ -159,11 +174,17 @@ void Layout::printText(llvm::raw_ostream &O, const Layout *L, unsigned Indent) {
   } break;
   case LayoutKind::Base: {
     auto *Base = llvm::cast<BaseLayout>(L);
-    auto Size = Base->size();
-    revng_assert(Size);
-    revng_assert(std::has_single_bit(Size));
-    revng_assert(Size <= 16);
-    O << IndentStr << "uint" << (8 * Size) << "_t";
+
+    if (Base->PointeeLayout == nullptr) {
+      auto Size = Base->size();
+      revng_assert(Size);
+      revng_assert(std::has_single_bit(Size));
+      revng_assert(Size <= 16);
+      O << IndentStr << "uint" << (8 * Size) << "_t";
+    } else {
+      O << IndentStr << "ptr_t";
+    }
+
   } break;
   default:
     revng_unreachable("Unexpected LayoutKind");
@@ -200,9 +221,14 @@ Layout::printGraphicElem(llvm::raw_ostream &O,
     O << std::string(Size, '-');
   } break;
   case LayoutKind::Base: {
-    std::string N = std::to_string(Size);
-    revng_assert(N.size() == 1);
-    O << std::string(Size, N[0]);
+    auto *Base = llvm::cast<BaseLayout>(L);
+    if (Base->PointeeLayout == nullptr) {
+      std::string N = std::to_string(Size);
+      revng_assert(N.size() == 1);
+      O << std::string(Size, N[0]);
+    } else {
+      O << std::string(Size, 'P');
+    }
   } break;
   case LayoutKind::Struct: {
     auto *Struct = llvm::cast<StructLayout>(L);

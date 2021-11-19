@@ -26,6 +26,7 @@ using order = std::strong_ordering;
 using Link = dla::LayoutTypeSystemNode::Link;
 using EdgeList = std::vector<Link>;
 using Tag = dla::TypeLinkTag;
+using NonPointerFilterT = EdgeFilteredGraph<LTSN *, dla::isNotPointerEdge>;
 
 using namespace llvm;
 
@@ -62,7 +63,6 @@ static order cmpNodes(const LTSN *A, const LTSN *B) {
     return NChildCmp;
   }
 
-  // TODO: check pointer edges
   return order::equal;
 }
 
@@ -76,8 +76,14 @@ cmpEdgeTags(const Tag *A, const Tag *B, bool IgnoreInheritance = true) {
     return order::equal;
   revng_assert(A != nullptr and B != nullptr);
 
-  // If A is an inheritance edge, consider it as an instance-offset-0 edge
   auto KindA = A->getKind();
+  auto KindB = B->getKind();
+
+  // If at least one is a pointer, only look at the kind
+  if (KindA == TypeLinkTag::LK_Pointer or KindB == TypeLinkTag::LK_Pointer)
+    return KindA <=> KindB;
+
+  // If A is an inheritance edge, consider it as an instance-offset-0 edge
   OffsetExpression OffA;
   if (KindA == TypeLinkTag::LK_Inheritance) {
     if (IgnoreInheritance)
@@ -88,7 +94,6 @@ cmpEdgeTags(const Tag *A, const Tag *B, bool IgnoreInheritance = true) {
   }
 
   // If B is an inheritance edge, consider it as an instance-offset-0 edge
-  auto KindB = B->getKind();
   OffsetExpression OffB;
   if (KindB == TypeLinkTag::LK_Inheritance) {
     if (IgnoreInheritance)
@@ -136,21 +141,34 @@ cmpEdgeTags(const Tag *A, const Tag *B, bool IgnoreInheritance = true) {
   return order::equal;
 }
 
+///\brief Strong ordering for links: compare edge tags and destination node
+static order cmpLinks(const Link &A, const Link &B, bool IgnoreInheritance) {
+  const order EdgeOrder = cmpEdgeTags(A.second, B.second, IgnoreInheritance);
+  if (EdgeOrder != order::equal)
+    return EdgeOrder;
+
+  // Pointer edges are equivalent only if they correspond to the same node
+  if (isPointerEdge(A)) {
+    revng_assert(isPointerEdge(B));
+    return A.first->ID <=> B.first->ID;
+  }
+
+  const order NodeOrder = cmpNodes(A.first, B.first);
+  if (NodeOrder != order::equal)
+    return NodeOrder;
+
+  return order::equal;
+}
+
 ///\brief Compare two subtrees, saving the visited nodes onto two stacks
 static std::tuple<order, EdgeList, EdgeList>
 exploreAndCompare(const Link &Child1, const Link &Child2);
 
 ///\brief Recursively define an ordering between children of a node
 static bool linkOrderLess(const Link &A, const Link &B) {
-  const order EdgeOrder = cmpEdgeTags(A.second,
-                                      B.second,
-                                      /*IgnoreInheritance=*/false);
-  if (EdgeOrder != order::equal)
-    return EdgeOrder < 0;
-
-  const order NodeOrder = cmpNodes(A.first, B.first);
-  if (NodeOrder != order::equal)
-    return NodeOrder < 0;
+  const order LinkOrder = cmpLinks(A, B, /*IgnoreInheritance=*/false);
+  if (LinkOrder != order::equal)
+    return LinkOrder < 0;
 
   revng_log(CmpLog,
             "No order between " << A.first->ID << " and " << A.first->ID
@@ -191,39 +209,41 @@ exploreAndCompare(const Link &Child1, const Link &Child2) {
 
     // Perform bfs on new nodes
     for (; CurIdx < VisitStack1.size(); CurIdx++) {
-      const auto &[Node1, Edge1] = VisitStack1[CurIdx];
-      const auto &[Node2, Edge2] = VisitStack2[CurIdx];
+      const Link &L1 = VisitStack1[CurIdx];
+      const Link &L2 = VisitStack2[CurIdx];
+      const auto &[Node1, Edge1] = L1;
+      const auto &[Node2, Edge2] = L2;
       revng_log(CmpLog, "Comparing " << Node1->ID << " with " << Node2->ID);
 
       if (Node1->ID == Node2->ID)
         continue;
 
-      // TODO: handle pointer edges
-      const order EdgeOrder = cmpEdgeTags(Edge1, Edge2);
-      if (EdgeOrder != order::equal)
-        return { EdgeOrder, {}, {} };
+      // Return if the links are different
+      const order LinkOrder = cmpLinks(L1, L2, /*IgnoreInheritance=*/true);
+      if (LinkOrder != order::equal)
+        return { LinkOrder, VisitStack1, VisitStack2 };
 
-      const order NodeOrder = cmpNodes(Node1, Node2);
-      if (NodeOrder != order::equal)
-        return { NodeOrder, {}, {} };
+      revng_log(CmpLog, "Could not tell the difference");
 
-      // Enqueue the successors of the current nodes
-      revng_log(CmpLog, "Could not tell the difference, visiting successors");
-      NextToVisit1.reserve(NextToVisit1.size() + Node1->Successors.size());
-      NextToVisit2.reserve(NextToVisit2.size() + Node2->Successors.size());
-      llvm::copy(Node1->Successors, std::back_inserter(NextToVisit1));
-      llvm::copy(Node2->Successors, std::back_inserter(NextToVisit2));
+      if (not isPointerEdge(L1)) {
+        // Enqueue the successors of the current nodes
+        revng_assert(not isPointerEdge(L2));
+        NextToVisit1.reserve(NextToVisit1.size() + Node1->Successors.size());
+        NextToVisit2.reserve(NextToVisit2.size() + Node2->Successors.size());
+        llvm::copy(Node1->Successors, std::back_inserter(NextToVisit1));
+        llvm::copy(Node2->Successors, std::back_inserter(NextToVisit2));
 
-      // Sort the newly enqueued nodes
-      size_t NChildren = Node1->Successors.size();
-      revng_assert(NChildren == Node2->Successors.size());
+        // Sort the newly enqueued nodes
+        size_t NChildren = Node1->Successors.size();
+        revng_assert(NChildren == Node2->Successors.size());
 
-      std::sort(NextToVisit1.end() - NChildren,
-                NextToVisit1.end(),
-                linkOrderLess);
-      std::sort(NextToVisit2.end() - NChildren,
-                NextToVisit2.end(),
-                linkOrderLess);
+        std::sort(NextToVisit1.end() - NChildren,
+                  NextToVisit1.end(),
+                  linkOrderLess);
+        std::sort(NextToVisit2.end() - NChildren,
+                  NextToVisit2.end(),
+                  linkOrderLess);
+      }
     }
   } while (NextToVisit1.size() > 0);
 
@@ -232,7 +252,7 @@ exploreAndCompare(const Link &Child1, const Link &Child2) {
 
 ///\brief Check if two subtrees are equivalent, saving the visited nodes in the
 /// order in which they were compared.
-static inline std::tuple<bool, EdgeList, EdgeList>
+static std::tuple<bool, EdgeList, EdgeList>
 areEquivSubtrees(Link &Child1, Link &Child2) {
   auto [Result, Visited1, Visited2] = exploreAndCompare(Child1, Child2);
   bool AreSubtreesEqual = Result == order::equal;
@@ -250,8 +270,10 @@ areEquivSubtrees(Link &Child1, Link &Child2) {
 ///           equivalent to the subtree of \a Child1
 static std::pair<bool, EdgeList>
 mergeIfTopologicallyEq(LayoutTypeSystem &TS, Link &Child1, Link &Child2) {
-  if (Child1 == Child2)
-    return { true, {} };
+  if (Child1.first == Child2.first) {
+    revng_log(CmpLog, "Same Node!");
+    return { false, {} };
+  }
 
   auto [AreEquiv, Subtree1, Subtree2] = areEquivSubtrees(Child1, Child2);
   if (AreEquiv) {
@@ -326,6 +348,15 @@ mergeIfTopologicallyEq(LayoutTypeSystem &TS, Link &Child1, Link &Child2) {
   return { false, {} };
 }
 
+static SmallVector<Link, 2> getAllEdges(const LTSN *Src, const LTSN *Dst) {
+  SmallVector<Link, 2> Edges;
+  for (const Link &Succ : Src->Successors)
+    if (Succ.first == Dst)
+      Edges.push_back(Succ);
+
+  return Edges;
+}
+
 ///\brief Remove conflicting edges and collapse single children after merging.
 static bool
 postProcessMerge(LayoutTypeSystem &TS, const EdgeList &MergedSubtree) {
@@ -349,9 +380,9 @@ postProcessMerge(LayoutTypeSystem &TS, const EdgeList &MergedSubtree) {
   }
 
   // Merging nodes and removing conflicts might have created situations in
-  // which a node has a single child: collapse it into its parent.
+  // which a node has a single collapsible child: collapse it into its parent.
   LTSN *SubtreeRoot = MergedSubtree.begin()->first;
-  for (auto &N : post_order(SubtreeRoot))
+  for (auto &N : post_order(NonPointerFilterT(SubtreeRoot)))
     Modified |= CollapseSingleChild::collapseSingle(TS, N);
 
   return Modified;
@@ -360,8 +391,7 @@ postProcessMerge(LayoutTypeSystem &TS, const EdgeList &MergedSubtree) {
 bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
   bool TypeSystemChanged = false;
   if (VerifyLog.isEnabled())
-    revng_assert(TS.verifyConsistency() and TS.verifyDAG()
-                 and TS.verifyInheritanceTree());
+    revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree());
 
   if (Log.isEnabled())
     TS.dumpDotOnFile("before-deduplicate-union-fields.dot");
@@ -374,58 +404,74 @@ bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
       continue;
 
     // Visit all Union nodes in post-order
-    for (LTSN *UnionNode : post_order(Root)) {
+    for (LTSN *UnionNode : post_order(NonPointerFilterT(Root))) {
       if (UnionNode->InterferingInfo != AllChildrenAreInterfering
           or VisitedUnions.contains(UnionNode))
         continue;
+
       revng_log(Log, "****** Union Node found: " << UnionNode->ID);
       VisitedUnions.insert(UnionNode);
 
-      llvm::SmallSetVector<Link, 8> ToCompare;
-      llvm::SmallSetVector<Link, 8> Visited;
+      // Since a node can be connected to the parent union by more than one
+      // edge, we keep track of the **nodes** that we have to visit and the
+      // **edges** we visited. In this way, when comparing subtrees, we consider
+      // all the edges incoming from the parent node, so that, if we to merge
+      // two nodes, we don't have to update other links in the worklist.
+      llvm::SmallSetVector<LTSN *, 8> NodesToCompare;
+      llvm::SmallSetVector<Link, 8> VisitedLinks;
 
+      // We keep a separate list of successors since we might need to re-enqueue
+      // some of them.
       for (Link Succ : UnionNode->Successors)
-        ToCompare.insert(Succ);
+        NodesToCompare.insert(Succ.first);
 
       bool UnionNodeChanged = false;
-      while (ToCompare.size() > 0) {
-        Link CurLink = ToCompare.back();
-        LTSN *CurChild = CurLink.first;
-        ToCompare.pop_back();
+      while (NodesToCompare.size() > 0) {
+        LTSN *CurChild = NodesToCompare.pop_back_val();
 
-        // Compare each pair of children of the union node
+        // Edges are copied because we are going to merge them after, and we
+        // want to avoid iterator invalidation.
+        auto CurChildEdges = getAllEdges(UnionNode, CurChild);
+
         bool Merged = false;
-        for (Link VisitedLink : Visited) {
-          LTSN *VisitedChild = VisitedLink.first;
+        for (Link VisitedLink : VisitedLinks) {
+          // A node can be connected to the parent union with more than one
+          // edge (inheritance and instance at offset 0), so consider them all
+          // when comparing the current node to the visited ones.
+          for (Link &CurLink : CurChildEdges) {
+            LTSN *VisitedNode = VisitedLink.first;
+            revng_log(Log, "Is " << CurChild->ID << " == " << VisitedNode->ID);
+            revng_assert(VisitedNode != CurChild);
 
-          revng_log(Log, "Is " << CurChild->ID << " == " << VisitedChild->ID);
-          revng_assert(VisitedChild != CurChild
-                       or cmpEdgeTags(VisitedLink.second, CurLink.second) != 0);
+            auto [IsMerged, MergedSubtree] = mergeIfTopologicallyEq(TS,
+                                                                    VisitedLink,
+                                                                    CurLink);
 
-          auto [IsMerged, MergedSubtree] = mergeIfTopologicallyEq(TS,
-                                                                  VisitedLink,
-                                                                  CurLink);
+            if (IsMerged) {
+              TypeSystemChanged = true;
+              UnionNodeChanged = true;
+              Merged = true;
+              revng_log(Log, "Merged!");
 
-          if (IsMerged) {
-            TypeSystemChanged = true;
-            UnionNodeChanged = true;
-            Merged = true;
-            revng_log(Log, "Merged!");
+              postProcessMerge(TS, MergedSubtree);
 
-            bool SubtreeChanged = postProcessMerge(TS, MergedSubtree);
-            if (SubtreeChanged) {
-              // If the subtree was modified, re-enqueue the node
-              Visited.remove(VisitedLink);
-              ToCompare.insert(VisitedLink);
+              // Re-enqueue the newly merged node
+              auto IsLinkToMergedNode = [&VisitedNode](const Link &L) {
+                return L.first == VisitedNode;
+              };
+              VisitedLinks.remove_if(IsLinkToMergedNode);
+              NodesToCompare.insert(VisitedNode);
+
+              // If the node was merged, stop comparing it with other children
+              break;
             }
-
-            // If the node was merged, stop comparing it with other children
-            break;
           }
+          if (Merged)
+            break;
         }
 
         if (not Merged) {
-          Visited.insert(CurLink);
+          VisitedLinks.insert(CurChildEdges.begin(), CurChildEdges.end());
           revng_log(Log, "Child " << CurChild->ID << " not merged");
         }
       }
@@ -441,7 +487,6 @@ bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
   if (Log.isEnabled())
     TS.dumpDotOnFile("after-deduplicate-union-fields.dot");
   if (VerifyLog.isEnabled()) {
-    revng_assert(TS.verifyConsistency());
     revng_assert(TS.verifyInheritanceDAG());
     revng_assert(TS.verifyInheritanceTree());
     revng_assert(TS.verifyConflicts());
