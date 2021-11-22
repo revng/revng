@@ -80,7 +80,7 @@ getFieldFromId(TypePath &Path, uint64_t ID, WritableModelT &Model) {
 ///\brief Descend all wrapper structures until you find an empty type.
 static QualifiedType *unwrapUntilEmpty(QualifiedType *Q) {
   QualifiedType *Field = Q;
-  while (Field->UnqualifiedType.Root != nullptr) {
+  while (Field->UnqualifiedType.isValid()) {
     revng_log(Log,
               "Descending the wrappers: " << Field->UnqualifiedType.get()->ID);
 
