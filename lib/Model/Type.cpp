@@ -443,8 +443,7 @@ static VoidConstResult isVoidConst(const QualifiedType *QualType) {
       // We know that it's const-qualified here, and it only has one
       // qualifier, hence we can skip the const-qualifier.
       Result.IsConst = true;
-      if (not QualType->UnqualifiedType.Root)
-        return Result;
+      return Result;
     }
 
     UnqualType = QualType->UnqualifiedType.get();
