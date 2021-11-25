@@ -228,6 +228,7 @@ install(EXPORT revng NAMESPACE revng:: DESTINATION share/revng/cmake)
 #
 # Include other CMake files
 #
+add_subdirectory(scripts)
 add_subdirectory(include)
 add_subdirectory(lib)
 add_subdirectory(tools)
