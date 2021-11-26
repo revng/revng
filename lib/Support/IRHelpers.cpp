@@ -142,3 +142,67 @@ std::pair<MetaAddress, uint64_t> getPC(Instruction *TheInstruction) {
   revng_assert(Size != 0);
   return { PC, Size };
 }
+
+Function *changeFunctionType(Function &OldFunction,
+                             Type *NewReturnType,
+                             ArrayRef<Type *> NewArguments) {
+  //
+  // Validation
+  //
+  FunctionType &OldFunctionType = *OldFunction.getFunctionType();
+
+  // Either the old type was returning void or the return type has to be same
+  auto OldReturnType = OldFunctionType.getReturnType();
+  if (NewReturnType != nullptr) {
+    if (not OldReturnType->isVoidTy())
+      revng_assert(OldReturnType == NewReturnType);
+  } else {
+    NewReturnType = OldReturnType;
+  }
+
+  // New arguments
+  SmallVector<Type *> NewFunctionArguments;
+  llvm::copy(OldFunctionType.params(),
+             std::back_inserter(NewFunctionArguments));
+  llvm::copy(NewArguments, std::back_inserter(NewFunctionArguments));
+
+  auto &NewFunctionType = *FunctionType::get(NewReturnType,
+                                             NewFunctionArguments,
+                                             OldFunctionType.isVarArg());
+
+  //
+  // Recreate the function as similar as possible
+  //
+  auto *NewFunction = Function::Create(&NewFunctionType,
+                                       GlobalValue::ExternalLinkage,
+                                       "",
+                                       OldFunction.getParent());
+  NewFunction->takeName(&OldFunction);
+  NewFunction->copyAttributesFrom(&OldFunction);
+  NewFunction->copyMetadata(&OldFunction, 0);
+
+  // Steal body
+  std::vector<BasicBlock *> Body;
+  for (BasicBlock &BB : OldFunction)
+    Body.push_back(&BB);
+  auto &NewBody = NewFunction->getBasicBlockList();
+  for (BasicBlock *BB : Body) {
+    BB->removeFromParent();
+    revng_assert(BB->getParent() == nullptr);
+    NewBody.push_back(BB);
+    revng_assert(BB->getParent() == NewFunction);
+  }
+
+  // Replace arguments and copy their names
+  unsigned I = 0;
+  for (Argument &OldArgument : OldFunction.args()) {
+    Argument &NewArgument = *NewFunction->getArg(I);
+    NewArgument.setName(OldArgument.getName());
+    OldArgument.replaceAllUsesWith(&NewArgument);
+    ++I;
+  }
+
+  // We do not delete OldFunction in order not to break call sites
+
+  return NewFunction;
+}

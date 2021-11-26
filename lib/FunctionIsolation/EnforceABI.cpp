@@ -183,8 +183,9 @@ static Type *getLLVMTypeForRegister(Module *M, model::Register::Values V) {
   return IntegerType::getIntNTy(C, 8 * model::Register::getSize(V));
 }
 
-static FunctionType *
-toLLVMType(llvm::Module *M, const model::RawFunctionType &Prototype) {
+static std::pair<Type *, SmallVector<Type *, 8>>
+getLLVMReturnTypeAndArguments(llvm::Module *M,
+                              const model::RawFunctionType &Prototype) {
   using model::NamedTypedRegister;
   using model::RawFunctionType;
   using model::TypedRegister;
@@ -210,7 +211,13 @@ toLLVMType(llvm::Module *M, const model::RawFunctionType &Prototype) {
     ReturnType = StructType::create(ReturnTypes);
 
   // Create new function
-  return FunctionType::get(ReturnType, ArgumentsTypes, false);
+  return { ReturnType, ArgumentsTypes };
+}
+
+static FunctionType *
+toLLVMType(llvm::Module *M, const model::RawFunctionType &Prototype) {
+  auto [ReturnType, Arguments] = getLLVMReturnTypeAndArguments(M, Prototype);
+  return FunctionType::get(ReturnType, Arguments, false);
 }
 
 Function *EnforceABIImpl::handleFunction(Function &OldFunction,
@@ -227,31 +234,16 @@ Function *
 EnforceABIImpl::recreateFunction(Function &OldFunction,
                                  const model::RawFunctionType &Prototype) {
   // Create new function
-  auto *NewType = toLLVMType(&M, Prototype);
-  auto *NewFunction = Function::Create(NewType,
-                                       GlobalValue::ExternalLinkage,
-                                       "",
-                                       OldFunction.getParent());
-  NewFunction->takeName(&OldFunction);
-  NewFunction->copyAttributesFrom(&OldFunction);
-  NewFunction->copyMetadata(&OldFunction, 0);
+  auto [NewReturnType, NewArguments] = getLLVMReturnTypeAndArguments(&M,
+                                                                     Prototype);
+  auto *NewFunction = changeFunctionType(OldFunction,
+                                         NewReturnType,
+                                         NewArguments);
 
   // Set argument names
   for (const auto &[LLVMArgument, ModelArgument] :
        zip(NewFunction->args(), Prototype.Arguments))
     LLVMArgument.setName(ModelArgument.name());
-
-  // Steal body from the old function
-  std::vector<BasicBlock *> Body;
-  for (BasicBlock &BB : OldFunction)
-    Body.push_back(&BB);
-  auto &NewBody = NewFunction->getBasicBlockList();
-  for (BasicBlock *BB : Body) {
-    BB->removeFromParent();
-    revng_assert(BB->getParent() == nullptr);
-    NewBody.push_back(BB);
-    revng_assert(BB->getParent() == NewFunction);
-  }
 
   return NewFunction;
 }
