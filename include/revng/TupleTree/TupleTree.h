@@ -25,7 +25,7 @@
 template<typename T>
 concept TupleTreeCompatible = IsKeyedObjectContainer<T>
                                 or HasTupleSize<T>
-                                or IsUpcastablePointer<T>;
+                                or UpcastablePointerLike<T>;
 // clang-format on
 
 template<typename T>
