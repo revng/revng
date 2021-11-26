@@ -492,8 +492,7 @@ If you're just interested in lifting to LLVM IR, simply use `revng lift`.
          "-L", "./",
          "-o", executable]
         + no_pie
-        + linking_options,
-        {"HARD_FLAGS_IGNORE": "1"})
+        + linking_options)
 
     # Invoke revng-merge-dynamic
     unpatched_output = "{}.tmp".format(executable)
