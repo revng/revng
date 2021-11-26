@@ -22,6 +22,7 @@
 #include "llvm/Support/Casting.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
@@ -35,12 +36,45 @@ static Logger<> Log("promote-stack-pointer");
 
 using PSPPass = PromoteStackPointerPass;
 
+static bool adjustStackAfterCalls(const model::Binary &Binary,
+                                  Function &F,
+                                  GlobalVariable *GlobalSP) {
+  bool Changed = false;
+
+  IRBuilder<> B(F.getParent()->getContext());
+
+  Type *SPType = GlobalSP->getType()->getPointerElementType();
+
+  MetaAddress Entry = getMetaAddressMetadata(&F, "revng.function.entry");
+  auto &ModelFunction = Binary.Functions.at(Entry);
+
+  for (BasicBlock &BB : F) {
+    for (Instruction &I : BB) {
+      if (auto *MD = I.getMetadata("revng.callerblock.start")) {
+        auto *RawPrototype = getCallSitePrototype(Binary,
+                                                  ModelFunction,
+                                                  cast<CallInst>(&I));
+        auto *FSO = ConstantInt::get(SPType, RawPrototype->FinalStackOffset);
+
+        // We found a function call
+        Changed = true;
+
+        B.SetInsertPoint(I.getNextNode());
+        B.CreateStore(B.CreateAdd(B.CreateLoad(GlobalSP), FSO), GlobalSP);
+      }
+    }
+  }
+
+  return Changed;
+}
+
 bool PSPPass::runOnFunction(Function &F) {
+  bool Changed = false;
 
   // Skip non-isolated functions
   auto FTags = FunctionTags::TagsSet::from(&F);
   if (not FTags.contains(FunctionTags::Lifted))
-    return false;
+    return Changed;
 
   // Get the global variable representing the stack pointer register.
   using GCBIPass = GeneratedCodeBasicInfoWrapperPass;
@@ -48,8 +82,13 @@ bool PSPPass::runOnFunction(Function &F) {
 
   if (not GlobalSP) {
     revng_log(Log, "WARNING: cannot find global variable for stack pointer");
-    return false;
+    return Changed;
   }
+
+  auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
+  const model::Binary &Binary = ModelWrapper.getReadOnlyModel();
+
+  Changed = adjustStackAfterCalls(Binary, F, GlobalSP) or Changed;
 
   std::vector<Instruction *> SPUsers;
   for (User *U : GlobalSP->users()) {
@@ -91,17 +130,13 @@ bool PSPPass::runOnFunction(Function &F) {
   }
 
   if (SPUsers.empty())
-    return false;
+    return Changed;
 
   // Create function for initializing local stack pointer.
   Module *M = F.getParent();
   LLVMContext &Ctx = F.getContext();
   Type *SPType = GlobalSP->getType()->getPointerElementType();
-  uint64_t PointerBitWidth = SPType->getPrimitiveSizeInBits().getFixedSize();
-  Type *IntTy = Type::getIntNTy(Ctx, PointerBitWidth);
-  auto InitFunction = M->getOrInsertFunction("revng_init_local_sp",
-                                             SPType,
-                                             IntTy);
+  auto InitFunction = M->getOrInsertFunction("revng_init_local_sp", SPType);
   Function *InitLocalSP = cast<Function>(InitFunction.getCallee());
 
   // Create an alloca to represent the local value of the stack pointer.
@@ -112,14 +147,11 @@ bool PSPPass::runOnFunction(Function &F) {
   AllocaInst *LocalSP = Builder.CreateAlloca(SPType, nullptr, "local_sp");
 
   // Call InitLocalSP, to initialize the value of the local stack pointer.
-  // The argument to the call is always zero. This argument will be adjusted by
-  // AdjustStackPointerPass to represent how much the stack pointer is adjusted.
-  APInt APZero = APInt::getNullValue(IntTy->getIntegerBitWidth());
-  Constant *Zero = Constant::getIntegerValue(IntTy, APZero);
-  auto *InitSPVal = Builder.CreateCall(InitLocalSP, Zero);
+  auto *InitSPVal = Builder.CreateCall(InitLocalSP);
   Type *PtrTy = PointerType::getInt8PtrTy(M->getContext());
   auto *InitSPPtr = Builder.CreateIntToPtr(InitSPVal, PtrTy);
   auto *SPVal = Builder.CreatePtrToInt(InitSPPtr, InitSPVal->getType());
+
   // Store the initial SP value in the new alloca.
   Builder.CreateStore(SPVal, LocalSP);
 
