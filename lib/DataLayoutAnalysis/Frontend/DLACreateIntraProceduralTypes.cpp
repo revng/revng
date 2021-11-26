@@ -152,7 +152,8 @@ protected:
         // If the loop is simplified, use getBackedgeTakenCount to infer the
         // trip count.
         const SCEV *SCEVBackedgeCount = SE->getBackedgeTakenCount(L);
-        if (auto *Count = dyn_cast<SCEVConstant>(SCEVBackedgeCount)) {
+        auto *Count = dyn_cast<SCEVConstant>(SCEVBackedgeCount);
+        if (Count != nullptr and not Count->isZero()) {
           SmallVector<BasicBlock *, 4> ExitBlocks;
           L->getUniqueExitBlocks(ExitBlocks);
           const auto IsDominatedByB = [&DT = this->DT,
