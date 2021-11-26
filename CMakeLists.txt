@@ -178,43 +178,6 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       FIXTURES_SETUP Recompiled_fixture_${TARGET_NAME}
       )
 
-    # promote stack pointer in .ll for decompilation with dla
-    add_test(NAME promote_stack_pointer_${TARGET_NAME} COMMAND revng --prefix=.
-      opt -S
-      -promote-stack-pointer
-      ${TARGET_NAME}_prepared.ll
-      -o ${TARGET_NAME}_promoted_stack.ll
-      )
-    set_property(TEST promote_stack_pointer_${TARGET_NAME} APPEND PROPERTY
-      DEPENDS prepare_${TARGET_NAME}
-      )
-    set_property(TEST promote_stack_pointer_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_REQUIRED PrepareDecompilation_fixture_${TARGET_NAME}
-      )
-    set_property(TEST promote_stack_pointer_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_SETUP PromoteStackPointer_fixture_${TARGET_NAME}
-      )
-
-    # adjust stack pointer in .ll for decompilation with dla
-    add_test(NAME adjust_stack_pointer_${TARGET_NAME} COMMAND revng --prefix=.
-      opt -S
-      -sroa
-      -instcombine
-      -adjust-stack-pointer
-      -sroa --sroa-aggressive-phis-selects
-      ${TARGET_NAME}_promoted_stack.ll
-      -o ${TARGET_NAME}_adjusted_stack.ll
-      )
-    set_property(TEST adjust_stack_pointer_${TARGET_NAME} APPEND PROPERTY
-      DEPENDS promote_stack_pointer_${TARGET_NAME}
-      )
-    set_property(TEST adjust_stack_pointer_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_REQUIRED PromoteStackPointer_fixture_${TARGET_NAME}
-      )
-    set_property(TEST adjust_stack_pointer_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_SETUP AdjustStackPointer_fixture_${TARGET_NAME}
-      )
-
     # test full pipeline with dla combing and decompilation
     add_test(NAME decompile_with_dla_${TARGET_NAME} COMMAND revng --prefix=.
       opt
@@ -226,14 +189,14 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       -add-scev-barrier
       -decompilation
       -dla-flatc-dir=${TARGET_NAME}_dla_dir
-      ${TARGET_NAME}_adjusted_stack.bc
+      ${TARGET_NAME}_prepared.bc
       -o /dev/null
       )
     set_property(TEST decompile_with_dla_${TARGET_NAME} APPEND PROPERTY
-      DEPENDS adjust_stack_pointer_${TARGET_NAME}
+      DEPENDS prepare_${TARGET_NAME}
       )
     set_property(TEST decompile_with_dla_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_REQUIRED AdjustStackPointer_fixture_${TARGET_NAME}
+      FIXTURES_REQUIRED PrepareDecompilation_fixture_${TARGET_NAME}
       )
 
 endmacro()

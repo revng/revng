@@ -2,7 +2,6 @@
 # Copyright rev.ng Srls. See LICENSE.md for details.
 #
 
-add_subdirectory(AdjustStackPointer)
 add_subdirectory(BeautifyGHAST)
 add_subdirectory(DataLayoutAnalysis)
 add_subdirectory(Decompiler)
