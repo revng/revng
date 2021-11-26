@@ -55,11 +55,12 @@ void Logger<X>::flush(const LogTerminator &LineInfo) {
 
       Pad = std::string(MaxLocationLength - Location.size() - Suffix.size(),
                         ' ');
-      dbg << "[" << Location << Suffix << "] " << Pad;
+      dbg << "[" << Location << Suffix << Pad << "] ";
     }
 
-    Pad = std::string(MaxLoggerNameLength - Name.size() + IndentLevel * 2, ' ');
-    dbg << "[" << Name.data() << "] " << Pad;
+    Pad = std::string(MaxLoggerNameLength - Name.size(), ' ');
+    dbg << "[" << Name.data() << Pad << "] ";
+    dbg << std::string(IndentLevel * 2, ' ');
 
     std::string Data = Buffer.str();
     if (Data.size() > 0 and Data.back() == '\n')
