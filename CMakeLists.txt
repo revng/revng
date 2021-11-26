@@ -79,12 +79,15 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       -remove-cpu-loop-store
       -remove-llvm-dbg-intrinsics
       -make-env-null
+      # Stack promotion
+      -measure-stack-size-at-call-sites
+      -promote-stack-pointer
       # Optimize IR with LLVM's passes
       -dce
       -simplifycfg
       -dse
       -instcombine
-      -sroa
+      -sroa --sroa-aggressive-phis-selects
       -instsimplify
       -jump-threading
       -licm
@@ -104,6 +107,18 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       # Remove LLVM's artifacts from IR
       -remove-llvmassume-calls
       -dce
+      # Stack analysis and segregation
+      -instrument-stack-accesses
+      -instcombine
+      -compute-stack-accesses-bounds
+      -detect-stack-size
+      -segregate-stack-accesses
+      -cleanup-stack-size-markers
+      -dce
+      -sroa
+      -instcombine
+      -sroa
+      -simplifycfg
       ${INPUT_FILE}
       -o ${TARGET_NAME}_prepared.bc
       )
