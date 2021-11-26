@@ -9,6 +9,7 @@ revng_add_analyses_library(MarkForSerialization
 target_link_libraries(MarkForSerialization
 	LivenessAnalysis
 	RestructureCFGPass
+	Support
 	TargetFunctionOption
 	revng::revngSupport
 	${LLVM_LIBRARIES})

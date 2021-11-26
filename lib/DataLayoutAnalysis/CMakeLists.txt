@@ -26,6 +26,7 @@ revng_add_analyses_library(DataLayoutAnalysis revngc
   DLATypeSystem.cpp)
 
 target_link_libraries(DataLayoutAnalysis
+  Support
   revng::revngModel
   revng::revngSupport
   ${LLVM_LIBRARIES})

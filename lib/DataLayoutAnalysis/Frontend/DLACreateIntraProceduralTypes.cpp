@@ -27,6 +27,7 @@
 
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
 #include "revng-c/DataLayoutAnalysis/SCEVBaseAddressExplorer.h"
+#include "revng-c/Support/FunctionTags.h"
 
 #include "../DLAHelpers.h"
 #include "../DLAModelFuncHelpers.h"
@@ -385,8 +386,7 @@ public:
           if (Callee->isIntrinsic())
             continue;
 
-          if (Callee->hasName()
-              and Callee->getName() == "revng_init_local_sp") {
+          if (Callee->hasName() and FunctionTags::MallocLike.isTagOf(Callee)) {
             const auto &[StackLayout, New] = Builder.getOrCreateLayoutType(C);
             Changed |= New;
             const SCEV *CallSCEV = SE->getSCEV(C);

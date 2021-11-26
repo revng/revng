@@ -5,4 +5,6 @@
 #include "revng-c/Support/FunctionTags.h"
 
 namespace FunctionTags {
+Tag AllocatesLocalVariable("AllocatesLocalVariable");
+Tag MallocLike("MallocLike");
 } // namespace FunctionTags

@@ -10,6 +10,7 @@
 #include "revng/Support/FunctionTags.h"
 
 #include "revng-c/DataLayoutAnalysis/SCEVBaseAddressExplorer.h"
+#include "revng-c/Support/FunctionTags.h"
 
 static bool isConstantAddress(const llvm::ConstantInt *C) {
   // TODO: insert some logic to properly detect when this constant represents
@@ -17,16 +18,16 @@ static bool isConstantAddress(const llvm::ConstantInt *C) {
   return false;
 }
 
-// Returns true if the Value \V is always an address, false otherwise.
+// Returns true if the Value \p V is always an address, false otherwise.
 //
 // For now the only Values that are always considered as addresses are calls to
-// `revng_init_local_sp`, that returns a pointer to the stack of the Function
+// `revng_stack_frame`, that returns a pointer to the stack of the Function
 // that contains the call. A pointer to the stack is obviously always an
 // address.
 static bool isAlwaysAddress(const llvm::Value *V) {
   if (auto *Call = dyn_cast_or_null<llvm::CallInst>(V))
     if (auto *Callee = Call->getCalledFunction())
-      if (Callee->hasName() and Callee->getName() == "revng_init_local_sp")
+      if (FunctionTags::MallocLike.isTagOf(Callee))
         return true;
   return false;
 }

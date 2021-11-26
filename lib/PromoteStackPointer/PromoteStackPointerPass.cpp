@@ -50,7 +50,9 @@ static bool adjustStackAfterCalls(const model::Binary &Binary,
 
   for (BasicBlock &BB : F) {
     for (Instruction &I : BB) {
-      if (auto *MD = I.getMetadata("revng.callerblock.start")) {
+      if (FunctionTags::CallToLifted.isTagOf(&I)) {
+        auto *MD = I.getMetadata("revng.callerblock.start");
+        revng_assert(MD != nullptr);
         auto *RawPrototype = getCallSitePrototype(Binary,
                                                   ModelFunction,
                                                   cast<CallInst>(&I));
@@ -148,10 +150,7 @@ bool PSPPass::runOnFunction(Function &F) {
 
   // Call InitLocalSP, to initialize the value of the local stack pointer.
   setInsertPointToFirstNonAlloca(Builder, F);
-  auto *InitSPVal = Builder.CreateCall(InitLocalSP);
-  Type *PtrTy = PointerType::getInt8PtrTy(M->getContext());
-  auto *InitSPPtr = Builder.CreateIntToPtr(InitSPVal, PtrTy);
-  auto *SPVal = Builder.CreatePtrToInt(InitSPPtr, InitSPVal->getType());
+  auto *SPVal = Builder.CreateCall(InitLocalSP);
 
   // Store the initial SP value in the new alloca.
   Builder.CreateStore(SPVal, LocalSP);

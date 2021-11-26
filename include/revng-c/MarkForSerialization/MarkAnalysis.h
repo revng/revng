@@ -14,6 +14,7 @@
 
 #include "revng-c/Liveness/LivenessAnalysis.h"
 #include "revng-c/MarkForSerialization/MarkForSerializationFlags.h"
+#include "revng-c/Support/FunctionTags.h"
 
 namespace llvm {
 
@@ -358,11 +359,11 @@ public:
         ToSerialize[&I].set(HasSideEffects);
         revng_log(MarkLog, "Instr HasSideEffects");
 
-        // Also, force calls to revng_init_local_sp to behave like if they had
+        // Also, force calls to revng_stack_frame to behave like if they had
         // many uses, so that they generate a local variable.
         if (auto *Call = dyn_cast<CallInst>(&I)) {
           auto *Callee = Call->getCalledFunction();
-          if (Callee and Callee->getName() == "revng_init_local_sp") {
+          if (Callee and FunctionTags::AllocatesLocalVariable.isTagOf(Callee)) {
             ToSerialize[&I].set(HasManyUses);
             revng_log(MarkLog, "Instr HasManyUses");
           }

@@ -7,4 +7,6 @@
 #include "revng/Support/FunctionTags.h"
 
 namespace FunctionTags {
+extern Tag AllocatesLocalVariable;
+extern Tag MallocLike;
 } // namespace FunctionTags
