@@ -69,9 +69,9 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       FIXTURES_SETUP ${TARGET_NAME}_model_header
       )
 
-    # prepare enforced .ll for decompilation
+    # prepare enforced .bc for decompilation
     add_test(NAME prepare_${TARGET_NAME} COMMAND revng --prefix=.
-      opt -S
+      opt
       # Remove revng's artifacts from IR
       -filter-for-decompilation
       -remove-newpc-calls
@@ -106,7 +106,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       -dce
       -serialize-model
       ${INPUT_FILE}
-      -o ${TARGET_NAME}_prepared.ll
+      -o ${TARGET_NAME}_prepared.bc
       )
     set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
       FIXTURES_SETUP PrepareDecompilation_fixture_${TARGET_NAME}
@@ -114,10 +114,10 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
 
     # test VMA
     add_test(NAME vma_${TARGET_NAME} COMMAND revng --prefix=.
-      opt -S
+      opt
       -vma
       -vma-mincut-iter=50
-      ${TARGET_NAME}_prepared.ll
+      ${TARGET_NAME}_prepared.bc
       -o /dev/null
       )
     set_property(TEST vma_${TARGET_NAME} APPEND PROPERTY
@@ -132,13 +132,13 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
 
     # test combing and decompilation without DLA
     add_test(NAME decompilation_${TARGET_NAME} COMMAND revng --prefix=.
-      opt -S
+      opt
       -restructure-cfg
       -beautify-ghast
       -decompilation
       -serialize-model
       -decompiled-dir=${TARGET_NAME}_decompiled_dir
-      ${TARGET_NAME}_prepared.ll
+      ${TARGET_NAME}_prepared.bc
       -o /dev/null
       )
     set_property(TEST decompilation_${TARGET_NAME} APPEND PROPERTY
@@ -206,7 +206,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
 
     # test full pipeline with dla combing and decompilation
     add_test(NAME decompile_with_dla_${TARGET_NAME} COMMAND revng --prefix=.
-      opt -S
+      opt
       -dla
       -phi-asap-assignment-info
       -restructure-cfg
@@ -216,7 +216,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       -decompilation
       -serialize-model
       -dla-flatc-dir=${TARGET_NAME}_dla_dir
-      ${TARGET_NAME}_adjusted_stack.ll
+      ${TARGET_NAME}_adjusted_stack.bc
       -o /dev/null
       )
     set_property(TEST decompile_with_dla_${TARGET_NAME} APPEND PROPERTY
