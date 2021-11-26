@@ -481,15 +481,18 @@ public:
   /// Type of the function
   FunctionType::Values Type = FunctionType::Invalid;
 
-  /// List of basic blocks, which represent the CFG
-  SortedVector<model::BasicBlock> CFG;
-
   /// The prototype of the function
   TypePath Prototype;
 
   /// Attributes for this call site
   // TODO: switch to std::set
   MutableSet<model::FunctionAttribute::Values> Attributes;
+
+  /// The type fo the stack frame of the function
+  TypePath StackFrameType;
+
+  /// List of basic blocks, which represent the CFG
+  SortedVector<model::BasicBlock> CFG;
 
 public:
   Function(const MetaAddress &Entry) : Entry(Entry) {}
@@ -509,9 +512,10 @@ INTROSPECTION_NS(model,
                  Entry,
                  CustomName,
                  Type,
-                 CFG,
                  Prototype,
-                 Attributes)
+                 Attributes,
+                 StackFrameType,
+                 CFG)
 
 template<>
 struct llvm::yaml::MappingTraits<model::Function>
@@ -519,7 +523,8 @@ struct llvm::yaml::MappingTraits<model::Function>
                                   Fields<model::Function>::CustomName,
                                   Fields<model::Function>::CFG,
                                   Fields<model::Function>::Prototype,
-                                  Fields<model::Function>::Attributes> {};
+                                  Fields<model::Function>::Attributes,
+                                  Fields<model::Function>::StackFrameType> {};
 
 template<>
 struct KeyedObjectTraits<model::Function> {
