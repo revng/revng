@@ -61,10 +61,10 @@ private:
   createPrologue(Function *NewFunction, const model::Function &FunctionModel);
 
   void handleRegularFunctionCall(CallInst *Call);
-  void generateCall(IRBuilder<> &Builder,
-                    FunctionCallee Callee,
-                    const model::BasicBlock &CallSiteBlock,
-                    const model::CallEdge &CallSite);
+  CallInst *generateCall(IRBuilder<> &Builder,
+                         FunctionCallee Callee,
+                         const model::BasicBlock &CallSiteBlock,
+                         const model::CallEdge &CallSite);
 
 private:
   Module &M;
@@ -342,7 +342,8 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
 
   // Generate the call
   IRBuilder<> Builder(Call);
-  generateCall(Builder, Callee, Block, *CallSite);
+  CallInst *NewCall = generateCall(Builder, Callee, Block, *CallSite);
+  NewCall->copyMetadata(*Call);
 
   // Create an additional store to the local %pc, so that the optimizer cannot
   // do stuff with llvm.assume.
@@ -362,10 +363,10 @@ toFunctionPointer(IRBuilder<> &B, Value *V, FunctionType *FT) {
   return FunctionCallee(FT, Callee);
 }
 
-void EnforceABIImpl::generateCall(IRBuilder<> &Builder,
-                                  FunctionCallee Callee,
-                                  const model::BasicBlock &CallSiteBlock,
-                                  const model::CallEdge &CallSite) {
+CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
+                                       FunctionCallee Callee,
+                                       const model::BasicBlock &CallSiteBlock,
+                                       const model::CallEdge &CallSite) {
   using model::NamedTypedRegister;
   using model::RawFunctionType;
   using model::TypedRegister;
@@ -424,4 +425,6 @@ void EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   } else {
     Builder.CreateStore(Result, ReturnCSVs[0]);
   }
+
+  return Result;
 }

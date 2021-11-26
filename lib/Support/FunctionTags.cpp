@@ -24,6 +24,7 @@ namespace FunctionTags {
 Tag QEMU("QEMU");
 Tag Helper("Helper");
 Tag Lifted("Lifted");
+Tag CallToLifted("CallToLifted");
 Tag Exceptional("Exceptional");
 Tag StructInitializer("StructInitializer");
 Tag OpaqueCSVValue("OpaqueCSVValue");
