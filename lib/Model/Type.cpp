@@ -870,7 +870,9 @@ verifyImpl(VerifyHelper &VH, const RawFunctionType *T) {
 }
 
 void Type::dump() const {
-  serialize(dbg, *this);
+  auto *This = this;
+  auto Dump = [](auto &Upcasted) { serialize(dbg, Upcasted); };
+  upcast(This, Dump);
 }
 
 bool Type::verify() const {
