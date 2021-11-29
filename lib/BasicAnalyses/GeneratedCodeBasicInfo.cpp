@@ -26,15 +26,12 @@ using RegisterGCBI = RegisterPass<GeneratedCodeBasicInfoWrapperPass>;
 static RegisterGCBI X("gcbi", "Generated Code Basic Info", true, true);
 
 void GeneratedCodeBasicInfo::run(Module &M) {
-  Function &F = *M.getFunction("root");
+  RootFunction = M.getFunction("root");
   NewPC = M.getFunction("newpc");
-  if (NewPC != nullptr) {
+  if (NewPC != nullptr)
     MetaAddressStruct = cast<StructType>(NewPC->arg_begin()->getType());
-  }
 
   revng_log(PassesLog, "Starting GeneratedCodeBasicInfo");
-
-  RootFunction = &F;
 
   const char *MDName = "revng.input.architecture";
   NamedMDNode *InputArchMD = M.getOrInsertNamedMetadata(MDName);
@@ -65,7 +62,26 @@ void GeneratedCodeBasicInfo::run(Module &M) {
   Type *PCType = PC->getType()->getPointerElementType();
   PCRegSize = M.getDataLayout().getTypeAllocSize(PCType);
 
-  for (BasicBlock &BB : F) {
+  if (auto *NamedMD = M.getNamedMetadata("revng.csv")) {
+    auto *Tuple = cast<MDTuple>(NamedMD->getOperand(0));
+    for (const MDOperand &Operand : Tuple->operands()) {
+      if (Operand.get() == nullptr)
+        continue;
+
+      auto *CSV = cast<GlobalVariable>(QMD.extract<Constant *>(Operand.get()));
+      CSVs.push_back(CSV);
+    }
+  }
+
+  revng_log(PassesLog, "Ending GeneratedCodeBasicInfo");
+}
+
+void GeneratedCodeBasicInfo::parseRoot() {
+  if (RootParsed)
+    return;
+  RootParsed = true;
+
+  for (BasicBlock &BB : *RootFunction) {
     if (!BB.empty()) {
       switch (getType(&BB)) {
       case BlockType::RootDispatcherBlock:
@@ -90,7 +106,7 @@ void GeneratedCodeBasicInfo::run(Module &M) {
 
       case BlockType::JumpTargetBlock: {
         auto *Call = cast<CallInst>(&*BB.begin());
-        revng_assert(Call->getCalledFunction()->getName() == "newpc");
+        revng_assert(Call->getCalledFunction() == NewPC);
         JumpTargets[MetaAddress::fromConstant(Call->getArgOperand(0))] = &BB;
         break;
       }
@@ -104,23 +120,14 @@ void GeneratedCodeBasicInfo::run(Module &M) {
       }
     }
   }
-
-  if (auto *NamedMD = M.getNamedMetadata("revng.csv")) {
-    auto *Tuple = cast<MDTuple>(NamedMD->getOperand(0));
-    for (const MDOperand &Operand : Tuple->operands()) {
-      if (Operand.get() == nullptr)
-        continue;
-
-      auto *CSV = cast<GlobalVariable>(QMD.extract<Constant *>(Operand.get()));
-      CSVs.push_back(CSV);
-    }
-  }
-
-  revng_log(PassesLog, "Ending GeneratedCodeBasicInfo");
 }
 
 GeneratedCodeBasicInfo::SuccessorsList
-GeneratedCodeBasicInfo::getSuccessors(BasicBlock *BB) const {
+GeneratedCodeBasicInfo::getSuccessors(BasicBlock *BB) {
+  parseRoot();
+
+  revng_assert(BB->getParent() == RootFunction);
+
   SuccessorsList Result;
 
   df_iterator_default_set<BasicBlock *> Visited;

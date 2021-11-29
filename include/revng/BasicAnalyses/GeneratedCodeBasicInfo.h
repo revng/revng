@@ -57,7 +57,8 @@ public:
     PCRegSize(0),
     RootFunction(nullptr),
     MetaAddressStruct(nullptr),
-    PCH() {}
+    PCH(),
+    RootParsed(false) {}
 
   void run(llvm::Module &M);
 
@@ -226,6 +227,8 @@ public:
   buildDispatcher(T &Targets,
                   llvm::IRBuilder<> &Builder,
                   llvm::BasicBlock *Default = nullptr) {
+    parseRoot();
+
     ProgramCounterHandler::DispatcherTargets TargetsPairs;
     TargetsPairs.reserve(Targets.size());
     for (MetaAddress MA : Targets)
@@ -244,7 +247,9 @@ public:
   /// \brief Return the basic block associated to \p PC
   ///
   /// Returns nullptr if the PC doesn't have a basic block (yet)
-  llvm::BasicBlock *getBlockAt(MetaAddress PC) const {
+  llvm::BasicBlock *getBlockAt(MetaAddress PC) {
+    parseRoot();
+
     auto It = JumpTargets.find(PC);
     if (It == JumpTargets.end())
       return nullptr;
@@ -263,15 +268,15 @@ public:
     return getPCFromNewPC(getJumpTargetBlock(BB));
   }
 
-  bool isJump(llvm::BasicBlock *BB) const {
-    return isJump(BB->getTerminator());
-  }
+  bool isJump(llvm::BasicBlock *BB) { return isJump(BB->getTerminator()); }
 
   /// \brief Return true if \p T represents a jump in the input assembly
   ///
   /// Return true if \p T targets include only dispatcher-related basic blocks
   /// and jump targets.
-  bool isJump(llvm::Instruction *T) const {
+  bool isJump(llvm::Instruction *T) {
+    parseRoot();
+    revng_assert(T->getParent()->getParent() == RootFunction);
     revng_assert(T != nullptr);
     revng_assert(T->isTerminator());
 
@@ -323,11 +328,20 @@ public:
                             llvm::map_iterator(End, GetSecond));
   }
 
-  llvm::BasicBlock *anyPC() const { return AnyPC; }
+  llvm::BasicBlock *anyPC() {
+    parseRoot();
+    return AnyPC;
+  }
 
-  llvm::BasicBlock *unexpectedPC() const { return UnexpectedPC; }
+  llvm::BasicBlock *unexpectedPC() {
+    parseRoot();
+    return UnexpectedPC;
+  }
 
-  llvm::BasicBlock *dispatcher() const { return Dispatcher; }
+  llvm::BasicBlock *dispatcher() {
+    parseRoot();
+    return Dispatcher;
+  }
 
   const llvm::ArrayRef<llvm::GlobalVariable *> csvs() const { return CSVs; }
 
@@ -414,9 +428,12 @@ public:
     }
   };
 
-  SuccessorsList getSuccessors(llvm::BasicBlock *BB) const;
+  SuccessorsList getSuccessors(llvm::BasicBlock *BB);
 
-  llvm::Function *root() const { return RootFunction; }
+  llvm::Function *root() {
+    parseRoot();
+    return RootFunction;
+  }
 
   llvm::SmallVector<std::pair<llvm::BasicBlock *, bool>, 4>
   blocksByPCRange(MetaAddress Start, MetaAddress End);
@@ -452,6 +469,7 @@ public:
   }
 
 private:
+  void parseRoot();
   void initializePCToBlockCache();
 
 private:
@@ -509,6 +527,7 @@ private:
   using PCToBlockMap = std::multimap<MetaAddress, llvm::BasicBlock *>;
   PCToBlockMap PCToBlockCache;
   std::map<llvm::Function *, llvm::DominatorTree> DTMap;
+  bool RootParsed = false;
 };
 
 template<>
