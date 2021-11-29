@@ -29,11 +29,13 @@
 
 #include "revng-c/PromoteStackPointer/PromoteStackPointerPass.h"
 
+using namespace llvm;
+
 static Logger<> Log("promote-stack-pointer");
 
 using PSPPass = PromoteStackPointerPass;
 
-bool PSPPass::runOnFunction(llvm::Function &F) {
+bool PSPPass::runOnFunction(Function &F) {
 
   // Skip non-isolated functions
   auto FTags = FunctionTags::TagsSet::from(&F);
@@ -42,17 +44,17 @@ bool PSPPass::runOnFunction(llvm::Function &F) {
 
   // Get the global variable representing the stack pointer register.
   using GCBIPass = GeneratedCodeBasicInfoWrapperPass;
-  llvm::GlobalVariable *GlobalSP = getAnalysis<GCBIPass>().getGCBI().spReg();
+  GlobalVariable *GlobalSP = getAnalysis<GCBIPass>().getGCBI().spReg();
 
   if (not GlobalSP) {
     revng_log(Log, "WARNING: cannot find global variable for stack pointer");
     return false;
   }
 
-  std::vector<llvm::Instruction *> SPUsers;
-  for (llvm::User *U : GlobalSP->users()) {
-    if (auto *I = llvm::dyn_cast<llvm::Instruction>(U)) {
-      llvm::Function *UserFun = I->getFunction();
+  std::vector<Instruction *> SPUsers;
+  for (User *U : GlobalSP->users()) {
+    if (auto *I = dyn_cast<Instruction>(U)) {
+      Function *UserFun = I->getFunction();
       revng_log(Log, "Found use in Function: " << UserFun->getName());
 
       if (UserFun != &F)
@@ -60,16 +62,16 @@ bool PSPPass::runOnFunction(llvm::Function &F) {
 
       SPUsers.emplace_back(I);
 
-    } else if (auto *CE = llvm::dyn_cast<llvm::ConstantExpr>(U)) {
+    } else if (auto *CE = dyn_cast<ConstantExpr>(U)) {
       revng_log(Log, "Found ConstantExpr use");
 
       if (not CE->getNumUses())
         continue;
 
-      llvm::SmallVector<std::pair<llvm::User *, llvm::Value *>, 8> Replacements;
-      for (llvm::User *CEUser : CE->users()) {
-        auto *CEInstrUser = llvm::cast<llvm::Instruction>(CEUser);
-        llvm::Function *UserFun = CEInstrUser->getFunction();
+      SmallVector<std::pair<User *, Value *>, 8> Replacements;
+      for (User *CEUser : CE->users()) {
+        auto *CEInstrUser = cast<Instruction>(CEUser);
+        Function *UserFun = CEInstrUser->getFunction();
 
         if (UserFun != &F)
           continue;
@@ -92,37 +94,37 @@ bool PSPPass::runOnFunction(llvm::Function &F) {
     return false;
 
   // Create function for initializing local stack pointer.
-  llvm::Module *M = F.getParent();
-  llvm::LLVMContext &Ctx = F.getContext();
-  llvm::Type *SPType = GlobalSP->getType()->getPointerElementType();
+  Module *M = F.getParent();
+  LLVMContext &Ctx = F.getContext();
+  Type *SPType = GlobalSP->getType()->getPointerElementType();
   uint64_t PointerBitWidth = SPType->getPrimitiveSizeInBits().getFixedSize();
-  llvm::Type *IntTy = llvm::Type::getIntNTy(Ctx, PointerBitWidth);
+  Type *IntTy = Type::getIntNTy(Ctx, PointerBitWidth);
   auto InitFunction = M->getOrInsertFunction("revng_init_local_sp",
                                              SPType,
                                              IntTy);
-  llvm::Function *InitLocalSP = cast<llvm::Function>(InitFunction.getCallee());
+  Function *InitLocalSP = cast<Function>(InitFunction.getCallee());
 
   // Create an alloca to represent the local value of the stack pointer.
   // This should be inserted at the beginning of the entry block.
-  llvm::BasicBlock &EntryBlock = F.getEntryBlock();
-  llvm::IRBuilder<> Builder(Ctx);
+  BasicBlock &EntryBlock = F.getEntryBlock();
+  IRBuilder<> Builder(Ctx);
   Builder.SetInsertPoint(&EntryBlock, EntryBlock.begin());
-  llvm::AllocaInst *LocalSP = Builder.CreateAlloca(SPType, nullptr, "local_sp");
+  AllocaInst *LocalSP = Builder.CreateAlloca(SPType, nullptr, "local_sp");
 
   // Call InitLocalSP, to initialize the value of the local stack pointer.
   // The argument to the call is always zero. This argument will be adjusted by
   // AdjustStackPointerPass to represent how much the stack pointer is adjusted.
-  llvm::APInt APZero = llvm::APInt::getNullValue(IntTy->getIntegerBitWidth());
-  llvm::Constant *Zero = llvm::Constant::getIntegerValue(IntTy, APZero);
+  APInt APZero = APInt::getNullValue(IntTy->getIntegerBitWidth());
+  Constant *Zero = Constant::getIntegerValue(IntTy, APZero);
   auto *InitSPVal = Builder.CreateCall(InitLocalSP, Zero);
-  llvm::Type *PtrTy = llvm::PointerType::getInt8PtrTy(M->getContext());
+  Type *PtrTy = PointerType::getInt8PtrTy(M->getContext());
   auto *InitSPPtr = Builder.CreateIntToPtr(InitSPVal, PtrTy);
   auto *SPVal = Builder.CreatePtrToInt(InitSPPtr, InitSPVal->getType());
   // Store the initial SP value in the new alloca.
   Builder.CreateStore(SPVal, LocalSP);
 
   // Actually perform the replacement.
-  for (llvm::Instruction *I : SPUsers) {
+  for (Instruction *I : SPUsers) {
     // Switch all the uses of the GlobalSP in I to uses of the LocalSP.
     I->replaceUsesOfWith(GlobalSP, LocalSP);
   }
@@ -130,7 +132,7 @@ bool PSPPass::runOnFunction(llvm::Function &F) {
   return true;
 }
 
-void PSPPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+void PSPPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<LoadModelWrapperPass>();
   AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
   AU.setPreservesCFG();
@@ -138,7 +140,6 @@ void PSPPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 
 char PSPPass::ID = 0;
 
-using llvm::RegisterPass;
-using Pass = PSPPass;
-static RegisterPass<Pass> RegisterPromoteStackPtr("promote-stack-pointer",
-                                                  "Promote Stack Pointer Pass");
+using RegisterPSP = llvm::RegisterPass<PSPPass>;
+static RegisterPSP
+  Register("promote-stack-pointer", "Promote Stack Pointer Pass");
