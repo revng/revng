@@ -12,6 +12,7 @@
 
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRHelpers.h"
 
 #include "revng-c/MarkForSerialization/MarkForSerializationPass.h"
 
@@ -101,7 +102,10 @@ bool AddSCEVBarrierPass::runOnFunction(llvm::Function &F) {
 
       // Insert a call to the SCEV barrier right after I. For now the call to
       // barrier has an undef argument, that will be fixed later.
-      Builder.SetInsertPoint(I.getParent(), std::next(I.getIterator()));
+      if (isa<llvm::AllocaInst>(&I))
+        setInsertPointToFirstNonAlloca(Builder, F);
+      else
+        Builder.SetInsertPoint(I.getParent(), std::next(I.getIterator()));
       auto *Undef = llvm::UndefValue::get(IType);
       auto *Call = Builder.CreateCall(SCEVBarrierF, Undef);
 

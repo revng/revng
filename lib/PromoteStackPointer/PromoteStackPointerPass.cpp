@@ -147,6 +147,7 @@ bool PSPPass::runOnFunction(Function &F) {
   AllocaInst *LocalSP = Builder.CreateAlloca(SPType, nullptr, "local_sp");
 
   // Call InitLocalSP, to initialize the value of the local stack pointer.
+  setInsertPointToFirstNonAlloca(Builder, F);
   auto *InitSPVal = Builder.CreateCall(InitLocalSP);
   Type *PtrTy = PointerType::getInt8PtrTy(M->getContext());
   auto *InitSPPtr = Builder.CreateIntToPtr(InitSPVal, PtrTy);
