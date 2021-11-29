@@ -314,13 +314,15 @@ void PromoteCSVs::promoteCSVs(Function *F) {
     InitializerForCSV[CSV] = Initializer;
   }
 
-  // Collect existing initializer calls
-  std::map<GlobalVariable *, CallInst *> InitializerCalls;
+  // Collect existing CSV allocas
+  std::map<GlobalVariable *, AllocaInst *> CSVAllocas;
   for (Instruction &I : Entry) {
     if (auto *Call = dyn_cast<CallInst>(&I)) {
       auto It = CSVForInitializer.find(Call->getCalledFunction());
       if (It != CSVForInitializer.end()) {
-        InitializerCalls[It->second] = Call;
+        auto *Initializer = cast<StoreInst>(getUniqueUser(Call));
+        auto *Alloca = cast<AllocaInst>(Initializer->getPointerOperand());
+        CSVAllocas[It->second] = Alloca;
       }
     }
   }
@@ -328,33 +330,30 @@ void PromoteCSVs::promoteCSVs(Function *F) {
   Instruction *NonAlloca = findFirstNonAlloca(&Entry);
   revng_assert(NonAlloca != nullptr);
 
-  IRBuilder<> AllocaBuilder(&Entry, NonAlloca->getIterator());
-  auto *Separator = AllocaBuilder.CreateUnreachable();
-  IRBuilder<> InitializersBuilder(&Entry, ++Separator->getIterator());
+  IRBuilder<> InitializersBuilder(NonAlloca);
+  auto *Separator = InitializersBuilder.CreateUnreachable();
+  IRBuilder<> AllocaBuilder(&Entry, Entry.begin());
 
   // For each GlobalVariable representing a CSV used in F, create a dedicated
   // alloca and save it in CSVMaps.
   for (GlobalVariable *CSV : CSVs) {
+    AllocaInst *Alloca = nullptr;
 
-    Type *CSVType = CSV->getType()->getPointerElementType();
-
-    // Create the alloca
-    auto *Alloca = AllocaBuilder.CreateAlloca(CSVType, nullptr, CSV->getName());
-
-    // Check if already have an initializer
-    CallInst *InitializerCall = nullptr;
-    auto It = InitializerCalls.find(CSV);
-    if (It == InitializerCalls.end()) {
-      Function *Initializer = InitializerForCSV.at(CSV);
-      InitializerCall = InitializersBuilder.CreateCall(Initializer);
+    auto It = CSVAllocas.find(CSV);
+    if (It != CSVAllocas.end()) {
+      Alloca = It->second;
     } else {
-      InitializerCall = It->second;
-    }
+      // Create the alloca
+      Type *CSVType = CSV->getType()->getPointerElementType();
+      Alloca = AllocaBuilder.CreateAlloca(CSVType, nullptr, CSV->getName());
 
-    // Initialize the alloca
-    InitializersBuilder.SetInsertPoint(&Entry,
-                                       ++InitializerCall->getIterator());
-    InitializersBuilder.CreateStore(InitializerCall, Alloca);
+      // Check if already have an initializer
+      Function *Initializer = InitializerForCSV.at(CSV);
+      auto *InitializerCall = InitializersBuilder.CreateCall(Initializer);
+
+      // Initialize the alloca
+      InitializersBuilder.CreateStore(InitializerCall, Alloca);
+    }
 
     // Replace users
     replaceAllUsesInFunctionWith(F, CSV, Alloca);
@@ -362,6 +361,12 @@ void PromoteCSVs::promoteCSVs(Function *F) {
 
   // Drop separators
   Separator->eraseFromParent();
+
+#ifndef NDEBUG
+  auto It = findFirstNonAlloca(&Entry)->getIterator();
+  for (Instruction &I : make_range(It, Entry.end()))
+    revng_assert(not isa<AllocaInst>(&I));
+#endif
 }
 
 struct FunctionNodeData {
