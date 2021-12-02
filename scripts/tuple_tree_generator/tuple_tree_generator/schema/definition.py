@@ -31,5 +31,5 @@ class Definition:
     def from_dict(dict: Dict, default_namespace: str):
         raise NotImplementedError()
 
-    def resolve_references(self, generator):
+    def resolve_references(self, schema):
         return

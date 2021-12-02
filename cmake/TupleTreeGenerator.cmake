@@ -55,6 +55,22 @@ function(tuple_tree_generator_cpp_from_headers
   )
 endfunction()
 
+# Extracts definitions and generates a JSON schema from the given header files
+# The definitions must be embedded as described in the docs for tuple_tree_generator_extract_definitions_from_headers.
+function(tuple_tree_generator_jsonschema_from_headers
+  HEADERS                     # List of C++ headers
+  DELIMITER                   # Delimiter used to mark comments embedding type schemas
+  NAMESPACE
+  JSONSCHEMA_ROOT_TYPE        # Type to use as the root of the JSON schema
+  STRING_TYPES                # Types equivalent to strings
+  SEPARATE_STRING_TYPES       # Types equivalent to strings which get a separate type definition
+  OUTPUT_PATH                 # Output file
+)
+  set(COLLECTED_YAML_PATH "${OUTPUT_DIR}/schema.yml")
+  tuple_tree_generator_extract_definitions_from_headers("${HEADERS}" "${DELIMITER}" "${COLLECTED_YAML_PATH}")
+  tuple_tree_generator_generate_jsonschema("${COLLECTED_YAML_PATH}" "${NAMESPACE}" "${JSONSCHEMA_ROOT_TYPE}" "${STRING_TYPES}" "${SEPARATE_STRING_TYPES}" "${OUTPUT_PATH}")
+endfunction()
+
 # Extracts tuple_tree_generator YAML definitions from the given header files
 #
 # The definitions have to be embedded in a c-style comment marked with the given
@@ -65,12 +81,12 @@ endfunction()
 # DELIMITER */
 function(tuple_tree_generator_extract_definitions_from_headers HEADERS DELIMITER OUTPUT_FILE)
   add_custom_command(
-      OUTPUT "${OUTPUT_FILE}"
-      COMMAND "${CMAKE_SOURCE_DIR}/scripts/tuple_tree_generator/extract_yaml.py"
-      --output "${OUTPUT_FILE}"
-      "${DELIMITER}"
-      ${HEADERS}
-      DEPENDS ${HEADERS}
+    OUTPUT "${OUTPUT_FILE}"
+    COMMAND "${CMAKE_SOURCE_DIR}/scripts/tuple_tree_generator/extract_yaml.py"
+    --output "${OUTPUT_FILE}"
+    "${DELIMITER}"
+    ${HEADERS}
+    DEPENDS ${HEADERS}
   )
 endfunction()
 
@@ -112,6 +128,28 @@ set(TEMPLATES
   "${TEMPLATES_DIR}/struct_impl.cpp.tpl"
 )
 
+set(SCRIPTS_ROOT_DIR "${CMAKE_SOURCE_DIR}/scripts/tuple_tree_generator")
+# The list of Python scripts is build as follows:
+#
+# find scripts/tuple_tree_generator -name "*.py" | sort | sed 's|scripts/tuple_tree_generator|"\${SCRIPTS_ROOT_DIR}|; s/$/"/'
+#
+# TODO: detect and warn about extra files in those directories
+set(TUPLE_TREE_GENERATOR_SOURCES
+  "${SCRIPTS_ROOT_DIR}/extract_yaml.py"
+  "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-cpp.py"
+  "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-jsonschema.py"
+  "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/__init__.py"
+  "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/__init__.py"
+  "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/cppheaders.py"
+  "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/jinja_utils.py"
+  "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/jsonschema.py"
+  "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/schema/__init__.py"
+  "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/schema/definition.py"
+  "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/schema/enum.py"
+  "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/schema/schema.py"
+  "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/schema/struct.py"
+)
+
 # Generates headers and implementation C++ files
 function(tuple_tree_generator_generate_cpp
   # Path to the yaml definitions
@@ -127,17 +165,9 @@ function(tuple_tree_generator_generate_cpp
   # List of implementation files expected to be generated
   EXPECTED_GENERATED_IMPLS
 )
-  set(SCRIPTS_ROOT_DIR "${CMAKE_SOURCE_DIR}/scripts/tuple_tree_generator")
-
-  # The list of Python scripts is build as follows:
-  #
-  # find scripts/tuple_tree_generator -name "*.py" | sort | sed 's|scripts/tuple_tree_generator|"\${SCRIPTS_ROOT_DIR}|; s/$/"/
-  #
-  # TODO: detect and warn about extra files in those directories
   add_custom_command(
-    COMMAND "${SCRIPTS_ROOT_DIR}/main.py"
+    COMMAND "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-cpp.py"
             --namespace "${NAMESPACE}"
-            --cpp-headers
             --include-path-prefix "${INCLUDE_PATH_PREFIX}"
             "${YAML_DEFINITIONS}"
             "${OUTPUT_DIR}"
@@ -146,15 +176,38 @@ function(tuple_tree_generator_generate_cpp
       "${YAML_DEFINITIONS}"
       ${TEMPLATES}
       "${SCRIPTS_ROOT_DIR}/extract_yaml.py"
-      "${SCRIPTS_ROOT_DIR}/main.py"
-      "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/__init__.py"
-      "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/definition/__init__.py"
-      "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/definition/definition.py"
-      "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/definition/enum.py"
-      "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/definition/struct.py"
-      "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/__init__.py"
-      "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/cppheaders.py"
-      "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/generator.py"
-      "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/jinja_utils.py"
+      ${TUPLE_TREE_GENERATOR_SOURCES}
+  )
+endfunction()
+
+# Generates JSON schema files
+function(tuple_tree_generator_generate_jsonschema
+  YAML_DEFINITIONS              # Path to the yaml definitions
+  NAMESPACE                     # Base namespace of the generated classes (e.g. model)
+  JSONSCHEMA_ROOT_TYPE          # Type to use as the root of the JSON schema
+  STRING_TYPES                  # Types equivalent to plain strings
+  SEPARATE_STRING_TYPES         # Types equivalent to plain strings that get a separate type definition
+  OUTPUT_PATH                   # Output path
+)
+  set(STRING_TYPE_ARGS)
+  foreach(ST ${STRING_TYPES})
+    list(APPEND STRING_TYPE_ARGS --string-type "${ST}")
+  endforeach()
+
+  set(SEPARATE_STRING_TYPE_ARGS)
+  foreach(ST ${SEPARATE_STRING_TYPES})
+    list(APPEND SEPARATE_STRING_TYPE_ARGS --separate-string-type "${ST}")
+  endforeach()
+
+  add_custom_command(
+    COMMAND "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-jsonschema.py"
+            --namespace "${NAMESPACE}"
+            --root-type "${JSONSCHEMA_ROOT_TYPE}"
+            --output "${OUTPUT_PATH}"
+            ${STRING_TYPE_ARGS}
+            ${SEPARATE_STRING_TYPE_ARGS}
+            "${YAML_DEFINITIONS}"
+    OUTPUT "${OUTPUT_PATH}"
+    DEPENDS "${YAML_DEFINITIONS}" ${TUPLE_TREE_GENERATOR_SOURCES}
   )
 endfunction()

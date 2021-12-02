@@ -20,14 +20,16 @@ metaschema_path = Path(__file__).parent / "metaschema.yml"
 
 
 def main(args):
+    # fmt: off
     model_yaml_regex = re.compile(
         rf"""
-        /\*\s*{args.delimiter}\s*\n    # Match start of special comment
-        (?P<content>.*)          # Match everything inside in the "content" named group
-        \s*\n\s*{args.delimiter}\s*\*/         # Match end comment sequence
+        /\*\s*{args.delimiter}\s*\n     # Match start of special comment
+        (?P<content>.*)                 # Match everything inside in the "content" named group
+        \s*\n\s*{args.delimiter}\s*\*/  # Match end comment sequence
         """,
-        re.VERBOSE | re.DOTALL   # re.DOTALL enables "." to match newlines
+        re.VERBOSE | re.DOTALL,  # re.DOTALL enables "." to match newlines
     )
+    # fmt: on
 
     definitions = []
     for header in args.headers:

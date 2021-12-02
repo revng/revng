@@ -79,7 +79,7 @@ bool /*= struct.fullname =*/::localCompare(const /*= struct.user_fullname =*/ &O
 
   /**- if field.__class__.__name__ == "SimpleStructField" **/
 
-  /**- if generator.get_definition_for(field.type).__class__.__name__ == "StructDefinition" -**/
+  /**- if schema.get_definition_for(field.type).__class__.__name__ == "StructDefinition" -**/
   if (not this->/*= field.name =*/.localCompare(Other./*= field.name =*/))
     return false;
   /**- else -**/
@@ -91,7 +91,7 @@ bool /*= struct.fullname =*/::localCompare(const /*= struct.user_fullname =*/ &O
   if (this->/*= field.name =*/.size() != Other./*= field.name =*/.size())
     return false;
 
-  /**- if generator.get_definition_for(field.element_type).__class__.__name__ == "StructDefinition" -**/
+  /**- if schema.get_definition_for(field.element_type).__class__.__name__ == "StructDefinition" -**/
   for (const auto &[L, R] : llvm::zip(this->/*= field.name =*/, Other./*= field.name =*/)) {
     /** if field.upcastable **/
     if (not L->localCompare(*R))

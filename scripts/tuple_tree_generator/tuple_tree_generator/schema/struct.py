@@ -26,21 +26,25 @@ class StructField(ABC):
             sequence_def = source_dict["sequence"]
             args = copy.copy(source_dict)
             del args["sequence"]
-            args.update({
-                "sequence_type": sequence_def["type"],
-                "element_type": sequence_def["elementType"],
-                "upcastable": sequence_def.get("upcastable", False),
-            })
+            args.update(
+                {
+                    "sequence_type": sequence_def["type"],
+                    "element_type": sequence_def["elementType"],
+                    "upcastable": sequence_def.get("upcastable", False),
+                }
+            )
             return SequenceStructField(**args)
 
         elif source_dict.get("reference"):
             reference = source_dict["reference"]
             args = copy.copy(source_dict)
             del args["reference"]
-            args.update({
-                "pointee_type": reference["pointeeType"],
-                "root_type": reference["rootType"],
-            })
+            args.update(
+                {
+                    "pointee_type": reference["pointeeType"],
+                    "root_type": reference["rootType"],
+                }
+            )
             return ReferenceStructField(**args)
 
         else:
@@ -81,15 +85,7 @@ class ReferenceStructField(StructField):
 
 class StructDefinition(Definition):
     def __init__(
-            self, *,
-            namespace,
-            user_namespace,
-            name,
-            fields,
-            inherits=None,
-            doc=None,
-            abstract=False,
-            _key=None
+        self, *, namespace, user_namespace, name, fields, inherits=None, doc=None, tag=None, abstract=False, _key=None
     ):
         super(StructDefinition, self).__init__(
             namespace,
@@ -114,12 +110,12 @@ class StructDefinition(Definition):
         self.emit_full_constructor = None
         self._refs_resolved = False
 
-    def resolve_references(self, generator):
+    def resolve_references(self, schema):
         if self._refs_resolved:
             return
 
         if self._inherits:
-            self.inherits = generator.get_definition_for(self._inherits)
+            self.inherits = schema.get_definition_for(self._inherits)
             self.dependencies.add(self._inherits)
 
         for field in self.fields:
@@ -138,7 +134,7 @@ class StructDefinition(Definition):
         # Register which headers we need
         self.includes.add("Generated/ForwardDecls.h")
         for dep in self.dependencies:
-            dep_definition = generator.get_definition_for(dep)
+            dep_definition = schema.get_definition_for(dep)
             if dep_definition:
                 self.includes.add(dep_definition.filename)
 
