@@ -55,12 +55,12 @@ bool RemoveCpuLoopStorePass::runOnFunction(Function &F) {
   // Remove in bulk all the store found before.
   bool Changed = not Loads.empty() or not Stores.empty();
   for (Instruction *I : Stores)
-    I->eraseFromParent();
+    eraseFromParent(I);
 
   for (LoadInst *L : Loads) {
     // Replace all uses of loads with "false"
     L->replaceAllUsesWith(llvm::Constant::getNullValue(L->getType()));
-    L->eraseFromParent();
+    eraseFromParent(L);
   }
 
   return Changed;

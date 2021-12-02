@@ -4,6 +4,8 @@
 
 #include "llvm/IR/Instructions.h"
 
+#include "revng/Support/IRHelpers.h"
+
 #include "revng-c/PromoteStackPointer/CleanupStackSizeMarkersPass.h"
 #include "revng-c/PromoteStackPointer/InstrumentStackAccessesPass.h"
 
@@ -33,11 +35,11 @@ bool CleanupStackSizeMarkersPass::runOnModule(Module &M) {
   }
 
   for (CallInst *Call : CallsToDelete) {
-    Call->eraseFromParent();
+    eraseFromParent(Call);
   }
 
   for (Function *F : FunctionsToDelete) {
-    F->eraseFromParent();
+    eraseFromParent(F);
   }
 
   return CallsToDelete.size() + FunctionsToDelete.size() != 0;

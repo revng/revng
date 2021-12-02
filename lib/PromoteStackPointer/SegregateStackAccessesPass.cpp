@@ -259,7 +259,7 @@ public:
 
     // Purge stores that have been used at least once
     for (Instruction *I : ToPurge)
-      I->eraseFromParent();
+      eraseFromParent(I);
 
     // Erase original functions
     for (auto [OldFunction, NewFunction] : OldToNew)
@@ -329,7 +329,7 @@ private:
 
         // Replace and drop old invoke
         Old->replaceAllUsesWith(New);
-        Old->eraseFromParent();
+        eraseFromParent(Old);
       }
     }
   }

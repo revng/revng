@@ -43,7 +43,7 @@ bool RemoveDbgPass::runOnFunction(Function &F) {
 
   bool Changed = not ToErase.empty();
   for (Instruction *I : ToErase)
-    I->eraseFromParent();
+    eraseFromParent(I);
 
   return Changed;
 }
