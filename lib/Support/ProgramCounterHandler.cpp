@@ -211,7 +211,7 @@ protected:
 static void eraseIfNoUse(const WeakVH &V) {
   if (Instruction *I = dyn_cast_or_null<Instruction>(&*V))
     if (I->use_begin() == I->use_end())
-      I->eraseFromParent();
+      eraseFromParent(I);
 }
 
 static SwitchInst *getNextSwitch(SwitchInst::CaseHandle Case) {
@@ -578,19 +578,19 @@ public:
     WeakVH AddressVH(CurrentAddress);
 
     // Drop the epoch switch
-    Root->eraseFromParent();
+    eraseFromParent(Root);
 
     // Drop all the switches on address space
     for (BasicBlock *BB : AddressSpaceSwitchesBBs)
-      BB->eraseFromParent();
+      eraseFromParent(BB);
 
     // Drop all the switches on type
     for (BasicBlock *BB : TypeSwitchesBBs)
-      BB->eraseFromParent();
+      eraseFromParent(BB);
 
     // Drop all the switches on address
     for (BasicBlock *BB : AddressSwitchesBBs)
-      BB->eraseFromParent();
+      eraseFromParent(BB);
 
     eraseIfNoUse(EpochVH);
     eraseIfNoUse(AddressSpaceVH);

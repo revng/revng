@@ -39,7 +39,7 @@ bool PruneRetSuccessors::runOnModule(llvm::Module &M) {
       Instruction *OldTerminator = BB.getTerminator();
       auto *NewTerminator = BranchInst::Create(GCBI.anyPC(), &BB);
       NewTerminator->copyMetadata(*OldTerminator);
-      OldTerminator->eraseFromParent();
+      eraseFromParent(OldTerminator);
     }
   }
 

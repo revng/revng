@@ -166,7 +166,7 @@ void EnforceABIImpl::run() {
 
   // Drop all the old functions, after we stole all of its blocks
   for (Function *OldFunction : OldFunctions)
-    OldFunction->eraseFromParent();
+    eraseFromParent(OldFunction);
 
   // Quick and dirty DCE
   for (auto [F, _] : FunctionsMap)
@@ -292,7 +292,7 @@ void EnforceABIImpl::createPrologue(Function *NewFunction,
         else
           Initializers.createReturn(Builder, ReturnValues);
 
-        Return->eraseFromParent();
+        eraseFromParent(Return);
       }
     }
   }
@@ -351,7 +351,7 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
   Builder.CreateStore(Builder.CreateCall(OpaquePC), GCBI.pcReg());
 
   // Drop the original call
-  Call->eraseFromParent();
+  eraseFromParent(Call);
 }
 
 static FunctionCallee

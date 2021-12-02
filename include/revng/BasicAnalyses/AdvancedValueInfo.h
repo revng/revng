@@ -946,7 +946,7 @@ AdvancedValueInfo<MemoryOracle>::explore(llvm::BasicBlock *BB, llvm::Value *V) {
     Instruction *I;
     ~DeleteValueOnReturn() {
       if (I->getParent() != nullptr)
-        I->eraseFromParent();
+        eraseFromParent(I);
       else
         I->deleteValue();
     }

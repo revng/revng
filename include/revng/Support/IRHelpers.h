@@ -29,6 +29,35 @@
 #include "revng/Support/Generator.h"
 #include "revng/Support/MetaAddress.h"
 
+extern void dumpUsers(llvm::Value *V) debug_function;
+
+/// Given \p V, checks if there are uses left and then calls eraseFromParent.
+/// In case of leftover uses, they are pretty printed.
+///
+/// \note The remaining use check is not performed on llvm::Functions since they
+/// might have internal blockaddress self-references.
+inline void eraseFromParent(llvm::Value *V) {
+  using namespace llvm;
+
+  if (not isa<Function>(V) and not V->use_empty()) {
+    dbg << "Can't erase a Value still having uses.\n";
+    dbg << "Value:\n  ";
+    V->dump();
+    dbg << "Users:\n";
+    dumpUsers(V);
+    revng_abort();
+  } else {
+    if (auto *I = dyn_cast<Instruction>(V))
+      I->eraseFromParent();
+    else if (auto *BB = dyn_cast<BasicBlock>(V))
+      BB->eraseFromParent();
+    else if (auto *G = dyn_cast<GlobalValue>(V))
+      G->eraseFromParent();
+    else
+      revng_abort();
+  }
+}
+
 template<typename T>
 inline bool contains(T Range, typename T::value_type V) {
   return std::find(std::begin(Range), std::end(Range), V) != std::end(Range);
@@ -52,12 +81,12 @@ inline void purgeBranch(llvm::BasicBlock::iterator I) {
     Successors.insert(DeadBranch->getSuccessor(C));
 
   // Destroy the dead branch
-  DeadBranch->eraseFromParent();
+  eraseFromParent(DeadBranch);
 
   // Check if someone else was jumping there and then destroy
   for (llvm::BasicBlock *BB : Successors)
     if (BB->empty() && llvm::pred_empty(BB))
-      BB->eraseFromParent();
+      eraseFromParent(BB);
 }
 
 inline llvm::ConstantInt *

@@ -120,7 +120,7 @@ static void exitTBCleanup(Instruction *ExitTBCall) {
     if (auto DeadBranch = dyn_cast<BranchInst>(ToDelete))
       purgeBranch(BasicBlock::iterator(DeadBranch));
     else
-      ToDelete->eraseFromParent();
+      eraseFromParent(ToDelete);
 
     ToDelete = &*(--BB->end());
   }
@@ -230,7 +230,7 @@ void TDBP::pinConstantStoreInternal(MetaAddress Address, CallInst *ExitTBCall) {
   BasicBlock::iterator BlockEnd = ExitTBCall->getParent()->end();
   CallIt++;
   revng_assert(CallIt != BlockEnd and isa<UnreachableInst>(&*CallIt));
-  CallIt->eraseFromParent();
+  eraseFromParent(&*CallIt);
 
   // Cleanup of what's afterwards (only a unconditional jump is
   // allowed)
@@ -250,7 +250,7 @@ void TDBP::pinConstantStoreInternal(MetaAddress Address, CallInst *ExitTBCall) {
     BranchInst::Create(JTM->unexpectedPC(), ExitTBCall);
   }
 
-  ExitTBCall->eraseFromParent();
+  eraseFromParent(ExitTBCall);
 }
 
 bool TDBP::pinConstantStore(Function &F) {
@@ -775,13 +775,13 @@ void JumpTargetManager::translateIndirectJumps() {
           BranchInst::Create(AnyPC, Call);
         }
 
-        Call->eraseFromParent();
+        eraseFromParent(Call);
       }
     }
   }
 
   revng_assert(ExitTB->use_empty());
-  ExitTB->eraseFromParent();
+  eraseFromParent(ExitTB);
   ExitTB = nullptr;
 }
 
@@ -867,11 +867,11 @@ void JumpTargetManager::purgeTranslation(BasicBlock *Start) {
     while (pred_begin(BB) != pred_end(BB)) {
       BasicBlock *Predecessor = *pred_begin(BB);
       revng_assert(pred_empty(Predecessor));
-      Predecessor->eraseFromParent();
+      eraseFromParent(Predecessor);
     }
 
     revng_assert(BB->use_empty());
-    BB->eraseFromParent();
+    eraseFromParent(BB);
   }
 }
 
@@ -991,7 +991,7 @@ void JumpTargetManager::prepareDispatcher() {
 static void purge(BasicBlock *BB) {
   // Allow up to a single instruction in the basic block
   if (!BB->empty())
-    BB->begin()->eraseFromParent();
+    eraseFromParent(&*BB->begin());
   revng_assert(BB->empty());
 }
 
@@ -1216,7 +1216,7 @@ public:
     // Actually drop the calls
     //
     for (CallInst *Call : ToErase)
-      Call->eraseFromParent();
+      eraseFromParent(Call);
 
     return PreservedAnalyses::none();
   }
@@ -1560,7 +1560,7 @@ void JumpTargetManager::harvestWithAVI() {
         // Apply replacements
         for (auto &P : Replacements) {
           P.first->replaceAllUsesWith(P.second);
-          P.first->eraseFromParent();
+          eraseFromParent(P.first);
         }
       }
     }
@@ -1581,7 +1581,7 @@ void JumpTargetManager::harvestWithAVI() {
   }
 
   for (CallInst *Call : ToErase)
-    Call->eraseFromParent();
+    eraseFromParent(Call);
 
   //
   // Update alias analysis
@@ -1621,7 +1621,7 @@ void JumpTargetManager::harvestWithAVI() {
           ToDelete.push_back(&I);
 
     for (Instruction *I : ToDelete)
-      I->eraseFromParent();
+      eraseFromParent(I);
   }
 
   {
@@ -1800,7 +1800,7 @@ void JumpTargetManager::harvestWithAVI() {
   //
   // Drop the optimized function
   //
-  OptimizedFunction->eraseFromParent();
+  eraseFromParent(OptimizedFunction);
 
   // Drop temporary functions
   SCB.cleanup();
@@ -1833,7 +1833,7 @@ void JumpTargetManager::harvest() {
     for (BasicBlock *BB : Unreachable)
       BB->dropAllReferences();
     for (BasicBlock *BB : Unreachable)
-      BB->eraseFromParent();
+      eraseFromParent(BB);
 
     // TODO: move me to a commit function
 

@@ -49,7 +49,7 @@ eraseBranch(Instruction *I, BasicBlock *ExpectedUniqueSuccessor = nullptr) {
   revng_assert(T->isUnconditional());
   if (ExpectedUniqueSuccessor != nullptr)
     revng_assert(T->getSuccessor(0) == ExpectedUniqueSuccessor);
-  T->eraseFromParent();
+  eraseFromParent(T);
 }
 
 class ConstantStringsPool {
@@ -580,7 +580,7 @@ bool IFI::handleIndirectBoundary(const std::vector<Boundary> &Boundaries,
     Builder.CreateBr(ClonedBlocks.unexpectedPCBlock());
   }
 
-  OldTerminator->eraseFromParent();
+  eraseFromParent(OldTerminator);
 
   return true;
 }
@@ -824,7 +824,7 @@ void IFI::isolate(const model::Function &Function) {
         ToDrop.push_back(&I);
 
   for (Instruction *I : ToDrop)
-    I->eraseFromParent();
+    eraseFromParent(I);
 
   remapInstructionsInBlocks(ClonedBlocks.Blocks, OldToNew);
 
@@ -866,11 +866,11 @@ void IFI::isolate(const model::Function &Function) {
   auto *Call = cast<CallInst>(*UserIt);
   ++UserIt;
   revng_assert(UserIt == NewFunction->user_end());
-  Call->eraseFromParent();
+  eraseFromParent(Call);
 
   revng_assert(NewFunction->use_empty());
   revng_assert(NewFunction->getBasicBlockList().empty());
-  NewFunction->eraseFromParent();
+  eraseFromParent(NewFunction);
 }
 
 void IFI::createFunctionCall(IRBuilder<> &Builder,

@@ -541,7 +541,7 @@ void IT::finalizeNewPCMarkers(std::string &CoveragePath) {
   }
 
   for (auto *Call : CallsToRemove)
-    Call->eraseFromParent();
+    eraseFromParent(Call);
 
   Output << std::dec;
 }

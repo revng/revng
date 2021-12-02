@@ -206,3 +206,46 @@ Function *changeFunctionType(Function &OldFunction,
 
   return NewFunction;
 }
+
+void dumpUsers(llvm::Value *V) {
+  using namespace llvm;
+
+  struct InstructionUser {
+    Function *F;
+    BasicBlock *BB;
+    Instruction *I;
+    bool operator<(const InstructionUser &Other) const {
+      return std::tie(F, BB, I) < std::tie(Other.F, Other.BB, Other.I);
+    }
+  };
+  SmallVector<InstructionUser> InstructionUsers;
+  for (User *U : V->users()) {
+    if (auto *I = dyn_cast<Instruction>(U)) {
+      BasicBlock *BB = I->getParent();
+      Function *F = BB->getParent();
+      InstructionUsers.push_back({ F, BB, I });
+    } else {
+      dbg << "  ";
+      U->dump();
+    }
+  }
+
+  llvm::sort(InstructionUsers);
+
+  Function *LastF = nullptr;
+  BasicBlock *LastBB = nullptr;
+  for (InstructionUser &IU : InstructionUsers) {
+    if (IU.F != LastF) {
+      LastF = IU.F;
+      dbg << "  Function " << getName(LastF) << "\n";
+    }
+
+    if (IU.BB != LastBB) {
+      LastBB = IU.BB;
+      dbg << "    Block " << getName(LastBB) << "\n";
+    }
+
+    dbg << "    ";
+    IU.I->dump();
+  }
+}

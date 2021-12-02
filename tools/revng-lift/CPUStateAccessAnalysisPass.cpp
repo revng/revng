@@ -2647,7 +2647,7 @@ void CPUStateAccessFixer::setupLoadInEnv(Instruction *LoadToFix,
       Clone->replaceAllUsesWith(Loaded);
       InstructionsToRemove.push_back(Clone);
     } else {
-      CaseBlock->eraseFromParent();
+      eraseFromParent(CaseBlock);
       CaseBlock = nullptr; // Prevent this from being used
     }
   } break;
@@ -2659,7 +2659,7 @@ void CPUStateAccessFixer::setupLoadInEnv(Instruction *LoadToFix,
       InstructionsToRemove.push_back(Clone);
       Switch->addCase(OffsetConstInt, CaseBlock);
     } else {
-      CaseBlock->eraseFromParent();
+      eraseFromParent(CaseBlock);
       CaseBlock = nullptr; // Prevent this from being used
     }
   } break;
@@ -2709,7 +2709,7 @@ void CPUStateAccessFixer::setupStoreInEnv(Instruction *StoreToFix,
     InstructionsToRemove.push_back(Clone);
     Switch->addCase(OffsetConstInt, CaseBlock);
   } else {
-    CaseBlock->eraseFromParent();
+    eraseFromParent(CaseBlock);
   }
 }
 
@@ -3048,7 +3048,7 @@ bool CPUStateAccessFixer::run() {
 
   // Remove fixed accesses
   for (Instruction *Instr : InstructionsToRemove)
-    Instr->eraseFromParent();
+    eraseFromParent(Instr);
   InstructionsToRemove.clear();
 
   if (FixAccessLog.isEnabled()) {

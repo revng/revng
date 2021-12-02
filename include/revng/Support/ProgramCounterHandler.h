@@ -153,12 +153,12 @@ public:
       auto *FakeLoad = Builder.CreateLoad(CSVAffectingPC);
       auto *FakeStore = Builder.CreateStore(FakeLoad, CSVAffectingPC);
       bool HasInjectedCode = handleStore(Builder, FakeStore);
-      FakeStore->eraseFromParent();
+      eraseFromParent(FakeStore);
 
       if (not HasInjectedCode) {
         // The store did not produce any effect, the load is useless too
         revng_assert(FakeLoad->use_begin() == FakeLoad->use_end());
-        FakeLoad->eraseFromParent();
+        eraseFromParent(FakeLoad);
       }
     }
   }

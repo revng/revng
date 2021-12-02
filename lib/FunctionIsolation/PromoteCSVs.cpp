@@ -285,7 +285,7 @@ void PromoteCSVs::wrap(CallInst *Call,
   }
 
   // Erase the old call
-  Call->eraseFromParent();
+  eraseFromParent(Call);
 }
 
 static Instruction *findFirstNonAlloca(BasicBlock *BB) {
@@ -360,7 +360,7 @@ void PromoteCSVs::promoteCSVs(Function *F) {
   }
 
   // Drop separators
-  Separator->eraseFromParent();
+  eraseFromParent(Separator);
 
 #ifndef NDEBUG
   auto It = findFirstNonAlloca(&Entry)->getIterator();
