@@ -55,6 +55,21 @@ function(tuple_tree_generator_cpp_from_headers
   )
 endfunction()
 
+# Extracts definitions and generates a JSON schema from the given header files
+# The definitions must be embedded as described in the docs for tuple_tree_generator_extract_definitions_from_headers.
+function(tuple_tree_generator_jsonschema_from_headers
+  HEADERS                     # List of C++ headers
+  DELIMITER                   # Delimiter used to mark comments embedding type schemas
+  NAMESPACE
+  OUTPUT_DIR                  # Output directory
+  GENERATED_FILE_VARIABLE     # Variable will be filled with the path to the generated JSON schema
+)
+  set(COLLECTED_YAML_PATH "${OUTPUT_DIR}/schema.yml")
+  tuple_tree_generator_extract_definitions_from_headers("${HEADERS}" "${DELIMITER}" "${COLLECTED_YAML_PATH}")
+  tuple_tree_generator_generate_jsonschema("${COLLECTED_YAML_PATH}" "${NAMESPACE}" "${OUTPUT_DIR}" LOCAL_JSONSCHEMA_PATH_VAR)
+  set("${GENERATED_FILE_VARIABLE}" "${LOCAL_JSONSCHEMA_PATH_VAR}" PARENT_SCOPE)
+endfunction()
+
 # Extracts tuple_tree_generator YAML definitions from the given header files
 #
 # The definitions have to be embedded in a c-style comment marked with the given
@@ -157,4 +172,27 @@ function(tuple_tree_generator_generate_cpp
       "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/generator.py"
       "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/jinja_utils.py"
   )
+endfunction()
+
+# Generates JSON schema files
+function(tuple_tree_generator_generate_jsonschema
+  YAML_DEFINITIONS              # Path to the yaml definitions
+  NAMESPACE                     # Base namespace of the generated classes (e.g. model)
+  OUTPUT_DIR                    # Output directory
+  GENERATED_FILE_VARIABLE       # Output variable, will be filled with the path to the generated file
+)
+  set(JSONSCHEMA_PATH "${OUTPUT_DIR}/jsonschema.yml")
+
+  add_custom_command(
+    COMMAND "${CMAKE_SOURCE_DIR}/scripts/tuple_tree_generator/main.py"
+            --namespace "${NAMESPACE}"
+            --jsonschema
+            --jsonschema-root-type Binary
+            "${YAML_DEFINITIONS}"
+            "${OUTPUT_DIR}"
+    OUTPUT "${JSONSCHEMA_PATH}"
+    DEPENDS "${YAML_DEFINITIONS}"
+  )
+
+  set("${GENERATED_FILE_VARIABLE}" "${JSONSCHEMA_PATH}" PARENT_SCOPE)
 endfunction()
