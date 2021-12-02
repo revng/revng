@@ -35,7 +35,7 @@ class EnumDefinition(Definition):
         args = {
             "namespace": f"{default_base_namespace}::{source_dict['name']}",
             "user_namespace": f"{default_base_namespace}::{source_dict['name']}",
-            "name": source_dict['name'],
+            "name": source_dict["name"],
             "doc": source_dict.get("doc"),
             "members": [EnumMember.from_dict(d) for d in source_dict["members"]],
             "tag": source_dict.get("tag"),

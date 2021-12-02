@@ -4,20 +4,20 @@
 #
 
 import argparse
+import logging
 import shutil
 import subprocess
 import yaml
 from pathlib import Path
 
-from tuple_tree_generator.generators import CppHeadersGenerator
+from tuple_tree_generator import Schema
+from tuple_tree_generator import generate_cpp_headers
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("schema", help="YAML schema")
 argparser.add_argument("output_dir", help="Output to this directory")
 argparser.add_argument("--namespace", required=True, help="Base namespace for generated types")
-output_format_group = argparser.add_mutually_exclusive_group(required=True)
-output_format_group.add_argument("--cpp-headers", action="store_true", help="Emit C++ headers")
-argparser.add_argument("--include-path-prefix", help="Prefixed to include paths. Only allowed with --cpp-headers")
+argparser.add_argument("--include-path-prefix", required=True, help="Prefixed to include paths")
 
 
 def is_clang_format_available():
@@ -37,21 +37,15 @@ def reformat(source: str) -> str:
 
 def main(args):
     with open(args.schema) as f:
-        schema = yaml.safe_load(f)
+        raw_schema = yaml.safe_load(f)
 
-    if args.cpp_headers:
-        if args.include_path_prefix is None:
-            raise argparse.ArgumentError("You must provide --include-path-prefix when using --cpp-headers")
+    schema = Schema(raw_schema, args.namespace)
+    sources = generate_cpp_headers(schema, args.include_path_prefix)
 
-        generator = CppHeadersGenerator(schema, args.namespace, user_include_path=args.include_path_prefix)
-        sources = generator.emit()
-
-        if is_clang_format_available():
-            sources = {name: reformat(source) for name, source in sources.items()}
-        else:
-            print("Warning: clang-format is not available, cannot format source")
+    if is_clang_format_available():
+        sources = {name: reformat(source) for name, source in sources.items()}
     else:
-        argparser.error("Provide --cpp-headers")
+        logging.warning("Warning: clang-format is not available, cannot format source")
 
     output_dir = Path(args.output_dir)
     for output_path, output_source in sources.items():

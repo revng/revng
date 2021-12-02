@@ -4,4 +4,5 @@
 
 from .definition import Definition
 from .enum import EnumDefinition, EnumMember
+from .schema import Schema
 from .struct import StructDefinition, StructField, SimpleStructField, SequenceStructField, ReferenceStructField
