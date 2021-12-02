@@ -1276,6 +1276,9 @@ inline unsigned getPointeeSize(llvm::Value *Pointer) {
   using namespace llvm;
 
   revng_assert(Pointer->getType()->isPointerTy());
+  Type *Pointee = Pointer->getType()->getPointerElementType();
+  unsigned Size = Pointee->getIntegerBitWidth();
+  revng_assert(Size % 8 == 0);
   return Pointer->getType()->getPointerElementType()->getIntegerBitWidth() / 8;
 }
 
