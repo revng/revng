@@ -6,7 +6,7 @@
 # given header files.
 # The definitions must be embedded as described in the docs for
 # tuple_tree_generator_extract_definitions_from_headers.
-function(tuple_tree_generator_cpp_from_headers
+function(tuple_tree_generator
   # Name of the target to generate the code
   TARGET_NAME
   # List of C++ headers
@@ -14,33 +14,48 @@ function(tuple_tree_generator_cpp_from_headers
   # Delimiter used to mark comments embedding type schemas
   DELIMITER
   NAMESPACE
-  # Output directory
-  OUTPUT_DIR
+  # Where the schema will be collected
+  SCHEMA_PATH
+  # Directory where the headers will be generated
+  HEADERS_DIR
   # Include path prefix
   INCLUDE_PATH_PREFIX
   # Variable will be filled with the list of generated C++ headers
   GENERATED_HEADERS_VARIABLE
   # Variable will be filled with the list of generated C++ source files
   GENERATED_IMPLS_VARIABLE
+  # Where the JSON schema will be produced (empty for no schema)
+  JSONSCHEMA_PATH
+  # Type to use as the root of the JSON schema
+  JSONSCHEMA_ROOT_TYPE
+  # Types equivalent to strings
+  STRING_TYPES
+  # Types equivalent to strings which get a separate type definition
+  SEPARATE_STRING_TYPES
 )
-  set(COLLECTED_YAML_PATH "${OUTPUT_DIR}/schema.yml")
+  #
+  # Collect all the definitions in a single YAML document
+  #
   tuple_tree_generator_extract_definitions_from_headers(
     "${HEADERS}"
     "${DELIMITER}"
-    "${COLLECTED_YAML_PATH}"
+    "${SCHEMA_PATH}"
   )
 
+  #
+  # C++ headers and implementation generation
+  #
   tuple_tree_generator_compute_generated_cpp_files(
     "${HEADERS}"
-    "${OUTPUT_DIR}"
+    "${HEADERS_DIR}"
     LOCAL_GENERATED_HEADERS
     LOCAL_GENERATED_IMPLS
   )
 
   tuple_tree_generator_generate_cpp(
-    "${COLLECTED_YAML_PATH}"
+    "${SCHEMA_PATH}"
     "${NAMESPACE}"
-    "${OUTPUT_DIR}"
+    "${HEADERS_DIR}"
     "${INCLUDE_PATH_PREFIX}"
     "${LOCAL_GENERATED_HEADERS}"
     "${LOCAL_GENERATED_IMPLS}"
@@ -49,26 +64,28 @@ function(tuple_tree_generator_cpp_from_headers
   set("${GENERATED_HEADERS_VARIABLE}" ${LOCAL_GENERATED_HEADERS} PARENT_SCOPE)
   set("${GENERATED_IMPLS_VARIABLE}" ${LOCAL_GENERATED_IMPLS} PARENT_SCOPE)
 
+  #
+  # Produce JSON schema, if requested
+  #
+  if(NOT "${JSONSCHEMA_PATH}" STREQUAL "")
+    tuple_tree_generator_generate_jsonschema(
+      "${SCHEMA_PATH}"
+      "${NAMESPACE}"
+      "${JSONSCHEMA_ROOT_TYPE}"
+      "${STRING_TYPES}"
+      "${SEPARATE_STRING_TYPES}"
+      "${JSONSCHEMA_PATH}"
+    )
+  endif()
+
   add_custom_target(
     "${TARGET_NAME}"
-    DEPENDS ${LOCAL_GENERATED_HEADERS} ${LOCAL_GENERATED_IMPLS}
+    DEPENDS
+    "${SCHEMA_PATH}"
+    ${LOCAL_GENERATED_HEADERS}
+    ${LOCAL_GENERATED_IMPLS}
+    ${JSONSCHEMA_PATH}
   )
-endfunction()
-
-# Extracts definitions and generates a JSON schema from the given header files
-# The definitions must be embedded as described in the docs for tuple_tree_generator_extract_definitions_from_headers.
-function(tuple_tree_generator_jsonschema_from_headers
-  HEADERS                     # List of C++ headers
-  DELIMITER                   # Delimiter used to mark comments embedding type schemas
-  NAMESPACE
-  JSONSCHEMA_ROOT_TYPE        # Type to use as the root of the JSON schema
-  STRING_TYPES                # Types equivalent to strings
-  SEPARATE_STRING_TYPES       # Types equivalent to strings which get a separate type definition
-  OUTPUT_PATH                 # Output file
-)
-  set(COLLECTED_YAML_PATH "${OUTPUT_DIR}/schema.yml")
-  tuple_tree_generator_extract_definitions_from_headers("${HEADERS}" "${DELIMITER}" "${COLLECTED_YAML_PATH}")
-  tuple_tree_generator_generate_jsonschema("${COLLECTED_YAML_PATH}" "${NAMESPACE}" "${JSONSCHEMA_ROOT_TYPE}" "${STRING_TYPES}" "${SEPARATE_STRING_TYPES}" "${OUTPUT_PATH}")
 endfunction()
 
 # Extracts tuple_tree_generator YAML definitions from the given header files
@@ -95,20 +112,22 @@ endfunction()
 # Note: the output variables will be overwritten
 function(tuple_tree_generator_compute_generated_cpp_files
   SOURCE_HEADERS
-  OUTPUT_DIR
+  HEADERS_DIR
   GENERATED_HEADERS_VARIABLE
   GENERATED_IMPLS_VARIABLE
 )
   # Empty output variables
-  set(LOCAL_GENERATED_HEADERS_VARIABLE "${OUTPUT_DIR}/ForwardDecls.h")
+  set(LOCAL_GENERATED_HEADERS_VARIABLE "${HEADERS_DIR}/ForwardDecls.h")
   set(LOCAL_GENERATED_IMPLS_VARIABLE)
 
   foreach(HEADER ${SOURCE_HEADERS})
+    # TODO: we should not be generating /Impl/*.cpp files in an include/* directory
+    # TODO: this piece of code is tightly coupled with cppheaders.py
     get_filename_component(HEADER_FILENAME "${HEADER}" NAME)
     get_filename_component(HEADER_FILENAME_WE "${HEADER}" NAME_WE)
-    set(EARLY_OUTPUT "${OUTPUT_DIR}/Early/${HEADER_FILENAME}")
-    set(LATE_OUTPUT "${OUTPUT_DIR}/Late/${HEADER_FILENAME}")
-    set(IMPL_OUTPUT "${OUTPUT_DIR}/Impl/${HEADER_FILENAME_WE}.cpp")
+    set(EARLY_OUTPUT "${HEADERS_DIR}/Early/${HEADER_FILENAME}")
+    set(LATE_OUTPUT "${HEADERS_DIR}/Late/${HEADER_FILENAME}")
+    set(IMPL_OUTPUT "${HEADERS_DIR}/Impl/${HEADER_FILENAME_WE}.cpp")
     list(APPEND LOCAL_GENERATED_HEADERS_VARIABLE "${EARLY_OUTPUT}")
     list(APPEND LOCAL_GENERATED_HEADERS_VARIABLE "${LATE_OUTPUT}")
     list(APPEND LOCAL_GENERATED_IMPLS_VARIABLE "${IMPL_OUTPUT}")

@@ -320,18 +320,24 @@ set(HEADERS
   "${SRC}/TupleTreeGenerator/TestEnum.h"
 )
 set(INCLUDE_DIR "${CMAKE_SOURCE_DIR}/tests/unit/TupleTreeGenerator")
-set(GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/tests/unit/TupleTreeGenerator")
-set(OUTPUT_DIR "${GENERATED_INCLUDE_DIR}/Generated")
+set(OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/tests/unit/TupleTreeGenerator")
+set(HEADERS_DIR "${OUTPUT_DIR}/include")
+set(CPP_DIR "${OUTPUT_DIR}/lib")
 
-tuple_tree_generator_cpp_from_headers(
+tuple_tree_generator(
   generate-test-tuple-tree-code
   "${HEADERS}"
   TUPLE-TREE-YAML
   ttgtest
-  "${OUTPUT_DIR}"
+  "${OUTPUT_DIR}/schema.yml"
+  "${HEADERS_DIR}/Generated"
   "."
   GENERATED_HEADERS
   GENERATED_IMPLS
+  ""
+  ""
+  ""
+  ""
 )
 revng_add_private_executable(
   test_tuple_tree_generator
@@ -339,13 +345,19 @@ revng_add_private_executable(
   ${GENERATED_IMPLS}
 )
 target_compile_definitions(test_tuple_tree_generator PRIVATE "BOOST_TEST_DYN_LINK=1")
-target_include_directories(test_tuple_tree_generator PUBLIC "${GENERATED_INCLUDE_DIR}" "${INCLUDE_DIR}")
+target_include_directories(
+  test_tuple_tree_generator
+  PUBLIC
+  "${HEADERS_DIR}"
+  "${INCLUDE_DIR}"
+)
 target_link_libraries(
   test_tuple_tree_generator
   revngUnitTestHelpers
   Boost::unit_test_framework
 )
 add_dependencies(test_tuple_tree_generator generate-test-tuple-tree-code)
+
 add_test(NAME test_tuple_tree_generator COMMAND ./bin/test_tuple_tree_generator)
 set_tests_properties(test_tuple_tree_generator PROPERTIES LABELS "unit")
 

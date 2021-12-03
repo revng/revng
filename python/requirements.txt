@@ -3,3 +3,9 @@ pyelftools
 
 # Requirements for model_dump
 PyYAML
+
+# Common dependencies
+pydantic
+
+# revng.model dependencies
+datamodel-code-generator
