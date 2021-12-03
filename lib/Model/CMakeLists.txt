@@ -58,6 +58,18 @@ install(
     DESTINATION include/revng/Model
 )
 
+set(MODEL_JSONSCHEMA_PATH "${CMAKE_BINARY_DIR}/jsonschema.yml")
+tuple_tree_generator_jsonschema_from_headers(
+  "${MODEL_HEADERS}"
+  TUPLE-TREE-YAML
+  model
+  Binary
+  "Identifier"
+  "MetaAddress"
+  "${MODEL_JSONSCHEMA_PATH}"
+)
+add_custom_target(generated-model-jsonschema DEPENDS "${MODEL_JSONSCHEMA_PATH}")
+
 # Define revngModel library
 revng_add_analyses_library_internal(
   revngModel
