@@ -96,3 +96,16 @@ python_module(
   MODULE_FILES ${DUMP_MODEL_MODULE_FILES}
 )
 add_dependencies(revng-lift revng-dump-model)
+
+# -- Install revng-convert-idb
+set(CONVERT_IDB_MODULE_FILES
+  revng/idb_converter/__init__.py
+  revng/idb_converter/__main__.py
+  revng/idb_converter/idb_converter.py
+  revng/idb_converter/utils.py
+)
+python_module(
+  TARGET_NAME revng-convert-idb
+  MODULE_FILES ${CONVERT_IDB_MODULE_FILES}
+)
+add_dependencies(revng-convert-idb python-model)

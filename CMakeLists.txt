@@ -201,7 +201,9 @@ copy_to_build_and_install(PROGRAMS
   "scripts/check-revng-conventions"
   "scripts/revng-merge-dynamic"
   "scripts/revng-compare-yaml"
-  "scripts/revng-dump-model")
+  "scripts/revng-dump-model"
+  "scripts/revng-convert-idb"
+)
 
 #
 # Export CMake targets

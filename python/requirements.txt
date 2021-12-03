@@ -3,3 +3,8 @@ pydantic
 
 # revng.model dependencies
 datamodel-code-generator
+
+# revng.idb_converter dependencies
+loguru
+PyYAML
+python-idb
