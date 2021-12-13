@@ -22,8 +22,8 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/DwarfImporter/DwarfImporter.h"
-#include "revng/Model/ABI.h"
 #include "revng/Model/Processing.h"
+#include "revng/Model/QualifiedType.h"
 #include "revng/Model/Type.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
@@ -167,7 +167,7 @@ private:
   const model::QualifiedType &record(const DWARFDie &Die,
                                      const model::TypePath &Path,
                                      bool IsNotPlaceholder) {
-    return record(Die, model::QualifiedType{ Path }, IsNotPlaceholder);
+    return record(Die, model::QualifiedType(Path, {}), IsNotPlaceholder);
   }
 
   const model::QualifiedType &record(const DWARFDie &Die,
@@ -389,11 +389,13 @@ private:
   }
 
   RecursiveCoroutine<model::QualifiedType> getTypeOrVoid(const DWARFDie &Die) {
+    using namespace model;
+    using PTK = model::PrimitiveTypeKind::Values;
     const model::QualifiedType *Result = rc_recur getType(Die);
     if (Result != nullptr) {
       rc_return *Result;
     } else {
-      rc_return{ Model->getPrimitiveType(model::PrimitiveTypeKind::Void, 0) };
+      rc_return QualifiedType(Model->getPrimitiveType(PTK::Void, 0), {});
     }
   }
 

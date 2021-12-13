@@ -53,7 +53,7 @@ unsigned dropTypesDependingOnTypes(TupleTree<model::Binary> &Model,
       for (const model::UnionField &Field : Union->Fields)
         RegisterDependency(T, Field.Type);
     } else if (auto *Enum = dyn_cast<model::EnumType>(T.get())) {
-      RegisterDependency(T, { Enum->UnderlyingType });
+      RegisterDependency(T, model::QualifiedType(Enum->UnderlyingType, {}));
     } else if (auto *Typedef = dyn_cast<model::TypedefType>(T.get())) {
       RegisterDependency(T, Typedef->UnderlyingType);
     } else if (auto *RFT = dyn_cast<model::RawFunctionType>(T.get())) {

@@ -5,12 +5,14 @@
 //
 
 #include <array>
+#include <optional>
 #include <set>
 #include <type_traits>
 #include <variant>
 #include <vector>
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
@@ -1032,10 +1034,33 @@ public:
     if (Path.size() == 0)
       return nullptr;
 
-    return getByPath<T>(Path, *std::get<RootT *>(Root));
+    if (std::holds_alternative<RootT *>(Root)) {
+      return getByPath<T>(Path, *std::get<RootT *>(Root));
+    }
+    else if (std::holds_alternative<const RootT *>(Root)) {
+      revng_abort("Called get() with const root, use getConst!");
+    }
+    else {
+      revng_abort("Invalid root variant!");
+    }
   }
 
-  const T *getConst() const { return get(); }
+  const T *getConst() const {
+    revng_assert(canGet());
+
+    if (Path.size() == 0)
+      return nullptr;
+
+    if (std::holds_alternative<const RootT *>(Root)) {
+      return getByPath<T>(Path, *std::get<const RootT *>(Root));
+    }
+    else if (std::holds_alternative<RootT *>(Root)) {
+      return getByPath<T>(Path, *std::get<RootT *>(Root));
+    }
+    else {
+      revng_abort("Invalid root variant!");
+    }
+  }
 
   bool isValid() const debug_function {
     return not hasNullRoot() and not Path.empty() and get() != nullptr;

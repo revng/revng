@@ -5,6 +5,7 @@
 //
 
 #include <map>
+#include <optional>
 #include <set>
 #include <type_traits>
 
@@ -13,6 +14,7 @@
 
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
+#include "revng/TupleTree/TupleTree.h"
 
 inline Logger<> ModelVerifyLogger("model-verify");
 

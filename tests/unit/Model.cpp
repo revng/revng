@@ -10,6 +10,9 @@ bool init_unit_test();
 #include "boost/test/unit_test.hpp"
 
 #include "revng/Model/Binary.h"
+#include "revng/Support/MetaAddress.h"
+#include "revng/Support/MetaAddress/YAMLTraits.h"
+#include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
 
 using namespace model;
@@ -63,7 +66,7 @@ BOOST_AUTO_TEST_CASE(TestPathAccess) {
 BOOST_AUTO_TEST_CASE(TestCompositeScalar) {
   // MetaAddress pair
   {
-    using BlockKeyPair = std::pair<MetaAddress, MetaAddress>;
+    using BlockKeyPair = std::tuple<MetaAddress, MetaAddress>;
     BlockKeyPair BlockKey = { ARM2000, ARM3000 };
     auto BlockKeyName = getNameFromYAMLScalar(BlockKey);
     revng_check(BlockKeyName == "0x2000:Code_arm-0x3000:Code_arm");

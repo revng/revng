@@ -12,9 +12,8 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/Support/MathExtras.h"
 
-#include "revng/Model/ABI.h"
 #include "revng/Model/Binary.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/Register.h"
 #include "revng/Model/VerifyHelper.h"
 
 using llvm::cast;
@@ -180,6 +179,9 @@ public:
 };
 
 static llvm::ManagedStatic<RNG> IDGenerator;
+
+model::Type::Type() :
+  model::generated::Type(model::TypeKind::Invalid, IDGenerator->get()){};
 
 model::Type::Type(TypeKind::Values TK) :
   model::Type::Type(TK, IDGenerator->get()) {
@@ -369,15 +371,17 @@ static uint8_t getPrimitiveSize(uint64_t ID) {
 
 PrimitiveType::PrimitiveType(PrimitiveTypeKind::Values PrimitiveKind,
                              uint8_t Size) :
-  Type(AssociatedKind, makePrimitiveID(PrimitiveKind, Size)),
-  PrimitiveKind(PrimitiveKind),
-  Size(Size) {
+  PrimitiveType(AssociatedKind,
+                makePrimitiveID(PrimitiveKind, Size),
+                PrimitiveKind,
+                Size) {
 }
 
 PrimitiveType::PrimitiveType(uint64_t ID) :
-  Type(AssociatedKind, ID),
-  PrimitiveKind(getPrimitiveKind(ID)),
-  Size(getPrimitiveSize(ID)) {
+  PrimitiveType(AssociatedKind,
+                ID,
+                getPrimitiveKind(ID),
+                getPrimitiveSize(ID)) {
 }
 
 static bool beginsWithReservedPrefix(llvm::StringRef Name) {
@@ -1014,6 +1018,30 @@ RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
   rc_return VH.maybeFail(rc_recur UnqualifiedType.get()->verify(VH));
 }
 
+template<typename T>
+RecursiveCoroutine<bool>
+verify_TypedRegister_common(const T &TypedRegisterObj, VerifyHelper &VH) {
+  // Ensure the type we're pointing to is scalar
+  if (not isScalar(TypedRegisterObj->Type))
+    rc_return VH.fail();
+
+  if (TypedRegisterObj->Location == Register::Invalid)
+    rc_return VH.fail();
+
+  // Ensure if fits in the corresponding register
+  auto MaybeTypeSize = rc_recur TypedRegisterObj->Type.size(VH);
+
+  // Zero-sized types are not allowed
+  if (not MaybeTypeSize)
+    rc_return VH.fail();
+
+  size_t RegisterSize = model::Register::getSize(TypedRegisterObj->Location);
+  if (*MaybeTypeSize > RegisterSize)
+    rc_return VH.fail();
+
+  rc_return VH.maybeFail(rc_recur TypedRegisterObj->Type.verify(VH));
+}
+
 void TypedRegister::dump() const {
   serialize(dbg, *this);
 }
@@ -1028,25 +1056,7 @@ bool TypedRegister::verify(bool Assert) const {
 }
 
 RecursiveCoroutine<bool> TypedRegister::verify(VerifyHelper &VH) const {
-  // Ensure the type we're pointing to is scalar
-  if (not isScalar(Type))
-    rc_return VH.fail();
-
-  if (Location == Register::Invalid)
-    rc_return VH.fail();
-
-  // Ensure if fits in the corresponding register
-  auto MaybeTypeSize = rc_recur Type.size(VH);
-
-  // Zero-sized types are not allowed
-  if (not MaybeTypeSize)
-    rc_return VH.fail();
-
-  size_t RegisterSize = model::Register::getSize(Location);
-  if (*MaybeTypeSize > RegisterSize)
-    rc_return VH.fail();
-
-  rc_return VH.maybeFail(rc_recur Type.verify(VH));
+  rc_return verify_TypedRegister_common(this, VH);
 }
 
 void NamedTypedRegister::dump() const {
@@ -1063,20 +1073,44 @@ bool NamedTypedRegister::verify(bool Assert) const {
 }
 
 RecursiveCoroutine<bool> NamedTypedRegister::verify(VerifyHelper &VH) const {
-  const TypedRegister &TR = *this;
-  rc_return VH.maybeFail(CustomName.verify(VH) and rc_recur TR.verify(VH));
+  // Ensure the name is valid
+  if (not CustomName.verify(VH))
+    rc_return VH.fail();
+
+  rc_return verify_TypedRegister_common(this, VH);
 }
 
-bool AggregateField::verify() const {
+bool StructField::verify() const {
   return verify(false);
 }
 
-bool AggregateField::verify(bool Assert) const {
+bool StructField::verify(bool Assert) const {
   VerifyHelper VH(Assert);
   return verify(VH);
 }
 
-RecursiveCoroutine<bool> AggregateField::verify(VerifyHelper &VH) const {
+RecursiveCoroutine<bool> StructField::verify(VerifyHelper &VH) const {
+  if (not rc_recur Type.verify(VH))
+    rc_return VH.fail("Aggregate field type is not valid");
+
+  // Aggregated fields cannot be zero-sized fields
+  auto MaybeSize = rc_recur Type.size(VH);
+  if (not MaybeSize)
+    rc_return VH.fail("Aggregate field is zero-sized");
+
+  rc_return VH.maybeFail(CustomName.verify(VH));
+}
+
+bool UnionField::verify() const {
+  return verify(false);
+}
+
+bool UnionField::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+
+RecursiveCoroutine<bool> UnionField::verify(VerifyHelper &VH) const {
   if (not rc_recur Type.verify(VH))
     rc_return VH.fail("Aggregate field type is not valid");
 

@@ -1,0 +1,109 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+"$schema": http://json-schema.org/draft-07/schema#
+"$ref": "#/definitions/Schema"
+definitions:
+  Schema:
+    additionalProperties: false
+    properties:
+      types:
+        type: array
+        items:
+          "$ref": "#/definitions/Type"
+    required:
+      - types
+    title: Schema
+
+  Type:
+    oneOf:
+      - "$ref": "#/definitions/Enum"
+      - "$ref": "#/definitions/Struct"
+      - "$ref": "#/definitions/Custom"
+
+  # Enums
+  Enum:
+    properties:
+      name:
+        type: string
+      doc:
+        type: string
+      type:
+        const: "enum"
+      members:
+        type: array
+        items:
+          "$ref": "#/definitions/EnumMember"
+    additionalProperties: false
+    required:
+      - name
+      - type
+      - members
+    type: object
+
+  EnumMember:
+    properties:
+      name:
+        type: string
+      doc:
+        type: string
+    required:
+      - name
+    additionalProperties: false
+
+  # Structs
+  Struct:
+    properties:
+      name:
+        type: string
+      doc:
+        type: string
+      type:
+        const: "struct"
+      inherits:
+        type: string
+      abstract:
+        type: boolean
+      tag:
+        type: string
+        default: true
+      fields:
+        type: array
+        items:
+          "$ref": "#/definitions/StructField"
+      key:
+        "$ref": "#/definitions/StructKey"
+    propertyOrder:
+      - name
+      - doc
+      - type
+      - inherits
+      - abstract
+      - tag
+      - fields
+      - key
+    additionalProperties: false
+    required:
+      - name
+      - type
+      - fields
+    type: object
+
+  StructField:
+    properties:
+      name:
+        type: string
+      doc:
+        type: string
+      type:
+        type: string
+    required:
+      - name
+    additionalProperties: false
+
+  StructKey:
+    type: array
+    items:
+      type: string
+    additionalItems: false

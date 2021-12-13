@@ -4,13 +4,13 @@
 
 #include <bit>
 
-#include "revng/Model/ABI.h"
 #define BOOST_TEST_MODULE ModelType
 bool init_unit_test();
 #include "boost/test/unit_test.hpp"
 
+#include "revng/Model/ABI.h"
 #include "revng/Model/Binary.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/Types.h"
 
 using namespace model;
 
@@ -536,7 +536,7 @@ BOOST_AUTO_TEST_CASE(RawFunctionTypes) {
   //
   {
     model::TypedRegister RAXArgument(model::Register::rax_x86_64);
-    RAXArgument.Type = { Primitive64, { { model::QualifierKind::Array, 10 } } };
+    RAXArgument.Type = { Primitive64, { { QualifierKind::Array, 10 } } };
     revng_check(not RAXArgument.verify(false));
   }
 

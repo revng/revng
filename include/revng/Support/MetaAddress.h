@@ -6,6 +6,7 @@
 
 #include "llvm/ADT/Triple.h"
 
+#include "revng/ADT/KeyedObjectTraits.h"
 #include "revng/Support/Debug.h"
 
 extern "C" {
@@ -860,3 +861,7 @@ struct CompareAddress<MetaAddress> {
     return LHS.addressLowerThan(RHS);
   }
 };
+
+template<>
+struct KeyedObjectTraits<MetaAddress>
+  : public IdentityKeyedObjectTraits<MetaAddress> {};

@@ -7,11 +7,12 @@ cmake_minimum_required(VERSION 3.15.0)
 project(revng)
 
 include(cmake/Common.cmake)
-install(FILES cmake/revngConfig.cmake cmake/Common.cmake
+install(FILES cmake/revngConfig.cmake cmake/Common.cmake cmake/TupleTreeGenerator.cmake
   DESTINATION share/revng/cmake)
 
 # This has to be first to get highest priority
 include_directories(include/)
+include_directories("${CMAKE_BINARY_DIR}/include")
 
 # Doxygen
 find_package(Doxygen)
