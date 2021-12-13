@@ -13,6 +13,7 @@
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/RegisterState.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/MetaAddress.h"
 

@@ -23,6 +23,9 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/FunctionIsolation/IsolateFunctions.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/CallEdge.h"
+#include "revng/Model/FunctionEdge.h"
+#include "revng/Model/FunctionEdgeBase.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
@@ -127,7 +130,7 @@ public:
 
 class IsolateFunctionsImpl {
 private:
-  using SuccessorsContainer = std::map<const model::FunctionEdge *, int>;
+  using SuccessorsContainer = std::map<const model::FunctionEdgeBase *, int>;
 
 private:
   Function *RootFunction = nullptr;
@@ -425,7 +428,7 @@ bool IFI::handleIndirectBoundary(const std::vector<Boundary> &Boundaries,
                                  const SuccessorsContainer &ExpectedSuccessors,
                                  bool CallConsumed,
                                  FunctionBlocks &ClonedBlocks) {
-  std::vector<const model::FunctionEdge *> RemainingEdges;
+  std::vector<const model::FunctionEdgeBase *> RemainingEdges;
   for (auto &[Edge, EdgeUsageCount] : ExpectedSuccessors)
     if (EdgeUsageCount == 0)
       RemainingEdges.push_back(Edge);
@@ -435,7 +438,7 @@ bool IFI::handleIndirectBoundary(const std::vector<Boundary> &Boundaries,
   bool NoMore = RemainingEdges.size() == 0;
   using namespace model::FunctionEdgeType;
 
-  auto IsDirectEdge = [](const model::FunctionEdge *E) {
+  auto IsDirectEdge = [](const model::FunctionEdgeBase *E) {
     return isDirectEdge(E->Type);
   };
   bool AllDirect = allOrNone(RemainingEdges, IsDirectEdge, false);
@@ -482,7 +485,7 @@ bool IFI::handleIndirectBoundary(const std::vector<Boundary> &Boundaries,
     SortedVector<MetaAddress> ExpectedAddresses;
     {
       auto Inserter = ExpectedAddresses.batch_insert();
-      for (const model::FunctionEdge *Edge : RemainingEdges)
+      for (const model::FunctionEdgeBase *Edge : RemainingEdges)
         Inserter.insert(Edge->Destination);
     }
 

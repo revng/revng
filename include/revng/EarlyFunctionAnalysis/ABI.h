@@ -6,7 +6,8 @@
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/Register.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/RegisterState.h"
+#include "revng/Model/Types.h"
 
 namespace abi {
 

@@ -5,6 +5,7 @@
 //
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/RegisterState.h"
 
 #include "MFIGraphs/DeadRegisterArgumentsOfFunction.h"
 #include "MFIGraphs/DeadReturnValuesOfFunctionCall.h"

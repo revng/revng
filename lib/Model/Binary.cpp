@@ -125,7 +125,7 @@ Binary::getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize) {
   // If we couldn't find it, create it
   if (It == Types.end()) {
     auto *NewPrimitiveType = new PrimitiveType(V, ByteSize);
-    It = Types.insert(UpcastableType(NewPrimitiveType)).first;
+    It = Types.insert(UpcastablePointer<model::Type>(NewPrimitiveType)).first;
   }
 
   return getTypePath(It->get());
@@ -376,7 +376,7 @@ bool FunctionEdge::verify(bool Assert) const {
   return verify(VH);
 }
 
-static bool verifyFunctionEdge(VerifyHelper &VH, const FunctionEdge &E) {
+static bool verifyFunctionEdge(VerifyHelper &VH, const FunctionEdgeBase &E) {
   using namespace model::FunctionEdgeType;
 
   switch (E.Type) {
@@ -409,6 +409,30 @@ static bool verifyFunctionEdge(VerifyHelper &VH, const FunctionEdge &E) {
   }
 
   return true;
+}
+
+bool FunctionEdgeBase::verify() const {
+  return verify(false);
+}
+
+bool FunctionEdgeBase::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+
+bool FunctionEdgeBase::verify(VerifyHelper &VH) const {
+  if (auto *Edge = dyn_cast<CallEdge>(this))
+    return VH.maybeFail(Edge->verify(VH));
+  else if (auto *Edge = dyn_cast<FunctionEdge>(this))
+    return VH.maybeFail(Edge->verify(VH));
+  else
+    revng_abort("Invalid FunctionEdgeBase instance");
+
+  return false;
+}
+
+void FunctionEdgeBase::dump() const {
+  serialize(dbg, *this);
 }
 
 bool FunctionEdge::verify(VerifyHelper &VH) const {

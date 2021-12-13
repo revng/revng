@@ -129,3 +129,5 @@ macro(add_flag_if_available flag)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${flag}")
   endif()
 endmacro()
+
+include("${CMAKE_CURRENT_LIST_DIR}/TupleTreeGenerator.cmake")

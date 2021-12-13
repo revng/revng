@@ -17,6 +17,15 @@ static bool inWhitelist(const std::array<model::Register::Values, N> &Array,
   return Count == 1;
 }
 
+template<typename K, typename V>
+V getOrDefault(const std::map<K, V> &Map, const K &Key, const V &Default) {
+  auto It = Map.find(Key);
+  if (It == Map.end())
+    return Default;
+  else
+    return It->second;
+}
+
 namespace abi {
 
 using namespace model::ABI;
@@ -27,7 +36,7 @@ ABI<SystemV_x86_64>::analyze(model::Binary &TheBinary,
   using namespace model;
 
   // Check argument registers whitelist
-  for (const TypedRegister &Argument : Explicit.Arguments)
+  for (const NamedTypedRegister &Argument : Explicit.Arguments)
     if (not inWhitelist(ArgumentRegisters, Argument.Location))
       return { false, 0, 0 };
 

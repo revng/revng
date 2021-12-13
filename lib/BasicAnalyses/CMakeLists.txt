@@ -11,4 +11,5 @@ revng_add_analyses_library_internal(revngBasicAnalyses
   CSVAliasAnalysis.cpp)
 
 target_link_libraries(revngBasicAnalyses
+  revngModel
   revngSupport)
