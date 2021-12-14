@@ -61,7 +61,11 @@ bool adjustStackPointer(Function &F) {
       auto *OtherOperand = U.getUser()->getOperand(OtherOpIndex);
 
       // In sub instructions, the stack pointer must be the first operand.
-      revng_assert(SPOperandIndex == 0 or OpKind == Instruction::Add);
+      // If we find a sub instruction where the stack pointer is subtracted from
+      // another value, then the result is never a pointer and we have to bail
+      // out.
+      if (SPOperandIndex != 0 and OpKind == Instruction::Sub)
+        continue;
 
       // Ignore cases where the offset is not constant.
       auto *ConstOffset = dyn_cast<ConstantInt>(OtherOperand);
