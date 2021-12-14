@@ -133,6 +133,11 @@ protected:
     while (isa<SCEVAddRecExpr>(OffsetSCEV)) {
       const auto *Rec = cast<SCEVAddRecExpr>(OffsetSCEV);
       const SCEV *StrideExpr = Rec->getStepRecurrence(*SE);
+
+      // If the stride is not a constant we cannot handle it, so we bail out.
+      if (not isa<SCEVConstant>(StrideExpr))
+        return Created;
+
       auto StrideValue = getSCEVConstantSExtVal(StrideExpr);
 
       // Don't add links for recurring expressions with non-positive strides.
