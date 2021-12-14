@@ -141,16 +141,22 @@ class YAMLGraph:
         assert type(object) is dict
         filtered_dict = dict(object)
         to_remove = []
+        references = []
         for key, value in filtered_dict.items():
             value_type = type(value)
             if (key in fragile_keys
                 or (value_type is list
-                    or value_type is dict
-                    or value_type is str and is_reference(value))):
+                    or value_type is dict)):
                 to_remove.append(key)
+
+            if value_type is str and is_reference(value):
+                references.append(key)
 
         for key in to_remove:
             del filtered_dict[key]
+
+        for key in references:
+            filtered_dict[key] = "reference"
 
         return filtered_dict
         
