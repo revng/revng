@@ -61,27 +61,32 @@ class YAMLMatcher(DiGraphMatcher):
         reference_object = self.reference_graph.node_map[reference_id]
         reference_type = type(reference_object)
 
-        same_type = reference_type is input_type
-
-        if same_type:
-            if input_type is dict:
-                input_object = YAMLGraph.filter(input_object)
-                reference_object = YAMLGraph.filter(reference_object)
-
-                if self.exact:
-                    return input_object == reference_object
-
-                for key, value in reference_object.items():
-                    if not key in input_object or input_object[key] != value:
-                        return False
-
-                return True
-            elif input_type is list:
-                return True
-            else:
-                return input_object == reference_object
-        else:
+        if reference_type is not input_type:
             return False
+
+        if input_type is dict:
+            input_object = YAMLGraph.filter(input_object)
+            reference_object = YAMLGraph.filter(reference_object)
+
+            if self.exact:
+                return input_object == reference_object
+
+            for key, value in reference_object.items():
+                if key.startswith("-"):
+                    if key[1:] in input_object:
+                        # The key starts with `-` but it's present in
+                        # input_object
+                        return False
+                elif (not key in input_object
+                      or input_object[key] != value):
+                    # Object entries do not match!
+                    return False
+
+            return True
+        elif input_type is list:
+            return True
+        else:
+            return input_object == reference_object
 
 class YAMLGraph:
     def __init__(self, root):
