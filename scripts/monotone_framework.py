@@ -106,6 +106,9 @@ def check_lattice(lattice: networkx.MultiDiGraph):
   bottom = None
   for v in lattice.nodes():
     if lattice.in_degree(v) == 0:
+      sys.stderr.write("bottom was: " + str(bottom) + "\n")
+      sys.stderr.write("we want to set bottom to: " + str(v) + "\n")
+      sys.stderr.flush()
       assert bottom is None
       bottom = v
 
