@@ -1474,7 +1474,7 @@ void StmtBuilder::createAST(llvm::Function &F, clang::FunctionDecl &FDecl) {
           const std::string BarrierName = makeSCEVBarrierName(BarrierTy);
           const llvm::Function *SCEVBarrier = Call->getCalledFunction();
 
-          if (SCEVBarrier->getName().str() == BarrierName) {
+          if (SCEVBarrier and SCEVBarrier->getName().str() == BarrierName) {
             revng_assert(SCEVBarrier->arg_size() == 1);
             InstrStmts[&I] = getExprForValue(Call->getArgOperand(0));
 

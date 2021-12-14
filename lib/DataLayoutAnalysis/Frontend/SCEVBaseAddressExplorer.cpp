@@ -36,8 +36,10 @@ static bool isCallToIsolated(const llvm::Value *V) {
 
   if (auto *C = dyn_cast_or_null<llvm::CallInst>(V)) {
     const llvm::Function *Callee = C->getCalledFunction();
-    auto CTags = FunctionTags::TagsSet::from(Callee);
-    return CTags.contains(FunctionTags::Lifted);
+    if (Callee) {
+      auto CTags = FunctionTags::TagsSet::from(Callee);
+      return CTags.contains(FunctionTags::Lifted);
+    }
   }
 
   return false;
