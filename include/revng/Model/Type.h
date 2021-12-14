@@ -492,7 +492,8 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   RecursiveCoroutine<bool> verify(VerifyHelper &VH) const;
-  void dump() const debug_function;
+  void dump(llvm::raw_ostream &) const debug_function;
+  void dump() const debug_function { dump(llvm::dbgs()); }
 };
 INTROSPECTION_NS(model, QualifiedType, UnqualifiedType, Qualifiers);
 

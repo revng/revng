@@ -945,8 +945,8 @@ RecursiveCoroutine<bool> Type::verify(VerifyHelper &VH) const {
   rc_return VH.maybeFail(Result);
 }
 
-void QualifiedType::dump() const {
-  serialize(dbg, *this);
+void QualifiedType::dump(llvm::raw_ostream &OS) const {
+  serialize(OS, *this);
 }
 
 bool QualifiedType::verify() const {
