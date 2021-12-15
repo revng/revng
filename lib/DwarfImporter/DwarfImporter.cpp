@@ -801,8 +801,14 @@ private:
           continue;
         }
 
+        std::string SymbolName = getName(Die);
+        if (SymbolName.empty()) {
+          reportIgnoredDie(Die, "Ignoring unnamed subprogram");
+          continue;
+        }
+
         // Get/create dynamic function
-        auto &Function = Model->ImportedDynamicFunctions[getName(Die)];
+        auto &Function = Model->ImportedDynamicFunctions[SymbolName];
 
         // If a function already has a valid prototype, don't override it
         if (Function.Prototype.isValid())

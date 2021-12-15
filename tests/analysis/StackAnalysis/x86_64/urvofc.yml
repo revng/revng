@@ -1,0 +1,13 @@
+---
+Functions:
+- CustomName: urvofc
+  Prototype: "/Types/RawFunctionType-1"
+- CustomName: callee
+  Prototype: "/Types/RawFunctionType-2"
+Types:
+- ID: "2"
+  ReturnValues:
+  - Location: rbx_x86_64
+- ID: "1"
+  ReturnValues:
+  - Location: rbx_x86_64

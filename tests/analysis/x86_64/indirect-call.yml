@@ -1,0 +1,28 @@
+---
+Functions:
+- CFG:
+  - End: '4'
+    Start: '2'
+    Successors:
+    - Destination: '5'
+      Type: FunctionCall
+  - End: '5'
+    Start: '4'
+    Successors:
+    - Destination: ":Invalid"
+      Type: Return
+  CustomName: _start
+  Type: Regular
+- CFG:
+  - End: '6'
+    Start: '5'
+    Successors:
+    - Destination: ":Invalid"
+      Type: IndirectCall
+  - End: '7'
+    Start: '6'
+    Successors:
+    - Destination: ":Invalid"
+      Type: Return
+  CustomName: indirectcall
+  Type: Regular

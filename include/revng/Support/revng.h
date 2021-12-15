@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <bits/stdint-intn.h>
 #include <cstdint>
 #include <iterator>
 #include <string>
@@ -281,6 +282,8 @@ public:
                llvm::ArrayRef<uint64_t> NoReturnSyscalls,
                uint32_t DelaySlotSize,
                llvm::StringRef StackPointerRegister,
+               llvm::StringRef ReturnAddressRegister,
+               int64_t MinimalFinalStackOffset,
                llvm::SmallVector<ABIRegister, 20> ABIRegisters,
                unsigned PCMContextIndex,
                llvm::StringRef WriteRegisterAsm,
@@ -300,6 +303,8 @@ public:
     NoReturnSyscalls(NoReturnSyscalls),
     DelaySlotSize(DelaySlotSize),
     StackPointerRegister(StackPointerRegister),
+    ReturnAddressRegister(ReturnAddressRegister),
+    MinimalFinalStackOffset(MinimalFinalStackOffset),
     ABIRegisters(ABIRegisters),
     PCMContextIndex(PCMContextIndex),
     WriteRegisterAsm(WriteRegisterAsm),
@@ -323,6 +328,10 @@ public:
     return SyscallNumberRegister;
   }
   llvm::StringRef stackPointerRegister() const { return StackPointerRegister; }
+  llvm::StringRef returnAddressRegister() const {
+    return ReturnAddressRegister;
+  }
+  int64_t minimalFinalStackOffset() const { return MinimalFinalStackOffset; }
   llvm::ArrayRef<uint64_t> noReturnSyscalls() const { return NoReturnSyscalls; }
   uint32_t delaySlotSize() const { return DelaySlotSize; }
   const llvm::SmallVector<ABIRegister, 20> &abiRegisters() const {
@@ -364,6 +373,8 @@ private:
   llvm::ArrayRef<uint64_t> NoReturnSyscalls;
   uint32_t DelaySlotSize;
   llvm::StringRef StackPointerRegister;
+  llvm::StringRef ReturnAddressRegister;
+  int64_t MinimalFinalStackOffset;
   llvm::SmallVector<ABIRegister, 20> ABIRegisters;
   unsigned PCMContextIndex;
   llvm::StringRef WriteRegisterAsm;

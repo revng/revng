@@ -30,23 +30,6 @@ class MDNode;
 
 static const char *JTReasonMDName = "revng.jt.reasons";
 
-template<typename T>
-concept HasMetadata = requires(T &Value,
-                               const T &ConstValue,
-                               llvm::StringRef KindName,
-                               unsigned KindID,
-                               llvm::MDNode *MD) {
-  Value.setMetadata(KindName, MD);
-  Value.setMetadata(KindID, MD);
-  { ConstValue.getMetadata(KindName) } -> same_as<llvm::MDNode *>;
-  { ConstValue.getMetadata(KindID) } -> same_as<llvm::MDNode *>;
-};
-
-static_assert(HasMetadata<llvm::Instruction>);
-static_assert(HasMetadata<llvm::Function>);
-static_assert(HasMetadata<llvm::GlobalVariable>);
-static_assert(not HasMetadata<llvm::Constant>);
-
 /// \brief Pass to collect basic information about the generated code
 ///
 /// This pass provides useful information for other passes by extracting them
@@ -64,6 +47,9 @@ public:
     InstructionAlignment(0),
     DelaySlotSize(0),
     PC(nullptr),
+    SP(nullptr),
+    RA(nullptr),
+    MinimalFSO(0),
     Dispatcher(nullptr),
     DispatcherFail(nullptr),
     AnyPC(nullptr),
@@ -74,6 +60,20 @@ public:
     PCH() {}
 
   void run(llvm::Module &M);
+
+  /// \brief Handle the invalidation of this information, so that it does not
+  ///        get invalidated by other passes.
+  bool invalidate(llvm::Module &,
+                  const llvm::PreservedAnalyses &,
+                  llvm::ModuleAnalysisManager::Invalidator &) {
+    return false;
+  }
+
+  bool invalidate(llvm::Function &,
+                  const llvm::PreservedAnalyses &,
+                  llvm::FunctionAnalysisManager::Invalidator &) {
+    return false;
+  }
 
   /// \brief Return the type of basic block, see BlockType.
   static BlockType::Values getType(llvm::BasicBlock *BB) {
@@ -172,6 +172,11 @@ public:
 
   /// \brief Return the CSV representing the stack pointer
   llvm::GlobalVariable *spReg() const { return SP; }
+
+  /// \brief Return the CSV representing the return address register
+  llvm::GlobalVariable *raReg() const { return RA; }
+
+  int64_t minimalFSO() const { return MinimalFSO; }
 
   llvm::Triple::ArchType arch() const { return ArchType; }
 
@@ -428,6 +433,14 @@ public:
     return getPCFromNewPC(&*BB->begin());
   }
 
+  // TODO: `purgeDomTree`, `getDomTree`, `getJumpTargetBlock` et al
+  //        need to be moved into a new class.
+  void purgeDomTree(llvm::Function *F) {
+    auto It = DTMap.find(F);
+    if (It != DTMap.end())
+      DTMap.erase(It);
+  }
+
   template<HasMetadata T>
   void setMetaAddressMetadata(T *U,
                               llvm::StringRef Name,
@@ -436,17 +449,6 @@ public:
     auto *VAM = ValueAsMetadata::get(MA.toConstant(MetaAddressStruct));
     auto *MD = MDTuple::get(getContext(RootFunction), VAM);
     U->setMetadata(Name, MD);
-  }
-
-  template<HasMetadata T>
-  MetaAddress getMetaAddressMetadata(T *U, llvm::StringRef Name) const {
-    using namespace llvm;
-
-    if (auto *MD = dyn_cast_or_null<MDTuple>(U->getMetadata(Name)))
-      if (auto *VAM = dyn_cast<ValueAsMetadata>(MD->getOperand(0)))
-        return MetaAddress::fromConstant(VAM->getValue());
-
-    return MetaAddress::invalid();
   }
 
 private:
@@ -489,6 +491,8 @@ private:
   uint32_t DelaySlotSize;
   llvm::GlobalVariable *PC;
   llvm::GlobalVariable *SP;
+  llvm::GlobalVariable *RA;
+  int64_t MinimalFSO;
   llvm::BasicBlock *Dispatcher;
   llvm::BasicBlock *DispatcherFail;
   llvm::BasicBlock *AnyPC;

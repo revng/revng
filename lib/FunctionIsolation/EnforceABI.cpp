@@ -23,26 +23,13 @@
 #include "revng/FunctionIsolation/StructInitializers.h"
 #include "revng/Model/Register.h"
 #include "revng/Model/Type.h"
-#include "revng/StackAnalysis/ABI.h"
+#include "revng/EarlyFunctionAnalysis/ABI.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 using namespace llvm;
-
-using StackAnalysis::FunctionCallRegisterArgument;
-using StackAnalysis::FunctionCallReturnValue;
-using StackAnalysis::FunctionRegisterArgument;
-using StackAnalysis::FunctionReturnValue;
-using StackAnalysis::FunctionsSummary;
-
-using CallSiteDescription = FunctionsSummary::CallSiteDescription;
-using FunctionDescription = FunctionsSummary::FunctionDescription;
-using FCRD = FunctionsSummary::FunctionCallRegisterDescription;
-using FunctionCallRegisterDescription = FCRD;
-using FRD = FunctionsSummary::FunctionRegisterDescription;
-using FunctionRegisterDescription = FRD;
 
 char EnforceABI::ID = 0;
 using Register = RegisterPass<EnforceABI>;

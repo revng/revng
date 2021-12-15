@@ -9,7 +9,7 @@
 #include "llvm/Pass.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
-#include "revng/StackAnalysis/StackAnalysis.h"
+#include "revng/EarlyFunctionAnalysis/EarlyFunctionAnalysis.h"
 
 class EnforceABI : public llvm::ModulePass {
 public:

@@ -23,5 +23,5 @@ target_link_libraries(revng-lift
   revngModel
   revngSupport
   revngTypeShrinking
-  revngStackAnalysis
+  revngEarlyFunctionAnalysis
   ${LLVM_LIBRARIES})

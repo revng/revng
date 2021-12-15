@@ -23,6 +23,7 @@
 #include "llvm/IR/ValueMap.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/Support/Concepts.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/Generator.h"
@@ -565,6 +566,16 @@ public:
     return llvm::ConstantAsMetadata::get(Constant);
   }
 
+  llvm::ConstantAsMetadata *get(int32_t Integer) {
+    auto *Constant = llvm::ConstantInt::getSigned(Int32Ty, Integer);
+    return llvm::ConstantAsMetadata::get(Constant);
+  }
+
+  llvm::ConstantAsMetadata *get(int64_t Integer) {
+    auto *Constant = llvm::ConstantInt::getSigned(Int64Ty, Integer);
+    return llvm::ConstantAsMetadata::get(Constant);
+  }
+
   llvm::MDNode *get() { return llvm::MDNode::get(C, {}); }
 
   llvm::MDTuple *tuple(const char *String) { return tuple(get(String)); }
@@ -574,6 +585,10 @@ public:
   llvm::MDTuple *tuple(uint32_t Integer) { return tuple(get(Integer)); }
 
   llvm::MDTuple *tuple(uint64_t Integer) { return tuple(get(Integer)); }
+
+  llvm::MDTuple *tuple(int32_t Integer) { return tuple(get(Integer)); }
+
+  llvm::MDTuple *tuple(int64_t Integer) { return tuple(get(Integer)); }
 
   llvm::MDTuple *tuple(llvm::ArrayRef<llvm::Metadata *> MDs) {
     return llvm::MDTuple::get(C, MDs);
@@ -658,6 +673,30 @@ template<>
 inline uint64_t QuickMetadata::extract<uint64_t>(llvm::Metadata *MD) {
   auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
   return getLimitedValue(C->getValue());
+}
+
+template<>
+inline int32_t QuickMetadata::extract<int32_t>(const llvm::Metadata *MD) {
+  auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
+  return getSignedLimitedValue(C->getValue());
+}
+
+template<>
+inline int32_t QuickMetadata::extract<int32_t>(llvm::Metadata *MD) {
+  auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
+  return getSignedLimitedValue(C->getValue());
+}
+
+template<>
+inline int64_t QuickMetadata::extract<int64_t>(const llvm::Metadata *MD) {
+  auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
+  return getSignedLimitedValue(C->getValue());
+}
+
+template<>
+inline int64_t QuickMetadata::extract<int64_t>(llvm::Metadata *MD) {
+  auto *C = llvm::cast<llvm::ConstantAsMetadata>(MD);
+  return getSignedLimitedValue(C->getValue());
 }
 
 template<>
@@ -767,6 +806,12 @@ inline bool isCallTo(const llvm::Instruction *I, llvm::StringRef Name) {
   return Callee != nullptr && Callee->getName() == Name;
 }
 
+inline bool isCallTo(const llvm::Instruction *I, llvm::Function *F) {
+  revng_assert(I != nullptr);
+  const llvm::Function *Callee = getCallee(I);
+  return Callee != nullptr && Callee == F;
+}
+
 inline bool isHelper(const llvm::Function *F) {
   return FunctionTags::Helper.isTagOf(F);
 }
@@ -801,9 +846,24 @@ inline llvm::CallInst *getCallTo(llvm::Instruction *I, llvm::StringRef Name) {
     return nullptr;
 }
 
+inline llvm::CallInst *getCallTo(llvm::Instruction *I, llvm::Function *F) {
+  if (isCallTo(I, F))
+    return llvm::cast<llvm::CallInst>(I);
+  else
+    return nullptr;
+}
+
 inline const llvm::CallInst *
 getCallTo(const llvm::Instruction *I, llvm::StringRef Name) {
   if (isCallTo(I, Name))
+    return llvm::cast<llvm::CallInst>(I);
+  else
+    return nullptr;
+}
+
+inline const llvm::CallInst *
+getCallTo(const llvm::Instruction *I, llvm::Function *F) {
+  if (isCallTo(I, F))
     return llvm::cast<llvm::CallInst>(I);
   else
     return nullptr;
@@ -945,6 +1005,10 @@ inline llvm::User *getUniqueUser(llvm::Value *V) {
   return Result;
 }
 
+/// \brief Find the first call to newpc starting from \p TheInstruction
+///
+llvm::CallInst *getLastNewPC(llvm::Instruction *TheInstruction);
+
 /// \brief Find the PC which lead to generated \p TheInstruction
 ///
 /// \return a pair of integers: the first element represents the PC and the
@@ -1043,7 +1107,8 @@ inline llvm::Instruction *nextNonMarker(llvm::Instruction *I) {
 inline llvm::CallInst *getFunctionCall(llvm::Instruction *T) {
   revng_assert(T && T->isTerminator());
   llvm::Instruction *Previous = getPrevious(T);
-  while (Previous != nullptr && isMarker(Previous)) {
+  while (Previous != nullptr
+         && (isMarker(Previous) || isCallTo(Previous, "abort"))) {
     if (auto *Call = getCallTo(Previous, "function_call"))
       return Call;
 
@@ -1144,4 +1209,38 @@ inline cppcoro::generator<llvm::CallBase *> callers(llvm::Function *F) {
       }
     }
   }
+}
+
+template<typename T>
+concept HasMetadata = requires(T &Value,
+                               const T &ConstValue,
+                               llvm::StringRef KindName,
+                               unsigned KindID,
+                               llvm::MDNode *MD) {
+  Value.setMetadata(KindName, MD);
+  Value.setMetadata(KindID, MD);
+  { ConstValue.getMetadata(KindName) } -> same_as<llvm::MDNode *>;
+  { ConstValue.getMetadata(KindID) } -> same_as<llvm::MDNode *>;
+};
+
+static_assert(HasMetadata<llvm::Instruction>);
+static_assert(HasMetadata<llvm::Function>);
+static_assert(HasMetadata<llvm::GlobalVariable>);
+static_assert(not HasMetadata<llvm::Constant>);
+
+template<HasMetadata T>
+MetaAddress getMetaAddressMetadata(T *U, llvm::StringRef Name) {
+  using namespace llvm;
+
+  if (auto *MD = dyn_cast_or_null<MDTuple>(U->getMetadata(Name)))
+    if (auto *VAM = dyn_cast<ValueAsMetadata>(MD->getOperand(0)))
+      return MetaAddress::fromConstant(VAM->getValue());
+
+  return MetaAddress::invalid();
+}
+
+template<typename T>
+inline llvm::cl::opt<T> *
+getOption(llvm::StringMap<llvm::cl::Option *> &Options, const char *Name) {
+  return static_cast<llvm::cl::opt<T> *>(Options[Name]);
 }

@@ -41,7 +41,7 @@
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/FunctionCallIdentification/PruneRetSuccessors.h"
 #include "revng/Model/SerializeModelPass.h"
-#include "revng/StackAnalysis/ABI.h"
+#include "revng/EarlyFunctionAnalysis/ABI.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/DebugHelper.h"
@@ -963,6 +963,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   //   DelaySlotSize,
   //   PCRegisterName,
   //   SPRegisterName,
+  //   RARegisterName,
   //   ABIRegisters
   // }
 
@@ -978,6 +979,8 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
                                QMD.get(Arch.delaySlotSize()),
                                QMD.get("pc"),
                                QMD.get(Arch.stackPointerRegister()),
+                               QMD.get(Arch.returnAddressRegister()),
+                               QMD.get(Arch.minimalFinalStackOffset()),
                                QMD.tuple(ArrayRef<Metadata *>(ABIRegMetadata)),
                              });
   MDName = "revng.input.architecture";
@@ -1368,7 +1371,8 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
 
   revng_assert(Model->ImportedDynamicFunctions.isSorted());
 
-  // Record all dynamic imported functions and assign them a default prototype
+  // Record all dynamic imported functions and assign them a default prototype,
+  // and record static functions as well, if they have a name.
   for (const Label &L : Binary.labels()) {
     if (L.origin() == LabelOrigin::DynamicRelocation and L.isCode()
         and not L.symbolName().empty()) {
@@ -1376,6 +1380,9 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
       if (not F.Prototype.isValid())
         F.Prototype = DefaultTypePath;
       revng_assert(Model->ImportedDynamicFunctions.isSorted());
+    } else if (L.origin() == LabelOrigin::StaticSymbol and L.isCode()
+               and not L.symbolName().empty()) {
+      Model->Functions[L.address()].CustomName = L.symbolName().str();
     }
   }
 

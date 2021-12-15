@@ -71,6 +71,51 @@ public:
   }
 };
 
+static FunctionCFG getGraph(const Binary &Binary, const Function &F) {
+  using namespace FunctionEdgeType;
+
+  FunctionCFG Graph(F.Entry);
+  for (const BasicBlock &Block : F.CFG) {
+    auto *Source = Graph.get(Block.Start);
+
+    for (const auto &Edge : Block.Successors) {
+      switch (Edge->Type) {
+      case DirectBranch:
+      case FakeFunctionCall:
+      case FakeFunctionReturn:
+      case Return:
+      case BrokenReturn:
+      case IndirectTailCall:
+      case LongJmp:
+      case Unreachable:
+        Source->addSuccessor(Graph.get(Edge->Destination));
+        break;
+
+      case FunctionCall:
+      case IndirectCall: {
+        auto *CE = cast<model::CallEdge>(Edge.get());
+        if (hasAttribute(Binary, *CE, model::FunctionAttribute::NoReturn))
+          Source->addSuccessor(Graph.get(MetaAddress::invalid()));
+        else
+          Source->addSuccessor(Graph.get(Block.End));
+        break;
+      }
+
+      case Killer:
+        Source->addSuccessor(Graph.get(MetaAddress::invalid()));
+        break;
+
+      case Invalid:
+      case Count:
+        revng_abort();
+        break;
+      }
+    }
+  }
+
+  return Graph;
+}
+
 model::TypePath
 Binary::getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize) {
   PrimitiveType Temporary(V, ByteSize);
@@ -89,6 +134,12 @@ Binary::getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize) {
 TypePath Binary::recordNewType(UpcastablePointer<Type> &&T) {
   auto It = Types.insert(T).first;
   return getTypePath(It->get());
+}
+
+void Binary::dumpCFG(const Function &F) const {
+  FunctionCFG CFG = getGraph(*this, F);
+  raw_os_ostream Stream(dbg);
+  WriteGraph(Stream, &CFG);
 }
 
 bool Binary::verifyTypes() const {
@@ -144,6 +195,17 @@ bool Binary::verify(VerifyHelper &VH) const {
     if (not F.verify(VH))
       return VH.fail();
 
+    // Populate graph
+    FunctionCFG Graph = getGraph(*this, F);
+
+    // Ensure all the nodes are reachable from the entry node
+    if (not Graph.allNodesAreReachable())
+      return VH.fail();
+
+    // Ensure the only node with no successors is invalid
+    if (not Graph.hasOnlyInvalidExits())
+      return VH.fail();
+
     // Check function calls
     for (const BasicBlock &Block : F.CFG) {
       for (const auto &Edge : Block.Successors) {
@@ -191,47 +253,6 @@ bool Binary::verify(VerifyHelper &VH) const {
   return verifyTypes(VH);
 }
 
-static FunctionCFG getGraph(const Function &F) {
-  using namespace FunctionEdgeType;
-
-  FunctionCFG Graph(F.Entry);
-  for (const BasicBlock &Block : F.CFG) {
-    auto *Source = Graph.get(Block.Start);
-
-    for (const auto &Edge : Block.Successors) {
-      switch (Edge->Type) {
-      case DirectBranch:
-      case FakeFunctionCall:
-      case FakeFunctionReturn:
-      case Return:
-      case BrokenReturn:
-      case IndirectTailCall:
-      case LongJmp:
-      case Unreachable:
-        Source->addSuccessor(Graph.get(Edge->Destination));
-        break;
-
-      case FunctionCall:
-      case IndirectCall:
-        // TODO: this does not handle noreturn function calls
-        Source->addSuccessor(Graph.get(Block.End));
-        break;
-
-      case Killer:
-        Source->addSuccessor(Graph.get(MetaAddress::invalid()));
-        break;
-
-      case Invalid:
-      case Count:
-        revng_abort();
-        break;
-      }
-    }
-  }
-
-  return Graph;
-}
-
 Identifier Function::name() const {
   using llvm::Twine;
   if (not CustomName.empty()) {
@@ -248,12 +269,6 @@ Identifier DynamicFunction::name() const {
     return CustomName;
   else
     return Identifier(SymbolName);
-}
-
-void Function::dumpCFG() const {
-  FunctionCFG CFG = getGraph(*this);
-  raw_os_ostream Stream(dbg);
-  WriteGraph(Stream, &CFG);
 }
 
 void Function::dump() const {
@@ -289,17 +304,6 @@ bool Function::verify(VerifyHelper &VH) const {
   }
 
   if (not HasEntry)
-    return VH.fail();
-
-  // Populate graph
-  FunctionCFG Graph = getGraph(*this);
-
-  // Ensure all the nodes are reachable from the entry node
-  if (not Graph.allNodesAreReachable())
-    return VH.fail();
-
-  // Ensure the only node with no successors is invalid
-  if (not Graph.hasOnlyInvalidExits())
     return VH.fail();
 
   // Prototype is present

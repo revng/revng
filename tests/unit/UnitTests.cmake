@@ -26,26 +26,6 @@ add_test(NAME test_lazysmallbitvector COMMAND ./bin/test_lazysmallbitvector)
 set_tests_properties(test_lazysmallbitvector PROPERTIES LABELS "unit")
 
 #
-# test_stackanalysis
-#
-
-revng_add_private_executable(test_stackanalysis "${SRC}/StackAnalysis.cpp")
-target_compile_definitions(test_stackanalysis
-  PRIVATE "BOOST_TEST_DYN_LINK=1")
-target_include_directories(test_stackanalysis
-  PRIVATE "${CMAKE_SOURCE_DIR}"
-          "${CMAKE_SOURCE_DIR}/lib/StackAnalysis"
-          "${CMAKE_BINARY_DIR}/lib/StackAnalysis")
-target_link_libraries(test_stackanalysis
-  revngStackAnalysis
-  revngSupport
-  revngUnitTestHelpers
-  Boost::unit_test_framework
-  ${LLVM_LIBRARIES})
-add_test(NAME test_stackanalysis COMMAND ./bin/test_stackanalysis)
-set_tests_properties(test_stackanalysis PROPERTIES LABELS "unit")
-
-#
 # test_classsentinel
 #
 

@@ -5,7 +5,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#define BOOST_TEST_MODULE StackAnalysis
+#define BOOST_TEST_MODULE EarlyFunctionAnalysis
 bool init_unit_test();
 #include "boost/test/unit_test.hpp"
 
