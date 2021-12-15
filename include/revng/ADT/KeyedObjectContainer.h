@@ -31,16 +31,10 @@ class SortedVector;
 namespace detail {
 
 template<typename T>
-using no_cv_t = std::remove_cv_t<T>;
-
-template<typename T, template<typename...> class Ref>
-concept is_no_cv_specialization_v = is_specialization_v<no_cv_t<T>, Ref>;
+concept IsMutableSet = is_specialization_v<T, MutableSet>;
 
 template<typename T>
-concept IsMutableSet = is_no_cv_specialization_v<T, MutableSet>;
-
-template<typename T>
-concept IsSortedVector = is_no_cv_specialization_v<T, SortedVector>;
+concept IsSortedVector = is_specialization_v<T, SortedVector>;
 
 template<typename T>
 concept IsKOC = IsMutableSet<T> or IsSortedVector<T>;
