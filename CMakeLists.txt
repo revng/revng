@@ -60,7 +60,6 @@ include(${CMAKE_INSTALL_PREFIX}/share/revng/qa/cmake/revng-qa.cmake)
 
 # Macro for creating the tests for decompilation pipeline
 macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
-
     # test revng-model-to-header
     add_test(NAME model_to_header_${TARGET_NAME} COMMAND
       bash -c "${CMAKE_BINARY_DIR}/bin/revng-model-to-header < ${INPUT_FILE} > ${TARGET_NAME}_model_header.h"
@@ -125,6 +124,19 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
     set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
       FIXTURES_SETUP PrepareDecompilation_fixture_${TARGET_NAME}
       )
+
+    if ("${CATEGORY}" STREQUAL "tests_analysis_PromoteStackPointer"
+        AND "${CONFIGURATION}" STREQUAL "dynamic_native")
+      get_filename_component(BASENAME "${INPUT_FILE}" NAME_WE)
+      add_test(NAME psp_${TARGET_NAME}
+        COMMAND bash -c "opt -S ${TARGET_NAME}_prepared.bc | revng dump-model | revng compare-yaml - ${CMAKE_SOURCE_DIR}/tests/Analysis/PromoteStackPointer/${BASENAME}.yml")
+      set_property(TEST psp_${TARGET_NAME} APPEND PROPERTY
+        DEPENDS prepare_${TARGET_NAME}
+        )
+      set_property(TEST psp_${TARGET_NAME} APPEND PROPERTY
+        FIXTURES_REQUIRED PrepareDecompilation_fixture_${TARGET_NAME}
+        )
+    endif()
 
     # test VMA
     add_test(NAME vma_${TARGET_NAME} COMMAND revng --prefix=.

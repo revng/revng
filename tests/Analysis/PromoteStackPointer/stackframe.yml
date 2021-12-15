@@ -1,0 +1,69 @@
+Types:
+  - !RawFunctionType
+    # stack_frame prototype
+    Kind:            RawFunctionType
+    ID:              7412439904038490792
+    FinalStackOffset: 8
+    -StackArgumentsType: ''
+  - !Struct
+    # stack_frame stack frame
+    Kind:            Struct
+    ID:              17773669446801075323
+    Size:            8
+  - !RawFunctionType
+    # stack_frame_array prototype
+    Kind:            RawFunctionType
+    ID:              13776914522867493387
+    FinalStackOffset: 8
+  - !Struct
+    # stack_frame_array stack frame
+    Kind:            Struct
+    ID:              10059356012972557344
+    Fields:          []
+    Size:            80
+  - !RawFunctionType
+    # stack_arguments_64 prototype
+    Kind:            RawFunctionType
+    ID:              962527246414399901
+    FinalStackOffset: 8
+    StackArgumentsType: "/Types/Struct-2914208048943782880"
+  - !Struct
+    # stack_arguments_64 stack arguments type
+    Kind:            Struct
+    ID:              2914208048943782880
+    Size:            24
+  - !RawFunctionType
+    # stack_arguments_32 prototype
+    Kind:            RawFunctionType
+    ID:              15643449473528100124
+    FinalStackOffset: 8
+    StackArgumentsType: "/Types/Struct-17628016926864895242"
+  - !Struct
+    # stack_arguments_32 stack arguments type
+    Kind:            Struct
+    ID:              17628016926864895242
+    # TODO: this should be 24, see source file for explanation
+    Size:            20
+Functions:
+  - CustomName:      "stack_frame"
+    Type:            Regular
+    Prototype:       "/Types/RawFunctionType-7412439904038490792"
+    StackFrameType:  "/Types/Struct-17773669446801075323"
+  - CustomName:      "stack_frame_array"
+    Type:            Regular
+    Prototype:       "/Types/RawFunctionType-13776914522867493387"
+    StackFrameType:  "/Types/Struct-10059356012972557344"
+  - CustomName:      "stack_arguments_64"
+    Type:            Regular
+    Prototype:       "/Types/RawFunctionType-962527246414399901"
+  - CustomName:      "call_stack_arguments_64"
+    Type:            Regular
+    -StackFrameType: ''
+    # TODO: once we have references in the CFG we can test the relationship with
+    #       the callee.
+  - CustomName:      "stack_arguments_32"
+    Type:            Regular
+    Prototype:       "/Types/RawFunctionType-15643449473528100124"
+    StackFrameType:  "/Types/Struct-4125551533421568229"
+# TODO: test indirect_call_stack_arguments_64 once we handle it
+# TODO: test array_stack_argument once we handle it
