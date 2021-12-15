@@ -14,8 +14,12 @@ import re
 import sys
 import yaml
 
+from collections import defaultdict
+
+from grandiso import find_motifs
+
 from networkx import DiGraph
-from networkx.algorithms.isomorphism import DiGraphMatcher
+from networkx.algorithms.shortest_paths.unweighted import all_pairs_shortest_path_length
 
 args = None
 
@@ -44,49 +48,8 @@ class Tag:
         self.tag = tag
     def __eq__(self, other):
         return self.tag == other.tag
-
-class YAMLMatcher(DiGraphMatcher):
-    def __init__(self, input_graph: "YAMLGraph",
-                 reference_graph: "YAMLGraph",
-                 exact):
-        super().__init__(input_graph.graph, reference_graph.graph)
-        self.input_graph = input_graph
-        self.reference_graph = reference_graph
-        self.exact = exact
-
-    def semantic_feasibility(self, input_id, reference_id):
-        input_object = self.input_graph.node_map[input_id]
-        input_type = type(input_object)
-        
-        reference_object = self.reference_graph.node_map[reference_id]
-        reference_type = type(reference_object)
-
-        if reference_type is not input_type:
-            return False
-
-        if input_type is dict:
-            input_object = YAMLGraph.filter(input_object)
-            reference_object = YAMLGraph.filter(reference_object)
-
-            if self.exact:
-                return input_object == reference_object
-
-            for key, value in reference_object.items():
-                if key.startswith("-"):
-                    if key[1:] in input_object:
-                        # The key starts with `-` but it's present in
-                        # input_object
-                        return False
-                elif (not key in input_object
-                      or input_object[key] != value):
-                    # Object entries do not match!
-                    return False
-
-            return True
-        elif input_type is list:
-            return True
-        else:
-            return input_object == reference_object
+    def __str__(self):
+        return f"tag: {self.tag}"
 
 class YAMLGraph:
     def __init__(self, root):
@@ -159,7 +122,7 @@ class YAMLGraph:
             filtered_dict[key] = "reference"
 
         return filtered_dict
-        
+
     @staticmethod
     def get_label(object):
         object_type = type(object)
@@ -204,45 +167,109 @@ class YAMLGraph:
             # Emit footer
             output_file.write("}\n")
 
-    def color_match(self, other, matcher):
+    def color_match(self, other, match):
         colors = [
             "#ff5f7e", "#4f7d9d", "#8873b3", "#d273b7",
             "#f672a9", "#fb7f8c", "#ff7c43", "#ffa600"
         ]
-        for match in matcher.match():
-            for index, (key, value) in enumerate(match.items()):
-                color = colors[index % len(colors)]
-                self.node_colors[value] = color
-                other.node_colors[key] = color
-            return
 
-    def is_subgraph(self, other, color=False):
-        matcher = YAMLMatcher(other, self)
-        result = matcher.subgraph_is_isomorphic()
+        for index, (reference_id, input_id) in enumerate(match.items()):
+            color = colors[index % len(colors)]
+            self.node_colors[reference_id] = color
+            other.node_colors[input_id] = color
+
+    def semantic_feasibility(self, other, exact, input_id, reference_id):
+        input_object = other.node_map[input_id]
+        input_type = type(input_object)
+
+        reference_object = self.node_map[reference_id]
+        reference_type = type(reference_object)
+
+        if reference_type is not input_type:
+            return False
+
+        if input_type is dict:
+            input_object = YAMLGraph.filter(input_object)
+            reference_object = YAMLGraph.filter(reference_object)
+
+            if exact:
+                return input_object == reference_object
+
+            for key, value in reference_object.items():
+                if key.startswith("-"):
+                    if key[1:] in input_object:
+                        # The key starts with `-` but it's present in
+                        # input_object
+                        return False
+                elif (not key in input_object
+                      or input_object[key] != value):
+                    # Object entries do not match!
+                    return False
+
+            return True
+        elif input_type is list:
+            return True
+        else:
+            return input_object == reference_object
+
+    def is_subgraph(self, other, color):
+        return self.compare(other, False, color)
+
+    def is_equal(self, other, color):
+        return self.compare(other, True, color)
+
+    def compare(self, other, exact, color):
+        def attr_match(motif_node_id: str,
+                    host_node_id: str,
+                    motif,
+                    host) -> bool:
+            return self.semantic_feasibility(other,
+                                             exact,
+                                             host_node_id,
+                                             motif_node_id)
+
+        # Compute (un)interestingness
+        interestingness = defaultdict(lambda: 2)
+        shortest_paths = dict(all_pairs_shortest_path_length(self.graph))
+        for node_id in self.graph:
+            # TODO: here we are hardcoding `CustomName`, we need to take
+            #       the time to write a small function computing how
+            #       much disambiguation power a certain reference node
+            #       has based on how many compatible nodes are there in
+            #       the input graph, just looking at the semantic.
+            has_customname = (type(self.node_map[node_id]) is dict
+                              and "CustomName" in self.node_map[node_id])
+            if self.graph.in_degree(node_id) == 0:
+                # No incoming edges, it's the entry node
+                interestingness[node_id] = 1
+            elif has_customname:
+                # Those with CustomName take priority
+                interestingness[node_id] = 2
+
+                # Distribute points depending on the distance
+                for source, data in shortest_paths.items():
+                    if source == node_id:
+                        for destination, distance in data.items():
+                            interestingness[destination] += distance
+
+        # Rescale all values between 0 and 1 and turn uninterestigness into
+        # interestingness
+        max_value = max(interestingness.values())
+        for node_id in interestingness:
+            interestingness[node_id] = interestingness[node_id] / max_value
+
+        result = find_motifs(self.graph,
+                             other.graph,
+                             limit=2,
+                             interestingness=interestingness,
+                             isomorphisms_only=exact,
+                             is_node_attr_match=attr_match)
 
         if result and color:
-            self.color_match(other, match)
+            self.color_match(other, result[0])
 
-        return result
+        return len(result) > 0
 
-    def is_subgraph(self, other, color=False):
-        matcher = YAMLMatcher(other, self, False)
-        result = matcher.subgraph_is_isomorphic()
-
-        if result and color:
-            self.color_match(other, matcher)
-
-        return result
-
-    def is_equal(self, other, color=False):
-        matcher = YAMLMatcher(other, self, True)
-        result = matcher.is_isomorphic()
-
-        if result and color:
-            self.color_match(match)
-
-        return result
-        
 def selftest():
     # Test --exact
     args.exact = True
