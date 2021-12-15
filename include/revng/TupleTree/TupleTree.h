@@ -1084,6 +1084,8 @@ public:
     return getByPath<T>(Path, *std::get<RootT *>(Root));
   }
 
+  const T *getConst() const { return get(); }
+
   bool isValid() const debug_function {
     return not hasNullRoot() and not Path.empty() and get() != nullptr;
   }
