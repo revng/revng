@@ -326,6 +326,12 @@ class SafeLoaderIgnoreUnknown(yaml.SafeLoader):
 SafeLoaderIgnoreUnknown.add_constructor(None,
                                         SafeLoaderIgnoreUnknown.ignore_unknown)
 
+def open_argument(path):
+    if path == "-":
+        return sys.stdin
+    else:
+        return open(path)
+
 def main():
     parser = argparse.ArgumentParser(description="Compare a YAML file against "
                                      "a reference.")
@@ -355,7 +361,7 @@ def main():
     if args.selftest:
         return selftest()
 
-    with open(args.reference) as reference_file, open(args.input) as input_file:
+    with open_argument(args.reference) as reference_file, open_argument(args.input) as input_file:
         reference = yaml.load(reference_file, Loader=SafeLoaderIgnoreUnknown)
         input = yaml.load(input_file, Loader=SafeLoaderIgnoreUnknown)
 
