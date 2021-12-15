@@ -1,5 +1,5 @@
 /// \file IndirectBranchInfoPrinterPass.cpp
-/// \brief Serialize the results of the StackAnalysis on disk.
+/// \brief Serialize the results of the EarlyFunctionAnalysis on disk.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -12,7 +12,7 @@
 #include "llvm/Support/CommandLine.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
-#include "revng/StackAnalysis/IndirectBranchInfoPrinterPass.h"
+#include "revng/EarlyFunctionAnalysis/IndirectBranchInfoPrinterPass.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRHelpers.h"
 

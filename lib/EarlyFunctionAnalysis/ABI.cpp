@@ -7,7 +7,7 @@
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/VerifyHelper.h"
-#include "revng/StackAnalysis/ABI.h"
+#include "revng/EarlyFunctionAnalysis/ABI.h"
 
 template<size_t N>
 static bool inWhitelist(const std::array<model::Register::Values, N> &Array,

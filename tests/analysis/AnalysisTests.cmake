@@ -10,7 +10,7 @@ set(USED_REFERENCE_FILES "")
 
 # To handle this situation we need to turn the CFG into NoFunctionCalls and make
 # sure consider registers that are preserved/clobbered across each function
-# call. However, this means we need to integrated the StackAnalysis in
+# call. However, this means we need to integrate EarlyFunctionAnalysis in
 # harvesting.
 list(APPEND BROKEN_TESTS_tests_analysis jump-table-base-before-function-call)
 

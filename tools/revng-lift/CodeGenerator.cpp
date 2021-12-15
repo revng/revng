@@ -41,7 +41,7 @@
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/FunctionCallIdentification/PruneRetSuccessors.h"
 #include "revng/Model/SerializeModelPass.h"
-#include "revng/StackAnalysis/ABI.h"
+#include "revng/EarlyFunctionAnalysis/ABI.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/DebugHelper.h"

@@ -1,6 +1,6 @@
 /// \file IsolateFunctions.cpp
 /// \brief Implements the IsolateFunctions pass which applies function isolation
-///        using the informations provided by StackAnalysis.
+///        using the informations provided by EarlyFunctionAnalysis.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.

@@ -6,9 +6,9 @@
 
 #include "llvm/Pass.h"
 
-#include "revng/StackAnalysis/StackAnalysis.h"
+#include "revng/EarlyFunctionAnalysis/EarlyFunctionAnalysis.h"
 
-namespace StackAnalysis {
+namespace EarlyFunctionAnalysis {
 
 class ABIDetectionPass : public llvm::ModulePass {
 public:
@@ -20,10 +20,10 @@ public:
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();
     AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
-    AU.addRequired<StackAnalysis>();
+    AU.addRequired<EarlyFunctionAnalysis>();
   }
 
   bool runOnModule(llvm::Module &M) override;
 };
 
-} // namespace StackAnalysis
+} // namespace EarlyFunctionAnalysis

@@ -1,4 +1,4 @@
-/// \file StackAnalysis.cpp
+/// \file EarlyFunctionAnalysis.cpp
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -48,9 +48,9 @@
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/BasicAnalyses/RemoveHelperCalls.h"
 #include "revng/BasicAnalyses/RemoveNewPCCalls.h"
+#include "revng/EarlyFunctionAnalysis/EarlyFunctionAnalysis.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Register.h"
-#include "revng/StackAnalysis/StackAnalysis.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/IRHelpers.h"
@@ -76,7 +76,7 @@ using GCBI = GeneratedCodeBasicInfo;
 using namespace llvm::cl;
 
 static Logger<> CFEPLog("cfep");
-static Logger<> StackAnalysisLog("stackanalysis");
+static Logger<> EarlyFunctionAnalysisLog("earlyfunctionanalysis");
 
 struct BasicBlockNodeData {
   BasicBlockNodeData(llvm::BasicBlock *BB) : BB(BB){};
@@ -105,11 +105,11 @@ struct llvm::DOTGraphTraits<SmallCallGraph *>
   }
 };
 
-namespace StackAnalysis {
+namespace EarlyFunctionAnalysis {
 
-char StackAnalysis::ID = 0;
+char EarlyFunctionAnalysis::ID = 0;
 
-using RegisterABI = RegisterPass<StackAnalysis>;
+using RegisterABI = RegisterPass<EarlyFunctionAnalysis>;
 static RegisterABI Y("abi-analysis", "ABI Analysis Pass", true, true);
 
 static opt<std::string> CallGraphOutputPath("cg-output",
@@ -1432,7 +1432,7 @@ CFEPAnalyzer<FO>::milkInfo(OutlinedFunction *OutlinedFunction,
   // Merge return values registers
   ABIAnalyses::finalizeReturnValues(ABIResults);
 
-  ABIResults.dump(StackAnalysisLog);
+  ABIResults.dump(EarlyFunctionAnalysisLog);
 
   return FunctionSummary(Type,
                          std::move(ClobberedRegs),
@@ -1543,7 +1543,7 @@ void CFEPAnalyzer<FunctionOracle>::integrateFunctionCallee(llvm::BasicBlock *BB,
     auto *CI = CallInst::Create(FakeFunction, "", Term);
     InlineFunctionInfo IFI;
     bool Status = InlineFunction(*CI, IFI, nullptr, true).isSuccess();
-    revng_log(StackAnalysisLog,
+    revng_log(EarlyFunctionAnalysisLog,
               "Has callee " << FakeFunction->getName() << "been inlined? "
                             << Status);
     break;
@@ -1714,10 +1714,10 @@ OutlinedFunction CFEPAnalyzer<FO>::outlineFunction(llvm::BasicBlock *Entry) {
   return OutlinedFunction;
 }
 
-bool StackAnalysis::runOnModule(Module &M) {
+bool EarlyFunctionAnalysis::runOnModule(Module &M) {
   Function &F = *M.getFunction("root");
 
-  revng_log(PassesLog, "Starting StackAnalysis");
+  revng_log(PassesLog, "Starting EarlyFunctionAnalysis");
 
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
 
@@ -1875,7 +1875,7 @@ bool StackAnalysis::runOnModule(Module &M) {
   // traversal (leafs first).
   while (!CFEPQueue.empty()) {
     BasicBlockNode *EntryNode = CFEPQueue.pop();
-    revng_log(StackAnalysisLog,
+    revng_log(EarlyFunctionAnalysisLog,
               "Analyzing Entry: " << EntryNode->BB->getName());
 
     // Intraprocedural analysis
@@ -1918,4 +1918,4 @@ bool StackAnalysis::runOnModule(Module &M) {
   return false;
 }
 
-} // namespace StackAnalysis
+} // namespace EarlyFunctionAnalysis

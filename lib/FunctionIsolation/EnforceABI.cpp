@@ -23,7 +23,7 @@
 #include "revng/FunctionIsolation/StructInitializers.h"
 #include "revng/Model/Register.h"
 #include "revng/Model/Type.h"
-#include "revng/StackAnalysis/ABI.h"
+#include "revng/EarlyFunctionAnalysis/ABI.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"

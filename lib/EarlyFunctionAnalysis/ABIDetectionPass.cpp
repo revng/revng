@@ -6,12 +6,12 @@
 
 #include "llvm/Support/CommandLine.h"
 
-#include "revng/StackAnalysis/ABIDetectionPass.h"
+#include "revng/EarlyFunctionAnalysis/ABIDetectionPass.h"
 
 using namespace llvm;
 using namespace llvm::cl;
 
-namespace StackAnalysis {
+namespace EarlyFunctionAnalysis {
 
 char ABIDetectionPass::ID = 0;
 using Register = RegisterPass<ABIDetectionPass>;
@@ -19,9 +19,9 @@ static Register X("detect-abi", "ABI Detection Pass", true, true);
 
 bool ABIDetectionPass::runOnModule(Module &M) {
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
-  auto &SA = getAnalysis<StackAnalysis>();
+  auto &EFA = getAnalysis<EarlyFunctionAnalysis>();
 
   return false;
 }
 
-} // namespace StackAnalysis
+} // namespace EarlyFunctionAnalysis

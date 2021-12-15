@@ -7,7 +7,7 @@
 
 #include "llvm/IR/IRBuilder.h"
 
-#include "revng/StackAnalysis/PromoteGlobalToLocalVars.h"
+#include "revng/EarlyFunctionAnalysis/PromoteGlobalToLocalVars.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;

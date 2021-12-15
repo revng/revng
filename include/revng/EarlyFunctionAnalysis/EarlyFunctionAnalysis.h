@@ -17,25 +17,25 @@
 
 #include "revng/ADT/GenericGraph.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/EarlyFunctionAnalysis/AAWriterPass.h"
+#include "revng/EarlyFunctionAnalysis/IndirectBranchInfoPrinterPass.h"
+#include "revng/EarlyFunctionAnalysis/PromoteGlobalToLocalVars.h"
+#include "revng/EarlyFunctionAnalysis/SegregateDirectStackAccesses.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/LoadModelPass.h"
-#include "revng/StackAnalysis/AAWriterPass.h"
-#include "revng/StackAnalysis/IndirectBranchInfoPrinterPass.h"
-#include "revng/StackAnalysis/PromoteGlobalToLocalVars.h"
-#include "revng/StackAnalysis/SegregateDirectStackAccesses.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
-namespace StackAnalysis {
+namespace EarlyFunctionAnalysis {
 
-class StackAnalysis : public llvm::ModulePass {
+class EarlyFunctionAnalysis : public llvm::ModulePass {
 public:
   static char ID;
 
 public:
-  StackAnalysis() : llvm::ModulePass(ID) {}
+  EarlyFunctionAnalysis() : llvm::ModulePass(ID) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();
@@ -46,4 +46,4 @@ public:
   bool runOnModule(llvm::Module &M) override;
 };
 
-} // namespace StackAnalysis
+} // namespace EarlyFunctionAnalysis

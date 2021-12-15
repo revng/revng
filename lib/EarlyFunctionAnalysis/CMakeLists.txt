@@ -4,18 +4,18 @@
 
 add_subdirectory(ABIAnalyses)
 
-revng_add_analyses_library_internal(revngStackAnalysis
+revng_add_analyses_library_internal(revngEarlyFunctionAnalysis
   AAWriterPass.cpp
   ABI.cpp
   ABIDetectionPass.cpp
   IndirectBranchInfoPrinterPass.cpp
   PromoteGlobalToLocalVars.cpp
   SegregateDirectStackAccesses.cpp
-  StackAnalysis.cpp)
+  EarlyFunctionAnalysis.cpp)
 
 llvm_map_components_to_libnames(LLVM_LIBRARIES Analysis)
 
-target_link_libraries(revngStackAnalysis
+target_link_libraries(revngEarlyFunctionAnalysis
   revngBasicAnalyses
   revngABIAnalyses
   revngSupport

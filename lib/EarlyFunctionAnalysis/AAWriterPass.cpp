@@ -13,7 +13,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FormattedStream.h"
 
-#include "revng/StackAnalysis/AAWriterPass.h"
+#include "revng/EarlyFunctionAnalysis/AAWriterPass.h"
 
 using namespace llvm;
 

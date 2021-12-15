@@ -15,6 +15,6 @@ llvm_map_components_to_libnames(LLVM_LIBRARIES TransformUtils)
 
 target_link_libraries(revngFunctionIsolation
   revngModel
-  revngStackAnalysis
+  revngEarlyFunctionAnalysis
   revngSupport
   ${LLVM_LIBRARIES})

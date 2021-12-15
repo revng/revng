@@ -13,7 +13,7 @@
 #include "llvm/IR/PatternMatch.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
-#include "revng/StackAnalysis/SegregateDirectStackAccesses.h"
+#include "revng/EarlyFunctionAnalysis/SegregateDirectStackAccesses.h"
 #include "revng/Support/Assert.h"
 
 using namespace llvm;
