@@ -162,18 +162,19 @@ ABIAnalysis::getRegistersRead(const llvm::Instruction *I) const {
 }
 
 template<typename CoreLattice>
-struct RegistersMap : public llvm::DenseMap<const llvm::GlobalVariable *,
-                                            typename CoreLattice::LatticeElement> {
+struct RegistersMap
+  : public llvm::DenseMap<const llvm::GlobalVariable *,
+                          typename CoreLattice::LatticeElement> {
 private:
   using InnerLatticeElement = typename CoreLattice::LatticeElement;
   using Base = llvm::DenseMap<const llvm::GlobalVariable *,
                               InnerLatticeElement>;
 
 private:
-  InnerLatticeElement Default {};
+  InnerLatticeElement Default{};
 
 public:
-  RegistersMap() : Default {} {}
+  RegistersMap() : Default{} {}
   RegistersMap(InnerLatticeElement Default) : Default(Default) {}
 
 public:

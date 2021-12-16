@@ -123,7 +123,7 @@ getMaximalFixedPoint(const MFI &Instance,
       auto &PartialEnd = AnalysisResult.at(End);
       if (!Instance.isLessOrEqual(LabelAnalysis.OutValue, PartialEnd.InValue)) {
         PartialEnd.InValue = Instance.combineValues(PartialEnd.InValue,
-                                                     LabelAnalysis.OutValue);
+                                                    LabelAnalysis.OutValue);
         Worklist.insert({ LabelPriority.at(End), End });
       }
     }

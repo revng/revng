@@ -4,7 +4,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include <bits/stdint-intn.h>
 #include <cstdint>
 #include <iterator>
 #include <string>

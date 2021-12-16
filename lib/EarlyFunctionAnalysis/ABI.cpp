@@ -5,9 +5,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/EarlyFunctionAnalysis/ABI.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/VerifyHelper.h"
-#include "revng/EarlyFunctionAnalysis/ABI.h"
 
 template<size_t N>
 static bool inWhitelist(const std::array<model::Register::Values, N> &Array,

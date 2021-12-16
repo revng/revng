@@ -49,8 +49,6 @@ RemoveHelperCallsPass::run(llvm::Function &F,
     // stack pointer and restore it back later.
     auto *SP = Builder.CreateLoad(GCBI->spReg());
 
-    auto UsedCSVs = std::move(
-      GeneratedCodeBasicInfo::getCSVUsedByHelperCall(I).Written);
     auto *RetTy = cast<CallInst>(I)->getFunctionType()->getReturnType();
     auto *OriginalHelperMarker = OFPOriginalHelper.get(RetTy,
                                                        RetTy,
@@ -61,7 +59,7 @@ RemoveHelperCallsPass::run(llvm::Function &F,
     // originally clobbered.
     CallInst *NewHelper = Builder.CreateCall(OriginalHelperMarker);
 
-    for (auto *CSV : UsedCSVs) {
+    for (auto *CSV : GCBI->getCSVUsedByHelperCall(I).Written) {
       auto *CSVTy = CSV->getType()->getPointerElementType();
       auto *RegisterClobberedMarker = OFPRegsClobberedHelper.get(CSVTy,
                                                                  CSVTy,

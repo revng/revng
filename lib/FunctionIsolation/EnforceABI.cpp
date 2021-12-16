@@ -19,11 +19,11 @@
 
 #include "revng/ADT/LazySmallBitVector.h"
 #include "revng/ADT/SmallMap.h"
+#include "revng/EarlyFunctionAnalysis/ABI.h"
 #include "revng/FunctionIsolation/EnforceABI.h"
 #include "revng/FunctionIsolation/StructInitializers.h"
 #include "revng/Model/Register.h"
 #include "revng/Model/Type.h"
-#include "revng/EarlyFunctionAnalysis/ABI.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"

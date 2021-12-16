@@ -38,10 +38,10 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 
 #include "revng/DwarfImporter/DwarfImporter.h"
+#include "revng/EarlyFunctionAnalysis/ABI.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/FunctionCallIdentification/PruneRetSuccessors.h"
 #include "revng/Model/SerializeModelPass.h"
-#include "revng/EarlyFunctionAnalysis/ABI.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/DebugHelper.h"
