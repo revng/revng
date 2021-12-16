@@ -9,8 +9,8 @@
 #include "revng/FunctionIsolation/PromoteCSVs.h"
 #include "revng/FunctionIsolation/StructInitializers.h"
 #include "revng/MFP/MFP.h"
+#include "revng/MFP/SetLattices.h"
 #include "revng/Support/IRHelpers.h"
-#include "revng/TypeShrinking/SetLattices.h"
 
 using namespace llvm;
 using namespace MFP;
