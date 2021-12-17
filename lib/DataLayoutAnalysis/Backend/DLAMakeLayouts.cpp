@@ -258,7 +258,6 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
 
     // Look at all the instance-of edges and inheritance edges all together
     bool InheritsFromOther = false;
-    bool HasNullChild = false;
     for (auto &[Child, EdgeTag] : children_edges<ConstNonPointerFilterT>(N)) {
       revng_log(Log, "Child ID: " << Child->ID);
       revng_assert(Child->Size);
@@ -305,7 +304,6 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
         if (not New)
           revng_log(Log, "Duplicate layout found, size: " << UFlds.size());
       } else {
-        HasNullChild = true;
         revng_log(Log, "No type created for " << Child->ID);
       }
     }
@@ -320,7 +318,6 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
     // more than one parent, the union might contain only one field. In this
     // case, there is no point in emitting a union, so a struct must be emitted.
     if (UFlds.size() == 1) {
-      revng_assert(HasNullChild);
       StructLayout::fields_container_t Fields;
       Fields.push_back(*UFlds.begin());
       return createLayout<StructLayout>(Layouts, Fields);
