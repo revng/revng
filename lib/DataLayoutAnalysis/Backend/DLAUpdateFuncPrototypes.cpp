@@ -21,6 +21,7 @@
 
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Model/Type.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/Assert.h"
@@ -29,7 +30,7 @@
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
 #include "revng-c/Support/ModelHelpers.h"
 
-#include "../DLAModelFuncHelpers.h"
+#include "../FuncOrCallInst.h"
 #include "DLAMakeModelTypes.h"
 
 using namespace model;
@@ -44,7 +45,6 @@ static Logger<> ModelLog("dla-dump-model-with-funcs");
 
 using model::PrimitiveTypeKind::Generic;
 using model::PrimitiveTypeKind::PointerOrNumber;
-using model::QualifierKind::Pointer;
 
 // TODO: implement a better way to merge qualified types
 /// Check if a type can be narrowed down to finer types.
@@ -402,23 +402,24 @@ bool dla::updateFuncSignatures(const llvm::Module &M,
   bool Updated = false;
 
   for (const auto &LLVMFunc : M.functions()) {
-    const auto &FuncMetaAddr = getMetaAddress(&LLVMFunc);
-    if (not FuncMetaAddr.isValid())
+    // Update the function's prototype
+    model::Function *ModelFunc = llvmToModelFunction(*Model.get(), LLVMFunc);
+    if (not ModelFunc)
       continue;
 
-    // Update the function's prototype
-    auto &ModelFunc = Model->Functions.at(FuncMetaAddr);
-    Type *ModelPrototype = ModelFunc.Prototype.get();
+    Type *ModelPrototype = ModelFunc->Prototype.get();
     revng_log(Log,
               "Updating prototype of function "
                 << LLVMFunc.getNameOrAsOperand());
     Updated |= updateFuncPrototype(*Model, ModelPrototype, &LLVMFunc, TypeMap);
-    Updated |= updateFuncStackFrame(ModelFunc, LLVMFunc, TypeMap, *Model);
+    Updated |= updateFuncStackFrame(*ModelFunc, LLVMFunc, TypeMap, *Model);
 
     // Update prototypes associated to indirect calls, if any are found
     for (const auto &Inst : LLVMFunc)
-      if (const auto *I = dyn_cast<llvm::CallInst>(&Inst))
-        if (auto *Prototype = getIndirectCallPrototype(I, *Model.get())) {
+      if (const auto *I = llvm::dyn_cast<llvm::CallInst>(&Inst))
+        if (auto *Prototype = getCallSitePrototype(*Model.get(),
+                                                   I,
+                                                   ModelFunc)) {
           revng_log(Log,
                     "Updating prototype of indirect call "
                       << I->getNameOrAsOperand());

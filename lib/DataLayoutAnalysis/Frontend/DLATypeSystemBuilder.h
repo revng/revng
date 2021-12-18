@@ -11,7 +11,7 @@
 #include "revng-c/DataLayoutAnalysis/DLALayouts.h"
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
 
-#include "../DLAModelFuncHelpers.h"
+#include "../FuncOrCallInst.h"
 
 namespace dla {
 
@@ -121,12 +121,13 @@ public:
                            llvm::ModulePass *MP,
                            const model::Binary &Model);
 
-  /// Given a Call instruction and its containing function, check if it
-  /// shares the model prototype with another function and. If it does, connect
-  /// return values and arguments with equality links.
-  bool connectToFuncWithSamePrototype(const llvm::Function &F,
-                                      const llvm::CallInst *Call,
-                                      const model::Binary &Model);
+  /// Given an indirect Call instruction, check if it shares the model
+  /// prototype with another function. If it does, connect the nodes
+  /// corresponding to the types of the return values and arguments of this Call
+  /// with the types of the return values and arguments of the function sharing
+  /// the same prototype, using equality links.
+  bool connectToFuncsWithSamePrototype(const llvm::CallInst *Call,
+                                       const model::Binary &Model);
 };
 
 } // namespace dla

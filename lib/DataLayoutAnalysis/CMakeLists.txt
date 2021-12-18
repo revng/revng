@@ -22,7 +22,7 @@ revng_add_analyses_library(
   Backend/DLAMakeLayouts.cpp
   Backend/DLAMakeModelTypes.cpp
   Backend/DLAUpdateFuncPrototypes.cpp
-  DLAModelFuncHelpers.cpp
+  FuncOrCallInst.cpp
   DLALayouts.cpp
   DLAPass.cpp
   DLATypeSystem.cpp)

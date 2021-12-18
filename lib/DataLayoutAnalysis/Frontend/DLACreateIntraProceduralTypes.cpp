@@ -20,6 +20,7 @@
 #include "llvm/Pass.h"
 
 #include "revng/Model/Architecture.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
@@ -30,7 +31,7 @@
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/IRHelpers.h"
 
-#include "../DLAModelFuncHelpers.h"
+#include "../FuncOrCallInst.h"
 #include "DLATypeSystemBuilder.h"
 
 using namespace dla;
@@ -157,12 +158,10 @@ protected:
         if (Count != nullptr and not Count->isZero()) {
           SmallVector<BasicBlock *, 4> ExitBlocks;
           L->getUniqueExitBlocks(ExitBlocks);
-
           const auto IsDominatedByB = [&DT = this->DT,
                                        &B](const BasicBlock *OtherB) {
             return DT.dominates(&B, OtherB);
           };
-
           if (std::all_of(ExitBlocks.begin(),
                           ExitBlocks.end(),
                           IsDominatedByB)) {
@@ -624,13 +623,15 @@ public:
 
 using Builder = DLATypeSystemLLVMBuilder;
 
-bool Builder::connectToFuncWithSamePrototype(const llvm::Function &F,
-                                             const llvm::CallInst *Call,
-                                             const model::Binary &Model) {
+bool Builder::connectToFuncsWithSamePrototype(const llvm::CallInst *Call,
+                                              const model::Binary &Model) {
   revng_assert(Call);
+  // This procedure for regular functions (i.e. those that are used in direct
+  // calls) is done separately by `CreateInterProceduralTypes`
+  revng_assert(Call->isIndirectCall());
   bool Changed = false;
 
-  const auto *FuncPrototype = getIndirectCallPrototype(Call, Model);
+  const auto *FuncPrototype = getCallSitePrototype(Model, Call);
   if (not FuncPrototype)
     return false;
 
@@ -906,8 +907,13 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
                                                           *B);
         }
 
+        // For indirect calls, we want to enforce the following: if this call
+        // shares the prototype with another function in the model, their return
+        // values and arguments must have the same layout. This is done by
+        // adding equality links between these nodes.
         if (auto *Call = dyn_cast<CallInst>(&I))
-          Changed |= connectToFuncWithSamePrototype(F, Call, Model);
+          if (Call->isIndirectCall())
+            Changed |= connectToFuncsWithSamePrototype(Call, Model);
       }
     }
   }

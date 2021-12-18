@@ -9,6 +9,7 @@
 #include "llvm/IR/Value.h"
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
@@ -16,21 +17,13 @@
 
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
 
-#include "../DLAModelFuncHelpers.h"
+#include "../FuncOrCallInst.h"
 #include "DLATypeSystemBuilder.h"
 
 using namespace dla;
 using namespace llvm;
 
 using TSBuilder = DLATypeSystemLLVMBuilder;
-
-/// Given an llvm Function, return its prototype in the model.
-static const model::Type *
-getPrototype(const llvm::Function &F, const model::Binary &Model) {
-  auto MetaAddr = getMetaAddress(&F);
-  auto &ModelFunc = Model.Functions.at(MetaAddr);
-  return ModelFunc.Prototype.get();
-}
 
 bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
                                            const model::Binary &Model) {
@@ -41,7 +34,10 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
     revng_assert(not F.isVarArg());
 
     // Check if a function with the same prototype has already been visited
-    auto *Prototype = getPrototype(F, Model);
+    const model::Function *ModelFunc = llvmToModelFunction(Model, F);
+    revng_assert(ModelFunc);
+    const model::Type *Prototype = ModelFunc->Prototype.getConst();
+
     FuncOrCallInst FuncWithSameProto;
     auto It = VisitedPrototypes.find(Prototype);
     if (It == VisitedPrototypes.end())

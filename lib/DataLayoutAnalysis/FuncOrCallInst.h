@@ -17,18 +17,6 @@
 
 namespace dla {
 
-/// Get the metaaddres of an isolated function
-///\return an invalid MetaAddress if the function is not an isolated one
-MetaAddress getMetaAddress(const llvm::Function *F);
-/// Get the metaadress of the CallEdge associated to a given CallInst
-///\return an invalid MetaAddress if no CallEdge is associated to \a C
-MetaAddress getMetaAddress(const llvm::CallInst *C);
-
-/// If \a C is an IndirectCall, get the corresponding Prototype from the
-/// Model, otherwise return a nullptr.
-model::Type *
-getIndirectCallPrototype(const llvm::CallInst *C, const model::Binary &Model);
-
 // Some APIs to make Function and CallInst homogeneous
 const inline llvm::Type *getRetType(const llvm::Function *F) {
   return F->getReturnType();
