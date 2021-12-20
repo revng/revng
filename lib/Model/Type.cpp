@@ -728,9 +728,6 @@ verifyImpl(VerifyHelper &VH, const StructType *T) {
   if (T->Size == 0)
     rc_return VH.fail("Struct type has zero size", *T);
 
-  if (T->Fields.empty())
-    rc_return VH.fail("Struct has no fields", *T);
-
   size_t Index = 0;
   llvm::SmallSet<llvm::StringRef, 8> Names;
   auto FieldIt = T->Fields.begin();
