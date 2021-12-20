@@ -515,7 +515,7 @@ public:
 
 public:
   PrimitiveType(PrimitiveTypeKind::Values PrimitiveKind, uint8_t ByteSize);
-  PrimitiveType(uint64_t ID);
+  explicit PrimitiveType(uint64_t ID);
   PrimitiveType() : PrimitiveType(model::PrimitiveTypeKind::Void) {}
 
 public:
@@ -539,7 +539,7 @@ public:
   SortedVector<Identifier> Aliases;
 
 public:
-  EnumEntry(uint64_t Value) : Value(Value) {}
+  explicit EnumEntry(uint64_t Value) : Value(Value) {}
   EnumEntry() : EnumEntry(0) {}
 
 public:
@@ -587,7 +587,7 @@ public:
 
 public:
   /// \note Not to be used directly, only KeyedObjectTraits should use this
-  EnumType(uint64_t ID) : Type(AssociatedKind, ID) {}
+  explicit EnumType(uint64_t ID) : Type(AssociatedKind, ID) {}
   EnumType() : Type(AssociatedKind) {}
 
 public:
@@ -621,7 +621,7 @@ public:
 
 public:
   /// \note Not to be used directly, only KeyedObjectTraits should use this
-  TypedefType(uint64_t ID) : Type(AssociatedKind, ID) {}
+  explicit TypedefType(uint64_t ID) : Type(AssociatedKind, ID) {}
   TypedefType() : Type(AssociatedKind) {}
 
 public:
@@ -659,7 +659,7 @@ public:
   uint64_t Offset = 0;
 
 public:
-  StructField(uint64_t Offset) : Offset(Offset) {}
+  explicit StructField(uint64_t Offset) : Offset(Offset) {}
   StructField() : StructField(0) {}
 
   Identifier name() const;
@@ -702,7 +702,7 @@ public:
 
 public:
   /// \note Not to be used directly, only KeyedObjectTraits should use this
-  StructType(uint64_t ID) : Type(AssociatedKind, ID) {}
+  explicit StructType(uint64_t ID) : Type(AssociatedKind, ID) {}
   StructType() : Type(AssociatedKind) {}
 
 public:
@@ -723,7 +723,7 @@ public:
   uint64_t Index;
 
 public:
-  UnionField(uint64_t Index) : AggregateField(), Index(Index) {}
+  explicit UnionField(uint64_t Index) : AggregateField(), Index(Index) {}
   UnionField() : UnionField(0) {}
 
 public:
@@ -765,7 +765,7 @@ public:
 
 public:
   /// \note Not to be used directly, only KeyedObjectTraits should use this
-  UnionType(uint64_t ID) : Type(AssociatedKind, ID) {}
+  explicit UnionType(uint64_t ID) : Type(AssociatedKind, ID) {}
   UnionType() : Type(AssociatedKind) {}
 
 public:
@@ -869,7 +869,7 @@ public:
 
 public:
   /// \note Not to be used directly, only KeyedObjectTraits should use this
-  RawFunctionType(uint64_t ID) : Type(AssociatedKind, ID) {}
+  explicit RawFunctionType(uint64_t ID) : Type(AssociatedKind, ID) {}
   RawFunctionType() : Type(AssociatedKind) {}
 
 public:
@@ -916,7 +916,7 @@ public:
   Identifier CustomName;
 
 public:
-  Argument(uint64_t Index) : Index(Index) {}
+  explicit Argument(uint64_t Index) : Index(Index) {}
   Argument() : Argument(0) {}
 
 public:
@@ -971,7 +971,7 @@ public:
 
 public:
   /// \note Not to be used directly, only KeyedObjectTraits should use this
-  CABIFunctionType(uint64_t ID) : Type(AssociatedKind, ID) {}
+  explicit CABIFunctionType(uint64_t ID) : Type(AssociatedKind, ID) {}
   CABIFunctionType() : Type(AssociatedKind) {}
 
 public:
