@@ -747,10 +747,8 @@ verifyImpl(VerifyHelper &VH, const StructType *T) {
                         *T);
 
     auto MaybeSize = rc_recur Field.Type.size(VH);
-
-    // Structs cannot have zero-sized fields
-    if (not MaybeSize)
-      rc_return VH.fail("Field" + Twine(Index + 1) + " is zero-sized", *T);
+    // This is verified AggregateField::verify
+    revng_assert(MaybeSize);
 
     auto FieldEndOffset = Field.Offset + *MaybeSize;
     auto NextFieldIt = std::next(FieldIt);
@@ -796,6 +794,10 @@ verifyImpl(VerifyHelper &VH, const UnionType *T) {
 
     if (not rc_recur Field.verify(VH))
       rc_return VH.fail();
+
+    auto MaybeSize = rc_recur Field.Type.size(VH);
+    // This is verified AggregateField::verify
+    revng_assert(MaybeSize);
 
     if (Field.CustomName.size() > 0) {
       if (not Names.insert(Field.CustomName).second)
@@ -1068,7 +1070,15 @@ bool AggregateField::verify(bool Assert) const {
 }
 
 RecursiveCoroutine<bool> AggregateField::verify(VerifyHelper &VH) const {
-  rc_return VH.maybeFail(CustomName.verify(VH) and rc_recur Type.verify(VH));
+  if (not rc_recur Type.verify(VH))
+    rc_return VH.fail("Aggregate field type is not valid");
+
+  // Aggregated fields cannot be zero-sized fields
+  auto MaybeSize = rc_recur Type.size(VH);
+  if (not MaybeSize)
+    rc_return VH.fail("Aggregate field is zero-sized");
+
+  rc_return VH.maybeFail(CustomName.verify(VH));
 }
 
 void Argument::dump() const {
