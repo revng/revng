@@ -169,4 +169,6 @@ public:
 
 public:
   size_t size() const { return Storage.size(); }
+
+  bool empty() const { return Storage.empty(); }
 };
