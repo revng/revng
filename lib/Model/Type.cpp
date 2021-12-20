@@ -797,6 +797,14 @@ verifyImpl(VerifyHelper &VH, const UnionType *T) {
     if (not rc_recur Field.verify(VH))
       rc_return VH.fail();
 
+    auto MaybeSize = rc_recur Field.Type.size(VH);
+
+    // Unions cannot have zero-sized fields
+    if (not MaybeSize) {
+      using llvm::Twine;
+      rc_return VH.fail("Field " + Twine(Field.Index + 1) + " zero-sized", *T);
+    }
+
     if (Field.CustomName.size() > 0) {
       if (not Names.insert(Field.CustomName).second)
         rc_return VH.fail();
