@@ -286,7 +286,6 @@ void IFI::populateFunctionDispatcher() {
                                               FunctionDispatcher,
                                               nullptr);
   const DebugLoc &Dbg = GCBI.unexpectedPC()->getTerminator()->getDebugLoc();
-  revng_assert(Dbg);
   throwException(Unexpected, "An unexpected functions has been called", Dbg);
   setBlockType(Unexpected->getTerminator(), BlockType::UnexpectedPCBlock);
 
@@ -794,7 +793,6 @@ void IFI::isolate(const model::Function &Function) {
   // Create unexpectedPC block
   ClonedBlocks.unexpectedPCBlock() = CreateBB("unexpectedPC");
   const DebugLoc &Dbg = GCBI.unexpectedPC()->getTerminator()->getDebugLoc();
-  revng_assert(Dbg);
   throwException(ClonedBlocks.unexpectedPCBlock(), "unexpectedPC", Dbg);
   OldToNew[GCBI.unexpectedPC()] = ClonedBlocks.unexpectedPCBlock();
 
