@@ -116,13 +116,16 @@ static QualifiedType *getQTypeFromId(QTypeId &ID, WritableModelT &Model) {
 }
 
 ///\brief Retrieve the model type associated to TypeSystem \a Node, if any
-static QualifiedType *
-getNodeType(const LTSN *Node, TypeVect &Types, const VectEqClasses &EqClasses) {
+static QualifiedType *getNodeType(WritableModelT &Model,
+                                  const LTSN *Node,
+                                  TypeVect &Types,
+                                  const VectEqClasses &EqClasses) {
   auto TypeIndex = EqClasses.getEqClassID(Node->ID);
   if (not TypeIndex.has_value())
     return nullptr;
 
   QualifiedType *T = &Types[TypeIndex.value()];
+  T->UnqualifiedType.Root = &*Model;
   return T;
 }
 
@@ -273,7 +276,7 @@ static TypePath makeStructFromNode(const LTSN *N,
     StructField Field{ /*offset=*/0U };
 
     if (not isPointerNode(SuccNode)) {
-      const QualifiedType *T = getNodeType(SuccNode, Types, EqClasses);
+      const QualifiedType *T = getNodeType(Model, SuccNode, Types, EqClasses);
       revng_assert(T);
       Field.Type.UnqualifiedType = T->UnqualifiedType;
     } else {
@@ -349,7 +352,7 @@ static TypePath makeUnionFromNode(const LTSN *N,
     UnionField Field(Index);
 
     if (not isPointerNode(SuccNode)) {
-      const QualifiedType *T = getNodeType(SuccNode, Types, EqClasses);
+      const QualifiedType *T = getNodeType(Model, SuccNode, Types, EqClasses);
       revng_assert(T);
       Field.Type.UnqualifiedType = T->UnqualifiedType;
     } else {
@@ -425,7 +428,8 @@ static const LTSN *getPointeeNode(const LTSN *PointerNode) {
 
 ///\brief Create the right QualifiedType for a pointer node, following pointer
 /// edges until you find a pointee.
-static QualifiedType makePtrTypeFromNode(const LTSN *Node,
+static QualifiedType makePtrTypeFromNode(WritableModelT &Model,
+                                         const LTSN *Node,
                                          TypeVect &Types,
                                          const VectEqClasses &EqClasses) {
   revng_assert(isPointerNode(Node));
@@ -445,7 +449,7 @@ static QualifiedType makePtrTypeFromNode(const LTSN *Node,
     PointeeNode = getPointeeNode(PointeeNode);
   }
 
-  const QualifiedType *T = getNodeType(PointeeNode, Types, EqClasses);
+  const QualifiedType *T = getNodeType(Model, PointeeNode, Types, EqClasses);
   revng_assert(T);
   QType.UnqualifiedType = T->UnqualifiedType;
 
@@ -530,7 +534,7 @@ TypeMapT dla::makeModelTypes(const LayoutTypeSystem &TS,
         continue;
       Visited.insert(N);
 
-      QualifiedType *T = getNodeType(N, Types, EqClasses);
+      QualifiedType *T = getNodeType(Model, N, Types, EqClasses);
       revng_assert(T);
       if (isPointerNode(N)) {
         // Save the qualified type corresponding to this pointer for later
@@ -583,7 +587,8 @@ TypeMapT dla::makeModelTypes(const LayoutTypeSystem &TS,
   revng_log(Log, "Fixing pointer fields");
   llvm::SmallPtrSet<QualifiedType *, 8> VisitedQTypes;
   for (auto [PointerNode, PointerQTypes] : FieldsToUpdate) {
-    QualifiedType FinalQType = makePtrTypeFromNode(PointerNode,
+    QualifiedType FinalQType = makePtrTypeFromNode(Model,
+                                                   PointerNode,
                                                    Types,
                                                    EqClasses);
 

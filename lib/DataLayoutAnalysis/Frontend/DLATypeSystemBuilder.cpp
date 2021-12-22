@@ -10,6 +10,8 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRHelpers.h"
 
+#include "revng-c/Support/IRHelpers.h"
+
 #include "../DLAHelpers.h"
 #include "DLATypeSystemBuilder.h"
 

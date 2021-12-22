@@ -13,6 +13,7 @@
 
 #include "revng-c/PromoteStackPointer/DetectStackSizePass.h"
 #include "revng-c/PromoteStackPointer/InstrumentStackAccessesPass.h"
+#include "revng-c/Support/ModelHelpers.h"
 
 using namespace llvm;
 using model::RawFunctionType;
@@ -62,15 +63,6 @@ static void setBound(BoundCollector<IsUpper> &BoundCollector, Value *V) {
     return;
 
   BoundCollector.record(Bound);
-}
-
-static model::TypePath createEmptyStruct(model::Binary &Binary, uint64_t Size) {
-  using namespace model;
-  revng_assert(Size > 0 and Size < std::numeric_limits<int64_t>::max());
-  TypePath Path = Binary.recordNewType(makeType<model::StructType>());
-  model::StructType *NewStruct = cast<model::StructType>(Path.get());
-  NewStruct->Size = Size;
-  return Path;
 }
 
 struct CallSite {

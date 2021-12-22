@@ -4,6 +4,8 @@
 
 revng_add_analyses_library(revngcSupport
   revngc
+  IRHelpers.cpp
+  ModelHelpers.cpp
   FunctionFileHelpers.cpp
   FunctionTags.cpp)
 

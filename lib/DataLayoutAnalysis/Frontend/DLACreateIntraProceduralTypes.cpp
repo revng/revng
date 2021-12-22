@@ -28,6 +28,7 @@
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
 #include "revng-c/DataLayoutAnalysis/SCEVBaseAddressExplorer.h"
 #include "revng-c/Support/FunctionTags.h"
+#include "revng-c/Support/IRHelpers.h"
 
 #include "../DLAHelpers.h"
 #include "../DLAModelFuncHelpers.h"
@@ -157,10 +158,12 @@ protected:
         if (Count != nullptr and not Count->isZero()) {
           SmallVector<BasicBlock *, 4> ExitBlocks;
           L->getUniqueExitBlocks(ExitBlocks);
+
           const auto IsDominatedByB = [&DT = this->DT,
                                        &B](const BasicBlock *OtherB) {
             return DT.dominates(&B, OtherB);
           };
+
           if (std::all_of(ExitBlocks.begin(),
                           ExitBlocks.end(),
                           IsDominatedByB)) {
