@@ -60,12 +60,19 @@ static bool updateRawFuncArgs(RawFunctionType *ModelPrototype,
   bool Updated = false;
   auto &ModelArgs = ModelPrototype->Arguments;
   auto LLVMArgs = getArgs(CallOrFunction);
-  uint64_t LLVMArgSize = llvm::size(LLVMArgs);
-  revng_assert(ModelArgs.size() == LLVMArgSize);
+
+  // Ensure the LLVM function has the expected number of arguments
+  uint64_t EffectiveLLVMArgSize = arg_size(CallOrFunction);
+
+  // In case of presence of stack arguments, there's an extra argument
+  if (ModelPrototype->StackArgumentsType.get() != nullptr)
+    EffectiveLLVMArgSize -= 1;
+
+  revng_assert(ModelArgs.size() == EffectiveLLVMArgSize);
 
   revng_log(Log, "Updating args");
 
-  for (const auto &[ModelArg, LLVMArg] : llvm::zip(ModelArgs, LLVMArgs)) {
+  for (const auto &[ModelArg, LLVMArg] : llvm::zip_first(ModelArgs, LLVMArgs)) {
     revng_assert(ModelArg.Type.isScalar());
 
     const llvm::Value *LLVMVal = toLLVMValue(LLVMArg);
@@ -163,6 +170,9 @@ static bool updateFuncPrototype(model::Type *Prototype,
                                      CallOrFunction,
                                      getRetType(CallOrFunction),
                                      TypeMap);
+    // TODO: in case of presence of stack arguments, the last LLVM arguments
+    //       represents a pointer to RawFunctionType::StackArgumentsType. The
+    //       associated type should be updated according to DLA's results.
   } else {
     revng_abort("CABIFunctionTypes not yet supported");
   }

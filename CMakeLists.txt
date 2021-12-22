@@ -60,7 +60,6 @@ include(${CMAKE_INSTALL_PREFIX}/share/revng/qa/cmake/revng-qa.cmake)
 
 # Macro for creating the tests for decompilation pipeline
 macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
-
     # test revng-model-to-header
     add_test(NAME model_to_header_${TARGET_NAME} COMMAND
       bash -c "${CMAKE_BINARY_DIR}/bin/revng-model-to-header < ${INPUT_FILE} > ${TARGET_NAME}_model_header.h"
@@ -69,9 +68,9 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       FIXTURES_SETUP ${TARGET_NAME}_model_header
       )
 
-    # prepare enforced .ll for decompilation
+    # prepare enforced .bc for decompilation
     add_test(NAME prepare_${TARGET_NAME} COMMAND revng --prefix=.
-      opt -S
+      opt
       # Remove revng's artifacts from IR
       -filter-for-decompilation
       -remove-newpc-calls
@@ -79,12 +78,15 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       -remove-cpu-loop-store
       -remove-llvm-dbg-intrinsics
       -make-env-null
+      # Stack promotion
+      -measure-stack-size-at-call-sites
+      -promote-stack-pointer
       # Optimize IR with LLVM's passes
       -dce
       -simplifycfg
       -dse
       -instcombine
-      -sroa
+      -sroa --sroa-aggressive-phis-selects
       -instsimplify
       -jump-threading
       -licm
@@ -104,20 +106,44 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       # Remove LLVM's artifacts from IR
       -remove-llvmassume-calls
       -dce
-      -serialize-model
+      # Stack analysis and segregation
+      -instrument-stack-accesses
+      -instcombine
+      -compute-stack-accesses-bounds
+      -detect-stack-size
+      -segregate-stack-accesses
+      -cleanup-stack-size-markers
+      -dce
+      -sroa
+      -instcombine
+      -sroa
+      -simplifycfg
       ${INPUT_FILE}
-      -o ${TARGET_NAME}_prepared.ll
+      -o ${TARGET_NAME}_prepared.bc
       )
     set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
       FIXTURES_SETUP PrepareDecompilation_fixture_${TARGET_NAME}
       )
 
+    if ("${CATEGORY}" STREQUAL "tests_analysis_PromoteStackPointer"
+        AND "${CONFIGURATION}" STREQUAL "dynamic_native")
+      get_filename_component(BASENAME "${INPUT_FILE}" NAME_WE)
+      add_test(NAME psp_${TARGET_NAME}
+        COMMAND bash -c "opt -S ${TARGET_NAME}_prepared.bc | revng dump-model | revng compare-yaml - ${CMAKE_SOURCE_DIR}/tests/Analysis/PromoteStackPointer/${BASENAME}.yml")
+      set_property(TEST psp_${TARGET_NAME} APPEND PROPERTY
+        DEPENDS prepare_${TARGET_NAME}
+        )
+      set_property(TEST psp_${TARGET_NAME} APPEND PROPERTY
+        FIXTURES_REQUIRED PrepareDecompilation_fixture_${TARGET_NAME}
+        )
+    endif()
+
     # test VMA
     add_test(NAME vma_${TARGET_NAME} COMMAND revng --prefix=.
-      opt -S
+      opt
       -vma
       -vma-mincut-iter=50
-      ${TARGET_NAME}_prepared.ll
+      ${TARGET_NAME}_prepared.bc
       -o /dev/null
       )
     set_property(TEST vma_${TARGET_NAME} APPEND PROPERTY
@@ -132,13 +158,12 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
 
     # test combing and decompilation without DLA
     add_test(NAME decompilation_${TARGET_NAME} COMMAND revng --prefix=.
-      opt -S
+      opt
       -restructure-cfg
       -beautify-ghast
       -decompilation
-      -serialize-model
       -decompiled-dir=${TARGET_NAME}_decompiled_dir
-      ${TARGET_NAME}_prepared.ll
+      ${TARGET_NAME}_prepared.bc
       -o /dev/null
       )
     set_property(TEST decompilation_${TARGET_NAME} APPEND PROPERTY
@@ -165,48 +190,9 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       FIXTURES_SETUP Recompiled_fixture_${TARGET_NAME}
       )
 
-    # promote stack pointer in .ll for decompilation with dla
-    add_test(NAME promote_stack_pointer_${TARGET_NAME} COMMAND revng --prefix=.
-      opt -S
-      -promote-stack-pointer
-      -serialize-model
-      ${TARGET_NAME}_prepared.ll
-      -o ${TARGET_NAME}_promoted_stack.ll
-      )
-    set_property(TEST promote_stack_pointer_${TARGET_NAME} APPEND PROPERTY
-      DEPENDS prepare_${TARGET_NAME}
-      )
-    set_property(TEST promote_stack_pointer_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_REQUIRED PrepareDecompilation_fixture_${TARGET_NAME}
-      )
-    set_property(TEST promote_stack_pointer_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_SETUP PromoteStackPointer_fixture_${TARGET_NAME}
-      )
-
-    # adjust stack pointer in .ll for decompilation with dla
-    add_test(NAME adjust_stack_pointer_${TARGET_NAME} COMMAND revng --prefix=.
-      opt -S
-      -sroa
-      -instcombine
-      -adjust-stack-pointer
-      -sroa --sroa-aggressive-phis-selects
-      -serialize-model
-      ${TARGET_NAME}_promoted_stack.ll
-      -o ${TARGET_NAME}_adjusted_stack.ll
-      )
-    set_property(TEST adjust_stack_pointer_${TARGET_NAME} APPEND PROPERTY
-      DEPENDS promote_stack_pointer_${TARGET_NAME}
-      )
-    set_property(TEST adjust_stack_pointer_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_REQUIRED PromoteStackPointer_fixture_${TARGET_NAME}
-      )
-    set_property(TEST adjust_stack_pointer_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_SETUP AdjustStackPointer_fixture_${TARGET_NAME}
-      )
-
     # test full pipeline with dla combing and decompilation
     add_test(NAME decompile_with_dla_${TARGET_NAME} COMMAND revng --prefix=.
-      opt -S
+      opt
       -dla
       -phi-asap-assignment-info
       -restructure-cfg
@@ -214,16 +200,15 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       -mark-for-serialization
       -add-scev-barrier
       -decompilation
-      -serialize-model
       -dla-flatc-dir=${TARGET_NAME}_dla_dir
-      ${TARGET_NAME}_adjusted_stack.ll
+      ${TARGET_NAME}_prepared.bc
       -o /dev/null
       )
     set_property(TEST decompile_with_dla_${TARGET_NAME} APPEND PROPERTY
-      DEPENDS adjust_stack_pointer_${TARGET_NAME}
+      DEPENDS prepare_${TARGET_NAME}
       )
     set_property(TEST decompile_with_dla_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_REQUIRED AdjustStackPointer_fixture_${TARGET_NAME}
+      FIXTURES_REQUIRED PrepareDecompilation_fixture_${TARGET_NAME}
       )
 
 endmacro()

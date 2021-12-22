@@ -2,11 +2,11 @@
 # Copyright rev.ng Srls. See LICENSE.md for details.
 #
 
-revng_add_analyses_library(RemoveExceptionCalls
+revng_add_analyses_library(revngcRemoveExceptionCalls
   revngc
   RemoveExceptionCallsPass.cpp)
 
-target_link_libraries(RemoveExceptionCalls
+target_link_libraries(revngcRemoveExceptionCalls
   revng::revngModel
   revng::revngSupport
   ${LLVM_LIBRARIES})

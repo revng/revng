@@ -2,7 +2,7 @@
 # Copyright rev.ng Srls. See LICENSE.md for details.
 #
 
-revng_add_analyses_library(RestructureCFGPass
+revng_add_analyses_library(revngcRestructureCFGPass
 	revngc
 	ASTNode.cpp
 	ASTTree.cpp
@@ -12,8 +12,8 @@ revng_add_analyses_library(RestructureCFGPass
 	RegionCFGTree.cpp
 	RestructureCFG.cpp)
 
-target_link_libraries(RestructureCFGPass
+target_link_libraries(revngcRestructureCFGPass
 	revng::revngModel
 	revng::revngSupport
-	TargetFunctionOption
+	revngcTargetFunctionOption
 	${LLVM_LIBRARIES})

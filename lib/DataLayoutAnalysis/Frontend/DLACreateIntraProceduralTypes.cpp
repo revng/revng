@@ -27,6 +27,7 @@
 
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
 #include "revng-c/DataLayoutAnalysis/SCEVBaseAddressExplorer.h"
+#include "revng-c/Support/FunctionTags.h"
 
 #include "../DLAHelpers.h"
 #include "../DLAModelFuncHelpers.h"
@@ -152,7 +153,8 @@ protected:
         // If the loop is simplified, use getBackedgeTakenCount to infer the
         // trip count.
         const SCEV *SCEVBackedgeCount = SE->getBackedgeTakenCount(L);
-        if (auto *Count = dyn_cast<SCEVConstant>(SCEVBackedgeCount)) {
+        auto *Count = dyn_cast<SCEVConstant>(SCEVBackedgeCount);
+        if (Count != nullptr and not Count->isZero()) {
           SmallVector<BasicBlock *, 4> ExitBlocks;
           L->getUniqueExitBlocks(ExitBlocks);
           const auto IsDominatedByB = [&DT = this->DT,
@@ -384,8 +386,7 @@ public:
           if (Callee->isIntrinsic())
             continue;
 
-          if (Callee->hasName()
-              and Callee->getName() == "revng_init_local_sp") {
+          if (Callee->hasName() and FunctionTags::MallocLike.isTagOf(Callee)) {
             const auto &[StackLayout, New] = Builder.getOrCreateLayoutType(C);
             Changed |= New;
             const SCEV *CallSCEV = SE->getSCEV(C);

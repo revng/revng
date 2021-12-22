@@ -22,6 +22,7 @@
 #include "llvm/Support/Casting.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
@@ -29,30 +30,72 @@
 
 #include "revng-c/PromoteStackPointer/PromoteStackPointerPass.h"
 
+using namespace llvm;
+
 static Logger<> Log("promote-stack-pointer");
 
 using PSPPass = PromoteStackPointerPass;
 
-bool PSPPass::runOnFunction(llvm::Function &F) {
+static bool adjustStackAfterCalls(const model::Binary &Binary,
+                                  Function &F,
+                                  GlobalVariable *GlobalSP) {
+  bool Changed = false;
+
+  IRBuilder<> B(F.getParent()->getContext());
+
+  Type *SPType = GlobalSP->getType()->getPointerElementType();
+
+  MetaAddress Entry = getMetaAddressMetadata(&F, "revng.function.entry");
+  auto &ModelFunction = Binary.Functions.at(Entry);
+
+  for (BasicBlock &BB : F) {
+    for (Instruction &I : BB) {
+      if (FunctionTags::CallToLifted.isTagOf(&I)) {
+        auto *MD = I.getMetadata("revng.callerblock.start");
+        revng_assert(MD != nullptr);
+        auto *RawPrototype = getCallSitePrototype(Binary,
+                                                  ModelFunction,
+                                                  cast<CallInst>(&I));
+        auto *FSO = ConstantInt::get(SPType, RawPrototype->FinalStackOffset);
+
+        // We found a function call
+        Changed = true;
+
+        B.SetInsertPoint(I.getNextNode());
+        B.CreateStore(B.CreateAdd(B.CreateLoad(GlobalSP), FSO), GlobalSP);
+      }
+    }
+  }
+
+  return Changed;
+}
+
+bool PSPPass::runOnFunction(Function &F) {
+  bool Changed = false;
 
   // Skip non-isolated functions
   auto FTags = FunctionTags::TagsSet::from(&F);
   if (not FTags.contains(FunctionTags::Lifted))
-    return false;
+    return Changed;
 
   // Get the global variable representing the stack pointer register.
   using GCBIPass = GeneratedCodeBasicInfoWrapperPass;
-  llvm::GlobalVariable *GlobalSP = getAnalysis<GCBIPass>().getGCBI().spReg();
+  GlobalVariable *GlobalSP = getAnalysis<GCBIPass>().getGCBI().spReg();
 
   if (not GlobalSP) {
     revng_log(Log, "WARNING: cannot find global variable for stack pointer");
-    return false;
+    return Changed;
   }
 
-  std::vector<llvm::Instruction *> SPUsers;
-  for (llvm::User *U : GlobalSP->users()) {
-    if (auto *I = llvm::dyn_cast<llvm::Instruction>(U)) {
-      llvm::Function *UserFun = I->getFunction();
+  auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
+  const model::Binary &Binary = ModelWrapper.getReadOnlyModel();
+
+  Changed = adjustStackAfterCalls(Binary, F, GlobalSP) or Changed;
+
+  std::vector<Instruction *> SPUsers;
+  for (User *U : GlobalSP->users()) {
+    if (auto *I = dyn_cast<Instruction>(U)) {
+      Function *UserFun = I->getFunction();
       revng_log(Log, "Found use in Function: " << UserFun->getName());
 
       if (UserFun != &F)
@@ -60,16 +103,16 @@ bool PSPPass::runOnFunction(llvm::Function &F) {
 
       SPUsers.emplace_back(I);
 
-    } else if (auto *CE = llvm::dyn_cast<llvm::ConstantExpr>(U)) {
+    } else if (auto *CE = dyn_cast<ConstantExpr>(U)) {
       revng_log(Log, "Found ConstantExpr use");
 
       if (not CE->getNumUses())
         continue;
 
-      llvm::SmallVector<std::pair<llvm::User *, llvm::Value *>, 8> Replacements;
-      for (llvm::User *CEUser : CE->users()) {
-        auto *CEInstrUser = llvm::cast<llvm::Instruction>(CEUser);
-        llvm::Function *UserFun = CEInstrUser->getFunction();
+      SmallVector<std::pair<User *, Value *>, 8> Replacements;
+      for (User *CEUser : CE->users()) {
+        auto *CEInstrUser = cast<Instruction>(CEUser);
+        Function *UserFun = CEInstrUser->getFunction();
 
         if (UserFun != &F)
           continue;
@@ -89,44 +132,31 @@ bool PSPPass::runOnFunction(llvm::Function &F) {
   }
 
   if (SPUsers.empty())
-    return false;
+    return Changed;
 
   // Create function for initializing local stack pointer.
-  llvm::Module *M = F.getParent();
-  llvm::LLVMContext &Ctx = F.getContext();
-  llvm::Type *SPType = GlobalSP->getType()->getPointerElementType();
-  uint64_t PointerBitWidth = SPType->getPrimitiveSizeInBits().getFixedSize();
-  llvm::Type *IntTy = llvm::Type::getIntNTy(Ctx, PointerBitWidth);
-  auto InitFunction = M->getOrInsertFunction("revng_init_local_sp",
-                                             SPType,
-                                             IntTy);
-  llvm::Function *InitLocalSP = cast<llvm::Function>(InitFunction.getCallee());
+  Module *M = F.getParent();
+  LLVMContext &Ctx = F.getContext();
+  Type *SPType = GlobalSP->getType()->getPointerElementType();
+  auto InitFunction = M->getOrInsertFunction("revng_init_local_sp", SPType);
+  Function *InitLocalSP = cast<Function>(InitFunction.getCallee());
 
   // Create an alloca to represent the local value of the stack pointer.
   // This should be inserted at the beginning of the entry block.
-  llvm::BasicBlock &EntryBlock = F.getEntryBlock();
-  llvm::IRBuilder<> Builder(Ctx);
+  BasicBlock &EntryBlock = F.getEntryBlock();
+  IRBuilder<> Builder(Ctx);
   Builder.SetInsertPoint(&EntryBlock, EntryBlock.begin());
-  llvm::AllocaInst *LocalSP = Builder.CreateAlloca(SPType, nullptr, "local_sp");
+  AllocaInst *LocalSP = Builder.CreateAlloca(SPType, nullptr, "local_sp");
 
   // Call InitLocalSP, to initialize the value of the local stack pointer.
-  // The argument to the call is always zero. This argument will be adjusted by
-  // AdjustStackPointerPass to represent how much the stack pointer is adjusted.
-  llvm::APInt APZero = llvm::APInt::getNullValue(IntTy->getIntegerBitWidth());
-  llvm::Constant *Zero = llvm::Constant::getIntegerValue(IntTy, APZero);
-  auto *InitSPVal = Builder.CreateCall(InitLocalSP, Zero);
-  llvm::Type *PtrTy = llvm::PointerType::getInt8PtrTy(M->getContext());
-  auto *InitSPPtr = Builder.CreateIntToPtr(InitSPVal, PtrTy);
-  // Assume that the initial SP value is aligned at 4096.
-  // This is not correct for the runtime semantics, but given that we plan to
-  // completely decompose the stack frame we should not break anything.
-  Builder.CreateAlignmentAssumption(M->getDataLayout(), InitSPPtr, 4096);
-  auto *AlignedSPVal = Builder.CreatePtrToInt(InitSPPtr, InitSPVal->getType());
+  setInsertPointToFirstNonAlloca(Builder, F);
+  auto *SPVal = Builder.CreateCall(InitLocalSP);
+
   // Store the initial SP value in the new alloca.
-  Builder.CreateStore(AlignedSPVal, LocalSP);
+  Builder.CreateStore(SPVal, LocalSP);
 
   // Actually perform the replacement.
-  for (llvm::Instruction *I : SPUsers) {
+  for (Instruction *I : SPUsers) {
     // Switch all the uses of the GlobalSP in I to uses of the LocalSP.
     I->replaceUsesOfWith(GlobalSP, LocalSP);
   }
@@ -134,7 +164,7 @@ bool PSPPass::runOnFunction(llvm::Function &F) {
   return true;
 }
 
-void PSPPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+void PSPPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<LoadModelWrapperPass>();
   AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
   AU.setPreservesCFG();
@@ -142,7 +172,6 @@ void PSPPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 
 char PSPPass::ID = 0;
 
-using llvm::RegisterPass;
-using Pass = PSPPass;
-static RegisterPass<Pass> RegisterPromoteStackPtr("promote-stack-pointer",
-                                                  "Promote Stack Pointer Pass");
+using RegisterPSP = llvm::RegisterPass<PSPPass>;
+static RegisterPSP
+  Register("promote-stack-pointer", "Promote Stack Pointer Pass");
