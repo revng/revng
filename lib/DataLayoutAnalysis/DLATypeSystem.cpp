@@ -15,7 +15,7 @@
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/DebugHelper.h"
+#include "revng/Support/IRHelpers.h"
 
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
 
