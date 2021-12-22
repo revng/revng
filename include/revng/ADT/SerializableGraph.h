@@ -9,7 +9,7 @@
 #include "revng/ADT/GenericGraph.h"
 #include "revng/ADT/KeyedObjectTraits.h"
 #include "revng/ADT/SortedVector.h"
-#include "revng/Model/TupleTree.h"
+#include "revng/TupleTree/TupleTree.h"
 
 //
 // SerializableEdge

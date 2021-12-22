@@ -5,7 +5,7 @@
 //
 
 #include "revng/ADT/KeyedObjectTraits.h"
-#include "revng/Model/TupleTree.h"
+#include "revng/TupleTree/TupleTree.h"
 
 struct Element {
   uint64_t Key;

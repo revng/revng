@@ -12,11 +12,11 @@
 #include "revng/ADT/UpcastablePointer.h"
 #include "revng/ADT/UpcastablePointer/YAMLTraits.h"
 #include "revng/Model/Register.h"
-#include "revng/Model/TupleTree.h"
 #include "revng/Model/Type.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/Support/YAMLTraits.h"
+#include "revng/TupleTree/TupleTree.h"
 
 // Forward declarations
 namespace model {

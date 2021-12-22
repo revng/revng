@@ -10,7 +10,7 @@ bool init_unit_test();
 #include "boost/test/unit_test.hpp"
 
 #include "revng/Model/Binary.h"
-#include "revng/Model/TupleTreeDiff.h"
+#include "revng/TupleTree/TupleTreeDiff.h"
 
 using namespace model;
 
