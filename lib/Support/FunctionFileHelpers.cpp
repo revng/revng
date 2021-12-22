@@ -7,7 +7,7 @@
 
 #include "revng/Support/Assert.h"
 
-#include "revng-c/Utils/Utils.h"
+#include "revng-c/Support/FunctionFileHelpers.h"
 
 using namespace llvm;
 

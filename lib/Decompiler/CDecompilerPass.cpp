@@ -32,9 +32,9 @@
 #include "revng-c/PHIASAPAssignmentInfo/PHIASAPAssignmentInfo.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
+#include "revng-c/Support/FunctionFileHelpers.h"
 #include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
 #include "revng-c/ThreadSafeClangTooling/ThreadSafeClangTooling.h"
-#include "revng-c/Utils/Utils.h"
 
 #include "CDecompilerAction.h"
 #include "DecompilationHelpers.h"

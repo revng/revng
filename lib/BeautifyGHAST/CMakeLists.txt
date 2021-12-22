@@ -11,6 +11,6 @@ target_link_libraries(revngcBeautifyGHAST
 	revngcMarkForSerialization
 	revngcRestructureCFGPass
 	revngcTargetFunctionOption
-	revngcUtils
+	revngcSupport
 	revng::revngSupport
 	${LLVM_LIBRARIES})

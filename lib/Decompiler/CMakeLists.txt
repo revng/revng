@@ -29,7 +29,7 @@ target_link_libraries(revngcDecompiler
   revngcMakeEnvNull
   revngcMarkForSerialization
   revngcThreadSafeClangTooling
-  revngcUtils
+  revngcSupport
   revng::revngModel
   revng::revngSupport
   revng::revngTypeShrinking
