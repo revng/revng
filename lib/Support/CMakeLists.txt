@@ -6,7 +6,7 @@ revng_add_library_internal(revngSupport SHARED
   Assert.cpp
   CommandLine.cpp
   Debug.cpp
-  DebugHelper.cpp
+  IRAnnotators.cpp
   ExampleAnalysis.cpp
   FunctionTags.cpp
   IRHelpers.cpp

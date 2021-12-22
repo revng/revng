@@ -1,4 +1,4 @@
-/// \file DebugHelper.cpp
+/// \file IRAnnotators.cpp
 /// \brief This file handles debugging information generation.
 
 //
@@ -16,8 +16,8 @@
 #include "llvm/Support/raw_os_ostream.h"
 
 #include "revng/Support/Assert.h"
-#include "revng/Support/DebugHelper.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRAnnotators.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/SelfReferencingDbgAnnotationWriter.h"
 
