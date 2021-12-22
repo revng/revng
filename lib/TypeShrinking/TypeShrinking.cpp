@@ -22,6 +22,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 
+#include "revng/Support/IRHelpers.h"
 #include "revng/TypeShrinking/BitLiveness.h"
 #include "revng/TypeShrinking/DataFlowGraph.h"
 #include "revng/TypeShrinking/TypeShrinking.h"
@@ -122,7 +123,7 @@ runTypeShrinking(Function &F, const BitLivenessAnalysisResults &FixedPoints) {
           Use->set(I);
 
         // Drop the original instruction
-        Ins->eraseFromParent();
+        eraseFromParent(Ins);
       }
     }
   }

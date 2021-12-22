@@ -54,7 +54,7 @@ public:
 
   void cleanup() {
     for (auto &P : TemporaryFunctions)
-      P.second->eraseFromParent();
+      eraseFromParent(P.second);
 
     TemporaryFunctions.clear();
   }
@@ -175,7 +175,7 @@ DropHelperCallsPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
   }
 
   for (CallInst *C : ToDelete)
-    C->eraseFromParent();
+    eraseFromParent(C);
 
   return PreservedAnalyses::none();
 }

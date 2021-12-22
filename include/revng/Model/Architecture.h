@@ -70,6 +70,25 @@ constexpr inline size_t getPointerSize(Values V) {
   }
 }
 
+constexpr inline size_t getCallPushSize(Values V) {
+  switch (V) {
+  case x86:
+    return 4;
+
+  case x86_64:
+    return 8;
+
+  case arm:
+  case mips:
+  case aarch64:
+  case systemz:
+    return 0;
+
+  default:
+    revng_abort();
+  }
+}
+
 } // namespace model::Architecture
 
 namespace llvm::yaml {

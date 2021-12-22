@@ -175,10 +175,10 @@ public:
     }
 
     for (CallInst *Call : ToErase)
-      Call->eraseFromParent();
+      eraseFromParent(Call);
 
     for (auto [T, F] : Map)
-      F->eraseFromParent();
+      eraseFromParent(F);
 
     Map.clear();
   }
@@ -511,7 +511,7 @@ bool CpuLoopFunctionPass::runOnModule(Module &M) {
   revng_assert(isa<BranchInst>(LastInstruction));
 
   // Remove the last instruction and replace it with a ret
-  LastInstruction->eraseFromParent();
+  eraseFromParent(LastInstruction);
   ReturnInst::Create(F.getParent()->getContext(), Footer);
 
   // Part 2: replace the call to cpu_*_exec with exception_index
@@ -545,7 +545,7 @@ bool CpuLoopFunctionPass::runOnModule(Module &M) {
                                                     TargetType);
   Value *ExceptionIndex = Builder.CreateLoad(ExceptionIndexPtr);
   Call->replaceAllUsesWith(ExceptionIndex);
-  Call->eraseFromParent();
+  eraseFromParent(Call);
 
   return true;
 }
@@ -664,12 +664,12 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
     // Return immediately
     createRet(Call);
     auto *Unreach = cast<UnreachableInst>(&*++Call->getIterator());
-    Unreach->eraseFromParent();
+    eraseFromParent(Unreach);
 
     Function *Caller = Call->getParent()->getParent();
 
     // Remove the call to cpu_loop_exit
-    Call->eraseFromParent();
+    eraseFromParent(Call);
 
     if (FixedCallers.find(Caller) == FixedCallers.end()) {
       FixedCallers.insert(Caller);
@@ -710,7 +710,7 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
                                                   NewBB);
           UnreachableInst *Temp = new UnreachableInst(Context, QuitBB);
           createRet(Temp);
-          Temp->eraseFromParent();
+          eraseFromParent(Temp);
 
           // Check value of cpu_loop_exiting
           auto *Branch = cast<BranchInst>(&*++(RecCall->getIterator()));
@@ -725,7 +725,7 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
                                        ConstantInt::getTrue(BoolType));
 
           BranchInst::Create(QuitBB, NewBB, Compare, Branch);
-          Branch->eraseFromParent();
+          eraseFromParent(Branch);
 
           // Add to the work list only if it hasn't been fixed already
           if (FixedCallers.find(RecCaller) == FixedCallers.end()) {
@@ -761,7 +761,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   CpuLoopPM.run(*HelpersModule);
 
   // Drop the main
-  HelpersModule->getFunction("main")->eraseFromParent();
+  eraseFromParent(HelpersModule->getFunction("main"));
 
   // From syscall.c
   new GlobalVariable(*TheModule,
@@ -1222,7 +1222,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
     // the last call to exit_tb
     auto *LastBlock = Builder.GetInsertBlock();
     if (LastBlock->empty())
-      LastBlock->eraseFromParent();
+      eraseFromParent(LastBlock);
     else if (!LastBlock->rbegin()->isTerminator()) {
       // Something went wrong, probably a mistranslation
       Builder.CreateUnreachable();

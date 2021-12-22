@@ -61,10 +61,10 @@ private:
   createPrologue(Function *NewFunction, const model::Function &FunctionModel);
 
   void handleRegularFunctionCall(CallInst *Call);
-  void generateCall(IRBuilder<> &Builder,
-                    FunctionCallee Callee,
-                    const model::BasicBlock &CallSiteBlock,
-                    const model::CallEdge &CallSite);
+  CallInst *generateCall(IRBuilder<> &Builder,
+                         FunctionCallee Callee,
+                         const model::BasicBlock &CallSiteBlock,
+                         const model::CallEdge &CallSite);
 
 private:
   Module &M;
@@ -166,7 +166,7 @@ void EnforceABIImpl::run() {
 
   // Drop all the old functions, after we stole all of its blocks
   for (Function *OldFunction : OldFunctions)
-    OldFunction->eraseFromParent();
+    eraseFromParent(OldFunction);
 
   // Quick and dirty DCE
   for (auto [F, _] : FunctionsMap)
@@ -183,8 +183,9 @@ static Type *getLLVMTypeForRegister(Module *M, model::Register::Values V) {
   return IntegerType::getIntNTy(C, 8 * model::Register::getSize(V));
 }
 
-static FunctionType *
-toLLVMType(llvm::Module *M, const model::RawFunctionType &Prototype) {
+static std::pair<Type *, SmallVector<Type *, 8>>
+getLLVMReturnTypeAndArguments(llvm::Module *M,
+                              const model::RawFunctionType &Prototype) {
   using model::NamedTypedRegister;
   using model::RawFunctionType;
   using model::TypedRegister;
@@ -210,7 +211,13 @@ toLLVMType(llvm::Module *M, const model::RawFunctionType &Prototype) {
     ReturnType = StructType::create(ReturnTypes);
 
   // Create new function
-  return FunctionType::get(ReturnType, ArgumentsTypes, false);
+  return { ReturnType, ArgumentsTypes };
+}
+
+static FunctionType *
+toLLVMType(llvm::Module *M, const model::RawFunctionType &Prototype) {
+  auto [ReturnType, Arguments] = getLLVMReturnTypeAndArguments(M, Prototype);
+  return FunctionType::get(ReturnType, Arguments, false);
 }
 
 Function *EnforceABIImpl::handleFunction(Function &OldFunction,
@@ -227,31 +234,16 @@ Function *
 EnforceABIImpl::recreateFunction(Function &OldFunction,
                                  const model::RawFunctionType &Prototype) {
   // Create new function
-  auto *NewType = toLLVMType(&M, Prototype);
-  auto *NewFunction = Function::Create(NewType,
-                                       GlobalValue::ExternalLinkage,
-                                       "",
-                                       OldFunction.getParent());
-  NewFunction->takeName(&OldFunction);
-  NewFunction->copyAttributesFrom(&OldFunction);
-  NewFunction->copyMetadata(&OldFunction, 0);
+  auto [NewReturnType, NewArguments] = getLLVMReturnTypeAndArguments(&M,
+                                                                     Prototype);
+  auto *NewFunction = changeFunctionType(OldFunction,
+                                         NewReturnType,
+                                         NewArguments);
 
   // Set argument names
   for (const auto &[LLVMArgument, ModelArgument] :
        zip(NewFunction->args(), Prototype.Arguments))
     LLVMArgument.setName(ModelArgument.name());
-
-  // Steal body from the old function
-  std::vector<BasicBlock *> Body;
-  for (BasicBlock &BB : OldFunction)
-    Body.push_back(&BB);
-  auto &NewBody = NewFunction->getBasicBlockList();
-  for (BasicBlock *BB : Body) {
-    BB->removeFromParent();
-    revng_assert(BB->getParent() == nullptr);
-    NewBody.push_back(BB);
-    revng_assert(BB->getParent() == NewFunction);
-  }
 
   return NewFunction;
 }
@@ -300,7 +292,7 @@ void EnforceABIImpl::createPrologue(Function *NewFunction,
         else
           Initializers.createReturn(Builder, ReturnValues);
 
-        Return->eraseFromParent();
+        eraseFromParent(Return);
       }
     }
   }
@@ -350,7 +342,8 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
 
   // Generate the call
   IRBuilder<> Builder(Call);
-  generateCall(Builder, Callee, Block, *CallSite);
+  CallInst *NewCall = generateCall(Builder, Callee, Block, *CallSite);
+  NewCall->copyMetadata(*Call);
 
   // Create an additional store to the local %pc, so that the optimizer cannot
   // do stuff with llvm.assume.
@@ -358,7 +351,7 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
   Builder.CreateStore(Builder.CreateCall(OpaquePC), GCBI.pcReg());
 
   // Drop the original call
-  Call->eraseFromParent();
+  eraseFromParent(Call);
 }
 
 static FunctionCallee
@@ -370,10 +363,10 @@ toFunctionPointer(IRBuilder<> &B, Value *V, FunctionType *FT) {
   return FunctionCallee(FT, Callee);
 }
 
-void EnforceABIImpl::generateCall(IRBuilder<> &Builder,
-                                  FunctionCallee Callee,
-                                  const model::BasicBlock &CallSiteBlock,
-                                  const model::CallEdge &CallSite) {
+CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
+                                       FunctionCallee Callee,
+                                       const model::BasicBlock &CallSiteBlock,
+                                       const model::CallEdge &CallSite) {
   using model::NamedTypedRegister;
   using model::RawFunctionType;
   using model::TypedRegister;
@@ -432,4 +425,6 @@ void EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   } else {
     Builder.CreateStore(Result, ReturnCSVs[0]);
   }
+
+  return Result;
 }

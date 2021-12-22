@@ -14,6 +14,7 @@
 
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRHelpers.h"
 
 template<typename KeyT>
 class OpaqueFunctionsPool {
@@ -33,7 +34,7 @@ public:
     if (PurgeOnDestruction) {
       for (auto &[Key, F] : Pool) {
         revng_assert(F->use_begin() == F->use_end());
-        F->eraseFromParent();
+        eraseFromParent(F);
       }
     }
   }

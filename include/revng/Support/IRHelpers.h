@@ -29,6 +29,35 @@
 #include "revng/Support/Generator.h"
 #include "revng/Support/MetaAddress.h"
 
+extern void dumpUsers(llvm::Value *V) debug_function;
+
+/// Given \p V, checks if there are uses left and then calls eraseFromParent.
+/// In case of leftover uses, they are pretty printed.
+///
+/// \note The remaining use check is not performed on llvm::Functions since they
+/// might have internal blockaddress self-references.
+inline void eraseFromParent(llvm::Value *V) {
+  using namespace llvm;
+
+  if (not isa<Function>(V) and not V->use_empty()) {
+    dbg << "Can't erase a Value still having uses.\n";
+    dbg << "Value:\n  ";
+    V->dump();
+    dbg << "Users:\n";
+    dumpUsers(V);
+    revng_abort();
+  } else {
+    if (auto *I = dyn_cast<Instruction>(V))
+      I->eraseFromParent();
+    else if (auto *BB = dyn_cast<BasicBlock>(V))
+      BB->eraseFromParent();
+    else if (auto *G = dyn_cast<GlobalValue>(V))
+      G->eraseFromParent();
+    else
+      revng_abort();
+  }
+}
+
 template<typename T>
 inline bool contains(T Range, typename T::value_type V) {
   return std::find(std::begin(Range), std::end(Range), V) != std::end(Range);
@@ -52,12 +81,12 @@ inline void purgeBranch(llvm::BasicBlock::iterator I) {
     Successors.insert(DeadBranch->getSuccessor(C));
 
   // Destroy the dead branch
-  DeadBranch->eraseFromParent();
+  eraseFromParent(DeadBranch);
 
   // Check if someone else was jumping there and then destroy
   for (llvm::BasicBlock *BB : Successors)
     if (BB->empty() && llvm::pred_empty(BB))
-      BB->eraseFromParent();
+      eraseFromParent(BB);
 }
 
 inline llvm::ConstantInt *
@@ -1244,3 +1273,59 @@ inline llvm::cl::opt<T> *
 getOption(llvm::StringMap<llvm::cl::Option *> &Options, const char *Name) {
   return static_cast<llvm::cl::opt<T> *>(Options[Name]);
 }
+
+template<typename T, typename Inserter>
+inline void
+setInsertPointToFirstNonAlloca(llvm::IRBuilder<T, Inserter> &Builder,
+                               llvm::Function &F) {
+  using namespace llvm;
+
+  BasicBlock &Entry = F.getEntryBlock();
+  for (Instruction &I : Entry) {
+    if (not isa<AllocaInst>(&I)) {
+      Builder.SetInsertPoint(&I);
+      return;
+    }
+  }
+  revng_abort();
+}
+
+inline llvm::Value *getPointer(llvm::User *U) {
+  using namespace llvm;
+
+  if (auto *Load = dyn_cast<LoadInst>(U))
+    return Load->getPointerOperand();
+  else if (auto *Store = dyn_cast<StoreInst>(U))
+    return Store->getPointerOperand();
+  else
+    return nullptr;
+}
+
+inline unsigned getPointeeSize(llvm::Value *Pointer) {
+  using namespace llvm;
+
+  revng_assert(Pointer->getType()->isPointerTy());
+  Type *Pointee = Pointer->getType()->getPointerElementType();
+  unsigned Size = Pointee->getIntegerBitWidth();
+  revng_assert(Size % 8 == 0);
+  return Pointer->getType()->getPointerElementType()->getIntegerBitWidth() / 8;
+}
+
+inline unsigned getMemoryAccessSize(llvm::Instruction *I) {
+  return getPointeeSize(getPointer(I));
+}
+
+/// Adds NewArguments and changes the return type of \p OldFunction
+///
+/// \param OldFunction the original function from which the body will be stolen.
+/// \param NewReturnType the new return type. It can be: 1) nullptr to preserve
+///        the old one, 2) the old type or 3), if the original type is void, a
+///        new type.
+/// \param NewArguments extra arguments to add on top of the existing ones.
+///
+/// \return the newly created Function.
+///
+/// \note \p OldFunction will not be deleted or RAUW'd.
+llvm::Function *changeFunctionType(llvm::Function &OldFunction,
+                                   llvm::Type *NewReturnType,
+                                   llvm::ArrayRef<llvm::Type *> NewArguments);

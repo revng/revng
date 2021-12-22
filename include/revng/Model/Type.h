@@ -865,6 +865,7 @@ public:
   SortedVector<TypedRegister> ReturnValues;
   SortedVector<Register::Values> PreservedRegisters;
   uint64_t FinalStackOffset = 0;
+  TypePath StackArgumentsType;
 
 public:
   /// \note Not to be used directly, only KeyedObjectTraits should use this
@@ -885,13 +886,16 @@ INTROSPECTION_NS(model,
                  Arguments,
                  ReturnValues,
                  PreservedRegisters,
-                 FinalStackOffset);
+                 FinalStackOffset,
+                 StackArgumentsType);
+
+using RawFunctionTypeFields = Fields<model::RawFunctionType>;
 
 template<>
 struct llvm::yaml::MappingTraits<model::RawFunctionType>
   : public TupleLikeMappingTraits<model::RawFunctionType,
-                                  Fields<model::RawFunctionType>::CustomName> {
-};
+                                  RawFunctionTypeFields::CustomName,
+                                  RawFunctionTypeFields::StackArgumentsType> {};
 
 template<typename K, typename V>
 V getOrDefault(const std::map<K, V> &Map, const K &Key, const V &Default) {

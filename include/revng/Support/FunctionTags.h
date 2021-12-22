@@ -84,6 +84,7 @@ void TagsSet::addTo(T *I) const {
 extern Tag QEMU;
 extern Tag Helper;
 extern Tag Lifted;
+extern Tag CallToLifted;
 extern Tag Exceptional;
 extern Tag StructInitializer;
 extern Tag OpaqueCSVValue;

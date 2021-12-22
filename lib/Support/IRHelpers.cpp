@@ -142,3 +142,110 @@ std::pair<MetaAddress, uint64_t> getPC(Instruction *TheInstruction) {
   revng_assert(Size != 0);
   return { PC, Size };
 }
+
+Function *changeFunctionType(Function &OldFunction,
+                             Type *NewReturnType,
+                             ArrayRef<Type *> NewArguments) {
+  //
+  // Validation
+  //
+  FunctionType &OldFunctionType = *OldFunction.getFunctionType();
+
+  // Either the old type was returning void or the return type has to be same
+  auto OldReturnType = OldFunctionType.getReturnType();
+  if (NewReturnType != nullptr) {
+    if (not OldReturnType->isVoidTy())
+      revng_assert(OldReturnType == NewReturnType);
+  } else {
+    NewReturnType = OldReturnType;
+  }
+
+  // New arguments
+  SmallVector<Type *> NewFunctionArguments;
+  llvm::copy(OldFunctionType.params(),
+             std::back_inserter(NewFunctionArguments));
+  llvm::copy(NewArguments, std::back_inserter(NewFunctionArguments));
+
+  auto &NewFunctionType = *FunctionType::get(NewReturnType,
+                                             NewFunctionArguments,
+                                             OldFunctionType.isVarArg());
+
+  //
+  // Recreate the function as similar as possible
+  //
+  auto *NewFunction = Function::Create(&NewFunctionType,
+                                       GlobalValue::ExternalLinkage,
+                                       "",
+                                       OldFunction.getParent());
+  NewFunction->takeName(&OldFunction);
+  NewFunction->copyAttributesFrom(&OldFunction);
+  NewFunction->copyMetadata(&OldFunction, 0);
+
+  // Steal body
+  std::vector<BasicBlock *> Body;
+  for (BasicBlock &BB : OldFunction)
+    Body.push_back(&BB);
+  auto &NewBody = NewFunction->getBasicBlockList();
+  for (BasicBlock *BB : Body) {
+    BB->removeFromParent();
+    revng_assert(BB->getParent() == nullptr);
+    NewBody.push_back(BB);
+    revng_assert(BB->getParent() == NewFunction);
+  }
+
+  // Replace arguments and copy their names
+  unsigned I = 0;
+  for (Argument &OldArgument : OldFunction.args()) {
+    Argument &NewArgument = *NewFunction->getArg(I);
+    NewArgument.setName(OldArgument.getName());
+    OldArgument.replaceAllUsesWith(&NewArgument);
+    ++I;
+  }
+
+  // We do not delete OldFunction in order not to break call sites
+
+  return NewFunction;
+}
+
+void dumpUsers(llvm::Value *V) {
+  using namespace llvm;
+
+  struct InstructionUser {
+    Function *F;
+    BasicBlock *BB;
+    Instruction *I;
+    bool operator<(const InstructionUser &Other) const {
+      return std::tie(F, BB, I) < std::tie(Other.F, Other.BB, Other.I);
+    }
+  };
+  SmallVector<InstructionUser> InstructionUsers;
+  for (User *U : V->users()) {
+    if (auto *I = dyn_cast<Instruction>(U)) {
+      BasicBlock *BB = I->getParent();
+      Function *F = BB->getParent();
+      InstructionUsers.push_back({ F, BB, I });
+    } else {
+      dbg << "  ";
+      U->dump();
+    }
+  }
+
+  llvm::sort(InstructionUsers);
+
+  Function *LastF = nullptr;
+  BasicBlock *LastBB = nullptr;
+  for (InstructionUser &IU : InstructionUsers) {
+    if (IU.F != LastF) {
+      LastF = IU.F;
+      dbg << "  Function " << getName(LastF) << "\n";
+    }
+
+    if (IU.BB != LastBB) {
+      LastBB = IU.BB;
+      dbg << "    Block " << getName(LastBB) << "\n";
+    }
+
+    dbg << "    ";
+    IU.I->dump();
+  }
+}

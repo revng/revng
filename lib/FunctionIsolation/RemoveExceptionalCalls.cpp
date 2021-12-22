@@ -42,7 +42,7 @@ bool RemoveExceptionalCalls::runOnModule(llvm::Module &M) {
     BB->splitBasicBlock(Call);
 
     // Drop terminator of the old basic block
-    BB->getTerminator()->eraseFromParent();
+    eraseFromParent(BB->getTerminator());
 
     // Terminate with an unreachable
     new UnreachableInst(C, BB);
@@ -50,7 +50,7 @@ bool RemoveExceptionalCalls::runOnModule(llvm::Module &M) {
     // Drop function call
     auto *Undef = UndefValue::get(Call->getType());
     Call->replaceAllUsesWith(Undef);
-    Call->eraseFromParent();
+    eraseFromParent(Call);
   }
 
   // Garbage collect dead blocks

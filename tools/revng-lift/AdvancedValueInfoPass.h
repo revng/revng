@@ -94,7 +94,7 @@ AdvancedValueInfoPass::run(llvm::Function &F,
                                                  I->getOperand(1),
                                                  Twine(),
                                                  I));
-    I->eraseFromParent();
+    eraseFromParent(I);
   }
 
   Function *Marker = F.getParent()->getFunction(MarkerName);

@@ -540,7 +540,7 @@ private:
     MetaAddress PC = getPCFromNewPCCall(I);
     if (PC.isValid())
       OriginalInstructionAddresses.erase(PC);
-    I->eraseFromParent();
+    eraseFromParent(I);
   }
 
   /// \brief Drop \p Start and all the descendants, stopping when a JT is met

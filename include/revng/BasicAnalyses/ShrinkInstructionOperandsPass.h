@@ -152,7 +152,7 @@ ShrinkInstructionOperandsPass::run(llvm::Function &F,
           replaceAndResizeOperand(&I, 1, ActualOp1, OutputSize, DontCare);
           I.mutateType(ActualOutput->getType());
           ActualOutput->replaceAllUsesWith(&I);
-          ActualOutput->eraseFromParent();
+          eraseFromParent(ActualOutput);
         }
 
       } break;

@@ -411,7 +411,7 @@ bool VariableManager::memcpyAtEnvOffset(llvm::IRBuilder<> &Builder,
   }
 
   if (OnlyPointersAndPadding)
-    cast<Instruction>(OtherBasePtr)->eraseFromParent();
+    eraseFromParent(cast<Instruction>(OtherBasePtr));
 
   return Offset == TotalSize;
 }
@@ -582,7 +582,7 @@ VariableManager::getByCPUStateOffsetInternal(intptr_t Offset,
 
     if (it != CPUStateGlobals.end()) {
       it->second->replaceAllUsesWith(NewVariable);
-      it->second->eraseFromParent();
+      eraseFromParent(it->second);
     }
 
     CPUStateGlobals[Offset] = NewVariable;
