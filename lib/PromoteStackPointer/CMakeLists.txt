@@ -2,7 +2,7 @@
 # Copyright rev.ng Srls. See LICENSE.md for details.
 #
 
-revng_add_analyses_library(PromoteStackPointer
+revng_add_analyses_library(revngcPromoteStackPointer
   revngc
   CleanupStackSizeMarkersPass.cpp
   ComputeStackAccessesBoundsPass.cpp
@@ -12,8 +12,8 @@ revng_add_analyses_library(PromoteStackPointer
   PromoteStackPointerPass.cpp
   SegregateStackAccessesPass.cpp)
 
-target_link_libraries(PromoteStackPointer
-  Support
+target_link_libraries(revngcPromoteStackPointer
+  revngcSupport
   revng::revngModel
   revng::revngSupport
   revng::revngBasicAnalyses

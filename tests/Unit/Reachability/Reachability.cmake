@@ -4,8 +4,8 @@
 
 set(SRC_LIB "${SRC}/Reachability")
 
-add_library(Reachability SHARED "${SRC_LIB}/ReachabilityPass.cpp")
-target_link_libraries(Reachability
+add_library(revngcReachability SHARED "${SRC_LIB}/ReachabilityPass.cpp")
+target_link_libraries(revngcReachability
   revng::revngModel
   revng::revngSupport
   ${LLVM_LIBRARIES})

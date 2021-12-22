@@ -2,7 +2,7 @@
 # Copyright rev.ng Srls. See LICENSE.md for details.
 #
 
-revng_add_analyses_library(Decompiler revngc
+revng_add_analyses_library(revngcDecompiler revngc
   AddSCEVBarrierPass.cpp
   ASTBuildAnalysis.cpp
   CDecompiler.cpp
@@ -15,20 +15,21 @@ revng_add_analyses_library(Decompiler revngc
   TypeDeclCreationAction.cpp
   AddPrimitiveTypesPass.cpp)
 
-target_link_libraries(Decompiler
-  FilterForDecompilation
-  LivenessAnalysis
-  PHIASAPAssignmentInfo
-  RestructureCFGPass
-  RemoveNewPCCalls
-  RemoveCpuLoopStore
-  RemoveExceptionCalls
-  RemoveLLVMAssumeCalls
-  RemoveLLVMDbgIntrinsics
-  MakeEnvNull
-  MarkForSerialization
-  ThreadSafeClangTooling
-  Utils
+target_link_libraries(revngcDecompiler
+  revngcDataLayoutAnalysis
+  revngcFilterForDecompilation
+  revngcLivenessAnalysis
+  revngcPHIASAPAssignmentInfo
+  revngcRestructureCFGPass
+  revngcRemoveNewPCCalls
+  revngcRemoveCpuLoopStore
+  revngcRemoveExceptionCalls
+  revngcRemoveLLVMAssumeCalls
+  revngcRemoveLLVMDbgIntrinsics
+  revngcMakeEnvNull
+  revngcMarkForSerialization
+  revngcThreadSafeClangTooling
+  revngcUtils
   revng::revngModel
   revng::revngSupport
   revng::revngTypeShrinking
@@ -37,5 +38,4 @@ target_link_libraries(Decompiler
   clangBasic
   clangFrontend
   clangSerialization
-  DataLayoutAnalysis
   ${LLVM_LIBRARIES})

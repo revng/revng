@@ -2,10 +2,10 @@
 # Copyright rev.ng Srls. See LICENSE.md for details.
 #
 
-revng_add_analyses_library(ThreadSafeClangTooling revngc
+revng_add_analyses_library(revngcThreadSafeClangTooling revngc
   ThreadSafeClangTooling.cpp)
 
-target_link_libraries(ThreadSafeClangTooling
+target_link_libraries(revngcThreadSafeClangTooling
   clangAST
   clangBasic
   clangFrontend
