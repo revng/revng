@@ -25,10 +25,9 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/LEB128.h"
 
+#include "revng/Lift/BinaryFile.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
-
-#include "BinaryFile.h"
 
 // using directives
 using namespace llvm;
@@ -2054,4 +2053,12 @@ BinaryFile::nameForAddress(MetaAddress Address, uint64_t Size) const {
   // We don't have a symbol to use, just return the address
   Address.dump(Result);
   return Result.str();
+}
+
+std::string SegmentInfo::generateName() const {
+  // Create name from start and size
+  std::stringstream NameStream;
+  NameStream << "segment-" << StartVirtualAddress.toString() << "-"
+             << EndVirtualAddress.toString();
+  return NameStream.str();
 }

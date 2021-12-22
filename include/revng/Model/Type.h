@@ -17,10 +17,10 @@
 #include "revng/ADT/UpcastablePointer/YAMLTraits.h"
 #include "revng/Model/ABI.h"
 #include "revng/Model/Register.h"
-#include "revng/Model/TupleTree.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/YAMLTraits.h"
+#include "revng/TupleTree/TupleTree.h"
 
 namespace model {
 class VerifyHelper;

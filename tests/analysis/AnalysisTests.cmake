@@ -20,7 +20,7 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
     # Perform lifting
     #
     category_to_path("${CATEGORY_PATH}" CATEGORY_PATH)
-    set(COMMAND_TO_RUN "./bin/revng" lift -g ll ${INPUT_FILE} "${OUTPUT}")
+    set(COMMAND_TO_RUN "./bin/revng" lift ${INPUT_FILE} "${OUTPUT}")
     set(DEPEND_ON revng-all-binaries)
 
     set(ACTUAL_MODEL "${OUTPUT}.yml")

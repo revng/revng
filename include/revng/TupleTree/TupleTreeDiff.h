@@ -11,7 +11,7 @@
 
 #include "revng/ADT/KeyedObjectContainer.h"
 #include "revng/ADT/ZipMapIterator.h"
-#include "revng/Model/TupleTree.h"
+#include "revng/TupleTree/TupleTree.h"
 
 template<typename>
 struct is_std_vector : std::false_type {};

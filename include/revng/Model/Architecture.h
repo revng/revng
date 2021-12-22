@@ -6,8 +6,8 @@
 
 #include "llvm/ADT/Triple.h"
 
-#include "revng/Model/TupleTree.h"
 #include "revng/Support/YAMLTraits.h"
+#include "revng/TupleTree/TupleTree.h"
 
 namespace model::Architecture {
 

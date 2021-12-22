@@ -21,11 +21,10 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/Lift/CPUStateAccessAnalysisPass.h"
+#include "revng/Lift/VariableManager.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
-
-#include "CPUStateAccessAnalysisPass.h"
-#include "VariableManager.h"
 
 namespace llvm {
 class DataLayout;

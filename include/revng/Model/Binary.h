@@ -12,11 +12,11 @@
 #include "revng/ADT/UpcastablePointer.h"
 #include "revng/ADT/UpcastablePointer/YAMLTraits.h"
 #include "revng/Model/Register.h"
-#include "revng/Model/TupleTree.h"
 #include "revng/Model/Type.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/Support/YAMLTraits.h"
+#include "revng/TupleTree/TupleTree.h"
 
 // Forward declarations
 namespace model {
@@ -679,6 +679,9 @@ public:
   /// The type system
   SortedVector<UpcastablePointer<model::Type>> Types;
 
+  // List of imported libraries
+  SortedVector<std::string> ImportedLibraries;
+
 public:
   model::TypePath getTypePath(const model::Type *T) {
     return TypePath::fromString(this,
@@ -710,11 +713,13 @@ INTROSPECTION_NS(model,
                  ImportedDynamicFunctions,
                  Types,
                  Architecture,
-                 Segments)
+                 Segments,
+                 ImportedLibraries)
 
 template<>
 struct llvm::yaml::MappingTraits<model::Binary>
-  : public TupleLikeMappingTraits<model::Binary> {};
+  : public TupleLikeMappingTraits<model::Binary,
+                                  Fields<model::Binary>::ImportedLibraries> {};
 
 static_assert(validateTupleTree<model::Binary>(IsYamlizable),
               "All elements of the model must be YAMLizable");

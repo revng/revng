@@ -37,7 +37,6 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
     set(COMMAND_TO_RUN
       "./bin/revng"
       lift
-      -g ll
       ${COMPILED_INPUT}
       "${OUTPUT}")
     set(DEPEND_ON revng-all-binaries)

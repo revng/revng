@@ -41,20 +41,18 @@
 #include "revng/EarlyFunctionAnalysis/ABI.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/FunctionCallIdentification/PruneRetSuccessors.h"
+#include "revng/Lift/CodeGenerator.h"
+#include "revng/Lift/ExternalJumpsHandler.h"
+#include "revng/Lift/InstructionTranslator.h"
+#include "revng/Lift/JumpTargetManager.h"
+#include "revng/Lift/PTCInterface.h"
+#include "revng/Lift/VariableManager.h"
 #include "revng/Model/SerializeModelPass.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/DebugHelper.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/ProgramCounterHandler.h"
 #include "revng/Support/revng.h"
-
-#include "CodeGenerator.h"
-#include "ExternalJumpsHandler.h"
-#include "InstructionTranslator.h"
-#include "JumpTargetManager.h"
-#include "PTCInterface.h"
-#include "VariableManager.h"
 
 using namespace llvm;
 
@@ -62,79 +60,6 @@ using std::make_pair;
 using std::string;
 
 // Register all the arguments
-
-// TODO: can we drop this and the associated functionality?
-static cl::opt<string> CoveragePath("coverage-path",
-                                    cl::desc("destination path for the CSV "
-                                             "containing "
-                                             "translated ranges"),
-                                    cl::value_desc("path"),
-                                    cl::cat(MainCategory));
-static cl::alias A1("c",
-                    cl::desc("Alias for -coverage-path"),
-                    cl::aliasopt(CoveragePath),
-                    cl::cat(MainCategory));
-
-// TODO: linking-info-path?
-static cl::opt<string> LinkingInfoPath("linking-info",
-                                       cl::desc("destination path for the CSV "
-                                                "containing linking info"),
-                                       cl::value_desc("path"),
-                                       cl::cat(MainCategory));
-static cl::alias A2("i",
-                    cl::desc("Alias for -linking-info"),
-                    cl::aliasopt(LinkingInfoPath),
-                    cl::cat(MainCategory));
-
-// TODO: can we drop this and the associated functionality?
-static cl::opt<string> BBSummaryPath("bb-summary",
-                                     cl::desc("destination path for the CSV "
-                                              "containing the statistics about "
-                                              "the translated basic blocks"),
-                                     cl::value_desc("path"),
-                                     cl::cat(MainCategory));
-static cl::alias A3("b",
-                    cl::desc("Alias for -bb-summary"),
-                    cl::aliasopt(BBSummaryPath),
-                    cl::cat(MainCategory));
-
-// Enable Debug Options to be specified on the command line
-namespace DIT = DebugInfoType;
-static auto X = cl::values(clEnumValN(DIT::None,
-                                      "none",
-                                      "no debug information"),
-                           clEnumValN(DIT::OriginalAssembly,
-                                      "asm",
-                                      "debug information referred to the "
-                                      "assembly "
-                                      "of the input file"),
-                           clEnumValN(DIT::PTC,
-                                      "ptc",
-                                      "debug information referred to the "
-                                      "Portable "
-                                      "Tiny Code"),
-                           clEnumValN(DIT::LLVMIR,
-                                      "ll",
-                                      "debug information referred to the LLVM "
-                                      "IR"));
-static cl::opt<DIT::Values> DebugInfo("debug-info",
-                                      cl::desc("emit debug information"),
-                                      X,
-                                      cl::cat(MainCategory),
-                                      cl::init(DIT::LLVMIR));
-
-static cl::alias A6("g",
-                    cl::desc("Alias for -debug-info"),
-                    cl::aliasopt(DebugInfo),
-                    cl::cat(MainCategory));
-
-// TODO: is this still active?
-static cl::opt<string> DebugPath("debug-path",
-                                 cl::desc("destination path for the generated "
-                                          "debug source"),
-                                 cl::value_desc("path"),
-                                 cl::cat(MainCategory));
-
 static cl::opt<bool> RecordPTC("record-ptc",
                                cl::desc("create metadata for PTC"),
                                cl::cat(MainCategory));
@@ -223,15 +148,12 @@ static std::unique_ptr<Module> parseIR(StringRef Path, LLVMContext &Context) {
 
 CodeGenerator::CodeGenerator(BinaryFile &Binary,
                              Architecture &Target,
-                             llvm::LLVMContext &TheContext,
-                             std::string Output,
+                             llvm::Module *TheModule,
                              std::string Helpers,
                              std::string EarlyLinked) :
   TargetArchitecture(std::move(Target)),
-  Context(TheContext),
-  TheModule(new Module("top", Context)),
-  OutputPath(Output),
-  Debug(new DebugHelper(Output, TheModule.get(), DebugInfo, DebugPath)),
+  TheModule(TheModule),
+  Context(TheModule->getContext()),
   Binary(Binary) {
 
   OriginalInstrMDKind = Context.getMDKindID("oi");
@@ -257,18 +179,6 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
 
   EarlyLinkedModule = parseIR(EarlyLinked, Context);
 
-  if (CoveragePath.size() == 0)
-    CoveragePath = Output + ".coverage.csv";
-
-  if (BBSummaryPath.size() == 0)
-    BBSummaryPath = Output + ".bbsummary.csv";
-
-  // Prepare the linking info CSV
-  if (LinkingInfoPath.size() == 0)
-    LinkingInfoPath = OutputPath + ".li.csv";
-  std::ofstream LinkingInfoStream(LinkingInfoPath);
-  LinkingInfoStream << "name,start,end\n";
-
   auto *Uint8Ty = Type::getInt8Ty(Context);
   auto *ElfHeaderHelper = new GlobalVariable(*TheModule,
                                              Uint8Ty,
@@ -283,7 +193,7 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
                                        Binary.architecture().pointerSize());
   auto createConstGlobal = [this, &RegisterType](const Twine &Name,
                                                  uint64_t Value) {
-    return new GlobalVariable(*TheModule,
+    return new GlobalVariable(*this->TheModule,
                               RegisterType,
                               true,
                               GlobalValue::ExternalLinkage,
@@ -369,29 +279,7 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
     // Force alignment to 1 and assign the variable to a specific section
     Segment.Variable->setAlignment(MaybeAlign(1));
     Segment.Variable->setSection("." + Name);
-
-    // Write the linking info CSV
-    LinkingInfoStream << "." << Name << ",0x" << std::hex
-                      << Segment.StartVirtualAddress.address() << ",0x"
-                      << std::hex << Segment.EndVirtualAddress.address()
-                      << "\n";
   }
-
-  // Write needed libraries CSV
-  std::string NeededLibs = OutputPath + ".need.csv";
-  std::ofstream NeededLibsStream(NeededLibs);
-  for (const std::string &Library : Binary.neededLibraryNames())
-    NeededLibsStream << Library << "\n";
-}
-
-std::string SegmentInfo::generateName() {
-  // Create name from start and size
-  std::stringstream NameStream;
-  NameStream << "o_" << (IsReadable ? "r" : "") << (IsWriteable ? "w" : "")
-             << (IsExecutable ? "x" : "") << "_0x" << std::hex
-             << StartVirtualAddress.address();
-
-  return NameStream.str();
 }
 
 static BasicBlock *replaceFunction(Function *ToReplace) {
@@ -907,9 +795,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
 
     return Variables.getByEnvOffset(Offset, Name.str()).first;
   };
-  PCHOwner PCH = ProgramCounterHandler::create(Arch.type(),
-                                               TheModule.get(),
-                                               Factory);
+  PCHOwner PCH = ProgramCounterHandler::create(Arch.type(), TheModule, Factory);
 
   IRBuilder<> Builder(Context);
 
@@ -920,7 +806,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   auto *MainFunction = Function::Create(MainType,
                                         Function::ExternalLinkage,
                                         "root",
-                                        TheModule.get());
+                                        TheModule);
   FunctionTags::Root.addTo(MainFunction);
 
   // Create the first basic block and create a placeholder for variable
@@ -1017,7 +903,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
     PCH->initializePC(Builder, VirtualAddress);
   }
 
-  OpaqueIdentity OI(TheModule.get());
+  OpaqueIdentity OI(TheModule);
 
   // Fake jumps to the dispatcher-related basic blocks. This way all the blocks
   // are always reachable.
@@ -1309,7 +1195,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
 
   Variables.setDataLayout(&TheModule->getDataLayout());
 
-  Translator.finalizeNewPCMarkers(CoveragePath);
+  Translator.finalizeNewPCMarkers();
 
   // SROA must run before InstCombine because in this way InstCombine has many
   // more elementary operations to combine
@@ -1401,15 +1287,4 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   JumpOutHandler.createExternalJumpsHandler();
 
   Variables.finalize();
-
-  Debug->generateDebugInfo();
-}
-
-void CodeGenerator::serialize() {
-  // Ask the debug handler if it already has a good copy of the IR, if not dump
-  // it
-  if (!Debug->copySource()) {
-    std::ofstream Output(OutputPath);
-    Debug->print(Output, false);
-  }
 }

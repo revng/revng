@@ -21,6 +21,8 @@ except ImportError:
 from elftools.elf.dynamic import DynamicSegment
 from elftools.elf.elffile import ELFFile
 
+from revng_dump_model import load_model
+
 search_prefixes = []
 real_argv0 = os.environ.get("REAL_ARGV0", sys.argv[0])
 
@@ -266,7 +268,7 @@ def get_stderr(args):
         return process.stderr.read()
 
 
-def build_linking_options(li_csv_path, need_csv_path):
+def build_linking_options(model):
     result = []
 
     # Force maximum page size
@@ -276,30 +278,27 @@ def build_linking_options(li_csv_path, need_csv_path):
     # Produce semgment loading options
     min = 0
     max = 0
-    with open(li_csv_path, "r") as li_csv_file:
-        # Consume CSV header
-        li_csv_file.readline()
+    parse_ma = lambda string: int(string.split(":")[0], 16)
+    for segment in model["Segments"]:
+        start, end = parse_ma(segment["StartAddress"]), parse_ma(segment["EndAddress"])
 
-        for segment in li_csv_file:
-            name, start, end = segment.split(",")
-            start, end = int(start, 16), int(end, 16)
+        # Record max and min
+        if end > max:
+            max = end
 
-            # Record max and min
-            if end > max:
-                max = end
+        if (min == 0) or start < min:
+            min = start
 
-            if (min == 0) or start < min:
-                min = start
+        name = "segment-{}-{}".format(segment["StartAddress"], segment["EndAddress"])
 
-            # Force section address
-            result.append("-Wl,--section-start={}={}".format(name, hex(start)))
+        # Force section address
+        result.append("-Wl,--section-start=.{}={}".format(name, hex(start)))
 
     # Force ld.bfd
     result.append("-fuse-ld=bfd")
 
     # Force a page before the lowest original address for the ELF header
-    result.append(
-        "-Wl,--section-start=.elfheaderhelper={}".format(hex(min - 1)))
+    result.append("-Wl,--section-start=.elfheaderhelper={}".format(hex(min - 1)))
 
     # Force text to start on the page after all the original program segments
     text_address = page_size * int((max + page_size - 1) / page_size)
@@ -308,8 +307,8 @@ def build_linking_options(li_csv_path, need_csv_path):
     # Link required dynamic libraries
     result.append("-Wl,--no-as-needed")
 
-    with open(need_csv_path, "r") as need_csv_file:
-        for library in need_csv_file:
+    if "ImportedLibraries" in model:
+        for library in model["ImportedLibraries"]:
             library = library.strip()
             if "/" in library:
                 library = library[library.rindex("/") + 1:]
@@ -323,9 +322,7 @@ def build_linking_options(li_csv_path, need_csv_path):
             result.append(library)
 
     result.append("-Wl,--as-needed")
-
     return result
-
 
 def wrap(args):
     global command_prefix
@@ -419,8 +416,7 @@ If you're just interested in lifting to LLVM IR, simply use `revng lift`.
         if args.base:
             lift_options += ["--base", args.base]
 
-        run([get_command("revng-lift"),
-             "-g", "ll"]
+        run([get_command("revng-lift")]
             + lift_options
             + [relative(input), relative(output)])
 
@@ -477,8 +473,14 @@ If you're just interested in lifting to LLVM IR, simply use `revng lift`.
              "-o", relative(object_file)]
             + common_llc_options)
 
+
+    with open(output, "r") as output_file:
+        model = load_model(output_file)
+
+    assert model is not None
+
     # Parse .li.csv and .need.csv files
-    linking_options = build_linking_options(li_csv_path, need_csv_path)
+    linking_options = build_linking_options(model)
 
     no_pie = ["-fno-pie"]
 

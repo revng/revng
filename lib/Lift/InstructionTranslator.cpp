@@ -19,15 +19,14 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Casting.h"
 
+#include "revng/Lift/InstructionTranslator.h"
+#include "revng/Lift/PTCInterface.h"
+#include "revng/Lift/VariableManager.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/RandomAccessIterator.h"
 #include "revng/Support/Range.h"
-
-#include "InstructionTranslator.h"
-#include "PTCInterface.h"
-#include "VariableManager.h"
 
 using namespace llvm;
 
@@ -502,10 +501,7 @@ IT::InstructionTranslator(IRBuilder<> &Builder,
   FunctionTags::Marker.addTo(NewPCMarker);
 }
 
-void IT::finalizeNewPCMarkers(std::string &CoveragePath) {
-  std::ofstream Output(CoveragePath);
-
-  Output << std::hex;
+void IT::finalizeNewPCMarkers() {
   size_t FixedArgCount = NewPCMarker->arg_size();
 
   llvm::SmallVector<CallInst *, 4> CallsToRemove;
@@ -517,8 +513,6 @@ void IT::finalizeNewPCMarkers(std::string &CoveragePath) {
     auto PC = MetaAddress::fromConstant(Call->getArgOperand(0));
     uint64_t Size = getLimitedValue(Call->getArgOperand(1));
     bool IsJT = JumpTargets.isJumpTarget(PC);
-    PC.dump(Output);
-    Output << ",0x" << Size << "," << (IsJT ? "1" : "0") << "\n";
 
     // We already finished discovering new code to translate, so we can remove
     // the references to local variables as argument of the calls to newpc and
@@ -542,8 +536,6 @@ void IT::finalizeNewPCMarkers(std::string &CoveragePath) {
 
   for (auto *Call : CallsToRemove)
     eraseFromParent(Call);
-
-  Output << std::dec;
 }
 
 SmallSet<unsigned, 1> IT::preprocess(PTCInstructionList *InstructionList) {
