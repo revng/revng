@@ -126,13 +126,17 @@ GeneratedCodeBasicInfo::SuccessorsList
 GeneratedCodeBasicInfo::getSuccessors(BasicBlock *BB) {
   parseRoot();
 
-  revng_assert(BB->getParent() == RootFunction);
+  bool IsRoot = BB->getParent() == RootFunction;
 
   SuccessorsList Result;
 
   df_iterator_default_set<BasicBlock *> Visited;
-  Visited.insert(AnyPC);
-  Visited.insert(UnexpectedPC);
+
+  if (IsRoot) {
+    Visited.insert(AnyPC);
+    Visited.insert(UnexpectedPC);
+  }
+
   for (BasicBlock *Block : depth_first_ext(BB, Visited)) {
     for (BasicBlock *Successor : successors(Block)) {
       revng_assert(Successor != Dispatcher);
@@ -142,9 +146,9 @@ GeneratedCodeBasicInfo::getSuccessors(BasicBlock *BB) {
       if (Address.isValid()) {
         Visited.insert(Successor);
         Result.Addresses.insert(Address);
-      } else if (Successor == AnyPC) {
+      } else if (IsRoot and Successor == AnyPC) {
         Result.AnyPC = true;
-      } else if (Successor == UnexpectedPC) {
+      } else if (IsRoot and Successor == UnexpectedPC) {
         Result.UnexpectedPC = true;
       } else if (getType(Successor) == IBDHB) {
         // Ignore
