@@ -17,4 +17,5 @@ target_link_libraries(revngFunctionIsolation
   revngModel
   revngEarlyFunctionAnalysis
   revngSupport
+  revngPipes
   ${LLVM_LIBRARIES})
