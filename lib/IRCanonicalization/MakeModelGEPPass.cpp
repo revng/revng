@@ -45,11 +45,10 @@
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
+#include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
 #include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
-
-#include "MarkerFunctions.h"
 
 using llvm::AnalysisUsage;
 using llvm::APInt;
@@ -726,11 +725,8 @@ static IRAccessPattern computeAccessPattern(const Use &U,
 
           // Assert that we're returning a proper struct, initialized with
           // struct initializers, but don't do anything here.
-          revng_assert(isa<CallInst>(RetVal)
-                       and dyn_cast<CallInst>(RetVal)
-                             ->getCalledFunction()
-                             ->getName()
-                             .startswith("struct_initializer"));
+          const auto *Returned = cast<CallInst>(RetVal)->getCalledFunction();
+          revng_assert(FunctionTags::StructInitializer.isTagOf(Returned));
         }
 
       } else if (const auto *CFT = dyn_cast<model::CABIFunctionType>(FType)) {
@@ -769,7 +765,7 @@ static IRAccessPattern computeAccessPattern(const Use &U,
 
         revng_log(ModelGEPLog, "Does not have model metadata. Skip ...");
 
-      } else if (F and F->getName().startswith("struct_initializer")) {
+      } else if (FunctionTags::StructInitializer.isTagOf(F)) {
 
         // special case for struct initializers. Eventually we should use
         // FunctionTags for this, not the function name.
@@ -2379,15 +2375,7 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
               "  `-> use in: " << dumpToString(TheUseToGEPify->getUser()));
 
     llvm::Type *IType = TheUseToGEPify->get()->getType();
-    llvm::FunctionType
-      *ModelGEPType = llvm::FunctionType::get(IType, true /* IsVarArg */);
-
-    FunctionCallee MGEPCallee = M.getOrInsertFunction(makeModelGEPName(IType),
-                                                      ModelGEPType);
-    auto *ModelGEPFunction = cast<llvm::Function>(MGEPCallee.getCallee());
-    ModelGEPFunction->addFnAttr(llvm::Attribute::NoUnwind);
-    ModelGEPFunction->addFnAttr(llvm::Attribute::WillReturn);
-    ModelGEPFunction->addFnAttr(llvm::Attribute::InaccessibleMemOnly);
+    auto *ModelGEPFunction = getModelGEP(M, IType);
 
     // Build the arguments for the call to modelGEP
     SmallVector<Value *, 4> Args;
@@ -2419,7 +2407,7 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
       Builder.SetInsertPoint(UserInstr);
     }
 
-    Value *ModelGEP = Builder.CreateCall(ModelGEPType, ModelGEPFunction, Args);
+    Value *ModelGEP = Builder.CreateCall(ModelGEPFunction, Args);
 
     if (GEPArgs.RestOff.isStrictlyPositive()) {
       // If the GEPArgs have a RestOff that is strictly positive, we have to

@@ -143,6 +143,7 @@ bool PSPPass::runOnFunction(Function &F) {
   Type *SPType = GlobalSP->getType()->getPointerElementType();
   auto InitFunction = M->getOrInsertFunction("revng_init_local_sp", SPType);
   Function *InitLocalSP = cast<Function>(InitFunction.getCallee());
+  FunctionTags::OpaqueCSVValue.addTo(InitLocalSP);
 
   // Create an alloca to represent the local value of the stack pointer.
   // This should be inserted at the beginning of the entry block.

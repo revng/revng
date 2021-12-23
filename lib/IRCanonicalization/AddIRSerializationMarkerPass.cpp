@@ -23,8 +23,6 @@
 #include "revng-c/Support/Mangling.h"
 #include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
 
-#include "MarkerFunctions.h"
-
 struct AddIRSerializationMarkersPass : public llvm::FunctionPass {
 public:
   static char ID;
@@ -63,13 +61,6 @@ bool AddIRSerializationMarkersPass::runOnFunction(llvm::Function &F) {
   for (const auto &[I, Flag] : ToSerialize) {
     auto *IType = I->getType();
 
-    // Never serialize the struct initializers.
-    if (auto *Call = dyn_cast<llvm::CallInst>(I))
-      if (auto *Callee = Call->getFunction())
-        if (Callee->hasName()
-            and Callee->getName().startswith("struct_initializer"))
-          continue;
-
     // We cannot wrap void-typed things into wrappers.
     // We'll have to handle them in another way in the decompilation pipeline
     if (IType->isVoidTy())
@@ -77,20 +68,13 @@ bool AddIRSerializationMarkersPass::runOnFunction(llvm::Function &F) {
 
     if (bool(Flag)) {
 
-      // Get the SCEV barrier function associated with IType
-      auto MarkerName = makeMarkerName(IType);
-      auto MarkerCallee = M->getOrInsertFunction(MarkerName, IType, IType);
-
-      auto *MarkerF = cast<llvm::Function>(MarkerCallee.getCallee());
-      MarkerF->addFnAttr(llvm::Attribute::NoUnwind);
-      MarkerF->addFnAttr(llvm::Attribute::WillReturn);
-      MarkerF->addFnAttr(llvm::Attribute::InaccessibleMemOnly);
+      auto *MarkerF = getSerializationMarker(*M, IType);
 
       // Insert a call to the SCEV barrier right after I. For now the call to
       // barrier has an undef argument, that will be fixed later.
       Builder.SetInsertPoint(I->getParent(), std::next(I->getIterator()));
       auto *Undef = llvm::UndefValue::get(IType);
-      auto *Call = Builder.CreateCall(MarkerCallee, Undef);
+      auto *Call = Builder.CreateCall(MarkerF, Undef);
 
       // Replace all uses of I with the new call.
       I->replaceAllUsesWith(Call);
