@@ -28,8 +28,6 @@ class Instruction;
 class MDNode;
 } // namespace llvm
 
-static const char *JTReasonMDName = "revng.jt.reasons";
-
 /// \brief Pass to collect basic information about the generated code
 ///
 /// This pass provides useful information for other passes by extracting them

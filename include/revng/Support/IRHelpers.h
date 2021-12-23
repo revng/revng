@@ -58,6 +58,9 @@ inline void eraseFromParent(llvm::Value *V) {
   }
 }
 
+constexpr const char *FunctionEntryMDNName = "revng.function.entry";
+constexpr const char *JTReasonMDName = "revng.jt.reasons";
+
 template<typename T>
 inline bool contains(T Range, typename T::value_type V) {
   return std::find(std::begin(Range), std::end(Range), V) != std::end(Range);
@@ -1259,6 +1262,17 @@ static_assert(not HasMetadata<llvm::Constant>);
 
 template<HasMetadata T>
 MetaAddress getMetaAddressMetadata(T *U, llvm::StringRef Name) {
+  using namespace llvm;
+
+  if (auto *MD = dyn_cast_or_null<MDTuple>(U->getMetadata(Name)))
+    if (auto *VAM = dyn_cast<ValueAsMetadata>(MD->getOperand(0)))
+      return MetaAddress::fromConstant(VAM->getValue());
+
+  return MetaAddress::invalid();
+}
+
+template<HasMetadata T>
+MetaAddress getMetaAddressMetadata(const T *U, llvm::StringRef Name) {
   using namespace llvm;
 
   if (auto *MD = dyn_cast_or_null<MDTuple>(U->getMetadata(Name)))
