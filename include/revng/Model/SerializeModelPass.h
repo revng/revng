@@ -9,7 +9,7 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/LoadModelPass.h"
 
-void writeModel(model::Binary &Model, llvm::Module &M);
+void writeModel(const model::Binary &Model, llvm::Module &M);
 
 class SerializeModelWrapperPass : public llvm::ModulePass {
 public:
