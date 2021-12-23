@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -1129,6 +1130,22 @@ void serialize(S &Stream, const T &Element) {
   serialize(Stream, const_cast<T &>(Element));
 }
 
+template<Yamlizable TupleLike>
+llvm::Error
+serializeToFile(const TupleLike &Tuple, const llvm::StringRef &Path) {
+  std::error_code ErrorCode;
+  llvm::raw_fd_ostream OutFile(Path, ErrorCode, llvm::sys::fs::CD_CreateAlways);
+  if (!!ErrorCode) {
+    return llvm::make_error<llvm::StringError>("Could not open file "
+                                                 + Path.str(),
+                                               ErrorCode);
+  }
+
+  serialize(OutFile, Tuple);
+
+  return llvm::Error::success();
+}
+
 template<TupleTreeCompatible T>
 class TupleTree {
 private:
@@ -1174,6 +1191,14 @@ public:
     Result.initializeReferences();
 
     return Result;
+  }
+
+  static llvm::ErrorOr<TupleTree> loadFromFile(const llvm::StringRef &Path) {
+    auto MaybeBuffer = llvm::MemoryBuffer::getFile(Path);
+    if (not MaybeBuffer)
+      return MaybeBuffer.getError();
+
+    return deserialize((*MaybeBuffer)->getBuffer());
   }
 
 public:
