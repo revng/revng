@@ -23,6 +23,13 @@ extern size_t MaxLoggerNameLength;
 
 #define debug_function __attribute__((used, noinline))
 
+/// \brief Emits \p Indentation space pairs
+template<typename Stream>
+void indent(Stream &Output, size_t Indentation) {
+  for (size_t I = 0; I < Indentation; I++)
+    Output << "  ";
+}
+
 /// \brief Stream an instance of this class to call Logger::emit()
 struct LogTerminator {
   const char *File;
