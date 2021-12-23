@@ -23,7 +23,7 @@ using RP = RegisterPass<T>;
 static RP<SerializeModelWrapperPass>
   X("serialize-model", "Serialize the model", true, true);
 
-void writeModel(model::Binary &Model, llvm::Module &M) {
+void writeModel(const model::Binary &Model, llvm::Module &M) {
 
   NamedMDNode *NamedMD = M.getNamedMetadata(ModelMetadataName);
   revng_check(not NamedMD, "The model has alread been serialized");
