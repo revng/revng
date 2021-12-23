@@ -7,9 +7,15 @@
 
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 #include "revng/FunctionIsolation/InvokeIsolatedFunctions.h"
+#include "revng/Pipeline/Contract.h"
+#include "revng/Pipeline/Registry.h"
+#include "revng/Pipes/IsolatedKind.h"
+#include "revng/Pipes/Kinds.h"
+#include "revng/Pipes/RootKind.h"
 
 using namespace llvm;
 
@@ -19,6 +25,25 @@ char InvokeIsolatedFunctionsPass::ID = 0;
 using Register = RegisterPass<InvokeIsolatedFunctionsPass>;
 static Register
   X("invoke-isolated-functions", "Invoke Isolated Functions Pass", true, true);
+
+struct InvokeIsolatedPipe {
+  static constexpr auto Name = "InvokeIsolated";
+
+  std::vector<pipeline::ContractGroup> getContract() const {
+    using namespace revng::pipes;
+    return { pipeline::ContractGroup(Root,
+                                     pipeline::Exactness::Exact,
+                                     0,
+                                     IsolatedRoot,
+                                     0) };
+  }
+
+  void registerPasses(llvm::legacy::PassManager &Manager) {
+    Manager.add(new InvokeIsolatedFunctionsPass());
+  }
+};
+
+static pipeline::RegisterLLVMPass<InvokeIsolatedPipe> Y;
 
 class InvokeIsolatedFunctions {
 private:

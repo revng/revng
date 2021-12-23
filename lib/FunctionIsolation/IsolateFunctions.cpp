@@ -10,6 +10,7 @@
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -26,6 +27,11 @@
 #include "revng/Model/CallEdge.h"
 #include "revng/Model/FunctionEdge.h"
 #include "revng/Model/FunctionEdgeBase.h"
+#include "revng/Pipeline/Contract.h"
+#include "revng/Pipeline/Registry.h"
+#include "revng/Pipes/IsolatedKind.h"
+#include "revng/Pipes/Kinds.h"
+#include "revng/Pipes/RootKind.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
@@ -45,6 +51,27 @@ using IFI = IsolateFunctionsImpl;
 
 char IF::ID = 0;
 static RegisterPass<IF> X("isolate", "Isolate Functions Pass", true, true);
+
+struct IsolatePipe {
+  static constexpr auto Name = "Isolate";
+
+  std::vector<pipeline::ContractGroup> getContract() const {
+    using namespace pipeline;
+    using namespace revng::pipes;
+    return {
+      ContractGroup::transformOnlyArgument(Root,
+                                           Exactness::Exact,
+                                           Isolated,
+                                           InputPreservation::Preserve)
+    };
+  }
+
+  void registerPasses(llvm::legacy::PassManager &Manager) {
+    Manager.add(new IsolateFunctions());
+  }
+};
+
+static pipeline::RegisterLLVMPass<IsolatePipe> Y;
 
 static void
 eraseBranch(Instruction *I, BasicBlock *ExpectedUniqueSuccessor = nullptr) {
