@@ -1268,12 +1268,6 @@ MetaAddress getMetaAddressMetadata(T *U, llvm::StringRef Name) {
   return MetaAddress::invalid();
 }
 
-template<typename T>
-inline llvm::cl::opt<T> *
-getOption(llvm::StringMap<llvm::cl::Option *> &Options, const char *Name) {
-  return static_cast<llvm::cl::opt<T> *>(Options[Name]);
-}
-
 /// Extract MD text from MDString or GlobalVariable
 llvm::StringRef getText(const llvm::Instruction *I, unsigned Kind);
 
