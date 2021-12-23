@@ -6,4 +6,4 @@ Steps:
    Pipes:
      - Name:             LLVMPipe
        UsedContainers: [C1]
-       Passes: [ExamplePass]
+       Passes: [example-pass]
