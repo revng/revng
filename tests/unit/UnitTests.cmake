@@ -344,3 +344,20 @@ target_link_libraries(
 add_dependencies(test_tuple_tree_generator generate-test-tuple-tree-code)
 add_test(NAME test_tuple_tree_generator COMMAND ./bin/test_tuple_tree_generator)
 set_tests_properties(test_tuple_tree_generator PROPERTIES LABELS "unit")
+
+#
+# test_pipeline
+#
+
+revng_add_private_executable(test_pipeline "${SRC}/Pipeline.cpp")
+target_compile_definitions(test_pipeline
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(test_pipeline
+  PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(test_pipeline
+  revngUnitTestHelpers
+  revngPipeline
+  Boost::unit_test_framework
+  ${LLVM_LIBRARIES})
+add_test(NAME test_pipeline COMMAND ./bin/test_pipeline)
+set_tests_properties(test_pipeline PROPERTIES LABELS "unit")
