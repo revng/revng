@@ -116,7 +116,7 @@ AdvancedValueInfoPass::run(llvm::Function &F,
   auto &SCEV = FAM.getResult<ScalarEvolutionAnalysis>(F);
   AdvancedValueInfo<StaticDataMemoryOracle> AVI(LVI, SCEV, DT, MO, Dispatcher);
 
-#ifndef NDEBUG
+#if NDEBUG
   // Ensure that no instruction has itself as operand, except for phis
   for (BasicBlock &BB : F)
     for (Instruction &I : BB)
