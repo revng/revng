@@ -1,0 +1,20 @@
+From:            Lifted
+Containers:
+Steps:
+ - Name:            Isolate
+   Pipes:
+     - Name:             LLVMPipe
+       UsedContainers: [module]
+       Passes: [detect-abi, Isolate, InvokeIsolated]
+ - Name:            RecompileIsolated
+   Pipes:
+     - Name:             LinkSupport
+       UsedContainers: [module]
+     - Name:             LLVMPipe
+       UsedContainers: [module]
+       Passes: [O2]
+       EnabledWhen: [O2]
+     - Name:             CompileIsolated
+       UsedContainers: [module, object]
+     - Name:             LinkForTranslation
+       UsedContainers: [input, object, output]

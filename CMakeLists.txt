@@ -220,6 +220,24 @@ copy_to_build_and_install(FILES
   "scripts/revng_dump_model/dump_model.py"
   )
 
+copy_to_build_and_install(FILES
+  bin/revng_support
+  "scripts/revng_support/__init__.py"
+  "scripts/revng_support/support.py"
+  )
+
+copy_to_build_and_install(FILES
+  bin/revng_translate
+  "scripts/revng_translate/__init__.py"
+  "scripts/revng_translate/translate.py"
+  )
+
+copy_to_build_and_install(FILES
+  bin/revng_translate/pipelines
+  "scripts/revng_translate/pipelines/isolate-translate.yml"
+  "scripts/revng_translate/pipelines/translate.yml"
+  )
+
 #
 # Export CMake targets
 #
