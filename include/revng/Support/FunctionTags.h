@@ -90,6 +90,7 @@ extern Tag StructInitializer;
 extern Tag OpaqueCSVValue;
 extern Tag FunctionDispatcher;
 extern Tag Root;
+extern Tag IsolatedRoot;
 extern Tag CSVsAsArgumentsWrapper;
 extern Tag Marker;
 extern Tag DynamicFunction;

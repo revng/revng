@@ -30,6 +30,7 @@ Tag StructInitializer("StructInitializer");
 Tag OpaqueCSVValue("OpaqueCSVValue");
 Tag FunctionDispatcher("FunctionDispatcher");
 Tag Root("Root");
+Tag IsolatedRoot("IsolatedRoot");
 Tag CSVsAsArgumentsWrapper("CSVsAsArgumentsWrapper");
 Tag Marker("Marker");
 Tag DynamicFunction("DynamicFunction");
