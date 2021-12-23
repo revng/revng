@@ -27,6 +27,7 @@
 #include "revng/Lift/BinaryFile.h"
 #include "revng/Lift/CodeGenerator.h"
 #include "revng/Lift/PTCInterface.h"
+#include "revng/Model/SerializeModelPass.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRAnnotators.h"
@@ -218,9 +219,11 @@ int main(int argc, const char *argv[]) {
   Architecture TargetArchitecture;
   llvm::LLVMContext Context;
   llvm::Module M("top", Context);
+  TupleTree<model::Binary> Model;
   CodeGenerator Generator(TheBinary,
                           TargetArchitecture,
                           &M,
+                          Model,
                           LibHelpersPath,
                           EarlyLinkedPath);
 
@@ -228,6 +231,8 @@ int main(int argc, const char *argv[]) {
   if (EntryPointAddress.getNumOccurrences() != 0)
     EntryPointAddressOptional = EntryPointAddress;
   Generator.translate(EntryPointAddressOptional);
+
+  writeModel(*Model.get(), M);
 
   OriginalAssemblyAnnotationWriter OAAW(M.getContext());
 

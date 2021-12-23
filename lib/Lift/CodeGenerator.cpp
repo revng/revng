@@ -149,12 +149,14 @@ static std::unique_ptr<Module> parseIR(StringRef Path, LLVMContext &Context) {
 CodeGenerator::CodeGenerator(BinaryFile &Binary,
                              Architecture &Target,
                              llvm::Module *TheModule,
+                             TupleTree<model::Binary> &Model,
                              std::string Helpers,
                              std::string EarlyLinked) :
   TargetArchitecture(std::move(Target)),
   TheModule(TheModule),
   Context(TheModule->getContext()),
-  Binary(Binary) {
+  Binary(Binary),
+  Model(Model) {
 
   OriginalInstrMDKind = Context.getMDKindID("oi");
   PTCInstrMDKind = Context.getMDKindID("pi");
@@ -1217,9 +1219,6 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   PostInstCombinePM.add(new PruneRetSuccessors);
   PostInstCombinePM.run(*TheModule);
 
-  // Serialize an empty Model into TheModule
-  TupleTree<model::Binary> Model;
-
   // Set the entry point
   Model->EntryPoint = VirtualAddress;
 
@@ -1269,7 +1268,9 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
       Importer.import(Path);
   Importer.import(Binary.binary(), "");
 
-  writeModel(*Model.get(), *TheModule);
+  Model->ImportedLibraries.clear();
+  for (const std::string &Library : Binary.neededLibraryNames())
+    Model->ImportedLibraries.insert(Library);
 
   JumpTargets.finalizeJumpTargets();
 
