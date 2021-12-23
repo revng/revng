@@ -3,6 +3,7 @@
 #
 
 revng_add_library_internal(revngSupport SHARED
+  ProgramRunner.cpp
   Assert.cpp
   CommandLine.cpp
   Debug.cpp
