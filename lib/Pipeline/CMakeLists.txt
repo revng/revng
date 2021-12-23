@@ -1,0 +1,22 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+revng_add_library_internal(revngPipeline SHARED
+  ContainerSet.cpp
+  Context.cpp
+  Contract.cpp
+  Errors.cpp
+  GenericLLVMPipe.cpp
+  Kind.cpp
+  LLVMContainer.cpp
+  LLVMKind.cpp
+  Loader.cpp
+  Runner.cpp
+  Step.cpp
+  Target.cpp
+)
+
+target_link_libraries(revngPipeline
+  revngSupport
+  ${LLVM_LIBRARIES})
