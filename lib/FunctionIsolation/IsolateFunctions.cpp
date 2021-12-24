@@ -488,8 +488,15 @@ bool IFI::handleIndirectBoundary(const std::vector<Boundary> &Boundaries,
   const Boundary *IndirectBoundary = zeroOrOne(Boundaries, IsIndirectBoundary);
 
   if (IndirectBoundary == nullptr) {
-    revng_assert(NoMore);
-    return false;
+    // Is there a leftover direct boundary? If so, assign it anyways
+    if (not NoMore and Boundaries.size()) {
+      for (const Boundary &B : Boundaries)
+        if (isFunctionCall(B.Block))
+          IndirectBoundary = &B;
+    } else {
+      revng_assert(NoMore);
+      return false;
+    }
   }
 
   BasicBlock *BB = IndirectBoundary->Block;
@@ -667,7 +674,9 @@ bool IFI::handleDirectBoundary(const Boundary &TheBoundary,
     }
   }
 
-  revng_assert(Consumed == TheBoundary.Successors.Addresses.size());
+  // TODO: we may need to review how extra successors
+  // (not present within the model) are handled.
+  revng_assert(Consumed <= TheBoundary.Successors.Addresses.size());
 
   return IsCall;
 }

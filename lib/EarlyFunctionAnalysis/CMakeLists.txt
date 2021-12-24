@@ -11,7 +11,9 @@ revng_add_analyses_library_internal(revngEarlyFunctionAnalysis
   IndirectBranchInfoPrinterPass.cpp
   PromoteGlobalToLocalVars.cpp
   SegregateDirectStackAccesses.cpp
-  EarlyFunctionAnalysis.cpp)
+  EarlyFunctionAnalysis.cpp
+  CollectFunctionsFromCalleesPass.cpp
+  CollectFunctionsFromUnusedAddressesPass.cpp)
 
 llvm_map_components_to_libnames(LLVM_LIBRARIES Analysis)
 
