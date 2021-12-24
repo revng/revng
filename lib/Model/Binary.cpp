@@ -292,39 +292,45 @@ bool Function::verify(bool Assert) const {
 }
 
 bool Function::verify(VerifyHelper &VH) const {
-  if (Type == FunctionType::Fake)
+  if (Type == FunctionType::Fake or Type == FunctionType::Invalid)
     return VH.maybeFail(CFG.size() == 0);
 
   // Verify blocks
-  bool HasEntry = false;
-  for (const BasicBlock &Block : CFG) {
+  if (CFG.size() > 0) {
+    bool HasEntry = false;
+    for (const BasicBlock &Block : CFG) {
 
-    if (Block.Start == Entry) {
-      if (HasEntry)
-        return VH.fail();
-      HasEntry = true;
+      if (Block.Start == Entry) {
+        if (HasEntry)
+          return VH.fail();
+        HasEntry = true;
+      }
+
+      for (const auto &Edge : Block.Successors)
+        if (not Edge->verify(VH))
+          return VH.fail();
     }
 
-    for (const auto &Edge : Block.Successors)
-      if (not Edge->verify(VH))
-        return VH.fail();
+    if (not HasEntry) {
+      return VH.fail("The function CFG does not contain a block starting at "
+                     "the entry point",
+                     *this);
+    }
   }
 
-  if (not HasEntry)
-    return VH.fail();
+  if (Prototype.isValid()) {
+    // The function has a prototype
+    if (not Prototype.get()->verify(VH))
+      return VH.fail("Function prototype does not verify", *this);
 
-  // Prototype is present
-  if (not Prototype.isValid())
-    return VH.fail();
-
-  // Prototype is valid
-  if (not Prototype.get()->verify(VH))
-    return VH.fail();
-
-  const model::Type *FunctionType = Prototype.get();
-  if (not(isa<RawFunctionType>(FunctionType)
-          or isa<CABIFunctionType>(FunctionType)))
-    return VH.fail();
+    const model::Type *FunctionType = Prototype.get();
+    if (not(isa<RawFunctionType>(FunctionType)
+            or isa<CABIFunctionType>(FunctionType))) {
+      return VH.fail("Function prototype is not a RawFunctionType or "
+                     "CABIFunctionType",
+                     *this);
+    }
+  }
 
   return true;
 }
