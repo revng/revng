@@ -15,7 +15,7 @@ namespace EarlyFunctionAnalysis {
 
 char ABIDetectionPass::ID = 0;
 using Register = RegisterPass<ABIDetectionPass>;
-static Register X("detect-abi", "ABI Detection Pass", true, true);
+static Register X("detect-abi", "ABI Detection Pass", true, false);
 
 bool ABIDetectionPass::runOnModule(Module &M) {
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
