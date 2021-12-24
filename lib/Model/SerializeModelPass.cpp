@@ -28,6 +28,8 @@ void writeModel(model::Binary &Model, llvm::Module &M) {
   NamedMDNode *NamedMD = M.getNamedMetadata(ModelMetadataName);
   revng_check(not NamedMD, "The model has alread been serialized");
 
+  Model.verify(true);
+
   std::string Buffer;
   {
     llvm::raw_string_ostream Stream(Buffer);
