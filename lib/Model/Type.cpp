@@ -782,17 +782,25 @@ verifyImpl(VerifyHelper &VH, const StructType *T) {
 
 static RecursiveCoroutine<bool>
 verifyImpl(VerifyHelper &VH, const UnionType *T) {
-  if (not T->CustomName.verify(VH) or T->Kind != TypeKind::Union
-      or T->Fields.empty())
-    rc_return false;
+  revng_assert(T->Kind == TypeKind::Union);
+
+  if (not T->CustomName.verify(VH))
+    rc_return VH.fail("Invalid name", *T);
+
+  if (T->Fields.empty())
+    rc_return VH.fail("Union type has zero fields", *T);
 
   llvm::SmallSet<llvm::StringRef, 8> Names;
   for (auto &Group : llvm::enumerate(T->Fields)) {
     auto &Field = Group.value();
     uint64_t ExpectedIndex = Group.index();
 
-    if (Field.Index != ExpectedIndex)
-      rc_return VH.fail();
+    if (Field.Index != ExpectedIndex) {
+      using llvm::Twine;
+      rc_return VH.fail(Twine("Union type is missing field ")
+                          + Twine(ExpectedIndex),
+                        *T);
+    }
 
     if (not rc_recur Field.verify(VH))
       rc_return VH.fail();
@@ -802,16 +810,17 @@ verifyImpl(VerifyHelper &VH, const UnionType *T) {
     // Unions cannot have zero-sized fields
     if (not MaybeSize) {
       using llvm::Twine;
-      rc_return VH.fail("Field " + Twine(Field.Index + 1) + " zero-sized", *T);
+      rc_return VH.fail("Field " + Twine(Field.Index) + " zero-sized", *T);
     }
 
-    if (Field.CustomName.size() > 0) {
-      if (not Names.insert(Field.CustomName).second)
-        rc_return VH.fail();
+    if (isVoidConst(&Field.Type).IsVoid) {
+      using llvm::Twine;
+      rc_return VH.fail("Field " + Twine(Field.Index) + " is void", *T);
     }
 
-    if (isVoidConst(&Field.Type).IsVoid)
-      rc_return VH.fail();
+    if (not Field.CustomName.empty()
+        and not Names.insert(Field.CustomName).second)
+      rc_return VH.fail("Collision in union fields names", *T);
   }
 
   rc_return true;
