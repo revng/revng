@@ -265,8 +265,9 @@ public:
     for (auto [OldFunction, NewFunction] : OldToNew)
       eraseFromParent(OldFunction);
 
-    // Drop InitLocalSP
-    eraseFromParent(InitLocalSP);
+    // Drop InitLocalSP if it's not used anymore
+    if (InitLocalSP->getNumUses() == 0)
+      eraseFromParent(InitLocalSP);
 
     return Changed;
   }
@@ -582,19 +583,19 @@ private:
     uint64_t StackFrameSize = MaybeStackFrameSize.value_or(0);
 
     //
-    // Create call and rebase SP0, if revng_init_local_sp still has users
+    // Create call and rebase SP0, if StackFrameSize is not zero
     //
-    if (not(StackFrameSize == 0 and Call->user_empty())) {
+    if (StackFrameSize != 0) {
       IRBuilder<> Builder(Call);
       auto *StackFrame = createCall(Builder,
                                     StackFrameAllocator,
                                     StackFrameSize);
       auto *SP0 = Builder.CreateAdd(StackFrame, getSPConstant(StackFrameSize));
       Call->replaceAllUsesWith(SP0);
-    }
 
-    // Cleanup revng_init_local_sp
-    eraseFromParent(Call);
+      // Cleanup revng_init_local_sp
+      eraseFromParent(Call);
+    }
   }
 
 private:
