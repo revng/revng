@@ -25,9 +25,9 @@ struct ReturnBase {
     return;
   }
 
-  RetT get() const {
+  RetT &&take() {
     revng_assert(CurrValue.has_value());
-    return *CurrValue;
+    return std::move(CurrValue.value());
   }
 
 protected:
@@ -38,7 +38,7 @@ template<>
 struct ReturnBase<void> {
 
   void return_void() const { return; }
-  void get() const {}
+  void take() const {}
 };
 
 template<typename ReturnT>
@@ -171,7 +171,7 @@ struct RecursivePromise : public ReturnBase<ReturnT> {
         if constexpr (std::is_void_v<AwaiteeReturnT>)
           return;
         else
-          return Awaitee.promise().get();
+          return Awaitee.promise().take();
       }
 
     private:
@@ -244,10 +244,11 @@ public:
     if constexpr (std::is_void_v<ReturnT>) {
       return;
     } else {
-      ReturnT Result = OwnedHandle.promise().get();
-      return Result;
+      return OwnedHandle.promise().take();
     }
   }
+
+  auto operator*() { return *this->operator ReturnT(); }
 
 protected:
   coro_handle OwnedHandle;
