@@ -73,14 +73,30 @@ bool AddIRSerializationMarkersPass::runOnFunction(llvm::Function &F) {
       // Insert a call to the SCEV barrier right after I. For now the call to
       // barrier has an undef argument, that will be fixed later.
       Builder.SetInsertPoint(I->getParent(), std::next(I->getIterator()));
+
+      // The first argument for the call for now is undef. We'll fix it up
+      // later on.
       auto *Undef = llvm::UndefValue::get(IType);
-      auto *Call = Builder.CreateCall(MarkerF, Undef);
+
+      // The second arg operand needs to be true if the serialization is
+      // required because of side effects.
+      auto *BoolType = MarkerF->getArg(1)->getType();
+      llvm::Constant *MarkSideEffects = nullptr;
+      if (Flag.isSet(SerializationReason::HasSideEffects)
+          or Flag.isSet(SerializationReason::HasInterferingSideEffects)) {
+        MarkSideEffects = llvm::ConstantInt::getAllOnesValue(BoolType);
+      } else {
+        MarkSideEffects = llvm::ConstantInt::getNullValue(BoolType);
+      }
+
+      auto *Call = Builder.CreateCall(MarkerF, { Undef, MarkSideEffects });
 
       // Replace all uses of I with the new call.
       I->replaceAllUsesWith(Call);
 
       // Now Fix the call to use I as argument.
       Call->setArgOperand(0, I);
+
       Changed = true;
     }
   }

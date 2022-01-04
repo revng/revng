@@ -78,7 +78,15 @@ llvm::Function *getModelGEP(llvm::Module &M, llvm::Type *T) {
 llvm::Function *getSerializationMarker(llvm::Module &M, llvm::Type *T) {
 
   using namespace llvm;
-  auto MarkerCallee = M.getOrInsertFunction(makeMarkerName(T), T, T);
+  // Create a function, with T as return type, and 2 arguments.
+  // The first argument has type T, the second argument is a boolean.
+  // If the second argument is 'true', it means the marked instructions has
+  // side effects that need to be taken in consideration for serialization.
+  auto MarkerCallee = M.getOrInsertFunction(makeMarkerName(T),
+                                            T,
+                                            T,
+                                            IntegerType::get(M.getContext(),
+                                                             1));
 
   auto *MarkerF = cast<Function>(MarkerCallee.getCallee());
   MarkerF->addFnAttr(llvm::Attribute::NoUnwind);
