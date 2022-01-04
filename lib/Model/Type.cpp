@@ -19,6 +19,7 @@
 
 using llvm::cast;
 using llvm::dyn_cast;
+using llvm::Twine;
 
 namespace model {
 
@@ -185,7 +186,6 @@ model::Type::Type(TypeKind::Values TK) :
 }
 
 Identifier model::UnionField::name() const {
-  using llvm::Twine;
   Identifier Result;
   if (CustomName.empty())
     (Twine("unnamed_field_") + Twine(Index)).toVector(Result);
@@ -195,7 +195,6 @@ Identifier model::UnionField::name() const {
 }
 
 Identifier model::StructField::name() const {
-  using llvm::Twine;
   Identifier Result;
   if (CustomName.empty())
     (Twine("unnamed_field_at_offset_") + Twine(Offset)).toVector(Result);
@@ -205,7 +204,6 @@ Identifier model::StructField::name() const {
 }
 
 Identifier model::Argument::name() const {
-  using llvm::Twine;
   Identifier Result;
   if (CustomName.empty())
     (Twine("unnamed_arg_") + Twine(Index)).toVector(Result);
@@ -277,7 +275,6 @@ isValidPrimitiveSize(PrimitiveTypeKind::Values PrimKind, uint8_t BS) {
 }
 
 Identifier model::PrimitiveType::name() const {
-  using llvm::Twine;
   Identifier Result;
 
   switch (PrimitiveKind) {
@@ -318,7 +315,6 @@ Identifier model::PrimitiveType::name() const {
 
 template<typename T>
 Identifier customNameOrAutomatic(T *This) {
-  using llvm::Twine;
   if (not This->CustomName.empty())
     return This->CustomName;
   else
@@ -342,7 +338,6 @@ Identifier model::UnionType::name() const {
 }
 
 Identifier model::NamedTypedRegister::name() const {
-  using llvm::Twine;
   if (not CustomName.empty())
     return CustomName;
   else
@@ -636,7 +631,7 @@ bool Identifier::verify(VerifyHelper &VH) const {
                         and AllAlphaNumOrUnderscore(*this)
                         and not beginsWithReservedPrefix(*this)
                         and not ReservedKeywords.count(llvm::StringRef(*this)),
-                      llvm::Twine(*this) + " is not a valid identifier");
+                      Twine(*this) + " is not a valid identifier");
 }
 
 static RecursiveCoroutine<bool>
@@ -736,8 +731,7 @@ verifyImpl(VerifyHelper &VH, const StructType *T) {
     auto &Field = *FieldIt;
 
     if (not rc_recur Field.verify(VH))
-      rc_return VH.fail("Can't verify type of field " + llvm::Twine(Index + 1),
-                        *T);
+      rc_return VH.fail("Can't verify type of field " + Twine(Index + 1), *T);
 
     if (Field.Offset >= T->Size)
       rc_return VH.fail("Field " + Twine(Index + 1)
@@ -794,7 +788,6 @@ verifyImpl(VerifyHelper &VH, const UnionType *T) {
     uint64_t ExpectedIndex = Group.index();
 
     if (Field.Index != ExpectedIndex) {
-      using llvm::Twine;
       rc_return VH.fail(Twine("Union type is missing field ")
                           + Twine(ExpectedIndex),
                         *T);
@@ -808,7 +801,6 @@ verifyImpl(VerifyHelper &VH, const UnionType *T) {
     revng_assert(MaybeSize);
 
     if (isVoidConst(&Field.Type).IsVoid) {
-      using llvm::Twine;
       rc_return VH.fail("Field " + Twine(Field.Index) + " is void", *T);
     }
 
