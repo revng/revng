@@ -8,7 +8,6 @@ revng_add_analyses_library(revngcBeautifyGHAST
 	BeautifyGHAST.cpp)
 
 target_link_libraries(revngcBeautifyGHAST
-	revngcMarkForSerialization
 	revngcRestructureCFGPass
 	revngcTargetFunctionOption
 	revngcSupport
