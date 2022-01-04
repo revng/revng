@@ -52,7 +52,7 @@ bool MarkForSerializationPass::runOnFunction(llvm::Function &F) {
   Mark.initialize();
   Mark.run();
 
-  return true;
+  return false;
 }
 
 char MarkForSerializationPass::ID = 0;
