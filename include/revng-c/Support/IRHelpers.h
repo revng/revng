@@ -1,15 +1,19 @@
 #pragma once
 
 //
-// This file is distributed under the MIT License. See LICENSE.md for details.
+// Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 //
 
 #include <optional>
 
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/Type.h"
 
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
@@ -64,3 +68,25 @@ inline std::optional<int64_t>
 getSignedConstantArg(llvm::CallInst *Call, unsigned Index) {
   return getConstantArg<int64_t>(Call, Index);
 }
+
+namespace llvm {
+
+class InsertValueInst;
+class Instruction;
+class ExtractValueInst;
+class Value;
+
+} // end namespace llvm
+
+extern llvm::SmallVector<llvm::Value *, 2>
+getInsertValueLeafOperands(llvm::InsertValueInst *);
+
+extern llvm::SmallVector<const llvm::Value *, 2>
+getInsertValueLeafOperands(const llvm::InsertValueInst *);
+
+extern llvm::SmallVector<llvm::SmallPtrSet<llvm::ExtractValueInst *, 2>, 2>
+getExtractedValuesFromInstruction(llvm::Instruction *);
+
+extern llvm::SmallVector<llvm::SmallPtrSet<const llvm::ExtractValueInst *, 2>,
+                         2>
+getExtractedValuesFromInstruction(const llvm::Instruction *);

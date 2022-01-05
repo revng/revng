@@ -6,7 +6,6 @@
 
 #include "revng-c/DataLayoutAnalysis/DLALayouts.h"
 #include "revng-c/DataLayoutAnalysis/DLAPass.h"
-#include "revng-c/Utils/Utils.h"
 
 #include "Backend/DLAMakeLayouts.h"
 #include "Backend/DLAMakeModelTypes.h"

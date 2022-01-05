@@ -4,12 +4,17 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <utility>
 
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Argument.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -17,10 +22,12 @@
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Type.h"
+#include "revng/Model/VerifyHelper.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
+#include "revng-c/Support/ModelHelpers.h"
 
 #include "../DLAHelpers.h"
 #include "../DLAModelFuncHelpers.h"
@@ -28,6 +35,10 @@
 
 using namespace model;
 using namespace dla;
+
+using llvm::cast;
+using llvm::dyn_cast;
+using llvm::isa;
 
 static Logger<> Log("dla-update-model-funcs");
 static Logger<> ModelLog("dla-dump-model-with-funcs");
@@ -54,7 +65,8 @@ static const llvm::Value *toLLVMValue(const llvm::Use &A) {
 ///\brief If the DLA recovered a more precise type than the already existing one
 /// for any of the arguments of a RawFunctionType, update the model accordingly.
 template<typename T>
-static bool updateRawFuncArgs(RawFunctionType *ModelPrototype,
+static bool updateRawFuncArgs(model::Binary &Model,
+                              RawFunctionType *ModelPrototype,
                               const T &CallOrFunction,
                               const TypeMapT &DLATypes) {
   bool Updated = false;
@@ -65,8 +77,39 @@ static bool updateRawFuncArgs(RawFunctionType *ModelPrototype,
   uint64_t EffectiveLLVMArgSize = arg_size(CallOrFunction);
 
   // In case of presence of stack arguments, there's an extra argument
-  if (ModelPrototype->StackArgumentsType.get() != nullptr)
+  if (auto *ModelStackArg = ModelPrototype->StackArgumentsType.get()) {
+    revng_assert(not LLVMArgs.empty());
+
+    // If the ModelStackArgs is an empty struct we have to fill it up, otherwise
+    // it's already known and we don't have to mess it up.
+    auto *StackStruct = cast<model::StructType>(ModelStackArg);
+    if (StackStruct->Fields.empty()) {
+
+      // The stack argument on llvm IR is the last argument
+      const llvm::Value *LLVMStackArg = toLLVMValue(*std::prev(LLVMArgs.end()));
+
+      revng_log(Log,
+                "Updating stack arg " << LLVMStackArg->getNameOrAsOperand());
+      LayoutTypePtr Key{ LLVMStackArg, LayoutTypePtr::fieldNumNone };
+
+      if (auto NewTypeIt = DLATypes.find(Key); NewTypeIt != DLATypes.end()) {
+        const model::QualifiedType &StackArgType = NewTypeIt->second;
+        revng_assert(StackArgType.Qualifiers.empty());
+        revng_assert(*StackArgType.size() == StackStruct->Size);
+        ModelPrototype->StackArgumentsType = StackArgType.UnqualifiedType;
+        revng_log(Log, "Updated to " << StackArgType.UnqualifiedType.get()->ID);
+
+        ModelStackArg = ModelPrototype->StackArgumentsType.get();
+        revng_assert(isa<model::StructType>(ModelStackArg));
+
+        Updated = true;
+      }
+    }
+
+    // Decrease the effective argument size, so the next loop leaves the stack
+    // arguments alone.
     EffectiveLLVMArgSize -= 1;
+  }
 
   revng_assert(ModelArgs.size() == EffectiveLLVMArgSize);
 
@@ -77,31 +120,193 @@ static bool updateRawFuncArgs(RawFunctionType *ModelPrototype,
 
     const llvm::Value *LLVMVal = toLLVMValue(LLVMArg);
     revng_log(Log, "Updating arg " << LLVMVal->getNameOrAsOperand());
-    LayoutTypePtr Key{ LLVMVal, LayoutTypePtr::fieldNumNone };
-    auto NewTypeIt = DLATypes.find(Key);
 
     // Don't update if the type is already fine-grained or if the DLA has
     // nothing to say.
-    // The latter situation can happen e.g. with unused variables, that have no
-    // accesses in the TypeSystem graph. These nodes are pruned away in the
-    // middle-end, therefore there is no Type associated to them at this stage.
-    if (canBeNarrowedDown(ModelArg.Type) and NewTypeIt != DLATypes.end()) {
-      auto PtrSize = ModelArg.Type.size();
-      ModelArg.Type.UnqualifiedType = NewTypeIt->second.UnqualifiedType;
-      // The type is associated to a LayoutTypeSystemPtr, hence we have to add
-      // the pointer qualifier
-      ModelArg.Type.Qualifiers.push_back({ Pointer, PtrSize.value_or(0) });
-      Updated = true;
-      revng_log(Log, "Updated to " << ModelArg.Type.UnqualifiedType.get()->ID);
+    // The latter situation can happen e.g. with unused variables, that have
+    // no accesses in the TypeSystem graph. These nodes are pruned away in the
+    // middle-end, therefore there is no Type associated to them at this
+    // stage.
+    if (canBeNarrowedDown(ModelArg.Type)) {
+      LayoutTypePtr Key{ LLVMVal, LayoutTypePtr::fieldNumNone };
+      if (auto NewTypeIt = DLATypes.find(Key); NewTypeIt != DLATypes.end()) {
+
+        auto OldSize = *ModelArg.Type.size();
+        ModelArg.Type.UnqualifiedType = NewTypeIt->second.UnqualifiedType;
+        // The type is associated to a LayoutTypeSystemPtr, hence we have to add
+        // the pointer qualifier
+        using model::Architecture::getPointerSize;
+        size_t PointerBytes = getPointerSize(Model.Architecture);
+        auto PointerQual = model::Qualifier::createPointer(PointerBytes);
+        ModelArg.Type.Qualifiers.push_back(PointerQual);
+        revng_assert(*ModelArg.Type.size() == OldSize);
+        Updated = true;
+        revng_log(Log,
+                  "Updated to " << ModelArg.Type.UnqualifiedType.get()->ID);
+      }
     }
   }
 
   return Updated;
 }
 
+static bool updateFuncStackFrame(model::Function &ModelFunc,
+                                 const llvm::Function &LLVMFunc,
+                                 const TypeMapT &DLATypes,
+                                 model::Binary &Model) {
+  bool Updated = false;
+
+  if (not ModelFunc.StackFrameType.isValid())
+    return Updated;
+
+  auto *OldModelStackFrameType = ModelFunc.StackFrameType.get();
+  if (not OldModelStackFrameType)
+    return Updated;
+
+  auto *OldStackFrameStruct = cast<model::StructType>(OldModelStackFrameType);
+  if (not OldStackFrameStruct->Fields.empty())
+    return Updated;
+
+  bool Found = false;
+  for (const auto &I : llvm::instructions(LLVMFunc)) {
+
+    auto *Call = dyn_cast<llvm::CallInst>(&I);
+    if (not Call)
+      continue;
+
+    auto *Callee = Call->getCalledFunction();
+    if (not Callee or Callee->getName() != "revng_stack_frame")
+      continue;
+
+    revng_assert(not Found, "Multiple calls to revng_stack_frame");
+    Found = true;
+
+    revng_log(Log, "Updating stack for " << LLVMFunc.getName());
+    LoggerIndent Indent{ Log };
+    revng_log(Log, "Was " << OldModelStackFrameType->ID);
+
+    LayoutTypePtr Key{ Call, LayoutTypePtr::fieldNumNone };
+    if (auto NewTypeIt = DLATypes.find(Key); NewTypeIt != DLATypes.end()) {
+      model::QualifiedType NewStackType = NewTypeIt->second;
+      NewStackType = peelConstAndTypedefs(NewStackType);
+      bool IsPointerOrArray = not NewStackType.Qualifiers.empty();
+
+      auto NewStackSize = *NewStackType.size();
+      uint64_t OldStackSize = *OldStackFrameStruct->size();
+
+      revng_assert(NewStackSize > 0
+                   and NewStackSize < std::numeric_limits<int64_t>::max());
+
+      auto *UnqualNewStack = NewStackType.UnqualifiedType.get();
+      if (IsPointerOrArray or isa<model::PrimitiveType>(UnqualNewStack)
+          or isa<model::EnumType>(UnqualNewStack)) {
+        revng_assert(NewStackSize <= OldStackSize);
+
+        // OldStackFrameStruct is an empty struct, just add the new stack type
+        // as the first field
+        OldStackFrameStruct->Fields[0].Type = NewStackType;
+
+      } else if (auto *NewS = dyn_cast<model::StructType>(UnqualNewStack)) {
+        // If DLA recoverd a new stack size that is too large, we have to shrink
+        // it. For now the shrinking does not look deeply inside the types, only
+        // at step one into the fields of the struct. We drop all the fields
+        // that go over the OldStackSize.
+        if (NewStackSize > OldStackSize) {
+          const auto IsTooLarge = [OldStackSize](const model::StructField &F) {
+            return (F.Offset + *F.Type.size()) > OldStackSize;
+          };
+
+          auto It = llvm::find_if(NewS->Fields, IsTooLarge);
+          auto End = NewS->Fields.end();
+          NewS->Fields.erase(It, End);
+        }
+
+        NewS->Size = OldStackSize;
+
+        ModelFunc.StackFrameType = Model.getTypePath(NewS);
+
+      } else if (auto *NewU = dyn_cast<model::UnionType>(UnqualNewStack)) {
+        // Prepare the new stack type, which cannot be a union, it has to be
+        // a model::StructType
+        model::TypePath NewStackStruct = createEmptyStruct(Model, OldStackSize);
+
+        // If DLA recoverd a new stack size that is too large, we have to shrink
+        // it. For now the shrinking does not look deeply inside the types, only
+        // at step one into the fields of the union. We drop all the fields that
+        // are larger than OldStackSize.
+        auto FieldsRemaining = NewU->Fields.size();
+        if (NewStackSize > OldStackSize) {
+
+          const auto IsTooLarge = [OldStackSize](const model::UnionField &F) {
+            return *F.Type.size() > OldStackSize;
+          };
+
+          // First, detect the fields that are too large.
+          llvm::SmallSet<size_t, 8> FieldsToDrop;
+          auto It = NewU->Fields.begin();
+          auto End = NewU->Fields.end();
+          for (; It != End; ++It) {
+            revng_assert(It->verify());
+            revng_assert(It->Type.verify());
+            if (IsTooLarge(*It))
+              FieldsToDrop.insert(It->Index);
+          }
+
+          revng_assert(not FieldsToDrop.empty());
+
+          // Count the fields that are left in the union if we remove those
+          // selected to be dropped.
+          FieldsRemaining = NewU->Fields.size() - FieldsToDrop.size();
+
+          // If we need to drop at least one field but not all of them, we have
+          // to renumber the remaining fields, otherwise the union will not
+          // verify.
+          if (FieldsRemaining) {
+
+            // Drop the large fields
+            for (auto &FieldNum : FieldsToDrop)
+              NewU->Fields.erase(FieldNum);
+
+            // Re-enumerate the remaining fields
+            for (auto &Group : llvm::enumerate(NewU->Fields))
+              Group.value().Index = Group.index();
+
+            revng_assert(NewU->Fields.size() == FieldsRemaining);
+            revng_assert(NewU->verify());
+          }
+        }
+
+        // If there are fields left in the union, then inject them in the stack
+        // struct as fields.
+        if (FieldsRemaining) {
+          cast<model::StructType>(NewStackStruct.get())
+            ->Fields[0]
+            .Type = model::QualifiedType{
+            .UnqualifiedType = Model.getTypePath(NewU), .Qualifiers{}
+          };
+        }
+
+        ModelFunc.StackFrameType = NewStackStruct;
+
+      } else {
+        revng_abort();
+      }
+
+      revng_log(Log, "Updated to " << ModelFunc.StackFrameType.get()->ID);
+
+      revng_assert(isa<model::StructType>(ModelFunc.StackFrameType.get()));
+      revng_assert(*ModelFunc.StackFrameType.get()->size() == OldStackSize);
+
+      Updated = true;
+    }
+  }
+  return Updated;
+}
+
 ///\brief If the DLA recovered a more precise type than the already existing one
 /// for the return type of a RawFunctionType, update the model accordingly.
-static bool updateRawFuncRetValue(RawFunctionType *ModelPrototype,
+static bool updateRawFuncRetValue(model::Binary &Model,
+                                  RawFunctionType *ModelPrototype,
                                   const llvm::Value *LLVMRetVal,
                                   const llvm::Type *LLVMRetType,
                                   const TypeMapT &TypeMap) {
@@ -130,24 +335,28 @@ static bool updateRawFuncRetValue(RawFunctionType *ModelPrototype,
     revng_log(Log,
               "Updating elem " << Index << " of "
                                << LLVMRetVal->getNameOrAsOperand());
-    LayoutTypePtr Key{ LLVMRetVal, Index };
-    auto NewTypeIt = TypeMap.find(Key);
 
-    auto &ModelRetVal = ModelRet.value();
     // Don't update if the type is already fine-grained or if the DLA has
     // nothing to say.
-    // The latter situation can happen e.g. with unused variables, that have no
-    // accesses in the TypeSystem graph. These nodes are pruned away in the
-    // middle-end, therefore there is no Type associated to them at this stage.
-    if (canBeNarrowedDown(ModelRetVal.Type) and NewTypeIt != TypeMap.end()) {
-      auto PtrSize = ModelRetVal.Type.size();
-      ModelRetVal.Type.UnqualifiedType = NewTypeIt->second.UnqualifiedType;
-      // The type is associated to a LayoutTypeSystemPtr, hence we have to add
-      // the pointer qualifier
-      ModelRetVal.Type.Qualifiers.push_back({ Pointer, PtrSize.value_or(0) });
-      Updated = true;
-      revng_log(Log,
-                "Updated to " << ModelRetVal.Type.UnqualifiedType.get()->ID);
+    // The latter situation can happen e.g. with unused variables, that have
+    // no accesses in the TypeSystem graph. These nodes are pruned away in the
+    // middle-end, therefore there is no Type associated to them at this
+    // stage.
+    auto &ModelRetVal = ModelRet.value();
+    if (canBeNarrowedDown(ModelRetVal.Type)) {
+      LayoutTypePtr Key{ LLVMRetVal, Index };
+      if (auto NewTypeIt = TypeMap.find(Key); NewTypeIt != TypeMap.end()) {
+        ModelRetVal.Type.UnqualifiedType = NewTypeIt->second.UnqualifiedType;
+        // The type is associated to a LayoutTypeSystemPtr, hence we have to
+        // add the pointer qualifier
+        using model::Architecture::getPointerSize;
+        size_t PointerBytes = getPointerSize(Model.Architecture);
+        auto PtrQualifier = model::Qualifier::createPointer(PointerBytes);
+        ModelRetVal.Type.Qualifiers.push_back(PtrQualifier);
+        Updated = true;
+        revng_log(Log,
+                  "Updated to " << ModelRetVal.Type.UnqualifiedType.get()->ID);
+      }
     }
   }
 
@@ -156,7 +365,8 @@ static bool updateRawFuncRetValue(RawFunctionType *ModelPrototype,
 
 ///\brief Update the prototype of a function with the types recovered by DLA.
 template<typename T>
-static bool updateFuncPrototype(model::Type *Prototype,
+static bool updateFuncPrototype(model::Binary &Model,
+                                model::Type *Prototype,
                                 const T &CallOrFunction,
                                 const TypeMapT &TypeMap) {
   revng_assert(Prototype);
@@ -164,15 +374,13 @@ static bool updateFuncPrototype(model::Type *Prototype,
 
   revng_log(Log, "Updating func prototype");
 
-  if (auto *RawPrototype = llvm::dyn_cast<RawFunctionType>(Prototype)) {
-    Updated |= updateRawFuncArgs(RawPrototype, CallOrFunction, TypeMap);
-    Updated |= updateRawFuncRetValue(RawPrototype,
+  if (auto *RawPrototype = dyn_cast<RawFunctionType>(Prototype)) {
+    Updated |= updateRawFuncArgs(Model, RawPrototype, CallOrFunction, TypeMap);
+    Updated |= updateRawFuncRetValue(Model,
+                                     RawPrototype,
                                      CallOrFunction,
                                      getRetType(CallOrFunction),
                                      TypeMap);
-    // TODO: in case of presence of stack arguments, the last LLVM arguments
-    //       represents a pointer to RawFunctionType::StackArgumentsType. The
-    //       associated type should be updated according to DLA's results.
   } else {
     revng_abort("CABIFunctionTypes not yet supported");
   }
@@ -186,7 +394,7 @@ bool dla::updateFuncSignatures(const llvm::Module &M,
   if (ModelLog.isEnabled())
     writeToFile(Model->toString(), "model-before-func-update.yaml");
   if (VerifyLog.isEnabled())
-    revng_assert(Model->verify(true));
+    revng_assert(Model->verify());
 
   bool Updated = false;
 
@@ -201,23 +409,24 @@ bool dla::updateFuncSignatures(const llvm::Module &M,
     revng_log(Log,
               "Updating prototype of function "
                 << LLVMFunc.getNameOrAsOperand());
-    Updated |= updateFuncPrototype(ModelPrototype, &LLVMFunc, TypeMap);
+    Updated |= updateFuncPrototype(*Model, ModelPrototype, &LLVMFunc, TypeMap);
+    Updated |= updateFuncStackFrame(ModelFunc, LLVMFunc, TypeMap, *Model);
 
     // Update prototypes associated to indirect calls, if any are found
     for (const auto &Inst : LLVMFunc)
-      if (const auto *I = llvm::dyn_cast<llvm::CallInst>(&Inst))
+      if (const auto *I = dyn_cast<llvm::CallInst>(&Inst))
         if (auto *Prototype = getIndirectCallPrototype(I, *Model.get())) {
           revng_log(Log,
                     "Updating prototype of indirect call "
                       << I->getNameOrAsOperand());
-          Updated |= updateFuncPrototype(Prototype, I, TypeMap);
+          Updated |= updateFuncPrototype(*Model, Prototype, I, TypeMap);
         }
   }
 
-  if (VerifyLog.isEnabled())
-    revng_assert(Model->verify(true));
   if (ModelLog.isEnabled())
     writeToFile(Model->toString(), "model-after-func-update.yaml");
+  if (VerifyLog.isEnabled())
+    revng_assert(Model->verify());
 
   return Updated;
 }

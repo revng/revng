@@ -79,6 +79,7 @@ for C_FILE in $(ls $DIRECTORY_NAME/*.c) ; do
 		-Wno-tautological-constant-out-of-range-compare \
 		-Wno-int-to-pointer-cast \
 		-Wno-infinite-recursion \
+		-Wno-incompatible-library-redeclaration \
 		$C_FILE \
 		-o /dev/null
 done

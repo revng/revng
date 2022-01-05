@@ -18,7 +18,7 @@
 #include "revng-c/RestructureCFGPass/ExprNode.h"
 #include "revng-c/RestructureCFGPass/GenerateAst.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
-#include "revng-c/Utils/Utils.h"
+#include "revng-c/Support/FunctionFileHelpers.h"
 
 #include "BeautifyGHAST.h"
 
