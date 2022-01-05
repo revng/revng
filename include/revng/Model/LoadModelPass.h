@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <variant>
+
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 
@@ -21,6 +23,8 @@ private:
 public:
   ModelWrapper(TupleTree<model::Binary> &&TheBinary) :
     TheBinary(std::move(TheBinary)) {}
+
+  ModelWrapper() = default;
 
 public:
   const model::Binary &getReadOnlyModel() const { return *TheBinary; }
@@ -43,17 +47,29 @@ public:
   static char ID;
 
 private:
-  std::optional<ModelWrapper> Wrapper;
+  std::variant<ModelWrapper *, ModelWrapper> Wrapper;
 
 public:
-  LoadModelWrapperPass() : llvm::ImmutablePass(ID) {}
+  LoadModelWrapperPass() : llvm::ImmutablePass(ID), Wrapper(ModelWrapper()) {}
+  LoadModelWrapperPass(ModelWrapper &Wrapper) :
+    llvm::ImmutablePass(ID), Wrapper(&Wrapper) {}
 
 public:
   bool doInitialization(llvm::Module &M) override final;
   bool doFinalization(llvm::Module &M) override final;
 
 public:
-  ModelWrapper &get() { return *Wrapper; }
+  ModelWrapper &get() {
+    if (isModelExternal())
+      return *std::get<ModelWrapper *>(Wrapper);
+    else
+      return std::get<ModelWrapper>(Wrapper);
+  }
+
+private:
+  bool isModelExternal() {
+    return std::holds_alternative<ModelWrapper *>(Wrapper);
+  }
 };
 
 class LoadModelAnalysis : public llvm::AnalysisInfoMixin<LoadModelAnalysis> {

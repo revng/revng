@@ -1016,7 +1016,7 @@ void IFI::run() {
     FunctionTags::Lifted.addTo(NewFunction);
     revng_assert(NewFunction != nullptr);
     GCBI.setMetaAddressMetadata(NewFunction,
-                                "revng.function.entry",
+                                FunctionEntryMDNName,
                                 Function.Entry);
   }
 
@@ -1045,6 +1045,8 @@ void IFI::run() {
   // verifyModule pass
   if (VerifyLog.isEnabled())
     revng_assert(not verifyModule(*TheModule, &dbgs()));
+
+  FunctionTags::IsolatedRoot.addTo(RootFunction);
 }
 
 bool IF::runOnModule(Module &TheModule) {

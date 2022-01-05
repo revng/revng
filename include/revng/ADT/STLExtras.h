@@ -107,4 +107,33 @@ template<class ContainerTy, class FuncTy>
 auto map_range(ContainerTy &&C, FuncTy F) {
   return llvm::make_range(map_iterator(C.begin(), F), map_iterator(C.end(), F));
 }
+
+auto dereferenceIterator(auto Iter) {
+  return llvm::map_iterator(Iter, [](const auto &Ptr) -> decltype(*Ptr) & {
+    return *Ptr;
+  });
+}
+
+namespace detail {
+template<typename T>
+using DIT = decltype(dereferenceIterator(std::declval<T>()));
+}
+
+template<typename T>
+using DereferenceIteratorType = detail::DIT<T>;
+
+auto dereferenceRange(auto &&Range) {
+  return llvm::make_range(dereferenceIterator(Range.begin()),
+                          dereferenceIterator(Range.end()));
+}
+
+template<typename Iterator>
+auto mapToValueIterator(Iterator It) {
+  const auto GetSecond = [](auto &Pair) -> auto & { return Pair.second; };
+  return llvm::map_iterator(It, GetSecond);
+}
+
+template<typename T>
+using MapToValueIteratorType = decltype(mapToValueIterator(std::declval<T>()));
+
 } // namespace revng

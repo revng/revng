@@ -11,7 +11,17 @@
 
 namespace model::Architecture {
 
-enum Values { Invalid, x86, x86_64, arm, aarch64, mips, systemz, Count };
+enum Values {
+  Invalid,
+  x86,
+  x86_64,
+  arm,
+  aarch64,
+  mips,
+  mipsel,
+  systemz,
+  Count
+};
 
 inline llvm::StringRef getName(Values V) {
   switch (V) {
@@ -27,6 +37,8 @@ inline llvm::StringRef getName(Values V) {
     return "aarch64";
   case mips:
     return "mips";
+  case mipsel:
+    return "mipsel";
   case systemz:
     return "systemz";
   default:
@@ -45,8 +57,9 @@ inline Values fromLLVMArchitecture(llvm::Triple::ArchType A) {
   case llvm::Triple::aarch64:
     return model::Architecture::aarch64;
   case llvm::Triple::mips:
-  case llvm::Triple::mipsel:
     return model::Architecture::mips;
+  case llvm::Triple::mipsel:
+    return model::Architecture::mipsel;
   case llvm::Triple::systemz:
     return model::Architecture::systemz;
   default:
@@ -60,6 +73,7 @@ constexpr inline size_t getPointerSize(Values V) {
   case model::Architecture::x86:
   case model::Architecture::arm:
   case model::Architecture::mips:
+  case model::Architecture::mipsel:
     return 4;
   case model::Architecture::x86_64:
   case model::Architecture::aarch64:
@@ -80,6 +94,7 @@ constexpr inline size_t getCallPushSize(Values V) {
 
   case arm:
   case mips:
+  case mipsel:
   case aarch64:
   case systemz:
     return 0;

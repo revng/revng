@@ -8,6 +8,7 @@
 
 #include <string>
 
+#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
@@ -29,7 +30,7 @@ using std::string;
 
 static string &
 replace(string &Target, const StringRef Search, const StringRef Replace) {
-  size_t Position = Target.find(Search.data());
+  size_t Position = Target.find(Search.str());
   revng_assert(Position != string::npos);
   Target.replace(Position, Search.size(), Replace);
   return Target;
@@ -129,7 +130,8 @@ BasicBlock *ExternalJumpsHandler::createSerializeAndJumpOut() {
     std::string AsmString = Arch.writeRegisterAsm().str();
     replace(AsmString, "REGISTER", Register.name());
     std::stringstream ConstraintStringStream;
-    ConstraintStringStream << "*m,~{" << Register.name().data()
+
+    ConstraintStringStream << "*m,~{" << Register.name().str()
                            << "},~{dirflag},~{fpsr},~{flags}";
     auto *FT = FunctionType::get(Type::getVoidTy(Context),
                                  { CSV->getType() },

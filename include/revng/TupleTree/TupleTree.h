@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -21,47 +22,6 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/YAMLTraits.h"
-
-// clang-format off
-template<typename T>
-concept TupleTreeCompatible = IsKeyedObjectContainer<T>
-                                or HasTupleSize<T>
-                                or UpcastablePointerLike<T>;
-// clang-format on
-
-template<typename T>
-concept NotTupleTreeCompatible = not TupleTreeCompatible<T>;
-
-// clang-format off
-template<typename T>
-concept Yamlizable
-  = llvm::yaml::has_DocumentListTraits<T>::value
-    or llvm::yaml::has_MappingTraits<T, llvm::yaml::EmptyContext>::value
-    or llvm::yaml::has_SequenceTraits<T>::value
-    or llvm::yaml::has_BlockScalarTraits<T>::value
-    or llvm::yaml::has_CustomMappingTraits<T>::value
-    or llvm::yaml::has_PolymorphicTraits<T>::value
-    or llvm::yaml::has_ScalarTraits<T>::value
-    or llvm::yaml::has_ScalarEnumerationTraits<T>::value;
-// clang-format on
-
-template<typename T>
-concept NotYamlizable = not Yamlizable<T>;
-
-namespace detail {
-
-struct NoYaml {};
-
-static_assert(NotYamlizable<NoYaml>);
-
-} // end namespace detail
-
-static_assert(Yamlizable<int>);
-static_assert(Yamlizable<std::vector<int>>);
-
-constexpr inline auto IsYamlizable = [](auto *K) {
-  return Yamlizable<std::remove_pointer_t<decltype(K)>>;
-};
 
 //
 // slice
@@ -1113,47 +1073,6 @@ struct llvm::yaml::ScalarTraits<T> {
   }
 };
 
-// How to improve performance without losing safety of a `TupleTree`:
-//
-// * `TupleTreeReference` must contain a `std::variant` between what they
-//   have right now and a naked pointer.
-// * The `operator* const` of `UpcastablePointer` (which should be
-//   renamed to *Variant*) should return a constant reference. Same
-//   for `TupleTreeReference`.
-// * `TupleTree` should have:
-//   * `const TupleTree freeze()`: `std::move` itself in the `const`
-//     result and transforms all the `TupleTreeReference`s in direct
-//     pointers.
-//   * `TupleTree unfreeze()`: `std::move` itself in the `const`
-//     result and transforms all the `TupleTreeReference`s in root +
-//     key.
-// * Alternatively, we could push the functionality of `ModelWrapper`
-//   into `TupleTree`. In this way, the default behavior would be to
-//   be frozen. A RAII wrapper could take care of unfreeze and
-//   refreeze the TupleTree.
-
-// TODO: `const` stuff is not YAML-serializable
-template<typename S, Yamlizable T>
-void serialize(S &Stream, T &Element) {
-  if constexpr (std::is_base_of_v<llvm::raw_ostream, S>) {
-    llvm::yaml::Output YAMLOutput(Stream);
-    YAMLOutput << Element;
-  } else {
-    std::string Buffer;
-    {
-      llvm::raw_string_ostream StringStream(Buffer);
-      llvm::yaml::Output YAMLOutput(StringStream);
-      YAMLOutput << Element;
-    }
-    Stream << Buffer;
-  }
-}
-
-template<typename S, Yamlizable T>
-void serialize(S &Stream, const T &Element) {
-  serialize(Stream, const_cast<T &>(Element));
-}
-
 template<TupleTreeCompatible T>
 class TupleTree {
 private:
@@ -1199,6 +1118,18 @@ public:
     Result.initializeReferences();
 
     return Result;
+  }
+
+  static llvm::ErrorOr<TupleTree> fromFile(const llvm::StringRef &Path) {
+    auto MaybeBuffer = llvm::MemoryBuffer::getFile(Path);
+    if (not MaybeBuffer)
+      return MaybeBuffer.getError();
+
+    return deserialize((*MaybeBuffer)->getBuffer());
+  }
+
+  llvm::Error toFile(const llvm::StringRef &Path) const {
+    return ::serializeToFile(*Root, Path);
   }
 
 public:

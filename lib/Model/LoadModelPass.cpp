@@ -50,12 +50,14 @@ static TupleTree<model::Binary> extractModel(Module &M) {
 }
 
 bool LoadModelWrapperPass::doInitialization(Module &M) {
+  if (isModelExternal())
+    return false;
   Wrapper = extractModel(M);
   return false;
 }
 
 bool LoadModelWrapperPass::doFinalization(Module &M) {
-  if (not Wrapper->hasChanged())
+  if (isModelExternal() or not get().hasChanged())
     return false;
 
   // Check if the named metadata has reappeared. If not, the changes we made in
