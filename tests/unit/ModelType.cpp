@@ -353,10 +353,18 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
   revng_check(T->verify(true));
   revng_check(checkSerialization(T));
 
-  // Struct without fields are invalid
+  // Struct without fields are valid as long as their size is not zero
   Struct->Fields.clear();
+  revng_check(Struct->verify(false));
+  revng_check(T->verify(false));
+  Struct->Size = 0;
   revng_check(not Struct->verify(false));
   revng_check(not T->verify(false));
+
+  // Put the size back to a large value for the other tests.
+  Struct->Size = 100;
+  revng_check(Struct->verify(false));
+  revng_check(T->verify(false));
 
   // Struct x cannot have a field with type x
   Struct->Fields.clear();

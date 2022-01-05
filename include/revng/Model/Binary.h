@@ -688,10 +688,18 @@ public:
                                 "/Types/" + getNameFromYAMLScalar(T->key()));
   }
 
+  model::TypePath getTypePath(const model::Type *T) const {
+    return TypePath::fromString(this,
+                                "/Types/" + getNameFromYAMLScalar(T->key()));
+  }
+
   TypePath recordNewType(UpcastablePointer<Type> &&T);
 
   model::TypePath
   getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize);
+
+  model::TypePath
+  getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize) const;
 
   bool verifyTypes() const debug_function;
   bool verifyTypes(bool Assert) const debug_function;

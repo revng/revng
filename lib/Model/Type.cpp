@@ -19,6 +19,7 @@
 
 using llvm::cast;
 using llvm::dyn_cast;
+using llvm::Twine;
 
 namespace model {
 
@@ -185,7 +186,6 @@ model::Type::Type(TypeKind::Values TK) :
 }
 
 Identifier model::UnionField::name() const {
-  using llvm::Twine;
   Identifier Result;
   if (CustomName.empty())
     (Twine("unnamed_field_") + Twine(Index)).toVector(Result);
@@ -195,7 +195,6 @@ Identifier model::UnionField::name() const {
 }
 
 Identifier model::StructField::name() const {
-  using llvm::Twine;
   Identifier Result;
   if (CustomName.empty())
     (Twine("unnamed_field_at_offset_") + Twine(Offset)).toVector(Result);
@@ -205,7 +204,6 @@ Identifier model::StructField::name() const {
 }
 
 Identifier model::Argument::name() const {
-  using llvm::Twine;
   Identifier Result;
   if (CustomName.empty())
     (Twine("unnamed_arg_") + Twine(Index)).toVector(Result);
@@ -277,7 +275,6 @@ isValidPrimitiveSize(PrimitiveTypeKind::Values PrimKind, uint8_t BS) {
 }
 
 Identifier model::PrimitiveType::name() const {
-  using llvm::Twine;
   Identifier Result;
 
   switch (PrimitiveKind) {
@@ -318,7 +315,6 @@ Identifier model::PrimitiveType::name() const {
 
 template<typename T>
 Identifier customNameOrAutomatic(T *This) {
-  using llvm::Twine;
   if (not This->CustomName.empty())
     return This->CustomName;
   else
@@ -342,7 +338,6 @@ Identifier model::UnionType::name() const {
 }
 
 Identifier model::NamedTypedRegister::name() const {
-  using llvm::Twine;
   if (not CustomName.empty())
     return CustomName;
   else
@@ -443,8 +438,7 @@ static VoidConstResult isVoidConst(const QualifiedType *QualType) {
       // We know that it's const-qualified here, and it only has one
       // qualifier, hence we can skip the const-qualifier.
       Result.IsConst = true;
-      if (not QualType->UnqualifiedType.Root)
-        return Result;
+      return Result;
     }
 
     UnqualType = QualType->UnqualifiedType.get();
@@ -637,7 +631,7 @@ bool Identifier::verify(VerifyHelper &VH) const {
                         and AllAlphaNumOrUnderscore(*this)
                         and not beginsWithReservedPrefix(*this)
                         and not ReservedKeywords.count(llvm::StringRef(*this)),
-                      llvm::Twine(*this) + " is not a valid identifier");
+                      Twine(*this) + " is not a valid identifier");
 }
 
 static RecursiveCoroutine<bool>
@@ -729,9 +723,6 @@ verifyImpl(VerifyHelper &VH, const StructType *T) {
   if (T->Size == 0)
     rc_return VH.fail("Struct type has zero size", *T);
 
-  if (T->Fields.empty())
-    rc_return VH.fail("Struct has no fields", *T);
-
   size_t Index = 0;
   llvm::SmallSet<llvm::StringRef, 8> Names;
   auto FieldIt = T->Fields.begin();
@@ -740,8 +731,7 @@ verifyImpl(VerifyHelper &VH, const StructType *T) {
     auto &Field = *FieldIt;
 
     if (not rc_recur Field.verify(VH))
-      rc_return VH.fail("Can't verify type of field " + llvm::Twine(Index + 1),
-                        *T);
+      rc_return VH.fail("Can't verify type of field " + Twine(Index + 1), *T);
 
     if (Field.Offset >= T->Size)
       rc_return VH.fail("Field " + Twine(Index + 1)
@@ -751,10 +741,8 @@ verifyImpl(VerifyHelper &VH, const StructType *T) {
                         *T);
 
     auto MaybeSize = rc_recur Field.Type.size(VH);
-
-    // Structs cannot have zero-sized fields
-    if (not MaybeSize)
-      rc_return VH.fail("Field" + Twine(Index + 1) + " is zero-sized", *T);
+    // This is verified AggregateField::verify
+    revng_assert(MaybeSize);
 
     auto FieldEndOffset = Field.Offset + *MaybeSize;
     auto NextFieldIt = std::next(FieldIt);
@@ -786,28 +774,39 @@ verifyImpl(VerifyHelper &VH, const StructType *T) {
 
 static RecursiveCoroutine<bool>
 verifyImpl(VerifyHelper &VH, const UnionType *T) {
-  if (not T->CustomName.verify(VH) or T->Kind != TypeKind::Union
-      or T->Fields.empty())
-    rc_return false;
+  revng_assert(T->Kind == TypeKind::Union);
+
+  if (not T->CustomName.verify(VH))
+    rc_return VH.fail("Invalid name", *T);
+
+  if (T->Fields.empty())
+    rc_return VH.fail("Union type has zero fields", *T);
 
   llvm::SmallSet<llvm::StringRef, 8> Names;
   for (auto &Group : llvm::enumerate(T->Fields)) {
     auto &Field = Group.value();
     uint64_t ExpectedIndex = Group.index();
 
-    if (Field.Index != ExpectedIndex)
-      rc_return VH.fail();
+    if (Field.Index != ExpectedIndex) {
+      rc_return VH.fail(Twine("Union type is missing field ")
+                          + Twine(ExpectedIndex),
+                        *T);
+    }
 
     if (not rc_recur Field.verify(VH))
       rc_return VH.fail();
 
-    if (Field.CustomName.size() > 0) {
-      if (not Names.insert(Field.CustomName).second)
-        rc_return VH.fail();
+    auto MaybeSize = rc_recur Field.Type.size(VH);
+    // This is verified AggregateField::verify
+    revng_assert(MaybeSize);
+
+    if (isVoidConst(&Field.Type).IsVoid) {
+      rc_return VH.fail("Field " + Twine(Field.Index) + " is void", *T);
     }
 
-    if (isVoidConst(&Field.Type).IsVoid)
-      rc_return VH.fail();
+    if (not Field.CustomName.empty()
+        and not Names.insert(Field.CustomName).second)
+      rc_return VH.fail("Collision in union fields names", *T);
   }
 
   rc_return true;
@@ -1072,7 +1071,15 @@ bool AggregateField::verify(bool Assert) const {
 }
 
 RecursiveCoroutine<bool> AggregateField::verify(VerifyHelper &VH) const {
-  rc_return VH.maybeFail(CustomName.verify(VH) and rc_recur Type.verify(VH));
+  if (not rc_recur Type.verify(VH))
+    rc_return VH.fail("Aggregate field type is not valid");
+
+  // Aggregated fields cannot be zero-sized fields
+  auto MaybeSize = rc_recur Type.size(VH);
+  if (not MaybeSize)
+    rc_return VH.fail("Aggregate field is zero-sized");
+
+  rc_return VH.maybeFail(CustomName.verify(VH));
 }
 
 void Argument::dump() const {
