@@ -1465,7 +1465,7 @@ static LabelList &operator+=(LabelList &This, const LabelList &Other) {
 }
 
 void BinaryFile::rebuildLabelsMap() {
-  using Interval = boost::icl::interval<MetaAddress, compareAddress>;
+  using Interval = boost::icl::interval<MetaAddress, CompareAddress>;
 
   // Clear the map
   LabelsMap.clear();
@@ -1781,7 +1781,7 @@ void BinaryFile::parseEHFrame(MetaAddress EHFrameAddress,
   struct DecodedCIE {
     Optional<uint32_t> FDEPointerEncoding;
     Optional<uint32_t> LSDAPointerEncoding;
-    bool hasAugmentationLength;
+    bool HasAugmentationLength;
   };
 
   // Map from the start offset of the CIE to the cached data for that CIE.
@@ -1847,11 +1847,11 @@ void BinaryFile::parseEHFrame(MetaAddress EHFrameAddress,
         AugmentationLength = EHFrameReader.readULEB128();
 
         // Walk the augmentation string to get all the augmentation data.
-        for (unsigned I = 1, e = AugmentationString.size(); I != e; ++I) {
+        for (unsigned I = 1, E = AugmentationString.size(); I != E; ++I) {
           char Char = AugmentationString[I];
           switch (Char) {
           case 'e':
-            revng_assert((I + 1) != e && AugmentationString[I + 1] == 'h',
+            revng_assert((I + 1) != E && AugmentationString[I + 1] == 'h',
                          "Expected 'eh' in augmentation string");
             break;
           case 'L':
@@ -1914,7 +1914,7 @@ void BinaryFile::parseEHFrame(MetaAddress EHFrameAddress,
       // PCRange
       EHFrameReader.readPointer(*CIE.FDEPointerEncoding);
 
-      if (CIE.hasAugmentationLength)
+      if (CIE.HasAugmentationLength)
         EHFrameReader.readULEB128();
 
       // Decode the LSDA if the CIE augmentation string said we should.
@@ -2000,7 +2000,7 @@ static bool isBetterThan(const Label *NewCandidate, const Label *OldCandidate) {
 
 std::string
 BinaryFile::nameForAddress(MetaAddress Address, uint64_t Size) const {
-  using interval = boost::icl::interval<MetaAddress, compareAddress>;
+  using interval = boost::icl::interval<MetaAddress, CompareAddress>;
   std::stringstream Result;
   const auto &SymbolMap = labelsMap();
 

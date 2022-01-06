@@ -38,10 +38,10 @@ void AAAW::emitInstructionAnnot(const Instruction *I,
   OS.PadToColumn(2);
   OS << "; alias.scope: ";
   auto *AliasScopeMD = I->getMetadata(LLVMContext::MD_alias_scope);
-  for (unsigned i = 0, e = AliasScopeMD->getNumOperands(); i != e; ++i) {
-    auto *Tuple = cast<MDTuple>(AliasScopeMD->getOperand(i));
+  for (unsigned I = 0, E = AliasScopeMD->getNumOperands(); I != E; ++I) {
+    auto *Tuple = cast<MDTuple>(AliasScopeMD->getOperand(I));
     OS << QMD.extract<StringRef>(Tuple, 0);
-    if (i != (e - 1))
+    if (I != (E - 1))
       OS << ", ";
   }
 
@@ -49,10 +49,10 @@ void AAAW::emitInstructionAnnot(const Instruction *I,
   OS.PadToColumn(2);
   OS << "; noalias: ";
   auto *NoAliasScopeMD = I->getMetadata(LLVMContext::MD_noalias);
-  for (unsigned i = 0, e = NoAliasScopeMD->getNumOperands(); i != e; ++i) {
-    auto *Tuple = cast<MDTuple>(NoAliasScopeMD->getOperand(i));
+  for (unsigned I = 0, E = NoAliasScopeMD->getNumOperands(); I != E; ++I) {
+    auto *Tuple = cast<MDTuple>(NoAliasScopeMD->getOperand(I));
     OS << QMD.extract<StringRef>(Tuple, 0);
-    if (i != (e - 1))
+    if (I != (E - 1))
       OS << ", ";
   }
   OS << "\n";

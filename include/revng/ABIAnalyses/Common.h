@@ -253,8 +253,8 @@ struct MFIAnalysis : ABIAnalyses::ABIAnalysis {
       InsList.push_back(&I);
     }
 
-    for (size_t i = 0; i < InsList.size(); i++) {
-      auto I = InsList[IsForward ? i : (InsList.size() - i - 1)];
+    for (size_t Index = 0; Index < InsList.size(); Index++) {
+      auto I = InsList[IsForward ? Index : (InsList.size() - Index - 1)];
       TransferKind T = classifyInstruction(I);
       switch (T) {
       case TheCall: {

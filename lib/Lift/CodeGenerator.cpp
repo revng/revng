@@ -71,9 +71,9 @@ static cl::list<std::string> ImportDebugInfo("import-debug-info",
 
 static Logger<> PTCLog("ptc");
 
-template<typename T, typename... Args>
-inline std::array<T, sizeof...(Args)> make_array(Args &&...args) {
-  return { { std::forward<Args>(args)... } };
+template<typename T, typename... ArgTypes>
+inline std::array<T, sizeof...(ArgTypes)> make_array(ArgTypes &&...Args) {
+  return { { std::forward<ArgTypes>(Args)... } };
 }
 
 /// Wrap a value around a temporary opaque function
@@ -191,7 +191,7 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
 
   auto *RegisterType = Type::getIntNTy(Context,
                                        Binary.architecture().pointerSize());
-  auto createConstGlobal = [this, &RegisterType](const Twine &Name,
+  auto CreateConstGlobal = [this, &RegisterType](const Twine &Name,
                                                  uint64_t Value) {
     return new GlobalVariable(*this->TheModule,
                               RegisterType,
@@ -203,9 +203,9 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
 
   // These values will be used to populate the auxiliary vectors
   if (Binary.programHeadersAddress().isValid()) {
-    createConstGlobal("e_phentsize", Binary.programHeaderSize());
-    createConstGlobal("e_phnum", Binary.programHeadersCount());
-    createConstGlobal("phdr_address", Binary.programHeadersAddress().address());
+    CreateConstGlobal("e_phentsize", Binary.programHeaderSize());
+    CreateConstGlobal("e_phnum", Binary.programHeadersCount());
+    CreateConstGlobal("phdr_address", Binary.programHeadersAddress().address());
   }
 
   for (SegmentInfo &Segment : Binary.segments()) {
@@ -347,7 +347,7 @@ void CpuLoopFunctionPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 }
 
 template<class Range, class UnaryPredicate>
-auto find_unique(Range &&TheRange, UnaryPredicate Predicate)
+auto findUnique(Range &&TheRange, UnaryPredicate Predicate)
   -> decltype(*TheRange.begin()) {
 
   const auto Begin = TheRange.begin();
@@ -362,7 +362,7 @@ auto find_unique(Range &&TheRange, UnaryPredicate Predicate)
 }
 
 template<class Range>
-auto find_unique(Range &&TheRange) -> decltype(*TheRange.begin()) {
+auto findUnique(Range &&TheRange) -> decltype(*TheRange.begin()) {
 
   const auto Begin = TheRange.begin();
   const auto End = TheRange.end();
@@ -383,7 +383,7 @@ bool CpuLoopFunctionPass::runOnModule(Module &M) {
 
   // Part 1: remove the backedge of the main infinite loop
   const LoopInfo &LI = getAnalysis<LoopInfoWrapperPass>(F).getLoopInfo();
-  const Loop *OutermostLoop = find_unique(LI);
+  const Loop *OutermostLoop = findUnique(LI);
 
   BasicBlock *Header = OutermostLoop->getHeader();
 
@@ -391,7 +391,7 @@ bool CpuLoopFunctionPass::runOnModule(Module &M) {
   auto IsInLoop = [&OutermostLoop](BasicBlock *Predecessor) {
     return OutermostLoop->contains(Predecessor);
   };
-  BasicBlock *Footer = find_unique(predecessors(Header), IsInLoop);
+  BasicBlock *Footer = findUnique(predecessors(Header), IsInLoop);
 
   // Assert on the type of the last instruction (branch or brcond)
   revng_assert(Footer->end() != Footer->begin());
@@ -407,9 +407,9 @@ bool CpuLoopFunctionPass::runOnModule(Module &M) {
     StringRef Name = TheFunction.getName();
     return Name.startswith("cpu_") && Name.endswith("_exec");
   };
-  Function &CpuExec = find_unique(F.getParent()->functions(), IsCpuExec);
+  Function &CpuExec = findUnique(F.getParent()->functions(), IsCpuExec);
 
-  User *CallUser = find_unique(CpuExec.users(), [&F](User *TheUser) {
+  User *CallUser = findUnique(CpuExec.users(), [&F](User *TheUser) {
     auto *TheInstruction = dyn_cast<Instruction>(TheUser);
 
     if (TheInstruction == nullptr)
@@ -537,7 +537,7 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
 
     // Call cpu_loop
     auto *FirstArgTy = CpuLoop->getFunctionType()->getParamType(0);
-    auto *EnvPtr = VM->CPUStateToEnv(Call->getArgOperand(0), FirstArgTy, Call);
+    auto *EnvPtr = VM->cpuStateToEnv(Call->getArgOperand(0), FirstArgTy, Call);
 
     auto *CallCpuLoop = CallInst::Create(CpuLoop, { EnvPtr }, "", Call);
 
@@ -751,7 +751,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   // Create the VariableManager
   //
   VariableManager Variables(*TheModule, TargetArchitecture);
-  auto createCPUStateAccessAnalysisPass = [&Variables]() {
+  auto CreateCPUStateAccessAnalysisPass = [&Variables]() {
     return new CPUStateAccessAnalysisPass(&Variables, true);
   };
 
@@ -885,7 +885,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   JumpTargetManager JumpTargets(MainFunction,
                                 PCH.get(),
                                 Binary,
-                                createCPUStateAccessAnalysisPass);
+                                CreateCPUStateAccessAnalysisPass);
 
   MetaAddress VirtualAddress = MetaAddress::invalid();
   if (RawVirtualAddress) {
@@ -974,7 +974,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
     }
 
     Variables.newFunction(InstructionList.get());
-    unsigned j = 0;
+    unsigned J = 0;
     MDNode *MDOriginalInstr = nullptr;
     bool StopTranslation = false;
 
@@ -989,15 +989,15 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
     // Handle the first PTC_INSTRUCTION_op_debug_insn_start
     {
       PTCInstruction *NextInstruction = nullptr;
-      for (unsigned k = 1; k < InstructionCount; k++) {
-        PTCInstruction *I = &InstructionList->instructions[k];
+      for (unsigned K = 1; K < InstructionCount; K++) {
+        PTCInstruction *I = &InstructionList->instructions[K];
         if (I->opc == PTC_INSTRUCTION_op_debug_insn_start
-            && ToIgnore.count(k) == 0) {
+            && ToIgnore.count(K) == 0) {
           NextInstruction = I;
           break;
         }
       }
-      PTCInstruction *Instruction = &InstructionList->instructions[j];
+      PTCInstruction *Instruction = &InstructionList->instructions[J];
       std::tie(Result,
                MDOriginalInstr,
                PC,
@@ -1007,15 +1007,15 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
                                                    EndPC,
                                                    true,
                                                    AbortAt);
-      j++;
+      J++;
     }
 
     // TODO: shall we move this whole loop in InstructionTranslator?
-    for (; j < InstructionCount && !StopTranslation; j++) {
-      if (ToIgnore.count(j) != 0)
+    for (; J < InstructionCount && !StopTranslation; J++) {
+      if (ToIgnore.count(J) != 0)
         continue;
 
-      PTCInstruction Instruction = InstructionList->instructions[j];
+      PTCInstruction Instruction = InstructionList->instructions[J];
       PTCOpcode Opcode = Instruction.opc;
 
       Blocks.clear();
@@ -1028,10 +1028,10 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
       case PTC_INSTRUCTION_op_debug_insn_start: {
         // Find next instruction, if there is one
         PTCInstruction *NextInstruction = nullptr;
-        for (unsigned k = j + 1; k < InstructionCount; k++) {
-          PTCInstruction *I = &InstructionList->instructions[k];
+        for (unsigned K = J + 1; K < InstructionCount; K++) {
+          PTCInstruction *I = &InstructionList->instructions[K];
           if (I->opc == PTC_INSTRUCTION_op_debug_insn_start
-              && ToIgnore.count(k) == 0) {
+              && ToIgnore.count(K) == 0) {
             NextInstruction = I;
             break;
           }
@@ -1053,7 +1053,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
         // Sometimes libtinycode terminates a basic block with a call, in this
         // case force a fallthrough
         auto &IL = InstructionList;
-        if (j == IL->instruction_count - 1) {
+        if (J == IL->instruction_count - 1) {
           BasicBlock *Target = JumpTargets.registerJT(EndPC,
                                                       JTReason::PostHelper);
           Builder.CreateBr(notNull(Target));
@@ -1085,7 +1085,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
       MDNode *MDPTCInstr = nullptr;
       if (RecordPTC) {
         std::stringstream PTCStringStream;
-        dumpInstruction(PTCStringStream, InstructionList.get(), j);
+        dumpInstruction(PTCStringStream, InstructionList.get(), J);
         std::string PTCString = PTCStringStream.str() + "\n";
         MDString *MDPTCString = MDString::get(Context, PTCString);
         MDPTCInstr = MDNode::getDistinct(Context, MDPTCString);

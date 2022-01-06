@@ -82,9 +82,9 @@ class GenericGraph;
 template<typename T, typename BaseType>
 class Parent : public BaseType {
 public:
-  template<typename... Args>
-  explicit Parent(Args &&...args) :
-    BaseType(std::forward<Args>(args)...), TheParent(nullptr) {}
+  template<typename... ArgTypes>
+  explicit Parent(ArgTypes &&...Args) :
+    BaseType(std::forward<ArgTypes>(Args)...), TheParent(nullptr) {}
 
   Parent(const Parent &) = default;
   Parent(Parent &&) = default;
@@ -221,8 +221,9 @@ public:
   using NodeData = Node;
 
 public:
-  template<typename... Args>
-  explicit ForwardNode(Args &&...args) : Base(std::forward<Args>(args)...) {}
+  template<typename... ArgTypes>
+  explicit ForwardNode(ArgTypes &&...Args) :
+    Base(std::forward<ArgTypes>(Args)...) {}
 
   ForwardNode(const ForwardNode &) = default;
   ForwardNode(ForwardNode &&) = default;
@@ -366,9 +367,9 @@ public:
   using const_edge_iterator = typename Base::const_edge_iterator;
 
 public:
-  template<typename... Args>
-  explicit BidirectionalNode(Args &&...args) :
-    Base(std::forward<Args>(args)...) {}
+  template<typename... ArgTypes>
+  explicit BidirectionalNode(ArgTypes &&...Args) :
+    Base(std::forward<ArgTypes>(Args)...) {}
 
   BidirectionalNode(const BidirectionalNode &) = default;
   BidirectionalNode(BidirectionalNode &&) = default;
@@ -552,9 +553,9 @@ protected:
   using EdgeViewContainer = llvm::SmallVector<NonOwningEdge, SmallSize>;
 
 public:
-  template<typename... Args>
-  explicit MutableEdgeNode(Args &&...args) :
-    Base(std::forward<Args>(args)...) {}
+  template<typename... ArgTypes>
+  explicit MutableEdgeNode(ArgTypes &&...Args) :
+    Base(std::forward<ArgTypes>(Args)...) {}
 
   MutableEdgeNode(const MutableEdgeNode &) = default;
   MutableEdgeNode(MutableEdgeNode &&) = default;
@@ -1236,9 +1237,9 @@ public:
     return Nodes.back().get();
   }
 
-  template<class... Args>
-  NodeT *addNode(Args &&...A) {
-    Nodes.push_back(std::make_unique<NodeT>(std::forward<Args>(A)...));
+  template<class... ArgTypes>
+  NodeT *addNode(ArgTypes &&...A) {
+    Nodes.push_back(std::make_unique<NodeT>(std::forward<ArgTypes>(A)...));
     if constexpr (NodeT::HasParent)
       Nodes.back()->setParent(this);
     return Nodes.back().get();
@@ -1261,9 +1262,9 @@ public:
     auto InternalIt = Nodes.insert(Where.getCurrent(), std::move(Ptr));
     return nodes_iterator(InternalIt, getNode);
   }
-  template<class... Args>
-  nodes_iterator insertNode(nodes_iterator Where, Args &&...A) {
-    auto Pointer = std::make_unique<NodeT>(std::forward<Args>(A)...);
+  template<class... ArgTypes>
+  nodes_iterator insertNode(nodes_iterator Where, ArgTypes &&...A) {
+    auto Pointer = std::make_unique<NodeT>(std::forward<ArgTypes>(A)...);
     auto InternalIt = Nodes.insert(Where.getCurrent(), std::move(Pointer));
     return nodes_iterator(InternalIt, getNode);
   }

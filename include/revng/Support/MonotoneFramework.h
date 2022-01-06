@@ -294,12 +294,12 @@ private:
 ///         MonotoneFramework
 template<typename D, typename LatticeElement, typename InterruptTy>
 struct InterruptCreator {
-  InterruptTy createSummaryInterrupt(D &d) {
-    return d.createSummaryInterrupt();
+  InterruptTy createSummaryInterrupt(D &I) {
+    return I.createSummaryInterrupt();
   }
 
-  InterruptTy createNoReturnInterrupt(D &d) {
-    return d.createNoReturnInterrupt();
+  InterruptTy createNoReturnInterrupt(D &I) {
+    return I.createNoReturnInterrupt();
   }
 };
 

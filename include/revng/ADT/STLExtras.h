@@ -57,7 +57,7 @@ using ReturnType = decltype(std::declval<FuncTy>()(*std::declval<ItTy>()));
 template<typename ItTy,
          typename FuncTy,
          typename FuncReturnTy = ReturnType<FuncTy, ItTy>>
-class proxy_mapped_iterator_impl : public llvm::mapped_iterator<ItTy, FuncTy> {
+class ProxyMappedIteratorImpl : public llvm::mapped_iterator<ItTy, FuncTy> {
   struct IteratorProxy {
     IteratorProxy(FuncReturnTy &&Value) : Temporary(std::move(Value)) {}
     FuncReturnTy *const operator->() { return &Temporary; }
@@ -81,7 +81,7 @@ public:
 
 template<typename ItTy, typename FuncTy>
 using ItImpl = std::conditional_t<std::is_object_v<ReturnType<FuncTy, ItTy>>,
-                                  proxy_mapped_iterator_impl<ItTy, FuncTy>,
+                                  ProxyMappedIteratorImpl<ItTy, FuncTy>,
                                   llvm::mapped_iterator<ItTy, FuncTy>>;
 } // namespace detail
 

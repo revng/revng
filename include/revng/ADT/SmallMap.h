@@ -27,13 +27,13 @@ private:
   struct are_same<P, P> : std::true_type {};
 
   template<typename P, typename... Ps>
-  struct first {
+  struct First {
     using type = P;
   };
 
   template<typename T>
   using it = std::iterator_traits<T>;
-  using itfirst = it<typename first<Ts...>::type>;
+  using itfirst = it<typename First<Ts...>::type>;
 
   // Assert correct usage
   static_assert(are_same<typename it<Ts>::value_type...>::value,

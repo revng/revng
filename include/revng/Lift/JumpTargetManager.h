@@ -39,22 +39,19 @@ class JumpTargetManager;
 class ProgramCounterHandler;
 
 template<typename Map>
-typename Map::const_iterator
-containing(Map const &m, typename Map::key_type const &k) {
-  typename Map::const_iterator it = m.upper_bound(k);
-  if (it != m.begin()) {
-    return --it;
-  }
-  return m.end();
+auto containing(Map const &M, typename Map::key_type const &K) {
+  auto It = M.upper_bound(K);
+  if (It != M.begin())
+    return --It;
+  return M.end();
 }
 
 template<typename Map>
-typename Map::iterator containing(Map &m, typename Map::key_type const &k) {
-  typename Map::iterator it = m.upper_bound(k);
-  if (it != m.begin()) {
-    return --it;
-  }
-  return m.end();
+auto containing(Map &M, typename Map::key_type const &K) {
+  auto It = M.upper_bound(K);
+  if (It != M.begin())
+    return --It;
+  return M.end();
 }
 
 /// \brief Transform constant writes to the PC in jumps
@@ -149,8 +146,8 @@ class CPUStateAccessAnalysisPass;
 
 class JumpTargetManager {
 private:
-  using interval_set = boost::icl::interval_set<MetaAddress, compareAddress>;
-  using interval = boost::icl::interval<MetaAddress, compareAddress>;
+  using interval_set = boost::icl::interval_set<MetaAddress, CompareAddress>;
+  using interval = boost::icl::interval<MetaAddress, CompareAddress>;
   using MetaAddressSet = std::set<MetaAddress>;
 
 public:
@@ -216,12 +213,12 @@ public:
   /// \param PCH ProgramCounterHandler instance.
   /// \param Binary reference to the information about a given binary, such as
   ///        segments and symbols.
-  /// \param createCSAA a factory function able to create
+  /// \param CreateCSAA a factory function able to create
   ///        CPUStateAccessAnalysisPass.
   JumpTargetManager(llvm::Function *TheFunction,
                     ProgramCounterHandler *PCH,
                     const BinaryFile &Binary,
-                    CSAAFactory createCSAA);
+                    CSAAFactory CreateCSAA);
 
   /// \brief Transform the IR to represent the request form of CFG
   void setCFGForm(CFGForm::Values NewForm,
@@ -451,14 +448,14 @@ public:
 
     Function *CallMarker = TheModule.getFunction("function_call");
     if (CallMarker != nullptr) {
-      auto unwrapBA = [](Value *V) {
+      auto UnwrapBA = [](Value *V) {
         return cast<BlockAddress>(V)->getBasicBlock();
       };
       for (User *U : CallMarker->users()) {
         if (CallInst *Call = dyn_cast<CallInst>(U)) {
           if (isa<BlockAddress>(Call->getOperand(0)))
-            registerJT(unwrapBA(Call->getOperand(0)), JTReason::Callee);
-          registerJT(unwrapBA(Call->getOperand(1)), JTReason::ReturnAddress);
+            registerJT(UnwrapBA(Call->getOperand(0)), JTReason::Callee);
+          registerJT(UnwrapBA(Call->getOperand(1)), JTReason::ReturnAddress);
         }
       }
     }
@@ -603,7 +600,7 @@ private:
   CFGForm::Values CurrentCFGForm;
   std::set<llvm::BasicBlock *> ToPurge;
   std::set<MetaAddress> SimpleLiterals;
-  CSAAFactory createCSAA;
+  CSAAFactory CreateCSAA;
 
   ProgramCounterHandler *PCH;
 

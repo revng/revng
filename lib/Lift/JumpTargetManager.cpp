@@ -379,7 +379,7 @@ JumpTargetManager::readFromPointer(Constant *Pointer, BinaryFile::Endianess E) {
   }
 
   const auto &Labels = binary().labelsMap();
-  using interval = boost::icl::interval<MetaAddress, compareAddress>;
+  using interval = boost::icl::interval<MetaAddress, CompareAddress>;
   auto Interval = interval::right_open(LoadAddress, LoadAddress + LoadSize);
   auto It = Labels.find(Interval);
   if (It != Labels.end()) {
@@ -428,7 +428,7 @@ JumpTargetManager::readFromPointer(Constant *Pointer, BinaryFile::Endianess E) {
 JumpTargetManager::JumpTargetManager(Function *TheFunction,
                                      ProgramCounterHandler *PCH,
                                      const BinaryFile &Binary,
-                                     CSAAFactory createCSAA) :
+                                     CSAAFactory CreateCSAA) :
   TheModule(*TheFunction->getParent()),
   Context(TheModule.getContext()),
   TheFunction(TheFunction),
@@ -439,7 +439,7 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   DispatcherSwitch(nullptr),
   Binary(Binary),
   CurrentCFGForm(CFGForm::UnknownForm),
-  createCSAA(createCSAA),
+  CreateCSAA(CreateCSAA),
   PCH(PCH) {
 
   FunctionType *ExitTBTy = FunctionType::get(Type::getVoidTy(Context),
@@ -947,7 +947,7 @@ JumpTargetManager::registerJT(MetaAddress PC, JTReason::Values Reason) {
 }
 
 void JumpTargetManager::registerReadRange(MetaAddress Address, uint64_t Size) {
-  using interval = boost::icl::interval<MetaAddress, compareAddress>;
+  using interval = boost::icl::interval<MetaAddress, CompareAddress>;
   ReadIntervalSet += interval::right_open(Address, Address + Size);
 }
 
@@ -1368,7 +1368,7 @@ void JumpTargetManager::harvestWithAVI() {
   // Update CPUStateAccessAnalysisPass
   //
   legacy::PassManager PM;
-  PM.add(createCSAA());
+  PM.add(CreateCSAA());
   PM.add(new FunctionCallIdentification);
   PM.run(TheModule);
 

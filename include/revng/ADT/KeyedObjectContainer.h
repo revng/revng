@@ -49,7 +49,7 @@ static_assert(IsKeyedObjectContainer<SortedVector<int>>);
 
 template<IsKeyedObjectContainer T>
 struct llvm::yaml::SequenceTraits<T> {
-  static size_t size(IO &io, T &Seq) { return Seq.size(); }
+  static size_t size(IO &TheIO, T &Seq) { return Seq.size(); }
 
   class Inserter {
   private:
@@ -66,10 +66,10 @@ struct llvm::yaml::SequenceTraits<T> {
     unsigned Index = 0;
 
   public:
-    Inserter(IO &io, T &Seq) :
+    Inserter(IO &TheIO, T &Seq) :
       Seq(Seq),
       It(Seq.begin()),
-      IsOutputting(io.outputting()),
+      IsOutputting(TheIO.outputting()),
       Instance(KOT::fromKey(key_type())) {
 
       if constexpr (std::is_const_v<T>) {

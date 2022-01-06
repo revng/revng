@@ -40,18 +40,18 @@ private:
     return Derived(constThisDerived(), NewIndex);
   }
 
-  void assertCompatibility(const type &r) const {
-    revng_assert(constThisDerived().isCompatible(r.constThisDerived()));
+  void assertCompatibility(const type &R) const {
+    revng_assert(constThisDerived().isCompatible(R.constThisDerived()));
   }
 
 protected:
   RandomAccessIterator() : Index(0) {}
   RandomAccessIterator(unsigned Index) : Index(Index) {}
-  RandomAccessIterator(const type &r) : Index(r.Index) {}
+  RandomAccessIterator(const type &R) : Index(R.Index) {}
 
-  Derived &operator=(const type &r) {
-    assertCompatibility(r);
-    Index = r.Index;
+  Derived &operator=(const type &R) {
+    assertCompatibility(R);
+    Index = R.Index;
     return thisDerived();
   }
 
@@ -70,17 +70,17 @@ public:
 
   Derived operator--(int) { return clone(Index--); }
 
-  Derived operator+(const difference_type &n) const { return clone(Index + n); }
+  Derived operator+(const difference_type &N) const { return clone(Index + N); }
 
-  Derived &operator+=(difference_type n) {
-    Index += n;
+  Derived &operator+=(difference_type N) {
+    Index += N;
     return thisDerived();
   }
 
-  Derived operator-(const difference_type &n) const { return clone(Index - n); }
+  Derived operator-(const difference_type &N) const { return clone(Index - N); }
 
-  Derived &operator-=(const difference_type &n) {
-    Index -= n;
+  Derived &operator-=(const difference_type &N) {
+    Index -= N;
     return thisDerived();
   }
 
@@ -88,50 +88,50 @@ public:
 
   pointer operator->() const { return &get(Index); }
 
-  reference operator[](const difference_type &n) const {
-    return get(Index + n);
+  reference operator[](const difference_type &N) const {
+    return get(Index + N);
   }
 
-  bool operator==(const type &r2) const {
-    assertCompatibility(r2);
-    return Index == r2.Index;
+  bool operator==(const type &R2) const {
+    assertCompatibility(R2);
+    return Index == R2.Index;
   }
 
-  bool operator!=(const type &r2) {
-    assertCompatibility(r2);
-    return Index != r2.Index;
+  bool operator!=(const type &R2) {
+    assertCompatibility(R2);
+    return Index != R2.Index;
   }
 
-  bool operator<(const type &r2) {
-    assertCompatibility(r2);
-    return Index < r2.Index;
+  bool operator<(const type &R2) {
+    assertCompatibility(R2);
+    return Index < R2.Index;
   }
 
-  bool operator>(const type &r2) {
-    assertCompatibility(r2);
-    return Index > r2.Index;
+  bool operator>(const type &R2) {
+    assertCompatibility(R2);
+    return Index > R2.Index;
   }
 
-  bool operator<=(const type &r2) {
-    assertCompatibility(r2);
-    return Index <= r2.Index;
+  bool operator<=(const type &R2) {
+    assertCompatibility(R2);
+    return Index <= R2.Index;
   }
 
-  bool operator>=(const type &r2) {
-    assertCompatibility(r2);
-    return Index >= r2.Index;
-  }
-
-  template<typename T, typename D, bool R>
-  Derived operator+(const RandomAccessIterator<T, D, R> &r2) {
-    assertCompatibility(r2);
-    return clone(Index + r2.Index);
+  bool operator>=(const type &R2) {
+    assertCompatibility(R2);
+    return Index >= R2.Index;
   }
 
   template<typename T, typename D, bool R>
-  difference_type operator-(const RandomAccessIterator<T, D, R> &r2) const {
-    assertCompatibility(r2);
-    return Index - r2.Index;
+  Derived operator+(const RandomAccessIterator<T, D, R> &R2) {
+    assertCompatibility(R2);
+    return clone(Index + R2.Index);
+  }
+
+  template<typename T, typename D, bool R>
+  difference_type operator-(const RandomAccessIterator<T, D, R> &R2) const {
+    assertCompatibility(R2);
+    return Index - R2.Index;
   }
 
 private:

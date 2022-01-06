@@ -734,11 +734,11 @@ public:
           revng_log(CSVAccessLog,
                     "Is Reachable CallInst:" << FCall << " : "
                                              << dumpToString(FCall));
-          const Use &actualArgUse = FCall->getArgOperandUse(ArgNo);
+          const Use &ActualArgUse = FCall->getArgOperandUse(ArgNo);
           revng_log(CSVAccessLog,
-                    "ActualUse:" << actualArgUse.getUser() << " : "
-                                 << dumpToString(actualArgUse.getUser()));
-          Sources.push_back(&actualArgUse);
+                    "ActualUse:" << ActualArgUse.getUser() << " : "
+                                 << dumpToString(ActualArgUse.getUser()));
+          Sources.push_back(&ActualArgUse);
         } else {
           revng_log(CSVAccessLog, "NOT Reachable");
         }
@@ -771,11 +771,11 @@ public:
             const Function *Caller = FCall->getFunction();
             revng_log(CSVAccessLog, "Caller: " << Caller);
             if (ReachableFunctions.find(Caller) != ReachableFunctions.end()) {
-              const Use &actualArgUse = FCall->getArgOperandUse(ArgNo);
+              const Use &ActualArgUse = FCall->getArgOperandUse(ArgNo);
               revng_log(CSVAccessLog,
-                        "ActualUse:" << actualArgUse.getUser() << " : "
-                                     << dumpToString(actualArgUse.getUser()));
-              Sources.push_back(&actualArgUse);
+                        "ActualUse:" << ActualArgUse.getUser() << " : "
+                                     << dumpToString(ActualArgUse.getUser()));
+              Sources.push_back(&ActualArgUse);
             }
           }
         }
@@ -819,7 +819,7 @@ public:
 
 public:
   friend inline void writeToLog(Logger<true> &L, const WorkItem &I, int) {
-    L << "Value: " << I.Val() << " : " << dumpToString(I.Val()) << DoLog;
+    L << "Value: " << I.val() << " : " << dumpToString(I.val()) << DoLog;
     L << "Sources = {" << DoLog;
     L.indent();
     for (const Use *U : I.sources())
@@ -830,7 +830,7 @@ public:
   }
 
 public:
-  Value *Val() const { return CurrentValue; };
+  Value *val() const { return CurrentValue; };
 
   const Use *currentSourceUse() const {
     if (SourceIndex < Sources.size())
@@ -844,8 +844,8 @@ public:
   }
 
   const Use *nextSourceUse() const {
-    const auto size = Sources.size();
-    if (SourceIndex < size and (SourceIndex + 1) < size)
+    const auto Size = Sources.size();
+    if (SourceIndex < Size and (SourceIndex + 1) < Size)
       return Sources[SourceIndex + 1];
     return nullptr;
   }
@@ -878,11 +878,11 @@ static CallInst *
 getCurSourceRootCall(const WorkItem &Item, const Function *Root) {
   revng_log(CSVAccessLog, "getCurSourceRootCall");
   CallInst *RootCall = nullptr;
-  if (isa<Argument>(Item.Val())) {
+  if (isa<Argument>(Item.val())) {
     revng_log(CSVAccessLog, "isa<Argument>");
     User *ActualArgUser = Item.currentSourceUse()->getUser();
     auto *Call = cast<CallInst>(ActualArgUser);
-    revng_log(CSVAccessLog, "argument: " << dumpToString(Item.Val()));
+    revng_log(CSVAccessLog, "argument: " << dumpToString(Item.val()));
     revng_log(CSVAccessLog, "call: " << dumpToString(Call));
     Function *F = Call->getFunction();
     revng_log(CSVAccessLog, "parent: " << F->getName());
@@ -902,13 +902,13 @@ static CallInst *
 getNextSourceRootCall(const WorkItem &Item, const Function *Root) {
   revng_log(CSVAccessLog, "getNextSourceRootCall");
   CallInst *RootCall = nullptr;
-  if (isa<Argument>(Item.Val())) {
+  if (isa<Argument>(Item.val())) {
     revng_log(CSVAccessLog, "isa<Argument>");
     const Use *NextSrcUse = Item.nextSourceUse();
     if (NextSrcUse != nullptr) {
       User *ActualArgUser = NextSrcUse->getUser();
       auto *Call = cast<CallInst>(ActualArgUser);
-      revng_log(CSVAccessLog, "argument: " << dumpToString(Item.Val()));
+      revng_log(CSVAccessLog, "argument: " << dumpToString(Item.val()));
       revng_log(CSVAccessLog, "call: " << dumpToString(Call));
       Function *F = Call->getFunction();
       revng_log(CSVAccessLog, "parent: " << F->getName());
@@ -921,7 +921,7 @@ getNextSourceRootCall(const WorkItem &Item, const Function *Root) {
 }
 
 /// \brief Gets the `Shift`-th bit of `Input`
-static int GetBit(uint64_t Input, int Shift) {
+static int getBit(uint64_t Input, int Shift) {
   return (Input >> Shift) & 1;
 };
 
@@ -1012,25 +1012,25 @@ public:
 
     // Check that each source has all the callsites or nullptr
     for (const auto &CSOffsets : SrcCallSiteOffsetsPtrs) {
-      bool found_nullptr = false;
+      bool FoundNullptr = false;
       if (CSOffsets->find(nullptr) != CSOffsets->end()) {
-        found_nullptr = true;
+        FoundNullptr = true;
       }
 
-      bool found_all_calls = true;
+      bool FoundAllCalls = true;
       for (CallInst *C : CallSites) {
         if (C != nullptr and CSOffsets->find(C) == CSOffsets->end()) {
-          found_all_calls = false;
+          FoundAllCalls = false;
           break;
         }
       }
-      revng_assert(found_nullptr or found_all_calls);
+      revng_assert(FoundNullptr or FoundAllCalls);
     }
 
     for (CallInst *C : CallSites) {
       SmallVector<OffsetPair, 4> SrcOffsets(NumSrcs,
                                             OffsetPair(nullptr, nullptr));
-      bool empty_pair = false;
+      bool EmptyPair = false;
       for (WorkItem::size_type SI = 0; SI < NumSrcs; ++SI) {
         const CSVOffsets *NonRootOffset = NonRootOffsetsPtrs[SI];
         if (C != nullptr)
@@ -1045,18 +1045,18 @@ public:
           // This means that one the pairs is empty and we can drop entirely
           // this call. This happens when C == nullptr and one of the sources
           // has no nullptr Callsite
-          empty_pair = true;
+          EmptyPair = true;
         }
       }
-      if (empty_pair)
+      if (EmptyPair)
         continue;
       revng_log(CSVAccessLog, "start");
       revng_assert(NumSrcs < (8ULL * sizeof(uint64_t)));
-      uint64_t combinations = 1ULL << NumSrcs;
-      Value *V = Item.Val();
+      uint64_t Combinations = 1ULL << NumSrcs;
+      Value *V = Item.val();
       Instruction *I = cast<Instruction>(V);
-      for (uint64_t i = 0; i < combinations; ++i) {
-        revng_log(CSVAccessLog, "i: " << i);
+      for (uint64_t Index = 0; Index < Combinations; ++Index) {
+        revng_log(CSVAccessLog, "Index: " << Index);
         SmallVector<const CSVOffsets *, 4> OffsetTuple;
         OffsetTuple.reserve(NumSrcs);
 
@@ -1066,10 +1066,10 @@ public:
         revng_log(CSVAccessLog, "callsite: " << C << " : " << dumpToString(C));
         if (C != nullptr) {
           for (WorkItem::size_type SI = 0; SI < NumSrcs; ++SI) {
-            int bit = GetBit(i, SI);
+            int Bit = getBit(Index, SI);
             const CSVOffsets *O0 = SrcOffsets[SI].first;
             const CSVOffsets *O1 = SrcOffsets[SI].second;
-            const CSVOffsets *O = bit ? O1 : O0;
+            const CSVOffsets *O = Bit ? O1 : O0;
             if (O == nullptr)
               break;
             revng_log(CSVAccessLog, "nonnull");
@@ -1130,19 +1130,19 @@ public:
           // Advance the iterators
           {
             WorkItem::size_type SI = 0;
-            bool wrapped = false;
+            bool Wrapped = false;
             do {
               revng_log(CSVAccessLog, "SI: " << SI);
               if (std::next(OffsetsIt[SI]) == OffsetsRanges[SI].end()) {
                 OffsetsIt[SI] = OffsetsRanges[SI].begin();
-                wrapped = true;
+                Wrapped = true;
                 revng_log(CSVAccessLog, "WRAP");
               } else {
                 revng_log(CSVAccessLog, "NO-WRAP");
                 std::advance(OffsetsIt[SI], 1);
-                wrapped = false;
+                Wrapped = false;
               }
-            } while (wrapped and ++SI < NumSrcs);
+            } while (Wrapped and ++SI < NumSrcs);
             revng_log(CSVAccessLog, "incremented");
           }
         } while (--CartesianSize);
@@ -1735,13 +1735,13 @@ private:
   }
 
   void push(WorkItem &&Item) {
-    InExploration.insert(Item.Val());
+    InExploration.insert(Item.val());
     WorkList.push_back(Item);
     CSVAccessLog.indent(2);
   }
 
   void pop() {
-    InExploration.erase(WorkList.back().Val());
+    InExploration.erase(WorkList.back().val());
     WorkList.pop_back();
     CSVAccessLog.unindent(2);
   }
@@ -1759,7 +1759,7 @@ private:
 using CPUSAOA = CPUStateAccessOffsetAnalysis;
 
 void CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
-  Value *ItemVal = Item.Val();
+  Value *ItemVal = Item.val();
   if (isa<PHINode>(ItemVal) or isa<Argument>(ItemVal)
       or isa<CallInst>(ItemVal)) {
 
@@ -1866,10 +1866,10 @@ void CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
       for (const auto &CallSrc : CallSiteSrcIds) {
         Optional<CSVOffsets> New;
         CallInst *TheCall = CallSrc.first;
-        for (const auto i : CallSrc.second) {
+        for (const auto I : CallSrc.second) {
           revng_log(CSVAccessLog,
                     "AT: " << TheCall << " : " << dumpToString(TheCall));
-          const CSVOffsets &SrcOffset = SrcCallSiteOffsets[i]->at(TheCall);
+          const CSVOffsets &SrcOffset = SrcCallSiteOffsets[I]->at(TheCall);
           if (New) {
             New.getValue().combine(SrcOffset);
           } else {
@@ -2080,7 +2080,7 @@ bool CPUSAOA::exploreImmediateSources(Value *V, bool IsLoad) {
   }
   revng_log(CSVAccessLog, "New!: " << NewItem);
 
-  Value *NewItemV = NewItem.Val();
+  Value *NewItemV = NewItem.val();
   if (isInExploration(NewItemV)) {
     revng_log(CSVAccessLog, "IS RECURSIVE");
 
@@ -2098,7 +2098,7 @@ bool CPUSAOA::exploreImmediateSources(Value *V, bool IsLoad) {
       auto WLEnd = WorkList.cend();
       bool FoundRecursion = false;
       for (; WLIt != WLEnd; ++WLIt) {
-        if (Arg != WLIt->Val())
+        if (Arg != WLIt->val())
           continue;
 
         FoundRecursion = true;
@@ -2182,10 +2182,10 @@ void CPUSAOA::analyzeAccess(Instruction *LoadOrStore, bool IsLoad) {
                   StoreMDKind));
 
   while (not WorkList.empty()) {
-    const auto size = WorkList.size();
+    const auto Size = WorkList.size();
     Value *CurSrcVal = WorkList.back().currentSourceValue();
     if (CSVAccessLog.isEnabled()) {
-      const auto *CurVal = WorkList.back().Val();
+      const auto *CurVal = WorkList.back().val();
       revng_log(CSVAccessLog,
                 "Val   : " << CurVal << " : " << dumpToString(CurVal));
       revng_log(CSVAccessLog,
@@ -2201,7 +2201,7 @@ void CPUSAOA::analyzeAccess(Instruction *LoadOrStore, bool IsLoad) {
 
     // If we didn't push anything, we are done exploring backward the current
     // source and we want to explore backward the other sources of this value
-    if (size == WorkList.size())
+    if (Size == WorkList.size())
       if (selectNextSource(WorkList.back()))
         continue;
 
@@ -2215,7 +2215,7 @@ void CPUSAOA::analyzeAccess(Instruction *LoadOrStore, bool IsLoad) {
     do {
       const WorkItem &Item = WorkList.back();
       if (CSVAccessLog.isEnabled()) {
-        const auto *Val = Item.Val();
+        const auto *Val = Item.val();
         revng_log(CSVAccessLog,
                   "TopItemVal: " << Val << " : " << dumpToString(Val));
         const auto *SrcVal = Item.currentSourceValue();
@@ -2250,15 +2250,15 @@ void CPUSAOA::computeAggregatedOffsets() {
 
     auto DL = M.getDataLayout();
 
-    bool isInstr = isa<Instruction>(I);
-    bool isCorrectAccessType = IsLoad ? isa<LoadInst>(I) : isa<StoreInst>(I);
-    bool isCallToBuiltinMemcpy = callsBuiltinMemcpy(dyn_cast<Instruction>(I));
-    revng_assert(isInstr and (isCorrectAccessType or isCallToBuiltinMemcpy));
+    bool IsInstr = isa<Instruction>(I);
+    bool IsCorrectAccessType = IsLoad ? isa<LoadInst>(I) : isa<StoreInst>(I);
+    bool IsCallToBuiltinMemcpy = callsBuiltinMemcpy(dyn_cast<Instruction>(I));
+    revng_assert(IsInstr and (IsCorrectAccessType or IsCallToBuiltinMemcpy));
     auto *Instr = dyn_cast<Instruction>(I);
     revng_assert(Tainted.count(Instr) != 0);
 
     int64_t AccessSize;
-    if (isCallToBuiltinMemcpy) {
+    if (IsCallToBuiltinMemcpy) {
       auto Call = cast<CallInst>(I);
       auto SizeParam = cast<ConstantInt>(Call->getArgOperand(2));
       AccessSize = SizeParam->getSExtValue();

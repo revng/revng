@@ -108,15 +108,15 @@ void DotGraph::parseDotImpl(std::ifstream &F, llvm::StringRef EntryName) {
 
         // The body of the dot file should contain the edge declaration.
         revng_log(DotLogger, "Parsed line:\n" << CurrentLineRef << "\n");
-        size_t pos = CurrentLineRef.find(Delimiter);
-        revng_assert(pos != llvm::StringRef::npos);
+        size_t Pos = CurrentLineRef.find(Delimiter);
+        revng_assert(Pos != llvm::StringRef::npos);
 
         // Collect the source node (everything that comes before `->`).
-        llvm::StringRef SourceID = CurrentLineRef.substr(0, pos);
+        llvm::StringRef SourceID = CurrentLineRef.substr(0, Pos);
         revng_log(DotLogger, "Source is: " << SourceID << "\n");
 
         // Collect the target node.
-        llvm::StringRef TargetID = CurrentLineRef.substr(pos + DelimiterSize);
+        llvm::StringRef TargetID = CurrentLineRef.substr(Pos + DelimiterSize);
 
         // Remove the last `;`.
         size_t TargetSize = TargetID.size();

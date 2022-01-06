@@ -238,10 +238,10 @@ private:
     bool LastOutput = false;
     bool LeftActive = false;
     bool RightActive = false;
-    auto zip_APIntVector = zipmap_range<const APIntVector,
-                                        const APIntVector,
-                                        APIntVectorKeyContainer>;
-    for (auto &P : zip_APIntVector(Bounds, Other.Bounds)) {
+    auto ZipAPIntVector = zipmap_range<const APIntVector,
+                                       const APIntVector,
+                                       APIntVectorKeyContainer>;
+    for (auto &P : ZipAPIntVector(Bounds, Other.Bounds)) {
       const llvm::APInt *Left = P.first;
       const llvm::APInt *Right = P.second;
 

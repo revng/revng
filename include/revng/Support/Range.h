@@ -29,7 +29,7 @@ public:
     return Result;
   }
 
-  reference operator[](const difference_type &n) const { return Begin[n]; }
+  reference operator[](const difference_type &N) const { return Begin[N]; }
 
   difference_type size() const { return End - Begin; }
 

@@ -196,12 +196,12 @@ struct DebugLogOptionList : public llvm::cl::list<PlaceholderEnum> {
          llvm::cl::desc("enable verbose logging"),
          llvm::cl::cat(MainCategory)) {}
 
-  virtual bool addOccurrence(unsigned pos,
+  virtual bool addOccurrence(unsigned Pos,
                              llvm::StringRef ArgName,
                              llvm::StringRef Value,
                              bool MultiArg = false) override {
     Loggers->enable(Value);
-    return list::addOccurrence(pos, ArgName, Value, MultiArg);
+    return list::addOccurrence(Pos, ArgName, Value, MultiArg);
   }
 };
 

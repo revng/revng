@@ -163,7 +163,7 @@ static void findFiles(const char *Architecture) {
 ///
 /// \return EXIT_SUCCESS if the library has been successfully loaded.
 static int loadPTCLibrary(LibraryPointer &PTCLibrary) {
-  ptc_load_ptr_t ptc_load = nullptr;
+  ptc_load_ptr_t PTCLoad = nullptr;
   void *LibraryHandle = nullptr;
 
   // Look for the library in the system's paths
@@ -179,15 +179,15 @@ static int loadPTCLibrary(LibraryPointer &PTCLibrary) {
   PTCLibrary.reset(LibraryHandle);
 
   // Obtain the address of the ptc_load entry point
-  ptc_load = reinterpret_cast<ptc_load_ptr_t>(dlsym(LibraryHandle, "ptc_load"));
+  PTCLoad = reinterpret_cast<ptc_load_ptr_t>(dlsym(LibraryHandle, "ptc_load"));
 
-  if (ptc_load == nullptr) {
+  if (PTCLoad == nullptr) {
     fprintf(stderr, "Couldn't find ptc_load: %s\n", dlerror());
     return EXIT_FAILURE;
   }
 
   // Initialize the ptc interface
-  if (ptc_load(LibraryHandle, &ptc) != 0) {
+  if (PTCLoad(LibraryHandle, &ptc) != 0) {
     fprintf(stderr, "Couldn't find PTC functions.\n");
     return EXIT_FAILURE;
   }

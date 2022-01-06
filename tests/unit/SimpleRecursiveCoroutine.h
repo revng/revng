@@ -17,22 +17,22 @@ inline RecursiveCoroutine<int> get10() {
   rc_return 10;
 }
 
-inline RecursiveCoroutine<> my_coroutine(std::vector<MyState> &RCS, int x) {
+inline RecursiveCoroutine<> myCoroutine(std::vector<MyState> &RCS, int Y) {
   int X = 1;
-  std::cerr << "Pre " << x << ':';
-  RCS.back().Depth = x;
+  std::cerr << "Pre " << Y << ':';
+  RCS.back().Depth = Y;
 
   for (const MyState &S : RCS) {
     std::cerr << ' ' << S.Depth;
   }
   std::cerr << std::endl;
 
-  if (x < (rc_recur get10())) {
+  if (Y < (rc_recur get10())) {
     RCS.emplace_back();
-    rc_recur my_coroutine(RCS, x + 1);
+    rc_recur myCoroutine(RCS, Y + 1);
   }
 
-  std::cerr << "Post " << x << ' ' << X << std::endl;
+  std::cerr << "Post " << Y << ' ' << X << std::endl;
   RCS.pop_back();
   rc_return;
 }

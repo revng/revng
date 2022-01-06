@@ -150,7 +150,7 @@ public:
 
   bool hasEnv() const { return Env != nullptr; }
 
-  llvm::Value *CPUStateToEnv(llvm::Value *CPUState,
+  llvm::Value *cpuStateToEnv(llvm::Value *CPUState,
                              llvm::Type *TargetType,
                              llvm::Instruction *InsertBefore) const;
 

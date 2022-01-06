@@ -852,10 +852,10 @@ static_assert(sizeof(MetaAddress) <= 128 / 8,
               "MetaAddress is larger than 128 bits");
 
 template<typename T>
-struct compareAddress {};
+struct CompareAddress {};
 
 template<>
-struct compareAddress<MetaAddress> {
+struct CompareAddress<MetaAddress> {
   bool operator()(const MetaAddress &LHS, const MetaAddress &RHS) const {
     return LHS.addressLowerThan(RHS);
   }

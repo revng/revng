@@ -27,7 +27,7 @@ int main(int, char *[]) {
   //
   std::vector<MyState> MyStateRCS;
   MyStateRCS.emplace_back();
-  my_coroutine(MyStateRCS, 0);
+  myCoroutine(MyStateRCS, 0);
 
   //
   // Visit a simple graph

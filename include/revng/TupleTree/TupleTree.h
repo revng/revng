@@ -132,27 +132,27 @@ void visitTupleTree(Visitor &V, T &Obj) {
 // Tuple-like
 template<typename Visitor, HasTupleSize T>
 void visitTupleTree(Visitor &V, T &Obj) {
-  V.preVisit(Obj);
+  V.PreVisit(Obj);
   tupletree::detail::visitTuple(V, Obj);
-  V.postVisit(Obj);
+  V.PostVisit(Obj);
 }
 
 // Container-like
 template<typename Visitor, IsKeyedObjectContainer T>
 void visitTupleTree(Visitor &V, T &Obj) {
-  V.preVisit(Obj);
+  V.PreVisit(Obj);
   using value_type = typename T::value_type;
   for (value_type &Element : Obj) {
     visitTupleTree(V, Element);
   }
-  V.postVisit(Obj);
+  V.PostVisit(Obj);
 }
 
 // All the others
 template<typename Visitor, NotTupleTreeCompatible T>
 void visitTupleTree(Visitor &V, T &Element) {
-  V.preVisit(Element);
-  V.postVisit(Element);
+  V.PreVisit(Element);
+  V.PostVisit(Element);
 }
 
 template<typename Pre, typename Post, typename T>
@@ -160,20 +160,11 @@ void visitTupleTree(T &Element,
                     const Pre &PreVisitor,
                     const Post &PostVisitor) {
   struct {
-    const Pre &preVisit;
-    const Post &postVisit;
+    const Pre &PreVisit;
+    const Post &PostVisit;
   } Visitor{ PreVisitor, PostVisitor };
   visitTupleTree(Visitor, Element);
 }
-
-/// Default visitor, doing nothing
-struct DefaultTupleTreeVisitor {
-  template<typename T>
-  void preVisit(T &) {}
-
-  template<typename T>
-  void postVisit(T &) {}
-};
 
 //
 // tupleIndexByName

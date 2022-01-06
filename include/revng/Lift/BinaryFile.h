@@ -448,7 +448,7 @@ class BinaryFile {
 public:
   using LabelList = llvm::SmallVector<Label *, 6u>;
 
-  using LabelIntervalMap = interval_map<MetaAddress, LabelList, compareAddress>;
+  using LabelIntervalMap = interval_map<MetaAddress, LabelList, CompareAddress>;
   using Handle = llvm::object::OwningBinary<llvm::object::Binary>;
 
   enum Endianess { OriginalEndianess, BigEndian, LittleEndian };

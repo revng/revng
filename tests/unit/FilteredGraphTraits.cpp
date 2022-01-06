@@ -34,7 +34,7 @@ using namespace llvm;
 
 template<char Letter>
 static bool
-HasLetterInName(const llvm::GraphTraits<Function *>::NodeRef & /*Src*/,
+hasLetterInName(const llvm::GraphTraits<Function *>::NodeRef & /*Src*/,
                 const llvm::GraphTraits<Function *>::NodeRef &Tgt) {
   if (not Tgt->hasName())
     return false;
@@ -43,49 +43,49 @@ HasLetterInName(const llvm::GraphTraits<Function *>::NodeRef & /*Src*/,
 
 template<char Letter>
 static bool
-EdgeHasLetterInName(const llvm::GraphTraits<DotGraph *>::EdgeRef &E) {
+edgeHasLetterInName(const llvm::GraphTraits<DotGraph *>::EdgeRef &E) {
   return E.second->getName().contains(Letter);
 }
 
 template<typename T>
-static bool AlwaysTrue(const T & /*Src*/, const T & /*Tgt*/) {
+static bool alwaysTrue(const T & /*Src*/, const T & /*Tgt*/) {
   return true;
 }
 
 template<typename NodeT>
-static bool AlwaysTrueEdge(const typename GraphTraits<NodeT>::EdgeRef &) {
+static bool alwaysTrueEdge(const typename GraphTraits<NodeT>::EdgeRef &) {
   return true;
 }
 
 template<typename T>
-static bool AlwaysFalse(const T & /*Src*/, const T & /*Tgt*/) {
+static bool alwaysFalse(const T & /*Src*/, const T & /*Tgt*/) {
   return false;
 }
 
 template<typename NodeT>
-static bool AlwaysFalseEdge(const typename GraphTraits<NodeT>::EdgeRef &) {
+static bool alwaysFalseEdge(const typename GraphTraits<NodeT>::EdgeRef &) {
   return false;
 }
 
 template<typename NodeT>
-using TrueNPFG = NodePairFilteredGraph<NodeT, AlwaysTrue<NodeT>>;
+using TrueNPFG = NodePairFilteredGraph<NodeT, alwaysTrue<NodeT>>;
 
 template<typename NodeT>
-using FalseNPFG = NodePairFilteredGraph<NodeT, AlwaysFalse<NodeT>>;
+using FalseNPFG = NodePairFilteredGraph<NodeT, alwaysFalse<NodeT>>;
 
 template<typename NodeT>
-using TrueEFG = EdgeFilteredGraph<NodeT, AlwaysTrueEdge<NodeT>>;
+using TrueEFG = EdgeFilteredGraph<NodeT, alwaysTrueEdge<NodeT>>;
 
 template<typename NodeT>
-using FalseEFG = EdgeFilteredGraph<NodeT, AlwaysFalseEdge<NodeT>>;
+using FalseEFG = EdgeFilteredGraph<NodeT, alwaysFalseEdge<NodeT>>;
 
 struct ArgsFixture {
-  int argc;
-  char **argv;
+  int ArgC;
+  char **ArgV;
 
   ArgsFixture() :
-    argc(boost::unit_test::framework::master_test_suite().argc),
-    argv(boost::unit_test::framework::master_test_suite().argv) {}
+    ArgC(boost::unit_test::framework::master_test_suite().argc),
+    ArgV(boost::unit_test::framework::master_test_suite().argv) {}
 
   ~ArgsFixture() {}
 };
@@ -145,7 +145,7 @@ end:
       "initial_block", "starter", "end", "false", "_xit",
     };
     std::vector<BasicBlock *> Results;
-    using FNPFG = NodePairFilteredGraph<Function *, AlwaysTrue<BasicBlock *>>;
+    using FNPFG = NodePairFilteredGraph<Function *, alwaysTrue<BasicBlock *>>;
     for (auto &It : llvm::depth_first(FNPFG(F)))
       Results.push_back(It);
     revng_check(Results.size() == ExpectedResultsNames.size());
@@ -157,7 +157,7 @@ end:
       "initial_block",
     };
     std::vector<BasicBlock *> Results;
-    using NPFG = NodePairFilteredGraph<Function *, AlwaysFalse<BasicBlock *>>;
+    using NPFG = NodePairFilteredGraph<Function *, alwaysFalse<BasicBlock *>>;
     for (auto &It : llvm::depth_first(NPFG(F)))
       Results.push_back(It);
     revng_check(Results.size() == ExpectedResultsNames.size());
@@ -171,7 +171,7 @@ end:
       "false",
     };
     std::vector<BasicBlock *> Results;
-    using NPFG = NodePairFilteredGraph<Function *, HasLetterInName<'a'>>;
+    using NPFG = NodePairFilteredGraph<Function *, hasLetterInName<'a'>>;
     for (auto &It : llvm::depth_first(NPFG(F)))
       Results.push_back(It);
     // Only the initial_block, starter, and false should be left
@@ -188,7 +188,7 @@ end:
       "false",
     };
     std::vector<BasicBlock *> Results;
-    using NPFG = NodePairFilteredGraph<Function *, HasLetterInName<'e'>>;
+    using NPFG = NodePairFilteredGraph<Function *, hasLetterInName<'e'>>;
     for (auto &It : llvm::depth_first(NPFG(F)))
       Results.push_back(It);
     revng_check(Results.size() == ExpectedResultsNames.size());
@@ -214,7 +214,7 @@ end:
       "initial_block", "starter", "end", "false", "_xit",
     };
     std::vector<BasicBlock *> Results;
-    using NPFG = NodePairFilteredGraph<Function *, AlwaysTrue<BasicBlock *>>;
+    using NPFG = NodePairFilteredGraph<Function *, alwaysTrue<BasicBlock *>>;
     for (auto &It : llvm::breadth_first(NPFG(F)))
       Results.push_back(It);
     revng_check(Results.size() == ExpectedResultsNames.size());
@@ -226,7 +226,7 @@ end:
       "initial_block",
     };
     std::vector<BasicBlock *> Results;
-    using NPFG = NodePairFilteredGraph<Function *, AlwaysFalse<BasicBlock *>>;
+    using NPFG = NodePairFilteredGraph<Function *, alwaysFalse<BasicBlock *>>;
     for (auto &It : llvm::breadth_first(NPFG(F)))
       Results.push_back(It);
     revng_check(Results.size() == ExpectedResultsNames.size());
@@ -235,7 +235,7 @@ end:
   }
   { // Filter throwing away all the eges towards BB with name without 'a's
     std::vector<BasicBlock *> Results;
-    using NPFG = NodePairFilteredGraph<Function *, HasLetterInName<'a'>>;
+    using NPFG = NodePairFilteredGraph<Function *, hasLetterInName<'a'>>;
     for (auto &It : llvm::breadth_first(NPFG(F)))
       Results.push_back(It);
     // Only the initial_block, starter, and false should be left
@@ -256,7 +256,7 @@ end:
       "false",
     };
     std::vector<BasicBlock *> Results;
-    using NPFG = NodePairFilteredGraph<Function *, HasLetterInName<'e'>>;
+    using NPFG = NodePairFilteredGraph<Function *, hasLetterInName<'e'>>;
     for (auto &It : llvm::breadth_first(NPFG(F)))
       Results.push_back(It);
     revng_check(Results.size() == ExpectedResultsNames.size());
@@ -287,7 +287,7 @@ end:
       "initial_block",
     };
     std::vector<BasicBlock *> FirstResults, SecondResults;
-    using NPFG = NodePairFilteredGraph<BasicBlock *, AlwaysTrue<BasicBlock *>>;
+    using NPFG = NodePairFilteredGraph<BasicBlock *, alwaysTrue<BasicBlock *>>;
     using InvBBNPFG = Inverse<NPFG>;
     for (auto &It : llvm::depth_first(InvBBNPFG(BackBB)))
       FirstResults.push_back(It);
@@ -306,7 +306,7 @@ end:
       "end",
     };
     std::vector<BasicBlock *> FirstResults, SecondResults;
-    using NPFG = NodePairFilteredGraph<BasicBlock *, AlwaysFalse<BasicBlock *>>;
+    using NPFG = NodePairFilteredGraph<BasicBlock *, alwaysFalse<BasicBlock *>>;
     using InvBBNPFG = Inverse<NPFG>;
     for (auto &It : llvm::depth_first(InvBBNPFG(BackBB)))
       FirstResults.push_back(It);
@@ -325,7 +325,7 @@ end:
       "end",
     };
     std::vector<BasicBlock *> FirstResults, SecondResults;
-    using NPFG = NodePairFilteredGraph<BasicBlock *, HasLetterInName<'a'>>;
+    using NPFG = NodePairFilteredGraph<BasicBlock *, hasLetterInName<'a'>>;
     using InvBBNPFG = Inverse<NPFG>;
     for (auto &It : llvm::depth_first(InvBBNPFG(BackBB)))
       FirstResults.push_back(It);
@@ -347,7 +347,7 @@ end:
       "initial_block",
     };
     std::vector<BasicBlock *> FirstResults, SecondResults;
-    using NPFG = NodePairFilteredGraph<BasicBlock *, HasLetterInName<'e'>>;
+    using NPFG = NodePairFilteredGraph<BasicBlock *, hasLetterInName<'e'>>;
     using InvBBNPFG = Inverse<NPFG>;
     for (auto &It : llvm::depth_first(InvBBNPFG(BackBB)))
       FirstResults.push_back(It);
@@ -483,7 +483,7 @@ end:
     };
     std::vector<llvm::StringRef> Results;
 
-    using EFG = EdgeFilteredGraph<DotGraph *, AlwaysTrueEdge<DotGraph *>>;
+    using EFG = EdgeFilteredGraph<DotGraph *, alwaysTrueEdge<DotGraph *>>;
     for (auto &It : llvm::depth_first(EFG(&Input)))
       Results.push_back(It->getName());
     revng_check(Results.size() == ExpectedResultsNames.size());
@@ -503,7 +503,7 @@ end:
     };
     std::vector<llvm::StringRef> Results;
 
-    using EFG = EdgeFilteredGraph<DotGraph *, AlwaysFalseEdge<DotGraph *>>;
+    using EFG = EdgeFilteredGraph<DotGraph *, alwaysFalseEdge<DotGraph *>>;
     for (auto &It : llvm::depth_first(EFG(&Input)))
       Results.push_back(It->getName());
     revng_check(Results.size() == ExpectedResultsNames.size());
@@ -525,7 +525,7 @@ end:
     };
     std::vector<llvm::StringRef> Results;
 
-    using EFG = EdgeFilteredGraph<DotGraph *, EdgeHasLetterInName<'a'>>;
+    using EFG = EdgeFilteredGraph<DotGraph *, edgeHasLetterInName<'a'>>;
     for (auto &It : llvm::depth_first(EFG(&Input)))
       Results.push_back(It->getName());
     revng_check(Results.size() == ExpectedResultsNames.size());
@@ -548,7 +548,7 @@ end:
     };
     std::vector<llvm::StringRef> Results;
 
-    using EFG = EdgeFilteredGraph<DotGraph *, EdgeHasLetterInName<'e'>>;
+    using EFG = EdgeFilteredGraph<DotGraph *, edgeHasLetterInName<'e'>>;
     for (auto &It : llvm::depth_first(EFG(&Input)))
       Results.push_back(It->getName());
     revng_check(Results.size() == ExpectedResultsNames.size());
@@ -571,7 +571,7 @@ end:
     };
     std::vector<llvm::StringRef> Results;
 
-    using EFG = EdgeFilteredGraph<DotGraph *, AlwaysTrueEdge<DotGraph *>>;
+    using EFG = EdgeFilteredGraph<DotGraph *, alwaysTrueEdge<DotGraph *>>;
     for (auto &It : llvm::breadth_first(EFG(&Input)))
       Results.push_back(It->getName());
     revng_check(Results.size() == ExpectedResultsNames.size());
@@ -591,7 +591,7 @@ end:
     };
     std::vector<llvm::StringRef> Results;
 
-    using EFG = EdgeFilteredGraph<DotGraph *, AlwaysFalseEdge<DotGraph *>>;
+    using EFG = EdgeFilteredGraph<DotGraph *, alwaysFalseEdge<DotGraph *>>;
     for (auto &It : llvm::breadth_first(EFG(&Input)))
       Results.push_back(It->getName());
     revng_check(Results.size() == ExpectedResultsNames.size());
@@ -613,7 +613,7 @@ end:
     };
     std::vector<llvm::StringRef> Results;
 
-    using EFG = EdgeFilteredGraph<DotGraph *, EdgeHasLetterInName<'a'>>;
+    using EFG = EdgeFilteredGraph<DotGraph *, edgeHasLetterInName<'a'>>;
     for (auto &It : llvm::breadth_first(EFG(&Input)))
       Results.push_back(It->getName());
     revng_check(Results.size() == ExpectedResultsNames.size());
@@ -636,7 +636,7 @@ end:
     };
     std::vector<llvm::StringRef> Results;
 
-    using EFG = EdgeFilteredGraph<DotGraph *, EdgeHasLetterInName<'e'>>;
+    using EFG = EdgeFilteredGraph<DotGraph *, edgeHasLetterInName<'e'>>;
     for (auto &It : llvm::breadth_first(EFG(&Input)))
       Results.push_back(It->getName());
     revng_check(Results.size() == ExpectedResultsNames.size());
@@ -661,7 +661,7 @@ end:
     };
     std::vector<llvm::StringRef> FirstResults, SecondResults;
 
-    using EFG = EdgeFilteredGraph<DotNode *, AlwaysTrueEdge<DotNode *>>;
+    using EFG = EdgeFilteredGraph<DotNode *, alwaysTrueEdge<DotNode *>>;
     using InvEFG = llvm::Inverse<EFG>;
 
     DotNode *Exit = Input.getNodeByName("end");
@@ -691,7 +691,7 @@ end:
     };
     std::vector<llvm::StringRef> FirstResults, SecondResults;
 
-    using EFG = EdgeFilteredGraph<DotNode *, AlwaysFalseEdge<DotNode *>>;
+    using EFG = EdgeFilteredGraph<DotNode *, alwaysFalseEdge<DotNode *>>;
     using InvEFG = llvm::Inverse<EFG>;
 
     DotNode *Exit = Input.getNodeByName("end");
@@ -721,7 +721,7 @@ end:
     };
     std::vector<llvm::StringRef> FirstResults, SecondResults;
 
-    using EFG = EdgeFilteredGraph<DotNode *, EdgeHasLetterInName<'a'>>;
+    using EFG = EdgeFilteredGraph<DotNode *, edgeHasLetterInName<'a'>>;
     using InvEFG = llvm::Inverse<EFG>;
 
     DotNode *Exit = Input.getNodeByName("end");
@@ -754,7 +754,7 @@ end:
     };
     std::vector<llvm::StringRef> FirstResults, SecondResults;
 
-    using EFG = EdgeFilteredGraph<DotNode *, EdgeHasLetterInName<'e'>>;
+    using EFG = EdgeFilteredGraph<DotNode *, edgeHasLetterInName<'e'>>;
     using InvEFG = llvm::Inverse<EFG>;
 
     DotNode *Exit = Input.getNodeByName("end");

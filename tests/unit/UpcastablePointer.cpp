@@ -9,13 +9,13 @@
 
 // clang-format off
 template<typename T>
-concept UniquePtrLike = requires(T a, typename T::pointer b) {
+concept UniquePtrLike = requires(T A, typename T::pointer B) {
   std::is_pointer_v<typename T::pointer>;
   typename T::element_type;
-  { a.get() } -> same_as<typename T::pointer>;
-  { a.reset(b) } -> same_as<void>;
+  { A.get() } -> same_as<typename T::pointer>;
+  { A.reset(B) } -> same_as<void>;
   { T() };
-  { T(b) };
+  { T(B) };
 };
 // clang-format on
 

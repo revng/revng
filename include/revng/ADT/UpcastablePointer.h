@@ -29,8 +29,8 @@ concept HasConcretTypeTraits = requires {
 
 // clang-format off
 template<typename T>
-concept HasLLVMRTTI = requires(T *a) {
-  { a->classof(a) } -> same_as<bool>;
+concept HasLLVMRTTI = requires(T *A) {
+  { A->classof(A) } -> same_as<bool>;
 };
 // clang-format on
 
@@ -41,8 +41,8 @@ template<typename T>
 using pointee = typename std::pointer_traits<T>::element_type;
 
 template<typename T>
-concept PointerLike = requires(T a) {
-  { *a };
+concept PointerLike = requires(T A) {
+  { *A };
 };
 
 static_assert(PointerLike<int *>);

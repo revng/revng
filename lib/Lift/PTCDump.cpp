@@ -40,9 +40,9 @@ static void getTemporaryName(char *Buffer,
 int dumpInstruction(std::ostream &Result,
                     PTCInstructionList *Instructions,
                     unsigned Index) {
-  size_t i = 0;
+  size_t I = 0;
   // TODO: this should stay in Architecture
-  int is64 = 0;
+  int Is64 = 0;
   PTCInstruction &Instruction = Instructions->instructions[Index];
 
   PTCOpcode Opcode = Instruction.opc;
@@ -53,7 +53,7 @@ int dumpInstruction(std::ostream &Result,
     // TODO: create accessors for PTC_INSTRUCTION_op_debug_insn_start
     uint64_t PC = Instruction.args[0];
 
-    if (is64)
+    if (Is64)
       PC |= Instruction.args[1] << 32;
 
     Result << " ---- 0x" << std::hex << PC << std::endl;
@@ -78,20 +78,20 @@ int dumpInstruction(std::ostream &Result,
            << "$0x" << std::hex << Flags << "," << std::dec << OutArgsCount;
 
     // Print out arguments
-    for (i = 0; i < OutArgsCount; i++) {
+    for (I = 0; I < OutArgsCount; I++) {
       getTemporaryName(TemporaryName,
                        MAX_TEMP_NAME_LENGTH,
                        Instructions,
-                       ptc_call_instruction_out_arg(&ptc, &Instruction, i));
+                       ptc_call_instruction_out_arg(&ptc, &Instruction, I));
       Result << "," << TemporaryName;
     }
 
     // Print in arguments
     size_t InArgsCount = ptc_call_instruction_in_arg_count(&ptc, &Instruction);
-    for (i = 0; i < InArgsCount; i++) {
+    for (I = 0; I < InArgsCount; I++) {
       PTCInstructionArg InArg = ptc_call_instruction_in_arg(&ptc,
                                                             &Instruction,
-                                                            i);
+                                                            I);
 
       if (InArg != PTC_CALL_DUMMY_ARG) {
         getTemporaryName(TemporaryName,
@@ -109,37 +109,37 @@ int dumpInstruction(std::ostream &Result,
     Result << Definition->name << " ";
 
     // Print out arguments
-    for (i = 0; i < ptc_instruction_out_arg_count(&ptc, &Instruction); i++) {
-      if (i != 0)
+    for (I = 0; I < ptc_instruction_out_arg_count(&ptc, &Instruction); I++) {
+      if (I != 0)
         Result << ",";
 
       getTemporaryName(TemporaryName,
                        MAX_TEMP_NAME_LENGTH,
                        Instructions,
-                       ptc_instruction_out_arg(&ptc, &Instruction, i));
+                       ptc_instruction_out_arg(&ptc, &Instruction, I));
       Result << TemporaryName;
     }
 
-    if (i != 0)
+    if (I != 0)
       Result << ",";
 
     // Print in arguments
-    for (i = 0; i < ptc_instruction_in_arg_count(&ptc, &Instruction); i++) {
-      if (i != 0)
+    for (I = 0; I < ptc_instruction_in_arg_count(&ptc, &Instruction); I++) {
+      if (I != 0)
         Result << ",";
 
       getTemporaryName(TemporaryName,
                        MAX_TEMP_NAME_LENGTH,
                        Instructions,
-                       ptc_instruction_in_arg(&ptc, &Instruction, i));
+                       ptc_instruction_in_arg(&ptc, &Instruction, I));
       Result << TemporaryName;
     }
 
-    if (i != 0)
+    if (I != 0)
       Result << ",";
 
     /* Parse some special const arguments */
-    i = 0;
+    I = 0;
     switch (Opcode) {
     case PTC_INSTRUCTION_op_brcond_i32:
     case PTC_INSTRUCTION_op_setcond_i32:
@@ -160,7 +160,7 @@ int dumpInstruction(std::ostream &Result,
                << "$0x" << std::hex << Arg;
 
       /* Consume one argument */
-      i++;
+      I++;
 
     } break;
     case PTC_INSTRUCTION_op_qemu_ld_i32:
@@ -202,7 +202,7 @@ int dumpInstruction(std::ostream &Result,
       Result << "," << LoadStoreArg.mmu_index;
 
       /* Consume one argument */
-      i++;
+      I++;
 
     } break;
     default:
@@ -215,12 +215,12 @@ int dumpInstruction(std::ostream &Result,
     case PTC_INSTRUCTION_op_brcond_i32:
     case PTC_INSTRUCTION_op_brcond_i64:
     case PTC_INSTRUCTION_op_brcond2_i32: {
-      PTCInstructionArg Arg = ptc_instruction_const_arg(&ptc, &Instruction, i);
+      PTCInstructionArg Arg = ptc_instruction_const_arg(&ptc, &Instruction, I);
       Result << ","
              << "$L" << ptc.get_arg_label_id(Arg);
 
       /* Consume one more argument */
-      i++;
+      I++;
       break;
     }
     default:
@@ -228,13 +228,13 @@ int dumpInstruction(std::ostream &Result,
     }
 
     /* Print remaining const arguments */
-    for (; i < ptc_instruction_const_arg_count(&ptc, &Instruction); i++) {
-      if (i != 0) {
+    for (; I < ptc_instruction_const_arg_count(&ptc, &Instruction); I++) {
+      if (I != 0) {
         Result << ",";
       }
 
       Result << "$0x" << std::hex
-             << ptc_instruction_const_arg(&ptc, &Instruction, i);
+             << ptc_instruction_const_arg(&ptc, &Instruction, I);
     }
   }
 
@@ -268,7 +268,7 @@ int dumpTranslation(MetaAddress VirtualAddress,
                     std::ostream &Result,
                     PTCInstructionList *Instructions) {
   // TODO: this should stay in Architecture
-  int is64 = 0;
+  int Is64 = 0;
 
   for (unsigned Index = 0; Index < Instructions->instruction_count; Index++) {
     PTCInstruction &Instruction = Instructions->instructions[Index];
@@ -277,7 +277,7 @@ int dumpTranslation(MetaAddress VirtualAddress,
     if (Opcode == PTC_INSTRUCTION_op_debug_insn_start) {
       uint64_t PC = Instruction.args[0];
 
-      if (is64)
+      if (Is64)
         PC |= Instruction.args[1] << 32;
 
       disassemble(Result, VirtualAddress.replaceAddress(PC), 4096, 1);

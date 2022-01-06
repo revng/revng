@@ -29,7 +29,7 @@ BOOST_AUTO_TEST_CASE(TestCompile) {
     {
       struct MyForwardNode {
         MyForwardNode(int) {}
-        int m;
+        int M;
       };
       using NodeType = ForwardNode<MyForwardNode>;
       GenericGraph<NodeType> Graph;
@@ -44,7 +44,7 @@ BOOST_AUTO_TEST_CASE(TestCompile) {
     {
       struct MyBidirectionalNode {
         MyBidirectionalNode(int) {}
-        int m;
+        int M;
       };
       using NodeType = BidirectionalNode<MyBidirectionalNode>;
       GenericGraph<NodeType> Graph;
@@ -66,7 +66,7 @@ BOOST_AUTO_TEST_CASE(TestCompile) {
     {
       struct MyForwardNodeWithEdges {
         MyForwardNodeWithEdges(int) {}
-        int m;
+        int M;
       };
 
       using NodeType = ForwardNode<MyForwardNodeWithEdges, EdgeLabel>;
@@ -83,7 +83,7 @@ BOOST_AUTO_TEST_CASE(TestCompile) {
     {
       struct MyBidirectionalNodeWithEdges {
         MyBidirectionalNodeWithEdges(int) {}
-        int m;
+        int M;
       };
       using NodeType = BidirectionalNode<MyBidirectionalNodeWithEdges,
                                          EdgeLabel>;

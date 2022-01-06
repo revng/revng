@@ -126,7 +126,7 @@ static void checkAdvancedValueInfo(const char *Body, const CheckMap &Map) {
   revng_check(Results == Reference);
 }
 
-static APInt AI64(uint64_t Value) {
+static APInt aI64(uint64_t Value) {
   return APInt(64, Value);
 }
 
@@ -137,7 +137,7 @@ BOOST_AUTO_TEST_CASE(TestConstant) {
   store i64 %constant, i64* @pc
   unreachable
 )LLVM",
-                         { { "constant", { AI64(4194424) } } });
+                         { { "constant", { aI64(4194424) } } });
 
   checkAdvancedValueInfo(R"LLVM(
   %other = add i64 4194424, 0
@@ -145,7 +145,7 @@ BOOST_AUTO_TEST_CASE(TestConstant) {
   store i64 %constant, i64* @pc
   unreachable
 )LLVM",
-                         { { "constant", { AI64(4194424) } } });
+                         { { "constant", { aI64(4194424) } } });
 }
 
 BOOST_AUTO_TEST_CASE(TestRange) {
@@ -163,11 +163,11 @@ end:
 
 )LLVM",
                          { { "to_store",
-                             { AI64(0),
-                               AI64(1),
-                               AI64(2),
-                               AI64(3),
-                               AI64(4) } } });
+                             { aI64(0),
+                               aI64(1),
+                               aI64(2),
+                               aI64(3),
+                               aI64(4) } } });
 
   checkAdvancedValueInfo(R"LLVM(
   %original = load i64, i64 *@pc
@@ -184,11 +184,11 @@ end:
 
 )LLVM",
                          { { "shifted",
-                             { AI64(0),
-                               AI64(2),
-                               AI64(4),
-                               AI64(6),
-                               AI64(8) } } });
+                             { aI64(0),
+                               aI64(2),
+                               aI64(4),
+                               aI64(6),
+                               aI64(8) } } });
 }
 
 BOOST_AUTO_TEST_CASE(TestPhi) {
@@ -204,7 +204,7 @@ use_phi:
   unreachable
 
 )LLVM",
-                         { { "to_store", { AI64(5) } } });
+                         { { "to_store", { aI64(5) } } });
 
   checkAdvancedValueInfo(R"LLVM(
   br label %start
@@ -219,7 +219,7 @@ use_phi:
   unreachable
 
 )LLVM",
-                         { { "to_store", { AI64(5) } } });
+                         { { "to_store", { aI64(5) } } });
 
   // Two distinct constants
   checkAdvancedValueInfo(R"LLVM(
@@ -244,7 +244,7 @@ use_phi:
   unreachable
 
 )LLVM",
-                         { { "to_store", { AI64(5), AI64(10) } } });
+                         { { "to_store", { aI64(5), aI64(10) } } });
 
   // Multi-level phi
   checkAdvancedValueInfo(R"LLVM(
@@ -287,7 +287,7 @@ use_phi:
 
 )LLVM",
                          { { "to_store",
-                             { AI64(5), AI64(10), AI64(19), AI64(22) } } });
+                             { aI64(5), aI64(10), aI64(19), aI64(22) } } });
 
   // Two disjoint ranges and a constant
   checkAdvancedValueInfo(R"LLVM(
@@ -322,16 +322,16 @@ final:
 
 )LLVM",
                          { { "to_store",
-                             { AI64(0),
-                               AI64(1),
-                               AI64(2),
-                               AI64(3),
-                               AI64(4),
-                               AI64(11),
-                               AI64(12),
-                               AI64(13),
-                               AI64(14),
-                               AI64(100) } } });
+                             { aI64(0),
+                               aI64(1),
+                               aI64(2),
+                               aI64(3),
+                               aI64(4),
+                               aI64(11),
+                               aI64(12),
+                               aI64(13),
+                               aI64(14),
+                               aI64(100) } } });
 }
 
 BOOST_AUTO_TEST_CASE(TestLoops) {
@@ -352,7 +352,7 @@ end:
   unreachable
 
 )LLVM",
-                         { { "to_store", { AI64(5), AI64(8) } } });
+                         { { "to_store", { aI64(5), aI64(8) } } });
 
   // Note: LazyValueInfo is not expressive enough to track the fact that the add
   //       is monotone. This is test is to ensure we don't end in an infinite
@@ -376,16 +376,16 @@ end:
 
 )LLVM",
                          { { "to_store",
-                             { AI64(0),
-                               AI64(1),
-                               AI64(2),
-                               AI64(3),
-                               AI64(4),
-                               AI64(5),
-                               AI64(6),
-                               AI64(7),
-                               AI64(8),
-                               AI64(9) } } });
+                             { aI64(0),
+                               aI64(1),
+                               aI64(2),
+                               aI64(3),
+                               aI64(4),
+                               aI64(5),
+                               aI64(6),
+                               aI64(7),
+                               aI64(8),
+                               aI64(9) } } });
 }
 
 BOOST_AUTO_TEST_CASE(TestMemory) {
@@ -396,7 +396,7 @@ BOOST_AUTO_TEST_CASE(TestMemory) {
   unreachable
 
 )LLVM",
-                         { { "to_store", { AI64(43) } } });
+                         { { "to_store", { aI64(43) } } });
 }
 
 BOOST_AUTO_TEST_CASE(TestBswap) {
@@ -406,7 +406,7 @@ BOOST_AUTO_TEST_CASE(TestBswap) {
   unreachable
 
 )LLVM",
-                         { { "to_store", { AI64(0xFFULL << (7 * 8)) } } });
+                         { { "to_store", { aI64(0xFFULL << (7 * 8)) } } });
 }
 
 BOOST_AUTO_TEST_CASE(TestSymbol) {
@@ -417,7 +417,7 @@ BOOST_AUTO_TEST_CASE(TestSymbol) {
   unreachable
 
 )LLVM",
-                         { { "to_store", { { "symbol", AI64(10) } } } });
+                         { { "to_store", { { "symbol", aI64(10) } } } });
 
   // We don't handle multiplication of symbol values
   checkAdvancedValueInfo(R"LLVM(
@@ -457,12 +457,12 @@ end:
 
 )LLVM",
                          { { "to_store",
-                             { AI64(11),
-                               AI64(12),
-                               AI64(13),
-                               AI64(14),
-                               AI64(31),
-                               AI64(32),
-                               AI64(33),
-                               AI64(34) } } });
+                             { aI64(11),
+                               aI64(12),
+                               aI64(13),
+                               aI64(14),
+                               aI64(31),
+                               aI64(32),
+                               aI64(33),
+                               aI64(34) } } });
 }

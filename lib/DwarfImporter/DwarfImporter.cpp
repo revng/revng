@@ -936,7 +936,7 @@ void DwarfImporter::import(StringRef FileName) {
   import(*BinOrErr->get(), FileName);
 }
 
-auto zip_pairs(auto &&R) {
+auto zipPairs(auto &&R) {
   auto BeginIt = R.begin();
   auto EndIt = R.end();
 
@@ -1009,7 +1009,7 @@ computeEquivalentSymbols(const llvm::object::ObjectFile &ELF) {
 
   llvm::sort(Symbols);
 
-  for (const auto &[Previous, Current] : zip_pairs(Symbols))
+  for (const auto &[Previous, Current] : zipPairs(Symbols))
     if (Previous == Current)
       Result.unionSets(Previous.Name, Current.Name);
 

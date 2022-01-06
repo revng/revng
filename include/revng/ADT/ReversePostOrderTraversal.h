@@ -15,7 +15,7 @@ class ReversePostOrderTraversalExt {
 
   NodeVec Blocks; // Block list in normal RPO order
 
-  void Initialize(GraphT G, SetType &WhiteList) {
+  void initialize(GraphT G, SetType &WhiteList) {
     std::copy(po_ext_begin(G, WhiteList),
               po_ext_end(G, WhiteList),
               std::back_inserter(Blocks));
@@ -26,7 +26,7 @@ public:
   using const_rpo_iterator = typename NodeVec::const_reverse_iterator;
 
   ReversePostOrderTraversalExt(GraphT G, SetType &WhiteList) {
-    Initialize(G, WhiteList);
+    initialize(G, WhiteList);
   }
 
   // Because we want a reverse post order, use reverse iterators from the vector

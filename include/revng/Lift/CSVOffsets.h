@@ -140,12 +140,12 @@ public:
   }
 
   void insert(int64_t O) { Offsets.insert(O); }
-  void combine(const CSVOffsets &other) {
+  void combine(const CSVOffsets &Other) {
     Kind K0 = OffsetKind;
-    Kind K1 = other.OffsetKind;
+    Kind K1 = Other.OffsetKind;
     // For equal kinds just merge the offsets
     if (K0 == K1) {
-      Offsets.insert(other.Offsets.begin(), other.Offsets.end());
+      Offsets.insert(Other.Offsets.begin(), Other.Offsets.end());
       return;
     }
 
@@ -177,7 +177,7 @@ public:
         Offsets = {};
       } else {
         OffsetKind = Kind::OutAndKnownInPtr;
-        Offsets.insert(other.Offsets.begin(), other.Offsets.end());
+        Offsets.insert(Other.Offsets.begin(), Other.Offsets.end());
       }
       return;
     }
@@ -189,7 +189,7 @@ public:
                      or isUnknown(K1));
         OffsetKind = Kind::OutAndKnownInPtr;
         if (not KIP0)
-          Offsets = other.Offsets;
+          Offsets = Other.Offsets;
         return;
       }
     }

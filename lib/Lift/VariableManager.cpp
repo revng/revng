@@ -540,11 +540,11 @@ VariableManager::getByCPUStateOffset(intptr_t Offset, std::string Name) {
 std::pair<GlobalVariable *, unsigned>
 VariableManager::getByCPUStateOffsetInternal(intptr_t Offset,
                                              std::string Name) {
-  GlobalsMap::iterator it = CPUStateGlobals.find(Offset);
+  GlobalsMap::iterator It = CPUStateGlobals.find(Offset);
   static const char *UnknownCSVPref = "state_0x";
-  if (it == CPUStateGlobals.end()
+  if (It == CPUStateGlobals.end()
       || (Name.size() != 0
-          && it->second->getName().startswith(UnknownCSVPref))) {
+          && It->second->getName().startswith(UnknownCSVPref))) {
     Type *VariableType;
     unsigned Remaining;
     std::tie(VariableType,
@@ -556,9 +556,9 @@ VariableManager::getByCPUStateOffsetInternal(intptr_t Offset,
 
     // Check we're not trying to go inside an existing variable
     if (Remaining != 0) {
-      GlobalsMap::iterator it = CPUStateGlobals.find(Offset - Remaining);
-      if (it != CPUStateGlobals.end())
-        return { it->second, Remaining };
+      GlobalsMap::iterator It = CPUStateGlobals.find(Offset - Remaining);
+      if (It != CPUStateGlobals.end())
+        return { It->second, Remaining };
     }
 
     if (Name.size() == 0) {
@@ -579,9 +579,9 @@ VariableManager::getByCPUStateOffsetInternal(intptr_t Offset,
                                            Name);
     revng_assert(NewVariable != nullptr);
 
-    if (it != CPUStateGlobals.end()) {
-      it->second->replaceAllUsesWith(NewVariable);
-      eraseFromParent(it->second);
+    if (It != CPUStateGlobals.end()) {
+      It->second->replaceAllUsesWith(NewVariable);
+      eraseFromParent(It->second);
     }
 
     CPUStateGlobals[Offset] = NewVariable;
@@ -590,7 +590,7 @@ VariableManager::getByCPUStateOffsetInternal(intptr_t Offset,
 
     return { NewVariable, Remaining };
   } else {
-    return { it->second, 0 };
+    return { It->second, 0 };
   }
 }
 
@@ -611,9 +611,9 @@ VariableManager::getOrCreate(unsigned TemporaryId, bool Reading) {
       revng_assert(Result != nullptr);
       return { false, Result };
     } else {
-      GlobalsMap::iterator it = OtherGlobals.find(TemporaryId);
-      if (it != OtherGlobals.end()) {
-        return { false, it->second };
+      GlobalsMap::iterator It = OtherGlobals.find(TemporaryId);
+      if (It != OtherGlobals.end()) {
+        return { false, It->second };
       } else {
         // TODO: what do we have here, apart from env?
         auto InitialValue = ConstantInt::get(VariableType, 0);
@@ -637,18 +637,18 @@ VariableManager::getOrCreate(unsigned TemporaryId, bool Reading) {
       }
     }
   } else if (Temporary->temp_local) {
-    auto it = LocalTemporaries.find(TemporaryId);
-    if (it != LocalTemporaries.end()) {
-      return { false, it->second };
+    auto It = LocalTemporaries.find(TemporaryId);
+    if (It != LocalTemporaries.end()) {
+      return { false, It->second };
     } else {
       AllocaInst *NewTemporary = AllocaBuilder.CreateAlloca(VariableType);
       LocalTemporaries[TemporaryId] = NewTemporary;
       return { true, NewTemporary };
     }
   } else {
-    auto it = Temporaries.find(TemporaryId);
-    if (it != Temporaries.end()) {
-      return { false, it->second };
+    auto It = Temporaries.find(TemporaryId);
+    if (It != Temporaries.end()) {
+      return { false, It->second };
     } else {
       // Can't read a temporary if it has never been written, we're probably
       // translating rubbish
@@ -680,7 +680,7 @@ Value *VariableManager::computeEnvAddress(Type *TargetType,
   return new IntToPtrInst(Integer, TargetType, "", InsertBefore);
 }
 
-Value *VariableManager::CPUStateToEnv(Value *CPUState,
+Value *VariableManager::cpuStateToEnv(Value *CPUState,
                                       Type *TargetType,
                                       Instruction *InsertBefore) const {
   using CI = ConstantInt;

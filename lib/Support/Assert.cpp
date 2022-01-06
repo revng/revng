@@ -13,14 +13,14 @@
 
 #include "revng/Support/Assert.h"
 
-static void print_stack_trace() {
+static void printStackTrace() {
   llvm::raw_os_ostream Output(std::cerr);
   std::cerr << "\n";
   llvm::sys::PrintStackTrace(Output);
 }
 
 [[noreturn]] static void terminate(void) {
-  print_stack_trace();
+  printStackTrace();
   abort();
 }
 
