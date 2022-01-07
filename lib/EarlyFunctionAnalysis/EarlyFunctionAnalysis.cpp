@@ -212,6 +212,12 @@ public:
   FunctionAnalysisResults(FunctionSummary DefaultSummary) :
     DefaultSummary(std::move(DefaultSummary)) {}
 
+  FunctionSummary &insert(const MetaAddress &PC, FunctionSummary &&Summary) {
+    auto It = FunctionsBucket.find(PC);
+    revng_assert(It == FunctionsBucket.end());
+    return FunctionsBucket.emplace(PC, std::move(Summary)).first->second;
+  }
+
   FunctionSummary &at(MetaAddress PC) { return FunctionsBucket.at(PC); }
 
   const FunctionSummary &at(MetaAddress PC) const {
@@ -258,6 +264,11 @@ private:
       return It->second;
     return DefaultSummary;
   }
+
+public:
+  void initializeCache(llvm::Module &,
+                       const std::vector<llvm::GlobalVariable *> &,
+                       model::Binary &);
 };
 
 /// An outlined function helper object.
@@ -366,6 +377,7 @@ public:
   /// and it is called on each CFEP until a fixed point is reached. It is
   /// responsible for performing the whole computation.
   FunctionSummary analyze(llvm::BasicBlock *BB);
+  void initializeFakeFunctions();
 
 private:
   OutlinedFunction outlineFunction(llvm::BasicBlock *BB);
@@ -461,6 +473,74 @@ CFEPAnalyzer<FunctionOracle>::CFEPAnalyzer(llvm::Module &M,
   }
 }
 
+static FunctionSummary
+initializeSummary(llvm::Module &M,
+                  const std::vector<GlobalVariable *> &ABIRegs,
+                  const model::Function &Function) {
+  using namespace llvm;
+  using namespace model;
+  using RegisterState = model::RegisterState::Values;
+
+  FunctionSummary Summary(Function.Type,
+                          { ABIRegs.begin(), ABIRegs.end() },
+                          ABIAnalyses::ABIAnalysesResults(),
+                          {},
+                          0,
+                          nullptr);
+
+  const auto *Prototype = cast<RawFunctionType>(Function.Prototype.get());
+
+  for (auto *CSV : ABIRegs) {
+    Summary.ABIResults.ArgumentsRegisters[CSV] = RegisterState::No;
+    Summary.ABIResults.FinalReturnValuesRegisters[CSV] = RegisterState::No;
+  }
+
+  for (const auto &NTR : Prototype->Arguments) {
+    auto Name = ABIRegister::toCSVName(NTR.Location);
+    auto *CSV = cast<GlobalVariable>(M.getGlobalVariable(Name, true));
+    Summary.ABIResults.ArgumentsRegisters[CSV] = RegisterState::Yes;
+  }
+
+  for (const auto &TR : Prototype->ReturnValues) {
+    auto Name = ABIRegister::toCSVName(TR.Location);
+    auto *CSV = cast<GlobalVariable>(M.getGlobalVariable(Name, true));
+    Summary.ABIResults.FinalReturnValuesRegisters[CSV] = RegisterState::Yes;
+  }
+
+  std::set<llvm::GlobalVariable *> PreservedRegisters;
+  for (const auto &Location : Prototype->PreservedRegisters) {
+    auto Name = ABIRegister::toCSVName(Location);
+    auto *CSV = cast<GlobalVariable>(M.getGlobalVariable(Name, true));
+    PreservedRegisters.insert(CSV);
+  }
+
+  std::erase_if(Summary.ClobberedRegisters, [&](const auto &E) {
+    auto End = PreservedRegisters.end();
+    return PreservedRegisters.find(E) != End;
+  });
+
+  Summary.ElectedFSO = Prototype->FinalStackOffset;
+  return Summary;
+}
+
+using FAR = FunctionAnalysisResults;
+void FAR::initializeCache(llvm::Module &M,
+                          const std::vector<GlobalVariable *> &ABIRegs,
+                          model::Binary &Binary) {
+  using namespace llvm;
+
+  for (const model::Function &Function : Binary.Functions) {
+    if (Function.Type == model::FunctionType::Invalid)
+      continue;
+
+    // TODO: handle CABIFunctionType
+    if (!isa<model::RawFunctionType>(Function.Prototype.get()))
+      continue;
+
+    insert(Function.Entry, initializeSummary(M, ABIRegs, Function));
+  }
+}
+
 static UpcastablePointer<model::Type>
 buildPrototype(GeneratedCodeBasicInfo &GCBI,
                model::Binary &Binary,
@@ -532,11 +612,14 @@ finalizeModel(GeneratedCodeBasicInfo &GCBI,
   using namespace model;
   using RegisterState = model::RegisterState::Values;
 
-  // Create a `model::function` and build its prototype for each CFEP
+  // Fill up the model and build its prototype for each function
+  std::set<model::Function *> Functions;
   for (model::Function &Function : Binary.Functions) {
+    if (Function.Type != model::FunctionType::Invalid)
+      continue;
+
     MetaAddress EntryPC = Function.Entry;
     revng_assert(EntryPC.isValid());
-
     auto &Summary = Properties.at(EntryPC);
     Function.Type = Summary.Type;
 
@@ -604,15 +687,15 @@ finalizeModel(GeneratedCodeBasicInfo &GCBI,
     }
 
     Function.Prototype = Binary.recordNewType(std::move(NewType));
+    Functions.insert(&Function);
   }
 
   // Finish up the CFG
-  for (model::Function &Function : Binary.Functions) {
-    auto &Summary = Properties.at(Function.Entry);
-
-    if (Function.Type == FunctionTypeValue::Fake)
+  for (auto &Function : Functions) {
+    if (Function->Type == FunctionTypeValue::Fake)
       continue;
 
+    auto &Summary = Properties.at(Function->Entry);
     for (auto &Block : Summary.CFG) {
       for (auto &Edge : Block.Successors) {
         llvm::StringRef SymbolName;
@@ -660,7 +743,7 @@ finalizeModel(GeneratedCodeBasicInfo &GCBI,
       }
     }
 
-    Function.CFG = Summary.CFG;
+    Function->CFG = Summary.CFG;
   }
 
   revng_check(Binary.verify(true));
@@ -1157,6 +1240,18 @@ llvm::Function *CFEPAnalyzer<FO>::createFakeFunction(llvm::BasicBlock *Entry) {
 }
 
 template<class FO>
+void CFEPAnalyzer<FO>::initializeFakeFunctions() {
+  for (const auto &Function : Binary.Functions) {
+    if (Function.Type != model::FunctionType::Fake)
+      continue;
+
+    auto &Summary = Oracle.at(Function.Entry);
+    Summary.FakeFunction = createFakeFunction(GCBI->getBlockAt(Function.Entry));
+    Summary.Type = model::FunctionType::Fake;
+  }
+}
+
+template<class FO>
 FunctionSummary CFEPAnalyzer<FO>::analyze(BasicBlock *Entry) {
   using namespace llvm;
   using namespace ABIAnalyses;
@@ -1596,6 +1691,9 @@ OutlinedFunction CFEPAnalyzer<FO>::outlineFunction(llvm::BasicBlock *Entry) {
   ValueToValueMapTy VMap;
   SmallVector<BasicBlock *, 8> BlocksToExtract;
 
+  auto *AnyPCBB = GCBI->anyPC();
+  auto *UnexpectedPCBB = GCBI->unexpectedPC();
+
   for (const auto &BB : BlocksToClone) {
     BasicBlock *Cloned = CloneBasicBlock(BB, VMap, Twine("_cloned"), Root);
 
@@ -1603,11 +1701,11 @@ OutlinedFunction CFEPAnalyzer<FO>::outlineFunction(llvm::BasicBlock *Entry) {
     BlocksToExtract.emplace_back(Cloned);
   }
 
-  auto AnyPCIt = VMap.find(GCBI->anyPC());
+  auto AnyPCIt = VMap.find(AnyPCBB);
   if (AnyPCIt != VMap.end())
     OutlinedFunction.AnyPCCloned = cast<BasicBlock>(AnyPCIt->second);
 
-  auto UnexpPCIt = VMap.find(GCBI->unexpectedPC());
+  auto UnexpPCIt = VMap.find(UnexpectedPCBB);
   if (UnexpPCIt != VMap.end())
     OutlinedFunction.UnexpectedPCCloned = cast<BasicBlock>(UnexpPCIt->second);
 
@@ -1721,8 +1819,6 @@ OutlinedFunction CFEPAnalyzer<FO>::outlineFunction(llvm::BasicBlock *Entry) {
 }
 
 bool EarlyFunctionAnalysis::runOnModule(Module &M) {
-  Function &F = *M.getFunction("root");
-
   revng_log(PassesLog, "Starting EarlyFunctionAnalysis");
 
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
@@ -1788,9 +1884,15 @@ bool EarlyFunctionAnalysis::runOnModule(Module &M) {
   for (const auto &[_, Node] : BasicBlockNodeMap)
     RootNode->addSuccessor(Node);
 
+  // The intraprocedural analysis will be scheduled only for those functions
+  // which have `Invalid` as type.
   UniquedQueue<BasicBlockNode *> CFEPQueue;
   for (auto *Node : llvm::post_order(&CG)) {
-    if (Node != RootNode)
+    if (Node == RootNode)
+      continue;
+
+    auto &Function = Binary.Functions[getBasicBlockPC(Node->BB)];
+    if (Function.Type == model::FunctionType::Invalid)
       CFEPQueue.insert(Node);
   }
 
@@ -1827,9 +1929,15 @@ bool EarlyFunctionAnalysis::runOnModule(Module &M) {
                                  nullptr);
   FunctionAnalysisResults Properties(std::move(DefaultSummary));
 
+  // Cache pre-population
+  Properties.initializeCache(M, ABIRegisters, Binary);
+
   // Instantiate a CFEPAnalyzer object
   using CFEPA = CFEPAnalyzer<FunctionAnalysisResults>;
   CFEPA Analyzer(M, &GCBI, ABIRegisters, Properties, Binary);
+
+  // Re-create fake functions, should they exist
+  Analyzer.initializeFakeFunctions();
 
   // Interprocedural analysis over the collected functions in post-order
   // traversal (leafs first).
