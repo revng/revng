@@ -25,5 +25,10 @@ llvm_map_components_to_libnames(
   CodeGen)
 
 target_link_libraries(
-  revngEarlyFunctionAnalysis revngBasicAnalyses revngABIAnalyses revngSupport
-  revngModel ${LLVM_LIBRARIES})
+  revngEarlyFunctionAnalysis
+  revngBasicAnalyses
+  revngABI
+  revngABIAnalyses
+  revngSupport
+  revngModel
+  ${LLVM_LIBRARIES})
