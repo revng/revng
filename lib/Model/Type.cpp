@@ -234,13 +234,15 @@ bool Qualifier::verify(bool Assert) const {
 bool Qualifier::verify(VerifyHelper &VH) const {
   switch (Kind) {
   case QualifierKind::Invalid:
-    return VH.fail();
+    return VH.fail("Invalid qualifier found", *this);
   case QualifierKind::Pointer:
-    return VH.maybeFail(Size > 0 and llvm::isPowerOf2_64(Size));
+    return VH.maybeFail(Size > 0 and llvm::isPowerOf2_64(Size),
+                        "Pointer qualifier size is not a power of 2",
+                        *this);
   case QualifierKind::Const:
-    return VH.maybeFail(Size == 0);
+    return VH.maybeFail(Size == 0, "const qualifier has non-0 size", *this);
   case QualifierKind::Array:
-    return VH.maybeFail(Size > 0);
+    return VH.maybeFail(Size > 0, "Array qualifier size is 0");
   default:
     revng_abort();
   }
@@ -955,12 +957,12 @@ bool QualifiedType::verify(bool Assert) const {
 
 RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
   if (not UnqualifiedType.isValid())
-    rc_return VH.fail();
+    rc_return VH.fail("Underlying type is invalid", *this);
 
   // Verify the qualifiers are valid
   for (const auto &Q : Qualifiers)
     if (not Q.verify(VH))
-      rc_return VH.fail();
+      rc_return VH.fail("Invalid qualifier", Q);
 
   auto QIt = Qualifiers.begin();
   auto QEnd = Qualifiers.end();
@@ -971,32 +973,36 @@ RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
 
     // Check that we have not two consecutive const qualifiers
     if (HasNext and Q.isConstQualifier() and NextQIt->isConstQualifier())
-      rc_return VH.fail();
+      rc_return VH.fail("QualifiedType has two consecutive const qualifiers",
+                        *this);
 
     if (Q.isPointerQualifier()) {
       // Don't proceed the verification, just make sure the pointer is either
       // 32- or 64-bits
       rc_return VH.maybeFail(Q.Size == 4 or Q.Size == 8,
                              "Only 32-bit and 64-bit pointers are currently "
-                             "supported");
+                             "supported",
+                             *this);
 
     } else if (Q.isArrayQualifier()) {
       // Ensure there's at least one element
       if (Q.Size < 1)
-        rc_return VH.fail("Arrays need to have at least an element");
+        rc_return VH.fail("Arrays need to have at least an element", *this);
 
       // Verify element type
       QualifiedType ElementType{ UnqualifiedType, { NextQIt, QEnd } };
       if (not rc_recur ElementType.verify(VH))
-        rc_return VH.fail();
+        rc_return VH.fail("Array element invalid", ElementType);
 
       // Ensure the element type has a size and stop
       auto MaybeSize = rc_recur ElementType.size(VH);
-      rc_return VH.maybeFail(MaybeSize.has_value());
+      rc_return VH.maybeFail(MaybeSize.has_value(),
+                             "Cannot compute array size",
+                             ElementType);
     } else if (Q.isConstQualifier()) {
       // const qualifiers must have zero size
       if (Q.Size != 0)
-        rc_return VH.fail();
+        rc_return VH.fail("const qualifier has non-0 size");
 
     } else {
       revng_abort();
