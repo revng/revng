@@ -98,6 +98,9 @@ endforeach()
 add_definitions("-DINSTALL_PATH=\"${CMAKE_INSTALL_PREFIX}\"")
 add_definitions("-DBUILD_PATH=\"${CMAKE_BINARY_DIR}\"")
 
+# Uncomment the following line if recursive coroutines make debugging hard
+# add_definitions("-DDISABLE_RECURSIVE_COROUTINES")
+
 #
 # Compiler options
 #
