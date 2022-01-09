@@ -53,16 +53,19 @@ static bool adjustStackAfterCalls(const model::Binary &Binary,
       if (FunctionTags::CallToLifted.isTagOf(&I)) {
         auto *MD = I.getMetadata("revng.callerblock.start");
         revng_assert(MD != nullptr);
-        auto *RawPrototype = getCallSitePrototype(Binary,
-                                                  ModelFunction,
-                                                  cast<CallInst>(&I));
-        auto *FSO = ConstantInt::get(SPType, RawPrototype->FinalStackOffset);
 
-        // We found a function call
-        Changed = true;
+        // TODO: handle CABIFunctionType
+        if (auto *RawPrototype = getCallSitePrototype(Binary,
+                                                      ModelFunction,
+                                                      cast<CallInst>(&I))) {
+          auto *FSO = ConstantInt::get(SPType, RawPrototype->FinalStackOffset);
 
-        B.SetInsertPoint(I.getNextNode());
-        B.CreateStore(B.CreateAdd(B.CreateLoad(GlobalSP), FSO), GlobalSP);
+          // We found a function call
+          Changed = true;
+
+          B.SetInsertPoint(I.getNextNode());
+          B.CreateStore(B.CreateAdd(B.CreateLoad(GlobalSP), FSO), GlobalSP);
+        }
       }
     }
   }

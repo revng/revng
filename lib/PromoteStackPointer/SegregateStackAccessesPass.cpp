@@ -425,6 +425,10 @@ private:
     auto *MD = SSACSCall->getMetadata("revng.callerblock.start");
     revng_assert(MD != nullptr);
     auto *RawPrototype = getCallSitePrototype(Binary, ModelFunction, SSACSCall);
+    // TODO: handle CABIFunctionType
+    if (RawPrototype == nullptr)
+      return nullptr;
+
     auto MaybeStackArgumentsSize = getStackArgumentsSize(RawPrototype, VH);
     uint64_t StackArgumentsSize = MaybeStackArgumentsSize.value_or(0);
     revng_log(Log, "StackArgumentsSize: " << StackArgumentsSize);

@@ -271,7 +271,11 @@ DetectStackSize::handleCallSite(const CallSite &CallSite) {
 
   if (not CallSite.StackSize)
     return {};
+
   const RawFunctionType *Prototype = CallSite.Prototype;
+  // TODO: handle CABIFunctionType
+  if (Prototype == nullptr)
+    return {};
 
   uint64_t StackArgumentsSize = 0;
 
