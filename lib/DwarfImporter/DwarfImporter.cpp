@@ -650,6 +650,7 @@ private:
           if (ChildDie.getTag() == llvm::dwarf::DW_TAG_subrange_type) {
             model::Qualifier NewQualifier;
             NewQualifier.Kind = model::QualifierKind::Array;
+            NewQualifier.Size = 0;
 
             auto MaybeUpperBound = getUnsignedOrSigned(ChildDie,
                                                        DW_AT_upper_bound);
@@ -665,7 +666,9 @@ private:
               NewQualifier.Size = *MaybeUpperBound + 1;
             } else if (MaybeCount) {
               NewQualifier.Size = *MaybeCount;
-            } else {
+            }
+
+            if (NewQualifier.Size == 0) {
               reportIgnoredDie(Die,
                                "Array upper bound/elements count missing or "
                                "invalid");
