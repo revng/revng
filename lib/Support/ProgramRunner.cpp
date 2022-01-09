@@ -12,6 +12,7 @@
 #include "llvm/Support/Program.h"
 
 #include "revng/Support/Assert.h"
+#include "revng/Support/PathList.h"
 #include "revng/Support/ProgramRunner.h"
 
 using namespace llvm;
@@ -19,9 +20,8 @@ using namespace sys;
 
 ProgramRunner Runner;
 
-ProgramRunner::ProgramRunner() :
-  MainExecutable(fs::getMainExecutable("", reinterpret_cast<void *>(main))) {
-  Paths = { { path::parent_path(MainExecutable) } };
+ProgramRunner::ProgramRunner() {
+  Paths = { { path::parent_path(getCurrentExecutableFullPath()) } };
 
   // Append PATH
   char *Path = getenv("PATH");

@@ -10,11 +10,8 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 
-extern int main(int argc, char *argv[]);
-
 class ProgramRunner {
 private:
-  std::string MainExecutable;
   llvm::SmallVector<llvm::StringRef, 64> Paths;
 
 public:
