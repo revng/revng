@@ -152,6 +152,35 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       )
     set_property(TEST compile_model_header_${TARGET_NAME} APPEND PROPERTY
       DEPENDS model_to_header_${TARGET_NAME}
+    )
+
+    # test revng-helpers-to-header
+    add_test(NAME helpers_to_header_${TARGET_NAME} COMMAND
+      revng --prefix .
+      opt
+      -helpers-to-header
+      ${TARGET_NAME}_prepared.bc
+      --helpers-header-name=${TARGET_NAME}_helpers_header.h
+      -o /dev/null
+      )
+    set_property(TEST helpers_to_header_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_SETUP ${TARGET_NAME}_helpers_header
+      )
+    set_property(TEST helpers_to_header_${TARGET_NAME} APPEND PROPERTY
+      DEPENDS prepare_${TARGET_NAME}
+      )
+    # try to compile helpers headers without warnings
+    add_test(NAME compile_helpers_header_${TARGET_NAME} COMMAND
+      clang -S
+      -Wall -Wextra -Werror -ferror-limit=0
+      ${TARGET_NAME}_helpers_header.h
+      -o /dev/null
+      )
+    set_property(TEST compile_helpers_header_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_SETUP ${TARGET_NAME}_helpers_header_compilation
+      )
+    set_property(TEST compile_helpers_header_${TARGET_NAME} APPEND PROPERTY
+      DEPENDS helpers_to_header_${TARGET_NAME}
       )
 
     if ("${CATEGORY}" STREQUAL "tests_analysis_PromoteStackPointer"

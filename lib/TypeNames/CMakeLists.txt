@@ -3,6 +3,7 @@
 #
 
 revng_add_analyses_library(revngcTypeNames revngc
+  LLVMTypeNames.cpp
   ModelTypeNames.cpp)
 
 target_link_libraries(revngcTypeNames
