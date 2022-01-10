@@ -21,9 +21,7 @@ std::string getCurrentExecutableFullPath() {
 
   revng_assert(not FullPath.empty());
 
-  llvm::sys::path::remove_filename(FullPath);
-  Result = FullPath.str();
-  return Result;
+  return FullPath.str().str();
 }
 
 static std::optional<std::string>
