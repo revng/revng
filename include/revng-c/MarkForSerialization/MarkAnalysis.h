@@ -35,6 +35,7 @@ inline bool isPure(const llvm::Function *F) {
   if (F) {
     if (FunctionTags::ModelGEP.isTagOf(F)
         or FunctionTags::StructInitializer.isTagOf(F)
+        or FunctionTags::AddressOf.isTagOf(F)
         or FunctionTags::OpaqueCSVValue.isTagOf(F)) {
       return true;
     }

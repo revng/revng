@@ -56,6 +56,7 @@ using llvm::Argument;
 using llvm::BinaryOperator;
 using llvm::CallInst;
 using llvm::cast;
+using llvm::Constant;
 using llvm::ConstantExpr;
 using llvm::ConstantInt;
 using llvm::dyn_cast;
@@ -2320,8 +2321,7 @@ makeGEPReplacements(llvm::Function &F, const model::Binary &Model) {
 
 class ModelGEPArgCache {
 
-  std::map<model::QualifiedType, GlobalVariable *, QTLess>
-    GlobalModelGEPTypeArgs;
+  std::map<model::QualifiedType, Constant *, QTLess> GlobalModelGEPTypeArgs;
 
 public:
   Value *
@@ -2337,7 +2337,7 @@ public:
       YAMLOutput << QT;
     }
     It = GlobalModelGEPTypeArgs
-           .insert({ QT, buildString(&M, SerializedQT, "") })
+           .insert({ QT, buildStringPtr(&M, SerializedQT, "") })
            .first;
     return It->second;
   }
@@ -2374,8 +2374,9 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
     revng_log(ModelGEPLog,
               "  `-> use in: " << dumpToString(TheUseToGEPify->getUser()));
 
-    llvm::Type *IType = TheUseToGEPify->get()->getType();
-    auto *ModelGEPFunction = getModelGEP(M, IType);
+    llvm::Type *UseType = TheUseToGEPify->get()->getType();
+    llvm::Type *BaseAddrType = GEPArgs.BaseAddress.Address->getType();
+    auto *ModelGEPFunction = getModelGEP(M, UseType, BaseAddrType);
 
     // Build the arguments for the call to modelGEP
     SmallVector<Value *, 4> Args;
@@ -2385,7 +2386,9 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
     // that holds the string representing the yaml serialization of the
     // qualified type of the base type of the modelGEP
     model::QualifiedType &BaseType = GEPArgs.BaseAddress.Type;
-    Args.push_back(TypeArgCache.getModelGEPQualifiedTypeArg(BaseType, M));
+    auto *BaseTypeConstantStrPtr = TypeArgCache
+                                     .getModelGEPQualifiedTypeArg(BaseType, M);
+    Args.push_back(BaseTypeConstantStrPtr);
 
     // The second argument is the base address
     Args.push_back(GEPArgs.BaseAddress.Address);
@@ -2397,7 +2400,7 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
       Args.push_back(ChildId);
     }
 
-    // Insert a call to revng_model_gep right before the use, special casing the
+    // Insert a call to ModelGEP right before the use, special casing the
     // uses that are incoming for PHI nodes.
     auto *UserInstr = cast<Instruction>(TheUseToGEPify->getUser());
     if (auto *PHIUser = dyn_cast<PHINode>(UserInstr)) {
@@ -2407,35 +2410,41 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
       Builder.SetInsertPoint(UserInstr);
     }
 
-    Value *ModelGEP = Builder.CreateCall(ModelGEPFunction, Args);
+    Value *ModelGEPRef = Builder.CreateCall(ModelGEPFunction, Args);
+
+    auto *AddressOfFunction = getAddressOf(M, UseType);
+    Value *ModelGEPPtr = Builder.CreateCall(AddressOfFunction,
+                                            { BaseTypeConstantStrPtr,
+                                              ModelGEPRef });
 
     if (GEPArgs.RestOff.isStrictlyPositive()) {
       // If the GEPArgs have a RestOff that is strictly positive, we have to
       // inject the remaining part of the pointer arithmetic as normal sums
-      revng_assert(IType->isIntOrPtrTy());
+      revng_assert(UseType->isIntOrPtrTy());
 
       // First, cast it to int if necessary.
-      if (IType->isPointerTy()) {
+      if (UseType->isPointerTy()) {
         auto *IntType = llvm::IntegerType::get(Ctxt,
                                                GEPArgs.RestOff.getBitWidth());
-        ModelGEP = Builder.CreatePtrToInt(ModelGEP, IntType);
+        ModelGEPPtr = Builder.CreatePtrToInt(ModelGEPPtr, IntType);
       }
 
       // Then, inject the actuall add
-      auto GEPResultBitWidth = ModelGEP->getType()->getIntegerBitWidth();
+      auto GEPResultBitWidth = ModelGEPPtr->getType()->getIntegerBitWidth();
       APInt OffsetToAdd = GEPArgs.RestOff.zextOrSelf(GEPResultBitWidth);
-      ModelGEP = Builder.CreateAdd(ModelGEP,
-                                   ConstantInt::get(Ctxt, OffsetToAdd));
+      ModelGEPPtr = Builder.CreateAdd(ModelGEPPtr,
+                                      ConstantInt::get(Ctxt, OffsetToAdd));
 
       // Finally, convert it back to pointer.
-      if (IType->isPointerTy())
-        ModelGEP = Builder.CreateIntToPtr(ModelGEP, IType);
+      if (UseType->isPointerTy())
+        ModelGEPPtr = Builder.CreateIntToPtr(ModelGEPPtr, UseType);
     }
 
-    // Finally, replace the use to gepify with the call to modelGEP, plus the
-    // potential arithmetic we've just build.
-    TheUseToGEPify->set(ModelGEP);
-    revng_log(ModelGEPLog, "    `-> replaced with: " << dumpToString(ModelGEP));
+    // Finally, replace the use to gepify with the call to the address of
+    // modelGEP, plus the potential arithmetic we've just build.
+    TheUseToGEPify->set(ModelGEPPtr);
+    revng_log(ModelGEPLog,
+              "    `-> replaced with: " << dumpToString(ModelGEPPtr));
 
     Changed = true;
   }
@@ -2451,6 +2460,6 @@ char MakeModelGEPPass::ID = 0;
 using Pass = MakeModelGEPPass;
 static RegisterPass<Pass> X("make-model-gep",
                             "Pass that transforms address arithmetic into "
-                            "calls to revng_model_gep ",
+                            "calls to ModelGEP ",
                             false,
                             false);

@@ -7,16 +7,20 @@
 #include "llvm/IR/Type.h"
 
 #include "revng/Support/Assert.h"
+#include "revng/Support/IRHelpers.h"
 
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/Mangling.h"
 
 static constexpr const char *const ModelGEPName = "ModelGEP";
 static constexpr const char *const MarkerName = "SerializationMarker";
+static constexpr const char *const AddressOfName = "AddressOf";
 
 namespace FunctionTags {
 Tag AllocatesLocalVariable("AllocatesLocalVariable");
 Tag MallocLike("MallocLike");
+Tag IsRef("IsRef");
+Tag AddressOf(AddressOfName);
 Tag ModelGEP(ModelGEPName);
 Tag SerializationMarker(MarkerName);
 } // namespace FunctionTags
@@ -51,26 +55,74 @@ static std::string makeTypeName(const llvm::Type *Ty) {
   return Name;
 }
 
-static std::string makeModelGEPName(const llvm::Type *Ty) {
-  return ModelGEPName + makeTypeName(Ty);
+static std::string makeAddressOfName(const llvm::Type *Ty) {
+  return AddressOfName + makeTypeName(Ty);
+}
+
+static std::string
+makeModelGEPName(const llvm::Type *RetTy, const llvm::Type *BaseAddressTy) {
+  using llvm::Twine;
+  return (Twine(ModelGEPName) + Twine("_ret_") + Twine(makeTypeName(RetTy))
+          + Twine("_baseptr_") + Twine(makeTypeName(BaseAddressTy)))
+    .str();
 }
 
 static std::string makeMarkerName(const llvm::Type *Ty) {
   return MarkerName + makeTypeName(Ty);
 }
 
-llvm::Function *getModelGEP(llvm::Module &M, llvm::Type *T) {
+llvm::Function *getAddressOf(llvm::Module &M, llvm::Type *T) {
 
   using namespace llvm;
-  FunctionType *ModelGEPType = FunctionType::get(T, true /* IsVarArg */);
-  FunctionCallee MGEPCallee = M.getOrInsertFunction(makeModelGEPName(T),
-                                                    ModelGEPType);
+  // There are 2 fixed arguments:
+  // - the first is a pointer to a constant string that contains a serialization
+  //   of the key of the base type;
+  // - the second is T, i.e. the type of the base pointer.
+  SmallVector<llvm::Type *, 2> FixedArgs = { getStringPtrType(M.getContext()),
+                                             T };
+  // The function is vararg, because we might need to access a number of fields
+  // that is variable.
+  FunctionType *AddressOfType = FunctionType::get(T,
+                                                  FixedArgs,
+                                                  false /* IsVarArg */);
+  FunctionCallee AddressOfCallee = M.getOrInsertFunction(makeAddressOfName(T),
+                                                         AddressOfType);
+
+  auto *AddressOfFunction = cast<Function>(AddressOfCallee.getCallee());
+  AddressOfFunction->addFnAttr(llvm::Attribute::NoUnwind);
+  AddressOfFunction->addFnAttr(llvm::Attribute::WillReturn);
+  AddressOfFunction->addFnAttr(llvm::Attribute::InaccessibleMemOnly);
+  FunctionTags::AddressOf.addTo(AddressOfFunction);
+
+  return AddressOfFunction;
+}
+
+llvm::Function *
+getModelGEP(llvm::Module &M, llvm::Type *RetTy, llvm::Type *BaseAddressTy) {
+
+  using namespace llvm;
+  // There are 2 fixed arguments:
+  // - the first is a pointer to a constant string that contains a serialization
+  //   of the key of the base type;
+  // - the second is BaseAddressTy, i.e. the type of the base pointer.
+  SmallVector<llvm::Type *, 2> FixedArgs = { getStringPtrType(M.getContext()),
+                                             BaseAddressTy };
+  // The function is vararg, because we might need to access a number of fields
+  // that is variable.
+  FunctionType *ModelGEPType = FunctionType::get(RetTy,
+                                                 FixedArgs,
+                                                 true /* IsVarArg */);
+
+  FunctionCallee
+    MGEPCallee = M.getOrInsertFunction(makeModelGEPName(RetTy, BaseAddressTy),
+                                       ModelGEPType);
 
   auto *ModelGEPFunction = cast<Function>(MGEPCallee.getCallee());
   ModelGEPFunction->addFnAttr(llvm::Attribute::NoUnwind);
   ModelGEPFunction->addFnAttr(llvm::Attribute::WillReturn);
-  ModelGEPFunction->addFnAttr(llvm::Attribute::ReadNone);
+  ModelGEPFunction->addFnAttr(llvm::Attribute::InaccessibleMemOnly);
   FunctionTags::ModelGEP.addTo(ModelGEPFunction);
+  FunctionTags::IsRef.addTo(ModelGEPFunction);
 
   return ModelGEPFunction;
 }
