@@ -1,0 +1,8 @@
+Containers:
+  - Name: FunctionCount.txt
+    Type: CountFunctionContainer
+Steps:
+  - Name: FirstStep
+    Pipes:
+      - Name: CountFunctionsPipe
+        UsedContainers: [FunctionCount.txt]
