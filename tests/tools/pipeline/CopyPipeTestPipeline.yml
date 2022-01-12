@@ -1,0 +1,10 @@
+Containers:
+ - Name:            Strings1
+   Type:            StringContainer
+ - Name:            Strings2
+   Type:            StringContainer
+Steps:
+ - Name:            FirstStep
+   Pipes:
+     - Name:             CopyPipe
+       UsedContainers: [Strings1, Strings2]

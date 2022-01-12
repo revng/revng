@@ -4,3 +4,4 @@
 
 add_subdirectory(lift)
 add_subdirectory(model)
+add_subdirectory(pipeline)
