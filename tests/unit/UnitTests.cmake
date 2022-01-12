@@ -267,6 +267,7 @@ target_link_libraries(test_upcastablepointer
 add_test(NAME test_upcastablepointer COMMAND ./bin/test_upcastablepointer)
 set_tests_properties(test_upcastablepointer PROPERTIES LABELS "unit")
 
+
 #
 # test_recursive_coroutines
 #
@@ -364,3 +365,22 @@ target_link_libraries(test_pipeline
   ${LLVM_LIBRARIES})
 add_test(NAME test_pipeline COMMAND ./bin/test_pipeline)
 set_tests_properties(test_pipeline PROPERTIES LABELS "unit")
+
+#
+# test_pipeline_c
+#
+
+revng_add_private_executable(test_pipeline_c "${SRC}/PipelineC.cpp")
+target_compile_definitions(test_pipeline_c
+  PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(test_pipeline_c
+  PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(test_pipeline_c
+  revngSupport
+  revngUnitTestHelpers
+  revngPipelineC
+  revngStringContainerLibrary
+  Boost::unit_test_framework
+  ${LLVM_LIBRARIES})
+add_test(NAME test_pipeline_c COMMAND ./bin/test_pipeline_c)
+set_tests_properties(test_pipeline_c PROPERTIES LABELS "unit")
