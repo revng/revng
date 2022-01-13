@@ -23,7 +23,7 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
-#include "revng-c/ModelToHeader/ModelToHeader.h"
+#include "revng-c/HeadersGeneration/ModelToHeader.h"
 
 using llvm::cast;
 using llvm::dyn_cast;

@@ -4,7 +4,7 @@
 
 #include "revng/Model/LoadModelPass.h"
 
-#include "revng-c/ModelToHeader/ModelToHeaderPass.h"
+#include "revng-c/HeadersGeneration/ModelToHeaderPass.h"
 
 bool ModelToHeaderPass::runOnModule(llvm::Module &) {
   auto &ModelPass = getAnalysis<LoadModelWrapperPass>().get();
