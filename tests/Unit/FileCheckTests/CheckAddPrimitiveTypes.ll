@@ -124,6 +124,7 @@ newFuncRoot:
 ; Model
 ; Model
 !5872 = !{!"---
+EntryPoint: \220x401200:Code_x86_64\22
 Functions:
   - Entry:           \220x401200:Code_x86_64\22
     Type:            Regular

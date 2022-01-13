@@ -281,9 +281,7 @@ static bool updateFuncStackFrame(model::Function &ModelFunc,
         if (FieldsRemaining) {
           cast<model::StructType>(NewStackStruct.get())
             ->Fields[0]
-            .Type = model::QualifiedType{
-            .UnqualifiedType = Model.getTypePath(NewU), .Qualifiers{}
-          };
+            .Type = model::QualifiedType(Model.getTypePath(NewU), {});
         }
 
         ModelFunc.StackFrameType = NewStackStruct;

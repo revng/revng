@@ -15,15 +15,13 @@ peelConstAndTypedefs(const model::QualifiedType &QT, model::VerifyHelper &VH) {
     auto QEnd = Result.Qualifiers.end();
 
     if (QIt != QEnd)
-      return model::QualifiedType{ .UnqualifiedType = QT.UnqualifiedType,
-                                   .Qualifiers{ QIt, QEnd } };
+      return model::QualifiedType(QT.UnqualifiedType, { QIt, QEnd });
 
     // If we reach this point, Result has no pointer nor array qualifiers.
     // Let's look at the Unqualified type and unwrap it if it's a typedef.
     using llvm::dyn_cast;
     if (auto *TD = dyn_cast<model::TypedefType>(Result.UnqualifiedType.get())) {
-      Result = model::QualifiedType{ .UnqualifiedType = Result.UnqualifiedType,
-                                     .Qualifiers{} };
+      Result = model::QualifiedType(Result.UnqualifiedType, {});
     } else {
       // If Result is not a typedef we can bail out
       break;
