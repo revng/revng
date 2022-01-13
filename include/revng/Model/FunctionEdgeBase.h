@@ -44,7 +44,16 @@ TUPLE-TREE-YAML */
 
 class model::FunctionEdgeBase : public model::generated::FunctionEdgeBase {
 public:
-  using generated::FunctionEdgeBase::FunctionEdgeBase;
+  static constexpr const FunctionEdgeType::Values AssociatedType = FunctionEdgeType::Invalid;
+
+  FunctionEdgeBase() : model::generated::FunctionEdgeBase() {
+    Type = AssociatedType;
+  }
+  FunctionEdgeBase(MetaAddress Destination, FunctionEdgeType::Values Type) : model::generated::FunctionEdgeBase(Destination, Type) {
+    if (this->Type == FunctionEdgeType::Invalid){
+      Type = AssociatedType;
+    }
+  }
 
 public:
   static bool classof(const FunctionEdgeBase *A) { return classof(A->key()); }

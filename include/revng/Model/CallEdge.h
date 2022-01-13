@@ -45,7 +45,16 @@ TUPLE-TREE-YAML */
 
 class model::CallEdge : public model::generated::CallEdge {
 public:
-  using generated::CallEdge::CallEdge;
+  static constexpr const FunctionEdgeType::Values AssociatedType = FunctionEdgeType::FunctionCall;
+
+  CallEdge() : model::generated::CallEdge() {
+    Type = AssociatedType;
+  }
+  CallEdge(MetaAddress Destination, FunctionEdgeType::Values Type) : model::generated::CallEdge(Destination, Type) {
+    if (this->Type == FunctionEdgeType::Invalid) {
+      this->Type = AssociatedType;
+    }
+  }
 
 public:
   static bool classof(const FunctionEdgeBase *A) { return classof(A->key()); }

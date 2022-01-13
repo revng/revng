@@ -19,7 +19,16 @@ TUPLE-TREE-YAML */
 
 class model::FunctionEdge : public model::generated::FunctionEdge {
 public:
-  using generated::FunctionEdge::FunctionEdge;
+  static constexpr const FunctionEdgeType::Values AssociatedType = FunctionEdgeType::DirectBranch;
+
+  FunctionEdge() : model::generated::FunctionEdge() {
+    Type = AssociatedType;
+  }
+  FunctionEdge(MetaAddress Destination, FunctionEdgeType::Values Type) : model::generated::FunctionEdge(Destination, Type) {
+    if (this->Type == FunctionEdgeType::Invalid){
+      this->Type = AssociatedType;
+    }
+  }
 
 public:
   static bool classof(const FunctionEdgeBase *A) { return classof(A->key()); }
