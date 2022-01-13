@@ -15,7 +15,7 @@
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Assert.h"
 
-#include "revng-c/ModelToHeader/ModelToHeader.h"
+#include "revng-c/HeadersGeneration/ModelToHeader.h"
 
 static llvm::cl::OptionCategory ModelToHeaderCategory("ModelToHeaderOptions");
 

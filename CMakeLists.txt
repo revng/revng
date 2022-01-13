@@ -52,6 +52,7 @@ llvm_map_components_to_libnames(LLVM_LIBRARIES
 
 add_subdirectory(include)
 add_subdirectory(lib)
+add_subdirectory(tools)
 
 include(tests/Tests.cmake)
 

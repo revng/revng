@@ -16,11 +16,3 @@ target_link_libraries(revngcModelToHeaderPass
   revng::revngSupport
   ${LLVM_LIBRARIES}
   revngcModelToHeader)
-
-revng_add_executable(revng-model-to-header ModelToHeaderMain.cpp)
-
-target_link_libraries(revng-model-to-header
-  revng::revngModel
-  revng::revngSupport
-  ${LLVM_LIBRARIES}
-  revngcModelToHeader)
