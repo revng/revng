@@ -120,6 +120,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       -instcombine
       -sroa
       -simplifycfg
+      -strip-dead-prototypes
       ${INPUT_FILE}
       -o ${TARGET_NAME}_prepared.bc
       )

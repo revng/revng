@@ -18,15 +18,30 @@ void FFDFP::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<LoadModelWrapperPass>();
 }
 
-bool FFDFP::runOnFunction(llvm::Function &F) {
+/// \brief Drop the body of all non-lifted functions, and add `optnone` and
+/// `noinline` attributes so that they can be eliminated by DCE.
+static bool filterFunction(llvm::Function &F) {
   auto FTags = FunctionTags::TagsSet::from(&F);
   if (not FTags.contains(FunctionTags::Lifted)) {
+    auto Attributes = F.getAttributes();
+    F.deleteBody();
+
+    // deleteBody() also removes all metadata, including tags, and attributes.
+    // Since we still want tags, we have to add them again. A better way to do
+    // this would be to remove all metadata except for `!revng.tags`.
+    F.setAttributes(Attributes);
     F.addFnAttr(llvm::Attribute::AttrKind::OptimizeNone);
     F.addFnAttr(llvm::Attribute::AttrKind::NoInline);
+    FTags.addTo(&F);
+
     return true;
   }
 
   return false;
+}
+
+bool FFDFP::runOnFunction(llvm::Function &F) {
+  return filterFunction(F);
 }
 
 char FFDFP::ID = 0;
@@ -40,14 +55,8 @@ void FFDMP::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 bool FFDMP::runOnModule(llvm::Module &M) {
 
   bool Changed = false;
-  for (llvm::Function &F : M) {
-    auto FTags = FunctionTags::TagsSet::from(&F);
-    if (not FTags.contains(FunctionTags::Lifted)) {
-      F.addFnAttr(llvm::Attribute::AttrKind::OptimizeNone);
-      F.addFnAttr(llvm::Attribute::AttrKind::NoInline);
-      Changed = true;
-    }
-  }
+  for (llvm::Function &F : M)
+    Changed = filterFunction(F);
 
   return Changed;
 }
