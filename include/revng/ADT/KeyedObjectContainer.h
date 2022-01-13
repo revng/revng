@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <optional>
 #include <set>
 
 #include "llvm/Support/YAMLTraits.h"

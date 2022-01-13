@@ -22,6 +22,7 @@
 #include "revng/EarlyFunctionAnalysis/ABI.h"
 #include "revng/FunctionIsolation/EnforceABI.h"
 #include "revng/FunctionIsolation/StructInitializers.h"
+#include "revng/Model/CallEdge.h"
 #include "revng/Model/Register.h"
 #include "revng/Model/Type.h"
 #include "revng/Support/FunctionTags.h"

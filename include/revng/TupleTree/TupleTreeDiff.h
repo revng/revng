@@ -7,6 +7,7 @@
 #include <set>
 #include <vector>
 
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/WithColor.h"
 
 #include "revng/ADT/KeyedObjectContainer.h"

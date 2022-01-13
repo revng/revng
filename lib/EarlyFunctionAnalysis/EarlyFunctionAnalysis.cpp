@@ -50,7 +50,9 @@
 #include "revng/BasicAnalyses/RemoveNewPCCalls.h"
 #include "revng/EarlyFunctionAnalysis/EarlyFunctionAnalysis.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/NamedTypedRegister.h"
 #include "revng/Model/Register.h"
+#include "revng/Model/TypedRegister.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/IRHelpers.h"
@@ -500,16 +502,21 @@ buildPrototype(GeneratedCodeBasicInfo &GCBI,
 
         auto *CSVType = CSV->getType()->getPointerElementType();
         auto CSVSize = CSVType->getIntegerBitWidth() / 8;
-        NamedTypedRegister TR(RegisterID);
-        TR.Type = {
-          Binary.getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
-        };
-
-        if (model::RegisterState::shouldEmit(RSArg))
+        if (model::RegisterState::shouldEmit(RSArg)) {
+          NamedTypedRegister TR(RegisterID);
+          TR.Type = {
+            Binary.getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
+          };
           ArgumentsInserter.insert(TR);
+        }
 
-        if (model::RegisterState::shouldEmit(RSRV))
+        if (model::RegisterState::shouldEmit(RSRV)) {
+          TypedRegister TR(RegisterID);
+          TR.Type = {
+            Binary.getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
+          };
           ReturnValuesInserter.insert(TR);
+        }
       }
     }
     revng_assert(Found);
@@ -564,16 +571,22 @@ finalizeModel(GeneratedCodeBasicInfo &GCBI,
 
         auto *CSVType = CSV->getType()->getPointerElementType();
         auto CSVSize = CSVType->getIntegerBitWidth() / 8;
-        NamedTypedRegister TR(RegisterID);
-        TR.Type = {
-          Binary.getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
-        };
 
-        if (model::RegisterState::shouldEmit(RSArg))
+        if (model::RegisterState::shouldEmit(RSArg)) {
+          NamedTypedRegister TR(RegisterID);
+          TR.Type = {
+            Binary.getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
+          };
           ArgumentsInserter.insert(TR);
+        }
 
-        if (model::RegisterState::shouldEmit(RSRV))
+        if (model::RegisterState::shouldEmit(RSRV)) {
+          TypedRegister TR(RegisterID);
+          TR.Type = {
+            Binary.getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
+          };
           ReturnValuesInserter.insert(TR);
+        }
       }
 
       // Preserved registers
@@ -708,10 +721,10 @@ static std::optional<int64_t> electFSO(const auto &MaybeReturns) {
   return It->second;
 }
 
-static UpcastablePointer<model::FunctionEdge>
+static UpcastablePointer<model::FunctionEdgeBase>
 makeEdge(MetaAddress Destination, model::FunctionEdgeType::Values Type) {
   model::FunctionEdge *Result = nullptr;
-  using ReturnType = UpcastablePointer<model::FunctionEdge>;
+  using ReturnType = UpcastablePointer<model::FunctionEdgeBase>;
 
   if (model::FunctionEdgeType::isCall(Type))
     return ReturnType::make<model::CallEdge>(Destination, Type);

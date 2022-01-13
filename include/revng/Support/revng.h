@@ -291,7 +291,7 @@ public:
                bool HasRelocationAddend,
                RelocationTypesMap RelocationTypes,
                llvm::ArrayRef<const char> BasicBlockEndingPattern,
-               model::abi::Values DefaultABI) :
+               model::ABI::Values DefaultABI) :
     Type(static_cast<llvm::Triple::ArchType>(Type)),
     InstructionAlignment(InstructionAlignment),
     DefaultAlignment(DefaultAlignment),
@@ -357,7 +357,7 @@ public:
     return BasicBlockEndingPattern;
   }
 
-  model::abi::Values defaultABI() const { return DefaultABI; }
+  model::ABI::Values defaultABI() const { return DefaultABI; }
 
 private:
   llvm::Triple::ArchType Type;
@@ -382,7 +382,7 @@ private:
   bool HasRelocationAddend;
   RelocationTypesMap RelocationTypes;
   llvm::ArrayRef<const char> BasicBlockEndingPattern;
-  model::abi::Values DefaultABI = model::abi::Invalid;
+  model::ABI::Values DefaultABI = model::ABI::Invalid;
 };
 
 /// \brief Simple helper function asserting a pointer is not a `nullptr`

@@ -22,8 +22,8 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/DwarfImporter/DwarfImporter.h"
-#include "revng/Model/ABI.h"
 #include "revng/Model/Processing.h"
+#include "revng/Model/QualifiedType.h"
 #include "revng/Model/Type.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
@@ -129,7 +129,7 @@ private:
   size_t AltIndex;
   size_t TypesWithIdentityCount;
   DWARFContext &DICtx;
-  model::abi::Values DefaultABI;
+  model::ABI::Values DefaultABI;
   std::map<size_t, const model::Type *> Placeholders;
   std::set<const model::Type *> InvalidPrimitives;
   std::set<const DWARFDie *> InProgressDies;
@@ -149,17 +149,17 @@ public:
     // TODO: this needs to be refined
     switch (DICtx.getArch()) {
     case llvm::Triple::x86_64:
-      DefaultABI = model::abi::SystemV_x86_64;
+      DefaultABI = model::ABI::SystemV_x86_64;
       break;
     default:
-      DefaultABI = model::abi::Invalid;
+      DefaultABI = model::ABI::Invalid;
     }
   }
 
 private:
-  model::abi::Values getABI(CallingConvention CC = DW_CC_normal) const {
+  model::ABI::Values getABI(CallingConvention CC = DW_CC_normal) const {
     if (CC != DW_CC_normal)
-      return model::abi::Invalid;
+      return model::ABI::Invalid;
 
     return DefaultABI;
   }
@@ -167,7 +167,7 @@ private:
   const model::QualifiedType &record(const DWARFDie &Die,
                                      const model::TypePath &Path,
                                      bool IsNotPlaceholder) {
-    return record(Die, model::QualifiedType{ Path }, IsNotPlaceholder);
+    return record(Die, model::QualifiedType(Path, {}), IsNotPlaceholder);
   }
 
   const model::QualifiedType &record(const DWARFDie &Die,
@@ -389,11 +389,13 @@ private:
   }
 
   RecursiveCoroutine<model::QualifiedType> getTypeOrVoid(const DWARFDie &Die) {
+    using namespace model;
+    using PTK = model::PrimitiveTypeKind::Values;
     const model::QualifiedType *Result = rc_recur getType(Die);
     if (Result != nullptr) {
       rc_return *Result;
     } else {
-      rc_return{ Model->getPrimitiveType(model::PrimitiveTypeKind::Void, 0) };
+      rc_return QualifiedType(Model->getPrimitiveType(PTK::Void, 0), {});
     }
   }
 
@@ -419,7 +421,7 @@ private:
       FunctionType->CustomName = Name;
       FunctionType->ABI = getABI();
 
-      if (FunctionType->ABI == model::abi::Invalid) {
+      if (FunctionType->ABI == model::ABI::Invalid) {
         reportIgnoredDie(Die, "Unknown calling convention");
         rc_return nullptr;
       }
@@ -759,7 +761,7 @@ private:
       CC = static_cast<CallingConvention>(*MaybeCC);
     FunctionType->ABI = getABI(CC);
 
-    if (FunctionType->ABI == model::abi::Invalid) {
+    if (FunctionType->ABI == model::ABI::Invalid) {
       reportIgnoredDie(Die, "Unknown calling convention");
       return std::nullopt;
     }

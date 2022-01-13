@@ -4,13 +4,13 @@
 
 #include <bit>
 
-#include "revng/Model/ABI.h"
 #define BOOST_TEST_MODULE ModelType
 bool init_unit_test();
 #include "boost/test/unit_test.hpp"
 
+#include "revng/Model/ABI.h"
 #include "revng/Model/Binary.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/Types.h"
 
 using namespace model;
 
@@ -467,7 +467,7 @@ BOOST_AUTO_TEST_CASE(CABIFunctionTypes) {
   // Create a C-like function type
   TypePath FunctionPath = T->recordNewType(makeType<CABIFunctionType>());
   auto *FunctionType = cast<CABIFunctionType>(FunctionPath.get());
-  FunctionType->ABI = model::abi::SystemV_x86_64;
+  FunctionType->ABI = model::ABI::SystemV_x86_64;
   revng_check(T->Types.size() == 3);
 
   revng_check(not FunctionType->size().has_value());
@@ -536,7 +536,7 @@ BOOST_AUTO_TEST_CASE(RawFunctionTypes) {
   //
   {
     model::TypedRegister RAXArgument(model::Register::rax_x86_64);
-    RAXArgument.Type = { Primitive64, { { model::QualifierKind::Array, 10 } } };
+    RAXArgument.Type = { Primitive64, { { QualifierKind::Array, 10 } } };
     revng_check(not RAXArgument.verify(false));
   }
 

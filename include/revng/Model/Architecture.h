@@ -6,45 +6,22 @@
 
 #include "llvm/ADT/Triple.h"
 
-#include "revng/Support/YAMLTraits.h"
-#include "revng/TupleTree/TupleTree.h"
+/* TUPLE-TREE-YAML
+name: Architecture
+type: enum
+members:
+  - name: x86
+  - name: x86_64
+  - name: arm
+  - name: aarch64
+  - name: mips
+  - name: mipsel
+  - name: systemz
+TUPLE-TREE-YAML */
+
+#include "revng/Model/Generated/Early/Architecture.h"
 
 namespace model::Architecture {
-
-enum Values {
-  Invalid,
-  x86,
-  x86_64,
-  arm,
-  aarch64,
-  mips,
-  mipsel,
-  systemz,
-  Count
-};
-
-inline llvm::StringRef getName(Values V) {
-  switch (V) {
-  case Invalid:
-    return "Invalid";
-  case x86:
-    return "x86";
-  case x86_64:
-    return "x86_64";
-  case arm:
-    return "arm";
-  case aarch64:
-    return "aarch64";
-  case mips:
-    return "mips";
-  case mipsel:
-    return "mipsel";
-  case systemz:
-    return "systemz";
-  default:
-    revng_abort();
-  }
-}
 
 inline Values fromLLVMArchitecture(llvm::Triple::ArchType A) {
   switch (A) {
@@ -106,8 +83,4 @@ constexpr inline size_t getCallPushSize(Values V) {
 
 } // namespace model::Architecture
 
-namespace llvm::yaml {
-template<>
-struct ScalarEnumerationTraits<model::Architecture::Values>
-  : public NamedEnumScalarTraits<model::Architecture::Values> {};
-} // namespace llvm::yaml
+#include "revng/Model/Generated/Late/Architecture.h"

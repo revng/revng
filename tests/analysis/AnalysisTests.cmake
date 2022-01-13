@@ -36,7 +36,7 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       add_test(NAME ${TEST_NAME}
         COMMAND sh -c "./bin/revng opt ${OUTPUT} --detect-abi -S | ./bin/revng dump-model --remap > ${ACTUAL_MODEL} \
           && ${CMAKE_SOURCE_DIR}/scripts/revng-compare-yaml ${ACTUAL_MODEL} ${REFERENCE_MODEL}")
-      set_tests_properties(${TEST_NAME} PROPERTIES LABELS "analysis;${CATEGORY};${CONFIGURATION};${ANALYSIS}")
+      set_tests_properties(${TEST_NAME} PROPERTIES LABELS "model;analysis;${CATEGORY};${CONFIGURATION};${ANALYSIS}")
 
     endif()
 
@@ -60,6 +60,14 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       --remove-exceptional-functions
       -o "${OUTPUT}")
     set(DEPEND_ON revng-all-binaries)
+
+    #
+    # Ensure we can load the model
+    #
+    set(TEST_NAME test-abi-enforced-for-decompilation-${CATEGORY}-${TARGET_NAME}-load-model)
+    add_test(NAME ${TEST_NAME}
+      COMMAND sh -c "./bin/revng opt ${OUTPUT} --load-model -o /dev/null")
+    set_tests_properties(${TEST_NAME} PROPERTIES LABELS "load-model;analysis;${CATEGORY};${CONFIGURATION};${ANALYSIS}")
   endif()
 endmacro()
 register_derived_artifact("lifted" "abi-enforced-for-decompilation" ".bc" "FILE")

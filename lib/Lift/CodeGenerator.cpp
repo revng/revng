@@ -1242,7 +1242,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   }
 
   // Create a default prototype
-  auto GetDefaultPrototype = [&]<model::abi::Values A>() {
+  auto GetDefaultPrototype = [&]<model::ABI::Values A>() {
     return abi::ABI<A>::defaultPrototype(*Model.get());
   };
   auto DefaultTypePath = abi::polyswitch(Arch.defaultABI(),

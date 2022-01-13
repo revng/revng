@@ -6,7 +6,8 @@
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/Register.h"
-#include "revng/Model/Type.h"
+#include "revng/Model/RegisterState.h"
+#include "revng/Model/Types.h"
 
 namespace abi {
 
@@ -14,7 +15,7 @@ using RegisterState = model::RegisterState::Values;
 using RegisterStateMap = std::map<model::Register::Values,
                                   std::pair<RegisterState, RegisterState>>;
 
-template<model::abi::Values V>
+template<model::ABI::Values V>
 class ABI {
 public:
   static std::optional<model::RawFunctionType>
@@ -40,7 +41,7 @@ public:
 // TODO: test
 
 template<>
-class ABI<model::abi::SystemV_x86_64> {
+class ABI<model::ABI::SystemV_x86_64> {
 private:
   static constexpr std::array<model::Register::Values, 6> ArgumentRegisters = {
     model::Register::rdi_x86_64, model::Register::rsi_x86_64,
@@ -104,7 +105,7 @@ getRawFunctionType(model::Binary &TheBinary,
                    const model::CABIFunctionType *CABI) {
   revng_assert(CABI != nullptr);
 
-  return polyswitch(CABI->ABI, [&]<model::abi::Values A>() {
+  return polyswitch(CABI->ABI, [&]<model::ABI::Values A>() {
     return ABI<A>::toRaw(TheBinary, *CABI);
   });
 }
@@ -135,7 +136,7 @@ getRawFunctionTypeOrDefault(model::Binary &TheBinary, const model::Type *T) {
     if (MaybeResult) {
       return *MaybeResult;
     } else {
-      auto GetDefaultPrototype = [&]<model::abi::Values A>() {
+      auto GetDefaultPrototype = [&]<model::ABI::Values A>() {
         return ABI<A>::defaultPrototype(TheBinary);
       };
       model::TypePath Result = polyswitch(CABI->ABI, GetDefaultPrototype);
