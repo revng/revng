@@ -1,33 +1,4 @@
-; RUN: %revngopt %s -S -dla --model-type-id-seed=0xDEADBEEF -o - | revng dump-model | FileCheck %s
-; CHECK:    - Entry:           "0x401200:Code_x86_64"
-; CHECK:      Prototype:       "/Types/RawFunctionType-6646220838590018230"
-; CHECK:    - !Struct
-; CHECK:      ID:              7208194089656236300
-; CHECK:      Fields:
-; CHECK:        - Type:
-; CHECK:            UnqualifiedType: "/Types/Struct-14349066955625060511"
-; CHECK:              - Kind:            Pointer
-; CHECK:        - Type:
-; CHECK:            UnqualifiedType: "/Types/Primitive-1032"
-; CHECK:    - !Struct
-; CHECK:      ID:              14349066955625060511
-; CHECK:        - Type:
-; CHECK:            UnqualifiedType: "/Types/Struct-14349066955625060511"
-; CHECK:              - Kind:            Pointer
-; CHECK:              - Kind:            Pointer
-; CHECK:        - Type:
-; CHECK:            UnqualifiedType: "/Types/Struct-14349066955625060511"
-; CHECK:              - Kind:            Pointer
-; CHECK:        - Type:
-; CHECK:            UnqualifiedType: "/Types/Primitive-1032"
-; CHECK:   - !RawFunctionType
-; CHECK:    Kind:            RawFunctionType
-; CHECK:    ID:              6646220838590018230
-; CHECK:            UnqualifiedType: "/Types/Struct-14349066955625060511"
-; CHECK:              - Kind:            Pointer
-; CHECK:            UnqualifiedType: "/Types/Struct-7208194089656236300"
-; CHECK:              - Kind:            Pointer
-
+; RUN: %revngopt %s -S -dla --model-type-id-seed=0xDEADBEEF -o - | revng dump-model | revng compare-yaml - %s.yml
 ; This file is meant to be used to test that the DLA is able to merge the
 ; recovered type information with an already existing model.
 ; In particular, in this file all functions and indirect calls share the same
