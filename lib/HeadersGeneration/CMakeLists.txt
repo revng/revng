@@ -2,11 +2,15 @@
 # Copyright rev.ng Srls. See LICENSE.md for details.
 #
 
-revng_add_analyses_library(revngcModelToHeader revngc ModelToHeader.cpp)
+revng_add_analyses_library(revngcModelToHeader revngc
+  ModelToHeader.cpp
+  DependencyGraph.cpp)
 
 target_link_libraries(revngcModelToHeader
   revng::revngModel
   revng::revngSupport
+  revngcSupport
+  revngcTypeNames
   ${LLVM_LIBRARIES})
 
 revng_add_analyses_library(revngcModelToHeaderPass revngc ModelToHeaderPass.cpp)

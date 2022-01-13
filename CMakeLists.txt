@@ -61,14 +61,6 @@ include(${CMAKE_INSTALL_PREFIX}/share/revng/qa/cmake/revng-qa.cmake)
 
 # Macro for creating the tests for decompilation pipeline
 macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
-    # test revng-model-to-header
-    add_test(NAME model_to_header_${TARGET_NAME} COMMAND
-      bash -c "${CMAKE_BINARY_DIR}/bin/revng-model-to-header < ${INPUT_FILE} > ${TARGET_NAME}_model_header.h"
-      )
-    set_property(TEST model_to_header_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_SETUP ${TARGET_NAME}_model_header
-      )
-
     # prepare enforced .bc for decompilation
     add_test(NAME prepare_${TARGET_NAME}
       COMMAND revng
@@ -127,6 +119,39 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       )
     set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
       FIXTURES_SETUP PrepareDecompilation_fixture_${TARGET_NAME}
+      )
+
+    # test revng-model-to-header
+    add_test(NAME model_to_header_${TARGET_NAME} COMMAND
+      revng --prefix .
+      opt
+      -model-to-header
+      ${TARGET_NAME}_prepared.bc
+      --types-header-name=${TARGET_NAME}_model_header.h
+      -o /dev/null
+      )
+    set_property(TEST model_to_header_${TARGET_NAME} APPEND PROPERTY
+      DEPENDS prepare_${TARGET_NAME}
+      )
+    set_property(TEST model_to_header_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_SETUP ${TARGET_NAME}_model_header
+      )
+    # try to compile model headers without warnings
+    add_test(NAME compile_model_header_${TARGET_NAME} COMMAND
+      clang -S
+      -ferror-limit=0
+      -Wall -Wextra -Werror
+      -Wno-main-return-type
+      -Wno-incompatible-library-redeclaration
+      -Wno-builtin-requires-header
+      ${TARGET_NAME}_model_header.h
+      -o /dev/null
+      )
+    set_property(TEST compile_model_header_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_SETUP ${TARGET_NAME}_model_header_compilation
+      )
+    set_property(TEST compile_model_header_${TARGET_NAME} APPEND PROPERTY
+      DEPENDS model_to_header_${TARGET_NAME}
       )
 
     if ("${CATEGORY}" STREQUAL "tests_analysis_PromoteStackPointer"

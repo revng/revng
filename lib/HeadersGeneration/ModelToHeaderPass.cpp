@@ -4,12 +4,30 @@
 
 #include "revng/Model/LoadModelPass.h"
 
+#include "revng-c/HeadersGeneration/ModelToHeader.h"
 #include "revng-c/HeadersGeneration/ModelToHeaderPass.h"
+
+llvm::cl::opt<std::string> TypesHeaderName("types-header-name",
+                                           llvm::cl::cat(MainCategory),
+                                           llvm::cl::Optional,
+                                           llvm::cl::init("./revng-types.h"),
+                                           llvm::cl::desc("Path of the file "
+                                                          "where type "
+                                                          "declarations will "
+                                                          "be printed."));
 
 bool ModelToHeaderPass::runOnModule(llvm::Module &) {
   auto &ModelPass = getAnalysis<LoadModelWrapperPass>().get();
-  [[maybe_unused]] const model::Binary &Model = ModelPass.getReadOnlyModel();
-  return true;
+  const model::Binary &Model = ModelPass.getReadOnlyModel();
+
+  std::error_code EC;
+  llvm::raw_fd_ostream Header(TypesHeaderName, EC);
+  if (EC)
+    revng_abort(EC.message().c_str());
+
+  dumpModelToHeader(Model, Header);
+
+  return false;
 }
 
 void ModelToHeaderPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {

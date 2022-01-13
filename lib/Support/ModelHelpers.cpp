@@ -39,3 +39,23 @@ model::TypePath createEmptyStruct(model::Binary &Binary, uint64_t Size) {
   NewStruct->Size = Size;
   return Path;
 }
+
+bool isEventuallyArray(const model::QualifiedType &QT) {
+  const model::QualifiedType *NextQt = &QT;
+
+  while (NextQt) {
+    if (not NextQt->Qualifiers.empty())
+      if (NextQt->Qualifiers.back().isArrayQualifier())
+        return true;
+
+    const model::Type *Unqualified = NextQt->UnqualifiedType.get();
+    if (const auto *TD = llvm::dyn_cast<model::TypedefType>(Unqualified))
+      NextQt = &TD->UnderlyingType;
+    else
+      NextQt = nullptr;
+  }
+
+  // We've traversed all layers of typedefs and we have never found an array
+  // qualifier, hence this is QT is not eventually an array.
+  return false;
+}
