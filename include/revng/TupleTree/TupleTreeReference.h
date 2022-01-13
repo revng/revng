@@ -113,7 +113,7 @@ public:
   }
 
   bool isValid() const debug_function {
-    return not hasNullRoot() and not Path.empty() and get() != nullptr;
+    return canGet() and not Path.empty() and get() != nullptr;
   }
 };
 
