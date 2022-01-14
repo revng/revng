@@ -36,11 +36,6 @@ static bool declarationIsDefinition(const model::Type *T) {
   return not isa<model::StructType>(T) and not isa<model::UnionType>(T);
 }
 
-static std::string getKeyString(const model::Type *T) {
-  const auto &K = T->key();
-  return (Twine(getName(K.first)) + Twine("-") + Twine(K.second)).str();
-}
-
 static llvm::SmallString<16> printNamedCInstance(const model::QualifiedType &QT,
                                                  llvm::StringRef InstanceName) {
   llvm::SmallString<16> Result;
@@ -510,9 +505,9 @@ static void printDeclaration(const model::Type &T,
                              llvm::raw_ostream &Header,
                              QualifiedTypeNameMap &AdditionalTypeNames) {
   if (Log.isEnabled())
-    Header << "// Declaration of " << getKeyString(&T) << '\n';
+    Header << "// Declaration of " << getNameFromYAMLScalar(T.key()) << '\n';
 
-  revng_log(Log, "Declaring " << getKeyString(&T));
+  revng_log(Log, "Declaring " << getNameFromYAMLScalar(T.key()));
 
   switch (T.Kind) {
 
@@ -601,7 +596,9 @@ private:
 };
 
 static std::string getNodeLabel(const TypeDependencyNode *N) {
-  return (Twine(getKeyString(N->T)) + Twine("-") + Twine(toString(N->K))).str();
+  return (Twine(getNameFromYAMLScalar(N->T->key())) + Twine("-")
+          + Twine(toString(N->K)))
+    .str();
 }
 
 template<>
@@ -665,6 +662,11 @@ getDependencyForFullType(const model::QualifiedType &QT,
 
 static void registerDependencies(const model::Type *T,
                                  const TypeToDependencyNodeMap &TypeToNode) {
+
+  const auto GetTypeRef =
+    [](const auto &Typed) -> const model::QualifiedType & {
+    return Typed.Type;
+  };
 
   using Edge = std::pair<TypeDependencyNode *, TypeDependencyNode *>;
   llvm::SmallVector<Edge, 2> Deps;
@@ -767,13 +769,18 @@ static void registerDependencies(const model::Type *T,
     auto *F = cast<model::RawFunctionType>(T);
     auto *FunctionFull = TypeToNode.at({ F, TypeNode::Kind::FullType });
     auto *FunctionName = TypeToNode.at({ F, TypeNode::Kind::TypeName });
-    for (const auto &Reg :
-         llvm::concat<const model::TypedRegister>(F->Arguments,
-                                                  F->ReturnValues)) {
-      TypeDependencyNode *FullDep = getDependencyForFullType(Reg.Type,
+
+    auto RegArgTypeRefs = llvm::map_range(F->Arguments, GetTypeRef);
+    auto RegRetValTypeRefs = llvm::map_range(F->ReturnValues, GetTypeRef);
+
+    for (const auto &RegType :
+         llvm::concat<const model::QualifiedType>(RegArgTypeRefs,
+                                                  RegRetValTypeRefs)) {
+
+      TypeDependencyNode *FullDep = getDependencyForFullType(RegType,
                                                              TypeToNode);
       Deps.push_back({ FunctionFull, FullDep });
-      TypeDependencyNode *NameDep = getDependencyForTypeName(Reg.Type,
+      TypeDependencyNode *NameDep = getDependencyForTypeName(RegType,
                                                              TypeToNode);
       Deps.push_back({ FunctionName, NameDep });
       revng_log(Log,
@@ -789,11 +796,18 @@ static void registerDependencies(const model::Type *T,
     auto *F = cast<model::CABIFunctionType>(T);
     auto *FunctionFull = TypeToNode.at({ F, TypeNode::Kind::FullType });
     auto *FunctionName = TypeToNode.at({ F, TypeNode::Kind::TypeName });
-    for (const auto &Arg : F->Arguments) {
-      TypeDependencyNode *FullDep = getDependencyForFullType(Arg.Type,
+
+    auto RegArgTypeRefs = llvm::map_range(F->Arguments, GetTypeRef);
+    auto RegRetTypeRefs = llvm::ArrayRef(std::as_const(F->ReturnType));
+
+    for (const auto &RegType :
+         llvm::concat<const model::QualifiedType>(RegArgTypeRefs,
+                                                  RegRetTypeRefs)) {
+
+      TypeDependencyNode *FullDep = getDependencyForFullType(RegType,
                                                              TypeToNode);
       Deps.push_back({ FunctionFull, FullDep });
-      TypeDependencyNode *NameDep = getDependencyForTypeName(Arg.Type,
+      TypeDependencyNode *NameDep = getDependencyForTypeName(RegType,
                                                              TypeToNode);
       Deps.push_back({ FunctionName, NameDep });
       revng_log(Log,
@@ -803,17 +817,7 @@ static void registerDependencies(const model::Type *T,
                 getNodeLabel(FunctionName)
                   << " depends on " << getNodeLabel(NameDep));
     }
-    const model::QualifiedType &RetTy = F->ReturnType;
-    TypeDependencyNode *FullDep = getDependencyForFullType(RetTy, TypeToNode);
-    Deps.push_back({ FunctionFull, FullDep });
-    TypeDependencyNode *NameDep = getDependencyForTypeName(RetTy, TypeToNode);
-    Deps.push_back({ FunctionName, NameDep });
-    revng_log(Log,
-              getNodeLabel(FunctionFull)
-                << " depends on " << getNodeLabel(FullDep));
-    revng_log(Log,
-              getNodeLabel(FunctionName)
-                << " depends on " << getNodeLabel(NameDep));
+
   } break;
 
   default:
@@ -832,9 +836,9 @@ static void printDefinition(const model::Type &T,
                             llvm::raw_ostream &Header,
                             QualifiedTypeNameMap &AdditionalTypeNames) {
   if (Log.isEnabled())
-    Header << "// Definition of " << getKeyString(&T) << '\n';
+    Header << "// Definition of " << getNameFromYAMLScalar(T.key()) << '\n';
 
-  revng_log(Log, "Defining " << getKeyString(&T));
+  revng_log(Log, "Defining " << getNameFromYAMLScalar(T.key()));
 
   switch (T.Kind) {
 

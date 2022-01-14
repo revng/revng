@@ -1,42 +1,8 @@
-; RUN: %revngopt %s -S -dla --model-type-id-seed=0xDEADBEEF -o - | revng dump-model | FileCheck %s
-; CHECK:    - Entry:           "0x401200:Code_x86_64"
-; CHECK:      Prototype:       "/Types/RawFunctionType-6646220838590018230"
-; CHECK:    - !Struct
-; CHECK:      ID:              7208194089656236300
-; CHECK:      Fields:
-; CHECK:        - Type:
-; CHECK:            UnqualifiedType: "/Types/Struct-14349066955625060511"
-; CHECK:              - Kind:            Pointer
-; CHECK:        - Type:
-; CHECK:            UnqualifiedType: "/Types/Primitive-1032"
-; CHECK:    - !Struct
-; CHECK:      ID:              14349066955625060511
-; CHECK:        - Type:
-; CHECK:            UnqualifiedType: "/Types/Struct-14349066955625060511"
-; CHECK:              - Kind:            Pointer
-; CHECK:              - Kind:            Pointer
-; CHECK:        - Type:
-; CHECK:            UnqualifiedType: "/Types/Struct-14349066955625060511"
-; CHECK:              - Kind:            Pointer
-; CHECK:        - Type:
-; CHECK:            UnqualifiedType: "/Types/Primitive-1032"
-; CHECK:   - !RawFunctionType
-; CHECK:    Kind:            RawFunctionType
-; CHECK:    ID:              6646220838590018230
-; CHECK:            UnqualifiedType: "/Types/Struct-14349066955625060511"
-; CHECK:              - Kind:            Pointer
-; CHECK:            UnqualifiedType: "/Types/Struct-7208194089656236300"
-; CHECK:              - Kind:            Pointer
-
-; This file is meant to be used to test that the DLA is able to merge the
-; recovered type information with an already existing model.
-; In particular, in this file all functions and indirect calls share the same
-; prototype in the model, so all the information recovered by the DLA from each
-; call should ultimately end into the same model entity, i.e. the prototype.
+; RUN: %revngopt %s -S -add-primitives -o - | revng dump-model | revng compare-yaml - %s.yml
+; This file is meant to be used to test that the decompiler generates all the
+; primitive types needed for decompilation.
 target triple = "x86_64-unknown-linux-gnu"
-
 %struct.PlainMetaAddress = type { i32, i16, i16, i64 }
-
 define void @local_function_0x401200_Code_x86_64(i64 %rax, i64 %rdx) !revng.tags !58898 !revng.function.entry !59052 {
 newFuncRoot:
   %0 = inttoptr i64 %rdx to i64*
@@ -46,7 +12,6 @@ newFuncRoot:
   store i64 0, i64* %2, align 8
   ret void
 }
-
 define void @local_function_0x401060_Code_x86_64(i64 %rax, i64 %rdx) !revng.tags !58898 !revng.function.entry !58936 {
 newFuncRoot:
   %0 = add i64 %rax, 0                ; rax
@@ -66,21 +31,19 @@ newFuncRoot:
   call void %10(i64 %rax, i64 %rdx), !revng.callerblock.start !58936
   ret void
 }
-
 ; General Metadata
 !revng.input.architecture = !{!5870}
 !revng.model = !{!5872}
-
 !58898 = !{!"Lifted"}
 !5870 = !{!"x86_64", i32 1, i32 0, !"pc", !"rsp", !5871}
 !5871 = !{!"rax", !"rbx", !"rcx", !"rdx", !"rbp", !"rsp", !"rsi", !"rdi", !"r8", !"r9", !"r10", !"r11", !"r12", !"r13", !"r14", !"r15", !"state_0x8558", !"state_0x8598", !"state_0x85d8", !"state_0x8618", !"state_0x8658", !"state_0x8698", !"state_0x86d8", !"state_0x8718"}
-
 ; Function metaaddresses {epoch, addressspace index, type, address in decimal format}
 !59052 = !{%struct.PlainMetaAddress { i32 0, i16 0, i16 4, i64 4198912 }}
 !58936 = !{%struct.PlainMetaAddress { i32 0, i16 0, i16 4, i64 4198496 }}
-
+; Model
 ; Model
 !5872 = !{!"---
+EntryPoint: \220x401200:Code_x86_64\22
 Functions:
   - Entry:           \220x401200:Code_x86_64\22
     Type:            Regular
