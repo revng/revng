@@ -66,10 +66,10 @@ class Generator(ABC):
             return self._definitions.get(stripped_type_name)
 
         elif self._definitions.get(f"{self.base_namespace}::{stripped_type_name}"):
-            return self._definitions.get(f"{self.base_namespace}::{type_name}")
+            return self._definitions.get(f"{self.base_namespace}::{stripped_type_name}")
 
         elif self._definitions.get(f"{self.generated_namespace}::{stripped_type_name}"):
-            return self._definitions.get(f"{self.generated_namespace}::{type_name}")
+            return self._definitions.get(f"{self.generated_namespace}::{stripped_type_name}")
 
         return None
 
