@@ -6,7 +6,6 @@
 
 #include "revng/Support/FunctionTags.h"
 
-#include "revng-c/MarkForSerialization/MarkAnalysis.h"
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
 
 #include "BeautifyGHAST.h"
@@ -41,15 +40,7 @@ bool BeautifyGHASTPass::runOnFunction(llvm::Function &F) {
   // Get the Abstract Syntax Tree of the restructured code.
   auto &RestructureCFGAnalysis = getAnalysis<RestructureCFG>();
   ASTTree &GHAST = RestructureCFGAnalysis.getAST();
-
-  // Get information about which instructions are marked to be serialized.
-  // Mark instructions for serialization, and write the results in ToSerialize
-  SerializationMap ToSerialize = {};
-  MarkAnalysis::Analysis Mark(F, ToSerialize);
-  Mark.initialize();
-  Mark.run();
-
-  beautifyAST(F, GHAST, ToSerialize);
+  beautifyAST(F, GHAST);
 
   return false;
 }

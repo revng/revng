@@ -136,36 +136,32 @@ DLATypeSystemLLVMBuilder::getLayoutTypes(const Value &V) {
 
       // Special handling for StructInitializers
       const Function *Callee = getCallee(cast<Instruction>(&V));
-      if (Callee) {
-        auto CTags = FunctionTags::TagsSet::from(Callee);
-        if (CTags.contains(FunctionTags::StructInitializer)) {
+      if (Callee and FunctionTags::StructInitializer.isTagOf(Callee)) {
+        revng_assert(not Callee->isVarArg());
 
-          revng_assert(not Callee->isVarArg());
+        auto *RetTy = cast<StructType>(Callee->getReturnType());
+        revng_assert(RetTy->getNumElements() == Callee->arg_size());
 
-          auto *RetTy = cast<StructType>(Callee->getReturnType());
-          revng_assert(RetTy->getNumElements() == Callee->arg_size());
+        bool OnlyReturnUses = true;
+        bool HasReturnUse = false;
+        auto *Call = cast<CallInst>(&V);
+        for (const User *U : Call->users()) {
+          if (isa<ReturnInst>(U)) {
+            HasReturnUse = true;
 
-          bool OnlyReturnUses = true;
-          bool HasReturnUse = false;
-          auto *Call = cast<CallInst>(&V);
-          for (const User *U : Call->users()) {
-            if (isa<ReturnInst>(U)) {
-              HasReturnUse = true;
+            const Function *Caller = Call->getFunction();
 
-              const Function *Caller = Call->getFunction();
+            if (Results.empty())
+              Results = getLayoutTypes(*Caller);
+            else
+              revng_assert(Results == getLayoutTypes(*Caller));
 
-              if (Results.empty())
-                Results = getLayoutTypes(*Caller);
-              else
-                revng_assert(Results == getLayoutTypes(*Caller));
-
-              revng_assert(Results.size() == Callee->arg_size());
-            } else {
-              OnlyReturnUses = false;
-            }
+            revng_assert(Results.size() == Callee->arg_size());
+          } else {
+            OnlyReturnUses = false;
           }
-          revng_assert(not HasReturnUse or OnlyReturnUses);
         }
+        revng_assert(not HasReturnUse or OnlyReturnUses);
       }
 
       // If Results are full, we have detected a call to a struct_initializer
@@ -249,36 +245,32 @@ DLATypeSystemLLVMBuilder::getOrCreateLayoutTypes(const Value &V) {
 
       // Special handling for StructInitializers
       const Function *Callee = getCallee(cast<Instruction>(&V));
-      if (Callee) {
-        auto CTags = FunctionTags::TagsSet::from(Callee);
-        if (CTags.contains(FunctionTags::StructInitializer)) {
+      if (Callee and FunctionTags::StructInitializer.isTagOf(Callee)) {
+        revng_assert(not Callee->isVarArg());
 
-          revng_assert(not Callee->isVarArg());
+        auto *RetTy = cast<StructType>(Callee->getReturnType());
+        revng_assert(RetTy->getNumElements() == Callee->arg_size());
 
-          auto *RetTy = cast<StructType>(Callee->getReturnType());
-          revng_assert(RetTy->getNumElements() == Callee->arg_size());
+        bool OnlyReturnUses = true;
+        bool HasReturnUse = false;
+        auto *Call = cast<CallInst>(&V);
+        for (const User *U : Call->users()) {
+          if (isa<ReturnInst>(U)) {
+            HasReturnUse = true;
 
-          bool OnlyReturnUses = true;
-          bool HasReturnUse = false;
-          auto *Call = cast<CallInst>(&V);
-          for (const User *U : Call->users()) {
-            if (isa<ReturnInst>(U)) {
-              HasReturnUse = true;
+            const Function *Caller = Call->getFunction();
 
-              const Function *Caller = Call->getFunction();
+            if (Results.empty())
+              Results = getOrCreateLayoutTypes(*Caller);
+            else
+              revng_assert(Results == getOrCreateLayoutTypes(*Caller));
 
-              if (Results.empty())
-                Results = getOrCreateLayoutTypes(*Caller);
-              else
-                revng_assert(Results == getOrCreateLayoutTypes(*Caller));
-
-              revng_assert(Results.size() == Callee->arg_size());
-            } else {
-              OnlyReturnUses = false;
-            }
+            revng_assert(Results.size() == Callee->arg_size());
+          } else {
+            OnlyReturnUses = false;
           }
-          revng_assert(not HasReturnUse or OnlyReturnUses);
         }
+        revng_assert(not HasReturnUse or OnlyReturnUses);
       }
 
       // If Results are full, we have detected a call to a struct_initializer

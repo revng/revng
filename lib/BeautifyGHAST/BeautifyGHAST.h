@@ -4,9 +4,12 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-#include "revng-c/MarkForSerialization/MarkForSerializationFlags.h"
-#include "revng-c/RestructureCFGPass/ASTTree.h"
+namespace llvm {
 
-extern void beautifyAST(llvm::Function &F,
-                        ASTTree &CombedAST,
-                        const SerializationMap &Mark);
+class Function;
+
+} // end namespace llvm
+
+class ASTTree;
+
+extern void beautifyAST(llvm::Function &F, ASTTree &CombedAST);

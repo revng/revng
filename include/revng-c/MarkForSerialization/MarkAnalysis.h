@@ -8,8 +8,11 @@
 
 #include <map>
 
+#include "llvm/IR/Instructions.h"
+
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/MonotoneFramework.h"
 
 #include "revng-c/Liveness/LivenessAnalysis.h"
@@ -28,13 +31,32 @@ extern Logger<> MarkLog;
 
 namespace MarkAnalysis {
 
-inline bool isPure(const llvm::Instruction & /*Call*/) {
+inline bool isPure(const llvm::Function *F) {
+  if (F) {
+    if (FunctionTags::ModelGEP.isTagOf(F)
+        or FunctionTags::StructInitializer.isTagOf(F)
+        or FunctionTags::AddressOf.isTagOf(F)
+        or FunctionTags::OpaqueCSVValue.isTagOf(F)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+inline bool isCallToPure(const llvm::Instruction &I) {
+  if (auto *Call = dyn_cast<llvm::CallInst>(&I))
+    return isPure(Call->getCalledFunction());
+
   return false;
 }
 
 inline bool
 haveInterferingSideEffects(const llvm::Instruction & /*InstrWithSideEffects*/,
-                           const llvm::Instruction & /*Other*/) {
+                           const llvm::Instruction &Other) {
+  // Calls to pure functions never have interfering side effects.
+  if (isCallToPure(Other))
+    return false;
+
   return true;
 }
 
@@ -281,30 +303,34 @@ public:
     LatticeElement Pending = this->State[BB].copy();
 
     for (Instruction &I : *BB) {
+      LoggerIndent Indent(MarkLog);
       revng_log(MarkLog,
                 "Analyzing Instr: '" << &I << "': " << dumpToString(&I));
 
-      // Operands are removed from pending
-      revng_log(MarkLog, "Remove operands from pending.");
+      {
+        // Operands are removed from pending
+        revng_log(MarkLog, "Remove operands from pending.");
+        LoggerIndent MoreIndent(MarkLog);
 
-      MarkLog.indent();
-      revng_log(MarkLog, "Operands:");
-      for (auto &TheUse : I.operands()) {
-        Value *V = TheUse.get();
-        revng_log(MarkLog, "Op: '" << V << "': " << dumpToString(V));
+        {
+          revng_log(MarkLog, "Operands:");
+          LoggerIndent EvenMoreMoreIndent(MarkLog);
+          for (auto &TheUse : I.operands()) {
+            Value *V = TheUse.get();
+            revng_log(MarkLog, "Op: '" << V << "': " << dumpToString(V));
+            LoggerIndent _(MarkLog);
 
-        MarkLog.indent();
-        if (auto *UsedInstr = dyn_cast<Instruction>(V)) {
-          revng_log(MarkLog, "Op is Instruction: erase it from pending");
-          Pending.erase(UsedInstr);
-        } else {
-          revng_log(MarkLog, "Op is NOT Instruction: leave it in pending");
-          revng_assert(isa<Argument>(V) or isa<Constant>(V)
-                       or isa<BasicBlock>(V) or isa<MetadataAsValue>(V));
+            if (auto *UsedInstr = dyn_cast<Instruction>(V)) {
+              revng_log(MarkLog, "Op is Instruction: erase it from pending");
+              Pending.erase(UsedInstr);
+            } else {
+              revng_log(MarkLog, "Op is NOT Instruction: leave it in pending");
+              revng_assert(isa<Argument>(V) or isa<Constant>(V)
+                           or isa<BasicBlock>(V) or isa<MetadataAsValue>(V));
+            }
+          }
         }
-        MarkLog.unindent();
       }
-      MarkLog.unindent();
 
       // PHINodes are never serialized directly in the BB they are.
       if (isa<PHINode>(I))
@@ -338,7 +364,7 @@ public:
         revng_log(MarkLog, "Instr NeedsLocalVarToComputeExpr");
       }
 
-      if (isa<StoreInst>(&I) or (isa<CallInst>(&I) and not isPure(I))) {
+      if (isa<StoreInst>(&I) or (isa<CallInst>(&I) and not isCallToPure(I))) {
         // StoreInst and CallInst that are not pure always have side effects.
         ToSerialize[&I].set(HasSideEffects);
         revng_log(MarkLog, "Instr HasSideEffects");
@@ -371,7 +397,7 @@ public:
       default: {
         // Instructions with more than one use are always serialized.
         ToSerialize[&I].set(HasManyUses);
-        revng_log(MarkLog, "Instr HasManyUses");
+        revng_log(MarkLog, "Instr HasManyUses: " << I.getNumUses());
       } break;
       }
 

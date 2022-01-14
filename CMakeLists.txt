@@ -69,7 +69,9 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       )
 
     # prepare enforced .bc for decompilation
-    add_test(NAME prepare_${TARGET_NAME} COMMAND revng --prefix=.
+    add_test(NAME prepare_${TARGET_NAME}
+      COMMAND revng
+      --prefix=${CMAKE_BINARY_DIR}
       opt
       # Remove revng's artifacts from IR
       -filter-for-decompilation
@@ -139,7 +141,9 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
     endif()
 
     # test VMA
-    add_test(NAME vma_${TARGET_NAME} COMMAND revng --prefix=.
+    add_test(NAME vma_${TARGET_NAME}
+      COMMAND revng
+      --prefix=${CMAKE_BINARY_DIR}
       opt
       -vma
       -vma-mincut-iter=50
@@ -157,7 +161,9 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       )
 
     # test combing and decompilation without DLA
-    add_test(NAME decompilation_${TARGET_NAME} COMMAND revng --prefix=.
+    add_test(NAME decompilation_${TARGET_NAME}
+      COMMAND revng
+      --prefix=${CMAKE_BINARY_DIR}
       opt
       -restructure-cfg
       -beautify-ghast
@@ -190,8 +196,35 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       FIXTURES_SETUP Recompiled_fixture_${TARGET_NAME}
       )
 
+    # tests for IR Canonicalization
+    add_test(NAME ir_canonicalization_${TARGET_NAME}
+      COMMAND revng
+      --prefix=${CMAKE_BINARY_DIR}
+      opt
+      -add-primitives
+      -dla
+      -make-model-gep
+      -early-cse
+      -dce
+      -exit-ssa
+      -add-ir-serialization-markers
+      ${TARGET_NAME}_prepared.bc
+      -o ${TARGET_NAME}_canonicalized.bc
+      )
+    set_property(TEST ir_canonicalization_${TARGET_NAME} APPEND PROPERTY
+      DEPENDS prepare_${TARGET_NAME}
+      )
+    set_property(TEST ir_canonicalization_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_REQUIRED PrepareDecompilation_fixture_${TARGET_NAME}
+      )
+    set_property(TEST ir_canonicalization_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_SETUP IRCanonicalization_fixture_${TARGET_NAME}
+      )
+
     # test full pipeline with dla combing and decompilation
-    add_test(NAME decompile_with_dla_${TARGET_NAME} COMMAND revng --prefix=.
+    add_test(NAME decompile_with_dla_${TARGET_NAME}
+      COMMAND revng
+      --prefix=${CMAKE_BINARY_DIR}
       opt
       -dla
       -phi-asap-assignment-info

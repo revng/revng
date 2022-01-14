@@ -13,7 +13,7 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
-#include "revng-c/MarkForSerialization/MarkForSerializationFlags.h"
+#include "revng-c/MarkForSerialization/MarkAnalysis.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/ExprNode.h"
 #include "revng-c/RestructureCFGPass/GenerateAst.h"
@@ -88,12 +88,7 @@ static void flipEmptyThen(ASTNode *RootNode, ASTTree &AST) {
   }
 }
 
-static bool hasNoSideEffects(IfNode *If, const SerializationMap &Mark) {
-  // HACK: this is not correct, because it enables short-circuit even in cases
-  // where the IfNode really does require some statements, hence producing
-  // code that is not semantically equivalent
-  return true;
-
+static bool hasSideEffects(IfNode *If) {
   // Compute how many statement we need to serialize for the basicblock
   // associated with the internal `IfNode`.
   ExprNode *ExprBB = If->getCondExpr();
@@ -101,36 +96,45 @@ static bool hasNoSideEffects(IfNode *If, const SerializationMap &Mark) {
     llvm::BasicBlock *BB = Atomic->getConditionalBasicBlock();
     for (llvm::Instruction &I : *BB) {
 
-      if (auto It = Mark.find(&I); It != Mark.end()) {
+      // All stores have side effects
+      if (llvm::isa<llvm::StoreInst>(I))
+        return true;
 
-        const SerializationFlags &Flags = It->second;
-        if (Flags.isSet(HasSideEffects)
-            or Flags.isSet(HasInterferingSideEffects))
-          return false;
+      if (auto *Call = llvm::dyn_cast<CallInst>(&I)) {
+        // If it's a call to a serialization marker, look at the second
+        // argument. If it's a true constant, than it has side effects.
+        auto *Callee = Call->getCalledFunction();
+        if (Callee and FunctionTags::SerializationMarker.isTagOf(Callee)) {
+          auto *Arg1 = Call->getArgOperand(1);
+          auto *HasSideEffects = llvm::cast<llvm::ConstantInt>(Arg1);
+          return HasSideEffects->isOne();
+        }
+
+        // All calls that are not pure have side effects
+        if (not MarkAnalysis::isCallToPure(*Call))
+          return true;
       }
     }
   }
-  return true;
+  return false;
 }
 
 // Helper function to simplify short-circuit IFs
-static void simplifyShortCircuit(ASTNode *RootNode,
-                                 ASTTree &AST,
-                                 const SerializationMap &Mark) {
+static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
 
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
     for (ASTNode *Node : Sequence->nodes()) {
-      simplifyShortCircuit(Node, AST, Mark);
+      simplifyShortCircuit(Node, AST);
     }
 
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
-    simplifyShortCircuit(Scs->getBody(), AST, Mark);
+    simplifyShortCircuit(Scs->getBody(), AST);
   } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
 
     for (auto &LabelCasePair : Switch->cases())
-      simplifyShortCircuit(LabelCasePair.second, AST, Mark);
+      simplifyShortCircuit(LabelCasePair.second, AST);
     if (ASTNode *Default = Switch->getDefault())
-      simplifyShortCircuit(Default, AST, Mark);
+      simplifyShortCircuit(Default, AST);
 
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
     if (If->hasBothBranches()) {
@@ -140,7 +144,7 @@ static void simplifyShortCircuit(ASTNode *RootNode,
         if (NestedIf->getThen() != nullptr) {
 
           if (If->getElse()->isEqual(NestedIf->getThen())
-              and hasNoSideEffects(NestedIf, Mark)) {
+              and not hasSideEffects(NestedIf)) {
             if (BeautifyLogger.isEnabled()) {
               BeautifyLogger << "Candidate for short-circuit reduction found:";
               BeautifyLogger << "\n";
@@ -169,13 +173,13 @@ static void simplifyShortCircuit(ASTNode *RootNode,
             ShortCircuitCounter += 1;
 
             // Recursive call.
-            simplifyShortCircuit(If, AST, Mark);
+            simplifyShortCircuit(If, AST);
           }
         }
 
         if (NestedIf->getElse() != nullptr) {
           if (If->getElse()->isEqual(NestedIf->getElse())
-              and hasNoSideEffects(NestedIf, Mark)) {
+              and not hasSideEffects(NestedIf)) {
             if (BeautifyLogger.isEnabled()) {
               BeautifyLogger << "Candidate for short-circuit reduction found:";
               BeautifyLogger << "\n";
@@ -203,7 +207,7 @@ static void simplifyShortCircuit(ASTNode *RootNode,
             // Increment counter
             ShortCircuitCounter += 1;
 
-            simplifyShortCircuit(If, AST, Mark);
+            simplifyShortCircuit(If, AST);
           }
         }
       }
@@ -213,7 +217,7 @@ static void simplifyShortCircuit(ASTNode *RootNode,
         // TODO: Refactor this with some kind of iterator
         if (NestedIf->getThen() != nullptr) {
           if (If->getThen()->isEqual(NestedIf->getThen())
-              and hasNoSideEffects(NestedIf, Mark)) {
+              and not hasSideEffects(NestedIf)) {
             if (BeautifyLogger.isEnabled()) {
               BeautifyLogger << "Candidate for short-circuit reduction found:";
               BeautifyLogger << "\n";
@@ -242,13 +246,13 @@ static void simplifyShortCircuit(ASTNode *RootNode,
             // Increment counter
             ShortCircuitCounter += 1;
 
-            simplifyShortCircuit(If, AST, Mark);
+            simplifyShortCircuit(If, AST);
           }
         }
 
         if (NestedIf->getElse() != nullptr) {
           if (If->getThen()->isEqual(NestedIf->getElse())
-              and hasNoSideEffects(NestedIf, Mark)) {
+              and not hasSideEffects(NestedIf)) {
             if (BeautifyLogger.isEnabled()) {
               BeautifyLogger << "Candidate for short-circuit reduction found:";
               BeautifyLogger << "\n";
@@ -273,7 +277,7 @@ static void simplifyShortCircuit(ASTNode *RootNode,
             // Increment counter
             ShortCircuitCounter += 1;
 
-            simplifyShortCircuit(If, AST, Mark);
+            simplifyShortCircuit(If, AST);
           }
         }
       }
@@ -281,27 +285,25 @@ static void simplifyShortCircuit(ASTNode *RootNode,
   }
 }
 
-static void simplifyTrivialShortCircuit(ASTNode *RootNode,
-                                        ASTTree &AST,
-                                        const SerializationMap &Mark) {
+static void simplifyTrivialShortCircuit(ASTNode *RootNode, ASTTree &AST) {
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
     for (ASTNode *Node : Sequence->nodes()) {
-      simplifyTrivialShortCircuit(Node, AST, Mark);
+      simplifyTrivialShortCircuit(Node, AST);
     }
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
-    simplifyTrivialShortCircuit(Scs->getBody(), AST, Mark);
+    simplifyTrivialShortCircuit(Scs->getBody(), AST);
 
   } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
 
     for (auto &LabelCasePair : Switch->cases())
-      simplifyTrivialShortCircuit(LabelCasePair.second, AST, Mark);
+      simplifyTrivialShortCircuit(LabelCasePair.second, AST);
     if (ASTNode *Default = Switch->getDefault())
-      simplifyTrivialShortCircuit(Default, AST, Mark);
+      simplifyTrivialShortCircuit(Default, AST);
 
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
     if (!If->hasElse()) {
       if (auto *InternalIf = llvm::dyn_cast<IfNode>(If->getThen())) {
-        if (!InternalIf->hasElse() and hasNoSideEffects(InternalIf, Mark)) {
+        if (!InternalIf->hasElse() and not hasSideEffects(InternalIf)) {
           if (BeautifyLogger.isEnabled()) {
             BeautifyLogger << "Candidate for trivial short-circuit reduction";
             BeautifyLogger << "found:\n";
@@ -327,15 +329,15 @@ static void simplifyTrivialShortCircuit(ASTNode *RootNode,
           // Increment counter
           TrivialShortCircuitCounter += 1;
 
-          simplifyTrivialShortCircuit(RootNode, AST, Mark);
+          simplifyTrivialShortCircuit(RootNode, AST);
         }
       }
     }
 
     if (If->hasThen())
-      simplifyTrivialShortCircuit(If->getThen(), AST, Mark);
+      simplifyTrivialShortCircuit(If->getThen(), AST);
     if (If->hasElse())
-      simplifyTrivialShortCircuit(If->getElse(), AST, Mark);
+      simplifyTrivialShortCircuit(If->getElse(), AST);
   }
 }
 
@@ -747,7 +749,7 @@ computeCumulativeNodeWeight(ASTNode *Node,
     // TODO: At the moment we use the BasicBlock size to assign a weight to the
     //       code nodes. In future, we would want to use the number of statement
     //       emitted in the decompiled code as weight (and use
-    //       `MarkForSerialization` to do that).
+    //       `SerializationMarker`s to do that).
     CodeNode *Code = llvm::cast<CodeNode>(Node);
     llvm::BasicBlock *BB = Code->getBB();
     rc_return BB->size();
@@ -1189,9 +1191,7 @@ ASTNode *promoteNoFallthroughIf(ASTNode *RootNode, ASTTree &AST) {
   return RootNode;
 }
 
-void beautifyAST(Function &F,
-                 ASTTree &CombedAST,
-                 const SerializationMap &Mark) {
+void beautifyAST(Function &F, ASTTree &CombedAST) {
 
   // If the --short-circuit-metrics-output-dir=dir argument was passed from
   // command line, we need to print the statistics for the short circuit metrics
@@ -1211,7 +1211,7 @@ void beautifyAST(Function &F,
 
   // Simplify short-circuit nodes.
   revng_log(BeautifyLogger, "Performing short-circuit simplification\n");
-  simplifyShortCircuit(RootNode, CombedAST, Mark);
+  simplifyShortCircuit(RootNode, CombedAST);
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpASTOnFile(F.getName().str(), "ast", "02-After-short-circuit");
   }
@@ -1230,7 +1230,7 @@ void beautifyAST(Function &F,
   // Simplify trivial short-circuit nodes.
   revng_log(BeautifyLogger,
             "Performing trivial short-circuit simplification\n");
-  simplifyTrivialShortCircuit(RootNode, CombedAST, Mark);
+  simplifyTrivialShortCircuit(RootNode, CombedAST);
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpASTOnFile(F.getName().str(),
                             "ast",
