@@ -9,7 +9,7 @@ import jinja2
 
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 
-loader = jinja2.FileSystemLoader(TEMPLATES_DIR)
+loader = jinja2.FileSystemLoader(str(TEMPLATES_DIR))
 
 
 environment = jinja2.Environment(
