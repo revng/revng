@@ -431,7 +431,7 @@ ValueModelTypesMap initializeModelTypes(llvm::Function &F,
         }
 
         // TODO: we haven't handled how to emit return values of CABIFunctions
-        revng_abort();
+        revng_log(ModelGEPLog, "CABIFunctionType found, ignoring.");
 
       } else {
         revng_abort("Function should have RawFunctionType or "
