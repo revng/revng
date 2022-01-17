@@ -312,6 +312,7 @@ set_tests_properties(test_model_type PROPERTIES LABELS "unit")
 #
 # test_tuple_tree_generator
 #
+
 set(HEADERS
   "${SRC}/TupleTreeGenerator/TestClass.h"
   "${SRC}/TupleTreeGenerator/TestEnum.h"
