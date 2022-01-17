@@ -6,6 +6,8 @@
 
 #include "revng/Support/ResourceFinder.h"
 
+using namespace llvm::sys::path;
+
 namespace revng {
 
 PathList ResourceFinder({
@@ -14,7 +16,7 @@ PathList ResourceFinder({
   BUILD_PATH,
 #endif
 
-  llvm::sys::path::parent_path(getCurrentExecutableFullPath()).str(),
+  parent_path(parent_path(getCurrentExecutableFullPath())).str(),
 
 #ifdef INSTALL_PATH
   INSTALL_PATH,

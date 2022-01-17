@@ -6,6 +6,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <cstdlib>
+
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
@@ -16,12 +18,13 @@
 #include "revng/Support/ProgramRunner.h"
 
 using namespace llvm;
-using namespace sys;
 
 ProgramRunner Runner;
 
 ProgramRunner::ProgramRunner() {
-  Paths = { { path::parent_path(getCurrentExecutableFullPath()) } };
+  using namespace llvm::sys::path;
+  CurrentProgramPath = parent_path(getCurrentExecutableFullPath());
+  Paths = { { CurrentProgramPath } };
 
   // Append PATH
   char *Path = getenv("PATH");
@@ -32,8 +35,13 @@ ProgramRunner::ProgramRunner() {
 
 int ProgramRunner::run(llvm::StringRef ProgramName,
                        ArrayRef<std::string> Args) {
+  using namespace llvm::sys;
   auto MaybeProgramPath = findProgramByName(ProgramName, Paths);
-  revng_assert(MaybeProgramPath);
+  revng_assert(not Paths.empty());
+  revng_assert(MaybeProgramPath,
+               (ProgramName + " was not found in " + getenv("PATH"))
+                 .str()
+                 .c_str());
 
   // Prepare actual arguments
   std::vector<StringRef> StringRefs{ *MaybeProgramPath };

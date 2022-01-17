@@ -1020,26 +1020,26 @@ RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
 
 template<typename T>
 RecursiveCoroutine<bool>
-verify_TypedRegister_common(const T &TypedRegisterObj, VerifyHelper &VH) {
+verifyTypedRegisterCommon(const T &TypedRegister, VerifyHelper &VH) {
   // Ensure the type we're pointing to is scalar
-  if (not isScalar(TypedRegisterObj->Type))
+  if (not isScalar(TypedRegister->Type))
     rc_return VH.fail();
 
-  if (TypedRegisterObj->Location == Register::Invalid)
+  if (TypedRegister->Location == Register::Invalid)
     rc_return VH.fail();
 
   // Ensure if fits in the corresponding register
-  auto MaybeTypeSize = rc_recur TypedRegisterObj->Type.size(VH);
+  auto MaybeTypeSize = rc_recur TypedRegister->Type.size(VH);
 
   // Zero-sized types are not allowed
   if (not MaybeTypeSize)
     rc_return VH.fail();
 
-  size_t RegisterSize = model::Register::getSize(TypedRegisterObj->Location);
+  size_t RegisterSize = model::Register::getSize(TypedRegister->Location);
   if (*MaybeTypeSize > RegisterSize)
     rc_return VH.fail();
 
-  rc_return VH.maybeFail(rc_recur TypedRegisterObj->Type.verify(VH));
+  rc_return VH.maybeFail(rc_recur TypedRegister->Type.verify(VH));
 }
 
 void TypedRegister::dump() const {
@@ -1056,7 +1056,7 @@ bool TypedRegister::verify(bool Assert) const {
 }
 
 RecursiveCoroutine<bool> TypedRegister::verify(VerifyHelper &VH) const {
-  rc_return verify_TypedRegister_common(this, VH);
+  rc_return verifyTypedRegisterCommon(this, VH);
 }
 
 void NamedTypedRegister::dump() const {
@@ -1077,7 +1077,7 @@ RecursiveCoroutine<bool> NamedTypedRegister::verify(VerifyHelper &VH) const {
   if (not CustomName.verify(VH))
     rc_return VH.fail();
 
-  rc_return verify_TypedRegister_common(this, VH);
+  rc_return verifyTypedRegisterCommon(this, VH);
 }
 
 bool StructField::verify() const {
