@@ -65,6 +65,7 @@ public:
   bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;
   void dump() const debug_function;
+  bool isDirect() const { return not Prototype.isValid(); }
 };
 
 #include "revng/Model/Generated/Late/CallEdge.h"
