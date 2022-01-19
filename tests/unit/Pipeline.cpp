@@ -78,7 +78,7 @@ public:
       return BackPathComponent.isAll() or BackPathComponent.getName() == "f2";
     });
     if (HasF1 and HasF2)
-      TargetsList({ Target(PathComponent(), *this) });
+      TargetsList({ Target(PathComponent::all(), *this) });
     return Targets;
   }
 
@@ -116,7 +116,7 @@ public:
   TargetsList enumerate() const final {
     TargetsList ToReturn;
 
-    const Target AllTargets({ PathComponent("Root"), PathComponent() },
+    const Target AllTargets({ PathComponent("Root"), PathComponent::all() },
                             FunctionKind);
     if (contains(AllTargets)) {
       ToReturn.emplace_back(AllTargets);
@@ -745,7 +745,8 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineForwardFinedGrained) {
   auto &C1 = Pipeline[Name].containers().getOrCreate<MapContainer>(CName);
   C1.get({ "Root", RootKind }) = 1;
   auto &C2 = Pipeline["End"].containers().getOrCreate<MapContainer>(CName);
-  C2.get(Target({ PathComponent("Root"), PathComponent() }, FunctionKind)) = 1;
+  C2.get(
+    Target({ PathComponent("Root"), PathComponent::all() }, FunctionKind)) = 1;
 
   llvm::StringMap<ContainerToTargetsMap> Invalidations;
   Invalidations[Name].add(CName, { "Root" }, RootKind);
@@ -773,7 +774,8 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineInvalidation) {
   auto &C1 = Pipeline[Name].containers().getOrCreate<MapContainer>(CName);
   C1.get(Target({ "Root" }, RootKind)) = 1;
   auto &C2 = Pipeline["End"].containers().getOrCreate<MapContainer>(CName);
-  C2.get(Target({ PathComponent("Root"), PathComponent() }, FunctionKind)) = 1;
+  C2.get(
+    Target({ PathComponent("Root"), PathComponent::all() }, FunctionKind)) = 1;
 
   Target ToKill({ "Root" }, RootKind);
 
@@ -1080,7 +1082,7 @@ public:
                              TargetsList::List &Targets) const override {
     Target F1({ "root", "f1" }, FunctionKind);
     Target F2({ "root", "f2" }, FunctionKind);
-    Target All({ PathComponent("root"), PathComponent() }, FunctionKind);
+    Target All({ PathComponent("root"), PathComponent::all() }, FunctionKind);
     if (find(Targets, F1) != Targets.end()
         and find(Targets, F2) != Targets.end())
 
@@ -1154,7 +1156,7 @@ public:
   compactTargets(const Context &Ctx, TargetsList::List &Targets) const final {
     Target F1({ "root", "f1" }, *this);
     Target F2({ "root", "f2" }, *this);
-    Target All({ PathComponent("root"), PathComponent() }, *this);
+    Target All({ PathComponent("root"), PathComponent::all() }, *this);
     if (find(Targets, F1) != Targets.end()
         and find(Targets, F2) != Targets.end())
 

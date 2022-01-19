@@ -13,7 +13,7 @@ namespace pipeline {
 template<typename Source, typename Destination = Source>
 class CopyPipe {
 public:
-  static constexpr auto Name = "Copy Pipe";
+  static constexpr auto Name = "CopyPipe";
 
 private:
   Kind *K;

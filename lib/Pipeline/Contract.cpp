@@ -41,7 +41,7 @@ void Contract::deduceResults(ContainerToTargetsMap &StepStatus,
     PathComponents List;
 
     for (size_t I = 0; I < TargetKind->depth(); I++)
-      List.emplace_back();
+      List.emplace_back(PathComponent::all());
 
     Results.emplace_back(std::move(List), *TargetKind);
     return;
@@ -269,7 +269,7 @@ void Contract::insertDefaultInput(BCS &Status, ArrayRef<string> Names) const {
   auto &SourceContainerTargets = Status[Names[PipeArgumentSourceIndex]];
 
   llvm::SmallVector<PathComponent, 4> PathComponents(Source->depth() + 1,
-                                                     PathComponent());
+                                                     PathComponent::all());
 
   Target Target(move(PathComponents), *Source, InputContract);
   SourceContainerTargets.push_back(move(Target));

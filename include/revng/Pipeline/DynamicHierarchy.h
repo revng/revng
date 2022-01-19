@@ -34,12 +34,13 @@ private:
   std::string Name;
 
 public:
-  DynamicHierarchy(llvm::StringRef Name) : Name(Name.str()) {
+  DynamicHierarchy(llvm::StringRef Name) : Parent(nullptr), Name(Name.str()) {
     getRoots().push_back(&self());
+    getAll().push_back(&self());
   }
   DynamicHierarchy(llvm::StringRef Name, DynamicHierarchy &Parent) :
-    Name(Name.str()) {
-    Parent.Children.push_back(this);
+    Parent(&Parent), Name(Name.str()) {
+    getAll().push_back(&self());
   }
 
   DynamicHierarchy(DynamicHierarchy &&) = delete;
@@ -51,9 +52,16 @@ public:
 
 public:
   static void init() {
+    for (DynamicHierarchy *Root : getAll())
+      Root->registerInParent();
     static entry_t ID = -1;
     for (DynamicHierarchy *Root : getRoots())
       ID = Root->assign(ID);
+  }
+
+  static std::vector<DerivedType *> &getAll() {
+    static std::vector<DerivedType *> AllNodes;
+    return AllNodes;
   }
 
   static std::vector<DerivedType *> &getRoots() {
@@ -120,7 +128,7 @@ public:
   }
 
 public:
-  void dump() const { dump(dbg, 0); }
+  void dump() const debug_function { dump(dbg, 0); }
 
   template<typename OS>
   void dump(OS &Output, size_t Indent = 0) const {
@@ -138,13 +146,17 @@ public:
   }
 
 private:
+  void registerInParent() {
+    if (Parent != nullptr)
+      Parent->Children.push_back(this);
+  }
+
   entry_t assign(entry_t ID = -1) {
 
     Start = ++ID;
 
     for (DynamicHierarchy *Child : Children) {
       ID = Child->assign(ID);
-      Child->Parent = this;
     }
 
     End = ID + 1;
