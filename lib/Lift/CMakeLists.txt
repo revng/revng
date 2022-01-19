@@ -17,6 +17,7 @@ target_link_libraries(revngLift
   PUBLIC
   dl
   m
+  revngABI
   revngBasicAnalyses
   revngDwarfImporter
   revngFunctionCallIdentification
