@@ -122,23 +122,6 @@ public:
     visitReferences([this](auto &Element) { Element.Root = Root.get(); });
   }
 
-private:
-  bool verifyReferences() const {
-    bool Result = true;
-
-    visitReferences([&Result, this](const auto &Element) {
-      const auto SameRoot = [&]() {
-        const auto GetPtrToConstRoot =
-          [](const auto &RootPointer) -> const T * { return RootPointer; };
-
-        return std::visit(GetPtrToConstRoot, Element.Root) == Root.get();
-      };
-      Result = Result and SameRoot();
-    });
-
-    return Result;
-  }
-
   template<typename L>
   void visitReferences(const L &InnerVisitor) {
     auto Visitor = [&InnerVisitor](auto &Element) {
@@ -159,5 +142,22 @@ private:
     };
 
     visitTupleTree(*Root, Visitor, [](auto) {});
+  }
+
+private:
+  bool verifyReferences() const {
+    bool Result = true;
+
+    visitReferences([&Result, this](const auto &Element) {
+      const auto SameRoot = [&]() {
+        const auto GetPtrToConstRoot =
+          [](const auto &RootPointer) -> const T * { return RootPointer; };
+
+        return std::visit(GetPtrToConstRoot, Element.Root) == Root.get();
+      };
+      Result = Result and SameRoot();
+    });
+
+    return Result;
   }
 };
