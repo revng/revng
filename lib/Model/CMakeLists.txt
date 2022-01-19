@@ -63,6 +63,7 @@ install(
 revng_add_analyses_library_internal(
   revngModel
   Binary.cpp
+  ConvertFunctionType.cpp
   LoadModelPass.cpp
   Processing.cpp
   SerializeModelPass.cpp
