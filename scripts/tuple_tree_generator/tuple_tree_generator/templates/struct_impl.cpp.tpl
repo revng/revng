@@ -14,9 +14,6 @@ The notice below applies to the generated files.
 #if __has_include("revng/Model//*= struct.name =*/.h")
 #include "revng/Model//*= struct.name =*/.h"
 #endif
-#if __has_include("revng/Model/Type//*= struct.name =*/.h")
-#include "revng/Model/Type//*= struct.name =*/.h"
-#endif
 
 using Key = /*= struct.user_fullname =*/::Key;
 
