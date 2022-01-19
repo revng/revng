@@ -16,11 +16,11 @@ bool init_unit_test();
 
 /// Ensures that TestClass can be YAML serialized and deserialized
 BOOST_AUTO_TEST_CASE(YAMLSerializationRoundTripTest) {
-  using namespace model;
+  using namespace ttgtest;
   TestClass ReferenceInstance;
   ReferenceInstance.RequiredField = 1;
   ReferenceInstance.OptionalField = 2;
-  ReferenceInstance.EnumField = model::TestEnum::MemberOne;
+  ReferenceInstance.EnumField = ttgtest::TestEnum::MemberOne;
   ReferenceInstance.SequenceField = { 1, 2, 3, 4, 5 };
   using RefType = TupleTreeReference<uint64_t, TestClass>;
   ReferenceInstance.ReferenceField = RefType::fromString(&ReferenceInstance,

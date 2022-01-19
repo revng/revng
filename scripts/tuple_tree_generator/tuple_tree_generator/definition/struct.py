@@ -137,7 +137,7 @@ class StructDefinition(Definition):
                 raise ValueError()
 
         # Register which headers we need
-        self.includes.add("../ForwardDecls.h")
+        self.includes.add("Generated/ForwardDecls.h")
         for dep in self.dependencies:
             dep_definition = generator.get_definition_for(dep)
             if dep_definition:

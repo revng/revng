@@ -16,6 +16,8 @@ function(tuple_tree_generator_cpp_from_headers
   NAMESPACE
   # Output directory
   OUTPUT_DIR
+  # Include path prefix
+  INCLUDE_PATH_PREFIX
   # Variable will be filled with the list of generated C++ headers
   GENERATED_HEADERS_VARIABLE
   # Variable will be filled with the list of generated C++ source files
@@ -39,6 +41,7 @@ function(tuple_tree_generator_cpp_from_headers
     "${COLLECTED_YAML_PATH}"
     "${NAMESPACE}"
     "${OUTPUT_DIR}"
+    "${INCLUDE_PATH_PREFIX}"
     "${LOCAL_GENERATED_HEADERS}"
     "${LOCAL_GENERATED_IMPLS}"
   )
@@ -117,6 +120,8 @@ function(tuple_tree_generator_generate_cpp
   NAMESPACE
   # Output directory
   OUTPUT_DIR
+  # Include path prefix
+  INCLUDE_PATH_PREFIX
   # List of headers that are expected to be generated
   EXPECTED_GENERATED_HEADERS
   # List of implementation files expected to be generated
@@ -126,6 +131,7 @@ function(tuple_tree_generator_generate_cpp
     COMMAND "${CMAKE_SOURCE_DIR}/scripts/tuple_tree_generator/main.py"
             --namespace "${NAMESPACE}"
             --cpp-headers
+            --include-path-prefix "${INCLUDE_PATH_PREFIX}"
             "${YAML_DEFINITIONS}"
             "${OUTPUT_DIR}"
     OUTPUT ${EXPECTED_GENERATED_HEADERS} ${EXPECTED_GENERATED_IMPLS}

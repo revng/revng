@@ -317,15 +317,17 @@ set(HEADERS
   "${SRC}/TupleTreeGenerator/TestClass.h"
   "${SRC}/TupleTreeGenerator/TestEnum.h"
 )
-set(INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/tests/unit/TupleTreeGenerator")
-set(OUTPUT_DIR "${INCLUDE_DIR}/Generated")
+set(INCLUDE_DIR "${CMAKE_SOURCE_DIR}/tests/unit/TupleTreeGenerator")
+set(GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/tests/unit/TupleTreeGenerator")
+set(OUTPUT_DIR "${GENERATED_INCLUDE_DIR}/Generated")
 
 tuple_tree_generator_cpp_from_headers(
   generate-test-tuple-tree-code
   "${HEADERS}"
   TUPLE-TREE-YAML
-  model
+  ttgtest
   "${OUTPUT_DIR}"
+  "."
   GENERATED_HEADERS
   GENERATED_IMPLS
 )
@@ -335,7 +337,7 @@ revng_add_private_executable(
   ${GENERATED_IMPLS}
 )
 target_compile_definitions(test_tuple_tree_generator PRIVATE "BOOST_TEST_DYN_LINK=1")
-target_include_directories(test_tuple_tree_generator PUBLIC "${INCLUDE_DIR}")
+target_include_directories(test_tuple_tree_generator PUBLIC "${GENERATED_INCLUDE_DIR}" "${INCLUDE_DIR}")
 target_link_libraries(
   test_tuple_tree_generator
   revngUnitTestHelpers

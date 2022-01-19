@@ -21,7 +21,7 @@ fields:
     type: uint64_t
     optional: true
   - name: EnumField
-    type: model::TestEnum::Values
+    type: ttgtest::TestEnum::Values
   - name: SequenceField
     sequence:
       type: SortedVector
@@ -29,16 +29,16 @@ fields:
   - name: ReferenceField
     reference:
       pointeeType: uint64_t
-      rootType: model::TestClass
+      rootType: ttgtest::TestClass
 key:
   - RequiredField
 TUPLE-TREE-YAML */
 
-namespace model {
-class TestClass : public model::generated::TestClass {
+namespace ttgtest {
+class TestClass : public ttgtest::generated::TestClass {
 public:
-  using model::generated::TestClass::TestClass;
+  using ttgtest::generated::TestClass::TestClass;
 };
-} // namespace model
+} // namespace ttgtest
 
 #include "Generated/Late/TestClass.h"
