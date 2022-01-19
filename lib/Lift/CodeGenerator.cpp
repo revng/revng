@@ -37,8 +37,8 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
+#include "revng/ABI/DefaultFunctionPrototype.h"
 #include "revng/DwarfImporter/DwarfImporter.h"
-#include "revng/EarlyFunctionAnalysis/ABI.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/FunctionCallIdentification/PruneRetSuccessors.h"
 #include "revng/Lift/CodeGenerator.h"
@@ -1242,11 +1242,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   }
 
   // Create a default prototype
-  auto GetDefaultPrototype = [&]<model::ABI::Values A>() {
-    return abi::ABI<A>::defaultPrototype(*Model.get());
-  };
-  auto DefaultTypePath = abi::polyswitch(Arch.defaultABI(),
-                                         GetDefaultPrototype);
+  auto DefaultTypePath = abi::defaultFunctionPrototype(*Model.get());
 
   // Record all dynamic imported functions and assign them a default prototype,
   // and record static functions as well, if they have a name.

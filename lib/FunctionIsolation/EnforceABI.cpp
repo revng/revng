@@ -17,12 +17,13 @@
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
+#include "revng/ABI/DefaultFunctionPrototype.h"
 #include "revng/ADT/LazySmallBitVector.h"
 #include "revng/ADT/SmallMap.h"
-#include "revng/EarlyFunctionAnalysis/ABI.h"
 #include "revng/FunctionIsolation/EnforceABI.h"
 #include "revng/FunctionIsolation/StructInitializers.h"
 #include "revng/Model/CallEdge.h"
+#include "revng/Model/ConvertFunctionType.h"
 #include "revng/Model/Register.h"
 #include "revng/Model/Type.h"
 #include "revng/Support/FunctionTags.h"
@@ -92,6 +93,30 @@ bool EnforceABI::runOnModule(Module &M) {
   return false;
 }
 
+static std::optional<model::RawFunctionType>
+makeRawPrototypeOrDefault(const model::Type *Type, model::Binary &TheBinary) {
+  const auto *Raw = llvm::dyn_cast<model::RawFunctionType>(Type);
+  if (Raw != nullptr)
+    return *Raw;
+
+  const auto *CABI = llvm::dyn_cast<model::CABIFunctionType>(Type);
+  revng_assert(CABI != nullptr,
+               "The type of a prototype must either be "
+               "`RawFunctionType` or `CABIFunctionType`.");
+
+  auto Converted = model::convertToRawFunctionType(*CABI, TheBinary);
+  if (Converted != std::nullopt)
+    return Converted.value();
+
+  // Can't do anything with the provided function, fallback onto the default
+  // prototype.
+  auto Default = abi::defaultFunctionPrototype(TheBinary, CABI->ABI);
+  revng_assert(Default.isValid());
+
+  auto *Result = llvm::dyn_cast<model::RawFunctionType>(Default.get());
+  return *Result;
+}
+
 void EnforceABIImpl::run() {
   // Declare an opaque function used later to obtain a value to store in the
   // local %pc alloca, so that we don't incur in error when removing the bad
@@ -123,8 +148,9 @@ void EnforceABIImpl::run() {
     const auto *Type = FunctionModel.Prototype.get();
     revng_assert(Type != nullptr);
 
-    auto Prototype = abi::getRawFunctionTypeOrDefault(Binary, Type);
-    Function *NewFunction = recreateFunction(*OldFunction, Prototype);
+    auto MaybePrototype = makeRawPrototypeOrDefault(Type, Binary);
+    revng_assert(MaybePrototype != std::nullopt);
+    Function *NewFunction = recreateFunction(*OldFunction, *MaybePrototype);
     FunctionTags::DynamicFunction.addTo(NewFunction);
 
     // EnforceABI currently does not support execution
@@ -378,15 +404,15 @@ CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   llvm::SmallVector<GlobalVariable *, 8> ReturnCSVs;
 
   model::TypePath PrototypePath = getPrototype(Binary, CallSite);
-  const auto &Prototype = abi::getRawFunctionTypeOrDefault(Binary,
-                                                           PrototypePath.get());
+  auto MaybePrototype = makeRawPrototypeOrDefault(PrototypePath.get(), Binary);
+  revng_assert(MaybePrototype != std::nullopt);
 
   bool IsIndirect = (Callee.getCallee() == FunctionDispatcher);
   if (IsIndirect) {
     // Create a new `indirect_placeholder` function with the specific function
     // type we need
     Value *PC = GCBI.programCounterHandler()->loadJumpablePC(Builder);
-    auto *NewType = toLLVMType(&M, Prototype);
+    auto *NewType = toLLVMType(&M, *MaybePrototype);
     Callee = toFunctionPointer(Builder, PC, NewType);
   } else {
     BasicBlock *InsertBlock = Builder.GetInsertPoint()->getParent();
@@ -398,13 +424,13 @@ CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   //
   // Collect arguments and returns
   //
-  for (const NamedTypedRegister &TR : Prototype.Arguments) {
+  for (const NamedTypedRegister &TR : MaybePrototype->Arguments) {
     auto Name = ABIRegister::toCSVName(TR.Location);
     GlobalVariable *CSV = M.getGlobalVariable(Name, true);
     Arguments.push_back(Builder.CreateLoad(CSV));
   }
 
-  for (const TypedRegister &TR : Prototype.ReturnValues) {
+  for (const TypedRegister &TR : MaybePrototype->ReturnValues) {
     auto Name = ABIRegister::toCSVName(TR.Location);
     GlobalVariable *CSV = M.getGlobalVariable(Name, true);
     ReturnCSVs.push_back(CSV);
