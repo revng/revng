@@ -26,6 +26,39 @@
 
 namespace pipeline {
 
+template<typename T>
+concept IsContext = std::is_convertible_v<T, Context &>;
+
+template<typename T>
+concept IsConstContext = std::is_convertible_v<T, const Context &>;
+
+template<typename T>
+concept IsContainer = std::is_base_of_v<ContainerBase, std::decay_t<T>>;
+
+template<typename T>
+concept HasName = requires() {
+  { T::Name } -> convertible_to<const char *>;
+};
+
+template<typename T>
+concept HasContract = requires(T a) {
+  { llvm::ArrayRef<ContractGroup>(a.getContract()) };
+};
+
+/// A Pipe is a class with the following characteristics:
+///
+/// * It must have a static constexpr field named Name that is a string
+///   describing its name. Mostly used for debug purposes.
+/// * A std::array<ContractGroup, X> getContract() const method that returns
+///   the contract of such class.
+/// * a void run(T...) method where the first argument must be a Context and
+///   every other type must be the most derived type of a Container.
+///   The operation performed by run MUST be consisted with the contract.
+template<typename PipeType, typename FirstRunArg, typename... Rest>
+concept Pipe =
+  HasName<PipeType> and HasContract<PipeType> and(IsContainer<Rest> and...)
+  and (IsContext<FirstRunArg> || IsConstContext<FirstRunArg>);
+
 namespace detail {
 using StringArrayRef = llvm::ArrayRef<std::string>;
 
@@ -84,34 +117,6 @@ void invokePipeFunction(Context &Ctx,
   revng_assert(sizeof...(Args) == ArgsNames.size());
   invokeImpl(Ctx, Pipe, F, Containers, ArgsNames, Indexes);
 }
-
-template<typename T>
-concept IsContext = std::is_convertible_v<T, Context &>;
-
-template<typename T>
-concept IsConstContext = std::is_convertible_v<T, const Context &>;
-
-template<typename T>
-concept IsContainer = std::is_base_of_v<ContainerBase, std::decay_t<T>>;
-
-template<typename T>
-concept HasNameAndContract = requires(T a) {
-  { T::Name } -> convertible_to<const char *>;
-  { llvm::ArrayRef<ContractGroup>(a.getContract()) };
-};
-
-/// A Pipe is a class with the following characteristics:
-///
-/// * It must have a static constexpr field named Name that is a string
-///   describing its name. Mostly used for debug purposes.
-/// * A std::array<ContractGroup, X> getContract() const method that returns
-///   the contract of such class.
-/// * a void run(T...) method where the first argument must be a Context and
-///   every other type must be the most derived type of a Container.
-///   The operation performed by run MUST be consisted with the contract.
-template<typename PipeType, typename FirstRunArg, typename... Rest>
-concept Pipe = HasNameAndContract<PipeType> and(IsContainer<Rest> and...)
-               and (IsContext<FirstRunArg> || IsConstContext<FirstRunArg>);
 
 template<typename C, typename First, typename... Rest>
 constexpr bool

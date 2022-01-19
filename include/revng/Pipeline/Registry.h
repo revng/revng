@@ -11,6 +11,7 @@
 #include "llvm/ADT/StringRef.h"
 
 #include "revng/Pipeline/Loader.h"
+#include "revng/Pipeline/Pipe.h"
 
 namespace pipeline {
 
@@ -96,6 +97,10 @@ public:
   RegisterPipe(llvm::StringRef Name, Args &&...Arguments) :
     Name(Name), Pipe(std::forward<Args>(Arguments)...) {}
 
+  template<typename... Args>
+  RegisterPipe(Args &&...Arguments) requires HasName<PipeT>
+    : Name(PipeT::Name), Pipe(std::forward<Args>(Arguments)...) {}
+
   ~RegisterPipe() override = default;
 
 public:
@@ -116,6 +121,7 @@ private:
 
 public:
   RegisterLLVMPass(llvm::StringRef Name) : Name(Name) {}
+  RegisterLLVMPass() : Name(LLVMPass::Name) {}
 
   ~RegisterLLVMPass() override = default;
 
@@ -161,6 +167,8 @@ private:
 public:
   explicit RegisterDefaultConstructibleContainer(llvm::StringRef Name) :
     Name(Name) {}
+
+  explicit RegisterDefaultConstructibleContainer() : Name(ContainerT::Name) {}
 
   ~RegisterDefaultConstructibleContainer() override = default;
 

@@ -109,7 +109,7 @@ public:
   void setKind(const Kind &NewKind) { K = &NewKind; }
   void setExactness(Exactness::Values NewExactness) { Exact = NewExactness; }
 
-  void addPathComponent() { Components.emplace_back(); }
+  void addPathComponent() { Components.emplace_back(PathComponent::all()); }
   void dropPathComponent() { Components.pop_back(); }
 
 public:

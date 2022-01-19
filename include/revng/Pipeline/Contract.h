@@ -199,6 +199,14 @@ public:
   ContractGroup(const Kind &Target, size_t PipeArgumentTargetIndex = 0) :
     Content({ Contract(Target, PipeArgumentTargetIndex) }) {}
 
+  static ContractGroup
+  transformOnlyArgument(const Kind &Source,
+                        Exactness::Values Exact,
+                        const Kind &Target,
+                        InputPreservation::Values Preservation) {
+    return ContractGroup(Source, Exact, 0, Target, 0, Preservation);
+  }
+
 public:
   [[nodiscard]] ContainerToTargetsMap
   deduceRequirements(const ContainerToTargetsMap &StepStatus,
