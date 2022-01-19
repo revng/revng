@@ -8,6 +8,7 @@ enable_testing()
 include(${CMAKE_SOURCE_DIR}/tests/unit/UnitTests.cmake)
 include(${CMAKE_SOURCE_DIR}/tests/analysis/AnalysisTests.cmake)
 include(${CMAKE_SOURCE_DIR}/tests/runtime/RuntimeTests.cmake)
+include(${CMAKE_SOURCE_DIR}/tests/abi/ABITests.cmake)
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/tests/tools/pipeline)
 
