@@ -674,23 +674,17 @@ finalizeModel(GeneratedCodeBasicInfo &GCBI,
   revng_check(Binary.verify(true));
 }
 
-static void
-combineCrossCallSites(MetaAddress EntryPC, FunctionSummary &Summary) {
+static void combineCrossCallSites(auto &CallSite, auto &Callee) {
   using namespace ABIAnalyses;
-  using RegState = abi::RegisterState::Values;
+  using RegisterState = abi::RegisterState::Values;
 
-  for (auto &[PC, CallSites] : Summary.ABIResults.CallSites) {
-    if (PC == EntryPC) {
-      for (auto &[FuncArg, CSArg] :
-           zipmap_range(Summary.ABIResults.ArgumentsRegisters,
-                        CallSites.ArgumentsRegisters)) {
-        auto *CSV = FuncArg == nullptr ? CSArg->first : FuncArg->first;
-        auto RSFArg = FuncArg == nullptr ? RegState::Maybe : FuncArg->second;
-        auto RSCSArg = CSArg == nullptr ? RegState::Maybe : CSArg->second;
+  for (auto &[FuncArg, CSArg] :
+       zipmap_range(Callee.ArgumentsRegisters, CallSite.ArgumentsRegisters)) {
+    auto *CSV = FuncArg == nullptr ? CSArg->first : FuncArg->first;
+    auto RSFArg = FuncArg == nullptr ? RegisterState::Maybe : FuncArg->second;
+    auto RSCSArg = CSArg == nullptr ? RegisterState::Maybe : CSArg->second;
 
-        Summary.ABIResults.ArgumentsRegisters[CSV] = combine(RSFArg, RSCSArg);
-      }
-    }
+    Callee.ArgumentsRegisters[CSV] = combine(RSFArg, RSCSArg);
   }
 }
 
@@ -698,12 +692,11 @@ combineCrossCallSites(MetaAddress EntryPC, FunctionSummary &Summary) {
 static void
 interproceduralPropagation(FunctionAnalysisResults &Properties,
                            SortedVector<model::Function> &Functions) {
-  for (auto &J : Functions) {
-    auto CurrentEntryPC = J.Entry;
-    for (auto &K : Functions) {
-      auto &Summary = Properties.at(K.Entry);
-
-      combineCrossCallSites(CurrentEntryPC, Summary);
+  for (model::Function &Function : Functions) {
+    auto &Summary = Properties.at(Function.Entry);
+    for (auto &[PC, CallSite] : Summary.ABIResults.CallSites) {
+      if (PC == Function.Entry)
+        combineCrossCallSites(CallSite, Summary.ABIResults);
     }
   }
 }
