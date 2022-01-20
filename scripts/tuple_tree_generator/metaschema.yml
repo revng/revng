@@ -6,24 +6,18 @@
 "$ref": "#/definitions/Schema"
 definitions:
   Schema:
-    additionalProperties: false
-    properties:
-      types:
-        type: array
-        items:
-          "$ref": "#/definitions/Type"
-    required:
-      - types
+    type: array
+    additionalItems: false
+    items:
+      oneOf:
+        - "$ref": "#/definitions/Enum"
+        - "$ref": "#/definitions/Struct"
     title: Schema
-
-  Type:
-    oneOf:
-      - "$ref": "#/definitions/Enum"
-      - "$ref": "#/definitions/Struct"
-      - "$ref": "#/definitions/Custom"
 
   # Enums
   Enum:
+    type: object
+    additionalProperties: false
     properties:
       name:
         type: string
@@ -33,16 +27,17 @@ definitions:
         const: "enum"
       members:
         type: array
+        additionalItems: false
         items:
           "$ref": "#/definitions/EnumMember"
-    additionalProperties: false
     required:
       - name
       - type
       - members
-    type: object
 
   EnumMember:
+    type: object
+    additionalProperties: false
     properties:
       name:
         type: string
@@ -50,10 +45,11 @@ definitions:
         type: string
     required:
       - name
-    additionalProperties: false
 
   # Structs
   Struct:
+    type: object
+    additionalProperties: false
     properties:
       name:
         type: string
@@ -70,6 +66,7 @@ definitions:
         default: true
       fields:
         type: array
+        additionalItems: false
         items:
           "$ref": "#/definitions/StructField"
       key:
@@ -83,27 +80,109 @@ definitions:
       - tag
       - fields
       - key
-    additionalProperties: false
     required:
       - name
       - type
       - fields
-    type: object
 
   StructField:
+    type: object
+    # additionalProperties: false
+    oneOf:
+      - "$ref": "#/definitions/SimpleStructField"
+      - "$ref": "#/definitions/SequenceStructField"
+      - "$ref": "#/definitions/ReferenceStructField"
+
+  SimpleStructField:
+    type: object
+    additionalProperties: false
     properties:
       name:
         type: string
+      type:
+        type: string
       doc:
         type: string
-      type:
+      optional:
+        type: boolean
+        default: false
+      const:
+        type: boolean
+        default: false
+      is_guid:
+        type: boolean
+        default: false
+    required:
+      - name
+      - type
+
+  SequenceStructField:
+    type: object
+    additionalProperties: false
+    properties:
+      name:
+        type: string
+      sequence:
+        type: object
+        additionalProperties: false
+        properties:
+          type:
+            type: string
+          elementType:
+            type: string
+          upcastable:
+            type: boolean
+            default: false
+        required:
+          - type
+          - elementType
+      optional:
+        type: boolean
+        default: false
+      const:
+        type: boolean
+        default: false
+      doc:
         type: string
     required:
       - name
+      - sequence
+
+
+  ReferenceStructField:
+    type: object
     additionalProperties: false
+    properties:
+      name:
+        type: string
+      reference:
+        type: object
+        additionalProperties: false
+        properties:
+          pointeeType:
+            type: string
+          rootType:
+            type: string
+          upcastable:
+            type: boolean
+            default: false
+        required:
+          - pointeeType
+          - rootType
+      optional:
+        type: boolean
+        default: false
+      const:
+        type: boolean
+        default: false
+      doc:
+        type: string
+    required:
+      - name
+      - reference
 
   StructKey:
     type: array
+    additionalItems: false
     items:
       type: string
-    additionalItems: false
