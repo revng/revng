@@ -131,7 +131,7 @@ public:
     ContainerEnumerator<Container>(*static_cast<Kind *>(this)) {}
 
   KindForContainer(llvm::StringRef Name, Kind &Parent) :
-    Kind(Name, Parent, &Parent.granularity()),
+    Kind(Name, Parent, &Parent.rank()),
     ContainerEnumerator<Container>(*static_cast<Kind *>(this)) {}
 
   KindForContainer(llvm::StringRef Name, Kind &Parent, Rank *Rank) :

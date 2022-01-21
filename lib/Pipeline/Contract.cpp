@@ -141,14 +141,14 @@ Exactness::Values Contract::backwardInputContract(const Target &O) const {
 }
 
 void Contract::forwardRank(Target &Input) const {
-  const auto *InputRank = &Source->granularity();
-  const auto *OutputRank = TargetKind != nullptr ? &TargetKind->granularity() :
+  const auto *InputRank = &Source->rank();
+  const auto *OutputRank = TargetKind != nullptr ? &TargetKind->rank() :
                                                    InputRank;
   if (InputRank == OutputRank)
     return;
 
   // if the output is at a greater level of depth of the hierarchy
-  // than the input, for each level of difference add a granularity to the
+  // than the input, for each level of difference add a rank to the
   // target.
   //
   if (InputRank->ancestorOf(*OutputRank)) {
@@ -160,10 +160,10 @@ void Contract::forwardRank(Target &Input) const {
   }
 
   // If the output is less fined grained than the input drop levels of
-  // granularity until they have the same.
+  // rank until they have the same.
   if (OutputRank->ancestorOf(*InputRank)) {
     while (OutputRank != InputRank) {
-      // if you are decreasing the granularity, you must have at your disposal
+      // if you are decreasing the rank, you must have at your disposal
       // all symbols.
       revng_assert(Input.getPathComponents().back().isAll());
       Input.dropPathComponent();
@@ -176,8 +176,8 @@ void Contract::forwardRank(Target &Input) const {
 }
 
 void Contract::backwardRank(Target &Out) const {
-  const auto *InputRank = &Source->granularity();
-  const auto *OutputRank = TargetKind != nullptr ? &TargetKind->granularity() :
+  const auto *InputRank = &Source->rank();
+  const auto *OutputRank = TargetKind != nullptr ? &TargetKind->rank() :
                                                    InputRank;
   if (InputRank == OutputRank)
     return;
@@ -192,7 +192,7 @@ void Contract::backwardRank(Target &Out) const {
 
   if (InputRank->ancestorOf(*OutputRank)) {
     while (InputRank != OutputRank) {
-      // if you are decreasing the granularity, you must have at your disposal
+      // if you are decreasing the rank, you must have at your disposal
       // all symbols.
       Out.dropPathComponent();
       OutputRank = OutputRank->parent();

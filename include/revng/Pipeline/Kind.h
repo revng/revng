@@ -14,7 +14,7 @@ namespace pipeline {
 class Target;
 class Context;
 
-/// The granularity tree is a tree used by targets to find out how many names
+/// The rank tree is a tree used by targets to find out how many names
 /// are required to name a target
 class Rank : public DynamicHierarchy<Rank> {
 public:
@@ -31,7 +31,7 @@ class TargetsList;
 /// As an example, the Kind of Isolated Functions, the Kind of translated
 /// binaries.
 ///
-/// A kind refers to a granularity which is used by Targets, furthermore a Kind
+/// A kind refers to a rank which is used by Targets, furthermore a Kind
 /// can optionally have a Parent Kind. Again this is used mostly by targets.
 ///
 /// If you wish to declare a kind to be used in a llvm container, declare a
@@ -53,7 +53,7 @@ public:
 public:
   size_t depth() const { return TheRank->depth(); }
 
-  const Rank &granularity() const { return *TheRank; }
+  const Rank &rank() const { return *TheRank; }
 
 public:
   virtual ~Kind() = default;

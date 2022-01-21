@@ -675,11 +675,12 @@ BOOST_AUTO_TEST_CASE(SingleElementLLVMPipelineBackwardFinedGrained) {
   Pipeline.addContainerFactory(CName, makeDefaultLLVMContainerFactory(Ctx, C));
 
   const std::string Name = "first_step";
-  Pipeline.emplaceStep("",
-                       Name,
-                       wrapLLVMPasses(CName,
-                                      LLVMPassFunctionCreator(),
-                                      LLVMPassFunctionIdentity()));
+  Pipeline
+    .emplaceStep("",
+                 Name,
+                 LLVMContainer::wrapLLVMPasses(CName,
+                                               LLVMPassFunctionCreator(),
+                                               LLVMPassFunctionIdentity()));
   Pipeline.emplaceStep(Name, "End");
 
   auto &C1(Pipeline[Name].containers().getOrCreate<LLVMContainer>(CName));
@@ -706,14 +707,13 @@ BOOST_AUTO_TEST_CASE(LLVMPurePipe) {
   Runner Pipeline(Ctx);
   Pipeline.addContainerFactory(CName, makeDefaultLLVMContainerFactory(Ctx, C));
 
-  auto MaybePureLLVMPipe = PureLLVMPipe::create({ "IdentityPass" });
-  BOOST_TEST((!!MaybePureLLVMPipe));
-
   const std::string Name = "first_step";
+  PureLLVMPassWrapper IdentityPass("IdentityPass");
   Pipeline.emplaceStep("",
                        Name,
-                       wrapLLVMPasses(CName, LLVMPassFunctionCreator()),
-                       bindPipe(move(*MaybePureLLVMPipe), CName));
+                       LLVMContainer::wrapLLVMPasses(CName,
+                                                     LLVMPassFunctionCreator(),
+                                                     IdentityPass));
   Pipeline.emplaceStep(Name, "End");
 
   auto &C1 = Pipeline[Name].containers().getOrCreate<LLVMContainer>(CName);
@@ -745,8 +745,10 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineForwardFinedGrained) {
   auto &C1 = Pipeline[Name].containers().getOrCreate<MapContainer>(CName);
   C1.get({ "Root", RootKind }) = 1;
   auto &C2 = Pipeline["End"].containers().getOrCreate<MapContainer>(CName);
-  auto All = PathComponent::all();
-  C2.get(Target({ PathComponent("Root"), All }, FunctionKind)) = 1;
+
+  const auto T = Target({ PathComponent("Root"), PathComponent::all() },
+                        FunctionKind);
+  C2.get(T) = 1;
 
   llvm::StringMap<ContainerToTargetsMap> Invalidations;
   Invalidations[Name].add(CName, { "Root" }, RootKind);
@@ -774,8 +776,10 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineInvalidation) {
   auto &C1 = Pipeline[Name].containers().getOrCreate<MapContainer>(CName);
   C1.get(Target({ "Root" }, RootKind)) = 1;
   auto &C2 = Pipeline["End"].containers().getOrCreate<MapContainer>(CName);
-  auto All = PathComponent::all();
-  C2.get(Target({ PathComponent("Root"), All }, FunctionKind)) = 1;
+
+  const auto T = Target({ PathComponent("Root"), PathComponent::all() },
+                        FunctionKind);
+  C2.get(T) = 1;
 
   Target ToKill({ "Root" }, RootKind);
 

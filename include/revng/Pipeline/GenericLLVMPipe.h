@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "llvm/IR/LegacyPassManager.h"
+#include "llvm/PassRegistry.h"
 
 #include "revng/Pipeline/ContainerFactorySet.h"
 #include "revng/Pipeline/Contract.h"
@@ -34,6 +35,43 @@ template<typename T>
 concept LLVMPass = requires(T a) {
   { T::Name } -> convertible_to<const char *>;
   { a.registerPasses(std::declval<llvm::legacy::PassManager &>()) };
+};
+
+class PureLLVMPassWrapper : public LLVMPassWrapperBase {
+private:
+  std::string PassName;
+
+public:
+  PureLLVMPassWrapper(llvm::StringRef PassName) : PassName(PassName.str()) {}
+
+  static bool passExists(llvm::StringRef PassName) {
+    return llvm::PassRegistry::getPassRegistry()->getPassInfo(PassName);
+  }
+
+  static llvm::Expected<std::unique_ptr<PureLLVMPassWrapper>>
+  create(llvm::StringRef PassName) {
+    if (not passExists(PassName))
+      return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                     "Could not load llvm pass %s ",
+                                     PassName.str().c_str());
+
+    return std::make_unique<PureLLVMPassWrapper>(PassName);
+  }
+
+  ~PureLLVMPassWrapper() override = default;
+
+  void registerPasses(llvm::legacy::PassManager &Manager) override {
+    auto *Registry = llvm::PassRegistry::getPassRegistry();
+    Manager.add(Registry->getPassInfo(PassName)->createPass());
+  }
+
+  const std::vector<ContractGroup> &getContract() const override {
+    static const std::vector<ContractGroup> Empty{};
+    return Empty;
+  }
+  std::unique_ptr<LLVMPassWrapperBase> clone() const override;
+
+  llvm::StringRef getName() const override { return PassName; }
 };
 
 /// LLVM pipes are pipes composed of any number of llvm passes
@@ -89,9 +127,9 @@ private:
 
 public:
   static constexpr auto Name = "GenericLLVMPipe";
-  template<LLVMPass... T>
+  template<typename... T>
   explicit GenericLLVMPipe(T... Pass) {
-    (addPass<T>(std::move(Pass)), ...);
+    (addPass(std::move(Pass)), ...);
   }
 
   GenericLLVMPipe &operator=(const GenericLLVMPipe &Other) {
@@ -129,6 +167,10 @@ public:
     for (const auto &Element : Passes)
       Element->registerPasses(Manager);
     Manager.run(Container.getModule());
+  }
+
+  void addPass(const PureLLVMPassWrapper &Pass) {
+    Passes.emplace_back(Pass.clone());
   }
 
   template<LLVMPass T>
