@@ -4,7 +4,7 @@
 
 import graphlib
 from collections import defaultdict
-from typing import Dict, Iterable
+from typing import Dict, Iterable, Optional
 
 from .generator import Generator
 from .jinja_utils import environment
@@ -19,6 +19,18 @@ class_forward_decls_template = environment.get_template("class_forward_decls.h.t
 
 
 class CppHeadersGenerator(Generator):
+    def __init__(self, schema, base_namespace: str, user_include_path: Optional[str] = None):
+        super().__init__(schema, base_namespace)
+
+        if not user_include_path:
+            user_include_path = ""
+        elif not user_include_path.endswith("/"):
+            user_include_path = user_include_path + "/"
+
+        # Path where user-provided headers are assumed to be located
+        # Prepended to include statements (e.g. #include "<user_include_path>/Class.h")
+        self.user_include_path = user_include_path
+
     def emit(self) -> Dict[str, str]:
         sources = {
             "ForwardDecls.h": emit_forward_decls(self.struct_definitions()),
@@ -57,7 +69,7 @@ class CppHeadersGenerator(Generator):
 
     def _emit_early_struct(self, definition: StructDefinition):
         upcastable_types = self._get_upcastable_types(definition)
-        return struct_template.render(struct=definition, upcastable=upcastable_types)
+        return struct_template.render(struct=definition, upcastable=upcastable_types, generator=self)
 
     def _emit_late_type_definitions(self):
         definitions = {}
@@ -98,7 +110,7 @@ class CppHeadersGenerator(Generator):
 
     def _emit_impl_struct(self, definition: StructDefinition):
         upcastable_types = self._get_upcastable_types(definition)
-        return struct_impl_template.render(struct=definition, upcastable=upcastable_types)
+        return struct_impl_template.render(struct=definition, upcastable=upcastable_types, generator=self)
 
 
 def emit_forward_decls(definitions: Iterable[StructDefinition]):

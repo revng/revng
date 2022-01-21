@@ -12,11 +12,9 @@ The notice below applies to the generated files.
 
 #include <compare>
 
-#include "revng/Model/Generated/ForwardDecls.h"
-
 /**- for header in struct.includes **/
-#include "/*= header =*/"
-/** endfor **/
+#include "/*= generator.user_include_path =*//*= header =*/"
+/**- endfor **/
 
 /*= struct.doc | docstring -=*/
 struct /*= struct.fullname =*/

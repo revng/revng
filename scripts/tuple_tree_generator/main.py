@@ -17,6 +17,7 @@ argparser.add_argument("output_dir", help="Output to this directory")
 argparser.add_argument("--namespace", required=True, help="Base namespace for generated types")
 output_format_group = argparser.add_mutually_exclusive_group(required=True)
 output_format_group.add_argument("--cpp-headers", action="store_true", help="Emit C++ headers")
+argparser.add_argument("--include-path-prefix", help="Prefixed to include paths. Only allowed with --cpp-headers")
 
 
 def is_clang_format_available():
@@ -39,7 +40,10 @@ def main(args):
         schema = yaml.safe_load(f)
 
     if args.cpp_headers:
-        generator = CppHeadersGenerator(schema, args.namespace)
+        if args.include_path_prefix is None:
+            raise argparse.ArgumentError("You must provide --include-path-prefix when using --cpp-headers")
+
+        generator = CppHeadersGenerator(schema, args.namespace, user_include_path=args.include_path_prefix)
         sources = generator.emit()
 
         if is_clang_format_available():

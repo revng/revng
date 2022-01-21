@@ -49,6 +49,7 @@ tuple_tree_generator_cpp_from_headers(
   TUPLE-TREE-YAML
   model
   "${OUTPUT_DIR}"
+  "revng/Model"
   GENERATED_HEADERS
   GENERATED_IMPLS
 )

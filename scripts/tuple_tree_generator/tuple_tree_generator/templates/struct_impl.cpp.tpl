@@ -8,15 +8,10 @@ The notice below applies to the generated files.
 
 /** if upcastable **/
 /**- for child_type in upcastable|sort(attribute="user_fullname") **/
-#include "revng/Model//*= child_type.name =*/.h"
-/** endfor **/
+#include "/*= generator.user_include_path =*//*= child_type.filename =*/"
+/**- endfor **/
 
-#if __has_include("revng/Model//*= struct.name =*/.h")
-#include "revng/Model//*= struct.name =*/.h"
-#endif
-#if __has_include("revng/Model/Type//*= struct.name =*/.h")
-#include "revng/Model/Type//*= struct.name =*/.h"
-#endif
+#include "/*= generator.user_include_path =*//*= struct.filename =*/"
 
 using Key = /*= struct.user_fullname =*/::Key;
 
