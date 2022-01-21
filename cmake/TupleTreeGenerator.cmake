@@ -127,14 +127,34 @@ function(tuple_tree_generator_generate_cpp
   # List of implementation files expected to be generated
   EXPECTED_GENERATED_IMPLS
 )
+  set(SCRIPTS_ROOT_DIR "${CMAKE_SOURCE_DIR}/scripts/tuple_tree_generator")
+
+  # The list of Python scripts is build as follows:
+  #
+  # find scripts/tuple_tree_generator -name "*.py" | sort | sed 's|scripts/tuple_tree_generator|"\${SCRIPTS_ROOT_DIR}|; s/$/"/
+  #
+  # TODO: detect and warn about extra files in those directories
   add_custom_command(
-    COMMAND "${CMAKE_SOURCE_DIR}/scripts/tuple_tree_generator/main.py"
+    COMMAND "${SCRIPTS_ROOT_DIR}/main.py"
             --namespace "${NAMESPACE}"
             --cpp-headers
             --include-path-prefix "${INCLUDE_PATH_PREFIX}"
             "${YAML_DEFINITIONS}"
             "${OUTPUT_DIR}"
     OUTPUT ${EXPECTED_GENERATED_HEADERS} ${EXPECTED_GENERATED_IMPLS}
-    DEPENDS "${YAML_DEFINITIONS}" ${TEMPLATES}
+    DEPENDS
+      "${YAML_DEFINITIONS}"
+      ${TEMPLATES}
+      "${SCRIPTS_ROOT_DIR}/extract_yaml.py"
+      "${SCRIPTS_ROOT_DIR}/main.py"
+      "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/__init__.py"
+      "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/definition/__init__.py"
+      "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/definition/definition.py"
+      "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/definition/enum.py"
+      "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/definition/struct.py"
+      "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/__init__.py"
+      "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/cppheaders.py"
+      "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/generator.py"
+      "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/jinja_utils.py"
   )
 endfunction()
