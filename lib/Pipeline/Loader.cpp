@@ -33,6 +33,16 @@ llvm::Error Loader::parseStepDeclaration(Runner &Runner,
   return Error::success();
 }
 
+llvm::Expected<std::unique_ptr<LLVMPassWrapperBase>>
+Loader::loadPassFromName(llvm::StringRef Name) const {
+
+  auto It = KnownLLVMPipeTypes.find(Name);
+  if (It != KnownLLVMPipeTypes.end())
+    return It->second();
+
+  return PureLLVMPassWrapper::create(Name);
+}
+
 llvm::Error
 Loader::parseLLVMPass(Step &Step, const PipeInvocation &Invocation) const {
 
@@ -45,28 +55,13 @@ Loader::parseLLVMPass(Step &Step, const PipeInvocation &Invocation) const {
   }
 
   for (const auto &PassName : Invocation.Passes) {
-    auto It = KnownLLVMPipeTypes.find(PassName);
-    if (It == KnownLLVMPipeTypes.end())
-      return createStringError(inconvertibleErrorCode(),
-                               "No known LLVM pass with provided name");
-
-    auto &Entry = It->second;
-    ToInsert.addPass(Entry());
+    auto MaybePass = loadPassFromName(PassName);
+    if (not MaybePass)
+      return MaybePass.takeError();
+    ToInsert.addPass(std::move(*MaybePass));
   }
+
   auto Wrapper = PipeWrapper(move(ToInsert), Invocation.UsedContainers);
-  Step.addPipe(move(Wrapper));
-
-  return Error::success();
-}
-
-llvm::Error
-Loader::parsePureLLVMPass(Step &Step, const PipeInvocation &Invocation) const {
-
-  auto MaybePipe = PureLLVMPipe::create(Invocation.Passes);
-  if (!MaybePipe)
-    return MaybePipe.takeError();
-
-  auto Wrapper = PipeWrapper(move(*MaybePipe), Invocation.UsedContainers);
   Step.addPipe(move(Wrapper));
 
   return Error::success();
@@ -77,12 +72,9 @@ Loader::parseInvocation(Step &Step, const PipeInvocation &Invocation) const {
   if (Invocation.Name == "LLVMPipe")
     return parseLLVMPass(Step, Invocation);
 
-  if (Invocation.Name == "PureLLVMPipe")
-    return parsePureLLVMPass(Step, Invocation);
-
   auto It = KnownPipesTypes.find(Invocation.Name);
   if (It == KnownPipesTypes.end()) {
-    auto *Message = "while parsing inforcer invocation: No known Pipe with "
+    auto *Message = "while parsing pipe invocation: No known Pipe with "
                     "name %s ";
     return createStringError(inconvertibleErrorCode(),
                              Message,

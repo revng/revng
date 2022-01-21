@@ -10,7 +10,6 @@ revng_add_library_internal(revngPipeline SHARED
   GenericLLVMPipe.cpp
   Kind.cpp
   LLVMContainer.cpp
-  LLVMKind.cpp
   Loader.cpp
   Runner.cpp
   Step.cpp
