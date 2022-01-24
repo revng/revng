@@ -6,27 +6,24 @@
 file(STRINGS "requirements.txt"
     REQUIREMENTS
     REGEX "^[^#].+$"
-    )
+)
+
+execute_process(
+    COMMAND pip3 list
+    RESULT_VARIABLE RETURNCODE
+    OUTPUT_VARIABLE PYTHON_PACKAGES
+    ERROR_FILE "/dev/null"
+)
 
 foreach(REQUIREMENT ${REQUIREMENTS})
-  execute_process(
-      COMMAND pip3 show "${REQUIREMENT}"
-      RESULT_VARIABLE RETURNCODE
-      OUTPUT_FILE "/dev/null"
-      ERROR_FILE "/dev/null"
-  )
-  if(NOT "${RETURNCODE}" EQUAL 0)
-    message(FATAL_ERROR "Python requirement ${REQUIREMENT} missing")
+  string(REGEX MATCH "\n${REQUIREMENT} " RESULT "\n${PYTHON_PACKAGES}")
+  if("${RESULT}" STREQUAL "")
+    message(FATAL_ERROR "Python requirement missing: ${REQUIREMENT}")
   endif()
 endforeach()
 
 # Check pyparsing version
-execute_process(
-    COMMAND bash -c "pip3 show pyparsing | grep 'Version: 2.4.7'"
-    RESULT_VARIABLE RETURNCODE
-    OUTPUT_FILE "/dev/null"
-    ERROR_FILE "/dev/null"
-)
-if(NOT "${RETURNCODE}" EQUAL 0)
+string(REGEX MATCH "\npyparsing *2.4.7\n" RESULT "\n${PYTHON_PACKAGES}\n")
+if("${RESULT}" STREQUAL "")
   message(FATAL_ERROR "pyparsing version 2.4.7 required. 3.x versions are known to cause build issues")
 endif()
