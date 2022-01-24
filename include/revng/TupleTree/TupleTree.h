@@ -45,7 +45,7 @@ public:
   TupleTree &operator=(TupleTree &&Other) = default;
 
   // Explicit cloning
-  TupleTree clone(const TupleTree &Other) const {
+  TupleTree clone() const {
     TupleTree Result;
 
     // Copy the root
