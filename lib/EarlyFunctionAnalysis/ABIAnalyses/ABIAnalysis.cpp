@@ -10,8 +10,8 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "revng/ABIAnalyses/Common.h"
 #include "revng/ADT/ZipMapIterator.h"
+#include "revng/EarlyFunctionAnalysis/Common.h"
 #include "revng/Model/Binary.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
