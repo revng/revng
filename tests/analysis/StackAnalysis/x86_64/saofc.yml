@@ -1,8 +1,8 @@
 ---
 Functions:
-- CustomName: saofc
+- OriginalName: saofc
   Prototype: "/Types/RawFunctionType-1"
-- CustomName: callee
+- OriginalName: callee
   Prototype: "/Types/RawFunctionType-2"
 Types:
 - Arguments: []

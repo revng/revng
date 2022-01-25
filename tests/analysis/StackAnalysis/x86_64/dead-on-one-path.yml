@@ -1,6 +1,6 @@
 ---
 Functions:
-- CustomName: func
+- OriginalName: func
   Prototype: "/Types/RawFunctionType-1"
 Types:
 - Arguments:

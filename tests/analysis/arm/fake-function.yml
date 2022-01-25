@@ -21,9 +21,9 @@ Functions:
     Successors:
     - Destination: ":Invalid"
       Type: Return
-  CustomName: _start
+  OriginalName: _start
   Type: Regular
-- CustomName: prologue
+- OriginalName: prologue
   Type: Fake
 - CFG:
   - End: '5'
@@ -31,5 +31,5 @@ Functions:
     Successors:
     - Destination: ":Invalid"
       Type: IndirectTailCall
-  CustomName: epilogue
+  OriginalName: epilogue
   Type: NoReturn

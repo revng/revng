@@ -1,6 +1,6 @@
 ---
 Functions:
-- CustomName: draof
+- OriginalName: draof
   Prototype: "/Types/RawFunctionType-1"
 Types:
 - Arguments: []

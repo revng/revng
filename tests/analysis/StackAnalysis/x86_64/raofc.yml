@@ -1,6 +1,6 @@
 ---
 Functions:
-- CustomName: raofc
+- OriginalName: raofc
   Prototype: "/Types/RawFunctionType-1"
 Types:
 - Arguments: []

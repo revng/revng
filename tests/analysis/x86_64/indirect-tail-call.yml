@@ -8,7 +8,7 @@ Functions:
       - NoReturn
       Destination: '5'
       Type: FunctionCall
-  CustomName: _start
+  OriginalName: _start
   Type: NoReturn
 - CFG:
   - End: '6'
@@ -16,5 +16,5 @@ Functions:
     Successors:
     - Destination: ":Invalid"
       Type: IndirectTailCall
-  CustomName: tailcall
+  OriginalName: tailcall
   Type: NoReturn
