@@ -365,14 +365,6 @@ private:
     return {};
   }
 
-  static model::Identifier getNameAsIdentifier(const DWARFDie &Die) {
-    std::string Name = getName(Die);
-    if (not Name.empty())
-      return model::Identifier::fromString(Name);
-    else
-      return {};
-  }
-
   RecursiveCoroutine<const model::QualifiedType *>
   getType(const DWARFDie &Die) {
     auto MaybeType = Die.find(DW_AT_type);
@@ -410,7 +402,7 @@ private:
     revng_assert(TypePath->Qualifiers.empty());
     model::Type *T = TypePath->UnqualifiedType.get();
 
-    model::Identifier Name = getNameAsIdentifier(Die);
+    std::string Name = getName(Die);
 
     if (InvalidPrimitives.count(T) != 0)
       rc_return nullptr;
@@ -418,7 +410,7 @@ private:
     switch (Tag) {
     case llvm::dwarf::DW_TAG_subroutine_type: {
       auto *FunctionType = cast<model::CABIFunctionType>(T);
-      FunctionType->CustomName = Name;
+      FunctionType->OriginalName = Name;
       FunctionType->ABI = getABI();
 
       if (FunctionType->ABI == model::ABI::Invalid) {
@@ -455,7 +447,7 @@ private:
     case llvm::dwarf::DW_TAG_volatile_type: {
       model::QualifiedType TargetType = rc_recur getTypeOrVoid(Die);
       auto *Typedef = cast<model::TypedefType>(T);
-      Typedef->CustomName = Name;
+      Typedef->OriginalName = Name;
       Typedef->UnderlyingType = TargetType;
       revng_assert(Typedef->UnderlyingType.UnqualifiedType.isValid());
 
@@ -470,7 +462,7 @@ private:
       }
 
       auto *Struct = cast<model::StructType>(T);
-      Struct->CustomName = Name;
+      Struct->OriginalName = Name;
       Struct->Size = *MaybeSize->getAsUnsignedConstant();
 
       uint64_t Index = 0;
@@ -501,9 +493,9 @@ private:
             rc_return nullptr;
           }
 
-          //  Create new field
+          // Create new field
           auto &Field = Struct->Fields[Offset];
-          Field.CustomName = getNameAsIdentifier(ChildDie);
+          Field.OriginalName = getName(ChildDie);
           Field.Type = *MemberType;
 
           ++Index;
@@ -519,7 +511,7 @@ private:
 
     case llvm::dwarf::DW_TAG_union_type: {
       auto *Union = cast<model::UnionType>(T);
-      Union->CustomName = Name;
+      Union->OriginalName = Name;
 
       uint64_t Index = 0;
       for (const DWARFDie &ChildDie : Die.children()) {
@@ -534,7 +526,7 @@ private:
 
           // Create new field
           auto &Field = Union->Fields[Index];
-          Field.CustomName = getNameAsIdentifier(ChildDie);
+          Field.OriginalName = getName(ChildDie);
           Field.Type = *MemberType;
 
           // Increment union index
@@ -551,7 +543,7 @@ private:
 
     case llvm::dwarf::DW_TAG_enumeration_type: {
       auto *Enum = cast<model::EnumType>(T);
-      Enum->CustomName = Name;
+      Enum->OriginalName = Name;
 
       const QualifiedType *QualifiedUnderlyingType = rc_recur getType(Die);
       if (QualifiedUnderlyingType == nullptr) {
@@ -579,13 +571,13 @@ private:
           uint64_t Value = *MaybeValue;
 
           // Create new entry
-          model::Identifier EntryName = getNameAsIdentifier(ChildDie);
+          std::string EntryName = getName(ChildDie);
 
-          // If it's the first time, set CustomName
+          // If it's the first time, set OriginalName
           auto It = Enum->Entries.find(Value);
           if (It == Enum->Entries.end()) {
             auto &Entry = Enum->Entries[Value];
-            Entry.CustomName = EntryName;
+            Entry.OriginalName = EntryName;
           } else {
             // Ignore aliases
           }
@@ -751,7 +743,7 @@ private:
     // Create function type
     UpcastableType NewType = makeType<CABIFunctionType>();
     auto *FunctionType = cast<model::CABIFunctionType>(NewType.get());
-    FunctionType->CustomName = getNameAsIdentifier(Die);
+    FunctionType->OriginalName = getName(Die);
 
     // Detect ABI
     CallingConvention CC = DW_CC_normal;
@@ -778,7 +770,7 @@ private:
         }
 
         model::Argument &NewArgument = FunctionType->Arguments[Index];
-        NewArgument.CustomName = getNameAsIdentifier(ChildDie);
+        NewArgument.OriginalName = getName(ChildDie);
         NewArgument.Type = *ArgumenType;
         Index += 1;
       }
