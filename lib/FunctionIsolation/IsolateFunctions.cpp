@@ -976,7 +976,7 @@ void IFI::run() {
   // Create all the dynamic functions
   for (const model::DynamicFunction &Function :
        Binary.ImportedDynamicFunctions) {
-    StringRef Name = Function.SymbolName;
+    StringRef Name = Function.OriginalName;
     auto *NewFunction = Function::Create(IsolatedFunctionType,
                                          GlobalValue::ExternalLinkage,
                                          "dynamic_" + Function.name(),
