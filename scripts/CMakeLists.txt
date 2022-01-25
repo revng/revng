@@ -23,7 +23,7 @@ foreach(REQUIREMENT ${REQUIREMENTS})
 endforeach()
 
 # Check pyparsing version
-string(REGEX MATCH "\npyparsing *2.4.7\n" RESULT "\n${PYTHON_PACKAGES}\n")
+string(REGEX MATCH "\npyparsing .*2\.4\.7.*\n" RESULT "\n${PYTHON_PACKAGES}\n")
 if("${RESULT}" STREQUAL "")
   message(FATAL_ERROR "pyparsing version 2.4.7 required. 3.x versions are known to cause build issues")
 endif()
