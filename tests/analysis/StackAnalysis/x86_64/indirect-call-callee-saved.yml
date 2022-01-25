@@ -1,6 +1,6 @@
 ---
 Functions:
-- CustomName: indirect_caller
+- OriginalName: indirect_caller
   Prototype: "/Types/RawFunctionType-1"
 Types:
 - ID: "1"

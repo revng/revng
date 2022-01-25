@@ -1,6 +1,6 @@
 ---
 Functions:
-- CustomName: drvofc
+- OriginalName: drvofc
   Prototype: "/Types/RawFunctionType-1"
 Types:
 - ID: "1"

@@ -1,10 +1,10 @@
 ---
 Functions:
-- CustomName: func1
+- OriginalName: func1
   Prototype: "/Types/RawFunctionType-1"
-- CustomName: func2
+- OriginalName: func2
   Prototype: "/Types/RawFunctionType-2"
-- CustomName: callee
+- OriginalName: callee
   Prototype: "/Types/RawFunctionType-3"
 Types:
 - ID: "2"

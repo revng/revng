@@ -1,6 +1,6 @@
 ---
 Functions:
-- CustomName: dsaof
+- OriginalName: dsaof
   Prototype: "/Types/RawFunctionType-1"
 Types:
 - Arguments: []

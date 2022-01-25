@@ -1,6 +1,6 @@
 ---
 Functions:
-- CustomName: urvof
+- OriginalName: urvof
   Prototype: "/Types/RawFunctionType-1"
 Types:
 - ID: "1"
