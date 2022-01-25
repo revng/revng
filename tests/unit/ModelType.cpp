@@ -125,34 +125,6 @@ BOOST_AUTO_TEST_CASE(EnumTypes) {
   revng_check(T->verify(true));
   revng_check(checkSerialization(T));
 
-  // Inserting an alias is ok
-  revng_check(Enum->Entries.at(0).Aliases.insert({ "value_0_alias" }).second);
-  revng_check(Enum->verify(true));
-  revng_check(T->verify(true));
-  revng_check(checkSerialization(T));
-
-  // Inserting an alias with the same name of the Name succeeds but is bad
-  revng_check(Enum->Entries.at(0).Aliases.insert(Identifier("value0")).second);
-  revng_check(not Enum->verify(false));
-  revng_check(not T->verify(false));
-
-  // But if we remove it we're good again.
-  revng_check(Enum->Entries.at(0).Aliases.erase(Identifier("value0")));
-  revng_check(Enum->verify(true));
-  revng_check(T->verify(true));
-  revng_check(checkSerialization(T));
-
-  // Inserting an empty-name alias succeeds but is bad
-  revng_check(Enum->Entries.at(0).Aliases.insert(Identifier("")).second);
-  revng_check(not Enum->verify(false));
-  revng_check(not T->verify(false));
-
-  // But if we remove it we're good again.
-  revng_check(Enum->Entries.at(0).Aliases.erase(Identifier("")));
-  revng_check(Enum->verify(true));
-  revng_check(T->verify(true));
-  revng_check(checkSerialization(T));
-
   // We cannot insert other entries with the same value, but we can insert new
   // entries with different values.
   revng_check(Enum->Entries.size() == 1);

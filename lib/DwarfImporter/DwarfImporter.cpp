@@ -581,14 +581,13 @@ private:
           // Create new entry
           model::Identifier EntryName = getNameAsIdentifier(ChildDie);
 
-          // If it's the first time, set CustomName, otherwise, introduce
-          // an alias
+          // If it's the first time, set CustomName
           auto It = Enum->Entries.find(Value);
           if (It == Enum->Entries.end()) {
             auto &Entry = Enum->Entries[Value];
             Entry.CustomName = EntryName;
           } else {
-            It->Aliases.insert(EntryName);
+            // Ignore aliases
           }
 
           ++Index;

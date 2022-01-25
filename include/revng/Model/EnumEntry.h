@@ -18,10 +18,6 @@ fields:
   - name: CustomName
     type: Identifier
     optional: true
-  - name: Aliases
-    sequence:
-      type: SortedVector
-      elementType: Identifier
 key:
   - Value
 TUPLE-TREE-YAML */
