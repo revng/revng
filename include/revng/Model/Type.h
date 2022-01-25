@@ -61,6 +61,9 @@ public:
   RecursiveCoroutine<std::optional<uint64_t>> size(VerifyHelper &VH) const;
 
 public:
+  llvm::SmallVector<model::QualifiedType, 4> edges();
+
+public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   RecursiveCoroutine<bool> verify(VerifyHelper &VH) const;

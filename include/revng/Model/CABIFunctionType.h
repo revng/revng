@@ -49,6 +49,17 @@ public:
   CABIFunctionType() : generated::CABIFunctionType() { Kind = AssociatedKind; }
 
 public:
+  llvm::SmallVector<model::QualifiedType, 4> edges() {
+    llvm::SmallVector<model::QualifiedType, 4> Result;
+
+    for (model::Argument &Argument : Arguments)
+      Result.push_back(Argument.Type);
+    Result.push_back(ReturnType);
+
+    return Result;
+  }
+
+public:
   Identifier name() const;
   static bool classof(const Type *T) { return classof(T->key()); }
   static bool classof(const Key &K) { return std::get<0>(K) == AssociatedKind; }

@@ -187,6 +187,13 @@ model::Type::Type(TypeKind::Values TK) :
   model::Type::Type(TK, IDGenerator->get()) {
 }
 
+llvm::SmallVector<model::QualifiedType, 4> model::Type::edges() {
+  llvm::SmallVector<model::QualifiedType, 4> Empty;
+  auto *This = this;
+  auto GetEdges = [](auto &Upcasted) { return Upcasted.edges(); };
+  return upcast(This, GetEdges, Empty);
+}
+
 template<size_t I = 0>
 model::UpcastableType
 makeTypeWithIDImpl(model::TypeKind::Values Kind, uint64_t ID) {
