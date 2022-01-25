@@ -67,6 +67,7 @@ revng_add_analyses_library_internal(
   Processing.cpp
   SerializeModelPass.cpp
   Type.cpp
+  TypesDeduplication.cpp
   ${GENERATED_IMPLS}
 )
 
