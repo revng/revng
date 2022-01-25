@@ -1248,13 +1248,6 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   auto DefaultTypePath = abi::polyswitch(Arch.defaultABI(),
                                          GetDefaultPrototype);
 
-  // Import Dwarf
-  DwarfImporter Importer(Model);
-  if (ImportDebugInfo.size() > 0)
-    for (const std::string &Path : ImportDebugInfo)
-      Importer.import(Path);
-  Importer.import(Binary.binary(), "");
-
   // Record all dynamic imported functions and assign them a default prototype,
   // and record static functions as well, if they have a name.
   for (const Label &L : Binary.labels()) {
@@ -1268,6 +1261,13 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
       Model->Functions[L.address()].CustomName = L.symbolName().str();
     }
   }
+
+  // Import Dwarf
+  DwarfImporter Importer(Model);
+  if (ImportDebugInfo.size() > 0)
+    for (const std::string &Path : ImportDebugInfo)
+      Importer.import(Path);
+  Importer.import(Binary.binary(), "");
 
   writeModel(*Model.get(), *TheModule);
 
