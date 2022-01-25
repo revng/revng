@@ -940,11 +940,6 @@ inline auto skip(unsigned ToSkip, C &&Container)
   return llvm::make_range(Begin, std::end(Container));
 }
 
-template<class Container, class UnaryPredicate>
-inline void erase_if(Container &C, UnaryPredicate P) {
-  C.erase(std::remove_if(C.begin(), C.end(), P), C.end());
-}
-
 template<typename V>
 concept ValueLikePrintable = requires(V Val) {
   Val.print(std::declval<llvm::raw_ostream &>(), true);
