@@ -18,9 +18,6 @@ type: struct
 inherits: Type
 tag: Struct
 fields:
-  - name: CustomName
-    type: Identifier
-    optional: true
   - name: Fields
     sequence:
       type: SortedVector
