@@ -31,42 +31,15 @@ unsigned dropTypesDependingOnTypes(TupleTree<model::Binary> &Model,
   for (UpcastablePointer<model::Type> &T : Model->Types)
     TypeToNode[T.get()] = ReverseDependencyGraph.addNode(TypeNode{ T.get() });
 
-  auto RegisterDependency = [&](UpcastablePointer<model::Type> &T,
-                                const model::QualifiedType &QT) {
-    auto *DependantType = QT.UnqualifiedType.get();
-    TypeToNode.at(DependantType)->addSuccessor(TypeToNode.at(T.get()));
-  };
-
-  // Populate the graph
+  // Register edges
   for (UpcastablePointer<model::Type> &T : Model->Types) {
-
-    // Ignore dependencies of
+    // Ignore dependencies of types we need to drop
     if (Types.count(T.get()) != 0)
       continue;
 
-    if (auto *Primitive = dyn_cast<model::PrimitiveType>(T.get())) {
-      // Nothing to do here
-    } else if (auto *Struct = dyn_cast<model::StructType>(T.get())) {
-      for (const model::StructField &Field : Struct->Fields)
-        RegisterDependency(T, Field.Type);
-    } else if (auto *Union = dyn_cast<model::UnionType>(T.get())) {
-      for (const model::UnionField &Field : Union->Fields)
-        RegisterDependency(T, Field.Type);
-    } else if (auto *Enum = dyn_cast<model::EnumType>(T.get())) {
-      RegisterDependency(T, model::QualifiedType(Enum->UnderlyingType, {}));
-    } else if (auto *Typedef = dyn_cast<model::TypedefType>(T.get())) {
-      RegisterDependency(T, Typedef->UnderlyingType);
-    } else if (auto *RFT = dyn_cast<model::RawFunctionType>(T.get())) {
-      for (const model::NamedTypedRegister &Argument : RFT->Arguments)
-        RegisterDependency(T, Argument.Type);
-      for (const model::TypedRegister &RV : RFT->ReturnValues)
-        RegisterDependency(T, RV.Type);
-    } else if (auto *CAFT = dyn_cast<model::CABIFunctionType>(T.get())) {
-      for (const model::Argument &Argument : CAFT->Arguments)
-        RegisterDependency(T, Argument.Type);
-      RegisterDependency(T, CAFT->ReturnType);
-    } else {
-      revng_abort();
+    for (model::QualifiedType &QT : T->edges()) {
+      auto *DependantType = QT.UnqualifiedType.get();
+      TypeToNode.at(DependantType)->addSuccessor(TypeToNode.at(T.get()));
     }
   }
 
