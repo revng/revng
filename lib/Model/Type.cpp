@@ -402,12 +402,7 @@ bool EnumEntry::verify(bool Assert) const {
 }
 
 bool EnumEntry::verify(VerifyHelper &VH) const {
-  for (const Identifier &Alias : Aliases)
-    if (not Alias.verify(VH))
-      return VH.fail();
-
-  return VH.maybeFail(CustomName.verify(VH) and not Aliases.count(CustomName)
-                      and not Aliases.count(Identifier::Empty));
+  return VH.maybeFail(CustomName.verify(VH));
 }
 
 static bool isOnlyConstQualified(const QualifiedType &QT) {
