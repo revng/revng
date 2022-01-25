@@ -1258,7 +1258,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
         F.Prototype = DefaultTypePath;
     } else if (L.origin() == LabelOrigin::StaticSymbol and L.isCode()
                and not L.symbolName().empty()) {
-      Model->Functions[L.address()].CustomName = L.symbolName().str();
+      Model->Functions[L.address()].OriginalName = L.symbolName().str();
     }
   }
 
