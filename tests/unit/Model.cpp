@@ -180,6 +180,8 @@ public:
 
 INTROSPECTION_NS(TestTupleTree, Root, Elements)
 
+static_assert(IsTupleLike<TestTupleTree::Root>);
+
 BOOST_AUTO_TEST_CASE(TestTupleTreeReference) {
   using namespace TestTupleTree;
 
