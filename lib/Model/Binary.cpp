@@ -349,7 +349,7 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
 
   // Prototype is present
   if (not Prototype.isValid())
-    return VH.fail();
+    return VH.fail("Invalid prototype", *this);
 
   // Prototype is valid
   if (not Prototype.get()->verify(VH))
@@ -358,7 +358,9 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
   const model::Type *FunctionType = Prototype.get();
   if (not(isa<RawFunctionType>(FunctionType)
           or isa<CABIFunctionType>(FunctionType)))
-    return VH.fail();
+    return VH.fail("The prototype is neither a RawFunctionType nor a "
+                   "CABIFunctionType",
+                   *this);
 
   return true;
 }

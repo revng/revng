@@ -90,9 +90,9 @@ using ItImpl = std::conditional_t<std::is_object_v<ReturnType<FuncTy, ItTy>>,
 ///
 /// It can act as an in-place replacement since it doesn't change the behavior
 /// in most cases. The main difference is the fact that when the iterator uses
-/// a temporary as a way of remembering its position its lifetime is explicitly
-/// prolonged to prevent it from being deleted prematurely (like inside the
-/// `operator->` call).
+/// a temporary as a way of remembering its position its lifetime is
+/// explicitly prolonged to prevent it from being deleted prematurely (like
+/// inside the `operator->` call).
 template<typename ItTy, typename FuncTy>
 using mapped_iterator = detail::ItImpl<ItTy, FuncTy>;
 
