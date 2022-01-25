@@ -129,7 +129,8 @@ private:
         Result.remove(Stack, LHSElement);
       } else {
         // Identical
-        Stack.push_back(*LHSElement);
+        using value_type = typename T::value_type;
+        Stack.push_back(KeyedObjectTraits<value_type>::key(*LHSElement));
         diffImpl(*LHSElement, *RHSElement);
         Stack.pop_back();
       }
