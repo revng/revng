@@ -1,8 +1,12 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
+from typing import IO, Text, Union
+
+import yaml
 
 from ._generated import *
+from .base import YamlLoader, YamlDumper
 from .metaaddress import MetaAddress, MetaAddressType
 from .reference import Reference
 from .._common.monkeypatches import (
@@ -55,3 +59,7 @@ hashable_types = [
 
 for t, attr_name in hashable_types:
     make_hashable_using_attribute(t, attr_name)
+
+
+def load_model(stream: Union[bytes, IO[bytes], Text, IO[Text]]):
+    return yaml.load(stream, Loader=YamlLoader)
