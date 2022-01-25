@@ -1119,6 +1119,16 @@ public:
     return Result;
   }
 
+  template<IsTupleTreeReference TTR>
+  void replaceReferences(const std::map<TTR, TTR> &Map) {
+    auto Visitor = [&Map](TTR &Reference) {
+      auto It = Map.find(Reference);
+      if (It != Map.end())
+        Reference = It->second;
+    };
+    visitReferences(Visitor);
+  }
+
 public:
   static llvm::ErrorOr<TupleTree> deserialize(llvm::StringRef YAMLString) {
     TupleTree Result;
