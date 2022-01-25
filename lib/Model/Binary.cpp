@@ -196,11 +196,25 @@ bool Binary::verify(bool Assert) const {
 }
 
 bool Binary::verify(VerifyHelper &VH) const {
-  for (const Function &F : Functions) {
+  // Prepare for checking symbol names. We will populate and check this against
+  // functions, dynamic functions, types and enum entries
+  std::set<Identifier> Symbols;
+  auto CheckCustomName = [&VH, &Symbols, this](const Identifier &CustomName) {
+    if (CustomName.empty())
+      return true;
 
+    return VH.maybeFail(Symbols.insert(CustomName).second,
+                        "Duplicate name: " + CustomName.str().str(),
+                        *this);
+  };
+
+  for (const Function &F : Functions) {
     // Verify individual functions
     if (not F.verify(VH))
       return VH.fail();
+
+    if (not CheckCustomName(F.CustomName))
+      return VH.fail("Duplicate name", F);
 
     // Populate graph
     FunctionCFG Graph = getGraph(*this, F);
@@ -252,6 +266,19 @@ bool Binary::verify(VerifyHelper &VH) const {
   for (const DynamicFunction &DF : ImportedDynamicFunctions) {
     if (not DF.verify(VH))
       return VH.fail();
+
+    if (not CheckCustomName(DF.CustomName))
+      return VH.fail();
+  }
+
+  for (auto &Type : Types) {
+    if (not CheckCustomName(Type->CustomName))
+      return VH.fail();
+
+    if (auto *Enum = dyn_cast<EnumType>(Type.get()))
+      for (auto &Entry : Enum->Entries)
+        if (not CheckCustomName(Entry.CustomName))
+          return VH.fail();
   }
 
   //
