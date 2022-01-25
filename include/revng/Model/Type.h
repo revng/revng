@@ -12,6 +12,7 @@
 #include "revng/ADT/UpcastablePointer/YAMLTraits.h"
 #include "revng/Model/ABI.h"
 #include "revng/Model/Identifier.h"
+#include "revng/Model/QualifiedType.h"
 #include "revng/Model/Register.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
