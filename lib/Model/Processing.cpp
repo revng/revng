@@ -72,40 +72,86 @@ unsigned dropTypesDependingOnTypes(TupleTree<model::Binary> &Model,
   return ToDelete.size();
 }
 
-void deduplicateNames(TupleTree<model::Binary> &Model) {
+void recordCustomNamesInList(auto &Collection,
+                             auto Unwrap,
+                             std::set<std::string> &UsedNames) {
+  for (auto &Entry2 : Collection) {
+    auto *Entry = Unwrap(Entry2);
+    if (not Entry->CustomName.empty())
+      UsedNames.insert(Entry->CustomName.str().str());
+  }
+}
+
+void promoteOriginalNamesInList(auto &Collection,
+                                auto Unwrap,
+                                std::set<std::string> &UsedNames) {
   // TODO: collapse uint8_t typedefs into the primitive type
 
-  std::set<std::string> UsedNames;
+  for (auto &Entry2 : Collection) {
+    auto *Entry = Unwrap(Entry2);
+    if (Entry->CustomName.empty() and not Entry->OriginalName.empty()) {
+      // We have an OriginalName but not CustomName
+      auto Name = Identifier::fromString(Entry->OriginalName);
 
-  for (auto &Type : Model->Types) {
-    model::Type *T = Type.get();
-    if (isa<model::PrimitiveType>(T)) {
-      UsedNames.insert(T->name().str().str());
+      while (UsedNames.count(Name.str().str()) != 0)
+        Name += "_";
+
+      // Assign name
+      Entry->CustomName = Name;
+
+      // Record new name
+      UsedNames.insert(Name.str().str());
     }
   }
+}
 
-  for (auto &Type : Model->Types) {
-    model::Type *T = Type.get();
-    if (isa<model::PrimitiveType>(T))
-      continue;
+void promoteOriginalNamesInList(auto &Collection, auto Unwrap) {
+  std::set<std::string> UsedNames;
+  recordCustomNamesInList(Collection, Unwrap, UsedNames);
+  promoteOriginalNamesInList(Collection, Unwrap, UsedNames);
+}
 
-    std::string Name = T->name().str().str();
-    while (UsedNames.count(Name) != 0) {
-      Name += "_";
+/// Promote OriginalNames to CustomNames
+void promoteOriginalName(TupleTree<model::Binary> &Model) {
+  auto AddressOf = [](auto &Entry) { return &Entry; };
+  auto Unwrap = [](auto &UC) { return UC.get(); };
+
+  // Collect all the already used CustomNames for symbols
+  std::set<std::string> Symbols;
+  recordCustomNamesInList(Model->Types, Unwrap, Symbols);
+  recordCustomNamesInList(Model->Functions, AddressOf, Symbols);
+  recordCustomNamesInList(Model->ImportedDynamicFunctions, AddressOf, Symbols);
+  for (auto &UP : Model->Types)
+    if (auto *Enum = dyn_cast<EnumType>(UP.get()))
+      recordCustomNamesInList(Enum->Entries, AddressOf, Symbols);
+
+  // Promote type names
+  promoteOriginalNamesInList(Model->Types, Unwrap, Symbols);
+
+  // Promote function names
+  promoteOriginalNamesInList(Model->Functions, AddressOf, Symbols);
+
+  // Promote dynamic function names
+  promoteOriginalNamesInList(Model->ImportedDynamicFunctions,
+                             AddressOf,
+                             Symbols);
+
+  for (auto &UP : Model->Types) {
+    model::Type *T = UP.get();
+
+    if (auto *Struct = dyn_cast<StructType>(T)) {
+      // Promote struct fields names (they have their own namespace)
+      promoteOriginalNamesInList(Struct->Fields, AddressOf);
+    } else if (auto *Union = dyn_cast<UnionType>(T)) {
+      // Promote union fields names (they have their own namespace)
+      promoteOriginalNamesInList(Union->Fields, AddressOf);
+    } else if (auto *CFT = dyn_cast<CABIFunctionType>(T)) {
+      // Promote argument names (they have their own namespace)
+      promoteOriginalNamesInList(CFT->Arguments, AddressOf);
+    } else if (auto *Enum = dyn_cast<EnumType>(T)) {
+      // Promote enum entries names (they are symbols)
+      promoteOriginalNamesInList(Enum->Entries, AddressOf, Symbols);
     }
-
-    // Rename
-    upcast(T, [&Name](auto &Upcasted) {
-      using UpcastedType = std::remove_cvref_t<decltype(Upcasted)>;
-      if constexpr (not std::is_same_v<model::PrimitiveType, UpcastedType>) {
-        Upcasted.CustomName = Name;
-      } else {
-        revng_abort();
-      }
-    });
-
-    // Record new name
-    UsedNames.insert(Name);
   }
 }
 
