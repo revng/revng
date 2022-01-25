@@ -6,12 +6,13 @@ The notice below applies to the generated files.
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-/** if upcastable **/
 /**- for child_type in upcastable|sort(attribute="user_fullname") **/
 #include "/*= generator.user_include_path =*//*= child_type.filename =*/"
 /**- endfor **/
 
 #include "/*= generator.user_include_path =*//*= struct.filename =*/"
+
+/** if upcastable **/
 
 using Key = /*= struct.user_fullname =*/::Key;
 
