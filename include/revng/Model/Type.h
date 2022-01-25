@@ -71,20 +71,7 @@ namespace model {
 
 using UpcastableType = UpcastablePointer<model::Type>;
 
-template<size_t I = 0>
-inline model::UpcastableType
-makeTypeWithID(model::TypeKind::Values Kind, uint64_t ID) {
-  using concrete_types = concrete_types_traits_t<model::Type>;
-  if constexpr (I < std::tuple_size_v<concrete_types>) {
-    using type = std::tuple_element_t<I, concrete_types>;
-    if (type::classof(typename type::Key(Kind, ID)))
-      return UpcastableType(new type(type::AssociatedKind, ID));
-    else
-      return model::makeTypeWithID<I + 1>(Kind, ID);
-  } else {
-    return UpcastableType(nullptr);
-  }
-}
+model::UpcastableType makeTypeWithID(model::TypeKind::Values Kind, uint64_t ID);
 
 using TypePath = TupleTreeReference<model::Type, model::Binary>;
 
