@@ -1,6 +1,7 @@
 import yaml
 from pydantic import BaseModel, Extra, Field
 
+
 class Typeref(BaseModel):
     class Config:
         extra = Extra.forbid

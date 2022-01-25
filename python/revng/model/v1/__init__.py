@@ -1,5 +1,6 @@
-import enum
-import random
+from typing import IO, Text
+
+import yaml
 
 from ._generated import (
     Architecture,
@@ -33,6 +34,7 @@ from ._generated import (
     DynamicFunction,
     Primitive,
 )
+from .base import YamlLoader, YamlDumper
 from .metaaddress import MetaAddress, MetaAddressType
 from .typeref import Typeref
 from .._common.monkeypatches import autoassign_primitive_id, autoassign_random_id, autoassign_constructor_argument, make_hashable_using_attribute
@@ -80,3 +82,8 @@ hashable_types = [
 
 for t, attr_name in hashable_types:
     make_hashable_using_attribute(t, attr_name)
+
+
+def load_model(stream: bytes | IO[bytes] | Text | IO[Text]):
+    serialized_model = yaml.load(stream, Loader=YamlLoader)
+    return Binary.parse_obj(serialized_model)
