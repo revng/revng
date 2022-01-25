@@ -12,6 +12,8 @@
 #include "revng/Model/Processing.h"
 #include "revng/Support/Debug.h"
 
+#include "TypesDeduplication.h"
+
 using namespace llvm;
 
 namespace model {
@@ -156,36 +158,7 @@ void promoteOriginalName(TupleTree<model::Binary> &Model) {
 }
 
 void deduplicateEquivalentTypes(TupleTree<model::Binary> &Model) {
-  // TODO: implement
-  (void) Model;
-
-  // Create strong equivalence classes
-
-  // Create weak (candidate) equivalence classes based on the same name and
-  // local equivalence
-
-  // Create a bidirectional graph of the non-local parts (including pointers)
-
-  // Mark nodes with no (or only pointer) predecessors as entry points
-
-  // Do a post order visit starting from entry points
-
-  // For the current node, consider all the weakly equivalent node pairs and
-  // start comparing
-
-  // Create a bidirectional map associating left and right nodes
-
-  // Initialize the map with the two considered nodes
-
-  // Do a dfs
-
-  // Zip out edges of the node pair: consider the destinations.
-  //
-  // * If any of them is in the associating map, the other needs to match.
-  //   If it doesn't, the two nodes are not equivalent.
-  // * Otherwise, are they strongly/weakly equivalent? If so, insert them in
-  //   the associating map and proceed.
-  // * Otherwise, the nodes are not equivalent.
+  deduplicateEquivalentTypesImpl(Model);
 }
 
 } // namespace model
