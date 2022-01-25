@@ -28,6 +28,7 @@ fields:
     type: model::TypeKind::Values
   - name: ID
     type: uint64_t
+    is_guid: true
   - name: CustomName
     type: Identifier
     optional: true
