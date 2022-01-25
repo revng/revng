@@ -110,6 +110,8 @@ struct /*= struct.fullname =*/
   bool operator==(const /*= struct.name =*/ &Other) const = default;
   /** endif **/
 
+  bool localCompare(const /*= struct.user_fullname =*/ &Other) const;
+
   static constexpr const char *Tag = "!/*= struct.tag =*/";
 };
 

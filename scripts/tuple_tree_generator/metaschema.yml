@@ -106,6 +106,9 @@ definitions:
       optional:
         type: boolean
         default: false
+      is_guid:
+        type: boolean
+        default: false
       const:
         type: boolean
         default: false

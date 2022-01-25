@@ -10,11 +10,12 @@ from .definition import Definition
 
 
 class StructField(ABC):
-    def __init__(self, *, name, doc=None, optional=False, const=False):
+    def __init__(self, *, name, doc=None, optional=False, const=False, is_guid=False):
         self.name = name
         self.doc = doc
         self.optional = optional
         self.const = const
+        self.is_guid = is_guid
 
     @staticmethod
     def from_yaml(source_dict: Dict):
@@ -47,8 +48,8 @@ class StructField(ABC):
 
 
 class SimpleStructField(StructField):
-    def __init__(self, *, name, type, doc=None, optional=False, const=False):
-        super().__init__(name=name, doc=doc, optional=optional, const=const)
+    def __init__(self, *, name, type, doc=None, optional=False, const=False, is_guid=False):
+        super().__init__(name=name, doc=doc, optional=optional, const=const, is_guid=is_guid)
         self.type = type
 
 
