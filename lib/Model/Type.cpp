@@ -26,36 +26,36 @@ const Identifier Identifier::Empty = Identifier("");
 
 const std::set<llvm::StringRef> ReservedKeywords = {
   // reserved keywords for primitive types
-  "void"
-  "pointer_or_number8_t"
-  "pointer_or_number16_t"
-  "pointer_or_number32_t"
-  "pointer_or_number64_t"
-  "pointer_or_number128_t"
-  "number8_t"
-  "number16_t"
-  "number32_t"
-  "number64_t"
-  "number128_t"
-  "generic8_t"
-  "generic16_t"
-  "generic32_t"
-  "generic64_t"
-  "generic128_t"
-  "int8_t"
-  "int16_t"
-  "int32_t"
-  "int64_t"
-  "int128_t"
-  "uint8_t"
-  "uint16_t"
-  "uint32_t"
-  "uint64_t"
-  "uint128_t"
-  "float16_t"
-  "float32_t"
-  "float64_t"
-  "float128_t"
+  "void",
+  "pointer_or_number8_t",
+  "pointer_or_number16_t",
+  "pointer_or_number32_t",
+  "pointer_or_number64_t",
+  "pointer_or_number128_t",
+  "number8_t",
+  "number16_t",
+  "number32_t",
+  "number64_t",
+  "number128_t",
+  "generic8_t",
+  "generic16_t",
+  "generic32_t",
+  "generic64_t",
+  "generic128_t",
+  "int8_t",
+  "int16_t",
+  "int32_t",
+  "int64_t",
+  "int128_t",
+  "uint8_t",
+  "uint16_t",
+  "uint32_t",
+  "uint64_t",
+  "uint128_t",
+  "float16_t",
+  "float32_t",
+  "float64_t",
+  "float128_t",
   // C reserved keywords
   "auto",
   "break",
