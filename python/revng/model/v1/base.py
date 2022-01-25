@@ -12,4 +12,9 @@ _substitutions = {
 
 MonkeyPatchingBaseClass = get_monkey_patching_base_class(
     _substitutions,
+    register_global_yaml_helpers=False,
 )
+YamlDumper = MonkeyPatchingBaseClass.YamlDumper
+YamlLoader = MonkeyPatchingBaseClass.YamlLoader
+# Allows to deserialize a model YAML to a Binary object using yaml.load(stream, Loader=YamlLoader)
+YamlLoader.add_path_resolver("!Binary", [])
