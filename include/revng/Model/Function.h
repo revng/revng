@@ -7,7 +7,6 @@
 #include "revng/ADT/MutableSet.h"
 #include "revng/ADT/SortedVector.h"
 #include "revng/Model/BasicBlock.h"
-#include "revng/Model/Binary.h"
 #include "revng/Model/FunctionAttribute.h"
 #include "revng/Model/FunctionType.h"
 #include "revng/Model/Identifier.h"
