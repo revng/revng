@@ -846,7 +846,7 @@ public:
     createDynamicFunctions();
     dropTypesDependingOnUnresolvedTypes();
     deduplicateEquivalentTypes(Model);
-    deduplicateNames(Model);
+    promoteOriginalName(Model);
     revng_assert(Placeholders.size() == 0);
     Model->verify(true);
   }

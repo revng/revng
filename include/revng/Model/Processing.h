@@ -22,7 +22,7 @@ unsigned dropTypesDependingOnTypes(TupleTree<model::Binary> &Binary,
 
 /// Given an invalid model which features conflicing names, changes it to make
 /// it valid
-void deduplicateNames(TupleTree<model::Binary> &Model);
+void promoteOriginalName(TupleTree<model::Binary> &Model);
 
 /// Best effort deduplication of types that are identical
 void deduplicateEquivalentTypes(TupleTree<model::Binary> &Model);
