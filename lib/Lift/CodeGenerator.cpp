@@ -1255,8 +1255,6 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
       Importer.import(Path);
   Importer.import(Binary.binary(), "");
 
-  revng_assert(Model->ImportedDynamicFunctions.isSorted());
-
   // Record all dynamic imported functions and assign them a default prototype,
   // and record static functions as well, if they have a name.
   for (const Label &L : Binary.labels()) {
@@ -1265,7 +1263,6 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
       auto &F = Model->ImportedDynamicFunctions[{ L.symbolName().str() }];
       if (not F.Prototype.isValid())
         F.Prototype = DefaultTypePath;
-      revng_assert(Model->ImportedDynamicFunctions.isSorted());
     } else if (L.origin() == LabelOrigin::StaticSymbol and L.isCode()
                and not L.symbolName().empty()) {
       Model->Functions[L.address()].CustomName = L.symbolName().str();
