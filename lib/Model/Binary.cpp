@@ -275,7 +275,7 @@ Identifier DynamicFunction::name() const {
   if (not CustomName.empty())
     return CustomName;
   else
-    return Identifier(SymbolName);
+    return Identifier(OriginalName);
 }
 
 void Function::dump() const {
@@ -350,8 +350,8 @@ bool DynamicFunction::verify(bool Assert) const {
 
 bool DynamicFunction::verify(VerifyHelper &VH) const {
   // Ensure we have a name
-  if (SymbolName.size() == 0)
-    return VH.fail("Dynamic functions must have a SymbolName");
+  if (OriginalName.size() == 0)
+    return VH.fail("Dynamic functions must have a OriginalName", *this);
 
   // Prototype is present
   if (not Prototype.isValid())

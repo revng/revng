@@ -401,6 +401,7 @@ PrimitiveType::PrimitiveType(PrimitiveTypeKind::Values PrimitiveKind,
   PrimitiveType(AssociatedKind,
                 makePrimitiveID(PrimitiveKind, Size),
                 {},
+                "",
                 PrimitiveKind,
                 Size) {
 }
@@ -409,6 +410,7 @@ PrimitiveType::PrimitiveType(uint64_t ID) :
   PrimitiveType(AssociatedKind,
                 ID,
                 {},
+                "",
                 getPrimitiveKind(ID),
                 getPrimitiveSize(ID)) {
 }
@@ -636,9 +638,22 @@ RecursiveCoroutine<std::optional<uint64_t>> Type::size(VerifyHelper &VH) const {
 
 static RecursiveCoroutine<bool>
 verifyImpl(VerifyHelper &VH, const PrimitiveType *T) {
-  rc_return VH.maybeFail(T->Kind == TypeKind::Primitive
-                         and makePrimitiveID(T->PrimitiveKind, T->Size) == T->ID
-                         and isValidPrimitiveSize(T->PrimitiveKind, T->Size));
+  revng_assert(T->Kind == TypeKind::Primitive);
+
+  if (not T->CustomName.empty() or not T->OriginalName.empty())
+    rc_return VH.fail("PrimitiveTypes cannot have OriginalName or CustomName",
+                      *T);
+
+  auto ExpectedID = makePrimitiveID(T->PrimitiveKind, T->Size);
+  if (T->ID != ExpectedID)
+    rc_return VH.fail(Twine("Wrong ID for PrimitiveType. Got: ") + Twine(T->ID)
+                        + ". Expected: " + Twine(ExpectedID) + ".",
+                      *T);
+
+  if (not isValidPrimitiveSize(T->PrimitiveKind, T->Size))
+    rc_return VH.fail("Invalid PrimitiveType size: " + Twine(T->Size), *T);
+
+  rc_return true;
 }
 
 bool Identifier::verify() const {

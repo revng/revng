@@ -32,6 +32,9 @@ fields:
     doc: An optional custom name
     type: Identifier
     optional: true
+  - name: OriginalName
+    type: std::string
+    optional: true
   - name: Type
     doc: Type of the function
     type: model::FunctionType::Values

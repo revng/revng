@@ -18,6 +18,9 @@ fields:
   - name: CustomName
     type: Identifier
     optional: true
+  - name: OriginalName
+    type: std::string
+    optional: true
 key:
   - Value
 TUPLE-TREE-YAML */

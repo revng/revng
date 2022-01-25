@@ -31,6 +31,9 @@ fields:
   - name: CustomName
     type: Identifier
     optional: true
+  - name: OriginalName
+    type: std::string
+    optional: true
 key:
   - Kind
   - ID
@@ -52,9 +55,12 @@ public:
   //  manually implemented in order to generate a random ID
   Type();
   Type(TypeKind::Values TK);
-  Type(TypeKind::Values Kind, uint64_t ID) : Type(Kind, ID, Identifier()) {}
-  Type(TypeKind::Values Kind, uint64_t ID, Identifier CustomName) :
-    model::generated::Type(Kind, ID, CustomName) {}
+  Type(TypeKind::Values Kind, uint64_t ID) : Type(Kind, ID, Identifier(), "") {}
+  Type(TypeKind::Values Kind,
+       uint64_t ID,
+       Identifier CustomName,
+       std::string OriginalName) :
+    model::generated::Type(Kind, ID, CustomName, OriginalName) {}
 
 public:
   static bool classof(const Type *T) { return classof(T->key()); }
