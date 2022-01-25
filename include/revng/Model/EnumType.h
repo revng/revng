@@ -16,9 +16,6 @@ type: struct
 inherits: Type
 tag: Enum
 fields:
-  - name: CustomName
-    type: Identifier
-    optional: true
   - name: UnderlyingType
     reference:
       pointeeType: model::Type

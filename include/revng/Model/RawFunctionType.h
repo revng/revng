@@ -15,9 +15,6 @@ name: RawFunctionType
 type: struct
 inherits: Type
 fields:
-  - name: CustomName
-    type: Identifier
-    optional: true
   - name: Arguments
     sequence:
       type: SortedVector

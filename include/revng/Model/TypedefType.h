@@ -16,9 +16,6 @@ type: struct
 inherits: Type
 tag: Typedef
 fields:
-  - name: CustomName
-    type: Identifier
-    optional: true
   - name: UnderlyingType
     type: model::QualifiedType
 TUPLE-TREE-YAML */

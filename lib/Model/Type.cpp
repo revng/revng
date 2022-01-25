@@ -400,6 +400,7 @@ PrimitiveType::PrimitiveType(PrimitiveTypeKind::Values PrimitiveKind,
                              uint8_t Size) :
   PrimitiveType(AssociatedKind,
                 makePrimitiveID(PrimitiveKind, Size),
+                {},
                 PrimitiveKind,
                 Size) {
 }
@@ -407,6 +408,7 @@ PrimitiveType::PrimitiveType(PrimitiveTypeKind::Values PrimitiveKind,
 PrimitiveType::PrimitiveType(uint64_t ID) :
   PrimitiveType(AssociatedKind,
                 ID,
+                {},
                 getPrimitiveKind(ID),
                 getPrimitiveSize(ID)) {
 }

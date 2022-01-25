@@ -23,9 +23,6 @@ doc: |
 type: struct
 inherits: Type
 fields:
-  - name: CustomName
-    type: Identifier
-    optional: true
   - name: ABI
     type: model::ABI::Values
   - name: ReturnType
