@@ -70,7 +70,7 @@ template <int I> auto &get(/*= struct.name =*/ &x) {
 template<>
 struct llvm::yaml::MappingTraits</*= struct.user_fullname =*/>
   : public TupleLikeMappingTraits</*= struct.user_fullname =*/
-      /**- for field in struct.optional_fields -**/
+      /**- for field in struct.all_optional_fields -**/
       , TupleLikeTraits</*= struct.user_fullname =*/>::Fields::/*= field.name =*/
       /** endfor -**/
     > {};
