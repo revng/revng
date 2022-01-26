@@ -6,7 +6,7 @@ import signal
 import os
 import subprocess
 from os import path
-from revng_support import run, get_command
+from revng_support import run, get_command, build_command_with_loads
 
 def register_translate(subparsers):
     parser = subparsers.add_parser("translate", description="revng translate wrapper")
@@ -56,7 +56,7 @@ def run_translate(args, search_path, command_prefix):
     main_path = path.abspath(__file__)
     main_path = path.dirname(main_path)
 
-    command = [get_command("revng-pipeline", search_path)]
+    command = []
     command.append("-P")
     command.append(main_path + "/pipelines/translate.yml")
 
@@ -94,11 +94,13 @@ def run_translate(args, search_path, command_prefix):
     if args.trace:
         command.append("--link-trace")
 
+    to_execute = build_command_with_loads("revng-pipeline", command, search_path)
+
     if args.show_command:
-        print(" ".join(command))
+        print(" ".join(to_execute))
         return 0
 
-    return run(command, command_prefix)
+    return run(to_execute, command_prefix)
 
 def main():
     parser = argparse.ArgumentParser(description="The rev.ng translator.")
