@@ -12,6 +12,7 @@
 #include "revng/ADT/UpcastablePointer/YAMLTraits.h"
 #include "revng/Model/ABI.h"
 #include "revng/Model/Identifier.h"
+#include "revng/Model/QualifiedType.h"
 #include "revng/Model/Register.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
@@ -27,6 +28,13 @@ fields:
     type: model::TypeKind::Values
   - name: ID
     type: uint64_t
+    is_guid: true
+  - name: CustomName
+    type: Identifier
+    optional: true
+  - name: OriginalName
+    type: std::string
+    optional: true
 key:
   - Kind
   - ID
@@ -48,7 +56,12 @@ public:
   //  manually implemented in order to generate a random ID
   Type();
   Type(TypeKind::Values TK);
-  Type(TypeKind::Values Kind, uint64_t ID) : model::generated::Type(Kind, ID) {}
+  Type(TypeKind::Values Kind, uint64_t ID) : Type(Kind, ID, Identifier(), "") {}
+  Type(TypeKind::Values Kind,
+       uint64_t ID,
+       Identifier CustomName,
+       std::string OriginalName) :
+    model::generated::Type(Kind, ID, CustomName, OriginalName) {}
 
 public:
   static bool classof(const Type *T) { return classof(T->key()); }
@@ -61,6 +74,9 @@ public:
   RecursiveCoroutine<std::optional<uint64_t>> size(VerifyHelper &VH) const;
 
 public:
+  llvm::SmallVector<model::QualifiedType, 4> edges();
+
+public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   RecursiveCoroutine<bool> verify(VerifyHelper &VH) const;
@@ -71,20 +87,7 @@ namespace model {
 
 using UpcastableType = UpcastablePointer<model::Type>;
 
-template<size_t I = 0>
-inline model::UpcastableType
-makeTypeWithID(model::TypeKind::Values Kind, uint64_t ID) {
-  using concrete_types = concrete_types_traits_t<model::Type>;
-  if constexpr (I < std::tuple_size_v<concrete_types>) {
-    using type = std::tuple_element_t<I, concrete_types>;
-    if (type::classof(typename type::Key(Kind, ID)))
-      return UpcastableType(new type(type::AssociatedKind, ID));
-    else
-      return model::makeTypeWithID<I + 1>(Kind, ID);
-  } else {
-    return UpcastableType(nullptr);
-  }
-}
+model::UpcastableType makeTypeWithID(model::TypeKind::Values Kind, uint64_t ID);
 
 using TypePath = TupleTreeReference<model::Type, model::Binary>;
 

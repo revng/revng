@@ -14,7 +14,7 @@ name: DynamicFunction
 doc: Function defined in a dynamic library
 type: struct
 fields:
-  - name: SymbolName
+  - name: OriginalName
     doc: The name of the symbol for this dynamic function
     type: std::string
   - name: CustomName
@@ -33,7 +33,7 @@ fields:
       elementType: model::FunctionAttribute::Values
     optional: true
 key:
-  - SymbolName
+  - OriginalName
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/DynamicFunction.h"

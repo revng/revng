@@ -10,6 +10,7 @@ bool init_unit_test();
 #include "boost/test/unit_test.hpp"
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/Processing.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/Support/YAMLTraits.h"
@@ -180,6 +181,8 @@ public:
 
 INTROSPECTION_NS(TestTupleTree, Root, Elements)
 
+static_assert(IsTupleLike<TestTupleTree::Root>);
+
 BOOST_AUTO_TEST_CASE(TestTupleTreeReference) {
   using namespace TestTupleTree;
 
@@ -193,6 +196,92 @@ BOOST_AUTO_TEST_CASE(TestTupleTreeReference) {
   TheRoot.initializeReferences();
 
   revng_check(AnElement.Self.get() == &AnElement);
+}
+
+template<typename T>
+static T *createType(model::Binary &Model) {
+  model::TypePath Path = Model.recordNewType(makeType<T>());
+  return llvm::cast<T>(Path.get());
+}
+
+BOOST_AUTO_TEST_CASE(TestModelDeduplication) {
+  TupleTree<model::Binary> Model;
+  auto Dedup = [&Model]() {
+    int64_t OldTypesCount = Model->Types.size();
+    deduplicateEquivalentTypes(Model);
+    int64_t NewTypesCount = Model->Types.size();
+    return OldTypesCount - NewTypesCount;
+  };
+
+  model::TypePath UInt8 = Model->getPrimitiveType(PrimitiveTypeKind::Generic,
+                                                  4);
+
+  // Two typedefs
+  {
+    auto *Typedef1 = createType<TypedefType>(*Model);
+    Typedef1->UnderlyingType = { UInt8, {} };
+
+    auto *Typedef2 = createType<TypedefType>(*Model);
+    Typedef2->UnderlyingType = { UInt8, {} };
+
+    revng_check(Dedup() == 0);
+
+    Typedef1->OriginalName = "MyUInt8";
+    Typedef2->OriginalName = "MyUInt8";
+
+    revng_check(Dedup() == 1);
+  }
+
+  // Two structs
+  {
+    auto *Struct1 = createType<StructType>(*Model);
+    Struct1->Fields[0].CustomName = "FirstField";
+    Struct1->Fields[0].Type = { UInt8, {} };
+    Struct1->OriginalName = "MyStruct";
+
+    auto *Struct2 = createType<StructType>(*Model);
+    Struct2->Fields[0].CustomName = "DifferentName";
+    Struct2->Fields[0].Type = { UInt8, {} };
+    Struct2->OriginalName = "MyStruct";
+
+    revng_check(Dedup() == 0);
+
+    Struct1->Fields[0].CustomName = Struct2->Fields[0].CustomName;
+
+    revng_check(Dedup() == 1);
+  }
+
+  // Two pairs of cross-referencing structs
+  {
+    auto PointerQualifier = Qualifier::createPointer(8);
+
+    auto *Left1 = createType<StructType>(*Model);
+    auto *Left2 = createType<StructType>(*Model);
+
+    Left1->Fields[0].Type = { Model->getTypePath(Left2), { PointerQualifier } };
+    Left2->Fields[0].Type = { Model->getTypePath(Left1), { PointerQualifier } };
+
+    Left1->OriginalName = "LoopingStructs1";
+    Left2->OriginalName = "LoopingStructs2";
+
+    auto *Right1 = createType<StructType>(*Model);
+    auto *Right2 = createType<StructType>(*Model);
+
+    Right1->Fields[0].Type = { Model->getTypePath(Right2),
+                               { PointerQualifier } };
+    Right2->Fields[0].Type = { Model->getTypePath(Right1),
+                               { PointerQualifier, PointerQualifier } };
+
+    Right1->OriginalName = "LoopingStructs1";
+    Right2->OriginalName = "LoopingStructs2";
+
+    revng_check(Dedup() == 0);
+
+    Right2->Fields[0].Type = { Model->getTypePath(Right1),
+                               { PointerQualifier } };
+
+    revng_check(Dedup() == 2);
+  }
 }
 
 BOOST_AUTO_TEST_CASE(TestTupleTreeDiff) {

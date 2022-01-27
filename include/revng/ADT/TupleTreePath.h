@@ -49,6 +49,11 @@ public:
     return true;
   }
 
+  virtual bool operator<(const TupleTreeKeyWrapper &) const {
+    revng_assert(Pointer == nullptr);
+    return false;
+  }
+
   virtual char *id() const {
     revng_assert(Pointer == nullptr);
     return nullptr;
@@ -104,6 +109,16 @@ public:
       return *get() == *OtherPointer;
     } else {
       return false;
+    }
+  }
+
+  bool operator<(const TupleTreeKeyWrapper &Other) const override {
+    if (id() == Other.id()) {
+      using ThisType = const ConcreteTupleTreeKeyWrapper &;
+      auto *OtherPointer = static_cast<ThisType>(Other).get();
+      return *get() < *OtherPointer;
+    } else {
+      return id() < Other.id();
     }
   }
 
@@ -163,6 +178,9 @@ public:
     return Storage[Index];
   }
   bool operator==(const TupleTreePath &Other) const = default;
+  bool operator<(const TupleTreePath &Other) const {
+    return Storage < Other.Storage;
+  }
 
   // TODO: should return ArrayRef<const TupleTreeKeyWrapper>
   llvm::ArrayRef<TupleTreeKeyWrapper> toArrayRef() const { return { Storage }; }

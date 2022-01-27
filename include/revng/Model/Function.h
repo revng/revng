@@ -7,7 +7,6 @@
 #include "revng/ADT/MutableSet.h"
 #include "revng/ADT/SortedVector.h"
 #include "revng/Model/BasicBlock.h"
-#include "revng/Model/Binary.h"
 #include "revng/Model/FunctionAttribute.h"
 #include "revng/Model/FunctionType.h"
 #include "revng/Model/Identifier.h"
@@ -32,6 +31,9 @@ fields:
   - name: CustomName
     doc: An optional custom name
     type: Identifier
+    optional: true
+  - name: OriginalName
+    type: std::string
     optional: true
   - name: Type
     doc: Type of the function

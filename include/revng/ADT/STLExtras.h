@@ -4,9 +4,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <array>
 #include <type_traits>
 
 #include "llvm/ADT/STLExtras.h"
+
+#include "revng/Support/Concepts.h"
 
 //
 // is_integral
@@ -37,14 +40,53 @@ static_assert(is_specialization_v<std::pair<int, long>, std::pair>);
 // HasTupleSize
 //
 
-template<typename T>
+template<class T>
 concept HasTupleSize = requires {
-  std::tuple_size<T>::value;
+  typename std::tuple_size<T>::type;
+  { std::tuple_size_v<T> } -> convertible_to<size_t>;
 };
 
 static_assert(HasTupleSize<std::tuple<>>);
 static_assert(!HasTupleSize<std::vector<int>>);
 static_assert(!HasTupleSize<int>);
+
+//
+// IsTupleLike
+//
+
+namespace detail {
+
+template<class T, std::size_t N>
+concept HasTupleElement = requires(T Value) {
+  typename std::tuple_element_t<N, std::remove_const_t<T>>;
+  { get<N>(Value) } -> convertible_to<std::tuple_element_t<N, T> &>;
+};
+
+template<typename T, size_t... N>
+constexpr auto checkTupleElementTypes(std::index_sequence<N...>) {
+  return (HasTupleElement<T, N> && ...);
+}
+
+template<HasTupleSize T>
+constexpr auto checkAllTupleElementTypes() {
+  auto Sequence = std::make_index_sequence<std::tuple_size_v<T>>();
+  return checkTupleElementTypes<T>(Sequence);
+}
+
+} // namespace detail
+
+// clang-format off
+template<class T>
+concept IsTupleLike = (not std::is_reference_v<T>
+                       and HasTupleSize<T>
+                       and detail::checkAllTupleElementTypes<T>());
+// clang-format on
+
+static_assert(IsTupleLike<std::tuple<>>);
+static_assert(IsTupleLike<std::tuple<int, int, long>>);
+static_assert(IsTupleLike<std::pair<int, int>>);
+static_assert(IsTupleLike<std::array<int, 0>>);
+static_assert(not IsTupleLike<int>);
 
 //===----------------------------------------------------------------------===//
 //     Extra additions to <iterator>
@@ -90,9 +132,9 @@ using ItImpl = std::conditional_t<std::is_object_v<ReturnType<FuncTy, ItTy>>,
 ///
 /// It can act as an in-place replacement since it doesn't change the behavior
 /// in most cases. The main difference is the fact that when the iterator uses
-/// a temporary as a way of remembering its position its lifetime is explicitly
-/// prolonged to prevent it from being deleted prematurely (like inside the
-/// `operator->` call).
+/// a temporary as a way of remembering its position its lifetime is
+/// explicitly prolonged to prevent it from being deleted prematurely (like
+/// inside the `operator->` call).
 template<typename ItTy, typename FuncTy>
 using mapped_iterator = detail::ItImpl<ItTy, FuncTy>;
 
@@ -137,3 +179,12 @@ template<typename T>
 using MapToValueIteratorType = decltype(mapToValueIterator(std::declval<T>()));
 
 } // namespace revng
+
+template<typename C>
+inline auto skip(unsigned ToSkip, C &&Container)
+  -> llvm::iterator_range<decltype(Container.begin())> {
+  auto Begin = std::begin(Container);
+  while (ToSkip-- > 0)
+    Begin++;
+  return llvm::make_range(Begin, std::end(Container));
+}

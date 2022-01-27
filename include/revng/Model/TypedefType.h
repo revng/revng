@@ -16,9 +16,6 @@ type: struct
 inherits: Type
 tag: Typedef
 fields:
-  - name: CustomName
-    type: Identifier
-    optional: true
   - name: UnderlyingType
     type: model::QualifiedType
 TUPLE-TREE-YAML */
@@ -36,6 +33,13 @@ public:
 
 public:
   Identifier name() const;
+
+public:
+  llvm::SmallVector<model::QualifiedType, 4> edges() {
+    return { UnderlyingType };
+  }
+
+public:
   static bool classof(const Type *T) { return classof(T->key()); }
   static bool classof(const Key &K) { return std::get<0>(K) == AssociatedKind; }
 };

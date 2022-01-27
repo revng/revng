@@ -1,6 +1,6 @@
 ---
 Functions:
-- CustomName: push_pop
+- OriginalName: push_pop
   Prototype: "/Types/RawFunctionType-1"
 Types:
 - Arguments:

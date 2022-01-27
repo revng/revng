@@ -19,6 +19,9 @@ fields:
   - name: CustomName
     type: Identifier
     optional: true
+  - name: OriginalName
+    type: std::string
+    optional: true
   - name: Type
     type: model::QualifiedType
 key:

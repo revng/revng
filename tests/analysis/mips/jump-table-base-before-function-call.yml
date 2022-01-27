@@ -20,7 +20,7 @@ Functions:
     Successors:
     - Destination: ":Invalid"
       Type: IndirectTailCall
-  CustomName: __start
+  OriginalName: __start
   Entry: '1'
   Type: NoReturn
 - CFG:
@@ -53,6 +53,6 @@ Functions:
     Successors:
     - Destination: ":Invalid"
       Type: IndirectTailCall
-  CustomName: function
+  OriginalName: function
   Entry: '9'
   Type: NoReturn

@@ -7,6 +7,7 @@
 #include "revng/Model/Identifier.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/MetaAddress.h"
+#include "revng/Support/MetaAddress/YAMLTraits.h"
 
 /* TUPLE-TREE-YAML
 name: Segment

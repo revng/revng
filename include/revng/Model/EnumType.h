@@ -16,9 +16,6 @@ type: struct
 inherits: Type
 tag: Enum
 fields:
-  - name: CustomName
-    type: Identifier
-    optional: true
   - name: UnderlyingType
     reference:
       pointeeType: model::Type
@@ -42,6 +39,13 @@ public:
 
 public:
   Identifier name() const;
+
+public:
+  llvm::SmallVector<model::QualifiedType, 4> edges() {
+    return { model::QualifiedType(UnderlyingType, {}) };
+  }
+
+public:
   static bool classof(const Type *T) { return classof(T->key()); }
   static bool classof(const Key &K) { return std::get<0>(K) == AssociatedKind; }
 };

@@ -6,7 +6,7 @@ Functions:
     Successors:
     - Destination: ":Invalid"
       Type: Return
-  CustomName: function_call
+  OriginalName: function_call
   Type: Regular
 - CFG:
   - End: '5'
@@ -29,5 +29,5 @@ Functions:
     Successors:
     - Destination: ":Invalid"
       Type: Return
-  CustomName: _start
+  OriginalName: _start
   Type: Regular

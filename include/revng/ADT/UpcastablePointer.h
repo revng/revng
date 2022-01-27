@@ -38,7 +38,7 @@ template<typename T>
 concept Upcastable = HasLLVMRTTI<T> and HasConcretTypeTraits<T>;
 
 template<typename T>
-using pointee = typename std::pointer_traits<T>::element_type;
+using pointee = typename std::pointer_traits<std::decay_t<T>>::element_type;
 
 template<typename T>
 concept PointerLike = requires(T A) {

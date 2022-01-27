@@ -1,8 +1,8 @@
 ---
 Functions:
-- CustomName: func
+- OriginalName: func
   Prototype: "/Types/RawFunctionType-1"
-- CustomName: callee
+- OriginalName: callee
   Prototype: "/Types/RawFunctionType-2"
 Types:
 - ID: "2"

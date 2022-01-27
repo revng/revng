@@ -18,9 +18,6 @@ type: struct
 inherits: Type
 tag: Struct
 fields:
-  - name: CustomName
-    type: Identifier
-    optional: true
   - name: Fields
     sequence:
       type: SortedVector
@@ -43,6 +40,18 @@ public:
 
 public:
   Identifier name() const;
+
+public:
+  llvm::SmallVector<model::QualifiedType, 4> edges() {
+    llvm::SmallVector<model::QualifiedType, 4> Result;
+
+    for (auto &Field : Fields)
+      Result.push_back(Field.Type);
+
+    return Result;
+  }
+
+public:
   static bool classof(const Type *T) { return classof(T->key()); }
   static bool classof(const Key &K) { return std::get<0>(K) == AssociatedKind; }
 };

@@ -49,5 +49,5 @@ Functions:
     Successors:
     - Destination: ":Invalid"
       Type: IndirectTailCall
-  CustomName: __start
+  OriginalName: __start
   Type: NoReturn

@@ -997,6 +997,11 @@ public:
     return Path == Other.Path;
   }
 
+  bool operator<(const TupleTreeReference &Other) const {
+    // The paths are the same even if they are referred to different roots
+    return Path < Other.Path;
+  }
+
 public:
   std::string toString() const { return *pathAsString<RootT>(Path); }
 
@@ -1112,6 +1117,16 @@ public:
     Result.initializeReferences();
 
     return Result;
+  }
+
+  template<IsTupleTreeReference TTR>
+  void replaceReferences(const std::map<TTR, TTR> &Map) {
+    auto Visitor = [&Map](TTR &Reference) {
+      auto It = Map.find(Reference);
+      if (It != Map.end())
+        Reference = It->second;
+    };
+    visitReferences(Visitor);
   }
 
 public:

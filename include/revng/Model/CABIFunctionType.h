@@ -23,9 +23,6 @@ doc: |
 type: struct
 inherits: Type
 fields:
-  - name: CustomName
-    type: Identifier
-    optional: true
   - name: ABI
     type: model::ABI::Values
   - name: ReturnType
@@ -47,6 +44,17 @@ public:
 public:
   using generated::CABIFunctionType::CABIFunctionType;
   CABIFunctionType() : generated::CABIFunctionType() { Kind = AssociatedKind; }
+
+public:
+  llvm::SmallVector<model::QualifiedType, 4> edges() {
+    llvm::SmallVector<model::QualifiedType, 4> Result;
+
+    for (model::Argument &Argument : Arguments)
+      Result.push_back(Argument.Type);
+    Result.push_back(ReturnType);
+
+    return Result;
+  }
 
 public:
   Identifier name() const;

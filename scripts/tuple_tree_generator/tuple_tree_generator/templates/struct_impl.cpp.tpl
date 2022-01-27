@@ -6,12 +6,13 @@ The notice below applies to the generated files.
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-/** if upcastable **/
 /**- for child_type in upcastable|sort(attribute="user_fullname") **/
 #include "/*= generator.user_include_path =*//*= child_type.filename =*/"
 /**- endfor **/
 
 #include "/*= generator.user_include_path =*//*= struct.filename =*/"
+
+/** if upcastable **/
 
 using Key = /*= struct.user_fullname =*/::Key;
 
@@ -56,3 +57,61 @@ KeyedObjectTraits<UpcastablePointer</*= struct.user_fullname =*/>>::fromKey(
   }
 }
 /** endif **/
+
+bool /*= struct.fullname =*/::localCompare(const /*= struct.user_fullname =*/ &Other) const {
+  /**- if struct.abstract **/
+
+  auto *Left = static_cast<const /*= struct.user_fullname =*/ *>(this);
+  auto *Right = &Other;
+  return upcast(Left, [&Right](const auto &UpcastedL) -> bool {
+    return upcast(Right, [&UpcastedL](const auto &UpcastedR) -> bool{
+      if constexpr (not std::is_same_v<decltype(UpcastedL), decltype(UpcastedR)>) {
+        return false;
+      } else {
+        return UpcastedL.localCompare(UpcastedR);
+      }
+    }, false);
+  }, false);
+
+  /**- else -**/
+
+  /** for field in struct.all_fields if not field.is_guid and field.__class__.__name__ != "ReferenceStructField" **/
+
+  /**- if field.__class__.__name__ == "SimpleStructField" **/
+
+  /**- if generator.get_definition_for(field.type).__class__.__name__ == "StructDefinition" -**/
+  if (not this->/*= field.name =*/.localCompare(Other./*= field.name =*/))
+    return false;
+  /**- else -**/
+  if (this->/*= field.name =*/ != Other./*= field.name =*/)
+    return false;
+  /**- endif -**/
+
+  /**- elif field.__class__.__name__ == "SequenceStructField" -**/
+  if (this->/*= field.name =*/.size() != Other./*= field.name =*/.size())
+    return false;
+
+  /**- if generator.get_definition_for(field.element_type).__class__.__name__ == "StructDefinition" -**/
+  for (const auto &[L, R] : llvm::zip(this->/*= field.name =*/, Other./*= field.name =*/)) {
+    /** if field.upcastable **/
+    if (not L->localCompare(*R))
+      return false;
+    /** else **/
+    if (not L.localCompare(R))
+      return false;
+    /** endif **/
+  }
+
+  /**- else -**/
+  if (this->/*= field.name =*/ != Other./*= field.name =*/)
+    return false;
+  /**- endif -**/
+
+  /** else **//*= ERROR("unexpected field type") =*//** endif **/
+
+  /** endfor **/
+
+  return true;
+  /**- endif -**/
+}
+

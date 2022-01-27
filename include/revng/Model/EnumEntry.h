@@ -18,10 +18,9 @@ fields:
   - name: CustomName
     type: Identifier
     optional: true
-  - name: Aliases
-    sequence:
-      type: SortedVector
-      elementType: Identifier
+  - name: OriginalName
+    type: std::string
+    optional: true
 key:
   - Value
 TUPLE-TREE-YAML */
