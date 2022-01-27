@@ -615,7 +615,7 @@ static IRAccessPattern computeAccessPattern(const Use &U,
       revng_assert(Coeff->getValue().isOneValue());
       revng_assert(Idx.isStrictlyPositive());
       revng_assert(Idx.getActiveBits() <= BaseOff.getBitWidth());
-      BaseOff += Idx.truncOrSelf(BaseOff.getBitWidth());
+      BaseOff += Idx.zextOrTrunc(BaseOff.getBitWidth());
     } else {
       // Otherwise append the index to IRPatternIndices
       IRPatternIndices.push_back(SumElement);
