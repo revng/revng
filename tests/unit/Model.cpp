@@ -286,11 +286,9 @@ BOOST_AUTO_TEST_CASE(TestModelDeduplication) {
 }
 
 BOOST_AUTO_TEST_CASE(TestTupleTreeDiff) {
-  if (false) {
-    model::Binary Left;
-    model::Binary Right;
-    diff(Left, Right).dump();
-  }
+  model::Binary Left;
+  model::Binary Right;
+  diff(Left, Right).dump();
 }
 
 static_assert(std::is_default_constructible_v<TupleTree<TestTupleTree::Root>>);
