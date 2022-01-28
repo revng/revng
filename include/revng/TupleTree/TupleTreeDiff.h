@@ -209,7 +209,7 @@ struct DumpDiffVisitor {
     dump<typename T::value_type>();
   }
 
-  template<NotTupleTreeCompatible T>
+  template<typename T>
   void visit() {
     revng_assert(Old != nullptr and New != nullptr);
     dump<T>();
