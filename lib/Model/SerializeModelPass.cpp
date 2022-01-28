@@ -24,6 +24,7 @@ static RP<SerializeModelWrapperPass>
   X("serialize-model", "Serialize the model", true, true);
 
 void writeModel(const model::Binary &Model, llvm::Module &M) {
+  Model.verify(true);
 
   NamedMDNode *NamedMD = M.getNamedMetadata(ModelMetadataName);
   revng_check(not NamedMD, "The model has alread been serialized");
