@@ -600,6 +600,9 @@ def main():
     subparsers.add_parser("opt",
                           help="LLVM's opt with rev.ng passes",
                           add_help=False)
+    subparsers.add_parser("model",
+                          help="Model commands",
+                          add_help=False)
 
     programs = set()
     prefix = "revng-"
@@ -660,6 +663,21 @@ def main():
     return run_command(args, unknown_args, post_dash_dash)
 
 
+def run_subcommand(command, all_args):
+    executable = "revng-" + command
+    if not which(executable, path=search_path):
+        log_error("Can't find the following command: {}".format(executable))
+        return 1
+
+    in_path = get_command(executable)
+    if in_path:
+        arguments = [os.path.abspath(in_path)] + all_args
+        run(arguments)
+    else:
+        log_error("\"revng-{}\" is not a valid command".format(command))
+        return 1
+
+
 def run_command(args, unknown_args, post_dash_dash):
     command = args.command_name
     if not command:
@@ -678,19 +696,23 @@ def run_command(args, unknown_args, post_dash_dash):
     elif command == "translate":
         assert not unknown_args
         return run_translate(args, post_dash_dash)
-    else:
-        executable = "revng-" + command
-        if not which(executable, path=search_path):
-            log_error("Can't find the following command: {}".format(executable))
+    elif command == "model":
+        if not all_args:
+            log_error("No subcommand specified")
             return 1
+        command += "-" + all_args[0]
+        del all_args[0]
 
-        in_path = get_command(executable)
-        if in_path:
-            arguments = [os.path.abspath(in_path)] + all_args
-            run(arguments)
-        else:
-            log_error("\"revng-{}\" is not a valid command".format(command))
-            return 1
+        if command == "model-import":
+            if not all_args:
+                log_error("No subcommand specified")
+                return 1
+            command += "-" + all_args[0]
+            del all_args[0]
+
+        return run_subcommand(command, all_args)
+    else:
+        return run_subcommand(command, all_args)
 
 
 if __name__ == "__main__":
