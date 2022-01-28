@@ -238,10 +238,22 @@ bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
   return false;
 }
 
+template<NotUpcastablePointerLike RootT, typename Visitor>
+bool callOnPathStepsImpl(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
+  return callOnPathSteps<RootT, Visitor>(V, Path.slice(1));
+}
+
 template<UpcastablePointerLike RootT, typename Visitor>
-bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
-  using element_type = pointee<RootT>;
-  return callOnPathStepsTuple<element_type>(V, Path);
+bool callOnPathStepsImpl(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
+  auto Dispatcher = [&](auto &Upcasted) {
+    return callOnPathStepsImpl<std::decay_t<decltype(Upcasted)>>(V, Path);
+  };
+  using KOT = KeyedObjectTraits<RootT>;
+  using key_type = decltype(KOT::key(std::declval<RootT>()));
+  auto TargetKey = Path[0].get<key_type>();
+  // TODO: in case of nullptr we should abort
+  auto Temporary = KeyedObjectTraits<RootT>::fromKey(TargetKey);
+  return upcast(Temporary, Dispatcher, false);
 }
 
 template<IsKeyedObjectContainer RootT, typename Visitor>
@@ -253,7 +265,7 @@ bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
 
   V.template visitContainerElement<RootT>(TargetKey);
   if (Path.size() > 1) {
-    return callOnPathSteps<typename RootT::value_type>(V, Path.slice(1));
+    return callOnPathStepsImpl<value_type>(V, Path);
   }
 
   return true;
@@ -272,7 +284,7 @@ bool callOnPathStepsTuple(Visitor &V,
       using next_type = typename std::tuple_element<I, RootT>::type;
       V.template visitTupleElement<RootT, I>();
       if (Path.size() > 1) {
-        return callOnPathSteps<next_type>(V, Path.slice(1));
+        return callOnPathStepsImpl<next_type>(V, Path);
       }
     } else {
       return callOnPathStepsTuple<RootT, I + 1>(V, Path);

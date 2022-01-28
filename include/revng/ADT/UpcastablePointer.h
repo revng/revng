@@ -52,6 +52,9 @@ template<typename T>
 concept UpcastablePointerLike = PointerLike<T> and Upcastable<pointee<T>>;
 
 template<typename T>
+concept NotUpcastablePointerLike = not UpcastablePointerLike<T>;
+
+template<typename T>
 concept NotVoid = not std::is_void_v<T>;
 
 template<class Derived, class Base>
