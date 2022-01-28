@@ -200,7 +200,7 @@ copy_to_build_and_install(PROGRAMS
   bin
   "scripts/check-revng-conventions"
   "scripts/revng-merge-dynamic"
-  "scripts/revng-compare-yaml"
+  "scripts/revng-model-compare"
   "scripts/revng-model-to-json")
 
 copy_to_build_and_install(FILES
