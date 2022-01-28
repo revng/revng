@@ -20,6 +20,7 @@ bool init_unit_test();
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/ADT/GenericGraph.h"
 #include "revng/ADT/SerializableGraph.h"
+#include "revng/TupleTree/Introspection.h"
 
 using namespace llvm;
 

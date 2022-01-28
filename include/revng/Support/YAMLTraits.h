@@ -134,16 +134,6 @@ struct CompositeScalar {
 
 // clang-format off
 template<typename T>
-concept TupleTreeCompatible = IsKeyedObjectContainer<T>
-                                or HasTupleSize<T>
-                                or UpcastablePointerLike<T>;
-// clang-format on
-
-template<typename T>
-concept NotTupleTreeCompatible = not TupleTreeCompatible<T>;
-
-// clang-format off
-template<typename T>
 concept Yamlizable
   = llvm::yaml::has_DocumentListTraits<T>::value
     or llvm::yaml::has_MappingTraits<T, llvm::yaml::EmptyContext>::value

@@ -12,6 +12,9 @@ The notice below applies to the generated files.
 
 #include <compare>
 
+#include "revng/TupleTree/TupleTreeReference.h"
+#include "revng/Support/Assert.h"
+
 /**- for header in struct.includes **/
 #include "/*= generator.user_include_path =*//*= header =*/"
 /**- endfor **/

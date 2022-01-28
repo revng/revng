@@ -15,6 +15,7 @@ bool init_unit_test();
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/Support/YAMLTraits.h"
+#include "revng/TupleTree/Introspection.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
 
 using namespace model;
