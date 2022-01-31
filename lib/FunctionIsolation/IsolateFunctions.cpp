@@ -22,11 +22,9 @@
 #include "revng/ADT/KeyedObjectTraits.h"
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/EarlyFunctionAnalysis/IRHelpers.h"
 #include "revng/FunctionIsolation/IsolateFunctions.h"
 #include "revng/Model/Binary.h"
-#include "revng/Model/CallEdge.h"
-#include "revng/Model/FunctionEdge.h"
-#include "revng/Model/FunctionEdgeBase.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipes/Kinds.h"
@@ -157,7 +155,7 @@ public:
 
 class IsolateFunctionsImpl {
 private:
-  using SuccessorsContainer = std::map<const model::FunctionEdgeBase *, int>;
+  using SuccessorsContainer = std::map<const efa::FunctionEdgeBase *, int>;
 
 private:
   Function *RootFunction = nullptr;
@@ -191,7 +189,7 @@ private:
   void isolate(const model::Function &Function);
 
   /// Process a basic block from the model
-  void handleBasicBlock(const model::BasicBlock &Block,
+  void handleBasicBlock(const efa::BasicBlock &Block,
                         ValueToValueMapTy &OldToNew,
                         FunctionBlocks &ClonedBlocks);
 
@@ -199,19 +197,19 @@ private:
   ///
   /// \return a vector of boundary basic blocks
   std::vector<Boundary>
-  cloneAndIdentifyBoundaries(const model::BasicBlock &Block,
+  cloneAndIdentifyBoundaries(const efa::BasicBlock &Block,
                              ValueToValueMapTy &OldToNew,
                              FunctionBlocks &ClonedBlocks);
 
   /// Create the code necessary to handle a direct branch in the IR
   bool handleDirectBoundary(const Boundary &TheBoundary,
-                            const model::BasicBlock &Block,
+                            const efa::BasicBlock &Block,
                             SuccessorsContainer &ExpectedSuccessors,
                             FunctionBlocks &ClonedBlocks);
 
   /// Create the code necessary to handle an indirect branch in the IR
   bool handleIndirectBoundary(const std::vector<Boundary> &Boundaries,
-                              const model::BasicBlock &Block,
+                              const efa::BasicBlock &Block,
                               const SuccessorsContainer &ExpectedSuccessors,
                               bool CallConsumed,
                               FunctionBlocks &ClonedBlocks);
@@ -398,8 +396,8 @@ public:
   operator bool() const { return State; }
 };
 
-static bool isDirectEdge(model::FunctionEdgeType::Values Type) {
-  using namespace model::FunctionEdgeType;
+static bool isDirectEdge(efa::FunctionEdgeType::Values Type) {
+  using namespace efa::FunctionEdgeType;
 
   switch (Type) {
   case IndirectCall:
@@ -423,7 +421,7 @@ static bool isDirectEdge(model::FunctionEdgeType::Values Type) {
   }
 }
 
-static bool isIndirectEdge(model::FunctionEdgeType::Values Type) {
+static bool isIndirectEdge(efa::FunctionEdgeType::Values Type) {
   return not isDirectEdge(Type);
 }
 
@@ -451,11 +449,11 @@ void printAddressListComparison(const LeftMap &ExpectedAddresses,
 }
 
 bool IFI::handleIndirectBoundary(const std::vector<Boundary> &Boundaries,
-                                 const model::BasicBlock &Block,
+                                 const efa::BasicBlock &Block,
                                  const SuccessorsContainer &ExpectedSuccessors,
                                  bool CallConsumed,
                                  FunctionBlocks &ClonedBlocks) {
-  std::vector<const model::FunctionEdgeBase *> RemainingEdges;
+  std::vector<const efa::FunctionEdgeBase *> RemainingEdges;
   for (auto &[Edge, EdgeUsageCount] : ExpectedSuccessors)
     if (EdgeUsageCount == 0)
       RemainingEdges.push_back(Edge);
@@ -463,9 +461,9 @@ bool IFI::handleIndirectBoundary(const std::vector<Boundary> &Boundaries,
   // At this point RemainingEdges must either be a series of
   // `DirectBranch` or a single one of the indirect ones
   bool NoMore = RemainingEdges.size() == 0;
-  using namespace model::FunctionEdgeType;
+  using namespace efa::FunctionEdgeType;
 
-  auto IsDirectEdge = [](const model::FunctionEdgeBase *E) {
+  auto IsDirectEdge = [](const efa::FunctionEdgeBase *E) {
     return isDirectEdge(E->Type);
   };
   bool AllDirect = allOrNone(RemainingEdges, IsDirectEdge, false);
@@ -519,7 +517,7 @@ bool IFI::handleIndirectBoundary(const std::vector<Boundary> &Boundaries,
     SortedVector<MetaAddress> ExpectedAddresses;
     {
       auto Inserter = ExpectedAddresses.batch_insert();
-      for (const model::FunctionEdgeBase *Edge : RemainingEdges)
+      for (const efa::FunctionEdgeBase *Edge : RemainingEdges)
         Inserter.insert(Edge->Destination);
     }
 
@@ -623,7 +621,7 @@ bool IFI::handleIndirectBoundary(const std::vector<Boundary> &Boundaries,
 
 /// \return true if this was a call
 bool IFI::handleDirectBoundary(const Boundary &TheBoundary,
-                               const model::BasicBlock &Block,
+                               const efa::BasicBlock &Block,
                                SuccessorsContainer &ExpectedSuccessors,
                                FunctionBlocks &ClonedBlocks) {
   BasicBlock *BB = TheBoundary.Block;
@@ -636,13 +634,13 @@ bool IFI::handleDirectBoundary(const Boundary &TheBoundary,
 
     bool Match = false;
     switch (Edge->Type) {
-    case model::FunctionEdgeType::DirectBranch:
+    case efa::FunctionEdgeType::DirectBranch:
       if (not TheBoundary.isCall())
         Match = true;
       break;
 
-    case model::FunctionEdgeType::FunctionCall:
-    case model::FunctionEdgeType::FakeFunctionCall:
+    case efa::FunctionEdgeType::FunctionCall:
+    case efa::FunctionEdgeType::FakeFunctionCall:
       if (TheBoundary.isCall())
         Match = true;
       break;
@@ -660,8 +658,8 @@ bool IFI::handleDirectBoundary(const Boundary &TheBoundary,
     if (TheBoundary.isCall()) {
       IsCall.set();
 
-      if (Edge->Type == model::FunctionEdgeType::FunctionCall) {
-        auto *Call = cast<model::CallEdge>(Edge);
+      if (Edge->Type == efa::FunctionEdgeType::FunctionCall) {
+        auto *Call = cast<efa::CallEdge>(Edge);
         eraseBranch(BB->getTerminator(), TheBoundary.CalleeBlock);
         createFunctionCall(BB,
                            Edge->Destination,
@@ -685,7 +683,7 @@ bool IFI::handleDirectBoundary(const Boundary &TheBoundary,
 }
 
 std::vector<Boundary>
-IFI::cloneAndIdentifyBoundaries(const model::BasicBlock &Block,
+IFI::cloneAndIdentifyBoundaries(const efa::BasicBlock &Block,
                                 ValueToValueMapTy &OldToNew,
                                 FunctionBlocks &ClonedBlocks) {
   MetaAddress Entry = Block.Start;
@@ -739,7 +737,7 @@ IFI::cloneAndIdentifyBoundaries(const model::BasicBlock &Block,
   return Boundaries;
 }
 
-void IFI::handleBasicBlock(const model::BasicBlock &Block,
+void IFI::handleBasicBlock(const efa::BasicBlock &Block,
                            ValueToValueMapTy &OldToNew,
                            FunctionBlocks &ClonedBlocks) {
   if (TheLogger.isEnabled()) {
@@ -761,9 +759,9 @@ void IFI::handleBasicBlock(const model::BasicBlock &Block,
                                                                 ClonedBlocks);
 
   // Handle call to dynamic functions
-  model::CallEdge *Call = nullptr;
+  efa::CallEdge *Call = nullptr;
   for (const auto &Edge : Block.Successors)
-    if ((Call = dyn_cast<model::CallEdge>(Edge.get())))
+    if ((Call = dyn_cast<efa::CallEdge>(Edge.get())))
       break;
 
   if (Call != nullptr and not Call->DynamicFunction.empty()) {
@@ -846,8 +844,16 @@ void IFI::isolate(const model::Function &Function) {
   TheLogger << DoLog;
   LoggerIndent<> Indent(TheLogger);
 
+  // The CFG must exist if the type of function is not `Invalid`
+  auto *Term = OriginalEntry->getTerminator();
+  auto *FMMDNode = Term->getMetadata(FunctionMetadataMDName);
+  revng_assert(FMMDNode && Function.Type != model::FunctionType::Invalid);
+
+  // Extract function metadata
+  efa::FunctionMetadata FM = *extractFunctionMetadata(OriginalEntry).get();
+
   // Process each basic block
-  for (const model::BasicBlock &Block : Function.CFG)
+  for (const efa::BasicBlock &Block : FM.ControlFlowGraph)
     handleBasicBlock(Block, OldToNew, ClonedBlocks);
 
   // Create a dummy entry branching to real entry
@@ -1060,6 +1066,10 @@ void IFI::run() {
     GCBI.setMetaAddressMetadata(NewFunction,
                                 FunctionEntryMDNName,
                                 Function.Entry);
+
+    auto *OriginalEntryTerm = GCBI.getBlockAt(Function.Entry)->getTerminator();
+    auto *MDNode = OriginalEntryTerm->getMetadata(FunctionMetadataMDName);
+    NewFunction->setMetadata(FunctionMetadataMDName, MDNode);
   }
 
   std::set<Function *> IsolatedFunctions;

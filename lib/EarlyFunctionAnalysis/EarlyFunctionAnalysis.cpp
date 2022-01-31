@@ -52,6 +52,7 @@
 #include "revng/BasicAnalyses/RemoveHelperCalls.h"
 #include "revng/BasicAnalyses/RemoveNewPCCalls.h"
 #include "revng/EarlyFunctionAnalysis/EarlyFunctionAnalysis.h"
+#include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/NamedTypedRegister.h"
@@ -75,7 +76,7 @@ using llvm::RegisterPass;
 using llvm::SmallVectorImpl;
 using llvm::Type;
 
-using FunctionEdgeTypeValue = model::FunctionEdgeType::Values;
+using FunctionEdgeTypeValue = efa::FunctionEdgeType::Values;
 using FunctionTypeValue = model::FunctionType::Values;
 using GCBI = GeneratedCodeBasicInfo;
 
@@ -144,7 +145,7 @@ public:
   model::FunctionType::Values Type;
   std::set<llvm::GlobalVariable *> ClobberedRegisters;
   ABIAnalyses::ABIAnalysesResults ABIResults;
-  SortedVector<model::BasicBlock> CFG;
+  SortedVector<efa::BasicBlock> CFG;
   std::optional<int64_t> ElectedFSO;
   llvm::Function *FakeFunction;
 
@@ -152,7 +153,7 @@ public:
   FunctionSummary(model::FunctionType::Values Type,
                   std::set<llvm::GlobalVariable *> ClobberedRegisters,
                   ABIAnalyses::ABIAnalysesResults ABIResults,
-                  SortedVector<model::BasicBlock> CFG,
+                  SortedVector<efa::BasicBlock> CFG,
                   std::optional<int64_t> ElectedFSO,
                   llvm::Function *FakeFunction) :
     Type(Type),
@@ -382,7 +383,7 @@ public:
 private:
   OutlinedFunction outlineFunction(llvm::BasicBlock *BB);
   void integrateFunctionCallee(llvm::BasicBlock *BB, MetaAddress);
-  SortedVector<model::BasicBlock> collectDirectCFG(OutlinedFunction *F);
+  SortedVector<efa::BasicBlock> collectDirectCFG(OutlinedFunction *F);
   void initMarkersForABI(OutlinedFunction *F,
                          llvm::SmallVectorImpl<Instruction *> &,
                          llvm::IRBuilder<> &);
@@ -394,7 +395,7 @@ private:
   void materializePCValues(llvm::Function *F, llvm::IRBuilder<> &);
   void runOptimizationPipeline(llvm::Function *F);
   FunctionSummary milkInfo(OutlinedFunction *F,
-                           SortedVector<model::BasicBlock> &,
+                           SortedVector<efa::BasicBlock> &,
                            ABIAnalyses::ABIAnalysesResults &,
                            const std::set<llvm::GlobalVariable *> &);
   llvm::Function *createFakeFunction(llvm::BasicBlock *BB);
@@ -474,6 +475,36 @@ FEA::FunctionEntrypointAnalyzer(llvm::Module &M,
   }
 }
 
+static void serializeFunctionMetadata(llvm::LLVMContext &Context,
+                                      GeneratedCodeBasicInfo &GCBI,
+                                      const FunctionAnalysisResults &Properties,
+                                      const TupleTree<model::Binary> &Binary) {
+  using namespace llvm;
+
+  for (const auto &Function : Binary->Functions) {
+    if (Function.Type == FunctionTypeValue::Invalid
+        || Function.Type == FunctionTypeValue::Fake)
+      continue;
+
+    auto &CFG = Properties.at(Function.Entry).CFG;
+    BasicBlock *BB = GCBI.getBlockAt(Function.Entry);
+    std::string Buffer;
+    {
+      efa::FunctionMetadata FM(Function.Entry);
+      raw_string_ostream Stream(Buffer);
+      for (efa::BasicBlock Edge : CFG)
+        FM.ControlFlowGraph.insert(Edge);
+
+      FM.verify(*Binary, true);
+      serialize(Stream, FM);
+    }
+
+    Instruction *Term = BB->getTerminator();
+    MDNode *Node = MDNode::get(Context, MDString::get(Context, Buffer));
+    Term->setMetadata(FunctionMetadataMDName, Node);
+  }
+}
+
 FunctionSummary
 FunctionEntrypointAnalyzer::importPrototype(model::FunctionType::Values Type,
                                             model::TypePath Prototype) {
@@ -550,7 +581,7 @@ static UpcastablePointer<model::Type>
 buildPrototype(GeneratedCodeBasicInfo &GCBI,
                model::Binary &Binary,
                const FunctionSummary &Summary,
-               const model::BasicBlock &Block) {
+               const efa::BasicBlock &Block) {
   using namespace model;
   using RegisterState = abi::RegisterState::Values;
 
@@ -722,36 +753,42 @@ finalizeModel(GeneratedCodeBasicInfo &GCBI,
           }
         }
 
-        if (FunctionEdgeType::isCall(Edge->Type)) {
-          auto *CE = llvm::cast<CallEdge>(Edge.get());
+        if (efa::FunctionEdgeType::isCall(Edge->Type)) {
+          auto *CE = llvm::cast<efa::CallEdge>(Edge.get());
           const auto IDF = Binary.ImportedDynamicFunctions;
           bool IsDynamicCall = (not SymbolName.empty()
                                 and IDF.count(SymbolName.str()) != 0);
 
           if (IsDynamicCall) {
             // It's a dynamic function call
-            revng_assert(CE->Type == model::FunctionEdgeType::FunctionCall);
+            revng_assert(CE->Type == efa::FunctionEdgeType::FunctionCall);
             CE->Destination = MetaAddress::invalid();
             CE->DynamicFunction = SymbolName.str();
 
-            // The prototype is implicitly the one of the callee
-            revng_assert(not CE->Prototype.isValid());
+            // The prototype must not exist among the ones of the call sites of
+            // the function, it is implicitly the one of the callee.
+            revng_assert(not Function->CallSitePrototypes.count(Block.Start));
           } else if (CE->Destination.isValid()) {
             // It's a simple direct function call
-            revng_assert(CE->Type == model::FunctionEdgeType::FunctionCall);
+            revng_assert(CE->Type == efa::FunctionEdgeType::FunctionCall);
 
-            // The prototype is implicitly the one of the callee
-            revng_assert(not CE->Prototype.isValid());
+            // The prototype must not exist among the ones of the call sites of
+            // the function, it is implicitly the one of the callee.
+            revng_assert(not Function->CallSitePrototypes.count(Block.Start));
           } else {
             // It's an indirect call: forge a new prototype
             auto Prototype = buildPrototype(GCBI, Binary, Summary, Block);
-            CE->Prototype = Binary.recordNewType(std::move(Prototype));
+            auto TypedPrototype = Binary.recordNewType(std::move(Prototype));
+            auto PrototypeInserter = Function->CallSitePrototypes
+                                       .batch_insert();
+            PrototypeInserter.insert({ Block.Start, TypedPrototype });
           }
         }
       }
     }
 
-    Function->CFG = Summary.CFG;
+    efa::FunctionMetadata FM(Function->Entry, Summary.CFG);
+    FM.verify(Binary, true);
   }
 
   revng_check(Binary.verify(true));
@@ -797,15 +834,15 @@ static std::optional<int64_t> electFSO(const auto &MaybeReturns) {
   return It->second;
 }
 
-static UpcastablePointer<model::FunctionEdgeBase>
-makeEdge(MetaAddress Destination, model::FunctionEdgeType::Values Type) {
-  model::FunctionEdge *Result = nullptr;
-  using ReturnType = UpcastablePointer<model::FunctionEdgeBase>;
+static UpcastablePointer<efa::FunctionEdgeBase>
+makeEdge(MetaAddress Destination, efa::FunctionEdgeType::Values Type) {
+  efa::FunctionEdge *Result = nullptr;
+  using ReturnType = UpcastablePointer<efa::FunctionEdgeBase>;
 
-  if (model::FunctionEdgeType::isCall(Type))
-    return ReturnType::make<model::CallEdge>(Destination, Type);
+  if (efa::FunctionEdgeType::isCall(Type))
+    return ReturnType::make<efa::CallEdge>(Destination, Type);
   else
-    return ReturnType::make<model::FunctionEdge>(Destination, Type);
+    return ReturnType::make<efa::FunctionEdge>(Destination, Type);
 };
 
 static MetaAddress getFinalAddressOfBasicBlock(llvm::BasicBlock *BB) {
@@ -813,16 +850,16 @@ static MetaAddress getFinalAddressOfBasicBlock(llvm::BasicBlock *BB) {
   return End + Size;
 }
 
-SortedVector<model::BasicBlock>
+SortedVector<efa::BasicBlock>
 FunctionEntrypointAnalyzer::collectDirectCFG(OutlinedFunction *F) {
   using namespace llvm;
 
-  SortedVector<model::BasicBlock> CFG;
+  SortedVector<efa::BasicBlock> CFG;
 
   for (BasicBlock &BB : *F->F) {
     if (GCBI::isJumpTarget(&BB)) {
       MetaAddress Start = getBasicBlockPC(&BB);
-      model::BasicBlock Block{ Start };
+      efa::BasicBlock Block{ Start };
       Block.End = getFinalAddressOfBasicBlock(&BB);
 
       OnceQueue<BasicBlock *> Queue;
@@ -830,7 +867,7 @@ FunctionEntrypointAnalyzer::collectDirectCFG(OutlinedFunction *F) {
 
       // A JT with no successors?
       if (isa<UnreachableInst>(BB.getTerminator())) {
-        auto Type = model::FunctionEdgeType::Unreachable;
+        auto Type = efa::FunctionEdgeType::Unreachable;
         Block.Successors.insert(makeEdge(MetaAddress::invalid(), Type));
       }
 
@@ -845,13 +882,14 @@ FunctionEntrypointAnalyzer::collectDirectCFG(OutlinedFunction *F) {
           if (GCBI::isJumpTarget(Succ)) {
             MetaAddress Destination = getBasicBlockPC(Succ);
             auto Edge = makeEdge(Destination,
-                                 model::FunctionEdgeType::DirectBranch);
+                                 efa::FunctionEdgeType::DirectBranch);
             Block.Successors.insert(Edge);
           } else if (F->UnexpectedPCCloned == Succ && succ_size(Current) == 1) {
             // Need to create an edge only when `unexpectedpc` is the unique
             // successor of the current basic block.
-            Block.Successors.insert(makeEdge(MetaAddress::invalid(),
-                                             model::FunctionEdgeType::LongJmp));
+            auto Edge = makeEdge(MetaAddress::invalid(),
+                                 efa::FunctionEdgeType::LongJmp);
+            Block.Successors.insert(Edge);
           } else {
             Instruction *I = &(*Succ->begin());
 
@@ -860,7 +898,7 @@ FunctionEntrypointAnalyzer::collectDirectCFG(OutlinedFunction *F) {
               revng_assert(Succ->getInstList().size() == 1);
             } else if (auto *Call = getCallTo(I, PreHookMarker.F)) {
               MetaAddress Destination;
-              model::FunctionEdgeType::Values Type;
+              efa::FunctionEdgeType::Values Type;
               auto *CalleePC = Call->getArgOperand(1);
 
               // Direct or indirect call?
@@ -870,20 +908,20 @@ FunctionEntrypointAnalyzer::collectDirectCFG(OutlinedFunction *F) {
                 auto It = Binary->Functions.find(AddressPC);
                 if (It != Binary->Functions.end()) {
                   Destination = AddressPC;
-                  Type = model::FunctionEdgeType::FunctionCall;
+                  Type = efa::FunctionEdgeType::FunctionCall;
                 } else {
                   Destination = MetaAddress::invalid();
-                  Type = model::FunctionEdgeType::IndirectCall;
+                  Type = efa::FunctionEdgeType::IndirectCall;
                 }
               } else {
                 Destination = MetaAddress::invalid();
-                Type = model::FunctionEdgeType::IndirectCall;
+                Type = efa::FunctionEdgeType::IndirectCall;
               }
 
               auto Edge = makeEdge(Destination, Type);
               auto DestTy = Oracle.getFunctionType(Destination);
               if (DestTy == FunctionTypeValue::NoReturn) {
-                auto *CE = cast<model::CallEdge>(Edge.get());
+                auto *CE = cast<efa::CallEdge>(Edge.get());
                 CE->Attributes.insert(model::FunctionAttribute::NoReturn);
               }
 
@@ -897,7 +935,7 @@ FunctionEntrypointAnalyzer::collectDirectCFG(OutlinedFunction *F) {
 
               auto Destination = getBasicBlockPC(Succ);
               auto Edge = makeEdge(Destination,
-                                   model::FunctionEdgeType::FakeFunctionCall);
+                                   efa::FunctionEdgeType::FakeFunctionCall);
               Block.Successors.insert(Edge);
             } else {
               Queue.insert(Succ);
@@ -1389,7 +1427,7 @@ intersect(const std::set<GlobalVariable *> &First,
 
 FunctionSummary
 FEA::milkInfo(OutlinedFunction *OutlinedFunction,
-              SortedVector<model::BasicBlock> &CFG,
+              SortedVector<efa::BasicBlock> &CFG,
               ABIAnalyses::ABIAnalysesResults &ABIResults,
               const std::set<GlobalVariable *> &WrittenRegisters) {
   using namespace llvm;
@@ -1499,7 +1537,7 @@ FEA::milkInfo(OutlinedFunction *OutlinedFunction,
   // Finalize CFG for the model
   for (const auto &[CI, EdgeType] : IBIResult) {
     auto PC = MetaAddress::fromConstant(CI->getArgOperand(2));
-    model::BasicBlock &Block = CFG.at(PC);
+    efa::BasicBlock &Block = CFG.at(PC);
     Block.Successors.insert(makeEdge(MetaAddress::invalid(), EdgeType));
   }
 
@@ -1971,6 +2009,10 @@ bool EarlyFunctionAnalysis::runOnModule(Module &M) {
 
   // Finalize model
   finalizeModel(GCBI, ABICSVs, Properties, *Binary);
+
+  // Serialize function metadata, including the CFG, to BB entry points in
+  // `root`
+  serializeFunctionMetadata(M.getContext(), GCBI, Properties, Binary);
 
   return false;
 }

@@ -35,11 +35,11 @@ members:
     doc: The basic block ends with an unreachable instruction
 TUPLE-TREE-YAML */
 
-#include "revng/Model/Generated/Early/FunctionEdgeType.h"
+#include "revng/EarlyFunctionAnalysis/Generated/Early/FunctionEdgeType.h"
 
 // TODO: we need to handle noreturn function calls
 
-namespace model::FunctionEdgeType {
+namespace efa::FunctionEdgeType {
 inline bool isCall(Values V) {
   switch (V) {
   case Count:
@@ -64,6 +64,6 @@ inline bool isCall(Values V) {
   }
 }
 
-} // namespace model::FunctionEdgeType
+} // namespace efa::FunctionEdgeType
 
-#include "revng/Model/Generated/Late/FunctionEdgeType.h"
+#include "revng/EarlyFunctionAnalysis/Generated/Late/FunctionEdgeType.h"

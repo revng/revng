@@ -4,14 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/Model/CABIFunctionType.h"
-#include "revng/Model/EnumType.h"
-#include "revng/Model/FunctionEdgeType.h"
-#include "revng/Model/PrimitiveType.h"
-#include "revng/Model/RawFunctionType.h"
-#include "revng/Model/StructType.h"
-#include "revng/Model/TypedefType.h"
-#include "revng/Model/UnionType.h"
+#include "revng/EarlyFunctionAnalysis/FunctionEdgeType.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
@@ -40,9 +33,9 @@ key:
 abstract: true
 TUPLE-TREE-YAML */
 
-#include "revng/Model/Generated/Early/FunctionEdgeBase.h"
+#include "revng/EarlyFunctionAnalysis/Generated/Early/FunctionEdgeBase.h"
 
-class model::FunctionEdgeBase : public model::generated::FunctionEdgeBase {
+class efa::FunctionEdgeBase : public efa::generated::FunctionEdgeBase {
 public:
   using generated::FunctionEdgeBase::FunctionEdgeBase;
 
@@ -52,8 +45,8 @@ public:
 
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
-  bool verify(VerifyHelper &VH) const;
+  bool verify(model::VerifyHelper &VH) const;
   void dump() const debug_function;
 };
 
-#include "revng/Model/Generated/Late/FunctionEdgeBase.h"
+#include "revng/EarlyFunctionAnalysis/Generated/Late/FunctionEdgeBase.h"

@@ -37,7 +37,6 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
-#include "revng/ABI/DefaultFunctionPrototype.h"
 #include "revng/ADT/STLExtras.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/FunctionCallIdentification/PruneRetSuccessors.h"

@@ -126,10 +126,10 @@ fileds:
     sequence:
       type: std::vector
       upcastable: true
-      elementType: model::FunctionEdgeBase
+      elementType: efa::FunctionEdgeBase
 ```
 
-This will get translated in C++ as `std::vector<UpcastablePointer<model::FunctionEdgeBase>>`.
+This will get translated in C++ as `std::vector<UpcastablePointer<efa::FunctionEdgeBase>>`.
 
 #### Reference members
 

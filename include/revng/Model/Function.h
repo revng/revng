@@ -6,7 +6,7 @@
 
 #include "revng/ADT/MutableSet.h"
 #include "revng/ADT/SortedVector.h"
-#include "revng/Model/BasicBlock.h"
+#include "revng/Model/CallSitePrototype.h"
 #include "revng/Model/FunctionAttribute.h"
 #include "revng/Model/FunctionType.h"
 #include "revng/Model/Identifier.h"
@@ -38,12 +38,6 @@ fields:
   - name: Type
     doc: Type of the function
     type: model::FunctionType::Values
-  - name: CFG
-    doc: List of basic blocks, which represent the CFG
-    sequence:
-      type: SortedVector
-      elementType: model::BasicBlock
-    optional: true
   - name: StackFrameType
     doc: The type of the stack frame
     reference:
@@ -61,6 +55,11 @@ fields:
     sequence:
       type: MutableSet
       elementType: model::FunctionAttribute::Values
+    optional: true
+  - name: CallSitePrototypes
+    sequence:
+      type: SortedVector
+      elementType: model::CallSitePrototype
     optional: true
 key:
   - Entry

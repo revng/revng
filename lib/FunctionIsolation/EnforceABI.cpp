@@ -21,9 +21,10 @@
 #include "revng/ABI/FunctionType.h"
 #include "revng/ADT/LazySmallBitVector.h"
 #include "revng/ADT/SmallMap.h"
+#include "revng/EarlyFunctionAnalysis/CallEdge.h"
+#include "revng/EarlyFunctionAnalysis/IRHelpers.h"
 #include "revng/FunctionIsolation/EnforceABI.h"
 #include "revng/FunctionIsolation/StructInitializers.h"
-#include "revng/Model/CallEdge.h"
 #include "revng/Model/Register.h"
 #include "revng/Model/Type.h"
 #include "revng/Pipeline/AllRegistries.h"
@@ -88,9 +89,10 @@ private:
 
   void handleRegularFunctionCall(CallInst *Call);
   CallInst *generateCall(IRBuilder<> &Builder,
+                         MetaAddress Entry,
                          FunctionCallee Callee,
-                         const model::BasicBlock &CallSiteBlock,
-                         const model::CallEdge &CallSite);
+                         const efa::BasicBlock &CallSiteBlock,
+                         const efa::CallEdge &CallSite);
 
 private:
   Module &M;
@@ -314,11 +316,13 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
 
   // Identify the corresponding call site in the model
   MetaAddress BasicBlockAddress = GCBI.getJumpTarget(Call->getParent());
-  const model::BasicBlock &Block = FunctionModel.CFG.at(BasicBlockAddress);
-  const model::CallEdge *CallSite = nullptr;
+  efa::FunctionMetadata FM = *extractFunctionMetadata(CallerFunction).get();
+
+  const efa::BasicBlock &Block = FM.ControlFlowGraph.at(BasicBlockAddress);
+  const efa::CallEdge *CallSite = nullptr;
   for (const auto &Edge : Block.Successors) {
-    using namespace model::FunctionEdgeType;
-    CallSite = dyn_cast<model::CallEdge>(Edge.get());
+    using namespace efa::FunctionEdgeType;
+    CallSite = dyn_cast<efa::CallEdge>(Edge.get());
     if (CallSite != nullptr)
       break;
   }
@@ -345,7 +349,11 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
 
   // Generate the call
   IRBuilder<> Builder(Call);
-  CallInst *NewCall = generateCall(Builder, Callee, Block, *CallSite);
+  CallInst *NewCall = generateCall(Builder,
+                                   FunctionModel.Entry,
+                                   Callee,
+                                   Block,
+                                   *CallSite);
   NewCall->copyMetadata(*Call);
 
   // Set PC to the expected value
@@ -365,9 +373,10 @@ toFunctionPointer(IRBuilder<> &B, Value *V, FunctionType *FT) {
 }
 
 CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
+                                       MetaAddress Entry,
                                        FunctionCallee Callee,
-                                       const model::BasicBlock &CallSiteBlock,
-                                       const model::CallEdge &CallSite) {
+                                       const efa::BasicBlock &CallSiteBlock,
+                                       const efa::CallEdge &CallSite) {
   using model::NamedTypedRegister;
   using model::RawFunctionType;
   using model::TypedRegister;
@@ -377,7 +386,10 @@ CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   llvm::SmallVector<Value *, 8> Arguments;
   llvm::SmallVector<GlobalVariable *, 8> ReturnCSVs;
 
-  model::TypePath PrototypePath = getPrototype(Binary, CallSite);
+  model::TypePath PrototypePath = getPrototype(Binary,
+                                               Entry,
+                                               CallSiteBlock.Start,
+                                               CallSite);
   auto Prototype = abi::FunctionType::Layout::make(PrototypePath);
   revng_assert(Prototype.verify());
 
