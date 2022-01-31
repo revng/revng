@@ -6,6 +6,8 @@
 
 #include <set>
 
+#include "llvm/Support/ManagedStatic.h"
+
 #include "revng/Model/Binary.h"
 
 namespace model {
@@ -19,14 +21,5 @@ namespace model {
 /// \return the number of dropped types
 unsigned dropTypesDependingOnTypes(TupleTree<model::Binary> &Binary,
                                    const std::set<const model::Type *> &Types);
-
-/// Given an invalid model which features conflicing names, changes it to make
-/// it valid
-void promoteOriginalName(TupleTree<model::Binary> &Model);
-
-/// Best effort deduplication of types that are identical
-void deduplicateEquivalentTypes(TupleTree<model::Binary> &Model);
-
-void purgeUnnamedAndUnreachableTypes(TupleTree<model::Binary> &Model);
 
 } // namespace model

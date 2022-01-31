@@ -9,6 +9,8 @@
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/WithColor.h"
+#include "llvm/Support/raw_os_ostream.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "revng/ADT/KeyedObjectContainer.h"
 #include "revng/ADT/ZipMapIterator.h"
@@ -65,7 +67,13 @@ struct TupleTreeDiff {
     Changes.push_back({ Path, From, To });
   }
 
-  void dump() const;
+  void dump(llvm::raw_ostream &OutputStream) const;
+
+  void dump() const {
+    llvm::raw_os_ostream OutputStream(dbg);
+    dump(OutputStream);
+  }
+
   void apply(T &M) const;
 };
 
@@ -170,11 +178,12 @@ void stream(T *M, S &Stream) {
 }
 
 template<typename T>
-void dumpWithPrefixAndColor(llvm::StringRef Prefix,
+void dumpWithPrefixAndColor(llvm::raw_ostream &OutputStream,
+                            llvm::StringRef Prefix,
                             llvm::raw_ostream::Colors Color,
                             T *M) {
   std::string Buffer;
-  llvm::WithColor Stream(llvm::outs());
+  llvm::WithColor Stream(OutputStream);
   Stream.changeColor(Color);
 
   {
@@ -192,6 +201,7 @@ void dumpWithPrefixAndColor(llvm::StringRef Prefix,
 }
 
 struct DumpDiffVisitor {
+  llvm::raw_ostream &OutputStream;
   void *Old, *New;
 
   template<typename T, int I>
@@ -209,7 +219,7 @@ struct DumpDiffVisitor {
     dump<typename T::value_type>();
   }
 
-  template<NotTupleTreeCompatible T>
+  template<typename T>
   void visit() {
     revng_assert(Old != nullptr and New != nullptr);
     dump<T>();
@@ -219,13 +229,15 @@ struct DumpDiffVisitor {
   void dump() {
 
     if (Old != nullptr) {
-      dumpWithPrefixAndColor("-",
+      dumpWithPrefixAndColor(OutputStream,
+                             "-",
                              llvm::raw_ostream::RED,
                              reinterpret_cast<T *>(Old));
     }
 
     if (New != nullptr) {
-      dumpWithPrefixAndColor("+",
+      dumpWithPrefixAndColor(OutputStream,
+                             "+",
                              llvm::raw_ostream::GREEN,
                              reinterpret_cast<T *>(New));
     }
@@ -235,7 +247,7 @@ struct DumpDiffVisitor {
 } // namespace tupletreediff::detail
 
 template<typename T>
-inline void TupleTreeDiff<T>::dump() const {
+inline void TupleTreeDiff<T>::dump(llvm::raw_ostream &OutputStream) const {
   using namespace tupletreediff::detail;
 
   TupleTreePath LastPath;
@@ -243,12 +255,12 @@ inline void TupleTreeDiff<T>::dump() const {
 
     if (LastPath != C.Path) {
       std::string NewPath = *pathAsString<T>(C.Path);
-      llvm::outs() << "--- " << NewPath << "\n";
-      llvm::outs() << "+++ " << NewPath << "\n";
+      OutputStream << "--- " << NewPath << "\n";
+      OutputStream << "+++ " << NewPath << "\n";
       LastPath = C.Path;
     }
 
-    DumpDiffVisitor PV2{ C.Old, C.New };
+    DumpDiffVisitor PV2{ OutputStream, C.Old, C.New };
     callByPath<T>(PV2, C.Path);
   }
 }

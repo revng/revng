@@ -7,6 +7,7 @@
 #include <array>
 #include <type_traits>
 
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 
 #include "revng/Support/Concepts.h"
@@ -187,4 +188,26 @@ inline auto skip(unsigned ToSkip, C &&Container)
   while (ToSkip-- > 0)
     Begin++;
   return llvm::make_range(Begin, std::end(Container));
+}
+
+//
+// slice
+//
+
+/// Copy into a std::array a slice of an llvm::ArrayRef
+template<size_t Start, size_t Size, typename T>
+std::array<T, Size> slice(llvm::ArrayRef<T> Old) {
+  std::array<T, Size> Result;
+  auto StartIt = Old.begin() + Start;
+  std::copy(StartIt, StartIt + Size, Result.begin());
+  return Result;
+}
+
+/// Copy into a std::array a slice of a std::array
+template<size_t Start, size_t Size, typename T, size_t OldSize>
+std::array<T, Size> slice(const std::array<T, OldSize> &Old) {
+  std::array<T, Size> Result;
+  auto StartIt = Old.begin() + Start;
+  std::copy(StartIt, StartIt + Size, Result.begin());
+  return Result;
 }

@@ -10,10 +10,12 @@ bool init_unit_test();
 #include "boost/test/unit_test.hpp"
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/Pass/AllPasses.h"
 #include "revng/Model/Processing.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/Support/YAMLTraits.h"
+#include "revng/TupleTree/Introspection.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
 
 using namespace model;
@@ -285,11 +287,9 @@ BOOST_AUTO_TEST_CASE(TestModelDeduplication) {
 }
 
 BOOST_AUTO_TEST_CASE(TestTupleTreeDiff) {
-  if (false) {
-    model::Binary Left;
-    model::Binary Right;
-    diff(Left, Right).dump();
-  }
+  model::Binary Left;
+  model::Binary Right;
+  diff(Left, Right).dump();
 }
 
 static_assert(std::is_default_constructible_v<TupleTree<TestTupleTree::Root>>);

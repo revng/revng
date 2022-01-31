@@ -19,6 +19,7 @@
 #include "revng/Pipeline/Runner.h"
 #include "revng/Pipeline/SavableObject.h"
 #include "revng/Support/Assert.h"
+#include "revng/TupleTree/Introspection.h"
 #include "revng/TupleTree/TupleTree.h"
 
 namespace pipeline {

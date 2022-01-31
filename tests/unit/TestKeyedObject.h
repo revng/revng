@@ -5,6 +5,7 @@
 //
 
 #include "revng/ADT/KeyedObjectTraits.h"
+#include "revng/TupleTree/Introspection.h"
 #include "revng/TupleTree/TupleTree.h"
 
 struct Element {

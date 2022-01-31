@@ -14,5 +14,5 @@ llvm_map_components_to_libnames(LLVM_LIBRARIES
 target_link_libraries(revngDwarfImporter
   revngSupport
   revngModel
+  revngModelPasses
   ${LLVM_LIBRARIES})
-  

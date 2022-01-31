@@ -225,6 +225,7 @@ target_link_libraries(test_model
   revngSupport
   revngUnitTestHelpers
   revngModel
+  revngModelPasses
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
 add_test(NAME test_model COMMAND ./bin/test_model)
