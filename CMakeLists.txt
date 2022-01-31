@@ -131,7 +131,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
         AND "${CONFIGURATION}" STREQUAL "dynamic_native")
       get_filename_component(BASENAME "${INPUT_FILE}" NAME_WE)
       add_test(NAME psp_${TARGET_NAME}
-        COMMAND bash -c "opt -S ${TARGET_NAME}_prepared.bc | revng dump-model | revng compare-yaml - ${CMAKE_SOURCE_DIR}/tests/Analysis/PromoteStackPointer/${BASENAME}.yml")
+        COMMAND bash -c "opt -S ${TARGET_NAME}_prepared.bc | revng model dump | revng model compare - ${CMAKE_SOURCE_DIR}/tests/Analysis/PromoteStackPointer/${BASENAME}.yml")
       set_property(TEST psp_${TARGET_NAME} APPEND PROPERTY
         DEPENDS prepare_${TARGET_NAME}
         )
