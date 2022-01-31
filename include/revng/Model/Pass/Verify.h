@@ -6,4 +6,8 @@
 
 #include "revng/Model/Binary.h"
 
-void deduplicateEquivalentTypesImpl(TupleTree<model::Binary> &Model);
+namespace model {
+
+void verify(TupleTree<model::Binary> &Model);
+
+} // namespace model

@@ -1,4 +1,4 @@
-/// \file TypesDeduplication.cpp
+/// \file DeduplicateEquivalentTypes.cpp
 /// \brief Implementation of deduplication of identical types.
 
 //
@@ -11,15 +11,17 @@
 
 #include "revng/ADT/GenericGraph.h"
 #include "revng/ADT/STLExtras.h"
-#include "revng/Model/Processing.h"
+#include "revng/Model/Pass/DeduplicateEquivalentTypes.h"
+#include "revng/Model/Pass/RegisterModelPass.h"
 #include "revng/Support/Debug.h"
-
-#include "TypesDeduplication.h"
 
 using namespace llvm;
 using namespace model;
 
 static Logger<> Log("model-types-deduplication");
+
+static RegisterModelPass
+  R("deduplicate-equivalent-types", model::deduplicateEquivalentTypes);
 
 static void
 compareAll(SmallVector<model::Type *> &ToTest,
@@ -328,7 +330,7 @@ private:
   }
 };
 
-void deduplicateEquivalentTypesImpl(TupleTree<model::Binary> &Model) {
+void model::deduplicateEquivalentTypes(TupleTree<model::Binary> &Model) {
   revng_log(Log, "Deduplicating the model");
   LoggerIndent Indent(Log);
 

@@ -22,6 +22,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/DwarfImporter/DwarfImporter.h"
+#include "revng/Model/Pass/AllPasses.h"
 #include "revng/Model/Processing.h"
 #include "revng/Model/QualifiedType.h"
 #include "revng/Model/Type.h"
