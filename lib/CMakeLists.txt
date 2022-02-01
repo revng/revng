@@ -18,7 +18,6 @@ macro(revng_add_library_internal NAME TYPE)
 endmacro()
 
 add_subdirectory(BasicAnalyses)
-add_subdirectory(Dump)
 add_subdirectory(DwarfImporter)
 add_subdirectory(FunctionCallIdentification)
 add_subdirectory(FunctionIsolation)
