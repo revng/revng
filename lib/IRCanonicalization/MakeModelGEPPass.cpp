@@ -38,6 +38,7 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/Type.h"
 #include "revng/Model/VerifyHelper.h"
@@ -61,9 +62,7 @@ using llvm::Constant;
 using llvm::ConstantExpr;
 using llvm::ConstantInt;
 using llvm::dyn_cast;
-using llvm::dyn_cast_or_null;
 using llvm::ExtractValueInst;
-using llvm::FunctionCallee;
 using llvm::FunctionPass;
 using llvm::GlobalVariable;
 using llvm::Instruction;
@@ -71,7 +70,6 @@ using llvm::IRBuilder;
 using llvm::isa;
 using llvm::LLVMContext;
 using llvm::LoadInst;
-using llvm::MDTuple;
 using llvm::None;
 using llvm::Optional;
 using llvm::PHINode;
@@ -83,12 +81,11 @@ using llvm::StoreInst;
 using llvm::Use;
 using llvm::User;
 using llvm::Value;
-using llvm::ValueAsMetadata;
+using model::CABIFunctionType;
+using model::Qualifier;
+using model::RawFunctionType;
 
 static Logger<> ModelGEPLog{ "make-model-gep" };
-
-static constexpr const char *const FunctionMDName = "revng.function.entry";
-static constexpr const char *const CallMDName = "revng.callerblock.start";
 
 struct MakeModelGEPPass : public FunctionPass {
 public:
@@ -103,70 +100,6 @@ public:
     AU.addRequired<LoadModelWrapperPass>();
   }
 };
-
-template<HasMetadata ValueT>
-static MetaAddress
-getMetaAddressFromNamedMD(const ValueT *V, const std::string &Name) {
-  if (V)
-    if (const auto *Metadata = V->getMetadata(Name))
-      if (const auto *MDT = dyn_cast_or_null<MDTuple>(Metadata))
-        if (const auto *VAM = dyn_cast<ValueAsMetadata>(MDT->getOperand(0)))
-          return MetaAddress::fromConstant(VAM->getValue());
-  return MetaAddress::invalid();
-}
-
-static const model::Function &
-getModelFunction(const model::Binary &Model, const llvm::Function &F) {
-  auto FunctionMetaAddress = getMetaAddressFromNamedMD(&F, FunctionMDName);
-  return Model.Functions.at(FunctionMetaAddress);
-}
-
-static RecursiveCoroutine<model::QualifiedType>
-dropPointer(const model::QualifiedType &QT) {
-
-  revng_assert(QT.isPointer());
-
-  auto QIt = QT.Qualifiers.begin();
-  auto QEnd = QT.Qualifiers.end();
-  for (; QIt != QEnd; ++QIt) {
-
-    if (model::Qualifier::isConst(*QIt))
-      continue;
-
-    if (model::Qualifier::isPointer(*QIt))
-      rc_return model::QualifiedType(QT.UnqualifiedType,
-                                     { std::next(QIt), QEnd });
-
-    revng_assert(model::Qualifier::isArray(*QIt));
-    rc_return QT;
-  }
-
-  if (auto *TD = dyn_cast<model::TypedefType>(QT.UnqualifiedType.get()))
-    rc_return rc_recur dropPointer(TD->UnderlyingType);
-
-  rc_return QT;
-}
-
-static const model::Type *getCalleePrototype(const model::BasicBlock &ModelBB,
-                                             const model::Binary &Model) {
-
-  const model::CallEdge *CallSucc = nullptr;
-  for (const auto &Succ : ModelBB.Successors) {
-
-    const auto *ThisSucc = dyn_cast<model::CallEdge>(Succ.get());
-    if (not ThisSucc)
-      continue;
-
-    // ModelBB should only have a single CallEdge successor
-    revng_assert(not CallSucc);
-    CallSucc = ThisSucc;
-  }
-  revng_assert(CallSucc);
-
-  const model::Type *FType = getPrototype(Model, *CallSucc).get();
-  revng_assert(FType);
-  return FType;
-}
 
 using ValueModelTypesMap = std::map<const Value *, const model::QualifiedType>;
 
@@ -246,9 +179,7 @@ ValueModelTypesMap initializeModelTypes(const llvm::Function &F,
         if (Callee->getName() == "revng_stack_frame") {
           if (ModelF.StackFrameType.isValid()) {
 
-            using model::Architecture::getPointerSize;
-            size_t PointerBytes = getPointerSize(Model.Architecture);
-            auto PointerQual = model::Qualifier::createPointer(PointerBytes);
+            auto PointerQual = Qualifier::createPointer(Model.Architecture);
             model::QualifiedType FStackType(ModelF.StackFrameType,
                                             { PointerQual });
             revng_log(ModelGEPLog, "Call: " << dumpToString(Call));
@@ -270,16 +201,14 @@ ValueModelTypesMap initializeModelTypes(const llvm::Function &F,
               unsigned NArgOperands = CallUsingArgs->getNumArgOperands();
               revng_assert(StackArgsUse.getOperandNo() == NArgOperands - 1);
 
-              auto CallMA = getMetaAddressFromNamedMD(Call, CallMDName);
-              revng_assert(not CallMA.isInvalid());
-              const model::BasicBlock &ModelBB = ModelF.CFG.at(CallMA);
-              const auto *FType = getCalleePrototype(ModelBB, Model);
-              const auto *CalleeRFT = cast<model::RawFunctionType>(FType);
+              const model::Type *CalleeT = getCallSitePrototype(Model, Call);
+              revng_assert(CalleeT);
+              const auto *CalleeRFT = cast<model::RawFunctionType>(CalleeT);
               revng_assert(CalleeRFT->StackArgumentsType.isValid());
 
+              auto PointerQual = Qualifier::createPointer(Model.Architecture);
               model::QualifiedType
-                CalleeStackType(CalleeRFT->StackArgumentsType,
-                                { model::Qualifier::createPointer(8) });
+                CalleeStackType(CalleeRFT->StackArgumentsType, { PointerQual });
               Result.insert({ Call, std::move(CalleeStackType) });
             }
           }
@@ -291,18 +220,14 @@ ValueModelTypesMap initializeModelTypes(const llvm::Function &F,
       // stack-allocation function, so we need to check if it calls an
       // isolated function.
 
-      // If this call does not have revng metadata we cannot figure out the
-      // prototype of the callee, so we have no types to inizialize.
+      // If this call does not have a prototype we have no types to inizialize.
       // Just go on with the next instruction.
-      auto CallMetaAddress = getMetaAddressFromNamedMD(Call, CallMDName);
-      if (CallMetaAddress.isInvalid()) {
-        revng_log(ModelGEPLog, "Does not have model metadata. Skip ...");
+      const model::Type *FType = getCallSitePrototype(Model, Call);
+      if (not FType) {
+        revng_log(ModelGEPLog,
+                  "Could not retrieve the prototype. Skipping ...");
         continue;
       }
-
-      const model::BasicBlock &ModelBB = ModelF.CFG.at(CallMetaAddress);
-      const auto *FType = getCalleePrototype(ModelBB, Model);
-      revng_assert(FType);
 
       if (const auto *RFT = dyn_cast<model::RawFunctionType>(FType)) {
         revng_log(ModelGEPLog, "Call has RawFunctionType prototype.");
@@ -597,10 +522,10 @@ static IRAccessPattern computeAccessPattern(const Use &U,
       // If the user is a ret, we want to look at the return type of the
       // function we're returning from, and use it as a pointee type.
 
-      revng_assert(FunctionTags::Isolated.isTagOf(ReturningF));
-      const model::Function &MF = getModelFunction(Model, *ReturningF);
+      const model::Function *MF = llvmToModelFunction(Model, *ReturningF);
+      revng_assert(MF);
 
-      const model::Type *FType = MF.Prototype.get();
+      const model::Type *FType = MF->Prototype.get();
       revng_assert(FType);
 
       if (const auto *RFT = dyn_cast<model::RawFunctionType>(FType)) {
@@ -668,30 +593,22 @@ static IRAccessPattern computeAccessPattern(const Use &U,
       // coming from them for initializing IRPattern.PointeeType
 
       revng_log(ModelGEPLog, "Call");
+      const llvm::Function *CalledF = Call->getCalledFunction();
 
-      // If this call does not have revng metadata we cannot figure out the
-      // prototype of the callee, so we have no types to inizialize.
-      // Just go on with the next instruction.
-      auto CallMetaAddress = getMetaAddressFromNamedMD(Call, CallMDName);
+      if (CalledF and FunctionTags::StructInitializer.isTagOf(CalledF)) {
 
-      const llvm::Function *F = Call->getFunction();
-      if (CallMetaAddress.isInvalid()) {
-
-        revng_log(ModelGEPLog, "Does not have model metadata. Skip ...");
-
-      } else if (FunctionTags::StructInitializer.isTagOf(F)) {
-
-        // special case for struct initializers. Eventually we should use
-        // FunctionTags for this, not the function name.
+        // special case for struct initializers
         unsigned ArgNum = Call->getArgOperandNo(&U);
 
-        const model::Function &MF = getModelFunction(Model, *F);
-        const auto *FType = MF.Prototype.get();
-        if (const auto *RFT = dyn_cast<model::RawFunctionType>(FType)) {
+        const model::Function *CalledFType = llvmToModelFunction(Model,
+                                                                 *CalledF);
+        const model::Type *CalledPrototype = CalledFType->Prototype.getConst();
+
+        if (auto *RFT = dyn_cast<RawFunctionType>(CalledPrototype)) {
           revng_log(ModelGEPLog, "Has RawFunctionType prototype.");
           revng_assert(RFT->ReturnValues.size() > 1);
 
-          auto *StructTy = cast<llvm::StructType>(F->getReturnType());
+          auto *StructTy = cast<llvm::StructType>(CalledF->getReturnType());
           revng_log(ModelGEPLog, "Has many return types.");
           revng_assert(StructTy->getNumElements() == RFT->ReturnValues.size());
 
@@ -702,7 +619,7 @@ static IRAccessPattern computeAccessPattern(const Use &U,
             revng_log(ModelGEPLog, "Pointee: " << serializeToString(Pointee));
             IRPattern.PointeeType = Pointee;
           }
-        } else if (const auto *CFT = dyn_cast<model::CABIFunctionType>(FType)) {
+        } else if (auto *CFT = dyn_cast<CABIFunctionType>(CalledPrototype)) {
           revng_log(ModelGEPLog, "Has CABIFunctionType prototype.");
           // TODO: we haven't handled return values of CABIFunctions yet
           revng_abort();
@@ -712,13 +629,15 @@ static IRAccessPattern computeAccessPattern(const Use &U,
         }
 
       } else {
+        const model::Type *FType = getCallSitePrototype(Model, Call);
 
-        const model::Function &MF = getModelFunction(Model, *F);
-        const model::BasicBlock &ModelBB = MF.CFG.at(CallMetaAddress);
-        const auto *FType = getCalleePrototype(ModelBB, Model);
-        revng_assert(FType);
+        if (not FType) {
+          // If this callsite has no prototype and we are not calling a
+          // StructInitializer, we have no type information: skip this
+          // instruction.
+          revng_log(ModelGEPLog, "Does not have a prototype. Skip ...");
 
-        if (const auto *RFT = dyn_cast<model::RawFunctionType>(FType)) {
+        } else if (const auto *RFT = dyn_cast<model::RawFunctionType>(FType)) {
 
           auto MoreIndent = LoggerIndent(ModelGEPLog);
           revng_assert(RFT->Arguments.size() == Call->arg_size());
@@ -1535,7 +1454,7 @@ class GEPSummationCache {
       revng_assert(Type.isPointer());
 
       Result = ModelGEPSummation{
-        .BaseAddress = TypedBaseAddress{ .Type = dropPointer(Type),
+        .BaseAddress = TypedBaseAddress{ .Type = dropPointerRecursively(Type),
                                          .Address = AddressArith },
         // The summation is empty since AddressArith has exactly the type
         // we're looking at here.
@@ -2107,12 +2026,13 @@ makeGEPReplacements(llvm::Function &F, const model::Binary &Model) {
 
   UseGEPInfoMap Result;
 
-  const model::Function &ModelF = getModelFunction(Model, F);
+  const model::Function *ModelF = llvmToModelFunction(Model, F);
+  revng_assert(ModelF);
 
   // First, try to initialize a map for the known model types of llvm::Values
   // that are reachable from F. If this fails, we just bail out because we
   // cannot infer any modelGEP in F, if we have no type information to rely on.
-  ValueModelTypesMap PointerTypes = initializeModelTypes(F, ModelF, Model);
+  ValueModelTypesMap PointerTypes = initializeModelTypes(F, *ModelF, Model);
   if (PointerTypes.empty()) {
     revng_log(ModelGEPLog, "Model Types not found for " << F.getName());
     return Result;
