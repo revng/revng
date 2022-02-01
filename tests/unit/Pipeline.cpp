@@ -1,5 +1,5 @@
 /// \file Pipeline.cpp
-/// \brief Tests for Auto Pipe
+/// \brief Tests for revng-pipeline
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -877,14 +877,14 @@ static const std::string PipelineTree(R"(---
                        )");
 
 static const std::string PipelineTree2(R"(---
-                       From:			FirstStep
+                       From:      FirstStep
                        Containers:
                        Steps:
                          - Name:            SecondStep
                        )");
 
 static const std::string PipelineTree3(R"(---
-                       From:			FirstStep
+                       From:      FirstStep
                        Containers:
                        Steps:
                          - Name:            ThirdStep

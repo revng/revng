@@ -15,7 +15,7 @@
 #include "revng/Lift/PTCInterface.h"
 #include "revng/Support/Assert.h"
 
-static const int MAX_TEMP_NAME_LENGTH = 128;
+static const int MaxTempNameLength = 128;
 
 static void getTemporaryName(char *Buffer,
                              size_t BufferSize,
@@ -47,7 +47,7 @@ int dumpInstruction(std::ostream &Result,
 
   PTCOpcode Opcode = Instruction.opc;
   PTCOpcodeDef *Definition = ptc_instruction_opcode_def(&ptc, &Instruction);
-  char TemporaryName[MAX_TEMP_NAME_LENGTH + 1] = { '\0' };
+  char TemporaryName[MaxTempNameLength + 1] = { '\0' };
 
   if (Opcode == PTC_INSTRUCTION_op_debug_insn_start) {
     // TODO: create accessors for PTC_INSTRUCTION_op_debug_insn_start
@@ -80,7 +80,7 @@ int dumpInstruction(std::ostream &Result,
     // Print out arguments
     for (I = 0; I < OutArgsCount; I++) {
       getTemporaryName(TemporaryName,
-                       MAX_TEMP_NAME_LENGTH,
+                       MaxTempNameLength,
                        Instructions,
                        ptc_call_instruction_out_arg(&ptc, &Instruction, I));
       Result << "," << TemporaryName;
@@ -94,10 +94,7 @@ int dumpInstruction(std::ostream &Result,
                                                             I);
 
       if (InArg != PTC_CALL_DUMMY_ARG) {
-        getTemporaryName(TemporaryName,
-                         MAX_TEMP_NAME_LENGTH,
-                         Instructions,
-                         InArg);
+        getTemporaryName(TemporaryName, MaxTempNameLength, Instructions, InArg);
         Result << "," << TemporaryName;
       } else {
         Result << ",<dummy>";
@@ -114,7 +111,7 @@ int dumpInstruction(std::ostream &Result,
         Result << ",";
 
       getTemporaryName(TemporaryName,
-                       MAX_TEMP_NAME_LENGTH,
+                       MaxTempNameLength,
                        Instructions,
                        ptc_instruction_out_arg(&ptc, &Instruction, I));
       Result << TemporaryName;
@@ -129,7 +126,7 @@ int dumpInstruction(std::ostream &Result,
         Result << ",";
 
       getTemporaryName(TemporaryName,
-                       MAX_TEMP_NAME_LENGTH,
+                       MaxTempNameLength,
                        Instructions,
                        ptc_instruction_in_arg(&ptc, &Instruction, I));
       Result << TemporaryName;

@@ -40,7 +40,7 @@ concept SetLike = HasKeyType<T> and not HasMappedType<T>
   and std::is_same_v<typename T::key_type, typename T::value_type>;
 
 template<typename T>
-concept VectorOfPairs = 
+concept VectorOfPairs =
   std::is_same_v<std::vector<std::pair<typename T::value_type::first_type,
                                        typename T::value_type::second_type>>,
                  std::remove_const_t<T>>
