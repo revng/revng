@@ -1,4 +1,4 @@
-; RUN: %revngopt %s -S -add-primitives -o - | revng dump-model | revng compare-yaml - %s.yml
+; RUN: %revngopt %s -S -add-primitives -o - | revng model dump | revng model compare - %s.yml
 ; This file is meant to be used to test that the decompiler generates all the
 ; primitive types needed for decompilation.
 target triple = "x86_64-unknown-linux-gnu"
