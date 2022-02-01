@@ -19,7 +19,6 @@ endmacro()
 
 add_subdirectory(ABI)
 add_subdirectory(BasicAnalyses)
-add_subdirectory(Dump)
 add_subdirectory(FunctionCallIdentification)
 add_subdirectory(FunctionIsolation)
 add_subdirectory(Model)
