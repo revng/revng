@@ -37,7 +37,7 @@
 #include "revng/Pipeline/Runner.h"
 #include "revng/Pipeline/Target.h"
 
-static const char *LLVMName = "SomeOtherName";
+static char LLVMName = ' ';
 
 using ExampleLLVMInspectalbeContainer = pipeline::LLVMContainerBase<&LLVMName>;
 

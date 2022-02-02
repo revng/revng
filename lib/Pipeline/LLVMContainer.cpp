@@ -9,7 +9,7 @@
 
 #include "revng/Pipeline/LLVMContainer.h"
 
-const char *pipeline::LLVMContainerTypeID = "RevngLLVMContainer";
+char pipeline::LLVMContainerTypeID = '0';
 
 template<>
 const char pipeline::LLVMContainer::ID = '0';

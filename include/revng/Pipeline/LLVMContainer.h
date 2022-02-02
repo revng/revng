@@ -77,14 +77,14 @@ class GenericLLVMPipe;
 
 /// Implementation that can be derived by anyone so that multiple identical
 /// LLVMContainers can exist so that inspector kinds do not pollute each other
-template<const char **NameID>
+template<char *TypeID>
 class LLVMContainerBase
-  : public EnumerableContainer<LLVMContainerBase<NameID>> {
+  : public EnumerableContainer<LLVMContainerBase<TypeID>> {
 public:
   static const char ID;
 
 private:
-  using ThisType = LLVMContainerBase<NameID>;
+  using ThisType = LLVMContainerBase<TypeID>;
 
 private:
   std::unique_ptr<llvm::Module> Module;
@@ -214,7 +214,7 @@ private:
   }
 };
 
-extern const char *LLVMContainerTypeID;
+extern char LLVMContainerTypeID;
 
 using LLVMContainer = LLVMContainerBase<&LLVMContainerTypeID>;
 using LLVMKind = LLVMGlobalKindBase<LLVMContainer>;
