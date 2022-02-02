@@ -10,6 +10,7 @@
 #include "revng/ADT/SortedVector.h"
 #include "revng/ADT/UpcastablePointer.h"
 #include "revng/ADT/UpcastablePointer/YAMLTraits.h"
+#include "revng/Model/ABI.h"
 #include "revng/Model/DynamicFunction.h"
 #include "revng/Model/Function.h"
 #include "revng/Model/FunctionAttribute.h"
@@ -40,6 +41,9 @@ fields:
   - name: Architecture
     doc: Binary architecture
     type: model::Architecture::Values
+  - name: DefaultABI
+    doc: The default ABI of `RawFunctionType`s within the binary
+    type: model::ABI::Values
   - name: Segments
     doc: List of segments in the original binary
     sequence:

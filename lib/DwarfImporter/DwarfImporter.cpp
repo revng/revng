@@ -130,7 +130,6 @@ private:
   size_t AltIndex;
   size_t TypesWithIdentityCount;
   DWARFContext &DICtx;
-  model::ABI::Values DefaultABI;
   std::map<size_t, const model::Type *> Placeholders;
   std::set<const model::Type *> InvalidPrimitives;
   std::set<const DWARFDie *> InProgressDies;
@@ -146,15 +145,13 @@ public:
     AltIndex(AltIndex),
     DICtx(DICtx) {
 
-    // Detect default ABI from architecture
-    // TODO: this needs to be refined
-    switch (DICtx.getArch()) {
-    case llvm::Triple::x86_64:
-      DefaultABI = model::ABI::SystemV_x86_64;
-      break;
-    default:
-      DefaultABI = model::ABI::Invalid;
-    }
+    // Ensure the architecture is consistent.
+    auto Arch = model::Architecture::fromLLVMArchitecture(DICtx.getArch());
+    revng_assert(Arch == Model->Architecture);
+
+    // Detect default ABI from the architecture.
+    if (Model->DefaultABI == model::ABI::Invalid)
+      Model->DefaultABI = model::ABI::getDefault(Model->Architecture);
   }
 
 private:
@@ -162,7 +159,7 @@ private:
     if (CC != DW_CC_normal)
       return model::ABI::Invalid;
 
-    return DefaultABI;
+    return Model->DefaultABI;
   }
 
   const model::QualifiedType &record(const DWARFDie &Die,
