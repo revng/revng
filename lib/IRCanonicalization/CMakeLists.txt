@@ -6,7 +6,8 @@ revng_add_analyses_library(revngcIRCanonicalization
 	revngc
 	AddIRSerializationMarkerPass.cpp
 	MakeModelGEPPass.cpp
-	ExitSSAPass.cpp)
+	ExitSSAPass.cpp
+	TwosComplementArithmeticNormalizationPass.cpp)
 
 target_link_libraries(revngcIRCanonicalization
 	revngcDecompiler

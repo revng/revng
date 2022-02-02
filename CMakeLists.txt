@@ -207,6 +207,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       -early-cse
       -dce
       -exit-ssa
+      -twoscomplement-normalization
       -add-ir-serialization-markers
       ${TARGET_NAME}_prepared.bc
       -o ${TARGET_NAME}_canonicalized.bc
