@@ -1225,6 +1225,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   // Set the architecture
   auto Triple = Binary.architecture().type();
   Model->Architecture = model::Architecture::fromLLVMArchitecture(Triple);
+  Model->DefaultABI = model::ABI::getDefault(Model->Architecture);
 
   // Create segments
   for (const SegmentInfo &S : Binary.segments()) {
