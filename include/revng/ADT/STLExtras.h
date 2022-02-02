@@ -38,6 +38,42 @@ static_assert(is_specialization_v<const std::vector<int>, std::vector>);
 static_assert(is_specialization_v<std::pair<int, long>, std::pair>);
 
 //
+// always_true and always_false
+//
+// Since an assert in the `else` branch of an `if_constexpr` condition said
+// branch gets instantiated if it doesn't depend on a template, these provide
+// an easy way to "fake" dependence on an arbitrary template parameter.
+//
+
+template<typename T>
+struct type_always_false {
+  constexpr static bool value = false;
+};
+template<typename T>
+constexpr inline bool type_always_false_v = type_always_false<T>::value;
+
+template<auto V>
+struct value_always_false {
+  constexpr static bool value = false;
+};
+template<auto V>
+constexpr inline bool value_always_false_v = value_always_false<V>::value;
+
+template<typename T>
+struct type_always_true {
+  constexpr static bool value = false;
+};
+template<typename T>
+constexpr inline bool type_always_true_v = type_always_true<T>::value;
+
+template<auto V>
+struct value_always_true {
+  constexpr static bool value = false;
+};
+template<auto V>
+constexpr inline bool value_always_true_v = value_always_true<V>::value;
+
+//
 // HasTupleSize
 //
 
@@ -95,8 +131,10 @@ static_assert(not IsTupleLike<int>);
 
 namespace revng {
 namespace detail {
+
 template<typename FuncTy, typename ItTy>
 using ReturnType = decltype(std::declval<FuncTy>()(*std::declval<ItTy>()));
+
 template<typename ItTy,
          typename FuncTy,
          typename FuncReturnTy = ReturnType<FuncTy, ItTy>>
@@ -126,6 +164,7 @@ template<typename ItTy, typename FuncTy>
 using ItImpl = std::conditional_t<std::is_object_v<ReturnType<FuncTy, ItTy>>,
                                   ProxyMappedIteratorImpl<ItTy, FuncTy>,
                                   llvm::mapped_iterator<ItTy, FuncTy>>;
+
 } // namespace detail
 
 /// `revng::mapped_iterator` is a specialized version of
