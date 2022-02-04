@@ -14,7 +14,10 @@
 using namespace llvm;
 using namespace model;
 
-static RegisterModelPass R("promote-original-name", model::promoteOriginalName);
+static RegisterModelPass R("promote-original-name",
+                           "Given an invalid model which features conflicing "
+                           "names, changes it to make it valid",
+                           model::promoteOriginalName);
 
 void recordCustomNamesInList(auto &Collection,
                              auto Unwrap,

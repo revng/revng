@@ -20,8 +20,10 @@ using namespace model;
 
 static Logger<> Log("model-types-deduplication");
 
-static RegisterModelPass
-  R("deduplicate-equivalent-types", model::deduplicateEquivalentTypes);
+static RegisterModelPass R("deduplicate-equivalent-types",
+                           "Best effort deduplication of types that are "
+                           "identical",
+                           model::deduplicateEquivalentTypes);
 
 static void
 compareAll(SmallVector<model::Type *> &ToTest,
