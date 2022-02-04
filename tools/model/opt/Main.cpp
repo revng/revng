@@ -17,6 +17,7 @@
 using namespace llvm;
 
 static cl::OptionCategory ThisToolCategory("Tool options", "");
+extern llvm::cl::OptionCategory ModelPassCategory;
 
 static ModelOutputOptions<true> Options(ThisToolCategory);
 
@@ -62,7 +63,7 @@ static void loadPassesList() {
 
 int main(int Argc, char *Argv[]) {
   loadPassesList();
-  cl::HideUnrelatedOptions({ &ThisToolCategory });
+  cl::HideUnrelatedOptions({ &ThisToolCategory, &ModelPassCategory });
   cl::ParseCommandLineOptions(Argc, Argv);
 
   ExitOnError ExitOnError;
