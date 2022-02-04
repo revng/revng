@@ -56,8 +56,8 @@ static cl::list<PassName>
   PassesList(cl::desc("Optimizations available:"), cl::cat(ThisToolCategory));
 
 static void loadPassesList() {
-  for (const auto &[Name, _] : RegisterModelPass::passes())
-    PassesList.getParser().addLiteralOption(Name, PassName(Name), Name);
+  for (const auto &[Name, Description, _] : RegisterModelPass::passes())
+    PassesList.getParser().addLiteralOption(Name, PassName(Name), Description);
 }
 
 int main(int Argc, char *Argv[]) {

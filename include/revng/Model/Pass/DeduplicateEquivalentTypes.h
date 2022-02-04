@@ -8,7 +8,7 @@
 
 namespace model {
 
-/// Best effort deduplication of types that are identical
+/// Best effort deduplication of types that are structurally equivalent.
 void deduplicateEquivalentTypes(TupleTree<model::Binary> &Model);
 
 } // namespace model

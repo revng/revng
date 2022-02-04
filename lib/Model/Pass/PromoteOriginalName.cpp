@@ -14,7 +14,10 @@
 using namespace llvm;
 using namespace model;
 
-static RegisterModelPass R("promote-original-name", model::promoteOriginalName);
+static RegisterModelPass R("promote-original-name",
+                           "Promote OriginalName fields to CustomName ensuring "
+                           "the validity of the model is preserved",
+                           model::promoteOriginalName);
 
 void recordCustomNamesInList(auto &Collection,
                              auto Unwrap,
