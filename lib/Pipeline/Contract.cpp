@@ -108,7 +108,7 @@ void Contract::forward(pipeline::Target &Input) const {
   const auto *OutputKind = TargetKind != nullptr ? TargetKind :
                                                    &Input.getKind();
   Input.setKind(*OutputKind);
-  forwardGranularity(Input);
+  forwardRank(Input);
 }
 
 bool Contract::forwardMatches(const Target &In) const {
@@ -127,7 +127,7 @@ void Contract::backward(Target &Output) const {
 
   Output.setKind(backwardInputKind(Output));
   Output.setExactness(backwardInputContract(Output));
-  backwardGranularity(Output);
+  backwardRank(Output);
 }
 
 Exactness::Values Contract::backwardInputContract(const Target &O) const {
@@ -140,35 +140,34 @@ Exactness::Values Contract::backwardInputContract(const Target &O) const {
   return O.kindExactness();
 }
 
-void Contract::forwardGranularity(Target &Input) const {
-  const auto *InputGranularity = &Source->granularity();
-  const auto *OutputGranularity = TargetKind != nullptr ?
-                                    &TargetKind->granularity() :
-                                    InputGranularity;
-  if (InputGranularity == OutputGranularity)
+void Contract::forwardRank(Target &Input) const {
+  const auto *InputRank = &Source->granularity();
+  const auto *OutputRank = TargetKind != nullptr ? &TargetKind->granularity() :
+                                                   InputRank;
+  if (InputRank == OutputRank)
     return;
 
   // if the output is at a greater level of depth of the hierarchy
   // than the input, for each level of difference add a granularity to the
   // target.
   //
-  if (InputGranularity->ancestorOf(*OutputGranularity)) {
-    while (InputGranularity != OutputGranularity) {
+  if (InputRank->ancestorOf(*OutputRank)) {
+    while (InputRank != OutputRank) {
       Input.addPathComponent();
-      OutputGranularity = OutputGranularity->parent();
+      OutputRank = OutputRank->parent();
     }
     return;
   }
 
   // If the output is less fined grained than the input drop levels of
   // granularity until they have the same.
-  if (OutputGranularity->ancestorOf(*InputGranularity)) {
-    while (OutputGranularity != InputGranularity) {
+  if (OutputRank->ancestorOf(*InputRank)) {
+    while (OutputRank != InputRank) {
       // if you are decreasing the granularity, you must have at your disposal
       // all symbols.
       revng_assert(Input.getPathComponents().back().isAll());
       Input.dropPathComponent();
-      InputGranularity = InputGranularity->parent();
+      InputRank = InputRank->parent();
     }
     return;
   }
@@ -176,28 +175,27 @@ void Contract::forwardGranularity(Target &Input) const {
   revng_abort("Unreachable");
 }
 
-void Contract::backwardGranularity(Target &Out) const {
-  const auto *InputGranularity = &Source->granularity();
-  const auto *OutputGranularity = TargetKind != nullptr ?
-                                    &TargetKind->granularity() :
-                                    InputGranularity;
-  if (InputGranularity == OutputGranularity)
+void Contract::backwardRank(Target &Out) const {
+  const auto *InputRank = &Source->granularity();
+  const auto *OutputRank = TargetKind != nullptr ? &TargetKind->granularity() :
+                                                   InputRank;
+  if (InputRank == OutputRank)
     return;
 
-  if (OutputGranularity->ancestorOf(*InputGranularity)) {
-    while (InputGranularity != OutputGranularity) {
+  if (OutputRank->ancestorOf(*InputRank)) {
+    while (InputRank != OutputRank) {
       Out.addPathComponent();
-      InputGranularity = InputGranularity->parent();
+      InputRank = InputRank->parent();
     }
     return;
   }
 
-  if (InputGranularity->ancestorOf(*OutputGranularity)) {
-    while (InputGranularity != OutputGranularity) {
+  if (InputRank->ancestorOf(*OutputRank)) {
+    while (InputRank != OutputRank) {
       // if you are decreasing the granularity, you must have at your disposal
       // all symbols.
       Out.dropPathComponent();
-      OutputGranularity = OutputGranularity->parent();
+      OutputRank = OutputRank->parent();
     }
     return;
   }

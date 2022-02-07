@@ -134,14 +134,14 @@ public:
 private:
   void forward(Target &Input) const;
   bool forwardMatches(const Target &Input) const;
-  void forwardGranularity(Target &Input) const;
+  void forwardRank(Target &Input) const;
 
   /// Target fixed -> Output must be exactly Target.
   /// Target same as Source, Source derived from base -> Most strict between
   /// source and target Target same as source, source exactly base -> base.
   void backward(Target &Output) const;
   Exactness::Values backwardInputContract(const Target &Output) const;
-  void backwardGranularity(Target &Output) const;
+  void backwardRank(Target &Output) const;
   const Kind &backwardInputKind(const Target &Output) const;
   bool backwardMatches(const Target &Output) const;
 

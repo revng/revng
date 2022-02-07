@@ -16,11 +16,11 @@ class Context;
 
 /// The granularity tree is a tree used by targets to find out how many names
 /// are required to name a target
-class Granularity : public DynamicHierarchy<Granularity> {
+class Rank : public DynamicHierarchy<Rank> {
 public:
-  Granularity(llvm::StringRef Name) : DynamicHierarchy(Name) {}
-  Granularity(llvm::StringRef Name, Granularity &Parent) :
-    DynamicHierarchy<Granularity>(Name, Parent) {}
+  Rank(llvm::StringRef Name) : DynamicHierarchy(Name) {}
+  Rank(llvm::StringRef Name, Rank &Parent) :
+    DynamicHierarchy<Rank>(Name, Parent) {}
 };
 
 class TargetsList;
@@ -38,22 +38,22 @@ class TargetsList;
 /// LLVMKind instead.
 class Kind : public DynamicHierarchy<Kind> {
 private:
-  const Granularity *TheGranularity;
+  const Rank *TheRank;
 
 public:
-  Kind(llvm::StringRef Name, const Granularity *TheGranularity) :
-    DynamicHierarchy<Kind>(Name), TheGranularity(TheGranularity) {
-    revng_assert(TheGranularity != nullptr);
+  Kind(llvm::StringRef Name, const Rank *TheRank) :
+    DynamicHierarchy<Kind>(Name), TheRank(TheRank) {
+    revng_assert(TheRank != nullptr);
   }
-  Kind(llvm::StringRef Name, Kind &Parent, const Granularity *TheGranularity) :
-    DynamicHierarchy<Kind>(Name, Parent), TheGranularity(TheGranularity) {
-    revng_assert(TheGranularity != nullptr);
+  Kind(llvm::StringRef Name, Kind &Parent, const Rank *TheRank) :
+    DynamicHierarchy<Kind>(Name, Parent), TheRank(TheRank) {
+    revng_assert(TheRank != nullptr);
   }
 
 public:
-  size_t depth() const { return TheGranularity->depth(); }
+  size_t depth() const { return TheRank->depth(); }
 
-  const Granularity &granularity() const { return *TheGranularity; }
+  const Rank &granularity() const { return *TheRank; }
 
 public:
   virtual ~Kind() = default;

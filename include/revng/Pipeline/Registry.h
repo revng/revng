@@ -53,7 +53,7 @@ public:
       Reg->registerKinds(Registry);
 
     Kind::init();
-    Granularity::init();
+    Rank::init();
     return Registry;
   }
 

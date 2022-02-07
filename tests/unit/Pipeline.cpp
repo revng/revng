@@ -55,8 +55,8 @@ using namespace std;
 using namespace llvm;
 using KE = Exactness::Values;
 
-static Granularity Root("Root");
-static Granularity FunctionGran("Function", Root);
+static Rank Root("Root");
+static Rank FunctionRank("Function", Root);
 class RootKindType : public LLVMKind {
 public:
   RootKindType() : LLVMKind("RootKind", &Root) { revng_assert(depth() == 0); };
@@ -88,7 +88,7 @@ public:
 static RootKindType RootKind;
 static Kind RootKind2("RootKind2", RootKind, &Root);
 static Kind RootKind3("RootKind2", &Root);
-static Kind FunctionKind("FunctionKind", &FunctionGran);
+static Kind FunctionKind("FunctionKind", &FunctionRank);
 
 static std::string CName = "ContainerName";
 
@@ -181,7 +181,7 @@ static const Target ExampleTarget = { "name", RootKind };
 
 struct Fixture {
   Fixture() {
-    Granularity::init();
+    Rank::init();
     Kind::init();
   }
 };
@@ -1106,7 +1106,7 @@ public:
   }
 };
 
-static LLVMInspectorExample ExampleLLVMInspector("dc", &FunctionGran);
+static LLVMInspectorExample ExampleLLVMInspector("dc", &FunctionRank);
 static LLVMRootInspectorExample ExampleLLVMRootInspector("dc2", &Root);
 
 BOOST_AUTO_TEST_CASE(LLVMKindTest) {
@@ -1145,7 +1145,7 @@ class InspectorKindExample
 public:
   InspectorKindExample() :
     LLVMGlobalKindBase<ExampleLLVMInspectalbeContainer>("ExampleName",
-                                                        &FunctionGran) {}
+                                                        &FunctionRank) {}
 
   std::optional<Target>
   symbolToTarget(const llvm::Function &Symbol) const final {
