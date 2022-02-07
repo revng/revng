@@ -29,8 +29,7 @@ bool AddPrimitiveTypesPass::runOnModule(llvm::Module &M) {
   static constexpr const Values PrimitiveTypes[] = {
     Generic, PointerOrNumber, Number, Unsigned, Signed
   };
-  // TODO: Add 128-bit numbers if needed
-  static constexpr const uint8_t Sizes[] = { 1, 2, 4, 8 };
+  static constexpr const uint8_t Sizes[] = { 1, 2, 4, 8, 16 };
 
   // getPrimitiveType() creates the type if it does not exist
   for (auto &Type : PrimitiveTypes)
