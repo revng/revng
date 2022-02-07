@@ -91,7 +91,7 @@ llvm::Function *getAddressOf(llvm::Module &M, llvm::Type *T) {
   auto *AddressOfFunction = cast<Function>(AddressOfCallee.getCallee());
   AddressOfFunction->addFnAttr(llvm::Attribute::NoUnwind);
   AddressOfFunction->addFnAttr(llvm::Attribute::WillReturn);
-  AddressOfFunction->addFnAttr(llvm::Attribute::InaccessibleMemOnly);
+  AddressOfFunction->addFnAttr(llvm::Attribute::ReadNone);
   FunctionTags::AddressOf.addTo(AddressOfFunction);
 
   return AddressOfFunction;
@@ -120,7 +120,7 @@ getModelGEP(llvm::Module &M, llvm::Type *RetTy, llvm::Type *BaseAddressTy) {
   auto *ModelGEPFunction = cast<Function>(MGEPCallee.getCallee());
   ModelGEPFunction->addFnAttr(llvm::Attribute::NoUnwind);
   ModelGEPFunction->addFnAttr(llvm::Attribute::WillReturn);
-  ModelGEPFunction->addFnAttr(llvm::Attribute::InaccessibleMemOnly);
+  ModelGEPFunction->addFnAttr(llvm::Attribute::ReadNone);
   FunctionTags::ModelGEP.addTo(ModelGEPFunction);
   FunctionTags::IsRef.addTo(ModelGEPFunction);
 
@@ -143,7 +143,7 @@ llvm::Function *getSerializationMarker(llvm::Module &M, llvm::Type *T) {
   auto *MarkerF = cast<Function>(MarkerCallee.getCallee());
   MarkerF->addFnAttr(llvm::Attribute::NoUnwind);
   MarkerF->addFnAttr(llvm::Attribute::WillReturn);
-  MarkerF->addFnAttr(llvm::Attribute::InaccessibleMemOnly);
+  MarkerF->addFnAttr(llvm::Attribute::ReadNone);
   FunctionTags::SerializationMarker.addTo(MarkerF);
 
   return MarkerF;
