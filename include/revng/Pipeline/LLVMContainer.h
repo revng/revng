@@ -125,7 +125,7 @@ public:
     };
 
     llvm::ValueToValueMapTy Map;
-    revng_assert(llvm::verifyModule(*Module, &llvm::outs()) == 0);
+    revng_assert(llvm::verifyModule(*Module, &llvm::dbgs()) == 0);
     auto Cloned = llvm::CloneModule(*Module, Map, Filter);
 
     for (const llvm::Function &Original : Module->functions()) {
@@ -191,8 +191,8 @@ private:
       Global.setLinkage(llvm::GlobalValue::ExternalLinkage);
     }
 
-    revng_assert(llvm::verifyModule(ToMerge.getModule(), &llvm::outs()) == 0);
-    revng_assert(llvm::verifyModule(*Module, &llvm::outs()) == 0);
+    revng_assert(llvm::verifyModule(ToMerge.getModule(), &llvm::dbgs()) == 0);
+    revng_assert(llvm::verifyModule(*Module, &llvm::dbgs()) == 0);
 
     llvm::Linker TheLinker(*Composite);
 
@@ -209,7 +209,7 @@ private:
     }
 
     revng_assert(!Result, "Linker failed");
-    revng_assert(llvm::verifyModule(*Composite, &llvm::outs()) == 0);
+    revng_assert(llvm::verifyModule(*Composite, &llvm::dbgs()) == 0);
     Module = std::move(Composite);
   }
 };
