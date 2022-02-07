@@ -427,6 +427,9 @@ static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
     // Recursive scs nesting handling
     matchDoWhile(Body, AST);
 
+    if (Scs->isStandard())
+      return;
+
     ASTNode *LastNode = Body;
     auto *SequenceBody = llvm::dyn_cast<SequenceNode>(Body);
     if (SequenceBody) {
@@ -532,6 +535,8 @@ static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
 
     // Recursive scs nesting handling
     matchWhile(Body, AST);
+    if (Scs->isStandard())
+      return;
 
     ASTNode *FirstNode = Body;
     auto *SequenceBody = llvm::dyn_cast<SequenceNode>(Body);

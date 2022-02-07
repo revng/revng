@@ -280,11 +280,13 @@ public:
   bool isDoWhile() const { return LoopType == Type::DoWhile; }
 
   void setWhile(IfNode *Condition) {
+    revng_assert(LoopType == Type::Standard);
     LoopType = Type::While;
     RelatedCondition = Condition;
   }
 
   void setDoWhile(IfNode *Condition) {
+    revng_assert(LoopType == Type::Standard);
     LoopType = Type::DoWhile;
     RelatedCondition = Condition;
   }
