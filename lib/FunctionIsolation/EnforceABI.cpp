@@ -73,7 +73,6 @@ private:
   std::map<Function *, const model::Function *> FunctionsMap;
   std::map<Function *, Function *> OldToNew;
   Function *FunctionDispatcher;
-  Function *OpaquePC;
   LLVMContext &Context;
   StructInitializers Initializers;
   model::Binary &Binary;
@@ -93,20 +92,6 @@ bool EnforceABI::runOnModule(Module &M) {
 }
 
 void EnforceABIImpl::run() {
-  // Declare an opaque function used later to obtain a value to store in the
-  // local %pc alloca, so that we don't incur in error when removing the bad
-  // return pc checks.
-  Type *PCType = GCBI.pcReg()->getType()->getPointerElementType();
-  auto *OpaqueFT = FunctionType::get(PCType, {}, false);
-  OpaquePC = Function::Create(OpaqueFT,
-                              Function::ExternalLinkage,
-                              "opaque_pc",
-                              M);
-  OpaquePC->addFnAttr(Attribute::NoUnwind);
-  OpaquePC->addFnAttr(Attribute::WillReturn);
-  OpaquePC->addFnAttr(Attribute::ReadOnly);
-  FunctionTags::OpaqueCSVValue.addTo(OpaquePC);
-
   std::vector<Function *> OldFunctions;
   if (FunctionDispatcher != nullptr)
     OldFunctions.push_back(FunctionDispatcher);
@@ -346,10 +331,8 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
   CallInst *NewCall = generateCall(Builder, Callee, Block, *CallSite);
   NewCall->copyMetadata(*Call);
 
-  // Create an additional store to the local %pc, so that the optimizer cannot
-  // do stuff with llvm.assume.
-  revng_assert(OpaquePC != nullptr);
-  Builder.CreateStore(Builder.CreateCall(OpaquePC), GCBI.pcReg());
+  // Set PC to the expected value
+  GCBI.programCounterHandler()->setPC(Builder, Block.End);
 
   // Drop the original call
   eraseFromParent(Call);
