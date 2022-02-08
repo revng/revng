@@ -20,12 +20,9 @@
 namespace revng::pipes {
 extern pipeline::Rank FunctionsRank;
 
-/**
- * A tagged function kind is a kind associated to tagged global elements
- * When enumerating a llvm module it will produce a target for each global
- * object with that tag.
- *
- **/
+/// A tagged function kind is a kind associated to tagged global elements. When
+/// enumerating a llvm::Module it will produce a target for each global object
+/// with that tag.
 class TaggedFunctionKind : public pipeline::LLVMKind {
 private:
   const FunctionTags::Tag *Tag;
