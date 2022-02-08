@@ -12,8 +12,8 @@
 #include "llvm/Support/Regex.h"
 
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/LLVMGlobalKindBase.h"
-#include "revng/Pipeline/Registry.h"
 #include "revng/Pipes/LiftPipe.h"
 #include "revng/Pipes/LinkForTranslationPipe.h"
 #include "revng/Pipes/ModelGlobal.h"

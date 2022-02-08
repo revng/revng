@@ -23,6 +23,7 @@
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
+#include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/ContainerEnumerator.h"
 #include "revng/Pipeline/ContainerFactorySet.h"
 #include "revng/Pipeline/Context.h"
@@ -33,7 +34,6 @@
 #include "revng/Pipeline/LLVMGlobalKindBase.h"
 #include "revng/Pipeline/Loader.h"
 #include "revng/Pipeline/PathComponent.h"
-#include "revng/Pipeline/Registry.h"
 #include "revng/Pipeline/Runner.h"
 #include "revng/Pipeline/Target.h"
 
@@ -87,7 +87,7 @@ public:
 
 static RootKindType RootKind;
 static Kind RootKind2("RootKind2", RootKind, &Root);
-static Kind RootKind3("RootKind2", &Root);
+static Kind RootKind3("RootKind3", &Root);
 static Kind FunctionKind("FunctionKind", &FunctionRank);
 
 static std::string CName = "ContainerName";

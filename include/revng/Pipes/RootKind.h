@@ -11,10 +11,10 @@
 #include "revng/Pipeline/LLVMGlobalKindBase.h"
 
 namespace revng::pipes {
-class RootKind : public pipeline::LLVMKind {
 
+class RootKind : public pipeline::LLVMKind {
 public:
-  RootKind();
+  using pipeline::LLVMKind::LLVMKind;
 
   pipeline::TargetsList
   compactTargets(const pipeline::Context &Ctx,
@@ -25,12 +25,10 @@ public:
   std::optional<pipeline::Target>
   symbolToTarget(const llvm::Function &Symbol) const override;
 };
-
-extern RootKind Root;
 
 class IsolatedRootKind : public pipeline::LLVMKind {
 public:
-  IsolatedRootKind();
+  using pipeline::LLVMKind::LLVMKind;
 
   pipeline::TargetsList
   compactTargets(const pipeline::Context &Ctx,
@@ -41,7 +39,5 @@ public:
   std::optional<pipeline::Target>
   symbolToTarget(const llvm::Function &Symbol) const override;
 };
-
-extern IsolatedRootKind IsolatedRoot;
 
 } // namespace revng::pipes

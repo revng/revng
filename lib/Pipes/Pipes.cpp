@@ -20,8 +20,8 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/TargetSelect.h"
 
+#include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/LLVMGlobalKindBase.h"
-#include "revng/Pipeline/Registry.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/CompileModulePipe.h"
 #include "revng/Pipes/FileContainer.h"

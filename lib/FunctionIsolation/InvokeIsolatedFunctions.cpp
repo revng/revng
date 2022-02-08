@@ -11,11 +11,11 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 #include "revng/FunctionIsolation/InvokeIsolatedFunctions.h"
+#include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Contract.h"
-#include "revng/Pipeline/Registry.h"
-#include "revng/Pipes/IsolatedKind.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/RootKind.h"
+#include "revng/Pipes/TaggedFunctionKind.h"
 
 using namespace llvm;
 

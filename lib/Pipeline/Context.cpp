@@ -10,8 +10,8 @@
 
 #include "llvm/ADT/StringRef.h"
 
+#include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Context.h"
-#include "revng/Pipeline/Registry.h"
 
 using namespace pipeline;
 

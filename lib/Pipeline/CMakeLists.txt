@@ -12,6 +12,8 @@ revng_add_library_internal(revngPipeline SHARED
   LLVMContainer.cpp
   Loader.cpp
   Runner.cpp
+  RegisterKind.cpp
+  Registry.cpp
   Step.cpp
   Target.cpp
 )

@@ -27,6 +27,7 @@ private:
 public:
   KindsRegistry(llvm::SmallVector<Kind *, 4> Kinds = {}) :
     Kinds(std::move(Kinds)) {}
+
   void registerKind(Kind &K) {
     revng_assert(not contains(K.name()));
     Kinds.push_back(&K);

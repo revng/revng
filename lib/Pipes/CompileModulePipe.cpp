@@ -18,8 +18,8 @@
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 
+#include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/LLVMContainer.h"
-#include "revng/Pipeline/Registry.h"
 #include "revng/Pipes/CompileModulePipe.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRAnnotators.h"

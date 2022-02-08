@@ -1,7 +1,14 @@
+/// \file StringContainerLibrary.cpp
+/// \brief the kind associated to non isolated root.
+
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
+#include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/CopyPipe.h"
-#include "revng/Pipeline/Registry.h"
+#include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
-#include "revng/Pipes/RootKind.h"
 
 using std::string;
 using namespace llvm;
@@ -52,7 +59,7 @@ public:
     TargetsList ToReturn;
 
     for (const auto &Names : ContainedStrings)
-      ToReturn.emplace_back(Names, Root);
+      ToReturn.emplace_back(Names, revng::pipes::Root);
 
     return ToReturn;
   }

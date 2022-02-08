@@ -6,8 +6,6 @@ revng_add_library_internal(revngPipes
   SHARED
   CompileModulePipe.cpp
   FileContainer.cpp
-  IsolatedKind.cpp
-  Kinds.cpp
   LiftPipe.cpp
   LinkForTranslationPipe.cpp
   LinkSupportPipe.cpp
@@ -16,6 +14,7 @@ revng_add_library_internal(revngPipes
   PipelineManager.cpp
   Pipes.cpp
   RootKind.cpp
+  TaggedFunctionKind.cpp
 )
 
 llvm_map_components_to_libnames(LLVM_LIBRARIES

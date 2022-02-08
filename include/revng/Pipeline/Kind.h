@@ -6,23 +6,15 @@
 
 #include <set>
 
-#include "revng/Pipeline/DynamicHierarchy.h"
 #include "revng/Pipeline/PathComponent.h"
+#include "revng/Pipeline/Rank.h"
+#include "revng/Pipeline/RegisterKind.h"
 #include "revng/Support/Assert.h"
 
 namespace pipeline {
+
 class Target;
 class Context;
-
-/// The rank tree is a tree used by targets to find out how many names
-/// are required to name a target
-class Rank : public DynamicHierarchy<Rank> {
-public:
-  Rank(llvm::StringRef Name) : DynamicHierarchy(Name) {}
-  Rank(llvm::StringRef Name, Rank &Parent) :
-    DynamicHierarchy<Rank>(Name, Parent) {}
-};
-
 class TargetsList;
 
 /// A Kind is used to accumunate objects that logically belongs to the same
@@ -38,15 +30,17 @@ class TargetsList;
 /// LLVMKind instead.
 class Kind : public DynamicHierarchy<Kind> {
 private:
+  RegisterKind Register;
   const Rank *TheRank;
 
 public:
   Kind(llvm::StringRef Name, const Rank *TheRank) :
-    DynamicHierarchy<Kind>(Name), TheRank(TheRank) {
+    DynamicHierarchy<Kind>(Name), Register(*this), TheRank(TheRank) {
     revng_assert(TheRank != nullptr);
   }
+
   Kind(llvm::StringRef Name, Kind &Parent, const Rank *TheRank) :
-    DynamicHierarchy<Kind>(Name, Parent), TheRank(TheRank) {
+    DynamicHierarchy<Kind>(Name, Parent), Register(*this), TheRank(TheRank) {
     revng_assert(TheRank != nullptr);
   }
 

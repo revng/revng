@@ -10,13 +10,13 @@
 #include "llvm/Support/raw_os_ostream.h"
 
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/CopyPipe.h"
 #include "revng/Pipeline/GenericLLVMPipe.h"
 #include "revng/Pipeline/LLVMContainerFactory.h"
 #include "revng/Pipeline/LLVMGlobalKindBase.h"
 #include "revng/Pipeline/Loader.h"
-#include "revng/Pipeline/Registry.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/PipelineManager.h"
 
