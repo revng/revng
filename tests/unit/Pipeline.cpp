@@ -186,7 +186,7 @@ struct Fixture {
   }
 };
 
-BOOST_AUTO_TEST_SUITE(s, *boost::unit_test::fixture<Fixture>())
+BOOST_AUTO_TEST_SUITE(PipelineTestSuite, *boost::unit_test::fixture<Fixture>())
 
 BOOST_AUTO_TEST_CASE(ContainerIsa) {
   std::map<Target, int> Map;
