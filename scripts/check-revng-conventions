@@ -170,6 +170,7 @@ function run_revng_checks() {
     CXX_FILES="$(echo $FILES | tr ' ' '\n' | grep -v \
         -e '^runtime/support\.h$' \
         -e '^include/revng/Runtime/.*$' \
+        -e '^include/revng/PipelineC/.*$' \
         -e '^include/revng/Support/Assert\.h$' \
         -e '^include/revng/Support/ClassSentinel\.h$' \
         -e '\.c$' \

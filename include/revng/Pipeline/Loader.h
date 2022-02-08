@@ -3,7 +3,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include <any>
 #include <memory>
 #include <string>
 #include <vector>
@@ -15,7 +14,6 @@
 
 #include "revng/Pipeline/GenericLLVMPipe.h"
 #include "revng/Pipeline/LLVMContainer.h"
-#include "revng/Pipeline/PureLLVMPipe.h"
 #include "revng/Pipeline/Runner.h"
 #include "revng/Pipeline/SavableObject.h"
 #include "revng/Support/Assert.h"
@@ -153,8 +151,8 @@ private:
 
   llvm::Error parseLLVMPass(Step &Step, const PipeInvocation &Invocation) const;
 
-  llvm::Error
-  parsePureLLVMPass(Step &Step, const PipeInvocation &Invocation) const;
+  llvm::Expected<std::unique_ptr<LLVMPassWrapperBase>>
+  loadPassFromName(llvm::StringRef Name) const;
 
   bool isInvocationUsed(const std::vector<std::string> &Names) const;
 };

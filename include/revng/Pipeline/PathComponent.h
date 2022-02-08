@@ -20,10 +20,12 @@ namespace pipeline {
 class PathComponent {
 private:
   std::optional<std::string> Name;
+  PathComponent() : Name(std::nullopt) {}
 
 public:
   PathComponent(std::optional<std::string> Name) : Name(std::move(Name)) {}
-  PathComponent() : Name(std::nullopt) {}
+
+  static PathComponent all() { return PathComponent(); }
 
 public:
   bool isAll() const { return not Name.has_value(); }

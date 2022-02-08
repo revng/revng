@@ -10,6 +10,7 @@
 
 #include "llvm/ADT/ArrayRef.h"
 
+#include "revng/Model/Binary.h"
 #include "revng/Support/revng.h"
 
 #include "BinaryFile.h"
@@ -41,6 +42,7 @@ public:
   CodeGenerator(BinaryFile &Binary,
                 Architecture &Target,
                 llvm::Module *TheModule,
+                TupleTree<model::Binary> &Model,
                 std::string Helpers,
                 std::string EarlyLinked);
 
@@ -58,6 +60,7 @@ private:
   std::unique_ptr<llvm::Module> HelpersModule;
   std::unique_ptr<llvm::Module> EarlyLinkedModule;
   BinaryFile &Binary;
+  TupleTree<model::Binary> &Model;
 
   unsigned OriginalInstrMDKind;
   unsigned PTCInstrMDKind;

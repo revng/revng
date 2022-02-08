@@ -26,11 +26,11 @@ enum Values { Erase, Preserve };
 /// that the pipe it is attached to will convert all roots with pathComponents
 /// (i) into binaries with pathComponents (i)
 ///
-/// A contract from root(granularity 1) to function(granularity 2), requires
+/// A contract from root(rank 1) to function(rank 2), requires
 /// that the pipe it is attached to will convert all roots with pathComponents
 /// (i) into functions with pathComponents(i, *).
 ///
-/// A contract from functions(granularity 2) to root(granularity 1), requires
+/// A contract from functions(rank 2) to root(rank 1), requires
 /// that the pipe it is attached to will convert all functions with
 /// pathComponents (i, *) into roots with pathComponents(i). Furthermore it is
 /// guaranteed that only functions in the form (i, *) are presents, in other
@@ -44,11 +44,11 @@ enum Values { Erase, Preserve };
 /// that matches the requirements another target is created in the target
 /// container (is the target container exists), such that
 ///
-/// If the output kind has a greater granularity than the inputkind then for all
+/// If the output kind has a greater rank than the inputkind then for all
 /// Targets in input with source kind and pathComponents (i1, ..., in) then a
 /// target with kind output and pathComponents (i1, ..., in, *) exists.
 ///
-/// If the output has a smaller granularity g1 than the input granularity g2
+/// If the output has a smaller rank g1 than the input rank g2
 /// then for the pipe must operate on all targets with Kind source and
 /// pathcomponents(i1, ..., i_g2) and yield a a target for each with Kind target
 /// and pathComponents(i1, ..., i_g1), it will be ensured that when the pipe
@@ -134,14 +134,14 @@ public:
 private:
   void forward(Target &Input) const;
   bool forwardMatches(const Target &Input) const;
-  void forwardGranularity(Target &Input) const;
+  void forwardRank(Target &Input) const;
 
   /// Target fixed -> Output must be exactly Target.
   /// Target same as Source, Source derived from base -> Most strict between
   /// source and target Target same as source, source exactly base -> base.
   void backward(Target &Output) const;
   Exactness::Values backwardInputContract(const Target &Output) const;
-  void backwardGranularity(Target &Output) const;
+  void backwardRank(Target &Output) const;
   const Kind &backwardInputKind(const Target &Output) const;
   bool backwardMatches(const Target &Output) const;
 
@@ -198,6 +198,14 @@ public:
 
   ContractGroup(const Kind &Target, size_t PipeArgumentTargetIndex = 0) :
     Content({ Contract(Target, PipeArgumentTargetIndex) }) {}
+
+  static ContractGroup
+  transformOnlyArgument(const Kind &Source,
+                        Exactness::Values Exact,
+                        const Kind &Target,
+                        InputPreservation::Values Preservation) {
+    return ContractGroup(Source, Exact, 0, Target, 0, Preservation);
+  }
 
 public:
   [[nodiscard]] ContainerToTargetsMap

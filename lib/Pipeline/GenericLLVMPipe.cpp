@@ -22,3 +22,6 @@ void O2Pipe::registerPasses(llvm::legacy::PassManager &Manager) {
   PassBuilder Builder;
   Builder.buildPerModuleDefaultPipeline(PassBuilder::OptimizationLevel::O2);
 }
+std::unique_ptr<LLVMPassWrapperBase> PureLLVMPassWrapper::clone() const {
+  return std::make_unique<PureLLVMPassWrapper>(*this);
+}

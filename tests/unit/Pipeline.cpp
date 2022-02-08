@@ -1,5 +1,5 @@
 /// \file Pipeline.cpp
-/// \brief Tests for Auto Pipe
+/// \brief Tests for revng-pipeline
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -37,7 +37,7 @@
 #include "revng/Pipeline/Runner.h"
 #include "revng/Pipeline/Target.h"
 
-static const char *LLVMName = "SomeOtherName";
+static char LLVMName = ' ';
 
 using ExampleLLVMInspectalbeContainer = pipeline::LLVMContainerBase<&LLVMName>;
 
@@ -55,8 +55,8 @@ using namespace std;
 using namespace llvm;
 using KE = Exactness::Values;
 
-static Granularity Root("Root");
-static Granularity FunctionGran("Function", Root);
+static Rank Root("Root");
+static Rank FunctionRank("Function", Root);
 class RootKindType : public LLVMKind {
 public:
   RootKindType() : LLVMKind("RootKind", &Root) { revng_assert(depth() == 0); };
@@ -78,7 +78,7 @@ public:
       return BackPathComponent.isAll() or BackPathComponent.getName() == "f2";
     });
     if (HasF1 and HasF2)
-      TargetsList({ Target(PathComponent(), *this) });
+      TargetsList({ Target(PathComponent::all(), *this) });
     return Targets;
   }
 
@@ -88,7 +88,7 @@ public:
 static RootKindType RootKind;
 static Kind RootKind2("RootKind2", RootKind, &Root);
 static Kind RootKind3("RootKind2", &Root);
-static Kind FunctionKind("FunctionKind", &FunctionGran);
+static Kind FunctionKind("FunctionKind", &FunctionRank);
 
 static std::string CName = "ContainerName";
 
@@ -116,7 +116,7 @@ public:
   TargetsList enumerate() const final {
     TargetsList ToReturn;
 
-    const Target AllTargets({ PathComponent("Root"), PathComponent() },
+    const Target AllTargets({ PathComponent("Root"), PathComponent::all() },
                             FunctionKind);
     if (contains(AllTargets)) {
       ToReturn.emplace_back(AllTargets);
@@ -181,7 +181,7 @@ static const Target ExampleTarget = { "name", RootKind };
 
 struct Fixture {
   Fixture() {
-    Granularity::init();
+    Rank::init();
     Kind::init();
   }
 };
@@ -675,11 +675,12 @@ BOOST_AUTO_TEST_CASE(SingleElementLLVMPipelineBackwardFinedGrained) {
   Pipeline.addContainerFactory(CName, makeDefaultLLVMContainerFactory(Ctx, C));
 
   const std::string Name = "first_step";
-  Pipeline.emplaceStep("",
-                       Name,
-                       wrapLLVMPasses(CName,
-                                      LLVMPassFunctionCreator(),
-                                      LLVMPassFunctionIdentity()));
+  Pipeline
+    .emplaceStep("",
+                 Name,
+                 LLVMContainer::wrapLLVMPasses(CName,
+                                               LLVMPassFunctionCreator(),
+                                               LLVMPassFunctionIdentity()));
   Pipeline.emplaceStep(Name, "End");
 
   auto &C1(Pipeline[Name].containers().getOrCreate<LLVMContainer>(CName));
@@ -706,14 +707,13 @@ BOOST_AUTO_TEST_CASE(LLVMPurePipe) {
   Runner Pipeline(Ctx);
   Pipeline.addContainerFactory(CName, makeDefaultLLVMContainerFactory(Ctx, C));
 
-  auto MaybePureLLVMPipe = PureLLVMPipe::create({ "IdentityPass" });
-  BOOST_TEST((!!MaybePureLLVMPipe));
-
   const std::string Name = "first_step";
+  PureLLVMPassWrapper IdentityPass("IdentityPass");
   Pipeline.emplaceStep("",
                        Name,
-                       wrapLLVMPasses(CName, LLVMPassFunctionCreator()),
-                       bindPipe(move(*MaybePureLLVMPipe), CName));
+                       LLVMContainer::wrapLLVMPasses(CName,
+                                                     LLVMPassFunctionCreator(),
+                                                     IdentityPass));
   Pipeline.emplaceStep(Name, "End");
 
   auto &C1 = Pipeline[Name].containers().getOrCreate<LLVMContainer>(CName);
@@ -745,7 +745,10 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineForwardFinedGrained) {
   auto &C1 = Pipeline[Name].containers().getOrCreate<MapContainer>(CName);
   C1.get({ "Root", RootKind }) = 1;
   auto &C2 = Pipeline["End"].containers().getOrCreate<MapContainer>(CName);
-  C2.get(Target({ PathComponent("Root"), PathComponent() }, FunctionKind)) = 1;
+
+  const auto T = Target({ PathComponent("Root"), PathComponent::all() },
+                        FunctionKind);
+  C2.get(T) = 1;
 
   llvm::StringMap<ContainerToTargetsMap> Invalidations;
   Invalidations[Name].add(CName, { "Root" }, RootKind);
@@ -773,7 +776,10 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineInvalidation) {
   auto &C1 = Pipeline[Name].containers().getOrCreate<MapContainer>(CName);
   C1.get(Target({ "Root" }, RootKind)) = 1;
   auto &C2 = Pipeline["End"].containers().getOrCreate<MapContainer>(CName);
-  C2.get(Target({ PathComponent("Root"), PathComponent() }, FunctionKind)) = 1;
+
+  const auto T = Target({ PathComponent("Root"), PathComponent::all() },
+                        FunctionKind);
+  C2.get(T) = 1;
 
   Target ToKill({ "Root" }, RootKind);
 
@@ -877,14 +883,14 @@ static const std::string PipelineTree(R"(---
                        )");
 
 static const std::string PipelineTree2(R"(---
-                       From:			FirstStep
+                       From:      FirstStep
                        Containers:
                        Steps:
                          - Name:            SecondStep
                        )");
 
 static const std::string PipelineTree3(R"(---
-                       From:			FirstStep
+                       From:      FirstStep
                        Containers:
                        Steps:
                          - Name:            ThirdStep
@@ -1080,7 +1086,7 @@ public:
                              TargetsList::List &Targets) const override {
     Target F1({ "root", "f1" }, FunctionKind);
     Target F2({ "root", "f2" }, FunctionKind);
-    Target All({ PathComponent("root"), PathComponent() }, FunctionKind);
+    Target All({ PathComponent("root"), PathComponent::all() }, FunctionKind);
     if (find(Targets, F1) != Targets.end()
         and find(Targets, F2) != Targets.end())
 
@@ -1104,7 +1110,7 @@ public:
   }
 };
 
-static LLVMInspectorExample ExampleLLVMInspector("dc", &FunctionGran);
+static LLVMInspectorExample ExampleLLVMInspector("dc", &FunctionRank);
 static LLVMRootInspectorExample ExampleLLVMRootInspector("dc2", &Root);
 
 BOOST_AUTO_TEST_CASE(LLVMKindTest) {
@@ -1143,7 +1149,7 @@ class InspectorKindExample
 public:
   InspectorKindExample() :
     LLVMGlobalKindBase<ExampleLLVMInspectalbeContainer>("ExampleName",
-                                                        &FunctionGran) {}
+                                                        &FunctionRank) {}
 
   std::optional<Target>
   symbolToTarget(const llvm::Function &Symbol) const final {
@@ -1154,7 +1160,7 @@ public:
   compactTargets(const Context &Ctx, TargetsList::List &Targets) const final {
     Target F1({ "root", "f1" }, *this);
     Target F2({ "root", "f2" }, *this);
-    Target All({ PathComponent("root"), PathComponent() }, *this);
+    Target All({ PathComponent("root"), PathComponent::all() }, *this);
     if (find(Targets, F1) != Targets.end()
         and find(Targets, F2) != Targets.end())
 

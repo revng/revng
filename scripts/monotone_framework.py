@@ -194,7 +194,7 @@ def load_graph(path: str) -> networkx.MultiDiGraph:
   '''
   Loads a networkx.MultiDiGraph from a dot file
   Notes:
-  - pydot treats every attribute as a string, so we need to manually unquote 
+  - pydot treats every attribute as a string, so we need to manually unquote
     strings
   '''
   graph = networkx.MultiDiGraph(networkx.nx_pydot.read_dot(path))

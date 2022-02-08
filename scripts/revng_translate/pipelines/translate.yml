@@ -1,0 +1,30 @@
+Containers:
+ - Name:            module
+   Type:            LLVMContainer
+ - Name:            input
+   Type:            Binary
+ - Name:            object
+   Type:            Object
+ - Name:            output
+   Type:            Translated
+Steps:
+ - Name:            Lift
+   Pipes:
+     - Name:             Lift
+       UsedContainers: [input, module]
+     - Name:             LLVMPipe
+       UsedContainers: [module]
+       Passes: [globaldce]
+ - Name:            Lifted
+ - Name:            Recompile
+   Pipes:
+     - Name:             LinkSupport
+       UsedContainers: [module]
+     - Name:             LLVMPipe
+       UsedContainers: [module]
+       Passes: [O2]
+       EnabledWhen: [O2]
+     - Name:             Compile
+       UsedContainers: [module, object]
+     - Name:             LinkForTranslation
+       UsedContainers: [input, object, output]

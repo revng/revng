@@ -77,14 +77,14 @@ class GenericLLVMPipe;
 
 /// Implementation that can be derived by anyone so that multiple identical
 /// LLVMContainers can exist so that inspector kinds do not pollute each other
-template<const char **NameID>
+template<char *TypeID>
 class LLVMContainerBase
-  : public EnumerableContainer<LLVMContainerBase<NameID>> {
+  : public EnumerableContainer<LLVMContainerBase<TypeID>> {
 public:
   static const char ID;
 
 private:
-  using ThisType = LLVMContainerBase<NameID>;
+  using ThisType = LLVMContainerBase<TypeID>;
 
 private:
   std::unique_ptr<llvm::Module> Module;
@@ -125,7 +125,7 @@ public:
     };
 
     llvm::ValueToValueMapTy Map;
-    revng_assert(llvm::verifyModule(*Module, &llvm::outs()) == 0);
+    revng_assert(llvm::verifyModule(*Module, &llvm::dbgs()) == 0);
     auto Cloned = llvm::CloneModule(*Module, Map, Filter);
 
     for (const llvm::Function &Original : Module->functions()) {
@@ -191,8 +191,8 @@ private:
       Global.setLinkage(llvm::GlobalValue::ExternalLinkage);
     }
 
-    revng_assert(llvm::verifyModule(ToMerge.getModule(), &llvm::outs()) == 0);
-    revng_assert(llvm::verifyModule(*Module, &llvm::outs()) == 0);
+    revng_assert(llvm::verifyModule(ToMerge.getModule(), &llvm::dbgs()) == 0);
+    revng_assert(llvm::verifyModule(*Module, &llvm::dbgs()) == 0);
 
     llvm::Linker TheLinker(*Composite);
 
@@ -209,12 +209,12 @@ private:
     }
 
     revng_assert(!Result, "Linker failed");
-    revng_assert(llvm::verifyModule(*Composite, &llvm::outs()) == 0);
+    revng_assert(llvm::verifyModule(*Composite, &llvm::dbgs()) == 0);
     Module = std::move(Composite);
   }
 };
 
-extern const char *LLVMContainerTypeID;
+extern char LLVMContainerTypeID;
 
 using LLVMContainer = LLVMContainerBase<&LLVMContainerTypeID>;
 using LLVMKind = LLVMGlobalKindBase<LLVMContainer>;
