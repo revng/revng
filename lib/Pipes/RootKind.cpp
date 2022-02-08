@@ -7,8 +7,8 @@
 
 #include <optional>
 
+#include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Kind.h"
-#include "revng/Pipeline/Registry.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/RootKind.h"
@@ -16,9 +16,6 @@
 
 using namespace pipeline;
 using namespace revng::pipes;
-
-RootKind::RootKind() : LLVMKind("Root", &RootRank) {
-}
 
 std::optional<Target>
 RootKind::symbolToTarget(const llvm::Function &Symbol) const {
@@ -29,11 +26,6 @@ RootKind::symbolToTarget(const llvm::Function &Symbol) const {
   return std::nullopt;
 }
 
-RootKind revng::pipes::Root;
-
-IsolatedRootKind::IsolatedRootKind() : LLVMKind("IsolatedRoot", Root) {
-}
-
 std::optional<Target>
 IsolatedRootKind::symbolToTarget(const llvm::Function &Symbol) const {
   if (FunctionTags::IsolatedRoot.isTagOf(&Symbol))
@@ -41,8 +33,3 @@ IsolatedRootKind::symbolToTarget(const llvm::Function &Symbol) const {
 
   return std::nullopt;
 }
-
-IsolatedRootKind revng::pipes::IsolatedRoot;
-
-static RegisterKind K1(Root);
-static RegisterKind K2(IsolatedRoot);

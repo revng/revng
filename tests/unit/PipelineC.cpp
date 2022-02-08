@@ -44,7 +44,7 @@ public:
   ~Fixture() { rp_manager_destroy(runner); }
 };
 
-BOOST_AUTO_TEST_SUITE(s, *boost::unit_test::fixture<Fixture>())
+BOOST_AUTO_TEST_SUITE(PipelineCTestSuite, *boost::unit_test::fixture<Fixture>())
 
 BOOST_AUTO_TEST_CASE(CAPILoadTest) {
   BOOST_TEST(rp_manager_steps_count(runner) == 2);

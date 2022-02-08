@@ -19,9 +19,9 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Loader.h"
-#include "revng/Pipeline/Registry.h"
 #include "revng/Pipeline/Runner.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/PipelineManager.h"

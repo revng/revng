@@ -19,8 +19,8 @@
 #include "revng/Pipeline/Loader.h"
 #include "revng/Pipeline/SavableObject.h"
 #include "revng/Pipeline/Target.h"
-#include "revng/Pipes/IsolatedKind.h"
 #include "revng/Pipes/RootKind.h"
+#include "revng/Pipes/TaggedFunctionKind.h"
 
 namespace revng::pipes {
 class LLVMContextWrapper : public pipeline::SavableObject<LLVMContextWrapper> {

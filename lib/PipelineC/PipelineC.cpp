@@ -12,8 +12,8 @@
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/Error.h"
 
+#include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Container.h"
-#include "revng/Pipeline/Registry.h"
 #include "revng/Pipeline/Runner.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/PipelineC/PipelineC.h"

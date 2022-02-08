@@ -180,6 +180,12 @@ function run_revng_checks() {
     # Parenthesis at the end of line (except for raw strings)
     $GREP "(\$" $FILES | grep -v 'R"LLVM.*(' | cat
 
+    # Ban whitespaces at the end of a line
+    $GREP " \$" | cat
+
+    # Ban tabs altogether
+    $GREP -P "\t" | cat
+
     # Things should never be at the beginning of a line
     for REGEXP in '\*>' '/[^/\*]' ':[^:\(]*)' '==' '\!=' '<[^<]' '>' '>=' '<=' '//\s*WIP' '#if\s*[01]'; do
         $GREP "^\s*$REGEXP" $FILES | cat

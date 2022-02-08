@@ -12,9 +12,9 @@
 #include "revng/Pipeline/LLVMGlobalKindBase.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/FileContainer.h"
-#include "revng/Pipes/IsolatedKind.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/RootKind.h"
+#include "revng/Pipes/TaggedFunctionKind.h"
 
 namespace revng::pipes {
 

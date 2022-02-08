@@ -11,9 +11,10 @@
 
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
-#include "revng/Pipeline/Registry.h"
+#include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/LinkSupportPipe.h"
+#include "revng/Pipes/ModelGlobal.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/ResourceFinder.h"

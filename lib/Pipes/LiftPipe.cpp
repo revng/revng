@@ -12,7 +12,7 @@ extern "C" {
 #include "revng/Lift/BinaryFile.h"
 #include "revng/Lift/CodeGenerator.h"
 #include "revng/Lift/PTCInterface.h"
-#include "revng/Pipeline/Registry.h"
+#include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/LiftPipe.h"
