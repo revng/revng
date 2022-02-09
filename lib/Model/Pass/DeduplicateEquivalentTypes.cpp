@@ -21,8 +21,8 @@ using namespace model;
 static Logger<> Log("model-types-deduplication");
 
 static RegisterModelPass R("deduplicate-equivalent-types",
-                           "Best effort deduplication of types that are "
-                           "identical",
+                           "Best-effort deduplication of types that are "
+                           "structurally equivalent",
                            model::deduplicateEquivalentTypes);
 
 static void

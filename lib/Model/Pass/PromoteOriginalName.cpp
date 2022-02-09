@@ -15,8 +15,7 @@ using namespace llvm;
 using namespace model;
 
 static RegisterModelPass R("promote-original-name",
-                           "Given an invalid model which features conflicing "
-                           "names, changes it to make it valid",
+                           "Promote OriginalName fields to CustomName ensuring the validity of the model is preserved",
                            model::promoteOriginalName);
 
 void recordCustomNamesInList(auto &Collection,

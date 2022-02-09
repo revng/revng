@@ -14,8 +14,8 @@
 using namespace llvm;
 
 static RegisterModelPass R("purge-unnamed-and-unreachable-types",
-                           "Removes all the types that cannot be reached from "
-                           "any named type or a type \"outside\" the model",
+                           "Remove all the types that cannot be reached from "
+                           "any named type or a type \"outside\" the type system itself",
                            model::purgeUnnamedAndUnreachableTypes);
 
 template<typename V, typename T, size_t... Indices>
