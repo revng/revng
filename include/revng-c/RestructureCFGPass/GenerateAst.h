@@ -626,9 +626,13 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
           It = std::find_if(std::next(It), Children.end(), NotSuccessor);
           revng_assert(It == Children.end());
         }
-      }
 
-      createTile(Region, ASTDT, TileToNodeMap, Node, PostDomBB);
+        createTile(Region, ASTDT, TileToNodeMap, Node, PostDomBB, true);
+
+      } else {
+        PostDomBB = Fallthrough;
+        createTile(Region, ASTDT, TileToNodeMap, Node, PostDomBB, false);
+      }
 
       ASTObject.reset(new SwitchNode(Node,
                                      SwitchCondition,
