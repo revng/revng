@@ -3,13 +3,13 @@
 #
 
 revng_add_analyses_library(revngcMarkForSerialization
-	revngc
-	MarkForSerializationPass.cpp)
+  revngc
+  MarkForSerializationPass.cpp)
 
 target_link_libraries(revngcMarkForSerialization
-	revngcLivenessAnalysis
-	revngcRestructureCFGPass
-	revngcSupport
-	revngcTargetFunctionOption
-	revng::revngSupport
-	${LLVM_LIBRARIES})
+  revngcLivenessAnalysis
+  revngcRestructureCFGPass
+  revngcSupport
+  revngcTargetFunctionOption
+  revng::revngSupport
+  ${LLVM_LIBRARIES})

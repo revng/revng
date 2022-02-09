@@ -64,22 +64,22 @@ DIRECTORY_NAME=$1
 
 
 for C_FILE in $(ls $DIRECTORY_NAME/*.c) ; do
-	clang -c -fsyntax-only -Wall -Wextra -Werror -ferror-limit=0 \
-		-Wno-self-assign \
-		-Wno-unused-parameter \
-		-Wno-return-type \
-		-Wno-unused-variable \
-		-Wno-unused-value \
-		-Wno-uninitialized \
-		-Wno-parentheses \
-		-Wno-constant-conversion \
-		-Wno-shift-count-negative \
-		-Wno-shift-count-overflow \
-		-Wno-implicitly-unsigned-literal \
-		-Wno-tautological-constant-out-of-range-compare \
-		-Wno-int-to-pointer-cast \
-		-Wno-infinite-recursion \
-		-Wno-incompatible-library-redeclaration \
-		$C_FILE \
-		-o /dev/null
+  clang -c -fsyntax-only -Wall -Wextra -Werror -ferror-limit=0 \
+    -Wno-self-assign \
+    -Wno-unused-parameter \
+    -Wno-return-type \
+    -Wno-unused-variable \
+    -Wno-unused-value \
+    -Wno-uninitialized \
+    -Wno-parentheses \
+    -Wno-constant-conversion \
+    -Wno-shift-count-negative \
+    -Wno-shift-count-overflow \
+    -Wno-implicitly-unsigned-literal \
+    -Wno-tautological-constant-out-of-range-compare \
+    -Wno-int-to-pointer-cast \
+    -Wno-infinite-recursion \
+    -Wno-incompatible-library-redeclaration \
+    $C_FILE \
+    -o /dev/null
 done

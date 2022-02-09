@@ -185,7 +185,6 @@ printDeclaration(const model::EnumType &E, llvm::raw_ostream &Header) {
       Header.write_hex(Entry.Value);
       Header << "U,\n";
     }
-
   }
 
   // This ensures the enum is large exactly like the Underlying type

@@ -4,7 +4,7 @@
 
 revng_add_analyses_library(revngcRemoveLLVMDbgIntrinsics
   revngc
-	RemoveLLVMDbgIntrinsicsPass.cpp)
+  RemoveLLVMDbgIntrinsicsPass.cpp)
 
 target_link_libraries(revngcRemoveLLVMDbgIntrinsics
   revng::revngModel
