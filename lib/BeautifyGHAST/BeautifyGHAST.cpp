@@ -1260,6 +1260,13 @@ void beautifyAST(Function &F, ASTTree &CombedAST) {
     CombedAST.dumpASTOnFile(F.getName().str(), "ast", "06-After-switch-match");
   }
 
+  // Match while.
+  revng_log(BeautifyLogger, "Matching while\n");
+  matchWhile(RootNode, CombedAST);
+  if (BeautifyLogger.isEnabled()) {
+    CombedAST.dumpASTOnFile(F.getName().str(), "ast", "08-After-match-while");
+  }
+
   // Match dowhile.
   revng_log(BeautifyLogger, "Matching do-while\n");
   matchDoWhile(RootNode, CombedAST);
@@ -1267,13 +1274,6 @@ void beautifyAST(Function &F, ASTTree &CombedAST) {
     CombedAST.dumpASTOnFile(F.getName().str(),
                             "ast",
                             "07-After-match-do-while");
-  }
-
-  // Match while.
-  revng_log(BeautifyLogger, "Matching while\n");
-  matchWhile(RootNode, CombedAST);
-  if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName().str(), "ast", "08-After-match-while");
   }
 
   // Remove useless continues.
