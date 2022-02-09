@@ -186,6 +186,13 @@ function run_revng_checks() {
     # Ban tabs altogether
     $GREP -P "\t" | cat
 
+    # Ensure all files end with a newline
+    git ls-files | while read FILE; do
+        if test -s "$FILE" && ! test $(tail -c 1 "$FILE" | base64) == "Cg=="; then
+            echo "$FILE does not end with a newline"
+        fi
+    done
+
     # Things should never be at the beginning of a line
     for REGEXP in '\*>' '/[^/\*]' ':[^:\(]*)' '==' '\!=' '<[^<]' '>' '>=' '<=' '//\s*WIP' '#if\s*[01]'; do
         $GREP "^\s*$REGEXP" $FILES | cat
