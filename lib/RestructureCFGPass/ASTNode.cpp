@@ -196,6 +196,27 @@ void CodeNode::dumpEdge(llvm::raw_fd_ostream &ASTFile) {
   // Do nothing, we don't have outgoing edges.
 }
 
+std::string printBBName(ExprNode *Condition) {
+  if (auto *Atomic = llvm::dyn_cast<AtomicNode>(Condition))
+    return Atomic->getConditionalBasicBlock()->getName().str();
+
+  if (auto *And = llvm::dyn_cast<AndNode>(Condition)) {
+    return "(" + printBBName(And->getInternalNodes().first) + ") and ("
+           + printBBName(And->getInternalNodes().second) + ")";
+  }
+
+  if (auto *Or = llvm::dyn_cast<OrNode>(Condition)) {
+    return "(" + printBBName(Or->getInternalNodes().first) + ") or  ("
+           + printBBName(Or->getInternalNodes().second) + ")";
+  }
+
+  if (auto *Not = llvm::dyn_cast<NotNode>(Condition)) {
+    return "not (" + printBBName(Not->getNegatedNode()) + ")";
+  }
+
+  revng_abort();
+}
+
 void IfNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << "node_" << this->getID() << " [";
 
@@ -203,6 +224,7 @@ void IfNode::dump(llvm::raw_fd_ostream &ASTFile) {
 
   // ASTFile << "label=\"" << ConditionalNames;
   ASTFile << "label=\"" << this->getName();
+  ASTFile << ", bb=" << printBBName(this->getCondExpr());
   ASTFile << "\"";
   ASTFile << ",shape=\"invhouse\",color=\"blue\"];\n";
 }
@@ -222,6 +244,16 @@ void IfNode::dumpEdge(llvm::raw_fd_ostream &ASTFile) {
 void ScsNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << "node_" << this->getID() << " [";
   ASTFile << "label=\"" << this->getName();
+  if (this->RelatedCondition)
+    ASTFile << ",bb=" << printBBName(this->RelatedCondition->getCondExpr());
+
+  if (this->isStandard())
+    ASTFile << ",type=standard ";
+  else if (this->isWhile())
+    ASTFile << ",type=while ";
+  if (this->isDoWhile())
+    ASTFile << ",type=dowhile ";
+
   ASTFile << "\"";
   ASTFile << ",shape=\"circle\",color=\"black\"];\n";
 }
@@ -254,6 +286,8 @@ void SequenceNode::dumpEdge(llvm::raw_fd_ostream &ASTFile) {
 void SwitchNode::dump(llvm::raw_fd_ostream &ASTFile) {
   ASTFile << "node_" << this->getID() << " [";
   ASTFile << "label=\"" << this->getName();
+  if (this->getOriginalBB() and not this->isWeaved())
+    ASTFile << ",bb=" << this->getOriginalBB()->getName();
   ASTFile << "\"";
   ASTFile << ",shape=\"hexagon\",color=\"black\"];\n";
 }

@@ -427,6 +427,9 @@ static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
     // Recursive scs nesting handling
     matchDoWhile(Body, AST);
 
+    if (Scs->isStandard())
+      return;
+
     ASTNode *LastNode = Body;
     auto *SequenceBody = llvm::dyn_cast<SequenceNode>(Body);
     if (SequenceBody) {
@@ -532,6 +535,8 @@ static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
 
     // Recursive scs nesting handling
     matchWhile(Body, AST);
+    if (Scs->isStandard())
+      return;
 
     ASTNode *FirstNode = Body;
     auto *SequenceBody = llvm::dyn_cast<SequenceNode>(Body);
@@ -1255,6 +1260,13 @@ void beautifyAST(Function &F, ASTTree &CombedAST) {
     CombedAST.dumpASTOnFile(F.getName().str(), "ast", "06-After-switch-match");
   }
 
+  // Match while.
+  revng_log(BeautifyLogger, "Matching while\n");
+  matchWhile(RootNode, CombedAST);
+  if (BeautifyLogger.isEnabled()) {
+    CombedAST.dumpASTOnFile(F.getName().str(), "ast", "08-After-match-while");
+  }
+
   // Match dowhile.
   revng_log(BeautifyLogger, "Matching do-while\n");
   matchDoWhile(RootNode, CombedAST);
@@ -1262,13 +1274,6 @@ void beautifyAST(Function &F, ASTTree &CombedAST) {
     CombedAST.dumpASTOnFile(F.getName().str(),
                             "ast",
                             "07-After-match-do-while");
-  }
-
-  // Match while.
-  revng_log(BeautifyLogger, "Matching while\n");
-  matchWhile(RootNode, CombedAST);
-  if (BeautifyLogger.isEnabled()) {
-    CombedAST.dumpASTOnFile(F.getName().str(), "ast", "08-After-match-while");
   }
 
   // Remove useless continues.
