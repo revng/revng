@@ -7,6 +7,7 @@
 #include "revng/Support/FunctionTags.h"
 
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
+#include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
 
 #include "BeautifyGHAST.h"
 
@@ -36,6 +37,14 @@ bool BeautifyGHASTPass::runOnFunction(llvm::Function &F) {
   // Skip functions that are not lifted
   if (not FunctionTags::TagsSet::from(&F).contains(FunctionTags::Lifted))
     return false;
+
+  // If we passed the `-single-decompilation` option to the command line, skip
+  // decompilation for all the functions that are not the selected one.
+  if (TargetFunction.size() != 0) {
+    if (!F.getName().equals(TargetFunction.c_str())) {
+      return false;
+    }
+  }
 
   // Get the Abstract Syntax Tree of the restructured code.
   auto &RestructureCFGAnalysis = getAnalysis<RestructureCFG>();
