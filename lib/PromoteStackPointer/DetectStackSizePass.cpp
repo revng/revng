@@ -20,6 +20,10 @@ using model::RawFunctionType;
 
 static Logger<> Log("detect-stack-size");
 
+static bool isValidStackSize(uint64_t Size) {
+  return 0 < Size and Size < 10 * 1024 * 1024;
+}
+
 /// \note The bound collection is performed using signed comparisons
 template<bool IsUpperBound>
 class BoundCollector {
@@ -215,8 +219,8 @@ void DSSI::electStackArgumentsSize(RawFunctionType *Prototype,
   // The return address is not a stack argument
   Value -= CallInstructionPushSize;
 
-  if (Value.sgt(0)) {
-    auto Size = Value.getLimitedValue();
+  auto Size = Value.getLimitedValue();
+  if (Value.sgt(0) and isValidStackSize(Size)) {
     revng_log(Log,
               "electStackArgumentsSize for " << Prototype->ID << ": " << Size);
     Prototype->StackArgumentsType = createEmptyStruct(*Binary.get(), Size);
@@ -253,7 +257,7 @@ void DetectStackSize::electFunctionStackFrameSize(FunctionStackInfo &FSI) {
     StackSize = *FSI.MaxStackSize;
   }
 
-  if (StackSize and *StackSize > 0) {
+  if (StackSize and isValidStackSize(*StackSize)) {
     revng_log(Log, "Final StackSize: " << *StackSize);
     ModelFunction.StackFrameType = createEmptyStruct(*Binary.get(), *StackSize);
   }
