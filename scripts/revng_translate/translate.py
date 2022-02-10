@@ -41,7 +41,7 @@ def register_translate(subparsers):
     parser.add_argument("--base", help="Load address to employ in lifting.")
 
 
-def run_translate(args, search_path, search_prefixes, command_prefix):
+def run_translate(args, post_dash_dash_args, search_path, search_prefixes, command_prefix):
     main_path = path.abspath(__file__)
     main_path = path.dirname(main_path)
 
@@ -84,7 +84,7 @@ def run_translate(args, search_path, search_prefixes, command_prefix):
                                           search_path,
                                           search_prefixes)
 
-    return run(to_execute, command_prefix)
+    return run(to_execute + post_dash_dash_args, command_prefix)
 
 def main():
     parser = argparse.ArgumentParser(description="The rev.ng translator.")
@@ -92,7 +92,7 @@ def main():
                                        help='sub-commands help')
     register_translate(subparsers)
     args = parser.parse_args()
-    return run_translate(args, [], [])
+    return run_translate(args, [], [], [])
 
 if __name__ == "__main__":
     sys.exit(main())

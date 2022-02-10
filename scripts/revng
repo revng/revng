@@ -247,8 +247,7 @@ def run_command(args,
     elif command == "cc":
         return run_cc(all_args, search_path, search_prefixes, command_prefix)
     elif command == "translate":
-        assert not unknown_args
-        return run_translate(args, search_path, search_prefixes, command_prefix)
+        return run_translate(args, post_dash_dash, search_path, search_prefixes, command_prefix)
     elif command == "model":
         if not all_args:
             log_error("No subcommand specified")
