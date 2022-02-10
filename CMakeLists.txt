@@ -30,7 +30,32 @@ install(EXPORT revngc NAMESPACE revngc:: DESTINATION share/revngc/cmake)
 add_definitions("-DINSTALL_PATH=\"${CMAKE_INSTALL_PREFIX}\"")
 add_definitions("-DBUILD_PATH=\"${CMAKE_BINARY_DIR}\"")
 
-configure_file(recompile_dir.sh "${CMAKE_BINARY_DIR}/bin/recompile_dir")
+###################################
+# Handle assets for recompilation #
+###################################
+# TODO: For now we only put these assets in the build directory for tests.
+# If we ever want to allow recompilation in production we need to decide how
+# to provide these assets to users too.
+set(ASSETS_DIR assets)
+# Copy the recompilation headers in the build directory
+file(COPY ${CMAKE_SOURCE_DIR}/${ASSETS_DIR}/recompilation-headers
+     DESTINATION ${CMAKE_BINARY_DIR}/${ASSETS_DIR})
+# Configure the compile_flags blueprint
+configure_file(${CMAKE_SOURCE_DIR}/${ASSETS_DIR}/compile_flags.txt.in
+               ${CMAKE_BINARY_DIR}/${ASSETS_DIR}/compile_flags.txt.in)
+# Strip leading comments, used for documentation, away from the compile flags
+# blueprint, actually producing the real compile_flags.txt
+# 1. Parse the file, filling a list of lines.
+file(STRINGS ${CMAKE_BINARY_DIR}/${ASSETS_DIR}/compile_flags.txt.in
+     RECOMPILATION_COMPILE_FLAGS)
+# 2. Drop lines starting with '#' and lines with only whitespace
+list(FILTER RECOMPILATION_COMPILE_FLAGS EXCLUDE REGEX "^#.*")
+list(FILTER RECOMPILATION_COMPILE_FLAGS EXCLUDE REGEX "^[ \t\r\n]*$")
+# 3. Splat the remaining lines
+list(JOIN RECOMPILATION_COMPILE_FLAGS "\n" RECOMPILATION_COMPILE_FLAGS)
+# 4. Generate the acutal compile_flags.txt
+file(WRITE ${CMAKE_BINARY_DIR}/${ASSETS_DIR}/compile_flags.txt
+     ${RECOMPILATION_COMPILE_FLAGS})
 
 include_directories(include/)
 
@@ -52,6 +77,7 @@ llvm_map_components_to_libnames(LLVM_LIBRARIES
 
 add_subdirectory(include)
 add_subdirectory(lib)
+add_subdirectory(tools)
 
 include(tests/Tests.cmake)
 
@@ -60,13 +86,11 @@ include(${CMAKE_INSTALL_PREFIX}/share/revng/qa/cmake/revng-qa.cmake)
 
 # Macro for creating the tests for decompilation pipeline
 macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
-    # test revng-model-to-header
-    add_test(NAME model_to_header_${TARGET_NAME} COMMAND
-      bash -c "${CMAKE_BINARY_DIR}/bin/revng-model-to-header < ${INPUT_FILE} > ${TARGET_NAME}_model_header.h"
-      )
-    set_property(TEST model_to_header_${TARGET_NAME} APPEND PROPERTY
-      FIXTURES_SETUP ${TARGET_NAME}_model_header
-      )
+
+    # setup a directory for all the output files for this family of tests
+    get_filename_component(FILENAME ${INPUT_FILE} NAME_WLE)
+    set(OUTFOLDER ${CATEGORY}/${FILENAME}/${CONFIGURATION})
+    make_directory(${OUTFOLDER})
 
     # prepare enforced .bc for decompilation
     add_test(NAME prepare_${TARGET_NAME}
@@ -120,18 +144,81 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       -instcombine
       -sroa
       -simplifycfg
+      -strip-dead-prototypes
       ${INPUT_FILE}
-      -o ${TARGET_NAME}_prepared.bc
+      -o ${OUTFOLDER}/prepared.bc
       )
     set_property(TEST prepare_${TARGET_NAME} APPEND PROPERTY
       FIXTURES_SETUP PrepareDecompilation_fixture_${TARGET_NAME}
+      )
+
+    # test revng-model-to-header
+    add_test(NAME model_to_header_${TARGET_NAME} COMMAND
+      revng --prefix .
+      opt
+      -model-to-header
+      ${OUTFOLDER}/prepared.bc
+      --types-header-name=${OUTFOLDER}/model_header.h
+      -o /dev/null
+      )
+    set_property(TEST model_to_header_${TARGET_NAME} APPEND PROPERTY
+      DEPENDS prepare_${TARGET_NAME}
+      )
+    set_property(TEST model_to_header_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_SETUP ${TARGET_NAME}_model_header
+      )
+    set_property(TEST model_to_header_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_REQUIRED PrepareDecompilation_fixture_${TARGET_NAME}
+      )
+    # try to compile model headers without warnings
+    add_test(NAME compile_model_header_${TARGET_NAME} COMMAND
+      clang --config ${ASSETS_DIR}/compile_flags.txt
+      ${OUTFOLDER}/model_header.h
+      -o /dev/null
+      )
+    set_property(TEST compile_model_header_${TARGET_NAME} APPEND PROPERTY
+      DEPENDS model_to_header_${TARGET_NAME}
+      )
+    set_property(TEST compile_model_header_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_REQUIRED ${TARGET_NAME}_model_header
+      )
+
+    # test revng-helpers-to-header
+    add_test(NAME helpers_to_header_${TARGET_NAME} COMMAND
+      revng --prefix .
+      opt
+      -helpers-to-header
+      ${OUTFOLDER}/prepared.bc
+      --helpers-header-name=${OUTFOLDER}/helpers_header.h
+      -o /dev/null
+      )
+    set_property(TEST helpers_to_header_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_SETUP ${TARGET_NAME}_helpers_header
+      )
+    set_property(TEST helpers_to_header_${TARGET_NAME} APPEND PROPERTY
+      DEPENDS prepare_${TARGET_NAME}
+      )
+    set_property(TEST helpers_to_header_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_REQUIRED PrepareDecompilation_fixture_${TARGET_NAME}
+      )
+    # try to compile helpers headers without warnings
+    add_test(NAME compile_helpers_header_${TARGET_NAME} COMMAND
+      clang --config ${ASSETS_DIR}/compile_flags.txt
+      ${OUTFOLDER}/helpers_header.h
+      -o /dev/null
+      )
+    set_property(TEST compile_helpers_header_${TARGET_NAME} APPEND PROPERTY
+      DEPENDS helpers_to_header_${TARGET_NAME}
+      )
+    set_property(TEST compile_helpers_header_${TARGET_NAME} APPEND PROPERTY
+      FIXTURES_REQUIRED ${TARGET_NAME}_helpers_header
       )
 
     if ("${CATEGORY}" STREQUAL "tests_analysis_PromoteStackPointer"
         AND "${CONFIGURATION}" STREQUAL "dynamic_native")
       get_filename_component(BASENAME "${INPUT_FILE}" NAME_WE)
       add_test(NAME psp_${TARGET_NAME}
-        COMMAND bash -c "opt -S ${TARGET_NAME}_prepared.bc | revng model dump | revng model compare - ${CMAKE_SOURCE_DIR}/tests/Analysis/PromoteStackPointer/${BASENAME}.yml")
+        COMMAND sh -c "revng opt -S ${OUTFOLDER}/prepared.bc | revng model dump | revng model compare - ${CMAKE_SOURCE_DIR}/tests/Analysis/PromoteStackPointer/${BASENAME}.yml")
       set_property(TEST psp_${TARGET_NAME} APPEND PROPERTY
         DEPENDS prepare_${TARGET_NAME}
         )
@@ -147,7 +234,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       opt
       -vma
       -vma-mincut-iter=50
-      ${TARGET_NAME}_prepared.bc
+      ${OUTFOLDER}/prepared.bc
       -o /dev/null
       )
     set_property(TEST vma_${TARGET_NAME} APPEND PROPERTY
@@ -168,8 +255,8 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       -restructure-cfg
       -beautify-ghast
       -decompilation
-      -decompiled-dir=${TARGET_NAME}_decompiled_dir
-      ${TARGET_NAME}_prepared.bc
+      -decompiled-dir=${OUTFOLDER}/decompiled_dir
+      ${OUTFOLDER}/prepared.bc
       -o /dev/null
       )
     set_property(TEST decompilation_${TARGET_NAME} APPEND PROPERTY
@@ -184,7 +271,12 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
 
     # test recompilation
     add_test(NAME recompilation_${TARGET_NAME} COMMAND
-      ${CMAKE_BINARY_DIR}/bin/recompile_dir ${TARGET_NAME}_decompiled_dir
+    sh -c "for C_FILE in $(ls ${OUTFOLDER}/decompiled_dir/*.c); \
+      do \
+      clang --config ${ASSETS_DIR}/compile_flags.txt \
+          $C_FILE \
+          -o /dev/null; \
+      done;"
       )
     set_property(TEST recompilation_${TARGET_NAME} APPEND PROPERTY
       DEPENDS prepare_${TARGET_NAME}
@@ -208,9 +300,10 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       -dce
       -exit-ssa
       -twoscomplement-normalization
+      -restructure-cfg
       -add-ir-serialization-markers
-      ${TARGET_NAME}_prepared.bc
-      -o ${TARGET_NAME}_canonicalized.bc
+      ${OUTFOLDER}/prepared.bc
+      -o ${OUTFOLDER}/canonicalized.bc
       )
     set_property(TEST ir_canonicalization_${TARGET_NAME} APPEND PROPERTY
       DEPENDS prepare_${TARGET_NAME}
@@ -234,8 +327,8 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       -mark-for-serialization
       -add-scev-barrier
       -decompilation
-      -dla-flatc-dir=${TARGET_NAME}_dla_dir
-      ${TARGET_NAME}_prepared.bc
+      -dla-flatc-dir=${OUTFOLDER}/dla_dir
+      ${OUTFOLDER}/prepared.bc
       -o /dev/null
       )
     set_property(TEST decompile_with_dla_${TARGET_NAME} APPEND PROPERTY
@@ -246,26 +339,6 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
       )
 
 endmacro()
-
-
-# Decompilation torture tests
-macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
-
-  if (EXISTS ${INPUT_FILE})
-    add_decompilation_pipeline_test(${CATEGORY}
-                                    ${INPUT_FILE}
-                                    ${CONFIGURATION}
-                                    ${OUTPUT}
-                                    ${TARGET_NAME})
-  endif()
-
-endmacro()
-
-register_derived_artifact("abi-enforced-for-decompilation-torture" # FROM_ARTIFACTS: input artifacts
-  "revng-c-passes-torture"         # NAME: name of the new aritfact
-  ""                               # SUFFIX: extension of output file
-  "FILE"                           # TYPE: "FILE" or "DIRECTORY"
-  )
 
 
 # Decompilation tests

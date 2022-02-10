@@ -1,14 +1,9 @@
-#!/bin/sh
-
-set -e
-
-DIRECTORY_NAME=$1
-
 ####
 #### Warnings that could be enabled in the future if we become better behaved
 ####
 #
 # -pedantic-errors
+#
 
 ####
 #### Warnings that are currently disabled, explained
@@ -53,33 +48,36 @@ DIRECTORY_NAME=$1
 ## Warnings that are a symptom of broken emitted code and should be investigated
 ##
 #
-# -Wno-parentheses \
-# -Wno-shift-count-negative \
-# -Wno-tautological-constant-out-of-range-compare \
-# -Wno-implicitly-unsigned-literal \
-# -Wno-int-to-pointer-cast \
-# -Wno-infinite-recursion \
-# -Wno-constant-conversion \
-# -Wno-shift-count-overflow \
+# -Wno-parentheses
+# -Wno-shift-count-negative
+# -Wno-tautological-constant-out-of-range-compare
+# -Wno-implicitly-unsigned-literal
+# -Wno-int-to-pointer-cast
+# -Wno-infinite-recursion
+# -Wno-constant-conversion
+# -Wno-shift-count-overflow
 
-
-for C_FILE in $(ls $DIRECTORY_NAME/*.c) ; do
-  clang -c -fsyntax-only -Wall -Wextra -Werror -ferror-limit=0 \
-    -Wno-self-assign \
-    -Wno-unused-parameter \
-    -Wno-return-type \
-    -Wno-unused-variable \
-    -Wno-unused-value \
-    -Wno-uninitialized \
-    -Wno-parentheses \
-    -Wno-constant-conversion \
-    -Wno-shift-count-negative \
-    -Wno-shift-count-overflow \
-    -Wno-implicitly-unsigned-literal \
-    -Wno-tautological-constant-out-of-range-compare \
-    -Wno-int-to-pointer-cast \
-    -Wno-infinite-recursion \
-    -Wno-incompatible-library-redeclaration \
-    $C_FILE \
-    -o /dev/null
-done
+-Wall
+-c
+-ffreestanding
+-fsyntax-only
+-I
+${CMAKE_BINARY_DIR}/${ASSETS_DIR}/recompilation-headers/
+-Wextra
+-Werror
+-ferror-limit=0
+-Wno-self-assign
+-Wno-unused-parameter
+-Wno-return-type
+-Wno-unused-variable
+-Wno-unused-value
+-Wno-uninitialized
+-Wno-parentheses
+-Wno-constant-conversion
+-Wno-shift-count-negative
+-Wno-shift-count-overflow
+-Wno-implicitly-unsigned-literal
+-Wno-tautological-constant-out-of-range-compare
+-Wno-int-to-pointer-cast
+-Wno-infinite-recursion
+-Wno-incompatible-library-redeclaration

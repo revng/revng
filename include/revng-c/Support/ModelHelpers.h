@@ -17,3 +17,6 @@ peelConstAndTypedefs(const model::QualifiedType &QT) {
 
 /// \brief Create an empty model::StructType of size Size in Binary
 extern model::TypePath createEmptyStruct(model::Binary &Binary, uint64_t Size);
+
+/// \brief Check if the given type has to be serialized in C as an array.
+extern bool isEventuallyArray(const model::QualifiedType &QT);
