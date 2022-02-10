@@ -205,7 +205,7 @@ public:
 
 class O2Pipe {
 public:
-  static constexpr auto Name = "02 Pipe";
+  static constexpr auto Name = "O2";
   std::vector<ContractGroup> getContract() const { return {}; }
 
   void registerPasses(llvm::legacy::PassManager &Manager);
