@@ -147,7 +147,8 @@ public:
 
     // Ensure the architecture is consistent.
     auto Arch = model::Architecture::fromLLVMArchitecture(DICtx.getArch());
-    revng_assert(Arch == Model->Architecture);
+    if (Model->Architecture == model::Architecture::Invalid)
+      Model->Architecture = Arch;
 
     // Detect default ABI from the architecture.
     if (Model->DefaultABI == model::ABI::Invalid)
