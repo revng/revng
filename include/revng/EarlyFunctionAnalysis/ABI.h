@@ -4,16 +4,15 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/ABI/RegisterState.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Register.h"
-#include "revng/Model/RegisterState.h"
 #include "revng/Model/Types.h"
 
 namespace abi {
 
-using RegisterState = model::RegisterState::Values;
-using RegisterStateMap = std::map<model::Register::Values,
-                                  std::pair<RegisterState, RegisterState>>;
+using RS = abi::RegisterState::Values;
+using RegisterStateMap = std::map<model::Register::Values, std::pair<RS, RS>>;
 
 template<model::ABI::Values V>
 class ABI {
