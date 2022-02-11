@@ -8,6 +8,17 @@
 
 #include "llvm/ADT/ArrayRef.h"
 
+#include "revng/ABI/x86/Microsoft_x86_cdecl.h"
+#include "revng/ABI/x86/Microsoft_x86_clrcall.h"
+#include "revng/ABI/x86/Microsoft_x86_fastcall.h"
+#include "revng/ABI/x86/Microsoft_x86_stdcall.h"
+#include "revng/ABI/x86/Microsoft_x86_thiscall.h"
+#include "revng/ABI/x86/Microsoft_x86_vectorcall.h"
+#include "revng/ABI/x86/Pascal_x86.h"
+#include "revng/ABI/x86/SystemV_x86.h"
+#include "revng/ABI/x86/SystemV_x86_regparm_1.h"
+#include "revng/ABI/x86/SystemV_x86_regparm_2.h"
+#include "revng/ABI/x86/SystemV_x86_regparm_3.h"
 #include "revng/ABI/x86_64/Microsoft_x86_64.h"
 #include "revng/ABI/x86_64/Microsoft_x86_64_clrcall.h"
 #include "revng/ABI/x86_64/Microsoft_x86_64_vectorcall.h"
