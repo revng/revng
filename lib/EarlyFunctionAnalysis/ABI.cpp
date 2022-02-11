@@ -266,7 +266,7 @@ ABI<SystemV_x86_64>::defaultPrototype(model::Binary &TheBinary) {
 }
 
 void ABI<SystemV_x86_64>::applyDeductions(RegisterStateMap &Prototype) {
-  using namespace model::RegisterState;
+  using namespace abi::RegisterState;
 
   // Find the highest-indexed YesOrDead argument, and mark YesOrDead all those
   // before it. Same for return values.
@@ -276,8 +276,8 @@ void ABI<SystemV_x86_64>::applyDeductions(RegisterStateMap &Prototype) {
 
     auto State = getOrDefault(Prototype,
                               Register,
-                              { model::RegisterState::Invalid,
-                                model::RegisterState::Invalid });
+                              { abi::RegisterState::Invalid,
+                                abi::RegisterState::Invalid });
 
     auto AsArgument = State.first;
 
@@ -294,8 +294,8 @@ void ABI<SystemV_x86_64>::applyDeductions(RegisterStateMap &Prototype) {
 
     auto State = getOrDefault(Prototype,
                               Register,
-                              { model::RegisterState::Invalid,
-                                model::RegisterState::Invalid });
+                              { abi::RegisterState::Invalid,
+                                abi::RegisterState::Invalid });
 
     auto AsReturnValue = State.second;
 

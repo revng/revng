@@ -11,18 +11,19 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Value.h"
 
+#include "revng/ABI/RegisterState.h"
 #include "revng/ABIAnalyses/Common.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/EarlyFunctionAnalysis/EarlyFunctionAnalysis.h"
 #include "revng/MFP/MFP.h"
 #include "revng/Model/Binary.h"
-#include "revng/EarlyFunctionAnalysis/EarlyFunctionAnalysis.h"
 #include "revng/Support/revng.h"
 
 namespace ABIAnalyses::%LatticeName% {
 
 using namespace ABIAnalyses;
 using Register = model::Register::Values;
-using State = model::RegisterState::Values;
+using State = abi::RegisterState::Values;
 
 struct CoreLattice {
 

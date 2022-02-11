@@ -10,6 +10,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/ABI/RegisterState.h"
 #include "revng/ABIAnalyses/Common.h"
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/Model/Binary.h"
@@ -26,7 +27,7 @@ using namespace llvm;
 static Logger<> ABIAnalysesLog("abi-analyses");
 
 namespace ABIAnalyses {
-using RegisterState = model::RegisterState::Values;
+using RegisterState = abi::RegisterState::Values;
 
 template void
 ABIAnalyses::ABIAnalysesResults::dump<Logger<true>>(Logger<true> &,
@@ -58,13 +59,13 @@ void PartialAnalysisResults::dump(T &Output, const char *Prefix) const {
   Output << Prefix << "UsedArgumentsOfFunction:\n";
   for (auto &[GV, State] : UAOF) {
     Output << Prefix << "  " << GV->getName().str() << " = "
-           << model::RegisterState::getName(State).str() << '\n';
+           << abi::RegisterState::getName(State).str() << '\n';
   }
 
   Output << Prefix << "DeadRegisterArgumentsOfFunction:\n";
   for (auto &[GV, State] : DRAOF) {
     Output << Prefix << "  " << GV->getName().str() << " = "
-           << model::RegisterState::getName(State).str() << '\n';
+           << abi::RegisterState::getName(State).str() << '\n';
   }
 
   Output << Prefix << "UsedReturnValuesOfFunctionCall:\n";
@@ -72,7 +73,7 @@ void PartialAnalysisResults::dump(T &Output, const char *Prefix) const {
     Output << Prefix << "  " << Key.second->getName().str() << '\n';
     for (auto &[GV, State] : StateMap) {
       Output << Prefix << "    " << GV->getName().str() << " = "
-             << model::RegisterState::getName(State).str() << '\n';
+             << abi::RegisterState::getName(State).str() << '\n';
     }
   }
 
@@ -81,7 +82,7 @@ void PartialAnalysisResults::dump(T &Output, const char *Prefix) const {
     Output << Prefix << "  " << Key.second->getName().str() << '\n';
     for (auto &[GV, State] : StateMap) {
       Output << Prefix << "    " << GV->getName().str() << " = "
-             << model::RegisterState::getName(State).str() << '\n';
+             << abi::RegisterState::getName(State).str() << '\n';
     }
   }
 
@@ -90,7 +91,7 @@ void PartialAnalysisResults::dump(T &Output, const char *Prefix) const {
     Output << Prefix << "  " << Key.second->getName().str() << '\n';
     for (auto &[GV, State] : StateMap) {
       Output << Prefix << "    " << GV->getName().str() << " = "
-             << model::RegisterState::getName(State).str() << '\n';
+             << abi::RegisterState::getName(State).str() << '\n';
     }
   }
 
@@ -99,7 +100,7 @@ void PartialAnalysisResults::dump(T &Output, const char *Prefix) const {
     Output << Prefix << "  " << Key.second->getName().str() << '\n';
     for (auto &[GV, State] : StateMap) {
       Output << Prefix << "  " << GV->getName().str() << " = "
-             << model::RegisterState::getName(State).str() << '\n';
+             << abi::RegisterState::getName(State).str() << '\n';
     }
   }
 }
@@ -312,7 +313,7 @@ void ABIAnalysesResults::dump(T &Output, const char *Prefix) const {
   Output << Prefix << "Arguments:\n";
   for (auto &[GV, State] : ArgumentsRegisters) {
     Output << Prefix << "  " << GV->getName().str() << " = "
-           << model::RegisterState::getName(State).str() << '\n';
+           << abi::RegisterState::getName(State).str() << '\n';
   }
 
   Output << Prefix << "Call site:\n";
@@ -323,21 +324,21 @@ void ABIAnalysesResults::dump(T &Output, const char *Prefix) const {
            << "Arguments:\n";
     for (auto &[GV, State] : StateMap.ArgumentsRegisters) {
       Output << Prefix << "    " << GV->getName().str() << " = "
-             << model::RegisterState::getName(State).str() << '\n';
+             << abi::RegisterState::getName(State).str() << '\n';
     }
     Output << Prefix << "  "
            << "  "
            << "Return values:\n";
     for (auto &[GV, State] : StateMap.ReturnValuesRegisters) {
       Output << Prefix << "    " << GV->getName().str() << " = "
-             << model::RegisterState::getName(State).str() << '\n';
+             << abi::RegisterState::getName(State).str() << '\n';
     }
   }
 
   Output << Prefix << "Return values:\n";
   for (auto &[GV, State] : FinalReturnValuesRegisters) {
     Output << Prefix << "  " << GV->getName().str() << " = "
-           << model::RegisterState::getName(State).str() << '\n';
+           << abi::RegisterState::getName(State).str() << '\n';
   }
 }
 
