@@ -62,7 +62,11 @@ int main(int Argc, char *Argv[]) {
     ExitOnError(llvm::createStringError(EC, EC.message()));
   auto &Stream = OutputFile.os();
 
-  diff(*LeftModel->Model, *RightModel->Model).dump(Stream);
+  auto Diff = diff(*LeftModel->Model, *RightModel->Model);
+  Diff.dump(Stream);
 
-  return EXIT_SUCCESS;
+  if (Diff.Changes.empty())
+    return EXIT_SUCCESS;
+  else
+    return EXIT_FAILURE;
 }
