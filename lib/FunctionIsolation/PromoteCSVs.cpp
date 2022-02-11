@@ -5,6 +5,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/STLExtras.h"
+
 #include "revng/ADT/GenericGraph.h"
 #include "revng/FunctionIsolation/PromoteCSVs.h"
 #include "revng/FunctionIsolation/StructInitializers.h"
@@ -63,7 +65,7 @@ private:
   std::set<GlobalVariable *> CSVs;
 
 public:
-  PromoteCSVs(Module *M, const GeneratedCodeBasicInfo &GCBI);
+  PromoteCSVs(Module *M, GeneratedCodeBasicInfo &GCBI);
 
 public:
   void run();
@@ -78,7 +80,7 @@ private:
   void wrapCallsToHelpers(Function *F);
 };
 
-PromoteCSVs::PromoteCSVs(Module *M, const GeneratedCodeBasicInfo &GCBI) :
+PromoteCSVs::PromoteCSVs(Module *M, GeneratedCodeBasicInfo &GCBI) :
   M(M), Initializers(M), CSVInitializers(M, false), GCBI(GCBI) {
 
   CSVInitializers.addFnAttribute(Attribute::ReadOnly);
@@ -87,9 +89,9 @@ PromoteCSVs::PromoteCSVs(Module *M, const GeneratedCodeBasicInfo &GCBI) :
   CSVInitializers.setTags({ &FunctionTags::OpaqueCSVValue });
 
   // Record existing initializers
-  for (GlobalVariable *CSV : GCBI.csvs()) {
-
-    // Do not promote stack pointer and PC yet
+  const auto &PCCSVs = GCBI.programCounterHandler()->pcCSVs();
+  for (GlobalVariable *CSV :
+       llvm::concat<GlobalVariable *const>(GCBI.csvs(), PCCSVs)) {
     if (GCBI.isSPReg(CSV))
       continue;
 
