@@ -13,6 +13,8 @@
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Runner.h"
 #include "revng/Pipeline/SavableObject.h"
+#include "revng/Pipeline/YamlizableGlobal.h"
+#include "revng/Pipes/CallGraphCache.h"
 #include "revng/Pipes/LLVMContextWrapper.h"
 #include "revng/Pipes/ModelGlobal.h"
 
@@ -33,6 +35,7 @@ private:
   /// method that returns a expected<PipelineManager>, this is the only way to
   /// ensure this is correct.
   std::unique_ptr<LLVMContextWrapper> Context;
+  std::unique_ptr<CallGraphGlobal> CallGraph;
   std::unique_ptr<ModelGlobal> ModelWrapper;
   std::unique_ptr<pipeline::Context> PipelineContext;
   std::unique_ptr<pipeline::Loader> Loader;

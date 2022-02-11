@@ -15,6 +15,7 @@ revng_add_library_internal(revngPipes
   Pipes.cpp
   RootKind.cpp
   TaggedFunctionKind.cpp
+  CallGraphCache.cpp
 )
 
 llvm_map_components_to_libnames(LLVM_LIBRARIES
@@ -35,3 +36,11 @@ target_link_libraries(revngPipes
   revngSupport
   ${LLVM_LIBRARIES}
 )
+
+target_tuple_tree_generate(
+  Pipes
+  revng::pipes
+  "${CMAKE_CURRENT_BINARY_DIR}/schema.yml"
+  revngPipes
+  "${CMAKE_SOURCE_DIR}/include/revng/Pipes/CallGraphCache.h")
+

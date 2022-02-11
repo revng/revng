@@ -24,6 +24,7 @@
 #include "revng/Pipeline/Loader.h"
 #include "revng/Pipeline/Runner.h"
 #include "revng/Pipeline/Target.h"
+#include "revng/Pipeline/YamlizableGlobal.h"
 #include "revng/Pipes/PipelineManager.h"
 #include "revng/Support/ResourceFinder.h"
 
@@ -47,11 +48,14 @@ public:
   }
 };
 
-static Context
-setUpContext(LLVMContextWrapper &Context, ModelGlobal &ModelWrapper) {
+static Context setUpContext(LLVMContextWrapper &Context,
+                            ModelGlobal &ModelWrapper,
+                            YamlizableGlobal<CallGraphCache> &CallGraph) {
   const auto &ModelName = ModelGlobal::Name;
+  const auto &GraphName = CallGraphCache::GlobalName;
   return Context::createFromGlobals(NamedGlobalReference("LLVMContext",
                                                          Context),
+                                    NamedGlobalReference(GraphName, CallGraph),
                                     NamedGlobalReference(ModelName,
                                                          ModelWrapper));
 }
@@ -161,8 +165,11 @@ PipelineManager::createContexts(llvm::ArrayRef<std::string> EnablingFlags,
   Manager.Context = std::make_unique<LLVMContextWrapper>();
 
   Manager.ModelWrapper = make_unique<ModelGlobal>();
+  Manager.CallGraph = make_unique<YamlizableGlobal<CallGraphCache>>();
 
-  auto Ctx = setUpContext(*Manager.Context, *Manager.ModelWrapper);
+  auto Ctx = setUpContext(*Manager.Context,
+                          *Manager.ModelWrapper,
+                          *Manager.CallGraph);
   Manager.PipelineContext = make_unique<pipeline::Context>(move(Ctx));
 
   auto Loader = setupLoader(*Manager.PipelineContext, EnablingFlags);

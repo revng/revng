@@ -25,16 +25,28 @@ namespace pipeline {
 class LLVMPassWrapperBase {
 public:
   virtual ~LLVMPassWrapperBase() = default;
-  virtual void registerPasses(llvm::legacy::PassManager &Manager) = 0;
+  virtual void
+  registerPasses(Context &Ctx, llvm::legacy::PassManager &Manager) = 0;
   virtual const std::vector<ContractGroup> &getContract() const = 0;
   virtual std::unique_ptr<LLVMPassWrapperBase> clone() const = 0;
   virtual llvm::StringRef getName() const = 0;
 };
 
 template<typename T>
-concept LLVMPass = requires(T a) {
-  { T::Name } -> convertible_to<const char *>;
+concept LLVMPassRquiresNoContext = requires(T a) {
   { a.registerPasses(std::declval<llvm::legacy::PassManager &>()) };
+};
+
+template<typename T>
+concept LLVMPassRquiresContext = requires(T a) {
+  { a.registerPasses(std::declval<Context &>(),
+                     std::declval<llvm::legacy::PassManager &>()) };
+};
+
+template<typename T>
+concept LLVMPass =
+  (LLVMPassRquiresContext<T> or LLVMPassRquiresNoContext<T>) and requires(T a) {
+  { T::Name } -> convertible_to<const char *>;
 };
 
 class PureLLVMPassWrapper : public LLVMPassWrapperBase {
@@ -60,7 +72,8 @@ public:
 
   ~PureLLVMPassWrapper() override = default;
 
-  void registerPasses(llvm::legacy::PassManager &Manager) override {
+  void
+  registerPasses(Context &Ctx, llvm::legacy::PassManager &Manager) override {
     auto *Registry = llvm::PassRegistry::getPassRegistry();
     Manager.add(Registry->getPassInfo(PassName)->createPass());
   }
@@ -105,8 +118,12 @@ public:
   llvm::StringRef getName() const override { return T ::Name; }
 
 public:
-  void registerPasses(llvm::legacy::PassManager &Manager) override {
-    PipePass.registerPasses(Manager);
+  void
+  registerPasses(Context &Ctx, llvm::legacy::PassManager &Manager) override {
+    if constexpr (LLVMPassRquiresContext<T>)
+      PipePass.registerPasses(Ctx, Manager);
+    else
+      PipePass.registerPasses(Manager);
   }
 
   const std::vector<ContractGroup> &getContract() const override {
@@ -162,10 +179,10 @@ public:
     return Contract;
   }
 
-  void run(const Context &, LLVMContainer &Container) {
+  void run(Context &Ctx, LLVMContainer &Container) {
     llvm::legacy::PassManager Manager;
     for (const auto &Element : Passes)
-      Element->registerPasses(Manager);
+      Element->registerPasses(Ctx, Manager);
     Manager.run(Container.getModule());
   }
 
