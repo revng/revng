@@ -8,6 +8,8 @@
 
 namespace model {
 
+/// Remove all the types that cannot be reached from
+/// any named type or a type "outside" the type system itself.
 void purgeUnnamedAndUnreachableTypes(TupleTree<model::Binary> &Model);
 
 } // namespace model

@@ -8,8 +8,8 @@
 
 namespace model {
 
-/// Given an invalid model which features conflicing names, changes it to make
-/// it valid
+/// Promote OriginalName fields to CustomName ensuring
+/// the validity of the model is preserved
 void promoteOriginalName(TupleTree<model::Binary> &Model);
 
 } // namespace model
