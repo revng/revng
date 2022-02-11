@@ -230,3 +230,63 @@ function(tuple_tree_generator_generate_jsonschema
     DEPENDS "${YAML_DEFINITIONS}" ${TUPLE_TREE_GENERATOR_SOURCES}
   )
 endfunction()
+
+function(
+  target_tuple_tree_and_schema_generate
+  HEADER_DIRECTORY
+  NAMESPACE
+  SCHEMA_PATH
+  TARGET_ID
+  JSONSCHEMA_PATH
+  JSONSCHEMA_ROOT_TYPE
+  STRING_TYPES
+  SEPARATE_STRING_TYPES
+  )
+
+# Generate C++ headers from the collected YAML
+set(OUTPUT_DIR "${CMAKE_BINARY_DIR}/include/revng/${HEADER_DIRECTORY}/Generated")
+tuple_tree_generator(
+  generate-${TARGET_ID}-tuple-tree-code
+  "${ARGN}"
+  TUPLE-TREE-YAML
+  ${NAMESPACE}
+  "${SCHEMA_PATH}"
+  "${OUTPUT_DIR}"
+  "revng/${HEADER_DIRECTORY}"
+  GENERATED_HEADERS
+  GENERATED_IMPLS
+  "${JSONSCHEMA_PATH}"
+  ${JSONSCHEMA_ROOT_TYPE}
+  "${STRING_TYPES}"
+  "${SEPARATE_STRING_TYPES}"
+)
+
+install(
+  DIRECTORY ${OUTPUT_DIR}
+  DESTINATION include/revng/${HEADER_DIRECTORY}
+)
+
+target_sources(${TARGET_ID} PRIVATE ${GENERATED_IMPLS})
+
+add_dependencies(${TARGET_ID} generate-${TARGET_ID}-tuple-tree-code)
+
+endfunction()
+
+function(
+  target_tuple_tree_generate
+  HEADER_DIRECTORY
+  NAMESPACE
+  SCHEMA_PATH
+  TARGET_ID
+  )
+  target_tuple_tree_and_schema_generate(
+    ${HEADER_DIRECTORY}
+    ${NAMESPACE}
+    ${SCHEMA_PATH}
+    ${TARGET_ID}
+    ""
+    ${TARGET_ID}_schema
+    ""
+    ""
+    "${ARGN}")
+endfunction()

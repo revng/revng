@@ -72,7 +72,7 @@ add_custom_command(
     --target-python-version 3.6
     --input "${MODEL_JSONSCHEMA_PATH}"
     > "${CMAKE_BINARY_DIR}/lib/python/${PYTHON_GENERATED_MODEL_PATH}"
-  DEPENDS generate-model-tuple-tree-code
+  DEPENDS generate-revngModel-tuple-tree-code
 )
 add_custom_target(python-model-generated DEPENDS "${CMAKE_BINARY_DIR}/lib/python/${PYTHON_GENERATED_MODEL_PATH}")
 add_dependencies(revng-lift python-model-generated)

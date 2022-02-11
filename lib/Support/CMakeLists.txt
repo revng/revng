@@ -33,4 +33,4 @@ target_include_directories(revngSupport
 # on support and would generate a cyclic dependency.
 #
 # TODO: drop dependency from model in revng.h
-add_dependencies(revngSupport generate-model-tuple-tree-code)
+add_dependencies(revngSupport generate-revngModel-tuple-tree-code)
