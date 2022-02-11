@@ -21,16 +21,20 @@ macro(add_pipeline_test
   FLAGS
 )
   add_test(NAME "${TEST_NAME}"
-    COMMAND "${CMAKE_BINARY_DIR}/bin/revng-pipeline"
-      -P "${CMAKE_CURRENT_SOURCE_DIR}/${PIPELINE_FILE}"
-      ${TARGETS}
-      -i "${INPUTS_LIST}"
-      -o "${OUTPUTS_LIST}"
-      -l "${CMAKE_BINARY_DIR}/lib/librevngStringContainerLibrary.so"
-      -p "${CMAKE_BINARY_DIR}/${TEST_NAME}"
-      -f "${FLAGS}"
+    COMMAND bash -c "rm -rf ${CMAKE_BINARY_DIR}/${TEST_NAME} &&
+      revng-pipeline \
+      -P ${CMAKE_CURRENT_SOURCE_DIR}/${PIPELINE_FILE} \
+      ${TARGETS} \
+      -i ${INPUTS_LIST} \
+      -o ${OUTPUTS_LIST} \
+      -l ${CMAKE_BINARY_DIR}/lib/librevngStringContainerLibrary.so \
+      -p ${CMAKE_BINARY_DIR}/${TEST_NAME} \
+      -f ${FLAGS}"
   )
-  set_tests_properties("${TEST_NAME}" PROPERTIES LABELS "pipeline;run")
+  set_tests_properties("${TEST_NAME}"
+    PROPERTIES
+    LABELS "pipeline;run"
+    ENVIRONMENT "PATH=${CMAKE_BINARY_DIR}/bin:$ENV{PATH}")
 endmacro()
 
 macro(add_pipeline_dump_test TEST_NAME PIPELINE_FILE)
@@ -41,7 +45,10 @@ macro(add_pipeline_dump_test TEST_NAME PIPELINE_FILE)
       -l "${CMAKE_BINARY_DIR}/lib/librevngStringContainerLibrary.so"
       -d
   )
-  set_tests_properties("${TEST_NAME}" PROPERTIES LABELS "pipeline;dump")
+  set_tests_properties("${TEST_NAME}"
+    PROPERTIES
+    LABELS "pipeline;dump"
+    ENVIRONMENT "PATH=${CMAKE_BINARY_DIR}/bin:$ENV{PATH}")
 endmacro()
 
 macro(test_pipeline_output

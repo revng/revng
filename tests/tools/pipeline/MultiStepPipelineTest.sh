@@ -20,6 +20,10 @@ function run() {
     "$@"
 }
 
+# Cleanup
+rm -rf "$WORKING_DIRECTORY"
+mkdir -p "$WORKING_DIRECTORY"
+
 # Produce $OUTPUT
 run "$@"
 diff "$OUTPUT" "$REFERENCE_OUTPUT"
