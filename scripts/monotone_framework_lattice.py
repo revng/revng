@@ -233,8 +233,10 @@ def main():
                                  .replace('%TransferFunction%', generated_code['transfer_function_enums'])
                                  .replace('%isLessOrEqual%', generated_code['is_less_or_equal_definition'])
                                  .replace('%combineValues%', generated_code['combine_values_definition'])
-                                 .replace('%transfer%', generated_code['transfer_function_definition']))
-
+                                 .replace('%transfer%', generated_code['transfer_function_definition'])
+                                 .replace("%GeneratedNotice%", "// This file has been automatically generated "
+                                                               "from scripts/monotone_framework_lattice.py, "
+                                                               "please don't change it"))
 
   return 0
 
