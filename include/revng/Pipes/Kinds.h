@@ -11,6 +11,7 @@
 namespace revng::pipes {
 
 inline pipeline::Rank RootRank("Root Rank");
+
 inline pipeline::Rank FunctionsRank("Function Rank", RootRank);
 
 inline pipeline::Kind Binary("Binary", &RootRank);
