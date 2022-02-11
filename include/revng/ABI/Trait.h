@@ -8,6 +8,8 @@
 
 #include "llvm/ADT/ArrayRef.h"
 
+#include "revng/ABI/AArch64/AAPCS64.h"
+#include "revng/ABI/ARM/AAPCS.h"
 #include "revng/ABI/x86/Microsoft_x86_cdecl.h"
 #include "revng/ABI/x86/Microsoft_x86_clrcall.h"
 #include "revng/ABI/x86/Microsoft_x86_fastcall.h"
