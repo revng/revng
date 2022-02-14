@@ -484,7 +484,7 @@ struct TypedBaseAddress {
   void dump(llvm::raw_ostream &OS) const debug_function {
     OS << "TypedBaseAddress{\nType:\n";
     serialize(OS, Type);
-    OS << "Address: ";
+    OS << "\nAddress: ";
     if (Address)
       Address->print(OS);
     else
@@ -1245,6 +1245,7 @@ struct ModelGEPArgs {
   TypedBaseAddress BaseAddress = {};
   ChildIndexVector IndexVector = {};
   APInt RestOff;
+  model::QualifiedType PointeeType = {};
 
   void dump(llvm::raw_ostream &OS) const debug_function {
     OS << "ModelGEPArgs {\nBaseAddress:\n";
@@ -1254,7 +1255,9 @@ struct ModelGEPArgs {
       OS << "\n";
       C.dump(OS);
     }
-    OS << "}\nRestOff: " << RestOff << "\n}";
+    OS << "}\nRestOff: " << RestOff << "\nPointeeType: ";
+    serialize(OS, PointeeType);
+    OS << "\n}";
   }
 
   void dump() const debug_function { dump(llvm::dbgs()); }
@@ -1502,7 +1505,8 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
       if (OffsetInField.uge(*FieldType.size())) {
         Result = ModelGEPArgs{ .BaseAddress = TBA,
                                .IndexVector = std::move(Indices),
-                               .RestOff = RestOff };
+                               .RestOff = RestOff,
+                               .PointeeType = CurrentType };
         return Result;
       }
 
@@ -1539,7 +1543,8 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
       if (RestOff.uge(*FieldType.size())) {
         Result = ModelGEPArgs{ .BaseAddress = TBA,
                                .IndexVector = std::move(Indices),
-                               .RestOff = RestOff };
+                               .RestOff = RestOff,
+                               .PointeeType = CurrentType };
         return Result;
       }
 
@@ -1555,7 +1560,8 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
   revng_assert(RestOff.isNonNegative());
   Result = ModelGEPArgs{ .BaseAddress = TBA,
                          .IndexVector = std::move(Indices),
-                         .RestOff = RestOff };
+                         .RestOff = RestOff,
+                         .PointeeType = CurrentType };
 
   return Result;
 }
@@ -2324,8 +2330,7 @@ class ModelGEPArgCache {
   std::map<model::QualifiedType, Constant *, QTLess> GlobalModelGEPTypeArgs;
 
 public:
-  Value *
-  getModelGEPQualifiedTypeArg(model::QualifiedType &QT, llvm::Module &M) {
+  Value *getQualifiedTypeArg(model::QualifiedType &QT, llvm::Module &M) {
     auto It = GlobalModelGEPTypeArgs.find(QT);
     if (It != GlobalModelGEPTypeArgs.end())
       return It->second;
@@ -2386,8 +2391,8 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
     // that holds the string representing the yaml serialization of the
     // qualified type of the base type of the modelGEP
     model::QualifiedType &BaseType = GEPArgs.BaseAddress.Type;
-    auto *BaseTypeConstantStrPtr = TypeArgCache
-                                     .getModelGEPQualifiedTypeArg(BaseType, M);
+    auto *BaseTypeConstantStrPtr = TypeArgCache.getQualifiedTypeArg(BaseType,
+                                                                    M);
     Args.push_back(BaseTypeConstantStrPtr);
 
     // The second argument is the base address
@@ -2413,8 +2418,11 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
     Value *ModelGEPRef = Builder.CreateCall(ModelGEPFunction, Args);
 
     auto *AddressOfFunction = getAddressOf(M, UseType);
+    auto *PointeeConstantStrPtr = TypeArgCache
+                                    .getQualifiedTypeArg(GEPArgs.PointeeType,
+                                                         M);
     Value *ModelGEPPtr = Builder.CreateCall(AddressOfFunction,
-                                            { BaseTypeConstantStrPtr,
+                                            { PointeeConstantStrPtr,
                                               ModelGEPRef });
 
     if (GEPArgs.RestOff.isStrictlyPositive()) {
