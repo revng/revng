@@ -53,6 +53,7 @@ fields:
   - name: EntryPoint
     doc: Program entry point
     type: MetaAddress
+    optional: true
   - name: Types
     doc: The type system
     sequence:
