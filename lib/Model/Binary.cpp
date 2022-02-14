@@ -292,6 +292,7 @@ Identifier Function::name() const {
   if (not CustomName.empty()) {
     return CustomName;
   } else {
+    // TODO: this prefix needs to be reserved
     auto AutomaticName = (Twine("function_") + Entry.toString()).str();
     return Identifier::fromString(AutomaticName);
   }
@@ -299,10 +300,13 @@ Identifier Function::name() const {
 
 Identifier DynamicFunction::name() const {
   using llvm::Twine;
-  if (not CustomName.empty())
+  if (not CustomName.empty()) {
     return CustomName;
-  else
-    return Identifier(OriginalName);
+  } else {
+    // TODO: this prefix needs to be reserved
+    auto AutomaticName = (Twine("dynamic_function_") + OriginalName).str();
+    return Identifier::fromString(AutomaticName);
+  }
 }
 
 void Function::dump() const {
