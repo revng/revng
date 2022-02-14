@@ -392,7 +392,7 @@ public:
   }
 
   MaterializedValue
-  readFromPointer(llvm::Constant *Pointer, BinaryFile::Endianess E);
+  readFromPointer(llvm::Constant *Pointer, bool IsLittleEndian);
 
   /// \brief Increment the counter of emitted branches since the last reset
   void recordNewBranches(llvm::BasicBlock *Source, size_t Count) {

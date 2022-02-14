@@ -357,7 +357,7 @@ bool TDBP::runOnModule(Module &M) {
 }
 
 MaterializedValue
-JumpTargetManager::readFromPointer(Constant *Pointer, BinaryFile::Endianess E) {
+JumpTargetManager::readFromPointer(Constant *Pointer, bool IsLittleEndian) {
   Type *LoadedType = Pointer->getType()->getPointerElementType();
   const DataLayout &DL = TheModule.getDataLayout();
   unsigned LoadSize = DL.getTypeSizeInBits(LoadedType) / 8;
@@ -417,7 +417,7 @@ JumpTargetManager::readFromPointer(Constant *Pointer, BinaryFile::Endianess E) {
   }
 
   // No labels found, fall back to read the raw value, if available
-  Optional<uint64_t> Value = Binary.readRawValue(LoadAddress, LoadSize, E);
+  Optional<uint64_t> Value = Binary.readRawValue(LoadAddress, LoadSize, {});
 
   if (Value)
     return { NewAPInt(*Value) };
