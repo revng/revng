@@ -80,3 +80,4 @@ target_link_libraries(revngModel revngSupport)
 add_dependencies(revngModel generate-model-tuple-tree-code)
 
 add_subdirectory(Pass)
+add_subdirectory(Importer)

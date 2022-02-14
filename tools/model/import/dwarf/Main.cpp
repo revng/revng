@@ -9,7 +9,7 @@
 
 #include "llvm/Support/CommandLine.h"
 
-#include "revng/DwarfImporter/DwarfImporter.h"
+#include "revng/Model/Importer/Dwarf/DwarfImporter.h"
 #include "revng/Model/ToolHelpers.h"
 
 using namespace llvm;
