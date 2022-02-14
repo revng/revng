@@ -11,16 +11,16 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/ABI/RegisterState.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Model/Binary.h"
-#include "revng/Model/RegisterState.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/MetaAddress.h"
 
 namespace ABIAnalyses {
 
 using RegisterStateMap = std::map<const llvm::GlobalVariable *,
-                                  model::RegisterState::Values>;
+                                  abi::RegisterState::Values>;
 
 struct ABIAnalysesResults {
   // Per function analysis
@@ -48,8 +48,8 @@ extern template void
 ABIAnalyses::ABIAnalysesResults::dump<Logger<true>>(Logger<true> &,
                                                     const char *) const;
 
-model::RegisterState::Values
-  combine(model::RegisterState::Values, model::RegisterState::Values);
+abi::RegisterState::Values
+  combine(abi::RegisterState::Values, abi::RegisterState::Values);
 
 ABIAnalysesResults analyzeOutlinedFunction(llvm::Function *F,
                                            const GeneratedCodeBasicInfo &,

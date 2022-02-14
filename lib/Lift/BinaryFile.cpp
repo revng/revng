@@ -269,6 +269,7 @@ void BinaryFile::initialize(uint64_t PreferedBaseAddress) {
                      { esi_x86 }, { edi_x86 }, { ebp_x86 }, { esp_x86 } };
 
     BasicBlockEndingPattern = "\xcc";
+    DefaultABI = model::ABI::getDefault(model::Architecture::x86);
 
     break;
 
@@ -344,7 +345,7 @@ void BinaryFile::initialize(uint64_t PreferedBaseAddress) {
     RelocationTypes[R_X86_64_64] = RD(RD::SymbolRelative, RD::Addend);
 
     BasicBlockEndingPattern = "\xcc";
-    DefaultABI = model::ABI::SystemV_x86_64;
+    DefaultABI = model::ABI::getDefault(model::Architecture::x86_64);
 
     break;
 
@@ -374,6 +375,7 @@ void BinaryFile::initialize(uint64_t PreferedBaseAddress) {
 
     // bx lr
     BasicBlockEndingPattern = "\x1e\xff\x2f\xe1";
+    DefaultABI = model::ABI::getDefault(model::Architecture::arm);
 
     break;
 
@@ -403,6 +405,7 @@ void BinaryFile::initialize(uint64_t PreferedBaseAddress) {
 
     // ret
     BasicBlockEndingPattern = "\xc0\x03\x5f\xd6";
+    DefaultABI = model::ABI::getDefault(model::Architecture::aarch64);
 
     break;
 
@@ -438,6 +441,7 @@ void BinaryFile::initialize(uint64_t PreferedBaseAddress) {
     // jr ra
     BasicBlockEndingPattern = ((Arch == Triple::mips) ? "\x08\x00\xe0\x03" :
                                                         "\x03\xe0\x00\x08");
+    DefaultABI = model::ABI::getDefault(model::Architecture::mips);
 
     break;
 
@@ -469,6 +473,8 @@ void BinaryFile::initialize(uint64_t PreferedBaseAddress) {
       { f8_systemz },  { f9_systemz },  { f10_systemz }, { f11_systemz },
       { f12_systemz }, { f13_systemz }, { f14_systemz }, { f15_systemz }
     };
+
+    DefaultABI = model::ABI::getDefault(model::Architecture::systemz);
 
     break;
 

@@ -472,7 +472,7 @@ buildPrototype(GeneratedCodeBasicInfo &GCBI,
                const FunctionSummary &Summary,
                const model::BasicBlock &Block) {
   using namespace model;
-  using RegisterState = model::RegisterState::Values;
+  using RegisterState = abi::RegisterState::Values;
 
   auto NewType = makeType<RawFunctionType>();
   auto &CallType = *llvm::cast<RawFunctionType>(NewType.get());
@@ -502,7 +502,7 @@ buildPrototype(GeneratedCodeBasicInfo &GCBI,
 
         auto *CSVType = CSV->getType()->getPointerElementType();
         auto CSVSize = CSVType->getIntegerBitWidth() / 8;
-        if (model::RegisterState::shouldEmit(RSArg)) {
+        if (abi::RegisterState::shouldEmit(RSArg)) {
           NamedTypedRegister TR(RegisterID);
           TR.Type = {
             Binary.getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
@@ -510,7 +510,7 @@ buildPrototype(GeneratedCodeBasicInfo &GCBI,
           ArgumentsInserter.insert(TR);
         }
 
-        if (model::RegisterState::shouldEmit(RSRV)) {
+        if (abi::RegisterState::shouldEmit(RSRV)) {
           TypedRegister TR(RegisterID);
           TR.Type = {
             Binary.getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
@@ -536,7 +536,7 @@ finalizeModel(GeneratedCodeBasicInfo &GCBI,
               const FunctionAnalysisResults &Properties,
               model::Binary &Binary) {
   using namespace model;
-  using RegisterState = model::RegisterState::Values;
+  using RegisterState = abi::RegisterState::Values;
 
   // Create a `model::function` and build its prototype for each CFEP
   for (const auto &F : Functions) {
@@ -572,7 +572,7 @@ finalizeModel(GeneratedCodeBasicInfo &GCBI,
         auto *CSVType = CSV->getType()->getPointerElementType();
         auto CSVSize = CSVType->getIntegerBitWidth() / 8;
 
-        if (model::RegisterState::shouldEmit(RSArg)) {
+        if (abi::RegisterState::shouldEmit(RSArg)) {
           NamedTypedRegister TR(RegisterID);
           TR.Type = {
             Binary.getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
@@ -580,7 +580,7 @@ finalizeModel(GeneratedCodeBasicInfo &GCBI,
           ArgumentsInserter.insert(TR);
         }
 
-        if (model::RegisterState::shouldEmit(RSRV)) {
+        if (abi::RegisterState::shouldEmit(RSRV)) {
           TypedRegister TR(RegisterID);
           TR.Type = {
             Binary.getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
@@ -678,7 +678,7 @@ finalizeModel(GeneratedCodeBasicInfo &GCBI,
 static void
 combineCrossCallSites(MetaAddress EntryPC, FunctionSummary &Summary) {
   using namespace ABIAnalyses;
-  using RegState = model::RegisterState::Values;
+  using RegState = abi::RegisterState::Values;
 
   for (auto &[PC, CallSites] : Summary.ABIResults.CallSites) {
     if (PC == EntryPC) {
@@ -1248,7 +1248,7 @@ FunctionSummary CFEPAnalyzer<FO>::analyze(BasicBlock *Entry) {
 static void
 suppressCSAndSPRegisters(ABIAnalyses::ABIAnalysesResults &ABIResults,
                          const std::set<GlobalVariable *> &CalleeSavedRegs) {
-  using RegisterState = model::RegisterState::Values;
+  using RegisterState = abi::RegisterState::Values;
 
   // Suppress from arguments
   for (const auto &Reg : CalleeSavedRegs) {

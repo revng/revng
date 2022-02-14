@@ -8,8 +8,10 @@
 #include "llvm/ADT/Triple.h"
 
 #include "revng/ADT/KeyedObjectTraits.h"
+#include "revng/ADT/STLExtras.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/EnumSwitch.h"
 #include "revng/Support/YAMLTraits.h"
 
 /* TUPLE-TREE-YAML
@@ -25,6 +27,14 @@ members:
   - name: edi_x86
   - name: ebp_x86
   - name: esp_x86
+  - name: xmm0_x86
+  - name: xmm1_x86
+  - name: xmm2_x86
+  - name: xmm3_x86
+  - name: xmm4_x86
+  - name: xmm5_x86
+  - name: xmm6_x86
+  - name: xmm7_x86
   # x86-64 registers
   - name: rax_x86_64
   - name: rbx_x86_64
@@ -50,6 +60,7 @@ members:
   - name: xmm5_x86_64
   - name: xmm6_x86_64
   - name: xmm7_x86_64
+  - name: fs_x86_64
   # ARM registers
   - name: r0_arm
   - name: r1_arm
@@ -66,6 +77,15 @@ members:
   - name: r12_arm
   - name: r13_arm
   - name: r14_arm
+  - name: r15_arm
+  - name: q0_arm
+  - name: q1_arm
+  - name: q2_arm
+  - name: q3_arm
+  - name: q4_arm
+  - name: q5_arm
+  - name: q6_arm
+  - name: q7_arm
   # AArch64 registers
   - name: x0_aarch64
   - name: x1_aarch64
@@ -99,6 +119,38 @@ members:
   - name: x29_aarch64
   - name: lr_aarch64
   - name: sp_aarch64
+  - name: v0_aarch64
+  - name: v1_aarch64
+  - name: v2_aarch64
+  - name: v3_aarch64
+  - name: v4_aarch64
+  - name: v5_aarch64
+  - name: v6_aarch64
+  - name: v7_aarch64
+  - name: v8_aarch64
+  - name: v9_aarch64
+  - name: v10_aarch64
+  - name: v11_aarch64
+  - name: v12_aarch64
+  - name: v13_aarch64
+  - name: v14_aarch64
+  - name: v15_aarch64
+  - name: v16_aarch64
+  - name: v17_aarch64
+  - name: v18_aarch64
+  - name: v19_aarch64
+  - name: v20_aarch64
+  - name: v21_aarch64
+  - name: v22_aarch64
+  - name: v23_aarch64
+  - name: v24_aarch64
+  - name: v25_aarch64
+  - name: v26_aarch64
+  - name: v27_aarch64
+  - name: v28_aarch64
+  - name: v29_aarch64
+  - name: v30_aarch64
+  - name: v31_aarch64
   # MIPS registers
   - name: v0_mips
   - name: v1_mips
@@ -114,10 +166,52 @@ members:
   - name: s5_mips
   - name: s6_mips
   - name: s7_mips
+  - name: t0_mips
+  - name: t1_mips
+  - name: t2_mips
+  - name: t3_mips
+  - name: t4_mips
+  - name: t5_mips
+  - name: t6_mips
+  - name: t7_mips
+  - name: t8_mips
+  - name: t9_mips
   - name: gp_mips
   - name: sp_mips
   - name: fp_mips
   - name: ra_mips
+  - name: f0_mips
+  - name: f1_mips
+  - name: f2_mips
+  - name: f3_mips
+  - name: f4_mips
+  - name: f5_mips
+  - name: f6_mips
+  - name: f7_mips
+  - name: f8_mips
+  - name: f9_mips
+  - name: f10_mips
+  - name: f11_mips
+  - name: f12_mips
+  - name: f13_mips
+  - name: f14_mips
+  - name: f15_mips
+  - name: f16_mips
+  - name: f17_mips
+  - name: f18_mips
+  - name: f19_mips
+  - name: f20_mips
+  - name: f21_mips
+  - name: f22_mips
+  - name: f23_mips
+  - name: f24_mips
+  - name: f25_mips
+  - name: f26_mips
+  - name: f27_mips
+  - name: f28_mips
+  - name: f29_mips
+  - name: f30_mips
+  - name: f31_mips
   # SystemZ registers
   - name: r0_systemz
   - name: r1_systemz
@@ -157,7 +251,7 @@ TUPLE-TREE-YAML */
 
 namespace model::Register {
 
-inline model::Architecture::Values getArchitecture(Values V) {
+constexpr inline model::Architecture::Values getArchitecture(Values V) {
   switch (V) {
   case eax_x86:
   case ebx_x86:
@@ -167,6 +261,14 @@ inline model::Architecture::Values getArchitecture(Values V) {
   case edi_x86:
   case ebp_x86:
   case esp_x86:
+  case xmm0_x86:
+  case xmm1_x86:
+  case xmm2_x86:
+  case xmm3_x86:
+  case xmm4_x86:
+  case xmm5_x86:
+  case xmm6_x86:
+  case xmm7_x86:
     return model::Architecture::x86;
   case rax_x86_64:
   case rbx_x86_64:
@@ -192,6 +294,7 @@ inline model::Architecture::Values getArchitecture(Values V) {
   case xmm5_x86_64:
   case xmm6_x86_64:
   case xmm7_x86_64:
+  case fs_x86_64:
     return model::Architecture::x86_64;
   case r0_arm:
   case r1_arm:
@@ -208,6 +311,15 @@ inline model::Architecture::Values getArchitecture(Values V) {
   case r12_arm:
   case r13_arm:
   case r14_arm:
+  case r15_arm:
+  case q0_arm:
+  case q1_arm:
+  case q2_arm:
+  case q3_arm:
+  case q4_arm:
+  case q5_arm:
+  case q6_arm:
+  case q7_arm:
     return model::Architecture::arm;
   case x0_aarch64:
   case x1_aarch64:
@@ -241,6 +353,38 @@ inline model::Architecture::Values getArchitecture(Values V) {
   case x29_aarch64:
   case lr_aarch64:
   case sp_aarch64:
+  case v0_aarch64:
+  case v1_aarch64:
+  case v2_aarch64:
+  case v3_aarch64:
+  case v4_aarch64:
+  case v5_aarch64:
+  case v6_aarch64:
+  case v7_aarch64:
+  case v8_aarch64:
+  case v9_aarch64:
+  case v10_aarch64:
+  case v11_aarch64:
+  case v12_aarch64:
+  case v13_aarch64:
+  case v14_aarch64:
+  case v15_aarch64:
+  case v16_aarch64:
+  case v17_aarch64:
+  case v18_aarch64:
+  case v19_aarch64:
+  case v20_aarch64:
+  case v21_aarch64:
+  case v22_aarch64:
+  case v23_aarch64:
+  case v24_aarch64:
+  case v25_aarch64:
+  case v26_aarch64:
+  case v27_aarch64:
+  case v28_aarch64:
+  case v29_aarch64:
+  case v30_aarch64:
+  case v31_aarch64:
     return model::Architecture::aarch64;
   case v0_mips:
   case v1_mips:
@@ -256,10 +400,52 @@ inline model::Architecture::Values getArchitecture(Values V) {
   case s5_mips:
   case s6_mips:
   case s7_mips:
+  case t0_mips:
+  case t1_mips:
+  case t2_mips:
+  case t3_mips:
+  case t4_mips:
+  case t5_mips:
+  case t6_mips:
+  case t7_mips:
+  case t8_mips:
+  case t9_mips:
   case gp_mips:
   case sp_mips:
   case fp_mips:
   case ra_mips:
+  case f0_mips:
+  case f1_mips:
+  case f2_mips:
+  case f3_mips:
+  case f4_mips:
+  case f5_mips:
+  case f6_mips:
+  case f7_mips:
+  case f8_mips:
+  case f9_mips:
+  case f10_mips:
+  case f11_mips:
+  case f12_mips:
+  case f13_mips:
+  case f14_mips:
+  case f15_mips:
+  case f16_mips:
+  case f17_mips:
+  case f18_mips:
+  case f19_mips:
+  case f20_mips:
+  case f21_mips:
+  case f22_mips:
+  case f23_mips:
+  case f24_mips:
+  case f25_mips:
+  case f26_mips:
+  case f27_mips:
+  case f28_mips:
+  case f29_mips:
+  case f30_mips:
+  case f31_mips:
     return model::Architecture::mips;
   case r0_systemz:
   case r1_systemz:
@@ -327,9 +513,73 @@ inline size_t getSize(Values V) {
   }
 }
 
-} // namespace model::Register
+template<model::Architecture::Values Architecture>
+constexpr model::Register::Values getFirst() {
+  if constexpr (Architecture == model::Architecture::x86)
+    return model::Register::eax_x86;
+  else if constexpr (Architecture == model::Architecture::arm)
+    return model::Register::r0_arm;
+  else if constexpr (Architecture == model::Architecture::mips)
+    return model::Register::v0_mips;
+  else if constexpr (Architecture == model::Architecture::mipsel)
+    return model::Register::v0_mips;
+  else if constexpr (Architecture == model::Architecture::x86_64)
+    return model::Register::rax_x86_64;
+  else if constexpr (Architecture == model::Architecture::aarch64)
+    return model::Register::x0_aarch64;
+  else if constexpr (Architecture == model::Architecture::systemz)
+    return model::Register::r0_systemz;
+  else
+    static_assert(value_always_false<Architecture>::value,
+                  "Unsupported architecture");
+}
 
-namespace model::Register {
+template<model::Architecture::Values Architecture>
+constexpr model::Register::Values getLast() {
+  if constexpr (Architecture == model::Architecture::x86)
+    return model::Register::xmm7_x86;
+  else if constexpr (Architecture == model::Architecture::arm)
+    return model::Register::q7_arm;
+  else if constexpr (Architecture == model::Architecture::mips)
+    return model::Register::f31_mips;
+  else if constexpr (Architecture == model::Architecture::mipsel)
+    return model::Register::f31_mips;
+  else if constexpr (Architecture == model::Architecture::x86_64)
+    return model::Register::fs_x86_64;
+  else if constexpr (Architecture == model::Architecture::aarch64)
+    return model::Register::v31_aarch64;
+  else if constexpr (Architecture == model::Architecture::systemz)
+    return model::Register::f15_systemz;
+  else
+    static_assert(value_always_false<Architecture>::value,
+                  "Unsupported architecture");
+}
+
+template<model::Architecture::Values Architecture>
+constexpr size_t getCount() {
+  return getLast<Architecture>() - getFirst<Architecture>() + 1;
+}
+
+constexpr model::Register::Values
+getFirst(model::Architecture::Values Architecture) {
+  return skippingEnumSwitch<1>(Architecture, []<model::Architecture::Values A> {
+    return getFirst<A>();
+  });
+}
+
+constexpr model::Register::Values
+getLast(model::Architecture::Values Architecture) {
+  return skippingEnumSwitch<1>(Architecture, []<model::Architecture::Values A> {
+    return getLast<A>();
+  });
+}
+
+constexpr size_t getCount(model::Architecture::Values Architecture) {
+  return skippingEnumSwitch<1>(Architecture, []<model::Architecture::Values A> {
+    return getCount<A>();
+  });
+}
+
 inline Values fromRegisterName(llvm::StringRef Name,
                                model::Architecture::Values Architecture) {
   std::string FullName = (llvm::Twine(Name) + "_"

@@ -5,7 +5,9 @@
 revng_add_library_internal(
   revngModelPasses
   SHARED
+  ConvertFunctionTypes.cpp
   DeduplicateEquivalentTypes.cpp
+  OptionCategory.cpp
   PromoteOriginalName.cpp
   PurgeUnnamedAndUnreachableTypes.cpp
   Verify.cpp

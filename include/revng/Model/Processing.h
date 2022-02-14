@@ -14,7 +14,7 @@ namespace model {
 
 /// Given \p Types, drop all the types and DynamicFunctions depending on it
 ///
-/// Sometimes you createe a set of placeholder types in the model, but they end
+/// Sometimes you create a set of placeholder types in the model, but they end
 /// up being invalid. In that case, they, and all the types depending on them,
 /// need to be dropped.
 ///

@@ -14,6 +14,7 @@ revng_add_analyses_library_internal(revngFunctionIsolation
 llvm_map_components_to_libnames(LLVM_LIBRARIES TransformUtils)
 
 target_link_libraries(revngFunctionIsolation
+  revngABI
   revngModel
   revngEarlyFunctionAnalysis
   revngSupport

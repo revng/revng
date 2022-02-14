@@ -34,7 +34,6 @@ set(MODEL_HEADERS
   "${MODEL_HEADERS_DIR}/Qualifier.h"
   "${MODEL_HEADERS_DIR}/QualifierKind.h"
   "${MODEL_HEADERS_DIR}/Register.h"
-  "${MODEL_HEADERS_DIR}/RegisterState.h"
   "${MODEL_HEADERS_DIR}/Segment.h"
   "${MODEL_HEADERS_DIR}/StructField.h"
   "${MODEL_HEADERS_DIR}/TypedRegister.h"
@@ -63,6 +62,7 @@ install(
 revng_add_analyses_library_internal(
   revngModel
   Binary.cpp
+  ConvertFunctionType.cpp
   LoadModelPass.cpp
   Processing.cpp
   SerializeModelPass.cpp
