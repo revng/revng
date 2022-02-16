@@ -7,7 +7,7 @@
 
 #include "llvm/Support/CommandLine.h"
 
-#include "revng/Model/ConvertFunctionType.h"
+#include "revng/ABI/FunctionType.h"
 #include "revng/Model/Pass/ConvertFunctionTypes.h"
 #include "revng/Model/Pass/RegisterModelPass.h"
 
@@ -87,7 +87,7 @@ void model::convertAllFunctionsToRaw(TupleTree<model::Binary> &Model) {
 
   auto ToConvert = chooseTypes<model::CABIFunctionType>(Model->Types);
   for (model::CABIFunctionType *Old : ToConvert) {
-    if (auto New = model::convertToRawFunctionType(*Old, *Model)) {
+    if (auto New = abi::FunctionType::tryConvertToRaw(*Old, *Model)) {
       New->ID = Old->ID;
 
       // Add converted type to the model.
@@ -106,7 +106,7 @@ void model::convertAllFunctionsToRaw(TupleTree<model::Binary> &Model) {
 }
 
 void model::convertAllFunctionsToCABI(TupleTree<model::Binary> &Model,
-                                      model::ABI::Values TargetABI) {
+                                      model::ABI::Values ABI) {
   if (!Model.verify() || !Model->verify()) {
     revng_log(Log,
               "While trying to convert all the function to `CABIFunctionType`, "
@@ -116,7 +116,7 @@ void model::convertAllFunctionsToCABI(TupleTree<model::Binary> &Model,
 
   auto ToConvert = chooseTypes<model::RawFunctionType>(Model->Types);
   for (model::RawFunctionType *Old : ToConvert) {
-    if (auto New = model::convertToCABIFunctionType(*Old, *Model, TargetABI)) {
+    if (auto New = abi::FunctionType::tryConvertToCABI(*Old, *Model, ABI)) {
       New->ID = Old->ID;
 
       // Verify the return type.

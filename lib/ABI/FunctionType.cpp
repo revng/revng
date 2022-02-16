@@ -1,19 +1,19 @@
-/// \file ConvertFunctionType.cpp
+/// \file FunctionType.cpp
 /// \brief
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/ABI/FunctionType.h"
 #include "revng/ABI/Trait.h"
 #include "revng/ADT/SmallMap.h"
 #include "revng/Model/Binary.h"
-#include "revng/Model/ConvertFunctionType.h"
 #include "revng/Model/Register.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/EnumSwitch.h"
 
-namespace model {
+namespace abi::FunctionType {
 
 template<size_t Size>
 using RegisterArray = std::array<model::Register::Values, Size>;
@@ -155,13 +155,12 @@ public:
     model::RawFunctionType Result;
     Result.CustomName = Function.CustomName;
 
-    for (size_t ArgumentIdx = 0; ArgumentIdx < Arguments.size();
-         ++ArgumentIdx) {
-      auto &ArgumentStorage = Arguments[ArgumentIdx];
-      const auto &ArgumentType = Function.Arguments.at(ArgumentIdx).Type;
+    for (size_t ArgIndex = 0; ArgIndex < Arguments.size(); ++ArgIndex) {
+      auto &ArgumentStorage = Arguments[ArgIndex];
+      const auto &ArgumentType = Function.Arguments.at(ArgIndex).Type;
       if (!ArgumentStorage.Registers.empty()) {
         // Handle the registers
-        auto OriginalName = Function.Arguments.at(ArgumentIdx).CustomName;
+        auto OriginalName = Function.Arguments.at(ArgIndex).CustomName;
         for (size_t Index = 0; auto Register : ArgumentStorage.Registers) {
           auto FinalName = OriginalName;
           if (ArgumentStorage.Registers.size() > 1 && !FinalName.empty())
@@ -179,7 +178,7 @@ public:
 
       if (ArgumentStorage.SizeOnStack != 0) {
         // Handle the stack
-        auto ArgumentIterator = Function.Arguments.find(ArgumentIdx);
+        auto ArgumentIterator = Function.Arguments.find(ArgIndex);
         revng_assert(ArgumentIterator != Function.Arguments.end());
         const model::Argument &Argument = *ArgumentIterator;
 
@@ -210,6 +209,7 @@ public:
         // Try and recover types from the struct if possible
         if (Function.ReturnType.Qualifiers.empty()) {
           const model::Type *Type = Function.ReturnType.UnqualifiedType.get();
+          revng_assert(Type != nullptr);
           const auto *Struct = llvm::dyn_cast<model::StructType>(Type);
           if (Struct && Struct->Fields.size() == Result.ReturnValues.size()) {
             using RegisterEnum = model::Register::Values;
@@ -556,12 +556,16 @@ private:
 
   static std::optional<DistributedArgument>
   distributeReturnValue(const model::QualifiedType &ReturnValueType) {
+    if (ReturnValueType.isVoid())
+      return DistributedArgument{};
+
     auto MaybeSize = ReturnValueType.size();
     revng_assert(MaybeSize.has_value());
 
     if (ReturnValueType.isFloat()) {
       const auto &Registers = AT::VectorReturnValueRegisters;
-      return considerRegisters(*MaybeSize, 1, 0, Registers, false).first;
+      // TODO: replace `-1` with the actual value to be defined by the trait.
+      return considerRegisters(*MaybeSize, -1, 0, Registers, false).first;
     } else {
       const auto &Registers = AT::GeneralPurposeReturnValueRegisters;
       if (ReturnValueType.isScalar()) {
@@ -601,9 +605,9 @@ private:
 };
 
 std::optional<model::CABIFunctionType>
-convertToCABIFunctionType(const model::RawFunctionType &Function,
-                          model::Binary &TheBinary,
-                          std::optional<model::ABI::Values> MaybeABI) {
+tryConvertToCABI(const model::RawFunctionType &Function,
+                 model::Binary &TheBinary,
+                 std::optional<model::ABI::Values> MaybeABI) {
   if (!MaybeABI.has_value())
     MaybeABI = TheBinary.DefaultABI;
   revng_assert(*MaybeABI != model::ABI::Invalid);
@@ -613,12 +617,12 @@ convertToCABIFunctionType(const model::RawFunctionType &Function,
 }
 
 std::optional<model::RawFunctionType>
-convertToRawFunctionType(const model::CABIFunctionType &Function,
-                         model::Binary &TheBinary) {
+tryConvertToRaw(const model::CABIFunctionType &Function,
+                model::Binary &TheBinary) {
   revng_assert(Function.ABI != model::ABI::Invalid);
   return skippingEnumSwitch<1>(Function.ABI, [&]<model::ABI::Values A>() {
     return ConvertionHelper<A>::toRaw(Function, TheBinary);
   });
 }
 
-} // namespace model
+} // namespace abi::FunctionType

@@ -14,4 +14,5 @@ revng_add_library_internal(
 )
 
 target_link_libraries(revngModelPasses
+  revngABI
   revngModel)
