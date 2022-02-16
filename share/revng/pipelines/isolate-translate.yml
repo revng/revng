@@ -9,6 +9,7 @@ Steps:
                 detect-abi,
                 collect-functions-from-unused-addresses,
                 detect-abi,
+                collect-cfg,
                 isolate,
                 invoke-isolated-functions]
  - Name:            RecompileIsolated

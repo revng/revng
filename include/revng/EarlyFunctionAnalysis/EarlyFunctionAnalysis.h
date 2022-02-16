@@ -30,6 +30,7 @@
 
 namespace EarlyFunctionAnalysis {
 
+template<bool ShouldAnalyzeABI>
 class EarlyFunctionAnalysis : public llvm::ModulePass {
 public:
   static char ID;
