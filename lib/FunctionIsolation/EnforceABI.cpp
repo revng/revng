@@ -18,12 +18,12 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 #include "revng/ABI/DefaultFunctionPrototype.h"
+#include "revng/ABI/FunctionType.h"
 #include "revng/ADT/LazySmallBitVector.h"
 #include "revng/ADT/SmallMap.h"
 #include "revng/FunctionIsolation/EnforceABI.h"
 #include "revng/FunctionIsolation/StructInitializers.h"
 #include "revng/Model/CallEdge.h"
-#include "revng/Model/ConvertFunctionType.h"
 #include "revng/Model/Register.h"
 #include "revng/Model/Type.h"
 #include "revng/Support/FunctionTags.h"
@@ -105,7 +105,7 @@ makeRawPrototypeOrDefault(const model::Type *Type, model::Binary &TheBinary) {
                "The type of a prototype must either be "
                "`RawFunctionType` or `CABIFunctionType`.");
 
-  auto Converted = model::convertToRawFunctionType(*CABI, TheBinary);
+  auto Converted = abi::FunctionType::convertToRaw(*CABI, TheBinary);
   if (Converted != std::nullopt)
     return Converted.value();
 
