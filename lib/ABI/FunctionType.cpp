@@ -5,7 +5,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <unordered_set>
+
 #include "revng/ABI/FunctionType.h"
+#include "revng/ABI/RegisterStateDeductions.h"
 #include "revng/ABI/Trait.h"
 #include "revng/ADT/SmallMap.h"
 #include "revng/Model/Binary.h"
@@ -96,7 +99,7 @@ static model::QualifiedType getTypeOrDefault(const model::QualifiedType &Type,
 }
 
 template<model::ABI::Values ABI>
-class ConvertionHelper {
+class ConversionHelper {
   using AT = abi::Trait<ABI>;
 
   using IndexType = decltype(model::Argument::Index);
@@ -190,17 +193,14 @@ public:
 
     if (!Function.ReturnType.isVoid()) {
       auto ReturnValue = distributeReturnValue(Function.ReturnType);
-      if (ReturnValue == std::nullopt)
-        return std::nullopt;
-
-      if (!ReturnValue->Registers.empty()) {
+      if (!ReturnValue.Registers.empty()) {
         // Handle a register-based return value.
-        for (model::Register::Values Register : ReturnValue->Registers) {
+        for (model::Register::Values Register : ReturnValue.Registers) {
           model::TypedRegister ReturnValueRegister;
           ReturnValueRegister.Location = Register;
           ReturnValueRegister.Type = chooseArgumentType(Function.ReturnType,
                                                         Register,
-                                                        ReturnValue->Registers,
+                                                        ReturnValue.Registers,
                                                         TheBinary);
 
           Result.ReturnValues.insert(std::move(ReturnValueRegister));
@@ -259,7 +259,7 @@ public:
         auto MaybeReturnValueSize = Function.ReturnType.size();
         if (MaybeReturnValueSize == std::nullopt)
           return std::nullopt;
-        if (ReturnValue->Size != *MaybeReturnValueSize)
+        if (ReturnValue.Size != *MaybeReturnValueSize)
           return std::nullopt;
 
         model::QualifiedType ReturnType = Function.ReturnType;
@@ -546,6 +546,7 @@ private:
     return Result;
   }
 
+public:
   static DistributedArguments
   distributeArguments(const ArgumentContainer &Arguments) {
     if constexpr (AT::ArgumentsArePositionBased)
@@ -554,7 +555,7 @@ private:
       return distributeNonPositionBasedArguments(Arguments);
   }
 
-  static std::optional<DistributedArgument>
+  static DistributedArgument
   distributeReturnValue(const model::QualifiedType &ReturnValueType) {
     if (ReturnValueType.isVoid())
       return DistributedArgument{};
@@ -578,6 +579,7 @@ private:
     }
   }
 
+private:
   static model::QualifiedType
   chooseArgumentType(const model::QualifiedType &ArgumentType,
                      model::Register::Values Register,
@@ -612,7 +614,7 @@ tryConvertToCABI(const model::RawFunctionType &Function,
     MaybeABI = TheBinary.DefaultABI;
   revng_assert(*MaybeABI != model::ABI::Invalid);
   return skippingEnumSwitch<1>(*MaybeABI, [&]<model::ABI::Values A>() {
-    return ConvertionHelper<A>::toCABI(Function, TheBinary);
+    return ConversionHelper<A>::toCABI(Function, TheBinary);
   });
 }
 
@@ -621,8 +623,111 @@ tryConvertToRaw(const model::CABIFunctionType &Function,
                 model::Binary &TheBinary) {
   revng_assert(Function.ABI != model::ABI::Invalid);
   return skippingEnumSwitch<1>(Function.ABI, [&]<model::ABI::Values A>() {
-    return ConvertionHelper<A>::toRaw(Function, TheBinary);
+    return ConversionHelper<A>::toRaw(Function, TheBinary);
   });
+}
+
+Layout::Layout(const model::CABIFunctionType &Function) :
+  Layout(skippingEnumSwitch<1>(Function.ABI, [&]<model::ABI::Values A>() {
+    Layout Result;
+
+    size_t CurrentOffset = 0;
+    auto Args = ConversionHelper<A>::distributeArguments(Function.Arguments);
+    revng_assert(Args.size() == Function.Arguments.size());
+    for (size_t Index = 0; Index < Args.size(); ++Index) {
+      auto &Current = Result.Arguments.emplace_back();
+      Current.Registers = std::move(Args[Index].Registers);
+      if (Args[Index].SizeOnStack != 0) {
+        // TODO: maybe some kind of alignment considerations are needed here.
+        Current.Stack = typename Layout::Argument::StackSpan{
+          CurrentOffset, Args[Index].SizeOnStack
+        };
+        CurrentOffset += Args[Index].SizeOnStack;
+      }
+    }
+
+    auto RV = ConversionHelper<A>::distributeReturnValue(Function.ReturnType);
+    revng_assert(RV.SizeOnStack == 0);
+    Result.ReturnValue.Registers = std::move(RV.Registers);
+
+    using AT = abi::Trait<A>;
+    Result.CalleeSavedRegisters.resize(AT::CalleeSavedRegisters.size());
+    llvm::copy(AT::CalleeSavedRegisters, Result.CalleeSavedRegisters.begin());
+
+    Result.FinalStackOffset = 0; // TODO: calculate this offset properly.
+
+    return Result;
+  })) {
+}
+
+Layout::Layout(const model::RawFunctionType &Function) {
+  // Lay register arguments out.
+  for (const model::NamedTypedRegister &Register : Function.Arguments)
+    Arguments.emplace_back().Registers = { Register.Location };
+
+  // Lay stack arguments out.
+  if (Function.StackArgumentsType.isValid()) {
+    const model::Type *OriginalStackType = Function.StackArgumentsType.get();
+    auto *StackStruct = llvm::dyn_cast<model::StructType>(OriginalStackType);
+    revng_assert(StackStruct,
+                 "`RawFunctionType::StackArgumentsType` must be a struct.");
+    typename Layout::Argument::StackSpan StackSpan{ 0, StackStruct->Size };
+    Arguments.emplace_back().Stack = std::move(StackSpan);
+  }
+
+  // Lay the return value out.
+  for (const model::TypedRegister &Register : Function.ReturnValues)
+    ReturnValue.Registers.emplace_back(Register.Location);
+
+  // Fill callee saved registers.
+  CalleeSavedRegisters.resize(Function.PreservedRegisters.size());
+  llvm::copy(Function.PreservedRegisters, CalleeSavedRegisters.begin());
+}
+
+bool Layout::verify() const {
+  model::Architecture::Values ExpectedArch = model::Architecture::Invalid;
+  std::unordered_set<model::Register::Values> LookupHelper;
+  auto VerificationHelper = [&](model::Register::Values Register) -> bool {
+    // Ensure each register is present only once
+    if (!LookupHelper.emplace(Register).second)
+      return false;
+
+    // Ensure all the registers belong to the same architecture
+    if (ExpectedArch == model::Architecture::Invalid)
+      ExpectedArch = model::Register::getArchitecture(Register);
+    else if (ExpectedArch != model::Register::getArchitecture(Register))
+      return false;
+
+    return true;
+  };
+
+  // Verify arguments
+  LookupHelper.clear();
+  for (const Layout::Argument &Argument : Arguments)
+    for (model::Register::Values Register : Argument.Registers)
+      if (!VerificationHelper(Register))
+        return false;
+
+  // Verify return values
+  LookupHelper.clear();
+  for (model::Register::Values Register : ReturnValue.Registers)
+    if (!VerificationHelper(Register))
+      return false;
+
+  return true;
+}
+
+size_t Layout::argumentRegisterCount() const {
+  size_t Result = 0;
+
+  for (auto &Argument : Arguments)
+    Result += Argument.Registers.size();
+
+  return Result;
+}
+
+size_t Layout::returnValueRegisterCount() const {
+  return ReturnValue.Registers.size();
 }
 
 } // namespace abi::FunctionType
