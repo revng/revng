@@ -24,4 +24,55 @@ tryConvertToCABI(const model::RawFunctionType &Function,
 std::optional<model::RawFunctionType>
 convertToRaw(const model::CABIFunctionType &Function, model::Binary &TheBinary);
 
+/// Indicates the layout of arguments and return values of a function.
+///
+/// \note Such a layout is immutable.
+struct Layout {
+public:
+  struct ReturnValueRegisters {
+    llvm::SmallVector<model::Register::Values, 2> Registers;
+  };
+
+  struct Argument : public ReturnValueRegisters {
+  public:
+    struct StackSpan {
+      uint64_t Offset;
+      uint64_t Size;
+    };
+
+  public:
+    std::optional<StackSpan> Stack;
+  };
+
+public:
+  llvm::SmallVector<Argument, 4> Arguments;
+  ReturnValueRegisters ReturnValue;
+  llvm::SmallVector<model::Register::Values, 24> CalleeSavedRegisters;
+  uint64_t FinalStackOffset;
+
+private:
+  Layout() = default;
+
+public:
+  explicit Layout(const model::RawFunctionType &Function);
+  explicit Layout(const model::CABIFunctionType &Function);
+
+  /// Extracts the information about argument and return value location layout
+  /// from the \param Function.
+  static Layout make(const model::TypePath &Function) {
+    revng_assert(Function.isValid());
+    if (auto *CABI = llvm::dyn_cast<model::CABIFunctionType>(Function.get()))
+      return Layout(*CABI);
+    else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(Function.get()))
+      return Layout(*Raw);
+    else
+      revng_abort("Layouts of non-function types are not supported.");
+  }
+
+public:
+  bool verify() const;
+  size_t argumentRegisterCount() const;
+  size_t returnValueRegisterCount() const;
+};
+
 } // namespace abi::FunctionType
