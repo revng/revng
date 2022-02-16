@@ -14,7 +14,6 @@ name: EnumType
 doc: An enum type in model. Enums are actually typedefs of unnamed enums.
 type: struct
 inherits: Type
-tag: Enum
 fields:
   - name: UnderlyingType
     reference:
