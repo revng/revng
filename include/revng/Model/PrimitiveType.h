@@ -12,7 +12,6 @@ name: PrimitiveType
 doc: "A primitive type in model: sized integers, booleans, floats and void"
 type: struct
 inherits: Type
-tag: Primitive
 fields:
   - name: PrimitiveKind
     type: model::PrimitiveTypeKind::Values

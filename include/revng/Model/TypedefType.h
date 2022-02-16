@@ -14,7 +14,6 @@ name: TypedefType
 doc: A typedef type in model
 type: struct
 inherits: Type
-tag: Typedef
 fields:
   - name: UnderlyingType
     type: model::QualifiedType

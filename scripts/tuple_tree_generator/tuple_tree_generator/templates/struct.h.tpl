@@ -115,7 +115,7 @@ struct /*= struct.fullname =*/
 
   bool localCompare(const /*= struct.user_fullname =*/ &Other) const;
 
-  static constexpr const char *Tag = "!/*= struct.tag =*/";
+  static constexpr const char *Tag = "!/*= struct.name =*/";
 };
 
 /*# --- UpcastablePointer stuff --- #*/

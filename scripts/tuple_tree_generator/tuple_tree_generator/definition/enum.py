@@ -18,7 +18,7 @@ class EnumMember:
 
 
 class EnumDefinition(Definition):
-    def __init__(self, *, namespace, user_namespace, name, members, doc=None, tag=None):
+    def __init__(self, *, namespace, user_namespace, name, members, doc=None):
         super(EnumDefinition, self).__init__(
             namespace,
             user_namespace,
@@ -26,7 +26,6 @@ class EnumDefinition(Definition):
             f"{namespace}::Values",
             f"{user_namespace}::Values",
             doc=doc,
-            tag=tag,
         )
         self.members = members
 
@@ -38,6 +37,5 @@ class EnumDefinition(Definition):
             "name": source_dict['name'],
             "doc": source_dict.get("doc"),
             "members": [EnumMember.from_dict(d) for d in source_dict["members"]],
-            "tag": source_dict.get("tag"),
         }
         return EnumDefinition(**args)

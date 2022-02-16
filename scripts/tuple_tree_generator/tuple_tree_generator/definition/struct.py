@@ -88,7 +88,6 @@ class StructDefinition(Definition):
             fields,
             inherits=None,
             doc=None,
-            tag=None,
             abstract=False,
             _key=None
     ):
@@ -99,7 +98,6 @@ class StructDefinition(Definition):
             f"{namespace}::{name}",
             f"{user_namespace}::{name}",
             doc=doc,
-            tag=tag,
         )
         self.fields: List[StructField] = fields
         self.abstract = abstract
@@ -181,7 +179,6 @@ class StructDefinition(Definition):
             "fields": [StructField.from_yaml(d) for d in source_dict["fields"]],
             "_key": source_dict.get("key"),
             "inherits": source_dict.get("inherits"),
-            "tag": source_dict.get("tag"),
             "abstract": source_dict.get("abstract", False),
         }
         return StructDefinition(**args)

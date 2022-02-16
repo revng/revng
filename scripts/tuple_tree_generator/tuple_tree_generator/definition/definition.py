@@ -7,7 +7,9 @@ from abc import abstractmethod
 
 
 class Definition:
-    def __init__(self, namespace, user_namespace, name, fullname, user_fullname, doc=None, tag=None):
+    def __init__(
+        self, namespace, user_namespace, name, fullname, user_fullname, doc=None
+    ):
         # Namespace where the generated code will reside
         self.namespace = namespace
         # Namespace to be used by the user
@@ -18,10 +20,6 @@ class Definition:
         self.doc = doc
         self.filename = f"{self.name}.h"
         self.impl_filename = f"{self.name}.cpp"
-        if tag:
-            self.tag = tag
-        else:
-            self.tag = name
 
         # Names of types on which this definition depends on. Not necessarily names defined by the user
         self.dependencies = set()
