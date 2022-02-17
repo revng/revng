@@ -340,7 +340,7 @@ struct TemporaryOpaqueFunction {
 /// how the stack evolves within those functions, and detect the
 /// callee-saved registers.
 template<class FunctionOracle>
-class CFEPAnalyzer {
+class FunctionEntrypointAnalyzer {
 private:
   const TupleTree<model::Binary> &Model;
   llvm::Module &M;
@@ -367,16 +367,16 @@ private:
   const ProgramCounterHandler *PCH;
 
 public:
-  CFEPAnalyzer(const TupleTree<model::Binary> &Model,
-               llvm::Module &M,
-               GeneratedCodeBasicInfo *GCBI,
-               FunctionOracle &Oracle,
-               ArrayRef<GlobalVariable *> ABIRegs);
+  FunctionEntrypointAnalyzer(const TupleTree<model::Binary> &Model,
+                             llvm::Module &,
+                             GeneratedCodeBasicInfo *GCBI,
+                             FunctionOracle &,
+                             ArrayRef<GlobalVariable *>);
 
 public:
   /// The `analyze` method is the entry point of the intraprocedural analysis,
-  /// and it is called on each CFEP until a fixed point is reached. It is
-  /// responsible for performing the whole computation.
+  /// and it is called on each function entrypoint until a fixed point is
+  /// reached. It is responsible for performing the whole computation.
   FunctionSummary analyze(llvm::BasicBlock *BB);
 
 private:
@@ -414,12 +414,15 @@ private:
 
 using TOF = TemporaryOpaqueFunction;
 
+template<typename FunctionOracle>
+using FEAnalyzer = FunctionEntrypointAnalyzer<FunctionOracle>;
+
 template<class FO>
-CFEPAnalyzer<FO>::CFEPAnalyzer(const TupleTree<model::Binary> &Model,
-                               llvm::Module &M,
-                               GeneratedCodeBasicInfo *GCBI,
-                               FO &Oracle,
-                               ArrayRef<GlobalVariable *> ABIRegs) :
+FEAnalyzer<FO>::FunctionEntrypointAnalyzer(const TupleTree<model::Binary> &Model,
+                                           llvm::Module &M,
+                                           GeneratedCodeBasicInfo *GCBI,
+                                           FO &Oracle,
+                                           ArrayRef<GlobalVariable *> ABIRegs) :
   Model(Model),
   M(M),
   Context(M.getContext()),
@@ -749,7 +752,7 @@ static MetaAddress getFinalAddressOfBasicBlock(llvm::BasicBlock *BB) {
 
 template<class FunctionOracle>
 SortedVector<model::BasicBlock>
-CFEPAnalyzer<FunctionOracle>::collectDirectCFG(OutlinedFunction *F) {
+FEAnalyzer<FunctionOracle>::collectDirectCFG(OutlinedFunction *F) {
   using namespace llvm;
 
   SortedVector<model::BasicBlock> CFG;
@@ -838,9 +841,9 @@ CFEPAnalyzer<FunctionOracle>::collectDirectCFG(OutlinedFunction *F) {
 }
 
 template<class FO>
-void CFEPAnalyzer<FO>::initMarkersForABI(OutlinedFunction *OutlinedFunction,
-                                         SmallVectorImpl<Instruction *> &SV,
-                                         llvm::IRBuilder<> &IRB) {
+void FEAnalyzer<FO>::initMarkersForABI(OutlinedFunction *OutlinedFunction,
+                                       SmallVectorImpl<Instruction *> &SV,
+                                       llvm::IRBuilder<> &IRB) {
   using namespace llvm;
 
   StructType *MetaAddressTy = MetaAddress::getStruct(&M);
@@ -881,9 +884,9 @@ void CFEPAnalyzer<FO>::initMarkersForABI(OutlinedFunction *OutlinedFunction,
   }
 }
 
-template<class FO>
+template<class FunctionOracle>
 std::set<llvm::GlobalVariable *>
-CFEPAnalyzer<FO>::findWrittenRegisters(llvm::Function *F) {
+FEAnalyzer<FunctionOracle>::findWrittenRegisters(llvm::Function *F) {
   using namespace llvm;
 
   std::set<GlobalVariable *> WrittenRegisters;
@@ -901,9 +904,9 @@ CFEPAnalyzer<FO>::findWrittenRegisters(llvm::Function *F) {
 }
 
 template<class FO>
-void CFEPAnalyzer<FO>::createIBIMarker(OutlinedFunction *OutlinedFunction,
-                                       SmallVectorImpl<Instruction *> &SV,
-                                       llvm::IRBuilder<> &IRB) {
+void FEAnalyzer<FO>::createIBIMarker(OutlinedFunction *OutlinedFunction,
+                                     SmallVectorImpl<Instruction *> &SV,
+                                     llvm::IRBuilder<> &IRB) {
   using namespace llvm;
 
   StructType *MetaAddressTy = MetaAddress::getStruct(&M);
@@ -1005,8 +1008,8 @@ void CFEPAnalyzer<FO>::createIBIMarker(OutlinedFunction *OutlinedFunction,
 }
 
 template<class FO>
-void CFEPAnalyzer<FO>::opaqueBranchConditions(llvm::Function *F,
-                                              llvm::IRBuilder<> &IRB) {
+void FEAnalyzer<FO>::opaqueBranchConditions(llvm::Function *F,
+                                            llvm::IRBuilder<> &IRB) {
   using namespace llvm;
 
   for (auto &BB : *F) {
@@ -1040,9 +1043,9 @@ void CFEPAnalyzer<FO>::opaqueBranchConditions(llvm::Function *F,
   }
 }
 
-template<class FO>
-void CFEPAnalyzer<FO>::materializePCValues(llvm::Function *F,
-                                           llvm::IRBuilder<> &IRB) {
+template<class FunctionOracle>
+void FEAnalyzer<FunctionOracle>::materializePCValues(llvm::Function *F,
+                                                     llvm::IRBuilder<> &IRB) {
   using namespace llvm;
 
   for (auto &BB : *F) {
@@ -1074,8 +1077,8 @@ private:
   static constexpr const auto &Opt = getOption<T>;
 };
 
-template<class FO>
-void CFEPAnalyzer<FO>::runOptimizationPipeline(llvm::Function *F) {
+template<class FunctionOracle>
+void FEAnalyzer<FunctionOracle>::runOptimizationPipeline(llvm::Function *F) {
   using namespace llvm;
 
   // Some LLVM passes used later in the pipeline scan for cut-offs, meaning that
@@ -1152,8 +1155,9 @@ void CFEPAnalyzer<FO>::runOptimizationPipeline(llvm::Function *F) {
   }
 }
 
-template<class FO>
-llvm::Function *CFEPAnalyzer<FO>::createFakeFunction(llvm::BasicBlock *Entry) {
+template<class FunctionOracle>
+llvm::Function *
+FEAnalyzer<FunctionOracle>::createFakeFunction(llvm::BasicBlock *Entry) {
   using namespace llvm;
 
   // Recreate outlined function
@@ -1179,8 +1183,8 @@ llvm::Function *CFEPAnalyzer<FO>::createFakeFunction(llvm::BasicBlock *Entry) {
   return FakeFunction.extractFunction();
 }
 
-template<class FO>
-FunctionSummary CFEPAnalyzer<FO>::analyze(BasicBlock *Entry) {
+template<class FunctionOracle>
+FunctionSummary FEAnalyzer<FunctionOracle>::analyze(BasicBlock *Entry) {
   using namespace llvm;
   using namespace ABIAnalyses;
 
@@ -1322,10 +1326,10 @@ intersect(const std::set<GlobalVariable *> &First,
 
 template<class FO>
 FunctionSummary
-CFEPAnalyzer<FO>::milkInfo(OutlinedFunction *OutlinedFunction,
-                           SortedVector<model::BasicBlock> &CFG,
-                           ABIAnalyses::ABIAnalysesResults &ABIResults,
-                           const std::set<GlobalVariable *> &WrittenRegisters) {
+FEAnalyzer<FO>::milkInfo(OutlinedFunction *OutlinedFunction,
+                         SortedVector<model::BasicBlock> &CFG,
+                         ABIAnalyses::ABIAnalysesResults &ABIResults,
+                         const std::set<GlobalVariable *> &WrittenRegisters) {
   using namespace llvm;
 
   SmallVector<std::pair<CallBase *, int64_t>, 4> MaybeReturns;
@@ -1472,8 +1476,8 @@ CFEPAnalyzer<FO>::milkInfo(OutlinedFunction *OutlinedFunction,
 }
 
 template<class FunctionOracle>
-void CFEPAnalyzer<FunctionOracle>::integrateFunctionCallee(llvm::BasicBlock *BB,
-                                                           MetaAddress Next) {
+void FEAnalyzer<FunctionOracle>::integrateFunctionCallee(llvm::BasicBlock *BB,
+                                                         MetaAddress Next) {
   using namespace llvm;
 
   // If the basic block originally had a call-site, the function call is
@@ -1575,8 +1579,9 @@ void CFEPAnalyzer<FunctionOracle>::integrateFunctionCallee(llvm::BasicBlock *BB,
   }
 }
 
-template<class FO>
-OutlinedFunction CFEPAnalyzer<FO>::outlineFunction(llvm::BasicBlock *Entry) {
+template<class FunctionOracle>
+OutlinedFunction
+FEAnalyzer<FunctionOracle>::outlineFunction(llvm::BasicBlock *Entry) {
   using namespace llvm;
 
   Function *Root = Entry->getParent();
@@ -1798,7 +1803,7 @@ bool EarlyFunctionAnalysis::runOnModule(Module &M) {
   using BasicBlockToNodeMapTy = llvm::DenseMap<BasicBlock *, BasicBlockNode *>;
   BasicBlockToNodeMapTy BasicBlockNodeMap;
 
-  // Queue to be populated with the CFEP
+  // Temporary worklist to collect the function entrypoints
   llvm::SmallVector<BasicBlock *, 8> Worklist;
   SmallCallGraph CG;
 
@@ -1848,10 +1853,12 @@ bool EarlyFunctionAnalysis::runOnModule(Module &M) {
   for (const auto &[_, Node] : BasicBlockNodeMap)
     RootNode->addSuccessor(Node);
 
-  UniquedQueue<BasicBlockNode *> CFEPQueue;
+  // Create an over-approximated call graph of the program. A queue of all the
+  // function entrypoints is maintained.
+  UniquedQueue<BasicBlockNode *> EntrypointsQueue;
   for (auto *Node : llvm::post_order(&CG)) {
     if (Node != RootNode)
-      CFEPQueue.insert(Node);
+      EntrypointsQueue.insert(Node);
   }
 
   // Dump the call-graph, if requested
@@ -1893,14 +1900,14 @@ bool EarlyFunctionAnalysis::runOnModule(Module &M) {
                                  nullptr);
   FunctionAnalysisResults Properties(std::move(DefaultSummary));
 
-  // Instantiate a CFEPAnalyzer object
-  using CFEPA = CFEPAnalyzer<FunctionAnalysisResults>;
-  CFEPA Analyzer(Binary, M, &GCBI, Properties, ABIRegisters);
+  // Instantiate a FunctionEntrypointAnalyzer object
+  using FEA = FunctionEntrypointAnalyzer<FunctionAnalysisResults>;
+  FEA Analyzer(Binary, M, &GCBI, Properties, ABIRegisters);
 
   // Interprocedural analysis over the collected functions in post-order
   // traversal (leafs first).
-  while (!CFEPQueue.empty()) {
-    BasicBlockNode *EntryNode = CFEPQueue.pop();
+  while (!EntrypointsQueue.empty()) {
+    BasicBlockNode *EntryNode = EntrypointsQueue.pop();
     revng_log(EarlyFunctionAnalysisLog,
               "Analyzing Entry: " << EntryNode->BB->getName());
 
@@ -1923,7 +1930,7 @@ bool EarlyFunctionAnalysis::runOnModule(Module &M) {
             break;
 
           if (!Properties.isFakeFunction(getBasicBlockPC(Caller->BB)))
-            CFEPQueue.insert(Caller);
+            EntrypointsQueue.insert(Caller);
           else
             FakeFunctionWorklist.insert(Caller);
         }
