@@ -68,9 +68,6 @@ private:
   PrototypesMapT VisitedPrototypes;
 
 private:
-  void assertGetLayoutTypePreConditions(const llvm::Value *V, unsigned Id);
-  void assertGetLayoutTypePreConditions(const llvm::Value &V);
-
   LayoutTypeSystemNode *getLayoutType(const llvm::Value *V, unsigned Id);
 
   LayoutTypeSystemNode *getLayoutType(const llvm::Value *V) {

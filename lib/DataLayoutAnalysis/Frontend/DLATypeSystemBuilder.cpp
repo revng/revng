@@ -53,8 +53,7 @@ void LLVMTSDebugPrinter::printNodeContent(const LayoutTypeSystem &TS,
   }
 }
 
-void DLATypeSystemLLVMBuilder::assertGetLayoutTypePreConditions(const Value *V,
-                                                                unsigned Id) {
+static void assertGetLayoutTypePreConditions(const Value *V, unsigned Id) {
   // We accept only integers, pointer, and function types (which are actually
   // used for representing return types of functions)
   const Type *VT = V->getType();
@@ -101,8 +100,7 @@ DLATypeSystemLLVMBuilder::getOrCreateLayoutType(const Value *V, unsigned Id) {
   return std::make_pair(Res, true);
 }
 
-using Builder = DLATypeSystemLLVMBuilder;
-void Builder::assertGetLayoutTypePreConditions(const Value &V) {
+static void assertGetLayoutTypePreConditions(const Value &V) {
   const Type *VTy = V.getType();
   // We accept only integers, pointer, structs and and function types (which
   // are actually used for representing return types of functions)
