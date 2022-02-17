@@ -31,6 +31,7 @@ set(MODEL_HEADERS
   "${MODEL_HEADERS_DIR}/Relocation.h"
   "${MODEL_HEADERS_DIR}/RelocationType.h"
   "${MODEL_HEADERS_DIR}/Register.h"
+  "${MODEL_HEADERS_DIR}/Section.h"
   "${MODEL_HEADERS_DIR}/Segment.h"
   "${MODEL_HEADERS_DIR}/StructField.h"
   "${MODEL_HEADERS_DIR}/StructType.h"
