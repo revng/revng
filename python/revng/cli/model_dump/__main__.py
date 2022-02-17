@@ -7,7 +7,7 @@ import json
 import sys
 import yaml
 
-from .dump_model import fetch_text_model, parse_model, remap_metaaddress
+from . import fetch_text_model, parse_model, remap_metaaddress
 
 
 def log(message):

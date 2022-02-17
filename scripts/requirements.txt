@@ -5,9 +5,6 @@ Jinja2
 # Needed for python < 3.9
 graphlib-backport
 
-# Requirements for revng_merge_dynamic
-pyelftools
-
 # Requirements for monotone-framework
 networkx
 pydot

@@ -10,7 +10,7 @@ verbose = True
 
 def set_verbose(verb: bool):
     global verbose
-    verbose = bool
+    verbose = verb
 
 
 def log(message):

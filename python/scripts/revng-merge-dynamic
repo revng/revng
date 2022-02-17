@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
@@ -5,13 +6,14 @@
 import argparse
 import sys
 
-from .log import set_verbose
-from .merge_dynamic import merge_dynamic
+from revng.cli.merge_dynamic import merge_dynamic
+from revng.cli.merge_dynamic.log import set_verbose
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Merge the dynamic portions of the translate ELF with the one from the host ELF."
+        description="Merge the dynamic portions of the translate ELF with the one from the"
+        " host ELF."
     )
     parser.add_argument(
         "to_extend",
