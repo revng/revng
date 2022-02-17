@@ -14,3 +14,6 @@ concept convertible_to = std::is_convertible_v<T, U>;
 
 template<typename T, typename R>
 concept ConstOrNot = std::is_same_v<R, T> or std::is_same_v<const R, T>;
+
+template<typename T>
+concept Integral = std::is_integral_v<T>;
