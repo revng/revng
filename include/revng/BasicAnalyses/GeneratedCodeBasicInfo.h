@@ -14,11 +14,14 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 
+#include "revng/Lift/Lift.h"
+#include "revng/Model/Architecture.h"
+#include "revng/Model/Binary.h"
+#include "revng/Model/LoadModelPass.h"
 #include "revng/Support/BlockType.h"
 #include "revng/Support/Concepts.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/ProgramCounterHandler.h"
-#include "revng/Support/revng.h"
 
 // Forward declarations
 namespace llvm {
@@ -40,14 +43,11 @@ class MDNode;
 /// basic blocks.
 class GeneratedCodeBasicInfo {
 public:
-  GeneratedCodeBasicInfo() :
-    ArchType(llvm::Triple::ArchType::UnknownArch),
-    InstructionAlignment(0),
-    DelaySlotSize(0),
+  GeneratedCodeBasicInfo(const model::Binary &Binary) :
+    Binary(&Binary),
     PC(nullptr),
     SP(nullptr),
     RA(nullptr),
-    MinimalFSO(0),
     Dispatcher(nullptr),
     DispatcherFail(nullptr),
     AnyPC(nullptr),
@@ -72,44 +72,6 @@ public:
                   const llvm::PreservedAnalyses &,
                   llvm::FunctionAnalysisManager::Invalidator &) {
     return false;
-  }
-
-  /// \brief Return the type of basic block, see BlockType.
-  static BlockType::Values getType(llvm::BasicBlock *BB) {
-    return getType(BB->getTerminator());
-  }
-
-  /// \brief Return the type of basic block, see BlockType.
-  static bool isPartOfRootDispatcher(llvm::BasicBlock *BB) {
-    auto Type = getType(BB->getTerminator());
-    return (Type == BlockType::RootDispatcherBlock
-            or Type == BlockType::RootDispatcherHelperBlock);
-  }
-
-  static BlockType::Values getType(llvm::Instruction *T) {
-    using namespace llvm;
-
-    revng_assert(T != nullptr);
-    revng_assert(T->isTerminator());
-    MDNode *MD = T->getMetadata(BlockTypeMDName);
-
-    BasicBlock *BB = T->getParent();
-    if (BB == &BB->getParent()->getEntryBlock())
-      return BlockType::EntryPoint;
-
-    if (MD == nullptr) {
-      Instruction *First = &*T->getParent()->begin();
-      if (CallInst *Call = getCallTo(First, "newpc"))
-        if (getLimitedValue(Call->getArgOperand(2)) == 1)
-          return BlockType::JumpTargetBlock;
-
-      return BlockType::TranslatedBlock;
-    }
-
-    auto *BlockTypeMD = cast<MDTuple>(MD);
-
-    QuickMetadata QMD(getContext(T));
-    return BlockType::fromName(QMD.extract<llvm::StringRef>(BlockTypeMD, 0));
   }
 
   uint32_t getJTReasons(llvm::BasicBlock *BB) const {
@@ -162,22 +124,10 @@ public:
     return getKillReason(T) != KillReason::NonKiller;
   }
 
-  /// \brief Return the value to which instructions must be aligned in the input
-  ///        architecture
-  unsigned instructionAlignment() const { return InstructionAlignment; }
-
-  /// \brief Return the size of the delay slot for the input architecture
-  unsigned delaySlotSize() const { return DelaySlotSize; }
-
   /// \brief Return the CSV representing the stack pointer
   llvm::GlobalVariable *spReg() const { return SP; }
-
   /// \brief Return the CSV representing the return address register
   llvm::GlobalVariable *raReg() const { return RA; }
-
-  int64_t minimalFSO() const { return MinimalFSO; }
-
-  llvm::Triple::ArchType arch() const { return ArchType; }
 
   /// \brief Check if \p GV is the stack pointer CSV
   bool isSPReg(const llvm::GlobalVariable *GV) const {
@@ -196,9 +146,6 @@ public:
   llvm::GlobalVariable *pcReg() const { return PC; }
 
   // TODO: this method should probably be deprecated
-  unsigned pcRegSize() const { return PCRegSize; }
-
-  // TODO: this method should probably be deprecated
   /// \brief Check if \p GV is the program counter CSV
   bool isPCReg(const llvm::GlobalVariable *GV) const {
     revng_assert(PC != nullptr);
@@ -214,7 +161,9 @@ public:
   const ProgramCounterHandler *programCounterHandler() {
     if (not PCH) {
       llvm::Module *M = RootFunction->getParent();
-      PCH = ProgramCounterHandler::fromModule(ArchType, M);
+      using namespace model::Architecture;
+      auto Architecture = toLLVMArchitecture(Binary->Architecture);
+      PCH = ProgramCounterHandler::fromModule(Architecture, M);
     }
 
     return PCH.get();
@@ -343,41 +292,6 @@ public:
 
   const llvm::ArrayRef<llvm::GlobalVariable *> csvs() const { return CSVs; }
 
-  class CSVsUsage {
-  public:
-    void sort() {
-      std::sort(Read.begin(), Read.end());
-      std::sort(Written.begin(), Written.end());
-    }
-
-  public:
-    std::vector<llvm::GlobalVariable *> Read;
-    std::vector<llvm::GlobalVariable *> Written;
-  };
-
-  static CSVsUsage getCSVUsedByHelperCall(llvm::Instruction *Call) {
-    return *getCSVUsedByHelperCallIfAvailable(Call);
-  }
-
-  static llvm::Optional<CSVsUsage>
-  getCSVUsedByHelperCallIfAvailable(llvm::Instruction *Call) {
-    revng_assert(isCallToHelper(Call));
-
-    const llvm::Module *M = getModule(Call);
-    const auto LoadMDKind = M->getMDKindID("revng.csvaccess.offsets.load");
-    const auto StoreMDKind = M->getMDKindID("revng.csvaccess.offsets.store");
-
-    if (Call->getMetadata(LoadMDKind) == nullptr
-        and Call->getMetadata(StoreMDKind) == nullptr) {
-      return {};
-    }
-
-    CSVsUsage Result;
-    Result.Read = extractCSVs(Call, LoadMDKind);
-    Result.Written = extractCSVs(Call, StoreMDKind);
-    return Result;
-  }
-
   const std::vector<llvm::GlobalVariable *> &abiRegisters() const {
     return ABIRegisters;
   }
@@ -391,7 +305,9 @@ public:
   }
 
   MetaAddress fromPC(uint64_t PC) const {
-    return MetaAddress::fromPC(ArchType, PC);
+    using namespace model::Architecture;
+    auto Architecture = toLLVMArchitecture(Binary->Architecture);
+    return MetaAddress::fromPC(Architecture, PC);
   }
 
   struct SuccessorsList {
@@ -471,26 +387,6 @@ private:
   void initializePCToBlockCache();
 
 private:
-  static std::vector<llvm::GlobalVariable *>
-  extractCSVs(llvm::Instruction *Call, unsigned MDKindID) {
-    using namespace llvm;
-
-    std::vector<GlobalVariable *> Result;
-    auto *Tuple = cast_or_null<MDTuple>(Call->getMetadata(MDKindID));
-    if (Tuple == nullptr)
-      return Result;
-
-    QuickMetadata QMD(getContext(Call));
-
-    auto OperandsRange = QMD.extract<MDTuple *>(Tuple, 1)->operands();
-    for (const MDOperand &Operand : OperandsRange) {
-      auto *CSV = QMD.extract<Constant *>(Operand.get());
-      Result.push_back(cast<GlobalVariable>(CSV));
-    }
-
-    return Result;
-  }
-
   const llvm::DominatorTree &getDomTree(llvm::Function *F) {
     auto It = DTMap.find(F);
     if (It == DTMap.end()) {
@@ -502,13 +398,10 @@ private:
   }
 
 private:
-  llvm::Triple::ArchType ArchType;
-  uint32_t InstructionAlignment;
-  uint32_t DelaySlotSize;
+  const model::Binary *Binary;
   llvm::GlobalVariable *PC;
   llvm::GlobalVariable *SP;
   llvm::GlobalVariable *RA;
-  int64_t MinimalFSO;
   llvm::BasicBlock *Dispatcher;
   llvm::BasicBlock *DispatcherFail;
   llvm::BasicBlock *AnyPC;
@@ -567,5 +460,6 @@ public:
   void releaseMemory() override;
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();
+    AU.addRequired<LoadModelWrapperPass>();
   }
 };

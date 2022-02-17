@@ -119,3 +119,41 @@ findByBlockType(llvm::Function *F, BlockType::Values Value) {
 
   return nullptr;
 }
+
+inline BlockType::Values getType(llvm::Instruction *T) {
+  using namespace llvm;
+
+  revng_assert(T != nullptr);
+  revng_assert(T->isTerminator());
+  MDNode *MD = T->getMetadata(BlockTypeMDName);
+
+  BasicBlock *BB = T->getParent();
+  if (BB == &BB->getParent()->getEntryBlock())
+    return BlockType::EntryPoint;
+
+  if (MD == nullptr) {
+    Instruction *First = &*T->getParent()->begin();
+    if (CallInst *Call = getCallTo(First, "newpc"))
+      if (getLimitedValue(Call->getArgOperand(2)) == 1)
+        return BlockType::JumpTargetBlock;
+
+    return BlockType::TranslatedBlock;
+  }
+
+  auto *BlockTypeMD = cast<MDTuple>(MD);
+
+  QuickMetadata QMD(getContext(T));
+  return BlockType::fromName(QMD.extract<llvm::StringRef>(BlockTypeMD, 0));
+}
+
+/// \brief Return the type of basic block, see BlockType.
+inline BlockType::Values getType(llvm::BasicBlock *BB) {
+  return getType(BB->getTerminator());
+}
+
+/// \brief Return the type of basic block, see BlockType.
+inline bool isPartOfRootDispatcher(llvm::BasicBlock *BB) {
+  auto Type = getType(BB->getTerminator());
+  return (Type == BlockType::RootDispatcherBlock
+          or Type == BlockType::RootDispatcherHelperBlock);
+}

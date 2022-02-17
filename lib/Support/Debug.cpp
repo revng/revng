@@ -14,7 +14,6 @@
 #include "llvm/IR/Value.h"
 
 #include "revng/Support/Debug.h"
-#include "revng/Support/revng.h"
 
 namespace cl = llvm::cl;
 using llvm::Twine;

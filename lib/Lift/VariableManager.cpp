@@ -27,7 +27,6 @@
 #include "revng/Lift/VariableManager.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
-#include "revng/Support/revng.h"
 
 using namespace llvm;
 
@@ -151,14 +150,14 @@ getTypeAtOffset(const DataLayout *TheLayout, Type *VarType, intptr_t Offset) {
   }
 }
 
-VariableManager::VariableManager(Module &M, Architecture &TargetArchitecture) :
+VariableManager::VariableManager(Module &M, bool TargetIsLittleEndian) :
   TheModule(M),
   AllocaBuilder(getContext(&M)),
   CPUStateType(nullptr),
   ModuleLayout(&TheModule.getDataLayout()),
   EnvOffset(0),
   Env(nullptr),
-  TargetArchitecture(TargetArchitecture) {
+  TargetIsLittleEndian(TargetIsLittleEndian) {
 
   revng_assert(ptc.initialized_env != nullptr);
 
@@ -256,7 +255,7 @@ VariableManager::storeToCPUStateOffset(IRBuilder<> &Builder,
     return {};
 
   unsigned ShiftAmount = 0;
-  if (TargetArchitecture.isLittleEndian())
+  if (TargetIsLittleEndian)
     ShiftAmount = Remaining;
   else {
     // >> (Size1 - Size2) - Remaining;
@@ -326,7 +325,7 @@ Value *VariableManager::loadFromCPUStateOffset(IRBuilder<> &Builder,
   // Extract the desired part
   // Shift right of the desired amount
   unsigned ShiftAmount = 0;
-  if (TargetArchitecture.isLittleEndian()) {
+  if (TargetIsLittleEndian) {
     ShiftAmount = Remaining;
   } else {
     // >> (Size1 - Size2) - Remaining;

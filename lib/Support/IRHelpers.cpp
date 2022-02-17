@@ -9,7 +9,7 @@
 
 #include "llvm/Support/raw_os_ostream.h"
 
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/Support/BlockType.h"
 #include "revng/Support/IRHelpers.h"
 
 // TODO: including GeneratedCodeBasicInfo.h is not very nice
@@ -114,10 +114,8 @@ CallInst *getLastNewPC(Instruction *TheInstruction) {
     // If we didn't find a newpc call yet, continue exploration backward
     // If one of the predecessors is the dispatcher, don't explore any further
     for (BasicBlock *Predecessor : predecessors(BB)) {
-      using GCBI = GeneratedCodeBasicInfo;
-
       // Assert we didn't reach the almighty dispatcher
-      revng_assert(GCBI::isPartOfRootDispatcher(Predecessor) == false);
+      revng_assert(isPartOfRootDispatcher(Predecessor) == false);
 
       // Ignore already visited or empty BBs
       if (!Predecessor->empty() && Visited.find(Predecessor) == Visited.end()) {

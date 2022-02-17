@@ -8,6 +8,9 @@
 
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/PassManager.h"
+
+#include "revng/Support/IRHelpers.h"
 
 using CSVToAllocaMap = std::map<llvm::GlobalVariable *, llvm::AllocaInst *>;
 
@@ -138,7 +141,7 @@ DropHelperCallsPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
         Builder.SetInsertPoint(Call);
 
         // Collect CSAA data
-        auto CSVs = GeneratedCodeBasicInfo::getCSVUsedByHelperCall(Call);
+        auto CSVs = getCSVUsedByHelperCall(Call);
 
         // Transform all the calls to helpers to calls to a function that
         // takes the following arguments:

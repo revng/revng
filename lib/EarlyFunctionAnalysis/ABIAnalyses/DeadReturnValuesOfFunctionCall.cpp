@@ -15,7 +15,6 @@
 
 #include "revng/MFP/MFP.h"
 #include "revng/Model/Binary.h"
-#include "revng/Support/revng.h"
 
 #include "Analyses.h"
 

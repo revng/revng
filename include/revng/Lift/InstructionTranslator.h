@@ -14,7 +14,6 @@
 #include "llvm/Support/ErrorOr.h"
 
 #include "revng/Support/ProgramCounterHandler.h"
-#include "revng/Support/revng.h"
 
 #include "JumpTargetManager.h"
 #include "PTCDump.h"
@@ -43,14 +42,11 @@ public:
   /// \param Blocks reference to a `vector` of `BasicBlock`s used to keep track
   ///        on which `BasicBlock`s the InstructionTranslator worked on, for
   ///        further processing.
-  /// \param SourceArchitecture the input architecture.
-  /// \param TargetArchitecture the output architecture.
   InstructionTranslator(llvm::IRBuilder<> &Builder,
                         VariableManager &Variables,
                         JumpTargetManager &JumpTargets,
                         std::vector<llvm::BasicBlock *> Blocks,
-                        const Architecture &SourceArchitecture,
-                        const Architecture &TargetArchitecture,
+                        bool EndianessMismatch,
                         ProgramCounterHandler *PCH);
 
   /// \brief Result status of the translation of a PTC opcode
@@ -134,8 +130,7 @@ private:
 
   llvm::Function *TheFunction;
 
-  const Architecture &SourceArchitecture;
-  const Architecture &TargetArchitecture;
+  bool EndianessMismatch;
 
   llvm::Function *NewPCMarker;
 
