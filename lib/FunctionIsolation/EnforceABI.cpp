@@ -32,6 +32,7 @@
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 using namespace llvm;
+using FTLayout = abi::FunctionType::Layout;
 
 char EnforceABI::ID = 0;
 using Register = RegisterPass<EnforceABI>;
@@ -57,8 +58,7 @@ public:
 private:
   Function *
   handleFunction(Function &OldFunction, const model::Function &FunctionModel);
-  Function *recreateFunction(Function &OldFunction,
-                             const model::RawFunctionType &Prototype);
+  Function *recreateFunction(Function &OldFunction, const FTLayout &Prototype);
   void
   createPrologue(Function *NewFunction, const model::Function &FunctionModel);
 
@@ -92,32 +92,6 @@ bool EnforceABI::runOnModule(Module &M) {
   return false;
 }
 
-// TODO: this needs to become stricter, every function type needs to be
-//       described in terms of registers, not matter what.
-static std::optional<model::RawFunctionType>
-makeRawPrototypeOrDefault(const model::Type *Type, model::Binary &TheBinary) {
-  const auto *Raw = llvm::dyn_cast<model::RawFunctionType>(Type);
-  if (Raw != nullptr)
-    return *Raw;
-
-  const auto *CABI = llvm::dyn_cast<model::CABIFunctionType>(Type);
-  revng_assert(CABI != nullptr,
-               "The type of a prototype must either be "
-               "`RawFunctionType` or `CABIFunctionType`.");
-
-  auto Converted = abi::FunctionType::tryConvertToRaw(*CABI, TheBinary);
-  if (Converted != std::nullopt)
-    return Converted.value();
-
-  // Can't do anything with the provided function, fallback onto the default
-  // prototype.
-  auto Default = abi::defaultFunctionPrototype(TheBinary, CABI->ABI);
-  revng_assert(Default.isValid());
-
-  auto *Result = llvm::dyn_cast<model::RawFunctionType>(Default.get());
-  return *Result;
-}
-
 void EnforceABIImpl::run() {
   std::vector<Function *> OldFunctions;
   if (FunctionDispatcher != nullptr)
@@ -132,12 +106,10 @@ void EnforceABIImpl::run() {
     revng_assert(OldFunction != nullptr);
     OldFunctions.push_back(OldFunction);
 
-    const auto *Type = FunctionModel.Prototype.get();
-    revng_assert(Type != nullptr);
+    auto Prototype = abi::FunctionType::Layout::make(FunctionModel.Prototype);
+    revng_assert(Prototype.verify());
 
-    auto MaybePrototype = makeRawPrototypeOrDefault(Type, Binary);
-    revng_assert(MaybePrototype != std::nullopt);
-    Function *NewFunction = recreateFunction(*OldFunction, *MaybePrototype);
+    Function *NewFunction = recreateFunction(*OldFunction, Prototype);
     FunctionTags::DynamicFunction.addTo(NewFunction);
 
     // EnforceABI currently does not support execution
@@ -198,8 +170,7 @@ static Type *getLLVMTypeForRegister(Module *M, model::Register::Values V) {
 }
 
 static std::pair<Type *, SmallVector<Type *, 8>>
-getLLVMReturnTypeAndArguments(llvm::Module *M,
-                              const model::RawFunctionType &Prototype) {
+getLLVMReturnTypeAndArguments(llvm::Module *M, const FTLayout &Prototype) {
   using model::NamedTypedRegister;
   using model::RawFunctionType;
   using model::TypedRegister;
@@ -209,11 +180,12 @@ getLLVMReturnTypeAndArguments(llvm::Module *M,
   SmallVector<llvm::Type *, 8> ArgumentsTypes;
   SmallVector<llvm::Type *, 8> ReturnTypes;
 
-  for (const NamedTypedRegister &TR : Prototype.Arguments)
-    ArgumentsTypes.push_back(getLLVMTypeForRegister(M, TR.Location));
+  for (const auto &ArgumentLayout : Prototype.Arguments)
+    for (model::Register::Values Register : ArgumentLayout.Registers)
+      ArgumentsTypes.push_back(getLLVMTypeForRegister(M, Register));
 
-  for (const TypedRegister &TR : Prototype.ReturnValues)
-    ReturnTypes.push_back(getLLVMTypeForRegister(M, TR.Location));
+  for (model::Register::Values Register : Prototype.ReturnValue.Registers)
+    ReturnTypes.push_back(getLLVMTypeForRegister(M, Register));
 
   // Create the return type
   Type *ReturnType = Type::getVoidTy(Context);
@@ -228,25 +200,17 @@ getLLVMReturnTypeAndArguments(llvm::Module *M,
   return { ReturnType, ArgumentsTypes };
 }
 
-static FunctionType *
-toLLVMType(llvm::Module *M, const model::RawFunctionType &Prototype) {
-  auto [ReturnType, Arguments] = getLLVMReturnTypeAndArguments(M, Prototype);
-  return FunctionType::get(ReturnType, Arguments, false);
-}
-
 Function *EnforceABIImpl::handleFunction(Function &OldFunction,
                                          const model::Function &FunctionModel) {
-  const model::Type *PrototypeType = FunctionModel.Prototype.get();
-  const auto &Prototype = *cast<model::RawFunctionType>(PrototypeType);
+  auto Prototype = abi::FunctionType::Layout::make(FunctionModel.Prototype);
   Function *NewFunction = recreateFunction(OldFunction, Prototype);
   FunctionTags::Lifted.addTo(NewFunction);
   createPrologue(NewFunction, FunctionModel);
   return NewFunction;
 }
 
-Function *
-EnforceABIImpl::recreateFunction(Function &OldFunction,
-                                 const model::RawFunctionType &Prototype) {
+Function *EnforceABIImpl::recreateFunction(Function &OldFunction,
+                                           const FTLayout &Prototype) {
   // Create new function
   auto [NewReturnType, NewArguments] = getLLVMReturnTypeAndArguments(&M,
                                                                      Prototype);
@@ -254,10 +218,10 @@ EnforceABIImpl::recreateFunction(Function &OldFunction,
                                          NewReturnType,
                                          NewArguments);
 
-  // Set argument names
-  for (const auto &[LLVMArgument, ModelArgument] :
-       zip(NewFunction->args(), Prototype.Arguments))
-    LLVMArgument.setName(ModelArgument.name());
+  revng_assert(NewFunction->arg_size() == Prototype.argumentRegisterCount());
+  for (size_t Index = 0; const auto &Argument : Prototype.Arguments)
+    for (model::Register::Values Register : Argument.Registers)
+      NewFunction->getArg(Index++)->setName(model::Register::getName(Register));
 
   return NewFunction;
 }
@@ -389,15 +353,16 @@ CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   llvm::SmallVector<GlobalVariable *, 8> ReturnCSVs;
 
   model::TypePath PrototypePath = getPrototype(Binary, CallSite);
-  auto MaybePrototype = makeRawPrototypeOrDefault(PrototypePath.get(), Binary);
-  revng_assert(MaybePrototype != std::nullopt);
+  auto Prototype = abi::FunctionType::Layout::make(PrototypePath);
+  revng_assert(Prototype.verify());
 
   bool IsIndirect = (Callee.getCallee() == FunctionDispatcher);
   if (IsIndirect) {
     // Create a new `indirect_placeholder` function with the specific function
     // type we need
     Value *PC = GCBI.programCounterHandler()->loadJumpablePC(Builder);
-    auto *NewType = toLLVMType(&M, *MaybePrototype);
+    auto [ReturnType, Arguments] = getLLVMReturnTypeAndArguments(&M, Prototype);
+    auto *NewType = FunctionType::get(ReturnType, Arguments, false);
     Callee = toFunctionPointer(Builder, PC, NewType);
   } else {
     BasicBlock *InsertBlock = Builder.GetInsertPoint()->getParent();
@@ -409,14 +374,16 @@ CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   //
   // Collect arguments and returns
   //
-  for (const NamedTypedRegister &TR : MaybePrototype->Arguments) {
-    auto Name = ABIRegister::toCSVName(TR.Location);
-    GlobalVariable *CSV = M.getGlobalVariable(Name, true);
-    Arguments.push_back(Builder.CreateLoad(CSV));
+  for (const auto &ArgumentLayout : Prototype.Arguments) {
+    for (model::Register::Values Register : ArgumentLayout.Registers) {
+      auto Name = ABIRegister::toCSVName(Register);
+      GlobalVariable *CSV = M.getGlobalVariable(Name, true);
+      Arguments.push_back(Builder.CreateLoad(CSV));
+    }
   }
 
-  for (const TypedRegister &TR : MaybePrototype->ReturnValues) {
-    auto Name = ABIRegister::toCSVName(TR.Location);
+  for (model::Register::Values Register : Prototype.ReturnValue.Registers) {
+    auto Name = ABIRegister::toCSVName(Register);
     GlobalVariable *CSV = M.getGlobalVariable(Name, true);
     ReturnCSVs.push_back(CSV);
   }
