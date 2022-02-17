@@ -6,6 +6,7 @@
 //
 
 #include "llvm/ADT/DepthFirstIterator.h"
+#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/Support/DOTGraphTraits.h"
 #include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/raw_os_ostream.h"
@@ -309,6 +310,22 @@ Identifier DynamicFunction::name() const {
   }
 }
 
+bool Relocation::verify() const {
+  return verify(false);
+}
+
+bool Relocation::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+
+bool Relocation::verify(VerifyHelper &VH) const {
+  if (Type == model::RelocationType::Invalid)
+    return VH.fail("Invalid relocation", *this);
+
+  return true;
+}
+
 void Function::dump() const {
   serialize(dbg, *this);
 }
@@ -547,6 +564,188 @@ bool BasicBlock::verify(VerifyHelper &VH) const {
 
   return true;
 }
+
+namespace RelocationType {
+
+Values fromELFRelocation(model::Architecture::Values Architecture,
+                         unsigned char ELFRelocation) {
+  using namespace llvm::ELF;
+  switch (Architecture) {
+  case model::Architecture::x86:
+    switch (ELFRelocation) {
+    case R_386_RELATIVE:
+    case R_386_32:
+      return AddAbsoluteAddress32;
+
+    case R_386_JUMP_SLOT:
+    case R_386_GLOB_DAT:
+      return WriteAbsoluteAddress32;
+
+    case R_386_COPY:
+      // TODO: use
+    default:
+      return Invalid;
+    }
+
+  case model::Architecture::x86_64:
+    switch (ELFRelocation) {
+    case R_X86_64_RELATIVE:
+      return AddAbsoluteAddress64;
+
+    case R_X86_64_JUMP_SLOT:
+    case R_X86_64_GLOB_DAT:
+    case R_X86_64_64:
+      return WriteAbsoluteAddress64;
+
+    case R_X86_64_32:
+      return WriteAbsoluteAddress32;
+
+    case R_X86_64_COPY:
+      // TODO: use
+    default:
+      return Invalid;
+    }
+
+  case model::Architecture::arm:
+    switch (ELFRelocation) {
+    case R_ARM_RELATIVE:
+      return AddAbsoluteAddress32;
+
+    case R_ARM_JUMP_SLOT:
+    case R_ARM_GLOB_DAT:
+      return WriteAbsoluteAddress32;
+
+    case R_ARM_COPY:
+      // TODO: use
+    default:
+      return Invalid;
+    }
+
+  case model::Architecture::aarch64:
+    return Invalid;
+
+  case model::Architecture::mips:
+  case model::Architecture::mipsel:
+    switch (ELFRelocation) {
+    case R_MIPS_IMPLICIT_RELATIVE:
+      return AddAbsoluteAddress32;
+
+    case R_MIPS_JUMP_SLOT:
+    case R_MIPS_GLOB_DAT:
+      return WriteAbsoluteAddress32;
+
+    case R_MIPS_COPY:
+      // TODO: use
+    default:
+      return Invalid;
+    }
+
+  case model::Architecture::systemz:
+    switch (ELFRelocation) {
+    case R_390_GLOB_DAT:
+      return WriteAbsoluteAddress64;
+
+    case R_390_COPY:
+      // TODO: use
+    default:
+      return Invalid;
+    }
+
+  default:
+    revng_abort();
+  }
+}
+
+bool isELFRelocationBaseRelative(model::Architecture::Values Architecture,
+                                 unsigned char ELFRelocation) {
+  using namespace llvm::ELF;
+  switch (Architecture) {
+  case model::Architecture::x86:
+    switch (ELFRelocation) {
+    case R_386_RELATIVE:
+      return true;
+
+    case R_386_32:
+    case R_386_JUMP_SLOT:
+    case R_386_GLOB_DAT:
+      return false;
+
+    case R_386_COPY:
+      // TODO: use
+
+    default:
+      return Invalid;
+    }
+
+  case model::Architecture::x86_64:
+    switch (ELFRelocation) {
+    case R_X86_64_RELATIVE:
+      return true;
+
+    case R_X86_64_JUMP_SLOT:
+    case R_X86_64_GLOB_DAT:
+    case R_X86_64_64:
+    case R_X86_64_32:
+      return false;
+
+    case R_X86_64_COPY:
+      // TODO: use
+
+    default:
+      return Invalid;
+    }
+
+  case model::Architecture::arm:
+    switch (ELFRelocation) {
+    case R_ARM_RELATIVE:
+      return true;
+
+    case R_ARM_JUMP_SLOT:
+    case R_ARM_GLOB_DAT:
+      return false;
+
+    case R_ARM_COPY:
+      // TODO: use
+    default:
+      return Invalid;
+    }
+
+  case model::Architecture::aarch64:
+    return Invalid;
+
+  case model::Architecture::mips:
+  case model::Architecture::mipsel:
+    switch (ELFRelocation) {
+    case R_MIPS_IMPLICIT_RELATIVE:
+      return true;
+
+    case R_MIPS_JUMP_SLOT:
+    case R_MIPS_GLOB_DAT:
+      return false;
+
+    case R_MIPS_COPY:
+      // TODO: use
+    default:
+      return Invalid;
+    }
+
+  case model::Architecture::systemz:
+    switch (ELFRelocation) {
+    case R_390_GLOB_DAT:
+      return false;
+
+    case R_390_COPY:
+      // TODO: use
+    default:
+      return Invalid;
+    }
+
+  default:
+    revng_abort();
+  }
+}
+
+} // namespace RelocationType
 
 } // namespace model
 
