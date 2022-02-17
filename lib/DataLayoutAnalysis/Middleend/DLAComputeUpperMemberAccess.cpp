@@ -38,8 +38,12 @@ bool ComputeUpperMemberAccesses::runOnTypeSystem(LayoutTypeSystem &TS) {
 
   using LTSN = LayoutTypeSystemNode;
 
+  if (Log.isEnabled())
+    TS.dumpDotOnFile("before-compute-upper-member-access.dot", true);
+
   std::set<const LTSN *> Visited;
   for (LTSN *Root : llvm::nodes(&TS)) {
+    revng_log(Log, "Root ID: " << Root->ID);
     revng_assert(Root != nullptr);
     // Leaves need to have ValidLayouts, otherwise they should have been trimmed
     // by PruneLayoutNodesWithoutLayout
@@ -47,15 +51,28 @@ bool ComputeUpperMemberAccesses::runOnTypeSystem(LayoutTypeSystem &TS) {
     if (not isRoot(Root))
       continue;
 
+    LoggerIndent Indent{ Log };
+    revng_log(Log, "Is Root");
+    revng_log(Log, "post_order_ext from Root");
+    LoggerIndent MoreIndent{ Log };
+
     revng_assert(isInheritanceRoot(Root));
 
     for (LTSN *N : post_order_ext(NonPointerFilterT(Root), Visited)) {
+      revng_log(Log, "N->ID: " << N->ID);
       revng_assert(not isLeaf(N) or N->Size);
       uint64_t FinalSize = N->Size;
 
       // Look at all the instance-of edges and inheritance edges all together.
       bool HasBaseClass = false;
+      revng_log(Log, "N's children");
+      LoggerIndent MoreMoreIndent{ Log };
       for (auto &[Child, EdgeTag] : children_edges<ConstNonPointerFilterT>(N)) {
+        revng_log(Log, "Child->ID: " << Child->ID);
+        LoggerIndent MoreMoreMoreIndent{ Log };
+        revng_log(Log,
+                  "EdgeTag->Kind: "
+                    << dla::TypeLinkTag::toString(EdgeTag->getKind()));
         auto ChildSize = Child->Size;
         revng_assert(ChildSize > 0LL);
 
