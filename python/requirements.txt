@@ -1,0 +1,5 @@
+# Requirements for revng_merge_dynamic
+pyelftools
+
+# Requirements for model_dump
+PyYAML

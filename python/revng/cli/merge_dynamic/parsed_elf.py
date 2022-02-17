@@ -170,7 +170,12 @@ class ParsedElf:
             [
                 segment
                 for segment in self.segment_by_type("PT_LOAD")
-                if overlaps(address, size, segment.header.p_vaddr, segment.header.p_memsz)
+                if overlaps(
+                    address,
+                    size,
+                    segment.header.p_vaddr,
+                    segment.header.p_memsz,
+                )
             ]
         )
 

@@ -4,6 +4,7 @@ import argparse
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 from binascii import hexlify
 from ctypes.util import find_library
@@ -13,8 +14,16 @@ try:
 except ImportError:
     from backports.shutil_which import which
 
-from revng_translate import register_translate, run_translate
-from revng_support import build_command_with_loads, set_verbose, get_command, run
+python_libs_dir = str(Path(__file__).parent.parent / "lib" / "python")
+sys.path.insert(0, python_libs_dir)
+
+prev_pythonpath = os.environ.get("PYTHONPATH")
+os.environ["PYTHONPATH"] = python_libs_dir
+if prev_pythonpath:
+    os.environ["PYTHONPATH"] += ":" + prev_pythonpath
+
+from revng.cli.translate import register_translate, run_translate
+from revng.cli.support import build_command_with_loads, set_verbose, get_command, run
 
 search_prefixes = []
 real_argv0 = os.environ.get("REAL_ARGV0", sys.argv[0])
