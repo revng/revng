@@ -29,7 +29,10 @@ def main(args):
 
     schema = Schema(raw_schema, args.namespace)
     jsonschema_source = generate_jsonschema(
-        schema, args.root_type, string_types=args.string_type, separate_string_types=args.separate_string_type
+        schema,
+        args.root_type,
+        string_types=args.string_type,
+        separate_string_types=args.separate_string_type,
     )
 
     if args.output:

@@ -7,9 +7,7 @@ from abc import abstractmethod
 
 
 class Definition:
-    def __init__(
-        self, namespace, user_namespace, name, fullname, user_fullname, doc=None
-    ):
+    def __init__(self, namespace, user_namespace, name, fullname, user_fullname, doc=None):
         # Namespace where the generated code will reside
         self.namespace = namespace
         # Namespace to be used by the user

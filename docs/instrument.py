@@ -3,6 +3,7 @@
 import sys
 from llvmcpy import llvm
 
+
 def main():
     context = llvm.get_global_context()
 
@@ -43,7 +44,7 @@ def main():
 
                 # If there's a bitcast, skip it
                 if not callee.name:
-                    assert(callee.get_num_operands() == 1)
+                    assert callee.get_num_operands() == 1
                     callee = callee.get_operand(0)
 
                 # Check if it's performing a syscall
@@ -63,6 +64,7 @@ def main():
 
     # Produce the instrumented LLVM IR to file
     module.print_module_to_file(sys.argv[2])
+
 
 if __name__ == "__main__":
     main()

@@ -58,7 +58,17 @@ class SimpleStructField(StructField):
 
 
 class SequenceStructField(StructField):
-    def __init__(self, *, name, sequence_type, element_type, upcastable=False, doc=None, optional=False, const=False):
+    def __init__(
+        self,
+        *,
+        name,
+        sequence_type,
+        element_type,
+        upcastable=False,
+        doc=None,
+        optional=False,
+        const=False,
+    ):
         super().__init__(name=name, doc=doc, optional=optional, const=const)
         self.sequence_type = sequence_type
         self.element_type = element_type
@@ -85,7 +95,17 @@ class ReferenceStructField(StructField):
 
 class StructDefinition(Definition):
     def __init__(
-        self, *, namespace, user_namespace, name, fields, inherits=None, doc=None, tag=None, abstract=False, _key=None
+        self,
+        *,
+        namespace,
+        user_namespace,
+        name,
+        fields,
+        inherits=None,
+        doc=None,
+        tag=None,
+        abstract=False,
+        _key=None,
     ):
         super(StructDefinition, self).__init__(
             namespace,

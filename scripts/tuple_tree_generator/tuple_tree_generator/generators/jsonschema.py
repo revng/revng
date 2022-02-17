@@ -8,7 +8,13 @@ from typing import Dict
 
 from ..schema import Schema
 from ..schema import EnumDefinition
-from ..schema import StructDefinition, StructField, SimpleStructField, SequenceStructField, ReferenceStructField
+from ..schema import (
+    StructDefinition,
+    StructField,
+    SimpleStructField,
+    SequenceStructField,
+    ReferenceStructField,
+)
 
 int_re = re.compile(r"(u)?int(8|16|32|64)_t")
 

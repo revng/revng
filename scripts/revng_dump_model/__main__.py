@@ -9,17 +9,19 @@ import yaml
 
 from .dump_model import fetch_text_model, parse_model, remap_metaaddress
 
+
 def log(message):
     sys.stderr.write(message + "\n")
 
+
 def main():
     parser = argparse.ArgumentParser(description="Extract and process rev.ng model.")
-    parser.add_argument("--json",
-                        action="store_true",
-                        help="Dump as JSON.")
-    parser.add_argument("--remap",
-                        action="store_true",
-                        help="Remap MetaAddresses. Implies --json.")
+    parser.add_argument("--json", action="store_true", help="Dump as JSON.")
+    parser.add_argument(
+        "--remap",
+        action="store_true",
+        help="Remap MetaAddresses. Implies --json.",
+    )
     args = parser.parse_args()
 
     if args.remap:
@@ -46,8 +48,5 @@ def main():
         model = remap_metaaddress(model)
 
     # Dump as JSON
-    print(json.dumps(model,
-                     indent=2,
-                     sort_keys=True,
-                     check_circular=False))
+    print(json.dumps(model, indent=2, sort_keys=True, check_circular=False))
     return 0
