@@ -66,6 +66,12 @@ fields:
       type: SortedVector
       elementType: std::string
     optional: true
+  - name: ExtraCodeAddresses
+    doc: Addresses containing code in order to help translation
+    optional: true
+    sequence:
+      type: SortedVector
+      elementType: MetaAddress
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/Binary.h"
