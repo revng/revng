@@ -32,6 +32,12 @@ fields:
       type: MutableSet
       elementType: model::FunctionAttribute::Values
     optional: true
+  - name: Relocations
+    sequence:
+      type: SortedVector
+      elementType: model::Relocation
+    optional: true
+
 key:
   - OriginalName
 TUPLE-TREE-YAML */
