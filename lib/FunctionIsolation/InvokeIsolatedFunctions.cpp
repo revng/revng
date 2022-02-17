@@ -10,6 +10,7 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
+#include "revng/ABI/FunctionType.h"
 #include "revng/FunctionIsolation/InvokeIsolatedFunctions.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Contract.h"
@@ -173,14 +174,14 @@ public:
       // In case the isolated functions has arguments, provide them
       SmallVector<Value *, 4> Arguments;
       if (F->getFunctionType()->getNumParams() > 0) {
-        using model::RawFunctionType;
-        auto PrototypePath = ModelFunction->Prototype;
-        const auto &Prototype = *cast<RawFunctionType>(PrototypePath.get());
-        for (const model::NamedTypedRegister &TR : Prototype.Arguments) {
-          auto Name = ABIRegister::toCSVName(TR.Location);
-          GlobalVariable *CSV = M->getGlobalVariable(Name, true);
-          revng_assert(CSV != nullptr);
-          Arguments.push_back(Builder.CreateLoad(CSV));
+        auto Layout = abi::FunctionType::Layout::make(ModelFunction->Prototype);
+        for (const auto &ArgumentLayout : Layout.Arguments) {
+          for (model::Register::Values Register : ArgumentLayout.Registers) {
+            auto Name = ABIRegister::toCSVName(Register);
+            GlobalVariable *CSV = M->getGlobalVariable(Name, true);
+            revng_assert(CSV != nullptr);
+            Arguments.push_back(Builder.CreateLoad(CSV));
+          }
         }
       }
 
