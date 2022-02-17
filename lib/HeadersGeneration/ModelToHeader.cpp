@@ -439,6 +439,10 @@ bool dumpModelToHeader(const model::Binary &Model, llvm::raw_ostream &Header) {
   Header << "#include <stdbool.h>\n";
   Header << "#include \"revngfloat.h\"\n\n";
 
+  Header << "#ifndef NULL \n"
+         << "#define NULL (0) \n"
+         << "#endif \n\n";
+
   QualifiedTypeNameMap AdditionalTypeNames;
   printTypeDefinitions(Model, Header, AdditionalTypeNames);
 
