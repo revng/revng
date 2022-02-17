@@ -1,12 +1,10 @@
-#!/usr/bin/env python3
-
 import sys
 import argparse
 import signal
 import os
 import subprocess
 from os import path
-from revng_support import run, get_command, build_command_with_loads
+from ..support import run, get_command, build_command_with_loads
 
 
 def register_translate(subparsers):
@@ -79,15 +77,3 @@ def run_translate(args, post_dash_dash_args, search_path, search_prefixes, comma
     to_execute = build_command_with_loads("revng-pipeline", command, search_path, search_prefixes)
 
     return run(to_execute + post_dash_dash_args, command_prefix)
-
-
-def main():
-    parser = argparse.ArgumentParser(description="The rev.ng translator.")
-    subparsers = parser.add_subparsers(dest="command_name", help="sub-commands help")
-    register_translate(subparsers)
-    args = parser.parse_args()
-    return run_translate(args, [], [], [])
-
-
-if __name__ == "__main__":
-    sys.exit(main())
