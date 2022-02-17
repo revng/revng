@@ -156,6 +156,8 @@ void debug_function LayoutTypeSystem::dumpDotOnFile(const char *FName,
     }
 
     std::string Extra;
+    std::string Color;
+    std::string Style;
     for (const auto &SuccP : L->Successors) {
       const TypeLinkTag *EdgeTag = SuccP.second;
       const auto SameLink = [&](auto &OtherPair) {
@@ -172,28 +174,34 @@ void debug_function LayoutTypeSystem::dumpDotOnFile(const char *FName,
       case TypeLinkTag::LK_Equality: {
         EdgeLabel = Equal;
         LabelSize = sizeof(Equal) - 1;
+        Color = ",color=green";
       } break;
       case TypeLinkTag::LK_Instance: {
         EdgeLabel = Instance;
         LabelSize = sizeof(Instance) - 1;
         Extra = dumpToString(EdgeTag->getOffsetExpr());
+        Color = ",color=blue";
       } break;
       case TypeLinkTag::LK_Inheritance: {
         EdgeLabel = Inherits;
         LabelSize = sizeof(Inherits) - 1;
+        Color = ",color=orange";
       } break;
       case TypeLinkTag::LK_Pointer: {
         EdgeLabel = Pointer;
         LabelSize = sizeof(Pointer) - 1;
+        Color = ",color=purple";
+        Style = ",style=dashed";
       } break;
       default: {
         EdgeLabel = Unexpected;
         LabelSize = sizeof(Unexpected) - 1;
+        Color = ",color=red";
       } break;
       }
       DotFile << "  node_" << SrcNodeId << " -> node_" << TgtNode->ID
               << " [label=\"" << StringRef(EdgeLabel, LabelSize) << Extra
-              << "\"];\n";
+              << "\"" << Color << Style << "];\n";
     }
   }
 
