@@ -486,7 +486,7 @@ static ReturnInst *createRet(Instruction *Position) {
     auto *Zero = ConstantInt::get(static_cast<IntegerType *>(ReturnType), 0);
     return ReturnInst::Create(F->getParent()->getContext(), Zero, Position);
   } else {
-    revng_assert("Return type not supported");
+    revng_abort("Return type not supported");
   }
 
   return nullptr;
