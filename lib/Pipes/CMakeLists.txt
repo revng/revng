@@ -33,5 +33,6 @@ target_link_libraries(revngPipes
   revngLift
   revngPipeline
   revngSupport
+  revngModelImporterBinary
   ${LLVM_LIBRARIES}
 )

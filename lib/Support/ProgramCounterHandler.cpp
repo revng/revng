@@ -7,7 +7,6 @@
 
 #include "llvm/ADT/SmallSet.h"
 
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Support/ProgramCounterHandler.h"
 
 using namespace llvm;
@@ -335,8 +334,7 @@ bool PCH::isPCAffectingHelper(Instruction *I) const {
   if (HelperCall == nullptr)
     return false;
 
-  using GCBI = GeneratedCodeBasicInfo;
-  auto MaybeUsedCSVs = GCBI::getCSVUsedByHelperCallIfAvailable(HelperCall);
+  auto MaybeUsedCSVs = getCSVUsedByHelperCallIfAvailable(HelperCall);
 
   // If CSAA didn't consider this helper, be conservative
   if (not MaybeUsedCSVs)

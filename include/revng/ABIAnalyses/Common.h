@@ -16,7 +16,6 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/MFP/MFP.h"
 #include "revng/Model/Binary.h"
-#include "revng/Support/revng.h"
 
 namespace ABIAnalyses {
 

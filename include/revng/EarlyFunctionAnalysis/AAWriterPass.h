@@ -7,8 +7,6 @@
 #include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/IR/PassManager.h"
 
-#include "revng/Support/revng.h"
-
 class AAWriterPass : public llvm::PassInfoMixin<AAWriterPass> {
   llvm::raw_fd_ostream &OS;
   const bool StoresOnly;

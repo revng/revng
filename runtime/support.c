@@ -146,9 +146,9 @@ static void *prepare_stack(void *stack, int argc, char **argv) {
   // WARNING: if you add something here, update aux_count
   uintptr_t aux_start = (uintptr_t) stack;
   PUSH_AUX(stack, AT_NULL, 0);
-  PUSH_AUX(stack, AT_PHDR, phdr_address);
-  PUSH_AUX(stack, AT_PHENT, e_phentsize);
-  PUSH_AUX(stack, AT_PHNUM, e_phnum);
+  PUSH_AUX(stack, AT_PHDR, &phdr_address);
+  PUSH_AUX(stack, AT_PHENT, &e_phentsize);
+  PUSH_AUX(stack, AT_PHNUM, &e_phnum);
   PUSH_AUX(stack, AT_PAGESZ, 4096);
   PUSH_AUX(stack, AT_BASE, 0);
   PUSH_AUX(stack, AT_FLAGS, 0);

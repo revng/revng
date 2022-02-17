@@ -15,6 +15,8 @@
 #include "llvm/IR/Instructions.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/Model/Generated/Early/Register.h"
+#include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Debug.h"
 
 using namespace llvm;
@@ -33,35 +35,24 @@ void GeneratedCodeBasicInfo::run(Module &M) {
 
   revng_log(PassesLog, "Starting GeneratedCodeBasicInfo");
 
-  const char *MDName = "revng.input.architecture";
-  NamedMDNode *InputArchMD = M.getOrInsertNamedMetadata(MDName);
-  auto *Tuple = dyn_cast<MDTuple>(InputArchMD->getOperand(0));
+  using namespace model::Architecture;
+  auto Architecture = Binary->Architecture;
+  PC = M.getGlobalVariable(getPCCSVName(Architecture), true);
+  SP = M.getGlobalVariable(getCSVName(getStackPointer(Architecture)), true);
+  auto ReturnAddressRegister = getReturnAddressRegister(Architecture);
+  if (ReturnAddressRegister != model::Register::Invalid)
+    RA = M.getGlobalVariable(getCSVName(ReturnAddressRegister), true);
 
-  QuickMetadata QMD(M.getContext());
-
-  {
-    unsigned Index = 0;
-    StringRef ArchTypeName = QMD.extract<StringRef>(Tuple, Index++);
-    ArchType = Triple::getArchTypeForLLVMName(ArchTypeName);
-    InstructionAlignment = QMD.extract<uint32_t>(Tuple, Index++);
-    DelaySlotSize = QMD.extract<uint32_t>(Tuple, Index++);
-    PC = M.getGlobalVariable(QMD.extract<StringRef>(Tuple, Index++), true);
-    SP = M.getGlobalVariable(QMD.extract<StringRef>(Tuple, Index++), true);
-    RA = M.getGlobalVariable(QMD.extract<StringRef>(Tuple, Index++), true);
-    MinimalFSO = QMD.extract<int64_t>(Tuple, Index++);
-    auto Operands = QMD.extract<MDTuple *>(Tuple, Index++)->operands();
-    for (const MDOperand &Operand : Operands) {
-      StringRef Name = QMD.extract<StringRef>(Operand.get());
-      revng_assert(Name != "pc", "PC should not be considered an ABI register");
-      GlobalVariable *CSV = M.getGlobalVariable(Name, true);
-      ABIRegisters.push_back(CSV);
-      ABIRegistersSet.insert(CSV);
-    }
+  for (model::Register::Values Register : registers(Architecture)) {
+    GlobalVariable *CSV = M.getGlobalVariable(getCSVName(Register), true);
+    ABIRegisters.push_back(CSV);
+    ABIRegistersSet.insert(CSV);
   }
 
   Type *PCType = PC->getType()->getPointerElementType();
   PCRegSize = M.getDataLayout().getTypeAllocSize(PCType);
 
+  QuickMetadata QMD(M.getContext());
   if (auto *NamedMD = M.getNamedMetadata("revng.csv")) {
     auto *Tuple = cast<MDTuple>(NamedMD->getOperand(0));
     for (const MDOperand &Operand : Tuple->operands()) {
@@ -182,11 +173,11 @@ GeneratedCodeBasicInfo::blocksByPCRange(MetaAddress Start, MetaAddress End) {
 
         // Ignore unexpectedpc
         using GCBI = GeneratedCodeBasicInfo;
-        if (GCBI::getType(Successor) == BlockType::UnexpectedPCBlock)
+        if (getType(Successor) == BlockType::UnexpectedPCBlock)
           continue;
 
         auto SuccessorMA = GCBI::getPCFromNewPC(Successor);
-        if (not GCBI::isPartOfRootDispatcher(Successor)
+        if (not isPartOfRootDispatcher(Successor)
             and (SuccessorMA.isInvalid()
                  or (SuccessorMA.address() >= Start.address()
                      and SuccessorMA.address() < End.address()))) {
@@ -247,20 +238,23 @@ void GeneratedCodeBasicInfo::initializePCToBlockCache() {
 
 GeneratedCodeBasicInfo
 GeneratedCodeBasicInfoAnalysis::run(Module &M, ModuleAnalysisManager &MAM) {
-  GeneratedCodeBasicInfo GCBI;
+  auto &LMA = MAM.getResult<LoadModelAnalysis>(M);
+  GeneratedCodeBasicInfo GCBI(*LMA.getReadOnlyModel());
   GCBI.run(M);
   return GCBI;
 }
 
 GeneratedCodeBasicInfo
 GeneratedCodeBasicInfoAnalysis::run(Function &F, FunctionAnalysisManager &FAM) {
-  GeneratedCodeBasicInfo GCBI;
+  auto &LMA = FAM.getResult<LoadModelAnalysis>(F);
+  GeneratedCodeBasicInfo GCBI(*LMA.getReadOnlyModel());
   GCBI.run(*F.getParent());
   return GCBI;
 }
 
 bool GeneratedCodeBasicInfoWrapperPass::runOnModule(Module &M) {
-  GCBI.reset(new GeneratedCodeBasicInfo());
+  auto &LMA = getAnalysis<LoadModelWrapperPass>().get();
+  GCBI.reset(new GeneratedCodeBasicInfo(*LMA.getReadOnlyModel()));
   GCBI->run(M);
   return false;
 }

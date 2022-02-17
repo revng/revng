@@ -24,8 +24,6 @@ static Register X("promote-csvs", "Promote CSVs Pass", true, true);
 // TODO: switch from CallInst to CallBase
 
 struct CSVsUsageMap {
-  using CSVsUsage = GeneratedCodeBasicInfo::CSVsUsage;
-
   std::map<Function *, CSVsUsage> Functions;
   std::map<CallInst *, CSVsUsage> Calls;
 
@@ -61,7 +59,6 @@ private:
   StructInitializers Initializers;
   OpaqueFunctionsPool<StringRef> CSVInitializers;
   std::map<WrapperKey, Function *> Wrappers;
-  const GeneratedCodeBasicInfo &GCBI;
   std::set<GlobalVariable *> CSVs;
 
 public:
@@ -81,7 +78,7 @@ private:
 };
 
 PromoteCSVs::PromoteCSVs(Module *M, GeneratedCodeBasicInfo &GCBI) :
-  M(M), Initializers(M), CSVInitializers(M, false), GCBI(GCBI) {
+  M(M), Initializers(M), CSVInitializers(M, false) {
 
   CSVInitializers.addFnAttribute(Attribute::ReadOnly);
   CSVInitializers.addFnAttribute(Attribute::NoUnwind);
@@ -453,8 +450,8 @@ CSVsUsageMap PromoteCSVs::getUsedCSVs(ArrayRef<CallInst *> CallsRange) {
   for (CallInst *Call : CallsRange) {
     Function *Callee = getCallee(Call);
     if (FunctionTags::Helper.isTagOf(Callee)) {
-      CSVsUsageMap::CSVsUsage &Usage = Result.Calls[Call];
-      auto UsedCSVs = GCBI.getCSVUsedByHelperCall(Call);
+      CSVsUsage &Usage = Result.Calls[Call];
+      auto UsedCSVs = getCSVUsedByHelperCall(Call);
       Usage.Read = UsedCSVs.Read;
       Usage.Written = UsedCSVs.Written;
     } else {
@@ -559,7 +556,7 @@ void PromoteCSVs::wrapCallsToHelpers(Function *F) {
   auto UsedCSVs = getUsedCSVs(ToWrap);
 
   for (CallInst *Call : ToWrap) {
-    CSVsUsageMap::CSVsUsage &CSVsUsage = UsedCSVs.get(Call);
+    CSVsUsage &CSVsUsage = UsedCSVs.get(Call);
 
     // Sort to ensure compatibility between caller and callee
     CSVsUsage.sort();

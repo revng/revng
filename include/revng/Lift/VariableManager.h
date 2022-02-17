@@ -12,7 +12,6 @@
 #include "llvm/Pass.h"
 
 #include "revng/Support/CommandLine.h"
-#include "revng/Support/revng.h"
 
 #include "CPUStateAccessAnalysisPass.h"
 #include "PTCDump.h"
@@ -38,7 +37,7 @@ extern llvm::cl::opt<bool> External;
 /// created on the fly.
 class VariableManager {
 public:
-  VariableManager(llvm::Module &M, Architecture &TargetArchitecture);
+  VariableManager(llvm::Module &M, bool TargetIsLittleEndian);
 
   void setAllocaInsertPoint(llvm::Instruction *I) {
     AllocaBuilder.SetInsertPoint(I);
@@ -190,5 +189,5 @@ private:
   unsigned EnvOffset;
 
   llvm::GlobalVariable *Env;
-  Architecture &TargetArchitecture;
+  bool TargetIsLittleEndian;
 };

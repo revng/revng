@@ -14,6 +14,7 @@
 #include "llvm/Support/FormattedStream.h"
 
 #include "revng/EarlyFunctionAnalysis/AAWriterPass.h"
+#include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
 

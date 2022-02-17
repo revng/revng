@@ -106,7 +106,8 @@ void EnforceABIImpl::run() {
     revng_assert(OldFunction != nullptr);
     OldFunctions.push_back(OldFunction);
 
-    auto Prototype = abi::FunctionType::Layout::make(FunctionModel.Prototype);
+    using namespace abi::FunctionType;
+    auto Prototype = Layout::make(FunctionModel.prototype(Binary));
     revng_assert(Prototype.verify());
 
     Function *NewFunction = recreateFunction(*OldFunction, Prototype);
@@ -239,13 +240,13 @@ void EnforceABIImpl::createPrologue(Function *NewFunction,
 
   // We sort arguments by their CSV name
   for (const NamedTypedRegister &TR : Prototype.Arguments) {
-    auto Name = ABIRegister::toCSVName(TR.Location);
+    auto Name = model::Register::getCSVName(TR.Location);
     auto *CSV = cast<GlobalVariable>(M.getGlobalVariable(Name, true));
     ArgumentCSVs.push_back(CSV);
   }
 
   for (const TypedRegister &TR : Prototype.ReturnValues) {
-    auto Name = ABIRegister::toCSVName(TR.Location);
+    auto Name = model::Register::getCSVName(TR.Location);
     auto *CSV = cast<GlobalVariable>(M.getGlobalVariable(Name, true));
     ReturnCSVs.push_back(CSV);
   }
@@ -376,14 +377,14 @@ CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   //
   for (const auto &ArgumentLayout : Prototype.Arguments) {
     for (model::Register::Values Register : ArgumentLayout.Registers) {
-      auto Name = ABIRegister::toCSVName(Register);
+      auto Name = model::Register::getCSVName(Register);
       GlobalVariable *CSV = M.getGlobalVariable(Name, true);
       Arguments.push_back(Builder.CreateLoad(CSV));
     }
   }
 
   for (model::Register::Values Register : Prototype.ReturnValue.Registers) {
-    auto Name = ABIRegister::toCSVName(Register);
+    auto Name = model::Register::getCSVName(Register);
     GlobalVariable *CSV = M.getGlobalVariable(Name, true);
     ReturnCSVs.push_back(CSV);
   }

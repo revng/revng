@@ -5,7 +5,6 @@
 //
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
-#include "revng/Support/revng.h"
 
 class CSVAliasAnalysisPass : public llvm::PassInfoMixin<CSVAliasAnalysisPass> {
 

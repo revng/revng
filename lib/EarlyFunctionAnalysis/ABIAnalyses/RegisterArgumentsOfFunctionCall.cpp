@@ -15,7 +15,6 @@
 #include "llvm/Support/Casting.h"
 
 #include "revng/MFP/MFP.h"
-#include "revng/Support/revng.h"
 
 #include "Analyses.h"
 

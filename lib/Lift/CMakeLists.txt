@@ -3,7 +3,6 @@
 #
 
 revng_add_library_internal(revngLift SHARED
-  BinaryFile.cpp
   CodeGenerator.cpp
   CPUStateAccessAnalysisPass.cpp
   CSVOffsets.cpp

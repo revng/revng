@@ -902,6 +902,61 @@ getCallTo(const llvm::Instruction *I, llvm::Function *F) {
     return nullptr;
 }
 
+inline std::vector<llvm::GlobalVariable *>
+extractCSVs(llvm::Instruction *Call, unsigned MDKindID) {
+  using namespace llvm;
+
+  std::vector<GlobalVariable *> Result;
+  auto *Tuple = cast_or_null<MDTuple>(Call->getMetadata(MDKindID));
+  if (Tuple == nullptr)
+    return Result;
+
+  QuickMetadata QMD(getContext(Call));
+
+  auto OperandsRange = QMD.extract<MDTuple *>(Tuple, 1)->operands();
+  for (const MDOperand &Operand : OperandsRange) {
+    auto *CSV = QMD.extract<Constant *>(Operand.get());
+    Result.push_back(cast<GlobalVariable>(CSV));
+  }
+
+  return Result;
+}
+
+class CSVsUsage {
+public:
+  void sort() {
+    std::sort(Read.begin(), Read.end());
+    std::sort(Written.begin(), Written.end());
+  }
+
+public:
+  std::vector<llvm::GlobalVariable *> Read;
+  std::vector<llvm::GlobalVariable *> Written;
+};
+
+inline llvm::Optional<CSVsUsage>
+getCSVUsedByHelperCallIfAvailable(llvm::Instruction *Call) {
+  revng_assert(isCallToHelper(Call));
+
+  const llvm::Module *M = getModule(Call);
+  const auto LoadMDKind = M->getMDKindID("revng.csvaccess.offsets.load");
+  const auto StoreMDKind = M->getMDKindID("revng.csvaccess.offsets.store");
+
+  if (Call->getMetadata(LoadMDKind) == nullptr
+      and Call->getMetadata(StoreMDKind) == nullptr) {
+    return {};
+  }
+
+  CSVsUsage Result;
+  Result.Read = extractCSVs(Call, LoadMDKind);
+  Result.Written = extractCSVs(Call, StoreMDKind);
+  return Result;
+}
+
+inline CSVsUsage getCSVUsedByHelperCall(llvm::Instruction *Call) {
+  return *getCSVUsedByHelperCallIfAvailable(Call);
+}
+
 inline MetaAddress getBasicBlockPC(llvm::BasicBlock *BB) {
   using namespace llvm;
 
