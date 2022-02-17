@@ -13,12 +13,6 @@
 #include "revng/Support/Concepts.h"
 
 //
-// is_integral
-//
-template<typename T>
-concept Integral = std::is_integral_v<T>;
-
-//
 // is_specialization
 //
 template<typename Test, template<typename...> class Ref>
