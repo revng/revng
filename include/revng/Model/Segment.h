@@ -4,7 +4,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/ADT/SortedVector.h"
 #include "revng/Model/Identifier.h"
+#include "revng/Model/Section.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
@@ -30,6 +32,13 @@ fields:
   - name: CustomName
     type: Identifier
     optional: true
+  - name: Sections
+    optional: true
+    sequence:
+      type: SortedVector
+      elementType: model::Section
+    doc: If there's at least one Section, only Sections where
+         ContainsCode == true will be searched for code.
 key:
   - StartAddress
   - EndAddress
