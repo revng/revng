@@ -12,7 +12,9 @@ import jsonschema
 import yaml
 
 argparser = argparse.ArgumentParser()
-argparser.add_argument("delimiter", help="Delimiter marking comments containing YAML to be extracted")
+argparser.add_argument(
+    "delimiter", help="Delimiter marking comments containing YAML to be extracted"
+)
 argparser.add_argument("headers", nargs="+")
 argparser.add_argument("--output", "-o", help="Output path")
 

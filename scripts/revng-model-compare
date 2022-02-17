@@ -25,11 +25,14 @@ args = None
 
 fragile_keys = set(["ID"])
 
+
 def log(message):
     sys.stderr.write(message + "\n")
 
+
 def is_reference(str):
     return str.startswith("/Types/")
+
 
 def dereference(root, str):
     assert is_reference(str)
@@ -43,13 +46,17 @@ def dereference(root, str):
 
     return None
 
+
 class Tag:
     def __init__(self, tag):
         self.tag = tag
+
     def __eq__(self, other):
         return self.tag == other.tag
+
     def __str__(self):
         return f"tag: {self.tag}"
+
 
 class YAMLGraph:
     def __init__(self, root):
@@ -107,9 +114,7 @@ class YAMLGraph:
         references = []
         for key, value in filtered_dict.items():
             value_type = type(value)
-            if (key in fragile_keys
-                or (value_type is list
-                    or value_type is dict)):
+            if key in fragile_keys or (value_type is list or value_type is dict):
                 to_remove.append(key)
 
             if value_type is str and is_reference(value):
@@ -158,7 +163,7 @@ class YAMLGraph:
                 else:
                     extra = ""
                     if object_id in self.node_colors:
-                        extra += f',style=filled'
+                        extra += f",style=filled"
                         extra += f',fillcolor="{self.node_colors[object_id]}"'
                     label = self.escape(self.get_label(object))
                     output_file.write(f"""  n{object_id}""")
@@ -169,8 +174,14 @@ class YAMLGraph:
 
     def color_match(self, other, match):
         colors = [
-            "#ff5f7e", "#4f7d9d", "#8873b3", "#d273b7",
-            "#f672a9", "#fb7f8c", "#ff7c43", "#ffa600"
+            "#ff5f7e",
+            "#4f7d9d",
+            "#8873b3",
+            "#d273b7",
+            "#f672a9",
+            "#fb7f8c",
+            "#ff7c43",
+            "#ffa600",
         ]
 
         for index, (reference_id, input_id) in enumerate(match.items()):
@@ -201,8 +212,7 @@ class YAMLGraph:
                         # The key starts with `-` but it's present in
                         # input_object
                         return False
-                elif (not key in input_object
-                      or input_object[key] != value):
+                elif not key in input_object or input_object[key] != value:
                     # Object entries do not match!
                     return False
 
@@ -219,14 +229,8 @@ class YAMLGraph:
         return self.compare(other, True, color)
 
     def compare(self, other, exact, color):
-        def attr_match(motif_node_id: str,
-                    host_node_id: str,
-                    motif,
-                    host) -> bool:
-            return self.semantic_feasibility(other,
-                                             exact,
-                                             host_node_id,
-                                             motif_node_id)
+        def attr_match(motif_node_id: str, host_node_id: str, motif, host) -> bool:
+            return self.semantic_feasibility(other, exact, host_node_id, motif_node_id)
 
         # Compute (un)interestingness
         interestingness = defaultdict(lambda: 2)
@@ -237,8 +241,9 @@ class YAMLGraph:
             #       much disambiguation power a certain reference node
             #       has based on how many compatible nodes are there in
             #       the input graph, just looking at the semantic.
-            has_customname = (type(self.node_map[node_id]) is dict
-                              and "CustomName" in self.node_map[node_id])
+            has_customname = (
+                type(self.node_map[node_id]) is dict and "CustomName" in self.node_map[node_id]
+            )
             if self.graph.in_degree(node_id) == 0:
                 # No incoming edges, it's the entry node
                 interestingness[node_id] = 1
@@ -258,23 +263,28 @@ class YAMLGraph:
         for node_id in interestingness:
             interestingness[node_id] = interestingness[node_id] / max_value
 
-        result = find_motifs(self.graph,
-                             other.graph,
-                             limit=2,
-                             interestingness=interestingness,
-                             isomorphisms_only=exact,
-                             is_node_attr_match=attr_match)
+        result = find_motifs(
+            self.graph,
+            other.graph,
+            limit=2,
+            interestingness=interestingness,
+            isomorphisms_only=exact,
+            is_node_attr_match=attr_match,
+        )
 
         if result and color:
             self.color_match(other, result[0])
 
         return len(result) > 0
 
+
 def selftest():
     # Test --exact
     args.exact = True
+
     def test(input, reference):
         return YAMLGraph(reference).is_equal(YAMLGraph(input))
+
     assert test({}, {})
     assert test(3, 3)
     assert not test(2, 3)
@@ -284,13 +294,15 @@ def selftest():
     assert test({"a": 2}, {"a": 2})
     assert not test({"a": 2}, {})
     assert not test({"a": 2, "b": 3}, {"b": 2, "a": 3})
-    assert test([1,2,3], [1,2,3])
-    assert not test([1,3,2], [1,2,3])
+    assert test([1, 2, 3], [1, 2, 3])
+    assert not test([1, 3, 2], [1, 2, 3])
 
     # Test approximate for inclusion
     args.exact = False
+
     def test(input, reference):
         return YAMLGraph(reference).is_subgraph(YAMLGraph(input))
+
     assert test({}, {})
     assert not test({}, {"a": 2})
     assert test([3], [3])
@@ -299,32 +311,26 @@ def selftest():
     assert test({"a": 2}, {"a": 2})
     assert test({"a": 2}, {})
     assert test({"a": 2, "b": 3}, {"b": 3, "a": 2})
-    assert test([1,2,3], [1,2,3])
-    assert test([1,3,2], [1,2,3])
+    assert test([1, 2, 3], [1, 2, 3])
+    assert test([1, 3, 2], [1, 2, 3])
 
     # Test references
-    reference = {
-        "a": "/Types/Type-1",
-        "Types": [{"ID": 1, "b": 3}]
-    }
-    assert test({
-                    "a": "/Types/Type-2",
-                    "Types": [{"ID": 1, "b": 5}, {"ID": 2, "b": 3}]
-                },
-                reference)
-    assert not test({
-                        "a": "/Types/Type-2",
-                         "Types": [{"ID": 1, "b": 5}, {"ID": 2, "b": 4}]
-                    }, reference)
+    reference = {"a": "/Types/Type-1", "Types": [{"ID": 1, "b": 3}]}
+    assert test({"a": "/Types/Type-2", "Types": [{"ID": 1, "b": 5}, {"ID": 2, "b": 3}]}, reference)
+    assert not test(
+        {"a": "/Types/Type-2", "Types": [{"ID": 1, "b": 5}, {"ID": 2, "b": 4}]}, reference
+    )
 
     return 0
+
 
 class SafeLoaderIgnoreUnknown(yaml.SafeLoader):
     def ignore_unknown(self, node):
         return self.construct_mapping(node)
 
-SafeLoaderIgnoreUnknown.add_constructor(None,
-                                        SafeLoaderIgnoreUnknown.ignore_unknown)
+
+SafeLoaderIgnoreUnknown.add_constructor(None, SafeLoaderIgnoreUnknown.ignore_unknown)
+
 
 def open_argument(path):
     if path == "-":
@@ -332,28 +338,21 @@ def open_argument(path):
     else:
         return open(path)
 
+
 def main():
-    parser = argparse.ArgumentParser(description="Compare a YAML file against "
-                                     "a reference.")
-    parser.add_argument("input",
-                        metavar="INPUT",
-                        help="The input file.")
-    parser.add_argument("reference",
-                        metavar="REFERENCE",
-                        help="The reference file.")
-    parser.add_argument("--exact",
-                        action="store_true",
-                        help=("Match exactly, containing the reference is not "
-                              + "enough."))
-    parser.add_argument("--not",
-                        action="store_true",
-                        help="If it matches, return an error.")
-    parser.add_argument("--dump-graphs",
-                        action="store_true",
-                        help="Dump INPUT.dot and REFERENCE.dot.")
-    parser.add_argument("--selftest",
-                        action="store_true",
-                        help="Run internal tests.")
+    parser = argparse.ArgumentParser(description="Compare a YAML file against " "a reference.")
+    parser.add_argument("input", metavar="INPUT", help="The input file.")
+    parser.add_argument("reference", metavar="REFERENCE", help="The reference file.")
+    parser.add_argument(
+        "--exact",
+        action="store_true",
+        help=("Match exactly, containing the reference is not " + "enough."),
+    )
+    parser.add_argument("--not", action="store_true", help="If it matches, return an error.")
+    parser.add_argument(
+        "--dump-graphs", action="store_true", help="Dump INPUT.dot and REFERENCE.dot."
+    )
+    parser.add_argument("--selftest", action="store_true", help="Run internal tests.")
 
     global args
     args = parser.parse_args()
@@ -381,6 +380,7 @@ def main():
         result = not result
 
     return 0 if result else 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

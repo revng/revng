@@ -8,36 +8,36 @@ from typing import Iterable, List
 
 
 def file_size(file):
-  file.seek(0, 2)
-  return file.tell()
+    file.seek(0, 2)
+    return file.tell()
 
 
 def set_executable(path):
-  st = os.stat(path)
-  os.chmod(path, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    st = os.stat(path)
+    os.chmod(path, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
 def only(i: Iterable):
-  i = list(i)
-  assert len(i) == 1
-  return i[0]
+    i = list(i)
+    assert len(i) == 1
+    return i[0]
 
 
 def first_or_none(i: Iterable):
-  i = list(i)
-  return i[0] if len(i) != 0 else None
+    i = list(i)
+    return i[0] if len(i) != 0 else None
 
 
 def chunks(list: List, size):
-  for i in range(0, len(list), size):
-    yield list[i:i + size]
+    for i in range(0, len(list), size):
+        yield list[i : i + size]
 
 
 def parse(buffer, struct):
-  struct_size = struct.sizeof()
-  assert len(buffer) % struct_size == 0
-  return list(map(struct.parse, chunks(buffer, struct_size)))
+    struct_size = struct.sizeof()
+    assert len(buffer) % struct_size == 0
+    return list(map(struct.parse, chunks(buffer, struct_size)))
 
 
 def serialize(list, struct):
-  return b"".join(map(struct.build, list))
+    return b"".join(map(struct.build, list))

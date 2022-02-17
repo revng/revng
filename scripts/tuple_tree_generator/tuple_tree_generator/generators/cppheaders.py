@@ -79,7 +79,9 @@ class CppHeadersGenerator:
             assert filename not in definitions
             if isinstance(type_to_emit, StructDefinition):
                 upcastable_types = self.schema.get_upcastable_types(type_to_emit)
-                definition = struct_template.render(struct=type_to_emit, upcastable=upcastable_types, generator=self)
+                definition = struct_template.render(
+                    struct=type_to_emit, upcastable=upcastable_types, generator=self
+                )
             elif isinstance(type_to_emit, EnumDefinition):
                 definition = enum_template.render(enum=type_to_emit)
             else:
@@ -97,7 +99,9 @@ class CppHeadersGenerator:
 
             if isinstance(type_to_emit, StructDefinition):
                 upcastable_types = self.schema.get_upcastable_types(type_to_emit)
-                definition = struct_late_template.render(struct=type_to_emit, upcastable=upcastable_types)
+                definition = struct_late_template.render(
+                    struct=type_to_emit, upcastable=upcastable_types
+                )
             elif isinstance(type_to_emit, EnumDefinition):
                 definition = ""
             else:
@@ -115,7 +119,10 @@ class CppHeadersGenerator:
             if isinstance(type_to_emit, StructDefinition):
                 upcastable_types = self.schema.get_upcastable_types(type_to_emit)
                 definition = struct_impl_template.render(
-                    struct=type_to_emit, upcastable=upcastable_types, generator=self, schema=self.schema
+                    struct=type_to_emit,
+                    upcastable=upcastable_types,
+                    generator=self,
+                    schema=self.schema,
                 )
             elif isinstance(type_to_emit, EnumDefinition):
                 definition = ""

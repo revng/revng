@@ -6,17 +6,22 @@ import json
 import re
 import yaml
 
+
 class SafeLoaderIgnoreUnknown(yaml.SafeLoader):
     def ignore_unknown(self, node):
         return self.construct_mapping(node)
 
+
 SafeLoaderIgnoreUnknown.add_constructor(None, SafeLoaderIgnoreUnknown.ignore_unknown)
 
+
 def is_metaaddress(value):
-    return (isinstance(value, str)
-            and value.startswith("0x")
-            and (":Code_" in value
-                 or ":Generic" in value))
+    return (
+        isinstance(value, str)
+        and value.startswith("0x")
+        and (":Code_" in value or ":Generic" in value)
+    )
+
 
 class MetaAddressRemapper:
     def __init__(self):
@@ -40,17 +45,17 @@ class MetaAddressRemapper:
             self.handle(value)
 
     def apply_replacement(self, value):
-        return (self.replacements[value]
-                if (isinstance(value, str)
-                    and value in self.replacements)
-                else value)
+        return (
+            self.replacements[value]
+            if (isinstance(value, str) and value in self.replacements)
+            else value
+        )
 
     def replace(self, value):
         if isinstance(value, dict):
-            new_values = {self.apply_replacement(k) :
-                          self.apply_replacement(v)
-                          for k, v
-                          in value.items()}
+            new_values = {
+                self.apply_replacement(k): self.apply_replacement(v) for k, v in value.items()
+            }
             value.clear()
             value.update(new_values)
 
@@ -67,17 +72,17 @@ class MetaAddressRemapper:
                 self.replace(v)
 
     def rewrite(self, value):
-        self.replacements = {v: str(i)
-                             for i, v
-                             in enumerate(sorted(self.addresses))}
+        self.replacements = {v: str(i) for i, v in enumerate(sorted(self.addresses))}
         self.replace(value)
 
         return value
+
 
 def remap_metaaddress(model):
     mar = MetaAddressRemapper()
     mar.collect(model)
     return mar.rewrite(model)
+
 
 def fetch_text_model(stream):
     prefix = None
@@ -86,7 +91,7 @@ def fetch_text_model(stream):
     for line in stream:
         match = re.match("!revng.model = !{!([0-9]*)}", line)
         if match:
-            prefix = "!" + match.groups(1)[0] + " = !{!\""
+            prefix = "!" + match.groups(1)[0] + ' = !{!"'
             break
 
     # Early exit if not found
@@ -96,7 +101,7 @@ def fetch_text_model(stream):
     # Look for associated named metadata
     for line in stream:
         if prefix and line.startswith(prefix):
-            text_model = line[len(prefix):-3]
+            text_model = line[len(prefix) : -3]
 
             # Unescape the string
             for escaped in set(re.findall(r"\\[0-9a-fA-F]{2}", text_model)):
@@ -107,8 +112,10 @@ def fetch_text_model(stream):
 
     return None
 
+
 def parse_model(text_model):
     return yaml.load(text_model, Loader=SafeLoaderIgnoreUnknown)
+
 
 def load_model(stream):
     text_model = fetch_text_model(stream)
