@@ -2439,7 +2439,7 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
 
       // Then, inject the actuall add
       auto GEPResultBitWidth = ModelGEPPtr->getType()->getIntegerBitWidth();
-      APInt OffsetToAdd = GEPArgs.RestOff.zextOrSelf(GEPResultBitWidth);
+      APInt OffsetToAdd = GEPArgs.RestOff.zextOrTrunc(GEPResultBitWidth);
       ModelGEPPtr = Builder.CreateAdd(ModelGEPPtr,
                                       ConstantInt::get(Ctxt, OffsetToAdd));
 
