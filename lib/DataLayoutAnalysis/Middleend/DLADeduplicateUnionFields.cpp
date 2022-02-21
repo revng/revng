@@ -403,7 +403,7 @@ bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
     if (not isRoot(Root))
       continue;
 
-    // Visit all Union nodes in post-order
+    llvm::SmallVector<LTSN *, 8> PostOrderFromRoot;
     for (LTSN *UnionNode : post_order(NonPointerFilterT(Root))) {
       if (UnionNode->InterferingInfo != AllChildrenAreInterfering
           or VisitedUnions.contains(UnionNode))
@@ -411,6 +411,16 @@ bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
 
       revng_log(Log, "****** Union Node found: " << UnionNode->ID);
       VisitedUnions.insert(UnionNode);
+      PostOrderFromRoot.push_back(UnionNode);
+    }
+
+    // Visit all Union nodes in post-order. The post-order needs to be cached
+    // because children can be merged during traversal, which would invalidate
+    // iterators in llvm::post_order if we use it vanilla.
+    for (LTSN *UnionNode : PostOrderFromRoot) {
+      revng_log(Log,
+                "****** Try to dedup children of UnionNode with ID: "
+                  << UnionNode->ID);
 
       // Since a node can be connected to the parent union by more than one
       // edge, we keep track of the **nodes** that we have to visit and the
