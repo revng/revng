@@ -54,6 +54,16 @@ FileContainer &FileContainer::operator=(const FileContainer &Other) noexcept {
   return *this;
 }
 
+bool FileContainer::remove(const pipeline::TargetsList &Target) {
+  auto NotFound = llvm::find(Target, getOnlyPossibleTarget()) == Target.end();
+  if (NotFound)
+    return false;
+
+  *this = FileContainer(*K, name(), Suffix);
+
+  return true;
+}
+
 FileContainer &FileContainer::operator=(FileContainer &&Other) noexcept {
   if (this == &Other)
     return *this;
