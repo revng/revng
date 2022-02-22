@@ -39,7 +39,7 @@ bool verify(const SortedVector<RegisterType> &UsedRegisters,
   for (const RegisterType &Register : UsedRegisters) {
     // Verify the architecture of used registers.
     if (model::Register::getArchitecture(Register.Location) != Architecture)
-      return false;
+      revng_abort();
   }
 
   // Verify that every used register is also allowed.
@@ -122,9 +122,12 @@ public:
                       AT::GeneralPurposeReturnValueRegisters))
       return std::nullopt;
 
+    // Verify the architecture of return value location register if present.
     constexpr model::Register::Values PTCRR = AT::ReturnValueLocationRegister;
     if (PTCRR != model::Register::Invalid)
       revng_assert(model::Register::getArchitecture(PTCRR) == Arch);
+
+    // Verify the architecture of callee saved registers.
     for (auto &SavedRegister : AT::CalleeSavedRegisters)
       revng_assert(model::Register::getArchitecture(SavedRegister) == Arch);
 
@@ -132,21 +135,30 @@ public:
     Result.CustomName = Function.CustomName;
     Result.ABI = ABI;
 
+    if (!verifyArgumentsToBeConvertible(Function.Arguments,
+                                        AT::GeneralPurposeArgumentRegisters,
+                                        TheBinary))
+      return std::nullopt;
+
+    using C = AT;
+    if (!verifyReturnValueToBeConvertible(Function.ReturnValues,
+                                          C::GeneralPurposeReturnValueRegisters,
+                                          C::ReturnValueLocationRegister,
+                                          TheBinary))
+      return std::nullopt;
+
     auto ArgumentList = convertArguments(Function.Arguments,
                                          AT::GeneralPurposeArgumentRegisters,
                                          TheBinary);
-    if (ArgumentList == std::nullopt)
-      return std::nullopt;
+    revng_assert(ArgumentList != std::nullopt);
     for (auto &Argument : *ArgumentList)
       Result.Arguments.insert(Argument);
 
-    using C = AT;
     auto ReturnValue = convertReturnValue(Function.ReturnValues,
                                           C::GeneralPurposeReturnValueRegisters,
                                           C::ReturnValueLocationRegister,
                                           TheBinary);
-    if (ReturnValue == std::nullopt)
-      return std::nullopt;
+    revng_assert(ReturnValue != std::nullopt);
     Result.ReturnType = *ReturnValue;
     return Result;
   }
@@ -279,7 +291,7 @@ public:
   }
 
 private:
-  template<typename RegisterType, size_t RegisterCount>
+  template<typename RegisterType, size_t RegisterCount, bool DryRun = false>
   static std::optional<llvm::SmallVector<model::Argument, 8>>
   convertArguments(const SortedVector<RegisterType> &UsedRegisters,
                    const RegisterArray<RegisterCount> &AllowedRegisters,
@@ -294,9 +306,10 @@ private:
       bool IsUsed = UsedRegisters.find(Register) != UsedRegisters.end();
       if (IsUsed) {
         model::Argument Temporary;
-        Temporary.Type = getTypeOrDefault(UsedRegisters.at(Register).Type,
-                                          Register,
-                                          TheBinary);
+        if constexpr (!DryRun)
+          Temporary.Type = getTypeOrDefault(UsedRegisters.at(Register).Type,
+                                            Register,
+                                            TheBinary);
         Temporary.CustomName = UsedRegisters.at(Register).CustomName;
         Result.emplace_back(Temporary);
       } else if (MustUseTheNextOne) {
@@ -314,14 +327,16 @@ private:
               Second.CustomName = "unnamed";
             First.CustomName.append(("+" + Second.CustomName).str());
           }
-          auto NewType = buildDoubleType(AllowedRegisters.at(Index - 2),
-                                         AllowedRegisters.at(Index - 1),
-                                         model::PrimitiveTypeKind::Generic,
-                                         TheBinary);
-          if (NewType == std::nullopt)
-            return std::nullopt;
+          if constexpr (!DryRun) {
+            auto NewType = buildDoubleType(AllowedRegisters.at(Index - 2),
+                                           AllowedRegisters.at(Index - 1),
+                                           model::PrimitiveTypeKind::Generic,
+                                           TheBinary);
+            if (NewType == std::nullopt)
+              return std::nullopt;
 
-          First.Type = *NewType;
+            First.Type = *NewType;
+          }
           Result.pop_back();
         } else {
           return std::nullopt;
@@ -337,7 +352,7 @@ private:
     return Result;
   }
 
-  template<typename RegisterType, size_t RegisterCount>
+  template<typename RegisterType, size_t RegisterCount, bool DryRun = false>
   static std::optional<model::QualifiedType>
   convertReturnValue(const SortedVector<RegisterType> &UsedRegisters,
                      const RegisterArray<RegisterCount> &AllowedRegisters,
@@ -350,16 +365,22 @@ private:
 
     if (UsedRegisters.size() == 1) {
       if (UsedRegisters.begin()->Location == PointerToCopyLocation) {
-        return getTypeOrDefault(UsedRegisters.begin()->Type,
-                                PointerToCopyLocation,
-                                TheBinary);
+        if constexpr (DryRun)
+          return model::QualifiedType{};
+        else
+          return getTypeOrDefault(UsedRegisters.begin()->Type,
+                                  PointerToCopyLocation,
+                                  TheBinary);
       } else {
         if constexpr (RegisterCount == 0)
           return std::nullopt;
         if (AllowedRegisters.front() == UsedRegisters.begin()->Location) {
-          return getTypeOrDefault(UsedRegisters.begin()->Type,
-                                  UsedRegisters.begin()->Location,
-                                  TheBinary);
+          if constexpr (DryRun)
+            return model::QualifiedType{};
+          else
+            return getTypeOrDefault(UsedRegisters.begin()->Type,
+                                    UsedRegisters.begin()->Location,
+                                    TheBinary);
         } else {
           return std::nullopt;
         }
@@ -379,9 +400,10 @@ private:
         if (IsCurrentRegisterUsed) {
           model::StructField CurrentField;
           CurrentField.Offset = ReturnStruct->Size;
-          CurrentField.Type = getTypeOrDefault(UsedIterator->Type,
-                                               UsedIterator->Location,
-                                               TheBinary);
+          if constexpr (!DryRun)
+            CurrentField.Type = getTypeOrDefault(UsedIterator->Type,
+                                                 UsedIterator->Location,
+                                                 TheBinary);
           ReturnStruct->Fields.insert(std::move(CurrentField));
 
           ReturnStruct->Size += model::Register::getSize(Register);
@@ -397,12 +419,33 @@ private:
       }
 
       revng_assert(ReturnStruct->Size != 0 && !ReturnStruct->Fields.empty());
-      auto ReturnStructTypePath = TheBinary.recordNewType(std::move(Result));
-      revng_assert(ReturnStructTypePath.isValid());
-      return model::QualifiedType{ ReturnStructTypePath, {} };
+
+      if constexpr (DryRun) {
+        auto ReturnStructTypePath = TheBinary.recordNewType(std::move(Result));
+        revng_assert(ReturnStructTypePath.isValid());
+        return model::QualifiedType{ ReturnStructTypePath, {} };
+      } else {
+        return model::QualifiedType{};
+      }
     }
 
     return std::nullopt;
+  }
+
+  template<typename RType, size_t RCount>
+  static bool verifyArgumentsToBeConvertible(const SortedVector<RType> &UR,
+                                             const RegisterArray<RCount> &AR,
+                                             model::Binary &B) {
+    return convertArguments<RType, RCount, true>(UR, AR, B).has_value();
+  }
+
+  template<typename RType, size_t RCount>
+  static bool
+  verifyReturnValueToBeConvertible(const SortedVector<RType> &UR,
+                                   const RegisterArray<RCount> &AR,
+                                   const model::Register::Values PtC,
+                                   model::Binary &B) {
+    return convertReturnValue<RType, RCount, true>(UR, AR, PtC, B).has_value();
   }
 
   static DistributedArguments
