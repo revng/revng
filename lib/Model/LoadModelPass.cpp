@@ -26,10 +26,15 @@ using RP = RegisterPass<T>;
 static RP<LoadModelWrapperPass>
   X("load-model", "Deserialize the model", true, true);
 
-TupleTree<model::Binary> loadModel(const llvm::Module &M) {
+bool hasModel(const llvm::Module &M) {
   NamedMDNode *NamedMD = M.getNamedMetadata(ModelMetadataName);
-  revng_check(NamedMD and NamedMD->getNumOperands());
+  return NamedMD and NamedMD->getNumOperands();
+}
 
+TupleTree<model::Binary> loadModel(const llvm::Module &M) {
+  revng_check(hasModel(M));
+
+  NamedMDNode *NamedMD = M.getNamedMetadata(ModelMetadataName);
   auto *Tuple = cast<MDTuple>(NamedMD->getOperand(0));
   revng_check(Tuple->getNumOperands());
 
