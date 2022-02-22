@@ -163,7 +163,7 @@ public:
     return Result;
   }
 
-  static std::optional<model::RawFunctionType>
+  static model::RawFunctionType
   toRaw(const model::CABIFunctionType &Function, model::Binary &TheBinary) {
     auto Arguments = distributeArguments(Function.Arguments);
 
@@ -261,18 +261,14 @@ public:
         }
       } else {
         // Handle a pointer-based return value.
-        if (AT::GeneralPurposeReturnValueRegisters.empty())
-          return std::nullopt;
-
+        revng_assert(!AT::GeneralPurposeReturnValueRegisters.empty());
         auto Register = AT::GeneralPurposeReturnValueRegisters[0];
         auto RegisterSize = model::Register::getSize(Register);
         auto PointerQualifier = model::Qualifier::createPointer(RegisterSize);
 
         auto MaybeReturnValueSize = Function.ReturnType.size();
-        if (MaybeReturnValueSize == std::nullopt)
-          return std::nullopt;
-        if (ReturnValue.Size != *MaybeReturnValueSize)
-          return std::nullopt;
+        revng_assert(MaybeReturnValueSize != std::nullopt);
+        revng_assert(ReturnValue.Size == *MaybeReturnValueSize);
 
         model::QualifiedType ReturnType = Function.ReturnType;
         ReturnType.Qualifiers.emplace_back(PointerQualifier);
@@ -669,9 +665,8 @@ tryConvertToCABI(const model::RawFunctionType &Function,
   });
 }
 
-std::optional<model::RawFunctionType>
-convertToRaw(const model::CABIFunctionType &Function,
-             model::Binary &TheBinary) {
+model::RawFunctionType convertToRaw(const model::CABIFunctionType &Function,
+                                    model::Binary &TheBinary) {
   revng_assert(Function.ABI != model::ABI::Invalid);
   return skippingEnumSwitch<1>(Function.ABI, [&]<model::ABI::Values A>() {
     return ConversionHelper<A>::toRaw(Function, TheBinary);

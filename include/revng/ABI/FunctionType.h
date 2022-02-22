@@ -21,7 +21,7 @@ tryConvertToCABI(const model::RawFunctionType &Function,
 ///
 /// \note: this convertion is loosy since there's no way to represent some types
 /// in `RawFunctionType` in a reversible manner.
-std::optional<model::RawFunctionType>
+model::RawFunctionType
 convertToRaw(const model::CABIFunctionType &Function, model::Binary &TheBinary);
 
 /// Indicates the layout of arguments and return values of a function.
