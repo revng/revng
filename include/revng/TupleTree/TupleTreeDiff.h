@@ -271,9 +271,29 @@ inline void TupleTreeDiff<T>::dump(llvm::raw_ostream &OutputStream) const {
 namespace tupletreediff::detail {
 
 // clang-format off
+
+
 template<typename T>
-concept IterableAndNotStdString
-  = Iterable<T> and not std::is_same_v<std::string, T>;
+concept StringRefConvertible = requires(T A) {
+  llvm::StringRef(A);
+};
+
+template<typename T>
+concept TwineConvertible = requires(T A) {
+  llvm::Twine(A);
+};
+
+template<typename T>
+concept StringLike = requires(T A) {
+  A.str();
+};
+
+template<typename T>
+concept IterableAndNotStdString = Iterable<T> and
+                                  not std::is_same_v<std::string, T> and
+                                  not StringRefConvertible<T> and
+                                  not TwineConvertible<T> and
+                                  not StringLike<T>;
 // clang-format on
 
 template<typename T>
