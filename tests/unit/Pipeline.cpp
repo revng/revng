@@ -27,6 +27,7 @@
 #include "revng/Pipeline/ContainerEnumerator.h"
 #include "revng/Pipeline/ContainerFactorySet.h"
 #include "revng/Pipeline/Context.h"
+#include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/Errors.h"
 #include "revng/Pipeline/GenericLLVMPipe.h"
 #include "revng/Pipeline/Kind.h"
@@ -113,11 +114,11 @@ public:
     return Contained;
   }
 
+  const static Target AllTargets;
+
   TargetsList enumerate() const final {
     TargetsList ToReturn;
 
-    const Target AllTargets({ PathComponent("Root"), PathComponent::all() },
-                            FunctionKind);
     if (contains(AllTargets)) {
       ToReturn.emplace_back(AllTargets);
       return ToReturn;
@@ -130,6 +131,12 @@ public:
   }
 
   bool remove(const TargetsList &Targets) override {
+
+    if (Targets.contains(AllTargets)) {
+      Map.clear();
+      return true;
+    }
+
     bool RemovedAll = true;
     for (const auto &Target : Targets)
       RemovedAll = remove(Target) && RemovedAll;
@@ -174,6 +181,10 @@ private:
       Map.insert(std::move(Pair));
   }
 };
+
+const Target MapContainer::AllTargets = Target({ PathComponent("root"),
+                                                 PathComponent::all() },
+                                               FunctionKind);
 
 char MapContainer::ID;
 
@@ -535,6 +546,25 @@ public:
       PathComponents.emplace_back("f2");
       Target.get({ move(PathComponents), FunctionKind }) = Element.second;
     }
+  }
+};
+
+class CopyPipe {
+
+public:
+  static constexpr auto Name = "CopyPipe";
+  std::vector<ContractGroup> getContract() const {
+    return { ContractGroup(FunctionKind,
+                           KE::Exact,
+                           0,
+                           FunctionKind,
+                           1,
+                           InputPreservation::Preserve) };
+  }
+
+  void run(Context &, const MapContainer &Source, MapContainer &Target) {
+    for (const auto &Element : Source.getMap())
+      Target.get(Element.first) = Element.second;
   }
 };
 
@@ -1186,6 +1216,55 @@ BOOST_AUTO_TEST_CASE(InspectorKindTest) {
 
   Target RootF({ "root", "root" }, InspKindExample);
   BOOST_TEST(Container->enumerate().contains(RootF));
+}
+
+BOOST_AUTO_TEST_CASE(MultiStepInvalidationTest) {
+  Context Ctx;
+  Runner Pipeline(Ctx);
+  auto CName2 = CName + "2";
+  Pipeline.addDefaultConstructibleFactory<MapContainer>(CName);
+  Pipeline.addDefaultConstructibleFactory<MapContainer>(CName2);
+
+  const std::string Name = "first_step";
+  const std::string SecondName = "second_step";
+  Pipeline.emplaceStep("", Name, bindPipe<FineGranerPipe>(CName, CName));
+  Pipeline.emplaceStep(Name, SecondName, bindPipe<CopyPipe>(CName, CName2));
+  Pipeline.emplaceStep(SecondName, "End");
+
+  auto &C1 = Pipeline[Name].containers().getOrCreate<MapContainer>(CName);
+  auto &C1End = Pipeline["End"].containers().getOrCreate<MapContainer>(CName);
+  auto &C2End = Pipeline["End"].containers().getOrCreate<MapContainer>(CName2);
+
+  C1.get({ "Root", RootKind }) = 1;
+
+  const auto T = Target({ PathComponent("root") }, RootKind);
+  C1.get(T) = 1;
+
+  const auto ToProduce = Target({ PathComponent("root"), PathComponent("f1") },
+                                FunctionKind);
+  ContainerToTargetsMap Map;
+  Map[CName2].emplace_back(ToProduce);
+  cantFail(Pipeline.run("End", Map));
+
+  BOOST_TEST(C1.get(T) == 1);
+  BOOST_TEST(C1End.get(T) == 1);
+
+  BOOST_TEST(C2End.get(ToProduce) == 1);
+
+  pipeline::Runner::InvalidationMap Invalidations;
+  Invalidations[Name][CName].push_back(T);
+
+  auto Error = Pipeline.getInvalidations(Invalidations);
+  BOOST_TEST(!Error);
+
+  Error = Pipeline.invalidate(Invalidations);
+
+  BOOST_TEST(!Error);
+
+  BOOST_TEST(C1.get(T) == 0);
+  BOOST_TEST(C1End.get(T) == 0);
+
+  BOOST_TEST(C2End.get(ToProduce) == 0);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
