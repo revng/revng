@@ -40,7 +40,7 @@ public:
 
   pipeline::TargetsList enumerate() const final;
 
-  bool remove(const pipeline::TargetsList &Target) final { revng_abort(); }
+  bool remove(const pipeline::TargetsList &Target) final;
 
   llvm::Error storeToDisk(llvm::StringRef Path) const override;
 
