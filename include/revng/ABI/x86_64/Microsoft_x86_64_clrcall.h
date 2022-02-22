@@ -48,6 +48,8 @@ struct Trait<model::ABI::Microsoft_x86_64_clrcall> {
   };
 
   static constexpr auto ReturnValueLocationRegister = model::Register::Invalid;
+
+  static constexpr bool CalleeIsResponsibleForStackCleanup = false;
 };
 
 } // namespace abi

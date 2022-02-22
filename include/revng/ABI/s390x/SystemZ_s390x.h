@@ -73,6 +73,8 @@ struct Trait<model::ABI::SystemZ_s390x> {
 
   static constexpr auto
     ReturnValueLocationRegister = model::Register::r2_systemz;
+
+  static constexpr bool CalleeIsResponsibleForStackCleanup = false;
 };
 
 } // namespace abi

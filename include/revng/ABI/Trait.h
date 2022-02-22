@@ -223,6 +223,10 @@ concept IsTrait = requires(TraitType<ABI> Trait) {
   { Trait.ReturnValueLocationRegister } ->
     convertible_to<model::Register::Values>;
 
+  /// Specifies who is responsible for cleaning the stack after the function
+  /// call. If equal to `true`, it's the callee, otherwise it the caller.
+  { Trait.CalleeIsResponsibleForStackCleanup } -> convertible_to<bool>;
+
 };
 
 namespace detail {

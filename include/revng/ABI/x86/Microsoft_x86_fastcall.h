@@ -49,6 +49,8 @@ struct Trait<model::ABI::Microsoft_x86_fastcall> {
   };
 
   static constexpr auto ReturnValueLocationRegister = model::Register::eax_x86;
+
+  static constexpr bool CalleeIsResponsibleForStackCleanup = true;
 };
 
 } // namespace abi

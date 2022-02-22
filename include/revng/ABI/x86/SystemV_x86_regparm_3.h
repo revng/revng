@@ -55,6 +55,8 @@ struct Trait<model::ABI::SystemV_x86_regparm_3> {
   };
 
   static constexpr auto ReturnValueLocationRegister = model::Register::eax_x86;
+
+  static constexpr bool CalleeIsResponsibleForStackCleanup = false;
 };
 
 } // namespace abi

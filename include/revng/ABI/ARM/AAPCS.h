@@ -62,6 +62,8 @@ struct Trait<model::ABI::AAPCS> {
   };
 
   static constexpr auto ReturnValueLocationRegister = model::Register::r0_arm;
+
+  static constexpr bool CalleeIsResponsibleForStackCleanup = false;
 };
 
 } // namespace abi

@@ -66,6 +66,8 @@ struct Trait<model::ABI::SystemV_MIPS_o32> {
   };
 
   static constexpr auto ReturnValueLocationRegister = model::Register::v0_mips;
+
+  static constexpr bool CalleeIsResponsibleForStackCleanup = false;
 };
 
 } // namespace abi
