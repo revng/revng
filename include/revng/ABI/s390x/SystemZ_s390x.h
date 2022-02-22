@@ -75,6 +75,8 @@ struct Trait<model::ABI::SystemZ_s390x> {
     ReturnValueLocationRegister = model::Register::r2_systemz;
 
   static constexpr bool CalleeIsResponsibleForStackCleanup = false;
+  static constexpr size_t StackAlignment = 8;
+  static constexpr size_t MinimumStackArgumentSize = 8;
 };
 
 } // namespace abi

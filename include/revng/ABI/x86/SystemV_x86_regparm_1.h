@@ -54,6 +54,8 @@ struct Trait<model::ABI::SystemV_x86_regparm_1> {
   static constexpr auto ReturnValueLocationRegister = model::Register::eax_x86;
 
   static constexpr bool CalleeIsResponsibleForStackCleanup = false;
+  static constexpr size_t StackAlignment = 16;
+  static constexpr size_t MinimumStackArgumentSize = 4;
 };
 
 } // namespace abi

@@ -49,6 +49,8 @@ struct Trait<model::ABI::Pascal_x86> {
   static constexpr auto ReturnValueLocationRegister = model::Register::eax_x86;
 
   static constexpr bool CalleeIsResponsibleForStackCleanup = true;
+  static constexpr size_t StackAlignment = 4;
+  static constexpr size_t MinimumStackArgumentSize = 4;
 };
 
 } // namespace abi

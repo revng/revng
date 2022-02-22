@@ -57,6 +57,8 @@ struct Trait<model::ABI::Microsoft_x86_64_vectorcall> {
     ReturnValueLocationRegister = model::Register::rax_x86_64;
 
   static constexpr bool CalleeIsResponsibleForStackCleanup = false;
+  static constexpr size_t StackAlignment = 16;
+  static constexpr size_t MinimumStackArgumentSize = 8;
 };
 
 } // namespace abi
