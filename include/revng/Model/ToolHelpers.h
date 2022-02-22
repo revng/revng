@@ -166,7 +166,8 @@ public:
       return MaybeModule.takeError();
 
     Result.Module = std::move(*MaybeModule);
-    Result.Model = loadModel(*Result.Module);
+    if (hasModel(*Result.Module))
+      Result.Model = loadModel(*Result.Module);
 
     return Result;
   }
