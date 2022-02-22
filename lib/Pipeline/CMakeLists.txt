@@ -16,6 +16,7 @@ revng_add_library_internal(revngPipeline SHARED
   Registry.cpp
   Step.cpp
   Target.cpp
+  InvalidationEvent.cpp
 )
 
 target_link_libraries(revngPipeline

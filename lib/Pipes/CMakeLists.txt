@@ -16,6 +16,8 @@ revng_add_library_internal(revngPipes
   RootKind.cpp
   TaggedFunctionKind.cpp
   CallGraphCache.cpp
+  ModelInvalidationEvent.cpp
+  ModelInvalidationRule.cpp
 )
 
 llvm_map_components_to_libnames(LLVM_LIBRARIES
