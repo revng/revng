@@ -15,7 +15,8 @@ revng_add_library_internal(
   PipelineManager.cpp
   Pipes.cpp
   RootKind.cpp
-  TaggedFunctionKind.cpp)
+  TaggedFunctionKind.cpp
+  ModelInvalidationEvent.cpp)
 
 llvm_map_components_to_libnames(
   LLVM_LIBRARIES

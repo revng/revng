@@ -17,6 +17,7 @@ class Target;
 class Context;
 class TargetsList;
 class ContainerBase;
+class InvalidationEventBase;
 
 /// A Kind is used to accumunate objects that logically belongs to the same
 /// cathegory.
@@ -68,6 +69,9 @@ public:
   virtual void expandTarget(const Context &Ctx,
                             const Target &Input,
                             TargetsList &Output) const;
+
+  virtual void getInvalidations(pipeline::TargetsList &ToRemove,
+                                const InvalidationEventBase &Event) const {}
 
 public:
   template<Rank *R>
