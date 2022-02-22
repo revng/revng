@@ -87,16 +87,15 @@ void model::convertAllFunctionsToRaw(TupleTree<model::Binary> &Model) {
 
   auto ToConvert = chooseTypes<model::CABIFunctionType>(Model->Types);
   for (model::CABIFunctionType *Old : ToConvert) {
-    if (auto New = abi::FunctionType::tryConvertToRaw(*Old, *Model)) {
-      New->ID = Old->ID;
+    auto Nw = abi::FunctionType::tryConvertToRaw(*Old, *Model);
+    Nw.ID = Old->ID;
 
-      // Add converted type to the model.
-      auto Ptr = model::UpcastableType::make<model::RawFunctionType>(*New);
-      auto NewTypePath = Model->recordNewType(std::move(Ptr));
+    // Add converted type to the model.
+    auto P = model::UpcastableType::make<model::RawFunctionType>(std::move(Nw));
+    auto NewTypePath = Model->recordNewType(std::move(P));
 
-      // Replace all references to the old type with references to the new one.
-      replaceReferences(Old->key(), NewTypePath, Model);
-    }
+    // Replace all references to the old type with references to the new one.
+    replaceReferences(Old->key(), NewTypePath, Model);
   }
 
   if (!Model.verify() || !Model->verify())
