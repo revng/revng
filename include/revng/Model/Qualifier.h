@@ -19,6 +19,9 @@ fields:
     doc: Size in bytes for Pointer, number of elements for Array, 0 otherwise
     type: uint64_t
     optional: true
+key:
+  - Kind
+  - Size
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/Qualifier.h"
