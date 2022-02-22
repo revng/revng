@@ -29,6 +29,7 @@
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -172,6 +173,11 @@ public:
 
 private:
   void mergeBackImpl(ThisType &&Other) final {
+    auto BeforeEnumeration = this->enumerate();
+    auto OtherEnumeration = Other.enumerate();
+
+    BeforeEnumeration.merge(OtherEnumeration);
+
     ThisType &ToMerge = Other;
     auto Composite = std::make_unique<llvm::Module>("llvm-link",
                                                     Module->getContext());
@@ -196,21 +202,25 @@ private:
 
     llvm::Linker TheLinker(*Composite);
 
-    bool Result = TheLinker.linkInModule(std::move(Module),
-                                         llvm::Linker::OverrideFromSrc);
+    bool Failure = TheLinker.linkInModule(std::move(Module),
+                                          llvm::Linker::OverrideFromSrc);
 
-    Result = Result
-             and TheLinker.linkInModule(std::move(ToMerge.Module),
+    Failure = Failure
+              or TheLinker.linkInModule(std::move(ToMerge.Module),
                                         llvm::Linker::OverrideFromSrc);
+
+    revng_assert(not Failure, "Linker failed");
 
     for (auto &Global : Composite->globals()) {
       if (globals.contains(Global.getName().str()))
         Global.setLinkage(llvm::GlobalValue::InternalLinkage);
     }
 
-    revng_assert(!Result, "Linker failed");
     revng_assert(llvm::verifyModule(*Composite, &llvm::dbgs()) == 0);
     Module = std::move(Composite);
+
+    revng_assert(BeforeEnumeration.contains(this->enumerate()));
+    revng_assert(this->enumerate().contains(BeforeEnumeration));
   }
 };
 
