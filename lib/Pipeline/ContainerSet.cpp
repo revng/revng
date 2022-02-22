@@ -47,6 +47,8 @@ Error ContainerSet::remove(const ContainerToTargetsMap &ToRemove) {
     const auto &NamesToRemove = Target.second;
     if (not contains(ContainerName))
       continue;
+    if (NamesToRemove.size() == 0)
+      continue;
     if (auto Ok = at(ContainerName).remove(NamesToRemove); not Ok)
       return make_error<UnknownTargetError>(NamesToRemove, ContainerName);
   }
