@@ -6,9 +6,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-from binascii import hexlify
-from ctypes.util import find_library
-
 try:
     from shutil import which
 except ImportError:
@@ -23,7 +20,7 @@ if prev_pythonpath:
     os.environ["PYTHONPATH"] += ":" + os.environ["PYTHONPATH"]
 
 from revng.cli.translate import register_translate, run_translate
-from revng.cli.support import build_command_with_loads, set_verbose, get_command, run
+from revng.cli.support import build_command_with_loads, set_verbose, get_command, run, log_error
 
 search_prefixes = []
 real_argv0 = os.environ.get("REAL_ARGV0", sys.argv[0])
