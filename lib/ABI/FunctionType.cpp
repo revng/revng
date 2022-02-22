@@ -283,6 +283,28 @@ public:
     for (model::Register::Values Register : AT::CalleeSavedRegisters)
       Result.PreservedRegisters.insert(Register);
 
+    Result.FinalStackOffset = finalStackOffset(Arguments);
+
+    return Result;
+  }
+
+  static uint64_t finalStackOffset(const DistributedArguments &Arguments) {
+    constexpr auto Architecture = model::ABI::getArchitecture(ABI);
+    uint64_t Result = model::Architecture::getCallPushSize(Architecture);
+
+    if constexpr (AT::CalleeIsResponsibleForStackCleanup) {
+      for (auto &Argument : Arguments)
+        Result += Argument.SizeOnStack;
+
+      // TODO: take return values into the account.
+
+      // TODO: take shadow space into the account if relevant.
+
+      static_assert((AT::StackAlignment & (AT::StackAlignment - 1)) == 0);
+      Result += AT::StackAlignment - 1;
+      Result &= ~(AT::StackAlignment - 1);
+    }
+
     return Result;
   }
 
@@ -525,6 +547,18 @@ private:
       ConsideredRegisterCounter = OccupiedRegisterCount;
     }
 
+    if (DA.SizeOnStack != 0) {
+      // Take stack alignment into consideration.
+      if (DA.SizeOnStack < AT::MinimumStackArgumentSize) {
+        DA.SizeOnStack = AT::MinimumStackArgumentSize;
+      } else {
+        constexpr auto MinStackArgumentSize = AT::MinimumStackArgumentSize;
+        static_assert((MinStackArgumentSize & (MinStackArgumentSize - 1)) == 0);
+        DA.SizeOnStack += MinStackArgumentSize - 1;
+        DA.SizeOnStack &= ~(MinStackArgumentSize - 1);
+      }
+    }
+
     return { DA, ConsideredRegisterCounter };
   }
 
@@ -700,7 +734,7 @@ Layout::Layout(const model::CABIFunctionType &Function) :
     Result.CalleeSavedRegisters.resize(AT::CalleeSavedRegisters.size());
     llvm::copy(AT::CalleeSavedRegisters, Result.CalleeSavedRegisters.begin());
 
-    Result.FinalStackOffset = 0; // TODO: calculate this offset properly.
+    Result.FinalStackOffset = ConversionHelper<A>::finalStackOffset(Args);
 
     return Result;
   })) {
