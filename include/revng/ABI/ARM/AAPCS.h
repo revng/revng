@@ -64,6 +64,8 @@ struct Trait<model::ABI::AAPCS> {
   static constexpr auto ReturnValueLocationRegister = model::Register::r0_arm;
 
   static constexpr bool CalleeIsResponsibleForStackCleanup = false;
+  static constexpr size_t StackAlignment = 4;
+  static constexpr size_t MinimumStackArgumentSize = 4;
 };
 
 } // namespace abi
