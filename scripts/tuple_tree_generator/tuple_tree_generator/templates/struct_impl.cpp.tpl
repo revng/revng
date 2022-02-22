@@ -31,7 +31,6 @@ UpcastablePointer</*= struct.user_fullname =*/>
 KeyedObjectTraits<UpcastablePointer</*= struct.user_fullname =*/>>::fromKey(
   const Key &K)
 {
-  using namespace model;
   using ResultType = UpcastablePointer</*= struct.user_fullname =*/>;
   /**- for child_type in upcastable|sort(attribute="user_fullname") **/
   if (/*= child_type.user_fullname =*/::classof(K)) {
