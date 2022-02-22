@@ -294,7 +294,42 @@ PipelineManager::store(llvm::ArrayRef<std::string> StoresOverrides) {
 }
 
 llvm::Error
-PipelineManager::printAllPossibleTargets(llvm::raw_ostream &Stream) {
+PipelineManager::invalidateAllPossibleTargets(llvm::raw_ostream &Stream) {
+  recalculateAllPossibleTargets();
+
+  for (const auto &Step : CurrentState) {
+    for (const auto &Container : Step.second) {
+      for (const auto &Target : Container.second) {
+        if (not getRunner()[Step.first()]
+                  .containers()[Container.first()]
+                  .enumerate()
+                  .contains(Target))
+          continue;
+
+        Stream << "Invalidating: ";
+        Stream << Step.first() << "/" << Container.first() << "/";
+        Target.dump(Stream);
+        Runner::InvalidationMap Map;
+        Map[Step.first()][Container.first()].push_back(Target);
+        if (auto Error = Runner->getInvalidations(Map); Error)
+          return Error;
+        if (auto Error = Runner->invalidate(Map); Error)
+          return Error;
+
+        for (const auto &First : Map)
+          for (const auto &Second : First.second) {
+            Stream << "\t" << First.first() << " " << Second.first() << " ";
+            Target.dump(Stream);
+          }
+      }
+    }
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error
+PipelineManager::produceAllPossibleTargets(llvm::raw_ostream &Stream) {
   recalculateAllPossibleTargets();
 
   for (const auto &Step : CurrentState) {
@@ -304,6 +339,7 @@ PipelineManager::printAllPossibleTargets(llvm::raw_ostream &Stream) {
         ToProduce.add(Container.first(), Target);
         Stream << Step.first() << "/" << Container.first() << "/";
         Target.dump(Stream);
+
         if (auto Error = Runner->run(Step.first(), ToProduce, &Stream); Error)
           return Error;
       }

@@ -59,6 +59,13 @@ static opt<bool> ProduceAllPossibleTargets("produce-all",
                                            cat(PipelineCategory),
                                            init(false));
 
+static opt<bool> InvalidateAll("invalidate-all",
+                               desc("Try invalidating all possible "
+                                    "targets after producing them. Used for "
+                                    "debug porpuses"),
+                               cat(PipelineCategory),
+                               init(false));
+
 static opt<bool> DumpPipeline("d",
                               desc("Dump built pipeline and dont run"),
                               cat(PipelineCategory));
@@ -69,6 +76,16 @@ static opt<bool> Silence("silent",
                          init(false));
 
 static alias SilenceAlias1("s",
+                           desc("Alias for --silent"),
+                           aliasopt(Silence),
+                           cat(PipelineCategory));
+
+static alias SilenceAlias2("quiet",
+                           desc("Alias for --silent"),
+                           aliasopt(Silence),
+                           cat(PipelineCategory));
+
+static alias SilenceAlias3("q",
                            desc("Alias for --silent"),
                            aliasopt(Silence),
                            cat(PipelineCategory));
@@ -160,9 +177,13 @@ int main(int argc, const char *argv[]) {
     return EXIT_SUCCESS;
   }
   if (ProduceAllPossibleTargets)
-    AbortOnError(Manager.printAllPossibleTargets(llvm::dbgs()));
+    AbortOnError(Manager.produceAllPossibleTargets(llvm::dbgs()));
   else
     runPipeline(Manager.getRunner());
+
+  if (InvalidateAll)
+    AbortOnError(Manager.invalidateAllPossibleTargets(llvm::dbgs()));
+
   AbortOnError(Manager.store(StoresOverrides));
   AbortOnError(Manager.storeToDisk());
 
