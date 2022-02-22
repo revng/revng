@@ -17,8 +17,11 @@
 #include "revng/Pipeline/Runner.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/PipelineC/PipelineC.h"
+#include "revng/Pipes/ModelGlobal.h"
+#include "revng/Pipes/ModelInvalidationEvent.h"
 #include "revng/Pipes/PipelineManager.h"
 #include "revng/Support/Assert.h"
+#include "revng/TupleTree/TupleTreeDiff.h"
 
 using namespace pipeline;
 using namespace revng::pipes;
@@ -375,4 +378,12 @@ rp_target_create_from_string(rp_manager *manager, const char *string) {
 
   llvm::consumeError(MaybeTarget.takeError());
   return nullptr;
+}
+
+void rp_apply_model_diff(rp_manager *manager, const rp_model_diff *diff) {
+  ModelInvalidationEvent Event(*diff);
+  llvm::cantFail(Event.run(manager->getRunner()));
+
+  model::Binary &Model(*getWritableModelFromContext(manager->context()));
+  diff->apply(Model);
 }

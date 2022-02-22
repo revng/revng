@@ -12,6 +12,7 @@
 #include "revng/Pipeline/Step.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/PipelineManager.h"
+#include "revng/TupleTree/TupleTreeDiff.h"
 #else
 #include <stdbool.h>
 #include <stddef.h>
@@ -58,6 +59,12 @@ typedef struct rp_target rp_target;
 typedef const pipeline::TargetsList rp_targets_list;
 #else
 typedef struct rp_targets_list rp_targets_list;
+#endif
+
+#ifdef __cplusplus
+typedef const TupleTreeDiff<model::Binary> rp_model_diff;
+#else
+typedef struct rp_model_diff rp_model_diff;
 #endif
 
 #ifdef __cplusplus
@@ -148,6 +155,14 @@ void rp_manager_destroy(rp_manager *manager);
  * \return the number of containers registered in this pipeline.
  */
 uint64_t rp_manager_containers_count(rp_manager *manager);
+
+/**
+ * Applies the diff to the model and triggers a ModelInvalidationEvent
+ *
+ * \param manager cannot be null.
+ * \param diff cannot be null.
+ */
+void rp_apply_model_diff(rp_manager *manager, const rp_model_diff *diff);
 
 /**
  * \param index must be less than rp_manager_containers_count(manager).
