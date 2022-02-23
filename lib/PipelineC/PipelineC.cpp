@@ -30,8 +30,8 @@ static bool loadLibraryPermanently(const char *LibraryPath) {
   revng_check(LibraryPath != nullptr);
 
   std::string Msg;
-  return not llvm::sys::DynamicLibrary::LoadLibraryPermanently(LibraryPath,
-                                                               &Msg);
+  return llvm::sys::DynamicLibrary::LoadLibraryPermanently(LibraryPath,
+                                                           &Msg);
 }
 
 bool rp_initialize(int argc,
