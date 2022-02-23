@@ -324,6 +324,8 @@ public:
   bool verifyLeafs() const;
   // Checks that there are no equality edges.
   bool verifyNoEquality() const;
+  // Checks that there are no equality edges.
+  bool verifyInstanceAtOffset0DAG() const;
   // Checks that no union node has only one child
   bool verifyUnions() const;
   // Checks that no node conflicting edges.
@@ -557,12 +559,17 @@ isInstanceEdge(const llvm::GraphTraits<LayoutTypeSystemNode *>::EdgeRef &E) {
 }
 
 inline bool
-isInstanceOff0Edge(llvm::GraphTraits<LayoutTypeSystemNode *>::EdgeRef &E) {
+isInstanceOff0(const llvm::GraphTraits<LayoutTypeSystemNode *>::EdgeRef &E) {
   if (not isInstanceEdge(E))
     return false;
 
   auto &OE = E.second->getOffsetExpr();
   return OE.Offset == 0 and OE.Strides.empty() and OE.TripCounts.empty();
+}
+
+inline bool
+isInstanceOffNon0(const llvm::GraphTraits<LayoutTypeSystemNode *>::EdgeRef &E) {
+  return isInstanceEdge(E) and not isInstanceOff0(E);
 }
 
 inline bool

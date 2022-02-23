@@ -615,6 +615,33 @@ bool LayoutTypeSystem::verifyNoEquality() const {
   return true;
 }
 
+bool LayoutTypeSystem::verifyInstanceAtOffset0DAG() const {
+  if (not verifyConsistency())
+    return false;
+
+  std::set<const LayoutTypeSystemNode *> Visited;
+  for (const auto &Node : llvm::nodes(this)) {
+    revng_assert(Node != nullptr);
+    if (Visited.count(Node))
+      continue;
+
+    using GraphNodeT = const LayoutTypeSystemNode *;
+    using InstanceNodeT = EdgeFilteredGraph<GraphNodeT, isInstanceOff0>;
+    auto I = scc_begin(InstanceNodeT(Node));
+    auto E = scc_end(InstanceNodeT(Node));
+    for (; I != E; ++I) {
+      Visited.insert(I->begin(), I->end());
+      if (I.hasCycle()) {
+        if (VerifyDLALog.isEnabled())
+          revng_check(false);
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 bool LayoutTypeSystem::verifyLeafs() const {
   for (const auto &Node : llvm::nodes(this)) {
     if (isLeaf(Node) and Node->Size == 0) {
@@ -665,7 +692,7 @@ bool LayoutTypeSystem::verifyConflicts() const {
     for (auto &Succ : Node->Successors) {
 
       auto HasSameSuccAtOffset0 = [&Succ](const LinkT &L2) {
-        return isInstanceOff0Edge(L2) and (Succ.first == L2.first);
+        return isInstanceOff0(L2) and (Succ.first == L2.first);
       };
 
       if (isInheritanceEdge(Succ)

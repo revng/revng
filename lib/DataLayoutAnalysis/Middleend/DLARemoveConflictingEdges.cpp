@@ -36,12 +36,12 @@ bool RemoveConflictingEdges::removeConflicts(LayoutTypeSystem &TS,
   auto It = Node->Successors.begin();
   while (It != Node->Successors.end()) {
     auto &L = *It;
-    if (isInstanceOff0Edge(L) and InhNodes.contains(L.first)) {
+    if (isInstanceOff0(L) and InhNodes.contains(L.first)) {
       // Remove from successor's predecessors
       size_t NFound = std::erase_if(L.first->Predecessors,
                                     [Node](const Link &Pred) {
                                       return Pred.first->ID == Node->ID
-                                             and isInstanceOff0Edge(Pred);
+                                             and isInstanceOff0(Pred);
                                     });
       revng_assert(NFound > 0);
 
