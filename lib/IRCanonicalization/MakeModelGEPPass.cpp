@@ -231,9 +231,9 @@ static const model::Type *getCalleePrototype(const model::BasicBlock &ModelBB,
   return FType;
 }
 
-using ValueModelTypesMap = std::map<Value *, model::QualifiedType>;
+using ValueModelTypesMap = std::map<const Value *, const model::QualifiedType>;
 
-ValueModelTypesMap initializeModelTypes(llvm::Function &F,
+ValueModelTypesMap initializeModelTypes(const llvm::Function &F,
                                         const model::Function &ModelF,
                                         const model::Binary &Model) {
   ValueModelTypesMap Result;
@@ -264,7 +264,7 @@ ValueModelTypesMap initializeModelTypes(llvm::Function &F,
       revng_log(ModelGEPLog, "model::QualifiedType: " << ModelArg.Type);
       if (isPointer(ModelArg.Type)) {
         revng_log(ModelGEPLog, "INITIALIZED");
-        Result[&LLVMArg] = ModelArg.Type;
+        Result.insert({ &LLVMArg, ModelArg.Type });
       }
     }
   } else if (const auto *CFT = dyn_cast<model::CABIFunctionType>(FType)) {
@@ -281,7 +281,7 @@ ValueModelTypesMap initializeModelTypes(llvm::Function &F,
       revng_log(ModelGEPLog, "model::QualifiedType: " << ModelArg.Type);
       if (isPointer(ModelArg.Type)) {
         revng_log(ModelGEPLog, "INITIALIZED");
-        Result[&LLVMArg] = ModelArg.Type;
+        Result.insert({ &LLVMArg, ModelArg.Type });
       }
     }
   } else {
@@ -315,14 +315,14 @@ ValueModelTypesMap initializeModelTypes(llvm::Function &F,
             revng_log(ModelGEPLog, "Call: " << dumpToString(Call));
             revng_log(ModelGEPLog, "model::QualifiedType: " << FStackType);
             revng_log(ModelGEPLog, "INITIALIZED");
-            Result[Call] = std::move(FStackType);
+            Result.insert({ Call, std::move(FStackType) });
           }
 
           continue;
 
         } else if (Callee->getName() == "revng_call_stack_arguments") {
 
-          for (Use &StackArgsUse : Call->uses()) {
+          for (const Use &StackArgsUse : Call->uses()) {
             auto *CallUsingArgs = dyn_cast<CallInst>(StackArgsUse.getUser());
             if (CallUsingArgs) {
               // The stack argument should be the last
@@ -339,7 +339,7 @@ ValueModelTypesMap initializeModelTypes(llvm::Function &F,
               model::QualifiedType
                 CalleeStackType(CalleeRFT->StackArgumentsType,
                                 { model::Qualifier::createPointer(8) });
-              Result[Call] = std::move(CalleeStackType);
+              Result.insert({ Call, std::move(CalleeStackType) });
             }
           }
           continue;
@@ -385,7 +385,7 @@ ValueModelTypesMap initializeModelTypes(llvm::Function &F,
             auto _ = LoggerIndent(ModelGEPLog);
             revng_log(ModelGEPLog, "llvm::CallInst: " << dumpToString(Call));
             revng_log(ModelGEPLog, "model::QualifiedType: " << ModT);
-            Result[Call] = ModT;
+            Result.insert({ Call, ModT });
           }
 
         } else {
@@ -413,7 +413,7 @@ ValueModelTypesMap initializeModelTypes(llvm::Function &F,
                 revng_log(ModelGEPLog,
                           "llvm::ExtractValueInst: " << dumpToString(V));
                 revng_log(ModelGEPLog, "model::QualifiedType: " << ModT);
-                Result[V] = ModT;
+                Result.insert({ V, ModT });
               }
             }
           }
@@ -2314,7 +2314,7 @@ makeGEPReplacements(llvm::Function &F, const model::Binary &Model) {
           if (GEPTypeOrNone.has_value()) {
             model::QualifiedType &GEPType = GEPTypeOrNone.value();
             if (isPointer(GEPType))
-              PointerTypes[Load] = GEPType;
+              PointerTypes.insert({ Load, GEPType });
           }
         }
 
