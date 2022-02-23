@@ -298,7 +298,7 @@ uint64_t rp_target_path_components_count(rp_target *target) {
 }
 const char *rp_target_get_path_component(rp_target *target, uint64_t index) {
   revng_check(target != nullptr);
-  auto PathComponents = target->getPathComponents();
+  auto &PathComponents = target->getPathComponents();
   revng_check(index < PathComponents.size());
 
   if (PathComponents[index].isAll())
