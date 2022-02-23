@@ -394,8 +394,10 @@ void LayoutTypeSystem::moveEdges(LayoutTypeSystemNode *OldSrc,
       switch (EdgeTag->getKind()) {
 
       case TypeLinkTag::LK_Inheritance: {
-        revng_assert(OffsetToSum > 0LL);
-        addInstanceLink(NewSrc, Tgt, OffsetExpression(OffsetToSum));
+        if (OffsetToSum > 0LL)
+          addInstanceLink(NewSrc, Tgt, OffsetExpression(OffsetToSum));
+        else
+          addInheritanceLink(NewSrc, Tgt);
       } break;
 
       case TypeLinkTag::LK_Instance: {
