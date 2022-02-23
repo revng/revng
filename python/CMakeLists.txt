@@ -51,12 +51,13 @@ set(SCRIPTS
 )
 foreach(SCRIPT ${SCRIPTS})
   get_filename_component(SCRIPT_FILENAME "${SCRIPT}" NAME)
-  configure_file("${SCRIPT}" "${CMAKE_BINARY_DIR}/bin/${SCRIPT_FILENAME}" COPYONLY)
+  # revng script needs configure_file *without* COPYONLY
+  configure_file("${SCRIPT}" "${CMAKE_BINARY_DIR}/bin/${SCRIPT_FILENAME}")
+  install(
+    PROGRAMS "${CMAKE_BINARY_DIR}/bin/${SCRIPT_FILENAME}"
+    TYPE BIN
+  )
 endforeach()
-install(
-  PROGRAMS ${SCRIPTS}
-  TYPE BIN
-)
 
 #
 # Generate Python classes from JSON schema
