@@ -33,8 +33,14 @@ macro(revng_add_library NAME TYPE EXPORT_NAME)
   endif()
 
   make_directory("${CMAKE_BINARY_DIR}/lib/")
-  add_custom_command(TARGET "${NAME}" POST_BUILD VERBATIM
-    COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${NAME}>" "${CMAKE_BINARY_DIR}/lib/$<TARGET_FILE_NAME:${NAME}>")
+  set(TARGET_PATH "${CMAKE_BINARY_DIR}/lib/${CMAKE_SHARED_LIBRARY_PREFIX}${NAME}${CMAKE_SHARED_LIBRARY_SUFFIX}")
+  add_custom_command(
+    TARGET "${NAME}"
+    POST_BUILD
+    VERBATIM
+    COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${NAME}>" "${TARGET_PATH}"
+    BYPRODUCTS "${TARGET_PATH}"
+  )
 
   install(TARGETS "${NAME}"
     EXPORT "${EXPORT_NAME}"
@@ -56,8 +62,14 @@ macro(revng_add_analyses_library NAME EXPORT_NAME)
   endif()
 
   make_directory("${CMAKE_BINARY_DIR}/lib/revng/analyses/")
-  add_custom_command(TARGET "${NAME}" POST_BUILD VERBATIM
-    COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${NAME}>" "${CMAKE_BINARY_DIR}/lib/revng/analyses/$<TARGET_FILE_NAME:${NAME}>")
+  set(TARGET_PATH "${CMAKE_BINARY_DIR}/lib/revng/analyses/${CMAKE_SHARED_LIBRARY_PREFIX}${NAME}${CMAKE_SHARED_LIBRARY_SUFFIX}")
+  add_custom_command(
+    TARGET "${NAME}"
+    POST_BUILD
+    VERBATIM
+    COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${NAME}>" "${TARGET_PATH}"
+    BYPRODUCTS "${TARGET_PATH}"
+  )
 
   install(TARGETS "${NAME}" EXPORT "${EXPORT_NAME}" LIBRARY DESTINATION lib/revng/analyses)
 
@@ -73,8 +85,14 @@ macro(revng_add_private_executable NAME)
   endif()
 
   make_directory("${CMAKE_BINARY_DIR}/bin/")
-  add_custom_command(TARGET "${NAME}" POST_BUILD VERBATIM
-    COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${NAME}>" "${CMAKE_BINARY_DIR}/bin/$<TARGET_FILE_NAME:${NAME}>")
+  set(TARGET_PATH "${CMAKE_BINARY_DIR}/bin/${NAME}${CMAKE_EXECUTABLE_SUFFIX}")
+  add_custom_command(
+    TARGET "${NAME}"
+    POST_BUILD
+    VERBATIM
+    COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${NAME}>" "${TARGET_PATH}"
+    BYPRODUCTS "${TARGET_PATH}"
+  )
 
 endmacro()
 
