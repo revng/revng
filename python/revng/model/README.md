@@ -9,15 +9,14 @@ import yaml
 from revng import model as m
 
 with open("/path/to/model.yaml") as f:
-    serialized_model = yaml.load(f)
-
-model = m.Binary.parse_obj(serialized_model)
+    model = yaml.load(f, Loader=m.YamlLoader)
 ```
 
 If you need to access a specific version of the model you can import it like so:
 
 ```python
+import yaml
 from revng.model import v1
 
-v1.Binary.parse_obj(...)
+yaml.load(..., Loader=v1.YamlLoader)
 ```
