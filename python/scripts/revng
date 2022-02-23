@@ -17,7 +17,7 @@ sys.path.insert(0, python_libs_dir)
 prev_pythonpath = os.environ.get("PYTHONPATH")
 os.environ["PYTHONPATH"] = python_libs_dir
 if prev_pythonpath:
-    os.environ["PYTHONPATH"] += ":" + os.environ["PYTHONPATH"]
+    os.environ["PYTHONPATH"] += ":" + prev_pythonpath
 
 from revng.cli.translate import register_translate, run_translate
 from revng.cli.support import build_command_with_loads, set_verbose, get_command, run, log_error
