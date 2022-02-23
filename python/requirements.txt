@@ -9,3 +9,6 @@ pydantic
 
 # revng.model dependencies
 datamodel-code-generator
+
+# revng-model-compare
+grandiso
