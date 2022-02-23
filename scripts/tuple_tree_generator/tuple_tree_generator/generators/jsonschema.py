@@ -26,10 +26,6 @@ class JSONSchemaGenerator:
         self.string_types = string_types or []
         self.separate_string_types = separate_string_types or []
 
-    def emit(self) -> Dict[str, str]:
-        sources = {"jsonschema.yml": self.emit_jsonschema()}
-        return sources
-
     def emit_jsonschema(self) -> str:
         """Returns the JSON schema as a string"""
         jsonschema = {
