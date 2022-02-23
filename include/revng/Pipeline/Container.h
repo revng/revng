@@ -69,7 +69,7 @@ public:
   /// path that contains the serialized version of this object.
   virtual llvm::Error storeToDisk(llvm::StringRef Path) const;
 
-  /// The implementation must esure that the content of this file will be
+  /// The implementation must ensure that the content of this file will be
   /// loaded from the provided path.
   virtual llvm::Error loadFromDisk(llvm::StringRef Path);
 
