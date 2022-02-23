@@ -87,6 +87,12 @@ bool rp_initialize(int argc,
                    const char *libraries_path[]);
 
 /**
+ * Returns 1 if rp_initialize was already called successfully.
+ */
+bool rp_is_initialized();
+
+
+/**
  * Free a string return by a rp_*_create_* method.
  */
 void rp_string_destroy(char *string);
