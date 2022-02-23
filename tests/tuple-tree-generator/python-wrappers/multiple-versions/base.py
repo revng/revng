@@ -8,3 +8,4 @@ MonkeyPatchingBaseClass = get_monkey_patching_base_class(
 )
 YamlLoader = MonkeyPatchingBaseClass.YamlLoader
 YamlDumper = MonkeyPatchingBaseClass.YamlDumper
+YamlLoader.add_path_resolver("!RootType", [])

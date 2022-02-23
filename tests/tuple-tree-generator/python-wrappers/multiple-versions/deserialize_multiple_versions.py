@@ -22,8 +22,11 @@ def test_deserialize_multiple_versions():
     """
     with open("v1.yml") as f:
         v1_serialized = yaml.load(f, Loader=YamlLoaderV1)
+        print(f"Type: {type(v1_serialized)}")
+        assert type(v1_serialized) is RootV1
     with open("v2.yml") as f:
         v2_serialized = yaml.load(f, Loader=YamlLoaderV2)
+        assert type(v2_serialized) is RootV2
 
     RootV1.parse_obj(v1_serialized)
     RootV2.parse_obj(v2_serialized)
@@ -35,22 +38,21 @@ def test_deserialize_multiple_versions():
 
 def test_tagged_deserialize_multiple_versions():
     """Tests that the custom YAML loaders can be used to deserialize multiple conflicting versions at the same time.
-    Differing from test_deserialize_multiple_versions, this test uses tagged documents, which means that they should be
-    deserialized directly as pydantic types by yaml.load, but also still be "reparsable" by using parse_obj.
+    Differing from test_deserialize_multiple_versions, this test uses tagged documents to test that the default path
+    resolver installed in the `YamlLoader`s does not cause issues.
     Also tests that deserializing using an invalid version fails.
     """
     with open("v1_tagged.yml") as f:
         v1_serialized = yaml.load(f, Loader=YamlLoaderV1)
+        assert type(v1_serialized) is RootV1
     with open("v2_tagged.yml") as f:
         v2_serialized = yaml.load(f, Loader=YamlLoaderV2)
+        assert type(v2_serialized) is RootV2
 
-    assert type(v1_serialized) is RootV1
-    assert type(v2_serialized) is RootV2
-
-    RootV1.parse_obj(v1_serialized)
-    RootV2.parse_obj(v2_serialized)
-    assert_parsing_fails(v1_serialized, RootV2)
-    assert_parsing_fails(v2_serialized, RootV1)
+    with open("v1_tagged.yml") as f:
+        assert_parsing_fails(f, YamlLoaderV2)
+    with open("v2_tagged.yml") as f:
+        assert_parsing_fails(f, YamlLoaderV1)
 
     print("test_tagged_deserialize_multiple_versions: OK")
 
