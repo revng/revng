@@ -8,3 +8,6 @@ graphlib-backport
 # Requirements for monotone-framework
 networkx
 pydot
+
+# Formatting
+black

@@ -140,6 +140,16 @@ function run_clang_format() {
     fi
 }
 
+# Run black
+function run_black() {
+    PYTHON_FILES="$( ( git grep -l '^#!.*python' && git ls-files | grep '\.py$' ) | sort -u )"
+    if test "$FORCE_FORMAT" -gt 0; then
+        black -q -l 100 $PYTHON_FILES
+    else
+        black --check -l 100 $PYTHON_FILES | grep 'Oh no'
+    fi
+}
+
 # Run revng-specific checks on files
 function run_revng_checks() {
     # Check for lines longer than 80 columns
@@ -208,6 +218,6 @@ function run_revng_checks() {
 
 }
 
-if test $( ( run_clang_format && run_revng_checks | sort -u ) |& tee /dev/stderr | wc -c ) -ne 0; then
+if test $( ( run_clang_format && run_black && run_revng_checks | sort -u ) |& tee /dev/stderr | wc -c ) -ne 0; then
     exit 1
 fi
