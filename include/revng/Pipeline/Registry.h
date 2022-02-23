@@ -31,10 +31,7 @@ public:
   virtual ~Registry() = default;
 
 private:
-  static llvm::SmallVector<Registry *, 4> &getInstances() {
-    static llvm::SmallVector<Registry *, 4> Instances;
-    return Instances;
-  }
+  static llvm::SmallVector<Registry *, 4> &getInstances();
 
 public:
   static void registerAllContainersAndPipes(Loader &Loader) {

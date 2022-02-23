@@ -9,12 +9,18 @@
 #include "llvm/Support/Error.h"
 
 #include "revng/Pipeline/Errors.h"
+#include "revng/Pipeline/Registry.h"
 #include "revng/Pipeline/Runner.h"
 #include "revng/Pipeline/Target.h"
 
 using namespace std;
 using namespace llvm;
 using namespace pipeline;
+
+llvm::SmallVector<Registry *, 4> &Registry::getInstances() {
+  static llvm::SmallVector<Registry *, 4> Instances;
+  return Instances;
+}
 
 class PipelineExecutionEntry {
 public:
