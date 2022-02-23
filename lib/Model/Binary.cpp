@@ -16,6 +16,8 @@
 
 using namespace llvm;
 
+Logger<> ModelVerifyLogger("model-verify");
+
 namespace model {
 
 struct FunctionCFGNodeData {
