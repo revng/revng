@@ -41,34 +41,29 @@ set(MODEL_HEADERS
 )
 
 # Generate C++ headers from the collected YAML
-set(OUTPUT_DIR "${CMAKE_BINARY_DIR}/include/revng/Model/Generated")
-tuple_tree_generator_cpp_from_headers(
+set(HEADERS_DIR "${CMAKE_BINARY_DIR}/include/revng/Model/Generated")
+set(SCHEMA_PATH "${CMAKE_BINARY_DIR}/model-schema.yml")
+set(JSONSCHEMA_PATH "${CMAKE_BINARY_DIR}/model-jsonschema.yml")
+tuple_tree_generator(
   generate-model-tuple-tree-code
   "${MODEL_HEADERS}"
   TUPLE-TREE-YAML
   model
-  "${OUTPUT_DIR}"
+  "${SCHEMA_PATH}"
+  "${HEADERS_DIR}"
   "revng/Model"
   GENERATED_HEADERS
   GENERATED_IMPLS
-)
-
-install(
-    DIRECTORY ${OUTPUT_DIR}
-    DESTINATION include/revng/Model
-)
-
-set(MODEL_JSONSCHEMA_PATH "${CMAKE_BINARY_DIR}/jsonschema.yml")
-tuple_tree_generator_jsonschema_from_headers(
-  "${MODEL_HEADERS}"
-  TUPLE-TREE-YAML
-  model
+  "${JSONSCHEMA_PATH}"
   Binary
   "Identifier"
   "MetaAddress"
-  "${MODEL_JSONSCHEMA_PATH}"
 )
-add_custom_target(generated-model-jsonschema DEPENDS "${MODEL_JSONSCHEMA_PATH}")
+
+install(
+    DIRECTORY ${HEADERS_DIR}
+    DESTINATION include/revng/Model
+)
 
 # Define revngModel library
 revng_add_analyses_library_internal(

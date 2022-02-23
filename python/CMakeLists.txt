@@ -63,9 +63,6 @@ endforeach()
 # Generate Python classes from JSON schema
 #
 
-# TODO: find a clean way to get MODEL_JSONSCHEMA_PATH from the CMake file that actually generates it
-set(MODEL_JSONSCHEMA_DIR "${CMAKE_BINARY_DIR}")
-set(MODEL_JSONSCHEMA_PATH "${MODEL_JSONSCHEMA_DIR}/jsonschema.yml")
 set(PYTHON_GENERATED_MODEL_PATH "revng/model/v1/_generated.py")
 
 add_custom_command(
@@ -76,7 +73,7 @@ add_custom_command(
     --target-python-version 3.6
     --input "${MODEL_JSONSCHEMA_PATH}"
     > "${CMAKE_BINARY_DIR}/lib/python/${PYTHON_GENERATED_MODEL_PATH}"
-  DEPENDS generated-model-jsonschema
+  DEPENDS generate-model-tuple-tree-code
 )
 add_custom_target(python-model-generated DEPENDS "${CMAKE_BINARY_DIR}/lib/python/${PYTHON_GENERATED_MODEL_PATH}")
 add_dependencies(revng-lift python-model-generated)

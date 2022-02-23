@@ -202,6 +202,12 @@ copy_to_build_and_install(PROGRAMS
 install(EXPORT revng NAMESPACE revng:: DESTINATION share/revng/cmake)
 
 #
+# Export information useful for subdirectories
+#
+set(MODEL_SCHEMA_PATH "${CMAKE_BINARY_DIR}/model-schema.yml")
+set(MODEL_JSONSCHEMA_PATH "${CMAKE_BINARY_DIR}/model-jsonschema.yml")
+
+#
 # Include other CMake files
 #
 add_subdirectory(scripts)
