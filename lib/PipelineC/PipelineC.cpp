@@ -46,6 +46,11 @@ static bool loadLibraryPermanently(const char *LibraryPath) {
                                                            &Msg);
 }
 
+bool rp_is_initialized() {
+  return Initialized;
+}
+
+
 bool rp_initialize(int argc,
                    char *argv[],
                    int libraries_count,
