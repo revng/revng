@@ -11,8 +11,7 @@ include(${CMAKE_SOURCE_DIR}/tests/runtime/RuntimeTests.cmake)
 
 add_subdirectory(tests/tools/pipeline)
 add_subdirectory(tests/abi)
+add_subdirectory(tests/tuple-tree-generator/python-wrappers/multiple-versions)
 
 set(TEST_CFLAGS_${ARCH} "${TEST_CFLAGS_${ARCH}} -mthumb")
 
-# TODO: include() breaks CMAKE_CURRENT_SOURCE_DIR and other variables, we should stop using it
-add_subdirectory(${CMAKE_SOURCE_DIR}/tests/unit/deserialize_multiple_versions)

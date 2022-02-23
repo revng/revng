@@ -20,9 +20,9 @@ def test_deserialize_multiple_versions():
     """Tests that the custom YAML loaders can be used to deserialize multiple conflicting versions at the same time.
     Also tests that deserializing using an invalid version fails.
     """
-    with open("v1.yaml") as f:
+    with open("v1.yml") as f:
         v1_serialized = yaml.load(f, Loader=YamlLoaderV1)
-    with open("v2.yaml") as f:
+    with open("v2.yml") as f:
         v2_serialized = yaml.load(f, Loader=YamlLoaderV2)
 
     RootV1.parse_obj(v1_serialized)
@@ -39,9 +39,9 @@ def test_tagged_deserialize_multiple_versions():
     deserialized directly as pydantic types by yaml.load, but also still be "reparsable" by using parse_obj.
     Also tests that deserializing using an invalid version fails.
     """
-    with open("v1_tagged.yaml") as f:
+    with open("v1_tagged.yml") as f:
         v1_serialized = yaml.load(f, Loader=YamlLoaderV1)
-    with open("v2_tagged.yaml") as f:
+    with open("v2_tagged.yml") as f:
         v2_serialized = yaml.load(f, Loader=YamlLoaderV2)
 
     assert type(v1_serialized) is RootV1
