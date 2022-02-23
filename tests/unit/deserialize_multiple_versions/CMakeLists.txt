@@ -1,3 +1,7 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
 set(TEST_DIR "${CMAKE_BINARY_DIR}/tests/python/multiversion")
 set(MODULE_DIR "${CMAKE_BINARY_DIR}/tests/python/multiversion/testmodule")
 
