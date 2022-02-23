@@ -55,7 +55,7 @@ class JSONSchemaGenerator:
             else:
                 raise ValueError()
 
-            definitions[type_definition.tag] = definition
+            definitions[type_definition.name] = definition
 
         return yaml.dump(jsonschema)
 
@@ -66,7 +66,7 @@ class JSONSchemaGenerator:
 
         jsonschema = {
             "enum": members,
-            "title": definition.tag,
+            "title": definition.name,
         }
         if definition.doc:
             jsonschema["description"] = definition.doc
@@ -76,7 +76,7 @@ class JSONSchemaGenerator:
     def _struct_jsonschema(self, definition: StructDefinition):
         jsonschema = {
             "type": "object",
-            "title": definition.tag,
+            "title": definition.name,
             "additionalProperties": False,
         }
         if definition.doc:
@@ -85,7 +85,7 @@ class JSONSchemaGenerator:
         # TODO: a type can be upcastable even if it is not abstract
         if definition.abstract:
             upcastable_to = self.schema.get_upcastable_types(definition)
-            jsonschema["oneOf"] = [{"$ref": f"#/definitions/{f.tag}"} for f in upcastable_to]
+            jsonschema["oneOf"] = [{"$ref": f"#/definitions/{f.name}"} for f in upcastable_to]
         else:
             properties = {}
 

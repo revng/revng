@@ -16,7 +16,6 @@ doc: |
   Structs are actually typedefs of unnamed structs in C.
 type: struct
 inherits: Type
-tag: Struct
 fields:
   - name: Fields
     sequence:
