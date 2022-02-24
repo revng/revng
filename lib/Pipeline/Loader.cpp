@@ -75,7 +75,7 @@ Loader::parseInvocation(Step &Step, const PipeInvocation &Invocation) const {
   auto It = KnownPipesTypes.find(Invocation.Name);
   if (It == KnownPipesTypes.end()) {
     auto *Message = "while parsing pipe invocation: No known Pipe with "
-                    "name %s ";
+                    "name %s\n ";
     return createStringError(inconvertibleErrorCode(),
                              Message,
                              Invocation.Name.c_str());
@@ -91,7 +91,7 @@ Error Loader::parseContainerDeclaration(Runner &Pipeline,
   auto It = KnownContainerTypes.find(Dec.Type);
   if (It == KnownContainerTypes.end()) {
     auto *Message = "while parsing container declaration: No known container "
-                    "with name %s";
+                    "with name %s\n";
     return createStringError(inconvertibleErrorCode(),
                              Message,
                              Dec.Type.c_str());
@@ -111,7 +111,7 @@ Loader::load(llvm::ArrayRef<std::string> Pipelines) const {
     Input >> Declarations[I];
     if (Input.error())
       return createStringError(inconvertibleErrorCode(),
-                               "Could not parse pipeline");
+                               "Could not parse pipeline\n");
   }
 
   return load(Declarations);
