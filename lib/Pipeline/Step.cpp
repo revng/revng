@@ -56,7 +56,8 @@ void Step::explainStartStep(const ContainerToTargetsMap &Targets,
   prettyPrintStatus(Targets, *OS, Indentation + 1);
 }
 
-void Step::explainExecutedPipe(const PipeWrapper &Wrapper,
+void Step::explainExecutedPipe(const Context &Ctx,
+                               const PipeWrapper &Wrapper,
                                llvm::raw_ostream *OS,
                                size_t Indentation) const {
   if (OS == nullptr)
@@ -82,6 +83,8 @@ void Step::explainExecutedPipe(const PipeWrapper &Wrapper,
   OS->changeColor(llvm::raw_ostream::Colors::GREEN);
   (*OS) << ")";
   (*OS) << "\n";
+  Wrapper->print(Ctx, *OS, Indentation);
+  (*OS) << "\n";
 }
 
 ContainerSet Step::cloneAndRun(Context &Ctx,
@@ -94,7 +97,7 @@ ContainerSet Step::cloneAndRun(Context &Ctx,
     if (not Pipe->areRequirementsMet(RunningContainers.enumerate()))
       continue;
 
-    explainExecutedPipe(Pipe, OS);
+    explainExecutedPipe(Ctx, Pipe, OS);
     Pipe->run(Ctx, RunningContainers);
   }
   return RunningContainers;

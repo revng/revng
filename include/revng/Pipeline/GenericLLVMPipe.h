@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/PassRegistry.h"
 
@@ -19,6 +20,7 @@
 #include "revng/Pipeline/Step.h"
 #include "revng/Support/Concepts.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/ResourceFinder.h"
 
 namespace pipeline {
 
@@ -29,12 +31,18 @@ public:
   virtual const std::vector<ContractGroup> &getContract() const = 0;
   virtual std::unique_ptr<LLVMPassWrapperBase> clone() const = 0;
   virtual llvm::StringRef getName() const = 0;
+  virtual void print(llvm::raw_ostream &OS) const = 0;
 };
 
 template<typename T>
 concept LLVMPass = requires(T a) {
   { T::Name } -> convertible_to<const char *>;
   { a.registerPasses(std::declval<llvm::legacy::PassManager &>()) };
+};
+
+template<typename T>
+concept LLVMPrintablePass = requires(T a) {
+  { a.print(llvm::outs()) };
 };
 
 class PureLLVMPassWrapper : public LLVMPassWrapperBase {
@@ -47,6 +55,8 @@ public:
   static bool passExists(llvm::StringRef PassName) {
     return llvm::PassRegistry::getPassRegistry()->getPassInfo(PassName);
   }
+
+  void print(llvm::raw_ostream &OS) const override { OS << "-" << PassName; }
 
   static llvm::Expected<std::unique_ptr<PureLLVMPassWrapper>>
   create(llvm::StringRef PassName) {
@@ -115,6 +125,13 @@ public:
 
   std::unique_ptr<LLVMPassWrapperBase> clone() const override {
     return std::make_unique<LLVMPassWrapper>(*this);
+  }
+
+  void print(llvm::raw_ostream &OS) const override {
+    if constexpr (LLVMPrintablePass<T>)
+      PipePass.print(OS);
+    else
+      OS << "-" << T::Name;
   }
 };
 
@@ -189,6 +206,19 @@ public:
 
   void addPass(std::unique_ptr<LLVMPassWrapperBase> Impl) {
     Passes.emplace_back(std::move(Impl));
+  }
+
+  void print(const Context &Ctx,
+             llvm::raw_ostream &OS,
+             llvm::ArrayRef<std::string> ContainerNames) const {
+    OS << *revng::ResourceFinder.findFile("bin/revng");
+    OS << " opt --model-path=model.yml " << ContainerNames[0] << " -o "
+       << ContainerNames[0];
+    for (const auto &Pass : Passes) {
+      Pass->print(OS);
+      OS << " ";
+    }
+    OS << "\n";
   }
 
 public:

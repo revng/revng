@@ -12,6 +12,7 @@
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Pipes/ImportBinaryPipe.h"
 #include "revng/Pipes/ModelGlobal.h"
+#include "revng/Support/ResourceFinder.h"
 #include "revng/TupleTree/TupleTree.h"
 
 using namespace revng::pipes;
@@ -30,6 +31,13 @@ void revng::pipes::ImportBinaryPipe::run(pipeline::Context &Context,
     for (const std::string &Path : ImportDebugInfo)
       Importer.import(Path);
   }
+}
+
+void ImportBinaryPipe::print(const pipeline::Context &Ctx,
+                             llvm::raw_ostream &OS,
+                             llvm::ArrayRef<std::string> Names) const {
+  OS << *revng::ResourceFinder.findFile("bin/revng");
+  OS << " model import binary " << Names[0] << " -o model.yml";
 }
 
 static pipeline::RegisterPipe<ImportBinaryPipe> E;

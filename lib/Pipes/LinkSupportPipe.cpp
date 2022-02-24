@@ -4,6 +4,9 @@
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
+#include <string>
+
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Support/CommandLine.h"
@@ -21,7 +24,8 @@
 
 using namespace llvm::cl;
 using namespace pipeline;
-using namespace ::revng::pipes;
+using namespace revng::pipes;
+using namespace revng;
 
 static opt<bool> Tracing("link-trace",
                          cat(MainCategory),
@@ -54,14 +58,11 @@ static llvm::StringRef getSupportName(model::Architecture::Values V) {
   return "Invalid";
 }
 
-void ::revng::pipes::LinkSupportPipe::run(const Context &Ctx,
-                                          LLVMContainer &TargetsList) {
-  if (TargetsList.enumerate().empty())
-    return;
-  const model::Binary &Model = *getModelFromContext(Ctx);
+static std::string getSupportPath(const Context &Ctx) {
+  const auto &Model = getModelFromContext(Ctx);
   const char *SupportConfig = Tracing ? "trace" : "normal";
 
-  auto ArchName = getSupportName(Model.Architecture).str();
+  auto ArchName = getSupportName(Model->Architecture).str();
   std::string SupportSearchPath = ("/share/revng/support-" + ArchName + "-"
                                    + SupportConfig + ".ll");
 
@@ -69,6 +70,23 @@ void ::revng::pipes::LinkSupportPipe::run(const Context &Ctx,
   revng_assert(OptionalSupportPath.has_value(),
                "Cannot find the support module");
   std::string SupportPath = OptionalSupportPath.value();
+
+  return SupportPath;
+}
+
+void LinkSupportPipe::print(const pipeline::Context &Ctx,
+                            llvm::raw_ostream &OS,
+                            llvm::ArrayRef<std::string> Names) const {
+  OS << "llvm-link " << Names[0] << " " << getSupportPath(Ctx) << " -o "
+     << Names[0] << "\n";
+}
+
+void revng::pipes::LinkSupportPipe::run(const Context &Ctx,
+                                        LLVMContainer &TargetsList) {
+  if (TargetsList.enumerate().empty())
+    return;
+
+  std::string SupportPath = getSupportPath(Ctx);
 
   llvm::SMDiagnostic Err;
   auto Module = llvm::parseIRFile(SupportPath,
