@@ -52,14 +52,19 @@ public:
          const Kind &K,
          Exactness::Values Exactness = Exactness::Exact) :
     Components(std::move(Components)), K(&K), Exact(Exactness) {
-    revng_assert(this->Components.size() == getKind().depth() + 1);
+    revng_assert(this->Components.size() == getKind().depth());
+  }
+
+  Target(const Kind &K, Exactness::Values Exactness = Exactness::Exact) :
+    K(&K), Exact(Exactness) {
+    revng_assert(this->Components.size() == getKind().depth());
   }
 
   Target(PathComponent PathComponent,
          const Kind &K,
          Exactness::Values Exactness = Exactness::Exact) :
     Components({ std::move(PathComponent) }), K(&K), Exact(Exactness) {
-    revng_assert(this->Components.size() == getKind().depth() + 1);
+    revng_assert(this->Components.size() == getKind().depth());
   }
 
   Target(std::string Name,
@@ -67,7 +72,7 @@ public:
          Exactness::Values Exactness = Exactness::Exact) :
     Components({ PathComponent(std::move(Name)) }), K(&K), Exact(Exactness) {
 
-    revng_assert(this->Components.size() == getKind().depth() + 1);
+    revng_assert(this->Components.size() == getKind().depth());
   }
 
   Target(std::initializer_list<std::string> Names,
@@ -76,7 +81,7 @@ public:
     K(&K), Exact(Exactness) {
     for (auto Name : Names)
       Components.emplace_back(std::move(Name));
-    revng_assert(this->Components.size() == getKind().depth() + 1);
+    revng_assert(this->Components.size() == getKind().depth());
   }
 
   Target(llvm::ArrayRef<llvm::StringRef> Names,
@@ -85,7 +90,7 @@ public:
     K(&K), Exact(Exactness) {
     for (auto Name : Names)
       Components.emplace_back(Name.str());
-    revng_assert(this->Components.size() == getKind().depth() + 1);
+    revng_assert(this->Components.size() == getKind().depth());
   }
 
 public:

@@ -16,6 +16,8 @@ using namespace llvm::cl;
 using namespace pipeline;
 using namespace ::revng::pipes;
 
+static Kind StringKind("StringKind", &FunctionsRank);
+
 class StringContainer : public Container<StringContainer> {
 public:
   using Container<StringContainer>::Container;
@@ -59,7 +61,7 @@ public:
     TargetsList ToReturn;
 
     for (const auto &Names : ContainedStrings)
-      ToReturn.emplace_back(Names, Root);
+      ToReturn.emplace_back(Names, StringKind);
 
     return ToReturn;
   }
@@ -117,6 +119,6 @@ static llvm::RegisterPass<ExamplePass> X2("example-pass", "ExamplePass");
 
 char StringContainer::ID;
 
-static RegisterPipe<CopyPipe<StringContainer>> E1(Root);
+static RegisterPipe<CopyPipe<StringContainer>> E1(StringKind);
 static const std::string Name = "StringContainer";
 static RegisterDefaultConstructibleContainer<StringContainer> C(Name);
