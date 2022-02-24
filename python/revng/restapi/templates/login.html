@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+{% block head %}
+<style>
+  body {
+    width: 100%;
+  }
+  .form-signin {
+    width: 100%;
+    max-width: 330px;
+    padding: 15px;
+    margin: 0 auto;
+  }
+  .form-signin .form-control {
+    position: relative;
+    box-sizing: border-box;
+    height: auto;
+    padding: 10px;
+    font-size: 16px;
+  }
+  .form-signin .form-control:focus {
+    z-index: 2;
+  }
+</style>
+{% endblock %}
+{% block body %}
+  <form action="/login" method="POST" class="form-signin">
+    <h1 class="h3 mb-3 font-weight-normal">Login</h1>
+    <label for="username" class="sr-only">Username</label>
+    <input name="username" id="username" type="text" placeholder="Username" class="form-control">
+    <button type="submit" class="btn btn-lg btn-primary btn-block">Submit</button>
+  </form>
+{% endblock %}

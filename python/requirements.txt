@@ -15,3 +15,7 @@ grandiso
 
 # revng.api
 cffi
+
+# revng.restapi
+Flask
+Werkzeug
