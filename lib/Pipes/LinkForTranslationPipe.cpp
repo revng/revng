@@ -6,10 +6,15 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <string>
+#include <vector>
+
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Object/ObjectFile.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Regex.h"
 
@@ -79,48 +84,59 @@ defineProgramHeadersSymbols(RawBinaryView &BinaryView,
     revng_abort();
 }
 
-void LinkForTranslationPipe::run(const Context &Ctx,
-                                 FileContainer &InputBinary,
-                                 FileContainer &ObjectFile,
-                                 FileContainer &OutputBinary) {
+struct LinkingArgsOutput {
+  using CommandArguments = std::vector<std::string>;
+
+  std::vector<CommandArguments> SegmentCopyArgs;
+  CommandArguments LinkerArgs;
+  CommandArguments MergeDynamicArgs;
+  std::vector<TemporaryFile> RawSegments;
+  std::vector<TemporaryFile> SegmentELFs;
+};
+
+static void linkingArgs(const Context &Ctx,
+                        llvm::StringRef InputBinaryName,
+                        llvm::StringRef InputBinary,
+                        llvm::StringRef ObjectFile,
+                        llvm::StringRef OutputBinary,
+                        LinkingArgsOutput &Output) {
+  using CommandArguments = LinkingArgsOutput::CommandArguments;
+
+  std::vector<TemporaryFile> &RawSegments = Output.RawSegments;
+  std::vector<TemporaryFile> &SegmentELFs = Output.SegmentELFs;
+
+  CommandArguments &Args = Output.LinkerArgs;
+  std::vector<CommandArguments> &CopySegmentArgs = Output.SegmentCopyArgs;
+  CommandArguments &ArgsMergeDynamic = Output.MergeDynamicArgs;
+
   auto UToHexStr = Twine::utohexstr;
 
   const model::Binary &Model = *getModelFromContext(Ctx);
 
   const size_t PageSize = 4096;
 
-  TemporaryFile LinkerOutput(InputBinary.name(), "");
+  TemporaryFile LinkerOutput(InputBinaryName, "");
 
-  std::vector<TemporaryFile> RawSegments;
-  std::vector<TemporaryFile> SegmentELFs;
-
-  auto MaybePath = InputBinary.path();
-  revng_assert(MaybePath);
-
-  auto MaybeBuffer = llvm::MemoryBuffer::getFileOrSTDIN(*MaybePath);
+  auto MaybeBuffer = llvm::MemoryBuffer::getFileOrSTDIN(InputBinary);
   revng_assert(MaybeBuffer);
   llvm::MemoryBuffer &Buffer = **MaybeBuffer;
   RawBinaryView BinaryView(Model, Buffer.getBuffer());
 
-  llvm::SmallVector<std::string, 0> Args = {
-    ObjectFile.path()->str(),
-    "-lz",
-    "-lm",
-    "-lrt",
-    "-lpthread",
-    "-L./",
-    "-no-pie",
-    "-o",
-    LinkerOutput.path().str(),
-    ("-Wl,-z,max-page-size=" + Twine(PageSize)).str(),
-    "-fuse-ld=bfd"
-  };
+  Args = { ObjectFile.str(),
+           "-lz",
+           "-lm",
+           "-lrt",
+           "-lpthread",
+           "-L./",
+           "-no-pie",
+           "-o",
+           LinkerOutput.path().str(),
+           ("-Wl,-z,max-page-size=" + Twine(PageSize)).str(),
+           "-fuse-ld=bfd" };
 
   revng_assert(Model.Segments.size() > 0);
   uint64_t Min = Model.Segments.begin()->StartAddress.address();
   uint64_t Max = Model.Segments.begin()->endAddress().address();
-
-  int ExitCode = 0;
 
   for (auto &[Segment, Data] : BinaryView.segments()) {
     // Compute section name
@@ -131,7 +147,7 @@ void LinkForTranslationPipe::run(const Context &Ctx,
                  << Segment.endAddress().toString();
     }
 
-    RawSegments.emplace_back(InputBinary.name(), "");
+    RawSegments.emplace_back(InputBinaryName, "");
     TemporaryFile &RawSegment = RawSegments.back();
 
     // Create a file containing the raw segment (including .bss)
@@ -144,14 +160,14 @@ void LinkForTranslationPipe::run(const Context &Ctx,
     }
 
     // Create an object file we can later link
-    SegmentELFs.push_back(TemporaryFile(InputBinary.name(), "o"));
+    SegmentELFs.push_back(TemporaryFile(InputBinaryName, "o"));
     TemporaryFile &SegmentELF = SegmentELFs.back();
 
     std::string SectionFlags = "alloc";
     if (not Segment.IsWriteable)
       SectionFlags += ",readonly";
 
-    std::vector<std::string> Arguments{
+    std::vector<std::string> Command = {
       "-Ibinary",
       "-Oelf64-x86-64",
       "--rename-section=.data=." + SectionName,
@@ -159,8 +175,7 @@ void LinkForTranslationPipe::run(const Context &Ctx,
       RawSegment.path().str(),
       SegmentELF.path().str()
     };
-    ExitCode = ::Runner.run("objcopy", Arguments);
-    revng_assert(ExitCode == 0);
+    CopySegmentArgs.emplace_back(std::move(Command));
 
     Min = std::min(Min, Segment.StartAddress.address());
     Max = std::max(Max, Segment.endAddress().address());
@@ -193,25 +208,77 @@ void LinkForTranslationPipe::run(const Context &Ctx,
   llvm::copy(defineProgramHeadersSymbols(BinaryView, Buffer),
              std::back_inserter(Args));
 
-  // Prepare actual arguments
-  ExitCode = ::Runner.run("c++", Args);
-  revng_assert(ExitCode == 0);
-
   // Invoke revng-merge-dynamic
-  Args = { "merge-dynamic",
-           LinkerOutput.path().str(),
-           InputBinary.path()->str(),
-           OutputBinary.getOrCreatePath().str() };
+  ArgsMergeDynamic = { "merge-dynamic",
+                       LinkerOutput.path().str(),
+                       InputBinary.str(),
+                       OutputBinary.str() };
 
   // Add base
   if (BaseAddress.getNumOccurrences() > 0) {
-    Args.push_back("--base");
-    Args.push_back("0x" + UToHexStr(BaseAddress).str());
+    ArgsMergeDynamic.push_back("--base");
+    ArgsMergeDynamic.push_back("0x" + UToHexStr(BaseAddress).str());
+  }
+}
+
+static void
+printArgs(llvm::raw_ostream &OS, llvm::ArrayRef<std::string> ToPrint) {
+  for (const auto &String : ToPrint)
+    OS << String << " ";
+  OS << "\n";
+}
+
+static void linkForTranslationImpl(const Context &Ctx,
+                                   llvm::StringRef InputBinaryName,
+                                   llvm::StringRef InputBinary,
+                                   llvm::StringRef ObjectFile,
+                                   llvm::StringRef OutputBinary) {
+  LinkingArgsOutput Output;
+
+  linkingArgs(Ctx,
+              InputBinaryName,
+              InputBinary,
+              ObjectFile,
+              OutputBinary,
+              Output);
+  for (const auto &Invocation : Output.SegmentCopyArgs) {
+    auto ExitCode = ::Runner.run("objcopy", Invocation);
+    revng_assert(ExitCode == 0);
   }
 
-  ExitCode = ::Runner.run("revng", Args);
-
+  // Prepare actual arguments
+  auto ExitCode = ::Runner.run("c++", Output.LinkerArgs);
   revng_assert(ExitCode == 0);
+
+  ExitCode = ::Runner.run("revng", Output.MergeDynamicArgs);
+  revng_assert(ExitCode == 0);
+}
+
+void LinkForTranslationPipe::run(const Context &Ctx,
+                                 FileContainer &InputBinary,
+                                 FileContainer &ObjectFile,
+                                 FileContainer &OutputBinary) {
+
+  linkForTranslationImpl(Ctx,
+                         InputBinary.name(),
+                         *InputBinary.path(),
+                         *ObjectFile.path(),
+                         OutputBinary.getOrCreatePath());
+}
+
+void LinkForTranslationPipe::print(const Context &Ctx,
+                                   llvm::raw_ostream &OS,
+                                   llvm::ArrayRef<std::string> Names) const {
+
+  LinkingArgsOutput Output;
+
+  linkingArgs(Ctx, Names[0], "Input", Names[1], Names[2], Output);
+  for (const auto &Invocation : Output.SegmentCopyArgs) {
+    printArgs(OS, Invocation);
+  }
+
+  printArgs(OS, Output.LinkerArgs);
+  printArgs(OS, Output.MergeDynamicArgs);
 }
 
 static RegisterPipe<LinkForTranslationPipe> E5;

@@ -32,4 +32,10 @@ void revng::pipes::ImportBinaryPipe::run(pipeline::Context &Context,
   }
 }
 
+void ImportBinaryPipe::print(const pipeline::Context &Ctx,
+                             llvm::raw_ostream &OS,
+                             llvm::ArrayRef<std::string> Names) const {
+  OS << "revng model import binary " << Names[0] << " -o model.yml";
+}
+
 static pipeline::RegisterPipe<ImportBinaryPipe> E;

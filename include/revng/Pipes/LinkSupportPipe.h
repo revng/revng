@@ -4,6 +4,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <string>
+
+#include "llvm/ADT/ArrayRef.h"
+
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/LLVMContainer.h"
@@ -25,6 +29,10 @@ public:
   }
 
   void run(const pipeline::Context &Ctx, pipeline::LLVMContainer &TargetsList);
+
+  void print(const pipeline::Context &Ctx,
+             llvm::raw_ostream &OS,
+             llvm::ArrayRef<std::string> RunningContainersNames) const;
 };
 
 } // namespace revng::pipes

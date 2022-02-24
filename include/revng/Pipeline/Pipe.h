@@ -136,12 +136,21 @@ public:
   virtual std::vector<std::string> getRunningContainersNames() const = 0;
   virtual std::string getName() const = 0;
   virtual void dump(std::ostream &OS, size_t indents) const = 0;
+  virtual void
+  print(const Context &Ctx, llvm::raw_ostream &OS, size_t indents) const = 0;
   virtual bool areRequirementsMet(const ContainerToTargetsMap &Input) const = 0;
 };
 
 template<typename T>
 concept Dumpable = requires(T a) {
   { a.dump(dbg, 0) };
+};
+
+template<typename PipeType>
+concept Printable = requires(PipeType Pipe) {
+  { Pipe.print(std::declval<const Context &>(),
+               llvm::outs(),
+               std::declval<llvm::ArrayRef<std::string>>()) };
 };
 
 /// A pipe must be type erased somehow to become compatible with a pipeline,
@@ -233,6 +242,16 @@ public:
     }
     if constexpr (Dumpable<PipeType>)
       ActualPipe.dump(OS, Indentation);
+  }
+
+  void print(const Context &Ctx,
+             llvm::raw_ostream &OS,
+             size_t Indentation) const override {
+    if constexpr (Printable<PipeType>) {
+      indent(OS, Indentation);
+      const auto &Names = getRunningContainersNames();
+      ActualPipe.print(Ctx, OS, Names);
+    }
   }
 };
 

@@ -134,7 +134,8 @@ private:
   void removeSatisfiedGoals(ContainerToTargetsMap &Targets,
                             ContainerToTargetsMap &ToLoad) const;
 
-  void explainExecutedPipe(const PipeWrapper &Wrapper,
+  void explainExecutedPipe(const Context &Ctx,
+                           const PipeWrapper &Wrapper,
                            llvm::raw_ostream *OS,
                            size_t Indentation = 0) const;
   void explainStartStep(const ContainerToTargetsMap &Wrapper,

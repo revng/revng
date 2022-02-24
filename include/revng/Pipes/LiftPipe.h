@@ -5,7 +5,9 @@
 //
 
 #include <array>
+#include <string>
 
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/IR/LegacyPassManager.h"
 
 #include "revng/Pipeline/ContainerSet.h"
@@ -37,6 +39,13 @@ public:
   void run(pipeline::Context &Ctx,
            const FileContainer &SourceBinary,
            pipeline::LLVMContainer &TargetsList);
+
+  void print(const pipeline::Context &Ctx,
+             llvm::raw_ostream &OS,
+             llvm::ArrayRef<std::string> ContainerNames) const {
+    OS << "revng lift " << ContainerNames[0] << " -o " << ContainerNames[1]
+       << "\n";
+  }
 };
 
 } // namespace revng::pipes
