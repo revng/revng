@@ -19,8 +19,8 @@ tryConvertToCABI(const model::RawFunctionType &Function,
 
 /// Best effort `RawFunctionType` to `CABIFunctionType` conversion.
 ///
-/// \note: this convertion is loosy since there's no way to represent some types
-/// in `RawFunctionType` in a reversible manner.
+/// \note: this conversion is lossy since there's no way to represent some types
+///        in `RawFunctionType` in a reversible manner.
 model::RawFunctionType
 convertToRaw(const model::CABIFunctionType &Function, model::Binary &TheBinary);
 
