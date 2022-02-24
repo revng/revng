@@ -69,7 +69,7 @@ private:
   void mergeBackImpl(FileContainer &&Container) override;
   void remove();
   pipeline::Target getOnlyPossibleTarget() const {
-    return pipeline::Target("root", *K);
+    return pipeline::Target({}, *K);
   }
 };
 

@@ -44,8 +44,7 @@ class TranslateCommand(Command):
 
         command = [
             "pipeline",
-            "--silent",
-            "output:root:Translated",
+            "output::Translated",
             "--step",
             step_name,
             "-i",

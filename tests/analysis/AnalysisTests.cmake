@@ -64,7 +64,7 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
         "${OUTPUT}"
         Lifted
         EnforceABI
-        "root/*:CSVsPromoted")
+        "*:CSVsPromoted")
     set(DEPEND_ON revng-all-binaries)
 
     #
