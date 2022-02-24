@@ -12,3 +12,6 @@ datamodel-code-generator
 
 # revng-model-compare
 grandiso
+
+# revng.api
+cffi
