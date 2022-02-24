@@ -4,6 +4,6 @@ Containers:
 Steps:
  - Name:            FirstStep
    Pipes:
-     - Name:             PureLLVMPipe
+     - Type:             PureLLVMPipe
        UsedContainers: [C1]
        Passes: [NonExistantAtAllPass]
