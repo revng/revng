@@ -69,16 +69,16 @@ Loader::parseLLVMPass(Step &Step, const PipeInvocation &Invocation) const {
 
 llvm::Error
 Loader::parseInvocation(Step &Step, const PipeInvocation &Invocation) const {
-  if (Invocation.Name == "LLVMPipe")
+  if (Invocation.Type == "LLVMPipe")
     return parseLLVMPass(Step, Invocation);
 
-  auto It = KnownPipesTypes.find(Invocation.Name);
+  auto It = KnownPipesTypes.find(Invocation.Type);
   if (It == KnownPipesTypes.end()) {
     auto *Message = "while parsing pipe invocation: No known Pipe with "
                     "name %s\n ";
     return createStringError(inconvertibleErrorCode(),
                              Message,
-                             Invocation.Name.c_str());
+                             Invocation.Type.c_str());
   }
   auto &Entry = It->second;
   Step.addPipe(Entry(Invocation.UsedContainers));

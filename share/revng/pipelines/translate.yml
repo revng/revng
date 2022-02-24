@@ -10,23 +10,23 @@ Containers:
 Steps:
  - Name:            Lift
    Pipes:
-     - Name:             ImportBinary
+     - Type:             ImportBinary
        UsedContainers: [input]
-     - Name:             Lift
+     - Type:             Lift
        UsedContainers: [input, module]
-     - Name:             LLVMPipe
+     - Type:             LLVMPipe
        UsedContainers: [module]
        Passes: [globaldce]
  - Name:            Lifted
  - Name:            Recompile
    Pipes:
-     - Name:             LinkSupport
+     - Type:             LinkSupport
        UsedContainers: [module]
-     - Name:             LLVMPipe
+     - Type:             LLVMPipe
        UsedContainers: [module]
        Passes: [O2]
        EnabledWhen: [O2]
-     - Name:             Compile
+     - Type:             Compile
        UsedContainers: [module, object]
-     - Name:             LinkForTranslation
+     - Type:             LinkForTranslation
        UsedContainers: [input, object, output]

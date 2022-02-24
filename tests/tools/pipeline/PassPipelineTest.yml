@@ -4,6 +4,6 @@ Containers:
 Steps:
  - Name:            FirstStep
    Pipes:
-     - Name:             LLVMPipe
+     - Type:             LLVMPipe
        UsedContainers: [C1]
        Passes: [example-pass]

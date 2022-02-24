@@ -3,7 +3,7 @@ Containers:
 Steps:
  - Name:            EnforceABI
    Pipes:
-     - Name:             LLVMPipe
+     - Type:             LLVMPipe
        UsedContainers: [module]
        Passes:
          - drop-root
