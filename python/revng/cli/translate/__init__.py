@@ -52,7 +52,7 @@ def run_translate(args, post_dash_dash_args, search_path, search_prefixes, comma
         step_name = step_name + "Isolated"
     command = command + [
         "--silent",
-        "output:root:Translated",
+        "output::Translated",
         "--step",
         step_name,
         "-i",

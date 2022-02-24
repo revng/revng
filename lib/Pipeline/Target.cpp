@@ -114,6 +114,7 @@ std::string Target::serialize() const {
 
 llvm::Expected<Target>
 pipeline::parseTarget(llvm::StringRef AsString, const KindsRegistry &Dict) {
+
   llvm::SmallVector<llvm::StringRef, 2> Parts;
   AsString.split(Parts, ':', 2);
 
@@ -133,6 +134,9 @@ pipeline::parseTarget(llvm::StringRef AsString, const KindsRegistry &Dict) {
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "No known Kind %s in dictionary",
                                    Parts[1].str().c_str());
+
+  if (AsString[0] == ':')
+    return Target({}, *It);
 
   return Target(std::move(Path), *It);
 }

@@ -35,8 +35,7 @@ TaggedFunctionKind::compactTargets(const pipeline::Context &Ctx,
 
   auto &Model = getModelFromContext(Ctx);
   std::set<std::string> Set;
-  const pipeline::Target AllFunctions({ pipeline::PathComponent("root"),
-                                        pipeline::PathComponent::all() },
+  const pipeline::Target AllFunctions({ pipeline::PathComponent::all() },
                                       *this);
 
   // enumerate the targets
@@ -77,9 +76,7 @@ void TaggedFunctionKind::expandTarget(const Context &Ctx,
 
   for (const auto &Function : Model.Functions) {
 
-    Target ToInsert({ Input.getPathComponents().front(),
-                      PathComponent(Function.Entry.toString()) },
-                    *this);
+    Target ToInsert({ PathComponent(Function.Entry.toString()) }, *this);
     Output.emplace_back(std::move(ToInsert));
   }
 }
@@ -91,5 +88,5 @@ TaggedFunctionKind::symbolToTarget(const llvm::Function &Symbol) const {
 
   auto Address = getMetaAddressOfIsolatedFunction(Symbol);
   revng_assert(Address.isValid());
-  return pipeline::Target({ "root", Address.toString() }, *this);
+  return pipeline::Target({ Address.toString() }, *this);
 }

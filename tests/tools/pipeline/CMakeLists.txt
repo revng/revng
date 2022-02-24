@@ -41,7 +41,7 @@ macro(add_pipeline_dump_test TEST_NAME PIPELINE_FILE)
   add_test(NAME "${TEST_NAME}"
     COMMAND "${CMAKE_BINARY_DIR}/bin/revng-pipeline"
       -P "${CMAKE_CURRENT_SOURCE_DIR}/${PIPELINE_FILE}"
-      dc:dc:Root
+      dc:dc:StringKind
       -l "${CMAKE_BINARY_DIR}/lib/librevngStringContainerLibrary.so"
       -d
   )
@@ -103,7 +103,7 @@ set(COPY_PIPE_TEST_OUTPUTS "End:Strings2:CopyPipeTestOutput.txt")
 
 test_pipeline_output(pipeline-copy-pipe
   CopyPipeTestPipeline.yml
-  Strings2:Root:Root
+  Strings2:Root:StringKind
   "${COPY_PIPE_TEST_INPUTS}"
   "${COPY_PIPE_TEST_OUTPUTS}"
   None
@@ -114,7 +114,7 @@ test_pipeline_output(pipeline-copy-pipe
 # Try to produce a target produced by a non-disabled pipe
 test_pipeline_output(pipeline-copy-pipe-flag
   CopyPipeFlagTestPipeline.yml
-  Strings2:Root:Root
+  Strings2:Root:StringKind
   "${COPY_PIPE_TEST_INPUTS}"
   "${COPY_PIPE_TEST_OUTPUTS}"
   None
@@ -125,7 +125,7 @@ test_pipeline_output(pipeline-copy-pipe-flag
 # Try to produce a target produced by a disabled pipe
 ensure_pipeline_failure(pipeline-flag-fail-test
   CopyPipeFlagTestPipeline.yml
-  Strings2:Root:Root
+  Strings2:Root:StringKind
   "${COPY_PIPE_TEST_INPUTS}"
   "${COPY_PIPE_TEST_OUTPUTS}"
   DisableCopyPipe
@@ -134,7 +134,7 @@ ensure_pipeline_failure(pipeline-flag-fail-test
 # Try to invoke a non-existing pass using a PureLLVMPipe
 ensure_pipeline_failure(pipeline-test-missing-pipe
   MissingPassPipelineTest.yml
-  Strings2:Root:Root
+  Strings2:Root:StringKind
   "${COPY_PIPE_TEST_INPUTS}"
   "${COPY_PIPE_TEST_OUTPUTS}"
   DontCare
