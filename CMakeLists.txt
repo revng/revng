@@ -191,57 +191,21 @@ install(FILES "${CMAKE_BINARY_DIR}/share/revng/.clang-format" DESTINATION share/
 #
 # Executable scripts
 #
-
-# revng must not have COPYONLY
-configure_file(scripts/revng "${CMAKE_BINARY_DIR}/bin/revng")
-install(PROGRAMS "${CMAKE_BINARY_DIR}/bin/revng" DESTINATION bin)
-
 copy_to_build_and_install(PROGRAMS
   bin
   "scripts/check-revng-conventions"
-  "scripts/revng-merge-dynamic"
-  "scripts/revng-model-compare"
-  "scripts/revng-model-to-json")
-
-copy_to_build_and_install(FILES
-  bin/revng_merge_dynamic
-  "scripts/revng_merge_dynamic/__init__.py"
-  "scripts/revng_merge_dynamic/__main__.py"
-  "scripts/revng_merge_dynamic/log.py"
-  "scripts/revng_merge_dynamic/merge_dynamic.py"
-  "scripts/revng_merge_dynamic/parsed_elf.py"
-  "scripts/revng_merge_dynamic/util.py"
-  )
-
-copy_to_build_and_install(FILES
-  bin/revng_dump_model
-  "scripts/revng_dump_model/__init__.py"
-  "scripts/revng_dump_model/__main__.py"
-  "scripts/revng_dump_model/dump_model.py"
-  )
-
-copy_to_build_and_install(FILES
-  bin/revng_support
-  "scripts/revng_support/__init__.py"
-  "scripts/revng_support/support.py"
-  )
-
-copy_to_build_and_install(FILES
-  bin/revng_translate
-  "scripts/revng_translate/__init__.py"
-  "scripts/revng_translate/translate.py"
-  )
-
-copy_to_build_and_install(FILES
-  bin/revng_translate/pipelines
-  "scripts/revng_translate/pipelines/isolate-translate.yml"
-  "scripts/revng_translate/pipelines/translate.yml"
-  )
+)
 
 #
 # Export CMake targets
 #
 install(EXPORT revng NAMESPACE revng:: DESTINATION share/revng/cmake)
+
+#
+# Export information useful for subdirectories
+#
+set(MODEL_SCHEMA_PATH "${CMAKE_BINARY_DIR}/model-schema.yml")
+set(MODEL_JSONSCHEMA_PATH "${CMAKE_BINARY_DIR}/model-jsonschema.yml")
 
 #
 # Include other CMake files
@@ -251,6 +215,7 @@ add_subdirectory(include)
 add_subdirectory(lib)
 add_subdirectory(tools)
 add_subdirectory(docs/)
+add_subdirectory(python)
 
 include(${CMAKE_INSTALL_PREFIX}/share/revng/qa/cmake/revng-qa.cmake)
 

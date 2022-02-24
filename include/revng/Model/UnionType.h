@@ -16,7 +16,6 @@ doc: |
   Unions are actually typedefs of unnamed unions in C.
 type: struct
 inherits: Type
-tag: Union
 fields:
   - name: Fields
     sequence:

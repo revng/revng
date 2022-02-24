@@ -6,9 +6,10 @@ import graphlib
 from collections import defaultdict
 from typing import Dict, Iterable, Optional
 
-from .generator import Generator
 from .jinja_utils import environment
-from ..definition import StructDefinition, EnumDefinition
+from ..schema import Schema
+from ..schema import StructDefinition
+from ..schema import EnumDefinition
 
 enum_template = environment.get_template("enum.h.tpl")
 struct_template = environment.get_template("struct.h.tpl")
@@ -18,9 +19,9 @@ struct_forward_decls_template = environment.get_template("struct_forward_decls.h
 class_forward_decls_template = environment.get_template("class_forward_decls.h.tpl")
 
 
-class CppHeadersGenerator(Generator):
-    def __init__(self, schema, base_namespace: str, user_include_path: Optional[str] = None):
-        super().__init__(schema, base_namespace)
+class CppHeadersGenerator:
+    def __init__(self, schema: Schema, user_include_path: Optional[str] = None):
+        self.schema = schema
 
         if not user_include_path:
             user_include_path = ""
@@ -31,9 +32,12 @@ class CppHeadersGenerator(Generator):
         # Prepended to include statements (e.g. #include "<user_include_path>/Class.h")
         self.user_include_path = user_include_path
 
+        self.depgraph = self._build_depgraph()
+        self._inverse_depgraph = self._build_inverse_depgraph()
+
     def emit(self) -> Dict[str, str]:
         sources = {
-            "ForwardDecls.h": emit_forward_decls(self.struct_definitions()),
+            "ForwardDecls.h": self._emit_forward_decls(self.schema.struct_definitions()),
         }
 
         early_definitions = self._emit_early_type_definitions()
@@ -44,12 +48,29 @@ class CppHeadersGenerator(Generator):
         sources.update(impl_definitions)
         return sources
 
+    def _build_depgraph(self):
+        depgraph = {}
+        for definition in self.schema.definitions.values():
+            depgraph[definition.fullname] = set()
+            for dependency_name in definition.dependencies:
+                dependency_type = self.schema.get_definition_for(dependency_name)
+                if dependency_type:
+                    depgraph[definition.fullname].add(dependency_type.fullname)
+        return depgraph
+
+    def _build_inverse_depgraph(self):
+        inverse_depgraph = defaultdict(set)
+        for definition in self.schema.definitions.values():
+            for dependency in definition.dependencies:
+                inverse_depgraph[dependency].add(definition.fullname)
+        return inverse_depgraph
+
     def _emit_early_type_definitions(self):
         definitions = {}
         toposorter = graphlib.TopologicalSorter(self.depgraph)
         order = list(toposorter.static_order())
         for type_name_to_emit in order:
-            type_to_emit = self.get_definition_for(type_name_to_emit)
+            type_to_emit = self.schema.get_definition_for(type_name_to_emit)
             if not type_to_emit:
                 # Should we emit a warning here?
                 continue
@@ -57,7 +78,10 @@ class CppHeadersGenerator(Generator):
             filename = f"Early/{type_to_emit.filename}"
             assert filename not in definitions
             if isinstance(type_to_emit, StructDefinition):
-                definition = self._emit_early_struct(type_to_emit)
+                upcastable_types = self.schema.get_upcastable_types(type_to_emit)
+                definition = struct_template.render(
+                    struct=type_to_emit, upcastable=upcastable_types, generator=self
+                )
             elif isinstance(type_to_emit, EnumDefinition):
                 definition = enum_template.render(enum=type_to_emit)
             else:
@@ -67,18 +91,17 @@ class CppHeadersGenerator(Generator):
 
         return definitions
 
-    def _emit_early_struct(self, definition: StructDefinition):
-        upcastable_types = self._get_upcastable_types(definition)
-        return struct_template.render(struct=definition, upcastable=upcastable_types, generator=self)
-
     def _emit_late_type_definitions(self):
         definitions = {}
-        for type_to_emit in self._definitions.values():
+        for type_to_emit in self.schema.definitions.values():
             filename = f"Late/{type_to_emit.filename}"
             assert filename not in definitions
 
             if isinstance(type_to_emit, StructDefinition):
-                definition = self._emit_late_struct(type_to_emit)
+                upcastable_types = self.schema.get_upcastable_types(type_to_emit)
+                definition = struct_late_template.render(
+                    struct=type_to_emit, upcastable=upcastable_types
+                )
             elif isinstance(type_to_emit, EnumDefinition):
                 definition = ""
             else:
@@ -87,18 +110,20 @@ class CppHeadersGenerator(Generator):
             definitions[filename] = definition
         return definitions
 
-    def _emit_late_struct(self, definition: StructDefinition):
-        upcastable_types = self._get_upcastable_types(definition)
-        return struct_late_template.render(struct=definition, upcastable=upcastable_types)
-
     def _emit_impl(self):
         definitions = {}
-        for type_to_emit in self._definitions.values():
+        for type_to_emit in self.schema.definitions.values():
             filename = f"Impl/{type_to_emit.impl_filename}"
             assert filename not in definitions
 
             if isinstance(type_to_emit, StructDefinition):
-                definition = self._emit_impl_struct(type_to_emit)
+                upcastable_types = self.schema.get_upcastable_types(type_to_emit)
+                definition = struct_impl_template.render(
+                    struct=type_to_emit,
+                    upcastable=upcastable_types,
+                    generator=self,
+                    schema=self.schema,
+                )
             elif isinstance(type_to_emit, EnumDefinition):
                 definition = ""
             else:
@@ -108,21 +133,19 @@ class CppHeadersGenerator(Generator):
 
         return definitions
 
-    def _emit_impl_struct(self, definition: StructDefinition):
-        upcastable_types = self._get_upcastable_types(definition)
-        return struct_impl_template.render(struct=definition, upcastable=upcastable_types, generator=self)
+    @staticmethod
+    def _emit_forward_decls(definitions: Iterable[StructDefinition]):
+        generated_ns_to_names = defaultdict(set)
+        user_ns_to_names = defaultdict(set)
+        for definition in definitions:
+            # Forward declaration for autogenerated class
+            generated_ns_to_names[definition.namespace].add(definition.name)
+            # Forward declaration for user-defined derived class
+            user_ns_to_names[definition.user_namespace].add(definition.name)
 
-
-def emit_forward_decls(definitions: Iterable[StructDefinition]):
-    generated_ns_to_names = defaultdict(set)
-    user_ns_to_names = defaultdict(set)
-    for definition in definitions:
-        # Forward declaration for autogenerated class
-        generated_ns_to_names[definition.namespace].add(definition.name)
-        # Forward declaration for user-defined derived class
-        user_ns_to_names[definition.user_namespace].add(definition.name)
-
-    return "\n".join([
-        struct_forward_decls_template.render(ns_to_names=generated_ns_to_names),
-        class_forward_decls_template.render(ns_to_names=user_ns_to_names),
-    ])
+        return "\n".join(
+            [
+                struct_forward_decls_template.render(ns_to_names=generated_ns_to_names),
+                class_forward_decls_template.render(ns_to_names=user_ns_to_names),
+            ]
+        )

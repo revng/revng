@@ -1,0 +1,14 @@
+# Requirements for revng_merge_dynamic
+pyelftools
+
+# Requirements for model_dump
+PyYAML
+
+# Common dependencies
+pydantic
+
+# revng.model dependencies
+datamodel-code-generator
+
+# revng-model-compare
+grandiso

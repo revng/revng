@@ -134,9 +134,19 @@ GREP="git grep -n --color=always"
 # Run clang-format on FILES
 function run_clang_format() {
     if test "$FORCE_FORMAT" -gt 0; then
-        clang-format -style="$CLANG_FORMAT_STYLE" -i $FILES
+        clang-format -style="$CLANG_FORMAT_STYLE" -i $FILES || true
     else
         clang-format --dry-run -style="$CLANG_FORMAT_STYLE" -i $FILES
+    fi
+}
+
+# Run black
+function run_black() {
+    PYTHON_FILES="$( ( git grep -l '^#!.*python' && git ls-files | grep '\.py$' ) | sort -u )"
+    if test "$FORCE_FORMAT" -gt 0; then
+        black -q -l 100 $PYTHON_FILES
+    else
+        black --check -l 100 $PYTHON_FILES | grep 'Oh no'
     fi
 }
 
@@ -208,17 +218,6 @@ function run_revng_checks() {
 
 }
 
-# First, run the checks and output warnings in a human readable format.
-run_clang_format
-run_revng_checks | sort -u
-
-# Second, re-run the check commands, and fail if any of them prints anything.
-# This ensures that that user sees all the errors on the command line, while at
-# the same time setting a proper exit value that can be checked by other scripts
-# or by git hooks.
-if [[ $( run_clang_format 2>&1 | head -c 1 | wc -c ) -ne 0 ]]; then
-    exit 1
-fi
-if [[ $( run_revng_checks 2>&1 | head -c 1 | wc -c ) -ne 0 ]]; then
+if test $( ( run_clang_format && run_black && run_revng_checks | sort -u ) |& tee /dev/stderr | wc -c ) -ne 0; then
     exit 1
 fi

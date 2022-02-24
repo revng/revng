@@ -11,5 +11,7 @@ include(${CMAKE_SOURCE_DIR}/tests/runtime/RuntimeTests.cmake)
 
 add_subdirectory(tests/tools/pipeline)
 add_subdirectory(tests/abi)
+add_subdirectory(tests/tuple-tree-generator/python-wrappers/multiple-versions)
 
 set(TEST_CFLAGS_${ARCH} "${TEST_CFLAGS_${ARCH}} -mthumb")
+

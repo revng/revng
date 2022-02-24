@@ -61,9 +61,6 @@ definitions:
         type: string
       abstract:
         type: boolean
-      tag:
-        type: string
-        default: true
       fields:
         type: array
         additionalItems: false
@@ -77,7 +74,6 @@ definitions:
       - type
       - inherits
       - abstract
-      - tag
       - fields
       - key
     required:
