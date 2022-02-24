@@ -139,3 +139,33 @@ python_module(
                  "revng/cli/translate/pipelines/isolate-translate.yml"
                  "revng/cli/translate/pipelines/translate.yml"
 )
+
+#
+# Install revng.api
+#
+set(REVNG_API_MODULE_FILES
+  revng/api/__init__.py
+  revng/api/_capi.py
+  revng/api/container.py
+  revng/api/kind.py
+  revng/api/manager.py
+  revng/api/step.py
+  revng/api/target.py
+  revng/api/utils.py
+)
+python_module(
+  TARGET_NAME revng-python-api
+  MODULE_FILES ${REVNG_API_MODULE_FILES}
+)
+
+# Also copy PipelineC headers in the build directory so revng.restapi can use them from there
+set(PIPELINE_C_HEADERS_SOURCE_DIR "${CMAKE_SOURCE_DIR}/include/revng/PipelineC")
+set(PIPELINE_C_HEADERS_BUILD_DIR "${CMAKE_BINARY_DIR}/include/revng/PipelineC")
+set(REQUIRED_PIPELINE_C_HEADERS
+  c_typedefs.h
+  prototypes.h
+)
+file(MAKE_DIRECTORY "${PIPELINE_C_HEADERS_BUILD_DIR}")
+foreach(HEADER ${REQUIRED_PIPELINE_C_HEADERS})
+  configure_file("${PIPELINE_C_HEADERS_SOURCE_DIR}/${HEADER}" "${PIPELINE_C_HEADERS_BUILD_DIR}/${HEADER}")
+endforeach()
