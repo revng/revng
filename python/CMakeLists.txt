@@ -169,3 +169,22 @@ file(MAKE_DIRECTORY "${PIPELINE_C_HEADERS_BUILD_DIR}")
 foreach(HEADER ${REQUIRED_PIPELINE_C_HEADERS})
   configure_file("${PIPELINE_C_HEADERS_SOURCE_DIR}/${HEADER}" "${PIPELINE_C_HEADERS_BUILD_DIR}/${HEADER}")
 endforeach()
+
+#
+# Install revng.restapi
+#
+set(REVNG_RESTAPI_MODULE_FILES
+  revng/restapi/__init__.py
+  revng/restapi/api.py
+  revng/restapi/auth.py
+  revng/restapi/demo_webpage.py
+  revng/restapi/globals.py
+  revng/restapi/validation_utils.py
+  revng/restapi/templates/base.html
+  revng/restapi/templates/index.html
+  revng/restapi/templates/login.html
+)
+python_module(
+  TARGET_NAME revng-python-restapi
+  MODULE_FILES ${REVNG_RESTAPI_MODULE_FILES}
+)
