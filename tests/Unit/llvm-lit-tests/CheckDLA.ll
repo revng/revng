@@ -83,12 +83,12 @@ Functions:
     Prototype:       \22/Types/RawFunctionType-6646220838590018230\22
 ImportedDynamicFunctions: []
 Types:
-  - !Primitive
+  - !PrimitiveType
     Kind:            Primitive
     ID:              520
     PrimitiveKind:   Generic
     Size:            8
-  - !Primitive
+  - !PrimitiveType
     Kind:            Primitive
     ID:              776
     PrimitiveKind:   PointerOrNumber

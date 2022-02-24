@@ -3,7 +3,7 @@ Functions:
   - Entry:           "0x401200:Code_x86_64"
     Prototype:       "/Types/RawFunctionType-6646220838590018230"
 Types:
-  - !Struct
+  - !StructType
     ID:              7208194089656236300
     Fields:
       - Type:
@@ -12,7 +12,7 @@ Types:
             - Kind:            Pointer
       - Type:
           UnqualifiedType: "/Types/Primitive-1032"
-  - !Struct
+  - !StructType
     ID:              14349066955625060511
     Fields:
       - Type:

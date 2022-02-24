@@ -5,7 +5,7 @@ Types:
     ID:              7412439904038490792
     FinalStackOffset: 8
     -StackArgumentsType: ''
-  - !Struct
+  - !StructType
     # stack_frame stack frame
     Kind:            Struct
     ID:              17773669446801075323
@@ -15,7 +15,7 @@ Types:
     Kind:            RawFunctionType
     ID:              13776914522867493387
     FinalStackOffset: 8
-  - !Struct
+  - !StructType
     # stack_frame_array stack frame
     Kind:            Struct
     ID:              10059356012972557344
@@ -27,7 +27,7 @@ Types:
     ID:              962527246414399901
     FinalStackOffset: 8
     StackArgumentsType: "/Types/Struct-2914208048943782880"
-  - !Struct
+  - !StructType
     # stack_arguments_64 stack arguments type
     Kind:            Struct
     ID:              2914208048943782880
@@ -38,7 +38,7 @@ Types:
     ID:              15643449473528100124
     FinalStackOffset: 8
     StackArgumentsType: "/Types/Struct-17628016926864895242"
-  - !Struct
+  - !StructType
     # stack_arguments_32 stack arguments type
     Kind:            Struct
     ID:              17628016926864895242
