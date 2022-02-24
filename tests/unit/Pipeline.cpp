@@ -855,7 +855,7 @@ static const std::string Pipeline(R"(---
                        Steps:
                          - Name:            FirstStep
                            Pipes:
-                             - Name:            FineGranerPipe
+                             - Type:            FineGranerPipe
                                UsedContainers:
                                  - ContainerName
                                  - ContainerName
@@ -877,7 +877,7 @@ static const std::string PipelineTree(R"(---
                        Steps:
                          - Name:            FirstStep
                            Pipes:
-                             - Name:            FineGranerPipe
+                             - Type:            FineGranerPipe
                                UsedContainers:
                                  - ContainerName
                                  - ContainerName
@@ -925,7 +925,7 @@ BOOST_AUTO_TEST_CASE(LoaderTestFromYamlLLVM) {
                        Steps:
                          - Name:            FirstStep
                            Pipes:
-                             - Name:             LLVMPipe
+                             - Type:             LLVMPipe
                                UsedContainers:
                                  - CustomName
                                Passes:

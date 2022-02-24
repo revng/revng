@@ -22,7 +22,7 @@ const auto PipelineTextContent =
 Steps:
  - Name:            FirstStep
    Pipes:
-     - Name:             CopyPipe
+     - Type:             CopyPipe
        UsedContainers: [Strings1, Strings2]
 )";
 

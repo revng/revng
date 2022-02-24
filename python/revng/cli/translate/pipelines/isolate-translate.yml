@@ -3,18 +3,18 @@ Containers:
 Steps:
  - Name:            Isolate
    Pipes:
-     - Name:             LLVMPipe
+     - Type:             LLVMPipe
        UsedContainers: [module]
        Passes: [detect-abi, isolate, invoke-isolated-functions, cache-call-graph]
  - Name:            RecompileIsolated
    Pipes:
-     - Name:             LinkSupport
+     - Type:             LinkSupport
        UsedContainers: [module]
-     - Name:             LLVMPipe
+     - Type:             LLVMPipe
        UsedContainers: [module]
        Passes: [O2]
        EnabledWhen: [O2]
-     - Name:             CompileIsolated
+     - Type:             CompileIsolated
        UsedContainers: [module, object]
-     - Name:             LinkForTranslation
+     - Type:             LinkForTranslation
        UsedContainers: [input, object, output]
