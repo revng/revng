@@ -54,10 +54,7 @@ static llvm::StringRef getSupportName(model::Architecture::Values V) {
   return "Invalid";
 }
 
-void revng::pipes::LinkSupportPipe::run(const Context &Ctx,
-                                        LLVMContainer &TargetsList) {
-  if (TargetsList.enumerate().empty())
-    return;
+static std::string getSupporPath(const Context &Ctx) {
   const auto &Model = getModelFromContext(Ctx);
   const char *SupportConfig = Tracing ? "trace" : "normal";
 
@@ -69,6 +66,22 @@ void revng::pipes::LinkSupportPipe::run(const Context &Ctx,
   revng_assert(OptionalSupportPath.has_value(),
                "Cannot find the support module");
   std::string SupportPath = OptionalSupportPath.value();
+
+  return SupportPath;
+}
+
+void revng::pipes::LinkSupportPipe::print(const pipeline::Context &Ctx,
+                                          llvm::raw_ostream &OS) const {
+  OS << "llvm-link <lifted-module> " << getSupporPath(Ctx) << " -o <output>"
+     << "\n";
+}
+
+void revng::pipes::LinkSupportPipe::run(const Context &Ctx,
+                                        LLVMContainer &TargetsList) {
+  if (TargetsList.enumerate().empty())
+    return;
+
+  std::string SupportPath = getSupporPath(Ctx);
 
   llvm::SMDiagnostic Err;
   auto Module = llvm::parseIRFile(SupportPath,

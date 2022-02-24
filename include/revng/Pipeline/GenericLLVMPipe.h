@@ -30,6 +30,7 @@ public:
   virtual const std::vector<ContractGroup> &getContract() const = 0;
   virtual std::unique_ptr<LLVMPassWrapperBase> clone() const = 0;
   virtual llvm::StringRef getName() const = 0;
+  virtual void print(llvm::raw_ostream &OS) const = 0;
 };
 
 template<typename T>
@@ -49,6 +50,11 @@ concept LLVMPass =
   { T::Name } -> convertible_to<const char *>;
 };
 
+template<typename T>
+concept LLVMPrintablePass = requires(T a) {
+  { a.print(llvm::outs()) };
+};
+
 class PureLLVMPassWrapper : public LLVMPassWrapperBase {
 private:
   std::string PassName;
@@ -59,6 +65,8 @@ public:
   static bool passExists(llvm::StringRef PassName) {
     return llvm::PassRegistry::getPassRegistry()->getPassInfo(PassName);
   }
+
+  void print(llvm::raw_ostream &OS) const override { OS << "-" << PassName; }
 
   static llvm::Expected<std::unique_ptr<PureLLVMPassWrapper>>
   create(llvm::StringRef PassName) {
@@ -133,6 +141,13 @@ public:
   std::unique_ptr<LLVMPassWrapperBase> clone() const override {
     return std::make_unique<LLVMPassWrapper>(*this);
   }
+
+  void print(llvm::raw_ostream &OS) const override {
+    if constexpr (LLVMPrintablePass<T>)
+      PipePass.print(OS);
+    else
+      OS << "-" << T::Name;
+  }
 };
 
 /// Implementation of the LLVM pipes to be instantiated for a particular LLVM
@@ -206,6 +221,15 @@ public:
 
   void addPass(std::unique_ptr<LLVMPassWrapperBase> Impl) {
     Passes.emplace_back(std::move(Impl));
+  }
+
+  void print(const Context &Ctx, llvm::raw_ostream &OS) const {
+    OS << "revng opt <input> -o <output> ";
+    for (const auto &Pass : Passes) {
+      Pass->print(OS);
+      OS << " ";
+    }
+    OS << "\n";
   }
 
 public:

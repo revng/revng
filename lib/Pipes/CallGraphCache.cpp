@@ -51,6 +51,8 @@ public:
   void registerPasses(Context &Ctx, llvm::legacy::PassManager &Manager) {
     Manager.add(new CreateCallGraphCachePass(CallGraphCache::fromContext(Ctx)));
   }
+
+  void print(llvm::raw_ostream &OS) const {}
 };
 
 static RegisterLLVMPass<CreateCallGraphPipe> X;

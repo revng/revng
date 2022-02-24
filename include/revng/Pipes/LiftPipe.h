@@ -39,6 +39,10 @@ public:
   void run(pipeline::Context &Ctx,
            const FileContainer &SourceBinary,
            pipeline::LLVMContainer &TargetsList);
+
+  void print(const pipeline::Context &Ctx, llvm::raw_ostream &OS) const {
+    OS << "revng lift <input> -o <lifted>\n";
+  }
 };
 
 } // namespace revng::pipes

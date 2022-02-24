@@ -46,6 +46,8 @@ public:
   void registerPasses(llvm::legacy::PassManager &Manager) {
     Manager.add(new LoadModelWrapperPass(*Wrapper));
   }
+
+  void print(llvm::raw_ostream &OS) const { OS << ""; }
 };
 
 static Context setUpContext(LLVMContextWrapper &Context,

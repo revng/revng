@@ -38,6 +38,8 @@ public:
            FileContainer &InputBinary,
            FileContainer &ObjectFile,
            FileContainer &OutputBinary);
+
+  void print(const pipeline::Context &Ctx, llvm::raw_ostream &OS) const;
 };
 
 } // namespace revng::pipes

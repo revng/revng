@@ -31,6 +31,11 @@ public:
   void run(const pipeline::Context &,
            pipeline::LLVMContainer &TargetsList,
            FileContainer &TargetBinary);
+
+  void print(const pipeline::Context &Ctx, llvm::raw_ostream &OS) const {
+    OS << "llc <input> -o <output> --filetype=obj"
+       << "\n";
+  };
 };
 
 class CompileIsolatedModulePipe {
@@ -53,6 +58,11 @@ public:
   void run(const pipeline::Context &,
            pipeline::LLVMContainer &TargetsList,
            FileContainer &TargetBinary);
+
+  void print(const pipeline::Context &Ctx, llvm::raw_ostream &OS) const {
+    OS << "llc <input> -o <output> --filetype=obj"
+       << "\n";
+  };
 };
 
 } // namespace revng::pipes

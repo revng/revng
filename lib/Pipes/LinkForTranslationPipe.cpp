@@ -42,18 +42,16 @@ static std::string linkFunctionArgument(llvm::StringRef Lib) {
   return "-l" + Lib.str();
 }
 
-void LinkForTranslationPipe::run(const Context &Ctx,
-                                 FileContainer &InputBinary,
-                                 FileContainer &ObjectFile,
-                                 FileContainer &OutputBinary) {
+static llvm::SmallVector<std::string, 0>
+linkerArguments(const Context &Ctx,
+                llvm::StringRef ObjectFile,
+                llvm::StringRef LinkerOutput) {
   const auto &Model = getModelFromContext(Ctx);
 
   const size_t PageSize = 4096;
 
-  FileContainer LinkerOutput(Binary, InputBinary.name(), "");
-
   llvm::SmallVector<std::string, 0> Args = {
-    ObjectFile.path()->str(),
+    ObjectFile.str(),
     "-lz",
     "-lm",
     "-lrt",
@@ -61,7 +59,7 @@ void LinkForTranslationPipe::run(const Context &Ctx,
     "-L./",
     "-no-pie",
     "-o",
-    LinkerOutput.getOrCreatePath().str(),
+    LinkerOutput.str(),
     ("-Wl,-z,max-page-size=" + Twine(PageSize)).str(),
     "-fuse-ld=bfd"
   };
@@ -98,26 +96,61 @@ void LinkForTranslationPipe::run(const Context &Ctx,
   for (const std::string &ImportedLibrary : Model.ImportedLibraries)
     Args.push_back(linkFunctionArgument(ImportedLibrary));
   Args.push_back("-Wl,--as-needed");
+  return Args;
+}
 
-  // Prepare actual arguments
-  int ExitCode = ::Runner.run("c++", Args);
-  revng_assert(ExitCode == 0);
-
+static llvm::SmallVector<std::string, 0>
+mergeDynamicArgs(llvm::StringRef LinkerOutput,
+                 llvm::StringRef InputBinary,
+                 llvm::StringRef OutputBinary) {
   // Invoke revng-merge-dynamic
-  Args = { "merge-dynamic",
-           LinkerOutput.path()->str(),
-           InputBinary.path()->str(),
-           OutputBinary.getOrCreatePath().str() };
+  llvm::SmallVector<std::string, 0> Args = {
+    "merge-dynamic", LinkerOutput.str(), InputBinary.str(), OutputBinary.str()
+  };
 
   // Add base
   if (BaseAddress.getNumOccurrences() > 0) {
     Args.push_back("--base");
     Args.push_back(Twine::utohexstr(BaseAddress).str());
   }
+  return Args;
+}
+
+void LinkForTranslationPipe::run(const Context &Ctx,
+                                 FileContainer &InputBinary,
+                                 FileContainer &ObjectFile,
+                                 FileContainer &OutputBinary) {
+
+  FileContainer LinkerOutput(Binary, InputBinary.name(), "");
+  auto Args = linkerArguments(Ctx,
+                              *ObjectFile.path(),
+                              LinkerOutput.getOrCreatePath());
+
+  // Prepare actual arguments
+  int ExitCode = ::Runner.run("c++", Args);
+  revng_assert(ExitCode == 0);
+
+  Args = mergeDynamicArgs(*LinkerOutput.path(),
+                          *InputBinary.path(),
+                          OutputBinary.getOrCreatePath());
 
   ExitCode = ::Runner.run("revng", Args);
-
   revng_assert(ExitCode == 0);
+}
+
+void revng::pipes::LinkForTranslationPipe::print(const Context &Ctx,
+                                                 llvm::raw_ostream &OS) const {
+  auto Args = linkerArguments(Ctx, "<ObjectFile>", "<LinkerOutput>");
+  OS << "c++ ";
+  for (const auto &Arg : Args)
+    OS << Arg << " ";
+  OS << "\n";
+
+  Args = mergeDynamicArgs("<LinkerOutput>", "<InputBinary>", "<Output>");
+  OS << "revng ";
+  for (const auto &Arg : Args)
+    OS << Arg << " ";
+  OS << "\n";
 }
 
 static RegisterPipe<LinkForTranslationPipe> E5;
