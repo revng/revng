@@ -49,7 +49,9 @@ bool DLAPass::runOnModule(llvm::Module &M) {
 
   // Middle-end Steps: manipulate nodes and edges of the DLATypeSystem graph
   dla::StepManager SM;
-  revng_check(SM.addStep<dla::CollapseIdentityAndInheritanceCC>());
+  revng_check(SM.addStep<dla::CollapseEqualitySCC>());
+  revng_check(SM.addStep<dla::CollapseInstanceAtOffset0SCC>());
+  revng_check(SM.addStep<dla::CollapseInheritanceSCC>());
   revng_check(SM.addStep<dla::PropagateInheritanceToAccessors>());
   revng_check(SM.addStep<dla::RemoveTransitiveInheritanceEdges>());
   revng_check(SM.addStep<dla::MakeInheritanceTree>());

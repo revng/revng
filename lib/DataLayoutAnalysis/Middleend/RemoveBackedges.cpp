@@ -7,6 +7,8 @@
 #include <vector>
 
 #include "llvm/ADT/DepthFirstIterator.h"
+#include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
 
@@ -17,50 +19,91 @@
 
 #include "RemoveBackedges.h"
 
-static Logger<> Log("dla-instance-inheritance-loops");
+static Logger<> Log("dla-remove-backedges");
 
 namespace dla {
 
 using LTSN = LayoutTypeSystemNode;
-using GraphNodeT = LTSN *;
-using InheritanceNodeT = EdgeFilteredGraph<GraphNodeT, isInheritanceEdge>;
-using CGraphNodeT = const LTSN *;
-using CInheritanceNodeT = EdgeFilteredGraph<CGraphNodeT, isInheritanceEdge>;
 
-static bool
-isInheritanceOrInstanceEdge(const llvm::GraphTraits<LTSN *>::EdgeRef &E) {
-  return isInheritanceEdge(E) or isInstanceEdge(E);
+template<typename T>
+concept SCCWithBackedgeHelper = requires {
+  typename T::SCCNodeView;
+  typename T::BackedgeNodeView;
+};
+
+struct InheritanceLoopWithInstanceBackedge {
+  using SCCNodeView = EdgeFilteredGraph<const LTSN *, isInheritanceEdge>;
+  using BackedgeNodeView = EdgeFilteredGraph<const LTSN *, isInstanceEdge>;
+};
+
+struct InstanceOffsetZeroWithInstanceBackedge {
+  using SCCNodeView = EdgeFilteredGraph<const LTSN *, isInstanceOff0>;
+  using BackedgeNodeView = EdgeFilteredGraph<const LTSN *, isInstanceOffNon0>;
+};
+
+template<SCCWithBackedgeHelper SCC>
+static bool isMixedEdge(const llvm::GraphTraits<dla::LTSN *>::EdgeRef &E) {
+  return SCC::SCCNodeView::filter()(E) or SCC::BackedgeNodeView::filter()(E);
 }
 
-using MixedNodeT = EdgeFilteredGraph<GraphNodeT, isInheritanceOrInstanceEdge>;
-using MixedGT = llvm::GraphTraits<MixedNodeT>;
+template<SCCWithBackedgeHelper SCC>
+static bool isSCCLeaf(const dla::LTSN *N) {
+  using Graph = llvm::GraphTraits<typename SCC::SCCNodeView>;
+  return Graph::child_begin(N) == Graph::child_end(N);
+}
 
-bool removeInstanceBackedgesFromInheritanceLoops(LayoutTypeSystem &TS) {
+template<SCCWithBackedgeHelper SCC>
+static bool isSCCRoot(const dla::LTSN *N) {
+  using Inverse = llvm::Inverse<typename SCC::SCCNodeView>;
+  using InverseGraph = llvm::GraphTraits<Inverse>;
+  return InverseGraph::child_begin(N) == InverseGraph::child_end(N);
+}
+
+template<SCCWithBackedgeHelper SCC>
+static bool hasNoSCCEdge(const LTSN *Node) {
+  return isSCCRoot<SCC>(Node) and isSCCLeaf<SCC>(Node);
+};
+
+template<SCCWithBackedgeHelper SCC>
+static bool removeBackedgesFromSCC(LayoutTypeSystem &TS) {
   bool Changed = false;
-  if (VerifyLog.isEnabled())
-    revng_assert(TS.verifyInheritanceDAG());
+  if (VerifyLog.isEnabled()) {
+    revng_assert(TS.verifyConsistency());
+
+    // Verify that the graph is a DAG looking only at SCCNodeView
+    std::set<const LTSN *> Visited;
+    for (const auto &Node : llvm::nodes(&TS)) {
+      revng_assert(Node != nullptr);
+      if (Visited.count(Node))
+        continue;
+
+      auto I = llvm::scc_begin(typename SCC::SCCNodeView(Node));
+      auto E = llvm::scc_end(typename SCC::SCCNodeView(Node));
+      for (; I != E; ++I) {
+        Visited.insert(I->begin(), I->end());
+        if (I.hasCycle())
+          revng_check(false);
+      }
+    }
+  }
+
   if (Log.isEnabled())
-    TS.dumpDotOnFile("before-remove-instance-inheritance-loops.dot");
+    TS.dumpDotOnFile("before-remove-backedges-from-loops.dot");
 
-  revng_log(Log, "Removing Instance Backedges From Inheritance Loops");
-
-  const auto HasNoInheritanceEdge = [](const LTSN *Node) {
-    return isInheritanceRoot(Node) and isInheritanceLeaf(Node);
-  };
+  revng_log(Log, "Removing Backedges From Loops");
 
   // Color all the nodes, except those that have no incoming nor outgoing
-  // inheritance edges.
+  // SCCNodeView edges.
   // The goal is to identify the subsets of nodes that are connected by means of
-  // inheritance edges, meaning that they have some form of inheritance
-  // relationship (even if not direct).
+  // SCCNodeView edges.
   // In this way we divide the graph in subgraphs, such that for each pair of
   // nodes P and Q with (P != Q) in the same sugraphs (i.e. with the same
-  // color), either P inherits from Q, or Q inherits from P (even if not
-  // directly). Each of this subgraphs is called "inheritance component".
-  // The idea is that inheritance edges are more meaningful than instance edges,
-  // so we don't want to remove any of them, but we need to identify instance
-  // edges that create loops across multiple inheritance components, and cut
-  // them.
+  // color), either P is reachable from Q, or Q is reachable from P (even if not
+  // at step one), by means of SCCNodeView edges.
+  // Each of this subgraphs is called "component".
+  // The idea is that SCCNodeView edges are more meaningful than SCCBackedgeView
+  // edges, so we don't want to remove any of them, but we need to identify
+  // suc edges that create loops across multiple components, and cut them.
   std::map<const LTSN *, unsigned> NodeColors;
   {
     // Holds a set of nodes.
@@ -70,29 +113,45 @@ bool removeInstanceBackedgesFromInheritanceLoops(LayoutTypeSystem &TS) {
     std::map<unsigned, NodeSet> ColorToNodes;
     unsigned NewColor = 0UL;
 
+    revng_log(Log, "Detect colors");
     for (const LTSN *Root : llvm::nodes(&TS)) {
       revng_assert(Root != nullptr);
-      // Skip nodes that have no incoming or outgoing inheritance edges.
-      if (HasNoInheritanceEdge(Root))
+      revng_log(Log, "Root->ID: " << Root->ID);
+      // Skip nodes that have no incoming or outgoing SCCNodeView edges.
+      if (hasNoSCCEdge<SCC>(Root))
         continue;
-      // Start visiting only from inheritance roots.
-      if (not isInheritanceRoot(Root))
+      // Start visiting only from roots of SCCNodeView edges.
+      if (not isSCCRoot<SCC>(Root))
         continue;
 
-      // Depth first visit across inheritance edges.
-      llvm::df_iterator_default_set<const LayoutTypeSystemNode *, 16> Visited;
+      revng_log(Log, "DFS from Root->ID: " << Root->ID);
+      revng_log(Log, "NewColor: " << NewColor);
+      LoggerIndent Indent{ Log };
+
+      // Depth first visit across SCCNodeView edges.
+      llvm::df_iterator_default_set<const LTSN *, 16> Visited;
       // Tracks the set of colors we found during this visit.
       llvm::SmallSet<unsigned, 16> FoundColors;
-      for (auto *N : llvm::depth_first_ext(CInheritanceNodeT(Root), Visited)) {
+      for (auto *N :
+           llvm::depth_first_ext(typename SCC::SCCNodeView(Root), Visited)) {
+        revng_log(Log, "N->ID: " << N->ID);
+        LoggerIndent MoreIndent{ Log };
         // If N is colored, we have already visited it starting from another
-        // Root. We add it to the FoundColors and mark its inheritance children
+        // Root. We add it to the FoundColors and mark its SCCNodeView children
         // as visited, so that they are skipped in the depth first visit.
         if (auto NodeColorIt = NodeColors.find(N);
             NodeColorIt != NodeColors.end()) {
           unsigned Color = NodeColorIt->second;
+          revng_log(Log, "already colored - color: " << Color);
           FoundColors.insert(Color);
-          for (const LTSN *Child : llvm::children<CInheritanceNodeT>(N))
+          for (const LTSN *Child :
+               llvm::children<typename SCC::SCCNodeView>(N)) {
+            LoggerIndent MoreMoreIndent{ Log };
+            revng_log(Log, "push Child->ID: " << Child->ID);
             Visited.insert(Child);
+          }
+        } else {
+          revng_log(Log, "not colored");
         }
       }
 
@@ -128,22 +187,22 @@ bool removeInstanceBackedgesFromInheritanceLoops(LayoutTypeSystem &TS) {
   }
 
   // Here all the nodes are colored.
-  // Each inheritance component has a different color, while nodes that have no
-  // incoming or outgoing inheritance edges do not have a color.
+  // Each component has a different color, while nodes that have no incoming or
+  // outgoing SCCNodeView edges do not have a color.
+
+  using MixedNodeT = EdgeFilteredGraph<LTSN *, isMixedEdge<SCC>>;
 
   for (const auto &Root : llvm::nodes(&TS)) {
     revng_assert(Root != nullptr);
-    // We start from inheritance roots and look if we find an SCC with mixed
-    // edges (instance and inheritance).
-    if (HasNoInheritanceEdge(Root))
+    // We start from SCCNodeView roots and look if we find an SCC with mixed
+    // edges.
+    if (hasNoSCCEdge<SCC>(Root))
       continue;
 
-    if (not isInheritanceRoot(Root))
+    if (not isSCCRoot<SCC>(Root))
       continue;
 
-    revng_log(Log,
-              "# Looking for mixed instance inheritance loops from: "
-                << Root->ID);
+    revng_log(Log, "# Looking for mixed loops from: " << Root->ID);
 
     struct EdgeInfo {
       LTSN *Src;
@@ -153,13 +212,13 @@ bool removeInstanceBackedgesFromInheritanceLoops(LayoutTypeSystem &TS) {
       std::strong_ordering operator<=>(const EdgeInfo &) const = default;
     };
 
-    llvm::SmallPtrSet<const LayoutTypeSystemNode *, 16> Visited;
-    llvm::SmallPtrSet<const LayoutTypeSystemNode *, 16> InStack;
+    llvm::SmallPtrSet<const LTSN *, 16> Visited;
+    llvm::SmallPtrSet<const LTSN *, 16> InStack;
 
     struct StackEntry {
-      LayoutTypeSystemNode *Node;
+      LTSN *Node;
       unsigned Color;
-      MixedGT::ChildEdgeIteratorType NextToVisitIt;
+      typename MixedNodeT::ChildEdgeIteratorType NextToVisitIt;
     };
     std::vector<StackEntry> VisitStack;
 
@@ -170,7 +229,7 @@ bool removeInstanceBackedgesFromInheritanceLoops(LayoutTypeSystem &TS) {
         revng_log(Log, "    color: " << Color);
         revng_assert(Color != std::numeric_limits<unsigned>::max());
 
-        VisitStack.push_back({ N, Color, MixedGT::child_edge_begin(N) });
+        VisitStack.push_back({ N, Color, MixedNodeT::child_edge_begin(N) });
         InStack.insert(N);
         revng_assert(InStack.size() == VisitStack.size());
         revng_log(Log, "--> pushed!");
@@ -196,7 +255,8 @@ bool removeInstanceBackedgesFromInheritanceLoops(LayoutTypeSystem &TS) {
 
       unsigned TopColor = Top.Color;
       LTSN *TopNode = Top.Node;
-      MixedGT::ChildEdgeIteratorType &NextEdgeToVisit = Top.NextToVisitIt;
+      typename MixedNodeT::ChildEdgeIteratorType
+        &NextEdgeToVisit = Top.NextToVisitIt;
 
       revng_log(Log,
                 "## Stack top is: " << TopNode->ID
@@ -204,7 +264,7 @@ bool removeInstanceBackedgesFromInheritanceLoops(LayoutTypeSystem &TS) {
 
       bool StartNew = false;
       while (not StartNew
-             and NextEdgeToVisit != MixedGT::child_edge_end(TopNode)) {
+             and NextEdgeToVisit != MixedNodeT::child_edge_end(TopNode)) {
 
         LTSN *NextChild = NextEdgeToVisit->first;
         const TypeLinkTag *NextTag = NextEdgeToVisit->second;
@@ -215,7 +275,7 @@ bool removeInstanceBackedgesFromInheritanceLoops(LayoutTypeSystem &TS) {
         // Check if the next children is colored.
         // If it's not, leave the same color of the top of the stack, so that we
         // can identify the first edge that closes the crossing from one
-        // inheritance component to another.
+        // component to another.
         unsigned NextColor = TopColor;
         if (auto ColorsIt = NodeColors.find(NextChild);
             ColorsIt != NodeColors.end()) {
@@ -225,7 +285,7 @@ bool removeInstanceBackedgesFromInheritanceLoops(LayoutTypeSystem &TS) {
             revng_log(Log,
                       "Push Cross-Color Edge " << TopNode->ID << " -> "
                                                << NextChild->ID);
-            revng_assert(E.Tag->getKind() == TypeLinkTag::LK_Instance);
+            revng_assert(SCC::BackedgeNodeView::filter()({ nullptr, E.Tag }));
             CrossColorEdges.push_back(std::move(E));
           }
         }
@@ -258,15 +318,9 @@ bool removeInstanceBackedgesFromInheritanceLoops(LayoutTypeSystem &TS) {
             CrossColorEdges.clear();
 
             if (NextColor == TopColor
-                and E.Tag->getKind() == TypeLinkTag::LK_Instance) {
+                and SCC::BackedgeNodeView::filter()({ nullptr, E.Tag })) {
               // This means that the edge E we tried to push on the stack is an
-              // instance edge closing a loop.
-              // The loop can be either entirely composed of instance edges, or
-              // can be composed by some inheritance edges belonging to a single
-              // inheritance components with a retreating instance edge that
-              // targets the same inheritance component.
-              // In all these cases, the retreating edge is an instance link,
-              // and we must remove it.
+              // BackedgeNodeView edge closing a loop.
               ToRemove.insert(std::move(E));
             }
           }
@@ -303,9 +357,8 @@ bool removeInstanceBackedgesFromInheritanceLoops(LayoutTypeSystem &TS) {
     for (auto &[Pred, Child, T] : ToRemove) {
       using Edge = LTSN::NeighborsSet::value_type;
       revng_log(Log,
-                "# Removing instance edge: " << Pred->ID << " -> "
-                                             << Child->ID);
-      revng_assert(T->getKind() == TypeLinkTag::LK_Instance);
+                "# Removing backedge: " << Pred->ID << " -> " << Child->ID);
+      revng_assert(SCC::BackedgeNodeView::filter()({ Pred, T }));
       Edge ChildToPred = std::make_pair(Pred, T);
       bool Erased = Child->Predecessors.erase(ChildToPred);
       revng_assert(Erased);
@@ -316,7 +369,36 @@ bool removeInstanceBackedgesFromInheritanceLoops(LayoutTypeSystem &TS) {
     }
   }
 
+  if (VerifyLog.isEnabled()) {
+    revng_assert(TS.verifyConsistency());
+
+    // Verify that the graph is a DAG looking both at SCCNodeView and
+    // BackedgeNodeView
+    std::set<const LTSN *> Visited;
+    for (const auto &Node : llvm::nodes(&TS)) {
+      revng_assert(Node != nullptr);
+      if (Visited.count(Node))
+        continue;
+
+      auto I = llvm::scc_begin(MixedNodeT(Node));
+      auto E = llvm::scc_end(MixedNodeT(Node));
+      for (; I != E; ++I) {
+        Visited.insert(I->begin(), I->end());
+        if (I.hasCycle())
+          revng_check(false);
+      }
+    }
+  }
+
   return Changed;
-} // namespace dla
+}
+
+bool removeInstanceBackedgesFromInheritanceLoops(LayoutTypeSystem &TS) {
+  return removeBackedgesFromSCC<InheritanceLoopWithInstanceBackedge>(TS);
+}
+
+bool removeInstanceBackedgesFromInstanceAtOffset0Loops(LayoutTypeSystem &TS) {
+  return removeBackedgesFromSCC<InstanceOffsetZeroWithInstanceBackedge>(TS);
+}
 
 } // end namespace dla

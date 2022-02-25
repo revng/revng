@@ -56,20 +56,49 @@ public:
   const void *getStepID() const { return StepID; };
 };
 
-/// dla::Step that collapses loops in the type system with equality or
-/// inheritange edges
+/// Collapses strongly connected components made of equality edges
 //
-// After the execution of this step, the LayoutTypeSystem graph should contain
-// only inheritance and instance-of edges, and should be a DAG.
-class CollapseIdentityAndInheritanceCC : public Step {
+// After the execution of this step, the LayoutTypeSystem graph should not
+// contain equality edges anymore
+class CollapseEqualitySCC : public Step {
   static const char ID;
 
 public:
   static const constexpr void *getID() { return &ID; }
 
-  CollapseIdentityAndInheritanceCC() : Step(ID){};
+  CollapseEqualitySCC() : Step(ID){};
 
-  virtual ~CollapseIdentityAndInheritanceCC() override = default;
+  virtual ~CollapseEqualitySCC() override = default;
+
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
+};
+
+/// Collapses strongly connected components in the type system made of
+/// instance-at-offset-0 edges
+class CollapseInstanceAtOffset0SCC : public Step {
+  static const char ID;
+
+public:
+  static const constexpr void *getID() { return &ID; }
+
+  CollapseInstanceAtOffset0SCC() : Step(ID){};
+
+  virtual ~CollapseInstanceAtOffset0SCC() override = default;
+
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
+};
+
+/// dla::Step that collapses loops in the type system with equality or
+/// inheritange edges
+class CollapseInheritanceSCC : public Step {
+  static const char ID;
+
+public:
+  static const constexpr void *getID() { return &ID; }
+
+  CollapseInheritanceSCC() : Step(ID){};
+
+  virtual ~CollapseInheritanceSCC() override = default;
 
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
@@ -141,7 +170,9 @@ public:
   ComputeUpperMemberAccesses() :
     Step(ID,
          // Dependencies
-         { CollapseIdentityAndInheritanceCC::getID() },
+         { CollapseInheritanceSCC::getID(),
+           CollapseInstanceAtOffset0SCC::getID(),
+           CollapseEqualitySCC::getID() },
          // Invalidated
          {}) {}
 
