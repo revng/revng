@@ -1,19 +1,22 @@
-/// \file ConvertFunctionType.cpp
+/// \file FunctionType.cpp
 /// \brief
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <unordered_set>
+
+#include "revng/ABI/FunctionType.h"
+#include "revng/ABI/RegisterStateDeductions.h"
 #include "revng/ABI/Trait.h"
 #include "revng/ADT/SmallMap.h"
 #include "revng/Model/Binary.h"
-#include "revng/Model/ConvertFunctionType.h"
 #include "revng/Model/Register.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/EnumSwitch.h"
 
-namespace model {
+namespace abi::FunctionType {
 
 template<size_t Size>
 using RegisterArray = std::array<model::Register::Values, Size>;
@@ -36,7 +39,7 @@ bool verify(const SortedVector<RegisterType> &UsedRegisters,
   for (const RegisterType &Register : UsedRegisters) {
     // Verify the architecture of used registers.
     if (model::Register::getArchitecture(Register.Location) != Architecture)
-      return false;
+      revng_abort();
   }
 
   // Verify that every used register is also allowed.
@@ -96,7 +99,7 @@ static model::QualifiedType getTypeOrDefault(const model::QualifiedType &Type,
 }
 
 template<model::ABI::Values ABI>
-class ConvertionHelper {
+class ConversionHelper {
   using AT = abi::Trait<ABI>;
 
   using IndexType = decltype(model::Argument::Index);
@@ -119,9 +122,12 @@ public:
                       AT::GeneralPurposeReturnValueRegisters))
       return std::nullopt;
 
+    // Verify the architecture of return value location register if present.
     constexpr model::Register::Values PTCRR = AT::ReturnValueLocationRegister;
     if (PTCRR != model::Register::Invalid)
       revng_assert(model::Register::getArchitecture(PTCRR) == Arch);
+
+    // Verify the architecture of callee saved registers.
     for (auto &SavedRegister : AT::CalleeSavedRegisters)
       revng_assert(model::Register::getArchitecture(SavedRegister) == Arch);
 
@@ -129,39 +135,47 @@ public:
     Result.CustomName = Function.CustomName;
     Result.ABI = ABI;
 
+    if (!verifyArgumentsToBeConvertible(Function.Arguments,
+                                        AT::GeneralPurposeArgumentRegisters,
+                                        TheBinary))
+      return std::nullopt;
+
+    using C = AT;
+    if (!verifyReturnValueToBeConvertible(Function.ReturnValues,
+                                          C::GeneralPurposeReturnValueRegisters,
+                                          C::ReturnValueLocationRegister,
+                                          TheBinary))
+      return std::nullopt;
+
     auto ArgumentList = convertArguments(Function.Arguments,
                                          AT::GeneralPurposeArgumentRegisters,
                                          TheBinary);
-    if (ArgumentList == std::nullopt)
-      return std::nullopt;
+    revng_assert(ArgumentList != std::nullopt);
     for (auto &Argument : *ArgumentList)
       Result.Arguments.insert(Argument);
 
-    using C = AT;
     auto ReturnValue = convertReturnValue(Function.ReturnValues,
                                           C::GeneralPurposeReturnValueRegisters,
                                           C::ReturnValueLocationRegister,
                                           TheBinary);
-    if (ReturnValue == std::nullopt)
-      return std::nullopt;
+    revng_assert(ReturnValue != std::nullopt);
     Result.ReturnType = *ReturnValue;
     return Result;
   }
 
-  static std::optional<model::RawFunctionType>
+  static model::RawFunctionType
   toRaw(const model::CABIFunctionType &Function, model::Binary &TheBinary) {
     auto Arguments = distributeArguments(Function.Arguments);
 
     model::RawFunctionType Result;
     Result.CustomName = Function.CustomName;
 
-    for (size_t ArgumentIdx = 0; ArgumentIdx < Arguments.size();
-         ++ArgumentIdx) {
-      auto &ArgumentStorage = Arguments[ArgumentIdx];
-      const auto &ArgumentType = Function.Arguments.at(ArgumentIdx).Type;
+    for (size_t ArgIndex = 0; ArgIndex < Arguments.size(); ++ArgIndex) {
+      auto &ArgumentStorage = Arguments[ArgIndex];
+      const auto &ArgumentType = Function.Arguments.at(ArgIndex).Type;
       if (!ArgumentStorage.Registers.empty()) {
         // Handle the registers
-        auto OriginalName = Function.Arguments.at(ArgumentIdx).CustomName;
+        auto OriginalName = Function.Arguments.at(ArgIndex).CustomName;
         for (size_t Index = 0; auto Register : ArgumentStorage.Registers) {
           auto FinalName = OriginalName;
           if (ArgumentStorage.Registers.size() > 1 && !FinalName.empty())
@@ -179,7 +193,7 @@ public:
 
       if (ArgumentStorage.SizeOnStack != 0) {
         // Handle the stack
-        auto ArgumentIterator = Function.Arguments.find(ArgumentIdx);
+        auto ArgumentIterator = Function.Arguments.find(ArgIndex);
         revng_assert(ArgumentIterator != Function.Arguments.end());
         const model::Argument &Argument = *ArgumentIterator;
 
@@ -191,17 +205,14 @@ public:
 
     if (!Function.ReturnType.isVoid()) {
       auto ReturnValue = distributeReturnValue(Function.ReturnType);
-      if (ReturnValue == std::nullopt)
-        return std::nullopt;
-
-      if (!ReturnValue->Registers.empty()) {
+      if (!ReturnValue.Registers.empty()) {
         // Handle a register-based return value.
-        for (model::Register::Values Register : ReturnValue->Registers) {
+        for (model::Register::Values Register : ReturnValue.Registers) {
           model::TypedRegister ReturnValueRegister;
           ReturnValueRegister.Location = Register;
           ReturnValueRegister.Type = chooseArgumentType(Function.ReturnType,
                                                         Register,
-                                                        ReturnValue->Registers,
+                                                        ReturnValue.Registers,
                                                         TheBinary);
 
           Result.ReturnValues.insert(std::move(ReturnValueRegister));
@@ -210,6 +221,7 @@ public:
         // Try and recover types from the struct if possible
         if (Function.ReturnType.Qualifiers.empty()) {
           const model::Type *Type = Function.ReturnType.UnqualifiedType.get();
+          revng_assert(Type != nullptr);
           const auto *Struct = llvm::dyn_cast<model::StructType>(Type);
           if (Struct && Struct->Fields.size() == Result.ReturnValues.size()) {
             using RegisterEnum = model::Register::Values;
@@ -249,18 +261,14 @@ public:
         }
       } else {
         // Handle a pointer-based return value.
-        if (AT::GeneralPurposeReturnValueRegisters.empty())
-          return std::nullopt;
-
+        revng_assert(!AT::GeneralPurposeReturnValueRegisters.empty());
         auto Register = AT::GeneralPurposeReturnValueRegisters[0];
         auto RegisterSize = model::Register::getSize(Register);
         auto PointerQualifier = model::Qualifier::createPointer(RegisterSize);
 
         auto MaybeReturnValueSize = Function.ReturnType.size();
-        if (MaybeReturnValueSize == std::nullopt)
-          return std::nullopt;
-        if (ReturnValue->Size != *MaybeReturnValueSize)
-          return std::nullopt;
+        revng_assert(MaybeReturnValueSize != std::nullopt);
+        revng_assert(ReturnValue.Size == *MaybeReturnValueSize);
 
         model::QualifiedType ReturnType = Function.ReturnType;
         ReturnType.Qualifiers.emplace_back(PointerQualifier);
@@ -275,11 +283,33 @@ public:
     for (model::Register::Values Register : AT::CalleeSavedRegisters)
       Result.PreservedRegisters.insert(Register);
 
+    Result.FinalStackOffset = finalStackOffset(Arguments);
+
+    return Result;
+  }
+
+  static uint64_t finalStackOffset(const DistributedArguments &Arguments) {
+    constexpr auto Architecture = model::ABI::getArchitecture(ABI);
+    uint64_t Result = model::Architecture::getCallPushSize(Architecture);
+
+    if constexpr (AT::CalleeIsResponsibleForStackCleanup) {
+      for (auto &Argument : Arguments)
+        Result += Argument.SizeOnStack;
+
+      // TODO: take return values into the account.
+
+      // TODO: take shadow space into the account if relevant.
+
+      static_assert((AT::StackAlignment & (AT::StackAlignment - 1)) == 0);
+      Result += AT::StackAlignment - 1;
+      Result &= ~(AT::StackAlignment - 1);
+    }
+
     return Result;
   }
 
 private:
-  template<typename RegisterType, size_t RegisterCount>
+  template<typename RegisterType, size_t RegisterCount, bool DryRun = false>
   static std::optional<llvm::SmallVector<model::Argument, 8>>
   convertArguments(const SortedVector<RegisterType> &UsedRegisters,
                    const RegisterArray<RegisterCount> &AllowedRegisters,
@@ -294,9 +324,10 @@ private:
       bool IsUsed = UsedRegisters.find(Register) != UsedRegisters.end();
       if (IsUsed) {
         model::Argument Temporary;
-        Temporary.Type = getTypeOrDefault(UsedRegisters.at(Register).Type,
-                                          Register,
-                                          TheBinary);
+        if constexpr (!DryRun)
+          Temporary.Type = getTypeOrDefault(UsedRegisters.at(Register).Type,
+                                            Register,
+                                            TheBinary);
         Temporary.CustomName = UsedRegisters.at(Register).CustomName;
         Result.emplace_back(Temporary);
       } else if (MustUseTheNextOne) {
@@ -314,14 +345,16 @@ private:
               Second.CustomName = "unnamed";
             First.CustomName.append(("+" + Second.CustomName).str());
           }
-          auto NewType = buildDoubleType(AllowedRegisters.at(Index - 2),
-                                         AllowedRegisters.at(Index - 1),
-                                         model::PrimitiveTypeKind::Generic,
-                                         TheBinary);
-          if (NewType == std::nullopt)
-            return std::nullopt;
+          if constexpr (!DryRun) {
+            auto NewType = buildDoubleType(AllowedRegisters.at(Index - 2),
+                                           AllowedRegisters.at(Index - 1),
+                                           model::PrimitiveTypeKind::Generic,
+                                           TheBinary);
+            if (NewType == std::nullopt)
+              return std::nullopt;
 
-          First.Type = *NewType;
+            First.Type = *NewType;
+          }
           Result.pop_back();
         } else {
           return std::nullopt;
@@ -337,7 +370,7 @@ private:
     return Result;
   }
 
-  template<typename RegisterType, size_t RegisterCount>
+  template<typename RegisterType, size_t RegisterCount, bool DryRun = false>
   static std::optional<model::QualifiedType>
   convertReturnValue(const SortedVector<RegisterType> &UsedRegisters,
                      const RegisterArray<RegisterCount> &AllowedRegisters,
@@ -350,16 +383,22 @@ private:
 
     if (UsedRegisters.size() == 1) {
       if (UsedRegisters.begin()->Location == PointerToCopyLocation) {
-        return getTypeOrDefault(UsedRegisters.begin()->Type,
-                                PointerToCopyLocation,
-                                TheBinary);
+        if constexpr (DryRun)
+          return model::QualifiedType{};
+        else
+          return getTypeOrDefault(UsedRegisters.begin()->Type,
+                                  PointerToCopyLocation,
+                                  TheBinary);
       } else {
         if constexpr (RegisterCount == 0)
           return std::nullopt;
         if (AllowedRegisters.front() == UsedRegisters.begin()->Location) {
-          return getTypeOrDefault(UsedRegisters.begin()->Type,
-                                  UsedRegisters.begin()->Location,
-                                  TheBinary);
+          if constexpr (DryRun)
+            return model::QualifiedType{};
+          else
+            return getTypeOrDefault(UsedRegisters.begin()->Type,
+                                    UsedRegisters.begin()->Location,
+                                    TheBinary);
         } else {
           return std::nullopt;
         }
@@ -379,9 +418,10 @@ private:
         if (IsCurrentRegisterUsed) {
           model::StructField CurrentField;
           CurrentField.Offset = ReturnStruct->Size;
-          CurrentField.Type = getTypeOrDefault(UsedIterator->Type,
-                                               UsedIterator->Location,
-                                               TheBinary);
+          if constexpr (!DryRun)
+            CurrentField.Type = getTypeOrDefault(UsedIterator->Type,
+                                                 UsedIterator->Location,
+                                                 TheBinary);
           ReturnStruct->Fields.insert(std::move(CurrentField));
 
           ReturnStruct->Size += model::Register::getSize(Register);
@@ -397,12 +437,33 @@ private:
       }
 
       revng_assert(ReturnStruct->Size != 0 && !ReturnStruct->Fields.empty());
-      auto ReturnStructTypePath = TheBinary.recordNewType(std::move(Result));
-      revng_assert(ReturnStructTypePath.isValid());
-      return model::QualifiedType{ ReturnStructTypePath, {} };
+
+      if constexpr (DryRun) {
+        auto ReturnStructTypePath = TheBinary.recordNewType(std::move(Result));
+        revng_assert(ReturnStructTypePath.isValid());
+        return model::QualifiedType{ ReturnStructTypePath, {} };
+      } else {
+        return model::QualifiedType{};
+      }
     }
 
     return std::nullopt;
+  }
+
+  template<typename RType, size_t RCount>
+  static bool verifyArgumentsToBeConvertible(const SortedVector<RType> &UR,
+                                             const RegisterArray<RCount> &AR,
+                                             model::Binary &B) {
+    return convertArguments<RType, RCount, true>(UR, AR, B).has_value();
+  }
+
+  template<typename RType, size_t RCount>
+  static bool
+  verifyReturnValueToBeConvertible(const SortedVector<RType> &UR,
+                                   const RegisterArray<RCount> &AR,
+                                   const model::Register::Values PtC,
+                                   model::Binary &B) {
+    return convertReturnValue<RType, RCount, true>(UR, AR, PtC, B).has_value();
   }
 
   static DistributedArguments
@@ -437,6 +498,8 @@ private:
 
     return Result;
   }
+
+  static constexpr auto UnlimitedRegisters = std::numeric_limits<size_t>::max();
 
   template<size_t RegisterCount>
   static std::pair<DistributedArgument, size_t>
@@ -482,6 +545,18 @@ private:
     } else {
       DA.SizeOnStack = DA.Size;
       ConsideredRegisterCounter = OccupiedRegisterCount;
+    }
+
+    if (DA.SizeOnStack != 0) {
+      // Take stack alignment into consideration.
+      if (DA.SizeOnStack < AT::MinimumStackArgumentSize) {
+        DA.SizeOnStack = AT::MinimumStackArgumentSize;
+      } else {
+        constexpr auto MinStackArgumentSize = AT::MinimumStackArgumentSize;
+        static_assert((MinStackArgumentSize & (MinStackArgumentSize - 1)) == 0);
+        DA.SizeOnStack += MinStackArgumentSize - 1;
+        DA.SizeOnStack &= ~(MinStackArgumentSize - 1);
+      }
     }
 
     return { DA, ConsideredRegisterCounter };
@@ -546,6 +621,7 @@ private:
     return Result;
   }
 
+public:
   static DistributedArguments
   distributeArguments(const ArgumentContainer &Arguments) {
     if constexpr (AT::ArgumentsArePositionBased)
@@ -554,14 +630,24 @@ private:
       return distributeNonPositionBasedArguments(Arguments);
   }
 
-  static std::optional<DistributedArgument>
+  static DistributedArgument
   distributeReturnValue(const model::QualifiedType &ReturnValueType) {
+    if (ReturnValueType.isVoid())
+      return DistributedArgument{};
+
     auto MaybeSize = ReturnValueType.size();
     revng_assert(MaybeSize.has_value());
 
     if (ReturnValueType.isFloat()) {
       const auto &Registers = AT::VectorReturnValueRegisters;
-      return considerRegisters(*MaybeSize, 1, 0, Registers, false).first;
+      // TODO: replace `UnlimitedRegisters` with the actual value to be defined
+      //       by the trait.
+      return considerRegisters(*MaybeSize,
+                               UnlimitedRegisters,
+                               0,
+                               Registers,
+                               false)
+        .first;
     } else {
       const auto &Registers = AT::GeneralPurposeReturnValueRegisters;
       if (ReturnValueType.isScalar()) {
@@ -574,6 +660,7 @@ private:
     }
   }
 
+private:
   static model::QualifiedType
   chooseArgumentType(const model::QualifiedType &ArgumentType,
                      model::Register::Values Register,
@@ -601,24 +688,126 @@ private:
 };
 
 std::optional<model::CABIFunctionType>
-convertToCABIFunctionType(const model::RawFunctionType &Function,
-                          model::Binary &TheBinary,
-                          std::optional<model::ABI::Values> MaybeABI) {
+tryConvertToCABI(const model::RawFunctionType &Function,
+                 model::Binary &TheBinary,
+                 std::optional<model::ABI::Values> MaybeABI) {
   if (!MaybeABI.has_value())
     MaybeABI = TheBinary.DefaultABI;
   revng_assert(*MaybeABI != model::ABI::Invalid);
   return skippingEnumSwitch<1>(*MaybeABI, [&]<model::ABI::Values A>() {
-    return ConvertionHelper<A>::toCABI(Function, TheBinary);
+    return ConversionHelper<A>::toCABI(Function, TheBinary);
   });
 }
 
-std::optional<model::RawFunctionType>
-convertToRawFunctionType(const model::CABIFunctionType &Function,
-                         model::Binary &TheBinary) {
+model::RawFunctionType convertToRaw(const model::CABIFunctionType &Function,
+                                    model::Binary &TheBinary) {
   revng_assert(Function.ABI != model::ABI::Invalid);
   return skippingEnumSwitch<1>(Function.ABI, [&]<model::ABI::Values A>() {
-    return ConvertionHelper<A>::toRaw(Function, TheBinary);
+    return ConversionHelper<A>::toRaw(Function, TheBinary);
   });
 }
 
-} // namespace model
+Layout::Layout(const model::CABIFunctionType &Function) :
+  Layout(skippingEnumSwitch<1>(Function.ABI, [&]<model::ABI::Values A>() {
+    Layout Result;
+
+    size_t CurrentOffset = 0;
+    auto Args = ConversionHelper<A>::distributeArguments(Function.Arguments);
+    revng_assert(Args.size() == Function.Arguments.size());
+    for (size_t Index = 0; Index < Args.size(); ++Index) {
+      auto &Current = Result.Arguments.emplace_back();
+      Current.Registers = std::move(Args[Index].Registers);
+      if (Args[Index].SizeOnStack != 0) {
+        // TODO: maybe some kind of alignment considerations are needed here.
+        Current.Stack = typename Layout::Argument::StackSpan{
+          CurrentOffset, Args[Index].SizeOnStack
+        };
+        CurrentOffset += Args[Index].SizeOnStack;
+      }
+    }
+
+    auto RV = ConversionHelper<A>::distributeReturnValue(Function.ReturnType);
+    revng_assert(RV.SizeOnStack == 0);
+    Result.ReturnValue.Registers = std::move(RV.Registers);
+
+    using AT = abi::Trait<A>;
+    Result.CalleeSavedRegisters.resize(AT::CalleeSavedRegisters.size());
+    llvm::copy(AT::CalleeSavedRegisters, Result.CalleeSavedRegisters.begin());
+
+    Result.FinalStackOffset = ConversionHelper<A>::finalStackOffset(Args);
+
+    return Result;
+  })) {
+}
+
+Layout::Layout(const model::RawFunctionType &Function) {
+  // Lay register arguments out.
+  for (const model::NamedTypedRegister &Register : Function.Arguments)
+    Arguments.emplace_back().Registers = { Register.Location };
+
+  // Lay stack arguments out.
+  if (Function.StackArgumentsType.isValid()) {
+    const model::Type *OriginalStackType = Function.StackArgumentsType.get();
+    auto *StackStruct = llvm::dyn_cast<model::StructType>(OriginalStackType);
+    revng_assert(StackStruct,
+                 "`RawFunctionType::StackArgumentsType` must be a struct.");
+    typename Layout::Argument::StackSpan StackSpan{ 0, StackStruct->Size };
+    Arguments.emplace_back().Stack = std::move(StackSpan);
+  }
+
+  // Lay the return value out.
+  for (const model::TypedRegister &Register : Function.ReturnValues)
+    ReturnValue.Registers.emplace_back(Register.Location);
+
+  // Fill callee saved registers.
+  CalleeSavedRegisters.resize(Function.PreservedRegisters.size());
+  llvm::copy(Function.PreservedRegisters, CalleeSavedRegisters.begin());
+}
+
+bool Layout::verify() const {
+  model::Architecture::Values ExpectedArch = model::Architecture::Invalid;
+  std::unordered_set<model::Register::Values> LookupHelper;
+  auto VerificationHelper = [&](model::Register::Values Register) -> bool {
+    // Ensure each register is present only once
+    if (!LookupHelper.emplace(Register).second)
+      return false;
+
+    // Ensure all the registers belong to the same architecture
+    if (ExpectedArch == model::Architecture::Invalid)
+      ExpectedArch = model::Register::getArchitecture(Register);
+    else if (ExpectedArch != model::Register::getArchitecture(Register))
+      return false;
+
+    return true;
+  };
+
+  // Verify arguments
+  LookupHelper.clear();
+  for (const Layout::Argument &Argument : Arguments)
+    for (model::Register::Values Register : Argument.Registers)
+      if (!VerificationHelper(Register))
+        return false;
+
+  // Verify return values
+  LookupHelper.clear();
+  for (model::Register::Values Register : ReturnValue.Registers)
+    if (!VerificationHelper(Register))
+      return false;
+
+  return true;
+}
+
+size_t Layout::argumentRegisterCount() const {
+  size_t Result = 0;
+
+  for (auto &Argument : Arguments)
+    Result += Argument.Registers.size();
+
+  return Result;
+}
+
+size_t Layout::returnValueRegisterCount() const {
+  return ReturnValue.Registers.size();
+}
+
+} // namespace abi::FunctionType

@@ -223,6 +223,22 @@ concept IsTrait = requires(TraitType<ABI> Trait) {
   { Trait.ReturnValueLocationRegister } ->
     convertible_to<model::Register::Values>;
 
+  /// Specifies who is responsible for cleaning the stack after the function
+  /// call. If equal to `true`, it's the callee, otherwise it the caller.
+  { Trait.CalleeIsResponsibleForStackCleanup } -> convertible_to<bool>;
+
+  /// States the required alignment of the stack at the point of a function
+  /// call in bytes.
+  ///
+  /// \note: states minimum value for ABIs supporting multiple different stack
+  /// alignment values, for example, if the ABI requires the stack to be aligned
+  /// on 4 bytes for internal calls but on 8 bytes for interfaces (like 32-bit
+  /// ARM ABI), the value of `StackAlignment` should be equal to 4.
+  { Trait.StackAlignment } -> convertible_to<size_t>;
+
+  /// States the required size for a single stack argument in bytes.
+  { Trait.MinimumStackArgumentSize } -> convertible_to<size_t>;
+
 };
 
 namespace detail {
