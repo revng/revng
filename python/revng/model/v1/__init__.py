@@ -17,16 +17,16 @@ from .._common.monkeypatches import (
 )
 
 # Automatically compute primitive type ID if we weren't provided one
-autoassign_primitive_id(Primitive)
+autoassign_primitive_id(PrimitiveType)
 
 # Automatically assign a random ID if we weren't provided one
 types_with_random_id = [
     CABIFunctionType,
     RawFunctionType,
     UnionType,
-    Struct,
+    StructType,
     EnumType,
-    Typedef,
+    TypedefType,
 ]
 
 for t in types_with_random_id:
@@ -34,10 +34,10 @@ for t in types_with_random_id:
 
 # Autoassign the Kind constructor argument
 types_to_kind = [
-    (Primitive, TypeKind.Primitive),
+    (PrimitiveType, TypeKind.Primitive),
     (EnumType, TypeKind.Enum),
-    (Typedef, TypeKind.Typedef),
-    (Struct, TypeKind.Struct),
+    (TypedefType, TypeKind.Typedef),
+    (StructType, TypeKind.Struct),
     (UnionType, TypeKind.Union),
     (CABIFunctionType, TypeKind.CABIFunctionType),
     (RawFunctionType, TypeKind.RawFunctionType),
@@ -50,10 +50,10 @@ hashable_types = [
     (CABIFunctionType, "ID"),
     (RawFunctionType, "ID"),
     (UnionType, "ID"),
-    (Struct, "ID"),
+    (StructType, "ID"),
     (EnumType, "ID"),
-    (Typedef, "ID"),
-    (Primitive, "ID"),
+    (TypedefType, "ID"),
+    (PrimitiveType, "ID"),
     (Function, None),
 ]
 
