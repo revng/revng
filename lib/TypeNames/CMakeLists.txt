@@ -11,3 +11,4 @@ target_link_libraries(revngcTypeNames
   revng::revngSupport
   revngcSupport
   ${LLVM_LIBRARIES})
+
