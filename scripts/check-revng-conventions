@@ -143,10 +143,12 @@ function run_clang_format() {
 # Run black
 function run_black() {
     PYTHON_FILES="$( ( git grep -l '^#!.*python' && git ls-files | grep '\.py$' ) | sort -u )"
-    if test "$FORCE_FORMAT" -gt 0; then
-        black -q -l 100 $PYTHON_FILES
-    else
-        black --check -l 100 $PYTHON_FILES | grep 'Oh no'
+    if [ ! -z "$PYTHON_FILES" ]; then
+        if test "$FORCE_FORMAT" -gt 0; then
+            black -q -l 100 $PYTHON_FILES
+        else
+            black --check -l 100 $PYTHON_FILES | grep 'Oh no'
+        fi
     fi
 }
 
