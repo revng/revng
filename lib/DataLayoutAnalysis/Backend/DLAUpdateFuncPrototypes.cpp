@@ -93,14 +93,22 @@ static bool updateRawFuncArgs(model::Binary &Model,
       LayoutTypePtr Key{ LLVMStackArg, LayoutTypePtr::fieldNumNone };
 
       if (auto NewTypeIt = DLATypes.find(Key); NewTypeIt != DLATypes.end()) {
-        const model::QualifiedType &StackArgType = NewTypeIt->second;
-        revng_assert(StackArgType.Qualifiers.empty());
-        revng_assert(*StackArgType.size() == StackStruct->Size);
-        ModelPrototype->StackArgumentsType = StackArgType.UnqualifiedType;
-        revng_log(Log, "Updated to " << StackArgType.UnqualifiedType.get()->ID);
+        model::QualifiedType StackArgQualType = NewTypeIt->second;
+        revng_assert(StackArgQualType.Qualifiers.empty());
 
-        ModelStackArg = ModelPrototype->StackArgumentsType.get();
-        revng_assert(isa<model::StructType>(ModelStackArg));
+        model::Type *DLAStackArgType = StackArgQualType.UnqualifiedType.get();
+        revng_assert(DLAStackArgType->size() <= StackStruct->Size);
+
+        if (auto *S = dyn_cast<model::StructType>(DLAStackArgType)) {
+          for (auto &Field : S->Fields)
+            StackStruct->Fields.insert(Field);
+          revng_log(Log, "Updated fields");
+        } else {
+          StackStruct->Fields[0].Type = StackArgQualType;
+          revng_log(Log,
+                    "Updated: inserted fields at offest 0 with ID: "
+                      << DLAStackArgType->ID);
+        }
 
         Updated = true;
       }
@@ -221,9 +229,8 @@ static bool updateFuncStackFrame(model::Function &ModelFunc,
           NewS->Fields.erase(It, End);
         }
 
-        NewS->Size = OldStackSize;
-
-        ModelFunc.StackFrameType = Model.getTypePath(NewS);
+        for (const auto &Field : NewS->Fields)
+          OldStackFrameStruct->Fields.insert(Field);
 
       } else if (auto *NewU = dyn_cast<model::UnionType>(UnqualNewStack)) {
         // Prepare the new stack type, which cannot be a union, it has to be
@@ -294,6 +301,7 @@ static bool updateFuncStackFrame(model::Function &ModelFunc,
 
       revng_assert(isa<model::StructType>(ModelFunc.StackFrameType.get()));
       revng_assert(*ModelFunc.StackFrameType.get()->size() == OldStackSize);
+      revng_assert(ModelFunc.StackFrameType.get()->verify());
 
       Updated = true;
     }

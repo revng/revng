@@ -11,4 +11,5 @@ revng_add_analyses_library(revngcSupport
   )
 
 target_link_libraries(revngcSupport
+  revng::revngModel
   revng::revngSupport)

@@ -249,10 +249,7 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
         // The component is at offset C.StartByte inside N.
         // If this offset is zero we add an inheritance edge, otherwise an
         // instance edge.
-        if (C.StartByte)
-          TS.addInstanceLink(N, New, OffsetExpression(C.StartByte));
-        else
-          TS.addInheritanceLink(N, New);
+        TS.addInstanceLink(N, New, OffsetExpression(C.StartByte));
       }
 
       N->InterferingInfo = AllChildrenAreNonInterfering;

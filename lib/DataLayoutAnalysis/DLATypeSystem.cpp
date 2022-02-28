@@ -156,6 +156,8 @@ void debug_function LayoutTypeSystem::dumpDotOnFile(const char *FName,
     }
 
     std::string Extra;
+    std::string Color;
+    std::string Style;
     for (const auto &SuccP : L->Successors) {
       const TypeLinkTag *EdgeTag = SuccP.second;
       const auto SameLink = [&](auto &OtherPair) {
@@ -172,28 +174,34 @@ void debug_function LayoutTypeSystem::dumpDotOnFile(const char *FName,
       case TypeLinkTag::LK_Equality: {
         EdgeLabel = Equal;
         LabelSize = sizeof(Equal) - 1;
+        Color = ",color=green";
       } break;
       case TypeLinkTag::LK_Instance: {
         EdgeLabel = Instance;
         LabelSize = sizeof(Instance) - 1;
         Extra = dumpToString(EdgeTag->getOffsetExpr());
+        Color = ",color=blue";
       } break;
       case TypeLinkTag::LK_Inheritance: {
         EdgeLabel = Inherits;
         LabelSize = sizeof(Inherits) - 1;
+        Color = ",color=orange";
       } break;
       case TypeLinkTag::LK_Pointer: {
         EdgeLabel = Pointer;
         LabelSize = sizeof(Pointer) - 1;
+        Color = ",color=purple";
+        Style = ",style=dashed";
       } break;
       default: {
         EdgeLabel = Unexpected;
         LabelSize = sizeof(Unexpected) - 1;
+        Color = ",color=red";
       } break;
       }
       DotFile << "  node_" << SrcNodeId << " -> node_" << TgtNode->ID
               << " [label=\"" << StringRef(EdgeLabel, LabelSize) << Extra
-              << "\"];\n";
+              << "\"" << Color << Style << "];\n";
     }
   }
 
@@ -214,21 +222,13 @@ LayoutTypeSystemNode *LayoutTypeSystem::createArtificialLayoutType() {
 static void
 fixPredSucc(LayoutTypeSystemNode *From, LayoutTypeSystemNode *Into) {
 
-  // Helper lambdas
-  const auto IsFrom = [From](const LayoutTypeSystemNode::Link &L) {
-    return L.first == From;
-  };
-  const auto IsInto = [Into](const LayoutTypeSystemNode::Link &L) {
-    return L.first == Into;
-  };
+  revng_assert(From != Into);
 
   // All the predecessors of all the successors of From are updated so that they
   // point to Into
   for (auto &[Neighbor, Tag] : From->Successors) {
-    auto PredBegin = Neighbor->Predecessors.begin();
-    auto PredEnd = Neighbor->Predecessors.end();
-    auto It = std::find_if(PredBegin, PredEnd, IsFrom);
-    auto End = std::find_if_not(It, PredEnd, IsFrom);
+    auto It = Neighbor->Predecessors.lower_bound({ From, nullptr });
+    auto End = Neighbor->Predecessors.upper_bound({ std::next(From), nullptr });
     while (It != End) {
       auto Next = std::next(It);
       auto Extracted = Neighbor->Predecessors.extract(It);
@@ -241,10 +241,8 @@ fixPredSucc(LayoutTypeSystemNode *From, LayoutTypeSystemNode *Into) {
   // All the successors of all the predecessors of From are updated so that they
   // point to Into
   for (auto &[Neighbor, Tag] : From->Predecessors) {
-    auto SuccBegin = Neighbor->Successors.begin();
-    auto SuccEnd = Neighbor->Successors.end();
-    auto It = std::find_if(SuccBegin, SuccEnd, IsFrom);
-    auto End = std::find_if_not(It, SuccEnd, IsFrom);
+    auto It = Neighbor->Successors.lower_bound({ From, nullptr });
+    auto End = Neighbor->Successors.upper_bound({ std::next(From), nullptr });
     while (It != End) {
       auto Next = std::next(It);
       auto Extracted = Neighbor->Successors.extract(It);
@@ -263,14 +261,13 @@ fixPredSucc(LayoutTypeSystemNode *From, LayoutTypeSystemNode *Into) {
 
   // Remove self-references from predecessors and successors.
   {
-    const auto RemoveSelfEdges = [IsFrom, IsInto](auto &NeighborsSet) {
-      auto It = NeighborsSet.begin();
-      while (It != NeighborsSet.end()) {
-        auto Next = std::next(It);
-        if (IsInto(*It) or IsFrom(*It))
-          NeighborsSet.erase(It);
-        It = Next;
-      }
+    const auto RemoveSelfEdges = [From, Into](auto &NeighborsSet) {
+      auto FromIt = NeighborsSet.lower_bound({ From, nullptr });
+      auto FromEnd = NeighborsSet.upper_bound({ std::next(From), nullptr });
+      NeighborsSet.erase(FromIt, FromEnd);
+      auto IntoIt = NeighborsSet.lower_bound({ Into, nullptr });
+      auto IntoEnd = NeighborsSet.upper_bound({ std::next(Into), nullptr });
+      NeighborsSet.erase(IntoIt, IntoEnd);
     };
     RemoveSelfEdges(Into->Predecessors);
     RemoveSelfEdges(Into->Successors);
@@ -308,24 +305,18 @@ void LayoutTypeSystem::removeNode(LayoutTypeSystemNode *ToRemove) {
   EqClasses.remove(ToRemove->ID);
   revng_log(MergeLog, "Removing " << ToRemove->ID << "\n");
 
-  const auto IsToRemove = [ToRemove](const LayoutTypeSystemNode::Link &L) {
-    return L.first == ToRemove;
-  };
-
   for (auto &[Neighbor, Tag] : ToRemove->Successors) {
-    auto PredBegin = Neighbor->Predecessors.begin();
-    auto PredEnd = Neighbor->Predecessors.end();
-    auto It = std::find_if(PredBegin, PredEnd, IsToRemove);
-    auto End = std::find_if_not(It, PredEnd, IsToRemove);
-    Neighbor->Predecessors.erase(It, End);
+    auto &PredOfSucc = Neighbor->Predecessors;
+    auto It = PredOfSucc.lower_bound({ ToRemove, nullptr });
+    auto End = PredOfSucc.upper_bound({ std::next(ToRemove), nullptr });
+    PredOfSucc.erase(It, End);
   }
 
   for (auto &[Neighbor, Tag] : ToRemove->Predecessors) {
-    auto SuccBegin = Neighbor->Successors.begin();
-    auto SuccEnd = Neighbor->Successors.end();
-    auto It = std::find_if(SuccBegin, SuccEnd, IsToRemove);
-    auto End = std::find_if_not(It, SuccEnd, IsToRemove);
-    Neighbor->Successors.erase(It, End);
+    auto &SuccOfPred = Neighbor->Successors;
+    auto It = SuccOfPred.lower_bound({ ToRemove, nullptr });
+    auto End = SuccOfPred.upper_bound({ std::next(ToRemove), nullptr });
+    SuccOfPred.erase(It, End);
   }
 
   bool Erased = Layouts.erase(ToRemove);
@@ -339,19 +330,13 @@ static void moveEdgesWithoutSumming(LayoutTypeSystemNode *OldSrc,
                                     LayoutTypeSystemNode *Tgt) {
   // First, move successor edges from OldSrc to NewSrc
   {
-    const auto IsTgt = [Tgt](const LayoutTypeSystemNode::Link &L) {
-      return L.first == Tgt;
-    };
-
     auto &OldSucc = OldSrc->Successors;
-    auto &NewSucc = NewSrc->Successors;
-
-    auto OldSuccEnd = OldSucc.end();
-    auto OldToTgtIt = std::find_if(OldSucc.begin(), OldSuccEnd, IsTgt);
-    auto OldToTgtEnd = std::find_if_not(OldToTgtIt, OldSuccEnd, IsTgt);
+    auto OldToTgtIt = OldSucc.lower_bound({ Tgt, nullptr });
+    auto OldToTgtEnd = OldSucc.upper_bound({ std::next(Tgt), nullptr });
 
     // Here we can move the edge descriptors directly to NewSucc, because we
     // don't need to update the offset.
+    auto &NewSucc = NewSrc->Successors;
     while (OldToTgtIt != OldToTgtEnd) {
       auto Next = std::next(OldToTgtIt);
       NewSucc.insert(OldSucc.extract(OldToTgtIt));
@@ -361,23 +346,17 @@ static void moveEdgesWithoutSumming(LayoutTypeSystemNode *OldSrc,
 
   // Then, move predecessor edges from OldSrc to NewSrc
   {
-    const auto IsOldSrc = [OldSrc](const LayoutTypeSystemNode::Link &L) {
-      return L.first == OldSrc;
-    };
-
     auto &TgtPred = Tgt->Predecessors;
+    auto TgtToOldIt = TgtPred.lower_bound({ OldSrc, nullptr });
+    auto TgtToOldEnd = TgtPred.upper_bound({ std::next(OldSrc), nullptr });
 
-    auto TgtPredEnd = TgtPred.end();
-    auto TgtToOldIt = std::find_if(TgtPred.begin(), TgtPredEnd, IsOldSrc);
-    auto TgtToOldEnd = std::find_if_not(TgtToOldIt, TgtPredEnd, IsOldSrc);
-
-    // Here we can extract, the edge descriptors, update they key (representing
+    // Here we can extract the edge descriptors, update they key (representing
     // the predecessor) and re-insert them, becasue we don't need to change the
     // offset.
     while (TgtToOldIt != TgtToOldEnd) {
       auto Next = std::next(TgtToOldIt);
-      auto OldPredEdge = TgtPred.extract(TgtToOldIt);
 
+      auto OldPredEdge = TgtPred.extract(TgtToOldIt);
       OldPredEdge.value().first = NewSrc;
       TgtPred.insert(std::move(OldPredEdge));
 
@@ -399,15 +378,9 @@ void LayoutTypeSystem::moveEdges(LayoutTypeSystemNode *OldSrc,
 
   // First, move successor edges from OldSrc to NewSrc
   {
-    const auto IsTgt = [Tgt](const LayoutTypeSystemNode::Link &L) {
-      return L.first == Tgt;
-    };
-
     auto &OldSucc = OldSrc->Successors;
-
-    auto OldSuccEnd = OldSucc.end();
-    auto OldToTgtIt = std::find_if(OldSucc.begin(), OldSuccEnd, IsTgt);
-    auto OldToTgtEnd = std::find_if_not(OldToTgtIt, OldSuccEnd, IsTgt);
+    auto OldToTgtIt = OldSucc.lower_bound({ Tgt, nullptr });
+    auto OldToTgtEnd = OldSucc.upper_bound({ std::next(Tgt), nullptr });
 
     // Add new instance links with adjusted offsets from NewSrc to Tgt.
     // Using the addInstanceLink methods already marks injects NewSrc among the
@@ -421,8 +394,10 @@ void LayoutTypeSystem::moveEdges(LayoutTypeSystemNode *OldSrc,
       switch (EdgeTag->getKind()) {
 
       case TypeLinkTag::LK_Inheritance: {
-        revng_assert(OffsetToSum > 0LL);
-        addInstanceLink(NewSrc, Tgt, OffsetExpression(OffsetToSum));
+        if (OffsetToSum > 0LL)
+          addInstanceLink(NewSrc, Tgt, OffsetExpression(OffsetToSum));
+        else
+          addInheritanceLink(NewSrc, Tgt);
       } break;
 
       case TypeLinkTag::LK_Instance: {
@@ -445,16 +420,9 @@ void LayoutTypeSystem::moveEdges(LayoutTypeSystemNode *OldSrc,
   // Then, remove all the remaining info in Tgt that represent the fact that
   // OldSrc was a predecessor.
   {
-    const auto IsOldSrc = [OldSrc](const LayoutTypeSystemNode::Link &L) {
-      return L.first == OldSrc;
-    };
-
     auto &TgtPred = Tgt->Predecessors;
-
-    auto TgtPredEnd = TgtPred.end();
-    auto TgtToOldIt = std::find_if(TgtPred.begin(), TgtPredEnd, IsOldSrc);
-    auto TgtToOldEnd = std::find_if_not(TgtToOldIt, TgtPredEnd, IsOldSrc);
-
+    auto TgtToOldIt = TgtPred.lower_bound({ OldSrc, nullptr });
+    auto TgtToOldEnd = TgtPred.upper_bound({ std::next(OldSrc), nullptr });
     TgtPred.erase(TgtToOldIt, TgtToOldEnd);
   }
 }
