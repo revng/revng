@@ -221,9 +221,8 @@ static bool updateFuncStackFrame(model::Function &ModelFunc,
           NewS->Fields.erase(It, End);
         }
 
-        NewS->Size = OldStackSize;
-
-        ModelFunc.StackFrameType = Model.getTypePath(NewS);
+        for (const auto &Field : NewS->Fields)
+          OldStackFrameStruct->Fields.insert(Field);
 
       } else if (auto *NewU = dyn_cast<model::UnionType>(UnqualNewStack)) {
         // Prepare the new stack type, which cannot be a union, it has to be
@@ -294,6 +293,7 @@ static bool updateFuncStackFrame(model::Function &ModelFunc,
 
       revng_assert(isa<model::StructType>(ModelFunc.StackFrameType.get()));
       revng_assert(*ModelFunc.StackFrameType.get()->size() == OldStackSize);
+      revng_assert(ModelFunc.StackFrameType.get()->verify());
 
       Updated = true;
     }
