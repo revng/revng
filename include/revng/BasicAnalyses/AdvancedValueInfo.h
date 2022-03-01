@@ -687,7 +687,7 @@ public:
         AVILogger << DoLog;
       }
 
-      llvm::Optional<llvm::StringRef> SymbolName;
+      llvm::Optional<std::string> SymbolName;
       Constant *Current = nullptr;
       {
         auto Value = Entry.value();
@@ -824,10 +824,12 @@ public:
         }
       }
 
-      if (SymbolName)
+      if (SymbolName) {
+        revng_assert(not llvm::StringRef(*SymbolName).contains('\0'));
         Entry = { *SymbolName, Value };
-      else
+      } else {
         Entry = { Value };
+      }
     }
 
     return std::move(Values);

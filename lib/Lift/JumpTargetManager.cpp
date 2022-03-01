@@ -408,7 +408,7 @@ JumpTargetManager::readFromPointer(Constant *Pointer, BinaryFile::Endianess E) {
         return { NewAPInt(binary().relocate(Match->value()).address()) };
 
       case LabelType::SymbolRelativeValue:
-        return { Match->symbolName(), NewAPInt(Match->offset()) };
+        return { Match->symbolName().str(), NewAPInt(Match->offset()) };
 
       default:
         revng_abort();
