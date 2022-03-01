@@ -16,10 +16,10 @@ revng_add_analyses_library(revngcDataLayoutAnalysis revngc
   Middleend/DLADeduplicateUnionFields.cpp
   Middleend/DLARemoveConflictingEdges.cpp
   Middleend/DLAStep.cpp
+  Middleend/RemoveBackedges.cpp
   Backend/DLAMakeLayouts.cpp
   Backend/DLAMakeModelTypes.cpp
   Backend/DLAUpdateFuncPrototypes.cpp
-  DLAHelpers.cpp
   DLAModelFuncHelpers.cpp
   DLALayouts.cpp
   DLAPass.cpp

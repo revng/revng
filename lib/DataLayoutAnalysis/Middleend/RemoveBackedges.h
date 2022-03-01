@@ -8,6 +8,6 @@ namespace dla {
 
 class LayoutTypeSystem;
 
-bool removeInstanceBackedgesFromInheritanceLoops(LayoutTypeSystem &TS);
+extern bool removeInstanceBackedgesFromInheritanceLoops(LayoutTypeSystem &TS);
 
 } // end namespace dla

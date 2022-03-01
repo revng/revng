@@ -15,8 +15,8 @@
 
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
 
-#include "../DLAHelpers.h"
 #include "DLAStep.h"
+#include "RemoveBackedges.h"
 
 using LTSN = dla::LayoutTypeSystemNode;
 using GraphNodeT = LTSN *;

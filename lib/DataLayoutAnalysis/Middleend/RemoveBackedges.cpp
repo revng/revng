@@ -15,7 +15,7 @@
 
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
 
-#include "DLAHelpers.h"
+#include "RemoveBackedges.h"
 
 static Logger<> Log("dla-instance-inheritance-loops");
 

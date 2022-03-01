@@ -14,8 +14,8 @@
 
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
 
-#include "../DLAHelpers.h"
 #include "DLAStep.h"
+#include "RemoveBackedges.h"
 
 using namespace llvm;
 
