@@ -17,6 +17,7 @@
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
 
 #include "DLAStep.h"
+#include "FieldSizeComputation.h"
 
 using namespace llvm;
 
@@ -63,71 +64,16 @@ bool ComputeUpperMemberAccesses::runOnTypeSystem(LayoutTypeSystem &TS) {
       uint64_t FinalSize = N->Size;
 
       // Look at all the instance-of edges and inheritance edges all together.
-      bool HasBaseClass = false;
       revng_log(Log, "N's children");
       LoggerIndent MoreMoreIndent{ Log };
       for (auto &[Child, EdgeTag] : children_edges<ConstNonPointerFilterT>(N)) {
         revng_log(Log, "Child->ID: " << Child->ID);
-        LoggerIndent MoreMoreMoreIndent{ Log };
         revng_log(Log,
                   "EdgeTag->Kind: "
                     << dla::TypeLinkTag::toString(EdgeTag->getKind()));
-        auto ChildSize = Child->Size;
-        revng_assert(ChildSize > 0LL);
-
-        switch (EdgeTag->getKind()) {
-
-        case TypeLinkTag::LK_Inheritance: {
-          // Treated as instance at offset 0, but can only have one.
-          // Should only have one parent in inheritance hierarchy.
-          revng_assert(not HasBaseClass);
-          HasBaseClass = true;
-          FinalSize = std::max(FinalSize, ChildSize);
-        } break;
-
-        case TypeLinkTag::LK_Instance: {
-          const OffsetExpression &OE = EdgeTag->getOffsetExpr();
-          revng_assert(OE.Strides.size() == OE.TripCounts.size());
-
-          // Ignore stuff at negative offsets.
-          revng_assert(OE.Offset >= 0LL);
-
-          // If we have an array, we have to compute its size, taking into
-          // account the strides and the trip counts.
-          for (const auto &[TripCount, Stride] :
-               llvm::reverse(llvm::zip(OE.TripCounts, OE.Strides))) {
-
-            revng_assert(Stride > 0LL);
-            auto StrideSize = static_cast<uint64_t>(Stride);
-
-            // If we have a TripCount, we expect it to be strictly positive.
-            revng_assert(not TripCount.has_value() or TripCount.value() > 0LL);
-
-            // Arrays with unknown numbers of elements are considered as if
-            // they had a single element
-            auto NumElems = TripCount.has_value() ? TripCount.value() : 1;
-            revng_assert(NumElems);
-
-            // Here we are computing the larger size that is known to be
-            // accessed. So if we have an array, we consider it to be one
-            // element shorter than expected, and we add ChildSize only once
-            // at the end.
-            // This is equivalent to:
-            // ChildSize = (NumElems * StrideSize) - (StrideSize - ChildSize);
-            ChildSize = ((NumElems - 1) * StrideSize) + ChildSize;
-          }
-
-          revng_assert(ChildSize);
-
-          int64_t ChildOffset = std::max<int64_t>(OE.Offset, 0LL);
-          uint64_t ChildUpperOffset = ChildOffset + ChildSize;
-          FinalSize = std::max(FinalSize, ChildUpperOffset);
-        } break;
-
-        default:
-          revng_unreachable("unexpected edge");
-        }
+        FinalSize = std::max(FinalSize, getFieldUpperMember(Child, EdgeTag));
       }
+
       if (FinalSize != N->Size)
         Changed = true;
 
