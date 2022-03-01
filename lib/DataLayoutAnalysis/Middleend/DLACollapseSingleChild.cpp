@@ -61,7 +61,7 @@ bool CollapseSingleChild::collapseSingle(LayoutTypeSystem &TS,
       revng_log(Log, "Collapsing " << ToMerge->ID << " into " << Node->ID);
 
       const unsigned ChildSize = ToMerge->Size;
-      revng_assert(Node->Size == 0 or Node->Size == ChildSize);
+      revng_assert(Node->Size == 0 or Node->Size >= ChildSize);
 
       // Merge single child into parent
       TS.mergeNodes({ /*Into=*/Node, /*From=*/ToMerge });
