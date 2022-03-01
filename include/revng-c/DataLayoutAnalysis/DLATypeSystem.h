@@ -289,10 +289,10 @@ public:
 
   void removeNode(LayoutTypeSystemNode *N);
 
-  void moveEdges(LayoutTypeSystemNode *OldSrc,
-                 LayoutTypeSystemNode *NewSrc,
-                 LayoutTypeSystemNode *Tgt,
-                 int64_t OffsetToSum);
+  void moveEdge(LayoutTypeSystemNode *OldSrc,
+                LayoutTypeSystemNode *NewSrc,
+                LayoutTypeSystemNode::NeighborsSet::iterator EdgeIt,
+                int64_t OffsetToSum);
 
 private:
   uint64_t NID = 0ULL;

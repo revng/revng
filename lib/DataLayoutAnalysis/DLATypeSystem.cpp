@@ -289,6 +289,8 @@ void LayoutTypeSystem::mergeNodes(const LayoutTypeSystemNodePtrVec &ToMerge) {
 
     fixPredSucc(From, Into);
     Into->InterferingInfo = Unknown;
+    revng_assert(not Into->Size or From->Size <= Into->Size);
+    Into->Size = std::max(Into->Size, From->Size);
 
     // Remove From from Layouts
     bool Erased = Layouts.erase(From);
@@ -323,106 +325,73 @@ void LayoutTypeSystem::removeNode(LayoutTypeSystemNode *ToRemove) {
   NodeAllocator.Deallocate(ToRemove);
 }
 
-static void moveEdgesWithoutSumming(LayoutTypeSystemNode *OldSrc,
-                                    LayoutTypeSystemNode *NewSrc,
-                                    LayoutTypeSystemNode *Tgt) {
-  // First, move successor edges from OldSrc to NewSrc
-  {
-    auto &OldSucc = OldSrc->Successors;
-    auto OldToTgtIt = OldSucc.lower_bound({ Tgt, nullptr });
-    auto OldToTgtEnd = OldSucc.upper_bound({ std::next(Tgt), nullptr });
+using NeighborIterator = LayoutTypeSystemNode::NeighborsSet::iterator;
 
-    // Here we can move the edge descriptors directly to NewSucc, because we
-    // don't need to update the offset.
-    auto &NewSucc = NewSrc->Successors;
-    while (OldToTgtIt != OldToTgtEnd) {
-      auto Next = std::next(OldToTgtIt);
-      NewSucc.insert(OldSucc.extract(OldToTgtIt));
-      OldToTgtIt = Next;
-    }
-  }
+static void moveEdgeWithoutSumming(LayoutTypeSystemNode *OldSrc,
+                                   LayoutTypeSystemNode *NewSrc,
+                                   NeighborIterator EdgeIt) {
 
-  // Then, move predecessor edges from OldSrc to NewSrc
-  {
-    auto &TgtPred = Tgt->Predecessors;
-    auto TgtToOldIt = TgtPred.lower_bound({ OldSrc, nullptr });
-    auto TgtToOldEnd = TgtPred.upper_bound({ std::next(OldSrc), nullptr });
+  // First, move successor edge from OldSrc to NewSrc
+  auto SuccHandle = OldSrc->Successors.extract(EdgeIt);
+  revng_assert(not SuccHandle.empty());
+  NewSrc->Successors.insert(std::move(SuccHandle));
 
-    // Here we can extract the edge descriptors, update they key (representing
-    // the predecessor) and re-insert them, becasue we don't need to change the
-    // offset.
-    while (TgtToOldIt != TgtToOldEnd) {
-      auto Next = std::next(TgtToOldIt);
-
-      auto OldPredEdge = TgtPred.extract(TgtToOldIt);
-      OldPredEdge.value().first = NewSrc;
-      TgtPred.insert(std::move(OldPredEdge));
-
-      TgtToOldIt = Next;
-    }
-  }
+  // Then, move predecessor edge from OldSrc to NewSrc
+  LayoutTypeSystemNode *Tgt = EdgeIt->first;
+  auto PredHandle = Tgt->Predecessors.extract({ OldSrc, EdgeIt->second });
+  revng_assert(not PredHandle.empty());
+  PredHandle.value().first = NewSrc;
+  Tgt->Predecessors.insert(std::move(PredHandle));
 }
 
-void LayoutTypeSystem::moveEdges(LayoutTypeSystemNode *OldSrc,
-                                 LayoutTypeSystemNode *NewSrc,
-                                 LayoutTypeSystemNode *Tgt,
-                                 int64_t OffsetToSum) {
+void LayoutTypeSystem::moveEdge(LayoutTypeSystemNode *OldSrc,
+                                LayoutTypeSystemNode *NewSrc,
+                                NeighborIterator EdgeIt,
+                                int64_t OffsetToSum) {
 
-  if (not OldSrc or not NewSrc or not Tgt)
+  if (not OldSrc or not NewSrc)
     return;
 
   if (not OffsetToSum)
-    return moveEdgesWithoutSumming(OldSrc, NewSrc, Tgt);
+    return moveEdgeWithoutSumming(OldSrc, NewSrc, EdgeIt);
+
+  LayoutTypeSystemNode *Tgt = EdgeIt->first;
 
   // First, move successor edges from OldSrc to NewSrc
-  {
-    auto &OldSucc = OldSrc->Successors;
-    auto OldToTgtIt = OldSucc.lower_bound({ Tgt, nullptr });
-    auto OldToTgtEnd = OldSucc.upper_bound({ std::next(Tgt), nullptr });
+  auto OldSuccHandle = OldSrc->Successors.extract(EdgeIt);
+  revng_assert(not OldSuccHandle.empty());
 
-    // Add new instance links with adjusted offsets from NewSrc to Tgt.
-    // Using the addInstanceLink methods already marks injects NewSrc among the
-    // predecessors of Tgt, so after this we only need to remove OldSrc from
-    // Tgt's predecessors and we're done.
-    while (OldToTgtIt != OldToTgtEnd) {
-      auto Next = std::next(OldToTgtIt);
-      auto OldSuccEdge = OldSucc.extract(OldToTgtIt);
+  // Add new instance links with adjusted offsets from NewSrc to Tgt.
+  // Using the addInstanceLink methods already marks injects NewSrc among the
+  // predecessors of Tgt, so after this we only need to remove OldSrc from
+  // Tgt's predecessors and we're done.
 
-      const TypeLinkTag *EdgeTag = OldSuccEdge.value().second;
-      switch (EdgeTag->getKind()) {
+  const TypeLinkTag *EdgeTag = OldSuccHandle.value().second;
+  switch (EdgeTag->getKind()) {
 
-      case TypeLinkTag::LK_Inheritance: {
-        if (OffsetToSum > 0LL)
-          addInstanceLink(NewSrc, Tgt, OffsetExpression(OffsetToSum));
-        else
-          addInheritanceLink(NewSrc, Tgt);
-      } break;
+  case TypeLinkTag::LK_Inheritance: {
+    if (OffsetToSum > 0LL)
+      addInstanceLink(NewSrc, Tgt, OffsetExpression(OffsetToSum));
+    else
+      addInheritanceLink(NewSrc, Tgt);
+  } break;
 
-      case TypeLinkTag::LK_Instance: {
-        OffsetExpression NewOE = EdgeTag->getOffsetExpr();
-        NewOE.Offset += OffsetToSum;
-        revng_assert(NewOE.Offset >= 0LL);
-        addInstanceLink(NewSrc, Tgt, std::move(NewOE));
-      } break;
+  case TypeLinkTag::LK_Instance: {
+    OffsetExpression NewOE = EdgeTag->getOffsetExpr();
+    NewOE.Offset += OffsetToSum;
+    revng_assert(NewOE.Offset >= 0LL);
+    addInstanceLink(NewSrc, Tgt, std::move(NewOE));
+  } break;
 
-      case TypeLinkTag::LK_Equality:
-      case TypeLinkTag::LK_Pointer:
-      default:
-        revng_unreachable("unexpected edge kind");
-      }
-
-      OldToTgtIt = Next;
-    }
+  case TypeLinkTag::LK_Equality:
+  case TypeLinkTag::LK_Pointer:
+  default:
+    revng_unreachable("unexpected edge kind");
   }
 
   // Then, remove all the remaining info in Tgt that represent the fact that
   // OldSrc was a predecessor.
-  {
-    auto &TgtPred = Tgt->Predecessors;
-    auto TgtToOldIt = TgtPred.lower_bound({ OldSrc, nullptr });
-    auto TgtToOldEnd = TgtPred.upper_bound({ std::next(OldSrc), nullptr });
-    TgtPred.erase(TgtToOldIt, TgtToOldEnd);
-  }
+  auto PredHandle = Tgt->Predecessors.extract({ OldSrc, EdgeIt->second });
 }
 
 static Logger<> VerifyDLALog("dla-verify-strict");

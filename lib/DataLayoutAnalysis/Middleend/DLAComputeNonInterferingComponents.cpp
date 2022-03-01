@@ -17,6 +17,7 @@
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
 
 #include "DLAStep.h"
+#include "FieldSizeComputation.h"
 
 namespace dla {
 
@@ -43,73 +44,57 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
       revng_assert(N->Size);
 
       struct OrderedChild {
-        int64_t Offset;
-        decltype(N->Size) Size;
-        LTSN *Child;
-        // Make it sortable
-        std::strong_ordering operator<=>(const OrderedChild &) const = default;
+        dla::LayoutTypeSystemNode::NeighborsSet::iterator ChildIt;
+        size_t FieldSize;
+
+        // Make it sortable with a different order
+        std::strong_ordering operator<=>(const OrderedChild &Other) const {
+          // Helper to treat Inheritance edges like InstanceAtOffset0 edges
+          const auto Off0Tag = TypeLinkTag::instanceTag(OffsetExpression{});
+
+          auto &ThisEdgeTag = isInheritanceEdge(*ChildIt) ? Off0Tag :
+                                                            *ChildIt->second;
+          auto &OtherEdgeTag = isInheritanceEdge(*Other.ChildIt) ?
+                                 Off0Tag :
+                                 *Other.ChildIt->second;
+
+          // Stuff that starts earlier goes first
+          if (auto Cmp = ThisEdgeTag <=> OtherEdgeTag; 0 != Cmp)
+            return Cmp;
+
+          // Smaller stuff goes first
+          if (auto Cmp = FieldSize <=> Other.FieldSize; 0 != Cmp)
+            return Cmp;
+
+          // Finally sort by address
+          return ChildIt->first <=> Other.ChildIt->first;
+        }
+
+        auto getBeginEndByte() const {
+          auto ChildBeginByte = isInheritanceEdge(*ChildIt) ?
+                                  0 :
+                                  ChildIt->second->getOffsetExpr().Offset;
+          auto ChildEndByte = ChildBeginByte + FieldSize;
+          return std::make_pair(ChildBeginByte, ChildEndByte);
+        }
       };
       using ChildrenVec = llvm::SmallVector<OrderedChild, 8>;
       using OrderedChildIt = ChildrenVec::iterator;
 
       // Collect the children in a vector. Here we use the OrderedChild struct,
-      // that embeds info on the size and offset of the children, so that we can
-      // later sort the vector according to it.
+      // that has a dedicated <=> operator so that we can later sort the vector
+      // according to it.
       ChildrenVec Children;
-      bool InheritsFromOther = false;
-      for (auto &[Child, EdgeTag] :
-           llvm::children_edges<NonPointerFilterT>(N)) {
+      auto NChildIt = N->Successors.begin();
+      auto NChildEnd = N->Successors.end();
+      for (; NChildIt != NChildEnd; ++NChildIt) {
+        if (isPointerEdge(*NChildIt))
+          continue;
 
-        auto OrdChild = OrderedChild{
-          /* .Offset */ 0LL,
-          /* .Size   */ Child->Size,
-          /* .Child  */ Child,
-        };
-
-        switch (EdgeTag->getKind()) {
-
-        case TypeLinkTag::LK_Instance: {
-          const OffsetExpression &OE = EdgeTag->getOffsetExpr();
-          revng_assert(OE.Offset >= 0LL);
-          revng_assert(OE.Strides.size() == OE.TripCounts.size());
-
-          OrdChild.Offset = OE.Offset;
-
-          for (const auto &[TripCount, Stride] :
-               llvm::reverse(llvm::zip(OE.TripCounts, OE.Strides))) {
-
-            revng_assert(Stride > 0LL);
-            auto StrideSize = static_cast<uint64_t>(Stride);
-
-            // If we have a TripCount, we expect it to be strictly positive.
-            revng_assert(not TripCount.has_value() or TripCount.value() > 0LL);
-
-            // Arrays with unknown numbers of elements are considered as if
-            // they had a single element
-            auto NumElems = TripCount.has_value() ? TripCount.value() : 1;
-            revng_assert(NumElems);
-
-            // Here we are computing the larger size that is known to be
-            // accessed. So if we have an array, we consider it to be one
-            // element shorter than expected, and we add ChildSize only once
-            // at the end.
-            // This is equivalent to:
-            // ChildSize = (NumElems * StrideSize) - (StrideSize - ChildSize);
-            OrdChild.Size = ((NumElems - 1) * StrideSize) + OrdChild.Size;
-          }
-        } break;
-
-        case TypeLinkTag::LK_Inheritance: {
-          revng_assert(not InheritsFromOther);
-          InheritsFromOther = true;
-        } break;
-
-        default:
-          revng_unreachable("unexpected edge tag");
-        }
-
-        revng_assert(OrdChild.Offset >= 0LL and OrdChild.Size > 0ULL);
-        Children.push_back(std::move(OrdChild));
+        Children.push_back(OrderedChild{
+          .ChildIt = NChildIt,
+          .FieldSize = getFieldSize(NChildIt->first, NChildIt->second),
+        });
       }
 
       // If there are no children, there's nothing to do. There might be some
@@ -130,7 +115,7 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
         continue;
       }
 
-      // Sort the children. Thanks to the ordering of std::tuple, children at
+      // Sort the children. Thanks to the ordering of OrderedChild, children at
       // lower offsets will be sorted before children with higher offsets, and
       // for children at the same offset, the smaller will be sorted before the
       // larger ones.
@@ -158,8 +143,8 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
         // Helper lambda to create a new component starting from the iterator to
         // a children that becomes the first element of the component.
         const auto MakeNewComponentFromChild = [](OrderedChildIt ChildIt) {
-          auto ChildBeginByte = ChildIt->Offset;
-          auto ChildEndByte = ChildBeginByte + ChildIt->Size;
+          const auto &[ChildBeginByte,
+                       ChildEndByte] = ChildIt->getBeginEndByte();
           return Component{
             /* .StartChildIt */ ChildIt,
             /* .EndChildIt   */ std::next(ChildIt),
@@ -183,7 +168,9 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
           auto CompStartByte = static_cast<uint64_t>(CurrComp.StartByte);
           revng_assert(CompStartByte < CurrComp.EndByte);
 
-          const auto &[ChildStartByte, ChildSize, _] = *ChildIt;
+          const auto &[ChildStartByte,
+                       ChildEndByte] = ChildIt->getBeginEndByte();
+          auto ChildSize = ChildEndByte - ChildStartByte;
           revng_assert(ChildStartByte >= 0 and ChildSize > 0);
 
           auto ChildBeginByte = static_cast<uint64_t>(ChildStartByte);
@@ -208,7 +195,11 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
 
       // If we have less than two components there's nothing to do.
       if (Components.size() < 2) {
-        N->InterferingInfo = AllChildrenAreInterfering;
+        revng_assert(not Components.empty());
+        if (Components.back().NumChildren > 1)
+          N->InterferingInfo = AllChildrenAreInterfering;
+        else
+          N->InterferingInfo = AllChildrenAreNonInterfering;
         continue;
       }
 
@@ -242,12 +233,10 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
         using llvm::iterator_range;
         auto OrderedChildRange = iterator_range(C.StartChildIt, C.EndChildIt);
         for (auto &OrderedChild : OrderedChildRange)
-          TS.moveEdges(N, New, OrderedChild.Child, -C.StartByte);
+          TS.moveEdge(N, New, OrderedChild.ChildIt, -C.StartByte);
 
         // Add a link between N and the New node representing the component.
         // The component is at offset C.StartByte inside N.
-        // If this offset is zero we add an inheritance edge, otherwise an
-        // instance edge.
         TS.addInstanceLink(N, New, OffsetExpression(C.StartByte));
       }
 
