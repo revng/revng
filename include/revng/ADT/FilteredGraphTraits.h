@@ -26,6 +26,8 @@ public:
   inline explicit NodePairFilteredGraphImpl(const GraphType &G) : Graph(G) {}
   inline explicit operator const GraphType &() const { return Graph; }
 
+  static auto filter() { return PredicateType::value; }
+
   // NodeRef are the same as the BaseGraphTraits, because the graph has the same
   // kind of nodes
 
@@ -167,6 +169,8 @@ protected:
 public:
   inline explicit EdgeFilteredGraphImpl(const GraphType &G) : Graph(G) {}
   inline explicit operator const GraphType &() const { return Graph; }
+
+  static auto filter() { return PredicateType::value; }
 
   // NodeRef and EdgeRef are the same as the BaseGraphTraits, because the graph
   // has the same kind of nodes and edges
