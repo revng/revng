@@ -113,9 +113,9 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
             revng_assert(1ULL == ActualTypes.size() == FormalTypes.size());
             auto FieldNum = FormalTypes.size();
             for (auto FieldId = 0ULL; FieldId < FieldNum; ++FieldId) {
-              // Actual type inherits from formal type
-              TS.addInheritanceLink(ActualTypes[FieldId].first,
-                                    FormalTypes[FieldId].first);
+              TS.addInstanceLink(ActualTypes[FieldId].first,
+                                 FormalTypes[FieldId].first,
+                                 OffsetExpression{});
             }
             ++ArgNo;
           }
@@ -134,9 +134,9 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
                          or isa<StructType>(PHI->getType()));
             auto FieldNum = PHITypes.size();
             for (auto FieldId = 0ULL; FieldId < FieldNum; ++FieldId) {
-              // Incoming type inherits from PHI type
-              TS.addInheritanceLink(InTypes[FieldId].first,
-                                    PHITypes[FieldId].first);
+              TS.addInstanceLink(InTypes[FieldId].first,
+                                 PHITypes[FieldId].first,
+                                 OffsetExpression{});
             }
           }
         } else if (auto *RetI = dyn_cast<ReturnInst>(&I)) {
@@ -148,16 +148,17 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
             revng_assert(RetTypes.size() == FRetTypes.size());
             auto FieldNum = RetTypes.size();
             for (auto FieldId = 0ULL; FieldId < FieldNum; ++FieldId) {
-              // Return Operand type inherits from Function return type
               if (RetTypes[FieldId].first != nullptr)
-                TS.addInheritanceLink(RetTypes[FieldId].first,
-                                      FRetTypes[FieldId].first);
+                TS.addInstanceLink(RetTypes[FieldId].first,
+                                   FRetTypes[FieldId].first,
+                                   OffsetExpression{});
             }
           }
         }
       }
     }
   }
+
   if (VerifyLog.isEnabled())
     revng_assert(TS.verifyConsistency());
   return TS.getNumLayouts() != 0;

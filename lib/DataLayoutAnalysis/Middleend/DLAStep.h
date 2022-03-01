@@ -190,8 +190,7 @@ public:
   ComputeUpperMemberAccesses() :
     Step(ID,
          // Dependencies
-         { CollapseInheritanceSCC::getID(),
-           CollapseInstanceAtOffset0SCC::getID(),
+         { CollapseInstanceAtOffset0SCC::getID(),
            CollapseEqualitySCC::getID() },
          // Invalidated
          {}) {}

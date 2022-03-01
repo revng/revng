@@ -376,7 +376,9 @@ public:
             Changed |= NewT;
             const SCEV *TrueSCEV = SE->getSCEV(TrueV);
             SCEVToLayoutType.insert(std::make_pair(TrueSCEV, TrueTy));
-            Changed |= Builder.TS.addInheritanceLink(TrueTy, SelType).second;
+            Changed |= Builder.TS
+                         .addInstanceLink(TrueTy, SelType, OffsetExpression{})
+                         .second;
           }
 
           // False incoming value
@@ -388,7 +390,9 @@ public:
             Changed |= NewT;
             const SCEV *FalseSCEV = SE->getSCEV(FalseV);
             SCEVToLayoutType.insert(std::make_pair(FalseSCEV, FalseTy));
-            Changed |= Builder.TS.addInheritanceLink(FalseTy, SelType).second;
+            Changed |= Builder.TS
+                         .addInstanceLink(FalseTy, SelType, OffsetExpression{})
+                         .second;
           }
 
         } else if (auto *C = dyn_cast<CallInst>(&I)) {
@@ -907,8 +911,9 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
       }
     }
   }
+
   if (VerifyLog.isEnabled())
-    revng_assert(TS.verifyInstanceDAG());
+    revng_assert(TS.verifyConsistency());
 
   return Changed;
 }
