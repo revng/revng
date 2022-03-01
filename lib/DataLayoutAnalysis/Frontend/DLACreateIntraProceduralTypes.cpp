@@ -30,7 +30,6 @@
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/IRHelpers.h"
 
-#include "../DLAHelpers.h"
 #include "../DLAModelFuncHelpers.h"
 #include "DLATypeSystemBuilder.h"
 
@@ -652,6 +651,15 @@ bool Builder::connectToFuncWithSamePrototype(const llvm::Function &F,
 
   return Changed;
 }
+
+static uint64_t
+getLoadStoreSizeFromPtrOpUse(const llvm::Module &M, const llvm::Use *U) {
+  llvm::Value *AddrOperand = U->get();
+  auto *PtrTy = cast<llvm::PointerType>(AddrOperand->getType());
+  llvm::Type *AccessedT = PtrTy->getElementType();
+  const llvm::DataLayout &DL = M.getDataLayout();
+  return DL.getTypeAllocSize(AccessedT);
+};
 
 bool Builder::createIntraproceduralTypes(llvm::Module &M,
                                          llvm::ModulePass *MP,

@@ -9,9 +9,6 @@
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/Module.h"
-#include "llvm/IR/Value.h"
 
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
@@ -19,15 +16,6 @@
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
 
 #include "DLAHelpers.h"
-
-uint64_t
-getLoadStoreSizeFromPtrOpUse(const llvm::Module &M, const llvm::Use *U) {
-  llvm::Value *AddrOperand = U->get();
-  auto *PtrTy = cast<llvm::PointerType>(AddrOperand->getType());
-  llvm::Type *AccessedT = PtrTy->getElementType();
-  const llvm::DataLayout &DL = M.getDataLayout();
-  return DL.getTypeAllocSize(AccessedT);
-};
 
 static Logger<> Log("dla-instance-inheritance-loops");
 
