@@ -148,7 +148,7 @@ AdvancedValueInfoPass::run(llvm::Function &F,
     for (const MaterializedValue &V : Values) {
       // TODO: we are we ignoring those with symbols
       auto Offset = V.value();
-      StringRef SymbolName;
+      std::string SymbolName;
       if (V.hasSymbol())
         SymbolName = V.symbolName();
 
