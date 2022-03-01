@@ -6,7 +6,6 @@
 
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
 
-#include "../DLAHelpers.h"
 #include "DLAMakeLayouts.h"
 
 using namespace llvm;

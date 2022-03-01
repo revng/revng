@@ -29,7 +29,6 @@
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
 #include "revng-c/Support/ModelHelpers.h"
 
-#include "../DLAHelpers.h"
 #include "../DLAModelFuncHelpers.h"
 #include "DLAMakeModelTypes.h"
 

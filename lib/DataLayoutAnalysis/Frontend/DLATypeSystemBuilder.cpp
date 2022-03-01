@@ -12,7 +12,6 @@
 
 #include "revng-c/Support/IRHelpers.h"
 
-#include "../DLAHelpers.h"
 #include "DLATypeSystemBuilder.h"
 
 using namespace llvm;

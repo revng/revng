@@ -10,7 +10,6 @@
 
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
 
-#include "../DLAHelpers.h"
 #include "DLAStep.h"
 
 using LTSN = dla::LayoutTypeSystemNode;

@@ -19,8 +19,6 @@
 
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
 
-#include "DLAHelpers.h"
-
 using namespace llvm;
 
 using NodeAllocatorT = SpecificBumpPtrAllocator<dla::LayoutTypeSystemNode>;
