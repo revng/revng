@@ -779,7 +779,10 @@ FunctionEntrypointAnalyzer::collectDirectCFG(OutlinedFunction *F) {
           } else {
             Instruction *I = &(*Succ->begin());
 
-            if (auto *Call = getCallTo(I, PreHookMarker.F)) {
+            if (isa<ReturnInst>(I)) {
+              // Did we meet the end of the cloned function? Do nothing
+              revng_assert(Succ->getInstList().size() == 1);
+            } else if (auto *Call = getCallTo(I, PreHookMarker.F)) {
               MetaAddress Destination;
               model::FunctionEdgeType::Values Type;
               auto *CalleePC = Call->getArgOperand(1);
