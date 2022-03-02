@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/Model/Architecture.h"
 #include "revng/Model/QualifierKind.h"
 #include "revng/Model/VerifyHelper.h"
 
@@ -38,6 +39,10 @@ public:
 
   static Qualifier createPointer(uint64_t Size) {
     return Qualifier(QualifierKind::Pointer, Size);
+  }
+
+  static Qualifier createPointer(model::Architecture::Values Architecture) {
+    return createPointer(getPointerSize(Architecture));
   }
 
   static Qualifier createArray(uint64_t S) {

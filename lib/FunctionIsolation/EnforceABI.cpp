@@ -393,7 +393,7 @@ CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   //
   auto *Result = Builder.CreateCall(Callee, Arguments);
   GCBI.setMetaAddressMetadata(Result,
-                              "revng.callerblock.start",
+                              CallerBlockStartMDName,
                               CallSiteBlock.Start);
   if (ReturnCSVs.size() != 1) {
     unsigned I = 0;

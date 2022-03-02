@@ -15,6 +15,8 @@ inline const char *ModelMetadataName = "revng.model";
 
 TupleTree<model::Binary> loadModel(const llvm::Module &M);
 
+bool hasModel(const llvm::Module &M);
+
 class ModelWrapper {
 private:
   TupleTree<model::Binary> TheBinary;

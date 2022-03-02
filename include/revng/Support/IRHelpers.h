@@ -59,6 +59,7 @@ inline void eraseFromParent(llvm::Value *V) {
 }
 
 constexpr const char *FunctionEntryMDNName = "revng.function.entry";
+constexpr const char *CallerBlockStartMDName = "revng.callerblock.start";
 constexpr const char *JTReasonMDName = "revng.jt.reasons";
 
 template<typename T>

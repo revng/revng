@@ -947,7 +947,7 @@ void IFI::createFunctionCall(IRBuilder<> &Builder,
   NewCall->setDebugLoc(Old->getDebugLoc());
   FunctionTags::CallToLifted.addTo(NewCall);
   GCBI.setMetaAddressMetadata(NewCall,
-                              "revng.callerblock.start",
+                              CallerBlockStartMDName,
                               CallerBlockAddress);
 
   if (IsNoReturn) {
