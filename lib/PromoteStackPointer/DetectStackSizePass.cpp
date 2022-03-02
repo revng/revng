@@ -178,9 +178,11 @@ void DetectStackSize::collectStackBounds(Function &F) {
               NewCallSite.StackSize = Offset->getLimitedValue();
 
             // Get the prototype
-            NewCallSite.Prototype = getCallSitePrototype(*Binary.get(),
-                                                         ModelFunction,
-                                                         Call);
+            auto *Proto = getCallSitePrototype(*Binary.get(),
+                                               Call,
+                                               &ModelFunction);
+
+            NewCallSite.Prototype = cast<RawFunctionType>(Proto);
           }
         }
       }

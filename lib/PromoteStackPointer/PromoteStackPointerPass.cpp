@@ -55,9 +55,10 @@ static bool adjustStackAfterCalls(const model::Binary &Binary,
         revng_assert(MD != nullptr);
 
         // TODO: handle CABIFunctionType
-        if (auto *RawPrototype = getCallSitePrototype(Binary,
-                                                      ModelFunction,
-                                                      cast<CallInst>(&I))) {
+        auto *Proto = getCallSitePrototype(Binary,
+                                           cast<CallInst>(&I),
+                                           &ModelFunction);
+        if (auto *RawPrototype = dyn_cast<model::RawFunctionType>(Proto)) {
           auto *FSO = ConstantInt::get(SPType, RawPrototype->FinalStackOffset);
 
           // We found a function call

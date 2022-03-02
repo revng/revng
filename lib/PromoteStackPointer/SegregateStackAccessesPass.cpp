@@ -425,7 +425,9 @@ private:
     // Obtain RawFunctionType
     auto *MD = SSACSCall->getMetadata("revng.callerblock.start");
     revng_assert(MD != nullptr);
-    auto *RawPrototype = getCallSitePrototype(Binary, ModelFunction, SSACSCall);
+    auto *RawPrototype = getCallSitePrototype(Binary,
+                                              SSACSCall,
+                                              &ModelFunction);
     // TODO: handle CABIFunctionType
     if (RawPrototype == nullptr)
       return nullptr;
