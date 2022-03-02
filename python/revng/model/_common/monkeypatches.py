@@ -29,7 +29,7 @@ def autoassign_random_id(base_class: type):
 
     def init_with_random_id(self, *args, **kwargs):
         if "ID" not in kwargs:
-            kwargs["ID"] = random.randint(2 ** 10 + 1, 2 ** 64 - 1)
+            kwargs["ID"] = random.randint(2**10 + 1, 2**64 - 1)
         original_init(self, *args, **kwargs)
 
     base_class.__init__ = init_with_random_id
