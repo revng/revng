@@ -99,6 +99,7 @@ Step::cloneAndRun(Context &Ctx, ContainerSet &&Input, llvm::raw_ostream *OS) {
 
     explainExecutedPipe(Ctx, Pipe, OS);
     Pipe->run(Ctx, Input);
+    llvm::cantFail(Input.verify());
   }
   Containers.mergeBack(std::move(Input));
   InputEnumeration = deduceResults(InputEnumeration);
