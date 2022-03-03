@@ -18,3 +18,8 @@ void Kind::expandTarget(const Context &Ctx,
                         TargetsList &Output) const {
   Output.emplace_back(Input);
 }
+
+llvm::Error
+Kind::verify(const ContainerBase &Container, const Target &T) const {
+  return llvm::Error::success();
+}

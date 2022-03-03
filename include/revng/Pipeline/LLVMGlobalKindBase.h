@@ -54,6 +54,18 @@ public:
     return false;
   }
 
+  llvm::Error
+  verify(const ContainerBase &Container, const Target &T) const override {
+    if (const auto *Casted = llvm::dyn_cast<LLVMContainer>(&Container))
+      return verifyTarget(*Casted, T);
+    return llvm::Error::success();
+  }
+
+  virtual llvm::Error
+  verifyTarget(const LLVMContainer &Container, const Target &T) const {
+    return llvm::Error::success();
+  }
+
 public:
   virtual std::optional<Target>
   symbolToTarget(const llvm::Function &Symbol) const = 0;
