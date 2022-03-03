@@ -332,14 +332,13 @@ struct TemporaryOpaqueFunction {
 /// necessary information to detect the boundaries of a function, track
 /// how the stack evolves within those functions, and detect the
 /// callee-saved registers.
-template<class FunctionOracle>
 class FunctionEntrypointAnalyzer {
 private:
   llvm::Module &M;
   llvm::LLVMContext &Context;
   GeneratedCodeBasicInfo *GCBI;
   ArrayRef<GlobalVariable *> ABICSVs;
-  FunctionOracle &Oracle;
+  FunctionAnalysisResults &Oracle;
   const TupleTree<model::Binary> &Binary;
   /// PreHookMarker and PostHookMarker mark the presence of an original
   /// function call, and surround a basic block containing the registers
@@ -363,7 +362,7 @@ public:
   FunctionEntrypointAnalyzer(llvm::Module &,
                              GeneratedCodeBasicInfo *GCBI,
                              ArrayRef<GlobalVariable *>,
-                             FunctionOracle &,
+                             FunctionAnalysisResults &,
                              const TupleTree<model::Binary> &);
 
 public:
@@ -406,16 +405,13 @@ private:
 };
 
 using TOF = TemporaryOpaqueFunction;
+using FEA = FunctionEntrypointAnalyzer;
 
-template<typename FunctionOracle>
-using FEAnalyzer = FunctionEntrypointAnalyzer<FunctionOracle>;
-
-template<class FO>
-FEAnalyzer<FO>::FunctionEntrypointAnalyzer(llvm::Module &M,
-                                           GeneratedCodeBasicInfo *GCBI,
-                                           ArrayRef<GlobalVariable *> ABICSVs,
-                                           FO &Oracle,
-                                           const TupleTree<model::Binary> &Binary) :
+FEA::FunctionEntrypointAnalyzer(llvm::Module &M,
+                                GeneratedCodeBasicInfo *GCBI,
+                                ArrayRef<GlobalVariable *> ABICSVs,
+                                FunctionAnalysisResults &Oracle,
+                                const TupleTree<model::Binary> &Binary) :
   M(M),
   Context(M.getContext()),
   GCBI(GCBI),
@@ -741,9 +737,8 @@ static MetaAddress getFinalAddressOfBasicBlock(llvm::BasicBlock *BB) {
   return End + Size;
 }
 
-template<class FunctionOracle>
 SortedVector<model::BasicBlock>
-FEAnalyzer<FunctionOracle>::collectDirectCFG(OutlinedFunction *F) {
+FunctionEntrypointAnalyzer::collectDirectCFG(OutlinedFunction *F) {
   using namespace llvm;
 
   SortedVector<model::BasicBlock> CFG;
@@ -839,10 +834,9 @@ FEAnalyzer<FunctionOracle>::collectDirectCFG(OutlinedFunction *F) {
   return CFG;
 }
 
-template<class FO>
-void FEAnalyzer<FO>::initMarkersForABI(OutlinedFunction *OutlinedFunction,
-                                       SmallVectorImpl<Instruction *> &SV,
-                                       llvm::IRBuilder<> &IRB) {
+void FEA::initMarkersForABI(OutlinedFunction *OutlinedFunction,
+                            SmallVectorImpl<Instruction *> &SV,
+                            llvm::IRBuilder<> &IRB) {
   using namespace llvm;
 
   StructType *MetaAddressTy = MetaAddress::getStruct(&M);
@@ -883,9 +877,8 @@ void FEAnalyzer<FO>::initMarkersForABI(OutlinedFunction *OutlinedFunction,
   }
 }
 
-template<class FunctionOracle>
 std::set<llvm::GlobalVariable *>
-FEAnalyzer<FunctionOracle>::findWrittenRegisters(llvm::Function *F) {
+FunctionEntrypointAnalyzer::findWrittenRegisters(llvm::Function *F) {
   using namespace llvm;
 
   std::set<GlobalVariable *> WrittenRegisters;
@@ -902,10 +895,9 @@ FEAnalyzer<FunctionOracle>::findWrittenRegisters(llvm::Function *F) {
   return WrittenRegisters;
 }
 
-template<class FO>
-void FEAnalyzer<FO>::createIBIMarker(OutlinedFunction *OutlinedFunction,
-                                     SmallVectorImpl<Instruction *> &SV,
-                                     llvm::IRBuilder<> &IRB) {
+void FEA::createIBIMarker(OutlinedFunction *OutlinedFunction,
+                          SmallVectorImpl<Instruction *> &SV,
+                          llvm::IRBuilder<> &IRB) {
   using namespace llvm;
 
   StructType *MetaAddressTy = MetaAddress::getStruct(&M);
@@ -1006,9 +998,7 @@ void FEAnalyzer<FO>::createIBIMarker(OutlinedFunction *OutlinedFunction,
   }
 }
 
-template<class FO>
-void FEAnalyzer<FO>::opaqueBranchConditions(llvm::Function *F,
-                                            llvm::IRBuilder<> &IRB) {
+void FEA::opaqueBranchConditions(llvm::Function *F, llvm::IRBuilder<> &IRB) {
   using namespace llvm;
 
   for (auto &BB : *F) {
@@ -1042,9 +1032,7 @@ void FEAnalyzer<FO>::opaqueBranchConditions(llvm::Function *F,
   }
 }
 
-template<class FunctionOracle>
-void FEAnalyzer<FunctionOracle>::materializePCValues(llvm::Function *F,
-                                                     llvm::IRBuilder<> &IRB) {
+void FEA::materializePCValues(llvm::Function *F, llvm::IRBuilder<> &IRB) {
   using namespace llvm;
 
   for (auto &BB : *F) {
@@ -1076,8 +1064,7 @@ private:
   static constexpr const auto &Opt = getOption<T>;
 };
 
-template<class FunctionOracle>
-void FEAnalyzer<FunctionOracle>::runOptimizationPipeline(llvm::Function *F) {
+void FunctionEntrypointAnalyzer::runOptimizationPipeline(llvm::Function *F) {
   using namespace llvm;
 
   // Some LLVM passes used later in the pipeline scan for cut-offs, meaning that
@@ -1154,9 +1141,8 @@ void FEAnalyzer<FunctionOracle>::runOptimizationPipeline(llvm::Function *F) {
   }
 }
 
-template<class FunctionOracle>
 llvm::Function *
-FEAnalyzer<FunctionOracle>::createFakeFunction(llvm::BasicBlock *Entry) {
+FunctionEntrypointAnalyzer::createFakeFunction(llvm::BasicBlock *Entry) {
   using namespace llvm;
 
   // Recreate outlined function
@@ -1182,8 +1168,7 @@ FEAnalyzer<FunctionOracle>::createFakeFunction(llvm::BasicBlock *Entry) {
   return FakeFunction.extractFunction();
 }
 
-template<class FunctionOracle>
-FunctionSummary FEAnalyzer<FunctionOracle>::analyze(BasicBlock *Entry) {
+FunctionSummary FunctionEntrypointAnalyzer::analyze(BasicBlock *Entry) {
   using namespace llvm;
   using namespace ABIAnalyses;
 
@@ -1323,12 +1308,11 @@ intersect(const std::set<GlobalVariable *> &First,
   return Output;
 }
 
-template<class FO>
 FunctionSummary
-FEAnalyzer<FO>::milkInfo(OutlinedFunction *OutlinedFunction,
-                         SortedVector<model::BasicBlock> &CFG,
-                         ABIAnalyses::ABIAnalysesResults &ABIResults,
-                         const std::set<GlobalVariable *> &WrittenRegisters) {
+FEA::milkInfo(OutlinedFunction *OutlinedFunction,
+              SortedVector<model::BasicBlock> &CFG,
+              ABIAnalyses::ABIAnalysesResults &ABIResults,
+              const std::set<GlobalVariable *> &WrittenRegisters) {
   using namespace llvm;
 
   SmallVector<std::pair<CallBase *, int64_t>, 4> MaybeReturns;
@@ -1473,8 +1457,7 @@ FEAnalyzer<FO>::milkInfo(OutlinedFunction *OutlinedFunction,
                          nullptr);
 }
 
-template<class FunctionOracle>
-void FEAnalyzer<FunctionOracle>::integrateFunctionCallee(llvm::BasicBlock *BB,
+void FunctionEntrypointAnalyzer::integrateFunctionCallee(llvm::BasicBlock *BB,
                                                          MetaAddress Next) {
   using namespace llvm;
 
@@ -1577,9 +1560,8 @@ void FEAnalyzer<FunctionOracle>::integrateFunctionCallee(llvm::BasicBlock *BB,
   }
 }
 
-template<class FunctionOracle>
 OutlinedFunction
-FEAnalyzer<FunctionOracle>::outlineFunction(llvm::BasicBlock *Entry) {
+FunctionEntrypointAnalyzer::outlineFunction(llvm::BasicBlock *Entry) {
   using namespace llvm;
 
   Function *Root = Entry->getParent();
@@ -1853,7 +1835,6 @@ bool EarlyFunctionAnalysis::runOnModule(Module &M) {
   FunctionAnalysisResults Properties(std::move(DefaultSummary));
 
   // Instantiate a FunctionEntrypointAnalyzer object
-  using FEA = FunctionEntrypointAnalyzer<FunctionAnalysisResults>;
   FEA Analyzer(M, &GCBI, ABICSVs, Properties, Binary);
 
   // Interprocedural analysis over the collected functions in post-order
