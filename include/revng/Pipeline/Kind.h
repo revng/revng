@@ -16,6 +16,7 @@ namespace pipeline {
 class Target;
 class Context;
 class TargetsList;
+class ContainerBase;
 
 /// A Kind is used to accumunate objects that logically belongs to the same
 /// cathegory.
@@ -43,6 +44,9 @@ public:
     DynamicHierarchy<Kind>(Name, Parent), Register(*this), TheRank(TheRank) {
     revng_assert(TheRank != nullptr);
   }
+
+  virtual llvm::Error
+  verify(const ContainerBase &Container, const Target &ToVerify) const;
 
 public:
   size_t depth() const { return TheRank->depth(); }

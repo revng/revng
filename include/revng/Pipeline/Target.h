@@ -32,6 +32,7 @@ enum Values { Exact, DerivedFrom };
 }
 
 class TargetsList;
+class ContainerBase;
 
 /// A target is a triple of Kind, PathComponents, and Exactness used to
 /// enumerate and transform the contents of a container.
@@ -116,6 +117,9 @@ public:
 
   void addPathComponent() { Components.emplace_back(PathComponent::all()); }
   void dropPathComponent() { Components.pop_back(); }
+  llvm::Error verify(const ContainerBase &Container) const {
+    return K->verify(Container, *this);
+  }
 
 public:
   void expand(const Context &Ctx, TargetsList &Out) const {
@@ -177,6 +181,12 @@ public:
   Target &operator[](size_t Index) { return Contained[Index]; }
 
 public:
+  llvm::Error verify(const ContainerBase &Container) const {
+    for (const Target &T : *this)
+      if (auto Error = T.verify(Container); Error)
+        return Error;
+    return llvm::Error::success();
+  }
   iterator begin() { return Contained.begin(); }
   iterator end() { return Contained.end(); }
   const_iterator begin() const { return Contained.begin(); }

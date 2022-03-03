@@ -62,6 +62,9 @@ public:
   /// The implementation must esure that the content of this file will be
   /// loaded from the provided path.
   virtual llvm::Error loadFromDisk(llvm::StringRef Path) = 0;
+
+  /// Checks that the content of the this container is well formed.
+  virtual llvm::Error verify() const { return enumerate().verify(*this); }
 };
 
 /// CRTP class to be extended to implement a pipeline container.

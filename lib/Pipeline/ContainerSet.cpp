@@ -96,6 +96,17 @@ llvm::Error ContainerSet::loadFromDisk(StringRef Directory) {
   return Error::success();
 }
 
+llvm::Error ContainerSet::verify() const {
+  for (const auto &Pair : Content) {
+    if (Pair.second == nullptr)
+      continue;
+
+    if (auto Error = Pair.second->verify(); Error)
+      return Error;
+  }
+  return llvm::Error::success();
+}
+
 ContainerToTargetsMap ContainerSet::enumerate() const {
   ContainerToTargetsMap Status;
 

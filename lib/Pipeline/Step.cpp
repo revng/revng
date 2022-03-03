@@ -99,6 +99,7 @@ ContainerSet Step::cloneAndRun(Context &Ctx,
 
     explainExecutedPipe(Ctx, Pipe, OS);
     Pipe->run(Ctx, RunningContainers);
+    llvm::cantFail(RunningContainers.verify());
   }
   return RunningContainers;
 }
