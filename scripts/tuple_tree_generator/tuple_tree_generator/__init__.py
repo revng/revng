@@ -2,6 +2,7 @@
 
 from .generators import CppHeadersGenerator
 from .generators import JSONSchemaGenerator
+from .generators import PythonGenerator
 from .schema import Schema
 
 
@@ -17,3 +18,13 @@ def generate_jsonschema(
         schema, root_type, string_types=string_types, separate_string_types=separate_string_types
     )
     return generator.emit_jsonschema()
+
+
+def generate_python(schema: Schema, root_type: str, string_types=None, external_types=None) -> str:
+    generator = PythonGenerator(
+        schema,
+        root_type,
+        string_types=string_types,
+        external_types=external_types,
+    )
+    return generator.emit_python()

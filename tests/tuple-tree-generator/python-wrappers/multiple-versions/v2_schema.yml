@@ -1,9 +1,5 @@
-$ref: '#/definitions/Binary'
-$schema: http://json-schema.org/draft-07/schema#
-definitions:
-  RootType:
-    type: object
-    additionalProperties: false
-    properties:
-      propertyB:
-        type: string
+- name: RootType
+  type: struct
+  fields:
+    - name: propertyB
+      type: string

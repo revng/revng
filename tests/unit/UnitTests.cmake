@@ -275,6 +275,7 @@ tuple_tree_generator(
   ""
   ""
   ""
+  ""
   "")
 revng_add_test_executable(
   test_tuple_tree_generator "${SRC}/TupleTreeGenerator/Test.cpp"

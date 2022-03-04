@@ -8,6 +8,8 @@ from typing import Dict, List
 
 from .definition import Definition
 
+# TODO: should we return the fields in a stable order (in all_fields, all_optional_fields, etc)
+
 
 class StructField(ABC):
     def __init__(self, *, name, doc=None, optional=False, const=False, is_guid=False):
@@ -50,11 +52,25 @@ class StructField(ABC):
         else:
             raise ValueError("Invalid struct field")
 
+    def resolve_references(self, schema):
+        raise NotImplementedError()
+
 
 class SimpleStructField(StructField):
     def __init__(self, *, name, type, doc=None, optional=False, const=False, is_guid=False):
         super().__init__(name=name, doc=doc, optional=optional, const=const, is_guid=is_guid)
         self.type = type
+        self.resolved_type = None
+
+    def resolve_references(self, schema):
+        self.resolved_type = schema.get_definition_for(self.type)
+
+    @property
+    def python_type(self):
+        if self.resolved_type:
+            return self.resolved_type.name
+
+        return _scalar_python_type(self.type)
 
 
 class SequenceStructField(StructField):
@@ -73,6 +89,9 @@ class SequenceStructField(StructField):
         self.sequence_type = sequence_type
         self.element_type = element_type
         self.upcastable = upcastable
+        # TODO: does it make sense to try to resolve the sequence type?
+        self.resolved_sequence_type = None
+        self.resolved_element_type = None
 
     @property
     def type(self):
@@ -81,16 +100,47 @@ class SequenceStructField(StructField):
         else:
             return f"{self.sequence_type}<{self.element_type}>"
 
+    @property
+    def python_type(self):
+        if self.resolved_element_type:
+            return f"List[{self.resolved_element_type.name}]"
+        element_type = _scalar_python_type(self.element_type)
+        return f"List[{element_type}]"
+
+    def resolve_references(self, schema):
+        self.resolved_sequence_type = schema.get_definition_for(self.sequence_type)
+        self.resolved_element_type = schema.get_definition_for(self.element_type)
+
 
 class ReferenceStructField(StructField):
     def __init__(self, *, name, pointee_type, root_type, doc=None, optional=False, const=False):
         super().__init__(name=name, doc=doc, optional=optional, const=const)
         self.pointee_type = pointee_type
         self.root_type = root_type
+        self.resolved_pointee_type = None
+        self.resolved_root_type = None
 
     @property
     def type(self):
         return f"TupleTreeReference<{self.pointee_type}, {self.root_type}>"
+
+    @property
+    def python_type(self):
+        if self.resolved_pointee_type:
+            pointee_type = self.resolved_pointee_type.name
+        else:
+            pointee_type = _scalar_python_type(self.pointee_type)
+
+        if self.resolved_root_type:
+            root_type = self.resolved_root_type.name
+        else:
+            root_type = _scalar_python_type(self.root_type)
+
+        return f"Reference[{pointee_type}, {root_type}]"
+
+    def resolve_references(self, schema):
+        self.resolved_pointee_type = schema.get_definition_for(self.pointee_type)
+        self.resolved_root_type = schema.get_definition_for(self.root_type)
 
 
 class StructDefinition(Definition):
@@ -139,6 +189,8 @@ class StructDefinition(Definition):
             self.dependencies.add(self._inherits)
 
         for field in self.fields:
+            field.resolve_references(schema)
+
             if isinstance(field, SimpleStructField):
                 self.dependencies.add(field.type)
             elif isinstance(field, SequenceStructField):
@@ -230,3 +282,11 @@ class StructDefinition(Definition):
         if self.inherits:
             yield from self.inherits.fields
         yield from self.fields
+
+
+def _scalar_python_type(t: str) -> str:
+    if "int" in t:
+        return "int"
+    elif "string" in t:
+        return "str"
+    return t
