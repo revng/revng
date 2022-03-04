@@ -218,3 +218,13 @@ llvm::Error serializeToFile(const T &ToWrite, const llvm::StringRef &Path) {
 
   return llvm::Error::success();
 }
+
+template<Yamlizable T>
+std::string serializeToString(const T &ToDump) {
+  std::string Buffer;
+  {
+    llvm::raw_string_ostream StringStream(Buffer);
+    serialize(StringStream, ToDump);
+  }
+  return Buffer;
+}
