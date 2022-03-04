@@ -17,6 +17,7 @@ class Definition:
         self.user_fullname = user_fullname
         self.doc = doc
         self.filename = f"{self.name}.h"
+        self.python_filename = f"{self.name}.py"
         self.impl_filename = f"{self.name}.cpp"
 
         # Names of types on which this definition depends on. Not necessarily names defined by the user

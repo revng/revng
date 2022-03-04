@@ -80,6 +80,23 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       ${TEST_NAME}
       PROPERTIES LABELS
                  "load-model;analysis;${CATEGORY};${CONFIGURATION};${ANALYSIS}")
+
+    set(ROUNDTRIP_SERIALIZATION_TEST_NAME
+        test-tuple-tree-generator-python-model-serialization-roundtrip-${CATEGORY}-${TARGET_NAME}
+    )
+    add_test(
+      NAME "${ROUNDTRIP_SERIALIZATION_TEST_NAME}"
+      COMMAND
+        "${CMAKE_SOURCE_DIR}/tests/tuple-tree-generator/run-serialization-roundtrip-test.sh"
+        "${OUTPUT}")
+    set_tests_properties(
+      "${ROUNDTRIP_SERIALIZATION_TEST_NAME}"
+      PROPERTIES
+        LABELS
+        "unit"
+        ENVIRONMENT
+        "PATH=${CMAKE_BINARY_DIR}/bin:$ENV{PATH};PYTHONPATH=${CMAKE_BINARY_DIR}/lib/python"
+    )
   endif()
 endmacro()
 register_derived_artifact("lifted" "abi-enforced-for-decompilation" ".bc"

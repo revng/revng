@@ -4,3 +4,4 @@
 
 from .cppheaders import CppHeadersGenerator
 from .jsonschema import JSONSchemaGenerator
+from .python import PythonGenerator

@@ -2,6 +2,5 @@
 requires = [
     "setuptools",
     "wheel",
-    "datamodel-code-generator"
 ]
 build-backend = "setuptools.build_meta"
