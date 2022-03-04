@@ -134,9 +134,9 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
       # Stack promotion
       -measure-stack-size-at-call-sites -promote-stack-pointer
       # Optimize IR with LLVM's passes
-      -dce -simplifycfg -dse -instcombine -sroa --sroa-aggressive-phis-selects
-      -instsimplify -jump-threading -licm -unreachableblockelim -instcombine
-      -early-cse -simplifycfg
+      -remove-extractvalues -dce -simplifycfg -dse -instcombine -sroa
+      --sroa-aggressive-phis-selects -instsimplify -jump-threading -licm
+      -unreachableblockelim -instcombine -early-cse -simplifycfg
       # apply type shrinking
       -type-shrinking --min-width 8 -early-cse -instsimplify -gvn -instsimplify
       -dse -dce
@@ -145,8 +145,8 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
       # Stack analysis and segregation
       -instrument-stack-accesses -instcombine -compute-stack-accesses-bounds
       -detect-stack-size -segregate-stack-accesses -cleanup-stack-size-markers
-      -dce -sroa -instcombine -sroa -simplifycfg -strip-dead-prototypes
-      ${INPUT_FILE} -o ${OUTFOLDER}/prepared.bc)
+      -dce -sroa -instcombine -sroa -simplifycfg -restore-extractvalues
+      -strip-dead-prototypes ${INPUT_FILE} -o ${OUTFOLDER}/prepared.bc)
   set_property(
     TEST prepare_${TARGET_NAME}
     APPEND

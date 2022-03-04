@@ -9,6 +9,7 @@ class Function;
 class LLVMContext;
 class Module;
 class Type;
+class ExtractValueInst;
 } // end namespace llvm
 
 #include "revng/Support/FunctionTags.h"
@@ -21,6 +22,7 @@ extern Tag IsRef;
 extern Tag AddressOf;
 extern Tag ModelGEP;
 extern Tag SerializationMarker;
+extern Tag OpaqueExtractValue;
 } // namespace FunctionTags
 
 /// Returns the type of an AddressOf function with return type T, in context C.
@@ -37,3 +39,14 @@ llvm::Function *
 getModelGEP(llvm::Module &M, llvm::Type *RetTy, llvm::Type *BaseAddressTy);
 
 llvm::Function *getSerializationMarker(llvm::Module &M, llvm::Type *T);
+
+/// Derive the function type of the corresponding OpaqueExtractValue() function
+/// from an ExtractValue instruction. OpaqueExtractValue() basically wraps an
+/// ExtractValue to prevent it from being optimized out, so the return type and
+/// arguments are the same as the instruction being wrapped.
+llvm::FunctionType *
+getOpaqueEVFunctionType(llvm::LLVMContext &C, llvm::ExtractValueInst *Extract);
+
+// Initializes a pool of OpaqueExtractValue instructions, so that a new one can
+// be created on-demand.
+void initOpaqueEVPool(OpaqueFunctionsPool<llvm::Type *> &Pool);

@@ -8,6 +8,7 @@
 
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/OpaqueFunctionsPool.h"
 
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/Mangling.h"
@@ -22,6 +23,7 @@ Tag IsRef("IsRef");
 Tag AddressOf("AddressOf");
 Tag ModelGEP(ModelGEPName);
 Tag SerializationMarker(MarkerName);
+Tag OpaqueExtractValue("OpaqueExtractvalue");
 } // namespace FunctionTags
 
 static std::string makeTypeName(const llvm::Type *Ty) {
@@ -138,4 +140,27 @@ llvm::Function *getSerializationMarker(llvm::Module &M, llvm::Type *T) {
   FunctionTags::Marker.addTo(MarkerF);
 
   return MarkerF;
+}
+
+llvm::FunctionType *
+getOpaqueEVFunctionType(llvm::LLVMContext &C, llvm::ExtractValueInst *Extract) {
+  using namespace llvm;
+  // First argument is the struct we are extracting from
+  std::vector ArgTypes = { Extract->getAggregateOperand()->getType() };
+  // All other arguments are indices, which we decided to be of type i64
+  Type *I64Type = IntegerType::getInt64Ty(C);
+  ArgTypes.insert(ArgTypes.end(), Extract->getNumIndices(), I64Type);
+  // The return type is the type of the extracted field
+  Type *ReturnType = Extract->getType();
+
+  return FunctionType::get(ReturnType, ArgTypes, false);
+}
+
+void initOpaqueEVPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
+  // Don't optimize these
+  Pool.addFnAttribute(llvm::Attribute::OptimizeNone);
+  Pool.addFnAttribute(llvm::Attribute::NoInline);
+  Pool.setTags({ &FunctionTags::OpaqueExtractValue });
+  // Initialize the pool from its internal llvm::Module if possible.
+  Pool.initializeFromReturnType(FunctionTags::AddressOf);
 }
