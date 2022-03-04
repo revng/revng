@@ -1039,6 +1039,27 @@ inline std::string dumpToString(T &TheT) {
   return Result;
 }
 
+// clang-format off
+template<typename T>
+concept LLVMRawOStreamDumpable = not ValueLikePrintable<T>
+                                 and not ModFunLikePrintable<T>
+                                 and requires(T TheT) {
+  TheT.dump(std::declval<llvm::raw_ostream &>());
+};
+// clang-format on
+
+template<bool B, LLVMRawOStreamDumpable Dumpable>
+static void writeToLog(Logger<B> &L, const Dumpable &P, int /* Ignore */) {
+  if (L.isEnabled()) {
+    llvm::SmallString<32> Buffer;
+    {
+      llvm::raw_svector_ostream Stream(Buffer);
+      P.dump(Stream);
+      L << Stream.str().str();
+    }
+  }
+}
+
 template<typename T>
 requires std::is_pointer_v<T>
 inline std::string dumpToString(T TheT) {
