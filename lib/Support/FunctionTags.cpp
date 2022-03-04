@@ -145,6 +145,7 @@ llvm::Function *getSerializationMarker(llvm::Module &M, llvm::Type *T) {
   MarkerF->addFnAttr(llvm::Attribute::WillReturn);
   MarkerF->addFnAttr(llvm::Attribute::ReadNone);
   FunctionTags::SerializationMarker.addTo(MarkerF);
+  FunctionTags::Marker.addTo(MarkerF);
 
   return MarkerF;
 }

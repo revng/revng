@@ -7,11 +7,14 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 
 #include "revng/Support/Assert.h"
 
+#include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/IRHelpers.h"
 
 template<typename T>
@@ -100,9 +103,6 @@ template<DerivedValue T>
 using ExtractValueT = PossiblyConstValueT<T, llvm::ExtractValueInst>;
 
 template<DerivedValue T>
-using PHINodeT = PossiblyConstValueT<T, llvm::PHINode>;
-
-template<DerivedValue T>
 using ExtractValuePtrSet = llvm::SmallPtrSet<ExtractValueT<T> *, 2>;
 
 template<DerivedValue T>
@@ -115,35 +115,37 @@ getConstQualifiedExtractedValuesFromInstruction(T *I) {
   unsigned NumFields = StructTy->getNumElements();
   Results.resize(NumFields, {});
 
-  // Find extract value uses transitively, traversing PHIs
+  // Find extract value uses transitively, traversing PHIs and markers
   ExtractValuePtrSet<T> ExtractValues;
   for (auto *TheUser : I->users()) {
     if (auto *ExtractV = dyn_cast<llvm::ExtractValueInst>(TheUser)) {
       ExtractValues.insert(ExtractV);
-    } else if (auto *ThePHI = dyn_cast<llvm::PHINode>(TheUser)) {
+    } else {
+      if (auto *Call = dyn_cast<llvm::CallInst>(TheUser)) {
+        if (not FunctionTags::Marker.isTagOf(Call->getCalledFunction()))
+          continue;
+      }
 
-      // traverse PHIS until we find extractvalues
-      llvm::SmallPtrSet<PHINodeT<T> *, 8> Visited = {};
-      llvm::SmallPtrSet<PHINodeT<T> *, 8> ToVisit = { ThePHI };
+      // traverse PHIS and markers until we find extractvalues
+      llvm::SmallPtrSet<ValueT<T> *, 8> Visited = {};
+      llvm::SmallPtrSet<ValueT<T> *, 8> ToVisit = { TheUser };
       while (not ToVisit.empty()) {
 
-        llvm::SmallPtrSet<PHINodeT<T> *, 8> NextToVisit = {};
+        llvm::SmallPtrSet<ValueT<T> *, 8> NextToVisit = {};
 
-        for (PHINodeT<T> *PHI : ToVisit) {
+        for (ValueT<T> *Ident : ToVisit) {
+          Visited.insert(Ident);
+          NextToVisit.erase(Ident);
 
-          Visited.insert(PHI);
-          NextToVisit.erase(PHI);
-
-          for (auto *User : PHI->users()) {
-            if (auto *EUser = llvm::dyn_cast<llvm::ExtractValueInst>(User)) {
-              ExtractValues.insert(EUser);
+          for (auto *User : Ident->users()) {
+            if (auto *ExtractV = llvm::dyn_cast<llvm::ExtractValueInst>(User)) {
+              ExtractValues.insert(ExtractV);
+            } else if (auto *IdentUser = llvm::dyn_cast<llvm::CallInst>(User)) {
+              if (FunctionTags::Marker.isTagOf(IdentUser))
+                NextToVisit.insert(IdentUser);
             } else if (auto *PHIUser = llvm::dyn_cast<llvm::PHINode>(User)) {
               if (not Visited.count(PHIUser))
                 NextToVisit.insert(PHIUser);
-            } else if (auto *RetUser = llvm::dyn_cast<llvm::ReturnInst>(User)) {
-              revng_abort("TODO: handle ret user");
-            } else {
-              revng_abort();
             }
           }
         }
