@@ -44,6 +44,7 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/YAMLTraits.h"
 
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/IRHelpers.h"
@@ -197,7 +198,8 @@ ValueModelTypesMap initializeModelTypes(const llvm::Function &F,
          llvm::zip_first(RFT->Arguments, F.args())) {
       auto _ = LoggerIndent(ModelGEPLog);
       revng_log(ModelGEPLog, "llvm::Argument: " << dumpToString(LLVMArg));
-      revng_log(ModelGEPLog, "model::QualifiedType: " << ModelArg.Type);
+      revng_log(ModelGEPLog,
+                "model::QualifiedType: " << serializeToString(ModelArg.Type));
       if (ModelArg.Type.isPointer()) {
         revng_log(ModelGEPLog, "INITIALIZED");
         Result.insert({ &LLVMArg, ModelArg.Type });
@@ -214,7 +216,8 @@ ValueModelTypesMap initializeModelTypes(const llvm::Function &F,
          llvm::zip_first(CFT->Arguments, F.args())) {
       auto _ = LoggerIndent(ModelGEPLog);
       revng_log(ModelGEPLog, "llvm::Argument: " << dumpToString(LLVMArg));
-      revng_log(ModelGEPLog, "model::QualifiedType: " << ModelArg.Type);
+      revng_log(ModelGEPLog,
+                "model::QualifiedType: " << serializeToString(ModelArg.Type));
       if (ModelArg.Type.isPointer()) {
         revng_log(ModelGEPLog, "INITIALIZED");
         Result.insert({ &LLVMArg, ModelArg.Type });
@@ -249,7 +252,9 @@ ValueModelTypesMap initializeModelTypes(const llvm::Function &F,
             model::QualifiedType FStackType(ModelF.StackFrameType,
                                             { PointerQual });
             revng_log(ModelGEPLog, "Call: " << dumpToString(Call));
-            revng_log(ModelGEPLog, "model::QualifiedType: " << FStackType);
+            revng_log(ModelGEPLog,
+                      "model::QualifiedType: "
+                        << serializeToString(FStackType));
             revng_log(ModelGEPLog, "INITIALIZED");
             Result.insert({ Call, std::move(FStackType) });
           }
@@ -320,7 +325,8 @@ ValueModelTypesMap initializeModelTypes(const llvm::Function &F,
           if (ModT.isPointer()) {
             auto _ = LoggerIndent(ModelGEPLog);
             revng_log(ModelGEPLog, "llvm::CallInst: " << dumpToString(Call));
-            revng_log(ModelGEPLog, "model::QualifiedType: " << ModT);
+            revng_log(ModelGEPLog,
+                      "model::QualifiedType: " << serializeToString(ModT));
             Result.insert({ Call, ModT });
           }
 
@@ -348,7 +354,8 @@ ValueModelTypesMap initializeModelTypes(const llvm::Function &F,
                 auto _ = LoggerIndent(ModelGEPLog);
                 revng_log(ModelGEPLog,
                           "llvm::ExtractValueInst: " << dumpToString(V));
-                revng_log(ModelGEPLog, "model::QualifiedType: " << ModT);
+                revng_log(ModelGEPLog,
+                          "model::QualifiedType: " << serializeToString(ModT));
                 Result.insert({ V, ModT });
               }
             }
@@ -430,38 +437,6 @@ struct TypedBaseAddress {
 
   void dump() const debug_function { dump(llvm::dbgs()); }
 };
-
-// clang-format off
-template<typename T>
-concept LLVMRawOStreamDumpable = not ValueLikePrintable<T>
-                                 and not ModFunLikePrintable<T>
-                                 and requires(T TheT) {
-  TheT.dump(std::declval<llvm::raw_ostream &>());
-};
-// clang-format on
-
-template<bool B, LLVMRawOStreamDumpable Dumpable>
-static void writeToLog(Logger<B> &L, const Dumpable &P, int /* Ignore */) {
-  if (L.isEnabled()) {
-    llvm::SmallString<32> Buffer;
-    llvm::raw_svector_ostream Stream(Buffer);
-    P.dump(Stream);
-    L << Stream.str().str();
-  }
-}
-
-/// \brief Logging routine for model::QualifiedType
-// TODO: drop when QualifiedType itself will provide its own
-template<bool B>
-static void
-writeToLog(Logger<B> &L, const model::QualifiedType &QT, int /* Ignore */) {
-  if (L.isEnabled()) {
-    llvm::SmallString<32> Buffer;
-    llvm::raw_svector_ostream Stream(Buffer);
-    serialize(Stream, QT);
-    L << Stream.str().str();
-  }
-}
 
 // This struct represents an expression of the form:
 //     BaseAddress + sum( const_i * index_i)
@@ -591,7 +566,7 @@ static IRAccessPattern computeAccessPattern(const Use &U,
         Pointee = Model.getPrimitiveType(model::PrimitiveTypeKind::Generic,
                                          PointeeSize);
       model::QualifiedType QPointee = model::QualifiedType(Pointee, {});
-      revng_log(ModelGEPLog, "QPointee: " << QPointee);
+      revng_log(ModelGEPLog, "QPointee: " << serializeToString(QPointee));
       IRPattern.PointeeType = QPointee;
 
     } else if (auto *Store = dyn_cast<StoreInst>(UserInstr)) {
@@ -610,7 +585,7 @@ static IRAccessPattern computeAccessPattern(const Use &U,
           Pointee = Model.getPrimitiveType(model::PrimitiveTypeKind::Generic,
                                            PointeeSize);
         model::QualifiedType QPointee = model::QualifiedType(Pointee, {});
-        revng_log(ModelGEPLog, "QPointee: " << QPointee);
+        revng_log(ModelGEPLog, "QPointee: " << serializeToString(QPointee));
         IRPattern.PointeeType = QPointee;
       } else {
         revng_log(ModelGEPLog, "Use is pointer operand");
@@ -650,7 +625,9 @@ static IRAccessPattern computeAccessPattern(const Use &U,
           if (ModT.isPointer()) {
             auto _ = LoggerIndent(ModelGEPLog);
             revng_log(ModelGEPLog, "llvm::ReturnInst: " << dumpToString(Ret));
-            revng_log(ModelGEPLog, "Pointee: model::QualifiedType: " << ModT);
+            revng_log(ModelGEPLog,
+                      "Pointee: model::QualifiedType: "
+                        << serializeToString(ModT));
             IRPattern.PointeeType = dropPointer(ModT);
           }
 
@@ -722,7 +699,7 @@ static IRAccessPattern computeAccessPattern(const Use &U,
             RetTy = std::next(RFT->ReturnValues.begin(), ArgNum)->Type;
           if (RetTy.isPointer()) {
             model::QualifiedType Pointee = dropPointer(RetTy);
-            revng_log(ModelGEPLog, "Pointee: " << Pointee);
+            revng_log(ModelGEPLog, "Pointee: " << serializeToString(Pointee));
             IRPattern.PointeeType = Pointee;
           }
         } else if (const auto *CFT = dyn_cast<model::CABIFunctionType>(FType)) {
@@ -753,10 +730,11 @@ static IRAccessPattern computeAccessPattern(const Use &U,
           revng_log(ModelGEPLog, "ArgOperand: " << U.get());
           auto ArgIt = RFT->Arguments.begin();
           model::QualifiedType ArgTy = std::next(ArgIt, ArgOpNum)->Type;
-          revng_log(ModelGEPLog, "model::QualifiedType: " << ArgTy);
+          revng_log(ModelGEPLog,
+                    "model::QualifiedType: " << serializeToString(ArgTy));
           if (ArgTy.isPointer()) {
             model::QualifiedType Pointee = dropPointer(ArgTy);
-            revng_log(ModelGEPLog, "Pointee: " << Pointee);
+            revng_log(ModelGEPLog, "Pointee: " << serializeToString(Pointee));
             IRPattern.PointeeType = Pointee;
           }
 
@@ -771,10 +749,11 @@ static IRAccessPattern computeAccessPattern(const Use &U,
           revng_log(ModelGEPLog, "ArgOpNum: " << ArgOpNum);
           revng_log(ModelGEPLog, "ArgOperand: " << U.get());
           model::QualifiedType ArgTy = CFT->Arguments.at(ArgOpNum).Type;
-          revng_log(ModelGEPLog, "model::QualifiedType: " << ArgTy);
+          revng_log(ModelGEPLog,
+                    "model::QualifiedType: " << serializeToString(ArgTy));
           if (ArgTy.isPointer()) {
             model::QualifiedType Pointee = dropPointer(ArgTy);
-            revng_log(ModelGEPLog, "Pointee: " << Pointee);
+            revng_log(ModelGEPLog, "Pointee: " << serializeToString(Pointee));
             IRPattern.PointeeType = Pointee;
           }
 
@@ -1832,7 +1811,8 @@ class TypedAccessCache {
   RecursiveCoroutine<TAPToChildIdsMapConstRef>
   getTAPImpl(const model::QualifiedType &BaseType, LLVMContext &Ctxt) {
 
-    revng_log(ModelGEPLog, "getTAPImpl for BaseType: " << BaseType);
+    revng_log(ModelGEPLog,
+              "getTAPImpl for BaseType: " << serializeToString(BaseType));
     auto Indent = LoggerIndent{ ModelGEPLog };
 
     auto It = TAPCache.lower_bound(BaseType);
