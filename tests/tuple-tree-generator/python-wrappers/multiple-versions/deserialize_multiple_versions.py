@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 
 import yaml
-from testmodule.v1._generated import RootType as RootV1
-from testmodule.v2._generated import RootType as RootV2
-from testmodule.v1.base import YamlLoader as YamlLoaderV1
-from testmodule.v2.base import YamlLoader as YamlLoaderV2
+from testmodule.v1 import RootType as RootV1
+from testmodule.v1 import YamlLoader as YamlLoaderV1
+from testmodule.v2 import RootType as RootV2
+from testmodule.v2 import YamlLoader as YamlLoaderV2
 
 
-def assert_parsing_fails(serialized, root_type):
+def assert_parsing_fails(file, loader):
     try:
-        root_type.parse_obj(serialized)
+        yaml.load(file, Loader=loader)
     except:
         return
 
@@ -28,10 +28,10 @@ def test_deserialize_multiple_versions():
         v2_serialized = yaml.load(f, Loader=YamlLoaderV2)
         assert type(v2_serialized) is RootV2
 
-    RootV1.parse_obj(v1_serialized)
-    RootV2.parse_obj(v2_serialized)
-    assert_parsing_fails(v1_serialized, RootV2)
-    assert_parsing_fails(v2_serialized, RootV1)
+    with open("v1.yml") as f:
+        assert_parsing_fails(f, YamlLoaderV2)
+    with open("v2.yml") as f:
+        assert_parsing_fails(f, YamlLoaderV1)
 
     print("test_deserialize_multiple_versions: OK")
 

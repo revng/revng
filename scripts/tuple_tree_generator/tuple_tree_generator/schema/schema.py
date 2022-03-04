@@ -2,7 +2,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-from typing import Dict, Iterator
+import graphlib
+from typing import Dict, List
 
 from .definition import Definition
 from .enum import EnumDefinition
@@ -38,15 +39,29 @@ class Schema:
 
         return None
 
-    def struct_definitions(self) -> Iterator[StructDefinition]:
-        for definition in self.definitions.values():
-            if isinstance(definition, StructDefinition):
-                yield definition
+    def struct_definitions(self) -> List[StructDefinition]:
+        toposorter = graphlib.TopologicalSorter()
+        for struct in self.definitions.values():
+            if not isinstance(struct, StructDefinition):
+                continue
 
-    def enum_definitions(self) -> Iterator[EnumDefinition]:
-        for definition in self.definitions.values():
-            if isinstance(definition, EnumDefinition):
-                yield definition
+            toposorter.add(struct)
+
+            for dependency in struct.dependencies:
+                dep_type = self.get_definition_for(dependency)
+                if isinstance(dep_type, StructDefinition):
+                    toposorter.add(struct, dep_type)
+                elif isinstance(dep_type, EnumDefinition):
+                    pass
+                elif dep_type is None:
+                    pass
+                else:
+                    breakpoint()
+
+        return list(toposorter.static_order())
+
+    def enum_definitions(self) -> List[EnumDefinition]:
+        return [enum for enum in self.definitions.values() if isinstance(enum, EnumDefinition)]
 
     def get_upcastable_types(self, base_type: StructDefinition):
         upcastable_types = set()

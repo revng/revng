@@ -21,22 +21,23 @@ mkdir testmodule
 mkdir testmodule/v1
 mkdir testmodule/v2
 
-# Copy the model._common directory in the build directory
-cp -ar "$SOURCE_ROOT/python/revng/model/_common" testmodule
-
-# Copy the base class
-cp -a "$SCRIPT_DIR/base.py" testmodule/v1/
-cp -a "$SCRIPT_DIR/base.py" testmodule/v2/
+# Copy required files from the model module in the test module directory
+cp -ar "$SOURCE_ROOT/python/revng/model/_util.py" testmodule
+cp -ar "$SOURCE_ROOT/python/revng/model/metaaddress.py" testmodule
+touch testmodule/__init__.py
 
 # Generate python model for v1 and v2
 for INDEX in 1 2; do
-  datamodel-codegen \
-    --base-class .base.MonkeyPatchingBaseClass \
-    --target-python-version 3.6 \
-    --input "$SCRIPT_DIR/v""$INDEX""_schema.yml" \
-    > "testmodule/v""$INDEX""/_generated.py"
+  "$SOURCE_ROOT/scripts/tuple_tree_generator/tuple-tree-generate-python.py" \
+    --namespace dummy \
+    --root-type RootType \
+    --output "testmodule/v$INDEX/__init__.py" \
+    --string-type "string" \
+    "$SCRIPT_DIR/v${INDEX}_schema.yml"
+
+  cp "$SOURCE_ROOT/python/revng/model/v1/external.py" "testmodule/v${INDEX}/external.py"
 done
 
-export PYTHONPATH="$PWD:${PYTHONPATH:+:${PYTHONPATH}}"
+export PYTHONPATH="$PWD:$SOURCE_ROOT/python:${PYTHONPATH:+:${PYTHONPATH}}"
 cd "$SCRIPT_DIR"
 "$SCRIPT_DIR/deserialize_multiple_versions.py"

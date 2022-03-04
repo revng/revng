@@ -26,8 +26,11 @@ function(
   GENERATED_IMPLS_VARIABLE
   # Where the JSON schema will be produced (empty for no schema)
   JSONSCHEMA_PATH
-  # Type to use as the root of the JSON schema
-  JSONSCHEMA_ROOT_TYPE
+  # Path where the python generated code will be produced (empty for skipping
+  # python code generation)
+  PYTHON_PATH
+  # Type to use as the root of the schema
+  ROOT_TYPE
   # Types equivalent to strings
   STRING_TYPES
   # Types equivalent to strings which get a separate type definition
@@ -54,19 +57,31 @@ function(
   set("${GENERATED_IMPLS_VARIABLE}"
       ${LOCAL_GENERATED_IMPLS}
       PARENT_SCOPE)
+  set(EXTRA_TARGETS)
 
   #
   # Produce JSON schema, if requested
   #
   if(NOT "${JSONSCHEMA_PATH}" STREQUAL "")
     tuple_tree_generator_generate_jsonschema(
-      "${SCHEMA_PATH}" "${NAMESPACE}" "${JSONSCHEMA_ROOT_TYPE}"
-      "${STRING_TYPES}" "${SEPARATE_STRING_TYPES}" "${JSONSCHEMA_PATH}")
+      "${SCHEMA_PATH}" "${NAMESPACE}" "${ROOT_TYPE}" "${STRING_TYPES}"
+      "${SEPARATE_STRING_TYPES}" "${JSONSCHEMA_PATH}")
+    list(APPEND EXTRA_TARGETS ${JSONSCHEMA_PATH})
+  endif()
+
+  #
+  # Produce Python code, if requested
+  #
+  if(NOT "${PYTHON_PATH}" STREQUAL "")
+    tuple_tree_generator_generate_python(
+      "${SCHEMA_PATH}" "${NAMESPACE}" "${ROOT_TYPE}" "${STRING_TYPES}"
+      "${SEPARATE_STRING_TYPES}" "${PYTHON_PATH}")
+    list(APPEND EXTRA_TARGETS ${PYTHON_PATH})
   endif()
 
   add_custom_target(
     "${TARGET_NAME}" DEPENDS "${SCHEMA_PATH}" ${LOCAL_GENERATED_HEADERS}
-                             ${LOCAL_GENERATED_IMPLS} ${JSONSCHEMA_PATH})
+                             ${LOCAL_GENERATED_IMPLS} ${EXTRA_TARGETS})
 endfunction()
 
 # Extracts tuple_tree_generator YAML definitions from the given header files
@@ -115,13 +130,16 @@ endfunction()
 set(TEMPLATES_DIR
     "${CMAKE_SOURCE_DIR}/scripts/tuple_tree_generator/tuple_tree_generator/templates"
 )
-set(TEMPLATES
+
+set(CPP_TEMPLATES
     "${TEMPLATES_DIR}/class_forward_decls.h.tpl"
     "${TEMPLATES_DIR}/enum.h.tpl"
     "${TEMPLATES_DIR}/struct.h.tpl"
     "${TEMPLATES_DIR}/struct_forward_decls.h.tpl"
     "${TEMPLATES_DIR}/struct_late.h.tpl"
     "${TEMPLATES_DIR}/struct_impl.cpp.tpl")
+
+set(PYTHON_TEMPLATES "${TEMPLATES_DIR}/tuple_tree_gen.py.tpl")
 
 set(SCRIPTS_ROOT_DIR "${CMAKE_SOURCE_DIR}/scripts/tuple_tree_generator")
 # The list of Python scripts is build as follows:
@@ -134,11 +152,13 @@ set(TUPLE_TREE_GENERATOR_SOURCES
     "${SCRIPTS_ROOT_DIR}/extract_yaml.py"
     "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-cpp.py"
     "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-jsonschema.py"
+    "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-python.py"
     "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/__init__.py"
     "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/__init__.py"
     "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/cppheaders.py"
     "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/jinja_utils.py"
     "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/jsonschema.py"
+    "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/python.py"
     "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/schema/__init__.py"
     "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/schema/definition.py"
     "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/schema/enum.py"
@@ -166,7 +186,7 @@ function(
       "${NAMESPACE}" --include-path-prefix "${INCLUDE_PATH_PREFIX}"
       "${YAML_DEFINITIONS}" "${OUTPUT_DIR}"
     OUTPUT ${EXPECTED_GENERATED_HEADERS} ${EXPECTED_GENERATED_IMPLS}
-    DEPENDS "${YAML_DEFINITIONS}" ${TEMPLATES}
+    DEPENDS "${YAML_DEFINITIONS}" ${CPP_TEMPLATES}
             "${SCRIPTS_ROOT_DIR}/extract_yaml.py"
             ${TUPLE_TREE_GENERATOR_SOURCES})
 endfunction()
@@ -200,4 +220,39 @@ function(
       "${YAML_DEFINITIONS}"
     OUTPUT "${OUTPUT_PATH}"
     DEPENDS "${YAML_DEFINITIONS}" ${TUPLE_TREE_GENERATOR_SOURCES})
+endfunction()
+
+# Generates python files
+function(
+  tuple_tree_generator_generate_python
+  # Path to the yaml definitions
+  YAML_DEFINITIONS
+  # Base namespace of the generated classes (e.g. model)
+  NAMESPACE
+  # Type to use as the root of the schema
+  ROOT_TYPE
+  # Types equivalent to plain strings
+  STRING_TYPES
+  # Types equivalent to plain strings that get a separate type definition
+  EXTERNAL_TYPES
+  # Output path
+  OUTPUT_PATH)
+  set(STRING_TYPE_ARGS)
+  foreach(ST ${STRING_TYPES})
+    list(APPEND STRING_TYPE_ARGS --string-type "${ST}")
+  endforeach()
+
+  set(EXTERNAL_TYPE_ARGS)
+  foreach(ET ${EXTERNAL_TYPES})
+    list(APPEND EXTERNAL_TYPE_ARGS --external-type "${ET}")
+  endforeach()
+
+  add_custom_command(
+    COMMAND
+      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-python.py" --namespace
+      "${NAMESPACE}" --root-type "${ROOT_TYPE}" --output "${OUTPUT_PATH}"
+      ${STRING_TYPE_ARGS} ${EXTERNAL_TYPE_ARGS} "${YAML_DEFINITIONS}"
+    OUTPUT "${OUTPUT_PATH}"
+    DEPENDS "${YAML_DEFINITIONS}" ${PYTHON_TEMPLATES}
+            ${TUPLE_TREE_GENERATOR_SOURCES})
 endfunction()

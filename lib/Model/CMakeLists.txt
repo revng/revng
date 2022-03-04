@@ -57,6 +57,7 @@ tuple_tree_generator(
   GENERATED_HEADERS
   GENERATED_IMPLS
   "${JSONSCHEMA_PATH}"
+  "${CMAKE_BINARY_DIR}/lib/python/${PYTHON_GENERATED_MODEL_PATH}"
   Binary
   "Identifier"
   "MetaAddress")
