@@ -640,15 +640,33 @@ static IRAccessPattern computeAccessPattern(const Use &U,
         } else if (const auto *RFT = dyn_cast<model::RawFunctionType>(FType)) {
 
           auto MoreIndent = LoggerIndent(ModelGEPLog);
-          revng_assert(RFT->Arguments.size() == Call->arg_size());
+          auto ModelArgSize = RFT->Arguments.size();
+          revng_assert(ModelArgSize == Call->arg_size()
+                       or (ModelArgSize == Call->arg_size() - 1
+                           and RFT->StackArgumentsType.isValid()));
           revng_log(ModelGEPLog, "model::RawFunctionType");
 
           auto _ = LoggerIndent(ModelGEPLog);
           unsigned ArgOpNum = Call->getArgOperandNo(&U);
           revng_log(ModelGEPLog, "ArgOpNum: " << ArgOpNum);
           revng_log(ModelGEPLog, "ArgOperand: " << U.get());
-          auto ArgIt = RFT->Arguments.begin();
-          model::QualifiedType ArgTy = std::next(ArgIt, ArgOpNum)->Type;
+
+          model::QualifiedType ArgTy;
+          if (ArgOpNum >= ModelArgSize) {
+            // The only case in which the argument's index can be greater than
+            // the number of arguments in the model is for RawFunctionType
+            // functions that have stack arguments.
+            // Stack arguments are passed as the last argument of the llvm
+            // function, but they do not have a corresponding argument in the
+            // model. In this case, we have to retrieve the StackArgumentsType
+            // from the function prototype.
+            ArgTy.UnqualifiedType = RFT->StackArgumentsType;
+            revng_assert(ArgTy.UnqualifiedType.isValid());
+          } else {
+            auto ArgIt = std::next(RFT->Arguments.begin(), ArgOpNum);
+            ArgTy = ArgIt->Type;
+          }
+
           revng_log(ModelGEPLog,
                     "model::QualifiedType: " << serializeToString(ArgTy));
           if (ArgTy.isPointer()) {

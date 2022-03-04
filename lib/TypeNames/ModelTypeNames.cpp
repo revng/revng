@@ -9,6 +9,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Type.h"
 
+#include "revng/Model/Binary.h"
 #include "revng/Model/CABIFunctionType.h"
 #include "revng/Model/Identifier.h"
 #include "revng/Model/QualifiedType.h"
@@ -163,12 +164,13 @@ TypeString getReturnTypeName(const model::CABIFunctionType &F) {
 
 void printFunctionPrototype(const model::Type &FT,
                             StringRef FunctionName,
-                            llvm::raw_ostream &Header) {
+                            llvm::raw_ostream &Header,
+                            const model::Binary &Model) {
 
   if (const auto *RF = dyn_cast<model::RawFunctionType>(&FT)) {
     Header << getReturnTypeName(*RF) << " " << FunctionName.str();
 
-    if (RF->Arguments.empty()) {
+    if (RF->Arguments.empty() and not RF->StackArgumentsType.isValid()) {
       Header << "(void)";
     } else {
       const StringRef Open = "(";
@@ -177,6 +179,14 @@ void printFunctionPrototype(const model::Type &FT,
       for (const auto &Arg : RF->Arguments) {
         Header << Separator << getNamedCInstance(Arg.Type, Arg.name());
         Separator = Comma;
+      }
+
+      if (RF->StackArgumentsType.isValid()) {
+        // Add last argument representing a pointer to the stack arguments
+        model::QualifiedType StackArgsPtr;
+        StackArgsPtr.UnqualifiedType = RF->StackArgumentsType;
+        addPointerQualifier(StackArgsPtr, Model);
+        Header << Separator << getNamedCInstance(StackArgsPtr, "stack_args");
       }
       Header << ")";
     }

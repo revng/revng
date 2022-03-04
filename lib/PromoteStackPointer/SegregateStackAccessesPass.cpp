@@ -457,6 +457,7 @@ private:
       auto *NewCall = B.CreateCall(OldToNew.at(OldCall->getCalledFunction()),
                                    Arguments);
       OldCall->replaceAllUsesWith(NewCall);
+      NewCall->copyMetadata(*OldCall);
       eraseFromParent(OldCall);
     }
 

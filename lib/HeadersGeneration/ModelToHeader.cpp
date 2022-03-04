@@ -213,14 +213,15 @@ static void printRawFunctionWrappers(const model::RawFunctionType *F,
 
 /// Print a typedef for a RawFunctionType, that can be used when you have
 ///        a variable that is a pointer to a function.
-static void
-printDeclaration(const model::RawFunctionType &F, llvm::raw_ostream &Header) {
+static void printDeclaration(const model::RawFunctionType &F,
+                             llvm::raw_ostream &Header,
+                             const model::Binary &Model) {
   printRawFunctionWrappers(&F, Header);
 
   Header << "typedef ";
   // In this case, we are defining a type for the function, not the function
   // itself, so the token right before the parenthesis is the name of the type.
-  printFunctionPrototype(F, getTypeName(F), Header);
+  printFunctionPrototype(F, getTypeName(F), Header, Model);
   Header << ";\n";
 }
 
@@ -282,19 +283,21 @@ static void printCABIFunctionWrappers(const model::CABIFunctionType *F,
 ///        have a variable that is a pointer to a function.
 static void printDeclaration(const model::CABIFunctionType &F,
                              llvm::raw_ostream &Header,
-                             QualifiedTypeNameMap &NamesCache) {
+                             QualifiedTypeNameMap &NamesCache,
+                             const model::Binary &Model) {
   printCABIFunctionWrappers(&F, Header, NamesCache);
 
   Header << "typedef ";
   // In this case, we are defining a type for the function, not the function
   // itself, so the token right before the parenthesis is the name of the type.
-  printFunctionPrototype(F, getTypeName(F), Header);
+  printFunctionPrototype(F, getTypeName(F), Header, Model);
   Header << ";\n";
 }
 
 static void printDeclaration(const model::Type &T,
                              llvm::raw_ostream &Header,
-                             QualifiedTypeNameMap &AdditionalTypeNames) {
+                             QualifiedTypeNameMap &AdditionalTypeNames,
+                             const model::Binary &Model) {
   if (Log.isEnabled())
     Header << "// Declaration of " << getNameFromYAMLScalar(T.key()) << '\n';
 
@@ -328,13 +331,14 @@ static void printDeclaration(const model::Type &T,
   } break;
 
   case model::TypeKind::RawFunctionType: {
-    printDeclaration(cast<model::RawFunctionType>(T), Header);
+    printDeclaration(cast<model::RawFunctionType>(T), Header, Model);
   } break;
 
   case model::TypeKind::CABIFunctionType: {
     printDeclaration(cast<model::CABIFunctionType>(T),
                      Header,
-                     AdditionalTypeNames);
+                     AdditionalTypeNames,
+                     Model);
   } break;
   default:
     revng_abort();
@@ -343,14 +347,15 @@ static void printDeclaration(const model::Type &T,
 
 static void printDefinition(const model::Type &T,
                             llvm::raw_ostream &Header,
-                            QualifiedTypeNameMap &AdditionalTypeNames) {
+                            QualifiedTypeNameMap &AdditionalTypeNames,
+                            const model::Binary &Model) {
   if (Log.isEnabled())
     Header << "// Definition of " << getNameFromYAMLScalar(T.key()) << '\n';
 
   revng_log(Log, "Defining " << getNameFromYAMLScalar(T.key()));
 
   if (declarationIsDefinition(&T)) {
-    printDeclaration(T, Header, AdditionalTypeNames);
+    printDeclaration(T, Header, AdditionalTypeNames, Model);
   } else {
     switch (T.Kind) {
 
@@ -405,15 +410,15 @@ static void printTypeDefinitions(const model::Binary &Model,
         // When emitting a full definition we also want to emit a forward
         // declaration first, if it wasn't already emitted somewhere else.
         if (Defined.insert(TypeNodes.at({ NodeT, TypeName })).second)
-          printDeclaration(*NodeT, Header, AdditionalTypeNames);
+          printDeclaration(*NodeT, Header, AdditionalTypeNames, Model);
 
         if (not declarationIsDefinition(NodeT))
-          printDefinition(*NodeT, Header, AdditionalTypeNames);
+          printDefinition(*NodeT, Header, AdditionalTypeNames, Model);
 
         // This is always a full type definition
         Defined.insert(TypeNodes.at({ NodeT, FullType }));
       } else {
-        printDeclaration(*NodeT, Header, AdditionalTypeNames);
+        printDeclaration(*NodeT, Header, AdditionalTypeNames, Model);
         Defined.insert(TypeNodes.at({ NodeT, TypeNode::Kind::TypeName }));
 
         // For primitive types and enums the forward declaration we emit is
@@ -462,7 +467,7 @@ bool dumpModelToHeader(const model::Binary &Model, llvm::raw_ostream &Header) {
       Header << "*/\n";
     }
 
-    printFunctionPrototype(*FT, FName, Header);
+    printFunctionPrototype(*FT, FName, Header, Model);
     Header << ";\n";
   }
 
@@ -478,7 +483,7 @@ bool dumpModelToHeader(const model::Binary &Model, llvm::raw_ostream &Header) {
       serialize(Header, *FT);
       Header << "*/\n";
     }
-    printFunctionPrototype(*FT, FName, Header);
+    printFunctionPrototype(*FT, FName, Header, Model);
     Header << ";\n";
   }
 

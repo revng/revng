@@ -15,6 +15,7 @@ class QualifiedType;
 class RawFunctionType;
 class CABIFunctionType;
 class Type;
+class Binary;
 } // namespace model
 
 namespace ArtificialTypes {
@@ -66,4 +67,5 @@ extern TypeString getReturnField(const model::RawFunctionType &F, size_t Index);
 ///        should have already been printed before this function is called.
 extern void printFunctionPrototype(const model::Type &FT,
                                    llvm::StringRef FunctionName,
-                                   llvm::raw_ostream &Header);
+                                   llvm::raw_ostream &Header,
+                                   const model::Binary &Model);
