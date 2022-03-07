@@ -64,35 +64,24 @@ public:
     return ToReturn;
   }
 
-  llvm::Error storeToDisk(llvm::StringRef Path) const override {
-    std::error_code EC;
-    llvm::raw_fd_ostream OS(Path, EC, llvm::sys::fs::CD_CreateAlways);
-    if (EC)
-      return llvm::createStringError(EC,
-                                     "Could not store to file %s",
-                                     Path.str().c_str());
+  void clear() final { ContainedStrings.clear(); }
 
-    for (const auto &S : ContainedStrings)
+  llvm::Error serialize(llvm::raw_ostream &OS) const final {
+    for (const auto &S : ContainedStrings) {
       OS << S << "\n";
+    }
     return llvm::Error::success();
   }
 
-  llvm::Error loadFromDisk(llvm::StringRef Path) override {
-    if (not llvm::sys::fs::exists(Path)) {
-      ContainedStrings.clear();
-      return llvm::Error::success();
+  llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) final {
+    clear();
+    SmallVector<llvm::StringRef, 0> Strings;
+    Buffer.getBuffer().split(Strings, '\n');
+    for (llvm::StringRef S : Strings) {
+      if (S.empty())
+        continue;
+      ContainedStrings.insert(S.str());
     }
-
-    std::ifstream OS;
-    OS.open(Path.str(), std::ios::in);
-    if (not OS.is_open())
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     "Could not load file to file %s",
-                                     Path.str().c_str());
-
-    std::string S;
-    while (getline(OS, S))
-      ContainedStrings.insert(S);
     return llvm::Error::success();
   }
 

@@ -164,6 +164,19 @@ public:
     return llvm::Error::success();
   }
 
+  llvm::Error serialize(llvm::raw_ostream &OS) const final {
+
+    return llvm::Error::success();
+  }
+
+  llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) final {
+
+    return llvm::Error::success();
+  }
+
+  /// Must reset the state of the container to the just built state
+  void clear() final {}
+
 private:
   std::map<Target, int> Map;
   mutable std::map<Target, int> SavedData;
@@ -1005,12 +1018,27 @@ public:
   ~EnumerableContainerExample() override = default;
 
   llvm::Error storeToDisk(llvm::StringRef Path) const override {
+
     return llvm::Error::success();
   }
 
   llvm::Error loadFromDisk(llvm::StringRef Path) override {
+
     return llvm::Error::success();
   }
+
+  llvm::Error serialize(llvm::raw_ostream &OS) const final {
+
+    return llvm::Error::success();
+  }
+
+  llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) final {
+
+    return llvm::Error::success();
+  }
+
+  /// Must reset the state of the container to the just built state
+  void clear() final {}
 
   std::set<Target> Targets;
 
