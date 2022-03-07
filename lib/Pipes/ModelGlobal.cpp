@@ -15,7 +15,7 @@ using namespace revng::pipes;
 const char ModelGlobal::ID = '0';
 
 llvm::Error ModelGlobal::storeToDisk(llvm::StringRef Path) const {
-  return serializeToFile(Model.getReadOnlyModel(), Path);
+  return serializeToFile(*Model, Path);
 }
 
 llvm::Error ModelGlobal::loadFromDisk(llvm::StringRef Path) {
