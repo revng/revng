@@ -1,5 +1,6 @@
 #pragma once
 #include "PipelineC.h"
+
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
@@ -30,7 +31,6 @@ bool rp_initialize(int argc,
  * Returns 1 if rp_initialize was already called successfully.
  */
 bool rp_is_initialized();
-
 
 /**
  * Free a string return by a rp_*_create_* method.

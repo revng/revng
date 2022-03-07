@@ -18,9 +18,12 @@ header_paths = [
 
 ffi = FFI()
 for header_path in header_paths:
-    with open(header_path) as f:
-        header = f.read()
-        ffi.cdef(header)
+    with open(header_path) as header_file:
+        lines = []
+        for line in header_file:
+            if not line.startswith("#"):
+                lines.append(line)
+        ffi.cdef("\n".join(lines))
 
 LIB_DIR = ORCHESTRA_ROOT / "lib"
 LIBRARY_PATH = str(LIB_DIR / "librevngPipelineC.so")
