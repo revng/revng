@@ -24,7 +24,8 @@ TUPLE-TREE-YAML */
 class model::TypedefType : public model::generated::TypedefType {
 public:
   static constexpr const char *AutomaticNamePrefix = "typedef_";
-  static constexpr const TypeKind::Values AssociatedKind = TypeKind::Typedef;
+  static constexpr const TypeKind::Values
+    AssociatedKind = TypeKind::TypedefType;
 
 public:
   using generated::TypedefType::TypedefType;

@@ -5,11 +5,11 @@ from ..metaaddress import MetaAddressType, MetaAddress, init_metaaddress_yaml_cl
 from .._util import force_constructor_kwarg, enum_value_to_index
 
 _types_to_kinds = [
-    (PrimitiveType, TypeKind.Primitive),
-    (EnumType, TypeKind.Enum),
-    (TypedefType, TypeKind.Typedef),
-    (StructType, TypeKind.Struct),
-    (UnionType, TypeKind.Union),
+    (PrimitiveType, TypeKind.PrimitiveType),
+    (EnumType, TypeKind.EnumType),
+    (TypedefType, TypeKind.TypedefType),
+    (StructType, TypeKind.StructType),
+    (UnionType, TypeKind.UnionType),
     (CABIFunctionType, TypeKind.CABIFunctionType),
     (RawFunctionType, TypeKind.RawFunctionType),
 ]
