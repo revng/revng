@@ -159,6 +159,16 @@ rp_kind *
 rp_manager_get_kind_from_name(rp_manager *manager, const char *kind_name);
 
 /**
+ * \return the number of kinds present in the manager.
+ */
+uint64_t rp_manager_kinds_count(rp_manager *manager);
+
+/**
+ * \return the kind with the provided index, or NULL if not such step existed.
+ */
+rp_kind *rp_manager_get_kind(rp_manager *manager, uint64_t index);
+
+/**
  * Request the production of the provided targets in a particular container.
  *
  * \param tagets_count must be equal to the size of targets.

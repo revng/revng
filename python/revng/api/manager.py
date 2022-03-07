@@ -61,6 +61,22 @@ class Manager:
     def store_containers(self):
         return _api.rp_manager_store_containers(self._manager)
 
+    @property
+    def kinds_count(self):
+        return _api.rp_manager_kinds_count(self._manager)
+
+    def _get_kind_from_index(self, idx: int) -> Optional[Step]:
+        kind = _api.rp_manager_get_kind(self._manager, idx)
+
+        if not kind:
+            return None
+
+        return Kind(kind)
+
+    def kinds(self):
+        for kind_idx in range(self.kinds_count):
+            yield self._get_kind_from_index(kind_idx)
+
     def kind_from_name(self, kind_name: str) -> Optional[Kind]:
         _kind_name = make_c_string(kind_name)
         kind = _api.rp_manager_get_kind_from_name(self._manager, _kind_name)

@@ -6,6 +6,7 @@
 #include <cstring>
 #include <iterator>
 #include <string>
+#include <sys/types.h>
 #include <vector>
 
 #include "llvm/ADT/STLExtras.h"
@@ -264,6 +265,18 @@ rp_target *rp_target_create(rp_kind *kind,
 void rp_target_destroy(rp_target *target) {
   revng_check(target != nullptr);
   delete target;
+}
+
+uint64_t rp_manager_kinds_count(rp_manager *manager) {
+  revng_check(manager != nullptr);
+  return manager->getRunner().getKindsRegistry().size();
+}
+
+rp_kind *rp_manager_get_kind(rp_manager *manager, uint64_t index) {
+  revng_check(manager != nullptr);
+  revng_check(index < manager->getRunner().getKindsRegistry().size());
+  return &(
+    *(std::next(manager->getRunner().getKindsRegistry().begin(), index)));
 }
 
 bool rp_container_store(rp_container *container, const char *path) {
