@@ -1441,20 +1441,29 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
         // Here the remaining offset is smaller than an element size.
         // So we have to look for a non-constant index.
 
-        revng_assert(IRIndicesIt != IRIndicesEnd);
-        const auto &[Coefficient, Index] = *IRIndicesIt;
+        if (IRIndicesIt != IRIndicesEnd) {
+          const auto &[Coefficient, Index] = *IRIndicesIt;
 
-        // This should never happen because of how IRAccessPattern is built
-        revng_assert(not isa<ConstantInt>(Index));
+          // This should never happen because of how IRAccessPattern is built
+          revng_assert(not isa<ConstantInt>(Index));
 
-        // Coefficient should always have the same value of the element, so that
-        // the Index is actually the index in the array.
-        revng_assert(Coefficient->getValue() == ElementSize);
+          // Coefficient should always have the same value of the element, so
+          // that the Index is actually the index in the array.
+          revng_assert(Coefficient->getValue() == ElementSize);
 
-        Back.Index = Index;
+          Back.Index = Index;
 
-        // The current IR indices have been handled, increase the iterator.
-        ++IRIndicesIt;
+          // The current IR indices have been handled, increase the iterator.
+          ++IRIndicesIt;
+        } else {
+          // If we ran out of indices in IRAP there's no offset left, so
+          // consider this to be zero
+          revng_assert(RestOff.isNullValue());
+
+          Back.Index = ConstantInt::get(llvm::IntegerType::get(Ctxt,
+                                                               64 /*NumBits*/),
+                                        RestOff);
+        }
       }
 
       // After we're done with an array, we update CurrentType and continue to
