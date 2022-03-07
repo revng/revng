@@ -17,11 +17,11 @@ type: struct
 fields:
   - name: StartAddress
     type: MetaAddress
-  - name: EndAddress
-    type: MetaAddress
+  - name: VirtualSize
+    type: uint64_t
   - name: StartOffset
     type: uint64_t
-  - name: EndOffset
+  - name: FileSize
     type: uint64_t
   - name: IsReadable
     type: bool
@@ -29,9 +29,14 @@ fields:
     type: bool
   - name: IsExecutable
     type: bool
-  - name: CustomName
-    type: Identifier
+  - name: Name
+    type: std::string
     optional: true
+  - name: Relocations
+    optional: true
+    sequence:
+      type: SortedVector
+      elementType: model::Relocation
   - name: Sections
     optional: true
     sequence:
@@ -39,9 +44,10 @@ fields:
       elementType: model::Section
     doc: If there's at least one Section, only Sections where
          ContainsCode == true will be searched for code.
+
 key:
   - StartAddress
-  - EndAddress
+  - VirtualSize
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/Segment.h"
@@ -52,6 +58,33 @@ public:
 
 public:
   Identifier name() const;
+
+public:
+  bool contains(MetaAddress Address) const {
+    auto EndAddress = StartAddress + VirtualSize;
+    return (Address.isValid() and StartAddress.addressLowerThanOrEqual(Address)
+            and Address.addressLowerThan(EndAddress));
+  }
+
+  bool contains(MetaAddress Start, uint64_t Size) const {
+    return contains(Start) and (Size <= 1 or contains(Start + Size - 1));
+  }
+
+  /// \return the end offset (guaranteed to be greater than StartOffset).
+  auto endOffset() const { return StartOffset + FileSize; }
+
+  /// \return a valid MetaAddress.
+  auto endAddress() const { return StartAddress + VirtualSize; }
+
+  std::pair<MetaAddress, MetaAddress> pagesRange() const {
+    MetaAddress Start = StartAddress;
+    Start = Start - (Start.address() % 4096);
+
+    MetaAddress End = endAddress();
+    End = End + (((End.address() + (4096 - 1)) / 4096) * 4096 - End.address());
+
+    return { Start, End };
+  }
 
 public:
   bool verify() const debug_function;
