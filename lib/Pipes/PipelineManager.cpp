@@ -34,16 +34,17 @@ using namespace revng::pipes;
 
 class LoadModelPipePass {
 private:
-  ModelWrapper *Wrapper;
+  ModelWrapper Wrapper;
 
 public:
   static constexpr auto Name = "Load Model";
   std::vector<ContractGroup> getContract() const { return {}; }
 
-  explicit LoadModelPipePass(ModelWrapper &Wrapper) : Wrapper(&Wrapper) {}
+  explicit LoadModelPipePass(ModelWrapper Wrapper) :
+    Wrapper(std::move(Wrapper)) {}
 
   void registerPasses(llvm::legacy::PassManager &Manager) {
-    Manager.add(new LoadModelWrapperPass(*Wrapper));
+    Manager.add(new LoadModelWrapperPass(Wrapper));
   }
 };
 
@@ -64,8 +65,8 @@ pipelineConfigurationCallback(const Loader &Loader, LLVMPipe &NewPass) {
   if (not MaybeModelWrapper)
     return MaybeModelWrapper.takeError();
 
-  auto &ModelWrapper = (*MaybeModelWrapper)->getModelWrapper();
-  NewPass.emplacePass<LoadModelPipePass>(ModelWrapper);
+  auto &Model = (*MaybeModelWrapper)->getModel();
+  NewPass.emplacePass<LoadModelPipePass>(ModelWrapper(Model));
   return llvm::Error::success();
 }
 

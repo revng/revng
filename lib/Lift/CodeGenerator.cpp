@@ -1214,6 +1214,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   InstCombinePM.doFinalization();
 
   legacy::PassManager PostInstCombinePM;
+  PostInstCombinePM.add(new LoadModelWrapperPass(Model));
   PostInstCombinePM.add(new CPUStateAccessAnalysisPass(&Variables, false));
   PostInstCombinePM.add(createDeadCodeEliminationPass());
   PostInstCombinePM.add(new PruneRetSuccessors);

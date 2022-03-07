@@ -46,6 +46,7 @@
 #include "revng/Lift/DropHelperCallsPass.h"
 #include "revng/Lift/JumpTargetManager.h"
 #include "revng/Lift/SubGraph.h"
+#include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"

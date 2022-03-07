@@ -1083,7 +1083,7 @@ bool IF::runOnModule(Module &TheModule) {
   // Retrieve analyses
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
   const auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
-  const model::Binary &Binary = ModelWrapper.getReadOnlyModel();
+  const model::Binary &Binary = *ModelWrapper.getReadOnlyModel();
 
   // Create an object of type IsolateFunctionsImpl and run the pass
   IFI Impl(TheModule.getFunction("root"), GCBI, Binary);

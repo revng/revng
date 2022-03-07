@@ -20,7 +20,7 @@ namespace revng::pipes {
 
 class ModelGlobal : public pipeline::SavableObject<ModelGlobal> {
 private:
-  ModelWrapper Model;
+  TupleTree<model::Binary> Model;
 
 public:
   constexpr static const char *Name = "model.yml";
@@ -28,25 +28,25 @@ public:
   llvm::Error storeToDisk(llvm::StringRef Path) const final;
   llvm::Error loadFromDisk(llvm::StringRef Path) final;
 
-  explicit ModelGlobal(ModelWrapper Model) : Model(std::move(Model)) {}
+  explicit ModelGlobal(TupleTree<model::Binary> Model) :
+    Model(std::move(Model)) {}
   ModelGlobal() = default;
 
-  const ModelWrapper &getModelWrapper() const { return Model; }
-
-  ModelWrapper &getModelWrapper() { return Model; }
+  const TupleTree<model::Binary> &getModelWrapper() const { return Model; }
+  TupleTree<model::Binary> &getModel() { return Model; }
 };
 
 inline const model::Binary &getModelFromContext(const pipeline::Context &Ctx) {
   using Wrapper = ModelGlobal;
   const auto &Model = llvm::cantFail(Ctx.getGlobal<Wrapper>(Wrapper::Name));
-  return Model->getModelWrapper().getReadOnlyModel();
+  return *Model->getModel();
 }
 
 inline TupleTree<model::Binary> &
 getWritableModelFromContext(pipeline::Context &Ctx) {
   using Wrapper = ModelGlobal;
   const auto &Model = llvm::cantFail(Ctx.getGlobal<Wrapper>(Wrapper::Name));
-  return Model->getModelWrapper().getWriteableModel();
+  return Model->getModel();
 }
 
 } // namespace revng::pipes

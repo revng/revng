@@ -202,7 +202,7 @@ public:
 bool InvokeIsolatedFunctionsPass::runOnModule(Module &M) {
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
   const auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
-  const model::Binary &Binary = ModelWrapper.getReadOnlyModel();
+  const model::Binary &Binary = *ModelWrapper.getReadOnlyModel();
   InvokeIsolatedFunctions IIF(Binary, M.getFunction("root"), GCBI);
   IIF.run();
   return true;
