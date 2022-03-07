@@ -606,7 +606,7 @@ IT::newInstruction(PTCInstruction *Instr,
   PointerType *Int8PtrTy = getStringPtrType(Context);
   if (RecordASM) {
     std::stringstream OriginalStringStream;
-    disassemble(OriginalStringStream, PC, NextPC - PC);
+    disassemble(OriginalStringStream, PC, *(NextPC - PC));
     std::string OriginalString = OriginalStringStream.str();
 
     // We don't deduplicate this string since performing a lookup each time is
@@ -649,7 +649,7 @@ IT::newInstruction(PTCInstruction *Instr,
   revng_assert(MetaAddressStruct != nullptr);
   auto *Int8NullPtr = ConstantPointerNull::get(Int8PtrTy);
   std::vector<Value *> Args = { PC.toConstant(MetaAddressStruct),
-                                Builder.getInt64(NextPC - PC),
+                                Builder.getInt64(*(NextPC - PC)),
                                 Builder.getInt32(-1),
                                 String,
                                 Int8NullPtr };

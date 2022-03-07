@@ -727,7 +727,7 @@ public:
 
     for (const SegmentInfo &Segment : Segments) {
       if (Segment.contains(Address)) {
-        uint64_t Offset = Address - Segment.StartVirtualAddress;
+        uint64_t Offset = *(Address - Segment.StartVirtualAddress);
         uint64_t AvailableSize = Segment.size() - Offset;
         uint64_t TheSize = AvailableSize;
 
@@ -1315,7 +1315,7 @@ Optional<uint64_t> BinaryFile::readRawValue(MetaAddress Address,
     // Note: we also consider writeable memory areas because, despite being
     // modifiable, can contain useful information
     if (Segment.contains(Address, Size) && Segment.IsReadable) {
-      uint64_t Offset = Address - Segment.StartVirtualAddress;
+      uint64_t Offset = *(Address - Segment.StartVirtualAddress);
       // Handle the [p_filesz, p_memsz] portion of the segment
       if (Offset > Segment.Data.size())
         return 0;
@@ -1523,7 +1523,7 @@ void BinaryFile::rebuildLabelsMap() {
     revng_assert(Start.addressLowerThanOrEqual(End));
 
     // Register virtual size
-    ZeroSizedLabels[I]->setVirtualSize(End - Start);
+    ZeroSizedLabels[I]->setVirtualSize(*(End - Start));
   }
 
   // Insert all the other labels in the map

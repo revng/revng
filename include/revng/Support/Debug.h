@@ -73,7 +73,7 @@ public:
   void flush(const LogTerminator &LineInfo = LogTerminator{ "", 0 });
 
   template<typename T>
-  inline Logger &operator<<(const T Other) {
+  inline Logger &operator<<(const T &Other) {
     writeToLog(*this, Other, static_cast<int>(0));
     return *this;
   }
@@ -150,6 +150,17 @@ inline void writeToLog(Logger<X> &This, const LogTerminator &LineInfo, int) {
 template<bool X>
 inline void writeToLog(Logger<X> &This, const llvm::StringRef &S, int Ign) {
   writeToLog(This, S.data(), Ign);
+}
+
+/// \brief Specialization for llvm::StringRef
+template<bool X>
+inline void writeToLog(Logger<X> &This, const llvm::Error &Error, int Ign) {
+  std::string Message;
+  {
+    llvm::raw_string_ostream Stream(Message);
+    Stream << Error;
+  }
+  writeToLog(This, Message, Ign);
 }
 
 /// \brief A global registry for all the loggers
