@@ -1,21 +1,21 @@
 ---
 Functions:
 - CFG:
-  - End: '4'
-    Start: '2'
+  - End: '2'
+    Start: '1'
     Successors:
-    - Destination: '5'
+    - Destination: '3'
       Type: FunctionCall
-  - End: '5'
-    Start: '4'
+  - End: '3'
+    Start: '2'
     Successors:
     - Destination: ":Invalid"
       Type: Return
   OriginalName: _start
   Type: Regular
 - CFG:
-  - End: '6'
-    Start: '5'
+  - End: '4'
+    Start: '3'
     Successors:
     - Destination: ":Invalid"
       Type: Return
