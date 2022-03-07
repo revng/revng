@@ -6,7 +6,6 @@
 #include <cstring>
 #include <iterator>
 #include <string>
-#include <sys/types.h>
 #include <vector>
 
 #include "llvm/ADT/STLExtras.h"
@@ -25,6 +24,8 @@
 #include "revng/Pipes/PipelineManager.h"
 #include "revng/Support/Assert.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
+
+#include "sys/types.h"
 
 using namespace pipeline;
 using namespace revng::pipes;
@@ -275,8 +276,7 @@ uint64_t rp_manager_kinds_count(rp_manager *manager) {
 rp_kind *rp_manager_get_kind(rp_manager *manager, uint64_t index) {
   revng_check(manager != nullptr);
   revng_check(index < manager->getRunner().getKindsRegistry().size());
-  return &(
-    *(std::next(manager->getRunner().getKindsRegistry().begin(), index)));
+  return &*std::next(manager->getRunner().getKindsRegistry().begin(), index);
 }
 
 bool rp_container_store(rp_container *container, const char *path) {
