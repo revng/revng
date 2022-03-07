@@ -1516,22 +1516,14 @@ void CFEPAnalyzer<FunctionOracle>::integrateFunctionCallee(llvm::BasicBlock *BB,
     }
 
     // Adjust back the stack pointer
-    switch (GCBI->arch()) {
-    case llvm::Triple::x86:
-    case llvm::Triple::x86_64: {
-      auto *SP = Builder.CreateLoad(GCBI->spReg());
-
-      const auto &FSO = Oracle.getElectedFSO(Next);
-      Value *Offset = GCBI->arch() == llvm::Triple::x86 ?
-                        Builder.getInt32(*FSO) :
-                        Builder.getInt64(*FSO);
-      auto *Inc = Builder.CreateAdd(SP, Offset);
-      Builder.CreateStore(Inc, GCBI->spReg());
-      break;
-    }
-    default: {
-      break;
-    }
+    if (auto MaybeFSO = Oracle.getElectedFSO(Next); MaybeFSO) {
+      GlobalVariable *SPCSV = GCBI->spReg();
+      auto *StackPointer = Builder.CreateLoad(SPCSV);
+      Value *Offset = ConstantInt::get(StackPointer->getPointerOperandType()
+                                         ->getPointerElementType(),
+                                       *MaybeFSO);
+      auto *AdjustedStackPointer = Builder.CreateAdd(StackPointer, Offset);
+      Builder.CreateStore(AdjustedStackPointer, SPCSV);
     }
 
     // Mark end of basic block with a post-hook call
