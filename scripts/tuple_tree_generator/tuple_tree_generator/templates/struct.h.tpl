@@ -89,11 +89,14 @@ struct /*= struct.fullname =*/
 
   /*# --- Key definition for KeyedObjectTraits --- #*/
   /** if struct._key **/
-  using Key = std::tuple<
+  using KeyTuple = std::tuple<
     /**- for key_field in struct.key_fields -**/
     /*= key_field.type =*//** if not loop.last **/, /** endif **/
     /**- endfor -**/
   >;
+  struct Key : public KeyTuple {
+    using KeyTuple::KeyTuple;
+  };
   /** endif **/
 
   /*# --- Comparison operator --- #*/
@@ -117,6 +120,16 @@ struct /*= struct.fullname =*/
 
   static constexpr const char *Tag = "!/*= struct.name =*/";
 };
+
+/** if struct._key **/
+template<>
+struct std::tuple_size</*= struct.fullname =*/::Key>
+  : public std::tuple_size</*= struct.fullname =*/::KeyTuple> {};
+
+template<std::size_t I>
+struct std::tuple_element<I, /*= struct.fullname =*/::Key>
+  : public std::tuple_element<I, /*= struct.fullname =*/::KeyTuple> {};
+/** endif **/
 
 /*# --- UpcastablePointer stuff --- #*/
 /** if upcastable **/
