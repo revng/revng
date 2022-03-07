@@ -6,6 +6,9 @@
 
 #include <memory>
 
+#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/raw_ostream.h"
+
 #include "revng/Pipeline/Target.h"
 #include "revng/Support/Concepts.h"
 
@@ -55,13 +58,20 @@ public:
   /// not after(this)->enumerate().contains(Targets);
   virtual bool remove(const TargetsList &Targets) = 0;
 
+  virtual llvm::Error serialize(llvm::raw_ostream &OS) const = 0;
+
+  virtual llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) = 0;
+
+  /// Must reset the state of the container to the just built state
+  virtual void clear() = 0;
+
   /// The implementation must ensure that there exists a file at the provided
   /// path that contains the serialized version of this object.
-  virtual llvm::Error storeToDisk(llvm::StringRef Path) const = 0;
+  virtual llvm::Error storeToDisk(llvm::StringRef Path) const;
 
   /// The implementation must esure that the content of this file will be
   /// loaded from the provided path.
-  virtual llvm::Error loadFromDisk(llvm::StringRef Path) = 0;
+  virtual llvm::Error loadFromDisk(llvm::StringRef Path);
 
   /// Checks that the content of the this container is well formed.
   virtual llvm::Error verify() const { return enumerate().verify(*this); }

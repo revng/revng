@@ -5,6 +5,8 @@
 //
 #include <optional>
 
+#include "llvm/Support/raw_ostream.h"
+
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/LLVMContainerFactory.h"
 #include "revng/Pipeline/Target.h"
@@ -45,6 +47,10 @@ public:
   llvm::Error storeToDisk(llvm::StringRef Path) const override;
 
   llvm::Error loadFromDisk(llvm::StringRef Path) override;
+
+  void clear() override;
+  llvm::Error serialize(llvm::raw_ostream &OS) const override;
+  llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) override;
 
 public:
   std::optional<llvm::StringRef> path() const {

@@ -32,6 +32,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
@@ -141,35 +142,26 @@ public:
   }
 
 public:
-  llvm::Error storeToDisk(llvm::StringRef Path) const final {
-
-    std::error_code EC;
-    llvm::raw_fd_ostream OS(Path, EC, llvm::sys::fs::F_None);
-    if (EC)
-      return llvm::createStringError(EC,
-                                     "Could not store to file module %s",
-                                     Path.str().c_str());
-    llvm::WriteBitcodeToFile(*Module, OS);
+  llvm::Error serialize(llvm::raw_ostream &OS) const final {
+    getModule().print(OS, nullptr);
     OS.flush();
     return llvm::Error::success();
   }
 
-  llvm::Error loadFromDisk(llvm::StringRef Path) final {
-    if (not llvm::sys::fs::exists(Path)) {
-      Module = std::make_unique<llvm::Module>("revng.module",
-                                              Module->getContext());
-      return llvm::Error::success();
-    }
-
+  llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) final {
     llvm::SMDiagnostic Error;
-    auto M = llvm::parseIRFile(Path, Error, Module->getContext());
+    auto M = llvm::parseIR(Buffer, Error, Module->getContext());
     if (!M)
       return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     "Could not parse file %s",
-                                     Path.str().c_str());
+                                     "Could not parse buffer");
 
     Module = std::move(M);
     return llvm::Error::success();
+  }
+
+  void clear() final {
+    Module = std::make_unique<llvm::Module>("revng.module",
+                                            Module->getContext());
   }
 
 private:

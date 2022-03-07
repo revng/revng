@@ -11,6 +11,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Container.h"
@@ -25,6 +26,13 @@
 
 using namespace pipeline;
 using namespace revng::pipes;
+
+static char *copy_string(llvm::StringRef str) {
+  char *ToReturn = (char *) malloc(sizeof(char) * (str.size() + 1));
+  strncpy(ToReturn, str.data(), str.size());
+  ToReturn[str.size()] = 0;
+  return ToReturn;
+}
 
 static bool Initialized = false;
 
@@ -197,11 +205,11 @@ const char *rp_kind_get_name(rp_kind *kind) {
   return kind->name().data();
 }
 
-bool rp_manager_produce_targets(rp_manager *manager,
-                                uint64_t targets_count,
-                                rp_target *targets[],
-                                rp_step *step,
-                                rp_container *container) {
+const char *rp_manager_produce_targets(rp_manager *manager,
+                                       uint64_t targets_count,
+                                       rp_target *targets[],
+                                       rp_step *step,
+                                       rp_container *container) {
   revng_check(manager != nullptr);
   revng_check(targets_count != 0);
   revng_check(targets != nullptr);
@@ -213,11 +221,19 @@ bool rp_manager_produce_targets(rp_manager *manager,
     Targets[container->second->name()].push_back(*targets[I]);
 
   auto Error = manager->getRunner().run(step->getName(), Targets);
-  if (not Error)
-    return true;
+  if (Error) {
+    llvm::consumeError(std::move(Error));
+    return nullptr;
+  }
 
-  llvm::consumeError(std::move(Error));
-  return false;
+  std::string Out;
+  llvm::raw_string_ostream Serialized(Out);
+  const auto &ToFilter = Targets[container->second->name()];
+  const auto &Cloned = container->second->cloneFiltered(ToFilter);
+  llvm::cantFail(Cloned->serialize(Serialized));
+  Serialized.flush();
+
+  return copy_string(Out);
 }
 
 rp_target *rp_target_create(rp_kind *kind,
@@ -288,13 +304,6 @@ const char *rp_target_get_path_component(rp_target *target, uint64_t index) {
     return "*";
 
   return PathComponents[index].getName().c_str();
-}
-
-static char *copy_string(llvm::StringRef str) {
-  char *ToReturn = (char *) malloc(sizeof(char) * (str.size() + 1));
-  strncpy(ToReturn, str.data(), str.size());
-  ToReturn[str.size()] = 0;
-  return ToReturn;
 }
 
 char *rp_manager_create_container_path(rp_manager *manager,

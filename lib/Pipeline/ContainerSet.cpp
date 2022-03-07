@@ -7,6 +7,7 @@
 //
 
 #include "llvm/Support/Error.h"
+#include "llvm/Support/MemoryBuffer.h"
 
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Errors.h"
@@ -118,4 +119,28 @@ ContainerToTargetsMap ContainerSet::enumerate() const {
       Status[Name] = MaybeCont->enumerate();
   }
   return Status;
+}
+
+llvm::Error ContainerBase::storeToDisk(llvm::StringRef Path) const {
+  std::error_code EC;
+  llvm::raw_fd_ostream OS(Path, EC, llvm::sys::fs::F_None);
+  if (EC)
+    return llvm::createStringError(EC,
+                                   "could not write file at %s",
+                                   Path.str().c_str());
+
+  return serialize(OS);
+}
+
+llvm::Error ContainerBase::loadFromDisk(llvm::StringRef Path) {
+  if (not llvm::sys::fs::exists(Path)) {
+    clear();
+    return llvm::Error::success();
+  }
+
+  if (auto MaybeBuffer = MemoryBuffer::getFile(Path); !MaybeBuffer)
+    return llvm::createStringError(MaybeBuffer.getError(),
+                                   "could not read file");
+  else
+    return deserialize(**MaybeBuffer);
 }

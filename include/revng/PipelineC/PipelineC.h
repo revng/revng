@@ -209,13 +209,13 @@ rp_manager_get_kind_from_name(rp_manager *manager, const char *kind_name);
  *
  * \param tagets_count must be equal to the size of targets.
  *
- * \return 0 if an error was encountered, 1 otherwise.
+ * \return 0 if an error was encountered, the serialized container otherwise
  */
-bool rp_manager_produce_targets(rp_manager *manager,
-                                uint64_t targets_count,
-                                rp_target *targets[],
-                                rp_step *step,
-                                rp_container *container);
+const char *rp_manager_produce_targets(rp_manager *manager,
+                                       uint64_t targets_count,
+                                       rp_target *targets[],
+                                       rp_step *step,
+                                       rp_container *container);
 
 /**
  *
