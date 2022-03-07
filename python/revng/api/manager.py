@@ -37,7 +37,9 @@ class Manager:
         # call fails
         self._manager = None
 
-        assert bool(_pipelines) + bool(_pipelines_paths) == 1, "Provide non-empty pipelines OR pipelines_paths!"
+        assert (
+            bool(_pipelines) + bool(_pipelines_paths) == 1
+        ), "Provide non-empty pipelines OR pipelines_paths!"
 
         if _pipelines_paths:
             self._manager = _api.rp_manager_create(
@@ -98,7 +100,9 @@ class Manager:
         _targets = [target._target]
         _step = step._step
         _container = container._container
-        return _api.rp_manager_produce_targets(self._manager, len(_targets), _targets, _step, _container)
+        return _api.rp_manager_produce_targets(
+            self._manager, len(_targets), _targets, _step, _container
+        )
 
     def recalculate_all_available_targets(self):
         _api.rp_manager_recompute_all_available_targets(self._manager)
@@ -108,7 +112,9 @@ class Manager:
         #  It happens even if load_global_object already recomputes targets
         self.recalculate_all_available_targets()
 
-        targets_list = _api.rp_manager_get_container_targets_list(self._manager, container._container)
+        targets_list = _api.rp_manager_get_container_targets_list(
+            self._manager, container._container
+        )
 
         if not targets_list:
             return None

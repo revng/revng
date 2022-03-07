@@ -180,7 +180,9 @@ def set_input(step_name, container_name):
     container_path = Path(_container_path)
     container_path.parent.mkdir(parents=True, exist_ok=True)
     file.save(container_path)
-    logging.info(f"User {g.user.username} file for container {step_name}/{container_name} saved to {container_path}")
+    logging.info(
+        f"User {g.user.username} file for container {step_name}/{container_name} saved to {container_path}"
+    )
 
     success = container.load(str(container_path))
     if not success:

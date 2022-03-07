@@ -16,9 +16,13 @@ class Step:
         return make_python_string(name)
 
     def get_container(self, container_identifier: ContainerIdentifier):
-        container = _api.rp_step_get_container(self._step, container_identifier._container_identifier)
+        container = _api.rp_step_get_container(
+            self._step, container_identifier._container_identifier
+        )
         return Container(container)
 
     def _get_container(self, container_identifier: ContainerIdentifier):
-        container = _api.rp_step_get_container(self._step, container_identifier._container_identifier)
+        container = _api.rp_step_get_container(
+            self._step, container_identifier._container_identifier
+        )
         return Container(container)
