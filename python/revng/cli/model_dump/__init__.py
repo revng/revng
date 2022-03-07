@@ -29,7 +29,7 @@ class MetaAddressRemapper:
 
     def handle(self, value):
         if is_metaaddress(value):
-            self.addresses.add(value)
+            self.addresses.add(value.split(":")[0])
 
     def collect(self, value):
         if isinstance(value, dict):
@@ -45,11 +45,12 @@ class MetaAddressRemapper:
             self.handle(value)
 
     def apply_replacement(self, value):
-        return (
-            self.replacements[value]
-            if (isinstance(value, str) and value in self.replacements)
-            else value
-        )
+        if isinstance(value, str):
+            splits = value.split(":")
+            if is_metaaddress(value) and splits[0] in self.replacements:
+
+                return self.replacements[splits[0]]
+        return value
 
     def replace(self, value):
         if isinstance(value, dict):

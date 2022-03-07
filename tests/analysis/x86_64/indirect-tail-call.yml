@@ -1,18 +1,18 @@
 ---
 Functions:
 - CFG:
-  - End: '4'
-    Start: '2'
+  - End: '2'
+    Start: '1'
     Successors:
     - Attributes:
       - NoReturn
-      Destination: '5'
+      Destination: '3'
       Type: FunctionCall
   OriginalName: _start
   Type: NoReturn
 - CFG:
-  - End: '6'
-    Start: '5'
+  - End: '4'
+    Start: '3'
     Successors:
     - Destination: ":Invalid"
       Type: IndirectTailCall
