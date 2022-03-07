@@ -45,6 +45,12 @@ fields:
     doc: The default ABI of `RawFunctionType`s within the binary
     type: model::ABI::Values
     optional: true
+  - name: DefaultPrototype
+    doc: The default function prototype
+    reference:
+      pointeeType: model::Type
+      rootType: model::Binary
+    optional: true
   - name: Segments
     doc: List of segments in the original binary
     sequence:
@@ -123,19 +129,27 @@ public:
 
 inline model::TypePath
 getPrototype(const model::Binary &Binary, const model::CallEdge &Edge) {
+  model::TypePath Result;
+
   if (Edge.Type == model::FunctionEdgeType::FunctionCall) {
     if (not Edge.DynamicFunction.empty()) {
       // Get the dynamic function prototype
-      return Binary.ImportedDynamicFunctions.at(Edge.DynamicFunction).Prototype;
+      Result = Binary.ImportedDynamicFunctions.at(Edge.DynamicFunction)
+                 .Prototype;
     } else if (Edge.Destination.isValid()) {
       // Get the function prototype
-      return Binary.Functions.at(Edge.Destination).Prototype;
+      Result = Binary.Functions.at(Edge.Destination).Prototype;
     } else {
       revng_abort();
     }
   } else {
-    return Edge.Prototype;
+    Result = Edge.Prototype;
   }
+
+  if (not Result.isValid())
+    Result = Binary.DefaultPrototype;
+
+  return Result;
 }
 
 inline bool hasAttribute(const model::Binary &Binary,

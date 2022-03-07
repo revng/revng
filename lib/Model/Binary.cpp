@@ -300,6 +300,19 @@ Identifier Function::name() const {
   }
 }
 
+static const model::TypePath &
+prototypeOr(const model::TypePath &Prototype, const model::TypePath &Default) {
+  if (Prototype.isValid())
+    return Prototype;
+
+  revng_assert(Default.isValid());
+  return Default;
+}
+
+const model::TypePath &Function::prototype(const model::Binary &Root) const {
+  return prototypeOr(Prototype, Root.DefaultPrototype);
+}
+
 Identifier DynamicFunction::name() const {
   using llvm::Twine;
   if (not CustomName.empty()) {
@@ -309,6 +322,11 @@ Identifier DynamicFunction::name() const {
     auto AutomaticName = (Twine("dynamic_function_") + OriginalName).str();
     return Identifier::fromString(AutomaticName);
   }
+}
+
+const model::TypePath &
+DynamicFunction::prototype(const model::Binary &Root) const {
+  return prototypeOr(Prototype, Root.DefaultPrototype);
 }
 
 bool Relocation::verify() const {
@@ -473,20 +491,19 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
   if (OriginalName.size() == 0)
     return VH.fail("Dynamic functions must have a OriginalName", *this);
 
-  // Prototype is present
-  if (not Prototype.isValid())
-    return VH.fail("Invalid prototype", *this);
-
   // Prototype is valid
-  if (not Prototype.get()->verify(VH))
-    return VH.fail();
+  if (Prototype.isValid()) {
+    if (not Prototype.get()->verify(VH))
+      return VH.fail();
 
-  const model::Type *FunctionType = Prototype.get();
-  if (not(isa<RawFunctionType>(FunctionType)
-          or isa<CABIFunctionType>(FunctionType)))
-    return VH.fail("The prototype is neither a RawFunctionType nor a "
-                   "CABIFunctionType",
-                   *this);
+    const model::Type *FunctionType = Prototype.get();
+    if (not(isa<RawFunctionType>(FunctionType)
+            or isa<CABIFunctionType>(FunctionType))) {
+      return VH.fail("The prototype is neither a RawFunctionType nor a "
+                     "CABIFunctionType",
+                     *this);
+    }
+  }
 
   return true;
 }
