@@ -584,12 +584,12 @@ static VoidConstResult isVoidConst(const QualifiedType *QualType) {
     switch (UnqualType->Kind) {
 
     // If we still have a typedef in our way, unwrap it and keep looking.
-    case TypeKind::Typedef: {
+    case TypeKind::TypedefType: {
       QualType = &cast<TypedefType>(UnqualType)->UnderlyingType;
     } break;
 
     // If we have a primitive type, check the name, and we're done.
-    case TypeKind::Primitive: {
+    case TypeKind::PrimitiveType: {
       auto *P = cast<PrimitiveType>(UnqualType);
       Result.IsVoid = P->PrimitiveKind == PrimitiveTypeKind::Void;
       Done = true;
@@ -771,7 +771,7 @@ Type::trySize(VerifyHelper &VH) const {
     Size = 0;
     break;
 
-  case TypeKind::Primitive: {
+  case TypeKind::PrimitiveType: {
     auto *P = cast<PrimitiveType>(this);
 
     if (P->PrimitiveKind == model::PrimitiveTypeKind::Void) {
@@ -788,7 +788,7 @@ Type::trySize(VerifyHelper &VH) const {
     }
   } break;
 
-  case TypeKind::Enum: {
+  case TypeKind::EnumType: {
     auto *U = llvm::cast<EnumType>(this)->UnderlyingType.get();
     auto MaybeSize = rc_recur U->trySize(VH);
     if (not MaybeSize)
@@ -797,7 +797,7 @@ Type::trySize(VerifyHelper &VH) const {
     Size = *MaybeSize;
   } break;
 
-  case TypeKind::Typedef: {
+  case TypeKind::TypedefType: {
     auto *Typedef = llvm::cast<TypedefType>(this);
 
     auto MaybeSize = rc_recur Typedef->UnderlyingType.trySize(VH);
@@ -807,11 +807,11 @@ Type::trySize(VerifyHelper &VH) const {
     Size = *MaybeSize;
   } break;
 
-  case TypeKind::Struct: {
+  case TypeKind::StructType: {
     Size = llvm::cast<StructType>(this)->Size;
   } break;
 
-  case TypeKind::Union: {
+  case TypeKind::UnionType: {
     auto *U = llvm::cast<UnionType>(this);
     uint64_t Max = 0ULL;
 
@@ -837,7 +837,7 @@ Type::trySize(VerifyHelper &VH) const {
 
 static RecursiveCoroutine<bool>
 verifyImpl(VerifyHelper &VH, const PrimitiveType *T) {
-  revng_assert(T->Kind == TypeKind::Primitive);
+  revng_assert(T->Kind == TypeKind::PrimitiveType);
 
   if (not T->CustomName.empty() or not T->OriginalName.empty())
     rc_return VH.fail("PrimitiveTypes cannot have OriginalName or CustomName",
@@ -880,7 +880,7 @@ bool Identifier::verify(VerifyHelper &VH) const {
 
 static RecursiveCoroutine<bool>
 verifyImpl(VerifyHelper &VH, const EnumType *T) {
-  if (T->Kind != TypeKind::Enum or T->Entries.empty()
+  if (T->Kind != TypeKind::EnumType or T->Entries.empty()
       or not T->CustomName.verify(VH))
     rc_return VH.fail();
 
@@ -920,7 +920,7 @@ verifyImpl(VerifyHelper &VH, const EnumType *T) {
 static RecursiveCoroutine<bool>
 verifyImpl(VerifyHelper &VH, const TypedefType *T) {
   rc_return VH.maybeFail(T->CustomName.verify(VH)
-                         and T->Kind == TypeKind::Typedef
+                         and T->Kind == TypeKind::TypedefType
                          and rc_recur T->UnderlyingType.verify(VH));
 }
 
@@ -960,7 +960,7 @@ static RecursiveCoroutine<bool>
 verifyImpl(VerifyHelper &VH, const StructType *T) {
   using namespace llvm;
 
-  revng_assert(T->Kind == TypeKind::Struct);
+  revng_assert(T->Kind == TypeKind::StructType);
 
   if (not T->CustomName.verify(VH))
     rc_return VH.fail("Invalid name", *T);
@@ -1019,7 +1019,7 @@ verifyImpl(VerifyHelper &VH, const StructType *T) {
 
 static RecursiveCoroutine<bool>
 verifyImpl(VerifyHelper &VH, const UnionType *T) {
-  revng_assert(T->Kind == TypeKind::Union);
+  revng_assert(T->Kind == TypeKind::UnionType);
 
   if (not T->CustomName.verify(VH))
     rc_return VH.fail("Invalid name", *T);
@@ -1145,23 +1145,23 @@ RecursiveCoroutine<bool> Type::verify(VerifyHelper &VH) const {
 
   // We could use upcast() but we'd need to workaround coroutines.
   switch (Kind) {
-  case TypeKind::Primitive:
+  case TypeKind::PrimitiveType:
     Result = rc_recur verifyImpl(VH, cast<PrimitiveType>(this));
     break;
 
-  case TypeKind::Enum:
+  case TypeKind::EnumType:
     Result = rc_recur verifyImpl(VH, cast<EnumType>(this));
     break;
 
-  case TypeKind::Typedef:
+  case TypeKind::TypedefType:
     Result = rc_recur verifyImpl(VH, cast<TypedefType>(this));
     break;
 
-  case TypeKind::Struct:
+  case TypeKind::StructType:
     Result = rc_recur verifyImpl(VH, cast<StructType>(this));
     break;
 
-  case TypeKind::Union:
+  case TypeKind::UnionType:
     Result = rc_recur verifyImpl(VH, cast<UnionType>(this));
     break;
 

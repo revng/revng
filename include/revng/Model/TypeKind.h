@@ -9,11 +9,11 @@ name: TypeKind
 doc: Enum for identifying different kind of model types
 type: enum
 members:
-  - name: Primitive
-  - name: Enum
-  - name: Typedef
-  - name: Struct
-  - name: Union
+  - name: PrimitiveType
+  - name: EnumType
+  - name: TypedefType
+  - name: StructType
+  - name: UnionType
   - name: CABIFunctionType
   - name: RawFunctionType
 TUPLE-TREE-YAML */

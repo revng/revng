@@ -31,7 +31,7 @@ TUPLE-TREE-YAML */
 class model::StructType : public model::generated::StructType {
 public:
   static constexpr const char *AutomaticNamePrefix = "struct_";
-  static constexpr const TypeKind::Values AssociatedKind = TypeKind::Struct;
+  static constexpr const TypeKind::Values AssociatedKind = TypeKind::StructType;
 
 public:
   using generated::StructType::StructType;

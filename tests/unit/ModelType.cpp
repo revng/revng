@@ -165,7 +165,7 @@ BOOST_AUTO_TEST_CASE(EnumTypes) {
 
   // But if we break the underlying, making it point to a type that does not
   // exist, we're not good anymore
-  Enum->UnderlyingType = TypePath::fromString(T.get(), "/Types/Typedef-42");
+  Enum->UnderlyingType = TypePath::fromString(T.get(), "/Types/TypedefType-42");
   revng_check(not Enum->verify(false));
   revng_check(not T->verify(false));
 

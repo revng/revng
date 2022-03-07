@@ -30,7 +30,7 @@ TUPLE-TREE-YAML */
 class model::EnumType : public model::generated::EnumType {
 public:
   static constexpr const char *AutomaticNamePrefix = "enum_";
-  static constexpr const TypeKind::Values AssociatedKind = TypeKind::Enum;
+  static constexpr const TypeKind::Values AssociatedKind = TypeKind::EnumType;
 
 public:
   using generated::EnumType::EnumType;

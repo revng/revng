@@ -24,7 +24,8 @@ TUPLE-TREE-YAML */
 
 class model::PrimitiveType : public model::generated::PrimitiveType {
 public:
-  static constexpr const TypeKind::Values AssociatedKind = TypeKind::Primitive;
+  static constexpr const TypeKind::Values
+    AssociatedKind = TypeKind::PrimitiveType;
 
 public:
   using generated::PrimitiveType::PrimitiveType;

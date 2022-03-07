@@ -23,7 +23,7 @@ namespace model {
 model::TypePath
 Binary::getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize) {
   PrimitiveType Temporary(V, ByteSize);
-  Type::Key PrimitiveKey{ TypeKind::Primitive, Temporary.ID };
+  Type::Key PrimitiveKey{ TypeKind::PrimitiveType, Temporary.ID };
   auto It = Types.find(PrimitiveKey);
 
   // If we couldn't find it, create it
@@ -38,7 +38,7 @@ Binary::getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize) {
 model::TypePath
 Binary::getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize) const {
   PrimitiveType Temporary(V, ByteSize);
-  Type::Key PrimitiveKey{ TypeKind::Primitive, Temporary.ID };
+  Type::Key PrimitiveKey{ TypeKind::PrimitiveType, Temporary.ID };
   return getTypePath(Types.at(PrimitiveKey).get());
 }
 
