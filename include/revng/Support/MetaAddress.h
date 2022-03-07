@@ -8,6 +8,7 @@
 
 #include "revng/ADT/KeyedObjectTraits.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/OverflowSafeInt.h"
 
 extern "C" {
 #include "revng/Runtime/PlainMetaAddress.h"
@@ -406,6 +407,7 @@ inline bool isDefaultCode(Values Type) {
 ///
 /// \note Generic addresses have no alignment constraints.
 class MetaAddress : private PlainMetaAddress {
+private:
   friend class ProgramCounterHandler;
 
 public:
@@ -607,38 +609,83 @@ public:
     return not(addressLowerThanOrEqual(Other));
   }
 
-  uint64_t operator-(const MetaAddress &Other) const {
+  std::optional<uint64_t> operator-(const MetaAddress &Other) const {
     revng_check(addressIsComparableWith(Other));
-    return Address - Other.Address;
+    return (OverflowSafeInt(Address) - Other.Address).value();
   }
   /// @}
 
   /// \name Arithmetic additions/subtractions
   ///
   /// @{
-  MetaAddress &operator+=(uint64_t Offset) {
+
+  template<Integral T>
+  MetaAddress &operator+=(T Offset) {
     if (isInvalid())
       return *this;
 
-    setAddress(Address + Offset);
+    auto Update = [this, Offset](auto NewAddress) {
+      if constexpr (std::is_signed_v<T>) {
+        if (Offset >= 0)
+          NewAddress += Offset;
+        else
+          NewAddress -= -Offset;
+      } else {
+        NewAddress += Offset;
+      }
+
+      if (NewAddress)
+        setAddress(*NewAddress);
+      else
+        *this = MetaAddress::invalid();
+    };
+
+    if (bitSize() == 32)
+      Update(OverflowSafeInt<uint32_t>(Address));
+    else
+      Update(OverflowSafeInt<uint64_t>(Address));
+
     return *this;
   }
 
-  MetaAddress &operator-=(uint64_t Offset) {
+  template<Integral T>
+  MetaAddress &operator-=(T Offset) {
     if (isInvalid())
       return *this;
 
-    setAddress(Address - Offset);
+    auto Update = [this, Offset](auto NewAddress) {
+      if constexpr (std::is_signed_v<T>) {
+        if (Offset >= 0)
+          NewAddress -= Offset;
+        else
+          NewAddress += -Offset;
+      } else {
+        NewAddress -= Offset;
+      }
+
+      if (NewAddress)
+        setAddress(*NewAddress);
+      else
+        *this = MetaAddress::invalid();
+    };
+
+    if (bitSize() == 32)
+      Update(OverflowSafeInt<uint32_t>(Address));
+    else
+      Update(OverflowSafeInt<uint64_t>(Address));
+
     return *this;
   }
 
-  MetaAddress operator+(uint64_t Offset) const {
+  template<Integral T>
+  MetaAddress operator+(T Offset) const {
     MetaAddress Result = *this;
     Result += Offset;
     return Result;
   }
 
-  MetaAddress operator-(uint64_t Offset) const {
+  template<Integral T>
+  MetaAddress operator-(T Offset) const {
     MetaAddress Result = *this;
     Result -= Offset;
     return Result;
@@ -742,7 +789,7 @@ public:
 
   template<typename T>
   void dump(T &Output) const {
-    dumpInternal(Output, Address);
+    Output << toString();
   }
 
   template<typename T>
@@ -756,7 +803,11 @@ public:
 
     Output << ".";
 
-    dumpInternal(Output, Address - Base.Address);
+    auto MaybeDifference = *this - Base;
+    if (not MaybeDifference)
+      Output << MetaAddress::invalid().toString();
+    else
+      Output << "0x" << llvm::Twine::utohexstr(*MaybeDifference).str();
   }
 
 public:
@@ -767,7 +818,14 @@ public:
 
   MetaAddress nextPageStart() const {
     revng_check(isValid());
-    return toGeneric() + (((Address + (4096 - 1)) / 4096) * 4096 - Address);
+
+    auto Addend = ((OverflowSafeInt(Address) + (4096 - 1)) / 4096) * 4096
+                  - Address;
+
+    if (not Addend)
+      return MetaAddress::invalid();
+
+    return toGeneric() + *Addend;
   }
 
 private:

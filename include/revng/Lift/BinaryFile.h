@@ -62,7 +62,7 @@ struct SegmentInfo {
     return contains(Start) and contains(Start + Size - 1);
   }
 
-  uint64_t size() const { return EndVirtualAddress - StartVirtualAddress; }
+  uint64_t size() const { return *(EndVirtualAddress - StartVirtualAddress); }
 
   template<class C>
   void insertExecutableRanges(std::back_insert_iterator<C> Inserter) const {
@@ -467,7 +467,7 @@ public:
   getAddressData(MetaAddress Address) const {
     const SegmentInfo *Segment = findSegment(Address);
     if (Segment != nullptr) {
-      uint64_t Offset = Address - Segment->StartVirtualAddress;
+      uint64_t Offset = *(Address - Segment->StartVirtualAddress);
       uint64_t Size = Segment->size() - Offset;
       return { llvm::ArrayRef<uint8_t>(Segment->Data.data() + Offset, Size) };
     } else {

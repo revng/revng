@@ -89,15 +89,21 @@ BOOST_AUTO_TEST_CASE(Arithmetic) {
   BOOST_TEST(generic64(0x1000) + 1 == generic64(0x1001));
   BOOST_TEST(generic64(0x1001) - 1 == generic64(0x1000));
   BOOST_TEST(generic64(0x1000) + 0x1000 == generic64(0x2000));
-  BOOST_TEST((generic64(0x1010) - generic64(0x1000)) == uint64_t(0x10));
+
+  auto Distance = generic64(0x1010) - generic64(0x1000);
+  BOOST_TEST(Distance.has_value());
+  BOOST_TEST((*Distance) == uint64_t(0x10));
+
+  Distance = generic64(0x1000) - generic64(0x1010);
+  BOOST_TEST(not Distance.has_value());
 }
 
 BOOST_AUTO_TEST_CASE(Overflow) {
-  BOOST_TEST(generic32(0xFFFFFFFF) + 1 == generic32(0));
+  BOOST_TEST(generic32(0xFFFFFFFF) + 1 == MetaAddress::invalid());
   BOOST_TEST(generic64(0xFFFFFFFF) + 1 == generic64(0x100000000));
-  BOOST_TEST(generic64(0xFFFFFFFFFFFFFFFF) + 1 == generic64(0));
-  BOOST_TEST(generic64(0) - 1 == generic64(0xFFFFFFFFFFFFFFFF));
-  BOOST_TEST(generic32(0) - 1 == generic32(0xFFFFFFFF));
+  BOOST_TEST(generic64(0xFFFFFFFFFFFFFFFF) + 1 == MetaAddress::invalid());
+  BOOST_TEST(generic64(0) - 1 == MetaAddress::invalid());
+  BOOST_TEST(generic32(0) - 1 == MetaAddress::invalid());
 }
 
 BOOST_AUTO_TEST_CASE(Thumb) {
