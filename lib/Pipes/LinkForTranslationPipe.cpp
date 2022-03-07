@@ -68,15 +68,15 @@ void LinkForTranslationPipe::run(const Context &Ctx,
 
   revng_assert(Model.Segments.size() > 0);
   uint64_t Min = Model.Segments.begin()->StartAddress.address();
-  uint64_t Max = Model.Segments.begin()->EndAddress.address();
+  uint64_t Max = Model.Segments.begin()->endAddress().address();
 
   for (const auto &Segment : Model.Segments) {
     Min = std::min(Min, Segment.StartAddress.address());
-    Max = std::max(Max, Segment.EndAddress.address());
+    Max = std::max(Max, Segment.endAddress().address());
 
     std::stringstream NameStream;
     NameStream << "segment-" << Segment.StartAddress.toString() << "-"
-               << Segment.EndAddress.toString();
+               << Segment.endAddress().toString();
 
     // Force section address
     const auto &StartAddr = Segment.StartAddress.address();

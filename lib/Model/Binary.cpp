@@ -14,6 +14,7 @@
 #include "revng/ADT/GenericGraph.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/VerifyHelper.h"
+#include "revng/Support/OverflowSafeInt.h"
 
 using namespace llvm;
 
@@ -339,6 +340,60 @@ bool Section::verify(VerifyHelper &VH) const {
   auto EndAddress = StartAddress + Size;
   if (not EndAddress.isValid())
     return VH.fail("Computing the end address leads to overflow");
+
+  return true;
+}
+
+bool Segment::verify() const {
+  return verify(false);
+}
+
+bool Segment::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+
+bool Segment::verify(VerifyHelper &VH) const {
+  using OverflowSafeInt = OverflowSafeInt<uint64_t>;
+
+  if (FileSize > VirtualSize)
+    return VH.fail("FileSize cannot be larger thatn VirtualSize", *this);
+
+  auto EndOffset = OverflowSafeInt(StartOffset) + FileSize;
+  if (not EndOffset)
+    return VH.fail("Computing the segment end offset leads to overflow", *this);
+
+  auto EndAddress = StartAddress + VirtualSize;
+  if (not EndAddress.isValid())
+    return VH.fail("Computing the end address leads to overflow", *this);
+
+  for (const model::Section &Section : Sections) {
+    if (not Section.verify(VH))
+      return VH.fail("Invalid section", Section);
+
+    if (not contains(Section.StartAddress)
+        or (VirtualSize > 0 and not contains(Section.endAddress() - 1))) {
+      return VH.fail("The segment contains a section out of its boundaries",
+                     Section);
+    }
+
+    if (Section.ContainsCode and not IsExecutable) {
+      return VH.fail("A Section is marked as containing code but the "
+                     "containing segment is not executable",
+                     *this);
+    }
+  }
+
+  for (const model::Relocation &Relocation : Relocations) {
+    if (not Relocation.verify(VH))
+      return VH.fail("Invalid relocation", Relocation);
+
+    if (not contains(Relocation.Address)
+        or not contains(Relocation.endAddress())) {
+      return VH.fail("The segment contains a relocation out of its boundaries",
+                     Relocation);
+    }
+  }
 
   return true;
 }

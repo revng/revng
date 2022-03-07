@@ -1229,10 +1229,11 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
 
   // Create segments
   for (const SegmentInfo &S : Binary.segments()) {
-    model::Segment NewSegment({ S.StartVirtualAddress, S.EndVirtualAddress });
+    auto Size = S.EndVirtualAddress - S.StartVirtualAddress;
+    model::Segment NewSegment({ S.StartVirtualAddress, Size });
 
     NewSegment.StartOffset = S.StartFileOffset;
-    NewSegment.EndOffset = S.EndFileOffset;
+    NewSegment.FileSize = S.EndFileOffset - S.StartFileOffset;
 
     NewSegment.IsReadable = S.IsReadable;
     NewSegment.IsWriteable = S.IsWriteable;
