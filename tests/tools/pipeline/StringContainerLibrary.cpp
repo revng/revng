@@ -20,8 +20,25 @@ static Kind StringKind("StringKind", &FunctionsRank);
 
 class StringContainer : public Container<StringContainer> {
 public:
-  using Container<StringContainer>::Container;
+  // using Container<StringContainer>::Container;
+  StringContainer(llvm::StringRef Name) :
+    Container<StringContainer>(Name, "String") {}
   ~StringContainer() override = default;
+  StringContainer(const StringContainer &container) = default;
+
+  StringContainer &operator=(const StringContainer &Other) {
+    auto ret = new StringContainer(Other.name());
+    for (auto &S : Other.ContainedStrings)
+      ContainedStrings.insert(S);
+    return *ret;
+  }
+
+  StringContainer &operator=(StringContainer &&Other) {
+    auto ret = new StringContainer(Other.name());
+    for (auto &S : Other.ContainedStrings)
+      ContainedStrings.insert(S);
+    return *ret;
+  }
 
   static char ID;
 

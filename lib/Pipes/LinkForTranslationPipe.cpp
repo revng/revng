@@ -121,7 +121,7 @@ void LinkForTranslationPipe::run(const Context &Ctx,
                                  FileContainer &ObjectFile,
                                  FileContainer &OutputBinary) {
 
-  FileContainer LinkerOutput(Binary, InputBinary.name(), "");
+  FileContainer LinkerOutput(Binary, "Binary", InputBinary.name(), "");
   auto Args = linkerArguments(Ctx,
                               *ObjectFile.path(),
                               LinkerOutput.getOrCreatePath());

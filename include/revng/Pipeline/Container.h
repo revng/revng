@@ -22,17 +22,19 @@ concept HasID = requires(T a) {
 class ContainerBase {
 private:
   const char *ID;
+  const std::string Mime;
   std::string Name;
 
 public:
-  ContainerBase(char const *ID, llvm::StringRef Name) :
-    ID(ID), Name(Name.str()) {}
+  ContainerBase(char const *ID, llvm::StringRef Mime, llvm::StringRef Name) :
+    ID(ID), Mime(Mime.str()), Name(Name.str()) {}
 
 public:
   static bool classof(const ContainerBase *) { return true; }
 
 public:
   const char *getTypeID() const { return ID; }
+  const std::string &mime() const { return Mime; }
   const std::string &name() const { return Name; }
 
 public:
@@ -87,8 +89,10 @@ public:
   /// definition to this class objects instantiation, otherwise the derived
   /// type would not be fully defined yet and the constraints would fail.
   template<HasID T = Derived>
-  Container(llvm::StringRef Name, const char *ID = &Derived::ID) :
-    ContainerBase(ID, Name) {}
+  Container(llvm::StringRef Name,
+            const std::string Mime,
+            const char *ID = &Derived::ID) :
+    ContainerBase(ID, Mime, Name) {}
 
   ~Container() override = default;
 

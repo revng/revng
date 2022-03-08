@@ -85,11 +85,14 @@ protected:
   Context *Ctx;
 
 public:
-  EnumerableContainer(Context &Ctx, llvm::StringRef Name) :
-    Container<Derived>(Name), Ctx(&Ctx) {}
+  EnumerableContainer(Context &Ctx, llvm::StringRef Name, std::string Mime) :
+    Container<Derived>(Name, Mime), Ctx(&Ctx) {}
 
-  EnumerableContainer(Context &Ctx, llvm::StringRef Name, const char *ID) :
-    Container<Derived>(Name, ID), Ctx(&Ctx) {}
+  EnumerableContainer(Context &Ctx,
+                      llvm::StringRef Name,
+                      std::string Mime,
+                      const char *ID) :
+    Container<Derived>(Name, Mime, ID), Ctx(&Ctx) {}
 
 public:
   const Context &getContext() const { return *Ctx; }
