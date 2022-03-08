@@ -486,3 +486,7 @@ rp_rank *rp_rank_get_parent(rp_rank *rank) {
   revng_check(rank != nullptr);
   return rank->parent();
 }
+
+rp_rank *rp_kind_get_rank(rp_kind *kind) {
+  return &kind->rank();
+}

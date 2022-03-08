@@ -346,6 +346,11 @@ const char *rp_kind_get_name(rp_kind *kind);
  */
 rp_kind *rp_kind_get_parent(rp_kind *kind);
 
+/**
+ * \return the rank associated with the specified \p Kind
+ */
+rp_rank *rp_kind_get_rank(rp_kind *kind);
+
 /** \} */
 
 /**
