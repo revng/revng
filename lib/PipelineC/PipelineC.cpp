@@ -490,3 +490,11 @@ rp_rank *rp_rank_get_parent(rp_rank *rank) {
 rp_rank *rp_kind_get_rank(rp_kind *kind) {
   return &kind->rank();
 }
+
+rp_step *rp_step_get_parent(rp_step *step) {
+  if (step->hasPredecessor()) {
+    return &step->getPredecessor();
+  } else {
+    return nullptr;
+  }
+}

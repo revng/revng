@@ -1,7 +1,7 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-from ._capi import _api
+from ._capi import _api, ffi
 from .container import ContainerIdentifier, Container
 from .utils import make_python_string
 
@@ -14,6 +14,10 @@ class Step:
     def name(self):
         name = _api.rp_step_get_name(self._step)
         return make_python_string(name)
+
+    def get_parent(self) -> "Step":
+        _step = _api.rp_step_get_parent(self._step)
+        return Step(_step) if _step != ffi.NULL else None
 
     def get_container(self, container_identifier: ContainerIdentifier):
         container = _api.rp_step_get_container(

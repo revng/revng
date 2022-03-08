@@ -257,6 +257,11 @@ const char *rp_step_get_name(rp_step *step);
 rp_container *
 rp_step_get_container(rp_step *step, rp_container_identifier *identifier);
 
+/**
+ * \return a \p step 's parent, if present
+ */
+rp_step *rp_step_get_parent(rp_step *step);
+
 /** \} */
 
 /**
