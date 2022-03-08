@@ -170,7 +170,7 @@ static bool linkOrderLess(const Link &A, const Link &B) {
     return LinkOrder < 0;
 
   revng_log(CmpLog,
-            "No order between " << A.first->ID << " and " << A.first->ID
+            "No order between " << A.first->ID << " and " << B.first->ID
                                 << ", must recur");
   // In case the two nodes are equivalent, explore the whole subtree
   // TODO: cache the result of this comparison?
