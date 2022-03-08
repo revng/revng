@@ -252,3 +252,8 @@ inline T *notNull(T *Pointer) {
   revng_assert(Pointer != nullptr);
   return Pointer;
 }
+
+inline llvm::ArrayRef<uint8_t> toArrayRef(llvm::StringRef Data) {
+  auto Pointer = reinterpret_cast<const uint8_t *>(Data.data());
+  return llvm::makeArrayRef<uint8_t>(Pointer, Data.size());
+}

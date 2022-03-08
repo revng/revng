@@ -4,8 +4,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/Lift/CSVOffsets.h"
 #include "revng/Support/Debug.h"
+
+#include "CSVOffsets.h"
 
 void writeToLog(Logger<true> &L, const CSVOffsets &O, int /*Ignore*/) {
   L << "Kind: " << CSVOffsets::toString(O.OffsetKind);

@@ -13,6 +13,7 @@
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Regex.h"
 
+#include "revng/Model/Importer/Binary/BinaryImporterOptions.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/RawBinaryView.h"
 #include "revng/Pipeline/AllRegistries.h"
@@ -84,7 +85,7 @@ void LinkForTranslationPipe::run(const Context &Ctx,
                                  FileContainer &OutputBinary) {
   auto UToHexStr = Twine::utohexstr;
 
-  const auto &Model = getModelFromContext(Ctx);
+  const model::Binary &Model = *getModelFromContext(Ctx);
 
   const size_t PageSize = 4096;
 
