@@ -1,4 +1,4 @@
-/// \file Lift.cpp
+/// \file LiftPipe.cpp
 /// \brief Lift transform a binary into a llvm module
 
 //
