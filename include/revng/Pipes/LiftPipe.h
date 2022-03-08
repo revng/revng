@@ -20,8 +20,6 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/RootKind.h"
 
-extern llvm::cl::opt<unsigned long long> BaseAddress;
-
 namespace revng::pipes {
 
 class LiftPipe {

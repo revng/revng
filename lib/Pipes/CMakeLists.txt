@@ -6,6 +6,7 @@ revng_add_library_internal(revngPipes
   SHARED
   CompileModulePipe.cpp
   FileContainer.cpp
+  ImportBinaryPipe.cpp
   LiftPipe.cpp
   LinkForTranslationPipe.cpp
   LinkSupportPipe.cpp

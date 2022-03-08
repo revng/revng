@@ -58,7 +58,7 @@ void ::revng::pipes::LinkSupportPipe::run(const Context &Ctx,
                                           LLVMContainer &TargetsList) {
   if (TargetsList.enumerate().empty())
     return;
-  const auto &Model = getModelFromContext(Ctx);
+  const model::Binary &Model = *getModelFromContext(Ctx);
   const char *SupportConfig = Tracing ? "trace" : "normal";
 
   auto ArchName = getSupportName(Model.Architecture).str();

@@ -10,6 +10,8 @@
 #include "llvm/Support/CommandLine.h"
 
 #include "revng/Model/Importer/Binary/BinaryImporter.h"
+#include "revng/Model/Importer/Binary/BinaryImporterOptions.h"
+#include "revng/Model/Importer/Dwarf/DwarfImporter.h"
 #include "revng/Model/ToolHelpers.h"
 
 using namespace llvm;
@@ -30,14 +32,6 @@ static opt<std::string> OutputFilename("o",
                                        init("-"),
                                        value_desc("filename"));
 
-#define DESCRIPTION desc("base address where dynamic objects should be loaded")
-static opt<unsigned long long> BaseAddress("base",
-                                           DESCRIPTION,
-                                           value_desc("address"),
-                                           cat(MainCategory),
-                                           init(0x400000));
-#undef DESCRIPTION
-
 int main(int Argc, char *Argv[]) {
   HideUnrelatedOptions({ &ThisToolCategory });
   ParseCommandLineOptions(Argc, Argv);
@@ -55,6 +49,12 @@ int main(int Argc, char *Argv[]) {
   TupleTree<model::Binary> Model;
 
   ExitOnError(importBinary(Model, InputFilename, BaseAddress));
+
+  if (ImportDebugInfo.size() > 0) {
+    DwarfImporter Importer(Model);
+    for (const std::string &Path : ImportDebugInfo)
+      Importer.import(Path);
+  }
 
   // Serialize
   Model.serialize(OutputFile.os());

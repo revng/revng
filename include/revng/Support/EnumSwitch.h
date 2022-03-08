@@ -8,6 +8,7 @@
 #include <type_traits>
 
 #include "revng/Support/Concepts.h"
+#include "revng/Support/Debug.h"
 
 namespace revng::detail {
 

@@ -36,10 +36,11 @@ public:
   TupleTree<model::Binary> &getModel() { return Model; }
 };
 
-inline const model::Binary &getModelFromContext(const pipeline::Context &Ctx) {
+inline const TupleTree<model::Binary> &
+getModelFromContext(const pipeline::Context &Ctx) {
   using Wrapper = ModelGlobal;
   const auto &Model = llvm::cantFail(Ctx.getGlobal<Wrapper>(Wrapper::Name));
-  return *Model->getModel();
+  return Model->getModel();
 }
 
 inline TupleTree<model::Binary> &
