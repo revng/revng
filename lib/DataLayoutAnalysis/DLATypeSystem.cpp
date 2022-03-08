@@ -106,7 +106,7 @@ void debug_function LayoutTypeSystem::dumpDotOnFile(const char *FName,
                                                     bool ShowCollapsed) const {
   std::error_code EC;
   raw_fd_ostream DotFile(FName, EC);
-  revng_check(not EC, "Could not open file for printing LayoutTypeSystem dot");
+  revng_check(not EC, (EC.message() + ": " + FName).c_str());
 
   DotFile << "digraph LayoutTypeSystem {\n";
   DotFile << "  // List of nodes\n";
