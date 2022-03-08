@@ -1,6 +1,7 @@
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -9,6 +10,7 @@
 #include <vector>
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -449,4 +451,38 @@ bool rp_manager_deserialize_global(rp_manager *manager,
   }
 
   return true;
+}
+
+uint64_t rp_ranks_count() {
+  return Rank::getAll().size();
+}
+
+rp_rank *rp_rank_get(uint64_t index) {
+  revng_check(index < Rank::getAll().size());
+  return Rank::getAll()[index];
+}
+
+rp_rank *rp_rank_get_from_name(const char *rank_name) {
+  revng_check(rank_name != nullptr);
+  for (auto rank : Rank::getAll()) {
+    if (rank->name() == rank_name) {
+      return rank;
+    }
+  }
+  return nullptr;
+}
+
+const char *rp_rank_get_name(rp_rank *rank) {
+  revng_check(rank != nullptr);
+  return rank->name().data();
+}
+
+uint64_t rp_rank_get_depth(rp_rank *rank) {
+  revng_check(rank != nullptr);
+  return rank->depth();
+}
+
+rp_rank *rp_rank_get_parent(rp_rank *rank) {
+  revng_check(rank != nullptr);
+  return rank->parent();
 }

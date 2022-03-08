@@ -376,3 +376,40 @@ bool rp_container_store(rp_container *container, const char *path);
 bool rp_container_load(rp_container *container, const char *path);
 
 /** \} */
+
+/**
+ * \defgroup rp_rank rp_rank methods
+ * \{
+ */
+
+/**
+ * \return the number of ranks present in the manager
+ */
+uint64_t rp_ranks_count();
+
+/**
+ * \return the rank with the provided index, or NULL if no such rank existed.
+ */
+rp_rank *rp_rank_get(uint64_t index);
+
+/**
+ * \return the rank with the provided name, NULL if no rank had the provided
+ *         name.
+ */
+rp_rank *rp_rank_get_from_name(const char *rank_name);
+
+/**
+ * \return the name of \p Rank
+ * \note The returned string must not be freed by the caller.
+ */
+const char *rp_rank_get_name(rp_rank *rank);
+
+/**
+ * \return the depth of \p Rank
+ */
+uint64_t rp_rank_get_depth(rp_rank *rank);
+
+/**
+ * \return \p Rank 's parent, or NULL if it has none
+ */
+rp_rank *rp_rank_get_parent(rp_rank *rank);
