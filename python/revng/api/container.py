@@ -47,6 +47,11 @@ class Container:
         name = _api.rp_container_get_name(self._container)
         return make_python_string(name)
 
+    @property
+    def mime(self) -> str:
+        mime = _api.rp_container_get_mime(self._container)
+        return make_python_string(mime)
+
     def store(self, path: str) -> bool:
         _path = make_c_string(path)
         return _api.rp_container_store(self._container, _path)

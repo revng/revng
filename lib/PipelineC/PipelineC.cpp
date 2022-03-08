@@ -498,3 +498,7 @@ rp_step *rp_step_get_parent(rp_step *step) {
     return nullptr;
   }
 }
+
+const char *rp_container_get_mime(rp_container *container) {
+  return container->getValue()->mime().c_str();
+}
