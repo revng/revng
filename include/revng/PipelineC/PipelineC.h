@@ -198,6 +198,21 @@ uint64_t rp_manager_step_name_to_index(rp_manager *manager, const char *name);
 rp_step *rp_manager_get_step(rp_manager *manager, uint64_t index);
 
 /**
+ * \return the serialized string rappresenting a global object
+ */
+const char *rp_manager_create_serialized_global(rp_manager *manager,
+                                                const char *global_name);
+
+/**
+ * sets the indicated global with the deserialized content of the serialized
+ * string
+ * \return true on success
+ */
+bool rp_manager_deserialize_global(rp_manager *manager,
+                                   const char *serialized,
+                                   const char *global_name);
+
+/**
  * \return the kind with the provided name, NULL if no kind had the provided
  *         name.
  */

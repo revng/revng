@@ -30,6 +30,9 @@ public:
 
 public:
   const model::Binary &getReadOnlyModel() const { return *TheBinary; }
+  const TupleTree<model::Binary> &getReadOnlyTreeModel() const {
+    return TheBinary;
+  }
 
   TupleTree<model::Binary> &getWriteableModel() {
     HasChanged = true;

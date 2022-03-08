@@ -6,6 +6,10 @@
 
 #include <utility>
 
+#include "llvm/Support/Error.h"
+#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/raw_ostream.h"
+
 #include "revng/Pipeline/SavableObject.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTree.h"
@@ -19,20 +23,20 @@ private:
 
 public:
   static const char ID;
-  llvm::Error storeToDisk(llvm::StringRef Path) const final {
-    return serializeToFile(*Obj, Path);
+
+  void clear() final { Obj = TupleTree<T>(); }
+
+  llvm::Error serialize(llvm::raw_ostream &OS) const final {
+    Obj.serialize(OS);
+    return llvm::Error::success();
   }
 
-  llvm::Error loadFromDisk(llvm::StringRef Path) final {
-    if (not llvm::sys::fs::exists(Path))
-      return llvm::Error::success();
-
-    auto MaybeObj = TupleTree<T>::fromFile(Path);
-    if (not MaybeObj)
-      return llvm::make_error<llvm::StringError>("Could not parse yamlizable ",
-                                                 MaybeObj.getError());
-
-    Obj = std::move(*MaybeObj);
+  llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) final {
+    if (auto MaybeObject = TupleTree<T>::deserialize(Buffer.getBuffer());
+        !MaybeObject)
+      return llvm::errorCodeToError(MaybeObject.getError());
+    else
+      Obj = std::move(*MaybeObject);
     return llvm::Error::success();
   }
 

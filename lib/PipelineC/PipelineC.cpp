@@ -11,6 +11,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Pipeline/AllRegistries.h"
@@ -395,4 +396,34 @@ void rp_apply_model_diff(rp_manager *manager, const rp_model_diff *diff) {
 
   model::Binary &Model(*getWritableModelFromContext(manager->context()));
   diff->apply(Model);
+}
+
+const char *rp_manager_create_serialized_global(rp_manager *manager,
+                                                const char *global_name) {
+  std::string Out;
+  llvm::raw_string_ostream Serialized(Out);
+  if (auto Error = manager->context().serializeGlobal(Serialized, global_name);
+      Error) {
+    llvm::consumeError(std::move(Error));
+    return nullptr;
+  }
+  Serialized.flush();
+  return copy_string(Out);
+}
+
+bool rp_manager_deserialize_global(rp_manager *manager,
+                                   const char *serialized,
+                                   const char *global_name) {
+  auto MaybeBuffer = llvm::MemoryBuffer::getMemBuffer(serialized);
+  if (MaybeBuffer == nullptr)
+    return false;
+
+  if (auto Error = manager->context().deserializeGlobal(*MaybeBuffer,
+                                                        global_name);
+      Error) {
+    llvm::consumeError(std::move(Error));
+    return false;
+  }
+
+  return true;
 }

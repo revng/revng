@@ -17,6 +17,7 @@ revng_add_library_internal(revngPipeline SHARED
   Step.cpp
   Target.cpp
   InvalidationEvent.cpp
+  SavableObject.cpp
 )
 
 target_link_libraries(revngPipeline

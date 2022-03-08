@@ -4,6 +4,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/raw_ostream.h"
+
 #include "revng/Model/Binary.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Pipeline/ContainerSet.h"
@@ -25,8 +28,9 @@ private:
 public:
   constexpr static const char *Name = "model.yml";
   static const char ID;
-  llvm::Error storeToDisk(llvm::StringRef Path) const final;
-  llvm::Error loadFromDisk(llvm::StringRef Path) final;
+  void clear() final { Model.getWriteableModel() = TupleTree<model::Binary>(); }
+  llvm::Error serialize(llvm::raw_ostream &OS) const final;
+  llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) final;
 
   explicit ModelGlobal(ModelWrapper Model) : Model(std::move(Model)) {}
   ModelGlobal() = default;
