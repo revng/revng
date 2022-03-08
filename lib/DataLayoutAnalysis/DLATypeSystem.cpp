@@ -37,7 +37,7 @@ void OffsetExpression::print(llvm::raw_ostream &OS) const {
   revng_assert(NStrides == TripCounts.size());
   if (not Strides.empty()) {
     for (decltype(NStrides) N = 0; N < NStrides; ++N) {
-      OS << ", {" << Strides[N] << ',';
+      OS << ", {S:" << Strides[N] << ",TC:";
       if (TripCounts[N].has_value())
         OS << TripCounts[N].value();
       else
