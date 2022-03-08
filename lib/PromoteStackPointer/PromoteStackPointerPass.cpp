@@ -92,7 +92,7 @@ bool PSPPass::runOnFunction(Function &F) {
   }
 
   auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
-  const model::Binary &Binary = ModelWrapper.getReadOnlyModel();
+  const model::Binary &Binary = *ModelWrapper.getReadOnlyModel();
 
   Changed = adjustStackAfterCalls(Binary, F, GlobalSP) or Changed;
 

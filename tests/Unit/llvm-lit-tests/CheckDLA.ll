@@ -109,9 +109,9 @@ Types:
 Architecture:    x86_64
 Segments:
   - StartAddress:    \220x400000:Generic64\22
-    EndAddress:      \220x4005c8:Generic64\22
+    VirtualSize:     1480
     StartOffset:     0
-    EndOffset:       1480
+    FileSize:        1480
     IsReadable:      true
     IsWriteable:     false
     IsExecutable:    false

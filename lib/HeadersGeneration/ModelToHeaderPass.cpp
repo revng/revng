@@ -18,7 +18,7 @@ llvm::cl::opt<std::string> TypesHeaderName("types-header-name",
 
 bool ModelToHeaderPass::runOnModule(llvm::Module &) {
   auto &ModelPass = getAnalysis<LoadModelWrapperPass>().get();
-  const model::Binary &Model = ModelPass.getReadOnlyModel();
+  const model::Binary &Model = *ModelPass.getReadOnlyModel();
 
   std::error_code EC;
   llvm::raw_fd_ostream Header(TypesHeaderName, EC);

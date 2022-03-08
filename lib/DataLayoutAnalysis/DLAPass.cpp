@@ -42,7 +42,7 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   // Front-end: Create the LayoutTypeSystem graph from an LLVM module
   dla::LayoutTypeSystem TS;
   dla::DLATypeSystemLLVMBuilder Builder{ TS };
-  Builder.buildFromLLVMModule(M, this, ModelWrapper.getReadOnlyModel());
+  Builder.buildFromLLVMModule(M, this, *ModelWrapper.getReadOnlyModel());
 
   if (BuilderLog.isEnabled())
     Builder.dumpValuesMapping("DLA-values-initial.csv");

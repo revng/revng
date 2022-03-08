@@ -2375,7 +2375,7 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
 
   auto &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
 
-  UseGEPInfoMap GEPReplacementMap = makeGEPReplacements(F, Model);
+  UseGEPInfoMap GEPReplacementMap = makeGEPReplacements(F, *Model);
 
   llvm::Module &M = *F.getParent();
   LLVMContext &Ctxt = M.getContext();

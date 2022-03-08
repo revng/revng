@@ -654,7 +654,7 @@ private:
 bool SegregateStackAccessesPass::runOnModule(Module &M) {
   // Get model::Binary
   auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
-  const model::Binary &Binary = ModelWrapper.getReadOnlyModel();
+  const model::Binary &Binary = *ModelWrapper.getReadOnlyModel();
 
   // Get the stack pointer type
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();

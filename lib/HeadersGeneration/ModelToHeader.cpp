@@ -467,7 +467,8 @@ bool dumpModelToHeader(const model::Binary &Model, llvm::raw_ostream &Header) {
   }
 
   for (const model::DynamicFunction &MF : Model.ImportedDynamicFunctions) {
-    const model::Type *FT = MF.Prototype.get();
+    const model::Type *FT = MF.prototype(Model).get();
+    revng_assert(FT != nullptr);
     auto FName = model::Identifier::fromString(MF.name());
 
     if (Log.isEnabled()) {
