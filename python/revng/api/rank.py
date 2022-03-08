@@ -11,10 +11,12 @@ class Rank:
     @staticmethod
     def ranks() -> Generator["Rank", None, None]:
         for idx in range(Rank._get_count()):
-            yield Rank._get_idx(idx)
+            rank = Rank._get_idx(idx)
+            if rank is not None:
+                yield rank
 
     @staticmethod
-    def from_name(name: str) -> "Rank":
+    def from_name(name: str) -> Optional["Rank"]:
         c_name = make_c_string(name)
         _rank = _api.rp_rank_get_from_name(c_name)
         return Rank(_rank) if _rank != ffi.NULL else None

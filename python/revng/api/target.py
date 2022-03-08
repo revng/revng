@@ -1,50 +1,49 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-from typing import List, Optional
+from typing import List, Optional, Generator
 
-from ._capi import _api
+from ._capi import _api, ffi
 from .kind import Kind
 from .utils import make_c_string, make_python_string
 
 
 class Target:
-    def __init__(self, target, _free_on_delete=False):
+    def __init__(self, target):
         self._target = target
-        self._free_on_delete = _free_on_delete
 
     @staticmethod
     def create(kind: Kind, exact: bool, path_components: List[str]) -> Optional["Target"]:
         _path_components = [make_c_string(c) for c in path_components]
-        target = _api.rp_target_create(
-            kind._kind,
-            int(exact),
-            len(_path_components),
-            _path_components,
+        _target = ffi.gc(
+            _api.rp_target_create(
+                kind._kind,
+                int(exact),
+                len(_path_components),
+                _path_components,
+            ),
+            _api.rp_target_destroy,
         )
-        if not target:
-            return None
-
-        return Target(target, _free_on_delete=True)
+        return Target(_target) if _target != ffi.NULL else None
 
     @property
-    def kind(self):
+    def kind(self) -> Kind:
         kind = _api.rp_target_get_kind(self._target)
         return Kind(kind)
 
     @property
-    def is_exact(self):
+    def is_exact(self) -> bool:
         return bool(_api.rp_target_is_exact(self._target))
 
     @property
-    def path_components_count(self):
+    def path_components_count(self) -> int:
         return _api.rp_target_path_components_count(self._target)
 
-    def _get_path_component(self, idx: int):
+    def _get_path_component(self, idx: int) -> str:
         path_component = _api.rp_target_get_path_component(self._target, idx)
         return make_python_string(path_component)
 
-    def path_components(self):
+    def path_components(self) -> Generator[str, None, None]:
         for idx in range(self.path_components_count):
             yield self._get_path_component(idx)
 
@@ -54,6 +53,22 @@ class Target:
         _api.rp_string_destroy(_serialized)
         return serialized
 
-    def __del__(self):
-        if self._free_on_delete:
-            _api.rp_target_destroy(self._target)
+
+class TargetsList:
+    # TODO: maybe we want to have __iter__ and __next__
+
+    def __init__(self, targets_list):
+        self._targets_list = targets_list
+
+    def targets(self) -> Generator[Target, None, None]:
+        for idx in range(len(self)):
+            target = self._get_nth_target(idx)
+            if target is not None:
+                yield target
+
+    def _get_nth_target(self, idx: int) -> Optional[Target]:
+        _target = _api.rp_targets_list_get_target(self._targets_list, idx)
+        return Target(_target) if _target != ffi.NULL else None
+
+    def __len__(self):
+        return _api.rp_targets_list_targets_count(self._targets_list)
