@@ -63,9 +63,16 @@ bool CollapseSingleChild::collapseSingle(LayoutTypeSystem &TS,
       const unsigned ChildSize = ToMerge->Size;
       revng_assert(Node->Size == 0 or Node->Size >= ChildSize);
 
-      // Merge single child into parent
+      // Merge single child into parent.
+      // mergeNodes resets InterferingInfo of Node, but we're collapsing
+      // ToMerge that is the only child of Node, so we have to attach ToMerge's
+      // InterferingInfo to the parent Node that we're preserving.
+      // This is always correct because the InterferingInfo of a node only
+      // depend on its children.
+      auto ChildInterferingInfo = ToMerge->InterferingInfo;
       TS.mergeNodes({ /*Into=*/Node, /*From=*/ToMerge });
       Node->Size = ChildSize;
+      Node->InterferingInfo = ChildInterferingInfo;
 
       Changed = true;
     }
