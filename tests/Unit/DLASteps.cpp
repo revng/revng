@@ -874,13 +874,13 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeAsymmetricCollapse) {
   // Build TS
   LTSN *NodeUnion = createRoot(TS);
   LTSN *NodeA = addInstanceAtOffset(TS, NodeUnion, /*offset=*/0, /*size=*/0);
-  /*LTSN *NodeB =*/addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/8);
+  LTSN *NodeB = addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/8);
   LTSN *NodeC = addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/0);
   LTSN *NodeD = addInstanceAtOffset(TS, NodeC, /*offset=*/0, /*size=*/8);
 
   LTSN *NodeA1 = addInstanceAtOffset(TS, NodeUnion, /*offset=*/0, /*size=*/0);
   LTSN *NodeC1 = addInstanceAtOffset(TS, NodeA1, /*offset=*/0, /*size=*/0);
-  LTSN *NodeD1 = addInstanceAtOffset(TS, NodeC1, /*offset=*/0, /*size=*/8);
+  /* LTSN *NodeD1 = */ addInstanceAtOffset(TS, NodeC1, /*offset=*/0, /*size=*/8);
   OffsetExpression OE{};
   OE.Offset = 0;
   TS.addInstanceLink(NodeA1, NodeD, std::move(OE));
@@ -901,10 +901,14 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeAsymmetricCollapse) {
   Eq.compress();
 
   // Check TS
-  revng_check(TS.getNumLayouts() == 3);
-  checkNode(TS, NodeUnion, 8, AllChildrenAreInterfering, { 0, 1, 5 });
-  checkNode(TS, NodeC1, 8, AllChildrenAreNonInterfering, { 3, 6 });
-  checkNode(TS, NodeD1, 8, AllChildrenAreNonInterfering, { 2, 4, 7 });
+  revng_check(TS.getNumLayouts() == 6);
+  checkNode(TS, NodeUnion, 8, AllChildrenAreInterfering, { 0 });
+  checkNode(TS, NodeA, 8, AllChildrenAreInterfering, { 1 });
+  checkNode(TS, NodeB, 8, AllChildrenAreNonInterfering, { 2 });
+  checkNode(TS, NodeC, 8, AllChildrenAreNonInterfering, { 3 });
+
+  checkNode(TS, NodeA1, 8, AllChildrenAreNonInterfering, { 5 });
+  checkNode(TS, NodeC1, 8, AllChildrenAreNonInterfering, { 4, 6, 7 });
 }
 
 // ----------------- Remove Conflicting edges --------------

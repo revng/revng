@@ -402,6 +402,11 @@ bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
     if (not isRoot(Root))
       continue;
 
+    for (LTSN *Node : post_order(NonPointerFilterT(Root))) {
+      TypeSystemChanged |= CollapseSingleChild::collapseSingle(TS, Node);
+      TypeSystemChanged |= RemoveConflictingEdges::removeConflicts(TS, Node);
+    }
+
     llvm::SmallVector<LTSN *, 8> PostOrderFromRoot;
     for (LTSN *UnionNode : post_order(NonPointerFilterT(Root))) {
       if (UnionNode->InterferingInfo != AllChildrenAreInterfering
@@ -563,8 +568,9 @@ bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
 
       // Collapse the union node if we are left with only one member
       if (UnionNodeChanged) {
-        CollapseSingleChild::collapseSingle(TS, UnionNode);
-        RemoveConflictingEdges::removeConflicts(TS, UnionNode);
+        TypeSystemChanged |= CollapseSingleChild::collapseSingle(TS, UnionNode);
+        TypeSystemChanged |= RemoveConflictingEdges::removeConflicts(TS,
+                                                                     UnionNode);
       }
     }
   }
