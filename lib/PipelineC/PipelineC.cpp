@@ -213,6 +213,11 @@ const char *rp_kind_get_name(rp_kind *kind) {
   return kind->name().data();
 }
 
+rp_kind *rp_kind_get_parent(rp_kind *kind) {
+  revng_check(kind != nullptr);
+  return kind->parent();
+}
+
 const char *rp_manager_produce_targets(rp_manager *manager,
                                        uint64_t targets_count,
                                        rp_target *targets[],

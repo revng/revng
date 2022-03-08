@@ -339,6 +339,13 @@ const char *rp_target_get_path_component(rp_target *target, uint64_t index);
  */
 const char *rp_kind_get_name(rp_kind *kind);
 
+/**
+ *
+ * \return a \p kind 's parent if present, otherwise nullptr.
+ *
+ */
+rp_kind *rp_kind_get_parent(rp_kind *kind);
+
 /** \} */
 
 /**

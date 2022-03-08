@@ -1,7 +1,7 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-from ._capi import _api
+from ._capi import _api, ffi
 from .utils import make_python_string
 
 
@@ -13,3 +13,10 @@ class Kind:
     def name(self):
         name = _api.rp_kind_get_name(self._kind)
         return make_python_string(name)
+
+    def get_parent(self) -> "Kind":
+        _kind = _api.rp_kind_get_parent(self._kind)
+        if _kind != ffi.NULL:
+            return Kind(_kind)
+        else:
+            return None
