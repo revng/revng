@@ -490,10 +490,12 @@ rp_rank *rp_rank_get_parent(rp_rank *rank) {
 }
 
 rp_rank *rp_kind_get_rank(rp_kind *kind) {
+  revng_check(kind != nullptr);
   return &kind->rank();
 }
 
 rp_step *rp_step_get_parent(rp_step *step) {
+  revng_check(step != nullptr);
   if (step->hasPredecessor()) {
     return &step->getPredecessor();
   } else {
@@ -502,10 +504,12 @@ rp_step *rp_step_get_parent(rp_step *step) {
 }
 
 const char *rp_container_get_mime(rp_container *container) {
+  revng_check(container != nullptr);
   return container->getValue()->mime().c_str();
 }
 
 const char *rp_manager_get_model(rp_manager *manager) {
+  revng_check(manager != nullptr);
   auto &Model = getModelFromContext(manager->context());
   std::string *out = new std::string(Model.toString());
   return out->c_str();
