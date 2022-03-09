@@ -181,6 +181,7 @@ set(REVNG_RESTAPI_MODULE_FILES
   revng/restapi/auth.py
   revng/restapi/demo_webpage.py
   revng/restapi/globals.py
+  revng/restapi/util.py
   revng/restapi/validation_utils.py
   revng/restapi/templates/base.html
   revng/restapi/templates/index.html

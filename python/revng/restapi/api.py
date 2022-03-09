@@ -13,6 +13,7 @@ from revng.api.target import Target
 from revng.api.rank import Rank
 from .auth import login_required
 from .validation_utils import all_strings
+from .util import clean_dict, clean_double_dict
 
 if TYPE_CHECKING:
     from flask.ctx import _AppCtxGlobals
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
     g = FlaskGlobals()
 else:
     from flask import g
+
 
 api_blueprint = Blueprint("api", __name__)
 
@@ -131,7 +133,9 @@ def step_targets(step_name):
     """Returns the list of targets for the given step"""
     try:
         grouped_targets = g.manager.get_targets_from_step(step_name)
-        return json_response({k: [t.as_dict() for t in v] for k, v in grouped_targets.items()})
+        response = {k: [t.as_dict() for t in v] for k, v in grouped_targets.items()}
+        clean_dict(response)
+        return json_response(response)
     except RevngException as e:
         return json_error(repr(e))
 
@@ -141,9 +145,35 @@ def step_targets(step_name):
 def all_targets():
     try:
         targets = g.manager.get_all_targets()
-        return json_response(
-            {k: {k2: [t.as_dict() for t in v2] for k2, v2 in v.items()} for k, v in targets.items()}
-        )
+        response = {
+            k: {k2: [t.as_dict() for t in v2] for k2, v2 in v.items()} for k, v in targets.items()
+        }
+        clean_double_dict(response)
+        return json_response(response)
+    except RevngException as e:
+        return json_error(repr(e))
+
+
+@api_blueprint.route("/find-targets/", strict_slashes=False)
+@login_required
+def find_targets_blank():
+    return find_targets("")
+
+
+@api_blueprint.route("/find-targets/<path:pathspec>")
+@login_required
+def find_targets(pathspec: str):
+    logging.warn(pathspec)
+    try:
+        targets = g.manager.get_all_targets()
+        result = {
+            k: {
+                k2: [t.as_dict() for t in v2 if t.joined_path() == pathspec] for k2, v2 in v.items()
+            }
+            for k, v in targets.items()
+        }
+        clean_double_dict(result)
+        return json_response(result)
     except RevngException as e:
         return json_error(repr(e))
 

@@ -47,6 +47,9 @@ class Target:
         for idx in range(self.path_components_count):
             yield self._get_path_component(idx)
 
+    def joined_path(self):
+        return "/".join(self.path_components())
+
     def serialize(self) -> str:
         _serialized = _api.rp_target_create_serialized_string(self._target)
         serialized = make_python_string(_serialized, True)
