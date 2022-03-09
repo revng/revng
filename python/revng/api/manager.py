@@ -108,7 +108,6 @@ class Manager:
         # TODO: why without this call we get back a nullptr
         # from rp_manager_get_container_targets_list?
         # It happens even if load_global_object already recomputes targets
-        self.recalculate_all_available_targets()
 
         targets_list = _api.rp_manager_get_container_targets_list(
             self._manager, container._container

@@ -252,7 +252,7 @@ const char *rp_step_get_name(rp_step *step);
 
 /**
  * \return the container associated to the provided \p identifier at the given
- *         \p step.
+ *         \p step or nullptr if not present.
  */
 rp_container *
 rp_step_get_container(rp_step *step, rp_container_identifier *identifier);

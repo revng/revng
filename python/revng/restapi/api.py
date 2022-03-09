@@ -2,14 +2,26 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 import logging
+from typing import TYPE_CHECKING
 from pathlib import Path
 
-from flask import Blueprint, g, jsonify, request, send_file
+from flask import Blueprint, jsonify, request, send_file
 
+from revng.api.manager import Manager
 from revng.api.target import Target
 from revng.api.rank import Rank
 from .auth import login_required
 from .validation_utils import all_strings
+
+if TYPE_CHECKING:
+    from flask.ctx import _AppCtxGlobals
+
+    class FlaskGlobals(_AppCtxGlobals):
+        manager: Manager
+
+    g = FlaskGlobals()
+else:
+    from flask import g
 
 api_blueprint = Blueprint("api", __name__)
 
@@ -103,7 +115,7 @@ def produce():
 
 @api_blueprint.route("/step/<step_name>/<container_name>/targets")
 @login_required
-def step_targets(step_name, container_name):
+def step_container_targets(step_name, container_name):
     """Returns the list of targets for the given container/step tuple"""
     step = g.manager.get_step(step_name)
     if step is None:
@@ -113,6 +125,7 @@ def step_targets(step_name, container_name):
     if container_identifier is None:
         return json_error("Invalid container name")
 
+    g.manager.recalculate_all_available_targets()
     container = step.get_container(container_identifier)
     if container is None:
         return json_error(f"Step {step_name} does not use container {container_name}")
@@ -122,6 +135,47 @@ def step_targets(step_name, container_name):
         return json_error("Invalid container name (cannot get targets list)")
 
     return json_response([t.as_dict() for t in targets_list.targets()])
+
+
+@api_blueprint.route("/step/<step_name>/targets")
+@login_required
+def step_targets(step_name):
+    """Returns the list of targets for the given container/step tuple"""
+    step = g.manager.get_step(step_name)
+    if step is None:
+        return json_error("Invalid step name")
+
+    containers = []
+    for container_id in g.manager.containers():
+        containers.append(step.get_container(container_id))
+
+    targets = []
+    g.manager.recalculate_all_available_targets()
+    for container in [c for c in containers if c is not None]:
+        target_list = g.manager.get_targets_list(container)
+        if target_list is not None:
+            target_dicts = [t.as_dict() for t in target_list.targets()]
+            targets.append({container.name: target_dicts})
+
+    return json_response(targets)
+
+
+@api_blueprint.route("/step/targets")
+@login_required
+def all_targets():
+    targets = {}
+    container_ids = list(g.manager.containers())
+    g.manager.recalculate_all_available_targets()
+    for step in g.manager.steps():
+        targets[step.name] = {}
+        containers = [step.get_container(cid) for cid in container_ids]
+        for container in [c for c in containers if c is not None]:
+            target_list = g.manager.get_targets_list(container)
+            if target_list is not None:
+                target_dicts = [t.as_dict() for t in target_list.targets()]
+                targets[step.name][container.name] = target_dicts
+
+    return json_response(targets)
 
 
 @api_blueprint.get("/fetch/<step_name>/<container_name>")

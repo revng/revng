@@ -27,9 +27,9 @@ class Target:
         return Target(_target) if _target != ffi.NULL else None
 
     @property
-    def kind(self) -> Kind:
-        kind = _api.rp_target_get_kind(self._target)
-        return Kind(kind)
+    def kind(self) -> Optional[Kind]:
+        _kind = _api.rp_target_get_kind(self._target)
+        return Kind(_kind) if _kind != ffi.NULL else None
 
     @property
     def is_exact(self) -> bool:

@@ -21,11 +21,11 @@ class Step:
         _step = _api.rp_step_get_parent(self._step)
         return Step(_step) if _step != ffi.NULL else None
 
-    def get_container(self, container_identifier: ContainerIdentifier) -> Container:
-        container = _api.rp_step_get_container(
+    def get_container(self, container_identifier: ContainerIdentifier) -> Optional[Container]:
+        _container = _api.rp_step_get_container(
             self._step, container_identifier._container_identifier
         )
-        return Container(container)
+        return Container(_container) if _container != ffi.NULL else None
 
     def as_dict(self) -> Dict[str, str]:
         ret = {"name": self.name}
