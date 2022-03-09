@@ -148,6 +148,32 @@ def all_targets():
         return json_error(repr(e))
 
 
+@api_blueprint.route("/data/<step_name>")
+@login_required
+def get_step_containers(step_name: str):
+    step = g.manager.get_step(step_name)
+    if step is None:
+        return json_error("Step name invalid")
+
+    containers = []
+    container_ids = g.manager.containers()
+    for container_id in container_ids:
+        container = step.get_container(container_id)
+        if container is not None:
+            containers.append(container)
+    return json_response([c.name for c in containers])
+
+
+@api_blueprint.route("/data/<step_name>/<container_name>")
+@login_required
+def get_targets(step_name: str, container_name: str):
+    try:
+        targets = g.manager.get_targets(step_name, container_name)
+        return json_response([t.as_dict() for t in targets])
+    except RevngException as e:
+        return json_error(repr(e))
+
+
 @api_blueprint.get("/fetch/<step_name>/<container_name>")
 @login_required
 def fetch_container(step_name, container_name):
