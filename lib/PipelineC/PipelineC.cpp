@@ -23,6 +23,10 @@
 using namespace pipeline;
 using namespace ::revng::pipes;
 
+void rp_set_custom_abort_hook(AbortHook Hook) {
+  setAbortHook(Hook);
+}
+
 static bool Initialized = false;
 
 static bool loadLibraryPermanently(const char *LibraryPath) {
