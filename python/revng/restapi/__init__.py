@@ -9,7 +9,7 @@ from flask import Flask, g
 
 from revng.api import Manager
 from .api import api_blueprint
-from .auth import auth_blueprint, get_logged_user, login_required, is_logged_in
+from .auth import auth_blueprint, get_logged_user
 from .demo_webpage import demo_blueprint
 from .globals import managers
 
@@ -19,7 +19,7 @@ PIPELINES_DIR = REVNG_MODULE_DIR / "cli/translate/pipelines"
 # TODO: this should be persisted somehow, otherwise:
 #  - sessions will be invalidated at every server restart
 #  - multiple backends are not possible (as they would have different secrets)
-Flask.secret_key = secrets.token_hex(nbytes=16)
+Flask.secret_key = secrets.token_hex(nbytes=16)  # type: ignore
 
 app = Flask(__name__)
 app.register_blueprint(api_blueprint)
@@ -41,9 +41,9 @@ def init_global_object():
         g.manager = Manager(
             flags=[],
             workdir=g.user.tmpdir,
-            pipelines_paths=[
-                f"{PIPELINES_DIR / 'translate.yml'}",
-                f"{PIPELINES_DIR / 'isolate-translate.yml'}",
+            pipelines=[
+                PIPELINES_DIR / "translate.yml",
+                PIPELINES_DIR / "isolate-translate.yml",
             ],
         )
 
