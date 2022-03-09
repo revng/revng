@@ -103,6 +103,10 @@ bool Target::satisfies(const Target &Other) const {
 std::string Target::serialize() const {
   std::string ToReturn;
 
+  if (Components.size() == 0) {
+    return "";
+  }
+
   for (size_t I = 0; I < Components.size() - 1; I++)
     ToReturn += Components[I].toString() + "/";
 
