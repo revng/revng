@@ -1,7 +1,7 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-from typing import Optional
+from typing import Optional, Dict
 
 from ._capi import _api, ffi
 from .rank import Rank
@@ -28,3 +28,16 @@ class Kind:
             return Kind(_kind)
         else:
             return None
+
+    def as_dict(self) -> Dict[str, str]:
+        ret = {"name": self.name}
+
+        rank = self.rank
+        if rank is not None:
+            ret["rank"] = rank.name
+
+        parent = self.get_parent()
+        if parent is not None:
+            ret["parent"] = parent.name
+
+        return ret

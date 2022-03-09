@@ -52,6 +52,15 @@ class Target:
         serialized = make_python_string(_serialized, True)
         return serialized
 
+    def as_dict(self):
+        return {
+            "serialized": self.serialize(),
+            "exact": self.is_exact,
+            "path_components": list(self.path_components()),
+            "kind": self.kind.name,
+            "ready": True,
+        }
+
 
 class TargetsList:
     # TODO: maybe we want to have __iter__ and __next__

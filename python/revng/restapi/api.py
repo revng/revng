@@ -7,6 +7,7 @@ from pathlib import Path
 from flask import Blueprint, g, jsonify, request, send_file
 
 from revng.api.target import Target
+from revng.api.rank import Rank
 from .auth import login_required
 from .validation_utils import all_strings
 
@@ -120,18 +121,7 @@ def step_targets(step_name, container_name):
     if targets_list is None:
         return json_error("Invalid container name (cannot get targets list)")
 
-    return json_response(
-        [
-            {
-                "serialized": t.serialize(),
-                "exact": t.is_exact,
-                "path_components": list(t.path_components()),
-                "kind": t.kind.name,
-                "ready": Path(g.manager.container_path(step_name, container_name)).exists(),
-            }
-            for t in targets_list.targets()
-        ]
-    )
+    return json_response([t.as_dict() for t in targets_list.targets()])
 
 
 @api_blueprint.get("/fetch/<step_name>/<container_name>")
@@ -190,3 +180,14 @@ def set_input(step_name, container_name):
         return json_error(f"Failed loading user provided input for container {container_name}")
 
     return json_response({})
+
+
+@api_blueprint.get("/features")
+@login_required
+def features():
+    return json_response(
+        {
+            "kinds": [x.as_dict() for x in g.manager.kinds()],
+            "ranks": [x.as_dict() for x in Rank.ranks()],
+        }
+    )
