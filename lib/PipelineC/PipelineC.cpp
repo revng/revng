@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iterator>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -14,6 +15,7 @@
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Pipeline/AllRegistries.h"
@@ -501,4 +503,10 @@ rp_step *rp_step_get_parent(rp_step *step) {
 
 const char *rp_container_get_mime(rp_container *container) {
   return container->getValue()->mime().c_str();
+}
+
+const char *rp_manager_get_model(rp_manager *manager) {
+  auto &Model = getModelFromContext(manager->context());
+  std::string *out = new std::string(Model.toString());
+  return out->c_str();
 }

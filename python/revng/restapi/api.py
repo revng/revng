@@ -286,3 +286,9 @@ def pipeline_describe():
     return json_response(
         {"steps": [s.as_dict() for s in steps], "containers": [c.as_dict() for c in containers]}
     )
+
+
+@api_blueprint.get("/model")
+@login_required
+def get_model():
+    return g.manager.get_model()

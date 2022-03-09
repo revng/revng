@@ -221,3 +221,7 @@ class Manager:
                     target_dicts = [t for t in target_list.targets()]
                     targets[step.name][container.name] = target_dicts
         return targets
+
+    def get_model(self) -> str:
+        _model = _api.rp_manager_get_model(self._manager)
+        return make_python_string(_model, True)
