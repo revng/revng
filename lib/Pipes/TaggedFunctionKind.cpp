@@ -33,6 +33,11 @@ TaggedFunctionKind::compactTargets(const pipeline::Context &Ctx,
                                    pipeline::TargetsList::List &Targets) const {
 
   const model::Binary &Model = *getModelFromContext(Ctx);
+
+  if (Model.Functions.size() == 0) {
+    return Targets;
+  }
+
   std::set<std::string> Set;
   const pipeline::Target AllFunctions({ pipeline::PathComponent("root"),
                                         pipeline::PathComponent::all() },
