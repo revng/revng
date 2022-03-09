@@ -27,17 +27,13 @@ public:
   StringContainer(const StringContainer &container) = default;
 
   StringContainer &operator=(const StringContainer &Other) {
-    auto ret = new StringContainer(Other.name());
-    for (auto &S : Other.ContainedStrings)
-      ContainedStrings.insert(S);
-    return *ret;
+    ContainedStrings = Other.ContainedStrings;
+    return *this;
   }
 
   StringContainer &operator=(StringContainer &&Other) {
-    auto ret = new StringContainer(Other.name());
-    for (auto &S : Other.ContainedStrings)
-      ContainedStrings.insert(S);
-    return *ret;
+    ContainedStrings = Other.ContainedStrings;
+    return *this;
   }
 
   static char ID;
