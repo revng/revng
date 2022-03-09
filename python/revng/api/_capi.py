@@ -2,11 +2,22 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 from pathlib import Path
+from typing import List, Union
 
 from cffi import FFI
 from cffi.backend_ctypes import CTypesBackend
 
-from .utils import make_c_string
+
+# Moved here from utils to avoid circular imports
+# Will be re-exported in utils later
+def make_c_string(s: Union[bytes, str]):
+    if isinstance(s, bytes):
+        return ffi.new("char[]", s)
+    elif isinstance(s, str):
+        return ffi.new("char[]", s.encode("utf-8"))
+    else:
+        raise TypeError(f"Invalid type: {s.__class__}")
+
 
 ORCHESTRA_ROOT = Path(__file__).parent.parent.parent.parent.parent
 HEADERS_DIR = ORCHESTRA_ROOT / "include" / "revng" / "PipelineC"
@@ -28,7 +39,7 @@ for header_path in header_paths:
 LIB_DIR = ORCHESTRA_ROOT / "lib"
 LIBRARY_PATH = str(LIB_DIR / "librevngPipelineC.so")
 
-ARGV = []
+ARGV: List[str] = []
 ANALYSIS_LIBRARIES = [
     str(LIB_DIR / "revng/analyses/librevngFunctionIsolation.so"),
 ]

@@ -4,16 +4,13 @@
 
 from typing import Optional, Generator
 from ._capi import _api, ffi
-from .utils import make_python_string, make_c_string
+from .utils import make_python_string, make_c_string, make_generator
 
 
 class Rank:
     @staticmethod
     def ranks() -> Generator["Rank", None, None]:
-        for idx in range(Rank._get_count()):
-            rank = Rank._get_idx(idx)
-            if rank is not None:
-                yield rank
+        return make_generator(Rank._get_count(), Rank._get_idx)
 
     @staticmethod
     def from_name(name: str) -> Optional["Rank"]:

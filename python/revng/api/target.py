@@ -5,7 +5,7 @@ from typing import List, Optional, Generator
 
 from ._capi import _api, ffi
 from .kind import Kind
-from .utils import make_c_string, make_python_string
+from .utils import make_c_string, make_python_string, make_generator
 
 
 class Target:
@@ -49,8 +49,7 @@ class Target:
 
     def serialize(self) -> str:
         _serialized = _api.rp_target_create_serialized_string(self._target)
-        serialized = make_python_string(_serialized)
-        _api.rp_string_destroy(_serialized)
+        serialized = make_python_string(_serialized, True)
         return serialized
 
 
@@ -61,10 +60,7 @@ class TargetsList:
         self._targets_list = targets_list
 
     def targets(self) -> Generator[Target, None, None]:
-        for idx in range(len(self)):
-            target = self._get_nth_target(idx)
-            if target is not None:
-                yield target
+        return make_generator(len(self), self._get_nth_target)
 
     def _get_nth_target(self, idx: int) -> Optional[Target]:
         _target = _api.rp_targets_list_get_target(self._targets_list, idx)

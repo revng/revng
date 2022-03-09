@@ -9,7 +9,7 @@ from .container import ContainerIdentifier, Container
 from .kind import Kind
 from .step import Step
 from .target import Target, TargetsList
-from .utils import make_c_string, make_python_string
+from .utils import make_c_string, make_python_string, make_generator
 
 INVALID_INDEX = 0xFFFFFFFFFFFFFFFF
 
@@ -72,17 +72,12 @@ class Manager:
         return Kind(_kind) if _kind != ffi.NULL else None
 
     def kinds(self) -> Generator[Kind, None, None]:
-        for kind_idx in range(self.kinds_count):
-            kind = self._get_kind_from_index(kind_idx)
-            if kind is not None:
-                yield kind
+        return make_generator(self.kinds_count, self._get_kind_from_index)
 
     def kind_from_name(self, kind_name: str) -> Optional[Kind]:
         _kind_name = make_c_string(kind_name)
         kind = _api.rp_manager_get_kind_from_name(self._manager, _kind_name)
-        if not kind:
-            return None
-        return Kind(kind)
+        return Kind(kind) if kind != ffi.NULL else None
 
     def deserialize_target(self, serialized_target: str) -> Target:
         _target = ffi.gc(
@@ -97,13 +92,14 @@ class Manager:
         target: Target,
         step: Step,
         container: Container,
-    ) -> bool:
+    ) -> str:
         _targets = [target._target]
         _step = step._step
         _container = container._container
-        return _api.rp_manager_produce_targets(
+        _product = _api.rp_manager_produce_targets(
             self._manager, len(_targets), _targets, _step, _container
         )
+        return make_python_string(_product, True)
 
     def recalculate_all_available_targets(self):
         _api.rp_manager_recompute_all_available_targets(self._manager)
@@ -126,8 +122,7 @@ class Manager:
         _path = _api.rp_manager_create_container_path(self._manager, _step_name, _container_name)
         if not _path:
             return None
-        path = make_python_string(_path)
-        _api.rp_string_destroy(_path)
+        path = make_python_string(_path, True)
         return path
 
     @property
@@ -135,10 +130,7 @@ class Manager:
         return _api.rp_manager_containers_count(self._manager)
 
     def containers(self) -> Generator[ContainerIdentifier, None, None]:
-        for idx in range(self.containers_count):
-            container_identifier = self._get_container_identifier(idx)
-            if container_identifier is not None:
-                yield container_identifier
+        return make_generator(self.containers_count, self._get_container_identifier)
 
     def get_container_with_name(self, name) -> Optional[ContainerIdentifier]:
         for container in self.containers():
@@ -164,22 +156,13 @@ class Manager:
         return self._get_step_from_index(step_index)
 
     def steps(self) -> Generator[Step, None, None]:
-        for step_idx in range(self.steps_count):
-            step = self._get_step_from_index(step_idx)
-            if step is not None:
-                yield step
+        return make_generator(self.steps_count, self._get_step_from_index)
 
     def _step_name_to_index(self, name: str) -> Optional[int]:
         _name = make_c_string(name)
         index = _api.rp_manager_step_name_to_index(self._manager, _name)
-        if index == INVALID_INDEX:
-            return None
-        return index
+        return index if index != INVALID_INDEX else None
 
     def _get_step_from_index(self, idx: int) -> Optional[Step]:
         step = _api.rp_manager_get_step(self._manager, idx)
-
-        if not step:
-            return None
-
-        return Step(step)
+        return Step(step) if step != ffi.NULL else None
