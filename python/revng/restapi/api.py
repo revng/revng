@@ -191,3 +191,20 @@ def features():
             "ranks": [x.as_dict() for x in Rank.ranks()],
         }
     )
+
+
+@api_blueprint.get("/pipeline/describe")
+@login_required
+def pipeline_describe():
+    steps = list(g.manager.steps())
+
+    # TODO: pezzotto code
+    last_step = steps[-1]
+
+    containers = []
+    for container_id in g.manager.containers():
+        containers.append(last_step.get_container(container_id))
+
+    return json_response(
+        {"steps": [s.as_dict() for s in steps], "containers": [c.as_dict() for c in containers]}
+    )

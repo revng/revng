@@ -1,6 +1,8 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
+from typing import Dict
+
 from ._capi import _api
 from .utils import make_c_string, make_python_string
 
@@ -36,3 +38,6 @@ class Container:
     def load(self, path: str) -> bool:
         _path = make_c_string(path)
         return _api.rp_container_load(self._container, _path)
+
+    def as_dict(self) -> Dict[str, str]:
+        return {"name": self.name, "mime": self.mime}

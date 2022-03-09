@@ -1,7 +1,7 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-from typing import Optional
+from typing import Optional, Dict
 
 from ._capi import _api, ffi
 from .container import ContainerIdentifier, Container
@@ -26,3 +26,12 @@ class Step:
             self._step, container_identifier._container_identifier
         )
         return Container(container)
+
+    def as_dict(self) -> Dict[str, str]:
+        ret = {"name": self.name}
+
+        parent = self.get_parent()
+        if parent is not None:
+            ret["parent"] = parent.name
+
+        return ret
