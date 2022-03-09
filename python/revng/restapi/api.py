@@ -165,14 +165,12 @@ def fetch_container(step_name, container_name):
     return send_file(container_path, as_attachment=True, etag=True)
 
 
-@api_blueprint.post("/set/<step_name>/<container_name>")
+@api_blueprint.post("/set-input/<container_name>")
 @login_required
-def set_input(step_name, container_name):
+def set_input(container_name):
     """Sets the content of the given container"""
-    # TODO: do we want to allow to set any container or just Lift/input?
-    step = g.manager.get_step(step_name)
-    if step is None:
-        return json_error("Invalid step name")
+    # TODO: remove hard-coding
+    step = g.manager.steps().__next__()
 
     container_identifier = g.manager.get_container_with_name(container_name)
     if container_identifier is None:
@@ -180,15 +178,15 @@ def set_input(step_name, container_name):
 
     container = step.get_container(container_identifier)
     if container is None:
-        return json_error(f"Step {step_name} does not use container {container_name}")
+        return json_error(f"Step {step.name} does not use container {container_name}")
 
     file = request.files.get("input")
     if file is None:
         return json_error("You must provide an input file", http_code=400)
 
-    # TODO: fix path traversal
+    # TODO: replace when proper C API is present
     logging.warning("Reminder: revng C API is vulnerable to path traversal. Fix it!")
-    _container_path = g.manager.container_path(step_name, container_name)
+    _container_path = g.manager.container_path(step.name, container_name)
     if _container_path is None:
         return json_error("Invalid step or container name")
     container_path = Path(_container_path)
@@ -196,7 +194,7 @@ def set_input(step_name, container_name):
     file.save(container_path)
     logging.info(
         f"User {g.user.username} file for container "
-        + f"{step_name}/{container_name} saved to {container_path}"
+        + f"{step.name}/{container_name} saved to {container_path}"
     )
 
     success = container.load(str(container_path))
