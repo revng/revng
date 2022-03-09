@@ -2,21 +2,10 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 from pathlib import Path
-from typing import List, Union
+from typing import List
 
 from cffi import FFI
 from cffi.backend_ctypes import CTypesBackend
-
-
-# Moved here from utils to avoid circular imports
-# Will be re-exported in utils later
-def make_c_string(s: Union[bytes, str]):
-    if isinstance(s, bytes):
-        return ffi.new("char[]", s)
-    elif isinstance(s, str):
-        return ffi.new("char[]", s.encode("utf-8"))
-    else:
-        raise TypeError(f"Invalid type: {s.__class__}")
 
 
 ORCHESTRA_ROOT = Path(__file__).parent.parent.parent.parent.parent
@@ -44,7 +33,7 @@ ANALYSIS_LIBRARIES = [
     str(LIB_DIR / "revng/analyses/librevngFunctionIsolation.so"),
 ]
 
-_ANALYSIS_LIBRARIES = [make_c_string(s) for s in ANALYSIS_LIBRARIES]
+_ANALYSIS_LIBRARIES = [ffi.new("char[]", s.encode("utf-8")) for s in ANALYSIS_LIBRARIES]
 
 
 ctypes_backend = CTypesBackend()

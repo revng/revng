@@ -1,12 +1,9 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-from typing import TypeVar, Callable, Generator, Optional
+from typing import TypeVar, Callable, Generator, Optional, Union
 
-from ._capi import _api, ffi, make_c_string
-
-
-make_c_string = make_c_string
+from ._capi import _api, ffi
 
 
 def make_python_string(s: ffi.CData, free: bool = False):  # type: ignore
@@ -15,6 +12,15 @@ def make_python_string(s: ffi.CData, free: bool = False):  # type: ignore
     if free:
         _api.rp_string_destroy(s)
     return ret
+
+
+def make_c_string(s: Union[bytes, str]):
+    if isinstance(s, bytes):
+        return ffi.new("char[]", s)
+    elif isinstance(s, str):
+        return ffi.new("char[]", s.encode("utf-8"))
+    else:
+        raise TypeError(f"Invalid type: {s.__class__}")
 
 
 T = TypeVar("T")
