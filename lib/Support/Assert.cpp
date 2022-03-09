@@ -13,14 +13,23 @@
 
 #include "revng/Support/Assert.h"
 
+static AbortHook abortHook = nullptr;
+
 static void printStackTrace() {
   llvm::raw_os_ostream Output(std::cerr);
   std::cerr << "\n";
   llvm::sys::PrintStackTrace(Output);
 }
 
+void setAbortHook(AbortHook Hook) {
+  abortHook = Hook;
+}
+
 [[noreturn]] static void terminate(void) {
   printStackTrace();
+  if (abortHook != nullptr) {
+    abortHook();
+  }
   abort();
 }
 

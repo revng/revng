@@ -75,6 +75,14 @@ extern "C" {
  */
 
 /**
+ * Allow setting a custom abort hook.
+ * This will be called just before abort() in case of an assertion failure.
+ * Useful if calling from a non-C language to print extra debug information.
+ */
+typedef void (*AbortHook)(void);
+void rp_set_custom_abort_hook(AbortHook Hook);
+
+/**
  * Must be invoked before any other rp_* function is used, must be invoked
  * exactly once. This will take care of initializing all llvm related stuff
  * needed by the revng pipeline to operate.
