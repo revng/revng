@@ -147,6 +147,7 @@ set(REVNG_API_MODULE_FILES
   revng/api/__init__.py
   revng/api/_capi.py
   revng/api/container.py
+  revng/api/exceptions.py
   revng/api/kind.py
   revng/api/manager.py
   revng/api/rank.py

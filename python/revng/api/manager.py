@@ -2,10 +2,11 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 from pathlib import Path
-from typing import List, Optional, Union, Generator, cast
+from typing import List, Optional, Union, Generator, Dict, cast
 
 from ._capi import _api, ffi
 from .container import ContainerIdentifier, Container
+from .exceptions import RevngException
 from .kind import Kind
 from .step import Step
 from .target import Target, TargetsList
@@ -165,3 +166,58 @@ class Manager:
     def _get_step_from_index(self, idx: int) -> Optional[Step]:
         step = _api.rp_manager_get_step(self._manager, idx)
         return Step(step) if step != ffi.NULL else None
+
+    def get_targets(self, step_name: str, container_name: str, recalc: bool = True) -> List[Target]:
+        step = self.get_step(step_name)
+        if step is None:
+            raise RevngException("Invalid step name")
+
+        container_identifier = self.get_container_with_name(container_name)
+        if container_identifier is None:
+            raise RevngException("Invalid container name")
+
+        container = step.get_container(container_identifier)
+        if container is None:
+            raise RevngException(f"Step {step_name} does not use container {container_name}")
+
+        if recalc:
+            self.recalculate_all_available_targets()
+
+        targets_list = self.get_targets_list(container)
+        if targets_list is None:
+            raise RevngException("Invalid container name (cannot get targets list)")
+
+        return [t for t in targets_list.targets()]
+
+    def get_targets_from_step(self, step_name: str, recalc: bool = True) -> Dict[str, List[Target]]:
+        step = self.get_step(step_name)
+        if step is None:
+            raise RevngException("Invalid step name")
+
+        if recalc:
+            self.recalculate_all_available_targets()
+
+        containers = []
+        for container_id in self.containers():
+            containers.append(step.get_container(container_id))
+
+        ret = {}
+        for container in containers:
+            if container is not None:
+                targets = self.get_targets(step_name, container.name, False)
+                ret[container.name] = targets
+        return ret
+
+    def get_all_targets(self) -> Dict[str, Dict[str, List[Target]]]:
+        targets: Dict[str, Dict[str, List[Target]]] = {}
+        container_ids = list(self.containers())
+        self.recalculate_all_available_targets()
+        for step in self.steps():
+            targets[step.name] = {}
+            containers = [step.get_container(cid) for cid in container_ids]
+            for container in [c for c in containers if c is not None]:
+                target_list = self.get_targets_list(container)
+                if target_list is not None:
+                    target_dicts = [t for t in target_list.targets()]
+                    targets[step.name][container.name] = target_dicts
+        return targets

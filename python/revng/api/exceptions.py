@@ -1,0 +1,2 @@
+class RevngException(Exception):
+    pass

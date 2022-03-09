@@ -7,6 +7,7 @@ from pathlib import Path
 
 from flask import Blueprint, jsonify, request, send_file
 
+from revng.api.exceptions import RevngException
 from revng.api.manager import Manager
 from revng.api.target import Target
 from revng.api.rank import Rank
@@ -117,65 +118,34 @@ def produce():
 @login_required
 def step_container_targets(step_name, container_name):
     """Returns the list of targets for the given container/step tuple"""
-    step = g.manager.get_step(step_name)
-    if step is None:
-        return json_error("Invalid step name")
-
-    container_identifier = g.manager.get_container_with_name(container_name)
-    if container_identifier is None:
-        return json_error("Invalid container name")
-
-    g.manager.recalculate_all_available_targets()
-    container = step.get_container(container_identifier)
-    if container is None:
-        return json_error(f"Step {step_name} does not use container {container_name}")
-
-    targets_list = g.manager.get_targets_list(container)
-    if targets_list is None:
-        return json_error("Invalid container name (cannot get targets list)")
-
-    return json_response([t.as_dict() for t in targets_list.targets()])
+    try:
+        targets = g.manager.get_targets(step_name, container_name)
+        return json_response([t.as_dict() for t in targets])
+    except RevngException as e:
+        return json_error(repr(e))
 
 
 @api_blueprint.route("/step/<step_name>/targets")
 @login_required
 def step_targets(step_name):
-    """Returns the list of targets for the given container/step tuple"""
-    step = g.manager.get_step(step_name)
-    if step is None:
-        return json_error("Invalid step name")
-
-    containers = []
-    for container_id in g.manager.containers():
-        containers.append(step.get_container(container_id))
-
-    targets = []
-    g.manager.recalculate_all_available_targets()
-    for container in [c for c in containers if c is not None]:
-        target_list = g.manager.get_targets_list(container)
-        if target_list is not None:
-            target_dicts = [t.as_dict() for t in target_list.targets()]
-            targets.append({container.name: target_dicts})
-
-    return json_response(targets)
+    """Returns the list of targets for the given step"""
+    try:
+        grouped_targets = g.manager.get_targets_from_step(step_name)
+        return json_response({k: [t.as_dict() for t in v] for k, v in grouped_targets.items()})
+    except RevngException as e:
+        return json_error(repr(e))
 
 
 @api_blueprint.route("/step/targets")
 @login_required
 def all_targets():
-    targets = {}
-    container_ids = list(g.manager.containers())
-    g.manager.recalculate_all_available_targets()
-    for step in g.manager.steps():
-        targets[step.name] = {}
-        containers = [step.get_container(cid) for cid in container_ids]
-        for container in [c for c in containers if c is not None]:
-            target_list = g.manager.get_targets_list(container)
-            if target_list is not None:
-                target_dicts = [t.as_dict() for t in target_list.targets()]
-                targets[step.name][container.name] = target_dicts
-
-    return json_response(targets)
+    try:
+        targets = g.manager.get_all_targets()
+        return json_response(
+            {k: {k2: [t.as_dict() for t in v2] for k2, v2 in v.items()} for k, v in targets.items()}
+        )
+    except RevngException as e:
+        return json_error(repr(e))
 
 
 @api_blueprint.get("/fetch/<step_name>/<container_name>")
