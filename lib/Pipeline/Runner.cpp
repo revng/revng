@@ -60,7 +60,7 @@ static void explainPipeline(const ContainerToTargetsMap &Targets,
 
   prettyPrintStatus(Targets, OS, 1);
 
-  if (Requirements.empty()) {
+  if (Requirements.size() <= 1) {
     OS.changeColor(llvm::raw_ostream::Colors::GREEN);
     OS << "Already satisfied\n";
     return;
@@ -71,8 +71,6 @@ static void explainPipeline(const ContainerToTargetsMap &Targets,
   OS << "Deduced Step Level Requirements: \n";
 
   for (const PipelineExecutionEntry &Entry : llvm::reverse(Requirements)) {
-    if (Entry.Objectives.empty())
-      continue;
 
     OS.indent(1);
     OS.changeColor(llvm::raw_ostream::Colors::MAGENTA);
@@ -96,7 +94,7 @@ Error Runner::getInvalidations(StatusMap &Invalidated) const {
 
     ContainerToTargetsMap &Outputs = Invalidated[NextS.getName()];
 
-    auto Deduced = S.deduceResults(Inputs);
+    auto Deduced = NextS.deduceResults(Inputs);
     NextS.containers().intersect(Deduced);
     Outputs.merge(Deduced);
   }
@@ -155,7 +153,7 @@ PipelineFileMapping::parse(StringRef ToParse) {
 Error PipelineFileMapping::loadFromDisk(Runner &LoadInto) const {
   if (not LoadInto.containsStep(Step))
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "No known step " + Container);
+                                   "No known step " + Step);
 
   if (not LoadInto[Step].containers().containsOrCanCreate(Container))
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
@@ -167,7 +165,7 @@ Error PipelineFileMapping::loadFromDisk(Runner &LoadInto) const {
 Error PipelineFileMapping::storeToDisk(const Runner &LoadInto) const {
   if (not LoadInto.containsStep(Step))
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "No known step " + Container);
+                                   "No known step " + Step);
 
   if (not LoadInto[Step].containers().containsOrCanCreate(Container))
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
@@ -195,7 +193,6 @@ Error Runner::loadFromDisk(llvm::StringRef DirPath) {
 Error Runner::run(llvm::StringRef EndingStepName,
                   const ContainerToTargetsMap &Targets,
                   llvm::raw_ostream *DiagnosticLog) {
-  optional<ContainerSet> CurrentContainer = std::nullopt;
 
   ContainerToTargetsMap ToLoad;
   vector<PipelineExecutionEntry> ToExec;
@@ -208,20 +205,24 @@ Error Runner::run(llvm::StringRef EndingStepName,
   if (DiagnosticLog != nullptr)
     explainPipeline(Targets, ToLoad, ToExec, *DiagnosticLog);
 
-  size_t CurrentStep = 0;
-  for (auto &StepGoalsPairs : ToExec) {
+  if (ToExec.size() <= 1)
+    return Error::success();
+
+  auto &FirstStepContainers = ToExec.front().ToExecute->containers();
+  auto CurrentContainer(FirstStepContainers.cloneFiltered(ToLoad));
+  for (auto &StepGoalsPairs :
+       llvm::make_range(ToExec.begin() + 1, ToExec.end())) {
     auto &[Step, Goals] = StepGoalsPairs;
-    if (CurrentContainer.has_value()) {
-      Step->containers().mergeBack(std::move(*CurrentContainer));
-    }
-
-    CurrentStep++;
-    if (CurrentStep == ToExec.size())
-      break;
-
-    CurrentContainer = Step->cloneAndRun(*TheContext, ToLoad, DiagnosticLog);
-    ToLoad = Step->deduceResults(CurrentContainer->enumerate());
+    CurrentContainer = Step->cloneAndRun(*TheContext,
+                                         std::move(CurrentContainer),
+                                         DiagnosticLog);
   }
+
+  if (DiagnosticLog != nullptr) {
+    *DiagnosticLog << "Produced:\n";
+    CurrentContainer.enumerate().dump(*DiagnosticLog);
+  }
+
   return Error::success();
 }
 
@@ -250,6 +251,6 @@ void Runner::deduceAllPossibleTargets(State &Out) const {
       continue;
 
     const Step &Step = NextStep.getPredecessor();
-    Out[NextStep.getName()].merge(Step.deduceResults(Out[Step.getName()]));
+    Out[NextStep.getName()].merge(NextStep.deduceResults(Out[Step.getName()]));
   }
 }

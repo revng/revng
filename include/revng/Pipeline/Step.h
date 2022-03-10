@@ -82,7 +82,7 @@ public:
   ///
   /// The contained values stays unchanged.
   ContainerSet cloneAndRun(Context &Ctx,
-                           const ContainerToTargetsMap &Targets,
+                           ContainerSet &&Targets,
                            llvm::raw_ostream *OS = nullptr);
 
   /// Returns the set of goals that are already contained in the backing

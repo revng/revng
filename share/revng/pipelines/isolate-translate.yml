@@ -1,4 +1,4 @@
-From:            Lifted
+From:            Lift
 Containers:
 Steps:
  - Name:            Isolate
@@ -6,7 +6,6 @@ Steps:
      - Type:             LLVMPipe
        UsedContainers: [module]
        Passes: [detect-abi, isolate, invoke-isolated-functions]
- - Name:            Isolated
  - Name:            RecompileIsolated
    Pipes:
      - Type:             LinkSupport
