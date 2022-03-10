@@ -13,27 +13,26 @@
 #include "revng/Model/Importer/Binary/BinaryImporterOptions.h"
 #include "revng/Model/Importer/Dwarf/DwarfImporter.h"
 #include "revng/Model/ToolHelpers.h"
+#include "revng/Support/CommandLine.h"
 
 using namespace llvm;
 using namespace cl;
 
-static OptionCategory ThisToolCategory("Tool options", "");
-
 static opt<std::string> InputFilename(Positional,
-                                      cat(ThisToolCategory),
+                                      cat(MainCategory),
                                       desc("<input file>"),
                                       init("-"),
                                       value_desc("filename"));
 
 static opt<std::string> OutputFilename("o",
-                                       cat(ThisToolCategory),
+                                       cat(MainCategory),
                                        desc("Override output "
                                             "filename"),
                                        init("-"),
                                        value_desc("filename"));
 
 int main(int Argc, char *Argv[]) {
-  HideUnrelatedOptions({ &ThisToolCategory });
+  HideUnrelatedOptions({ &MainCategory });
   ParseCommandLineOptions(Argc, Argv);
 
   revng_check(BaseAddress % 4096 == 0, "Base address is not page aligned");
