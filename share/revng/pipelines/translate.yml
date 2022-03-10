@@ -17,7 +17,6 @@ Steps:
      - Type:             LLVMPipe
        UsedContainers: [module]
        Passes: [globaldce]
- - Name:            Lifted
  - Name:            Recompile
    Pipes:
      - Type:             LinkSupport

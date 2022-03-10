@@ -54,10 +54,10 @@ static opt<string> SaveModel("save-model",
                              init(""));
 
 static opt<string> TargetStep("step",
+                              Required,
                               desc("name the step in which to produce the "
                                    "elements"),
-                              cat(PipelineCategory),
-                              init("End"));
+                              cat(PipelineCategory));
 
 static opt<bool> ProduceAllPossibleTargets("produce-all",
                                            desc("Try producing all possible "

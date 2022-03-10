@@ -38,7 +38,7 @@ class TranslateCommand(Command):
         args = options.parsed_args
         out_file = args.output if args.output else args.input[0] + ".translated"
 
-        step_name = "EndRecompile"
+        step_name = "Recompile"
         if args.isolate:
             step_name = step_name + "Isolated"
 
@@ -48,7 +48,7 @@ class TranslateCommand(Command):
             "--step",
             step_name,
             "-i",
-            "Lift:input:" + args.input[0],
+            "begin:input:" + args.input[0],
             "-o",
             step_name + ":output:" + out_file,
         ]

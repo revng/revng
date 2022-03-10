@@ -62,7 +62,7 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
         pipeline
         "${INPUT_FILE}"
         "${OUTPUT}"
-        Lifted
+        Lift
         EnforceABI
         "*:CSVsPromoted")
     set(DEPEND_ON revng-all-binaries)

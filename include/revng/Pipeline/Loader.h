@@ -135,7 +135,6 @@ public:
   }
 
 private:
-  void emitTerminators(Runner &Runner) const;
   llvm::Error
   parseSteps(Runner &Runner, const PipelineDeclaration &Declaration) const;
   llvm::Error parseDeclarations(Runner &Runner,

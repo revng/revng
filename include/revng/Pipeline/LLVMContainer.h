@@ -8,6 +8,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <system_error>
 #include <type_traits>
 
 #include "llvm/ADT/DenseSet.h"
@@ -172,7 +173,7 @@ private:
         Global.setLinkage(llvm::GlobalValue::InternalLinkage);
     }
 
-    revng_assert(llvm::verifyModule(*Composite, &llvm::dbgs()) == 0);
+    revng_assert(llvm::verifyModule(*Composite, nullptr) == 0);
     Module = std::move(Composite);
 
     revng_assert(BeforeEnumeration.contains(this->enumerate()));
