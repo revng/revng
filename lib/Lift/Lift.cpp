@@ -29,6 +29,9 @@ alias A1("e",
 
 char LiftPass::ID;
 
+using Register = llvm::RegisterPass<LiftPass>;
+static Register X("lift", "Lift Pass", true, true);
+
 /// The interface with the PTC library.
 PTCInterface ptc = {};
 

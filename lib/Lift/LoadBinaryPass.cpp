@@ -20,10 +20,13 @@ using namespace llvm;
 
 namespace {
 using namespace llvm::cl;
-opt<std::string> RawBinaryPath(Positional, desc("<raw binary path>"));
+opt<std::string> RawBinaryPath("binary-path", desc("<raw binary path>"));
 } // namespace
 
 char LoadBinaryWrapperPass::ID;
+
+using Register = llvm::RegisterPass<LoadBinaryWrapperPass>;
+static Register X("load-binary", "Load Binary Pass", true, true);
 
 LoadBinaryWrapperPass::LoadBinaryWrapperPass() : llvm::ModulePass(ID) {
   revng_check(RawBinaryPath.getNumOccurrences() == 1);
