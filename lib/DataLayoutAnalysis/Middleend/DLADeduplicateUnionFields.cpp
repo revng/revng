@@ -170,7 +170,7 @@ static bool linkOrderLess(const Link &A, const Link &B) {
     return LinkOrder < 0;
 
   revng_log(CmpLog,
-            "No order between " << A.first->ID << " and " << A.first->ID
+            "No order between " << A.first->ID << " and " << B.first->ID
                                 << ", must recur");
   // In case the two nodes are equivalent, explore the whole subtree
   // TODO: cache the result of this comparison?
@@ -402,6 +402,11 @@ bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
     if (not isRoot(Root))
       continue;
 
+    for (LTSN *Node : post_order(NonPointerFilterT(Root))) {
+      TypeSystemChanged |= CollapseSingleChild::collapseSingle(TS, Node);
+      TypeSystemChanged |= RemoveConflictingEdges::removeConflicts(TS, Node);
+    }
+
     llvm::SmallVector<LTSN *, 8> PostOrderFromRoot;
     for (LTSN *UnionNode : post_order(NonPointerFilterT(Root))) {
       if (UnionNode->InterferingInfo != AllChildrenAreInterfering
@@ -563,8 +568,9 @@ bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
 
       // Collapse the union node if we are left with only one member
       if (UnionNodeChanged) {
-        CollapseSingleChild::collapseSingle(TS, UnionNode);
-        RemoveConflictingEdges::removeConflicts(TS, UnionNode);
+        TypeSystemChanged |= CollapseSingleChild::collapseSingle(TS, UnionNode);
+        TypeSystemChanged |= RemoveConflictingEdges::removeConflicts(TS,
+                                                                     UnionNode);
       }
     }
   }
