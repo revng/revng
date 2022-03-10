@@ -21,7 +21,7 @@
 #include "revng/Support/Assert.h"
 
 using namespace pipeline;
-using namespace revng::pipes;
+using namespace ::revng::pipes;
 
 static bool Initialized = false;
 

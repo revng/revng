@@ -41,7 +41,7 @@
 
 namespace pipeline {
 
-namespace detail {
+namespace revng::detail {
 
 /// Metadata are not cloned by clomeModule when a definition is squashed into a
 /// declaration thus they must be reintroduced, and this function does exactly
@@ -70,7 +70,7 @@ void cloneMetadata(llvm::ValueToValueMapTy &Map, const T *From) {
   }
 }
 
-} // namespace detail
+} // namespace revng::detail
 
 template<typename LLVMContainer>
 class GenericLLVMPipe;
@@ -130,7 +130,7 @@ public:
 
     for (const llvm::Function &Original : Module->functions()) {
       if (Original.isDeclaration())
-        detail::cloneMetadata<llvm::Function>(Map, &Original);
+        revng::detail::cloneMetadata<llvm::Function>(Map, &Original);
     }
 
     return std::make_unique<ThisType>(*this->Ctx,

@@ -25,8 +25,7 @@
 #include "revng/Support/MetaAddress.h"
 
 using namespace pipeline;
-using namespace revng;
-using namespace revng::pipes;
+using namespace ::revng::pipes;
 using namespace llvm;
 
 pipeline::TargetsList

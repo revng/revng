@@ -8,8 +8,6 @@
 
 #include "revng/Pipes/LLVMContextWrapper.h"
 
-using namespace std;
-using namespace pipeline;
 using namespace revng::pipes;
 
 const char LLVMContextWrapper::ID = '0';

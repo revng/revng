@@ -59,7 +59,7 @@ concept Pipe =
   HasName<PipeType> and HasContract<PipeType> and(IsContainer<Rest> and...)
   and (IsContext<FirstRunArg> || IsConstContext<FirstRunArg>);
 
-namespace detail {
+namespace revng::detail {
 using StringArrayRef = llvm::ArrayRef<std::string>;
 
 template<typename T>
@@ -236,14 +236,14 @@ public:
   }
 };
 
-} // namespace detail
+} // namespace revng::detail
 
 /// This class is used to hide the unique ptr and expose a concrete class
 /// instead of pointers, as well as implementing dump and operator=, which
 /// is implemented as a clone.
 class PipeWrapper {
 private:
-  std::unique_ptr<detail::PipeWrapperBase> Pipe;
+  std::unique_ptr<revng::detail::PipeWrapperBase> Pipe;
 
 public:
   template<typename PipeType>
@@ -266,13 +266,15 @@ public:
   }
 
 public:
-  detail::PipeWrapperBase &operator*() { return *Pipe; }
+  revng::detail::PipeWrapperBase &operator*() { return *Pipe; }
 
-  const detail::PipeWrapperBase &operator*() const { return *Pipe; }
+  const revng::detail::PipeWrapperBase &operator*() const { return *Pipe; }
 
-  detail::PipeWrapperBase *operator->() { return Pipe.get(); }
+  revng::detail::PipeWrapperBase *operator->() { return Pipe.get(); }
 
-  const detail::PipeWrapperBase *operator->() const { return Pipe.get(); }
+  const revng::detail::PipeWrapperBase *operator->() const {
+    return Pipe.get();
+  }
 
 public:
   template<typename OStream>
@@ -286,7 +288,7 @@ private:
   template<typename PipeType>
   auto makeUniqueWrapper(PipeType Pipe,
                          std::vector<std::string> RunningContainersNames) {
-    using Wrapper = detail::PipeWrapperImpl<PipeType>;
+    using Wrapper = revng::detail::PipeWrapperImpl<PipeType>;
     return std::make_unique<Wrapper>(Pipe, std::move(RunningContainersNames));
   }
 };

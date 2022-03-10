@@ -28,16 +28,16 @@ enum Values { PC, IsThumb };
 
 };
 
-namespace detail {
+namespace revng::detail {
 
 using namespace llvm;
 
 using CSVFactory = std::function<GlobalVariable *(PCAffectingCSV::Values CSVID,
                                                   StringRef Name)>;
 
-}; // namespace detail
+}; // namespace revng::detail
 
-using CSVFactory = detail::CSVFactory;
+using CSVFactory = revng::detail::CSVFactory;
 
 class ProgramCounterHandler {
 protected:

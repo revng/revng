@@ -241,7 +241,7 @@ concept IsTrait = requires(TraitType<ABI> Trait) {
 
 };
 
-namespace detail {
+namespace revng::detail {
 
 template<template<model::ABI::Values> typename Trait, size_t StartFrom = 0>
 consteval bool verifyTraitSpecializations() {
@@ -258,7 +258,7 @@ consteval bool verifyTraitSpecializations() {
 }
 static_assert(verifyTraitSpecializations<Trait, 1>());
 
-} // namespace detail
+} // namespace revng::detail
 
 // clang-format on
 

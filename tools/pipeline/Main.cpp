@@ -24,7 +24,7 @@ using std::string;
 using namespace llvm;
 using namespace llvm::cl;
 using namespace pipeline;
-using namespace revng::pipes;
+using namespace ::revng::pipes;
 
 cl::OptionCategory PipelineCategory("revng-pipeline options", "");
 

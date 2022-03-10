@@ -33,7 +33,7 @@
 
 using namespace std;
 using namespace pipeline;
-using namespace revng::pipes;
+using namespace ::revng::pipes;
 
 namespace revng::pipes {
 

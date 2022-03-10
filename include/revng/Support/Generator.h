@@ -18,7 +18,7 @@ namespace cppcoro {
 template<typename T>
 class generator;
 
-namespace detail {
+namespace revng::detail {
 template<typename T>
 class GeneratorPromise {
 public:
@@ -135,13 +135,13 @@ public:
 private:
   coroutine_handle Coroutine;
 };
-} // namespace detail
+} // namespace revng::detail
 
 template<typename T>
 class [[nodiscard]] generator {
 public:
-  using promise_type = detail::GeneratorPromise<T>;
-  using iterator = detail::GeneratorIterator<T>;
+  using promise_type = revng::detail::GeneratorPromise<T>;
+  using iterator = revng::detail::GeneratorIterator<T>;
 
   generator() noexcept : Coroutine(nullptr) {}
 
@@ -175,8 +175,8 @@ public:
     return iterator{ Coroutine };
   }
 
-  detail::GeneratorSentinel end() noexcept {
-    return detail::GeneratorSentinel{};
+  revng::detail::GeneratorSentinel end() noexcept {
+    return revng::detail::GeneratorSentinel{};
   }
 
   void swap(generator &Other) noexcept {
@@ -184,7 +184,7 @@ public:
   }
 
 private:
-  friend class detail::GeneratorPromise<T>;
+  friend class revng::detail::GeneratorPromise<T>;
 
   using coroutine_handle = std::experimental::coroutine_handle<promise_type>;
 
@@ -199,14 +199,14 @@ void swap(generator<T> &A, generator<T> &B) {
   A.swap(B);
 }
 
-namespace detail {
+namespace revng::detail {
 template<typename T>
 generator<T> GeneratorPromise<T>::get_return_object() noexcept {
   using promise = GeneratorPromise<T>;
   using coroutine_handle = std::experimental::coroutine_handle<promise>;
   return generator<T>{ coroutine_handle::from_promise(*this) };
 }
-} // namespace detail
+} // namespace revng::detail
 
 } // namespace cppcoro
 

@@ -27,7 +27,7 @@
 using namespace llvm;
 using namespace llvm::sys;
 using namespace pipeline;
-using namespace revng::pipes;
+using namespace ::revng::pipes;
 
 static std::string linkFunctionArgument(llvm::StringRef Lib) {
   auto LastSlash = Lib.rfind('/');
