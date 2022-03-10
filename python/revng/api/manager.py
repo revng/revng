@@ -87,20 +87,70 @@ class Manager:
         )
         return Target(_target)
 
-    # TODO: method to produce targets in bulk (API already supports it)
-    def produce_target(
+    def _produce_target(
         self,
-        target: Target,
+        target: Target | List[Target],
         step: Step,
         container: Container,
     ) -> str:
-        _targets = [target._target]
+        if isinstance(target, Target):
+            _targets = [target._target]
+        else:
+            _targets = [t._target for t in target]
         _step = step._step
         _container = container._container
         _product = _api.rp_manager_produce_targets(
             self._manager, len(_targets), _targets, _step, _container
         )
         return make_python_string(_product, True)
+
+    def produce_target(self, target: str | List[str], step_name: str, container_name: str) -> str:
+        step = self.get_step(step_name)
+        if step is None:
+            raise RevngException("Invalid step")
+
+        container_identifier = self.get_container_with_name(container_name)
+        if container_identifier is None:
+            raise RevngException("Invalid container")
+
+        container = step.get_container(container_identifier)
+        if container is None:
+            raise RevngException(f"Step {step_name} does not use container {container_name}")
+
+        if isinstance(target, str):
+            _target = self.create_target(target)
+            if _target is not None:
+                targets = [
+                    _target,
+                ]
+            else:
+                raise RevngException(f"Invalid target name: {_target}")
+        else:
+            targets = []
+            for t in target:
+                _t = self.create_target(t)
+                if _t is not None:
+                    targets.append(_t)
+                else:
+                    raise RevngException(f"Invalid target name: {t}")
+
+        product = self._produce_target(targets, step, container)
+        if not product:
+            # TODO: we really should be able to provide a detailed error here
+            raise RevngException("Failed to produce target")
+        return product
+
+    def create_target(self, target_path: str, exact: bool = True) -> Optional["Target"]:
+        path, kind_name = target_path.split(":", maxsplit=1)
+        path_components = path.split("/")
+        kind = self.kind_from_name(kind_name)
+        if kind is None:
+            raise RevngException("Invalid kind")
+
+        target = Target.create(kind, True, path_components)
+        if target is None:
+            raise RevngException("Invalid target")
+        return target
 
     def recalculate_all_available_targets(self):
         _api.rp_manager_recompute_all_available_targets(self._manager)

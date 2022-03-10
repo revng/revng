@@ -6,7 +6,9 @@ from typing import TypeVar, Callable, Generator, Optional, Union
 from ._capi import _api, ffi
 
 
-def make_python_string(s: ffi.CData, free: bool = False):  # type: ignore
+def make_python_string(s: ffi.CData, free: bool = False) -> str:  # type: ignore
+    if s == ffi.NULL:
+        return ""
     bytestring = ffi.string(s)
     ret = bytestring.decode("utf-8")
     if free:

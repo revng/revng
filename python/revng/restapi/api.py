@@ -9,11 +9,10 @@ from flask import Blueprint, jsonify, request, send_file
 
 from revng.api.exceptions import RevngException
 from revng.api.manager import Manager
-from revng.api.target import Target
 from revng.api.rank import Rank
 from .auth import login_required
-from .validation_utils import all_strings
 from .util import clean_dict, clean_double_dict
+from .validation_utils import all_strings
 
 if TYPE_CHECKING:
     from flask.ctx import _AppCtxGlobals
@@ -68,52 +67,32 @@ def store_all_containers():
         return json_error("Failed", http_code=500)
 
 
-@api_blueprint.post("/produce")
+@api_blueprint.route("/data/<step_name>/<container_name>/<path:pathspec>")
 @login_required
-def produce():
-    # TODO: does it make sense to allow producing a specific target? Wouldn't it
-    #       make sense to allow producing only a given container?
+def produce(step_name: str, container_name: str, pathspec: str):
+    # kind_name = request.json["kind"]
+    # exact = bool(request.json.get("exact", True))
+    # path_components = request.json["path_components"]
+    try:
+        product = g.manager.produce_target(pathspec, step_name, container_name)
+        return json_response(product)
+    except RevngException as e:
+        return json_error(repr(e))
+
+
+@api_blueprint.post("/bulk-data")
+@login_required
+def bulk_produce():
     step_name = request.json["step"]
     container_name = request.json["container"]
-    kind_name = request.json["kind"]
-    exact = bool(request.json.get("exact", True))
-    path_components = request.json["path_components"]
-
-    step = g.manager.get_step(step_name)
-    if step is None:
-        return json_error("Invalid step")
-
-    container_identifier = g.manager.get_container_with_name(container_name)
-    if container_identifier is None:
-        return json_error("Invalid container")
-
-    container = step.get_container(container_identifier)
-    if container is None:
-        return json_error(f"Step {step_name} does not use container {container_name}")
-
-    kind = g.manager.kind_from_name(kind_name)
-    if kind is None:
-        return json_error("Invalid kind")
-
-    if not isinstance(path_components, list) or not all_strings(path_components):
-        return json_error("Invalid path components")
-
-    target = Target.create(kind, exact, path_components)
-    if target is None:
-        return json_error("Invalid target")
-
-    produce_success = g.manager.produce_target(target, step, container)
-    if not produce_success:
-        # TODO: we really should be able to provide a detailed error here
-        return json_error("Failed to produce target", http_code=500)
-
-    # TODO: is it ok to store the produced target here? Should we use Container.store?
-    #       If so, can we reuse the previous container or do we need to make a new instance?
-    store_success = g.manager.store_containers()
-    if not store_success:
-        return json_error("Target produced successfully but not stored", http_code=500)
-
-    return json_response({})
+    targets = request.json["targets"]
+    if not all_strings(targets):
+        return json_error("Targets must be all strings")
+    try:
+        product = g.manager.produce_target(targets, step_name, container_name)
+        return json_response(product)
+    except RevngException as e:
+        return json_error(repr(e))
 
 
 @api_blueprint.route("/step/<step_name>/<container_name>/targets")
