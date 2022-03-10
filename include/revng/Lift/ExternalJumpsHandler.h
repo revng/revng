@@ -10,9 +10,7 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/Pass.h"
 
-#include "revng/Support/revng.h"
-
-#include "BinaryFile.h"
+#include "revng/Model/Binary.h"
 
 class ProgramCounterHandler;
 
@@ -33,19 +31,18 @@ class ProgramCounterHandler;
 /// by the signal handler and then jump to the dispatcher to resume execution.
 class ExternalJumpsHandler {
 private:
+  const model::Binary &Model;
   llvm::LLVMContext &Context;
   QuickMetadata QMD;
   llvm::Module &TheModule;
   llvm::Function &TheFunction;
 
-  BinaryFile &TheBinary;
-  const Architecture &Arch;
   llvm::BasicBlock *Dispatcher;
   ProgramCounterHandler *PCH;
 
 public:
   /// \param TheFunction the root function.
-  ExternalJumpsHandler(BinaryFile &TheBinary,
+  ExternalJumpsHandler(const model::Binary &Model,
                        llvm::BasicBlock *Dispatcher,
                        llvm::Function &TheFunction,
                        ProgramCounterHandler *PCH);

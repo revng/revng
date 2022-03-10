@@ -45,6 +45,12 @@ fields:
     doc: The default ABI of `RawFunctionType`s within the binary
     type: model::ABI::Values
     optional: true
+  - name: DefaultPrototype
+    doc: The default function prototype
+    reference:
+      pointeeType: model::Type
+      rootType: model::Binary
+    optional: true
   - name: Segments
     doc: List of segments in the original binary
     sequence:
@@ -53,6 +59,7 @@ fields:
   - name: EntryPoint
     doc: Program entry point
     type: MetaAddress
+    optional: true
   - name: Types
     doc: The type system
     sequence:
@@ -65,6 +72,12 @@ fields:
       type: SortedVector
       elementType: std::string
     optional: true
+  - name: ExtraCodeAddresses
+    doc: Addresses containing code in order to help translation
+    optional: true
+    sequence:
+      type: SortedVector
+      elementType: MetaAddress
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/Binary.h"
@@ -116,19 +129,27 @@ public:
 
 inline model::TypePath
 getPrototype(const model::Binary &Binary, const model::CallEdge &Edge) {
+  model::TypePath Result;
+
   if (Edge.Type == model::FunctionEdgeType::FunctionCall) {
     if (not Edge.DynamicFunction.empty()) {
       // Get the dynamic function prototype
-      return Binary.ImportedDynamicFunctions.at(Edge.DynamicFunction).Prototype;
+      Result = Binary.ImportedDynamicFunctions.at(Edge.DynamicFunction)
+                 .Prototype;
     } else if (Edge.Destination.isValid()) {
       // Get the function prototype
-      return Binary.Functions.at(Edge.Destination).Prototype;
+      Result = Binary.Functions.at(Edge.Destination).Prototype;
     } else {
       revng_abort();
     }
   } else {
-    return Edge.Prototype;
+    Result = Edge.Prototype;
   }
+
+  if (not Result.isValid())
+    Result = Binary.DefaultPrototype;
+
+  return Result;
 }
 
 inline bool hasAttribute(const model::Binary &Binary,

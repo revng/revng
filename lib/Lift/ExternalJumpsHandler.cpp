@@ -20,7 +20,6 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
-#include "revng/Lift/BinaryFile.h"
 #include "revng/Lift/ExternalJumpsHandler.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/ProgramCounterHandler.h"
@@ -47,28 +46,36 @@ BasicBlock *ExternalJumpsHandler::createReturnFromExternal() {
   Constant *SavedRegistersPtr = TheModule.getGlobalVariable("saved_registers");
   LoadInst *SavedRegisters = Builder.CreateLoad(SavedRegistersPtr);
 
+  // TODO: if we do not support this architecture, here things will be
+  // completely broken
+  using namespace model::Architecture;
+  using namespace model::Register;
+  unsigned PCMContextIndex = getPCMContextIndex(Model.Architecture).value_or(0);
   Value *GEP = Builder.CreateGEP(SavedRegisters,
-                                 Builder.getInt32(Arch.pcMContextIndex()));
+                                 Builder.getInt32(PCMContextIndex));
   LoadInst *PCAddress = Builder.CreateLoad(GEP);
   PCH->deserializePCFromSignalContext(Builder, PCAddress, SavedRegisters);
 
   // Deserialize the ABI registers
-  for (const ABIRegister &Register : Arch.abiRegisters()) {
-    GlobalVariable *CSV = TheModule.getGlobalVariable(Register.csvName());
+  for (auto Register : registers(Model.Architecture)) {
+    auto Name = getCSVName(Register);
+    GlobalVariable *CSV = TheModule.getGlobalVariable(Name);
+
     // Not all the registers have a corresponding CSV
     if (CSV != nullptr) {
 
-      if (Register.inMContext()) {
+      auto MaybeMContextIndex = getMContextIndex(Register);
+      if (MaybeMContextIndex) {
 
-        Constant *RegisterIndex = Builder.getInt32(Register.mcontextIndex());
+        Constant *RegisterIndex = Builder.getInt32(*MaybeMContextIndex);
         Value *GEP = Builder.CreateGEP(SavedRegisters, RegisterIndex);
         LoadInst *RegisterValue = Builder.CreateLoad(GEP);
         Builder.CreateStore(RegisterValue, CSV);
 
       } else {
 
-        std::string AsmString = Arch.readRegisterAsm().str();
-        replace(AsmString, "REGISTER", Register.name());
+        auto AsmString = getReadRegisterAssembly(Model.Architecture).str();
+        replace(AsmString, "REGISTER", getRegisterName(Register).str());
         std::stringstream ConstraintStringStream;
         ConstraintStringStream << "*m,~{},~{dirflag},~{fpsr},~{flags}";
         auto *FT = FunctionType::get(Type::getVoidTy(Context),
@@ -90,16 +97,15 @@ BasicBlock *ExternalJumpsHandler::createReturnFromExternal() {
   return ReturnFromExternal;
 }
 
-ExternalJumpsHandler::ExternalJumpsHandler(BinaryFile &TheBinary,
+ExternalJumpsHandler::ExternalJumpsHandler(const model::Binary &Model,
                                            BasicBlock *Dispatcher,
                                            Function &TheFunction,
                                            ProgramCounterHandler *PCH) :
+  Model(Model),
   Context(getContext(&TheFunction)),
   QMD(Context),
   TheModule(*TheFunction.getParent()),
   TheFunction(TheFunction),
-  TheBinary(TheBinary),
-  Arch(TheBinary.architecture()),
   Dispatcher(Dispatcher),
   PCH(PCH) {
 }
@@ -120,18 +126,21 @@ BasicBlock *ExternalJumpsHandler::createSerializeAndJumpOut() {
   Builder.CreateStore(PC, JumpablePC);
 
   // Serialize ABI CSVs
-  for (const ABIRegister &Register : Arch.abiRegisters()) {
-    GlobalVariable *CSV = TheModule.getGlobalVariable(Register.csvName());
+  for (model::Register::Values Register : registers(Model.Architecture)) {
+    using namespace model::Architecture;
+    using namespace model::Register;
+    GlobalVariable *CSV = TheModule.getGlobalVariable(getCSVName(Register));
 
     // Not all the registers have a corresponding CSV
     if (CSV == nullptr)
       continue;
 
-    std::string AsmString = Arch.writeRegisterAsm().str();
-    replace(AsmString, "REGISTER", Register.name());
+    std::string AsmString = getWriteRegisterAssembly(Model.Architecture).str();
+    StringRef RegisterName = getRegisterName(Register);
+    replace(AsmString, "REGISTER", RegisterName);
     std::stringstream ConstraintStringStream;
 
-    ConstraintStringStream << "*m,~{" << Register.name().str()
+    ConstraintStringStream << "*m,~{" << RegisterName.str()
                            << "},~{dirflag},~{fpsr},~{flags}";
     auto *FT = FunctionType::get(Type::getVoidTy(Context),
                                  { CSV->getType() },
@@ -149,7 +158,7 @@ BasicBlock *ExternalJumpsHandler::createSerializeAndJumpOut() {
                                { JumpablePC->getType() },
                                false);
   InlineAsm *Asm = InlineAsm::get(FT,
-                                  Arch.jumpAsm(),
+                                  getJumpAssembly(Model.Architecture),
                                   "*m,~{dirflag},~{fpsr},~{flags}",
                                   true,
                                   InlineAsm::AsmDialect::AD_ATT);
@@ -191,10 +200,10 @@ void ExternalJumpsHandler::buildExecutableSegmentsList() {
   IntegerType *Int64 = Builder.getInt64Ty();
   SmallVector<Constant *, 10> ExecutableSegments;
   auto Int = [Int64](uint64_t V) { return ConstantInt::get(Int64, V); };
-  for (auto &Segment : TheBinary.segments()) {
+  for (auto &Segment : Model.Segments) {
     if (Segment.IsExecutable) {
-      ExecutableSegments.push_back(Int(Segment.StartVirtualAddress.address()));
-      ExecutableSegments.push_back(Int(Segment.EndVirtualAddress.address()));
+      ExecutableSegments.push_back(Int(Segment.StartAddress.address()));
+      ExecutableSegments.push_back(Int(Segment.endAddress().address()));
     }
   }
 
@@ -228,8 +237,9 @@ void ExternalJumpsHandler::buildExecutableSegmentsList() {
 }
 
 void ExternalJumpsHandler::createExternalJumpsHandler() {
+  auto JumpAssembly = model::Architecture::getJumpAssembly(Model.Architecture);
 
-  if (not Arch.isJumpOutSupported()) {
+  if (JumpAssembly.size() == 0) {
     buildExecutableSegmentsList();
     return;
   }

@@ -15,13 +15,16 @@
 
 #include "llvm/ADT/Optional.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/PassManager.h"
 
 #include "revng/BasicAnalyses/MaterializedValue.h"
+#include "revng/Lift/Lift.h"
+#include "revng/Model/Architecture.h"
+#include "revng/Model/Binary.h"
+#include "revng/Model/RawBinaryView.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/MetaAddress.h"
 #include "revng/Support/ProgramCounterHandler.h"
-#include "revng/Support/revng.h"
-
-#include "BinaryFile.h"
 
 // Forward declarations
 namespace llvm {
@@ -211,14 +214,13 @@ public:
 public:
   /// \param TheFunction the translated function.
   /// \param PCH ProgramCounterHandler instance.
-  /// \param Binary reference to the information about a given binary, such as
-  ///        segments and symbols.
   /// \param CreateCSAA a factory function able to create
   ///        CPUStateAccessAnalysisPass.
   JumpTargetManager(llvm::Function *TheFunction,
                     ProgramCounterHandler *PCH,
-                    const BinaryFile &Binary,
-                    CSAAFactory CreateCSAA);
+                    CSAAFactory CreateCSAA,
+                    const TupleTree<model::Binary> &Model,
+                    const RawBinaryView &BinaryView);
 
   /// \brief Transform the IR to represent the request form of CFG
   void setCFGForm(CFGForm::Values NewForm,
@@ -392,7 +394,7 @@ public:
   }
 
   MaterializedValue
-  readFromPointer(llvm::Constant *Pointer, BinaryFile::Endianess E);
+  readFromPointer(llvm::Constant *Pointer, bool IsLittleEndian);
 
   /// \brief Increment the counter of emitted branches since the last reset
   void recordNewBranches(llvm::BasicBlock *Source, size_t Count) {
@@ -414,28 +416,40 @@ public:
 
     translateIndirectJumps();
 
-    unsigned ReadSize = Binary.architecture().pointerSize() / 8;
+    using namespace model::Architecture;
+    unsigned ReadSize = getPointerSize(Model->Architecture);
     for (MetaAddress MemoryAddress : UnusedCodePointers) {
       // Read using the original endianess, we want the correct address
-      uint64_t RawPC = *Binary.readRawValue(MemoryAddress, ReadSize);
-      auto PC = fromPC(RawPC);
+      auto MaybeRawPC = BinaryView.readInteger(MemoryAddress, ReadSize);
+      MetaAddress PC = MetaAddress::invalid();
+      if (MaybeRawPC)
+        PC = fromPC(*MaybeRawPC);
 
-      // Set as reason UnusedGlobalData and ensure it's not empty
-      llvm::BasicBlock *BB = registerJT(PC, JTReason::UnusedGlobalData);
+      if (PC.isValid()) {
+        // Set as reason UnusedGlobalData and ensure it's not empty
+        llvm::BasicBlock *BB = registerJT(PC, JTReason::UnusedGlobalData);
 
-      // TODO: can this happen?
-      revng_assert(BB != nullptr);
+        // TODO: can this happen?
+        revng_assert(BB != nullptr);
 
-      revng_assert(!BB->empty());
+        revng_assert(!BB->empty());
+      }
     }
 
     // We no longer need this information
     freeContainer(UnusedCodePointers);
   }
 
-  MetaAddress fromPC(uint64_t PC) const { return Binary.fromPC(PC); }
-  MetaAddress fromAbsolute(uint64_t Address) const {
-    return Binary.fromGeneric(Address);
+  MetaAddress fromPC(uint64_t PC) const {
+    using namespace model::Architecture;
+    auto Architecture = toLLVMArchitecture(Model->Architecture);
+    return MetaAddress::fromPC(Architecture, PC);
+  }
+
+  MetaAddress fromGeneric(uint64_t Address) const {
+    using namespace model::Architecture;
+    auto Architecture = toLLVMArchitecture(Model->Architecture);
+    return MetaAddress::fromGeneric(Architecture, Address);
   }
 
   MetaAddress fromPCStore(llvm::StoreInst *Store) {
@@ -474,18 +488,14 @@ public:
     }
   }
 
-  unsigned delaySlotSize() const {
-    return Binary.architecture().delaySlotSize();
-  }
-
-  const BinaryFile &binary() const { return Binary; }
-
   void registerReadRange(MetaAddress Address, uint64_t Size);
 
   const interval_set &readRange() const { return ReadIntervalSet; }
 
   std::string nameForAddress(MetaAddress Address, uint64_t Size = 1) const {
-    return Binary.nameForAddress(Address, Size);
+    // TODO: we should have a Binary::nameForAddress() which uses the model to
+    //      find a proper name
+    return Address.toString();
   }
 
   /// \brief Register a simple literal collected during translation for
@@ -590,8 +600,6 @@ private:
   llvm::BasicBlock *AnyPC;
   llvm::BasicBlock *UnexpectedPC;
 
-  const BinaryFile &Binary;
-
   unsigned NewBranches = 0;
 
   std::set<MetaAddress> UnusedCodePointers;
@@ -605,6 +613,8 @@ private:
   ProgramCounterHandler *PCH;
 
   MetaAddressSet AVIPCWhiteList;
+  const TupleTree<model::Binary> &Model;
+  const RawBinaryView &BinaryView;
 };
 
 template<>

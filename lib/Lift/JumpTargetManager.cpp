@@ -46,6 +46,7 @@
 #include "revng/Lift/DropHelperCallsPass.h"
 #include "revng/Lift/JumpTargetManager.h"
 #include "revng/Lift/SubGraph.h"
+#include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
@@ -53,7 +54,6 @@
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/Statistics.h"
-#include "revng/Support/revng.h"
 #include "revng/TypeShrinking/BitLiveness.h"
 #include "revng/TypeShrinking/TypeShrinking.h"
 
@@ -357,7 +357,7 @@ bool TDBP::runOnModule(Module &M) {
 }
 
 MaterializedValue
-JumpTargetManager::readFromPointer(Constant *Pointer, BinaryFile::Endianess E) {
+JumpTargetManager::readFromPointer(Constant *Pointer, bool IsLittleEndian) {
   Type *LoadedType = Pointer->getType()->getPointerElementType();
   const DataLayout &DL = TheModule.getDataLayout();
   unsigned LoadSize = DL.getTypeSizeInBits(LoadedType) / 8;
@@ -368,7 +368,7 @@ JumpTargetManager::readFromPointer(Constant *Pointer, BinaryFile::Endianess E) {
   if (not isa<ConstantPointerNull>(RealPointer)) {
     RawLoadAddress = getZExtValue(cast<ConstantInt>(RealPointer), DL);
   }
-  auto LoadAddress = fromAbsolute(RawLoadAddress);
+  auto LoadAddress = fromGeneric(RawLoadAddress);
 
   UnusedCodePointers.erase(LoadAddress);
   registerReadRange(LoadAddress, LoadSize);
@@ -378,57 +378,65 @@ JumpTargetManager::readFromPointer(Constant *Pointer, BinaryFile::Endianess E) {
     return MaterializedValue::invalid();
   }
 
-  const auto &Labels = binary().labelsMap();
-  using interval = boost::icl::interval<MetaAddress, CompareAddress>;
-  auto Interval = interval::right_open(LoadAddress, LoadAddress + LoadSize);
-  auto It = Labels.find(Interval);
-  if (It != Labels.end()) {
-    const Label *Match = nullptr;
-    for (const Label *Candidate : It->second) {
-      if (Candidate->size() == LoadSize
-          and (Candidate->isAbsoluteValue() or Candidate->isBaseRelativeValue()
-               or Candidate->isSymbolRelativeValue())) {
+  //
+  // Check relocations
+  //
+  unsigned MatchCount = 0;
+  MaterializedValue Result;
 
-        if (Match != nullptr
-            and (Match->symbolName() != Candidate->symbolName()
-                 or Match->offset() != Candidate->offset())) {
-          revng_abort("Multiple value labels at the same location");
-        }
-
-        Match = Candidate;
-      }
-    }
-
-    if (Match != nullptr) {
-      switch (Match->type()) {
-      case LabelType::AbsoluteValue:
-        return { NewAPInt(Match->value()) };
-
-      case LabelType::BaseRelativeValue:
-        return { NewAPInt(binary().relocate(Match->value()).address()) };
-
-      case LabelType::SymbolRelativeValue:
-        return { Match->symbolName(), NewAPInt(Match->offset()) };
-
-      default:
-        revng_abort();
+  // Check dynamic functions-related relocations
+  for (const model::DynamicFunction &Function :
+       Model->ImportedDynamicFunctions) {
+    for (const model::Relocation &Relocation : Function.Relocations) {
+      uint64_t Addend = Relocation.Addend;
+      auto RelocationSize = model::RelocationType::getSize(Relocation.Type);
+      if (LoadAddress == Relocation.Address and LoadSize == RelocationSize) {
+        revng_assert(not StringRef(Function.name()).contains('\0'));
+        Result = { Function.name().str().str(), NewAPInt(Addend) };
+        ++MatchCount;
       }
     }
   }
 
-  // No labels found, fall back to read the raw value, if available
-  Optional<uint64_t> Value = Binary.readRawValue(LoadAddress, LoadSize, E);
+  // Check segment-related relocations
+  for (const model::Segment &Segment : Model->Segments) {
+    for (const model::Relocation &Relocation : Segment.Relocations) {
+      uint64_t Addend = Relocation.Addend;
+      auto RelocationSize = model::RelocationType::getSize(Relocation.Type);
+      if (LoadAddress == Relocation.Address and LoadSize == RelocationSize) {
+        MetaAddress Address = Segment.StartAddress + Addend;
+        if (Address.isValid()) {
+          Result = { NewAPInt(Address.address()) };
+          ++MatchCount;
+        } else {
+          // TODO: log message
+        }
+      }
+    }
+  }
 
-  if (Value)
-    return { NewAPInt(*Value) };
+  if (MatchCount == 1) {
+    return Result;
+  } else if (MatchCount > 1) {
+    // TODO: log message
+  }
+
+  // No labels found, fall back to read the raw value, if available
+  auto MaybeValue = BinaryView.readInteger(LoadAddress,
+                                           LoadSize,
+                                           IsLittleEndian);
+
+  if (MaybeValue)
+    return { NewAPInt(*MaybeValue) };
   else
     return {};
 }
 
 JumpTargetManager::JumpTargetManager(Function *TheFunction,
                                      ProgramCounterHandler *PCH,
-                                     const BinaryFile &Binary,
-                                     CSAAFactory CreateCSAA) :
+                                     CSAAFactory CreateCSAA,
+                                     const TupleTree<model::Binary> &Model,
+                                     const RawBinaryView &BinaryView) :
   TheModule(*TheFunction->getParent()),
   Context(TheModule.getContext()),
   TheFunction(TheFunction),
@@ -437,10 +445,11 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   ExitTB(nullptr),
   Dispatcher(nullptr),
   DispatcherSwitch(nullptr),
-  Binary(Binary),
   CurrentCFGForm(CFGForm::UnknownForm),
   CreateCSAA(CreateCSAA),
-  PCH(PCH) {
+  PCH(PCH),
+  Model(Model),
+  BinaryView(BinaryView) {
 
   FunctionType *ExitTBTy = FunctionType::get(Type::getVoidTy(Context),
                                              { Type::getInt32Ty(Context) },
@@ -451,8 +460,24 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
 
   prepareDispatcher();
 
-  for (auto &Segment : Binary.segments())
-    Segment.insertExecutableRanges(std::back_inserter(ExecutableRanges));
+  //
+  // Collect executable ranges from the model
+  //
+  for (const model::Segment &Segment : Model->Segments) {
+    if (Segment.IsExecutable) {
+      if (Segment.Sections.size() > 0) {
+        for (const model::Section &Section : Segment.Sections) {
+          if (Section.ContainsCode) {
+            ExecutableRanges.emplace_back(Section.StartAddress,
+                                          Section.endAddress());
+          }
+        }
+      } else {
+        ExecutableRanges.emplace_back(Segment.StartAddress,
+                                      Segment.endAddress());
+      }
+    }
+  }
 
   // Configure GlobalValueNumbering
   StringMap<cl::Option *> &Options(cl::getRegisteredOptions());
@@ -464,31 +489,24 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
 
 void JumpTargetManager::harvestGlobalData() {
   // Register symbols
-  for (const Label &L : Binary.labels())
-    if (L.isSymbol() and L.isCode())
-      registerJT(L.address(), JTReason::FunctionSymbol);
+  for (const model::Function &Function : Model->Functions)
+    registerJT(Function.Entry, JTReason::FunctionSymbol);
 
-  // Register landing pads, if available
-  // TODO: should register them in UnusedCodePointers?
-  for (MetaAddress LandingPad : Binary.landingPads())
-    registerJT(LandingPad, JTReason::GlobalData);
+  // Register ExtraCodeAddresses
+  for (MetaAddress Address : Model->ExtraCodeAddresses)
+    registerJT(Address, JTReason::GlobalData);
 
-  for (MetaAddress CodePointer : Binary.codePointers())
-    registerJT(CodePointer, JTReason::GlobalData);
+  for (auto &[Segment, Data] : BinaryView.segments()) {
+    MetaAddress StartVirtualAddress = Segment.StartAddress;
+    const unsigned char *DataStart = Data.begin();
+    const unsigned char *DataEnd = Data.end();
 
-  for (auto &Segment : Binary.segments()) {
-    const Constant *Initializer = Segment.Variable->getInitializer();
-    if (isa<ConstantAggregateZero>(Initializer))
-      continue;
-
-    auto *Data = cast<ConstantDataArray>(Initializer);
-    MetaAddress StartVirtualAddress = Segment.StartVirtualAddress;
-    const unsigned char *DataStart = Data->getRawDataValues().bytes_begin();
-    const unsigned char *DataEnd = Data->getRawDataValues().bytes_end();
-
+    using namespace model::Architecture;
+    bool IsLittleEndian = isLittleEndian(Model->Architecture);
+    auto PointerSize = getPointerSize(Model->Architecture);
     using endianness = support::endianness;
-    if (Binary.architecture().pointerSize() == 64) {
-      if (Binary.architecture().isLittleEndian())
+    if (PointerSize == 8) {
+      if (IsLittleEndian)
         findCodePointers<uint64_t, endianness::little>(StartVirtualAddress,
                                                        DataStart,
                                                        DataEnd);
@@ -496,8 +514,8 @@ void JumpTargetManager::harvestGlobalData() {
         findCodePointers<uint64_t, endianness::big>(StartVirtualAddress,
                                                     DataStart,
                                                     DataEnd);
-    } else if (Binary.architecture().pointerSize() == 32) {
-      if (Binary.architecture().isLittleEndian())
+    } else if (PointerSize == 4) {
+      if (IsLittleEndian)
         findCodePointers<uint32_t, endianness::little>(StartVirtualAddress,
                                                        DataStart,
                                                        DataEnd);
@@ -642,11 +660,7 @@ JumpTargetManager::getPC(Instruction *TheInstruction) const {
       // If one of the predecessors is the dispatcher, don't explore any further
       for (BasicBlock *Predecessor : predecessors(BB)) {
         // Assert we didn't reach the almighty dispatcher
-        using GCBI = GeneratedCodeBasicInfo;
-        revng_assert(not(NewPCCall == nullptr
-                         and GCBI::isPartOfRootDispatcher(Predecessor)));
-        if (GCBI::isPartOfRootDispatcher(Predecessor))
-          continue;
+        revng_assert(not(isPartOfRootDispatcher(Predecessor)));
       }
 
       for (BasicBlock *Predecessor : predecessors(BB)) {
@@ -738,8 +752,7 @@ void JumpTargetManager::fixPostHelperPC() {
   for (BasicBlock &BB : *TheFunction) {
     for (Instruction &I : BB) {
       if (auto *Call = getCallToHelper(&I)) {
-        using GCBI = GeneratedCodeBasicInfo;
-        auto Written = std::move(GCBI::getCSVUsedByHelperCall(Call).Written);
+        auto Written = std::move(getCSVUsedByHelperCall(Call).Written);
         auto WritesPC = [this](GlobalVariable *CSV) {
           return PCH->affectsPC(CSV);
         };
@@ -815,9 +828,8 @@ BasicBlock *JumpTargetManager::getBlockAt(MetaAddress PC) {
 
 /// \brief Check if among \p BB's predecessors there's \p Target
 inline bool hasRootDispatcherPredecessor(llvm::BasicBlock *BB) {
-  using GCBI = GeneratedCodeBasicInfo;
   for (llvm::BasicBlock *Predecessor : predecessors(BB))
-    if (GCBI::isPartOfRootDispatcher(Predecessor))
+    if (isPartOfRootDispatcher(Predecessor))
       return true;
   return false;
 }
@@ -1368,6 +1380,7 @@ void JumpTargetManager::harvestWithAVI() {
   // Update CPUStateAccessAnalysisPass
   //
   legacy::PassManager PM;
+  PM.add(new LoadModelWrapperPass(ModelWrapper::createConst(Model)));
   PM.add(CreateCSAA());
   PM.add(new FunctionCallIdentification);
   PM.run(TheModule);
@@ -1587,6 +1600,10 @@ void JumpTargetManager::harvestWithAVI() {
   //
   {
     ModuleAnalysisManager MAM;
+    MAM.registerPass([&] {
+      using LMA = LoadModelAnalysis;
+      return LMA::fromModelWrapper(Model);
+    });
     MAM.registerPass([&] { return GeneratedCodeBasicInfoAnalysis(); });
 
     ModulePassManager MPM;
@@ -1603,9 +1620,12 @@ void JumpTargetManager::harvestWithAVI() {
   // branches
   //
 
-  StringRef SyscallHelperName = Binary.architecture().syscallHelper();
+  using namespace model::Architecture;
+  using namespace model::Register;
+  StringRef SyscallHelperName = getSyscallHelper(Model->Architecture);
   Function *SyscallHelper = M->getFunction(SyscallHelperName);
-  StringRef SyscallIDCSVName = Binary.architecture().syscallNumberRegister();
+  auto SyscallIDRegister = getSyscallNumberRegister(Model->Architecture);
+  StringRef SyscallIDCSVName = getName(SyscallIDRegister);
   GlobalVariable *SyscallIDCSV = M->getGlobalVariable(SyscallIDCSVName);
 
   SummaryCallsBuilder SCB(CSVMap);

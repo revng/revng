@@ -7,4 +7,5 @@ revng_add_executable(revng-lift
 
 target_link_libraries(revng-lift
   revngLift
+  revngModelImporterBinary
   )

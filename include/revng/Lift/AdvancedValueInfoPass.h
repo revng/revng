@@ -22,7 +22,7 @@ class StaticDataMemoryOracle {
 private:
   const llvm::DataLayout &DL;
   JumpTargetManager &JTM;
-  BinaryFile::Endianess E;
+  bool IsLittleEndian;
 
 public:
   StaticDataMemoryOracle(const llvm::DataLayout &DL, JumpTargetManager &JTM) :
@@ -30,14 +30,13 @@ public:
     // Read the value using the endianess of the destination architecture,
     // since, if there's a mismatch, in the stack we will also have a byteswap
     // instruction
-    using Endianess = BinaryFile::Endianess;
-    E = (DL.isLittleEndian() ? Endianess::LittleEndian : Endianess::BigEndian);
+    IsLittleEndian = DL.isLittleEndian();
   }
 
   const llvm::DataLayout &getDataLayout() const { return DL; }
 
   MaterializedValue load(llvm::Constant *Address) {
-    return JTM.readFromPointer(Address, E);
+    return JTM.readFromPointer(Address, IsLittleEndian);
   }
 };
 
@@ -148,7 +147,7 @@ AdvancedValueInfoPass::run(llvm::Function &F,
     for (const MaterializedValue &V : Values) {
       // TODO: we are we ignoring those with symbols
       auto Offset = V.value();
-      StringRef SymbolName;
+      std::string SymbolName;
       if (V.hasSymbol())
         SymbolName = V.symbolName();
 

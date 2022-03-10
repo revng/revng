@@ -26,12 +26,19 @@ fields:
     reference:
       pointeeType: model::Type
       rootType: model::Binary
+    optional: true
   - name: Attributes
     doc: Function attributes
     sequence:
       type: MutableSet
       elementType: model::FunctionAttribute::Values
     optional: true
+  - name: Relocations
+    sequence:
+      type: SortedVector
+      elementType: model::Relocation
+    optional: true
+
 key:
   - OriginalName
 TUPLE-TREE-YAML */
@@ -44,6 +51,8 @@ public:
 
 public:
   Identifier name() const;
+
+  const model::TypePath &prototype(const model::Binary &Root) const;
 
 public:
   bool verify() const debug_function;

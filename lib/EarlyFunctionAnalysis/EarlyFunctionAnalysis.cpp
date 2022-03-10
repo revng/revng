@@ -22,10 +22,12 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Value.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/raw_ostream.h"
@@ -49,6 +51,7 @@
 #include "revng/BasicAnalyses/RemoveHelperCalls.h"
 #include "revng/BasicAnalyses/RemoveNewPCCalls.h"
 #include "revng/EarlyFunctionAnalysis/EarlyFunctionAnalysis.h"
+#include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/NamedTypedRegister.h"
 #include "revng/Model/Register.h"
@@ -339,6 +342,7 @@ struct TemporaryOpaqueFunction {
 template<class FunctionOracle>
 class CFEPAnalyzer {
 private:
+  const TupleTree<model::Binary> &Model;
   llvm::Module &M;
   llvm::LLVMContext &Context;
   GeneratedCodeBasicInfo *GCBI;
@@ -363,10 +367,11 @@ private:
   const ProgramCounterHandler *PCH;
 
 public:
-  CFEPAnalyzer(llvm::Module &,
+  CFEPAnalyzer(const TupleTree<model::Binary> &Model,
+               llvm::Module &M,
                GeneratedCodeBasicInfo *GCBI,
-               FunctionOracle &,
-               ArrayRef<GlobalVariable *>);
+               FunctionOracle &Oracle,
+               ArrayRef<GlobalVariable *> ABIRegs);
 
 public:
   /// The `analyze` method is the entry point of the intraprocedural analysis,
@@ -409,11 +414,13 @@ private:
 
 using TOF = TemporaryOpaqueFunction;
 
-template<class FunctionOracle>
-CFEPAnalyzer<FunctionOracle>::CFEPAnalyzer(llvm::Module &M,
-                                           GeneratedCodeBasicInfo *GCBI,
-                                           FunctionOracle &Oracle,
-                                           ArrayRef<GlobalVariable *> ABIRegs) :
+template<class FO>
+CFEPAnalyzer<FO>::CFEPAnalyzer(const TupleTree<model::Binary> &Model,
+                               llvm::Module &M,
+                               GeneratedCodeBasicInfo *GCBI,
+                               FO &Oracle,
+                               ArrayRef<GlobalVariable *> ABIRegs) :
+  Model(Model),
   M(M),
   Context(M.getContext()),
   GCBI(GCBI),
@@ -496,7 +503,8 @@ buildPrototype(GeneratedCodeBasicInfo &GCBI,
                                                Arg->second;
         RegisterState RSRV = RV == nullptr ? RegisterState::Maybe : RV->second;
 
-        auto RegisterID = ABIRegister::fromCSVName(CSV->getName(), GCBI.arch());
+        auto RegisterID = model::Register::fromCSVName(CSV->getName(),
+                                                       Binary.Architecture);
         if (RegisterID == Register::Invalid || CSV == GCBI.spReg())
           continue;
 
@@ -565,7 +573,8 @@ finalizeModel(GeneratedCodeBasicInfo &GCBI,
                                                Arg->second;
         RegisterState RSRV = RV == nullptr ? RegisterState::Maybe : RV->second;
 
-        auto RegisterID = ABIRegister::fromCSVName(CSV->getName(), GCBI.arch());
+        auto RegisterID = model::Register::fromCSVName(CSV->getName(),
+                                                       Binary.Architecture);
         if (RegisterID == Register::Invalid || CSV == GCBI.spReg())
           continue;
 
@@ -598,7 +607,8 @@ finalizeModel(GeneratedCodeBasicInfo &GCBI,
       });
 
       for (auto *CSV : PreservedRegisters) {
-        auto RegisterID = ABIRegister::fromCSVName(CSV->getName(), GCBI.arch());
+        auto RegisterID = model::Register::fromCSVName(CSV->getName(),
+                                                       Binary.Architecture);
         if (RegisterID == Register::Invalid)
           continue;
 
@@ -908,9 +918,11 @@ void CFEPAnalyzer<FO>::createIBIMarker(OutlinedFunction *OutlinedFunction,
 
   Value *RA = IRB.CreateLoad(GCBI->raReg() ? GCBI->raReg() : SPPtr);
 
+  auto ToLLVMArchitecture = model::Architecture::toLLVMArchitecture;
+  auto LLVMArchitecture = ToLLVMArchitecture(Model->Architecture);
   std::array<Value *, 4> DissectedPC = PCH->dissectJumpablePC(IRB,
                                                               RA,
-                                                              GCBI->arch());
+                                                              LLVMArchitecture);
 
   auto *PCI = MetaAddress::composeIntegerPC(IRB,
                                             DissectedPC[0],
@@ -1124,6 +1136,10 @@ void CFEPAnalyzer<FO>::runOptimizationPipeline(llvm::Function *F) {
       AA.registerFunctionAnalysis<ScopedNoAliasAA>();
 
       return AA;
+    });
+    FAM.registerPass([this] {
+      using LMA = LoadModelAnalysis;
+      return LMA::fromModelWrapper(Model);
     });
     FAM.registerPass([&] { return GeneratedCodeBasicInfoAnalysis(); });
     FAM.registerPass([&] { return ModuleAnalysisManagerFunctionProxy(MAM); });
@@ -1516,22 +1532,14 @@ void CFEPAnalyzer<FunctionOracle>::integrateFunctionCallee(llvm::BasicBlock *BB,
     }
 
     // Adjust back the stack pointer
-    switch (GCBI->arch()) {
-    case llvm::Triple::x86:
-    case llvm::Triple::x86_64: {
-      auto *SP = Builder.CreateLoad(GCBI->spReg());
-
-      const auto &FSO = Oracle.getElectedFSO(Next);
-      Value *Offset = GCBI->arch() == llvm::Triple::x86 ?
-                        Builder.getInt32(*FSO) :
-                        Builder.getInt64(*FSO);
-      auto *Inc = Builder.CreateAdd(SP, Offset);
-      Builder.CreateStore(Inc, GCBI->spReg());
-      break;
-    }
-    default: {
-      break;
-    }
+    if (auto MaybeFSO = Oracle.getElectedFSO(Next); MaybeFSO) {
+      GlobalVariable *SPCSV = GCBI->spReg();
+      auto *StackPointer = Builder.CreateLoad(SPCSV);
+      Value *Offset = ConstantInt::get(StackPointer->getPointerOperandType()
+                                         ->getPointerElementType(),
+                                       *MaybeFSO);
+      auto *AdjustedStackPointer = Builder.CreateAdd(StackPointer, Offset);
+      Builder.CreateStore(AdjustedStackPointer, SPCSV);
     }
 
     // Mark end of basic block with a post-hook call
@@ -1593,7 +1601,7 @@ OutlinedFunction CFEPAnalyzer<FO>::outlineFunction(llvm::BasicBlock *Entry) {
         Queue.insert(Successor);
     } else {
       for (auto *Successor : successors(Current)) {
-        if (!GCBI::isPartOfRootDispatcher(Successor))
+        if (not isPartOfRootDispatcher(Successor))
           Queue.insert(Successor);
       }
     }
@@ -1743,15 +1751,15 @@ bool EarlyFunctionAnalysis::runOnModule(Module &M) {
   // set.
 
   std::vector<CFEP> Functions;
-  model::Binary &Binary = *LMP.getWriteableModel();
+  TupleTree<model::Binary> &Binary = LMP.getWriteableModel();
 
   // Register all the static symbols
-  for (const auto &F : Binary.Functions)
+  for (const auto &F : Binary->Functions)
     Functions.emplace_back(GCBI.getBlockAt(F.Entry), true);
 
   // Register all the other candidate entry points
   for (BasicBlock &BB : F) {
-    if (GCBI.getType(&BB) != BlockType::JumpTargetBlock)
+    if (getType(&BB) != BlockType::JumpTargetBlock)
       continue;
 
     auto It = llvm::find_if(Functions,
@@ -1823,8 +1831,7 @@ bool EarlyFunctionAnalysis::runOnModule(Module &M) {
       }
 
       for (BasicBlock *Successor : successors(Current)) {
-        if (!GCBI::isPartOfRootDispatcher(Successor)
-            && !Visited.count(Successor))
+        if (not isPartOfRootDispatcher(Successor) && !Visited.count(Successor))
           Worklist.push_back(Successor);
       }
     }
@@ -1872,17 +1879,23 @@ bool EarlyFunctionAnalysis::runOnModule(Module &M) {
       ABIRegisters.emplace_back(CSV);
 
   // Default-constructed cache summary for indirect calls
+  unsigned MinimalFSO;
+  {
+    using namespace model::Architecture;
+    MinimalFSO = getMinimalFinalStackOffset(Binary->Architecture);
+  }
+
   FunctionSummary DefaultSummary(model::FunctionType::Values::Regular,
                                  { ABIRegisters.begin(), ABIRegisters.end() },
                                  ABIAnalyses::ABIAnalysesResults(),
                                  {},
-                                 GCBI.minimalFSO(),
+                                 MinimalFSO,
                                  nullptr);
   FunctionAnalysisResults Properties(std::move(DefaultSummary));
 
   // Instantiate a CFEPAnalyzer object
   using CFEPA = CFEPAnalyzer<FunctionAnalysisResults>;
-  CFEPA Analyzer(M, &GCBI, Properties, ABIRegisters);
+  CFEPA Analyzer(Binary, M, &GCBI, Properties, ABIRegisters);
 
   // Interprocedural analysis over the collected functions in post-order
   // traversal (leafs first).
@@ -1926,7 +1939,7 @@ bool EarlyFunctionAnalysis::runOnModule(Module &M) {
   interproceduralPropagation(Functions, Properties);
 
   // Finalize model
-  finalizeModel(GCBI, Functions, ABIRegisters, Properties, Binary);
+  finalizeModel(GCBI, Functions, ABIRegisters, Properties, *Binary);
 
   return false;
 }

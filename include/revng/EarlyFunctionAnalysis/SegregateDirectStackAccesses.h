@@ -6,8 +6,6 @@
 
 #include "llvm/IR/PassManager.h"
 
-#include "revng/Support/revng.h"
-
 class SegregateDirectStackAccessesPass
   : public llvm::PassInfoMixin<SegregateDirectStackAccessesPass> {
 

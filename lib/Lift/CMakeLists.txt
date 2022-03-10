@@ -3,7 +3,6 @@
 #
 
 revng_add_library_internal(revngLift SHARED
-  BinaryFile.cpp
   CodeGenerator.cpp
   CPUStateAccessAnalysisPass.cpp
   CSVOffsets.cpp
@@ -19,7 +18,7 @@ target_link_libraries(revngLift
   m
   revngABI
   revngBasicAnalyses
-  revngDwarfImporter
+  revngModelImporterDwarf
   revngFunctionCallIdentification
   revngModel
   revngSupport

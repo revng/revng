@@ -6,8 +6,6 @@
 
 #include "llvm/IR/PassManager.h"
 
-#include "revng/Support/revng.h"
-
 class IndirectBranchInfoPrinterPass
   : public llvm::PassInfoMixin<IndirectBranchInfoPrinterPass> {
   llvm::raw_fd_ostream &OS;

@@ -11,12 +11,7 @@
 #include "llvm/ADT/STLExtras.h"
 
 #include "revng/Support/Concepts.h"
-
-//
-// is_integral
-//
-template<typename T>
-concept Integral = std::is_integral_v<T>;
+#include "revng/Support/Debug.h"
 
 //
 // is_specialization
@@ -249,4 +244,11 @@ std::array<T, Size> slice(const std::array<T, OldSize> &Old) {
   auto StartIt = Old.begin() + Start;
   std::copy(StartIt, StartIt + Size, Result.begin());
   return Result;
+}
+
+/// \brief Simple helper function asserting a pointer is not a `nullptr`
+template<typename T>
+inline T *notNull(T *Pointer) {
+  revng_assert(Pointer != nullptr);
+  return Pointer;
 }

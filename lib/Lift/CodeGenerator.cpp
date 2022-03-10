@@ -38,7 +38,7 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 
 #include "revng/ABI/DefaultFunctionPrototype.h"
-#include "revng/DwarfImporter/DwarfImporter.h"
+#include "revng/ADT/STLExtras.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/FunctionCallIdentification/PruneRetSuccessors.h"
 #include "revng/Lift/CodeGenerator.h"
@@ -47,12 +47,14 @@
 #include "revng/Lift/JumpTargetManager.h"
 #include "revng/Lift/PTCInterface.h"
 #include "revng/Lift/VariableManager.h"
+#include "revng/Model/Architecture.h"
+#include "revng/Model/Importer/Dwarf/DwarfImporter.h"
+#include "revng/Model/RawBinaryView.h"
 #include "revng/Model/SerializeModelPass.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/ProgramCounterHandler.h"
-#include "revng/Support/revng.h"
 
 using namespace llvm;
 
@@ -64,12 +66,8 @@ static cl::opt<bool> RecordPTC("record-ptc",
                                cl::desc("create metadata for PTC"),
                                cl::cat(MainCategory));
 
-static cl::list<std::string> ImportDebugInfo("import-debug-info",
-                                             cl::desc("path"),
-                                             cl::ZeroOrMore,
-                                             cl::cat(MainCategory));
-
 static Logger<> PTCLog("ptc");
+static Logger<> Log("lift");
 
 template<typename T, typename... ArgTypes>
 inline std::array<T, sizeof...(ArgTypes)> make_array(ArgTypes &&...Args) {
@@ -146,17 +144,17 @@ static std::unique_ptr<Module> parseIR(StringRef Path, LLVMContext &Context) {
   return Result;
 }
 
-CodeGenerator::CodeGenerator(BinaryFile &Binary,
-                             Architecture &Target,
+CodeGenerator::CodeGenerator(const RawBinaryView &RawBinary,
                              llvm::Module *TheModule,
-                             TupleTree<model::Binary> &Model,
+                             const TupleTree<model::Binary> &Model,
                              std::string Helpers,
-                             std::string EarlyLinked) :
-  TargetArchitecture(std::move(Target)),
+                             std::string EarlyLinked,
+                             model::Architecture::Values TargetArchitecture) :
+  RawBinary(RawBinary),
   TheModule(TheModule),
   Context(TheModule->getContext()),
-  Binary(Binary),
-  Model(Model) {
+  Model(Model),
+  TargetArchitecture(TargetArchitecture) {
 
   OriginalInstrMDKind = Context.getMDKindID("oi");
   PTCInstrMDKind = Context.getMDKindID("pi");
@@ -191,45 +189,28 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
   ElfHeaderHelper->setAlignment(MaybeAlign(1));
   ElfHeaderHelper->setSection(".elfheaderhelper");
 
-  auto *RegisterType = Type::getIntNTy(Context,
-                                       Binary.architecture().pointerSize());
-  auto CreateConstGlobal = [this, &RegisterType](const Twine &Name,
-                                                 uint64_t Value) {
-    return new GlobalVariable(*this->TheModule,
-                              RegisterType,
-                              true,
-                              GlobalValue::ExternalLinkage,
-                              ConstantInt::get(RegisterType, Value),
-                              Name);
-  };
-
-  // These values will be used to populate the auxiliary vectors
-  if (Binary.programHeadersAddress().isValid()) {
-    CreateConstGlobal("e_phentsize", Binary.programHeaderSize());
-    CreateConstGlobal("e_phnum", Binary.programHeadersCount());
-    CreateConstGlobal("phdr_address", Binary.programHeadersAddress().address());
-  }
-
-  for (SegmentInfo &Segment : Binary.segments()) {
+  for (auto &[Segment, Data] : RawBinary.segments()) {
     // If it's executable register it as a valid code area
     if (Segment.IsExecutable) {
       // We ignore possible p_filesz-p_memsz mismatches, zeros wouldn't be
       // useful code anyway
-      size_t Size = static_cast<size_t>(Segment.Data.size());
-      bool Success = ptc.mmap(Segment.StartVirtualAddress.address(),
-                              static_cast<const void *>(Segment.Data.data()),
+      size_t Size = Segment.FileSize;
+      bool Success = ptc.mmap(Segment.StartAddress.address(),
+                              static_cast<const void *>(Data.data()),
                               Size);
       if (not Success) {
-        dbg << "Couldn't mmap segment starting at ";
-        Segment.StartVirtualAddress.dump(dbg);
-        dbg << " with size 0x" << Size << "\n";
-        revng_abort();
+        revng_log(Log,
+                  "Couldn't mmap segment starting at "
+                    << Segment.StartAddress.toString() << " with size 0x"
+                    << Size);
+        continue;
       }
 
       bool Found = false;
       MetaAddress End = Segment.pagesRange().second;
-      for (SegmentInfo &Segment : Binary.segments()) {
-        if (Segment.IsExecutable and Segment.containsInPages(End)) {
+      revng_assert(End.isValid() and End.address() % 4096 == 0);
+      for (model::Segment &Segment : Model->Segments) {
+        if (Segment.IsExecutable and Segment.contains(End)) {
           Found = true;
           break;
         }
@@ -237,50 +218,16 @@ CodeGenerator::CodeGenerator(BinaryFile &Binary,
 
       // The next page is not mapped
       if (not Found) {
-        revng_check(Segment.EndVirtualAddress.address() != 0);
-        NoMoreCodeBoundaries.insert(Segment.EndVirtualAddress);
-        const auto &Architecture = Binary.architecture();
-        auto BasicBlockEndingPattern = Architecture.basicBlockEndingPattern();
+        revng_check(Segment.endAddress().address() != 0);
+        NoMoreCodeBoundaries.insert(Segment.endAddress());
+        using namespace model::Architecture;
+        auto Architecture = Model->Architecture;
+        auto BasicBlockEndingPattern = getBasicBlockEndingPattern(Architecture);
         ptc.mmap(End.address(),
                  BasicBlockEndingPattern.data(),
                  BasicBlockEndingPattern.size());
       }
     }
-
-    std::string Name = Segment.generateName();
-
-    // Get data and size
-    auto *DataType = ArrayType::get(Uint8Ty, Segment.size());
-
-    Constant *TheData = nullptr;
-    if (Segment.size() == Segment.Data.size()) {
-      // Create the array directly from the mmap'd ELF
-      TheData = ConstantDataArray::get(Context, Segment.Data);
-    } else {
-      // If we have extra data at the end we need to create a copy of the
-      // segment and append the NULL bytes
-      auto FullData = std::make_unique<uint8_t[]>(Segment.size());
-
-      size_t MinSize = std::min(Segment.size(), Segment.Data.size());
-      ::memcpy(FullData.get(), Segment.Data.data(), MinSize);
-      if (Segment.size() > Segment.Data.size())
-        ::bzero(FullData.get() + Segment.Data.size(),
-                Segment.size() - Segment.Data.size());
-      auto DataRef = ArrayRef<uint8_t>(FullData.get(), Segment.size());
-      TheData = ConstantDataArray::get(Context, DataRef);
-    }
-
-    // Create a new global variable
-    Segment.Variable = new GlobalVariable(*TheModule,
-                                          DataType,
-                                          !Segment.IsWriteable,
-                                          GlobalValue::ExternalLinkage,
-                                          TheData,
-                                          Name);
-
-    // Force alignment to 1 and assign the variable to a specific section
-    Segment.Variable->setAlignment(MaybeAlign(1));
-    Segment.Variable->setSection("." + Name);
   }
 }
 
@@ -486,7 +433,7 @@ static ReturnInst *createRet(Instruction *Position) {
     auto *Zero = ConstantInt::get(static_cast<IntegerType *>(ReturnType), 0);
     return ReturnInst::Create(F->getParent()->getContext(), Zero, Position);
   } else {
-    revng_assert("Return type not supported");
+    revng_abort("Return type not supported");
   }
 
   return nullptr;
@@ -752,7 +699,12 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   //
   // Create the VariableManager
   //
-  VariableManager Variables(*TheModule, TargetArchitecture);
+  bool TargetIsLittleEndian;
+  {
+    using namespace model::Architecture;
+    TargetIsLittleEndian = isLittleEndian(TargetArchitecture);
+  }
+  VariableManager Variables(*TheModule, TargetIsLittleEndian);
   auto CreateCPUStateAccessAnalysisPass = [&Variables]() {
     return new CPUStateAccessAnalysisPass(&Variables, true);
   };
@@ -773,8 +725,8 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   //
   // Create well-known CSVs
   //
-  const Architecture &Arch = Binary.architecture();
-  std::string SPName = Arch.stackPointerRegister().str();
+  auto SP = model::Architecture::getStackPointer(Model->Architecture);
+  std::string SPName = model::Register::getCSVName(SP).str();
   GlobalVariable *SPReg = Variables.getByEnvOffset(ptc.sp, SPName).first;
 
   using PCHOwner = std::unique_ptr<ProgramCounterHandler>;
@@ -797,7 +749,11 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
 
     return Variables.getByEnvOffset(Offset, Name.str()).first;
   };
-  PCHOwner PCH = ProgramCounterHandler::create(Arch.type(), TheModule, Factory);
+
+  auto Architecture = toLLVMArchitecture(Model->Architecture);
+  PCHOwner PCH = ProgramCounterHandler::create(Architecture,
+                                               TheModule,
+                                               Factory);
 
   IRBuilder<> Builder(Context);
 
@@ -828,53 +784,6 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
 
   QuickMetadata QMD(Context);
 
-  //
-  // Create revng.input named metadata
-  //
-
-  const char *MDName = "revng.input.canonical-values";
-  NamedMDNode *CanonicalValuesMD;
-  CanonicalValuesMD = TheModule->getOrInsertNamedMetadata(MDName);
-  for (auto &P : Binary.canonicalValues()) {
-    StringRef CSVName = P.first;
-    uint64_t CanonicalValue = P.second;
-    ArrayRef<Metadata *> Entry{ QMD.get(CSVName), QMD.get(CanonicalValue) };
-    CanonicalValuesMD->addOperand(QMD.tuple(Entry));
-  }
-
-  //
-  // Currently revng.input.architecture is composed as follows:
-  //
-  // revng.input.architecture = {
-  //   ArchitectureName,
-  //   InstructionAlignment,
-  //   DelaySlotSize,
-  //   PCRegisterName,
-  //   SPRegisterName,
-  //   RARegisterName,
-  //   ABIRegisters
-  // }
-
-  const SmallVector<ABIRegister, 20> &ABIRegisters = Arch.abiRegisters();
-  SmallVector<Metadata *, 20> ABIRegMetadata;
-  for (auto Register : ABIRegisters)
-    ABIRegMetadata.push_back(MDString::get(Context, Register.csvName()));
-
-  auto *Tuple = MDTuple::get(Context,
-                             {
-                               QMD.get(Arch.name()),
-                               QMD.get(Arch.instructionAlignment()),
-                               QMD.get(Arch.delaySlotSize()),
-                               QMD.get("pc"),
-                               QMD.get(Arch.stackPointerRegister()),
-                               QMD.get(Arch.returnAddressRegister()),
-                               QMD.get(Arch.minimalFinalStackOffset()),
-                               QMD.tuple(ArrayRef<Metadata *>(ABIRegMetadata)),
-                             });
-  MDName = "revng.input.architecture";
-  NamedMDNode *InputArchMD = TheModule->getOrInsertNamedMetadata(MDName);
-  InputArchMD->addOperand(Tuple);
-
   // Link early-linked.c
   {
     Linker TheLinker(*TheModule);
@@ -886,15 +795,16 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   // Create an instance of JumpTargetManager
   JumpTargetManager JumpTargets(MainFunction,
                                 PCH.get(),
-                                Binary,
-                                CreateCPUStateAccessAnalysisPass);
+                                CreateCPUStateAccessAnalysisPass,
+                                Model,
+                                RawBinary);
 
   MetaAddress VirtualAddress = MetaAddress::invalid();
   if (RawVirtualAddress) {
     VirtualAddress = JumpTargets.fromPC(*RawVirtualAddress);
   } else {
     JumpTargets.harvestGlobalData();
-    VirtualAddress = Binary.entryPoint();
+    VirtualAddress = Model->EntryPoint;
     revng_assert(VirtualAddress.isCode());
   }
 
@@ -920,12 +830,18 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
 
   std::vector<BasicBlock *> Blocks;
 
+  bool EndianessMismatch;
+  {
+    using namespace model::Architecture;
+    bool SourceIsLittleEndian = isLittleEndian(Model->Architecture);
+    EndianessMismatch = TargetIsLittleEndian != SourceIsLittleEndian;
+  }
+
   InstructionTranslator Translator(Builder,
                                    Variables,
                                    JumpTargets,
                                    Blocks,
-                                   Binary.architecture(),
-                                   TargetArchitecture,
+                                   EndianessMismatch,
                                    PCH.get());
 
   while (Entry != nullptr) {
@@ -1214,60 +1130,11 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   InstCombinePM.doFinalization();
 
   legacy::PassManager PostInstCombinePM;
+  PostInstCombinePM.add(new LoadModelWrapperPass(Model));
   PostInstCombinePM.add(new CPUStateAccessAnalysisPass(&Variables, false));
   PostInstCombinePM.add(createDeadCodeEliminationPass());
   PostInstCombinePM.add(new PruneRetSuccessors);
   PostInstCombinePM.run(*TheModule);
-
-  // Set the entry point
-  Model->EntryPoint = VirtualAddress;
-
-  // Set the architecture
-  auto Triple = Binary.architecture().type();
-  Model->Architecture = model::Architecture::fromLLVMArchitecture(Triple);
-  Model->DefaultABI = model::ABI::getDefault(Model->Architecture);
-
-  // Create segments
-  for (const SegmentInfo &S : Binary.segments()) {
-    model::Segment NewSegment({ S.StartVirtualAddress, S.EndVirtualAddress });
-
-    NewSegment.StartOffset = S.StartFileOffset;
-    NewSegment.EndOffset = S.EndFileOffset;
-
-    NewSegment.IsReadable = S.IsReadable;
-    NewSegment.IsWriteable = S.IsWriteable;
-    NewSegment.IsExecutable = S.IsExecutable;
-
-    Model->Segments.insert(std::move(NewSegment));
-  }
-
-  // Create a default prototype
-  auto DefaultTypePath = abi::defaultFunctionPrototype(*Model.get());
-
-  // Record all dynamic imported functions and assign them a default prototype,
-  // and record static functions as well, if they have a name.
-  for (const Label &L : Binary.labels()) {
-    if (L.origin() == LabelOrigin::DynamicRelocation and L.isCode()
-        and not L.symbolName().empty()) {
-      auto &F = Model->ImportedDynamicFunctions[{ L.symbolName().str() }];
-      if (not F.Prototype.isValid())
-        F.Prototype = DefaultTypePath;
-    } else if (L.origin() == LabelOrigin::StaticSymbol and L.isCode()
-               and not L.symbolName().empty()) {
-      Model->Functions[L.address()].OriginalName = L.symbolName().str();
-    }
-  }
-
-  // Import Dwarf
-  DwarfImporter Importer(Model);
-  if (ImportDebugInfo.size() > 0)
-    for (const std::string &Path : ImportDebugInfo)
-      Importer.import(Path);
-  Importer.import(Binary.binary(), "");
-
-  Model->ImportedLibraries.clear();
-  for (const std::string &Library : Binary.neededLibraryNames())
-    Model->ImportedLibraries.insert(Library);
 
   JumpTargets.finalizeJumpTargets();
 
@@ -1275,7 +1142,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
 
   JumpTargets.createJTReasonMD();
 
-  ExternalJumpsHandler JumpOutHandler(Binary,
+  ExternalJumpsHandler JumpOutHandler(*Model,
                                       JumpTargets.dispatcher(),
                                       *MainFunction,
                                       PCH.get());

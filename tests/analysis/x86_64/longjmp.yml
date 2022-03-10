@@ -1,33 +1,33 @@
 ---
 Functions:
 - CFG:
-  - End: '4'
-    Start: '2'
+  - End: '2'
+    Start: '1'
     Successors:
-    - Destination: '5'
+    - Destination: '3'
       Type: FunctionCall
-  - End: '5'
-    Start: '4'
+  - End: '3'
+    Start: '2'
     Successors:
     - Destination: ":Invalid"
       Type: Return
   OriginalName: _start
   Type: Regular
 - CFG:
-  - End: '6'
-    Start: '5'
+  - End: '4'
+    Start: '3'
     Successors:
-    - Destination: '6'
+    - Destination: '4'
       Type: DirectBranch
-    - Destination: '7'
+    - Destination: '5'
       Type: DirectBranch
-  - End: '8'
-    Start: '6'
+  - End: '6'
+    Start: '4'
     Successors:
     - Destination: ":Invalid"
       Type: LongJmp
-  - End: '8'
-    Start: '7'
+  - End: '6'
+    Start: '5'
     Successors:
     - Destination: ":Invalid"
       Type: Return

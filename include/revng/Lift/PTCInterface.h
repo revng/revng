@@ -7,8 +7,6 @@
 #include <memory>
 #include <type_traits>
 
-#include "revng/Support/revng.h"
-
 #define USE_DYNAMIC_PTC
 #include "ptc.h"
 

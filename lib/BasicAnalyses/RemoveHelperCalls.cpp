@@ -59,7 +59,7 @@ RemoveHelperCallsPass::run(llvm::Function &F,
     // originally clobbered.
     CallInst *NewHelper = Builder.CreateCall(OriginalHelperMarker);
 
-    for (auto *CSV : GCBI->getCSVUsedByHelperCall(I).Written) {
+    for (auto *CSV : getCSVUsedByHelperCall(I).Written) {
       auto *CSVTy = CSV->getType()->getPointerElementType();
       auto *RegisterClobberedMarker = OFPRegsClobberedHelper.get(CSVTy,
                                                                  CSVTy,

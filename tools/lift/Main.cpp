@@ -21,12 +21,14 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/ELF.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/raw_os_ostream.h"
 
-#include "revng/Lift/BinaryFile.h"
 #include "revng/Lift/CodeGenerator.h"
 #include "revng/Lift/PTCInterface.h"
+#include "revng/Model/Importer/Binary/BinaryImporter.h"
+#include "revng/Model/Importer/Dwarf/DwarfImporter.h"
 #include "revng/Model/SerializeModelPass.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
@@ -35,7 +37,6 @@
 #include "revng/Support/OriginalAssemblyAnnotationWriter.h"
 #include "revng/Support/ResourceFinder.h"
 #include "revng/Support/Statistics.h"
-#include "revng/Support/revng.h"
 
 PTCInterface ptc = {}; ///< The interface with the PTC library.
 
@@ -119,6 +120,11 @@ static alias A6("g",
                 aliasopt(DebugInfo),
                 cat(MainCategory));
 
+static list<std::string> ImportDebugInfo("import-debug-info",
+                                         desc("path"),
+                                         ZeroOrMore,
+                                         cat(MainCategory));
+
 static std::string LibTinycodePath;
 static std::string LibHelpersPath;
 static std::string EarlyLinkedPath;
@@ -135,10 +141,10 @@ using LibraryDestructor = std::integral_constant<int (*)(void *) noexcept,
                                                  &dlclose>;
 using LibraryPointer = std::unique_ptr<void, LibraryDestructor>;
 
-static void findFiles(const char *Architecture) {
+static void findFiles(model::Architecture::Values Architecture) {
   using namespace revng;
 
-  std::string ArchName(Architecture);
+  std::string ArchName = model::Architecture::getQEMUName(Architecture).str();
 
   std::string LibtinycodeName = "/lib/libtinycode-" + ArchName + ".so";
   auto OptionalLibtinycode = ResourceFinder.findFile(LibtinycodeName);
@@ -204,11 +210,26 @@ int main(int argc, const char *argv[]) {
   ParseCommandLineOptions(argc, argv);
   installStatistics();
 
-  revng_check(BaseAddress % 4096 == 0, "Base address is not page aligned");
+  auto MaybeBuffer = llvm::MemoryBuffer::getFileOrSTDIN(InputPath);
+  if (not MaybeBuffer) {
+    dbg << "Couldn't open input file\n";
+    return EXIT_FAILURE;
+  }
+  llvm::MemoryBuffer &Buffer = **MaybeBuffer;
 
-  BinaryFile TheBinary(InputPath, BaseAddress);
+  TupleTree<model::Binary> Model;
 
-  findFiles(TheBinary.architecture().name());
+  revng_check(not importBinary(Model, InputPath, BaseAddress));
+
+  if (ImportDebugInfo.size() > 0) {
+    DwarfImporter Importer(Model);
+    for (const std::string &Path : ImportDebugInfo)
+      Importer.import(Path);
+  }
+
+  RawBinaryView RawBinary(*Model, Buffer.getBuffer());
+
+  findFiles(Model->Architecture);
 
   // Load the appropriate libtyncode version
   LibraryPointer PTCLibrary;
@@ -216,23 +237,20 @@ int main(int argc, const char *argv[]) {
     return EXIT_FAILURE;
 
   // Translate everything
-  Architecture TargetArchitecture;
   llvm::LLVMContext Context;
   llvm::Module M("top", Context);
-  TupleTree<model::Binary> Model;
-  CodeGenerator Generator(TheBinary,
-                          TargetArchitecture,
+  writeModel(*Model, M);
+  CodeGenerator Generator(RawBinary,
                           &M,
                           Model,
                           LibHelpersPath,
-                          EarlyLinkedPath);
+                          EarlyLinkedPath,
+                          model::Architecture::x86_64);
 
   llvm::Optional<uint64_t> EntryPointAddressOptional;
   if (EntryPointAddress.getNumOccurrences() != 0)
     EntryPointAddressOptional = EntryPointAddress;
   Generator.translate(EntryPointAddressOptional);
-
-  writeModel(*Model.get(), M);
 
   OriginalAssemblyAnnotationWriter OAAW(M.getContext());
 

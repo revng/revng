@@ -21,14 +21,13 @@
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "revng/DwarfImporter/DwarfImporter.h"
+#include "revng/Model/Importer/Dwarf/DwarfImporter.h"
 #include "revng/Model/Pass/AllPasses.h"
 #include "revng/Model/Processing.h"
 #include "revng/Model/QualifiedType.h"
 #include "revng/Model/Type.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/revng.h"
 
 using namespace llvm;
 using namespace llvm::dwarf;

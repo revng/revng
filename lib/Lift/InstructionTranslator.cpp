@@ -20,6 +20,7 @@
 #include "llvm/Support/Casting.h"
 
 #include "revng/Lift/InstructionTranslator.h"
+#include "revng/Lift/Lift.h"
 #include "revng/Lift/PTCInterface.h"
 #include "revng/Lift/VariableManager.h"
 #include "revng/Support/Assert.h"
@@ -462,8 +463,7 @@ IT::InstructionTranslator(IRBuilder<> &Builder,
                           VariableManager &Variables,
                           JumpTargetManager &JumpTargets,
                           std::vector<BasicBlock *> Blocks,
-                          const Architecture &SourceArchitecture,
-                          const Architecture &TargetArchitecture,
+                          bool EndianessMismatch,
                           ProgramCounterHandler *PCH) :
   Builder(Builder),
   Variables(Variables),
@@ -471,8 +471,7 @@ IT::InstructionTranslator(IRBuilder<> &Builder,
   Blocks(Blocks),
   TheModule(*Builder.GetInsertBlock()->getParent()->getParent()),
   TheFunction(Builder.GetInsertBlock()->getParent()),
-  SourceArchitecture(SourceArchitecture),
-  TargetArchitecture(TargetArchitecture),
+  EndianessMismatch(EndianessMismatch),
   NewPCMarker(nullptr),
   LastPC(MetaAddress::invalid()),
   MetaAddressStruct(MetaAddress::getStruct(&TheModule)),
@@ -606,7 +605,8 @@ IT::newInstruction(PTCInstruction *Instr,
   PointerType *Int8PtrTy = getStringPtrType(Context);
   if (RecordASM) {
     std::stringstream OriginalStringStream;
-    disassemble(OriginalStringStream, PC, NextPC - PC);
+    revng_assert(NextPC - PC);
+    disassemble(OriginalStringStream, PC, *(NextPC - PC));
     std::string OriginalString = OriginalStringStream.str();
 
     // We don't deduplicate this string since performing a lookup each time is
@@ -648,8 +648,9 @@ IT::newInstruction(PTCInstruction *Instr,
   // in case we have to split a basic block
   revng_assert(MetaAddressStruct != nullptr);
   auto *Int8NullPtr = ConstantPointerNull::get(Int8PtrTy);
+  revng_assert(NextPC - PC);
   std::vector<Value *> Args = { PC.toConstant(MetaAddressStruct),
-                                Builder.getInt64(NextPC - PC),
+                                Builder.getInt64(*(NextPC - PC)),
                                 Builder.getInt32(-1),
                                 String,
                                 Int8NullPtr };
@@ -837,11 +838,7 @@ IT::translateOpcode(PTCOpcode Opcode,
     // What are we supposed to do in this case?
     revng_assert(MemoryAccess.access_type != PTC_MEMORY_ACCESS_UNKNOWN);
 
-    unsigned Alignment = 0;
-    if (MemoryAccess.access_type == PTC_MEMORY_ACCESS_UNALIGNED)
-      Alignment = 1;
-    else
-      Alignment = SourceArchitecture.defaultAlignment();
+    unsigned Alignment = 1;
 
     // Load size
     IntegerType *MemoryType = nullptr;
@@ -866,8 +863,7 @@ IT::translateOpcode(PTCOpcode Opcode,
     // TODO: it might be a bit overkill, but it be nice to make this function
     //       template-parametric w.r.t. endianess mismatch
     Function *BSwapFunction = nullptr;
-    if (MemoryType != Builder.getInt8Ty()
-        && SourceArchitecture.endianess() != TargetArchitecture.endianess())
+    if (MemoryType != Builder.getInt8Ty() and EndianessMismatch)
       BSwapFunction = Intrinsic::getDeclaration(&TheModule,
                                                 Intrinsic::bswap,
                                                 { MemoryType });

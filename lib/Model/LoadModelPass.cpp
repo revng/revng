@@ -55,14 +55,14 @@ static TupleTree<model::Binary> extractModel(Module &M) {
 }
 
 bool LoadModelWrapperPass::doInitialization(Module &M) {
-  if (isModelExternal())
-    return false;
-  Wrapper = extractModel(M);
+  if (not isModelExternal())
+    InternalModel = extractModel(M);
+
   return false;
 }
 
 bool LoadModelWrapperPass::doFinalization(Module &M) {
-  if (isModelExternal() or not get().hasChanged())
+  if (isModelExternal() or not Wrapper.hasChanged())
     return false;
 
   // Check if the named metadata has reappeared. If not, the changes we made in
@@ -75,9 +75,13 @@ bool LoadModelWrapperPass::doFinalization(Module &M) {
 }
 
 ModelWrapper LoadModelAnalysis::run(Module &M, ModuleAnalysisManager &) {
-  return { loadModel(M) };
+  if (not isModelExternal())
+    InternalModel = loadModel(M);
+  return Wrapper;
 }
 
 ModelWrapper LoadModelAnalysis::run(Function &F, FunctionAnalysisManager &) {
-  return { loadModel(*F.getParent()) };
+  if (not isModelExternal())
+    InternalModel = loadModel(*F.getParent());
+  return Wrapper;
 }

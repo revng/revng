@@ -17,13 +17,13 @@
 class MaterializedValue {
 private:
   bool IsValid;
-  llvm::Optional<llvm::StringRef> SymbolName;
+  llvm::Optional<std::string> SymbolName;
   llvm::APInt Value;
 
 public:
   MaterializedValue() : IsValid(false), Value() {}
   MaterializedValue(const llvm::APInt &Value) : IsValid(true), Value(Value) {}
-  MaterializedValue(llvm::StringRef Name, const llvm::APInt &Offset) :
+  MaterializedValue(std::string Name, const llvm::APInt &Offset) :
     IsValid(true), SymbolName(Name), Value(Offset) {}
 
 public:
@@ -55,9 +55,10 @@ public:
 
   bool isValid() const { return IsValid; }
   bool hasSymbol() const { return SymbolName.hasValue(); }
-  llvm::StringRef symbolName() const {
+  std::string symbolName() const {
     revng_assert(isValid());
     revng_assert(hasSymbol());
+    revng_assert(not llvm::StringRef(*SymbolName).contains('\0'));
     return *SymbolName;
   }
 

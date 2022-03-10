@@ -6,6 +6,7 @@
 //
 
 #include "llvm/ADT/DepthFirstIterator.h"
+#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/Support/DOTGraphTraits.h"
 #include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/raw_os_ostream.h"
@@ -13,6 +14,7 @@
 #include "revng/ADT/GenericGraph.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/VerifyHelper.h"
+#include "revng/Support/OverflowSafeInt.h"
 
 using namespace llvm;
 
@@ -298,6 +300,19 @@ Identifier Function::name() const {
   }
 }
 
+static const model::TypePath &
+prototypeOr(const model::TypePath &Prototype, const model::TypePath &Default) {
+  if (Prototype.isValid())
+    return Prototype;
+
+  revng_assert(Default.isValid());
+  return Default;
+}
+
+const model::TypePath &Function::prototype(const model::Binary &Root) const {
+  return prototypeOr(Prototype, Root.DefaultPrototype);
+}
+
 Identifier DynamicFunction::name() const {
   using llvm::Twine;
   if (not CustomName.empty()) {
@@ -307,6 +322,98 @@ Identifier DynamicFunction::name() const {
     auto AutomaticName = (Twine("dynamic_function_") + OriginalName).str();
     return Identifier::fromString(AutomaticName);
   }
+}
+
+const model::TypePath &
+DynamicFunction::prototype(const model::Binary &Root) const {
+  return prototypeOr(Prototype, Root.DefaultPrototype);
+}
+
+bool Relocation::verify() const {
+  return verify(false);
+}
+
+bool Relocation::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+
+bool Relocation::verify(VerifyHelper &VH) const {
+  if (Type == model::RelocationType::Invalid)
+    return VH.fail("Invalid relocation", *this);
+
+  return true;
+}
+
+bool Section::verify() const {
+  return verify(false);
+}
+
+bool Section::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+
+bool Section::verify(VerifyHelper &VH) const {
+  auto EndAddress = StartAddress + Size;
+  if (not EndAddress.isValid())
+    return VH.fail("Computing the end address leads to overflow");
+
+  return true;
+}
+
+bool Segment::verify() const {
+  return verify(false);
+}
+
+bool Segment::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+
+bool Segment::verify(VerifyHelper &VH) const {
+  using OverflowSafeInt = OverflowSafeInt<uint64_t>;
+
+  if (FileSize > VirtualSize)
+    return VH.fail("FileSize cannot be larger thatn VirtualSize", *this);
+
+  auto EndOffset = OverflowSafeInt(StartOffset) + FileSize;
+  if (not EndOffset)
+    return VH.fail("Computing the segment end offset leads to overflow", *this);
+
+  auto EndAddress = StartAddress + VirtualSize;
+  if (not EndAddress.isValid())
+    return VH.fail("Computing the end address leads to overflow", *this);
+
+  for (const model::Section &Section : Sections) {
+    if (not Section.verify(VH))
+      return VH.fail("Invalid section", Section);
+
+    if (not contains(Section.StartAddress)
+        or (VirtualSize > 0 and not contains(Section.endAddress() - 1))) {
+      return VH.fail("The segment contains a section out of its boundaries",
+                     Section);
+    }
+
+    if (Section.ContainsCode and not IsExecutable) {
+      return VH.fail("A Section is marked as containing code but the "
+                     "containing segment is not executable",
+                     *this);
+    }
+  }
+
+  for (const model::Relocation &Relocation : Relocations) {
+    if (not Relocation.verify(VH))
+      return VH.fail("Invalid relocation", Relocation);
+
+    if (not contains(Relocation.Address)
+        or not contains(Relocation.endAddress())) {
+      return VH.fail("The segment contains a relocation out of its boundaries",
+                     Relocation);
+    }
+  }
+
+  return true;
 }
 
 void Function::dump() const {
@@ -384,20 +491,19 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
   if (OriginalName.size() == 0)
     return VH.fail("Dynamic functions must have a OriginalName", *this);
 
-  // Prototype is present
-  if (not Prototype.isValid())
-    return VH.fail("Invalid prototype", *this);
-
   // Prototype is valid
-  if (not Prototype.get()->verify(VH))
-    return VH.fail();
+  if (Prototype.isValid()) {
+    if (not Prototype.get()->verify(VH))
+      return VH.fail();
 
-  const model::Type *FunctionType = Prototype.get();
-  if (not(isa<RawFunctionType>(FunctionType)
-          or isa<CABIFunctionType>(FunctionType)))
-    return VH.fail("The prototype is neither a RawFunctionType nor a "
-                   "CABIFunctionType",
-                   *this);
+    const model::Type *FunctionType = Prototype.get();
+    if (not(isa<RawFunctionType>(FunctionType)
+            or isa<CABIFunctionType>(FunctionType))) {
+      return VH.fail("The prototype is neither a RawFunctionType nor a "
+                     "CABIFunctionType",
+                     *this);
+    }
+  }
 
   return true;
 }
@@ -547,6 +653,188 @@ bool BasicBlock::verify(VerifyHelper &VH) const {
 
   return true;
 }
+
+namespace RelocationType {
+
+Values fromELFRelocation(model::Architecture::Values Architecture,
+                         unsigned char ELFRelocation) {
+  using namespace llvm::ELF;
+  switch (Architecture) {
+  case model::Architecture::x86:
+    switch (ELFRelocation) {
+    case R_386_RELATIVE:
+    case R_386_32:
+      return AddAbsoluteAddress32;
+
+    case R_386_JUMP_SLOT:
+    case R_386_GLOB_DAT:
+      return WriteAbsoluteAddress32;
+
+    case R_386_COPY:
+      // TODO: use
+    default:
+      return Invalid;
+    }
+
+  case model::Architecture::x86_64:
+    switch (ELFRelocation) {
+    case R_X86_64_RELATIVE:
+      return AddAbsoluteAddress64;
+
+    case R_X86_64_JUMP_SLOT:
+    case R_X86_64_GLOB_DAT:
+    case R_X86_64_64:
+      return WriteAbsoluteAddress64;
+
+    case R_X86_64_32:
+      return WriteAbsoluteAddress32;
+
+    case R_X86_64_COPY:
+      // TODO: use
+    default:
+      return Invalid;
+    }
+
+  case model::Architecture::arm:
+    switch (ELFRelocation) {
+    case R_ARM_RELATIVE:
+      return AddAbsoluteAddress32;
+
+    case R_ARM_JUMP_SLOT:
+    case R_ARM_GLOB_DAT:
+      return WriteAbsoluteAddress32;
+
+    case R_ARM_COPY:
+      // TODO: use
+    default:
+      return Invalid;
+    }
+
+  case model::Architecture::aarch64:
+    return Invalid;
+
+  case model::Architecture::mips:
+  case model::Architecture::mipsel:
+    switch (ELFRelocation) {
+    case R_MIPS_IMPLICIT_RELATIVE:
+      return AddAbsoluteAddress32;
+
+    case R_MIPS_JUMP_SLOT:
+    case R_MIPS_GLOB_DAT:
+      return WriteAbsoluteAddress32;
+
+    case R_MIPS_COPY:
+      // TODO: use
+    default:
+      return Invalid;
+    }
+
+  case model::Architecture::systemz:
+    switch (ELFRelocation) {
+    case R_390_GLOB_DAT:
+      return WriteAbsoluteAddress64;
+
+    case R_390_COPY:
+      // TODO: use
+    default:
+      return Invalid;
+    }
+
+  default:
+    revng_abort();
+  }
+}
+
+bool isELFRelocationBaseRelative(model::Architecture::Values Architecture,
+                                 unsigned char ELFRelocation) {
+  using namespace llvm::ELF;
+  switch (Architecture) {
+  case model::Architecture::x86:
+    switch (ELFRelocation) {
+    case R_386_RELATIVE:
+      return true;
+
+    case R_386_32:
+    case R_386_JUMP_SLOT:
+    case R_386_GLOB_DAT:
+      return false;
+
+    case R_386_COPY:
+      // TODO: use
+
+    default:
+      return Invalid;
+    }
+
+  case model::Architecture::x86_64:
+    switch (ELFRelocation) {
+    case R_X86_64_RELATIVE:
+      return true;
+
+    case R_X86_64_JUMP_SLOT:
+    case R_X86_64_GLOB_DAT:
+    case R_X86_64_64:
+    case R_X86_64_32:
+      return false;
+
+    case R_X86_64_COPY:
+      // TODO: use
+
+    default:
+      return Invalid;
+    }
+
+  case model::Architecture::arm:
+    switch (ELFRelocation) {
+    case R_ARM_RELATIVE:
+      return true;
+
+    case R_ARM_JUMP_SLOT:
+    case R_ARM_GLOB_DAT:
+      return false;
+
+    case R_ARM_COPY:
+      // TODO: use
+    default:
+      return Invalid;
+    }
+
+  case model::Architecture::aarch64:
+    return Invalid;
+
+  case model::Architecture::mips:
+  case model::Architecture::mipsel:
+    switch (ELFRelocation) {
+    case R_MIPS_IMPLICIT_RELATIVE:
+      return true;
+
+    case R_MIPS_JUMP_SLOT:
+    case R_MIPS_GLOB_DAT:
+      return false;
+
+    case R_MIPS_COPY:
+      // TODO: use
+    default:
+      return Invalid;
+    }
+
+  case model::Architecture::systemz:
+    switch (ELFRelocation) {
+    case R_390_GLOB_DAT:
+      return false;
+
+    case R_390_COPY:
+      // TODO: use
+    default:
+      return Invalid;
+    }
+
+  default:
+    revng_abort();
+  }
+}
+
+} // namespace RelocationType
 
 } // namespace model
 

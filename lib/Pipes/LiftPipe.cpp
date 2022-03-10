@@ -9,9 +9,10 @@ extern "C" {
 #include "dlfcn.h"
 }
 
-#include "revng/Lift/BinaryFile.h"
 #include "revng/Lift/CodeGenerator.h"
 #include "revng/Lift/PTCInterface.h"
+#include "revng/Model/Importer/Binary/BinaryImporter.h"
+#include "revng/Model/SerializeModelPass.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/Kinds.h"
@@ -64,10 +65,10 @@ using LibraryDestructor = std::integral_constant<int (*)(void *) noexcept,
                                                  &dlclose>;
 using LibraryPointer = std::unique_ptr<void, LibraryDestructor>;
 
-static void findFiles(const char *Architecture) {
+static void findFiles(model::Architecture::Values Architecture) {
   using namespace revng;
 
-  std::string ArchName(Architecture);
+  std::string ArchName = model::Architecture::getQEMUName(Architecture).str();
 
   std::string LibtinycodeName = "/lib/libtinycode-" + ArchName + ".so";
   auto OptionalLibtinycode = ResourceFinder.findFile(LibtinycodeName);
@@ -137,9 +138,20 @@ void LiftPipe::run(Context &Ctx,
   auto &Model = getWritableModelFromContext(Ctx);
   revng_check(BaseAddress % 4096 == 0, "Base address is not page aligned");
 
-  BinaryFile TheBinary(SourceBinary.path()->str(), BaseAddress);
+  std::string InputPath = SourceBinary.path()->str();
+  auto MaybeBuffer = llvm::MemoryBuffer::getFileOrSTDIN(InputPath);
+  revng_check(MaybeBuffer);
+  llvm::MemoryBuffer &Buffer = **MaybeBuffer;
 
-  findFiles(TheBinary.architecture().name());
+  RawBinaryView RawBinary(*Model, Buffer.getBuffer());
+
+  // TODO: soft fail
+  revng_check(not importBinary(Model, InputPath, BaseAddress));
+
+  llvm::Module *M = &TargetsList.getModule();
+  writeModel(*Model, *M);
+
+  findFiles(Model->Architecture);
 
   // Load the appropriate libtyncode version
   LibraryPointer PTCLibrary;
@@ -147,13 +159,12 @@ void LiftPipe::run(Context &Ctx,
   revng_assert(Result == EXIT_SUCCESS);
 
   // Translate everything
-  Architecture TargetArchitecture;
-  CodeGenerator Generator(TheBinary,
-                          TargetArchitecture,
-                          &TargetsList.getModule(),
+  CodeGenerator Generator(RawBinary,
+                          M,
                           Model,
                           LibHelpersPath,
-                          EarlyLinkedPath);
+                          EarlyLinkedPath,
+                          model::Architecture::x86_64);
 
   llvm::Optional<uint64_t> EntryPointAddressOptional;
   if (EntryPointAddress.getNumOccurrences() != 0)

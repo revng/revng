@@ -12,6 +12,7 @@
 #include "revng/Model/Architecture.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/EnumSwitch.h"
+#include "revng/Support/Generator.h"
 #include "revng/Support/YAMLTraits.h"
 
 /* TUPLE-TREE-YAML
@@ -589,6 +590,98 @@ inline Values fromRegisterName(llvm::StringRef Name,
   return fromName(FullName);
 }
 
+inline std::optional<unsigned> getMContextIndex(Values V) {
+  switch (V) {
+  case rax_x86_64:
+    return 0xD;
+  case rbx_x86_64:
+    return 0xB;
+  case rcx_x86_64:
+    return 0xE;
+  case rdx_x86_64:
+    return 0xC;
+  case rbp_x86_64:
+    return 0xA;
+  case rsp_x86_64:
+    return 0xF;
+  case rsi_x86_64:
+    return 0x9;
+  case rdi_x86_64:
+    return 0x8;
+  case r8_x86_64:
+    return 0x0;
+  case r9_x86_64:
+    return 0x1;
+  case r10_x86_64:
+    return 0x2;
+  case r11_x86_64:
+    return 0x3;
+  case r12_x86_64:
+    return 0x4;
+  case r13_x86_64:
+    return 0x5;
+  case r14_x86_64:
+    return 0x6;
+  case r15_x86_64:
+    return 0x7;
+  default:
+    break;
+  }
+
+  if (getArchitecture(V) == model::Architecture::x86_64)
+    return std::nullopt;
+  else
+    revng_abort("Not supported for this architecture");
+}
+
+inline llvm::StringRef getCSVName(Values V) {
+  switch (V) {
+  case xmm0_x86_64:
+    return "state_0x8558";
+  case xmm1_x86_64:
+    return "state_0x8598";
+  case xmm2_x86_64:
+    return "state_0x85d8";
+  case xmm3_x86_64:
+    return "state_0x8618";
+  case xmm4_x86_64:
+    return "state_0x8658";
+  case xmm5_x86_64:
+    return "state_0x8698";
+  case xmm6_x86_64:
+    return "state_0x86d8";
+  case xmm7_x86_64:
+    return "state_0x8718";
+  default:
+    return model::Register::getRegisterName(V);
+  }
+}
+
+inline Values
+fromCSVName(llvm::StringRef Name, model::Architecture::Values Architecture) {
+  if (Architecture == model::Architecture::x86_64) {
+    if (Name == "state_0x8558") {
+      return xmm0_x86_64;
+    } else if (Name == "state_0x8598") {
+      return xmm1_x86_64;
+    } else if (Name == "state_0x85d8") {
+      return xmm2_x86_64;
+    } else if (Name == "state_0x8618") {
+      return xmm3_x86_64;
+    } else if (Name == "state_0x8658") {
+      return xmm4_x86_64;
+    } else if (Name == "state_0x8698") {
+      return xmm5_x86_64;
+    } else if (Name == "state_0x86d8") {
+      return xmm6_x86_64;
+    } else if (Name == "state_0x8718") {
+      return xmm7_x86_64;
+    }
+  }
+
+  return model::Register::fromRegisterName(Name, Architecture);
+}
+
 } // namespace model::Register
 
 template<>
@@ -596,5 +689,115 @@ inline model::Register::Values
 getInvalidValueFromYAMLScalar<model::Register::Values>() {
   return model::Register::Invalid;
 }
+
+namespace model::Architecture {
+
+constexpr inline model::Register::Values getStackPointer(Values V) {
+  using namespace model::Register;
+
+  switch (V) {
+  case x86:
+    return esp_x86;
+
+  case x86_64:
+    return rsp_x86_64;
+
+  case arm:
+    return r13_arm;
+
+  case mips:
+  case mipsel:
+    return sp_mips;
+
+  case aarch64:
+    return sp_aarch64;
+
+  case systemz:
+    return r15_systemz;
+
+  default:
+    revng_abort();
+  }
+}
+
+constexpr inline model::Register::Values getSyscallNumberRegister(Values V) {
+  using namespace model::Register;
+
+  switch (V) {
+  case x86:
+    return eax_x86;
+
+  case x86_64:
+    return rax_x86_64;
+
+  case arm:
+    return r7_arm;
+
+  case mips:
+  case mipsel:
+    return v0_mips;
+
+  case aarch64:
+    return x8_aarch64;
+
+  case systemz:
+    return r1_systemz;
+
+  default:
+    revng_abort();
+  }
+}
+
+constexpr inline model::Register::Values getReturnAddressRegister(Values V) {
+  using namespace model::Register;
+
+  switch (V) {
+  case x86:
+  case x86_64:
+    return model::Register::Invalid;
+
+  case arm:
+    return r14_arm;
+
+  case mips:
+  case mipsel:
+    return ra_mips;
+
+  case aarch64:
+    return lr_aarch64;
+
+  case systemz:
+    return r14_systemz;
+
+  default:
+    revng_abort();
+  }
+}
+
+inline std::optional<unsigned>
+getPCMContextIndex(model::Architecture::Values V) {
+  switch (V) {
+  case x86_64:
+    return 0x10;
+
+  case arm:
+    return 0x12;
+
+  default:
+    return std::nullopt;
+  }
+}
+
+inline cppcoro::generator<model::Register::Values> registers(Values V) {
+  using namespace model::Register;
+  auto Next = [](model::Register::Values &V) {
+    V = static_cast<model::Register::Values>(static_cast<unsigned long>(V) + 1);
+  };
+  for (auto Register = getFirst(V); Register <= getLast(V); Next(Register)) {
+    co_yield Register;
+  }
+}
+
+} // namespace model::Architecture
 
 #include "revng/Model/Generated/Late/Register.h"

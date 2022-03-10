@@ -75,6 +75,8 @@ public:
 public:
   Identifier name() const;
 
+  const model::TypePath &prototype(const model::Binary &Root) const;
+
 public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;

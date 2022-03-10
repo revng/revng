@@ -8,5 +8,5 @@ revng_add_executable(revng-model-import-dwarf
 
 target_link_libraries(revng-model-import-dwarf
   revngModel
-  revngDwarfImporter
+  revngModelImporterDwarf
 )
