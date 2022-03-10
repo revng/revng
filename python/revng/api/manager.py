@@ -286,8 +286,7 @@ class Manager:
         return self._get_global("model.yml")
 
     def set_input(self, container_name: str, content: Union[bytes, str], key=None) -> str:
-        # TODO: remove hard-coding
-        step = self.get_step("Lift")
+        step = self.get_step("begin")
         if step is None:
             return ""
 
