@@ -16,6 +16,7 @@ macro(add_pipeline_test
   TEST_NAME
   PIPELINE_FILE
   TARGETS
+  TARGET_STEP
   INPUTS_LIST
   OUTPUTS_LIST
   FLAGS
@@ -29,7 +30,8 @@ macro(add_pipeline_test
       -o ${OUTPUTS_LIST} \
       -l ${CMAKE_BINARY_DIR}/lib/librevngStringContainerLibrary.so \
       -p ${CMAKE_BINARY_DIR}/${TEST_NAME} \
-      -f ${FLAGS}"
+      -f ${FLAGS} \
+      --step ${TARGET_STEP}"
   )
   set_tests_properties("${TEST_NAME}"
     PROPERTIES
@@ -44,6 +46,7 @@ macro(add_pipeline_dump_test TEST_NAME PIPELINE_FILE)
       dc:dc:StringKind
       -l "${CMAKE_BINARY_DIR}/lib/librevngStringContainerLibrary.so"
       -d
+      --step FirstStep
   )
   set_tests_properties("${TEST_NAME}"
     PROPERTIES
@@ -55,6 +58,7 @@ macro(test_pipeline_output
   TEST_NAME
   PIPELINE_FILE
   TARGETS
+  TARGET_STEP
   INPUTS_LIST
   OUTPUTS_LIST
   FLAGS
@@ -65,6 +69,7 @@ macro(test_pipeline_output
   add_pipeline_test("${TEST_NAME}"
     "${PIPELINE_FILE}"
     "${TARGETS}"
+    "${TARGET_STEP}"
     "${INPUTS_LIST}"
     "${OUTPUTS_LIST}"
     "${FLAGS}"
@@ -83,6 +88,7 @@ macro(ensure_pipeline_failure
   TEST_NAME
   PIPELINE_FILE
   TARGETS
+  TARGET_STEP
   INPUTS_LIST
   OUTPUTS_LIST
   FLAGS
@@ -90,6 +96,7 @@ macro(ensure_pipeline_failure
   add_pipeline_test("${TEST_NAME}"
     "${PIPELINE_FILE}"
     "${TARGETS}"
+    "${TARGET_STEP}"
     "${INPUTS_LIST}"
     "${OUTPUTS_LIST}"
     "${FLAGS}"
@@ -98,12 +105,13 @@ macro(ensure_pipeline_failure
   set_tests_properties("${TEST_NAME}" PROPERTIES WILL_FAIL TRUE)
 endmacro()
 
-set(COPY_PIPE_TEST_INPUTS "FirstStep:Strings1:${CMAKE_CURRENT_SOURCE_DIR}/CopyPipeTestInput.txt")
-set(COPY_PIPE_TEST_OUTPUTS "End:Strings2:CopyPipeTestOutput.txt")
+set(COPY_PIPE_TEST_INPUTS "begin:Strings1:${CMAKE_CURRENT_SOURCE_DIR}/CopyPipeTestInput.txt")
+set(COPY_PIPE_TEST_OUTPUTS "FirstStep:Strings2:CopyPipeTestOutput.txt")
 
 test_pipeline_output(pipeline-copy-pipe
   CopyPipeTestPipeline.yml
   Strings2:Root:StringKind
+  FirstStep
   "${COPY_PIPE_TEST_INPUTS}"
   "${COPY_PIPE_TEST_OUTPUTS}"
   None
@@ -115,6 +123,7 @@ test_pipeline_output(pipeline-copy-pipe
 test_pipeline_output(pipeline-copy-pipe-flag
   CopyPipeFlagTestPipeline.yml
   Strings2:Root:StringKind
+  FirstStep
   "${COPY_PIPE_TEST_INPUTS}"
   "${COPY_PIPE_TEST_OUTPUTS}"
   None
@@ -126,6 +135,7 @@ test_pipeline_output(pipeline-copy-pipe-flag
 ensure_pipeline_failure(pipeline-flag-fail-test
   CopyPipeFlagTestPipeline.yml
   Strings2:Root:StringKind
+  FirstStep
   "${COPY_PIPE_TEST_INPUTS}"
   "${COPY_PIPE_TEST_OUTPUTS}"
   DisableCopyPipe
@@ -135,6 +145,7 @@ ensure_pipeline_failure(pipeline-flag-fail-test
 ensure_pipeline_failure(pipeline-test-missing-pipe
   MissingPassPipelineTest.yml
   Strings2:Root:StringKind
+  FirstStep
   "${COPY_PIPE_TEST_INPUTS}"
   "${COPY_PIPE_TEST_OUTPUTS}"
   DontCare

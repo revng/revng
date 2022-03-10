@@ -458,13 +458,16 @@ BOOST_AUTO_TEST_CASE(StepCanCloneAndRun) {
   ContainerSet Containers;
   auto Factory = getMapFactoryContainer();
   Containers.add(CName, Factory, Factory("dont_care"));
-  cast<MapContainer>(Containers[CName]).get(Target({}, RootKind)) = 1;
-
   Step Step("first_step", move(Containers), bindPipe<TestPipe>(CName, CName));
 
   ContainerToTargetsMap Targets;
   Targets[CName].emplace_back(RootKind2);
-  auto Result = Step.cloneAndRun(Ctx, {});
+
+  Containers = ContainerSet();
+  auto Factory2 = getMapFactoryContainer();
+  Containers.add(CName, Factory, Factory("dont_care"));
+  cast<MapContainer>(Containers[CName]).get(Target({}, RootKind)) = 1;
+  auto Result = Step.cloneAndRun(Ctx, std::move(Containers));
 
   auto &Cont = cast<MapContainer>(Result.at(CName));
   BOOST_TEST(Cont.get(Target({}, RootKind2)) == 1);
@@ -480,16 +483,12 @@ BOOST_AUTO_TEST_CASE(PipelineCanBeManuallyExectued) {
                    Registry.createEmpty(),
                    bindPipe<TestPipe>(CName, CName)));
 
-  auto &C1 = Pip["first_step"].containers().getOrCreate<MapContainer>(CName);
+  auto Containers = Registry.createEmpty();
+  auto &C1 = Containers.getOrCreate<MapContainer>(CName);
   C1.get(Target(RootKind)) = 1;
 
-  Pip.addStep(Step("End", Registry.createEmpty(), Pip["first_step"]));
-
-  ContainerToTargetsMap Targets;
-  Targets[CName].emplace_back(Target(RootKind2));
-  auto Res = Pip["first_step"].cloneAndRun(Ctx, {});
+  auto Res = Pip["first_step"].cloneAndRun(Ctx, std::move(Containers));
   BOOST_TEST(cast<MapContainer>(Res.at(CName)).get(Target(RootKind2)) == 1);
-  Pip["first_step"].containers().mergeBack(std::move(Res));
   const auto &StartingContainer = Pip["first_step"]
                                     .containers()
                                     .getOrCreate<MapContainer>(CName);
@@ -507,14 +506,17 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineCanBeRunned) {
   auto &C1 = cast<MapContainer>(Content[CName]);
   C1.get(Target(RootKind)) = 1;
 
-  Step StepToAdd("first_step", move(Content), bindPipe<TestPipe>(CName, CName));
+  Step StepToAdd("first_step", move(Content));
   Pip.addStep(std::move(StepToAdd));
   ContainerSet &BCI = Pip["first_step"].containers();
   BOOST_TEST(cast<MapContainer>(BCI.at(CName)).get(Target(RootKind)) == 1);
 
   ContainerSet Containers2;
   Containers2.add(CName, Factory, make_unique<MapContainer>("dont_care"));
-  Pip.addStep(Step("End", move(Containers2), Pip["first_step"]));
+  Pip.addStep(Step("End",
+                   move(Containers2),
+                   Pip["first_step"],
+                   bindPipe<TestPipe>(CName, CName)));
 
   ContainerToTargetsMap Targets;
   Targets[CName].emplace_back(Target(RootKind2));
@@ -574,8 +576,8 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineBackwardFinedGrained) {
   Pipeline.addDefaultConstructibleFactory<MapContainer>(CName);
 
   const std::string Name = "first_step";
-  Pipeline.emplaceStep("", Name, bindPipe<FineGranerPipe>(CName, CName));
-  Pipeline.emplaceStep(Name, "End");
+  Pipeline.emplaceStep("", Name);
+  Pipeline.emplaceStep(Name, "End", bindPipe<FineGranerPipe>(CName, CName));
 
   auto &Container(Pipeline[Name].containers().getOrCreate<MapContainer>(CName));
   Container.get(Target(RootKind)) = 1;
@@ -697,13 +699,13 @@ BOOST_AUTO_TEST_CASE(SingleElementLLVMPipelineBackwardFinedGrained) {
   Pipeline.addContainerFactory(CName, makeDefaultLLVMContainerFactory(Ctx, C));
 
   const std::string Name = "first_step";
+  Pipeline.emplaceStep("", Name);
   Pipeline
-    .emplaceStep("",
-                 Name,
+    .emplaceStep(Name,
+                 "End",
                  LLVMContainer::wrapLLVMPasses(CName,
                                                LLVMPassFunctionCreator(),
                                                LLVMPassFunctionIdentity()));
-  Pipeline.emplaceStep(Name, "End");
 
   auto &C1(Pipeline[Name].containers().getOrCreate<LLVMContainer>(CName));
   makeF(C1.getModule(), "root");
@@ -729,12 +731,12 @@ BOOST_AUTO_TEST_CASE(LLVMPurePipe) {
 
   const std::string Name = "first_step";
   PureLLVMPassWrapper IdentityPass("IdentityPass");
-  Pipeline.emplaceStep("",
-                       Name,
+  Pipeline.emplaceStep("", Name);
+  Pipeline.emplaceStep(Name,
+                       "End",
                        LLVMContainer::wrapLLVMPasses(CName,
                                                      LLVMPassFunctionCreator(),
                                                      IdentityPass));
-  Pipeline.emplaceStep(Name, "End");
 
   auto &C1 = Pipeline[Name].containers().getOrCreate<LLVMContainer>(CName);
   makeF(C1.getModule(), "root");
@@ -757,8 +759,8 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineForwardFinedGrained) {
   Pipeline.addDefaultConstructibleFactory<MapContainer>(CName);
 
   const std::string Name = "first_step";
-  Pipeline.emplaceStep("", Name, bindPipe<FineGranerPipe>(CName, CName));
-  Pipeline.emplaceStep(Name, "End");
+  Pipeline.emplaceStep("", Name);
+  Pipeline.emplaceStep(Name, "End", bindPipe<FineGranerPipe>(CName, CName));
 
   auto &C1 = Pipeline[Name].containers().getOrCreate<MapContainer>(CName);
   C1.get(Target({}, RootKind)) = 1;
@@ -786,8 +788,8 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineInvalidation) {
   Pipeline.addDefaultConstructibleFactory<MapContainer>(CName);
 
   const std::string Name = "first_step";
-  Pipeline.emplaceStep("", Name, bindPipe<FineGranerPipe>(CName, CName));
-  Pipeline.emplaceStep(Name, "End");
+  Pipeline.emplaceStep("", Name);
+  Pipeline.emplaceStep(Name, "End", bindPipe<FineGranerPipe>(CName, CName));
 
   auto &C1 = Pipeline[Name].containers().getOrCreate<MapContainer>(CName);
   C1.get(Target({}, RootKind)) = 1;
@@ -845,16 +847,16 @@ BOOST_AUTO_TEST_CASE(LoaderTest) {
   auto &Pipeline = *MaybePipeline;
   const std::string Name = "FirstStep";
   BOOST_TEST((Pipeline[Name].getName() == Name));
-  BOOST_TEST((Pipeline["End"].getName() == "End"));
+  BOOST_TEST((Pipeline["begin"].getName() == "begin"));
 
   ContainerToTargetsMap Targets;
   Targets.add(CName, { "f1" }, FunctionKind);
-  auto &C1 = Pipeline[Name].containers().getOrCreate<MapContainer>(CName);
+  auto &C1 = Pipeline["begin"].containers().getOrCreate<MapContainer>(CName);
   C1.get(Target(RootKind)) = 1;
 
-  auto Error = Pipeline.run("End", Targets);
+  auto Error = Pipeline.run(Name, Targets);
   BOOST_TEST(!Error);
-  auto &FinalContainer = Pipeline["End"].containers().get<MapContainer>(CName);
+  auto &FinalContainer = Pipeline[Name].containers().get<MapContainer>(CName);
   Target FinalTarget({ "f1" }, FunctionKind);
   auto Val = FinalContainer.get(FinalTarget);
 
@@ -1150,10 +1152,10 @@ BOOST_AUTO_TEST_CASE(LLVMKindTest) {
   Runner Pipeline(Ctx);
   Pipeline.addContainerFactory(CName, makeLLVMContainerFactory<Cont>(Ctx, C));
 
-  Pipeline.emplaceStep("",
-                       "first_step",
+  Pipeline.emplaceStep("", "first_step");
+  Pipeline.emplaceStep("first_step",
+                       "End",
                        Cont::wrapLLVMPasses(CName, LLVMPassFunctionCreator()));
-  Pipeline.emplaceStep("first_step", "End");
 
   makeF(Pipeline["first_step"]
           .containers()
@@ -1226,15 +1228,15 @@ BOOST_AUTO_TEST_CASE(MultiStepInvalidationTest) {
 
   const std::string Name = "first_step";
   const std::string SecondName = "second_step";
-  Pipeline.emplaceStep("", Name, bindPipe<FineGranerPipe>(CName, CName));
-  Pipeline.emplaceStep(Name, SecondName, bindPipe<CopyPipe>(CName, CName2));
-  Pipeline.emplaceStep(SecondName, "End");
+  Pipeline.emplaceStep("", Name);
+  Pipeline.emplaceStep(Name,
+                       SecondName,
+                       bindPipe<FineGranerPipe>(CName, CName));
+  Pipeline.emplaceStep(SecondName, "End", bindPipe<CopyPipe>(CName, CName2));
 
   auto &C1 = Pipeline[Name].containers().getOrCreate<MapContainer>(CName);
   auto &C1End = Pipeline["End"].containers().getOrCreate<MapContainer>(CName);
   auto &C2End = Pipeline["End"].containers().getOrCreate<MapContainer>(CName2);
-
-  C1.get(Target({}, RootKind)) = 1;
 
   const auto T = Target({}, RootKind);
   C1.get(T) = 1;

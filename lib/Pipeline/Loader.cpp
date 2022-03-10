@@ -116,23 +116,12 @@ Loader::load(llvm::ArrayRef<std::string> Pipelines) const {
 
   return load(Declarations);
 }
-void Loader::emitTerminators(Runner &Runner) const {
-  auto LeafsCount = llvm::count_if(Runner, [&Runner](const Step &CurrentStep) {
-    return not Runner.hasSuccessors(CurrentStep);
-  });
-
-  for (const Step &CurrentStep : Runner)
-    if (not Runner.hasSuccessors(CurrentStep)) {
-      std::string
-        Name = (LeafsCount == 1 ? "End" : "End" + CurrentStep.getName()).str();
-      Runner.emplaceStep(CurrentStep.getName().str(), std::move(Name));
-    }
-}
 
 llvm::Error Loader::parseSteps(Runner &Runner,
                                const PipelineDeclaration &Declaration) const {
 
-  std::string LastAddedStep = Declaration.From;
+  std::string LastAddedStep = Declaration.From.empty() ? "begin" :
+                                                         Declaration.From;
   for (const auto &Step : Declaration.Steps) {
     if (not isInvocationUsed(Step.EnabledWhen))
       continue;
@@ -205,10 +194,11 @@ Loader::load(llvm::ArrayRef<PipelineDeclaration> Pipelines) const {
     if (auto Error = parseDeclarations(ToReturn, *Declaration); Error)
       return std::move(Error);
 
+  ToReturn.emplaceStep("", "begin");
+
   for (const auto *Declaration : ToSort)
     if (auto Error = parseSteps(ToReturn, *Declaration); Error)
       return std::move(Error);
-  emitTerminators(ToReturn);
 
   return ToReturn;
 }

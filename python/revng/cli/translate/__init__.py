@@ -47,7 +47,7 @@ def run_translate(args, post_dash_dash_args, search_path, search_prefixes, comma
 
     out_file = args.output if args.output else args.input[0] + ".translated"
 
-    step_name = "EndRecompile"
+    step_name = "Recompile"
     if args.isolate:
         step_name = step_name + "Isolated"
     command = command + [
@@ -56,7 +56,7 @@ def run_translate(args, post_dash_dash_args, search_path, search_prefixes, comma
         "--step",
         step_name,
         "-i",
-        "Lift:input:" + args.input[0],
+        "begin:input:" + args.input[0],
         "-o",
         step_name + ":output:" + out_file,
     ]
