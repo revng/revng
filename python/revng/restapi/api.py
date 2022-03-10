@@ -204,39 +204,20 @@ def fetch_container(step_name, container_name):
 @login_required
 def set_input(container_name):
     """Sets the content of the given container"""
-    # TODO: remove hard-coding
-    step = g.manager.steps().__next__()
-
-    container_identifier = g.manager.get_container_with_name(container_name)
-    if container_identifier is None:
-        return json_error("Invalid container name")
-
-    container = step.get_container(container_identifier)
-    if container is None:
-        return json_error(f"Step {step.name} does not use container {container_name}")
-
     file = request.files.get("input")
     if file is None:
         return json_error("You must provide an input file", http_code=400)
 
-    # TODO: replace when proper C API is present
-    logging.warning("Reminder: revng C API is vulnerable to path traversal. Fix it!")
-    _container_path = g.manager.container_path(step.name, container_name)
-    if _container_path is None:
-        return json_error("Invalid step or container name")
-    container_path = Path(_container_path)
-    container_path.parent.mkdir(parents=True, exist_ok=True)
-    file.save(container_path)
-    logging.info(
-        f"User {g.user.username} file for container "
-        + f"{step.name}/{container_name} saved to {container_path}"
-    )
+    try:
+        container_path = g.manager.set_input(container_name, file.read())
+        logging.info(
+            f"User {g.user.username} file for container "
+            + f"{container_name} saved to {container_path}"
+        )
 
-    success = container.load(str(container_path))
-    if not success:
-        return json_error(f"Failed loading user provided input for container {container_name}")
-
-    return json_response({})
+        return json_response({})
+    except RevngException as e:
+        return json_error(repr(e))
 
 
 @api_blueprint.get("/features")

@@ -2,6 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 from typing import TypeVar, Callable, Generator, Optional, Union
+from pathlib import Path
 
 from ._capi import _api, ffi
 
@@ -33,3 +34,12 @@ def make_generator(count: int, get_idx: Callable[[int], Optional[T]]) -> Generat
         ret = get_idx(i)
         if ret is not None:
             yield ret
+
+
+def save_file(path: Path, content: bytes | str):
+    if isinstance(content, str):
+        with open(path.resolve(), "w") as str_f:
+            str_f.write(content)
+    else:
+        with open(path.resolve(), "wb") as bytes_f:
+            bytes_f.write(content)

@@ -10,7 +10,7 @@ from .exceptions import RevngException
 from .kind import Kind
 from .step import Step
 from .target import Target, TargetsList
-from .utils import make_c_string, make_python_string, make_generator
+from .utils import make_c_string, make_python_string, make_generator, save_file
 
 INVALID_INDEX = 0xFFFFFFFFFFFFFFFF
 
@@ -284,3 +284,34 @@ class Manager:
 
     def get_model(self) -> str:
         return self._get_global("model.yml")
+
+    def set_input(self, container_name: str, content: Union[bytes, str], key=None) -> str:
+        # TODO: remove hard-coding
+        step = self.get_step("Lift")
+        if step is None:
+            return ""
+
+        container_identifier = self.get_container_with_name(container_name)
+        if container_identifier is None:
+            raise RevngException("Invalid container name")
+
+        container = step.get_container(container_identifier)
+        if container is None:
+            raise RevngException(f"Step {step.name} does not use container {container_name}")
+
+        # TODO: replace when proper C API is present
+        _container_path = self.container_path(step.name, container_name)
+        if _container_path is None:
+            raise RevngException("Invalid step or container name")
+
+        container_path = Path(_container_path)
+        container_path.parent.mkdir(parents=True, exist_ok=True)
+        save_file(container_path, content)
+
+        success = container.load(str(container_path))
+        if not success:
+            raise RevngException(
+                f"Failed loading user provided input for container {container_name}"
+            )
+
+        return str(container_path.resolve())
