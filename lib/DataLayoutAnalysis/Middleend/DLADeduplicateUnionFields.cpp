@@ -165,6 +165,9 @@ exploreAndCompare(const Link &Child1, const Link &Child2);
 
 ///\brief Recursively define an ordering between children of a node
 static bool linkOrderLess(const Link &A, const Link &B) {
+  if (A == B)
+    return false;
+
   const order LinkOrder = cmpLinks(A, B, /*IgnoreInheritance=*/false);
   if (LinkOrder != order::equal)
     return LinkOrder < 0;
