@@ -507,10 +507,3 @@ const char *rp_container_get_mime(rp_container *container) {
   revng_check(container != nullptr);
   return container->getValue()->mime().c_str();
 }
-
-const char *rp_manager_get_model(rp_manager *manager) {
-  revng_check(manager != nullptr);
-  auto &Model = getModelFromContext(manager->context());
-  std::string *out = new std::string(Model.toString());
-  return out->c_str();
-}

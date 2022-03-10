@@ -222,6 +222,15 @@ class Manager:
                     targets[step.name][container.name] = target_dicts
         return targets
 
+    def _get_global(self, name) -> str:
+        _name = make_c_string(name)
+        _out = _api.rp_manager_create_serialized_global(self._manager, _name)
+        return make_python_string(_out, True)
+
+    def _set_global(self, name, content):
+        _name = make_c_string(name)
+        _content = make_c_string(content)
+        _api.rp_manager_deserialize_global(self._manager, _content, _name)
+
     def get_model(self) -> str:
-        _model = _api.rp_manager_get_model(self._manager)
-        return make_python_string(_model, True)
+        return self._get_global("model.yml")

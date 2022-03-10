@@ -96,13 +96,6 @@ void rp_manager_destroy(rp_manager *manager);
 uint64_t rp_manager_containers_count(rp_manager *manager);
 
 /**
- * Get model, in yaml format
- * \return yaml of model in string
- * \note returned string must be destroyed afterwards
- */
-const char *rp_manager_get_model(rp_manager *manager);
-
-/**
  * Applies the diff to the model and triggers a ModelInvalidationEvent
  *
  * \param manager cannot be null.
