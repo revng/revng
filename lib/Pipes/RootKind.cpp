@@ -15,7 +15,7 @@
 #include "revng/Support/FunctionTags.h"
 
 using namespace pipeline;
-using namespace revng::pipes;
+using namespace ::revng::pipes;
 
 std::optional<Target>
 RootKind::symbolToTarget(const llvm::Function &Symbol) const {

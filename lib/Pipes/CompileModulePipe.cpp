@@ -29,7 +29,7 @@ using namespace llvm;
 using namespace llvm::codegen;
 using namespace std;
 using namespace pipeline;
-using namespace revng::pipes;
+using namespace ::revng::pipes;
 using namespace sys;
 using namespace cl;
 

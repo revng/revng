@@ -39,8 +39,10 @@ private:
   Vector ReversePostOrderIndexes;
 
 public:
-  using iterator = revng::DereferenceIteratorType<Vector::iterator>;
-  using const_iterator = revng::DereferenceIteratorType<Vector::const_iterator>;
+  template<typename T>
+  using DereferenceIteratorType = ::revng::DereferenceIteratorType<T>;
+  using iterator = DereferenceIteratorType<Vector::iterator>;
+  using const_iterator = DereferenceIteratorType<Vector::const_iterator>;
 
   using State = llvm::StringMap<ContainerToTargetsMap>;
   using InvalidationMap = llvm::StringMap<ContainerToTargetsMap>;
@@ -169,17 +171,17 @@ public:
 
 public:
   iterator begin() {
-    return revng::dereferenceIterator(ReversePostOrderIndexes.begin());
+    return ::revng::dereferenceIterator(ReversePostOrderIndexes.begin());
   }
   iterator end() {
-    return revng::dereferenceIterator(ReversePostOrderIndexes.end());
+    return ::revng::dereferenceIterator(ReversePostOrderIndexes.end());
   }
 
   const_iterator begin() const {
-    return revng::dereferenceIterator(ReversePostOrderIndexes.begin());
+    return ::revng::dereferenceIterator(ReversePostOrderIndexes.begin());
   }
   const_iterator end() const {
-    return revng::dereferenceIterator(ReversePostOrderIndexes.end());
+    return ::revng::dereferenceIterator(ReversePostOrderIndexes.end());
   }
 
   size_t size() const { return Steps.size(); }

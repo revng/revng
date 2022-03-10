@@ -30,7 +30,7 @@
 using namespace pipeline;
 using namespace std;
 using namespace llvm;
-using namespace revng::pipes;
+using namespace ::revng::pipes;
 
 class LoadModelPipePass {
 private:
@@ -123,7 +123,7 @@ PipelineManager::create(llvm::ArrayRef<std::string> Pipelines,
 
   std::vector<std::string> LoadedPipelines;
 
-  auto Dir = revng::ResourceFinder.findFile("pipelines/");
+  auto Dir = ResourceFinder.findFile("pipelines/");
   if (Dir) {
     std::error_code EC;
     auto Begin = llvm::sys::fs::directory_iterator(*Dir, EC);

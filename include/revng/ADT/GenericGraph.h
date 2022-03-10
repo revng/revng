@@ -149,7 +149,7 @@ struct std::tuple_element<1, Edge<Node, EdgeLabel>> {
 
 } // namespace std
 
-namespace detail {
+namespace revng::detail {
 /// We require to operate some decision to select a base type that Forward node
 /// will extend. Those decisions are wrapped inside this struct to remove
 /// clutter.
@@ -185,7 +185,7 @@ struct ForwardNodeBaseTCalc {
   using ParentType = Parent<GenericGraph, Node>;
   using Result = std::conditional_t<NeedsParent, ParentType, Node>;
 };
-} // namespace detail
+} // namespace revng::detail
 
 /// Basic nodes type, only forward edges, possibly with parent
 template<typename Node,
@@ -196,25 +196,25 @@ template<typename Node,
          size_t ParentSmallSize = 16,
          bool ParentHasEntryNode = true>
 class ForwardNode
-  : public detail::ForwardNodeBaseTCalc<Node,
-                                        EdgeLabel,
-                                        NeedsParent,
-                                        SmallSize,
-                                        ForwardNode,
-                                        FinalType,
-                                        ParentSmallSize,
-                                        ParentHasEntryNode>::Result {
+  : public revng::detail::ForwardNodeBaseTCalc<Node,
+                                               EdgeLabel,
+                                               NeedsParent,
+                                               SmallSize,
+                                               ForwardNode,
+                                               FinalType,
+                                               ParentSmallSize,
+                                               ParentHasEntryNode>::Result {
 public:
   static constexpr bool is_forward_node = true;
   static constexpr bool HasParent = NeedsParent;
-  using TypeCalc = detail::ForwardNodeBaseTCalc<Node,
-                                                EdgeLabel,
-                                                NeedsParent,
-                                                SmallSize,
-                                                ForwardNode,
-                                                FinalType,
-                                                ParentSmallSize,
-                                                ParentHasEntryNode>;
+  using TypeCalc = revng::detail::ForwardNodeBaseTCalc<Node,
+                                                       EdgeLabel,
+                                                       NeedsParent,
+                                                       SmallSize,
+                                                       ForwardNode,
+                                                       FinalType,
+                                                       ParentSmallSize,
+                                                       ParentHasEntryNode>;
   using DerivedType = typename TypeCalc::DerivedType;
   using Base = typename TypeCalc::Result;
   using Edge = Edge<DerivedType, EdgeLabel>;
@@ -315,7 +315,7 @@ private:
   NeighborContainer Successors;
 };
 
-namespace detail {
+namespace revng::detail {
 
 /// To remove clutter from BidirectionalNode, the computation of some types are
 /// done in this class.
@@ -335,7 +335,9 @@ struct BidirectionalNodeBaseTCalc {
   using BDNode = BidirectionalNode<Node, EdgeLabel, NeedsParent, SmallSize>;
   using Result = ForwardNode<Node, EdgeLabel, NeedsParent, SmallSize, BDNode>;
 };
-} // namespace detail
+} // namespace revng::detail
+
+using revng::detail::BidirectionalNodeBaseTCalc;
 
 /// Same as ForwardNode, but with backward links too
 /// TODO: Make edge labels immutable
@@ -344,11 +346,11 @@ template<typename Node,
          bool NeedsParent = true,
          size_t SmallSize = 2>
 class BidirectionalNode
-  : public detail::BidirectionalNodeBaseTCalc<Node,
-                                              EdgeLabel,
-                                              NeedsParent,
-                                              SmallSize,
-                                              BidirectionalNode>::Result {
+  : public BidirectionalNodeBaseTCalc<Node,
+                                      EdgeLabel,
+                                      NeedsParent,
+                                      SmallSize,
+                                      BidirectionalNode>::Result {
 public:
   static const bool is_bidirectional_node = true;
 
@@ -435,7 +437,7 @@ private:
   NeighborContainer Predecessors;
 };
 
-namespace detail {
+namespace revng::detail {
 /// The parameters deciding specifics of the base type `MutableEdgeNode`
 /// extends are non-trivial. That's why those decisiion were wrapped
 /// inside this struct to minimize clutter.
@@ -505,7 +507,7 @@ struct ConstEdgeView {
   explicit ConstEdgeView(NonOwningEdge<NodeType, LabelType> const &E) :
     Neighbor(E.Neighbor), Label(E.Label) {}
 };
-} // namespace detail
+} // namespace revng::detail
 
 /// A node type suitable for graphs where the edge labels are not cheap
 /// to copy or need to be modified often.
@@ -517,25 +519,25 @@ template<typename Node,
          size_t ParentSmallSize = 16,
          bool ParentHasEntryNode = true>
 class MutableEdgeNode
-  : public detail::MutableEdgeNodeBaseTCalc<Node,
-                                            EdgeLabel,
-                                            NeedsParent,
-                                            SmallSize,
-                                            MutableEdgeNode,
-                                            FinalType,
-                                            ParentSmallSize,
-                                            ParentHasEntryNode>::Result {
+  : public revng::detail::MutableEdgeNodeBaseTCalc<Node,
+                                                   EdgeLabel,
+                                                   NeedsParent,
+                                                   SmallSize,
+                                                   MutableEdgeNode,
+                                                   FinalType,
+                                                   ParentSmallSize,
+                                                   ParentHasEntryNode>::Result {
 public:
   static constexpr bool is_mutable_edge_node = true;
   static constexpr bool HasParent = NeedsParent;
-  using TypeCalc = detail::MutableEdgeNodeBaseTCalc<Node,
-                                                    EdgeLabel,
-                                                    NeedsParent,
-                                                    SmallSize,
-                                                    MutableEdgeNode,
-                                                    FinalType,
-                                                    ParentSmallSize,
-                                                    ParentHasEntryNode>;
+  using TypeCalc = revng::detail::MutableEdgeNodeBaseTCalc<Node,
+                                                           EdgeLabel,
+                                                           NeedsParent,
+                                                           SmallSize,
+                                                           MutableEdgeNode,
+                                                           FinalType,
+                                                           ParentSmallSize,
+                                                           ParentHasEntryNode>;
   using DerivedType = typename TypeCalc::DerivedType;
   using Base = typename TypeCalc::Result;
   using NodeData = Node;
@@ -543,12 +545,12 @@ public:
 
 public:
   using Edge = EdgeLabel;
-  using EdgeView = detail::EdgeView<DerivedType, EdgeLabel>;
-  using ConstEdgeView = detail::ConstEdgeView<DerivedType, EdgeLabel>;
+  using EdgeView = revng::detail::EdgeView<DerivedType, EdgeLabel>;
+  using ConstEdgeView = revng::detail::ConstEdgeView<DerivedType, EdgeLabel>;
 
 protected:
-  using OwningEdge = detail::OwningEdge<DerivedType, EdgeLabel>;
-  using NonOwningEdge = detail::NonOwningEdge<DerivedType, EdgeLabel>;
+  using OwningEdge = revng::detail::OwningEdge<DerivedType, EdgeLabel>;
+  using NonOwningEdge = revng::detail::NonOwningEdge<DerivedType, EdgeLabel>;
   using EdgeOwnerContainer = llvm::SmallVector<OwningEdge, SmallSize>;
   using EdgeViewContainer = llvm::SmallVector<NonOwningEdge, SmallSize>;
 

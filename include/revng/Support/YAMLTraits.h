@@ -148,13 +148,13 @@ concept Yamlizable
 template<typename T>
 concept NotYamlizable = not Yamlizable<T>;
 
-namespace detail {
+namespace revng::detail {
 
 struct NoYaml {};
 
 static_assert(NotYamlizable<NoYaml>);
 
-} // end namespace detail
+} // end namespace revng::detail
 
 static_assert(Yamlizable<int>);
 static_assert(Yamlizable<std::vector<int>>);

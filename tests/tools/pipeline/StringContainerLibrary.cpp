@@ -14,7 +14,7 @@ using std::string;
 using namespace llvm;
 using namespace llvm::cl;
 using namespace pipeline;
-using namespace revng::pipes;
+using namespace ::revng::pipes;
 
 class StringContainer : public Container<StringContainer> {
 public:
@@ -59,7 +59,7 @@ public:
     TargetsList ToReturn;
 
     for (const auto &Names : ContainedStrings)
-      ToReturn.emplace_back(Names, revng::pipes::Root);
+      ToReturn.emplace_back(Names, Root);
 
     return ToReturn;
   }

@@ -9,7 +9,7 @@
 
 #include "revng/Support/Concepts.h"
 
-namespace detail {
+namespace revng::detail {
 
 template<typename T>
 concept EnumWithCount = requires(std::decay_t<T> t) {
@@ -17,7 +17,7 @@ concept EnumWithCount = requires(std::decay_t<T> t) {
   { std::decay_t<T>::Count } -> convertible_to<size_t>;
 };
 
-} // namespace detail
+} // namespace revng::detail
 
 /// Calls the `operator()<Enumerator>()` of the callable `F` object passed
 /// as the second parameter, where `Enumerator` corresponds to the runtime
@@ -30,7 +30,7 @@ concept EnumWithCount = requires(std::decay_t<T> t) {
 /// mark the "one-after-the-last" enumerator.
 ///
 /// \note: the behaviour is undefined if the enumeration is not continuous.
-template<detail::EnumWithCount Enum,
+template<revng::detail::EnumWithCount Enum,
          size_t From = 0,
          size_t To = size_t(std::decay_t<Enum>::Count)>
 constexpr inline auto enumSwitch(Enum Value, const auto &F) {
@@ -48,7 +48,7 @@ constexpr inline auto enumSwitch(Enum Value, const auto &F) {
 /// A specialized version of `enumSwitch` that allows skipping `SkippedCount`
 /// first enumerators. The most typical use case it so avoid instantiating
 /// templates for the first `Invalid = 0` enumerator.
-template<size_t SkippedCount, detail::EnumWithCount Enum>
+template<size_t SkippedCount, revng::detail::EnumWithCount Enum>
 constexpr inline auto skippingEnumSwitch(Enum Value, const auto &F) {
   return enumSwitch<Enum, SkippedCount>(Value, F);
 }

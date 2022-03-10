@@ -86,7 +86,7 @@ static_assert(!HasTupleSize<int>);
 // IsTupleLike
 //
 
-namespace detail {
+namespace revng::detail {
 
 template<class T, std::size_t N>
 concept HasTupleElement = requires(T Value) {
@@ -105,13 +105,13 @@ constexpr auto checkAllTupleElementTypes() {
   return checkTupleElementTypes<T>(Sequence);
 }
 
-} // namespace detail
+} // namespace revng::detail
 
 // clang-format off
 template<class T>
 concept IsTupleLike = (not std::is_reference_v<T>
                        and HasTupleSize<T>
-                       and detail::checkAllTupleElementTypes<T>());
+                       and revng::detail::checkAllTupleElementTypes<T>());
 // clang-format on
 
 static_assert(IsTupleLike<std::tuple<>>);
@@ -125,7 +125,7 @@ static_assert(not IsTupleLike<int>);
 //===----------------------------------------------------------------------===//
 
 namespace revng {
-namespace detail {
+namespace revng::detail {
 
 template<typename FuncTy, typename ItTy>
 using ReturnType = decltype(std::declval<FuncTy>()(*std::declval<ItTy>()));
@@ -160,7 +160,7 @@ using ItImpl = std::conditional_t<std::is_object_v<ReturnType<FuncTy, ItTy>>,
                                   ProxyMappedIteratorImpl<ItTy, FuncTy>,
                                   llvm::mapped_iterator<ItTy, FuncTy>>;
 
-} // namespace detail
+} // namespace revng::detail
 
 /// `revng::mapped_iterator` is a specialized version of
 /// `llvm::mapped_iterator`.
@@ -171,7 +171,7 @@ using ItImpl = std::conditional_t<std::is_object_v<ReturnType<FuncTy, ItTy>>,
 /// explicitly prolonged to prevent it from being deleted prematurely (like
 /// inside the `operator->` call).
 template<typename ItTy, typename FuncTy>
-using mapped_iterator = detail::ItImpl<ItTy, FuncTy>;
+using mapped_iterator = revng::detail::ItImpl<ItTy, FuncTy>;
 
 // `map_iterator` - Provide a convenient way to create `mapped_iterator`s,
 // just like `make_pair` is useful for creating pairs...
@@ -191,13 +191,13 @@ auto dereferenceIterator(auto Iter) {
   });
 }
 
-namespace detail {
+namespace revng::detail {
 template<typename T>
 using DIT = decltype(dereferenceIterator(std::declval<T>()));
 }
 
 template<typename T>
-using DereferenceIteratorType = detail::DIT<T>;
+using DereferenceIteratorType = revng::detail::DIT<T>;
 
 auto dereferenceRange(auto &&Range) {
   return llvm::make_range(dereferenceIterator(Range.begin()),
