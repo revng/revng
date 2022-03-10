@@ -20,7 +20,6 @@
         <tr>
           <td>Name</td>
           <td>Produce</td>
-          <td>Fetch</td>
           <td>Ready</td>
         </tr>
       </thead>
@@ -31,46 +30,21 @@
 <script>
   "use strict";
   async function produce(step_name, container_name, kind_name, exact, path_components) {
-    let data = {
-      "step": step_name,
-      "container": container_name,
-      "kind": kind_name,
-      "exact": exact,
-      "path_components": path_components,
-    }
+    let target_path = `${path_components.join("/")}:${kind_name}`
 
-    let response = await fetch(
-      "/produce",
-      {
-        method: "POST",
-        credentials: "include",
-        body: JSON.stringify(data),
-        headers: {
-          "Content-Type": "application/json"
-        },
-      }
-    )
-    .then(res => res.json());
+    let response = await fetch(`/data/${step_name}/${container_name}/${target_path}`)
+      .then(res => res.json());
     console.log("Response: ", response);
   }
 
   async function loadTargets() {
-    let steps = await fetch("/steps").then(res => res.json());
-    let containers = await fetch("/containers").then(res => res.json());
-    let targets = Object();
-    for (let step of steps) {
-      targets[step] = {}
-      for (let container of containers) {
-        let container_targets = await fetch(`/step/${step}/${container}/targets`).then(res => res.json());
-        targets[step][container] = container_targets;
-      }
-    }
+    let targets = await fetch("/step/targets").then(res => res.json());
 
     for (let [step_name, step_containers] of Object.entries(targets)) {
       for (let [container_name, container_targets] of Object.entries(step_containers)) {
         for (let target of container_targets) {
           let target_name = target.path_components.join("/");
-          let target_fullname = `${step_name}/${container_name}/${target_name}`;
+          let target_fullname = `${step_name}/${container_name}/${target_name}:${target.kind}`;
 
           let target_properties = {
             step: step_name,
@@ -86,7 +60,6 @@
           $('#targets-table').DataTable().row.add([
             target_fullname,
             target_properties,
-            target_properties,
             ready,
           ]);
         }
@@ -100,7 +73,7 @@
     let formData = new FormData();
     formData.append("input", input_file.files[0]);
 
-    let response = await fetch("/set/Lift/input", {
+    let response = await fetch("/set-input/input", {
         method: "POST",
         credentials: "include",
         body: formData,
@@ -122,15 +95,6 @@
             produce_button.addClass(["produce-btn", "btn", "btn-primary", "btn-sm"]);
             return produce_button.outerHTML();
           },
-        },
-        {
-          render: function(data, type, row) {
-            let fetch_link = $("<a>");
-            fetch_link.addClass(["fetch-btn", "btn", "btn-primary", "btn-sm"]);
-            fetch_link.attr("href", `/fetch/${data.step}/${data.container}`);
-            fetch_link.text("Fetch");
-            return fetch_link.outerHTML();
-          }
         },
         null
       ],
