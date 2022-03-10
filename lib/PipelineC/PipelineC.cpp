@@ -389,3 +389,9 @@ rp_target_create_from_string(rp_manager *manager, const char *string) {
   llvm::consumeError(MaybeTarget.takeError());
   return nullptr;
 }
+
+bool rp_target_is_ready(rp_target *target, rp_container *container) {
+  revng_assert(target);
+  revng_assert(container);
+  return container->second->enumerate().contains(*target);
+}

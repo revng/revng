@@ -354,6 +354,12 @@ uint64_t rp_target_path_components_count(rp_target *target);
  */
 const char *rp_target_get_path_component(rp_target *target, uint64_t index);
 
+/**
+ * \return true if the provided target is currently cached in the provided
+ * container. False otherwise
+ */
+bool rp_target_is_ready(rp_target *target, rp_container *container);
+
 /** \} */
 
 /**
