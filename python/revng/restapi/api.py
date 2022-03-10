@@ -41,32 +41,6 @@ def json_error(message, http_code=404):
     return jsonify(data), http_code
 
 
-@api_blueprint.route("/steps")
-@login_required
-def steps():
-    """Returns the list of the existing step names"""
-    return json_response([s.name for s in g.manager.steps()])
-
-
-@api_blueprint.route("/containers")
-@login_required
-def containers():
-    """Returns the list of the existing container names"""
-    return json_response([c.name for c in g.manager.containers()])
-
-
-@api_blueprint.post("/containers/store_all")
-@login_required
-def store_all_containers():
-    """Stores all containers to disk"""
-    # TODO: is this endpoint needed?
-    success = g.manager.store_containers()
-    if success:
-        return json_response()
-    else:
-        return json_error("Failed", http_code=500)
-
-
 @api_blueprint.route("/data/<step_name>/<container_name>/<path:pathspec>")
 @login_required
 def produce(step_name: str, container_name: str, pathspec: str):
