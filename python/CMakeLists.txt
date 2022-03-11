@@ -133,6 +133,4 @@ python_module(
 python_module(
     TARGET_NAME revng-python-translate
     MODULE_FILES "revng/cli/translate/__init__.py"
-                 "revng/cli/translate/pipelines/isolate-translate.yml"
-                 "revng/cli/translate/pipelines/translate.yml"
 )

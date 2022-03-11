@@ -21,7 +21,15 @@ if prev_pythonpath:
 
 from revng.cli.translate import register_translate, run_translate
 from revng.cli.translate import register_lift, run_lift
-from revng.cli.support import build_command_with_loads, set_verbose, get_command, run, log_error
+from revng.cli.support import (
+    build_command_with_loads,
+    set_verbose,
+    get_command,
+    run,
+    log_error,
+    interleave,
+    collect_files,
+)
 
 search_prefixes = []
 real_argv0 = os.environ.get("REAL_ARGV0", sys.argv[0])
@@ -223,6 +231,13 @@ def run_command(args, unknown_args, post_dash_dash, search_path, search_prefixes
         return run_translate(args, post_dash_dash, search_path, search_prefixes, command_prefix)
     elif command == "lift":
         return run_lift(args, post_dash_dash, search_path, search_prefixes, command_prefix)
+    elif command == "pipeline":
+        pipelines = collect_files(search_prefixes, ["share", "revng", "pipelines"], "*.yml")
+        pipelines_args = interleave(pipelines, "-P")
+        command = build_command_with_loads(
+            "revng-pipeline", pipelines_args + all_args, search_path, search_prefixes
+        )
+        return run(command, command_prefix)
     elif command == "model":
         if not all_args:
             log_error("No subcommand specified")

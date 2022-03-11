@@ -4,7 +4,7 @@ import signal
 import os
 import subprocess
 from os import path
-from ..support import run, get_command, build_command_with_loads
+from ..support import run, get_command
 
 
 def register_translate(subparsers):
@@ -35,22 +35,12 @@ def register_translate(subparsers):
 
 
 def run_translate(args, post_dash_dash_args, search_path, search_prefixes, command_prefix):
-    main_path = path.abspath(__file__)
-    main_path = path.dirname(main_path)
-
-    command = []
-    command.append("-P")
-    command.append(main_path + "/pipelines/translate.yml")
-
-    command.append("-P")
-    command.append(main_path + "/pipelines/isolate-translate.yml")
-
     out_file = args.output if args.output else args.input[0] + ".translated"
 
     step_name = "EndRecompile"
     if args.isolate:
         step_name = step_name + "Isolated"
-    command = command + [
+    command = [
         "--silent",
         "output:root:Translated",
         "--step",
@@ -74,9 +64,10 @@ def run_translate(args, post_dash_dash_args, search_path, search_prefixes, comma
     if args.trace:
         command.append("--link-trace")
 
-    to_execute = build_command_with_loads("revng-pipeline", command, search_path, search_prefixes)
-
-    return run(to_execute + post_dash_dash_args, command_prefix)
+    return run(
+        [get_command("revng", search_path), "pipeline"] + command + post_dash_dash_args,
+        command_prefix,
+    )
 
 
 # WIP: outline

@@ -171,6 +171,13 @@ copy_to_build_and_install(FILES
   runtime/support.h
   scripts/clang-format-style-file)
 
+copy_to_build_and_install(
+  FILES
+  share/revng/pipelines
+  share/revng/pipelines/isolate-translate.yml
+  share/revng/pipelines/translate.yml
+)
+
 configure_file(runtime/early-linked.c "${CMAKE_BINARY_DIR}/share/revng/early-linked.c" COPYONLY)
 
 # Custom command to create .clang-format file from check-revng-conventions

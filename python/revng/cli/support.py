@@ -153,24 +153,30 @@ def get_elf_needed(path):
             return []
 
 
-def collect_libraries(search_prefixes):
+def collect_files(search_prefixes, path_components, filter):
     to_load = {}
     for prefix in search_prefixes:
-        analyses_path = os.path.join(prefix, "lib", "revng", "analyses")
+        analyses_path = os.path.join(prefix, *path_components)
         if not os.path.isdir(analyses_path):
             continue
 
         # Enumerate all the libraries containing analyses
-        for library in glob.glob(os.path.join(analyses_path, "*.so")):
+        for library in glob.glob(os.path.join(analyses_path, filter)):
             basename = os.path.basename(library)
             if basename not in to_load:
                 to_load[basename] = library
 
+    return list(to_load.values())
+
+
+def collect_libraries(search_prefixes):
+    to_load = collect_files(search_prefixes, ["lib", "revng", "analyses"], "*.so")
+
     # Identify all the libraries that are dependencies of other libraries, i.e.,
     # non-roots in the dependencies tree. Note that circular dependencies are
     # not allowed.
-    dependencies = set(chain.from_iterable([get_elf_needed(path) for path in to_load.values()]))
-    return (list(to_load.values()), dependencies)
+    dependencies = set(chain.from_iterable([get_elf_needed(path) for path in to_load]))
+    return (to_load, dependencies)
 
 
 def handle_asan(dependencies, search_path):

@@ -123,19 +123,6 @@ PipelineManager::create(llvm::ArrayRef<std::string> Pipelines,
 
   std::vector<std::string> LoadedPipelines;
 
-  auto Dir = ResourceFinder.findFile("pipelines/");
-  if (Dir) {
-    std::error_code EC;
-    auto Begin = llvm::sys::fs::directory_iterator(*Dir, EC);
-    auto End = llvm::sys::fs::directory_iterator();
-    for (auto Iter = Begin; Iter != End; Iter.increment(EC)) {
-      if (EC)
-        return llvm::createStringError(EC, EC.message());
-
-      LoadedPipelines.push_back(Iter->path());
-    }
-  }
-
   for (const auto &Path : Pipelines) {
     auto MaybeBuffer = errorOrToExpected(MemoryBuffer::getFileOrSTDIN(Path));
     if (not MaybeBuffer)
