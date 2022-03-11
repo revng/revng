@@ -8,8 +8,6 @@ try:
 except ImportError:
     from backports.shutil_which import which
 
-from .translate import register_translate, run_translate
-from .translate import register_lift, run_lift
 from .support import (
     build_command_with_loads,
     set_verbose,
@@ -55,7 +53,14 @@ def get_stderr(args):
         return process.stderr.read()
 
 
-def run_cc(args, search_path, search_prefixes, command_prefix):
+def run_pipeline(args, search_prefixes, command_prefix):
+    pipelines = collect_files(search_prefixes, ["share", "revng", "pipelines"], "*.yml")
+    pipelines_args = interleave(pipelines, "-P")
+    command = build_command_with_loads("revng-pipeline", pipelines_args + args, search_prefixes)
+    return run(command, command_prefix)
+
+
+def run_cc(args, search_prefixes, command_prefix):
     # Collect translate options
     translated_args = []
     if "--" in args:
@@ -82,9 +87,7 @@ def run_cc(args, search_path, search_prefixes, command_prefix):
         translated = original + ".translated"
         os.rename(output, original)
 
-        result = run_translate(
-            translate_args + [original], search_path, search_prefixes, command_prefix
-        )
+        result = run_translate(translate_args + [original], search_prefixes, command_prefix)
         if result != 0:
             return result
 
@@ -94,6 +97,10 @@ def run_cc(args, search_path, search_prefixes, command_prefix):
 
 
 def main():
+    return run_revng_command(sys.argv, [], [])
+
+
+def run_revng_command(arguments, search_prefixes, command_prefix):
     parser = argparse.ArgumentParser(description="The rev.ng driver.")
     parser.add_argument("--version", action="store_true", help="Display version information.")
     parser.add_argument("--verbose", action="store_true", help="Log all executed commands.")
@@ -113,15 +120,10 @@ def main():
     global script_path
     script_path = os.path.dirname(os.path.realpath(__file__))
 
-    # Create a custom PATH variable to find programs
-    search_path = os.environ["PATH"]
-    if search_path:
-        search_path = "{}:{}".format(os.path.dirname(script_path) + "/../../../bin", search_path)
-        search_path = "{}:{}".format(os.path.dirname(script_path) + "/../../..", search_path)
-    else:
-        search_path = script_path
-
     subparsers = parser.add_subparsers(dest="command_name", help="sub-commands help")
+
+    from .translate import register_translate
+    from .translate import register_lift
 
     register_translate(subparsers)
     register_lift(subparsers)
@@ -130,75 +132,74 @@ def main():
     subparsers.add_parser("opt", help="LLVM's opt with rev.ng passes", add_help=False)
     subparsers.add_parser("model", help="Model commands", add_help=False)
 
-    programs = set()
+    if len(search_prefixes) == 0:
+        prefixes = []
+        for arg, next in zip(arguments, arguments[1:] + [""]):
+            if arg.startswith("--prefix="):
+                prefixes += arg[len("--prefix=") :]
+            elif arg == "--prefix" and next != "":
+                prefixes += next
+        search_prefixes = prefixes + [os.path.join(script_path, "..", "..", "..", "..")]
+
     prefix = "revng-"
-    for path in search_path.split(":"):
-        if os.path.isdir(path):
-            for program in os.listdir(path):
-                if program.startswith(prefix) and which(program, path=search_path):
-                    name = program[len(prefix) :]
-                    subparsers.add_parser(name, help=f"see {name} --help", add_help=False)
+    for executable in collect_files(search_prefixes, ["libexec", "revng"], f"{prefix}*"):
+        name = os.path.basename(executable)[len(prefix) :]
+        subparsers.add_parser(name, help=f"see {name} --help", add_help=False)
+
     global revng_parser
     revng_parser = parser
 
     # Strip away arguments -- so we can forward them to revng-lift
-    base_args, post_dash_dash = split_dash_dash(sys.argv[1:])
+    base_args, post_dash_dash = split_dash_dash(arguments[1:])
 
     args, unknown_args = parser.parse_known_args(base_args)
-
-    global search_prefixes
-    search_prefixes = (args.prefix or []) + [os.path.join(script_path, "..", "..", "..", "..")]
 
     if args.verbose:
         set_verbose()
 
-    command_prefix = []
+    if len(command_prefix) == 0:
+        assert (args.gdb + args.lldb + args.valgrind + args.callgrind) <= 1
 
-    assert (args.gdb + args.lldb + args.valgrind + args.callgrind) <= 1
+        if args.gdb:
+            command_prefix += ["gdb", "-q", "--args"]
 
-    if args.gdb:
-        command_prefix += ["gdb", "-q", "--args"]
+        if args.lldb:
+            command_prefix += ["lldb", "--"]
 
-    if args.lldb:
-        command_prefix += ["lldb", "--"]
+        if args.valgrind:
+            command_prefix += ["valgrind"]
 
-    if args.valgrind:
-        command_prefix += ["valgrind"]
+        if args.callgrind:
+            command_prefix += ["valgrind", "--tool=callgrind"]
 
-    if args.callgrind:
-        command_prefix += ["valgrind", "--tool=callgrind"]
+        if args.perf:
+            command_prefix += ["perf", "record", "--call-graph", "dwarf", "--output=perf.data"]
 
-    if args.perf:
-        command_prefix += ["perf", "record", "--call-graph", "dwarf", "--output=perf.data"]
-
-    if args.heaptrack:
-        command_prefix += ["heaptrack"]
+        if args.heaptrack:
+            command_prefix += ["heaptrack"]
 
     if args.version:
         sys.stdout.write("rev.ng version @VERSION@\n")
         return 0
 
-    return run_command(
-        args, unknown_args, post_dash_dash, search_path, search_prefixes, command_prefix
-    )
+    return run_command(args, unknown_args, post_dash_dash, search_prefixes, command_prefix)
 
 
-def run_subcommand(command, all_args, search_path, command_prefix):
-    executable = "revng-" + command
-    if not which(executable, path=search_path):
-        log_error("Can't find the following command: {}".format(executable))
-        return 1
+def run_subcommand(command, all_args, search_prefixes, command_prefix):
+    target_executable = "revng-" + command
+    for executable in collect_files(search_prefixes, ["libexec", "revng"], f"revng-*"):
+        if executable.endswith("/" + target_executable):
+            arguments = [executable] + all_args
+            return run(arguments, command_prefix)
 
-    in_path = get_command(executable, search_path)
-    if in_path:
-        arguments = [os.path.abspath(in_path)] + all_args
-        run(arguments, command_prefix)
-    else:
-        log_error('"revng-{}" is not a valid command'.format(command))
-        return 1
+    log_error("Can't find the following command: {}".format(command))
+    return 1
 
 
-def run_command(args, unknown_args, post_dash_dash, search_path, search_prefixes, command_prefix):
+def run_command(args, unknown_args, post_dash_dash, search_prefixes, command_prefix):
+    from .translate import run_translate
+    from .translate import run_lift
+
     command = args.command_name
     if not command:
         log_error("No command specified")
@@ -211,22 +212,17 @@ def run_command(args, unknown_args, post_dash_dash, search_path, search_prefixes
     # First consider the hardcoded commands
     if command == "opt":
         opt_command = build_command_with_loads(
-            "opt", all_args + ["-serialize-model"], search_path, search_prefixes
+            "opt", all_args + ["-serialize-model"], search_prefixes
         )
         run(opt_command, command_prefix)
     elif command == "cc":
-        return run_cc(all_args, search_path, search_prefixes, command_prefix)
+        return run_cc(all_args, search_prefixes, command_prefix)
     elif command == "translate":
-        return run_translate(args, post_dash_dash, search_path, search_prefixes, command_prefix)
+        return run_translate(args, post_dash_dash, search_prefixes, command_prefix)
     elif command == "lift":
-        return run_lift(args, post_dash_dash, search_path, search_prefixes, command_prefix)
+        return run_lift(args, post_dash_dash, search_prefixes, command_prefix)
     elif command == "pipeline":
-        pipelines = collect_files(search_prefixes, ["share", "revng", "pipelines"], "*.yml")
-        pipelines_args = interleave(pipelines, "-P")
-        command = build_command_with_loads(
-            "revng-pipeline", pipelines_args + all_args, search_path, search_prefixes
-        )
-        return run(command, command_prefix)
+        return run_pipeline(all_args, search_prefixes, command_prefix)
     elif command == "model":
         if not all_args:
             log_error("No subcommand specified")
@@ -241,6 +237,6 @@ def run_command(args, unknown_args, post_dash_dash, search_path, search_prefixes
             command += "-" + all_args[0]
             del all_args[0]
 
-        return run_subcommand(command, all_args, search_path, command_prefix)
+        return run_subcommand(command, all_args, search_prefixes, command_prefix)
     else:
-        return run_subcommand(command, all_args, search_path, command_prefix)
+        return run_subcommand(command, all_args, search_prefixes, command_prefix)

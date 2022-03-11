@@ -84,10 +84,16 @@ def is_dynamic(path):
         )
 
 
-def get_command(command, search_path):
-    path = which(command, path=search_path)
+def get_command(command, search_prefixes):
+    if command.startswith("revng-"):
+        for executable in collect_files(search_prefixes, ["libexec", "revng"], command):
+            return executable
+        log_error('Couldn\'t find "{}"'.format(command))
+        assert False
+
+    path = which(command)
     if not path:
-        log_error("""Couldn't find "{}" in "{}".""".format(command, search_path))
+        log_error('Couldn\'t find "{}".'.format(command))
         assert False
     return os.path.abspath(path)
 
@@ -179,7 +185,7 @@ def collect_libraries(search_prefixes):
     return (to_load, dependencies)
 
 
-def handle_asan(dependencies, search_path):
+def handle_asan(dependencies):
     libasan = [name for name in dependencies if ("libasan." in name or "libclang_rt.asan" in name)]
 
     if len(libasan) != 1:
@@ -197,16 +203,19 @@ def handle_asan(dependencies, search_path):
     # Use `sh` instead of `env` since `env` sometimes is not a real executable
     # but a shebang script spawning /usr/bin/coreutils, which makes gdb unhappy
     return [
-        get_command("sh", search_path),
+        get_command("sh"),
         "-c",
         "LD_PRELOAD={} ASAN_OPTIONS={} " 'exec "$0" "$@"'.format(libasan_path, new_asan_options),
     ]
 
 
-def build_command_with_loads(command, args, search_path, search_prefixes):
+def build_command_with_loads(command, args, search_prefixes):
     (to_load, dependencies) = collect_libraries(search_prefixes)
-    prefix = handle_asan(dependencies, search_path)
+    prefix = handle_asan(dependencies)
 
     return (
-        prefix + [relative(get_command(command, search_path))] + interleave(to_load, "-load") + args
+        prefix
+        + [relative(get_command(command, search_prefixes))]
+        + interleave(to_load, "-load")
+        + args
     )

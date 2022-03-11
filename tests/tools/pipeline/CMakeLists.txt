@@ -22,7 +22,7 @@ macro(add_pipeline_test
 )
   add_test(NAME "${TEST_NAME}"
     COMMAND bash -c "rm -rf ${CMAKE_BINARY_DIR}/${TEST_NAME} &&
-      revng-pipeline \
+      ${CMAKE_BINARY_DIR}/libexec/revng/revng-pipeline \
       -P ${CMAKE_CURRENT_SOURCE_DIR}/${PIPELINE_FILE} \
       ${TARGETS} \
       -i ${INPUTS_LIST} \
@@ -39,7 +39,7 @@ endmacro()
 
 macro(add_pipeline_dump_test TEST_NAME PIPELINE_FILE)
   add_test(NAME "${TEST_NAME}"
-    COMMAND "${CMAKE_BINARY_DIR}/bin/revng-pipeline"
+    COMMAND "${CMAKE_BINARY_DIR}/libexec/revng/revng-pipeline"
       -P "${CMAKE_CURRENT_SOURCE_DIR}/${PIPELINE_FILE}"
       dc:dc:Root
       -l "${CMAKE_BINARY_DIR}/lib/librevngStringContainerLibrary.so"

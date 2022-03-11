@@ -75,30 +75,52 @@ macro(revng_add_analyses_library NAME EXPORT_NAME)
 
 endmacro()
 
-macro(revng_add_private_executable NAME)
+macro(revng_add_executable_internal NAME TARGET_PATH)
+  # Compute how many ../ to get to root
+  set(RELATIVE_TO_ROOT "")
+  if(NOT "${TARGET_PATH}" STREQUAL "")
+    # Normalize TARGET_PATH
+    string(REGEX REPLACE "^/+" "" TARGET_PATH "${TARGET_PATH}")
+    string(REGEX REPLACE "/+$" "" TARGET_PATH "${TARGET_PATH}")
+
+    # Count slashes
+    string(REPLACE "/" "" TARGET_PATH_WITHOUT_SLASHES "${TARGET_PATH}")
+    string(LENGTH "${TARGET_PATH}" TARGET_PATH_LENGTH)
+    string(LENGTH "${TARGET_PATH_WITHOUT_SLASHES}" TARGET_PATH_WITHOUT_SLASHES_LENGTH)
+    math(EXPR DEPTH "${TARGET_PATH_LENGTH} - ${TARGET_PATH_WITHOUT_SLASHES_LENGTH}")
+
+    foreach(IGNORE RANGE "${DEPTH}")
+      set(RELATIVE_TO_ROOT "${RELATIVE_TO_ROOT}../")
+    endforeach()
+  endif()
 
   add_executable("${NAME}" ${ARGN})
+
   add_dependencies(revng-all-binaries "${NAME}")
-  prepend_target_property("${NAME}" BUILD_RPATH "\$ORIGIN/../lib/:\$ORIGIN/../lib/revng/analyses/" ":")
+
+  # Set BUILD_RPATH
+  prepend_target_property("${NAME}" BUILD_RPATH "\$ORIGIN/${RELATIVE_TO_ROOT}lib/:\$ORIGIN/${RELATIVE_TO_ROOT}lib/revng/analyses/" ":")
   if(NOT "${CMAKE_INSTALL_RPATH}" STREQUAL "")
     append_target_property("${NAME}" BUILD_RPATH "${CMAKE_INSTALL_RPATH}" ":")
   endif()
 
-  make_directory("${CMAKE_BINARY_DIR}/bin/")
-  set(TARGET_PATH "${CMAKE_BINARY_DIR}/bin/${NAME}${CMAKE_EXECUTABLE_SUFFIX}")
-  add_custom_command(
-    TARGET "${NAME}"
-    POST_BUILD
-    VERBATIM
-    COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${NAME}>" "${TARGET_PATH}"
-    BYPRODUCTS "${TARGET_PATH}"
+  # Build in the desired directory
+  set_target_properties(
+    "${NAME}"
+    PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${TARGET_PATH}"
   )
 
 endmacro()
 
 macro(revng_add_executable NAME)
-  revng_add_private_executable("${NAME}" ${ARGN})
-  install(TARGETS "${NAME}" RUNTIME DESTINATION bin)
+  set(TARGET_PATH libexec/revng)
+  revng_add_executable_internal("${NAME}" "${TARGET_PATH}" ${ARGN})
+  install(TARGETS "${NAME}" RUNTIME DESTINATION "${TARGET_PATH}")
+endmacro()
+
+macro(revng_add_test_executable NAME)
+  revng_add_executable_internal("${NAME}" "" ${ARGN})
 endmacro()
 
 # This macro returns in ${RESULT} a list of files matching the pattern in the

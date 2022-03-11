@@ -43,7 +43,6 @@ check_python_requirements(${REQUIREMENTS})
 # Install scripts
 #
 set(SCRIPTS
-  "scripts/revng"
   "scripts/revng-merge-dynamic"
   "scripts/revng-model-compare"
   "scripts/revng-model-dump"
@@ -52,12 +51,18 @@ set(SCRIPTS
 foreach(SCRIPT ${SCRIPTS})
   get_filename_component(SCRIPT_FILENAME "${SCRIPT}" NAME)
   # revng script needs configure_file *without* COPYONLY
-  configure_file("${SCRIPT}" "${CMAKE_BINARY_DIR}/bin/${SCRIPT_FILENAME}")
+  configure_file("${SCRIPT}" "${CMAKE_BINARY_DIR}/libexec/revng/${SCRIPT_FILENAME}")
   install(
-    PROGRAMS "${CMAKE_BINARY_DIR}/bin/${SCRIPT_FILENAME}"
-    TYPE BIN
+    PROGRAMS "${CMAKE_BINARY_DIR}/libexec/revng/${SCRIPT_FILENAME}"
+    DESTINATION libexec/revng/
   )
 endforeach()
+
+configure_file("scripts/revng" "${CMAKE_BINARY_DIR}/bin/revng")
+install(
+  PROGRAMS "${CMAKE_BINARY_DIR}/bin/revng"
+  DESTINATION bin/
+  )
 
 #
 # Generate Python classes from JSON schema

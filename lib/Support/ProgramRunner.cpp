@@ -23,20 +23,29 @@ ProgramRunner Runner;
 
 ProgramRunner::ProgramRunner() {
   using namespace llvm::sys::path;
-  CurrentProgramPath = parent_path(getCurrentExecutableFullPath());
-  Paths = { { CurrentProgramPath } };
+  std::string CurrentProgramPath = parent_path(getCurrentExecutableFullPath())
+                                     .str();
+  Paths = { CurrentProgramPath,
+            (parent_path(parent_path(CurrentProgramPath)) + "/bin").str() };
 
   // Append PATH
   char *Path = getenv("PATH");
   if (Path == nullptr)
     return;
-  StringRef(Path).split(Paths, ":");
+  llvm::SmallVector<llvm::StringRef, 64> BasePaths;
+  StringRef(Path).split(BasePaths, ":");
+  for (llvm::StringRef BasePath : BasePaths)
+    Paths.push_back(BasePath.str());
 }
 
 int ProgramRunner::run(llvm::StringRef ProgramName,
                        ArrayRef<std::string> Args) {
   using namespace llvm::sys;
-  auto MaybeProgramPath = findProgramByName(ProgramName, Paths);
+  llvm::SmallVector<llvm::StringRef, 64> PathsRef;
+  for (const std::string &Path : Paths)
+    PathsRef.push_back(llvm::StringRef(Path));
+
+  auto MaybeProgramPath = findProgramByName(ProgramName, PathsRef);
   revng_assert(not Paths.empty());
   revng_assert(MaybeProgramPath,
                (ProgramName + " was not found in " + getenv("PATH"))

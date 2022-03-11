@@ -180,12 +180,12 @@ copy_to_build_and_install(
 
 configure_file(runtime/early-linked.c "${CMAKE_BINARY_DIR}/share/revng/early-linked.c" COPYONLY)
 
-# Custom command to create .clang-format file from check-revng-conventions
+# Custom command to create .clang-format file from revng-check-conventions
 add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/share/revng/.clang-format"
   DEPENDS
-    "${CMAKE_BINARY_DIR}/bin/check-revng-conventions"
+    "${CMAKE_BINARY_DIR}/libexec/revng/revng-check-conventions"
     "${CMAKE_BINARY_DIR}/share/revng/clang-format-style-file"
-  COMMAND "${CMAKE_BINARY_DIR}/bin/check-revng-conventions"
+  COMMAND "${CMAKE_BINARY_DIR}/libexec/revng/revng-check-conventions"
   ARGS
     --print-clang-format-config
     >
@@ -199,8 +199,8 @@ install(FILES "${CMAKE_BINARY_DIR}/share/revng/.clang-format" DESTINATION share/
 # Executable scripts
 #
 copy_to_build_and_install(PROGRAMS
-  bin
-  "scripts/check-revng-conventions"
+  libexec/revng
+  "scripts/revng-check-conventions"
 )
 
 #

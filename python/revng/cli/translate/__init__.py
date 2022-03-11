@@ -4,7 +4,8 @@ import signal
 import os
 import subprocess
 from os import path
-from ..support import run, get_command
+from ..support import run
+from ..revng import run_revng_command
 
 
 def register_translate(subparsers):
@@ -34,13 +35,16 @@ def register_translate(subparsers):
     parser.add_argument("--base", help="Load address to employ in lifting.")
 
 
-def run_translate(args, post_dash_dash_args, search_path, search_prefixes, command_prefix):
+def run_translate(args, post_dash_dash_args, search_prefixes, command_prefix):
     out_file = args.output if args.output else args.input[0] + ".translated"
 
     step_name = "EndRecompile"
     if args.isolate:
         step_name = step_name + "Isolated"
+
     command = [
+        "revng",
+        "pipeline",
         "--silent",
         "output:root:Translated",
         "--step",
@@ -64,10 +68,9 @@ def run_translate(args, post_dash_dash_args, search_path, search_prefixes, comma
     if args.trace:
         command.append("--link-trace")
 
-    return run(
-        [get_command("revng", search_path), "pipeline"] + command + post_dash_dash_args,
-        command_prefix,
-    )
+    command += post_dash_dash_args
+
+    return run_revng_command(command, search_prefixes, command_prefix)
 
 
 # WIP: outline
@@ -84,7 +87,7 @@ def register_lift(subparsers):
     parser.add_argument("--import-debug-info", type=str, action="append", default=[])
 
 
-def run_lift(args, post_dash_dash_args, search_path, search_prefixes, command_prefix):
+def run_lift(args, post_dash_dash_args, search_prefixes, command_prefix):
     # Run revng model import args.input
     arg_or_empty = (
         lambda args, name: [f"--{name}={args.__dict__[name]}"] if args.__dict__[name] else []
@@ -96,48 +99,52 @@ def run_lift(args, post_dash_dash_args, search_path, search_prefixes, command_pr
     with NamedTemporaryFile(suffix=".yml") as model, NamedTemporaryFile(
         suffix=".ll"
     ) as model_in_module:
-        run(
-            (
-                [
-                    get_command("revng-model-import-binary", search_path),
-                    args.input[0],
-                    "-o",
-                    model.name,
-                ]
-                + [f"--import-debug-info={value}" for value in args.import_debug_info]
-                + arg_or_empty(args, "base")
-                + arg_or_empty(args, "entry")
-            ),
+        run_revng_command(
+            [
+                "revng",
+                "model",
+                "import",
+                "binary",
+                args.input[0],
+                "-o",
+                model.name,
+            ]
+            + [f"--import-debug-info={value}" for value in args.import_debug_info]
+            + arg_or_empty(args, "base")
+            + arg_or_empty(args, "entry"),
+            search_prefixes,
             command_prefix,
         )
 
-        run(
+        run_revng_command(
             [
-                get_command("revng-model-inject", search_path),
+                "revng",
+                "model",
+                "inject",
                 model.name,
                 "/dev/null",
                 "-o",
                 model_in_module.name,
             ],
+            search_prefixes,
             command_prefix,
         )
 
-        run(
-            (
-                [
-                    get_command("revng", search_path),
-                    "opt",
-                    model_in_module.name,
-                    "-o",
-                    args.output[0],
-                    "-load-binary",
-                    f"-binary-path={args.input[0]}",
-                    "-lift",
-                ]
-                + arg_or_empty(args, "external")
-                + arg_or_empty(args, "record_asm")
-                + arg_or_empty(args, "record_ptc")
-            ),
+        run_revng_command(
+            [
+                "revng",
+                "opt",
+                model_in_module.name,
+                "-o",
+                args.output[0],
+                "-load-binary",
+                f"-binary-path={args.input[0]}",
+                "-lift",
+            ]
+            + arg_or_empty(args, "external")
+            + arg_or_empty(args, "record_asm")
+            + arg_or_empty(args, "record_ptc"),
+            search_prefixes,
             command_prefix,
         )
 
