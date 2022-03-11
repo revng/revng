@@ -74,11 +74,11 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   // Generate model types
   auto &WritableModel = ModelWrapper.getWriteableModel();
   auto ValueToTypeMap = dla::makeModelTypes(TS, Values, WritableModel);
-  dla::updateFuncSignatures(M, WritableModel, ValueToTypeMap);
+  bool Changed = dla::updateFuncSignatures(M, WritableModel, ValueToTypeMap);
 
   // Generate Layouts
   dla::LayoutPtrVector OrderedLayouts = makeLayouts(TS, this->Layouts);
   this->ValueLayoutsMap = makeLayoutMap(Values, OrderedLayouts, EqClasses);
 
-  return true;
+  return Changed;
 }
