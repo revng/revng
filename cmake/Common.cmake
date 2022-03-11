@@ -188,7 +188,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/TupleTreeGenerator.cmake")
 
 function(check_python_requirements)
   execute_process(
-    COMMAND pip3 freeze
+    COMMAND pip3 list --format freeze
     RESULT_VARIABLE RETURNCODE
     OUTPUT_VARIABLE PYTHON_PACKAGES
     ERROR_FILE "/dev/null")
