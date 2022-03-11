@@ -134,3 +134,11 @@ python_module(
     TARGET_NAME revng-python-translate
     MODULE_FILES "revng/cli/translate/__init__.py"
 )
+
+#
+# Install revng.cli.revng
+#
+python_module(
+    TARGET_NAME revng-python-revng
+    MODULE_FILES "revng/cli/revng.py"
+)
