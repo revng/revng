@@ -20,6 +20,7 @@ if prev_pythonpath:
     os.environ["PYTHONPATH"] += ":" + prev_pythonpath
 
 from revng.cli.translate import register_translate, run_translate
+from revng.cli.translate import register_lift, run_lift
 from revng.cli.support import build_command_with_loads, set_verbose, get_command, run, log_error
 
 search_prefixes = []
@@ -126,6 +127,7 @@ def main():
     subparsers = parser.add_subparsers(dest="command_name", help="sub-commands help")
 
     register_translate(subparsers)
+    register_lift(subparsers)
 
     subparsers.add_parser("cc", help="compile, link and translate transparently", add_help=False)
     subparsers.add_parser("opt", help="LLVM's opt with rev.ng passes", add_help=False)
@@ -219,6 +221,8 @@ def run_command(args, unknown_args, post_dash_dash, search_path, search_prefixes
         return run_cc(all_args, search_path, search_prefixes, command_prefix)
     elif command == "translate":
         return run_translate(args, post_dash_dash, search_path, search_prefixes, command_prefix)
+    elif command == "lift":
+        return run_lift(args, post_dash_dash, search_path, search_prefixes, command_prefix)
     elif command == "model":
         if not all_args:
             log_error("No subcommand specified")

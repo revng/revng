@@ -45,8 +45,3 @@ public:
 public:
   static uint64_t u64(uint64_t Value) { return Value; }
 };
-
-inline llvm::ArrayRef<uint8_t> toArrayRef(llvm::StringRef Data) {
-  auto Pointer = reinterpret_cast<const uint8_t *>(Data.data());
-  return llvm::makeArrayRef<uint8_t>(Pointer, Data.size());
-}

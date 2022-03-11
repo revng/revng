@@ -25,15 +25,14 @@
 #include "revng/Support/MetaAddress.h"
 
 using namespace pipeline;
-using namespace revng;
-using namespace revng::pipes;
+using namespace ::revng::pipes;
 using namespace llvm;
 
 pipeline::TargetsList
 TaggedFunctionKind::compactTargets(const pipeline::Context &Ctx,
                                    pipeline::TargetsList::List &Targets) const {
 
-  auto &Model = getModelFromContext(Ctx);
+  const model::Binary &Model = *getModelFromContext(Ctx);
   std::set<std::string> Set;
   const pipeline::Target AllFunctions({ pipeline::PathComponent("root"),
                                         pipeline::PathComponent::all() },
@@ -69,7 +68,7 @@ void TaggedFunctionKind::expandTarget(const Context &Ctx,
     return;
   }
 
-  const auto &Model = getModelFromContext(Ctx);
+  const model::Binary &Model = *getModelFromContext(Ctx);
   if (Model.Functions.empty()) {
     Output.push_back(Input);
     return;

@@ -29,7 +29,7 @@ class SortedVector;
 //
 // IsKeyedObjectContainer
 //
-namespace detail {
+namespace revng::detail {
 
 template<typename T>
 concept IsMutableSet = is_specialization_v<T, MutableSet>;
@@ -40,10 +40,10 @@ concept IsSortedVector = is_specialization_v<T, SortedVector>;
 template<typename T>
 concept IsKOC = IsMutableSet<T> or IsSortedVector<T>;
 
-} // namespace detail
+} // namespace revng::detail
 
 template<typename T>
-concept IsKeyedObjectContainer = detail::IsKOC<T>;
+concept IsKeyedObjectContainer = revng::detail::IsKOC<T>;
 
 static_assert(IsKeyedObjectContainer<MutableSet<int>>);
 static_assert(IsKeyedObjectContainer<SortedVector<int>>);
@@ -154,15 +154,15 @@ static_assert(!IsContainer<llvm::StringRef>);
 // SortedContainer and UnsortedContainer
 //
 // TODO: this is not very nice
-namespace detail {
+namespace revng::detail {
 
 template<typename T>
 concept IsSet = is_specialization_v<T, std::set>;
 
-} // namespace detail
+} // namespace revng::detail
 
 template<typename T>
-concept SortedContainer = detail::IsSet<T> or IsKeyedObjectContainer<T>;
+concept SortedContainer = revng::detail::IsSet<T> or IsKeyedObjectContainer<T>;
 
 template<typename T>
 concept UnsortedContainer = IsContainer<T> and not SortedContainer<T>;

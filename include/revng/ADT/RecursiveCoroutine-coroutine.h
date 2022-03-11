@@ -14,7 +14,7 @@
 template<typename>
 struct RecursiveCoroutine;
 
-namespace detail {
+namespace revng::detail {
 
 template<typename RetT>
 struct ReturnBase {
@@ -185,16 +185,16 @@ protected:
   std::experimental::coroutine_handle<> AwaiterContinuation;
 };
 
-} // end namespace detail
+} // namespace revng::detail
 
 template<typename ReturnT = void>
 struct RecursiveCoroutine {
 
 public:
-  using promise_type = detail::RecursivePromise<ReturnT>;
+  using promise_type = revng::detail::RecursivePromise<ReturnT>;
   using coro_handle = std::experimental::coroutine_handle<promise_type>;
   template<typename T>
-  friend struct detail::RecursivePromise;
+  friend struct revng::detail::RecursivePromise;
 
 public:
   RecursiveCoroutine() = delete;

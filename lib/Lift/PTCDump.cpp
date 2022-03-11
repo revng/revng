@@ -11,9 +11,10 @@
 #include <cstring>
 #include <iostream>
 
-#include "revng/Lift/PTCDump.h"
-#include "revng/Lift/PTCInterface.h"
 #include "revng/Support/Assert.h"
+
+#include "PTCDump.h"
+#include "PTCInterface.h"
 
 static const int MaxTempNameLength = 128;
 

@@ -21,7 +21,7 @@
 
 using namespace llvm::cl;
 using namespace pipeline;
-using namespace revng::pipes;
+using namespace ::revng::pipes;
 
 static opt<bool> Tracing("link-trace",
                          cat(MainCategory),
@@ -54,18 +54,18 @@ static llvm::StringRef getSupportName(model::Architecture::Values V) {
   return "Invalid";
 }
 
-void revng::pipes::LinkSupportPipe::run(const Context &Ctx,
-                                        LLVMContainer &TargetsList) {
+void ::revng::pipes::LinkSupportPipe::run(const Context &Ctx,
+                                          LLVMContainer &TargetsList) {
   if (TargetsList.enumerate().empty())
     return;
-  const auto &Model = getModelFromContext(Ctx);
+  const model::Binary &Model = *getModelFromContext(Ctx);
   const char *SupportConfig = Tracing ? "trace" : "normal";
 
   auto ArchName = getSupportName(Model.Architecture).str();
   std::string SupportSearchPath = ("/share/revng/support-" + ArchName + "-"
                                    + SupportConfig + ".ll");
 
-  auto OptionalSupportPath = revng::ResourceFinder.findFile(SupportSearchPath);
+  auto OptionalSupportPath = ResourceFinder.findFile(SupportSearchPath);
   revng_assert(OptionalSupportPath.has_value(),
                "Cannot find the support module");
   std::string SupportPath = OptionalSupportPath.value();

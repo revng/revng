@@ -108,7 +108,7 @@ template<typename LeftMap, typename RightMap>
 using zipmap_pair = std::pair<element_pointer_t<LeftMap>,
                               element_pointer_t<RightMap>>;
 
-namespace detail {
+namespace revng::detail {
 template<typename A, typename B>
 using fifc = llvm::iterator_facade_base<A, std::forward_iterator_tag, B>;
 }
@@ -117,8 +117,8 @@ template<typename LeftMap,
          typename RightMap,
          typename Comparator = DefaultComparator<LeftMap, RightMap>>
 class ZipMapIterator
-  : public detail::fifc<ZipMapIterator<LeftMap, RightMap, Comparator>,
-                        const zipmap_pair<LeftMap, RightMap>> {
+  : public revng::detail::fifc<ZipMapIterator<LeftMap, RightMap, Comparator>,
+                               const zipmap_pair<LeftMap, RightMap>> {
 public:
   template<bool C, typename A, typename B>
   using conditional_t = typename std::conditional<C, A, B>::type;

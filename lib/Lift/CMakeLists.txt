@@ -8,6 +8,8 @@ revng_add_library_internal(revngLift SHARED
   CSVOffsets.cpp
   ExternalJumpsHandler.cpp
   InstructionTranslator.cpp
+  Lift.cpp
+  LoadBinaryPass.cpp
   JumpTargetManager.cpp
   PTCDump.cpp
   VariableManager.cpp)

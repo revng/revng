@@ -10,6 +10,8 @@ Containers:
 Steps:
  - Name:            Lift
    Pipes:
+     - Name:             ImportBinary
+       UsedContainers: [input]
      - Name:             Lift
        UsedContainers: [input, module]
      - Name:             LLVMPipe
