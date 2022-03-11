@@ -42,8 +42,6 @@ using llvm::isa;
 static Logger<> Log("dla-update-model-funcs");
 static Logger<> ModelLog("dla-dump-model-with-funcs");
 
-using WritableModelT = TupleTree<model::Binary>;
-
 using model::PrimitiveTypeKind::Generic;
 using model::PrimitiveTypeKind::PointerOrNumber;
 using model::QualifierKind::Pointer;
@@ -394,7 +392,7 @@ static bool updateFuncPrototype(model::Binary &Model,
 }
 
 bool dla::updateFuncSignatures(const llvm::Module &M,
-                               WritableModelT &Model,
+                               TupleTree<model::Binary> &Model,
                                const TypeMapT &TypeMap) {
   if (ModelLog.isEnabled())
     writeToFile(Model->toString(), "model-before-func-update.yaml");

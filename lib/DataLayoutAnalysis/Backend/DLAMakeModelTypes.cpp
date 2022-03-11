@@ -33,7 +33,7 @@ using LTSN = LayoutTypeSystemNode;
 using ConstNonPointerFilterT = EdgeFilteredGraph<const LTSN *,
                                                  isNotPointerEdge>;
 
-using WritableModelT = TupleTree<model::Binary>;
+using TypeVect = std::vector<model::QualifiedType>;
 
 using model::PrimitiveTypeKind::Number;
 using model::QualifierKind::Array;
@@ -55,7 +55,7 @@ using PtrFieldsMap = std::map<const LTSN *, llvm::SmallVector<QTypeId, 8>>;
 
 ///\brief Get a union or struct field given its parent and the offset/id.
 static QualifiedType *
-getFieldFromId(TypePath &Path, uint64_t ID, WritableModelT &Model) {
+getFieldFromId(TypePath &Path, uint64_t ID, TupleTree<model::Binary> &Model) {
   if (Path.get()->Kind == Typedef) {
     revng_assert(ID == 0);
     return &llvm::cast<TypedefType>(Path.get())->UnderlyingType;
@@ -93,7 +93,8 @@ static QualifiedType *unwrapUntilEmpty(QualifiedType *Q) {
 }
 
 ///\brief Get a QualifiedType* from its identifier.
-static QualifiedType *getQTypeFromId(QTypeId &ID, WritableModelT &Model) {
+static QualifiedType *
+getQTypeFromId(QTypeId &ID, TupleTree<model::Binary> &Model) {
   // For stable QualifiedTypes, i.e. the ones created outside of the model, the
   // id is the pointer itself.
   if (std::holds_alternative<QualifiedType *>(ID))
@@ -115,7 +116,7 @@ static QualifiedType *getQTypeFromId(QTypeId &ID, WritableModelT &Model) {
 }
 
 ///\brief Retrieve the model type associated to TypeSystem \a Node, if any
-static QualifiedType *getNodeType(WritableModelT &Model,
+static QualifiedType *getNodeType(TupleTree<model::Binary> &Model,
                                   const LTSN *Node,
                                   TypeVect &Types,
                                   const VectEqClasses &EqClasses) {
@@ -160,7 +161,7 @@ hasValidStrides(const OffsetExpression &OE, const uint64_t InitialSize) {
 static TypePath createStructWrapper(const TypePath &T,
                                     const uint64_t Offset,
                                     const uint64_t ElementSize,
-                                    WritableModelT &Model,
+                                    TupleTree<model::Binary> &Model,
                                     const uint64_t ID) {
   StructField F = StructField{ Offset };
   F.Type.UnqualifiedType = T;
@@ -186,7 +187,7 @@ static std::pair<QualifiedType, uint64_t>
 makeFieldFromInstanceEdge(const TypePath &T,
                           const uint64_t Size,
                           const OffsetExpression &OE,
-                          WritableModelT &Model,
+                          TupleTree<model::Binary> &Model,
                           const uint64_t ID) {
   QualifiedType Inner;
   Inner.UnqualifiedType = T;
@@ -261,7 +262,7 @@ makeFieldFromInstanceEdge(const TypePath &T,
 static TypePath makeStructFromNode(const LTSN *N,
                                    TypeVect &Types,
                                    PtrFieldsMap &PtrFields,
-                                   WritableModelT &Model,
+                                   TupleTree<model::Binary> &Model,
                                    const VectEqClasses &EqClasses) {
   // Create struct
   revng_log(Log, "Creating struct type for node " << N->ID);
@@ -337,7 +338,7 @@ static TypePath makeStructFromNode(const LTSN *N,
 static TypePath makeUnionFromNode(const LTSN *N,
                                   TypeVect &Types,
                                   PtrFieldsMap &PtrFields,
-                                  WritableModelT &Model,
+                                  TupleTree<model::Binary> &Model,
                                   const VectEqClasses &EqClasses) {
   // Create union
   revng_log(Log, "Creating union type for node " << N->ID);
@@ -427,7 +428,7 @@ static const LTSN *getPointeeNode(const LTSN *PointerNode) {
 
 ///\brief Create the right QualifiedType for a pointer node, following pointer
 /// edges until you find a pointee.
-static QualifiedType makePtrTypeFromNode(WritableModelT &Model,
+static QualifiedType makePtrTypeFromNode(TupleTree<model::Binary> &Model,
                                          const LTSN *Node,
                                          TypeVect &Types,
                                          const VectEqClasses &EqClasses) {
@@ -459,7 +460,8 @@ static QualifiedType makePtrTypeFromNode(WritableModelT &Model,
   return QType;
 }
 
-static void logEntry(const LayoutTypeSystem &TS, WritableModelT &Model) {
+static void
+logEntry(const LayoutTypeSystem &TS, TupleTree<model::Binary> &Model) {
   if (Log.isEnabled())
     TS.dumpDotOnFile("before-make-model.dot");
   if (VerifyLog.isEnabled()) {
@@ -469,7 +471,8 @@ static void logEntry(const LayoutTypeSystem &TS, WritableModelT &Model) {
   }
 }
 
-static void logExit(const LayoutTypeSystem &TS, WritableModelT &Model) {
+static void
+logExit(const LayoutTypeSystem &TS, TupleTree<model::Binary> &Model) {
   if (VerifyLog.isEnabled()) {
     revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree()
                  and TS.verifyUnions());
@@ -513,7 +516,7 @@ static TypeMapT mapLLVMValuesToModelTypes(const LayoutTypeSystem &TS,
 
 TypeMapT dla::makeModelTypes(const LayoutTypeSystem &TS,
                              const LayoutTypePtrVect &Values,
-                             WritableModelT &Model) {
+                             TupleTree<model::Binary> &Model) {
   logEntry(TS, Model);
 
   const dla::VectEqClasses &EqClasses = TS.getEqClasses();
