@@ -48,7 +48,7 @@ static RegisterModelPass ToCABI("convert-all-raw-functions-to-cabi",
                                 "`CABIFunctionType` as it possible",
                                 convertAllFunctionsToCABIImpl);
 
-static Logger Log("model/Pass/ConvertFunctionTypes");
+static Logger Log("convert-function-types");
 
 static void replaceReferences(const model::Type::Key &OldKey,
                               const model::TypePath &NewTypePath,

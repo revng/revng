@@ -151,13 +151,15 @@ void LinkForTranslationPipe::run(const Context &Ctx,
     if (not Segment.IsWriteable)
       SectionFlags += ",readonly";
 
-    std::vector<std::string> Lel{ "-Ibinary",
-                                  "-Oelf64-x86-64",
-                                  "--rename-section=.data=." + SectionName,
-                                  "--set-section-flags=.data=" + SectionFlags,
-                                  RawSegment.path().str(),
-                                  SegmentELF.path().str() };
-    ExitCode = ::Runner.run("objcopy", Lel);
+    std::vector<std::string> Arguments{
+      "-Ibinary",
+      "-Oelf64-x86-64",
+      "--rename-section=.data=." + SectionName,
+      "--set-section-flags=.data=" + SectionFlags,
+      RawSegment.path().str(),
+      SegmentELF.path().str()
+    };
+    ExitCode = ::Runner.run("objcopy", Arguments);
     revng_assert(ExitCode == 0);
 
     Min = std::min(Min, Segment.StartAddress.address());
