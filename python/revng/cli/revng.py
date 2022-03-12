@@ -123,7 +123,7 @@ def run_revng_command(arguments, search_prefixes, command_prefix):
     subparsers = parser.add_subparsers(dest="command_name", help="sub-commands help")
 
     from .translate import register_translate
-    from .translate import register_lift
+    from .lift import register_lift
 
     register_translate(subparsers)
     register_lift(subparsers)
@@ -198,7 +198,7 @@ def run_subcommand(command, all_args, search_prefixes, command_prefix):
 
 def run_command(args, unknown_args, post_dash_dash, search_prefixes, command_prefix):
     from .translate import run_translate
-    from .translate import run_lift
+    from .lift import run_lift
 
     command = args.command_name
     if not command:

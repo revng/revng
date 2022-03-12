@@ -137,7 +137,15 @@ python_module(
 #
 python_module(
     TARGET_NAME revng-python-translate
-    MODULE_FILES "revng/cli/translate/__init__.py"
+    MODULE_FILES "revng/cli/translate.py"
+)
+
+#
+# Install revng.cli.lift
+#
+python_module(
+    TARGET_NAME revng-python-lift
+    MODULE_FILES "revng/cli/lift.py"
 )
 
 #
