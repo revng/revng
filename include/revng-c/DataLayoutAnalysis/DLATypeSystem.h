@@ -310,10 +310,12 @@ public:
   bool verifyConsistency() const;
   // Checks that is valid and a DAG, and returns true if it is, false otherwise
   bool verifyDAG() const;
-  // Checks that is valid and a DAG, and returns true if it is, false otherwise
+  // Checks that is valid and a DAG on inheritance. Returns true on success.
   bool verifyInheritanceDAG() const;
-  // Checks that is valid and a DAG, and returns true if it is, false otherwise
+  // Checks that is valid and a DAG on instance. Returns true on success.
   bool verifyInstanceDAG() const;
+  // Checks that is valid and a DAG on pointer. Returns true on success.
+  bool verifyPointerDAG() const;
   // Checks that the type system, filtered looking only at inheritance edges, is
   // a tree, meaning that a give LayoutTypeSystemNode cannot inherit from two
   // different LayoutTypeSystemNodes.
