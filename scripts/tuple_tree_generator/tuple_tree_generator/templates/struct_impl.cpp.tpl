@@ -6,6 +6,8 @@ The notice below applies to the generated files.
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/Model/Binary.h"
+
 /**- for child_type in upcastable|sort(attribute="user_fullname") **/
 #include "/*= generator.user_include_path =*//*= child_type.filename =*/"
 /**- endfor **/
