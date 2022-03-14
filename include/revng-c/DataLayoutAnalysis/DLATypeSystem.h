@@ -607,6 +607,13 @@ inline bool isInstanceLeaf(const LayoutTypeSystemNode *N) {
   return isLeaf<dla::TypeLinkTag::LinkKind::LK_Instance>(N);
 }
 
+inline bool isPointerLeaf(const LayoutTypeSystemNode *N) {
+  using LTSN = LayoutTypeSystemNode;
+  using PointerNodeT = EdgeFilteredGraph<const LTSN *, isPointerEdge>;
+  using PointerGraph = llvm::GraphTraits<PointerNodeT>;
+  return PointerGraph::child_begin(N) == PointerGraph::child_end(N);
+}
+
 template<dla::TypeLinkTag::LinkKind K = dla::TypeLinkTag::LinkKind::LK_All>
 inline bool isRoot(const LayoutTypeSystemNode *N) {
   using LTSN = const LayoutTypeSystemNode;
@@ -622,5 +629,12 @@ inline bool isInheritanceRoot(const LayoutTypeSystemNode *N) {
 
 inline bool isInstanceRoot(const LayoutTypeSystemNode *N) {
   return isRoot<dla::TypeLinkTag::LinkKind::LK_Instance>(N);
+}
+
+inline bool isPointerRoot(const LayoutTypeSystemNode *N) {
+  using LTSN = LayoutTypeSystemNode;
+  using PointerNodeT = EdgeFilteredGraph<const LTSN *, isPointerEdge>;
+  using PointerGraph = llvm::GraphTraits<llvm::Inverse<PointerNodeT>>;
+  return PointerGraph::child_begin(N) == PointerGraph::child_end(N);
 }
 } // end namespace dla
