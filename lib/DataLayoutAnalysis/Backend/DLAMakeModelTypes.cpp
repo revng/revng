@@ -466,16 +466,16 @@ logEntry(const LayoutTypeSystem &TS, TupleTree<model::Binary> &Model) {
     TS.dumpDotOnFile("before-make-model.dot");
   if (VerifyLog.isEnabled()) {
     revng_assert(Model->verify(true));
-    revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree()
-                 and TS.verifyUnions());
+    revng_assert(TS.verifyPointerDAG() and TS.verifyDAG()
+                 and TS.verifyInheritanceTree() and TS.verifyUnions());
   }
 }
 
 static void
 logExit(const LayoutTypeSystem &TS, TupleTree<model::Binary> &Model) {
   if (VerifyLog.isEnabled()) {
-    revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree()
-                 and TS.verifyUnions());
+    revng_assert(TS.verifyPointerDAG() and TS.verifyDAG()
+                 and TS.verifyInheritanceTree() and TS.verifyUnions());
     revng_assert(Model->verify(true));
   }
   if (Log.isEnabled())
