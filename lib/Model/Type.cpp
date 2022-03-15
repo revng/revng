@@ -545,7 +545,7 @@ static bool isOnlyConstQualified(const QualifiedType &QT) {
   if (QT.Qualifiers.empty() or QT.Qualifiers.size() > 1)
     return false;
 
-  return QT.Qualifiers[0].isConstQualifier();
+  return Qualifier::isConst(QT.Qualifiers[0]);
 }
 
 struct VoidConstResult {
@@ -651,12 +651,9 @@ QualifiedType::size(VerifyHelper &VH) const {
 inline RecursiveCoroutine<bool>
 isPrimitive(const model::QualifiedType &QT,
             model::PrimitiveTypeKind::Values V) {
-  auto IsConstQualifier = [](const Qualifier &Q) {
-    return Q.Kind == model::QualifierKind::Const;
-  };
 
   if (QT.Qualifiers.size() != 0
-      and not llvm::all_of(QT.Qualifiers, IsConstQualifier))
+      and not llvm::all_of(QT.Qualifiers, Qualifier::isConst))
     rc_return false;
 
   const model::Type *UnqualifiedType = QT.UnqualifiedType.get();
@@ -1120,11 +1117,11 @@ RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
     bool HasNext = NextQIt != QEnd;
 
     // Check that we have not two consecutive const qualifiers
-    if (HasNext and Q.isConstQualifier() and NextQIt->isConstQualifier())
+    if (HasNext and Qualifier::isConst(Q) and Qualifier::isConst(*NextQIt))
       rc_return VH.fail("QualifiedType has two consecutive const qualifiers",
                         *this);
 
-    if (Q.isPointerQualifier()) {
+    if (Qualifier::isPointer(Q)) {
       // Don't proceed the verification, just make sure the pointer is either
       // 32- or 64-bits
       rc_return VH.maybeFail(Q.Size == 4 or Q.Size == 8,
@@ -1132,7 +1129,7 @@ RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
                              "supported",
                              *this);
 
-    } else if (Q.isArrayQualifier()) {
+    } else if (Qualifier::isArray(Q)) {
       // Ensure there's at least one element
       if (Q.Size < 1)
         rc_return VH.fail("Arrays need to have at least an element", *this);
@@ -1147,7 +1144,7 @@ RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
       rc_return VH.maybeFail(MaybeSize.has_value(),
                              "Cannot compute array size",
                              ElementType);
-    } else if (Q.isConstQualifier()) {
+    } else if (Qualifier::isConst(Q)) {
       // const qualifiers must have zero size
       if (Q.Size != 0)
         rc_return VH.fail("const qualifier has non-0 size");
