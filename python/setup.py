@@ -17,7 +17,6 @@ setup(
         "scripts/revng",
         "scripts/revng-merge-dynamic",
         "scripts/revng-model-compare",
-        "scripts/revng-model-dump",
         "scripts/revng-model-to-json",
         "scripts/revng-translate",
     ],

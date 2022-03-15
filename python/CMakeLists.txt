@@ -45,7 +45,6 @@ check_python_requirements(${REQUIREMENTS})
 set(SCRIPTS
   "scripts/revng-merge-dynamic"
   "scripts/revng-model-compare"
-  "scripts/revng-model-dump"
   "scripts/revng-model-to-json"
 )
 foreach(SCRIPT ${SCRIPTS})
