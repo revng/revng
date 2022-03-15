@@ -18,6 +18,5 @@ setup(
         "scripts/revng-merge-dynamic",
         "scripts/revng-model-compare",
         "scripts/revng-model-to-json",
-        "scripts/revng-translate",
     ],
 )
