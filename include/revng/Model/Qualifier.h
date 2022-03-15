@@ -50,19 +50,19 @@ public:
   }
 
 public:
-  bool isConstQualifier() const {
-    revng_assert(verify(true));
-    return Kind == QualifierKind::Const;
+  static bool isConst(const Qualifier &Q) {
+    revng_assert(Q.verify(true));
+    return Q.Kind == QualifierKind::Const;
   }
 
-  bool isArrayQualifier() const {
-    revng_assert(verify(true));
-    return Kind == QualifierKind::Array;
+  static bool isArray(const Qualifier &Q) {
+    revng_assert(Q.verify(true));
+    return Q.Kind == QualifierKind::Array;
   }
 
-  bool isPointerQualifier() const {
-    revng_assert(verify(true));
-    return Kind == QualifierKind::Pointer;
+  static bool isPointer(const Qualifier &Q) {
+    revng_assert(Q.verify(true));
+    return Q.Kind == QualifierKind::Pointer;
   }
 
 public:
