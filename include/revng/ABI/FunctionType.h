@@ -25,8 +25,6 @@ model::RawFunctionType
 convertToRaw(const model::CABIFunctionType &Function, model::Binary &TheBinary);
 
 /// Indicates the layout of arguments and return values of a function.
-///
-/// \note Such a layout is immutable.
 struct Layout {
 public:
   struct ReturnValueRegisters {
@@ -54,8 +52,8 @@ private:
   Layout() = default;
 
 public:
-  explicit Layout(const model::RawFunctionType &Function);
   explicit Layout(const model::CABIFunctionType &Function);
+  explicit Layout(const model::RawFunctionType &Function);
 
   /// Extracts the information about argument and return value location layout
   /// from the \param Function.
@@ -73,6 +71,8 @@ public:
   bool verify() const;
   size_t argumentRegisterCount() const;
   size_t returnValueRegisterCount() const;
+  llvm::SmallVector<model::Register::Values, 8> argumentRegisters() const;
+  llvm::SmallVector<model::Register::Values, 8> returnValueRegisters() const;
 };
 
 } // namespace abi::FunctionType

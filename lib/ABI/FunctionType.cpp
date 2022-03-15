@@ -8,8 +8,10 @@
 #include <unordered_set>
 
 #include "revng/ABI/FunctionType.h"
+#include "revng/ABI/RegisterOrder.h"
 #include "revng/ABI/RegisterStateDeductions.h"
 #include "revng/ABI/Trait.h"
+#include "revng/ADT/STLExtras.h"
 #include "revng/ADT/SmallMap.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Register.h"
@@ -438,7 +440,7 @@ private:
 
       revng_assert(ReturnStruct->Size != 0 && !ReturnStruct->Fields.empty());
 
-      if constexpr (DryRun) {
+      if constexpr (!DryRun) {
         auto ReturnStructTypePath = TheBinary.recordNewType(std::move(Result));
         revng_assert(ReturnStructTypePath.isValid());
         return model::QualifiedType{ ReturnStructTypePath, {} };
@@ -642,21 +644,14 @@ public:
       const auto &Registers = AT::VectorReturnValueRegisters;
       // TODO: replace `UnlimitedRegisters` with the actual value to be defined
       //       by the trait.
-      return considerRegisters(*MaybeSize,
-                               UnlimitedRegisters,
-                               0,
-                               Registers,
-                               false)
-        .first;
+      const size_t L = UnlimitedRegisters;
+      return considerRegisters(*MaybeSize, L, 0, Registers, false).first;
     } else {
-      const auto &Registers = AT::GeneralPurposeReturnValueRegisters;
-      if (ReturnValueType.isScalar()) {
-        const size_t L = AT::MaximumGPRsPerScalarReturnValue;
-        return considerRegisters(*MaybeSize, L, 0, Registers, false).first;
-      } else {
-        const size_t L = AT::MaximumGPRsPerAggregateReturnValue;
-        return considerRegisters(*MaybeSize, L, 0, Registers, false).first;
-      }
+      const size_t L = ReturnValueType.isScalar() ?
+                         AT::MaximumGPRsPerScalarReturnValue :
+                         AT::MaximumGPRsPerAggregateReturnValue;
+      constexpr auto &Registers = AT::GeneralPurposeReturnValueRegisters;
+      return considerRegisters(*MaybeSize, L, 0, Registers, false).first;
     }
   }
 
@@ -745,6 +740,10 @@ Layout::Layout(const model::RawFunctionType &Function) {
   for (const model::NamedTypedRegister &Register : Function.Arguments)
     Arguments.emplace_back().Registers = { Register.Location };
 
+  // Lay the return value out.
+  for (const model::TypedRegister &Register : Function.ReturnValues)
+    ReturnValue.Registers.emplace_back(Register.Location);
+
   // Lay stack arguments out.
   if (Function.StackArgumentsType.isValid()) {
     const model::Type *OriginalStackType = Function.StackArgumentsType.get();
@@ -755,13 +754,11 @@ Layout::Layout(const model::RawFunctionType &Function) {
     Arguments.emplace_back().Stack = std::move(StackSpan);
   }
 
-  // Lay the return value out.
-  for (const model::TypedRegister &Register : Function.ReturnValues)
-    ReturnValue.Registers.emplace_back(Register.Location);
-
   // Fill callee saved registers.
-  CalleeSavedRegisters.resize(Function.PreservedRegisters.size());
-  llvm::copy(Function.PreservedRegisters, CalleeSavedRegisters.begin());
+  append(Function.PreservedRegisters, CalleeSavedRegisters);
+
+  // Set the final offset.
+  FinalStackOffset = Function.FinalStackOffset;
 }
 
 bool Layout::verify() const {
@@ -808,6 +805,23 @@ size_t Layout::argumentRegisterCount() const {
 
 size_t Layout::returnValueRegisterCount() const {
   return ReturnValue.Registers.size();
+}
+
+llvm::SmallVector<model::Register::Values, 8>
+Layout::argumentRegisters() const {
+  llvm::SmallVector<model::Register::Values, 8> Result;
+
+  for (auto &Argument : Arguments)
+    Result.append(Argument.Registers.begin(), Argument.Registers.end());
+
+  return Result;
+}
+
+llvm::SmallVector<model::Register::Values, 8>
+Layout::returnValueRegisters() const {
+  return llvm::SmallVector<model::Register::Values,
+                           8>(ReturnValue.Registers.begin(),
+                              ReturnValue.Registers.end());
 }
 
 } // namespace abi::FunctionType
