@@ -205,7 +205,7 @@ Function *EnforceABIImpl::handleFunction(Function &OldFunction,
                                          const model::Function &FunctionModel) {
   auto Prototype = abi::FunctionType::Layout::make(FunctionModel.Prototype);
   Function *NewFunction = recreateFunction(OldFunction, Prototype);
-  FunctionTags::Lifted.addTo(NewFunction);
+  FunctionTags::Isolated.addTo(NewFunction);
   createPrologue(NewFunction, FunctionModel);
   return NewFunction;
 }

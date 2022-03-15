@@ -20,7 +20,7 @@ inline RootKind Root("Root", &RootRank);
 inline IsolatedRootKind IsolatedRoot("IsolatedRoot", Root);
 
 inline TaggedFunctionKind
-  Isolated("Isolated", &FunctionsRank, FunctionTags::Lifted);
+  Isolated("Isolated", &FunctionsRank, FunctionTags::Isolated);
 
 inline pipeline::Kind Object("Object", &RootRank);
 inline pipeline::Kind Translated("Translated", &RootRank);

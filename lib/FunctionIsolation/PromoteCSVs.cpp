@@ -408,7 +408,7 @@ static bool needsWrapper(Function *F) {
   {
     using namespace FunctionTags;
     auto Tags = TagsSet::from(F);
-    if (Tags.contains(Lifted) or Tags.contains(CSVsAsArgumentsWrapper)
+    if (Tags.contains(Isolated) or Tags.contains(CSVsAsArgumentsWrapper)
         or Tags.contains(Marker) or Tags.contains(Exceptional))
       return false;
   }
@@ -566,7 +566,7 @@ void PromoteCSVs::wrapCallsToHelpers(Function *F) {
 }
 
 void PromoteCSVs::run() {
-  for (Function &F : FunctionTags::Lifted.functions(M)) {
+  for (Function &F : FunctionTags::Isolated.functions(M)) {
     // Wrap calls to wrappers
     wrapCallsToHelpers(&F);
 

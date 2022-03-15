@@ -83,7 +83,7 @@ void TagsSet::addTo(T *I) const {
 
 extern Tag QEMU;
 extern Tag Helper;
-extern Tag Lifted;
+extern Tag Isolated;
 extern Tag CallToLifted;
 extern Tag Exceptional;
 extern Tag StructInitializer;
@@ -100,5 +100,5 @@ extern Tag DynamicFunction;
 inline bool isRootOrLifted(const llvm::Function *F) {
   auto Tags = FunctionTags::TagsSet::from(F);
   return Tags.contains(FunctionTags::Root)
-         or Tags.contains(FunctionTags::Lifted);
+         or Tags.contains(FunctionTags::Isolated);
 }
