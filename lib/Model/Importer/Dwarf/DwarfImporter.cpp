@@ -627,7 +627,7 @@ private:
       case llvm::dwarf::DW_TAG_const_type: {
         model::Qualifier NewQualifier;
         NewQualifier.Kind = model::QualifierKind::Const;
-        Type.Qualifiers.push_back(NewQualifier);
+        Type.Qualifiers.insert(Type.Qualifiers.begin(), NewQualifier);
       } break;
 
       case llvm::dwarf::DW_TAG_array_type: {
@@ -666,7 +666,7 @@ private:
               rc_return nullptr;
             }
 
-            Type.Qualifiers.push_back(NewQualifier);
+            Type.Qualifiers.insert(Type.Qualifiers.begin(), NewQualifier);
           }
         }
       } break;
@@ -683,7 +683,7 @@ private:
 
         NewQualifier.Kind = model::QualifierKind::Pointer;
         NewQualifier.Size = *MaybeByteSize->getAsUnsignedConstant();
-        Type.Qualifiers.push_back(NewQualifier);
+        Type.Qualifiers.insert(Type.Qualifiers.begin(), NewQualifier);
       } break;
 
       default:
