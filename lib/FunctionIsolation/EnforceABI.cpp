@@ -26,6 +26,11 @@
 #include "revng/Model/CallEdge.h"
 #include "revng/Model/Register.h"
 #include "revng/Model/Type.h"
+#include "revng/Pipeline/AllRegistries.h"
+#include "revng/Pipeline/Contract.h"
+#include "revng/Pipes/Kinds.h"
+#include "revng/Pipes/RootKind.h"
+#include "revng/Pipes/TaggedFunctionKind.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
@@ -39,6 +44,25 @@ using Register = RegisterPass<EnforceABI>;
 static Register X("enforce-abi", "Enforce ABI Pass", true, true);
 
 static Logger<> EnforceABILog("enforce-abi");
+
+struct EnforceABIPipe {
+  static constexpr auto Name = "enforce-abi";
+
+  std::vector<pipeline::ContractGroup> getContract() const {
+    using namespace pipeline;
+    using namespace ::revng::pipes;
+    return { ContractGroup::transformOnlyArgument(Isolated,
+                                                  Exactness::Exact,
+                                                  ABIEnforced,
+                                                  InputPreservation::Erase) };
+  }
+
+  void registerPasses(llvm::legacy::PassManager &Manager) {
+    Manager.add(new EnforceABI());
+  }
+};
+
+static pipeline::RegisterLLVMPass<EnforceABIPipe> Y;
 
 class EnforceABIImpl {
 public:

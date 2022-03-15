@@ -12,6 +12,11 @@
 #include "revng/FunctionIsolation/StructInitializers.h"
 #include "revng/MFP/MFP.h"
 #include "revng/MFP/SetLattices.h"
+#include "revng/Pipeline/AllRegistries.h"
+#include "revng/Pipeline/Contract.h"
+#include "revng/Pipes/Kinds.h"
+#include "revng/Pipes/RootKind.h"
+#include "revng/Pipes/TaggedFunctionKind.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
@@ -20,6 +25,25 @@ using namespace MFP;
 char PromoteCSVsPass::ID = 0;
 using Register = RegisterPass<PromoteCSVsPass>;
 static Register X("promote-csvs", "Promote CSVs Pass", true, true);
+
+struct PromoteCSVsPipe {
+  static constexpr auto Name = "promote-csvs";
+
+  std::vector<pipeline::ContractGroup> getContract() const {
+    using namespace pipeline;
+    using namespace ::revng::pipes;
+    return { ContractGroup::transformOnlyArgument(ABIEnforced,
+                                                  Exactness::Exact,
+                                                  CSVsPromoted,
+                                                  InputPreservation::Erase) };
+  }
+
+  void registerPasses(llvm::legacy::PassManager &Manager) {
+    Manager.add(new PromoteCSVsPass());
+  }
+};
+
+static pipeline::RegisterLLVMPass<PromoteCSVsPipe> Y;
 
 // TODO: switch from CallInst to CallBase
 

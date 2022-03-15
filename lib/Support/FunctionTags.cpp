@@ -23,7 +23,11 @@ namespace FunctionTags {
 
 Tag QEMU("QEMU");
 Tag Helper("Helper");
+
 Tag Isolated("Isolated");
+Tag ABIEnforced("ABIEnforced");
+Tag CSVsPromoted("CSVsPromoted");
+
 Tag CallToLifted("CallToLifted");
 Tag Exceptional("Exceptional");
 Tag StructInitializer("StructInitializer");

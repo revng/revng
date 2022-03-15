@@ -83,7 +83,11 @@ void TagsSet::addTo(T *I) const {
 
 extern Tag QEMU;
 extern Tag Helper;
+
 extern Tag Isolated;
+extern Tag ABIEnforced;
+extern Tag CSVsPromoted;
+
 extern Tag CallToLifted;
 extern Tag Exceptional;
 extern Tag StructInitializer;
