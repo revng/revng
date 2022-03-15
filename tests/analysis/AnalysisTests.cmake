@@ -34,8 +34,8 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       #
       set(TEST_NAME test-lifted-${CATEGORY}-${TARGET_NAME}-model)
       add_test(NAME ${TEST_NAME}
-        COMMAND sh -c "./bin/revng opt ${OUTPUT} --detect-abi -S | ./bin/revng model-to-json --remap > ${ACTUAL_MODEL} \
-          && ./bin/revng model-compare ${ACTUAL_MODEL} ${REFERENCE_MODEL}")
+        COMMAND sh -c "./bin/revng opt ${OUTPUT} --detect-abi -S | ./bin/revng model to-json --remap > ${ACTUAL_MODEL} \
+          && ./bin/revng model compare ${ACTUAL_MODEL} ${REFERENCE_MODEL}")
       set_tests_properties(${TEST_NAME} PROPERTIES LABELS "model;analysis;${CATEGORY};${CONFIGURATION};${ANALYSIS}")
 
     endif()

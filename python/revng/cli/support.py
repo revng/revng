@@ -1,11 +1,14 @@
 import sys
 import os
 import glob
-import re
 import signal
 import subprocess
 import shlex
+
 from itertools import chain
+from dataclasses import dataclass
+from typing import List, Any
+
 from elftools.elf.dynamic import DynamicSegment
 from elftools.elf.elffile import ELFFile
 
@@ -15,7 +18,13 @@ except ImportError:
     from backports.shutil_which import which
 
 
-log_commands = False
+@dataclass
+class Options:
+    parsed_args: Any
+    remaining_args: List[str]
+    search_prefixes: List[str]
+    command_prefix: List[str]
+    verbose: bool
 
 
 def shlex_join(split_command):
@@ -34,17 +43,11 @@ def wrap(args, command_prefix):
     return command_prefix + args
 
 
-def set_verbose():
-    global log_commands
-    log_commands = True
-
-
-def run(command, command_prefix, override={}):
+def run(command, options: Options):
     if is_executable(command[0]):
-        command = wrap(command, command_prefix)
+        command = wrap(command, options.command_prefix)
 
-    global log_commands
-    if log_commands:
+    if options.verbose:
         cwd = os.getcwd().rstrip("/")
         if command[0].startswith(cwd):
             program_path = "." + command[0][len(cwd) :]
@@ -54,14 +57,11 @@ def run(command, command_prefix, override={}):
 
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     environment = dict(os.environ)
-    environment.update(override)
     p = subprocess.Popen(
         command, preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL), env=environment
     )
     if p.wait() != 0:
-        log_error(
-            "The following command exited with {}:\n{}".format(p.returncode, shlex_join(command))
-        )
+        log_error(f"The following command exited with {p.returncode}:\n{shlex_join(command)}")
         sys.exit(p.returncode)
 
 
@@ -88,12 +88,12 @@ def get_command(command, search_prefixes):
     if command.startswith("revng-"):
         for executable in collect_files(search_prefixes, ["libexec", "revng"], command):
             return executable
-        log_error('Couldn\'t find "{}"'.format(command))
+        log_error(f'Couldn\'t find "{command}"')
         assert False
 
     path = which(command)
     if not path:
-        log_error('Couldn\'t find "{}".'.format(command))
+        log_error('Couldn\'t find "{command}".')
         assert False
     return os.path.abspath(path)
 
@@ -106,9 +106,9 @@ def interleave(base, repeat):
 
 
 def to_string(obj):
-    if type(obj) is str:
+    if isinstance(obj, str):
         return obj
-    elif type(obj) is bytes:
+    elif isinstance(obj, bytes):
         return obj.decode("utf-8")
 
 
@@ -117,7 +117,7 @@ def get_elf_needed(path):
         segments = [
             segment
             for segment in ELFFile(elf_file).iter_segments()
-            if type(segment) is DynamicSegment
+            if isinstance(segment, DynamicSegment)
         ]
 
         if len(segments) == 1:
@@ -159,7 +159,7 @@ def get_elf_needed(path):
             return []
 
 
-def collect_files(search_prefixes, path_components, filter):
+def collect_files(search_prefixes, path_components, pattern):
     to_load = {}
     for prefix in search_prefixes:
         analyses_path = os.path.join(prefix, *path_components)
@@ -167,7 +167,7 @@ def collect_files(search_prefixes, path_components, filter):
             continue
 
         # Enumerate all the libraries containing analyses
-        for library in glob.glob(os.path.join(analyses_path, filter)):
+        for library in glob.glob(os.path.join(analyses_path, pattern)):
             basename = os.path.basename(library)
             if basename not in to_load:
                 to_load[basename] = library
@@ -185,7 +185,7 @@ def collect_libraries(search_prefixes):
     return (to_load, dependencies)
 
 
-def handle_asan(dependencies):
+def handle_asan(dependencies, search_prefixes):
     libasan = [name for name in dependencies if ("libasan." in name or "libclang_rt.asan" in name)]
 
     if len(libasan) != 1:
@@ -203,19 +203,19 @@ def handle_asan(dependencies):
     # Use `sh` instead of `env` since `env` sometimes is not a real executable
     # but a shebang script spawning /usr/bin/coreutils, which makes gdb unhappy
     return [
-        get_command("sh"),
+        get_command("sh", search_prefixes),
         "-c",
-        "LD_PRELOAD={} ASAN_OPTIONS={} " 'exec "$0" "$@"'.format(libasan_path, new_asan_options),
+        f'LD_PRELOAD={libasan_path} ASAN_OPTIONS={new_asan_options} exec "$0" "$@"',
     ]
 
 
-def build_command_with_loads(command, args, search_prefixes):
-    (to_load, dependencies) = collect_libraries(search_prefixes)
-    prefix = handle_asan(dependencies)
+def build_command_with_loads(command, args, options):
+    (to_load, dependencies) = collect_libraries(options.search_prefixes)
+    prefix = handle_asan(dependencies, options.search_prefixes)
 
     return (
         prefix
-        + [relative(get_command(command, search_prefixes))]
+        + [relative(get_command(command, options.search_prefixes))]
         + interleave(to_load, "-load")
         + args
     )

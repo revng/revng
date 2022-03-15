@@ -149,9 +149,33 @@ python_module(
 )
 
 #
+# Install revng.cli.opt
+#
+python_module(
+    TARGET_NAME revng-python-opt
+    MODULE_FILES "revng/cli/opt.py"
+)
+
+#
 # Install revng.cli.revng
 #
 python_module(
     TARGET_NAME revng-python-revng
     MODULE_FILES "revng/cli/revng.py"
+)
+
+#
+# Install revng.cli.revng
+#
+python_module(
+    TARGET_NAME revng-python-pipeline
+    MODULE_FILES "revng/cli/pipeline.py"
+)
+
+#
+# Install revng.cli.commands_registry
+#
+python_module(
+    TARGET_NAME revng-python-commands_registry
+    MODULE_FILES "revng/cli/commands_registry.py"
 )
