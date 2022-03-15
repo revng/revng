@@ -37,10 +37,18 @@ public:
   std::optional<uint64_t> size() const debug_function;
   RecursiveCoroutine<std::optional<uint64_t>> size(VerifyHelper &VH) const;
 
+  /// Checks if is a scalar type, unwrapping typedefs
   bool isScalar() const;
+  /// Checks if is a primitive type, unwrapping typedefs
   bool isPrimitive(model::PrimitiveTypeKind::Values V) const;
-  bool isVoid() const { return isPrimitive(model::PrimitiveTypeKind::Void); }
+  /// Checks if is float, unwrapping typedefs
   bool isFloat() const { return isPrimitive(model::PrimitiveTypeKind::Float); }
+  /// Checks if is void, unwrapping typedefs
+  bool isVoid() const { return isPrimitive(model::PrimitiveTypeKind::Void); }
+  /// Checks if is an array type, unwrapping typedefs
+  bool isArray() const;
+  /// Checks if is a pointer type, withouth unwrapping typedefs
+  bool isPointer() const;
 
 public:
   bool verify() const debug_function;
