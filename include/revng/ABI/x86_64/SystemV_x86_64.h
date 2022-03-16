@@ -21,7 +21,8 @@ struct Trait<model::ABI::SystemV_x86_64> {
   static constexpr bool ArgumentsCanBeSplitBetweenRegistersAndStack = false;
   static constexpr bool UsePointerToCopyForStackArguments = false;
 
-  static constexpr size_t MaximumGPRsPerAggregateArgument = 8;
+  /// \note: if the aggregate argument contains SSE-fields, this doesn't apply.
+  static constexpr size_t MaximumGPRsPerAggregateArgument = 2;
   static constexpr size_t MaximumGPRsPerAggregateReturnValue = 2;
   static constexpr size_t MaximumGPRsPerScalarArgument = 8;
   static constexpr size_t MaximumGPRsPerScalarReturnValue = 2;
