@@ -157,6 +157,11 @@ public:
     for (auto &Argument : *ArgumentList)
       Result.Arguments.insert(Argument);
 
+    auto StackArgumentList = convertStackArguments(Function.StackArgumentsType,
+                                                   Result.Arguments.size());
+    for (auto &Argument : StackArgumentList)
+      Result.Arguments.insert(Argument);
+
     auto ReturnValue = convertReturnValue(Function.ReturnValues,
                                           C::GeneralPurposeReturnValueRegisters,
                                           C::ReturnValueLocationRegister,
@@ -174,6 +179,8 @@ public:
     Result.CustomName = Function.CustomName;
     Result.OriginalName = Function.OriginalName;
 
+    model::StructType StackArguments;
+    uint64_t CombinedStackArgumentSize = 0;
     for (size_t ArgIndex = 0; ArgIndex < Arguments.size(); ++ArgIndex) {
       auto &ArgumentStorage = Arguments[ArgIndex];
       const auto &ArgumentType = Function.Arguments.at(ArgIndex).Type;
@@ -201,11 +208,39 @@ public:
         revng_assert(ArgumentIterator != Function.Arguments.end());
         const model::Argument &Argument = *ArgumentIterator;
 
-        /// TODO: handle stack arguments properly.
-        /// \note: different ABIs could use different stack types.
-        /// \sa: `clrcall` ABI.
+        model::StructField Field;
+        Field.Offset = CombinedStackArgumentSize;
+        Field.CustomName = Argument.CustomName;
+        Field.OriginalName = Argument.OriginalName;
+        Field.Type = Argument.Type;
+        StackArguments.Fields.insert(std::move(Field));
+
+        auto MaybeSize = Argument.Type.size();
+        revng_assert(MaybeSize.has_value() && MaybeSize.value() != 0);
+
+        // Take stack alignment into consideration.
+        if (MaybeSize.value() < AT::MinimumStackArgumentSize) {
+          MaybeSize.value() = AT::MinimumStackArgumentSize;
+        } else {
+          constexpr auto MinStackArgSize = AT::MinimumStackArgumentSize;
+          static_assert((MinStackArgSize & (MinStackArgSize - 1)) == 0);
+          MaybeSize.value() += MinStackArgSize - 1;
+          MaybeSize.value() &= ~(MinStackArgSize - 1);
+        }
+
+        CombinedStackArgumentSize += MaybeSize.value();
       }
     }
+
+    if (CombinedStackArgumentSize != 0) {
+      StackArguments.Size = CombinedStackArgumentSize;
+
+      using namespace model;
+      auto Type = UpcastableType::make<StructType>(std::move(StackArguments));
+      Result.StackArgumentsType = TheBinary.recordNewType(std::move(Type));
+    }
+
+    Result.FinalStackOffset = finalStackOffset(Arguments);
 
     if (!Function.ReturnType.isVoid()) {
       auto ReturnValue = distributeReturnValue(Function.ReturnType);
@@ -287,8 +322,6 @@ public:
     for (model::Register::Values Register : AT::CalleeSavedRegisters)
       Result.PreservedRegisters.insert(Register);
 
-    Result.FinalStackOffset = finalStackOffset(Arguments);
-
     return Result;
   }
 
@@ -369,6 +402,29 @@ private:
 
     for (auto Pair : llvm::enumerate(llvm::reverse(Result)))
       Pair.value().Index = Pair.index();
+
+    return Result;
+  }
+
+  static llvm::SmallVector<model::Argument, 8>
+  convertStackArguments(model::TypePath StackArgumentTypes,
+                        size_t IndexOffset) {
+    if (StackArgumentTypes.get() == nullptr)
+      return {};
+
+    auto *Pointer = llvm::dyn_cast<model::StructType>(StackArgumentTypes.get());
+    revng_assert(Pointer != nullptr,
+                 "`RawFunctionType::StackArgumentsType` must be a struct");
+    const model::StructType &Types = *Pointer;
+
+    llvm::SmallVector<model::Argument, 8> Result;
+    for (const model::StructField &Field : Types.Fields) {
+      model::Argument &New = Result.emplace_back();
+      New.Index = IndexOffset++;
+      New.Type = Field.Type;
+      New.CustomName = Field.CustomName;
+      New.OriginalName = Field.OriginalName;
+    }
 
     return Result;
   }
