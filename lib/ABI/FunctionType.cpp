@@ -135,6 +135,7 @@ public:
 
     model::CABIFunctionType Result;
     Result.CustomName = Function.CustomName;
+    Result.OriginalName = Function.OriginalName;
     Result.ABI = ABI;
 
     if (!verifyArgumentsToBeConvertible(Function.Arguments,
@@ -171,24 +172,25 @@ public:
 
     model::RawFunctionType Result;
     Result.CustomName = Function.CustomName;
+    Result.OriginalName = Function.OriginalName;
 
     for (size_t ArgIndex = 0; ArgIndex < Arguments.size(); ++ArgIndex) {
       auto &ArgumentStorage = Arguments[ArgIndex];
       const auto &ArgumentType = Function.Arguments.at(ArgIndex).Type;
       if (!ArgumentStorage.Registers.empty()) {
         // Handle the registers
-        auto OriginalName = Function.Arguments.at(ArgIndex).CustomName;
+        auto ArgumentName = Function.Arguments.at(ArgIndex).name();
         for (size_t Index = 0; auto Register : ArgumentStorage.Registers) {
-          auto FinalName = OriginalName;
-          if (ArgumentStorage.Registers.size() > 1 && !FinalName.empty())
-            FinalName += "_part_" + std::to_string(++Index) + "_out_of_"
-                         + std::to_string(ArgumentStorage.Registers.size());
           model::NamedTypedRegister Argument(Register);
           Argument.Type = chooseArgumentType(ArgumentType,
                                              Register,
                                              ArgumentStorage.Registers,
                                              TheBinary);
-          Argument.CustomName = FinalName;
+
+          // TODO: see what can be done to preserve names better
+          if (llvm::StringRef{ ArgumentName.str() }.take_front(8) != "unnamed_")
+            Argument.CustomName = ArgumentName;
+
           Result.Arguments.insert(Argument);
         }
       }
@@ -340,13 +342,11 @@ private:
         } else if (Result.size() > 1 && Index > 1) {
           auto &First = Result[Result.size() - 1];
           auto &Second = Result[Result.size() - 2];
-          if (!First.CustomName.empty() || !Second.CustomName.empty()) {
-            if (First.CustomName.empty())
-              First.CustomName = "unnamed";
-            if (Second.CustomName.empty())
-              Second.CustomName = "unnamed";
-            First.CustomName.append(("+" + Second.CustomName).str());
-          }
+
+          // TODO: see what can be done to preserve names better
+          if (First.CustomName.empty() && !Second.CustomName.empty())
+            First.CustomName = Second.CustomName;
+
           if constexpr (!DryRun) {
             auto NewType = buildDoubleType(AllowedRegisters.at(Index - 2),
                                            AllowedRegisters.at(Index - 1),
@@ -357,6 +357,7 @@ private:
 
             First.Type = *NewType;
           }
+
           Result.pop_back();
         } else {
           return std::nullopt;
