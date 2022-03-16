@@ -5,7 +5,6 @@
 revng_add_analyses_library(revngcDecompiler revngc
   AddSCEVBarrierPass.cpp
   ASTBuildAnalysis.cpp
-  CDecompiler.cpp
   CDecompilerAction.cpp
   CDecompilerPass.cpp
   DecompilationHelpers.cpp
