@@ -3,6 +3,7 @@
 #
 
 add_subdirectory(tools/revng-abi-verify)
+add_subdirectory(tools/revng-ensure-rft-equivalence)
 
 macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
   set(INPUT_FILE "${INPUT_FILE}")
