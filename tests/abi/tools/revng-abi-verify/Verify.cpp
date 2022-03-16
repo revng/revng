@@ -7,375 +7,278 @@
 
 #include <algorithm>
 
+#include "revng/ABI/FunctionType.h"
+#include "revng/ABI/RegisterOrder.h"
+
+#include "ABIArtifactParser.h"
 #include "Verify.h"
 
-//
-// Internal state
-//
-
-namespace State {
-
-struct Register {
-  llvm::StringRef Name;
-  uint64_t Value;
-};
-using Registers = llvm::SmallVector<Register, 32>;
-
-struct StackValue {
-  int64_t Offset;
-  uint64_t Value;
-};
-using Stack = llvm::SmallVector<StackValue, 32>;
-
-struct Argument {
-  llvm::StringRef Type;
-  llvm::StringRef Value;
-};
-using Arguments = llvm::SmallVector<Argument, 32>;
-
-struct SingleRun {
-  llvm::StringRef Function;
-  Registers Registers;
-  Stack Stack;
-  Arguments ReturnValues;
-  Arguments Arguments;
-};
-using Deserialized = llvm::SmallVector<SingleRun, 16>;
-
-} // namespace State
-
-//
-// `llvm::yaml` traits for the internal state.
-//
-
-template<>
-struct llvm::yaml::MappingTraits<State::Register> {
-  static void mapping(IO &IO, State::Register &N) {
-    IO.mapRequired("Name", N.Name);
-    IO.mapRequired("Value", N.Value);
+struct ABIVerificationToolErrorCategory : public std::error_category {
+  virtual const char *name() const noexcept {
+    return "ABIVerificationToolErrorCategory";
   }
-};
-
-template<>
-struct llvm::yaml::MappingTraits<State::StackValue> {
-  static void mapping(IO &IO, State::StackValue &N) {
-    IO.mapRequired("Offset", N.Offset);
-    IO.mapRequired("Value", N.Value);
+  virtual std::error_condition
+  default_error_condition(int code) const noexcept {
+    return std::error_condition(code, *this);
   }
-};
-
-template<>
-struct llvm::yaml::MappingTraits<State::Argument> {
-  static void mapping(IO &IO, State::Argument &N) {
-    IO.mapRequired("Type", N.Type);
-    IO.mapRequired("Value", N.Value);
+  virtual bool
+  equivalent(int code, const std::error_condition &condition) const noexcept {
+    return default_error_condition(code) == condition;
   }
-};
-
-template<>
-struct llvm::yaml::MappingTraits<State::SingleRun> {
-  static void mapping(IO &IO, State::SingleRun &N) {
-    IO.mapRequired("Function", N.Function);
-    IO.mapRequired("Registers", N.Registers);
-    IO.mapRequired("Stack", N.Stack);
-    IO.mapRequired("Arguments", N.Arguments);
-    IO.mapRequired("ReturnValues", N.ReturnValues);
+  virtual bool
+  equivalent(const std::error_code &code, int condition) const noexcept {
+    return *this == code.category() && code.value() == condition;
   }
+  virtual std::string message(int) const { return ""; }
 };
 
-template<typename Type>
-struct GenericSmallVectorYamlTrait {
-  static size_t size(llvm::yaml::IO &, Type &Value) { return Value.size(); }
-  static auto &element(llvm::yaml::IO &, Type &Value, size_t Index) {
-    if (Index >= Value.size())
-      Value.resize(Index + 1);
-    return Value[Index];
-  }
-};
-
-template<>
-struct llvm::yaml::SequenceTraits<State::Registers>
-  : GenericSmallVectorYamlTrait<State::Registers> {};
-template<>
-struct llvm::yaml::SequenceTraits<State::Stack>
-  : GenericSmallVectorYamlTrait<State::Stack> {};
-template<>
-struct llvm::yaml::SequenceTraits<State::Arguments>
-  : GenericSmallVectorYamlTrait<State::Arguments> {};
-template<>
-struct llvm::yaml::SequenceTraits<State::Deserialized>
-  : GenericSmallVectorYamlTrait<State::Deserialized> {};
-
-//
-// Parsed State
-//
-
-namespace State {
-
-struct ModelRegister {
-  model::Register::Values Name;
-  uint64_t Value = 0;
-};
-
-} // namespace State
-
-template<>
-struct KeyedObjectTraits<State::ModelRegister> {
-  static model::Register::Values key(const State::ModelRegister &Object) {
-    return Object.Name;
-  }
-  static State::ModelRegister fromKey(const model::Register::Values &Key) {
-    return { Key };
-  }
-};
-
-namespace State {
-
-using ModelRegisters = SortedVector<ModelRegister>;
-
-struct Iteration {
-  ModelRegisters Registers;
-  Stack Stack;
-  Arguments ReturnValues;
-  Arguments Arguments;
-};
-
-struct FunctionArtifact {
-  llvm::StringRef Name;
-  llvm::SmallVector<Iteration, 5> Iterations = {};
-};
-
-} // namespace State
-
-template<>
-struct KeyedObjectTraits<State::FunctionArtifact> {
-  static llvm::StringRef key(const State::FunctionArtifact &Object) {
-    return Object.Name;
-  }
-  static State::FunctionArtifact fromKey(const llvm::StringRef &Key) {
-    return { Key };
-  }
-};
-
-namespace State {
-
-using Parsed = SortedVector<FunctionArtifact>;
-
-} // namespace State
-
-static State::ModelRegisters
-toModelRegisters(const State::Registers &Input,
-                 model::Architecture::Values Arch) {
-  State::ModelRegisters Result;
-
-  for (const State::Register &Reg : Input) {
-    auto &Output = Result[model::Register::fromRegisterName(Reg.Name, Arch)];
-    Output.Value = Reg.Value;
-  }
-
-  return Result;
+const std::error_category &thisToolError() {
+  static ABIVerificationToolErrorCategory Instance;
+  return Instance;
 }
-
-static State::Iteration toIteration(const State::SingleRun &SingleRun,
-                                    model::Architecture::Values Architecture) {
-  return State::Iteration{ toModelRegisters(SingleRun.Registers, Architecture),
-                           SingleRun.Stack,
-                           SingleRun.ReturnValues,
-                           SingleRun.Arguments };
-}
-
-static State::Parsed parse(llvm::StringRef RuntimeArtifact,
-                           model::Architecture::Values Architecture) {
-  llvm::yaml::Input Reader(RuntimeArtifact);
-
-  State::Deserialized Deserialized;
-  Reader >> Deserialized;
-
-  State::Parsed Result;
-  for (const State::SingleRun &SingleRun : Deserialized) {
-    const State::Iteration &Iteration = toIteration(SingleRun, Architecture);
-    Result[SingleRun.Function].Iterations.emplace_back(Iteration);
-  }
-
-  return Result;
-}
-
-//
-// Verification
-//
 
 template<typename ValueType>
 static bool
-tryVerifyRegisterImpl(llvm::StringRef ArgumentValue, uint64_t RegisterValue) {
+compareImpl(llvm::StringRef ArgumentValue, ValueType RegisterValue) {
+  revng_assert(ArgumentValue.size() == sizeof(ValueType) * 2);
+
   ValueType Converted;
   bool Failed = ArgumentValue.getAsInteger(16, Converted);
   revng_assert(Failed == false);
 
-  return static_cast<ValueType>(RegisterValue) == Converted;
+  return RegisterValue == Converted;
 }
 
-static bool tryVerifyRegister(llvm::StringRef ArgumentValue,
-                              uint64_t RegisterValue,
-                              size_t RegisterSize) {
-  bool Res = false;
-  while (ArgumentValue.size() > RegisterSize * 2) {
-    auto F8B = ArgumentValue.substr(0, RegisterSize * 2);
-    Res = Res || tryVerifyRegister(F8B, RegisterValue, RegisterSize);
-    ArgumentValue = ArgumentValue.substr(RegisterSize * 2);
-  }
-
+static bool
+tryVerifyRegister(llvm::StringRef ArgumentValue, uint64_t RegisterValue) {
   switch (ArgumentValue.size()) {
   case 2:
-    return Res || tryVerifyRegisterImpl<uint8_t>(ArgumentValue, RegisterValue);
+    return compareImpl<uint8_t>(ArgumentValue, RegisterValue)
+           || compareImpl<uint8_t>(ArgumentValue, RegisterValue >> 8)
+           || compareImpl<uint8_t>(ArgumentValue, RegisterValue >> 16)
+           || compareImpl<uint8_t>(ArgumentValue, RegisterValue >> 24)
+           || compareImpl<uint8_t>(ArgumentValue, RegisterValue >> 32)
+           || compareImpl<uint8_t>(ArgumentValue, RegisterValue >> 40)
+           || compareImpl<uint8_t>(ArgumentValue, RegisterValue >> 48)
+           || compareImpl<uint8_t>(ArgumentValue, RegisterValue >> 56);
   case 4:
-    return Res || tryVerifyRegisterImpl<uint16_t>(ArgumentValue, RegisterValue);
+    return compareImpl<uint16_t>(ArgumentValue, RegisterValue)
+           || compareImpl<uint16_t>(ArgumentValue, RegisterValue >> 16)
+           || compareImpl<uint16_t>(ArgumentValue, RegisterValue >> 32)
+           || compareImpl<uint16_t>(ArgumentValue, RegisterValue >> 48);
   case 8:
-    return Res || tryVerifyRegisterImpl<uint32_t>(ArgumentValue, RegisterValue);
+    return compareImpl<uint32_t>(ArgumentValue, RegisterValue)
+           || compareImpl<uint32_t>(ArgumentValue, RegisterValue >> 32);
   case 16:
-    return Res || tryVerifyRegisterImpl<uint64_t>(ArgumentValue, RegisterValue);
+    return compareImpl<uint64_t>(ArgumentValue, RegisterValue);
   default:
     revng_abort("Unsupported argument size.");
   };
 }
 
-using ArgumentIndices = std::set<size_t>;
-static ArgumentIndices verifyRegister(model::Register::Values Location,
-                                      const State::FunctionArtifact &Artifact,
-                                      size_t RegisterSize) {
-  ArgumentIndices Result;
+static llvm::SmallVector<llvm::StringRef, 8>
+splitValue(llvm::StringRef Value, size_t ChunkSize) {
+  if (Value.size() > 1 && Value.substr(0, 2) == "0x")
+    Value = Value.substr(2);
 
-  bool IsFirst = true;
-  for (const State::Iteration &Iteration : Artifact.Iterations) {
-    const State::ModelRegister &Register = Iteration.Registers.at(Location);
+  size_t ExpectedChunkCount = Value.size() / ChunkSize
+                              + (Value.size() % ChunkSize != 0);
 
-    ArgumentIndices CurrentIterationResult;
-    for (size_t Index = 0; Index < Iteration.Arguments.size(); ++Index) {
-      auto ArgumentValue = Iteration.Arguments[Index].Value;
-      if (ArgumentValue.size() > 2 && ArgumentValue.substr(0, 2) == "0x")
-        ArgumentValue = ArgumentValue.substr(2);
-      if (tryVerifyRegister(ArgumentValue, Register.Value, RegisterSize))
-        CurrentIterationResult.insert(Index);
-    }
+  llvm::SmallVector<llvm::StringRef, 8> Result;
 
-    if (IsFirst) {
-      std::swap(Result, CurrentIterationResult);
-      IsFirst = false;
-    } else {
-      ArgumentIndices Temporary;
-      std::set_intersection(Result.begin(),
-                            Result.end(),
-                            CurrentIterationResult.begin(),
-                            CurrentIterationResult.end(),
-                            std::inserter(Temporary, Temporary.begin()));
-      std::swap(Result, Temporary);
-    }
+  while (Value.size() > ChunkSize) {
+    Result.emplace_back(Value.take_back(ChunkSize));
+    Value = Value.drop_back(ChunkSize);
   }
 
+  revng_assert(!Value.empty());
+  Result.emplace_back(std::move(Value));
+
+  revng_assert(ExpectedChunkCount == Result.size());
   return Result;
 }
 
-static bool areArgumentsCompatible(const State::Argument &Expected,
-                                   const model::Argument &Found,
-                                   size_t RegisterSize) {
-  llvm::StringRef ArgumentValue = Expected.Value;
-  if (ArgumentValue.size() > 2 && ArgumentValue.substr(0, 2) == "0x")
-    ArgumentValue = ArgumentValue.substr(2);
+struct IterationAccessHelper {
+  const abi::artifact::Iteration Iteration;
+  size_t RegisterSize;
 
-  std::optional<uint64_t> MaybeSize = Found.Type.size();
-  revng_assert(MaybeSize != std::nullopt);
-
-  if (ArgumentValue.size() == *MaybeSize * 2)
-    return true; // Exact size.
-  else if (*MaybeSize == RegisterSize
-           && ArgumentValue.size() < RegisterSize * 2)
-    return true; // Expanded to the register size.
-  else
-    return false;
-}
-
-ExitCode verifyABI(const TupleTree<model::Binary> &Binary,
-                   llvm::StringRef RuntimeArtifact,
-                   model::ABI::Values ABI,
-                   llvm::raw_fd_ostream &OutputStream) {
-  model::Architecture::Values Architecture = model::ABI::getArchitecture(ABI);
-  size_t RegisterSize = model::Architecture::getPointerSize(Architecture);
-  State::Parsed ParsedArtifact = parse(RuntimeArtifact, Architecture);
-
-  for (auto &Type : Binary->Types) {
-    ExitCode Result = ExitCode::Success;
-    auto Visitor = [&]<typename UpcastedType>(const UpcastedType &Upcasted) {
-      using namespace model;
-      if constexpr (std::is_same_v<UpcastedType, CABIFunctionType>) {
-        auto CurrentArtifact = ParsedArtifact.find(Upcasted.CustomName);
-        if (CurrentArtifact != ParsedArtifact.end()) {
-          for (auto &Iteration : CurrentArtifact->Iterations) {
-            size_t ArgumentCount = Iteration.Arguments.size();
-            if (ArgumentCount != Upcasted.Arguments.size()) {
-              size_t ItID = std::distance(CurrentArtifact->Iterations.begin(),
-                                          &Iteration);
-              std::string_view NameView = llvm::StringRef(Upcasted.CustomName);
-              dbg << ArgumentCount << " arguments expected, but "
-                  << Upcasted.Arguments.size() << " were found instead "
-                  << "on the iteration #" << ItID << " of a function named \""
-                  << NameView << "\":\n";
-              Upcasted.dump();
-              Result = ExitCode::FailedArgumentCountCheck;
-              return;
-            }
-            for (size_t Index = 0; Index < ArgumentCount; ++Index) {
-              if (!areArgumentsCompatible(Iteration.Arguments[Index],
-                                          Upcasted.Arguments.at(Index),
-                                          RegisterSize)) {
-                size_t ItID = std::distance(CurrentArtifact->Iterations.begin(),
-                                            &Iteration);
-                std::string_view NmView = llvm::StringRef(Upcasted.CustomName);
-                dbg << "Argument " << Index << " is not compatible with "
-                    << "the expected type on the iteration #" << ItID
-                    << " of a function named \"" << NmView << "\":\n";
-                Upcasted.dump();
-                Result = ExitCode::FailedArgumentCompatibilityCheck;
-                return;
-              }
-            }
-          }
-        }
-      } else if constexpr (std::is_same_v<UpcastedType, RawFunctionType>) {
-        auto CurrentArtifact = ParsedArtifact.find(Upcasted.CustomName);
-        if (CurrentArtifact != ParsedArtifact.end()) {
-          for (auto &Argument : Upcasted.Arguments) {
-            auto Indices = verifyRegister(Argument.Location,
-                                          *CurrentArtifact,
-                                          RegisterSize);
-            if (Indices.empty()) {
-              std::string_view NameView = llvm::StringRef(Upcasted.CustomName);
-              dbg << "Cannot locate an argument in the artifact:\n";
-              Argument.dump();
-              dbg << "The function named \"" << NameView << "\":\n";
-              Upcasted.dump();
-              Result = ExitCode::FailedLocatingAnArgument;
-              return;
-            }
-
-            if (Indices.size() > 1) {
-              std::string_view NameView = llvm::StringRef(Upcasted.CustomName);
-              dbg << "Multiple locations for an argument in the artifact:\n";
-              Argument.dump();
-              dbg << "The locations are: ";
-              for (auto Index : Indices)
-                dbg << Index << ' ';
-              dbg << "\nThe function named \"" << NameView << "\":\n";
-              Upcasted.dump();
-              Result = ExitCode::FailedSelectingSingleArgumentLocation;
-              return;
-            }
-          }
-        }
-      }
-    };
-    Type.upcast(Visitor);
-    if (Result != ExitCode::Success)
-      return Result;
+  std::optional<uint64_t> registerValue(model::Register::Values Register) {
+    auto Iterator = Iteration.Registers.find(Register);
+    if (Iterator != Iteration.Registers.end())
+      return Iterator->Value;
+    else
+      return std::nullopt;
   }
 
-  return ExitCode::Success;
+  std::optional<uint64_t> stackValue(size_t OffsetIndex) {
+    if (OffsetIndex >= Iteration.Stack.size())
+      return std::nullopt;
+
+    auto &Result = Iteration.Stack[OffsetIndex];
+    revng_assert(Result.Offset >= 0);
+    if (static_cast<uint64_t>(Result.Offset) != OffsetIndex * RegisterSize)
+      return std::nullopt;
+    else
+      return Result.Value;
+  }
+};
+
+static llvm::Error verifyImpl(const abi::FunctionType::Layout &FunctionLayout,
+                              const abi::artifact::FunctionArtifact &Artifact,
+                              model::ABI::Values ABI) {
+  model::Architecture::Values Architecture = model::ABI::getArchitecture(ABI);
+  size_t RegisterSize = model::Architecture::getPointerSize(Architecture);
+  for (size_t Index = 0; Index < Artifact.Iterations.size(); ++Index) {
+    IterationAccessHelper Helper{ Artifact.Iterations[Index], RegisterSize };
+
+    // Get the data ready
+    auto ArgRegisters = FunctionLayout.argumentRegisters();
+    auto OrderedRegisterList = abi::orderArguments(std::move(ArgRegisters),
+                                                   ABI);
+    abi::FunctionType::Layout::Argument::StackSpan StackSpan{ 0, 0 };
+    for (const auto &Argument : FunctionLayout.Arguments) {
+      if (Argument.Stack.has_value()) {
+        revng_assert(Argument.Stack->Size != 0);
+        if (StackSpan.Size == 0) {
+          StackSpan = *Argument.Stack;
+        } else {
+          if (Argument.Stack->Offset != StackSpan.Offset + StackSpan.Size)
+            return ERROR(ExitCode::OnlyContinuousStackArgumentsAreSupported,
+                         "Only continuous stack arguments are supported.\n");
+
+          StackSpan.Size += Argument.Stack->Size;
+        }
+      }
+    }
+
+    // Check the arguments.
+    size_t CurrentRegisterIndex = 0;
+    size_t UsedStackOffset = StackSpan.Offset;
+    for (const auto &Argument : Helper.Iteration.Arguments) {
+      revng_assert(Argument.Value.size() % 2 == 0);
+      auto RegisterSizedChunks = splitValue(Argument.Value, RegisterSize * 2);
+      if (!Artifact.IsLittleEndian)
+        std::reverse(RegisterSizedChunks.begin(), RegisterSizedChunks.end());
+
+      bool UsesStack = false;
+      for (size_t Index = 0; Index < RegisterSizedChunks.size(); ++Index) {
+        llvm::StringRef Chunk = RegisterSizedChunks[Index];
+        if (!UsesStack && CurrentRegisterIndex < OrderedRegisterList.size()) {
+          auto CurrentRegister = OrderedRegisterList[CurrentRegisterIndex];
+          auto MaybeValue = Helper.registerValue(CurrentRegister);
+          if (!MaybeValue.has_value())
+            return ERROR(ExitCode::UnknownRegister,
+                         "Verification of '"
+                           + model::Register::getName(CurrentRegister)
+                           + "' register failed. It doesn't "
+                             "contain the expected argument.\n");
+
+          if (tryVerifyRegister(Chunk, *MaybeValue)) {
+            ++CurrentRegisterIndex;
+
+            // Current register value checks out, go to the next one.
+            continue;
+          }
+        }
+
+        size_t OffsetCorrection = !Artifact.IsLittleEndian ?
+                                    RegisterSizedChunks.size() - Index * 2 - 1 :
+                                    0;
+        auto MaybeValue = Helper.stackValue(UsedStackOffset + OffsetCorrection);
+        if (!MaybeValue.has_value())
+          return ERROR(ExitCode::UnknownStackOffset,
+                       "Verification of '{0}' stack offset failed. It isn't "
+                       "mentioned in the artifact. Are there too many "
+                       "arguments?.\n",
+                       UsedStackOffset);
+
+        if (!tryVerifyRegister(Chunk, *MaybeValue))
+          return ERROR(ExitCode::ArgumentCouldNotBeLocated,
+                       "An argument cannot be found, it doesn't use either "
+                       "stack nor registers.\n");
+
+        UsesStack = true;
+        ++UsedStackOffset;
+      }
+    }
+
+    if (UsedStackOffset * RegisterSize != StackSpan.Offset + StackSpan.Size)
+      return ERROR(ExitCode::CombinedStackArgumentsSizeIsWrong,
+                   "Combined stack argument size is different from what was "
+                   "expected.\n");
+
+    // Check the return value.
+    auto Registers = FunctionLayout.returnValueRegisters();
+    auto ReturnValueRegisterList = abi::orderReturnValues(std::move(Registers),
+                                                          ABI);
+    if (Helper.Iteration.ReturnValue.Value.size() != 0) {
+      if (ReturnValueRegisterList.size() == 0)
+        return ERROR(ExitCode::FoundUnexpectedReturnValue,
+                     "Found a return value that should not be there.\n");
+
+      revng_assert(Helper.Iteration.ReturnValue.Value.size() % 2 == 0);
+      auto RegisterSizedChunks = splitValue(Helper.Iteration.ReturnValue.Value,
+                                            RegisterSize * 2);
+
+      // TODO: investigate how endianness affects return values more thoroughly.
+      if (!Artifact.IsLittleEndian)
+        std::reverse(RegisterSizedChunks.begin(), RegisterSizedChunks.end());
+
+      size_t ReturnValueRegisterIndex = 0;
+      for (llvm::StringRef Chunk : RegisterSizedChunks) {
+        auto Current = ReturnValueRegisterList[ReturnValueRegisterIndex];
+        auto MaybeValue = Helper.registerValue(Current);
+        if (!MaybeValue.has_value())
+          return ERROR(ExitCode::UnknownReturnValueRegister,
+                       "Verification of '" + model::Register::getName(Current)
+                         + "' register failed. It doesn't "
+                           "contain the expected return value.\n");
+
+        if (!tryVerifyRegister(Chunk, *MaybeValue))
+          return ERROR(ExitCode::ReturnValueCouldNotBeLocated,
+                       "Fail to locate where the return value is passed.\n");
+
+        ++ReturnValueRegisterIndex;
+      }
+    } else if (ReturnValueRegisterList.size() != 0) {
+      return ERROR(ExitCode::ExpectedReturnValueNotFound,
+                   "A return value is expected but function signature doesn't "
+                   "mention it.\n");
+    }
+  }
+
+  return llvm::Error::success();
+}
+
+llvm::Error verifyABI(const TupleTree<model::Binary> &Binary,
+                      llvm::StringRef RuntimeArtifact,
+                      model::ABI::Values ABI) {
+  model::Architecture::Values Architecture = model::ABI::getArchitecture(ABI);
+  auto ParsedArtifact = abi::artifact::parse(RuntimeArtifact, Architecture);
+
+  for (auto &Type : Binary->Types) {
+    revng_assert(Type.get() != nullptr);
+
+    auto CurrentArtifact = ParsedArtifact.find(Type->name());
+    if (CurrentArtifact == ParsedArtifact.end()) {
+      // Ignore types with no artifact provided.
+      continue;
+    }
+
+    if (auto *CABI = llvm::dyn_cast<model::CABIFunctionType>(Type.get())) {
+      if (auto Error = verifyImpl(abi::FunctionType::Layout(*CABI),
+                                  *CurrentArtifact,
+                                  ABI))
+        return Error;
+    } else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(Type.get())) {
+      if (auto Error = verifyImpl(abi::FunctionType::Layout(*Raw),
+                                  *CurrentArtifact,
+                                  ABI))
+        return Error;
+    } else {
+      // Ignore non-function types.
+    }
+  }
+
+  return llvm::Error::success();
 }

@@ -9,17 +9,25 @@
 enum ExitCode {
   Success = 0,
   FailedOpeningTheInputFile = 1,
-  FailedOpeningTheOutputFile = 2,
-  FailedOpeningTheArtifactFile = 3,
-  FailedDeserializingTheModel = 4,
-  FailedVerifyingTheModel = 5,
-  FailedArgumentCountCheck = 6,
-  FailedArgumentCompatibilityCheck = 7,
-  FailedLocatingAnArgument = 8,
-  FailedSelectingSingleArgumentLocation = 9
+  FailedOpeningTheArtifactFile = 2,
+  FailedDeserializingTheModel = 3,
+  FailedVerifyingTheModel = 4,
+
+  OnlyContinuousStackArgumentsAreSupported = 5,
+  UnknownRegister = 6,
+  UnknownStackOffset = 7,
+  ArgumentCouldNotBeLocated = 8,
+  FoundUnexpectedReturnValue = 9,
+  ExpectedReturnValueNotFound = 10,
+  UnknownReturnValueRegister = 11,
+  ReturnValueCouldNotBeLocated = 12,
+  CombinedStackArgumentsSizeIsWrong = 13
 };
 
-ExitCode verifyABI(const TupleTree<model::Binary> &Binary,
-                   llvm::StringRef RuntimeArtifact,
-                   model::ABI::Values ABI,
-                   llvm::raw_fd_ostream &OutputStream);
+const std::error_category &thisToolError();
+#define ERROR(CODE, ...) \
+  llvm::createStringError(std::error_code(CODE, thisToolError()), __VA_ARGS__)
+
+llvm::Error verifyABI(const TupleTree<model::Binary> &Binary,
+                      llvm::StringRef RuntimeArtifact,
+                      model::ABI::Values ABI);
