@@ -120,65 +120,23 @@ getModelFunction(const model::Binary &Model, const llvm::Function &F) {
   return Model.Functions.at(FunctionMetaAddress);
 }
 
-static RecursiveCoroutine<bool> isArray(const model::QualifiedType &QT) {
-
-  const auto IsNotConstQual = [](const model::Qualifier &Q) {
-    return not Q.isConstQualifier();
-  };
-
-  for (const auto &Q : llvm::make_filter_range(QT.Qualifiers, IsNotConstQual)) {
-
-    if (Q.isArrayQualifier())
-      rc_return true;
-
-    revng_assert(Q.isPointerQualifier());
-    rc_return false;
-  }
-
-  if (auto *TD = dyn_cast<model::TypedefType>(QT.UnqualifiedType.get()))
-    rc_return rc_recur isArray(TD->UnderlyingType);
-
-  rc_return false;
-}
-
-static RecursiveCoroutine<bool> isPointer(const model::QualifiedType &QT) {
-
-  const auto IsNotConstQual = [](const model::Qualifier &Q) {
-    return not Q.isConstQualifier();
-  };
-
-  for (const auto &Q : llvm::make_filter_range(QT.Qualifiers, IsNotConstQual)) {
-
-    if (Q.isPointerQualifier())
-      rc_return true;
-
-    revng_assert(Q.isArrayQualifier());
-    rc_return false;
-  }
-
-  if (auto *TD = dyn_cast<model::TypedefType>(QT.UnqualifiedType.get()))
-    rc_return rc_recur isPointer(TD->UnderlyingType);
-
-  rc_return false;
-}
-
 static RecursiveCoroutine<model::QualifiedType>
 dropPointer(const model::QualifiedType &QT) {
 
-  revng_assert(isPointer(QT));
+  revng_assert(QT.isPointer());
 
   auto QIt = QT.Qualifiers.begin();
   auto QEnd = QT.Qualifiers.end();
   for (; QIt != QEnd; ++QIt) {
 
-    if (QIt->isConstQualifier())
+    if (model::Qualifier::isConst(*QIt))
       continue;
 
-    if (QIt->isPointerQualifier())
+    if (model::Qualifier::isPointer(*QIt))
       rc_return model::QualifiedType(QT.UnqualifiedType,
                                      { std::next(QIt), QEnd });
 
-    revng_assert(QIt->isArrayQualifier());
+    revng_assert(model::Qualifier::isArray(*QIt));
     rc_return QT;
   }
 
@@ -186,28 +144,6 @@ dropPointer(const model::QualifiedType &QT) {
     rc_return rc_recur dropPointer(TD->UnderlyingType);
 
   rc_return QT;
-}
-
-static RecursiveCoroutine<bool> isVoid(const model::QualifiedType &QT) {
-
-  const auto IsNotConstQual = [](const model::Qualifier &Q) {
-    return not Q.isConstQualifier();
-  };
-
-  // If it has a qualifier that is non const, then it's an array or a pointer,
-  // so it cannot be void.
-  if (llvm::any_of(QT.Qualifiers, IsNotConstQual))
-    rc_return false;
-
-  const model::Type *U = QT.UnqualifiedType.get();
-  if (auto *TD = dyn_cast<model::TypedefType>(U))
-    rc_return rc_recur isVoid(TD->UnderlyingType);
-
-  auto *Primitive = dyn_cast<model::PrimitiveType>(U);
-  if (not Primitive)
-    rc_return false;
-
-  rc_return Primitive->PrimitiveKind == model::PrimitiveTypeKind::Void;
 }
 
 static const model::Type *getCalleePrototype(const model::BasicBlock &ModelBB,
@@ -262,7 +198,7 @@ ValueModelTypesMap initializeModelTypes(const llvm::Function &F,
       auto _ = LoggerIndent(ModelGEPLog);
       revng_log(ModelGEPLog, "llvm::Argument: " << dumpToString(LLVMArg));
       revng_log(ModelGEPLog, "model::QualifiedType: " << ModelArg.Type);
-      if (isPointer(ModelArg.Type)) {
+      if (ModelArg.Type.isPointer()) {
         revng_log(ModelGEPLog, "INITIALIZED");
         Result.insert({ &LLVMArg, ModelArg.Type });
       }
@@ -279,7 +215,7 @@ ValueModelTypesMap initializeModelTypes(const llvm::Function &F,
       auto _ = LoggerIndent(ModelGEPLog);
       revng_log(ModelGEPLog, "llvm::Argument: " << dumpToString(LLVMArg));
       revng_log(ModelGEPLog, "model::QualifiedType: " << ModelArg.Type);
-      if (isPointer(ModelArg.Type)) {
+      if (ModelArg.Type.isPointer()) {
         revng_log(ModelGEPLog, "INITIALIZED");
         Result.insert({ &LLVMArg, ModelArg.Type });
       }
@@ -381,7 +317,7 @@ ValueModelTypesMap initializeModelTypes(const llvm::Function &F,
                        or Call->getType()->isIntOrPtrTy());
 
           const model::QualifiedType &ModT = RFT->ReturnValues.begin()->Type;
-          if (isPointer(ModT)) {
+          if (ModT.isPointer()) {
             auto _ = LoggerIndent(ModelGEPLog);
             revng_log(ModelGEPLog, "llvm::CallInst: " << dumpToString(Call));
             revng_log(ModelGEPLog, "model::QualifiedType: " << ModT);
@@ -406,7 +342,7 @@ ValueModelTypesMap initializeModelTypes(const llvm::Function &F,
             // ExtractedSet contains all the ExtractValueInst that extract the
             // same field of the struct.
             const model::QualifiedType &ModT = ReturnValue.Type;
-            if (isPointer(ModT)) {
+            if (ModT.isPointer()) {
               for (auto *V : ExtractedSet) {
                 revng_assert(isa<ExtractValueInst>(V));
                 auto _ = LoggerIndent(ModelGEPLog);
@@ -424,7 +360,7 @@ ValueModelTypesMap initializeModelTypes(const llvm::Function &F,
 
         // If the callee function does not return anything, skip to the next
         // instruction.
-        if (isVoid(CFT->ReturnType)) {
+        if (CFT->ReturnType.isVoid()) {
           revng_log(ModelGEPLog, "Returns void. Skip ...");
           revng_assert(Call->getType()->isVoidTy());
           continue;
@@ -711,7 +647,7 @@ static IRAccessPattern computeAccessPattern(const Use &U,
           // type of IRPattern to the pointee of the return type.
           // Otherwise the Function is not returning a pointer, and we can skip
           // it.
-          if (isPointer(ModT)) {
+          if (ModT.isPointer()) {
             auto _ = LoggerIndent(ModelGEPLog);
             revng_log(ModelGEPLog, "llvm::ReturnInst: " << dumpToString(Ret));
             revng_log(ModelGEPLog, "Pointee: model::QualifiedType: " << ModT);
@@ -735,7 +671,7 @@ static IRAccessPattern computeAccessPattern(const Use &U,
 
         // If the callee function does not return anything, skip to the next
         // instruction.
-        if (isVoid(CFT->ReturnType)) {
+        if (CFT->ReturnType.isVoid()) {
           revng_log(ModelGEPLog, "Returns void. Skip ...");
           revng_assert(not Ret->getReturnValue());
         } else {
@@ -784,7 +720,7 @@ static IRAccessPattern computeAccessPattern(const Use &U,
 
           model::QualifiedType
             RetTy = std::next(RFT->ReturnValues.begin(), ArgNum)->Type;
-          if (isPointer(RetTy)) {
+          if (RetTy.isPointer()) {
             model::QualifiedType Pointee = dropPointer(RetTy);
             revng_log(ModelGEPLog, "Pointee: " << Pointee);
             IRPattern.PointeeType = Pointee;
@@ -818,7 +754,7 @@ static IRAccessPattern computeAccessPattern(const Use &U,
           auto ArgIt = RFT->Arguments.begin();
           model::QualifiedType ArgTy = std::next(ArgIt, ArgOpNum)->Type;
           revng_log(ModelGEPLog, "model::QualifiedType: " << ArgTy);
-          if (isPointer(ArgTy)) {
+          if (ArgTy.isPointer()) {
             model::QualifiedType Pointee = dropPointer(ArgTy);
             revng_log(ModelGEPLog, "Pointee: " << Pointee);
             IRPattern.PointeeType = Pointee;
@@ -836,7 +772,7 @@ static IRAccessPattern computeAccessPattern(const Use &U,
           revng_log(ModelGEPLog, "ArgOperand: " << U.get());
           model::QualifiedType ArgTy = CFT->Arguments.at(ArgOpNum).Type;
           revng_log(ModelGEPLog, "model::QualifiedType: " << ArgTy);
-          if (isPointer(ArgTy)) {
+          if (ArgTy.isPointer()) {
             model::QualifiedType Pointee = dropPointer(ArgTy);
             revng_log(ModelGEPLog, "Pointee: " << Pointee);
             IRPattern.PointeeType = Pointee;
@@ -1073,12 +1009,12 @@ differenceScore(const model::QualifiedType &BaseType,
     // Should not be a pointer, because pointers don't have children on the
     // type system, which means that we shouldn't have a ChildId at this
     // point.
-    revng_assert(not isPointer(Normalized));
+    revng_assert(not Normalized.isPointer());
 
     switch (ChildID.Type) {
 
     case Struct: {
-      revng_assert(not isArray(Normalized));
+      revng_assert(not Normalized.isArray());
 
       auto *S = cast<model::StructType>(Normalized.UnqualifiedType.get());
       size_t FieldOffset = cast<ConstantInt>(ChildID.Index)->getZExtValue();
@@ -1097,7 +1033,7 @@ differenceScore(const model::QualifiedType &BaseType,
     } break;
 
     case Union: {
-      revng_assert(not isArray(Normalized));
+      revng_assert(not Normalized.isArray());
       auto *U = cast<model::UnionType>(Normalized.UnqualifiedType.get());
       size_t FieldID = cast<ConstantInt>(ChildID.Index)->getZExtValue();
       NestedType = U->Fields.at(FieldID).Type;
@@ -1105,14 +1041,12 @@ differenceScore(const model::QualifiedType &BaseType,
     } break;
 
     case Array: {
-      revng_assert(isArray(Normalized));
+      revng_assert(Normalized.isArray());
       revng_assert(ArrayInfoIt != ArrayInfoEnd);
 
       const auto ArrayQualEnd = Normalized.Qualifiers.end();
       const auto ArrayQualIt = llvm::find_if(Normalized.Qualifiers,
-                                             [](const model::Qualifier &Q) {
-                                               return Q.isArrayQualifier();
-                                             });
+                                             model::Qualifier::isArray);
       revng_assert(ArrayQualIt != ArrayQualEnd);
 
       revng_assert(not ChildID.Index);
@@ -1300,18 +1234,14 @@ getType(ModelGEPArgs &GEPArgs, model::VerifyHelper &VH) {
       do {
         CurrType = peelConstAndTypedefs(CurrType.value(), VH);
 
-        It = llvm::find_if(CurrType->Qualifiers, [](const model::Qualifier &Q) {
-          return Q.isArrayQualifier();
-        });
+        It = llvm::find_if(CurrType->Qualifiers, model::Qualifier::isArray);
 
         // Assert that we're not skipping any pointer qualifier.
         // That would mean that the GEPArgs.IndexVector is broken w.r.t. the
         // GEPArgs.BaseAddress.
         revng_assert(not std::any_of(CurrType->Qualifiers.begin(),
                                      It,
-                                     [](const model::Qualifier &Q) {
-                                       return Q.isPointerQualifier();
-                                     }));
+                                     model::Qualifier::isPointer));
 
       } while (It == CurrType->Qualifiers.end());
 
@@ -1387,14 +1317,14 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
       // be already initialized.
       revng_assert(not Id.Index);
       revng_assert(Back.Type == AggregateKind::Array);
-      revng_assert(isArray(CurrentType));
+      revng_assert(CurrentType.isArray());
 
       model::QualifiedType Array = peelConstAndTypedefs(CurrentType, VH);
       auto ArrayQualIt = Array.Qualifiers.begin();
       auto QEnd = Array.Qualifiers.end();
 
       revng_assert(ArrayQualIt != QEnd);
-      revng_assert(ArrayQualIt->isArrayQualifier());
+      revng_assert(model::Qualifier::isArray(*ArrayQualIt));
 
       auto *Unqualified = Array.UnqualifiedType.get();
 
@@ -1487,7 +1417,8 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
         // Skip over all the qualifiers. We only expect const qualifiers here.
         // And we can basically ignore them.
         for (const auto &Q : CurrentType.Qualifiers)
-          revng_assert(not Q.isPointerQualifier() and not Q.isArrayQualifier());
+          revng_assert(not model::Qualifier::isPointer(Q)
+                       and not model::Qualifier::isArray(Q));
 
         auto *Unqualified = CurrentType.UnqualifiedType.getConst();
         Struct = dyn_cast<model::StructType>(Unqualified);
@@ -1531,7 +1462,8 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
         // Skip over all the qualifiers. We only expect const qualifiers here.
         // And we can basically ignore them.
         for (const auto &Q : CurrentType.Qualifiers)
-          revng_assert(not Q.isPointerQualifier() and not Q.isArrayQualifier());
+          revng_assert(not model::Qualifier::isPointer(Q)
+                       and not model::Qualifier::isArray(Q));
 
         auto *Unqualified = CurrentType.UnqualifiedType.get();
         Union = dyn_cast<model::UnionType>(Unqualified);
@@ -1612,7 +1544,7 @@ class GEPSummationCache {
 
       auto &[AddressVal, Type] = *TypeIt;
 
-      revng_assert(isPointer(Type));
+      revng_assert(Type.isPointer());
 
       Result = ModelGEPSummation{
         .BaseAddress = TypedBaseAddress{ .Type = dropPointer(Type),
@@ -2088,7 +2020,7 @@ class TypedAccessCache {
         // it's only referenced by it. In all the other cases (arrays and
         // const) we need to unwrap the first layer (qualifier) and keep
         // looking for other TAPs that might be generated.
-        if (not FirstQualifier.isPointerQualifier()) {
+        if (not model::Qualifier::isPointer(FirstQualifier)) {
           revng_log(ModelGEPLog, "FirstQualifier is not ConstQualifier");
 
           auto QIt = std::next(BaseType.Qualifiers.begin());
@@ -2102,12 +2034,12 @@ class TypedAccessCache {
           // BaseType
           TAPToChildIdsMap InnerResult = rc_recur getTAPImpl(InnerType, Ctxt);
 
-          if (not FirstQualifier.isConstQualifier()) {
+          if (not model::Qualifier::isConst(FirstQualifier)) {
             // If the first qualifier is const, we can just use the
             // InnerResult for BaseType as well.
             // Otherwise, the first qualifier is an array, and we need to
             // handle that.
-            revng_assert(FirstQualifier.isArrayQualifier());
+            revng_assert(model::Qualifier::isArray(FirstQualifier));
             revng_log(ModelGEPLog, "FirstQualifier is not ConstQualifier");
 
             // First, build the array info associated to the array we're
@@ -2322,7 +2254,7 @@ makeGEPReplacements(llvm::Function &F, const model::Binary &Model) {
                                                                       VH);
           if (GEPTypeOrNone.has_value()) {
             model::QualifiedType &GEPType = GEPTypeOrNone.value();
-            if (isPointer(GEPType))
+            if (GEPType.isPointer())
               PointerTypes.insert({ Load, GEPType });
           }
         }

@@ -251,7 +251,7 @@ using QualifiedTypeNameMap = std::map<FrozenQualifiedType, std::string>;
 static void generateArrayWrapper(const model::QualifiedType &ArrayType,
                                  llvm::raw_ostream &Header,
                                  QualifiedTypeNameMap &NamesCache) {
-  revng_assert(isEventuallyArray(ArrayType));
+  revng_assert(ArrayType.isArray());
   auto WrapperName = getArrayWrapper(ArrayType);
 
   // Check if the wrapper was already added
@@ -270,11 +270,11 @@ static void generateArrayWrapper(const model::QualifiedType &ArrayType,
 static void printCABIFunctionWrappers(const model::CABIFunctionType *F,
                                       llvm::raw_ostream &Header,
                                       QualifiedTypeNameMap &NamesCache) {
-  if (isEventuallyArray(F->ReturnType))
+  if (F->ReturnType.isArray())
     generateArrayWrapper(F->ReturnType, Header, NamesCache);
 
   for (auto &Arg : F->Arguments)
-    if (isEventuallyArray(Arg.Type))
+    if (Arg.Type.isArray())
       generateArrayWrapper(Arg.Type, Header, NamesCache);
 }
 

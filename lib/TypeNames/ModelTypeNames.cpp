@@ -55,7 +55,7 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
   auto QIt = QT.Qualifiers.rbegin();
   auto QEnd = QT.Qualifiers.rend();
   bool PointerFound = false;
-  for (; QIt != QEnd and not QIt->isArrayQualifier(); ++QIt) {
+  for (; QIt != QEnd and not model::Qualifier::isArray(*QIt); ++QIt) {
     switch (QIt->Kind) {
     case model::QualifierKind::Const:
       Result.append(" const");
@@ -75,8 +75,18 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
   Result.append(InstanceName.str());
 
   for (; QIt != QEnd; ++QIt) {
-    // TODO revng_assert(QIt->isArrayQualifier()); instead of the following
-    revng_assert(not QIt->isPointerQualifier());
+    // TODO: We would actually want to assert:
+    //   revng_assert(model::Qualifier::isArray(*QIt));
+    // but at the moment we can't, because e.g. debug info imported from DWARF
+    // allow specifying both a const array and an array of const.
+    // The first is not emittable in C, the second is.
+    // Because DWARF allows specifying this, we can end up with const qualifiers
+    // in positions where C does not allow us to emit them.
+    // In principle we could assert hard, but we would need a pre-processing
+    // stage that massages the model so that all array types can be emitted in
+    // C. At the moment this is a workaround that drops const qualifiers on
+    // arrays.
+    revng_assert(not model::Qualifier::isPointer(*QIt));
     Result.append((Twine("[") + Twine(QIt->Size) + Twine("]")).str());
   }
 
@@ -84,7 +94,7 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
 }
 
 TypeString getArrayWrapper(const model::QualifiedType &QT) {
-  revng_assert(isEventuallyArray(QT));
+  revng_assert(QT.isArray());
   TypeString Result;
   Result.append(ArrayWrapperPrefix);
 
@@ -122,7 +132,7 @@ TypeString getReturnTypeName(const model::RawFunctionType &F) {
   } else if (F.ReturnValues.size() == 1) {
     auto RetTy = F.ReturnValues.begin()->Type;
     // RawFunctionTypes should never be returning an array
-    revng_assert(not isEventuallyArray(RetTy));
+    revng_assert(not RetTy.isArray());
     Result = getNamedCInstance(RetTy, "");
   } else {
     // RawFunctionTypes can return multiple values, which need to be wrapped
@@ -140,7 +150,7 @@ TypeString getReturnTypeName(const model::CABIFunctionType &F) {
   TypeString Result;
   const auto &RetTy = F.ReturnType;
 
-  if (isEventuallyArray(RetTy)) {
+  if (RetTy.isArray()) {
     // Returned arrays get wrapped in an artificial struct
     Result = getArrayWrapper(RetTy);
   } else {
@@ -183,7 +193,7 @@ void printFunctionPrototype(const model::Type &FT,
 
       for (const auto &Arg : CF->Arguments) {
         TypeString ArgTypeName;
-        if (isEventuallyArray(Arg.Type))
+        if (Arg.Type.isArray())
           ArgTypeName = getArrayWrapper(Arg.Type);
         else
           ArgTypeName = getNamedCInstance(Arg.Type, "");
