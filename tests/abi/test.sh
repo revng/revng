@@ -56,10 +56,9 @@ revng \
 
 # Check there are no differences
 revng \
-    model \
-    diff \
-    "model/downgraded_reference_binary.yml" \
-    "model/downgraded_upgraded_downgraded_reference_binary.yml"
+    ensure-rft-equivalence \
+    "${TEMPORARY_FILES}/downgraded_reference_binary.yml" \
+    "${TEMPORARY_FILES}/downgraded_upgraded_downgraded_reference_binary.yml"
 
 # Verify that no step contradicts the actual state.
 revng \
