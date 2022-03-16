@@ -52,8 +52,8 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
 
   Result = getTypeName(*Unqualified);
 
-  auto QIt = QT.Qualifiers.begin();
-  auto QEnd = QT.Qualifiers.end();
+  auto QIt = QT.Qualifiers.rbegin();
+  auto QEnd = QT.Qualifiers.rend();
   bool PointerFound = false;
   for (; QIt != QEnd and not QIt->isArrayQualifier(); ++QIt) {
     switch (QIt->Kind) {
@@ -88,7 +88,7 @@ TypeString getArrayWrapper(const model::QualifiedType &QT) {
   TypeString Result;
   Result.append(ArrayWrapperPrefix);
 
-  for (const auto &Qualifier : llvm::reverse(QT.Qualifiers)) {
+  for (const auto &Qualifier : QT.Qualifiers) {
 
     switch (Qualifier.Kind) {
 
