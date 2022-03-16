@@ -17,7 +17,7 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
 
     # We use foreach but there will be only one run
     foreach(RUN IN LISTS ARTIFACT_RUNS_${ARTIFACT_CATEGORY}__${ARTIFACT})
-      set(TEST_NAME runtime-abi-test-${CATEGORY}-${TARGET_NAME}-${RUN})
+      set(TEST_NAME runtime-abi-test-${ABI_NAME}-${RUN})
       set(TEMPORARY_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${TEST_NAME}")
       make_directory("${TEMPORARY_DIRECTORY}")
 
@@ -33,8 +33,8 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
         WORKING_DIRECTORY "${TEMPORARY_DIRECTORY}")
       set_tests_properties(
         "${TEST_NAME}"
-        PROPERTIES LABELS "abi;${CATEGORY};${TARGET_NAME};${CONFIGURATION}"
-                   ENVIRONMENT "PATH=${CMAKE_BINARY_DIR}/bin:$ENV{PATH}")
+        PROPERTIES LABELS "abi;${ABI_NAME};${CONFIGURATION}" ENVIRONMENT
+                   "PATH=${CMAKE_BINARY_DIR}/bin:$ENV{PATH}")
     endforeach()
   endif()
 endmacro()
