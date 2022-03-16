@@ -73,34 +73,6 @@ target_link_libraries(test_vma
 add_test(NAME test_vma COMMAND ./bin/test_vma)
 set_tests_properties(test_vma PROPERTIES LABELS "unit")
 
-
-revng_add_private_executable(decompile_function "${SRC}/DecompileFunction.cpp")
-target_include_directories(decompile_function
-  PRIVATE "${CMAKE_SOURCE_DIR}"
-          "${Boost_INCLUDE_DIRS}")
-target_compile_definitions(decompile_function
-  PRIVATE "BOOST_TEST_DYN_LINK=1")
-target_link_libraries(decompile_function
-  revngcDecompiler
-  revng::revngModel
-  revng::revngSupport
-  Boost::unit_test_framework
-  ${LLVM_LIBRARIES})
-
-# End-to-end tests for the decompilation pipeline public API decompileFunction
-macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
-  if (EXISTS ${INPUT_FILE})
-    add_test(NAME decompile_function_${TARGET_NAME} COMMAND ./bin/decompile_function ${INPUT_FILE})
-  endif()
-endmacro()
-
-# Register a new artifact
-register_derived_artifact("abi-enforced-for-decompilation-torture" # FROM_ARTIFACTS: input artifacts
-  "decompilation-pipeline-artifact"         # NAME: name of the new aritfact
-  ""                               # SUFFIX: extension of output file
-  "FILE"                           # TYPE: "FILE" or "DIRECTORY"
-  )
-
 #
 # dla_step_manager
 #
