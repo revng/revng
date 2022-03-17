@@ -100,6 +100,23 @@ static model::QualifiedType getTypeOrDefault(const model::QualifiedType &Type,
     return buildType(Register, Binary);
 }
 
+static void replaceReferences(const model::Type::Key &OldKey,
+                              const model::TypePath &NewTypePath,
+                              TupleTree<model::Binary> &Model) {
+  auto Visitor = [&](model::TypePath &Visited) {
+    if (!Visited.isValid())
+      return; // Ignore empty references
+
+    model::Type *Current = Visited.get();
+    revng_assert(Current != nullptr);
+
+    if (Current->key() == OldKey)
+      Visited = NewTypePath;
+  };
+  Model.visitReferences(Visitor);
+  Model->Types.erase(OldKey);
+}
+
 template<model::ABI::Values ABI>
 class ConversionHelper {
   using AT = abi::Trait<ABI>;
@@ -115,8 +132,9 @@ class ConversionHelper {
   using ArgumentContainer = SortedVector<model::Argument>;
 
 public:
-  static std::optional<model::CABIFunctionType>
-  toCABI(const model::RawFunctionType &Function, model::Binary &TheBinary) {
+  static std::optional<model::TypePath>
+  toCABI(const model::RawFunctionType &Function,
+         TupleTree<model::Binary> &TheBinary) {
     static constexpr auto Arch = model::ABI::getArchitecture(ABI);
     if (!verify<Arch>(Function.Arguments, AT::GeneralPurposeArgumentRegisters))
       return std::nullopt;
@@ -140,19 +158,19 @@ public:
 
     if (!verifyArgumentsToBeConvertible(Function.Arguments,
                                         AT::GeneralPurposeArgumentRegisters,
-                                        TheBinary))
+                                        *TheBinary))
       return std::nullopt;
 
     using C = AT;
     if (!verifyReturnValueToBeConvertible(Function.ReturnValues,
                                           C::GeneralPurposeReturnValueRegisters,
                                           C::ReturnValueLocationRegister,
-                                          TheBinary))
+                                          *TheBinary))
       return std::nullopt;
 
     auto ArgumentList = convertArguments(Function.Arguments,
                                          AT::GeneralPurposeArgumentRegisters,
-                                         TheBinary);
+                                         *TheBinary);
     revng_assert(ArgumentList != std::nullopt);
     for (auto &Argument : *ArgumentList)
       Result.Arguments.insert(Argument);
@@ -165,14 +183,26 @@ public:
     auto ReturnValue = convertReturnValue(Function.ReturnValues,
                                           C::GeneralPurposeReturnValueRegisters,
                                           C::ReturnValueLocationRegister,
-                                          TheBinary);
+                                          *TheBinary);
     revng_assert(ReturnValue != std::nullopt);
     Result.ReturnType = *ReturnValue;
-    return Result;
+
+    // Steal the ID
+    Result.ID = Function.ID;
+
+    // Add converted type to the model.
+    using UT = model::UpcastableType;
+    auto Ptr = UT::make<model::CABIFunctionType>(std::move(Result));
+    auto NewTypePath = TheBinary->recordNewType(std::move(Ptr));
+
+    // Replace all references to the old type with references to the new one.
+    replaceReferences(Function.key(), NewTypePath, TheBinary);
+
+    return NewTypePath;
   }
 
-  static model::RawFunctionType
-  toRaw(const model::CABIFunctionType &Function, model::Binary &TheBinary) {
+  static model::TypePath toRaw(const model::CABIFunctionType &Function,
+                               TupleTree<model::Binary> &TheBinary) {
     auto Arguments = distributeArguments(Function.Arguments);
 
     model::RawFunctionType Result;
@@ -192,7 +222,7 @@ public:
           Argument.Type = chooseArgumentType(ArgumentType,
                                              Register,
                                              ArgumentStorage.Registers,
-                                             TheBinary);
+                                             *TheBinary);
 
           // TODO: see what can be done to preserve names better
           if (llvm::StringRef{ ArgumentName.str() }.take_front(8) != "unnamed_")
@@ -237,7 +267,7 @@ public:
 
       using namespace model;
       auto Type = UpcastableType::make<StructType>(std::move(StackArguments));
-      Result.StackArgumentsType = TheBinary.recordNewType(std::move(Type));
+      Result.StackArgumentsType = TheBinary->recordNewType(std::move(Type));
     }
 
     Result.FinalStackOffset = finalStackOffset(Arguments);
@@ -252,7 +282,7 @@ public:
           ReturnValueRegister.Type = chooseArgumentType(Function.ReturnType,
                                                         Register,
                                                         ReturnValue.Registers,
-                                                        TheBinary);
+                                                        *TheBinary);
 
           Result.ReturnValues.insert(std::move(ReturnValueRegister));
         }
@@ -322,7 +352,18 @@ public:
     for (model::Register::Values Register : AT::CalleeSavedRegisters)
       Result.PreservedRegisters.insert(Register);
 
-    return Result;
+    // Steal the ID
+    Result.ID = Function.ID;
+
+    // Add converted type to the model.
+    using UT = model::UpcastableType;
+    auto Ptr = UT::make<model::RawFunctionType>(std::move(Result));
+    auto NewTypePath = TheBinary->recordNewType(std::move(Ptr));
+
+    // Replace all references to the old type with references to the new one.
+    replaceReferences(Function.key(), NewTypePath, TheBinary);
+
+    return NewTypePath;
   }
 
   static uint64_t finalStackOffset(const DistributedArguments &Arguments) {
@@ -739,20 +780,20 @@ private:
   }
 };
 
-std::optional<model::CABIFunctionType>
+std::optional<model::TypePath>
 tryConvertToCABI(const model::RawFunctionType &Function,
-                 model::Binary &TheBinary,
+                 TupleTree<model::Binary> &TheBinary,
                  std::optional<model::ABI::Values> MaybeABI) {
   if (!MaybeABI.has_value())
-    MaybeABI = TheBinary.DefaultABI;
+    MaybeABI = TheBinary->DefaultABI;
   revng_assert(*MaybeABI != model::ABI::Invalid);
   return skippingEnumSwitch<1>(*MaybeABI, [&]<model::ABI::Values A>() {
     return ConversionHelper<A>::toCABI(Function, TheBinary);
   });
 }
 
-model::RawFunctionType convertToRaw(const model::CABIFunctionType &Function,
-                                    model::Binary &TheBinary) {
+model::TypePath convertToRaw(const model::CABIFunctionType &Function,
+                             TupleTree<model::Binary> &TheBinary) {
   revng_assert(Function.ABI != model::ABI::Invalid);
   return skippingEnumSwitch<1>(Function.ABI, [&]<model::ABI::Values A>() {
     return ConversionHelper<A>::toRaw(Function, TheBinary);
