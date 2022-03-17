@@ -2,11 +2,11 @@
 # Copyright rev.ng Srls. See LICENSE.md for details.
 #
 
-revng_add_analyses_library(revngcMarkForSerialization
-  revngc
-  MarkForSerializationPass.cpp)
+revng_add_analyses_library(revngcMarkForSerialization revngc
+                           MarkForSerializationPass.cpp)
 
-target_link_libraries(revngcMarkForSerialization
+target_link_libraries(
+  revngcMarkForSerialization
   revngcLivenessAnalysis
   revngcRestructureCFGPass
   revngcSupport

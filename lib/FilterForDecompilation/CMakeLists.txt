@@ -3,9 +3,7 @@
 #
 
 revng_add_analyses_library(revngcFilterForDecompilation revngc
-  FilterForDecompilationPass.cpp)
+                           FilterForDecompilationPass.cpp)
 
-target_link_libraries(revngcFilterForDecompilation
-  revng::revngModel
-  revng::revngSupport
-  ${LLVM_LIBRARIES})
+target_link_libraries(revngcFilterForDecompilation revng::revngModel
+                      revng::revngSupport ${LLVM_LIBRARIES})
