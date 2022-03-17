@@ -22,7 +22,7 @@ include(${SRC}/Reachability/Reachability.cmake)
 # test_reachabilitypass
 #
 
-revng_add_private_executable(test_reachabilitypass "${SRC}/ReachabilityPass.cpp")
+revng_add_test_executable(test_reachabilitypass "${SRC}/ReachabilityPass.cpp")
 target_compile_definitions(test_reachabilitypass
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(test_reachabilitypass
@@ -34,13 +34,13 @@ target_link_libraries(test_reachabilitypass
   revng::revngSupport
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME test_reachabilitypass COMMAND ./bin/test_reachabilitypass)
+add_test(NAME test_reachabilitypass COMMAND ./test_reachabilitypass)
 
 #
 # test_combingpass
 #
 
-revng_add_private_executable(test_combingpass "${SRC}/CombingPass.cpp")
+revng_add_test_executable(test_combingpass "${SRC}/CombingPass.cpp")
 target_compile_definitions(test_combingpass
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(test_combingpass
@@ -53,13 +53,13 @@ target_link_libraries(test_combingpass
   revng::revngUnitTestHelpers
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME test_combingpass COMMAND ./bin/test_combingpass -- "${SRC}/TestGraphs/")
+add_test(NAME test_combingpass COMMAND ./test_combingpass -- "${SRC}/TestGraphs/")
 
 #
 # test_vma
 #
 
-revng_add_private_executable(test_vma "${SRC}/ValueManipulationAnalysis.cpp")
+revng_add_test_executable(test_vma "${SRC}/ValueManipulationAnalysis.cpp")
 target_compile_definitions(test_vma
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(test_vma
@@ -70,14 +70,14 @@ target_link_libraries(test_vma
   revng::revngSupport
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME test_vma COMMAND ./bin/test_vma)
+add_test(NAME test_vma COMMAND ./test_vma)
 set_tests_properties(test_vma PROPERTIES LABELS "unit")
 
 #
 # dla_step_manager
 #
 
-revng_add_private_executable(dla_step_manager "${SRC}/DLAStepManager.cpp")
+revng_add_test_executable(dla_step_manager "${SRC}/DLAStepManager.cpp")
 target_compile_definitions(dla_step_manager
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(dla_step_manager
@@ -91,13 +91,13 @@ target_link_libraries(dla_step_manager
   revng::revngUnitTestHelpers
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME dla_step_manager COMMAND ./bin/dla_step_manager)
+add_test(NAME dla_step_manager COMMAND ./dla_step_manager)
 
 #
 # MarkForSerializationTest
 #
 
-revng_add_private_executable(MarkForSerializationTest
+revng_add_test_executable(MarkForSerializationTest
   "${SRC}/MarkForSerializationTest.cpp")
 target_compile_definitions(MarkForSerializationTest
   PRIVATE "BOOST_TEST_DYN_LINK=1")
@@ -112,13 +112,13 @@ target_link_libraries(MarkForSerializationTest
   revng::revngUnitTestHelpers
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME MarkForSerializationTest COMMAND ./bin/MarkForSerializationTest)
+add_test(NAME MarkForSerializationTest COMMAND ./MarkForSerializationTest)
 
 #
 # DLASteps
 #
 
-revng_add_private_executable(dla_steps "${SRC}/DLASteps.cpp")
+revng_add_test_executable(dla_steps "${SRC}/DLASteps.cpp")
 target_compile_definitions(dla_steps
   PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(dla_steps
@@ -132,4 +132,4 @@ target_link_libraries(dla_steps
   revng::revngUnitTestHelpers
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME dla_steps COMMAND ./bin/dla_steps)
+add_test(NAME dla_steps COMMAND ./dla_steps)

@@ -85,7 +85,7 @@ getScalarCType(const llvm::Type *LLVMType, llvm::StringRef BaseType) {
 TypeString getReturnType(const llvm::Function *Func) {
   auto *RetType = Func->getReturnType();
   // Isolated functions' return types must be converted using model types
-  revng_assert(not FunctionTags::Lifted.isTagOf(Func));
+  revng_assert(not FunctionTags::Isolated.isTagOf(Func));
 
   if (RetType->isStructTy()) {
     const auto &FuncName = model::Identifier::fromString(Func->getName());

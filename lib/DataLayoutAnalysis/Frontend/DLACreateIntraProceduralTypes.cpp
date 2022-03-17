@@ -431,7 +431,7 @@ public:
           //  2. @env is not a construct coming from the original program being
           //     decompiled, rather a QEMU artifact that represents the CPU
           //     state. Hence it has no really meaningful type in the program.
-          if (not CTags.contains(FunctionTags::Lifted))
+          if (not CTags.contains(FunctionTags::Isolated))
             continue;
 
           revng_assert(not Callee->isVarArg());
@@ -684,7 +684,7 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
 
   for (Function &F : M.functions()) {
     auto FTags = FunctionTags::TagsSet::from(&F);
-    if (F.isIntrinsic() or not FTags.contains(FunctionTags::Lifted))
+    if (F.isIntrinsic() or not FTags.contains(FunctionTags::Isolated))
       continue;
     revng_assert(not F.isVarArg());
 

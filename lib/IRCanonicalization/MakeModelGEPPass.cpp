@@ -686,7 +686,7 @@ static IRAccessPattern computeAccessPattern(const Use &U,
       // If the user is a ret, we want to look at the return type of the
       // function we're returning from, and use it as a pointee type.
 
-      revng_assert(FunctionTags::Lifted.isTagOf(ReturningF));
+      revng_assert(FunctionTags::Isolated.isTagOf(ReturningF));
       const model::Function &MF = getModelFunction(Model, *ReturningF);
 
       const model::Type *FType = MF.Prototype.get();
@@ -2210,7 +2210,7 @@ makeGEPReplacements(llvm::Function &F, const model::Binary &Model) {
 
       if (auto *CallI = dyn_cast<CallInst>(&I)) {
         auto *Callee = CallI->getCalledFunction();
-        if (not Callee or not FunctionTags::Lifted.isTagOf(Callee)) {
+        if (not Callee or not FunctionTags::Isolated.isTagOf(Callee)) {
           revng_log(ModelGEPLog, "Skipping call to non-isolated function");
           continue;
         }
@@ -2361,7 +2361,7 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
   bool Changed = false;
 
   // Skip non-isolated functions
-  if (not FunctionTags::Lifted.isTagOf(&F))
+  if (not FunctionTags::Isolated.isTagOf(&F))
     return Changed;
 
   // If the `-single-decompilation` option was passed from command line, skip

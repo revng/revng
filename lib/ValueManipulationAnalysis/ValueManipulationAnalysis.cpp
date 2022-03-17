@@ -40,7 +40,7 @@ void VMA::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 bool VMA::runOnFunction(Function &F) {
   // Skip non-isolated functions
   auto FTags = FunctionTags::TagsSet::from(&F);
-  if (not FTags.contains(FunctionTags::Lifted))
+  if (not FTags.contains(FunctionTags::Isolated))
     return false;
 
   revng_log(VMALog, "------ Function: " << F.getName() << " ------");

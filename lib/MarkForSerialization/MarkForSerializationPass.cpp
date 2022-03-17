@@ -30,7 +30,7 @@ bool MarkForSerializationPass::runOnFunction(llvm::Function &F) {
 
   // Skip non-isolated functions
   auto FTags = FunctionTags::TagsSet::from(&F);
-  if (not FTags.contains(FunctionTags::Lifted))
+  if (not FTags.contains(FunctionTags::Isolated))
     return false;
 
   // If the `-single-decompilation` option was passed from command line, skip

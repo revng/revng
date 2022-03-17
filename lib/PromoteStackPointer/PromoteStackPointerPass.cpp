@@ -79,7 +79,7 @@ bool PSPPass::runOnFunction(Function &F) {
 
   // Skip non-isolated functions
   auto FTags = FunctionTags::TagsSet::from(&F);
-  if (not FTags.contains(FunctionTags::Lifted))
+  if (not FTags.contains(FunctionTags::Isolated))
     return Changed;
 
   // Get the global variable representing the stack pointer register.

@@ -1,4 +1,4 @@
-; RUN: %revngopt %s -S -dla --model-type-id-seed=0xDEADBEEF -o - | revng model dump | revng model compare - %s.yml
+; RUN: %revngopt %s -S --dla --model-type-id-seed=0xDEADBEEF -o - | revng model dump | revng model compare - %s.yml
 ; This file is meant to be used to test that the DLA is able to merge the
 ; recovered type information with an already existing model.
 ; In particular, in this file all functions and indirect calls share the same
@@ -42,7 +42,7 @@ newFuncRoot:
 !revng.input.architecture = !{!5870}
 !revng.model = !{!5872}
 
-!58898 = !{!"Lifted"}
+!58898 = !{!"Isolated"}
 !5870 = !{!"x86_64", i32 1, i32 0, !"pc", !"rsp", !5871}
 !5871 = !{!"rax", !"rbx", !"rcx", !"rdx", !"rbp", !"rsp", !"rsi", !"rdi", !"r8", !"r9", !"r10", !"r11", !"r12", !"r13", !"r14", !"r15", !"state_0x8558", !"state_0x8598", !"state_0x85d8", !"state_0x8618", !"state_0x8658", !"state_0x8698", !"state_0x86d8", !"state_0x8718"}
 

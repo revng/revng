@@ -249,7 +249,7 @@ bool PHIASAPAssignmentInfo::runOnFunction(llvm::Function &F) {
 
   // Skip non-isolated functions
   auto FTags = FunctionTags::TagsSet::from(&F);
-  if (not FTags.contains(FunctionTags::Lifted))
+  if (not FTags.contains(FunctionTags::Isolated))
     return false;
 
   DomTree DT;

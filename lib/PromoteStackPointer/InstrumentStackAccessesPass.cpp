@@ -157,7 +157,7 @@ void InstrumentStackAccesses::instrumentStackAccess(Instruction *I) {
 bool InstrumentStackAccessesPass::runOnModule(Module &M) {
   InstrumentStackAccesses Instrumenter(M);
 
-  for (Function &F : FunctionTags::Lifted.functions(&M))
+  for (Function &F : FunctionTags::Isolated.functions(&M))
     Instrumenter.run(F);
 
   return true;

@@ -39,7 +39,7 @@ static bool isCallToIsolated(const llvm::Value *V) {
     const llvm::Function *Callee = C->getCalledFunction();
     if (Callee) {
       auto CTags = FunctionTags::TagsSet::from(Callee);
-      return CTags.contains(FunctionTags::Lifted);
+      return CTags.contains(FunctionTags::Isolated);
     }
   }
 

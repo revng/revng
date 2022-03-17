@@ -69,7 +69,7 @@ bool dumpHelpersToHeader(const llvm::Module &M, llvm::raw_ostream &Header) {
     // and special injected functions, that are not translated as function
     // calls by the backend, since they have their only semantics.
     auto FTags = FunctionTags::TagsSet::from(&F);
-    if (FTags.contains(FunctionTags::Lifted)
+    if (FTags.contains(FunctionTags::Isolated)
         or FTags.contains(FunctionTags::ModelGEP)
         or FTags.contains(FunctionTags::SerializationMarker)
         or FTags.contains(FunctionTags::AddressOf)

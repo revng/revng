@@ -254,7 +254,7 @@ public:
   bool run() {
     addStackArguments(M);
 
-    for (Function &F : FunctionTags::Lifted.functions(&M))
+    for (Function &F : FunctionTags::Isolated.functions(&M))
       segregateStackAccesses(F);
 
     // Purge stores that have been used at least once
@@ -277,7 +277,7 @@ private:
   /// arguments
   void addStackArguments(Module &M) {
     // Identify all functions that have stack arguments
-    for (Function &F : FunctionTags::Lifted.functions(&M)) {
+    for (Function &F : FunctionTags::Isolated.functions(&M)) {
       MetaAddress Entry = getMetaAddressMetadata(&F, "revng.function.entry");
       const model::Function &ModelFunction = Binary.Functions.at(Entry);
       const model::Type *StackArguments = ModelFunction.Prototype.get();

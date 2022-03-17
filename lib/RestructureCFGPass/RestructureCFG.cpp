@@ -486,7 +486,7 @@ bool RestructureCFG::runOnFunction(Function &F) {
 
   // Skip non-isolated functions
   auto FTags = FunctionTags::TagsSet::from(&F);
-  if (not FTags.contains(FunctionTags::Lifted))
+  if (not FTags.contains(FunctionTags::Isolated))
     return false;
 
   // If we passed the `-single-decompilation` option to the command line, skip

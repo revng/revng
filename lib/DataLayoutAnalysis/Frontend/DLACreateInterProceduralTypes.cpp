@@ -36,7 +36,7 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
                                            const model::Binary &Model) {
   for (const Function &F : M.functions()) {
     auto FTags = FunctionTags::TagsSet::from(&F);
-    if (F.isIntrinsic() or not FTags.contains(FunctionTags::Lifted))
+    if (F.isIntrinsic() or not FTags.contains(FunctionTags::Isolated))
       continue;
     revng_assert(not F.isVarArg());
 
@@ -97,7 +97,7 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
             continue;
 
           auto CTags = FunctionTags::TagsSet::from(Callee);
-          if (Callee->isIntrinsic() or not CTags.contains(FunctionTags::Lifted))
+          if (Callee->isIntrinsic() or not CTags.contains(FunctionTags::Isolated))
             continue;
 
           unsigned ArgNo = 0U;

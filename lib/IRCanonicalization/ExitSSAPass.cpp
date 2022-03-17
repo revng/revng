@@ -284,7 +284,7 @@ static void computePHIVarAssignments(PHINode &ThePHI,
 bool ExitSSAPass::runOnFunction(Function &F) {
 
   // Skip non-isolated functions
-  if (not FunctionTags::Lifted.isTagOf(&F))
+  if (not FunctionTags::Isolated.isTagOf(&F))
     return false;
 
   // If the `-single-decompilation` option was passed from command line, skip
