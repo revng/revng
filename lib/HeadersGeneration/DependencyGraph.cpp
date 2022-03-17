@@ -59,9 +59,9 @@ getDependencyForTypeName(const model::QualifiedType &QT,
   // the unqualified type, not its full definition.
   bool ArrayFound = false;
   for (const auto &Qualifier : QT.Qualifiers) {
-    if (Qualifier.isPointerQualifier())
+    if (model::Qualifier::isPointer(Qualifier))
       return TypeToNode.at({ Unqualified, TypeNode::Kind::TypeName });
-    if (Qualifier.isArrayQualifier())
+    if (model::Qualifier::isArray(Qualifier))
       ArrayFound = true;
   }
 
@@ -86,9 +86,9 @@ getDependencyForFullType(const model::QualifiedType &QT,
   // the unqualified type, not its full definition.
   bool ArrayFound = false;
   for (const auto &Qualifier : QT.Qualifiers) {
-    if (Qualifier.isPointerQualifier())
+    if (model::Qualifier::isPointer(Qualifier))
       return TypeToNode.at({ Unqualified, TypeNode::TypeName });
-    if (Qualifier.isArrayQualifier())
+    if (model::Qualifier::isArray(Qualifier))
       ArrayFound = true;
   }
 
