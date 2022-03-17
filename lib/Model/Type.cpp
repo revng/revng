@@ -4,6 +4,7 @@
 
 #include <bit>
 #include <cstddef>
+#include <functional>
 #include <random>
 #include <string>
 #include <type_traits>
@@ -545,7 +546,7 @@ static bool isOnlyConstQualified(const QualifiedType &QT) {
   if (QT.Qualifiers.empty() or QT.Qualifiers.size() > 1)
     return false;
 
-  return QT.Qualifiers[0].isConstQualifier();
+  return Qualifier::isConst(QT.Qualifiers[0]);
 }
 
 struct VoidConstResult {
@@ -648,28 +649,71 @@ QualifiedType::size(VerifyHelper &VH) const {
   rc_return rc_recur UnqualifiedType.get()->size(VH);
 }
 
-inline RecursiveCoroutine<bool>
-isPrimitive(const model::QualifiedType &QT,
-            model::PrimitiveTypeKind::Values V) {
-  auto IsConstQualifier = [](const Qualifier &Q) {
-    return Q.Kind == model::QualifierKind::Const;
-  };
+static RecursiveCoroutine<bool> isArrayImpl(const model::QualifiedType &QT) {
+  const auto &NotIsConst = std::not_fn(model::Qualifier::isConst);
+  for (const auto &Q : llvm::make_filter_range(QT.Qualifiers, NotIsConst)) {
 
+    // If we find an array first, it's definitely an array, otherwise we
+    // found a pointer first, so it's definitely not an array
+    if (Qualifier::isArray(Q))
+      rc_return true;
+
+    rc_return false;
+  }
+
+  if (auto *TD = dyn_cast<model::TypedefType>(QT.UnqualifiedType.get()))
+    rc_return rc_recur isArrayImpl(TD->UnderlyingType);
+
+  // If there are no non-const qualifiers, it's not an array
+  rc_return false;
+}
+
+bool QualifiedType::isArray() const {
+  return isArrayImpl(*this);
+}
+
+static RecursiveCoroutine<bool> isPointerImpl(const model::QualifiedType &QT) {
+  const auto &NotIsConst = std::not_fn(Qualifier::isConst);
+  for (const auto &Q : llvm::make_filter_range(QT.Qualifiers, NotIsConst)) {
+
+    // If we find a pointer first, it's definitely a pointer, otherwise we
+    // found an array first, so it's definitely not a pointer
+    if (Qualifier::isPointer(Q))
+      rc_return true;
+
+    rc_return false;
+  }
+
+  if (auto *TD = dyn_cast<model::TypedefType>(QT.UnqualifiedType.get()))
+    rc_return rc_recur isPointerImpl(TD->UnderlyingType);
+
+  // If there are no non-const qualifiers, it's not a pointer
+  rc_return false;
+}
+
+bool QualifiedType::isPointer() const {
+  return isPointerImpl(*this);
+}
+
+static RecursiveCoroutine<bool>
+isPrimitiveImpl(const model::QualifiedType &QT,
+                model::PrimitiveTypeKind::Values V) {
   if (QT.Qualifiers.size() != 0
-      and not llvm::all_of(QT.Qualifiers, IsConstQualifier))
+      and not llvm::all_of(QT.Qualifiers, Qualifier::isConst))
     rc_return false;
 
   const model::Type *UnqualifiedType = QT.UnqualifiedType.get();
   if (auto *Primitive = llvm::dyn_cast<PrimitiveType>(UnqualifiedType))
     rc_return Primitive->PrimitiveKind == V;
-  else if (auto *Typedef = llvm::dyn_cast<TypedefType>(UnqualifiedType))
-    rc_return rc_recur isPrimitive(Typedef->UnderlyingType, V);
+
+  if (auto *Typedef = llvm::dyn_cast<TypedefType>(UnqualifiedType))
+    rc_return rc_recur isPrimitiveImpl(Typedef->UnderlyingType, V);
 
   rc_return false;
 }
 
-bool QualifiedType::isPrimitive(model::PrimitiveTypeKind::Values V) const {
-  return model::isPrimitive(*this, V);
+bool QualifiedType::isPrimitive(PrimitiveTypeKind::Values V) const {
+  return isPrimitiveImpl(*this, V);
 }
 
 std::optional<uint64_t> Type::size() const {
@@ -830,7 +874,7 @@ verifyImpl(VerifyHelper &VH, const TypedefType *T) {
                          and rc_recur T->UnderlyingType.verify(VH));
 }
 
-inline RecursiveCoroutine<bool> isScalar(const QualifiedType &QT) {
+inline RecursiveCoroutine<bool> isScalarImpl(const QualifiedType &QT) {
   for (const Qualifier &Q : QT.Qualifiers) {
     switch (Q.Kind) {
     case QualifierKind::Invalid:
@@ -850,15 +894,16 @@ inline RecursiveCoroutine<bool> isScalar(const QualifiedType &QT) {
   revng_assert(Unqualified != nullptr);
   if (llvm::isa<model::PrimitiveType>(Unqualified)) {
     rc_return true;
-  } else if (auto *Typedef = llvm::dyn_cast<model::TypedefType>(Unqualified)) {
-    rc_return rc_recur isScalar(Typedef->UnderlyingType);
   }
+
+  if (auto *Typedef = llvm::dyn_cast<model::TypedefType>(Unqualified))
+    rc_return rc_recur isScalarImpl(Typedef->UnderlyingType);
 
   rc_return false;
 }
 
 bool model::QualifiedType::isScalar() const {
-  return ::model::isScalar(*this);
+  return isScalarImpl(*this);
 }
 
 static RecursiveCoroutine<bool>
@@ -1120,11 +1165,11 @@ RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
     bool HasNext = NextQIt != QEnd;
 
     // Check that we have not two consecutive const qualifiers
-    if (HasNext and Q.isConstQualifier() and NextQIt->isConstQualifier())
+    if (HasNext and Qualifier::isConst(Q) and Qualifier::isConst(*NextQIt))
       rc_return VH.fail("QualifiedType has two consecutive const qualifiers",
                         *this);
 
-    if (Q.isPointerQualifier()) {
+    if (Qualifier::isPointer(Q)) {
       // Don't proceed the verification, just make sure the pointer is either
       // 32- or 64-bits
       rc_return VH.maybeFail(Q.Size == 4 or Q.Size == 8,
@@ -1132,7 +1177,7 @@ RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
                              "supported",
                              *this);
 
-    } else if (Q.isArrayQualifier()) {
+    } else if (Qualifier::isArray(Q)) {
       // Ensure there's at least one element
       if (Q.Size < 1)
         rc_return VH.fail("Arrays need to have at least an element", *this);
@@ -1147,7 +1192,7 @@ RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
       rc_return VH.maybeFail(MaybeSize.has_value(),
                              "Cannot compute array size",
                              ElementType);
-    } else if (Q.isConstQualifier()) {
+    } else if (Qualifier::isConst(Q)) {
       // const qualifiers must have zero size
       if (Q.Size != 0)
         rc_return VH.fail("const qualifier has non-0 size");
@@ -1166,7 +1211,7 @@ template<typename T>
 RecursiveCoroutine<bool>
 verifyTypedRegisterCommon(const T &TypedRegister, VerifyHelper &VH) {
   // Ensure the type we're pointing to is scalar
-  if (not isScalar(TypedRegister->Type))
+  if (not TypedRegister->Type.isScalar())
     rc_return VH.fail();
 
   if (TypedRegister->Location == Register::Invalid)
