@@ -16,6 +16,9 @@ def run_revng_command(arguments, options: Options):
     if options.verbose:
         sys.stderr.write("{}\n\n".format(" \\\n  ".join([sys.argv[0]] + arguments)))
 
+    if options.dry_run:
+        return 0
+
     # Collect search prefixes
     prefixes = []
     for arg, next_arg in zip(arguments, arguments[1:] + [""]):
@@ -37,4 +40,4 @@ def run_revng_command(arguments, options: Options):
 
 
 def main():
-    return run_revng_command(sys.argv[1:], Options(None, [], [], [], False))
+    return run_revng_command(sys.argv[1:], Options(None, [], [], [], False, False))

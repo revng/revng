@@ -25,6 +25,7 @@ class Options:
     search_prefixes: List[str]
     command_prefix: List[str]
     verbose: bool
+    dry_run: bool
 
 
 def shlex_join(split_command):
@@ -54,6 +55,9 @@ def run(command, options: Options):
     if options.verbose:
         program_path = relative(command[0])
         sys.stderr.write("{}\n\n".format(" \\\n  ".join([program_path] + command[1:])))
+
+    if options.dry_run:
+        return 0
 
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     environment = dict(os.environ)

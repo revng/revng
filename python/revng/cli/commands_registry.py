@@ -42,6 +42,9 @@ class CommandsRegistry:
     def __init__(self):
         parser = argparse.ArgumentParser(description="revng driver.")
         parser.add_argument("--version", action="store_true", help="Display version information.")
+        parser.add_argument(
+            "--dry-run", action="store_true", help="Do not execute any external command."
+        )
         parser.add_argument("--verbose", action="store_true", help="Log all executed commands.")
         parser.add_argument(
             "--perf", action="store_true", help="Run programs under perf (for use with hotspot)."
@@ -88,6 +91,8 @@ class CommandsRegistry:
         options.remaining_args = rest
         if not options.verbose:
             options.verbose = args.verbose
+        if not options.dry_run:
+            options.dry_run = args.dry_run
 
         if len(options.command_prefix) == 0:
             assert (args.gdb + args.lldb + args.valgrind + args.callgrind) <= 1
