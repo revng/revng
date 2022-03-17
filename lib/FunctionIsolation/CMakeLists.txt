@@ -3,6 +3,7 @@
 #
 
 revng_add_analyses_library_internal(revngFunctionIsolation
+  DropRoot.cpp
   EnforceABI.cpp
   InlineHelpers.cpp
   InvokeIsolatedFunctions.cpp

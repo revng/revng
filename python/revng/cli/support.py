@@ -1,11 +1,14 @@
 import sys
 import os
 import glob
-import re
 import signal
 import subprocess
 import shlex
+
 from itertools import chain
+from dataclasses import dataclass
+from typing import List, Any
+
 from elftools.elf.dynamic import DynamicSegment
 from elftools.elf.elffile import ELFFile
 
@@ -15,7 +18,15 @@ except ImportError:
     from backports.shutil_which import which
 
 
-log_commands = False
+@dataclass
+class Options:
+    parsed_args: Any
+    remaining_args: List[str]
+    search_prefixes: List[str]
+    command_prefix: List[str]
+    verbose: bool
+    dry_run: bool
+    keep_temporaries: bool
 
 
 def shlex_join(split_command):
@@ -34,34 +45,28 @@ def wrap(args, command_prefix):
     return command_prefix + args
 
 
-def set_verbose():
-    global log_commands
-    log_commands = True
+def relative(path: str):
+    return os.path.relpath(path, os.getcwd())
 
 
-def run(command, command_prefix, override={}):
+def run(command, options: Options):
     if is_executable(command[0]):
-        command = wrap(command, command_prefix)
+        command = wrap(command, options.command_prefix)
 
-    global log_commands
-    if log_commands:
-        cwd = os.getcwd().rstrip("/")
-        if command[0].startswith(cwd):
-            program_path = "." + command[0][len(cwd) :]
-        else:
-            program_path = command[0]
+    if options.verbose:
+        program_path = relative(command[0])
         sys.stderr.write("{}\n\n".format(" \\\n  ".join([program_path] + command[1:])))
+
+    if options.dry_run:
+        return 0
 
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     environment = dict(os.environ)
-    environment.update(override)
     p = subprocess.Popen(
         command, preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL), env=environment
     )
     if p.wait() != 0:
-        log_error(
-            "The following command exited with {}:\n{}".format(p.returncode, shlex_join(command))
-        )
+        log_error(f"The following command exited with {p.returncode}:\n{shlex_join(command)}")
         sys.exit(p.returncode)
 
 
@@ -84,10 +89,16 @@ def is_dynamic(path):
         )
 
 
-def get_command(command, search_path):
-    path = which(command, path=search_path)
+def get_command(command, search_prefixes):
+    if command.startswith("revng-"):
+        for executable in collect_files(search_prefixes, ["libexec", "revng"], command):
+            return executable
+        log_error(f'Couldn\'t find "{command}"')
+        assert False
+
+    path = which(command)
     if not path:
-        log_error("""Couldn't find "{}" in "{}".""".format(command, search_path))
+        log_error('Couldn\'t find "{command}".')
         assert False
     return os.path.abspath(path)
 
@@ -100,9 +111,9 @@ def interleave(base, repeat):
 
 
 def to_string(obj):
-    if type(obj) is str:
+    if isinstance(obj, str):
         return obj
-    elif type(obj) is bytes:
+    elif isinstance(obj, bytes):
         return obj.decode("utf-8")
 
 
@@ -111,7 +122,7 @@ def get_elf_needed(path):
         segments = [
             segment
             for segment in ELFFile(elf_file).iter_segments()
-            if type(segment) is DynamicSegment
+            if isinstance(segment, DynamicSegment)
         ]
 
         if len(segments) == 1:
@@ -153,27 +164,33 @@ def get_elf_needed(path):
             return []
 
 
-def collect_libraries(search_prefixes):
+def collect_files(search_prefixes, path_components, pattern):
     to_load = {}
     for prefix in search_prefixes:
-        analyses_path = os.path.join(prefix, "lib", "revng", "analyses")
+        analyses_path = os.path.join(prefix, *path_components)
         if not os.path.isdir(analyses_path):
             continue
 
         # Enumerate all the libraries containing analyses
-        for library in glob.glob(os.path.join(analyses_path, "*.so")):
+        for library in glob.glob(os.path.join(analyses_path, pattern)):
             basename = os.path.basename(library)
             if basename not in to_load:
-                to_load[basename] = library
+                to_load[basename] = relative(library)
+
+    return list(to_load.values())
+
+
+def collect_libraries(search_prefixes):
+    to_load = collect_files(search_prefixes, ["lib", "revng", "analyses"], "*.so")
 
     # Identify all the libraries that are dependencies of other libraries, i.e.,
     # non-roots in the dependencies tree. Note that circular dependencies are
     # not allowed.
-    dependencies = set(chain.from_iterable([get_elf_needed(path) for path in to_load.values()]))
-    return (list(to_load.values()), dependencies)
+    dependencies = set(chain.from_iterable([get_elf_needed(path) for path in to_load]))
+    return (to_load, dependencies)
 
 
-def handle_asan(dependencies, search_path):
+def handle_asan(dependencies, search_prefixes):
     libasan = [name for name in dependencies if ("libasan." in name or "libclang_rt.asan" in name)]
 
     if len(libasan) != 1:
@@ -191,16 +208,19 @@ def handle_asan(dependencies, search_path):
     # Use `sh` instead of `env` since `env` sometimes is not a real executable
     # but a shebang script spawning /usr/bin/coreutils, which makes gdb unhappy
     return [
-        get_command("sh", search_path),
+        get_command("sh", search_prefixes),
         "-c",
-        "LD_PRELOAD={} ASAN_OPTIONS={} " 'exec "$0" "$@"'.format(libasan_path, new_asan_options),
+        f'LD_PRELOAD={libasan_path} ASAN_OPTIONS={new_asan_options} exec "$0" "$@"',
     ]
 
 
-def build_command_with_loads(command, args, search_path, search_prefixes):
-    (to_load, dependencies) = collect_libraries(search_prefixes)
-    prefix = handle_asan(dependencies, search_path)
+def build_command_with_loads(command, args, options):
+    (to_load, dependencies) = collect_libraries(options.search_prefixes)
+    prefix = handle_asan(dependencies, options.search_prefixes)
 
     return (
-        prefix + [relative(get_command(command, search_path))] + interleave(to_load, "-load") + args
+        prefix
+        + [relative(get_command(command, options.search_prefixes))]
+        + interleave(to_load, "-load")
+        + args
     )

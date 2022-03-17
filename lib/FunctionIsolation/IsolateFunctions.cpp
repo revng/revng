@@ -1043,7 +1043,7 @@ void IFI::run() {
                                          "local_" + Function.name(),
                                          TheModule);
     IsolatedFunctionsMap[Function.Entry] = NewFunction;
-    FunctionTags::Lifted.addTo(NewFunction);
+    FunctionTags::Isolated.addTo(NewFunction);
     revng_assert(NewFunction != nullptr);
     GCBI.setMetaAddressMetadata(NewFunction,
                                 FunctionEntryMDNName,

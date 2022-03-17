@@ -20,7 +20,11 @@ inline RootKind Root("Root", &RootRank);
 inline IsolatedRootKind IsolatedRoot("IsolatedRoot", Root);
 
 inline TaggedFunctionKind
-  Isolated("Isolated", &FunctionsRank, FunctionTags::Lifted);
+  Isolated("Isolated", &FunctionsRank, FunctionTags::Isolated);
+inline TaggedFunctionKind
+  ABIEnforced("ABIEnforced", &FunctionsRank, FunctionTags::ABIEnforced);
+inline TaggedFunctionKind
+  CSVsPromoted("CSVsPromoted", &FunctionsRank, FunctionTags::CSVsPromoted);
 
 inline pipeline::Kind Object("Object", &RootRank);
 inline pipeline::Kind Translated("Translated", &RootRank);

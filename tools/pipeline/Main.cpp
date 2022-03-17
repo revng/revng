@@ -18,6 +18,7 @@
 #include "revng/Pipeline/LLVMGlobalKindBase.h"
 #include "revng/Pipeline/Loader.h"
 #include "revng/Pipeline/Target.h"
+#include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/PipelineManager.h"
 
 using std::string;
@@ -46,6 +47,11 @@ static opt<string> ModelOverride("m",
                                  desc("Load the model from a provided file"),
                                  cat(PipelineCategory),
                                  init(""));
+
+static opt<string> SaveModel("save-model",
+                             desc("Save the model at the end of the run"),
+                             cat(PipelineCategory),
+                             init(""));
 
 static opt<string> TargetStep("step",
                               desc("name the step in which to produce the "
@@ -165,6 +171,13 @@ int main(int argc, const char *argv[]) {
     runPipeline(Manager.getRunner());
   AbortOnError(Manager.store(StoresOverrides));
   AbortOnError(Manager.storeToDisk());
+
+  if (not SaveModel.empty()) {
+    auto Context = Manager.context();
+    auto ModelName = ModelGlobal::Name;
+    auto FinalModel = AbortOnError(Context.getGlobal<ModelGlobal>(ModelName));
+    AbortOnError(FinalModel->storeToDisk(SaveModel));
+  }
 
   return EXIT_SUCCESS;
 }

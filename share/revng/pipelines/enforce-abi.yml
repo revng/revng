@@ -1,0 +1,13 @@
+From:            Isolated
+Containers:
+Steps:
+ - Name:            EnforceABI
+   Pipes:
+     - Name:             LLVMPipe
+       UsedContainers: [module]
+       Passes:
+         - drop-root
+         - enforce-abi
+         - inline-helpers
+         - promote-csvs
+         - remove-exceptional-functions

@@ -40,7 +40,7 @@ inline model::CallEdge *getCallEdge(const model::Binary &Binary,
 }
 
 inline MetaAddress getMetaAddressOfIsolatedFunction(const llvm::Function &F) {
-  revng_assert(FunctionTags::Lifted.isTagOf(&F));
+  revng_assert(FunctionTags::Isolated.isTagOf(&F));
   return getMetaAddressMetadata(&F, FunctionEntryMDNName);
 }
 

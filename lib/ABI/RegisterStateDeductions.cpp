@@ -13,7 +13,7 @@
 #include "revng/ABI/Trait.h"
 #include "revng/Model/Types.h"
 
-static Logger Log("ABI-RegisterStateDeduction");
+static Logger Log("abi-register-state-deduction");
 
 using State = abi::RegisterState::Values;
 using StateMap = abi::RegisterState::Map;

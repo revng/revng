@@ -28,7 +28,7 @@ bool RemoveExceptionalCalls::runOnModule(llvm::Module &M) {
   std::set<CallBase *> ToErase;
   for (Function &F : FunctionTags::Exceptional.functions(&M))
     for (CallBase *Call : callers(&F))
-      if (FunctionTags::Lifted.isTagOf(Call->getParent()->getParent()))
+      if (FunctionTags::Isolated.isTagOf(Call->getParent()->getParent()))
         ToErase.insert(Call);
 
   std::set<Function *> ToCleanup;

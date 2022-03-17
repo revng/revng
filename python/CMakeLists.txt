@@ -43,21 +43,25 @@ check_python_requirements(${REQUIREMENTS})
 # Install scripts
 #
 set(SCRIPTS
-  "scripts/revng"
   "scripts/revng-merge-dynamic"
   "scripts/revng-model-compare"
-  "scripts/revng-model-dump"
   "scripts/revng-model-to-json"
 )
 foreach(SCRIPT ${SCRIPTS})
   get_filename_component(SCRIPT_FILENAME "${SCRIPT}" NAME)
   # revng script needs configure_file *without* COPYONLY
-  configure_file("${SCRIPT}" "${CMAKE_BINARY_DIR}/bin/${SCRIPT_FILENAME}")
+  configure_file("${SCRIPT}" "${CMAKE_BINARY_DIR}/libexec/revng/${SCRIPT_FILENAME}")
   install(
-    PROGRAMS "${CMAKE_BINARY_DIR}/bin/${SCRIPT_FILENAME}"
-    TYPE BIN
+    PROGRAMS "${CMAKE_BINARY_DIR}/libexec/revng/${SCRIPT_FILENAME}"
+    DESTINATION libexec/revng/
   )
 endforeach()
+
+configure_file("scripts/revng" "${CMAKE_BINARY_DIR}/bin/revng")
+install(
+  PROGRAMS "${CMAKE_BINARY_DIR}/bin/revng"
+  DESTINATION bin/
+  )
 
 #
 # Generate Python classes from JSON schema
@@ -132,7 +136,53 @@ python_module(
 #
 python_module(
     TARGET_NAME revng-python-translate
-    MODULE_FILES "revng/cli/translate/__init__.py"
-                 "revng/cli/translate/pipelines/isolate-translate.yml"
-                 "revng/cli/translate/pipelines/translate.yml"
+    MODULE_FILES "revng/cli/translate.py"
+)
+
+#
+# Install revng.cli.lift
+#
+python_module(
+    TARGET_NAME revng-python-lift
+    MODULE_FILES "revng/cli/lift.py"
+)
+
+#
+# Install revng.cli.opt
+#
+python_module(
+    TARGET_NAME revng-python-opt
+    MODULE_FILES "revng/cli/opt.py"
+)
+
+#
+# Install revng.cli.revng
+#
+python_module(
+    TARGET_NAME revng-python-revng
+    MODULE_FILES "revng/cli/revng.py"
+)
+
+#
+# Install revng.cli.revng
+#
+python_module(
+    TARGET_NAME revng-python-pipeline
+    MODULE_FILES "revng/cli/pipeline.py"
+)
+
+#
+# Install revng.cli.commands_registry
+#
+python_module(
+    TARGET_NAME revng-python-commands_registry
+    MODULE_FILES "revng/cli/commands_registry.py"
+)
+
+#
+# Install revng.cli.llvm_pipeline
+#
+python_module(
+    TARGET_NAME revng-python-llvm_pipeline
+    MODULE_FILES "revng/cli/llvm_pipeline.py"
 )

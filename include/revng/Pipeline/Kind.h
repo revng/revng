@@ -61,6 +61,13 @@ public:
   virtual void expandTarget(const Context &Ctx,
                             const Target &Input,
                             TargetsList &Output) const;
+
+public:
+  template<Rank *R>
+  static Kind &deadKind() {
+    static Kind DeadKind("Dead", R);
+    return DeadKind;
+  }
 };
 
 } // namespace pipeline

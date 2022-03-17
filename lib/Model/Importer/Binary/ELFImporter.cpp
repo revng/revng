@@ -529,7 +529,7 @@ Error ELFImporter::import() {
   }
 
   // Create a default prototype
-  Model->DefaultPrototype = abi::defaultFunctionPrototype(*Model.get());
+  Model->DefaultPrototype = abi::registerDefaultFunctionPrototype(*Model.get());
 
   // Import Dwarf
   DwarfImporter Importer(Model);

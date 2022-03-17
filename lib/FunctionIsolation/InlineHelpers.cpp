@@ -84,7 +84,7 @@ void InlineHelpers::run(Function *F) {
 }
 
 bool InlineHelpersPass::runOnFunction(Function &F) {
-  if (not FunctionTags::Lifted.isTagOf(&F))
+  if (not FunctionTags::Isolated.isTagOf(&F))
     return false;
 
   InlineHelpers IH(F.getParent());

@@ -11,6 +11,10 @@
 
 namespace abi {
 
+namespace detail {
+using MaybeABI = std::optional<model::ABI::Values>;
+}
+
 /// Creates the "default" prototype for a function.
 ///
 /// Such a prototype considers all the possible ways to pass
@@ -19,7 +23,7 @@ namespace abi {
 /// If `ABI` parameter was not provided, `BinaryToRecordTheTypeAt.DefaultABI`
 /// is used instead.
 model::TypePath
-defaultFunctionPrototype(model::Binary &BinaryToRecordTheTypeAt,
-                         std::optional<model::ABI::Values> ABI = std::nullopt);
+registerDefaultFunctionPrototype(model::Binary &Binary,
+                                 detail::MaybeABI ABI = std::nullopt);
 
 } // namespace abi

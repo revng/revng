@@ -48,17 +48,14 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
   if("${CATEGORY}" STREQUAL "tests_runtime" AND NOT "${CONFIGURATION}" STREQUAL "static_native")
     set(COMMAND_TO_RUN
       "./bin/revng"
-      opt
+      llvm
+      pipeline
       "${INPUT_FILE}"
-      --detect-abi
-      --isolate
-      --enforce-abi
-      --promote-csvs
-      --invoke-isolated-functions
-      --inline-helpers
-      --promote-csvs
-      --remove-exceptional-functions
-      -o "${OUTPUT}")
+      "${OUTPUT}"
+      Lifted
+      EnforceABI
+      "root/*:CSVsPromoted"
+    )
     set(DEPEND_ON revng-all-binaries)
   endif()
 endmacro()
@@ -67,18 +64,15 @@ register_derived_artifact("lifted" "abi-enforced-for-decompilation" ".bc" "FILE"
 macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
   if("${CATEGORY}" STREQUAL "tests_runtime" AND NOT "${CONFIGURATION}" STREQUAL "static_native" AND "${TARGET_NAME}" MATCHES "calc")
     set(COMMAND_TO_RUN
-      "${CMAKE_CURRENT_BINARY_DIR}/bin/revng"
-      opt
+      "./bin/revng"
+      llvm
+      pipeline
       "${INPUT_FILE}"
-      --detect-abi
-      --isolate
-      --enforce-abi
-      --promote-csvs
-      --invoke-isolated-functions
-      --inline-helpers
-      --promote-csvs
-      --remove-exceptional-functions
-      -o "${OUTPUT}")
+      "${OUTPUT}"
+      Lifted
+      EnforceABI
+      "root/*:CSVsPromoted"
+    )
     set(DEPEND_ON revng-all-binaries)
   endif()
 endmacro()
