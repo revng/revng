@@ -40,4 +40,4 @@ def run_revng_command(arguments, options: Options):
 
 
 def main():
-    return run_revng_command(sys.argv[1:], Options(None, [], [], [], False, False))
+    return run_revng_command(sys.argv[1:], Options(None, [], [], [], False, False, False))

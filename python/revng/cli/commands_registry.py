@@ -47,6 +47,9 @@ class CommandsRegistry:
         )
         parser.add_argument("--verbose", action="store_true", help="Log all executed commands.")
         parser.add_argument(
+            "--keep-temporaries", action="store_true", help="Do not delete temporary files."
+        )
+        parser.add_argument(
             "--perf", action="store_true", help="Run programs under perf (for use with hotspot)."
         )
         parser.add_argument(
@@ -93,6 +96,8 @@ class CommandsRegistry:
             options.verbose = args.verbose
         if not options.dry_run:
             options.dry_run = args.dry_run
+        if not options.keep_temporaries:
+            options.keep_temporaries = args.keep_temporaries
 
         if len(options.command_prefix) == 0:
             assert (args.gdb + args.lldb + args.valgrind + args.callgrind) <= 1

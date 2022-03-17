@@ -31,8 +31,10 @@ class LiftCommand(Command):
             lambda args, name: [f"--{name}={args.__dict__[name]}"] if args.__dict__[name] else []
         )
 
-        with NamedTemporaryFile(suffix=".yml") as model, NamedTemporaryFile(
-            suffix=".ll"
+        with NamedTemporaryFile(
+            suffix=".yml", delete=not options.keep_temporaries
+        ) as model, NamedTemporaryFile(
+            suffix=".ll", delete=not options.keep_temporaries
         ) as model_in_module:
             # Run revng model import args.input
             run_revng_command(

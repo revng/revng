@@ -26,6 +26,7 @@ class Options:
     command_prefix: List[str]
     verbose: bool
     dry_run: bool
+    keep_temporaries: bool
 
 
 def shlex_join(split_command):

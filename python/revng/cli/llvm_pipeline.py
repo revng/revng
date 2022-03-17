@@ -23,7 +23,9 @@ class IRPipelineCommand(Command):
 
         args = options.parsed_args
 
-        with NamedTemporaryFile(suffix=".yml") as model, NamedTemporaryFile(suffix=".bc") as module:
+        with NamedTemporaryFile(
+            suffix=".yml", delete=not options.keep_temporaries
+        ) as model, NamedTemporaryFile(suffix=".bc", delete=not options.keep_temporaries) as module:
             # Extract model
             run_revng_command(["model", "dump", args.input, "-o", model.name], options)
 
