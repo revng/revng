@@ -69,7 +69,7 @@ bool AddSCEVBarrierPass::runOnFunction(llvm::Function &F) {
 
   // Skip non-isolated functions
   auto FTags = FunctionTags::TagsSet::from(&F);
-  if (not FTags.contains(FunctionTags::Lifted))
+  if (not FTags.contains(FunctionTags::Isolated))
     return false;
 
   // If the MarkForSerializationPass was not executed, we have nothing to do.

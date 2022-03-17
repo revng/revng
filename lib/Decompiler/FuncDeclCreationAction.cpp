@@ -125,7 +125,7 @@ void DeclCreator::createFunctionAndCalleesDecl(clang::ASTContext &Ctx,
 
   revng_assert(TheF);
   auto FTags = FunctionTags::TagsSet::from(TheF);
-  revng_assert(FTags.contains(FunctionTags::Lifted));
+  revng_assert(FTags.contains(FunctionTags::Isolated));
 
   std::set<const llvm::Function *> Called = getDirectlyCalledFunctions(*TheF);
 

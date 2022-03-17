@@ -22,7 +22,7 @@ bool MakeEnvNullPass::runOnFunction(llvm::Function &F) {
 
   // Skip non-isolated functions
   auto FTags = FunctionTags::TagsSet::from(&F);
-  if (not FTags.contains(FunctionTags::Lifted))
+  if (not FTags.contains(FunctionTags::Isolated))
     return false;
 
   bool Changed = false;

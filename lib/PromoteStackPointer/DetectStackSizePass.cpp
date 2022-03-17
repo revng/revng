@@ -103,7 +103,7 @@ public:
 public:
   void run(Module &M) {
     // Collect information about the stack of each function
-    for (llvm::Function &F : FunctionTags::Lifted.functions(&M))
+    for (llvm::Function &F : FunctionTags::Isolated.functions(&M))
       collectStackBounds(F);
 
     // At this point we have populated two data structures:

@@ -29,7 +29,7 @@ bool RemoveAssumePass::runOnFunction(Function &F) {
 
   // Skip non-isolated functions
   auto FTags = FunctionTags::TagsSet::from(&F);
-  if (not FTags.contains(FunctionTags::Lifted))
+  if (not FTags.contains(FunctionTags::Isolated))
     return false;
 
   // Remove calls to `llvm.assume` in isolated functions.

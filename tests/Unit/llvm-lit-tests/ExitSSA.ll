@@ -149,4 +149,4 @@ tail:
   ret i1 %res
 }
 
-!0 = !{!"Lifted"}
+!0 = !{!"Isolated"}

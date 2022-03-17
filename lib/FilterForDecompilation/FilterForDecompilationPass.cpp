@@ -22,7 +22,7 @@ void FFDFP::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
 /// `noinline` attributes so that they can be eliminated by DCE.
 static bool filterFunction(llvm::Function &F) {
   auto FTags = FunctionTags::TagsSet::from(&F);
-  if (not FTags.contains(FunctionTags::Lifted)) {
+  if (not FTags.contains(FunctionTags::Isolated)) {
     auto Attributes = F.getAttributes();
     F.deleteBody();
 

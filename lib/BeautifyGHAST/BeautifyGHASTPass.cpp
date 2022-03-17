@@ -35,7 +35,7 @@ bool BeautifyGHASTPass::runOnFunction(llvm::Function &F) {
     return false;
 
   // Skip functions that are not lifted
-  if (not FunctionTags::TagsSet::from(&F).contains(FunctionTags::Lifted))
+  if (not FunctionTags::TagsSet::from(&F).contains(FunctionTags::Isolated))
     return false;
 
   // If we passed the `-single-decompilation` option to the command line, skip

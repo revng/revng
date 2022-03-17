@@ -27,7 +27,7 @@ bool RemoveCpuLoopStorePass::runOnFunction(Function &F) {
 
   // Skip non-isolated functions
   auto FTags = FunctionTags::TagsSet::from(&F);
-  if (not FTags.contains(FunctionTags::Lifted))
+  if (not FTags.contains(FunctionTags::Isolated))
     return false;
 
   // Retrieve the global variable `cpu_loop_exiting`

@@ -896,7 +896,7 @@ void Decompiler::HandleTranslationUnit(ASTContext &Context) {
   revng_assert(not TheF.isDeclaration());
 
   auto FTags = FunctionTags::TagsSet::from(&TheF);
-  revng_assert(FTags.contains(FunctionTags::Lifted));
+  revng_assert(FTags.contains(FunctionTags::Isolated));
 
   DeclCreator Declarator(ValueLayouts);
 
