@@ -48,17 +48,14 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
   if("${CATEGORY}" MATCHES "^tests_analysis.*" AND NOT "${CONFIGURATION}" STREQUAL "aarch64")
     set(COMMAND_TO_RUN
       "./bin/revng"
-      opt
+      llvm
+      pipeline
       "${INPUT_FILE}"
-      --detect-abi
-      --isolate
-      --enforce-abi
-      --promote-csvs
-      --invoke-isolated-functions
-      --inline-helpers
-      --promote-csvs
-      --remove-exceptional-functions
-      -o "${OUTPUT}")
+      "${OUTPUT}"
+      Lifted
+      EnforceABI
+      "root/*:CSVsPromoted"
+    )
     set(DEPEND_ON revng-all-binaries)
 
     #

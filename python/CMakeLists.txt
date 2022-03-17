@@ -178,3 +178,11 @@ python_module(
     TARGET_NAME revng-python-commands_registry
     MODULE_FILES "revng/cli/commands_registry.py"
 )
+
+#
+# Install revng.cli.llvm_pipeline
+#
+python_module(
+    TARGET_NAME revng-python-llvm_pipeline
+    MODULE_FILES "revng/cli/llvm_pipeline.py"
+)

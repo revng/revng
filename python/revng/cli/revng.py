@@ -11,6 +11,7 @@ def run_revng_command(arguments, options: Options):
     from .translate import TranslateCommand
     from .opt import IROptCommand
     from .pipeline import PipelineCommand
+    from .llvm_pipeline import IRPipelineCommand
 
     if options.verbose:
         sys.stderr.write("{}\n\n".format(" \\\n  ".join([sys.argv[0]] + arguments)))
@@ -19,9 +20,9 @@ def run_revng_command(arguments, options: Options):
     prefixes = []
     for arg, next_arg in zip(arguments, arguments[1:] + [""]):
         if arg.startswith("--prefix="):
-            prefixes += arg[len("--prefix=") :]
+            prefixes += [arg[len("--prefix=") :]]
         elif arg == "--prefix" and next_arg != "":
-            prefixes += next_arg
+            prefixes += [next_arg]
     script_path = os.path.dirname(os.path.realpath(__file__))
     options.search_prefixes = prefixes + [os.path.join(script_path, "..", "..", "..", "..")]
 
