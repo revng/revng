@@ -43,16 +43,16 @@ def wrap(args, command_prefix):
     return command_prefix + args
 
 
+def relative(path: str):
+    return os.path.relpath(path, os.getcwd())
+
+
 def run(command, options: Options):
     if is_executable(command[0]):
         command = wrap(command, options.command_prefix)
 
     if options.verbose:
-        cwd = os.getcwd().rstrip("/")
-        if command[0].startswith(cwd):
-            program_path = "." + command[0][len(cwd) :]
-        else:
-            program_path = command[0]
+        program_path = relative(command[0])
         sys.stderr.write("{}\n\n".format(" \\\n  ".join([program_path] + command[1:])))
 
     signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -170,7 +170,7 @@ def collect_files(search_prefixes, path_components, pattern):
         for library in glob.glob(os.path.join(analyses_path, pattern)):
             basename = os.path.basename(library)
             if basename not in to_load:
-                to_load[basename] = library
+                to_load[basename] = relative(library)
 
     return list(to_load.values())
 
