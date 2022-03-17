@@ -41,37 +41,6 @@
 
 namespace pipeline {
 
-namespace revng::detail {
-
-/// Metadata are not cloned by clomeModule when a definition is squashed into a
-/// declaration thus they must be reintroduced, and this function does exactly
-/// so.
-template<typename T>
-void cloneMetadata(llvm::ValueToValueMapTy &Map, const T *From) {
-  llvm::SmallVector<std::pair<std::uint32_t, llvm::MDNode *>, 4> Metadata;
-
-  llvm::WeakTrackingVH Mapped = Map[From];
-  T &To = llvm::cast<T>(*Mapped);
-  From->getAllMetadata(Metadata);
-
-  for (const auto &[index, Node] : Metadata) {
-    auto *ToMap = llvm::dyn_cast<llvm::MDNode>(Node);
-    if (ToMap == nullptr)
-      continue;
-
-    auto MayeMappedNode = Map.getMappedMD(ToMap);
-    if (not MayeMappedNode.hasValue())
-      continue;
-
-    auto *ToSet = llvm::dyn_cast<llvm::MDNode>(*MayeMappedNode);
-    if (ToSet == nullptr)
-      continue;
-    To.setMetadata(index, ToSet);
-  }
-}
-
-} // namespace revng::detail
-
 template<typename LLVMContainer>
 class GenericLLVMPipe;
 
@@ -127,11 +96,6 @@ public:
     llvm::ValueToValueMapTy Map;
     revng_assert(llvm::verifyModule(*Module, &llvm::dbgs()) == 0);
     auto Cloned = llvm::CloneModule(*Module, Map, Filter);
-
-    for (const llvm::Function &Original : Module->functions()) {
-      if (Original.isDeclaration())
-        revng::detail::cloneMetadata<llvm::Function>(Map, &Original);
-    }
 
     return std::make_unique<ThisType>(*this->Ctx,
                                       std::move(Cloned),
