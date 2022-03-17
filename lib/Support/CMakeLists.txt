@@ -2,7 +2,9 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-revng_add_library_internal(revngSupport SHARED
+revng_add_library_internal(
+  revngSupport
+  SHARED
   ProgramRunner.cpp
   Assert.cpp
   CommandLine.cpp
@@ -23,14 +25,13 @@ llvm_map_components_to_libnames(LLVM_LIBRARIES Support Core)
 
 target_link_libraries(revngSupport ${LLVM_LIBRARIES})
 
-target_include_directories(revngSupport
-  INTERFACE $<INSTALL_INTERFACE:include/>)
+target_include_directories(revngSupport INTERFACE $<INSTALL_INTERFACE:include/>)
 
 # revngSupport has a dependency to the generated model files because of revng.h
 #
-# revng.h includes model headers which depends on the generated headers.
-# we cannot add the dependency to the model because the model itself depends
-# on support and would generate a cyclic dependency.
+# revng.h includes model headers which depends on the generated headers. we
+# cannot add the dependency to the model because the model itself depends on
+# support and would generate a cyclic dependency.
 #
 # TODO: drop dependency from model in revng.h
 add_dependencies(revngSupport generate-model-tuple-tree-code)

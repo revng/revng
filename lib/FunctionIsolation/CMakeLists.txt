@@ -2,7 +2,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-revng_add_analyses_library_internal(revngFunctionIsolation
+revng_add_analyses_library_internal(
+  revngFunctionIsolation
   DropRoot.cpp
   EnforceABI.cpp
   InlineHelpers.cpp
@@ -14,7 +15,8 @@ revng_add_analyses_library_internal(revngFunctionIsolation
 
 llvm_map_components_to_libnames(LLVM_LIBRARIES TransformUtils)
 
-target_link_libraries(revngFunctionIsolation
+target_link_libraries(
+  revngFunctionIsolation
   revngABI
   revngModel
   revngEarlyFunctionAnalysis

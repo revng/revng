@@ -151,6 +151,15 @@ function run_black() {
     fi
 }
 
+# Run cmake-format
+function run_cmake_format() {
+    if test "$FORCE_FORMAT" -gt 0; then
+        cmake-format -i $(git ls-files | grep -i cmake) -l error
+    else
+        cmake-format --check $(git ls-files | grep -i cmake) -l error
+    fi
+}
+
 # Run revng-specific checks on files
 function run_revng_checks() {
     # Check for lines longer than 80 columns
@@ -219,6 +228,6 @@ function run_revng_checks() {
 
 }
 
-if test $( ( run_clang_format && run_black && run_revng_checks | sort -u ) |& tee /dev/stderr | wc -c ) -ne 0; then
+if test $( ( run_clang_format && run_black && run_cmake_format && run_revng_checks | sort -u ) |& tee /dev/stderr | wc -c ) -ne 0; then
     exit 1
 fi

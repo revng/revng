@@ -2,7 +2,9 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-revng_add_library_internal(revngPipeline SHARED
+revng_add_library_internal(
+  revngPipeline
+  SHARED
   ContainerSet.cpp
   Context.cpp
   Contract.cpp
@@ -15,9 +17,6 @@ revng_add_library_internal(revngPipeline SHARED
   RegisterKind.cpp
   Registry.cpp
   Step.cpp
-  Target.cpp
-)
+  Target.cpp)
 
-target_link_libraries(revngPipeline
-  revngSupport
-  ${LLVM_LIBRARIES})
+target_link_libraries(revngPipeline revngSupport ${LLVM_LIBRARIES})

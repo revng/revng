@@ -2,7 +2,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-revng_add_library_internal(revngPipes
+revng_add_library_internal(
+  revngPipes
   SHARED
   CompileModulePipe.cpp
   FileContainer.cpp
@@ -15,10 +16,10 @@ revng_add_library_internal(revngPipes
   PipelineManager.cpp
   Pipes.cpp
   RootKind.cpp
-  TaggedFunctionKind.cpp
-)
+  TaggedFunctionKind.cpp)
 
-llvm_map_components_to_libnames(LLVM_LIBRARIES
+llvm_map_components_to_libnames(
+  LLVM_LIBRARIES
   Core
   IPO
   MC
@@ -26,14 +27,13 @@ llvm_map_components_to_libnames(LLVM_LIBRARIES
   X86AsmParser
   X86CodeGen
   X86Desc
-  X86Info
-)
+  X86Info)
 
-target_link_libraries(revngPipes
+target_link_libraries(
+  revngPipes
   revngEarlyFunctionAnalysis
   revngLift
   revngPipeline
   revngSupport
   revngModelImporterBinary
-  ${LLVM_LIBRARIES}
-)
+  ${LLVM_LIBRARIES})

@@ -10,9 +10,6 @@ revng_add_library_internal(
   OptionCategory.cpp
   PromoteOriginalName.cpp
   PurgeUnnamedAndUnreachableTypes.cpp
-  Verify.cpp
-)
+  Verify.cpp)
 
-target_link_libraries(revngModelPasses
-  revngABI
-  revngModel)
+target_link_libraries(revngModelPasses revngABI revngModel)

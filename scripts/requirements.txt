@@ -11,3 +11,4 @@ pydot
 
 # Formatting
 black
+cmakelang

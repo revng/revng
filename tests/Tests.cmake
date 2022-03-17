@@ -14,4 +14,3 @@ add_subdirectory(tests/abi)
 add_subdirectory(tests/tuple-tree-generator/python-wrappers/multiple-versions)
 
 set(TEST_CFLAGS_${ARCH} "${TEST_CFLAGS_${ARCH}} -mthumb")
-
