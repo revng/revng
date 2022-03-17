@@ -257,3 +257,13 @@ inline llvm::ArrayRef<uint8_t> toArrayRef(llvm::StringRef Data) {
   auto Pointer = reinterpret_cast<const uint8_t *>(Data.data());
   return llvm::makeArrayRef<uint8_t>(Pointer, Data.size());
 }
+
+//
+// append
+//
+template<ranges::sized_range FromType, ranges::sized_range ToType>
+auto append(FromType &&From, ToType &To) {
+  size_t ExistingElementCount = To.size();
+  To.resize(ExistingElementCount + From.size());
+  return llvm::copy(From, std::next(To.begin(), ExistingElementCount));
+}
