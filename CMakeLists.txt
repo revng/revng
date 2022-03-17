@@ -187,7 +187,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT T
     add_test(NAME helpers_to_header_${TARGET_NAME} COMMAND
       revng --prefix .
       opt
-      -helpers-to-header
+      --helpers-to-header
       ${OUTFOLDER}/prepared.bc
       --helpers-header-name=${OUTFOLDER}/helpers_header.h
       -o /dev/null

@@ -1,4 +1,4 @@
-; RUN: %revngopt %s -exit-ssa -S -o - | FileCheck %s
+; RUN: %revngopt %s --exit-ssa -S -o - | FileCheck %s
 
 ; CHECK: define i1 @basicphi
 define i1 @basicphi (i1 %x) !revng.tags !0 {

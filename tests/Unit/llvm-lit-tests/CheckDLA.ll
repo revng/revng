@@ -1,4 +1,4 @@
-; RUN: %revngopt %s -S -dla --model-type-id-seed=0xDEADBEEF -o - | revng model dump | revng model compare - %s.yml
+; RUN: %revngopt %s -S --dla --model-type-id-seed=0xDEADBEEF -o - | revng model dump | revng model compare - %s.yml
 ; This file is meant to be used to test that the DLA is able to merge the
 ; recovered type information with an already existing model.
 ; In particular, in this file all functions and indirect calls share the same
