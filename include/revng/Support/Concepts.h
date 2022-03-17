@@ -17,3 +17,21 @@ concept ConstOrNot = std::is_same_v<R, T> or std::is_same_v<const R, T>;
 
 template<typename T>
 concept Integral = std::is_integral_v<T>;
+
+// clang-format off
+namespace ranges {
+
+template<class T>
+concept range = requires(T & t) {
+  std::begin(t);
+  std::end(t);
+};
+
+template<class T>
+concept sized_range = ranges::range<T> && requires(T & t) {
+  std::size(t);
+};
+
+} // namespace ranges
+
+// clang-format off
