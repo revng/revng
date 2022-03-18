@@ -3,9 +3,10 @@
 #
 
 revng_add_analyses_library(revngcThreadSafeClangTooling revngc
-  ThreadSafeClangTooling.cpp)
+                           ThreadSafeClangTooling.cpp)
 
-target_link_libraries(revngcThreadSafeClangTooling
+target_link_libraries(
+  revngcThreadSafeClangTooling
   clangAST
   clangBasic
   clangFrontend

@@ -97,7 +97,8 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
             continue;
 
           auto CTags = FunctionTags::TagsSet::from(Callee);
-          if (Callee->isIntrinsic() or not CTags.contains(FunctionTags::Isolated))
+          if (Callee->isIntrinsic()
+              or not CTags.contains(FunctionTags::Isolated))
             continue;
 
           unsigned ArgNo = 0U;

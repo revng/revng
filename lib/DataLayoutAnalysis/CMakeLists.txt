@@ -1,7 +1,9 @@
 # Copyright rev.ng Srls. See LICENSE.md for details.
 #
 
-revng_add_analyses_library(revngcDataLayoutAnalysis revngc
+revng_add_analyses_library(
+  revngcDataLayoutAnalysis
+  revngc
   Frontend/DLACreateInterProceduralTypes.cpp
   Frontend/DLACreateIntraProceduralTypes.cpp
   Frontend/DLATypeSystemBuilder.cpp
@@ -26,8 +28,5 @@ revng_add_analyses_library(revngcDataLayoutAnalysis revngc
   DLAPass.cpp
   DLATypeSystem.cpp)
 
-target_link_libraries(revngcDataLayoutAnalysis
-  revngcSupport
-  revng::revngModel
-  revng::revngSupport
-  ${LLVM_LIBRARIES})
+target_link_libraries(revngcDataLayoutAnalysis revngcSupport revng::revngModel
+                      revng::revngSupport ${LLVM_LIBRARIES})

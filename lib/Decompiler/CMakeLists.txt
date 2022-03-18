@@ -2,7 +2,9 @@
 # Copyright rev.ng Srls. See LICENSE.md for details.
 #
 
-revng_add_analyses_library(revngcDecompiler revngc
+revng_add_analyses_library(
+  revngcDecompiler
+  revngc
   AddSCEVBarrierPass.cpp
   ASTBuildAnalysis.cpp
   CDecompilerAction.cpp
@@ -14,7 +16,8 @@ revng_add_analyses_library(revngcDecompiler revngc
   TypeDeclCreationAction.cpp
   AddPrimitiveTypesPass.cpp)
 
-target_link_libraries(revngcDecompiler
+target_link_libraries(
+  revngcDecompiler
   revngcDataLayoutAnalysis
   revngcFilterForDecompilation
   revngcLivenessAnalysis

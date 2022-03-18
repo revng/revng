@@ -3,9 +3,7 @@
 #
 
 revng_add_analyses_library(revngcPHIASAPAssignmentInfo revngc
-  PHIASAPAssignmentInfo.cpp)
+                           PHIASAPAssignmentInfo.cpp)
 
-target_link_libraries(revngcPHIASAPAssignmentInfo
-  revng::revngModel
-  revng::revngSupport
-  ${LLVM_LIBRARIES})
+target_link_libraries(revngcPHIASAPAssignmentInfo revng::revngModel
+                      revng::revngSupport ${LLVM_LIBRARIES})

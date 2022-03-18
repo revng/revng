@@ -880,7 +880,10 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeAsymmetricCollapse) {
 
   LTSN *NodeA1 = addInstanceAtOffset(TS, NodeUnion, /*offset=*/0, /*size=*/0);
   LTSN *NodeC1 = addInstanceAtOffset(TS, NodeA1, /*offset=*/0, /*size=*/0);
-  /* LTSN *NodeD1 = */ addInstanceAtOffset(TS, NodeC1, /*offset=*/0, /*size=*/8);
+  /* LTSN *NodeD1 = */ addInstanceAtOffset(TS,
+                                           NodeC1,
+                                           /*offset=*/0,
+                                           /*size=*/8);
   OffsetExpression OE{};
   OE.Offset = 0;
   TS.addInstanceLink(NodeA1, NodeD, std::move(OE));
