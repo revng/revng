@@ -17,6 +17,7 @@ def run_revng_command(arguments, options: Options):
     from .opt import IROptCommand
     from .pipeline import PipelineCommand
     from .llvm_pipeline import IRPipelineCommand
+    from .import_idb import ImportIDBCommand
 
     if options.verbose:
         sys.stderr.write("{}\n\n".format(" \\\n  ".join([sys.argv[0]] + arguments)))

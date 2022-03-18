@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+
+from revng.idb_converter.__main__ import main
+
+if __name__ == "__main__":
+    main()

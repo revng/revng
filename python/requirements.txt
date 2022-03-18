@@ -1,8 +1,12 @@
+# Shared requirements
+PyYAML
+
 # Requirements for revng_merge_dynamic
 pyelftools
 
-# Requirements for model_dump
-PyYAML
-
 # revng-model-compare
 grandiso
+
+# revng.idb_converter dependencies
+loguru
+python-idb

@@ -130,3 +130,9 @@ python_module(TARGET_NAME revng-python-commands_registry MODULE_FILES
 #
 python_module(TARGET_NAME revng-python-llvm_pipeline MODULE_FILES
               "revng/cli/llvm_pipeline.py")
+
+# -- Install revng.cli.import_idb
+set(CONVERT_IDB_MODULE_FILES revng/idb_converter.py revng/cli/import_idb.py)
+python_module(TARGET_NAME revng-convert-idb MODULE_FILES
+              ${CONVERT_IDB_MODULE_FILES})
+add_dependencies(revng-convert-idb python-model)
