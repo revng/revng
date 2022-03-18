@@ -29,7 +29,9 @@ void rp_set_custom_abort_hook(AbortHook Hook) {
   setAbortHook(Hook);
 }
 
-static char *copy_string(llvm::StringRef str) {
+/// Used when we want to return a stack allocated string. Copies the string onto
+/// the heap and gives ownership of to the caller
+static char *copyString(llvm::StringRef str) {
   char *ToReturn = (char *) malloc(sizeof(char) * (str.size() + 1));
   strncpy(ToReturn, str.data(), str.size());
   ToReturn[str.size()] = 0;
@@ -235,7 +237,7 @@ const char *rp_manager_produce_targets(rp_manager *manager,
   llvm::cantFail(Cloned->serialize(Serialized));
   Serialized.flush();
 
-  return copy_string(Out);
+  return copyString(Out);
 }
 
 rp_target *rp_target_create(rp_kind *kind,
@@ -321,7 +323,7 @@ char *rp_manager_create_container_path(rp_manager *manager,
   auto Path = (manager->executionDirectory() + "/" + step_name + "/"
                + container_name)
                 .str();
-  return copy_string(Path);
+  return copyString(Path);
 }
 
 void rp_manager_recompute_all_available_targets(rp_manager *manager) {
@@ -376,7 +378,7 @@ rp_container_identifier_get_name(rp_container_identifier *identifier) {
 
 char *rp_target_create_serialized_string(rp_target *target) {
   revng_check(target != nullptr);
-  return copy_string(target->serialize());
+  return copyString(target->serialize());
 }
 
 rp_target *
@@ -409,7 +411,7 @@ rp_manager_create_global_copy(rp_manager *manager, const char *global_name) {
     return nullptr;
   }
   Serialized.flush();
-  return copy_string(Out);
+  return copyString(Out);
 }
 
 bool rp_manager_set_global(rp_manager *manager,
