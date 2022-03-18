@@ -30,7 +30,8 @@ static Layout *makeInstanceChildLayout(Layout *ChildType,
   revng_assert(OE.Strides.size() == OE.TripCounts.size());
   if (not OE.TripCounts.empty()) {
     Layout *Inner = ChildType;
-    for (const auto &[TC, S] : llvm::zip(OE.TripCounts, OE.Strides)) {
+    for (const auto &[TC, S] :
+         llvm::reverse(llvm::zip(OE.TripCounts, OE.Strides))) {
       revng_assert(S > 0LL);
       Layout::layout_size_t StrideSize = (Layout::layout_size_t) (S);
 
