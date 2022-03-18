@@ -248,6 +248,25 @@ public:
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
+/// dla::Step that removes invalide stride edges
+class RemoveInvalidStrideEdges : public Step {
+  static const char ID;
+
+public:
+  static const constexpr void *getID() { return &ID; }
+
+  RemoveInvalidStrideEdges() :
+    Step(ID,
+         // Dependencies
+         { ComputeUpperMemberAccesses::getID() },
+         // Invalidated
+         {}) {}
+
+  virtual ~RemoveInvalidStrideEdges() override = default;
+
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
+};
+
 /// dla::Step that merges structurally identical subtrees of an interfering
 /// node.
 class DeduplicateUnionFields : public Step {
