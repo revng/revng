@@ -110,9 +110,7 @@ void rp_string_destroy(char *string);
  * provided directory and created from the provided pipelines_path.
  *
  * \param pipelines_count size of \p pipelines_path.
- * \param pipelines_path cannot be NULL.
  * \param pipeline_flags_count size of \p pipeline_flags.
- * \param pipeline_flags cannot be NULL.
  * \param execution_directory can be empty (but not NULL), if it is empty then
  * the content of the pipeline will not be loaded and saved on disk before and
  * after the execution. pipeline_flags can be empty, pipeline_flags_count must
@@ -343,8 +341,6 @@ void rp_target_destroy(rp_target *target);
 rp_kind *rp_target_get_kind(rp_target *target);
 
 /**
- * Serializes target into a string, target cannot be NULL.
- *
  * \note The return string is owned by the caller. Destroy with
  *       rp_string_destroy.
  */
