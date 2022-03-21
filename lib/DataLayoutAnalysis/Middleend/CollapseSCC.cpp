@@ -27,7 +27,6 @@ namespace dla {
 using LTSN = LayoutTypeSystemNode;
 using GraphNodeT = LTSN *;
 using InstanceNodeT = EdgeFilteredGraph<GraphNodeT, isInstanceEdge>;
-using InheritanceNodeT = EdgeFilteredGraph<GraphNodeT, isInheritanceEdge>;
 using EqualityNodeT = EdgeFilteredGraph<GraphNodeT, isEqualityEdge>;
 using InstanceOffset0EdgeT = EdgeFilteredGraph<GraphNodeT, isInstanceOff0>;
 using NonPointerNodeT = EdgeFilteredGraph<GraphNodeT, isNotPointerEdge>;
@@ -83,43 +82,12 @@ static bool collapseSCCs(LayoutTypeSystem &TS) {
   return ToCollapse.size();
 }
 
-static bool collapseInheritanceSCC(LayoutTypeSystem &TS) {
-  return collapseSCCs<InheritanceNodeT>(TS);
-}
-
 static bool collapseEqualitySCC(LayoutTypeSystem &TS) {
   return collapseSCCs<EqualityNodeT>(TS);
 }
 
 static bool collapseInstanceAtOffset0SCC(LayoutTypeSystem &TS) {
   return collapseSCCs<InstanceOffset0EdgeT>(TS);
-}
-
-bool CollapseInheritanceSCC::runOnTypeSystem(LayoutTypeSystem &TS) {
-  if (VerifyLog.isEnabled()) {
-    TS.dumpDotOnFile("before-collapse-inheritance.dot");
-    revng_assert(TS.verifyConsistency());
-  }
-
-  revng_log(LogVerbose, "#### Merging Inheritance SCC: ... ");
-  bool Changed = collapseInheritanceSCC(TS);
-  revng_log(LogVerbose, "#### Merging Inheritance SCC: Done!");
-
-  if (VerifyLog.isEnabled()) {
-    TS.dumpDotOnFile("after-collapse-inheritance.dot");
-    revng_assert(TS.verifyConsistency());
-    revng_assert(TS.verifyInheritanceDAG());
-  }
-
-  Changed |= removeInstanceBackedgesFromInheritanceLoops(TS);
-
-  if (VerifyLog.isEnabled()) {
-    TS.dumpDotOnFile("after-collapse-inheritance-and-instance-backedges.dot");
-    revng_assert(TS.verifyConsistency());
-    revng_assert(TS.verifyInheritanceDAG());
-  }
-
-  return Changed;
 }
 
 bool CollapseEqualitySCC::runOnTypeSystem(LayoutTypeSystem &TS) {

@@ -47,7 +47,6 @@ struct OffsetExpression {
 class TypeLinkTag {
 public:
   enum LinkKind {
-    LK_Inheritance,
     LK_Equality,
     LK_Instance,
     LK_Pointer,
@@ -56,8 +55,6 @@ public:
 
   static const char *toString(enum LinkKind K) {
     switch (K) {
-    case LK_Inheritance:
-      return "Inheritance";
     case LK_Equality:
       return "Equality";
     case LK_Instance:
@@ -93,10 +90,6 @@ public:
 
   static TypeLinkTag equalityTag() {
     return TypeLinkTag(LK_Equality, OffsetExpression{});
-  }
-
-  static TypeLinkTag inheritanceTag() {
-    return TypeLinkTag(LK_Inheritance, OffsetExpression{});
   }
 
   // This method is templated just to enable perfect forwarding.
@@ -248,11 +241,6 @@ public:
     return ForwardLinkTag;
   }
 
-  std::pair<const TypeLinkTag *, bool>
-  addInheritanceLink(LayoutTypeSystemNode *Src, LayoutTypeSystemNode *Tgt) {
-    return addLink(Src, Tgt, dla::TypeLinkTag::inheritanceTag());
-  }
-
   // This method is templated just to enable perfect forwarding.
   template<typename OffsetExpressionT>
   std::pair<const TypeLinkTag *, bool>
@@ -310,16 +298,10 @@ public:
   bool verifyConsistency() const;
   // Checks that is valid and a DAG, and returns true if it is, false otherwise
   bool verifyDAG() const;
-  // Checks that is valid and a DAG on inheritance. Returns true on success.
-  bool verifyInheritanceDAG() const;
   // Checks that is valid and a DAG on instance. Returns true on success.
   bool verifyInstanceDAG() const;
   // Checks that is valid and a DAG on pointer. Returns true on success.
   bool verifyPointerDAG() const;
-  // Checks that the type system, filtered looking only at inheritance edges, is
-  // a tree, meaning that a give LayoutTypeSystemNode cannot inherit from two
-  // different LayoutTypeSystemNodes.
-  bool verifyInheritanceTree() const;
   // Checks that there are no leaf nodes without valid layout information
   bool verifyLeafs() const;
   // Checks that there are no equality edges.
@@ -328,8 +310,6 @@ public:
   bool verifyInstanceAtOffset0DAG() const;
   // Checks that no union node has only one child
   bool verifyUnions() const;
-  // Checks that no node conflicting edges.
-  bool verifyConflicts() const;
 
 private:
   // Equivalence classes between nodes. Each node is identified by an ID.
@@ -549,11 +529,6 @@ isEqualityEdge(const llvm::GraphTraits<LayoutTypeSystemNode *>::EdgeRef &E) {
 }
 
 inline bool
-isInheritanceEdge(const llvm::GraphTraits<LayoutTypeSystemNode *>::EdgeRef &E) {
-  return hasLinkKind<TypeLinkTag::LinkKind::LK_Inheritance>(E);
-}
-
-inline bool
 isInstanceEdge(const llvm::GraphTraits<LayoutTypeSystemNode *>::EdgeRef &E) {
   return hasLinkKind<TypeLinkTag::LinkKind::LK_Instance>(E);
 }
@@ -595,10 +570,6 @@ inline bool isUnionNode(const LayoutTypeSystemNode *N) {
   return N->InterferingInfo == AllChildrenAreInterfering;
 }
 
-inline bool hasInheritanceParent(const LayoutTypeSystemNode *N) {
-  return llvm::any_of(N->Predecessors, isInheritanceEdge);
-}
-
 template<dla::TypeLinkTag::LinkKind K = dla::TypeLinkTag::LinkKind::LK_All>
 inline bool isLeaf(const LayoutTypeSystemNode *N) {
   using LTSN = const LayoutTypeSystemNode;
@@ -606,10 +577,6 @@ inline bool isLeaf(const LayoutTypeSystemNode *N) {
   using FilteredNodeT = EdgeFilteredGraph<GraphNodeT, hasNonPointerLinkKind<K>>;
   using GT = llvm::GraphTraits<FilteredNodeT>;
   return GT::child_begin(N) == GT::child_end(N);
-}
-
-inline bool isInheritanceLeaf(const LayoutTypeSystemNode *N) {
-  return isLeaf<dla::TypeLinkTag::LinkKind::LK_Inheritance>(N);
 }
 
 inline bool isInstanceLeaf(const LayoutTypeSystemNode *N) {
@@ -630,10 +597,6 @@ inline bool isRoot(const LayoutTypeSystemNode *N) {
   using FilteredNodeT = EdgeFilteredGraph<GraphNodeT, hasNonPointerLinkKind<K>>;
   using IGT = llvm::GraphTraits<llvm::Inverse<FilteredNodeT>>;
   return IGT::child_begin(N) == IGT::child_end(N);
-}
-
-inline bool isInheritanceRoot(const LayoutTypeSystemNode *N) {
-  return isRoot<dla::TypeLinkTag::LinkKind::LK_Inheritance>(N);
 }
 
 inline bool isInstanceRoot(const LayoutTypeSystemNode *N) {

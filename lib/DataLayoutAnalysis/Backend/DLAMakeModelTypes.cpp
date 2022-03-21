@@ -209,19 +209,15 @@ static QualifiedType makeStructFromNode(const LTSN *N,
 
     QualifiedType FieldType = getNodeType(Model, SuccNode, Types, EqClasses);
 
-    uint64_t FieldOffset = 0ULL;
-    if (TypeLinkTag::LK_Instance == SuccEdge->getKind()) {
-      const OffsetExpression &OE = SuccEdge->getOffsetExpr();
-      revng_assert(OE.Offset >= 0U);
-      FieldOffset = OE.Offset;
-      FieldType = makeInstanceQualifiedType(SuccNode,
-                                            FieldType,
-                                            OE,
-                                            PointerFieldsToUpdate,
-                                            Model);
-    } else {
-      revng_assert(TypeLinkTag::LK_Inheritance == SuccEdge->getKind());
-    }
+    revng_assert(TypeLinkTag::LK_Instance == SuccEdge->getKind());
+    const OffsetExpression &OE = SuccEdge->getOffsetExpr();
+    revng_assert(OE.Offset >= 0U);
+    uint64_t FieldOffset = OE.Offset;
+    FieldType = makeInstanceQualifiedType(SuccNode,
+                                          FieldType,
+                                          OE,
+                                          PointerFieldsToUpdate,
+                                          Model);
 
     StructField Field{ FieldOffset, {}, {}, FieldType };
     bool Inserted = Fields.insert({ std::move(Field), SuccNode }).second;
@@ -282,19 +278,15 @@ static QualifiedType makeUnionFromNode(const LTSN *N,
 
     QualifiedType FieldType = getNodeType(Model, SuccNode, Types, EqClasses);
 
-    uint64_t FieldOffset = 0ULL;
-    if (TypeLinkTag::LK_Instance == SuccEdge->getKind()) {
-      const OffsetExpression &OE = SuccEdge->getOffsetExpr();
-      revng_assert(OE.Offset >= 0U);
-      FieldOffset = OE.Offset;
-      FieldType = makeInstanceQualifiedType(SuccNode,
-                                            FieldType,
-                                            OE,
-                                            PointerFieldsToUpdate,
-                                            Model);
-    } else {
-      revng_assert(TypeLinkTag::LK_Inheritance == SuccEdge->getKind());
-    }
+    revng_assert(TypeLinkTag::LK_Instance == SuccEdge->getKind());
+    const OffsetExpression &OE = SuccEdge->getOffsetExpr();
+    revng_assert(OE.Offset >= 0U);
+    uint64_t FieldOffset = OE.Offset;
+    FieldType = makeInstanceQualifiedType(SuccNode,
+                                          FieldType,
+                                          OE,
+                                          PointerFieldsToUpdate,
+                                          Model);
 
     if (FieldOffset)
       FieldType = createStructWrapper(SuccNode,
@@ -361,12 +353,6 @@ static QualifiedType &createNodeType(TupleTree<model::Binary> &Model,
       { Qualifier::createPointer(Model->Architecture) }
     };
 
-    if (hasInheritanceParent(Node))
-      MaybeResult = createStructWrapper(Node,
-                                        MaybeResult.value(),
-                                        PointerFieldsToUpdate,
-                                        Model);
-
     if (MaybeResult.value().isPointer()) {
       PointerFieldsToUpdate[Node].insert(&MaybeResult.value());
       revng_log(Log,
@@ -379,11 +365,6 @@ static QualifiedType &createNodeType(TupleTree<model::Binary> &Model,
     MaybeResult = QualifiedType{
       Model->getPrimitiveType(model::PrimitiveTypeKind::Number, Node->Size), {}
     };
-    if (hasInheritanceParent(Node))
-      MaybeResult = createStructWrapper(Node,
-                                        MaybeResult.value(),
-                                        PointerFieldsToUpdate,
-                                        Model);
   } else if (isStructNode(Node)) {
     MaybeResult = makeStructFromNode(Node,
                                      Types,
@@ -433,7 +414,7 @@ logEntry(const LayoutTypeSystem &TS, TupleTree<model::Binary> &Model) {
   if (VerifyLog.isEnabled()) {
     revng_assert(Model->verify(true));
     revng_assert(TS.verifyPointerDAG() and TS.verifyDAG()
-                 and TS.verifyInheritanceTree() and TS.verifyUnions());
+                 and TS.verifyUnions());
   }
 }
 
@@ -441,7 +422,7 @@ static void
 logExit(const LayoutTypeSystem &TS, TupleTree<model::Binary> &Model) {
   if (VerifyLog.isEnabled()) {
     revng_assert(TS.verifyPointerDAG() and TS.verifyDAG()
-                 and TS.verifyInheritanceTree() and TS.verifyUnions());
+                 and TS.verifyUnions());
     revng_assert(Model->verify(true));
   }
   if (Log.isEnabled())

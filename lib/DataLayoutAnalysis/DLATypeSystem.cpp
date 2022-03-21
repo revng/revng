@@ -92,12 +92,10 @@ static_assert(sizeof(DoRet) == (str_len(DoRet) + 1));
 static_assert(sizeof(NoRet) == (str_len(NoRet) + 1));
 
 static constexpr const char Equal[] = "Equal";
-static constexpr const char Inherits[] = "Inherits from";
 static constexpr const char Instance[] = "Has Instance of: ";
 static constexpr const char Pointer[] = "Points to ";
 static constexpr const char Unexpected[] = "Unexpected!";
 static_assert(sizeof(Equal) == (str_len(Equal) + 1));
-static_assert(sizeof(Inherits) == (str_len(Inherits) + 1));
 static_assert(sizeof(Instance) == (str_len(Instance) + 1));
 static_assert(sizeof(Unexpected) == (str_len(Unexpected) + 1));
 } // end unnamed namespace
@@ -180,11 +178,6 @@ void debug_function LayoutTypeSystem::dumpDotOnFile(const char *FName,
         LabelSize = sizeof(Instance) - 1;
         Extra = dumpToString(EdgeTag->getOffsetExpr());
         Color = ",color=blue";
-      } break;
-      case TypeLinkTag::LK_Inheritance: {
-        EdgeLabel = Inherits;
-        LabelSize = sizeof(Inherits) - 1;
-        Color = ",color=orange";
       } break;
       case TypeLinkTag::LK_Pointer: {
         EdgeLabel = Pointer;
@@ -370,13 +363,6 @@ void LayoutTypeSystem::moveEdge(LayoutTypeSystemNode *OldSrc,
   const TypeLinkTag *EdgeTag = OldSuccHandle.value().second;
   switch (EdgeTag->getKind()) {
 
-  case TypeLinkTag::LK_Inheritance: {
-    if (OffsetToSum > 0LL)
-      addInstanceLink(NewSrc, Tgt, OffsetExpression(OffsetToSum));
-    else
-      addInheritanceLink(NewSrc, Tgt);
-  } break;
-
   case TypeLinkTag::LK_Instance: {
     OffsetExpression NewOE = EdgeTag->getOffsetExpr();
     NewOE.Offset += OffsetToSum;
@@ -461,7 +447,7 @@ bool LayoutTypeSystem::verifyConsistency() const {
     for (const auto &Edge : NodePtr->Successors) {
       if (isPointerEdge(Edge))
         IsPointer = true;
-      else if (isInheritanceEdge(Edge) or isInstanceEdge(Edge))
+      else if (isInstanceEdge(Edge))
         NonPtrChildren++;
 
       if (IsPointer and NonPtrChildren > 0) {
@@ -476,9 +462,6 @@ bool LayoutTypeSystem::verifyConsistency() const {
 
 bool LayoutTypeSystem::verifyDAG() const {
   if (not verifyConsistency())
-    return false;
-
-  if (not verifyInheritanceDAG())
     return false;
 
   if (not verifyInstanceDAG())
@@ -499,35 +482,6 @@ bool LayoutTypeSystem::verifyDAG() const {
 
     auto I = scc_begin(NonPointerFilterT(Node));
     auto E = scc_end(NonPointerFilterT(Node));
-    for (; I != E; ++I) {
-      Visited.insert(I->begin(), I->end());
-      if (I.hasCycle()) {
-        if (VerifyDLALog.isEnabled())
-          revng_check(false);
-        return false;
-      }
-    }
-  }
-
-  return true;
-}
-
-bool LayoutTypeSystem::verifyInheritanceDAG() const {
-  if (not verifyConsistency())
-    return false;
-
-  // A graph is a DAG if and only if all its strongly connected components have
-  // size 1
-  std::set<const LayoutTypeSystemNode *> Visited;
-  for (const auto &Node : llvm::nodes(this)) {
-    revng_assert(Node != nullptr);
-    if (Visited.count(Node))
-      continue;
-
-    using GraphNodeT = const LayoutTypeSystemNode *;
-    using InheritanceNodeT = EdgeFilteredGraph<GraphNodeT, isInheritanceEdge>;
-    auto I = scc_begin(InheritanceNodeT(Node));
-    auto E = scc_end(InheritanceNodeT(Node));
     for (; I != E; ++I) {
       Visited.insert(I->begin(), I->end());
       if (I.hasCycle()) {
@@ -654,22 +608,6 @@ bool LayoutTypeSystem::verifyLeafs() const {
   return true;
 }
 
-bool LayoutTypeSystem::verifyInheritanceTree() const {
-  using GraphNodeT = const LayoutTypeSystemNode *;
-  using InheritanceNodeT = EdgeFilteredGraph<GraphNodeT, isInheritanceEdge>;
-  using GT = GraphTraits<InheritanceNodeT>;
-  for (GraphNodeT Node : llvm::nodes(this)) {
-    auto Beg = GT::child_begin(Node);
-    auto End = GT::child_end(Node);
-    if ((Beg != End) and (std::next(Beg) != End)) {
-      if (VerifyDLALog.isEnabled())
-        revng_check(false);
-      return false;
-    }
-  }
-  return true;
-}
-
 bool LayoutTypeSystem::verifyUnions() const {
   using GraphNodeT = const LayoutTypeSystemNode *;
   for (GraphNodeT Node : llvm::nodes(this)) {
@@ -678,29 +616,6 @@ bool LayoutTypeSystem::verifyUnions() const {
       if (VerifyDLALog.isEnabled())
         revng_check(false);
       return false;
-    }
-  }
-
-  return true;
-}
-
-bool LayoutTypeSystem::verifyConflicts() const {
-  using GraphNodeT = const LayoutTypeSystemNode *;
-  using LinkT = const LayoutTypeSystemNode::Link;
-
-  for (GraphNodeT Node : llvm::nodes(this)) {
-    for (auto &Succ : Node->Successors) {
-
-      auto HasSameSuccAtOffset0 = [&Succ](const LinkT &L2) {
-        return isInstanceOff0(L2) and (Succ.first == L2.first);
-      };
-
-      if (isInheritanceEdge(Succ)
-          and llvm::any_of(Node->Successors, HasSameSuccAtOffset0)) {
-        if (VerifyDLALog.isEnabled())
-          revng_check(false);
-        return false;
-      }
     }
   }
 

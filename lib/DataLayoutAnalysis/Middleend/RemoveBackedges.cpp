@@ -31,11 +31,6 @@ concept SCCWithBackedgeHelper = requires {
   typename T::BackedgeNodeView;
 };
 
-struct InheritanceLoopWithInstanceBackedge {
-  using SCCNodeView = EdgeFilteredGraph<const LTSN *, isInheritanceEdge>;
-  using BackedgeNodeView = EdgeFilteredGraph<const LTSN *, isInstanceEdge>;
-};
-
 struct InstanceOffsetZeroWithInstanceBackedge {
   using SCCNodeView = EdgeFilteredGraph<const LTSN *, isInstanceOff0>;
   using BackedgeNodeView = EdgeFilteredGraph<const LTSN *, isInstanceOffNon0>;
@@ -391,10 +386,6 @@ static bool removeBackedgesFromSCC(LayoutTypeSystem &TS) {
   }
 
   return Changed;
-}
-
-bool removeInstanceBackedgesFromInheritanceLoops(LayoutTypeSystem &TS) {
-  return removeBackedgesFromSCC<InheritanceLoopWithInstanceBackedge>(TS);
 }
 
 bool removeInstanceBackedgesFromInstanceAtOffset0Loops(LayoutTypeSystem &TS) {

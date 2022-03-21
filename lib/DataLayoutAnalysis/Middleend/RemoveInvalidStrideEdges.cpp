@@ -50,7 +50,7 @@ bool RemoveInvalidStrideEdges::runOnTypeSystem(LayoutTypeSystem &TS) {
   if (Log.isEnabled())
     TS.dumpDotOnFile("before-remove-invalid-stride-edges.dot");
   if (VerifyLog.isEnabled())
-    revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree());
+    revng_assert(TS.verifyDAG());
 
   std::set<const LayoutTypeSystemNode *> Visited;
   for (LayoutTypeSystemNode *Root : llvm::nodes(&TS)) {
@@ -94,7 +94,7 @@ bool RemoveInvalidStrideEdges::runOnTypeSystem(LayoutTypeSystem &TS) {
   if (Log.isEnabled())
     TS.dumpDotOnFile("after-remove-invalid-stride-edges.dot");
   if (VerifyLog.isEnabled())
-    revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree());
+    revng_assert(TS.verifyDAG());
 
   return Changed;
 }

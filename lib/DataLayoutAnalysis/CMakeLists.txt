@@ -12,11 +12,8 @@ revng_add_analyses_library(
   Middleend/DLAComputeNonInterferingComponents.cpp
   Middleend/DLAComputeUpperMemberAccess.cpp
   Middleend/DLAPruneLayoutNodesWithoutLayout.cpp
-  Middleend/DLARemoveTransitiveInheritanceEdges.cpp
-  Middleend/DLAMakeInheritanceTree.cpp
   Middleend/DLACollapseSingleChild.cpp
   Middleend/DLADeduplicateUnionFields.cpp
-  Middleend/DLARemoveConflictingEdges.cpp
   Middleend/DLAStep.cpp
   Middleend/FieldSizeComputation.cpp
   Middleend/RemoveBackedges.cpp
