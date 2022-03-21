@@ -7,6 +7,7 @@
 #include "revng/Support/Debug.h"
 
 #include "DLAStep.h"
+#include "FieldSizeComputation.h"
 
 static Logger<> Log{ "dla-remove-stride-edges" };
 
@@ -19,7 +20,11 @@ static bool hasValidStrides(const LayoutTypeSystemNode::Link &Edge) {
   const auto &[SuccNode, EdgeTag] = Edge;
 
   auto InnerSize = SuccNode->Size;
-  revng_assert(InnerSize);
+  // If InnerSize is zero, it means that it has become zero in a previous
+  // iteration because we've removed so many invalid edges that the target of
+  // this edge has become empty.
+  if (not InnerSize)
+    return false;
 
   const OffsetExpression &OE = EdgeTag->getOffsetExpr();
   revng_assert(OE.TripCounts.size() == OE.Strides.size());
@@ -72,6 +77,7 @@ bool RemoveInvalidStrideEdges::runOnTypeSystem(LayoutTypeSystem &TS) {
       auto It = N->Successors.begin();
       auto End = N->Successors.end();
       auto Next = End;
+      bool RemovedChild = false;
       for (; It != End; It = Next) {
 
         Next = std::next(It);
@@ -82,11 +88,41 @@ bool RemoveInvalidStrideEdges::runOnTypeSystem(LayoutTypeSystem &TS) {
         if (hasValidStrides(*It))
           continue;
 
+        // If we reach this point the edges has invalid strides, so we need to
+        // remove it, taking care of the fact that it's bidirectional.
         LayoutTypeSystemNode *Succ = It->first;
         auto PredIt = Succ->Predecessors.find({ N, It->second });
         revng_assert(PredIt != Succ->Predecessors.end());
         Succ->Predecessors.erase(PredIt);
         N->Successors.erase(It);
+        RemovedChild = true;
+        Changed = true;
+      }
+
+      if (RemovedChild) {
+        // If we reach this point, N had at least one outgoing instance edge
+        // with strided access that was invalid.
+        // Having an outgoing instance edge means that N is not a pointer node
+        // nor a leaf node representing an access.
+        // For this reason, given that we have remove a child, the size of N
+        // could have changed, so we have to recompute from its children.
+        uint64_t NewSize = 0ULL;
+
+        // Look at all the instance-of edges and inheritance edges all together.
+        using NonPointerNodeT = EdgeFilteredGraph<const LayoutTypeSystemNode *,
+                                                  isNotPointerEdge>;
+        revng_log(Log, "N's children");
+        LoggerIndent MoreMoreIndent{ Log };
+        for (auto &[Child, EdgeTag] :
+             llvm::children_edges<NonPointerNodeT>(N)) {
+          revng_log(Log, "Child->ID: " << Child->ID);
+          revng_log(Log,
+                    "EdgeTag->Kind: "
+                      << dla::TypeLinkTag::toString(EdgeTag->getKind()));
+          NewSize = std::max(NewSize, getFieldUpperMember(Child, EdgeTag));
+        }
+
+        N->Size = NewSize;
       }
     }
   }

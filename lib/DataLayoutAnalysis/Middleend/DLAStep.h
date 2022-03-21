@@ -218,7 +218,8 @@ public:
          // Dependencies
          { ComputeUpperMemberAccesses::getID() },
          // Invalidated
-         {}) {}
+         { ComputeUpperMemberAccesses::getID(),
+           PruneLayoutNodesWithoutLayout::getID() }) {}
 
   virtual ~RemoveInvalidStrideEdges() override = default;
 
