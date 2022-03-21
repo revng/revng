@@ -51,6 +51,7 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   dla::StepManager SM;
   revng_check(SM.addStep<dla::CollapseEqualitySCC>());
   revng_check(SM.addStep<dla::CollapseInstanceAtOffset0SCC>());
+  revng_check(SM.addStep<dla::SimplifyInstanceAtOffset0>());
   revng_check(SM.addStep<dla::CollapseInheritanceSCC>());
   revng_check(SM.addStep<dla::PropagateInheritanceToAccessors>());
   revng_check(SM.addStep<dla::RemoveTransitiveInheritanceEdges>());

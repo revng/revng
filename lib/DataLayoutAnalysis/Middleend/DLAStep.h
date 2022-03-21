@@ -103,6 +103,26 @@ public:
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
+/// dla::Step that simplifies instance-at-offset-0 edges, to reduce the
+/// unnecessary layers of nested types
+class SimplifyInstanceAtOffset0 : public Step {
+  static const char ID;
+
+public:
+  static const constexpr void *getID() { return &ID; }
+
+  SimplifyInstanceAtOffset0() :
+    Step(ID,
+         // Dependencies
+         { CollapseInstanceAtOffset0SCC::getID() },
+         // Invalidated
+         {}) {}
+
+  virtual ~SimplifyInstanceAtOffset0() override = default;
+
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
+};
+
 /// dla::Step that removes transitive inheritance edges
 //
 // Here we use the notation notation A --> B to mean an inheritance edge.
