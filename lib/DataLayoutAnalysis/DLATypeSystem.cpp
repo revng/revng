@@ -168,6 +168,7 @@ void debug_function LayoutTypeSystem::dumpDotOnFile(const char *FName,
       const char *EdgeLabel = nullptr;
       size_t LabelSize = 0;
       Extra.clear();
+      Style.clear();
       switch (EdgeTag->getKind()) {
       case TypeLinkTag::LK_Equality: {
         EdgeLabel = Equal;
