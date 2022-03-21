@@ -488,8 +488,15 @@ bool IFI::handleIndirectBoundary(const std::vector<Boundary> &Boundaries,
   const Boundary *IndirectBoundary = zeroOrOne(Boundaries, IsIndirectBoundary);
 
   if (IndirectBoundary == nullptr) {
-    revng_assert(NoMore);
-    return false;
+    // Is there a leftover direct boundary? If so, assign it anyways
+    if (not NoMore and Boundaries.size()) {
+      for (const Boundary &B : Boundaries)
+        if (isFunctionCall(B.Block))
+          IndirectBoundary = &B;
+    } else {
+      revng_assert(NoMore);
+      return false;
+    }
   }
 
   BasicBlock *BB = IndirectBoundary->Block;
@@ -667,7 +674,12 @@ bool IFI::handleDirectBoundary(const Boundary &TheBoundary,
     }
   }
 
-  revng_assert(Consumed == TheBoundary.Successors.Addresses.size());
+  // Under certain conditions, we might have a direct boundary that does not
+  // correspond to any direct `efa::FunctionEdgeBase`. An example is when we
+  // have a direct call to a function that is not available in the model. In
+  // fact, in this case, EFA will emit an `efa::FunctionEdgeBase` representing
+  // and *Indirect*Call.
+  revng_assert(Consumed <= TheBoundary.Successors.Addresses.size());
 
   return IsCall;
 }
@@ -806,7 +818,7 @@ void IFI::handleBasicBlock(const model::BasicBlock &Block,
 }
 
 void IFI::isolate(const model::Function &Function) {
-  // Map from origina values to new ones
+  // Map from original values to new ones
   ValueToValueMapTy OldToNew;
 
   // List of cloned basic blocks, dummy entry and return block are preallocated
