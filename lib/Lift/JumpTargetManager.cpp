@@ -393,7 +393,7 @@ JumpTargetManager::readFromPointer(Constant *Pointer, bool IsLittleEndian) {
       auto RelocationSize = model::RelocationType::getSize(Relocation.Type);
       if (LoadAddress == Relocation.Address and LoadSize == RelocationSize) {
         revng_assert(not StringRef(Function.name()).contains('\0'));
-        Result = { Function.name().str().str(), NewAPInt(Addend) };
+        Result = { Function.OriginalName, NewAPInt(Addend) };
         ++MatchCount;
       }
     }
