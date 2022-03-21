@@ -18,10 +18,6 @@ uint64_t getFieldSize(const dla::LayoutTypeSystemNode *Child,
 
   switch (EdgeTag->getKind()) {
 
-  case dla::TypeLinkTag::LK_Inheritance: {
-    Result = ChildSize;
-  } break;
-
   case dla::TypeLinkTag::LK_Instance: {
     const dla::OffsetExpression &OE = EdgeTag->getOffsetExpr();
     revng_assert(OE.Strides.size() == OE.TripCounts.size());

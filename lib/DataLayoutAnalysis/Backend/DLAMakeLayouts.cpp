@@ -111,11 +111,6 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
         Base->PointeeLayout = AccessLayout;
       }
 
-      // If the leaf has an inheritance parent, wrap the leaf into a struct
-      if (llvm::any_of(N->Predecessors, isInheritanceEdge)) {
-        SFlds.push_back(AccessLayout);
-        AccessLayout = createLayout<StructLayout>(Layouts, SFlds);
-      }
       return AccessLayout;
     }
 
@@ -131,7 +126,6 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
     // Collect the children in a vector. Here we use the OrderedChild struct,
     // that embeds info on the size and offset of the children, so that we can
     // later sort the vector according to it.
-    bool InheritsFromOther = false;
     ChildrenVec Children;
 
     for (auto &[Child, EdgeTag] :
@@ -187,11 +181,6 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
           // ChildSize = (NumElems * StrideSize) - (StrideSize - ChildSize);
           OrdChild.Size = ((NumElems - 1) * StrideSize) + OrdChild.Size;
         }
-      } break;
-
-      case TypeLinkTag::LK_Inheritance: {
-        revng_assert(not InheritsFromOther);
-        InheritsFromOther = true;
       } break;
 
       default:
@@ -257,7 +246,6 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
     revng_assert(not isLeaf(N));
 
     // Look at all the instance-of edges and inheritance edges all together
-    bool InheritsFromOther = false;
     for (auto &[Child, EdgeTag] : children_edges<ConstNonPointerFilterT>(N)) {
       revng_log(Log, "Child ID: " << Child->ID);
       revng_assert(Child->Size);
@@ -279,16 +267,6 @@ static Layout *makeLayout(const LayoutTypeSystem &TS,
         const OffsetExpression &OE = EdgeTag->getOffsetExpr();
         revng_log(Log, "Has Offset: " << OE.Offset);
         ChildType = makeInstanceChildLayout(ChildType, OE, Layouts);
-      } break;
-
-      case TypeLinkTag::LK_Inheritance: {
-        revng_log(Log, "Inheritance");
-        // Treated as instance at offset 0, but can only have one
-        revng_assert(not InheritsFromOther);
-        InheritsFromOther = true;
-        ChildType = makeInstanceChildLayout(ChildType,
-                                            OffsetExpression{ 0ULL },
-                                            Layouts);
       } break;
 
       default:
@@ -372,8 +350,7 @@ LayoutPtrVector makeLayouts(const LayoutTypeSystem &TS, LayoutVector &Layouts) {
     TS.dumpDotOnFile("final.dot");
 
   if (VerifyLog.isEnabled())
-    revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree()
-                 and TS.verifyUnions());
+    revng_assert(TS.verifyDAG() and TS.verifyUnions());
 
   // Prepare the vector of layouts that correspond to actual LayoutTypePtrs
   LayoutPtrVector OrderedLayouts;

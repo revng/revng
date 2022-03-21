@@ -66,11 +66,7 @@ static order cmpNodes(const LTSN *A, const LTSN *B) {
 }
 
 ///\brief Strong ordering for edges: order by kind, then by offset expression
-///
-///\note Inheritance and instance at offset 0 can be considered equivalent when
-/// comparing subtrees.
-static order
-cmpEdgeTags(const Tag *A, const Tag *B, bool IgnoreInheritance = true) {
+static order cmpEdgeTags(const Tag *A, const Tag *B) {
   if (A == B)
     return order::equal;
   revng_assert(A != nullptr and B != nullptr);
@@ -82,25 +78,8 @@ cmpEdgeTags(const Tag *A, const Tag *B, bool IgnoreInheritance = true) {
   if (KindA == TypeLinkTag::LK_Pointer or KindB == TypeLinkTag::LK_Pointer)
     return KindA <=> KindB;
 
-  // If A is an inheritance edge, consider it as an instance-offset-0 edge
-  OffsetExpression OffA;
-  if (KindA == TypeLinkTag::LK_Inheritance) {
-    if (IgnoreInheritance)
-      KindA = TypeLinkTag::LK_Instance;
-    OffA.Offset = 0;
-  } else {
-    OffA = A->getOffsetExpr();
-  }
-
-  // If B is an inheritance edge, consider it as an instance-offset-0 edge
-  OffsetExpression OffB;
-  if (KindB == TypeLinkTag::LK_Inheritance) {
-    if (IgnoreInheritance)
-      KindB = TypeLinkTag::LK_Instance;
-    OffB.Offset = 0;
-  } else {
-    OffB = B->getOffsetExpr();
-  }
+  OffsetExpression OffA = A->getOffsetExpr();
+  OffsetExpression OffB = B->getOffsetExpr();
 
   const auto KindCmp = KindA <=> KindB;
   if (KindCmp != order::equal)
@@ -141,8 +120,8 @@ cmpEdgeTags(const Tag *A, const Tag *B, bool IgnoreInheritance = true) {
 }
 
 ///\brief Strong ordering for links: compare edge tags and destination node
-static order cmpLinks(const Link &A, const Link &B, bool IgnoreInheritance) {
-  const order EdgeOrder = cmpEdgeTags(A.second, B.second, IgnoreInheritance);
+static order cmpLinks(const Link &A, const Link &B) {
+  const order EdgeOrder = cmpEdgeTags(A.second, B.second);
   if (EdgeOrder != order::equal)
     return EdgeOrder;
 
@@ -168,7 +147,7 @@ static bool linkOrderLess(const Link &A, const Link &B) {
   if (A == B)
     return false;
 
-  const order LinkOrder = cmpLinks(A, B, /*IgnoreInheritance=*/false);
+  const order LinkOrder = cmpLinks(A, B);
   if (LinkOrder != order::equal)
     return LinkOrder < 0;
 
@@ -221,7 +200,7 @@ exploreAndCompare(const Link &Child1, const Link &Child2) {
         continue;
 
       // Return if the links are different
-      const order LinkOrder = cmpLinks(L1, L2, /*IgnoreInheritance=*/true);
+      const order LinkOrder = cmpLinks(L1, L2);
       if (LinkOrder != order::equal)
         return { LinkOrder, VisitStack1, VisitStack2 };
 
@@ -366,13 +345,6 @@ postProcessMerge(LayoutTypeSystem &TS, const EdgeList &MergedSubtree) {
     llvm::SmallVector<LTSN *, 8> PredNodes;
     for (auto &PredLink : E.first->Predecessors)
       PredNodes.push_back(PredLink.first);
-
-    // Remove conflicts from predecessors
-    for (auto &Pred : PredNodes)
-      Modified |= RemoveConflictingEdges::removeConflicts(TS, Pred);
-
-    // Remove conflict from node
-    Modified |= RemoveConflictingEdges::removeConflicts(TS, E.first);
   }
 
   // Merging nodes and removing conflicts might have created situations in
@@ -393,7 +365,7 @@ static auto getSuccEdgesToChild(LTSN *Parent, LTSN *Child) {
 bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
   bool TypeSystemChanged = false;
   if (VerifyLog.isEnabled())
-    revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree());
+    revng_assert(TS.verifyDAG());
 
   if (Log.isEnabled())
     TS.dumpDotOnFile("before-deduplicate-union-fields.dot");
@@ -405,10 +377,8 @@ bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
     if (not isRoot(Root))
       continue;
 
-    for (LTSN *Node : post_order(NonPointerFilterT(Root))) {
+    for (LTSN *Node : post_order(NonPointerFilterT(Root)))
       TypeSystemChanged |= CollapseSingleChild::collapseSingle(TS, Node);
-      TypeSystemChanged |= RemoveConflictingEdges::removeConflicts(TS, Node);
-    }
 
     llvm::SmallVector<LTSN *, 8> PostOrderFromRoot;
     for (LTSN *UnionNode : post_order(NonPointerFilterT(Root))) {
@@ -456,7 +426,7 @@ bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
         bool UnionChildrenMerged = false;
         auto CurChildEdges = getSuccEdgesToChild(UnionNode, CurChild);
         for (auto &CurLink : CurChildEdges) {
-          revng_assert(isInheritanceEdge(CurLink) or isInstanceEdge(CurLink));
+          revng_assert(isInstanceEdge(CurLink));
 
           // We want to compare CurChild with all the other nodes that we have
           // looked at in previous iterations, and try to merge it with one of
@@ -466,8 +436,7 @@ bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
 
             bool AnalyzedNotMergedInvalidated = false;
             for (const Link &NotMergedLink : MergedEdges) {
-              revng_assert(isInheritanceEdge(NotMergedLink)
-                           or isInstanceEdge(NotMergedLink));
+              revng_assert(isInstanceEdge(NotMergedLink));
 
               auto [IsMerged,
                     Preserved,
@@ -490,13 +459,8 @@ bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
               // to Erased.
               // BUT:
               //  - postProcessMerge only calls
-              //    - RemoveConflictingEdges::removeConflicts only removes
-              //    edges,
               //    - CollapseSingleChild::collapseSingle only removes nodes
               //    with if these two are safe we're good
-              //  - RemoveConflictingEdges::removeConflicts only removes edges,
-              //    not nodes, so it cannot change Preserved nor Erases, hence
-              //    it's safe
               //  - CollapseSingleChild::collapseSingle only removes nodes with
               //    exactly one parent, so it cannot remove nodes that were not
               //    originally children of the union, because if they were they
@@ -570,21 +534,16 @@ bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
       }
 
       // Collapse the union node if we are left with only one member
-      if (UnionNodeChanged) {
+      if (UnionNodeChanged)
         TypeSystemChanged |= CollapseSingleChild::collapseSingle(TS, UnionNode);
-        TypeSystemChanged |= RemoveConflictingEdges::removeConflicts(TS,
-                                                                     UnionNode);
-      }
     }
   }
 
   if (Log.isEnabled())
     TS.dumpDotOnFile("after-deduplicate-union-fields.dot");
-  if (VerifyLog.isEnabled()) {
-    revng_assert(TS.verifyInheritanceDAG());
-    revng_assert(TS.verifyInheritanceTree());
-    revng_assert(TS.verifyConflicts());
-  }
+
+  if (VerifyLog.isEnabled())
+    revng_assert(TS.verifyDAG());
 
   return TypeSystemChanged;
 }

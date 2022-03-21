@@ -27,8 +27,8 @@ namespace dla {
 using LTSN = LayoutTypeSystemNode;
 using GraphNodeT = LTSN *;
 using InstanceNodeT = EdgeFilteredGraph<GraphNodeT, isInstanceEdge>;
-using InheritanceNodeT = EdgeFilteredGraph<GraphNodeT, isInheritanceEdge>;
 using EqualityNodeT = EdgeFilteredGraph<GraphNodeT, isEqualityEdge>;
+using InstanceOffset0EdgeT = EdgeFilteredGraph<GraphNodeT, isInstanceOff0>;
 using NonPointerNodeT = EdgeFilteredGraph<GraphNodeT, isNotPointerEdge>;
 
 template<typename NodeT>
@@ -49,8 +49,8 @@ static bool collapseSCCs(LayoutTypeSystem &TS) {
       continue;
     }
 
-    llvm::scc_iterator<NodeT> I = llvm::scc_begin(NodeT(NonPointerNodeT(Node)));
-    llvm::scc_iterator<NodeT> E = llvm::scc_end(NodeT(NonPointerNodeT(Node)));
+    llvm::scc_iterator<NodeT> I = llvm::scc_begin(NodeT(Node));
+    llvm::scc_iterator<NodeT> E = llvm::scc_end(NodeT(Node));
     for (const auto &SCC : llvm::make_range(I, E)) {
       revng_assert(not SCC.empty());
       if (VisitedNodes.count(SCC[0]))
@@ -82,61 +82,61 @@ static bool collapseSCCs(LayoutTypeSystem &TS) {
   return ToCollapse.size();
 }
 
-static bool collapseInheritanceSCC(LayoutTypeSystem &TS) {
-  using InheritanceGraph = EdgeFilteredGraph<NonPointerNodeT,
-                                             isInheritanceEdge>;
-  return collapseSCCs<InheritanceGraph>(TS);
-}
-
 static bool collapseEqualitySCC(LayoutTypeSystem &TS) {
-  return collapseSCCs<EdgeFilteredGraph<NonPointerNodeT, isEqualityEdge>>(TS);
+  return collapseSCCs<EqualityNodeT>(TS);
 }
 
-bool CollapseIdentityAndInheritanceCC::runOnTypeSystem(LayoutTypeSystem &TS) {
-  if (Log.isEnabled())
-    TS.dumpDotOnFile("before-collapse.dot");
-  if (VerifyLog.isEnabled())
+static bool collapseInstanceAtOffset0SCC(LayoutTypeSystem &TS) {
+  return collapseSCCs<InstanceOffset0EdgeT>(TS);
+}
+
+bool CollapseEqualitySCC::runOnTypeSystem(LayoutTypeSystem &TS) {
+
+  if (VerifyLog.isEnabled()) {
+    TS.dumpDotOnFile("before-collapse-equality-scc.dot");
     revng_assert(TS.verifyConsistency());
+  }
 
-  revng_log(LogVerbose, "#### Merging Equality SCC: ... ");
-  bool CollapsedEqual = collapseEqualitySCC(TS);
-  revng_log(LogVerbose, "#### Merging Equality SCC: Done!");
+  revng_log(LogVerbose, "#### Collapsing Equality SCC: ... ");
+  bool Changed = collapseEqualitySCC(TS);
+  revng_log(LogVerbose, "#### Collapsing Equality SCC: Done!");
 
-  if (Log.isEnabled())
-    TS.dumpDotOnFile("after-collapse-equality.dot");
-
-  if (VerifyLog.isEnabled())
+  if (VerifyLog.isEnabled()) {
+    TS.dumpDotOnFile("after-collapse-equality-scc.dot");
+    revng_assert(TS.verifyConsistency());
     revng_assert(TS.verifyNoEquality());
+  }
 
-  revng_log(LogVerbose, "#### Merging Inheritance SCC: ... ");
-  bool CollapsedInheritance = collapseInheritanceSCC(TS);
-  revng_log(LogVerbose, "#### Merging Inheritance SCC: Done!");
+  return Changed;
+}
 
-  if (Log.isEnabled())
-    TS.dumpDotOnFile("after-collapse-inheritance.dot");
+bool CollapseInstanceAtOffset0SCC::runOnTypeSystem(LayoutTypeSystem &TS) {
 
-  if (VerifyLog.isEnabled())
-    revng_assert(TS.verifyInheritanceDAG());
+  if (VerifyLog.isEnabled()) {
+    TS.dumpDotOnFile("before-collapse-instance-at-offset-0-scc.dot");
+    revng_assert(TS.verifyConsistency());
+  }
 
-  // The following assertion is not really necessary.
-  // In principle all the rest of the pipeline should work fine without it, but
-  // I think that if it's triggered something might be wrong in how we emit
-  // instance edges earlier. If it's ever triggered, please double check.
-  if (VerifyLog.isEnabled())
+  revng_log(LogVerbose, "#### Collapsing Instance-at-offset-0 SCC: ... ");
+  bool Changed = collapseInstanceAtOffset0SCC(TS);
+  revng_log(LogVerbose, "#### Collapsing Instance-at-offset-0 SCC: Done!");
+
+  if (VerifyLog.isEnabled()) {
+    TS.dumpDotOnFile("after-collapse-instance-at-offset-0-scc.dot");
+    revng_assert(TS.verifyConsistency());
+    revng_assert(TS.verifyInstanceAtOffset0DAG());
+  }
+
+  Changed |= removeInstanceBackedgesFromInstanceAtOffset0Loops(TS);
+
+  if (VerifyLog.isEnabled()) {
+    TS.dumpDotOnFile("after-collapse-instance-0-and-instance-backedges.dot");
+    revng_assert(TS.verifyConsistency());
+    revng_assert(TS.verifyInstanceAtOffset0DAG());
     revng_assert(TS.verifyInstanceDAG());
+  }
 
-  revng_log(LogVerbose, "#### Merging Mixed SCC: ... ");
-  bool Removed = false;
-  Removed = removeInstanceBackedgesFromInheritanceLoops(TS);
-  revng_log(LogVerbose, "#### Merging Mixed SCC: Done!");
-
-  if (Log.isEnabled())
-    TS.dumpDotOnFile("after-collapse.dot");
-
-  if (VerifyLog.isEnabled())
-    revng_assert(TS.verifyDAG());
-
-  return CollapsedEqual or CollapsedInheritance or Removed;
+  return Changed;
 }
 
 } // end namespace dla

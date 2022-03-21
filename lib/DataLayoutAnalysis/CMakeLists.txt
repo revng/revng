@@ -8,19 +8,17 @@ revng_add_analyses_library(
   Frontend/DLACreateIntraProceduralTypes.cpp
   Frontend/DLATypeSystemBuilder.cpp
   Frontend/SCEVBaseAddressExplorer.cpp
-  Middleend/DLACollapseIdentityAndInheritanceCC.cpp
+  Middleend/CollapseSCC.cpp
   Middleend/DLAComputeNonInterferingComponents.cpp
   Middleend/DLAComputeUpperMemberAccess.cpp
   Middleend/DLAPruneLayoutNodesWithoutLayout.cpp
-  Middleend/DLARemoveTransitiveInheritanceEdges.cpp
-  Middleend/DLAMakeInheritanceTree.cpp
   Middleend/DLACollapseSingleChild.cpp
   Middleend/DLADeduplicateUnionFields.cpp
-  Middleend/DLARemoveConflictingEdges.cpp
   Middleend/DLAStep.cpp
   Middleend/FieldSizeComputation.cpp
   Middleend/RemoveBackedges.cpp
   Middleend/RemoveInvalidStrideEdges.cpp
+  Middleend/SimplifyInstanceAtOffset0.cpp
   Backend/DLAMakeLayouts.cpp
   Backend/DLAMakeModelTypes.cpp
   Backend/DLAUpdateFuncPrototypes.cpp

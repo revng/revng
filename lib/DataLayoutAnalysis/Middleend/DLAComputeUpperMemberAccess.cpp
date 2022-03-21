@@ -33,7 +33,7 @@ using ConstNonPointerFilterT = EdgeFilteredGraph<const LTSN *,
 
 bool ComputeUpperMemberAccesses::runOnTypeSystem(LayoutTypeSystem &TS) {
   if (VerifyLog.isEnabled())
-    revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree());
+    revng_assert(TS.verifyDAG());
   bool Changed = false;
 
   using LTSN = LayoutTypeSystemNode;
@@ -55,8 +55,6 @@ bool ComputeUpperMemberAccesses::runOnTypeSystem(LayoutTypeSystem &TS) {
     revng_log(Log, "Is Root");
     revng_log(Log, "post_order_ext from Root");
     LoggerIndent MoreIndent{ Log };
-
-    revng_assert(isInheritanceRoot(Root));
 
     for (LTSN *N : post_order_ext(NonPointerFilterT(Root), Visited)) {
       revng_log(Log, "N->ID: " << N->ID);

@@ -53,15 +53,6 @@ static LTSN *addInstanceAtOffset(LayoutTypeSystem &TS,
 }
 
 static LTSN *
-addInheritance(LayoutTypeSystem &TS, LTSN *Parent, unsigned ChildSize = 0U) {
-  LTSN *Child = TS.createArtificialLayoutType();
-  Child->Size = ChildSize;
-  TS.addInheritanceLink(Parent, Child);
-
-  return Child;
-}
-
-static LTSN *
 addEquality(LayoutTypeSystem &TS, LTSN *Parent, unsigned ChildSize = 0U) {
   LTSN *Child = TS.createArtificialLayoutType();
   Child->Size = ChildSize;
@@ -89,10 +80,8 @@ void checkNode(const LayoutTypeSystem &TS,
 
 // Test cases
 
-// ----------------- CollapseIdentityAndInheritanceCC ---
-
-///\brief Test an equality CC with a pointer edge
-BOOST_AUTO_TEST_CASE(CollapseIdentityAndInheritanceCC_equality) {
+/// Test an equality CC with a pointer edge
+BOOST_AUTO_TEST_CASE(CollapseEquality) {
   dla::LayoutTypeSystem TS;
 
   // Build TS
@@ -104,7 +93,7 @@ BOOST_AUTO_TEST_CASE(CollapseIdentityAndInheritanceCC_equality) {
   LTSN *PtrNode = createRoot(TS);
   TS.addPointerLink(Node3, PtrNode);
 
-  runStep<dla::CollapseIdentityAndInheritanceCC>(TS);
+  runStep<dla::CollapseEqualitySCC>(TS);
 
   // Check that equality nodes have been collapsed
   revng_check(TS.getNumLayouts() == 2);
@@ -124,23 +113,23 @@ BOOST_AUTO_TEST_CASE(CollapseIdentityAndInheritanceCC_equality) {
   checkNode(TS, PtrNode, 0, InterferingChildrenInfo::Unknown, { 4 });
 }
 
-///\brief Test an inheritance loop with a pointer edge
-BOOST_AUTO_TEST_CASE(CollapseIdentityAndInheritanceCC_inheritance) {
+/// Test an instance-at-offset-0 loop with a pointer edge
+BOOST_AUTO_TEST_CASE(CollapseInstanceAtOffset0SCC_instance0) {
   dla::LayoutTypeSystem TS;
 
   // Build TS
   LTSN *Root = createRoot(TS);
-  LTSN *Node1 = addInheritance(TS, Root);
-  LTSN *Node2 = addInheritance(TS, Root);
-  LTSN *Node3 = addInheritance(TS, Node2);
-  TS.addInheritanceLink(Node3, Root);
-  LTSN *Node4 = addInheritance(TS, Node1);
+  LTSN *Node1 = addInstanceAtOffset(TS, Root, 0, 0);
+  LTSN *Node2 = addInstanceAtOffset(TS, Root, 0, 0);
+  LTSN *Node3 = addInstanceAtOffset(TS, Node2, 0, 0);
+  TS.addInstanceLink(Node3, Root, OffsetExpression{});
+  LTSN *Node4 = addInstanceAtOffset(TS, Node1, 0, 0);
 
   LTSN *PtrNode = createRoot(TS);
   TS.addPointerLink(Node4, PtrNode);
 
-  runStep<dla::CollapseIdentityAndInheritanceCC>(TS);
-  // Check that inheritance loops have been collapsed
+  runStep<dla::CollapseInstanceAtOffset0SCC>(TS);
+  // Check that instance-at-offset-0 loops have been collapsed
   revng_check(TS.getNumLayouts() == 4);
   revng_check(llvm::is_contained(TS.getLayoutsRange(), Node3));
   revng_check(llvm::is_contained(TS.getLayoutsRange(), Node1));
@@ -162,23 +151,24 @@ BOOST_AUTO_TEST_CASE(CollapseIdentityAndInheritanceCC_inheritance) {
   checkNode(TS, PtrNode, 0, InterferingChildrenInfo::Unknown, { 5 });
 }
 
-///\brief Test an inheritance CC with a backward instance edge (loop)
-BOOST_AUTO_TEST_CASE(CollapseIdentityAndInheritanceCC_instance) {
+/// Test an instance-at-offset-0 CC with a backward
+/// instance-at-offset-nonzero
+BOOST_AUTO_TEST_CASE(CollapseInstanceSCC_instancenon0) {
   dla::LayoutTypeSystem TS;
 
   // Build TS
   LTSN *Root = createRoot(TS);
-  LTSN *Node1 = addInheritance(TS, Root);
-  LTSN *Node2 = addInheritance(TS, Root);
-  LTSN *Node3 = addInheritance(TS, Node2);
-  TS.addInstanceLink(Node3, Root, OffsetExpression{});
-  LTSN *Node4 = addInstanceAtOffset(TS, Node1, 0, 8);
+  LTSN *Node1 = addInstanceAtOffset(TS, Root, 0, 0);
+  LTSN *Node2 = addInstanceAtOffset(TS, Root, 0, 0);
+  LTSN *Node3 = addInstanceAtOffset(TS, Node2, 0, 0);
+  TS.addInstanceLink(Node3, Root, OffsetExpression{ 8 });
+  LTSN *Node4 = addInstanceAtOffset(TS, Node1, 0, 16);
 
   LTSN *PtrNode = createRoot(TS);
   TS.addPointerLink(Node4, PtrNode);
 
   // Run step
-  runStep<dla::CollapseIdentityAndInheritanceCC>(TS);
+  runStep<dla::CollapseInstanceAtOffset0SCC>(TS);
 
   // Check that no node has been collapsed
   revng_check(TS.getNumLayouts() == 6);
@@ -197,123 +187,9 @@ BOOST_AUTO_TEST_CASE(CollapseIdentityAndInheritanceCC_instance) {
   revng_check(Eq.getNumClasses() == 6);
 }
 
-// ----------------- RemoveTransitiveInheritanceEdges ---
-
-///\brief Test that transitive edges are removed and pointer edges ignored
-BOOST_AUTO_TEST_CASE(RemoveTransitiveInheritanceEdges_basic) {
-  dla::LayoutTypeSystem TS;
-
-  // Build TS
-  LTSN *Root = createRoot(TS);
-  LTSN *Node1 = addInheritance(TS, Root);
-  LTSN *Node2 = addInheritance(TS, Node1);
-  LTSN *Node3 = addInheritance(TS, Node2);
-  // Add transitive edges
-  TS.addInheritanceLink(Root, Node2);
-  TS.addInheritanceLink(Root, Node3);
-  // Add pointer edge
-  LTSN *PtrNode = createRoot(TS);
-  TS.addPointerLink(Node3, PtrNode);
-  TS.addInheritanceLink(Root, PtrNode);
-
-  // Run step
-  runStep<dla::RemoveTransitiveInheritanceEdges>(TS);
-
-  // Check that no node has been collapsed
-  revng_check(TS.getNumLayouts() == 5);
-  // Check that the pointer edges are still alive
-  const auto &[Child, Tag] = *(llvm::children_edges<LTSN *>(Node3).begin());
-  revng_check(Child == PtrNode);
-  revng_check(Tag->getKind() == dla::TypeLinkTag::LK_Pointer);
-  // Check that transitive edges have been removed
-  revng_check(Root->Successors.size() == 2);
-  revng_check(llvm::is_contained(llvm::children<LTSN *>(Root), Node1));
-  // The edge to the pointer node should not be removed
-  revng_check(llvm::is_contained(llvm::children<LTSN *>(Root), PtrNode));
-
-  // Check Eq Classes
-  dla::VectEqClasses &Eq = TS.getEqClasses();
-  revng_check(Eq.getNumElements() == 5);
-  revng_check(Eq.getNumClasses() == 5);
-  revng_check(not Eq.isRemoved(Node3->ID) and not Eq.isRemoved(PtrNode->ID));
-}
-
-// ----------------- MakeInheritanceTree ----------------
-
-///\brief Test that inheritance "diamonds" are removed and pointer edges ignored
-BOOST_AUTO_TEST_CASE(MakeInheritanceTree_diamond) {
-  dla::LayoutTypeSystem TS;
-
-  // Build TS
-  LTSN *Root = createRoot(TS);
-  LTSN *Node1 = addInheritance(TS, Root);
-  LTSN *Node2 = addInheritance(TS, Root);
-  LTSN *Node3 = addInheritance(TS, Node1);
-  TS.addInheritanceLink(Node2, Node3);
-  // Add pointer edge
-  LTSN *PtrNode = createRoot(TS);
-  TS.addPointerLink(Node3, PtrNode);
-
-  runStep<dla::MakeInheritanceTree>(TS);
-  // Check that nodes have been collapsed
-  revng_check(TS.getNumLayouts() == 4);
-  // Check that the pointer edges are still alive
-  const auto &[Child, Tag] = *(llvm::children_edges<LTSN *>(Node3).begin());
-  revng_check(Child == PtrNode);
-  revng_check(Tag->getKind() == dla::TypeLinkTag::LK_Pointer);
-  // Check diamonds have been collapsed
-  revng_check(Root->Successors.size() == 1);
-  revng_check(llvm::is_contained(llvm::children<LTSN *>(Root), Node1));
-  revng_check(not llvm::is_contained(llvm::children<LTSN *>(Root), Node2));
-  // Check Eq Classes
-  dla::VectEqClasses &Eq = TS.getEqClasses();
-  revng_check(Eq.getNumElements() == 5);
-  revng_check(Eq.getNumClasses() == 4);
-  checkNode(TS, Root, 0, InterferingChildrenInfo::Unknown, { 0 });
-  checkNode(TS, Node1, 0, InterferingChildrenInfo::Unknown, { 1, 2 });
-  checkNode(TS, Node3, 0, InterferingChildrenInfo::Unknown, { 3 });
-  checkNode(TS, PtrNode, 0, InterferingChildrenInfo::Unknown, { 4 });
-}
-
-///\brief Test that multiple inheritance is collapsed
-BOOST_AUTO_TEST_CASE(MakeInheritanceTree_virtualPostDom) {
-  dla::LayoutTypeSystem TS;
-
-  // Build TS
-  LTSN *Root = createRoot(TS);
-  LTSN *Node1 = addInheritance(TS, Root);
-  LTSN *Node2 = addInheritance(TS, Root);
-  LTSN *Node3 = addInheritance(TS, Node1);
-  TS.addInheritanceLink(Node2, Node3);
-  /*LTSN *Node4=*/addInheritance(TS, Root);
-  // Add pointer edge
-  LTSN *PtrNode = createRoot(TS);
-  TS.addPointerLink(Node3, PtrNode);
-
-  // Run step
-  runStep<dla::MakeInheritanceTree>(TS);
-
-  // Check that nodes have been collapsed
-  revng_check(TS.getNumLayouts() == 3);
-  // Check that the pointer edges are still alive
-  const auto &[Child, Tag] = *(llvm::children_edges<LTSN *>(Node3).begin());
-  revng_check(Child == PtrNode);
-  revng_check(Tag->getKind() == dla::TypeLinkTag::LK_Pointer);
-  // Check that all inheritance children have been collapsed
-  revng_check(Root->Successors.size() == 1);
-  revng_check(llvm::is_contained(llvm::children<LTSN *>(Root), Node3));
-  // Check Eq Classes
-  dla::VectEqClasses &Eq = TS.getEqClasses();
-  revng_check(Eq.getNumElements() == 6);
-  revng_check(Eq.getNumClasses() == 3);
-  checkNode(TS, Root, 0, InterferingChildrenInfo::Unknown, { 0 });
-  checkNode(TS, Node3, 0, InterferingChildrenInfo::Unknown, { 1, 2, 3, 4 });
-  checkNode(TS, PtrNode, 0, InterferingChildrenInfo::Unknown, { 5 });
-}
-
 // ----------------- PruneLayoutNodesWithoutLayout ------
 
-///\brief Test that branches without sized leaves are pruned
+/// Test that branches without sized leaves are pruned
 BOOST_AUTO_TEST_CASE(PruneLayoutNodesWithoutLayout_basic) {
   dla::LayoutTypeSystem TS;
 
@@ -377,7 +253,7 @@ BOOST_AUTO_TEST_CASE(PruneLayoutNodesWithoutLayout_basic) {
 
 // ----------------- CollapseSingleChild ----------------
 
-///\brief Test nominal case with one parent and one instance child at offset 0
+/// Test nominal case with one parent and one instance child at offset 0
 BOOST_AUTO_TEST_CASE(CollapseSingleChild_offsetZero) {
   dla::LayoutTypeSystem TS;
 
@@ -396,7 +272,7 @@ BOOST_AUTO_TEST_CASE(CollapseSingleChild_offsetZero) {
   checkNode(TS, Parent, 8, InterferingChildrenInfo::Unknown, { 0, 1 });
 }
 
-///\brief Test the case where there is only one child but with offset > 0
+/// Test the case where there is only one child but with offset > 0
 BOOST_AUTO_TEST_CASE(CollapseSingleChild_offsetNonZero) {
   dla::LayoutTypeSystem TS;
 
@@ -416,7 +292,7 @@ BOOST_AUTO_TEST_CASE(CollapseSingleChild_offsetNonZero) {
   checkNode(TS, Child, 8, InterferingChildrenInfo::Unknown, { 1 });
 }
 
-///\brief Test the case in which a node has many children (should not collapse)
+/// Test the case in which a node has many children (should not collapse)
 BOOST_AUTO_TEST_CASE(CollapseSingleChild_multiChild) {
   dla::LayoutTypeSystem TS;
 
@@ -449,34 +325,7 @@ BOOST_AUTO_TEST_CASE(CollapseSingleChild_multiChild) {
   checkNode(TS, Child2, 8, InterferingChildrenInfo::Unknown, { 3, 4 });
 }
 
-///\brief Test the case in which a node has many parents (should not collapse)
-BOOST_AUTO_TEST_CASE(CollapseSingleChild_multiParent) {
-  dla::LayoutTypeSystem TS;
-
-  // Build TS
-  LTSN *Parent1 = createRoot(TS, 0U);
-  LTSN *Parent2 = createRoot(TS, 0U);
-  LTSN *Child1 = addInstanceAtOffset(TS,
-                                     Parent1,
-                                     /*offset=*/8U,
-                                     /*size=*/0U);
-  TS.addInheritanceLink(Parent2, Child1);
-  /*LTSN *Child2 =*/addInstanceAtOffset(TS,
-                                        Child1,
-                                        /*offset=*/0U,
-                                        /*size=*/8U);
-
-  // Run step
-  runStep<dla::CollapseSingleChild>(TS);
-
-  // Check graph
-  revng_check(TS.getNumLayouts() == 3);
-  checkNode(TS, Parent1, 0, InterferingChildrenInfo::Unknown, { 0 });
-  checkNode(TS, Parent2, 0, InterferingChildrenInfo::Unknown, { 1 });
-  checkNode(TS, Child1, 8, InterferingChildrenInfo::Unknown, { 2, 3 });
-}
-
-///\brief Test the case in which there are multiple levels of single-childs to
+/// Test the case in which there are multiple levels of single-childs to
 /// be collapsed
 BOOST_AUTO_TEST_CASE(CollapseSingleChild_multiLevel) {
   dla::LayoutTypeSystem TS;
@@ -510,7 +359,7 @@ BOOST_AUTO_TEST_CASE(CollapseSingleChild_multiLevel) {
 
 // ----------------- ComputeUpperMemberAccesses ---------
 
-///\brief Test member access computation
+/// Test member access computation
 BOOST_AUTO_TEST_CASE(ComputeUpperMemberAccesses_basic) {
   dla::LayoutTypeSystem TS;
 
@@ -539,14 +388,15 @@ BOOST_AUTO_TEST_CASE(ComputeUpperMemberAccesses_basic) {
   LTSN *Root2 = createRoot(TS);
   LTSN *PtrNode = createRoot(TS);
   PtrNode->Size = 8U;
-  TS.addInheritanceLink(Root2, PtrNode);
+  TS.addInstanceLink(Root2, PtrNode, OffsetExpression{});
 
   // Add pointer edge
   TS.addPointerLink(PtrNode, Root);
 
   // Run step
   dla::StepManager SM;
-  revng_check(SM.addStep<CollapseIdentityAndInheritanceCC>());
+  revng_check(SM.addStep<CollapseEqualitySCC>());
+  revng_check(SM.addStep<CollapseInstanceAtOffset0SCC>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
   SM.run(TS);
   // Compress the equivalence classes
@@ -579,7 +429,7 @@ BOOST_AUTO_TEST_CASE(ComputeUpperMemberAccesses_basic) {
 
 // ----------------- ComputeNonInterferingComponents ----
 
-///\brief Test union nested inside a struct
+/// Test union nested inside a struct
 BOOST_AUTO_TEST_CASE(ComputeNonInterferingComponents_basic) {
   dla::LayoutTypeSystem TS;
 
@@ -608,14 +458,15 @@ BOOST_AUTO_TEST_CASE(ComputeNonInterferingComponents_basic) {
   LTSN *Root2 = createRoot(TS);
   LTSN *PtrNode = createRoot(TS);
   PtrNode->Size = 8U;
-  TS.addInheritanceLink(Root2, PtrNode);
+  TS.addInstanceLink(Root2, PtrNode, OffsetExpression{});
   TS.addPointerLink(PtrNode, Root);
   LTSN *UnionNode = addInstanceAtOffset(TS, Root2, 0U, 8U);
 
   // Run step
   VerifyLog.enable();
   dla::StepManager SM;
-  revng_check(SM.addStep<CollapseIdentityAndInheritanceCC>());
+  revng_check(SM.addStep<CollapseEqualitySCC>());
+  revng_check(SM.addStep<CollapseInstanceAtOffset0SCC>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
   SM.run(TS);
@@ -660,41 +511,6 @@ BOOST_AUTO_TEST_CASE(ComputeNonInterferingComponents_basic) {
   revng_check(not Eq.isRemoved(PtrNode->ID));
 }
 
-// ----------------- Propagate to accessors --------------
-
-BOOST_AUTO_TEST_CASE(PropagateToAccessors) {
-  dla::LayoutTypeSystem TS;
-
-  // Build TS
-  LTSN *NodeA = createRoot(TS);
-  LTSN *NodeB = addInheritance(TS, NodeA);
-  LTSN *NodeC = addInheritance(TS, NodeA);
-  LTSN *NodeD = addInstanceAtOffset(TS, NodeB, /*offset=*/0, /*size=*/0);
-  /*LTSN *NodeE = */ addInstanceAtOffset(TS, NodeD, /*offset=*/0, /*size=*/8);
-  LTSN *NodeF = addInstanceAtOffset(TS, NodeC, /*offset=*/8, /*size=*/0);
-  /*LTSN *NodeG = */ addInstanceAtOffset(TS, NodeF, /*offset=*/0, /*size=*/8);
-
-  // Run steps
-  VerifyLog.enable();
-  dla::StepManager SM;
-  revng_check(SM.addStep<CollapseIdentityAndInheritanceCC>());
-  revng_check(SM.addStep<MakeInheritanceTree>());
-  revng_check(SM.addStep<CollapseSingleChild>());
-  revng_check(SM.addStep<ComputeUpperMemberAccesses>());
-
-  SM.run(TS);
-
-  // Compress the equivalence classes
-  dla::VectEqClasses &Eq = TS.getEqClasses();
-  Eq.compress();
-
-  // Check TS
-  revng_check(TS.getNumLayouts() == 3);
-  checkNode(TS, NodeA, 16, InterferingChildrenInfo::Unknown, { 0, 1, 2 });
-  checkNode(TS, NodeD, 8, InterferingChildrenInfo::Unknown, { 3, 4 });
-  checkNode(TS, NodeF, 8, InterferingChildrenInfo::Unknown, { 5, 6 });
-}
-
 // ----------------- Deduplicate Union Fields --------------
 
 BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_basic) {
@@ -702,7 +518,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_basic) {
 
   // Build TS
   LTSN *NodeA = createRoot(TS);
-  LTSN *NodeB = addInheritance(TS, NodeA);
+  LTSN *NodeB = addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/0);
   /*LTSN *NodeD =*/addInstanceAtOffset(TS, NodeB, /*offset=*/0, /*size=*/8);
   /*LTSN *NodeE =*/addInstanceAtOffset(TS, NodeB, /*offset=*/8, /*size=*/8);
 
@@ -718,7 +534,8 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_basic) {
   // Run steps
   VerifyLog.enable();
   dla::StepManager SM;
-  revng_check(SM.addStep<CollapseIdentityAndInheritanceCC>());
+  revng_check(SM.addStep<CollapseEqualitySCC>());
+  revng_check(SM.addStep<CollapseInstanceAtOffset0SCC>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
   revng_check(SM.addStep<DeduplicateUnionFields>());
@@ -747,7 +564,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_diamond) {
 
   // Build TS
   LTSN *NodeA = createRoot(TS);
-  LTSN *NodeB = addInheritance(TS, NodeA);
+  LTSN *NodeB = addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/0);
   NodeB->Size = 8;
   /*LTSN *NodeC =*/addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/8);
   LTSN *NodeD = addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/0);
@@ -768,7 +585,8 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_diamond) {
   // Run steps
   VerifyLog.enable();
   dla::StepManager SM;
-  revng_check(SM.addStep<CollapseIdentityAndInheritanceCC>());
+  revng_check(SM.addStep<CollapseEqualitySCC>());
+  revng_check(SM.addStep<CollapseInstanceAtOffset0SCC>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
   revng_check(SM.addStep<DeduplicateUnionFields>());
@@ -809,7 +627,8 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeSymmetric) {
   // Run steps
   VerifyLog.enable();
   dla::StepManager SM;
-  revng_check(SM.addStep<CollapseIdentityAndInheritanceCC>());
+  revng_check(SM.addStep<CollapseEqualitySCC>());
+  revng_check(SM.addStep<CollapseInstanceAtOffset0SCC>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
   revng_check(SM.addStep<DeduplicateUnionFields>());
@@ -849,7 +668,8 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeAsymmetric) {
   // Run steps
   VerifyLog.enable();
   dla::StepManager SM;
-  revng_check(SM.addStep<CollapseIdentityAndInheritanceCC>());
+  revng_check(SM.addStep<CollapseEqualitySCC>());
+  revng_check(SM.addStep<CollapseInstanceAtOffset0SCC>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
   revng_check(SM.addStep<DeduplicateUnionFields>());
@@ -891,7 +711,8 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeAsymmetricCollapse) {
   // Run steps
   VerifyLog.enable();
   dla::StepManager SM;
-  revng_check(SM.addStep<CollapseIdentityAndInheritanceCC>());
+  revng_check(SM.addStep<CollapseEqualitySCC>());
+  revng_check(SM.addStep<CollapseInstanceAtOffset0SCC>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
   revng_check(SM.addStep<DeduplicateUnionFields>());
@@ -912,35 +733,4 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeAsymmetricCollapse) {
 
   checkNode(TS, NodeA1, 8, AllChildrenAreNonInterfering, { 5 });
   checkNode(TS, NodeC1, 8, AllChildrenAreNonInterfering, { 4, 6, 7 });
-}
-
-// ----------------- Remove Conflicting edges --------------
-
-BOOST_AUTO_TEST_CASE(RemoveConflictingEdges_basic) {
-  dla::LayoutTypeSystem TS;
-
-  // Build TS
-  LTSN *NodeA = createRoot(TS);
-  LTSN *NodeB = addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/8);
-  TS.addInheritanceLink(NodeA, NodeB);
-
-  LTSN *Node1 = createRoot(TS);
-  LTSN *Node2 = addInstanceAtOffset(TS, Node1, /*offset=*/4, /*size=*/8);
-  TS.addInheritanceLink(Node1, Node2);
-
-  // Run steps
-  VerifyLog.enable();
-  dla::StepManager SM;
-  revng_check(SM.addStep<RemoveConflictingEdges>());
-
-  SM.run(TS);
-
-  // Compress the equivalence classes
-  dla::VectEqClasses &Eq = TS.getEqClasses();
-  Eq.compress();
-
-  // Check TS
-  revng_check(TS.getNumLayouts() == 4);
-  revng_check(NodeA->Successors.size() == 1);
-  revng_check(Node1->Successors.size() == 2);
 }

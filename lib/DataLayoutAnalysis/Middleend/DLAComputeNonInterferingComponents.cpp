@@ -27,7 +27,7 @@ using NonPointerFilterT = EdgeFilteredGraph<GraphNodeT, isNotPointerEdge>;
 
 bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
   if (VerifyLog.isEnabled())
-    revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree());
+    revng_assert(TS.verifyDAG());
 
   bool Changed = false;
 
@@ -49,14 +49,8 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
 
         // Make it sortable with a different order
         std::strong_ordering operator<=>(const OrderedChild &Other) const {
-          // Helper to treat Inheritance edges like InstanceAtOffset0 edges
-          const auto Off0Tag = TypeLinkTag::instanceTag(OffsetExpression{});
-
-          auto &ThisEdgeTag = isInheritanceEdge(*ChildIt) ? Off0Tag :
-                                                            *ChildIt->second;
-          auto &OtherEdgeTag = isInheritanceEdge(*Other.ChildIt) ?
-                                 Off0Tag :
-                                 *Other.ChildIt->second;
+          auto &ThisEdgeTag = *ChildIt->second;
+          auto &OtherEdgeTag = *Other.ChildIt->second;
 
           // Stuff that starts earlier goes first
           if (auto Cmp = ThisEdgeTag <=> OtherEdgeTag; 0 != Cmp)
@@ -71,9 +65,7 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
         }
 
         auto getBeginEndByte() const {
-          auto ChildBeginByte = isInheritanceEdge(*ChildIt) ?
-                                  0 :
-                                  ChildIt->second->getOffsetExpr().Offset;
+          auto ChildBeginByte = ChildIt->second->getOffsetExpr().Offset;
           auto ChildEndByte = ChildBeginByte + FieldSize;
           return std::make_pair(ChildBeginByte, ChildEndByte);
         }
@@ -245,7 +237,7 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
   }
 
   if (VerifyLog.isEnabled())
-    revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree());
+    revng_assert(TS.verifyDAG());
 
   return Changed;
 }

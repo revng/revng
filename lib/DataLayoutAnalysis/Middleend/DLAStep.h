@@ -56,58 +56,54 @@ public:
   const void *getStepID() const { return StepID; };
 };
 
-/// dla::Step that collapses loops in the type system with equality or
-/// inheritange edges
+/// Collapses strongly connected components made of equality edges
 //
-// After the execution of this step, the LayoutTypeSystem graph should contain
-// only inheritance and instance-of edges, and should be a DAG.
-class CollapseIdentityAndInheritanceCC : public Step {
+// After the execution of this step, the LayoutTypeSystem graph should not
+// contain equality edges anymore
+class CollapseEqualitySCC : public Step {
   static const char ID;
 
 public:
   static const constexpr void *getID() { return &ID; }
 
-  CollapseIdentityAndInheritanceCC() : Step(ID){};
+  CollapseEqualitySCC() : Step(ID){};
 
-  virtual ~CollapseIdentityAndInheritanceCC() override = default;
+  virtual ~CollapseEqualitySCC() override = default;
 
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
-/// dla::Step that removes transitive inheritance edges
-//
-// Here we use the notation notation A --> B to mean an inheritance edge.
-// After the execution of this step, the LayoutTypeSystem graph should have the
-// following property: For each types A, B, C (all different from each other),
-// if A --> B and B --> C, then we should not have A --> C.
-class RemoveTransitiveInheritanceEdges : public Step {
+/// Collapses strongly connected components in the type system made of
+/// instance-at-offset-0 edges
+class CollapseInstanceAtOffset0SCC : public Step {
   static const char ID;
 
 public:
   static const constexpr void *getID() { return &ID; }
 
-  RemoveTransitiveInheritanceEdges() : Step(ID){};
+  CollapseInstanceAtOffset0SCC() : Step(ID){};
 
-  virtual ~RemoveTransitiveInheritanceEdges() override = default;
+  virtual ~CollapseInstanceAtOffset0SCC() override = default;
 
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
-/// dla::Step that enforces that inheritance edges form a tree-shaped graph
-//
-// After the execution of this step, the LayoutTypeSystem graph, filtered on
-// inheritance edges, should be a tree.
-// This means that there cannot be diamond-shaped inheritance relations, that
-// are collapsed in this step.
-class MakeInheritanceTree : public Step {
+/// dla::Step that simplifies instance-at-offset-0 edges, to reduce the
+/// unnecessary layers of nested types
+class SimplifyInstanceAtOffset0 : public Step {
   static const char ID;
 
 public:
   static const constexpr void *getID() { return &ID; }
 
-  MakeInheritanceTree() : Step(ID){};
+  SimplifyInstanceAtOffset0() :
+    Step(ID,
+         // Dependencies
+         { CollapseInstanceAtOffset0SCC::getID() },
+         // Invalidated
+         {}) {}
 
-  virtual ~MakeInheritanceTree() override = default;
+  virtual ~SimplifyInstanceAtOffset0() override = default;
 
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
@@ -141,7 +137,8 @@ public:
   ComputeUpperMemberAccesses() :
     Step(ID,
          // Dependencies
-         { CollapseIdentityAndInheritanceCC::getID() },
+         { CollapseInstanceAtOffset0SCC::getID(),
+           CollapseEqualitySCC::getID() },
          // Invalidated
          {}) {}
 
@@ -167,45 +164,6 @@ public:
   virtual ~CollapseCompatibleArrays() override = default;
 
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override { return true; }
-};
-
-/// dla::Step that propagates inheritance relationships through accessor methods
-class PropagateInheritanceToAccessors : public Step {
-  static const char ID;
-
-public:
-  static const constexpr void *getID() { return &ID; }
-
-  PropagateInheritanceToAccessors() :
-    Step(ID,
-         // Dependencies
-         {},
-         // Invalidated
-         { RemoveTransitiveInheritanceEdges::getID() }) {}
-
-  virtual ~PropagateInheritanceToAccessors() override = default;
-
-  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override { return true; }
-};
-
-/// Removes instance-of edges that connect nodes with an inheritance edge
-class RemoveConflictingEdges : public Step {
-  static const char ID;
-
-public:
-  static const constexpr void *getID() { return &ID; }
-  static bool removeConflicts(LayoutTypeSystem &TS, LayoutTypeSystemNode *Node);
-
-  RemoveConflictingEdges() :
-    Step(ID,
-         // Dependencies
-         {},
-         // Invalidated
-         {}) {}
-
-  virtual ~RemoveConflictingEdges() override = default;
-
-  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
 /// dla::Step that collapses nodes that have a single child at offset 0
@@ -260,7 +218,8 @@ public:
          // Dependencies
          { ComputeUpperMemberAccesses::getID() },
          // Invalidated
-         {}) {}
+         { ComputeUpperMemberAccesses::getID(),
+           PruneLayoutNodesWithoutLayout::getID() }) {}
 
   virtual ~RemoveInvalidStrideEdges() override = default;
 

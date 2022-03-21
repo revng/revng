@@ -30,7 +30,7 @@ bool PruneLayoutNodesWithoutLayout::runOnTypeSystem(LayoutTypeSystem &TS) {
   if (Log.isEnabled())
     TS.dumpDotOnFile("before-prune.dot");
   if (VerifyLog.isEnabled())
-    revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree());
+    revng_assert(TS.verifyDAG());
 
   std::set<const LTSN *> Visited;
   std::set<LTSN *> ToRemove;
@@ -74,8 +74,7 @@ bool PruneLayoutNodesWithoutLayout::runOnTypeSystem(LayoutTypeSystem &TS) {
   }
 
   if (VerifyLog.isEnabled())
-    revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree()
-                 and TS.verifyLeafs());
+    revng_assert(TS.verifyDAG() and TS.verifyLeafs());
   if (Log.isEnabled())
     TS.dumpDotOnFile("after-prune.dot");
   return Changed;

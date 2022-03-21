@@ -30,11 +30,6 @@ bool CollapseSingleChild::collapseSingle(LayoutTypeSystem &TS,
     return (Node->Successors.size() == 1);
   };
 
-  auto ChildIsInstanceOrInheritance = [](const LTSN *Node) {
-    auto &Child = *Node->Successors.begin();
-    return (isInstanceEdge(Child) or isInheritanceEdge(Child));
-  };
-
   auto HasAtMostOneParent = [](const LTSN *Node) {
     return (Node->Predecessors.size() <= 1);
   };
@@ -45,11 +40,9 @@ bool CollapseSingleChild::collapseSingle(LayoutTypeSystem &TS,
   }
 
   // Get nodes that have a single instance or inheritance child
-  if (HasSingleChild(Node) and ChildIsInstanceOrInheritance(Node)) {
+  if (HasSingleChild(Node) and isInstanceEdge(*Node->Successors.begin())) {
     auto &ChildEdge = *(Node->Successors.begin());
-    const unsigned ChildOffset = isInheritanceEdge(ChildEdge) ?
-                                   0U :
-                                   ChildEdge.second->getOffsetExpr().Offset;
+    const unsigned ChildOffset = ChildEdge.second->getOffsetExpr().Offset;
     auto &ToMerge = ChildEdge.first;
 
     // Don't collapse if the child has more than one parent
@@ -84,7 +77,7 @@ bool CollapseSingleChild::collapseSingle(LayoutTypeSystem &TS,
 bool CollapseSingleChild::runOnTypeSystem(LayoutTypeSystem &TS) {
   bool Changed = false;
   if (VerifyLog.isEnabled())
-    revng_assert(TS.verifyDAG() and TS.verifyInheritanceTree());
+    revng_assert(TS.verifyDAG());
 
   if (Log.isEnabled())
     TS.dumpDotOnFile("before-collapse-single-child.dot");
@@ -101,7 +94,7 @@ bool CollapseSingleChild::runOnTypeSystem(LayoutTypeSystem &TS) {
   if (Log.isEnabled())
     TS.dumpDotOnFile("after-collapse-single-child.dot");
   if (VerifyLog.isEnabled())
-    revng_assert(TS.verifyInheritanceDAG() and TS.verifyInheritanceTree());
+    revng_assert(TS.verifyDAG());
 
   return Changed;
 }
