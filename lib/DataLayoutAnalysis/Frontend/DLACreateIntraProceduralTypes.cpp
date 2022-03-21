@@ -193,6 +193,24 @@ protected:
       OffsetSCEV = Rec->getStart();
     }
 
+    if (OE.Strides.size()) {
+      // Nested SCEVAddRecs are not guaranteed to have strides that go from
+      // larger to smaller.
+      // This code re-orders them so that the larger strides always come first.
+      // TODO: this dance of copies is only necesary because Strides and
+      // TripCounts are held as 2 separate vectors in OffsetExpression.
+      // Eventually we should change the code so that its a vector of structs
+      // instead of two separate vectors.
+      llvm::SmallVector<std::pair<int64_t, std::optional<int64_t>>> Tmp;
+      for (const auto &[S, TC] : llvm::zip(OE.Strides, OE.TripCounts))
+        Tmp.push_back({ S, TC });
+      llvm::stable_sort(Tmp, llvm::on_first<std::greater<int64_t>>());
+      for (const auto &Group : llvm::enumerate(Tmp)) {
+        OE.Strides[Group.index()] = Group.value().first;
+        OE.TripCounts[Group.index()] = Group.value().second;
+      }
+    }
+
     // For now we do not support offsets that are not constant.
     if (not isa<SCEVConstant>(OffsetSCEV))
       return Created;

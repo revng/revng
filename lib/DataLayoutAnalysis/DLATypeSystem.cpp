@@ -569,6 +569,35 @@ bool LayoutTypeSystem::verifyInstanceDAG() const {
   return true;
 }
 
+bool LayoutTypeSystem::verifyPointerDAG() const {
+  if (not verifyConsistency())
+    return false;
+
+  // A graph is a DAG if and only if all its strongly connected components have
+  // size 1
+  std::set<const LayoutTypeSystemNode *> Visited;
+  for (const auto &Node : llvm::nodes(this)) {
+    revng_assert(Node != nullptr);
+    if (Visited.count(Node))
+      continue;
+
+    using GraphNodeT = const LayoutTypeSystemNode *;
+    using PointerNodeT = EdgeFilteredGraph<GraphNodeT, isPointerEdge>;
+    auto I = scc_begin(PointerNodeT(Node));
+    auto E = scc_end(PointerNodeT(Node));
+    for (; I != E; ++I) {
+      Visited.insert(I->begin(), I->end());
+      if (I.hasCycle()) {
+        if (VerifyDLALog.isEnabled())
+          revng_check(false);
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 bool LayoutTypeSystem::verifyNoEquality() const {
   if (not verifyConsistency())
     return false;

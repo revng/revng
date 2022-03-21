@@ -310,10 +310,12 @@ public:
   bool verifyConsistency() const;
   // Checks that is valid and a DAG, and returns true if it is, false otherwise
   bool verifyDAG() const;
-  // Checks that is valid and a DAG, and returns true if it is, false otherwise
+  // Checks that is valid and a DAG on inheritance. Returns true on success.
   bool verifyInheritanceDAG() const;
-  // Checks that is valid and a DAG, and returns true if it is, false otherwise
+  // Checks that is valid and a DAG on instance. Returns true on success.
   bool verifyInstanceDAG() const;
+  // Checks that is valid and a DAG on pointer. Returns true on success.
+  bool verifyPointerDAG() const;
   // Checks that the type system, filtered looking only at inheritance edges, is
   // a tree, meaning that a give LayoutTypeSystemNode cannot inherit from two
   // different LayoutTypeSystemNodes.
@@ -607,6 +609,13 @@ inline bool isInstanceLeaf(const LayoutTypeSystemNode *N) {
   return isLeaf<dla::TypeLinkTag::LinkKind::LK_Instance>(N);
 }
 
+inline bool isPointerLeaf(const LayoutTypeSystemNode *N) {
+  using LTSN = LayoutTypeSystemNode;
+  using PointerNodeT = EdgeFilteredGraph<const LTSN *, isPointerEdge>;
+  using PointerGraph = llvm::GraphTraits<PointerNodeT>;
+  return PointerGraph::child_begin(N) == PointerGraph::child_end(N);
+}
+
 template<dla::TypeLinkTag::LinkKind K = dla::TypeLinkTag::LinkKind::LK_All>
 inline bool isRoot(const LayoutTypeSystemNode *N) {
   using LTSN = const LayoutTypeSystemNode;
@@ -622,5 +631,12 @@ inline bool isInheritanceRoot(const LayoutTypeSystemNode *N) {
 
 inline bool isInstanceRoot(const LayoutTypeSystemNode *N) {
   return isRoot<dla::TypeLinkTag::LinkKind::LK_Instance>(N);
+}
+
+inline bool isPointerRoot(const LayoutTypeSystemNode *N) {
+  using LTSN = LayoutTypeSystemNode;
+  using PointerNodeT = EdgeFilteredGraph<const LTSN *, isPointerEdge>;
+  using PointerGraph = llvm::GraphTraits<llvm::Inverse<PointerNodeT>>;
+  return PointerGraph::child_begin(N) == PointerGraph::child_end(N);
 }
 } // end namespace dla

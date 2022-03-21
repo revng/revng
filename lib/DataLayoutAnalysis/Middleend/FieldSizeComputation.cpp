@@ -31,9 +31,13 @@ uint64_t getFieldSize(const dla::LayoutTypeSystemNode *Child,
 
     // If we have an array, we have to compute its size, taking into
     // account the strides and the trip counts.
+    // In an OffsetExpression the larger strides come first, so we need to build
+    // the instance bottom-up, in reverse, starting from the smaller strides.
+    int64_t PrevStride = 0LL;
     for (const auto &[TripCount, Stride] :
          llvm::reverse(llvm::zip(OE.TripCounts, OE.Strides))) {
 
+      revng_assert(not PrevStride or PrevStride < Stride);
       revng_assert(Stride > 0LL);
       auto StrideSize = static_cast<uint64_t>(Stride);
 
