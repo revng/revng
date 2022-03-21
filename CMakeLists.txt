@@ -125,66 +125,6 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
     APPEND
     PROPERTY FIXTURES_SETUP PrepareDecompilation_fixture_${TARGET_NAME})
 
-  # test revng-model-to-header
-  add_test(
-    NAME model_to_header_${TARGET_NAME}
-    COMMAND revng --prefix . opt -model-to-header ${OUTFOLDER}/prepared.bc
-            --types-header-name=${OUTFOLDER}/model_header.h -o /dev/null)
-  set_property(
-    TEST model_to_header_${TARGET_NAME}
-    APPEND
-    PROPERTY DEPENDS prepare_${TARGET_NAME})
-  set_property(
-    TEST model_to_header_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_SETUP ${TARGET_NAME}_model_header)
-  set_property(
-    TEST model_to_header_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_REQUIRED PrepareDecompilation_fixture_${TARGET_NAME})
-  # try to compile model headers without warnings
-  add_test(NAME compile_model_header_${TARGET_NAME}
-           COMMAND clang --config ${ASSETS_DIR}/compile_flags.txt
-                   ${OUTFOLDER}/model_header.h -o /dev/null)
-  set_property(
-    TEST compile_model_header_${TARGET_NAME}
-    APPEND
-    PROPERTY DEPENDS model_to_header_${TARGET_NAME})
-  set_property(
-    TEST compile_model_header_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_REQUIRED ${TARGET_NAME}_model_header)
-
-  # test revng-helpers-to-header
-  add_test(
-    NAME helpers_to_header_${TARGET_NAME}
-    COMMAND revng --prefix . opt --helpers-to-header ${OUTFOLDER}/prepared.bc
-            --helpers-header-name=${OUTFOLDER}/helpers_header.h -o /dev/null)
-  set_property(
-    TEST helpers_to_header_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_SETUP ${TARGET_NAME}_helpers_header)
-  set_property(
-    TEST helpers_to_header_${TARGET_NAME}
-    APPEND
-    PROPERTY DEPENDS prepare_${TARGET_NAME})
-  set_property(
-    TEST helpers_to_header_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_REQUIRED PrepareDecompilation_fixture_${TARGET_NAME})
-  # try to compile helpers headers without warnings
-  add_test(NAME compile_helpers_header_${TARGET_NAME}
-           COMMAND clang --config ${ASSETS_DIR}/compile_flags.txt
-                   ${OUTFOLDER}/helpers_header.h -o /dev/null)
-  set_property(
-    TEST compile_helpers_header_${TARGET_NAME}
-    APPEND
-    PROPERTY DEPENDS helpers_to_header_${TARGET_NAME})
-  set_property(
-    TEST compile_helpers_header_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_REQUIRED ${TARGET_NAME}_helpers_header)
-
   if("${CATEGORY}" STREQUAL "tests_analysis_PromoteStackPointer"
      AND "${CONFIGURATION}" STREQUAL "dynamic_native")
     get_filename_component(BASENAME "${INPUT_FILE}" NAME_WE)
@@ -284,6 +224,67 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
     TEST ir_canonicalization_${TARGET_NAME}
     APPEND
     PROPERTY FIXTURES_SETUP IRCanonicalization_fixture_${TARGET_NAME})
+
+  # test revng-model-to-header
+  add_test(
+    NAME model_to_header_${TARGET_NAME}
+    COMMAND revng --prefix . opt -model-to-header ${OUTFOLDER}/canonicalized.bc
+            --types-header-name=${OUTFOLDER}/model_header.h -o /dev/null)
+  set_property(
+    TEST model_to_header_${TARGET_NAME}
+    APPEND
+    PROPERTY DEPENDS prepare_${TARGET_NAME})
+  set_property(
+    TEST model_to_header_${TARGET_NAME}
+    APPEND
+    PROPERTY FIXTURES_SETUP ${TARGET_NAME}_model_header)
+  set_property(
+    TEST model_to_header_${TARGET_NAME}
+    APPEND
+    PROPERTY FIXTURES_REQUIRED IRCanonicalization_fixture_${TARGET_NAME})
+  # try to compile model headers without warnings
+  add_test(NAME compile_model_header_${TARGET_NAME}
+           COMMAND clang --config ${ASSETS_DIR}/compile_flags.txt
+                   ${OUTFOLDER}/model_header.h -o /dev/null)
+  set_property(
+    TEST compile_model_header_${TARGET_NAME}
+    APPEND
+    PROPERTY DEPENDS model_to_header_${TARGET_NAME})
+  set_property(
+    TEST compile_model_header_${TARGET_NAME}
+    APPEND
+    PROPERTY FIXTURES_REQUIRED ${TARGET_NAME}_model_header)
+
+  # test revng-helpers-to-header
+  add_test(
+    NAME helpers_to_header_${TARGET_NAME}
+    COMMAND
+      revng --prefix . opt --helpers-to-header ${OUTFOLDER}/canonicalized.bc
+      --helpers-header-name=${OUTFOLDER}/helpers_header.h -o /dev/null)
+  set_property(
+    TEST helpers_to_header_${TARGET_NAME}
+    APPEND
+    PROPERTY FIXTURES_SETUP ${TARGET_NAME}_helpers_header)
+  set_property(
+    TEST helpers_to_header_${TARGET_NAME}
+    APPEND
+    PROPERTY DEPENDS prepare_${TARGET_NAME})
+  set_property(
+    TEST helpers_to_header_${TARGET_NAME}
+    APPEND
+    PROPERTY FIXTURES_REQUIRED IRCanonicalization_fixture_${TARGET_NAME})
+  # try to compile helpers headers without warnings
+  add_test(NAME compile_helpers_header_${TARGET_NAME}
+           COMMAND clang --config ${ASSETS_DIR}/compile_flags.txt
+                   ${OUTFOLDER}/helpers_header.h -o /dev/null)
+  set_property(
+    TEST compile_helpers_header_${TARGET_NAME}
+    APPEND
+    PROPERTY DEPENDS helpers_to_header_${TARGET_NAME})
+  set_property(
+    TEST compile_helpers_header_${TARGET_NAME}
+    APPEND
+    PROPERTY FIXTURES_REQUIRED ${TARGET_NAME}_helpers_header)
 
   # test full pipeline with dla combing and decompilation
   add_test(
