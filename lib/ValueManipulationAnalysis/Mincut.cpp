@@ -157,7 +157,7 @@ void vma::karger(ContractedGraph &G,
   }
 }
 
-///\brief Generate the solution in which all nodes of \a G are colored
+/// Generate the solution in which all nodes of \a G are colored
 static void generateColorAllSolution(ContractedGraph &G) {
   for (auto &CN : G.Nodes) {
     if (CN.get() == G.NodesToColor or CN.get() == G.NodesToUncolor)
@@ -172,7 +172,7 @@ static void generateColorAllSolution(ContractedGraph &G) {
   }
 }
 
-///\brief Generate the solution in which all nodes of \a G are uncolored
+/// Generate the solution in which all nodes of \a G are uncolored
 static void moveAllColoredToUncolored(ContractedGraph &G) {
   std::swap(G.NodesToUncolor->AdditionalNodes, G.NodesToColor->AdditionalNodes);
   for (TypeFlowNode *TFGNode : G.NodesToUncolor->AdditionalNodes) {
@@ -182,7 +182,7 @@ static void moveAllColoredToUncolored(ContractedGraph &G) {
   }
 }
 
-///\brief Generate the two simplest cuts (color all and uncolor all)
+/// Generate the two simplest cuts (color all and uncolor all)
 static void generateNaiveSolutions(ContractedGraph &G,
                                    unsigned &BestCost,
                                    ContractedNode &BestNodesToColor,

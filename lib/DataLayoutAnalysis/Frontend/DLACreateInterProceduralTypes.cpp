@@ -24,7 +24,7 @@ using namespace llvm;
 
 using TSBuilder = DLATypeSystemLLVMBuilder;
 
-///\brief Given an llvm Function, return its prototype in the model.
+/// Given an llvm Function, return its prototype in the model.
 static const model::Type *
 getPrototype(const llvm::Function &F, const model::Binary &Model) {
   auto MetaAddr = getMetaAddress(&F);

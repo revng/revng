@@ -41,7 +41,7 @@ inline bool isASwitch(BasicBlockNode<llvm::BasicBlock *> *Node) {
   return false;
 }
 
-/// \brief The RegionCFG, a container for BasicBlockNodes
+/// The RegionCFG, a container for BasicBlockNodes
 template<class NodeT = llvm::BasicBlock *>
 class RegionCFG {
 
@@ -329,19 +329,19 @@ public:
   std::vector<BBNodeTUniquePtr> &getNodes() { return BlockNodes; }
 
 public:
-  /// \brief Dump a GraphViz representing this function on any stream
+  /// Dump a GraphViz representing this function on any stream
   template<typename StreamT>
   void dumpDot(StreamT &) const;
 
-  /// \brief Dump a GraphViz file on a file using an absolute path
+  /// Dump a GraphViz file on a file using an absolute path
   void dumpCFGOnFile(const std::string &FileName) const;
 
-  /// \brief Dump a GraphViz file on a file using an absolute path
+  /// Dump a GraphViz file on a file using an absolute path
   void dumpCFGOnFile(const char *FName) const {
     return dumpCFGOnFile(std::string(FName));
   }
 
-  /// \brief Dump a GraphViz file on a file representing this function
+  /// Dump a GraphViz file on a file representing this function
   void dumpCFGOnFile(const std::string &FunctionName,
                      const std::string &FolderName,
                      const std::string &FileName) const;
@@ -354,10 +354,10 @@ public:
 
   BBNodeT *cloneUntilExit(BBNodeT *Node, BBNodeT *Sink);
 
-  /// \brief Apply the untangle preprocessing pass.
+  /// Apply the untangle preprocessing pass.
   void untangle();
 
-  /// \brief Apply comb to the region.
+  /// Apply comb to the region.
   void inflate();
 
   void removeNotReachables();

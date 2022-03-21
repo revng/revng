@@ -28,38 +28,38 @@ constexpr const char *const ArrayWrapperFieldName = "the_array";
 
 using TypeString = llvm::SmallString<32>;
 
-/// \brief Return an escaped name for the type
+/// Return an escaped name for the type
 /// \note If T is a function type, the appropriate function typename will be
 /// returned
 extern TypeString getTypeName(const model::Type &T);
 
-/// \brief Print a string containing the C Type name of \a QT and a
+/// Print a string containing the C Type name of \a QT and a
 /// (possibly empty) \a InstanceName .
 extern TypeString
 getNamedCInstance(const model::QualifiedType &QT, llvm::StringRef InstanceName);
 
-/// \brief Return the name of the array wrapper that wraps \a QT (QT must be
+/// Return the name of the array wrapper that wraps \a QT (QT must be
 /// an array).
 extern TypeString getArrayWrapper(const model::QualifiedType &QT);
 
-/// \brief Return the name of the type returned by \a F
+/// Return the name of the type returned by \a F
 /// \note If F returns more than one value, the name of the wrapping struct
 /// will be returned.
 extern TypeString getReturnTypeName(const model::RawFunctionType &F);
 
-/// \brief Return the name of the array wrapper that wraps \a QT (QT must be
+/// Return the name of the array wrapper that wraps \a QT (QT must be
 /// an array).
 /// \note If F returns an array, the name of the wrapping struct will be
 /// returned.
 extern TypeString getReturnTypeName(const model::CABIFunctionType &F);
 
-/// \brief Return the name of the \a Index -th field of the struct returned
+/// Return the name of the \a Index -th field of the struct returned
 /// by \a F.
 /// \note F must be returning more than one value, otherwise
 /// there is no wrapping struct.
 extern TypeString getReturnField(const model::RawFunctionType &F, size_t Index);
 
-/// \brief Print the function prototype (without any trailing ';') of \a FT
+/// Print the function prototype (without any trailing ';') of \a FT
 ///        using \a FunctionName as the function's name. If the return value
 ///        or any of the arguments needs a wrapper, print it with the
 ///        corresponding wrapper type. The definition of such wrappers

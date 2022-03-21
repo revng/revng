@@ -17,14 +17,14 @@
 
 namespace dla {
 
-///\brief Get the metaaddres of an isolated function
+/// Get the metaaddres of an isolated function
 ///\return an invalid MetaAddress if the function is not an isolated one
 MetaAddress getMetaAddress(const llvm::Function *F);
-///\brief Get the metaadress of the CallEdge associated to a given CallInst
+/// Get the metaadress of the CallEdge associated to a given CallInst
 ///\return an invalid MetaAddress if no CallEdge is associated to \a C
 MetaAddress getMetaAddress(const llvm::CallInst *C);
 
-///\brief If \a C is an IndirectCall, get the corresponding Prototype from the
+/// If \a C is an IndirectCall, get the corresponding Prototype from the
 /// Model, otherwise return a nullptr.
 model::Type *
 getIndirectCallPrototype(const llvm::CallInst *C, const model::Binary &Model);
@@ -51,7 +51,7 @@ inline unsigned long arg_size(const llvm::CallInst *C) {
   return llvm::size(C->arg_operands());
 }
 
-///\brief Wrapper around a variant between Function and CallInst
+/// Wrapper around a variant between Function and CallInst
 class FuncOrCallInst {
 private:
   std::variant<const llvm::Function *, const llvm::CallInst *> Val;
@@ -72,7 +72,7 @@ public:
   const llvm::Value *getVal() const;
   const llvm::Type *getRetType() const;
 
-  ///\brief Get the \a Idx-th argument
+  /// Get the \a Idx-th argument
   const llvm::Value *getArg(unsigned Idx) const;
   unsigned long arg_size() const;
 };

@@ -194,7 +194,7 @@ void ContractedGraph::check() {
   }
 }
 
-///\brief Insert a TypeFlowNode in the right ContractedNode
+/// Insert a TypeFlowNode in the right ContractedNode
 ///
 /// If the TypeFlowNode is a "border" node (i.e. it's decided or it doesn't
 /// have the right color) it will be inserted in the corresponding "special"

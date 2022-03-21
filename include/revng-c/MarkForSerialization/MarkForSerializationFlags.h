@@ -10,7 +10,7 @@ class Instruction;
 
 } // namespace llvm
 
-/// \brief bitmask that represents reasons why an Instruction muse be serialized
+/// bitmask that represents reasons why an Instruction muse be serialized
 enum SerializationReason {
   None = 0,
   AlwaysSerialize = 1 << 0,
@@ -40,7 +40,7 @@ inline SerializationReason operator~(SerializationReason a) {
   return static_cast<SerializationReason>(~static_cast<underlying_t>(a));
 }
 
-/// \brief Wrapper class for SerializationReason
+/// Wrapper class for SerializationReason
 class SerializationFlags {
 public:
   SerializationFlags() = default;
@@ -59,14 +59,14 @@ public:
 
   SerializationReason value() const { return Flags; }
 
-  /// \brief Returns true if the Instruction associated with \F must be
+  /// Returns true if the Instruction associated with \F must be
   /// serialized in C.
   static bool mustBeSerialized(const SerializationFlags &F) {
     // If any of the bits is set, it must be serialized.
     return F.Flags != None;
   }
 
-  /// \brief Returns true if the Instruction associated with \F needs a VarDecl
+  /// Returns true if the Instruction associated with \F needs a VarDecl
   /// in C.
   static bool needsVarDecl(const SerializationFlags &F) {
 
@@ -84,14 +84,14 @@ public:
     return true;
   }
 
-  /// \brief Returns true if the Instruction associated with \F is affected by
+  /// Returns true if the Instruction associated with \F is affected by
   /// side effects.
   static bool hasSideEffects(const SerializationFlags &F) {
     // HasSideEffects, and HasInterferingSideEffects imply side effects.
     return F.Flags & (HasSideEffects | HasInterferingSideEffects);
   }
 
-  /// \brief Returns true if the Instruction associated with \F needs many
+  /// Returns true if the Instruction associated with \F needs many
   /// statements in C.
   //
   // A notable example is InsertValue.

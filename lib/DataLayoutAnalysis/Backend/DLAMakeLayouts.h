@@ -11,7 +11,7 @@ namespace dla {
 /// Final step, which flattens out the types into memory layouts
 using LayoutPtrVector = std::vector<Layout *>;
 
-///\brief Generate Layout objects from a DLATypeSystem
+/// Generate Layout objects from a DLATypeSystem
 ///
 /// Some nodes of a DLATypeSystem graph can generate a Layout, that is added to
 /// \a Layouts.
@@ -25,7 +25,7 @@ using LayoutPtrVector = std::vector<Layout *>;
 ///\return a vector of Layouts ordered using TS equivalence classes
 LayoutPtrVector makeLayouts(const LayoutTypeSystem &TS, LayoutVector &Layouts);
 
-///\brief Create a map between LayoutTypePtrs and Layouts
+/// Create a map between LayoutTypePtrs and Layouts
 ///\param Values the list of LayoutTypePtrs
 ///\param OrderedLayouts the list of Layouts
 ///\param EqClasses equivalence classes between indexes of \a Values and

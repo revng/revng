@@ -1,5 +1,5 @@
 /// \file ValueManipulationAnalysis.cpp
-/// \brief Test the ValueManipulationAnalysis analysis
+/// Test the ValueManipulationAnalysis analysis
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.
@@ -50,7 +50,7 @@ struct ExpectedShape {
     Types(T), Colors(C), NCasts(NCasts), NUndecided(NUndecided) {}
 };
 
-///\brief Keep a count of how many nodes are colored with each color
+/// Keep a count of how many nodes are colored with each color
 static ColorCounter countColors(const TypeFlowGraph &TG) {
   ColorCounter CC = { 0 };
 
@@ -61,7 +61,7 @@ static ColorCounter countColors(const TypeFlowGraph &TG) {
   return CC;
 }
 
-///\brief Keep a count of how many nodes of each type there are in \a TG
+/// Keep a count of how many nodes of each type there are in \a TG
 static TypeCounter countTypes(const TypeFlowGraph &TG) {
   TypeCounter TC = { 0 };
 
@@ -77,7 +77,7 @@ static TypeCounter countTypes(const TypeFlowGraph &TG) {
   return TC;
 }
 
-/// \brief Check that the TG nodes have the expected types and colors
+/// Check that the TG nodes have the expected types and colors
 static void checkShape(const TypeFlowGraph &TG, const ExpectedShape &Expected) {
   const TypeCounter &ExpectedTypes = Expected.Types;
   const ColorCounter &ExpectedColors = Expected.Colors;
@@ -112,7 +112,7 @@ static void checkShape(const TypeFlowGraph &TG, const ExpectedShape &Expected) {
   revng_check(NUndecided == Expected.NUndecided);
 }
 
-/// \brief Check that the information in the graph are consistent
+/// Check that the information in the graph are consistent
 static void checkTGCorrectness(TypeFlowGraph &TG) {
   // Check consistency between the graph and the reverse map
   for (TypeFlowNode *N : TG.nodes()) {
@@ -148,7 +148,7 @@ static void checkTGCorrectness(TypeFlowGraph &TG) {
   }
 }
 
-///\brief Check that a TypeFlowGraph is initialized correctly from a function
+/// Check that a TypeFlowGraph is initialized correctly from a function
 static void checkInit(const char *Body,
                       const ExpectedShape ExpectedInit,
                       const ExpectedShape ExpectedAfterProp,

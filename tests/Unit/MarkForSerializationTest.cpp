@@ -1,5 +1,5 @@
 /// \file MarkForSerializationTest.cpp
-/// \brief Test for MarkForSerialization
+/// Test for MarkForSerialization
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.

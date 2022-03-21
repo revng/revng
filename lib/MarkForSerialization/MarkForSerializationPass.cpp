@@ -2,7 +2,7 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-/// \brief Dataflow analysis to identify which Instructions must be serialized
+/// Dataflow analysis to identify which Instructions must be serialized
 
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Instruction.h"

@@ -9,7 +9,7 @@
 
 namespace vma {
 
-/// \brief Contract the graph until you end with only two nodes
+/// Contract the graph until you end with only two nodes
 ///
 /// This implementation guarantees that NodesToColor and NodesToUncolor are
 /// never merged, therefore they will be the only two nodes remaining at the
@@ -23,7 +23,7 @@ void karger(ContractedGraph &G,
             ContractedNode &BestNodesToColor,
             ContractedNode &BestNodesToUncolor);
 
-/// \brief Assign undecided nodes applying Karger one color at a time
+/// Assign undecided nodes applying Karger one color at a time
 ///
 /// This function reasons one color at a time. It creates a ContractedGraph for
 /// each connected component of undecided nodes that have a given color among

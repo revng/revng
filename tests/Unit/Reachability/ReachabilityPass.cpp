@@ -1,5 +1,5 @@
 /// \file ReachabilityPass.cpp
-/// \brief FunctionPass that computes the reachability for the nodes of a given
+/// FunctionPass that computes the reachability for the nodes of a given
 ///        Function
 
 //

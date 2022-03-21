@@ -15,7 +15,7 @@
 
 namespace dla {
 
-///\brief This class is used to print LLVM information when debugging the TS
+/// This class is used to print LLVM information when debugging the TS
 ///
 /// Since nodes in the TypeSystem graph only have IDs, which are grouped into
 /// equivalence classes, if we want to track each ID back to the original LLVM
@@ -27,7 +27,7 @@ protected:
   const LayoutTypePtrVect &Values;
 
 public:
-  ///\brief Build the Debug printer
+  /// Build the Debug printer
   ///
   ///\param M The LLVM module from which the TS graph was built
   ///\param Values Ordered vector, Values are indexed with the ID of the
@@ -38,32 +38,32 @@ public:
   LLVMTSDebugPrinter() = delete;
 
 public:
-  ///\brief Print the `llvm::Value`s collapsed inside \a N
+  /// Print the `llvm::Value`s collapsed inside \a N
   void printNodeContent(const LayoutTypeSystem &TS,
                         const LayoutTypeSystemNode *N,
                         llvm::raw_fd_ostream &DotFile) const override;
 };
 
-///\brief This class builds a DLA type system from an LLVM module
+/// This class builds a DLA type system from an LLVM module
 class DLATypeSystemLLVMBuilder {
 public:
   using VisitedMapT = std::map<LayoutTypePtr, LayoutTypeSystemNode *>;
   using PrototypesMapT = std::map<const model::Type *, FuncOrCallInst>;
 
 private:
-  ///\brief Separate class that add `Instance` edges
+  /// Separate class that add `Instance` edges
   class InstanceLinkAdder;
 
-  ///\brief The TypeSystem to build
+  /// The TypeSystem to build
   LayoutTypeSystem &TS;
 
-  ///\brief Ordered vector, each element is indexed with the ID of the
+  /// Ordered vector, each element is indexed with the ID of the
   /// corresponding Node
   LayoutTypePtrVect Values;
 
-  ///\brief Reverse map between `llvm::Value`s and Nodes
+  /// Reverse map between `llvm::Value`s and Nodes
   VisitedMapT VisitedValues;
-  ///\brief Associate each indirect call's prototype in the model with the
+  /// Associate each indirect call's prototype in the model with the
   /// first `llvm::CallInst` found with that prototype,
   PrototypesMapT VisitedPrototypes;
 
@@ -94,13 +94,13 @@ private:
                                   llvm::ModulePass *MP,
                                   const model::Binary &Model);
 
-  ///\brief Collect LayoutTypePtrs and place them in the right position
+  /// Collect LayoutTypePtrs and place them in the right position
   void createValuesList();
 
 public:
   LayoutTypePtrVect &getValues() { return Values; }
 
-  ///\brief Print a `.csv` with the mapping between nodes and `llvm::Value`s
+  /// Print a `.csv` with the mapping between nodes and `llvm::Value`s
   ///
   /// The mapping is reconstructed on-the-fly, therefore is expensive. The
   /// generated .csv uses _semicolons_ as separators.
@@ -109,7 +109,7 @@ public:
 public:
   DLATypeSystemLLVMBuilder(LayoutTypeSystem &TS) : TS(TS){};
 
-  ///\brief Create a DLATypeSystem graph for a given LLVM module
+  /// Create a DLATypeSystem graph for a given LLVM module
   ///
   /// LayoutTypePtrs represent elements of the LLVM IR that are thought to be
   /// possible pointers. The builder's job is to:
@@ -121,7 +121,7 @@ public:
                            llvm::ModulePass *MP,
                            const model::Binary &Model);
 
-  ///\brief Given a Call instruction and its containing function, check if it
+  /// Given a Call instruction and its containing function, check if it
   /// shares the model prototype with another function and. If it does, connect
   /// return values and arguments with equality links.
   bool connectToFuncWithSamePrototype(const llvm::Function &F,

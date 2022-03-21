@@ -20,7 +20,7 @@
 template<class NodeT>
 class RegionCFG;
 
-/// \brief Graph Node, representing a basic block
+/// Graph Node, representing a basic block
 template<class NodeT>
 class BasicBlockNode {
 protected:
@@ -144,17 +144,17 @@ public:
                    BBN.NodeType,
                    BBN.StateVariableValue) {}
 
-  /// \brief Constructor for nodes pointing to LLVM IR BasicBlock
+  /// Constructor for nodes pointing to LLVM IR BasicBlock
   explicit BasicBlockNode(RegionCFGT *Parent,
                           NodeT OriginalNode,
                           llvm::StringRef Name = "") :
     BasicBlockNode(Parent, OriginalNode, nullptr, Name, Type::Code) {}
 
-  /// \brief Constructor for nodes representing collapsed subgraphs
+  /// Constructor for nodes representing collapsed subgraphs
   explicit BasicBlockNode(RegionCFGT *Parent, RegionCFGT *Collapsed) :
     BasicBlockNode(Parent, nullptr, Collapsed, "collapsed", Type::Collapsed) {}
 
-  /// \brief Constructor for empty dummy nodes and for entry/exit dispatcher
+  /// Constructor for empty dummy nodes and for entry/exit dispatcher
   explicit BasicBlockNode(RegionCFG<NodeT> *Parent,
                           llvm::StringRef Name,
                           Type T) :
@@ -163,7 +163,7 @@ public:
                  or T == Type::Dispatcher or T == Type::Tile);
   }
 
-  /// \brief Constructor for dummy nodes that handle the state variable
+  /// Constructor for dummy nodes that handle the state variable
   explicit BasicBlockNode(RegionCFGT *Parent,
                           llvm::StringRef Name,
                           Type T,
@@ -322,7 +322,7 @@ public:
 
   bool isEquivalentTo(BasicBlockNode *) const;
 
-  /// \brief Obtain a estimate of the weight of a BasicBlockNode in terms of
+  /// Obtain a estimate of the weight of a BasicBlockNode in terms of
   ///        original instructions.
   size_t getWeight() const;
 

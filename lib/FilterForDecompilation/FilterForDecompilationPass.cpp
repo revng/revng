@@ -18,7 +18,7 @@ void FFDFP::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<LoadModelWrapperPass>();
 }
 
-/// \brief Drop the body of all non-lifted functions, and add `optnone` and
+/// Drop the body of all non-lifted functions, and add `optnone` and
 /// `noinline` attributes so that they can be eliminated by DCE.
 static bool filterFunction(llvm::Function &F) {
   auto FTags = FunctionTags::TagsSet::from(&F);

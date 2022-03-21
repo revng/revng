@@ -97,15 +97,15 @@ public:
 
   ASTNode *copyASTNodesFrom(ASTTree &OldAST);
 
-  /// \brief Dump a GraphViz file on a file using an absolute path
+  /// Dump a GraphViz file on a file using an absolute path
   void dumpASTOnFile(const std::string &FileName) const;
 
-  /// \brief Dump a GraphViz file on a file using an absolute path
+  /// Dump a GraphViz file on a file using an absolute path
   void dumpASTOnFile(const char *FName) const {
     return dumpASTOnFile(std::string(FName));
   }
 
-  /// \brief Dump a GraphViz file on a file representing this function
+  /// Dump a GraphViz file on a file representing this function
   void dumpASTOnFile(const std::string &FolderName,
                      const std::string &FunctionName,
                      const std::string &FileName) const;

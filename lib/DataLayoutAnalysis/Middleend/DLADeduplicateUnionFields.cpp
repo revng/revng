@@ -34,7 +34,7 @@ static Logger<> CmpLog("dla-duf-comparisons");
 
 namespace dla {
 
-///\brief Strong ordering for nodes: order by size, then by number of successors
+/// Strong ordering for nodes: order by size, then by number of successors
 static order cmpNodes(const LTSN *A, const LTSN *B) {
   if (A == B)
     return order::equal;
@@ -65,7 +65,7 @@ static order cmpNodes(const LTSN *A, const LTSN *B) {
   return order::equal;
 }
 
-///\brief Strong ordering for edges: order by kind, then by offset expression
+/// Strong ordering for edges: order by kind, then by offset expression
 static order cmpEdgeTags(const Tag *A, const Tag *B) {
   if (A == B)
     return order::equal;
@@ -119,7 +119,7 @@ static order cmpEdgeTags(const Tag *A, const Tag *B) {
   return order::equal;
 }
 
-///\brief Strong ordering for links: compare edge tags and destination node
+/// Strong ordering for links: compare edge tags and destination node
 static order cmpLinks(const Link &A, const Link &B) {
   const order EdgeOrder = cmpEdgeTags(A.second, B.second);
   if (EdgeOrder != order::equal)
@@ -138,11 +138,11 @@ static order cmpLinks(const Link &A, const Link &B) {
   return order::equal;
 }
 
-///\brief Compare two subtrees, saving the visited nodes onto two stacks
+/// Compare two subtrees, saving the visited nodes onto two stacks
 static std::tuple<order, EdgeList, EdgeList>
 exploreAndCompare(const Link &Child1, const Link &Child2);
 
-///\brief Recursively define an ordering between children of a node
+/// Recursively define an ordering between children of a node
 static bool linkOrderLess(const Link &A, const Link &B) {
   if (A == B)
     return false;
@@ -231,7 +231,7 @@ exploreAndCompare(const Link &Child1, const Link &Child2) {
   return { order::equal, VisitStack1, VisitStack2 };
 }
 
-///\brief Check if two subtrees are equivalent, saving the visited nodes in the
+/// Check if two subtrees are equivalent, saving the visited nodes in the
 /// order in which they were compared.
 static std::tuple<bool, EdgeList, EdgeList>
 areEquivSubtrees(const Link &Child1, const Link &Child2) {
@@ -241,7 +241,7 @@ areEquivSubtrees(const Link &Child1, const Link &Child2) {
   return { AreSubtreesEqual, Visited1, Visited2 };
 }
 
-///\brief Visit the two subtrees of \a Child1 and \a Child2. If they are
+/// Visit the two subtrees of \a Child1 and \a Child2. If they are
 /// equivalent, merge each node with the one it has been compared to.
 ///
 ///\return true if the two nodes were merged, and merged subtree
@@ -332,7 +332,7 @@ mergeIfTopologicallyEq(LayoutTypeSystem &TS,
   return { true, Subtree1, ErasedNodes };
 }
 
-///\brief Remove conflicting edges and collapse single children after merging.
+/// Remove conflicting edges and collapse single children after merging.
 static bool
 postProcessMerge(LayoutTypeSystem &TS, const EdgeList &MergedSubtree) {
   bool Modified = false;

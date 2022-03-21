@@ -47,7 +47,7 @@ using model::PrimitiveTypeKind::PointerOrNumber;
 using model::QualifierKind::Pointer;
 
 // TODO: implement a better way to merge qualified types
-///\brief Check if a type can be narrowed down to finer types.
+/// Check if a type can be narrowed down to finer types.
 static bool canBeNarrowedDown(QualifiedType T) {
   return T.isPrimitive(PointerOrNumber) or T.isPrimitive(Generic);
 }
@@ -59,7 +59,7 @@ static const llvm::Value *toLLVMValue(const llvm::Use &A) {
   return A.get();
 }
 
-///\brief If the DLA recovered a more precise type than the already existing one
+/// If the DLA recovered a more precise type than the already existing one
 /// for any of the arguments of a RawFunctionType, update the model accordingly.
 template<typename T>
 static bool updateRawFuncArgs(model::Binary &Model,
@@ -306,7 +306,7 @@ static bool updateFuncStackFrame(model::Function &ModelFunc,
   return Updated;
 }
 
-///\brief If the DLA recovered a more precise type than the already existing one
+/// If the DLA recovered a more precise type than the already existing one
 /// for the return type of a RawFunctionType, update the model accordingly.
 static bool updateRawFuncRetValue(model::Binary &Model,
                                   RawFunctionType *ModelPrototype,
@@ -366,7 +366,7 @@ static bool updateRawFuncRetValue(model::Binary &Model,
   return Updated;
 }
 
-///\brief Update the prototype of a function with the types recovered by DLA.
+/// Update the prototype of a function with the types recovered by DLA.
 template<typename T>
 static bool updateFuncPrototype(model::Binary &Model,
                                 model::Type *Prototype,

@@ -2,7 +2,7 @@
 // Copyright rev.ng Srls. See LICENSE.md for details.
 //
 
-/// \brief Pass that wraps Instructions in LLVM IR that must be serialized in
+/// Pass that wraps Instructions in LLVM IR that must be serialized in
 /// special marker calls.
 
 #include "llvm/IR/BasicBlock.h"

@@ -1,5 +1,5 @@
 /// \file TargetFunction.cpp
-/// \brief File which defines an option later used by the `CDecompilerPass` and
+/// File which defines an option later used by the `CDecompilerPass` and
 ///        by the `RestructureCFGPass`
 
 //

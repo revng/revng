@@ -25,7 +25,7 @@ using llvm::dyn_cast;
 
 static Logger<> Log{ "helpers-to-header" };
 
-/// \brief Print the declaration a C struct corresponding to an LLVM struct
+/// Print the declaration a C struct corresponding to an LLVM struct
 /// type.
 static void printDefinition(const llvm::StructType *S,
                             const llvm::StringRef StructName,
@@ -39,7 +39,7 @@ static void printDefinition(const llvm::StructType *S,
   Header << "} " << StructName << ";\n";
 }
 
-/// \brief Print the prototype of a helper .
+/// Print the prototype of a helper .
 static void
 printHelperPrototype(const llvm::Function *Func, llvm::raw_ostream &Header) {
   Header << getReturnType(Func) << " "

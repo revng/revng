@@ -6,7 +6,7 @@
 
 #include "llvm/Pass.h"
 
-/// \brief This pass collects all the calls to QEMU helpers and
+/// This pass collects all the calls to QEMU helpers and
 /// generates a C declaration for each helper.
 class HelpersToHeaderPass : public llvm::ModulePass {
 public:

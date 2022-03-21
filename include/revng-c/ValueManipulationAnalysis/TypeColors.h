@@ -15,7 +15,7 @@
 
 namespace vma {
 
-/// \brief Index of each color in the bitset
+/// Index of each color in the bitset
 enum ColorIndex : uint8_t {
   POINTERNESS_INDEX,
   UNSIGNEDNESS_INDEX,
@@ -26,7 +26,7 @@ enum ColorIndex : uint8_t {
   MAX_COLORS
 };
 
-/// \brief Useful constants representing one, none and all colors
+/// Useful constants representing one, none and all colors
 enum BaseColor : unsigned {
   NO_COLOR = 0,
   POINTERNESS = (1 << POINTERNESS_INDEX),
@@ -38,10 +38,10 @@ enum BaseColor : unsigned {
   ALL_COLORS = (1 << MAX_COLORS) - 1
 };
 
-/// \brief Name of each color, used for printing
+/// Name of each color, used for printing
 const llvm::StringRef TypeColorName[] = { "P", "U", "B", "S", "F", "N" };
 
-/// \brief Set of colors, stored as a bitset
+/// Set of colors, stored as a bitset
 struct ColorSet {
   using BitsetT = std::bitset<MAX_COLORS>;
   BitsetT Bits;
@@ -58,18 +58,18 @@ struct ColorSet {
   ColorSet(const BitsetT &B) : Bits(B) {}
   ColorSet(BitsetT &&B) : Bits(B) {}
 
-  /// \brief Check if this ColorSet contains all colors of the argument
+  /// Check if this ColorSet contains all colors of the argument
   bool contains(const ColorSet &Other) const {
     return (Bits | Other.Bits) == Bits;
   }
 
-  /// \brief Add all colors of the argument to this ColorSet
+  /// Add all colors of the argument to this ColorSet
   void addColor(const ColorSet &Other) { Bits |= Other.Bits; }
 
-  /// \brief Count how many valid type candidates are contained in this ColorSet
+  /// Count how many valid type candidates are contained in this ColorSet
   size_t countValid() const { return (Bits & BitsetT(~NUMBERNESS)).count(); }
 
-  /// \brief Print the name of the colors contained in this ColorSet
+  /// Print the name of the colors contained in this ColorSet
   void print(llvm::raw_ostream &Out) const debug_function {
     if (Bits == ALL_COLORS) {
       Out << "all";
@@ -81,7 +81,7 @@ struct ColorSet {
         Out << TypeColorName[I];
   }
 
-  /// \brief Index of the next set bit, starting from \a StartIndex (excluded)
+  /// Index of the next set bit, starting from \a StartIndex (excluded)
   /// \param Idx  Where to start from (if == -1 start from the first)
   /// \return MAX_COLORS if there's no set bit after this index
   ColorIndex nextSetBit(int StartIndex) const {
@@ -96,7 +96,7 @@ struct ColorSet {
     return MAX_COLORS;
   }
 
-  /// \brief Index of the first set bit
+  /// Index of the first set bit
   /// \return MAX_COLORS if there's no set bit
   ColorIndex firstSetBit() const { return nextSetBit(/*StartIndex*/ -1); }
 

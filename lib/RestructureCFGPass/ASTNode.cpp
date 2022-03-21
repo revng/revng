@@ -1,5 +1,4 @@
 /// \file ASTNode.cpp
-/// \brief
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.

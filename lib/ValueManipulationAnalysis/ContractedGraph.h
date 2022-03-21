@@ -12,50 +12,50 @@
 
 namespace vma {
 
-///\brief Super-node that contains TypeFlowGraph nodes
+/// Super-node that contains TypeFlowGraph nodes
 struct ContractedNode {
-  ///\brief The initial content of the node
+  /// The initial content of the node
   llvm::SmallSetVector<TypeFlowNode *, 8> InitialNodes;
-  ///\brief Additional nodes that have been collapsed inside this super-node
+  /// Additional nodes that have been collapsed inside this super-node
   llvm::SmallSetVector<TypeFlowNode *, 8> AdditionalNodes;
 
-  ///\brief Reset the content to the initialization value
+  /// Reset the content to the initialization value
   void reset() { AdditionalNodes.clear(); }
 
-  ///\brief Count the number of TypeFlowNodes collapsed inside this super-node
+  /// Count the number of TypeFlowNodes collapsed inside this super-node
   unsigned totalSize() { return InitialNodes.size() + AdditionalNodes.size(); }
 
-  ///\brief Check if a TypeFlowNode is part of this super node
+  /// Check if a TypeFlowNode is part of this super node
   bool contains(TypeFlowNode *TFN) const {
     return InitialNodes.count(TFN) or AdditionalNodes.count(TFN);
   }
 };
 
-///\brief Graph of super-nodes built upon the TypeFlowGraph
+/// Graph of super-nodes built upon the TypeFlowGraph
 struct ContractedGraph {
   using EdgeT = std::pair<TypeFlowNode *, TypeFlowNode *>;
   using EdgeContainerT = llvm::SmallVector<EdgeT, 8>;
   using NodeContainerT = llvm::SmallVector<std::unique_ptr<ContractedNode>, 8>;
   using ReverseMapT = llvm::SmallDenseMap<TypeFlowNode *, ContractedNode *>;
 
-  ///\brief Color that is being decided by contracting this graph
+  /// Color that is being decided by contracting this graph
   const ColorSet Color;
 
-  ///\brief Container of the ContractedNodes, owned by the graph
+  /// Container of the ContractedNodes, owned by the graph
   NodeContainerT Nodes;
-  ///\brief Number of unique TypeFlowNodes inside all the ContractedNodes
+  /// Number of unique TypeFlowNodes inside all the ContractedNodes
   size_t NTypeFlowNodes = 0;
-  ///\brief Set of TypeFlowNodes that will eventually be assigned to Color
+  /// Set of TypeFlowNodes that will eventually be assigned to Color
   ContractedNode *NodesToColor;
-  ///\brief Set of TypeFlowNodes from which Color will be eventually removed
+  /// Set of TypeFlowNodes from which Color will be eventually removed
   ContractedNode *NodesToUncolor;
 
-  ///\brief Maps each TypeFlowNode to the ContractedNode it is currently in
+  /// Maps each TypeFlowNode to the ContractedNode it is currently in
   ReverseMapT ReverseMap;
 
-  ///\brief List of edges of the TypeFlowGraph that we want to contract
+  /// List of edges of the TypeFlowGraph that we want to contract
   EdgeContainerT EdgeList;
-  ///\brief Edges that have been already collapsed are moved after this index
+  /// Edges that have been already collapsed are moved after this index
   unsigned NActiveEdges = 0;
 
   ContractedGraph() = delete;
@@ -65,10 +65,10 @@ struct ContractedGraph {
   ContractedGraph &operator=(const ContractedGraph &N) = delete;
   ContractedGraph &operator=(ContractedGraph &&N) = delete;
 
-  ///\brief Add a new ContractedNode with an (optional) initial content
+  /// Add a new ContractedNode with an (optional) initial content
   ContractedNode *addNode(std::optional<TypeFlowNode *> InitialContent);
 
-  ///\brief Returns a reference to the corresponding entry in the ReverseMap
+  /// Returns a reference to the corresponding entry in the ReverseMap
   ContractedNode *&getMapEntry(TypeFlowNode *TFGNode) {
     const auto &MapIt = ReverseMap.find(TFGNode);
 
@@ -76,7 +76,7 @@ struct ContractedGraph {
     return MapIt->second;
   }
 
-  ///\brief Contract the edge at \a EdgeIndex
+  /// Contract the edge at \a EdgeIndex
   ///
   /// One of the two nodes of the edge is collapsed into the other, transferring
   /// all its content and incoming/outgoing edge to the node it is collapsed
@@ -87,15 +87,15 @@ struct ContractedGraph {
   /// Note that \a EdgeIndex must be less that \a NActiveEdges, meaning that the
   /// collapsed edge must be active.
   void contract(size_t EdgeIndex);
-  ///\brief Reset each Node and the ReverseMap to the original state
+  /// Reset each Node and the ReverseMap to the original state
   void reset();
 
-  ///\brief Check the consistency of the Graph
+  /// Check the consistency of the Graph
   ///\note Expensive Check
   void check();
 };
 
-/// \brief Return a ContractedGraph built starting from an \a Entry Node
+/// Return a ContractedGraph built starting from an \a Entry Node
 ///
 /// This function identifies a connected component of undecided nodes
 /// that all have Color as a candidate. The ContractedGraph shall contain a

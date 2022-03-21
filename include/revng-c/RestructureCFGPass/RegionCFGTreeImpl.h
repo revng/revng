@@ -231,7 +231,7 @@ RegionCFG<NodeT>::streamNode(StreamT &S, const BasicBlockNodeT *BB) const {
   S << "];\n";
 }
 
-/// \brief Dump a GraphViz file on stdout representing this function
+/// Dump a GraphViz file on stdout representing this function
 template<class NodeT>
 template<typename StreamT>
 inline void RegionCFG<NodeT>::dumpDot(StreamT &S) const {

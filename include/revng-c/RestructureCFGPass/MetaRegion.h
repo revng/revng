@@ -17,7 +17,7 @@
 template<class NodeT>
 class BasicBlockNode;
 
-/// \brief The MetaRegion class, a wrapper for a set of nodes.
+/// The MetaRegion class, a wrapper for a set of nodes.
 template<class NodeT>
 class MetaRegion {
 

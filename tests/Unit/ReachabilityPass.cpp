@@ -1,5 +1,5 @@
 /// \file ReachabilityPass.cpp
-/// \brief Tests for ReachabilityPass
+/// Tests for ReachabilityPass
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.

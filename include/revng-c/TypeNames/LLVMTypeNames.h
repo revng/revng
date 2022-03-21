@@ -20,13 +20,13 @@ constexpr const char *const StructFieldPrefix = "field_";
 
 using TypeString = llvm::SmallString<32>;
 
-/// \brief Print the C name of an LLVM Scalar type.
+/// Print the C name of an LLVM Scalar type.
 /// \note Pointer types use the \a BaseType provided if it's not empty,
 /// otherwise they are converted as `void *`
 extern TypeString
 getScalarCType(const llvm::Type *LLVMType, llvm::StringRef BaseType = "");
 
-/// \brief Get the name of the type returned by an llvm::Function.
+/// Get the name of the type returned by an llvm::Function.
 /// \note Do not use this for isolated functions - use the Model prototype
 /// instead
 extern TypeString getReturnType(const llvm::Function *Func);
@@ -36,5 +36,5 @@ struct FieldInfo {
   TypeString FieldTypeName;
 };
 
-/// \brief Return the name and type of the \a Index -th field of a struct type.
+/// Return the name and type of the \a Index -th field of a struct type.
 extern FieldInfo getFieldName(const llvm::StructType *StructTy, size_t Index);

@@ -4,7 +4,7 @@
 // Copyright (c) rev.ng Srls. See LICENSE.md for details.
 //
 
-/// \brief Analysis that marks instructions to be serialized in C
+/// Analysis that marks instructions to be serialized in C
 
 #include <map>
 

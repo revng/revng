@@ -1,6 +1,6 @@
 #pragma once
 
-/// \brief DataFlow analysis to build the AST for a Function
+/// DataFlow analysis to build the AST for a Function
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.

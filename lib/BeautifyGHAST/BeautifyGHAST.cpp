@@ -1,5 +1,5 @@
 /// \file CDecompilerBeautify.cpp
-/// \brief Bautify passes on the final AST
+/// Bautify passes on the final AST
 ///
 
 //

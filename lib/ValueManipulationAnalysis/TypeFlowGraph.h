@@ -21,7 +21,7 @@ namespace vma {
 
 // --------------- TypeFlowGraph
 
-/// \brief Graph representing how type information flows between values and uses
+/// Graph representing how type information flows between values and uses
 ///
 /// Nodes represent `llvm::Value`s and `llvm::Use`s and their candidate types,
 /// edges represent how type information is propagated.
@@ -35,16 +35,16 @@ struct TypeFlowGraph : public GenericGraph<TypeFlowNode> {
   TypeFlowNode *addNodeContaining(const UseOrValue &);
   TypeFlowNode *getNodeContaining(const UseOrValue &) const;
 
-  /// \brief Print the graph on a `.dot` file
+  /// Print the graph on a `.dot` file
   /// \param Title title of the graph
   /// \param FileName if not specified, the default is `/tmp/<random string>`
   void
   dump(const llvm::Twine &Title = "", std::string FileName = "") debug_function;
 
-  /// \brief Dump a dot representation of the graph to the given stream
+  /// Dump a dot representation of the graph to the given stream
   void print(llvm::raw_ostream &OS) debug_function;
 
-  /// \brief Show the graph in a window, to be used inside a debugger
+  /// Show the graph in a window, to be used inside a debugger
   void view() debug_function;
 
   const llvm::Function *Func;
@@ -53,27 +53,27 @@ struct TypeFlowGraph : public GenericGraph<TypeFlowNode> {
 
 // --------------- TypeFlowGraph manipulation
 
-/// \brief Add to \a TG the `llvm::Use`s and `llvm::Value`s inside \a F
+/// Add to \a TG the `llvm::Use`s and `llvm::Value`s inside \a F
 TypeFlowGraph makeTypeFlowGraphFromFunction(const llvm::Function *F);
 
-/// \brief Propagate colors from colored nodes trough colored edges
+/// Propagate colors from colored nodes trough colored edges
 void propagateColors(TypeFlowGraph &TG);
 
-/// \brief Propagate a single color
+/// Propagate a single color
 template<unsigned Filter>
 void propagateColor(TypeFlowGraph &TG);
 
-/// \brief Propagate Numberness and Pointerness with special rules
+/// Propagate Numberness and Pointerness with special rules
 /// \return true if the TypeFlowGraph was modified
 bool propagateNumberness(TypeFlowGraph &TG);
 
-///\brief Make the graph undirected by adding all reciprocal edges
+/// Make the graph undirected by adding all reciprocal edges
 void makeBidirectional(TypeFlowGraph &TG);
 
-/// \brief Count the number of edges connecting nodes with disjoint candidates
+/// Count the number of edges connecting nodes with disjoint candidates
 unsigned countCasts(const TypeFlowGraph &TG);
 
-/// \brief Recursively assign grey nodes based on the color of their neighbors
+/// Recursively assign grey nodes based on the color of their neighbors
 ///
 /// See also TypeFlowNode::majorityVote()
 /// \return True if at least one node was modified
@@ -81,17 +81,17 @@ bool applyMajorityVoting(TypeFlowGraph &TG);
 
 // --------------- Filtered Graphs implementation
 
-/// \brief Select only edge that contain a given color
+/// Select only edge that contain a given color
 template<unsigned FilterColor>
 inline bool hasColor(llvm::GraphTraits<TypeFlowGraph *>::EdgeRef &Edge) {
   return Edge.Colors.contains(FilterColor);
 }
 
-/// \brief Filtered Graph with only edges of a given color
+/// Filtered Graph with only edges of a given color
 template<unsigned FilterColor>
 using EdgeFilteredTG = EdgeFilteredGraph<TypeFlowNode *, hasColor<FilterColor>>;
 
-/// \brief Select only undecided nodes
+/// Select only undecided nodes
 inline bool
 bothHaveManyCandidates(const llvm::GraphTraits<TypeFlowGraph *>::NodeRef &Src,
                        const llvm::GraphTraits<TypeFlowGraph *>::NodeRef &Tgt) {
@@ -99,7 +99,7 @@ bothHaveManyCandidates(const llvm::GraphTraits<TypeFlowGraph *>::NodeRef &Src,
   return Src->isUndecided() and Tgt->isUndecided();
 }
 
-/// \brief Filtered Graph with only undecided nodes
+/// Filtered Graph with only undecided nodes
 using NodeFilteredTG = NodePairFilteredGraph<TypeFlowNode *,
                                              bothHaveManyCandidates>;
 

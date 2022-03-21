@@ -180,7 +180,7 @@ printDeclaration(const model::TypedefType &TD, llvm::raw_ostream &Header) {
          << ";\n";
 }
 
-/// \brief Generate the definition of a new struct type that wraps all the
+/// Generate the definition of a new struct type that wraps all the
 ///        return values of \a F. The name of the struct type is provided by the
 ///        caller.
 static void generateReturnValueWrapper(const model::RawFunctionType &F,
@@ -200,7 +200,7 @@ static void generateReturnValueWrapper(const model::RawFunctionType &F,
   Header << "} " << getReturnTypeName(F) << ";\n ";
 }
 
-/// \brief If the function has more than one return value, generate a wrapper
+/// If the function has more than one return value, generate a wrapper
 ///        struct that contains them.
 static void printRawFunctionWrappers(const model::RawFunctionType *F,
                                      llvm::raw_ostream &Header) {
@@ -211,7 +211,7 @@ static void printRawFunctionWrappers(const model::RawFunctionType *F,
     revng_assert(Arg.Type.isScalar());
 }
 
-/// \brief Print a typedef for a RawFunctionType, that can be used when you have
+/// Print a typedef for a RawFunctionType, that can be used when you have
 ///        a variable that is a pointer to a function.
 static void
 printDeclaration(const model::RawFunctionType &F, llvm::raw_ostream &Header) {
@@ -245,7 +245,7 @@ public:
 
 using QualifiedTypeNameMap = std::map<FrozenQualifiedType, std::string>;
 
-/// \brief Generate the definition of a new struct type that wraps \a ArrayType.
+/// Generate the definition of a new struct type that wraps \a ArrayType.
 ///        This is used to wrap array arguments or array return values of
 ///        CABIFunctionTypes.
 static void generateArrayWrapper(const model::QualifiedType &ArrayType,
@@ -265,7 +265,7 @@ static void generateArrayWrapper(const model::QualifiedType &ArrayType,
   Header << "} " << WrapperName << ";\n ";
 }
 
-/// \brief If the return value or any of the arguments is an array, generate
+/// If the return value or any of the arguments is an array, generate
 ///        a wrapper struct for each of them, if it's not already in the cache.
 static void printCABIFunctionWrappers(const model::CABIFunctionType *F,
                                       llvm::raw_ostream &Header,
@@ -278,7 +278,7 @@ static void printCABIFunctionWrappers(const model::CABIFunctionType *F,
       generateArrayWrapper(Arg.Type, Header, NamesCache);
 }
 
-/// \brief Print a typedef for a CABIFunctionType, that can be used when you
+/// Print a typedef for a CABIFunctionType, that can be used when you
 ///        have a variable that is a pointer to a function.
 static void printDeclaration(const model::CABIFunctionType &F,
                              llvm::raw_ostream &Header,

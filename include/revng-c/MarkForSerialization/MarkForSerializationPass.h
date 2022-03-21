@@ -4,7 +4,7 @@
 // Copyright (c) rev.ng Srls. See LICENSE.md for details.
 //
 
-/// \brief Pass that identifies which Instructions must be serialized
+/// Pass that identifies which Instructions must be serialized
 
 #include <map>
 #include <set>

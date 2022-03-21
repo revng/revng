@@ -18,7 +18,7 @@ namespace dla {
 struct LayoutTypeSystemNode;
 } // end namespace dla
 
-/// \brief Class useful to explore an llvm::SCEV expression to find its base
+/// Class useful to explore an llvm::SCEV expression to find its base
 /// addresses.
 class SCEVBaseAddressExplorer {
 public:
@@ -31,7 +31,7 @@ public:
   SCEVBaseAddressExplorer() = default;
   ~SCEVBaseAddressExplorer() = default;
 
-  /// \brief Returns a set containing the SCEVs of \Root 's base addresses.
+  /// Returns a set containing the SCEVs of \Root 's base addresses.
   //
   // The function works exploring the AST of the SCEV, going from the \Root
   // towards its operands.

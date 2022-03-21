@@ -76,7 +76,7 @@ public:
     return LiveSet::bottom();
   }
 
-  /// \brief Gets the final results of the analysis
+  /// Gets the final results of the analysis
   ///
   /// returns a LivenessMap, mapping each BasicBlock to its LiveOut set,
   /// representing all the Instructions that are live at the end.
@@ -85,7 +85,7 @@ public:
   /// Instruction is always live.
   const LivenessMap &getLiveOut() const { return State; }
 
-  /// \brief Extracts the final results of the analysis.
+  /// Extracts the final results of the analysis.
   ///
   /// Returns a LivenessMap, mapping each BasicBlock to its LiveOut set,
   /// representing all the Instructions that are live at the end.

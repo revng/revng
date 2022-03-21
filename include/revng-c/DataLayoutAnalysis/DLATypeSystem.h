@@ -138,7 +138,7 @@ public:
   }
 };
 
-///\brief This class handles equivalence classes between indexes of vectors
+/// This class handles equivalence classes between indexes of vectors
 class VectEqClasses : public llvm::IntEqClasses {
 private:
   // ID of the first removed ID
@@ -146,41 +146,41 @@ private:
   unsigned NElems = 0;
 
 private:
-  ///\brief Used internally, operator[] is removed for this class
+  /// Used internally, operator[] is removed for this class
   unsigned lookupEqClass(unsigned ID) const {
     return llvm::IntEqClasses::operator[](ID);
   }
 
 public:
-  ///\brief Add 1 element with its own equivalence class
+  /// Add 1 element with its own equivalence class
   unsigned growBy1();
 
-  ///\brief Remove the whole equivalence class of \a ID
+  /// Remove the whole equivalence class of \a ID
   void remove(const unsigned ID);
 
-  ///\brief Check if the element has been removed
+  /// Check if the element has been removed
   bool isRemoved(const unsigned ID) const;
 
-  ///\brief Get the total number of elements added
+  /// Get the total number of elements added
   unsigned getNumElements() const { return NElems; }
 
 public:
-  ///\brief You can't access the Eq Classes directly, some might be deleted
+  /// You can't access the Eq Classes directly, some might be deleted
   unsigned operator[](unsigned) const = delete;
 
-  ///\brief Get the Equivalence class ID of an element (must be compressed)
+  /// Get the Equivalence class ID of an element (must be compressed)
   ///\return empty if the element is out-of-bounds or has been removed
   std::optional<unsigned> getEqClassID(const unsigned ID) const;
 
-  ///\brief Get all the elements that are in the same equivalence class of \a ID
+  /// Get all the elements that are in the same equivalence class of \a ID
   ///\note Expensive: performs a linear scan of all the elements
   std::vector<unsigned> computeEqClass(const unsigned ID) const;
 
-  ///\brief Check if \a ID1 and \a ID2 have the same equivalence class
+  /// Check if \a ID1 and \a ID2 have the same equivalence class
   bool haveSameEqClass(unsigned ID1, unsigned ID2) const;
 };
 
-///\brief This class is used to print debug information about the TypeSystem
+/// This class is used to print debug information about the TypeSystem
 ///
 /// Override this to obtain implementation-specific debug prints.
 struct TSDebugPrinter {

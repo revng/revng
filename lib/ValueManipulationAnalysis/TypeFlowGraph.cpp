@@ -69,7 +69,7 @@ void TypeFlowGraph::view() {
 
 // --------------- TypeFlowGraph manipulation
 
-///\brief Check if two nodes are already connected before adding the successor
+/// Check if two nodes are already connected before adding the successor
 static bool
 addSuccessorIfAbsent(TypeFlowNode *N1, TypeFlowNode *N2, const EdgeLabel &E) {
   if (llvm::is_contained(N1->successors(), N2))
@@ -79,7 +79,7 @@ addSuccessorIfAbsent(TypeFlowNode *N1, TypeFlowNode *N2, const EdgeLabel &E) {
   return true;
 }
 
-/// \brief Add edge (possibly both ways) between two nodes, based on the content
+/// Add edge (possibly both ways) between two nodes, based on the content
 static bool connect(TypeFlowNode *N1, TypeFlowNode *N2) {
 
   // Value -> Value: no connection
@@ -398,7 +398,7 @@ unsigned vma::countCasts(const TypeFlowGraph &TG) {
   return Cost;
 }
 
-/// \brief If the majority of the neighbors agree on a color, return it
+/// If the majority of the neighbors agree on a color, return it
 ///
 /// Under certain conditions, we can color a node only looking at its decided
 /// neighbors, i.e. those neighbors that are colored with exactly one color.
@@ -413,7 +413,7 @@ static llvm::Optional<ColorSet> majorityVote(const TypeFlowNode *Node) {
   // Don't try to assign a color to an already decided or uncolored node
   revng_assert(Node->isUndecided());
 
-  ///\brief Holds a counter for a given color
+  /// Holds a counter for a given color
   struct ColorFrequency {
     ColorSet Color;
     unsigned Frequency;

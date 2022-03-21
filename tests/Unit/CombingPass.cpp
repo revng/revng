@@ -1,5 +1,5 @@
 /// \file CombingPass.cpp
-/// \brief Tests for CombingPass
+/// Tests for CombingPass
 
 //
 // Copyright rev.ng Srls. See LICENSE.md for details.

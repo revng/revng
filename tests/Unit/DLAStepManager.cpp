@@ -1,5 +1,5 @@
 /// \file DLAStepManager.cpp
-/// \brief Tests for dla::StepManager
+/// Tests for dla::StepManager
 
 //
 // Copyright (c) rev.ng Srls. See LICENSE.md for details.

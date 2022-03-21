@@ -13,15 +13,15 @@ using TypeMapT = std::map<dla::LayoutTypePtr, model::QualifiedType>;
 
 namespace dla {
 
-///\brief Generate model types from a LayoutTypeSystem graph.
+/// Generate model types from a LayoutTypeSystem graph.
 ///\return A vector of model Types where each position corresponds to the
 /// equivalence class of the LayoutTypeSystemNode that generated the type.
 TypeMapT makeModelTypes(const LayoutTypeSystem &TS,
                         const LayoutTypePtrVect &Values,
                         TupleTree<model::Binary> &Model);
 
-///\brief Attach model types to function arguments and return values.
-///\brief Whether there was anything to update in the model.
+/// Attach model types to function arguments and return values.
+/// Whether there was anything to update in the model.
 bool updateFuncSignatures(const llvm::Module &M,
                           TupleTree<model::Binary> &Model,
                           const TypeMapT &TypeMap);
