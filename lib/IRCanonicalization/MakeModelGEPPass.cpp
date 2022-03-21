@@ -1034,7 +1034,11 @@ differenceScore(const model::QualifiedType &BaseType,
         // Hence for performing this array access it's using a constant offset
         // that needs to be translated into an index into the array.
 
-        revng_assert(ArrayQualIt->Size == ArrayInfoIt->NumElems);
+        // The sizes of the array should be equal, but ArrayInfoIt->NumElems
+        // could be 1 less than necessary because of some workarounds we have
+        // built in DLA to handle arrays.
+        revng_assert(ArrayQualIt->Size == ArrayInfoIt->NumElems
+                     or (ArrayQualIt->Size - 1 == ArrayInfoIt->NumElems));
 
         APInt ElemIndex;
         APInt OffInElem;
@@ -1331,7 +1335,12 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
 
       // The array in BestTAP that we're unwrapping has the same number of
       // elements.
-      revng_assert(TAPArrayIt->NumElems == ArrayQualIt->Size);
+
+      // The sizes of the array should be equal, but TAPArrayIt->NumElems
+      // could be 1 less than necessary because of some workarounds we have
+      // built in DLA to handle arrays.
+      revng_assert(ArrayQualIt->Size == TAPArrayIt->NumElems
+                   or (ArrayQualIt->Size - 1 == TAPArrayIt->NumElems));
 
       if (RestOff.uge(ElementSize)) {
         // If the remaining offset is larger than or equal to an element size,
