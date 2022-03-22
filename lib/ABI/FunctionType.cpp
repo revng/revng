@@ -809,6 +809,7 @@ Layout::Layout(const model::CABIFunctionType &Function) :
     revng_assert(Args.size() == Function.Arguments.size());
     for (size_t Index = 0; Index < Args.size(); ++Index) {
       auto &Current = Result.Arguments.emplace_back();
+      Current.Type = Function.Arguments.at(Index).Type;
       Current.Registers = std::move(Args[Index].Registers);
       if (Args[Index].SizeOnStack != 0) {
         // TODO: maybe some kind of alignment considerations are needed here.
@@ -822,6 +823,7 @@ Layout::Layout(const model::CABIFunctionType &Function) :
     auto RV = ConversionHelper<A>::distributeReturnValue(Function.ReturnType);
     revng_assert(RV.SizeOnStack == 0);
     Result.ReturnValue.Registers = std::move(RV.Registers);
+    Result.ReturnValue.Type = Function.ReturnType;
 
     using AT = abi::Trait<A>;
     Result.CalleeSavedRegisters.resize(AT::CalleeSavedRegisters.size());
@@ -835,12 +837,16 @@ Layout::Layout(const model::CABIFunctionType &Function) :
 
 Layout::Layout(const model::RawFunctionType &Function) {
   // Lay register arguments out.
-  for (const model::NamedTypedRegister &Register : Function.Arguments)
+  for (const model::NamedTypedRegister &Register : Function.Arguments) {
     Arguments.emplace_back().Registers = { Register.Location };
+    Arguments.back().Type = Register.Type;
+  }
 
   // Lay the return value out.
-  for (const model::TypedRegister &Register : Function.ReturnValues)
+  for (const model::TypedRegister &Register : Function.ReturnValues) {
     ReturnValue.Registers.emplace_back(Register.Location);
+    ReturnValue.Type = Register.Type;
+  }
 
   // Lay stack arguments out.
   if (Function.StackArgumentsType.isValid()) {
@@ -850,6 +856,8 @@ Layout::Layout(const model::RawFunctionType &Function) {
                  "`RawFunctionType::StackArgumentsType` must be a struct.");
     typename Layout::Argument::StackSpan StackSpan{ 0, StackStruct->Size };
     Arguments.emplace_back().Stack = std::move(StackSpan);
+    Arguments.back().Type = model::QualifiedType{ Function.StackArgumentsType,
+                                                  {} };
   }
 
   // Fill callee saved registers.
