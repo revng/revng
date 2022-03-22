@@ -305,23 +305,6 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
 
 endmacro()
 
-# Decompilation torture tests
-macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
-
-  if(EXISTS ${INPUT_FILE})
-    add_decompilation_pipeline_test(${CATEGORY} ${INPUT_FILE} ${CONFIGURATION}
-                                    ${OUTPUT} ${TARGET_NAME})
-  endif()
-
-endmacro()
-
-register_derived_artifact(
-  "abi-enforced-for-decompilation-torture" # FROM_ARTIFACTS: input artifacts
-  "revng-c-passes-torture" # NAME: name of the new aritfact
-  "" # SUFFIX: extension of output file
-  "FILE" # TYPE: "FILE" or "DIRECTORY"
-)
-
 # Decompilation tests
 macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
 
