@@ -97,6 +97,8 @@ public:
 
   const pipeline::Context &context() const { return *PipelineContext; }
 
+  pipeline::Context &context() { return *PipelineContext; }
+
   /// recalculates all possible targets and keeps overship of the computed info
   void recalculateAllPossibleTargets();
   /// recalculates the current aviable targetsd and keeps overship of the
