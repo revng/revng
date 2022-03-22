@@ -65,21 +65,3 @@ endmacro()
 register_derived_artifact("lifted" "abi-enforced-for-decompilation" ".bc"
                           "FILE")
 
-macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
-  if("${CATEGORY}" STREQUAL "tests_runtime"
-     AND NOT "${CONFIGURATION}" STREQUAL "static_native"
-     AND "${TARGET_NAME}" MATCHES "calc")
-    set(COMMAND_TO_RUN
-        "./bin/revng"
-        llvm
-        pipeline
-        "${INPUT_FILE}"
-        "${OUTPUT}"
-        Lifted
-        EnforceABI
-        "root/*:CSVsPromoted")
-    set(DEPEND_ON revng-all-binaries)
-  endif()
-endmacro()
-register_derived_artifact("lifted" "abi-enforced-for-decompilation-torture"
-                          ".bc" "FILE")
