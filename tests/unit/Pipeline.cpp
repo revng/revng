@@ -27,6 +27,7 @@
 #include "revng/Pipeline/ContainerEnumerator.h"
 #include "revng/Pipeline/ContainerFactorySet.h"
 #include "revng/Pipeline/Context.h"
+#include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/Errors.h"
 #include "revng/Pipeline/GenericLLVMPipe.h"
 #include "revng/Pipeline/Kind.h"
@@ -113,11 +114,11 @@ public:
     return Contained;
   }
 
+  const static Target AllTargets;
+
   TargetsList enumerate() const final {
     TargetsList ToReturn;
 
-    const Target AllTargets({ PathComponent("Root"), PathComponent::all() },
-                            FunctionKind);
     if (contains(AllTargets)) {
       ToReturn.emplace_back(AllTargets);
       return ToReturn;
@@ -130,6 +131,12 @@ public:
   }
 
   bool remove(const TargetsList &Targets) override {
+
+    if (Targets.contains(AllTargets)) {
+      Map.clear();
+      return true;
+    }
+
     bool RemovedAll = true;
     for (const auto &Target : Targets)
       RemovedAll = remove(Target) && RemovedAll;
@@ -187,6 +194,10 @@ private:
       Map.insert(std::move(Pair));
   }
 };
+
+const Target MapContainer::AllTargets = Target({ PathComponent("root"),
+                                                 PathComponent::all() },
+                                               FunctionKind);
 
 char MapContainer::ID;
 
@@ -548,6 +559,25 @@ public:
       PathComponents.emplace_back("f2");
       Target.get({ move(PathComponents), FunctionKind }) = Element.second;
     }
+  }
+};
+
+class CopyPipe {
+
+public:
+  static constexpr auto Name = "CopyPipe";
+  std::vector<ContractGroup> getContract() const {
+    return { ContractGroup(FunctionKind,
+                           KE::Exact,
+                           0,
+                           FunctionKind,
+                           1,
+                           InputPreservation::Preserve) };
+  }
+
+  void run(Context &, const MapContainer &Source, MapContainer &Target) {
+    for (const auto &Element : Source.getMap())
+      Target.get(Element.first) = Element.second;
   }
 };
 
