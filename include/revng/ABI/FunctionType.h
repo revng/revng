@@ -28,11 +28,12 @@ model::TypePath convertToRaw(const model::CABIFunctionType &Function,
 /// Indicates the layout of arguments and return values of a function.
 struct Layout {
 public:
-  struct ReturnValueRegisters {
+  struct ReturnValue {
+    model::QualifiedType Type;
     llvm::SmallVector<model::Register::Values, 2> Registers;
   };
 
-  struct Argument : public ReturnValueRegisters {
+  struct Argument : public ReturnValue {
   public:
     struct StackSpan {
       uint64_t Offset;
@@ -45,7 +46,7 @@ public:
 
 public:
   llvm::SmallVector<Argument, 4> Arguments;
-  ReturnValueRegisters ReturnValue;
+  ReturnValue ReturnValue;
   llvm::SmallVector<model::Register::Values, 24> CalleeSavedRegisters;
   uint64_t FinalStackOffset;
 
