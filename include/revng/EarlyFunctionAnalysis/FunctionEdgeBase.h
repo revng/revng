@@ -27,9 +27,12 @@ fields:
   - name: Type
     doc: Type of the CFG edge
     type: FunctionEdgeType::Values
+  - name: Kind
+    type: efa::FunctionEdgeKind::Values
 key:
   - Destination
   - Type
+  - Kind
 abstract: true
 TUPLE-TREE-YAML */
 

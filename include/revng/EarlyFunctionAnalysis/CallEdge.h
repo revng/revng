@@ -6,6 +6,7 @@
 
 #include "revng/ADT/MutableSet.h"
 #include "revng/EarlyFunctionAnalysis/FunctionEdgeBase.h"
+#include "revng/EarlyFunctionAnalysis/Generated/Early/FunctionEdgeKind.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/FunctionAttribute.h"
 #include "revng/Model/VerifyHelper.h"
@@ -45,7 +46,14 @@ public:
   CallEdge() : efa::generated::CallEdge() { Type = AssociatedType; }
 
   CallEdge(MetaAddress Destination, FunctionEdgeType::Values Type) :
-    efa::generated::CallEdge(Destination, Type) {}
+    efa::generated::CallEdge(Destination,
+                             Type,
+                             efa::FunctionEdgeKind::FunctionEdge) {}
+
+  CallEdge(MetaAddress Destination,
+           FunctionEdgeType::Values Type,
+           efa::FunctionEdgeKind::Values Kind) :
+    efa::generated::CallEdge(Destination, Type, Kind) {}
 
 public:
   static bool classof(const FunctionEdgeBase *A) { return classof(A->key()); }
