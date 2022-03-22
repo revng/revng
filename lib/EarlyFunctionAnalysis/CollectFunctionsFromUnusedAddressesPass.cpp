@@ -71,6 +71,11 @@ void CFFUAImpl::collectFunctionsFromUnusedAddresses() {
     if (Binary.Functions.find(Entry) != Binary.Functions.end())
       continue;
 
+    // Do not consider dynamic functions (e.g., PLT entries), they are imported
+    // directly from EarlyFunctionAnalysis.
+    if (not getDynamicSymbol(&BB).empty())
+      continue;
+
     uint32_t Reasons = GCBI.getJTReasons(&BB);
     bool IsUnusedGlobalData = hasReason(Reasons, JTReason::UnusedGlobalData);
     bool IsMemoryStore = hasReason(Reasons, JTReason::MemoryStore);

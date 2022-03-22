@@ -124,4 +124,13 @@ public:
   std::string toString() const debug_function;
 };
 
+inline model::TypePath
+getPrototype(const model::Binary &Binary,
+             const model::DynamicFunction &DynamicFunction) {
+  if (DynamicFunction.Prototype.isValid())
+    return DynamicFunction.Prototype;
+  else
+    return Binary.DefaultPrototype;
+}
+
 #include "revng/Model/Generated/Late/Binary.h"

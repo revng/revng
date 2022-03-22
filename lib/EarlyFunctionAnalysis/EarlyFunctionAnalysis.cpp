@@ -401,6 +401,8 @@ private:
 private:
   OutlinedFunction outlineFunction(llvm::BasicBlock *BB);
   void integrateFunctionCallee(llvm::BasicBlock *BB, MetaAddress);
+  UpcastablePointer<efa::FunctionEdgeBase>
+  handleFunctionCallForCFG(llvm::CallInst *);
   SortedVector<efa::BasicBlock> collectDirectCFG(OutlinedFunction *F);
   void initMarkersForABI(OutlinedFunction *F,
                          llvm::SmallVectorImpl<Instruction *> &,
@@ -596,6 +598,33 @@ void FunctionEntrypointAnalyzer::importModel() {
     revng_assert(Summary.Type == FunctionTypeValue::Fake);
     Summary.FakeFunction = createFakeFunction(GCBI->getBlockAt(Function.Entry));
   }
+
+  // Import dynamic functions from model. Dynamic functions will take the
+  // precedence over local functions.
+  for (BasicBlock &BB : *M.getFunction("root")) {
+    if (getType(&BB) != BlockType::JumpTargetBlock)
+      continue;
+
+    llvm::StringRef SymbolName = getDynamicSymbol(&BB);
+    if (SymbolName.empty())
+      continue;
+
+    auto [Entry, _] = getPC(&*BB.begin());
+
+    // TODO: should we assert that all dynamic function have been imported?
+    auto It = Binary->ImportedDynamicFunctions.find(SymbolName.str());
+    if (It == Binary->ImportedDynamicFunctions.end())
+      continue;
+
+    model::FunctionType::Values FunctionType;
+    if (It->Attributes.count(model::FunctionAttribute::NoReturn) != 0)
+      FunctionType = model::FunctionType::NoReturn;
+    else
+      FunctionType = model::FunctionType::Regular;
+
+    Oracle.insert(Entry,
+                  importPrototype(FunctionType, getPrototype(*Binary, *It)));
+  }
 }
 
 UpcastablePointer<model::Type>
@@ -745,7 +774,7 @@ void FEA::finalizeModel(TupleTree<model::Binary> &OutputBinary) {
     Functions.insert(&Function);
   }
 
-  // Finish up the CFG
+  // Build prototype for indirect function calls
   for (auto &Function : Functions) {
     if (Function->Type == FunctionTypeValue::Fake)
       continue;
@@ -753,33 +782,12 @@ void FEA::finalizeModel(TupleTree<model::Binary> &OutputBinary) {
     auto &Summary = Oracle.at(Function->Entry);
     for (auto &Block : Summary.CFG) {
       for (auto &Edge : Block.Successors) {
-        llvm::StringRef SymbolName;
-
-        if (Edge->Destination.isValid()) {
-          auto *Successor = GCBI->getBlockAt(Edge->Destination);
-          auto *NewPCCall = getCallTo(&*Successor->begin(), "newpc");
-          revng_assert(NewPCCall != nullptr);
-
-          // Extract symbol name if any
-          auto *SymbolNameValue = NewPCCall->getArgOperand(4);
-          if (not isa<llvm::ConstantPointerNull>(SymbolNameValue)) {
-            llvm::Value *SymbolNameString = NewPCCall->getArgOperand(4);
-            SymbolName = extractFromConstantStringPtr(SymbolNameString);
-            revng_assert(SymbolName.size() != 0);
-          }
-        }
-
         if (efa::FunctionEdgeType::isCall(Edge->Type)) {
           auto *CE = llvm::cast<efa::CallEdge>(Edge.get());
-          const auto IDF = Binary->ImportedDynamicFunctions;
-          bool IsDynamicCall = (not SymbolName.empty()
-                                and IDF.count(SymbolName.str()) != 0);
 
-          if (IsDynamicCall) {
+          if (not CE->DynamicFunction.empty()) {
             // It's a dynamic function call
             revng_assert(CE->Type == efa::FunctionEdgeType::FunctionCall);
-            CE->Destination = MetaAddress::invalid();
-            CE->DynamicFunction = SymbolName.str();
 
             // The prototype must not exist among the ones of the call sites of
             // the function, it is implicitly the one of the callee.
@@ -864,6 +872,58 @@ static MetaAddress getFinalAddressOfBasicBlock(llvm::BasicBlock *BB) {
   return End + Size;
 }
 
+UpcastablePointer<efa::FunctionEdgeBase>
+FunctionEntrypointAnalyzer::handleFunctionCallForCFG(llvm::CallInst *Call) {
+  using namespace llvm;
+
+  auto *CalleePC = Call->getArgOperand(1);
+  MetaAddress AddressPC = MetaAddress::invalid();
+  auto It = Binary->Functions.end();
+  StringRef SymbolName;
+
+  // Direct or indirect call?
+  if (isa<ConstantStruct>(CalleePC)) {
+    AddressPC = MetaAddress::fromConstant(CalleePC);
+    It = Binary->Functions.find(AddressPC);
+    BasicBlock *OriginalEntry = GCBI->getBlockAt(AddressPC);
+    SymbolName = getDynamicSymbol(OriginalEntry);
+  }
+
+  MetaAddress Destination;
+  efa::FunctionEdgeType::Values Type;
+  const auto IDF = Binary->ImportedDynamicFunctions;
+  bool IsDynamicCall = (not SymbolName.empty()
+                        and IDF.count(SymbolName.str()) != 0);
+  if (It != Binary->Functions.end()) {
+    // The function exist within the model
+    Destination = AddressPC;
+    Type = efa::FunctionEdgeType::FunctionCall;
+  } else if (IsDynamicCall) {
+    // The function exist within the imported dynamic functions
+    Destination = MetaAddress::invalid();
+    Type = efa::FunctionEdgeType::FunctionCall;
+  } else {
+    // The function is an indirect call, we will forge a new prototype later in
+    // `finalizeModel`.
+    Destination = MetaAddress::invalid();
+    Type = efa::FunctionEdgeType::IndirectCall;
+  }
+
+  auto Edge = makeEdge(Destination, Type);
+  auto DestTy = Oracle.getFunctionType(Destination);
+  if (DestTy == FunctionTypeValue::NoReturn) {
+    auto *CE = cast<efa::CallEdge>(Edge.get());
+    CE->Attributes.insert(model::FunctionAttribute::NoReturn);
+  }
+
+  if (IsDynamicCall) {
+    auto *CE = cast<efa::CallEdge>(Edge.get());
+    CE->DynamicFunction = SymbolName.str();
+  }
+
+  return Edge;
+}
+
 SortedVector<efa::BasicBlock>
 FunctionEntrypointAnalyzer::collectDirectCFG(OutlinedFunction *F) {
   using namespace llvm;
@@ -911,40 +971,15 @@ FunctionEntrypointAnalyzer::collectDirectCFG(OutlinedFunction *F) {
               // Did we meet the end of the cloned function? Do nothing
               revng_assert(Succ->getInstList().size() == 1);
             } else if (auto *Call = getCallTo(I, PreHookMarker.F)) {
-              MetaAddress Destination;
-              efa::FunctionEdgeType::Values Type;
-              auto *CalleePC = Call->getArgOperand(1);
-
-              // Direct or indirect call?
-              if (isa<ConstantStruct>(CalleePC)) {
-                auto AddressPC = MetaAddress::fromConstant(CalleePC);
-                // Does the function exist within the model?
-                auto It = Binary->Functions.find(AddressPC);
-                if (It != Binary->Functions.end()) {
-                  Destination = AddressPC;
-                  Type = efa::FunctionEdgeType::FunctionCall;
-                } else {
-                  Destination = MetaAddress::invalid();
-                  Type = efa::FunctionEdgeType::IndirectCall;
-                }
-              } else {
-                Destination = MetaAddress::invalid();
-                Type = efa::FunctionEdgeType::IndirectCall;
-              }
-
-              auto Edge = makeEdge(Destination, Type);
-              auto DestTy = Oracle.getFunctionType(Destination);
-              if (DestTy == FunctionTypeValue::NoReturn) {
-                auto *CE = cast<efa::CallEdge>(Edge.get());
-                CE->Attributes.insert(model::FunctionAttribute::NoReturn);
-              }
-
+              // Handle edge for direct function calls, dynamic function calls
+              // as well as indirect ones.
+              auto Edge = handleFunctionCallForCFG(Call);
               Block.Successors.insert(Edge);
             } else if (auto *Call = getCallTo(I, "function_call")) {
-              // At this stage, `function_call` marker has only been left to
-              // signal the presence of fake functions. We can safely erase it
-              // and add an edge of type FakeFunctionCall (still used in
-              // IsolateFunction).
+              // Handle edge for fake function calls. The marker `function_call`
+              // has been left to signal the presence of an edge of type
+              // FakeFunctionCall (still used in IsolateFunction). It can be
+              // safely erased now.
               Call->eraseFromParent();
 
               auto Destination = getBasicBlockPC(Succ);
@@ -952,6 +987,7 @@ FunctionEntrypointAnalyzer::collectDirectCFG(OutlinedFunction *F) {
                                    efa::FunctionEdgeType::FakeFunctionCall);
               Block.Successors.insert(Edge);
             } else {
+              // Not one of the cases above? Enqueue the successor basic block.
               Queue.insert(Succ);
             }
           }
@@ -2036,7 +2072,8 @@ bool EarlyFunctionAnalysis<ShouldAnalyzeABI>::runOnModule(Module &M) {
   // Instantiate a FunctionEntrypointAnalyzer object
   FEA Analyzer(M, &GCBI, ABICSVs, &EntrypointsQueue, Properties, Binary);
 
-  // Prepopulate the cache with functions from model and recreate fake functions
+  // Prepopulate the cache with existing functions and dynamic functions from
+  // model, and recreate fake functions
   Analyzer.importModel();
 
   // EarlyFunctionAnalysis can be invoked with two option: via `--detect-abi` in
