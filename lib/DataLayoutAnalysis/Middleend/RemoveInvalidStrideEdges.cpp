@@ -52,8 +52,6 @@ static bool hasValidStrides(const LayoutTypeSystemNode::Link &Edge) {
 bool RemoveInvalidStrideEdges::runOnTypeSystem(LayoutTypeSystem &TS) {
   bool Changed = false;
 
-  if (Log.isEnabled())
-    TS.dumpDotOnFile("before-remove-invalid-stride-edges.dot");
   if (VerifyLog.isEnabled())
     revng_assert(TS.verifyDAG());
 
@@ -127,8 +125,6 @@ bool RemoveInvalidStrideEdges::runOnTypeSystem(LayoutTypeSystem &TS) {
     }
   }
 
-  if (Log.isEnabled())
-    TS.dumpDotOnFile("after-remove-invalid-stride-edges.dot");
   if (VerifyLog.isEnabled())
     revng_assert(TS.verifyDAG());
 

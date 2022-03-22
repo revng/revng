@@ -79,9 +79,6 @@ bool CollapseSingleChild::runOnTypeSystem(LayoutTypeSystem &TS) {
   if (VerifyLog.isEnabled())
     revng_assert(TS.verifyDAG());
 
-  if (Log.isEnabled())
-    TS.dumpDotOnFile("before-collapse-single-child.dot");
-
   for (LTSN *Root : llvm::nodes(&TS)) {
     revng_assert(Root != nullptr);
     if (not isRoot(Root))
@@ -91,8 +88,6 @@ bool CollapseSingleChild::runOnTypeSystem(LayoutTypeSystem &TS) {
       Changed |= collapseSingle(TS, Node);
   }
 
-  if (Log.isEnabled())
-    TS.dumpDotOnFile("after-collapse-single-child.dot");
   if (VerifyLog.isEnabled())
     revng_assert(TS.verifyDAG());
 

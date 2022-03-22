@@ -26,9 +26,7 @@ using NonPointerFilterT = EdgeFilteredGraph<GraphNodeT, isNotPointerEdge>;
 
 bool PruneLayoutNodesWithoutLayout::runOnTypeSystem(LayoutTypeSystem &TS) {
   bool Changed = false;
-  using LTSN = LayoutTypeSystemNode;
-  if (Log.isEnabled())
-    TS.dumpDotOnFile("before-prune.dot");
+
   if (VerifyLog.isEnabled())
     revng_assert(TS.verifyDAG());
 
@@ -75,8 +73,7 @@ bool PruneLayoutNodesWithoutLayout::runOnTypeSystem(LayoutTypeSystem &TS) {
 
   if (VerifyLog.isEnabled())
     revng_assert(TS.verifyDAG() and TS.verifyLeafs());
-  if (Log.isEnabled())
-    TS.dumpDotOnFile("after-prune.dot");
+
   return Changed;
 }
 

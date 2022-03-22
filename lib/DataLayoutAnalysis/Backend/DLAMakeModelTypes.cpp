@@ -411,6 +411,7 @@ static void
 logEntry(const LayoutTypeSystem &TS, TupleTree<model::Binary> &Model) {
   if (Log.isEnabled())
     TS.dumpDotOnFile("before-make-model.dot");
+
   if (VerifyLog.isEnabled()) {
     revng_assert(Model->verify(true));
     revng_assert(TS.verifyPointerDAG() and TS.verifyDAG()
@@ -425,8 +426,10 @@ logExit(const LayoutTypeSystem &TS, TupleTree<model::Binary> &Model) {
                  and TS.verifyUnions());
     revng_assert(Model->verify(true));
   }
+
   if (Log.isEnabled())
     TS.dumpDotOnFile("after-make-model.dot");
+
   if (ModelLog.isEnabled())
     writeToFile(Model->toString(), "model-after-dla.yaml");
 }

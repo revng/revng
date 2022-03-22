@@ -82,9 +82,6 @@ static bool removeBackedgesFromSCC(LayoutTypeSystem &TS) {
     }
   }
 
-  if (Log.isEnabled())
-    TS.dumpDotOnFile("before-remove-backedges-from-loops.dot");
-
   revng_log(Log, "Removing Backedges From Loops");
 
   // Color all the nodes, except those that have no incoming nor outgoing

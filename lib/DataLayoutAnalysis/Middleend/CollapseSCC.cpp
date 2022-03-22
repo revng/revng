@@ -92,17 +92,14 @@ static bool collapseInstanceAtOffset0SCC(LayoutTypeSystem &TS) {
 
 bool CollapseEqualitySCC::runOnTypeSystem(LayoutTypeSystem &TS) {
 
-  if (VerifyLog.isEnabled()) {
-    TS.dumpDotOnFile("before-collapse-equality-scc.dot");
+  if (VerifyLog.isEnabled())
     revng_assert(TS.verifyConsistency());
-  }
 
   revng_log(LogVerbose, "#### Collapsing Equality SCC: ... ");
   bool Changed = collapseEqualitySCC(TS);
   revng_log(LogVerbose, "#### Collapsing Equality SCC: Done!");
 
   if (VerifyLog.isEnabled()) {
-    TS.dumpDotOnFile("after-collapse-equality-scc.dot");
     revng_assert(TS.verifyConsistency());
     revng_assert(TS.verifyNoEquality());
   }
@@ -112,17 +109,14 @@ bool CollapseEqualitySCC::runOnTypeSystem(LayoutTypeSystem &TS) {
 
 bool CollapseInstanceAtOffset0SCC::runOnTypeSystem(LayoutTypeSystem &TS) {
 
-  if (VerifyLog.isEnabled()) {
-    TS.dumpDotOnFile("before-collapse-instance-at-offset-0-scc.dot");
+  if (VerifyLog.isEnabled())
     revng_assert(TS.verifyConsistency());
-  }
 
   revng_log(LogVerbose, "#### Collapsing Instance-at-offset-0 SCC: ... ");
   bool Changed = collapseInstanceAtOffset0SCC(TS);
   revng_log(LogVerbose, "#### Collapsing Instance-at-offset-0 SCC: Done!");
 
   if (VerifyLog.isEnabled()) {
-    TS.dumpDotOnFile("after-collapse-instance-at-offset-0-scc.dot");
     revng_assert(TS.verifyConsistency());
     revng_assert(TS.verifyInstanceAtOffset0DAG());
   }
@@ -130,7 +124,6 @@ bool CollapseInstanceAtOffset0SCC::runOnTypeSystem(LayoutTypeSystem &TS) {
   Changed |= removeInstanceBackedgesFromInstanceAtOffset0Loops(TS);
 
   if (VerifyLog.isEnabled()) {
-    TS.dumpDotOnFile("after-collapse-instance-0-and-instance-backedges.dot");
     revng_assert(TS.verifyConsistency());
     revng_assert(TS.verifyInstanceAtOffset0DAG());
     revng_assert(TS.verifyInstanceDAG());

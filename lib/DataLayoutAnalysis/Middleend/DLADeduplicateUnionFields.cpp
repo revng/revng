@@ -367,9 +367,6 @@ bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
   if (VerifyLog.isEnabled())
     revng_assert(TS.verifyDAG());
 
-  if (Log.isEnabled())
-    TS.dumpDotOnFile("before-deduplicate-union-fields.dot");
-
   llvm::SmallPtrSet<LTSN *, 16> VisitedUnions;
 
   for (LTSN *Root : llvm::nodes(&TS)) {
@@ -538,9 +535,6 @@ bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
         TypeSystemChanged |= CollapseSingleChild::collapseSingle(TS, UnionNode);
     }
   }
-
-  if (Log.isEnabled())
-    TS.dumpDotOnFile("after-deduplicate-union-fields.dot");
 
   if (VerifyLog.isEnabled())
     revng_assert(TS.verifyDAG());

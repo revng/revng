@@ -37,10 +37,6 @@ bool ComputeUpperMemberAccesses::runOnTypeSystem(LayoutTypeSystem &TS) {
   bool Changed = false;
 
   using LTSN = LayoutTypeSystemNode;
-
-  if (Log.isEnabled())
-    TS.dumpDotOnFile("before-compute-upper-member-access.dot", true);
-
   std::set<const LTSN *> Visited;
   for (LTSN *Root : llvm::nodes(&TS)) {
     revng_log(Log, "Root ID: " << Root->ID);
@@ -79,9 +75,6 @@ bool ComputeUpperMemberAccesses::runOnTypeSystem(LayoutTypeSystem &TS) {
       revng_assert(FinalSize);
     }
   }
-
-  if (Log.isEnabled())
-    TS.dumpDotOnFile("after-compute-upper-member-access.dot");
 
   return Changed;
 }

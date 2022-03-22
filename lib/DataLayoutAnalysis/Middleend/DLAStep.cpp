@@ -21,6 +21,7 @@ const char RemoveInvalidStrideEdges::ID = 0;
 const char SimplifyInstanceAtOffset0::ID = 0;
 
 static Logger<> DLAStepManagerLog("dla-step-manager");
+static Logger<> DLADumpDot("dla-step-dump-dot");
 
 [[nodiscard]] bool StepManager::addStep(std::unique_ptr<Step> S) {
   const void *StepID = S->getStepID();
@@ -71,8 +72,16 @@ static Logger<> DLAStepManagerLog("dla-step-manager");
 void StepManager::run(LayoutTypeSystem &TS) {
   if (not hasValidSchedule())
     revng_abort("Cannot run a on LayoutTypeSystem: invalid schedule");
-  for (auto &S : Schedule)
+  int x = 0;
+  if (DLADumpDot.isEnabled())
+    TS.dumpDotOnFile("type-system-0.dot", true);
+  for (auto &S : Schedule) {
     S->runOnTypeSystem(TS);
+    if (DLADumpDot.isEnabled()) {
+      std::string DotName = "type-system-" + std::to_string(++x) + ".dot";
+      TS.dumpDotOnFile(DotName.c_str(), true);
+    }
+  }
 }
 
 } // end namespace dla
