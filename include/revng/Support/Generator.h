@@ -74,8 +74,6 @@ private:
   std::exception_ptr Exception;
 };
 
-struct GeneratorSentinel {};
-
 template<typename T>
 class GeneratorIterator {
   using promise = GeneratorPromise<T>;
@@ -96,24 +94,14 @@ public:
   explicit GeneratorIterator(coroutine_handle Coroutine) noexcept :
     Coroutine(Coroutine) {}
 
-  friend bool
-  operator==(const GeneratorIterator &It, GeneratorSentinel) noexcept {
-    return !It.Coroutine || It.Coroutine.done();
-  }
-
-  friend bool
-  operator!=(const GeneratorIterator &It, GeneratorSentinel S) noexcept {
-    return !(It == S);
-  }
-
-  friend bool
-  operator==(GeneratorSentinel S, const GeneratorIterator &It) noexcept {
-    return (It == S);
-  }
-
-  friend bool
-  operator!=(GeneratorSentinel S, const GeneratorIterator &It) noexcept {
-    return It != S;
+  friend bool operator==(const GeneratorIterator &It,
+                         const GeneratorIterator &Other) noexcept {
+    if (not It.Coroutine and Other.Coroutine)
+      return Other.Coroutine.done();
+    if (not Other.Coroutine and It.Coroutine)
+      return It.Coroutine.done();
+    else
+      return It.Coroutine == Other.Coroutine;
   }
 
   GeneratorIterator &operator++() {
@@ -175,9 +163,7 @@ public:
     return iterator{ Coroutine };
   }
 
-  detail::GeneratorSentinel end() noexcept {
-    return detail::GeneratorSentinel{};
-  }
+  iterator end() noexcept { return {}; }
 
   void swap(generator &Other) noexcept {
     std::swap(Coroutine, Other.Coroutine);
