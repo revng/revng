@@ -32,12 +32,20 @@ public:
 
   ~LLVMContextWrapper() override = default;
 
-  llvm::Error storeToDisk(llvm::StringRef path) const final {
+  llvm::Error storeToDisk(llvm::StringRef Path) const final {
     return llvm::Error::success();
   }
-  llvm::Error loadFromDisk(llvm::StringRef path) final {
+  llvm::Error loadFromDisk(llvm::StringRef Path) final {
     return llvm::Error::success();
   }
+
+  llvm::Error serialize(llvm::raw_ostream &OS) const final {
+    return llvm::Error::success();
+  }
+  llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) final {
+    return llvm::Error::success();
+  }
+  void clear() final {}
 
 private:
   llvm::LLVMContext Ctx;

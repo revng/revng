@@ -11,6 +11,9 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/Error.h"
+#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "revng/Pipeline/KindsRegistry.h"
 #include "revng/Pipeline/SavableObject.h"
@@ -93,6 +96,32 @@ public:
     }
 
     return Casted;
+  }
+
+  llvm::Error
+  serializeGlobal(llvm::StringRef GlobalName, llvm::raw_ostream &OS) const {
+    auto Iter = Globals.find(GlobalName);
+    if (Iter == Globals.end()) {
+      auto *Message = "pipeline loader context did not contained object %s";
+      return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                     Message,
+                                     GlobalName.str().c_str());
+    }
+
+    return Iter->second->serialize(OS);
+  }
+
+  llvm::Error deserializeGlobal(llvm::StringRef GlobalName,
+                                const llvm::MemoryBuffer &Buffer) {
+    auto Iter = Globals.find(GlobalName);
+    if (Iter == Globals.end()) {
+      auto *Message = "pipeline loader context did not contained object %s";
+      return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                     Message,
+                                     GlobalName.str().c_str());
+    }
+
+    return Iter->second->deserialize(Buffer);
   }
 
 public:
