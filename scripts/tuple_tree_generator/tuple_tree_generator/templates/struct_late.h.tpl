@@ -18,7 +18,8 @@ The notice below applies to the generated files.
 
 /*# --- TupleLikeTraits --- -#*/
 template <> struct TupleLikeTraits</*=- struct.user_fullname =*/> {
-  static constexpr const char *Name = "/*=- struct.user_fullname =*/";
+  static constexpr const char *Name = "/*=- struct.name =*/";
+  static constexpr const char *FullName = "/*=- struct.user_fullname =*/";
   using tuple = std::tuple<
     /**- for field in struct.all_fields -**/
     decltype(/*=- struct.user_fullname =*/::/*=- field.name =*/)/** if not loop.last **/, /** endif -**/

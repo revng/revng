@@ -40,7 +40,8 @@ BOOST_AUTO_TEST_CASE(TestIntrospection) {
   using TLT = TupleLikeTraits<Function>;
   static_assert(std::is_same_v<std::tuple_element_t<1, Function>,
                                decltype(TheFunction.CustomName)>);
-  revng_check(StringRef(TLT::Name) == "model::Function");
+  revng_check(StringRef(TLT::Name) == "Function");
+  revng_check(StringRef(TLT::FullName) == "model::Function");
   revng_check(StringRef(TLT::FieldsName[1]) == "CustomName");
 }
 

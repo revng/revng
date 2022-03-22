@@ -117,8 +117,6 @@ struct /*= struct.fullname =*/
   /** endif **/
 
   bool localCompare(const /*= struct.user_fullname =*/ &Other) const;
-
-  static constexpr const char *Tag = "!/*= struct.name =*/";
 };
 
 /** if struct._key **/
