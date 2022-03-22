@@ -347,7 +347,7 @@ private:
   llvm::LLVMContext &Context;
   GeneratedCodeBasicInfo *GCBI;
   FunctionOracle &Oracle;
-  ArrayRef<GlobalVariable *> ABIRegisters;
+  ArrayRef<GlobalVariable *> ABICSVs;
   /// PreHookMarker and PostHookMarker mark the presence of an original
   /// function call, and surround a basic block containing the registers
   /// clobbered by the function called. They take the MetaAddress of the
@@ -422,13 +422,13 @@ FEAnalyzer<FO>::FunctionEntrypointAnalyzer(const TupleTree<model::Binary> &Model
                                            llvm::Module &M,
                                            GeneratedCodeBasicInfo *GCBI,
                                            FO &Oracle,
-                                           ArrayRef<GlobalVariable *> ABIRegs) :
+                                           ArrayRef<GlobalVariable *> ABICSVs) :
   Model(Model),
   M(M),
   Context(M.getContext()),
   GCBI(GCBI),
   Oracle(Oracle),
-  ABIRegisters(ABIRegs),
+  ABICSVs(ABICSVs),
   // Initialize hook markers for subsequent ABI analyses on function calls
   PreHookMarker(TOF(markerType(M), "precall_hook", &M)),
   PostHookMarker(TOF(markerType(M), "postcall_hook", &M)),
@@ -456,7 +456,7 @@ FEAnalyzer<FO>::FunctionEntrypointAnalyzer(const TupleTree<model::Binary> &Model
     revng_assert(!EC);
 
     *OutputIBI << "name,ra,fso,address";
-    for (const auto &Reg : ABIRegisters)
+    for (const auto &Reg : ABICSVs)
       *OutputIBI << "," << Reg->getName();
     *OutputIBI << "\n";
   }
@@ -543,7 +543,7 @@ buildPrototype(GeneratedCodeBasicInfo &GCBI,
 static void
 finalizeModel(GeneratedCodeBasicInfo &GCBI,
               const std::vector<CFEP> &Functions,
-              const std::vector<llvm::GlobalVariable *> &ABIRegisters,
+              const std::vector<llvm::GlobalVariable *> &ABICSVs,
               const FunctionAnalysisResults &Properties,
               model::Binary &Binary) {
   using namespace model;
@@ -602,8 +602,8 @@ finalizeModel(GeneratedCodeBasicInfo &GCBI,
       }
 
       // Preserved registers
-      std::set<llvm::GlobalVariable *> PreservedRegisters(ABIRegisters.begin(),
-                                                          ABIRegisters.end());
+      std::set<llvm::GlobalVariable *> PreservedRegisters(ABICSVs.begin(),
+                                                          ABICSVs.end());
       std::erase_if(PreservedRegisters, [&](const auto &E) {
         auto End = Summary.ClobberedRegisters.end();
         return Summary.ClobberedRegisters.find(E) != End;
@@ -936,7 +936,7 @@ void FEAnalyzer<FO>::createIBIMarker(OutlinedFunction *OutlinedFunction,
   SmallVector<Value *, 16> CSVI;
   Type *IsRetTy = Type::getInt128Ty(Context);
   SmallVector<Type *, 16> ArgTypes = { IsRetTy, IntTy, MetaAddressTy };
-  for (auto *CSR : ABIRegisters) {
+  for (auto *CSR : ABICSVs) {
     auto *V = IRB.CreateLoad(CSR);
     CSVI.emplace_back(V);
     ArgTypes.emplace_back(IntTy);
@@ -967,7 +967,7 @@ void FEAnalyzer<FO>::createIBIMarker(OutlinedFunction *OutlinedFunction,
     auto *PCE = PCH->composeIntegerPC(IRB);
 
     SmallVector<Value *, 16> CSVE;
-    for (auto *CSR : ABIRegisters) {
+    for (auto *CSR : ABICSVs) {
       auto *V = IRB.CreateLoad(CSR);
       CSVE.emplace_back(V);
     }
@@ -1336,8 +1336,7 @@ FEAnalyzer<FO>::milkInfo(OutlinedFunction *OutlinedFunction,
   SmallVector<std::pair<CallBase *, int64_t>, 4> NotReturns;
   SmallVector<std::pair<CallBase *, FunctionEdgeTypeValue>, 4> IBIResult;
   std::set<GlobalVariable *> CalleeSavedRegs;
-  std::set<GlobalVariable *> ClobberedRegs(ABIRegisters.begin(),
-                                           ABIRegisters.end());
+  std::set<GlobalVariable *> ClobberedRegs(ABICSVs.begin(), ABICSVs.end());
 
   for (CallBase *CI : callers(OutlinedFunction->IndirectBranchInfoMarker)) {
     if (CI->getParent()->getParent() == OutlinedFunction->F) {
@@ -1376,7 +1375,7 @@ FEAnalyzer<FO>::milkInfo(OutlinedFunction *OutlinedFunction,
         for (unsigned Idx = 3; Idx < ArgumentsCount; ++Idx) {
           auto *Register = dyn_cast<ConstantInt>(CI->getArgOperand(Idx));
           if (Register && Register->getZExtValue() == 0)
-            CalleeSavedRegs.insert(ABIRegisters[Idx - 3]);
+            CalleeSavedRegs.insert(ABICSVs[Idx - 3]);
         }
       }
     } else {
@@ -1880,10 +1879,10 @@ bool EarlyFunctionAnalysis::runOnModule(Module &M) {
 
   // Collect all the ABI registers, leave out the stack pointer for the moment.
   // We will include it back later when refining ABI results.
-  std::vector<llvm::GlobalVariable *> ABIRegisters;
+  std::vector<llvm::GlobalVariable *> ABICSVs;
   for (GlobalVariable *CSV : GCBI.abiRegisters())
     if (CSV != nullptr && !(GCBI.isSPReg(CSV)))
-      ABIRegisters.emplace_back(CSV);
+      ABICSVs.emplace_back(CSV);
 
   // Default-constructed cache summary for indirect calls
   unsigned MinimalFSO;
@@ -1893,7 +1892,7 @@ bool EarlyFunctionAnalysis::runOnModule(Module &M) {
   }
 
   FunctionSummary DefaultSummary(model::FunctionType::Values::Regular,
-                                 { ABIRegisters.begin(), ABIRegisters.end() },
+                                 { ABICSVs.begin(), ABICSVs.end() },
                                  ABIAnalyses::ABIAnalysesResults(),
                                  {},
                                  MinimalFSO,
@@ -1902,7 +1901,7 @@ bool EarlyFunctionAnalysis::runOnModule(Module &M) {
 
   // Instantiate a FunctionEntrypointAnalyzer object
   using FEA = FunctionEntrypointAnalyzer<FunctionAnalysisResults>;
-  FEA Analyzer(Binary, M, &GCBI, Properties, ABIRegisters);
+  FEA Analyzer(Binary, M, &GCBI, Properties, ABICSVs);
 
   // Interprocedural analysis over the collected functions in post-order
   // traversal (leafs first).
@@ -1946,7 +1945,7 @@ bool EarlyFunctionAnalysis::runOnModule(Module &M) {
   interproceduralPropagation(Functions, Properties);
 
   // Finalize model
-  finalizeModel(GCBI, Functions, ABIRegisters, Properties, *Binary);
+  finalizeModel(GCBI, Functions, ABICSVs, Properties, *Binary);
 
   return false;
 }
