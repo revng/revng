@@ -11,6 +11,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Pipeline/AllRegistries.h"
@@ -394,4 +395,36 @@ bool rp_target_is_ready(rp_target *target, rp_container *container) {
   revng_assert(target);
   revng_assert(container);
   return container->second->enumerate().contains(*target);
+}
+
+/// TODO Remove the redundant copy by writing a custom string stream that writes
+/// direclty to a buffer to return.
+const char *
+rp_manager_create_global_copy(rp_manager *manager, const char *global_name) {
+  std::string Out;
+  llvm::raw_string_ostream Serialized(Out);
+  if (auto Error = manager->context().serializeGlobal(global_name, Serialized);
+      Error) {
+    llvm::consumeError(std::move(Error));
+    return nullptr;
+  }
+  Serialized.flush();
+  return copy_string(Out);
+}
+
+bool rp_manager_set_global(rp_manager *manager,
+                           const char *serialized,
+                           const char *global_name) {
+  auto MaybeBuffer = llvm::MemoryBuffer::getMemBuffer(serialized);
+  if (MaybeBuffer == nullptr)
+    return false;
+
+  if (auto Error = manager->context().deserializeGlobal(global_name,
+                                                        *MaybeBuffer);
+      Error) {
+    llvm::consumeError(std::move(Error));
+    return false;
+  }
+
+  return true;
 }
