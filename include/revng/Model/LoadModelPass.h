@@ -12,6 +12,8 @@
 #include "revng/Model/Binary.h"
 #include "revng/TupleTree/TupleTree.h"
 
+extern llvm::cl::opt<std::string> ModelPath;
+
 inline const char *ModelMetadataName = "revng.model";
 
 TupleTree<model::Binary> loadModel(const llvm::Module &M);

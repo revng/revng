@@ -47,6 +47,11 @@ bool SerializeModelWrapperPass::runOnModule(Module &M) {
   if (not LoadPass)
     return false;
 
+  if (not ModelPath.empty()) {
+    llvm::cantFail(LoadPass->get().getWriteableModel().toFile(ModelPath));
+    return false;
+  }
+
   writeModel(*LoadPass->get().getWriteableModel(), M);
   return false;
 }
