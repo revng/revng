@@ -64,4 +64,3 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
 endmacro()
 register_derived_artifact("lifted" "abi-enforced-for-decompilation" ".bc"
                           "FILE")
-
