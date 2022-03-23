@@ -118,5 +118,5 @@ static llvm::RegisterPass<ExamplePass> X2("example-pass", "ExamplePass");
 char StringContainer::ID;
 
 static RegisterPipe<CopyPipe<StringContainer>> E1(Root);
-static RegisterDefaultConstructibleContainer<StringContainer> C("StringContaine"
-                                                                "r");
+static const std::string Name = "StringContainer";
+static RegisterDefaultConstructibleContainer<StringContainer> C(Name);
