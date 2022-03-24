@@ -4,4 +4,4 @@
 
 revng_add_executable(revng-pipeline Main.cpp)
 
-target_link_libraries(revng-pipeline revngPipeline revngPipes)
+target_link_libraries(revng-pipeline revngPipeline revngPipes revngRecompile)
