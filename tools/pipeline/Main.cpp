@@ -69,14 +69,14 @@ static opt<bool> DumpPipeline("d",
                               desc("Dump built pipeline and dont run"),
                               cat(PipelineCategory));
 
-static opt<bool> Silence("silent",
-                         desc("Do not print explanation while running"),
+static opt<bool> Verbose("verbose",
+                         desc("Print explanation while running"),
                          cat(PipelineCategory),
                          init(false));
 
-static alias SilenceAlias1("s",
-                           desc("Alias for --silent"),
-                           aliasopt(Silence),
+static alias VerboseAlias1("v",
+                           desc("Alias for --verbose"),
+                           aliasopt(Verbose),
                            cat(PipelineCategory));
 
 static list<string> StoresOverrides("o",
@@ -126,7 +126,7 @@ static void runPipeline(Runner &Pipeline) {
   for (const auto &Target : Targets)
     AbortOnError(parseTarget(ToProduce, Target, Registry));
 
-  auto *Stream = Silence ? nullptr : &dbgs();
+  auto *Stream = Verbose ? &dbgs() : nullptr;
   AbortOnError(Pipeline.run(TargetStep, ToProduce, Stream));
 }
 
