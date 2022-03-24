@@ -23,6 +23,10 @@ The notice below applies to the generated files.
 struct /*= struct.fullname =*/
   /**- if struct.inherits **/ : public /*= struct.inherits.user_fullname =*/ /** endif -**/
 {
+  /**- if struct.inherits **/
+  static constexpr const /*= struct.inherits.name =*/Kind::Values AssociatedKind = /*= struct.inherits.name =*/Kind::/*= struct.name =*/;
+  /**- endif **/
+
   /*#- --- Member list --- #*/
   /**- for field in struct.fields **/
   /*= field.doc | docstring =*/
@@ -36,7 +40,11 @@ struct /*= struct.fullname =*/
     /**- if struct.inherits **//*= struct.inherits.name =*/()/** endif **/
     /**- for field in struct.fields **/
     /**- if not loop.first or struct.inherits **/, /** endif **//*= field.name =*/()
-    /**- endfor **/ {}
+    /**- endfor **/ {
+      /**- if struct.inherits -**/
+      Kind = AssociatedKind;
+      /**- endif -**/
+    }
 
   /*# --- Key constructor --- #*/
   /**- if struct.key_fields **/
@@ -56,7 +64,11 @@ struct /*= struct.fullname =*/
     /**- for field in struct.key_fields **/
     /*=- field.name =*/(/*= field.name =*/)/** if not loop.last **/, /** endif **/
     /**- endfor **/
-    /**- endif **/ {}
+    /**- endif **/ {
+      /**- if struct.inherits and not 'Kind' in struct.key_fields | map(attribute='name') -**/
+      Kind = AssociatedKind;
+      /**- endif -**/
+    }
   /** endif **/
 
   /*# --- Full constructor --- #*/

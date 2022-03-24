@@ -25,18 +25,12 @@ private:
 public:
   FunctionEdge() : efa::generated::FunctionEdge() { Type = AssociatedType; }
   FunctionEdge(MetaAddress Destination, FunctionEdgeType::Values Type) :
-    efa::generated::FunctionEdge(efa::FunctionEdgeBaseKind::FunctionEdge,
-                                 Destination,
-                                 Type) {}
-  FunctionEdge(efa::FunctionEdgeBaseKind::Values Kind,
-               MetaAddress Destination,
-               FunctionEdgeType::Values Type) :
-    efa::generated::FunctionEdge(Kind, Destination, Type) {}
+    efa::generated::FunctionEdge(Destination, Type) {}
 
 public:
   static bool classof(const FunctionEdgeBase *A) { return classof(A->key()); }
   static bool classof(const Key &K) {
-    return not FunctionEdgeType::isCall(std::get<2>(K));
+    return not FunctionEdgeType::isCall(std::get<1>(K));
   }
 
   bool verify() const debug_function;

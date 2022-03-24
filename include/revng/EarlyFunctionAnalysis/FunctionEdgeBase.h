@@ -30,7 +30,6 @@ fields:
     doc: Type of the CFG edge
     type: FunctionEdgeType::Values
 key:
-  - Kind
   - Destination
   - Type
 abstract: true

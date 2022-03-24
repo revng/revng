@@ -40,12 +40,10 @@ TUPLE-TREE-YAML */
 class model::RawFunctionType : public model::generated::RawFunctionType {
 public:
   static constexpr const char *AutomaticNamePrefix = "rawfunction_";
-  static constexpr const TypeKind::Values
-    AssociatedKind = TypeKind::RawFunctionType;
 
 public:
   using generated::RawFunctionType::RawFunctionType;
-  RawFunctionType() : generated::RawFunctionType() { Kind = AssociatedKind; };
+  RawFunctionType() : generated::RawFunctionType(){};
 
 public:
   Identifier name() const;

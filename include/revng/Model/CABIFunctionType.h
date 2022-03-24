@@ -37,12 +37,10 @@ TUPLE-TREE-YAML */
 class model::CABIFunctionType : public model::generated::CABIFunctionType {
 public:
   static constexpr const char *AutomaticNamePrefix = "cabifunction_";
-  static constexpr const TypeKind::Values
-    AssociatedKind = TypeKind::CABIFunctionType;
 
 public:
   using generated::CABIFunctionType::CABIFunctionType;
-  CABIFunctionType() : generated::CABIFunctionType() { Kind = AssociatedKind; }
+  CABIFunctionType() : generated::CABIFunctionType() {}
 
 public:
   llvm::SmallVector<model::QualifiedType, 4> edges() {

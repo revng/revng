@@ -45,19 +45,12 @@ public:
   CallEdge() : efa::generated::CallEdge() { Type = AssociatedType; }
 
   CallEdge(MetaAddress Destination, FunctionEdgeType::Values Type) :
-    efa::generated::CallEdge(efa::FunctionEdgeBaseKind::CallEdge,
-                             Destination,
-                             Type) {}
-
-  CallEdge(efa::FunctionEdgeBaseKind::Values Kind,
-           MetaAddress Destination,
-           FunctionEdgeType::Values Type) :
-    efa::generated::CallEdge(Kind, Destination, Type) {}
+    efa::generated::CallEdge(Destination, Type) {}
 
 public:
   static bool classof(const FunctionEdgeBase *A) { return classof(A->key()); }
   static bool classof(const Key &K) {
-    return FunctionEdgeType::isCall(std::get<2>(K));
+    return FunctionEdgeType::isCall(std::get<1>(K));
   }
 
 public:
