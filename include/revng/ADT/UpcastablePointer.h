@@ -54,12 +54,6 @@ concept UpcastablePointerLike = PointerLike<T> and Upcastable<pointee<T>>;
 template<typename T>
 concept NotUpcastablePointerLike = not UpcastablePointerLike<T>;
 
-template<typename T>
-concept NotVoid = not std::is_void_v<T>;
-
-template<class Derived, class Base>
-concept DerivesFrom = std::is_base_of_v<Base, Derived>;
-
 template<NotVoid ReturnT, typename L, UpcastablePointerLike P, size_t I = 0>
 ReturnT upcast(P &Upcastable, const L &Callable, const ReturnT &IfNull) {
   using pointee = std::remove_reference_t<decltype(*Upcastable)>;

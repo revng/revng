@@ -12,6 +12,12 @@ concept same_as = std::is_same_v<T, U>;
 template<typename T, typename U>
 concept convertible_to = std::is_convertible_v<T, U>;
 
+template<typename T>
+concept NotVoid = not std::is_void_v<T>;
+
+template<class Derived, class Base>
+concept DerivesFrom = std::is_base_of_v<Base, Derived>;
+
 template<typename T, typename R>
 concept ConstOrNot = std::is_same_v<R, T> or std::is_same_v<const R, T>;
 
