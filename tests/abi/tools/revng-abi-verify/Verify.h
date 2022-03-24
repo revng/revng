@@ -14,14 +14,18 @@ enum ExitCode {
   FailedVerifyingTheModel = 4,
 
   OnlyContinuousStackArgumentsAreSupported = 5,
-  UnknownRegister = 6,
-  UnknownStackOffset = 7,
-  ArgumentCouldNotBeLocated = 8,
-  FoundUnexpectedReturnValue = 9,
-  ExpectedReturnValueNotFound = 10,
-  UnknownReturnValueRegister = 11,
-  ReturnValueCouldNotBeLocated = 12,
-  CombinedStackArgumentsSizeIsWrong = 13
+  NoArgumentBytesProvided = 6,
+  UnknownArgumentRegister = 7,
+  InsufficientStackSize = 8,
+  ArgumentCanNotBeLocated = 9,
+  LeftoverArgumentRegistersDetected = 10,
+  CombinedStackArgumentsSizeIsWrong = 11,
+
+  FoundUnexpectedReturnValue = 12,
+  UnknownReturnValueRegister = 13,
+  ReturnValueCanNotBeLocated = 14,
+  LeftoverReturnValueRegistersDetected = 15,
+  ExpectedReturnValueNotFound = 16
 };
 
 const std::error_category &thisToolError();

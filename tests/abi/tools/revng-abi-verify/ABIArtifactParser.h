@@ -15,25 +15,21 @@ namespace abi::artifact {
 struct Register {
   llvm::StringRef Name;
   uint64_t Value;
+  std::vector<std::byte> Bytes;
 };
 using Registers = llvm::SmallVector<Register, 32>;
-
-struct StackValue {
-  int64_t Offset;
-  uint64_t Value;
-};
-using Stack = llvm::SmallVector<StackValue, 32>;
+using Stack = llvm::SmallVector<std::byte, 32 * 8>;
 
 struct Argument {
   llvm::StringRef Type;
-  llvm::StringRef Value;
-  uint64_t Address;
+  std::vector<std::byte> Bytes;
 };
 using Arguments = llvm::SmallVector<Argument, 32>;
 
 struct ModelRegister {
   model::Register::Values Name;
   uint64_t Value = 0;
+  std::vector<std::byte> Bytes = {};
 };
 
 } // namespace abi::artifact
@@ -63,7 +59,6 @@ struct Iteration {
 
 struct FunctionArtifact {
   llvm::StringRef Name;
-  bool IsLittleEndian = false;
   llvm::SmallVector<Iteration, 5> Iterations = {};
 };
 
@@ -81,7 +76,11 @@ struct KeyedObjectTraits<abi::artifact::FunctionArtifact> {
 
 namespace abi::artifact {
 
-using Parsed = SortedVector<FunctionArtifact>;
+struct Parsed {
+  llvm::StringRef Architecture;
+  bool IsLittleEndian = false;
+  SortedVector<FunctionArtifact> Functions;
+};
 
 Parsed parse(llvm::StringRef RuntimeArtifact,
              model::Architecture::Values Architecture);

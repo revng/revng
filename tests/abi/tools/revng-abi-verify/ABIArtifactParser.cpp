@@ -18,13 +18,17 @@ using namespace abi::artifact;
 
 struct SingleRun {
   llvm::StringRef Function;
-  bool IsLittleEndian;
   Registers Registers;
   Stack Stack;
   Arguments ReturnValue;
   Arguments Arguments;
 };
-using Deserialized = llvm::SmallVector<SingleRun, 16>;
+
+struct Deserialized {
+  llvm::StringRef TargetArchitecture;
+  bool IsLittleEndian;
+  llvm::SmallVector<SingleRun, 16> Iterations;
+};
 
 } // namespace State
 
@@ -34,18 +38,34 @@ using Deserialized = llvm::SmallVector<SingleRun, 16>;
 //
 
 template<>
-struct llvm::yaml::MappingTraits<State::Register> {
-  static void mapping(IO &IO, State::Register &N) {
-    IO.mapRequired("Name", N.Name);
-    IO.mapRequired("Value", N.Value);
+struct llvm::yaml::ScalarTraits<std::byte> {
+  static_assert(sizeof(std::byte) == sizeof(uint8_t));
+
+  static void output(const std::byte &Value, void *, llvm::raw_ostream &Out) {
+    Out << uint8_t(Value);
+  }
+
+  static StringRef input(StringRef Scalar, void *Ptr, std::byte &Value) {
+    uint8_t Temporary;
+    auto Err = llvm::yaml::ScalarTraits<uint8_t>::input(Scalar, Ptr, Temporary);
+    if (!Err.empty())
+      return Err;
+
+    Value = static_cast<std::byte>(Temporary);
+    return StringRef{};
+  }
+
+  static QuotingType mustQuote(StringRef Scalar) {
+    return llvm::yaml::ScalarTraits<uint8_t>::mustQuote(Scalar);
   }
 };
 
 template<>
-struct llvm::yaml::MappingTraits<State::StackValue> {
-  static void mapping(IO &IO, State::StackValue &N) {
-    IO.mapRequired("Offset", N.Offset);
+struct llvm::yaml::MappingTraits<State::Register> {
+  static void mapping(IO &IO, State::Register &N) {
+    IO.mapRequired("Name", N.Name);
     IO.mapRequired("Value", N.Value);
+    IO.mapRequired("Bytes", N.Bytes);
   }
 };
 
@@ -53,8 +73,7 @@ template<>
 struct llvm::yaml::MappingTraits<State::Argument> {
   static void mapping(IO &IO, State::Argument &N) {
     IO.mapRequired("Type", N.Type);
-    IO.mapRequired("Value", N.Value);
-    IO.mapRequired("Address", N.Address);
+    IO.mapRequired("Bytes", N.Bytes);
   }
 };
 
@@ -62,7 +81,6 @@ template<>
 struct llvm::yaml::MappingTraits<State::SingleRun> {
   static void mapping(IO &IO, State::SingleRun &N) {
     IO.mapRequired("Function", N.Function);
-    IO.mapRequired("IsLittleEndian", N.IsLittleEndian);
     IO.mapRequired("Registers", N.Registers);
     IO.mapRequired("Stack", N.Stack);
     IO.mapRequired("Arguments", N.Arguments);
@@ -71,11 +89,20 @@ struct llvm::yaml::MappingTraits<State::SingleRun> {
 };
 
 template<>
-struct llvm::yaml::SequenceElementTraits<State::Register> {
-  static constexpr bool flow = false;
+struct llvm::yaml::MappingTraits<State::Deserialized> {
+  static void mapping(IO &IO, State::Deserialized &N) {
+    IO.mapRequired("TargetArchitecture", N.TargetArchitecture);
+    IO.mapRequired("IsLittleEndian", N.IsLittleEndian);
+    IO.mapRequired("Iterations", N.Iterations);
+  }
+};
+
+template<>
+struct llvm::yaml::SequenceElementTraits<std::byte> {
+  static constexpr bool flow = true;
 };
 template<>
-struct llvm::yaml::SequenceElementTraits<State::StackValue> {
+struct llvm::yaml::SequenceElementTraits<State::Register> {
   static constexpr bool flow = false;
 };
 template<>
@@ -89,7 +116,6 @@ struct llvm::yaml::SequenceElementTraits<State::SingleRun> {
 
 struct VerificationHelper {
   llvm::StringRef FunctionName;
-  bool IsLittleEndian = false;
   size_t IterationCount = 0;
 };
 
@@ -104,23 +130,17 @@ struct KeyedObjectTraits<VerificationHelper> {
 };
 
 static bool verify(const State::Deserialized &Data, bool ShouldAssert) {
-  if (Data.empty()) {
+  if (Data.Iterations.empty()) {
     revng_assert(!ShouldAssert);
     return false;
   }
 
   SortedVector<VerificationHelper> VH;
-  for (const State::SingleRun &Run : Data) {
-    if (auto Iterator = VH.find(Run.Function); Iterator == VH.end()) {
-      VH.insert(VerificationHelper{ Run.Function, Run.IsLittleEndian, 1 });
-    } else {
+  for (const State::SingleRun &Run : Data.Iterations)
+    if (auto Iterator = VH.find(Run.Function); Iterator == VH.end())
+      VH.insert(VerificationHelper{ Run.Function, 1 });
+    else
       ++Iterator->IterationCount;
-      if (Run.IsLittleEndian != Iterator->IsLittleEndian) {
-        revng_assert(!ShouldAssert);
-        return false;
-      }
-    }
-  }
 
   if (VH.empty()) {
     revng_assert(!ShouldAssert);
@@ -146,6 +166,7 @@ toModelRegisters(const State::Registers &Input,
   for (const State::Register &Reg : Input) {
     auto &Output = Result[model::Register::fromRegisterName(Reg.Name, Arch)];
     Output.Value = Reg.Value;
+    Output.Bytes = Reg.Bytes;
   }
 
   return Result;
@@ -158,7 +179,7 @@ static State::Iteration toIteration(const State::SingleRun &SingleRun,
                            SingleRun.Stack,
                            SingleRun.Arguments,
                            SingleRun.ReturnValue.empty() ?
-                             State::Argument{ "void", "", 0 } :
+                             State::Argument{ "void", {} } :
                              SingleRun.ReturnValue[0] };
 }
 
@@ -169,12 +190,16 @@ State::Parsed abi::artifact::parse(llvm::StringRef RuntimeArtifact,
   State::Deserialized Deserialized;
   Reader >> Deserialized;
   revng_assert(!Reader.error());
+
+  llvm::StringRef ArchitectureName = model::Architecture::getName(Architecture);
+  revng_assert(ArchitectureName == Deserialized.TargetArchitecture);
   verify(Deserialized, true);
 
   State::Parsed Result;
-  for (const State::SingleRun &SingleRun : Deserialized) {
-    abi::artifact::FunctionArtifact &Reference = Result[SingleRun.Function];
-    Reference.IsLittleEndian = SingleRun.IsLittleEndian;
+  Result.Architecture = Deserialized.TargetArchitecture;
+  Result.IsLittleEndian = Deserialized.IsLittleEndian;
+  for (const State::SingleRun &SingleRun : Deserialized.Iterations) {
+    State::FunctionArtifact &Reference = Result.Functions[SingleRun.Function];
     Reference.Iterations.emplace_back(toIteration(SingleRun, Architecture));
   }
 
