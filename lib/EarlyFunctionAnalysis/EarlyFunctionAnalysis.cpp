@@ -357,7 +357,7 @@ private:
   ArrayRef<GlobalVariable *> ABICSVs;
   BasicBlockQueue *EntrypointsQueue;
   FunctionAnalysisResults &Oracle;
-  TupleTree<model::Binary> &Binary;
+  const TupleTree<model::Binary> &Binary;
   /// PreHookMarker and PostHookMarker mark the presence of an original
   /// function call, and surround a basic block containing the registers
   /// clobbered by the function called. They take the MetaAddress of the
@@ -382,13 +382,13 @@ public:
                              ArrayRef<GlobalVariable *>,
                              BasicBlockQueue *,
                              FunctionAnalysisResults &,
-                             TupleTree<model::Binary> &);
+                             const TupleTree<model::Binary> &);
 
 public:
   void importModel();
   void runInterproceduralAnalysis();
   void interproceduralPropagation();
-  void finalizeModel();
+  void finalizeModel(TupleTree<model::Binary> &);
   void recoverCFG();
   void serializeFunctionMetadata();
 
@@ -418,8 +418,9 @@ private:
                            const std::set<llvm::GlobalVariable *> &,
                            bool ShouldAnalyzeABI);
   llvm::Function *createFakeFunction(llvm::BasicBlock *BB);
-  UpcastablePointer<model::Type>
-  buildPrototype(const FunctionSummary &, const efa::BasicBlock &);
+  UpcastablePointer<model::Type> buildPrototype(TupleTree<model::Binary> &,
+                                                const FunctionSummary &,
+                                                const efa::BasicBlock &);
   FunctionSummary importPrototype(model::FunctionType::Values, model::TypePath);
 
 private:
@@ -443,7 +444,7 @@ FEA::FunctionEntrypointAnalyzer(llvm::Module &M,
                                 ArrayRef<GlobalVariable *> ABICSVs,
                                 BasicBlockQueue *EntrypointsQueue,
                                 FunctionAnalysisResults &Oracle,
-                                TupleTree<model::Binary> &Binary) :
+                                const TupleTree<model::Binary> &Binary) :
   M(M),
   Context(M.getContext()),
   GCBI(GCBI),
@@ -598,8 +599,9 @@ void FunctionEntrypointAnalyzer::importModel() {
 }
 
 UpcastablePointer<model::Type>
-FunctionEntrypointAnalyzer::buildPrototype(const FunctionSummary &Summary,
-                                           const efa::BasicBlock &Block) {
+FEA::buildPrototype(TupleTree<model::Binary> &OutputBinary,
+                    const FunctionSummary &Summary,
+                    const efa::BasicBlock &Block) {
   using namespace model;
   using RegisterState = abi::RegisterState::Values;
 
@@ -634,17 +636,17 @@ FunctionEntrypointAnalyzer::buildPrototype(const FunctionSummary &Summary,
         auto CSVSize = CSVType->getIntegerBitWidth() / 8;
         if (abi::RegisterState::shouldEmit(RSArg)) {
           NamedTypedRegister TR(RegisterID);
-          TR.Type = {
-            Binary->getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
-          };
+          TR.Type = { OutputBinary->getPrimitiveType(PrimitiveTypeKind::Generic,
+                                                     CSVSize),
+                      {} };
           ArgumentsInserter.insert(TR);
         }
 
         if (abi::RegisterState::shouldEmit(RSRV)) {
           TypedRegister TR(RegisterID);
-          TR.Type = {
-            Binary->getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
-          };
+          TR.Type = { OutputBinary->getPrimitiveType(PrimitiveTypeKind::Generic,
+                                                     CSVSize),
+                      {} };
           ReturnValuesInserter.insert(TR);
         }
       }
@@ -659,13 +661,13 @@ FunctionEntrypointAnalyzer::buildPrototype(const FunctionSummary &Summary,
 }
 
 /// Finish the population of the model by building the prototype
-void FunctionEntrypointAnalyzer::finalizeModel() {
+void FEA::finalizeModel(TupleTree<model::Binary> &OutputBinary) {
   using namespace model;
   using RegisterState = abi::RegisterState::Values;
 
   // Fill up the model and build its prototype for each function
   std::set<model::Function *> Functions;
-  for (model::Function &Function : Binary->Functions) {
+  for (model::Function &Function : OutputBinary->Functions) {
     if (Function.Type != model::FunctionType::Invalid)
       continue;
 
@@ -701,17 +703,17 @@ void FunctionEntrypointAnalyzer::finalizeModel() {
 
         if (abi::RegisterState::shouldEmit(RSArg)) {
           NamedTypedRegister TR(RegisterID);
-          TR.Type = {
-            Binary->getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
-          };
+          TR.Type = { OutputBinary->getPrimitiveType(PrimitiveTypeKind::Generic,
+                                                     CSVSize),
+                      {} };
           ArgumentsInserter.insert(TR);
         }
 
         if (abi::RegisterState::shouldEmit(RSRV)) {
           TypedRegister TR(RegisterID);
-          TR.Type = {
-            Binary->getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
-          };
+          TR.Type = { OutputBinary->getPrimitiveType(PrimitiveTypeKind::Generic,
+                                                     CSVSize),
+                      {} };
           ReturnValuesInserter.insert(TR);
         }
       }
@@ -739,7 +741,7 @@ void FunctionEntrypointAnalyzer::finalizeModel() {
                                         0;
     }
 
-    Function.Prototype = Binary->recordNewType(std::move(NewType));
+    Function.Prototype = OutputBinary->recordNewType(std::move(NewType));
     Functions.insert(&Function);
   }
 
@@ -791,11 +793,11 @@ void FunctionEntrypointAnalyzer::finalizeModel() {
             revng_assert(not Function->CallSitePrototypes.count(Block.Start));
           } else {
             // It's an indirect call: forge a new prototype
-            auto Prototype = buildPrototype(Summary, Block);
-            auto TypedPrototype = Binary->recordNewType(std::move(Prototype));
+            auto Prototype = buildPrototype(OutputBinary, Summary, Block);
+            auto Path = OutputBinary->recordNewType(std::move(Prototype));
             auto PrototypeInserter = Function->CallSitePrototypes
                                        .batch_insert();
-            PrototypeInserter.insert({ Block.Start, TypedPrototype });
+            PrototypeInserter.insert({ Block.Start, Path });
           }
         }
       }
@@ -824,7 +826,7 @@ static void combineCrossCallSites(auto &CallSite, auto &Callee) {
 
 /// Perform cross-call site propagation
 void FunctionEntrypointAnalyzer::interproceduralPropagation() {
-  for (model::Function &Function : Binary->Functions) {
+  for (const model::Function &Function : Binary->Functions) {
     auto &Summary = Oracle.at(Function.Entry);
     for (auto &[PC, CallSite] : Summary.ABIResults.CallSites) {
       if (PC == Function.Entry)
@@ -2057,8 +2059,9 @@ bool EarlyFunctionAnalysis<ShouldAnalyzeABI>::runOnModule(Module &M) {
     // Propagate results between call-sites and functions
     Analyzer.interproceduralPropagation();
 
-    // Commit the results onto the model
-    Analyzer.finalizeModel();
+    // Commit the results onto the model. A non-const model is taken as argument
+    // to be written.
+    Analyzer.finalizeModel(Binary);
   }
 
   // Still OK?
