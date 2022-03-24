@@ -26,7 +26,6 @@
 #include "revng/Pipes/CompileModulePipe.h"
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/LiftPipe.h"
-#include "revng/Pipes/LinkForTranslationPipe.h"
 #include "revng/Pipes/LinkSupportPipe.h"
 #include "revng/Pipes/RootKind.h"
 #include "revng/Support/Statistics.h"

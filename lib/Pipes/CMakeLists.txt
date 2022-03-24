@@ -9,7 +9,6 @@ revng_add_library_internal(
   FileContainer.cpp
   ImportBinaryPipe.cpp
   LiftPipe.cpp
-  LinkForTranslationPipe.cpp
   LinkSupportPipe.cpp
   LLVMContextWrapper.cpp
   ModelGlobal.cpp
