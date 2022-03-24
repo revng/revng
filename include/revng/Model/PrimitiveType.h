@@ -24,13 +24,9 @@ TUPLE-TREE-YAML */
 
 class model::PrimitiveType : public model::generated::PrimitiveType {
 public:
-  static constexpr const TypeKind::Values
-    AssociatedKind = TypeKind::PrimitiveType;
-
-public:
   using generated::PrimitiveType::PrimitiveType;
   // TODO: these do not conform to the constructors convention
-  PrimitiveType() : generated::PrimitiveType() { Kind = AssociatedKind; };
+  PrimitiveType() : generated::PrimitiveType(){};
   explicit PrimitiveType(uint64_t ID);
   PrimitiveType(PrimitiveTypeKind::Values PrimitiveKind, uint8_t ByteSize);
 

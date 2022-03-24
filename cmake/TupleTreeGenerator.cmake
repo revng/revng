@@ -109,7 +109,9 @@ function(tuple_tree_generator_compute_generated_cpp_files SOURCE_HEADERS
 
   foreach(HEADER ${SOURCE_HEADERS})
     # TODO: we should not be generating /Impl/*.cpp files in an include/*
-    # directory TODO: this piece of code is tightly coupled with cppheaders.py
+    # directory
+    #
+    # TODO: this piece of code is tightly coupled with cppheaders.py
     get_filename_component(HEADER_FILENAME "${HEADER}" NAME)
     get_filename_component(HEADER_FILENAME_WE "${HEADER}" NAME_WE)
     set(EARLY_OUTPUT "${HEADERS_DIR}/Early/${HEADER_FILENAME}")
@@ -305,6 +307,8 @@ function(target_tuple_tree_generator TARGET_ID)
   endif()
 
   # Generate C++ headers from the collected YAML
+  #
+  # TODO: the generated folder path should be configurable
   if(NOT DEFINED GEN_HEADERS_PATH)
     set(GEN_HEADERS_PATH
         "${CMAKE_BINARY_DIR}/include/revng/${GEN_HEADER_DIRECTORY}/Generated")

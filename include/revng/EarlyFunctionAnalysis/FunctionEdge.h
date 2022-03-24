@@ -25,13 +25,7 @@ private:
 public:
   FunctionEdge() : efa::generated::FunctionEdge() { Type = AssociatedType; }
   FunctionEdge(MetaAddress Destination, FunctionEdgeType::Values Type) :
-    efa::generated::FunctionEdge(Destination,
-                                 Type,
-                                 efa::FunctionEdgeKind::FunctionEdge) {}
-  FunctionEdge(MetaAddress Destination,
-               FunctionEdgeType::Values Type,
-               FunctionEdgeKind::Values Kind) :
-    efa::generated::FunctionEdge(Destination, Type, Kind) {}
+    efa::generated::FunctionEdge(Destination, Type) {}
 
 public:
   static bool classof(const FunctionEdgeBase *A) { return classof(A->key()); }

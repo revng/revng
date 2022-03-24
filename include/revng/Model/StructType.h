@@ -7,7 +7,6 @@
 #include "revng/Model/Identifier.h"
 #include "revng/Model/StructField.h"
 #include "revng/Model/Type.h"
-#include "revng/Model/TypeKind.h"
 
 /* TUPLE-TREE-YAML
 name: StructType
@@ -31,11 +30,10 @@ TUPLE-TREE-YAML */
 class model::StructType : public model::generated::StructType {
 public:
   static constexpr const char *AutomaticNamePrefix = "struct_";
-  static constexpr const TypeKind::Values AssociatedKind = TypeKind::StructType;
 
 public:
   using generated::StructType::StructType;
-  StructType() : generated::StructType() { Kind = AssociatedKind; }
+  StructType() : generated::StructType() {}
 
 public:
   Identifier name() const;
