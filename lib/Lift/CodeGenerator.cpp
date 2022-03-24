@@ -210,7 +210,7 @@ CodeGenerator::CodeGenerator(const RawBinaryView &RawBinary,
       bool Found = false;
       MetaAddress End = Segment.pagesRange().second;
       revng_assert(End.isValid() and End.address() % 4096 == 0);
-      for (model::Segment &Segment : Model->Segments) {
+      for (const model::Segment &Segment : Model->Segments) {
         if (Segment.IsExecutable and Segment.contains(End)) {
           Found = true;
           break;
