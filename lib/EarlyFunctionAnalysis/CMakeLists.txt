@@ -57,7 +57,6 @@ target_tuple_tree_generator(
   "${EFA_HEADERS_DIR}/CallEdge.h"
   "${EFA_HEADERS_DIR}/FunctionEdge.h"
   "${EFA_HEADERS_DIR}/FunctionEdgeBase.h"
-  "${EFA_HEADERS_DIR}/FunctionEdgeKind.h"
   "${EFA_HEADERS_DIR}/FunctionEdgeType.h"
   "${EFA_HEADERS_DIR}/FunctionMetadata.h")
 

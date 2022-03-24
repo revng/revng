@@ -14,6 +14,8 @@ name: FunctionEdgeBase
 doc: An edge on the CFG
 type: struct
 fields:
+  - name: Kind
+    type: efa::FunctionEdgeBaseKind::Values
   - name: Destination
     doc: |
       Target of the CFG edge
@@ -27,12 +29,10 @@ fields:
   - name: Type
     doc: Type of the CFG edge
     type: FunctionEdgeType::Values
-  - name: Kind
-    type: efa::FunctionEdgeKind::Values
 key:
+  - Kind
   - Destination
   - Type
-  - Kind
 abstract: true
 TUPLE-TREE-YAML */
 

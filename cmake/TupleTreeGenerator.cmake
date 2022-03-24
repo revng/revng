@@ -305,6 +305,7 @@ function(target_tuple_tree_generator TARGET_ID)
   endif()
 
   # Generate C++ headers from the collected YAML
+  # TODO: the generated folder path should be configurable
   if(NOT DEFINED GEN_HEADERS_PATH)
     set(GEN_HEADERS_PATH
         "${CMAKE_BINARY_DIR}/include/revng/${GEN_HEADER_DIRECTORY}/Generated")

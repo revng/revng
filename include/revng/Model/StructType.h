@@ -7,7 +7,6 @@
 #include "revng/Model/Identifier.h"
 #include "revng/Model/StructField.h"
 #include "revng/Model/Type.h"
-#include "revng/Model/TypeKind.h"
 
 /* TUPLE-TREE-YAML
 name: StructType

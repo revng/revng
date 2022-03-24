@@ -6,7 +6,6 @@
 
 #include "revng/Model/Identifier.h"
 #include "revng/Model/Type.h"
-#include "revng/Model/TypeKind.h"
 #include "revng/Model/UnionField.h"
 
 /* TUPLE-TREE-YAML

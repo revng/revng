@@ -65,7 +65,8 @@ struct /*= struct.fullname =*/
   /*= struct.name =*/(
     /*#- Inherited fields #*/
     /**- for field in struct.inherits.fields **/
-    /*=- field.type =*/ /*= field.name =*/,
+    /*=- field.type =*/ /*= field.name =*/
+    /** if (struct.fields | length > 0) or (not loop.last) **/, /** endif **/
     /**- endfor **/
 
     /*#- Own fields #*/
@@ -79,7 +80,9 @@ struct /*= struct.fullname =*/
       /**- for field in struct.inherits.fields **/
       /*= field.name =*//** if not loop.last **/, /** endif **/
       /**- endfor **/
-    ), /** endif **/
+    )
+    /** if struct.fields | length > 0 **/, /** endif **/
+    /** endif **/
 
     /*#- Initialize own fields #*/
     /**- for field in struct.fields **/
