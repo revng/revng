@@ -8,9 +8,11 @@ import sys
 from dataclasses import dataclass, field
 from typing import List
 
-from revng.tupletree import EnumBase, Reference, StructBase, no_default
+from revng.tupletree import EnumBase, Reference, StructBase, AbstractStructBase, no_default
 from revng.tupletree import YamlLoader as _ExternalYamlLoader
 from revng.tupletree import YamlDumper as _ExternalYamlDumper
+from .._util import force_constructor_kwarg
+
 ##- for t in generator.external_types ##
 from .external import 't'
 ## endfor ##
@@ -56,7 +58,11 @@ class 'struct.name'(
     ##- if struct.inherits -##
     'struct.inherits.name',
     ##- endif -##
+    ##- if struct.abstract -##
+    AbstractStructBase
+    ##- else -##
     StructBase
+    ##- endif -##
 ):
     'struct.doc | docstring'
 
@@ -93,6 +99,22 @@ class 'struct.name'(
     def __hash__(self):
         return id(self)
 
+## endfor ##
+
+## for struct in structs ##
+## if struct.abstract -##
+'struct.name'._children = {
+        ##- for child in struct.children -##
+        "'-child.name'": '-child.name' ##- if not loop.last -## , ##- endif -##
+        ##- endfor -##
+    }
+
+### Override child's constructor so that the 'Kind' kwarg is always consisten -###
+## for child in struct.children -##
+force_constructor_kwarg('child.name', "Kind", 'struct.name'Kind.'child.name')
+## endfor ##
+
+##- endif ##
 ## endfor ##
 
 ## for enum in enums ##

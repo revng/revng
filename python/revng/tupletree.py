@@ -1,7 +1,7 @@
 import sys
 from dataclasses import dataclass, fields
 from enum import Enum
-from typing import Generic, Type, TypeVar, get_args, get_origin, get_type_hints
+from typing import Dict, Generic, Type, TypeVar, get_args, get_origin, get_type_hints
 
 import yaml
 
@@ -126,6 +126,25 @@ class StructBase:
         if self.__dataclass_fields__.get(key) is None:
             raise AttributeError(f"Cannot set attribute {key} for class {type(self).__name__}")
         super().__setattr__(key, value)
+
+
+class AbstractStructBase(StructBase):
+    _children: Dict[str, Type] = {}
+
+    @classmethod
+    def from_dict(cls, **kwargs):
+        if "Kind" not in kwargs:
+            raise ValueError("Upcastable types must have a Kind field")
+
+        child_cls = cls._children.get(kwargs["Kind"])
+
+        if not child_cls:
+            raise ValueError(f"No class found to deserialize {kwargs['Kind']}")
+
+        if cls != child_cls:
+            return child_cls.from_dict(**kwargs)
+        else:
+            return super().from_dict(**kwargs)
 
 
 class EnumBase(Enum):
