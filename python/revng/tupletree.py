@@ -1,6 +1,7 @@
 import sys
 from dataclasses import dataclass, fields
 from enum import Enum
+from functools import lru_cache
 from typing import Dict, Generic, Type, TypeVar, get_args, get_origin, get_type_hints
 
 import yaml
@@ -28,6 +29,13 @@ def _create_instance(field_value, field_type):
         raise TypeError(f"Invalid type {type(field_value)}, was expecting {field_type}")
 
 
+# Hot function, hence the lru_cache
+# Called once per field for each object instantiation
+@lru_cache(maxsize=1024, typed=True)
+def get_type_hint_cached(class_, name):
+    return get_type_hints(class_)[name]
+
+
 @dataclass
 class StructBase:
     @classmethod
@@ -42,7 +50,7 @@ class StructBase:
                 raise ValueError(f"Field {field_name} is not allowed for type {cls.__name__}")
 
             # Get the type annotation
-            field_spec_type = get_type_hints(cls)[field_spec.name]
+            field_spec_type = get_type_hint_cached(cls, field_spec.name)
             # Get the "origin", i.e. for a field annotated as List[str] the origin is list
             origin = get_origin(field_spec_type)
             # Get the args, i.e. for a field annotated as Dict[str, int] the args are (str, int)
