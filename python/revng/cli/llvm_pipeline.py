@@ -33,7 +33,6 @@ class IRPipelineCommand(Command):
             run_revng_command(
                 [
                     "pipeline",
-                    "--silent",
                     "-m",
                     model.name,
                     "-i",
