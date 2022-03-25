@@ -14,7 +14,6 @@
 #include <variant>
 
 #include "llvm/ADT/APInt.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
@@ -71,7 +70,6 @@ using llvm::isa;
 using llvm::LLVMContext;
 using llvm::LoadInst;
 using llvm::None;
-using llvm::Optional;
 using llvm::PHINode;
 using llvm::RegisterPass;
 using llvm::ReturnInst;
@@ -409,7 +407,7 @@ using UseGEPSummationMap = std::map<Use *, ModelGEPSummation>;
 struct IRAccessPattern {
   APInt BaseOffset = APInt(/*NumBits*/ 64, /*Value*/ 0);
   GEPSummationVector Indices = {};
-  Optional<model::QualifiedType> PointeeType = None;
+  std::optional<model::QualifiedType> PointeeType = std::nullopt;
 
   void dump(llvm::raw_ostream &OS) const debug_function {
     OS << "IRAccessPattern {\nBaseOffset: " << BaseOffset.toString(10, true)
@@ -419,8 +417,8 @@ struct IRAccessPattern {
       I.dump(OS);
     }
     OS << "}\nPointeeType: ";
-    if (PointeeType.hasValue())
-      serialize(OS, PointeeType.getValue());
+    if (PointeeType.has_value())
+      serialize(OS, PointeeType.value());
     else
       OS << "std::nullopt";
     OS << "\n}";
@@ -472,7 +470,7 @@ static IRAccessPattern computeAccessPattern(const Use &U,
                              // Intially PointeeType is set to None, then we
                              // fill it if in some special cases where we have
                              // interesting information on the pointee
-                             .PointeeType = None };
+                             .PointeeType = std::nullopt };
 
   // The IRAccessPattern we've just initialized is not necessarily complete now.
   // We want to look at the user of U, to see if it gives us more information
@@ -821,6 +819,10 @@ using QualifiedTypeToTAPChildIdsMap = std::map<const model::QualifiedType,
 using TAPToChildIdsMapConstRef = std::reference_wrapper<const TAPToChildIdsMap>;
 
 struct DifferenceScore {
+  // Among two DifferenceScore, the one with PerfectTypeMatch set to true is
+  // always the lowest.
+  bool PerfectTypeMatch = false;
+
   // Higher Difference are for stuff that is farther apart from a perfect match.
   // 0 or lower scores are for accesses that insist exactly on the beginning of
   // the type. Negative scores are for accesses that insist exactly on the
@@ -838,11 +840,16 @@ struct DifferenceScore {
   bool InRange = false;
 
   std::strong_ordering operator<=>(const DifferenceScore &Other) const {
+
+    if (PerfectTypeMatch != Other.PerfectTypeMatch)
+      return PerfectTypeMatch ? std::strong_ordering::less :
+                                std::strong_ordering::greater;
+
     if (InRange != Other.InRange)
       return InRange ? std::strong_ordering::less :
                        std::strong_ordering::greater;
-    auto Cmp = Difference <=> Other.Difference;
-    if (Cmp != 0)
+
+    if (auto Cmp = Difference <=> Other.Difference; Cmp != 0)
       return Cmp;
 
     // Notice that in the following line the terms are inverted, because lower
@@ -851,8 +858,8 @@ struct DifferenceScore {
   }
 
   void dump(llvm::raw_ostream &OS) const debug_function {
-    OS << "DifferenceScore { .Difference = " << Difference
-       << ", .Depth = " << Depth
+    OS << "DifferenceScore { .PerfectTypeMatch = " << PerfectTypeMatch
+       << ", .Difference = " << Difference << ", .Depth = " << Depth
        << ", .InRange = " << (InRange ? "true" : "false") << "}";
   }
 
@@ -867,7 +874,8 @@ struct ScoredIndices {
   static ScoredIndices invalid() { return ScoredIndices{}; }
 
   static ScoredIndices outOfBound(ssize_t DiffScore) {
-    return ScoredIndices{ .Score = DifferenceScore{ .Difference = DiffScore,
+    return ScoredIndices{ .Score = DifferenceScore{ .PerfectTypeMatch = false,
+                                                    .Difference = DiffScore,
                                                     .Depth = 0,
                                                     .InRange = false },
                           .Indices{} };
@@ -878,7 +886,8 @@ struct ScoredIndices {
     revng_assert(Depth <= Indices.size());
     if (Depth < Indices.size())
       Indices.resize(Depth);
-    return ScoredIndices{ .Score = DifferenceScore{ .Difference = DiffScore,
+    return ScoredIndices{ .Score = DifferenceScore{ .PerfectTypeMatch = false,
+                                                    .Difference = DiffScore,
                                                     .Depth = Depth,
                                                     .InRange = false },
                           .Indices = std::move(Indices) };
@@ -898,7 +907,7 @@ differenceScore(const model::QualifiedType &BaseType,
 
   size_t BaseSize = *BaseType.size();
   if (IRAP.BaseOffset.uge(BaseSize))
-    return Result;
+    return ScoredIndices::outOfBound(IRAP.BaseOffset.getSExtValue());
 
   revng_assert(TAP.BaseOffset.ult(BaseSize));
   revng_assert((TAP.BaseOffset + *TAP.AccessedType.size()).ule(BaseSize));
@@ -913,6 +922,7 @@ differenceScore(const model::QualifiedType &BaseType,
 
   model::QualifiedType NestedType = BaseType;
 
+  size_t Depth = 0;
   for (auto &ChildID : ResultIndices) {
     model::QualifiedType Normalized = peelConstAndTypedefs(NestedType, VH);
 
@@ -939,7 +949,7 @@ differenceScore(const model::QualifiedType &BaseType,
       RestOff -= FieldOffset;
 
       NestedType = S->Fields.at(FieldOffset).Type;
-      ++Result.Score->Depth;
+      ++Depth;
     } break;
 
     case Union: {
@@ -947,7 +957,7 @@ differenceScore(const model::QualifiedType &BaseType,
       auto *U = cast<model::UnionType>(Normalized.UnqualifiedType.get());
       size_t FieldID = cast<ConstantInt>(ChildID.Index)->getZExtValue();
       NestedType = U->Fields.at(FieldID).Type;
-      ++Result.Score->Depth;
+      ++Depth;
     } break;
 
     case Array: {
@@ -979,7 +989,7 @@ differenceScore(const model::QualifiedType &BaseType,
           // If IRAP is trying to access an element that is larger than the
           // array size, we have to bail out, marking this as out of bound.
           return ScoredIndices::nestedOutOfBound(RestOff.getSExtValue(),
-                                                 Result.Score->Depth,
+                                                 Depth,
                                                  std::move(ResultIndices));
         }
 
@@ -999,7 +1009,7 @@ differenceScore(const model::QualifiedType &BaseType,
         }
 
         ++IRAPIndicesIt;
-        ++Result.Score->Depth;
+        ++Depth;
       }
 
       NestedType = model::QualifiedType(Normalized.UnqualifiedType,
@@ -1014,9 +1024,12 @@ differenceScore(const model::QualifiedType &BaseType,
     }
   }
 
+  bool PerfectMatch = IRAP.PointeeType.has_value()
+                      and IRAP.PointeeType.value() == TAP.AccessedType;
   Result = ScoredIndices{
-    .Score = DifferenceScore{ .Difference = RestOff.getSExtValue(),
-                              .Depth = ResultIndices.size(),
+    .Score = DifferenceScore{ .PerfectTypeMatch = PerfectMatch,
+                              .Difference = RestOff.getSExtValue(),
+                              .Depth = Depth,
                               .InRange = RestOff.isNonNegative() },
     .Indices = std::move(ResultIndices),
   };
