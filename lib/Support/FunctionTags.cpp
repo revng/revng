@@ -14,13 +14,12 @@
 
 static constexpr const char *const ModelGEPName = "ModelGEP";
 static constexpr const char *const MarkerName = "SerializationMarker";
-static constexpr const char *const AddressOfName = "AddressOf";
 
 namespace FunctionTags {
 Tag AllocatesLocalVariable("AllocatesLocalVariable");
 Tag MallocLike("MallocLike");
 Tag IsRef("IsRef");
-Tag AddressOf(AddressOfName);
+Tag AddressOf("AddressOf");
 Tag ModelGEP(ModelGEPName);
 Tag SerializationMarker(MarkerName);
 } // namespace FunctionTags
@@ -55,10 +54,6 @@ static std::string makeTypeName(const llvm::Type *Ty) {
   return Name;
 }
 
-static std::string makeAddressOfName(const llvm::Type *Ty) {
-  return AddressOfName + makeTypeName(Ty);
-}
-
 static std::string
 makeModelGEPName(const llvm::Type *RetTy, const llvm::Type *BaseAddressTy) {
   using llvm::Twine;
@@ -71,30 +66,25 @@ static std::string makeMarkerName(const llvm::Type *Ty) {
   return MarkerName + makeTypeName(Ty);
 }
 
-llvm::Function *getAddressOf(llvm::Module &M, llvm::Type *T) {
-
-  using namespace llvm;
+llvm::FunctionType *
+getAddressOfFunctionType(llvm::LLVMContext &C, llvm::Type *T) {
   // There are 2 fixed arguments:
   // - the first is a pointer to a constant string that contains a serialization
   //   of the key of the base type;
   // - the second is T, i.e. the type of the base pointer.
-  SmallVector<llvm::Type *, 2> FixedArgs = { getStringPtrType(M.getContext()),
-                                             T };
-  // The function is vararg, because we might need to access a number of fields
-  // that is variable.
-  FunctionType *AddressOfType = FunctionType::get(T,
-                                                  FixedArgs,
-                                                  false /* IsVarArg */);
-  FunctionCallee AddressOfCallee = M.getOrInsertFunction(makeAddressOfName(T),
-                                                         AddressOfType);
+  llvm::SmallVector<llvm::Type *, 2> FixedArgs = { getStringPtrType(C), T };
+  return llvm::FunctionType::get(T, FixedArgs, false /* IsVarArg */);
+}
 
-  auto *AddressOfFunction = cast<Function>(AddressOfCallee.getCallee());
-  AddressOfFunction->addFnAttr(llvm::Attribute::NoUnwind);
-  AddressOfFunction->addFnAttr(llvm::Attribute::WillReturn);
-  AddressOfFunction->addFnAttr(llvm::Attribute::ReadNone);
-  FunctionTags::AddressOf.addTo(AddressOfFunction);
-
-  return AddressOfFunction;
+void initAddressOfPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
+  // Set attributes
+  Pool.addFnAttribute(llvm::Attribute::NoUnwind);
+  Pool.addFnAttribute(llvm::Attribute::WillReturn);
+  Pool.addFnAttribute(llvm::Attribute::ReadNone);
+  // Set revng tags
+  Pool.setTags({ &FunctionTags::AddressOf });
+  // Initialize the pool from its internal llvm::Module if possible.
+  Pool.initializeFromReturnType(FunctionTags::AddressOf);
 }
 
 llvm::Function *

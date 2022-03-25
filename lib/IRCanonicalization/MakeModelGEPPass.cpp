@@ -2241,6 +2241,12 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
   LLVMContext &Ctxt = M.getContext();
   IRBuilder<> Builder(Ctxt);
   ModelGEPArgCache TypeArgCache;
+
+  OpaqueFunctionsPool<llvm::Type *>
+    AddressOfPool(&M, /* PurgeOnDestruction */ false);
+  if (not GEPReplacementMap.empty())
+    initAddressOfPool(AddressOfPool);
+
   for (auto &[TheUseToGEPify, GEPArgs] : GEPReplacementMap) {
 
     revng_log(ModelGEPLog,
@@ -2286,7 +2292,11 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
 
     Value *ModelGEPRef = Builder.CreateCall(ModelGEPFunction, Args);
 
-    auto *AddressOfFunction = getAddressOf(M, UseType);
+    auto *AddressOfFunctionType = getAddressOfFunctionType(M.getContext(),
+                                                           UseType);
+    auto *AddressOfFunction = AddressOfPool.get(UseType,
+                                                AddressOfFunctionType,
+                                                "AddressOf");
     auto *PointeeConstantStrPtr = TypeArgCache
                                     .getQualifiedTypeArg(GEPArgs.PointeeType,
                                                          M);
