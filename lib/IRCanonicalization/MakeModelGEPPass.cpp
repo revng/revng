@@ -628,16 +628,10 @@ static IRAccessPattern computeAccessPattern(const Use &U,
                       "CABIFunctionType");
         }
 
-      } else {
+      } else if (FunctionTags::CallToLifted.isTagOf(Call)) {
         const model::Type *FType = getCallSitePrototype(Model, Call);
 
-        if (not FType) {
-          // If this callsite has no prototype and we are not calling a
-          // StructInitializer, we have no type information: skip this
-          // instruction.
-          revng_log(ModelGEPLog, "Does not have a prototype. Skip ...");
-
-        } else if (const auto *RFT = dyn_cast<model::RawFunctionType>(FType)) {
+        if (const auto *RFT = dyn_cast<model::RawFunctionType>(FType)) {
 
           auto MoreIndent = LoggerIndent(ModelGEPLog);
           auto ModelArgSize = RFT->Arguments.size();
@@ -2068,8 +2062,7 @@ makeGEPReplacements(llvm::Function &F, const model::Binary &Model) {
       auto Indent = LoggerIndent{ ModelGEPLog };
 
       if (auto *CallI = dyn_cast<CallInst>(&I)) {
-        auto *Callee = CallI->getCalledFunction();
-        if (not Callee or not FunctionTags::Isolated.isTagOf(Callee)) {
+        if (not FunctionTags::CallToLifted.isTagOf(CallI)) {
           revng_log(ModelGEPLog, "Skipping call to non-isolated function");
           continue;
         }
