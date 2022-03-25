@@ -25,7 +25,6 @@ template<typename KeyT>
 class OpaqueFunctionsPool {
 private:
   llvm::Module *M;
-  llvm::LLVMContext &Context;
   const bool PurgeOnDestruction;
   std::map<KeyT, llvm::Function *> Pool;
   llvm::AttributeList AttributeSets;
@@ -33,7 +32,7 @@ private:
 
 public:
   OpaqueFunctionsPool(llvm::Module *M, bool PurgeOnDestruction) :
-    M(M), Context(M->getContext()), PurgeOnDestruction(PurgeOnDestruction) {}
+    M(M), PurgeOnDestruction(PurgeOnDestruction) {}
 
   ~OpaqueFunctionsPool() {
     if (PurgeOnDestruction) {
@@ -47,7 +46,7 @@ public:
 public:
   void addFnAttribute(llvm::Attribute::AttrKind Kind) {
     using namespace llvm;
-    AttributeSets = AttributeSets.addAttribute(Context,
+    AttributeSets = AttributeSets.addAttribute(M->getContext(),
                                                AttributeList::FunctionIndex,
                                                Kind);
   }
@@ -95,7 +94,7 @@ public:
                       const llvm::Twine &Name = {}) {
     using namespace llvm;
     if (ReturnType == nullptr)
-      ReturnType = Type::getVoidTy(Context);
+      ReturnType = Type::getVoidTy(M->getContext());
 
     return get(Key, FunctionType::get(ReturnType, Arguments, false), Name);
   }
