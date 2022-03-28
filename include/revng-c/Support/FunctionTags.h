@@ -23,6 +23,8 @@ extern Tag AddressOf;
 extern Tag ModelGEP;
 extern Tag AssignmentMarker;
 extern Tag OpaqueExtractValue;
+
+inline Tag LiftingArtifactsRemoved("LiftingArtifactsRemoved", Isolated);
 } // namespace FunctionTags
 
 /// Returns the type of an AddressOf function with return type T, in context C.
