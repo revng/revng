@@ -2,59 +2,59 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-# Extracts definitions and generates C++ headers and implementations from the
-# given header files. The definitions must be embedded as described in the docs
-# for tuple_tree_generator_extract_definitions_from_headers.
-function(
-  tuple_tree_generator
-  # Name of the target to generate the code
-  TARGET_NAME
-  # List of C++ headers
-  HEADERS
-  # Delimiter used to mark comments embedding type schemas
-  DELIMITER
-  NAMESPACE
-  # Where the schema will be collected
-  SCHEMA_PATH
-  # Directory where the headers will be generated
-  HEADERS_DIR
-  # Include path prefix
-  INCLUDE_PATH_PREFIX
-  # Variable will be filled with the list of generated C++ headers
-  GENERATED_HEADERS_VARIABLE
-  # Variable will be filled with the list of generated C++ source files
-  GENERATED_IMPLS_VARIABLE
-  # Where the JSON schema will be produced (empty for no schema)
-  JSONSCHEMA_PATH
-  # Path where the python generated code will be produced (empty for skipping
-  # python code generation)
-  PYTHON_PATH
-  # Type to use as the root of the schema
-  ROOT_TYPE
-  # Types equivalent to strings
-  STRING_TYPES
-  # Types equivalent to strings which get a separate type definition
-  SEPARATE_STRING_TYPES)
+function(tuple_tree_generator_impl)
+  set(oneValueArgs
+      TARGET_NAME
+      GENERATED_HEADERS_VARIABLE
+      GENERATED_IMPLS_VARIABLE
+      NAMESPACE
+      SCHEMA_PATH
+      HEADERS_DIR
+      INCLUDE_PATH_PREFIX
+      JSONSCHEMA_PATH
+      ROOT_TYPE
+      PYTHON_PATH)
+  set(multiValueArgs HEADERS STRING_TYPES SEPARATE_STRING_TYPES)
+  cmake_parse_arguments(GENERATOR "" "${oneValueArgs}" "${multiValueArgs}"
+                        "${ARGN}")
+  if(NOT DEFINED GENERATOR_JSONSCHEMA_PATH)
+    set(GENERATOR_JSONSCHEMA_PATH "")
+  endif()
+  if(NOT DEFINED GENERATOR_ROOT_TYPE)
+    set(GENERATOR_ROOT_TYPE "")
+  endif()
+  if(NOT DEFINED GENERATOR_STRING_TYPES)
+    set(GENERATOR_STRING_TYPES "")
+  endif()
+  if(NOT DEFINED GENERATOR_SEPARATE_STRING_TYPES)
+    set(GENERATOR_SEPARATE_STRING_TYPES "")
+  endif()
+  if(NOT DEFINED GENERATOR_PYTHON_PATH)
+    set(GENERATOR_PYTHON_PATH "")
+  endif()
+
   #
   # Collect all the definitions in a single YAML document
   #
   tuple_tree_generator_extract_definitions_from_headers(
-    "${HEADERS}" "${DELIMITER}" "${SCHEMA_PATH}")
+    "${GENERATOR_HEADERS}" "${GENERATOR_SCHEMA_PATH}")
 
   #
   # C++ headers and implementation generation
   #
   tuple_tree_generator_compute_generated_cpp_files(
-    "${HEADERS}" "${HEADERS_DIR}" LOCAL_GENERATED_HEADERS LOCAL_GENERATED_IMPLS)
+    "${GENERATOR_HEADERS}" "${GENERATOR_HEADERS_DIR}" LOCAL_GENERATED_HEADERS
+    LOCAL_GENERATED_IMPLS)
 
   tuple_tree_generator_generate_cpp(
-    "${SCHEMA_PATH}" "${NAMESPACE}" "${HEADERS_DIR}" "${INCLUDE_PATH_PREFIX}"
+    "${GENERATOR_SCHEMA_PATH}" "${GENERATOR_NAMESPACE}"
+    "${GENERATOR_HEADERS_DIR}" "${GENERATOR_INCLUDE_PATH_PREFIX}"
     "${LOCAL_GENERATED_HEADERS}" "${LOCAL_GENERATED_IMPLS}")
 
-  set("${GENERATED_HEADERS_VARIABLE}"
+  set("${GENERATOR_GENERATED_HEADERS_VARIABLE}"
       ${LOCAL_GENERATED_HEADERS}
       PARENT_SCOPE)
-  set("${GENERATED_IMPLS_VARIABLE}"
+  set("${GENERATOR_GENERATED_IMPLS_VARIABLE}"
       ${LOCAL_GENERATED_IMPLS}
       PARENT_SCOPE)
   set(EXTRA_TARGETS)
@@ -62,40 +62,40 @@ function(
   #
   # Produce JSON schema, if requested
   #
-  if(NOT "${JSONSCHEMA_PATH}" STREQUAL "")
+  if(NOT "${GENERATOR_JSONSCHEMA_PATH}" STREQUAL "")
     tuple_tree_generator_generate_jsonschema(
-      "${SCHEMA_PATH}" "${NAMESPACE}" "${ROOT_TYPE}" "${STRING_TYPES}"
-      "${SEPARATE_STRING_TYPES}" "${JSONSCHEMA_PATH}")
-    list(APPEND EXTRA_TARGETS ${JSONSCHEMA_PATH})
+      "${GENERATOR_SCHEMA_PATH}" "${GENERATOR_NAMESPACE}"
+      "${GENERATOR_ROOT_TYPE}" "${GENERATOR_STRING_TYPES}"
+      "${GENERATOR_SEPARATE_STRING_TYPES}" "${GENERATOR_JSONSCHEMA_PATH}")
+    list(APPEND EXTRA_TARGETS ${GENERATOR_JSONSCHEMA_PATH})
   endif()
 
   #
   # Produce Python code, if requested
   #
-  if(NOT "${PYTHON_PATH}" STREQUAL "")
+  if(NOT "${GENERATOR_PYTHON_PATH}" STREQUAL "")
     tuple_tree_generator_generate_python(
-      "${SCHEMA_PATH}" "${NAMESPACE}" "${ROOT_TYPE}" "${STRING_TYPES}"
-      "${SEPARATE_STRING_TYPES}" "${PYTHON_PATH}")
-    list(APPEND EXTRA_TARGETS ${PYTHON_PATH})
+      "${GENERATOR_SCHEMA_PATH}" "${GENERATOR_NAMESPACE}"
+      "${GENERATOR_ROOT_TYPE}" "${GENERATOR_STRING_TYPES}"
+      "${GENERATOR_SEPARATE_STRING_TYPES}" "${GENERATOR_PYTHON_PATH}")
+    list(APPEND EXTRA_TARGETS ${GENERATOR_PYTHON_PATH})
   endif()
 
   add_custom_target(
-    "${TARGET_NAME}" DEPENDS "${SCHEMA_PATH}" ${LOCAL_GENERATED_HEADERS}
-                             ${LOCAL_GENERATED_IMPLS} ${EXTRA_TARGETS})
+    "${GENERATOR_TARGET_NAME}"
+    DEPENDS "${GENERATOR_SCHEMA_PATH}" ${LOCAL_GENERATED_HEADERS}
+            ${LOCAL_GENERATED_IMPLS} ${GENERATOR_JSONSCHEMA_PATH}
+            ${EXTRA_TARGETS})
 endfunction()
 
 # Extracts tuple_tree_generator YAML definitions from the given header files
 #
-# The definitions have to be embedded in a c-style comment marked with the given
-# delimiter, like so:
-#
-# /* DELIMITER <definition> DELIMITER */
 function(tuple_tree_generator_extract_definitions_from_headers HEADERS
-         DELIMITER OUTPUT_FILE)
+         OUTPUT_FILE)
   add_custom_command(
     OUTPUT "${OUTPUT_FILE}"
     COMMAND "${CMAKE_SOURCE_DIR}/scripts/tuple_tree_generator/extract_yaml.py"
-            --output "${OUTPUT_FILE}" "${DELIMITER}" ${HEADERS}
+            --output "${OUTPUT_FILE}" TUPLE-TREE-YAML ${HEADERS}
     DEPENDS ${HEADERS})
 endfunction()
 
@@ -196,7 +196,7 @@ function(
   tuple_tree_generator_generate_jsonschema
   YAML_DEFINITIONS # Path to the yaml definitions
   NAMESPACE # Base namespace of the generated classes (e.g. model)
-  JSONSCHEMA_ROOT_TYPE # Type to use as the root of the JSON schema
+  ROOT_TYPE # Type to use as the root of the JSON schema
   STRING_TYPES # Types equivalent to plain strings
   SEPARATE_STRING_TYPES # Types equivalent to plain strings that get a separate
                         # type definition
@@ -215,9 +215,8 @@ function(
   add_custom_command(
     COMMAND
       "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-jsonschema.py" --namespace
-      "${NAMESPACE}" --root-type "${JSONSCHEMA_ROOT_TYPE}" --output
-      "${OUTPUT_PATH}" ${STRING_TYPE_ARGS} ${SEPARATE_STRING_TYPE_ARGS}
-      "${YAML_DEFINITIONS}"
+      "${NAMESPACE}" --root-type "${ROOT_TYPE}" --output "${OUTPUT_PATH}"
+      ${STRING_TYPE_ARGS} ${SEPARATE_STRING_TYPE_ARGS} "${YAML_DEFINITIONS}"
     OUTPUT "${OUTPUT_PATH}"
     DEPENDS "${YAML_DEFINITIONS}" ${TUPLE_TREE_GENERATOR_SOURCES})
 endfunction()
@@ -255,4 +254,95 @@ function(
     OUTPUT "${OUTPUT_PATH}"
     DEPENDS "${YAML_DEFINITIONS}" ${PYTHON_TEMPLATES}
             ${TUPLE_TREE_GENERATOR_SOURCES})
+endfunction()
+
+# Extracts definitions and generates C++ headers and implementations from the
+# given header files. The definitions must be embedded as described in the docs
+# for tuple_tree_generator_extract_definitions_from_headers. Name of the target
+# on which generated code will be attached too
+
+# TARGET_ID HEADERS List of C++ headers
+
+# NAMESPACE Delimiter used to mark comments embedding type schemas
+
+# SCHEMA_PATH Where the schema will be collected
+
+# HEADER_DIRECTORY Directory where the headers will be generated
+
+# HEADER_DIRECTORY Full path where the headers will be generated, incompatible
+# with INCLUDE_PATH_PREFIX
+
+# HEADERS_PATH Include path prefix
+
+# JSONSCHEMA_PATH Where the JSON schema will be produced (empty for no schema)
+
+# ROOT_TYPE Type to use as the root of the JSON schema
+
+# PYTHON_PATH  Path where the python generated code will be produced (empty for
+# skipping python code generation)
+
+# STRING_TYPES Types equivalent to strings
+
+# SEPARATE_STRING_TYPES Types equivalent to strings which get a separate type
+# definition
+function(target_tuple_tree_generator TARGET_ID)
+  set(options INSTALL)
+  set(oneValueArgs
+      HEADER_DIRECTORY
+      NAMESPACE
+      SCHEMA_PATH
+      JSONSCHEMA_PATH
+      ROOT_TYPE
+      INCLUDE_PATH_PREFIX
+      PYTHON_PATH
+      HEADERS_PATH)
+  set(multiValueArgs HEADERS STRING_TYPES SEPARATE_STRING_TYPES)
+  cmake_parse_arguments(GEN "${options}" "${oneValueArgs}" "${multiValueArgs}"
+                        "${ARGN}")
+
+  if(NOT DEFINED GEN_INCLUDE_PATH_PREFIX)
+    set(GEN_INCLUDE_PATH_PREFIX "revng/${GEN_HEADER_DIRECTORY}")
+  endif()
+
+  # Generate C++ headers from the collected YAML
+  if(NOT DEFINED GEN_HEADERS_PATH)
+    set(GEN_HEADERS_PATH
+        "${CMAKE_BINARY_DIR}/include/revng/${GEN_HEADER_DIRECTORY}/Generated")
+  endif()
+
+  tuple_tree_generator_impl(
+    TARGET_NAME
+    generate-${TARGET_ID}-tuple-tree-code
+    HEADERS
+    "${GEN_HEADERS}"
+    NAMESPACE
+    ${GEN_NAMESPACE}
+    SCHEMA_PATH
+    "${GEN_SCHEMA_PATH}"
+    HEADERS_DIR
+    "${GEN_HEADERS_PATH}"
+    INCLUDE_PATH_PREFIX
+    "${GEN_INCLUDE_PATH_PREFIX}"
+    GENERATED_HEADERS_VARIABLE
+    GENERATED_HEADERS
+    GENERATED_IMPLS_VARIABLE
+    GENERATED_IMPLS
+    JSONSCHEMA_PATH
+    "${GEN_JSONSCHEMA_PATH}"
+    ROOT_TYPE
+    ${GEN_ROOT_TYPE}
+    STRING_TYPES
+    "${GEN_STRING_TYPES}"
+    SEPARATE_STRING_TYPES
+    "${GEN_SEPARATE_STRING_TYPES}"
+    PYTHON_PATH
+    ${GEN_PYTHON_PATH})
+  if(GEN_INSTALL)
+    install(DIRECTORY ${GEN_HEADERS_PATH}
+            DESTINATION include/revng/${GEN_HEADER_DIRECTORY})
+  endif()
+
+  target_sources(${TARGET_ID} PRIVATE ${GENERATED_IMPLS})
+
+  add_dependencies(${TARGET_ID} generate-${TARGET_ID}-tuple-tree-code)
 endfunction()

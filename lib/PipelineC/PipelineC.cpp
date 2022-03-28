@@ -11,6 +11,8 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Container.h"
@@ -25,6 +27,15 @@ using namespace ::revng::pipes;
 
 void rp_set_custom_abort_hook(AbortHook Hook) {
   setAbortHook(Hook);
+}
+
+/// Used when we want to return a stack allocated string. Copies the string onto
+/// the heap and gives ownership of to the caller
+static char *copyString(llvm::StringRef str) {
+  char *ToReturn = (char *) malloc(sizeof(char) * (str.size() + 1));
+  strncpy(ToReturn, str.data(), str.size());
+  ToReturn[str.size()] = 0;
+  return ToReturn;
 }
 
 static bool Initialized = false;
@@ -198,11 +209,11 @@ const char *rp_kind_get_name(rp_kind *kind) {
   return kind->name().data();
 }
 
-bool rp_manager_produce_targets(rp_manager *manager,
-                                uint64_t targets_count,
-                                rp_target *targets[],
-                                rp_step *step,
-                                rp_container *container) {
+const char *rp_manager_produce_targets(rp_manager *manager,
+                                       uint64_t targets_count,
+                                       rp_target *targets[],
+                                       rp_step *step,
+                                       rp_container *container) {
   revng_check(manager != nullptr);
   revng_check(targets_count != 0);
   revng_check(targets != nullptr);
@@ -214,11 +225,19 @@ bool rp_manager_produce_targets(rp_manager *manager,
     Targets[container->second->name()].push_back(*targets[I]);
 
   auto Error = manager->getRunner().run(step->getName(), Targets);
-  if (not Error)
-    return true;
+  if (Error) {
+    llvm::consumeError(std::move(Error));
+    return nullptr;
+  }
 
-  llvm::consumeError(std::move(Error));
-  return false;
+  std::string Out;
+  llvm::raw_string_ostream Serialized(Out);
+  const auto &ToFilter = Targets[container->second->name()];
+  const auto &Cloned = container->second->cloneFiltered(ToFilter);
+  llvm::cantFail(Cloned->serialize(Serialized));
+  Serialized.flush();
+
+  return copyString(Out);
 }
 
 rp_target *rp_target_create(rp_kind *kind,
@@ -291,13 +310,6 @@ const char *rp_target_get_path_component(rp_target *target, uint64_t index) {
   return PathComponents[index].getName().c_str();
 }
 
-static char *copy_string(llvm::StringRef str) {
-  char *ToReturn = (char *) malloc(sizeof(char) * (str.size() + 1));
-  strncpy(ToReturn, str.data(), str.size());
-  ToReturn[str.size()] = 0;
-  return ToReturn;
-}
-
 char *rp_manager_create_container_path(rp_manager *manager,
                                        const char *step_name,
                                        const char *container_name) {
@@ -311,7 +323,7 @@ char *rp_manager_create_container_path(rp_manager *manager,
   auto Path = (manager->executionDirectory() + "/" + step_name + "/"
                + container_name)
                 .str();
-  return copy_string(Path);
+  return copyString(Path);
 }
 
 void rp_manager_recompute_all_available_targets(rp_manager *manager) {
@@ -366,7 +378,7 @@ rp_container_identifier_get_name(rp_container_identifier *identifier) {
 
 char *rp_target_create_serialized_string(rp_target *target) {
   revng_check(target != nullptr);
-  return copy_string(target->serialize());
+  return copyString(target->serialize());
 }
 
 rp_target *
@@ -379,4 +391,42 @@ rp_target_create_from_string(rp_manager *manager, const char *string) {
 
   llvm::consumeError(MaybeTarget.takeError());
   return nullptr;
+}
+
+bool rp_target_is_ready(rp_target *target, rp_container *container) {
+  revng_assert(target);
+  revng_assert(container);
+  return container->second->enumerate().contains(*target);
+}
+
+/// TODO Remove the redundant copy by writing a custom string stream that writes
+/// direclty to a buffer to return.
+const char *
+rp_manager_create_global_copy(rp_manager *manager, const char *global_name) {
+  std::string Out;
+  llvm::raw_string_ostream Serialized(Out);
+  if (auto Error = manager->context().serializeGlobal(global_name, Serialized);
+      Error) {
+    llvm::consumeError(std::move(Error));
+    return nullptr;
+  }
+  Serialized.flush();
+  return copyString(Out);
+}
+
+bool rp_manager_set_global(rp_manager *manager,
+                           const char *serialized,
+                           const char *global_name) {
+  auto MaybeBuffer = llvm::MemoryBuffer::getMemBuffer(serialized);
+  if (MaybeBuffer == nullptr)
+    return false;
+
+  if (auto Error = manager->context().deserializeGlobal(global_name,
+                                                        *MaybeBuffer);
+      Error) {
+    llvm::consumeError(std::move(Error));
+    return false;
+  }
+
+  return true;
 }

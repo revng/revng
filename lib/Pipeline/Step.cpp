@@ -11,6 +11,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 
+#include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Step.h"
 #include "revng/Support/Debug.h"
 
@@ -31,10 +32,10 @@ Step::analyzeGoals(const ContainerToTargetsMap &RequiredGoals,
                    ContainerToTargetsMap &AlreadyAviable) const {
 
   ContainerToTargetsMap Targets = RequiredGoals;
+  removeSatisfiedGoals(Targets, AlreadyAviable);
   for (const auto &Pipe : llvm::make_range(Pipes.rbegin(), Pipes.rend())) {
     Targets = Pipe->getRequirements(Targets);
   }
-  removeSatisfiedGoals(Targets, AlreadyAviable);
 
   return Targets;
 }
@@ -51,12 +52,13 @@ void Step::explainStartStep(const ContainerToTargetsMap &Targets,
   OS->changeColor(llvm::raw_ostream::Colors::MAGENTA);
   (*OS) << getName();
   OS->changeColor(llvm::raw_ostream::Colors::GREEN);
-  (*OS) << " by cloning\n";
+  (*OS) << " running on \n";
 
   prettyPrintStatus(Targets, *OS, Indentation + 1);
 }
 
-void Step::explainExecutedPipe(const PipeWrapper &Wrapper,
+void Step::explainExecutedPipe(const Context &Ctx,
+                               const PipeWrapper &Wrapper,
                                llvm::raw_ostream *OS,
                                size_t Indentation) const {
   if (OS == nullptr)
@@ -82,22 +84,25 @@ void Step::explainExecutedPipe(const PipeWrapper &Wrapper,
   OS->changeColor(llvm::raw_ostream::Colors::GREEN);
   (*OS) << ")";
   (*OS) << "\n";
+  Wrapper->print(Ctx, *OS, Indentation);
+  (*OS) << "\n";
 }
 
-ContainerSet Step::cloneAndRun(Context &Ctx,
-                               const ContainerToTargetsMap &Targets,
-                               llvm::raw_ostream *OS) {
-  auto RunningContainers = Containers.cloneFiltered(Targets);
-  explainStartStep(Targets, OS);
+ContainerSet
+Step::cloneAndRun(Context &Ctx, ContainerSet &&Input, llvm::raw_ostream *OS) {
+  auto InputEnumeration = Input.enumerate();
+  explainStartStep(InputEnumeration, OS);
 
   for (auto &Pipe : Pipes) {
-    if (not Pipe->areRequirementsMet(RunningContainers.enumerate()))
+    if (not Pipe->areRequirementsMet(Input.enumerate()))
       continue;
 
-    explainExecutedPipe(Pipe, OS);
-    Pipe->run(Ctx, RunningContainers);
+    explainExecutedPipe(Ctx, Pipe, OS);
+    Pipe->run(Ctx, Input);
   }
-  return RunningContainers;
+  Containers.mergeBack(std::move(Input));
+  InputEnumeration = deduceResults(InputEnumeration);
+  return Containers.cloneFiltered(InputEnumeration);
 }
 
 void Step::removeSatisfiedGoals(TargetsList &RequiredInputs,

@@ -33,18 +33,17 @@ class IRPipelineCommand(Command):
             run_revng_command(
                 [
                     "pipeline",
-                    "--silent",
                     "-m",
                     model.name,
                     "-i",
-                    f"""{args.__dict__["from"]}:module:{args.input}""",
+                    f"""{args.__dict__["from"]}:module.ll:{args.input}""",
                     "-o",
-                    f"End{args.to}:module:{module.name}",
+                    f"{args.to}:module.ll:{module.name}",
                     "--save-model",
                     model.name,
                     "--step",
-                    f"End{args.to}",
-                    f"module:{args.target}",
+                    f"{args.to}",
+                    f"module.ll:{args.target}",
                 ],
                 options,
             )

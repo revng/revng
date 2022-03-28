@@ -12,11 +12,11 @@ REFERENCE_OUTPUT="$SCRIPT_DIR/MultiStepPipelineOutput.txt"
 function run() {
   "$PWD/libexec/revng/revng-pipeline" \
     -P="$SCRIPT_DIR/MultiStepPipeline.yml" \
-    Strings3:Root:Root \
-    -i "FirstStep:Strings1:$SCRIPT_DIR/MultiStepPipelineInput.txt" \
-    -o "End:Strings3:$OUTPUT" \
+    Strings3:Root:StringKind\
+    -i "begin:Strings1:$SCRIPT_DIR/MultiStepPipelineInput.txt" \
+    -o "SecondStep:Strings3:$OUTPUT" \
     -p "$WORKING_DIRECTORY" \
-    -s \
+    --step SecondStep \
     "$@"
 }
 

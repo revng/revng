@@ -5,7 +5,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 
 #include "revng/Pipes/FileContainer.h"
@@ -52,6 +54,16 @@ FileContainer &FileContainer::operator=(const FileContainer &Other) noexcept {
     cantFail(llvm::sys::fs::createTemporaryFile("", Other.Suffix, Path));
   cantFail(llvm::sys::fs::copy_file(Other.Path, Path));
   return *this;
+}
+
+bool FileContainer::remove(const pipeline::TargetsList &Target) {
+  auto NotFound = llvm::find(Target, getOnlyPossibleTarget()) == Target.end();
+  if (NotFound)
+    return false;
+
+  clear();
+
+  return true;
 }
 
 FileContainer &FileContainer::operator=(FileContainer &&Other) noexcept {
@@ -109,4 +121,34 @@ TargetsList FileContainer::enumerate() const {
 
   return TargetsList({ getOnlyPossibleTarget() });
 }
+
+void FileContainer::clear() {
+  *this = FileContainer(*K, name(), Suffix);
+}
+
+llvm::Error FileContainer::serialize(llvm::raw_ostream &OS) const {
+  if (Path.empty())
+    return llvm::Error::success();
+
+  if (auto MaybeBuffer = MemoryBuffer::getFile(Path); !MaybeBuffer)
+    return llvm::createStringError(MaybeBuffer.getError(),
+                                   "could not read file");
+  else
+    OS << (*MaybeBuffer)->getBuffer();
+
+  return llvm::Error::success();
+}
+
+llvm::Error FileContainer::deserialize(const llvm::MemoryBuffer &Buffer) {
+  std::error_code EC;
+  llvm::raw_fd_ostream OS(getOrCreatePath(), EC, llvm::sys::fs::F_None);
+  if (EC)
+    return llvm::createStringError(EC,
+                                   "could not write file at %s",
+                                   Path.str().str().c_str());
+
+  OS << Buffer.getBuffer();
+  return llvm::Error::success();
+}
+
 } // namespace revng::pipes

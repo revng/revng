@@ -17,6 +17,7 @@ revng_add_library_internal(
   RegisterKind.cpp
   Registry.cpp
   Step.cpp
-  Target.cpp)
+  Target.cpp
+  SavableObject.cpp)
 
 target_link_libraries(revngPipeline revngSupport ${LLVM_LIBRARIES})

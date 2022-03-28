@@ -10,9 +10,11 @@
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/Error.h"
 
 // Local libraries includes
 #include "revng/Model/LoadModelPass.h"
+#include "revng/TupleTree/TupleTree.h"
 
 using namespace llvm;
 
@@ -25,6 +27,9 @@ using RP = RegisterPass<T>;
 
 static RP<LoadModelWrapperPass>
   X("load-model", "Deserialize the model", true, true);
+
+using namespace llvm::cl;
+opt<std::string> ModelPath("model-path", desc("<model path>"), init(""));
 
 bool hasModel(const llvm::Module &M) {
   NamedMDNode *NamedMD = M.getNamedMetadata(ModelMetadataName);
@@ -55,8 +60,17 @@ static TupleTree<model::Binary> extractModel(Module &M) {
 }
 
 bool LoadModelWrapperPass::doInitialization(Module &M) {
-  if (not isModelExternal())
+  if (isModelExternal())
+    return false;
+
+  if (not ModelPath.empty()) {
+    auto MaybeBinary = TupleTree<model::Binary>::fromFile(ModelPath);
+    auto ExpectedBinary = llvm::errorOrToExpected(std::move(MaybeBinary));
+    InternalModel = llvm::cantFail(std::move(ExpectedBinary));
+  } else {
+
     InternalModel = extractModel(M);
+  }
 
   return false;
 }

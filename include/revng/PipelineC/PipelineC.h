@@ -110,9 +110,7 @@ void rp_string_destroy(char *string);
  * provided directory and created from the provided pipelines_path.
  *
  * \param pipelines_count size of \p pipelines_path.
- * \param pipelines_path cannot be NULL.
  * \param pipeline_flags_count size of \p pipeline_flags.
- * \param pipeline_flags cannot be NULL.
  * \param execution_directory can be empty (but not NULL), if it is empty then
  * the content of the pipeline will not be loaded and saved on disk before and
  * after the execution. pipeline_flags can be empty, pipeline_flags_count must
@@ -192,6 +190,21 @@ uint64_t rp_manager_step_name_to_index(rp_manager *manager, const char *name);
 rp_step *rp_manager_get_step(rp_manager *manager, uint64_t index);
 
 /**
+ * \return the serialized string rappresenting a global object
+ */
+const char *
+rp_manager_create_global_copy(rp_manager *manager, const char *global_name);
+
+/**
+ * sets the indicated global with the deserialized content of the serialized
+ * string
+ * \return true on success
+ */
+bool rp_manager_set_global(rp_manager *manager,
+                           const char *serialized,
+                           const char *global_name);
+
+/**
  * \return the kind with the provided name, NULL if no kind had the provided
  *         name.
  */
@@ -203,13 +216,13 @@ rp_manager_get_kind_from_name(rp_manager *manager, const char *kind_name);
  *
  * \param tagets_count must be equal to the size of targets.
  *
- * \return 0 if an error was encountered, 1 otherwise.
+ * \return 0 if an error was encountered, the serialized container otherwise
  */
-bool rp_manager_produce_targets(rp_manager *manager,
-                                uint64_t targets_count,
-                                rp_target *targets[],
-                                rp_step *step,
-                                rp_container *container);
+const char *rp_manager_produce_targets(rp_manager *manager,
+                                       uint64_t targets_count,
+                                       rp_target *targets[],
+                                       rp_step *step,
+                                       rp_container *container);
 
 /**
  *
@@ -328,8 +341,6 @@ void rp_target_destroy(rp_target *target);
 rp_kind *rp_target_get_kind(rp_target *target);
 
 /**
- * Serializes target into a string, target cannot be NULL.
- *
  * \note The return string is owned by the caller. Destroy with
  *       rp_string_destroy.
  */
@@ -353,6 +364,12 @@ uint64_t rp_target_path_components_count(rp_target *target);
  * \note The returned string must not be freed by the caller.
  */
 const char *rp_target_get_path_component(rp_target *target, uint64_t index);
+
+/**
+ * \return true if the provided target is currently cached in the provided
+ * container. False otherwise
+ */
+bool rp_target_is_ready(rp_target *target, rp_container *container);
 
 /** \} */
 

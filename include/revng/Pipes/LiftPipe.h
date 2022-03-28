@@ -5,7 +5,9 @@
 //
 
 #include <array>
+#include <string>
 
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/IR/LegacyPassManager.h"
 
 #include "revng/Pipeline/ContainerSet.h"
@@ -19,6 +21,7 @@
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/RootKind.h"
+#include "revng/Support/ResourceFinder.h"
 
 namespace revng::pipes {
 
@@ -37,6 +40,14 @@ public:
   void run(pipeline::Context &Ctx,
            const FileContainer &SourceBinary,
            pipeline::LLVMContainer &TargetsList);
+
+  void print(const pipeline::Context &Ctx,
+             llvm::raw_ostream &OS,
+             llvm::ArrayRef<std::string> ContainerNames) const {
+
+    OS << *ResourceFinder.findFile("bin/revng");
+    OS << " lift " << ContainerNames[0] << " " << ContainerNames[1] << "\n";
+  }
 };
 
 } // namespace revng::pipes

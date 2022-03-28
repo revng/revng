@@ -4,6 +4,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <string>
+
+#include "llvm/ADT/ArrayRef.h"
+
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Contract.h"
@@ -31,6 +35,14 @@ public:
   void run(const pipeline::Context &,
            pipeline::LLVMContainer &TargetsList,
            FileContainer &TargetBinary);
+
+  void print(const pipeline::Context &Ctx,
+             llvm::raw_ostream &OS,
+             llvm::ArrayRef<std::string> ContainerNames) const {
+    OS << "llc " << ContainerNames[0] << " -o " << ContainerNames[1]
+       << " --filetype=obj"
+       << "\n";
+  };
 };
 
 class CompileIsolatedModulePipe {
@@ -53,6 +65,14 @@ public:
   void run(const pipeline::Context &,
            pipeline::LLVMContainer &TargetsList,
            FileContainer &TargetBinary);
+
+  void print(const pipeline::Context &Ctx,
+             llvm::raw_ostream &OS,
+             llvm::ArrayRef<std::string> ContainerNames) const {
+    OS << "llc " << ContainerNames[0] << " -o " << ContainerNames[1]
+       << " --filetype=obj"
+       << "\n";
+  };
 };
 
 } // namespace revng::pipes

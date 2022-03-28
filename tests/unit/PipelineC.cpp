@@ -22,7 +22,7 @@ const auto PipelineTextContent =
 Steps:
  - Name:            FirstStep
    Pipes:
-     - Name:             CopyPipe
+     - Type:             CopyPipe
        UsedContainers: [Strings1, Strings2]
 )";
 
@@ -51,8 +51,8 @@ BOOST_AUTO_TEST_CASE(CAPILoadTest) {
   auto *FirstStep = rp_manager_get_step(runner, 0);
   BOOST_TEST(rp_manager_containers_count(runner) == 2);
 
-  BOOST_TEST(rp_manager_step_name_to_index(runner, "FirstStep") == 0);
-  BOOST_TEST(rp_manager_step_name_to_index(runner, "End") == 1);
+  BOOST_TEST(rp_manager_step_name_to_index(runner, "begin") == 0);
+  BOOST_TEST(rp_manager_step_name_to_index(runner, "FirstStep") == 1);
   BOOST_TEST(rp_manager_get_kind_from_name(runner, "MISSING") == nullptr);
   BOOST_TEST(rp_manager_get_kind_from_name(runner, "Root") != nullptr);
 }

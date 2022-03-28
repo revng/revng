@@ -5,6 +5,8 @@
 //
 #include <optional>
 
+#include "llvm/Support/raw_ostream.h"
+
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/LLVMContainerFactory.h"
 #include "revng/Pipeline/Target.h"
@@ -40,11 +42,15 @@ public:
 
   pipeline::TargetsList enumerate() const final;
 
-  bool remove(const pipeline::TargetsList &Target) final { revng_abort(); }
+  bool remove(const pipeline::TargetsList &Target) final;
 
   llvm::Error storeToDisk(llvm::StringRef Path) const override;
 
   llvm::Error loadFromDisk(llvm::StringRef Path) override;
+
+  void clear() override;
+  llvm::Error serialize(llvm::raw_ostream &OS) const override;
+  llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) override;
 
 public:
   std::optional<llvm::StringRef> path() const {
@@ -63,7 +69,7 @@ private:
   void mergeBackImpl(FileContainer &&Container) override;
   void remove();
   pipeline::Target getOnlyPossibleTarget() const {
-    return pipeline::Target("root", *K);
+    return pipeline::Target({}, *K);
   }
 };
 

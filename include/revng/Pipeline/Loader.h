@@ -29,7 +29,7 @@ struct ContainerDeclaration {
 };
 
 struct PipeInvocation {
-  std::string Name;
+  std::string Type;
   std::vector<std::string> UsedContainers;
   std::vector<std::string> Passes = {};
   std::vector<std::string> EnabledWhen = {};
@@ -135,7 +135,6 @@ public:
   }
 
 private:
-  void emitTerminators(Runner &Runner) const;
   llvm::Error
   parseSteps(Runner &Runner, const PipelineDeclaration &Declaration) const;
   llvm::Error parseDeclarations(Runner &Runner,
@@ -168,7 +167,7 @@ LLVM_YAML_IS_SEQUENCE_VECTOR(pipeline::ContainerDeclaration)
 template<>
 struct llvm::yaml::MappingTraits<pipeline::PipeInvocation> {
   static void mapping(IO &io, pipeline::PipeInvocation &info) {
-    io.mapRequired("Name", info.Name);
+    io.mapRequired("Type", info.Type);
     io.mapRequired("UsedContainers", info.UsedContainers);
     io.mapOptional("Passes", info.Passes);
     io.mapOptional("EnabledWhen", info.EnabledWhen);

@@ -4,6 +4,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <string>
+
+#include "llvm/ADT/ArrayRef.h"
+
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Contract.h"
@@ -11,6 +15,7 @@
 #include "revng/Pipeline/LLVMGlobalKindBase.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/FileContainer.h"
+#include "revng/Pipes/Kinds.h"
 
 namespace revng::pipes {
 
@@ -38,6 +43,10 @@ public:
            FileContainer &InputBinary,
            FileContainer &ObjectFile,
            FileContainer &OutputBinary);
+
+  void print(const pipeline::Context &Ctx,
+             llvm::raw_ostream &OS,
+             llvm::ArrayRef<std::string> ContainerNames) const;
 };
 
 } // namespace revng::pipes

@@ -40,7 +40,7 @@ void Contract::deduceResults(ContainerToTargetsMap &StepStatus,
   if (Source == nullptr) {
     PathComponents List;
 
-    for (size_t I = 0; I < TargetKind->depth(); I++)
+    for (size_t I = 1; I < TargetKind->depth(); I++)
       List.emplace_back(PathComponent::all());
 
     Results.emplace_back(std::move(List), *TargetKind);
@@ -266,7 +266,7 @@ bool Contract::backwardMatches(const BCS &StepStatus,
 void Contract::insertDefaultInput(BCS &Status, ArrayRef<string> Names) const {
   auto &SourceContainerTargets = Status[Names[PipeArgumentSourceIndex]];
 
-  llvm::SmallVector<PathComponent, 4> PathComponents(Source->depth() + 1,
+  llvm::SmallVector<PathComponent, 4> PathComponents(Source->depth(),
                                                      PathComponent::all());
 
   Target Target(move(PathComponents), *Source, InputContract);

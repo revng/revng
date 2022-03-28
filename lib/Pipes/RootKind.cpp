@@ -21,7 +21,7 @@ std::optional<Target>
 RootKind::symbolToTarget(const llvm::Function &Symbol) const {
   if (FunctionTags::Root.isTagOf(&Symbol)
       and not FunctionTags::IsolatedRoot.isTagOf(&Symbol))
-    return Target("root", *this);
+    return Target({}, *this);
 
   return std::nullopt;
 }
@@ -29,7 +29,7 @@ RootKind::symbolToTarget(const llvm::Function &Symbol) const {
 std::optional<Target>
 IsolatedRootKind::symbolToTarget(const llvm::Function &Symbol) const {
   if (FunctionTags::IsolatedRoot.isTagOf(&Symbol))
-    return Target("root", *this);
+    return Target({}, *this);
 
   return std::nullopt;
 }

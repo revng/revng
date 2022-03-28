@@ -82,7 +82,7 @@ public:
   ///
   /// The contained values stays unchanged.
   ContainerSet cloneAndRun(Context &Ctx,
-                           const ContainerToTargetsMap &Targets,
+                           ContainerSet &&Targets,
                            llvm::raw_ostream *OS = nullptr);
 
   /// Returns the set of goals that are already contained in the backing
@@ -134,7 +134,8 @@ private:
   void removeSatisfiedGoals(ContainerToTargetsMap &Targets,
                             ContainerToTargetsMap &ToLoad) const;
 
-  void explainExecutedPipe(const PipeWrapper &Wrapper,
+  void explainExecutedPipe(const Context &Ctx,
+                           const PipeWrapper &Wrapper,
                            llvm::raw_ostream *OS,
                            size_t Indentation = 0) const;
   void explainStartStep(const ContainerToTargetsMap &Wrapper,

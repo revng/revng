@@ -814,8 +814,40 @@ private:
     }
   }
 
-  void dropTypesDependingOnUnresolvedTypes() {
+  void cleanupTypeSystem() {
     std::set<const model::Type *> ToDrop;
+
+    for (auto &Type : Model->Types) {
+      //
+      // Drop zero-sized struct/union fields
+      //
+      if (auto *Struct = dyn_cast<model::StructType>(Type.get())) {
+        llvm::erase_if(Struct->Fields, [](model::StructField &Field) {
+          return not Field.Type.size();
+        });
+      } else if (auto *Union = dyn_cast<model::UnionType>(Type.get())) {
+        llvm::erase_if(Union->Fields, [](model::UnionField &Field) {
+          return not Field.Type.size();
+        });
+      }
+
+      //
+      // Collect array whose elements are zero-sized
+      //
+      for (model::QualifiedType &QT : Type->edges()) {
+        auto IsArray = [](const model::Qualifier &Q) {
+          return Q.Kind == model::QualifierKind::Array;
+        };
+        if (llvm::any_of(QT.Qualifiers, IsArray)
+            and not QT.UnqualifiedType.get()->size()) {
+          ToDrop.insert(Type.get());
+        }
+      }
+    }
+
+    //
+    // Collect unresolved types
+    //
     for (const auto [_, Type] : Placeholders)
       ToDrop.insert(Type);
 
@@ -834,7 +866,7 @@ public:
     materializeTypesWithIdentity();
     resolveAllTypes();
     createDynamicFunctions();
-    dropTypesDependingOnUnresolvedTypes();
+    cleanupTypeSystem();
     deduplicateEquivalentTypes(Model);
     promoteOriginalName(Model);
     purgeUnnamedAndUnreachableTypes(Model);

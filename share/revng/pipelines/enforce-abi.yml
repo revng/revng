@@ -1,10 +1,10 @@
-From:            Isolated
+From:            Isolate
 Containers:
 Steps:
  - Name:            EnforceABI
    Pipes:
-     - Name:             LLVMPipe
-       UsedContainers: [module]
+     - Type:             LLVMPipe
+       UsedContainers: [module.ll]
        Passes:
          - drop-root
          - enforce-abi

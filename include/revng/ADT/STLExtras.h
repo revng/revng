@@ -125,7 +125,7 @@ static_assert(not IsTupleLike<int>);
 //===----------------------------------------------------------------------===//
 
 namespace revng {
-namespace revng::detail {
+namespace detail {
 
 template<typename FuncTy, typename ItTy>
 using ReturnType = decltype(std::declval<FuncTy>()(*std::declval<ItTy>()));
@@ -160,7 +160,7 @@ using ItImpl = std::conditional_t<std::is_object_v<ReturnType<FuncTy, ItTy>>,
                                   ProxyMappedIteratorImpl<ItTy, FuncTy>,
                                   llvm::mapped_iterator<ItTy, FuncTy>>;
 
-} // namespace revng::detail
+} // namespace detail
 
 /// `revng::mapped_iterator` is a specialized version of
 /// `llvm::mapped_iterator`.
@@ -191,7 +191,7 @@ auto dereferenceIterator(auto Iter) {
   });
 }
 
-namespace revng::detail {
+namespace detail {
 template<typename T>
 using DIT = decltype(dereferenceIterator(std::declval<T>()));
 }

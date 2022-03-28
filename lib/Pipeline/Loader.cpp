@@ -69,16 +69,16 @@ Loader::parseLLVMPass(Step &Step, const PipeInvocation &Invocation) const {
 
 llvm::Error
 Loader::parseInvocation(Step &Step, const PipeInvocation &Invocation) const {
-  if (Invocation.Name == "LLVMPipe")
+  if (Invocation.Type == "LLVMPipe")
     return parseLLVMPass(Step, Invocation);
 
-  auto It = KnownPipesTypes.find(Invocation.Name);
+  auto It = KnownPipesTypes.find(Invocation.Type);
   if (It == KnownPipesTypes.end()) {
     auto *Message = "while parsing pipe invocation: No known Pipe with "
-                    "name %s ";
+                    "name %s\n ";
     return createStringError(inconvertibleErrorCode(),
                              Message,
-                             Invocation.Name.c_str());
+                             Invocation.Type.c_str());
   }
   auto &Entry = It->second;
   Step.addPipe(Entry(Invocation.UsedContainers));
@@ -91,7 +91,7 @@ Error Loader::parseContainerDeclaration(Runner &Pipeline,
   auto It = KnownContainerTypes.find(Dec.Type);
   if (It == KnownContainerTypes.end()) {
     auto *Message = "while parsing container declaration: No known container "
-                    "with name %s";
+                    "with name %s\n";
     return createStringError(inconvertibleErrorCode(),
                              Message,
                              Dec.Type.c_str());
@@ -111,28 +111,17 @@ Loader::load(llvm::ArrayRef<std::string> Pipelines) const {
     Input >> Declarations[I];
     if (Input.error())
       return createStringError(inconvertibleErrorCode(),
-                               "Could not parse pipeline");
+                               "Could not parse pipeline\n");
   }
 
   return load(Declarations);
-}
-void Loader::emitTerminators(Runner &Runner) const {
-  auto LeafsCount = llvm::count_if(Runner, [&Runner](const Step &CurrentStep) {
-    return not Runner.hasSuccessors(CurrentStep);
-  });
-
-  for (const Step &CurrentStep : Runner)
-    if (not Runner.hasSuccessors(CurrentStep)) {
-      std::string
-        Name = (LeafsCount == 1 ? "End" : "End" + CurrentStep.getName()).str();
-      Runner.emplaceStep(CurrentStep.getName().str(), std::move(Name));
-    }
 }
 
 llvm::Error Loader::parseSteps(Runner &Runner,
                                const PipelineDeclaration &Declaration) const {
 
-  std::string LastAddedStep = Declaration.From;
+  std::string LastAddedStep = Declaration.From.empty() ? "begin" :
+                                                         Declaration.From;
   for (const auto &Step : Declaration.Steps) {
     if (not isInvocationUsed(Step.EnabledWhen))
       continue;
@@ -205,10 +194,11 @@ Loader::load(llvm::ArrayRef<PipelineDeclaration> Pipelines) const {
     if (auto Error = parseDeclarations(ToReturn, *Declaration); Error)
       return std::move(Error);
 
+  ToReturn.emplaceStep("", "begin");
+
   for (const auto *Declaration : ToSort)
     if (auto Error = parseSteps(ToReturn, *Declaration); Error)
       return std::move(Error);
-  emitTerminators(ToReturn);
 
   return ToReturn;
 }

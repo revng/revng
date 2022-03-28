@@ -4,3 +4,4 @@
 
 add_subdirectory(model)
 add_subdirectory(pipeline)
+add_subdirectory(link-for-translation)
