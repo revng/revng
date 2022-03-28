@@ -132,12 +132,10 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
       # Optimize IR with LLVM's passes
       -remove-extractvalues -dce -simplifycfg -dse -instcombine -sroa
       --sroa-aggressive-phis-selects -instsimplify -jump-threading -licm
-      -unreachableblockelim -instcombine -early-cse -simplifycfg
+      -unreachableblockelim -instcombine -early-cse -simplifycfg -dce
       # apply type shrinking
       -type-shrinking --min-width 8 -early-cse -instsimplify -gvn -instsimplify
       -dse -dce
-      # Remove LLVM's artifacts from IR
-      -remove-llvmassume-calls -dce
       # Stack analysis and segregation
       -instrument-stack-accesses -instcombine -compute-stack-accesses-bounds
       -detect-stack-size -segregate-stack-accesses -cleanup-stack-size-markers
