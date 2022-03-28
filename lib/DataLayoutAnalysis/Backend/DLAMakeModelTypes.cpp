@@ -147,29 +147,31 @@ makeInstanceQualifiedType(const LTSN *N,
                                                       Model,
                                                       /*offset*/ 0,
                                                       /*size*/ UStride);
+      // Now make this an array.
+      revng_assert(ElemWrapper.Qualifiers.empty());
+      ElemWrapper.Qualifiers.push_back({ Array, (NumElems - 1) });
 
       const uint64_t LastElemOffset = UStride * (NumElems - 1);
       const uint64_t ArrayWrapperSize = LastElemOffset + InnerSize;
+
       // Create a wrapper to hold the array + the last element, which does not
       // need trailing padding.
-      // Insert the last element during creation.
       QualifiedType
         ArrayWrapper = createStructWrapper(N,
-                                           Result,
+                                           ElemWrapper,
                                            PointerFieldsToUpdate,
                                            Model,
-                                           /*offset*/ LastElemOffset,
+                                           /*offset*/ 0,
                                            /*size*/ ArrayWrapperSize);
 
+      // Insert the last element
       revng_assert(ArrayWrapper.Qualifiers.empty());
       auto *UnqualifiedWrapper = ArrayWrapper.UnqualifiedType.get();
       auto *ArrayWrapperStruct = llvm::cast<StructType>(UnqualifiedWrapper);
 
       // Insert the rest of the array
-      revng_assert(ElemWrapper.Qualifiers.empty());
-      ElemWrapper.Qualifiers.push_back({ Array, (NumElems - 1) });
-      StructField ArrayField = StructField{ 0ULL, {}, {}, ElemWrapper };
-      ArrayWrapperStruct->Fields.insert(ArrayField);
+      StructField TrailingElem = StructField{ LastElemOffset, {}, {}, Result };
+      ArrayWrapperStruct->Fields.insert(TrailingElem);
       ArrayWrapperStruct->Size = ArrayWrapperSize;
 
       Result = ArrayWrapper;
