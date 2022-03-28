@@ -10,14 +10,6 @@
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/FunctionTags.h"
 
-#include "revng-c/FilterForDecompilation/FilterForDecompilationPass.h"
-
-using FFDFP = FilterForDecompilationFunctionPass;
-
-void FFDFP::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-  AU.addRequired<LoadModelWrapperPass>();
-}
-
 /// Drop the body of all non-lifted functions, and add `optnone` and
 /// `noinline` attributes so that they can be eliminated by DCE.
 static bool filterFunction(llvm::Function &F) {
@@ -40,30 +32,28 @@ static bool filterFunction(llvm::Function &F) {
   return false;
 }
 
-bool FFDFP::runOnFunction(llvm::Function &F) {
-  return filterFunction(F);
-}
+struct FilterForDecompilationPass : public llvm::ModulePass {
+public:
+  static char ID;
 
-char FFDFP::ID = 0;
+  FilterForDecompilationPass() : llvm::ModulePass(ID) {}
 
-using FFDMP = FilterForDecompilationModulePass;
+  bool runOnModule(llvm::Module &M) override {
+    bool Changed = false;
+    for (llvm::Function &F : M)
+      Changed = filterFunction(F);
 
-void FFDMP::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-  AU.addRequired<LoadModelWrapperPass>();
-}
+    return Changed;
+  }
 
-bool FFDMP::runOnModule(llvm::Module &M) {
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
+    AU.addRequired<LoadModelWrapperPass>();
+  }
+};
 
-  bool Changed = false;
-  for (llvm::Function &F : M)
-    Changed = filterFunction(F);
-
-  return Changed;
-}
-
-char FFDMP::ID = 0;
+char FilterForDecompilationPass::ID = 0;
 
 using llvm::RegisterPass;
-using Pass = FFDMP;
+using Pass = FilterForDecompilationPass;
 static RegisterPass<Pass> X("filter-for-decompilation",
                             "Delete the body of all non-isolated functions");
