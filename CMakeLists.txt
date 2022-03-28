@@ -6,30 +6,47 @@ cmake_minimum_required(VERSION 3.15.0)
 
 project(revng-c)
 
-enable_testing()
-
-find_package(revng REQUIRED)
-find_package(LLVM REQUIRED CONFIG)
-find_package(Clang REQUIRED CONFIG)
-
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror ")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall ")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra ")
-
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstrict-aliasing ")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wstrict-aliasing ")
-
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-parameter")
-
+#
+# Install revng-c cmake files
+#
 install(FILES cmake/revngcConfig.cmake DESTINATION share/revngc/cmake)
+
+#
+# Export CMake targets
+#
 install(
   EXPORT revngc
   NAMESPACE revngc::
   DESTINATION share/revngc/cmake)
 
+# Enable testing with ctest
+enable_testing()
+
+# This has to be first to get highest priority
+include_directories(include/)
+
+# Require revng
+find_package(revng REQUIRED)
+
+# LLVM and clang CMake stuff
+find_package(LLVM REQUIRED CONFIG)
+find_package(Clang REQUIRED CONFIG)
+add_definitions(${LLVM_DEFINITIONS})
+include_directories(${LLVM_INCLUDE_DIRS})
+llvm_map_components_to_libnames(
+  LLVM_LIBRARIES
+  Analysis
+  CodeGen
+  InstCombine
+  ScalarOpts
+  core
+  irreader
+  linker
+  object
+  support
+  transformutils)
+
+# Set build and install path
 add_definitions("-DINSTALL_PATH=\"${CMAKE_INSTALL_PREFIX}\"")
 add_definitions("-DBUILD_PATH=\"${CMAKE_BINARY_DIR}\"")
 
@@ -51,33 +68,39 @@ configure_file(${CMAKE_SOURCE_DIR}/${ASSETS_DIR}/compile_flags.txt.in
 # filling a list of lines.
 file(STRINGS ${CMAKE_BINARY_DIR}/${ASSETS_DIR}/compile_flags.txt.in
      RECOMPILATION_COMPILE_FLAGS)
-# 1. Drop lines starting with '#' and lines with only whitespace
+# A. Drop lines starting with '#' and lines with only whitespace
 list(FILTER RECOMPILATION_COMPILE_FLAGS EXCLUDE REGEX "^#.*")
 list(FILTER RECOMPILATION_COMPILE_FLAGS EXCLUDE REGEX "^[ \t\r\n]*$")
-# 1. Splat the remaining lines
+# B. Splat the remaining lines
 list(JOIN RECOMPILATION_COMPILE_FLAGS "\n" RECOMPILATION_COMPILE_FLAGS)
-# 1. Generate the acutal compile_flags.txt
+# C. Generate the acutal compile_flags.txt
 file(WRITE ${CMAKE_BINARY_DIR}/${ASSETS_DIR}/compile_flags.txt
      ${RECOMPILATION_COMPILE_FLAGS})
 
-include_directories(include/)
+#
+# Set compilation flags for the whole project
+#
 
-add_definitions(${LLVM_DEFINITIONS})
-include_directories(${LLVM_INCLUDE_DIRS})
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# LLVM CMake stuff
-llvm_map_components_to_libnames(
-  LLVM_LIBRARIES
-  Analysis
-  CodeGen
-  InstCombine
-  ScalarOpts
-  core
-  irreader
-  linker
-  object
-  support
-  transformutils)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror ")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall ")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra ")
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstrict-aliasing ")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wstrict-aliasing ")
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-parameter")
+
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--no-undefined")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--no-undefined")
+
+#
+# Include other cmake files
+#
 
 add_subdirectory(include)
 add_subdirectory(lib)
@@ -86,6 +109,10 @@ add_subdirectory(tools)
 include(tests/Tests.cmake)
 
 include(${CMAKE_INSTALL_PREFIX}/share/revng/qa/cmake/revng-qa.cmake)
+
+#
+# Define tests with revng-qa artifacts
+#
 
 # Macro for creating the tests for decompilation pipeline
 macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
