@@ -8,8 +8,10 @@
 #include <unordered_set>
 
 #include "revng/ABI/FunctionType.h"
+#include "revng/ABI/RegisterOrder.h"
 #include "revng/ABI/RegisterStateDeductions.h"
 #include "revng/ABI/Trait.h"
+#include "revng/ADT/STLExtras.h"
 #include "revng/ADT/SmallMap.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Register.h"
@@ -98,6 +100,23 @@ static model::QualifiedType getTypeOrDefault(const model::QualifiedType &Type,
     return buildType(Register, Binary);
 }
 
+static void replaceReferences(const model::Type::Key &OldKey,
+                              const model::TypePath &NewTypePath,
+                              TupleTree<model::Binary> &Model) {
+  auto Visitor = [&](model::TypePath &Visited) {
+    if (!Visited.isValid())
+      return; // Ignore empty references
+
+    model::Type *Current = Visited.get();
+    revng_assert(Current != nullptr);
+
+    if (Current->key() == OldKey)
+      Visited = NewTypePath;
+  };
+  Model.visitReferences(Visitor);
+  Model->Types.erase(OldKey);
+}
+
 template<model::ABI::Values ABI>
 class ConversionHelper {
   using AT = abi::Trait<ABI>;
@@ -113,8 +132,9 @@ class ConversionHelper {
   using ArgumentContainer = SortedVector<model::Argument>;
 
 public:
-  static std::optional<model::CABIFunctionType>
-  toCABI(const model::RawFunctionType &Function, model::Binary &TheBinary) {
+  static std::optional<model::TypePath>
+  toCABI(const model::RawFunctionType &Function,
+         TupleTree<model::Binary> &TheBinary) {
     static constexpr auto Arch = model::ABI::getArchitecture(ABI);
     if (!verify<Arch>(Function.Arguments, AT::GeneralPurposeArgumentRegisters))
       return std::nullopt;
@@ -133,60 +153,81 @@ public:
 
     model::CABIFunctionType Result;
     Result.CustomName = Function.CustomName;
+    Result.OriginalName = Function.OriginalName;
     Result.ABI = ABI;
 
     if (!verifyArgumentsToBeConvertible(Function.Arguments,
                                         AT::GeneralPurposeArgumentRegisters,
-                                        TheBinary))
+                                        *TheBinary))
       return std::nullopt;
 
     using C = AT;
     if (!verifyReturnValueToBeConvertible(Function.ReturnValues,
                                           C::GeneralPurposeReturnValueRegisters,
                                           C::ReturnValueLocationRegister,
-                                          TheBinary))
+                                          *TheBinary))
       return std::nullopt;
 
     auto ArgumentList = convertArguments(Function.Arguments,
                                          AT::GeneralPurposeArgumentRegisters,
-                                         TheBinary);
+                                         *TheBinary);
     revng_assert(ArgumentList != std::nullopt);
     for (auto &Argument : *ArgumentList)
+      Result.Arguments.insert(Argument);
+
+    auto StackArgumentList = convertStackArguments(Function.StackArgumentsType,
+                                                   Result.Arguments.size());
+    for (auto &Argument : StackArgumentList)
       Result.Arguments.insert(Argument);
 
     auto ReturnValue = convertReturnValue(Function.ReturnValues,
                                           C::GeneralPurposeReturnValueRegisters,
                                           C::ReturnValueLocationRegister,
-                                          TheBinary);
+                                          *TheBinary);
     revng_assert(ReturnValue != std::nullopt);
     Result.ReturnType = *ReturnValue;
-    return Result;
+
+    // Steal the ID
+    Result.ID = Function.ID;
+
+    // Add converted type to the model.
+    using UT = model::UpcastableType;
+    auto Ptr = UT::make<model::CABIFunctionType>(std::move(Result));
+    auto NewTypePath = TheBinary->recordNewType(std::move(Ptr));
+
+    // Replace all references to the old type with references to the new one.
+    replaceReferences(Function.key(), NewTypePath, TheBinary);
+
+    return NewTypePath;
   }
 
-  static model::RawFunctionType
-  toRaw(const model::CABIFunctionType &Function, model::Binary &TheBinary) {
+  static model::TypePath toRaw(const model::CABIFunctionType &Function,
+                               TupleTree<model::Binary> &TheBinary) {
     auto Arguments = distributeArguments(Function.Arguments);
 
     model::RawFunctionType Result;
     Result.CustomName = Function.CustomName;
+    Result.OriginalName = Function.OriginalName;
 
+    model::StructType StackArguments;
+    uint64_t CombinedStackArgumentSize = 0;
     for (size_t ArgIndex = 0; ArgIndex < Arguments.size(); ++ArgIndex) {
       auto &ArgumentStorage = Arguments[ArgIndex];
       const auto &ArgumentType = Function.Arguments.at(ArgIndex).Type;
       if (!ArgumentStorage.Registers.empty()) {
         // Handle the registers
-        auto OriginalName = Function.Arguments.at(ArgIndex).CustomName;
+        auto ArgumentName = Function.Arguments.at(ArgIndex).name();
         for (size_t Index = 0; auto Register : ArgumentStorage.Registers) {
-          auto FinalName = OriginalName;
-          if (ArgumentStorage.Registers.size() > 1 && !FinalName.empty())
-            FinalName += "_part_" + std::to_string(++Index) + "_out_of_"
-                         + std::to_string(ArgumentStorage.Registers.size());
           model::NamedTypedRegister Argument(Register);
           Argument.Type = chooseArgumentType(ArgumentType,
                                              Register,
                                              ArgumentStorage.Registers,
-                                             TheBinary);
-          Argument.CustomName = FinalName;
+                                             *TheBinary);
+
+          // TODO: see what can be done to preserve names better
+          if (llvm::StringRef{ ArgumentName.str() }.take_front(8) != "unnamed_")
+            Argument.CustomName = ArgumentName;
+
           Result.Arguments.insert(Argument);
         }
       }
@@ -197,11 +238,39 @@ public:
         revng_assert(ArgumentIterator != Function.Arguments.end());
         const model::Argument &Argument = *ArgumentIterator;
 
-        /// TODO: handle stack arguments properly.
-        /// \note: different ABIs could use different stack types.
-        /// \sa: `clrcall` ABI.
+        model::StructField Field;
+        Field.Offset = CombinedStackArgumentSize;
+        Field.CustomName = Argument.CustomName;
+        Field.OriginalName = Argument.OriginalName;
+        Field.Type = Argument.Type;
+        StackArguments.Fields.insert(std::move(Field));
+
+        auto MaybeSize = Argument.Type.size();
+        revng_assert(MaybeSize.has_value() && MaybeSize.value() != 0);
+
+        // Take stack alignment into consideration.
+        if (MaybeSize.value() < AT::MinimumStackArgumentSize) {
+          MaybeSize.value() = AT::MinimumStackArgumentSize;
+        } else {
+          constexpr auto MinStackArgSize = AT::MinimumStackArgumentSize;
+          static_assert((MinStackArgSize & (MinStackArgSize - 1)) == 0);
+          MaybeSize.value() += MinStackArgSize - 1;
+          MaybeSize.value() &= ~(MinStackArgSize - 1);
+        }
+
+        CombinedStackArgumentSize += MaybeSize.value();
       }
     }
+
+    if (CombinedStackArgumentSize != 0) {
+      StackArguments.Size = CombinedStackArgumentSize;
+
+      using namespace model;
+      auto Type = UpcastableType::make<StructType>(std::move(StackArguments));
+      Result.StackArgumentsType = TheBinary->recordNewType(std::move(Type));
+    }
+
+    Result.FinalStackOffset = finalStackOffset(Arguments);
 
     if (!Function.ReturnType.isVoid()) {
       auto ReturnValue = distributeReturnValue(Function.ReturnType);
@@ -213,7 +282,7 @@ public:
           ReturnValueRegister.Type = chooseArgumentType(Function.ReturnType,
                                                         Register,
                                                         ReturnValue.Registers,
-                                                        TheBinary);
+                                                        *TheBinary);
 
           Result.ReturnValues.insert(std::move(ReturnValueRegister));
         }
@@ -283,9 +352,18 @@ public:
     for (model::Register::Values Register : AT::CalleeSavedRegisters)
       Result.PreservedRegisters.insert(Register);
 
-    Result.FinalStackOffset = finalStackOffset(Arguments);
+    // Steal the ID
+    Result.ID = Function.ID;
 
-    return Result;
+    // Add converted type to the model.
+    using UT = model::UpcastableType;
+    auto Ptr = UT::make<model::RawFunctionType>(std::move(Result));
+    auto NewTypePath = TheBinary->recordNewType(std::move(Ptr));
+
+    // Replace all references to the old type with references to the new one.
+    replaceReferences(Function.key(), NewTypePath, TheBinary);
+
+    return NewTypePath;
   }
 
   static uint64_t finalStackOffset(const DistributedArguments &Arguments) {
@@ -338,13 +416,11 @@ private:
         } else if (Result.size() > 1 && Index > 1) {
           auto &First = Result[Result.size() - 1];
           auto &Second = Result[Result.size() - 2];
-          if (!First.CustomName.empty() || !Second.CustomName.empty()) {
-            if (First.CustomName.empty())
-              First.CustomName = "unnamed";
-            if (Second.CustomName.empty())
-              Second.CustomName = "unnamed";
-            First.CustomName.append(("+" + Second.CustomName).str());
-          }
+
+          // TODO: see what can be done to preserve names better
+          if (First.CustomName.empty() && !Second.CustomName.empty())
+            First.CustomName = Second.CustomName;
+
           if constexpr (!DryRun) {
             auto NewType = buildDoubleType(AllowedRegisters.at(Index - 2),
                                            AllowedRegisters.at(Index - 1),
@@ -355,6 +431,7 @@ private:
 
             First.Type = *NewType;
           }
+
           Result.pop_back();
         } else {
           return std::nullopt;
@@ -366,6 +443,29 @@ private:
 
     for (auto Pair : llvm::enumerate(llvm::reverse(Result)))
       Pair.value().Index = Pair.index();
+
+    return Result;
+  }
+
+  static llvm::SmallVector<model::Argument, 8>
+  convertStackArguments(model::TypePath StackArgumentTypes,
+                        size_t IndexOffset) {
+    if (StackArgumentTypes.get() == nullptr)
+      return {};
+
+    auto *Pointer = llvm::dyn_cast<model::StructType>(StackArgumentTypes.get());
+    revng_assert(Pointer != nullptr,
+                 "`RawFunctionType::StackArgumentsType` must be a struct");
+    const model::StructType &Types = *Pointer;
+
+    llvm::SmallVector<model::Argument, 8> Result;
+    for (const model::StructField &Field : Types.Fields) {
+      model::Argument &New = Result.emplace_back();
+      New.Index = IndexOffset++;
+      New.Type = Field.Type;
+      New.CustomName = Field.CustomName;
+      New.OriginalName = Field.OriginalName;
+    }
 
     return Result;
   }
@@ -438,7 +538,7 @@ private:
 
       revng_assert(ReturnStruct->Size != 0 && !ReturnStruct->Fields.empty());
 
-      if constexpr (DryRun) {
+      if constexpr (!DryRun) {
         auto ReturnStructTypePath = TheBinary.recordNewType(std::move(Result));
         revng_assert(ReturnStructTypePath.isValid());
         return model::QualifiedType{ ReturnStructTypePath, {} };
@@ -642,21 +742,14 @@ public:
       const auto &Registers = AT::VectorReturnValueRegisters;
       // TODO: replace `UnlimitedRegisters` with the actual value to be defined
       //       by the trait.
-      return considerRegisters(*MaybeSize,
-                               UnlimitedRegisters,
-                               0,
-                               Registers,
-                               false)
-        .first;
+      const size_t L = UnlimitedRegisters;
+      return considerRegisters(*MaybeSize, L, 0, Registers, false).first;
     } else {
-      const auto &Registers = AT::GeneralPurposeReturnValueRegisters;
-      if (ReturnValueType.isScalar()) {
-        const size_t L = AT::MaximumGPRsPerScalarReturnValue;
-        return considerRegisters(*MaybeSize, L, 0, Registers, false).first;
-      } else {
-        const size_t L = AT::MaximumGPRsPerAggregateReturnValue;
-        return considerRegisters(*MaybeSize, L, 0, Registers, false).first;
-      }
+      const size_t L = ReturnValueType.isScalar() ?
+                         AT::MaximumGPRsPerScalarReturnValue :
+                         AT::MaximumGPRsPerAggregateReturnValue;
+      constexpr auto &Registers = AT::GeneralPurposeReturnValueRegisters;
+      return considerRegisters(*MaybeSize, L, 0, Registers, false).first;
     }
   }
 
@@ -687,20 +780,20 @@ private:
   }
 };
 
-std::optional<model::CABIFunctionType>
+std::optional<model::TypePath>
 tryConvertToCABI(const model::RawFunctionType &Function,
-                 model::Binary &TheBinary,
+                 TupleTree<model::Binary> &TheBinary,
                  std::optional<model::ABI::Values> MaybeABI) {
   if (!MaybeABI.has_value())
-    MaybeABI = TheBinary.DefaultABI;
+    MaybeABI = TheBinary->DefaultABI;
   revng_assert(*MaybeABI != model::ABI::Invalid);
   return skippingEnumSwitch<1>(*MaybeABI, [&]<model::ABI::Values A>() {
     return ConversionHelper<A>::toCABI(Function, TheBinary);
   });
 }
 
-model::RawFunctionType convertToRaw(const model::CABIFunctionType &Function,
-                                    model::Binary &TheBinary) {
+model::TypePath convertToRaw(const model::CABIFunctionType &Function,
+                             TupleTree<model::Binary> &TheBinary) {
   revng_assert(Function.ABI != model::ABI::Invalid);
   return skippingEnumSwitch<1>(Function.ABI, [&]<model::ABI::Values A>() {
     return ConversionHelper<A>::toRaw(Function, TheBinary);
@@ -716,6 +809,7 @@ Layout::Layout(const model::CABIFunctionType &Function) :
     revng_assert(Args.size() == Function.Arguments.size());
     for (size_t Index = 0; Index < Args.size(); ++Index) {
       auto &Current = Result.Arguments.emplace_back();
+      Current.Type = Function.Arguments.at(Index).Type;
       Current.Registers = std::move(Args[Index].Registers);
       if (Args[Index].SizeOnStack != 0) {
         // TODO: maybe some kind of alignment considerations are needed here.
@@ -729,6 +823,7 @@ Layout::Layout(const model::CABIFunctionType &Function) :
     auto RV = ConversionHelper<A>::distributeReturnValue(Function.ReturnType);
     revng_assert(RV.SizeOnStack == 0);
     Result.ReturnValue.Registers = std::move(RV.Registers);
+    Result.ReturnValue.Type = Function.ReturnType;
 
     using AT = abi::Trait<A>;
     Result.CalleeSavedRegisters.resize(AT::CalleeSavedRegisters.size());
@@ -742,8 +837,16 @@ Layout::Layout(const model::CABIFunctionType &Function) :
 
 Layout::Layout(const model::RawFunctionType &Function) {
   // Lay register arguments out.
-  for (const model::NamedTypedRegister &Register : Function.Arguments)
+  for (const model::NamedTypedRegister &Register : Function.Arguments) {
     Arguments.emplace_back().Registers = { Register.Location };
+    Arguments.back().Type = Register.Type;
+  }
+
+  // Lay the return value out.
+  for (const model::TypedRegister &Register : Function.ReturnValues) {
+    ReturnValue.Registers.emplace_back(Register.Location);
+    ReturnValue.Type = Register.Type;
+  }
 
   // Lay stack arguments out.
   if (Function.StackArgumentsType.isValid()) {
@@ -753,15 +856,15 @@ Layout::Layout(const model::RawFunctionType &Function) {
                  "`RawFunctionType::StackArgumentsType` must be a struct.");
     typename Layout::Argument::StackSpan StackSpan{ 0, StackStruct->Size };
     Arguments.emplace_back().Stack = std::move(StackSpan);
+    Arguments.back().Type = model::QualifiedType{ Function.StackArgumentsType,
+                                                  {} };
   }
 
-  // Lay the return value out.
-  for (const model::TypedRegister &Register : Function.ReturnValues)
-    ReturnValue.Registers.emplace_back(Register.Location);
-
   // Fill callee saved registers.
-  CalleeSavedRegisters.resize(Function.PreservedRegisters.size());
-  llvm::copy(Function.PreservedRegisters, CalleeSavedRegisters.begin());
+  append(Function.PreservedRegisters, CalleeSavedRegisters);
+
+  // Set the final offset.
+  FinalStackOffset = Function.FinalStackOffset;
 }
 
 bool Layout::verify() const {
@@ -808,6 +911,23 @@ size_t Layout::argumentRegisterCount() const {
 
 size_t Layout::returnValueRegisterCount() const {
   return ReturnValue.Registers.size();
+}
+
+llvm::SmallVector<model::Register::Values, 8>
+Layout::argumentRegisters() const {
+  llvm::SmallVector<model::Register::Values, 8> Result;
+
+  for (auto &Argument : Arguments)
+    Result.append(Argument.Registers.begin(), Argument.Registers.end());
+
+  return Result;
+}
+
+llvm::SmallVector<model::Register::Values, 8>
+Layout::returnValueRegisters() const {
+  return llvm::SmallVector<model::Register::Values,
+                           8>(ReturnValue.Registers.begin(),
+                              ReturnValue.Registers.end());
 }
 
 } // namespace abi::FunctionType

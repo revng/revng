@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/Model/Binary.h"
 #include "revng/Model/Types.h"
 
 namespace abi::FunctionType {
@@ -12,28 +13,27 @@ namespace abi::FunctionType {
 ///
 /// If `ABI` is not specified, `TheBinary.DefaultABI`
 /// is used instead.
-std::optional<model::CABIFunctionType>
+std::optional<model::TypePath>
 tryConvertToCABI(const model::RawFunctionType &Function,
-                 model::Binary &TheBinary,
+                 TupleTree<model::Binary> &TheBinary,
                  std::optional<model::ABI::Values> ABI = std::nullopt);
 
 /// Best effort `RawFunctionType` to `CABIFunctionType` conversion.
 ///
 /// \note: this conversion is lossy since there's no way to represent some types
 ///        in `RawFunctionType` in a reversible manner.
-model::RawFunctionType
-convertToRaw(const model::CABIFunctionType &Function, model::Binary &TheBinary);
+model::TypePath convertToRaw(const model::CABIFunctionType &Function,
+                             TupleTree<model::Binary> &TheBinary);
 
 /// Indicates the layout of arguments and return values of a function.
-///
-/// \note Such a layout is immutable.
 struct Layout {
 public:
-  struct ReturnValueRegisters {
+  struct ReturnValue {
+    model::QualifiedType Type;
     llvm::SmallVector<model::Register::Values, 2> Registers;
   };
 
-  struct Argument : public ReturnValueRegisters {
+  struct Argument : public ReturnValue {
   public:
     struct StackSpan {
       uint64_t Offset;
@@ -46,7 +46,7 @@ public:
 
 public:
   llvm::SmallVector<Argument, 4> Arguments;
-  ReturnValueRegisters ReturnValue;
+  ReturnValue ReturnValue;
   llvm::SmallVector<model::Register::Values, 24> CalleeSavedRegisters;
   uint64_t FinalStackOffset;
 
@@ -54,8 +54,8 @@ private:
   Layout() = default;
 
 public:
-  explicit Layout(const model::RawFunctionType &Function);
   explicit Layout(const model::CABIFunctionType &Function);
+  explicit Layout(const model::RawFunctionType &Function);
 
   /// Extracts the information about argument and return value location layout
   /// from the \param Function.
@@ -73,6 +73,8 @@ public:
   bool verify() const;
   size_t argumentRegisterCount() const;
   size_t returnValueRegisterCount() const;
+  llvm::SmallVector<model::Register::Values, 8> argumentRegisters() const;
+  llvm::SmallVector<model::Register::Values, 8> returnValueRegisters() const;
 };
 
 } // namespace abi::FunctionType

@@ -11,6 +11,7 @@
 
 #include "revng/ABI/RegisterStateDeductions.h"
 #include "revng/ABI/Trait.h"
+#include "revng/Model/Binary.h"
 #include "revng/Model/Types.h"
 
 static Logger Log("abi-register-state-deduction");

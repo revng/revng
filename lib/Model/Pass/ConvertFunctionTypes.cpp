@@ -50,23 +50,6 @@ static RegisterModelPass ToCABI("convert-all-raw-functions-to-cabi",
 
 static Logger Log("convert-function-types");
 
-static void replaceReferences(const model::Type::Key &OldKey,
-                              const model::TypePath &NewTypePath,
-                              TupleTree<model::Binary> &Model) {
-  auto Visitor = [&](model::TypePath &Visited) {
-    if (!Visited.isValid())
-      return; // Ignore empty references
-
-    model::Type *Current = Visited.get();
-    revng_assert(Current != nullptr);
-
-    if (Current->key() == OldKey)
-      Visited = NewTypePath;
-  };
-  Model.visitReferences(Visitor);
-  Model->Types.erase(OldKey);
-}
-
 template<DerivesFrom<model::Type> DerivedType>
 static std::vector<DerivedType *>
 chooseTypes(SortedVector<UpcastablePointer<model::Type>> &Types) {
@@ -87,15 +70,8 @@ void model::convertAllFunctionsToRaw(TupleTree<model::Binary> &Model) {
 
   auto ToConvert = chooseTypes<model::CABIFunctionType>(Model->Types);
   for (model::CABIFunctionType *Old : ToConvert) {
-    auto Nw = abi::FunctionType::convertToRaw(*Old, *Model);
-    Nw.ID = Old->ID;
-
-    // Add converted type to the model.
-    auto P = model::UpcastableType::make<model::RawFunctionType>(std::move(Nw));
-    auto NewTypePath = Model->recordNewType(std::move(P));
-
-    // Replace all references to the old type with references to the new one.
-    replaceReferences(Old->key(), NewTypePath, Model);
+    auto New = abi::FunctionType::convertToRaw(*Old, Model);
+    revng_assert(New.isValid());
   }
 
   if (!Model.verify() || !Model->verify())
@@ -114,23 +90,9 @@ void model::convertAllFunctionsToCABI(TupleTree<model::Binary> &Model,
   }
 
   auto ToConvert = chooseTypes<model::RawFunctionType>(Model->Types);
-  for (model::RawFunctionType *Old : ToConvert) {
-    if (auto New = abi::FunctionType::tryConvertToCABI(*Old, *Model, ABI)) {
-      New->ID = Old->ID;
-
-      // Verify the return type.
-      auto *ReturnValueType = New->ReturnType.UnqualifiedType.get();
-      auto TypeIterator = Model->Types.find(ReturnValueType->key());
-      revng_assert(TypeIterator != Model->Types.end());
-
-      // Add converted type to the model.
-      auto Ptr = model::UpcastableType::make<model::CABIFunctionType>(*New);
-      auto NewTypePath = Model->recordNewType(std::move(Ptr));
-
-      // Replace all references to the old type with references to the new one.
-      replaceReferences(Old->key(), NewTypePath, Model);
-    }
-  }
+  for (model::RawFunctionType *Old : ToConvert)
+    if (auto New = abi::FunctionType::tryConvertToCABI(*Old, Model, ABI))
+      revng_assert(New->isValid());
 
   if (!Model.verify() || !Model->verify())
     revng_log(Log,

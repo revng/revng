@@ -16,16 +16,18 @@
 #include <string>
 
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Signals.h"
 
+#include "ABIArtifactParser.h"
 #include "Verify.h"
 
 namespace Options {
 
 using namespace llvm::cl;
 
-OptionCategory Category("ABI Options");
+static OptionCategory ThisToolCategory("Tool options", "");
 
 template<std::size_t... Indices>
 static auto packValues(std::integer_sequence<size_t, Indices...>) {
@@ -36,74 +38,62 @@ static auto packValues(std::integer_sequence<size_t, Indices...>) {
                                  getDescription(Values(Indices)) }...);
 }
 
-constexpr const char *Description = "Specifies the default ABI of the binary.";
 constexpr auto ABIList = std::make_index_sequence<model::ABI::Count - 1>{};
-static auto Values = packValues(ABIList);
+constexpr const char *Description = "Specifies the default ABI of the binary.";
+static opt<model::ABI::Values> TargetABI("abi",
+                                         packValues(ABIList),
+                                         desc(Description),
+                                         cat(ThisToolCategory));
 
-extern llvm::cl::OptionCategory ModelPassCategory;
-llvm::cl::opt<model::ABI::Values> TargetABI("abi",
-                                            Values,
-                                            llvm::cl::desc(Description),
-                                            llvm::cl::cat(Category));
+static opt<std::string> Filename(Positional,
+                                 Required,
+                                 desc("<input file name>"),
+                                 cat(ThisToolCategory));
 
-constexpr const char *FnDesc = "<input file name>";
-opt<std::string> Filename(Positional, Required, desc(FnDesc), cat(Category));
-
-constexpr const char *AtDesc = "<runtime abi artifact name>";
-opt<std::string> Artifact(Positional, Required, desc(AtDesc), cat(Category));
-
-opt<std::string> Output("o",
-                        desc("Optional output filename, if not specified, the "
-                             "output is dumped to `stdout`"),
-                        value_desc("path"),
-                        cat(Category));
+static opt<std::string> Artifact(Positional,
+                                 Required,
+                                 desc("<runtime abi artifact name>"),
+                                 cat(ThisToolCategory));
 
 } // namespace Options
 
-int main(int argc, const char *argv[]) {
-  // Enable LLVM stack trace
-  llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
-
-  llvm::cl::HideUnrelatedOptions(Options::Category);
-  llvm::cl::ParseCommandLineOptions(argc, argv);
-
-  llvm::raw_fd_ostream *OutputStreamPtr;
-  if (Options::Output.empty()) {
-    OutputStreamPtr = &llvm::outs();
-  } else {
-    std::error_code EC;
-    static llvm::raw_fd_ostream OutputStream(Options::Output, EC);
-    if (!EC || OutputStream.has_error()) {
-      dbg << "Unable to open an output file: '" << Options::Output << "'.\n";
-      return ExitCode::FailedOpeningTheOutputFile;
-    }
-    OutputStreamPtr = &OutputStream;
-  }
-
+static llvm::Error impl() {
   auto InputOrError = llvm::MemoryBuffer::getFileOrSTDIN(Options::Filename);
-  if (!InputOrError) {
-    dbg << "Unable to open an input file: '" << Options::Filename << "'.\n";
-    return ExitCode::FailedOpeningTheInputFile;
-  }
+  if (!InputOrError)
+    return ERROR(ExitCode::FailedOpeningTheInputFile,
+                 "Unable to open an input file: '" + Options::Filename
+                   + "'.\n");
   llvm::StringRef InputText = (*InputOrError)->getBuffer();
 
   auto ArtifactOrError = llvm::MemoryBuffer::getFileOrSTDIN(Options::Artifact);
-  if (!ArtifactOrError) {
-    dbg << "Unable to open the artifact file: '" << Options::Artifact << "'.\n";
-    return ExitCode::FailedOpeningTheArtifactFile;
-  }
+  if (!ArtifactOrError)
+    return ERROR(ExitCode::FailedOpeningTheArtifactFile,
+                 "Unable to open the artifact file: '" + Options::Artifact
+                   + "'.\n");
   llvm::StringRef Artifact = (*ArtifactOrError)->getBuffer();
 
   auto Deserialized = TupleTree<model::Binary>::deserialize(InputText);
-  if (!Deserialized) {
-    dbg << "Unable to deserialize the model: '" << Options::Filename << "'.\n";
-    return ExitCode::FailedDeserializingTheModel;
-  }
-  if (!Deserialized->verify()) {
-    dbg << "Model verification failed: '" << Options::Filename << "'.\n";
-    return ExitCode::FailedVerifyingTheModel;
-  }
+  if (!Deserialized)
+    return ERROR(ExitCode::FailedDeserializingTheModel,
+                 "Unable to deserialize the model: '" + Options::Filename
+                   + "'.\n");
+  if (!Deserialized->verify() || !(*Deserialized)->verify())
+    return ERROR(ExitCode::FailedVerifyingTheModel,
+                 "Unable to verify the model: '" + Options::Filename + "'.\n");
 
   auto &Model = *Deserialized;
-  return verifyABI(Model, Artifact, Options::TargetABI, *OutputStreamPtr);
+  return verifyABI(Model, Artifact, Options::TargetABI);
+}
+
+int main(int argc, const char *argv[]) {
+  llvm::cl::HideUnrelatedOptions(Options::ThisToolCategory);
+  llvm::cl::ParseCommandLineOptions(argc, argv);
+
+  int ErrorCode = EXIT_SUCCESS;
+  auto StringErrorHandler = [&ErrorCode](const llvm::StringError &Error) {
+    dbg << "\nrevng-abi-verify error: " << Error.getMessage() << '\n';
+    ErrorCode = Error.convertToErrorCode().value();
+  };
+  llvm::handleAllErrors(impl(), StringErrorHandler);
+  return ErrorCode;
 }

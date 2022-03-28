@@ -280,7 +280,7 @@ target_tuple_tree_generator(
   ".")
 target_compile_definitions(test_tuple_tree_generator
                            PRIVATE "BOOST_TEST_DYN_LINK=1")
-target_link_libraries(test_tuple_tree_generator revngUnitTestHelpers
+target_link_libraries(test_tuple_tree_generator revngUnitTestHelpers revngModel
                       Boost::unit_test_framework)
 
 add_test(NAME test_tuple_tree_generator COMMAND ./test_tuple_tree_generator)
