@@ -1279,12 +1279,7 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
 
       // The array in BestTAP that we're unwrapping has the same number of
       // elements.
-
-      // The sizes of the array should be equal, but TAPArrayIt->NumElems
-      // could be 1 less than necessary because of some workarounds we have
-      // built in DLA to handle arrays.
-      revng_assert(ArrayQualIt->Size == TAPArrayIt->NumElems
-                   or (ArrayQualIt->Size - 1 == TAPArrayIt->NumElems));
+      revng_assert(ArrayQualIt->Size == TAPArrayIt->NumElems);
 
       if (RestOff.uge(ElementSize)) {
         // If the remaining offset is larger than or equal to an element size,
