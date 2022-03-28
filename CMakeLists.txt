@@ -178,15 +178,6 @@ endif()
 
 set(VERSION 0.0.0)
 
-function(copy_to_build_and_install INSTALL_TYPE DESTINATION)
-  foreach(INPUT_FILE ${ARGN})
-    make_directory("${CMAKE_BINARY_DIR}/${DESTINATION}")
-    configure_file("${INPUT_FILE}" "${CMAKE_BINARY_DIR}/${DESTINATION}"
-                   COPYONLY)
-    install("${INSTALL_TYPE}" "${INPUT_FILE}" DESTINATION "${DESTINATION}")
-  endforeach()
-endfunction()
-
 #
 # Support files (share/revng)
 #
