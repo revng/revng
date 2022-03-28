@@ -49,6 +49,13 @@ llvm_map_components_to_libnames(
 add_definitions("-DINSTALL_PATH=\"${CMAKE_INSTALL_PREFIX}\"")
 add_definitions("-DBUILD_PATH=\"${CMAKE_BINARY_DIR}\"")
 
+#
+# Support files (share/revng)
+#
+make_directory("${CMAKE_BINARY_DIR}/share/revng/")
+copy_to_build_and_install(FILES share/revng/pipelines
+                          share/revng/pipelines/remove-lifting-artifacts.yml)
+
 # ##############################################################################
 # Handle assets for recompilation #
 # ##############################################################################
@@ -119,13 +126,23 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
   set(OUTFOLDER ${CATEGORY}/${FILENAME}/${CONFIGURATION})
   make_directory(${OUTFOLDER})
 
+  # Remove lifting artifacts
+  add_test(
+    NAME remove_lifting_artifacts_${TARGET_NAME}
+    COMMAND
+      revng --prefix=${CMAKE_BINARY_DIR} llvm pipeline "${INPUT_FILE}"
+      "${OUTFOLDER}/lifted_artifacts_removed.bc" EnforceABI
+      RemoveLiftingArtifacts "*:LiftingArtifactsRemoved")
+  set_property(
+    TEST remove_lifting_artifacts_${TARGET_NAME}
+    APPEND
+    PROPERTY FIXTURES_SETUP remove_lifting_artifacts_fixture_${TARGET_NAME})
+
   # prepare enforced .bc for decompilation
   add_test(
     NAME prepare_${TARGET_NAME}
     COMMAND
       revng --prefix=${CMAKE_BINARY_DIR} opt
-      # Remove revng's artifacts from IR
-      -remove-lifting-artifacts
       # Stack promotion
       -measure-stack-size-at-call-sites -promote-stack-pointer
       # Optimize IR with LLVM's passes
@@ -139,7 +156,16 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
       -instrument-stack-accesses -instcombine -compute-stack-accesses-bounds
       -detect-stack-size -segregate-stack-accesses -cleanup-stack-size-markers
       -dce -sroa -instcombine -sroa -simplifycfg -restore-extractvalues
-      -strip-dead-prototypes ${INPUT_FILE} -o ${OUTFOLDER}/prepared.bc)
+      -strip-dead-prototypes ${OUTFOLDER}/lifted_artifacts_removed.bc -o
+      ${OUTFOLDER}/prepared.bc)
+  set_property(
+    TEST prepare_${TARGET_NAME}
+    APPEND
+    PROPERTY DEPENDS remove_lifting_artifacts_${TARGET_NAME})
+  set_property(
+    TEST prepare_${TARGET_NAME}
+    APPEND
+    PROPERTY FIXTURES_REQUIRED remove_lifting_artifacts_fixture_${TARGET_NAME})
   set_property(
     TEST prepare_${TARGET_NAME}
     APPEND

@@ -1,0 +1,14 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+From:            EnforceABI
+Containers:
+Steps:
+ - Name:            RemoveLiftingArtifacts
+   Pipes:
+     - Type:             LLVMPipe
+       UsedContainers: [module.ll]
+       Passes:
+         - remove-lifting-artifacts
+
