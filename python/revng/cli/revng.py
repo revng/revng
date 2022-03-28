@@ -5,6 +5,11 @@ from .commands_registry import commands_registry, Options
 from .support import collect_files
 
 
+def extend_list(list, new_items):
+    new_items_set = set(new_items)
+    return new_items + [path for path in list if path not in new_items]
+
+
 def run_revng_command(arguments, options: Options):
     # Import built-in commands
     from .lift import LiftCommand
@@ -27,7 +32,9 @@ def run_revng_command(arguments, options: Options):
         elif arg == "--prefix" and next_arg != "":
             prefixes += [next_arg]
     script_path = os.path.dirname(os.path.realpath(__file__))
-    options.search_prefixes = prefixes + [os.path.join(script_path, "..", "..", "..", "..")]
+    options.search_prefixes = extend_list(
+        options.search_prefixes, prefixes + [os.path.join(script_path, "..", "..", "..", "..")]
+    )
 
     # Register external commands
     prefix = "revng-"
