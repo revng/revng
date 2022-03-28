@@ -609,8 +609,23 @@ std::optional<uint64_t> QualifiedType::size() const {
   return size(VH);
 }
 
+std::optional<uint64_t> QualifiedType::trySize() const {
+  VerifyHelper VH;
+  return trySize(VH);
+}
+
 RecursiveCoroutine<std::optional<uint64_t>>
 QualifiedType::size(VerifyHelper &VH) const {
+  std::optional<uint64_t> MaybeSize = rc_recur trySize(VH);
+  revng_check(MaybeSize);
+  if (*MaybeSize == 0)
+    rc_return std::nullopt;
+  else
+    rc_return MaybeSize;
+}
+
+RecursiveCoroutine<std::optional<uint64_t>>
+QualifiedType::trySize(VerifyHelper &VH) const {
   // This code assumes that the QualifiedType QT is well formed.
   auto QIt = Qualifiers.begin();
   auto QEnd = Qualifiers.end();
@@ -621,7 +636,7 @@ QualifiedType::size(VerifyHelper &VH) const {
     switch (Q.Kind) {
 
     case QualifierKind::Invalid:
-      revng_abort();
+      rc_return std::nullopt;
 
     case QualifierKind::Pointer:
       // If we find a pointer, we're done
@@ -632,9 +647,11 @@ QualifiedType::size(VerifyHelper &VH) const {
       // single element).
       const QualifiedType ArrayElem{ UnqualifiedType,
                                      { std::next(QIt), QEnd } };
-      auto MaybeSize = rc_recur ArrayElem.size(VH);
-      revng_assert(MaybeSize);
-      rc_return *MaybeSize *Q.Size;
+      auto MaybeSize = rc_recur ArrayElem.trySize(VH);
+      if (not MaybeSize)
+        rc_return std::nullopt;
+      else
+        rc_return *MaybeSize *Q.Size;
     }
 
     case QualifierKind::Const:
@@ -646,7 +663,7 @@ QualifiedType::size(VerifyHelper &VH) const {
     }
   }
 
-  rc_return rc_recur UnqualifiedType.get()->size(VH);
+  rc_return rc_recur UnqualifiedType.get()->trySize(VH);
 }
 
 static RecursiveCoroutine<bool> isArrayImpl(const model::QualifiedType &QT) {
@@ -721,23 +738,37 @@ std::optional<uint64_t> Type::size() const {
   return size(VH);
 }
 
+std::optional<uint64_t> Type::trySize() const {
+  VerifyHelper VH;
+  return trySize(VH);
+}
+
 RecursiveCoroutine<std::optional<uint64_t>> Type::size(VerifyHelper &VH) const {
-  using ResultType = std::optional<uint64_t>;
+  std::optional<uint64_t> MaybeSize = rc_recur trySize(VH);
+  revng_check(MaybeSize);
+  if (*MaybeSize == 0)
+    rc_return std::nullopt;
+  else
+    rc_return MaybeSize;
+}
+
+RecursiveCoroutine<std::optional<uint64_t>>
+Type::trySize(VerifyHelper &VH) const {
   auto MaybeSize = VH.size(this);
   if (MaybeSize)
-    rc_return{ *MaybeSize == 0 ? ResultType{} : *MaybeSize };
+    rc_return MaybeSize;
 
   // This code assumes that the type T is well formed.
-  ResultType Size;
+  uint64_t Size;
 
   switch (Kind) {
   case TypeKind::Invalid:
-    revng_abort();
+    rc_return std::nullopt;
 
   case TypeKind::RawFunctionType:
   case TypeKind::CABIFunctionType:
     // Function prototypes have no size
-    Size = {};
+    Size = 0;
     break;
 
   case TypeKind::Primitive: {
@@ -745,8 +776,13 @@ RecursiveCoroutine<std::optional<uint64_t>> Type::size(VerifyHelper &VH) const {
 
     if (P->PrimitiveKind == model::PrimitiveTypeKind::Void) {
       // Void types have no size
-      revng_assert(P->Size == 0);
-      Size = {};
+
+      if (P->Size != 0) {
+        // Not valid
+        rc_return std::nullopt;
+      }
+
+      Size = 0;
     } else {
       Size = P->Size;
     }
@@ -754,12 +790,21 @@ RecursiveCoroutine<std::optional<uint64_t>> Type::size(VerifyHelper &VH) const {
 
   case TypeKind::Enum: {
     auto *U = llvm::cast<EnumType>(this)->UnderlyingType.get();
-    Size = rc_recur U->size(VH);
+    auto MaybeSize = rc_recur U->trySize(VH);
+    if (not MaybeSize)
+      rc_return std::nullopt;
+
+    Size = *MaybeSize;
   } break;
 
   case TypeKind::Typedef: {
     auto *Typedef = llvm::cast<TypedefType>(this);
-    Size = rc_recur Typedef->UnderlyingType.size(VH);
+
+    auto MaybeSize = rc_recur Typedef->UnderlyingType.trySize(VH);
+    if (not MaybeSize)
+      rc_return std::nullopt;
+
+    Size = *MaybeSize;
   } break;
 
   case TypeKind::Struct: {
@@ -769,18 +814,23 @@ RecursiveCoroutine<std::optional<uint64_t>> Type::size(VerifyHelper &VH) const {
   case TypeKind::Union: {
     auto *U = llvm::cast<UnionType>(this);
     uint64_t Max = 0ULL;
+
     for (const auto &Field : U->Fields) {
-      auto FieldSize = rc_recur Field.Type.size(VH);
-      Max = std::max(Max, FieldSize ? *FieldSize : 0);
+      auto MaybeFieldSize = rc_recur Field.Type.trySize(VH);
+      if (not MaybeFieldSize)
+        rc_return std::nullopt;
+
+      Max = std::max(Max, *MaybeFieldSize);
     }
-    Size = { Max == 0 ? ResultType{} : Max };
+
+    Size = Max;
   } break;
 
   default:
     revng_abort();
   }
 
-  VH.setSize(this, Size ? *Size : 0);
+  VH.setSize(this, Size);
 
   rc_return Size;
 };
