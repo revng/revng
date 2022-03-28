@@ -10,6 +10,7 @@
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Recompile/LinkForTranslation.h"
 #include "revng/Recompile/LinkForTranslationPipe.h"
+#include "revng/Support/ResourceFinder.h"
 
 using namespace llvm;
 using namespace llvm::sys;
@@ -31,7 +32,8 @@ void LinkForTranslationPipe::run(const Context &Ctx,
 void LinkForTranslationPipe::print(const Context &Ctx,
                                    llvm::raw_ostream &OS,
                                    llvm::ArrayRef<std::string> Names) const {
-  OS << "revng link-for-translation" << Names[0] << " model.yml " << Names[1]
+  OS << *revng::ResourceFinder.findFile("bin/revng");
+  OS << " link-for-translation " << Names[0] << " model.yml " << Names[1]
      << " -o=" << Names[2] << "\n";
 }
 

@@ -24,6 +24,7 @@
 #include "revng/Recompile/LinkForTranslation.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/ProgramRunner.h"
+#include "revng/Support/ResourceFinder.h"
 #include "revng/Support/TemporaryFile.h"
 
 using namespace llvm;
@@ -78,52 +79,92 @@ defineProgramHeadersSymbols(RawBinaryView &BinaryView,
     revng_abort();
 }
 
-struct LinkingArgsOutput {
-  using CommandArguments = std::vector<std::string>;
+class Command {
+public:
+  std::string CommandName;
+  std::vector<std::string> Arguments;
 
-  std::vector<CommandArguments> SegmentCopyArgs;
-  CommandArguments LinkerArgs;
-  CommandArguments MergeDynamicArgs;
-  std::vector<TemporaryFile> RawSegments;
-  std::vector<TemporaryFile> SegmentELFs;
+public:
+  Command(std::string CommandName) : CommandName(CommandName) {}
 };
 
-static void linkingArgs(const model::Binary &Model,
-                        llvm::StringRef InputBinary,
-                        llvm::StringRef ObjectFile,
-                        llvm::StringRef OutputBinary,
-                        LinkingArgsOutput &Output) {
-  using CommandArguments = LinkingArgsOutput::CommandArguments;
+class CommandList {
+private:
+  std::vector<Command> Commands;
+  std::vector<std::unique_ptr<TemporaryFile>> Temporaries;
 
-  std::vector<TemporaryFile> &RawSegments = Output.RawSegments;
-  std::vector<TemporaryFile> &SegmentELFs = Output.SegmentELFs;
+public:
+  void print(llvm::raw_ostream &OS) const {
+    for (const Command &C : Commands) {
+      OS << shellEscape(C.CommandName);
+      for (const std::string &Argument : C.Arguments) {
+        OS << " " << shellEscape(Argument);
+      }
+      OS << "\n";
+    }
+  }
 
-  CommandArguments &Args = Output.LinkerArgs;
-  std::vector<CommandArguments> &CopySegmentArgs = Output.SegmentCopyArgs;
-  CommandArguments &ArgsMergeDynamic = Output.MergeDynamicArgs;
+  void run() const {
+    for (const Command &C : Commands) {
+      auto ExitCode = ::Runner.run(C.CommandName, C.Arguments);
+      revng_check(ExitCode == 0);
+    }
+  }
+
+public:
+  void enqueueCommand(Command C) { Commands.push_back(std::move(C)); }
+
+  TemporaryFile &createTemporary(std::string Prefix, std::string Suffix) {
+    Temporaries.emplace_back(std::make_unique<TemporaryFile>(Prefix, Suffix));
+    return *Temporaries.back();
+  }
+
+public:
+  static std::string shellEscape(StringRef String) {
+    std::string Result = "\"";
+
+    for (char C : String) {
+      if (C == '"')
+        Result += "'\"'\"'";
+      else
+        Result += C;
+    }
+
+    Result += "\"";
+
+    return Result;
+  }
+};
+
+static CommandList linkingArgs(const model::Binary &Model,
+                               llvm::StringRef InputBinary,
+                               llvm::StringRef ObjectFile,
+                               llvm::StringRef OutputBinary) {
+  CommandList Result;
 
   auto UToHexStr = Twine::utohexstr;
 
   const size_t PageSize = 4096;
 
-  TemporaryFile LinkerOutput("", "");
+  TemporaryFile &LinkerOutput = Result.createTemporary("", "");
 
   auto MaybeBuffer = llvm::MemoryBuffer::getFileOrSTDIN(InputBinary);
   revng_assert(MaybeBuffer);
   llvm::MemoryBuffer &Buffer = **MaybeBuffer;
   RawBinaryView BinaryView(Model, Buffer.getBuffer());
 
-  Args = { ObjectFile.str(),
-           "-lz",
-           "-lm",
-           "-lrt",
-           "-lpthread",
-           "-L./",
-           "-no-pie",
-           "-o",
-           LinkerOutput.path().str(),
-           ("-Wl,-z,max-page-size=" + Twine(PageSize)).str(),
-           "-fuse-ld=bfd" };
+  Command Linker("c++");
+  Linker.Arguments = { ObjectFile.str(),
+                       "-lz",
+                       "-lm",
+                       "-lrt",
+                       "-lpthread",
+                       "-L./",
+                       "-no-pie",
+                       "-o",
+                       LinkerOutput.path().str(),
+                       ("-Wl,-z,max-page-size=" + Twine(PageSize)).str(),
+                       "-fuse-ld=bfd" };
 
   revng_assert(Model.Segments.size() > 0);
   uint64_t Min = Model.Segments.begin()->StartAddress.address();
@@ -138,110 +179,104 @@ static void linkingArgs(const model::Binary &Model,
                  << Segment.endAddress().toString();
     }
 
-    RawSegments.emplace_back("", "");
-    TemporaryFile &RawSegment = RawSegments.back();
+    TemporaryFile &RawSegment = Result.createTemporary("", "");
 
-    // Create a file containing the raw segment (including .bss)
-    {
-      std::error_code EC;
-      llvm::raw_fd_ostream Stream(RawSegment.path(), EC);
-      revng_assert(!EC);
-      Stream.write(reinterpret_cast<const char *>(Data.data()), Data.size());
-      Stream.write_zeros(Segment.VirtualSize - Segment.FileSize);
-    }
+    Command DD("dd");
+    DD.Arguments = { { "status=none",
+                       "bs=1",
+                       ("skip=" + Twine(Segment.StartOffset)).str(),
+                       ("if=" + InputBinary).str(),
+                       ("count=" + Twine(Segment.FileSize)).str(),
+                       ("of=" + RawSegment.path()).str() } };
+    Result.enqueueCommand(std::move(DD));
+
+    Command Truncate("truncate");
+    Truncate.Arguments = { { ("--size=" + Twine(Segment.VirtualSize)).str(),
+                             RawSegment.path().str() } };
+    Result.enqueueCommand(std::move(Truncate));
+
+    Command ObjCopy("objcopy");
 
     // Create an object file we can later link
-    SegmentELFs.push_back(TemporaryFile("", "o"));
-    TemporaryFile &SegmentELF = SegmentELFs.back();
+    TemporaryFile &SegmentELF = Result.createTemporary("", "o");
 
     std::string SectionFlags = "alloc";
     if (not Segment.IsWriteable)
       SectionFlags += ",readonly";
 
-    std::vector<std::string> Command = {
-      "-Ibinary",
-      "-Oelf64-x86-64",
-      "--rename-section=.data=." + SectionName,
-      "--set-section-flags=.data=" + SectionFlags,
-      RawSegment.path().str(),
-      SegmentELF.path().str()
-    };
-    CopySegmentArgs.emplace_back(std::move(Command));
+    ObjCopy.Arguments = { "-Ibinary",
+                          "-Oelf64-x86-64",
+                          "--rename-section=.data=." + SectionName,
+                          "--set-section-flags=.data=" + SectionFlags,
+                          RawSegment.path().str(),
+                          SegmentELF.path().str() };
+
+    // Register the objcopy invocation
+    Result.enqueueCommand(ObjCopy);
 
     Min = std::min(Min, Segment.StartAddress.address());
     Max = std::max(Max, Segment.endAddress().address());
 
     // Add to linker command line
-    Args.push_back(SegmentELF.path().str());
+    Linker.Arguments.push_back(SegmentELF.path().str());
 
     // Force section address at link-time
     const auto &StartAddr = Segment.StartAddress.address();
-    Args.push_back((Twine("-Wl,--section-start=.") + SectionName + Twine("=0x")
-                    + UToHexStr(StartAddr))
-                     .str());
+    Linker.Arguments.push_back((Twine("-Wl,--section-start=.") + SectionName
+                                + Twine("=0x") + UToHexStr(StartAddr))
+                                 .str());
   }
 
   // Force text to start on the page after all the original program segments
   auto PageAddress = PageSize * ((Max + PageSize - 1) / PageSize);
-  Args.push_back(("-Wl,-Ttext-segment=0x" + UToHexStr(PageAddress).str()));
+  auto HexPageAddress = UToHexStr(PageAddress).str();
+  Linker.Arguments.push_back("-Wl,-Ttext-segment=0x" + HexPageAddress);
 
   // Force a page before the lowest original address for the ELF header
   auto Str = "-Wl,--section-start=.elfheaderhelper=0x";
-  Args.push_back((Str + UToHexStr(Min - 1)).str());
+  Linker.Arguments.push_back((Str + UToHexStr(Min - 1)).str());
 
   // Link required dynamic libraries
-  Args.push_back("-Wl,--no-as-needed");
+  Linker.Arguments.push_back("-Wl,--no-as-needed");
   for (const std::string &ImportedLibrary : Model.ImportedLibraries)
-    Args.push_back(linkFunctionArgument(ImportedLibrary));
-  Args.push_back("-Wl,--as-needed");
+    Linker.Arguments.push_back(linkFunctionArgument(ImportedLibrary));
+  Linker.Arguments.push_back("-Wl,--as-needed");
 
   // Define program headers-related symbols
   llvm::copy(defineProgramHeadersSymbols(BinaryView, Buffer),
-             std::back_inserter(Args));
+             std::back_inserter(Linker.Arguments));
+
+  Result.enqueueCommand(std::move(Linker));
+
+  std::string MainExecutablePath = *revng::ResourceFinder.findFile("bin/revng");
+  Command MergeDynamic(MainExecutablePath);
 
   // Invoke revng-merge-dynamic
-  ArgsMergeDynamic = { "merge-dynamic",
-                       LinkerOutput.path().str(),
-                       InputBinary.str(),
-                       OutputBinary.str() };
+  MergeDynamic.Arguments = { "merge-dynamic",
+                             LinkerOutput.path().str(),
+                             InputBinary.str(),
+                             OutputBinary.str() };
 
   // Add base
   if (BaseAddress.getNumOccurrences() > 0) {
-    ArgsMergeDynamic.push_back("--base");
-    ArgsMergeDynamic.push_back("0x" + UToHexStr(BaseAddress).str());
+    MergeDynamic.Arguments.push_back("--base");
+    MergeDynamic.Arguments.push_back("0x" + UToHexStr(BaseAddress).str());
   }
+
+  Result.enqueueCommand(std::move(MergeDynamic));
+
+  return Result;
 }
 
 void linkForTranslation(const model::Binary &Model,
                         llvm::StringRef InputBinary,
                         llvm::StringRef ObjectFile,
                         llvm::StringRef OutputBinary) {
-  LinkingArgsOutput Output;
-
-  linkingArgs(Model, InputBinary, ObjectFile, OutputBinary, Output);
-  for (const auto &Invocation : Output.SegmentCopyArgs) {
-    auto ExitCode = ::Runner.run("objcopy", Invocation);
-    revng_assert(ExitCode == 0);
-  }
-
-  auto ExitCode = ::Runner.run("c++", Output.LinkerArgs);
-  revng_assert(ExitCode == 0);
-
-  ExitCode = ::Runner.run("revng", Output.MergeDynamicArgs);
-  revng_assert(ExitCode == 0);
-}
-
-static void printCommand(llvm::raw_ostream &OS,
-                         llvm::StringRef CommandName,
-                         ArrayRef<std::string> Command) {
-
-  OS << CommandName << " ";
-  for (const auto &S : Command) {
-    OS << S;
-    OS << " ";
-  }
-
-  OS << "\n";
+  CommandList Commands = linkingArgs(Model,
+                                     InputBinary,
+                                     ObjectFile,
+                                     OutputBinary);
+  Commands.run();
 }
 
 void printLinkForTranslationCommands(llvm::raw_ostream &OS,
@@ -249,12 +284,9 @@ void printLinkForTranslationCommands(llvm::raw_ostream &OS,
                                      llvm::StringRef InputBinary,
                                      llvm::StringRef ObjectFile,
                                      llvm::StringRef OutputBinary) {
-  LinkingArgsOutput Output;
-
-  linkingArgs(Model, InputBinary, ObjectFile, OutputBinary, Output);
-  for (const auto &Invocation : Output.SegmentCopyArgs)
-    printCommand(OS, "objcopy", Invocation);
-
-  printCommand(OS, "c++", Output.LinkerArgs);
-  printCommand(OS, "revng", Output.MergeDynamicArgs);
+  CommandList Commands = linkingArgs(Model,
+                                     InputBinary,
+                                     ObjectFile,
+                                     OutputBinary);
+  Commands.print(OS);
 }
