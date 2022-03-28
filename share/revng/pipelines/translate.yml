@@ -1,9 +1,9 @@
 Containers:
- - Name:            module
+ - Name:            module.ll
    Type:            LLVMContainer
  - Name:            input
    Type:            Binary
- - Name:            object
+ - Name:            object.o
    Type:            Object
  - Name:            output
    Type:            Translated
@@ -13,19 +13,19 @@ Steps:
      - Type:             ImportBinary
        UsedContainers: [input]
      - Type:             Lift
-       UsedContainers: [input, module]
+       UsedContainers: [input, module.ll]
      - Type:             LLVMPipe
-       UsedContainers: [module]
+       UsedContainers: [module.ll]
        Passes: [globaldce]
  - Name:            Recompile
    Pipes:
      - Type:             LinkSupport
-       UsedContainers: [module]
+       UsedContainers: [module.ll]
      - Type:             LLVMPipe
-       UsedContainers: [module]
+       UsedContainers: [module.ll]
        Passes: [O2]
        EnabledWhen: [O2]
      - Type:             Compile
-       UsedContainers: [module, object]
+       UsedContainers: [module.ll, object.o]
      - Type:             LinkForTranslation
-       UsedContainers: [input, object, output]
+       UsedContainers: [input, object.o, output]
