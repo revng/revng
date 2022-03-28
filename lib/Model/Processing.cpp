@@ -18,6 +18,8 @@ namespace model {
 
 unsigned dropTypesDependingOnTypes(TupleTree<model::Binary> &Model,
                                    const std::set<const model::Type *> &Types) {
+  // TODO: in case we reach a StructField or UnionField, we should drop the
+  //       field and not proceed any further
   struct TypeNode {
     const model::Type *T;
   };
