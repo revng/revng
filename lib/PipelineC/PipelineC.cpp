@@ -191,6 +191,15 @@ rp_step_get_container(rp_step *step, rp_container_identifier *container) {
   return &*Iter;
 }
 
+rp_kind *rp_step_get_artifacts_kind(rp_step *step) {
+  return step->getArtifactsKind();
+}
+
+rp_container *rp_step_get_artifacts_container(rp_step *step) {
+  revng_check(step != nullptr);
+  return step->getArtifactsContainer();
+}
+
 uint64_t rp_targets_list_targets_count(rp_targets_list *targets_list) {
   revng_check(targets_list != nullptr);
   return targets_list->size();

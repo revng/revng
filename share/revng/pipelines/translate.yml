@@ -17,6 +17,9 @@ Steps:
      - Type:             LLVMPipe
        UsedContainers: [module.ll]
        Passes: [globaldce]
+   Artifacts:
+     Container: module.ll
+     Kind: Root
  - Name:            Recompile
    Pipes:
      - Type:             LinkSupport
@@ -29,3 +32,6 @@ Steps:
        UsedContainers: [module.ll, object.o]
      - Type:             LinkForTranslation
        UsedContainers: [input, object.o, output]
+   Artifacts:
+     Kind: Object
+     Container: output

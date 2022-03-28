@@ -6,6 +6,9 @@ Steps:
      - Type:             LLVMPipe
        UsedContainers: [module.ll]
        Passes: [detect-abi, isolate, invoke-isolated-functions]
+   Artifacts:
+     Kind: Isolate
+     Container: module.ll
  - Name:            RecompileIsolated
    Pipes:
      - Type:             LinkSupport
@@ -18,3 +21,6 @@ Steps:
        UsedContainers: [module.ll, object.o]
      - Type:             LinkForTranslation
        UsedContainers: [input, object.o, output]
+   Artifacts:
+     Kind: Object
+     Container: output

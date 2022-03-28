@@ -27,6 +27,11 @@
 
 namespace pipeline {
 
+struct StepArtifactsInfo {
+  const Kind *Kind = nullptr;
+  std::string Container = "";
+};
+
 /// A step is a list of pipes that must be exectuted entirely or not at all.
 /// Furthermore a step has a set of containers associated to it as well that
 /// will contain the element used for perform the computations.
@@ -36,6 +41,7 @@ private:
   ContainerSet Containers;
   std::vector<PipeWrapper> Pipes;
   Step *PreviousStep;
+  StepArtifactsInfo Artifacts;
 
 public:
   template<typename... PipeWrapperTypes>
@@ -61,6 +67,24 @@ public:
   llvm::StringRef getName() const { return Name; }
   const ContainerSet &containers() const { return Containers; }
   ContainerSet &containers() { return Containers; }
+
+  void setArtifacts(const Kind *ArtifactsKind, std::string ContainerName) {
+    this->Artifacts.Kind = ArtifactsKind;
+    this->Artifacts.Container = ContainerName;
+  }
+
+  const Kind *getArtifactsKind() { return this->Artifacts.Kind; }
+
+  ContainerSet::value_type *getArtifactsContainer() {
+    auto &ContainerName = this->Artifacts.Container;
+    Containers[ContainerName];
+    auto ContainerIterator = Containers.find(ContainerName);
+    if (ContainerIterator != Containers.end()) {
+      return &*ContainerIterator;
+    } else {
+      return nullptr;
+    }
+  }
 
 public:
   bool hasPredecessor() const { return PreviousStep != nullptr; }

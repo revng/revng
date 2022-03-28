@@ -300,6 +300,16 @@ const char *rp_step_get_name(rp_step *step);
 rp_container *
 rp_step_get_container(rp_step *step, rp_container_identifier *identifier);
 
+/**
+ * \return the artifacts kind of the step
+ */
+rp_kind *rp_step_get_artifacts_kind(rp_step *step);
+
+/**
+ * \return the artifacts container of the step
+ */
+rp_container *rp_step_get_artifacts_container(rp_step *step);
+
 /** \} */
 
 /**

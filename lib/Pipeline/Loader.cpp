@@ -22,6 +22,13 @@ llvm::Error Loader::parseStepDeclaration(Runner &Runner,
                                          std::string &LastAddedStep) const {
   auto &JustAdded = Runner.emplaceStep(LastAddedStep, Declaration.Name);
   LastAddedStep = Declaration.Name;
+
+  if (Declaration.Artifacts.has_value()) {
+    auto &KindName = Declaration.Artifacts->Kind;
+    const Kind *Kind = Runner.getKindsRegistry().find(KindName);
+    JustAdded.setArtifacts(Kind, Declaration.Artifacts->Container);
+  }
+
   for (const auto &Invocation : Declaration.Pipes) {
     if (not isInvocationUsed(Invocation.EnabledWhen))
       continue;
