@@ -8,13 +8,16 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 
+#include "revng/ABI/FunctionType.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/IRHelpers.h"
 #include "revng/MFP/MFP.h"
 #include "revng/MFP/SetLattices.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Pipeline/RegisterLLVMPass.h"
+#include "revng/Support/OverflowSafeInt.h"
 
 #include "revng-c/Pipes/Kinds.h"
 #include "revng-c/PromoteStackPointer/InstrumentStackAccessesPass.h"
@@ -25,6 +28,11 @@
 using namespace llvm;
 
 static Logger<> Log("segregate-stack-accesses");
+
+static StringRef stripPrefix(StringRef Prefix, StringRef String) {
+  revng_assert(String.startswith(Prefix));
+  return String.substr(Prefix.size());
+}
 
 static unsigned getCallPushSize(const model::Binary &Binary) {
   return model::Architecture::getCallPushSize(Binary.Architecture);
@@ -74,25 +82,6 @@ createCall(IRBuilder<> &B, FunctionCallee Callee, Types... Arguments) {
   return B.CreateCall(Callee, ArgumentsValues);
 }
 
-static std::optional<uint64_t>
-getStackArgumentsSize(const model::Type *Prototype, model::VerifyHelper &VH) {
-  using namespace model;
-
-  if (isa<CABIFunctionType>(Prototype)) {
-    return {};
-  } else if (auto *RFT = dyn_cast<RawFunctionType>(Prototype)) {
-    revng_assert(RFT->StackArgumentsType.Qualifiers.empty());
-    if (const model::Type *StackStruct = RFT->StackArgumentsType.UnqualifiedType
-                                           .get()) {
-      return StackStruct->size(VH);
-    } else {
-      return {};
-    }
-  } else {
-    revng_abort("Not a function type");
-  }
-}
-
 static std::optional<int64_t> getStackOffset(Value *Pointer) {
   auto *PointerInstruction = dyn_cast<Instruction>(skipCasts(Pointer));
   if (PointerInstruction == nullptr)
@@ -134,6 +123,82 @@ struct StoredByte {
                                Other.StoreOffset);
     return ThisTuple < OtherTuple;
   }
+};
+
+class StackAccessRedirector {
+private:
+  using Span = abi::FunctionType::Layout::Argument::StackSpan;
+
+private:
+  int64_t BaseOffset;
+  std::map<int64_t, std::pair<uint64_t, Value *>> Map;
+
+public:
+  StackAccessRedirector(int64_t BaseOffset) : BaseOffset(BaseOffset) {}
+
+  void recordSpan(const Span &Span, Value *BaseAddress) {
+    auto Offset = BaseOffset + Span.Offset;
+    revng_assert(Map.count(Offset) == 0);
+    Map[Offset] = { Span.Size, BaseAddress };
+
+    revng_assert(verify());
+  }
+
+public:
+  std::optional<std::pair<uint64_t, Value *>>
+  computeNewBase(int64_t Offset, uint64_t Size) const {
+
+    revng_log(Log, "Searching for " << Offset << " of size " << Size);
+
+    auto It = Map.upper_bound(Offset);
+    if (It == Map.begin()) {
+      revng_log(Log, "Not found");
+      return std::nullopt;
+    }
+
+    --It;
+
+    int64_t SpanStart = It->first;
+    uint64_t SpanSize = It->second.first;
+    Value *BaseAddress = It->second.second;
+
+    using OSI = OverflowSafeInt<int64_t>;
+    auto MaybeSpanEnd = (OSI(SpanStart) + SpanSize).value();
+    auto MaybeEnd = (OSI(Offset) + Size).value();
+    if (not MaybeSpanEnd or not MaybeEnd or Offset >= *MaybeSpanEnd
+        or *MaybeEnd > *MaybeSpanEnd) {
+      revng_log(Log, "Not found");
+      return std::nullopt;
+    }
+
+    revng_log(Log, "Found");
+    return { { Offset - SpanStart, BaseAddress } };
+  }
+
+public:
+  bool verify() const debug_function {
+    if (Map.size() >= 2) {
+      auto FirstToSemiLast = llvm::make_range(Map.begin(), --Map.end());
+      auto SecondToLast = llvm::make_range(++Map.begin(), Map.end());
+      for (auto [Current, Next] : llvm::zip(FirstToSemiLast, SecondToLast)) {
+        auto CurrentEnd = Current.first
+                          + static_cast<int64_t>(Current.second.first);
+        auto NextStart = Next.first;
+        if (CurrentEnd > NextStart)
+          return false;
+      }
+    }
+    return true;
+  }
+
+  template<typename T>
+  void dump(T &Stream) const {
+    for (auto [K, V] : Map) {
+      Stream << K << ": [" << V.first << ", " << getName(V.second) << "]\n";
+    }
+  }
+
+  void dump() const debug_function { dump(dbg); }
 };
 
 using Lattice = std::set<StoredByte>;
@@ -190,13 +255,19 @@ struct SegregateStackAccessesMFI : public SetUnionLattice<Lattice> {
   }
 };
 
+struct SortByFunction {
+  bool operator()(const Instruction *LHS, const Instruction *RHS) const {
+    using std::make_pair;
+    return make_pair(LHS->getParent(), LHS) < make_pair(RHS->getParent(), RHS);
+  }
+};
+
 class SegregateStackAccesses {
 private:
   using MFIResult = std::map<BasicBlock *,
                              MFP::MFPResult<std::set<StoredByte>>>;
 
 private:
-  bool Changed = false;
   const model::Binary &Binary;
   Module &M;
   Function *SSACS = nullptr;
@@ -206,32 +277,26 @@ private:
   std::set<Instruction *> ToPurge;
   /// Builder for StackArgumentsAllocator calls
   IRBuilder<> SABuilder;
-  /// Builder for new stores
-  IRBuilder<> B;
   // MFIResult Result;
   model::VerifyHelper VH;
   const size_t CallInstructionPushSize = 0;
-  Value *StackPointer = nullptr;
   Type *SPType = nullptr;
-  Function *RootFunction = nullptr;
   std::map<Function *, Function *> OldToNew;
   std::set<Function *> FunctionsWithStackArguments;
+  std::map<Function *, StackAccessRedirector> StackArgumentsRedirectors;
+  std::set<Instruction *, SortByFunction> ToPushALAP;
 
 public:
   SegregateStackAccesses(const model::Binary &Binary,
                          Module &M,
-                         Value *StackPointer,
-                         Function *RootFunction) :
+                         Value *StackPointer) :
     Binary(Binary),
     M(M),
     SSACS(M.getFunction("stack_size_at_call_site")),
     InitLocalSP(M.getFunction("revng_init_local_sp")),
     SABuilder(M.getContext()),
-    B(M.getContext()),
     CallInstructionPushSize(getCallPushSize(Binary)),
-    StackPointer(StackPointer),
-    SPType(StackPointer->getType()->getPointerElementType()),
-    RootFunction(RootFunction) {
+    SPType(StackPointer->getType()->getPointerElementType()) {
 
     revng_assert(SSACS != nullptr);
     revng_assert(InitLocalSP != nullptr);
@@ -256,13 +321,15 @@ public:
 
 public:
   bool run() {
-    addStackArguments(M);
+    upgradeDynamicFunctions();
+    upgradeLocalFunctions();
 
-    for (Function &F : FunctionTags::StackPointerPromoted.functions(&M))
+    for (Function &F : FunctionTags::StackPointerPromoted.functions(&M)) {
       segregateStackAccesses(F);
-
-    for (Function &F : FunctionTags::StackPointerPromoted.functions(&M))
       FunctionTags::StackAccessesSegregated.addTo(&F);
+    }
+
+    pushALAP();
 
     // Purge stores that have been used at least once
     for (Instruction *I : ToPurge)
@@ -276,74 +343,136 @@ public:
     if (InitLocalSP->getNumUses() == 0)
       eraseFromParent(InitLocalSP);
 
-    return Changed;
+    return true;
   }
 
 private:
-  /// Add a new argument of type SPType to all functions that have stack
-  /// arguments
-  void addStackArguments(Module &M) {
+  void upgradeDynamicFunctions() {
+    SmallVector<Function *, 8> Functions;
+    for (Function &F : FunctionTags::DynamicFunction.functions(&M))
+      Functions.push_back(&F);
+
     // Identify all functions that have stack arguments
-    for (Function &F : FunctionTags::StackPointerPromoted.functions(&M)) {
-      MetaAddress Entry = getMetaAddressMetadata(&F, "revng.function.entry");
-      const model::Function &ModelFunction = Binary.Functions.at(Entry);
-      const model::Type *StackArguments = ModelFunction.Prototype.get();
-
-      std::optional<uint64_t> MaybeStackArgumentsSize;
-      if (StackArguments != nullptr)
-        MaybeStackArgumentsSize = getStackArgumentsSize(StackArguments, VH);
-
-      if (MaybeStackArgumentsSize)
-        FunctionsWithStackArguments.insert(&F);
-    }
-
-    // Recreate with extra argument
-    for (Function *OldFunction : FunctionsWithStackArguments) {
-      Function *NewFunction = changeFunctionType(*OldFunction,
-                                                 nullptr,
-                                                 { SPType });
-      OldToNew[OldFunction] = NewFunction;
-
-      // Drop all tags so we don't go over this again
-      OldFunction->clearMetadata();
-
-      // Update the invoke in the root function
-      updateCallsInRoot(OldFunction, NewFunction);
+    for (Function *OldFunction : Functions) {
+      // TODO: this is not very nice
+      auto SymbolName = stripPrefix("dynamic_", OldFunction->getName()).str();
+      auto &ImportedFunction = Binary.ImportedDynamicFunctions.at(SymbolName);
+      model::TypePath Prototype = ImportedFunction.prototype(Binary);
+      auto [NewFunction, Layout] = recreateApplyingModelPrototype(OldFunction,
+                                                                  Prototype);
     }
   }
 
-  void updateCallsInRoot(Function *OldFunction, Function *NewFunction) {
-    // Fix call in root function
-    for (CallBase *Caller : callers(OldFunction)) {
-      if (Caller->getCaller() == RootFunction) {
-        auto *Old = cast<InvokeInst>(Caller);
-        B.SetInsertPoint(Old);
+  /// Upgrade all the functions to reflect their model prototype
+  void upgradeLocalFunctions() {
+    SmallVector<Function *, 8> IsolatedFunctions;
+    for (Function &F : FunctionTags::StackPointerPromoted.functions(&M))
+      if (not F.isDeclaration())
+        IsolatedFunctions.push_back(&F);
 
-        // Prepare new invoke's arguments
-        SmallVector<Value *> NewArguments;
-        llvm::copy(Old->args(), std::back_inserter(NewArguments));
-        auto *PushSize = getSPConstant(CallInstructionPushSize);
-        auto *CallStackArguments = B.CreateAdd(B.CreateLoad(StackPointer),
-                                               PushSize);
-        NewArguments.push_back(CallStackArguments);
+    // Identify all functions that have stack arguments
+    for (Function *OldFunction : IsolatedFunctions) {
+      MetaAddress Entry = getMetaAddressMetadata(OldFunction,
+                                                 "revng.function.entry");
+      const model::Function &ModelFunction = Binary.Functions.at(Entry);
 
-        // Create new invoke
-        auto *New = B.CreateInvoke(NewFunction,
-                                   Old->getNormalDest(),
-                                   Old->getUnwindDest(),
-                                   NewArguments);
-        New->copyMetadata(*Old);
-        New->setAttributes(Old->getAttributes());
+      //
+      // Create new FunctionType
+      //
+      auto Prototype = ModelFunction.prototype(Binary);
+      auto [NewFunction, Layout] = recreateApplyingModelPrototype(OldFunction,
+                                                                  Prototype);
 
-        // Replace and drop old invoke
-        Old->replaceAllUsesWith(New);
-        eraseFromParent(Old);
+      //
+      // Map llvm::Argument * to model::Register
+      //
+      std::map<model::Register::Values, llvm::Argument *> ArgumentToRegister;
+      auto ArgumentRegisters = Layout.argumentRegisters();
+      for (const auto &[Register, OldArgument] :
+           zip(ArgumentRegisters, OldFunction->args()))
+        ArgumentToRegister[Register] = &OldArgument;
+
+      //
+      // Update references to old arguments
+      //
+      IRBuilder<> Builder(&NewFunction->getEntryBlock());
+      setInsertPointToFirstNonAlloca(Builder, *NewFunction);
+
+      // Create StackAccessRedirector, if required
+      StackAccessRedirector *Redirector = nullptr;
+      auto IsStackArgument = [](const auto &Argument) -> bool {
+        return Argument.Stack.has_value();
+      };
+      if (llvm::any_of(Layout.Arguments, IsStackArgument)) {
+        auto It = StackArgumentsRedirectors.emplace(NewFunction, 0).first;
+        Redirector = &It->second;
+      }
+
+      // Handle arguments
+      for (auto [ModelArgument, NewArgument] :
+           zip(Layout.Arguments, NewFunction->args())) {
+
+        // Extract from the new argument the old arguments
+        unsigned OffsetInNewArgument = 0;
+        Type *NewArgumentType = NewArgument.getType();
+        unsigned NewArgumentSize = NewArgumentType->getIntegerBitWidth() / 8;
+
+        if (ModelArgument.Type.isScalar()) {
+          // Handle scalar argument
+          for (model::Register::Values Register : ModelArgument.Registers) {
+            Argument *OldArgument = ArgumentToRegister.at(Register);
+            Type *OldArgumentType = OldArgument->getType();
+            auto OldArgumentSize = OldArgumentType->getIntegerBitWidth() / 8;
+            revng_assert(model::Register::getSize(Register) == OldArgumentSize);
+
+            // Compute the shift amount
+            unsigned ShiftAmount = shiftAmount(OffsetInNewArgument,
+                                               NewArgumentSize,
+                                               OldArgumentSize);
+
+            // Shift and trunc
+            Value *Shifted = &NewArgument;
+            if (ShiftAmount != 0)
+              Shifted = Builder.CreateLShr(&NewArgument, ShiftAmount);
+            Value *Trunced = Builder.CreateZExtOrTrunc(Shifted,
+                                                       OldArgumentType);
+
+            // Replace old argument with the extracted valued
+            OldArgument->replaceAllUsesWith(Trunced);
+
+            // Consume size
+            OffsetInNewArgument += OldArgumentSize;
+          }
+        } else {
+          // Handle non-scalar argument (passed by pointer)
+          for (model::Register::Values Register : ModelArgument.Registers) {
+            Argument *OldArgument = ArgumentToRegister.at(Register);
+            Type *OldArgumentPtrType = OldArgument->getType()->getPointerTo();
+
+            // Load value
+            Value *ArgumentPointer = computeAddress(Builder,
+                                                    OldArgumentPtrType,
+                                                    &NewArgument,
+                                                    OffsetInNewArgument);
+            Value *ArgumentValue = Builder.CreateLoad(ArgumentPointer);
+
+            // Replace
+            OldArgument->replaceAllUsesWith(ArgumentValue);
+
+            // Consume size
+            OffsetInNewArgument += model::Register::getSize(Register);
+          }
+        }
+
+        if (ModelArgument.Stack) {
+          Redirector->recordSpan(*ModelArgument.Stack + CallInstructionPushSize,
+                                 &NewArgument);
+        }
       }
     }
   }
 
   void segregateStackAccesses(Function &F) {
-    std::set<Instruction *> ToPushALAP;
 
     setInsertPointToFirstNonAlloca(SABuilder, F);
 
@@ -354,14 +483,11 @@ private:
     revng_log(Log, "Segregating " << ModelFunction.name().str());
     LoggerIndent<> Indent(Log);
 
-    // Get the last argument, i.e., the previously created stack argument
-    bool HasStackArguments = FunctionsWithStackArguments.count(&F) != 0;
-    Value *FunctionStackArguments = nullptr;
-    if (HasStackArguments) {
-      unsigned LastArgumentIndex = F.getFunctionType()->getNumParams() - 1;
-      FunctionStackArguments = F.getArg(LastArgumentIndex);
-      revng_assert(FunctionStackArguments->getType() == SPType);
-    }
+    // Lookup the redirector, if any
+    auto It = StackArgumentsRedirectors.find(&F);
+    StackAccessRedirector *Redirector = nullptr;
+    if (It != StackArgumentsRedirectors.end())
+      Redirector = &It->second;
 
     //
     // Analyze stack usage
@@ -395,13 +521,16 @@ private:
     for (BasicBlock &BB : F) {
       for (Instruction &I : BB) {
         if (CallInst *SSACSCall = getCallTo(&I, SSACS)) {
-          auto *StackArguments = handleCallSite(ModelFunction,
-                                                AnalysisResult,
-                                                SSACSCall);
-          if (StackArguments != nullptr)
-            ToPushALAP.insert(StackArguments);
-        } else if (isa<LoadInst>(&I) or isa<StoreInst>(&I)) {
-          handleMemoryAccess(FunctionStackArguments, &I);
+          //
+          // Handle a call to an isolated function
+          //
+          handleCallSite(ModelFunction, AnalysisResult, SSACSCall);
+        } else if ((isa<LoadInst>(&I) or isa<StoreInst>(&I))
+                   and Redirector != nullptr) {
+          //
+          // Handle memory access, possibly targeting stack arguments
+          //
+          handleMemoryAccess(*Redirector, &I);
         }
       }
     }
@@ -410,21 +539,34 @@ private:
     // Fix stack frame
     //
     adjustStackFrame(ModelFunction, F);
+  }
 
+  void pushALAP() {
     // Push ALAP all stack arguments allocations
-    if (ToPushALAP.size()) {
-      DominatorTree DT(F);
-      for (Instruction *I : ToPushALAP)
-        pushALAP(DT, I);
+    Function *LastFunction = nullptr;
+    DominatorTree DT;
+    for (Instruction *I : ToPushALAP) {
+      Function *F = I->getParent()->getParent();
+      if (F != LastFunction) {
+        LastFunction = F;
+        DT.recalculate(*LastFunction);
+      }
+
+      pushInstructionALAP(DT, I);
     }
   }
 
-  /// \returns allocator for this call sites' stack arguments
-  CallInst *handleCallSite(const model::Function &ModelFunction,
-                           MFIResult &AnalysisResult,
-                           CallInst *SSACSCall) {
+  void handleCallSite(const model::Function &ModelFunction,
+                      MFIResult &AnalysisResult,
+                      CallInst *SSACSCall) {
     revng_log(Log, "Handling call site " << getName(SSACSCall));
     LoggerIndent<> Indent(Log);
+
+    //
+    // Find call to revng_init_local_sp
+    //
+    Function *Caller = SSACSCall->getParent()->getParent();
+    CallInst *StackPointer = findCallTo(Caller, InitLocalSP);
 
     // Get stack size at call site
     auto MaybeStackSize = getSignedConstantArg(SSACSCall, 0);
@@ -432,52 +574,162 @@ private:
     // Obtain RawFunctionType
     auto *MD = SSACSCall->getMetadata("revng.callerblock.start");
     revng_assert(MD != nullptr);
-    auto *RawPrototype = getCallSitePrototype(Binary, SSACSCall, &ModelFunction)
-                           .get();
-    // TODO: handle CABIFunctionType
-    if (RawPrototype == nullptr)
-      return nullptr;
+    auto Prototype = getCallSitePrototype(Binary, SSACSCall, &ModelFunction);
+    using namespace abi::FunctionType;
+    abi::FunctionType::Layout Layout = Layout::make(*Prototype.get());
 
-    auto MaybeStackArgumentsSize = getStackArgumentsSize(RawPrototype, VH);
-    uint64_t StackArgumentsSize = MaybeStackArgumentsSize.value_or(0);
-    revng_log(Log, "StackArgumentsSize: " << StackArgumentsSize);
+    // Find old call instruction
+    CallInst *OldCall = findAssociatedCall(SSACSCall);
+    revng_assert(OldCall != nullptr);
+    IRBuilder<> Builder(OldCall);
 
-    CallInst *CallStackArguments = nullptr;
+    //
+    // Map llvm::Argument * to model::Register
+    //
+    std::map<model::Register::Values, llvm::Value *> ArgumentToRegister;
+    auto ArgumentRegisters = Layout.argumentRegisters();
+    for (auto [Register, OldArgument] : zip(ArgumentRegisters, OldCall->args()))
+      ArgumentToRegister[Register] = OldArgument.get();
 
-    if (StackArgumentsSize != 0) {
-      Changed = true;
+    // Check if it's a direct call
+    Function *Callee = OldCall->getCalledFunction();
+    bool IsDirect = (Callee != nullptr);
 
-      // Allocate memory for stack arguments
-      CallStackArguments = createCall(SABuilder,
-                                      CallStackArgumentsAllocator,
-                                      StackArgumentsSize);
-      CallStackArguments->setMetadata("revng.callerblock.start", MD);
-
-      // Recreate call with an extra argument
-      CallInst *OldCall = findAssociatedCall(SSACSCall);
-      revng_assert(OldCall != nullptr);
-      B.SetInsertPoint(OldCall);
-      SmallVector<Value *> Arguments;
-      llvm::copy(OldCall->args(), std::back_inserter(Arguments));
-      Arguments.push_back(CallStackArguments);
-      auto *NewCall = B.CreateCall(OldToNew.at(OldCall->getCalledFunction()),
-                                   Arguments);
-      OldCall->replaceAllUsesWith(NewCall);
-      NewCall->copyMetadata(*OldCall);
-      eraseFromParent(OldCall);
+    // Obtain or compute the function type for the call
+    FunctionType *CalleeType = nullptr;
+    Value *CalledValue = nullptr;
+    if (IsDirect) {
+      CalledValue = OldToNew.at(Callee);
+      CalleeType = OldToNew.at(Callee)->getFunctionType();
+    } else {
+      Type *ReturnType = OldCall->getType();
+      CalleeType = &layoutToLLVMFunctionType(Layout, ReturnType);
+      CalledValue = Builder.CreateBitCast(OldCall->getCalledOperand(),
+                                          CalleeType->getPointerTo());
     }
 
+    SmallVector<llvm::Value *, 4> Arguments;
+
+    StackAccessRedirector Redirector(-MaybeStackSize.value_or(0)
+                                     + CallInstructionPushSize);
+
+    for (auto [LLVMType, ModelArgument] :
+         llvm::zip(CalleeType->params(), Layout.Arguments)) {
+      model::QualifiedType ArgumentType = ModelArgument.Type;
+      uint64_t NewSize = *ArgumentType.size();
+
+      if (ArgumentType.isScalar()) {
+        Value *Accumulator = ConstantInt::get(LLVMType, 0);
+        unsigned OffsetInNewArgument = 0;
+        for (auto &Register : ModelArgument.Registers) {
+          Value *OldArgument = ArgumentToRegister.at(Register);
+          unsigned OldSize = model::Register::getSize(Register);
+
+          Value *Extended = Builder.CreateZExtOrTrunc(OldArgument, LLVMType);
+
+          unsigned ShiftAmount = shiftAmount(OffsetInNewArgument,
+                                             NewSize,
+                                             OldSize);
+          Value *Shifted = Extended;
+          if (ShiftAmount != 0)
+            Shifted = Builder.CreateLShr(Extended, ShiftAmount);
+
+          Accumulator = Builder.CreateOr(Accumulator, Shifted);
+
+          // Consume size
+          OffsetInNewArgument += OldSize;
+        }
+
+        if (ModelArgument.Stack) {
+          revng_assert(ModelArgument.Stack->Size <= 128 / 8);
+          unsigned OldSize = ModelArgument.Stack->Size;
+          Type *LoadTy = Builder.getIntNTy(OldSize * 8);
+          Type *LoadPointerTy = LoadTy->getPointerTo();
+          revng_assert(StackPointer != nullptr);
+
+          // TODO: we should not fail here
+          revng_assert(MaybeStackSize);
+          auto ArgumentStackOffset = (-*MaybeStackSize + CallInstructionPushSize
+                                      + ModelArgument.Stack->Offset);
+
+          // Compute load address
+          Constant *Offset = ConstantInt::get(StackPointer->getType(),
+                                              ArgumentStackOffset);
+          Value *Address = Builder.CreateAdd(StackPointer, Offset);
+
+          // Load value
+          Value *Pointer = Builder.CreateIntToPtr(Address, LoadPointerTy);
+          Value *Loaded = Builder.CreateLoad(Pointer);
+
+          // Extend, shift and or in Accumulator
+          Value *Extended = Builder.CreateZExt(Loaded, LLVMType);
+
+          unsigned ShiftAmount = shiftAmount(OffsetInNewArgument,
+                                             NewSize,
+                                             OldSize);
+          Value *Shifted = Extended;
+          if (ShiftAmount != 0)
+            Builder.CreateShl(Extended, ShiftAmount);
+
+          Accumulator = Builder.CreateOr(Accumulator, Shifted);
+        }
+
+        Arguments.push_back(Accumulator);
+      } else {
+        // Allocate memory for stack arguments
+        auto *CallStackArguments = createCall(SABuilder,
+                                              CallStackArgumentsAllocator,
+                                              NewSize);
+        CallStackArguments->setMetadata("revng.callerblock.start", MD);
+
+        // Record for pushing ALAP
+        ToPushALAP.insert(CallStackArguments);
+
+        unsigned OffsetInNewArgument = 0;
+        for (auto &Register : ModelArgument.Registers) {
+          Value *OldArgument = ArgumentToRegister.at(Register);
+          unsigned OldSize = model::Register::getSize(Register);
+
+          Constant *Offset = ConstantInt::get(CallStackArguments->getType(),
+                                              OffsetInNewArgument);
+          Value *Address = Builder.CreateAdd(CallStackArguments, Offset);
+
+          // Store value
+          Type *StorePointerTy = OldArgument->getType()->getPointerTo();
+          Value *Pointer = Builder.CreateIntToPtr(Address, StorePointerTy);
+          Builder.CreateStore(OldArgument, Pointer);
+
+          // Consume size
+          OffsetInNewArgument += OldSize;
+        }
+
+        if (ModelArgument.Stack)
+          Redirector.recordSpan(*ModelArgument.Stack, CallStackArguments);
+
+        Arguments.push_back(CallStackArguments);
+      }
+    }
+
+    if (Log.isEnabled()) {
+      Log << "Redirector data:\n";
+      LoggerIndent<> X(Log);
+      Redirector.dump(Log);
+      Log << DoLog;
+    }
+
+    revng_assert(Redirector.verify());
+
+    // Actually create the new call and replace the old one
+    auto *NewCall = Builder.CreateCall(CalleeType, CalledValue, Arguments);
+    OldCall->replaceAllUsesWith(NewCall);
+    NewCall->copyMetadata(*OldCall);
+    eraseFromParent(OldCall);
+    revng_assert(CalleeType->getPointerTo() == CalledValue->getType());
+
     if (not MaybeStackSize)
-      return CallStackArguments;
+      return;
 
     int64_t StackSizeAtCallSite = *MaybeStackSize;
-
-    // Compute stack arguments boundary.
-    // Any access below this threshold targets the stack arguments of this
-    // call site.
-    int64_t Boundary = (-StackSizeAtCallSite + StackArgumentsSize
-                        + CallInstructionPushSize);
-    revng_log(Log, "Boundary: " << Boundary);
 
     // Identify all the StoredBytes targeting this call sites' stack
     // arguments
@@ -485,24 +737,18 @@ private:
       unsigned Count = 0;
       int64_t Offset = 0;
     };
-    std::map<StoreInst *, StoreInfo> MarkedStores;
+    std::map<StoreInst *, StoreInfo> Stores;
     BasicBlock *BB = SSACSCall->getParent();
     const std::set<StoredByte> &BlockFinalResult = AnalysisResult.at(BB)
                                                      .OutValue;
     for (const StoredByte &Byte : BlockFinalResult) {
-      // Mark this store
-      if (Byte.StackOffset < Boundary) {
-        revng_log(Log,
-                  "Byte " << Byte.StoreOffset << " of " << getName(Byte.Store)
-                          << " is within Boundary, recording it");
-        StoreInfo &Info = MarkedStores[Byte.Store];
-        Info.Count += 1;
-        Info.Offset = Byte.StackOffset - Byte.StoreOffset;
-      }
+      StoreInfo &Info = Stores[Byte.Store];
+      Info.Count += 1;
+      Info.Offset = Byte.StackOffset - Byte.StoreOffset;
     }
 
     // Process MarkedStores
-    for (const auto &[Store, Info] : MarkedStores) {
+    for (const auto &[Store, Info] : Stores) {
       auto Size = getMemoryAccessSize(Store);
       int64_t StackArgumentsOffset = (Info.Offset + StackSizeAtCallSite
                                       - CallInstructionPushSize);
@@ -515,34 +761,36 @@ private:
       revng_log(Log, "StackSizeAtCallSite: " << StackSizeAtCallSite);
       revng_log(Log, "StackArgumentsOffset: " << StackArgumentsOffset);
 
-      if (Size == Info.Count) {
-        int64_t NegativePushSize = -CallInstructionPushSize;
-        if (StackArgumentsOffset == NegativePushSize
-            and Size == CallInstructionPushSize) {
-          Changed = true;
-
-          // This store targets the saved return address slot, drop it
-          revng_log(Log,
-                    "This store is saving the return address: we'll drop it");
-          ToPurge.insert(Store);
-        } else if (CallStackArguments != nullptr) {
-          Changed = true;
-
-          replace(Store, CallStackArguments, StackArgumentsOffset);
-        }
-      } else {
+      if (Size != Info.Count) {
         revng_log(Log,
                   "Warning: " << getName(Store) << " has size " << Size
                               << " but only " << Info.Count << " bytes target "
                               << getName(SSACSCall)
                               << " stack arguments. Ignoring.");
+        continue;
+      }
+
+      // OK, this call site owns this store entirely
+
+      // Check if we're writing to the return address
+      int64_t NegativePushSize = -CallInstructionPushSize;
+      bool TargetsReturnAddress = (StackArgumentsOffset == NegativePushSize
+                                   and Size == CallInstructionPushSize);
+
+      if (TargetsReturnAddress) {
+        // This store targets the saved return address slot, drop it
+        revng_log(Log,
+                  "This store is saving the return address: we'll drop it");
+        ToPurge.insert(Store);
+      } else if (auto NewBase = Redirector.computeNewBase(Info.Offset, Size)) {
+        // This ends up in a stack argument
+        replace(Store, NewBase->second, NewBase->first);
       }
     }
-
-    return CallStackArguments;
   }
 
-  void handleMemoryAccess(Value *FunctionStackArguments, Instruction *I) {
+  void
+  handleMemoryAccess(const StackAccessRedirector &Redirector, Instruction *I) {
     revng_log(Log, "Handling memory access " << getName(I));
     LoggerIndent<> Indent(Log);
 
@@ -556,22 +804,9 @@ private:
     revng_log(Log, "StackOffset: " << StackOffset);
 
     unsigned AccessSize = getMemoryAccessSize(I);
-    if (StackOffset >= 0) {
-      // We're accessing a stack argumnent
-      if (FunctionStackArguments != nullptr) {
-        replace(I,
-                FunctionStackArguments,
-                StackOffset - CallInstructionPushSize);
-      }
-    } else if (StackOffset + AccessSize > 0) {
-      // The access is crossing the boundary
-      revng_log(Log,
-                "Warning: the memory access "
-                  << getName(I) << " has size " << AccessSize
-                  << " and stack offset " << StackOffset << "."
-                  << " and therefore it partially crosses stack boundaries."
-                  << " Ignoring.");
-    }
+    auto NewBase = Redirector.computeNewBase(StackOffset, AccessSize);
+    if (NewBase)
+      replace(I, NewBase->second, NewBase->first);
   }
 
   void adjustStackFrame(const model::Function &ModelFunction, Function &F) {
@@ -635,14 +870,22 @@ private:
     return ConstantInt::get(SPType, Value);
   }
 
+  Value *computeAddress(IRBuilder<> &B,
+                        Type *PointerType,
+                        Value *Base,
+                        int64_t Offset) const {
+    auto *NewOffset = ConstantInt::get(Base->getType(), Offset);
+    return B.CreateIntToPtr(B.CreateAdd(Base, NewOffset), PointerType);
+  }
+
   void replace(Instruction *I, Value *Base, int64_t Offset) {
     ToPurge.insert(I);
 
-    B.SetInsertPoint(I);
-    Type *PointerType = getPointer(I)->getType();
-    auto *NewOffset = ConstantInt::get(Base->getType(), Offset);
-    auto *NewAddress = B.CreateIntToPtr(B.CreateAdd(Base, NewOffset),
-                                        PointerType);
+    IRBuilder<> B(I);
+    auto *NewAddress = computeAddress(B,
+                                      getPointer(I)->getType(),
+                                      Base,
+                                      Offset);
 
     Instruction *NewInstruction = nullptr;
     if (auto *Store = dyn_cast<StoreInst>(I)) {
@@ -653,6 +896,59 @@ private:
 
     I->replaceAllUsesWith(NewInstruction);
     NewInstruction->copyMetadata(*I);
+  }
+
+private:
+  std::pair<llvm::Function *, abi::FunctionType::Layout>
+  recreateApplyingModelPrototype(Function *OldFunction,
+                                 const model::TypePath &Prototype) {
+    auto Layout = abi::FunctionType::Layout::make(Prototype);
+
+    Type *ReturnType = OldFunction->getReturnType();
+    FunctionType &NewType = layoutToLLVMFunctionType(Layout, ReturnType);
+
+    //
+    // Steal the body
+    //
+    Function &NewFunction = moveToNewFunctionType(*OldFunction, NewType);
+
+    // Record the old-to-new mapping
+    OldToNew[OldFunction] = &NewFunction;
+
+    // Drop all tags so we don't go over this again
+    OldFunction->clearMetadata();
+
+    return { &NewFunction, Layout };
+  }
+
+  llvm::FunctionType &
+  layoutToLLVMFunctionType(const abi::FunctionType::Layout &Layout,
+                           Type *ReturnType) const {
+    using namespace abi::FunctionType;
+    SmallVector<Type *> FunctionArguments;
+    for (const Layout::Argument &Argument : Layout.Arguments) {
+      model::QualifiedType ArgumentType;
+      if (Argument.Type.isScalar())
+        ArgumentType = Argument.Type;
+      else
+        ArgumentType = Binary.getPointerTo(Argument.Type);
+
+      auto *LLVMType = getLLVMTypeForScalar(M.getContext(), ArgumentType);
+      FunctionArguments.push_back(LLVMType);
+    }
+
+    return *FunctionType::get(ReturnType, FunctionArguments, false);
+  }
+
+  unsigned
+  shiftAmount(unsigned Offset, unsigned NewSize, unsigned OldSize) const {
+    if (NewSize >= OldSize)
+      return 0;
+    if (model::Architecture::isLittleEndian(Binary.Architecture)) {
+      return Offset * 8;
+    } else {
+      return (NewSize - Offset - OldSize) * 8;
+    }
   }
 
   /// \}
@@ -666,7 +962,7 @@ bool SegregateStackAccessesPass::runOnModule(Module &M) {
   // Get the stack pointer type
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
 
-  SegregateStackAccesses SSA(Binary, M, GCBI.spReg(), GCBI.root());
+  SegregateStackAccesses SSA(Binary, M, GCBI.spReg());
   return SSA.run();
 }
 

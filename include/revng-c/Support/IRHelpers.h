@@ -19,7 +19,8 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 
-inline void pushALAP(llvm::DominatorTree &DT, llvm::Instruction *ToMove) {
+inline void
+pushInstructionALAP(llvm::DominatorTree &DT, llvm::Instruction *ToMove) {
   using namespace llvm;
 
   std::set<Instruction *> Users;
@@ -31,7 +32,7 @@ inline void pushALAP(llvm::DominatorTree &DT, llvm::Instruction *ToMove) {
       if (CommonDominator == nullptr) {
         CommonDominator = BB;
       } else {
-        DT.findNearestCommonDominator(CommonDominator, BB);
+        CommonDominator = DT.findNearestCommonDominator(CommonDominator, BB);
       }
     }
   }
