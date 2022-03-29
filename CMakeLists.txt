@@ -125,8 +125,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
     COMMAND
       revng --prefix=${CMAKE_BINARY_DIR} opt
       # Remove revng's artifacts from IR
-      -filter-for-decompilation -remove-newpc-calls -remove-exception-calls
-      -remove-cpu-loop-store -remove-llvm-dbg-intrinsics -make-env-null
+      -remove-lifting-artifacts
       # Stack promotion
       -measure-stack-size-at-call-sites -promote-stack-pointer
       # Optimize IR with LLVM's passes
