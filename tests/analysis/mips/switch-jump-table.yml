@@ -1,51 +1,51 @@
 ---
 Functions:
 - CFG:
-  - End: '5'
-    Start: '4'
+  - End: '2'
+    Start: '1'
     Successors:
+    - Destination: '2'
+      Type: DirectBranch
+    - Destination: '4'
+      Type: DirectBranch
+  - End: '3'
+    Start: '2'
+    Successors:
+    - Destination: '3'
+      Type: DirectBranch
     - Destination: '5'
       Type: DirectBranch
-    - Destination: '7'
-      Type: DirectBranch
-  - End: '6'
-    Start: '5'
+  - End: '4'
+    Start: '3'
     Successors:
     - Destination: '6'
       Type: DirectBranch
+    - Destination: '7'
+      Type: DirectBranch
     - Destination: '8'
       Type: DirectBranch
-  - End: '7'
+  - End: '9'
+    Start: '4'
+    Successors:
+    - Destination: ":Invalid"
+      Type: IndirectTailCall
+  - End: '9'
+    Start: '5'
+    Successors:
+    - Destination: ":Invalid"
+      Type: IndirectTailCall
+  - End: '9'
     Start: '6'
     Successors:
-    - Destination: '9'
-      Type: DirectBranch
-    - Destination: '10'
-      Type: DirectBranch
-    - Destination: '11'
-      Type: DirectBranch
-  - End: '12'
+    - Destination: ":Invalid"
+      Type: IndirectTailCall
+  - End: '9'
     Start: '7'
     Successors:
     - Destination: ":Invalid"
       Type: IndirectTailCall
-  - End: '12'
+  - End: '9'
     Start: '8'
-    Successors:
-    - Destination: ":Invalid"
-      Type: IndirectTailCall
-  - End: '12'
-    Start: '9'
-    Successors:
-    - Destination: ":Invalid"
-      Type: IndirectTailCall
-  - End: '12'
-    Start: '10'
-    Successors:
-    - Destination: ":Invalid"
-      Type: IndirectTailCall
-  - End: '12'
-    Start: '11'
     Successors:
     - Destination: ":Invalid"
       Type: IndirectTailCall

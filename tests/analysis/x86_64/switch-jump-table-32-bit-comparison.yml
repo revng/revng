@@ -8,7 +8,7 @@ Functions:
       Type: DirectBranch
     - Destination: '6'
       Type: DirectBranch
-  - End: '6'
+  - End: '3'
     Start: '2'
     Successors:
     - Destination: '3'

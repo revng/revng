@@ -1,7 +1,7 @@
 ---
 Functions:
 - CFG:
-  - End: '9'
+  - End: '2'
     Start: '1'
     Successors:
     - Destination: '2'

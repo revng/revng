@@ -13,7 +13,7 @@ Functions:
     Successors:
     - Attributes:
       - NoReturn
-      Destination: '9'
+      Destination: '6'
       Type: FunctionCall
   - End: '5'
     Start: '4'
@@ -29,30 +29,6 @@ Functions:
     Successors:
     - Destination: ":Invalid"
       Type: IndirectTailCall
-  Entry: '6'
-  Type: NoReturn
-- CFG:
-  - End: '8'
-    Start: '7'
-    Successors:
-    - Destination: ":Invalid"
-      Type: IndirectTailCall
-  Entry: '7'
-  Type: NoReturn
-- CFG:
-  - End: '9'
-    Start: '8'
-    Successors:
-    - Destination: ":Invalid"
-      Type: IndirectTailCall
-  Entry: '8'
-  Type: NoReturn
-- CFG:
-  - End: '10'
-    Start: '9'
-    Successors:
-    - Destination: ":Invalid"
-      Type: IndirectTailCall
   OriginalName: function
-  Entry: '9'
+  Entry: '6'
   Type: NoReturn
