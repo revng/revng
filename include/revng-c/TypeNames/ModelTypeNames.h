@@ -16,6 +16,7 @@ class RawFunctionType;
 class CABIFunctionType;
 class Type;
 class Binary;
+class Function;
 } // namespace model
 
 namespace ArtificialTypes {
@@ -29,15 +30,19 @@ constexpr const char *const ArrayWrapperFieldName = "the_array";
 
 using TypeString = llvm::SmallString<32>;
 
+/// Print a string containing the C Type name of \a QT and a
+/// (possibly empty) \a InstanceName .
+extern TypeString
+getNamedCInstance(const model::QualifiedType &QT, llvm::StringRef InstanceName);
+
 /// Return an escaped name for the type
 /// \note If T is a function type, the appropriate function typename will be
 /// returned
 extern TypeString getTypeName(const model::Type &T);
 
-/// Print a string containing the C Type name of \a QT and a
-/// (possibly empty) \a InstanceName .
-extern TypeString
-getNamedCInstance(const model::QualifiedType &QT, llvm::StringRef InstanceName);
+inline TypeString getTypeName(const model::QualifiedType &QT) {
+  return getNamedCInstance(QT, "");
+}
 
 /// Return the name of the array wrapper that wraps \a QT (QT must be
 /// an array).
