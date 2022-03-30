@@ -16,9 +16,9 @@
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/ADT/Concepts.h"
 #include "revng/ADT/GenericGraph.h"
 #include "revng/ADT/ReversePostOrderTraversal.h"
-#include "revng/Support/Concepts.h"
 
 namespace MFP {
 

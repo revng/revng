@@ -10,7 +10,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 
-#include "revng/Support/Concepts.h"
+#include "revng/ADT/Concepts.h"
 #include "revng/Support/Debug.h"
 
 //

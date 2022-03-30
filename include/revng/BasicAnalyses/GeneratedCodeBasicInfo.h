@@ -14,12 +14,12 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 
+#include "revng/ADT/Concepts.h"
 #include "revng/Lift/Lift.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/BlockType.h"
-#include "revng/Support/Concepts.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/ProgramCounterHandler.h"
 

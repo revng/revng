@@ -4,8 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/ADT/Concepts.h"
 #include "revng/ADT/STLExtras.h"
-#include "revng/Support/Concepts.h"
 
 template<typename T>
 struct KeyedObjectTraits {

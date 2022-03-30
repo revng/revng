@@ -12,15 +12,19 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LLVMContext.h"
 
+#include "revng/ADT/Concepts.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
+
+template<typename T>
+concept PointerToLLVMTypeOrDerived = DerivesFrom<std::remove_pointer_t<T>,
+                                                 llvm::Type>;
 
 template<typename KeyT>
 class OpaqueFunctionsPool {
 private:
   llvm::Module *M;
-  llvm::LLVMContext &Context;
   const bool PurgeOnDestruction;
   std::map<KeyT, llvm::Function *> Pool;
   llvm::AttributeList AttributeSets;
@@ -28,7 +32,7 @@ private:
 
 public:
   OpaqueFunctionsPool(llvm::Module *M, bool PurgeOnDestruction) :
-    M(M), Context(M->getContext()), PurgeOnDestruction(PurgeOnDestruction) {}
+    M(M), PurgeOnDestruction(PurgeOnDestruction) {}
 
   ~OpaqueFunctionsPool() {
     if (PurgeOnDestruction) {
@@ -42,7 +46,7 @@ public:
 public:
   void addFnAttribute(llvm::Attribute::AttrKind Kind) {
     using namespace llvm;
-    AttributeSets = AttributeSets.addAttribute(Context,
+    AttributeSets = AttributeSets.addAttribute(M->getContext(),
                                                AttributeList::FunctionIndex,
                                                Kind);
   }
@@ -90,8 +94,33 @@ public:
                       const llvm::Twine &Name = {}) {
     using namespace llvm;
     if (ReturnType == nullptr)
-      ReturnType = Type::getVoidTy(Context);
+      ReturnType = Type::getVoidTy(M->getContext());
 
     return get(Key, FunctionType::get(ReturnType, Arguments, false), Name);
+  }
+
+  /// Initialize the pool with all the functions in M that match the tag TheTag,
+  /// using the return type as key.
+  void initializeFromReturnType(const FunctionTags::Tag &TheTag) requires
+    PointerToLLVMTypeOrDerived<KeyT> {
+    using TypeLike = std::remove_pointer_t<KeyT>;
+    for (llvm::Function &F : TheTag.functions(M)) {
+      auto *RetType = F.getFunctionType()->getReturnType();
+      if (auto *KeyType = dyn_cast<TypeLike>(RetType))
+        record(KeyType, &F);
+    }
+  }
+
+  /// Initialize the pool with all the functions in M that match the tag TheTag,
+  /// using the type of the ArgNo-th argument as key.
+  void initializeFromNthArgType(const FunctionTags::Tag &TheTag,
+                                unsigned ArgNo) requires
+    PointerToLLVMTypeOrDerived<KeyT> {
+    using TypeLike = std::remove_pointer_t<KeyT>;
+    for (llvm::Function &F : TheTag.functions(M)) {
+      auto ArgType = F.getFunctionType()->getParamType(ArgNo);
+      if (auto *KeyType = dyn_cast<TypeLike>(ArgType))
+        record(KeyType, &F);
+    }
   }
 };

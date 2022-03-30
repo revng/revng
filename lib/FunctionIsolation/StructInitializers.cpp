@@ -20,11 +20,7 @@ StructInitializers::StructInitializers(llvm::Module *M) :
   Pool.setTags({ &FunctionTags::StructInitializer });
 
   // Record existing initializers
-  for (Function &F : FunctionTags::StructInitializer.functions(M)) {
-    auto *RT = F.getFunctionType()->getReturnType();
-    if (auto *Struct = dyn_cast<StructType>(RT))
-      Pool.record(Struct, &F);
-  }
+  Pool.initializeFromReturnType(FunctionTags::StructInitializer);
 }
 
 Instruction *StructInitializers::createReturn(IRBuilder<> &Builder,

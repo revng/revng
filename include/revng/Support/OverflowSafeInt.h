@@ -6,7 +6,7 @@
 
 #include <optional>
 
-#include "revng/Support/Concepts.h"
+#include "revng/ADT/Concepts.h"
 
 template<Integral T>
 class OverflowSafeInt {

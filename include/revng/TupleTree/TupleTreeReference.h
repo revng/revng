@@ -9,8 +9,8 @@
 
 #include "llvm/ADT/StringRef.h"
 
+#include "revng/ADT/Concepts.h"
 #include "revng/Support/Assert.h"
-#include "revng/Support/Concepts.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTreePath.h"
 #include "revng/TupleTree/Visits.h"
