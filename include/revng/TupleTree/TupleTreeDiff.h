@@ -4,7 +4,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <optional>
 #include <set>
+#include <utility>
+#include <variant>
 #include <vector>
 
 #include "llvm/ADT/StringRef.h"
@@ -14,7 +17,9 @@
 
 #include "revng/ADT/KeyedObjectContainer.h"
 #include "revng/ADT/ZipMapIterator.h"
+#include "revng/Support/Assert.h"
 #include "revng/TupleTree/TupleTree.h"
+#include "revng/TupleTree/TupleTreePath.h"
 
 template<typename>
 struct is_std_vector : std::false_type {};
@@ -39,16 +44,103 @@ void addToContainer(C &Container, const typename C::value_type &Value) {
 }
 
 template<typename T>
-struct TupleTreeDiff {
-  struct Change {
-    TupleTreePath Path;
-    void *Old;
-    void *New;
-  };
+struct TupleTreeEntries;
 
-  std::vector<Change> Changes;
+template<typename T>
+using TupleTreeEntriesT = typename TupleTreeEntries<T>::Types;
+
+namespace detail {
+template<typename Model>
+struct CheckTypeIsCorrect {
+  using Variant = TupleTreeEntriesT<Model>;
+  const Variant *Alternatives;
+  bool IsCorrect = false;
+
+  template<typename T, int I>
+  void visitTupleElement() {
+    using tuple_element = typename std::tuple_element<I, T>::type;
+    visit<tuple_element>();
+  }
+
+  template<typename T, typename KeyT>
+  void visitContainerElement(KeyT Key) {}
+
+  template<IsContainer T>
+  void visit() {
+    check<typename T::value_type>();
+  }
+
+  template<typename T>
+  void visit() {
+    check<T>();
+  }
+
+  template<typename T>
+  void check() {
+    IsCorrect = std::holds_alternative<T>(*Alternatives);
+  }
+};
+
+template<typename Model>
+bool checkTypeIsCorrect(const TupleTreePath &Path,
+                        const TupleTreeEntriesT<Model> &Content) {
+  detail::CheckTypeIsCorrect<Model> Checker{ &Content };
+  callByPath<Model>(Checker, Path);
+  return Checker.IsCorrect;
+}
+
+} // namespace detail
+
+template<typename T>
+struct Change {
+public:
+  using EntryType = std::optional<TupleTreeEntriesT<T>>;
+
+public:
+  TupleTreePath Path;
+  EntryType Old = std::nullopt;
+  EntryType New = std::nullopt;
+
+public:
+  Change() = default;
+  using TupleTreeType = T;
+  explicit Change(TupleTreePath Path,
+                  std::optional<TupleTreeEntriesT<T>> Old,
+                  std::optional<TupleTreeEntriesT<T>> New) :
+    Path(std::move(Path)), Old(std::move(Old)), New(std::move(New)) {}
+
+public:
+  static Change createRemoval(TupleTreePath Path, TupleTreeEntriesT<T> Old) {
+    revng_check(detail::checkTypeIsCorrect<T>(Path, Old));
+    return Change(std::move(Path), std::move(Old), std::nullopt);
+  }
+
+  static Change createAddition(TupleTreePath Path, TupleTreeEntriesT<T> New) {
+    revng_check(detail::checkTypeIsCorrect<T>(Path, New));
+    return Change(std::move(Path), std::nullopt, std::move(New));
+  }
+
+  static Change createChange(TupleTreePath Path,
+                             TupleTreeEntriesT<T> Old,
+                             TupleTreeEntriesT<T> New) {
+    revng_check(detail::checkTypeIsCorrect<T>(Path, New));
+    revng_check(detail::checkTypeIsCorrect<T>(Path, Old));
+    return Change(std::move(Path), std::move(Old), std::move(New));
+  }
+};
+
+template<typename T>
+using ChangesVector = std::vector<Change<T>>;
+
+template<typename T>
+struct TupleTreeDiff {
+
+public:
+  using Change = Change<T>;
+  ChangesVector<T> Changes;
   // TODO: invalidated instances
 
+public:
   TupleTreeDiff invert() const {
     TupleTreeDiff Result = *this;
     for (Change &C : Result.Changes) {
@@ -57,16 +149,24 @@ struct TupleTreeDiff {
     return Result;
   }
 
-  void add(const TupleTreePath &Path, void *What) {
-    Changes.push_back({ Path, nullptr, What });
-  }
-  void remove(const TupleTreePath &Path, void *What) {
-    Changes.push_back({ Path, What, nullptr });
-  }
-  void change(const TupleTreePath &Path, void *From, void *To) {
-    Changes.push_back({ Path, From, To });
+public:
+  template<typename ToAdd>
+  void add(const TupleTreePath &Path, ToAdd What) {
+    Changes.push_back(Change::createAddition(Path, What));
   }
 
+  template<typename ToRemove>
+  void remove(const TupleTreePath &Path, ToRemove What) {
+    Changes.push_back(Change::createRemoval(Path, What));
+  }
+
+  template<typename ToChange>
+  void
+  change(const TupleTreePath &Path, const ToChange &From, const ToChange &To) {
+    Changes.push_back(Change::createChange(Path, From, To));
+  }
+
+public:
   void dump(llvm::raw_ostream &OutputStream) const;
 
   void dump() const {
@@ -74,7 +174,114 @@ struct TupleTreeDiff {
     dump(OutputStream);
   }
 
-  void apply(T &M) const;
+  void apply(TupleTree<T> &M) const;
+};
+
+template<typename T>
+concept DiffSpecialization = is_specialization_v<T, TupleTreeDiff>;
+
+template<typename T>
+concept ChangeSpecialization = is_specialization_v<T, Change>;
+
+template<DiffSpecialization T>
+struct llvm::yaml::MappingTraits<T> {
+  static void mapping(IO &IO, T &Info) {
+    IO.mapOptional("Changes", Info.Changes);
+  }
+};
+
+template<ChangeSpecialization T, typename X>
+struct llvm::yaml::SequenceElementTraits<T, X> {
+  // NOLINTNEXTLINE
+  static const bool flow = false;
+};
+
+namespace detail {
+template<typename Model>
+struct MapDiffVisitor {
+  llvm::yaml::IO *Io;
+  TupleTreeEntriesT<Model> *Change;
+  const char *MappingName;
+
+  template<typename T, int I>
+  void visitTupleElement() {
+    using tuple_element = typename std::tuple_element<I, T>::type;
+    visit<tuple_element>();
+  }
+
+  template<typename T, typename KeyT>
+  void visitContainerElement(KeyT Key) {}
+
+  template<IsContainer T>
+  void visit() {
+    dump<typename T::value_type>();
+  }
+
+  template<typename T>
+  void visit() {
+    dump<T>();
+  }
+
+  template<typename T>
+  void dump() {
+    if (Io->outputting()) {
+      Io->mapRequired(MappingName, std::get<T>(*Change));
+    } else {
+      T Content;
+      Io->mapRequired(MappingName, Content);
+      *Change = std::move(Content);
+    }
+  }
+};
+
+} // namespace detail
+
+template<ChangeSpecialization T>
+struct llvm::yaml::MappingTraits<T> {
+  using EntryType = typename T::EntryType;
+  using Model = typename T::TupleTreeType;
+
+  static void writeEntry(IO &IO, T &Info, const char *Name, EntryType &Entry) {
+    if (not Entry.has_value())
+      return;
+
+    ::detail::MapDiffVisitor<Model> Visitor{ &IO, &*Entry, Name };
+    callByPath<Model>(Visitor, Info.Path);
+  }
+
+  static void readEntry(IO &IO, T &Info, const char *Name, EntryType &Entry) {
+    const auto &Keys = IO.keys();
+    if (llvm::find(Keys, Name) == Keys.end())
+      return;
+
+    Entry = false;
+    ::detail::MapDiffVisitor<Model> Visitor{ &IO, &*Entry, Name };
+    callByPath<Model>(Visitor, Info.Path);
+  }
+
+  static void
+  mapSingleEntry(IO &IO, T &Info, const char *Name, EntryType &Entry) {
+    if (IO.outputting())
+      writeEntry(IO, Info, Name, Entry);
+    else
+      readEntry(IO, Info, Name, Entry);
+  }
+
+  static void mapping(IO &IO, T &Info) {
+    if (IO.outputting()) {
+      std::string SerializedPath = *pathAsString<Model>(Info.Path);
+      IO.mapRequired("Path", SerializedPath);
+    } else {
+      std::string SerializedPath;
+      IO.mapRequired("Path", SerializedPath);
+      auto MaybePath = stringAsPath<Model>(SerializedPath);
+      revng_assert(MaybePath.has_value());
+      Info.Path = std::move(*MaybePath);
+    }
+
+    mapSingleEntry(IO, Info, "Add", Info.New);
+    mapSingleEntry(IO, Info, "Remove", Info.Old);
+  }
 };
 
 //
@@ -115,7 +322,7 @@ private:
         if constexpr (std::is_same_v<LHSType, RHSType>) {
           diffImpl(LHSUpcasted, RHSUpcasted);
         } else {
-          Result.change(Stack, &LHS, &RHS);
+          Result.change(Stack, LHS, RHS);
         }
       });
     });
@@ -131,10 +338,10 @@ private:
     for (auto [LHSElement, RHSElement] : zipmap_range(LHS, RHS)) {
       if (LHSElement == nullptr) {
         // Added
-        Result.add(Stack, RHSElement);
+        Result.add(Stack, *RHSElement);
       } else if (RHSElement == nullptr) {
         // Removed
-        Result.remove(Stack, LHSElement);
+        Result.remove(Stack, *LHSElement);
       } else {
         // Identical
         using value_type = typename T::value_type;
@@ -148,7 +355,7 @@ private:
   template<NotTupleTreeCompatible T>
   void diffImpl(T &LHS, T &RHS) {
     if (LHS != RHS)
-      Result.change(Stack, &LHS, &RHS);
+      Result.change(Stack, LHS, RHS);
   }
 };
 
@@ -162,107 +369,10 @@ TupleTreeDiff<M> diff(M &LHS, M &RHS) {
 //
 // TupleTreeDiff::dump
 //
-namespace tupletreediff::detail {
-
-template<Yamlizable T, typename S>
-void stream(T *M, S &Stream) {
-  using namespace llvm::yaml;
-  Output Out(Stream);
-  EmptyContext Ctx;
-  yamlize(Out, *M, true, Ctx);
-}
-
-template<NotYamlizable T, typename S>
-void stream(T *M, S &Stream) {
-  Stream << *M;
-}
-
-template<typename T>
-void dumpWithPrefixAndColor(llvm::raw_ostream &OutputStream,
-                            llvm::StringRef Prefix,
-                            llvm::raw_ostream::Colors Color,
-                            T *M) {
-  std::string Buffer;
-  llvm::WithColor Stream(OutputStream);
-  Stream.changeColor(Color);
-
-  {
-    llvm::raw_string_ostream StringStream(Buffer);
-    stream(M, StringStream);
-  }
-
-  auto [LHS, RHS] = llvm::StringRef(Buffer).split('\n');
-  while (RHS.size() != 0) {
-    Stream << Prefix << LHS << "\n";
-    std::tie(LHS, RHS) = RHS.split('\n');
-  }
-
-  Stream << Prefix << LHS << "\n";
-}
-
-struct DumpDiffVisitor {
-  llvm::raw_ostream &OutputStream;
-  void *Old, *New;
-
-  template<typename T, int I>
-  void visitTupleElement() {
-    using tuple_element = typename std::tuple_element<I, T>::type;
-    visit<tuple_element>();
-  }
-
-  template<typename T, typename KeyT>
-  void visitContainerElement(KeyT Key) {}
-
-  template<IsContainer T>
-  void visit() {
-    revng_assert((Old != nullptr) != (New != nullptr));
-    dump<typename T::value_type>();
-  }
-
-  template<typename T>
-  void visit() {
-    revng_assert(Old != nullptr and New != nullptr);
-    dump<T>();
-  }
-
-  template<typename T>
-  void dump() {
-
-    if (Old != nullptr) {
-      dumpWithPrefixAndColor(OutputStream,
-                             "-",
-                             llvm::raw_ostream::RED,
-                             reinterpret_cast<T *>(Old));
-    }
-
-    if (New != nullptr) {
-      dumpWithPrefixAndColor(OutputStream,
-                             "+",
-                             llvm::raw_ostream::GREEN,
-                             reinterpret_cast<T *>(New));
-    }
-  }
-};
-
-} // namespace tupletreediff::detail
 
 template<typename T>
 inline void TupleTreeDiff<T>::dump(llvm::raw_ostream &OutputStream) const {
-  using namespace tupletreediff::detail;
-
-  TupleTreePath LastPath;
-  for (const Change &C : Changes) {
-
-    if (LastPath != C.Path) {
-      std::string NewPath = *pathAsString<T>(C.Path);
-      OutputStream << "--- " << NewPath << "\n";
-      OutputStream << "+++ " << NewPath << "\n";
-      LastPath = C.Path;
-    }
-
-    DumpDiffVisitor PV2{ OutputStream, C.Old, C.New };
-    callByPath<T>(PV2, C.Path);
-  }
+  serialize(OutputStream, *this);
 }
 
 //
@@ -316,23 +426,23 @@ struct ApplyDiffVisitor {
 
   template<IterableAndNotStdString S>
   void visit(S &M) {
-    revng_assert((C->Old == nullptr) != (C->New == nullptr));
+    revng_assert((C->Old == std::nullopt) != (C->New == std::nullopt));
 
     using value_type = typename S::value_type;
     using KOT = KeyedObjectTraits<value_type>;
     using key_type = decltype(KOT::key(std::declval<value_type>()));
 
     size_t OldSize = M.size();
-    if (C->Old != nullptr) {
-      key_type Key = KOT::key(*reinterpret_cast<value_type *>(C->Old));
+    if (C->Old != std::nullopt) {
+      key_type Key = KOT::key(std::get<value_type>(*C->Old));
       auto End = M.end();
       auto CompareKeys = [Key](value_type &V) { return KOT::key(V) == Key; };
       auto FirstToDelete = std::remove_if(M.begin(), End, CompareKeys);
       M.erase(FirstToDelete, End);
       revng_assert(OldSize == M.size() + 1);
-    } else if (C->New != nullptr) {
+    } else if (C->New != std::nullopt) {
       // TODO: assert not there already
-      addToContainer(M, *reinterpret_cast<value_type *>(C->New));
+      addToContainer(M, std::get<value_type>(*C->New));
       revng_assert(OldSize == M.size() - 1);
     } else {
       revng_abort();
@@ -341,21 +451,22 @@ struct ApplyDiffVisitor {
 
   template<NotIterableOrStdString S>
   void visit(S &M) {
-    revng_assert(C->Old != nullptr and C->New != nullptr);
-    auto *Old = reinterpret_cast<S *>(C->Old);
-    auto *New = reinterpret_cast<S *>(C->New);
-    revng_check(*Old == M);
-    M = *New;
+    revng_assert(C->Old != std::nullopt and C->New != std::nullopt);
+    auto &Old = std::get<S>(*C->Old);
+    auto &New = std::get<S>(*C->New);
+    revng_check(Old == M);
+    M = New;
   }
 };
 
 } // namespace tupletreediff::detail
 
 template<typename T>
-inline void TupleTreeDiff<T>::apply(T &M) const {
+inline void TupleTreeDiff<T>::apply(TupleTree<T> &M) const {
   TupleTreePath LastPath;
   for (const Change &C : Changes) {
     tupletreediff::detail::ApplyDiffVisitor<T> ADV{ &C };
-    callByPath(ADV, C.Path, M);
+    callByPath(ADV, C.Path, *M);
   }
+  M.initializeReferences();
 }

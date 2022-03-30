@@ -29,19 +29,20 @@ using namespace ::revng::pipes;
 
 cl::OptionCategory PipelineCategory("revng-pipeline options", "");
 
-static list<string>
+static cl::list<string>
   InputPipeline("P", desc("<Pipeline>"), cat(PipelineCategory));
 
-static list<string> Targets(Positional,
-                            Required,
-                            desc("<Targets to produce>..."),
-                            cat(PipelineCategory));
+static cl::list<string> Targets(Positional,
+                                Required,
+                                desc("<Targets to produce>..."),
+                                cat(PipelineCategory));
 
-static list<string> ContainerOverrides("i",
-                                       desc("Load the target file in the "
-                                            "target container at the target "
-                                            "step"),
-                                       cat(PipelineCategory));
+static cl::list<string> ContainerOverrides("i",
+                                           desc("Load the target file in the "
+                                                "target container at the "
+                                                "target "
+                                                "step"),
+                                           cat(PipelineCategory));
 
 static opt<string> ModelOverride("m",
                                  desc("Load the model from a provided file"),
@@ -79,14 +80,15 @@ static alias VerboseAlias1("v",
                            aliasopt(Verbose),
                            cat(PipelineCategory));
 
-static list<string> StoresOverrides("o",
-                                    desc("Store the target container at the "
-                                         "target step in the target file"),
-                                    cat(PipelineCategory));
+static cl::list<string> StoresOverrides("o",
+                                        desc("Store the target container at "
+                                             "the "
+                                             "target step in the target file"),
+                                        cat(PipelineCategory));
 
-static list<string> EnablingFlags("f",
-                                  desc("list of pipeline enabling flags"),
-                                  cat(PipelineCategory));
+static cl::list<string> EnablingFlags("f",
+                                      desc("list of pipeline enabling flags"),
+                                      cat(PipelineCategory));
 
 static opt<string> ExecutionDirectory("p",
                                       desc("Directory from which all "
@@ -97,7 +99,7 @@ static opt<string> ExecutionDirectory("p",
                                            "everything else"),
                                       cat(PipelineCategory));
 
-static list<string>
+static cl::list<string>
   LoadLibraries("load", desc("libraries to open"), cat(PipelineCategory));
 
 static alias A1("l",

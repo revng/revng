@@ -140,3 +140,12 @@ static_assert(validateTupleTree</*= struct.user_fullname =*/>(IsYamlizable),
 
 LLVM_YAML_IS_SEQUENCE_VECTOR(/*= struct.user_fullname =*/)
 
+/** if root_type == struct.name **/
+#include "revng/Model/Generated/AllTypesVariant.h"
+
+template<>
+struct TupleTreeEntries</*= struct.user_fullname =*/> {
+  using Types = /*= namespace =*/::AllTypes;
+};
+/** endif **/
+

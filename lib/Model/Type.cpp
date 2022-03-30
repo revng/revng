@@ -3,6 +3,7 @@
 //
 
 #include <bit>
+#include <cctype>
 #include <cstddef>
 #include <functional>
 #include <random>
@@ -864,15 +865,22 @@ bool Identifier::verify(bool Assert) const {
   return verify(VH);
 }
 
+static bool isNotUnderscore(const char C) {
+  return C != '_';
+};
+
+static bool allAlphaNumOrUnderscore(const Identifier &Range) {
+  const auto &FilterRange = llvm::make_filter_range(Range, isNotUnderscore);
+  for (const auto &Entry : FilterRange)
+    if (not std::isalnum(Entry))
+      return false;
+  return true;
+};
+
 bool Identifier::verify(VerifyHelper &VH) const {
-  const auto AllAlphaNumOrUnderscore = [](const auto &Range) {
-    const auto IsNotUnderscore = [](const char C) { return C != '_'; };
-    return llvm::all_of(llvm::make_filter_range(Range, IsNotUnderscore),
-                        isalnum);
-  };
   return VH.maybeFail(not(not empty() and std::isdigit((*this)[0]))
                         and not startswith("_")
-                        and AllAlphaNumOrUnderscore(*this)
+                        and allAlphaNumOrUnderscore(*this)
                         and not beginsWithReservedPrefix(*this)
                         and not ReservedKeywords.count(llvm::StringRef(*this)),
                       Twine(*this) + " is not a valid identifier");
