@@ -5,7 +5,10 @@
 //
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/QualifiedType.h"
+#include "revng/Model/Type.h"
 #include "revng/Model/Types.h"
+#include "revng/Support/Generator.h"
 
 namespace abi::FunctionType {
 
@@ -61,9 +64,13 @@ public:
   /// from the \param Function.
   static Layout make(const model::TypePath &Function) {
     revng_assert(Function.isValid());
-    if (auto *CABI = llvm::dyn_cast<model::CABIFunctionType>(Function.get()))
+    return make(*Function.get());
+  }
+
+  static Layout make(const model::Type &Function) {
+    if (auto CABI = llvm::dyn_cast<model::CABIFunctionType>(&Function))
       return Layout(*CABI);
-    else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(Function.get()))
+    else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(&Function))
       return Layout(*Raw);
     else
       revng_abort("Layouts of non-function types are not supported.");
