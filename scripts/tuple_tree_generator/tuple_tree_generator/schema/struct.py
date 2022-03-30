@@ -94,11 +94,15 @@ class SequenceStructField(StructField):
         self.resolved_element_type = None
 
     @property
-    def type(self):
+    def underlying_type(self):
         if self.upcastable:
-            return f"{self.sequence_type}<UpcastablePointer<{self.element_type}>>"
+            return f"UpcastablePointer<{self.element_type}>"
         else:
-            return f"{self.sequence_type}<{self.element_type}>"
+            return self.element_type
+
+    @property
+    def type(self):
+        return f"{self.sequence_type}<{self.underlying_type}>"
 
     @property
     def python_type(self):

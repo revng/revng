@@ -6,8 +6,10 @@ from .generators import PythonGenerator
 from .schema import Schema
 
 
-def generate_cpp_headers(schema: Schema, user_include_path):
-    generator = CppHeadersGenerator(schema, user_include_path=user_include_path)
+def generate_cpp_headers(schema: Schema, root_type, user_include_path):
+    generator = CppHeadersGenerator(
+        schema, root_type=root_type, user_include_path=user_include_path
+    )
     return generator.emit()
 
 
