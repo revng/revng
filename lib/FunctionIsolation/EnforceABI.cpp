@@ -127,7 +127,8 @@ void EnforceABIImpl::run() {
   for (const model::DynamicFunction &FunctionModel :
        Binary.ImportedDynamicFunctions) {
     // TODO: have an API to go from model to llvm::Function
-    auto OldFunctionName = (Twine("dynamic_") + FunctionModel.name()).str();
+    auto OldFunctionName = (Twine("dynamic_") + FunctionModel.OriginalName)
+                             .str();
     Function *OldFunction = M.getFunction(OldFunctionName);
     revng_assert(OldFunction != nullptr);
     OldFunctions.push_back(OldFunction);
