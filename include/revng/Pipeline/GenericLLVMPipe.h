@@ -14,11 +14,11 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/PassRegistry.h"
 
+#include "revng/ADT/Concepts.h"
 #include "revng/Pipeline/ContainerFactorySet.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/LLVMContainer.h"
 #include "revng/Pipeline/Step.h"
-#include "revng/Support/Concepts.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/ResourceFinder.h"
 

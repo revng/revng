@@ -9,9 +9,9 @@
 
 #include "llvm/Support/Casting.h"
 
+#include "revng/ADT/Concepts.h"
 #include "revng/ADT/STLExtras.h"
 #include "revng/Support/Assert.h"
-#include "revng/Support/Concepts.h"
 
 template<typename T>
 concept is_pointer = std::is_pointer_v<T>;

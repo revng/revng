@@ -23,7 +23,7 @@
 #include "llvm/IR/ValueMap.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "revng/Support/Concepts.h"
+#include "revng/ADT/Concepts.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/Generator.h"

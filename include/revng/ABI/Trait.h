@@ -27,9 +27,9 @@
 #include "revng/ABI/x86_64/Microsoft_x86_64_clrcall.h"
 #include "revng/ABI/x86_64/Microsoft_x86_64_vectorcall.h"
 #include "revng/ABI/x86_64/SystemV_x86_64.h"
+#include "revng/ADT/Concepts.h"
 #include "revng/Model/ABI.h"
 #include "revng/Model/Register.h"
-#include "revng/Support/Concepts.h"
 
 namespace abi {
 

@@ -9,8 +9,8 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/ADT/Concepts.h"
 #include "revng/Pipeline/Target.h"
-#include "revng/Support/Concepts.h"
 
 namespace pipeline {
 
