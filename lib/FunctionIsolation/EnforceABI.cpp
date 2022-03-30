@@ -138,10 +138,12 @@ void EnforceABIImpl::run() {
     revng_assert(Prototype.verify());
 
     Function *NewFunction = recreateFunction(*OldFunction, Prototype);
-    FunctionTags::DynamicFunction.addTo(NewFunction);
 
     // EnforceABI currently does not support execution
     NewFunction->deleteBody();
+
+    // Copy metadata
+    NewFunction->copyMetadata(OldFunction, 0);
 
     OldToNew[OldFunction] = NewFunction;
   }
