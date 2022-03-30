@@ -112,6 +112,13 @@ public:
   model::TypePath
   getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize) const;
 
+  model::QualifiedType getPointerTo(const model::QualifiedType &Type) const {
+    QualifiedType Result = Type;
+    Result.Qualifiers.insert(Result.Qualifiers.begin(),
+                             model::Qualifier::createPointer(Architecture));
+    return Result;
+  }
+
   bool verifyTypes() const debug_function;
   bool verifyTypes(bool Assert) const debug_function;
   bool verifyTypes(VerifyHelper &VH) const;
