@@ -1061,6 +1061,7 @@ void IFI::run() {
                                          GlobalValue::ExternalLinkage,
                                          "local_" + Function.name(),
                                          TheModule);
+    NewFunction->addFnAttr(Attribute::NullPointerIsValid);
     IsolatedFunctionsMap[Function.Entry] = NewFunction;
     FunctionTags::Isolated.addTo(NewFunction);
     revng_assert(NewFunction != nullptr);
