@@ -57,17 +57,21 @@ model::TypePath createEmptyStruct(model::Binary &Binary, uint64_t Size) {
 
 const model::QualifiedType
 llvmIntToModelType(const llvm::Type *LLVMType, const model::Binary &Model) {
-  model::QualifiedType ModelType;
   using namespace model::PrimitiveTypeKind;
-  const llvm::Type *TypeToConvert = LLVMType;
-  bool IsPointer = false;
 
-  if (auto *PtrType = dyn_cast<llvm::PointerType>(LLVMType)) {
+  const llvm::Type *TypeToConvert = LLVMType;
+  size_t NPtrQualifiers = 0;
+
+  // If it's a pointer, find the pointed type
+  while (auto *PtrType = dyn_cast<llvm::PointerType>(TypeToConvert)) {
     TypeToConvert = PtrType->getElementType();
-    IsPointer = true;
+    ++NPtrQualifiers;
   }
 
+  model::QualifiedType ModelType;
+
   if (auto *IntType = dyn_cast<llvm::IntegerType>(TypeToConvert)) {
+    // Convert the integer type
     switch (IntType->getIntegerBitWidth()) {
     case 1:
     case 8:
@@ -93,12 +97,13 @@ llvmIntToModelType(const llvm::Type *LLVMType, const model::Binary &Model) {
       revng_abort("Found an LLVM integer with a size that is not a power of "
                   "two");
     }
-
-    if (IsPointer) {
+    // Add qualifiers
+    for (size_t I = 0; I < NPtrQualifiers; ++I)
       addPointerQualifier(ModelType, Model);
-    }
-  } else if (IsPointer) {
-    // If it's a pointer to a non-integer type, return an integer
+
+  } else if (NPtrQualifiers > 0) {
+    // If it's a pointer to a non-integer type, return an integer type of the
+    // length of a pointer
     auto PtrSize = getPointerSize(Model.Architecture);
     ModelType.UnqualifiedType = Model.getPrimitiveType(Number, PtrSize);
   } else {
