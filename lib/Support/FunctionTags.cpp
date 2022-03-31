@@ -21,66 +21,11 @@ using namespace llvm;
 
 namespace FunctionTags {
 
-Tag QEMU("QEMU");
-Tag Helper("Helper");
-
-Tag Isolated("Isolated");
-Tag ABIEnforced("ABIEnforced");
-Tag CSVsPromoted("CSVsPromoted");
-
-Tag CallToLifted("CallToLifted");
-Tag Exceptional("Exceptional");
-Tag StructInitializer("StructInitializer");
-Tag OpaqueCSVValue("OpaqueCSVValue");
-Tag FunctionDispatcher("FunctionDispatcher");
-Tag Root("Root");
-Tag IsolatedRoot("IsolatedRoot");
-Tag CSVsAsArgumentsWrapper("CSVsAsArgumentsWrapper");
-Tag Marker("Marker");
-Tag DynamicFunction("DynamicFunction");
-
-static const char *TagsMetadataName = "revng.tags";
-
-static ManagedStatic<std::map<StringRef, Tag *>> Registry;
-
-template<typename T>
-static llvm::MDNode *getMetadata(T *V) {
-  return V->getMetadata(TagsMetadataName);
-}
-
-template<typename T>
-static void append(T *V, StringRef Name) {
-  LLVMContext &C = getContext(V);
-  SmallVector<Metadata *, 8> Tags;
-
-  if (auto *Tuple = getMetadata(V)) {
-    bool Found = false;
-    for (const MDOperand &Op : Tuple->operands()) {
-      MDString *String = cast<MDString>(Op.get());
-      if (String->getString() == Name)
-        return;
-
-      Tags.push_back(String);
-    }
-  }
-
-  Tags.push_back(MDString::get(C, Name));
-
-  V->setMetadata(TagsMetadataName, MDTuple::get(C, Tags));
-}
-
-Tag::Tag(StringRef Name) : Name(Name) {
-  revng_check(Registry->count(Name) == 0,
-              "Tag with the same name already registered");
-  (*Registry)[Name] = this;
-}
-
-void Tag::addTo(Instruction *I) const {
-  append(I, Name);
-}
-
-void Tag::addTo(GlobalObject *G) const {
-  append(G, Name);
+llvm::MDNode *TagsSet::getMetadata(LLVMContext &C) const {
+  SmallVector<Metadata *, 8> MDTags;
+  for (const Tag *T : Tags)
+    MDTags.push_back(MDString::get(C, T->name()));
+  return MDTuple::get(C, MDTags);
 }
 
 TagsSet TagsSet::from(const MDNode *MD) {
@@ -91,20 +36,12 @@ TagsSet TagsSet::from(const MDNode *MD) {
 
   for (const MDOperand &Op : cast<MDTuple>(MD)->operands()) {
     StringRef Name = cast<MDString>(Op.get())->getString();
-    auto It = Registry->find(Name);
-    if (It != Registry->end())
-      Result.Tags.insert(It->second);
+    Tag *T = Tag::findByName(Name);
+    revng_assert(T != nullptr);
+    Result.Tags.insert(T);
   }
 
   return Result;
-}
-
-TagsSet TagsSet::from(const Instruction *I) {
-  return from(getMetadata(I));
-}
-
-TagsSet TagsSet::from(const GlobalObject *G) {
-  return from(getMetadata(G));
 }
 
 } // namespace FunctionTags

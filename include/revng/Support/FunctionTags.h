@@ -8,7 +8,11 @@
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/IR/GlobalObject.h"
+#include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Module.h"
+
+#include "revng/Support/DynamicHierarchy.h"
 
 namespace llvm {
 class MDNode;
@@ -20,7 +24,23 @@ namespace FunctionTags {
 
 class Tag;
 
+// clang-format off
+template<typename T>
+concept Taggable = (std::is_base_of_v<llvm::Instruction, T>
+                    or std::is_same_v<llvm::GlobalVariable, T>
+                    or std::is_same_v<llvm::Function, T>);
+// clang-format on
+
+/// Represents a set of Tag that can be attached to an
+/// Instruction/GlobalVariable/Function
+///
+/// \note This class automatically deduplicates Tags and keeps the most specific
+///       Tag available, in case two Tags that are in a parent-child
+///       relationship are added to the set
 class TagsSet {
+private:
+  static constexpr const char *TagsMetadataName = "revng.tags";
+
 private:
   std::set<const Tag *> Tags;
 
@@ -29,36 +49,53 @@ public:
   TagsSet(std::initializer_list<const Tag *> I) : Tags{ I } {}
 
 public:
-  static TagsSet from(const llvm::Instruction *I);
-  static TagsSet from(const llvm::GlobalObject *G);
+  static TagsSet from(const Taggable auto *V) {
+    return from(V->getMetadata(TagsMetadataName));
+  }
   static TagsSet from(const llvm::MDNode *MD);
 
 public:
-  bool contains(const Tag &T) const { return Tags.count(&T) != 0; }
+  bool containsExactly(const Tag &Target) const {
+    return Tags.count(&Target) != 0;
+  }
+
+  bool contains(const Tag &Target) const;
 
 public:
-  template<typename T>
-  void addTo(T *I) const;
+  void set(Taggable auto *V) const {
+    V->setMetadata(TagsMetadataName, getMetadata(V->getContext()));
+  }
 
 public:
-  void insert(const Tag *T) { Tags.insert(T); }
+  void insert(const Tag &Target);
+
+private:
+  llvm::MDNode *getMetadata(llvm::LLVMContext &C) const;
 };
 
-class Tag {
-private:
-  llvm::StringRef Name;
+/// Represents a tag that can be attached to a
+/// Instruction/GlobalVariable/Function
+///
+/// \note Tag can have a parent tag.
+class Tag : public DynamicHierarchy<Tag> {
+public:
+  Tag(llvm::StringRef Name) : DynamicHierarchy(Name) {}
+  Tag(llvm::StringRef Name, Tag &Parent) : DynamicHierarchy(Name, Parent) {}
 
 public:
-  Tag(llvm::StringRef Name);
+  void addTo(Taggable auto *I) const {
+    auto Set = TagsSet::from(I);
+    Set.insert(*this);
+    Set.set(I);
+  }
 
 public:
-  void addTo(llvm::Instruction *I) const;
-  void addTo(llvm::GlobalObject *G) const;
-
-public:
-  template<typename T>
-  bool isTagOf(T *I) const {
+  bool isTagOf(const Taggable auto *I) const {
     return TagsSet::from(I).contains(*this);
+  }
+
+  bool isExactTagOf(const Taggable auto *I) const {
+    return TagsSet::from(I).containsExactly(*this);
   }
 
   auto functions(llvm::Module *M) const {
@@ -67,37 +104,65 @@ public:
     return make_filter_range(M->functions(), Filter);
   }
 
+  auto exact_functions(llvm::Module *M) const {
+    using namespace llvm;
+    auto Filter = [this](Function &F) { return isExactTagOf(&F); };
+    return make_filter_range(M->functions(), Filter);
+  }
+
   auto globals(llvm::Module *M) const {
     using namespace llvm;
     auto Filter = [this](GlobalVariable &G) { return isTagOf(&G); };
     return make_filter_range(M->globals(), Filter);
   }
+
+  auto exact_globals(llvm::Module *M) const {
+    using namespace llvm;
+    auto Filter = [this](GlobalVariable &G) { return isExactTagOf(&G); };
+    return make_filter_range(M->globals(), Filter);
+  }
 };
 
-template<typename T>
-void TagsSet::addTo(T *I) const {
-  // TODO: inefficient
-  for (const Tag *TheTag : Tags)
-    TheTag->addTo(I);
+inline bool TagsSet::contains(const Tag &Target) const {
+  for (const Tag *T : Tags)
+    if (Target.ancestorOf(*T))
+      return true;
+  return false;
 }
 
-extern Tag QEMU;
-extern Tag Helper;
+inline void TagsSet::insert(const Tag &Target) {
+  for (auto It = Tags.begin(); It != Tags.end();) {
+    if (Target.ancestorOf(**It)) {
+      // No need to insert, we already have a Tag derived from Target in the set
+      return;
+    } else if ((*It)->ancestorOf(Target)) {
+      // Target is more specific than (*It), delete (*It)
+      It = Tags.erase(It);
+    } else {
+      ++It;
+    }
+  }
 
-extern Tag Isolated;
-extern Tag ABIEnforced;
-extern Tag CSVsPromoted;
+  Tags.insert(&Target);
+}
 
-extern Tag CallToLifted;
-extern Tag Exceptional;
-extern Tag StructInitializer;
-extern Tag OpaqueCSVValue;
-extern Tag FunctionDispatcher;
-extern Tag Root;
-extern Tag IsolatedRoot;
-extern Tag CSVsAsArgumentsWrapper;
-extern Tag Marker;
-extern Tag DynamicFunction;
+inline Tag QEMU("QEMU");
+inline Tag Helper("Helper");
+
+inline Tag Isolated("Isolated");
+inline Tag ABIEnforced("ABIEnforced", Isolated);
+inline Tag CSVsPromoted("CSVsPromoted", ABIEnforced);
+
+inline Tag CallToLifted("CallToLifted");
+inline Tag Exceptional("Exceptional");
+inline Tag StructInitializer("StructInitializer");
+inline Tag OpaqueCSVValue("OpaqueCSVValue");
+inline Tag FunctionDispatcher("FunctionDispatcher");
+inline Tag Root("Root");
+inline Tag IsolatedRoot("IsolatedRoot");
+inline Tag CSVsAsArgumentsWrapper("CSVsAsArgumentsWrapper");
+inline Tag Marker("Marker");
+inline Tag DynamicFunction("DynamicFunction");
 
 } // namespace FunctionTags
 
