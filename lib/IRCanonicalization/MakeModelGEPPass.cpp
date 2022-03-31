@@ -823,13 +823,9 @@ struct DifferenceScore {
   // always the lowest.
   bool PerfectTypeMatch = false;
 
-  // Higher Difference are for stuff that is farther apart from a perfect match.
-  // 0 or lower scores are for accesses that insist exactly on the beginning of
-  // the type. Negative scores are for accesses that insist exactly on the
-  // beginning of the type, but allowing for various levels of customization
-  // (such as e.g. accesses that go deeper inside the type system and perfect
-  // match have a score that is "more negative").
-  ssize_t Difference = std::numeric_limits<ssize_t>::max();
+  // Higher Difference are for stuff that is farther apart from a perfect match
+  // from the beginning of the type.
+  size_t Difference = std::numeric_limits<size_t>::max();
 
   // This field represents how deep the type system was traversed to compute the
   // score. Scores with a higher depth are considered better (so lower
@@ -841,16 +837,27 @@ struct DifferenceScore {
 
   std::strong_ordering operator<=>(const DifferenceScore &Other) const {
 
+    // If only one of the two is a perfect match, the difference is always
+    // lower.
     if (PerfectTypeMatch != Other.PerfectTypeMatch)
       return PerfectTypeMatch ? std::strong_ordering::less :
                                 std::strong_ordering::greater;
 
+    // Here both are perfect matches or none is.
+
+    // If one out of range, the difference is always higher
     if (InRange != Other.InRange)
       return InRange ? std::strong_ordering::less :
                        std::strong_ordering::greater;
 
+    // Here both are in range or none is.
+
+    // If the Difference is not the same, one of the two is closer to exact, so
+    // we give precedence to that.
     if (auto Cmp = Difference <=> Other.Difference; Cmp != 0)
       return Cmp;
+
+    // Here both have the same difference, e.g. they reach the same offset.
 
     // Notice that in the following line the terms are inverted, because lower
     // depth needs to be scored "better" (so lower difference).
@@ -873,23 +880,24 @@ struct ScoredIndices {
 
   static ScoredIndices invalid() { return ScoredIndices{}; }
 
-  static ScoredIndices outOfBound(ssize_t DiffScore) {
+  static ScoredIndices outOfBound(size_t DiffScore) {
     return ScoredIndices{ .Score = DifferenceScore{ .PerfectTypeMatch = false,
                                                     .Difference = DiffScore,
                                                     .Depth = 0,
                                                     .InRange = false },
                           .Indices{} };
   }
-  static ScoredIndices nestedOutOfBound(ssize_t DiffScore,
-                                        size_t Depth,
-                                        ChildIndexVector &&Indices) {
+
+  static ScoredIndices
+  nestedOutOfBound(size_t DiffScore, size_t Depth, ChildIndexVector &&Indices) {
     revng_assert(Depth <= Indices.size());
     if (Depth < Indices.size())
       Indices.resize(Depth);
-    return ScoredIndices{ .Score = DifferenceScore{ .PerfectTypeMatch = false,
-                                                    .Difference = DiffScore,
-                                                    .Depth = Depth,
-                                                    .InRange = false },
+    auto Score = DifferenceScore{ .PerfectTypeMatch = false,
+                                  .Difference = DiffScore,
+                                  .Depth = Depth,
+                                  .InRange = false };
+    return ScoredIndices{ .Score = std::move(Score),
                           .Indices = std::move(Indices) };
   }
 };
@@ -900,14 +908,12 @@ differenceScore(const model::QualifiedType &BaseType,
                 const IRAccessPattern &IRAP,
                 model::VerifyHelper &VH) {
 
-  auto Result = ScoredIndices::outOfBound(IRAP.BaseOffset.getSExtValue());
-
   const auto &[TAP, ChildIndices] = TAPWithIndices;
   ChildIndexVector ResultIndices = ChildIndices;
 
   size_t BaseSize = *BaseType.size();
   if (IRAP.BaseOffset.uge(BaseSize))
-    return ScoredIndices::outOfBound(IRAP.BaseOffset.getSExtValue());
+    return ScoredIndices::outOfBound(IRAP.BaseOffset.getZExtValue());
 
   revng_assert(TAP.BaseOffset.ult(BaseSize));
   revng_assert((TAP.BaseOffset + *TAP.AccessedType.size()).ule(BaseSize));
@@ -949,7 +955,6 @@ differenceScore(const model::QualifiedType &BaseType,
       RestOff -= FieldOffset;
 
       NestedType = S->Fields.at(FieldOffset).Type;
-      ++Depth;
     } break;
 
     case Union: {
@@ -957,7 +962,6 @@ differenceScore(const model::QualifiedType &BaseType,
       auto *U = cast<model::UnionType>(Normalized.UnqualifiedType.get());
       size_t FieldID = cast<ConstantInt>(ChildID.Index)->getZExtValue();
       NestedType = U->Fields.at(FieldID).Type;
-      ++Depth;
     } break;
 
     case Array: {
@@ -969,17 +973,44 @@ differenceScore(const model::QualifiedType &BaseType,
                                              model::Qualifier::isArray);
       revng_assert(ArrayQualIt != ArrayQualEnd);
 
+      // TODO: in principle we have noguarantee here that
+      //
+      //   ArrayQualIt->Size == ArrayInfoIt->NumElems
+      //
+      // In fact:
+      // - ArrayQualIt->Size is the size of the array type that we reach
+      //   traversing the IR
+      // - ArrayInfoIt->NumElems is the size of the array type corresponding to
+      //   this TAP (hence coming from the pure type system, without looking at
+      //   the IR)
+      //
+      // This two are not necessarily the same.
+      // When ArrayQualIt->Size - ArrayInfoIt->NumElems is:
+      // - 0 the IR and the type system agree on the number of elements of
+      //   the array.
+      // - > 0 the IR thinks there are less elements than the type system so the
+      //   TAP might not be perfect but we know for sure that if we pick this as
+      //   best we're not emitting C code that accesses elements out of bound
+      //   (because C code is emitted according to the IR).
+      // - < 0 the IR thinks there are more elements than the type system, so
+      //   the TAP is worse then the >0 case, because if we emit the C code
+      //   according to the IR we could access an element that is out of bound
+      //   for the TAP (even if only with an dynamic index, the static index is
+      //   taken into account already and scored very poorly).
+      //
+      // At the moment this information is not used for scoring the difference,
+      // so whichever is evalutated first wins.
+      // We also don't have evidence of situations where this skews the
+      // selection of the best TAP to a suboptimal choice, so we haven't
+      // dedicated effort to iron this out.
+      //
+      // In the future we might need to take this into account.
+
       revng_assert(not ChildID.Index);
       if (IRAPIndicesIt == IRAPIndicesEnd) {
         // This means that the IRAP does not have strided accesses anymore.
         // Hence for performing this array access it's using a constant offset
         // that needs to be translated into an index into the array.
-
-        // The sizes of the array should be equal, but ArrayInfoIt->NumElems
-        // could be 1 less than necessary because of some workarounds we have
-        // built in DLA to handle arrays.
-        revng_assert(ArrayQualIt->Size == ArrayInfoIt->NumElems
-                     or (ArrayQualIt->Size - 1 == ArrayInfoIt->NumElems));
 
         APInt ElemIndex;
         APInt OffInElem;
@@ -988,7 +1019,7 @@ differenceScore(const model::QualifiedType &BaseType,
         if (ElemIndex.uge(ArrayInfoIt->NumElems)) {
           // If IRAP is trying to access an element that is larger than the
           // array size, we have to bail out, marking this as out of bound.
-          return ScoredIndices::nestedOutOfBound(RestOff.getSExtValue(),
+          return ScoredIndices::nestedOutOfBound(RestOff.getZExtValue(),
                                                  Depth,
                                                  std::move(ResultIndices));
         }
@@ -1009,7 +1040,6 @@ differenceScore(const model::QualifiedType &BaseType,
         }
 
         ++IRAPIndicesIt;
-        ++Depth;
       }
 
       NestedType = model::QualifiedType(Normalized.UnqualifiedType,
@@ -1022,19 +1052,22 @@ differenceScore(const model::QualifiedType &BaseType,
     default:
       revng_abort();
     }
+
+    // Increase the depth for each element in the type system that was traversed
+    // succesfully.
+    ++Depth;
   }
 
   bool PerfectMatch = IRAP.PointeeType.has_value()
                       and IRAP.PointeeType.value() == TAP.AccessedType;
-  Result = ScoredIndices{
+
+  return ScoredIndices{
     .Score = DifferenceScore{ .PerfectTypeMatch = PerfectMatch,
-                              .Difference = RestOff.getSExtValue(),
+                              .Difference = RestOff.getZExtValue(),
                               .Depth = Depth,
-                              .InRange = RestOff.isNonNegative() },
+                              .InRange = true },
     .Indices = std::move(ResultIndices),
   };
-
-  return Result;
 }
 
 static std::pair<TypedAccessPattern, ChildIndexVector>
@@ -1276,10 +1309,6 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
       // the size of this array element.
       uint64_t ElementSize = *ElementType.size();
       revng_assert(TAPArrayIt->Stride == ElementSize);
-
-      // The array in BestTAP that we're unwrapping has the same number of
-      // elements.
-      revng_assert(ArrayQualIt->Size == TAPArrayIt->NumElems);
 
       if (RestOff.uge(ElementSize)) {
         // If the remaining offset is larger than or equal to an element size,
