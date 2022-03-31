@@ -3,5 +3,6 @@
 #
 
 add_subdirectory(model)
+add_subdirectory(efa)
 add_subdirectory(pipeline)
 add_subdirectory(link-for-translation)

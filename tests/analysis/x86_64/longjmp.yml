@@ -1,35 +1,36 @@
 ---
-Functions:
-- CFG:
-  - End: '2'
-    Start: '1'
-    Successors:
-    - Destination: '3'
-      Type: FunctionCall
-  - End: '3'
-    Start: '2'
-    Successors:
-    - Destination: ":Invalid"
-      Type: Return
+- FunctionMetadata:
+    ControlFlowGraph:
+      - End: '2'
+        Start: '1'
+        Successors:
+        - Destination: '3'
+          Type: FunctionCall
+      - End: '3'
+        Start: '2'
+        Successors:
+        - Destination: ":Invalid"
+          Type: Return
   OriginalName: _start
   Type: Regular
-- CFG:
-  - End: '4'
-    Start: '3'
-    Successors:
-    - Destination: '4'
-      Type: DirectBranch
-    - Destination: '5'
-      Type: DirectBranch
-  - End: '6'
-    Start: '4'
-    Successors:
-    - Destination: ":Invalid"
-      Type: LongJmp
-  - End: '6'
-    Start: '5'
-    Successors:
-    - Destination: ":Invalid"
-      Type: Return
+- FunctionMetadata:
+    ControlFlowGraph:
+      - End: '4'
+        Start: '3'
+        Successors:
+        - Destination: '4'
+          Type: DirectBranch
+        - Destination: '5'
+          Type: DirectBranch
+      - End: '6'
+        Start: '4'
+        Successors:
+        - Destination: ":Invalid"
+          Type: LongJmp
+      - End: '6'
+        Start: '5'
+        Successors:
+        - Destination: ":Invalid"
+          Type: Return
   OriginalName: longjmp
   Type: Regular

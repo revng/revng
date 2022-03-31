@@ -7,7 +7,7 @@ import json
 import sys
 import yaml
 
-from . import fetch_text_model, parse_model, remap_metaaddress
+from . import remap_metaaddress, SafeLoaderIgnoreUnknown
 
 
 def log(message):
@@ -16,7 +16,6 @@ def log(message):
 
 def main():
     parser = argparse.ArgumentParser(description="Extract and process rev.ng model.")
-    parser.add_argument("--json", action="store_true", help="Dump as JSON.")
     parser.add_argument(
         "--remap",
         action="store_true",
@@ -27,26 +26,16 @@ def main():
     if args.remap:
         args.json = True
 
-    text_model = fetch_text_model(sys.stdin)
-
-    # Consume all remaining input
-    sys.stdin.read()
-
-    if text_model is None:
-        log("Couldn't load model")
-        return 1
-
-    if not args.json:
-        print(text_model)
-        return 0
+    # Consume YAML generated from revng-efa-extractcfg
+    input_file = sys.stdin
 
     # Decode YAML
-    model = parse_model(text_model)
+    parsed_text = yaml.load(input_file, Loader=SafeLoaderIgnoreUnknown)
 
     # Remap MetaAddress
     if args.remap:
-        model = remap_metaaddress(model)
+        parsed_text = remap_metaaddress(parsed_text)
 
     # Dump as JSON
-    print(json.dumps(model, indent=2, sort_keys=True, check_circular=False))
+    print(json.dumps(parsed_text, indent=2, sort_keys=True, check_circular=False))
     return 0

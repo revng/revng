@@ -1,34 +1,35 @@
 ---
-Functions:
-- CFG:
-  - End: '2'
-    Start: '1'
-    Successors:
-    - Destination: '2'
-      Type: DirectBranch
-    - Destination: '4'
-      Type: DirectBranch
-  - End: '3'
-    Start: '2'
-    Successors:
-    - Attributes:
-      - NoReturn
-      Destination: '6'
-      Type: FunctionCall
-  - End: '5'
-    Start: '4'
-    Successors:
-    - Destination: ":Invalid"
-      Type: IndirectTailCall
+- FunctionMetadata:
+    ControlFlowGraph:
+      - End: '2'
+        Start: '1'
+        Successors:
+        - Destination: '2'
+          Type: DirectBranch
+        - Destination: '4'
+          Type: DirectBranch
+      - End: '3'
+        Start: '2'
+        Successors:
+        - Attributes:
+          - NoReturn
+          Destination: '6'
+          Type: FunctionCall
+      - End: '5'
+        Start: '4'
+        Successors:
+        - Destination: ":Invalid"
+          Type: IndirectTailCall
+    Entry: '1'
   OriginalName: __start
-  Entry: '1'
   Type: NoReturn
-- CFG:
-  - End: '7'
-    Start: '6'
-    Successors:
-    - Destination: ":Invalid"
-      Type: IndirectTailCall
+- FunctionMetadata:
+    ControlFlowGraph:
+      - End: '7'
+        Start: '6'
+        Successors:
+        - Destination: ":Invalid"
+          Type: IndirectTailCall
+    Entry: '6'
   OriginalName: function
-  Entry: '6'
   Type: NoReturn

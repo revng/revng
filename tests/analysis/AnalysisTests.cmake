@@ -24,7 +24,7 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
     set(COMMAND_TO_RUN "./bin/revng" lift ${INPUT_FILE} "${OUTPUT}")
     set(DEPEND_ON revng-all-binaries)
 
-    set(ACTUAL_MODEL "${OUTPUT}.yml")
+    set(ACTUAL_CFG "${OUTPUT}.yml")
     get_filename_component(BASENAME "${OUTPUT}" NAME_WE)
 
     set(REFERENCE_MODEL
@@ -33,15 +33,16 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
     if(EXISTS "${REFERENCE_MODEL}" AND NOT "${BASENAME}" IN_LIST
                                        "BROKEN_TESTS_${CATEGORY}")
       #
-      # Run --detect-abi and compare with ground truth
+      # Run EFA --collect-cfg and compare with ground truth
       #
       set(TEST_NAME test-lifted-${CATEGORY}-${TARGET_NAME}-model)
       add_test(
         NAME ${TEST_NAME}
         COMMAND
-          sh -c
-          "./bin/revng opt ${OUTPUT} --detect-abi -S | ./bin/revng model to-json --remap > ${ACTUAL_MODEL} \
-          && ./bin/revng model compare ${ACTUAL_MODEL} ${REFERENCE_MODEL}")
+          sh -c "./bin/revng opt ${OUTPUT} --detect-abi --collect-cfg -S \
+          | ./bin/revng efa-extractcfg \
+          | ./bin/revng model to-json --remap > ${ACTUAL_CFG} \
+          && ./bin/revng model compare ${ACTUAL_CFG} ${REFERENCE_MODEL}")
       set_tests_properties(
         ${TEST_NAME}
         PROPERTIES LABELS

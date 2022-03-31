@@ -1,20 +1,21 @@
 ---
-Functions:
-- CFG:
-  - End: '2'
-    Start: '1'
-    Successors:
-    - Attributes:
-      - NoReturn
-      Destination: '3'
-      Type: FunctionCall
+- FunctionMetadata:
+    ControlFlowGraph:
+      - End: '2'
+        Start: '1'
+        Successors:
+        - Attributes:
+          - NoReturn
+          Destination: '3'
+          Type: FunctionCall
   OriginalName: _start
   Type: NoReturn
-- CFG:
-  - End: '4'
-    Start: '3'
-    Successors:
-    - Destination: ":Invalid"
-      Type: IndirectTailCall
+- FunctionMetadata:
+    ControlFlowGraph:
+      - End: '4'
+        Start: '3'
+        Successors:
+        - Destination: ":Invalid"
+          Type: IndirectTailCall
   OriginalName: tailcall
   Type: NoReturn

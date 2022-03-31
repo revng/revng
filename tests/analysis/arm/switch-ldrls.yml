@@ -1,43 +1,43 @@
 ---
-Functions:
-- CFG:
-  - End: '2'
-    Start: '1'
-    Successors:
-    - Destination: '2'
-      Type: DirectBranch
-    - Destination: '4'
-      Type: DirectBranch
-    - Destination: '5'
-      Type: DirectBranch
-    - Destination: '6'
-      Type: DirectBranch
-    - Destination: '7'
-      Type: DirectBranch
-  - End: '3'
-    Start: '2'
-    Successors:
-    - Destination: '7'
-      Type: DirectBranch
-  - End: '7'
-    Start: '4'
-    Successors:
-    - Destination: ":Invalid"
-      Type: Return
-  - End: '7'
-    Start: '5'
-    Successors:
-    - Destination: ":Invalid"
-      Type: Return
-  - End: '7'
-    Start: '6'
-    Successors:
-    - Destination: ":Invalid"
-      Type: Return
-  - End: '8'
-    Start: '7'
-    Successors:
-    - Destination: ":Invalid"
-      Type: Return
+- FunctionMetadata:
+    ControlFlowGraph:
+      - End: '2'
+        Start: '1'
+        Successors:
+        - Destination: '2'
+          Type: DirectBranch
+        - Destination: '4'
+          Type: DirectBranch
+        - Destination: '5'
+          Type: DirectBranch
+        - Destination: '6'
+          Type: DirectBranch
+        - Destination: '7'
+          Type: DirectBranch
+      - End: '3'
+        Start: '2'
+        Successors:
+        - Destination: '7'
+          Type: DirectBranch
+      - End: '7'
+        Start: '4'
+        Successors:
+        - Destination: ":Invalid"
+          Type: Return
+      - End: '7'
+        Start: '5'
+        Successors:
+        - Destination: ":Invalid"
+          Type: Return
+      - End: '7'
+        Start: '6'
+        Successors:
+        - Destination: ":Invalid"
+          Type: Return
+      - End: '8'
+        Start: '7'
+        Successors:
+        - Destination: ":Invalid"
+          Type: Return
   OriginalName: _start
   Type: Regular

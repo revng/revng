@@ -1,45 +1,46 @@
 ---
-Functions:
-- CFG:
-  - End: '2'
-    Start: '1'
-    Successors:
-    - Destination: '2'
-      Type: DirectBranch
-    - Destination: '5'
-      Type: DirectBranch
-  - End: '3'
-    Start: '2'
-    Successors:
-    - Destination: '1'
-      Type: FunctionCall
-  - End: '4'
-    Start: '3'
-    Successors:
-    - Destination: '1'
-      Type: FunctionCall
-  - End: '5'
-    Start: '4'
-    Successors:
-    - Destination: '5'
-      Type: DirectBranch
-  - End: '6'
-    Start: '5'
-    Successors:
-    - Destination: ":Invalid"
-      Type: Return
+- FunctionMetadata:
+    ControlFlowGraph:
+      - End: '2'
+        Start: '1'
+        Successors:
+        - Destination: '2'
+          Type: DirectBranch
+        - Destination: '5'
+          Type: DirectBranch
+      - End: '3'
+        Start: '2'
+        Successors:
+        - Destination: '1'
+          Type: FunctionCall
+      - End: '4'
+        Start: '3'
+        Successors:
+        - Destination: '1'
+          Type: FunctionCall
+      - End: '5'
+        Start: '4'
+        Successors:
+        - Destination: '5'
+          Type: DirectBranch
+      - End: '6'
+        Start: '5'
+        Successors:
+        - Destination: ":Invalid"
+          Type: Return
   OriginalName: fibonacci
   Type: Regular
-- CFG:
-  - End: '7'
-    Start: '6'
-    Successors:
-    - Destination: '1'
-      Type: FunctionCall
-  - End: '8'
-    Start: '7'
-    Successors:
-    - Destination: ":Invalid"
-      Type: Return
+- FunctionMetadata:
+    ControlFlowGraph:
+      - End: '7'
+        Start: '6'
+        Successors:
+        - Destination: '1'
+          Type: FunctionCall
+      - End: '8'
+        Start: '7'
+        Successors:
+        - Destination: ":Invalid"
+          Type: Return
   OriginalName: _start
   Type: Regular
