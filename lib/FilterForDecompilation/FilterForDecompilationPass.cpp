@@ -32,7 +32,7 @@ static bool filterFunction(llvm::Function &F) {
     F.setAttributes(Attributes);
     F.addFnAttr(llvm::Attribute::AttrKind::OptimizeNone);
     F.addFnAttr(llvm::Attribute::AttrKind::NoInline);
-    FTags.addTo(&F);
+    FTags.set(&F);
 
     return true;
   }
