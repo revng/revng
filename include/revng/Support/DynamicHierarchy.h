@@ -27,6 +27,9 @@ public:
   using entry_t = size_t;
 
 private:
+  static inline std::atomic<bool> Initialized = false;
+
+private:
   std::vector<DynamicHierarchy *> Children;
   DynamicHierarchy *Parent;
   entry_t Start;
@@ -52,11 +55,16 @@ public:
 
 public:
   static void init() {
-    for (DynamicHierarchy *Root : getAll())
-      Root->registerInParent();
-    static entry_t ID = -1;
-    for (DynamicHierarchy *Root : getRoots())
-      ID = Root->assign(ID);
+    bool ExpectedInitialized = false;
+    if (atomic_compare_exchange_weak(&Initialized,
+                                     &ExpectedInitialized,
+                                     true)) {
+      for (DynamicHierarchy *Root : getAll())
+        Root->registerInParent();
+      static entry_t ID = -1;
+      for (DynamicHierarchy *Root : getRoots())
+        ID = Root->assign(ID);
+    }
   }
 
   static std::vector<DerivedType *> &getAll() {
@@ -69,6 +77,18 @@ public:
     return Roots;
   }
 
+  static DerivedType *findByName(llvm::StringRef Name) {
+    DerivedType *Result = nullptr;
+    for (DerivedType *Node : getAll()) {
+      if (Node->name() == Name) {
+        revng_assert(Result == nullptr);
+        Result = Node;
+      }
+    }
+
+    return Result;
+  }
+
 public:
   llvm::ArrayRef<DynamicHierarchy *> children() const { return Children; }
 
@@ -78,7 +98,10 @@ public:
     return &Parent->self();
   }
 
-  entry_t id() const { return Start; }
+  entry_t id() const {
+    init();
+    return Start;
+  }
 
   llvm::StringRef name() const { return Name; }
 

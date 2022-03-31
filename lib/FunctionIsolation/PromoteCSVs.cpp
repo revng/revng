@@ -183,8 +183,8 @@ Function *PromoteCSVs::createWrapper(const WrapperKey &Key) {
 
   // Copy and extend tags
   auto Tags = FunctionTags::TagsSet::from(Helper);
-  Tags.insert(&FunctionTags::CSVsAsArgumentsWrapper);
-  Tags.addTo(HelperWrapper);
+  Tags.insert(FunctionTags::CSVsAsArgumentsWrapper);
+  Tags.set(HelperWrapper);
 
   auto *Entry = BasicBlock::Create(Context, "", HelperWrapper);
 

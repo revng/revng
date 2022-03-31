@@ -78,7 +78,7 @@ public:
     } else {
       F = Function::Create(FT, GlobalValue::ExternalLinkage, Name, M);
       F->setAttributes(AttributeSets);
-      Tags.addTo(F);
+      Tags.set(F);
       Pool.insert(It, { Key, F });
     }
 
