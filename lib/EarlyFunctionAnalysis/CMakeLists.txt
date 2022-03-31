@@ -13,7 +13,14 @@ revng_add_analyses_library_internal(
   SegregateDirectStackAccesses.cpp
   EarlyFunctionAnalysis.cpp)
 
-llvm_map_components_to_libnames(LLVM_LIBRARIES Analysis)
+llvm_map_components_to_libnames(
+  LLVM_LIBRARIES
+  Analysis
+  TransformUtils
+  ScalarOpts
+  InstCombine
+  Passes
+  CodeGen)
 
 target_link_libraries(
   revngEarlyFunctionAnalysis revngBasicAnalyses revngABIAnalyses revngSupport
