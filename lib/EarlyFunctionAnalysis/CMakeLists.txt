@@ -15,6 +15,7 @@ revng_add_analyses_library_internal(
   CollectFunctionsFromCalleesPass.cpp
   CollectFunctionsFromUnusedAddressesPass.cpp
   FunctionMetadata.cpp
+  LoadFunctionMetadataPass.cpp
   ${GENERATED_IMPLS})
 
 llvm_map_components_to_libnames(
