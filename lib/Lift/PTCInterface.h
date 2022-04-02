@@ -23,4 +23,5 @@ using PTCDestructor = PTCDestructorWrapper<&ptcInstructionListDestructor>;
 using PTCInstructionListPtr = std::unique_ptr<PTCInstructionList,
                                               PTCDestructor>;
 
+// NOLINTNEXTLINE
 extern PTCInterface ptc;

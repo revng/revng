@@ -206,8 +206,8 @@ public:
 
 public:
   template<typename... Args>
-  void emplace_back(Args &&...args) {
-    Contained.emplace_back(std::forward<Args>(args)...);
+  void emplace_back(Args &&...A) {
+    Contained.emplace_back(std::forward<Args>(A)...);
     removeDuplicates();
   }
 
@@ -219,8 +219,8 @@ public:
   }
 
   template<typename... Args>
-  auto erase(Args &&...args) {
-    return Contained.erase(std::forward<Args>(args)...);
+  auto erase(Args &&...A) {
+    return Contained.erase(std::forward<Args>(A)...);
   }
 
 public:

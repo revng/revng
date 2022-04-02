@@ -114,18 +114,18 @@ public:
 
 private:
   using concrete_types = concrete_types_traits_t<T>;
-  static constexpr void (*deleter)(T *) = &destroy<T>;
-  using inner_pointer = std::unique_ptr<T, decltype(deleter)>;
+  static constexpr void (*Deleter)(T *) = &destroy<T>;
+  using inner_pointer = std::unique_ptr<T, decltype(Deleter)>;
 
 public:
   using pointer = typename inner_pointer::pointer;
   using element_type = typename inner_pointer::element_type;
 
 public:
-  constexpr UpcastablePointer() noexcept : Pointer(nullptr, deleter) {}
+  constexpr UpcastablePointer() noexcept : Pointer(nullptr, Deleter) {}
   constexpr UpcastablePointer(std::nullptr_t P) noexcept :
-    Pointer(P, deleter) {}
-  explicit UpcastablePointer(pointer P) noexcept : Pointer(P, deleter) {}
+    Pointer(P, Deleter) {}
+  explicit UpcastablePointer(pointer P) noexcept : Pointer(P, Deleter) {}
 
 public:
   template<DerivesFrom<T> Q, typename... Args>
@@ -137,7 +137,7 @@ public:
   UpcastablePointer &operator=(const UpcastablePointer &Other) {
     if (&Other != this) {
       Pointer.reset(clone(Other.Pointer.get()));
-      revng_assert(Pointer.get_deleter() == deleter);
+      revng_assert(Pointer.get_deleter() == Deleter);
     }
     return *this;
   }
@@ -150,7 +150,7 @@ public:
   UpcastablePointer &operator=(UpcastablePointer &&Other) {
     if (&Other != this) {
       Pointer.reset(Other.Pointer.release());
-      revng_assert(Pointer.get_deleter() == deleter);
+      revng_assert(Pointer.get_deleter() == Deleter);
     }
     return *this;
   }
@@ -180,7 +180,7 @@ public:
 
   void reset(pointer Other = pointer()) noexcept {
     Pointer.reset(Other);
-    revng_assert(Pointer.get_deleter() == deleter);
+    revng_assert(Pointer.get_deleter() == Deleter);
   }
 
 private:

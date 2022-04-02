@@ -35,14 +35,14 @@ public:
 };
 
 template<typename T>
-concept LLVMPass = requires(T a) {
+concept LLVMPass = requires(T P) {
   { T::Name } -> convertible_to<const char *>;
-  { a.registerPasses(std::declval<llvm::legacy::PassManager &>()) };
+  { P.registerPasses(std::declval<llvm::legacy::PassManager &>()) };
 };
 
 template<typename T>
-concept LLVMPrintablePass = requires(T a) {
-  { a.print(llvm::outs()) };
+concept LLVMPrintablePass = requires(T P) {
+  { P.print(llvm::outs()) };
 };
 
 class PureLLVMPassWrapper : public LLVMPassWrapperBase {

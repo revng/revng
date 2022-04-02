@@ -104,7 +104,7 @@ public:
     return make_filter_range(M->functions(), Filter);
   }
 
-  auto exact_functions(llvm::Module *M) const {
+  auto exactFunctions(llvm::Module *M) const {
     using namespace llvm;
     auto Filter = [this](Function &F) { return isExactTagOf(&F); };
     return make_filter_range(M->functions(), Filter);
@@ -116,7 +116,7 @@ public:
     return make_filter_range(M->globals(), Filter);
   }
 
-  auto exact_globals(llvm::Module *M) const {
+  auto exactGlobals(llvm::Module *M) const {
     using namespace llvm;
     auto Filter = [this](GlobalVariable &G) { return isExactTagOf(&G); };
     return make_filter_range(M->globals(), Filter);

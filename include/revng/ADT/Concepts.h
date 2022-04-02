@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <iterator>
 #include <type_traits>
 
 template<typename T, typename U>
@@ -28,14 +29,14 @@ concept Integral = std::is_integral_v<T>;
 namespace ranges {
 
 template<class T>
-concept range = requires(T & t) {
-  std::begin(t);
-  std::end(t);
+concept range = requires(T &R) {
+  std::begin(R);
+  std::end(R);
 };
 
 template<class T>
-concept sized_range = ranges::range<T> && requires(T & t) {
-  std::size(t);
+concept sized_range = ranges::range<T> && requires(T &R) {
+  std::size(R);
 };
 
 } // namespace ranges

@@ -41,8 +41,8 @@ concept HasName = requires() {
 };
 
 template<typename T>
-concept HasContract = requires(T a) {
-  { llvm::ArrayRef<ContractGroup>(a.getContract()) };
+concept HasContract = requires(T P) {
+  { llvm::ArrayRef<ContractGroup>(P.getContract()) };
 };
 
 /// A Pipe is a class with the following characteristics:
@@ -135,15 +135,15 @@ public:
   virtual std::unique_ptr<PipeWrapperBase> clone() const = 0;
   virtual std::vector<std::string> getRunningContainersNames() const = 0;
   virtual std::string getName() const = 0;
-  virtual void dump(std::ostream &OS, size_t indents) const = 0;
+  virtual void dump(std::ostream &OS, size_t Indents) const = 0;
   virtual void
-  print(const Context &Ctx, llvm::raw_ostream &OS, size_t indents) const = 0;
+  print(const Context &Ctx, llvm::raw_ostream &OS, size_t Indents) const = 0;
   virtual bool areRequirementsMet(const ContainerToTargetsMap &Input) const = 0;
 };
 
 template<typename T>
-concept Dumpable = requires(T a) {
-  { a.dump(dbg, 0) };
+concept Dumpable = requires(T D) {
+  { D.dump(dbg, 0) };
 };
 
 template<typename PipeType>

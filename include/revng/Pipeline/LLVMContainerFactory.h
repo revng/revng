@@ -27,7 +27,10 @@ makeLLVMContainerFactory(pipeline::Context &Ctx, llvm::LLVMContext &Context) {
                                                                  &Context);
 }
 
-inline auto
-  makeDefaultLLVMContainerFactory = makeLLVMContainerFactory<LLVMContainer>;
+inline ContainerFactory
+makeDefaultLLVMContainerFactory(pipeline::Context &Ctx,
+                                llvm::LLVMContext &Context) {
+  return makeLLVMContainerFactory<LLVMContainer>(Ctx, Context);
+}
 
 } // namespace pipeline

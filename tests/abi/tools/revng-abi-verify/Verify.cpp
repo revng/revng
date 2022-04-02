@@ -19,16 +19,18 @@ struct ABIVerificationToolErrorCategory : public std::error_category {
     return "ABIVerificationToolErrorCategory";
   }
   virtual std::error_condition
-  default_error_condition(int code) const noexcept {
-    return std::error_condition(code, *this);
+  default_error_condition(int Code) const noexcept {
+    return std::error_condition(Code, *this);
   }
+
   virtual bool
-  equivalent(int code, const std::error_condition &condition) const noexcept {
-    return default_error_condition(code) == condition;
+  equivalent(int Code, const std::error_condition &Condition) const noexcept {
+    return default_error_condition(Code) == Condition;
   }
+
   virtual bool
-  equivalent(const std::error_code &code, int condition) const noexcept {
-    return *this == code.category() && code.value() == condition;
+  equivalent(const std::error_code &Code, int Condition) const noexcept {
+    return *this == Code.category() && Code.value() == Condition;
   }
   virtual std::string message(int) const { return ""; }
 };
