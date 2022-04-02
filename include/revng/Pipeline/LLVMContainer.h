@@ -138,19 +138,19 @@ private:
     ThisType &ToMerge = Other;
     auto Composite = std::make_unique<llvm::Module>("llvm-link",
                                                     Module->getContext());
-    std::set<std::string> globals;
+    std::set<std::string> Globals;
 
     for (auto &Global : Module->globals()) {
       if (Global.getLinkage() != llvm::GlobalValue::InternalLinkage)
         continue;
-      globals.insert(Global.getName().str());
+      Globals.insert(Global.getName().str());
       Global.setLinkage(llvm::GlobalValue::ExternalLinkage);
     }
 
     for (auto &Global : ToMerge.getModule().globals()) {
       if (Global.getLinkage() != llvm::GlobalValue::InternalLinkage)
         continue;
-      globals.insert(Global.getName().str());
+      Globals.insert(Global.getName().str());
       Global.setLinkage(llvm::GlobalValue::ExternalLinkage);
     }
 
@@ -169,7 +169,7 @@ private:
     revng_assert(not Failure, "Linker failed");
 
     for (auto &Global : Composite->globals()) {
-      if (globals.contains(Global.getName().str()))
+      if (Globals.contains(Global.getName().str()))
         Global.setLinkage(llvm::GlobalValue::InternalLinkage);
     }
 

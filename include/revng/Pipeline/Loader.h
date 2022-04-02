@@ -166,11 +166,11 @@ LLVM_YAML_IS_SEQUENCE_VECTOR(pipeline::ContainerDeclaration)
 
 template<>
 struct llvm::yaml::MappingTraits<pipeline::PipeInvocation> {
-  static void mapping(IO &io, pipeline::PipeInvocation &info) {
-    io.mapRequired("Type", info.Type);
-    io.mapRequired("UsedContainers", info.UsedContainers);
-    io.mapOptional("Passes", info.Passes);
-    io.mapOptional("EnabledWhen", info.EnabledWhen);
+  static void mapping(IO &TheIO, pipeline::PipeInvocation &Info) {
+    TheIO.mapRequired("Type", Info.Type);
+    TheIO.mapRequired("UsedContainers", Info.UsedContainers);
+    TheIO.mapOptional("Passes", Info.Passes);
+    TheIO.mapOptional("EnabledWhen", Info.EnabledWhen);
   }
 };
 
@@ -178,10 +178,10 @@ LLVM_YAML_IS_SEQUENCE_VECTOR(pipeline::PipeInvocation)
 
 template<>
 struct llvm::yaml::MappingTraits<pipeline::StepDeclaration> {
-  static void mapping(IO &io, pipeline::StepDeclaration &info) {
-    io.mapRequired("Name", info.Name);
-    io.mapOptional("Pipes", info.Pipes);
-    io.mapOptional("EnabledWhen", info.EnabledWhen);
+  static void mapping(IO &TheIO, pipeline::StepDeclaration &Info) {
+    TheIO.mapRequired("Name", Info.Name);
+    TheIO.mapOptional("Pipes", Info.Pipes);
+    TheIO.mapOptional("EnabledWhen", Info.EnabledWhen);
   }
 };
 
@@ -191,9 +191,9 @@ INTROSPECTION_NS(pipeline, PipelineDeclaration, Containers, Steps);
 template<>
 struct llvm::yaml::MappingTraits<pipeline::PipelineDeclaration>
   : public TupleLikeMappingTraits<pipeline::PipelineDeclaration> {
-  static void mapping(IO &io, pipeline::PipelineDeclaration &info) {
-    io.mapOptional("From", info.From);
-    io.mapRequired("Containers", info.Containers);
-    io.mapRequired("Steps", info.Steps);
+  static void mapping(IO &TheIO, pipeline::PipelineDeclaration &Info) {
+    TheIO.mapOptional("From", Info.From);
+    TheIO.mapRequired("Containers", Info.Containers);
+    TheIO.mapRequired("Steps", Info.Steps);
   }
 };

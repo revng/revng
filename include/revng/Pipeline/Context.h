@@ -47,9 +47,9 @@ private:
   KindsRegistry TheKindRegistry;
 
 private:
-  explicit Context(KindsRegistry registry) :
-    TheKindRegistry(std::move(registry)) {}
-  Context(llvm::ArrayRef<NamedGlobalReference> Globals, KindsRegistry registry);
+  explicit Context(KindsRegistry Registry) :
+    TheKindRegistry(std::move(Registry)) {}
+  Context(llvm::ArrayRef<NamedGlobalReference> Globals, KindsRegistry Registry);
 
 public:
   Context();
@@ -57,12 +57,12 @@ public:
 
 public:
   static Context fromRegistry(llvm::ArrayRef<NamedGlobalReference> Globals,
-                              KindsRegistry registry) {
-    return Context(Globals, std::move(registry));
+                              KindsRegistry Registry) {
+    return Context(Globals, std::move(Registry));
   }
 
-  static Context fromRegistry(KindsRegistry registry) {
-    return Context(std::move(registry));
+  static Context fromRegistry(KindsRegistry Registry) {
+    return Context(std::move(Registry));
   }
 
   template<typename... T>

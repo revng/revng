@@ -26,7 +26,7 @@ Steps:
        UsedContainers: [Strings1, Strings2]
 )";
 
-static rp_manager *runner;
+static rp_manager *Runner;
 
 struct Fixture {
 public:
@@ -37,24 +37,24 @@ public:
     const char *LibToLoad[] = {};
 
     rp_initialize(1, Array, 0, LibToLoad);
-    runner = rp_manager_create_from_string(1, PipelineText, 0, {}, "");
-    revng_check(runner != nullptr);
+    Runner = rp_manager_create_from_string(1, PipelineText, 0, {}, "");
+    revng_check(Runner != nullptr);
   }
 
-  ~Fixture() { rp_manager_destroy(runner); }
+  ~Fixture() { rp_manager_destroy(Runner); }
 };
 
 BOOST_AUTO_TEST_SUITE(PipelineCTestSuite, *boost::unit_test::fixture<Fixture>())
 
 BOOST_AUTO_TEST_CASE(CAPILoadTest) {
-  BOOST_TEST(rp_manager_steps_count(runner) == 2);
-  auto *FirstStep = rp_manager_get_step(runner, 0);
-  BOOST_TEST(rp_manager_containers_count(runner) == 2);
+  BOOST_TEST(rp_manager_steps_count(Runner) == 2);
+  auto *FirstStep = rp_manager_get_step(Runner, 0);
+  BOOST_TEST(rp_manager_containers_count(Runner) == 2);
 
-  BOOST_TEST(rp_manager_step_name_to_index(runner, "begin") == 0);
-  BOOST_TEST(rp_manager_step_name_to_index(runner, "FirstStep") == 1);
-  BOOST_TEST(rp_manager_get_kind_from_name(runner, "MISSING") == nullptr);
-  BOOST_TEST(rp_manager_get_kind_from_name(runner, "Root") != nullptr);
+  BOOST_TEST(rp_manager_step_name_to_index(Runner, "begin") == 0);
+  BOOST_TEST(rp_manager_step_name_to_index(Runner, "FirstStep") == 1);
+  BOOST_TEST(rp_manager_get_kind_from_name(Runner, "MISSING") == nullptr);
+  BOOST_TEST(rp_manager_get_kind_from_name(Runner, "Root") != nullptr);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

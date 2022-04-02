@@ -15,7 +15,7 @@
 namespace pipeline {
 
 template<typename T>
-concept HasID = requires(T a) {
+concept HasID = requires {
   { T::ID } -> convertible_to<const char &>;
 };
 
