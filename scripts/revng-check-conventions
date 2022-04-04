@@ -187,6 +187,7 @@ readarray -t FILES < <(grep -E '\.(c|cc|cpp|h|hpp)$' <<< "$ALL_FILES_N")
 FILES_N=$(printf '%s\n' "${FILES[@]}")
 
 readarray -t PYTHON_FILES < <(find_by_ext_or_shebang py python)
+readarray -t BASH_FILES < <(find_by_ext_or_shebang sh bash)
 readarray -t CMAKE_FILES < <(grep -i cmake <<< "$ALL_FILES_N")
 
 
@@ -219,6 +220,25 @@ function run_cmake_format() {
         cmake-format --check "${CMAKE_FILES[@]}" -l error
     fi
 }
+
+# Run shellcheck + check for set -euo pipefail
+function run_bash_check() {
+    local NO_SET_FILES
+    if [[ ${#BASH_FILES[@]} -eq 0 ]]; then return; fi
+    shellcheck "${BASH_FILES[@]}"
+
+    NO_SET_FILES=()
+    for FILE in "${BASH_FILES[@]}"; do
+        if ! head -n 10 "$FILE" | grep -qFe 'set -euo pipefail'; then
+            NO_SET_FILES+=("$FILE")
+        fi
+    done
+    if [[ ${#NO_SET_FILES[@]} -gt 0 ]]; then
+        echo "There are script files without 'set -euo pipefail':"
+        printf '  %s\n' "${NO_SET_FILES[@]}"
+    fi
+}
+
 
 # Run revng-specific checks on files
 function run_revng_checks() {
@@ -312,6 +332,7 @@ EXIT_CODE=0
 run_clang_format || EXIT_CODE=$?
 run_black || EXIT_CODE=$?
 run_cmake_format || EXIT_CODE=$?
+run_bash_check || EXIT_CODE=$?
 run_revng_checks || EXIT_CODE=$?
 
 if [[ $(wc -c < "$TMP_FILE") -ne 0 || $EXIT_CODE -ne 0 ]]; then
