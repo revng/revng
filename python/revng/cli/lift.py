@@ -1,3 +1,7 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
 from tempfile import NamedTemporaryFile
 
 from .commands_registry import Command, commands_registry, Options

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
 
 import yaml
 from testmodule.v1 import RootType as RootV1

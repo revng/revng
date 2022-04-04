@@ -1,3 +1,7 @@
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
 /// \file Main.cpp
 /// \brief This tool is used for ABI conversion testing. It's purpose is to
 /// make sure that the function still corresponds to the intended ABI no matter

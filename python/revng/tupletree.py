@@ -1,3 +1,7 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
 import sys
 from dataclasses import dataclass, fields
 from enum import Enum
