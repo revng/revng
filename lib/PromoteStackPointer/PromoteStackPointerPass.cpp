@@ -24,17 +24,18 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Pipeline/RegisterLLVMPass.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 
+#include "revng-c/Pipes/Kinds.h"
 #include "revng-c/PromoteStackPointer/PromoteStackPointerPass.h"
+#include "revng-c/Support/FunctionTags.h"
 
 using namespace llvm;
 
 static Logger<> Log("promote-stack-pointer");
-
-using PSPPass = PromoteStackPointerPass;
 
 static bool adjustStackAfterCalls(const model::Binary &Binary,
                                   Function &F,
@@ -75,7 +76,7 @@ static bool adjustStackAfterCalls(const model::Binary &Binary,
   return Changed;
 }
 
-bool PSPPass::runOnFunction(Function &F) {
+bool PromoteStackPointerPass::runOnFunction(Function &F) {
   bool Changed = false;
 
   // Skip non-isolated functions
@@ -136,6 +137,8 @@ bool PSPPass::runOnFunction(Function &F) {
     }
   }
 
+  FunctionTags::StackPointerPromoted.addTo(&F);
+
   if (SPUsers.empty())
     return Changed;
 
@@ -173,14 +176,34 @@ bool PSPPass::runOnFunction(Function &F) {
   return true;
 }
 
-void PSPPass::getAnalysisUsage(AnalysisUsage &AU) const {
+void PromoteStackPointerPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<LoadModelWrapperPass>();
   AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
   AU.setPreservesCFG();
 }
 
-char PSPPass::ID = 0;
+char PromoteStackPointerPass::ID = 0;
 
-using RegisterPSP = llvm::RegisterPass<PSPPass>;
-static RegisterPSP
-  Register("promote-stack-pointer", "Promote Stack Pointer Pass");
+static constexpr const char *Flag = "promote-stack-pointer";
+
+using Reg = RegisterPass<PromoteStackPointerPass>;
+static Reg Register(Flag, "Promote Stack Pointer Pass");
+
+struct PromoteStackPointerPipe {
+  static constexpr auto Name = Flag;
+
+  std::vector<pipeline::ContractGroup> getContract() const {
+    using namespace pipeline;
+    using namespace revng::pipes;
+    return { ContractGroup::transformOnlyArgument(LiftingArtifactsRemoved,
+                                                  Exactness::Exact,
+                                                  StackPointerPromoted,
+                                                  InputPreservation::Erase) };
+  }
+
+  void registerPasses(legacy::PassManager &Manager) {
+    Manager.add(new PromoteStackPointerPass());
+  }
+};
+
+static pipeline::RegisterLLVMPass<PromoteStackPointerPipe> Y;

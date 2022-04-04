@@ -19,5 +19,6 @@ target_link_libraries(
   revng::revngBasicAnalyses
   revng::revngEarlyFunctionAnalysis
   revng::revngModel
+  revng::revngPipes
   revng::revngSupport
   ${LLVM_LIBRARIES})

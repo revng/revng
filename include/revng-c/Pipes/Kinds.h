@@ -16,4 +16,9 @@ inline TaggedFunctionKind
                           &FunctionsRank,
                           FunctionTags::LiftingArtifactsRemoved);
 
+inline TaggedFunctionKind
+  StackPointerPromoted("StackPointerPromoted",
+                       &FunctionsRank,
+                       FunctionTags::StackPointerPromoted);
+
 } // end namespace revng::pipes
