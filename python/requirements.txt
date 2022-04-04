@@ -17,3 +17,9 @@ ariadne
 aiodataloader
 Jinja2
 xdg
+
+# revng.daemon - tests
+pytest
+requests
+requests-toolbelt
+gql
