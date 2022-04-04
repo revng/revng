@@ -128,6 +128,22 @@ function find_by_ext_or_shebang() {
     printf "%s\n" "${FILES[@]}" | sort -u
 }
 
+# cat, but print header if input is not empty
+# stdin: lines to print
+# $1: Header to print if stdin is not empty
+function cat_header() {
+    local INPUT
+    INPUT="$(cat -)"
+
+    if echo "$INPUT" | grep -vqz '^\s*$'; then
+        echo "$1"
+
+        # shellcheck disable=SC2001
+        sed 's;^;  ;' <<< "$INPUT"
+    fi
+}
+
+
 # Checks that all file names are proper
 function check_file_names() {
     local FILENAME FILE
@@ -273,15 +289,15 @@ function run_license_check() {
 # Run revng-specific checks on files
 function run_revng_checks() {
     if [[ ${#FILES[@]} -eq 0 ]]; then return; fi
-    GREP="grep -n --color=always"
+    GREP="grep -Hn --color=always"
 
     # Check for lines longer than 80 columns
-    $GREP -E '^.{81,}$' "${FILES[@]}" | cat
+    $GREP -E '^.{81,}$' "${FILES[@]}" | cat_header "There are lines longer than 80 characters:"
 
     # Things should never match
     for REGEXP in '\(--> 0\)' ';;' '^\s*->.*;$' 'Twine [^&]'; do
-        $GREP "$REGEXP" "${FILES[@]}" | cat
-    done
+        $GREP "$REGEXP" "${FILES[@]}"
+    done | cat_header "Found snippets that should not be present:"
 
     # Things should never match (except in support.c)
     readarray -t FILTERED_FILES < <(grep -v \
@@ -290,16 +306,15 @@ function run_revng_checks() {
         <<< "$FILES_N")
 
     for REGEXP in '\babort(' '\bassert(' 'assert(false' 'llvm_unreachable'; do
-        $GREP "$REGEXP" "${FILTERED_FILES[@]}" | cat
-    done
+        $GREP "$REGEXP" "${FILTERED_FILES[@]}"
+    done | cat_header "Use revng_{assert,check,abort,unreachable}:"
 
     # Things should never be at the end of a line
     for REGEXP in '::' '<' 'RegisterPass.*>' '} else' '\bopt\b.*>'; do
-        $GREP "$REGEXP\$" "${FILES[@]}" | cat
-    done
+        $GREP "$REGEXP\$" "${FILES[@]}"
+    done | cat_header "Found snippets that shouldn't be at the end of a line:"
 
     # Includes should never use <..> except for C++ standard includes
-    $GREP "^\s*#include <.*\.hpp>" "${FILES[@]}" | cat
     readarray -t CXX_FILES < <(grep -v \
             -e '^runtime/support\.h$' \
             -e '^include/revng/Runtime/.*$' \
@@ -309,31 +324,37 @@ function run_revng_checks() {
             -e '\.c$' \
             <<< "$FILES_N"
     )
+
     if [[ ${#CXX_FILES[@]} -ne 0 ]]; then
-        $GREP "^\s*#include <.*\.h>" "${CXX_FILES[@]}" | cat
+        cat <($GREP "^\s*#include <.*\.hpp>" "${FILES[@]}") \
+            <($GREP "^\s*#include <.*\.h>" "${CXX_FILES[@]}") \
+            | cat_header "Includes should never user <..> except for C++ standard includes:"
+    else
+        $GREP "^\s*#include <.*\.hpp>" "${FILES[@]}" | \
+            cat_header "Includes should never user <..> except for C++ standard includes:"
     fi
 
     # Parenthesis at the end of line (except for raw strings)
-    $GREP "(\$" "${FILES[@]}" | grep -v 'R"LLVM.*(' | cat
+    $GREP "(\$" "${FILES[@]}" | grep -v 'R"LLVM.*(' | cat_header "Parenthesis at the end of line:"
 
     # Ban whitespaces at the end of a line
-    $GREP " \$" "${FILES[@]}" | cat
+    $GREP " \$" "${FILES[@]}" | cat_header "Whitespace at the end of line:"
 
     # Ban tabs altogether
-    $GREP -P "\t" "${FILES[@]}" | cat
+    $GREP -P "\t" "${FILES[@]}" | cat_header "Tabs present:"
 
     # Ensure all files end with a newline
     for FILE in "${ALL_FILES[@]}"; do
         if [[ -s "$FILE" && ! $(tail -c 1 "$FILE" | base64) == "Cg==" ]]; then
             echo "$FILE does not end with a newline"
         fi
-    done
+    done | cat_header "Files that don't end in a newline:"
 
     # Things should never be at the beginning of a line
     REGEXPS=('\*>' '/[^/\*]' ':[^:\(]*)' '==' '\!=' '<[^<]' '>' '>=' '<=' '//\s*WIP' '#if\s*[01]')
     for REGEXP in "${REGEXPS[@]}"; do
-        $GREP "^\s*$REGEXP" "${FILES[@]}" | cat
-    done
+        $GREP "^\s*$REGEXP" "${FILES[@]}"
+    done | cat_header "Found snippets that should never be at the beginning of a line:"
 
     # Check there are no static functions in C++ header files
     for FILE in "${CXX_FILES[@]}"; do
