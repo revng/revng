@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
 
 from setuptools import setup, find_namespace_packages
 

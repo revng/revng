@@ -239,6 +239,36 @@ function run_bash_check() {
     fi
 }
 
+# Check that all files have a license header
+function run_license_check() {
+    local LICENSE_FILES NO_LICENSE_FILES
+    readarray -t LICENSE_FILES < <(grep -Ev \
+            -e '\.txt$' \
+            -e '\.md$' \
+            -e '\.rst$' \
+            -e '.gitignore' \
+            -e 'LICENSE.*' \
+            -e 'pyproject.toml' \
+            -e 'clang-format-style-file' \
+            -e '.clang-tidy' \
+            -e '\.dot$' \
+            -e 'Doxyfile.in' \
+            <<< "$ALL_FILES_N"
+    )
+
+    NO_LICENSE_FILES=()
+    for FILE in "${LICENSE_FILES[@]}"; do
+        if ! head -n 10 "$FILE" | grep -qF 'See LICENSE.md for details'; then
+            NO_LICENSE_FILES+=("$FILE")
+        fi
+    done
+
+    if [[ ${#NO_LICENSE_FILES[@]} -gt 0 ]]; then
+        echo "There are files without a license header:"
+        printf '  %s\n' "${NO_LICENSE_FILES[@]}"
+    fi
+}
+
 
 # Run revng-specific checks on files
 function run_revng_checks() {
@@ -333,6 +363,7 @@ run_clang_format || EXIT_CODE=$?
 run_black || EXIT_CODE=$?
 run_cmake_format || EXIT_CODE=$?
 run_bash_check || EXIT_CODE=$?
+run_license_check || EXIT_CODE=$?
 run_revng_checks || EXIT_CODE=$?
 
 if [[ $(wc -c < "$TMP_FILE") -ne 0 || $EXIT_CODE -ne 0 ]]; then
