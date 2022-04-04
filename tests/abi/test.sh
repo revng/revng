@@ -4,8 +4,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-set -eu
-set -o pipefail
+set -euo pipefail
 
 ABI_NAME="$1"
 RUNTIME_ABI_ANALYSIS_RESULT="$2"

@@ -1,9 +1,6 @@
 #!/bin/bash
 
-set -o errexit
-set -o pipefail
-
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+set -euo pipefail
 
 PARSE_MODEL_SCRIPT=$(cat << "EOF"
 import sys
