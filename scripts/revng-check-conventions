@@ -4,7 +4,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-set -e
+set -euo pipefail
 
 function print_usage() {
     cat > /dev/stderr << END_USAGE_TEXT
@@ -51,6 +51,9 @@ OPTIONS
       arguments except for --use-local-clang-format-file.
       The conventions are not checked.
 
+    --all
+      Check all files instead of only changed ones
+
     FILES
       List of filenames of the files for which you want to check the rev.ng
       coding conventions.
@@ -70,7 +73,9 @@ USE_CLANG_FORMAT_FILE="0"
 
 PRINT_CLANG_FORMAT_CONFIG="0"
 
-while [[ $# > 0 ]]; do
+GIT_LS_FILES="git ls-files -m --exclude-standard"
+
+while [[ $# -gt 0 ]]; do
     key="$1"
     case $key in
         --print-clang-format-config)
@@ -83,6 +88,10 @@ while [[ $# > 0 ]]; do
             ;;
         --use-local-clang-format-file)
             USE_CLANG_FORMAT_FILE="1"
+            shift # past argument
+            ;;
+        --all)
+            GIT_LS_FILES="git ls-files"
             shift # past argument
             ;;
         --help)
@@ -100,10 +109,42 @@ while [[ $# > 0 ]]; do
     esac
 done
 
+# Retrieve files by extension or shebang
+# $1: extension to match
+# $2: shebang to match
+function find_by_ext_or_shebang() {
+    local EXT_FILES SHEBANG_FILES FILES FILE
+    readarray -t EXT_FILES < <(grep "\.${1}$" <<< "$ALL_FILES_N")
+    SHEBANG_FILES=()
+    for FILE in "${ALL_FILES[@]}"; do
+        if head -n1 "$FILE" | grep -qE "^#!.*${2}"; then
+            SHEBANG_FILES+=("$FILE")
+        fi
+    done
+    FILES=("${EXT_FILES[@]}" "${SHEBANG_FILES[@]}")
+    if [[ ${#FILES[@]} -eq 0 ]]; then
+        return
+    fi
+    printf "%s\n" "${FILES[@]}" | sort -u
+}
+
+# Checks that all file names are proper
+function check_file_names() {
+    local FILENAME FILE
+    readarray -d '' FILENAME < <($GIT_LS_FILES -z)
+    for FILE in "${FILENAME[@]}"; do
+        if echo -n "$FILE" | grep -q '\s'; then
+            echo "ERROR, file '$FILE' has whitespace in filename/path, bailing"
+            exit 1
+        fi
+    done
+}
+
+
 CLANG_FORMAT_STYLE_FILE="$SCRIPT_PATH/clang-format-style-file"
-if ! test -e "$CLANG_FORMAT_STYLE_FILE"; then
+if [[ ! -e "$CLANG_FORMAT_STYLE_FILE" ]]; then
     CLANG_FORMAT_STYLE_FILE="$SCRIPT_PATH/../../share/revng/clang-format-style-file"
-    if ! test -e "$CLANG_FORMAT_STYLE_FILE"; then
+    if [[ ! -e "$CLANG_FORMAT_STYLE_FILE" ]]; then
         echo "Can't find clang-format-style-file" > /dev/stderr
         exit 1
     fi
@@ -111,123 +152,168 @@ fi
 
 CLANG_FORMAT_STYLE=$(cat "$CLANG_FORMAT_STYLE_FILE")
 
-if test "$USE_CLANG_FORMAT_FILE" -gt 0; then
-    CLANG_FORMAT_STYLE=file
+if [[ "$USE_CLANG_FORMAT_FILE" -ne 0 ]]; then
+    CLANG_FORMAT_STYLE="file"
 fi
 
 # If the user passed the --print-clang-format-config, dump the config and exit
 # with success.
-if test "$PRINT_CLANG_FORMAT_CONFIG" -gt 0; then
+if [[ "$PRINT_CLANG_FORMAT_CONFIG" -ne 0 ]]; then
     clang-format --dry-run -style="$CLANG_FORMAT_STYLE" --dump-config
     exit 0
 fi
 
 
+check_file_names
+
 if [[ $# -eq 0 ]]; then
-    FILES="$(git ls-files | grep -E '\.(c|cc|cpp|h|hpp)$')"
+    readarray -t ALL_FILES_TMP < <($GIT_LS_FILES)
+    if [[ "${#ALL_FILES_TMP[@]}" -eq 0 ]]; then exit 0; fi
 else
-    FILES="$@"
+    ALL_FILES_TMP=("$@")
 fi
 
-GREP="git grep -n --color=always"
+ALL_FILES=()
+
+for FILE in "${ALL_FILES_TMP[@]}"; do
+    if [[ -e $FILE ]]; then
+        ALL_FILES+=("$FILE")
+    fi
+done
+
+ALL_FILES_N=$(printf '%s\n' "${ALL_FILES[@]}")
+
+readarray -t FILES < <(grep -E '\.(c|cc|cpp|h|hpp)$' <<< "$ALL_FILES_N")
+FILES_N=$(printf '%s\n' "${FILES[@]}")
+
+readarray -t PYTHON_FILES < <(find_by_ext_or_shebang py python)
+readarray -t CMAKE_FILES < <(grep -i cmake <<< "$ALL_FILES_N")
+
 
 # Run clang-format on FILES
 function run_clang_format() {
-    if test "$FORCE_FORMAT" -gt 0; then
-        clang-format -style="$CLANG_FORMAT_STYLE" -i $FILES || true
+    if [[ ${#FILES[@]} -eq 0 ]]; then return; fi
+    if [[ "$FORCE_FORMAT" -ne 0 ]]; then
+        clang-format -style="$CLANG_FORMAT_STYLE" -i "${FILES[@]}" || true
     else
-        clang-format --dry-run -style="$CLANG_FORMAT_STYLE" -i $FILES
+        clang-format --dry-run -style="$CLANG_FORMAT_STYLE" -i "${FILES[@]}"
     fi
 }
 
 # Run black
 function run_black() {
-    readarray -t PYTHON_FILES < <(( git grep -l '^#!.*python' && git ls-files | grep '\.py$' ) | sort -u )
     if [[ ${#PYTHON_FILES[@]} -eq 0 ]]; then return; fi
-    if test "$FORCE_FORMAT" -gt 0; then
+    if [[ "$FORCE_FORMAT" -ne 0 ]]; then
         black -q -l 100 "${PYTHON_FILES[@]}"
     else
-        black --check -l 100 "${PYTHON_FILES[@]}" | grep 'Oh no'
+        black -q --check -l 100 "${PYTHON_FILES[@]}"
     fi
 }
 
 # Run cmake-format
 function run_cmake_format() {
-    if test "$FORCE_FORMAT" -gt 0; then
-        cmake-format -i $(git ls-files | grep -i cmake) -l error
+    if [[ ${#CMAKE_FILES[@]} -eq 0 ]]; then return; fi
+    if [[ "$FORCE_FORMAT" -ne 0 ]]; then
+        cmake-format -i "${CMAKE_FILES[@]}" -l error
     else
-        cmake-format --check $(git ls-files | grep -i cmake) -l error
+        cmake-format --check "${CMAKE_FILES[@]}" -l error
     fi
 }
 
 # Run revng-specific checks on files
 function run_revng_checks() {
+    if [[ ${#FILES[@]} -eq 0 ]]; then return; fi
+    GREP="grep -n --color=always"
+
     # Check for lines longer than 80 columns
-    $GREP -E '^.{81,}$' $FILES | cat
+    $GREP -E '^.{81,}$' "${FILES[@]}" | cat
 
     # Things should never match
     for REGEXP in '\(--> 0\)' ';;' '^\s*->.*;$' 'Twine [^&]'; do
-        $GREP "$REGEXP" $FILES | cat
+        $GREP "$REGEXP" "${FILES[@]}" | cat
     done
 
     # Things should never match (except in support.c)
-    FILTERED_FILES="$(echo $FILES | tr ' ' '\n' | grep -v \
+    readarray -t FILTERED_FILES < <(grep -v \
         -e '^runtime/support\.c$' \
         -e '^lib/Support/Assert\.cpp$' \
-        )"
+        <<< "$FILES_N")
 
     for REGEXP in '\babort(' '\bassert(' 'assert(false' 'llvm_unreachable'; do
-        $GREP "$REGEXP" $FILTERED_FILES | cat
+        $GREP "$REGEXP" "${FILTERED_FILES[@]}" | cat
     done
 
     # Things should never be at the end of a line
     for REGEXP in '::' '<' 'RegisterPass.*>' '} else' '\bopt\b.*>'; do
-        $GREP "$REGEXP\$" $FILES | cat
+        $GREP "$REGEXP\$" "${FILES[@]}" | cat
     done
 
     # Includes should never use <..> except for C++ standard includes
-    $GREP "^\s*#include <.*\.hpp>" $FILES | cat
-    CXX_FILES="$(echo $FILES | tr ' ' '\n' | grep -v \
-        -e '^runtime/support\.h$' \
-        -e '^include/revng/Runtime/.*$' \
-        -e '^include/revng/PipelineC/.*$' \
-        -e '^include/revng/Support/Assert\.h$' \
-        -e '^include/revng/Support/ClassSentinel\.h$' \
-        -e '\.c$' \
-        )"
-    $GREP "^\s*#include <.*\.h>" $CXX_FILES | cat
+    $GREP "^\s*#include <.*\.hpp>" "${FILES[@]}" | cat
+    readarray -t CXX_FILES < <(grep -v \
+            -e '^runtime/support\.h$' \
+            -e '^include/revng/Runtime/.*$' \
+            -e '^include/revng/PipelineC/.*$' \
+            -e '^include/revng/Support/Assert\.h$' \
+            -e '^include/revng/Support/ClassSentinel\.h$' \
+            -e '\.c$' \
+            <<< "$FILES_N"
+    )
+    if [[ ${#CXX_FILES[@]} -ne 0 ]]; then
+        $GREP "^\s*#include <.*\.h>" "${CXX_FILES[@]}" | cat
+    fi
 
     # Parenthesis at the end of line (except for raw strings)
-    $GREP "(\$" $FILES | grep -v 'R"LLVM.*(' | cat
+    $GREP "(\$" "${FILES[@]}" | grep -v 'R"LLVM.*(' | cat
 
     # Ban whitespaces at the end of a line
-    $GREP " \$" | cat
+    $GREP " \$" "${FILES[@]}" | cat
 
     # Ban tabs altogether
-    $GREP -P "\t" | cat
+    $GREP -P "\t" "${FILES[@]}" | cat
 
     # Ensure all files end with a newline
-    git ls-files | while read FILE; do
-        if test -s "$FILE" && ! test $(tail -c 1 "$FILE" | base64) == "Cg=="; then
+    for FILE in "${ALL_FILES[@]}"; do
+        if [[ -s "$FILE" && ! $(tail -c 1 "$FILE" | base64) == "Cg==" ]]; then
             echo "$FILE does not end with a newline"
         fi
     done
 
     # Things should never be at the beginning of a line
-    for REGEXP in '\*>' '/[^/\*]' ':[^:\(]*)' '==' '\!=' '<[^<]' '>' '>=' '<=' '//\s*WIP' '#if\s*[01]'; do
-        $GREP "^\s*$REGEXP" $FILES | cat
+    REGEXPS=('\*>' '/[^/\*]' ':[^:\(]*)' '==' '\!=' '<[^<]' '>' '>=' '<=' '//\s*WIP' '#if\s*[01]')
+    for REGEXP in "${REGEXPS[@]}"; do
+        $GREP "^\s*$REGEXP" "${FILES[@]}" | cat
     done
 
     # Check there are no static functions in C++ header files
-    for FILE in $CXX_FILES; do
+    for FILE in "${CXX_FILES[@]}"; do
         if [[ $FILE == *h ]]; then
             $GREP -H '^static\b[^=]*$' "$FILE" | cat
-            head -n1 "$FILE" |  grep -E '^#pragma once$' > /dev/null || echo "$FILE: header does not start with #pragma once"
+            head -n1 "$FILE" |  grep -E '^#pragma once$' > /dev/null || \
+                echo "$FILE: header does not start with #pragma once"
         fi
     done
 
 }
 
-if test $( ( run_clang_format && run_black && run_cmake_format && run_revng_checks | sort -u ) |& tee /dev/stderr | wc -c ) -ne 0; then
+# Replace fd #1 (stdout) with process substitution so that after the exec any
+# write to it will also get written into $TMP_FILE
+TMP_FILE=$(mktemp)
+exec 3>&1 1> >(tee "$TMP_FILE" > /dev/stdout)
+
+function cleanup() {
+    trap - SIGINT SIGTERM ERR EXIT
+    rm "$TMP_FILE"
+}
+trap cleanup SIGINT SIGTERM ERR EXIT
+
+EXIT_CODE=0
+
+run_clang_format || EXIT_CODE=$?
+run_black || EXIT_CODE=$?
+run_cmake_format || EXIT_CODE=$?
+run_revng_checks || EXIT_CODE=$?
+
+if [[ $(wc -c < "$TMP_FILE") -ne 0 || $EXIT_CODE -ne 0 ]]; then
     exit 1
 fi
