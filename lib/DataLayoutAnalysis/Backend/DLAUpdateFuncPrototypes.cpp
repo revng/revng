@@ -20,8 +20,8 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/ADT/FilteredGraphTraits.h"
+#include "revng/EarlyFunctionAnalysis/IRHelpers.h"
 #include "revng/Model/Binary.h"
-#include "revng/Model/IRHelpers.h"
 #include "revng/Model/Type.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/Assert.h"
@@ -416,15 +416,15 @@ bool dla::updateFuncSignatures(const llvm::Module &M,
 
     // Update prototypes associated to indirect calls, if any are found
     for (const auto &Inst : LLVMFunc)
-      if (const auto *I = llvm::dyn_cast<llvm::CallInst>(&Inst))
-        if (auto *Prototype = getCallSitePrototype(*Model.get(),
-                                                   I,
-                                                   ModelFunc)) {
+      if (const auto *I = llvm::dyn_cast<llvm::CallInst>(&Inst)) {
+        auto Prototype = getCallSitePrototype(*Model.get(), I, ModelFunc);
+        if (Prototype.isValid()) {
           revng_log(Log,
                     "Updating prototype of indirect call "
                       << I->getNameOrAsOperand());
-          Updated |= updateFuncPrototype(*Model, Prototype, I, TypeMap);
+          Updated |= updateFuncPrototype(*Model, Prototype.get(), I, TypeMap);
         }
+      }
   }
 
   if (ModelLog.isEnabled())

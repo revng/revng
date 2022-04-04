@@ -6,7 +6,7 @@
 
 #include "llvm/IR/Constants.h"
 
-#include "revng/Model/IRHelpers.h"
+#include "revng/EarlyFunctionAnalysis/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/Debug.h"
@@ -180,9 +180,12 @@ void DetectStackSize::collectStackBounds(Function &F) {
             // Get the prototype
             auto *Proto = getCallSitePrototype(*Binary.get(),
                                                Call,
-                                               &ModelFunction);
+                                               &ModelFunction)
+                            .get();
 
-            NewCallSite.Prototype = cast<RawFunctionType>(Proto);
+            NewCallSite.Prototype = nullptr;
+            if (auto *FType = dyn_cast<RawFunctionType>(Proto))
+              NewCallSite.Prototype = FType;
           }
         }
       }

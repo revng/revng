@@ -35,9 +35,9 @@
 
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/EarlyFunctionAnalysis/IRHelpers.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
-#include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/Type.h"
 #include "revng/Model/VerifyHelper.h"
@@ -104,6 +104,7 @@ using ValueModelTypesMap = std::map<const Value *, const model::QualifiedType>;
 ValueModelTypesMap initializeModelTypes(const llvm::Function &F,
                                         const model::Function &ModelF,
                                         const model::Binary &Model) {
+  using namespace model;
   ValueModelTypesMap Result;
 
   auto Indent = LoggerIndent(ModelGEPLog);
@@ -199,9 +200,9 @@ ValueModelTypesMap initializeModelTypes(const llvm::Function &F,
               unsigned NArgOperands = CallUsingArgs->getNumArgOperands();
               revng_assert(StackArgsUse.getOperandNo() == NArgOperands - 1);
 
-              const model::Type *CalleeT = getCallSitePrototype(Model, Call);
-              revng_assert(CalleeT);
-              const auto *CalleeRFT = cast<model::RawFunctionType>(CalleeT);
+              auto CalleeT = getCallSitePrototype(Model, Call);
+              revng_assert(CalleeT.isValid());
+              const auto *CalleeRFT = cast<RawFunctionType>(CalleeT.get());
               revng_assert(CalleeRFT->StackArgumentsType.isValid());
 
               auto PointerQual = Qualifier::createPointer(Model.Architecture);
@@ -220,14 +221,14 @@ ValueModelTypesMap initializeModelTypes(const llvm::Function &F,
 
       // If this call does not have a prototype we have no types to inizialize.
       // Just go on with the next instruction.
-      const model::Type *FType = getCallSitePrototype(Model, Call);
-      if (not FType) {
+      auto Proto = getCallSitePrototype(Model, Call);
+      if (not Proto.isValid()) {
         revng_log(ModelGEPLog,
                   "Could not retrieve the prototype. Skipping ...");
         continue;
       }
 
-      if (const auto *RFT = dyn_cast<model::RawFunctionType>(FType)) {
+      if (const auto *RFT = dyn_cast<RawFunctionType>(Proto.get())) {
         revng_log(ModelGEPLog, "Call has RawFunctionType prototype.");
 
         // If the callee function does not return anything, skip to the next
@@ -285,7 +286,7 @@ ValueModelTypesMap initializeModelTypes(const llvm::Function &F,
           }
         }
 
-      } else if (const auto *CFT = dyn_cast<model::CABIFunctionType>(FType)) {
+      } else if (const auto *CFT = dyn_cast<CABIFunctionType>(Proto.get())) {
         revng_log(ModelGEPLog, "Call has CABIFunctionType prototype.");
 
         // If the callee function does not return anything, skip to the next
@@ -430,6 +431,7 @@ struct IRAccessPattern {
 static IRAccessPattern computeAccessPattern(const Use &U,
                                             const ModelGEPSummation &GEPSum,
                                             const model::Binary &Model) {
+  using namespace model;
   revng_assert(GEPSum.isAddress());
 
   // First, prepare the BaseOffset and the Indices for the IRAccessPattern.
@@ -627,9 +629,10 @@ static IRAccessPattern computeAccessPattern(const Use &U,
         }
 
       } else if (FunctionTags::CallToLifted.isTagOf(Call)) {
-        const model::Type *FType = getCallSitePrototype(Model, Call);
+        auto Proto = getCallSitePrototype(Model, Call);
+        revng_assert(Proto.isValid());
 
-        if (const auto *RFT = dyn_cast<model::RawFunctionType>(FType)) {
+        if (const auto *RFT = dyn_cast<RawFunctionType>(Proto.get())) {
 
           auto MoreIndent = LoggerIndent(ModelGEPLog);
           auto ModelArgSize = RFT->Arguments.size();
@@ -667,7 +670,7 @@ static IRAccessPattern computeAccessPattern(const Use &U,
             IRPattern.PointeeType = Pointee;
           }
 
-        } else if (const auto *CFT = dyn_cast<model::CABIFunctionType>(FType)) {
+        } else if (const auto *CFT = dyn_cast<CABIFunctionType>(Proto.get())) {
 
           auto MoreIndent = LoggerIndent(ModelGEPLog);
           revng_assert(CFT->Arguments.size() == Call->arg_size());

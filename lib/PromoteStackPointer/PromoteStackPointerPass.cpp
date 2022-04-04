@@ -22,7 +22,7 @@
 #include "llvm/Support/Casting.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
-#include "revng/Model/IRHelpers.h"
+#include "revng/EarlyFunctionAnalysis/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
@@ -57,7 +57,8 @@ static bool adjustStackAfterCalls(const model::Binary &Binary,
         // TODO: handle CABIFunctionType
         auto *Proto = getCallSitePrototype(Binary,
                                            cast<CallInst>(&I),
-                                           &ModelFunction);
+                                           &ModelFunction)
+                        .get();
         if (auto *RawPrototype = dyn_cast<model::RawFunctionType>(Proto)) {
           auto *FSO = ConstantInt::get(SPType, RawPrototype->FinalStackOffset);
 

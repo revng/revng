@@ -14,5 +14,10 @@ revng_add_analyses_library(
   SegregateStackAccessesPass.cpp)
 
 target_link_libraries(
-  revngcPromoteStackPointer revngcSupport revng::revngModel revng::revngSupport
-  revng::revngBasicAnalyses ${LLVM_LIBRARIES})
+  revngcPromoteStackPointer
+  revngcSupport
+  revng::revngBasicAnalyses
+  revng::revngEarlyFunctionAnalysis
+  revng::revngModel
+  revng::revngSupport
+  ${LLVM_LIBRARIES})

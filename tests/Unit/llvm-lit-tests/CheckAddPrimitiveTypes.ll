@@ -3,7 +3,7 @@
 ; primitive types needed for decompilation.
 target triple = "x86_64-unknown-linux-gnu"
 %struct.PlainMetaAddress = type { i32, i16, i16, i64 }
-define void @local_function_0x401200_Code_x86_64(i64 %rax, i64 %rdx) !revng.tags !58898 !revng.function.entry !59052 {
+define void @local_function_0x401200_Code_x86_64(i64 %rax, i64 %rdx) !revng.tags !58898 !revng.function.metadata !59051 !revng.function.entry !59052 {
 newFuncRoot:
   %0 = inttoptr i64 %rdx to i64*
   store i64 %rax, i64* %0, align 8
@@ -12,7 +12,7 @@ newFuncRoot:
   store i64 0, i64* %2, align 8
   ret void
 }
-define void @local_function_0x401060_Code_x86_64(i64 %rax, i64 %rdx) !revng.tags !58898 !revng.function.entry !58936 {
+define void @local_function_0x401060_Code_x86_64(i64 %rax, i64 %rdx) !revng.tags !58898 !revng.function.metadata !58935 !revng.function.entry !58936 {
 newFuncRoot:
   %0 = add i64 %rax, 0                ; rax
   %1 = add i64 %0, 8                  ; rax + 8
@@ -37,40 +37,50 @@ newFuncRoot:
 !58898 = !{!"Lifted"}
 !5870 = !{!"x86_64", i32 1, i32 0, !"pc", !"rsp", !5871}
 !5871 = !{!"rax", !"rbx", !"rcx", !"rdx", !"rbp", !"rsp", !"rsi", !"rdi", !"r8", !"r9", !"r10", !"r11", !"r12", !"r13", !"r14", !"r15", !"state_0x8558", !"state_0x8598", !"state_0x85d8", !"state_0x8618", !"state_0x8658", !"state_0x8698", !"state_0x86d8", !"state_0x8718"}
+
 ; Function metaaddresses {epoch, addressspace index, type, address in decimal format}
 !59052 = !{%struct.PlainMetaAddress { i32 0, i16 0, i16 4, i64 4198912 }}
 !58936 = !{%struct.PlainMetaAddress { i32 0, i16 0, i16 4, i64 4198496 }}
-; Model
+
+; Function metadata
+!59051 = !{!"---
+Entry:           \220x401200:Code_x86_64\22
+ControlFlowGraph:
+  - Start:           \220x401200:Code_x86_64\22
+    End:             \220x401205:Code_x86_64\22
+    Successors:
+      - !FunctionEdge
+        Destination:     \22:Invalid\22
+        Type:            Return
+...
+"}
+
+!58935 = !{!"---
+Entry:           \220x401060:Code_x86_64\22
+ControlFlowGraph:
+  - Start:           \220x401060:Code_x86_64\22
+    End:             \220x40108e:Code_x86_64\22
+    Successors:
+      - !CallEdge
+        Destination:     \22:Invalid\22
+        Type:            IndirectCall
+  - Start:           \220x40108e:Code_x86_64\22
+    End:             \220x40108f:Code_x86_64\22
+    Successors:
+      - !FunctionEdge
+        Destination:     \22:Invalid\22
+        Type:            Return
+...
+"}
+
 ; Model
 !5872 = !{!"---
 EntryPoint: \220x401200:Code_x86_64\22
 Functions:
   - Entry:           \220x401200:Code_x86_64\22
     Type:            Regular
-    CFG:
-      - Start:           \220x401200:Code_x86_64\22
-        End:             \220x401205:Code_x86_64\22
-        Successors:
-          - !FunctionEdge
-            Destination:     \22:Invalid\22
-            Type:            Return
-    Prototype:       \22/Types/RawFunctionType-6646220838590018230\22
   - Entry:           \220x401060:Code_x86_64\22
     Type:            Regular
-    CFG:
-      - Start:           \220x401060:Code_x86_64\22
-        End:             \220x40108e:Code_x86_64\22
-        Successors:
-          - !CallEdge
-            Destination:     \22:Invalid\22
-            Type:            IndirectCall
-            Prototype:       \22/Types/RawFunctionType-6646220838590018230\22
-      - Start:           \220x40108e:Code_x86_64\22
-        End:             \220x40108f:Code_x86_64\22
-        Successors:
-          - !FunctionEdge
-            Destination:     \22:Invalid\22
-            Type:            Return
     Prototype:       \22/Types/RawFunctionType-6646220838590018230\22
 ImportedDynamicFunctions: []
 Types:

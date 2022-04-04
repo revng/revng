@@ -9,9 +9,9 @@
 #include "llvm/IR/Instructions.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/EarlyFunctionAnalysis/IRHelpers.h"
 #include "revng/MFP/MFP.h"
 #include "revng/MFP/SetLattices.h"
-#include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/VerifyHelper.h"
 
@@ -425,9 +425,8 @@ private:
     // Obtain RawFunctionType
     auto *MD = SSACSCall->getMetadata("revng.callerblock.start");
     revng_assert(MD != nullptr);
-    auto *RawPrototype = getCallSitePrototype(Binary,
-                                              SSACSCall,
-                                              &ModelFunction);
+    auto *RawPrototype = getCallSitePrototype(Binary, SSACSCall, &ModelFunction)
+                           .get();
     // TODO: handle CABIFunctionType
     if (RawPrototype == nullptr)
       return nullptr;

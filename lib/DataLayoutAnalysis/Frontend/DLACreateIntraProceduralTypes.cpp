@@ -19,8 +19,8 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
+#include "revng/EarlyFunctionAnalysis/IRHelpers.h"
 #include "revng/Model/Architecture.h"
-#include "revng/Model/IRHelpers.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
@@ -631,13 +631,13 @@ bool Builder::connectToFuncsWithSamePrototype(const llvm::CallInst *Call,
   revng_assert(Call->isIndirectCall());
   bool Changed = false;
 
-  const auto *FuncPrototype = getCallSitePrototype(Model, Call);
-  if (not FuncPrototype)
+  auto Prototype = getCallSitePrototype(Model, Call);
+  if (not Prototype.isValid())
     return false;
 
-  auto It = VisitedPrototypes.find(FuncPrototype);
+  auto It = VisitedPrototypes.find(Prototype.get());
   if (It == VisitedPrototypes.end()) {
-    VisitedPrototypes.insert({ FuncPrototype, Call });
+    VisitedPrototypes.insert({ Prototype.get(), Call });
   } else {
     FuncOrCallInst OtherCall = It->second;
     revng_assert(not OtherCall.isNull());
