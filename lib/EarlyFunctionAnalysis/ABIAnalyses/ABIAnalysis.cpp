@@ -336,9 +336,11 @@ void ABIAnalysesResults::dump(T &Output, const char *Prefix) const {
   }
 
   Output << Prefix << "Return values:\n";
-  for (auto &[GV, State] : FinalReturnValuesRegisters) {
-    Output << Prefix << "  " << GV->getName().str() << " = "
-           << abi::RegisterState::getName(State).str() << '\n';
+  for (auto &[PC, StateMap] : ReturnValuesRegisters) {
+    for (auto &[GV, State] : StateMap) {
+      Output << Prefix << "  " << GV->getName().str() << " = "
+             << abi::RegisterState::getName(State).str() << '\n';
+    }
   }
 }
 
