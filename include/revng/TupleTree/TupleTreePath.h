@@ -185,6 +185,17 @@ public:
   // TODO: should return ArrayRef<const TupleTreeKeyWrapper>
   llvm::ArrayRef<TupleTreeKeyWrapper> toArrayRef() const { return { Storage }; }
 
+  bool isPrefixOf(const TupleTreePath &Other) const {
+    if (size() > Other.size())
+      return false;
+
+    for (size_t I = 0; I < size(); I++)
+      if (Storage[I] != Other.Storage[I])
+        return false;
+
+    return true;
+  }
+
 public:
   size_t size() const { return Storage.size(); }
 
