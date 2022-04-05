@@ -12,6 +12,7 @@
 #include "revng/ADT/KeyedObjectContainer.h"
 #include "revng/ADT/KeyedObjectTraits.h"
 #include "revng/Support/Assert.h"
+#include "revng/TupleTree/TupleTreeCompatible.h"
 
 template<typename T>
 concept HasScalarTraits = llvm::yaml::has_ScalarTraits<T>::value;
@@ -227,4 +228,35 @@ std::string serializeToString(const T &ToDump) {
     serialize(StringStream, ToDump);
   }
   return Buffer;
+}
+
+namespace detail {
+template<typename T>
+llvm::Expected<T> deserializeImpl(llvm::StringRef YAMLString) {
+  T Result;
+
+  llvm::yaml::Input YAMLInput(YAMLString);
+  YAMLInput >> Result;
+
+  std::error_code EC = YAMLInput.error();
+  if (EC)
+    return llvm::errorCodeToError(EC);
+
+  return Result;
+}
+
+} // namespace detail
+
+template<NotTupleTreeCompatible T>
+llvm::Expected<T> deserialize(llvm::StringRef YAMLString) {
+  return detail::deserializeImpl<T>(YAMLString);
+}
+
+template<NotTupleTreeCompatible T>
+llvm::Expected<T> deserializeFile(const llvm::StringRef &Path) {
+  auto MaybeBuffer = llvm::MemoryBuffer::getFile(Path);
+  if (not MaybeBuffer)
+    return llvm::errorCodeToError(MaybeBuffer.getError());
+
+  return deserialize<T>((*MaybeBuffer)->getBuffer());
 }
