@@ -382,6 +382,8 @@ void PromoteCSVs::promoteCSVs(Function *F) {
     replaceAllUsesInFunctionWith(F, CSV, Alloca);
   }
 
+  FunctionTags::CSVsPromoted.addTo(F);
+
   // Drop separators
   eraseFromParent(Separator);
 
