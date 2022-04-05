@@ -327,6 +327,62 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
     APPEND
     PROPERTY FIXTURES_REQUIRED PrepareDecompilation_fixture_${TARGET_NAME})
 
+  # setup decompilation directory
+  make_directory(${OUTFOLDER}/decompiled_stringbased)
+  # copy recompilation assets to the decompilation directory
+  file(COPY ${CMAKE_SOURCE_DIR}/${ASSETS_DIR}
+       DESTINATION ${OUTFOLDER}/decompiled_stringbased)
+
+  # test string-based decompiler
+  add_test(
+    NAME decompile_string_based_${TARGET_NAME}
+    COMMAND
+      revng --prefix=${CMAKE_BINARY_DIR} opt -S -restructure-cfg
+      -beautify-ghast --helpers-to-header
+      --helpers-header-name=${OUTFOLDER}/decompiled_stringbased/helpers.h
+      -model-to-header
+      --types-header-name=${OUTFOLDER}/decompiled_stringbased/revng-types.h
+      -collect-local-vars -c-backend
+      --c-decompiled-dir=${OUTFOLDER}/decompiled_stringbased
+      ${OUTFOLDER}/canonicalized.bc --debug-log=c-backend-inline -o
+      ${OUTFOLDER}/decompiled_stringbased/ir-during-decompilation.ll)
+  set_property(
+    TEST decompile_string_based_${TARGET_NAME}
+    APPEND
+    PROPERTY DEPENDS ir_canonicalization_${TARGET_NAME})
+  set_property(
+    TEST decompile_string_based_${TARGET_NAME}
+    APPEND
+    PROPERTY FIXTURES_REQUIRED IRCanonicalization_fixture_${TARGET_NAME})
+  set_property(
+    TEST decompile_string_based_${TARGET_NAME}
+    APPEND
+    PROPERTY FIXTURES_SETUP DecompiledStringBased_fixture_${TARGET_NAME})
+
+  # test recompilation of the string-based decompiler
+  add_test(
+    NAME recompilation_string_based_${TARGET_NAME}
+    COMMAND
+      sh -c "for C_FILE in $(ls ${OUTFOLDER}/decompiled_stringbased/*.c); \
+    do \
+      clang \
+      --config ${ASSETS_DIR}/compile_flags.txt \
+      -o /dev/null \
+      $C_FILE || exit -1; \
+    done;")
+  set_property(
+    TEST recompilation_string_based_${TARGET_NAME}
+    APPEND
+    PROPERTY DEPENDS ir_canonicalization_${TARGET_NAME})
+  set_property(
+    TEST recompilation_string_based_${TARGET_NAME}
+    APPEND
+    PROPERTY FIXTURES_REQUIRED DecompiledStringBased_fixture_${TARGET_NAME})
+  set_property(
+    TEST recompilation_string_based_${TARGET_NAME}
+    APPEND
+    PROPERTY FIXTURES_SETUP RecompiledStringBased_fixture_${TARGET_NAME})
+
 endmacro()
 
 # Decompilation tests
