@@ -1,23 +1,24 @@
 ---
-Functions:
-- CFG:
-  - End: '2'
-    Start: '1'
-    Successors:
-    - Destination: '3'
-      Type: FunctionCall
-  - End: '3'
-    Start: '2'
-    Successors:
-    - Destination: ":Invalid"
-      Type: Return
+- FunctionMetadata:
+    ControlFlowGraph:
+      - End: '2'
+        Start: '1'
+        Successors:
+        - Destination: '3'
+          Type: FunctionCall
+      - End: '3'
+        Start: '2'
+        Successors:
+        - Destination: ":Invalid"
+          Type: Return
   OriginalName: _start
   Type: Regular
-- CFG:
-  - End: '4'
-    Start: '3'
-    Successors:
-    - Destination: ":Invalid"
-      Type: Return
+- FunctionMetadata:
+    ControlFlowGraph:
+      - End: '4'
+        Start: '3'
+        Successors:
+        - Destination: ":Invalid"
+          Type: Return
   OriginalName: call
   Type: Regular

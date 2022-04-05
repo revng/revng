@@ -37,7 +37,6 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
-#include "revng/ABI/DefaultFunctionPrototype.h"
 #include "revng/ADT/STLExtras.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/FunctionCallIdentification/PruneRetSuccessors.h"
@@ -210,7 +209,7 @@ CodeGenerator::CodeGenerator(const RawBinaryView &RawBinary,
       bool Found = false;
       MetaAddress End = Segment.pagesRange().second;
       revng_assert(End.isValid() and End.address() % 4096 == 0);
-      for (model::Segment &Segment : Model->Segments) {
+      for (const model::Segment &Segment : Model->Segments) {
         if (Segment.IsExecutable and Segment.contains(End)) {
           Found = true;
           break;

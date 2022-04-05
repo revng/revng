@@ -20,104 +20,6 @@ using namespace llvm;
 
 namespace model {
 
-struct FunctionCFGNodeData {
-  FunctionCFGNodeData(MetaAddress Start) : Start(Start) {}
-  MetaAddress Start;
-};
-
-using FunctionCFGNode = ForwardNode<FunctionCFGNodeData>;
-
-/// Graph data structure to represent the CFG for verification purposes
-struct FunctionCFG : public GenericGraph<FunctionCFGNode> {
-private:
-  MetaAddress Entry;
-  std::map<MetaAddress, FunctionCFGNode *> Map;
-
-public:
-  FunctionCFG(MetaAddress Entry) : Entry(Entry) {}
-
-public:
-  MetaAddress entry() const { return Entry; }
-  FunctionCFGNode *entryNode() const { return Map.at(Entry); }
-
-public:
-  FunctionCFGNode *get(MetaAddress MA) {
-    FunctionCFGNode *Result = nullptr;
-    auto It = Map.find(MA);
-    if (It == Map.end()) {
-      Result = addNode(MA);
-      Map[MA] = Result;
-    } else {
-      Result = It->second;
-    }
-
-    return Result;
-  }
-
-  bool allNodesAreReachable() const {
-    if (Map.size() == 0)
-      return true;
-
-    // Ensure all the nodes are reachable from the entry node
-    df_iterator_default_set<FunctionCFGNode *> Visited;
-    for (auto &Ignore : depth_first_ext(entryNode(), Visited))
-      ;
-    return Visited.size() == size();
-  }
-
-  bool hasOnlyInvalidExits() const {
-    for (auto &[Address, Node] : Map)
-      if (Address.isValid() and not Node->hasSuccessors())
-        return false;
-    return true;
-  }
-};
-
-static FunctionCFG getGraph(const Binary &Binary, const Function &F) {
-  using namespace FunctionEdgeType;
-
-  FunctionCFG Graph(F.Entry);
-  for (const BasicBlock &Block : F.CFG) {
-    auto *Source = Graph.get(Block.Start);
-
-    for (const auto &Edge : Block.Successors) {
-      switch (Edge->Type) {
-      case DirectBranch:
-      case FakeFunctionCall:
-      case FakeFunctionReturn:
-      case Return:
-      case BrokenReturn:
-      case IndirectTailCall:
-      case LongJmp:
-      case Unreachable:
-        Source->addSuccessor(Graph.get(Edge->Destination));
-        break;
-
-      case FunctionCall:
-      case IndirectCall: {
-        auto *CE = cast<model::CallEdge>(Edge.get());
-        if (hasAttribute(Binary, *CE, model::FunctionAttribute::NoReturn))
-          Source->addSuccessor(Graph.get(MetaAddress::invalid()));
-        else
-          Source->addSuccessor(Graph.get(Block.End));
-        break;
-      }
-
-      case Killer:
-        Source->addSuccessor(Graph.get(MetaAddress::invalid()));
-        break;
-
-      case Invalid:
-      case Count:
-        revng_abort();
-        break;
-      }
-    }
-  }
-
-  return Graph;
-}
-
 model::TypePath
 Binary::getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize) {
   PrimitiveType Temporary(V, ByteSize);
@@ -143,12 +45,6 @@ Binary::getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize) const {
 TypePath Binary::recordNewType(UpcastablePointer<Type> &&T) {
   auto It = Types.insert(T).first;
   return getTypePath(It->get());
-}
-
-void Binary::dumpCFG(const Function &F) const {
-  FunctionCFG CFG = getGraph(*this, F);
-  raw_os_ostream Stream(dbg);
-  WriteGraph(Stream, &CFG);
 }
 
 bool Binary::verifyTypes() const {
@@ -217,51 +113,6 @@ bool Binary::verify(VerifyHelper &VH) const {
 
     if (not CheckCustomName(F.CustomName))
       return VH.fail("Duplicate name", F);
-
-    // Populate graph
-    FunctionCFG Graph = getGraph(*this, F);
-
-    // Ensure all the nodes are reachable from the entry node
-    if (not Graph.allNodesAreReachable())
-      return VH.fail();
-
-    // Ensure the only node with no successors is invalid
-    if (not Graph.hasOnlyInvalidExits())
-      return VH.fail();
-
-    // Check function calls
-    for (const BasicBlock &Block : F.CFG) {
-      for (const auto &Edge : Block.Successors) {
-
-        if (Edge->Type == model::FunctionEdgeType::FunctionCall) {
-          // We're in a direct call, get the callee
-          const auto *Call = dyn_cast<CallEdge>(Edge.get());
-
-          if (not Call->DynamicFunction.empty()) {
-            // It's a dynamic call
-
-            if (Call->Destination.isValid()) {
-              return VH.fail("Destination must be invalid for dynamic function "
-                             "calls");
-            }
-
-            auto It = ImportedDynamicFunctions.find(Call->DynamicFunction);
-
-            // If missing, fail
-            if (It == ImportedDynamicFunctions.end())
-              return VH.fail("Can't find callee \"" + Call->DynamicFunction
-                             + "\"");
-          } else {
-            // Regular call
-            auto It = Functions.find(Call->Destination);
-
-            // If missing, fail
-            if (It == Functions.end())
-              return VH.fail("Can't find callee");
-          }
-        }
-      }
-    }
   }
 
   // Verify DynamicFunctions
@@ -430,32 +281,6 @@ bool Function::verify(bool Assert) const {
 }
 
 bool Function::verify(VerifyHelper &VH) const {
-  if (Type == FunctionType::Fake or Type == FunctionType::Invalid)
-    return VH.maybeFail(CFG.size() == 0);
-
-  // Verify blocks
-  if (CFG.size() > 0) {
-    bool HasEntry = false;
-    for (const BasicBlock &Block : CFG) {
-
-      if (Block.Start == Entry) {
-        if (HasEntry)
-          return VH.fail();
-        HasEntry = true;
-      }
-
-      for (const auto &Edge : Block.Successors)
-        if (not Edge->verify(VH))
-          return VH.fail();
-    }
-
-    if (not HasEntry) {
-      return VH.fail("The function CFG does not contain a block starting at "
-                     "the entry point",
-                     *this);
-    }
-  }
-
   if (Prototype.isValid()) {
     // The function has a prototype
     if (not Prototype.get()->verify(VH))
@@ -469,6 +294,10 @@ bool Function::verify(VerifyHelper &VH) const {
                      *this);
     }
   }
+
+  for (auto &CallSitePrototype : CallSitePrototypes)
+    if (not CallSitePrototype.verify(VH))
+      return VH.fail();
 
   return true;
 }
@@ -508,148 +337,27 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
   return true;
 }
 
-void FunctionEdge::dump() const {
+void CallSitePrototype::dump() const {
   serialize(dbg, *this);
 }
 
-bool FunctionEdge::verify() const {
+bool CallSitePrototype::verify() const {
   return verify(false);
 }
 
-bool FunctionEdge::verify(bool Assert) const {
+bool CallSitePrototype::verify(bool Assert) const {
   VerifyHelper VH(Assert);
   return verify(VH);
 }
 
-static bool verifyFunctionEdge(VerifyHelper &VH, const FunctionEdgeBase &E) {
-  using namespace model::FunctionEdgeType;
+bool CallSitePrototype::verify(VerifyHelper &VH) const {
+  // Prototype is present
+  if (not Prototype.isValid())
+    return VH.fail("Invalid prototype", *this);
 
-  switch (E.Type) {
-  case Invalid:
-  case Count:
+  // Prototype is valid
+  if (not Prototype.get()->verify(VH))
     return VH.fail();
-
-  case DirectBranch:
-  case FakeFunctionCall:
-  case FakeFunctionReturn:
-    if (E.Destination.isInvalid())
-      return VH.fail();
-    break;
-  case FunctionCall: {
-    const auto &Call = cast<const CallEdge>(E);
-    if (not(E.Destination.isValid() == Call.DynamicFunction.empty()))
-      return VH.fail();
-  } break;
-
-  case IndirectCall:
-  case Return:
-  case BrokenReturn:
-  case IndirectTailCall:
-  case LongJmp:
-  case Killer:
-  case Unreachable:
-    if (E.Destination.isValid())
-      return VH.fail();
-    break;
-  }
-
-  return true;
-}
-
-bool FunctionEdgeBase::verify() const {
-  return verify(false);
-}
-
-bool FunctionEdgeBase::verify(bool Assert) const {
-  VerifyHelper VH(Assert);
-  return verify(VH);
-}
-
-bool FunctionEdgeBase::verify(VerifyHelper &VH) const {
-  if (auto *Edge = dyn_cast<CallEdge>(this))
-    return VH.maybeFail(Edge->verify(VH));
-  else if (auto *Edge = dyn_cast<FunctionEdge>(this))
-    return VH.maybeFail(Edge->verify(VH));
-  else
-    revng_abort("Invalid FunctionEdgeBase instance");
-
-  return false;
-}
-
-void FunctionEdgeBase::dump() const {
-  serialize(dbg, *this);
-}
-
-bool FunctionEdge::verify(VerifyHelper &VH) const {
-  if (auto *Call = dyn_cast<CallEdge>(this))
-    return VH.maybeFail(Call->verify(VH));
-  else
-    return verifyFunctionEdge(VH, *this);
-}
-
-void CallEdge::dump() const {
-  serialize(dbg, *this);
-}
-
-bool CallEdge::verify() const {
-  return verify(false);
-}
-
-bool CallEdge::verify(bool Assert) const {
-  VerifyHelper VH(Assert);
-  return verify(VH);
-}
-
-bool CallEdge::verify(VerifyHelper &VH) const {
-  if (Type == model::FunctionEdgeType::FunctionCall) {
-    // We're in a direct function call (either dynamic or not)
-    bool IsDynamic = not DynamicFunction.empty();
-    bool HasDestination = Destination.isValid();
-    if (not HasDestination and not IsDynamic)
-      return VH.fail("Direct call is missing Destination");
-    else if (HasDestination and IsDynamic)
-      return VH.fail("Dynamic function calls cannot have a valid Destination");
-
-    bool HasPrototype = Prototype.isValid();
-    if (HasPrototype)
-      return VH.fail("Direct function calls must not have a prototype");
-  } else {
-    // We're in an indirect call site
-    if (not Prototype.isValid() or not Prototype.get()->verify(VH))
-      return VH.fail("Indirect call has must have a valid prototype");
-  }
-
-  return VH.maybeFail(verifyFunctionEdge(VH, *this));
-}
-
-Identifier BasicBlock::name() const {
-  using llvm::Twine;
-  if (not CustomName.empty())
-    return CustomName;
-  else
-    return Identifier(std::string("bb_") + Start.toString());
-}
-
-void BasicBlock::dump() const {
-  serialize(dbg, *this);
-}
-
-bool BasicBlock::verify() const {
-  return verify(false);
-}
-
-bool BasicBlock::verify(bool Assert) const {
-  VerifyHelper VH(Assert);
-  return verify(VH);
-}
-
-bool BasicBlock::verify(VerifyHelper &VH) const {
-  if (Start.isInvalid() or End.isInvalid() or not CustomName.verify(VH))
-    return VH.fail();
-
-  for (auto &Edge : Successors)
-    if (not Edge->verify(VH))
-      return VH.fail();
 
   return true;
 }
@@ -837,23 +545,3 @@ bool isELFRelocationBaseRelative(model::Architecture::Values Architecture,
 } // namespace RelocationType
 
 } // namespace model
-
-template<>
-struct llvm::DOTGraphTraits<model::FunctionCFG *>
-  : public DefaultDOTGraphTraits {
-  DOTGraphTraits(bool Simple = false) : DefaultDOTGraphTraits(Simple) {}
-
-  static std::string
-  getNodeLabel(const model::FunctionCFGNode *Node, const model::FunctionCFG *) {
-    return Node->Start.toString();
-  }
-
-  static std::string getNodeAttributes(const model::FunctionCFGNode *Node,
-                                       const model::FunctionCFG *Graph) {
-    if (Node->Start == Graph->entry()) {
-      return "shape=box,peripheries=2";
-    }
-
-    return "";
-  }
-};

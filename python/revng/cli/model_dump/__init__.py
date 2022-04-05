@@ -73,7 +73,7 @@ class MetaAddressRemapper:
                 self.replace(v)
 
     def rewrite(self, value):
-        self.replacements = {v: str(i) for i, v in enumerate(sorted(self.addresses))}
+        self.replacements = {v: str(i + 1) for i, v in enumerate(sorted(self.addresses))}
         self.replace(value)
 
         return value
@@ -85,39 +85,5 @@ def remap_metaaddress(model):
     return mar.rewrite(model)
 
 
-def fetch_text_model(stream):
-    prefix = None
-
-    # Find revng.model named metadata
-    for line in stream:
-        match = re.match("!revng.model = !{!([0-9]*)}", line)
-        if match:
-            prefix = "!" + match.groups(1)[0] + ' = !{!"'
-            break
-
-    # Early exit if not found
-    if not prefix:
-        return None
-
-    # Look for associated named metadata
-    for line in stream:
-        if prefix and line.startswith(prefix):
-            text_model = line[len(prefix) : -3]
-
-            # Unescape the string
-            for escaped in set(re.findall(r"\\[0-9a-fA-F]{2}", text_model)):
-                replacement = bytearray.fromhex(escaped[1:]).decode()
-                text_model = text_model.replace(escaped, replacement)
-
-            return text_model
-
-    return None
-
-
 def parse_model(text_model):
     return yaml.load(text_model, Loader=SafeLoaderIgnoreUnknown)
-
-
-def load_model(stream):
-    text_model = fetch_text_model(stream)
-    return parse_model(text_model) if text_model else None

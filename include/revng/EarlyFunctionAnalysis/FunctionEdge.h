@@ -4,7 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/Model/FunctionEdgeBase.h"
+#include "revng/EarlyFunctionAnalysis/FunctionEdgeBase.h"
 #include "revng/Model/VerifyHelper.h"
 
 /* TUPLE-TREE-YAML
@@ -15,17 +15,17 @@ inherits: FunctionEdgeBase
 fields: []
 TUPLE-TREE-YAML */
 
-#include "revng/Model/Generated/Early/FunctionEdge.h"
+#include "revng/EarlyFunctionAnalysis/Generated/Early/FunctionEdge.h"
 
-class model::FunctionEdge : public model::generated::FunctionEdge {
+class efa::FunctionEdge : public efa::generated::FunctionEdge {
 private:
   static constexpr const FunctionEdgeType::Values
     AssociatedType = FunctionEdgeType::DirectBranch;
 
 public:
-  FunctionEdge() : model::generated::FunctionEdge() { Type = AssociatedType; }
+  FunctionEdge() : efa::generated::FunctionEdge() { Type = AssociatedType; }
   FunctionEdge(MetaAddress Destination, FunctionEdgeType::Values Type) :
-    model::generated::FunctionEdge(Destination, Type) {}
+    efa::generated::FunctionEdge(Destination, Type) {}
 
 public:
   static bool classof(const FunctionEdgeBase *A) { return classof(A->key()); }
@@ -35,8 +35,8 @@ public:
 
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
-  bool verify(VerifyHelper &VH) const;
+  bool verify(model::VerifyHelper &VH) const;
   void dump() const debug_function;
 };
 
-#include "revng/Model/Generated/Late/FunctionEdge.h"
+#include "revng/EarlyFunctionAnalysis/Generated/Late/FunctionEdge.h"

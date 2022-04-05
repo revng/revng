@@ -111,9 +111,12 @@ public:
   }
 
 public:
-  auto get() const noexcept { return Root.get(); }
-  auto &operator*() const { return *Root; }
-  auto *operator->() const noexcept { return Root.operator->(); }
+  T *get() noexcept { return Root.get(); }
+  const T *get() const noexcept { return Root.get(); }
+  T &operator*() { return *Root; }
+  const T &operator*() const { return *Root; }
+  T *operator->() noexcept { return Root.operator->(); }
+  const T *operator->() const noexcept { return Root.operator->(); }
 
 public:
   bool verify() const debug_function { return verifyReferences(); }

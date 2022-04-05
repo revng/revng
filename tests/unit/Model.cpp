@@ -102,9 +102,6 @@ BOOST_AUTO_TEST_CASE(TestStringPathConversion) {
   CheckRoundTrip("/Functions/:Invalid");
   CheckRoundTrip("/Functions/:Invalid/Entry");
   CheckRoundTrip("/Functions/0x1000:Code_arm/Entry");
-  CheckRoundTrip("/Functions/0x1000:Code_arm/CFG/0x2000:Code_arm/Start");
-  CheckRoundTrip("/Functions/0x1000:Code_arm/CFG/0x2000:Code_arm/Successors"
-                 "/0x2000:Code_arm-DirectBranch/Destination");
 }
 
 BOOST_AUTO_TEST_CASE(TestPathMatcher) {
@@ -122,35 +119,6 @@ BOOST_AUTO_TEST_CASE(TestPathMatcher) {
     auto MaybeMatch = Matcher.match<MetaAddress>(MaybeToMatch.value());
     revng_check(MaybeMatch);
     revng_check(std::get<0>(*MaybeMatch) == ARM1000);
-  }
-
-  //
-  // Double matcher
-  //
-  {
-    auto MaybeMatcher = PathMatcher::create<Binary>("/Functions/*/CFG/*/Start");
-    auto Matcher = MaybeMatcher.value();
-
-    auto ARM1000EntryPath = Matcher.apply(ARM1000, ARM2000);
-    auto ARM1000EntryPathAsString = pathAsString<Binary>(ARM1000EntryPath);
-    const auto *ExpectedName = ("/Functions/0x1000:Code_arm/CFG/"
-                                "0x2000:Code_arm/Start");
-    revng_check(ARM1000EntryPathAsString == ExpectedName);
-
-    auto Match = Matcher.match<MetaAddress, MetaAddress>(ARM1000EntryPath);
-    revng_check(Match);
-    revng_check(std::get<0>(*Match) == ARM1000);
-    revng_check(std::get<1>(*Match) == ARM2000);
-
-    {
-      auto Path = stringAsPath<Binary>("/Functions");
-      revng_check((not Matcher.match<MetaAddress, MetaAddress>(Path.value())));
-    }
-
-    {
-      auto Path = stringAsPath<Binary>("/Functions/:Invalid");
-      revng_check((not Matcher.match<MetaAddress, MetaAddress>(Path.value())));
-    }
   }
 }
 

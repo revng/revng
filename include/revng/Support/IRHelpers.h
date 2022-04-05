@@ -61,6 +61,7 @@ inline void eraseFromParent(llvm::Value *V) {
 constexpr const char *FunctionEntryMDNName = "revng.function.entry";
 constexpr const char *CallerBlockStartMDName = "revng.callerblock.start";
 constexpr const char *JTReasonMDName = "revng.jt.reasons";
+constexpr const char *FunctionMetadataMDName = "revng.function.metadata";
 
 template<typename T>
 inline bool contains(T Range, typename T::value_type V) {
@@ -1381,6 +1382,15 @@ inline unsigned getPointeeSize(llvm::Value *Pointer) {
 
 inline unsigned getMemoryAccessSize(llvm::Instruction *I) {
   return getPointeeSize(getPointer(I));
+}
+
+inline llvm::StringRef getDynamicSymbol(llvm::BasicBlock *BB) {
+  auto *NewPCCall = getCallTo(&*BB->begin(), "newpc");
+  revng_assert(NewPCCall != nullptr);
+  auto *SymbolNameValue = NewPCCall->getArgOperand(4);
+  if (isa<llvm::ConstantPointerNull>(SymbolNameValue))
+    return {};
+  return extractFromConstantStringPtr(SymbolNameValue);
 }
 
 /// Adds NewArguments and changes the return type of \p OldFunction
