@@ -13,6 +13,7 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
@@ -73,11 +74,12 @@ public:
 
     Result.Root = std::make_unique<T>();
     llvm::yaml::Input YAMLInput(YAMLString);
-    YAMLInput >> *Result.Root;
 
-    std::error_code EC = YAMLInput.error();
-    if (EC)
-      return EC;
+    auto MaybeRoot = detail::deserializeImpl<T>(YAMLString);
+    if (not MaybeRoot)
+      return llvm::errorToErrorCode(MaybeRoot.takeError());
+
+    *Result.Root = std::move(*MaybeRoot);
 
     // Update references to root
     Result.initializeReferences();
