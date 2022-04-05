@@ -14,7 +14,9 @@
 #include "revng/MFP/SetLattices.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/VerifyHelper.h"
+#include "revng/Pipeline/RegisterLLVMPass.h"
 
+#include "revng-c/Pipes/Kinds.h"
 #include "revng-c/PromoteStackPointer/InstrumentStackAccessesPass.h"
 #include "revng-c/PromoteStackPointer/SegregateStackAccessesPass.h"
 #include "revng-c/Support/FunctionTags.h"
@@ -256,8 +258,11 @@ public:
   bool run() {
     addStackArguments(M);
 
-    for (Function &F : FunctionTags::Isolated.functions(&M))
+    for (Function &F : FunctionTags::StackPointerPromoted.functions(&M))
       segregateStackAccesses(F);
+
+    for (Function &F : FunctionTags::StackPointerPromoted.functions(&M))
+      FunctionTags::StackAccessesSegregated.addTo(&F);
 
     // Purge stores that have been used at least once
     for (Instruction *I : ToPurge)
@@ -279,7 +284,7 @@ private:
   /// arguments
   void addStackArguments(Module &M) {
     // Identify all functions that have stack arguments
-    for (Function &F : FunctionTags::Isolated.functions(&M)) {
+    for (Function &F : FunctionTags::StackPointerPromoted.functions(&M)) {
       MetaAddress Entry = getMetaAddressMetadata(&F, "revng.function.entry");
       const model::Function &ModelFunction = Binary.Functions.at(Entry);
       const model::Type *StackArguments = ModelFunction.Prototype.get();
@@ -673,6 +678,26 @@ void SegregateStackAccessesPass::getAnalysisUsage(AnalysisUsage &AU) const {
 
 char SegregateStackAccessesPass::ID = 0;
 
-using RegisterSSA = RegisterPass<SegregateStackAccessesPass>;
-static RegisterSSA
-  R("segregate-stack-accesses", "Segregate Stack Accesses Pass");
+static constexpr const char *Flag = "segregate-stack-accesses";
+
+using Reg = RegisterPass<SegregateStackAccessesPass>;
+static Reg R(Flag, "Segregate Stack Accesses Pass");
+
+struct SegregateStackAccessesPipe {
+  static constexpr auto Name = Flag;
+
+  std::vector<pipeline::ContractGroup> getContract() const {
+    using namespace pipeline;
+    using namespace revng::pipes;
+    return { ContractGroup::transformOnlyArgument(StackPointerPromoted,
+                                                  Exactness::Exact,
+                                                  StackAccessesSegregated,
+                                                  InputPreservation::Erase) };
+  }
+
+  void registerPasses(legacy::PassManager &Manager) {
+    Manager.add(new SegregateStackAccessesPass());
+  }
+};
+
+static pipeline::RegisterLLVMPass<SegregateStackAccessesPipe> Y;

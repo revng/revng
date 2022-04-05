@@ -28,6 +28,9 @@ inline Tag LiftingArtifactsRemoved("LiftingArtifactsRemoved", Isolated);
 
 inline Tag
   StackPointerPromoted("StackPointerPromoted", LiftingArtifactsRemoved);
+
+inline Tag
+  StackAccessesSegregated("StackAccessesSegregated", StackPointerPromoted);
 } // namespace FunctionTags
 
 /// Returns the type of an AddressOf function with return type T, in context C.

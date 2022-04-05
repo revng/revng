@@ -21,4 +21,9 @@ inline TaggedFunctionKind
                        &FunctionsRank,
                        FunctionTags::StackPointerPromoted);
 
+inline TaggedFunctionKind
+  StackAccessesSegregated("StackAccessesSegregated",
+                          &FunctionsRank,
+                          FunctionTags::StackAccessesSegregated);
+
 } // end namespace revng::pipes

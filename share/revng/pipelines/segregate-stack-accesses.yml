@@ -1,0 +1,23 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+From:            EarlyOptimizeForDecompilation
+Containers:
+Steps:
+ - Name:            DetectStackSize
+   Pipes:
+     - Type:             LLVMPipe
+       UsedContainers: [module.ll]
+       Passes:
+         - instrument-stack-accesses
+         - instcombine
+         - compute-stack-accesses-bounds
+         - detect-stack-size
+ - Name:            SegregateStackAccesses
+   Pipes:
+     - Type:             LLVMPipe
+       UsedContainers: [module.ll]
+       Passes:
+         - segregate-stack-accesses
+
