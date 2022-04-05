@@ -592,7 +592,7 @@ void PromoteCSVs::wrapCallsToHelpers(Function *F) {
 }
 
 void PromoteCSVs::run() {
-  for (Function &F : FunctionTags::Isolated.functions(M)) {
+  for (Function &F : FunctionTags::ABIEnforced.functions(M)) {
     // Wrap calls to wrappers
     wrapCallsToHelpers(&F);
 
