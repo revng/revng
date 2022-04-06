@@ -15,3 +15,6 @@ Steps:
          - inline-helpers
          - promote-csvs
          - remove-exceptional-functions
+   Artifacts:
+     Container: module.ll
+     Kind: CSVsPromoted

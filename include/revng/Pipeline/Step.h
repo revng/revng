@@ -5,6 +5,7 @@
 //
 
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <type_traits>
@@ -32,10 +33,22 @@ namespace pipeline {
 /// will contain the element used for perform the computations.
 class Step {
 private:
+  struct ArtifactsInfo {
+    std::string Container;
+    const Kind *Kind;
+
+    ArtifactsInfo() : Container(""), Kind(nullptr) {}
+    ArtifactsInfo(std::string Container, const pipeline::Kind *Kind) :
+      Container(std::move(Container)), Kind(Kind) {}
+
+    bool isValid() { return !Container.empty() && Kind != nullptr; }
+  };
+
   std::string Name;
   ContainerSet Containers;
   std::vector<PipeWrapper> Pipes;
   Step *PreviousStep;
+  ArtifactsInfo Artifacts;
 
 public:
   template<typename... PipeWrapperTypes>
@@ -61,6 +74,38 @@ public:
   llvm::StringRef getName() const { return Name; }
   const ContainerSet &containers() const { return Containers; }
   ContainerSet &containers() { return Containers; }
+
+  llvm::Error
+  setArtifacts(std::string ContainerName, const Kind *ArtifactsKind) {
+    if (Containers.find(ContainerName) == Containers.end()) {
+      return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                     "Artifact Container does not exist");
+    }
+    Artifacts = ArtifactsInfo(std::move(ContainerName), ArtifactsKind);
+    return llvm::Error::success();
+  }
+
+  const Kind *getArtifactsKind() {
+    if (Artifacts.isValid()) {
+      return Artifacts.Kind;
+    } else {
+      return nullptr;
+    }
+  }
+
+  ContainerSet::value_type *getArtifactsContainer() {
+    if (!Artifacts.isValid()) {
+      return nullptr;
+    }
+
+    auto &ContainerName = Artifacts.Container;
+    if (Containers.isContainerRegistered(ContainerName)) {
+      Containers[ContainerName];
+      return &*Containers.find(ContainerName);
+    } else {
+      return nullptr;
+    }
+  }
 
 public:
   bool hasPredecessor() const { return PreviousStep != nullptr; }
