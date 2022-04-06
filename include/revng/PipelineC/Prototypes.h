@@ -52,7 +52,9 @@ void rp_string_destroy(char *string);
  * provided directory and created from the provided pipelines_path.
  *
  * \param pipelines_count size of \p pipelines_path.
+ * \param pipelines_path cannot be NULL.
  * \param pipeline_flags_count size of \p pipeline_flags.
+ * \param pipeline_flags cannot be NULL.
  * \param execution_directory can be empty (but not NULL), if it is empty then
  * the content of the pipeline will not be loaded and saved on disk before and
  * after the execution. pipeline_flags can be empty, pipeline_flags_count must
@@ -160,6 +162,16 @@ rp_kind *
 rp_manager_get_kind_from_name(rp_manager *manager, const char *kind_name);
 
 /**
+ * \return the number of kinds present in the manager.
+ */
+uint64_t rp_manager_kinds_count(rp_manager *manager);
+
+/**
+ * \return the kind with the provided index, or NULL if not such step existed.
+ */
+rp_kind *rp_manager_get_kind(rp_manager *manager, uint64_t index);
+
+/**
  * Request the production of the provided targets in a particular container.
  *
  * \param tagets_count must be equal to the size of targets.
@@ -243,10 +255,15 @@ const char *rp_step_get_name(rp_step *step);
 
 /**
  * \return the container associated to the provided \p identifier at the given
- *         \p step.
+ *         \p step or nullptr if not present.
  */
 rp_container *
 rp_step_get_container(rp_step *step, rp_container_identifier *identifier);
+
+/**
+ * \return a \p step 's parent, if present
+ */
+rp_step *rp_step_get_parent(rp_step *step);
 
 /** \} */
 
@@ -289,6 +306,8 @@ void rp_target_destroy(rp_target *target);
 rp_kind *rp_target_get_kind(rp_target *target);
 
 /**
+ * Serializes target into a string, target cannot be NULL.
+ *
  * \note The return string is owned by the caller. Destroy with
  *       rp_string_destroy.
  */
@@ -334,6 +353,16 @@ bool rp_target_is_ready(rp_target *target, rp_container *container);
  */
 const char *rp_kind_get_name(rp_kind *kind);
 
+/**
+ * \return a \p kind 's parent if present, otherwise nullptr.
+ */
+rp_kind *rp_kind_get_parent(rp_kind *kind);
+
+/**
+ * \return the rank associated with the specified \p Kind
+ */
+rp_rank *rp_kind_get_rank(rp_kind *kind);
+
 /** \} */
 
 /**
@@ -364,3 +393,40 @@ bool rp_container_store(rp_container *container, const char *path);
 bool rp_container_load(rp_container *container, const char *path);
 
 /** \} */
+
+/**
+ * \defgroup rp_rank rp_rank methods
+ * \{
+ */
+
+/**
+ * \return the number of ranks present in the manager
+ */
+uint64_t rp_ranks_count();
+
+/**
+ * \return the rank with the provided index, or NULL if no such rank existed.
+ */
+rp_rank *rp_rank_get(uint64_t index);
+
+/**
+ * \return the rank with the provided name, NULL if no rank had the provided
+ *         name.
+ */
+rp_rank *rp_rank_get_from_name(const char *rank_name);
+
+/**
+ * \return the name of \p Rank
+ * \note The returned string must not be freed by the caller.
+ */
+const char *rp_rank_get_name(rp_rank *rank);
+
+/**
+ * \return the depth of \p Rank
+ */
+uint64_t rp_rank_get_depth(rp_rank *rank);
+
+/**
+ * \return \p Rank 's parent, or NULL if it has none
+ */
+rp_rank *rp_rank_get_parent(rp_rank *rank);

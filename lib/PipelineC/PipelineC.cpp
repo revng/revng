@@ -1,6 +1,7 @@
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
+
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -211,6 +212,11 @@ const char *rp_kind_get_name(rp_kind *kind) {
   return kind->name().data();
 }
 
+rp_kind *rp_kind_get_parent(rp_kind *kind) {
+  revng_check(kind != nullptr);
+  return kind->parent();
+}
+
 const char *rp_manager_produce_targets(rp_manager *manager,
                                        uint64_t targets_count,
                                        rp_target *targets[],
@@ -247,8 +253,8 @@ rp_target *rp_target_create(rp_kind *kind,
                             uint64_t path_components_count,
                             const char *path_components[]) {
   revng_check(kind != nullptr);
-  revng_check(path_components_count != 0);
   revng_check(path_components != nullptr);
+  revng_check(kind->rank().depth() == path_components_count);
   PathComponents List;
   for (size_t I = 0; I < path_components_count; I++) {
 
@@ -264,6 +270,17 @@ rp_target *rp_target_create(rp_kind *kind,
 void rp_target_destroy(rp_target *target) {
   revng_check(target != nullptr);
   delete target;
+}
+
+uint64_t rp_manager_kinds_count(rp_manager *manager) {
+  revng_check(manager != nullptr);
+  return manager->getRunner().getKindsRegistry().size();
+}
+
+rp_kind *rp_manager_get_kind(rp_manager *manager, uint64_t index) {
+  revng_check(manager != nullptr);
+  revng_check(index < manager->getRunner().getKindsRegistry().size());
+  return &*std::next(manager->getRunner().getKindsRegistry().begin(), index);
 }
 
 bool rp_container_store(rp_container *container, const char *path) {
@@ -440,4 +457,52 @@ bool rp_manager_set_global(rp_manager *manager,
   }
 
   return true;
+}
+
+uint64_t rp_ranks_count() {
+  return Rank::getAll().size();
+}
+
+rp_rank *rp_rank_get(uint64_t index) {
+  revng_check(index < Rank::getAll().size());
+  return Rank::getAll()[index];
+}
+
+rp_rank *rp_rank_get_from_name(const char *rank_name) {
+  revng_check(rank_name != nullptr);
+  for (auto rank : Rank::getAll()) {
+    if (rank->name() == rank_name) {
+      return rank;
+    }
+  }
+  return nullptr;
+}
+
+const char *rp_rank_get_name(rp_rank *rank) {
+  revng_check(rank != nullptr);
+  return rank->name().data();
+}
+
+uint64_t rp_rank_get_depth(rp_rank *rank) {
+  revng_check(rank != nullptr);
+  return rank->depth();
+}
+
+rp_rank *rp_rank_get_parent(rp_rank *rank) {
+  revng_check(rank != nullptr);
+  return rank->parent();
+}
+
+rp_rank *rp_kind_get_rank(rp_kind *kind) {
+  revng_check(kind != nullptr);
+  return &kind->rank();
+}
+
+rp_step *rp_step_get_parent(rp_step *step) {
+  revng_check(step != nullptr);
+  if (step->hasPredecessor()) {
+    return &step->getPredecessor();
+  } else {
+    return nullptr;
+  }
 }
