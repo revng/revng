@@ -6,6 +6,7 @@
 //
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
@@ -26,8 +27,12 @@ char FileContainer::ID;
 
 FileContainer::FileContainer(Kind &K,
                              llvm::StringRef Name,
+                             llvm::StringRef MIMEType,
                              llvm::StringRef Suffix) :
-  Container<FileContainer>(Name), Path(), K(&K), Suffix(Suffix.str()) {
+  Container<FileContainer>(Name, MIMEType),
+  Path(),
+  K(&K),
+  Suffix(Suffix.str()) {
 }
 
 FileContainer::~FileContainer() {
@@ -80,10 +85,10 @@ FileContainer::cloneFiltered(const TargetsList &Container) const {
   bool MustCloneFile = Container.contains(getOnlyPossibleTarget());
 
   if (not MustCloneFile) {
-    return std::make_unique<FileContainer>(*K, this->name(), Suffix);
+    return std::make_unique<FileContainer>(*K, name(), mimeType(), Suffix);
   }
 
-  auto Result = std::make_unique<FileContainer>(*K, this->name(), Suffix);
+  auto Result = std::make_unique<FileContainer>(*K, name(), mimeType(), Suffix);
   Result->getOrCreatePath();
   cantFail(llvm::sys::fs::copy_file(Path, Result->Path));
   return Result;
@@ -119,7 +124,7 @@ llvm::Error FileContainer::storeToDisk(llvm::StringRef Path) const {
 
 llvm::Error FileContainer::loadFromDisk(llvm::StringRef Path) {
   if (not llvm::sys::fs::exists(Path)) {
-    *this = FileContainer(*K, this->name(), Suffix);
+    *this = FileContainer(*K, name(), mimeType(), Suffix);
     return llvm::Error::success();
   }
   getOrCreatePath();
@@ -134,7 +139,7 @@ TargetsList FileContainer::enumerate() const {
 }
 
 void FileContainer::clear() {
-  *this = FileContainer(*K, name(), Suffix);
+  *this = FileContainer(*K, name(), mimeType(), Suffix);
 }
 
 llvm::Error FileContainer::serialize(llvm::raw_ostream &OS) const {
