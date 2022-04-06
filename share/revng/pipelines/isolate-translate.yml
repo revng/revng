@@ -16,6 +16,9 @@ Steps:
                 collect-cfg,
                 isolate,
                 invoke-isolated-functions]
+   Artifacts:
+     Container: module.ll
+     Kind: Isolated
  - Name:            RecompileIsolated
    Pipes:
      - Type:             LinkSupport
@@ -28,3 +31,6 @@ Steps:
        UsedContainers: [module.ll, object.o]
      - Type:             LinkForTranslation
        UsedContainers: [input, object.o, output]
+   Artifacts:
+     Container: output
+     Kind: Translated
