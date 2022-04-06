@@ -9,3 +9,11 @@ grandiso
 
 # revng.api
 cffi
+
+# revng.daemon
+Flask
+Werkzeug
+ariadne
+aiodataloader
+Jinja2
+xdg
