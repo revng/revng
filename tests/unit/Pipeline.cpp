@@ -87,8 +87,10 @@ static std::string CName = "ContainerName";
 class MapContainer : public Container<MapContainer> {
 public:
   MapContainer(std::map<Target, int> Map, llvm::StringRef Name) :
-    Container<MapContainer>(Name), Map(std::move(Map)) {}
-  MapContainer(llvm::StringRef Name) : Container<MapContainer>(Name), Map() {}
+    Container<MapContainer>(Name, "application/x.test.map"),
+    Map(std::move(Map)) {}
+  MapContainer(llvm::StringRef Name) :
+    Container<MapContainer>(Name, "application/x.test.map"), Map() {}
 
   ~MapContainer() override = default;
 
@@ -1010,8 +1012,10 @@ class EnumerableContainerExample
 public:
   static char ID;
 
-  EnumerableContainerExample(Context &Ctx, llvm::StringRef Name) :
-    EnumerableContainer<EnumerableContainerExample>(Ctx, Name) {}
+  EnumerableContainerExample(Context &Ctx,
+                             llvm::StringRef Name,
+                             llvm::StringRef MIMEType) :
+    EnumerableContainer<EnumerableContainerExample>(Ctx, Name, MIMEType) {}
 
   unique_ptr<ContainerBase>
   cloneFiltered(const TargetsList &Container) const final {
@@ -1096,7 +1100,9 @@ static ExampleContainerInpsector Example;
 
 BOOST_AUTO_TEST_CASE(EnumerableContainersTest) {
   Context Ctx;
-  EnumerableContainerExample Example(Ctx, "dont_care");
+  EnumerableContainerExample Example(Ctx,
+                                     "dont_care",
+                                     "application/x.dont.care");
   Target T({}, RootKind, Exactness::DerivedFrom);
   Example.Targets.insert(T);
   BOOST_TEST(Example.contains(T));

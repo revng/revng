@@ -23,10 +23,13 @@ class ContainerBase {
 private:
   const char *ID;
   std::string Name;
+  std::string MIMEType;
 
 public:
-  ContainerBase(char const *ID, llvm::StringRef Name) :
-    ID(ID), Name(Name.str()) {}
+  ContainerBase(char const *ID,
+                llvm::StringRef Name,
+                llvm::StringRef MIMEType) :
+    ID(ID), Name(Name.str()), MIMEType(MIMEType.str()) {}
 
 public:
   static bool classof(const ContainerBase *) { return true; }
@@ -34,6 +37,7 @@ public:
 public:
   const char *getTypeID() const { return ID; }
   const std::string &name() const { return Name; }
+  const std::string &mimeType() const { return MIMEType; }
 
 public:
   virtual ~ContainerBase() = default;
@@ -93,8 +97,10 @@ public:
   /// definition to this class objects instantiation, otherwise the derived
   /// type would not be fully defined yet and the constraints would fail.
   template<HasID T = Derived>
-  Container(llvm::StringRef Name, const char *ID = &Derived::ID) :
-    ContainerBase(ID, Name) {}
+  Container(llvm::StringRef Name,
+            const llvm::StringRef MIMEType,
+            const char *ID = &Derived::ID) :
+    ContainerBase(ID, Name, MIMEType) {}
 
   ~Container() override = default;
 

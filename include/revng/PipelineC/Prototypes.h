@@ -378,6 +378,12 @@ rp_rank *rp_kind_get_rank(rp_kind *kind);
 const char *rp_container_get_name(rp_container *container);
 
 /**
+ * \return the mime type of \p container
+ * \note The returned string must not be freed by the caller.
+ */
+const char *rp_container_get_mime(rp_container *container);
+
+/**
  * Serialize \p container in \p path.
  *
  * \return 0 if an error was encountered 1 otherwise.
