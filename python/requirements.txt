@@ -6,3 +6,6 @@ PyYAML
 
 # revng-model-compare
 grandiso
+
+# revng.api
+cffi
