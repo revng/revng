@@ -4,6 +4,7 @@
 //
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -35,10 +36,20 @@ struct PipeInvocation {
   std::vector<std::string> EnabledWhen = {};
 };
 
+struct ArtifactsDeclaration {
+  std::string Container;
+  std::string Kind;
+
+  ArtifactsDeclaration() : Container(), Kind() {}
+
+  bool isValid() const { return !Container.empty() && !Kind.empty(); }
+};
+
 struct StepDeclaration {
   std::string Name;
   std::vector<PipeInvocation> Pipes;
   std::vector<std::string> EnabledWhen = {};
+  ArtifactsDeclaration Artifacts = {};
 };
 
 struct PipelineDeclaration {
@@ -182,6 +193,7 @@ struct llvm::yaml::MappingTraits<pipeline::StepDeclaration> {
     TheIO.mapRequired("Name", Info.Name);
     TheIO.mapOptional("Pipes", Info.Pipes);
     TheIO.mapOptional("EnabledWhen", Info.EnabledWhen);
+    TheIO.mapOptional("Artifacts", Info.Artifacts);
   }
 };
 
@@ -195,5 +207,13 @@ struct llvm::yaml::MappingTraits<pipeline::PipelineDeclaration>
     TheIO.mapOptional("From", Info.From);
     TheIO.mapRequired("Containers", Info.Containers);
     TheIO.mapRequired("Steps", Info.Steps);
+  }
+};
+
+template<>
+struct llvm::yaml::MappingTraits<pipeline::ArtifactsDeclaration> {
+  static void mapping(IO &TheIO, pipeline::ArtifactsDeclaration &Info) {
+    TheIO.mapRequired("Container", Info.Container);
+    TheIO.mapRequired("Kind", Info.Kind);
   }
 };
