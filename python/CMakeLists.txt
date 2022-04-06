@@ -158,3 +158,18 @@ foreach(HEADER ${REQUIRED_PIPELINE_C_HEADERS})
   configure_file("${PIPELINE_C_HEADERS_SOURCE_DIR}/${HEADER}"
                  "${PIPELINE_C_HEADERS_BUILD_DIR}/${HEADER}" COPYONLY)
 endforeach()
+
+#
+# Install revng.daemon
+#
+set(REVNG_DAEMON_MODULE_FILES
+    revng/daemon/__init__.py
+    revng/daemon/api.py
+    revng/daemon/demo_webpage.py
+    revng/daemon/schema.py
+    revng/daemon/schema.graphql.tpl
+    revng/daemon/util.py
+    revng/daemon/templates/base.html
+    revng/daemon/templates/index.html)
+python_module(TARGET_NAME revng-python-daemon MODULE_FILES
+              ${REVNG_DAEMON_MODULE_FILES})
