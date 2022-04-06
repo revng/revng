@@ -69,8 +69,22 @@ public:
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmPrinter();
     llvm::InitializeNativeTargetAsmParser();
+
     auto &Registry = *llvm::PassRegistry::getPassRegistry();
+    llvm::initializeCore(Registry);
+    llvm::initializeTransformUtils(Registry);
+    llvm::initializeScalarOpts(Registry);
+    llvm::initializeVectorization(Registry);
+    llvm::initializeInstCombine(Registry);
+    llvm::initializeAggressiveInstCombine(Registry);
     llvm::initializeIPO(Registry);
+    llvm::initializeInstrumentation(Registry);
+    llvm::initializeAnalysis(Registry);
+    llvm::initializeCoroutines(Registry);
+    llvm::initializeCodeGen(Registry);
+    llvm::initializeGlobalISel(Registry);
+    llvm::initializeTarget(Registry);
+
     installStatistics();
   }
 

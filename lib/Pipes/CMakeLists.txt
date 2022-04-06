@@ -19,10 +19,26 @@ revng_add_library_internal(
 
 llvm_map_components_to_libnames(
   LLVM_LIBRARIES
+  AggressiveInstCombine
+  Analysis
+  AsmParser
+  BitWriter
+  CodeGen
   Core
+  Coroutines
+  Extensions
+  GlobalISel
   IPO
+  InstCombine
+  Instrumentation
   MC
+  Passes
+  Remarks
+  ScalarOpts
   Support
+  Target
+  TransformUtils
+  Vectorize
   X86AsmParser
   X86CodeGen
   X86Desc
