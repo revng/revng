@@ -30,6 +30,7 @@ public:
 
   FileContainer(pipeline::Kind &K,
                 llvm::StringRef Name,
+                llvm::StringRef MIMEType,
                 llvm::StringRef Suffix);
   FileContainer(FileContainer &&);
   ~FileContainer() override;
@@ -74,10 +75,12 @@ private:
 };
 
 inline pipeline::ContainerFactory
-makeFileContainerFactory(pipeline::Kind &K, const llvm::Twine &Suffix = "") {
+makeFileContainerFactory(pipeline::Kind &K,
+                         llvm::StringRef MIMEType,
+                         const llvm::Twine &Suffix = "") {
   std::string SuffixString = Suffix.str();
-  return [&K, SuffixString](llvm::StringRef Name) {
-    return std::make_unique<FileContainer>(K, Name, SuffixString);
+  return [&K, MIMEType, SuffixString](llvm::StringRef Name) {
+    return std::make_unique<FileContainer>(K, Name, MIMEType, SuffixString);
   };
 }
 

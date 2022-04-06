@@ -66,7 +66,8 @@ public:
   LLVMContainerBase(Context &Ctx,
                     std::unique_ptr<llvm::Module> M,
                     llvm::StringRef Name) :
-    EnumerableContainer<ThisType>(Ctx, Name), Module(std::move(M)) {}
+    EnumerableContainer<ThisType>(Ctx, Name, "text/x.llvm.ir"),
+    Module(std::move(M)) {}
 
   ~LLVMContainerBase() override {}
 
