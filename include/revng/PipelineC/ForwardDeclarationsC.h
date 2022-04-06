@@ -6,6 +6,7 @@
 
 typedef struct rp_manager rp_manager;
 typedef struct rp_kind rp_kind;
+typedef struct rp_rank rp_rank;
 typedef struct rp_step rp_step;
 typedef struct rp_container rp_container;
 typedef struct rp_container_identifier rp_container_identifier;
