@@ -29,9 +29,7 @@ fields:
   - name: FinalStackOffset
     type: uint64_t
   - name: StackArgumentsType
-    reference:
-      pointeeType: model::Type
-      rootType: model::Binary
+    type: model::QualifiedType
     optional: true
 TUPLE-TREE-YAML */
 

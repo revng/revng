@@ -93,12 +93,16 @@ int main(int Argc, char *Argv[]) {
     auto [Left, Right] = Pair;
 
     // Try and access the argument struct.
-    model::Type *LeftStackArguments = Left->StackArgumentsType.get();
-    model::Type *RightStackArguments = Right->StackArgumentsType.get();
+    revng_check(Left->StackArgumentsType.Qualifiers.empty());
+    revng_check(Right->StackArgumentsType.Qualifiers.empty());
+    model::Type *LeftStackArguments = Left->StackArgumentsType.UnqualifiedType
+                                        .get();
+    model::Type *RightStackArguments = Right->StackArgumentsType.UnqualifiedType
+                                         .get();
 
     // XOR the `bool`eans - make sure that either both functions have stack
     // argument or neither one does.
-    revng_assert(!LeftStackArguments == !RightStackArguments);
+    revng_check(!LeftStackArguments == !RightStackArguments);
 
     // Ignore function pairs without stack arguments.
     if (LeftStackArguments == nullptr)
@@ -106,11 +110,11 @@ int main(int Argc, char *Argv[]) {
 
     // If IDs differ - replace the ID.
     if (LeftStackArguments->ID != RightStackArguments->ID) {
-      model::TypePath FromPath = Right->StackArgumentsType;
+      model::TypePath FromPath = Right->StackArgumentsType.UnqualifiedType;
 
       RightModel->Model->Types.erase(LeftStackArguments->key());
       auto *Struct = llvm::dyn_cast<model::StructType>(RightStackArguments);
-      revng_assert(Struct != nullptr);
+      revng_check(Struct != nullptr);
       auto Copy = model::UpcastableType::make<model::StructType>(*Struct);
       Copy->ID = LeftStackArguments->ID;
       auto ToPath = RightModel->Model->recordNewType(std::move(Copy));

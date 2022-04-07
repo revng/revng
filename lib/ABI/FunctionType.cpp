@@ -267,7 +267,8 @@ public:
 
       using namespace model;
       auto Type = UpcastableType::make<StructType>(std::move(StackArguments));
-      Result.StackArgumentsType = TheBinary->recordNewType(std::move(Type));
+      Result.StackArgumentsType = { TheBinary->recordNewType(std::move(Type)),
+                                    {} };
     }
 
     Result.FinalStackOffset = finalStackOffset(Arguments);
@@ -448,12 +449,14 @@ private:
   }
 
   static llvm::SmallVector<model::Argument, 8>
-  convertStackArguments(model::TypePath StackArgumentTypes,
+  convertStackArguments(model::QualifiedType StackArgumentTypes,
                         size_t IndexOffset) {
-    if (StackArgumentTypes.get() == nullptr)
+    revng_assert(StackArgumentTypes.Qualifiers.empty());
+    auto *Unqualified = StackArgumentTypes.UnqualifiedType.get();
+    if (not Unqualified)
       return {};
 
-    auto *Pointer = llvm::dyn_cast<model::StructType>(StackArgumentTypes.get());
+    auto *Pointer = llvm::dyn_cast<model::StructType>(Unqualified);
     revng_assert(Pointer != nullptr,
                  "`RawFunctionType::StackArgumentsType` must be a struct");
     const model::StructType &Types = *Pointer;
@@ -849,15 +852,16 @@ Layout::Layout(const model::RawFunctionType &Function) {
   }
 
   // Lay stack arguments out.
-  if (Function.StackArgumentsType.isValid()) {
-    const model::Type *OriginalStackType = Function.StackArgumentsType.get();
+  if (Function.StackArgumentsType.UnqualifiedType.isValid()) {
+    revng_assert(Function.StackArgumentsType.Qualifiers.empty());
+    const model::Type *OriginalStackType = Function.StackArgumentsType
+                                             .UnqualifiedType.get();
     auto *StackStruct = llvm::dyn_cast<model::StructType>(OriginalStackType);
     revng_assert(StackStruct,
                  "`RawFunctionType::StackArgumentsType` must be a struct.");
     typename Layout::Argument::StackSpan StackSpan{ 0, StackStruct->Size };
     Arguments.emplace_back().Stack = std::move(StackSpan);
-    Arguments.back().Type = model::QualifiedType{ Function.StackArgumentsType,
-                                                  {} };
+    Arguments.back().Type = Function.StackArgumentsType;
   }
 
   // Fill callee saved registers.

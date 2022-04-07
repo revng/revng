@@ -1106,6 +1106,12 @@ verifyImpl(VerifyHelper &VH, const RawFunctionType *T) {
     if (Preserved == Register::Invalid)
       rc_return VH.fail();
 
+  if (not T->StackArgumentsType.Qualifiers.empty())
+    rc_return VH.fail();
+  if (T->StackArgumentsType.UnqualifiedType.isValid()
+      and not rc_recur T->StackArgumentsType.UnqualifiedType.get()->verify(VH))
+    rc_return VH.fail();
+
   rc_return VH.maybeFail(T->CustomName.verify(VH));
 }
 
