@@ -1,83 +1,63 @@
 ---
 Types:
-  - !Primitive
-    Kind:            Primitive
+  - Kind:            PrimitiveType
     PrimitiveKind:   Generic
     Size:            1
-  - !Primitive
-    Kind:            Primitive
+  - Kind:            PrimitiveType
     PrimitiveKind:   Generic
     Size:            2
-  - !Primitive
-    Kind:            Primitive
+  - Kind:            PrimitiveType
     PrimitiveKind:   Generic
     Size:            4
-  - !Primitive
-    Kind:            Primitive
+  - Kind:            PrimitiveType
     PrimitiveKind:   Generic
     Size:            8
-  - !Primitive
-    Kind:            Primitive
+  - Kind:            PrimitiveType
     PrimitiveKind:   PointerOrNumber
     Size:            1
-  - !Primitive
-    Kind:            Primitive
+  - Kind:            PrimitiveType
     PrimitiveKind:   PointerOrNumber
     Size:            2
-  - !Primitive
-    Kind:            Primitive
+  - Kind:            PrimitiveType
     PrimitiveKind:   PointerOrNumber
     Size:            4
-  - !Primitive
-    Kind:            Primitive
+  - Kind:            PrimitiveType
     PrimitiveKind:   PointerOrNumber
     Size:            8
-  - !Primitive
-    Kind:            Primitive
+  - Kind:            PrimitiveType
     PrimitiveKind:   Number
     Size:            1
-  - !Primitive
-    Kind:            Primitive
+  - Kind:            PrimitiveType
     PrimitiveKind:   Number
     Size:            2
-  - !Primitive
-    Kind:            Primitive
+  - Kind:            PrimitiveType
     PrimitiveKind:   Number
     Size:            4
-  - !Primitive
-    Kind:            Primitive
+  - Kind:            PrimitiveType
     PrimitiveKind:   Number
     Size:            8
-  - !Primitive
-    Kind:            Primitive
+  - Kind:            PrimitiveType
     PrimitiveKind:   Unsigned
     Size:            1
-  - !Primitive
-    Kind:            Primitive
+  - Kind:            PrimitiveType
     PrimitiveKind:   Unsigned
     Size:            2
-  - !Primitive
-    Kind:            Primitive
+  - Kind:            PrimitiveType
     PrimitiveKind:   Unsigned
     Size:            4
-  - !Primitive
-    Kind:            Primitive
+  - Kind:            PrimitiveType
     PrimitiveKind:   Unsigned
     Size:            8
-  - !Primitive
-    Kind:            Primitive
+  - Kind:            PrimitiveType
     PrimitiveKind:   Signed
     Size:            1
-  - !Primitive
-    Kind:            Primitive
+  - Kind:            PrimitiveType
     PrimitiveKind:   Signed
     Size:            2
-  - !Primitive
-    Kind:            Primitive
+  - Kind:            PrimitiveType
     PrimitiveKind:   Signed
     Size:            4
-  - !Primitive
-    Kind:            Primitive
+  - Kind:            PrimitiveType
     PrimitiveKind:   Signed
     Size:            8
 ...

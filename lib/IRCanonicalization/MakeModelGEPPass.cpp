@@ -1832,14 +1832,14 @@ class TypedAccessCache {
           // If we've reached a primitive type or an enum type we're done. The
           // NewTAP added above to Results is enough and we don't need to
           // traverse anything.
-        case model::TypeKind::Primitive: {
+        case model::TypeKind::PrimitiveType: {
           revng_log(ModelGEPLog, "Primitive. Done!");
         } break;
-        case model::TypeKind::Enum: {
+        case model::TypeKind::EnumType: {
           revng_log(ModelGEPLog, "Enum. Done!");
         } break;
 
-        case model::TypeKind::Struct: {
+        case model::TypeKind::StructType: {
           revng_log(ModelGEPLog, "Struct, look at fields");
           const auto *S = cast<model::StructType>(BaseT);
           auto StructIndent = LoggerIndent{ ModelGEPLog };
@@ -1895,7 +1895,7 @@ class TypedAccessCache {
           }
         } break;
 
-        case model::TypeKind::Union: {
+        case model::TypeKind::UnionType: {
           revng_log(ModelGEPLog, "Union, look at fields");
           const auto *U = cast<model::UnionType>(BaseT);
           auto UnionIndent = LoggerIndent{ ModelGEPLog };
@@ -1948,7 +1948,7 @@ class TypedAccessCache {
           }
         } break;
 
-        case model::TypeKind::Typedef: {
+        case model::TypeKind::TypedefType: {
           revng_log(ModelGEPLog, "Typedef, unwrap");
           // For typedefs, we need to unwrap the underlying type and try to
           // traverse it.

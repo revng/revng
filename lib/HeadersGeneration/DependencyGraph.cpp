@@ -115,7 +115,7 @@ static void registerDependencies(const model::Type *T,
     revng_abort("Primitive or Invalid type should never depend on others");
   } break;
 
-  case model::TypeKind::Primitive: {
+  case model::TypeKind::PrimitiveType: {
     // Nothing to do here. Primitive types names and full definitions can
     // always be defined without dependencies, because they are either not
     // necessary (for primitive types that are already present in stdint.h)
@@ -124,7 +124,7 @@ static void registerDependencies(const model::Type *T,
     // full definition.
   } break;
 
-  case model::TypeKind::Enum: {
+  case model::TypeKind::EnumType: {
     // Enum names and full definitions could always be conjured out of thin
     // air. However, given that we have enums with underlying primitive
     // types, for consistency we enforce that enums names and full
@@ -153,7 +153,7 @@ static void registerDependencies(const model::Type *T,
                 << " depends on " << getNodeLabel(UnderFull));
   } break;
 
-  case model::TypeKind::Struct: {
+  case model::TypeKind::StructType: {
     // Struct names can always be conjured out of thin air thanks to
     // typedefs. So we only need to add dependencies between their full
     // definition and the full definition of their fields.
@@ -169,7 +169,7 @@ static void registerDependencies(const model::Type *T,
     }
   } break;
 
-  case model::TypeKind::Union: {
+  case model::TypeKind::UnionType: {
     // Union names can always be conjured out of thin air thanks to
     // typedefs. So we only need to add dependencies between their full
     // definition and the full definition of their fields.
@@ -184,7 +184,7 @@ static void registerDependencies(const model::Type *T,
     }
   } break;
 
-  case model::TypeKind::Typedef: {
+  case model::TypeKind::TypedefType: {
     // Typedefs are nasty.
     auto *TD = cast<model::TypedefType>(T);
     const model::QualifiedType &Underlying = TD->UnderlyingType;
