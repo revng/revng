@@ -789,8 +789,8 @@ Type::trySize(VerifyHelper &VH) const {
   } break;
 
   case TypeKind::EnumType: {
-    auto *U = llvm::cast<EnumType>(this)->UnderlyingType.get();
-    auto MaybeSize = rc_recur U->trySize(VH);
+    auto *U = llvm::cast<EnumType>(this);
+    auto MaybeSize = rc_recur U->UnderlyingType.trySize(VH);
     if (not MaybeSize)
       rc_return std::nullopt;
 
@@ -884,21 +884,17 @@ verifyImpl(VerifyHelper &VH, const EnumType *T) {
       or not T->CustomName.verify(VH))
     rc_return VH.fail();
 
-  // The underlying type has to be a primitive type
-  if (not T->UnderlyingType.isValid())
-    rc_return VH.fail();
-
-  auto *Underlying = dyn_cast<PrimitiveType>(T->UnderlyingType.get());
-  if (Underlying == nullptr)
-    rc_return VH.fail();
-
-  if (not rc_recur Underlying->verify(VH))
+  // The underlying type has to be an unqualified primitive type
+  if (not rc_recur T->UnderlyingType.verify(VH)
+      or not T->UnderlyingType.Qualifiers.empty())
     rc_return VH.fail();
 
   // We only allow signed/unsigned as underlying type
-  if (Underlying->PrimitiveKind != PrimitiveTypeKind::Signed
-      and Underlying->PrimitiveKind != PrimitiveTypeKind::Unsigned)
-    rc_return VH.fail();
+  if (not T->UnderlyingType.isPrimitive(PrimitiveTypeKind::Signed)
+      and not T->UnderlyingType.isPrimitive(PrimitiveTypeKind::Unsigned))
+    rc_return VH.fail("UnderlyingType of a EnumType can only be Signed or "
+                      "Unsigned",
+                      *T);
 
   llvm::SmallSet<llvm::StringRef, 8> Names;
   for (auto &Entry : T->Entries) {

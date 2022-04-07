@@ -550,9 +550,7 @@ private:
       }
 
       revng_assert(QualifiedUnderlyingType->Qualifiers.empty());
-      const model::Type *UnderlyingType = nullptr;
-      UnderlyingType = QualifiedUnderlyingType->UnqualifiedType.get();
-      Enum->UnderlyingType = Model->getTypePath(UnderlyingType);
+      Enum->UnderlyingType = *QualifiedUnderlyingType;
 
       uint64_t Index = 0;
       for (const DWARFDie &ChildDie : Die.children()) {

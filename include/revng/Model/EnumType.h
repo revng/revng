@@ -15,9 +15,7 @@ type: struct
 inherits: Type
 fields:
   - name: UnderlyingType
-    reference:
-      pointeeType: model::Type
-      rootType: model::Binary
+    type: model::QualifiedType
   - name: Entries
     sequence:
       type: SortedVector
@@ -39,7 +37,7 @@ public:
 
 public:
   llvm::SmallVector<model::QualifiedType, 4> edges() {
-    return { model::QualifiedType(UnderlyingType, {}) };
+    return { UnderlyingType };
   }
 
 public:
