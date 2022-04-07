@@ -77,8 +77,7 @@ public:
   RecursiveCoroutine<std::optional<uint64_t>> trySize(VerifyHelper &VH) const;
 
 public:
-  // TODO: return pointers and make const-version
-  llvm::SmallVector<model::QualifiedType, 4> edges();
+  const llvm::SmallVector<model::QualifiedType, 4> edges() const;
 
 public:
   bool verify() const debug_function;

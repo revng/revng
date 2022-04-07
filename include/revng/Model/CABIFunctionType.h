@@ -43,10 +43,10 @@ public:
   CABIFunctionType() : generated::CABIFunctionType() {}
 
 public:
-  llvm::SmallVector<model::QualifiedType, 4> edges() {
+  const llvm::SmallVector<model::QualifiedType, 4> edges() const {
     llvm::SmallVector<model::QualifiedType, 4> Result;
 
-    for (model::Argument &Argument : Arguments)
+    for (const model::Argument &Argument : Arguments)
       Result.push_back(Argument.Type);
     Result.push_back(ReturnType);
 
