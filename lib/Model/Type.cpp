@@ -293,10 +293,10 @@ model::Type::Type(TypeKind::Values TK) :
   model::Type::Type(TK, IDGenerator->get()) {
 }
 
-llvm::SmallVector<model::QualifiedType, 4> model::Type::edges() {
+const llvm::SmallVector<model::QualifiedType, 4> model::Type::edges() const {
   llvm::SmallVector<model::QualifiedType, 4> Empty;
-  auto *This = this;
-  auto GetEdges = [](auto &Upcasted) { return Upcasted.edges(); };
+  const auto *This = this;
+  auto GetEdges = [](const auto &Upcasted) { return Upcasted.edges(); };
   return upcast(This, GetEdges, Empty);
 }
 

@@ -32,7 +32,7 @@ public:
   Identifier name() const;
 
 public:
-  llvm::SmallVector<model::QualifiedType, 4> edges() {
+  const llvm::SmallVector<model::QualifiedType, 4> edges() const {
     return { UnderlyingType };
   }
 

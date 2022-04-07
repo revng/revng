@@ -53,7 +53,7 @@ private:
   EquivalenceClasses<model::Type *> StrongEquivalence;
   EquivalenceClasses<model::Type *> WeakEquivalence;
   Graph TypeGraph;
-  std::map<model::Type *, Node *> TypeToNode;
+  std::map<const model::Type *, Node *> TypeToNode;
   std::vector<model::Type *> VisitOrder;
 
 private:
@@ -154,8 +154,8 @@ private:
       TypeToNode[T] = TypeGraph.addNode(TypeNode{ T });
 
     // Create edges
-    for (model::Type *T : Types)
-      for (model::QualifiedType &QT : T->edges())
+    for (const model::Type *T : Types)
+      for (const model::QualifiedType &QT : T->edges())
         addEdge(T, QT);
   }
 
@@ -217,7 +217,7 @@ private:
   }
 
 private:
-  void addEdge(model::Type *T, model::QualifiedType &QT) {
+  void addEdge(const model::Type *T, const model::QualifiedType &QT) {
     auto *DependantType = QT.UnqualifiedType.get();
     TypeToNode.at(T)->addSuccessor(TypeToNode.at(DependantType));
   }

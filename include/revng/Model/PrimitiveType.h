@@ -34,7 +34,7 @@ public:
   Identifier name() const;
 
 public:
-  llvm::SmallVector<model::QualifiedType, 4> edges() { return {}; }
+  const llvm::SmallVector<model::QualifiedType, 4> edges() const { return {}; }
 
 public:
   static bool classof(const Type *T) { return classof(T->key()); }

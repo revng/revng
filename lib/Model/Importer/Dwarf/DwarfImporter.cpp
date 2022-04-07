@@ -832,7 +832,7 @@ private:
       //
       // Collect array whose elements are zero-sized
       //
-      for (model::QualifiedType &QT : Type->edges()) {
+      for (const model::QualifiedType &QT : Type->edges()) {
         auto IsArray = [](const model::Qualifier &Q) {
           return Q.Kind == model::QualifierKind::Array;
         };

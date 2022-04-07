@@ -55,7 +55,7 @@ void model::purgeUnnamedAndUnreachableTypes(TupleTree<model::Binary> &Model) {
   using Graph = GenericGraph<Node>;
 
   Graph TypeGraph;
-  std::map<model::Type *, Node *> TypeToNode;
+  std::map<const model::Type *, Node *> TypeToNode;
 
   llvm::SmallPtrSet<Type *, 16> ToKeep;
 
@@ -70,7 +70,7 @@ void model::purgeUnnamedAndUnreachableTypes(TupleTree<model::Binary> &Model) {
 
   // Create type system edges
   for (UpcastablePointer<model::Type> &T : Model->Types) {
-    for (model::QualifiedType &QT : T->edges()) {
+    for (const model::QualifiedType &QT : T->edges()) {
       auto *DependantType = QT.UnqualifiedType.get();
       TypeToNode.at(T.get())->addSuccessor(TypeToNode.at(DependantType));
     }
