@@ -1219,4 +1219,52 @@ BOOST_AUTO_TEST_CASE(InspectorKindTest) {
   BOOST_TEST(Container->enumerate().contains(RootF));
 }
 
+BOOST_AUTO_TEST_CASE(MultiStepInvalidationTest) {
+  Context Ctx;
+  Runner Pipeline(Ctx);
+  auto CName2 = CName + "2";
+  Pipeline.addDefaultConstructibleFactory<MapContainer>(CName);
+  Pipeline.addDefaultConstructibleFactory<MapContainer>(CName2);
+
+  const std::string Name = "first_step";
+  const std::string SecondName = "second_step";
+  Pipeline.emplaceStep("", Name);
+  Pipeline.emplaceStep(Name,
+                       SecondName,
+                       bindPipe<FineGranerPipe>(CName, CName));
+  Pipeline.emplaceStep(SecondName, "End", bindPipe<CopyPipe>(CName, CName2));
+
+  auto &C1 = Pipeline[Name].containers().getOrCreate<MapContainer>(CName);
+  auto &C1End = Pipeline["End"].containers().getOrCreate<MapContainer>(CName);
+  auto &C2End = Pipeline["End"].containers().getOrCreate<MapContainer>(CName2);
+
+  const auto T = Target({}, RootKind);
+  C1.get(T) = 1;
+
+  const auto ToProduce = Target({ PathComponent("f1") }, FunctionKind);
+  ContainerToTargetsMap Map;
+  Map[CName2].emplace_back(ToProduce);
+  cantFail(Pipeline.run("End", Map));
+
+  BOOST_TEST(C1.get(T) == 1);
+  BOOST_TEST(C1End.get(T) == 1);
+
+  BOOST_TEST(C2End.get(ToProduce) == 1);
+
+  pipeline::Runner::InvalidationMap Invalidations;
+  Invalidations[Name][CName].push_back(T);
+
+  auto Error = Pipeline.getInvalidations(Invalidations);
+  BOOST_TEST(!Error);
+
+  Error = Pipeline.invalidate(Invalidations);
+
+  BOOST_TEST(!Error);
+
+  BOOST_TEST(C1.get(T) == 0);
+  BOOST_TEST(C1End.get(T) == 0);
+
+  BOOST_TEST(C2End.get(ToProduce) == 0);
+}
+
 BOOST_AUTO_TEST_SUITE_END()
