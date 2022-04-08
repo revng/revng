@@ -19,8 +19,11 @@
 #include "revng/Pipeline/Runner.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/PipelineC/PipelineC.h"
+#include "revng/Pipes/ModelGlobal.h"
+#include "revng/Pipes/ModelInvalidationEvent.h"
 #include "revng/Pipes/PipelineManager.h"
 #include "revng/Support/Assert.h"
+#include "revng/TupleTree/TupleTreeDiff.h"
 
 using namespace pipeline;
 using namespace ::revng::pipes;
@@ -397,6 +400,15 @@ bool rp_target_is_ready(rp_target *target, rp_container *container) {
   revng_assert(target);
   revng_assert(container);
   return container->second->enumerate().contains(*target);
+}
+
+void rp_apply_model_diff(rp_manager *manager, const char *diff) {
+  auto Diff(cantFail(deserialize<TupleTreeDiff<model::Binary>>(diff)));
+  ModelInvalidationEvent Event(Diff);
+  llvm::cantFail(Event.apply(manager->getRunner()));
+
+  auto &Model(getWritableModelFromContext(manager->context()));
+  Diff.apply(Model);
 }
 
 /// TODO Remove the redundant copy by writing a custom string stream that writes
