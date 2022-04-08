@@ -79,7 +79,9 @@ getStackArgumentsSize(const model::Type *Prototype, model::VerifyHelper &VH) {
   if (isa<CABIFunctionType>(Prototype)) {
     return {};
   } else if (auto *RFT = dyn_cast<RawFunctionType>(Prototype)) {
-    if (const model::Type *StackStruct = RFT->StackArgumentsType.get()) {
+    revng_assert(RFT->StackArgumentsType.Qualifiers.empty());
+    if (const model::Type *StackStruct = RFT->StackArgumentsType.UnqualifiedType
+                                           .get()) {
       return StackStruct->size(VH);
     } else {
       return {};

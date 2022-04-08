@@ -170,7 +170,9 @@ void printFunctionPrototype(const model::Type &FT,
   if (const auto *RF = dyn_cast<model::RawFunctionType>(&FT)) {
     Header << getReturnTypeName(*RF) << " " << FunctionName.str();
 
-    if (RF->Arguments.empty() and not RF->StackArgumentsType.isValid()) {
+    revng_assert(RF->StackArgumentsType.Qualifiers.empty());
+    if (RF->Arguments.empty()
+        and not RF->StackArgumentsType.UnqualifiedType.isValid()) {
       Header << "(void)";
     } else {
       const StringRef Open = "(";
@@ -181,10 +183,10 @@ void printFunctionPrototype(const model::Type &FT,
         Separator = Comma;
       }
 
-      if (RF->StackArgumentsType.isValid()) {
+      revng_assert(RF->StackArgumentsType.Qualifiers.empty());
+      if (RF->StackArgumentsType.UnqualifiedType.isValid()) {
         // Add last argument representing a pointer to the stack arguments
-        model::QualifiedType StackArgsPtr;
-        StackArgsPtr.UnqualifiedType = RF->StackArgumentsType;
+        model::QualifiedType StackArgsPtr = RF->StackArgumentsType;
         addPointerQualifier(StackArgsPtr, Model);
         Header << Separator << getNamedCInstance(StackArgsPtr, "stack_args");
       }

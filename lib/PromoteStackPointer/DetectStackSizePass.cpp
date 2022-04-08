@@ -143,8 +143,11 @@ void DetectStackSize::collectStackBounds(Function &F) {
   bool NeedsStackArguments = false;
   model::Type *Prototype = ModelFunction.Prototype.get();
   RawFunctionType *RawPrototype = nullptr;
-  if ((RawPrototype = dyn_cast<RawFunctionType>(Prototype)))
-    NeedsStackArguments = not RawPrototype->StackArgumentsType.isValid();
+  if ((RawPrototype = dyn_cast<RawFunctionType>(Prototype))) {
+    revng_assert(RawPrototype->StackArgumentsType.Qualifiers.empty());
+    NeedsStackArguments = not RawPrototype->StackArgumentsType.UnqualifiedType
+                                .isValid();
+  }
 
   revng_log(Log, "NeedsStackFrame: " << NeedsStackArguments);
   revng_log(Log, "NeedsStackArguments: " << NeedsStackArguments);
@@ -213,7 +216,8 @@ void DetectStackSize::collectStackBounds(Function &F) {
 using DSSI = DetectStackSize;
 void DSSI::electStackArgumentsSize(RawFunctionType *Prototype,
                                    const UpperBoundCollector &Bound) const {
-  revng_assert(not Prototype->StackArgumentsType.isValid());
+  revng_assert(Prototype->StackArgumentsType.Qualifiers.empty());
+  revng_assert(not Prototype->StackArgumentsType.UnqualifiedType.isValid());
   revng_assert(Bound.hasValue());
 
   APInt Value = Bound.value();
@@ -228,7 +232,8 @@ void DSSI::electStackArgumentsSize(RawFunctionType *Prototype,
   if (Value.sgt(0) and isValidStackSize(Size)) {
     revng_log(Log,
               "electStackArgumentsSize for " << Prototype->ID << ": " << Size);
-    Prototype->StackArgumentsType = createEmptyStruct(*Binary.get(), Size);
+    Prototype->StackArgumentsType = { createEmptyStruct(*Binary.get(), Size),
+                                      {} };
   }
 }
 
@@ -288,11 +293,11 @@ DetectStackSize::handleCallSite(const CallSite &CallSite) {
 
   uint64_t StackArgumentsSize = 0;
 
-  const model::TypePath &StackArgumentsPath = Prototype->StackArgumentsType;
-  if (StackArgumentsPath.isValid()) {
-    const model::Type *StackArguments = StackArgumentsPath.get();
+  const model::QualifiedType &StackArguments = Prototype->StackArgumentsType;
+  revng_assert(StackArguments.Qualifiers.empty());
+  if (StackArguments.UnqualifiedType.isValid()) {
     using std::optional;
-    optional<uint64_t> MaybeStackArgumentsSize = StackArguments->size(VH);
+    optional<uint64_t> MaybeStackArgumentsSize = StackArguments.size(VH);
     revng_assert(MaybeStackArgumentsSize);
     StackArgumentsSize = *MaybeStackArgumentsSize;
   } else {

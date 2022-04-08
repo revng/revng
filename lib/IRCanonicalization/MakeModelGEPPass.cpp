@@ -121,8 +121,9 @@ ValueModelTypesMap initializeModelTypes(const llvm::Function &F,
 
     auto MoreIndent = LoggerIndent(ModelGEPLog);
     revng_log(ModelGEPLog, "model::RawFunctionType");
-    unsigned ActualArgSize = RFT->Arguments.size()
-                             + (RFT->StackArgumentsType.isValid() ? 1 : 0);
+    revng_assert(RFT->StackArgumentsType.Qualifiers.empty());
+    bool HasStackArg = RFT->StackArgumentsType.UnqualifiedType.isValid();
+    unsigned ActualArgSize = RFT->Arguments.size() + (HasStackArg ? 1 : 0);
     revng_assert(F.arg_size() == ActualArgSize);
 
     auto MoreMoreIndent = LoggerIndent(ModelGEPLog);
@@ -203,11 +204,14 @@ ValueModelTypesMap initializeModelTypes(const llvm::Function &F,
               auto CalleeT = getCallSitePrototype(Model, Call);
               revng_assert(CalleeT.isValid());
               const auto *CalleeRFT = cast<RawFunctionType>(CalleeT.get());
-              revng_assert(CalleeRFT->StackArgumentsType.isValid());
+              auto &CalleeStackArgTy = CalleeRFT->StackArgumentsType;
+              revng_assert(CalleeStackArgTy.Qualifiers.empty());
+              revng_assert(CalleeStackArgTy.UnqualifiedType.isValid());
 
+              model::QualifiedType CalleeStackType = CalleeStackArgTy;
               auto PointerQual = Qualifier::createPointer(Model.Architecture);
-              model::QualifiedType
-                CalleeStackType(CalleeRFT->StackArgumentsType, { PointerQual });
+              CalleeStackType.Qualifiers
+                .insert(CalleeStackType.Qualifiers.begin(), PointerQual);
               Result.insert({ Call, std::move(CalleeStackType) });
             }
           }
@@ -636,9 +640,10 @@ static IRAccessPattern computeAccessPattern(const Use &U,
 
           auto MoreIndent = LoggerIndent(ModelGEPLog);
           auto ModelArgSize = RFT->Arguments.size();
-          revng_assert(ModelArgSize == Call->arg_size()
-                       or (ModelArgSize == Call->arg_size() - 1
-                           and RFT->StackArgumentsType.isValid()));
+          revng_assert(RFT->StackArgumentsType.Qualifiers.empty());
+          revng_assert((ModelArgSize == Call->arg_size() - 1
+                        and RFT->StackArgumentsType.UnqualifiedType.isValid())
+                       or ModelArgSize == Call->arg_size());
           revng_log(ModelGEPLog, "model::RawFunctionType");
 
           auto _ = LoggerIndent(ModelGEPLog);
@@ -655,7 +660,7 @@ static IRAccessPattern computeAccessPattern(const Use &U,
             // function, but they do not have a corresponding argument in the
             // model. In this case, we have to retrieve the StackArgumentsType
             // from the function prototype.
-            ArgTy.UnqualifiedType = RFT->StackArgumentsType;
+            ArgTy = RFT->StackArgumentsType;
             revng_assert(ArgTy.UnqualifiedType.isValid());
           } else {
             auto ArgIt = std::next(RFT->Arguments.begin(), ArgOpNum);
