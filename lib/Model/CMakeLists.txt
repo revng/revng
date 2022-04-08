@@ -13,6 +13,7 @@ target_link_libraries(revngModel revngSupport)
 set(MODEL_HEADERS_DIR "${CMAKE_SOURCE_DIR}/include/revng/Model")
 set(SCHEMA_PATH "${CMAKE_BINARY_DIR}/model-schema.yml")
 set(JSONSCHEMA_PATH "${CMAKE_BINARY_DIR}/model-jsonschema.yml")
+set(TYPESCRIPT_PATH "${CMAKE_BINARY_DIR}/lib/typescript/model.ts")
 target_tuple_tree_generator(
   revngModel
   INSTALL
@@ -26,8 +27,14 @@ target_tuple_tree_generator(
   "${JSONSCHEMA_PATH}"
   PYTHON_PATH
   "${CMAKE_BINARY_DIR}/lib/python/${PYTHON_GENERATED_MODEL_PATH}"
+  TYPESCRIPT_PATH
+  "${TYPESCRIPT_PATH}"
+  TYPESCRIPT_INCLUDE
+  "${CMAKE_SOURCE_DIR}/typescript/model.ts"
   ROOT_TYPE
   Binary
+  GLOBAL_NAME
+  Model
   STRING_TYPES
   "Identifier"
   SEPARATE_STRING_TYPES
