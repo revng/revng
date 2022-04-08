@@ -135,10 +135,14 @@ static void registerDependencies(const model::Type *T,
     // thin air, so we're always sure that this does not generates infinite
     // loops.
     const auto *E = cast<model::EnumType>(T);
-    auto *Underlying = cast<model::PrimitiveType>(E->UnderlyingType.get());
+    const model::QualifiedType &UnderlyingQT = E->UnderlyingType;
+    revng_assert(T->edges().size() == 1 and UnderlyingQT == *T->edges().begin()
+                 and UnderlyingQT.Qualifiers.empty());
+
+    auto *U = cast<model::PrimitiveType>(UnderlyingQT.UnqualifiedType.get());
     auto *EnumName = TypeToNode.at({ E, TypeNode::Kind::TypeName });
     auto *EnumFull = TypeToNode.at({ E, TypeNode::Kind::FullType });
-    auto *UnderFull = TypeToNode.at({ Underlying, TypeNode::Kind::FullType });
+    auto *UnderFull = TypeToNode.at({ U, TypeNode::Kind::FullType });
     Deps.push_back({ EnumName, UnderFull });
     Deps.push_back({ EnumFull, UnderFull });
     revng_log(Log,
