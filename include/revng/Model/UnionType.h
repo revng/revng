@@ -6,7 +6,6 @@
 
 #include "revng/Model/Identifier.h"
 #include "revng/Model/Type.h"
-#include "revng/Model/TypeKind.h"
 #include "revng/Model/UnionField.h"
 
 /* TUPLE-TREE-YAML
@@ -28,17 +27,16 @@ TUPLE-TREE-YAML */
 class model::UnionType : public model::generated::UnionType {
 public:
   static constexpr const char *AutomaticNamePrefix = "union_";
-  static constexpr const TypeKind::Values AssociatedKind = TypeKind::Union;
 
 public:
   using generated::UnionType::UnionType;
-  UnionType() : generated::UnionType() { Kind = AssociatedKind; }
+  UnionType() : generated::UnionType() {}
 
 public:
   Identifier name() const;
 
 public:
-  llvm::SmallVector<model::QualifiedType, 4> edges() {
+  const llvm::SmallVector<model::QualifiedType, 4> edges() const {
     llvm::SmallVector<model::QualifiedType, 4> Result;
 
     for (auto &Field : Fields)

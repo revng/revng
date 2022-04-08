@@ -7,7 +7,6 @@
 #include "revng/Model/Identifier.h"
 #include "revng/Model/QualifiedType.h"
 #include "revng/Model/Type.h"
-#include "revng/Model/TypeKind.h"
 
 /* TUPLE-TREE-YAML
 name: TypedefType
@@ -24,17 +23,16 @@ TUPLE-TREE-YAML */
 class model::TypedefType : public model::generated::TypedefType {
 public:
   static constexpr const char *AutomaticNamePrefix = "typedef_";
-  static constexpr const TypeKind::Values AssociatedKind = TypeKind::Typedef;
 
 public:
   using generated::TypedefType::TypedefType;
-  TypedefType() : generated::TypedefType() { Kind = AssociatedKind; }
+  TypedefType() : generated::TypedefType() {}
 
 public:
   Identifier name() const;
 
 public:
-  llvm::SmallVector<model::QualifiedType, 4> edges() {
+  const llvm::SmallVector<model::QualifiedType, 4> edges() const {
     return { UnderlyingType };
   }
 

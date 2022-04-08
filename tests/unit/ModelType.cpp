@@ -110,7 +110,8 @@ BOOST_AUTO_TEST_CASE(EnumTypes) {
 
   // The enum does not verify if we don't define a valid underlying type and
   // at least one enum entry
-  Enum->UnderlyingType = Int32;
+  auto Int32QT = model::QualifiedType(Int32, {});
+  Enum->UnderlyingType = Int32QT;
   revng_check(not Enum->verify(false));
   revng_check(not T->verify(false));
 
@@ -165,18 +166,20 @@ BOOST_AUTO_TEST_CASE(EnumTypes) {
 
   // But if we break the underlying, making it point to a type that does not
   // exist, we're not good anymore
-  Enum->UnderlyingType = TypePath::fromString(T.get(), "/Types/Typedef-42");
+  auto BrokenPath = TypePath::fromString(T.get(), "/Types/TypedefType-42");
+  Enum->UnderlyingType = { BrokenPath, {} };
   revng_check(not Enum->verify(false));
   revng_check(not T->verify(false));
 
   // Also we set the underlying type to a valid type, but that is not a
   // primitive integer type, we are not good
-  Enum->UnderlyingType = T->getTypePath(Enum);
+  auto PathToNonInt = T->getTypePath(Enum);
+  Enum->UnderlyingType = { PathToNonInt, {} };
   revng_check(not Enum->verify(false));
   revng_check(not T->verify(false));
 
   // If we put back the proper underlying type it verifies.
-  Enum->UnderlyingType = Int32;
+  Enum->UnderlyingType = Int32QT;
   revng_check(Enum->verify(true));
   revng_check(T->verify(true));
   revng_check(checkSerialization(T));

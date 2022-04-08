@@ -14,6 +14,8 @@ name: FunctionEdgeBase
 doc: An edge on the CFG
 type: struct
 fields:
+  - name: Kind
+    type: efa::FunctionEdgeBaseKind::Values
   - name: Destination
     doc: |
       Target of the CFG edge

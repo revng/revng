@@ -7,7 +7,6 @@
 #include "revng/Model/EnumEntry.h"
 #include "revng/Model/Identifier.h"
 #include "revng/Model/Type.h"
-#include "revng/Model/TypeKind.h"
 
 /* TUPLE-TREE-YAML
 name: EnumType
@@ -16,9 +15,7 @@ type: struct
 inherits: Type
 fields:
   - name: UnderlyingType
-    reference:
-      pointeeType: model::Type
-      rootType: model::Binary
+    type: model::QualifiedType
   - name: Entries
     sequence:
       type: SortedVector
@@ -30,18 +27,17 @@ TUPLE-TREE-YAML */
 class model::EnumType : public model::generated::EnumType {
 public:
   static constexpr const char *AutomaticNamePrefix = "enum_";
-  static constexpr const TypeKind::Values AssociatedKind = TypeKind::Enum;
 
 public:
   using generated::EnumType::EnumType;
-  EnumType() : generated::EnumType() { Kind = AssociatedKind; }
+  EnumType() : generated::EnumType() {}
 
 public:
   Identifier name() const;
 
 public:
-  llvm::SmallVector<model::QualifiedType, 4> edges() {
-    return { model::QualifiedType(UnderlyingType, {}) };
+  const llvm::SmallVector<model::QualifiedType, 4> edges() const {
+    return { UnderlyingType };
   }
 
 public:

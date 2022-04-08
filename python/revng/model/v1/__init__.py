@@ -1,20 +1,8 @@
 from revng.tupletree import Reference, init_reference_yaml_classes
 from ._generated import *
 from . import _generated
-from ..metaaddress import MetaAddressType, MetaAddress, init_metaaddress_yaml_classes
-from .._util import force_constructor_kwarg, enum_value_to_index
-
-_types_to_kinds = [
-    (PrimitiveType, TypeKind.Primitive),
-    (EnumType, TypeKind.Enum),
-    (TypedefType, TypeKind.Typedef),
-    (StructType, TypeKind.Struct),
-    (UnionType, TypeKind.Union),
-    (CABIFunctionType, TypeKind.CABIFunctionType),
-    (RawFunctionType, TypeKind.RawFunctionType),
-]
-for t, k in _types_to_kinds:
-    force_constructor_kwarg(t, "Kind", k)
+from ..metaaddress import init_metaaddress_yaml_classes
+from .._util import enum_value_to_index
 
 init_metaaddress_yaml_classes(YamlLoader, YamlDumper)
 init_reference_yaml_classes(YamlLoader, YamlDumper)

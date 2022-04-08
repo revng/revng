@@ -9,7 +9,6 @@
 #include "revng/Model/Identifier.h"
 #include "revng/Model/QualifiedType.h"
 #include "revng/Model/Type.h"
-#include "revng/Model/TypeKind.h"
 
 /* TUPLE-TREE-YAML
 name: CABIFunctionType
@@ -38,18 +37,16 @@ TUPLE-TREE-YAML */
 class model::CABIFunctionType : public model::generated::CABIFunctionType {
 public:
   static constexpr const char *AutomaticNamePrefix = "cabifunction_";
-  static constexpr const TypeKind::Values
-    AssociatedKind = TypeKind::CABIFunctionType;
 
 public:
   using generated::CABIFunctionType::CABIFunctionType;
-  CABIFunctionType() : generated::CABIFunctionType() { Kind = AssociatedKind; }
+  CABIFunctionType() : generated::CABIFunctionType() {}
 
 public:
-  llvm::SmallVector<model::QualifiedType, 4> edges() {
+  const llvm::SmallVector<model::QualifiedType, 4> edges() const {
     llvm::SmallVector<model::QualifiedType, 4> Result;
 
-    for (model::Argument &Argument : Arguments)
+    for (const model::Argument &Argument : Arguments)
       Result.push_back(Argument.Type);
     Result.push_back(ReturnType);
 

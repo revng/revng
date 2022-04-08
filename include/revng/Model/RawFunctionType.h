@@ -7,7 +7,6 @@
 #include "revng/Model/Identifier.h"
 #include "revng/Model/NamedTypedRegister.h"
 #include "revng/Model/Type.h"
-#include "revng/Model/TypeKind.h"
 #include "revng/Model/TypedRegister.h"
 
 /* TUPLE-TREE-YAML
@@ -30,9 +29,7 @@ fields:
   - name: FinalStackOffset
     type: uint64_t
   - name: StackArgumentsType
-    reference:
-      pointeeType: model::Type
-      rootType: model::Binary
+    type: model::QualifiedType
     optional: true
 TUPLE-TREE-YAML */
 
@@ -41,24 +38,24 @@ TUPLE-TREE-YAML */
 class model::RawFunctionType : public model::generated::RawFunctionType {
 public:
   static constexpr const char *AutomaticNamePrefix = "rawfunction_";
-  static constexpr const TypeKind::Values
-    AssociatedKind = TypeKind::RawFunctionType;
 
 public:
   using generated::RawFunctionType::RawFunctionType;
-  RawFunctionType() : generated::RawFunctionType() { Kind = AssociatedKind; };
+  RawFunctionType() : generated::RawFunctionType(){};
 
 public:
   Identifier name() const;
 
 public:
-  llvm::SmallVector<model::QualifiedType, 4> edges() {
+  const llvm::SmallVector<model::QualifiedType, 4> edges() const {
     llvm::SmallVector<model::QualifiedType, 4> Result;
 
     for (auto &Argument : Arguments)
       Result.push_back(Argument.Type);
     for (auto &RV : ReturnValues)
       Result.push_back(RV.Type);
+    if (StackArgumentsType.UnqualifiedType.isValid())
+      Result.push_back(StackArgumentsType);
 
     return Result;
   }

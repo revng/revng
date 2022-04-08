@@ -24,12 +24,9 @@ TUPLE-TREE-YAML */
 
 class model::PrimitiveType : public model::generated::PrimitiveType {
 public:
-  static constexpr const TypeKind::Values AssociatedKind = TypeKind::Primitive;
-
-public:
   using generated::PrimitiveType::PrimitiveType;
   // TODO: these do not conform to the constructors convention
-  PrimitiveType() : generated::PrimitiveType() { Kind = AssociatedKind; };
+  PrimitiveType() : generated::PrimitiveType(){};
   explicit PrimitiveType(uint64_t ID);
   PrimitiveType(PrimitiveTypeKind::Values PrimitiveKind, uint8_t ByteSize);
 
@@ -37,7 +34,7 @@ public:
   Identifier name() const;
 
 public:
-  llvm::SmallVector<model::QualifiedType, 4> edges() { return {}; }
+  const llvm::SmallVector<model::QualifiedType, 4> edges() const { return {}; }
 
 public:
   static bool classof(const Type *T) { return classof(T->key()); }
