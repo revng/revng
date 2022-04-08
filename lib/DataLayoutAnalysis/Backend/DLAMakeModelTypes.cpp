@@ -39,8 +39,6 @@ using model::Qualifier;
 using model::PrimitiveTypeKind::Number;
 using model::QualifierKind::Array;
 using model::QualifierKind::Pointer;
-using model::TypeKind::Struct;
-using model::TypeKind::Union;
 
 /// Maps a pointer node to all the qualified types that are associated to
 /// that pointer.
@@ -55,8 +53,8 @@ static QualifiedType createStructWrapper(const LTSN *N,
                                          uint64_t Offset = 0ULL,
                                          uint64_t WrapperSize = 0ULL) {
   // Create struct
-  TypePath StructPath = Model->recordNewType(makeType<StructType>());
-  auto *Struct = llvm::cast<StructType>(StructPath.get());
+  TypePath StructPath = Model->recordNewType(makeType<model::StructType>());
+  auto *Struct = llvm::cast<model::StructType>(StructPath.get());
 
   // Create and insert field in struct
   StructField Field{ Offset, {}, {}, T };
@@ -167,12 +165,12 @@ makeInstanceQualifiedType(const LTSN *N,
       // Insert the last element
       revng_assert(ArrayWrapper.Qualifiers.empty());
       auto *UnqualifiedWrapper = ArrayWrapper.UnqualifiedType.get();
-      auto *ArrayWrapperStruct = llvm::cast<StructType>(UnqualifiedWrapper);
+      auto *WrapperStruct = llvm::cast<model::StructType>(UnqualifiedWrapper);
 
       // Insert the rest of the array
       StructField TrailingElem = StructField{ LastElemOffset, {}, {}, Result };
-      ArrayWrapperStruct->Fields.insert(TrailingElem);
-      ArrayWrapperStruct->Size = ArrayWrapperSize;
+      WrapperStruct->Fields.insert(TrailingElem);
+      WrapperStruct->Size = ArrayWrapperSize;
 
       Result = ArrayWrapper;
     } else {
@@ -195,8 +193,8 @@ static QualifiedType makeStructFromNode(const LTSN *N,
   // Create struct
   revng_log(Log, "Creating struct type for node " << N->ID);
   LoggerIndent StructIndent{ Log };
-  TypePath StructPath = Model->recordNewType(makeType<StructType>());
-  auto *Struct = llvm::cast<StructType>(StructPath.get());
+  TypePath StructPath = Model->recordNewType(makeType<model::StructType>());
+  auto *Struct = llvm::cast<model::StructType>(StructPath.get());
   Struct->Size = N->Size;
 
   // This holds the struct fields in the same order as in the model, so we can
@@ -264,8 +262,8 @@ static QualifiedType makeUnionFromNode(const LTSN *N,
                                        const VectEqClasses &EqClasses) {
   // Create union
   revng_log(Log, "Creating union type for node " << N->ID);
-  TypePath UnionPath = Model->recordNewType(makeType<UnionType>());
-  auto *Union = llvm::cast<UnionType>(UnionPath.get());
+  TypePath UnionPath = Model->recordNewType(makeType<model::UnionType>());
+  auto *Union = llvm::cast<model::UnionType>(UnionPath.get());
   LoggerIndent StructIndent{ Log };
 
   // This holds the union fields in the same order as in the model, so we can

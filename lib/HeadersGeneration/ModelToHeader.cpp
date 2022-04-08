@@ -103,8 +103,7 @@ printDeclaration(const model::PrimitiveType &P, llvm::raw_ostream &Header) {
 static void
 printDeclaration(const model::EnumType &E, llvm::raw_ostream &Header) {
   // We have to make the enum of the correct size of the underlying type
-  const auto *P = cast<model::PrimitiveType>(E.UnderlyingType.get());
-  auto ByteSize = P->Size;
+  auto ByteSize = *E.size();
   revng_assert(ByteSize <= 8);
   size_t FullMask = std::numeric_limits<size_t>::max();
   size_t MaxBitPatternInEnum = (ByteSize == 8) ?
@@ -310,23 +309,23 @@ static void printDeclaration(const model::Type &T,
       Header << "// invalid\n";
   } break;
 
-  case model::TypeKind::Primitive: {
+  case model::TypeKind::PrimitiveType: {
     printDeclaration(cast<model::PrimitiveType>(T), Header);
   } break;
 
-  case model::TypeKind::Enum: {
+  case model::TypeKind::EnumType: {
     printDeclaration(cast<model::EnumType>(T), Header);
   } break;
 
-  case model::TypeKind::Struct: {
+  case model::TypeKind::StructType: {
     printForwardDeclaration(cast<model::StructType>(T), Header);
   } break;
 
-  case model::TypeKind::Union: {
+  case model::TypeKind::UnionType: {
     printForwardDeclaration(cast<model::UnionType>(T), Header);
   } break;
 
-  case model::TypeKind::Typedef: {
+  case model::TypeKind::TypedefType: {
     printDeclaration(cast<model::TypedefType>(T), Header);
   } break;
 
@@ -364,11 +363,11 @@ static void printDefinition(const model::Type &T,
         Header << "// invalid\n";
     } break;
 
-    case model::TypeKind::Struct: {
+    case model::TypeKind::StructType: {
       printDefinition(cast<model::StructType>(T), Header);
     } break;
 
-    case model::TypeKind::Union: {
+    case model::TypeKind::UnionType: {
       printDefinition(cast<model::UnionType>(T), Header);
     } break;
 

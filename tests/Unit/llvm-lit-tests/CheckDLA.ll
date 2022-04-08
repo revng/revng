@@ -57,7 +57,7 @@ ControlFlowGraph:
   - Start:           \220x401200:Code_x86_64\22
     End:             \220x401205:Code_x86_64\22
     Successors:
-      - !FunctionEdge
+      - Kind: FunctionEdge
         Destination:     \22:Invalid\22
         Type:            Return
 ...
@@ -69,13 +69,13 @@ ControlFlowGraph:
   - Start:           \220x401060:Code_x86_64\22
     End:             \220x40108e:Code_x86_64\22
     Successors:
-      - !CallEdge
+      - Kind: CallEdge
         Destination:     \22:Invalid\22
         Type:            IndirectCall
   - Start:           \220x40108e:Code_x86_64\22
     End:             \220x40108f:Code_x86_64\22
     Successors:
-    - !FunctionEdge
+    - Kind: FunctionEdge
       Destination:     \22:Invalid\22
       Type:            Return
 ...
@@ -93,26 +93,23 @@ Functions:
     Prototype:       \22/Types/RawFunctionType-6646220838590018230\22
 ImportedDynamicFunctions: []
 Types:
-  - !PrimitiveType
-    Kind:            Primitive
+  - Kind:            PrimitiveType
     ID:              520
     PrimitiveKind:   Generic
     Size:            8
-  - !PrimitiveType
-    Kind:            Primitive
+  - Kind:            PrimitiveType
     ID:              776
     PrimitiveKind:   PointerOrNumber
     Size:            8
-  - !RawFunctionType
-    Kind:            RawFunctionType
+  - Kind:            RawFunctionType
     ID:              6646220838590018230
     Arguments:
       - Location:        rax_x86_64
         Type:
-          UnqualifiedType: \22/Types/Primitive-520\22
+          UnqualifiedType: \22/Types/PrimitiveType-520\22
       - Location:        rdx_x86_64
         Type:
-          UnqualifiedType: \22/Types/Primitive-520\22
+          UnqualifiedType: \22/Types/PrimitiveType-520\22
     ReturnValues:    []
     PreservedRegisters: []
     FinalStackOffset: 0

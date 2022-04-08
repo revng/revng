@@ -101,11 +101,6 @@ getDependencyForFullType(const model::QualifiedType &QT,
 static void registerDependencies(const model::Type *T,
                                  const TypeToDependencyNodeMap &TypeToNode) {
 
-  const auto GetTypeRef =
-    [](const auto &Typed) -> const model::QualifiedType & {
-    return Typed.Type;
-  };
-
   using Edge = std::pair<TypeDependencyNode *, TypeDependencyNode *>;
   llvm::SmallVector<Edge, 2> Deps;
 
@@ -115,7 +110,7 @@ static void registerDependencies(const model::Type *T,
     revng_abort("Primitive or Invalid type should never depend on others");
   } break;
 
-  case model::TypeKind::Primitive: {
+  case model::TypeKind::PrimitiveType: {
     // Nothing to do here. Primitive types names and full definitions can
     // always be defined without dependencies, because they are either not
     // necessary (for primitive types that are already present in stdint.h)
@@ -124,7 +119,7 @@ static void registerDependencies(const model::Type *T,
     // full definition.
   } break;
 
-  case model::TypeKind::Enum: {
+  case model::TypeKind::EnumType: {
     // Enum names and full definitions could always be conjured out of thin
     // air. However, given that we have enums with underlying primitive
     // types, for consistency we enforce that enums names and full
@@ -135,10 +130,14 @@ static void registerDependencies(const model::Type *T,
     // thin air, so we're always sure that this does not generates infinite
     // loops.
     const auto *E = cast<model::EnumType>(T);
-    auto *Underlying = cast<model::PrimitiveType>(E->UnderlyingType.get());
+    const model::QualifiedType &UnderlyingQT = E->UnderlyingType;
+    revng_assert(T->edges().size() == 1 and UnderlyingQT == *T->edges().begin()
+                 and UnderlyingQT.Qualifiers.empty());
+
+    auto *U = cast<model::PrimitiveType>(UnderlyingQT.UnqualifiedType.get());
     auto *EnumName = TypeToNode.at({ E, TypeNode::Kind::TypeName });
     auto *EnumFull = TypeToNode.at({ E, TypeNode::Kind::FullType });
-    auto *UnderFull = TypeToNode.at({ Underlying, TypeNode::Kind::FullType });
+    auto *UnderFull = TypeToNode.at({ U, TypeNode::Kind::FullType });
     Deps.push_back({ EnumName, UnderFull });
     Deps.push_back({ EnumFull, UnderFull });
     revng_log(Log,
@@ -149,38 +148,20 @@ static void registerDependencies(const model::Type *T,
                 << " depends on " << getNodeLabel(UnderFull));
   } break;
 
-  case model::TypeKind::Struct: {
-    // Struct names can always be conjured out of thin air thanks to
+  case model::TypeKind::StructType:
+  case model::TypeKind::UnionType: {
+    // Struct and Union names can always be conjured out of thin air thanks to
     // typedefs. So we only need to add dependencies between their full
     // definition and the full definition of their fields.
-    auto *Struct = cast<model::StructType>(T);
-    auto *StructFull = TypeToNode.at({ Struct, TypeNode::Kind::FullType });
-    for (const model::StructField &Field : Struct->Fields) {
-      TypeDependencyNode *Dep = getDependencyForFullType(Field.Type,
-                                                         TypeToNode);
-      Deps.push_back({ StructFull, Dep });
-      revng_log(Log,
-                getNodeLabel(StructFull)
-                  << " depends on " << getNodeLabel(Dep));
+    auto *Full = TypeToNode.at({ T, TypeNode::Kind::FullType });
+    for (const model::QualifiedType &QT : T->edges()) {
+      TypeDependencyNode *Dep = getDependencyForFullType(QT, TypeToNode);
+      Deps.push_back({ Full, Dep });
+      revng_log(Log, getNodeLabel(Full) << " depends on " << getNodeLabel(Dep));
     }
   } break;
 
-  case model::TypeKind::Union: {
-    // Union names can always be conjured out of thin air thanks to
-    // typedefs. So we only need to add dependencies between their full
-    // definition and the full definition of their fields.
-    auto *Union = cast<model::UnionType>(T);
-    auto *UnionFull = TypeToNode.at({ Union, TypeNode::Kind::FullType });
-    for (const model::UnionField &Field : Union->Fields) {
-      TypeDependencyNode *Dep = getDependencyForFullType(Field.Type,
-                                                         TypeToNode);
-      Deps.push_back({ UnionFull, Dep });
-      revng_log(Log,
-                getNodeLabel(UnionFull) << " depends on " << getNodeLabel(Dep));
-    }
-  } break;
-
-  case model::TypeKind::Typedef: {
+  case model::TypeKind::TypedefType: {
     // Typedefs are nasty.
     auto *TD = cast<model::TypedefType>(T);
     const model::QualifiedType &Underlying = TD->UnderlyingType;
@@ -200,60 +181,44 @@ static void registerDependencies(const model::Type *T,
               getNodeLabel(TDFull) << " depends on " << getNodeLabel(FullDep));
   } break;
 
+  case model::TypeKind::CABIFunctionType:
   case model::TypeKind::RawFunctionType: {
     // For function types we can print a valid typedef definition as long as
     // we have visibility on all the names of all the argument types and all
     // return types.
-    auto *F = cast<model::RawFunctionType>(T);
-    auto *FunctionFull = TypeToNode.at({ F, TypeNode::Kind::FullType });
-    auto *FunctionName = TypeToNode.at({ F, TypeNode::Kind::TypeName });
+    auto *FullNode = TypeToNode.at({ T, TypeNode::Kind::FullType });
+    auto *NameNode = TypeToNode.at({ T, TypeNode::Kind::TypeName });
+    for (const model::QualifiedType &QT : T->edges()) {
 
-    auto RegArgTypeRefs = llvm::map_range(F->Arguments, GetTypeRef);
-    auto RegRetValTypeRefs = llvm::map_range(F->ReturnValues, GetTypeRef);
+      // The two dependencies added here below are actually stricter than
+      // necessary for e.g. stack arguments.
+      // The reason is that, on the model, stack arguments are represented by
+      // value, but in some cases they are actually passed by pointer in C.
+      // Given that with the edges() accessor here we cannot discriminate, we
+      // decided to err on the strict side.
+      // This could potentially create graphs with loops of dependencies, or
+      // make some instances not solvable, that would have otherwise been valid.
+      // This should only happen in nasty cases involving loops of function
+      // pointers, but possibly other cases we haven't considered.
+      // Overall, these remote cases have never showed up until now.
+      // If this ever happen, we'll need to fix this properly, either relaxing
+      // this dependencies, or pre-processing the model so that what reaches
+      // this point is always guaranteed to be in a form that can be emitted.
 
-    for (const auto &RegType :
-         llvm::concat<const model::QualifiedType>(RegArgTypeRefs,
-                                                  RegRetValTypeRefs)) {
+      TypeDependencyNode *FullDep = getDependencyForFullType(QT, TypeToNode);
+      Deps.push_back({ FullNode, FullDep });
 
-      TypeDependencyNode *FullDep = getDependencyForFullType(RegType,
-                                                             TypeToNode);
-      Deps.push_back({ FunctionFull, FullDep });
-      TypeDependencyNode *NameDep = getDependencyForTypeName(RegType,
-                                                             TypeToNode);
-      Deps.push_back({ FunctionName, NameDep });
+      TypeDependencyNode *NameDep = getDependencyForTypeName(QT, TypeToNode);
+      Deps.push_back({ NameNode, NameDep });
+
       revng_log(Log,
-                getNodeLabel(FunctionFull)
+                getNodeLabel(FullNode)
                   << " depends on " << getNodeLabel(FullDep));
       revng_log(Log,
-                getNodeLabel(FunctionName)
+                getNodeLabel(NameNode)
                   << " depends on " << getNodeLabel(NameDep));
     }
-  } break;
 
-  case model::TypeKind::CABIFunctionType: {
-    auto *F = cast<model::CABIFunctionType>(T);
-    auto *FunctionFull = TypeToNode.at({ F, TypeNode::Kind::FullType });
-    auto *FunctionName = TypeToNode.at({ F, TypeNode::Kind::TypeName });
-
-    auto RegArgTypeRefs = llvm::map_range(F->Arguments, GetTypeRef);
-    auto RegRetTypeRefs = llvm::ArrayRef(std::as_const(F->ReturnType));
-
-    for (const auto &RegType :
-         llvm::concat<const model::QualifiedType>(RegArgTypeRefs,
-                                                  RegRetTypeRefs)) {
-      TypeDependencyNode *FullDep = getDependencyForFullType(RegType,
-                                                             TypeToNode);
-      Deps.push_back({ FunctionFull, FullDep });
-      TypeDependencyNode *NameDep = getDependencyForTypeName(RegType,
-                                                             TypeToNode);
-      Deps.push_back({ FunctionName, NameDep });
-      revng_log(Log,
-                getNodeLabel(FunctionFull)
-                  << " depends on " << getNodeLabel(FullDep));
-      revng_log(Log,
-                getNodeLabel(FunctionName)
-                  << " depends on " << getNodeLabel(NameDep));
-    }
   } break;
 
   default:
