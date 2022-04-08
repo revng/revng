@@ -13,8 +13,11 @@ function(tuple_tree_generator_impl)
       INCLUDE_PATH_PREFIX
       JSONSCHEMA_PATH
       ROOT_TYPE
-      PYTHON_PATH)
-  set(multiValueArgs HEADERS STRING_TYPES SEPARATE_STRING_TYPES)
+      GLOBAL_NAME
+      PYTHON_PATH
+      TYPESCRIPT_PATH)
+  set(multiValueArgs HEADERS TYPESCRIPT_INCLUDE STRING_TYPES
+                     SEPARATE_STRING_TYPES)
   cmake_parse_arguments(GENERATOR "" "${oneValueArgs}" "${multiValueArgs}"
                         "${ARGN}")
   if(NOT DEFINED GENERATOR_JSONSCHEMA_PATH)
@@ -22,6 +25,9 @@ function(tuple_tree_generator_impl)
   endif()
   if(NOT DEFINED GENERATOR_ROOT_TYPE)
     set(GENERATOR_ROOT_TYPE "")
+  endif()
+  if(NOT DEFINED GENERATOR_GLOBAL_NAME)
+    set(GENERATOR_GLOBAL_NAME "")
   endif()
   if(NOT DEFINED GENERATOR_STRING_TYPES)
     set(GENERATOR_STRING_TYPES "")
@@ -31,6 +37,9 @@ function(tuple_tree_generator_impl)
   endif()
   if(NOT DEFINED GENERATOR_PYTHON_PATH)
     set(GENERATOR_PYTHON_PATH "")
+  endif()
+  if(NOT DEFINED GENERATOR_TYPESCRIPT_PATH)
+    set(GENERATOR_TYPESCRIPT_PATH "")
   endif()
 
   #
@@ -85,11 +94,27 @@ function(tuple_tree_generator_impl)
     list(APPEND EXTRA_TARGETS ${GENERATOR_PYTHON_PATH})
   endif()
 
+  #
+  # Produce TypeScript code, if requested
+  #
+  if(NOT "${GENERATOR_TYPESCRIPT_PATH}" STREQUAL "")
+    tuple_tree_generator_generate_typescript(
+      "${GENERATOR_SCHEMA_PATH}"
+      "${GENERATOR_NAMESPACE}"
+      "${GENERATOR_ROOT_TYPE}"
+      "${GENERATOR_GLOBAL_NAME}"
+      "${GENERATOR_TYPESCRIPT_INCLUDE}"
+      "${GENERATOR_STRING_TYPES}"
+      "${GENERATOR_SEPARATE_STRING_TYPES}"
+      "${GENERATOR_TYPESCRIPT_PATH}")
+    list(APPEND EXTRA_TARGETS ${GENERATOR_TYPESCRIPT_PATH})
+  endif()
+
   add_custom_target(
     "${GENERATOR_TARGET_NAME}"
     DEPENDS "${GENERATOR_SCHEMA_PATH}" ${LOCAL_GENERATED_HEADERS}
             ${LOCAL_GENERATED_IMPLS} ${GENERATOR_JSONSCHEMA_PATH}
-            ${EXTRA_TARGETS})
+            ${EXTRA_TARGETS} generate-node_modules)
 endfunction()
 
 # Extracts tuple_tree_generator YAML definitions from the given header files
@@ -147,6 +172,8 @@ set(CPP_TEMPLATES
 
 set(PYTHON_TEMPLATES "${TEMPLATES_DIR}/tuple_tree_gen.py.tpl")
 
+set(TYPESCRIPT_TEMPLATES "${TEMPLATES_DIR}/tuple_tree_gen.ts.tpl")
+
 set(SCRIPTS_ROOT_DIR "${CMAKE_SOURCE_DIR}/scripts/tuple_tree_generator")
 # The list of Python scripts is build as follows:
 #
@@ -159,15 +186,17 @@ set(TUPLE_TREE_GENERATOR_SOURCES
     "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-cpp.py"
     "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-jsonschema.py"
     "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-python.py"
-    "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/__init__.py"
-    "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/__init__.py"
+    "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-typescript.py"
     "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/cppheaders.py"
+    "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/__init__.py"
     "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/jinja_utils.py"
     "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/jsonschema.py"
     "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/python.py"
-    "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/schema/__init__.py"
+    "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/typescript.py"
+    "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/__init__.py"
     "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/schema/definition.py"
     "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/schema/enum.py"
+    "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/schema/__init__.py"
     "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/schema/schema.py"
     "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/schema/struct.py")
 
@@ -227,6 +256,55 @@ function(
       ${STRING_TYPE_ARGS} ${SEPARATE_STRING_TYPE_ARGS} "${YAML_DEFINITIONS}"
     OUTPUT "${OUTPUT_PATH}"
     DEPENDS "${YAML_DEFINITIONS}" ${TUPLE_TREE_GENERATOR_SOURCES})
+endfunction()
+
+# Generates typescript files
+function(
+  tuple_tree_generator_generate_typescript
+  # Path to the yaml definitions
+  YAML_DEFINITIONS
+  # Base namespace of the generated classes (e.g. model)
+  NAMESPACE
+  # Type to use as the root of the schema
+  ROOT_TYPE
+  # Name of the global type, e.g. Model
+  GLOBAL_NAME
+  # Files to be included in the prouduced output
+  INCLUDE_FILES
+  # Types equivalent to plain strings
+  STRING_TYPES
+  # Types equivalent to plain strings that get a separate type definition
+  EXTERNAL_TYPES
+  # Output path
+  OUTPUT_PATH)
+
+  set(INCLUDE_FILES_ARGS)
+  foreach(IF ${INCLUDE_FILES})
+    list(APPEND INCLUDE_FILE_ARGS --external-file "${IF}")
+  endforeach()
+
+  set(STRING_TYPE_ARGS)
+  foreach(ST ${STRING_TYPES})
+    list(APPEND STRING_TYPE_ARGS --string-type "${ST}")
+  endforeach()
+
+  set(EXTERNAL_TYPE_ARGS)
+  foreach(ET ${EXTERNAL_TYPES})
+    list(APPEND EXTERNAL_TYPE_ARGS --external-type "${ET}")
+  endforeach()
+
+  add_custom_command(
+    COMMAND
+      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-typescript.py" --namespace
+      "${NAMESPACE}" --root-type "${ROOT_TYPE}" --output "${OUTPUT_PATH}"
+      --global-name "${GLOBAL_NAME}" --prettier
+      "${CMAKE_BINARY_DIR}/node_build/node_modules/.bin/prettier"
+      ${INCLUDE_FILE_ARGS} ${STRING_TYPE_ARGS} ${EXTERNAL_TYPE_ARGS}
+      "${YAML_DEFINITIONS}"
+    OUTPUT "${OUTPUT_PATH}"
+    DEPENDS "${YAML_DEFINITIONS}" ${TYPESCRIPT_TEMPLATES}
+            "${CMAKE_SOURCE_DIR}/typescript/model.ts"
+            ${TUPLE_TREE_GENERATOR_SOURCES})
 endfunction()
 
 # Generates python files
@@ -301,10 +379,13 @@ function(target_tuple_tree_generator TARGET_ID)
       SCHEMA_PATH
       JSONSCHEMA_PATH
       ROOT_TYPE
+      GLOBAL_NAME
       INCLUDE_PATH_PREFIX
       PYTHON_PATH
+      TYPESCRIPT_PATH
       HEADERS_PATH)
-  set(multiValueArgs HEADERS STRING_TYPES SEPARATE_STRING_TYPES)
+  set(multiValueArgs HEADERS TYPESCRIPT_INCLUDE STRING_TYPES
+                     SEPARATE_STRING_TYPES)
   cmake_parse_arguments(GEN "${options}" "${oneValueArgs}" "${multiValueArgs}"
                         "${ARGN}")
 
@@ -341,12 +422,18 @@ function(target_tuple_tree_generator TARGET_ID)
     "${GEN_JSONSCHEMA_PATH}"
     ROOT_TYPE
     ${GEN_ROOT_TYPE}
+    GLOBAL_NAME
+    ${GEN_GLOBAL_NAME}
     STRING_TYPES
     "${GEN_STRING_TYPES}"
     SEPARATE_STRING_TYPES
     "${GEN_SEPARATE_STRING_TYPES}"
     PYTHON_PATH
-    ${GEN_PYTHON_PATH})
+    ${GEN_PYTHON_PATH}
+    TYPESCRIPT_PATH
+    ${GEN_TYPESCRIPT_PATH}
+    TYPESCRIPT_INCLUDE
+    ${GEN_TYPESCRIPT_INCLUDE})
   if(GEN_INSTALL)
     install(DIRECTORY ${GEN_HEADERS_PATH}
             DESTINATION include/revng/${GEN_HEADER_DIRECTORY})
