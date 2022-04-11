@@ -64,6 +64,7 @@ int main(int Argc, char *Argv[]) {
 
   auto Diff = diff(*LeftModel->Model, *RightModel->Model);
   Diff.dump(Stream);
+  OutputFile.keep();
 
   if (Diff.Changes.empty())
     return EXIT_SUCCESS;
