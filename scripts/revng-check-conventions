@@ -51,6 +51,12 @@ OPTIONS
       arguments except for --use-local-clang-format-file.
       The conventions are not checked.
 
+    --commit-range <RANGE>
+      Check files changed in the specified commit range
+
+    --HEAD
+      Alias for '--commit-range HEAD^..HEAD'
+
     --all
       Check all files instead of only changed ones
 
@@ -88,6 +94,15 @@ while [[ $# -gt 0 ]]; do
             ;;
         --use-local-clang-format-file)
             USE_CLANG_FORMAT_FILE="1"
+            shift # past argument
+            ;;
+        --commit-range)
+            shift # get next argument
+            GIT_LS_FILES="eval git log --pretty='format:' --name-only '$1'"
+            shift # past argument
+            ;;
+        --HEAD)
+            GIT_LS_FILES="eval git log --pretty='format:' --name-only 'HEAD^..HEAD'"
             shift # past argument
             ;;
         --all)
