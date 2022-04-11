@@ -5,6 +5,7 @@
 revng_add_library_internal(
   revngPipes
   SHARED
+  AddPrimitiveTypesPipe.cpp
   CompileModulePipe.cpp
   FileContainer.cpp
   ImportBinaryPipe.cpp
@@ -48,6 +49,7 @@ target_link_libraries(
   revngPipes
   revngEarlyFunctionAnalysis
   revngLift
+  revngModelPasses
   revngPipeline
   revngSupport
   revngModelImporterBinary
