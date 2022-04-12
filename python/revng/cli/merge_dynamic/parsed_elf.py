@@ -83,13 +83,13 @@ class ParsedElf:
                 verneed_position += verneed.vn_next
                 self.file.seek(verneed_position)
 
-    def serialize_verneeds(self, list):
+    def serialize_verneeds(self, verneeds):
         stream = BytesIO()
         verneed_struct = self.elf.structs.Elf_Verneed
         vernaux_struct = self.elf.structs.Elf_Vernaux
 
         verneed_position = 0
-        for verneed in list:
+        for verneed in verneeds:
             stream.write(verneed_struct.build(verneed[0]))
 
             vernaux_position = verneed_position + verneed[0].vn_aux
@@ -107,40 +107,38 @@ class ParsedElf:
         assert len(buffer) % size == 0
         size_map = {1: "B", 2: "H", 4: "I", 8: "Q"}
         if self.elf.little_endian:
-            format = "<" + size_map[size]
+            format_str = "<" + size_map[size]
         else:
-            format = ">" + size_map[size]
-        return [struct.unpack(format, chunk)[0] for chunk in chunks(buffer, size)]
+            format_str = ">" + size_map[size]
+        return [struct.unpack(format_str, chunk)[0] for chunk in chunks(buffer, size)]
 
-    def serialize_ints(self, list, size):
+    def serialize_ints(self, ints, size):
         size_map = {1: "B", 2: "H", 4: "I", 8: "Q"}
         if self.elf.little_endian:
-            format = "<" + size_map[size]
+            format_str = "<" + size_map[size]
         else:
-            format = ">" + size_map[size]
-        return b"".join([struct.pack(format, number) for number in list])
+            format_str = ">" + size_map[size]
+        return b"".join([struct.pack(format_str, number) for number in ints])
 
     def current_position(self):
         return self.file.tell()
 
-    def read_struct(self, struct):
-        buffer = self.file.read(struct.sizeof())
-        assert len(buffer) == struct.sizeof()
-        return only(parse(buffer, struct))
+    def read_struct(self, struct_def):
+        buffer = self.file.read(struct_def.sizeof())
+        assert len(buffer) == struct_def.sizeof()
+        return only(parse(buffer, struct_def))
 
     def read_section(self, address_tag, size_tag=None, scale=1):
         if size_tag is not None:
             if not self.has_tag(size_tag):
                 return bytes()
-            else:
-                size = self.tag(size_tag) * scale
+            size = self.tag(size_tag) * scale
         else:
             size = scale
 
         if self.has_tag(address_tag):
             return self.read_address(self.tag(address_tag), size)
-        else:
-            return bytes()
+        return bytes()
 
     def seek_address(self, address):
         self.file.seek(only(self.elf.address_offsets(address)))
@@ -153,8 +151,8 @@ class ParsedElf:
         assert len(result) == size
         return result
 
-    def segment_by_type(self, type):
-        return [segment for segment in self.elf.iter_segments() if segment.header.p_type == type]
+    def segment_by_type(self, stype):
+        return [segment for segment in self.elf.iter_segments() if segment.header.p_type == stype]
 
     def dt_by_tag(self, search):
         return [tag for tag in self.dynamic.iter_tags() if tag.entry.d_tag == search]

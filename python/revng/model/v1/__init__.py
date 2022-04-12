@@ -1,6 +1,7 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
+# flake8: noqa: F405
 
 from revng.tupletree import Reference, init_reference_yaml_classes
 from ._generated import *

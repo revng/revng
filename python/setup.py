@@ -15,7 +15,7 @@ setup(
     url="https://github.com/revng/revng",
     packages=find_namespace_packages(),
     include_package_data=True,
-    install_requires=open("requirements.txt").readlines(),
+    install_requires=open("requirements.txt", encoding="utf-8").readlines(),  # noqa: SIM115
     scripts=[
         "scripts/revng",
         "scripts/revng-merge-dynamic",

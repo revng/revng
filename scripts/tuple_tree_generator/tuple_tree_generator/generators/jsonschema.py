@@ -4,7 +4,6 @@
 
 import re
 import yaml
-from typing import Dict
 
 from ..schema import Schema
 from ..schema import EnumDefinition

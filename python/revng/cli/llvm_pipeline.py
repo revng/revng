@@ -56,6 +56,7 @@ class IRPipelineCommand(Command):
             run_revng_command(
                 ["model", "inject", model.name, module.name, "-o", args.output], options
             )
+        return 0
 
 
 commands_registry.register_command(IRPipelineCommand())

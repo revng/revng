@@ -13,7 +13,6 @@ import argparse
 import sys
 from collections import defaultdict
 
-import importlib
 import monotone_framework
 
 
@@ -24,9 +23,10 @@ def gen_combine_values(lattice, reachability):
     out += """LatticeElement combineValues(const LatticeElement &LHS, const LatticeElement &RHS) {
 """
 
-    node_by_index = lambda index: monotone_framework.get_unique(
-        [x for x, x_data in lattice.nodes(data=True) if x_data["index"] == str(index)]
-    )
+    def node_by_index(index):
+        return monotone_framework.get_unique(
+            [x for x, x_data in lattice.nodes(data=True) if x_data["index"] == str(index)]
+        )
 
     result = defaultdict(lambda: [])
     for v1, v1_data in lattice.nodes(data=True):
@@ -34,7 +34,9 @@ def gen_combine_values(lattice, reachability):
             if v1 != v2:
                 i1 = int(v1_data["index"])
                 i2 = int(v2_data["index"])
-                nonzero = lambda i: set([x[0] for x in enumerate(reachability[i]) if x[1] != 0])
+
+                def nonzero(i):
+                    return {x[0] for x in enumerate(reachability[i]) if x[1] != 0}
 
                 output = max(
                     nonzero(i1) & nonzero(i2),
@@ -59,11 +61,9 @@ def gen_combine_values(lattice, reachability):
         conditions[0] = conditions[0].lstrip()
         conditions_string = "\n      || " if first else "\n             || "
         out += conditions_string.join(conditions)
-        out += """) {{
-    return LatticeElement::{};
-  }}""".format(
-            output
-        )
+        out += f""") {{
+    return LatticeElement::{output};
+    }}"""
         first = False
 
     out += """
@@ -89,8 +89,7 @@ def gen_is_less_or_equal(lattice, reachability):
                 i1 = int(v1_data["index"])
                 i2 = int(v2_data["index"])
                 if reachability[i1][i2] != 0:
-                    condition = """(LHS == LatticeElement::{} && RHS == LatticeElement::{})"""
-                    condition = condition.format(v1, v2)
+                    condition = f"""(LHS == LatticeElement::{v1} && RHS == LatticeElement::{v2})"""
                     result.append(condition)
 
     out += "\n    || ".join(result)
@@ -109,18 +108,14 @@ def gen_transfer_function(tf_names, transfer_functions):
   switch(T) {
 """
     for tf in tf_names:
-        out += """  case TransferFunction::{}:
+        out += f"""  case TransferFunction::{tf}:
     switch(E) {{
-""".format(
-            tf
-        )
+"""
         for edge in transfer_functions[tf]:
             source, destination = edge
-            out += """    case LatticeElement::{}:
-      return LatticeElement::{};
-""".format(
-                source, destination
-            )
+            out += f"""    case LatticeElement::{source}:
+      return LatticeElement::{destination};
+"""
         out += """    default:
       revng_abort("Invalid LatticeElement value found");
     }
@@ -144,7 +139,7 @@ def gen_lattice_element_enum(lattice):
 """
 
     # Get all the names
-    values = [v for v in lattice.nodes()]
+    values = list(lattice.nodes())
     out += "  " + ",\n  ".join(values) + "\n"
     out += """};
 """
@@ -224,13 +219,13 @@ def main():
                       - %isLessOrEqual% the C++ function with signature `bool isLessOrEqual(const LatticeElement &LHS, const LatticeElement &RHS)`
                       - %combineValues% the C++ function with signature `bool combineValues(const LatticeElement &LHS, const LatticeElement &RHS)`
                       - %transfer% the C++ function with signature `bool transfer(TransferFunction T, const LatticeElement &RHS)`
-                      """,
+                      """,  # noqa: E501
     )
     parser.add_argument("inputs", metavar="GRAPH", nargs="+", help="GraphViz input file.")
     args = parser.parse_args()
 
     # Print the template file
-    with open(args.template) as template_file:
+    with open(args.template, encoding="utf-8") as template_file:
         template = template_file.read()
 
     # Process each input graph

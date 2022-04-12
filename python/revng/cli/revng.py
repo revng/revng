@@ -9,11 +9,11 @@ from .commands_registry import commands_registry, Options
 from .support import collect_files
 
 
-def extend_list(list, new_items):
-    new_items_set = set(new_items)
-    return new_items + [path for path in list if path not in new_items]
+def extend_list(paths, new_items):
+    return new_items + [path for path in paths if path not in new_items]
 
 
+# flake8: noqa: F401
 def run_revng_command(arguments, options: Options):
     # Import built-in commands
     from .lift import LiftCommand

@@ -4,7 +4,7 @@
 
 import graphlib
 from collections import defaultdict
-from typing import Dict, Iterable, Optional
+from typing import Dict, Optional
 
 from .jinja_utils import environment
 from ..schema import Schema

@@ -24,7 +24,7 @@ class StructField(ABC):
         if source_dict.get("type"):
             return SimpleStructField(**source_dict)
 
-        elif source_dict.get("sequence"):
+        if source_dict.get("sequence"):
             sequence_def = source_dict["sequence"]
             args = copy.copy(source_dict)
             del args["sequence"]
@@ -37,7 +37,7 @@ class StructField(ABC):
             )
             return SequenceStructField(**args)
 
-        elif source_dict.get("reference"):
+        if source_dict.get("reference"):
             reference = source_dict["reference"]
             args = copy.copy(source_dict)
             del args["reference"]
@@ -49,15 +49,23 @@ class StructField(ABC):
             )
             return ReferenceStructField(**args)
 
-        else:
-            raise ValueError("Invalid struct field")
+        raise ValueError("Invalid struct field")
 
     def resolve_references(self, schema):
         raise NotImplementedError()
 
 
 class SimpleStructField(StructField):
-    def __init__(self, *, name, type, doc=None, optional=False, const=False, is_guid=False):
+    def __init__(
+        self,
+        *,
+        name,
+        type,  # noqa: A002
+        doc=None,
+        optional=False,
+        const=False,
+        is_guid=False,
+    ):
         super().__init__(name=name, doc=doc, optional=optional, const=const, is_guid=is_guid)
         self.type = type
         self.resolved_type = None
@@ -101,7 +109,7 @@ class SequenceStructField(StructField):
             return self.element_type
 
     @property
-    def type(self):
+    def type(self):  # noqa: A003
         return f"{self.sequence_type}<{self.underlying_type}>"
 
     @property
@@ -125,7 +133,7 @@ class ReferenceStructField(StructField):
         self.resolved_root_type = None
 
     @property
-    def type(self):
+    def type(self):  # noqa: A003
         return f"TupleTreeReference<{self.pointee_type}, {self.root_type}>"
 
     @property
@@ -157,11 +165,10 @@ class StructDefinition(Definition):
         fields,
         inherits=None,
         doc=None,
-        tag=None,
         abstract=False,
         _key=None,
     ):
-        super(StructDefinition, self).__init__(
+        super().__init__(
             namespace,
             user_namespace,
             name,
@@ -204,7 +211,7 @@ class StructDefinition(Definition):
             elif isinstance(field, ReferenceStructField):
                 self.dependencies.add(field.pointee_type)
                 # TODO: if we add this dependency we generate circular dependencies
-                # self.dependencies.add(field.root_type)
+                # self.dependencies.add(field.root_type)  # noqa: E800
             else:
                 raise ValueError()
 
@@ -248,10 +255,10 @@ class StructDefinition(Definition):
         self.emit_full_constructor = key_fields_names != all_field_names
 
     @staticmethod
-    def from_dict(source_dict: Dict, default_base_namespace: str):
+    def from_dict(source_dict: Dict, default_namespace: str):
         args = {
-            "namespace": source_dict.get("namespace", f"{default_base_namespace}::generated"),
-            "user_namespace": source_dict.get("user_namespace", default_base_namespace),
+            "namespace": source_dict.get("namespace", f"{default_namespace}::generated"),
+            "user_namespace": source_dict.get("user_namespace", default_namespace),
             "name": source_dict["name"],
             "doc": source_dict.get("doc"),
             "fields": [StructField.from_yaml(d) for d in source_dict["fields"]],
@@ -297,6 +304,6 @@ class StructDefinition(Definition):
 def _scalar_python_type(t: str) -> str:
     if "int" in t:
         return "int"
-    elif "string" in t:
+    if "string" in t:
         return "str"
     return t

@@ -28,9 +28,9 @@ def first_or_none(i: Iterable):
     return i[0] if len(i) != 0 else None
 
 
-def chunks(list: List, size):
-    for i in range(0, len(list), size):
-        yield list[i : i + size]
+def chunks(chunk_list: List, size):
+    for i in range(0, len(chunk_list), size):
+        yield chunk_list[i : i + size]
 
 
 def parse(buffer, struct):
@@ -39,5 +39,5 @@ def parse(buffer, struct):
     return list(map(struct.parse, chunks(buffer, struct_size)))
 
 
-def serialize(list, struct):
-    return b"".join(map(struct.build, list))
+def serialize(structs, struct):
+    return b"".join(map(struct.build, structs))
