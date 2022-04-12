@@ -244,7 +244,7 @@ private:
       if (abi::RegisterState::isYesOrDead(D->GPR)) {
         if (abi::RegisterState::isYesOrDead(D->VR)) {
           revng_log(Log,
-                    "Impossible to differenciate whether the return value is "
+                    "Impossible to differentiate whether the return value is "
                     "passed in a general purpose register or in vector ones. "
                     "The ABI is "
                       << model::ABI::getName(ABI).data() << ".");
@@ -315,15 +315,23 @@ private:
     if (abi::RegisterState::isYesOrDead(Result.GPR)) {
       if (abi::RegisterState::isYesOrDead(Result.VR)) {
         // Both are set - there's no way to tell which one is actually used.
-        revng_log(Log,
-                  "Impossible to differenciate which one of the two registers "
-                  "(`model::Register::"
-                    << model::Register::getName(GPRegister).data()
-                    << "` and `model::Register::"
-                    << model::Register::getName(VRegister).data()
-                    << "`) should be used: both are `YesOrDead`. The ABI is "
-                    << model::ABI::getName(ABI).data() << ".");
-        return std::nullopt;
+        if constexpr (EnforceABIConformance == true) {
+          // Pick one arbitrarily because most likely both of them are `Dead`.
+          Result.GPR = abi::RegisterState::YesOrDead;
+          Result.VR = abi::RegisterState::No;
+        } else {
+          // Report the problem and abort.
+          revng_log(Log,
+                    "Impossible to differentiate which one of the two "
+                    "registers "
+                    "(`model::Register::"
+                      << model::Register::getName(GPRegister).data()
+                      << "` and `model::Register::"
+                      << model::Register::getName(VRegister).data()
+                      << "`) should be used: both are `YesOrDead`. The ABI is "
+                      << model::ABI::getName(ABI).data() << ".");
+          return std::nullopt;
+        }
       } else {
         // Only GPR is set, ensure VR is marked as `No`.
         Result.VR = abi::RegisterState::No;
@@ -335,19 +343,26 @@ private:
         Result.GPR = abi::RegisterState::No;
         IsRequired = true;
       } else {
-        // Neither one is used. An error if one of the pair was required.
+        // Neither one is used.
         if (IsRequired) {
-          revng_log(Log,
-                    "Impossible to differenciate which one of the two "
-                    "registers "
-                    "(`model::Register::"
-                      << model::Register::getName(GPRegister).data()
-                      << "` and `model::Register::"
-                      << model::Register::getName(VRegister).data()
-                      << "`) should be used: neither is `YesOrDead`. The ABI "
-                         "is "
-                      << model::ABI::getName(ABI).data() << ".");
-          return std::nullopt;
+          if constexpr (EnforceABIConformance == true) {
+            // Pick one arbitrarily because most likely both of them are `Dead`.
+            Result.GPR = abi::RegisterState::YesOrDead;
+            Result.VR = abi::RegisterState::No;
+          } else {
+            // Report the problem and abort.
+            revng_log(Log,
+                      "Impossible to differentiate which one of the two "
+                      "registers "
+                      "(`model::Register::"
+                        << model::Register::getName(GPRegister).data()
+                        << "` and `model::Register::"
+                        << model::Register::getName(VRegister).data()
+                        << "`) should be used: neither is `YesOrDead`. The ABI "
+                           "is "
+                        << model::ABI::getName(ABI).data() << ".");
+            return std::nullopt;
+          }
         }
       }
     }
@@ -359,8 +374,9 @@ private:
   runForNonPositionBasedABIs(const StateMap &State) {
     using CC = abi::Trait<ABI>;
     if constexpr (CC::OnlyStartDoubleArgumentsFromAnEvenRegister) {
-      // Only partial deduction is possible. It can be implemented if necessary.
-      return std::nullopt;
+      // There's a possibility for more in-depth deductions taking the register
+      // alignment into consideration.
+      // TODO: Investigate this further.
     }
 
     // Separate all the registers before the "last used one" into separate
@@ -432,56 +448,103 @@ private:
     if (Result == abi::RegisterState::Invalid)
       Result = abi::RegisterState::Maybe;
 
-    if (abi::RegisterState::isYesOrDead(Result)) {
-      if (!IsAllowed) {
-        // If register is marked as "Yes" or "Dead" but is not usable, either
-        // set it to `No` if `EnforceABIConformance == true` or abort.
-        if constexpr (EnforceABIConformance == true) {
-          revng_log(Log,
-                    "Enforcing `model::Register::"
-                      << model::Register::getName(Register).data()
-                      << "` to `No` as `" << model::ABI::getName(ABI).data()
-                      << "` ABI doesn't allow it to be used.");
-          return abi::RegisterState::No;
-        } else {
+    // Fail if the register is not allowed.
+    if (!IsAllowed) {
+      if constexpr (EnforceABIConformance == true) {
+        revng_log(Log,
+                  "Enforcing `model::Register::"
+                    << model::Register::getName(Register).data()
+                    << "` to `No` as `" << model::ABI::getName(ABI).data()
+                    << "` ABI doesn't allow it to be used.");
+        return abi::RegisterState::No;
+      } else {
+        using namespace abi::RegisterState;
+        if (Result != Maybe && Result != No) {
           revng_log(Log,
                     "Aborting, `model::Register::"
                       << model::Register::getName(Register).data()
                       << "` register is used despite not being allowed by `"
                       << model::ABI::getName(ABI).data() << "` ABI.");
           return abi::RegisterState::Invalid;
+        } else {
+          return abi::RegisterState::No;
         }
-      } else {
-        // If a usable register is set, it's required by definition.
-        revng_assert(IsRequired,
-                     "Encountered an impossible state: the data structure is "
-                     "probably corrupted.");
-      }
-    } else {
-      // The input state is `No` or `Maybe` or equivalent,
-      if (!IsAllowed) {
-        // Set it to `No` if the ABI does not allow that register.
-        return abi::RegisterState::No;
-      } else if (IsRequired) {
-        // Set it to `YesOrDead` if it's required.
-        return abi::RegisterState::YesOrDead;
       }
     }
 
-    // Don't change the state.
-    return Result;
+    if (abi::RegisterState::isYesOrDead(Result)) {
+      // If a usable register is set, it's required by definition.
+      revng_assert(IsRequired,
+                   "Encountered an impossible state: the data structure is "
+                   "probably corrupted.");
+
+      // The current state looks good, preserve it.
+      return Result;
+    } else {
+      if (IsRequired) {
+        if (Result == abi::RegisterState::NoOrDead) {
+          // The register is required so it must not be marked as `No`.
+          // As such `Dead` is the only option left.
+          return abi::RegisterState::Dead;
+        }
+
+        if (Result == abi::RegisterState::Maybe) {
+          // There's no information about the register.
+          // Return the most generic acceptable option.
+          return abi::RegisterState::YesOrDead;
+        }
+
+        if constexpr (EnforceABIConformance == true) {
+          // The states are incompatible.
+          // Overwrite the result with the most generic acceptable option.
+          return abi::RegisterState::YesOrDead;
+        } else {
+          // Abort if the required register is marked as contradiction.
+          if (Result == abi::RegisterState::Contradiction) {
+            revng_log(Log,
+                      "Aborting, `model::Register::"
+                        << model::Register::getName(Register).data()
+                        << "` is set to `Contradiction`.");
+            return abi::RegisterState::Invalid;
+          }
+
+          // Abort if the required register is marked as `No`.
+          if (Result == abi::RegisterState::No) {
+            revng_log(Log,
+                      "Aborting, `model::Register::"
+                        << model::Register::getName(Register).data()
+                        << "` is set to `No` despite being required.");
+            return abi::RegisterState::Invalid;
+          }
+        }
+      } else {
+        // The current state looks good, preserve it.
+        return Result;
+      }
+    }
+
+    // Abort in case of unusual circumstances, like a new state enumerator.
+    revng_assert("This point should never be reached.");
+    return abi::RegisterState::Invalid;
   }
 };
 
-std::optional<StateMap>
-abi::applyRegisterStateDeductions(const StateMap &State,
-                                  model::ABI::Values ABI,
-                                  bool EnforceABIConformance) {
+std::optional<abi::RegisterState::Map>
+abi::tryApplyRegisterStateDeductions(const abi::RegisterState::Map &State,
+                                     model::ABI::Values ABI) {
   revng_assert(ABI != model::ABI::Invalid);
   return skippingEnumSwitch<1>(ABI, [&]<model::ABI::Values A>() {
-    if (EnforceABIConformance)
-      return DeductionImpl<A, true>::run(State);
-    else
-      return DeductionImpl<A, false>::run(State);
+    return DeductionImpl<A, false>::run(State);
+  });
+}
+
+abi::RegisterState::Map
+abi::enforceRegisterStateDeductions(const abi::RegisterState::Map &State,
+                                    model::ABI::Values ABI) {
+  revng_assert(ABI != model::ABI::Invalid);
+  return skippingEnumSwitch<1>(ABI, [&]<model::ABI::Values A>() {
+    auto Result = DeductionImpl<A, true>::run(State);
+    revng_assert(Result != std::nullopt);
+    return Result.value();
   });
 }

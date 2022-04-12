@@ -35,10 +35,8 @@ BOOST_AUTO_TEST_SUITE(PositionBasedRegisterStateDeduction);
 BOOST_AUTO_TEST_CASE(DefaultMap) {
   abi::RegisterState::Map Map(Architecture::systemz);
 
-  auto R = abi::applyRegisterStateDeductions(Map, ABI::SystemZ_s390x, true);
-  revng_check(R.has_value());
-
-  for (auto [Register, State] : R.value()) {
+  auto Result = abi::enforceRegisterStateDeductions(Map, ABI::SystemZ_s390x);
+  for (auto [Register, State] : Result) {
     revng_check(State.IsUsedForPassingArguments != Invalid);
     revng_check(!isYesOrDead(State.IsUsedForPassingArguments));
 
@@ -52,9 +50,8 @@ BOOST_AUTO_TEST_CASE(NoArguments) {
   for (auto [Register, State] : Map)
     State = { No, No };
 
-  auto R = abi::applyRegisterStateDeductions(Map, ABI::SystemZ_s390x, true);
-  revng_check(R.has_value());
-  for (const auto [Register, State] : R.value()) {
+  auto Result = abi::enforceRegisterStateDeductions(Map, ABI::SystemZ_s390x);
+  for (const auto [Register, State] : Result) {
     revng_check(State.IsUsedForPassingArguments == No);
     revng_check(State.IsUsedForReturningValues == No);
   }
@@ -72,12 +69,11 @@ BOOST_AUTO_TEST_CASE(OneGPRegister) {
   Map[GPRArguments[0]].IsUsedForPassingArguments = Yes;
   Map[GPRRetValues[0]].IsUsedForReturningValues = Yes;
 
-  auto R = abi::applyRegisterStateDeductions(Map, ABI::SystemZ_s390x, true);
-  revng_check(R.has_value());
-  revng_check(R->at(GPRArguments[0]).IsUsedForPassingArguments == Yes);
-  revng_check(R->at(GPRRetValues[0]).IsUsedForReturningValues == Yes);
-  revng_check(R->at(VRArguments[0]).IsUsedForPassingArguments == No);
-  revng_check(R->at(VRRetValues[0]).IsUsedForReturningValues == No);
+  auto Result = abi::enforceRegisterStateDeductions(Map, ABI::SystemZ_s390x);
+  revng_check(Result.at(GPRArguments[0]).IsUsedForPassingArguments == Yes);
+  revng_check(Result.at(GPRRetValues[0]).IsUsedForReturningValues == Yes);
+  revng_check(Result.at(VRArguments[0]).IsUsedForPassingArguments == No);
+  revng_check(Result.at(VRRetValues[0]).IsUsedForReturningValues == No);
 }
 
 BOOST_AUTO_TEST_CASE(OneGPRegisterAndOneVRegisterWithVReturnValue) {
@@ -95,20 +91,19 @@ BOOST_AUTO_TEST_CASE(OneGPRegisterAndOneVRegisterWithVReturnValue) {
   if (VRRetValues.size() > 1)
     Map[VRRetValues[1]].IsUsedForReturningValues = Yes;
 
-  auto R = abi::applyRegisterStateDeductions(Map, ABI::SystemV_MIPS_o32, true);
-  revng_check(R.has_value());
-  revng_check(R->at(GPRArguments[0]).IsUsedForPassingArguments == Yes);
-  revng_check(R->at(VRArguments[0]).IsUsedForPassingArguments == No);
-  revng_check(R->at(GPRRetValues[0]).IsUsedForReturningValues == No);
-  revng_check(R->at(VRRetValues[0]).IsUsedForReturningValues == YesOrDead);
+  auto Result = abi::enforceRegisterStateDeductions(Map, ABI::SystemV_MIPS_o32);
+  revng_check(Result.at(GPRArguments[0]).IsUsedForPassingArguments == Yes);
+  revng_check(Result.at(VRArguments[0]).IsUsedForPassingArguments == No);
+  revng_check(Result.at(GPRRetValues[0]).IsUsedForReturningValues == No);
+  revng_check(Result.at(VRRetValues[0]).IsUsedForReturningValues == YesOrDead);
   if (GPRArguments.size() > 1)
-    revng_check(R->at(GPRArguments[1]).IsUsedForPassingArguments == No);
+    revng_check(Result.at(GPRArguments[1]).IsUsedForPassingArguments == No);
   if (VRArguments.size() > 1)
-    revng_check(R->at(VRArguments[1]).IsUsedForPassingArguments == Yes);
+    revng_check(Result.at(VRArguments[1]).IsUsedForPassingArguments == Yes);
   if (GPRRetValues.size() > 1)
-    revng_check(R->at(GPRRetValues[1]).IsUsedForReturningValues == No);
+    revng_check(Result.at(GPRRetValues[1]).IsUsedForReturningValues == No);
   if (VRRetValues.size() > 1)
-    revng_check(R->at(VRRetValues[1]).IsUsedForReturningValues == Yes);
+    revng_check(Result.at(VRRetValues[1]).IsUsedForReturningValues == Yes);
 }
 
 BOOST_AUTO_TEST_CASE(DeduceFirstArgumentToBeGPR) {
@@ -129,22 +124,21 @@ BOOST_AUTO_TEST_CASE(DeduceFirstArgumentToBeGPR) {
 
   constexpr static auto YoD = YesOrDead;
 
-  auto R = abi::applyRegisterStateDeductions(Map, ABI::SystemZ_s390x, true);
-  revng_check(R.has_value());
-  revng_check(R->at(GPRArguments[0]).IsUsedForPassingArguments == YoD);
+  auto Result = abi::enforceRegisterStateDeductions(Map, ABI::SystemZ_s390x);
+  revng_check(Result.at(GPRArguments[0]).IsUsedForPassingArguments == YoD);
   if (GPRRetValues.size() > 1)
-    revng_check(R->at(GPRRetValues[0]).IsUsedForReturningValues == No);
-  revng_check(R->at(VRArguments[0]).IsUsedForPassingArguments == No);
+    revng_check(Result.at(GPRRetValues[0]).IsUsedForReturningValues == No);
+  revng_check(Result.at(VRArguments[0]).IsUsedForPassingArguments == No);
   if (VRRetValues.size() > 1)
-    revng_check(R->at(VRRetValues[0]).IsUsedForReturningValues == YoD);
+    revng_check(Result.at(VRRetValues[0]).IsUsedForReturningValues == YoD);
   if (GPRArguments.size() > 1)
-    revng_check(R->at(GPRArguments[1]).IsUsedForPassingArguments == No);
+    revng_check(Result.at(GPRArguments[1]).IsUsedForPassingArguments == No);
   if (VRArguments.size() > 1)
-    revng_check(R->at(VRArguments[1]).IsUsedForPassingArguments == Yes);
+    revng_check(Result.at(VRArguments[1]).IsUsedForPassingArguments == Yes);
   if (GPRRetValues.size() > 1)
-    revng_check(R->at(GPRRetValues[1]).IsUsedForReturningValues == No);
+    revng_check(Result.at(GPRRetValues[1]).IsUsedForReturningValues == No);
   if (VRRetValues.size() > 1)
-    revng_check(R->at(VRRetValues[1]).IsUsedForReturningValues == Yes);
+    revng_check(Result.at(VRRetValues[1]).IsUsedForReturningValues == Yes);
 }
 
 BOOST_AUTO_TEST_CASE(DisambiguationFail) {
@@ -157,8 +151,8 @@ BOOST_AUTO_TEST_CASE(DisambiguationFail) {
   Map[GPRArguments[0]].IsUsedForPassingArguments = Yes;
   Map[VRArguments[0]].IsUsedForPassingArguments = Yes;
 
-  auto R = abi::applyRegisterStateDeductions(Map, ABI::SystemZ_s390x, true);
-  revng_check(!R.has_value());
+  auto Result = abi::tryApplyRegisterStateDeductions(Map, ABI::SystemZ_s390x);
+  revng_check(!Result.has_value());
 }
 
 BOOST_AUTO_TEST_CASE(UndetectableFail) {
@@ -172,8 +166,26 @@ BOOST_AUTO_TEST_CASE(UndetectableFail) {
   Map[VRArguments[0]].IsUsedForPassingArguments = Maybe;
   Map[VRArguments[1]].IsUsedForPassingArguments = Yes;
 
-  auto R = abi::applyRegisterStateDeductions(Map, ABI::SystemZ_s390x, true);
-  revng_check(!R.has_value());
+  auto Result = abi::tryApplyRegisterStateDeductions(Map, ABI::SystemZ_s390x);
+  revng_check(!Result.has_value());
+}
+
+BOOST_AUTO_TEST_CASE(UndetectableCornerCase) {
+  abi::RegisterState::Map Map(Architecture::systemz);
+
+  using AT = abi::Trait<ABI::SystemZ_s390x>;
+  constexpr auto GPRArguments = AT::GeneralPurposeArgumentRegisters;
+  constexpr auto VRArguments = AT::VectorArgumentRegisters;
+
+  Map[GPRArguments[0]].IsUsedForPassingArguments = Maybe;
+  Map[VRArguments[0]].IsUsedForPassingArguments = Maybe;
+  Map[VRArguments[1]].IsUsedForPassingArguments = Yes;
+
+  constexpr static auto YoD = YesOrDead;
+
+  auto Result = abi::enforceRegisterStateDeductions(Map, ABI::SystemZ_s390x);
+  revng_check(Result.at(GPRArguments[0]).IsUsedForPassingArguments == YoD);
+  revng_check(Result.at(VRArguments[0]).IsUsedForPassingArguments == No);
 }
 
 BOOST_AUTO_TEST_SUITE_END();
@@ -183,10 +195,8 @@ BOOST_AUTO_TEST_SUITE(NonPositionBasedRegisterStateDeduction);
 BOOST_AUTO_TEST_CASE(DefaultMap) {
   abi::RegisterState::Map Map(Architecture::x86_64);
 
-  auto R = abi::applyRegisterStateDeductions(Map, ABI::SystemV_x86_64, true);
-  revng_check(R.has_value());
-
-  for (auto [Register, State] : R.value()) {
+  auto Result = abi::enforceRegisterStateDeductions(Map, ABI::SystemV_x86_64);
+  for (auto [Register, State] : Result) {
     revng_check(State.IsUsedForPassingArguments != Invalid);
     revng_check(!isYesOrDead(State.IsUsedForPassingArguments));
 
@@ -200,9 +210,8 @@ BOOST_AUTO_TEST_CASE(NoArguments) {
   for (auto [Register, State] : Map)
     State = { No, No };
 
-  auto R = abi::applyRegisterStateDeductions(Map, ABI::SystemV_x86_64, true);
-  revng_check(R.has_value());
-  for (auto [Register, State] : R.value()) {
+  auto Result = abi::enforceRegisterStateDeductions(Map, ABI::SystemV_x86_64);
+  for (auto [Register, State] : Result) {
     revng_check(State.IsUsedForPassingArguments == No);
     revng_check(State.IsUsedForReturningValues == No);
   }
@@ -220,12 +229,11 @@ BOOST_AUTO_TEST_CASE(OneRegister) {
   Map[Arguments[0]].IsUsedForPassingArguments = Yes;
   Map[RetValues[0]].IsUsedForReturningValues = Yes;
 
-  auto R = abi::applyRegisterStateDeductions(Map, ABI::SystemV_x86_64, true);
-  revng_check(R.has_value());
-  revng_check(R->at(Arguments[0]).IsUsedForPassingArguments == Yes);
-  revng_check(R->at(RetValues[0]).IsUsedForReturningValues == Yes);
-  revng_check(R->at(Arguments[1]).IsUsedForPassingArguments == No);
-  revng_check(R->at(RetValues[1]).IsUsedForReturningValues == No);
+  auto Result = abi::enforceRegisterStateDeductions(Map, ABI::SystemV_x86_64);
+  revng_check(Result.at(Arguments[0]).IsUsedForPassingArguments == Yes);
+  revng_check(Result.at(RetValues[0]).IsUsedForReturningValues == Yes);
+  revng_check(Result.at(Arguments[1]).IsUsedForPassingArguments == No);
+  revng_check(Result.at(RetValues[1]).IsUsedForReturningValues == No);
 }
 
 BOOST_AUTO_TEST_CASE(TwoRegisters) {
@@ -240,20 +248,19 @@ BOOST_AUTO_TEST_CASE(TwoRegisters) {
   Map[Arguments[1]].IsUsedForPassingArguments = Yes;
   Map[RetValues[1]].IsUsedForReturningValues = Yes;
 
-  auto R = abi::applyRegisterStateDeductions(Map, ABI::SystemV_x86_64, true);
-  revng_check(R.has_value());
+  auto Result = abi::enforceRegisterStateDeductions(Map, ABI::SystemV_x86_64);
   for (size_t Index = 0; Index < 2; ++Index) {
-    auto MaybeA = R->at(Arguments[Index]).IsUsedForPassingArguments;
+    auto MaybeA = Result.at(Arguments[Index]).IsUsedForPassingArguments;
     revng_check(MaybeA != Invalid);
     revng_check(isYesOrDead(MaybeA));
 
-    auto MaybeRV = R->at(RetValues[Index]).IsUsedForReturningValues;
+    auto MaybeRV = Result.at(RetValues[Index]).IsUsedForReturningValues;
     revng_check(MaybeRV != Invalid);
     revng_check(isYesOrDead(MaybeRV));
   }
-  revng_check(R->at(Arguments[3]).IsUsedForPassingArguments == No);
+  revng_check(Result.at(Arguments[3]).IsUsedForPassingArguments == No);
   if constexpr (RetValues.size() > 2)
-    revng_check(R->at(RetValues[3]).IsUsedForReturningValues == No);
+    revng_check(Result.at(RetValues[3]).IsUsedForReturningValues == No);
 }
 
 BOOST_AUTO_TEST_CASE(AllRegisters) {
@@ -268,8 +275,8 @@ BOOST_AUTO_TEST_CASE(AllRegisters) {
   Map[Arguments.back()].IsUsedForPassingArguments = Yes;
   Map[RetValues.back()].IsUsedForReturningValues = Yes;
 
-  auto R = abi::applyRegisterStateDeductions(Map, ABI::SystemV_x86_64, true);
-  for (auto [Register, State] : R.value()) {
+  auto Result = abi::enforceRegisterStateDeductions(Map, ABI::SystemV_x86_64);
+  for (auto [Register, State] : Result) {
     if (llvm::is_contained(Arguments, Register)) {
       auto MaybeA = State.IsUsedForPassingArguments;
       revng_check(MaybeA != Invalid);
@@ -294,9 +301,8 @@ BOOST_AUTO_TEST_CASE(ForbiddenRegister) {
   static constexpr auto Register = Register::getLast<Architecture::x86_64>();
   Map[Register].IsUsedForPassingArguments = Yes;
 
-  auto R = abi::applyRegisterStateDeductions(Map, ABI::SystemV_x86_64, true);
-  revng_check(R.has_value());
-  revng_check(R->at(Register).IsUsedForPassingArguments == No);
+  auto Result = abi::enforceRegisterStateDeductions(Map, ABI::SystemV_x86_64);
+  revng_check(Result.at(Register).IsUsedForPassingArguments == No);
 }
 
 BOOST_AUTO_TEST_CASE(ForbiddenRegisterFail) {
@@ -304,8 +310,44 @@ BOOST_AUTO_TEST_CASE(ForbiddenRegisterFail) {
 
   Map[model::Register::fs_x86_64].IsUsedForPassingArguments = Yes;
 
-  auto R = abi::applyRegisterStateDeductions(Map, ABI::SystemV_x86_64, false);
-  revng_check(!R.has_value());
+  auto Result = abi::tryApplyRegisterStateDeductions(Map, ABI::SystemV_x86_64);
+  revng_check(!Result.has_value());
+}
+
+using RegisterState = abi::RegisterState::Values;
+static bool checkDeductionHelper(RegisterState Input,
+                                 std::optional<RegisterState> ExpectedOutput,
+                                 RegisterState ExpectedEnforcedOutput) {
+  abi::RegisterState::Map Map(Architecture::x86_64);
+  Map[model::Register::rdi_x86_64].IsUsedForPassingArguments = Input;
+  Map[model::Register::rsi_x86_64].IsUsedForPassingArguments = Yes;
+
+  auto Tried = abi::tryApplyRegisterStateDeductions(Map, ABI::SystemV_x86_64);
+  if (!Tried.has_value()) {
+    if (ExpectedOutput.has_value())
+      return false;
+  } else {
+    const auto &RDIState = Tried->at(model::Register::rdi_x86_64);
+    if (*ExpectedOutput != RDIState.IsUsedForPassingArguments)
+      return false;
+  }
+
+  auto Enforced = abi::enforceRegisterStateDeductions(Map, ABI::SystemV_x86_64);
+  const auto &RDIState = Enforced.at(model::Register::rdi_x86_64);
+  if (ExpectedEnforcedOutput != RDIState.IsUsedForPassingArguments)
+    return false;
+
+  return true;
+}
+
+BOOST_AUTO_TEST_CASE(SingleNonPositionBasedDeductionTable) {
+  revng_check(checkDeductionHelper(No, std::nullopt, YesOrDead));
+  revng_check(checkDeductionHelper(NoOrDead, Dead, Dead));
+  revng_check(checkDeductionHelper(Dead, Dead, Dead));
+  revng_check(checkDeductionHelper(Yes, Yes, Yes));
+  revng_check(checkDeductionHelper(YesOrDead, YesOrDead, YesOrDead));
+  revng_check(checkDeductionHelper(Maybe, YesOrDead, YesOrDead));
+  revng_check(checkDeductionHelper(Contradiction, std::nullopt, YesOrDead));
 }
 
 BOOST_AUTO_TEST_SUITE_END();
