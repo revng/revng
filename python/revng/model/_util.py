@@ -18,7 +18,7 @@ def force_constructor_kwarg(base_class: type, kwarg_name, kwarg_value):
     """
     assert isinstance(base_class, type)
 
-    original_init = base_class.__init__
+    original_init = base_class.__init__  # type: ignore
 
     def init_forcing_value(self, *args, **kwargs):
         if kwarg_name not in kwargs:
@@ -29,4 +29,4 @@ def force_constructor_kwarg(base_class: type, kwarg_name, kwarg_value):
 
         original_init(self, *args, **kwargs)
 
-    base_class.__init__ = init_forcing_value
+    base_class.__init__ = init_forcing_value  # type: ignore

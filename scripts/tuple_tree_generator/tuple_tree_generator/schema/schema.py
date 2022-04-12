@@ -2,9 +2,10 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import graphlib
 from collections import defaultdict
 from typing import Dict, List
+
+from graphlib import TopologicalSorter
 
 from .definition import Definition
 from .enum import EnumDefinition, EnumMember
@@ -42,7 +43,7 @@ class Schema:
         return None
 
     def struct_definitions(self) -> List[StructDefinition]:
-        toposorter = graphlib.TopologicalSorter()
+        toposorter: TopologicalSorter = TopologicalSorter()
         for struct in self.definitions.values():
             if not isinstance(struct, StructDefinition):
                 continue

@@ -28,7 +28,7 @@ import networkx
 try:
     import numpy as np
 except ImportError:
-    np = None
+    np = None  # type: ignore
 
     def matrix_multiplication(a, b):
         zip_b = list(zip(*b))
@@ -209,7 +209,7 @@ def check_transfer_functions(
             if lte(s(a), s(b)) and not lte(d(a), d(b)):
                 result = False
                 log(f"The transfer function {name} is not monotone:\n")
-                log(f"  {a[0].name} -> {a[1].name}\n  {b[0].name} -> {b[1].name}\n")
+                log(f"  {a[0].name} -> {a[1].name}\n  {b[0].name} -> {b[1].name}\n")  # type: ignore
 
     return result
 

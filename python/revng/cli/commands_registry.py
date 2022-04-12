@@ -5,6 +5,7 @@
 import argparse
 import dataclasses
 import sys
+from typing import Tuple
 
 from .support import run, Options
 
@@ -86,8 +87,7 @@ class CommandsRegistry:
                 index = int(name[len(COMMAND_ARG_PREFIX) :])
                 command.append((index, value))
 
-        command = [value for index, value in sorted(command, key=lambda pair: pair[0])]
-        command = tuple(command)
+        command_sorted = tuple((value for _, value in sorted(command, key=lambda pair: pair[0])))
 
         options = dataclasses.replace(options)
         options.parsed_args = args
@@ -130,7 +130,7 @@ class CommandsRegistry:
             sys.stdout.write("rev.ng version @VERSION@\n")
             return 0
 
-        return self.commands[command].run(options)
+        return self.commands[command_sorted].run(options)
 
     def define_namespace(self, namespace):
         self._get_namespace_parser(namespace)
@@ -138,7 +138,7 @@ class CommandsRegistry:
     def _parse_command(self, command: str):
         parts = command.split("-")
         total = len(parts)
-        current_namespace = ()
+        current_namespace: Tuple[str, ...] = ()
 
         start_index = 0
         found = True
