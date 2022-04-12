@@ -408,21 +408,6 @@ void RestructureCFG::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
 }
 
-inline void
-accumulateDuplicates(RegionCFG<llvm::BasicBlock *> &Region,
-                     std::map<const llvm::BasicBlock *, size_t> &NDuplicates) {
-  // Compute the NDuplicates, which will be used later.
-  for (BasicBlockNodeBB *BBNode : Region.nodes()) {
-    if (BBNode->isCode()) {
-      auto *BB = BBNode->getOriginalNode();
-      ++NDuplicates[BB];
-    } else if (BBNode->isCollapsed()) {
-      auto *BodyGraph = BBNode->getCollapsedCFG();
-      accumulateDuplicates(*BodyGraph, NDuplicates);
-    }
-  }
-}
-
 static void LogMetaRegions(const MetaRegionBBPtrVect &MetaRegions,
                            const std::string &HeaderMsg) {
   if (CombLogger.isEnabled()) {
@@ -477,7 +462,6 @@ static void LogMetaRegions(const MetaRegionBBVect &MetaRegions,
 
 bool RestructureCFG::runOnFunction(Function &F) {
 
-  NDuplicates.clear();
   AST = ASTTree();
 
   DuplicationCounter = 0;
@@ -1118,8 +1102,6 @@ bool RestructureCFG::runOnFunction(Function &F) {
   // Invoke the AST generation for the root region.
   std::map<RegionCFG<llvm::BasicBlock *> *, ASTTree> CollapsedMap;
   generateAst(RootCFG, AST, CollapsedMap);
-
-  accumulateDuplicates(RootCFG, NDuplicates);
 
   // Scorporated this part which was previously inside the `generateAst` to
   // avoid having it run twice or more (it was run inside the recursive step
