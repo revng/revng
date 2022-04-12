@@ -4,6 +4,7 @@
 
 import re
 import yaml
+from typing import Any, Dict
 
 from ..schema import Schema
 from ..schema import EnumDefinition
@@ -36,7 +37,7 @@ class JSONSchemaGenerator:
                 },
             },
         }
-        definitions = jsonschema["definitions"]
+        definitions: Dict[str, Any] = jsonschema["definitions"]  # type: ignore
 
         for t in self.separate_string_types:
             definitions[t] = {"type": "string"}

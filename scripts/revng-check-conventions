@@ -248,6 +248,17 @@ function run_flake8() {
     flake8 --config "$SCRIPT_PATH/flake8-config" "${PYTHON_FILES[@]}"
 }
 
+# Run mypy
+function run_mypy() {
+    # mypy will complain that there are multiple __main__ files
+    # in the python/scripts directory, manually exclude them
+    # Will be fixed by https://github.com/python/mypy/pull/12543/files
+    readarray -t MYPY_FILES < <(printf '%s\n' "${PYTHON_FILES[@]}" | grep -vF 'python/scripts')
+    if [[ ${#MYPY_FILES[@]} -eq 0 ]]; then return; fi
+    mypy --scripts-are-modules --ignore-missing-imports --no-error-summary \
+         "${MYPY_FILES[@]}"
+}
+
 # Run cmake-format
 function run_cmake_format() {
     if [[ ${#CMAKE_FILES[@]} -eq 0 ]]; then return; fi
@@ -404,6 +415,7 @@ EXIT_CODE=0
 run_clang_format || EXIT_CODE=$?
 run_black || EXIT_CODE=$?
 run_flake8 || EXIT_CODE=$?
+run_mypy || EXIT_CODE=$?
 run_cmake_format || EXIT_CODE=$?
 run_bash_check || EXIT_CODE=$?
 run_license_check || EXIT_CODE=$?

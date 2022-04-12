@@ -19,7 +19,7 @@ from elftools.elf.elffile import ELFFile
 try:
     from shutil import which
 except ImportError:
-    from backports.shutil_which import which
+    from backports.shutil_which import which  # type: ignore
 
 
 @dataclass

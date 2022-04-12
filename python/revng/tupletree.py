@@ -14,7 +14,7 @@ try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
     sys.stderr.write("Warning: using the slow pure-python YAML loader and dumper!\n")
-    from yaml import Loader, Dumper
+    from yaml import Loader, Dumper  # type: ignore
 
 no_default = object()
 
