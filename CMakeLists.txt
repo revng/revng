@@ -171,7 +171,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
       revng --prefix=${CMAKE_BINARY_DIR} llvm pipeline
       "${OUTFOLDER}/promoted_stack_pointer.bc"
       "${OUTFOLDER}/optimized_and_sliced_stack.bc" PromoteStackPointer
-      SegregateStackAccesses "*:StackAccessesSegregated")
+      LateOptimizeForDecompilation "*:StackAccessesSegregated")
   set_property(
     TEST optimize_and_slice_stack_${TARGET_NAME}
     APPEND
@@ -185,27 +185,6 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
     APPEND
     PROPERTY FIXTURES_SETUP optimize_and_slice_stack_fixture_${TARGET_NAME})
 
-  # prepare enforced .bc for decompilation
-  add_test(
-    NAME prepare_${TARGET_NAME}
-    COMMAND
-      revng --prefix=${CMAKE_BINARY_DIR} opt -cleanup-stack-size-markers -dce
-      -sroa -instcombine -sroa -simplifycfg -restore-extractvalues
-      -strip-dead-prototypes ${OUTFOLDER}/optimized_and_sliced_stack.bc -o
-      ${OUTFOLDER}/prepared.bc)
-  set_property(
-    TEST prepare_${TARGET_NAME}
-    APPEND
-    PROPERTY DEPENDS optimize_and_slice_stack_${TARGET_NAME})
-  set_property(
-    TEST prepare_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_REQUIRED optimize_and_slice_stack_fixture_${TARGET_NAME})
-  set_property(
-    TEST prepare_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_SETUP PrepareDecompilation_fixture_${TARGET_NAME})
-
   if("${CATEGORY}" STREQUAL "tests_analysis_PromoteStackPointer"
      AND "${CONFIGURATION}" STREQUAL "dynamic_native")
     get_filename_component(BASENAME "${INPUT_FILE}" NAME_WE)
@@ -213,30 +192,32 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
       NAME psp_${TARGET_NAME}
       COMMAND
         sh -c
-        "revng opt -S ${OUTFOLDER}/prepared.bc | revng model dump | revng model compare - ${CMAKE_SOURCE_DIR}/tests/Analysis/PromoteStackPointer/${BASENAME}.yml"
+        "revng opt -S ${OUTFOLDER}/optimized_and_sliced_stack.bc | revng model dump | revng model compare - ${CMAKE_SOURCE_DIR}/tests/Analysis/PromoteStackPointer/${BASENAME}.yml"
     )
     set_property(
       TEST psp_${TARGET_NAME}
       APPEND
-      PROPERTY DEPENDS prepare_${TARGET_NAME})
+      PROPERTY DEPENDS optimize_and_slice_stack_${TARGET_NAME})
     set_property(
       TEST psp_${TARGET_NAME}
       APPEND
-      PROPERTY FIXTURES_REQUIRED PrepareDecompilation_fixture_${TARGET_NAME})
+      PROPERTY FIXTURES_REQUIRED
+               optimize_and_slice_stack_fixture_${TARGET_NAME})
   endif()
 
   # test VMA
-  add_test(NAME vma_${TARGET_NAME}
-           COMMAND revng --prefix=${CMAKE_BINARY_DIR} opt -vma
-                   -vma-mincut-iter=50 ${OUTFOLDER}/prepared.bc -o /dev/null)
+  add_test(
+    NAME vma_${TARGET_NAME}
+    COMMAND revng --prefix=${CMAKE_BINARY_DIR} opt -vma -vma-mincut-iter=50
+            ${OUTFOLDER}/optimized_and_sliced_stack.bc -o /dev/null)
   set_property(
     TEST vma_${TARGET_NAME}
     APPEND
-    PROPERTY DEPENDS prepare_${TARGET_NAME})
+    PROPERTY DEPENDS optimize_and_slice_stack_${TARGET_NAME})
   set_property(
     TEST vma_${TARGET_NAME}
     APPEND
-    PROPERTY FIXTURES_REQUIRED PrepareDecompilation_fixture_${TARGET_NAME})
+    PROPERTY FIXTURES_REQUIRED optimize_and_slice_stack_fixture_${TARGET_NAME})
   set_property(
     TEST vma_${TARGET_NAME}
     APPEND
@@ -248,15 +229,16 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
     COMMAND
       revng --prefix=${CMAKE_BINARY_DIR} opt -dla -make-model-gep -early-cse
       -dce -exit-ssa -twoscomplement-normalization -add-assignment-markers
-      ${OUTFOLDER}/prepared.bc -o ${OUTFOLDER}/canonicalized.bc)
+      ${OUTFOLDER}/optimized_and_sliced_stack.bc -o
+      ${OUTFOLDER}/canonicalized.bc)
   set_property(
     TEST ir_canonicalization_${TARGET_NAME}
     APPEND
-    PROPERTY DEPENDS prepare_${TARGET_NAME})
+    PROPERTY DEPENDS optimize_and_slice_stack_${TARGET_NAME})
   set_property(
     TEST ir_canonicalization_${TARGET_NAME}
     APPEND
-    PROPERTY FIXTURES_REQUIRED PrepareDecompilation_fixture_${TARGET_NAME})
+    PROPERTY FIXTURES_REQUIRED optimize_and_slice_stack_fixture_${TARGET_NAME})
   set_property(
     TEST ir_canonicalization_${TARGET_NAME}
     APPEND
@@ -278,7 +260,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
   set_property(
     TEST model_to_header_${TARGET_NAME}
     APPEND
-    PROPERTY DEPENDS prepare_${TARGET_NAME})
+    PROPERTY DEPENDS optimize_and_slice_stack_${TARGET_NAME})
   set_property(
     TEST model_to_header_${TARGET_NAME}
     APPEND
@@ -314,7 +296,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
   set_property(
     TEST helpers_to_header_${TARGET_NAME}
     APPEND
-    PROPERTY DEPENDS prepare_${TARGET_NAME})
+    PROPERTY DEPENDS optimize_and_slice_stack_${TARGET_NAME})
   set_property(
     TEST helpers_to_header_${TARGET_NAME}
     APPEND
