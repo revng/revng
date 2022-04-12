@@ -259,6 +259,17 @@ function run_mypy() {
          "${MYPY_FILES[@]}"
 }
 
+# Run isort
+function run_isort() {
+    if [[ ${#PYTHON_FILES[@]} -eq 0 ]]; then return; fi
+    if [[ "$FORCE_FORMAT" -ne 0 ]]; then
+        isort --settings-file "$SCRIPT_PATH/isort.cfg" "${PYTHON_FILES[@]}"
+    else
+        isort --settings-file "$SCRIPT_PATH/isort.cfg" --diff "${PYTHON_FILES[@]}"
+    fi
+}
+
+
 # Run cmake-format
 function run_cmake_format() {
     if [[ ${#CMAKE_FILES[@]} -eq 0 ]]; then return; fi
@@ -414,6 +425,7 @@ EXIT_CODE=0
 
 run_clang_format || EXIT_CODE=$?
 run_black || EXIT_CODE=$?
+run_isort || EXIT_CODE=$?
 run_flake8 || EXIT_CODE=$?
 run_mypy || EXIT_CODE=$?
 run_cmake_format || EXIT_CODE=$?

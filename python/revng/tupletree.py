@@ -11,10 +11,11 @@ from typing import Dict, Generic, Type, TypeVar, get_args, get_origin, get_type_
 import yaml
 
 try:
-    from yaml import CLoader as Loader, CDumper as Dumper
+    from yaml import CDumper as Dumper
+    from yaml import CLoader as Loader
 except ImportError:
     sys.stderr.write("Warning: using the slow pure-python YAML loader and dumper!\n")
-    from yaml import Loader, Dumper  # type: ignore
+    from yaml import Dumper, Loader  # type: ignore
 
 no_default = object()
 

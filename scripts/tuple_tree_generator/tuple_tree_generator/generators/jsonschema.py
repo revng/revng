@@ -3,17 +3,18 @@
 #
 
 import re
-import yaml
 from typing import Any, Dict
 
-from ..schema import Schema
-from ..schema import EnumDefinition
+import yaml
+
 from ..schema import (
+    EnumDefinition,
+    ReferenceStructField,
+    Schema,
+    SequenceStructField,
+    SimpleStructField,
     StructDefinition,
     StructField,
-    SimpleStructField,
-    SequenceStructField,
-    ReferenceStructField,
 )
 
 int_re = re.compile(r"(u)?int(8|16|32|64)_t")

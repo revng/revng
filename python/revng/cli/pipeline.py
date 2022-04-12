@@ -2,8 +2,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-from .support import build_command_with_loads, run, collect_files, interleave
-from .commands_registry import Command, commands_registry, Options
+from .commands_registry import Command, Options, commands_registry
+from .support import build_command_with_loads, collect_files, interleave, run
 
 
 class PipelineCommand(Command):

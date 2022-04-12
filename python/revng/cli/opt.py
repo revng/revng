@@ -2,8 +2,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+from .commands_registry import Command, Options, commands_registry
 from .support import build_command_with_loads, run
-from .commands_registry import Command, commands_registry, Options
 
 
 class IROptCommand(Command):

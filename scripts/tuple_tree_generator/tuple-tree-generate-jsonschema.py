@@ -4,11 +4,11 @@
 #
 
 import argparse
-import yaml
 from pathlib import Path
 
-from tuple_tree_generator import Schema
-from tuple_tree_generator import generate_jsonschema
+from tuple_tree_generator import Schema, generate_jsonschema
+
+import yaml
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("schema", help="YAML schema")

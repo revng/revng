@@ -11,16 +11,11 @@ import struct
 from copy import copy
 
 from elftools.elf.constants import P_FLAGS
-from elftools.elf.enums import (
-    ENUM_RELOC_TYPE_ARM,
-    ENUM_RELOC_TYPE_i386,
-    ENUM_RELOC_TYPE_x64,
-)
+from elftools.elf.enums import ENUM_RELOC_TYPE_ARM, ENUM_RELOC_TYPE_i386, ENUM_RELOC_TYPE_x64
 
-from .parsed_elf import ParsedElf
-from .util import set_executable, file_size
-from .util import serialize
 from .log import log
+from .parsed_elf import ParsedElf
+from .util import file_size, serialize, set_executable
 
 
 def rebuild_r_info(relocation, is64):

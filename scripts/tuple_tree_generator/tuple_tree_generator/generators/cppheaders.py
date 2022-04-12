@@ -6,11 +6,8 @@ import graphlib
 from collections import defaultdict
 from typing import Dict, Optional
 
+from ..schema import EnumDefinition, Schema, SequenceStructField, StructDefinition
 from .jinja_utils import environment
-from ..schema import Schema
-from ..schema import StructDefinition
-from ..schema import EnumDefinition
-from ..schema import SequenceStructField
 
 enum_template = environment.get_template("enum.h.tpl")
 struct_template = environment.get_template("struct.h.tpl")

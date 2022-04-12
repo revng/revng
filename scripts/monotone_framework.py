@@ -14,11 +14,12 @@
 #
 # This script works and should keep working on Python 3.6 .
 
+import argparse
+
 # Standard imports
 import sys
-import argparse
-from itertools import product
 from collections import defaultdict
+from itertools import product
 from typing import List, Mapping, Tuple
 
 # networkx

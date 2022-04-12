@@ -2,13 +2,12 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import sys
-import os
 import glob
+import os
+import shlex
 import signal
 import subprocess
-import shlex
-
+import sys
 from dataclasses import dataclass
 from itertools import chain
 from typing import Any, List, Union

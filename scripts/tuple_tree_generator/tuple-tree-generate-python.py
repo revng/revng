@@ -5,11 +5,11 @@
 
 import argparse
 import sys
-import yaml
 from pathlib import Path
 
-from tuple_tree_generator import Schema
-from tuple_tree_generator import generate_python
+from tuple_tree_generator import Schema, generate_python
+
+import yaml
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("schema", help="YAML schema")
