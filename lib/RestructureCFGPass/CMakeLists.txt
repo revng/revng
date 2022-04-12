@@ -9,6 +9,7 @@ revng_add_analyses_library(
   ASTTree.cpp
   BasicBlockNode.cpp
   ExprNode.cpp
+  LoadGHAST.cpp
   MetaRegion.cpp
   RegionCFGTree.cpp
   RestructureCFG.cpp)

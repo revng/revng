@@ -25,6 +25,7 @@
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/BasicBlockNodeImpl.h"
 #include "revng-c/RestructureCFGPass/GenerateAst.h"
+#include "revng-c/RestructureCFGPass/LoadGHAST.h"
 #include "revng-c/RestructureCFGPass/MetaRegionBB.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTreeBB.h"
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
@@ -406,6 +407,7 @@ static cl::opt<std::string> MetricsOutputPath("restructure-metrics-output-dir",
 
 void RestructureCFG::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
+  AU.addRequired<LoadGHASTWrapperPass>();
 }
 
 static void LogMetaRegions(const MetaRegionBBPtrVect &MetaRegions,
@@ -462,7 +464,7 @@ static void LogMetaRegions(const MetaRegionBBVect &MetaRegions,
 
 bool RestructureCFG::runOnFunction(Function &F) {
 
-  AST = ASTTree();
+  ASTTree &AST = getAnalysis<LoadGHASTWrapperPass>().getGHAST(F);
 
   DuplicationCounter = 0;
   UntangleTentativeCounter = 0;

@@ -6,7 +6,7 @@
 
 #include "revng/Support/FunctionTags.h"
 
-#include "revng-c/RestructureCFGPass/RestructureCFG.h"
+#include "revng-c/RestructureCFGPass/LoadGHAST.h"
 #include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
 
 #include "BeautifyGHAST.h"
@@ -18,7 +18,7 @@ struct BeautifyGHASTPass : public llvm::FunctionPass {
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesAll();
-    AU.addRequired<RestructureCFG>();
+    AU.addRequired<LoadGHASTWrapperPass>();
   }
 
   bool runOnFunction(llvm::Function &F) override;
@@ -46,10 +46,8 @@ bool BeautifyGHASTPass::runOnFunction(llvm::Function &F) {
     }
   }
 
-  // Get the Abstract Syntax Tree of the restructured code.
-  auto &RestructureCFGAnalysis = getAnalysis<RestructureCFG>();
-  ASTTree &GHAST = RestructureCFGAnalysis.getAST();
-  beautifyAST(F, GHAST);
+  // Get and beautify the Abstract Syntax Tree
+  beautifyAST(F, getAnalysis<LoadGHASTWrapperPass>().getGHAST(F));
 
   return false;
 }

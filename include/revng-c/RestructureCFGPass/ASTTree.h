@@ -69,6 +69,17 @@ private:
   links_container_expr CondExprList = {};
 
 public:
+  ASTTree() = default;
+
+  // Default movable
+  ASTTree(ASTTree &&) = default;
+  ASTTree &operator=(ASTTree &&) = default;
+
+  // Non copyable
+  ASTTree(const ASTTree &) = delete;
+  ASTTree &operator=(const ASTTree &) = delete;
+
+public:
   SequenceNode *addSequenceNode();
 
   SwitchBreakNode *addSwitchBreak(SwitchNode *SN);

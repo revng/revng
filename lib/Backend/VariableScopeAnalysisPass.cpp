@@ -14,7 +14,7 @@
 #include "revng/Support/FunctionTags.h"
 
 #include "revng-c/Backend/VariableScopeAnalysisPass.h"
-#include "revng-c/RestructureCFGPass/RestructureCFG.h"
+#include "revng-c/RestructureCFGPass/LoadGHAST.h"
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
 
@@ -40,7 +40,7 @@ static Register X("collect-local-vars",
 using VSA = VariableScopeAnalysisPass;
 
 void VSA::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-  AU.addRequired<RestructureCFG>();
+  AU.addRequired<LoadGHASTWrapperPass>();
   AU.setPreservesAll();
 }
 
@@ -172,8 +172,7 @@ bool VariableScopeAnalysisPass::runOnFunction(Function &F) {
       return false;
 
   // Get the Abstract Syntax Tree of the restructured code.
-  auto &RestructureCFGAnalysis = getAnalysis<RestructureCFG>();
-  ASTTree &GHAST = RestructureCFGAnalysis.getAST();
+  ASTTree &GHAST = getAnalysis<LoadGHASTWrapperPass>().getGHAST(F);
 
   TopScopeVariables = collectLocalVariables(F);
   NeedsLoopStateVar = hasLoopDispatchers(GHAST);

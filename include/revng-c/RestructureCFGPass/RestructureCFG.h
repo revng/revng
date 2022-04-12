@@ -6,7 +6,6 @@
 
 #include "llvm/Pass.h"
 
-#include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTreeBB.h"
 
 class RestructureCFG : public llvm::FunctionPass {
@@ -15,14 +14,9 @@ public:
   static char ID;
 
 public:
-  RestructureCFG() : llvm::FunctionPass(ID), AST() {}
+  RestructureCFG() : llvm::FunctionPass(ID) {}
 
   bool runOnFunction(llvm::Function &F) override;
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
-
-  ASTTree &getAST() { return AST; }
-
-private:
-  ASTTree AST;
 };

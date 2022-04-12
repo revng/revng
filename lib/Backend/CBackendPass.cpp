@@ -7,7 +7,7 @@
 #include "revng-c/Backend/CBackendPass.h"
 #include "revng-c/Backend/DecompileFunction.h"
 #include "revng-c/Backend/VariableScopeAnalysisPass.h"
-#include "revng-c/RestructureCFGPass/RestructureCFG.h"
+#include "revng-c/RestructureCFGPass/LoadGHAST.h"
 #include "revng-c/Support/FunctionFileHelpers.h"
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
@@ -36,7 +36,7 @@ BackendPass::BackendPass() : BackendPass(nullptr) {
 
 void BackendPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<LoadModelWrapperPass>();
-  AU.addRequired<RestructureCFG>();
+  AU.addRequired<LoadGHASTWrapperPass>();
   AU.addRequired<VariableScopeAnalysisPass>();
   AU.setPreservesAll();
 }
@@ -61,8 +61,7 @@ bool BackendPass::runOnFunction(llvm::Function &F) {
     Out = openFunctionFile(DecompiledDir, F.getName(), ".c");
 
   // Get the Abstract Syntax Tree of the restructured code.
-  auto &RestructureCFGAnalysis = getAnalysis<RestructureCFG>();
-  ASTTree &GHAST = RestructureCFGAnalysis.getAST();
+  ASTTree &GHAST = getAnalysis<LoadGHASTWrapperPass>().getGHAST(F);
 
   // Get the model
   const auto
