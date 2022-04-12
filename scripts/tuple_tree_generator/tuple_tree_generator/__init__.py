@@ -1,8 +1,6 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 
-from .generators import CppHeadersGenerator
-from .generators import JSONSchemaGenerator
-from .generators import PythonGenerator
+from .generators import CppHeadersGenerator, JSONSchemaGenerator, PythonGenerator
 from .schema import Schema
 
 

@@ -15,12 +15,10 @@
 import argparse
 import re
 import sys
-import yaml
-
 from collections import defaultdict
 
+import yaml
 from grandiso import find_motifs
-
 from networkx import DiGraph
 from networkx.algorithms.shortest_paths.unweighted import all_pairs_shortest_path_length
 

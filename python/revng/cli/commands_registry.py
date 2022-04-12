@@ -7,7 +7,7 @@ import dataclasses
 import sys
 from typing import Tuple
 
-from .support import run, Options
+from .support import Options, run
 
 
 class Command:

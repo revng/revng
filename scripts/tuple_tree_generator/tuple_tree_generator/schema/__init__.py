@@ -7,9 +7,9 @@ from .definition import Definition
 from .enum import EnumDefinition, EnumMember
 from .schema import Schema
 from .struct import (
+    ReferenceStructField,
+    SequenceStructField,
+    SimpleStructField,
     StructDefinition,
     StructField,
-    SimpleStructField,
-    SequenceStructField,
-    ReferenceStructField,
 )

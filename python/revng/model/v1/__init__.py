@@ -5,10 +5,11 @@
 # type: ignore
 
 from revng.tupletree import Reference, init_reference_yaml_classes
-from ._generated import *
-from . import _generated
-from ..metaaddress import init_metaaddress_yaml_classes
+
 from .._util import enum_value_to_index
+from ..metaaddress import init_metaaddress_yaml_classes
+from . import _generated
+from ._generated import *
 
 init_metaaddress_yaml_classes(YamlLoader, YamlDumper)
 init_reference_yaml_classes(YamlLoader, YamlDumper)

@@ -3,9 +3,8 @@
 #
 
 from collections import defaultdict
-from typing import Dict, List
-
 from graphlib import TopologicalSorter
+from typing import Dict, List
 
 from .definition import Definition
 from .enum import EnumDefinition, EnumMember

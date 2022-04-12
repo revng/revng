@@ -3,8 +3,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-from setuptools import setup, find_namespace_packages
-
+from setuptools import find_namespace_packages, setup
 
 setup(
     name="revng",

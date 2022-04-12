@@ -7,8 +7,7 @@ from io import BytesIO
 
 from elftools.elf.elffile import ELFFile
 
-from .util import only, chunks, first_or_none
-from .util import parse
+from .util import chunks, first_or_none, only, parse
 
 
 class ParsedElf:

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import jinja2
 
-from ..schema.struct import SimpleStructField, SequenceStructField, ReferenceStructField
+from ..schema.struct import ReferenceStructField, SequenceStructField, SimpleStructField
 
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 

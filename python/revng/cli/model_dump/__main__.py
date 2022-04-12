@@ -5,9 +5,10 @@
 import argparse
 import json
 import sys
+
 import yaml
 
-from . import remap_metaaddress, SafeLoaderIgnoreUnknown
+from . import SafeLoaderIgnoreUnknown, remap_metaaddress
 
 
 def log(message):
