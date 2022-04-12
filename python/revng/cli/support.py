@@ -9,9 +9,9 @@ import signal
 import subprocess
 import shlex
 
-from itertools import chain
 from dataclasses import dataclass
-from typing import List, Any
+from itertools import chain
+from typing import Any, List, Union
 
 from elftools.elf.dynamic import DynamicSegment
 from elftools.elf.elffile import ELFFile
@@ -41,10 +41,6 @@ def log_error(msg):
     sys.stderr.write(msg + "\n")
 
 
-def relative(path):
-    return os.path.relpath(path, ".")
-
-
 def wrap(args, command_prefix):
     return command_prefix + args
 
@@ -62,7 +58,7 @@ def run(command, options: Options):
         sys.stderr.write("{}\n\n".format(" \\\n  ".join([program_path] + command[1:])))
 
     if options.dry_run:
-        return 0
+        return
 
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     environment = dict(os.environ)
@@ -112,13 +108,10 @@ def interleave(base, repeat):
 
 
 # Use in case different version of pyelftools might give str or bytes
-
-
-def to_string(obj):
+def to_string(obj: Union[str, bytes]) -> str:
     if isinstance(obj, str):
         return obj
-    elif isinstance(obj, bytes):
-        return obj.decode("utf-8")
+    return obj.decode("utf-8")
 
 
 def get_elf_needed(path):
@@ -129,43 +122,41 @@ def get_elf_needed(path):
             if isinstance(segment, DynamicSegment)
         ]
 
-        if len(segments) == 1:
-            needed = [
-                to_string(tag.needed)
-                for tag in segments[0].iter_tags()
-                if tag.entry.d_tag == "DT_NEEDED"
-            ]
-
-            runpath = [
-                tag.runpath for tag in segments[0].iter_tags() if tag.entry.d_tag == "DT_RUNPATH"
-            ]
-
-            assert len(runpath) < 2
-
-            if not runpath:
-                return needed
-            else:
-                runpaths = [
-                    runpath.replace("$ORIGIN", os.path.dirname(path))
-                    for runpath in runpath[0].split(":")
-                ]
-                absolute_needed = []
-                for lib in needed:
-                    found = False
-                    for runpath in runpaths:
-                        full_path = os.path.join(runpath, lib)
-                        if os.path.isfile(full_path):
-                            absolute_needed.append(full_path)
-                            found = True
-                            break
-
-                    if not found:
-                        absolute_needed.append(lib)
-
-                return absolute_needed
-
-        else:
+        if len(segments) != 1:
             return []
+
+        needed = [
+            to_string(tag.needed)
+            for tag in segments[0].iter_tags()
+            if tag.entry.d_tag == "DT_NEEDED"
+        ]
+
+        runpath = [
+            tag.runpath for tag in segments[0].iter_tags() if tag.entry.d_tag == "DT_RUNPATH"
+        ]
+
+        assert len(runpath) < 2
+
+        if not runpath:
+            return needed
+
+        runpaths = [
+            runpath.replace("$ORIGIN", os.path.dirname(path)) for runpath in runpath[0].split(":")
+        ]
+        absolute_needed = []
+        for lib in needed:
+            found = False
+            for runpath in runpaths:
+                full_path = os.path.join(runpath, lib)
+                if os.path.isfile(full_path):
+                    absolute_needed.append(full_path)
+                    found = True
+                    break
+
+            if not found:
+                absolute_needed.append(lib)
+
+        return absolute_needed
 
 
 def collect_files(search_prefixes, path_components, pattern):
@@ -205,7 +196,7 @@ def handle_asan(dependencies, search_prefixes):
     if original_asan_options:
         asan_options = dict([option.split("=") for option in original_asan_options.split(":")])
     else:
-        asan_options = dict()
+        asan_options = {}
     asan_options["abort_on_error"] = "1"
     new_asan_options = ":".join(["=".join(option) for option in asan_options.items()])
 

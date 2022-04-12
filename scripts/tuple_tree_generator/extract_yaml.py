@@ -35,13 +35,13 @@ def main(args):
 
     definitions = []
     for header in args.headers:
-        with open(header) as f:
+        with open(header, encoding="utf-8") as f:
             data = f.read()
 
         match = model_yaml_regex.search(data)
         if not match:
             sys.stderr.write(f"ERROR: could not extract model yaml in {header}")
-            exit(1)
+            sys.exit(1)
         unparsed_yaml = match.group("content")
 
         definition = yaml.safe_load(unparsed_yaml)
@@ -51,7 +51,7 @@ def main(args):
     jsonschema.validate(instance=definitions, schema=metaschema)
 
     if args.output:
-        output = open(args.output, "w")
+        output = open(args.output, "w", encoding="utf-8")  # noqa: SIM115
     else:
         output = sys.stdout
 
@@ -59,5 +59,4 @@ def main(args):
 
 
 if __name__ == "__main__":
-    args = argparser.parse_args()
-    main(args)
+    main(argparser.parse_args())

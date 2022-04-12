@@ -33,10 +33,10 @@ class Schema:
         if self.definitions.get(stripped_type_name):
             return self.definitions.get(stripped_type_name)
 
-        elif self.definitions.get(f"{self.base_namespace}::{stripped_type_name}"):
+        if self.definitions.get(f"{self.base_namespace}::{stripped_type_name}"):
             return self.definitions.get(f"{self.base_namespace}::{stripped_type_name}")
 
-        elif self.definitions.get(f"{self.generated_namespace}::{stripped_type_name}"):
+        if self.definitions.get(f"{self.generated_namespace}::{stripped_type_name}"):
             return self.definitions.get(f"{self.generated_namespace}::{stripped_type_name}")
 
         return None
@@ -53,12 +53,10 @@ class Schema:
                 dep_type = self.get_definition_for(dependency)
                 if isinstance(dep_type, StructDefinition):
                     toposorter.add(struct, dep_type)
-                elif isinstance(dep_type, EnumDefinition):
-                    pass
-                elif dep_type is None:
+                elif isinstance(dep_type, EnumDefinition) or dep_type is None:
                     pass
                 else:
-                    breakpoint()
+                    pass
 
         return list(toposorter.static_order())
 
@@ -94,7 +92,7 @@ class Schema:
 
     def _generate_kinds(self):
         children = defaultdict(list)
-        for key, value in self.definitions.items():
+        for _, value in self.definitions.items():
             if isinstance(value, StructDefinition) and value._inherits is not None:
                 parent = self.get_definition_for(value._inherits)
                 children[parent].append(value)

@@ -95,7 +95,7 @@ class LiftCommand(Command):
                 + arg_or_empty(args, "record_ptc"),
                 options,
             )
-
+        return 0
         # TODO: annotate IR
 
 

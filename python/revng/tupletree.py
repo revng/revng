@@ -23,14 +23,14 @@ def _create_instance(field_value, field_type):
     # First we check if the value is already of the required type
     if isinstance(field_value, field_type):
         return field_value
-    elif isinstance(field_value, str) and issubclass(field_type, Enum):
+    if isinstance(field_value, str) and issubclass(field_type, Enum):
         return field_type(field_value)
-    elif isinstance(field_value, dict) and issubclass(field_type, StructBase):
+    if isinstance(field_value, dict) and issubclass(field_type, StructBase):
         return field_type.from_dict(**field_value)
-    elif isinstance(field_value, str) and hasattr(field_type, "from_string"):
+    if isinstance(field_value, str) and hasattr(field_type, "from_string"):
         return field_type.from_string(field_value)
-    else:
-        raise TypeError(f"Invalid type {type(field_value)}, was expecting {field_type}")
+
+    raise TypeError(f"Invalid type {type(field_value)}, was expecting {field_type}")
 
 
 # Hot function, hence the lru_cache
@@ -67,7 +67,8 @@ class StructBase:
 
                 if not isinstance(field_value, list):
                     raise ValueError(
-                        f"Expected list for field {field_name} of {cls.__name__}, got {type(field_value)}"
+                        f"Expected list for field {field_name} of {cls.__name__},"
+                        + f"got {type(field_value)}"
                     )
 
                 instances = []
@@ -155,8 +156,7 @@ class AbstractStructBase(StructBase):
 
         if cls != child_cls:
             return child_cls.from_dict(**kwargs)
-        else:
-            return super().from_dict(**kwargs)
+        return super().from_dict(**kwargs)
 
 
 class EnumBase(Enum):
@@ -184,9 +184,9 @@ class Reference(Generic[_PointedType, _RootType]):
         return cls(ref_str, referenced_obj=obj)
 
     @property
-    def id(self):
-        _, _, id = self._ref_str.rpartition("-")
-        return int(id)
+    def id(self):  # noqa: A003
+        _, _, rid = self._ref_str.rpartition("-")
+        return int(rid)
 
     @classmethod
     def yaml_representer(cls, dumper: yaml.dumper.Dumper, instance: "Reference"):
@@ -196,7 +196,7 @@ class Reference(Generic[_PointedType, _RootType]):
         return self._ref_str
 
 
-def init_reference_yaml_classes(loader: Type[yaml.Loader], dumper: Type[yaml.Dumper]):
+def init_reference_yaml_classes(_: Type[yaml.Loader], dumper: Type[yaml.Dumper]):
     dumper.add_representer(Reference, Reference.yaml_representer)
 
 
@@ -216,11 +216,11 @@ class YamlDumper(Dumper):
         # By default we emit an explicit document start (---) to make LLVM YAML parser happy
         if kwargs.get("explicit_start") is None:
             kwargs["explicit_start"] = True
-        super(YamlDumper, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
-    def increase_indent(self, flow=False, indentless=False):
+    def increase_indent(self, flow=False, _indentless=False):
         """Improves indentation"""
-        return super(YamlDumper, self).increase_indent(flow, False)
+        return super().increase_indent(flow, False)
 
     def represent_str(self, data: str) -> yaml.ScalarNode:
         """Ensures literals starting with ? or : are quoted to make LLVM YAML parser happy"""

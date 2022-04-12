@@ -13,8 +13,8 @@ def enum_value_to_index(enum_value: Enum):
 # TODO: once tuple_tree_generator becomes kind-aware, this will no longer be necessary
 def force_constructor_kwarg(base_class: type, kwarg_name, kwarg_value):
     """Monkeypatches the __init__ method so that the given kwarg is forced to the given value.
-    If the argument was not provided it is set, if it was provided and it was different from the forced value a
-    ValueError is raised.
+    If the argument was not provided it is set, if it was provided and it was different from the
+    forced value a ValueError is raised.
     """
     assert isinstance(base_class, type)
 

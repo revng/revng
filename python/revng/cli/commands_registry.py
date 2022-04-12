@@ -67,7 +67,7 @@ class CommandsRegistry:
         self.root_parser = parser
         self.commands = {}
         self.namespaces = {}
-        self.namespaces[tuple()] = self.root_parser.add_subparsers(dest=f"{COMMAND_ARG_PREFIX}0")
+        self.namespaces[()] = self.root_parser.add_subparsers(dest=f"{COMMAND_ARG_PREFIX}0")
 
     def register_command(self, command: Command):
         self.commands[command.namespace + (command.name,)] = command
@@ -138,7 +138,7 @@ class CommandsRegistry:
     def _parse_command(self, command: str):
         parts = command.split("-")
         total = len(parts)
-        current_namespace = tuple()
+        current_namespace = ()
 
         start_index = 0
         found = True
@@ -173,8 +173,7 @@ class CommandsRegistry:
             result = new_parser.add_subparsers(dest=f"{COMMAND_ARG_PREFIX}{len(namespace)}")
             self.namespaces[namespace] = result
             return result
-        else:
-            return self.namespaces[namespace]
+        return self.namespaces[namespace]
 
 
 commands_registry = CommandsRegistry()

@@ -242,6 +242,12 @@ function run_black() {
     fi
 }
 
+# Run flake8
+function run_flake8() {
+    if [[ ${#PYTHON_FILES[@]} -eq 0 ]]; then return; fi
+    flake8 --config "$SCRIPT_PATH/flake8-config" "${PYTHON_FILES[@]}"
+}
+
 # Run cmake-format
 function run_cmake_format() {
     if [[ ${#CMAKE_FILES[@]} -eq 0 ]]; then return; fi
@@ -397,6 +403,7 @@ EXIT_CODE=0
 
 run_clang_format || EXIT_CODE=$?
 run_black || EXIT_CODE=$?
+run_flake8 || EXIT_CODE=$?
 run_cmake_format || EXIT_CODE=$?
 run_bash_check || EXIT_CODE=$?
 run_license_check || EXIT_CODE=$?

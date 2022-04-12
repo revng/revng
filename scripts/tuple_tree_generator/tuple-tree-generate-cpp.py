@@ -37,7 +37,7 @@ def reformat(source: str) -> str:
 
 
 def main(args):
-    with open(args.schema) as f:
+    with open(args.schema, encoding="utf-8") as f:
         raw_schema = yaml.safe_load(f)
 
     schema = Schema(raw_schema, args.namespace)

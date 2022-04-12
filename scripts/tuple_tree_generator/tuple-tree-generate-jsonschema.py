@@ -24,7 +24,7 @@ argparser.add_argument(
 
 
 def main(args):
-    with open(args.schema) as f:
+    with open(args.schema, encoding="utf-8") as f:
         raw_schema = yaml.safe_load(f)
 
     schema = Schema(raw_schema, args.namespace)
@@ -39,7 +39,7 @@ def main(args):
         output_file = Path(args.output)
         # Ensure the containing directory is created
         output_file.parent.mkdir(exist_ok=True)
-        output_file.write_text(jsonschema_source)
+        output_file.write_text(jsonschema_source, encoding="utf-8")
     else:
         print(jsonschema_source)
 
