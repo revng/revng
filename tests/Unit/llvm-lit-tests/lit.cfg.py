@@ -1,3 +1,6 @@
+#
+# Copyright rev.ng Labs Srl. See LICENSE.md for details.
+#
 # flake8: noqa: F821
 # type: ignore
 

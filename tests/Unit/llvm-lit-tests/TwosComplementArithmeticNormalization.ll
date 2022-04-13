@@ -1,3 +1,7 @@
+;
+; Copyright rev.ng Labs Srl. See LICENSE.md for details.
+;
+
 ; RUN: %revngopt %s -twoscomplement-normalization -S -o - | FileCheck %s
 ;
 ; Ensures that TwosComplementArithmeticNormalizationPass has transformed arithmetic operations appropriately.

@@ -1,3 +1,7 @@
+;
+; Copyright rev.ng Labs Srl. See LICENSE.md for details.
+;
+
 ; RUN: %revngopt %s -S -o - | FileCheck %s
 ; CHECK: define i1 @f
 define i1 @f () {

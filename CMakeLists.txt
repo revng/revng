@@ -1,5 +1,5 @@
 #
-# Copyright rev.ng Srls. See LICENSE.md for details.
+# Copyright rev.ng Labs Srl. See LICENSE.md for details.
 #
 
 cmake_minimum_required(VERSION 3.15.0)

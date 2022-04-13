@@ -1,3 +1,7 @@
+#
+# Copyright rev.ng Labs Srl. See LICENSE.md for details.
+#
+
 import os
 
 config.my_src_root=r'@CMAKE_SOURCE_DIR@'

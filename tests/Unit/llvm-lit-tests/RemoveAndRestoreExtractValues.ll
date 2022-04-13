@@ -1,3 +1,7 @@
+;
+; Copyright rev.ng Labs Srl. See LICENSE.md for details.
+;
+
 ; RUN: %revngopt %s -S -remove-extractvalues -O2 -restore-extractvalues -strip-dead-prototypes -o - | diff <(grep -v -e '^;' -e '^\s*$' %s) <(grep -v -e '^;' -e '^\s*$' -)
 ; Test that, by removing and then restoring extractvalues, this module is not modified by the O2 pipeline
 ; ModuleID = 'tests/Unit/llvm-lit-tests/RemoveExtractValues.ll'

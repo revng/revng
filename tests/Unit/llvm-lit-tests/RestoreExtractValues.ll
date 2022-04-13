@@ -1,3 +1,7 @@
+;
+; Copyright rev.ng Labs Srl. See LICENSE.md for details.
+;
+
 ; RUN: %revngopt %s -S -restore-extractvalues | FileCheck %s
 ; Test that all OpaqueExtractvalue functions are converted back to extractvalue
 ; ModuleID = 'tests/Unit/llvm-lit-tests/RestoreExtractValues.ll'

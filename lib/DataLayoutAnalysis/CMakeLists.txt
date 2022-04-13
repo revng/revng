@@ -1,4 +1,4 @@
-# Copyright rev.ng Srls. See LICENSE.md for details.
+# Copyright rev.ng Labs Srl. See LICENSE.md for details.
 #
 
 revng_add_analyses_library(

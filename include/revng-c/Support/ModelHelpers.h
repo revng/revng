@@ -1,5 +1,9 @@
 #pragma once
 
+//
+// Copyright rev.ng Labs Srl. See LICENSE.md for details.
+//
+
 #include "llvm/ADT/STLExtras.h"
 
 #include "revng/Model/Binary.h"

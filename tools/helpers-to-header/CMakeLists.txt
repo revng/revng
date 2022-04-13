@@ -1,5 +1,5 @@
 #
-# Copyright (c) rev.ng Srls. See LICENSE.md for details.
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 #
 
 revng_add_executable(revng-helpers-to-header Main.cpp)

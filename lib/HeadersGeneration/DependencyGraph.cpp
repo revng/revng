@@ -1,3 +1,7 @@
+//
+// Copyright rev.ng Labs Srl. See LICENSE.md for details.
+//
+
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/DOTGraphTraits.h"

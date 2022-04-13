@@ -1,3 +1,7 @@
+;
+; Copyright rev.ng Labs Srl. See LICENSE.md for details.
+;
+
 ; RUN: %revngopt %s -S -remove-extractvalues -O2 | FileCheck %s
 ; Test that all extractvalues are converted to an opaque function call that is
 ; not optimized away by the O2 pipeline
