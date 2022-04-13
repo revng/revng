@@ -2,7 +2,6 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import glob
 import os
 import shlex
 import signal
@@ -10,7 +9,8 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from itertools import chain
-from typing import Any, List, Union
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
 
 from elftools.elf.dynamic import DynamicSegment
 from elftools.elf.elffile import ELFFile
@@ -32,23 +32,23 @@ class Options:
     keep_temporaries: bool
 
 
-def shlex_join(split_command):
+def shlex_join(split_command: Iterable[str]) -> str:
     return " ".join(shlex.quote(arg) for arg in split_command)
 
 
-def log_error(msg):
+def log_error(msg: str):
     sys.stderr.write(msg + "\n")
 
 
-def wrap(args, command_prefix):
+def wrap(args: List[str], command_prefix: List[str]):
     return command_prefix + args
 
 
-def relative(path: str):
+def relative(path: str) -> str:
     return os.path.relpath(path, os.getcwd())
 
 
-def run(command, options: Options):
+def run(command, options: Options, environment: Optional[Dict[str, str]] = None):
     if is_executable(command[0]):
         command = wrap(command, options.command_prefix)
 
@@ -60,7 +60,8 @@ def run(command, options: Options):
         return
 
     signal.signal(signal.SIGINT, signal.SIG_IGN)
-    environment = dict(os.environ)
+    if environment is None:
+        environment = dict(os.environ)
     p = subprocess.Popen(
         command, preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL), env=environment
     )
@@ -69,12 +70,12 @@ def run(command, options: Options):
         sys.exit(p.returncode)
 
 
-def is_executable(path):
+def is_executable(path: str) -> bool:
     with open(path, "rb") as program:
         return program.read(4) == b"\x7fELF"
 
 
-def is_dynamic(path):
+def is_dynamic(path: str) -> bool:
     with open(path, "rb") as input_file:
         return (
             len(
@@ -88,7 +89,7 @@ def is_dynamic(path):
         )
 
 
-def get_command(command, search_prefixes):
+def get_command(command: str, search_prefixes: Iterable[str]) -> str:
     if command.startswith("revng-"):
         for executable in collect_files(search_prefixes, ["libexec", "revng"], command):
             return executable
@@ -102,7 +103,7 @@ def get_command(command, search_prefixes):
     return os.path.abspath(path)
 
 
-def interleave(base, repeat):
+def interleave(base: List[str], repeat: str):
     return list(sum(zip([repeat] * len(base), base), ()))
 
 
@@ -113,7 +114,7 @@ def to_string(obj: Union[str, bytes]) -> str:
     return obj.decode("utf-8")
 
 
-def get_elf_needed(path):
+def get_elf_needed(path: str) -> List[str]:
     with open(path, "rb") as elf_file:
         segments = [
             segment
@@ -130,25 +131,26 @@ def get_elf_needed(path):
             if tag.entry.d_tag == "DT_NEEDED"
         ]
 
-        runpath = [
+        elf_runpath: List[str] = [
             tag.runpath for tag in segments[0].iter_tags() if tag.entry.d_tag == "DT_RUNPATH"
         ]
 
-        assert len(runpath) < 2
+        assert len(elf_runpath) < 2
 
-        if not runpath:
+        if not elf_runpath:
             return needed
 
         runpaths = [
-            runpath.replace("$ORIGIN", os.path.dirname(path)) for runpath in runpath[0].split(":")
+            runpath.replace("$ORIGIN", str(Path(path).parent))
+            for runpath in elf_runpath[0].split(":")
         ]
         absolute_needed = []
         for lib in needed:
             found = False
             for runpath in runpaths:
-                full_path = os.path.join(runpath, lib)
-                if os.path.isfile(full_path):
-                    absolute_needed.append(full_path)
+                full_path = Path(runpath) / lib
+                if full_path.is_file():
+                    absolute_needed.append(str(full_path.resolve()))
                     found = True
                     break
 
@@ -158,23 +160,24 @@ def get_elf_needed(path):
         return absolute_needed
 
 
-def collect_files(search_prefixes, path_components, pattern):
-    to_load = {}
+def collect_files(
+    search_prefixes: Iterable[str], path_components: Iterable[str], pattern: str
+) -> List[str]:
+    to_load: Dict[str, Path] = {}
     for prefix in search_prefixes:
-        analyses_path = os.path.join(prefix, *path_components)
-        if not os.path.isdir(analyses_path):
+        analyses_path = Path(prefix).joinpath(*path_components)
+        if not analyses_path.is_dir():
             continue
 
         # Enumerate all the libraries containing analyses
-        for library in glob.glob(os.path.join(analyses_path, pattern)):
-            basename = os.path.basename(library)
-            if basename not in to_load:
-                to_load[basename] = relative(library)
+        for library in analyses_path.glob(pattern):
+            if library.name not in to_load:
+                to_load[library.name] = library.resolve()
 
-    return list(to_load.values())
+    return [str(v) for v in to_load.values()]
 
 
-def collect_libraries(search_prefixes):
+def collect_libraries(search_prefixes: Iterable[str]) -> Tuple[List[str], Set[str]]:
     to_load = collect_files(search_prefixes, ["lib", "revng", "analyses"], "*.so")
 
     # Identify all the libraries that are dependencies of other libraries, i.e.,
@@ -184,7 +187,7 @@ def collect_libraries(search_prefixes):
     return (to_load, dependencies)
 
 
-def handle_asan(dependencies, search_prefixes):
+def handle_asan(dependencies: Iterable[str], search_prefixes: Iterable[str]) -> List[str]:
     libasan = [name for name in dependencies if ("libasan." in name or "libclang_rt.asan" in name)]
 
     if len(libasan) != 1:
@@ -208,7 +211,7 @@ def handle_asan(dependencies, search_prefixes):
     ]
 
 
-def build_command_with_loads(command, args, options):
+def build_command_with_loads(command: str, args: Iterable[str], options: Options) -> List[str]:
     (to_load, dependencies) = collect_libraries(options.search_prefixes)
     prefix = handle_asan(dependencies, options.search_prefixes)
 
