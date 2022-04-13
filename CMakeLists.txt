@@ -256,9 +256,8 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
   add_test(
     NAME model_to_header_${TARGET_NAME}
     COMMAND
-      revng --prefix=${CMAKE_BINARY_DIR} opt -model-to-header
-      ${OUTFOLDER}/canonicalized.bc
-      --types-header-name=${DECOMPILED_DIR}/model_header.h -o /dev/null)
+      revng --prefix=${CMAKE_BINARY_DIR} model to-header
+      -i=${OUTFOLDER}/canonicalized.bc -o=${DECOMPILED_DIR}/model_header.h)
   set_property(
     TEST model_to_header_${TARGET_NAME}
     APPEND

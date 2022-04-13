@@ -5,15 +5,21 @@
 # ModelToHeader
 
 revng_add_analyses_library(revngcModelToHeader revngc ModelToHeader.cpp
-                           DependencyGraph.cpp)
+                           ModelToHeaderPipe.cpp DependencyGraph.cpp)
 
-target_link_libraries(revngcModelToHeader revng::revngModel revng::revngSupport
-                      revngcTypeNames ${LLVM_LIBRARIES})
+target_link_libraries(
+  revngcModelToHeader
+  revngcTypeNames
+  revng::revngModel
+  revng::revngSupport
+  revng::revngPipeline
+  revng::revngPipes
+  ${LLVM_LIBRARIES})
 
 revng_add_analyses_library(revngcModelToHeaderPass revngc ModelToHeaderPass.cpp)
 
-target_link_libraries(revngcModelToHeaderPass revng::revngModel
-                      revng::revngSupport ${LLVM_LIBRARIES} revngcModelToHeader)
+target_link_libraries(revngcModelToHeaderPass revngcModelToHeader
+                      revng::revngModel revng::revngSupport ${LLVM_LIBRARIES})
 
 # HelpersToHeader
 

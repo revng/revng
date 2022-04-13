@@ -26,4 +26,6 @@ inline TaggedFunctionKind
                           &FunctionsRank,
                           FunctionTags::StackAccessesSegregated);
 
+inline pipeline::Kind ModelHeader("ModelHeader", Binary, &RootRank);
+
 } // end namespace revng::pipes
