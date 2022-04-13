@@ -17,6 +17,7 @@ revng_add_analyses_library(
   Middleend/DLAStep.cpp
   Middleend/FieldSizeComputation.cpp
   Middleend/RemoveBackedges.cpp
+  Middleend/RemoveInvalidPointers.cpp
   Middleend/RemoveInvalidStrideEdges.cpp
   Middleend/SimplifyInstanceAtOffset0.cpp
   Backend/DLAMakeLayouts.cpp

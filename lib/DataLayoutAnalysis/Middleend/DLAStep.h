@@ -226,6 +226,22 @@ public:
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
+/// dla::Step that removes invalide pointer edges
+class RemoveInvalidPointers : public Step {
+  static const char ID;
+
+  size_t PointerSize;
+
+public:
+  static const constexpr void *getID() { return &ID; }
+
+  RemoveInvalidPointers(size_t PtrSize) : Step(ID), PointerSize(PtrSize) {}
+
+  virtual ~RemoveInvalidPointers() override = default;
+
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
+};
+
 /// dla::Step that merges structurally identical subtrees of an interfering
 /// node.
 class DeduplicateUnionFields : public Step {

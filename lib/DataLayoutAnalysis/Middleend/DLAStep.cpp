@@ -18,6 +18,7 @@ const char ComputeUpperMemberAccesses::ID = 0;
 const char DeduplicateUnionFields::ID = 0;
 const char PruneLayoutNodesWithoutLayout::ID = 0;
 const char RemoveInvalidStrideEdges::ID = 0;
+const char RemoveInvalidPointers::ID = 0;
 const char SimplifyInstanceAtOffset0::ID = 0;
 
 static Logger<> DLAStepManagerLog("dla-step-manager");

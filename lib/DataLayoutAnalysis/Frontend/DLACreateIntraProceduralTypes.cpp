@@ -675,10 +675,9 @@ bool Builder::connectToFuncsWithSamePrototype(const llvm::CallInst *Call,
   return Changed;
 }
 
-static uint64_t
-getLoadStoreSizeFromPtrOpUse(const llvm::Module &M, const llvm::Use *U) {
-  llvm::Value *AddrOperand = U->get();
-  auto *PtrTy = cast<llvm::PointerType>(AddrOperand->getType());
+static uint64_t getLoadStoreSizeFromPtrOp(const llvm::Module &M,
+                                          const llvm::Value *PtrOperand) {
+  auto *PtrTy = cast<llvm::PointerType>(PtrOperand->getType());
   llvm::Type *AccessedT = PtrTy->getElementType();
   const llvm::DataLayout &DL = M.getDataLayout();
   return DL.getTypeAllocSize(AccessedT);
@@ -740,31 +739,24 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
           // one that give us information to identify which Values are pointers
           // to types, because they are used in Load and Stores as
           // PointerOperands.
-          Use *PtrUse(nullptr);
-          Value *Val(nullptr);
+          Value *PointerVal = nullptr;
+          Value *Val = nullptr;
           if (auto *Load = dyn_cast<LoadInst>(&I)) {
-            PtrUse = &Load->getOperandUse(Load->getPointerOperandIndex());
+            PointerVal = Load->getPointerOperand();
             Val = &I;
           } else if (auto *Store = dyn_cast<StoreInst>(&I)) {
-            PtrUse = &Store->getOperandUse(Store->getPointerOperandIndex());
+            PointerVal = Store->getPointerOperand();
             Val = Store->getValueOperand();
           } else {
             continue;
           }
-          revng_assert(PtrUse != nullptr);
-
-          // Find the possible base addresses of the PointerOperand
-          Value *PointerVal = PtrUse->get();
+          revng_assert(PointerVal);
 
           // But if the pointer operand is a global variable we have nothing to
           // do, because loading from it means reading from a register which has
           // no good information to propagate about types.
-          if (isa<GlobalVariable>(PointerVal)) {
-            // We should think about adding a special case for the register used
-            // as stack pointer, but we need to find a nice way to do it that is
-            // architecture independent.
+          if (isa<GlobalVariable>(PointerVal))
             continue;
-          }
 
           // If the pointer operand is null or undef we have nothing to do.
           if (isa<ConstantPointerNull>(PointerVal)
@@ -776,13 +768,12 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
           Changed |= ILA.createBaseAddrWithInstanceLink(*this, PointerVal, *B);
 
           // Create Access node
-          auto AccessSize = getLoadStoreSizeFromPtrOpUse(M, PtrUse);
+          auto AccessSize = getLoadStoreSizeFromPtrOp(M, PointerVal);
           auto *AccessNode = TS.createArtificialLayoutType();
           AccessNode->Size = AccessSize;
           AccessNode->InterferingInfo = AllChildrenAreNonInterfering;
 
           // Add link between pointer node and access node
-          revng_assert(PointerVal);
           auto *PointerNode = getLayoutType(PointerVal);
           revng_assert(PointerNode);
           TS.addInstanceLink(PointerNode, AccessNode, OffsetExpression{});
@@ -794,15 +785,37 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
                        << "\n";
           }
 
-          // Create pointer edge between the access node and the pointee node
-          if (AccessSize == getPointerSize(Model.Architecture)) {
-            const auto &[PointeeNode, Changed] = getOrCreateLayoutType(Val);
-            if (isa<LoadInst>(I))
-              revng_assert(not Changed);
+          // Create pointer edge between the access node and the pointee node.
+          const auto &[PointeeNode, Changed] = getOrCreateLayoutType(Val);
+          revng_assert(PointeeNode);
+          revng_assert(not Changed or not isa<LoadInst>(I));
 
-            revng_assert(PointeeNode);
-            PointeeNode->InterferingInfo = AllChildrenAreNonInterfering;
-            TS.addPointerLink(AccessNode, PointeeNode);
+          // Add a pointer link from the AccessNode to the PointeeNode. Note
+          // that at this stage we don't know yet if PointeeNode is going to be
+          // the root of another chunk of the type hierarchy, or just a plain
+          // scalar. But because of graph initialization works, we need to
+          // assume optimistically that it will NOT be a plain scalar. This has
+          // 2 consequences:
+          //  - the pointee node becomes a place where a different part of the
+          //    type hierarchy will attach when it will be materialized later
+          //    during a new iteration of this loop on a new instruction
+          // - it will provide the information that many Load/Store instructions
+          //   have read/written a given value. This is used later to add
+          //   equality links between things that have pointer edges towards the
+          //   same PointeeNode.
+          PointeeNode->InterferingInfo = Unknown;
+          TS.addPointerLink(AccessNode, PointeeNode);
+
+          // If the pointee already has nodes that point to it, their type must
+          // be the same as the type of PointerNode, so add an equality link.
+          using PointerGraph = EdgeFilteredGraph<LayoutTypeSystemNode *,
+                                                 isPointerEdge>;
+          using InversePointerGraph = llvm::Inverse<PointerGraph>;
+          for (LayoutTypeSystemNode *PointerToPointee :
+               llvm::children<InversePointerGraph>(PointeeNode)) {
+            revng_assert(AccessSize == PointerToPointee->Size);
+            if (PointerToPointee != AccessNode)
+              TS.addEqualityLink(PointerToPointee, AccessNode);
           }
 
           continue;

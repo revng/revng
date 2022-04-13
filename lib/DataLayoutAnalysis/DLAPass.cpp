@@ -42,13 +42,16 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   // Front-end: Create the LayoutTypeSystem graph from an LLVM module
   dla::LayoutTypeSystem TS;
   dla::DLATypeSystemLLVMBuilder Builder{ TS };
-  Builder.buildFromLLVMModule(M, this, *ModelWrapper.getReadOnlyModel());
+  const model::Binary &Model = *ModelWrapper.getReadOnlyModel();
+  Builder.buildFromLLVMModule(M, this, Model);
 
   if (BuilderLog.isEnabled())
     Builder.dumpValuesMapping("DLA-values-initial.csv");
 
   // Middle-end Steps: manipulate nodes and edges of the DLATypeSystem graph
   dla::StepManager SM;
+  size_t PtrSize = getPointerSize(Model.Architecture);
+  revng_check(SM.addStep<dla::RemoveInvalidPointers>(PtrSize));
   revng_check(SM.addStep<dla::CollapseEqualitySCC>());
   revng_check(SM.addStep<dla::CollapseInstanceAtOffset0SCC>());
   revng_check(SM.addStep<dla::SimplifyInstanceAtOffset0>());
