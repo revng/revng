@@ -34,6 +34,7 @@ target_tuple_tree_generator(
   "MetaAddress"
   HEADERS
   "${MODEL_HEADERS_DIR}/ABI.h"
+  "${MODEL_HEADERS_DIR}/ABIDefinition.h"
   "${MODEL_HEADERS_DIR}/Architecture.h"
   "${MODEL_HEADERS_DIR}/Argument.h"
   "${MODEL_HEADERS_DIR}/Binary.h"

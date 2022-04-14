@@ -22,8 +22,12 @@ doc: |
 type: struct
 inherits: Type
 fields:
-  - name: ABI
+  - name: ABI # TODO: remove
     type: model::ABI::Values
+  - name: NewABI
+    reference:
+      pointeeType: model::ABIDefinition
+      rootType: model::Binary
   - name: ReturnType
     type: model::QualifiedType
   - name: Arguments

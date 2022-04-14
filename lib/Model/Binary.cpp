@@ -47,6 +47,11 @@ TypePath Binary::recordNewType(UpcastablePointer<Type> &&T) {
   return getTypePath(It->get());
 }
 
+model::ABIReference Binary::recordNewABI(model::ABIDefinition &&T) {
+  auto Iterator = DefinedABIs.insert(std::move(T)).first;
+  return getABI(Iterator->Architecture, Iterator->Name);
+}
+
 bool Binary::verifyTypes() const {
   return verifyTypes(false);
 }

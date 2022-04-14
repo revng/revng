@@ -11,6 +11,7 @@
 #include "revng/ADT/UpcastablePointer.h"
 #include "revng/ADT/UpcastablePointer/YAMLTraits.h"
 #include "revng/Model/ABI.h"
+#include "revng/Model/ABIDefinition.h"
 #include "revng/Model/DynamicFunction.h"
 #include "revng/Model/Function.h"
 #include "revng/Model/FunctionAttribute.h"
@@ -41,7 +42,7 @@ fields:
   - name: Architecture
     doc: Binary architecture
     type: model::Architecture::Values
-  - name: DefaultABI
+  - name: DefaultABI # TODO: remove
     doc: The default ABI of `RawFunctionType`s within the binary
     type: model::ABI::Values
     optional: true
@@ -78,6 +79,19 @@ fields:
     sequence:
       type: SortedVector
       elementType: MetaAddress
+  - name: DefinedABIs
+    doc: List of ABIs used within the model
+    sequence:
+      type: SortedVector
+      elementType: model::ABIDefinition
+#     const: true (I want this, but it's not supported *cries*)
+#     upcastable: true (I'm not sure but stable pointers might be beneficial)
+  - name: NewDefaultABI
+    doc: The default ABI of `RawFunctionType`s within the binary
+    reference:
+      pointeeType: model::ABIDefinition
+      rootType: model::Binary
+    optional: true
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/Binary.h"
@@ -87,7 +101,9 @@ TUPLE-TREE-YAML */
 
 namespace model {
 using TypePath = TupleTreeReference<model::Type, model::Binary>;
-}
+using ABIReference = TupleTreeReference<const model::ABIDefinition,
+                                        model::Binary>;
+} // namespace model
 
 class model::Binary : public model::generated::Binary {
 public:
@@ -115,6 +131,15 @@ public:
   bool verifyTypes() const debug_function;
   bool verifyTypes(bool Assert) const debug_function;
   bool verifyTypes(VerifyHelper &VH) const;
+
+  model::ABIReference getABI(model::Architecture::Values Architecture,
+                             llvm::StringRef ABIName) const {
+    model::ABIDefinition::Key K{ Architecture, ABIName };
+    return ABIReference::fromString(this,
+                                    "/DefinedABIs/" + getNameFromYAMLScalar(K));
+  }
+
+  model::ABIReference recordNewABI(model::ABIDefinition &&T);
 
 public:
   bool verify() const debug_function;
