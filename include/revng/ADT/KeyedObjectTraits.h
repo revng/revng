@@ -14,10 +14,10 @@ struct KeyedObjectTraits {
 };
 
 // clang-format off
-template<typename T>
+template<typename T, typename KOT=KeyedObjectTraits<T>>
 concept HasKeyObjectTraits = requires(T A) {
-  { KeyedObjectTraits<T>::key(A) };
-  { KeyedObjectTraits<T>::fromKey(KeyedObjectTraits<T>::key(A)) } -> same_as<T>;
+  { KOT::key(A) };
+  { KOT::fromKey(KOT::key(A)) } -> std::same_as<T>;
 };
 // clang-format on
 
