@@ -43,13 +43,13 @@ concept MonotoneFrameworkInstance = requires(const MFI &I,
   /// the extremal nodes, we need that the nodes also represent a subgraph
   typename llvm::GraphTraits<typename MFI::Label>::NodeRef;
 
-  same_as<typename MFI::Label,
-          typename llvm::GraphTraits<typename MFI::GraphType>::NodeRef>;
+  std::same_as<typename MFI::Label,
+               typename llvm::GraphTraits<typename MFI::GraphType>::NodeRef>;
   // Disable clang-format, because it does not handle concepts very well yet
   // clang-format off
-  { I.combineValues(E1, E2) } ->same_as<typename MFI::LatticeElement>;
-  { I.isLessOrEqual(E1, E2) } ->same_as<bool>;
-  { I.applyTransferFunction(L, E2) } ->same_as<typename MFI::LatticeElement>;
+  { I.combineValues(E1, E2) } -> std::same_as<typename MFI::LatticeElement>;
+  { I.isLessOrEqual(E1, E2) } -> std::same_as<bool>;
+  { I.applyTransferFunction(L, E2) } -> std::same_as<typename MFI::LatticeElement>;
   // clang-format on
 };
 

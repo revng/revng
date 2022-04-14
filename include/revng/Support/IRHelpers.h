@@ -1314,8 +1314,8 @@ concept HasMetadata = requires(T &Value,
                                llvm::MDNode *MD) {
   Value.setMetadata(KindName, MD);
   Value.setMetadata(KindID, MD);
-  { ConstValue.getMetadata(KindName) } -> same_as<llvm::MDNode *>;
-  { ConstValue.getMetadata(KindID) } -> same_as<llvm::MDNode *>;
+  { ConstValue.getMetadata(KindName) } -> std::same_as<llvm::MDNode *>;
+  { ConstValue.getMetadata(KindID) } -> std::same_as<llvm::MDNode *>;
 };
 
 static_assert(HasMetadata<llvm::Instruction>);

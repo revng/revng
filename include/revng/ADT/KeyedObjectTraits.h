@@ -17,7 +17,7 @@ struct KeyedObjectTraits {
 template<typename T>
 concept HasKeyObjectTraits = requires(T A) {
   { KeyedObjectTraits<T>::key(A) };
-  { KeyedObjectTraits<T>::fromKey(KeyedObjectTraits<T>::key(A)) } -> same_as<T>;
+  { KeyedObjectTraits<T>::fromKey(KeyedObjectTraits<T>::key(A)) } -> std::same_as<T>;
 };
 // clang-format on
 

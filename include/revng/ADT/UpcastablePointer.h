@@ -30,7 +30,7 @@ concept HasConcretTypeTraits = requires {
 // clang-format off
 template<typename T>
 concept HasLLVMRTTI = requires(T *A) {
-  { A->classof(A) } -> same_as<bool>;
+  { A->classof(A) } -> std::same_as<bool>;
 };
 // clang-format on
 
