@@ -27,6 +27,8 @@ using namespace llvm::cl;
 using namespace pipeline;
 using namespace ::revng::pipes;
 
+static Logger<> PipelineLogger("pipeline");
+
 cl::OptionCategory PipelineCategory("revng-pipeline options", "");
 
 static cl::list<string>
@@ -65,6 +67,13 @@ static opt<bool> ProduceAllPossibleTargets("produce-all",
                                                 "targets"),
                                            cat(PipelineCategory),
                                            init(false));
+
+static opt<bool> InvalidateAll("invalidate-all",
+                               desc("Try invalidating all possible "
+                                    "targets after producing them. Used for "
+                                    "debug porpuses"),
+                               cat(PipelineCategory),
+                               init(false));
 
 static opt<bool> DumpPipeline("d",
                               desc("Dump built pipeline and dont run"),
@@ -141,6 +150,7 @@ static auto makeManager() {
 int main(int argc, const char *argv[]) {
   HideUnrelatedOptions(PipelineCategory);
   ParseCommandLineOptions(argc, argv);
+  auto LoggerOS = PipelineLogger.getAsLLVMStream();
 
   std::string Msg;
   for (const auto &Library : LoadLibraries) {
@@ -167,10 +177,18 @@ int main(int argc, const char *argv[]) {
     Manager.writeAllPossibleTargets(OS);
     return EXIT_SUCCESS;
   }
-  if (ProduceAllPossibleTargets)
-    AbortOnError(Manager.printAllPossibleTargets(llvm::dbgs()));
-  else
+  if (ProduceAllPossibleTargets) {
+    PipelineLogger.enable();
+    AbortOnError(Manager.produceAllPossibleTargets(*LoggerOS));
+  } else {
     runPipeline(Manager.getRunner());
+  }
+
+  if (InvalidateAll) {
+    PipelineLogger.enable();
+    AbortOnError(Manager.invalidateAllPossibleTargets(*LoggerOS));
+  }
+
   AbortOnError(Manager.store(StoresOverrides));
   AbortOnError(Manager.storeToDisk());
 
