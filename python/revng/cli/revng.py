@@ -16,6 +16,7 @@ def extend_list(paths, new_items):
 # flake8: noqa: F401
 def run_revng_command(arguments, options: Options):
     # Import built-in commands
+    from .daemon import DaemonCommand
     from .lift import LiftCommand
     from .llvm_pipeline import IRPipelineCommand
     from .opt import IROptCommand
