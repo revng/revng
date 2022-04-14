@@ -5,6 +5,7 @@
 //
 
 #include <functional>
+#include <memory>
 #include <ostream>
 #include <sstream>
 #include <string>
@@ -13,6 +14,8 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ManagedStatic.h"
+#include "llvm/Support/raw_os_ostream.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "revng/Support/Assert.h"
 #include "revng/Support/CommandLine.h"
@@ -83,6 +86,12 @@ public:
 
   template<bool X, typename T, typename LowPrio>
   friend void writeToLog(Logger<X> &This, const T Other, LowPrio Ignore);
+
+  std::unique_ptr<llvm::raw_ostream> getAsLLVMStream() {
+    if (Enabled)
+      return std::make_unique<llvm::raw_os_ostream>(Buffer);
+    return std::make_unique<llvm::raw_null_ostream>();
+  }
 
 private:
   void init();
