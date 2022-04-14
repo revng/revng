@@ -182,8 +182,8 @@ private:
 
 private:
   void mergeBackImpl(MapContainer &&Container) override {
-    for (auto &Pair : Container.Map)
-      Map.insert(std::move(Pair));
+    Container.Map.merge(std::move(this->Map));
+    this->Map = std::move(Container.Map);
   }
 };
 
