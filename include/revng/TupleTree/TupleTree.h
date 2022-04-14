@@ -130,7 +130,8 @@ public:
     auto Visitor = [&InnerVisitor](auto &Element) {
       using type = std::remove_cvref_t<decltype(Element)>;
       if constexpr (IsTupleTreeReference<type>)
-        InnerVisitor(Element);
+        if constexpr (std::is_invocable<L, decltype(Element)>::value)
+          InnerVisitor(Element);
     };
 
     visitTupleTree(*Root, Visitor, [](auto) {});
@@ -141,7 +142,8 @@ public:
     auto Visitor = [&InnerVisitor](const auto &Element) {
       using type = std::remove_cvref_t<decltype(Element)>;
       if constexpr (IsTupleTreeReference<type>)
-        InnerVisitor(Element);
+        if constexpr (std::is_invocable<L, decltype(Element)>::value)
+          InnerVisitor(Element);
     };
 
     visitTupleTree(*Root, Visitor, [](auto) {});
