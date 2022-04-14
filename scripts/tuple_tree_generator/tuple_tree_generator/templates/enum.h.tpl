@@ -78,3 +78,5 @@ inline constexpr size_t EnumElementsCount</*= enum.fullname =*/> = /*= enum.memb
 template<>
 inline llvm::StringRef getEnumName</*= enum.fullname =*/>() { return "/*= enum.name =*/"; }
 
+LLVM_YAML_IS_SEQUENCE_VECTOR(/*= enum.fullname =*/)
+
