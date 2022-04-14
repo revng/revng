@@ -16,7 +16,7 @@ from ..schema import (
     ReferenceStructField,
 )
 
-int_re = re.compile(r"(u)?int(8|16|32|64)_t")
+int_re = re.compile(r"(?:(u)?int(8|16|32|64)|size)_t")
 
 
 class JSONSchemaGenerator:
