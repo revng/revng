@@ -38,7 +38,7 @@ TaggedFunctionKind::compactTargets(const pipeline::Context &Ctx,
     return Targets;
   }
 
-  std::set<std::string> Set;
+  std::set<std::string> TargetsSet;
   const pipeline::Target AllFunctions({ pipeline::PathComponent::all() },
                                       *this);
 
@@ -49,15 +49,19 @@ TaggedFunctionKind::compactTargets(const pipeline::Context &Ctx,
     if (Target.getPathComponents().back().isAll())
       return pipeline::TargetsList({ AllFunctions });
 
-    Set.insert(Target.getPathComponents().back().getName());
+    TargetsSet.insert(Target.getPathComponents().back().getName());
   }
 
-  // check if all functions in the model are in the targets
+  // check if all functions in the model, that are not fake, are in the targets.
   // if they are, return *
-  if (llvm::all_of(Model.Functions, [&Set](const model::Function &F) {
-        return Set.contains(F.Entry.toString());
-      })) {
-
+  const auto IsNotFake = [](const auto &F) {
+    return F.Type != model::FunctionType::Fake;
+  };
+  const auto IsInTargetSet = [&TargetsSet](const model::Function &F) {
+    return TargetsSet.contains(F.Entry.toString());
+  };
+  if (llvm::all_of(llvm::make_filter_range(Model.Functions, IsNotFake),
+                   IsInTargetSet)) {
     return pipeline::TargetsList({ AllFunctions });
   }
 

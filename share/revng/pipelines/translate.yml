@@ -12,6 +12,8 @@ Steps:
    Pipes:
      - Type:             ImportBinary
        UsedContainers: [input]
+     - Type:             add-primitive-types
+       UsedContainers: [input]
      - Type:             Lift
        UsedContainers: [input, module.ll]
      - Type:             LLVMPipe

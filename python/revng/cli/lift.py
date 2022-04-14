@@ -55,6 +55,18 @@ class LiftCommand(Command):
             run_revng_command(
                 [
                     "model",
+                    "opt",
+                    "--add-primitive-types",
+                    model.name,
+                    "-o",
+                    model.name,
+                ],
+                options,
+            )
+
+            run_revng_command(
+                [
+                    "model",
                     "inject",
                     model.name,
                     "/dev/null",
