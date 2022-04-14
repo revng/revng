@@ -4,7 +4,12 @@
 
 # Define revngModel library
 revng_add_analyses_library_internal(
-  revngModel Binary.cpp LoadModelPass.cpp Processing.cpp SerializeModelPass.cpp
+  revngModel
+  Binary.cpp
+  CommonABI.cpp
+  LoadModelPass.cpp
+  Processing.cpp
+  SerializeModelPass.cpp
   Type.cpp)
 
 target_link_libraries(revngModel revngSupport)
@@ -40,6 +45,7 @@ target_tuple_tree_generator(
   "${MODEL_HEADERS_DIR}/Binary.h"
   "${MODEL_HEADERS_DIR}/CABIFunctionType.h"
   "${MODEL_HEADERS_DIR}/CallSitePrototype.h"
+  "${MODEL_HEADERS_DIR}/CommonABI.h"
   "${MODEL_HEADERS_DIR}/DynamicFunction.h"
   "${MODEL_HEADERS_DIR}/EnumEntry.h"
   "${MODEL_HEADERS_DIR}/EnumType.h"
