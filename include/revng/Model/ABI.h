@@ -136,6 +136,12 @@ members:
       The latest version of the documentation can be found
       \sa http://math-atlas.sourceforge.net/devel/assembly/mipsabi32.pdf
 
+  - name: SystemV_MIPSEL_o32
+    doc: >
+      The ABI for MIPS RISC processor architecture (little endian edition).
+      The latest version of the documentation can be found
+      \sa http://math-atlas.sourceforge.net/devel/assembly/mipsabi32.pdf
+
   - name: SystemZ_s390x
     doc: >
       The s390x ABI for SystemZ processor architecture.
@@ -177,6 +183,9 @@ getArchitecture(model::ABI::Values V) {
   case model::ABI::SystemV_MIPS_o32:
     return model::Architecture::mips;
 
+  case model::ABI::SystemV_MIPSEL_o32:
+    return model::Architecture::mipsel;
+
   case model::ABI::SystemZ_s390x:
     return model::Architecture::systemz;
 
@@ -194,8 +203,9 @@ inline constexpr model::ABI::Values getDefault(model::Architecture::Values V) {
   case model::Architecture::arm:
     return model::ABI::AAPCS;
   case model::Architecture::mips:
-  case model::Architecture::mipsel:
     return model::ABI::SystemV_MIPS_o32;
+  case model::Architecture::mipsel:
+    return model::ABI::SystemV_MIPSEL_o32;
   case model::Architecture::x86_64:
     return model::ABI::SystemV_x86_64;
   case model::Architecture::aarch64:
@@ -273,6 +283,9 @@ inline constexpr llvm::StringRef getDescription(model::ABI::Values V) {
 
   case model::ABI::SystemV_MIPS_o32:
     return "The \"old\" 32-bit MIPS abi";
+
+  case model::ABI::SystemV_MIPSEL_o32:
+    return "The \"old\" 32-bit MIPS abi (little endian edition)";
 
   case model::ABI::SystemZ_s390x:
     return "The s390x SystemZ ABI";

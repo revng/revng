@@ -34,22 +34,22 @@ auto successors(typename GT::NodeRef From) {
   return llvm::make_range(GT::child_begin(From), GT::child_end(From));
 }
 
-template<typename MFI>
+template<typename MFI, typename LatticeElement = typename MFI::LatticeElement>
 concept MonotoneFrameworkInstance = requires(const MFI &I,
-                                             typename MFI::LatticeElement E1,
-                                             typename MFI::LatticeElement E2,
+                                             LatticeElement E1,
+                                             LatticeElement E2,
                                              typename MFI::Label L) {
   /// To compute the reverse post order traversal of the graph starting from
   /// the extremal nodes, we need that the nodes also represent a subgraph
   typename llvm::GraphTraits<typename MFI::Label>::NodeRef;
 
-  same_as<typename MFI::Label,
-          typename llvm::GraphTraits<typename MFI::GraphType>::NodeRef>;
+  std::same_as<typename MFI::Label,
+               typename llvm::GraphTraits<typename MFI::GraphType>::NodeRef>;
   // Disable clang-format, because it does not handle concepts very well yet
   // clang-format off
-  { I.combineValues(E1, E2) } ->same_as<typename MFI::LatticeElement>;
-  { I.isLessOrEqual(E1, E2) } ->same_as<bool>;
-  { I.applyTransferFunction(L, E2) } ->same_as<typename MFI::LatticeElement>;
+  { I.combineValues(E1, E2) } -> std::same_as<LatticeElement>;
+  { I.isLessOrEqual(E1, E2) } -> std::same_as<bool>;
+  { I.applyTransferFunction(L, E2) } -> std::same_as<LatticeElement>;
   // clang-format on
 };
 

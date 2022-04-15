@@ -12,8 +12,8 @@ template<typename T>
 concept UniquePtrLike = requires(T A, typename T::pointer B) {
   std::is_pointer_v<typename T::pointer>;
   typename T::element_type;
-  { A.get() } -> same_as<typename T::pointer>;
-  { A.reset(B) } -> same_as<void>;
+  { A.get() } -> std::same_as<typename T::pointer>;
+  { A.reset(B) } -> std::same_as<void>;
   { T() };
   { T(B) };
 };

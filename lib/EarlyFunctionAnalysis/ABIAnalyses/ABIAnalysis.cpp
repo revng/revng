@@ -342,6 +342,12 @@ void ABIAnalysesResults::dump(T &Output, const char *Prefix) const {
              << abi::RegisterState::getName(State).str() << '\n';
     }
   }
+
+  Output << Prefix << "Final Return values:\n";
+  for (auto &[GV, State] : FinalReturnValuesRegisters) {
+    Output << Prefix << " " << GV->getName().str() << " = "
+           << abi::RegisterState::getName(State).str() << '\n';
+  }
 }
 
 } // namespace ABIAnalyses

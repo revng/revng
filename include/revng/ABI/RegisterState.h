@@ -157,7 +157,8 @@ public:
   auto end() const { return cend(); }
 
 private:
-  const model::Architecture::Values Architecture;
+  /// \note: this field is dangerous to mutate - keep it private
+  model::Architecture::Values Architecture;
   llvm::SmallVector<StatePair, 64> Internal;
 };
 

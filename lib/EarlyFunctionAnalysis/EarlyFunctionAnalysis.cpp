@@ -45,6 +45,7 @@
 #include "llvm/Transforms/Utils/Mem2Reg.h"
 
 #include "revng/ABI/FunctionType.h"
+#include "revng/ABI/RegisterStateDeductions.h"
 #include "revng/ADT/KeyedObjectTraits.h"
 #include "revng/ADT/Queue.h"
 #include "revng/ADT/SortedVector.h"
@@ -140,6 +141,35 @@ static opt<std::string> AAWriterPath("aa-writer",
                                      desc("Dump to disk the outlined functions "
                                           "with annotated alias info."),
                                      value_desc("filename"));
+
+enum ABIEnforcementOption {
+  NoABIEnforcement = 0,
+  SoftABIEnforcement,
+  FullABIEnforcement,
+};
+
+using ABIOpt = ABIEnforcementOption;
+static opt<ABIOpt> ABIEnforcement("abi-enforcement-level",
+                                  desc("ABI refinement preferences."),
+                                  values(clEnumValN(NoABIEnforcement,
+                                                    "no",
+                                                    "Do not enforce "
+                                                    "ABI-specific "
+                                                    "information."),
+                                         clEnumValN(SoftABIEnforcement,
+                                                    "soft",
+                                                    "Enforce ABI-specific "
+                                                    "information, but allows "
+                                                    "for incompatibility, if "
+                                                    "unsure about the ABI."),
+                                         clEnumValN(FullABIEnforcement,
+                                                    "full",
+                                                    "Enforce ABI-specific "
+                                                    "information, and do not "
+                                                    "allow for any possible "
+                                                    "violations of the ABI "
+                                                    "found.")),
+                                  init(ABIOpt::FullABIEnforcement));
 
 /// A summary of the analysis of a function.
 ///
@@ -389,6 +419,7 @@ public:
   void runInterproceduralAnalysis();
   void interproceduralPropagation();
   void finalizeModel(TupleTree<model::Binary> &);
+  void applyABIDeductions();
   void recoverCFG();
   void serializeFunctionMetadata();
 
@@ -424,6 +455,10 @@ private:
                                                 const FunctionSummary &,
                                                 const efa::BasicBlock &);
   FunctionSummary importPrototype(model::FunctionType::Values, model::TypePath);
+  void initializeMapForDeductions(FunctionSummary &, abi::RegisterState::Map &);
+  std::optional<abi::RegisterState::Values>
+  tryGetRegisterState(model::Register::Values,
+                      const ABIAnalyses::RegisterStateMap &);
 
 private:
   static auto *markerType(llvm::Module &M) {
@@ -839,6 +874,104 @@ void FunctionEntrypointAnalyzer::interproceduralPropagation() {
     for (auto &[PC, CallSite] : Summary.ABIResults.CallSites) {
       if (PC == Function.Entry)
         combineCrossCallSites(CallSite, Summary.ABIResults);
+    }
+  }
+}
+
+std::optional<abi::RegisterState::Values>
+FEA::tryGetRegisterState(model::Register::Values RegisterValue,
+                         const ABIAnalyses::RegisterStateMap &ABIRegisterMap) {
+  using State = abi::RegisterState::Values;
+
+  llvm::StringRef Name = model::Register::getCSVName(RegisterValue);
+  if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true)) {
+    auto It = ABIRegisterMap.find(CSV);
+    if (It != ABIRegisterMap.end()) {
+      revng_assert(It->second != State::Count && It->second != State::Invalid);
+      return It->second;
+    }
+  }
+
+  return std::nullopt;
+}
+
+void FEA::initializeMapForDeductions(FunctionSummary &Summary,
+                                     abi::RegisterState::Map &Map) {
+  auto Arch = model::ABI::getArchitecture(Binary->DefaultABI);
+  revng_assert(Arch == Binary->Architecture);
+
+  for (const auto &Reg : model::Architecture::registers(Arch)) {
+    const auto &ArgRegisters = Summary.ABIResults.ArgumentsRegisters;
+    const auto &RVRegisters = Summary.ABIResults.FinalReturnValuesRegisters;
+
+    if (auto MaybeState = tryGetRegisterState(Reg, ArgRegisters))
+      Map[Reg].IsUsedForPassingArguments = *MaybeState;
+
+    if (auto MaybeState = tryGetRegisterState(Reg, RVRegisters))
+      Map[Reg].IsUsedForReturningValues = *MaybeState;
+  }
+}
+
+void FunctionEntrypointAnalyzer::applyABIDeductions() {
+  using namespace abi;
+
+  if (ABIEnforcement == NoABIEnforcement)
+    return;
+
+  for (const model::Function &Function : Binary->Functions) {
+    auto &Summary = Oracle.at(Function.Entry);
+
+    RegisterState::Map StateMap(Binary->Architecture);
+    initializeMapForDeductions(Summary, StateMap);
+
+    bool EnforceABIConformance = ABIEnforcement == FullABIEnforcement;
+    std::optional<abi::RegisterState::Map> ResultMap;
+
+    if (EnforceABIConformance) {
+      ResultMap = enforceRegisterStateDeductions(StateMap, Binary->DefaultABI);
+    } else {
+      ResultMap = tryApplyRegisterStateDeductions(StateMap, Binary->DefaultABI);
+    }
+
+    if (!ResultMap.has_value())
+      continue;
+
+    for (const auto &[Register, State] : *ResultMap) {
+      llvm::StringRef Name = model::Register::getCSVName(Register);
+      if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true)) {
+        auto MaybeArg = State.IsUsedForPassingArguments;
+        auto MaybeRV = State.IsUsedForReturningValues;
+
+        // ABI-refined results per function
+        if (Summary.ABIResults.ArgumentsRegisters.count(CSV) != 0)
+          Summary.ABIResults.ArgumentsRegisters[CSV] = MaybeArg;
+
+        if (Summary.ABIResults.FinalReturnValuesRegisters.count(CSV) != 0)
+          Summary.ABIResults.FinalReturnValuesRegisters[CSV] = MaybeRV;
+
+        // ABI-refined results per indirect call-site
+        for (auto &Block : Summary.CFG) {
+          for (auto &Edge : Block.Successors) {
+            if (efa::FunctionEdgeType::isCall(Edge->Type)
+                && Edge->Type != efa::FunctionEdgeType::FunctionCall) {
+              auto &CSSummary = Summary.ABIResults.CallSites.at(Block.Start);
+
+              if (CSSummary.ArgumentsRegisters.count(CSV) != 0)
+                CSSummary.ArgumentsRegisters[CSV] = MaybeArg;
+
+              if (CSSummary.ReturnValuesRegisters.count(CSV) != 0)
+                CSSummary.ReturnValuesRegisters[CSV] = MaybeRV;
+            }
+          }
+        }
+      }
+    }
+
+    if (EarlyFunctionAnalysisLog.isEnabled()) {
+      EarlyFunctionAnalysisLog << "Summary for " << Function.OriginalName
+                               << ":\n";
+      EarlyFunctionAnalysisLog << DoLog;
+      Summary.dump(EarlyFunctionAnalysisLog);
     }
   }
 }
@@ -2095,6 +2228,9 @@ bool EarlyFunctionAnalysis<ShouldAnalyzeABI>::runOnModule(Module &M) {
 
     // Propagate results between call-sites and functions
     Analyzer.interproceduralPropagation();
+
+    // Refine results with ABI-specific information
+    Analyzer.applyABIDeductions();
 
     // Commit the results onto the model. A non-const model is taken as argument
     // to be written.
