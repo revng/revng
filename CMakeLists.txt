@@ -243,6 +243,7 @@ add_subdirectory(lib)
 add_subdirectory(tools)
 add_subdirectory(docs/)
 add_subdirectory(python)
+add_subdirectory(typescript)
 
 include(${CMAKE_INSTALL_PREFIX}/share/revng/qa/cmake/revng-qa.cmake)
 
