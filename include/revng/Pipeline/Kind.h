@@ -16,6 +16,8 @@ namespace pipeline {
 class Target;
 class Context;
 class TargetsList;
+class ContainerBase;
+class InvalidationEventBase;
 
 /// A Kind is used to accumunate objects that logically belongs to the same
 /// cathegory.
@@ -44,6 +46,12 @@ public:
     revng_assert(TheRank != nullptr);
   }
 
+  /// Kinds may provide a override for this method. Thye must return success if
+  /// ToVerify (which always has this kind as a kind), well formed inside
+  /// Container (which always contains ToVerify).
+  virtual llvm::Error
+  verify(const ContainerBase &Container, const Target &ToVerify) const;
+
 public:
   size_t depth() const { return TheRank->depth(); }
 
@@ -61,6 +69,9 @@ public:
   virtual void expandTarget(const Context &Ctx,
                             const Target &Input,
                             TargetsList &Output) const;
+
+  virtual void getInvalidations(pipeline::TargetsList &ToRemove,
+                                const InvalidationEventBase &Event) const {}
 
 public:
   template<Rank *R>

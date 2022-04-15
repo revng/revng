@@ -209,6 +209,9 @@ public:
 public:
   bool hasModule() const { return static_cast<bool>(Module); }
 
+  TupleTree<model::Binary> &getModel() { return Model; }
+  const TupleTree<model::Binary> &getModel() const { return Model; }
+
 public:
   llvm::Error save(const llvm::Twine &Path, ModelOutputType::Values Type) {
     using namespace llvm;

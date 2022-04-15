@@ -12,6 +12,7 @@
 #include "revng/Pipeline/Step.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/PipelineManager.h"
+#include "revng/TupleTree/TupleTreeDiff.h"
 #else
 #include <stdbool.h>
 #include <stddef.h>
@@ -155,6 +156,12 @@ void rp_manager_destroy(rp_manager *manager);
  * \return the number of containers registered in this pipeline.
  */
 uint64_t rp_manager_containers_count(rp_manager *manager);
+
+/**
+ * Applies the diff to the model and triggers a ModelInvalidationEvent
+ *
+ */
+void rp_apply_model_diff(rp_manager *manager, const char *diff);
 
 /**
  * \param index must be less than rp_manager_containers_count(manager).

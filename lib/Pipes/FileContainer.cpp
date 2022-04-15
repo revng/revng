@@ -97,8 +97,19 @@ void FileContainer::mergeBackImpl(FileContainer &&Container) {
 }
 
 llvm::Error FileContainer::storeToDisk(llvm::StringRef Path) const {
-  if (this->Path.empty())
+  // We must ensure that if we got invalidated then no file on disk is present,
+  // so that the next time we load we don't mistakenly think that we have some
+  // content.
+  //
+  // Other containers do not need this because they determin their content by
+  // looking inside the stored file, instead of only checking if the file
+  // exists.
+  if (this->Path.empty()) {
+    if (llvm::sys::fs::exists(Path))
+      llvm::sys::fs::remove(Path);
+
     return llvm::Error::success();
+  }
 
   auto Error = errorCodeToError(llvm::sys::fs::copy_file(this->Path, Path));
   auto Perm = cantFail(errorOrToExpected(fs::getPermissions(this->Path)));

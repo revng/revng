@@ -8,6 +8,7 @@
 
 #include "llvm/ADT/SmallVector.h"
 
+#include "revng/Pipeline/Container.h"
 #include "revng/Pipeline/Kind.h"
 #include "revng/Pipeline/KindsRegistry.h"
 #include "revng/Pipeline/Target.h"

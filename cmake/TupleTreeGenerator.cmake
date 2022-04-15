@@ -47,9 +47,13 @@ function(tuple_tree_generator_impl)
     LOCAL_GENERATED_IMPLS)
 
   tuple_tree_generator_generate_cpp(
-    "${GENERATOR_SCHEMA_PATH}" "${GENERATOR_NAMESPACE}"
-    "${GENERATOR_HEADERS_DIR}" "${GENERATOR_INCLUDE_PATH_PREFIX}"
-    "${LOCAL_GENERATED_HEADERS}" "${LOCAL_GENERATED_IMPLS}")
+    "${GENERATOR_SCHEMA_PATH}"
+    "${GENERATOR_NAMESPACE}"
+    "${GENERATOR_HEADERS_DIR}"
+    "${GENERATOR_INCLUDE_PATH_PREFIX}"
+    "${LOCAL_GENERATED_HEADERS}"
+    "${LOCAL_GENERATED_IMPLS}"
+    "${GENERATOR_ROOT_TYPE}")
 
   set("${GENERATOR_GENERATED_HEADERS_VARIABLE}"
       ${LOCAL_GENERATED_HEADERS}
@@ -181,12 +185,14 @@ function(
   # List of headers that are expected to be generated
   EXPECTED_GENERATED_HEADERS
   # List of implementation files expected to be generated
-  EXPECTED_GENERATED_IMPLS)
+  EXPECTED_GENERATED_IMPLS
+  # Root type of the schema, if there is any
+  ROOT_TYPE)
   add_custom_command(
     COMMAND
       "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-cpp.py" --namespace
-      "${NAMESPACE}" --include-path-prefix "${INCLUDE_PATH_PREFIX}"
-      "${YAML_DEFINITIONS}" "${OUTPUT_DIR}"
+      "${NAMESPACE}" --include-path-prefix "${INCLUDE_PATH_PREFIX}" --root-type
+      \""${ROOT_TYPE}"\" "${YAML_DEFINITIONS}" "${OUTPUT_DIR}"
     OUTPUT ${EXPECTED_GENERATED_HEADERS} ${EXPECTED_GENERATED_IMPLS}
     DEPENDS "${YAML_DEFINITIONS}" ${CPP_TEMPLATES}
             "${SCRIPTS_ROOT_DIR}/extract_yaml.py"

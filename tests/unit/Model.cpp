@@ -260,6 +260,41 @@ BOOST_AUTO_TEST_CASE(TestTupleTreeDiff) {
   diff(Left, Right).dump();
 }
 
+BOOST_AUTO_TEST_CASE(TestTupleTreeDiffSerialization) {
+  model::Binary Left;
+  model::Binary Right;
+  auto Diff = diff(Left, Right);
+
+  std::string S;
+  llvm::raw_string_ostream Stream(S);
+  serialize(Stream, Diff);
+}
+
+BOOST_AUTO_TEST_CASE(TestTupleTreeDiffDeserialization) {
+  model::Binary Empty;
+  model::Binary New;
+
+  MetaAddress Address(0x1000, MetaAddressType::Code_aarch64);
+  New.ExtraCodeAddresses.insert(Address);
+
+  auto Diff = diff(Empty, New);
+
+  std::string S;
+  llvm::raw_string_ostream Stream(S);
+  serialize(Stream, Diff);
+  Stream.flush();
+  llvm::errs() << S;
+
+  auto Diff2 = llvm::cantFail(deserialize<TupleTreeDiff<model::Binary>>(S));
+
+  std::string S2;
+  llvm::raw_string_ostream Stream2(S2);
+  serialize(Stream2, Diff2);
+  Stream2.flush();
+
+  BOOST_TEST(S == S2);
+}
+
 static_assert(std::is_default_constructible_v<TupleTree<TestTupleTree::Root>>);
 static_assert(not std::is_copy_assignable_v<TupleTree<TestTupleTree::Root>>);
 static_assert(not std::is_copy_constructible_v<TupleTree<TestTupleTree::Root>>);

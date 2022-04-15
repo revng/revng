@@ -1,5 +1,7 @@
 # pragma once
 
+#include <variant>
+
 /*#-
 This template file is distributed under the MIT License. See LICENSE.md for details.
 The notice below applies to the generated files.
@@ -16,6 +18,19 @@ namespace /*= ns =*/ {
 /**- for name in names|sort **/
 class /*= name =*/;
 /**- endfor **/
+
+using AllClasses = std::variant<
+/** for name in names|sort **/
+/*= name =*//** if not loop.last **/,/** endif **/
+/**- endfor **/
+>;
+
+using AllUpcastablePointerTypes = std::variant<
+/** for name in abstract_names|sort **/
+/*= name =*//** if not loop.last **/,/** endif **/
+/**- endfor **/
+>;
+
 } // namespace /*= ns =*/
 /** endfor **/
 

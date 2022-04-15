@@ -140,6 +140,8 @@ public:
 
   ContainerToTargetsMap enumerate() const;
 
+  llvm::Error verify() const;
+
 public:
   void add(llvm::StringRef Name,
            const ContainerFactory &Factory,
