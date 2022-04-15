@@ -14,3 +14,23 @@ add_custom_command(
 add_custom_target(
   generate-node_modules
   DEPENDS "${CMAKE_BINARY_DIR}/node_build/node_modules/.yarn-integrity")
+
+# Model package generation
+add_custom_command(
+  OUTPUT "${CMAKE_BINARY_DIR}/model.ts.tgz"
+         "${CMAKE_BINARY_DIR}/node_modules/revng-model/dist/model.js"
+  COMMAND
+    "${CMAKE_SOURCE_DIR}/typescript/build-model.sh"
+    "${CMAKE_SOURCE_DIR}/typescript"
+    "${CMAKE_BINARY_DIR}/node_build/node_modules"
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+  DEPENDS generate-revngModel-tuple-tree-code generate-node_modules)
+
+add_custom_target(generate-model.ts.tgz ALL
+                  DEPENDS "${CMAKE_BINARY_DIR}/model.ts.tgz")
+
+install(FILES "${CMAKE_BINARY_DIR}/model.ts.tgz"
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/share/typescript")
+
+install(DIRECTORY "${CMAKE_BINARY_DIR}/node_modules"
+        DESTINATION "${CMAKE_INSTALL_PREFIX}")

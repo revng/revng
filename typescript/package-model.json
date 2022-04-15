@@ -1,0 +1,13 @@
+{
+    "license": "MIT",
+    "__license": "See LICENSE.md for details.",
+    "name": "revng-model",
+    "version": "1.0.0",
+    "description": "revng model",
+    "main": "dist/model.js",
+    "types": "dist/model.d.ts",
+    "files": ["/dist"],
+    "dependencies": {
+        "yaml": "2.0.0"
+    }
+}
