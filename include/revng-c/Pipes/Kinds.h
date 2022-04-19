@@ -28,4 +28,6 @@ inline TaggedFunctionKind
 
 inline pipeline::Kind ModelHeader("ModelHeader", Binary, &RootRank);
 
+inline pipeline::Kind HelpersHeader("HelpersHeader", Binary, &RootRank);
+
 } // end namespace revng::pipes

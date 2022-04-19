@@ -13,13 +13,26 @@
 
 #include "revng-c/HeadersGeneration/HelpersToHeader.h"
 
-static llvm::cl::OptionCategory HelpersToHeaderCategory("HelpersToHeaderOption"
-                                                        "s");
+using namespace llvm::cl;
 
-static const char *Overview = "Standalone tool that ingests an LLVM module "
-                              "and produces a C11 header file with all the "
-                              "declarations of\ntypes and functions associated "
-                              "to QEMU and revng helpers.";
+static OptionCategory HelpersToHeaderCategory("revng-helpers-to-headers "
+                                              "options");
+
+static const char *Overview = "Standalone tool that ingests an LLVM module and "
+                              "produces a C11 header file\n"
+                              "with all the declarations of types and "
+                              "functions associated to QEMU and revng\n"
+                              "helpers.";
+
+static opt<std::string> OutFile("o",
+                                init("-" /* for stdout */),
+                                desc("Output C header"),
+                                cat(HelpersToHeaderCategory));
+
+static opt<std::string> InFile("i",
+                               init("-" /* for stdin */),
+                               desc("Input LLVM Module"),
+                               cat(HelpersToHeaderCategory));
 
 using llvm::LLVMContext;
 using llvm::Module;
@@ -40,7 +53,7 @@ int main(int Argc, const char *Argv[]) {
   if (not Ok)
     std::exit(EXIT_FAILURE);
 
-  auto Buffer = llvm::MemoryBuffer::getSTDIN();
+  auto Buffer = llvm::MemoryBuffer::getFileOrSTDIN(InFile);
   if (std::error_code EC = Buffer.getError())
     revng_abort(EC.message().c_str());
 
@@ -54,11 +67,16 @@ int main(int Argc, const char *Argv[]) {
   }
 
   std::error_code EC;
-  llvm::raw_fd_ostream Header{ "-" /* for stdout */, EC };
+  llvm::raw_fd_ostream Header{ OutFile, EC };
   if (EC)
     revng_abort(EC.message().c_str());
 
   dumpHelpersToHeader(*M, Header);
+
+  Header.flush();
+  EC = Header.error();
+  if (EC)
+    revng_abort(EC.message().c_str());
 
   return 0;
 }

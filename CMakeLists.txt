@@ -288,9 +288,8 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
   add_test(
     NAME helpers_to_header_${TARGET_NAME}
     COMMAND
-      revng --prefix=${CMAKE_BINARY_DIR} opt --helpers-to-header
-      ${OUTFOLDER}/canonicalized.bc
-      --helpers-header-name=${DECOMPILED_DIR}/helpers_header.h -o /dev/null)
+      revng --prefix=${CMAKE_BINARY_DIR} helpers-to-header
+      -i=${OUTFOLDER}/canonicalized.bc -o=${DECOMPILED_DIR}/helpers_header.h)
   set_property(
     TEST helpers_to_header_${TARGET_NAME}
     APPEND
