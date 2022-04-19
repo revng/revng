@@ -2,15 +2,12 @@
 // Copyright rev.ng Labs Srl. See LICENSE.md for details.
 //
 
-#include <functional>
-
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/Casting.h"
 
 #include "revng/ADT/RecursiveCoroutine-coroutine.h"
 #include "revng/ADT/RecursiveCoroutine.h"
-#include "revng/Model/Generated/Early/QualifierKind.h"
 #include "revng/Model/QualifiedType.h"
 #include "revng/Model/Qualifier.h"
 
@@ -18,6 +15,7 @@
 
 using llvm::dyn_cast;
 using QualKind = model::QualifierKind::Values;
+using model::TypedefType;
 
 model::QualifiedType
 peelConstAndTypedefs(const model::QualifiedType &QT, model::VerifyHelper &VH) {
@@ -130,46 +128,19 @@ parseQualifiedType(const llvm::StringRef QTString, const model::Binary &Model) {
   return ParsedType;
 }
 
-model::QualifiedType dropPointer(const model::QualifiedType &QT) {
-  auto QIt = QT.Qualifiers.end();
-  auto QBegin = QT.Qualifiers.begin();
-  while (QIt != QBegin) {
-    --QIt;
-
-    if (model::Qualifier::isConst(*QIt))
-      continue;
-
-    if (model::Qualifier::isPointer(*QIt)) {
-      auto PrevIt = QIt == QBegin ? QBegin : std::prev(QIt);
-      return model::QualifiedType(QT.UnqualifiedType, { QBegin, PrevIt });
-    }
-
-    return QT;
-  }
-
-  return QT;
-}
-
 RecursiveCoroutine<model::QualifiedType>
-dropPointerRecursively(const model::QualifiedType &QT) {
-  auto QIt = QT.Qualifiers.end();
-  auto QBegin = QT.Qualifiers.begin();
-  while (QIt != QBegin) {
-    --QIt;
+dropPointer(const model::QualifiedType &QT) {
+  model::QualifiedType NewQT = QT;
 
-    if (model::Qualifier::isConst(*QIt))
-      continue;
+  auto It = std::find_if(NewQT.Qualifiers.rbegin(),
+                         NewQT.Qualifiers.rend(),
+                         model::Qualifier::isPointer);
 
-    if (model::Qualifier::isPointer(*QIt)) {
-      auto PrevIt = QIt == QBegin ? QBegin : std::prev(QIt);
-      rc_return model::QualifiedType(QT.UnqualifiedType, { QBegin, PrevIt });
-    }
-
-    rc_return QT;
+  if (It != NewQT.Qualifiers.rend()) {
+    std::erase(NewQT.Qualifiers, *It);
+  } else if (auto *TD = dyn_cast<TypedefType>(NewQT.UnqualifiedType.get())) {
+    rc_return rc_recur dropPointer(TD->UnderlyingType);
   }
 
-  if (auto *TD = dyn_cast<model::TypedefType>(QT.UnqualifiedType.get()))
-    rc_return rc_recur dropPointerRecursively(TD->UnderlyingType);
-
-  rc_return QT;
+  rc_return NewQT;
 }

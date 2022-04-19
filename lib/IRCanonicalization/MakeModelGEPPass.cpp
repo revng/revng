@@ -1284,7 +1284,7 @@ class GEPSummationCache {
       revng_log(ModelGEPLog, "Use is typed!");
 
       Result = ModelGEPSummation{
-        .BaseAddress = TypedBaseAddress{ .Type = dropPointerRecursively(Type),
+        .BaseAddress = TypedBaseAddress{ .Type = dropPointer(Type),
                                          .Address = AddressArith },
         // The summation is empty since AddressArith has exactly the type
         // we're looking at here.
