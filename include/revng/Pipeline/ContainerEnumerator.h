@@ -21,7 +21,7 @@ namespace pipeline {
 /// add a particular meaning of a global object.  If that is the case then
 /// ContainerEnumerator and EnumerableContainers are what you need.
 ///
-/// If a downstream user of reveng wishes to extend the enumeration and removal
+/// If a downstream user of revng wishes to extend the enumeration and removal
 /// rule from a container it can do so by extending this class, specialized with
 /// the type of the container in question.
 ///
@@ -61,7 +61,7 @@ public:
 /// containers declaration, since if it was always containers to name which
 /// kinds can be contained in them, then they would not be able to name kinds
 /// declared downstream libraries. Similarly, should be always kind to be able
-/// to enuemrate the context of a contaienr, then containers declared in
+/// to enumerate the context of a container, then any containers declared in
 /// downstream libraries would not be able to use kinds declared upstream.
 ///
 /// You should declare a new inspectable container if and only if you think that

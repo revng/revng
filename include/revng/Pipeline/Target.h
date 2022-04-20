@@ -132,7 +132,7 @@ public:
     indent(OS, Indentation);
 
     OS << (Exact == Exactness::DerivedFrom ? "derived from " : "exactly ")
-       << K->name().str() << " With path: ";
+       << K->name().str() << " with path: ";
     for (const auto &Entry : Components) {
       Entry.dump(OS);
       OS << "/";

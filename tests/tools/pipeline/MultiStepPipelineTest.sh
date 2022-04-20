@@ -34,7 +34,7 @@ diff "$OUTPUT" "$REFERENCE_OUTPUT"
 run "$@"
 diff "$OUTPUT" "$REFERENCE_OUTPUT"
 
-# Drop an interemdiate results and recompute
+# Drop an intermediate results and recompute
 rm "$WORKING_DIRECTORY/SecondStep/Strings1"
 run "$@"
 diff "$OUTPUT" "$REFERENCE_OUTPUT"
