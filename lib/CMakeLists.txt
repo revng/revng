@@ -2,6 +2,7 @@
 # Copyright rev.ng Labs Srl. See LICENSE.md for details.
 #
 
+add_subdirectory(Backend)
 add_subdirectory(BeautifyGHAST)
 add_subdirectory(DataLayoutAnalysis)
 add_subdirectory(Decompiler)
@@ -11,6 +12,7 @@ add_subdirectory(Liveness)
 add_subdirectory(MakeEnvNull)
 add_subdirectory(MarkForSerialization)
 add_subdirectory(HeadersGeneration)
+add_subdirectory(InitModelTypes)
 add_subdirectory(PHIASAPAssignmentInfo)
 add_subdirectory(PromoteStackPointer)
 add_subdirectory(RemoveCpuLoopStore)

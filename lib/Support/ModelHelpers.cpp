@@ -2,15 +2,12 @@
 // Copyright rev.ng Labs Srl. See LICENSE.md for details.
 //
 
-#include <functional>
-
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/Casting.h"
 
 #include "revng/ADT/RecursiveCoroutine-coroutine.h"
 #include "revng/ADT/RecursiveCoroutine.h"
-#include "revng/Model/Generated/Early/QualifierKind.h"
 #include "revng/Model/QualifiedType.h"
 #include "revng/Model/Qualifier.h"
 
@@ -18,6 +15,7 @@
 
 using llvm::dyn_cast;
 using QualKind = model::QualifierKind::Values;
+using model::TypedefType;
 
 model::QualifiedType
 peelConstAndTypedefs(const model::QualifiedType &QT, model::VerifyHelper &VH) {
@@ -57,17 +55,21 @@ model::TypePath createEmptyStruct(model::Binary &Binary, uint64_t Size) {
 
 const model::QualifiedType
 llvmIntToModelType(const llvm::Type *LLVMType, const model::Binary &Model) {
-  model::QualifiedType ModelType;
   using namespace model::PrimitiveTypeKind;
-  const llvm::Type *TypeToConvert = LLVMType;
-  bool IsPointer = false;
 
-  if (auto *PtrType = dyn_cast<llvm::PointerType>(LLVMType)) {
+  const llvm::Type *TypeToConvert = LLVMType;
+  size_t NPtrQualifiers = 0;
+
+  // If it's a pointer, find the pointed type
+  while (auto *PtrType = dyn_cast<llvm::PointerType>(TypeToConvert)) {
     TypeToConvert = PtrType->getElementType();
-    IsPointer = true;
+    ++NPtrQualifiers;
   }
 
+  model::QualifiedType ModelType;
+
   if (auto *IntType = dyn_cast<llvm::IntegerType>(TypeToConvert)) {
+    // Convert the integer type
     switch (IntType->getIntegerBitWidth()) {
     case 1:
     case 8:
@@ -93,12 +95,13 @@ llvmIntToModelType(const llvm::Type *LLVMType, const model::Binary &Model) {
       revng_abort("Found an LLVM integer with a size that is not a power of "
                   "two");
     }
-
-    if (IsPointer) {
+    // Add qualifiers
+    for (size_t I = 0; I < NPtrQualifiers; ++I)
       addPointerQualifier(ModelType, Model);
-    }
-  } else if (IsPointer) {
-    // If it's a pointer to a non-integer type, return an integer
+
+  } else if (NPtrQualifiers > 0) {
+    // If it's a pointer to a non-integer type, return an integer type of the
+    // length of a pointer
     auto PtrSize = getPointerSize(Model.Architecture);
     ModelType.UnqualifiedType = Model.getPrimitiveType(Number, PtrSize);
   } else {
@@ -125,46 +128,19 @@ parseQualifiedType(const llvm::StringRef QTString, const model::Binary &Model) {
   return ParsedType;
 }
 
-model::QualifiedType dropPointer(const model::QualifiedType &QT) {
-  auto QIt = QT.Qualifiers.end();
-  auto QBegin = QT.Qualifiers.begin();
-  while (QIt != QBegin) {
-    --QIt;
-
-    if (model::Qualifier::isConst(*QIt))
-      continue;
-
-    if (model::Qualifier::isPointer(*QIt)) {
-      auto PrevIt = QIt == QBegin ? QBegin : std::prev(QIt);
-      return model::QualifiedType(QT.UnqualifiedType, { QBegin, PrevIt });
-    }
-
-    return QT;
-  }
-
-  return QT;
-}
-
 RecursiveCoroutine<model::QualifiedType>
-dropPointerRecursively(const model::QualifiedType &QT) {
-  auto QIt = QT.Qualifiers.end();
-  auto QBegin = QT.Qualifiers.begin();
-  while (QIt != QBegin) {
-    --QIt;
+dropPointer(const model::QualifiedType &QT) {
+  model::QualifiedType NewQT = QT;
 
-    if (model::Qualifier::isConst(*QIt))
-      continue;
+  auto It = std::find_if(NewQT.Qualifiers.rbegin(),
+                         NewQT.Qualifiers.rend(),
+                         model::Qualifier::isPointer);
 
-    if (model::Qualifier::isPointer(*QIt)) {
-      auto PrevIt = QIt == QBegin ? QBegin : std::prev(QIt);
-      rc_return model::QualifiedType(QT.UnqualifiedType, { QBegin, PrevIt });
-    }
-
-    rc_return QT;
+  if (It != NewQT.Qualifiers.rend()) {
+    std::erase(NewQT.Qualifiers, *It);
+  } else if (auto *TD = dyn_cast<TypedefType>(NewQT.UnqualifiedType.get())) {
+    rc_return rc_recur dropPointer(TD->UnderlyingType);
   }
 
-  if (auto *TD = dyn_cast<model::TypedefType>(QT.UnqualifiedType.get()))
-    rc_return rc_recur dropPointerRecursively(TD->UnderlyingType);
-
-  rc_return QT;
+  rc_return NewQT;
 }

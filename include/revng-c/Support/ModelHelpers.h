@@ -51,11 +51,8 @@ createPointerTo(const model::TypePath &BaseT, const model::Binary &Binary) {
   };
 }
 
-/// Return a new type if \a QT is a pointer, otherwise return \a QT
-extern model::QualifiedType dropPointer(const model::QualifiedType &QT);
-
 /// Drops te last pointer qualifier from \a QT or, if this wraps a
 /// typedef, it recursively descends the typedef wrappers until a pointer
 /// qualifier is found.
 extern RecursiveCoroutine<model::QualifiedType>
-dropPointerRecursively(const model::QualifiedType &QT);
+dropPointer(const model::QualifiedType &QT);

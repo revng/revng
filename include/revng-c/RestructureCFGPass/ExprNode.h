@@ -106,6 +106,10 @@ public:
   std::pair<ExprNode *, ExprNode *> getInternalNodes() {
     return std::make_pair(LeftChild, RightChild);
   }
+
+  std::pair<const ExprNode *, const ExprNode *> getInternalNodes() const {
+    return std::make_pair(LeftChild, RightChild);
+  }
 };
 
 class AndNode : public BinaryNode {

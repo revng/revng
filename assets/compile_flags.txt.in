@@ -60,6 +60,8 @@
 # -Wno-infinite-recursion
 # -Wno-constant-conversion
 # -Wno-shift-count-overflow
+# -Wno-sign-compare
+# -Wno-int-conversion
 
 -Wall
 -c
@@ -84,4 +86,11 @@ ${CMAKE_BINARY_DIR}/${ASSETS_DIR}/recompilation-headers/
 -Wno-tautological-constant-out-of-range-compare
 -Wno-int-to-pointer-cast
 -Wno-infinite-recursion
+-Wno-address-of-packed-member
+-Wno-sign-compare
+-Wno-int-conversion
+-Wno-pointer-integer-compare
 -Wno-incompatible-library-redeclaration
+-Wno-pointer-to-int-cast
+-Wno-incompatible-pointer-types
+-Wno-null-pointer-arithmetic

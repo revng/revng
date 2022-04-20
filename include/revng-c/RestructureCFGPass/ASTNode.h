@@ -291,7 +291,7 @@ public:
     RelatedCondition = Condition;
   }
 
-  IfNode *getRelatedCondition() {
+  IfNode *getRelatedCondition() const {
     revng_assert(LoopType == Type::While or LoopType == Type::DoWhile);
     revng_assert(RelatedCondition != nullptr);
 
@@ -306,6 +306,8 @@ public:
   using links_container = std::vector<ASTNode *>;
   using links_iterator = typename links_container::iterator;
   using links_range = llvm::iterator_range<links_iterator>;
+  using const_links_iterator = typename links_container::const_iterator;
+  using const_links_range = llvm::iterator_range<const_links_iterator>;
 
 private:
   links_container NodeVec;
@@ -330,6 +332,10 @@ public:
   static bool classof(const ASTNode *N) { return N->getKind() == NK_List; }
 
   links_range nodes() {
+    return llvm::make_range(NodeVec.begin(), NodeVec.end());
+  }
+
+  const_links_range nodes() const {
     return llvm::make_range(NodeVec.begin(), NodeVec.end());
   }
 

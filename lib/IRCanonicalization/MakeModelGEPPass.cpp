@@ -2,17 +2,6 @@
 // Copyright rev.ng Labs Srl. See LICENSE.md for details.
 //
 
-#include <algorithm>
-#include <compare>
-#include <functional>
-#include <iterator>
-#include <limits>
-#include <optional>
-#include <string>
-#include <type_traits>
-#include <utility>
-#include <variant>
-
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
@@ -46,6 +35,7 @@
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/YAMLTraits.h"
 
+#include "revng-c/InitModelTypes/InitModelTypes.h"
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
@@ -61,7 +51,6 @@ using llvm::Constant;
 using llvm::ConstantExpr;
 using llvm::ConstantInt;
 using llvm::dyn_cast;
-using llvm::ExtractValueInst;
 using llvm::FunctionPass;
 using llvm::GlobalVariable;
 using llvm::Instruction;
@@ -83,6 +72,8 @@ using model::CABIFunctionType;
 using model::Qualifier;
 using model::RawFunctionType;
 
+using ModelTypesMap = std::map<const llvm::Value *, const model::QualifiedType>;
+
 static Logger<> ModelGEPLog{ "make-model-gep" };
 
 struct MakeModelGEPPass : public FunctionPass {
@@ -98,223 +89,6 @@ public:
     AU.addRequired<LoadModelWrapperPass>();
   }
 };
-
-using ValueModelTypesMap = std::map<const Value *, const model::QualifiedType>;
-
-ValueModelTypesMap initializeModelTypes(const llvm::Function &F,
-                                        const model::Function &ModelF,
-                                        const model::Binary &Model) {
-  using namespace model;
-  ValueModelTypesMap Result;
-
-  auto Indent = LoggerIndent(ModelGEPLog);
-
-  const model::Type *FType = ModelF.Prototype.get();
-  revng_assert(FType);
-
-  // TODO we should create types for ConstantInts that are valid addresses that
-  // point into segments
-
-  // First, initialize the types of F's arguments
-  revng_log(ModelGEPLog, "Initialize argument types");
-  if (const auto *RFT = dyn_cast<model::RawFunctionType>(FType)) {
-
-    auto MoreIndent = LoggerIndent(ModelGEPLog);
-    revng_log(ModelGEPLog, "model::RawFunctionType");
-    revng_assert(RFT->StackArgumentsType.Qualifiers.empty());
-    bool HasStackArg = RFT->StackArgumentsType.UnqualifiedType.isValid();
-    unsigned ActualArgSize = RFT->Arguments.size() + (HasStackArg ? 1 : 0);
-    revng_assert(F.arg_size() == ActualArgSize);
-
-    auto MoreMoreIndent = LoggerIndent(ModelGEPLog);
-    for (const auto &[ModelArg, LLVMArg] :
-         llvm::zip_first(RFT->Arguments, F.args())) {
-      auto _ = LoggerIndent(ModelGEPLog);
-      revng_log(ModelGEPLog, "llvm::Argument: " << dumpToString(LLVMArg));
-      revng_log(ModelGEPLog,
-                "model::QualifiedType: " << serializeToString(ModelArg.Type));
-      if (ModelArg.Type.isPointer()) {
-        revng_log(ModelGEPLog, "INITIALIZED");
-        Result.insert({ &LLVMArg, ModelArg.Type });
-      }
-    }
-  } else if (const auto *CFT = dyn_cast<model::CABIFunctionType>(FType)) {
-
-    auto MoreIndent = LoggerIndent(ModelGEPLog);
-    revng_assert(CFT->Arguments.size() == F.arg_size());
-    revng_log(ModelGEPLog, "model::CABIFunctionType");
-
-    auto MoreMoreIndent = LoggerIndent(ModelGEPLog);
-    for (const auto &[ModelArg, LLVMArg] :
-         llvm::zip_first(CFT->Arguments, F.args())) {
-      auto _ = LoggerIndent(ModelGEPLog);
-      revng_log(ModelGEPLog, "llvm::Argument: " << dumpToString(LLVMArg));
-      revng_log(ModelGEPLog,
-                "model::QualifiedType: " << serializeToString(ModelArg.Type));
-      if (ModelArg.Type.isPointer()) {
-        revng_log(ModelGEPLog, "INITIALIZED");
-        Result.insert({ &LLVMArg, ModelArg.Type });
-      }
-    }
-  } else {
-    revng_abort("Function should have RawFunctionType or CABIFunctionType");
-  }
-
-  for (auto &I : llvm::instructions(F)) {
-    auto MoreIndent = LoggerIndent(ModelGEPLog);
-    revng_log(ModelGEPLog, "Instruction " << dumpToString(&I));
-    auto MoreMoreIndent = LoggerIndent(ModelGEPLog);
-
-    // For calls we have some cases we want to catch:
-    // - return values for which we have types on the model
-    // - special functions that initialize stack-allocated stuff (stack
-    //   variables, stack arguments passed to call sites)
-    if (auto *Call = dyn_cast<CallInst>(&I)) {
-      revng_log(ModelGEPLog, "Call");
-
-      // Special case for calls to special functions that initialize
-      // stack-allocated stuff
-      auto *Callee = Call->getCalledFunction();
-      if (Callee) {
-        if (Callee->getName() == "revng_stack_frame") {
-          if (ModelF.StackFrameType.isValid()) {
-
-            auto PointerQual = Qualifier::createPointer(Model.Architecture);
-            model::QualifiedType FStackType(ModelF.StackFrameType,
-                                            { PointerQual });
-            revng_log(ModelGEPLog, "Call: " << dumpToString(Call));
-            revng_log(ModelGEPLog,
-                      "model::QualifiedType: "
-                        << serializeToString(FStackType));
-            revng_log(ModelGEPLog, "INITIALIZED");
-            Result.insert({ Call, std::move(FStackType) });
-          }
-
-          continue;
-
-        } else if (Callee->getName() == "revng_call_stack_arguments") {
-
-          for (const Use &StackArgsUse : Call->uses()) {
-            auto *CallUsingArgs = dyn_cast<CallInst>(StackArgsUse.getUser());
-            if (CallUsingArgs) {
-              // The stack argument should be the last
-              unsigned NArgOperands = CallUsingArgs->getNumArgOperands();
-              revng_assert(StackArgsUse.getOperandNo() == NArgOperands - 1);
-
-              auto CalleeT = getCallSitePrototype(Model, Call);
-              revng_assert(CalleeT.isValid());
-              const auto *CalleeRFT = cast<RawFunctionType>(CalleeT.get());
-              auto &CalleeStackArgTy = CalleeRFT->StackArgumentsType;
-              revng_assert(CalleeStackArgTy.Qualifiers.empty());
-              revng_assert(CalleeStackArgTy.UnqualifiedType.isValid());
-
-              model::QualifiedType CalleeStackType = CalleeStackArgTy;
-              auto PointerQual = Qualifier::createPointer(Model.Architecture);
-              CalleeStackType.Qualifiers
-                .insert(CalleeStackType.Qualifiers.begin(), PointerQual);
-              Result.insert({ Call, std::move(CalleeStackType) });
-            }
-          }
-          continue;
-        }
-      }
-
-      // If we reach this point, the call is not calling a special-cased
-      // stack-allocation function, so we need to check if it calls an
-      // isolated function.
-
-      // If this call does not have a prototype we have no types to inizialize.
-      // Just go on with the next instruction.
-      auto Proto = getCallSitePrototype(Model, Call);
-      if (not Proto.isValid()) {
-        revng_log(ModelGEPLog,
-                  "Could not retrieve the prototype. Skipping ...");
-        continue;
-      }
-
-      if (const auto *RFT = dyn_cast<RawFunctionType>(Proto.get())) {
-        revng_log(ModelGEPLog, "Call has RawFunctionType prototype.");
-
-        // If the callee function does not return anything, skip to the next
-        // instruction.
-        if (RFT->ReturnValues.empty()) {
-          revng_log(ModelGEPLog, "Does not return values on model. Skip ...");
-          revng_assert(Call->getType()->isVoidTy());
-          continue;
-        }
-
-        if (RFT->ReturnValues.size() == 1) {
-          revng_log(ModelGEPLog, "Has single return type.");
-
-          revng_assert(Call->getType()->isVoidTy()
-                       or Call->getType()->isIntOrPtrTy());
-
-          const model::QualifiedType &ModT = RFT->ReturnValues.begin()->Type;
-          if (ModT.isPointer()) {
-            auto _ = LoggerIndent(ModelGEPLog);
-            revng_log(ModelGEPLog, "llvm::CallInst: " << dumpToString(Call));
-            revng_log(ModelGEPLog,
-                      "model::QualifiedType: " << serializeToString(ModT));
-            Result.insert({ Call, ModT });
-          }
-
-        } else {
-          auto *StrucT = cast<llvm::StructType>(Call->getType());
-          revng_log(ModelGEPLog, "Has many return types.");
-          revng_assert(StrucT->getNumElements() == RFT->ReturnValues.size());
-
-          if (not Call->getNumUses()) {
-            revng_log(ModelGEPLog, "Has no uses. Skip ...");
-            continue;
-          }
-
-          const auto Extracted = getExtractedValuesFromInstruction(Call);
-          revng_assert(Extracted.size() == StrucT->getNumElements());
-          for (const auto &[ReturnValue, ExtractedSet] :
-               llvm::zip_first(RFT->ReturnValues, Extracted)) {
-            // Inside here we're working on a signle field of the struct.
-            // ExtractedSet contains all the ExtractValueInst that extract the
-            // same field of the struct.
-            const model::QualifiedType &ModT = ReturnValue.Type;
-            if (ModT.isPointer()) {
-              for (auto *V : ExtractedSet) {
-                revng_assert(isa<ExtractValueInst>(V));
-                auto _ = LoggerIndent(ModelGEPLog);
-                revng_log(ModelGEPLog,
-                          "llvm::ExtractValueInst: " << dumpToString(V));
-                revng_log(ModelGEPLog,
-                          "model::QualifiedType: " << serializeToString(ModT));
-                Result.insert({ V, ModT });
-              }
-            }
-          }
-        }
-
-      } else if (const auto *CFT = dyn_cast<CABIFunctionType>(Proto.get())) {
-        revng_log(ModelGEPLog, "Call has CABIFunctionType prototype.");
-
-        // If the callee function does not return anything, skip to the next
-        // instruction.
-        if (CFT->ReturnType.isVoid()) {
-          revng_log(ModelGEPLog, "Returns void. Skip ...");
-          revng_assert(Call->getType()->isVoidTy());
-          continue;
-        }
-
-        // TODO: we haven't handled how to emit return values of CABIFunctions
-        revng_log(ModelGEPLog, "CABIFunctionType found, ignoring.");
-
-      } else {
-        revng_abort("Function should have RawFunctionType or "
-                    "CABIFunctionType");
-      }
-    }
-  }
-
-  revng_log(ModelGEPLog, "Done initializing argument types");
-
-  return Result;
-}
 
 // We're trying to build a GEP summation in the form:
 //     BaseAddress + sum( const_i * index_i)
@@ -1481,7 +1255,7 @@ class GEPSummationCache {
   UseGEPSummationMap UseGEPSummations = {};
 
   RecursiveCoroutine<ModelGEPSummation>
-  getGEPSumImpl(Use &AddressUse, const ValueModelTypesMap &PointerTypes) {
+  getGEPSumImpl(Use &AddressUse, const ModelTypesMap &PointerTypes) {
     revng_log(ModelGEPLog,
               "getGEPSumImpl for use of: " << dumpToString(AddressUse.get()));
     LoggerIndent Indent{ ModelGEPLog };
@@ -1504,14 +1278,13 @@ class GEPSummationCache {
     if (auto TypeIt = PointerTypes.find(AddressArith);
         TypeIt != PointerTypes.end()) {
 
-      revng_log(ModelGEPLog, "Use is typed!");
-
       auto &[AddressVal, Type] = *TypeIt;
 
       revng_assert(Type.isPointer());
+      revng_log(ModelGEPLog, "Use is typed!");
 
       Result = ModelGEPSummation{
-        .BaseAddress = TypedBaseAddress{ .Type = dropPointerRecursively(Type),
+        .BaseAddress = TypedBaseAddress{ .Type = dropPointer(Type),
                                          .Address = AddressArith },
         // The summation is empty since AddressArith has exactly the type
         // we're looking at here.
@@ -1782,7 +1555,7 @@ public:
   void clear() { UseGEPSummations.clear(); }
 
   ModelGEPSummation
-  getGEPSummation(Use &AddressUse, const ValueModelTypesMap &PointerTypes) {
+  getGEPSummation(Use &AddressUse, const ModelTypesMap &PointerTypes) {
     return getGEPSumImpl(AddressUse, PointerTypes);
   }
 };
@@ -2089,7 +1862,10 @@ makeGEPReplacements(llvm::Function &F, const model::Binary &Model) {
   // First, try to initialize a map for the known model types of llvm::Values
   // that are reachable from F. If this fails, we just bail out because we
   // cannot infer any modelGEP in F, if we have no type information to rely on.
-  ValueModelTypesMap PointerTypes = initializeModelTypes(F, *ModelF, Model);
+  ModelTypesMap PointerTypes = initModelTypes(F,
+                                              ModelF,
+                                              Model,
+                                              /*PointersOnly=*/true);
   if (PointerTypes.empty()) {
     revng_log(ModelGEPLog, "Model Types not found for " << F.getName());
     return Result;

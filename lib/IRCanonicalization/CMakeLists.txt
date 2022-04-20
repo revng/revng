@@ -16,4 +16,5 @@ target_link_libraries(
   revngcTargetFunctionOption
   revng::revngModel
   revng::revngSupport
+  revngcInitModelTypes
   ${LLVM_LIBRARIES})

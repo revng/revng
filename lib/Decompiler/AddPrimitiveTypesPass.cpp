@@ -24,6 +24,9 @@ bool AddPrimitiveTypesPass::runOnModule(llvm::Module &M) {
   auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
   auto &WritableModel = ModelWrapper.getWriteableModel();
 
+  // Add void type if it does not exist
+  WritableModel->getPrimitiveType(Void, 0);
+
   // For each of these types, we want to have in the model a corresponding
   // PrimitiveType for each possible dimension
   static constexpr const Values PrimitiveTypes[] = {
