@@ -2,7 +2,7 @@
 
 These licensing information, unless otherwise noted, apply to all the files in this project.
 
-Copyright 2018-2020 rev.ng Srls <info@rev.ng>
+Copyright 2018-2020 rev.ng Labs Srl <info@rev.ng>
 All rights reserved.
 
 Unauthorized copying and/or distribution of any file of this project, via any medium, is strictly prohibited.

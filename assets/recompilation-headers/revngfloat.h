@@ -1,5 +1,9 @@
 #pragma once
 
+//
+// Copyright rev.ng Labs Srl. See LICENSE.md for details.
+//
+
 #define static_assert_size(TYPE, EXPECTED_SIZE) \
   typedef char static_assertion[sizeof(TYPE) == (EXPECTED_SIZE) ? 1 : -1]
 

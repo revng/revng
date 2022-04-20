@@ -1,3 +1,7 @@
+//
+// Copyright rev.ng Labs Srl. See LICENSE.md for details.
+//
+
 #include <functional>
 
 #include "llvm/ADT/STLExtras.h"

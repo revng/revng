@@ -1,5 +1,5 @@
 //
-// Copyright (c) rev.ng Srls. See LICENSE.md for details.
+// Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 //
 
 #include <optional>
