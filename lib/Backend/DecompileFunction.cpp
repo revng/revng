@@ -507,10 +507,9 @@ CCodeGenerator::addOperandToken(const llvm::Value *Operand) {
                         /*signed=*/false,
                         /*formatAsCLiteral=*/true);
 
-      TokenMap[Operand] = addParentheses(
-                            addParentheses(HighBitsString + " << 64") + " | "
-                            + LowBitsString)
-                            .str();
+      auto CompositeConstant = addParentheses(HighBitsString + " << 64") + " | "
+                               + LowBitsString;
+      TokenMap[Operand] = addParentheses(CompositeConstant).str();
     }
 
   } else if (auto *Null = dyn_cast<llvm::ConstantPointerNull>(Operand)) {
