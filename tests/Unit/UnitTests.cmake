@@ -73,8 +73,7 @@ target_include_directories(dla_step_manager PRIVATE "${CMAKE_SOURCE_DIR}"
                                                     "${Boost_INCLUDE_DIRS}")
 target_link_libraries(
   dla_step_manager
-  revngcDecompiler
-  clangSerialization
+  revngcDataLayoutAnalysis
   revng::revngModel
   revng::revngSupport
   revng::revngUnitTestHelpers
@@ -95,8 +94,8 @@ target_include_directories(
                                    "${Boost_INCLUDE_DIRS}")
 target_link_libraries(
   MarkForSerializationTest
-  revngcDecompiler
-  clangSerialization
+  revngcLivenessAnalysis
+  revngcMarkForSerialization
   revng::revngModel
   revng::revngSupport
   revng::revngUnitTestHelpers
@@ -114,7 +113,6 @@ target_include_directories(dla_steps PRIVATE "${CMAKE_SOURCE_DIR}"
                                              "${Boost_INCLUDE_DIRS}")
 target_link_libraries(
   dla_steps
-  revngcDecompiler
   revngcDataLayoutAnalysis
   revng::revngModel
   revng::revngSupport

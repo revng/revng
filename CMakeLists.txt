@@ -185,57 +185,13 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
     APPEND
     PROPERTY FIXTURES_SETUP VMA_fixture_${TARGET_NAME})
 
-  # test combing and decompilation without DLA
-  add_test(
-    NAME decompilation_${TARGET_NAME}
-    COMMAND
-      revng --prefix=${CMAKE_BINARY_DIR} opt -restructure-cfg -beautify-ghast
-      -decompilation -decompiled-dir=${OUTFOLDER}/decompiled_dir
-      ${OUTFOLDER}/prepared.bc -o /dev/null)
-  set_property(
-    TEST decompilation_${TARGET_NAME}
-    APPEND
-    PROPERTY DEPENDS prepare_${TARGET_NAME})
-  set_property(
-    TEST decompilation_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_REQUIRED PrepareDecompilation_fixture_${TARGET_NAME})
-  set_property(
-    TEST decompilation_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_SETUP Decompiled_fixture_${TARGET_NAME})
-
-  # test recompilation
-  add_test(
-    NAME recompilation_${TARGET_NAME}
-    COMMAND
-      sh -c "for C_FILE in $(ls ${OUTFOLDER}/decompiled_dir/*.c); \
-      do \
-      clang --config ${ASSETS_DIR}/compile_flags.txt \
-          $C_FILE \
-          -o /dev/null; \
-      done;")
-  set_property(
-    TEST recompilation_${TARGET_NAME}
-    APPEND
-    PROPERTY DEPENDS prepare_${TARGET_NAME})
-  set_property(
-    TEST recompilation_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_REQUIRED Decompiled_fixture_${TARGET_NAME})
-  set_property(
-    TEST recompilation_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_SETUP Recompiled_fixture_${TARGET_NAME})
-
   # tests for IR Canonicalization
   add_test(
     NAME ir_canonicalization_${TARGET_NAME}
     COMMAND
-      revng --prefix=${CMAKE_BINARY_DIR} opt -add-primitives -dla
-      -make-model-gep -early-cse -dce -exit-ssa -twoscomplement-normalization
-      -restructure-cfg -add-ir-serialization-markers ${OUTFOLDER}/prepared.bc
-      -o ${OUTFOLDER}/canonicalized.bc)
+      revng --prefix=${CMAKE_BINARY_DIR} opt -dla -make-model-gep -early-cse
+      -dce -exit-ssa -twoscomplement-normalization ${OUTFOLDER}/prepared.bc -o
+      ${OUTFOLDER}/canonicalized.bc)
   set_property(
     TEST ir_canonicalization_${TARGET_NAME}
     APPEND
@@ -310,23 +266,6 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
     APPEND
     PROPERTY FIXTURES_REQUIRED ${TARGET_NAME}_helpers_header)
 
-  # test full pipeline with dla combing and decompilation
-  add_test(
-    NAME decompile_with_dla_${TARGET_NAME}
-    COMMAND
-      revng --prefix=${CMAKE_BINARY_DIR} opt -dla -phi-asap-assignment-info
-      -restructure-cfg -beautify-ghast -mark-for-serialization
-      -add-scev-barrier -decompilation -dla-flatc-dir=${OUTFOLDER}/dla_dir
-      ${OUTFOLDER}/prepared.bc -o /dev/null)
-  set_property(
-    TEST decompile_with_dla_${TARGET_NAME}
-    APPEND
-    PROPERTY DEPENDS prepare_${TARGET_NAME})
-  set_property(
-    TEST decompile_with_dla_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_REQUIRED PrepareDecompilation_fixture_${TARGET_NAME})
-
   # setup decompilation directory
   make_directory(${OUTFOLDER}/decompiled_stringbased)
   # copy recompilation assets to the decompilation directory
@@ -338,7 +277,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
     NAME decompile_string_based_${TARGET_NAME}
     COMMAND
       revng --prefix=${CMAKE_BINARY_DIR} opt -S -restructure-cfg
-      -beautify-ghast --helpers-to-header
+      -add-ir-serialization-markers -beautify-ghast --helpers-to-header
       --helpers-header-name=${OUTFOLDER}/decompiled_stringbased/helpers.h
       -model-to-header
       --types-header-name=${OUTFOLDER}/decompiled_stringbased/revng-types.h
