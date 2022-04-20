@@ -2,8 +2,6 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import json
-import re
 import yaml
 
 
@@ -26,6 +24,7 @@ def is_metaaddress(value):
 class MetaAddressRemapper:
     def __init__(self):
         self.addresses = set()
+        self.replacements = {}
 
     def handle(self, value):
         if is_metaaddress(value):

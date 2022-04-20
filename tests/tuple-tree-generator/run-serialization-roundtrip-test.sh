@@ -1,9 +1,9 @@
 #!/bin/bash
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
 
-set -o errexit
-set -o pipefail
-
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+set -euo pipefail
 
 PARSE_MODEL_SCRIPT=$(cat << "EOF"
 import sys

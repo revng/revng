@@ -5,8 +5,9 @@
 import argparse
 import dataclasses
 import sys
+from typing import Tuple
 
-from .support import run, Options
+from .support import Options, run
 
 
 class Command:
@@ -67,7 +68,7 @@ class CommandsRegistry:
         self.root_parser = parser
         self.commands = {}
         self.namespaces = {}
-        self.namespaces[tuple()] = self.root_parser.add_subparsers(dest=f"{COMMAND_ARG_PREFIX}0")
+        self.namespaces[()] = self.root_parser.add_subparsers(dest=f"{COMMAND_ARG_PREFIX}0")
 
     def register_command(self, command: Command):
         self.commands[command.namespace + (command.name,)] = command
@@ -86,8 +87,7 @@ class CommandsRegistry:
                 index = int(name[len(COMMAND_ARG_PREFIX) :])
                 command.append((index, value))
 
-        command = [value for index, value in sorted(command, key=lambda pair: pair[0])]
-        command = tuple(command)
+        command_sorted = tuple((value for _, value in sorted(command, key=lambda pair: pair[0])))
 
         options = dataclasses.replace(options)
         options.parsed_args = args
@@ -130,7 +130,7 @@ class CommandsRegistry:
             sys.stdout.write("rev.ng version @VERSION@\n")
             return 0
 
-        return self.commands[command].run(options)
+        return self.commands[command_sorted].run(options)
 
     def define_namespace(self, namespace):
         self._get_namespace_parser(namespace)
@@ -138,7 +138,7 @@ class CommandsRegistry:
     def _parse_command(self, command: str):
         parts = command.split("-")
         total = len(parts)
-        current_namespace = tuple()
+        current_namespace: Tuple[str, ...] = ()
 
         start_index = 0
         found = True
@@ -173,8 +173,7 @@ class CommandsRegistry:
             result = new_parser.add_subparsers(dest=f"{COMMAND_ARG_PREFIX}{len(namespace)}")
             self.namespaces[namespace] = result
             return result
-        else:
-            return self.namespaces[namespace]
+        return self.namespaces[namespace]
 
 
 commands_registry = CommandsRegistry()

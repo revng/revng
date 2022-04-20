@@ -11,20 +11,11 @@ import struct
 from copy import copy
 
 from elftools.elf.constants import P_FLAGS
+from elftools.elf.enums import ENUM_RELOC_TYPE_ARM, ENUM_RELOC_TYPE_i386, ENUM_RELOC_TYPE_x64
 
-try:
-    from elftools.elf.enums import ENUM_P_TYPE
-except ImportError:
-    from elftools.elf.enums import ENUM_P_TYPE_BASE as ENUM_P_TYPE
-
-from elftools.elf.enums import ENUM_RELOC_TYPE_i386
-from elftools.elf.enums import ENUM_RELOC_TYPE_x64
-from elftools.elf.enums import ENUM_RELOC_TYPE_ARM
-
-from .parsed_elf import ParsedElf
-from .util import set_executable, file_size
-from .util import serialize
 from .log import log
+from .parsed_elf import ParsedElf
+from .util import file_size, serialize, set_executable
 
 
 def rebuild_r_info(relocation, is64):
@@ -174,7 +165,7 @@ def merge_dynamic(
     new_gnuversion = to_extend_elf.gnuversion
     new_gnuversion_indices = source_elf.gnuversion_indices[1:]
     for index, value in enumerate(new_gnuversion_indices):
-        if value != 0 and value != 1:
+        if value not in (0, 1):
             new_gnuversion_indices[index] += version_index_offset
     new_gnuversion += source_elf.serialize_ints(new_gnuversion_indices, 2)
 
@@ -215,7 +206,6 @@ def merge_dynamic(
 
     # TODO: implement an actual hash table, possibly GNU
 
-    # nbucket + nchain + [buckets] + [chains]
     symbols_count = dynsym_offset + len(new_symbols) + 1
 
     new_hash = build_dummy_hashtable(
@@ -226,11 +216,13 @@ def merge_dynamic(
     new_hash_offset = new_gnuversion_r_offset + len(new_gnuversion_r)
 
     # Prepare new .dynamic
-    new_dynamic_tags = [dt for dt in to_extend_elf.dynamic.iter_tags()]
+    new_dynamic_tags = list(to_extend_elf.dynamic.iter_tags())
 
-    last_dt_needed = -1
     libraries = set()
-    to_address = lambda offset: start_address + offset - new_dynstr_offset
+
+    def to_address(offset):
+        return start_address + offset - new_dynstr_offset
+
     for index, dynamic_tag in enumerate(new_dynamic_tags):
         if dynamic_tag.entry.d_tag == "DT_STRTAB":
             dynamic_tag.entry.d_val = to_address(new_dynstr_offset)
@@ -243,7 +235,6 @@ def merge_dynamic(
         elif dynamic_tag.entry.d_tag == "DT_SYMTAB":
             dynamic_tag.entry.d_val = to_address(new_dynsym_offset)
         elif dynamic_tag.entry.d_tag == "DT_NEEDED":
-            last_dt_needed = index
             libraries.add(dynamic_tag.needed)
         elif dynamic_tag.entry.d_tag == "DT_VERNEED":
             dynamic_tag.entry.d_val = to_address(new_gnuversion_r_offset)
@@ -254,12 +245,6 @@ def merge_dynamic(
         elif dynamic_tag.entry.d_tag == "DT_GNU_HASH":
             dynamic_tag.entry.d_tag = "DT_HASH"
             dynamic_tag.entry.d_val = to_address(new_hash_offset)
-
-    # This is done a link-time
-    # for dt_needed in reversed(source_elf.dt_by_tag("DT_NEEDED")):
-    #   if not dt_needed.needed in libraries:
-    #     dt_needed.entry.d_val += to_extend_dynstr_size
-    #     new_dynamic_tags.insert(last_dt_needed + 1, dt_needed)
 
     new_dynamic_tags = [dt.entry for dt in new_dynamic_tags]
 

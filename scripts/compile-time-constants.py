@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
 
 import struct
 import subprocess
@@ -12,7 +15,7 @@ def main():
     arguments = sys.argv[1:]
 
     if (len(arguments) == 0) or ("--help" in arguments):
-        print("Usage: {} COMPILER [ARGS ...]".format(sys.argv[0]))
+        print(f"Usage: {sys.argv[0]} COMPILER [ARGS ...]")
         return 0
 
     if "-c" not in arguments:
@@ -49,7 +52,7 @@ def main():
             buffer = stream.read(size)
             assert len(buffer) == size
             value = struct.unpack(direction + size_map[size], buffer)[0]
-            print("{},{}".format(name, hex(value)))
+            print(f"{name},{hex(value)}")
 
     return 0
 

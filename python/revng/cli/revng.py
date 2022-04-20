@@ -1,22 +1,26 @@
-import sys
-import os
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
 
-from .commands_registry import commands_registry, Options
+import os
+import sys
+
+from .commands_registry import Options, commands_registry
 from .support import collect_files
 
 
-def extend_list(list, new_items):
-    new_items_set = set(new_items)
-    return new_items + [path for path in list if path not in new_items]
+def extend_list(paths, new_items):
+    return new_items + [path for path in paths if path not in new_items]
 
 
+# flake8: noqa: F401
 def run_revng_command(arguments, options: Options):
     # Import built-in commands
     from .lift import LiftCommand
-    from .translate import TranslateCommand
+    from .llvm_pipeline import IRPipelineCommand
     from .opt import IROptCommand
     from .pipeline import PipelineCommand
-    from .llvm_pipeline import IRPipelineCommand
+    from .translate import TranslateCommand
 
     if options.verbose:
         sys.stderr.write("{}\n\n".format(" \\\n  ".join([sys.argv[0]] + arguments)))

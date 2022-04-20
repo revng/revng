@@ -19,7 +19,7 @@ class EnumMember:
 
 class EnumDefinition(Definition):
     def __init__(self, *, namespace, user_namespace, name, members, doc=None):
-        super(EnumDefinition, self).__init__(
+        super().__init__(
             namespace,
             user_namespace,
             name,
@@ -30,10 +30,10 @@ class EnumDefinition(Definition):
         self.members = members
 
     @staticmethod
-    def from_dict(source_dict: Dict, default_base_namespace: str):
+    def from_dict(source_dict: Dict, default_namespace: str):
         args = {
-            "namespace": f"{default_base_namespace}::{source_dict['name']}",
-            "user_namespace": f"{default_base_namespace}::{source_dict['name']}",
+            "namespace": f"{default_namespace}::{source_dict['name']}",
+            "user_namespace": f"{default_namespace}::{source_dict['name']}",
             "name": source_dict["name"],
             "doc": source_dict.get("doc"),
             "members": [EnumMember.from_dict(d) for d in source_dict["members"]],

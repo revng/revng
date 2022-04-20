@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
 
 # This script generates C++ classes from a GraphViz file representing a monotone
 # framework.
@@ -11,29 +14,34 @@
 #
 # This script works and should keep working on Python 3.6 .
 
+import argparse
+
 # Standard imports
 import sys
-import argparse
-from itertools import product
 from collections import defaultdict
+from itertools import product
 from typing import List, Mapping, Tuple
 
 # networkx
 import networkx
 
-# numpy (optional)
+# numpy - optional
 try:
     import numpy as np
 except ImportError:
-    np = None
+    np = None  # type: ignore
 
     def matrix_multiplication(a, b):
         zip_b = list(zip(*b))
         return [[sum(a * b for a, b in zip(row, col)) for col in zip_b] for row in a]
 
 
-out = lambda string: sys.stdout.write(string)
-log = lambda string: sys.stderr.write(string + "\n")
+def out(string):
+    sys.stdout.write(string)
+
+
+def log(string):
+    sys.stderr.write(string + "\n")
 
 
 def enumerate_graph(graph: networkx.MultiDiGraph):
@@ -94,7 +102,7 @@ def is_cyclic(graph: networkx.MultiDiGraph, entry):
         for v in stack[-1]:
             if v in path_set:
                 return True
-            elif v not in visited:
+            if v not in visited:
                 visited.add(v)
                 path.append(v)
                 path_set.add(v)
@@ -143,7 +151,7 @@ def extract_transfer_function_graph(input_graph: networkx.MultiDiGraph, call_arc
 
     # Add the ReturnFrom... arcs
     if call_arcs:
-        edge_labels = set(edge_data["label"] for _, _, edge_data in tf_graph.edges(data=True))
+        edge_labels = {edge_data["label"] for _, _, edge_data in tf_graph.edges(data=True)}
         for v in tf_graph.nodes():
 
             return_edge_name = "ReturnFrom" + v
@@ -153,7 +161,7 @@ def extract_transfer_function_graph(input_graph: networkx.MultiDiGraph, call_arc
                 continue
 
             # All the incoming edges must come from the same source
-            source = set(edge[0] for edge in tf_graph.in_edges(v))
+            source = {edge[0] for edge in tf_graph.in_edges(v)}
             assert len(source) <= 1
             if source:
                 source = list(source)[0]
@@ -185,17 +193,24 @@ def check_transfer_functions(
             edges.append((vertex, vertex))
 
     result = True
-    s = lambda edge: int(tf_graph.nodes[edge[0]]["index"])
-    d = lambda edge: int(tf_graph.nodes[edge[1]]["index"])
-    lte = lambda a, b: reachability[a][b] != 0
+
+    def s(edge):
+        return int(tf_graph.nodes[edge[0]]["index"])
+
+    def d(edge):
+        return int(tf_graph.nodes[edge[1]]["index"])
+
+    def lte(a, b):
+        return reachability[a][b] != 0
+
     for name, edges in transfer_functions.items():
         for a, b in product(edges, edges):
             if a == b:
                 continue
             if lte(s(a), s(b)) and not lte(d(a), d(b)):
                 result = False
-                log("The transfer function {} is not monotone:\n".format(name))
-                log("  {} -> {}\n  {} -> {}\n".format(a[0].name, a[1].name, b[0].name, b[1].name))
+                log(f"The transfer function {name} is not monotone:\n")
+                log(f"  {a[0].name} -> {a[1].name}\n  {b[0].name} -> {b[1].name}\n")  # type: ignore
 
     return result
 
@@ -210,16 +225,14 @@ def load_graph(path: str) -> networkx.MultiDiGraph:
     graph = networkx.MultiDiGraph(networkx.nx_pydot.read_dot(path))
     for _, _, data in graph.edges(data=True):
         for key, val in data.items():
-            if isinstance(val, str):
-                if len(val) > 2:
-                    if val[0] == '"' and val[-1] == '"':
-                        val = val[1:-1]
-                        data[key] = val
+            if isinstance(val, str) and len(val) > 2 and val[0] == '"' and val[-1] == '"':
+                val = val[1:-1]
+                data[key] = val
     return graph
 
 
 def process_graph(path, call_arcs):
-    out = ""
+    out_str = ""
     input_graph = load_graph(path)
 
     enumerate_graph(input_graph)
@@ -242,61 +255,56 @@ def process_graph(path, call_arcs):
 
     name = input_graph.name
     # Generate C++ class
-    out += """class {} {{
+    out_str += f"""class {name} {{
 public:
-""".format(
-        name
-    )
+"""
 
     # Print the enumeration of all the possible lattice values
-    out += """  enum Values {
+    out_str += """  enum Values {
 """
 
     # Get the default lattice element (has the "peripheries" property)
     default = [v for v, v_data in lattice.nodes(data=True) if "peripheries" in v_data][0]
     # Get all the names
-    values = sorted([v for v in lattice.nodes()])
-    out += "    " + ",\n    ".join(values) + "\n"
-    out += """  };
+    values = sorted(v for v in lattice.nodes())
+    out_str += "    " + ",\n    ".join(values) + "\n"
+    out_str += """  };
 
 """
     # Print the enumeration of all the possible transfer functions
-    out += """  enum TransferFunction {{
-""".format()
+    out_str += """  enum TransferFunction {{
+"""
 
     # Get all the transfer function names
     tfs = [e_data["label"] for _, _, e_data in tf_graph.edges(data=True)]
-    out += "    " + ",\n    ".join(sorted(tfs)) + "\n"
-    out += """  };
+    out_str += "    " + ",\n    ".join(sorted(tfs)) + "\n"
+    out_str += """  };
 
 """
 
     # Emit constructors and factory method for default value (i.e., the initial
     # one)
-    out += """public:
-  {}() :
-    Value({}) {{ }}
+    out_str += f"""public:
+  {name}() :
+    Value({bottom}) {{ }}
 
-  {}(Values V) :
+  {name}(Values V) :
     Value(V) {{ }}
 
   static Values initial() {{
-    return {};
+    return {default};
   }}
 
-""".format(
-        name, bottom, name, default
-    )
+"""
 
     # Emit the combine operator
-    out += """  void combine(const {} &Other) {{
-""".format(
-        name
-    )
+    out_str += f"""  void combine(const {name} &Other) {{
+"""
 
-    node_by_index = lambda index: get_unique(
-        [x for x, x_data in lattice.nodes(data=True) if x_data["index"] == str(index)]
-    )
+    def node_by_index(index):
+        return get_unique(
+            [x for x, x_data in lattice.nodes(data=True) if x_data["index"] == str(index)]
+        )
 
     result = defaultdict(lambda: [])
     for v1, v1_data in lattice.nodes(data=True):
@@ -304,7 +312,9 @@ public:
             if v1 != v2:
                 i1 = int(v1_data["index"])
                 i2 = int(v2_data["index"])
-                nonzero = lambda i: set([x[0] for x in enumerate(reachability[i]) if x[1] != 0])
+
+                def nonzero(i):
+                    return {x[0] for x in enumerate(reachability[i]) if x[1] != 0}
 
                 output = max(
                     nonzero(i1) & nonzero(i2),
@@ -318,9 +328,9 @@ public:
     first = True
     for output, pairs in sorted(result.items(), key=lambda x: x[0]):
         if first:
-            out += """    if ("""
+            out_str += """    if ("""
         else:
-            out += """ else if ("""
+            out_str += """ else if ("""
         conditions = []
         for this, other in sorted(pairs, key=lambda x: (x[0], x[1])):
             condition = "(Value == {} && Other.Value == {})"
@@ -328,25 +338,21 @@ public:
             conditions.append(condition)
         conditions[0] = conditions[0].lstrip()
         conditions_string = "\n        || " if first else "\n               || "
-        out += conditions_string.join(conditions)
-        out += """) {{
-      Value = {};
-    }}""".format(
-            output
-        )
+        out_str += conditions_string.join(conditions)
+        out_str += f""") {{
+      Value = {output};
+    }}"""
         first = False
 
-    out += """
+    out_str += """
   }
 
 """
 
     # Emit the comparison operator of the lattice
-    out += """  bool lowerThanOrEqual(const {} &Other) const {{
+    out_str += f"""  bool lowerThanOrEqual(const {name} &Other) const {{
     return Value == Other.Value
-      || """.format(
-        name
-    )
+      || """
 
     result = []
     for v1 in sorted(lattice.nodes()):
@@ -355,12 +361,11 @@ public:
                 i1 = int(lattice.nodes[v1]["index"])
                 i2 = int(lattice.nodes[v2]["index"])
                 if reachability[i1][i2] != 0:
-                    condition = """(Value == {} && Other.Value == {})"""
-                    condition = condition.format(v1, v2)
+                    condition = f"""(Value == {v1} && Other.Value == {v2})"""
                     result.append(condition)
 
-    out += "\n      || ".join(result)
-    out += """;
+    out_str += "\n      || ".join(result)
+    out_str += """;
   }
 
 """
@@ -368,61 +373,53 @@ public:
     tf_names = sorted([e_data["label"] for _, _, e_data in tf_graph.edges(data=True)])
 
     # Emit the transfer function implementation
-    out += """  void transfer(TransferFunction T) {{
+    out_str += """  void transfer(TransferFunction T) {{
     switch(T) {{
-""".format()
+"""
     for tf in tf_names:
-        out += """    case {}:
+        out_str += f"""    case {tf}:
       switch(Value) {{
-""".format(
-            tf
-        )
+"""
         for edge in transfer_functions[tf]:
             source, destination = edge
-            out += """      case {}:
-        Value = {};
+            out_str += f"""      case {source}:
+        Value = {destination};
         break;
-""".format(
-                source, destination
-            )
-        out += """      default:
+"""
+        out_str += """      default:
         break;
       }
       break;
 
 """
 
-    out += """    }
+    out_str += """    }
   }
 
 """
 
     # Emit the transfer function implementation
-    out += """  void transfer(GeneralTransferFunction T) {{
+    out_str += """  void transfer(GeneralTransferFunction T) {{
     switch(T) {{
-""".format()
+"""
     for tf in tf_names:
-        out += """    case GeneralTransferFunction::{}:
+        out_str += f"""    case GeneralTransferFunction::{tf}:
       switch(Value) {{
-""".format(
-            tf
-        )
+"""
         for edge in transfer_functions[tf]:
             source, destination = edge
-            out += """      case {}:
-        Value = {};
+            out_str += f"""      case {source}:
+        Value = {destination};
         break;
-""".format(
-                source, destination
-            )
-        out += """      default:
+"""
+        out_str += """      default:
         break;
       }
       break;
 
 """
 
-    out += """    default:
+    out_str += """    default:
       revng_abort();
     }
 
@@ -433,17 +430,15 @@ public:
     if call_arcs:
         # Emit the method implementing the transfer function for returning from a
         # call
-        out += """  TransferFunction returnTransferFunction() const {{
+        out_str += """  TransferFunction returnTransferFunction() const {{
     switch(Value) {{
-""".format()
+"""
 
         for value in values:
-            out += """    case {}:
-      return ReturnFrom{};
-""".format(
-                value, value
-            )
-        out += """    }
+            out_str += f"""    case {value}:
+      return ReturnFrom{value};
+"""
+        out_str += """    }
 
     revng_abort();
   }
@@ -451,56 +446,50 @@ public:
 """
 
     # Emit a method to return the name of analysis
-    out += """  static const char *name() {{
-    return "{}";
+    out_str += f"""  static const char *name() {{
+    return "{name}";
   }}
 
-""".format(
-        name
-    )
+"""
 
     # Emit a method returning the top element
-    out += """  static {} top() {{
-    return {}({});
+    out_str += f"""  static {name} top() {{
+    return {name}({top});
   }}
 
-""".format(
-        name, name, top
-    )
+"""
 
     # Accessor for the current value
-    out += """  Values value() const { return Value; }
+    out_str += """  Values value() const { return Value; }
 
 """
 
     # Debug methods
-    out += """  void dump() const {{ dump(dbg); }}
+    out_str += """  void dump() const {{ dump(dbg); }}
 
   template<typename T>
   void dump(T &Output) const {{
     switch(Value) {{
-""".format()
+"""
 
     for value in values:
-        out += """    case {}:
-      Output << "{}";
+        out_str += f"""    case {value}:
+      Output << "{value}";
       break;
-""".format(
-            value, value
-        )
-    out += """    }
+"""
+    out_str += """    }
   }
 
 """
 
     # Emit private data
-    out += """private:
+    out_str += """private:
   Values Value;
 }};
 
-""".format()
+"""
 
-    return tf_names, out
+    return tf_names, out_str
 
 
 def main():
@@ -514,7 +503,7 @@ def main():
     args = parser.parse_args()
 
     # Print the header file
-    with open(args.header) as header_file:
+    with open(args.header, encoding="utf-8") as header_file:
         out(header_file.read())
 
     # Process each input graph

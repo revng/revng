@@ -1,6 +1,9 @@
-from .revng import run_revng_command
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
 
-from .commands_registry import Command, commands_registry, Options
+from .commands_registry import Command, Options, commands_registry
+from .revng import run_revng_command
 
 
 class TranslateCommand(Command):

@@ -1,7 +1,9 @@
 #!/bin/bash
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
 
-set -e
-set -o pipefail
+set -euo pipefail
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 

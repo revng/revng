@@ -2,8 +2,6 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-- name: RootType
-  type: struct
-  fields:
-    - name: propertyA
-      type: string
+[flake8]
+max-line-length = 100
+extend-ignore = E203,R504

@@ -1,6 +1,10 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
 from tempfile import NamedTemporaryFile
 
-from .commands_registry import Command, commands_registry, Options
+from .commands_registry import Command, Options, commands_registry
 from .revng import run_revng_command
 from .support import log_error
 
@@ -91,7 +95,7 @@ class LiftCommand(Command):
                 + arg_or_empty(args, "record_ptc"),
                 options,
             )
-
+        return 0
         # TODO: annotate IR
 
 

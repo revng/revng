@@ -1,3 +1,7 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
 add_custom_target(revng-all-binaries)
 
 macro(prepend_target_property TARGET PROPERTY VALUE SEPARATOR)

@@ -57,7 +57,7 @@ def main():
     if args.output == "-":
         output_file = sys.stdout
     else:
-        output_file = open(args.output, "wb")
+        output_file = open(args.output, "wb")  # noqa: SIM115
 
     with output_file, open(args.source, "rb") as source_file, open(
         args.to_extend, "rb"
@@ -73,6 +73,10 @@ def main():
     return retcode
 
 
-if __name__ == "__main__":
+def _main():
     retcode = main()
     sys.exit(retcode)
+
+
+if __name__ == "__main__":
+    _main()

@@ -7,11 +7,11 @@ import argparse
 import logging
 import shutil
 import subprocess
-import yaml
 from pathlib import Path
 
-from tuple_tree_generator import Schema
-from tuple_tree_generator import generate_cpp_headers
+from tuple_tree_generator import Schema, generate_cpp_headers
+
+import yaml
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("schema", help="YAML schema")
@@ -37,7 +37,7 @@ def reformat(source: str) -> str:
 
 
 def main(args):
-    with open(args.schema) as f:
+    with open(args.schema, encoding="utf-8") as f:
         raw_schema = yaml.safe_load(f)
 
     schema = Schema(raw_schema, args.namespace)

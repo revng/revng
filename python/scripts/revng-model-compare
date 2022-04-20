@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
 
 # This script compares two YAML files. In general, the reference YAML file is
 # supposed to be included in the other one. For instance, {"a": 1, "b": 2}
@@ -12,31 +15,29 @@
 import argparse
 import re
 import sys
-import yaml
-
 from collections import defaultdict
 
+import yaml
 from grandiso import find_motifs
-
 from networkx import DiGraph
 from networkx.algorithms.shortest_paths.unweighted import all_pairs_shortest_path_length
 
 args = None
 
-fragile_keys = set(["ID"])
+fragile_keys = {"ID"}
 
 
 def log(message):
     sys.stderr.write(message + "\n")
 
 
-def is_reference(str):
-    return str.startswith("/Types/")
+def is_reference(string):
+    return string.startswith("/Types/")
 
 
-def dereference(root, str):
-    assert is_reference(str)
-    match = re.match(r"/Types/.*-([^-]*)", str)
+def dereference(root, string):
+    assert is_reference(string)
+    match = re.match(r"/Types/.*-([^-]*)", string)
 
     if match:
         type_id = int(match.groups()[0])
@@ -66,9 +67,9 @@ class YAMLGraph:
         self.visit_object(root)
         self.node_colors = {}
 
-    def add_node(self, object):
-        object_id = id(object)
-        self.node_map[object_id] = object
+    def add_node(self, object_):
+        object_id = id(object_)
+        self.node_map[object_id] = object_
         self.graph.add_node(object_id)
 
     def add_edge(self, source_id, destination_id, label):
@@ -78,24 +79,24 @@ class YAMLGraph:
         self.graph.add_edge(source_id, label_id)
         self.graph.add_edge(label_id, destination_id)
 
-    def visit_object(self, object):
-        object_type = type(object)
-        object_id = id(object)
+    def visit_object(self, object_):
+        object_type = type(object_)
+        object_id = id(object_)
 
         if object_id in self.node_map:
             return
 
-        self.add_node(object)
+        self.add_node(object_)
 
         if object_type is list:
-            for index, item in enumerate(object):
+            for index, item in enumerate(object_):
                 self.visit_object(item)
                 if args.exact:
                     self.add_edge(object_id, id(item), index)
                 else:
                     self.add_edge(object_id, id(item), "")
         elif object_type is dict:
-            for key, value in object.items():
+            for key, value in object_.items():
                 value_type = type(value)
                 if value_type is dict or value_type is list:
                     self.visit_object(value)
@@ -107,9 +108,9 @@ class YAMLGraph:
                         self.add_edge(object_id, id(item), key)
 
     @staticmethod
-    def filter(object):
-        assert type(object) is dict
-        filtered_dict = dict(object)
+    def filter(object_):  # noqa: A003
+        assert isinstance(object_, dict)
+        filtered_dict = dict(object_)
         to_remove = []
         references = []
         for key, value in filtered_dict.items():
@@ -129,43 +130,42 @@ class YAMLGraph:
         return filtered_dict
 
     @staticmethod
-    def get_label(object):
-        object_type = type(object)
+    def get_label(object_):
+        object_type = type(object_)
         if object_type is list:
-            return f"List[{len(object)}]"
-        elif object_type is Tag:
-            return str(object.tag)
-        elif object_type is dict:
-            return yaml.dump(YAMLGraph.filter(object))
-        else:
-            return str(object)
+            return f"List[{len(object_)}]"
+        if object_type is Tag:
+            return str(object_.tag)
+        if object_type is dict:
+            return yaml.dump(YAMLGraph.filter(object_))
+        return str(object_)
 
     @staticmethod
     def escape(data):
         return data.replace('"', '\\"').replace("\n", "\\l")
 
     def write(self, path):
-        with open(path, "w") as output_file:
+        with open(path, "w", encoding="utf-8") as output_file:
             # Emit header
             output_file.write("digraph {\n")
             output_file.write("  node [shape=box];\n")
 
             # Emit nodes
             for object_id in self.graph.nodes:
-                object = self.node_map[object_id]
-                if type(object) is Tag:
+                object_ = self.node_map[object_id]
+                if isinstance(object_, Tag):
                     source_id = list(self.graph.predecessors(object_id))[0]
                     destination_id = list(self.graph.successors(object_id))[0]
-                    label = self.escape(self.get_label(object.tag))
+                    label = self.escape(self.get_label(object_.tag))
                     output_file.write(f"""  n{source_id} ->""")
                     output_file.write(f"""  n{destination_id}""")
                     output_file.write(f""" [label="{label}"];\n""")
                 else:
                     extra = ""
                     if object_id in self.node_colors:
-                        extra += f",style=filled"
+                        extra += ",style=filled"
                         extra += f',fillcolor="{self.node_colors[object_id]}"'
-                    label = self.escape(self.get_label(object))
+                    label = self.escape(self.get_label(object_))
                     output_file.write(f"""  n{object_id}""")
                     output_file.write(f""" [label="{label}"{extra}];\n""")
 
@@ -212,24 +212,25 @@ class YAMLGraph:
                         # The key starts with `-` but it's present in
                         # input_object
                         return False
-                elif not key in input_object or input_object[key] != value:
+                elif key not in input_object or input_object[key] != value:
                     # Object entries do not match!
                     return False
 
             return True
-        elif input_type is list:
-            return True
-        else:
-            return input_object == reference_object
 
-    def is_subgraph(self, other, color):
+        if input_type is list:
+            return True
+
+        return input_object == reference_object
+
+    def is_subgraph(self, other, color=None):
         return self.compare(other, False, color)
 
-    def is_equal(self, other, color):
+    def is_equal(self, other, color=None):
         return self.compare(other, True, color)
 
-    def compare(self, other, exact, color):
-        def attr_match(motif_node_id: str, host_node_id: str, motif, host) -> bool:
+    def compare(self, other, exact, color=None):
+        def attr_match(motif_node_id: str, host_node_id: str, _motif, _host) -> bool:
             return self.semantic_feasibility(other, exact, host_node_id, motif_node_id)
 
         # Compute (un)interestingness
@@ -242,7 +243,7 @@ class YAMLGraph:
             #       has based on how many compatible nodes are there in
             #       the input graph, just looking at the semantic.
             has_customname = (
-                type(self.node_map[node_id]) is dict and "CustomName" in self.node_map[node_id]
+                isinstance(self.node_map[node_id], dict) and "CustomName" in self.node_map[node_id]
             )
             if self.graph.in_degree(node_id) == 0:
                 # No incoming edges, it's the entry node
@@ -282,42 +283,44 @@ def selftest():
     # Test --exact
     args.exact = True
 
-    def test(input, reference):
-        return YAMLGraph(reference).is_equal(YAMLGraph(input))
+    def test_equal(input_, reference):
+        return YAMLGraph(reference).is_equal(YAMLGraph(input_))
 
-    assert test({}, {})
-    assert test(3, 3)
-    assert not test(2, 3)
-    assert test([3], [3])
-    assert not test([2], [3])
-    assert not test([], {})
-    assert test({"a": 2}, {"a": 2})
-    assert not test({"a": 2}, {})
-    assert not test({"a": 2, "b": 3}, {"b": 2, "a": 3})
-    assert test([1, 2, 3], [1, 2, 3])
-    assert not test([1, 3, 2], [1, 2, 3])
+    assert test_equal({}, {})
+    assert test_equal(3, 3)
+    assert not test_equal(2, 3)
+    assert test_equal([3], [3])
+    assert not test_equal([2], [3])
+    assert not test_equal([], {})
+    assert test_equal({"a": 2}, {"a": 2})
+    assert not test_equal({"a": 2}, {})
+    assert not test_equal({"a": 2, "b": 3}, {"b": 2, "a": 3})
+    assert test_equal([1, 2, 3], [1, 2, 3])
+    assert not test_equal([1, 3, 2], [1, 2, 3])
 
     # Test approximate for inclusion
     args.exact = False
 
-    def test(input, reference):
-        return YAMLGraph(reference).is_subgraph(YAMLGraph(input))
+    def test_subgraph(input_, reference):
+        return YAMLGraph(reference).is_subgraph(YAMLGraph(input_))
 
-    assert test({}, {})
-    assert not test({}, {"a": 2})
-    assert test([3], [3])
-    assert not test([2], [3])
-    assert not test([], {})
-    assert test({"a": 2}, {"a": 2})
-    assert test({"a": 2}, {})
-    assert test({"a": 2, "b": 3}, {"b": 3, "a": 2})
-    assert test([1, 2, 3], [1, 2, 3])
-    assert test([1, 3, 2], [1, 2, 3])
+    assert test_subgraph({}, {})
+    assert not test_subgraph({}, {"a": 2})
+    assert test_subgraph([3], [3])
+    assert not test_subgraph([2], [3])
+    assert not test_subgraph([], {})
+    assert test_subgraph({"a": 2}, {"a": 2})
+    assert test_subgraph({"a": 2}, {})
+    assert test_subgraph({"a": 2, "b": 3}, {"b": 3, "a": 2})
+    assert test_subgraph([1, 2, 3], [1, 2, 3])
+    assert test_subgraph([1, 3, 2], [1, 2, 3])
 
     # Test references
     reference = {"a": "/Types/Type-1", "Types": [{"ID": 1, "b": 3}]}
-    assert test({"a": "/Types/Type-2", "Types": [{"ID": 1, "b": 5}, {"ID": 2, "b": 3}]}, reference)
-    assert not test(
+    assert test_subgraph(
+        {"a": "/Types/Type-2", "Types": [{"ID": 1, "b": 5}, {"ID": 2, "b": 3}]}, reference
+    )
+    assert not test_subgraph(
         {"a": "/Types/Type-2", "Types": [{"ID": 1, "b": 5}, {"ID": 2, "b": 4}]}, reference
     )
 
@@ -335,8 +338,7 @@ SafeLoaderIgnoreUnknown.add_constructor(None, SafeLoaderIgnoreUnknown.ignore_unk
 def open_argument(path):
     if path == "-":
         return sys.stdin
-    else:
-        return open(path)
+    return open(path, encoding="utf-8")  # noqa: SIM115
 
 
 def main():
@@ -362,10 +364,10 @@ def main():
 
     with open_argument(args.reference) as reference_file, open_argument(args.input) as input_file:
         reference = yaml.load(reference_file, Loader=SafeLoaderIgnoreUnknown)
-        input = yaml.load(input_file, Loader=SafeLoaderIgnoreUnknown)
+        input_ = yaml.load(input_file, Loader=SafeLoaderIgnoreUnknown)
 
     reference_graph = YAMLGraph(reference)
-    input_graph = YAMLGraph(input)
+    input_graph = YAMLGraph(input_)
 
     if args.exact:
         result = reference_graph.is_equal(input_graph, args.dump_graphs)

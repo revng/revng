@@ -5,11 +5,11 @@
 
 import argparse
 import sys
-import yaml
 from pathlib import Path
 
-from tuple_tree_generator import Schema
-from tuple_tree_generator import generate_python
+from tuple_tree_generator import Schema, generate_python
+
+import yaml
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("schema", help="YAML schema")
@@ -26,7 +26,7 @@ argparser.add_argument(
 
 
 def main(args):
-    with open(args.schema) as f:
+    with open(args.schema, encoding="utf-8") as f:
         raw_schema = yaml.safe_load(f)
 
     schema = Schema(raw_schema, args.namespace)
@@ -41,7 +41,7 @@ def main(args):
         output_path = Path(args.output)
         # Ensure the containing directory is created
         output_path.parent.mkdir(exist_ok=True)
-        output_path.write_text(source)
+        output_path.write_text(source, encoding="utf-8")
     else:
         sys.stdout.write(source)
 
