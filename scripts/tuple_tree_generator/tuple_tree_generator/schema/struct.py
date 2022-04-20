@@ -4,11 +4,24 @@
 
 import copy
 from abc import ABC
-from typing import Dict, List
+from typing import Callable, Dict, List, NamedTuple
 
 from .definition import Definition
 
 # TODO: should we return the fields in a stable order (in all_fields, all_optional_fields, etc)
+
+
+class TypeInfo(NamedTuple):
+    """Container for type information
+    type: string representing the type name of the field, without cpp-isms
+    is_sequence: indicates if the filed is a sequence
+    root_type: if populated the root type is the type that, given a reference path, resolves
+               said reference to type
+    """
+
+    type: str  # noqa: A003
+    is_sequence: bool
+    root_type: str
 
 
 class StructField(ABC):
@@ -54,6 +67,9 @@ class StructField(ABC):
     def resolve_references(self, schema):
         raise NotImplementedError()
 
+    def type_info(self, scalar_converter: Callable[[str], str]) -> TypeInfo:
+        raise NotImplementedError()
+
 
 class SimpleStructField(StructField):
     def __init__(
@@ -73,12 +89,11 @@ class SimpleStructField(StructField):
     def resolve_references(self, schema):
         self.resolved_type = schema.get_definition_for(self.type)
 
-    @property
-    def python_type(self):
+    def type_info(self, scalar_converter: Callable[[str], str]) -> TypeInfo:
         if self.resolved_type:
-            return self.resolved_type.name
+            return TypeInfo(self.resolved_type.name, False, "")
 
-        return _scalar_python_type(self.type)
+        return TypeInfo(scalar_converter(self.type), False, "")
 
 
 class SequenceStructField(StructField):
@@ -112,12 +127,11 @@ class SequenceStructField(StructField):
     def type(self):  # noqa: A003
         return f"{self.sequence_type}<{self.underlying_type}>"
 
-    @property
-    def python_type(self):
+    def type_info(self, scalar_converter: Callable[[str], str]) -> TypeInfo:
         if self.resolved_element_type:
-            return f"List[{self.resolved_element_type.name}]"
-        element_type = _scalar_python_type(self.element_type)
-        return f"List[{element_type}]"
+            return TypeInfo(self.resolved_element_type.name, True, "")
+        element_type = scalar_converter(self.element_type)
+        return TypeInfo(element_type, True, "")
 
     def resolve_references(self, schema):
         self.resolved_sequence_type = schema.get_definition_for(self.sequence_type)
@@ -136,19 +150,18 @@ class ReferenceStructField(StructField):
     def type(self):  # noqa: A003
         return f"TupleTreeReference<{self.pointee_type}, {self.root_type}>"
 
-    @property
-    def python_type(self):
+    def type_info(self, scalar_converter: Callable[[str], str]) -> TypeInfo:
         if self.resolved_pointee_type:
             pointee_type = self.resolved_pointee_type.name
         else:
-            pointee_type = _scalar_python_type(self.pointee_type)
+            pointee_type = scalar_converter(self.pointee_type)
 
         if self.resolved_root_type:
             root_type = self.resolved_root_type.name
         else:
-            root_type = _scalar_python_type(self.root_type)
+            root_type = scalar_converter(self.root_type)
 
-        return f"Reference[{pointee_type}, {root_type}]"
+        return TypeInfo(pointee_type, False, root_type)
 
     def resolve_references(self, schema):
         self.resolved_pointee_type = schema.get_definition_for(self.pointee_type)
@@ -299,11 +312,3 @@ class StructDefinition(Definition):
         if self.inherits:
             yield from self.inherits.fields
         yield from self.fields
-
-
-def _scalar_python_type(t: str) -> str:
-    if "int" in t:
-        return "int"
-    if "string" in t:
-        return "str"
-    return t

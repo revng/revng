@@ -12,4 +12,5 @@ from .struct import (
     SimpleStructField,
     StructDefinition,
     StructField,
+    TypeInfo,
 )
