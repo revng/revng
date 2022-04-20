@@ -36,13 +36,13 @@ enum Values { Erase, Preserve };
 /// guaranteed that only functions in the form (i, *) are presents, in other
 /// words that either all or none functions are forwarded to the pipe.
 ///
-/// A pipe marked with a single contract must transform all and only items from
-/// the input container that have Targets with the same kind as if SourceKind
-/// (or a derived kind if Exactness is not Exact)
+/// A pipe marked with a single contract must transform all the items from
+/// the input container that have Targets with the same kind and only them.
+/// If Exactness is not Exact, this also applies to the derived kinds.
 ///
-/// The pipe must furthermore esures that for each item in the input container
+/// Furthermore, the pipe must ensure that for each item in the input container
 /// that matches the requirements another target is created in the target
-/// container (is the target container exists), such that
+/// container (if the target container exists), such that
 ///
 /// If the output kind has a greater rank than the inputkind then for all
 /// Targets in input with source kind and pathComponents (i1, ..., in) then a
@@ -50,7 +50,7 @@ enum Values { Erase, Preserve };
 ///
 /// If the output has a smaller rank g1 than the input rank g2
 /// then for the pipe must operate on all targets with Kind source and
-/// pathcomponents(i1, ..., i_g2) and yield a a target for each with Kind target
+/// pathcomponents(i1, ..., i_g2) and yield a target for each with Kind target
 /// and pathComponents(i1, ..., i_g1), it will be ensured that when the pipe
 /// executed each target in the input container that must be transformed will be
 /// in the form (i1, ..., i_g2) where each pathcomponents i_x such that g1 <= x
@@ -153,7 +153,7 @@ private:
 
 /// A group contract is the way contracts can be composed.
 /// All subcontracts inside a group contract are evaluated in parallel on the
-/// same input and their, and their output is merged.
+/// same input and their output is merged.
 class ContractGroup {
 public:
   static constexpr auto Erase = InputPreservation::Erase;

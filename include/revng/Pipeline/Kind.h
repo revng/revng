@@ -20,7 +20,7 @@ class ContainerBase;
 class InvalidationEventBase;
 
 /// A Kind is used to accumunate objects that logically belongs to the same
-/// cathegory.
+/// category.
 ///
 /// As an example, the Kind of Isolated Functions, the Kind of translated
 /// binaries.
@@ -46,7 +46,7 @@ public:
     revng_assert(TheRank != nullptr);
   }
 
-  /// Kinds may provide a override for this method. Thye must return success if
+  /// Kinds may provide a override for this method. They must return success if
   /// ToVerify (which always has this kind as a kind), well formed inside
   /// Container (which always contains ToVerify).
   virtual llvm::Error
@@ -60,10 +60,10 @@ public:
 public:
   virtual ~Kind() = default;
 
-  /// A Kind can have a  expand target method, which will be used to expand all
-  /// targets that rapresents a collection of objects rather than a scalar one.
+  /// A Kind can have an expand target method, which will be used to expand all
+  /// targets that represents a collection of objects instead of a single one.
   ///
-  /// As an example, the espansion of Input equal to /Root/* of isolated
+  /// As an example, the expansion of Input equal to /Root/* of isolated
   /// functions kind will create a target equivalent to /Root/FX for each FX
   /// container in the revng model.
   virtual void expandTarget(const Context &Ctx,

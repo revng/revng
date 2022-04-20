@@ -449,7 +449,7 @@ public:
                             uint32_t Epoch = 0,
                             uint16_t AddressSpace = 0) {
 
-    // Create the base MetaAddress, point at code at zero
+    // Create the base MetaAddress, it points to code at zero
     MetaAddress Result(0,
                        MetaAddressType::defaultCodeFromArch(Arch),
                        Epoch,

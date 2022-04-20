@@ -106,7 +106,7 @@ llvm::Error FileContainer::storeToDisk(llvm::StringRef Path) const {
   // so that the next time we load we don't mistakenly think that we have some
   // content.
   //
-  // Other containers do not need this because they determin their content by
+  // Other containers do not need this because they determine their content by
   // looking inside the stored file, instead of only checking if the file
   // exists.
   if (this->Path.empty()) {
