@@ -2,19 +2,17 @@
 # Copyright rev.ng Labs Srl. See LICENSE.md for details.
 #
 
+add_subdirectory(MarkAssignments)
+
 revng_add_analyses_library(
-  revngcIRCanonicalization revngc AddIRSerializationMarkerPass.cpp
-  MakeModelGEPPass.cpp ExitSSAPass.cpp
+  revngcIRCanonicalization revngc ExitSSAPass.cpp MakeModelGEPPass.cpp
   TwosComplementArithmeticNormalizationPass.cpp)
 
 target_link_libraries(
   revngcIRCanonicalization
-  revngcDecompiler
-  revngcLivenessAnalysis
-  revngcMarkForSerialization
+  revngcInitModelTypes
   revngcSupport
   revngcTargetFunctionOption
   revng::revngModel
   revng::revngSupport
-  revngcInitModelTypes
   ${LLVM_LIBRARIES})

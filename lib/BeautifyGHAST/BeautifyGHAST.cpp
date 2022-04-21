@@ -13,11 +13,11 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
-#include "revng-c/MarkForSerialization/MarkAnalysis.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/ExprNode.h"
 #include "revng-c/RestructureCFGPass/GenerateAst.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
+#include "revng-c/Support/DecompilationHelpers.h"
 #include "revng-c/Support/FunctionFileHelpers.h"
 
 #include "BeautifyGHAST.h"
@@ -101,17 +101,17 @@ static bool hasSideEffects(IfNode *If) {
         return true;
 
       if (auto *Call = llvm::dyn_cast<CallInst>(&I)) {
-        // If it's a call to a serialization marker, look at the second
+        // If it's a call to an assignment marker, look at the second
         // argument. If it's a true constant, than it has side effects.
         auto *Callee = Call->getCalledFunction();
-        if (Callee and FunctionTags::SerializationMarker.isTagOf(Callee)) {
+        if (Callee and FunctionTags::AssignmentMarker.isTagOf(Callee)) {
           auto *Arg1 = Call->getArgOperand(1);
           auto *HasSideEffects = llvm::cast<llvm::ConstantInt>(Arg1);
           return HasSideEffects->isOne();
         }
 
         // All calls that are not pure have side effects
-        if (not MarkAnalysis::isCallToPure(*Call))
+        if (not isCallToPure(*Call))
           return true;
       }
     }
@@ -754,7 +754,7 @@ computeCumulativeNodeWeight(ASTNode *Node,
     // TODO: At the moment we use the BasicBlock size to assign a weight to the
     //       code nodes. In future, we would want to use the number of statement
     //       emitted in the decompiled code as weight (and use
-    //       `SerializationMarker`s to do that).
+    //       `AssignmentMarker`s to do that).
     CodeNode *Code = llvm::cast<CodeNode>(Node);
     llvm::BasicBlock *BB = Code->getBB();
     rc_return BB->size();

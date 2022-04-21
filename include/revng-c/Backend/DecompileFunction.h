@@ -8,7 +8,6 @@
 
 #include "revng-c/Backend/VariableScopeAnalysisPass.h"
 #include "revng-c/InitModelTypes/InitModelTypes.h"
-#include "revng-c/MarkForSerialization/MarkAnalysis.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 
 using ValueSet = VariableScopeAnalysisPass::ValuePtrSet;

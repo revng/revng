@@ -6,7 +6,7 @@ cmake_policy(SET CMP0060 NEW)
 
 include(${CMAKE_INSTALL_PREFIX}/share/revng/qa/cmake/revng-qa.cmake)
 
-set(SRC "${CMAKE_SOURCE_DIR}/tests/Unit")
+set(SRC "${CMAKE_SOURCE_DIR}/tests/unit")
 
 include(${SRC}/llvm-lit-tests/CMakeLists.txt)
 
@@ -73,8 +73,7 @@ target_include_directories(dla_step_manager PRIVATE "${CMAKE_SOURCE_DIR}"
                                                     "${Boost_INCLUDE_DIRS}")
 target_link_libraries(
   dla_step_manager
-  revngcDecompiler
-  clangSerialization
+  revngcDataLayoutAnalysis
   revng::revngModel
   revng::revngSupport
   revng::revngUnitTestHelpers
@@ -83,26 +82,23 @@ target_link_libraries(
 add_test(NAME dla_step_manager COMMAND ./dla_step_manager)
 
 #
-# MarkForSerializationTest
+# MarkAssignmentsTest
 #
 
-revng_add_test_executable(MarkForSerializationTest
-                          "${SRC}/MarkForSerializationTest.cpp")
-target_compile_definitions(MarkForSerializationTest
-                           PRIVATE "BOOST_TEST_DYN_LINK=1")
-target_include_directories(
-  MarkForSerializationTest PRIVATE "${CMAKE_SOURCE_DIR}"
-                                   "${Boost_INCLUDE_DIRS}")
+revng_add_test_executable(MarkAssignmentsTest "${SRC}/MarkAssignmentsTest.cpp")
+target_compile_definitions(MarkAssignmentsTest PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(MarkAssignmentsTest PRIVATE "${CMAKE_SOURCE_DIR}"
+                                                       "${Boost_INCLUDE_DIRS}")
 target_link_libraries(
-  MarkForSerializationTest
-  revngcDecompiler
-  clangSerialization
+  MarkAssignmentsTest
+  revngcMarkAssignments
+  revngcSupport
   revng::revngModel
   revng::revngSupport
   revng::revngUnitTestHelpers
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME MarkForSerializationTest COMMAND ./MarkForSerializationTest)
+add_test(NAME MarkAssignmentsTest COMMAND ./MarkAssignmentsTest)
 
 #
 # DLASteps
@@ -114,7 +110,6 @@ target_include_directories(dla_steps PRIVATE "${CMAKE_SOURCE_DIR}"
                                              "${Boost_INCLUDE_DIRS}")
 target_link_libraries(
   dla_steps
-  revngcDecompiler
   revngcDataLayoutAnalysis
   revng::revngModel
   revng::revngSupport

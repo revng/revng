@@ -1,10 +1,9 @@
-#pragma once
-
 //
 // Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 //
 
-/// Analysis that marks instructions to be serialized in C
+/// Analysis that detects which Instructions in a Function need an assignment in
+/// decompilation to C.
 
 #include <map>
 
@@ -15,9 +14,11 @@
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/MonotoneFramework.h"
 
-#include "revng-c/Liveness/LivenessAnalysis.h"
-#include "revng-c/MarkForSerialization/MarkForSerializationFlags.h"
+#include "revng-c/Support/DecompilationHelpers.h"
 #include "revng-c/Support/FunctionTags.h"
+
+#include "LivenessAnalysis.h"
+#include "MarkAssignments.h"
 
 namespace llvm {
 
@@ -27,30 +28,11 @@ class Instruction;
 
 } // end namespace llvm
 
-extern Logger<> MarkLog;
+Logger<> MarkLog{ "mark-assignments" };
 
-namespace MarkAnalysis {
+namespace MarkAssignments {
 
-inline bool isPure(const llvm::Function *F) {
-  if (F) {
-    if (FunctionTags::ModelGEP.isTagOf(F)
-        or FunctionTags::StructInitializer.isTagOf(F)
-        or FunctionTags::AddressOf.isTagOf(F)
-        or FunctionTags::OpaqueCSVValue.isTagOf(F)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-inline bool isCallToPure(const llvm::Instruction &I) {
-  if (auto *Call = dyn_cast<llvm::CallInst>(&I))
-    return isPure(Call->getCalledFunction());
-
-  return false;
-}
-
-inline bool
+static bool
 haveInterferingSideEffects(const llvm::Instruction & /*InstrWithSideEffects*/,
                            const llvm::Instruction &Other) {
   // Calls to pure functions never have interfering side effects.
@@ -59,8 +41,6 @@ haveInterferingSideEffects(const llvm::Instruction & /*InstrWithSideEffects*/,
 
   return true;
 }
-
-using DuplicationMap = std::map<const llvm::BasicBlock *, size_t>;
 
 class IntersectionMonotoneSetWithTaint;
 
@@ -219,7 +199,7 @@ class Analysis : public MonotoneFramework<Analysis,
                                           SuccVector> {
 private:
   llvm::Function &F;
-  SerializationMap &ToSerialize;
+  AssignmentMap Assignments;
   LivenessAnalysis::LivenessMap LiveIn;
 
 public:
@@ -231,14 +211,23 @@ public:
 
   using InterruptType = typename Base::InterruptType;
 
+public:
+  Analysis(llvm::Function &F) :
+    Base(&F.getEntryBlock()), F(F), Assignments(), LiveIn() {
+    Base::registerExtremal(&F.getEntryBlock());
+  }
+
+  void initialize() {
+    Base::initialize();
+    LiveIn = computeLiveness(F);
+  }
+
+  AssignmentMap &&takeAssignments() { return std::move(Assignments); }
+
+public:
   void assertLowerThanOrEqual(const LatticeElement &A,
                               const LatticeElement &B) const {
     revng_assert(A.lowerThanOrEqual(B));
-  }
-
-  Analysis(llvm::Function &F, SerializationMap &ToSerialize) :
-    Base(&F.getEntryBlock()), F(F), ToSerialize(ToSerialize), LiveIn() {
-    Base::registerExtremal(&F.getEntryBlock());
   }
 
   [[noreturn]] void dumpFinalState() const { revng_abort(); }
@@ -286,14 +275,6 @@ public:
     return LatticeElement::top();
   }
 
-  void initialize() {
-    Base::initialize();
-    LivenessAnalysis::Analysis Liveness(F);
-    Liveness.initialize();
-    Liveness.run();
-    LiveIn = Liveness.extractLiveIn();
-  }
-
   InterruptType transfer(llvm::BasicBlock *BB) {
     using namespace llvm;
     revng_log(MarkLog,
@@ -332,41 +313,17 @@ public:
         }
       }
 
-      // PHINodes are never serialized directly in the BB they are.
-      if (isa<PHINode>(I))
-        continue;
+      // After the new redesign of IRCanonicalization PHINodes shouldn't even
+      // reach this stage.
+      revng_assert(not isa<PHINode>(I));
 
-      // Skip branching instructions.
-      // Branch instructions are never serialized directly, because it's only
-      // after building an AST and matching ifs, loops, switches and others that
-      // we really know what kind of C statement we want to emit for a given
-      // branch.
+      // Skip branching instructions, since they never generate assignments.
       if (isa<BranchInst>(I) or isa<SwitchInst>(I))
         continue;
 
-      if (isa<InsertValueInst>(I)) {
-        // InsertValueInst are serialized in C as:
-        //   struct x = { .designated = 0xDEAD, .initializers = 0xBEEF };
-        //   x.designated = value_that_overrides_0xDEAD;
-        // The second statement is always necessary.
-        ToSerialize[&I].set(NeedsManyStatements);
-        revng_log(MarkLog, "Instr NeedsManyStatements");
-      }
-
-      if (isa<InsertValueInst>(I) or isa<AllocaInst>(I)) {
-        // As noted in the comment above, InsertValueInst always need a local
-        // variable (x in the example above) for the computation of the
-        // expression that represents the result of Instruction itself. This is
-        // the local variable in C that will be used by x's users. Also
-        // AllocaInst always need a local variable, which is the variable
-        // allocated by the alloca.
-        ToSerialize[&I].set(NeedsLocalVarToComputeExpr);
-        revng_log(MarkLog, "Instr NeedsLocalVarToComputeExpr");
-      }
-
       if (isa<StoreInst>(&I) or (isa<CallInst>(&I) and not isCallToPure(I))) {
         // StoreInst and CallInst that are not pure always have side effects.
-        ToSerialize[&I].set(HasSideEffects);
+        Assignments[&I].set(Reasons::HasSideEffects);
         revng_log(MarkLog, "Instr HasSideEffects");
 
         // Also, force calls to revng_stack_frame to behave like if they had
@@ -374,7 +331,7 @@ public:
         if (auto *Call = dyn_cast<CallInst>(&I)) {
           auto *Callee = Call->getCalledFunction();
           if (Callee and FunctionTags::AllocatesLocalVariable.isTagOf(Callee)) {
-            ToSerialize[&I].set(HasManyUses);
+            Assignments[&I].set(Reasons::HasManyUses);
             revng_log(MarkLog, "Instr HasManyUses");
           }
         }
@@ -383,30 +340,33 @@ public:
       switch (I.getNumUses()) {
 
       case 1: {
-        // Instructions with a single used do not necessarily need to be
-        // serialized.
+        // Instructions with a single used do not necessarily need to generate
+        // an assignment.
       } break;
 
       case 0: {
-        // Force unused instructions to be serialized. This is done to ease
+        // Force unused instructions to be assigned. This is done to ease
         // debugging, and could potentially be dropped in the future.
-        ToSerialize[&I].set(AlwaysSerialize);
-        revng_log(MarkLog, "Instr AlwaysSerialize");
+        if (not I.getType()->isVoidTy()) {
+          Assignments[&I].set(Reasons::AlwaysAssign);
+          revng_log(MarkLog, "Instr AlwaysAssign");
+        }
       } break;
 
       default: {
-        // Instructions with more than one use are always serialized.
-        ToSerialize[&I].set(HasManyUses);
+        // Instructions with more than one use are always assigned, so all the
+        // users can re-use the assigned variable.
+        Assignments[&I].set(Reasons::HasManyUses);
         revng_log(MarkLog, "Instr HasManyUses: " << I.getNumUses());
       } break;
       }
 
-      auto SerIt = ToSerialize.find(&I);
-      if (SerIt != ToSerialize.end()
-          and (SerializationFlags::hasSideEffects(SerIt->second)
-               or SerIt->second.isSet(SerializationReason::AlwaysSerialize))) {
-        revng_log(MarkLog, "Serialize Pending");
-        // We also have to serialize all the instructions that are still pending
+      auto SerIt = Assignments.find(&I);
+      if (SerIt != Assignments.end()
+          and (SerIt->second.hasSideEffects()
+               or SerIt->second.isSet(Reasons::AlwaysAssign))) {
+        revng_log(MarkLog, "Assign Pending");
+        // We also have to assign all the instructions that are still pending
         // and have interfering side effects.
         for (auto PendingIt = Pending.begin(); PendingIt != Pending.end();) {
           auto *PendingInstr = PendingIt->first;
@@ -414,7 +374,7 @@ public:
                     "Pending: '" << PendingInstr
                                  << "': " << dumpToString(PendingInstr));
           if (haveInterferingSideEffects(I, *PendingInstr)) {
-            ToSerialize[PendingInstr].set(HasInterferingSideEffects);
+            Assignments[PendingInstr].set(Reasons::HasInterferingSideEffects);
             revng_log(MarkLog, "HasInterferingSideEffects");
 
             PendingIt = Pending.erase(PendingIt);
@@ -433,4 +393,11 @@ public:
   }
 };
 
-} // namespace MarkAnalysis
+AssignmentMap selectAssignments(llvm::Function &F) {
+  MarkAssignments::Analysis Mark(F);
+  Mark.initialize();
+  Mark.run();
+  return Mark.takeAssignments();
+}
+
+} // end namespace MarkAssignments

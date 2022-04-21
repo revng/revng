@@ -2,8 +2,9 @@
 // Copyright rev.ng Labs Srl. See LICENSE.md for details.
 //
 
-/// Pass that wraps Instructions in LLVM IR that must be serialized in
-/// special marker calls.
+/// Pass that detects Instructions in a Functions for which we have to generate
+/// a variable assignment when decompiling to C, and wraps them in special
+/// marker calls.
 
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
@@ -18,16 +19,17 @@
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
-#include "revng-c/MarkForSerialization/MarkAnalysis.h"
-#include "revng-c/MarkForSerialization/MarkForSerializationFlags.h"
+#include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/Mangling.h"
 #include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
 
-struct AddIRSerializationMarkersPass : public llvm::FunctionPass {
+#include "MarkAssignments.h"
+
+struct AddAssignmentMarkersPass : public llvm::FunctionPass {
 public:
   static char ID;
 
-  AddIRSerializationMarkersPass() : llvm::FunctionPass(ID) {}
+  AddAssignmentMarkersPass() : llvm::FunctionPass(ID) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesCFG();
@@ -36,7 +38,7 @@ public:
   bool runOnFunction(llvm::Function &F) override;
 };
 
-bool AddIRSerializationMarkersPass::runOnFunction(llvm::Function &F) {
+bool AddAssignmentMarkersPass::runOnFunction(llvm::Function &F) {
 
   // Skip non-isolated functions
   auto FTags = FunctionTags::TagsSet::from(&F);
@@ -49,16 +51,13 @@ bool AddIRSerializationMarkersPass::runOnFunction(llvm::Function &F) {
     if (not F.getName().equals(TargetFunction.c_str()))
       return false;
 
-  // Mark instructions for serialization, and write the results in ToSerialize
-  SerializationMap ToSerialize = {};
-  MarkAnalysis::Analysis Mark(F, ToSerialize);
-  Mark.initialize();
-  Mark.run();
+  MarkAssignments::AssignmentMap
+    Assignments = MarkAssignments::selectAssignments(F);
 
   llvm::Module *M = F.getParent();
   llvm::IRBuilder<> Builder(M->getContext());
   bool Changed = false;
-  for (const auto &[I, Flag] : ToSerialize) {
+  for (auto &[I, Flag] : Assignments) {
     auto *IType = I->getType();
 
     // We cannot wrap void-typed things into wrappers.
@@ -68,7 +67,7 @@ bool AddIRSerializationMarkersPass::runOnFunction(llvm::Function &F) {
 
     if (bool(Flag)) {
 
-      auto *MarkerF = getSerializationMarker(*M, IType);
+      auto *MarkerF = getAssignmentMarker(*M, IType);
 
       // Insert a call to the SCEV barrier right after I. For now the call to
       // barrier has an undef argument, that will be fixed later.
@@ -78,16 +77,12 @@ bool AddIRSerializationMarkersPass::runOnFunction(llvm::Function &F) {
       // later on.
       auto *Undef = llvm::UndefValue::get(IType);
 
-      // The second arg operand needs to be true if the serialization is
+      // The second arg operand needs to be true if the assignment is
       // required because of side effects.
       auto *BoolType = MarkerF->getArg(1)->getType();
-      llvm::Constant *MarkSideEffects = nullptr;
-      if (Flag.isSet(SerializationReason::HasSideEffects)
-          or Flag.isSet(SerializationReason::HasInterferingSideEffects)) {
-        MarkSideEffects = llvm::ConstantInt::getAllOnesValue(BoolType);
-      } else {
-        MarkSideEffects = llvm::ConstantInt::getNullValue(BoolType);
-      }
+      auto *MarkSideEffects = Flag.hasSideEffects() ?
+                                llvm::ConstantInt::getAllOnesValue(BoolType) :
+                                llvm::ConstantInt::getNullValue(BoolType);
 
       auto *Call = Builder.CreateCall(MarkerF, { Undef, MarkSideEffects });
 
@@ -103,10 +98,10 @@ bool AddIRSerializationMarkersPass::runOnFunction(llvm::Function &F) {
   return true;
 }
 
-char AddIRSerializationMarkersPass::ID = 0;
+char AddAssignmentMarkersPass::ID = 0;
 
-using Register = llvm::RegisterPass<AddIRSerializationMarkersPass>;
-static Register X("add-ir-serialization-markers",
-                  "Pass that adds serialization markers to the IR",
+using Register = llvm::RegisterPass<AddAssignmentMarkersPass>;
+static Register X("add-assignment-markers",
+                  "Pass that adds assignment markers to the IR",
                   false,
                   false);

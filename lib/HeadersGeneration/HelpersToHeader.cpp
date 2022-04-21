@@ -71,7 +71,7 @@ bool dumpHelpersToHeader(const llvm::Module &M, llvm::raw_ostream &Header) {
     auto FTags = FunctionTags::TagsSet::from(&F);
     if (FTags.contains(FunctionTags::Isolated)
         or FTags.contains(FunctionTags::ModelGEP)
-        or FTags.contains(FunctionTags::SerializationMarker)
+        or FTags.contains(FunctionTags::AssignmentMarker)
         or FTags.contains(FunctionTags::AddressOf)
         or FTags.contains(FunctionTags::Marker))
       continue;
