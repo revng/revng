@@ -5,4 +5,4 @@
 enable_testing()
 
 # Give control to the various subdirectories
-include(${CMAKE_SOURCE_DIR}/tests/Unit/UnitTests.cmake)
+include(${CMAKE_SOURCE_DIR}/tests/unit/UnitTests.cmake)
