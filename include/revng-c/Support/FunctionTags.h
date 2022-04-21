@@ -21,7 +21,7 @@ extern Tag MallocLike;
 extern Tag IsRef;
 extern Tag AddressOf;
 extern Tag ModelGEP;
-extern Tag SerializationMarker;
+extern Tag AssignmentMarker;
 extern Tag OpaqueExtractValue;
 } // namespace FunctionTags
 
@@ -38,7 +38,7 @@ void initAddressOfPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
 llvm::Function *
 getModelGEP(llvm::Module &M, llvm::Type *RetTy, llvm::Type *BaseAddressTy);
 
-llvm::Function *getSerializationMarker(llvm::Module &M, llvm::Type *T);
+llvm::Function *getAssignmentMarker(llvm::Module &M, llvm::Type *T);
 
 /// Derive the function type of the corresponding OpaqueExtractValue() function
 /// from an ExtractValue instruction. OpaqueExtractValue() basically wraps an

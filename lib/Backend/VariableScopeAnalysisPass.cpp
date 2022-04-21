@@ -135,7 +135,7 @@ static ValuePtrSet collectLocalVariables(const Function &F) {
       llvm::Function *CalledFunction = Call->getCalledFunction();
       if (not CalledFunction)
         continue;
-      if (not FunctionTags::SerializationMarker.isTagOf(CalledFunction))
+      if (not FunctionTags::AssignmentMarker.isTagOf(CalledFunction))
         continue;
 
       // If an instruction's uses are all inside the same basic block, we are

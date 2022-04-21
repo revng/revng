@@ -276,7 +276,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
     NAME decompile_string_based_${TARGET_NAME}
     COMMAND
       revng --prefix=${CMAKE_BINARY_DIR} opt -S -restructure-cfg
-      -add-ir-serialization-markers -beautify-ghast --helpers-to-header
+      -add-assignment-markers -beautify-ghast --helpers-to-header
       --helpers-header-name=${OUTFOLDER}/decompiled_stringbased/helpers.h
       -model-to-header
       --types-header-name=${OUTFOLDER}/decompiled_stringbased/revng-types.h

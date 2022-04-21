@@ -82,26 +82,23 @@ target_link_libraries(
 add_test(NAME dla_step_manager COMMAND ./dla_step_manager)
 
 #
-# MarkForSerializationTest
+# MarkAssignmentsTest
 #
 
-revng_add_test_executable(MarkForSerializationTest
-                          "${SRC}/MarkForSerializationTest.cpp")
-target_compile_definitions(MarkForSerializationTest
-                           PRIVATE "BOOST_TEST_DYN_LINK=1")
-target_include_directories(
-  MarkForSerializationTest PRIVATE "${CMAKE_SOURCE_DIR}"
-                                   "${Boost_INCLUDE_DIRS}")
+revng_add_test_executable(MarkAssignmentsTest "${SRC}/MarkAssignmentsTest.cpp")
+target_compile_definitions(MarkAssignmentsTest PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(MarkAssignmentsTest PRIVATE "${CMAKE_SOURCE_DIR}"
+                                                       "${Boost_INCLUDE_DIRS}")
 target_link_libraries(
-  MarkForSerializationTest
-  revngcIRCanonicalization
+  MarkAssignmentsTest
+  revngcMarkAssignments
   revngcSupport
   revng::revngModel
   revng::revngSupport
   revng::revngUnitTestHelpers
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME MarkForSerializationTest COMMAND ./MarkForSerializationTest)
+add_test(NAME MarkAssignmentsTest COMMAND ./MarkAssignmentsTest)
 
 #
 # DLASteps

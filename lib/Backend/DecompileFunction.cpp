@@ -377,10 +377,10 @@ private:
   void emitBasicBlock(const BasicBlock *BB);
 
 private:
-  /// Serialize an instruction, if it is marked for serialization, or
-  /// add a string containing its expression to the TokenMap. Conditional
-  /// branch instructions are associated to their condition's token, and are
-  /// never emitted directly (they are handled during the GHAST visit)
+  /// Emit an assignment for an instruction, if it is marked for assignemnt,
+  /// otherwise add a string containing its expression to the TokenMap.
+  /// Control-flow instructions are associated to their condition's token, and
+  /// are never emitted directly (they are handled during the GHAST visit)
   StringToken buildExpression(const llvm::Instruction &I);
 
   /// Assign a string token and a QualifiedType to an Instruction
@@ -650,7 +650,7 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
     // Second argument is the value being addressed
     const llvm::Value *Arg = Call->getArgOperand(1);
     Expression = buildAddressExpr(TokenMap.at(Arg));
-  } else if (FunctionTags::SerializationMarker.isTagOf(CalledFunc)) {
+  } else if (FunctionTags::AssignmentMarker.isTagOf(CalledFunc)) {
     const llvm::Value *Arg = Call->getArgOperand(0);
 
     // If a local variable has already been declared for the first argument,
@@ -662,7 +662,7 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
     if (TopScopeVariables.contains(Call)) {
       // If an entry in the TokenMap exists for this value, we have already
       // declared it, hence we just need to emit an assignment it here.
-      revng_log(Log, "Already declared! Serializing " << Expression.str());
+      revng_log(Log, "Already declared! Assigning " << Expression.str());
       Out << buildAssignmentExpr(TypeMap.at(Call),
                                  TokenMap.at(Call),
                                  TypeMap.at(Arg),
@@ -672,7 +672,7 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
       Expression = TokenMap.at(Call);
     } else {
 
-      revng_log(Log, "\tSerializing " << Expression.str());
+      revng_log(Log, "\tAssigning " << Expression.str());
       const StringToken VarName = NameGenerator.nextVarName(Call);
       revng_log(Log, "Declaring new local var for " << Expression.str());
       Out << buildAssignmentExpr(TypeMap.at(Call),
@@ -752,7 +752,7 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
     // If this call returns an aggregate type, we have to serialize the call
     // immediately. This is needed because the name of the type returned by this
     // function is not in the model: its name is derived from the called
-    // function. If we wait for `SerializationMarker` to emit a declaration for
+    // function. If we wait for `AssignmentMarker` to emit a declaration for
     // it, we will loose information on which is the type of the returned
     // struct.
     if (Call->getType()->isAggregateType()) {
@@ -841,7 +841,7 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
         // returned values from the callee function, and emit the call
         // immediately.
         // If we were to postpone the emission to the next
-        // `SerializationMarker`, we would loose information on the name of the
+        // `AssignmentMarker`, we would loose information on the name of the
         // return struct.
         if (Call->getType()->isAggregateType()) {
           StringToken VarName = NameGenerator.nextVarName(Call);
@@ -854,7 +854,7 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
       } else if (auto *CPrototype = dyn_cast<CABIFunctionType>(Prototype)) {
         // CABIFunctionTypes are allowed to return arrays, which get enclosed in
         // a wrapper whose type name is derive by the callee. If we were to
-        // postpone the emission to the next `SerializationMarker`, we would
+        // postpone the emission to the next `AssignmentMarker`, we would
         // loose information on the name of the return struct.
         if (CPrototype->ReturnType.isArray()) {
           StringToken VarName = NameGenerator.nextVarName(Call);

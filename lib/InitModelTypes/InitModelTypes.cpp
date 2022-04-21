@@ -262,14 +262,14 @@ static TypeVector getReturnTypes(const llvm::CallInst *Call,
       addPointerQualifier(PointedType, Model);
       ReturnTypes.push_back(PointedType);
 
-    } else if (FunctionTags::SerializationMarker.isTagOf(CalledFunc)) {
+    } else if (FunctionTags::AssignmentMarker.isTagOf(CalledFunc)) {
       const llvm::Value *Arg = Call->getArgOperand(0);
 
       // Structs are handled on their own
       if (Arg->getType()->isStructTy())
         return {};
 
-      // SerializationMarker is transparent
+      // AssignmentMarker is transparent
       auto It = TypeMap.find(Arg);
       if (It != TypeMap.end()) {
         ReturnTypes.push_back(It->second);
