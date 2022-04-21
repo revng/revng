@@ -5,8 +5,6 @@
 ; RUN: %revngopt %s -S -remove-extractvalues -O2 | FileCheck %s
 ; Test that all extractvalues are converted to an opaque function call that is
 ; not optimized away by the O2 pipeline
-; ModuleID = 'tests/Unit/llvm-lit-tests/RemoveExtractValues.ll'
-source_filename = "tests/Unit/llvm-lit-tests/RemoveExtractValues.ll"
 
 %0 = type { i64, i64, i64, i32, i64, i64, i32, i64, i32, i32, i32, i8, i32, i32, i32, i32, i32, i32, i32, i64, i32, i64, i32, i64 }
 %struct.CPUX86State = type { i64, i32 }

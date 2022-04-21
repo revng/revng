@@ -4,8 +4,6 @@
 
 ; RUN: %revngopt %s -S -restore-extractvalues | FileCheck %s
 ; Test that all OpaqueExtractvalue functions are converted back to extractvalue
-; ModuleID = 'tests/Unit/llvm-lit-tests/RestoreExtractValues.ll'
-source_filename = "tests/Unit/llvm-lit-tests/RestoreExtractValues.ll"
 
 %0 = type { i64, i64, i64, i32, i64, i64, i32, i64, i32, i32, i32, i8, i32, i32, i32, i32, i32, i32, i32, i64, i32, i64, i32, i64 }
 %struct.CPUX86State = type { i64, i32 }
