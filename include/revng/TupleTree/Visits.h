@@ -532,6 +532,10 @@ private:
                          PathMatcher &Result);
 
   template<UpcastablePointerLike T>
+  static bool
+  dispatchToCorrectUpcastable(llvm::StringRef String, PathMatcher &Result);
+
+  template<UpcastablePointerLike T>
   static bool visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result);
 
   template<HasTupleSize T>
@@ -544,11 +548,35 @@ private:
   static bool visitTupleTreeNode(llvm::StringRef Path, PathMatcher &Result);
 };
 
+template<UpcastablePointerLike P, typename L>
+void invokeFromSerializedKey(llvm::StringRef SerializedKey, const L &Callable) {
+  using element_type = std::remove_reference_t<decltype(*std::declval<P>())>;
+  using KOT = KeyedObjectTraits<element_type>;
+  using KeyT = decltype(KOT::key(std::declval<element_type>()));
+  auto Key = getValueFromYAMLScalar<KeyT>(SerializedKey);
+  invokeFromKey<P, KeyT, L>(Key, Callable);
+}
+
+template<UpcastablePointerLike T>
+bool PathMatcher::dispatchToCorrectUpcastable(llvm::StringRef String,
+                                              PathMatcher &Result) {
+
+  auto Splitted = String.split('/');
+
+  bool Res = false;
+  auto Dispatch = [&]<typename Upcasted>(const Upcasted *Arg) {
+    Res = PathMatcher::visitTupleTreeNode<Upcasted>(Splitted.second, Result);
+  };
+
+  invokeFromSerializedKey<T>(Splitted.first, Dispatch);
+
+  return Res;
+}
+
 template<UpcastablePointerLike T>
 bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
                                      PathMatcher &Result) {
-  using element_type = std::remove_reference_t<decltype(*std::declval<T>())>;
-  return PathMatcher::visitTupleTreeNode<element_type>(String, Result);
+  return dispatchToCorrectUpcastable<T>(String, Result);
 }
 
 template<HasTupleSize T>
@@ -579,7 +607,10 @@ bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
     Result.Path.push_back(getValueFromYAMLScalar<Key>(Before));
   }
 
-  return visitTupleTreeNode<Value>(After, Result);
+  if constexpr (IsUpcastablePointer<Value>)
+    return dispatchToCorrectUpcastable<Value>(String, Result);
+  else
+    return visitTupleTreeNode<Value>(After, Result);
 }
 
 template<NotTupleTreeCompatible T>

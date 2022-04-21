@@ -283,7 +283,6 @@ BOOST_AUTO_TEST_CASE(TestTupleTreeDiffDeserialization) {
   llvm::raw_string_ostream Stream(S);
   serialize(Stream, Diff);
   Stream.flush();
-  llvm::errs() << S;
 
   auto Diff2 = llvm::cantFail(deserialize<TupleTreeDiff<model::Binary>>(S));
 
@@ -293,6 +292,21 @@ BOOST_AUTO_TEST_CASE(TestTupleTreeDiffDeserialization) {
   Stream2.flush();
 
   BOOST_TEST(S == S2);
+}
+
+BOOST_AUTO_TEST_CASE(CABIFunctionTypeArgumentsPathShouldParse) {
+  auto MaybeParsed = stringAsPath<model::Binary>("/Types/"
+                                                 "CABIFunctionType-"
+                                                 "639541743756555135/"
+                                                 "Arguments");
+  BOOST_TEST(MaybeParsed.has_value());
+}
+
+BOOST_AUTO_TEST_CASE(CABIFunctionTypePathShouldParse) {
+  auto MaybeParsed = stringAsPath<model::Binary>("/Types/"
+                                                 "CABIFunctionType-"
+                                                 "639541743756555135");
+  BOOST_TEST(MaybeParsed.has_value());
 }
 
 static_assert(std::is_default_constructible_v<TupleTree<TestTupleTree::Root>>);
