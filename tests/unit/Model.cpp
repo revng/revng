@@ -17,6 +17,7 @@ bool init_unit_test();
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/Introspection.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
+#include "revng/UnitTestHelpers/UnitTestHelpers.h"
 
 using namespace model;
 
@@ -283,7 +284,6 @@ BOOST_AUTO_TEST_CASE(TestTupleTreeDiffDeserialization) {
   llvm::raw_string_ostream Stream(S);
   serialize(Stream, Diff);
   Stream.flush();
-  llvm::errs() << S;
 
   auto Diff2 = llvm::cantFail(deserialize<TupleTreeDiff<model::Binary>>(S));
 
@@ -293,6 +293,18 @@ BOOST_AUTO_TEST_CASE(TestTupleTreeDiffDeserialization) {
   Stream2.flush();
 
   BOOST_TEST(S == S2);
+}
+
+BOOST_AUTO_TEST_CASE(CABIFunctionTypePathShouldParse) {
+  const char *Path = "/Types/CABIFunctionType-10000";
+  auto MaybeParsed = stringAsPath<model::Binary>(Path);
+  BOOST_TEST(MaybeParsed.has_value());
+}
+
+BOOST_AUTO_TEST_CASE(CABIFunctionTypeArgumentsPathShouldParse) {
+  const char *Path = "/Types/CABIFunctionType-10000/Arguments";
+  auto MaybeParsed = stringAsPath<model::Binary>(Path);
+  BOOST_TEST(MaybeParsed.has_value());
 }
 
 static_assert(std::is_default_constructible_v<TupleTree<TestTupleTree::Root>>);

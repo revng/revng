@@ -7,9 +7,11 @@
 #include <memory>
 #include <type_traits>
 
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
 
 #include "revng/ADT/Concepts.h"
+#include "revng/ADT/KeyedObjectTraits.h"
 #include "revng/ADT/STLExtras.h"
 #include "revng/Support/Assert.h"
 
@@ -81,6 +83,25 @@ void upcast(P &Upcastable, const L &Callable) {
     return true;
   };
   upcast(Upcastable, Wrapper, false);
+}
+
+template<UpcastablePointerLike P, typename KeyT, typename L>
+void invokeByKey(const KeyT &Key, const L &Callable) {
+  auto Upcastable = KeyedObjectTraits<P>::fromKey(Key);
+
+  upcast(Upcastable, [&Callable]<typename UpcastedT>(const UpcastedT &C) {
+    Callable(static_cast<UpcastedT *>(nullptr));
+  });
+}
+
+template<UpcastablePointerLike P, typename KeyT, typename L, typename ReturnT>
+ReturnT invokeByKey(const KeyT &Key, const L &Callable, const ReturnT &IfNull) {
+  auto Upcastable = KeyedObjectTraits<P>::fromKey(Key);
+
+  auto ToCall = [&Callable]<typename UpcastedT>(const UpcastedT &C) {
+    return Callable(static_cast<UpcastedT *>(nullptr));
+  };
+  return upcast(Upcastable, ToCall, IfNull);
 }
 
 /// A unique_ptr copiable thanks to LLVM RTTI
