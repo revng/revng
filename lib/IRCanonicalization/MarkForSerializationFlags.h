@@ -17,8 +17,6 @@ enum SerializationReason {
   HasSideEffects = 1 << 1,
   HasInterferingSideEffects = 1 << 2,
   HasManyUses = 1 << 3,
-  NeedsLocalVarToComputeExpr = 1 << 4,
-  NeedsManyStatements = 1 << 5,
 };
 
 inline SerializationReason
@@ -59,44 +57,11 @@ public:
 
   SerializationReason value() const { return Flags; }
 
-  /// Returns true if the Instruction associated with \F must be
-  /// serialized in C.
-  static bool mustBeSerialized(const SerializationFlags &F) {
-    // If any of the bits is set, it must be serialized.
-    return F.Flags != None;
-  }
-
-  /// Returns true if the Instruction associated with \F needs a VarDecl
-  /// in C.
-  static bool needsVarDecl(const SerializationFlags &F) {
-
-    // If it does not need serialization, it doesn't need a VarDecl either
-    if (not mustBeSerialized(F))
-      return false;
-
-    // If the AlwaysSerialize bit is set, the instruction has no uses, so it
-    // must be serialized but it doesn't need a VarDecl
-    if (F.isSet(AlwaysSerialize))
-      return false;
-
-    // In all the other cases the instruction must be serialized and it has at
-    // least one use, so we need a VarDecl to represent its value.
-    return true;
-  }
-
   /// Returns true if the Instruction associated with \F is affected by
   /// side effects.
   static bool hasSideEffects(const SerializationFlags &F) {
     // HasSideEffects, and HasInterferingSideEffects imply side effects.
     return F.Flags & (HasSideEffects | HasInterferingSideEffects);
-  }
-
-  /// Returns true if the Instruction associated with \F needs many
-  /// statements in C.
-  //
-  // A notable example is InsertValue.
-  static bool needsAdditionalStmts(const SerializationFlags &F) {
-    return F.Flags & NeedsManyStatements;
   }
 
   explicit operator bool() const { return Flags != None; }

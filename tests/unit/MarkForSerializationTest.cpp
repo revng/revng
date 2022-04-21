@@ -142,43 +142,6 @@ BOOST_AUTO_TEST_CASE(StoreSideEffects) {
   runTestOnFunctionWithExpected(Body, ExpectedDups, ExpectedFlags);
 }
 
-BOOST_AUTO_TEST_CASE(AllocaNeedsLocalVar) {
-
-  const char *Body = R"LLVM(
-  %alloca = alloca i64, align 8
-  unreachable
-  )LLVM";
-
-  ExpectedDuplicatesType ExpectedDups{ 1 };
-
-  ExpectedFlagsType ExpectedFlags{
-    BBSerializationFlags{
-      "initial_block",
-      { NeedsLocalVarToComputeExpr | AlwaysSerialize, AlwaysSerialize } },
-  };
-
-  runTestOnFunctionWithExpected(Body, ExpectedDups, ExpectedFlags);
-}
-
-BOOST_AUTO_TEST_CASE(InsertValue) {
-
-  const char *Body = R"LLVM(
-  %a = insertvalue {i64, i32} undef, i64 1, 0
-  unreachable
-  )LLVM";
-
-  ExpectedDuplicatesType ExpectedDups{ 1 };
-
-  ExpectedFlagsType ExpectedFlags{
-    BBSerializationFlags{
-      "initial_block",
-      { NeedsLocalVarToComputeExpr | NeedsManyStatements | AlwaysSerialize,
-        AlwaysSerialize } },
-  };
-
-  runTestOnFunctionWithExpected(Body, ExpectedDups, ExpectedFlags);
-}
-
 BOOST_AUTO_TEST_CASE(ManyUses) {
 
   const char *Body = R"LLVM(

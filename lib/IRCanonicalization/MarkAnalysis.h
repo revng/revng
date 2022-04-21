@@ -324,26 +324,6 @@ public:
       if (isa<BranchInst>(I) or isa<SwitchInst>(I))
         continue;
 
-      if (isa<InsertValueInst>(I)) {
-        // InsertValueInst are serialized in C as:
-        //   struct x = { .designated = 0xDEAD, .initializers = 0xBEEF };
-        //   x.designated = value_that_overrides_0xDEAD;
-        // The second statement is always necessary.
-        ToSerialize[&I].set(NeedsManyStatements);
-        revng_log(MarkLog, "Instr NeedsManyStatements");
-      }
-
-      if (isa<InsertValueInst>(I) or isa<AllocaInst>(I)) {
-        // As noted in the comment above, InsertValueInst always need a local
-        // variable (x in the example above) for the computation of the
-        // expression that represents the result of Instruction itself. This is
-        // the local variable in C that will be used by x's users. Also
-        // AllocaInst always need a local variable, which is the variable
-        // allocated by the alloca.
-        ToSerialize[&I].set(NeedsLocalVarToComputeExpr);
-        revng_log(MarkLog, "Instr NeedsLocalVarToComputeExpr");
-      }
-
       if (isa<StoreInst>(&I) or (isa<CallInst>(&I) and not isCallToPure(I))) {
         // StoreInst and CallInst that are not pure always have side effects.
         ToSerialize[&I].set(HasSideEffects);
