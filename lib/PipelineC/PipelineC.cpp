@@ -185,12 +185,12 @@ rp_container *
 rp_step_get_container(rp_step *step, rp_container_identifier *container) {
   revng_check(step != nullptr);
   revng_check(container != nullptr);
-  step->containers()[container->first()];
-  auto Iter = step->containers().find(container->first());
-  if (Iter == step->containers().end())
+  if (step->containers().isContainerRegistered(container->first())) {
+    step->containers()[container->first()];
+    return &*step->containers().find(container->first());
+  } else {
     return nullptr;
-
-  return &*Iter;
+  }
 }
 
 uint64_t rp_targets_list_targets_count(rp_targets_list *targets_list) {

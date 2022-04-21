@@ -113,6 +113,10 @@ public:
     return *Content.find(Name)->second;
   }
 
+  bool isContainerRegistered(llvm::StringRef Name) const {
+    return Factories.find(Name) != Factories.end();
+  }
+
   bool contains(llvm::StringRef Name) const {
     return Content.count(Name) != 0 and Content.find(Name)->second != nullptr;
   }
