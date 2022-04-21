@@ -40,19 +40,6 @@ using namespace model::Architecture;
 
 static Logger<> AccessLog("dla-accesses");
 
-// Returns true if an Instruction must forcibly be serialized.
-//
-// This is not implemented yet now, but it could be that an Instruction is
-// forcibly serialized if it has more than one use, or if an end user of the
-// decompiler decides that it must be serialized and have its own dedicated
-// local variable.
-//
-// In general, in order to serialize an Instruction we need a type for it, so we
-// will add a node in the LayoutTypeSystem for it.
-static bool mustBeSerialized(const Instruction &) {
-  return false;
-}
-
 using LayoutTypeSystemNode = dla::LayoutTypeSystemNode;
 using SCEVTypeMekerMap = std::map<const SCEV *, uint64_t>;
 using SCEVTypeMap = SCEVBaseAddressExplorer::SCEVTypeMap;
@@ -719,11 +706,6 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
         // If I has no operands we've nothing to do.
         if (not I.getNumOperands())
           continue;
-
-        if (mustBeSerialized(I)) {
-          revng_unreachable(); // This is not handled yet.
-          continue;
-        }
 
         // InsertValue and ExtractValue are special because their operands have
         // struct type, so we don't handle them explictly.

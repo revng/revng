@@ -30,7 +30,6 @@ find_package(revng REQUIRED)
 
 # LLVM and clang CMake stuff
 find_package(LLVM REQUIRED CONFIG)
-find_package(Clang REQUIRED CONFIG)
 add_definitions(${LLVM_DEFINITIONS})
 include_directories(${LLVM_INCLUDE_DIRS})
 llvm_map_components_to_libnames(

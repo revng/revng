@@ -15,9 +15,11 @@
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/MonotoneFramework.h"
 
-#include "revng-c/Liveness/LivenessAnalysis.h"
-#include "revng-c/MarkForSerialization/MarkForSerializationFlags.h"
+#include "revng-c/Support/DecompilationHelpers.h"
 #include "revng-c/Support/FunctionTags.h"
+
+#include "LivenessAnalysis.h"
+#include "MarkForSerializationFlags.h"
 
 namespace llvm {
 
@@ -30,25 +32,6 @@ class Instruction;
 extern Logger<> MarkLog;
 
 namespace MarkAnalysis {
-
-inline bool isPure(const llvm::Function *F) {
-  if (F) {
-    if (FunctionTags::ModelGEP.isTagOf(F)
-        or FunctionTags::StructInitializer.isTagOf(F)
-        or FunctionTags::AddressOf.isTagOf(F)
-        or FunctionTags::OpaqueCSVValue.isTagOf(F)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-inline bool isCallToPure(const llvm::Instruction &I) {
-  if (auto *Call = dyn_cast<llvm::CallInst>(&I))
-    return isPure(Call->getCalledFunction());
-
-  return false;
-}
 
 inline bool
 haveInterferingSideEffects(const llvm::Instruction & /*InstrWithSideEffects*/,

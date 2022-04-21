@@ -22,8 +22,7 @@ bool init_unit_test();
 #include "revng/Support/IRHelpers.h"
 #include "revng/UnitTestHelpers/LLVMTestHelpers.h"
 
-#include "revng-c/MarkForSerialization/MarkAnalysis.h"
-#include "revng-c/MarkForSerialization/MarkForSerializationPass.h"
+#include "lib/IRCanonicalization/MarkAnalysis.h"
 
 struct BBSerializationFlags {
   std::string BBName;

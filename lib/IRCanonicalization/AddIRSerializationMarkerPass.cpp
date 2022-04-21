@@ -18,10 +18,13 @@
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
-#include "revng-c/MarkForSerialization/MarkAnalysis.h"
-#include "revng-c/MarkForSerialization/MarkForSerializationFlags.h"
 #include "revng-c/Support/Mangling.h"
 #include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
+
+#include "MarkAnalysis.h"
+#include "MarkForSerializationFlags.h"
+
+Logger<> MarkLog{ "mark-serialization" };
 
 struct AddIRSerializationMarkersPass : public llvm::FunctionPass {
 public:

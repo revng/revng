@@ -2,7 +2,7 @@
 // Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 //
 
-#include "revng-c/Liveness/LivenessAnalysis.h"
+#include "LivenessAnalysis.h"
 
 using namespace llvm;
 

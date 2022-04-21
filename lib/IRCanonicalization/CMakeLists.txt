@@ -3,14 +3,16 @@
 #
 
 revng_add_analyses_library(
-  revngcIRCanonicalization revngc AddIRSerializationMarkerPass.cpp
-  MakeModelGEPPass.cpp ExitSSAPass.cpp
+  revngcIRCanonicalization
+  revngc
+  AddIRSerializationMarkerPass.cpp
+  ExitSSAPass.cpp
+  LivenessAnalysis.cpp
+  MakeModelGEPPass.cpp
   TwosComplementArithmeticNormalizationPass.cpp)
 
 target_link_libraries(
   revngcIRCanonicalization
-  revngcLivenessAnalysis
-  revngcMarkForSerialization
   revngcSupport
   revngcTargetFunctionOption
   revng::revngModel

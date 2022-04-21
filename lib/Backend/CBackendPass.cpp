@@ -7,9 +7,9 @@
 #include "revng-c/Backend/CBackendPass.h"
 #include "revng-c/Backend/DecompileFunction.h"
 #include "revng-c/Backend/VariableScopeAnalysisPass.h"
-#include "revng-c/MarkForSerialization/MarkForSerializationPass.h"
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
 #include "revng-c/Support/FunctionFileHelpers.h"
+#include "revng-c/Support/FunctionTags.h"
 #include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
 
 using namespace llvm;
