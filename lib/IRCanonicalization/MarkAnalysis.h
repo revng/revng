@@ -271,10 +271,7 @@ public:
 
   void initialize() {
     Base::initialize();
-    LivenessAnalysis::Analysis Liveness(F);
-    Liveness.initialize();
-    Liveness.run();
-    LiveIn = Liveness.extractLiveIn();
+    LiveIn = computeLiveness(F);
   }
 
   InterruptType transfer(llvm::BasicBlock *BB) {
