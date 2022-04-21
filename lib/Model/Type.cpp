@@ -734,6 +734,27 @@ bool QualifiedType::isPrimitive(PrimitiveTypeKind::Values V) const {
   return isPrimitiveImpl(*this, V);
 }
 
+static RecursiveCoroutine<bool>
+isImpl(const model::QualifiedType &QT, model::TypeKind::Values K) {
+  if (QT.Qualifiers.size() != 0
+      and not llvm::all_of(QT.Qualifiers, Qualifier::isConst))
+    rc_return false;
+
+  const model::Type *UnqualifiedType = QT.UnqualifiedType.get();
+
+  if (UnqualifiedType->Kind == K)
+    rc_return true;
+
+  if (auto *Typedef = llvm::dyn_cast<TypedefType>(UnqualifiedType))
+    rc_return rc_recur isImpl(Typedef->UnderlyingType, K);
+
+  rc_return false;
+}
+
+bool QualifiedType::is(model::TypeKind::Values K) const {
+  return isImpl(*this, K);
+}
+
 std::optional<uint64_t> Type::size() const {
   VerifyHelper VH;
   return size(VH);

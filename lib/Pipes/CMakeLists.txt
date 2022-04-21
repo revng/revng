@@ -13,11 +13,12 @@ revng_add_library_internal(
   LinkSupportPipe.cpp
   LLVMContextWrapper.cpp
   ModelGlobal.cpp
+  ModelInvalidationEvent.cpp
   PipelineManager.cpp
   Pipes.cpp
   RootKind.cpp
-  TaggedFunctionKind.cpp
-  ModelInvalidationEvent.cpp)
+  StringMapContainer.cpp
+  TaggedFunctionKind.cpp)
 
 llvm_map_components_to_libnames(
   LLVM_LIBRARIES

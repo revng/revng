@@ -51,8 +51,10 @@ public:
   bool isVoid() const { return isPrimitive(model::PrimitiveTypeKind::Void); }
   /// Checks if is an array type, unwrapping typedefs
   bool isArray() const;
-  /// Checks if is a pointer type, withouth unwrapping typedefs
+  /// Checks if is a pointer type, unwrapping typedefs
   bool isPointer() const;
+  /// Checks if is of a given TypeKind, unwrapping typedefs
+  bool is(model::TypeKind::Values K) const;
 
 public:
   bool verify() const debug_function;
