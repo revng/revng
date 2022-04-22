@@ -181,8 +181,14 @@ set(VERSION 0.0.0)
 #
 # Support files (share/revng)
 #
-copy_to_build_and_install(FILES share/revng runtime/support.c runtime/support.h
-                          scripts/clang-format-style-file)
+copy_to_build_and_install(
+  FILES
+  share/revng
+  runtime/support.c
+  runtime/support.h
+  scripts/clang-format-style-file
+  scripts/flake8-config
+  scripts/isort.cfg)
 
 copy_to_build_and_install(
   FILES share/revng/pipelines share/revng/pipelines/isolate-translate.yml
