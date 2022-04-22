@@ -187,8 +187,8 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
     NAME ir_canonicalization_${TARGET_NAME}
     COMMAND
       revng --prefix=${CMAKE_BINARY_DIR} opt -dla -make-model-gep -early-cse
-      -dce -exit-ssa -twoscomplement-normalization ${OUTFOLDER}/prepared.bc -o
-      ${OUTFOLDER}/canonicalized.bc)
+      -dce -exit-ssa -twoscomplement-normalization -add-assignment-markers
+      ${OUTFOLDER}/prepared.bc -o ${OUTFOLDER}/canonicalized.bc)
   set_property(
     TEST ir_canonicalization_${TARGET_NAME}
     APPEND
@@ -202,11 +202,19 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
     APPEND
     PROPERTY FIXTURES_SETUP IRCanonicalization_fixture_${TARGET_NAME})
 
+  # setup decompilation directory
+  set(DECOMPILED_DIR ${OUTFOLDER}/decompiled)
+  make_directory(${DECOMPILED_DIR})
+  # copy recompilation assets to the decompilation directory
+  file(COPY ${CMAKE_SOURCE_DIR}/${ASSETS_DIR} DESTINATION ${DECOMPILED_DIR})
+
   # test revng-model-to-header
   add_test(
     NAME model_to_header_${TARGET_NAME}
-    COMMAND revng --prefix . opt -model-to-header ${OUTFOLDER}/canonicalized.bc
-            --types-header-name=${OUTFOLDER}/model_header.h -o /dev/null)
+    COMMAND
+      revng --prefix=${CMAKE_BINARY_DIR} opt -model-to-header
+      ${OUTFOLDER}/canonicalized.bc
+      --types-header-name=${DECOMPILED_DIR}/model_header.h -o /dev/null)
   set_property(
     TEST model_to_header_${TARGET_NAME}
     APPEND
@@ -222,7 +230,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
   # try to compile model headers without warnings
   add_test(NAME compile_model_header_${TARGET_NAME}
            COMMAND clang --config ${ASSETS_DIR}/compile_flags.txt
-                   ${OUTFOLDER}/model_header.h -o /dev/null)
+                   ${DECOMPILED_DIR}/model_header.h -o /dev/null)
   set_property(
     TEST compile_model_header_${TARGET_NAME}
     APPEND
@@ -236,8 +244,9 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
   add_test(
     NAME helpers_to_header_${TARGET_NAME}
     COMMAND
-      revng --prefix . opt --helpers-to-header ${OUTFOLDER}/canonicalized.bc
-      --helpers-header-name=${OUTFOLDER}/helpers_header.h -o /dev/null)
+      revng --prefix=${CMAKE_BINARY_DIR} opt --helpers-to-header
+      ${OUTFOLDER}/canonicalized.bc
+      --helpers-header-name=${DECOMPILED_DIR}/helpers_header.h -o /dev/null)
   set_property(
     TEST helpers_to_header_${TARGET_NAME}
     APPEND
@@ -253,7 +262,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
   # try to compile helpers headers without warnings
   add_test(NAME compile_helpers_header_${TARGET_NAME}
            COMMAND clang --config ${ASSETS_DIR}/compile_flags.txt
-                   ${OUTFOLDER}/helpers_header.h -o /dev/null)
+                   ${DECOMPILED_DIR}/helpers_header.h -o /dev/null)
   set_property(
     TEST compile_helpers_header_${TARGET_NAME}
     APPEND
@@ -263,61 +272,53 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
     APPEND
     PROPERTY FIXTURES_REQUIRED ${TARGET_NAME}_helpers_header)
 
-  # setup decompilation directory
-  make_directory(${OUTFOLDER}/decompiled_stringbased)
-  # copy recompilation assets to the decompilation directory
-  file(COPY ${CMAKE_SOURCE_DIR}/${ASSETS_DIR}
-       DESTINATION ${OUTFOLDER}/decompiled_stringbased)
-
-  # test string-based decompiler
+  # test the C decompiler backend
   add_test(
-    NAME decompile_string_based_${TARGET_NAME}
+    NAME decompile_${TARGET_NAME}
     COMMAND
       revng --prefix=${CMAKE_BINARY_DIR} opt -S -restructure-cfg
-      -add-assignment-markers -beautify-ghast --helpers-to-header
-      --helpers-header-name=${OUTFOLDER}/decompiled_stringbased/helpers.h
-      -model-to-header
-      --types-header-name=${OUTFOLDER}/decompiled_stringbased/revng-types.h
-      -collect-local-vars -c-backend
-      --c-decompiled-dir=${OUTFOLDER}/decompiled_stringbased
-      ${OUTFOLDER}/canonicalized.bc --debug-log=c-backend-inline -o
-      ${OUTFOLDER}/decompiled_stringbased/ir-during-decompilation.ll)
+      -beautify-ghast
+      --backend-helpers-header-name=${DECOMPILED_DIR}/helpers_header.h
+      --backend-types-header-name=${DECOMPILED_DIR}/model_header.h
+      -collect-local-vars -c-backend --c-decompiled-dir=${DECOMPILED_DIR}
+      ${OUTFOLDER}/canonicalized.bc -o /dev/null)
   set_property(
-    TEST decompile_string_based_${TARGET_NAME}
+    TEST decompile_${TARGET_NAME}
     APPEND
     PROPERTY DEPENDS ir_canonicalization_${TARGET_NAME})
   set_property(
-    TEST decompile_string_based_${TARGET_NAME}
+    TEST decompile_${TARGET_NAME}
     APPEND
     PROPERTY FIXTURES_REQUIRED IRCanonicalization_fixture_${TARGET_NAME})
   set_property(
-    TEST decompile_string_based_${TARGET_NAME}
+    TEST decompile_${TARGET_NAME}
     APPEND
-    PROPERTY FIXTURES_SETUP DecompiledStringBased_fixture_${TARGET_NAME})
+    PROPERTY FIXTURES_SETUP Decompiled_fixture_${TARGET_NAME})
 
-  # test recompilation of the string-based decompiler
+  # test recompilation of C code generated by C decompiler backend
   add_test(
-    NAME recompilation_string_based_${TARGET_NAME}
+    NAME recompilation_${TARGET_NAME}
     COMMAND
-      sh -c "for C_FILE in $(ls ${OUTFOLDER}/decompiled_stringbased/*.c); \
+      sh -c "for C_FILE in $(ls ${DECOMPILED_DIR}/*.c); \
     do \
       clang \
+      -I . \
       --config ${ASSETS_DIR}/compile_flags.txt \
       -o /dev/null \
       $C_FILE || exit -1; \
     done;")
   set_property(
-    TEST recompilation_string_based_${TARGET_NAME}
+    TEST recompilation_${TARGET_NAME}
     APPEND
     PROPERTY DEPENDS ir_canonicalization_${TARGET_NAME})
   set_property(
-    TEST recompilation_string_based_${TARGET_NAME}
+    TEST recompilation_${TARGET_NAME}
     APPEND
-    PROPERTY FIXTURES_REQUIRED DecompiledStringBased_fixture_${TARGET_NAME})
+    PROPERTY FIXTURES_REQUIRED Decompiled_fixture_${TARGET_NAME})
   set_property(
-    TEST recompilation_string_based_${TARGET_NAME}
+    TEST recompilation_${TARGET_NAME}
     APPEND
-    PROPERTY FIXTURES_SETUP RecompiledStringBased_fixture_${TARGET_NAME})
+    PROPERTY FIXTURES_SETUP Recompiled_fixture_${TARGET_NAME})
 
 endmacro()
 
