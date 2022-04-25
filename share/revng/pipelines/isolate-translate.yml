@@ -15,7 +15,9 @@ Steps:
                 detect-abi,
                 collect-cfg,
                 isolate,
-                invoke-isolated-functions]
+                invoke-isolated-functions,
+                sanitizer-coverage
+                ]
  - Name:            RecompileIsolated
    Pipes:
      - Type:             LinkSupport
