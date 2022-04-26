@@ -63,15 +63,26 @@
 # -Wno-sign-compare
 # -Wno-int-conversion
 
--Wall
+# Only compile to object code
 -c
--ffreestanding
+# Do only syntax-related stuff
 -fsyntax-only
+# Assume we don't have a C-runtime on the target (to allow weird signature on
+# main, and to turn off warnings about mismatched c stdlib signatures).
+-ffreestanding
+# Include the directory where the revngfloat.h header is located
 -I
 ${CMAKE_BINARY_DIR}/${ASSETS_DIR}/recompilation-headers/
--Wextra
+# Include the source directory
+-I
+.
+# Warning are fatal errors
 -Werror
 -ferror-limit=0
+# Enable a lot of warnings
+-Wall
+-Wextra
+# Disable a bunch of warning that we know we don't support yet
 -Wno-self-assign
 -Wno-unused-parameter
 -Wno-return-type

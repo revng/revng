@@ -247,8 +247,6 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
   # setup decompilation directory
   set(DECOMPILED_DIR ${OUTFOLDER}/decompiled)
   make_directory(${DECOMPILED_DIR})
-  # copy recompilation assets to the decompilation directory
-  file(COPY ${CMAKE_SOURCE_DIR}/${ASSETS_DIR} DESTINATION ${DECOMPILED_DIR})
 
   # test revng-model-to-header
   add_test(
@@ -270,9 +268,10 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
     APPEND
     PROPERTY FIXTURES_REQUIRED IRCanonicalization_fixture_${TARGET_NAME})
   # try to compile model headers without warnings
-  add_test(NAME compile_model_header_${TARGET_NAME}
-           COMMAND clang --config ${ASSETS_DIR}/compile_flags.txt
-                   ${DECOMPILED_DIR}/model_header.h -o /dev/null)
+  add_test(
+    NAME compile_model_header_${TARGET_NAME}
+    COMMAND clang --config ${CMAKE_BINARY_DIR}/${ASSETS_DIR}/compile_flags.txt
+            ${DECOMPILED_DIR}/model_header.h -o /dev/null)
   set_property(
     TEST compile_model_header_${TARGET_NAME}
     APPEND
@@ -302,9 +301,10 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
     APPEND
     PROPERTY FIXTURES_REQUIRED IRCanonicalization_fixture_${TARGET_NAME})
   # try to compile helpers headers without warnings
-  add_test(NAME compile_helpers_header_${TARGET_NAME}
-           COMMAND clang --config ${ASSETS_DIR}/compile_flags.txt
-                   ${DECOMPILED_DIR}/helpers_header.h -o /dev/null)
+  add_test(
+    NAME compile_helpers_header_${TARGET_NAME}
+    COMMAND clang --config ${CMAKE_BINARY_DIR}/${ASSETS_DIR}/compile_flags.txt
+            ${DECOMPILED_DIR}/helpers_header.h -o /dev/null)
   set_property(
     TEST compile_helpers_header_${TARGET_NAME}
     APPEND
@@ -341,14 +341,9 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
   add_test(
     NAME recompilation_${TARGET_NAME}
     COMMAND
-      sh -c "for C_FILE in $(ls ${DECOMPILED_DIR}/*.c); \
-    do \
-      clang \
-      -I . \
-      --config ${ASSETS_DIR}/compile_flags.txt \
-      -o /dev/null \
-      $C_FILE || exit -1; \
-    done;")
+      sh -c
+      "ls ${DECOMPILED_DIR}/*.c | xargs -P $(nproc) -I FILENAME clang FILENAME --config ${CMAKE_BINARY_DIR}/${ASSETS_DIR}/compile_flags.txt -o /dev/null "
+  )
   set_property(
     TEST recompilation_${TARGET_NAME}
     APPEND
