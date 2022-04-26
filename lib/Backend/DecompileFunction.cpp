@@ -88,9 +88,9 @@ static StringOpt BackendTypesHeaderName("backend-types-header-name",
 static Logger<> Log{ "c-backend" };
 static Logger<> InlineLog{ "c-backend-inline" };
 
-/// Helper macro that also writes the logged string as a comment in the C file
-/// if the corresponding logger is enabled
-void decompilerLog(llvm::raw_ostream &Out, const llvm::Twine &Expr) {
+/// Helper function that also writes the logged string as a comment in the C
+/// file if the corresponding logger is enabled
+static void decompilerLog(llvm::raw_ostream &Out, const llvm::Twine &Expr) {
   revng_log(Log, Expr.str());
   if (InlineLog.isEnabled())
     Out << "/* " << Expr << " */\n";
@@ -1043,7 +1043,11 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
 
 void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB) {
   for (const Instruction &I : *BB) {
-    decompilerLog(Out, "Analyzing: " + dumpToString(I));
+
+    // Guard this checking logger to prevent computing dumpToString if loggers
+    // are not enabled.
+    if (Log.isEnabled() or InlineLog.isEnabled())
+      decompilerLog(Out, "Analyzing: " + dumpToString(I));
 
     StringToken Expression = buildExpression(I);
 
