@@ -25,7 +25,7 @@ StringMapContainer::cloneFiltered(const TargetsList &Targets) const {
   // Returns true if Targets contains a Target that matches the Entry in the Map
   const auto EntryIsInTargets = [&](const auto &Entry) {
     const auto &KeyMetaAddress = Entry.first;
-    pipeline::Target EntryTarget{KeyMetaAddress.toString(), *TheKind };
+    pipeline::Target EntryTarget{ KeyMetaAddress.toString(), *TheKind };
     return Targets.contains(EntryTarget);
   };
 
