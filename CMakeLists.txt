@@ -49,6 +49,18 @@ llvm_map_components_to_libnames(
 add_definitions("-DINSTALL_PATH=\"${CMAKE_INSTALL_PREFIX}\"")
 add_definitions("-DBUILD_PATH=\"${CMAKE_BINARY_DIR}\"")
 
+#
+# Support files (share/revng)
+#
+make_directory("${CMAKE_BINARY_DIR}/share/revng/")
+copy_to_build_and_install(
+  FILES
+  share/revng/pipelines
+  share/revng/pipelines/opt-for-decompilation.yml
+  share/revng/pipelines/promote-stack-pointer.yml
+  share/revng/pipelines/remove-lifting-artifacts.yml
+  share/revng/pipelines/segregate-stack-accesses.yml)
+
 # ##############################################################################
 # Handle assets for recompilation #
 # ##############################################################################
@@ -119,32 +131,59 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
   set(OUTFOLDER ${CATEGORY}/${FILENAME}/${CONFIGURATION})
   make_directory(${OUTFOLDER})
 
-  # prepare enforced .bc for decompilation
+  # Remove lifting artifacts
   add_test(
-    NAME prepare_${TARGET_NAME}
+    NAME remove_lifting_artifacts_${TARGET_NAME}
     COMMAND
-      revng --prefix=${CMAKE_BINARY_DIR} opt
-      # Remove revng's artifacts from IR
-      -filter-for-decompilation -remove-newpc-calls -remove-exception-calls
-      -remove-cpu-loop-store -remove-llvm-dbg-intrinsics -make-env-null
-      # Stack promotion
-      -measure-stack-size-at-call-sites -promote-stack-pointer
-      # Optimize IR with LLVM's passes
-      -remove-extractvalues -dce -simplifycfg -dse -instcombine -sroa
-      --sroa-aggressive-phis-selects -instsimplify -jump-threading -licm
-      -unreachableblockelim -instcombine -early-cse -simplifycfg -dce
-      # apply type shrinking
-      -type-shrinking --min-width 8 -early-cse -instsimplify -gvn -instsimplify
-      -dse -dce
-      # Stack analysis and segregation
-      -instrument-stack-accesses -instcombine -compute-stack-accesses-bounds
-      -detect-stack-size -segregate-stack-accesses -cleanup-stack-size-markers
-      -dce -sroa -instcombine -sroa -simplifycfg -restore-extractvalues
-      -strip-dead-prototypes ${INPUT_FILE} -o ${OUTFOLDER}/prepared.bc)
+      revng --prefix=${CMAKE_BINARY_DIR} llvm pipeline "${INPUT_FILE}"
+      "${OUTFOLDER}/lifted_artifacts_removed.bc" EnforceABI
+      RemoveLiftingArtifacts "*:LiftingArtifactsRemoved")
   set_property(
-    TEST prepare_${TARGET_NAME}
+    TEST remove_lifting_artifacts_${TARGET_NAME}
     APPEND
-    PROPERTY FIXTURES_SETUP PrepareDecompilation_fixture_${TARGET_NAME})
+    PROPERTY FIXTURES_SETUP remove_lifting_artifacts_fixture_${TARGET_NAME})
+
+  # Promote stack pointer
+  add_test(
+    NAME promote_stack_pointer_${TARGET_NAME}
+    COMMAND
+      revng --prefix=${CMAKE_BINARY_DIR} llvm pipeline
+      "${OUTFOLDER}/lifted_artifacts_removed.bc"
+      "${OUTFOLDER}/promoted_stack_pointer.bc" RemoveLiftingArtifacts
+      PromoteStackPointer "*:StackPointerPromoted")
+  set_property(
+    TEST promote_stack_pointer_${TARGET_NAME}
+    APPEND
+    PROPERTY DEPENDS remove_lifting_artifacts_${TARGET_NAME})
+  set_property(
+    TEST promote_stack_pointer_${TARGET_NAME}
+    APPEND
+    PROPERTY FIXTURES_REQUIRED remove_lifting_artifacts_fixture_${TARGET_NAME})
+  set_property(
+    TEST promote_stack_pointer_${TARGET_NAME}
+    APPEND
+    PROPERTY FIXTURES_SETUP promote_stack_pointer_fixture_${TARGET_NAME})
+
+  # Optimize for decompilation and segregate stack accesses
+  add_test(
+    NAME optimize_and_slice_stack_${TARGET_NAME}
+    COMMAND
+      revng --prefix=${CMAKE_BINARY_DIR} llvm pipeline
+      "${OUTFOLDER}/promoted_stack_pointer.bc"
+      "${OUTFOLDER}/optimized_and_sliced_stack.bc" PromoteStackPointer
+      LateOptimizeForDecompilation "*:StackAccessesSegregated")
+  set_property(
+    TEST optimize_and_slice_stack_${TARGET_NAME}
+    APPEND
+    PROPERTY DEPENDS promote_stack_pointer_${TARGET_NAME})
+  set_property(
+    TEST optimize_and_slice_stack_${TARGET_NAME}
+    APPEND
+    PROPERTY FIXTURES_REQUIRED promote_stack_pointer_fixture_${TARGET_NAME})
+  set_property(
+    TEST optimize_and_slice_stack_${TARGET_NAME}
+    APPEND
+    PROPERTY FIXTURES_SETUP optimize_and_slice_stack_fixture_${TARGET_NAME})
 
   if("${CATEGORY}" STREQUAL "tests_analysis_PromoteStackPointer"
      AND "${CONFIGURATION}" STREQUAL "dynamic_native")
@@ -153,30 +192,32 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
       NAME psp_${TARGET_NAME}
       COMMAND
         sh -c
-        "revng opt -S ${OUTFOLDER}/prepared.bc | revng model dump | revng model compare - ${CMAKE_SOURCE_DIR}/tests/Analysis/PromoteStackPointer/${BASENAME}.yml"
+        "revng opt -S ${OUTFOLDER}/optimized_and_sliced_stack.bc | revng model dump | revng model compare - ${CMAKE_SOURCE_DIR}/tests/Analysis/PromoteStackPointer/${BASENAME}.yml"
     )
     set_property(
       TEST psp_${TARGET_NAME}
       APPEND
-      PROPERTY DEPENDS prepare_${TARGET_NAME})
+      PROPERTY DEPENDS optimize_and_slice_stack_${TARGET_NAME})
     set_property(
       TEST psp_${TARGET_NAME}
       APPEND
-      PROPERTY FIXTURES_REQUIRED PrepareDecompilation_fixture_${TARGET_NAME})
+      PROPERTY FIXTURES_REQUIRED
+               optimize_and_slice_stack_fixture_${TARGET_NAME})
   endif()
 
   # test VMA
-  add_test(NAME vma_${TARGET_NAME}
-           COMMAND revng --prefix=${CMAKE_BINARY_DIR} opt -vma
-                   -vma-mincut-iter=50 ${OUTFOLDER}/prepared.bc -o /dev/null)
+  add_test(
+    NAME vma_${TARGET_NAME}
+    COMMAND revng --prefix=${CMAKE_BINARY_DIR} opt -vma -vma-mincut-iter=50
+            ${OUTFOLDER}/optimized_and_sliced_stack.bc -o /dev/null)
   set_property(
     TEST vma_${TARGET_NAME}
     APPEND
-    PROPERTY DEPENDS prepare_${TARGET_NAME})
+    PROPERTY DEPENDS optimize_and_slice_stack_${TARGET_NAME})
   set_property(
     TEST vma_${TARGET_NAME}
     APPEND
-    PROPERTY FIXTURES_REQUIRED PrepareDecompilation_fixture_${TARGET_NAME})
+    PROPERTY FIXTURES_REQUIRED optimize_and_slice_stack_fixture_${TARGET_NAME})
   set_property(
     TEST vma_${TARGET_NAME}
     APPEND
@@ -188,15 +229,16 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
     COMMAND
       revng --prefix=${CMAKE_BINARY_DIR} opt -dla -make-model-gep -early-cse
       -dce -exit-ssa -twoscomplement-normalization -add-assignment-markers
-      ${OUTFOLDER}/prepared.bc -o ${OUTFOLDER}/canonicalized.bc)
+      ${OUTFOLDER}/optimized_and_sliced_stack.bc -o
+      ${OUTFOLDER}/canonicalized.bc)
   set_property(
     TEST ir_canonicalization_${TARGET_NAME}
     APPEND
-    PROPERTY DEPENDS prepare_${TARGET_NAME})
+    PROPERTY DEPENDS optimize_and_slice_stack_${TARGET_NAME})
   set_property(
     TEST ir_canonicalization_${TARGET_NAME}
     APPEND
-    PROPERTY FIXTURES_REQUIRED PrepareDecompilation_fixture_${TARGET_NAME})
+    PROPERTY FIXTURES_REQUIRED optimize_and_slice_stack_fixture_${TARGET_NAME})
   set_property(
     TEST ir_canonicalization_${TARGET_NAME}
     APPEND
@@ -218,7 +260,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
   set_property(
     TEST model_to_header_${TARGET_NAME}
     APPEND
-    PROPERTY DEPENDS prepare_${TARGET_NAME})
+    PROPERTY DEPENDS optimize_and_slice_stack_${TARGET_NAME})
   set_property(
     TEST model_to_header_${TARGET_NAME}
     APPEND
@@ -254,7 +296,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
   set_property(
     TEST helpers_to_header_${TARGET_NAME}
     APPEND
-    PROPERTY DEPENDS prepare_${TARGET_NAME})
+    PROPERTY DEPENDS optimize_and_slice_stack_${TARGET_NAME})
   set_property(
     TEST helpers_to_header_${TARGET_NAME}
     APPEND
