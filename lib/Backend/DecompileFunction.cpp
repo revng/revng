@@ -319,6 +319,10 @@ private:
   /// Where to output the decompiled C code
   raw_ostream &Out;
 
+  /// Name of the local variable used to break out of loops from within nested
+  /// switches
+  llvm::SmallVector<StringToken> SwitchStateVars;
+
 private:
   /// Stateful generator for variable names
   VarNameGenerator NameGenerator;
@@ -327,8 +331,6 @@ private:
   TokenMapT TokenMap;
 
 private:
-  /// Name of the local variable used to break out from nested switches
-  StringToken SwitchStateVar;
   /// Name of the local variable used to break out from loops
   StringToken LoopStateVar;
 
@@ -352,11 +354,10 @@ public:
                            &ModelFunction,
                            Model,
                            /*PointersOnly=*/false)),
-    Out(Out) {
+    Out(Out),
+    SwitchStateVars() {
 
-    // Initialize State variables
     // TODO: don't use a global loop state variable
-    SwitchStateVar = "";
     LoopStateVar = "loop_state_var";
   }
 
@@ -1125,8 +1126,11 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
 
   case ASTNode::NodeKind::NK_Break: {
     const BreakNode *Break = llvm::cast<BreakNode>(N);
-    if (Break->breaksFromWithinSwitch())
-      Out << SwitchStateVar << " = true;\n";
+    if (Break->breaksFromWithinSwitch()) {
+      revng_assert(not SwitchStateVars.empty()
+                   and not SwitchStateVars.back().empty());
+      Out << SwitchStateVars.back() << " = true;\n";
+    }
   };
     [[fallthrough]];
 
@@ -1227,8 +1231,8 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     // is used by nested switches inside loops to break out of the loop
     if (Switch->needsStateVariable()) {
       revng_assert(Switch->needsLoopBreakDispatcher());
-      SwitchStateVar = NameGenerator.nextSwitchStateVar();
-      Out << "bool " << SwitchStateVar << " = false;\n";
+      SwitchStateVars.push_back(NameGenerator.nextSwitchStateVar());
+      Out << "bool " << SwitchStateVars.back() << " = false;\n";
     }
 
     // Generate the condition of the switch
@@ -1309,10 +1313,18 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     // If the switch needs a loop break dispatcher, reset the associated
     // state variable before emitting the switch statement.
     if (Switch->needsLoopBreakDispatcher()) {
-      revng_assert(not SwitchStateVar.empty());
-
-      Out << "if (" << SwitchStateVar << ")\nbreak;\n";
+      revng_assert(not SwitchStateVars.empty()
+                   and not SwitchStateVars.back().empty());
+      Out << "if (" << SwitchStateVars.back() << ")\nbreak;\n";
     }
+
+    // If we're done with a switch that generates a state variable to break out
+    // of loops, pop it from the stack.
+    if (Switch->needsStateVariable()) {
+      revng_assert(Switch->needsLoopBreakDispatcher());
+      SwitchStateVars.pop_back();
+    }
+
   } break;
 
   case ASTNode::NodeKind::NK_Set: {
