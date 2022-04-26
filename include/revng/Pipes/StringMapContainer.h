@@ -19,8 +19,12 @@ public:
   static char ID;
 
 public:
-  StringMapContainer(llvm::StringRef Name, const pipeline::Kind &K) :
-    pipeline::Container<StringMapContainer>(Name), Map(), TheKind(&K) {}
+  StringMapContainer(llvm::StringRef Name,
+                     llvm::StringRef MIMEType,
+                     const pipeline::Kind &K) :
+    pipeline::Container<StringMapContainer>(Name, MIMEType),
+    Map(),
+    TheKind(&K) {}
 
   StringMapContainer(const StringMapContainer &) = default;
   StringMapContainer &operator=(const StringMapContainer &) = default;

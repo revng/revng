@@ -50,6 +50,8 @@ public:
 
   bool contains(llvm::StringRef Name) { return find(Name) != nullptr; }
 
+  size_t size() const { return Kinds.size(); }
+
 public:
   template<typename OS>
   void dump(OS &OStream) const {

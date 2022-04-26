@@ -6,3 +6,20 @@ PyYAML
 
 # revng-model-compare
 grandiso
+
+# revng.api
+cffi
+
+# revng.daemon
+Flask
+Werkzeug
+ariadne
+aiodataloader
+Jinja2
+xdg
+
+# revng.daemon - tests
+pytest
+requests
+requests-toolbelt
+gql

@@ -130,3 +130,52 @@ python_module(TARGET_NAME revng-python-commands_registry MODULE_FILES
 #
 python_module(TARGET_NAME revng-python-llvm_pipeline MODULE_FILES
               "revng/cli/llvm_pipeline.py")
+
+#
+# Install revng.cli.daemon
+#
+python_module(TARGET_NAME revng-python-cmd-daemon MODULE_FILES
+              "revng/cli/daemon.py")
+
+#
+# Install revng.api
+#
+set(REVNG_API_MODULE_FILES
+    revng/api/__init__.py
+    revng/api/_capi.py
+    revng/api/container.py
+    revng/api/exceptions.py
+    revng/api/kind.py
+    revng/api/manager.py
+    revng/api/rank.py
+    revng/api/step.py
+    revng/api/target.py
+    revng/api/utils.py)
+python_module(TARGET_NAME revng-python-api MODULE_FILES
+              ${REVNG_API_MODULE_FILES})
+
+# Also copy PipelineC headers in the build directory so revng.api can use them
+# from there
+set(PIPELINE_C_HEADERS_SOURCE_DIR "${CMAKE_SOURCE_DIR}/include/revng/PipelineC")
+set(PIPELINE_C_HEADERS_BUILD_DIR "${CMAKE_BINARY_DIR}/include/revng/PipelineC")
+set(REQUIRED_PIPELINE_C_HEADERS ForwardDeclarationsC.h Prototypes.h)
+file(MAKE_DIRECTORY "${PIPELINE_C_HEADERS_BUILD_DIR}")
+foreach(HEADER ${REQUIRED_PIPELINE_C_HEADERS})
+  configure_file("${PIPELINE_C_HEADERS_SOURCE_DIR}/${HEADER}"
+                 "${PIPELINE_C_HEADERS_BUILD_DIR}/${HEADER}" COPYONLY)
+endforeach()
+
+#
+# Install revng.daemon
+#
+set(REVNG_DAEMON_MODULE_FILES
+    revng/daemon/__init__.py
+    revng/daemon/api.py
+    revng/daemon/demo_webpage.py
+    revng/daemon/schema.py
+    revng/daemon/schema.graphql.tpl
+    revng/daemon/util.py
+    revng/daemon/templates/base.html
+    revng/daemon/templates/index.html)
+python_module(TARGET_NAME revng-python-daemon MODULE_FILES
+              ${REVNG_DAEMON_MODULE_FILES})

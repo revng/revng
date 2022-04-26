@@ -9,6 +9,7 @@
 #include <optional>
 
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Error.h"
 
 #include "revng/Pipeline/Loader.h"
 #include "revng/Pipeline/Runner.h"
@@ -22,6 +23,21 @@ llvm::Error Loader::parseStepDeclaration(Runner &Runner,
                                          std::string &LastAddedStep) const {
   auto &JustAdded = Runner.emplaceStep(LastAddedStep, Declaration.Name);
   LastAddedStep = Declaration.Name;
+
+  if (Declaration.Artifacts.isValid()) {
+    auto &KindName = Declaration.Artifacts.Kind;
+    const Kind *Kind = Runner.getKindsRegistry().find(KindName);
+    if (Kind == nullptr) {
+      return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                     "Artifact Kind not found");
+    }
+    if (auto Error = JustAdded.setArtifacts(Declaration.Artifacts.Container,
+                                            Kind);
+        !!Error) {
+      return Error;
+    }
+  }
+
   for (const auto &Invocation : Declaration.Pipes) {
     if (not isInvocationUsed(Invocation.EnabledWhen))
       continue;

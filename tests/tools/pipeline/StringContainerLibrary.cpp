@@ -20,7 +20,8 @@ static Kind StringKind("StringKind", &FunctionsRank);
 
 class StringContainer : public Container<StringContainer> {
 public:
-  using Container<StringContainer>::Container;
+  StringContainer(llvm::StringRef Name) :
+    Container<StringContainer>(Name, "String") {}
   ~StringContainer() override = default;
 
   static char ID;
