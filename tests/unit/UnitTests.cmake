@@ -13,25 +13,6 @@ include(${SRC}/llvm-lit-tests/CMakeLists.txt)
 find_package(Boost REQUIRED COMPONENTS unit_test_framework)
 
 #
-# reachability_library
-#
-include(${SRC}/Reachability/Reachability.cmake)
-
-#
-# test_reachabilitypass
-#
-
-revng_add_test_executable(test_reachabilitypass "${SRC}/ReachabilityPass.cpp")
-target_compile_definitions(test_reachabilitypass
-                           PRIVATE "BOOST_TEST_DYN_LINK=1")
-target_include_directories(
-  test_reachabilitypass PRIVATE "${CMAKE_SOURCE_DIR}" "${Boost_INCLUDE_DIRS}")
-target_link_libraries(
-  test_reachabilitypass revngcReachability revng::revngModel
-  revng::revngSupport Boost::unit_test_framework ${LLVM_LIBRARIES})
-add_test(NAME test_reachabilitypass COMMAND ./test_reachabilitypass)
-
-#
 # test_combingpass
 #
 
