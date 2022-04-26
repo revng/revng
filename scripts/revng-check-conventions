@@ -57,6 +57,9 @@ OPTIONS
     --HEAD
       Alias for '--commit-range HEAD^..HEAD'
 
+    --cached
+      Only check staged files
+
     --all
       Check all files instead of only changed ones
 
@@ -71,6 +74,43 @@ RETURN VALUES
 END_USAGE_TEXT
 }
 
+# git diff wrapper
+# Wraps git diff to extract only Added, Modified, Renamed and Copied files
+function git_diff_wrapper() {
+    local FIELDS RESULT
+    readarray -d '' FIELDS < <(git diff -z --diff-filter=AMRC --name-status "$@")
+    RESULT=()
+    # Simple "parser"
+    # The format is
+    # A|M <filename>
+    # R|C <old_filename> <new_filename>
+    set -- "${FIELDS[@]}"
+    while [[ $# -gt 0 ]]; do
+        type="$1"
+        case $type in
+            A|M)
+                RESULT+=("$2")
+                shift; shift;
+                ;;
+            R|C)
+                RESULT+=("$3")
+                shift; shift; shift;
+                ;;
+            *)
+                exit 1
+                ;;
+        esac
+    done
+    printf '%s\n' "${RESULT[@]}"
+}
+
+# git ls-files wrapper
+# wrap git ls-files to exclude deleted files
+function git_ls_files_wrapper() {
+    comm -23 <(git ls-files "$@" | sort) <(git ls-files --deleted | sort)
+}
+
+
 SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 FORCE_FORMAT="0"
@@ -79,7 +119,7 @@ USE_CLANG_FORMAT_FILE="0"
 
 PRINT_CLANG_FORMAT_CONFIG="0"
 
-GIT_LS_FILES="git ls-files -m --exclude-standard"
+GIT_LS_FILES="git_ls_files_wrapper -m --exclude-standard"
 
 while [[ $# -gt 0 ]]; do
     key="$1"
@@ -98,15 +138,19 @@ while [[ $# -gt 0 ]]; do
             ;;
         --commit-range)
             shift # get next argument
-            GIT_LS_FILES="eval git log --pretty='format:' --name-only '$1'"
+            GIT_LS_FILES="git_diff_wrapper $1"
             shift # past argument
             ;;
         --HEAD)
-            GIT_LS_FILES="eval git log --pretty='format:' --name-only 'HEAD^..HEAD'"
+            GIT_LS_FILES="git_diff_wrapper HEAD^..HEAD"
+            shift # past argument
+            ;;
+        --cached)
+            GIT_LS_FILES="git_diff_wrapper --cached"
             shift # past argument
             ;;
         --all)
-            GIT_LS_FILES="git ls-files"
+            GIT_LS_FILES="git_ls_files_wrapper"
             shift # past argument
             ;;
         --help)
@@ -162,9 +206,9 @@ function cat_header() {
 # Checks that all file names are proper
 function check_file_names() {
     local FILENAME FILE
-    readarray -d '' FILENAME < <($GIT_LS_FILES -z)
+    readarray -d '' FILENAME < <(git ls-files -z)
     for FILE in "${FILENAME[@]}"; do
-        if echo -n "$FILE" | grep -q '\s'; then
+        if grep -q '\s' <<< "$FILE"; then
             echo "ERROR, file '$FILE' has whitespace in filename/path, bailing"
             exit 1
         fi
@@ -186,7 +230,6 @@ function config_file_path() {
     fi
 }
 
-
 CLANG_FORMAT_STYLE_FILE="$(config_file_path clang-format-style-file)"
 CLANG_FORMAT_STYLE=$(cat "$CLANG_FORMAT_STYLE_FILE")
 
@@ -205,19 +248,11 @@ fi
 check_file_names
 
 if [[ $# -eq 0 ]]; then
-    readarray -t ALL_FILES_TMP < <($GIT_LS_FILES)
-    if [[ "${#ALL_FILES_TMP[@]}" -eq 0 ]]; then exit 0; fi
+    readarray -t ALL_FILES < <($GIT_LS_FILES)
+    if [[ "${#ALL_FILES[@]}" -eq 0 ]]; then exit 0; fi
 else
-    ALL_FILES_TMP=("$@")
+    ALL_FILES=("$@")
 fi
-
-ALL_FILES=()
-
-for FILE in "${ALL_FILES_TMP[@]}"; do
-    if [[ -e $FILE ]]; then
-        ALL_FILES+=("$FILE")
-    fi
-done
 
 ALL_FILES_N=$(printf '%s\n' "${ALL_FILES[@]}")
 
@@ -257,6 +292,7 @@ function run_flake8() {
 
 # Run mypy
 function run_mypy() {
+    local MYPY_FILES
     # mypy will complain that there are multiple __main__ files
     # in the python/scripts directory, manually exclude them
     # Will be fixed by https://github.com/python/mypy/pull/12543/files
@@ -291,7 +327,7 @@ function run_cmake_format() {
 
 # Run shellcheck + check for set -euo pipefail
 function run_bash_check() {
-    local NO_SET_FILES
+    local NO_SET_FILES FILE
     if [[ ${#BASH_FILES[@]} -eq 0 ]]; then return; fi
     shellcheck "${BASH_FILES[@]}"
 
@@ -309,7 +345,7 @@ function run_bash_check() {
 
 # Check that all files have a license header
 function run_license_check() {
-    local LICENSE_FILES NO_LICENSE_FILES
+    local LICENSE_FILES NO_LICENSE_FILES FILE
     readarray -t LICENSE_FILES < <(grep -Ev \
             -e '\.txt$' \
             -e '\.md$' \
@@ -340,6 +376,7 @@ function run_license_check() {
 
 # Run revng-specific checks on files
 function run_revng_checks() {
+    local FILTERED_FILES CXX_FILES REGEXPS REGEXP FILE
     if [[ ${#FILES[@]} -eq 0 ]]; then return; fi
     GREP="grep -Hn --color=always"
 
@@ -433,11 +470,11 @@ trap cleanup SIGINT SIGTERM ERR EXIT
 EXIT_CODE=0
 
 run_clang_format || EXIT_CODE=$?
+run_cmake_format || EXIT_CODE=$?
 run_black || EXIT_CODE=$?
 run_isort || EXIT_CODE=$?
 run_flake8 || EXIT_CODE=$?
 run_mypy || EXIT_CODE=$?
-run_cmake_format || EXIT_CODE=$?
 run_bash_check || EXIT_CODE=$?
 run_license_check || EXIT_CODE=$?
 run_revng_checks || EXIT_CODE=$?
