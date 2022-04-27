@@ -11,11 +11,6 @@ using namespace llvm::sys::path;
 namespace revng {
 
 PathList ResourceFinder({
-
-#ifdef BUILD_PATH
-  BUILD_PATH,
-#endif
-
   parent_path(parent_path(getCurrentExecutableFullPath())).str(),
 
 #ifdef INSTALL_PATH
