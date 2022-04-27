@@ -20,6 +20,7 @@ def run_revng_command(arguments, options: Options):
     from .lift import LiftCommand
     from .llvm_pipeline import IRPipelineCommand
     from .opt import IROptCommand
+    from .override_by_name import ModelOverrideByName
     from .pipeline import PipelineCommand
     from .translate import TranslateCommand
 

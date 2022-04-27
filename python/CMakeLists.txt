@@ -132,6 +132,12 @@ python_module(TARGET_NAME revng-python-llvm_pipeline MODULE_FILES
               "revng/cli/llvm_pipeline.py")
 
 #
+# Install revng.cli.override_by_name
+#
+python_module(TARGET_NAME revng-python-override_by_name MODULE_FILES
+              "revng/cli/override_by_name.py")
+
+#
 # Install revng.cli.daemon
 #
 python_module(TARGET_NAME revng-python-cmd-daemon MODULE_FILES
