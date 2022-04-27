@@ -104,9 +104,21 @@ public:
     return make_filter_range(M->functions(), Filter);
   }
 
+  auto functions(const llvm::Module *M) const {
+    using namespace llvm;
+    auto Filter = [this](const Function &F) { return isTagOf(&F); };
+    return make_filter_range(M->functions(), Filter);
+  }
+
   auto exactFunctions(llvm::Module *M) const {
     using namespace llvm;
     auto Filter = [this](Function &F) { return isExactTagOf(&F); };
+    return make_filter_range(M->functions(), Filter);
+  }
+
+  auto exactFunctions(const llvm::Module *M) const {
+    using namespace llvm;
+    auto Filter = [this](const Function &F) { return isExactTagOf(&F); };
     return make_filter_range(M->functions(), Filter);
   }
 
@@ -116,9 +128,21 @@ public:
     return make_filter_range(M->globals(), Filter);
   }
 
+  auto globals(const llvm::Module *M) const {
+    using namespace llvm;
+    auto Filter = [this](const GlobalVariable &G) { return isTagOf(&G); };
+    return make_filter_range(M->globals(), Filter);
+  }
+
   auto exactGlobals(llvm::Module *M) const {
     using namespace llvm;
     auto Filter = [this](GlobalVariable &G) { return isExactTagOf(&G); };
+    return make_filter_range(M->globals(), Filter);
+  }
+
+  auto exactGlobals(const llvm::Module *M) const {
+    using namespace llvm;
+    auto Filter = [this](const GlobalVariable &G) { return isExactTagOf(&G); };
     return make_filter_range(M->globals(), Filter);
   }
 };
