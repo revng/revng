@@ -4,9 +4,10 @@
 // Copyright rev.ng Labs Srl. See LICENSE.md for details.
 //
 
+#include "llvm/IR/Function.h"
 #include "llvm/Pass.h"
 
-#include "revng-c/RestructureCFGPass/RegionCFGTreeBB.h"
+class ASTTree;
 
 class RestructureCFG : public llvm::FunctionPass {
 
@@ -20,3 +21,5 @@ public:
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 };
+
+bool restructureCFG(llvm::Function &F, ASTTree &AST);

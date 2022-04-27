@@ -5,6 +5,10 @@
 Containers:
  - Name:            model_header.h
    Type:            ModelHeaderFile
+ - Name:            helpers_header.h
+   Type:            HelpersHeaderFile
+ - Name:            decompiled.yml
+   Type:            DecompiledCCode
 From:            LateOptimizeForDecompilation
 Containers:
 Steps:
@@ -32,4 +36,8 @@ Steps:
  - Name:            PrintHelpersHeader
    Pipes:
      - Type:             HelpersToHeader
-       UsedContainers: [module.ll, model_header.h]
+       UsedContainers: [module.ll, helpers_header.h]
+ - Name:            DecompileToC
+   Pipes:
+     - Type:             CDecompilation
+       UsedContainers: [module.ll, model_header.h, helpers_header]

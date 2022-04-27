@@ -6,10 +6,9 @@
 
 #include "revng/Support/FunctionTags.h"
 
+#include "revng-c/BeautifyGHAST/BeautifyGHAST.h"
 #include "revng-c/RestructureCFGPass/LoadGHAST.h"
 #include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
-
-#include "BeautifyGHAST.h"
 
 struct BeautifyGHASTPass : public llvm::FunctionPass {
   static char ID;

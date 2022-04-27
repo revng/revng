@@ -17,4 +17,6 @@ void decompileFunction(const llvm::Function &F,
                        const model::Binary &Model,
                        llvm::raw_ostream &O,
                        const ValueSet &TopScopeVariables,
-                       bool NeedsLocalStateVar);
+                       bool NeedsLocalStateVar,
+                       llvm::StringRef TypesHeader = "",
+                       llvm::StringRef HelpersHeader = "");

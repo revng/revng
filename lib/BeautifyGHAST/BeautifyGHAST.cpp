@@ -13,14 +13,13 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
+#include "revng-c/BeautifyGHAST/BeautifyGHAST.h"
 #include "revng-c/RestructureCFGPass/ASTTree.h"
 #include "revng-c/RestructureCFGPass/ExprNode.h"
 #include "revng-c/RestructureCFGPass/GenerateAst.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 #include "revng-c/Support/DecompilationHelpers.h"
 #include "revng-c/Support/FunctionFileHelpers.h"
-
-#include "BeautifyGHAST.h"
 
 using std::make_unique;
 using std::unique_ptr;

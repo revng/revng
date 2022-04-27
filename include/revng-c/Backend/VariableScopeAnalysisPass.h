@@ -5,8 +5,11 @@
 //
 
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/IR/Function.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Pass.h"
+
+class ASTTree;
 
 class VariableScopeAnalysisPass : public llvm::FunctionPass {
 public:
@@ -31,3 +34,8 @@ private:
   bool NeedsLoopStateVar;
   ValuePtrSet TopScopeVariables;
 };
+
+VariableScopeAnalysisPass::ValuePtrSet
+collectLocalVariables(const llvm::Function &F);
+
+bool hasLoopDispatchers(const ASTTree &GHAST);

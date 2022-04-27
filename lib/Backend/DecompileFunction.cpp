@@ -1421,7 +1421,10 @@ void decompileFunction(const llvm::Function &LLVMFunc,
                        const Binary &Model,
                        llvm::raw_ostream &Out,
                        const ValueSet &TopScopeVariables,
-                       bool NeedsLocalStateVar) {
+                       bool NeedsLocalStateVar,
+                       llvm::StringRef TypesHeader,
+                       llvm::StringRef HelpersHeader) {
+
   if (Log.isEnabled()) {
     writeToFile(Model.toString(), "model-during-c-codegen.yaml");
     const llvm::Twine &ASTFileName = LLVMFunc.getName()
@@ -1429,13 +1432,20 @@ void decompileFunction(const llvm::Function &LLVMFunc,
     CombedAST.dumpASTOnFile(ASTFileName.str());
   }
 
+  llvm::StringRef TypesHeaderName = TypesHeader.empty() ?
+                                      BackendTypesHeaderName :
+                                      TypesHeader;
+  llvm::StringRef HelpersHeaderName = HelpersHeader.empty() ?
+                                        BackendHelpersHeaderName :
+                                        HelpersHeader;
+
   // Print includes for model and helpers headers
   Out << "//\n "
       << "// Decompiled with <3 by rev.ng\n"
       << "//\n"
       << "\n"
-      << "#include \"" << BackendTypesHeaderName << "\"\n"
-      << "#include \"" << BackendHelpersHeaderName << "\"\n"
+      << "#include \"" << TypesHeaderName << "\"\n"
+      << "#include \"" << HelpersHeaderName << "\"\n"
       << "\n";
 
   CCodeGenerator Backend(Model, LLVMFunc, CombedAST, TopScopeVariables, Out);

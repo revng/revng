@@ -26,6 +26,10 @@ inline TaggedFunctionKind
                           &FunctionsRank,
                           FunctionTags::StackAccessesSegregated);
 
+inline TaggedFunctionKind DecompiledToC("DecompiledToC",
+                                        &FunctionsRank,
+                                        FunctionTags::StackAccessesSegregated);
+
 inline pipeline::Kind ModelHeader("ModelHeader", Binary, &RootRank);
 
 inline pipeline::Kind HelpersHeader("HelpersHeader", Binary, &RootRank);

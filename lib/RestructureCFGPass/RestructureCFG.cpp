@@ -462,9 +462,7 @@ static void LogMetaRegions(const MetaRegionBBVect &MetaRegions,
   }
 }
 
-bool RestructureCFG::runOnFunction(Function &F) {
-
-  ASTTree &AST = getAnalysis<LoadGHASTWrapperPass>().getGHAST(F);
+bool restructureCFG(Function &F, ASTTree &AST) {
 
   DuplicationCounter = 0;
   UntangleTentativeCounter = 0;
@@ -1169,4 +1167,10 @@ bool RestructureCFG::runOnFunction(Function &F) {
   }
 
   return false;
+}
+
+bool RestructureCFG::runOnFunction(Function &F) {
+
+  ASTTree &AST = getAnalysis<LoadGHASTWrapperPass>().getGHAST(F);
+  return restructureCFG(F, AST);
 }

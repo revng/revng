@@ -115,13 +115,13 @@ static RecursiveCoroutine<bool> needsLoopVar(ASTNode *N) {
 
 /// Check if the GHAST has loop dispatchers, which indicate the need for
 /// a loop state variable to be declared.
-static bool hasLoopDispatchers(const ASTTree &GHAST) {
+bool hasLoopDispatchers(const ASTTree &GHAST) {
   return needsLoopVar(GHAST.getRoot());
 }
 
 /// Fill \a VarsToDeclare with all the llvm::Values for
 /// which we need a top-level variable declaration.
-static ValuePtrSet collectLocalVariables(const Function &F) {
+ValuePtrSet collectLocalVariables(const Function &F) {
   ValuePtrSet VarsToDeclare;
 
   for (const BasicBlock &BB : F) {
