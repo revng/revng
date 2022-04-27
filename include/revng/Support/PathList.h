@@ -9,6 +9,7 @@
 #include <vector>
 
 std::string getCurrentExecutableFullPath();
+std::string getCurrentRoot();
 
 class PathList {
 public:
