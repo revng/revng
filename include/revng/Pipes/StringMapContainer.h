@@ -7,6 +7,7 @@
 #include <map>
 
 #include "revng/Pipeline/Container.h"
+#include "revng/Pipeline/ContainerSet.h"
 #include "revng/Support/MetaAddress.h"
 
 namespace revng::pipes {
@@ -52,5 +53,12 @@ protected:
   void mergeBackImpl(StringMapContainer &&Container) override;
 
 }; // end class StringMapContainer
+
+inline pipeline::ContainerFactory
+makeStringMapContainerFactory(pipeline::Kind &K, llvm::StringRef MIMEType) {
+  return [&K, MIMEType](llvm::StringRef Name) {
+    return std::make_unique<StringMapContainer>(Name, MIMEType, K);
+  };
+}
 
 } // end namespace revng::pipes
