@@ -41,6 +41,10 @@ public:
     struct StackSpan {
       uint64_t Offset;
       uint64_t Size;
+
+      StackSpan operator+(uint64_t Offset) const {
+        return { this->Offset + Offset, Size };
+      }
     };
 
   public:
