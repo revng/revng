@@ -13,7 +13,14 @@
 namespace revng::pipes {
 
 class StringMapContainer : public pipeline::Container<StringMapContainer> {
-  std::map<MetaAddress, std::string> Map;
+public:
+  using MapType = std::map<MetaAddress, std::string>;
+  using ValueType = MapType::value_type;
+  using Iterator = MapType::iterator;
+  using ConstIterator = MapType::const_iterator;
+
+private:
+  MapType Map;
   const pipeline::Kind *TheKind;
 
 public:
@@ -51,6 +58,36 @@ public:
 
 protected:
   void mergeBackImpl(StringMapContainer &&Container) override;
+
+public:
+  /// std::map-like methods
+
+  std::string &operator[](MetaAddress M) { return Map[M]; };
+
+  std::string &at(MetaAddress M) { return Map.at(M); };
+  const std::string &at(MetaAddress M) const { return Map.at(M); };
+
+  std::pair<Iterator, bool> insert(const ValueType &V) {
+    return Map.insert(V);
+  };
+  std::pair<Iterator, bool> insert(ValueType &&V) {
+    return Map.insert(std::move(V));
+  };
+
+  std::pair<Iterator, bool>
+  insert_or_assign(MetaAddress Key, const std::string &Value) {
+    return Map.insert_or_assign(Key, Value);
+  };
+  std::pair<Iterator, bool>
+  insert_or_assign(MetaAddress Key, std::string &&Value) {
+    return Map.insert_or_assign(Key, std::move(Value));
+  };
+
+  Iterator begin() { return Map.begin(); }
+  Iterator end() { return Map.end(); }
+
+  ConstIterator begin() const { return Map.begin(); }
+  ConstIterator end() const { return Map.end(); }
 
 }; // end class StringMapContainer
 
