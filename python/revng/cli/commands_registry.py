@@ -7,7 +7,7 @@ import dataclasses
 import sys
 from typing import Tuple
 
-from .support import Options, run
+from .support import Options, try_run
 
 
 class Command:
@@ -33,7 +33,7 @@ class ExternalCommand(Command):
         pass
 
     def run(self, options: Options):
-        return run([self.path] + options.remaining_args, options)
+        return try_run([self.path] + options.remaining_args, options)
 
 
 COMMAND_ARG_PREFIX = "command_name"
