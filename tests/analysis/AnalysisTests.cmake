@@ -64,8 +64,19 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
         "${INPUT_FILE}"
         "${OUTPUT}"
         Lift
+        Lift
+        --analysis
+        DetectABI
+        ":Root"
+        "&&"
+        "./bin/revng"
+        llvm
+        pipeline
+        "${OUTPUT}"
+        "${OUTPUT}"
+        Lift
         EnforceABI
-        "*:CSVsPromoted")
+        ":Root")
     set(DEPEND_ON revng-all-binaries)
 
     #

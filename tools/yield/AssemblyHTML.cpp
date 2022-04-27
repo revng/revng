@@ -21,13 +21,13 @@ int main(int ArgC, char *ArgV[]) {
 
   for (const auto &LLVMFunction : FunctionTags::Isolated.functions(&IR)) {
     auto Metadata = extractFunctionMetadata(&LLVMFunction);
-    auto ModelFunctionIterator = Model.Functions.find(Metadata->Entry);
-    revng_assert(ModelFunctionIterator != Model.Functions.end());
+    auto ModelFunctionIterator = Model->Functions.find(Metadata->Entry);
+    revng_assert(ModelFunctionIterator != Model->Functions.end());
     const auto &Function = *ModelFunctionIterator;
 
     auto Disassembled = Helper.disassemble(Function, *Metadata, Binary);
 
-    auto HTML = yield::html::assembly(Disassembled, *Metadata, Model);
+    auto HTML = yield::html::assembly(Disassembled, *Metadata, *Model);
     Result.insert_or_assign(Function.Entry, std::move(HTML));
   }
 

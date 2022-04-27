@@ -270,6 +270,21 @@ public:
     return Status.find(ContainerName) != Status.end();
   }
 
+  bool contains(const ContainerToTargetsMap &Other) const {
+    for (const value_type &Pair : Other.Status) {
+      if (Pair.second.empty())
+        continue;
+
+      if (not contains(Pair.first()))
+        return false;
+
+      if (not find(Pair.first())->second.contains(Pair.second))
+        return false;
+    }
+
+    return true;
+  }
+
   iterator find(llvm::StringRef ContainerName) {
     return Status.find(ContainerName);
   }
@@ -330,6 +345,8 @@ private:
     return Size;
   }
 };
+
+using InvalidationMap = llvm::StringMap<ContainerToTargetsMap>;
 
 llvm::Error parseTarget(ContainerToTargetsMap &CurrentStatus,
                         llvm::StringRef AsString,

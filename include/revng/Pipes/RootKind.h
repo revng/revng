@@ -31,7 +31,7 @@ public:
 
   void
   getInvalidations(pipeline::TargetsList &ToRemove,
-                   const pipeline::InvalidationEventBase &Event) const override;
+                   const pipeline::GlobalTupleTreeDiff &Base) const override;
 };
 
 class IsolatedRootKind : public pipeline::LLVMKind {

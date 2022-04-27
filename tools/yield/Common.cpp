@@ -16,6 +16,7 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/Support/YAMLTraits.h"
+#include "revng/TupleTree/TupleTree.h"
 
 #include "Common.h"
 
@@ -45,7 +46,8 @@ static opt<std::string> ModelPath(llvm::cl::Positional,
 
 } // namespace options
 
-static revng::pipes::FunctionStringMap createMap(const model::Binary &Model) {
+static revng::pipes::FunctionStringMap
+createMap(const TupleTree<model::Binary> &Model) {
   using C = revng::pipes::FunctionStringMap;
   return C("", "", pipeline::Kind{ "", &revng::pipes::RootRank }, Model);
 }
@@ -82,8 +84,8 @@ ReturnValueType parseCommandLineOptions(int Argc, char *Argv[]) {
   revng_assert(Result.Binary != nullptr);
 
   return ReturnValueType(*Result.IR,
-                         **Result.Model,
+                         *Result.Model,
                          BinView,
-                         createMap(**Result.Model),
+                         createMap(*Result.Model),
                          std::move(Result));
 }

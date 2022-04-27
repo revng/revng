@@ -167,4 +167,10 @@ llvm::Error FileContainer::deserialize(const llvm::MemoryBuffer &Buffer) {
   return llvm::Error::success();
 }
 
+llvm::Error
+FileContainer::extractOne(llvm::raw_ostream &OS, const Target &Target) const {
+  revng_check(Target == getOnlyPossibleTarget());
+  return serialize(OS);
+}
+
 } // namespace revng::pipes

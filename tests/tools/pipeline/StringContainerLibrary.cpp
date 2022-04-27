@@ -9,6 +9,7 @@
 #include "revng/Pipeline/CopyPipe.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
+#include "revng/Support/Assert.h"
 
 using std::string;
 using namespace llvm;
@@ -85,6 +86,12 @@ public:
         continue;
       ContainedStrings.insert(S.str());
     }
+    return llvm::Error::success();
+  }
+
+  llvm::Error extractOne(llvm::raw_ostream &OS,
+                         const pipeline::Target &Target) const override {
+    revng_abort();
     return llvm::Error::success();
   }
 

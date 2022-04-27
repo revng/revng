@@ -1,4 +1,4 @@
-/// \file SavableObject.cpp
+/// \file Global.cpp
 /// \brief a savable object is a objecet that an be serialized and deserialized
 /// froms a string
 
@@ -12,13 +12,13 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "revng/Pipeline/SavableObject.h"
+#include "revng/Pipeline/Global.h"
 
 using namespace std;
 using namespace pipeline;
 using namespace llvm;
 
-Error SavableObjectBase::storeToDisk(StringRef Path) const {
+Error Global::storeToDisk(StringRef Path) const {
   std::error_code EC;
   raw_fd_ostream OS(Path, EC, llvm::sys::fs::F_None);
   if (EC)
@@ -29,7 +29,7 @@ Error SavableObjectBase::storeToDisk(StringRef Path) const {
   return serialize(OS);
 }
 
-Error SavableObjectBase::loadFromDisk(StringRef Path) {
+Error Global::loadFromDisk(StringRef Path) {
   if (not llvm::sys::fs::exists(Path)) {
     clear();
     return llvm::Error::success();

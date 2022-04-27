@@ -35,7 +35,7 @@ public:
   pipeline::TargetsList
   compactTargets(const pipeline::Context &Ctx,
                  pipeline::TargetsList::List &Targets) const final {
-    return compactFunctionTargets(*getModelFromContext(Ctx), Targets, *this);
+    return compactFunctionTargets(getModelFromContext(Ctx), Targets, *this);
   }
 
   void expandTarget(const pipeline::Context &Ctx,

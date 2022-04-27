@@ -42,8 +42,19 @@ llvm::Error Loader::parseStepDeclaration(Runner &Runner,
     if (not isInvocationUsed(Invocation.EnabledWhen))
       continue;
 
-    if (auto Error = parseInvocation(JustAdded, Invocation); !!Error)
-      return Error;
+    if (auto MaybeInvocation = parseInvocation(JustAdded, Invocation);
+        !MaybeInvocation)
+      return MaybeInvocation.takeError();
+    else
+      JustAdded.addPipe(std::move(*MaybeInvocation));
+  }
+
+  for (const auto &SingleAnalysis : Declaration.Analyses) {
+    auto MaybeInvocation = parseAnalysis(JustAdded, SingleAnalysis);
+    if (!MaybeInvocation)
+      return MaybeInvocation.takeError();
+
+    JustAdded.addAnalysis(SingleAnalysis.Name, std::move(*MaybeInvocation));
   }
 
   return Error::success();
@@ -59,15 +70,15 @@ Loader::loadPassFromName(llvm::StringRef Name) const {
   return PureLLVMPassWrapper::create(Name);
 }
 
-llvm::Error
-Loader::parseLLVMPass(Step &Step, const PipeInvocation &Invocation) const {
+llvm::Expected<PipeWrapper>
+Loader::parseLLVMPass(const PipeInvocation &Invocation) const {
 
   LLVMPipe ToInsert;
 
   if (OnLLVMContainerCreationAction.has_value()) {
     auto MaybeError = (*OnLLVMContainerCreationAction)(*this, ToInsert);
     if (!!MaybeError)
-      return MaybeError;
+      return std::move(MaybeError);
   }
 
   for (const auto &PassName : Invocation.Passes) {
@@ -77,16 +88,30 @@ Loader::parseLLVMPass(Step &Step, const PipeInvocation &Invocation) const {
     ToInsert.addPass(std::move(*MaybePass));
   }
 
-  auto Wrapper = PipeWrapper(move(ToInsert), Invocation.UsedContainers);
-  Step.addPipe(move(Wrapper));
-
-  return Error::success();
+  return PipeWrapper::make(move(ToInsert), Invocation.UsedContainers);
 }
 
-llvm::Error
+llvm::Expected<AnalysisWrapper>
+Loader::parseAnalysis(Step &Step,
+                      const AnalysisDeclaration &Declaration) const {
+  auto It = KnownAnalysisTypes.find(Declaration.Type);
+  if (It == KnownAnalysisTypes.end()) {
+    auto *Message = "while parsing analysis : No known Anaylis with "
+                    "name %s\n ";
+    return createStringError(inconvertibleErrorCode(),
+                             Message,
+                             Declaration.Type.c_str());
+  }
+  auto &Entry = It->second;
+  auto ToReturn = Entry(Declaration.UsedContainers);
+  ToReturn->setUserBoundName(Declaration.Name);
+  return ToReturn;
+}
+
+llvm::Expected<PipeWrapper>
 Loader::parseInvocation(Step &Step, const PipeInvocation &Invocation) const {
   if (Invocation.Type == "LLVMPipe")
-    return parseLLVMPass(Step, Invocation);
+    return parseLLVMPass(Invocation);
 
   auto It = KnownPipesTypes.find(Invocation.Type);
   if (It == KnownPipesTypes.end()) {
@@ -97,8 +122,7 @@ Loader::parseInvocation(Step &Step, const PipeInvocation &Invocation) const {
                              Invocation.Type.c_str());
   }
   auto &Entry = It->second;
-  Step.addPipe(Entry(Invocation.UsedContainers));
-  return Error::success();
+  return Entry(Invocation.UsedContainers);
 }
 
 using BCDecl = ContainerDeclaration;

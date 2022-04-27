@@ -52,9 +52,7 @@ void rp_string_destroy(char *string);
  * provided directory and created from the provided pipelines_path.
  *
  * \param pipelines_count size of \p pipelines_path.
- * \param pipelines_path cannot be NULL.
  * \param pipeline_flags_count size of \p pipeline_flags.
- * \param pipeline_flags cannot be NULL.
  * \param execution_directory can be empty (but not NULL), if it is empty then
  * the content of the pipeline will not be loaded and saved on disk before and
  * after the execution. pipeline_flags can be empty, pipeline_flags_count must
@@ -65,30 +63,31 @@ void rp_string_destroy(char *string);
  * This function can be called only once, since it will take take of the
  * initialization of all dynamically loaded libraries.
  */
-rp_manager *rp_manager_create(uint64_t pipelines_count,
-                              const char *pipelines_path[],
-                              uint64_t pipeline_flags_count,
-                              const char *pipeline_flags[],
-                              const char *execution_directory);
+rp_manager * /*owning*/ rp_manager_create(uint64_t pipelines_count,
+                                          const char *pipelines_path[],
+                                          uint64_t pipeline_flags_count,
+                                          const char *pipeline_flags[],
+                                          const char *execution_directory);
 
 /**
  * Same as like rp_manager_create but, instead of the path to a pipeline YAML
  * file, accepts the strings containing the pipeline directly.
  */
-rp_manager *rp_manager_create_from_string(uint64_t pipelines_count,
-                                          const char *pipelines[],
-                                          uint64_t pipeline_flags_count,
-                                          const char *pipeline_flags[],
-                                          const char *execution_directory);
+rp_manager * /*owning*/
+rp_manager_create_from_string(uint64_t pipelines_count,
+                              const char *pipelines[],
+                              uint64_t pipeline_flags_count,
+                              const char *pipeline_flags[],
+                              const char *execution_directory);
 
 /**
  * Exactly like rp_manager_create, except that it is run without loading and
  * saving the state of the pipeline before and after the execution, and that no
  * flags are provided.
  */
-rp_manager *rp_manager_create_memory_only(const char *pipeline_path,
-                                          uint64_t flags_count,
-                                          const char *flags[]);
+rp_manager * /*owning*/ rp_manager_create_memory_only(const char *pipeline_path,
+                                                      uint64_t flags_count,
+                                                      const char *flags[]);
 
 /**
  * Delete the manager object and destroy all the resourced acquired by it.
@@ -142,7 +141,7 @@ rp_step *rp_manager_get_step(rp_manager *manager, uint64_t index);
 /**
  * \return the serialized string rappresenting a global object
  */
-const char *
+const char * /*owning*/
 rp_manager_create_global_copy(rp_manager *manager, const char *global_name);
 
 /**
@@ -153,6 +152,18 @@ rp_manager_create_global_copy(rp_manager *manager, const char *global_name);
 bool rp_manager_set_global(rp_manager *manager,
                            const char *serialized,
                            const char *global_name);
+
+/**
+ * \returns the number of serializable global objects
+ */
+int rp_manager_get_globals_count(rp_manager *manager);
+
+/**
+ * \returns the owning pointer to the name of serializable global object
+ * with the provided index, nullptr if the index was out of bound.
+ */
+const char * /*owning*/
+rp_manager_get_global_name(rp_manager *manager, int index);
 
 /**
  * \return the kind with the provided name, NULL if no kind had the provided
@@ -178,11 +189,26 @@ rp_kind *rp_manager_get_kind(rp_manager *manager, uint64_t index);
  *
  * \return 0 if an error was encountered, the serialized container otherwise
  */
-const char *rp_manager_produce_targets(rp_manager *manager,
-                                       uint64_t targets_count,
-                                       rp_target *targets[],
-                                       rp_step *step,
-                                       rp_container *container);
+const char * /*owning*/ rp_manager_produce_targets(rp_manager *manager,
+                                                   uint64_t targets_count,
+                                                   rp_target *targets[],
+                                                   rp_step *step,
+                                                   rp_container *container);
+
+/**
+ * Request to run the required analysis
+ *
+ * \param tagets_count must be equal to the size of targets.
+ *
+ * \return 0 if an error was encountered, the owning diff map of affected global
+ * objects
+ */
+rp_diff_map * /*owning*/ rp_manager_run_analysis(rp_manager *manager,
+                                                 uint64_t targets_count,
+                                                 rp_target *targets[],
+                                                 const char *step_name,
+                                                 const char *analysis_name,
+                                                 rp_container *container);
 
 /**
  *
@@ -202,9 +228,9 @@ rp_targets_list *rp_manager_get_container_targets_list(rp_manager *manager,
  * \note The returned string is owned by the caller. Destroy with
  *       rp_string_destroy.
  */
-char *rp_manager_create_container_path(rp_manager *manager,
-                                       const char *step_name,
-                                       const char *container_name);
+char * /*owning*/ rp_manager_create_container_path(rp_manager *manager,
+                                                   const char *step_name,
+                                                   const char *container_name);
 
 /** \} */
 
@@ -275,6 +301,48 @@ rp_kind *rp_step_get_artifacts_kind(rp_step *step);
  */
 rp_container *rp_step_get_artifacts_container(rp_step *step);
 
+/**
+ * \return the number of analysis present in this step
+ */
+int rp_step_get_analyses_count(rp_step *step);
+
+/**
+ * \return the of the analysis in the provided step with the provided index.
+ *
+ * index must be less than rp_step_get_analyses_count
+ */
+rp_analysis *rp_step_get_analysis(rp_step *step, int index);
+
+/**
+ * \return the count of containers used by the provided analysis.
+ * is no analysis
+ */
+int rp_analysis_get_arguments_count(rp_analysis *analysis);
+
+/**
+ * \return a owning pointer to the name of the container used as index
+ * argument of the analysis of this step.
+ *
+ * index must be less than rp_step_get_analysis_arguments_count(step)
+ */
+const char * /*owning*/
+rp_analysis_get_argument_name(rp_analysis *analysis, int index);
+
+/**
+ * \return the quantity of kinds that can be accepted by a analysis
+ */
+int rp_analysis_get_argument_acceptable_kinds_count(rp_analysis *analysis,
+                                                    int argument_index);
+
+/**
+ * \return the pointer to a acceptable kind for the container with index
+ * argument_index within a analysis, nullptr if kind_index is >= than
+ * rp_analysis_argument_acceptable_kinds_count(analysis, argument_index)
+ */
+const rp_kind *rp_analysis_get_argument_acceptable_kind(rp_analysis *analysis,
+                                                        int argument_index,
+                                                        int kind_index);
+
 /** \} */
 
 /**
@@ -290,16 +358,16 @@ rp_container *rp_step_get_artifacts_container(rp_step *step);
  *
  * \return 0 if a error was encountered, 1 otherwise.
  */
-rp_target *rp_target_create(rp_kind *kind,
-                            int is_exact,
-                            uint64_t path_components_count,
-                            const char *path_components[]);
+rp_target * /*owning*/ rp_target_create(rp_kind *kind,
+                                        int is_exact,
+                                        uint64_t path_components_count,
+                                        const char *path_components[]);
 /**
  * Deserialize a target from a string, arguments cannot be NULL.
  *
  * \return NULL if \p string is malformed.
  */
-rp_target *
+rp_target * /*owning*/
 rp_target_create_from_string(rp_manager *manager, const char *string);
 
 /**
@@ -316,12 +384,12 @@ void rp_target_destroy(rp_target *target);
 rp_kind *rp_target_get_kind(rp_target *target);
 
 /**
- * Serializes target into a string, target cannot be NULL.
+ * Serializes target into a string.
  *
  * \note The return string is owned by the caller. Destroy with
  *       rp_string_destroy.
  */
-char *rp_target_create_serialized_string(rp_target *target);
+char * /*owning*/ rp_target_create_serialized_string(rp_target *target);
 
 /**
  * \return 1 if \p target is requiring exactly a particular kind, 0 if target
@@ -407,6 +475,36 @@ bool rp_container_store(rp_container *container, const char *path);
  *
  */
 bool rp_container_load(rp_container *container, const char *path);
+
+/**
+ * \return the serialized content of the element associated to the provided
+ * target,
+ *
+ * \note Target must be already present in container
+ *
+ */
+const char * /*owning*/
+rp_container_extract_one(rp_container *container, rp_target *target);
+
+/** \} */
+
+/**
+ *
+ * \defgroup rp_diff_map rp_diff_map methods
+ * \{
+ */
+
+/**
+ * frees the provided map
+ */
+void rp_diff_map_destroy(rp_diff_map *to_free);
+
+/**
+ * \returns nullptr if global_name did not named a global variable in the
+ * diff_map else return the serialized diff of the indicated global
+ */
+const char * /*owning*/
+rp_diff_map_get_diff(rp_diff_map *map, const char *global_name);
 
 /** \} */
 

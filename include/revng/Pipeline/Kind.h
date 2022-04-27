@@ -6,6 +6,7 @@
 
 #include <set>
 
+#include "revng/Pipeline/GlobalTupleTreeDiff.h"
 #include "revng/Pipeline/PathComponent.h"
 #include "revng/Pipeline/Rank.h"
 #include "revng/Pipeline/RegisterKind.h"
@@ -71,7 +72,7 @@ public:
                             TargetsList &Output) const;
 
   virtual void getInvalidations(pipeline::TargetsList &ToRemove,
-                                const InvalidationEventBase &Event) const {}
+                                const GlobalTupleTreeDiff &Diff) const {}
 
 public:
   template<Rank *R>

@@ -8,15 +8,16 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/Function.h"
 #include "revng/Pipes/AllFunctions.h"
+#include "revng/TupleTree/TupleTree.h"
 
 namespace revng::pipes {
 
 pipeline::TargetsList
-compactFunctionTargets(const model::Binary &Model,
+compactFunctionTargets(const TupleTree<model::Binary> &Model,
                        pipeline::TargetsList::List &Targets,
                        const pipeline::Kind &K) {
 
-  if (Model.Functions.size() == 0)
+  if (Model->Functions.size() == 0)
     return Targets;
 
   std::set<std::string> TargetsSet;
@@ -40,7 +41,7 @@ compactFunctionTargets(const model::Binary &Model,
   const auto IsInTargetSet = [&TargetsSet](const model::Function &F) {
     return TargetsSet.contains(F.Entry.toString());
   };
-  if (llvm::all_of(llvm::make_filter_range(Model.Functions, IsNotFake),
+  if (llvm::all_of(llvm::make_filter_range(Model->Functions, IsNotFake),
                    IsInTargetSet)) {
     return pipeline::TargetsList({ AllFunctions });
   }

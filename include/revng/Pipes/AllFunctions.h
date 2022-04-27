@@ -11,7 +11,7 @@
 namespace revng::pipes {
 
 pipeline::TargetsList
-compactFunctionTargets(const model::Binary &Model,
+compactFunctionTargets(const TupleTree<model::Binary> &Model,
                        pipeline::TargetsList::List &Targets,
                        const pipeline::Kind &K);
 

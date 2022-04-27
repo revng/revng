@@ -5,6 +5,7 @@
 //
 
 #include <array>
+#include <memory>
 #include <optional>
 #include <set>
 #include <type_traits>
@@ -38,7 +39,9 @@ public:
   TupleTree() : Root(new T) {}
 
   // Allow expensive copy
-  TupleTree(const TupleTree &Other) { *this = Other; }
+  TupleTree(const TupleTree &Other) : Root(std::make_unique<T>()) {
+    *this = Other;
+  }
   TupleTree &operator=(const TupleTree &Other) {
     if (this != &Other) {
       *Root = *Other.Root;

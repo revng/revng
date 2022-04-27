@@ -83,8 +83,8 @@ static auto makeManager() {
                                  ExecutionDirectory);
 }
 
-static Runner::InvalidationMap getInvalidationMap(Runner &Pipeline) {
-  Runner::InvalidationMap Invalidations;
+static InvalidationMap getInvalidationMap(Runner &Pipeline) {
+  InvalidationMap Invalidations;
   auto &ToInvalidate = Invalidations[TargetStep];
 
   const auto &Registry = Pipeline.getKindsRegistry();
@@ -95,7 +95,7 @@ static Runner::InvalidationMap getInvalidationMap(Runner &Pipeline) {
 }
 
 static void
-dumpInvalidationMap(llvm::raw_ostream &OS, const Runner::InvalidationMap &Map) {
+dumpInvalidationMap(llvm::raw_ostream &OS, const InvalidationMap &Map) {
   for (const auto &Pair : Map) {
     OS << Pair.first();
     Pair.second.dump(OS, 1);

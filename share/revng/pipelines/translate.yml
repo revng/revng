@@ -26,6 +26,10 @@ Steps:
    Artifacts:
      Container: module.ll
      Kind: Root
+   Analyses:
+     - Name: DetectABI
+       Type: DetectABI
+       UsedContainers: [module.ll]
  - Name:            Recompile
    Pipes:
      - Type:             LinkSupport

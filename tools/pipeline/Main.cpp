@@ -1,4 +1,4 @@
-/// \file Main.cpp
+// \file Main.cpp
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -6,6 +6,7 @@
 
 #include <cstdlib>
 
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/raw_os_ostream.h"
 
@@ -35,7 +36,7 @@ static cl::list<string>
   InputPipeline("P", desc("<Pipeline>"), cat(PipelineCategory));
 
 static cl::list<string> Targets(Positional,
-                                Required,
+                                OneOrMore,
                                 desc("<Targets to produce>..."),
                                 cat(PipelineCategory));
 
@@ -54,12 +55,6 @@ static opt<string> SaveModel("save-model",
                              desc("Save the model at the end of the run"),
                              cat(PipelineCategory),
                              init(""));
-
-static opt<string> TargetStep("step",
-                              Required,
-                              desc("name the step in which to produce the "
-                                   "elements"),
-                              cat(PipelineCategory));
 
 static opt<bool> ProduceAllPossibleTargets("produce-all",
                                            desc("Try producing all possible "
@@ -128,16 +123,30 @@ static alias A2("t",
 
 static ExitOnError AbortOnError;
 
-static void runPipeline(Runner &Pipeline) {
+static void runPipelineOnce(Runner &Pipeline, llvm::StringRef Target) {
+  bool IsAnalysis = llvm::count(Target, ':') == 4;
 
   ContainerToTargetsMap ToProduce;
 
   const auto &Registry = Pipeline.getKindsRegistry();
-  for (const auto &Target : Targets)
-    AbortOnError(parseTarget(ToProduce, Target, Registry));
-
+  auto [StepName, Rest] = Target.split(":");
   auto *Stream = Verbose ? &dbgs() : nullptr;
-  AbortOnError(Pipeline.run(TargetStep, ToProduce, Stream));
+
+  if (not IsAnalysis) {
+    AbortOnError(parseTarget(ToProduce, Rest, Registry));
+    AbortOnError(Pipeline.run(StepName, ToProduce, Stream));
+    return;
+  }
+
+  auto [AnalysisName, Rest2] = Rest.split(":");
+  AbortOnError(parseTarget(ToProduce, Rest2, Registry));
+  AbortOnError(Pipeline.runAnalysis(AnalysisName, StepName, ToProduce, Stream));
+}
+
+static void runPipeline(Runner &Pipeline) {
+
+  for (const auto &Target : Targets)
+    runPipelineOnce(Pipeline, Target);
 }
 
 static auto makeManager() {
@@ -176,12 +185,14 @@ int main(int argc, const char *argv[]) {
     Manager.writeAllPossibleTargets(OS);
     return EXIT_SUCCESS;
   }
-  if (ProduceAllPossibleTargets) {
+
+  if (ProduceAllPossibleTargets)
     PipelineLogger.enable();
+
+  runPipeline(Manager.getRunner());
+
+  if (ProduceAllPossibleTargets)
     AbortOnError(Manager.produceAllPossibleTargets(*LoggerOS));
-  } else {
-    runPipeline(Manager.getRunner());
-  }
 
   if (InvalidateAll) {
     PipelineLogger.enable();
@@ -193,7 +204,7 @@ int main(int argc, const char *argv[]) {
 
   if (not SaveModel.empty()) {
     auto Context = Manager.context();
-    auto ModelName = ModelGlobal::Name;
+    const auto &ModelName = ModelGlobalName;
     auto FinalModel = AbortOnError(Context.getGlobal<ModelGlobal>(ModelName));
     AbortOnError(FinalModel->storeToDisk(SaveModel));
   }

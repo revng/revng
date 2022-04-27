@@ -12,8 +12,6 @@
 
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Runner.h"
-#include "revng/Pipeline/SavableObject.h"
-#include "revng/Pipes/LLVMContextWrapper.h"
 #include "revng/Pipes/ModelGlobal.h"
 
 namespace revng::pipes {
@@ -32,8 +30,7 @@ private:
   /// pointer that go from one to the other are stable, Since there a create
   /// method that returns a expected<PipelineManager>, this is the only way to
   /// ensure this is correct.
-  std::unique_ptr<LLVMContextWrapper> Context;
-  std::unique_ptr<ModelGlobal> ModelWrapper;
+  std::unique_ptr<llvm::LLVMContext> Context;
   std::unique_ptr<pipeline::Context> PipelineContext;
   std::unique_ptr<pipeline::Loader> Loader;
   std::unique_ptr<pipeline::Runner> Runner;

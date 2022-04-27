@@ -7,7 +7,6 @@
 
 #include "revng/Model/Binary.h"
 #include "revng/Pipes/Kinds.h"
-#include "revng/Pipes/ModelInvalidationEvent.h"
 #include "revng/Support/MetaAddress.h"
 
 #define BOOST_TEST_MODULE PipelineC
@@ -29,7 +28,7 @@ BOOST_AUTO_TEST_CASE(RootInvalidationTest) {
   New.ExtraCodeAddresses.insert(Address);
 
   TargetsList ToRemove;
-  ModelInvalidationEvent Event(diff(Empty, New));
+  GlobalTupleTreeDiff Event(diff(Empty, New));
   Root.getInvalidations(ToRemove, Event);
   BOOST_TEST(ToRemove.size() == 1);
   BOOST_TEST(&ToRemove.front().getKind() == &Root);
