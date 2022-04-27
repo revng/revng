@@ -56,6 +56,7 @@ make_directory("${CMAKE_BINARY_DIR}/share/revng/")
 copy_to_build_and_install(
   FILES
   share/revng/pipelines
+  share/revng/pipelines/ir-canonicalization.yml
   share/revng/pipelines/opt-for-decompilation.yml
   share/revng/pipelines/promote-stack-pointer.yml
   share/revng/pipelines/remove-lifting-artifacts.yml

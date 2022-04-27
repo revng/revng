@@ -1,0 +1,35 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+Containers:
+ - Name:            model_header.h
+   Type:            ModelHeaderFile
+From:            LateOptimizeForDecompilation
+Containers:
+Steps:
+ - Name:            DataLayoutAnalysis
+   Pipes:
+     - Type:             LLVMPipe
+       UsedContainers: [module.ll]
+       Passes:
+         - dla
+ - Name:            IRCanonicalization
+   Pipes:
+     - Type:             LLVMPipe
+       UsedContainers: [module.ll]
+       Passes:
+         - make-model-gep
+         - early-cse
+         - dce
+         - exit-ssa
+         - twoscomplement-normalization
+         - add-assignment-markers
+ - Name:            PrintModelHeader
+   Pipes:
+     - Type:             ModelToHeader
+       UsedContainers: [input, model_header.h]
+ - Name:            PrintHelpersHeader
+   Pipes:
+     - Type:             HelpersToHeader
+       UsedContainers: [module.ll, model_header.h]
