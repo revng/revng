@@ -38,9 +38,11 @@ fields:
     sequence:
       type: SortedVector
       elementType: model::DynamicFunction
+    optional: true
   - name: Architecture
     doc: Binary architecture
     type: model::Architecture::Values
+    optional: true
   - name: DefaultABI
     doc: The default ABI of `RawFunctionType`s within the binary
     type: model::ABI::Values
@@ -56,6 +58,7 @@ fields:
     sequence:
       type: SortedVector
       elementType: model::Segment
+    optional: true
   - name: EntryPoint
     doc: Program entry point
     type: MetaAddress
