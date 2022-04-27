@@ -81,11 +81,65 @@ public:
   }
 
 public:
-  bool verify() const;
+  bool verify() const debug_function;
+
   size_t argumentRegisterCount() const;
   size_t returnValueRegisterCount() const;
   llvm::SmallVector<model::Register::Values, 8> argumentRegisters() const;
   llvm::SmallVector<model::Register::Values, 8> returnValueRegisters() const;
+
+public:
+  void dump() const debug_function {
+    // TODO: accept an arbitrary stream
+
+    //
+    // Arguments
+    //
+    dbg << "Arguments:\n";
+    const char *Prefix = "  - ";
+    for (const Argument &A : Arguments) {
+      dbg << "  - Type: ";
+      A.Type.dump();
+      dbg << "\n";
+      dbg << "    Registers: [";
+      for (model::Register::Values Register : A.Registers)
+        dbg << " " << model::Register::getName(Register).str();
+      dbg << " ]\n";
+      dbg << "    StackSpan: ";
+      if (A.Stack) {
+        dbg << "no";
+      } else {
+        dbg << "{ Offset: " << A.Stack->Offset << ", Size: " << A.Stack->Size
+            << " }";
+      }
+      dbg << "\n";
+    }
+
+    //
+    // ReturnValue
+    //
+    dbg << "ReturnValue: \n";
+    dbg << "  Type: ";
+    ReturnValue.Type.dump();
+    dbg << "\n";
+    dbg << "  Registers: [";
+    for (model::Register::Values Register : ReturnValue.Registers)
+      dbg << " " << model::Register::getName(Register).str();
+    dbg << " ]\n";
+
+    //
+    // CalleeSavedRegisters
+    //
+    dbg << "CalleeSavedRegisters: [";
+    for (model::Register::Values Register : CalleeSavedRegisters)
+      dbg << " " << model::Register::getName(Register).str();
+    dbg << " ]\n";
+
+    //
+    // FinalStackOffset
+    //
+    dbg << "FinalStackOffset: " << FinalStackOffset << "\n";
+  }
 };
 
 } // namespace abi::FunctionType
