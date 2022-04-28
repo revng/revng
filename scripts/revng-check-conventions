@@ -256,21 +256,23 @@ fi
 
 ALL_FILES_N=$(printf '%s\n' "${ALL_FILES[@]}")
 
-readarray -t FILES < <(grep -E '\.(c|cc|cpp|h|hpp)$' <<< "$ALL_FILES_N")
-FILES_N=$(printf '%s\n' "${FILES[@]}")
+readarray -t C_FILES < <(grep -E '\.(c|cc|cpp|h|hpp)$' <<< "$ALL_FILES_N")
+C_FILES_N=$(printf '%s\n' "${C_FILES[@]}")
 
 readarray -t PYTHON_FILES < <(find_by_ext_or_shebang py python)
 readarray -t BASH_FILES < <(find_by_ext_or_shebang sh bash)
 readarray -t CMAKE_FILES < <(grep -i cmake <<< "$ALL_FILES_N")
 
+GREP="grep -Hn --color=always"
+
 
 # Run clang-format on FILES
 function run_clang_format() {
-    if [[ ${#FILES[@]} -eq 0 ]]; then return; fi
+    if [[ ${#C_FILES[@]} -eq 0 ]]; then return; fi
     if [[ "$FORCE_FORMAT" -ne 0 ]]; then
-        clang-format -style="$CLANG_FORMAT_STYLE" -i "${FILES[@]}" || true
+        clang-format -style="$CLANG_FORMAT_STYLE" -i "${C_FILES[@]}" || true
     else
-        clang-format --dry-run -style="$CLANG_FORMAT_STYLE" -i "${FILES[@]}"
+        clang-format --dry-run -style="$CLANG_FORMAT_STYLE" -i "${C_FILES[@]}"
     fi
 }
 
@@ -374,36 +376,16 @@ function run_license_check() {
 }
 
 
-# Run revng-specific checks on files
-function run_revng_checks() {
-    local FILTERED_FILES CXX_FILES REGEXPS REGEXP FILE
-    if [[ ${#FILES[@]} -eq 0 ]]; then return; fi
-    GREP="grep -Hn --color=always"
+# Run revng-specific checks on c/cpp files
+function run_revng_cpp_checks() {
+    if [[ ${#C_FILES[@]} -eq 0 ]]; then return; fi
+    local NON_SUPPORT_FILES CXX_FILES REGEXPS REGEXP FILE
 
-    # Check for lines longer than 80 columns
-    $GREP -E '^.{81,}$' "${FILES[@]}" | cat_header "There are lines longer than 80 characters:"
-
-    # Things should never match
-    for REGEXP in '\(--> 0\)' ';;' '^\s*->.*;$' 'Twine [^&]'; do
-        $GREP "$REGEXP" "${FILES[@]}"
-    done | cat_header "Found snippets that should not be present:"
-
-    # Things should never match (except in support.c)
-    readarray -t FILTERED_FILES < <(grep -v \
+    readarray -t NON_SUPPORT_FILES < <(grep -v \
         -e '^runtime/support\.c$' \
         -e '^lib/Support/Assert\.cpp$' \
-        <<< "$FILES_N")
+        <<< "$C_FILES_N")
 
-    for REGEXP in '\babort(' '\bassert(' 'assert(false' 'llvm_unreachable'; do
-        $GREP "$REGEXP" "${FILTERED_FILES[@]}"
-    done | cat_header "Use revng_{assert,check,abort,unreachable}:"
-
-    # Things should never be at the end of a line
-    for REGEXP in '::' '<' 'RegisterPass.*>' '} else' '\bopt\b.*>'; do
-        $GREP "$REGEXP\$" "${FILES[@]}"
-    done | cat_header "Found snippets that shouldn't be at the end of a line:"
-
-    # Includes should never use <..> except for C++ standard includes
     readarray -t CXX_FILES < <(grep -v \
             -e '^runtime/support\.h$' \
             -e '^include/revng/Runtime/.*$' \
@@ -411,38 +393,44 @@ function run_revng_checks() {
             -e '^include/revng/Support/Assert\.h$' \
             -e '^include/revng/Support/ClassSentinel\.h$' \
             -e '\.c$' \
-            <<< "$FILES_N"
+            <<< "$C_FILES_N"
     )
 
+    # Check for lines longer than 80 columns
+    $GREP -E '^.{81,}$' "${C_FILES[@]}" | cat_header "There are lines longer than 80 characters:"
+
+    # Things should never match
+    for REGEXP in '\(--> 0\)' ';;' '^\s*->.*;$' 'Twine [^&]'; do
+        $GREP "$REGEXP" "${C_FILES[@]}"
+    done | cat_header "Found snippets that should not be present:"
+
+    # Things should never match (except in support.c)
+    for REGEXP in '\babort(' '\bassert(' 'assert(false' 'llvm_unreachable'; do
+        $GREP "$REGEXP" "${NON_SUPPORT_FILES[@]}"
+    done | cat_header "Use revng_{assert,check,abort,unreachable}:"
+
+    # Things should never be at the end of a line
+    for REGEXP in '::' '<' 'RegisterPass.*>' '} else' '\bopt\b.*>'; do
+        $GREP "$REGEXP\$" "${C_FILES[@]}"
+    done | cat_header "Found snippets that shouldn't be at the end of a line:"
+
+    # Includes should never use <..> except for C++ standard includes
     if [[ ${#CXX_FILES[@]} -ne 0 ]]; then
-        cat <($GREP "^\s*#include <.*\.hpp>" "${FILES[@]}") \
+        cat <($GREP "^\s*#include <.*\.hpp>" "${C_FILES[@]}") \
             <($GREP "^\s*#include <.*\.h>" "${CXX_FILES[@]}") \
-            | cat_header "Includes should never user <..> except for C++ standard includes:"
+            | cat_header "Includes should never use <..> except for C++ standard includes:"
     else
-        $GREP "^\s*#include <.*\.hpp>" "${FILES[@]}" | \
-            cat_header "Includes should never user <..> except for C++ standard includes:"
+        $GREP "^\s*#include <.*\.hpp>" "${C_FILES[@]}" | \
+            cat_header "Includes should never use <..> except for C++ standard includes:"
     fi
 
     # Parenthesis at the end of line (except for raw strings)
-    $GREP "(\$" "${FILES[@]}" | grep -v 'R"LLVM.*(' | cat_header "Parenthesis at the end of line:"
-
-    # Ban whitespaces at the end of a line
-    $GREP " \$" "${FILES[@]}" | cat_header "Whitespace at the end of line:"
-
-    # Ban tabs altogether
-    $GREP -P "\t" "${FILES[@]}" | cat_header "Tabs present:"
-
-    # Ensure all files end with a newline
-    for FILE in "${ALL_FILES[@]}"; do
-        if [[ -s "$FILE" && ! $(tail -c 1 "$FILE" | base64) == "Cg==" ]]; then
-            echo "$FILE does not end with a newline"
-        fi
-    done | cat_header "Files that don't end in a newline:"
+    $GREP "(\$" "${C_FILES[@]}" | grep -v 'R"LLVM.*(' | cat_header "Parenthesis at the end of line:"
 
     # Things should never be at the beginning of a line
     REGEXPS=('\*>' '/[^/\*]' ':[^:\(]*)' '==' '\!=' '<[^<]' '>' '>=' '<=' '//\s*WIP' '#if\s*[01]')
     for REGEXP in "${REGEXPS[@]}"; do
-        $GREP "^\s*$REGEXP" "${FILES[@]}"
+        $GREP "^\s*$REGEXP" "${C_FILES[@]}"
     done | cat_header "Found snippets that should never be at the beginning of a line:"
 
     # Check there are no static functions in C++ header files
@@ -453,7 +441,22 @@ function run_revng_checks() {
                 echo "$FILE: header does not start with #pragma once"
         fi
     done
+}
 
+# Run revng-specific checks on all files
+function run_revng_checks() {
+    # Ban whitespaces at the end of a line
+    $GREP " \$" "${ALL_FILES[@]}" | cat_header "Whitespace at the end of line:"
+
+    # Ban tabs altogether
+    $GREP -P "\t" "${ALL_FILES[@]}" | cat_header "Tabs present:"
+
+    # Ensure all files end with a newline
+    for FILE in "${ALL_FILES[@]}"; do
+        if [[ -s "$FILE" && ! $(tail -c 1 "$FILE" | base64) == "Cg==" ]]; then
+            echo "$FILE"
+        fi
+    done | cat_header "Files that don't end in a newline:"
 }
 
 # Replace fd #1 (stdout) with process substitution so that after the exec any
@@ -477,6 +480,7 @@ run_flake8 || EXIT_CODE=$?
 run_mypy || EXIT_CODE=$?
 run_bash_check || EXIT_CODE=$?
 run_license_check || EXIT_CODE=$?
+run_revng_cpp_checks || EXIT_CODE=$?
 run_revng_checks || EXIT_CODE=$?
 
 if [[ $(wc -c < "$TMP_FILE") -ne 0 || $EXIT_CODE -ne 0 ]]; then
