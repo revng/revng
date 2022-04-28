@@ -192,7 +192,8 @@ copy_to_build_and_install(
 
 copy_to_build_and_install(
   FILES share/revng/pipelines share/revng/pipelines/isolate-translate.yml
-  share/revng/pipelines/translate.yml share/revng/pipelines/enforce-abi.yml)
+  share/revng/pipelines/translate.yml share/revng/pipelines/enforce-abi.yml
+  share/revng/pipelines/yield-assembly.yml)
 
 configure_file(runtime/early-linked.c
                "${CMAKE_BINARY_DIR}/share/revng/early-linked.c" COPYONLY)

@@ -1,0 +1,13 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+From:            Isolate
+Containers:
+ - Name:            assembly.html.yml
+   Type:            FunctionAssemblyHTML
+Steps:
+ - Name:            YieldAssembly
+   Pipes:
+     - Type:             yield-assembly
+       UsedContainers: [input, module.ll, assembly.html.yml]
