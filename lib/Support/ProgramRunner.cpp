@@ -25,8 +25,7 @@ ProgramRunner::ProgramRunner() {
   using namespace llvm::sys::path;
   std::string CurrentProgramPath = parent_path(getCurrentExecutableFullPath())
                                      .str();
-  Paths = { CurrentProgramPath,
-            (parent_path(parent_path(CurrentProgramPath)) + "/bin").str() };
+  Paths = { CurrentProgramPath, getCurrentRoot() + "/bin" };
 
   // Append PATH
   char *Path = getenv("PATH");
