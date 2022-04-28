@@ -11,11 +11,11 @@ grandiso
 cffi
 
 # revng.daemon
-Flask
-Werkzeug
 ariadne
 aiodataloader
+hypercorn
 Jinja2
+python-multipart
 xdg
 
 # revng.daemon - tests

@@ -29,11 +29,23 @@ class DaemonCommand(Command):
             **os.environ,
             "REVNG_ANALYSIS_LIBRARIES": ":".join(libraries),
             "REVNG_PIPELINES": ",".join(pipelines),
-            "FLASK_RUN_PORT": port,
-            "FLASK_APP": "revng.daemon",
-            "FLASK_ENV": "development",
+            "STARLETTE_DEBUG": "1",
         }
-        return run([py_executable, "-m", "flask", "run", "--no-reload"], options, env, True)
+        return run(
+            [
+                py_executable,
+                "-m",
+                "hypercorn",
+                "-b",
+                f"127.0.0.1:{port}",
+                "-k",
+                "asyncio",
+                "revng.daemon:app",
+            ],
+            options,
+            env,
+            True,
+        )
 
 
 commands_registry.register_command(DaemonCommand())
