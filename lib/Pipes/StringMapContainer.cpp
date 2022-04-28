@@ -25,7 +25,7 @@ StringMapContainer::cloneFiltered(const TargetsList &Targets) const {
   // Returns true if Targets contains a Target that matches the Entry in the Map
   const auto EntryIsInTargets = [&](const auto &Entry) {
     const auto &KeyMetaAddress = Entry.first;
-    pipeline::Target EntryTarget{KeyMetaAddress.toString(), *TheKind };
+    pipeline::Target EntryTarget{ KeyMetaAddress.toString(), *TheKind };
     return Targets.contains(EntryTarget);
   };
 
@@ -56,7 +56,14 @@ bool StringMapContainer::remove(const TargetsList &Targets) {
 
   auto End = Map.end();
   for (const Target &T : Targets) {
-    revng_assert(T.getPathComponents().size() == 1);
+    revng_assert(&T.getKind() == TheKind);
+
+    // if a target to remove is *, drop everything
+    if (T.getPathComponents().back().isAll()) {
+      clear();
+      return true;
+    }
+
     std::string MetaAddrStr = T.getPathComponents().back().getName();
     auto It = Map.find(MetaAddress::fromString(MetaAddrStr));
     if (It != End) {
