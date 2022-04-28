@@ -2,8 +2,9 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-revng_add_analyses_library_internal(revngYield SHARED
-                                    Assembly/LLVMDisassemblerInterface.cpp)
+revng_add_analyses_library_internal(
+  revngYield SHARED Assembly/DisassemblyHelper.cpp
+  Assembly/LLVMDisassemblerInterface.cpp)
 
 set(DISASSEMBLER_ARCHITECTURE_SUPPORT "")
 foreach(CURRENT_ARCHITECTURE AArch64 ARM Mips SystemZ X86)
