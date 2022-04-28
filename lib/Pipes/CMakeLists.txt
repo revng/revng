@@ -18,7 +18,8 @@ revng_add_library_internal(
   Pipes.cpp
   RootKind.cpp
   StringMapContainer.cpp
-  TaggedFunctionKind.cpp)
+  TaggedFunctionKind.cpp
+  Yield/Assembly.cpp)
 
 llvm_map_components_to_libnames(
   LLVM_LIBRARIES
@@ -51,8 +52,9 @@ target_link_libraries(
   revngPipes
   revngEarlyFunctionAnalysis
   revngLift
+  revngModelImporterBinary
   revngModelPasses
   revngPipeline
   revngSupport
-  revngModelImporterBinary
+  revngYield
   ${LLVM_LIBRARIES})

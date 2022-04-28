@@ -29,4 +29,7 @@ inline TaggedFunctionKind
 inline pipeline::Kind Object("Object", &RootRank);
 inline pipeline::Kind Translated("Translated", &RootRank);
 
+inline pipeline::Kind
+  FunctionAssemblyHTML("FunctionAssemblyHTML", &FunctionsRank);
+
 } // namespace revng::pipes
