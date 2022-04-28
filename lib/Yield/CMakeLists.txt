@@ -3,7 +3,7 @@
 #
 
 revng_add_analyses_library_internal(
-  revngYield SHARED Assembly/DisassemblyHelper.cpp
+  revngYield SHARED Assembly/DisassemblyHelper.cpp Assembly/HTML.cpp
   Assembly/LLVMDisassemblerInterface.cpp)
 
 set(DISASSEMBLER_ARCHITECTURE_SUPPORT "")
