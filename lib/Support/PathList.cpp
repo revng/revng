@@ -9,15 +9,12 @@
 static Logger<> Log("find-resources");
 
 std::string getCurrentExecutableFullPath() {
-
-  std::string Result;
-
   // TODO: make this optional
   llvm::SmallString<128> SelfPath("/proc/self/exe");
   llvm::SmallString<128> FullPath;
   std::error_code Err = llvm::sys::fs::real_path(SelfPath, FullPath);
   if (Err)
-    return Result;
+    revng_abort("Could not determine executable path");
 
   revng_assert(not FullPath.empty());
 
