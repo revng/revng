@@ -2,11 +2,13 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-from flask import Blueprint, render_template
+from pathlib import Path
 
-demo_blueprint = Blueprint("demo", __name__)
+from starlette.templating import Jinja2Templates
+
+module_dir = Path(__file__).parent.resolve()
+templates = Jinja2Templates(directory=module_dir / "templates")
 
 
-@demo_blueprint.route("/")
-def index():
-    return render_template("index.html")
+async def demo_page(request):
+    return templates.TemplateResponse("index.html", {"request": request})
