@@ -7,9 +7,9 @@ import argparse
 import sys
 from pathlib import Path
 
-from tuple_tree_generator import Schema, generate_python
-
 import yaml
+
+from tuple_tree_generator import Schema, generate_python
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("schema", help="YAML schema")

@@ -6,9 +6,9 @@
 import argparse
 from pathlib import Path
 
-from tuple_tree_generator import Schema, generate_jsonschema
-
 import yaml
+
+from tuple_tree_generator import Schema, generate_jsonschema
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("schema", help="YAML schema")
