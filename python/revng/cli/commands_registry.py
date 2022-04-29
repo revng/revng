@@ -4,6 +4,7 @@
 
 import argparse
 import dataclasses
+import os
 import sys
 from typing import Tuple
 
@@ -26,7 +27,8 @@ class Command:
 
 class ExternalCommand(Command):
     def __init__(self, command, path):
-        super().__init__(command, f"""see {sys.argv[0]} {" ".join(command)} --help""", False)
+        executable_name = os.path.basename(sys.argv[0])
+        super().__init__(command, f"""see {executable_name} {" ".join(command)} --help""", False)
         self.path = path
 
     def register_arguments(self, parser):
