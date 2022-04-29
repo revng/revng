@@ -57,6 +57,19 @@ llvm::Function *getAssignmentMarker(llvm::Module &M, llvm::Type *T);
 llvm::FunctionType *
 getOpaqueEVFunctionType(llvm::LLVMContext &C, llvm::ExtractValueInst *Extract);
 
+/// Key to uniquely identify an OpaqueExtractvalue in the Pool
+struct TypePair {
+  /// Type extracted
+  llvm::Type *RetType;
+  /// Aggregate type from which we are extracting a value
+  llvm::Type *StructType;
+
+  bool operator<(const TypePair &Rhs) const {
+    return RetType < Rhs.RetType
+           or (RetType == Rhs.RetType and StructType < Rhs.StructType);
+  }
+};
+
 // Initializes a pool of OpaqueExtractValue instructions, so that a new one can
 // be created on-demand.
-void initOpaqueEVPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+void initOpaqueEVPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M);

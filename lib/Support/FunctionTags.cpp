@@ -156,11 +156,18 @@ getOpaqueEVFunctionType(llvm::LLVMContext &C, llvm::ExtractValueInst *Extract) {
   return FunctionType::get(ReturnType, ArgTypes, false);
 }
 
-void initOpaqueEVPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
-  // Don't optimize these
+void initOpaqueEVPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M) {
+  // Don't optimize these calls
   Pool.addFnAttribute(llvm::Attribute::OptimizeNone);
   Pool.addFnAttribute(llvm::Attribute::NoInline);
-  Pool.setTags({ &FunctionTags::OpaqueExtractValue });
+
+  const auto &EVTag = FunctionTags::OpaqueExtractValue;
+  Pool.setTags({ &EVTag });
+
   // Initialize the pool from its internal llvm::Module if possible.
-  Pool.initializeFromReturnType(FunctionTags::AddressOf);
+  for (llvm::Function &F : EVTag.functions(M)) {
+    auto StructType = F.getFunctionType()->getParamType(0);
+    auto RetType = F.getFunctionType()->getReturnType();
+    Pool.record({ RetType, StructType }, &F);
+  }
 }
