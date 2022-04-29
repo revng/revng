@@ -34,6 +34,11 @@ llvmIntToModelType(const llvm::Type *LLVMType, const model::Binary &Model);
 extern model::QualifiedType
 parseQualifiedType(const llvm::StringRef QTString, const model::Binary &Model);
 
+/// Create a global string in the given LLVM module that contains a
+/// serialization of \a QT.
+llvm::Constant *
+serializeToLLVMString(model::QualifiedType &QT, llvm::Module &M);
+
 /// Add a pointer Qualifier of the right dimension to a given \a QT
 inline void
 addPointerQualifier(model::QualifiedType &QT, const model::Binary &Binary) {

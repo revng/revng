@@ -3,6 +3,7 @@
 //
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/Constant.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/Casting.h"
 
@@ -10,6 +11,7 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/QualifiedType.h"
 #include "revng/Model/Qualifier.h"
+#include "revng/Support/IRHelpers.h"
 
 #include "revng-c/Support/ModelHelpers.h"
 
@@ -126,6 +128,20 @@ parseQualifiedType(const llvm::StringRef QTString, const model::Binary &Model) {
   revng_assert(ParsedType.UnqualifiedType.isValid());
 
   return ParsedType;
+}
+
+llvm::Constant *
+serializeToLLVMString(model::QualifiedType &QT, llvm::Module &M) {
+  // Create a string containing a serialization of the model type
+  std::string SerializedQT;
+  {
+    llvm::raw_string_ostream StringStream(SerializedQT);
+    llvm::yaml::Output YAMLOutput(StringStream);
+    YAMLOutput << QT;
+  }
+
+  // Build a constant global string containing the serialized type
+  return buildStringPtr(&M, SerializedQT, "");
 }
 
 RecursiveCoroutine<model::QualifiedType>
