@@ -342,7 +342,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
     NAME recompilation_${TARGET_NAME}
     COMMAND
       sh -c
-      "ls ${DECOMPILED_DIR}/*.c | xargs -P $(nproc) -I FILENAME clang FILENAME --config ${CMAKE_BINARY_DIR}/${ASSETS_DIR}/compile_flags.txt -o /dev/null "
+      "cat ${DECOMPILED_DIR}/*.c | clang -x c - --config ${CMAKE_BINARY_DIR}/${ASSETS_DIR}/compile_flags.txt -o /dev/null "
   )
   set_property(
     TEST recompilation_${TARGET_NAME}

@@ -439,6 +439,7 @@ static void printTypeDefinitions(const model::Binary &Model,
 }
 
 bool dumpModelToHeader(const model::Binary &Model, llvm::raw_ostream &Header) {
+  Header << "#pragma once\n";
   Header << "#include <stdint.h>\n";
   Header << "#include <stdbool.h>\n";
   Header << "#include \"revngfloat.h\"\n\n";

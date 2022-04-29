@@ -60,6 +60,7 @@ printHelperPrototype(const llvm::Function *Func, llvm::raw_ostream &Header) {
 }
 
 bool dumpHelpersToHeader(const llvm::Module &M, llvm::raw_ostream &Header) {
+  Header << "#pragma once\n";
   Header << "#include <stdint.h>\n";
   Header << "#include <stdbool.h>\n";
   Header << "#include \"revngfloat.h\"\n\n";
