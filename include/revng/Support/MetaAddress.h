@@ -383,6 +383,26 @@ inline bool isDefaultCode(Values Type) {
   revng_abort();
 }
 
+inline llvm::StringRef getLLVMCPUFeatures(Values Type) {
+  switch (Type) {
+  case Code_arm_thumb:
+    return "+thumb-mode";
+  case Invalid:
+  case Generic32:
+  case Generic64:
+  case Code_x86:
+  case Code_mips:
+  case Code_mipsel:
+  case Code_arm:
+  case Code_x86_64:
+  case Code_systemz:
+  case Code_aarch64:
+    return "";
+  }
+
+  revng_abort();
+}
+
 } // namespace MetaAddressType
 
 /// Represents an address with a type, an address space and epoch
