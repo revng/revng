@@ -137,7 +137,6 @@ public:
   UpcastablePointer &operator=(const UpcastablePointer &Other) {
     if (&Other != this) {
       Pointer.reset(clone(Other.Pointer.get()));
-      revng_assert(Pointer.get_deleter() == Deleter);
     }
     return *this;
   }
@@ -150,7 +149,6 @@ public:
   UpcastablePointer &operator=(UpcastablePointer &&Other) {
     if (&Other != this) {
       Pointer.reset(Other.Pointer.release());
-      revng_assert(Pointer.get_deleter() == Deleter);
     }
     return *this;
   }
@@ -178,10 +176,7 @@ public:
   auto &operator*() const { return *Pointer; }
   auto *operator->() const noexcept { return Pointer.operator->(); }
 
-  void reset(pointer Other = pointer()) noexcept {
-    Pointer.reset(Other);
-    revng_assert(Pointer.get_deleter() == Deleter);
-  }
+  void reset(pointer Other = pointer()) noexcept { Pointer.reset(Other); }
 
 private:
   inner_pointer Pointer;
