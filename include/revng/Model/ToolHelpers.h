@@ -208,6 +208,10 @@ public:
 
 public:
   bool hasModule() const { return static_cast<bool>(Module); }
+  const llvm::Module &getModule() const {
+    revng_assert(hasModule());
+    return *Module;
+  }
 
   TupleTree<model::Binary> &getModel() { return Model; }
   const TupleTree<model::Binary> &getModel() const { return Model; }
