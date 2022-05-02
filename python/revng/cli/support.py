@@ -10,7 +10,7 @@ import sys
 from dataclasses import dataclass
 from itertools import chain
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, Iterable, List, NoReturn, Optional, Set, Tuple, Union
 
 from elftools.elf.dynamic import DynamicSegment
 from elftools.elf.elffile import ELFFile
@@ -48,7 +48,9 @@ def relative(path: str) -> str:
     return os.path.relpath(path, os.getcwd())
 
 
-def try_run(command, options: Options, environment: Optional[Dict[str, str]] = None):
+def try_run(
+    command, options: Options, environment: Optional[Dict[str, str]] = None, do_exec=False
+) -> Union[int, NoReturn]:
     if is_executable(command[0]):
         command = wrap(command, options.command_prefix)
 
@@ -59,18 +61,25 @@ def try_run(command, options: Options, environment: Optional[Dict[str, str]] = N
     if options.dry_run:
         return 0
 
-    signal.signal(signal.SIGINT, signal.SIG_IGN)
     if environment is None:
         environment = dict(os.environ)
-    p = subprocess.Popen(
-        command, preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL), env=environment
-    )
 
-    return p.wait()
+    if do_exec:
+        return os.execvpe(command[0], command, environment)
+    else:
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        process = subprocess.Popen(
+            command,
+            preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL),
+            env=environment,
+        )
+        return_code = process.wait()
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        return return_code
 
 
-def run(command, options: Options, environment: Optional[Dict[str, str]] = None):
-    result = try_run(command, options, environment)
+def run(command, options: Options, environment: Optional[Dict[str, str]] = None, do_exec=False):
+    result = try_run(command, options, environment, do_exec)
     if result != 0:
         log_error(f"The following command exited with {result}:\n{shlex_join(command)}")
         sys.exit(result)
