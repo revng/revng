@@ -16,11 +16,6 @@ target_link_libraries(
   revng::revngPipes
   ${LLVM_LIBRARIES})
 
-revng_add_analyses_library(revngcModelToHeaderPass revngc ModelToHeaderPass.cpp)
-
-target_link_libraries(revngcModelToHeaderPass revngcModelToHeader
-                      revng::revngModel revng::revngSupport ${LLVM_LIBRARIES})
-
 # HelpersToHeader
 
 revng_add_analyses_library(revngcHelpersToHeader revngc HelpersToHeader.cpp
@@ -35,10 +30,3 @@ target_link_libraries(
   revng::revngPipeline
   revng::revngPipes
   ${LLVM_LIBRARIES})
-
-revng_add_analyses_library(revngcHelpersToHeaderPass revngc
-                           HelpersToHeaderPass.cpp)
-
-target_link_libraries(
-  revngcHelpersToHeaderPass revng::revngModel revng::revngSupport revngcSupport
-  ${LLVM_LIBRARIES} revngcHelpersToHeader)
