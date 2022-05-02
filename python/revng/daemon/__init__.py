@@ -17,7 +17,7 @@ from starlette.responses import PlainTextResponse
 
 from revng.api._capi import initialize as capi_initialize
 
-from .demo_webpage import demo_page
+from .demo_webpage import demo_page, production_demo_page
 from .schema import SchemafulManager
 from .util import project_workdir
 
@@ -81,5 +81,8 @@ app = Starlette(
     on_shutdown=[shutdown],
 )
 
-app.add_route("/", demo_page, ["GET"])
 app.add_route("/status", status, ["GET"])
+if DEBUG:
+    app.add_route("/", demo_page, ["GET"])
+else:
+    app.add_route("/", production_demo_page, ["GET"])
