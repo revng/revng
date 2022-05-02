@@ -33,7 +33,7 @@ class DaemonCommand(Command):
             "FLASK_APP": "revng.daemon",
             "FLASK_ENV": "development",
         }
-        return run([py_executable, "-m", "flask", "run", "--no-reload"], options, env)
+        return run([py_executable, "-m", "flask", "run", "--no-reload"], options, env, True)
 
 
 commands_registry.register_command(DaemonCommand())
