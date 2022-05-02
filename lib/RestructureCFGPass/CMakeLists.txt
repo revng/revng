@@ -14,6 +14,5 @@ revng_add_analyses_library(
   RegionCFGTree.cpp
   RestructureCFG.cpp)
 
-target_link_libraries(
-  revngcRestructureCFGPass revng::revngModel revng::revngSupport
-  revngcTargetFunctionOption ${LLVM_LIBRARIES})
+target_link_libraries(revngcRestructureCFGPass revng::revngModel
+                      revng::revngSupport ${LLVM_LIBRARIES})

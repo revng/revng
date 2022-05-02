@@ -39,7 +39,6 @@
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
-#include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
 
 using llvm::AnalysisUsage;
 using llvm::APInt;
@@ -2036,12 +2035,6 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
   // Skip non-isolated functions
   if (not FunctionTags::Isolated.isTagOf(&F))
     return Changed;
-
-  // If the `-single-decompilation` option was passed from command line, skip
-  // decompilation for all the functions that are not the selected one.
-  if (not TargetFunction.empty())
-    if (not F.hasName() or not F.getName().equals(TargetFunction.c_str()))
-      return Changed;
 
   revng_log(ModelGEPLog, "Make ModelGEP for " << F.getName());
   auto Indent = LoggerIndent(ModelGEPLog);

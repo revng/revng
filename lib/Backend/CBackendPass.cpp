@@ -10,7 +10,6 @@
 #include "revng-c/RestructureCFGPass/LoadGHAST.h"
 #include "revng-c/Support/FunctionFileHelpers.h"
 #include "revng-c/Support/FunctionTags.h"
-#include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
 
 using namespace llvm;
 
@@ -47,12 +46,6 @@ bool BackendPass::runOnFunction(llvm::Function &F) {
   auto FTags = FunctionTags::TagsSet::from(&F);
   if (not FTags.contains(FunctionTags::Isolated))
     return false;
-
-  // If the `-single-decompilation` option was passed from command line, skip
-  // decompilation for all the functions that are not the selected one.
-  if (not TargetFunction.empty())
-    if (not F.getName().equals(TargetFunction.c_str()))
-      return false;
 
   // If the -c-decompiled-dir flag was passed, the decompiled function needs to
   // be written to file, in the specified directory. We initialize Out with a

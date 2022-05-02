@@ -9,10 +9,5 @@ revng_add_analyses_library(
   TwosComplementArithmeticNormalizationPass.cpp)
 
 target_link_libraries(
-  revngcIRCanonicalization
-  revngcInitModelTypes
-  revngcSupport
-  revngcTargetFunctionOption
-  revng::revngModel
-  revng::revngSupport
-  ${LLVM_LIBRARIES})
+  revngcIRCanonicalization revngcInitModelTypes revngcSupport revng::revngModel
+  revng::revngSupport ${LLVM_LIBRARIES})

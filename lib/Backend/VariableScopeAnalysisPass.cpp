@@ -16,7 +16,6 @@
 #include "revng-c/Backend/VariableScopeAnalysisPass.h"
 #include "revng-c/RestructureCFGPass/LoadGHAST.h"
 #include "revng-c/Support/FunctionTags.h"
-#include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
 
 using ValuePtrSet = VariableScopeAnalysisPass::ValuePtrSet;
 
@@ -164,12 +163,6 @@ bool VariableScopeAnalysisPass::runOnFunction(Function &F) {
   auto FTags = FunctionTags::TagsSet::from(&F);
   if (not FTags.contains(FunctionTags::Isolated))
     return false;
-
-  // If the `-single-decompilation` option was passed from command line, skip
-  // decompilation for all the functions that are not the selected one.
-  if (not TargetFunction.empty())
-    if (not F.getName().equals(TargetFunction.c_str()))
-      return false;
 
   // Get the Abstract Syntax Tree of the restructured code.
   ASTTree &GHAST = getAnalysis<LoadGHASTWrapperPass>().getGHAST(F);

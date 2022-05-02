@@ -10,7 +10,6 @@ target_link_libraries(
   revngcInitModelTypes
   revngcRestructureCFGPass
   revngcSupport
-  revngcTargetFunctionOption
   revngcTypeNames
   revng::revngModel
   revng::revngSupport

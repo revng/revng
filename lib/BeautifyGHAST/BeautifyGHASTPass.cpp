@@ -8,7 +8,6 @@
 
 #include "revng-c/BeautifyGHAST/BeautifyGHAST.h"
 #include "revng-c/RestructureCFGPass/LoadGHAST.h"
-#include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
 
 struct BeautifyGHASTPass : public llvm::FunctionPass {
   static char ID;
@@ -36,14 +35,6 @@ bool BeautifyGHASTPass::runOnFunction(llvm::Function &F) {
   // Skip functions that are not lifted
   if (not FunctionTags::TagsSet::from(&F).contains(FunctionTags::Isolated))
     return false;
-
-  // If we passed the `-single-decompilation` option to the command line, skip
-  // decompilation for all the functions that are not the selected one.
-  if (TargetFunction.size() != 0) {
-    if (!F.getName().equals(TargetFunction.c_str())) {
-      return false;
-    }
-  }
 
   // Get and beautify the Abstract Syntax Tree
   beautifyAST(F, getAnalysis<LoadGHASTWrapperPass>().getGHAST(F));

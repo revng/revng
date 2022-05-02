@@ -30,7 +30,6 @@
 #include "revng-c/RestructureCFGPass/RegionCFGTreeBB.h"
 #include "revng-c/RestructureCFGPass/RestructureCFG.h"
 #include "revng-c/RestructureCFGPass/Utils.h"
-#include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
 
 using namespace llvm;
 using namespace llvm::cl;
@@ -472,14 +471,6 @@ bool restructureCFG(Function &F, ASTTree &AST) {
   auto FTags = FunctionTags::TagsSet::from(&F);
   if (not FTags.contains(FunctionTags::Isolated))
     return false;
-
-  // If we passed the `-single-decompilation` option to the command line, skip
-  // decompilation for all the functions that are not the selected one.
-  if (TargetFunction.size() != 0) {
-    if (!F.getName().equals(TargetFunction.c_str())) {
-      return false;
-    }
-  }
 
   // Clear graph object from the previous pass.
   RegionCFG<BasicBlock *> RootCFG;

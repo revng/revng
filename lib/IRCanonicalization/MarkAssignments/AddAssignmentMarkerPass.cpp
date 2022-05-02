@@ -21,7 +21,6 @@
 
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/Mangling.h"
-#include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
 
 #include "MarkAssignments.h"
 
@@ -44,12 +43,6 @@ bool AddAssignmentMarkersPass::runOnFunction(llvm::Function &F) {
   auto FTags = FunctionTags::TagsSet::from(&F);
   if (not FTags.contains(FunctionTags::Isolated))
     return false;
-
-  // If the `-single-decompilation` option was passed from command line, skip
-  // decompilation for all the functions that are not the selected one.
-  if (not TargetFunction.empty())
-    if (not F.getName().equals(TargetFunction.c_str()))
-      return false;
 
   MarkAssignments::AssignmentMap
     Assignments = MarkAssignments::selectAssignments(F);
