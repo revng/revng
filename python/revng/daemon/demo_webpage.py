@@ -4,6 +4,7 @@
 
 from pathlib import Path
 
+from starlette.responses import PlainTextResponse
 from starlette.templating import Jinja2Templates
 
 module_dir = Path(__file__).parent.resolve()
@@ -12,3 +13,7 @@ templates = Jinja2Templates(directory=module_dir / "templates")
 
 async def demo_page(request):
     return templates.TemplateResponse("index.html", {"request": request})
+
+
+async def production_demo_page(request):
+    return PlainTextResponse("")
