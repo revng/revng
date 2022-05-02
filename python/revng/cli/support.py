@@ -48,7 +48,7 @@ def relative(path: str) -> str:
     return os.path.relpath(path, os.getcwd())
 
 
-def run(command, options: Options, environment: Optional[Dict[str, str]] = None):
+def run(command, options: Options, environment: Optional[Dict[str, str]] = None, do_exec=False):
     if is_executable(command[0]):
         command = wrap(command, options.command_prefix)
 
@@ -59,15 +59,25 @@ def run(command, options: Options, environment: Optional[Dict[str, str]] = None)
     if options.dry_run:
         return
 
-    signal.signal(signal.SIGINT, signal.SIG_IGN)
     if environment is None:
         environment = dict(os.environ)
-    p = subprocess.Popen(
-        command, preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL), env=environment
-    )
-    if p.wait() != 0:
-        log_error(f"The following command exited with {p.returncode}:\n{shlex_join(command)}")
-        sys.exit(p.returncode)
+
+    if do_exec:
+        os.execvpe(command[0], command, environment)
+    else:
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        process = subprocess.Popen(
+            command,
+            preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL),
+            env=environment,
+        )
+        return_code = process.wait()
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        if return_code != 0:
+            log_error(
+                f"The following command exited with {process.returncode}:\n{shlex_join(command)}"
+            )
+            sys.exit(process.returncode)
 
 
 def is_executable(path: str) -> bool:
