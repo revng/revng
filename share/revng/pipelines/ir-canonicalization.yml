@@ -3,14 +3,7 @@
 #
 
 Containers:
- - Name:            model_header.h
-   Type:            ModelHeaderFile
- - Name:            helpers_header.h
-   Type:            HelpersHeaderFile
- - Name:            decompiled.yml
-   Type:            DecompiledCCode
 From:            LateOptimizeForDecompilation
-Containers:
 Steps:
  - Name:            DataLayoutAnalysis
    Pipes:
@@ -29,15 +22,3 @@ Steps:
          - exit-ssa
          - twoscomplement-normalization
          - add-assignment-markers
- - Name:            PrintModelHeader
-   Pipes:
-     - Type:             ModelToHeader
-       UsedContainers: [input, model_header.h]
- - Name:            PrintHelpersHeader
-   Pipes:
-     - Type:             HelpersToHeader
-       UsedContainers: [module.ll, helpers_header.h]
- - Name:            DecompileToC
-   Pipes:
-     - Type:             CDecompilation
-       UsedContainers: [module.ll, model_header.h, helpers_header]

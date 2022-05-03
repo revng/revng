@@ -19,13 +19,11 @@
 #include "revng-c/RestructureCFGPass/GenerateAst.h"
 #include "revng-c/RestructureCFGPass/RegionCFGTree.h"
 #include "revng-c/Support/DecompilationHelpers.h"
-#include "revng-c/Support/FunctionFileHelpers.h"
 
 using std::make_unique;
 using std::unique_ptr;
 
 using namespace llvm;
-using llvm::cl::NumOccurrencesFlag;
 
 static Logger<> BeautifyLogger("beautify");
 
@@ -34,11 +32,39 @@ static cl::opt<std::string> OutputPath("short-circuit-metrics-output-dir",
                                        cl::desc("Short circuit metrics dir"),
                                        cl::value_desc("short-circuit-dir"),
                                        cl::cat(MainCategory),
-                                       NumOccurrencesFlag::Optional);
+                                       cl::Optional);
+
+static std::unique_ptr<llvm::raw_fd_ostream>
+openFunctionFile(const StringRef DirectoryPath,
+                 const StringRef FunctionName,
+                 const StringRef Suffix) {
+
+  std::error_code Error;
+  SmallString<32> FilePath = DirectoryPath;
+
+  if (FilePath.empty())
+    if ((Error = llvm::sys::fs::current_path(FilePath)))
+      revng_abort(Error.message().c_str());
+
+  if ((Error = llvm::sys::fs::make_absolute(FilePath)))
+    revng_abort(Error.message().c_str());
+
+  if ((Error = llvm::sys::fs::create_directories(FilePath)))
+    revng_abort(Error.message().c_str());
+
+  llvm::sys::path::append(FilePath, FunctionName + Suffix);
+  auto FileOStream = std::make_unique<llvm::raw_fd_ostream>(FilePath, Error);
+  if (Error) {
+    FileOStream.reset();
+    revng_abort(Error.message().c_str());
+  }
+
+  return FileOStream;
+}
 
 // Metrics counter variables
-unsigned ShortCircuitCounter = 0;
-unsigned TrivialShortCircuitCounter = 0;
+static unsigned ShortCircuitCounter = 0;
+static unsigned TrivialShortCircuitCounter = 0;
 
 using UniqueExpr = ASTTree::expr_unique_ptr;
 

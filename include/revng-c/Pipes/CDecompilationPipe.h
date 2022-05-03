@@ -32,7 +32,7 @@ public:
                                       Exactness::Exact,
                                       0,
                                       DecompiledToC,
-                                      1,
+                                      3,
                                       InputPreservation::Preserve) }) };
   }
 

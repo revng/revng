@@ -1,0 +1,17 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+Containers:
+ - Name:            decompiled.yml
+   Type:            DecompiledCCode
+From:            IRCanonicalization
+Steps:
+ - Name:            DecompileToC
+   Pipes:
+     - Type:             HelpersToHeader
+       UsedContainers: [module.ll, helpers_header.h]
+     - Type:             ModelToHeader
+       UsedContainers: [input, model_header.h]
+     - Type:             CDecompilation
+       UsedContainers: [module.ll, model_header.h, helpers_header.h, decompiled.yml]

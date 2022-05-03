@@ -66,25 +66,6 @@ using ModelTypesMap = std::map<const llvm::Value *, const model::QualifiedType>;
 static constexpr const char *StackFrameVarName = "stack";
 static constexpr const char *StackPtrVarName = "stack_ptr";
 
-using StringOpt = llvm::cl::opt<std::string>;
-static StringOpt BackendHelpersHeaderName("backend-helpers-header-name",
-                                          llvm::cl::cat(MainCategory),
-                                          llvm::cl::Optional,
-                                          llvm::cl::init("./helpers.h"),
-                                          llvm::cl::desc("Path of the header "
-                                                         "where helper "
-                                                         "declarations are "
-                                                         "located."));
-
-static StringOpt BackendTypesHeaderName("backend-types-header-name",
-                                        llvm::cl::cat(MainCategory),
-                                        llvm::cl::Optional,
-                                        llvm::cl::init("./revng-types.h"),
-                                        llvm::cl::desc("Path of the header "
-                                                       "where model types "
-                                                       "declarations are "
-                                                       "located."));
-
 static Logger<> Log{ "c-backend" };
 static Logger<> InlineLog{ "c-backend-inline" };
 
@@ -1413,7 +1394,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
   // Recursively print the body of this function
   emitGHASTNode(GHAST.getRoot());
 
-  Out << " }\n";
+  Out << "}\n";
 }
 
 void decompileFunction(const llvm::Function &LLVMFunc,
@@ -1432,20 +1413,12 @@ void decompileFunction(const llvm::Function &LLVMFunc,
     CombedAST.dumpASTOnFile(ASTFileName.str());
   }
 
-  llvm::StringRef TypesHeaderName = TypesHeader.empty() ?
-                                      BackendTypesHeaderName :
-                                      TypesHeader;
-  llvm::StringRef HelpersHeaderName = HelpersHeader.empty() ?
-                                        BackendHelpersHeaderName :
-                                        HelpersHeader;
+  revng_assert(not TypesHeader.empty());
+  revng_assert(not HelpersHeader.empty());
 
   // Print includes for model and helpers headers
-  Out << "//\n "
-      << "// Decompiled with <3 by rev.ng\n"
-      << "//\n"
-      << "\n"
-      << "#include \"" << TypesHeaderName << "\"\n"
-      << "#include \"" << HelpersHeaderName << "\"\n"
+  Out << "#include \"" << TypesHeader << "\"\n"
+      << "#include \"" << HelpersHeader << "\"\n"
       << "\n";
 
   CCodeGenerator Backend(Model, LLVMFunc, CombedAST, TopScopeVariables, Out);

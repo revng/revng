@@ -20,7 +20,7 @@ void HelpersToHeaderPipe::run(const pipeline::Context &Ctx,
                               FileContainer &HeaderFile) {
 
   std::error_code EC;
-  llvm::raw_fd_ostream Header(*HeaderFile.path(), EC);
+  llvm::raw_fd_ostream Header(HeaderFile.getOrCreatePath(), EC);
   if (EC)
     revng_abort(EC.message().c_str());
 

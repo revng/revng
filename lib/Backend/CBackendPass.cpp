@@ -8,29 +8,58 @@
 #include "revng-c/Backend/DecompileFunction.h"
 #include "revng-c/Backend/VariableScopeAnalysisPass.h"
 #include "revng-c/RestructureCFGPass/LoadGHAST.h"
-#include "revng-c/Support/FunctionFileHelpers.h"
 #include "revng-c/Support/FunctionTags.h"
 
 using namespace llvm;
 
-using llvm::cl::NumOccurrencesFlag;
+using llvm::cl::opt;
 
-static cl::opt<std::string> DecompiledDir("c-decompiled-dir",
-                                          cl::desc("decompiled C code dir"),
-                                          cl::value_desc("c-decompiled-dir"),
-                                          cl::cat(MainCategory),
-                                          NumOccurrencesFlag::Optional);
+static opt<std::string> DecompiledFile("decompiled-functions",
+                                       cl::cat(MainCategory),
+                                       cl::Optional,
+                                       cl::init(""),
+                                       cl::desc("Path of the YAML file "
+                                                "containing the decompiled C "
+                                                "functions"));
+
+static opt<std::string> HelpersHeader("helpers-header",
+                                      cl::cat(MainCategory),
+                                      cl::Optional,
+                                      cl::init(""),
+                                      cl::desc("Path of the header where "
+                                               "helper declarations are "
+                                               "located."));
+
+static opt<std::string> ModelHeader("model-header",
+                                    cl::cat(MainCategory),
+                                    cl::Optional,
+                                    cl::init(""),
+                                    cl::desc("Path of the header where "
+                                             "model types declarations "
+                                             "are located."));
 
 char BackendPass::ID = 0;
 
 using Register = RegisterPass<BackendPass>;
 static Register X("c-backend", "Decompilation Backend Pass", false, false);
 
-BackendPass::BackendPass(std::unique_ptr<llvm::raw_ostream> Out) :
-  llvm::FunctionPass{ ID }, Out{ std::move(Out) } {
-}
+BackendPass::BackendPass() : llvm::FunctionPass(ID) {
 
-BackendPass::BackendPass() : BackendPass(nullptr) {
+  revng_check(not DecompiledFile.empty(),
+              "Missing option --decompiled-functions=<filename>");
+  revng_check(not HelpersHeader.empty(),
+              "Missing option --helpers-header=<filename>");
+  revng_check(not ModelHeader.empty(),
+              "Missing option --model-header=<filename>");
+
+  std::error_code Error;
+  auto
+    DecompiledOStream = std::make_unique<llvm::raw_fd_ostream>(DecompiledFile,
+                                                               Error);
+  if (Error) {
+    DecompiledOStream.reset();
+    revng_abort(Error.message().c_str());
+  }
 }
 
 void BackendPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
@@ -47,12 +76,6 @@ bool BackendPass::runOnFunction(llvm::Function &F) {
   if (not FTags.contains(FunctionTags::Isolated))
     return false;
 
-  // If the -c-decompiled-dir flag was passed, the decompiled function needs to
-  // be written to file, in the specified directory. We initialize Out with a
-  // proper file descriptor to make it happen.
-  if (DecompiledDir.getNumOccurrences())
-    Out = openFunctionFile(DecompiledDir, F.getName(), ".c");
-
   // Get the Abstract Syntax Tree of the restructured code.
   ASTTree &GHAST = getAnalysis<LoadGHASTWrapperPass>().getGHAST(F);
 
@@ -68,7 +91,7 @@ bool BackendPass::runOnFunction(llvm::Function &F) {
   decompileFunction(F,
                     GHAST,
                     *Model.get(),
-                    *Out,
+                    *DecompiledOStream,
                     TopScopeVariables,
                     NeedsLoopVar);
 

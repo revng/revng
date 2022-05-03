@@ -32,8 +32,7 @@ void CDecompilationPipe::run(const pipeline::Context &Ctx,
   llvm::Module &Module = IRContainer.getModule();
   const model::Binary &Model = *getModelFromContext(Ctx);
 
-  for (llvm::Function &F : Module) {
-    // FIXME: filter away non-isolated (non-segregated?) functions
+  for (llvm::Function &F : FunctionTags::Isolated.functions(&Module)) {
 
     // TODO: this will eventually become a GHASTContainer for revng pipeline
     ASTTree GHAST;
@@ -42,7 +41,8 @@ void CDecompilationPipe::run(const pipeline::Context &Ctx,
     {
       restructureCFG(F, GHAST);
       // TODO: beautification should be optional, but at the moment it's not
-      // truly so (if disabled, things crash).
+      // truly so (if disabled, things crash). We should strive to make it
+      // optional for real.
       beautifyAST(F, GHAST);
     }
 
@@ -58,11 +58,12 @@ void CDecompilationPipe::run(const pipeline::Context &Ctx,
                         DecompiledStream,
                         TopScopeVariables,
                         NeedsLoopStateVar,
-                        ModelHeaderFile.path().value_or(""),
-                        HelpersHeaderFile.path().value_or(""));
+                        ModelHeaderFile.getOrCreatePath(),
+                        HelpersHeaderFile.getOrCreatePath());
       DecompiledStream.flush();
     }
 
+    // Push the C code into
     MetaAddress Key = getMetaAddressMetadata(&F, "revng.function.entry");
     DecompiledFunctions.insert_or_assign(Key, std::move(CCode));
   }
@@ -71,9 +72,12 @@ void CDecompilationPipe::run(const pipeline::Context &Ctx,
 void CDecompilationPipe::print(const pipeline::Context &Ctx,
                                llvm::raw_ostream &OS,
                                llvm::ArrayRef<std::string> Names) const {
-  revng_abort();
   OS << *revng::ResourceFinder.findFile("bin/revng");
-  OS << " helpers-to-header -i=" << Names[0] << " -o=" << Names[1] << "\n";
+  OS << " opt " << Names[0]
+     << " -restructure-cfg -beautify-ghast -collect-local-vars -c-backend";
+  OS << " --model-header=" << Names[1];
+  OS << " --helpers-header=" << Names[2];
+  OS << " --decompiled-functions=" << Names[3] << " -o /dev/null";
 }
 
 } // end namespace revng::pipes

@@ -27,12 +27,12 @@ public:
     using namespace pipeline;
     using namespace revng::pipes;
 
-    return { ContractGroup({ Contract(Binary,
-                                      Exactness::Exact,
-                                      0,
-                                      HelpersHeader,
-                                      1,
-                                      InputPreservation::Preserve) }) };
+    return { ContractGroup{ Contract(StackAccessesSegregated,
+                                     Exactness::Exact,
+                                     0,
+                                     HelpersHeader,
+                                     1,
+                                     InputPreservation::Preserve) } };
   }
 
   void run(const pipeline::Context &Ctx,

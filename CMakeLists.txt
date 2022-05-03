@@ -56,7 +56,10 @@ make_directory("${CMAKE_BINARY_DIR}/share/revng/")
 copy_to_build_and_install(
   FILES
   share/revng/pipelines
+  share/revng/pipelines/c-code-generation.yml
+  share/revng/pipelines/helpers-to-header.yml
   share/revng/pipelines/ir-canonicalization.yml
+  share/revng/pipelines/model-to-header.yml
   share/revng/pipelines/opt-for-decompilation.yml
   share/revng/pipelines/promote-stack-pointer.yml
   share/revng/pipelines/remove-lifting-artifacts.yml
@@ -166,14 +169,15 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
     APPEND
     PROPERTY FIXTURES_SETUP promote_stack_pointer_fixture_${TARGET_NAME})
 
-  # Optimize for decompilation and segregate stack accesses
+  # Optimize for Decompilation, Segregate Stack Sccesses, and run
+  # DataLayoutAnalysis
   add_test(
     NAME optimize_and_slice_stack_${TARGET_NAME}
     COMMAND
       revng --prefix=${CMAKE_BINARY_DIR} llvm pipeline
       "${OUTFOLDER}/promoted_stack_pointer.bc"
       "${OUTFOLDER}/optimized_and_sliced_stack.bc" PromoteStackPointer
-      LateOptimizeForDecompilation "*:StackAccessesSegregated")
+      DataLayoutAnalysis "*:StackAccessesSegregated")
   set_property(
     TEST optimize_and_slice_stack_${TARGET_NAME}
     APPEND
@@ -196,7 +200,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
     add_test(
       NAME psp_${TARGET_NAME}
       COMMAND
-        sh -c
+        sh -e -c
         "revng opt -S ${OUTFOLDER}/optimized_and_sliced_stack.bc | revng model dump | revng model compare - ${GROUND_TRUTH_MODEL}"
     )
     set_property(
@@ -228,18 +232,47 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
     APPEND
     PROPERTY FIXTURES_SETUP VMA_fixture_${TARGET_NAME})
 
+  # Setup directory for decompilation tests
+  set(DECOMPILED_DIR ${OUTFOLDER}/decompiled)
+  make_directory(${DECOMPILED_DIR})
+
+  # From now on the Model is read-only. Let's dump it
+  add_test(
+    NAME model_snapshot_${TARGET_NAME}
+    COMMAND
+      revng --prefix=${CMAKE_BINARY_DIR} model dump
+      "${OUTFOLDER}/optimized_and_sliced_stack.bc" -o
+      "${DECOMPILED_DIR}/model-snapshot.yml")
+  set_property(
+    TEST model_snapshot_${TARGET_NAME}
+    APPEND
+    PROPERTY DEPENDS optimize_and_slice_stack_${TARGET_NAME})
+  set_property(
+    TEST model_snapshot_${TARGET_NAME}
+    APPEND
+    PROPERTY FIXTURES_REQUIRED optimize_and_slice_stack_fixture_${TARGET_NAME})
+  set_property(
+    TEST model_snapshot_${TARGET_NAME}
+    APPEND
+    PROPERTY FIXTURES_SETUP model_snapshot_fixture_${TARGET_NAME})
+
   # tests for IR Canonicalization
   add_test(
     NAME ir_canonicalization_${TARGET_NAME}
     COMMAND
-      revng --prefix=${CMAKE_BINARY_DIR} opt -dla -make-model-gep -early-cse
-      -dce -exit-ssa -twoscomplement-normalization -add-assignment-markers
-      ${OUTFOLDER}/optimized_and_sliced_stack.bc -o
-      ${OUTFOLDER}/canonicalized.bc)
+      revng --prefix=${CMAKE_BINARY_DIR} pipeline -m
+      ${DECOMPILED_DIR}/model-snapshot.yml -i
+      DataLayoutAnalysis:module.ll:${OUTFOLDER}/optimized_and_sliced_stack.bc
+      -o IRCanonicalization:module.ll:${OUTFOLDER}/canonicalized.bc --step
+      IRCanonicalization module.ll:*:StackAccessesSegregated)
   set_property(
     TEST ir_canonicalization_${TARGET_NAME}
     APPEND
     PROPERTY DEPENDS optimize_and_slice_stack_${TARGET_NAME})
+  set_property(
+    TEST ir_canonicalization_${TARGET_NAME}
+    APPEND
+    PROPERTY DEPENDS model_snapshot_${TARGET_NAME})
   set_property(
     TEST ir_canonicalization_${TARGET_NAME}
     APPEND
@@ -247,31 +280,39 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
   set_property(
     TEST ir_canonicalization_${TARGET_NAME}
     APPEND
+    PROPERTY FIXTURES_REQUIRED model_snapshot_fixture_${TARGET_NAME})
+  set_property(
+    TEST ir_canonicalization_${TARGET_NAME}
+    APPEND
     PROPERTY FIXTURES_SETUP IRCanonicalization_fixture_${TARGET_NAME})
 
-  # setup decompilation directory
-  set(DECOMPILED_DIR ${OUTFOLDER}/decompiled)
-  make_directory(${DECOMPILED_DIR})
-
-  # test revng-model-to-header
+  # Test model header generation
   add_test(
     NAME model_to_header_${TARGET_NAME}
     COMMAND
-      revng --prefix=${CMAKE_BINARY_DIR} model to-header
-      -i=${OUTFOLDER}/canonicalized.bc -o=${DECOMPILED_DIR}/model_header.h)
+      revng --prefix=${CMAKE_BINARY_DIR} pipeline -m
+      ${DECOMPILED_DIR}/model-snapshot.yml -i
+      IRCanonicalization:module.ll:${OUTFOLDER}/canonicalized.bc -i
+      IRCanonicalization:input:/dev/null -o
+      PrintModelHeader:model_header.h:${DECOMPILED_DIR}/model_header.h --step
+      PrintModelHeader model_header.h::ModelHeader
+      # COMMAND revng --prefix=${CMAKE_BINARY_DIR} model to-header
+      # -i=${OUTFOLDER}/canonicalized.bc -o=${DECOMPILED_DIR}/model_header.h
+  )
   set_property(
     TEST model_to_header_${TARGET_NAME}
     APPEND
-    PROPERTY DEPENDS optimize_and_slice_stack_${TARGET_NAME})
-  set_property(
-    TEST model_to_header_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_SETUP ${TARGET_NAME}_model_header)
+    PROPERTY DEPENDS ir_canonicalization_${TARGET_NAME})
   set_property(
     TEST model_to_header_${TARGET_NAME}
     APPEND
     PROPERTY FIXTURES_REQUIRED IRCanonicalization_fixture_${TARGET_NAME})
-  # try to compile model headers without warnings
+  set_property(
+    TEST model_to_header_${TARGET_NAME}
+    APPEND
+    PROPERTY FIXTURES_SETUP ${TARGET_NAME}_model_header)
+
+  # Compile model headers without warnings
   add_test(
     NAME compile_model_header_${TARGET_NAME}
     COMMAND clang --config ${CMAKE_BINARY_DIR}/${ASSETS_DIR}/compile_flags.txt
@@ -284,26 +325,37 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
     TEST compile_model_header_${TARGET_NAME}
     APPEND
     PROPERTY FIXTURES_REQUIRED ${TARGET_NAME}_model_header)
+  set_property(
+    TEST compile_model_header_${TARGET_NAME}
+    APPEND
+    PROPERTY FIXTURES_SETUP ${TARGET_NAME}_model_header_recompiled)
 
-  # test revng-helpers-to-header
+  # Test helpers header generation
   add_test(
     NAME helpers_to_header_${TARGET_NAME}
     COMMAND
-      revng --prefix=${CMAKE_BINARY_DIR} helpers-to-header
-      -i=${OUTFOLDER}/canonicalized.bc -o=${DECOMPILED_DIR}/helpers_header.h)
+      revng --prefix=${CMAKE_BINARY_DIR} pipeline -m
+      ${DECOMPILED_DIR}/model-snapshot.yml -i
+      IRCanonicalization:module.ll:${OUTFOLDER}/canonicalized.bc -o
+      PrintHelpersHeader:helpers_header.h:${DECOMPILED_DIR}/helpers_header.h
+      --step PrintHelpersHeader helpers_header.h::HelpersHeader
+      # COMMAND revng --prefix=${CMAKE_BINARY_DIR} helpers-to-header
+      # -i=${OUTFOLDER}/canonicalized.bc -o=${DECOMPILED_DIR}/helpers_header.h
+  )
   set_property(
     TEST helpers_to_header_${TARGET_NAME}
     APPEND
-    PROPERTY FIXTURES_SETUP ${TARGET_NAME}_helpers_header)
-  set_property(
-    TEST helpers_to_header_${TARGET_NAME}
-    APPEND
-    PROPERTY DEPENDS optimize_and_slice_stack_${TARGET_NAME})
+    PROPERTY DEPENDS ir_canonicalization_${TARGET_NAME})
   set_property(
     TEST helpers_to_header_${TARGET_NAME}
     APPEND
     PROPERTY FIXTURES_REQUIRED IRCanonicalization_fixture_${TARGET_NAME})
-  # try to compile helpers headers without warnings
+  set_property(
+    TEST helpers_to_header_${TARGET_NAME}
+    APPEND
+    PROPERTY FIXTURES_SETUP ${TARGET_NAME}_helpers_header)
+
+  # Compile helpers headers without warnings
   add_test(
     NAME compile_helpers_header_${TARGET_NAME}
     COMMAND clang --config ${CMAKE_BINARY_DIR}/${ASSETS_DIR}/compile_flags.txt
@@ -316,17 +368,28 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
     TEST compile_helpers_header_${TARGET_NAME}
     APPEND
     PROPERTY FIXTURES_REQUIRED ${TARGET_NAME}_helpers_header)
+  set_property(
+    TEST compile_helpers_header_${TARGET_NAME}
+    APPEND
+    PROPERTY FIXTURES_SETUP ${TARGET_NAME}_helpers_header_recompiled)
 
   # test the C decompiler backend
   add_test(
     NAME decompile_${TARGET_NAME}
     COMMAND
-      revng --prefix=${CMAKE_BINARY_DIR} opt -S -restructure-cfg
-      -beautify-ghast
-      --backend-helpers-header-name=${DECOMPILED_DIR}/helpers_header.h
-      --backend-types-header-name=${DECOMPILED_DIR}/model_header.h
-      -collect-local-vars -c-backend --c-decompiled-dir=${DECOMPILED_DIR}
-      ${OUTFOLDER}/canonicalized.bc -o /dev/null)
+      revng --prefix=${CMAKE_BINARY_DIR} pipeline -m
+      ${DECOMPILED_DIR}/model-snapshot.yml -i
+      IRCanonicalization:module.ll:${OUTFOLDER}/canonicalized.bc -i
+      IRCanonicalization:model_header.h:${DECOMPILED_DIR}/model_header.h -i
+      IRCanonicalization:helpers_header.h:${DECOMPILED_DIR}/helpers_header.h -o
+      DecompileToC:decompiled.yml:${DECOMPILED_DIR}/decompiled-functions.yml
+      --step DecompileToC decompiled.yml:*:DecompiledToC
+      # opt -S -restructure-cfg -beautify-ghast -collect-local-vars -c-backend
+      # --model-header=${DECOMPILED_DIR}/model_header.h
+      # --helpers-header=${DECOMPILED_DIR}/helpers_header.h
+      # --decompiled-functions=${DECOMPILED_DIR}/decompiled-functions.yml
+      # ${OUTFOLDER}/canonicalized.bc -o /dev/null
+  )
   set_property(
     TEST decompile_${TARGET_NAME}
     APPEND
@@ -344,17 +407,33 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
   add_test(
     NAME recompilation_${TARGET_NAME}
     COMMAND
-      sh -c
-      "cat ${DECOMPILED_DIR}/*.c | clang -x c - --config ${CMAKE_BINARY_DIR}/${ASSETS_DIR}/compile_flags.txt -o /dev/null "
+      sh -e -c
+      "yq -r '.[]' ${DECOMPILED_DIR}/decompiled-functions.yml | clang -x c - --config ${CMAKE_BINARY_DIR}/${ASSETS_DIR}/compile_flags.txt -o /dev/null "
   )
   set_property(
     TEST recompilation_${TARGET_NAME}
     APPEND
-    PROPERTY DEPENDS ir_canonicalization_${TARGET_NAME})
+    PROPERTY DEPENDS decompile_${TARGET_NAME})
+  set_property(
+    TEST recompilation_${TARGET_NAME}
+    APPEND
+    PROPERTY DEPENDS compile_model_header_${TARGET_NAME})
+  set_property(
+    TEST recompilation_${TARGET_NAME}
+    APPEND
+    PROPERTY DEPENDS compile_helpers_header_${TARGET_NAME})
   set_property(
     TEST recompilation_${TARGET_NAME}
     APPEND
     PROPERTY FIXTURES_REQUIRED Decompiled_fixture_${TARGET_NAME})
+  set_property(
+    TEST recompilation_${TARGET_NAME}
+    APPEND
+    PROPERTY FIXTURES_REQUIRED ${TARGET_NAME}_model_header_recompiled)
+  set_property(
+    TEST recompilation_${TARGET_NAME}
+    APPEND
+    PROPERTY FIXTURES_REQUIRED ${TARGET_NAME}_helpers_header_recompiled)
   set_property(
     TEST recompilation_${TARGET_NAME}
     APPEND

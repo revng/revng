@@ -1,0 +1,13 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+Containers:
+ - Name:            model_header.h
+   Type:            ModelHeader
+From:            IRCanonicalization
+Steps:
+ - Name:            PrintModelHeader
+   Pipes:
+     - Type:             ModelToHeader
+       UsedContainers: [input, model_header.h]
