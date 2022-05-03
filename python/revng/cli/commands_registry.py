@@ -179,3 +179,5 @@ class CommandsRegistry:
 commands_registry = CommandsRegistry()
 commands_registry.define_namespace(("model",))
 commands_registry.define_namespace(("model", "import"))
+commands_registry.define_namespace(("yield",))
+commands_registry.define_namespace(("yield", "assembly"))
