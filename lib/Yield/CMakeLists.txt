@@ -4,7 +4,7 @@
 
 revng_add_analyses_library_internal(
   revngYield SHARED Assembly/DisassemblyHelper.cpp Assembly/HTML.cpp
-  Assembly/LLVMDisassemblerInterface.cpp)
+  Assembly/LLVMDisassemblerInterface.cpp Assembly/Plain.cpp)
 
 set(DISASSEMBLER_ARCHITECTURE_SUPPORT "")
 foreach(CURRENT_ARCHITECTURE AArch64 ARM Mips SystemZ X86)
