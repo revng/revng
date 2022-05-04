@@ -28,22 +28,22 @@
           Type: DirectBranch
         - Destination: '8'
           Type: DirectBranch
-      - End: '9'
+      - End: '5'
         Start: '4'
         Successors:
         - Destination: ":Invalid"
           Type: IndirectTailCall
-      - End: '9'
+      - End: '6'
         Start: '5'
         Successors:
         - Destination: ":Invalid"
           Type: IndirectTailCall
-      - End: '9'
+      - End: '7'
         Start: '6'
         Successors:
         - Destination: ":Invalid"
           Type: IndirectTailCall
-      - End: '9'
+      - End: '8'
         Start: '7'
         Successors:
         - Destination: ":Invalid"

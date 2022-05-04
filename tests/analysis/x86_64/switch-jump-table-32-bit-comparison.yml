@@ -25,12 +25,12 @@
           Type: DirectBranch
         - Destination: '7'
           Type: DirectBranch
-      - End: '6'
+      - End: '4'
         Start: '3'
         Successors:
         - Destination: ":Invalid"
           Type: Return
-      - End: '6'
+      - End: '5'
         Start: '4'
         Successors:
         - Destination: ":Invalid"
