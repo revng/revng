@@ -26,7 +26,7 @@
           Type: DirectBranch
         - Destination: '5'
           Type: DirectBranch
-      - End: '6'
+      - End: '5'
         Start: '4'
         Successors:
         - Destination: ":Invalid"

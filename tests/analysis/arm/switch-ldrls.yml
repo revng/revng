@@ -23,12 +23,12 @@
         Successors:
         - Destination: '7'
           Type: DirectBranch
-      - End: '7'
+      - End: '5'
         Start: '4'
         Successors:
         - Destination: ":Invalid"
           Type: Return
-      - End: '7'
+      - End: '6'
         Start: '5'
         Successors:
         - Destination: ":Invalid"
