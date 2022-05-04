@@ -42,6 +42,15 @@ static opt<std::string> InFile("i",
                                     "contain valid Model metadata."),
                                cat(DecompileCategory));
 
+static opt<std::string> ModelOverride("m",
+                                      Optional,
+                                      desc("Model YAML file. It can be used to "
+                                           "provide the Model if the input "
+                                           "LLVM IR file does not contain it, "
+                                           "or to ovverride the Model in the "
+                                           "LLVM IR input file."),
+                                      cat(DecompileCategory));
+
 int main(int Argc, const char *Argv[]) {
 
   // Enable LLVM stack trace
@@ -58,27 +67,36 @@ int main(int Argc, const char *Argv[]) {
   if (not Ok)
     std::exit(EXIT_FAILURE);
 
-  auto Buffer = llvm::MemoryBuffer::getFileOrSTDIN(InFile);
-  if (std::error_code EC = Buffer.getError())
-    revng_abort(EC.message().c_str());
-
-  // Get Model from the IR
+  // Get the IR
   llvm::SMDiagnostic Diag;
   LLVMContext Ctx;
-  std::unique_ptr<Module> M = llvm::getLazyIRModule(std::move(Buffer.get()),
-                                                    Diag,
-                                                    Ctx);
-  if (not M) {
+  std::unique_ptr<Module> Module = llvm::parseIRFile(InFile, Diag, Ctx);
+  if (not Module) {
     Diag.print(Argv[0], llvm::errs());
     std::exit(EXIT_FAILURE);
   }
 
-  TupleTree<model::Binary> Model = loadModel(*M);
+  // Load the model, either from the ModelOverride file or from the Module
+  // metadata.
+  TupleTree<model::Binary> Model;
+  if (ModelOverride.getNumOccurrences()) {
 
-  if (not Model.verify()) {
-    llvm::errs() << "Invalid Model\n";
-    std::exit(EXIT_FAILURE);
+    auto Buffer = llvm::MemoryBuffer::getFile(ModelOverride);
+    if (std::error_code EC = Buffer.getError())
+      revng_abort(EC.message().c_str());
+
+    // Deserialize the model override from YAML
+    auto M = TupleTree<model::Binary>::deserialize(Buffer.get()->getBuffer());
+    if (std::error_code EC = M.getError())
+      revng_abort(EC.message().c_str());
+
+    Model = std::move(M.get());
+  } else {
+    Model = loadModel(*Module);
   }
+
+  if (not Model.verify())
+    revng_abort("Invalid Model");
 
   std::error_code EC;
   llvm::raw_fd_ostream DecompiledOutFile{ OutFile, EC };
@@ -92,7 +110,7 @@ int main(int Argc, const char *Argv[]) {
                                         revng::pipes::DecompiledToC,
                                         *Model);
 
-  decompile(*M, *Model, DecompiledFunctions);
+  decompile(*Module, *Model, DecompiledFunctions);
 
   llvm::cantFail(DecompiledFunctions.serialize(DecompiledOutFile));
 

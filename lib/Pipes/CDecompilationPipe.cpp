@@ -32,7 +32,7 @@ void CDecompilationPipe::print(const pipeline::Context &Ctx,
                                llvm::raw_ostream &OS,
                                llvm::ArrayRef<std::string> Names) const {
   OS << *revng::ResourceFinder.findFile("bin/revng");
-  OS << " decompile -i " << Names[0] << " -o " << Names[1];
+  OS << " decompile -m model.yml -i " << Names[0] << " -o " << Names[1];
 }
 
 } // end namespace revng::pipes
