@@ -24,12 +24,12 @@ static cl::OptionCategory ThisToolCategory("Tool options", "");
 static cl::opt<std::string> PathModel(cl::Positional,
                                       cl::cat(ThisToolCategory),
                                       cl::desc("<input model>"),
-                                      cl::init("-"),
                                       cl::value_desc("model"));
 
 static cl::opt<std::string> DiffPath(cl::Positional,
                                      cl::cat(ThisToolCategory),
                                      cl::desc("<model diff>"),
+                                     cl::init("-"),
                                      cl::value_desc("model"));
 
 static ModelOutputOptions<false> Options(ThisToolCategory);
@@ -44,7 +44,7 @@ int main(int Argc, char *Argv[]) {
   if (not Model)
     ExitOnError(Model.takeError());
 
-  auto Diff = deserializeFile<TupleTreeDiff<model::Binary>>(DiffPath);
+  auto Diff = deserializeFileOrSTDIN<TupleTreeDiff<model::Binary>>(DiffPath);
   if (not Diff)
     ExitOnError(Diff.takeError());
 

@@ -343,8 +343,8 @@ def open_argument(path):
 
 def main():
     parser = argparse.ArgumentParser(description="Compare a YAML file against " "a reference.")
-    parser.add_argument("input", metavar="INPUT", help="The input file.")
     parser.add_argument("reference", metavar="REFERENCE", help="The reference file.")
+    parser.add_argument("input", metavar="INPUT", default="-", nargs="?", help="The input file.")
     parser.add_argument(
         "--exact",
         action="store_true",

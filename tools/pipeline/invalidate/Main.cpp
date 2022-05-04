@@ -6,6 +6,7 @@
 
 #include <cstdlib>
 
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/raw_os_ostream.h"
 
@@ -36,12 +37,6 @@ static cl::list<string> Targets(Positional,
                                 Required,
                                 desc("<Targets to invalidate>..."),
                                 cat(PipelineCategory));
-
-static opt<string> TargetStep("step",
-                              Required,
-                              desc("name the step in which to produce the "
-                                   "elements"),
-                              cat(PipelineCategory));
 
 static opt<string> ExecutionDirectory("p",
                                       desc("Directory from which all "
@@ -85,11 +80,13 @@ static auto makeManager() {
 
 static InvalidationMap getInvalidationMap(Runner &Pipeline) {
   InvalidationMap Invalidations;
-  auto &ToInvalidate = Invalidations[TargetStep];
 
   const auto &Registry = Pipeline.getKindsRegistry();
-  for (const auto &Target : Targets)
-    AbortOnError(parseTarget(ToInvalidate, Target, Registry));
+  for (llvm::StringRef Target : Targets) {
+    auto [StepName, Rest] = Target.split(":");
+    auto &ToInvalidate = Invalidations[StepName];
+    AbortOnError(parseTarget(ToInvalidate, Rest, Registry));
+  }
 
   return Invalidations;
 }

@@ -253,8 +253,8 @@ llvm::Expected<T> deserialize(llvm::StringRef YAMLString) {
 }
 
 template<NotTupleTreeCompatible T>
-llvm::Expected<T> deserializeFile(const llvm::StringRef &Path) {
-  auto MaybeBuffer = llvm::MemoryBuffer::getFile(Path);
+llvm::Expected<T> deserializeFileOrSTDIN(const llvm::StringRef &Path) {
+  auto MaybeBuffer = llvm::MemoryBuffer::getFileOrSTDIN(Path);
   if (not MaybeBuffer)
     return llvm::errorCodeToError(MaybeBuffer.getError());
 
