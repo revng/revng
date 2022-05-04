@@ -379,16 +379,12 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
     COMMAND
       revng --prefix=${CMAKE_BINARY_DIR} pipeline -m
       ${DECOMPILED_DIR}/model-snapshot.yml -i
-      IRCanonicalization:module.ll:${OUTFOLDER}/canonicalized.bc -i
-      IRCanonicalization:model_header.h:${DECOMPILED_DIR}/model_header.h -i
-      IRCanonicalization:helpers_header.h:${DECOMPILED_DIR}/helpers_header.h -o
+      IRCanonicalization:module.ll:${OUTFOLDER}/canonicalized.bc -o
       DecompileToC:decompiled.yml:${DECOMPILED_DIR}/decompiled-functions.yml
       --step DecompileToC decompiled.yml:*:DecompiledToC
-      # opt -S -restructure-cfg -beautify-ghast -collect-local-vars -c-backend
-      # --model-header=${DECOMPILED_DIR}/model_header.h
-      # --helpers-header=${DECOMPILED_DIR}/helpers_header.h
-      # --decompiled-functions=${DECOMPILED_DIR}/decompiled-functions.yml
-      # ${OUTFOLDER}/canonicalized.bc -o /dev/null
+      # revng --prefix=${CMAKE_BINARY_DIR} decompile -i
+      # ${OUTFOLDER}/canonicalized.bc -o -o
+      # ${DECOMPILED_DIR}/decompiled-functions.yml
   )
   set_property(
     TEST decompile_${TARGET_NAME}

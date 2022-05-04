@@ -13,11 +13,12 @@
 #include "revng/ADT/RecursiveCoroutine-coroutine.h"
 #include "revng/Support/FunctionTags.h"
 
-#include "revng-c/Backend/VariableScopeAnalysisPass.h"
 #include "revng-c/RestructureCFGPass/LoadGHAST.h"
 #include "revng-c/Support/FunctionTags.h"
 
-using ValuePtrSet = VariableScopeAnalysisPass::ValuePtrSet;
+#include "VariableScopeAnalysis.h"
+
+using ValuePtrSet = llvm::SmallPtrSet<const llvm::Value *, 32>;
 
 using llvm::BasicBlock;
 using llvm::Function;
@@ -26,22 +27,6 @@ using llvm::User;
 
 using llvm::any_of;
 using llvm::cast;
-
-char VariableScopeAnalysisPass::ID = 0;
-
-using Register = llvm::RegisterPass<VariableScopeAnalysisPass>;
-static Register X("collect-local-vars",
-                  "Collect information about which variables must be "
-                  "declared in the outermost scope",
-                  false,
-                  false);
-
-using VSA = VariableScopeAnalysisPass;
-
-void VSA::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-  AU.addRequired<LoadGHASTWrapperPass>();
-  AU.setPreservesAll();
-}
 
 /// Visit the node and all its children recursively, checking if a loop
 /// variable is needed.
@@ -155,20 +140,4 @@ ValuePtrSet collectLocalVariables(const Function &F) {
   }
 
   return VarsToDeclare;
-}
-
-bool VariableScopeAnalysisPass::runOnFunction(Function &F) {
-
-  // Skip non-isolated functions
-  auto FTags = FunctionTags::TagsSet::from(&F);
-  if (not FTags.contains(FunctionTags::Isolated))
-    return false;
-
-  // Get the Abstract Syntax Tree of the restructured code.
-  ASTTree &GHAST = getAnalysis<LoadGHASTWrapperPass>().getGHAST(F);
-
-  TopScopeVariables = collectLocalVariables(F);
-  NeedsLoopStateVar = hasLoopDispatchers(GHAST);
-
-  return false;
 }

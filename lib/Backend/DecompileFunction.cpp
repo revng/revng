@@ -34,13 +34,18 @@
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/Backend/DecompileFunction.h"
+#include "revng-c/BeautifyGHAST/BeautifyGHAST.h"
 #include "revng-c/InitModelTypes/InitModelTypes.h"
 #include "revng-c/RestructureCFGPass/ASTNode.h"
+#include "revng-c/RestructureCFGPass/ASTTree.h"
+#include "revng-c/RestructureCFGPass/RestructureCFG.h"
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
 #include "revng-c/TypeNames/LLVMTypeNames.h"
 #include "revng-c/TypeNames/ModelTypeNames.h"
+
+#include "VariableScopeAnalysis.h"
 
 using llvm::cast;
 using llvm::dyn_cast;
@@ -62,6 +67,7 @@ using model::TypedefType;
 using StringToken = llvm::SmallString<32>;
 using TokenMapT = std::map<const llvm::Value *, StringToken>;
 using ModelTypesMap = std::map<const llvm::Value *, const model::QualifiedType>;
+using ValueSet = llvm::SmallPtrSet<const llvm::Value *, 32>;
 
 static constexpr const char *StackFrameVarName = "stack";
 static constexpr const char *StackPtrVarName = "stack_ptr";
@@ -1397,14 +1403,11 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
   Out << "}\n";
 }
 
-void decompileFunction(const llvm::Function &LLVMFunc,
-                       const ASTTree &CombedAST,
-                       const Binary &Model,
-                       llvm::raw_ostream &Out,
-                       const ValueSet &TopScopeVariables,
-                       bool NeedsLocalStateVar,
-                       llvm::StringRef TypesHeader,
-                       llvm::StringRef HelpersHeader) {
+std::string decompileFunction(const llvm::Function &LLVMFunc,
+                              const ASTTree &CombedAST,
+                              const Binary &Model,
+                              const ValueSet &TopScopeVariables,
+                              bool NeedsLocalStateVar) {
 
   if (Log.isEnabled()) {
     writeToFile(Model.toString(), "model-during-c-codegen.yaml");
@@ -1413,14 +1416,45 @@ void decompileFunction(const llvm::Function &LLVMFunc,
     CombedAST.dumpASTOnFile(ASTFileName.str());
   }
 
-  revng_assert(not TypesHeader.empty());
-  revng_assert(not HelpersHeader.empty());
+  std::string Result;
 
-  // Print includes for model and helpers headers
-  Out << "#include \"" << TypesHeader << "\"\n"
-      << "#include \"" << HelpersHeader << "\"\n"
-      << "\n";
-
+  llvm::raw_string_ostream Out(Result);
   CCodeGenerator Backend(Model, LLVMFunc, CombedAST, TopScopeVariables, Out);
   Backend.emitFunction(NeedsLocalStateVar);
+  Out.flush();
+
+  return Result;
+}
+
+void decompile(llvm::Module &Module,
+               const model::Binary &Model,
+               revng::pipes::FunctionStringMap &DecompiledFunctions) {
+
+  for (llvm::Function &F : FunctionTags::Isolated.functions(&Module)) {
+
+    // TODO: this will eventually become a GHASTContainer for revng pipeline
+    ASTTree GHAST;
+
+    // Generate the GHAST and beautify it.
+    {
+      restructureCFG(F, GHAST);
+      // TODO: beautification should be optional, but at the moment it's not
+      // truly so (if disabled, things crash). We should strive to make it
+      // optional for real.
+      beautifyAST(F, GHAST);
+    }
+
+    // Generated C code for F
+    auto TopScopeVariables = collectLocalVariables(F);
+    auto NeedsLoopStateVar = hasLoopDispatchers(GHAST);
+    std::string CCode = decompileFunction(F,
+                                          GHAST,
+                                          Model,
+                                          TopScopeVariables,
+                                          NeedsLoopStateVar);
+
+    // Push the C code into
+    MetaAddress Key = getMetaAddressMetadata(&F, "revng.function.entry");
+    DecompiledFunctions.insert_or_assign(Key, std::move(CCode));
+  }
 }

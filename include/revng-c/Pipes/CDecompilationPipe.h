@@ -32,14 +32,12 @@ public:
                                       Exactness::Exact,
                                       0,
                                       DecompiledToC,
-                                      3,
+                                      1,
                                       InputPreservation::Preserve) }) };
   }
 
   void run(const pipeline::Context &Ctx,
            pipeline::LLVMContainer &IRContainer,
-           FileContainer &ModelHeaderFile,
-           FileContainer &HelpersHeaderFile,
            FunctionStringMap &DecompiledFunctionsContainer);
 
   void print(const pipeline::Context &Ctx,

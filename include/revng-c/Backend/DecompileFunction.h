@@ -4,19 +4,11 @@
 // Copyright rev.ng Labs Srl. See LICENSE.md for details.
 //
 
+#include "llvm/IR/Module.h"
+
 #include "revng/Model/Binary.h"
+#include "revng/Pipes/FunctionStringMap.h"
 
-#include "revng-c/Backend/VariableScopeAnalysisPass.h"
-#include "revng-c/InitModelTypes/InitModelTypes.h"
-#include "revng-c/RestructureCFGPass/ASTTree.h"
-
-using ValueSet = VariableScopeAnalysisPass::ValuePtrSet;
-
-void decompileFunction(const llvm::Function &F,
-                       const ASTTree &CombedAST,
-                       const model::Binary &Model,
-                       llvm::raw_ostream &O,
-                       const ValueSet &TopScopeVariables,
-                       bool NeedsLocalStateVar,
-                       llvm::StringRef TypesHeader = "",
-                       llvm::StringRef HelpersHeader = "");
+void decompile(llvm::Module &M,
+               const model::Binary &Model,
+               revng::pipes::FunctionStringMap &DecompiledFunctions);

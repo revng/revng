@@ -7,8 +7,6 @@ revng_add_analyses_library(revngcPipes revngc CDecompilationPipe.cpp)
 target_link_libraries(
   revngcPipes
   revngcBackend
-  revngcBeautifyGHAST
-  revngcRestructureCFGPass
   revng::revngModel
   revng::revngSupport
   revng::revngPipeline

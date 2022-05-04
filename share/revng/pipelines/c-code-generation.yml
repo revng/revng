@@ -14,4 +14,4 @@ Steps:
      - Type:             ModelToHeader
        UsedContainers: [input, model_header.h]
      - Type:             CDecompilation
-       UsedContainers: [module.ll, model_header.h, helpers_header.h, decompiled.yml]
+       UsedContainers: [module.ll, decompiled.yml]
