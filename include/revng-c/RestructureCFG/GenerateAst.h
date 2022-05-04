@@ -27,11 +27,11 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Support/IRHelpers.h"
 
-#include "revng-c/RestructureCFGPass/ASTTree.h"
-#include "revng-c/RestructureCFGPass/BasicBlockNodeBB.h"
-#include "revng-c/RestructureCFGPass/MetaRegionBB.h"
-#include "revng-c/RestructureCFGPass/RegionCFGTree.h"
-#include "revng-c/RestructureCFGPass/Utils.h"
+#include "revng-c/RestructureCFG/ASTTree.h"
+#include "revng-c/RestructureCFG/BasicBlockNodeBB.h"
+#include "revng-c/RestructureCFG/MetaRegionBB.h"
+#include "revng-c/RestructureCFG/RegionCFGTree.h"
+#include "revng-c/RestructureCFG/Utils.h"
 
 // Helper function that visit an AST tree and creates the sequence nodes
 inline ASTNode *createSequence(ASTTree &Tree, ASTNode *RootNode) {

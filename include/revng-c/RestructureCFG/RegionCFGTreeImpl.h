@@ -26,11 +26,11 @@
 #include "revng/ADT/ReversePostOrderTraversal.h"
 #include "revng/Support/IRHelpers.h"
 
-#include "revng-c/RestructureCFGPass/ASTTree.h"
-#include "revng-c/RestructureCFGPass/BasicBlockNodeBB.h"
-#include "revng-c/RestructureCFGPass/MetaRegionBB.h"
-#include "revng-c/RestructureCFGPass/RegionCFGTree.h"
-#include "revng-c/RestructureCFGPass/Utils.h"
+#include "revng-c/RestructureCFG/ASTTree.h"
+#include "revng-c/RestructureCFG/BasicBlockNodeBB.h"
+#include "revng-c/RestructureCFG/MetaRegionBB.h"
+#include "revng-c/RestructureCFG/RegionCFGTree.h"
+#include "revng-c/RestructureCFG/Utils.h"
 
 template<typename IterT>
 bool intersect(IterT I1, IterT E1, IterT I2, IterT E2) {

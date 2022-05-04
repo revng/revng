@@ -20,10 +20,10 @@ bool init_unit_test();
 #include "revng/Support/Debug.h"
 #include "revng/UnitTestHelpers/DotGraphObject.h"
 
-#include "revng-c/RestructureCFGPass/BasicBlockNode.h"
-#include "revng-c/RestructureCFGPass/BasicBlockNodeImpl.h"
-#include "revng-c/RestructureCFGPass/RegionCFGTree.h"
-#include "revng-c/RestructureCFGPass/RegionCFGTreeImpl.h"
+#include "revng-c/RestructureCFG/BasicBlockNode.h"
+#include "revng-c/RestructureCFG/BasicBlockNodeImpl.h"
+#include "revng-c/RestructureCFG/RegionCFGTree.h"
+#include "revng-c/RestructureCFG/RegionCFGTreeImpl.h"
 
 using namespace llvm;
 

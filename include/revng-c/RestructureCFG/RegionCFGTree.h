@@ -16,9 +16,9 @@
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/ADT/SmallMap.h"
 
-#include "revng-c/RestructureCFGPass/ASTTree.h"
-#include "revng-c/RestructureCFGPass/BasicBlockNodeBB.h"
-#include "revng-c/RestructureCFGPass/Utils.h"
+#include "revng-c/RestructureCFG/ASTTree.h"
+#include "revng-c/RestructureCFG/BasicBlockNodeBB.h"
+#include "revng-c/RestructureCFG/Utils.h"
 
 template<class NodeT>
 class MetaRegion;

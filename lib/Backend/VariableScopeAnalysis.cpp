@@ -13,7 +13,8 @@
 #include "revng/ADT/RecursiveCoroutine-coroutine.h"
 #include "revng/Support/FunctionTags.h"
 
-#include "revng-c/RestructureCFGPass/LoadGHAST.h"
+#include "revng-c/RestructureCFG/ASTNode.h"
+#include "revng-c/RestructureCFG/ASTTree.h"
 #include "revng-c/Support/FunctionTags.h"
 
 #include "VariableScopeAnalysis.h"

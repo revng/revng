@@ -5,7 +5,7 @@
 // Copyright rev.ng Labs Srl. See LICENSE.md for details.
 //
 
-#include "revng-c/RestructureCFGPass/BasicBlockNodeImpl.h"
+#include "revng-c/RestructureCFG/BasicBlockNodeImpl.h"
 
 // Explicit instantation for the `RegionCFG` template class.
 template class BasicBlockNode<llvm::BasicBlock *>;

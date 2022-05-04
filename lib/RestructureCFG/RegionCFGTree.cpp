@@ -5,7 +5,7 @@
 // Copyright rev.ng Labs Srl. See LICENSE.md for details.
 //
 
-#include "revng-c/RestructureCFGPass/RegionCFGTreeImpl.h"
+#include "revng-c/RestructureCFG/RegionCFGTreeImpl.h"
 
 // Explicit instantation for the `RegionCFG` template class.
 template class RegionCFG<llvm::BasicBlock *>;

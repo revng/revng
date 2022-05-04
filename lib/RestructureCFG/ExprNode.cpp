@@ -4,7 +4,7 @@
 
 #include "revng/Support/Debug.h"
 
-#include "revng-c/RestructureCFGPass/ExprNode.h"
+#include "revng-c/RestructureCFG/ExprNode.h"
 
 void ExprNode::deleteExprNode(ExprNode *E) {
   switch (E->getKind()) {

@@ -7,7 +7,7 @@
 #include <cstdlib>
 #include <type_traits>
 
-#include "revng-c/RestructureCFGPass/ASTNode.h"
+#include "revng-c/RestructureCFG/ASTNode.h"
 
 // Forward declarations.
 class ASTNode;

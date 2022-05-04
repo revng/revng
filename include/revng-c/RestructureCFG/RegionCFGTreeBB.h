@@ -12,8 +12,8 @@ namespace llvm {
 class BasicBlock;
 } // namespace llvm
 
-#include "revng-c/RestructureCFGPass/BasicBlockNodeBB.h"
-#include "revng-c/RestructureCFGPass/RegionCFGTree.h"
+#include "revng-c/RestructureCFG/BasicBlockNodeBB.h"
+#include "revng-c/RestructureCFG/RegionCFGTree.h"
 extern template class RegionCFG<llvm::BasicBlock *>;
 
 using RegionCFGBB = RegionCFG<llvm::BasicBlock *>;

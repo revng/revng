@@ -14,10 +14,10 @@
 #include "revng/Support/Debug.h"
 
 #include "revng-c/BeautifyGHAST/BeautifyGHAST.h"
-#include "revng-c/RestructureCFGPass/ASTTree.h"
-#include "revng-c/RestructureCFGPass/ExprNode.h"
-#include "revng-c/RestructureCFGPass/GenerateAst.h"
-#include "revng-c/RestructureCFGPass/RegionCFGTree.h"
+#include "revng-c/RestructureCFG/ASTTree.h"
+#include "revng-c/RestructureCFG/ExprNode.h"
+#include "revng-c/RestructureCFG/GenerateAst.h"
+#include "revng-c/RestructureCFG/RegionCFGTree.h"
 #include "revng-c/Support/DecompilationHelpers.h"
 
 using std::make_unique;

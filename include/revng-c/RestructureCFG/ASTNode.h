@@ -12,8 +12,8 @@
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/Support/Casting.h"
 
-#include "revng-c/RestructureCFGPass/BasicBlockNodeBB.h"
-#include "revng-c/RestructureCFGPass/ExprNode.h"
+#include "revng-c/RestructureCFG/BasicBlockNodeBB.h"
+#include "revng-c/RestructureCFG/ExprNode.h"
 
 // Forward declarations
 namespace llvm {

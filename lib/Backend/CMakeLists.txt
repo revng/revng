@@ -9,7 +9,7 @@ target_link_libraries(
   revngcBackend
   revngcBeautifyGHAST
   revngcInitModelTypes
-  revngcRestructureCFGPass
+  revngcRestructureCFG
   revngcSupport
   revngcTypeNames
   revng::revngModel

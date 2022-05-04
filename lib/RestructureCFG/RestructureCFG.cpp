@@ -1,6 +1,3 @@
-/// \file Restructure.cpp
-/// FunctionPass that applies the comb to the RegionCFG of a function
-
 //
 // Copyright rev.ng Labs Srl. See LICENSE.md for details.
 //
@@ -22,14 +19,13 @@
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
-#include "revng-c/RestructureCFGPass/ASTTree.h"
-#include "revng-c/RestructureCFGPass/BasicBlockNodeImpl.h"
-#include "revng-c/RestructureCFGPass/GenerateAst.h"
-#include "revng-c/RestructureCFGPass/LoadGHAST.h"
-#include "revng-c/RestructureCFGPass/MetaRegionBB.h"
-#include "revng-c/RestructureCFGPass/RegionCFGTreeBB.h"
-#include "revng-c/RestructureCFGPass/RestructureCFG.h"
-#include "revng-c/RestructureCFGPass/Utils.h"
+#include "revng-c/RestructureCFG/ASTTree.h"
+#include "revng-c/RestructureCFG/BasicBlockNodeImpl.h"
+#include "revng-c/RestructureCFG/GenerateAst.h"
+#include "revng-c/RestructureCFG/MetaRegionBB.h"
+#include "revng-c/RestructureCFG/RegionCFGTreeBB.h"
+#include "revng-c/RestructureCFG/RestructureCFG.h"
+#include "revng-c/RestructureCFG/Utils.h"
 
 using namespace llvm;
 using namespace llvm::cl;
@@ -392,22 +388,10 @@ removeFromRPOT(std::vector<BasicBlockNodeBB *> &RPOT, BasicBlockNodeBB *Node) {
              RPOT.end());
 }
 
-char RestructureCFG::ID = 0;
-static RegisterPass<RestructureCFG> X("restructure-cfg",
-                                      "Apply RegionCFG restructuring "
-                                      "transformation",
-                                      true,
-                                      true);
-
 static cl::opt<std::string> MetricsOutputPath("restructure-metrics-output-dir",
                                               desc("Restructure metrics dir"),
                                               value_desc("restructure-dir"),
                                               cat(MainCategory));
-
-void RestructureCFG::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-  AU.setPreservesAll();
-  AU.addRequired<LoadGHASTWrapperPass>();
-}
 
 static void LogMetaRegions(const MetaRegionBBPtrVect &MetaRegions,
                            const std::string &HeaderMsg) {
@@ -1158,10 +1142,4 @@ bool restructureCFG(Function &F, ASTTree &AST) {
   }
 
   return false;
-}
-
-bool RestructureCFG::runOnFunction(Function &F) {
-
-  ASTTree &AST = getAnalysis<LoadGHASTWrapperPass>().getGHAST(F);
-  return restructureCFG(F, AST);
 }

@@ -11,9 +11,9 @@
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Instructions.h"
 
-#include "revng-c/RestructureCFGPass/BasicBlockNode.h"
-#include "revng-c/RestructureCFGPass/RegionCFGTreeBB.h"
-#include "revng-c/RestructureCFGPass/Utils.h"
+#include "revng-c/RestructureCFG/BasicBlockNode.h"
+#include "revng-c/RestructureCFG/RegionCFGTreeBB.h"
+#include "revng-c/RestructureCFG/Utils.h"
 
 // Trait exposing the weight of a generic object wrapped by `BasicBlockNode`.
 template<class T>

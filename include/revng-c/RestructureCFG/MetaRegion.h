@@ -12,7 +12,7 @@
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/iterator_range.h"
 
-#include "revng-c/RestructureCFGPass/RegionCFGTreeBB.h"
+#include "revng-c/RestructureCFG/RegionCFGTreeBB.h"
 
 template<class NodeT>
 class BasicBlockNode;

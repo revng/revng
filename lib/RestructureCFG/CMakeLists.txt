@@ -3,16 +3,15 @@
 #
 
 revng_add_analyses_library(
-  revngcRestructureCFGPass
+  revngcRestructureCFG
   revngc
   ASTNode.cpp
   ASTTree.cpp
   BasicBlockNode.cpp
   ExprNode.cpp
-  LoadGHAST.cpp
   MetaRegion.cpp
   RegionCFGTree.cpp
   RestructureCFG.cpp)
 
-target_link_libraries(revngcRestructureCFGPass revng::revngModel
+target_link_libraries(revngcRestructureCFG revng::revngModel
                       revng::revngSupport ${LLVM_LIBRARIES})

@@ -9,8 +9,8 @@
 #include <memory>
 #include <set>
 
-#include "revng-c/RestructureCFGPass/ASTNode.h"
-#include "revng-c/RestructureCFGPass/BasicBlockNodeBB.h"
+#include "revng-c/RestructureCFG/ASTNode.h"
+#include "revng-c/RestructureCFG/BasicBlockNodeBB.h"
 
 // TODO: move the definition of this object in an unique place, to avoid using
 // an extern declaration

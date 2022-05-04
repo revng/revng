@@ -8,9 +8,9 @@
 
 #include "llvm/Support/raw_os_ostream.h"
 
-#include "revng-c/RestructureCFGPass/ASTNode.h"
-#include "revng-c/RestructureCFGPass/ASTTree.h"
-#include "revng-c/RestructureCFGPass/Utils.h"
+#include "revng-c/RestructureCFG/ASTNode.h"
+#include "revng-c/RestructureCFG/ASTTree.h"
+#include "revng-c/RestructureCFG/Utils.h"
 
 using namespace llvm;
 using ASTNodeMap = std::map<ASTNode *, ASTNode *>;

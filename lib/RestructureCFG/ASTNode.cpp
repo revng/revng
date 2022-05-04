@@ -11,7 +11,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/Constants.h"
 
-#include "revng-c/RestructureCFGPass/ASTNode.h"
+#include "revng-c/RestructureCFG/ASTNode.h"
 
 using namespace llvm;
 

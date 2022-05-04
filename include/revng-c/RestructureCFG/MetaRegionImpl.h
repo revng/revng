@@ -9,8 +9,8 @@
 #include <utility>
 #include <vector>
 
-#include "revng-c/RestructureCFGPass/BasicBlockNodeBB.h"
-#include "revng-c/RestructureCFGPass/MetaRegion.h"
+#include "revng-c/RestructureCFG/BasicBlockNodeBB.h"
+#include "revng-c/RestructureCFG/MetaRegion.h"
 
 template<class NodeT>
 void MetaRegion<NodeT>::replaceNodes(BasicBlockNodeTUPVect &N) {
