@@ -8,10 +8,11 @@ revng_add_analyses_library(
   ASTNode.cpp
   ASTTree.cpp
   BasicBlockNode.cpp
+  BeautifyGHAST.cpp
   ExprNode.cpp
   MetaRegion.cpp
   RegionCFGTree.cpp
   RestructureCFG.cpp)
 
-target_link_libraries(revngcRestructureCFG revng::revngModel
+target_link_libraries(revngcRestructureCFG revngcSupport revng::revngModel
                       revng::revngSupport ${LLVM_LIBRARIES})

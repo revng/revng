@@ -34,10 +34,10 @@
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/Backend/DecompileFunction.h"
-#include "revng-c/BeautifyGHAST/BeautifyGHAST.h"
 #include "revng-c/InitModelTypes/InitModelTypes.h"
 #include "revng-c/RestructureCFG/ASTNode.h"
 #include "revng-c/RestructureCFG/ASTTree.h"
+#include "revng-c/RestructureCFG/BeautifyGHAST.h"
 #include "revng-c/RestructureCFG/RestructureCFG.h"
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/IRHelpers.h"

@@ -7,7 +7,6 @@ revng_add_analyses_library(revngcBackend revngc DecompileFunction.cpp
 
 target_link_libraries(
   revngcBackend
-  revngcBeautifyGHAST
   revngcInitModelTypes
   revngcRestructureCFG
   revngcSupport

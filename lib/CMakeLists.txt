@@ -3,7 +3,6 @@
 #
 
 add_subdirectory(Backend)
-add_subdirectory(BeautifyGHAST)
 add_subdirectory(DataLayoutAnalysis)
 add_subdirectory(IRCanonicalization)
 add_subdirectory(HeadersGeneration)

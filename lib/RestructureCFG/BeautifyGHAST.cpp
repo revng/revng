@@ -13,8 +13,8 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
-#include "revng-c/BeautifyGHAST/BeautifyGHAST.h"
 #include "revng-c/RestructureCFG/ASTTree.h"
+#include "revng-c/RestructureCFG/BeautifyGHAST.h"
 #include "revng-c/RestructureCFG/ExprNode.h"
 #include "revng-c/RestructureCFG/GenerateAst.h"
 #include "revng-c/RestructureCFG/RegionCFGTree.h"
