@@ -83,6 +83,11 @@ public:
     return Map.insert_or_assign(Key, std::move(Value));
   };
 
+  bool contains(MetaAddress Key) const { return Map.contains(Key); }
+
+  Iterator find(MetaAddress Key) { return Map.find(Key); }
+  ConstIterator find(MetaAddress Key) const { return Map.find(Key); }
+
   Iterator begin() { return Map.begin(); }
   Iterator end() { return Map.end(); }
 
