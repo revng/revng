@@ -299,7 +299,7 @@ public:
     Pipe->dump(OS, Indentation + 1);
   }
 
-  void dump() const { dump(dbg); }
+  void dump() const debug_function { dump(dbg); }
 
 private:
   template<typename PipeType>
