@@ -75,17 +75,21 @@ Error PECOFFImporter::import() {
     }
     const object::coff_section *CoffRef = *SecOrErr;
 
-    // VirtualSize might be larger than SizeOfRawData (extra data at the end of
-    // the section) or viceversa (data mapped in memory but not present in
-    // memory, e.g., .bss)
-    uint64_t SegmentSize = std::min(CoffRef->VirtualSize,
-                                    CoffRef->SizeOfRawData);
-
     MetaAddress Start = ImageBase + u64(CoffRef->VirtualAddress);
     Segment Segment({ Start, u64(CoffRef->VirtualSize) });
 
     Segment.StartOffset = CoffRef->PointerToRawData;
-    Segment.FileSize = Segment.StartOffset + SegmentSize;
+
+    // VirtualSize might be larger than SizeOfRawData (extra data at the end of
+    // the section) or viceversa (data mapped in memory but not present in
+    // memory, e.g., .bss)
+    Segment.FileSize = CoffRef->SizeOfRawData;
+
+    // Since it is possible that the file size is greater than VirtualSize
+    // because SizeOfRawData is rounded, but VirtualSize is not, we work it
+    // around here by using maximum of these two values for the VirtSize.
+    if (Segment.FileSize > Segment.VirtualSize)
+      Segment.VirtualSize = Segment.FileSize;
 
     Segment.IsReadable = CoffRef->Characteristics & COFF::IMAGE_SCN_MEM_READ;
     Segment.IsWriteable = CoffRef->Characteristics & COFF::IMAGE_SCN_MEM_WRITE;
@@ -94,6 +98,26 @@ Error PECOFFImporter::import() {
 
     model::TypePath StructPath = createEmptyStruct(*Model, Segment.VirtualSize);
     Segment.Type = model::QualifiedType(std::move(StructPath), {});
+
+    // NOTE: Unlike ELF, PE/COFF does not have segments. Instead, it has
+    // sections only. All the raw data in a section must be loaded
+    // contiguously. Segments just map file range to virtual address space
+    // range.
+    auto SectionStart = ImageBase + u64(CoffRef->VirtualAddress);
+    uint64_t Size = u64(CoffRef->VirtualSize);
+    auto SectionEnd = SectionStart + Size;
+
+    if (SectionStart.isValid() and SectionEnd.isValid()
+        and SectionStart.addressLowerThan(SectionEnd)) {
+      model::Section NewSection(SectionStart, Size);
+      if (auto SectionName = TheBinary.getSectionName(CoffRef))
+        NewSection.Name = SectionName->str();
+      NewSection.ContainsCode = Segment.IsExecutable;
+      revng_assert(NewSection.verify(true));
+      Segment.Sections.insert(std::move(NewSection));
+    } else {
+      revng_log(Log, "Found an invalid section");
+    }
 
     Segment.verify(true);
     Model->Segments.insert(std::move(Segment));
