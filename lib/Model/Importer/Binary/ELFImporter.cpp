@@ -408,26 +408,22 @@ void ELFImporter<T, HasAddend>::parseSymbols(object::ELFFile<T> &TheELF,
   for (auto &Symbol : *ELFSymbols) {
     auto MaybeName = expectedToOptional(Symbol.getName(StrtabContent));
 
-    bool IsCode = Symbol.getType() == ELF::STT_FUNC;
     if ((MaybeName and shouldIgnoreSymbol(*MaybeName))
         or (Symbol.st_shndx == ELF::SHN_UNDEF))
       continue;
 
+    bool IsCode = Symbol.getType() == ELF::STT_FUNC;
+    if (!IsCode)
+      continue;
+
     MetaAddress Address = MetaAddress::invalid();
-
-    if (IsCode)
-      Address = relocate(fromPC(Symbol.st_value));
-    else
-      Address = relocate(fromGeneric(Symbol.st_value));
-
-    if (IsCode) {
-      auto It = Model->Functions.find(Address);
-      if (It == Model->Functions.end()) {
-        model::Function &Function = Model->Functions[Address];
-        Function.Type = model::FunctionType::Regular;
-        if (MaybeName)
-          Function.OriginalName = *MaybeName;
-      }
+    Address = relocate(fromPC(Symbol.st_value));
+    auto It = Model->Functions.find(Address);
+    if (It == Model->Functions.end()) {
+      model::Function &Function = Model->Functions[Address];
+      Function.Type = model::FunctionType::Regular;
+      if (MaybeName)
+        Function.OriginalName = *MaybeName;
     }
   }
 }
