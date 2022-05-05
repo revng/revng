@@ -50,6 +50,8 @@ inline uint64_t getSize(Values V) {
 Values fromELFRelocation(model::Architecture::Values Architecture,
                          unsigned char ELFRelocation);
 
+Values formCOFFRelocation(model::Architecture::Values Architecture);
+
 bool isELFRelocationBaseRelative(model::Architecture::Values Architecture,
                                  unsigned char ELFRelocation);
 

@@ -561,6 +561,23 @@ bool isELFRelocationBaseRelative(model::Architecture::Values Architecture,
   }
 }
 
+Values formCOFFRelocation(model::Architecture::Values Architecture) {
+  switch (Architecture) {
+  case model::Architecture::x86:
+  case model::Architecture::arm:
+  case model::Architecture::mips:
+  case model::Architecture::mipsel:
+    return WriteAbsoluteAddress32;
+
+  case model::Architecture::x86_64:
+  case model::Architecture::aarch64:
+  case model::Architecture::systemz:
+    return WriteAbsoluteAddress64;
+  default:
+    revng_abort();
+  }
+}
+
 } // namespace RelocationType
 
 } // namespace model

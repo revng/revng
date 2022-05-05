@@ -37,6 +37,12 @@ private:
   Error parseSectionsHeaders();
   /// Parse static symbols from the file.
   void parseSymbols();
+
+  /// Parse dynamic symbols from the file.
+  void parseImportedSymbols();
+  using ImportedSymbolRange = iterator_range<imported_symbol_iterator>;
+  void recordImportedFunctions(ImportedSymbolRange Range,
+                               uint32_t ImportAddressTableEntry);
 };
 
 Error PECOFFImporter::parseSectionsHeaders() {
@@ -70,7 +76,7 @@ Error PECOFFImporter::parseSectionsHeaders() {
   }
 
   // Read sections
-  for (const llvm::object::SectionRef &SecRef : TheBinary.sections()) {
+  for (const SectionRef &SecRef : TheBinary.sections()) {
     unsigned Id = TheBinary.getSectionID(SecRef);
     Expected<const object::coff_section *> SecOrErr = TheBinary.getSection(Id);
     if (not SecOrErr) {
@@ -156,12 +162,90 @@ void PECOFFImporter::parseSymbols() {
   }
 }
 
+void PECOFFImporter::recordImportedFunctions(ImportedSymbolRange Range,
+                                             uint32_t ImportAddressTableEntry) {
+
+  // Index of entries within import table.
+  uint32_t Index = 0;
+  for (const ImportedSymbolRef &I : Range) {
+    StringRef Sym;
+    if (Error E = I.getSymbolName(Sym)) {
+      revng_log(Log, "Found an imported symbol without a name.");
+      continue;
+    }
+
+    // TODO: We may face some old linkers that use ordinal bits only
+    // so consider this info then.
+    uint16_t Ordinal;
+    if (Error E = I.getOrdinal(Ordinal)) {
+      revng_log(Log, "Found an imported symbol without an ordinal.");
+      continue;
+    }
+
+    if (Model->ImportedDynamicFunctions.count(Sym.str()))
+      continue;
+
+    // NOTE: This address will occur in the .text section as a target of a jump.
+    // Once we have the address of the entry within .idata, we can access
+    // the information about symbol.
+    auto PointerSize = getPointerSize(Model->Architecture);
+    MetaAddress AddressOfImportEntry = ImageBase + u64(ImportAddressTableEntry)
+                                       + u64(Index * PointerSize);
+
+    // Lets make a Relocation.
+    using namespace model::RelocationType;
+    auto RelocationType = formCOFFRelocation(Model->Architecture);
+    model::Relocation NewRelocation(AddressOfImportEntry, RelocationType);
+
+    auto It = Model->ImportedDynamicFunctions.insert(Sym.str()).first;
+    revng_assert(NewRelocation.verify(true));
+    It->Relocations.insert(NewRelocation);
+    ++Index;
+  }
+}
+
+void PECOFFImporter::parseImportedSymbols() {
+  for (const ImportDirectoryEntryRef &I : TheBinary.import_directories()) {
+    StringRef Name;
+    if (Error E = I.getName(Name)) {
+      revng_log(Log, "Found an imported symbol without a name.");
+      continue;
+    }
+
+    // Let's find symbols of the dll associated with Name.
+
+    uint32_t ImportLookupTableEntry;
+    if (Error E = I.getImportLookupTableRVA(ImportLookupTableEntry)) {
+      revng_log(Log, "No ImportLookupTableRVA found for an import");
+      continue;
+    }
+
+    uint32_t ImportAddressTableEntry;
+    if (Error E = I.getImportAddressTableRVA(ImportAddressTableEntry)) {
+      revng_log(Log, "No ImportAddressTableRVA found for an import");
+      continue;
+    }
+
+    // The import lookup table can be missing with certain older linkers, so
+    // fall back to the import address table in that case.
+    if (ImportLookupTableEntry) {
+      recordImportedFunctions(I.lookup_table_symbols(),
+                              ImportAddressTableEntry);
+    } else {
+      recordImportedFunctions(I.imported_symbols(), ImportAddressTableEntry);
+    }
+  }
+}
+
 Error PECOFFImporter::import() {
   if (Error E = parseSectionsHeaders())
     return E;
 
   // Parse the symbol table.
   parseSymbols();
+
+  // Parse dynamic symbol table.
+  parseImportedSymbols();
 
   return Error::success();
 }
