@@ -1408,14 +1408,6 @@ std::string decompileFunction(const llvm::Function &LLVMFunc,
                               const Binary &Model,
                               const ValueSet &TopScopeVariables,
                               bool NeedsLocalStateVar) {
-
-  if (Log.isEnabled()) {
-    writeToFile(Model.toString(), "model-during-c-codegen.yaml");
-    const llvm::Twine &ASTFileName = LLVMFunc.getName()
-                                     + "GHAST-during-c-codegen.dot";
-    CombedAST.dumpASTOnFile(ASTFileName.str());
-  }
-
   std::string Result;
 
   llvm::raw_string_ostream Out(Result);
@@ -1429,6 +1421,9 @@ std::string decompileFunction(const llvm::Function &LLVMFunc,
 void decompile(llvm::Module &Module,
                const model::Binary &Model,
                revng::pipes::FunctionStringMap &DecompiledFunctions) {
+
+  if (Log.isEnabled())
+    writeToFile(Model.toString(), "model-during-c-codegen.yaml");
 
   for (llvm::Function &F : FunctionTags::Isolated.functions(&Module)) {
 
@@ -1445,6 +1440,12 @@ void decompile(llvm::Module &Module,
       // truly so (if disabled, things crash). We should strive to make it
       // optional for real.
       beautifyAST(F, GHAST);
+    }
+
+    if (Log.isEnabled()) {
+      const llvm::Twine &ASTFileName = F.getName()
+                                       + "GHAST-during-c-codegen.dot";
+      GHAST.dumpASTOnFile(ASTFileName.str());
     }
 
     // Generated C code for F
