@@ -16,6 +16,7 @@ revng_add_analyses_library(
 target_link_libraries(
   revngcPromoteStackPointer
   revngcSupport
+  revng::revngABI
   revng::revngBasicAnalyses
   revng::revngEarlyFunctionAnalysis
   revng::revngModel

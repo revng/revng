@@ -81,8 +81,10 @@ static bool updateRawFuncArgs(model::Binary &Model,
 
     // If the ModelStackArgs is an empty struct we have to fill it up, otherwise
     // it's already known and we don't have to mess it up.
-    auto *StackStruct = cast<model::StructType>(ModelStackArg);
-    if (StackStruct->Fields.empty()) {
+    auto *ModelStackStruct = cast<model::StructType>(ModelStackArg);
+    if (ModelStackStruct->Fields.empty()) {
+      revng_assert(ModelStackStruct->size());
+      auto ModelStackSize = *ModelStackStruct->size();
 
       // The stack argument on llvm IR is the last argument
       const llvm::Value *LLVMStackArg = toLLVMValue(*std::prev(LLVMArgs.end()));
@@ -92,21 +94,30 @@ static bool updateRawFuncArgs(model::Binary &Model,
       LayoutTypePtr Key{ LLVMStackArg, LayoutTypePtr::fieldNumNone };
 
       if (auto NewTypeIt = DLATypes.find(Key); NewTypeIt != DLATypes.end()) {
-        model::QualifiedType StackArgQualType = NewTypeIt->second;
-        revng_assert(StackArgQualType.Qualifiers.empty());
+        using namespace model;
+        QualifiedType DLAStackType = NewTypeIt->second;
+        revng_assert(DLAStackType.size());
+        auto DLAStackSize = *DLAStackType.size();
 
-        model::Type *DLAStackArgType = StackArgQualType.UnqualifiedType.get();
-        revng_assert(DLAStackArgType->size() <= StackStruct->Size);
-
-        if (auto *S = dyn_cast<model::StructType>(DLAStackArgType)) {
-          for (auto &Field : S->Fields)
-            StackStruct->Fields.insert(Field);
+        Type *UnqualifiedType = DLAStackType.UnqualifiedType.get();
+        auto *DLAStackStruct = dyn_cast<StructType>(UnqualifiedType);
+        if (DLAStackType.Qualifiers.empty() and DLAStackStruct != nullptr) {
+          // Import all the fields of the DLA struct that fit in
+          for (auto &Field : DLAStackStruct->Fields) {
+            revng_assert(Field.Type.size());
+            if (Field.Offset + *Field.Type.size() > ModelStackSize)
+              break;
+            ModelStackStruct->Fields.insert(Field);
+          }
           revng_log(Log, "Updated fields");
-        } else {
-          StackStruct->Fields[0].Type = StackArgQualType;
+        } else if (DLAStackSize <= ModelStackSize) {
+          // Insert a field of the type recovered by DLA at offset 0
+          ModelStackStruct->Fields[0].Type = DLAStackType;
           revng_log(Log,
                     "Updated: inserted fields at offest 0 with ID: "
-                      << DLAStackArgType->ID);
+                      << UnqualifiedType->ID);
+        } else {
+          revng_log(Log, "Couldn't import the type into the model");
         }
 
         Updated = true;

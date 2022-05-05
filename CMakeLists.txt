@@ -186,14 +186,17 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
     APPEND
     PROPERTY FIXTURES_SETUP optimize_and_slice_stack_fixture_${TARGET_NAME})
 
+  get_filename_component(BASENAME "${INPUT_FILE}" NAME_WE)
+  set(GROUND_TRUTH_MODEL
+      "${CMAKE_SOURCE_DIR}/tests/Analysis/PromoteStackPointer/${BASENAME}.yml")
   if("${CATEGORY}" STREQUAL "tests_analysis_PromoteStackPointer"
-     AND "${CONFIGURATION}" STREQUAL "dynamic_native")
-    get_filename_component(BASENAME "${INPUT_FILE}" NAME_WE)
+     AND "${CONFIGURATION}" STREQUAL "dynamic_native"
+     AND EXISTS "${GROUND_TRUTH_MODEL}")
     add_test(
       NAME psp_${TARGET_NAME}
       COMMAND
         sh -c
-        "revng opt -S ${OUTFOLDER}/optimized_and_sliced_stack.bc | revng model dump | revng model compare - ${CMAKE_SOURCE_DIR}/tests/Analysis/PromoteStackPointer/${BASENAME}.yml"
+        "revng opt -S ${OUTFOLDER}/optimized_and_sliced_stack.bc | revng model dump | revng model compare - ${GROUND_TRUTH_MODEL}"
     )
     set_property(
       TEST psp_${TARGET_NAME}
@@ -377,7 +380,37 @@ endmacro()
 
 register_derived_artifact(
   "abi-enforced-for-decompilation" # FROM_ARTIFACTS: input artifacts
-  "revng-c-passes" # NAME: name of the new aritfact
+  "" # NAME: name of the new aritfact
+  "" # SUFFIX: extension of output file
+  "FILE" # TYPE: "FILE" or "DIRECTORY"
+)
+
+macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
+  get_filename_component(BASENAME "${INPUT_FILE}" NAME_WE)
+  set(MODEL_OVERRIDE
+      "${CMAKE_SOURCE_DIR}/tests/Analysis/SegregateStackAccesses/${BASENAME}.override.yml"
+  )
+  set(FILECHECK_FILE
+      "${CMAKE_SOURCE_DIR}/tests/Analysis/SegregateStackAccesses/${BASENAME}.filecheck.ll"
+  )
+
+  if("${CATEGORY}" STREQUAL "tests_analysis_SegregateStackAccesses"
+     AND "${CONFIGURATION}" STREQUAL "dynamic_native"
+     AND EXISTS "${MODEL_OVERRIDE}"
+     AND EXISTS "${FILECHECK_FILE}")
+    set(REVNG "revng --prefix=${CMAKE_BINARY_DIR}")
+    add_test(
+      NAME segregate_stack_accesses_${TARGET_NAME}
+      COMMAND
+        bash -c
+        "${REVNG} model override-by-name ${INPUT_FILE} ${MODEL_OVERRIDE} | ${REVNG} llvm pipeline - - Lift LateOptimizeForDecompilation *:StackAccessesSegregated | ${REVNG} opt -S | FileCheck ${FILECHECK_FILE}"
+    )
+  endif()
+
+endmacro()
+register_derived_artifact(
+  "lifted" # FROM_ARTIFACTS: input artifacts
+  "" # NAME: name of the new aritfact
   "" # SUFFIX: extension of output file
   "FILE" # TYPE: "FILE" or "DIRECTORY"
 )
