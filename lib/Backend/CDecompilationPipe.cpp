@@ -8,8 +8,8 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
 
+#include "revng-c/Backend/CDecompilationPipe.h"
 #include "revng-c/Backend/DecompileFunction.h"
-#include "revng-c/Pipes/CDecompilationPipe.h"
 #include "revng-c/Pipes/Kinds.h"
 
 namespace revng::pipes {

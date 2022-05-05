@@ -3,8 +3,13 @@
 #
 
 revng_add_analyses_library(
-  revngcBackend revngc DecompileFunction.cpp DecompiledYAMLToC.cpp
-  DecompiledYAMLToCPipe.cpp VariableScopeAnalysis.cpp)
+  revngcBackend
+  revngc
+  CDecompilationPipe.cpp
+  DecompileFunction.cpp
+  DecompiledYAMLToC.cpp
+  DecompiledYAMLToCPipe.cpp
+  VariableScopeAnalysis.cpp)
 
 target_link_libraries(
   revngcBackend
