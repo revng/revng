@@ -5,7 +5,10 @@
 //
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/QualifiedType.h"
+#include "revng/Model/Type.h"
 #include "revng/Model/Types.h"
+#include "revng/Support/Generator.h"
 
 namespace abi::FunctionType {
 
@@ -38,6 +41,10 @@ public:
     struct StackSpan {
       uint64_t Offset;
       uint64_t Size;
+
+      StackSpan operator+(uint64_t Offset) const {
+        return { this->Offset + Offset, Size };
+      }
     };
 
   public:
@@ -61,20 +68,78 @@ public:
   /// from the \param Function.
   static Layout make(const model::TypePath &Function) {
     revng_assert(Function.isValid());
-    if (auto *CABI = llvm::dyn_cast<model::CABIFunctionType>(Function.get()))
+    return make(*Function.get());
+  }
+
+  static Layout make(const model::Type &Function) {
+    if (auto CABI = llvm::dyn_cast<model::CABIFunctionType>(&Function))
       return Layout(*CABI);
-    else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(Function.get()))
+    else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(&Function))
       return Layout(*Raw);
     else
       revng_abort("Layouts of non-function types are not supported.");
   }
 
 public:
-  bool verify() const;
+  bool verify() const debug_function;
+
   size_t argumentRegisterCount() const;
   size_t returnValueRegisterCount() const;
   llvm::SmallVector<model::Register::Values, 8> argumentRegisters() const;
   llvm::SmallVector<model::Register::Values, 8> returnValueRegisters() const;
+
+public:
+  void dump() const debug_function {
+    // TODO: accept an arbitrary stream
+
+    //
+    // Arguments
+    //
+    dbg << "Arguments:\n";
+    const char *Prefix = "  - ";
+    for (const Argument &A : Arguments) {
+      dbg << "  - Type: ";
+      A.Type.dump();
+      dbg << "\n";
+      dbg << "    Registers: [";
+      for (model::Register::Values Register : A.Registers)
+        dbg << " " << model::Register::getName(Register).str();
+      dbg << " ]\n";
+      dbg << "    StackSpan: ";
+      if (A.Stack) {
+        dbg << "no";
+      } else {
+        dbg << "{ Offset: " << A.Stack->Offset << ", Size: " << A.Stack->Size
+            << " }";
+      }
+      dbg << "\n";
+    }
+
+    //
+    // ReturnValue
+    //
+    dbg << "ReturnValue: \n";
+    dbg << "  Type: ";
+    ReturnValue.Type.dump();
+    dbg << "\n";
+    dbg << "  Registers: [";
+    for (model::Register::Values Register : ReturnValue.Registers)
+      dbg << " " << model::Register::getName(Register).str();
+    dbg << " ]\n";
+
+    //
+    // CalleeSavedRegisters
+    //
+    dbg << "CalleeSavedRegisters: [";
+    for (model::Register::Values Register : CalleeSavedRegisters)
+      dbg << " " << model::Register::getName(Register).str();
+    dbg << " ]\n";
+
+    //
+    // FinalStackOffset
+    //
+    dbg << "FinalStackOffset: " << FinalStackOffset << "\n";
+  }
 };
 
 } // namespace abi::FunctionType

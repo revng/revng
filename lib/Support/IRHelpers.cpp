@@ -174,6 +174,33 @@ StringRef getText(const Instruction *I, unsigned Kind) {
   }
 }
 
+Function &moveToNewFunctionType(Function &OldFunction, FunctionType &NewType) {
+  //
+  // Recreate the function as similar as possible
+  //
+  auto *NewFunction = Function::Create(&NewType,
+                                       GlobalValue::ExternalLinkage,
+                                       "",
+                                       OldFunction.getParent());
+  NewFunction->takeName(&OldFunction);
+  NewFunction->copyAttributesFrom(&OldFunction);
+  NewFunction->copyMetadata(&OldFunction, 0);
+
+  // Steal body
+  std::vector<BasicBlock *> Body;
+  for (BasicBlock &BB : OldFunction)
+    Body.push_back(&BB);
+  auto &NewBody = NewFunction->getBasicBlockList();
+  for (BasicBlock *BB : Body) {
+    BB->removeFromParent();
+    revng_assert(BB->getParent() == nullptr);
+    NewBody.push_back(BB);
+    revng_assert(BB->getParent() == NewFunction);
+  }
+
+  return *NewFunction;
+}
+
 Function *changeFunctionType(Function &OldFunction,
                              Type *NewReturnType,
                              ArrayRef<Type *> NewArguments) {
@@ -201,33 +228,12 @@ Function *changeFunctionType(Function &OldFunction,
                                              NewFunctionArguments,
                                              OldFunctionType.isVarArg());
 
-  //
-  // Recreate the function as similar as possible
-  //
-  auto *NewFunction = Function::Create(&NewFunctionType,
-                                       GlobalValue::ExternalLinkage,
-                                       "",
-                                       OldFunction.getParent());
-  NewFunction->takeName(&OldFunction);
-  NewFunction->copyAttributesFrom(&OldFunction);
-  NewFunction->copyMetadata(&OldFunction, 0);
-
-  // Steal body
-  std::vector<BasicBlock *> Body;
-  for (BasicBlock &BB : OldFunction)
-    Body.push_back(&BB);
-  auto &NewBody = NewFunction->getBasicBlockList();
-  for (BasicBlock *BB : Body) {
-    BB->removeFromParent();
-    revng_assert(BB->getParent() == nullptr);
-    NewBody.push_back(BB);
-    revng_assert(BB->getParent() == NewFunction);
-  }
+  Function &NewFunction = moveToNewFunctionType(OldFunction, NewFunctionType);
 
   // Replace arguments and copy their names
   unsigned I = 0;
   for (Argument &OldArgument : OldFunction.args()) {
-    Argument &NewArgument = *NewFunction->getArg(I);
+    Argument &NewArgument = *NewFunction.getArg(I);
     NewArgument.setName(OldArgument.getName());
     OldArgument.replaceAllUsesWith(&NewArgument);
     ++I;
@@ -235,7 +241,7 @@ Function *changeFunctionType(Function &OldFunction,
 
   // We do not delete OldFunction in order not to break call sites
 
-  return NewFunction;
+  return &NewFunction;
 }
 
 void dumpUsers(llvm::Value *V) {

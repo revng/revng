@@ -127,7 +127,8 @@ void EnforceABIImpl::run() {
   for (const model::DynamicFunction &FunctionModel :
        Binary.ImportedDynamicFunctions) {
     // TODO: have an API to go from model to llvm::Function
-    auto OldFunctionName = (Twine("dynamic_") + FunctionModel.name()).str();
+    auto OldFunctionName = (Twine("dynamic_") + FunctionModel.OriginalName)
+                             .str();
     Function *OldFunction = M.getFunction(OldFunctionName);
     revng_assert(OldFunction != nullptr);
     OldFunctions.push_back(OldFunction);
@@ -137,10 +138,12 @@ void EnforceABIImpl::run() {
     revng_assert(Prototype.verify());
 
     Function *NewFunction = recreateFunction(*OldFunction, Prototype);
-    FunctionTags::DynamicFunction.addTo(NewFunction);
 
     // EnforceABI currently does not support execution
     NewFunction->deleteBody();
+
+    // Copy metadata
+    NewFunction->copyMetadata(OldFunction, 0);
 
     OldToNew[OldFunction] = NewFunction;
   }
@@ -229,8 +232,9 @@ getLLVMReturnTypeAndArguments(llvm::Module *M, const FTLayout &Prototype) {
 
 Function *EnforceABIImpl::handleFunction(Function &OldFunction,
                                          const model::Function &FunctionModel) {
-  auto Prototype = abi::FunctionType::Layout::make(FunctionModel.Prototype);
-  Function *NewFunction = recreateFunction(OldFunction, Prototype);
+  auto Prototype = FunctionModel.prototype(Binary);
+  auto Layout = abi::FunctionType::Layout::make(Prototype);
+  Function *NewFunction = recreateFunction(OldFunction, Layout);
   FunctionTags::ABIEnforced.addTo(NewFunction);
   createPrologue(NewFunction, FunctionModel);
   return NewFunction;
@@ -253,29 +257,36 @@ Function *EnforceABIImpl::recreateFunction(Function &OldFunction,
   return NewFunction;
 }
 
+static Constant *getCSVOrUndef(Module *M, model::Register::Values Register) {
+  auto Name = model::Register::getCSVName(Register);
+  Constant *CSV = M->getGlobalVariable(Name, true);
+  if (CSV == nullptr) {
+    auto Size = model::Register::getSize(Register);
+    auto *Type = IntegerType::get(M->getContext(), Size * 8)->getPointerTo();
+    CSV = UndefValue::get(Type);
+  }
+
+  return CSV;
+}
+
 void EnforceABIImpl::createPrologue(Function *NewFunction,
                                     const model::Function &FunctionModel) {
   using model::NamedTypedRegister;
   using model::RawFunctionType;
   using model::TypedRegister;
 
-  const auto &Prototype = *cast<RawFunctionType>(FunctionModel.Prototype.get());
+  auto Prototype = FTLayout::make(FunctionModel.prototype(Binary));
 
-  SmallVector<GlobalVariable *, 8> ArgumentCSVs;
-  SmallVector<GlobalVariable *, 8> ReturnCSVs;
+  SmallVector<Constant *, 8> ArgumentCSVs;
+  SmallVector<Constant *, 8> ReturnCSVs;
 
   // We sort arguments by their CSV name
-  for (const NamedTypedRegister &TR : Prototype.Arguments) {
-    auto Name = model::Register::getCSVName(TR.Location);
-    auto *CSV = cast<GlobalVariable>(M.getGlobalVariable(Name, true));
-    ArgumentCSVs.push_back(CSV);
-  }
+  for (const FTLayout::Argument &TR : Prototype.Arguments)
+    for (model::Register::Values Register : TR.Registers)
+      ArgumentCSVs.push_back(getCSVOrUndef(&M, Register));
 
-  for (const TypedRegister &TR : Prototype.ReturnValues) {
-    auto Name = model::Register::getCSVName(TR.Location);
-    auto *CSV = cast<GlobalVariable>(M.getGlobalVariable(Name, true));
-    ReturnCSVs.push_back(CSV);
-  }
+  for (model::Register::Values Register : Prototype.ReturnValue.Registers)
+    ReturnCSVs.push_back(getCSVOrUndef(&M, Register));
 
   // Store arguments to CSVs
   BasicBlock &Entry = NewFunction->getEntryBlock();
@@ -289,7 +300,7 @@ void EnforceABIImpl::createPrologue(Function *NewFunction,
       if (auto *Return = dyn_cast<ReturnInst>(BB.getTerminator())) {
         IRBuilder<> Builder(Return);
         std::vector<Value *> ReturnValues;
-        for (GlobalVariable *ReturnCSV : ReturnCSVs)
+        for (Constant *ReturnCSV : ReturnCSVs)
           ReturnValues.push_back(Builder.CreateLoad(ReturnCSV));
 
         if (ReturnValues.size() == 1)
@@ -384,7 +395,7 @@ CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   revng_assert(Callee.getCallee() != nullptr);
 
   llvm::SmallVector<Value *, 8> Arguments;
-  llvm::SmallVector<GlobalVariable *, 8> ReturnCSVs;
+  llvm::SmallVector<Constant *, 8> ReturnCSVs;
 
   model::TypePath PrototypePath = getPrototype(Binary,
                                                Entry,
@@ -411,19 +422,12 @@ CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   //
   // Collect arguments and returns
   //
-  for (const auto &ArgumentLayout : Prototype.Arguments) {
-    for (model::Register::Values Register : ArgumentLayout.Registers) {
-      auto Name = model::Register::getCSVName(Register);
-      GlobalVariable *CSV = M.getGlobalVariable(Name, true);
-      Arguments.push_back(Builder.CreateLoad(CSV));
-    }
-  }
+  for (const auto &ArgumentLayout : Prototype.Arguments)
+    for (model::Register::Values Register : ArgumentLayout.Registers)
+      Arguments.push_back(Builder.CreateLoad(getCSVOrUndef(&M, Register)));
 
-  for (model::Register::Values Register : Prototype.ReturnValue.Registers) {
-    auto Name = model::Register::getCSVName(Register);
-    GlobalVariable *CSV = M.getGlobalVariable(Name, true);
-    ReturnCSVs.push_back(CSV);
-  }
+  for (model::Register::Values Register : Prototype.ReturnValue.Registers)
+    ReturnCSVs.push_back(getCSVOrUndef(&M, Register));
 
   //
   // Produce the call
@@ -434,7 +438,7 @@ CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
                               CallSiteBlock.Start);
   if (ReturnCSVs.size() != 1) {
     unsigned I = 0;
-    for (GlobalVariable *ReturnCSV : ReturnCSVs) {
+    for (Constant *ReturnCSV : ReturnCSVs) {
       Builder.CreateStore(Builder.CreateExtractValue(Result, { I }), ReturnCSV);
       I++;
     }

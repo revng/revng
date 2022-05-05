@@ -2,6 +2,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+import sys
+from shutil import copyfileobj
 from tempfile import NamedTemporaryFile
 
 from .commands_registry import Command, Options, commands_registry
@@ -29,9 +31,19 @@ class IRPipelineCommand(Command):
 
         with NamedTemporaryFile(
             suffix=".yml", delete=not options.keep_temporaries
-        ) as model, NamedTemporaryFile(suffix=".bc", delete=not options.keep_temporaries) as module:
+        ) as model, NamedTemporaryFile(
+            suffix=".bc", delete=not options.keep_temporaries
+        ) as module, open(  # noqa: SIM115
+            args.input, "rb"
+        ) if args.input != "-" else sys.stdin.buffer as input_file, NamedTemporaryFile(
+            suffix=".bc", delete=not options.keep_temporaries, mode="wb"
+        ) as saved_input_file:
+            # Copy so we can work with stdin too
+            copyfileobj(input_file, saved_input_file)
+            saved_input_file.flush()
+
             # Extract model
-            run_revng_command(["model", "dump", args.input, "-o", model.name], options)
+            run_revng_command(["model", "dump", saved_input_file.name, "-o", model.name], options)
 
             # Run revng-pipeline
             run_revng_command(
@@ -40,7 +52,7 @@ class IRPipelineCommand(Command):
                     "-m",
                     model.name,
                     "-i",
-                    f"""{args.__dict__["from"]}:module.ll:{args.input}""",
+                    f"""{args.__dict__["from"]}:module.ll:{saved_input_file.name}""",
                     "-o",
                     f"{args.to}:module.ll:{module.name}",
                     "--save-model",

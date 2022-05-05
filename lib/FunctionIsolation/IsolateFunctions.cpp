@@ -1024,9 +1024,10 @@ void IFI::run() {
     StringRef Name = Function.OriginalName;
     auto *NewFunction = Function::Create(IsolatedFunctionType,
                                          GlobalValue::ExternalLinkage,
-                                         "dynamic_" + Function.name(),
+                                         "dynamic_" + Function.OriginalName,
                                          TheModule);
     FunctionTags::DynamicFunction.addTo(NewFunction);
+
     auto *EntryBB = BasicBlock::Create(Context, "", NewFunction);
     throwException(EntryBB, Twine("Dynamic call ") + Name, DebugLoc());
 
@@ -1060,6 +1061,7 @@ void IFI::run() {
                                          GlobalValue::ExternalLinkage,
                                          "local_" + Function.name(),
                                          TheModule);
+    NewFunction->addFnAttr(Attribute::NullPointerIsValid);
     IsolatedFunctionsMap[Function.Entry] = NewFunction;
     FunctionTags::Isolated.addTo(NewFunction);
     revng_assert(NewFunction != nullptr);

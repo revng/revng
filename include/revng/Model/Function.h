@@ -38,6 +38,7 @@ fields:
   - name: Type
     doc: Type of the function
     type: model::FunctionType::Values
+    optional: true
   - name: StackFrameType
     doc: The type of the stack frame
     reference:

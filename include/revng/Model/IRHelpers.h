@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Instructions.h"
 
 #include "revng/Model/Binary.h"
@@ -38,4 +39,11 @@ llvmToModelFunction(const model::Binary &Binary, const llvm::Function &F) {
     return &*It;
 
   return nullptr;
+}
+
+inline llvm::IntegerType *getLLVMTypeForScalar(llvm::LLVMContext &Context,
+                                               const model::QualifiedType &QT) {
+  revng_assert(QT.isScalar());
+  revng_assert(QT.size());
+  return llvm::IntegerType::getIntNTy(Context, *QT.size() * 8);
 }

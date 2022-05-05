@@ -540,8 +540,7 @@ void FunctionEntrypointAnalyzer::serializeFunctionMetadata() {
   using namespace llvm;
 
   for (const auto &Function : Binary->Functions) {
-    if (Function.Type == FunctionTypeValue::Invalid
-        || Function.Type == FunctionTypeValue::Fake)
+    if (Function.Type == FunctionTypeValue::Fake)
       continue;
 
     auto &CFG = Oracle.at(Function.Entry).CFG;
@@ -617,7 +616,7 @@ FunctionEntrypointAnalyzer::importPrototype(model::FunctionType::Values Type,
 void FunctionEntrypointAnalyzer::importModel() {
   // Import existing functions from model
   for (const model::Function &Function : Binary->Functions) {
-    if (Function.Type == model::FunctionType::Invalid)
+    if (not Function.Prototype.isValid())
       continue;
 
     Oracle.insert(Function.Entry,
@@ -732,7 +731,7 @@ void FEA::finalizeModel(TupleTree<model::Binary> &OutputBinary) {
   // Fill up the model and build its prototype for each function
   std::set<model::Function *> Functions;
   for (model::Function &Function : OutputBinary->Functions) {
-    if (Function.Type != model::FunctionType::Invalid)
+    if (Function.Prototype.isValid())
       continue;
 
     MetaAddress EntryPC = Function.Entry;
@@ -1470,9 +1469,10 @@ FunctionEntrypointAnalyzer::createFakeFunction(llvm::BasicBlock *Entry) {
 
 void FunctionEntrypointAnalyzer::recoverCFG() {
   for (const auto &Function : Binary->Functions) {
+    revng_assert(Function.Type != model::FunctionType::Invalid);
+
     // No CFG will be recovered for `Fake` or `Invalid` functions
-    if (Function.Type == FunctionTypeValue::Invalid
-        || Function.Type == FunctionTypeValue::Fake)
+    if (Function.Type == FunctionTypeValue::Fake)
       continue;
 
     auto *Entry = GCBI->getBlockAt(Function.Entry);
@@ -2157,7 +2157,7 @@ bool EarlyFunctionAnalysis<ShouldAnalyzeABI>::runOnModule(Module &M) {
     // The intraprocedural analysis will be scheduled only for those functions
     // which have `Invalid` as type.
     auto &Function = Binary->Functions.at(getBasicBlockPC(Node->BB));
-    if (Function.Type == model::FunctionType::Invalid)
+    if (not Function.Prototype.isValid())
       EntrypointsQueue.insert(Node);
   }
 

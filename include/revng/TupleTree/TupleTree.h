@@ -135,7 +135,7 @@ public:
         InnerVisitor(Element);
     };
 
-    visitTupleTree(*Root, Visitor, [](auto) {});
+    visitTupleTree(*Root, Visitor, [](auto &) {});
   }
 
   template<typename L>
