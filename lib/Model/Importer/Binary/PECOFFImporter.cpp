@@ -43,6 +43,11 @@ private:
   using ImportedSymbolRange = iterator_range<imported_symbol_iterator>;
   void recordImportedFunctions(ImportedSymbolRange Range,
                                uint32_t ImportAddressTableEntry);
+  /// Parse delay dynamic symbols from the file.
+  void parseDelayImportedSymbols();
+  using DelayDirectoryRef = const DelayImportDirectoryEntryRef;
+  void
+  recordDelayImportedFunctions(DelayDirectoryRef &I, ImportedSymbolRange Range);
 };
 
 Error PECOFFImporter::parseSectionsHeaders() {
@@ -226,6 +231,9 @@ void PECOFFImporter::parseImportedSymbols() {
       continue;
     }
 
+    if (not Model->ImportedLibraries.insert(Name.str()).second)
+      continue;
+
     // The import lookup table can be missing with certain older linkers, so
     // fall back to the import address table in that case.
     if (ImportLookupTableEntry) {
@@ -234,6 +242,67 @@ void PECOFFImporter::parseImportedSymbols() {
     } else {
       recordImportedFunctions(I.imported_symbols(), ImportAddressTableEntry);
     }
+  }
+}
+
+void PECOFFImporter::recordDelayImportedFunctions(DelayDirectoryRef &I,
+                                                  ImportedSymbolRange Range) {
+  // Index of entries within import table.
+  uint32_t Index = 0;
+  for (const ImportedSymbolRef &S : Range) {
+    StringRef Sym;
+    if (Error E = S.getSymbolName(Sym)) {
+      revng_log(Log, "Found a delay imported symbol without a name.");
+      continue;
+    }
+
+    // TODO: We may face some old linkers that use ordinal bits only
+    // so consider this info then.
+    uint16_t Ordinal;
+    if (Error E = S.getOrdinal(Ordinal)) {
+      revng_log(Log, "Found a delay imported symbol without an ordinal.");
+      continue;
+    }
+
+    uint64_t Addr;
+    if (Error E = I.getImportAddress(Index++, Addr)) {
+      revng_log(Log, "Found a delay imported symbol without an address.");
+      continue;
+    }
+
+    if (Model->ImportedDynamicFunctions.count(Sym.str()))
+      continue;
+
+    MetaAddress AddressOfDelayImportEntry = ImageBase + u64(Addr);
+
+    // Lets make Relocation.
+    using namespace model::RelocationType;
+    auto RelocationType = formCOFFRelocation(Model->Architecture);
+    model::Relocation NewRelocation(AddressOfDelayImportEntry, RelocationType);
+    auto NewIt = Model->ImportedDynamicFunctions.insert(Sym.str()).first;
+    revng_assert(NewRelocation.verify(true));
+    NewIt->Relocations.insert(NewRelocation);
+  }
+}
+
+void PECOFFImporter::parseDelayImportedSymbols() {
+  for (DelayDirectoryRef &I : TheBinary.delay_import_directories()) {
+    StringRef Name;
+    if (Error E = I.getName(Name)) {
+      revng_log(Log, "No name of a delay imported dll.");
+      continue;
+    }
+
+    const delay_import_directory_table_entry *Table;
+    if (Error E = I.getDelayImportTable(Table)) {
+      revng_log(Log, "No delay import table found for a dll.");
+      continue;
+    }
+
+    if (not Model->ImportedLibraries.insert(Name.str()).second)
+      continue;
+
+    recordDelayImportedFunctions(I, I.imported_symbols());
   }
 }
 
@@ -246,6 +315,10 @@ Error PECOFFImporter::import() {
 
   // Parse dynamic symbol table.
   parseImportedSymbols();
+
+  // Parse delay dynamic symbol table (similar to ELF's symbols used for lazy
+  // linking).
+  parseDelayImportedSymbols();
 
   return Error::success();
 }
