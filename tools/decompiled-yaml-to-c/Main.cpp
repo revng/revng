@@ -5,10 +5,9 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Signals.h"
 
-#include "revng/Model/IRHelpers.h"
 #include "revng/Support/Debug.h"
 
-#include "revng-c/Backend/DecompileFunction.h"
+#include "revng-c/Backend/DecompiledYAMLToC.h"
 #include "revng-c/Pipes/Kinds.h"
 
 using namespace llvm::cl;
@@ -70,24 +69,25 @@ int main(int Argc, const char *Argv[]) {
     revng_abort(OutEC.message().c_str());
 
   // Read the input file into a buffer
-  auto InputBuffer = llvm::MemoryBuffer::getFile(InFile);
+  auto InputBuffer = llvm::MemoryBuffer::getFileOrSTDIN(InFile);
   if (std::error_code InEC = InputBuffer.getError())
     revng_abort(InEC.message().c_str());
 
   using revng::pipes::FunctionStringMap;
-
   model::Binary Model;
+
   FunctionStringMap Functions("" /*Name*/,
                               "application/"
                               "x.yaml.c.decompiled",
-                              revng::pipes::DecompiledToC,
+                              revng::pipes::DecompiledToYAML,
                               Model);
 
   // Deserialize the map
   llvm::cantFail(Functions.deserialize(**InputBuffer));
 
-  OutputCCodeFile << "#include \"revng-model-types.h\"\n"
-                  << "#include \"revng-qemu-helpers-types.h\"\n\n";
+  // Setup the target function to decompile. An empty Targets set means all the
+  // functions.
+  std::set<MetaAddress> Targets;
 
   if (TargetFunction.getNumOccurrences()) {
     // If the TargetFunction option was passed, only print that function body
@@ -96,18 +96,18 @@ int main(int Argc, const char *Argv[]) {
     if (Target == MetaAddress::invalid())
       revng_abort("MetaAddress of the function is invalid");
 
-    const auto &CCode = Functions[Target];
-    if (CCode.empty())
+    if (not Functions.contains(Target))
       revng_abort("Cannot find target function");
 
-    OutputCCodeFile << CCode;
-  } else {
-    // Otherwise print all the Functions' bodies
-    for (const auto &[MetaAddress, CFunction] : Functions)
-      OutputCCodeFile << CFunction << '\n';
+    Targets.insert(Target);
   }
 
+  printSingleCFile(OutputCCodeFile, Functions, Targets);
+
   OutputCCodeFile.flush();
+  OutEC = OutputCCodeFile.error();
+  if (OutEC)
+    revng_abort(OutEC.message().c_str());
 
   return 0;
 }

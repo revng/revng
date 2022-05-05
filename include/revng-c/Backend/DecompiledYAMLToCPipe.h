@@ -20,25 +20,25 @@
 
 namespace revng::pipes {
 
-class CDecompilationPipe {
+class DecompiledYAMLToCPipe {
 public:
-  static constexpr auto Name = "CDecompilation";
+  static constexpr auto Name = "DecompiledYAMLToC";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;
     using namespace revng::pipes;
 
-    return { ContractGroup({ Contract(StackAccessesSegregated,
+    return { ContractGroup({ Contract(DecompiledToYAML,
                                       Exactness::Exact,
                                       0,
-                                      DecompiledToYAML,
+                                      DecompiledToC,
                                       1,
                                       InputPreservation::Preserve) }) };
   }
 
   void run(const pipeline::Context &Ctx,
-           pipeline::LLVMContainer &IRContainer,
-           FunctionStringMap &DecompiledFunctionsContainer);
+           const FunctionStringMap &DecompiledFunctionsContainer,
+           FileContainer &OutCFile);
 
   void print(const pipeline::Context &Ctx,
              llvm::raw_ostream &OS,

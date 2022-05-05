@@ -2,8 +2,9 @@
 # Copyright rev.ng Labs Srl. See LICENSE.md for details.
 #
 
-revng_add_analyses_library(revngcBackend revngc DecompileFunction.cpp
-                           VariableScopeAnalysis.cpp)
+revng_add_analyses_library(
+  revngcBackend revngc DecompileFunction.cpp DecompiledYAMLToC.cpp
+  DecompiledYAMLToCPipe.cpp VariableScopeAnalysis.cpp)
 
 target_link_libraries(
   revngcBackend

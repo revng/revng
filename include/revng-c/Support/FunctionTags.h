@@ -31,6 +31,8 @@ inline Tag
 
 inline Tag
   StackAccessesSegregated("StackAccessesSegregated", StackPointerPromoted);
+
+inline Tag DecompiledToYAML("DecompiledToYAML", StackPointerPromoted);
 } // namespace FunctionTags
 
 /// Returns the type of an AddressOf function with return type T, in context C.

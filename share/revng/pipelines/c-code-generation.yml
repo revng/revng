@@ -4,10 +4,10 @@
 
 Containers:
  - Name:            decompiled.yml
-   Type:            DecompiledCCode
+   Type:            DecompiledCCodeInYAML
 From:            IRCanonicalization
 Steps:
- - Name:            DecompileToC
+ - Name:            DecompileToCInYAML
    Pipes:
      - Type:             HelpersToHeader
        UsedContainers: [module.ll, helpers_header.h]
