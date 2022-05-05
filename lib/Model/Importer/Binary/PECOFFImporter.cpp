@@ -30,9 +30,12 @@ public:
     Model(Model), TheBinary(TheBinary) {}
 
   Error import();
+
+private:
+  Error parseSectionsHeaders();
 };
 
-Error PECOFFImporter::import() {
+Error PECOFFImporter::parseSectionsHeaders() {
   using namespace model;
 
   revng_assert(Model->Architecture != Architecture::Invalid);
@@ -122,6 +125,13 @@ Error PECOFFImporter::import() {
     Segment.verify(true);
     Model->Segments.insert(std::move(Segment));
   }
+
+  return Error::success();
+}
+
+Error PECOFFImporter::import() {
+  if (Error E = parseSectionsHeaders())
+    return E;
 
   return Error::success();
 }
