@@ -16,6 +16,7 @@
 #include "Importers.h"
 
 using namespace llvm;
+using namespace llvm::object;
 
 static Logger<> Log("pecoff-importer");
 
@@ -23,6 +24,7 @@ class PECOFFImporter : public BinaryImporterHelper {
 private:
   TupleTree<model::Binary> &Model;
   const object::COFFObjectFile &TheBinary;
+  MetaAddress ImageBase = MetaAddress::invalid();
 
 public:
   PECOFFImporter(TupleTree<model::Binary> &Model,
@@ -33,6 +35,8 @@ public:
 
 private:
   Error parseSectionsHeaders();
+  /// Parse static symbols from the file.
+  void parseSymbols();
 };
 
 Error PECOFFImporter::parseSectionsHeaders() {
@@ -49,7 +53,6 @@ Error PECOFFImporter::parseSectionsHeaders() {
 
   const object::pe32_header *PE32Header = TheBinary.getPE32Header();
 
-  MetaAddress ImageBase = MetaAddress::invalid();
   if (PE32Header) {
     // TODO: ImageBase should aligned to 4kb pages, should we check that?
     ImageBase = fromPC(PE32Header->ImageBase);
@@ -129,9 +132,36 @@ Error PECOFFImporter::parseSectionsHeaders() {
   return Error::success();
 }
 
+void PECOFFImporter::parseSymbols() {
+  for (auto Sym : TheBinary.symbols()) {
+    COFFSymbolRef Symbol = TheBinary.getCOFFSymbol(Sym);
+
+    if (!Symbol.isFunctionDefinition())
+      continue;
+
+    Expected<StringRef> NameOrErr = TheBinary.getSymbolName(Symbol);
+    if (!NameOrErr) {
+      revng_log(Log, "Found static symbol without a name.");
+      continue;
+    }
+
+    // Relocate the symbol.
+    MetaAddress Address = ImageBase + Symbol.getValue();
+    if (Model->Functions.count(Address))
+      continue;
+
+    model::Function &Function = Model->Functions[Address];
+    Function.Type = model::FunctionType::Invalid;
+    Function.OriginalName = *NameOrErr;
+  }
+}
+
 Error PECOFFImporter::import() {
   if (Error E = parseSectionsHeaders())
     return E;
+
+  // Parse the symbol table.
+  parseSymbols();
 
   return Error::success();
 }
