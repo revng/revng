@@ -10,6 +10,7 @@ from typing import Dict, List, Optional
 from ariadne import MutationType, ObjectType, QueryType, make_executable_schema, upload_scalar
 from graphql.type.schema import GraphQLSchema
 from jinja2 import Environment, FileSystemLoader
+from starlette.datastructures import UploadFile
 
 from revng.api.manager import Manager
 from revng.api.rank import Rank
@@ -31,28 +32,28 @@ async def resolve_root(_, info):
 
 @query.field("produce")
 async def resolve_produce(obj, info, *, step, container, target_list, only_if_ready=False):
-    manager: Manager = info.context["g"].manager
+    manager: Manager = info.context["manager"]
     targets = target_list.split(",")
     return manager.produce_target(step, targets, container, only_if_ready)
 
 
 @query.field("produce_artifacts")
 async def resolve_produce_artifacts(obj, info, *, step, paths=None, only_if_ready=False):
-    manager: Manager = info.context["g"].manager
+    manager: Manager = info.context["manager"]
     target_paths = paths.split(",") if paths is not None else None
     return manager.produce_target(step, target_paths, only_if_ready=only_if_ready)
 
 
 @query.field("step")
 async def resolve_step(_, info, *, name):
-    manager: Manager = info.context["g"].manager
+    manager: Manager = info.context["manager"]
     step = manager.get_step(name)
     return step.as_dict() if step is not None else {}
 
 
 @query.field("container")
 async def resolve_container(_, info, *, name, step):
-    manager: Manager = info.context["g"].manager
+    manager: Manager = info.context["manager"]
     container_id = manager.get_container_with_name(name)
     step = manager.get_step(step)
     if step is None or container_id is None:
@@ -63,7 +64,7 @@ async def resolve_container(_, info, *, name, step):
 
 @query.field("targets")
 async def resolve_targets(_, info, *, pathspec):
-    manager: Manager = info.context["g"].manager
+    manager: Manager = info.context["manager"]
     targets = manager.get_all_targets()
     result = [
         {
@@ -81,16 +82,16 @@ async def resolve_targets(_, info, *, pathspec):
 
 @mutation.field("upload_b64")
 async def resolve_upload_b64(_, info, *, input: str, container: str):  # noqa: A002
-    g = info.context["g"]
-    g.manager.set_input(container, b64decode(input))
+    manager: Manager = info.context["manager"]
+    manager.set_input(container, b64decode(input))
     logging.info(f"Saved file for container {container}")
     return True
 
 
 @mutation.field("upload_file")
-async def resolve_upload_file(_, info, *, file, container: str):
-    g = info.context["g"]
-    g.manager.set_input(container, file.read())
+async def resolve_upload_file(_, info, *, file: UploadFile, container: str):
+    manager: Manager = info.context["manager"]
+    manager.set_input(container, await file.read())
     logging.info(f"Saved file for container {container}")
     return True
 
@@ -102,19 +103,19 @@ async def resolve_ranks(_, info):
 
 @info.field("kinds")
 async def resolve_root_kinds(_, info):
-    manager = info.context["g"].manager
+    manager = info.context["manager"]
     return [k.as_dict() for k in manager.kinds()]
 
 
 @info.field("model")
 async def resolve_root_model(_, info):
-    manager = info.context["g"].manager
+    manager = info.context["manager"]
     return manager.get_model()
 
 
 @info.field("steps")
 async def resolve_root_steps(_, info):
-    manager: Manager = info.context["g"].manager
+    manager: Manager = info.context["manager"]
     return [s.as_dict() for s in manager.steps()]
 
 
@@ -123,7 +124,7 @@ async def resolve_step_containers(step_obj, info):
     if "containers" in step_obj:
         return step_obj["containers"]
 
-    manager: Manager = info.context["g"].manager
+    manager: Manager = info.context["manager"]
     step = manager.get_step(step_obj["name"])
     if step is None:
         return []
@@ -136,7 +137,7 @@ async def resolve_container_targets(container_obj, info):
     if "targets" in container_obj:
         return container_obj["targets"]
 
-    manager: Manager = info.context["g"].manager
+    manager: Manager = info.context["manager"]
     targets = manager.get_targets(container_obj["_step"], container_obj["name"])
     return [t.as_dict() for t in targets]
 
@@ -218,7 +219,7 @@ class BindableGen:
     @staticmethod
     def gen_step_handle(step: Step):
         def rank_step_handle(obj, info, *, only_if_ready=False):
-            manager: Manager = info.context["g"].manager
+            manager: Manager = info.context["manager"]
             return manager.produce_target(step.name, obj["_target"], only_if_ready=only_if_ready)
 
         return rank_step_handle

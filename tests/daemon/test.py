@@ -26,7 +26,7 @@ def print_fd(fd: int):
 def check_server_up(port: int):
     for _ in range(10):
         try:
-            req = urlopen(f"http://127.0.0.1:{port}/", timeout=1.0)
+            req = urlopen(f"http://127.0.0.1:{port}/status", timeout=1.0)
             if req.code == 200:
                 return
             sleep(1.0)
@@ -54,7 +54,7 @@ def client(pytestconfig: Config, request) -> Generator[Client, None, None]:
         raise e
 
     binary = pytestconfig.getoption("binary")
-    transport = RequestsHTTPTransport(f"http://127.0.0.1:{port}/graphql")
+    transport = RequestsHTTPTransport(f"http://127.0.0.1:{port}/graphql/")
     gql_client = Client(transport=transport, fetch_schema_from_transport=True)
 
     upload_q = gql(

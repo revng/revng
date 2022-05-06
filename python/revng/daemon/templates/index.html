@@ -7,11 +7,11 @@
 <h1>revng API Debug</h1>
 <div class="container text-start">
   <div>
-    <a href="/graphql" target="_blank">GraphQL Sandbox</a>
+    <a href="./graphql/" target="_blank">GraphQL Sandbox</a>
   </div>
   <div>
     Welcome to revng!<br>
-    Working directory is {{ g.workdir }}
+    Working directory is {{ request.scope.workdir }}
   </div>
 
   <div>
@@ -44,7 +44,7 @@
   }
 
   async function gql(query) {
-    return fetch("/graphql", {
+    return fetch(`${window.location.pathname}/graphql/`, {
       body: wrap_gql(query),
       method: 'POST',
       mode: 'cors',
