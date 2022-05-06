@@ -14,7 +14,14 @@ namespace revng::pipes {
 
 class StringMapContainer : public pipeline::Container<StringMapContainer> {
 public:
-  using MapType = std::map<MetaAddress, std::string>;
+  /// Wrapper for std::string that allows YAML-serialization as multiline string
+  struct String {
+    std::string TheString;
+    operator std::string() const { return TheString; }
+  };
+
+public:
+  using MapType = std::map<MetaAddress, String>;
   using ValueType = MapType::value_type;
   using Iterator = MapType::iterator;
   using ConstIterator = MapType::const_iterator;
@@ -62,10 +69,10 @@ protected:
 public:
   /// std::map-like methods
 
-  std::string &operator[](MetaAddress M) { return Map[M]; };
+  std::string &operator[](MetaAddress M) { return Map[M].TheString; };
 
-  std::string &at(MetaAddress M) { return Map.at(M); };
-  const std::string &at(MetaAddress M) const { return Map.at(M); };
+  std::string &at(MetaAddress M) { return Map.at(M).TheString; };
+  const std::string &at(MetaAddress M) const { return Map.at(M).TheString; };
 
   std::pair<Iterator, bool> insert(const ValueType &V) {
     return Map.insert(V);
@@ -76,11 +83,11 @@ public:
 
   std::pair<Iterator, bool>
   insert_or_assign(MetaAddress Key, const std::string &Value) {
-    return Map.insert_or_assign(Key, Value);
+    return Map.insert_or_assign(Key, String{ Value });
   };
   std::pair<Iterator, bool>
   insert_or_assign(MetaAddress Key, std::string &&Value) {
-    return Map.insert_or_assign(Key, std::move(Value));
+    return Map.insert_or_assign(Key, String{ std::move(Value) });
   };
 
   bool contains(MetaAddress Key) const { return Map.contains(Key); }

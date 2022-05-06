@@ -80,15 +80,30 @@ bool StringMapContainer::remove(const TargetsList &Targets) {
 namespace llvm {
 namespace yaml {
 
+using StringType = revng::pipes::StringMapContainer::String;
+
 template<>
-struct CustomMappingTraits<std::map<MetaAddress, std::string>> {
+struct BlockScalarTraits<StringType> {
+  static void
+  output(const StringType &Value, void *Ctxt, llvm::raw_ostream &OS) {
+    OS << Value.TheString;
+  }
+
+  static StringRef input(StringRef Scalar, void *Ctxt, StringType &Value) {
+    Value.TheString = Scalar.str();
+    return StringRef();
+  }
+};
+
+template<>
+struct CustomMappingTraits<std::map<MetaAddress, StringType>> {
 
   static void
-  inputOne(IO &IO, StringRef Key, std::map<MetaAddress, std::string> &M) {
+  inputOne(IO &IO, StringRef Key, std::map<MetaAddress, StringType> &M) {
     IO.mapRequired(Key.str().c_str(), M[MetaAddress::fromString(Key)]);
   }
 
-  static void output(IO &IO, std::map<MetaAddress, std::string> &M) {
+  static void output(IO &IO, std::map<MetaAddress, StringType> &M) {
     for (auto &[MetaAddr, String] : M)
       IO.mapRequired(MetaAddr.toString().c_str(), String);
   }
@@ -101,7 +116,7 @@ namespace revng::pipes {
 
 llvm::Error StringMapContainer::serialize(llvm::raw_ostream &OS) const {
   llvm::yaml::Output YAMLOutput(OS);
-  YAMLOutput << const_cast<std::map<MetaAddress, std::string> &>(Map);
+  YAMLOutput << const_cast<std::map<MetaAddress, String> &>(Map);
   return llvm::Error::success();
 }
 
