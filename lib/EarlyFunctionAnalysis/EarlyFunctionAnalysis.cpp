@@ -1067,6 +1067,7 @@ FunctionEntrypointAnalyzer::collectDirectCFG(OutlinedFunction *F) {
       MetaAddress Start = getBasicBlockPC(&BB);
       efa::BasicBlock Block{ Start };
       Block.End = getFinalAddressOfBasicBlock(&BB);
+      revng_assert(Block.End.isValid());
 
       OnceQueue<BasicBlock *> Queue;
       Queue.insert(&BB);
@@ -1081,7 +1082,7 @@ FunctionEntrypointAnalyzer::collectDirectCFG(OutlinedFunction *F) {
         BasicBlock *Current = Queue.pop();
 
         MetaAddress CurrentBlockEnd = getFinalAddressOfBasicBlock(Current);
-        if (CurrentBlockEnd > Block.End)
+        if (CurrentBlockEnd.isValid() and CurrentBlockEnd > Block.End)
           Block.End = CurrentBlockEnd;
 
         for (BasicBlock *Succ : successors(Current)) {

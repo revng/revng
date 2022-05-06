@@ -90,6 +90,7 @@ Constant *getUniqueString(Module *M,
 }
 
 CallInst *getLastNewPC(Instruction *TheInstruction) {
+  CallInst *Result = nullptr;
   std::set<BasicBlock *> Visited;
   std::queue<BasicBlock::reverse_iterator> WorkList;
 
@@ -107,9 +108,18 @@ CallInst *getLastNewPC(Instruction *TheInstruction) {
     auto End = BB->rend();
 
     // Go through the instructions looking for calls to newpc
-    for (; I != End; I++)
-      if (CallInst *Marker = getCallTo(&*I, "newpc"))
-        return Marker;
+    bool Stop = false;
+    for (; not Stop and I != End; I++) {
+      if (CallInst *Marker = getCallTo(&*I, "newpc")) {
+        if (Result != nullptr)
+          return nullptr;
+        Result = Marker;
+        Stop = true;
+      }
+    }
+
+    if (Stop)
+      continue;
 
     // If we didn't find a newpc call yet, continue exploration backward
     // If one of the predecessors is the dispatcher, don't explore any further
@@ -125,7 +135,7 @@ CallInst *getLastNewPC(Instruction *TheInstruction) {
     }
   }
 
-  return nullptr;
+  return Result;
 }
 
 std::pair<MetaAddress, uint64_t> getPC(Instruction *TheInstruction) {
