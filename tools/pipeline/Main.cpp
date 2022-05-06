@@ -42,8 +42,7 @@ static cl::list<string> Targets(Positional,
 static cl::list<string> ContainerOverrides("i",
                                            desc("Load the target file in the "
                                                 "target container at the "
-                                                "target "
-                                                "step"),
+                                                "target step"),
                                            cat(PipelineCategory));
 
 static opt<string> ModelOverride("m",
@@ -71,12 +70,12 @@ static opt<bool> ProduceAllPossibleTargets("produce-all",
 static opt<bool> InvalidateAll("invalidate-all",
                                desc("Try invalidating all possible "
                                     "targets after producing them. Used for "
-                                    "debug porpuses"),
+                                    "debug purposes"),
                                cat(PipelineCategory),
                                init(false));
 
 static opt<bool> DumpPipeline("d",
-                              desc("Dump built pipeline and dont run"),
+                              desc("Dump built pipeline, but dont run it"),
                               cat(PipelineCategory));
 
 static opt<bool> Verbose("verbose",
