@@ -31,7 +31,7 @@ using namespace llvm::object;
 
 static Logger<> Log("elf-importer");
 
-FilePortion2::FilePortion2(const RawBinaryView &File) :
+FilePortion::FilePortion(const RawBinaryView &File) :
   File(File),
   HasAddress(false),
   HasSize(false),
@@ -39,40 +39,40 @@ FilePortion2::FilePortion2(const RawBinaryView &File) :
   Address(MetaAddress::invalid()) {
 }
 
-void FilePortion2::setAddress(MetaAddress Address) {
+void FilePortion::setAddress(MetaAddress Address) {
   HasAddress = true;
   this->Address = Address;
 }
 
-void FilePortion2::setSize(uint64_t Size) {
+void FilePortion::setSize(uint64_t Size) {
   HasSize = true;
   this->Size = Size;
 }
 
-MetaAddress FilePortion2::addressAtOffset(uint64_t Offset) {
+MetaAddress FilePortion::addressAtOffset(uint64_t Offset) {
   if (not(HasAddress and HasSize and Offset <= Size))
     return MetaAddress::invalid();
   return Address + Offset;
 }
 
 template<typename T>
-MetaAddress FilePortion2::addressAtIndex(uint64_t Index) {
+MetaAddress FilePortion::addressAtIndex(uint64_t Index) {
   uint64_t Offset = Index * sizeof(T);
   if (not(HasAddress and HasSize and Offset <= Size))
     return MetaAddress::invalid();
   return Address + Offset;
 }
 
-bool FilePortion2::isAvailable() const {
+bool FilePortion::isAvailable() const {
   return HasAddress;
 }
 
-bool FilePortion2::isExact() const {
+bool FilePortion::isExact() const {
   revng_assert(HasAddress);
   return HasSize;
 }
 
-StringRef FilePortion2::extractString() const {
+StringRef FilePortion::extractString() const {
   auto Data = extractData();
 
   const char *AsChar = reinterpret_cast<const char *>(Data.data());
@@ -80,7 +80,7 @@ StringRef FilePortion2::extractString() const {
 }
 
 template<typename T>
-ArrayRef<T> FilePortion2::extractAs() const {
+ArrayRef<T> FilePortion::extractAs() const {
   auto Data = extractData();
 
   const size_t TypeSize = sizeof(T);
@@ -91,7 +91,7 @@ ArrayRef<T> FilePortion2::extractAs() const {
                      Data.size() / TypeSize);
 }
 
-ArrayRef<uint8_t> FilePortion2::extractData() const {
+ArrayRef<uint8_t> FilePortion::extractData() const {
   revng_assert(HasAddress);
 
   if (HasSize) {
@@ -139,7 +139,7 @@ static void logAddress(T &Logger, const char *Name, MetaAddress Address) {
 }
 
 template<typename T, bool HasAddend>
-uint64_t symbolsCount(const FilePortion2 &Relocations) {
+uint64_t symbolsCount(const FilePortion &Relocations) {
   using Elf_Rel = llvm::object::Elf_Rel_Impl<T, HasAddend>;
 
   if (not Relocations.isAvailable() or not Relocations.isExact())
@@ -244,11 +244,11 @@ Error ELFImporter<T, HasAddend>::import() {
   if (DynamicEntries) {
     SmallVector<uint64_t, 10> NeededLibraryNameOffsets;
 
-    DynstrPortion = std::make_unique<FilePortion2>(File);
-    DynsymPortion = std::make_unique<FilePortion2>(File);
-    ReldynPortion = std::make_unique<FilePortion2>(File);
-    RelpltPortion = std::make_unique<FilePortion2>(File);
-    GotPortion = std::make_unique<FilePortion2>(File);
+    DynstrPortion = std::make_unique<FilePortion>(File);
+    DynsymPortion = std::make_unique<FilePortion>(File);
+    ReldynPortion = std::make_unique<FilePortion>(File);
+    RelpltPortion = std::make_unique<FilePortion>(File);
+    GotPortion = std::make_unique<FilePortion>(File);
 
     using Elf_Dyn = const typename object::ELFFile<T>::Elf_Dyn;
     for (Elf_Dyn &DynamicTag : *DynamicEntries) {
@@ -924,10 +924,9 @@ struct RelocationHelper<T, false> {
 };
 
 template<typename T, bool HasAddend>
-void ELFImporter<T, HasAddend>::registerRelocations(
-  Elf_Rel_Array Relocations,
-  const FilePortion2 &Dynsym,
-  const FilePortion2 &Dynstr) {
+void ELFImporter<T, HasAddend>::registerRelocations(Elf_Rel_Array Relocations,
+                                                    const FilePortion &Dynsym,
+                                                    const FilePortion &Dynstr) {
   using namespace llvm::object;
   using Elf_Rel = Elf_Rel_Impl<T, HasAddend>;
   using Elf_Sym = Elf_Sym_Impl<T>;

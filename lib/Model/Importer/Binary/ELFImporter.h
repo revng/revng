@@ -8,7 +8,7 @@ using namespace llvm;
 
 namespace {
 
-class FilePortion2 {
+class FilePortion {
 private:
   const RawBinaryView &File;
   bool HasAddress;
@@ -17,7 +17,7 @@ private:
   MetaAddress Address;
 
 public:
-  FilePortion2(const RawBinaryView &File);
+  FilePortion(const RawBinaryView &File);
 
   void setAddress(MetaAddress Address);
   void setSize(uint64_t Size);
@@ -56,11 +56,11 @@ private:
 
 protected:
   std::optional<uint64_t> SymbolsCount;
-  std::unique_ptr<FilePortion2> DynstrPortion;
-  std::unique_ptr<FilePortion2> DynsymPortion;
-  std::unique_ptr<FilePortion2> ReldynPortion;
-  std::unique_ptr<FilePortion2> RelpltPortion;
-  std::unique_ptr<FilePortion2> GotPortion;
+  std::unique_ptr<FilePortion> DynstrPortion;
+  std::unique_ptr<FilePortion> DynsymPortion;
+  std::unique_ptr<FilePortion> ReldynPortion;
+  std::unique_ptr<FilePortion> RelpltPortion;
+  std::unique_ptr<FilePortion> GotPortion;
 
 public:
   ELFImporter(TupleTree<model::Binary> &Model,
@@ -133,8 +133,8 @@ private:
 protected:
   /// \brief Register a label for each input relocation
   void registerRelocations(Elf_Rel_Array Relocations,
-                           const FilePortion2 &Dynsym,
-                           const FilePortion2 &Dynstr);
+                           const FilePortion &Dynsym,
+                           const FilePortion &Dynstr);
 
   void parseDynamicTag(uint64_t Tag,
                        MetaAddress Relocated,
