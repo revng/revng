@@ -5,6 +5,7 @@
 //
 
 #include <array>
+#include <string>
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/raw_ostream.h"
@@ -16,9 +17,9 @@
 
 namespace revng::pipes {
 
-class YieldAssemblyPipe {
+class ProcessAssemblyPipe {
 public:
-  static constexpr const auto Name = "yield-assembly";
+  static constexpr const auto Name = "process-assembly";
 
 public:
   std::array<pipeline::ContractGroup, 1> getContract() const;

@@ -30,6 +30,8 @@ inline pipeline::Kind Object("Object", &RootRank);
 inline pipeline::Kind Translated("Translated", &RootRank);
 
 inline pipeline::Kind
+  FunctionAssemblyInternal("FunctionAssemblyInternal", &FunctionsRank);
+inline pipeline::Kind
   FunctionAssemblyHTML("FunctionAssemblyHTML", &FunctionsRank);
 
 } // namespace revng::pipes
