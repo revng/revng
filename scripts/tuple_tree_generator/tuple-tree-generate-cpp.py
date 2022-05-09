@@ -9,9 +9,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from tuple_tree_generator import Schema, generate_cpp_headers
-
 import yaml
+from tuple_tree_generator import Schema, generate_cpp_headers
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("schema", help="YAML schema")
