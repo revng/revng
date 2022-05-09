@@ -42,6 +42,12 @@ fields:
       elementType: yield::Instruction
 
   - name: IsLabelAlwaysRequired
+    doc: |
+      This flag is set to `false` for basic blocks that are never directly
+      pointed to, i.e. blocks that are only ever entered from the previous
+      instructions and such.
+      This lets us dynamically decide whether we want to show labels like this
+      or not.
     type: bool
 
 key:

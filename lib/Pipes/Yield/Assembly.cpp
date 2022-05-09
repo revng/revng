@@ -45,7 +45,7 @@ void YieldAssemblyPipe::run(pipeline::Context &Context,
     const auto &Func = *ModelFunctionIterator;
     auto Disassembled = Helper.disassemble(Func, *Metadata, BinaryView, *Model);
 
-    auto HTML = yield::html::assembly(Disassembled, *Metadata, *Model);
+    auto HTML = yield::html::functionAssembly(Disassembled, *Model);
     Output.insert_or_assign(Metadata->Entry, std::move(HTML));
   }
 }
