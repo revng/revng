@@ -11,67 +11,67 @@ name: ABI
 type: enum
 members:
   - name: SystemV_x86_64
-    doc: >
+    doc: |
       64-bit SystemV ABI for x86 processor architecture.
       The latest version of the documentation can be found
       \sa https://gitlab.com/x86-psABIs/x86-64-ABI
 
   - name: SystemV_x86
-    doc: >
+    doc: |
       32-bit SystemV ABI for x86 processor architecture.
       The latest version of the documentation can be found
       \sa https://gitlab.com/x86-psABIs/i386-ABI/-/tree/hjl/x86/master
 
   - name: SystemV_x86_regparm_3
-    doc: >
+    doc: |
       A gcc specific modification of the 32-bit SystemV ABI for x86 processor
       architecture. It allows three first GPR-sized arguments to be passed
       using the EAX, EDX, and ECX registers.
       \sa `regparm` x86 function attribute.
 
   - name: SystemV_x86_regparm_2
-    doc: >
+    doc: |
       A gcc specific modification of the 32-bit SystemV ABI for x86 processor
       architecture. It allows two first GPR-sized arguments to be passed
       using the EAX, and ECX registers.
       \sa `regparm` x86 function attribute.
 
   - name: SystemV_x86_regparm_1
-    doc: >
+    doc: |
       A gcc specific modification of the 32-bit SystemV ABI for x86 processor
       architecture. It allows the first GPR-sized argument to be passed
       using the EAX register.
       \sa `regparm` x86 function attribute.
 
   - name: Microsoft_x86_64
-    doc: >
+    doc: |
       64-bit Microsoft ABI for x86 processor architecture.
       The documentation can be found
       \sa https://docs.microsoft.com/en-us/cpp/build/x64-calling-convention
 
   - name: Microsoft_x86_64_vectorcall
-    doc: >
+    doc: |
       A modification of 64-bit Microsoft ABI for x86 processor architecture.
       It allows using extra vector registers for passing function arguments.
       The documentation can be found
       \sa https://docs.microsoft.com/en-us/cpp/cpp/vectorcall
 
   - name: Microsoft_x86_64_clrcall
-    doc: >
+    doc: |
       A modification of 64-bit Microsoft ABI for x86 processor architecture.
       It uses CLR expression stack to pass function arguments.
       The documentation can be found
       \sa https://docs.microsoft.com/en-us/cpp/cpp/clrcall
 
   - name: Microsoft_x86_cdecl
-    doc: >
+    doc: |
       The default 32-bit Microsoft ABI for x86 processor architecture.
       It was indented to be compatible with `SystemV_x86` but there are slight
       differences. The documentation can be found
       \sa https://docs.microsoft.com/en-us/cpp/cpp/cdecl
 
   - name: Microsoft_x86_stdcall
-    doc: >
+    doc: |
       A modification of the 32-bit `__cdecl` Microsoft ABI for x86 processor
       architecture. The main difference is the fact that the callee is
       responsible for stack cleanup instead of the caller.
@@ -79,7 +79,7 @@ members:
       \sa https://docs.microsoft.com/en-us/cpp/cpp/stdcall
 
   - name: Microsoft_x86_thiscall
-    doc: >
+    doc: |
       A modification of the 32-bit `__stdcall` Microsoft ABI for x86 processor
       architecture. The main difference is the fact that it allows to pass a
       single (the first) function argument using a register. This ABI is only
@@ -88,7 +88,7 @@ members:
       \sa https://docs.microsoft.com/en-us/cpp/cpp/thiscall
 
   - name: Microsoft_x86_fastcall
-    doc: >
+    doc: |
       A modification of the 32-bit `__stdcall` Microsoft ABI for x86 processor
       architecture. The main difference is the fact that it allows to pass two
       first GPR-sized non-aggregate function arguments in registers.=
@@ -96,42 +96,42 @@ members:
       \sa https://docs.microsoft.com/en-us/cpp/cpp/fastcall
 
   - name: Microsoft_x86_clrcall
-    doc: >
+    doc: |
       A modification of 32-bit Microsoft ABI for x86 processor architecture.
       It uses CLR expression stack to pass function arguments.
       The documentation can be found
       \sa https://docs.microsoft.com/en-us/cpp/cpp/clrcall
 
   - name: Microsoft_x86_vectorcall
-    doc: >
+    doc: |
       A modification of the 32-bit `__fastcall` Microsoft ABI for x86 processor
       architecture. It allows using extra vector registers for passing function
       arguments. The documentation can be found
       \sa https://docs.microsoft.com/en-us/cpp/cpp/vectorcall
 
   - name: Pascal_x86
-    doc: >
+    doc: |
       An abi similar to 32-bit `__stdcall` Microsoft ABI for x86 processor
       architecture. The main difference is the fact that the stack parameters
       are placed left-to-right instead of right-to-left
       \sa Trustworthy documentation is hard to find.
 
   - name: AAPCS64
-    doc: >
+    doc: |
       Stands for `Arm Architecture Procedure Call Standard (64-bit)`.
       The official ABI for AArch64 (ARM64) processor architecture.
       The latest version of the documentation can be found
       \sa https://github.com/ARM-software/abi-aa/releases
 
   - name: AAPCS
-    doc: >
+    doc: |
       Stands for `Arm Architecture Procedure Call Standard`.
       The official ABI for ARM processor architecture.
       The latest version of the documentation can be found
       \sa https://github.com/ARM-software/abi-aa/releases
 
   - name: SystemV_MIPS_o32
-    doc: >
+    doc: |
       The ABI for MIPS RISC processor architecture.
       The latest version of the documentation can be found
       \sa http://math-atlas.sourceforge.net/devel/assembly/mipsabi32.pdf
@@ -143,7 +143,7 @@ members:
       \sa http://math-atlas.sourceforge.net/devel/assembly/mipsabi32.pdf
 
   - name: SystemZ_s390x
-    doc: >
+    doc: |
       The s390x ABI for SystemZ processor architecture.
       The latest version of the documentation can be found
       \sa https://github.com/IBM/s390x-abi

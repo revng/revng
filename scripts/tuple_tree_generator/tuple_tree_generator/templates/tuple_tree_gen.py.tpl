@@ -70,7 +70,7 @@ class 'struct.name'(
     ## if field.doc ##
     '-field.doc | docstring'
     ## endif ##
-    '-field.name': "'field.python_type'"
+    '-field.name': "'field | python_type'"
     ##- if field.is_guid -##
     = field(default_factory=random_id)
     ##- elif struct.inherits -##
@@ -83,7 +83,7 @@ class 'struct.name'(
     ## if field.doc ##
     '-field.doc | docstring'
     ## endif ##
-    '-field.name': "'field.python_type'" = field(
+    '-field.name': "'field | python_type'" = field(
         metadata={"optional": True},
         ## if field.is_guid ##default_factory=random_id,## endif ##
         ## if field is simple_field ##
