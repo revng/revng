@@ -11,8 +11,8 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/Yield/Assembly.h"
-#include "revng/Yield/Assembly/Assembly.h"
 #include "revng/Yield/Assembly/DisassemblyHelper.h"
+#include "revng/Yield/Function.h"
 #include "revng/Yield/HTML.h"
 
 namespace revng::pipes {
@@ -41,12 +41,12 @@ void YieldAssemblyPipe::run(pipeline::Context &Context,
     auto Metadata = extractFunctionMetadata(&LLVMFunction);
     auto ModelFunctionIterator = Model->Functions.find(Metadata->Entry);
     revng_assert(ModelFunctionIterator != Model->Functions.end());
-    const auto &Function = *ModelFunctionIterator;
 
-    auto Disassembled = Helper.disassemble(Function, *Metadata, BinaryView);
+    const auto &Func = *ModelFunctionIterator;
+    auto Disassembled = Helper.disassemble(Func, *Metadata, BinaryView, *Model);
 
     auto HTML = yield::html::assembly(Disassembled, *Metadata, *Model);
-    Output.insert_or_assign(Function.Entry, std::move(HTML));
+    Output.insert_or_assign(Metadata->Entry, std::move(HTML));
   }
 }
 

@@ -9,7 +9,7 @@
 
 #include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
 #include "revng/Model/Binary.h"
-#include "revng/Yield/Assembly/Assembly.h"
+#include "revng/Yield/Function.h"
 #include "revng/Yield/HTML.h"
 
 namespace yield::html {
@@ -141,31 +141,31 @@ static std::string link(const MetaAddress &Target,
   }
 }
 
-static std::string commentIndicator(const assembly::BasicBlock &BasicBlock) {
+static std::string commentIndicator(model::Architecture::Values Architecture) {
+  namespace Arch = model::Architecture;
   return llvm::formatv(templates::Span,
                        tags::CommentIndicator,
-                       BasicBlock.CommentIndicator);
+                       Arch::getAssemblyCommentIndicator(Architecture));
 }
 
-static std::string labelIndicator(const assembly::BasicBlock &BasicBlock) {
+static std::string labelIndicator(model::Architecture::Values Architecture) {
+  namespace Arch = model::Architecture;
   return llvm::formatv(templates::Span,
                        tags::LabelIndicator,
-                       BasicBlock.LabelIndicator);
+                       Arch::getAssemblyLabelIndicator(Architecture));
 }
 
-static std::string label(const assembly::BasicBlock &BasicBlock,
+static std::string label(const yield::BasicBlock &BasicBlock,
                          const efa::FunctionMetadata &Metadata,
                          const model::Binary &Binary) {
   std::string_view LabelTag = tags::NormalBasicBlockLabel;
-  if (BasicBlock.CanBeMergedWithPredecessor)
-    LabelTag = tags::HiddenBasicBlockLabel;
-  else if (BasicBlock.IsAFallthroughTarget)
+  if (BasicBlock.IsLabelAlwaysRequired)
     LabelTag = tags::GraphOnlyBasicBlockLabel;
 
-  std::string Link = link(BasicBlock.Address, Metadata, Binary);
+  std::string Link = link(BasicBlock.Start, Metadata, Binary);
   return llvm::formatv(templates::SimpleDiv,
                        std::move(LabelTag),
-                       std::move(Link += labelIndicator(BasicBlock)));
+                       std::move(Link += labelIndicator(Binary.Architecture)));
 }
 
 static std::string whitespace(size_t Count) {
@@ -184,56 +184,56 @@ static std::string newLine() {
 
 static std::string commentImpl(const char *Template,
                                llvm::StringRef Tag,
-                               const assembly::BasicBlock &BasicBlock,
+                               const model::Binary &Binary,
                                std::string &&Body,
                                size_t Offset,
                                bool NeedsNewLine) {
-  std::string Result = commentIndicator(BasicBlock) + whitespace(1)
+  std::string Result = commentIndicator(Binary.Architecture) + whitespace(1)
                        + std::move(Body);
   Result = llvm::formatv(Template, Tag, std::move(Result));
   return (NeedsNewLine ? newLine() : "") + whitespace(Offset)
          + std::move(Result);
 }
 
-static std::string comment(const assembly::BasicBlock &BasicBlock,
+static std::string comment(const model::Binary &Binary,
                            std::string &&Body,
                            size_t Offset = 0,
                            bool NeedsNewLine = false) {
   return commentImpl(templates::Span,
                      tags::Comment,
-                     BasicBlock,
+                     Binary,
                      std::move(Body),
                      Offset,
                      NeedsNewLine);
 }
 
-static std::string error(const assembly::BasicBlock &BasicBlock,
+static std::string error(const model::Binary &Binary,
                          std::string &&Body,
                          size_t Offset = 0,
                          bool NeedsNewLine = false) {
   return commentImpl(templates::Span,
                      tags::Error,
-                     BasicBlock,
+                     Binary,
                      std::move(Body),
                      Offset,
                      NeedsNewLine);
 }
 
 static std::string blockComment(llvm::StringRef Tag,
-                                const assembly::BasicBlock &BasicBlock,
+                                const model::Binary &Binary,
                                 std::string &&Body,
                                 size_t Offset = 0,
                                 bool NeedsNewLine = false) {
   return commentImpl(templates::SimpleDiv,
                      Tag,
-                     BasicBlock,
+                     Binary,
                      std::move(Body),
                      Offset,
                      NeedsNewLine);
 }
 
-static std::string bytes(const assembly::BasicBlock &BasicBlock,
-                         const assembly::Instruction::ByteContainer &Bytes,
+static std::string bytes(const model::Binary &Binary,
+                         const yield::ByteContainer &Bytes,
                          size_t Limit = std::numeric_limits<size_t>::max()) {
   std::string Result;
   llvm::raw_string_ostream FormattingStream(Result);
@@ -252,10 +252,10 @@ static std::string bytes(const assembly::BasicBlock &BasicBlock,
     FormattingStream << "&nbsp;[...]";
 
   FormattingStream.flush();
-  return blockComment(tags::InstructionBytes, BasicBlock, std::move(Result));
+  return blockComment(tags::InstructionBytes, Binary, std::move(Result));
 }
 
-static size_t countTargets(const SortedVector<MetaAddress> &Targets) {
+static size_t countTargets(const auto &Targets) {
   return Targets.size() - Targets.count(MetaAddress::invalid());
 }
 
@@ -270,10 +270,10 @@ static bool areTargetsAdjacent(const MetaAddress &CurrentAddress,
 }
 
 static std::string targetLink(const MetaAddress &Target,
-                              const assembly::BasicBlock &BasicBlock,
+                              const yield::BasicBlock &BasicBlock,
                               const efa::FunctionMetadata &Metadata,
                               const model::Binary &Binary) {
-  if (areTargetsAdjacent(BasicBlock.Address, Target, Metadata))
+  if (areTargetsAdjacent(BasicBlock.Start, Target, Metadata))
     return llvm::formatv(templates::Span,
                          tags::InstructionTarget,
                          link(Target,
@@ -286,44 +286,46 @@ static std::string targetLink(const MetaAddress &Target,
                          link(Target, Metadata, Binary));
 }
 
-static std::string targets(const assembly::BasicBlock &BasicBlock,
+static std::string targets(const yield::BasicBlock &BasicBlock,
                            const efa::FunctionMetadata &Metadata,
                            const model::Binary &Binary,
                            size_t TailOffset) {
-  size_t TargetCount = countTargets(BasicBlock.Targets);
+  size_t TargetCount = BasicBlock.Successors.size();
   if (TargetCount == 0)
     return ""; // We know nothing about the targets.
 
   std::string Result;
-  if (BasicBlock.Targets.size() == 1) {
+  if (BasicBlock.Successors.size() == 1) {
     // There's only a single known target. This is probably a direct call.
-    revng_assert(BasicBlock.Targets.begin()->isValid());
-    Result += comment(BasicBlock,
-                      "always goes to "
-                        + targetLink(*BasicBlock.Targets.begin(),
-                                     BasicBlock,
-                                     Metadata,
-                                     Binary));
+    const auto &Successor = **BasicBlock.Successors.begin();
+    if (Successor.Destination.isValid()) {
+      Result += comment(Binary,
+                        "always goes to "
+                          + targetLink(Successor.Destination,
+                                       BasicBlock,
+                                       Metadata,
+                                       Binary));
+    }
   } else {
-    Result += comment(BasicBlock, "known targets include: ");
+    Result += comment(Binary, "known targets include: ");
     bool HasInvalidTargets = false;
-    for (size_t TargetCounter = 0; const auto &Target : BasicBlock.Targets) {
-      if (Target.isValid()) {
-        std::string Link = targetLink(Target, BasicBlock, Metadata, Binary);
-        if (BasicBlock.Targets.size() == TargetCount
-            && TargetCounter != TargetCount - 1) {
+    for (size_t Counter = 0; const auto &Edge : BasicBlock.Successors) {
+      if (Edge->Destination.isValid()) {
+        auto Link = targetLink(Edge->Destination, BasicBlock, Metadata, Binary);
+        if (BasicBlock.Successors.size() == TargetCount
+            && Counter != TargetCount - 1) {
           Link = std::move(Link) + ",";
         }
-        ++TargetCounter;
+        ++Counter;
 
-        Result += comment(BasicBlock, "- " + std::move(Link), TailOffset, true);
+        Result += comment(Binary, "- " + std::move(Link), TailOffset, true);
       } else {
         HasInvalidTargets = true;
       }
     }
 
     if (HasInvalidTargets)
-      Result += comment(BasicBlock, "and more", TailOffset, true);
+      Result += comment(Binary, "and more", TailOffset, true);
   }
 
   return llvm::formatv(templates::Span,
@@ -331,23 +333,23 @@ static std::string targets(const assembly::BasicBlock &BasicBlock,
                        std::move(Result));
 }
 
-static std::string tagTypeAsString(assembly::Instruction::TagType Type) {
+static std::string tagTypeAsString(yield::TagType::Values Type) {
   switch (Type) {
-  case assembly::Instruction::TagType::Immediate:
+  case yield::TagType::Immediate:
     return tags::ImmediateValue;
-  case assembly::Instruction::TagType::Memory:
+  case yield::TagType::Memory:
     return tags::MemoryOperand;
-  case assembly::Instruction::TagType::Mnemonic:
+  case yield::TagType::Mnemonic:
     return tags::InstructionMnemonic;
-  case assembly::Instruction::TagType::MnemonicPrefix:
+  case yield::TagType::MnemonicPrefix:
     return tags::InstructionMnemonicPrefix;
-  case assembly::Instruction::TagType::MnemonicSuffix:
+  case yield::TagType::MnemonicSuffix:
     return tags::InstructionMnemonicSuffix;
-  case assembly::Instruction::TagType::Register:
+  case yield::TagType::Register:
     return tags::Register;
-  case assembly::Instruction::TagType::Whitespace:
+  case yield::TagType::Whitespace:
     return tags::Whitespace;
-  case assembly::Instruction::TagType::Invalid:
+  case yield::TagType::Invalid:
   default:
     revng_abort("Unknown tag type");
   }
@@ -356,33 +358,33 @@ static std::string tagTypeAsString(assembly::Instruction::TagType Type) {
 using LeafContainer = llvm::SmallVector<llvm::SmallVector<size_t, 4>, 16>;
 static std::string tag(size_t Index,
                        const LeafContainer &Leaves,
-                       const assembly::Instruction &Instruction) {
+                       const yield::Instruction &Instruction) {
   revng_assert(Index < Instruction.Tags.size());
-  const assembly::Instruction::Tag &Tag = Instruction.Tags[Index];
-  llvm::StringRef TextView = Instruction.Text;
+  const yield::Tag &Tag = *std::next(Instruction.Tags.begin(), Index);
+  llvm::StringRef TextView = Instruction.Disassembled;
 
   revng_assert(Index < Leaves.size());
   const auto &AdjacentLeaves = Leaves[Index];
 
   std::string Result;
-  size_t CurrentIndex = Tag.FromIndex;
+  size_t CurrentIndex = Tag.From;
   for (const auto &LeafIndex : llvm::reverse(AdjacentLeaves)) {
     revng_assert(LeafIndex < Instruction.Tags.size());
-    const auto &LeafTag = Instruction.Tags[LeafIndex];
+    const auto &LeafTag = *std::next(Instruction.Tags.begin(), LeafIndex);
 
-    revng_assert(CurrentIndex <= LeafTag.FromIndex);
-    if (CurrentIndex < LeafTag.FromIndex)
-      Result += TextView.slice(CurrentIndex, LeafTag.FromIndex);
+    revng_assert(CurrentIndex <= LeafTag.From);
+    if (CurrentIndex < LeafTag.From)
+      Result += TextView.slice(CurrentIndex, LeafTag.From);
     Result += tag(LeafIndex, Leaves, Instruction);
-    CurrentIndex = LeafTag.ToIndex;
+    CurrentIndex = LeafTag.To;
   }
-  revng_assert(CurrentIndex <= Tag.ToIndex);
-  if (CurrentIndex < Tag.ToIndex)
-    Result += TextView.slice(CurrentIndex, Tag.ToIndex);
+  revng_assert(CurrentIndex <= Tag.To);
+  if (CurrentIndex < Tag.To)
+    Result += TextView.slice(CurrentIndex, Tag.To);
 
   std::string TagStr = tagTypeAsString(Tag.Type);
 
-  if (Tag.Type != assembly::Instruction::TagType::Mnemonic)
+  if (Tag.Type != yield::TagType::Mnemonic)
     return llvm::formatv(templates::Span, std::move(TagStr), std::move(Result));
   else
     return llvm::formatv(templates::Link,
@@ -391,7 +393,7 @@ static std::string tag(size_t Index,
                          std::move(Result));
 }
 
-static std::string taggedText(const assembly::Instruction &Instruction) {
+static std::string taggedText(const yield::Instruction &Instruction) {
   revng_assert(!Instruction.Tags.empty(),
                "Tagless instructions are not supported");
 
@@ -399,24 +401,24 @@ static std::string taggedText(const assembly::Instruction &Instruction) {
   llvm::SmallVector<size_t> RootIndices;
   LeafContainer Leaves(Instruction.Tags.size());
   for (size_t Index = Instruction.Tags.size() - 1; Index > 0; --Index) {
-    const auto &CurrentTag = Instruction.Tags[Index];
+    const auto &CurrentTag = *std::next(Instruction.Tags.begin(), Index);
 
     bool DependencyDetected = false;
     for (size_t PrevIndex = Index - 1; PrevIndex != size_t(-1); --PrevIndex) {
-      const auto &PreviousTag = Instruction.Tags[PrevIndex];
-      if (CurrentTag.FromIndex >= PreviousTag.FromIndex
-          && CurrentTag.ToIndex <= PreviousTag.ToIndex) {
+      const auto &PreviousTag = *std::next(Instruction.Tags.begin(), PrevIndex);
+      if (CurrentTag.From >= PreviousTag.From
+          && CurrentTag.To <= PreviousTag.To) {
         // Current tag is inside the previous one.
         // Add an edge corresponding to this relation.
         if (!DependencyDetected)
           Leaves[PrevIndex].emplace_back(Index);
         DependencyDetected = true;
-      } else if (CurrentTag.FromIndex >= PreviousTag.ToIndex
-                 && CurrentTag.ToIndex >= PreviousTag.ToIndex) {
+      } else if (CurrentTag.From >= PreviousTag.To
+                 && CurrentTag.To >= PreviousTag.To) {
         // Current tag is after (and outside) the previous one.
         // Do nothing.
-      } else if (CurrentTag.FromIndex <= PreviousTag.FromIndex
-                 && CurrentTag.ToIndex <= PreviousTag.FromIndex) {
+      } else if (CurrentTag.From <= PreviousTag.From
+                 && CurrentTag.To <= PreviousTag.From) {
         // Current tag is before (and outside) the previous one.
         revng_abort("Tag container must be sorted.");
       } else {
@@ -435,17 +437,17 @@ static std::string taggedText(const assembly::Instruction &Instruction) {
   // Insert html-flavoured tags based on the tree.
   std::string Result;
   size_t CurrentIndex = 0;
-  llvm::StringRef TextView = Instruction.Text;
+  llvm::StringRef TextView = Instruction.Disassembled;
   for (size_t RootIndex : llvm::reverse(RootIndices)) {
     revng_assert(RootIndex < Instruction.Tags.size());
-    const auto &RootTag = Instruction.Tags[RootIndex];
+    const auto &RootTag = *std::next(Instruction.Tags.begin(), RootIndex);
 
-    if (CurrentIndex < RootTag.FromIndex)
+    if (CurrentIndex < RootTag.From)
       Result += llvm::formatv(templates::Span,
                               tags::Untagged,
-                              TextView.slice(CurrentIndex, RootTag.FromIndex));
+                              TextView.slice(CurrentIndex, RootTag.From));
     Result += tag(RootIndex, Leaves, Instruction);
-    CurrentIndex = RootTag.ToIndex;
+    CurrentIndex = RootTag.To;
   }
   revng_assert(CurrentIndex <= TextView.size());
   if (CurrentIndex < TextView.size())
@@ -456,57 +458,61 @@ static std::string taggedText(const assembly::Instruction &Instruction) {
   return Result;
 }
 
-static std::string instruction(const assembly::Instruction &Instruction,
+static std::string instruction(const yield::Instruction &Instruction,
                                bool IsInDelayedSlot,
                                bool NeedsToPrintTargets,
-                               const assembly::BasicBlock &BasicBlock,
+                               const yield::BasicBlock &BasicBlock,
                                const efa::FunctionMetadata &Metadata,
                                const model::Binary &Binary) {
   // MetaAddress of the instruction.
   std::string Result = blockComment(tags::InstructionAddress,
-                                    BasicBlock,
+                                    Binary,
                                     Instruction.Address.toString());
 
   // Raw bytes of the instruction.
   //
   // \note the instructions disassembler failed on are limited to 16 bytes.
   if (Instruction.Error == "MCDisassembler failed")
-    Result += bytes(BasicBlock, Instruction.Bytes, 16);
+    Result += bytes(Binary, Instruction.RawBytes, 16);
   else
-    Result += bytes(BasicBlock, Instruction.Bytes);
+    Result += bytes(Binary, Instruction.RawBytes);
 
   // LLVM's Opcode of the instruction.
-  if (Instruction.Opcode.has_value())
-    Result += llvm::formatv(templates::Span,
-                            tags::InstructionOpcode,
-                            Instruction.Opcode.value());
+  if (!Instruction.OpcodeIdentifier.empty())
+    Result += blockComment(tags::InstructionOpcode,
+                           Binary,
+                           "llvm Opcode: " + Instruction.OpcodeIdentifier);
+
+  // Error message (Vertical layout only).
+  if (!Instruction.Error.empty())
+    Result += error(Binary, "Error: " + Instruction.Error + "\n");
 
   // Tagged instruction body.
   Result += taggedText(Instruction);
-  size_t Tail = Instruction.Text.size() + 1;
+  size_t Tail = Instruction.Disassembled.size() + 1;
 
   // The original comment if present.
   bool HasTailComments = false;
   if (!Instruction.Comment.empty()) {
-    Result += comment(BasicBlock, std::string(Instruction.Comment), 1);
+    Result += comment(Binary, std::string(Instruction.Comment), 1);
     HasTailComments = true;
   }
 
   // Delayed slot notice if applicable.
   if (IsInDelayedSlot) {
     if (HasTailComments == true)
-      Result += comment(BasicBlock, "delayed", Tail, true);
+      Result += comment(Binary, "delayed", Tail, true);
     else
-      Result += comment(BasicBlock, "delayed", 1);
+      Result += comment(Binary, "delayed", 1);
     HasTailComments = true;
   }
 
   // An error message if present.
   if (!Instruction.Error.empty()) {
     if (HasTailComments == true)
-      Result += error(BasicBlock, "Error: " + Instruction.Error, Tail, true);
+      Result += error(Binary, "Error: " + Instruction.Error, Tail, true);
     else
-      Result += error(BasicBlock, "Error: " + Instruction.Error, 1);
+      Result += error(Binary, "Error: " + Instruction.Error, 1);
     HasTailComments = true;
   }
 
@@ -514,7 +520,7 @@ static std::string instruction(const assembly::Instruction &Instruction,
   if (NeedsToPrintTargets) {
     if (HasTailComments == false) {
       Result += whitespace(1);
-    } else if (countTargets(BasicBlock.Targets) != 0) {
+    } else if (BasicBlock.Successors.size() != 0) {
       Result += newLine() + whitespace(Tail);
     }
 
@@ -527,7 +533,7 @@ static std::string instruction(const assembly::Instruction &Instruction,
                        std::move(Result));
 }
 
-static std::string basicBlock(const assembly::BasicBlock &BasicBlock,
+static std::string basicBlock(const yield::BasicBlock &BasicBlock,
                               const efa::FunctionMetadata &Metadata,
                               const model::Binary &Binary) {
   std::string Result;
@@ -537,8 +543,10 @@ static std::string basicBlock(const assembly::BasicBlock &BasicBlock,
   for (const auto &Instruction : BasicBlock.Instructions) {
     if (IsNextInstructionDelayed)
       DelayedList.emplace_back(Instruction.Address);
-    IsNextInstructionDelayed = Instruction.HasDelayedSlot;
+    IsNextInstructionDelayed = Instruction.HasDelaySlot;
   }
+  revng_assert(IsNextInstructionDelayed == false,
+               "Last instruction has an unfilled delayed slot.");
 
   MetaAddress LastNotDelayedInstruction = MetaAddress::invalid();
   for (const auto &Instruction : llvm::reverse(BasicBlock.Instructions)) {
@@ -560,26 +568,26 @@ static std::string basicBlock(const assembly::BasicBlock &BasicBlock,
 
   if (IsNextInstructionDelayed == true) {
     std::string DelayedError = "Error: Last instruction has a delayed slot.";
-    Result += error(BasicBlock, std::move(DelayedError), 2, true);
+    Result += error(Binary, std::move(DelayedError), 2, true);
   }
 
   return llvm::formatv(templates::BlockDiv,
                        tags::BasicBlock,
-                       basicBlockID(BasicBlock.Address),
+                       basicBlockID(BasicBlock.Start),
                        std::move(Result));
 }
 
-std::string assembly(const assembly::BasicBlock &BasicBlock,
+std::string assembly(const yield::BasicBlock &BasicBlock,
                      const efa::FunctionMetadata &Metadata,
                      const model::Binary &Binary) {
   return basicBlock(BasicBlock, Metadata, Binary);
 }
-std::string assembly(const assembly::Function &Function,
+std::string assembly(const yield::Function &Function,
                      const efa::FunctionMetadata &Metadata,
                      const model::Binary &Binary) {
   std::string Result;
 
-  for (const auto &BasicBlock : Function.BasicBlocks)
+  for (const auto &BasicBlock : Function.ControlFlowGraph)
     Result += basicBlock(BasicBlock, Metadata, Binary);
 
   return Result;

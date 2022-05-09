@@ -12,19 +12,19 @@ class Binary;
 namespace efa {
 class FunctionMetadata;
 }
-namespace assembly {
-struct BasicBlock;
-struct Function;
-} // namespace assembly
+namespace yield {
+class BasicBlock;
+class Function;
+} // namespace yield
 
 namespace yield {
 
 namespace plain {
 
-std::string assembly(const assembly::BasicBlock &BasicBlock,
+std::string assembly(const yield::BasicBlock &BasicBlock,
                      const efa::FunctionMetadata &Metadata,
                      const model::Binary &Binary);
-std::string assembly(const assembly::Function &Function,
+std::string assembly(const yield::Function &Function,
                      const efa::FunctionMetadata &Metadata,
                      const model::Binary &Binary);
 

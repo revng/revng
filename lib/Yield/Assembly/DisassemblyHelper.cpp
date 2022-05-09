@@ -5,6 +5,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Function.h"
@@ -27,8 +28,9 @@ DH::DissassemblyHelper() :
 DH::~DissassemblyHelper() {
 }
 
-static void analyzeBasicBlocks(assembly::Function &Function,
-                               const efa::FunctionMetadata &Metadata) {
+static void analyzeBasicBlocks(yield::Function &Function,
+                               const efa::FunctionMetadata &Metadata,
+                               const model::Binary &Binary) {
   // Gather all the basic blocks that only have a single predecessor.
   std::map<MetaAddress, std::optional<MetaAddress>> Predecessors;
 
@@ -39,19 +41,20 @@ static void analyzeBasicBlocks(assembly::Function &Function,
                  "Something is clearly very wrong.");
   }
 
-  // Remove the entry block - it should always be present.
-  size_t RemovedCount = Predecessors.erase(Function.Address);
+  // Remove the entry block from the analysis - its label is always required.
+  size_t RemovedCount = Predecessors.erase(Function.Entry);
   revng_assert(RemovedCount == 1,
                "No basic block at the function entry address!");
 
   for (const efa::BasicBlock &BasicBlock : Metadata.ControlFlowGraph) {
     for (const auto &Edge : BasicBlock.Successors) {
-      if (Edge->Destination.isInvalid()) {
-        // Ignore edges with unknown destinations (like indirect calls).
+      auto [NextBlock, _] = efa::parseSuccessor(*Edge, BasicBlock.End, Binary);
+      if (NextBlock.isInvalid()) {
+        // Ignore edges with unknown destinations (like indirect jumps).
         continue;
       }
 
-      auto Iterator = Predecessors.find(Edge->Destination);
+      auto Iterator = Predecessors.find(NextBlock);
       if (Iterator != Predecessors.end()) {
         if (Iterator->second.has_value()) {
           // This basic block already has a predecessor, remove it.
@@ -73,28 +76,36 @@ static void analyzeBasicBlocks(assembly::Function &Function,
       auto Predecessor = Metadata.ControlFlowGraph.find(*PredecessorAddress);
       revng_assert(Predecessor != Metadata.ControlFlowGraph.end());
 
-      auto R = Function.BasicBlocks.find(CurrentAddress);
-      revng_assert(R != Function.BasicBlocks.end());
+      auto CurrentBlock = Function.ControlFlowGraph.find(CurrentAddress);
+      revng_assert(CurrentBlock != Function.ControlFlowGraph.end());
 
-      if (Predecessor->End == Current->Start) {
-        R->IsAFallthroughTarget = true;
-        R->CanBeMergedWithPredecessor = (Predecessor->Successors.size() == 1);
-      }
+      if (Predecessor->End == Current->Start)
+        CurrentBlock->IsLabelAlwaysRequired = false;
     }
   }
 }
 
-assembly::Function DH::disassemble(const model::Function &Function,
-                                   const efa::FunctionMetadata &Metadata,
-                                   const RawBinaryView &BinaryView) {
+yield::Function DH::disassemble(const model::Function &Function,
+                                const efa::FunctionMetadata &Metadata,
+                                const RawBinaryView &BinaryView,
+                                const model::Binary &Binary) {
   auto &Helper = getDisassemblerFor(Function.Entry.type());
 
-  assembly::Function ResultFunction{ .Address = Function.Entry };
-  for (auto BasicBlockInserter = ResultFunction.BasicBlocks.batch_insert();
+  yield::Function ResultFunction;
+  ResultFunction.Entry = Function.Entry;
+  for (auto BasicBlockInserter = ResultFunction.ControlFlowGraph.batch_insert();
        const efa::BasicBlock &BasicBlock : Metadata.ControlFlowGraph) {
-    assembly::BasicBlock ResultBasicBlock{ .Address = BasicBlock.Start };
-    ResultBasicBlock.CommentIndicator = Helper.getCommentString();
-    ResultBasicBlock.LabelIndicator = Helper.getLabelSuffix();
+    yield::BasicBlock ResultBasicBlock;
+    ResultBasicBlock.Start = BasicBlock.Start;
+    ResultBasicBlock.End = BasicBlock.End;
+    ResultBasicBlock.Successors = BasicBlock.Successors;
+    ResultBasicBlock.IsLabelAlwaysRequired = true;
+
+    namespace Arch = model::Architecture;
+    auto Comment = Arch::getAssemblyCommentIndicator(Binary.Architecture);
+    revng_assert(Helper.getCommentString() == llvm::StringRef{ Comment });
+    auto Label = Arch::getAssemblyLabelIndicator(Binary.Architecture);
+    revng_assert(Helper.getLabelSuffix() == llvm::StringRef{ Label });
 
     auto MaybeBBSize = BasicBlock.End - BasicBlock.Start;
     revng_assert(MaybeBBSize.has_value());
@@ -114,8 +125,9 @@ assembly::Function DH::disassemble(const model::Function &Function,
 
       auto MaybeBytes = BinaryView.getByAddress(CurrentAddress, Size);
       revng_assert(MaybeBytes.has_value());
-      using ByteContainer = assembly::Instruction::ByteContainer;
-      Instruction.Bytes = ByteContainer(MaybeBytes->begin(), MaybeBytes->end());
+      using ByteContainer = yield::ByteContainer;
+      Instruction.RawBytes = ByteContainer(MaybeBytes->begin(),
+                                           MaybeBytes->end());
 
       CurrentAddress += Size;
       revng_assert(CurrentAddress.isValid());
@@ -124,18 +136,10 @@ assembly::Function DH::disassemble(const model::Function &Function,
       InstrInserter.insert(std::move(Instruction));
     }
 
-    if (!ResultBasicBlock.Instructions.empty()) {
-      if (!BasicBlock.Successors.empty()) {
-        auto TargetInserter = ResultBasicBlock.Targets.batch_insert();
-        for (auto &SuccessorEdge : BasicBlock.Successors)
-          TargetInserter.insert(SuccessorEdge->Destination);
-      }
-    }
-
     BasicBlockInserter.insert(std::move(ResultBasicBlock));
   }
 
-  analyzeBasicBlocks(ResultFunction, Metadata);
+  analyzeBasicBlocks(ResultFunction, Metadata, Binary);
   return ResultFunction;
 }
 
