@@ -25,7 +25,7 @@ static bool UseIntelSyntax = true;
 enum class ImmediateStyles { Decimal, CHexadecimal, AsmHexadecimal };
 static ImmediateStyles ImmediateStyle = ImmediateStyles::CHexadecimal;
 
-static bool ShouldSymbolizeOperands = true;
+static bool ShouldSymbolizeOperands = false;
 
 } // namespace options
 
