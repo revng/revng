@@ -6,27 +6,23 @@
 
 #include <string>
 
+class MetaAddress;
 namespace model {
 class Binary;
 }
-namespace efa {
-class FunctionMetadata;
-}
 namespace yield {
-class BasicBlock;
 class Function;
-} // namespace yield
+}
 
 namespace yield {
 
 namespace plain {
 
-std::string assembly(const yield::BasicBlock &BasicBlock,
-                     const efa::FunctionMetadata &Metadata,
-                     const model::Binary &Binary);
-std::string assembly(const yield::Function &Function,
-                     const efa::FunctionMetadata &Metadata,
-                     const model::Binary &Binary);
+std::string functionAssembly(const yield::Function &InternalFunction,
+                             const model::Binary &Binary);
+std::string controlFlowNode(const MetaAddress &BasicBlockAddress,
+                            const yield::Function &Function,
+                            const model::Binary &Binary);
 
 } // namespace plain
 
