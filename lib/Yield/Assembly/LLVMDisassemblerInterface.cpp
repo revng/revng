@@ -15,8 +15,8 @@
 #include "llvm/Support/TargetSelect.h"
 
 #include "revng/Support/Debug.h"
-#include "revng/Yield/Assembly/Assembly.h"
 #include "revng/Yield/Assembly/LLVMDisassemblerInterface.h"
+#include "revng/Yield/Function.h"
 
 namespace options {
 
@@ -76,7 +76,7 @@ DI::LLVMDisassemblerInterface(MetaAddressType::Values AddrType) {
                                                         Architecture,
                                                         TargetOptions));
   revng_assert(AssemblyInformation != nullptr,
-               "Assembly information object creation failed.");
+               "yield information object creation failed.");
 
   ObjectFileInformation = std::make_unique<llvm::MCObjectFileInfo>();
   Context = std::make_unique<llvm::MCContext>(AssemblyInformation.get(),
@@ -152,13 +152,13 @@ DI::disassemble(const MetaAddress &Address,
   }
 }
 
-static assembly::Instruction::TagType parseMarkupTag(llvm::StringRef Input) {
+static yield::TagType::Values parseMarkupTag(llvm::StringRef Input) {
   if (Input == "imm:")
-    return assembly::Instruction::TagType::Immediate;
+    return yield::TagType::Immediate;
   else if (Input == "mem:")
-    return assembly::Instruction::TagType::Memory;
+    return yield::TagType::Memory;
   else if (Input == "reg:")
-    return assembly::Instruction::TagType::Register;
+    return yield::TagType::Register;
   else
     revng_abort("Unknown llvm markup tag.");
 }
@@ -189,12 +189,13 @@ size_t getBackwardsConsecutiveCount(llvm::StringRef String,
   return StartFrom;
 }
 
-static assembly::Instruction
+static yield::Instruction
 makeInvalidInstruction(MetaAddress Where, size_t Size, std::string Reason) {
-  assembly::Instruction Result{ .Address = Where };
+  yield::Instruction Result;
 
-  Result.Text = "(invalid)";
-  Result.Tags.emplace_back(assembly::Instruction::TagType::Mnemonic, 0, 9);
+  Result.Address = Where;
+  Result.Disassembled = "(invalid)";
+  Result.Tags.insert({ yield::TagType::Mnemonic, 0, 9 });
   Result.Comment = std::to_string(Size) + " bytes";
   Result.Error = std::move(Reason);
 
@@ -279,17 +280,18 @@ tryDetectMnemonic(llvm::StringRef Text, llvm::StringRef Mnemonic) {
   return Result;
 }
 
-assembly::Instruction DI::parse(const llvm::MCInst &Instruction,
-                                const MetaAddress &Address,
-                                size_t InstructionSize,
-                                llvm::MCInstPrinter &Printer,
-                                const llvm::MCSubtargetInfo &SI) {
-  assembly::Instruction Result{ .Address = Address };
+yield::Instruction DI::parse(const llvm::MCInst &Instruction,
+                             const MetaAddress &Address,
+                             size_t InstructionSize,
+                             llvm::MCInstPrinter &Printer,
+                             const llvm::MCSubtargetInfo &SI) {
+  yield::Instruction Result;
+  Result.Address = Address;
 
   // Save the opcode for future use.
   if (auto Opcode = Printer.getOpcodeName(Instruction.getOpcode());
       !Opcode.empty())
-    Result.Opcode = Opcode.str();
+    Result.OpcodeIdentifier = Opcode.str();
 
   std::string MarkupStorage;
   llvm::raw_string_ostream MarkupStream(MarkupStorage);
@@ -313,7 +315,7 @@ assembly::Instruction DI::parse(const llvm::MCInst &Instruction,
   };
 
   const auto &Info = InstructionInformation->get(Instruction.getOpcode());
-  Result.HasDelayedSlot = Info.hasDelaySlot();
+  Result.HasDelaySlot = Info.hasDelaySlot();
 
   // Investigate the llvm-provided tags.
   constexpr llvm::StringRef TagBoundaries = "<>";
@@ -324,10 +326,10 @@ assembly::Instruction DI::parse(const llvm::MCInst &Instruction,
                                                  WhitespaceCheck,
                                                  Position);
     if (WhitespaceCount != 0) {
-      Result.Tags.emplace_back(assembly::Instruction::TagType::Whitespace,
-                               Result.Text.size(),
-                               Result.Text.size() + WhitespaceCount);
-      Result.Text += Markup.substr(Position, WhitespaceCount);
+      Result.Tags.insert({ yield::TagType::Whitespace,
+                           Result.Disassembled.size(),
+                           Result.Disassembled.size() + WhitespaceCount });
+      Result.Disassembled += Markup.substr(Position, WhitespaceCount);
       Position += WhitespaceCount - 1;
       continue;
     }
@@ -335,9 +337,9 @@ assembly::Instruction DI::parse(const llvm::MCInst &Instruction,
     if (Markup[Position] == '<') {
       // Opens a new markup tag.
       llvm::StringRef Tag = Markup.slice(Position + 1, Position + 5);
-      assembly::Instruction::TagType TagType = parseMarkupTag(Tag);
+      yield::TagType::Values TagType = parseMarkupTag(Tag);
       OpenTagStack.emplace_back(Result.Tags.size());
-      Result.Tags.emplace_back(TagType, Result.Text.size());
+      Result.Tags.insert({ TagType, Result.Disassembled.size() });
       Position += 4;
     } else if (Markup[Position] == '>') {
       // Closes the current markup tag.
@@ -347,39 +349,40 @@ assembly::Instruction DI::parse(const llvm::MCInst &Instruction,
         break;
       }
 
-      assembly::Instruction::Tag &CurrentTag = Result.Tags[OpenTagStack.back()];
-      CurrentTag.ToIndex = Result.Text.size();
+      auto &CurrentTag = *std::next(Result.Tags.begin(), OpenTagStack.back());
+      CurrentTag.To = Result.Disassembled.size();
       OpenTagStack.pop_back();
     } else if (Mnemonic.has_value() && Position == Mnemonic->FullPosition) {
       // Mnemonic
       if (!OpenTagStack.empty()) {
         Result.Error = "Mnemonic could not be detected correctly";
-        Result.Text += Markup[Position];
+        Result.Disassembled += Markup[Position];
         continue;
       }
 
-      size_t MnemonicStart = Result.Text.size();
-      size_t MnemonicPrefixEnd = MnemonicStart + Mnemonic->PrefixSize;
+      size_t MnemonicFullStart = Result.Disassembled.size();
+      size_t MnemonicPrefixEnd = MnemonicFullStart + Mnemonic->PrefixSize;
       size_t MnemonifSuffixStart = MnemonicPrefixEnd + Mnemonic->Size;
-      size_t MnemonicEnd = MnemonifSuffixStart + Mnemonic->SuffixSize;
+      size_t MnemonicFullEnd = MnemonifSuffixStart + Mnemonic->SuffixSize;
 
-      Result.Tags.emplace_back(assembly::Instruction::TagType::Mnemonic,
-                               MnemonicStart,
-                               MnemonicEnd);
+      Result.Tags.insert({ yield::TagType::Mnemonic,
+                           Result.Disassembled.size(),
+                           MnemonicFullEnd });
       if (Mnemonic->PrefixSize != 0)
-        Result.Tags.emplace_back(assembly::Instruction::TagType::MnemonicPrefix,
-                                 MnemonicStart,
-                                 MnemonicPrefixEnd);
+        Result.Tags.insert({ yield::TagType::MnemonicPrefix,
+                             Result.Disassembled.size(),
+                             MnemonicPrefixEnd });
       if (Mnemonic->SuffixSize != 0)
-        Result.Tags.emplace_back(assembly::Instruction::TagType::MnemonicSuffix,
-                                 MnemonifSuffixStart,
-                                 MnemonicEnd);
+        Result.Tags.insert({ yield::TagType::MnemonicSuffix,
+                             Result.Disassembled.size(),
+                             MnemonicFullEnd });
 
-      Result.Text += Markup.substr(Mnemonic->FullPosition, Mnemonic->FullSize);
+      Result.Disassembled += Markup.substr(Mnemonic->FullPosition,
+                                           Mnemonic->FullSize);
       Position += Mnemonic->FullSize - 1;
     } else {
       // Nothing special, just a character.
-      Result.Text += Markup[Position];
+      Result.Disassembled += Markup[Position];
     }
   }
 
@@ -389,7 +392,7 @@ assembly::Instruction DI::parse(const llvm::MCInst &Instruction,
   return Result;
 }
 
-std::pair<assembly::Instruction, uint64_t>
+std::pair<yield::Instruction, uint64_t>
 DI::instruction(const MetaAddress &Where, llvm::ArrayRef<uint8_t> RawBytes) {
   revng_assert(Where.isValid() && !RawBytes.empty());
 

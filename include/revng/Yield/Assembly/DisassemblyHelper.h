@@ -7,7 +7,7 @@
 #include <map>
 #include <memory>
 
-#include "revng/Yield/Assembly/Assembly.h"
+#include "revng/Yield/Function.h"
 
 namespace detail {
 class DissassemblyHelperImpl;
@@ -29,9 +29,10 @@ public:
   explicit DissassemblyHelper();
   ~DissassemblyHelper();
 
-  assembly::Function disassemble(const model::Function &Function,
-                                 const efa::FunctionMetadata &Metadata,
-                                 const RawBinaryView &BinaryView);
+  yield::Function disassemble(const model::Function &Function,
+                              const efa::FunctionMetadata &Metadata,
+                              const RawBinaryView &BinaryView,
+                              const model::Binary &Binary);
 
 private:
   LLVMDisassemblerInterface &

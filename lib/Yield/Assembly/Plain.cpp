@@ -9,7 +9,7 @@
 
 #include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
 #include "revng/Model/Binary.h"
-#include "revng/Yield/Assembly/Assembly.h"
+#include "revng/Yield/Function.h"
 #include "revng/Yield/Plain.h"
 
 namespace yield::plain {
@@ -50,20 +50,20 @@ static std::string link(const MetaAddress &Target,
   }
 }
 
-static std::string label(const assembly::BasicBlock &BasicBlock,
+static std::string label(const yield::BasicBlock &BasicBlock,
                          const efa::FunctionMetadata &Metadata,
                          const model::Binary &Binary) {
-  if (BasicBlock.CanBeMergedWithPredecessor || BasicBlock.IsAFallthroughTarget)
+  if (BasicBlock.Type != yield::BasicBlockType::Ordinary)
     return "";
 
   return link(BasicBlock.Address, Metadata, Binary) + ":\n";
 }
 
-static std::string instruction(const assembly::Instruction &Instruction) {
-  return Instruction.Text + '\n';
+static std::string instruction(const yield::Instruction &Instruction) {
+  return Instruction.Disassembled + '\n';
 }
 
-static std::string basicBlock(const assembly::BasicBlock &BasicBlock,
+static std::string basicBlock(const yield::BasicBlock &BasicBlock,
                               const efa::FunctionMetadata &Metadata,
                               const model::Binary &Binary) {
   std::string Result;
@@ -75,17 +75,17 @@ static std::string basicBlock(const assembly::BasicBlock &BasicBlock,
   return Result;
 }
 
-std::string assembly(const assembly::BasicBlock &BasicBlock,
+std::string assembly(const yield::BasicBlock &BasicBlock,
                      const efa::FunctionMetadata &Metadata,
                      const model::Binary &Binary) {
   return basicBlock(BasicBlock, Metadata, Binary);
 }
-std::string assembly(const assembly::Function &Function,
+std::string assembly(const yield::Function &Function,
                      const efa::FunctionMetadata &Metadata,
                      const model::Binary &Binary) {
   std::string Result;
 
-  for (const auto &BasicBlock : Function.BasicBlocks)
+  for (const auto &BasicBlock : Function.ControlFlowGraph)
     Result += basicBlock(BasicBlock, Metadata, Binary);
 
   return Result;
