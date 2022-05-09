@@ -16,7 +16,7 @@
 
 namespace revng::pipes {
 
-class StringMapContainer : public pipeline::Container<StringMapContainer> {
+class FunctionStringMap : public pipeline::Container<FunctionStringMap> {
 public:
   /// Wrapper for std::string that allows YAML-serialization as multiline string
   struct String {
@@ -39,24 +39,24 @@ public:
   static char ID;
 
 public:
-  StringMapContainer(llvm::StringRef Name,
-                     llvm::StringRef MIMEType,
-                     const pipeline::Kind &K,
-                     const model::Binary &Model) :
-    pipeline::Container<StringMapContainer>(Name, MIMEType),
+  FunctionStringMap(llvm::StringRef Name,
+                    llvm::StringRef MIMEType,
+                    const pipeline::Kind &K,
+                    const model::Binary &Model) :
+    pipeline::Container<FunctionStringMap>(Name, MIMEType),
     Map(),
     TheKind(&K),
     Model(&Model) {
     revng_assert(&K.rank() == &FunctionsRank);
   }
 
-  StringMapContainer(const StringMapContainer &) = default;
-  StringMapContainer &operator=(const StringMapContainer &) = default;
+  FunctionStringMap(const FunctionStringMap &) = default;
+  FunctionStringMap &operator=(const FunctionStringMap &) = default;
 
-  StringMapContainer(StringMapContainer &&) = default;
-  StringMapContainer &operator=(StringMapContainer &&) = default;
+  FunctionStringMap(FunctionStringMap &&) = default;
+  FunctionStringMap &operator=(FunctionStringMap &&) = default;
 
-  ~StringMapContainer() override = default;
+  ~FunctionStringMap() override = default;
 
 public:
   void clear() override { Map.clear(); }
@@ -73,7 +73,7 @@ public:
   llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) override;
 
 protected:
-  void mergeBackImpl(StringMapContainer &&Container) override;
+  void mergeBackImpl(FunctionStringMap &&Container) override;
 
 public:
   /// std::map-like methods
@@ -110,31 +110,31 @@ public:
   ConstIterator begin() const { return Map.begin(); }
   ConstIterator end() const { return Map.end(); }
 
-}; // end class StringMapContainer
+}; // end class FunctionStringMap
 
-class RegisterStringMapContainer : public pipeline::Registry {
+class RegisterFunctionStringMap : public pipeline::Registry {
 private:
   llvm::StringRef Name;
   llvm::StringRef MIMEType;
   const pipeline::Kind &K;
 
 public:
-  RegisterStringMapContainer(llvm::StringRef Name,
-                             llvm::StringRef MIMEType,
-                             const pipeline::Kind &K) :
+  RegisterFunctionStringMap(llvm::StringRef Name,
+                            llvm::StringRef MIMEType,
+                            const pipeline::Kind &K) :
     Name(Name), MIMEType(MIMEType), K(K) {}
 
 public:
-  virtual ~RegisterStringMapContainer() override = default;
+  virtual ~RegisterFunctionStringMap() override = default;
 
 public:
   void registerContainersAndPipes(pipeline::Loader &Loader) override {
     const model::Binary &Model = *getModelFromContext(Loader.getContext());
     auto Factory = [&Model, this](llvm::StringRef ContainerName) {
-      return std::make_unique<StringMapContainer>(ContainerName,
-                                                  MIMEType,
-                                                  K,
-                                                  Model);
+      return std::make_unique<FunctionStringMap>(ContainerName,
+                                                 MIMEType,
+                                                 K,
+                                                 Model);
     };
     Loader.addContainerFactory(Name, Factory);
   }

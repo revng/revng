@@ -45,8 +45,8 @@ static opt<std::string> ModelPath(llvm::cl::Positional,
 
 } // namespace options
 
-static revng::pipes::StringMapContainer createMap(const model::Binary &Model) {
-  using C = revng::pipes::StringMapContainer;
+static revng::pipes::FunctionStringMap createMap(const model::Binary &Model) {
+  using C = revng::pipes::FunctionStringMap;
   return C("", "", pipeline::Kind{ "", &revng::pipes::RootRank }, Model);
 }
 

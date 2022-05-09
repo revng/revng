@@ -7,7 +7,7 @@
 #include <memory>
 
 #include "revng/Lift/LoadBinaryPass.h"
-#include "revng/Pipes/StringMapContainer.h"
+#include "revng/Pipes/FunctionStringMap.h"
 #include "revng/TupleTree/TupleTree.h"
 
 namespace llvm {
@@ -30,6 +30,6 @@ struct ObjectLifetimeController {
 using ReturnValueType = std::tuple<const llvm::Module &,
                                    const model::Binary &,
                                    RawBinaryView,
-                                   revng::pipes::StringMapContainer,
+                                   revng::pipes::FunctionStringMap,
                                    ObjectLifetimeController>;
 ReturnValueType parseCommandLineOptions(int Argc, char *Argv[]);

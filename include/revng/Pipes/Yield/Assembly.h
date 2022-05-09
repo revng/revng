@@ -12,7 +12,7 @@
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/FileContainer.h"
-#include "revng/Pipes/StringMapContainer.h"
+#include "revng/Pipes/FunctionStringMap.h"
 
 namespace revng::pipes {
 
@@ -27,7 +27,7 @@ public:
   void run(pipeline::Context &Context,
            const FileContainer &SourceBinary,
            const pipeline::LLVMContainer &TargetsList,
-           StringMapContainer &OutputAssembly);
+           FunctionStringMap &OutputAssembly);
 
   void print(const pipeline::Context &Ctx,
              llvm::raw_ostream &OS,

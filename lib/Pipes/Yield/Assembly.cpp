@@ -20,7 +20,7 @@ namespace revng::pipes {
 void YieldAssemblyPipe::run(pipeline::Context &Context,
                             const FileContainer &SourceBinary,
                             const pipeline::LLVMContainer &TargetList,
-                            StringMapContainer &Output) {
+                            FunctionStringMap &Output) {
   // Access the model
   const auto &Model = revng::pipes::getModelFromContext(Context);
 
@@ -77,8 +77,8 @@ std::array<pipeline::ContractGroup, 1> YieldAssemblyPipe::getContract() const {
 } // end namespace revng::pipes
 
 using revng::pipes::FunctionAssemblyHTML;
-using revng::pipes::StringMapContainer;
-static revng::pipes::RegisterStringMapContainer
+using revng::pipes::FunctionStringMap;
+static revng::pipes::RegisterFunctionStringMap
   AssemblyContainer("FunctionAssemblyHTML",
                     "application/"
                     "x.yaml.function-assembly"
