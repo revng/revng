@@ -8,6 +8,10 @@
 
 #include "revng/Pipeline/Container.h"
 #include "revng/Pipeline/ContainerSet.h"
+#include "revng/Pipeline/Loader.h"
+#include "revng/Pipeline/Registry.h"
+#include "revng/Pipes/Kinds.h"
+#include "revng/Pipes/ModelGlobal.h"
 #include "revng/Support/MetaAddress.h"
 
 namespace revng::pipes {
@@ -29,6 +33,7 @@ public:
 private:
   MapType Map;
   const pipeline::Kind *TheKind;
+  const model::Binary *Model;
 
 public:
   static char ID;
@@ -36,10 +41,14 @@ public:
 public:
   StringMapContainer(llvm::StringRef Name,
                      llvm::StringRef MIMEType,
-                     const pipeline::Kind &K) :
+                     const pipeline::Kind &K,
+                     const model::Binary &Model) :
     pipeline::Container<StringMapContainer>(Name, MIMEType),
     Map(),
-    TheKind(&K) {}
+    TheKind(&K),
+    Model(&Model) {
+    revng_assert(&K.rank() == &FunctionsRank);
+  }
 
   StringMapContainer(const StringMapContainer &) = default;
   StringMapContainer &operator=(const StringMapContainer &) = default;
@@ -103,11 +112,34 @@ public:
 
 }; // end class StringMapContainer
 
-inline pipeline::ContainerFactory
-makeStringMapContainerFactory(pipeline::Kind &K, llvm::StringRef MIMEType) {
-  return [&K, MIMEType](llvm::StringRef Name) {
-    return std::make_unique<StringMapContainer>(Name, MIMEType, K);
-  };
-}
+class RegisterStringMapContainer : public pipeline::Registry {
+private:
+  llvm::StringRef Name;
+  llvm::StringRef MIMEType;
+  const pipeline::Kind &K;
+
+public:
+  RegisterStringMapContainer(llvm::StringRef Name,
+                             llvm::StringRef MIMEType,
+                             const pipeline::Kind &K) :
+    Name(Name), MIMEType(MIMEType), K(K) {}
+
+public:
+  virtual ~RegisterStringMapContainer() override = default;
+
+public:
+  void registerContainersAndPipes(pipeline::Loader &Loader) override {
+    const model::Binary &Model = *getModelFromContext(Loader.getContext());
+    auto Factory = [&Model, this](llvm::StringRef ContainerName) {
+      return std::make_unique<StringMapContainer>(ContainerName,
+                                                  MIMEType,
+                                                  K,
+                                                  Model);
+    };
+    Loader.addContainerFactory(Name, Factory);
+  }
+  void registerKinds(pipeline::KindsRegistry &KindDictionary) override {}
+  void libraryInitialization() override {}
+};
 
 } // end namespace revng::pipes
