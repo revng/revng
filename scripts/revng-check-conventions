@@ -270,9 +270,9 @@ GREP="grep -Hn --color=always"
 function run_clang_format() {
     if [[ ${#C_FILES[@]} -eq 0 ]]; then return; fi
     if [[ "$FORCE_FORMAT" -ne 0 ]]; then
-        clang-format -style="$CLANG_FORMAT_STYLE" -i "${C_FILES[@]}" || true
+        clang-format -Werror -style="$CLANG_FORMAT_STYLE" -i "${C_FILES[@]}"
     else
-        clang-format --dry-run -style="$CLANG_FORMAT_STYLE" -i "${C_FILES[@]}"
+        clang-format -Werror --dry-run -style="$CLANG_FORMAT_STYLE" -i "${C_FILES[@]}"
     fi
 }
 
