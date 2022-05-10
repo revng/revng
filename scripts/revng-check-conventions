@@ -111,7 +111,7 @@ function git_ls_files_wrapper() {
 }
 
 
-SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_PATH="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
 
 FORCE_FORMAT="0"
 
