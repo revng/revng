@@ -308,7 +308,7 @@ BOOST_AUTO_TEST_CASE(CABIFunctionTypeArgumentsPathShouldParse) {
 }
 
 static_assert(std::is_default_constructible_v<TupleTree<TestTupleTree::Root>>);
-static_assert(not std::is_copy_assignable_v<TupleTree<TestTupleTree::Root>>);
-static_assert(not std::is_copy_constructible_v<TupleTree<TestTupleTree::Root>>);
+static_assert(std::is_copy_assignable_v<TupleTree<TestTupleTree::Root>>);
+static_assert(std::is_copy_constructible_v<TupleTree<TestTupleTree::Root>>);
 static_assert(std::is_move_assignable_v<TupleTree<TestTupleTree::Root>>);
 static_assert(std::is_move_constructible_v<TupleTree<TestTupleTree::Root>>);
