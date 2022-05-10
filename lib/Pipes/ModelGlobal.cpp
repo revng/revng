@@ -28,7 +28,7 @@ llvm::Error ModelGlobal::deserialize(const llvm::MemoryBuffer &Buffer) {
       !MaybeBin)
     return llvm::errorCodeToError(MaybeBin.getError());
   else
-    Model = std::move(*MaybeBin);
+    Model = *MaybeBin;
 
   return llvm::Error::success();
 }
