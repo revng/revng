@@ -1432,6 +1432,9 @@ void decompile(llvm::Module &Module,
 
   for (llvm::Function &F : FunctionTags::Isolated.functions(&Module)) {
 
+    if (F.empty())
+      continue;
+
     // TODO: this will eventually become a GHASTContainer for revng pipeline
     ASTTree GHAST;
 
