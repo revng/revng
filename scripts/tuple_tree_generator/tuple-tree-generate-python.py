@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import yaml
+
 from tuple_tree_generator import Schema, generate_python
 
 argparser = argparse.ArgumentParser()
