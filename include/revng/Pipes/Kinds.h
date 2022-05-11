@@ -33,5 +33,7 @@ inline pipeline::Kind
   FunctionAssemblyInternal("FunctionAssemblyInternal", &FunctionsRank);
 inline pipeline::Kind
   FunctionAssemblyHTML("FunctionAssemblyHTML", &FunctionsRank);
+inline pipeline::Kind
+  FunctionControlFlowGraphSVG("FunctionControlFlowGraphSVG", &FunctionsRank);
 
 } // namespace revng::pipes
