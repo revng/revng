@@ -3,7 +3,7 @@
 #
 
 revng_add_analyses_library(revngcRemoveLiftingArtifacts revngc
-                           RemoveLiftingArtifacts.cpp)
+                           PromoteInitCSVToUndef.cpp RemoveLiftingArtifacts.cpp)
 
 target_link_libraries(
   revngcRemoveLiftingArtifacts revngcSupport revng::revngModel
