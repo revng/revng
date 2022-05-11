@@ -597,6 +597,10 @@ rp_container_extract_one(rp_container *container, rp_target *target) {
   return copyString(Out);
 }
 
+const char *rp_analysis_get_name(rp_analysis *analysis) {
+  return analysis->second->getUserBoundName().c_str();
+}
+
 int rp_analysis_get_arguments_count(rp_analysis *analysis) {
   return analysis->second->getRunningContainersNames().size();
 }

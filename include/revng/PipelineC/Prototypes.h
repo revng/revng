@@ -322,6 +322,11 @@ int rp_step_get_analyses_count(rp_step *step);
 rp_analysis *rp_step_get_analysis(rp_step *step, int index);
 
 /**
+ * \return the name of the analysis
+ */
+const char *rp_analysis_get_name(rp_analysis *analysis);
+
+/**
  * \return the count of containers used by the provided analysis.
  * is no analysis
  */

@@ -149,6 +149,7 @@ python_module(TARGET_NAME revng-python-cmd-daemon MODULE_FILES
 set(REVNG_API_MODULE_FILES
     revng/api/__init__.py
     revng/api/_capi.py
+    revng/api/analysis.py
     revng/api/container.py
     revng/api/exceptions.py
     revng/api/kind.py

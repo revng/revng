@@ -320,7 +320,19 @@ def test_produce_artifact(client):
 
 
 def test_function_endpoint(client):
-    client.execute(gql("{ root { lift } }"))
+    client.execute(
+        gql(
+            """
+    mutation {
+        analyses {
+            lift {
+                efa(module_ll: ":Root")
+            }
+        }
+    }
+    """
+        )
+    )
 
     q = gql(
         """
@@ -348,3 +360,20 @@ def test_function_endpoint(client):
     result = client.execute(q, {"param1": first_function["serialized"]})
 
     assert result["function"]["isolate"] is not None
+
+
+@mark.xfail(raises=Exception)
+def test_analysis_kind_check(client):
+    client.execute(
+        gql(
+            """
+    mutation {
+        analyses {
+            lift {
+                efa(module_ll: ":IsolatedRoot")
+            }
+        }
+    }
+    """
+        )
+    )

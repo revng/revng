@@ -61,6 +61,10 @@ class Target:
         _serialized = _api.rp_target_create_serialized_string(self._target)
         return make_python_string(_serialized)
 
+    def extract(self) -> str:
+        _element = _api.rp_container_extract_one(self._container, self._target)
+        return make_python_string(_element)
+
     def as_dict(self):
         return {
             "serialized": self.serialize(),

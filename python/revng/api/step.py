@@ -2,12 +2,13 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-from typing import Dict, Optional
+from typing import Dict, Generator, Optional
 
 from ._capi import _api, ffi
+from .analysis import Analysis
 from .container import Container, ContainerIdentifier
 from .kind import Kind
-from .utils import make_python_string
+from .utils import make_generator, make_python_string
 
 
 class Step:
@@ -36,6 +37,16 @@ class Step:
     def get_artifacts_container(self) -> Optional[Container]:
         _container = _api.rp_step_get_artifacts_container(self._step)
         return Container(_container, self.name) if _container != ffi.NULL else None
+
+    def analyses_count(self) -> int:
+        return _api.rp_step_get_analyses_count(self._step)
+
+    def _get_analysis_from_index(self, idx: int) -> Optional[Analysis]:
+        _analysis = _api.rp_step_get_analysis(self._step, idx)
+        return Analysis(_analysis) if _analysis != ffi.NULL else None
+
+    def analyses(self) -> Generator[Analysis, None, None]:
+        return make_generator(self.analyses_count(), self._get_analysis_from_index)
 
     def as_dict(self) -> Dict[str, str]:
         ret = {"name": self.name}

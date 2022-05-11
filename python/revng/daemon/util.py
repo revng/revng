@@ -55,6 +55,8 @@ def str_to_snake_case(string: str) -> str:
                 ret.append(char.lower())
             else:
                 ret += ["_", char.lower()]
+        elif char == ".":
+            ret.append("_")
         else:
             ret.append(char)
     return "".join(ret)

@@ -43,3 +43,9 @@ class Container:
 
     def as_dict(self) -> Dict[str, str]:
         return {"name": self.name, "mime": self.mime, "_step": self._step_name}
+
+    def __eq__(self, other):
+        return isinstance(other, self.__class__) and self._container == self._container
+
+    def __hash__(self):
+        return hash(self._container)
