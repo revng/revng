@@ -467,6 +467,11 @@ CCodeGenerator::addOperandToken(const llvm::Value *Operand) {
   }
 
   revng_assert(not Operand->getType()->isVoidTy());
+  if (auto *Undef = dyn_cast<llvm::UndefValue>(Operand)) {
+    revng_assert(Undef->getType()->isIntOrPtrTy());
+    TokenMap[Operand] = "0 /* undef */";
+    rc_return true;
+  }
 
   if (auto *Const = dyn_cast<llvm::ConstantInt>(Operand)) {
     llvm::APInt Value = Const->getValue();
