@@ -1927,6 +1927,16 @@ makeGEPReplacements(llvm::Function &F, const model::Binary &Model) {
           }
         }
 
+        // Skip null pointer constants, and undefs, since they cannot be valid
+        // addresses
+        // TODO: if we ever need to support memory mapped at address 0 we can
+        // probably work around this, but this is not top priority for now.
+        if (isa<llvm::UndefValue>(U.get())
+            or isa<llvm::ConstantPointerNull>(U.get())) {
+          revng_log(ModelGEPLog, "Skipping null pointer address");
+          continue;
+        }
+
         ModelGEPSummation GEPSum = GEPSumCache.getGEPSummation(U, PointerTypes);
 
         revng_log(ModelGEPLog, "GEPSum " << GEPSum);
