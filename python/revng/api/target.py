@@ -20,15 +20,13 @@ class Target:
         kind: Kind, container: Container, exact: bool, path_components: List[str]
     ) -> Optional["Target"]:
         _path_components = [make_c_string(c) for c in path_components]
-        _target = ffi.gc(
-            _api.rp_target_create(
-                kind._kind,
-                int(exact),
-                len(_path_components),
-                _path_components,
-            ),
-            _api.rp_target_destroy,
+        _target = _api.rp_target_create(
+            kind._kind,
+            int(exact),
+            len(_path_components),
+            _path_components,
         )
+
         return Target(_target, container) if _target != ffi.NULL else None
 
     @property
@@ -61,8 +59,7 @@ class Target:
 
     def serialize(self) -> str:
         _serialized = _api.rp_target_create_serialized_string(self._target)
-        serialized = make_python_string(_serialized, True)
-        return serialized
+        return make_python_string(_serialized)
 
     def as_dict(self):
         return {

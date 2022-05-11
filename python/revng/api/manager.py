@@ -39,15 +39,12 @@ class Manager:
         # Ensures that the _manager property is always defined even if the API call fails
         self._manager = None
 
-        self._manager = ffi.gc(
-            _api.rp_manager_create(
-                len(_pipelines_paths),
-                _pipelines_paths,
-                len(_flags),
-                _flags,
-                _workdir,
-            ),
-            _api.rp_manager_destroy,
+        self._manager = _api.rp_manager_create(
+            len(_pipelines_paths),
+            _pipelines_paths,
+            len(_flags),
+            _flags,
+            _workdir,
         )
 
         assert self._manager, "Failed to instantiate manager"
@@ -76,10 +73,7 @@ class Manager:
     # Target-related Functions
 
     def deserialize_target(self, serialized_target: str, container: Container) -> Target:
-        _target = ffi.gc(
-            _api.rp_target_create_from_string(self._manager, serialized_target),
-            _api.rp_target_destroy,
-        )
+        _target = _api.rp_target_create_from_string(self._manager, serialized_target)
         return Target(_target, container)
 
     def _produce_target(
@@ -97,7 +91,7 @@ class Manager:
         _product = _api.rp_manager_produce_targets(
             self._manager, len(_targets), _targets, _step, _container
         )
-        return make_python_string(_product, True)
+        return make_python_string(_product)
 
     def produce_target(
         self,
@@ -198,8 +192,7 @@ class Manager:
         _path = _api.rp_manager_create_container_path(self._manager, _step_name, _container_name)
         if not _path:
             return None
-        path = make_python_string(_path, True)
-        return path
+        return make_python_string(_path)
 
     @property
     def containers_count(self) -> int:
@@ -306,7 +299,7 @@ class Manager:
     def _get_global(self, name) -> str:
         _name = make_c_string(name)
         _out = _api.rp_manager_create_global_copy(self._manager, _name)
-        return make_python_string(_out, True)
+        return make_python_string(_out)
 
     def _set_global(self, name, content):
         _name = make_c_string(name)
