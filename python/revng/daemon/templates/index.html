@@ -44,7 +44,7 @@
   }
 
   async function gql(query) {
-    return fetch(`${window.location.pathname}/graphql/`, {
+    return fetch(`${window.location}graphql/`, {
       body: wrap_gql(query),
       method: 'POST',
       mode: 'cors',
