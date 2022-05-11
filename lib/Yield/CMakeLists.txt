@@ -9,6 +9,7 @@ revng_add_analyses_library_internal(
   Assembly/HTML.cpp
   Assembly/LLVMDisassemblerInterface.cpp
   Assembly/Plain.cpp
+  ControlFlow/Extraction.cpp
   ControlFlow/FallthroughDetection.cpp
   ControlFlow/SVG.cpp
   Dump.cpp
