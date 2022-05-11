@@ -119,8 +119,7 @@ struct CustomMappingTraits<std::map<MetaAddress, StringType>> {
 namespace revng::pipes {
 
 llvm::Error FunctionStringMap::serialize(llvm::raw_ostream &OS) const {
-  llvm::yaml::Output YAMLOutput(OS);
-  YAMLOutput << const_cast<std::map<MetaAddress, String> &>(Map);
+  ::serialize(OS, Map);
   return llvm::Error::success();
 }
 
