@@ -8,7 +8,6 @@ bool init_unit_test();
 #include "boost/test/unit_test.hpp"
 
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
-#include "revng-c/Support/FunctionFileHelpers.h"
 
 #include "lib/DataLayoutAnalysis/Middleend/DLAStep.h"
 

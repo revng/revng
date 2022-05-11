@@ -3,7 +3,6 @@
 #
 
 add_subdirectory(Backend)
-add_subdirectory(BeautifyGHAST)
 add_subdirectory(DataLayoutAnalysis)
 add_subdirectory(IRCanonicalization)
 add_subdirectory(HeadersGeneration)
@@ -11,8 +10,7 @@ add_subdirectory(InitModelTypes)
 add_subdirectory(PromoteStackPointer)
 add_subdirectory(RemoveExtractValues)
 add_subdirectory(RemoveLiftingArtifacts)
-add_subdirectory(RestructureCFGPass)
+add_subdirectory(RestructureCFG)
 add_subdirectory(Support)
 add_subdirectory(TypeNames)
-add_subdirectory(TargetFunctionOption)
 add_subdirectory(ValueManipulationAnalysis)

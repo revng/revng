@@ -1,0 +1,13 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+Containers:
+ - Name:            helpers_header.h
+   Type:            HelpersHeader
+From:            IRCanonicalization
+Steps:
+ - Name:            PrintHelpersHeader
+   Pipes:
+     - Type:             HelpersToHeader
+       UsedContainers: [module.ll, helpers_header.h]

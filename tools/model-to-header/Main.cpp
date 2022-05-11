@@ -13,24 +13,31 @@
 #include "llvm/Support/SourceMgr.h"
 
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Model/ToolHelpers.h"
 #include "revng/Support/Assert.h"
 
 #include "revng-c/HeadersGeneration/ModelToHeader.h"
 
-static llvm::cl::OptionCategory ModelToHeaderCategory("ModelToHeaderOptions");
+using namespace llvm::cl;
+
+static OptionCategory ModelToHeaderCategory("revng-model-to-header options");
 
 static const char *Overview = "Standalone tool that ingests an instance of "
-                              "revng's model, embedded into an\nllvm IR file, "
-                              "and produces a C11 header file with all the "
-                              "declarations of\ntypes and functions associated "
-                              "to the model's type system.";
+                              "revng's model, embedded into an\n"
+                              "llvm IR file, and produces a C11 header file "
+                              "with all the declarations of\n"
+                              "types and functions associated to the model's "
+                              "type system.";
 
-static llvm::cl::opt<bool> InputIsYAML("yaml",
-                                       llvm::cl::cat(ModelToHeaderCategory),
-                                       llvm::cl::Optional,
-                                       llvm::cl::init(false),
-                                       llvm::cl::desc("Set to true if input is "
-                                                      "yaml, not llvm IR"));
+static opt<std::string> OutFile("o",
+                                init("-" /* for stdout */),
+                                desc("Output C header"),
+                                cat(ModelToHeaderCategory));
+
+static opt<std::string> InFile("i",
+                               init("-" /* for stdin */),
+                               desc("Input file with Model"),
+                               cat(ModelToHeaderCategory));
 
 using llvm::LLVMContext;
 using llvm::Module;
@@ -51,48 +58,29 @@ int main(int Argc, const char *Argv[]) {
   if (not Ok)
     std::exit(EXIT_FAILURE);
 
-  auto Buffer = llvm::MemoryBuffer::getSTDIN();
+  auto Buffer = llvm::MemoryBuffer::getFileOrSTDIN(InFile);
   if (std::error_code EC = Buffer.getError())
     revng_abort(EC.message().c_str());
 
-  // Try to load the module from stdin, either in yaml or bitcode format
-  TupleTree<model::Binary> Model;
-  if (InputIsYAML) {
-
-    // If input is YAML, get it from yaml
-    auto M = TupleTree<model::Binary>::deserialize(Buffer.get()->getBuffer());
-    if (std::error_code EC = M.getError())
-      revng_abort(EC.message().c_str());
-
-    Model = std::move(M.get());
-  } else {
-    // If we're loading from LLVM IR, do it lazily, since we don't really need
-    // to deserialize function bodies for converting the model to a header. We
-    // just need to loo, into the model metadata.
-    llvm::SMDiagnostic Diag;
-    LLVMContext Ctx;
-    std::unique_ptr<Module> M = llvm::getLazyIRModule(std::move(Buffer.get()),
-                                                      Diag,
-                                                      Ctx);
-    if (not M) {
-      Diag.print(Argv[0], llvm::errs());
-      std::exit(EXIT_FAILURE);
-    }
-
-    Model = loadModel(*M);
-  }
-
+  // Load the module either in yaml or bitcode format
+  auto ModelWrapper = llvm::cantFail(ModelInModule::load(**Buffer));
+  TupleTree<model::Binary> &Model = ModelWrapper.getModel();
   if (not Model.verify()) {
     llvm::errs() << "Invalid Model\n";
     std::exit(EXIT_FAILURE);
   }
 
   std::error_code EC;
-  llvm::raw_fd_ostream Header{ "-" /* for stdout */, EC };
+  llvm::raw_fd_ostream Header{ OutFile, EC };
   if (EC)
     revng_abort(EC.message().c_str());
 
   dumpModelToHeader(*Model, Header);
+
+  Header.flush();
+  EC = Header.error();
+  if (EC)
+    revng_abort(EC.message().c_str());
 
   return 0;
 }

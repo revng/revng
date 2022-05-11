@@ -35,12 +35,17 @@
 
 #include "revng-c/Backend/DecompileFunction.h"
 #include "revng-c/InitModelTypes/InitModelTypes.h"
-#include "revng-c/RestructureCFGPass/ASTNode.h"
+#include "revng-c/RestructureCFG/ASTNode.h"
+#include "revng-c/RestructureCFG/ASTTree.h"
+#include "revng-c/RestructureCFG/BeautifyGHAST.h"
+#include "revng-c/RestructureCFG/RestructureCFG.h"
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
 #include "revng-c/TypeNames/LLVMTypeNames.h"
 #include "revng-c/TypeNames/ModelTypeNames.h"
+
+#include "VariableScopeAnalysis.h"
 
 using llvm::cast;
 using llvm::dyn_cast;
@@ -62,28 +67,10 @@ using model::TypedefType;
 using StringToken = llvm::SmallString<32>;
 using TokenMapT = std::map<const llvm::Value *, StringToken>;
 using ModelTypesMap = std::map<const llvm::Value *, const model::QualifiedType>;
+using ValueSet = llvm::SmallPtrSet<const llvm::Value *, 32>;
 
 static constexpr const char *StackFrameVarName = "stack";
 static constexpr const char *StackPtrVarName = "stack_ptr";
-
-using StringOpt = llvm::cl::opt<std::string>;
-static StringOpt BackendHelpersHeaderName("backend-helpers-header-name",
-                                          llvm::cl::cat(MainCategory),
-                                          llvm::cl::Optional,
-                                          llvm::cl::init("./helpers.h"),
-                                          llvm::cl::desc("Path of the header "
-                                                         "where helper "
-                                                         "declarations are "
-                                                         "located."));
-
-static StringOpt BackendTypesHeaderName("backend-types-header-name",
-                                        llvm::cl::cat(MainCategory),
-                                        llvm::cl::Optional,
-                                        llvm::cl::init("./revng-types.h"),
-                                        llvm::cl::desc("Path of the header "
-                                                       "where model types "
-                                                       "declarations are "
-                                                       "located."));
 
 static Logger<> Log{ "c-backend" };
 static Logger<> InlineLog{ "c-backend-inline" };
@@ -1413,31 +1400,65 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
   // Recursively print the body of this function
   emitGHASTNode(GHAST.getRoot());
 
-  Out << " }\n";
+  Out << "}\n";
 }
 
-void decompileFunction(const llvm::Function &LLVMFunc,
-                       const ASTTree &CombedAST,
-                       const Binary &Model,
-                       llvm::raw_ostream &Out,
-                       const ValueSet &TopScopeVariables,
-                       bool NeedsLocalStateVar) {
-  if (Log.isEnabled()) {
-    writeToFile(Model.toString(), "model-during-c-codegen.yaml");
-    const llvm::Twine &ASTFileName = LLVMFunc.getName()
-                                     + "GHAST-during-c-codegen.dot";
-    CombedAST.dumpASTOnFile(ASTFileName.str());
-  }
+std::string decompileFunction(const llvm::Function &LLVMFunc,
+                              const ASTTree &CombedAST,
+                              const Binary &Model,
+                              const ValueSet &TopScopeVariables,
+                              bool NeedsLocalStateVar) {
+  std::string Result;
 
-  // Print includes for model and helpers headers
-  Out << "//\n "
-      << "// Decompiled with <3 by rev.ng\n"
-      << "//\n"
-      << "\n"
-      << "#include \"" << BackendTypesHeaderName << "\"\n"
-      << "#include \"" << BackendHelpersHeaderName << "\"\n"
-      << "\n";
-
+  llvm::raw_string_ostream Out(Result);
   CCodeGenerator Backend(Model, LLVMFunc, CombedAST, TopScopeVariables, Out);
   Backend.emitFunction(NeedsLocalStateVar);
+  Out.flush();
+
+  return Result;
+}
+
+void decompile(llvm::Module &Module,
+               const model::Binary &Model,
+               revng::pipes::FunctionStringMap &DecompiledFunctions) {
+
+  if (Log.isEnabled())
+    writeToFile(Model.toString(), "model-during-c-codegen.yaml");
+
+  for (llvm::Function &F : FunctionTags::Isolated.functions(&Module)) {
+
+    if (F.empty())
+      continue;
+
+    // TODO: this will eventually become a GHASTContainer for revng pipeline
+    ASTTree GHAST;
+
+    // Generate the GHAST and beautify it.
+    {
+      restructureCFG(F, GHAST);
+      // TODO: beautification should be optional, but at the moment it's not
+      // truly so (if disabled, things crash). We should strive to make it
+      // optional for real.
+      beautifyAST(F, GHAST);
+    }
+
+    if (Log.isEnabled()) {
+      const llvm::Twine &ASTFileName = F.getName()
+                                       + "GHAST-during-c-codegen.dot";
+      GHAST.dumpASTOnFile(ASTFileName.str());
+    }
+
+    // Generated C code for F
+    auto TopScopeVariables = collectLocalVariables(F);
+    auto NeedsLoopStateVar = hasLoopDispatchers(GHAST);
+    std::string CCode = decompileFunction(F,
+                                          GHAST,
+                                          Model,
+                                          TopScopeVariables,
+                                          NeedsLoopStateVar);
+
+    // Push the C code into
+    MetaAddress Key = getMetaAddressMetadata(&F, "revng.function.entry");
+    DecompiledFunctions.insert_or_assign(Key, std::move(CCode));
+  }
 }

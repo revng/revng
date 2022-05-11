@@ -14,6 +14,7 @@
 
 #include "revng-c/Pipes/Kinds.h"
 #include "revng-c/Support/FunctionTags.h"
+#include "revng-c/Support/IRHelpers.h"
 
 using namespace llvm;
 
@@ -152,20 +153,7 @@ public:
       } else {
 
         // If we find a non-isolated function with body, we want to remove it.
-        if (not F.empty()) {
-          // deleteBody() also kills all attributes and tags. Since we still
-          // want them, we have to save them and re-add them after deleting the
-          // body of the function.
-          auto Attributes = F.getAttributes();
-          auto FTags = FunctionTags::TagsSet::from(&F);
-
-          // Kill the body.
-          F.deleteBody();
-          Changed = true;
-
-          FTags.set(&F);
-          F.setAttributes(Attributes);
-        }
+        Changed |= deleteOnlyBody(F);
 
         // Mark non-isolated functions as OptimizeNone (optnone).
         // We want all future passes in the decompilation pipeline not to look

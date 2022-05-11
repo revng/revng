@@ -176,3 +176,38 @@ llvm::SmallVector<llvm::SmallPtrSet<const llvm::ExtractValueInst *, 2>, 2>
 getExtractedValuesFromInstruction(const llvm::Instruction *I) {
   return getConstQualifiedExtractedValuesFromInstruction(I);
 }
+
+bool deleteOnlyBody(llvm::Function &F) {
+  bool Result = false;
+  if (not F.empty()) {
+    // deleteBody() also kills all attributes and tags. Since we still
+    // want them, we have to save them and re-add them after deleting the
+    // body of the function.
+    auto Attributes = F.getAttributes();
+    auto FTags = FunctionTags::TagsSet::from(&F);
+
+    llvm::SmallVector<std::pair<unsigned, llvm::MDNode *>> AllMetadata;
+    if (F.hasMetadata())
+      F.getAllMetadata(AllMetadata);
+
+    // Kill the body.
+    F.deleteBody();
+
+    // Restore tags and attributes
+    FTags.set(&F);
+    F.setAttributes(Attributes);
+
+    F.clearMetadata();
+    for (const auto &[KindID, MetaData] : AllMetadata) {
+      // Debug metadata is not stripped away by deleteBody() nor by
+      // clearMetadata(), but it is wrong to set it twice (the Module would not
+      // verify anymore). Hence set the metadata only if its not a debug
+      // metadata.
+      if (not F.hasMetadata(KindID) and KindID != llvm::LLVMContext::MD_dbg)
+        F.setMetadata(KindID, MetaData);
+    }
+
+    Result = true;
+  }
+  return Result;
+}

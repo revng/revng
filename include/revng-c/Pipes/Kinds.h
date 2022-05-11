@@ -26,4 +26,12 @@ inline TaggedFunctionKind
                           &FunctionsRank,
                           FunctionTags::StackAccessesSegregated);
 
+inline pipeline::Kind DecompiledToYAML("DecompiledToYAML", &FunctionsRank);
+
+inline pipeline::Kind ModelHeader("ModelHeader", Binary, &RootRank);
+
+inline pipeline::Kind HelpersHeader("HelpersHeader", Binary, &RootRank);
+
+inline pipeline::Kind DecompiledToC("DecompiledToC", Binary, &RootRank);
+
 } // end namespace revng::pipes

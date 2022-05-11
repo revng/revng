@@ -20,8 +20,6 @@
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
-#include "revng-c/TargetFunctionOption/TargetFunctionOption.h"
-
 using llvm::AllocaInst;
 using llvm::AnalysisUsage;
 using llvm::Argument;
@@ -286,12 +284,6 @@ bool ExitSSAPass::runOnFunction(Function &F) {
   // Skip non-isolated functions
   if (not FunctionTags::Isolated.isTagOf(&F))
     return false;
-
-  // If the `-single-decompilation` option was passed from command line, skip
-  // decompilation for all the functions that are not the selected one.
-  if (not TargetFunction.empty())
-    if (not F.getName().equals(TargetFunction.c_str()))
-      return false;
 
   DomTree DT;
   DT.recalculate(F);

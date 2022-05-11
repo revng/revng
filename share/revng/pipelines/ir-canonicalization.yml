@@ -1,0 +1,24 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+Containers:
+From:            LateOptimizeForDecompilation
+Steps:
+ - Name:            DataLayoutAnalysis
+   Pipes:
+     - Type:             LLVMPipe
+       UsedContainers: [module.ll]
+       Passes:
+         - dla
+ - Name:            IRCanonicalization
+   Pipes:
+     - Type:             LLVMPipe
+       UsedContainers: [module.ll]
+       Passes:
+         - make-model-gep
+         - early-cse
+         - dce
+         - exit-ssa
+         - twoscomplement-normalization
+         - add-assignment-markers

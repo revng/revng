@@ -1,0 +1,14 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+Containers:
+ - Name:            decompiled.c
+   Type:            DecompiledCCode
+From:            DecompileToCInYAML
+Steps:
+ - Name:            DecompiledYAMLToC
+   Pipes:
+     - Type:             DecompiledYAMLToC
+       UsedContainers: [decompiled.yml, decompiled.c]
+
