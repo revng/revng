@@ -13,6 +13,7 @@ revng_add_analyses_library_internal(
   ControlFlow/FallthroughDetection.cpp
   ControlFlow/NodeSizeCalculation.cpp
   ControlFlow/SVG.cpp
+  Support/SugiyamaStyleGraphLayout.cpp
   Dump.cpp
   Verify.cpp)
 
