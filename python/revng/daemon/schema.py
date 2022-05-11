@@ -7,10 +7,11 @@ from base64 import b64decode
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from starlette.datastructures import UploadFile
+
 from ariadne import MutationType, ObjectType, QueryType, make_executable_schema, upload_scalar
 from graphql.type.schema import GraphQLSchema
 from jinja2 import Environment, FileSystemLoader
-from starlette.datastructures import UploadFile
 
 from revng.api.manager import Manager
 from revng.api.rank import Rank

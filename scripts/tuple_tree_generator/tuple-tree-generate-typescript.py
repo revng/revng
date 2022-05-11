@@ -10,6 +10,7 @@ from subprocess import DEVNULL, run
 from tempfile import mkstemp
 
 import yaml
+
 from tuple_tree_generator import Schema, generate_typescript
 
 argparser = argparse.ArgumentParser()
