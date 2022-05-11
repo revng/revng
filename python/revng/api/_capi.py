@@ -7,6 +7,7 @@ import re
 import traceback
 from functools import wraps
 from pathlib import Path
+from threading import Lock
 from typing import Any, Callable, Dict, List
 
 from cffi import FFI
@@ -22,6 +23,7 @@ class ApiWrapper:
     def __init__(self, api, ffi: FFI):
         self.__api = api
         self.__ffi = ffi
+        self.__lock = Lock()
         self.__proxy: Dict[str, Callable[..., Any]] = {}
 
         for match in self.function_matcher.finditer("\n".join(ffi._cdefsources)):
@@ -35,7 +37,13 @@ class ApiWrapper:
             else:
                 raise ValueError(f"Could not find suitable destructor for {return_type}")
 
-            self.__proxy[function_name] = self.__wrap_gc(function, destructor)
+            self.__proxy[function_name] = self.__wrap_lock(self.__wrap_gc(function, destructor))
+
+        for attribute_name in dir(self.__api):
+            if attribute_name.startswith("RP_") or attribute_name in self.__proxy:
+                continue
+            function = getattr(self.__api, attribute_name)
+            self.__proxy[attribute_name] = self.__wrap_lock(function)
 
     @staticmethod
     def __wrap_gc(function, destructor):
@@ -43,6 +51,14 @@ class ApiWrapper:
         def new_function(*args):
             ret = function(*args)
             return ffi.gc(ret, destructor)
+
+        return new_function
+
+    def __wrap_lock(self, function):
+        @wraps(function)
+        def new_function(*args):
+            with self.__lock:
+                return function(*args)
 
         return new_function
 
