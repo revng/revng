@@ -279,3 +279,63 @@ OrderedEdgeContainer orderEdges(InternalGraph &&Graph,
 
   return Result;
 }
+
+/// Adds a point to the edge path or replaces its last point based
+/// on their coordinates.
+template<typename PathType>
+void appendPoint(PathType &Path, const Point &P) {
+  if (Path.size() > 1) {
+    auto &First = *std::prev(std::prev(Path.end()));
+    auto &Second = *std::prev(Path.end());
+
+    auto LHS = (P.Y - Second.Y) * (Second.X - First.X);
+    auto RHS = (Second.Y - First.Y) * (P.X - Second.X);
+    if (LHS == RHS)
+      Path.pop_back();
+  }
+  Path.push_back(P);
+}
+
+void route(const OrderedEdgeContainer &OrderedListOfEdges,
+           float MarginSize,
+           float EdgeDistance) {
+  for (auto &Edge : OrderedListOfEdges) {
+    if (Edge.Label->Status == ExternalGraph::EdgeStatus::Hidden)
+      continue;
+
+    if (Edge.Prerouted != std::nullopt) {
+      appendPoint(Edge.Label->Path, Edge.Prerouted->Start);
+      appendPoint(Edge.Label->Path, Edge.Prerouted->Center);
+      appendPoint(Edge.Label->Path, Edge.Prerouted->End);
+    } else {
+      // Looking for the lowest point of the edge
+      auto ToUpperEdge = Edge.ToCenter.Y + Edge.ToSize.H / 2,
+           FromUpperEdge = Edge.FromCenter.Y + Edge.FromSize.H / 2;
+      float Corner = std::min(FromUpperEdge, ToUpperEdge);
+      Corner += MarginSize + Edge.LaneIndex * EdgeDistance;
+
+      // The concept of lanes extends to vertical segments, that otherwise
+      // would merge at the points where multiple path join or separate.
+      // Those points have to represent real nodes.
+
+      float PerExit = float(Edge.FromSize.W) / Edge.ExitCount,
+            PerEntry = float(Edge.ToSize.W) / Edge.EntryCount;
+      float FromTheGap = std::min(EdgeDistance, PerExit) / 2,
+            ToTheGap = std::min(EdgeDistance, PerEntry) / 2;
+      float FromDisplacement = FromTheGap * Edge.CenteredExitIndex,
+            ToDisplacement = ToTheGap * Edge.CenteredEntryIndex;
+      float ToLane = Edge.ToCenter.X + ToDisplacement,
+            ToTop = Edge.ToCenter.Y + Edge.ToSize.H / 2;
+
+      appendPoint(Edge.Label->Path,
+                  Point{ Edge.FromCenter.X + FromDisplacement,
+                         Edge.FromCenter.Y - Edge.FromSize.H / 2 });
+      appendPoint(Edge.Label->Path,
+                  Point{ Edge.FromCenter.X + FromDisplacement, Corner });
+      appendPoint(Edge.Label->Path, Point{ ToLane, Corner });
+      appendPoint(Edge.Label->Path, Point{ ToLane, ToTop });
+    }
+
+    Edge.Label->Status = ExternalGraph::EdgeStatus::Routed;
+  }
+}
