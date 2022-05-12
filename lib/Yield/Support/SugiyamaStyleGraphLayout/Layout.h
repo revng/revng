@@ -42,6 +42,13 @@ SegmentContainer selectLinearSegments(InternalGraph &Graph,
 /// "Levels up" a `LayerContainer` to a `LayoutContainer`.
 LayoutContainer convertToLayout(const LayerContainer &Layers);
 
+/// Calculates horizontal coordinates based on a finalized layout and segments.
+void setHorizontalCoordinates(const LayerContainer &Layers,
+                              const std::vector<NodeView> &Order,
+                              const SegmentContainer &LinearSegments,
+                              const LayoutContainer &Layout,
+                              float MarginSize);
+
 /// Computes the layout given a graph and the configuration.
 ///
 /// \note: it only works with `MutableEdgeNode`s.
@@ -75,6 +82,10 @@ inline bool calculateSugiyamaLayout(ExternalGraph &Graph,
 
   // Finalize the logical positions for each of the nodes.
   const auto FinalLayout = convertToLayout(Layers);
+
+  // Finalize the horizontal node positions.
+  const auto &Margin = Configuration.NodeMarginSize;
+  setHorizontalCoordinates(Layers, Order, LinearSegments, FinalLayout, Margin);
 
   return true;
 }
