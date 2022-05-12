@@ -39,6 +39,9 @@ SegmentContainer selectLinearSegments(InternalGraph &Graph,
                                       const LayerContainer &Layers,
                                       const std::vector<NodeView> &Order);
 
+/// "Levels up" a `LayerContainer` to a `LayoutContainer`.
+LayoutContainer convertToLayout(const LayerContainer &Layers);
+
 /// Computes the layout given a graph and the configuration.
 ///
 /// \note: it only works with `MutableEdgeNode`s.
@@ -69,6 +72,9 @@ inline bool calculateSugiyamaLayout(ExternalGraph &Graph,
   // Decide on which segments of the graph can be made linear, e.g. each edge
   // within the same linear segment is a straight line.
   auto LinearSegments = selectLinearSegments(DAG, Ranks, Layers, Order);
+
+  // Finalize the logical positions for each of the nodes.
+  const auto FinalLayout = convertToLayout(Layers);
 
   return true;
 }
