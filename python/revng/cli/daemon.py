@@ -8,7 +8,7 @@ from argparse import ArgumentParser
 from sys import executable as py_executable
 
 from .commands_registry import Command, Options, commands_registry
-from .support import collect_files, collect_libraries, run
+from .support import collect_files, collect_libraries, run, handle_asan
 
 
 class DaemonCommand(Command):
@@ -28,8 +28,9 @@ class DaemonCommand(Command):
         )
 
     def run(self, options: Options):
-        libraries, _ = collect_libraries(options.search_prefixes)
+        (libraries, dependencies) = collect_libraries(options.search_prefixes)
         pipelines = collect_files(options.search_prefixes, ["share", "revng", "pipelines"], "*.yml")
+        prefix = handle_asan(dependencies, options.search_prefixes)
 
         env = {
             "REVNG_ANALYSIS_LIBRARIES": ":".join(libraries),
@@ -46,7 +47,7 @@ class DaemonCommand(Command):
             env["STARLETTE_DEBUG"] = "1"
 
         run(
-            [
+            prefix + [
                 py_executable,
                 "-m",
                 "hypercorn",
