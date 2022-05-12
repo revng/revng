@@ -177,3 +177,7 @@ using DirectionlessEdgeView = detail::GenericEdgeView<ExternalLabel *>;
 
 /// An internal data structure used to pass node ranks around.
 using RankContainer = std::unordered_map<NodeView, Rank>;
+
+/// An internal data structure used to pass around information about
+/// the layers specific nodes belong to.
+using LayerContainer = std::vector<std::vector<NodeView>>;
