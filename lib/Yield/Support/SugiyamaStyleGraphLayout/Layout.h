@@ -54,6 +54,12 @@ LaneContainer assignLanes(InternalGraph &Graph,
                           const SegmentContainer &LinearSegments,
                           const LayoutContainer &Layout);
 
+/// Calculates vertical coordinates based on layer and lane data.
+void setVerticalCoordinates(const LayerContainer &Layers,
+                            const LaneContainer &Lanes,
+                            float MarginSize,
+                            float EdgeDistance);
+
 /// Computes the layout given a graph and the configuration.
 ///
 /// \note: it only works with `MutableEdgeNode`s.
@@ -94,6 +100,10 @@ inline bool calculateSugiyamaLayout(ExternalGraph &Graph,
 
   // Distribute edge lanes in a way that minimizes the number of crossings.
   auto Lanes = assignLanes(DAG, LinearSegments, FinalLayout);
+
+  // Set the rest of the coordinates. Node layouting is complete after this.
+  const auto &EdgeGap = Configuration.EdgeMarginSize;
+  setVerticalCoordinates(Layers, Lanes, Margin, EdgeGap);
 
   return true;
 }
