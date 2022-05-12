@@ -5,7 +5,9 @@
 //
 
 #include <compare>
+#include <map>
 #include <unordered_map>
+#include <vector>
 
 #include "revng/Yield/Support/SugiyamaStyleGraphLayout.h"
 
@@ -175,6 +177,15 @@ using EdgeView = detail::GenericEdgeView<InternalLabel *>;
 /// as well as a pointer to an external label.
 using DirectionlessEdgeView = detail::GenericEdgeView<ExternalLabel *>;
 
+/// A view onto an edge. It stores `From` and `To` node views, a pointer to
+/// an external label and a flag declaring the direction of the edge.
+struct DirectedEdgeView : public DirectionlessEdgeView {
+  bool IsBackwards = false;
+
+  DirectedEdgeView(NodeView From, NodeView To, ParamType L, bool IsBackwards) :
+    DirectionlessEdgeView(From, To, L), IsBackwards(IsBackwards) {}
+};
+
 /// An internal data structure used to pass node ranks around.
 using RankContainer = std::unordered_map<NodeView, Rank>;
 
@@ -195,3 +206,16 @@ struct LogicalPosition {
 /// It's used to describe the complete layout by storing the exact
 /// position of each node relative to all the others.
 using LayoutContainer = std::unordered_map<NodeView, LogicalPosition>;
+
+/// An internal data structure used to pass around information about the lanes
+/// used to route edges.
+struct LaneContainer {
+  /// Stores edges that require a horizontal section grouped by layer.
+  std::vector<std::map<DirectedEdgeView, Rank>> Horizontal;
+
+  /// Stores edges entering a node groped by the node they enter.
+  std::unordered_map<NodeView, std::map<DirectedEdgeView, Rank>> Entries;
+
+  /// Stores edges leaving a node grouped by the node they leave.
+  std::unordered_map<NodeView, std::map<DirectedEdgeView, Rank>> Exits;
+};
