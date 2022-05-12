@@ -5,6 +5,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/DepthFirstIterator.h"
+
 #include "Layout.h"
 
 CornerContainer routeBackwardsCorners(InternalGraph &Graph,
@@ -159,4 +161,121 @@ CornerContainer routeBackwardsCorners(InternalGraph &Graph,
   }
 
   return Corners;
+}
+
+/// A helper class used for construction of `RoutableEdge`s.
+class RoutableEdgeMaker {
+public:
+  RoutableEdgeMaker(const RankContainer &Ranks,
+                    const LaneContainer &Lanes,
+                    CornerContainer &&Prerouted) :
+    Ranks(Ranks), Lanes(Lanes), Prerouted(std::move(Prerouted)) {}
+
+  RoutableEdge make(NodeView From, NodeView To, ExternalLabel *Label) {
+    auto View = DirectedEdgeView{ From, To, Label, false };
+
+    Rank ExitIndex = 0;
+    Rank ExitCount = 1;
+    if (auto It = Lanes.Exits.find(From); It != Lanes.Exits.end()) {
+      if (It->second.size() != 0) {
+        revng_assert(It->second.contains(View));
+        ExitIndex = It->second.at(View);
+        ExitCount = It->second.size();
+      }
+    }
+
+    Rank EntryIndex = 0;
+    Rank EntryCount = 1;
+    if (auto It = Lanes.Entries.find(To); It != Lanes.Entries.end()) {
+      if (It->second.size() != 0) {
+        revng_assert(It->second.contains(View));
+        EntryIndex = It->second.at(View);
+        EntryCount = It->second.size();
+      }
+    }
+
+    Rank LaneIndex = 0;
+    if (auto LayerIndex = std::min(Ranks.at(From), Ranks.at(To));
+        LayerIndex < Lanes.Horizontal.size()
+        && Lanes.Horizontal[LayerIndex].size()) {
+      if (auto Iterator = Lanes.Horizontal[LayerIndex].find(View);
+          Iterator != Lanes.Horizontal[LayerIndex].end())
+        LaneIndex = Iterator->second;
+    }
+
+    decltype(RoutableEdge::Prerouted) CurrentRoute = std::nullopt;
+    if (auto Iterator = Prerouted.find({ From, To });
+        Iterator != Prerouted.end())
+      CurrentRoute = std::move(Iterator->second);
+
+    return RoutableEdge{
+      .Label = Label,
+      .FromCenter = From->center(),
+      .ToCenter = To->center(),
+      .FromSize = From->size(),
+      .ToSize = To->size(),
+      .LaneIndex = LaneIndex,
+      .ExitCount = ExitCount,
+      .EntryCount = EntryCount,
+      .CenteredExitIndex = float(ExitIndex) - float(ExitCount - 1) / 2,
+      .CenteredEntryIndex = float(EntryIndex) - float(EntryCount - 1) / 2,
+      .Prerouted = CurrentRoute
+    };
+  }
+
+private:
+  const RankContainer &Ranks;
+  const LaneContainer &Lanes;
+  CornerContainer &&Prerouted;
+};
+
+OrderedEdgeContainer orderEdges(InternalGraph &&Graph,
+                                CornerContainer &&Prerouted,
+                                const RankContainer &Ranks,
+                                const LaneContainer &Lanes) {
+  for (auto *From : Graph.nodes()) {
+    for (auto Iterator = From->successor_edges().begin();
+         Iterator != From->successor_edges().end();) {
+      if (auto [To, Label] = *Iterator; Label->IsBackwards) {
+        Label->IsBackwards = !Label->IsBackwards;
+        To->addSuccessor(From, std::move(*Label));
+        Iterator = From->removeSuccessor(Iterator);
+      } else {
+        ++Iterator;
+      }
+    }
+  }
+
+  OrderedEdgeContainer Result;
+  RoutableEdgeMaker Maker(Ranks, Lanes, std::move(Prerouted));
+  for (auto *From : Graph.nodes()) {
+    if (!From->isVirtual()) {
+      for (auto [To, Label] : From->successor_edges()) {
+        revng_assert(Label->IsBackwards == false);
+        Result.emplace_back(Maker.make(From, To, Label->Pointer));
+        if (To->isVirtual()) {
+          for (auto *Current : llvm::depth_first(To)) {
+            if (!Current->isVirtual())
+              break;
+
+            revng_assert(Current->successorCount() == 1);
+            revng_assert(Current->predecessorCount() == 1
+                         || (Current->predecessorCount() == 2
+                             && Graph.hasEntryNode && Graph.getEntryNode()
+                             && Graph.getEntryNode()->isVirtual()));
+
+            auto [Next, NextLabel] = *Current->successor_edges().begin();
+            revng_assert(NextLabel->IsBackwards == false);
+            Result.emplace_back(Maker.make(Current, Next, NextLabel->Pointer));
+          }
+        }
+      }
+    }
+  }
+
+  // Move the graph out of an input parameter so that it gets deleted at
+  // the end of the scope of this function.
+  auto GraphOnLocalStack = std::move(Graph);
+
+  return Result;
 }

@@ -237,3 +237,19 @@ struct NodePair {
 /// An internal data structure used to pass around information about the routed
 /// corners.
 using CornerContainer = std::map<NodePair, Corner>;
+
+/// An internal data structure used to represent all the necessary information
+/// for an edge to be routed. This data is usable even after the internal graph
+/// was destroyed.
+struct RoutableEdge {
+  ExternalLabel *Label;
+  Point FromCenter, ToCenter;
+  Size FromSize, ToSize;
+  Rank LaneIndex, ExitCount, EntryCount;
+  float CenteredExitIndex, CenteredEntryIndex;
+  std::optional<Corner> Prerouted;
+};
+
+/// An internal data structure used to pass around an ordered list of routed
+/// edges.
+using OrderedEdgeContainer = std::vector<RoutableEdge>;

@@ -69,6 +69,12 @@ CornerContainer routeBackwardsCorners(InternalGraph &Graph,
                                       float MarginSize,
                                       float EdgeDistance);
 
+/// Consumes a DAG to produce the optimal routing order.
+OrderedEdgeContainer orderEdges(InternalGraph &&Graph,
+                                CornerContainer &&Prerouted,
+                                const RankContainer &Ranks,
+                                const LaneContainer &Lanes);
+
 /// Computes the layout given a graph and the configuration.
 ///
 /// \note: it only works with `MutableEdgeNode`s.
@@ -116,6 +122,12 @@ inline bool calculateSugiyamaLayout(ExternalGraph &Graph,
 
   // Route edges forming backwards facing corners.
   auto Prerouted = routeBackwardsCorners(DAG, Ranks, Lanes, Margin, EdgeGap);
+
+  // Now that the corners are routed, the DAG representation is not needed
+  // anymore, both the graph and the routed corners get consumed to construct
+  // an ordered list of edges with all the information necessary for them
+  // to get routed (see `OrderedEdgeContainer`).
+  auto Edges = orderEdges(std::move(DAG), std::move(Prerouted), Ranks, Lanes);
 
   return true;
 }
