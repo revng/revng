@@ -185,3 +185,13 @@ using LayerContainer = std::vector<std::vector<NodeView>>;
 /// An internal data structure used to pass around information about the way
 /// graph is split onto segments.
 using SegmentContainer = std::unordered_map<NodeView, NodeView>;
+
+/// It's used to describe the position of a single node within the layered grid.
+struct LogicalPosition {
+  Rank Layer; /// Rank of the layer the node is in.
+  Rank Index; /// An index within the layer
+};
+
+/// It's used to describe the complete layout by storing the exact
+/// position of each node relative to all the others.
+using LayoutContainer = std::unordered_map<NodeView, LogicalPosition>;
