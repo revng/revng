@@ -1,3 +1,6 @@
+/// \file FunctionStringMap.cpp
+/// \brief
+
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
@@ -8,7 +11,7 @@
 #include "llvm/Support/YAMLTraits.h"
 
 #include "revng/Pipeline/Target.h"
-#include "revng/Pipes/StringMapContainer.h"
+#include "revng/Pipes/FunctionStringMap.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/Support/YAMLTraits.h"
 
@@ -16,11 +19,11 @@ using namespace pipeline;
 
 namespace revng::pipes {
 
-char StringMapContainer::ID = 0;
+char FunctionStringMap::ID = 0;
 
 std::unique_ptr<ContainerBase>
-StringMapContainer::cloneFiltered(const TargetsList &Targets) const {
-  auto Clone = std::make_unique<StringMapContainer>(*this);
+FunctionStringMap::cloneFiltered(const TargetsList &Targets) const {
+  auto Clone = std::make_unique<FunctionStringMap>(*this);
 
   // Returns true if Targets contains a Target that matches the Entry in the Map
   const auto EntryIsInTargets = [&](const auto &Entry) {
@@ -35,7 +38,7 @@ StringMapContainer::cloneFiltered(const TargetsList &Targets) const {
   return Clone;
 }
 
-void StringMapContainer::mergeBackImpl(StringMapContainer &&Other) {
+void FunctionStringMap::mergeBackImpl(FunctionStringMap &&Other) {
   // Stuff in Other should overwrite what's in this container.
   // We first merge this->Map into Other.Map (which keeps Other's version if
   // present), and then we replace this->Map with the newly merged version of
@@ -44,14 +47,15 @@ void StringMapContainer::mergeBackImpl(StringMapContainer &&Other) {
   this->Map = std::move(Other.Map);
 }
 
-TargetsList StringMapContainer::enumerate() const {
-  TargetsList Result;
+TargetsList FunctionStringMap::enumerate() const {
+  TargetsList::List Result;
   for (const auto &[MetaAddress, Mapped] : Map)
     Result.push_back({ MetaAddress.toString(), *TheKind });
-  return Result;
+
+  return compactFunctionTargets(*Model, Result, *TheKind);
 }
 
-bool StringMapContainer::remove(const TargetsList &Targets) {
+bool FunctionStringMap::remove(const TargetsList &Targets) {
   bool Changed = false;
 
   auto End = Map.end();
@@ -80,15 +84,30 @@ bool StringMapContainer::remove(const TargetsList &Targets) {
 namespace llvm {
 namespace yaml {
 
+using StringType = revng::pipes::FunctionStringMap::String;
+
 template<>
-struct CustomMappingTraits<std::map<MetaAddress, std::string>> {
+struct BlockScalarTraits<StringType> {
+  static void
+  output(const StringType &Value, void *Ctxt, llvm::raw_ostream &OS) {
+    OS << Value.TheString;
+  }
+
+  static StringRef input(StringRef Scalar, void *Ctxt, StringType &Value) {
+    Value.TheString = Scalar.str();
+    return StringRef();
+  }
+};
+
+template<>
+struct CustomMappingTraits<std::map<MetaAddress, StringType>> {
 
   static void
-  inputOne(IO &IO, StringRef Key, std::map<MetaAddress, std::string> &M) {
+  inputOne(IO &IO, StringRef Key, std::map<MetaAddress, StringType> &M) {
     IO.mapRequired(Key.str().c_str(), M[MetaAddress::fromString(Key)]);
   }
 
-  static void output(IO &IO, std::map<MetaAddress, std::string> &M) {
+  static void output(IO &IO, std::map<MetaAddress, StringType> &M) {
     for (auto &[MetaAddr, String] : M)
       IO.mapRequired(MetaAddr.toString().c_str(), String);
   }
@@ -99,13 +118,12 @@ struct CustomMappingTraits<std::map<MetaAddress, std::string>> {
 
 namespace revng::pipes {
 
-llvm::Error StringMapContainer::serialize(llvm::raw_ostream &OS) const {
-  llvm::yaml::Output YAMLOutput(OS);
-  YAMLOutput << const_cast<std::map<MetaAddress, std::string> &>(Map);
+llvm::Error FunctionStringMap::serialize(llvm::raw_ostream &OS) const {
+  ::serialize(OS, Map);
   return llvm::Error::success();
 }
 
-llvm::Error StringMapContainer::deserialize(const llvm::MemoryBuffer &Buffer) {
+llvm::Error FunctionStringMap::deserialize(const llvm::MemoryBuffer &Buffer) {
 
   llvm::yaml::Input YAMLInput(Buffer);
   YAMLInput >> Map;

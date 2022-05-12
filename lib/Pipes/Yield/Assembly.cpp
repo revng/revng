@@ -7,7 +7,6 @@
 #include "revng/Lift/LoadBinaryPass.h"
 #include "revng/Model/Binary.h"
 #include "revng/Pipeline/Pipe.h"
-#include "revng/Pipeline/RegisterContainerFactory.h"
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
@@ -21,7 +20,7 @@ namespace revng::pipes {
 void YieldAssemblyPipe::run(pipeline::Context &Context,
                             const FileContainer &SourceBinary,
                             const pipeline::LLVMContainer &TargetList,
-                            StringMapContainer &Output) {
+                            FunctionStringMap &Output) {
   // Access the model
   const auto &Model = revng::pipes::getModelFromContext(Context);
 
@@ -78,14 +77,12 @@ std::array<pipeline::ContractGroup, 1> YieldAssemblyPipe::getContract() const {
 } // end namespace revng::pipes
 
 using revng::pipes::FunctionAssemblyHTML;
-using revng::pipes::StringMapContainer;
-static pipeline::RegisterContainerFactory
-  AssemblyContainer("FunctionAssemblyHTML", [](llvm::StringRef Name) {
-    return std::make_unique<StringMapContainer>(Name,
-                                                "application/"
-                                                "x.yaml.function-assembly"
-                                                ".html-body",
-                                                FunctionAssemblyHTML);
-  });
+using revng::pipes::FunctionStringMap;
+static revng::pipes::RegisterFunctionStringMap
+  AssemblyContainer("FunctionAssemblyHTML",
+                    "application/"
+                    "x.yaml.function-assembly"
+                    ".html-body",
+                    FunctionAssemblyHTML);
 
 static pipeline::RegisterPipe<revng::pipes::YieldAssemblyPipe> AssemblyPipe;

@@ -45,9 +45,9 @@ static opt<std::string> ModelPath(llvm::cl::Positional,
 
 } // namespace options
 
-static revng::pipes::StringMapContainer createMap() {
-  using C = revng::pipes::StringMapContainer;
-  return C("", "", pipeline::Kind{ "", &revng::pipes::RootRank });
+static revng::pipes::FunctionStringMap createMap(const model::Binary &Model) {
+  using C = revng::pipes::FunctionStringMap;
+  return C("", "", pipeline::Kind{ "", &revng::pipes::RootRank }, Model);
 }
 
 ReturnValueType parseCommandLineOptions(int Argc, char *Argv[]) {
@@ -84,6 +84,6 @@ ReturnValueType parseCommandLineOptions(int Argc, char *Argv[]) {
   return ReturnValueType(*Result.IR,
                          **Result.Model,
                          BinView,
-                         createMap(),
+                         createMap(**Result.Model),
                          std::move(Result));
 }

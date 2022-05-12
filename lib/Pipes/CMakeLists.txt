@@ -6,8 +6,10 @@ revng_add_library_internal(
   revngPipes
   SHARED
   AddPrimitiveTypesPipe.cpp
+  AllFunctions.cpp
   CompileModulePipe.cpp
   FileContainer.cpp
+  FunctionStringMap.cpp
   ImportBinaryPipe.cpp
   LiftPipe.cpp
   LinkSupportPipe.cpp
@@ -17,7 +19,6 @@ revng_add_library_internal(
   PipelineManager.cpp
   Pipes.cpp
   RootKind.cpp
-  StringMapContainer.cpp
   TaggedFunctionKind.cpp
   Yield/Assembly.cpp)
 

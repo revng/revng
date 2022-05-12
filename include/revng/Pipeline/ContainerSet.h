@@ -172,7 +172,7 @@ public:
     }
   }
 
-  void dump() const { dump(dbg); }
+  void dump() const debug_function { dump(dbg); }
 };
 
 } // namespace pipeline

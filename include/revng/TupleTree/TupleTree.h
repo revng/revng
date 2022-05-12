@@ -37,26 +37,19 @@ private:
 public:
   TupleTree() : Root(new T) {}
 
-  // Prevent accidental copy
-  TupleTree(const TupleTree &Other) = delete;
-  TupleTree &operator=(const TupleTree &Other) = delete;
+  // Allow expensive copy
+  TupleTree(const TupleTree &Other) { *this = Other; }
+  TupleTree &operator=(const TupleTree &Other) {
+    if (this != &Other) {
+      *Root = *Other.Root;
+      initializeReferences();
+    }
+    return *this;
+  }
 
   // Moving is fine
   TupleTree(TupleTree &&Other) = default;
   TupleTree &operator=(TupleTree &&Other) = default;
-
-  // Explicit cloning
-  TupleTree clone() const {
-    TupleTree Result;
-
-    // Copy the root
-    Result.Root.reset(new T(*Root));
-
-    // Update references to root
-    Result.initializeReferences();
-
-    return Result;
-  }
 
   template<IsTupleTreeReference TTR>
   void replaceReferences(const std::map<TTR, TTR> &Map) {

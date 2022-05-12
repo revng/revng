@@ -28,7 +28,12 @@ private:
 public:
   constexpr static const char *Name = "model.yml";
   static const char ID;
-  void clear() final { Model = TupleTree<model::Binary>(); }
+  void clear() final {
+    // Reset the model by copying that, so that references to the underlying
+    // model::Binary are stable across calls to clear();
+    TupleTree<model::Binary> New{};
+    Model = New;
+  }
   llvm::Error serialize(llvm::raw_ostream &OS) const final;
   llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) final;
 
