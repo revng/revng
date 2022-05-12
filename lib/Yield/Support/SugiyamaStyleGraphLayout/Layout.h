@@ -60,6 +60,15 @@ void setVerticalCoordinates(const LayerContainer &Layers,
                             float MarginSize,
                             float EdgeDistance);
 
+/// Routes edges that form backwards facing corners. For their indication,
+/// V-shaped structures were added to the graph when the backwards edges
+/// were partitioned.
+CornerContainer routeBackwardsCorners(InternalGraph &Graph,
+                                      const RankContainer &Ranks,
+                                      const LaneContainer &Lanes,
+                                      float MarginSize,
+                                      float EdgeDistance);
+
 /// Computes the layout given a graph and the configuration.
 ///
 /// \note: it only works with `MutableEdgeNode`s.
@@ -104,6 +113,9 @@ inline bool calculateSugiyamaLayout(ExternalGraph &Graph,
   // Set the rest of the coordinates. Node layouting is complete after this.
   const auto &EdgeGap = Configuration.EdgeMarginSize;
   setVerticalCoordinates(Layers, Lanes, Margin, EdgeGap);
+
+  // Route edges forming backwards facing corners.
+  auto Prerouted = routeBackwardsCorners(DAG, Ranks, Lanes, Margin, EdgeGap);
 
   return true;
 }

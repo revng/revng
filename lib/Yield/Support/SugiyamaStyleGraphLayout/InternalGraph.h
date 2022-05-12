@@ -219,3 +219,21 @@ struct LaneContainer {
   /// Stores edges leaving a node grouped by the node they leave.
   std::unordered_map<NodeView, std::map<DirectedEdgeView, Rank>> Exits;
 };
+
+/// An internal data structure used to represent a corner. It stores three
+/// points: center of the corner and two ends.
+struct Corner {
+  Point Start, Center, End;
+};
+
+/// An internal data structure used to represent a pair of nodes.
+struct NodePair {
+  NodeView From, To;
+
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  auto operator<=>(const NodePair &) const = default;
+};
+
+/// An internal data structure used to pass around information about the routed
+/// corners.
+using CornerContainer = std::map<NodePair, Corner>;
