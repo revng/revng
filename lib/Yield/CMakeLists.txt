@@ -14,6 +14,7 @@ revng_add_analyses_library_internal(
   ControlFlow/NodeSizeCalculation.cpp
   ControlFlow/SVG.cpp
   Support/SugiyamaStyleGraphLayout/GraphPreparation.cpp
+  Support/SugiyamaStyleGraphLayout/LinearSegmentSelection.cpp
   Support/SugiyamaStyleGraphLayout/NodeRanking.cpp
   Support/SugiyamaStyleGraphLayout/PermutationSelection.cpp
   Support/SugiyamaStyleGraphLayout/TopologicalOrdering.cpp

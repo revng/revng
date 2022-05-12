@@ -24,6 +24,21 @@ std::vector<NodeView>
 extractAugmentedTopologicalOrder(InternalGraph &Graph,
                                  const LayerContainer &Layers);
 
+/// Looks for the linear segments and ensures an optimal combination of them
+/// is selected. It uses an algorithm from the Sander's paper.
+/// The worst case complexity is O(N^2) in the cases where jump table is huge,
+/// but the common case is very far from that because normally both
+/// entry and exit edge count is low (intuitively, our layouts are tall rather
+/// than wide).
+///
+/// \note: it's probably a good idea to think about loosening the dependence
+/// on tall graph layouts since we will want to also lay more generic graphs
+/// out.
+SegmentContainer selectLinearSegments(InternalGraph &Graph,
+                                      const RankContainer &Ranks,
+                                      const LayerContainer &Layers,
+                                      const std::vector<NodeView> &Order);
+
 /// Computes the layout given a graph and the configuration.
 ///
 /// \note: it only works with `MutableEdgeNode`s.
@@ -50,6 +65,10 @@ inline bool calculateSugiyamaLayout(ExternalGraph &Graph,
 
   // Compute an augmented topological ordering of the nodes of the graph.
   auto Order = extractAugmentedTopologicalOrder(DAG, Layers);
+
+  // Decide on which segments of the graph can be made linear, e.g. each edge
+  // within the same linear segment is a straight line.
+  auto LinearSegments = selectLinearSegments(DAG, Ranks, Layers, Order);
 
   return true;
 }
