@@ -16,6 +16,7 @@ revng_add_analyses_library_internal(
   Support/SugiyamaStyleGraphLayout/GraphPreparation.cpp
   Support/SugiyamaStyleGraphLayout/NodeRanking.cpp
   Support/SugiyamaStyleGraphLayout/PermutationSelection.cpp
+  Support/SugiyamaStyleGraphLayout/TopologicalOrdering.cpp
   Support/SugiyamaStyleGraphLayout.cpp
   Dump.cpp
   Verify.cpp)
