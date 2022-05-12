@@ -70,7 +70,7 @@ def startup():
 
 def shutdown():
     if manager is not None:
-        store_result = manager.store_containers()
+        store_result = manager.save()
         if not store_result:
             logging.warning("Failed to store manager's containers")
 

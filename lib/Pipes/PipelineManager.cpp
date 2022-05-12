@@ -248,10 +248,26 @@ void PipelineManager::writeAllPossibleTargets(llvm::raw_ostream &OS) const {
   }
 }
 
-llvm::Error PipelineManager::storeToDisk() {
+llvm::Error PipelineManager::storeToDisk(llvm::StringRef DirPath) {
+  if (!DirPath.empty())
+    return Runner->storeToDisk(DirPath);
+
   if (ExecutionDirectory.empty())
     return llvm::Error::success();
+
   return Runner->storeToDisk(ExecutionDirectory);
+}
+
+llvm::Error PipelineManager::storeStepToDisk(llvm::StringRef StepName,
+                                             llvm::StringRef DirPath) {
+  auto &Step = Runner->getStep(StepName);
+  if (!DirPath.empty())
+    return Runner->storeStepToDisk(StepName, DirPath);
+
+  if (ExecutionDirectory.empty())
+    return llvm::Error::success();
+
+  return Runner->storeStepToDisk(StepName, ExecutionDirectory);
 }
 
 llvm::Error PipelineManager::store(const PipelineFileMapping &Mapping) {

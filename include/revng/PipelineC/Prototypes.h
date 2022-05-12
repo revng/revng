@@ -115,10 +115,17 @@ rp_manager_get_container_identifier(rp_manager *manager, uint64_t index);
 
 /**
  *  Trigger the serialization of the pipeline on disk.
- *
+ *  If path is not nullptr, serialize to the specified path otherwise serialize
+ *  in the manager's execution directory
  *  \return 0 if a error happened, 1 otherwise.
  */
-bool rp_manager_store_containers(rp_manager *manager);
+bool rp_manager_save(rp_manager *manager, const char *path);
+
+/**
+ * Serialize the pipeline context to the specified directory
+ *  \return 0 if a error happened, 1 otherwise.
+ */
+bool rp_manager_save_context(rp_manager *manager, const char *path);
 
 /**
  * \return the number of steps present in the manager.
@@ -356,6 +363,12 @@ const rp_kind *rp_analysis_get_argument_acceptable_kind(rp_analysis *analysis,
                                                         int argument_index,
                                                         int kind_index);
 
+/**
+ * Serialize a single pipeline step to the specified directory
+ *  \return 0 if a error happened, 1 otherwise.
+ */
+bool rp_step_save(rp_step *step, const char *path);
+
 /** \} */
 
 /**
@@ -518,6 +531,11 @@ void rp_diff_map_destroy(rp_diff_map *to_free);
  */
 const char * /*owning*/
 rp_diff_map_get_diff(rp_diff_map *map, const char *global_name);
+
+/**
+ * \returns true if the rp_diff_map is empty (no changes), false otherwise
+ */
+bool rp_diff_map_is_empty(rp_diff_map *map);
 
 /** \} */
 

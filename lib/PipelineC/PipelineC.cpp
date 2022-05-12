@@ -137,10 +137,38 @@ rp_manager *rp_manager_create_memory_only(const char *pipeline_path,
   return rp_manager_create(1, paths, flags_count, flags, "");
 }
 
-bool rp_manager_store_containers(rp_manager *manager) {
+bool rp_manager_save(rp_manager *manager, const char *path) {
   revng_check(manager != nullptr);
 
-  auto Error = manager->storeToDisk();
+  llvm::StringRef DirPath;
+  if (path != nullptr)
+    DirPath = llvm::StringRef(path);
+
+  auto Error = manager->storeToDisk(DirPath);
+  if (not Error)
+    return true;
+
+  llvm::consumeError(std::move(Error));
+  return false;
+}
+
+bool rp_step_save(rp_step *step, const char *path) {
+  revng_check(step != nullptr);
+  revng_check(path != nullptr);
+
+  auto Error = step->storeToDisk(path);
+  if (not Error)
+    return true;
+
+  llvm::consumeError(std::move(Error));
+  return false;
+}
+
+bool rp_manager_save_context(rp_manager *manager, const char *path) {
+  revng_check(manager != nullptr);
+  revng_check(path != nullptr);
+
+  auto Error = manager->context().storeToDisk(path);
   if (not Error)
     return true;
 
@@ -403,9 +431,11 @@ char *rp_manager_create_container_path(rp_manager *manager,
   if (manager->executionDirectory().empty())
     return nullptr;
 
-  auto Path = (manager->executionDirectory() + "/" + step_name + "/"
-               + container_name)
-                .str();
+  llvm::SmallString<128> Path;
+  llvm::sys::path::append(Path,
+                          manager->executionDirectory(),
+                          step_name,
+                          container_name);
   return copyString(Path);
 }
 
@@ -634,4 +664,13 @@ rp_diff_map *rp_manager_run_all_analyses(rp_manager *manager) {
   }
 
   return new rp_diff_map(std::move(*MaybeDiffs));
+}
+
+bool rp_diff_map_is_empty(rp_diff_map *map) {
+  for (auto &Entry : *map) {
+    if (!Entry.second.isEmpty()) {
+      return false;
+    }
+  }
+  return true;
 }

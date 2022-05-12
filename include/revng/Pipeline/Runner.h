@@ -162,6 +162,8 @@ public:
 
 public:
   llvm::Error storeToDisk(llvm::StringRef DirPath) const;
+  llvm::Error
+  storeStepToDisk(llvm::StringRef StepName, llvm::StringRef DirPath) const;
   llvm::Error loadFromDisk(llvm::StringRef DirPath);
 
 public:

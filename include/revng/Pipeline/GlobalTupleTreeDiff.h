@@ -17,6 +17,7 @@ public:
   virtual void serialize(llvm::raw_ostream &OS) const = 0;
   virtual ~GlobalTupleTreeDiffBase() = default;
   virtual std::unique_ptr<GlobalTupleTreeDiffBase> clone() const = 0;
+  virtual bool isEmpty() const = 0;
   GlobalTupleTreeDiffBase(char *ID) : ID(ID) {}
   const char *getID() const { return ID; }
 };
@@ -45,6 +46,8 @@ public:
     auto Ptr = new GlobalTupleTreeDiffImpl(*this);
     return std::unique_ptr<GlobalTupleTreeDiffBase>(Ptr);
   }
+
+  bool isEmpty() const override { return Diff.Changes.size() == 0; }
 
   static bool classof(const GlobalTupleTreeDiffBase *Base) {
     return Base->getID() == getID();
@@ -97,6 +100,8 @@ public:
 
     return &Casted->getDiff();
   }
+
+  bool isEmpty() const { return Diff.get()->isEmpty(); }
 };
 
 using DiffMap = llvm::StringMap<GlobalTupleTreeDiff>;

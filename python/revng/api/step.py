@@ -2,13 +2,14 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-from typing import Dict, Generator, Optional
+from pathlib import Path
+from typing import Dict, Generator, Optional, Union
 
 from ._capi import _api, ffi
 from .analysis import Analysis
 from .container import Container, ContainerIdentifier
 from .kind import Kind
-from .utils import make_generator, make_python_string
+from .utils import make_c_string, make_generator, make_python_string
 
 
 class Step:
@@ -19,6 +20,11 @@ class Step:
     def name(self) -> str:
         name = _api.rp_step_get_name(self._step)
         return make_python_string(name)
+
+    def save(self, destination_directory: Union[Path, str]):
+        dest_dir = Path(destination_directory).resolve()
+        _dest_dir = make_c_string(str(dest_dir))
+        return _api.rp_step_save(self._step, _dest_dir)
 
     def get_parent(self) -> Optional["Step"]:
         _step = _api.rp_step_get_parent(self._step)

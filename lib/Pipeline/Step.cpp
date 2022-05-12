@@ -157,16 +157,11 @@ Error Step::invalidate(const ContainerToTargetsMap &ToRemove) {
 }
 
 Error Step::storeToDisk(llvm::StringRef DirPath) const {
-  auto Path = DirPath.str() + "/" + Name;
-  if (auto ErrorCode = llvm::sys::fs::create_directories(Path); ErrorCode)
-    return createStringError(ErrorCode,
-                             "Could not create dir %s",
-                             Path.c_str());
-  return Containers.storeToDisk(Path);
+  return Containers.storeToDisk(DirPath);
 }
+
 Error Step::loadFromDisk(llvm::StringRef DirPath) {
-  auto Path = DirPath.str() + "/" + Name;
-  if (not llvm::sys::fs::exists(Path))
+  if (not llvm::sys::fs::exists(DirPath))
     return llvm::Error::success();
-  return Containers.loadFromDisk(Path);
+  return Containers.loadFromDisk(DirPath);
 }

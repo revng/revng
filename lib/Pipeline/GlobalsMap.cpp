@@ -18,19 +18,21 @@ using namespace pipeline;
 using namespace llvm;
 
 llvm::Error GlobalsMap::storeToDisk(llvm::StringRef Path) const {
-  for (const auto &Global : Map)
-    if (auto E = Global.second->storeToDisk(Path.str() + "/"
-                                            + Global.first().str());
-        !!E)
+  for (const auto &Global : Map) {
+    llvm::SmallString<128> Filename;
+    llvm::sys::path::append(Filename, Path, Global.first());
+    if (auto E = Global.second->storeToDisk(Filename); !!E)
       return E;
+  }
   return llvm::Error::success();
 }
 
 llvm::Error GlobalsMap::loadFromDisk(llvm::StringRef Path) {
-  for (const auto &Global : Map)
-    if (auto E = Global.second->loadFromDisk(Path.str() + "/"
-                                             + Global.first().str());
-        !!E)
+  for (const auto &Global : Map) {
+    llvm::SmallString<128> Filename;
+    llvm::sys::path::append(Filename, Path, Global.first());
+    if (auto E = Global.second->loadFromDisk(Filename); !!E)
       return E;
+  }
   return llvm::Error::success();
 }
