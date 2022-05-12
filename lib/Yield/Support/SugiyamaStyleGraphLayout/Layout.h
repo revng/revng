@@ -49,6 +49,11 @@ void setHorizontalCoordinates(const LayerContainer &Layers,
                               const LayoutContainer &Layout,
                               float MarginSize);
 
+/// Distributes "touching" edges accross lanes to minimize the crossing count.
+LaneContainer assignLanes(InternalGraph &Graph,
+                          const SegmentContainer &LinearSegments,
+                          const LayoutContainer &Layout);
+
 /// Computes the layout given a graph and the configuration.
 ///
 /// \note: it only works with `MutableEdgeNode`s.
@@ -86,6 +91,9 @@ inline bool calculateSugiyamaLayout(ExternalGraph &Graph,
   // Finalize the horizontal node positions.
   const auto &Margin = Configuration.NodeMarginSize;
   setHorizontalCoordinates(Layers, Order, LinearSegments, FinalLayout, Margin);
+
+  // Distribute edge lanes in a way that minimizes the number of crossings.
+  auto Lanes = assignLanes(DAG, LinearSegments, FinalLayout);
 
   return true;
 }
