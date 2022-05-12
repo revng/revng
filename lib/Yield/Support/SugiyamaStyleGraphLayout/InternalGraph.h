@@ -181,3 +181,7 @@ using RankContainer = std::unordered_map<NodeView, Rank>;
 /// An internal data structure used to pass around information about
 /// the layers specific nodes belong to.
 using LayerContainer = std::vector<std::vector<NodeView>>;
+
+/// An internal data structure used to pass around information about the way
+/// graph is split onto segments.
+using SegmentContainer = std::unordered_map<NodeView, NodeView>;
