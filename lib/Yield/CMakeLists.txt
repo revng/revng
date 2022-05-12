@@ -13,6 +13,7 @@ revng_add_analyses_library_internal(
   ControlFlow/FallthroughDetection.cpp
   ControlFlow/NodeSizeCalculation.cpp
   ControlFlow/SVG.cpp
+  Support/SugiyamaStyleGraphLayout/EdgeRouting.cpp
   Support/SugiyamaStyleGraphLayout/GraphPreparation.cpp
   Support/SugiyamaStyleGraphLayout/HorizontalPositions.cpp
   Support/SugiyamaStyleGraphLayout/LaneDistribution.cpp
