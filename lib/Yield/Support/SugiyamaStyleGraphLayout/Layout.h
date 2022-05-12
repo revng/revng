@@ -18,6 +18,12 @@ LayerContainer selectPermutation(InternalGraph &Graph,
                                  RankContainer &Ranks,
                                  const NodeClassifier<Strategy> &Classifier);
 
+/// Topologically orders nodes of an augmented graph generated based on a
+/// layered version of the graph.
+std::vector<NodeView>
+extractAugmentedTopologicalOrder(InternalGraph &Graph,
+                                 const LayerContainer &Layers);
+
 /// Computes the layout given a graph and the configuration.
 ///
 /// \note: it only works with `MutableEdgeNode`s.
@@ -41,6 +47,9 @@ inline bool calculateSugiyamaLayout(ExternalGraph &Graph,
   // \suggestion: Maybe we should consider something more optimal instead of
   // a simple hill climbing algorithm.
   auto Layers = selectPermutation<RS>(DAG, Ranks, Classified);
+
+  // Compute an augmented topological ordering of the nodes of the graph.
+  auto Order = extractAugmentedTopologicalOrder(DAG, Layers);
 
   return true;
 }
