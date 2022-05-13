@@ -133,7 +133,9 @@ add_definitions("-DINSTALL_PATH=\"${CMAKE_INSTALL_PREFIX}\"")
 set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
 
 # Basic compiler options
+# cmake-format: off
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -shared-libasan")
+# cmake-format: on
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra")

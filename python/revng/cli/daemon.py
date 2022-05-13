@@ -8,7 +8,7 @@ from argparse import ArgumentParser
 from sys import executable as py_executable
 
 from .commands_registry import Command, Options, commands_registry
-from .support import collect_files, collect_libraries, run, handle_asan
+from .support import collect_files, collect_libraries, handle_asan, run
 
 
 class DaemonCommand(Command):
@@ -47,7 +47,8 @@ class DaemonCommand(Command):
             env["STARLETTE_DEBUG"] = "1"
 
         run(
-            prefix + [
+            prefix
+            + [
                 py_executable,
                 "-m",
                 "hypercorn",
