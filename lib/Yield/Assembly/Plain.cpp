@@ -8,6 +8,7 @@
 #include "llvm/Support/FormatVariadic.h"
 
 #include "revng/Model/Binary.h"
+#include "revng/Yield/ControlFlow/FallthroughDetection.h"
 #include "revng/Yield/Function.h"
 #include "revng/Yield/Plain.h"
 
@@ -80,52 +81,36 @@ static std::string instruction(const yield::Instruction &Instruction,
   return Result;
 }
 
-template<bool ShouldMergeFallthroughTargets>
 static std::string basicBlock(const yield::BasicBlock &BasicBlock,
                               const yield::Function &Function,
                               const model::Binary &Binary) {
-  // Blocks are strung together if there's no reason to keep them separate.
-  // This determines whether this is the last block in the current string
-  // (if `NextBlock` is `nullptr`) or if there's continuation.
-  const yield::BasicBlock *NextBlock = nullptr;
-  for (const MetaAddress &Target : BasicBlock.Targets) {
-    if (Target == BasicBlock.NextAddress) {
-      auto Iterator = Function.ControlFlowGraph.find(Target);
-      revng_assert(Iterator != Function.ControlFlowGraph.end());
-
-      using namespace yield::BasicBlockType;
-      if (shouldSkip<ShouldMergeFallthroughTargets>(Iterator->Type)) {
-        NextBlock = &*Iterator;
-      }
-    }
-  }
-
-  // String the results together.
   std::string Result;
+
   for (const auto &Instruction : BasicBlock.Instructions)
     Result += instruction(Instruction, BasicBlock, Binary);
 
-  if (NextBlock != nullptr)
-    return Result += basicBlock<ShouldMergeFallthroughTargets>(*NextBlock,
-                                                               Function,
-                                                               Binary);
-  else
-    return Result;
+  return Result;
 }
 
 template<bool ShouldMergeFallthroughTargets>
-static std::string basicBlockString(const yield::BasicBlock &BasicBlock,
-                                    const yield::Function &Function,
-                                    const model::Binary &Binary) {
-  // Blocks that are merged into other block strings cannot start a new one.
-  using namespace yield::BasicBlockType;
-  if (shouldSkip<ShouldMergeFallthroughTargets>(BasicBlock.Type))
-    return "";
+static std::string labeledBlock(const yield::BasicBlock &FirstBlock,
+                                const yield::Function &Function,
+                                const model::Binary &Binary) {
+  std::string Result;
+  Result += label(FirstBlock, Function, Binary);
 
-  return label(BasicBlock, Function, Binary)
-         + basicBlock<ShouldMergeFallthroughTargets>(BasicBlock,
-                                                     Function,
-                                                     Binary);
+  if constexpr (ShouldMergeFallthroughTargets == false) {
+    Result += basicBlock(FirstBlock, Function, Binary);
+  } else {
+    auto BasicBlocks = yield::cfg::labeledBlock(FirstBlock, Function, Binary);
+    if (BasicBlocks.empty())
+      return "";
+
+    for (auto BasicBlock : BasicBlocks)
+      Result += basicBlock(*BasicBlock, Function, Binary);
+  }
+
+  return Result;
 }
 
 std::string yield::plain::functionAssembly(const yield::Function &Function,
@@ -133,18 +118,18 @@ std::string yield::plain::functionAssembly(const yield::Function &Function,
   std::string Result;
 
   for (const auto &BasicBlock : Function.ControlFlowGraph)
-    Result += basicBlockString<false>(BasicBlock, Function, Binary);
+    Result += labeledBlock<true>(BasicBlock, Function, Binary);
 
   return Result;
 }
 
-std::string yield::plain::controlFlowNode(const MetaAddress &BasicBlockAddress,
+std::string yield::plain::controlFlowNode(const MetaAddress &Address,
                                           const yield::Function &Function,
                                           const model::Binary &Binary) {
-  auto Iterator = Function.ControlFlowGraph.find(BasicBlockAddress);
+  auto Iterator = Function.ControlFlowGraph.find(Address);
   revng_assert(Iterator != Function.ControlFlowGraph.end());
 
-  auto Result = basicBlockString<true>(*Iterator, Function, Binary);
+  auto Result = labeledBlock<false>(*Iterator, Function, Binary);
   revng_assert(!Result.empty());
 
   return Result;

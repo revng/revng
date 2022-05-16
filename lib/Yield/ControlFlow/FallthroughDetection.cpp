@@ -20,8 +20,8 @@ yield::cfg::detectFallthrough(const yield::BasicBlock &BasicBlock,
   for (const auto &Edge : BasicBlock.Successors) {
     auto [NextAddress, _] = efa::parseSuccessor(*Edge, BasicBlock.End, Binary);
     if (NextAddress.isValid() && NextAddress == BasicBlock.End) {
-      if (auto Iterator = Function.BasicBlocks.find(NextAddress);
-          Iterator != Function.BasicBlocks.end()) {
+      if (auto Iterator = Function.ControlFlowGraph.find(NextAddress);
+          Iterator != Function.ControlFlowGraph.end()) {
         if (Iterator->IsLabelAlwaysRequired == false) {
           revng_assert(Result == nullptr,
                        "Multiple targets with the same address");
