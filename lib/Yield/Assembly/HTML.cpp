@@ -532,10 +532,7 @@ static std::string basicBlock(const yield::BasicBlock &BasicBlock,
   // Blocks are strung together if there's no reason to keep them separate.
   // This determines whether this is the last block in the current string
   // (if `NextBlock` is `nullptr`) or if there's continuation.
-  constexpr bool MergeFallthrough = ShouldMergeFallthroughTargets;
-  auto NextBlock = yield::cfg::detectFallthrough<MergeFallthrough>(BasicBlock,
-                                                                   Function,
-                                                                   Binary);
+  auto NextBlock = yield::cfg::detectFallthrough(BasicBlock, Function, Binary);
 
   // Compile the list of delayed instructions so the corresponding comment
   // can be emited.
