@@ -260,23 +260,134 @@ static bool areTargetsAdjacent(const MetaAddress &CurrentAddress,
   return CurrentIterator->NextAddress == TargetAddress;
 }
 
-static std::string targetLink(const MetaAddress &Target,
-                              const yield::BasicBlock &BasicBlock,
-                              const yield::Function &Function,
-                              const model::Binary &Binary) {
-  if (areTargetsAdjacent(BasicBlock.Address, Target, Function))
-    return llvm::formatv(templates::Span,
-                         tags::InstructionTarget,
-                         link(Target,
-                              Function,
-                              Binary,
-                              "the next instruction"));
-  else
-    return llvm::formatv(templates::Span,
-                         tags::InstructionTarget,
-                         link(Target, Function, Binary));
-}
+  std::string singleTarget(const efa::ParsedSuccessor &Target) {
+    const auto &[NextAddress, CallAddress] = Target;
+    if (NextAddress.isValid()) {
+      if (CallAddress.isValid()) {
+        // Both are valid, it's a normal call.
+        return call({ CallAddress })
+               + comment(Binary,
+                         "then goes to " + targetLink(NextAddress),
+                         TailOffset,
+                         true);
+      } else {
+        // Only jump address is valid, it's a normal jump.
+        if (NextAddress == BasicBlock.End) {
+          // The only target is the next instruction.
+          // Don't emit these in horizontal layout.
+          if constexpr (ShouldUseVerticalLayout == false)
+            return "";
+        }
 
+        return comment(Binary, "always goes to " + targetLink(NextAddress));
+      }
+    } else {
+      if (CallAddress.isValid()) {
+        // Only call address is valid, it's a no-return call.
+        return call({ CallAddress })
+               + comment(Binary, "and does not return", TailOffset, true);
+      } else {
+        // Neither is valid, nothing is known about the target.
+        return "";
+      }
+    }
+  }
+
+  std::string twoTargets(const efa::ParsedSuccessor &First,
+                         const efa::ParsedSuccessor &Second) {
+    if (First.OptionalCallAddress.isValid()
+        || Second.OptionalCallAddress.isValid()) {
+      return multipleTargets({ First, Second });
+    }
+
+    MetaAddress FirstTarget = First.NextInstructionAddress;
+    MetaAddress SecondTarget = Second.NextInstructionAddress;
+    if (FirstTarget == SecondTarget)
+      return singleTarget(First);
+
+    if (FirstTarget == BasicBlock.End)
+      std::swap(FirstTarget, SecondTarget);
+
+    if (SecondTarget == BasicBlock.End) {
+      // One of the targets is the next instruction.
+      std::string Result = comment(Binary,
+                                   "if taken, goes to "
+                                     + targetLink(FirstTarget) + ",");
+      Result += comment(Binary,
+                        "otherwise, goes to " + targetLink(SecondTarget),
+                        TailOffset,
+                        true);
+      return Result;
+    } else {
+      return multipleTargets({ First, Second });
+    }
+  }
+
+  std::string multipleTargets(const ParsedSuccessorVector &Targets,
+                              bool HasUnknownTargets = false) {
+    llvm::SmallVector<MetaAddress, 4> CallAddresses;
+    for (const auto &[_, Target] : Targets)
+      if (Target.isValid())
+        CallAddresses.emplace_back(Target);
+
+    std::string Result = !CallAddresses.empty() ? call(CallAddresses) : "";
+    if (!Result.empty())
+      Result += comment(Binary, "then goes to one of: ", TailOffset, true);
+    else
+      Result += comment(Binary, "known targets include: ");
+
+    size_t ValidTargetCount = 0;
+    for (const auto &[Target, _] : Targets)
+      if (Target.isValid())
+        ++ValidTargetCount;
+    revng_assert(ValidTargetCount != 0);
+
+    for (size_t Counter = 0; const auto &[Target, _] : Targets) {
+      if (Target.isValid()) {
+        std::string Link = targetLink(Target);
+        if (++Counter < ValidTargetCount)
+          Link += ",";
+        Result += comment(Binary, "- " + std::move(Link), TailOffset, true);
+      }
+    }
+
+    if (HasUnknownTargets == true)
+      Result += comment(Binary, "and more", TailOffset, true);
+    return Result;
+  }
+
+protected:
+  std::string targetLink(const MetaAddress &Target) {
+    if (Target.isInvalid())
+      return "an unknown location";
+    else if (Target == BasicBlock.End)
+      return llvm::formatv(templates::Span,
+                           tags::InstructionTarget,
+                           link(Target,
+                                Function,
+                                Binary,
+                                "the next instruction"));
+    else
+      return llvm::formatv(templates::Span,
+                           tags::InstructionTarget,
+                           link(Target, Function, Binary));
+  }
+
+  std::string call(const llvm::SmallVector<MetaAddress, 4> &CallAddresses) {
+    revng_assert(!CallAddresses.empty());
+
+    std::string Result = "calls ";
+    for (size_t Counter = 0; const MetaAddress &Address : CallAddresses) {
+      Result += targetLink(Address);
+      if (++Counter != CallAddresses.size())
+        Result += ", ";
+    }
+
+    return comment(Binary, std::move(Result));
+  }
+};
+
+template<bool ShouldUseVerticalLayout = false>
 static std::string targets(const yield::BasicBlock &BasicBlock,
                            const yield::Function &Function,
                            const model::Binary &Binary,
@@ -468,7 +579,7 @@ static std::string instruction(const yield::Instruction &Instruction,
     Result += bytes(Binary, Instruction.RawBytes);
 
   // LLVM's Opcode of the instruction.
-  if (!Instruction.OpcodeIdentifier.empty())
+  if (!Instruction.Opcode.empty())
     Result += blockComment(tags::InstructionOpcode,
                            Binary,
                            "llvm Opcode: " + Instruction.OpcodeIdentifier);
@@ -477,9 +588,6 @@ static std::string instruction(const yield::Instruction &Instruction,
   if constexpr (ShouldUseVerticalLayout == true)
     if (!Instruction.Error.empty())
       Result += error(Binary, "Error: " + Instruction.Error + "\n");
-
-  if (ShouldUseVerticalLayout == true && !Instruction.Error.empty())
-    Result += error(BasicBlock, "Error: " + Instruction.Error);
 
   // Tagged instruction body.
   Result += taggedText(Instruction);
