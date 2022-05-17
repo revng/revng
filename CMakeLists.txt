@@ -264,8 +264,8 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
       revng --prefix=${CMAKE_BINARY_DIR} pipeline -m
       ${DECOMPILED_DIR}/model-snapshot.yml -i
       DataLayoutAnalysis:module.ll:${OUTFOLDER}/optimized_and_sliced_stack.bc
-      -o IRCanonicalization:module.ll:${OUTFOLDER}/canonicalized.bc --step
-      IRCanonicalization module.ll:*:StackAccessesSegregated)
+      -o IRCanonicalization:module.ll:${OUTFOLDER}/canonicalized.bc
+      IRCanonicalization:module.ll:*:StackAccessesSegregated)
   set_property(
     TEST ir_canonicalization_${TARGET_NAME}
     APPEND
@@ -296,7 +296,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
       IRCanonicalization:module.ll:${OUTFOLDER}/canonicalized.bc -i
       IRCanonicalization:input:/dev/null -o
       PrintModelHeader:model_header.h:${DECOMPILED_DIR}/revng-model-declarations.h
-      --step PrintModelHeader model_header.h::ModelHeader
+      PrintModelHeader:model_header.h::ModelHeader
       # revng --prefix=${CMAKE_BINARY_DIR} model to-header
       # -i=${OUTFOLDER}/canonicalized.bc
       # -o=${DECOMPILED_DIR}/revng-model-declarations.h
@@ -340,7 +340,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
       ${DECOMPILED_DIR}/model-snapshot.yml -i
       IRCanonicalization:module.ll:${OUTFOLDER}/canonicalized.bc -o
       PrintHelpersHeader:helpers_header.h:${DECOMPILED_DIR}/revng-qemu-helpers-declarations.h
-      --step PrintHelpersHeader helpers_header.h::HelpersHeader
+      PrintHelpersHeader:helpers_header.h::HelpersHeader
       # revng --prefix=${CMAKE_BINARY_DIR} helpers-to-header
       # -i=${OUTFOLDER}/canonicalized.bc
       # -o=${DECOMPILED_DIR}/revng-qemu-helpers-declarations.h
@@ -384,8 +384,8 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
       ${DECOMPILED_DIR}/model-snapshot.yml -i
       IRCanonicalization:module.ll:${OUTFOLDER}/canonicalized.bc -o
       DecompileToCInYAML:decompiled.yml:${DECOMPILED_DIR}/decompiled-functions.yml
-      -o DecompiledYAMLToC:decompiled.c:${DECOMPILED_DIR}/decompiled.c --step
-      DecompiledYAMLToC decompiled.c::DecompiledToC)
+      -o DecompiledYAMLToC:decompiled.c:${DECOMPILED_DIR}/decompiled.c
+      DecompiledYAMLToC:decompiled.c::DecompiledToC)
   set_property(
     TEST decompile_${TARGET_NAME}
     APPEND
@@ -475,7 +475,7 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       NAME segregate_stack_accesses_${TARGET_NAME}
       COMMAND
         bash -c -e
-        "${REVNG} model override-by-name ${INPUT_FILE} ${MODEL_OVERRIDE} | ${REVNG} llvm pipeline - - Lift LateOptimizeForDecompilation *:StackAccessesSegregated | ${REVNG} opt -S | FileCheck ${FILECHECK_FILE}"
+        "${REVNG} model override-by-name ${INPUT_FILE} ${MODEL_OVERRIDE} | ${REVNG} llvm pipeline - - Lift Lift --analysis Efa :Root | ${REVNG} llvm pipeline - - Lift LateOptimizeForDecompilation *:StackAccessesSegregated | ${REVNG} opt -S | FileCheck ${FILECHECK_FILE}"
     )
   endif()
 
