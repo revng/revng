@@ -74,7 +74,7 @@ int main(int Argc, const char *Argv[]) {
     revng_abort(InEC.message().c_str());
 
   using revng::pipes::FunctionStringMap;
-  model::Binary Model;
+  TupleTree<model::Binary> Model;
 
   FunctionStringMap Functions("" /*Name*/,
                               "application/"
