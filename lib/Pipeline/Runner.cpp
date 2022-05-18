@@ -10,6 +10,7 @@
 
 #include "revng/Pipeline/Errors.h"
 #include "revng/Pipeline/GlobalTupleTreeDiff.h"
+#include "revng/Pipeline/Kind.h"
 #include "revng/Pipeline/Runner.h"
 #include "revng/Pipeline/Target.h"
 
@@ -222,6 +223,31 @@ Runner::runAnalysis(llvm::StringRef AnalysisName,
       return std::move(Error);
 
   return std::move(Map);
+}
+
+/// Run all analysis in reverse post order (that is: parents first),
+llvm::Expected<DiffMap> Runner::runAllAnalyses(llvm::raw_ostream *OS) {
+  auto Before = getContext().getGlobals();
+
+  for (const Step *Step : ReversePostOrderIndexes) {
+    for (const auto &Pair : Step->analyses()) {
+      const auto &Analysis = Pair.second;
+      ContainerToTargetsMap Map;
+      const auto &Containers = Analysis->getRunningContainersNames();
+      for (size_t I = 0; I < Containers.size(); I++) {
+        for (const Kind *K : Analysis->getAcceptedKinds(I)) {
+          Map.add(Containers[I], Target(*K));
+        }
+      }
+
+      auto Result = runAnalysis(Pair.first(), Step->getName(), Map, OS);
+      if (not Result)
+        return Result.takeError();
+    }
+  }
+
+  auto &After = getContext().getGlobals();
+  return Before.diff(After);
 }
 
 Error Runner::run(llvm::StringRef EndingStepName,

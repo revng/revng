@@ -133,6 +133,9 @@ public:
               const ContainerToTargetsMap &Targets,
               llvm::raw_ostream *DiagnosticLog = nullptr);
 
+  /// Run all analysis in reverse post order (that is: parents first),
+  llvm::Expected<DiffMap> runAllAnalyses(llvm::raw_ostream *OS = nullptr);
+
   void addContainerFactory(llvm::StringRef Name, ContainerFactory Entry) {
     ContainerFactoriesRegistry.registerContainerFactory(Name, std::move(Entry));
   }

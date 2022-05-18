@@ -211,6 +211,14 @@ rp_diff_map * /*owning*/ rp_manager_run_analysis(rp_manager *manager,
                                                  rp_container *container);
 
 /**
+ * Request to run all analyses on all targets
+ *
+ * \return 0 if an error was encountered, the owning diff map of affected global
+ * objects
+ */
+rp_diff_map * /*owning*/ rp_manager_run_all_analyses(rp_manager *manager);
+
+/**
  *
  */
 void rp_manager_recompute_all_available_targets(rp_manager *manager);

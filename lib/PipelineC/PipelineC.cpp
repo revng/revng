@@ -621,3 +621,13 @@ const rp_kind *rp_analysis_get_argument_acceptable_kind(rp_analysis *analysis,
     return nullptr;
   return Accepted[kind_index];
 }
+
+rp_diff_map *rp_manager_run_all_analyses(rp_manager *manager) {
+  auto MaybeDiffs = manager->getRunner().runAllAnalyses(nullptr);
+  if (not MaybeDiffs) {
+    llvm::consumeError(MaybeDiffs.takeError());
+    return nullptr;
+  }
+
+  return new rp_diff_map(std::move(*MaybeDiffs));
+}
