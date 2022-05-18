@@ -363,6 +363,38 @@ inline unsigned getMinimalFinalStackOffset(Values V) {
   }
 }
 
+inline constexpr std::string_view getAssemblyCommentIndicator(Values V) {
+  switch (V) {
+  case model::Architecture::x86:
+  case model::Architecture::x86_64:
+  case model::Architecture::mips:
+  case model::Architecture::mipsel:
+  case model::Architecture::systemz:
+    return "#";
+  case model::Architecture::arm:
+    return "@";
+  case model::Architecture::aarch64:
+    return "//";
+  default:
+    revng_abort();
+  }
+}
+
+inline constexpr std::string_view getAssemblyLabelIndicator(Values V) {
+  switch (V) {
+  case model::Architecture::x86:
+  case model::Architecture::x86_64:
+  case model::Architecture::arm:
+  case model::Architecture::aarch64:
+  case model::Architecture::mips:
+  case model::Architecture::mipsel:
+  case model::Architecture::systemz:
+    return ":";
+  default:
+    revng_abort();
+  }
+}
+
 } // namespace model::Architecture
 
 #include "revng/Model/Generated/Late/Architecture.h"

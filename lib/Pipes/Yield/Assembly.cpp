@@ -53,8 +53,7 @@ void YieldAssemblyPipe::run(pipeline::Context &Context,
 void YieldAssemblyPipe::print(const pipeline::Context &,
                               llvm::raw_ostream &OS,
                               llvm::ArrayRef<std::string> Files) const {
-  OS << *revng::ResourceFinder.findFile("bin/revng") << " yield assembly html "
-     << Files[0] << " " << Files[1] << '\n';
+  OS << *revng::ResourceFinder.findFile("bin/revng") << " magic ^_^\n";
 }
 
 std::array<pipeline::ContractGroup, 1> YieldAssemblyPipe::getContract() const {
