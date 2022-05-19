@@ -16,6 +16,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/ADT/KeyedObjectContainer.h"
+#include "revng/ADT/STLExtras.h"
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/Support/Assert.h"
 #include "revng/TupleTree/TupleTree.h"
@@ -65,7 +66,7 @@ struct CheckTypeIsCorrect {
   template<typename T, typename KeyT>
   void visitContainerElement(KeyT Key) {}
 
-  template<IsContainer T>
+  template<SortedContainer T>
   void visit() {
     check<typename T::value_type>();
   }
@@ -212,7 +213,7 @@ struct MapDiffVisitor {
   template<typename T, typename KeyT>
   void visitContainerElement(KeyT Key) {}
 
-  template<IsContainer T>
+  template<SortedContainer T>
   void visit() {
     dump<typename T::value_type>();
   }
@@ -382,32 +383,7 @@ namespace tupletreediff::detail {
 
 // clang-format off
 
-
-template<typename T>
-concept StringRefConvertible = requires(T A) {
-  llvm::StringRef(A);
-};
-
-template<typename T>
-concept TwineConvertible = requires(T A) {
-  llvm::Twine(A);
-};
-
-template<typename T>
-concept StringLike = requires(T A) {
-  A.str();
-};
-
-template<typename T>
-concept IterableAndNotStdString = Iterable<T> and
-                                  not std::is_same_v<std::string, T> and
-                                  not StringRefConvertible<T> and
-                                  not TwineConvertible<T> and
-                                  not StringLike<T>;
 // clang-format on
-
-template<typename T>
-concept NotIterableOrStdString = not IterableAndNotStdString<T>;
 
 template<typename T>
 struct ApplyDiffVisitor {
@@ -424,7 +400,7 @@ struct ApplyDiffVisitor {
     visit(Element);
   }
 
-  template<IterableAndNotStdString S>
+  template<SortedContainer S>
   void visit(S &M) {
     revng_assert((C->Old == std::nullopt) != (C->New == std::nullopt));
 
@@ -449,8 +425,8 @@ struct ApplyDiffVisitor {
     }
   }
 
-  template<NotIterableOrStdString S>
-  void visit(S &M) {
+  template<typename S>
+  void visit(S &M) requires(not SortedContainer<S>) {
     revng_assert(C->Old != std::nullopt and C->New != std::nullopt);
     auto &Old = std::get<S>(*C->Old);
     auto &New = std::get<S>(*C->New);
