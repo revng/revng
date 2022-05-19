@@ -29,5 +29,11 @@ revng_add_analyses_library(
   DLATypeSystem.cpp)
 
 target_link_libraries(
-  revngcDataLayoutAnalysis revngcSupport revng::revngEarlyFunctionAnalysis
-  revng::revngModel revng::revngSupport ${LLVM_LIBRARIES})
+  revngcDataLayoutAnalysis
+  revngcSupport
+  revng::revngEarlyFunctionAnalysis
+  revng::revngModel
+  revng::revngSupport
+  revng::revngPipeline
+  revng::revngPipes
+  ${LLVM_LIBRARIES})

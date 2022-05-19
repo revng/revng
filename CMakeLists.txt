@@ -178,7 +178,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
       revng --prefix=${CMAKE_BINARY_DIR} llvm pipeline
       "${OUTFOLDER}/promoted_stack_pointer.bc"
       "${OUTFOLDER}/optimized_and_sliced_stack.bc" PromoteStackPointer
-      DataLayoutAnalysis "*:StackAccessesSegregated")
+      LateOptimizeForDecompilation "*:StackAccessesSegregated" --analysis dla)
   set_property(
     TEST optimize_and_slice_stack_${TARGET_NAME}
     APPEND
@@ -263,7 +263,7 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
     COMMAND
       revng --prefix=${CMAKE_BINARY_DIR} pipeline -m
       ${DECOMPILED_DIR}/model-snapshot.yml -i
-      DataLayoutAnalysis:module.ll:${OUTFOLDER}/optimized_and_sliced_stack.bc
+      LateOptimizeForDecompilation:module.ll:${OUTFOLDER}/optimized_and_sliced_stack.bc
       -o IRCanonicalization:module.ll:${OUTFOLDER}/canonicalized.bc
       IRCanonicalization:module.ll:*:StackAccessesSegregated)
   set_property(

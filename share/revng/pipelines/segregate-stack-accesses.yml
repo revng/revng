@@ -33,4 +33,7 @@ Steps:
          - simplifycfg
          - restore-extractvalues
          - strip-dead-prototypes
-
+   Analyses:
+     - Name: dla
+       Type: dla
+       UsedContainers: [module.ll]
