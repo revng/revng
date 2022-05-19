@@ -356,6 +356,10 @@ class Manager:
         )
         return self.parse_diff_map(result) if result != ffi.NULL else None
 
+    def run_all_analyses(self) -> Optional[Dict[str, str]]:
+        result = _api.rp_manager_run_all_analyses(self._manager)
+        return self.parse_diff_map(result) if result != ffi.NULL else None
+
     def parse_diff_map(self, diff_map) -> Dict[str, str]:
         result = {}
         for global_name in self.globals_list():

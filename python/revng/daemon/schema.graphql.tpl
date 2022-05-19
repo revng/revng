@@ -18,6 +18,7 @@ type Mutation {
     upload_b64(input: String!, container: String!): Boolean!
     upload_file(file: Upload, container: String!): Boolean!
     run_analysis(step: String!, analysis: String!, container: String!, targets: String!): String!
+    run_all_analyses: String!
     analyses: AnalysisMutations!
 }
 

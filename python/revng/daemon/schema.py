@@ -127,6 +127,13 @@ async def resolve_run_analysis(_, info, *, step: str, analysis: str, container: 
     return json.dumps(result)
 
 
+@mutation.field("run_all_analyses")
+async def resolve_run_all_analyses(_, info):
+    manager: Manager = info.context["manager"]
+    result = await run_in_executor(manager.run_all_analyses)
+    return json.dumps(result)
+
+
 @mutation.field("analyses")
 async def mutation_analyses(_, info):
     return {}

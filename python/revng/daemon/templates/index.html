@@ -131,6 +131,16 @@
 
     let response = await gql(input_query);
 
+    try {
+      let analysis_response = await gql(`
+        mutation {
+          run_all_analyses
+        }
+      `);
+    } catch (err) {
+      window.alert("Failed to run autoanalyses");
+    }
+
     // TODO: do not reload the page, reload the targets instead
     window.location.reload();
   }
