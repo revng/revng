@@ -11,3 +11,6 @@ Steps:
    Pipes:
      - Type:             ModelToHeader
        UsedContainers: [input, model_header.h]
+   Artifacts:
+     Container: model_header.h
+     Kind: ModelHeader

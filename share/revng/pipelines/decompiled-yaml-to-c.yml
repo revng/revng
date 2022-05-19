@@ -11,4 +11,7 @@ Steps:
    Pipes:
      - Type:             DecompiledYAMLToC
        UsedContainers: [decompiled.yml, decompiled.c]
+   Artifacts:
+     Container: decompiled.c
+     Kind: DecompiledToC
 

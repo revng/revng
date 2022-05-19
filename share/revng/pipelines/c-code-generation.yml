@@ -15,3 +15,6 @@ Steps:
        UsedContainers: [input, model_header.h]
      - Type:             CDecompilation
        UsedContainers: [module.ll, decompiled.yml]
+   Artifacts:
+     Container: decompiled.yml
+     Kind: DecompiledToYAML

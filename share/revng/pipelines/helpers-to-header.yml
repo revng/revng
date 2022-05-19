@@ -11,3 +11,6 @@ Steps:
    Pipes:
      - Type:             HelpersToHeader
        UsedContainers: [module.ll, helpers_header.h]
+   Artifacts:
+     Container: helpers_header.h
+     Kind: HelpersHeader
