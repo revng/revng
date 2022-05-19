@@ -175,10 +175,9 @@ macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
   add_test(
     NAME optimize_and_slice_stack_${TARGET_NAME}
     COMMAND
-      revng --prefix=${CMAKE_BINARY_DIR} llvm pipeline
-      "${OUTFOLDER}/promoted_stack_pointer.bc"
-      "${OUTFOLDER}/optimized_and_sliced_stack.bc" PromoteStackPointer
-      LateOptimizeForDecompilation "*:StackAccessesSegregated" --analysis dla)
+      bash -c -e
+      "revng --prefix=${CMAKE_BINARY_DIR} llvm pipeline ${OUTFOLDER}/promoted_stack_pointer.bc ${OUTFOLDER}/optimized_and_sliced_stack.bc PromoteStackPointer DetectStackSize *:LiftingArtifactsRemoved --analysis detect-stack-size && revng --prefix=${CMAKE_BINARY_DIR} llvm pipeline ${OUTFOLDER}/optimized_and_sliced_stack.bc ${OUTFOLDER}/optimized_and_sliced_stack.bc DetectStackSize LateOptimizeForDecompilation *:StackAccessesSegregated --analysis dla"
+  )
   set_property(
     TEST optimize_and_slice_stack_${TARGET_NAME}
     APPEND
@@ -475,7 +474,7 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
       NAME segregate_stack_accesses_${TARGET_NAME}
       COMMAND
         bash -c -e
-        "${REVNG} model override-by-name ${INPUT_FILE} ${MODEL_OVERRIDE} | ${REVNG} llvm pipeline - - Lift Lift --analysis Efa :Root | ${REVNG} llvm pipeline - - Lift LateOptimizeForDecompilation *:StackAccessesSegregated | ${REVNG} opt -S | FileCheck ${FILECHECK_FILE}"
+        "${REVNG} model override-by-name ${INPUT_FILE} ${MODEL_OVERRIDE} | ${REVNG} llvm pipeline - - Lift Lift --analysis DetectABI :Root | ${REVNG} llvm pipeline - - Lift DetectStackSize *:LiftingArtifactsRemoved --analysis detect-stack-size | ${REVNG} llvm pipeline - - DetectStackSize LateOptimizeForDecompilation *:StackAccessesSegregated | ${REVNG} opt -S | FileCheck ${FILECHECK_FILE}"
     )
   endif()
 

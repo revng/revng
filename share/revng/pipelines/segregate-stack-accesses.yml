@@ -13,7 +13,10 @@ Steps:
          - instrument-stack-accesses
          - instcombine
          - compute-stack-accesses-bounds
-         - detect-stack-size
+   Analyses:
+     - Name: detect-stack-size
+       Type: detect-stack-size
+       UsedContainers: [module.ll]
  - Name:            SegregateStackAccesses
    Pipes:
      - Type:             LLVMPipe
