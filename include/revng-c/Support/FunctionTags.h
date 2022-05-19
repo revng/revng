@@ -24,6 +24,7 @@ extern Tag ModelGEP;
 extern Tag ModelCast;
 extern Tag AssignmentMarker;
 extern Tag OpaqueExtractValue;
+extern Tag Parentheses;
 
 inline Tag LiftingArtifactsRemoved("LiftingArtifactsRemoved", Isolated);
 
@@ -64,6 +65,9 @@ getAddressOfFunctionType(llvm::LLVMContext &C, llvm::Type *T);
 /// Initializes a pool of AddressOf functions, initializing it its internal
 /// Module
 void initAddressOfPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+
+/// Initializes a pool of Parentheses functions
+void initParenthesesPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
 
 llvm::Function *
 getModelGEP(llvm::Module &M, llvm::Type *RetTy, llvm::Type *BaseAddressTy);

@@ -25,6 +25,7 @@ Tag ModelCast("ModelCast");
 Tag ModelGEP(ModelGEPName);
 Tag AssignmentMarker(MarkerName);
 Tag OpaqueExtractValue("OpaqueExtractvalue");
+Tag Parentheses("Parentheses");
 } // namespace FunctionTags
 
 static std::string makeTypeName(const llvm::Type *Ty) {
@@ -99,6 +100,17 @@ void initModelCastPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.setTags({ &FunctionTags::ModelCast });
   // Initialize the pool from its internal llvm::Module if possible.
   Pool.initializeFromReturnType(FunctionTags::ModelCast);
+}
+
+void initParenthesesPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
+  // Set attributes
+  Pool.addFnAttribute(llvm::Attribute::NoUnwind);
+  Pool.addFnAttribute(llvm::Attribute::WillReturn);
+  Pool.addFnAttribute(llvm::Attribute::ReadNone);
+  // Set revng tags
+  Pool.setTags({ &FunctionTags::Parentheses });
+  // Initialize the pool from its internal llvm::Module if possible.
+  Pool.initializeFromReturnType(FunctionTags::Parentheses);
 }
 
 llvm::Function *
