@@ -33,6 +33,7 @@ struct AnalysisDeclaration {
   std::string Type;
   std::vector<std::string> UsedContainers;
   std::string Name = "";
+  std::string Step = "";
 };
 
 struct PipeInvocation {
@@ -64,6 +65,7 @@ struct PipelineDeclaration {
   std::string From;
   std::vector<ContainerDeclaration> Containers;
   std::vector<StepDeclaration> Steps;
+  std::vector<AnalysisDeclaration> Analyses = {};
 };
 
 class PipelineContext;
@@ -187,7 +189,7 @@ private:
   llvm::Expected<PipeWrapper>
   parseInvocation(Step &Step, const PipeInvocation &Invocation) const;
   llvm::Expected<AnalysisWrapper>
-  parseAnalysis(Step &Step, const AnalysisDeclaration &Declaration) const;
+  parseAnalysis(const AnalysisDeclaration &Declaration) const;
   llvm::Error
   parseContainerDeclaration(Runner &Runner, const ContainerDeclaration &) const;
 
@@ -243,6 +245,7 @@ struct llvm::yaml::MappingTraits<pipeline::PipelineDeclaration>
     TheIO.mapOptional("From", Info.From);
     TheIO.mapRequired("Containers", Info.Containers);
     TheIO.mapRequired("Steps", Info.Steps);
+    TheIO.mapOptional("Analyses", Info.Analyses);
   }
 };
 
@@ -259,6 +262,7 @@ struct llvm::yaml::MappingTraits<pipeline::AnalysisDeclaration> {
   static void mapping(IO &TheIO, pipeline::AnalysisDeclaration &Info) {
     TheIO.mapRequired("Name", Info.Name);
     TheIO.mapRequired("Type", Info.Type);
+    TheIO.mapOptional("Step", Info.Step);
     TheIO.mapRequired("UsedContainers", Info.UsedContainers);
   }
 };

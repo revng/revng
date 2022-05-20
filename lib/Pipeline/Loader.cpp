@@ -50,7 +50,7 @@ llvm::Error Loader::parseStepDeclaration(Runner &Runner,
   }
 
   for (const auto &SingleAnalysis : Declaration.Analyses) {
-    auto MaybeInvocation = parseAnalysis(JustAdded, SingleAnalysis);
+    auto MaybeInvocation = parseAnalysis(SingleAnalysis);
     if (!MaybeInvocation)
       return MaybeInvocation.takeError();
 
@@ -92,8 +92,7 @@ Loader::parseLLVMPass(const PipeInvocation &Invocation) const {
 }
 
 llvm::Expected<AnalysisWrapper>
-Loader::parseAnalysis(Step &Step,
-                      const AnalysisDeclaration &Declaration) const {
+Loader::parseAnalysis(const AnalysisDeclaration &Declaration) const {
   auto It = KnownAnalysisTypes.find(Declaration.Type);
   if (It == KnownAnalysisTypes.end()) {
     auto *Message = "while parsing analysis : No known Anaylis with "
@@ -239,6 +238,15 @@ Loader::load(llvm::ArrayRef<PipelineDeclaration> Pipelines) const {
   for (const auto *Declaration : ToSort)
     if (auto Error = parseSteps(ToReturn, *Declaration); Error)
       return std::move(Error);
+
+  for (const auto *Declaration : ToSort)
+    for (const auto &Analysis : Declaration->Analyses) {
+      auto MaybeAnalysis = parseAnalysis(Analysis);
+      if (not MaybeAnalysis)
+        return MaybeAnalysis.takeError();
+      ToReturn.getStep(Analysis.Step)
+        .addAnalysis(Analysis.Name, std::move(*MaybeAnalysis));
+    }
 
   return ToReturn;
 }
