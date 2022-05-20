@@ -13,10 +13,6 @@ Steps:
          - instrument-stack-accesses
          - instcombine
          - compute-stack-accesses-bounds
-   Analyses:
-     - Name: detect-stack-size
-       Type: detect-stack-size
-       UsedContainers: [module.ll]
  - Name:            SegregateStackAccesses
    Pipes:
      - Type:             LLVMPipe
@@ -36,7 +32,3 @@ Steps:
          - simplifycfg
          - restore-extractvalues
          - strip-dead-prototypes
-   Analyses:
-     - Name: dla
-       Type: dla
-       UsedContainers: [module.ll]

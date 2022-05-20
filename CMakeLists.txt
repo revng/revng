@@ -56,6 +56,7 @@ make_directory("${CMAKE_BINARY_DIR}/share/revng/")
 copy_to_build_and_install(
   FILES
   share/revng/pipelines
+  share/revng/pipelines/revng-c-analyses.yml
   share/revng/pipelines/c-code-generation.yml
   share/revng/pipelines/decompiled-yaml-to-c.yml
   share/revng/pipelines/helpers-to-header.yml
