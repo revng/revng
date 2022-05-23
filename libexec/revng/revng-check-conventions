@@ -205,14 +205,14 @@ function cat_header() {
 
 # Checks that all file names are proper
 function check_file_names() {
-    local FILENAME FILE
-    readarray -d '' FILENAME < <(git ls-files -z)
-    for FILE in "${FILENAME[@]}"; do
-        if grep -q '\s' <<< "$FILE"; then
-            echo "ERROR, file '$FILE' has whitespace in filename/path, bailing"
-            exit 1
-        fi
-    done
+    if ! git status &> /dev/null; then
+        return
+    fi
+    if git ls-files -z | grep -zq '\s'; then
+        echo "Error, the following files have whitespace in their name:"
+        git ls-files -z | grep -z '\s' | tr '\0' '\n' | sed 's;^;  ;g'
+        exit 1
+    fi
 }
 
 # Get config file path, if not found error out
