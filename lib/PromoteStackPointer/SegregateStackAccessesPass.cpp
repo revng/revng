@@ -814,7 +814,7 @@ private:
     // Find call to revng_init_local_sp
     //
     CallInst *Call = findCallTo(&F, InitLocalSP);
-    if (Call == nullptr)
+    if (Call == nullptr or not ModelFunction.StackFrameType.isValid())
       return;
 
     //
