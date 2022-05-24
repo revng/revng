@@ -74,8 +74,9 @@ static bool updateRawFuncArgs(model::Binary &Model,
   uint64_t EffectiveLLVMArgSize = arg_size(CallOrFunction);
 
   // In case of presence of stack arguments, there's an extra argument
-  if (auto *ModelStackArg = ModelPrototype->StackArgumentsType.UnqualifiedType
-                              .get()) {
+  if (ModelPrototype->StackArgumentsType.UnqualifiedType.isValid()) {
+    auto *ModelStackArg = ModelPrototype->StackArgumentsType.UnqualifiedType
+                            .get();
     revng_assert(ModelPrototype->StackArgumentsType.Qualifiers.empty());
     revng_assert(not LLVMArgs.empty());
 
