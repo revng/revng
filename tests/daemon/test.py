@@ -326,7 +326,7 @@ def test_function_endpoint(client):
     mutation {
         analyses {
             lift {
-                efa(module_ll: ":Root")
+                detect_abi(module_ll: ":Root")
             }
         }
     }
@@ -370,7 +370,7 @@ def test_analysis_kind_check(client):
     mutation {
         analyses {
             lift {
-                efa(module_ll: ":IsolatedRoot")
+                detect_abi(module_ll: ":IsolatedRoot")
             }
         }
     }
