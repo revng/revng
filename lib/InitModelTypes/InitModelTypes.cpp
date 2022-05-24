@@ -140,9 +140,15 @@ static RecursiveCoroutine<bool> addOperandType(const llvm::Value *Operand,
     }
     rc_return true;
 
-  } else if (isa<llvm::ConstantPointerNull>(Operand)) {
-    if (not PointersOnly)
-      TypeMap.insert({ Operand, {} });
+  } else if (auto *NullPtr = dyn_cast<llvm::ConstantPointerNull>(Operand)) {
+    if (not PointersOnly) {
+      auto PtrSize = model::Architecture::getPointerSize(Model.Architecture);
+      auto NullPointerType = model::QualifiedType{
+        Model.getPrimitiveType(model::PrimitiveTypeKind::Generic, PtrSize),
+        /*Qualifiers*/ {}
+      };
+      TypeMap.insert({ Operand, NullPointerType });
+    }
     rc_return true;
   }
 

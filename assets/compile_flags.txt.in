@@ -106,3 +106,4 @@ ${CMAKE_BINARY_DIR}/${ASSETS_DIR}/recompilation-headers/
 -Wno-incompatible-pointer-types
 -Wno-null-pointer-arithmetic
 -Wno-non-literal-null-conversion
+-Wno-null-dereference

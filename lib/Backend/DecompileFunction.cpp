@@ -192,22 +192,18 @@ static StringToken buildAddressExpr(const llvm::Twine &Expr) {
 static StringToken buildCastExpr(StringRef ExprToCast,
                                  const model::QualifiedType &SrcType,
                                  const model::QualifiedType &DestType) {
+  StringToken Result = ExprToCast;
   if (SrcType == DestType or not SrcType.UnqualifiedType.isValid()
       or not SrcType.UnqualifiedType.isValid())
-    return ExprToCast;
+    return Result;
 
-  StringToken CastString;
+  revng_assert((SrcType.isScalar() or SrcType.isPointer())
+               and (DestType.isScalar() or DestType.isPointer()));
 
-  if ((SrcType.isScalar() or SrcType.isPointer())
-      and (DestType.isScalar() or DestType.isPointer()))
-    CastString = (addParentheses(getTypeName(DestType))
-                  + addParentheses(ExprToCast))
-                   .str();
-  else
-    CastString = buildDerefExpr(addParentheses(getTypeName(DestType) + " *")
-                                + buildAddressExpr(ExprToCast));
+  Result.assign(addParentheses(getTypeName(DestType)));
+  Result.append(addParentheses(ExprToCast));
 
-  return CastString;
+  return Result;
 }
 
 /// Return a string that represents a C assignment:
@@ -473,6 +469,16 @@ CCodeGenerator::addOperandToken(const llvm::Value *Operand) {
     rc_return true;
   }
 
+  if (auto *Null = dyn_cast<llvm::ConstantPointerNull>(Operand)) {
+    TokenMap[Operand] = "NULL";
+    rc_return true;
+  }
+
+  if (auto *Glob = dyn_cast<llvm::GlobalVariable>(Operand)) {
+    TokenMap[Operand] = Glob->getNameOrAsOperand();
+    rc_return true;
+  }
+
   if (auto *Const = dyn_cast<llvm::ConstantInt>(Operand)) {
     llvm::APInt Value = Const->getValue();
     if (Value.isIntN(64)) {
@@ -505,13 +511,10 @@ CCodeGenerator::addOperandToken(const llvm::Value *Operand) {
       TokenMap[Operand] = addParentheses(CompositeConstant).str();
     }
 
-  } else if (auto *Null = dyn_cast<llvm::ConstantPointerNull>(Operand)) {
-    TokenMap[Operand] = "NULL";
+    rc_return true;
+  }
 
-  } else if (auto *Glob = dyn_cast<llvm::GlobalVariable>(Operand)) {
-    TokenMap[Operand] = Glob->getNameOrAsOperand();
-
-  } else if (auto *ConstExpr = dyn_cast<llvm::ConstantExpr>(Operand)) {
+  if (auto *ConstExpr = dyn_cast<llvm::ConstantExpr>(Operand)) {
     // A constant expression might have its own uninitialized constant operands
     for (const llvm::Value *Op : ConstExpr->operand_values())
       rc_recur addOperandToken(Op);
@@ -537,11 +540,10 @@ CCodeGenerator::addOperandToken(const llvm::Value *Operand) {
       rc_return false;
     }
 
-  } else {
-    rc_return false;
+    rc_return true;
   }
 
-  rc_return true;
+  rc_return false;
 }
 
 StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
@@ -882,32 +884,56 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
 
     const llvm::Value *PointerOp = Store->getPointerOperand();
     const llvm::Value *ValueOp = Store->getValueOperand();
-    // The LHS side of a store has the same type of the object pointed by the
-    // pointer operand
-    const QualifiedType PointedType = dropPointer(TypeMap.at(PointerOp));
+    const QualifiedType &PointerType = TypeMap.at(PointerOp);
     const QualifiedType &StoredType = TypeMap.at(ValueOp);
 
-    if (StoredType.UnqualifiedType.isValid() and StoredType.isScalar()
-        and not PointedType.is(model::TypeKind::PrimitiveType)) {
-      // If we are storing a scalar value into a pointer to a struct, union or
-      // pointer, cast the LHS to the scalar type before assigning it
-      QualifiedType StoredPtrType = StoredType;
-      addPointerQualifier(StoredPtrType, Model);
-      StringToken CastedToken = buildCastExpr(TokenMap.at(PointerOp),
-                                              TypeMap.at(PointerOp),
-                                              StoredPtrType);
-      Expression = buildAssignmentExpr(StoredType,
-                                       buildDerefExpr(CastedToken),
-                                       StoredType,
-                                       TokenMap.at(ValueOp),
-                                       /*WithDeclaration=*/false);
+    StringToken PointerOperandExpr = TokenMap.at(PointerOp);
+
+    QualifiedType DerefPointedType;
+    StringToken PointerExprToDeref;
+
+    // This may be false if the pointer is null, because in that case we emit
+    // NULL, whose type is integer
+    bool PointerOperandIsInteger = not PointerType.isPointer();
+    if (PointerOperandIsInteger) {
+      // The pointer operand does not contain enough information to figure out
+      // the type of the pointee. In this sense the pointer is integer, because
+      // it's just a bag of bytes without useful type information. In this case
+      // we want the stored value to determine the type pointed-to by the
+      // pointer.
+      DerefPointedType = StoredType;
+      QualifiedType DerefPointerType = DerefPointedType;
+      addPointerQualifier(DerefPointerType, Model);
+      revng_assert(DerefPointerType.verify());
+      PointerExprToDeref = buildCastExpr(PointerOperandExpr,
+                                         PointerType,
+                                         DerefPointerType);
     } else {
-      Expression = buildAssignmentExpr(PointedType,
-                                       buildDerefExpr(TokenMap.at(PointerOp)),
-                                       StoredType,
-                                       TokenMap.at(ValueOp),
-                                       /*WithDeclaration=*/false);
+      // Otherwise the type pointed-to by the pointer operand can be obtained
+      // just dropping the pointer qualifier.
+      DerefPointedType = dropPointer(PointerType);
+      PointerExprToDeref = PointerOperandExpr;
+
+      if (StoredType.UnqualifiedType.isValid() and StoredType.isScalar()
+          and not DerefPointedType.is(model::TypeKind::PrimitiveType)) {
+        // If we are storing a scalar value into a pointer to a struct, union or
+        // pointer, cast the LHS to the scalar type before assigning it
+        DerefPointedType = StoredType;
+        QualifiedType DerefPointerType = StoredType;
+        addPointerQualifier(DerefPointerType, Model);
+        revng_assert(DerefPointerType.verify());
+        PointerExprToDeref = buildCastExpr(PointerOperandExpr,
+                                           PointerType,
+                                           DerefPointerType);
+      }
     }
+    revng_assert(DerefPointedType.verify());
+
+    Expression = buildAssignmentExpr(DerefPointedType,
+                                     buildDerefExpr(PointerExprToDeref),
+                                     StoredType,
+                                     TokenMap.at(ValueOp),
+                                     /*WithDeclaration=*/false);
 
   } else if (auto *Select = dyn_cast<llvm::SelectInst>(&I)) {
 
