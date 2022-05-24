@@ -104,7 +104,7 @@ std::string Target::serialize() const {
   std::string ToReturn;
 
   if (Components.size() == 0) {
-    return "";
+    return ":" + K->name().str();
   }
 
   for (size_t I = 0; I < Components.size() - 1; I++)
