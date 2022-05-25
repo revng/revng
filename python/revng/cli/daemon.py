@@ -25,6 +25,10 @@ analysis libraries and pipelines.
 Environment variables that are used:
 
 STARLETTE_DEBUG: if set to "1" enables debug mode, unset when using --production
+REVNG_NOTIFY_FIFOS: list of fifo pipes to be notified of changes in the pipeline
+  it follows the following format:
+  <fifo path 1>:<event type 1>,<fifo path 2>:<event type 2>,...
+  Event types that are available: begin, context
 
 Persistence:
 revng needs a directory to preserve progress across restarts, this is controlled

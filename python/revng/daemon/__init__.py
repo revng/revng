@@ -20,6 +20,7 @@ from revng.api import Manager
 from revng.api._capi import initialize as capi_initialize
 
 from .demo_webpage import demo_page, production_demo_page
+from .manager import make_manager
 from .schema_generator import SchemaGen
 from .util import project_workdir
 
@@ -56,7 +57,7 @@ async def status(request):
 def startup():
     global manager, startup_done
     capi_initialize()
-    manager = Manager(workdir=str(workdir.resolve()))
+    manager = make_manager(workdir)
     app.mount(
         "/graphql",
         GraphQL(
