@@ -47,4 +47,10 @@ public:
   bool runOnModule(llvm::Module &M) override;
 };
 
+template<>
+char EarlyFunctionAnalysis<true>::ID;
+
+template<>
+char EarlyFunctionAnalysis<false>::ID;
+
 } // namespace EarlyFunctionAnalysis

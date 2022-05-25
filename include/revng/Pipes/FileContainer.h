@@ -52,6 +52,8 @@ public:
   void clear() override;
   llvm::Error serialize(llvm::raw_ostream &OS) const override;
   llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) override;
+  llvm::Error extractOne(llvm::raw_ostream &OS,
+                         const pipeline::Target &Target) const override;
 
 public:
   std::optional<llvm::StringRef> path() const {

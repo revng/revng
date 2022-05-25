@@ -14,3 +14,5 @@ typedef pipeline::ContainerSet::value_type rp_container;
 typedef const pipeline::ContainerFactorySet::value_type rp_container_identifier;
 typedef const pipeline::Target rp_target;
 typedef const pipeline::TargetsList rp_targets_list;
+typedef const pipeline::Step::AnalysisValueType rp_analysis;
+typedef const pipeline::DiffMap rp_diff_map;

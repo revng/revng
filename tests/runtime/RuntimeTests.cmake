@@ -57,6 +57,17 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
         "${INPUT_FILE}"
         "${OUTPUT}"
         Lift
+        Lift
+        --analysis
+        DetectABI
+        ":Root"
+        "&&"
+        "./bin/revng"
+        llvm
+        pipeline
+        "${OUTPUT}"
+        "${OUTPUT}"
+        Lift
         EnforceABI
         "*:CSVsPromoted")
     set(DEPEND_ON revng-all-binaries)
@@ -71,13 +82,12 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
     set(COMMAND_TO_RUN
         "./bin/revng"
         pipeline
-        assembly.html.yml:html:FunctionAssemblyHTML
+        Lift:DetectABI:module.ll::Root
+        YieldAssembly:assembly.html.yml:html:FunctionAssemblyHTML
         -i
         "begin:input:${INPUT_FILE}"
         -o
-        "YieldAssembly:assembly.html.yml:${OUTPUT}"
-        --step
-        YieldAssembly)
+        "YieldAssembly:assembly.html.yml:${OUTPUT}")
     set(DEPEND_ON revng-all-binaries)
   endif()
 endmacro()

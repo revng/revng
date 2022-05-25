@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <any>
 #include <optional>
 #include <set>
 #include <utility>
@@ -16,6 +17,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/ADT/KeyedObjectContainer.h"
+#include "revng/ADT/STLExtras.h"
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/Support/Assert.h"
 #include "revng/TupleTree/TupleTree.h"
@@ -65,7 +67,7 @@ struct CheckTypeIsCorrect {
   template<typename T, typename KeyT>
   void visitContainerElement(KeyT Key) {}
 
-  template<IsContainer T>
+  template<SortedContainer T>
   void visit() {
     check<typename T::value_type>();
   }
@@ -212,7 +214,7 @@ struct MapDiffVisitor {
   template<typename T, typename KeyT>
   void visitContainerElement(KeyT Key) {}
 
-  template<IsContainer T>
+  template<SortedContainer T>
   void visit() {
     dump<typename T::value_type>();
   }
@@ -294,14 +296,14 @@ struct Diff {
   TupleTreePath Stack;
   TupleTreeDiff<M> Result;
 
-  TupleTreeDiff<M> diff(M &LHS, M &RHS) {
+  TupleTreeDiff<M> diff(const M &LHS, const M &RHS) {
     diffImpl(LHS, RHS);
     return Result;
   }
 
 private:
   template<size_t I = 0, typename T>
-  void diffTuple(T &LHS, T &RHS) {
+  void diffTuple(const T &LHS, const T &RHS) {
     if constexpr (I < std::tuple_size_v<T>) {
 
       Stack.push_back(size_t(I));
@@ -314,7 +316,7 @@ private:
   }
 
   template<IsUpcastablePointer T>
-  void diffImpl(T &LHS, T &RHS) {
+  void diffImpl(const T &LHS, const T &RHS) {
     LHS.upcast([&](auto &LHSUpcasted) {
       RHS.upcast([&](auto &RHSUpcasted) {
         using LHSType = std::remove_cvref_t<decltype(LHSUpcasted)>;
@@ -329,12 +331,12 @@ private:
   }
 
   template<HasTupleSize T>
-  void diffImpl(T &LHS, T &RHS) {
+  void diffImpl(const T &LHS, const T &RHS) {
     diffTuple(LHS, RHS);
   }
 
   template<SortedContainer T>
-  void diffImpl(T &LHS, T &RHS) {
+  void diffImpl(const T &LHS, const T &RHS) {
     for (auto [LHSElement, RHSElement] : zipmap_range(LHS, RHS)) {
       if (LHSElement == nullptr) {
         // Added
@@ -353,7 +355,7 @@ private:
   }
 
   template<NotTupleTreeCompatible T>
-  void diffImpl(T &LHS, T &RHS) {
+  void diffImpl(const T &LHS, const T &RHS) {
     if (LHS != RHS)
       Result.change(Stack, LHS, RHS);
   }
@@ -362,7 +364,7 @@ private:
 } // namespace tupletreediff::detail
 
 template<typename M>
-TupleTreeDiff<M> diff(M &LHS, M &RHS) {
+TupleTreeDiff<M> diff(const M &LHS, const M &RHS) {
   return tupletreediff::detail::Diff<M>().diff(LHS, RHS);
 }
 
@@ -382,32 +384,7 @@ namespace tupletreediff::detail {
 
 // clang-format off
 
-
-template<typename T>
-concept StringRefConvertible = requires(T A) {
-  llvm::StringRef(A);
-};
-
-template<typename T>
-concept TwineConvertible = requires(T A) {
-  llvm::Twine(A);
-};
-
-template<typename T>
-concept StringLike = requires(T A) {
-  A.str();
-};
-
-template<typename T>
-concept IterableAndNotStdString = Iterable<T> and
-                                  not std::is_same_v<std::string, T> and
-                                  not StringRefConvertible<T> and
-                                  not TwineConvertible<T> and
-                                  not StringLike<T>;
 // clang-format on
-
-template<typename T>
-concept NotIterableOrStdString = not IterableAndNotStdString<T>;
 
 template<typename T>
 struct ApplyDiffVisitor {
@@ -424,7 +401,7 @@ struct ApplyDiffVisitor {
     visit(Element);
   }
 
-  template<IterableAndNotStdString S>
+  template<SortedContainer S>
   void visit(S &M) {
     revng_assert((C->Old == std::nullopt) != (C->New == std::nullopt));
 
@@ -449,8 +426,8 @@ struct ApplyDiffVisitor {
     }
   }
 
-  template<NotIterableOrStdString S>
-  void visit(S &M) {
+  template<typename S>
+  void visit(S &M) requires(not SortedContainer<S>) {
     revng_assert(C->Old != std::nullopt and C->New != std::nullopt);
     auto &Old = std::get<S>(*C->Old);
     auto &New = std::get<S>(*C->New);

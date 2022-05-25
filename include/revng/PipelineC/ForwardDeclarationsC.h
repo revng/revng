@@ -12,3 +12,5 @@ typedef struct rp_container rp_container;
 typedef struct rp_container_identifier rp_container_identifier;
 typedef struct rp_target rp_target;
 typedef struct rp_targets_list rp_targets_list;
+typedef struct rp_analysis rp_analysis;
+typedef struct rp_diff_map rp_diff_map;

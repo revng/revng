@@ -52,24 +52,24 @@ public:
   void print(llvm::raw_ostream &OS) const { OS << ""; }
 };
 
-static Context
-setUpContext(LLVMContextWrapper &Context, ModelGlobal &ModelWrapper) {
-  const auto &ModelName = ModelGlobal::Name;
-  return Context::createFromGlobals(NamedGlobalReference("LLVMContext",
-                                                         Context),
-                                    NamedGlobalReference(ModelName,
-                                                         ModelWrapper));
+static Context setUpContext(LLVMContext &Context) {
+  const auto &ModelName = ModelGlobalName;
+  class Context Ctx;
+
+  Ctx.addGlobal<ModelGlobal>(ModelName);
+  Ctx.addExternalContext("LLVMContext", Context);
+  return Ctx;
 }
 
 static llvm::Error
 pipelineConfigurationCallback(const Loader &Loader, LLVMPipe &NewPass) {
   using Wrapper = ModelGlobal;
   auto &Context = Loader.getContext();
-  auto MaybeModelWrapper = Context.getGlobal<Wrapper>(Wrapper::Name);
+  auto MaybeModelWrapper = Context.getGlobal<Wrapper>(ModelGlobalName);
   if (not MaybeModelWrapper)
     return MaybeModelWrapper.takeError();
 
-  auto &Model = (*MaybeModelWrapper)->getModel();
+  auto &Model = (*MaybeModelWrapper)->get();
   NewPass.emplacePass<LoadModelPipePass>(ModelWrapper(Model));
   return llvm::Error::success();
 }
@@ -94,7 +94,7 @@ PipelineManager::overrideContainer(llvm::StringRef PipelineFileMapping) {
 }
 
 llvm::Error PipelineManager::overrideModel(llvm::StringRef ModelOverride) {
-  const auto &Name = ModelGlobal::Name;
+  const auto &Name = ModelGlobalName;
   auto *Model(cantFail(PipelineContext->getGlobal<ModelGlobal>(Name)));
   return Model->loadFromDisk(ModelOverride);
 }
@@ -150,11 +150,8 @@ PipelineManager::createContexts(llvm::ArrayRef<std::string> EnablingFlags,
                                 llvm::StringRef ExecutionDirectory) {
   PipelineManager Manager;
   Manager.ExecutionDirectory = ExecutionDirectory.str();
-  Manager.Context = std::make_unique<LLVMContextWrapper>();
-
-  Manager.ModelWrapper = make_unique<ModelGlobal>();
-
-  auto Ctx = setUpContext(*Manager.Context, *Manager.ModelWrapper);
+  Manager.Context = std::make_unique<llvm::LLVMContext>();
+  auto Ctx = setUpContext(*Manager.Context);
   Manager.PipelineContext = make_unique<pipeline::Context>(move(Ctx));
 
   auto Loader = setupLoader(*Manager.PipelineContext, EnablingFlags);
@@ -294,7 +291,7 @@ PipelineManager::invalidateAllPossibleTargets(llvm::raw_ostream &Stream) {
         Stream << "Invalidating: ";
         Stream << Step.first() << "/" << Container.first() << "/";
         Target.dump(Stream);
-        Runner::InvalidationMap Map;
+        InvalidationMap Map;
         Map[Step.first()][Container.first()].push_back(Target);
         if (auto Error = Runner->getInvalidations(Map); Error)
           return Error;

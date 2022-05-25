@@ -28,7 +28,7 @@ struct ObjectLifetimeController {
 };
 
 using ReturnValueType = std::tuple<const llvm::Module &,
-                                   const model::Binary &,
+                                   const TupleTree<model::Binary> &,
                                    RawBinaryView,
                                    revng::pipes::FunctionStringMap,
                                    ObjectLifetimeController>;

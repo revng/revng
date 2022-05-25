@@ -21,6 +21,7 @@ class IRPipelineCommand(Command):
         parser.add_argument("from", type=str)
         parser.add_argument("to", type=str)
         parser.add_argument("target", type=str)
+        parser.add_argument("--analysis", type=str, default="")
 
     def run(self, options: Options):
         if options.remaining_args:
@@ -46,6 +47,10 @@ class IRPipelineCommand(Command):
             run_revng_command(["model", "dump", saved_input_file.name, "-o", model.name], options)
 
             # Run revng-pipeline
+            target = f"{args.to}:module.ll:{args.target}"
+            if args.analysis:
+                target = f"{args.to}:{args.analysis}:module.ll:{args.target}"
+
             run_revng_command(
                 [
                     "pipeline",
@@ -57,9 +62,7 @@ class IRPipelineCommand(Command):
                     f"{args.to}:module.ll:{module.name}",
                     "--save-model",
                     model.name,
-                    "--step",
-                    f"{args.to}",
-                    f"module.ll:{args.target}",
+                    target,
                 ],
                 options,
             )

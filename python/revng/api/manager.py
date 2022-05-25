@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Dict, Generator, List, Optional, Union
 
 from ._capi import _api, ffi
+from .analysis import Analysis
 from .container import Container, ContainerIdentifier
 from .exceptions import RevngException
 from .kind import Kind
@@ -39,15 +40,12 @@ class Manager:
         # Ensures that the _manager property is always defined even if the API call fails
         self._manager = None
 
-        self._manager = ffi.gc(
-            _api.rp_manager_create(
-                len(_pipelines_paths),
-                _pipelines_paths,
-                len(_flags),
-                _flags,
-                _workdir,
-            ),
-            _api.rp_manager_destroy,
+        self._manager = _api.rp_manager_create(
+            len(_pipelines_paths),
+            _pipelines_paths,
+            len(_flags),
+            _flags,
+            _workdir,
         )
 
         assert self._manager, "Failed to instantiate manager"
@@ -76,10 +74,7 @@ class Manager:
     # Target-related Functions
 
     def deserialize_target(self, serialized_target: str, container: Container) -> Target:
-        _target = ffi.gc(
-            _api.rp_target_create_from_string(self._manager, serialized_target),
-            _api.rp_target_destroy,
-        )
+        _target = _api.rp_target_create_from_string(self._manager, serialized_target)
         return Target(_target, container)
 
     def _produce_target(
@@ -97,7 +92,7 @@ class Manager:
         _product = _api.rp_manager_produce_targets(
             self._manager, len(_targets), _targets, _step, _container
         )
-        return make_python_string(_product, True)
+        return make_python_string(_product)
 
     def produce_target(
         self,
@@ -198,8 +193,7 @@ class Manager:
         _path = _api.rp_manager_create_container_path(self._manager, _step_name, _container_name)
         if not _path:
             return None
-        path = make_python_string(_path, True)
-        return path
+        return make_python_string(_path)
 
     @property
     def containers_count(self) -> int:
@@ -301,12 +295,85 @@ class Manager:
                     targets[step.name][container.name] = target_dicts
         return targets
 
+    # Analysis handling
+
+    def run_analysis(
+        self,
+        step_name: str,
+        analysis_name: str,
+        target_mapping: Dict[str, List[str]],
+    ) -> Dict[str, str]:
+        step = self.get_step(step_name)
+        if step is None:
+            raise RevngException(f"Invalid step {step_name}")
+
+        analysis = next((a for a in step.analyses() if a.name == analysis_name), None)
+        if analysis is None:
+            raise RevngException(f"Invalid Analysis {analysis_name}")
+
+        concrete_target_mapping = {}
+        for container_name, target_list in target_mapping.items():
+            container_identifier = self.get_container_with_name(container_name)
+            if container_identifier is None:
+                raise RevngException(f"Invalid container {container_name}")
+
+            container = step.get_container(container_identifier)
+            if container is None:
+                raise RevngException(f"Step {step_name} does not use container {container_name}")
+
+            concrete_targets = [
+                self.create_target(target, container, None) for target in target_list
+            ]
+
+            analysis_argument = next(a for a in analysis.arguments() if a.name == container_name)
+            for target in concrete_targets:
+                if target.kind is None or target.kind.name not in [
+                    k.name for k in analysis_argument.acceptable_kinds()
+                ]:
+                    raise RevngException(
+                        f"Wrong kind for analysis: found '{target.kind}', "
+                        + f"expected: {[a.name for a in analysis_argument.acceptable_kinds()]}"
+                    )
+            concrete_target_mapping[container] = concrete_targets
+
+        analysis_result = self._run_analysis(step, analysis, concrete_target_mapping)
+        if not analysis_result:
+            raise RevngException("Failed to run analysis")
+        return analysis_result
+
+    def _run_analysis(
+        self, step: Step, analysis: Analysis, target_mapping: Dict[Container, List[Target]]
+    ) -> Optional[Dict[str, str]]:
+        first_key = list(target_mapping.keys())[0]
+        targets = target_mapping[first_key]
+        result = _api.rp_manager_run_analysis(
+            self._manager,
+            len(targets),
+            [t._target for t in targets],
+            make_c_string(step.name),
+            make_c_string(analysis.name),
+            first_key._container,
+        )
+        return self.parse_diff_map(result) if result != ffi.NULL else None
+
+    def run_all_analyses(self) -> Optional[Dict[str, str]]:
+        result = _api.rp_manager_run_all_analyses(self._manager)
+        return self.parse_diff_map(result) if result != ffi.NULL else None
+
+    def parse_diff_map(self, diff_map) -> Dict[str, str]:
+        result = {}
+        for global_name in self.globals_list():
+            _diff_value = _api.rp_diff_map_get_diff(diff_map, make_c_string(global_name))
+            if _diff_value != ffi.NULL:
+                result[global_name] = make_python_string(_diff_value)
+        return result
+
     # Global Handling & misc.
 
     def _get_global(self, name) -> str:
         _name = make_c_string(name)
         _out = _api.rp_manager_create_global_copy(self._manager, _name)
-        return make_python_string(_out, True)
+        return make_python_string(_out)
 
     def _set_global(self, name, content):
         _name = make_c_string(name)
@@ -315,6 +382,16 @@ class Manager:
 
     def get_model(self) -> str:
         return self._get_global("model.yml")
+
+    def globals_count(self) -> int:
+        return _api.rp_manager_get_globals_count(self._manager)
+
+    def _get_global_from_index(self, idx: int) -> str:
+        _name = _api.rp_manager_get_global_name(self._manager, idx)
+        return make_python_string(_name)
+
+    def globals_list(self) -> Generator[str, None, None]:
+        return make_generator(self.globals_count(), self._get_global_from_index)
 
     def set_input(self, container_name: str, content: Union[bytes, str], _key=None) -> str:
         step = self.get_step("begin")

@@ -2,10 +2,14 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+import asyncio
+import json
 import logging
 from base64 import b64decode
+from concurrent.futures import ThreadPoolExecutor
+from functools import reduce
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Awaitable, Callable, Dict, List, Optional, TypeVar
 
 from starlette.datastructures import UploadFile
 
@@ -13,17 +17,29 @@ from ariadne import MutationType, ObjectType, QueryType, make_executable_schema,
 from graphql.type.schema import GraphQLSchema
 from jinja2 import Environment, FileSystemLoader
 
+from revng.api.analysis import Analysis
 from revng.api.manager import Manager
 from revng.api.rank import Rank
 from revng.api.step import Step
 
 from .util import clean_step_list, str_to_snake_case
 
+executor = ThreadPoolExecutor(1)
+
+T = TypeVar("T")
+
+
+def run_in_executor(function: Callable[[], T]) -> Awaitable[T]:
+    loop = asyncio.get_event_loop()
+    return loop.run_in_executor(executor, function)
+
+
 query = QueryType()
 mutation = MutationType()
 info = ObjectType("Info")
 step = ObjectType("Step")
 container = ObjectType("Container")
+analysis_mutations = ObjectType("AnalysisMutations")
 
 
 @query.field("info")
@@ -35,14 +51,18 @@ async def resolve_root(_, info):
 async def resolve_produce(obj, info, *, step, container, target_list, only_if_ready=False):
     manager: Manager = info.context["manager"]
     targets = target_list.split(",")
-    return manager.produce_target(step, targets, container, only_if_ready)
+    return await run_in_executor(
+        lambda: manager.produce_target(step, targets, container, only_if_ready)
+    )
 
 
 @query.field("produce_artifacts")
 async def resolve_produce_artifacts(obj, info, *, step, paths=None, only_if_ready=False):
     manager: Manager = info.context["manager"]
     target_paths = paths.split(",") if paths is not None else None
-    return manager.produce_target(step, target_paths, only_if_ready=only_if_ready)
+    return await run_in_executor(
+        lambda: manager.produce_target(step, target_paths, only_if_ready=only_if_ready)
+    )
 
 
 @query.field("step")
@@ -84,7 +104,7 @@ async def resolve_targets(_, info, *, pathspec):
 @mutation.field("upload_b64")
 async def resolve_upload_b64(_, info, *, input: str, container: str):  # noqa: A002
     manager: Manager = info.context["manager"]
-    manager.set_input(container, b64decode(input))
+    await run_in_executor(lambda: manager.set_input(container, b64decode(input)))
     logging.info(f"Saved file for container {container}")
     return True
 
@@ -92,9 +112,31 @@ async def resolve_upload_b64(_, info, *, input: str, container: str):  # noqa: A
 @mutation.field("upload_file")
 async def resolve_upload_file(_, info, *, file: UploadFile, container: str):
     manager: Manager = info.context["manager"]
-    manager.set_input(container, await file.read())
+    contents = await file.read()
+    await run_in_executor(lambda: manager.set_input(container, contents))
     logging.info(f"Saved file for container {container}")
     return True
+
+
+@mutation.field("run_analysis")
+async def resolve_run_analysis(_, info, *, step: str, analysis: str, container: str, targets: str):
+    manager: Manager = info.context["manager"]
+    result = await run_in_executor(
+        lambda: manager.run_analysis(step, analysis, {container: targets.split(",")})
+    )
+    return json.dumps(result)
+
+
+@mutation.field("run_all_analyses")
+async def resolve_run_all_analyses(_, info):
+    manager: Manager = info.context["manager"]
+    result = await run_in_executor(manager.run_all_analyses)
+    return json.dumps(result)
+
+
+@mutation.field("analyses")
+async def mutation_analyses(_, info):
+    return {}
 
 
 @info.field("ranks")
@@ -106,6 +148,12 @@ async def resolve_ranks(_, info):
 async def resolve_root_kinds(_, info):
     manager = info.context["manager"]
     return [k.as_dict() for k in manager.kinds()]
+
+
+@info.field("globals")
+async def resolve_info_globals(_, info):
+    manager = info.context["manager"]
+    return list(manager.globals_list())
 
 
 @info.field("model")
@@ -133,6 +181,15 @@ async def resolve_step_containers(step_obj, info):
     return [c.as_dict() for c in containers if c is not None]
 
 
+@step.field("analyses")
+async def resolve_step_analyses(step_obj, info):
+    manager: Manager = info.context["manager"]
+    step = manager.get_step(step_obj["name"])
+    if step is None:
+        return []
+    return [a.as_dict() for a in step.analyses()]
+
+
 @container.field("targets")
 async def resolve_container_targets(container_obj, info):
     if "targets" in container_obj:
@@ -143,7 +200,7 @@ async def resolve_container_targets(container_obj, info):
     return [t.as_dict() for t in targets]
 
 
-DEFAULT_BINDABLES = (query, mutation, info, step, container, upload_scalar)
+DEFAULT_BINDABLES = (query, mutation, info, step, container, upload_scalar, analysis_mutations)
 
 
 class SchemaGen:
@@ -154,6 +211,7 @@ class SchemaGen:
         self.jenv = Environment(loader=FileSystemLoader(str(local_folder)))
         self.jenv.filters["rank_param"] = self._rank_to_arguments
         self.jenv.filters["snake_case"] = str_to_snake_case
+        self.jenv.filters["generate_analysis_parameters"] = self._generate_analysis_parameters
 
     def get_schema(self, manager: Manager) -> GraphQLSchema:
         structure = manager.pipeline_artifact_structure()
@@ -171,9 +229,16 @@ class SchemaGen:
         return f"({params})"
 
     def _generate_schema(self, structure: Dict[Rank, List[Step]]) -> str:
+        steps = list(reduce(lambda x, y: [*x, *y], structure.values()))
         template = self.jenv.get_template("schema.graphql.tpl")
-        render = template.render(structure=structure)
+        render = template.render(structure=structure, steps=steps)
         return render
+
+    def _generate_analysis_parameters(self, analysis: Analysis) -> str:
+        parameters = []
+        for argument in analysis.arguments():
+            parameters.append(f"{str_to_snake_case(argument.name)}: String!")
+        return ", ".join(parameters)
 
 
 class BindableGen:
@@ -181,9 +246,16 @@ class BindableGen:
 
     def __init__(self, structure: Dict[Rank, List[Step]]):
         self.structure = structure
+        self.steps = []
+        for steps in structure.values():
+            self.steps.extend(steps)
 
     def get_bindables(self) -> List[ObjectType]:
-        return [self.get_query_bindable(), *self.get_rank_bindables()]
+        return [
+            self.get_query_bindable(),
+            *self.get_rank_bindables(),
+            *self.get_analysis_bindables(),
+        ]
 
     def get_query_bindable(self) -> QueryType:
         query_obj = QueryType()
@@ -203,6 +275,21 @@ class BindableGen:
 
         return bindables
 
+    def get_analysis_bindables(self) -> List[ObjectType]:
+        bindables: List[ObjectType] = []
+        for step in self.steps:
+            if step.analyses_count() < 1:
+                continue
+            analysis_mutations.set_field(
+                str_to_snake_case(step.name), self.analysis_mutation_handle
+            )
+            step_analysis_obj = ObjectType(f"{step.name}Analyses")
+            bindables.append(step_analysis_obj)
+            for analysis in step.analyses():
+                handle = self.gen_step_analysis_handle(step, analysis)
+                step_analysis_obj.set_field(str_to_snake_case(analysis.name), handle)
+        return bindables
+
     @staticmethod
     def rank_handle(_, info, **params):
         if not params:
@@ -218,12 +305,39 @@ class BindableGen:
                 return {"_target": "/".join(params_arr)}
 
     @staticmethod
+    def analysis_mutation_handle(_, info):
+        return {}
+
+    @staticmethod
     def gen_step_handle(step: Step):
-        def rank_step_handle(obj, info, *, only_if_ready=False):
+        async def rank_step_handle(obj, info, *, only_if_ready=False):
             manager: Manager = info.context["manager"]
-            return manager.produce_target(step.name, obj["_target"], only_if_ready=only_if_ready)
+            return await run_in_executor(
+                lambda: manager.produce_target(
+                    step.name, obj["_target"], only_if_ready=only_if_ready
+                )
+            )
 
         return rank_step_handle
+
+    @staticmethod
+    def gen_step_analysis_handle(step: Step, analysis: Analysis):
+        argument_mapping = {str_to_snake_case(a.name): a.name for a in analysis.arguments()}
+
+        async def step_analysis_handle(_, info, **kwargs):
+            manager: Manager = info.context["manager"]
+            target_mapping = {}
+            for container_name, targets in kwargs.items():
+                if container_name not in argument_mapping.keys():
+                    raise ValueError("Passed non-existant container name")
+                target_mapping[argument_mapping[container_name]] = targets.split(",")
+
+            result = await run_in_executor(
+                lambda: manager.run_analysis(step.name, analysis.name, target_mapping)
+            )
+            return json.dumps(result)
+
+        return step_analysis_handle
 
 
 schema_gen = SchemaGen()

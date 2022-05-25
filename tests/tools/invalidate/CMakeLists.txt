@@ -15,8 +15,7 @@ function(add_invalidation_test TEST_NAME)
       ${OPT_TARGETS} \
       -i begin:Strings1:${OPT_INPUT} \
       -l ${CMAKE_BINARY_DIR}/lib/librevngStringContainerLibrary.so \
-      -p ${CMAKE_BINARY_DIR}/${TEST_NAME} \
-      --step ${OPT_STEP} &&
+      -p ${CMAKE_BINARY_DIR}/${TEST_NAME} &&
       ${CMAKE_BINARY_DIR}/libexec/revng/revng-invalidate \
       -P ${OPT_PIPELINE} \
       ${OPT_INVALIDATIONS} \
@@ -31,7 +30,7 @@ endfunction()
 add_invalidation_test(
   simple_invalidation_test
   TARGETS
-  "Strings2:Root:StringKind"
+  "FirstStep:Strings2:Root:StringKind"
   STEP
   "FirstStep"
   INPUT
@@ -39,4 +38,4 @@ add_invalidation_test(
   PIPELINE
   "${CMAKE_CURRENT_SOURCE_DIR}/SimpleInvalidationTestPipeline.yml"
   INVALIDATIONS
-  "Strings1:Root:StringKind")
+  "FirstStep:Strings1:Root:StringKind")

@@ -85,6 +85,10 @@ public:
 
   /// Checks that the content of the this container is valid.
   virtual llvm::Error verify() const { return enumerate().verify(*this); }
+
+  /// Return the serialized content of the specified non * target
+  virtual llvm::Error
+  extractOne(llvm::raw_ostream &OS, const Target &Target) const = 0;
 };
 
 /// CRTP class to be extended to implement a pipeline container.

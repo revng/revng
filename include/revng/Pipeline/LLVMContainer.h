@@ -75,8 +75,8 @@ public:
   template<typename... LLVMPasses>
   static PipeWrapper
   wrapLLVMPasses(std::string LLVMModuleName, LLVMPasses &&...P) {
-    return PipeWrapper(GenericLLVMPipe<ThisType>(std::move(P)...),
-                       { std::move(LLVMModuleName) });
+    return PipeWrapper::make(GenericLLVMPipe<ThisType>(std::move(P)...),
+                             { std::move(LLVMModuleName) });
   }
 
 public:
@@ -105,6 +105,13 @@ public:
     return std::make_unique<ThisType>(*this->Ctx,
                                       std::move(Cloned),
                                       this->name());
+  }
+
+  llvm::Error
+  extractOne(llvm::raw_ostream &OS, const Target &Target) const override {
+    TargetsList List({ Target });
+    auto Module = cloneFiltered(List);
+    return Module->serialize(OS);
   }
 
 public:

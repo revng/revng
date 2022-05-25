@@ -22,6 +22,7 @@
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTree.h"
+#include "revng/TupleTree/TupleTreeDiff.h"
 
 /* TUPLE-TREE-YAML
 name: Binary

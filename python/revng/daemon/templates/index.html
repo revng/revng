@@ -44,7 +44,7 @@
   }
 
   async function gql(query) {
-    return fetch(`${window.location.pathname}/graphql/`, {
+    return fetch(`${window.location}graphql/`, {
       body: wrap_gql(query),
       method: 'POST',
       mode: 'cors',
@@ -130,6 +130,16 @@
     `;
 
     let response = await gql(input_query);
+
+    try {
+      let analysis_response = await gql(`
+        mutation {
+          run_all_analyses
+        }
+      `);
+    } catch (err) {
+      window.alert("Failed to run autoanalyses");
+    }
 
     // TODO: do not reload the page, reload the targets instead
     window.location.reload();

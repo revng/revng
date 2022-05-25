@@ -56,11 +56,6 @@ public:
     revng_assert(this->Components.size() == getKind().depth());
   }
 
-  Target(const Kind &K, Exactness::Values Exactness = Exactness::Exact) :
-    K(&K), Exact(Exactness) {
-    revng_assert(this->Components.size() == getKind().depth());
-  }
-
   Target(PathComponent PathComponent,
          const Kind &K,
          Exactness::Values Exactness = Exactness::Exact) :
@@ -89,9 +84,18 @@ public:
          const Kind &K,
          Exactness::Values Exactness = Exactness::Exact) :
     K(&K), Exact(Exactness) {
-    for (auto Name : Names)
-      Components.emplace_back(Name.str());
+    for (auto Name : Names) {
+      if (Name != "*")
+        Components.emplace_back(Name.str());
+      else
+        Components.emplace_back(PathComponent::all());
+    }
     revng_assert(this->Components.size() == getKind().depth());
+  }
+
+  Target(const Kind &K) : K(&K), Exact(Exactness::Exact) {
+    for (size_t I = 0; K.depth(); I++)
+      Components.emplace_back(PathComponent::all());
   }
 
 public:
@@ -270,6 +274,21 @@ public:
     return Status.find(ContainerName) != Status.end();
   }
 
+  bool contains(const ContainerToTargetsMap &Other) const {
+    for (const value_type &Pair : Other.Status) {
+      if (Pair.second.empty())
+        continue;
+
+      if (not contains(Pair.first()))
+        return false;
+
+      if (not find(Pair.first())->second.contains(Pair.second))
+        return false;
+    }
+
+    return true;
+  }
+
   iterator find(llvm::StringRef ContainerName) {
     return Status.find(ContainerName);
   }
@@ -330,6 +349,8 @@ private:
     return Size;
   }
 };
+
+using InvalidationMap = llvm::StringMap<ContainerToTargetsMap>;
 
 llvm::Error parseTarget(ContainerToTargetsMap &CurrentStatus,
                         llvm::StringRef AsString,

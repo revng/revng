@@ -13,6 +13,7 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Support/MetaAddress.h"
+#include "revng/TupleTree/TupleTree.h"
 
 namespace revng::pipes {
 
@@ -33,7 +34,7 @@ public:
 private:
   MapType Map;
   const pipeline::Kind *TheKind;
-  const model::Binary *Model;
+  const TupleTree<model::Binary> *Model;
 
 public:
   static char ID;
@@ -42,7 +43,7 @@ public:
   FunctionStringMap(llvm::StringRef Name,
                     llvm::StringRef MIMEType,
                     const pipeline::Kind &K,
-                    const model::Binary &Model) :
+                    const TupleTree<model::Binary> &Model) :
     pipeline::Container<FunctionStringMap>(Name, MIMEType),
     Map(),
     TheKind(&K),
@@ -63,6 +64,9 @@ public:
 
   std::unique_ptr<pipeline::ContainerBase>
   cloneFiltered(const pipeline::TargetsList &Targets) const override;
+
+  llvm::Error extractOne(llvm::raw_ostream &OS,
+                         const pipeline::Target &Target) const override;
 
   pipeline::TargetsList enumerate() const override;
 
@@ -129,7 +133,7 @@ public:
 
 public:
   void registerContainersAndPipes(pipeline::Loader &Loader) override {
-    const model::Binary &Model = *getModelFromContext(Loader.getContext());
+    const auto &Model = getModelFromContext(Loader.getContext());
     auto Factory = [&Model, this](llvm::StringRef ContainerName) {
       return std::make_unique<FunctionStringMap>(ContainerName,
                                                  MIMEType,

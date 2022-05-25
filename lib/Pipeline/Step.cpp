@@ -10,22 +10,17 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Step.h"
+#include "revng/Pipeline/Target.h"
+#include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
 using namespace llvm;
 using namespace std;
 using namespace pipeline;
-
-PipeWrapper &PipeWrapper::operator=(const PipeWrapper &Other) {
-  if (this == &Other)
-    return *this;
-
-  Pipe = Other.Pipe->clone();
-  return *this;
-}
 
 ContainerToTargetsMap
 Step::analyzeGoals(const ContainerToTargetsMap &RequiredGoals,
@@ -58,18 +53,18 @@ void Step::explainStartStep(const ContainerToTargetsMap &Targets,
 }
 
 void Step::explainExecutedPipe(const Context &Ctx,
-                               const PipeWrapper &Wrapper,
+                               const InvokableWrapperBase &Wrapper,
                                llvm::raw_ostream *OS,
                                size_t Indentation) const {
   if (OS == nullptr)
     return;
 
   OS->changeColor(llvm::raw_ostream::Colors::GREEN);
-  (*OS) << Wrapper->getName();
+  (*OS) << Wrapper.getName();
   OS->changeColor(llvm::raw_ostream::Colors::GREEN);
   (*OS) << "(";
 
-  auto Vec = Wrapper->getRunningContainersNames();
+  auto Vec = Wrapper.getRunningContainersNames();
   if (not Vec.empty()) {
     for (size_t I = 0; I < Vec.size() - 1; I++) {
       OS->changeColor(llvm::raw_ostream::Colors::BLUE);
@@ -84,7 +79,7 @@ void Step::explainExecutedPipe(const Context &Ctx,
   OS->changeColor(llvm::raw_ostream::Colors::GREEN);
   (*OS) << ")";
   (*OS) << "\n";
-  Wrapper->print(Ctx, *OS, Indentation);
+  Wrapper.print(Ctx, *OS, Indentation);
   (*OS) << "\n";
 }
 
@@ -97,13 +92,30 @@ Step::cloneAndRun(Context &Ctx, ContainerSet &&Input, llvm::raw_ostream *OS) {
     if (not Pipe->areRequirementsMet(Input.enumerate()))
       continue;
 
-    explainExecutedPipe(Ctx, Pipe, OS);
+    explainExecutedPipe(Ctx, *Pipe, OS);
     Pipe->run(Ctx, Input);
     llvm::cantFail(Input.verify());
   }
   Containers.mergeBack(std::move(Input));
   InputEnumeration = deduceResults(InputEnumeration);
   return Containers.cloneFiltered(InputEnumeration);
+}
+
+void Step::runAnalysis(llvm::StringRef AnalysisName,
+                       Context &Ctx,
+                       const ContainerToTargetsMap &Targets,
+                       llvm::raw_ostream *OS) {
+  ContainerToTargetsMap Map = Containers.enumerate();
+  revng_assert(Map.contains(Targets),
+               "An analysis was requested, but not all targets are aviable");
+
+  auto &TheAnalysis = getAnalysis(AnalysisName);
+
+  if (OS)
+    explainExecutedPipe(Ctx, *TheAnalysis, OS);
+
+  auto Cloned = Containers.cloneFiltered(Targets);
+  TheAnalysis->run(Ctx, Cloned);
 }
 
 void Step::removeSatisfiedGoals(TargetsList &RequiredInputs,

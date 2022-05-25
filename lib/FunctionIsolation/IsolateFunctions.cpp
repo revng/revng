@@ -7,6 +7,7 @@
 //
 
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/IRBuilder.h"
@@ -339,11 +340,6 @@ void IFI::populateFunctionDispatcher() {
                                                 Builder,
                                                 Unexpected,
                                                 {});
-}
-template<typename T, typename F>
-static bool any(const T &Range, const F &Predicate) {
-  auto End = Range.end();
-  return End != std::find_if(Range.begin(), End, Predicate);
 }
 
 template<typename T, typename F>
@@ -705,7 +701,7 @@ IFI::cloneAndIdentifyBoundaries(const efa::BasicBlock &Block,
     auto HasNotBeenCloned = [&Blocks](BasicBlock *Successor) {
       return Blocks.count(Successor) == 0;
     };
-    if (succ_empty(BB) or any(successors(BB), HasNotBeenCloned)) {
+    if (succ_empty(BB) or llvm::any_of(successors(BB), HasNotBeenCloned)) {
       BasicBlock *Callee = getFunctionCallCallee(BB);
       BasicBlock *Fallthrough = getFallthrough(BB);
       Boundary NewBoundary{

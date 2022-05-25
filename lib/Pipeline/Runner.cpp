@@ -9,6 +9,8 @@
 #include "llvm/Support/Error.h"
 
 #include "revng/Pipeline/Errors.h"
+#include "revng/Pipeline/GlobalTupleTreeDiff.h"
+#include "revng/Pipeline/Kind.h"
 #include "revng/Pipeline/Runner.h"
 #include "revng/Pipeline/Target.h"
 
@@ -190,6 +192,64 @@ Error Runner::loadFromDisk(llvm::StringRef DirPath) {
   return Error::success();
 }
 
+llvm::Expected<DiffMap>
+Runner::runAnalysis(llvm::StringRef AnalysisName,
+                    llvm::StringRef StepName,
+                    const ContainerToTargetsMap &Targets,
+                    llvm::raw_ostream *DiagnosticLog) {
+
+  auto Before = getContext().getGlobals();
+
+  auto MaybeStep = Steps.find(StepName);
+
+  if (MaybeStep == Steps.end()) {
+    return createStringError(inconvertibleErrorCode(),
+                             "Could not find a step named %s\n",
+                             StepName.str().c_str());
+  }
+
+  if (auto Error = run(StepName, Targets, DiagnosticLog))
+    return std::move(Error);
+
+  MaybeStep->second.runAnalysis(AnalysisName,
+                                *TheContext,
+                                Targets,
+                                DiagnosticLog);
+
+  auto &After = getContext().getGlobals();
+  auto Map = Before.diff(After);
+  for (const auto &Pair : Map)
+    if (auto Error = apply(Pair.second))
+      return std::move(Error);
+
+  return std::move(Map);
+}
+
+/// Run all analysis in reverse post order (that is: parents first),
+llvm::Expected<DiffMap> Runner::runAllAnalyses(llvm::raw_ostream *OS) {
+  auto Before = getContext().getGlobals();
+
+  for (const Step *Step : ReversePostOrderIndexes) {
+    for (const auto &Pair : Step->analyses()) {
+      const auto &Analysis = Pair.second;
+      ContainerToTargetsMap Map;
+      const auto &Containers = Analysis->getRunningContainersNames();
+      for (size_t I = 0; I < Containers.size(); I++) {
+        for (const Kind *K : Analysis->getAcceptedKinds(I)) {
+          Map.add(Containers[I], Target(*K));
+        }
+      }
+
+      auto Result = runAnalysis(Pair.first(), Step->getName(), Map, OS);
+      if (not Result)
+        return Result.takeError();
+    }
+  }
+
+  auto &After = getContext().getGlobals();
+  return Before.diff(After);
+}
+
 Error Runner::run(llvm::StringRef EndingStepName,
                   const ContainerToTargetsMap &Targets,
                   llvm::raw_ostream *DiagnosticLog) {
@@ -253,4 +313,30 @@ void Runner::deduceAllPossibleTargets(State &Out) const {
     const Step &Step = NextStep.getPredecessor();
     Out[NextStep.getName()].merge(NextStep.deduceResults(Out[Step.getName()]));
   }
+}
+const KindsRegistry &Runner::getKindsRegistry() const {
+  return TheContext->getKindsRegistry();
+}
+
+void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
+                                  InvalidationMap &Map) const {
+  for (const auto &Step : *this) {
+    auto &StepInvalidations = Map[Step.getName()];
+    for (const auto &Cotainer : Step.containers()) {
+      if (not Cotainer.second)
+        continue;
+
+      auto &ContainerInvalidations = StepInvalidations[Cotainer.first()];
+      for (const Kind &Rule : getKindsRegistry())
+        Rule.getInvalidations(ContainerInvalidations, Diff);
+    }
+  }
+}
+
+llvm::Error Runner::apply(const GlobalTupleTreeDiff &Diff) {
+  InvalidationMap Map;
+  getDiffInvalidations(Diff, Map);
+  if (auto Error = getInvalidations(Map); Error)
+    return Error;
+  return invalidate(Map);
 }
