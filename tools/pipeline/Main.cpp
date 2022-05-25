@@ -8,6 +8,7 @@
 
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/DynamicLibrary.h"
+#include "llvm/Support/PluginLoader.h"
 #include "llvm/Support/raw_os_ostream.h"
 
 #include "revng/Model/LoadModelPass.h"
@@ -102,13 +103,8 @@ static opt<string> ExecutionDirectory("p",
                                            "everything else"),
                                       cat(PipelineCategory));
 
-static cl::list<string>
-  LoadLibraries("load", desc("libraries to open"), cat(PipelineCategory));
-
-static alias A1("l",
-                desc("Alias for --load"),
-                aliasopt(LoadLibraries),
-                cat(PipelineCategory));
+static alias
+  A1("l", desc("Alias for --load"), aliasopt(LoadOpt), cat(PipelineCategory));
 
 static opt<bool> PrintBuildableTargets("targets",
                                        desc("Prints the target that can be "
@@ -159,12 +155,6 @@ int main(int argc, const char *argv[]) {
   HideUnrelatedOptions(PipelineCategory);
   ParseCommandLineOptions(argc, argv);
   auto LoggerOS = PipelineLogger.getAsLLVMStream();
-
-  std::string Msg;
-  for (const auto &Library : LoadLibraries) {
-    if (sys::DynamicLibrary::LoadLibraryPermanently(Library.c_str(), &Msg))
-      AbortOnError(createStringError(inconvertibleErrorCode(), Msg));
-  }
 
   Registry::runAllInitializationRoutines();
 
