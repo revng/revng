@@ -130,7 +130,7 @@ int main(int Argc, const char *Argv[]) {
                                         "application/"
                                         "x.yaml.c.decompiled",
                                         revng::pipes::DecompiledToYAML,
-                                        *Model);
+                                        Model);
 
   decompile(*Module, *Model, DecompiledFunctions);
 

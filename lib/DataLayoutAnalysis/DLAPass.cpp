@@ -3,9 +3,15 @@
 //
 
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Pipeline/Context.h"
+#include "revng/Pipeline/LLVMContainer.h"
+#include "revng/Pipeline/RegisterAnalysis.h"
+#include "revng/Pipes/Kinds.h"
+#include "revng/Pipes/ModelGlobal.h"
 
 #include "revng-c/DataLayoutAnalysis/DLALayouts.h"
 #include "revng-c/DataLayoutAnalysis/DLAPass.h"
+#include "revng-c/Pipes/Kinds.h"
 
 #include "Backend/DLAMakeLayouts.h"
 #include "Backend/DLAMakeModelTypes.h"
@@ -76,3 +82,24 @@ bool DLAPass::runOnModule(llvm::Module &M) {
 
   return Changed;
 }
+
+class DLAAnalysis {
+public:
+  static constexpr auto Name = "dla";
+
+  std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {
+    { &revng::pipes::StackAccessesSegregated }
+  };
+
+  void run(pipeline::Context &Ctx, pipeline::LLVMContainer &Module) {
+    using namespace revng::pipes;
+
+    llvm::legacy::PassManager Manager;
+    auto Global = llvm::cantFail(Ctx.getGlobal<ModelGlobal>(ModelGlobalName));
+    Manager.add(new LoadModelWrapperPass(ModelWrapper(Global->get())));
+    Manager.add(new DLAPass());
+    Manager.run(Module.getModule());
+  }
+};
+
+pipeline::RegisterAnalysis<DLAAnalysis> DLCPipelineReg;

@@ -5,12 +5,6 @@
 Containers:
 From:            LateOptimizeForDecompilation
 Steps:
- - Name:            DataLayoutAnalysis
-   Pipes:
-     - Type:             LLVMPipe
-       UsedContainers: [module.ll]
-       Passes:
-         - dla
  - Name:            IRCanonicalization
    Pipes:
      - Type:             LLVMPipe

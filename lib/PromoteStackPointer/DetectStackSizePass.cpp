@@ -9,8 +9,14 @@
 #include "revng/EarlyFunctionAnalysis/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/VerifyHelper.h"
+#include "revng/Pipeline/Context.h"
+#include "revng/Pipeline/LLVMContainer.h"
+#include "revng/Pipeline/RegisterAnalysis.h"
+#include "revng/Pipes/Kinds.h"
+#include "revng/Pipes/ModelGlobal.h"
 #include "revng/Support/Debug.h"
 
+#include "revng-c/Pipes/Kinds.h"
 #include "revng-c/PromoteStackPointer/DetectStackSizePass.h"
 #include "revng-c/PromoteStackPointer/InstrumentStackAccessesPass.h"
 #include "revng-c/Support/ModelHelpers.h"
@@ -345,3 +351,24 @@ char DetectStackSizePass::ID = 0;
 
 using RegisterDSS = RegisterPass<DetectStackSizePass>;
 static RegisterDSS R("detect-stack-size", "Detect Stack Size Pass");
+
+class DSSAnalysis {
+public:
+  static constexpr auto Name = "detect-stack-size";
+
+  std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {
+    { &revng::pipes::LiftingArtifactsRemoved }
+  };
+
+  void run(pipeline::Context &Ctx, pipeline::LLVMContainer &Module) {
+    using namespace revng::pipes;
+
+    llvm::legacy::PassManager Manager;
+    auto Global = llvm::cantFail(Ctx.getGlobal<ModelGlobal>(ModelGlobalName));
+    Manager.add(new LoadModelWrapperPass(ModelWrapper(Global->get())));
+    Manager.add(new DetectStackSizePass());
+    Manager.run(Module.getModule());
+  }
+};
+
+static pipeline::RegisterAnalysis<DSSAnalysis> RegisterAnalysis;

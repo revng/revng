@@ -13,7 +13,6 @@ Steps:
          - instrument-stack-accesses
          - instcombine
          - compute-stack-accesses-bounds
-         - detect-stack-size
  - Name:            SegregateStackAccesses
    Pipes:
      - Type:             LLVMPipe
@@ -33,4 +32,3 @@ Steps:
          - simplifycfg
          - restore-extractvalues
          - strip-dead-prototypes
-
