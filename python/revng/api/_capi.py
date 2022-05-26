@@ -48,12 +48,11 @@ class ApiWrapper:
             function = getattr(self.__api, attribute_name)
             self.__proxy[attribute_name] = self.__wrap_lock(function)
 
-    @staticmethod
-    def __wrap_gc(function, destructor):
+    def __wrap_gc(self, function, destructor):
         @wraps(function)
         def new_function(*args):
             ret = function(*args)
-            return ffi.gc(ret, destructor)
+            return ffi.gc(ret, self.__wrap_lock(destructor))
 
         return new_function
 
