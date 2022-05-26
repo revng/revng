@@ -23,6 +23,13 @@ executor = ThreadPoolExecutor(1)
 T = TypeVar("T")
 
 
+# Python runs all coroutines in the same event loop (which is handled by a single thread)
+# The scheduling is done cooperatively, so once a coroutine starts executing it will run until
+# the first call to `await` or `return`.
+# This can work poorly if there are long-running sync function that are executed, since those block
+# the event loop. To remedy this we use a separate thread to run these functions so that the event
+# loop can run other coroutines in the meantime.
+# TODO: use ParamSpec and plain function when switching to python 3.10
 def run_in_executor(function: Callable[[], T]) -> Awaitable[T]:
     loop = asyncio.get_event_loop()
     return loop.run_in_executor(executor, function)
@@ -62,25 +69,35 @@ async def resolve_produce_artifacts(obj, info, *, step, paths=None, only_if_read
 @query.field("step")
 async def resolve_step(_, info, *, name):
     manager: Manager = info.context["manager"]
-    step = manager.get_step(name)
-    return step.as_dict() if step is not None else {}
+    step = await run_in_executor(lambda: manager.get_step(name))
+
+    if step is None:
+        return {}
+
+    return await run_in_executor(lambda: step.as_dict())
 
 
 @query.field("container")
 async def resolve_container(_, info, *, name, step):
     manager: Manager = info.context["manager"]
     container_id = manager.get_container_with_name(name)
-    step = manager.get_step(step)
+    step = await run_in_executor(lambda: manager.get_step(step))
+
     if step is None or container_id is None:
         return {}
-    container = step.get_container(container_id)
-    return container.as_dict() if container is not None else {}
+
+    container = await run_in_executor(lambda: step.get_container(container_id))
+
+    if container is None:
+        return {}
+
+    return await run_in_executor(lambda: container.as_dict())
 
 
 @query.field("targets")
 async def resolve_targets(_, info, *, pathspec):
     manager: Manager = info.context["manager"]
-    targets = manager.get_all_targets()
+    targets = await run_in_executor(lambda: manager.get_all_targets())
     result = [
         {
             "name": k,
@@ -135,31 +152,31 @@ async def mutation_analyses(_, info):
 
 @info.field("ranks")
 async def resolve_ranks(_, info):
-    return [x.as_dict() for x in Rank.ranks()]
+    return await run_in_executor(lambda: [x.as_dict() for x in Rank.ranks()])
 
 
 @info.field("kinds")
 async def resolve_root_kinds(_, info):
-    manager = info.context["manager"]
-    return [k.as_dict() for k in manager.kinds()]
+    manager: Manager = info.context["manager"]
+    return await run_in_executor(lambda: [k.as_dict() for k in manager.kinds()])
 
 
 @info.field("globals")
 async def resolve_info_globals(_, info):
-    manager = info.context["manager"]
-    return list(manager.globals_list())
+    manager: Manager = info.context["manager"]
+    return await run_in_executor(lambda: list(manager.globals_list()))
 
 
 @info.field("model")
 async def resolve_root_model(_, info):
-    manager = info.context["manager"]
-    return manager.get_model()
+    manager: Manager = info.context["manager"]
+    return await run_in_executor(lambda: manager.get_model())
 
 
 @info.field("steps")
 async def resolve_root_steps(_, info):
     manager: Manager = info.context["manager"]
-    return [s.as_dict() for s in manager.steps()]
+    return await run_in_executor(lambda: [s.as_dict() for s in manager.steps()])
 
 
 @step.field("containers")
@@ -168,20 +185,22 @@ async def resolve_step_containers(step_obj, info):
         return step_obj["containers"]
 
     manager: Manager = info.context["manager"]
-    step = manager.get_step(step_obj["name"])
+    step = await run_in_executor(lambda: manager.get_step(step_obj["name"]))
     if step is None:
         return []
-    containers = [step.get_container(c) for c in manager.containers()]
-    return [c.as_dict() for c in containers if c is not None]
+    containers = await run_in_executor(
+        lambda: [step.get_container(c) for c in manager.containers()]
+    )
+    return await run_in_executor(lambda: [c.as_dict() for c in containers if c is not None])
 
 
 @step.field("analyses")
 async def resolve_step_analyses(step_obj, info):
     manager: Manager = info.context["manager"]
-    step = manager.get_step(step_obj["name"])
+    step = await run_in_executor(lambda: manager.get_step(step_obj["name"]))
     if step is None:
         return []
-    return [a.as_dict() for a in step.analyses()]
+    return await run_in_executor(lambda: [a.as_dict() for a in step.analyses()])
 
 
 @container.field("targets")
@@ -190,8 +209,11 @@ async def resolve_container_targets(container_obj, info):
         return container_obj["targets"]
 
     manager: Manager = info.context["manager"]
-    targets = manager.get_targets(container_obj["_step"], container_obj["name"])
-    return [t.as_dict() for t in targets]
+
+    targets = await run_in_executor(
+        lambda: manager.get_targets(container_obj["_step"], container_obj["name"])
+    )
+    return await run_in_executor(lambda: [t.as_dict() for t in targets])
 
 
 DEFAULT_BINDABLES = (query, mutation, info, step, container, upload_scalar, analysis_mutations)
