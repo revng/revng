@@ -266,7 +266,9 @@ static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
 
             UniqueExpr NotAAndNotB;
             NotAAndNotB.reset(new AndNode(NotANode, NotBNode));
-            AST.addCondExpr(std::move(NotAAndNotB));
+            ExprNode *NotAAndNotBNode = AST.addCondExpr(std::move(NotAAndNotB));
+
+            If->replaceCondExpr(NotAAndNotBNode);
 
             // Increment counter
             ShortCircuitCounter += 1;
@@ -297,7 +299,9 @@ static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
 
             UniqueExpr NotAAndB;
             NotAAndB.reset(new AndNode(NotANode, NestedIf->getCondExpr()));
-            AST.addCondExpr(std::move(NotAAndB));
+            ExprNode *NotAAndBNode = AST.addCondExpr(std::move(NotAAndB));
+
+            If->replaceCondExpr(NotAAndBNode);
 
             // Increment counter
             ShortCircuitCounter += 1;
