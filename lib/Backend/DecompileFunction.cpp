@@ -978,11 +978,29 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
     Expression = ("&" + VarName).str();
 
   } else if (auto *Ret = dyn_cast<llvm::ReturnInst>(&I)) {
-
     Expression = "return";
 
-    if (llvm::Value *ReturnedVal = Ret->getReturnValue())
-      Expression += (" " + TokenMap.at(ReturnedVal)).str();
+    if (llvm::Value *ReturnedVal = Ret->getReturnValue()) {
+      Expression += " ";
+
+      if (LLVMFunction.getReturnType()->isAggregateType()) {
+        Expression += TokenMap.at(ReturnedVal);
+
+      } else {
+        QualifiedType ReturnedType;
+        if (auto *RawF = dyn_cast<RawFunctionType>(&ParentPrototype)) {
+          ReturnedType = RawF->ReturnValues.begin()->Type;
+        } else if (auto *CABIF = dyn_cast<CABIFunctionType>(&ParentPrototype)) {
+          ReturnedType = CABIF->ReturnType;
+        } else {
+          revng_abort("Unknown function type");
+        }
+
+        Expression += buildCastExpr(TokenMap.at(ReturnedVal),
+                                    TypeMap.at(ReturnedVal),
+                                    ReturnedType);
+      }
+    }
 
   } else if (auto *Branch = dyn_cast<llvm::BranchInst>(&I)) {
     // This is never emitted directly in the BB: it is used when
