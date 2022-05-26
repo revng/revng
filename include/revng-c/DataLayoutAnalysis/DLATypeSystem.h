@@ -247,6 +247,14 @@ public:
                   LayoutTypeSystemNode *Tgt,
                   OffsetExpressionT &&OE) {
     using OET = OffsetExpressionT;
+
+    // HACK: If the offset is greater than 64K, avoid adding the link. This
+    // avoids creating gigantic structs with a big leading padding in cases in
+    // which the DLA was not able to recognize a constant as the base address.
+    // In the future, this should be handled through segments.
+    if (OE.Offset > 0xFFFF)
+      return std::make_pair(nullptr, false);
+
     return addLink(Src,
                    Tgt,
                    dla::TypeLinkTag::instanceTag(std::forward<OET>(OE)));
