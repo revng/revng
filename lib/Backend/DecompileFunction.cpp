@@ -73,6 +73,7 @@ static constexpr const char *StackFrameVarName = "stack";
 static constexpr const char *StackPtrVarName = "stack_ptr";
 
 static Logger<> Log{ "c-backend" };
+static Logger<> VisitLog{ "c-backend-visit-order" };
 static Logger<> InlineLog{ "c-backend-inline" };
 
 /// Helper function that also writes the logged string as a comment in the C
@@ -81,6 +82,17 @@ static void decompilerLog(llvm::raw_ostream &Out, const llvm::Twine &Expr) {
   revng_log(Log, Expr.str());
   if (InlineLog.isEnabled())
     Out << "/* " << Expr << " */\n";
+}
+
+debug_function void dumpTokenMap(const TokenMapT &TokenMap) {
+  llvm::dbgs() << "========== TokenMap ===========\n";
+  for (auto [Value, Token] : TokenMap) {
+    llvm::dbgs() << "Value: " << dumpToString(Value) << "\n";
+    llvm::dbgs() << "Token: " << Token.str() << "\n";
+    llvm::dbgs() << "\n";
+  }
+
+  llvm::dbgs() << "==============================\n";
 }
 
 /// Traverse all nested typedefs inside \a QT, if any, and merge them into the
@@ -1057,12 +1069,18 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
 }
 
 void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB) {
-  for (const Instruction &I : *BB) {
+  LoggerIndent Indent{ VisitLog };
+  revng_log(VisitLog, "|__ Visiting BB " << BB->getName());
+  LoggerIndent MoreIndent{ VisitLog };
+  revng_log(Log, "--------- BB " << BB->getName());
 
+  for (const Instruction &I : *BB) {
     // Guard this checking logger to prevent computing dumpToString if loggers
     // are not enabled.
-    if (Log.isEnabled() or InlineLog.isEnabled())
+    if (Log.isEnabled() or InlineLog.isEnabled()) {
+      revng_log(Log, "+++++++++");
       decompilerLog(Out, "Analyzing: " + dumpToString(I));
+    }
 
     StringToken Expression = buildExpression(I);
 
@@ -1083,10 +1101,17 @@ void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB) {
 
 RecursiveCoroutine<StringToken>
 CCodeGenerator::buildGHASTCondition(const ExprNode *E) {
+
+  LoggerIndent Indent{ VisitLog };
+  revng_log(VisitLog, "|__ Visiting Condition " << E);
+  LoggerIndent MoreIndent{ VisitLog };
+
   using NodeKind = ExprNode::NodeKind;
   switch (E->getKind()) {
 
   case NodeKind::NK_Atomic: {
+    revng_log(VisitLog, "(atomic)");
+
     // An atomic node holds a reference to the Basic Block that contains the
     // condition used in the conditional expression. In particular, the
     // condition is the value used in the last expression of the basic
@@ -1107,6 +1132,8 @@ CCodeGenerator::buildGHASTCondition(const ExprNode *E) {
   } break;
 
   case NodeKind::NK_Not: {
+    revng_log(VisitLog, "(not)");
+
     const NotNode *N = cast<NotNode>(E);
     ExprNode *Negated = N->getNegatedNode();
 
@@ -1118,6 +1145,8 @@ CCodeGenerator::buildGHASTCondition(const ExprNode *E) {
 
   case NodeKind::NK_And:
   case NodeKind::NK_Or: {
+    revng_log(VisitLog, "(and/or)");
+
     const BinaryNode *Binary = cast<BinaryNode>(E);
 
     const auto &[Child1, Child2] = Binary->getInternalNodes();
@@ -1140,10 +1169,15 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
   if (N == nullptr)
     rc_return;
 
+  revng_log(VisitLog, "|__ GHAST Node " << N->getID());
+  LoggerIndent Indent{ VisitLog };
+
   auto Kind = N->getKind();
   switch (Kind) {
 
   case ASTNode::NodeKind::NK_Break: {
+    revng_log(VisitLog, "(NK_Break)");
+
     const BreakNode *Break = llvm::cast<BreakNode>(N);
     if (Break->breaksFromWithinSwitch()) {
       revng_assert(not SwitchStateVars.empty()
@@ -1154,10 +1188,14 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     [[fallthrough]];
 
   case ASTNode::NodeKind::NK_SwitchBreak: {
+    revng_log(VisitLog, "(NK_SwitchBreak)");
+
     Out << "break;\n";
   } break;
 
   case ASTNode::NodeKind::NK_Continue: {
+    revng_log(VisitLog, "(NK_Continue)");
+
     const ContinueNode *Continue = cast<ContinueNode>(N);
 
     // Print the condition computation code of the if statement.
@@ -1173,6 +1211,8 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
   } break;
 
   case ASTNode::NodeKind::NK_Code: {
+    revng_log(VisitLog, "(NK_Code)");
+
     const CodeNode *Code = cast<CodeNode>(N);
     llvm::BasicBlock *BB = Code->getOriginalBB();
     revng_assert(BB != nullptr);
@@ -1180,6 +1220,8 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
   } break;
 
   case ASTNode::NodeKind::NK_If: {
+    revng_log(VisitLog, "(NK_If)");
+
     const IfNode *If = cast<IfNode>(N);
     const StringToken CondExpr = buildGHASTCondition(If->getCondExpr());
     // "If" expression
@@ -1206,6 +1248,8 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
   } break;
 
   case ASTNode::NodeKind::NK_Scs: {
+    revng_log(VisitLog, "(NK_Scs)");
+
     const ScsNode *LoopBody = cast<ScsNode>(N);
 
     // Calculate the string of the condition
@@ -1237,6 +1281,8 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
   } break;
 
   case ASTNode::NodeKind::NK_List: {
+    revng_log(VisitLog, "(NK_List)");
+
     const SequenceNode *Seq = cast<SequenceNode>(N);
     for (const ASTNode *Child : Seq->nodes())
       rc_recur emitGHASTNode(Child);
@@ -1244,6 +1290,8 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
   } break;
 
   case ASTNode::NodeKind::NK_Switch: {
+    revng_log(VisitLog, "(NK_Switch)");
+
     const SwitchNode *Switch = cast<SwitchNode>(N);
 
     // If needed, print the declaration of the switch state variable, which
@@ -1347,6 +1395,8 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
   } break;
 
   case ASTNode::NodeKind::NK_Set: {
+    revng_log(VisitLog, "(NK_Set)");
+
     const SetNode *Set = cast<SetNode>(N);
     unsigned StateValue = Set->getStateVariableValue();
     revng_assert(not LoopStateVar.empty());
@@ -1364,6 +1414,10 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
 }
 
 void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
+
+  revng_log(Log, "========= Emitting Function " << LLVMFunction.getName());
+  revng_log(VisitLog, "========= Function " << LLVMFunction.getName());
+  LoggerIndent Indent{ VisitLog };
 
   // Create a token for each of the function's arguments
   if (auto *RawPrototype = dyn_cast<model::RawFunctionType>(&ParentPrototype)) {
