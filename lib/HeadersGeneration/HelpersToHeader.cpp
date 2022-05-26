@@ -66,31 +66,26 @@ bool dumpHelpersToHeader(const llvm::Module &M, llvm::raw_ostream &Header) {
   Header << "#include \"revngfloat.h\"\n\n";
 
   for (const llvm::Function &F : M.functions()) {
-    // Ignore lifted functions, whose definition is generated from the model,
-    // and special injected functions, that are not translated as function
-    // calls by the backend, since they have their only semantics.
-    auto FTags = FunctionTags::TagsSet::from(&F);
-    if (FTags.contains(FunctionTags::Isolated)
-        or FTags.contains(FunctionTags::ModelGEP)
-        or FTags.contains(FunctionTags::AssignmentMarker)
-        or FTags.contains(FunctionTags::AddressOf)
-        or FTags.contains(FunctionTags::Marker))
-      continue;
+    const auto &FuncName = F.getName();
+    if (FunctionTags::QEMU.isTagOf(&F) or FunctionTags::Helper.isTagOf(&F)
+        or F.isIntrinsic() or FuncName.startswith("llvm.")
+        or FuncName.startswith("init_") or FuncName.startswith("revng_init_")) {
 
-    if (Log.isEnabled())
-      Header << "// " << *F.getType() << "\n";
+      if (Log.isEnabled())
+        Header << "// " << *F.getType() << "\n";
 
-    // Print the declaration of the return type, if it's not scalar
-    const auto *RetTy = F.getReturnType();
-    if (auto *RetStructTy = dyn_cast<llvm::StructType>(RetTy)) {
-      const auto &StructName = getReturnType(&F);
-      printDefinition(RetStructTy, StructName, Header);
+      // Print the declaration of the return type, if it's not scalar
+      const auto *RetTy = F.getReturnType();
+      if (auto *RetStructTy = dyn_cast<llvm::StructType>(RetTy)) {
+        const auto &StructName = getReturnType(&F);
+        printDefinition(RetStructTy, StructName, Header);
+      }
+
+      for (auto &Arg : F.args())
+        revng_assert(Arg.getType()->isSingleValueType());
+
+      printHelperPrototype(&F, Header);
     }
-
-    for (auto &Arg : F.args())
-      revng_assert(Arg.getType()->isSingleValueType());
-
-    printHelperPrototype(&F, Header);
   }
 
   return true;
