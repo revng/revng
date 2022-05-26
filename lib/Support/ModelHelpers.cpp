@@ -75,22 +75,22 @@ llvmIntToModelType(const llvm::Type *LLVMType, const model::Binary &Model) {
     switch (IntType->getIntegerBitWidth()) {
     case 1:
     case 8:
-      ModelType.UnqualifiedType = Model.getPrimitiveType(Number, 1);
+      ModelType.UnqualifiedType = Model.getPrimitiveType(Generic, 1);
 
     case 16:
-      ModelType.UnqualifiedType = Model.getPrimitiveType(Number, 2);
+      ModelType.UnqualifiedType = Model.getPrimitiveType(Generic, 2);
       break;
 
     case 32:
-      ModelType.UnqualifiedType = Model.getPrimitiveType(Number, 4);
+      ModelType.UnqualifiedType = Model.getPrimitiveType(Generic, 4);
       break;
 
     case 64:
-      ModelType.UnqualifiedType = Model.getPrimitiveType(Number, 8);
+      ModelType.UnqualifiedType = Model.getPrimitiveType(Generic, 8);
       break;
 
     case 128:
-      ModelType.UnqualifiedType = Model.getPrimitiveType(Number, 16);
+      ModelType.UnqualifiedType = Model.getPrimitiveType(Generic, 16);
       break;
 
     default:
@@ -105,7 +105,7 @@ llvmIntToModelType(const llvm::Type *LLVMType, const model::Binary &Model) {
     // If it's a pointer to a non-integer type, return an integer type of the
     // length of a pointer
     auto PtrSize = getPointerSize(Model.Architecture);
-    ModelType.UnqualifiedType = Model.getPrimitiveType(Number, PtrSize);
+    ModelType.UnqualifiedType = Model.getPrimitiveType(Generic, PtrSize);
   } else {
     revng_abort("Only integer and pointer types can be directly converted "
                 "from LLVM types to C types.");
