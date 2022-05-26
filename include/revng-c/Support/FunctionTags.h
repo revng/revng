@@ -35,6 +35,25 @@ inline Tag
 inline Tag DecompiledToYAML("DecompiledToYAML", StackPointerPromoted);
 } // namespace FunctionTags
 
+inline const llvm::CallInst *
+isCallToTagged(const llvm::Value *V, FunctionTags::Tag &T) {
+  if (auto *Call = llvm::dyn_cast<llvm::CallInst>(V))
+    if (auto *CalledFunc = Call->getCalledFunction())
+      if (T.isTagOf(CalledFunc))
+        return Call;
+
+  return nullptr;
+}
+
+inline llvm::CallInst *isCallToTagged(llvm::Value *V, FunctionTags::Tag &T) {
+  if (auto *Call = llvm::dyn_cast<llvm::CallInst>(V))
+    if (auto *CalledFunc = Call->getCalledFunction())
+      if (T.isTagOf(CalledFunc))
+        return Call;
+
+  return nullptr;
+}
+
 /// Returns the type of an AddressOf function with return type T, in context C.
 /// This is intended to be used to get functions from the AddressOfPool created
 /// with createAddresOfPool()
