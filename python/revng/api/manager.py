@@ -258,10 +258,7 @@ class Manager:
             self.recalculate_all_available_targets()
 
         targets_list = self.get_targets_list(container)
-        if targets_list is None:
-            raise RevngException("Invalid container name (cannot get targets list)")
-
-        return list(targets_list.targets())
+        return list(targets_list.targets()) if targets_list is not None else []
 
     def get_targets_from_step(self, step_name: str, recalc: bool = True) -> Dict[str, List[Target]]:
         step = self.get_step(step_name)
