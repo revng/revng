@@ -5,6 +5,7 @@
 //
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/Type.h"
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/QualifiedType.h"
@@ -44,6 +45,14 @@ inline void
 addPointerQualifier(model::QualifiedType &QT, const model::Binary &Binary) {
   using Qualifier = model::Qualifier;
   QT.Qualifiers.push_back(Qualifier::createPointer(Binary.Architecture));
+}
+
+/// Return an LLVM IntegerType that has the size of a pointer in the given
+/// architecture.
+inline llvm::IntegerType *
+getPointerSizedInteger(llvm::LLVMContext &C, const model::Binary &Binary) {
+  const size_t PtrSize = getPointerSize(Binary.Architecture);
+  return llvm::Type::getIntNTy(C, PtrSize * 8);
 }
 
 /// Create a pointer to the given base Type
