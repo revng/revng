@@ -723,7 +723,7 @@ differenceScore(const model::QualifiedType &BaseType,
     case Struct: {
       revng_assert(not Normalized.isArray());
 
-      auto *S = cast<model::StructType>(Normalized.UnqualifiedType.get());
+      auto *S = cast<model::StructType>(Normalized.UnqualifiedType.getConst());
       size_t FieldOffset = cast<ConstantInt>(ChildID.Index)->getZExtValue();
 
       // If the RestOff is less than the field offset, it means that the IRAP
@@ -953,7 +953,7 @@ getType(ModelGEPArgs &GEPArgs, model::VerifyHelper &VH) {
     case AggregateKind::Struct: {
 
       CurrType = peelConstAndTypedefs(CurrType.value(), VH);
-      auto *S = cast<model::StructType>(CurrType->UnqualifiedType.get());
+      auto *S = cast<model::StructType>(CurrType->UnqualifiedType.getConst());
       size_t FieldOffset = cast<ConstantInt>(Index)->getZExtValue();
       CurrType = S->Fields.at(FieldOffset).Type;
 
@@ -962,7 +962,7 @@ getType(ModelGEPArgs &GEPArgs, model::VerifyHelper &VH) {
     case AggregateKind::Union: {
 
       CurrType = peelConstAndTypedefs(CurrType.value(), VH);
-      auto *U = cast<model::UnionType>(CurrType->UnqualifiedType.get());
+      auto *U = cast<model::UnionType>(CurrType->UnqualifiedType.getConst());
       size_t FieldID = cast<ConstantInt>(Index)->getZExtValue();
       CurrType = U->Fields.at(FieldID).Type;
 
