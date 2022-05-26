@@ -226,11 +226,6 @@ rp_diff_map * /*owning*/ rp_manager_run_analysis(rp_manager *manager,
 rp_diff_map * /*owning*/ rp_manager_run_all_analyses(rp_manager *manager);
 
 /**
- *
- */
-void rp_manager_recompute_all_available_targets(rp_manager *manager);
-
-/**
  * \return the container status associated to the provided \p container
  *         or NULL if no status is associated to the provided container.
  */
@@ -498,7 +493,6 @@ bool rp_container_store(rp_container *container, const char *path);
  * Load the provided container from the provided path.
  *
  * \return 0 if a error was encountered 1 otherwise
- *
  */
 bool rp_manager_container_deserialize(rp_manager *manager,
                                       rp_step *step,

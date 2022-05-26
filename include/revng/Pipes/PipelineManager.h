@@ -43,6 +43,9 @@ private:
   createContexts(llvm::ArrayRef<std::string> EnablingFlags,
                  llvm::StringRef ExecutionDirectory);
 
+  /// recalculates all possible targets and keeps overship of the computed info
+  void recalculateAllPossibleTargets();
+
 public:
   PipelineManager(PipelineManager &&Other) = default;
   PipelineManager &operator=(PipelineManager &&Other) = default;
@@ -105,8 +108,6 @@ public:
 
   pipeline::Context &context() { return *PipelineContext; }
 
-  /// recalculates all possible targets and keeps overship of the computed info
-  void recalculateAllPossibleTargets();
   /// recalculates the current aviable targetsd and keeps overship of the
   /// computer info
   void recalculateCurrentState();
@@ -144,6 +145,16 @@ public:
 
   const pipeline::Runner &getRunner() const { return *Runner; }
   pipeline::Runner &getRunner() { return *Runner; }
+
+  llvm::Expected<pipeline::DiffMap>
+  runAnalysis(llvm::StringRef AnalysisName,
+              llvm::StringRef StepName,
+              const pipeline::ContainerToTargetsMap &Targets,
+              llvm::raw_ostream *DiagnosticLog = nullptr);
+
+  /// Run all analysis in reverse post order (that is: parents first),
+  llvm::Expected<pipeline::DiffMap>
+  runAllAnalyses(llvm::raw_ostream *OS = nullptr);
 
   /// prints to the provided raw_ostream all possible targets that can
   /// be produced by the pipeline in the current state

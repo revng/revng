@@ -142,6 +142,7 @@ PipelineManager::create(llvm::ArrayRef<std::string> Pipelines,
   else
     return MaybePipeline.takeError();
 
+  Manager.recalculateAllPossibleTargets();
   return std::move(Manager);
 }
 
@@ -177,6 +178,7 @@ PipelineManager::createFromMemory(llvm::ArrayRef<std::string> PipelineContent,
   else
     return MaybePipeline.takeError();
 
+  Manager.recalculateAllPossibleTargets();
   return std::move(Manager);
 }
 
@@ -367,4 +369,23 @@ PipelineManager::produceAllPossibleTargets(llvm::raw_ostream &Stream) {
   }
 
   return llvm::Error::success();
+}
+
+llvm::Expected<DiffMap>
+PipelineManager::runAnalysis(llvm::StringRef AnalysisName,
+                             llvm::StringRef StepName,
+                             const ContainerToTargetsMap &Targets,
+                             llvm::raw_ostream *DiagnosticLog) {
+  auto Result = Runner->runAnalysis(AnalysisName, StepName, Targets);
+  if (Result)
+    recalculateAllPossibleTargets();
+
+  return Result;
+}
+
+llvm::Expected<DiffMap> PipelineManager::runAllAnalyses(llvm::raw_ostream *OS) {
+  auto Result = Runner->runAllAnalyses(OS);
+  if (Result)
+    recalculateAllPossibleTargets();
+  return Result;
 }

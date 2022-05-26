@@ -102,7 +102,8 @@ static rp_manager *rp_manager_create_impl(uint64_t pipelines_count,
     return nullptr;
   }
 
-  return new PipelineManager(std::move(*Pipeline));
+  auto manager = new PipelineManager(std::move(*Pipeline));
+  return manager;
 }
 
 rp_manager *rp_manager_create_from_string(uint64_t pipelines_count,
@@ -282,9 +283,7 @@ rp_diff_map *rp_manager_run_analysis(rp_manager *manager,
   for (size_t I = 0; I < targets_count; I++)
     Targets[container->second->name()].push_back(*targets[I]);
 
-  auto MaybeDiffs = manager->getRunner().runAnalysis(analysis_name,
-                                                     step_name,
-                                                     Targets);
+  auto MaybeDiffs = manager->runAnalysis(analysis_name, step_name, Targets);
   if (not MaybeDiffs) {
     llvm::consumeError(MaybeDiffs.takeError());
     return nullptr;
@@ -447,11 +446,6 @@ char *rp_manager_create_container_path(rp_manager *manager,
                           step_name,
                           container_name);
   return copyString(Path);
-}
-
-void rp_manager_recompute_all_available_targets(rp_manager *manager) {
-  revng_check(manager != nullptr);
-  manager->recalculateAllPossibleTargets();
 }
 
 rp_targets_list *
@@ -667,7 +661,7 @@ const rp_kind *rp_analysis_get_argument_acceptable_kind(rp_analysis *analysis,
 }
 
 rp_diff_map *rp_manager_run_all_analyses(rp_manager *manager) {
-  auto MaybeDiffs = manager->getRunner().runAllAnalyses(nullptr);
+  auto MaybeDiffs = manager->runAllAnalyses();
   if (not MaybeDiffs) {
     llvm::consumeError(MaybeDiffs.takeError());
     return nullptr;

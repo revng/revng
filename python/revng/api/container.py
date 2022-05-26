@@ -37,10 +37,6 @@ class Container:
         _path = make_c_string(path)
         return _api.rp_container_store(self._container, _path)
 
-    def load(self, path: str) -> bool:
-        _path = make_c_string(path)
-        return _api.rp_container_load(self._container, _path)
-
     def as_dict(self) -> Dict[str, str]:
         return {"name": self.name, "mime": self.mime, "_step": self._step_name}
 

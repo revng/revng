@@ -188,9 +188,6 @@ class Manager:
             raise RevngException("Invalid target")
         return target
 
-    def recalculate_all_available_targets(self):
-        _api.rp_manager_recompute_all_available_targets(self._manager)
-
     def get_targets_list(self, container: Container) -> Optional[TargetsList]:
         targets_list = _api.rp_manager_get_container_targets_list(
             self._manager, container._container
@@ -259,7 +256,7 @@ class Manager:
 
     # Utility target functions
 
-    def get_targets(self, step_name: str, container_name: str, recalc: bool = True) -> List[Target]:
+    def get_targets(self, step_name: str, container_name: str) -> List[Target]:
         step = self.get_step(step_name)
         if step is None:
             raise RevngException("Invalid step name")
@@ -272,19 +269,13 @@ class Manager:
         if container is None:
             raise RevngException(f"Step {step_name} does not use container {container_name}")
 
-        if recalc:
-            self.recalculate_all_available_targets()
-
         targets_list = self.get_targets_list(container)
         return list(targets_list.targets()) if targets_list is not None else []
 
-    def get_targets_from_step(self, step_name: str, recalc: bool = True) -> Dict[str, List[Target]]:
+    def get_targets_from_step(self, step_name: str) -> Dict[str, List[Target]]:
         step = self.get_step(step_name)
         if step is None:
             raise RevngException("Invalid step name")
-
-        if recalc:
-            self.recalculate_all_available_targets()
 
         containers = []
         for container_id in self.containers():
@@ -293,14 +284,13 @@ class Manager:
         ret = {}
         for container in containers:
             if container is not None:
-                targets = self.get_targets(step_name, container.name, False)
+                targets = self.get_targets(step_name, container.name)
                 ret[container.name] = targets
         return ret
 
     def get_all_targets(self) -> Dict[str, Dict[str, List[Target]]]:
         targets: Dict[str, Dict[str, List[Target]]] = {}
         container_ids = list(self.containers())
-        self.recalculate_all_available_targets()
         for step in self.steps():
             targets[step.name] = {}
             containers = [step.get_container(cid) for cid in container_ids]
