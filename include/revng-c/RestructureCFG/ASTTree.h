@@ -109,17 +109,17 @@ public:
   ASTNode *copyASTNodesFrom(ASTTree &OldAST);
 
   /// Dump a GraphViz file on a file using an absolute path
-  void dumpASTOnFile(const std::string &FileName) const;
+  debug_function void dumpASTOnFile(const std::string &FileName) const;
 
   /// Dump a GraphViz file on a file using an absolute path
-  void dumpASTOnFile(const char *FName) const {
+  debug_function void dumpASTOnFile(const char *FName) const {
     return dumpASTOnFile(std::string(FName));
   }
 
   /// Dump a GraphViz file on a file representing this function
-  void dumpASTOnFile(const std::string &FolderName,
-                     const std::string &FunctionName,
-                     const std::string &FileName) const;
+  debug_function void dumpASTOnFile(const std::string &FolderName,
+                                    const std::string &FunctionName,
+                                    const std::string &FileName) const;
 
   ExprNode *addCondExpr(expr_unique_ptr &&Expr);
 };
