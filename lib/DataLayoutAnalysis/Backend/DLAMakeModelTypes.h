@@ -7,6 +7,7 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/Type.h"
 
+#include "revng-c/DataLayoutAnalysis/DLALayouts.h"
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
 
 using TypeMapT = std::map<dla::LayoutTypePtr, model::QualifiedType>;

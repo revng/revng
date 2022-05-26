@@ -20,11 +20,9 @@ revng_add_analyses_library(
   Middleend/RemoveInvalidPointers.cpp
   Middleend/RemoveInvalidStrideEdges.cpp
   Middleend/SimplifyInstanceAtOffset0.cpp
-  Backend/DLAMakeLayouts.cpp
   Backend/DLAMakeModelTypes.cpp
   Backend/DLAUpdateFuncPrototypes.cpp
   FuncOrCallInst.cpp
-  DLALayouts.cpp
   DLAPass.cpp
   DLATypeSystem.cpp)
 

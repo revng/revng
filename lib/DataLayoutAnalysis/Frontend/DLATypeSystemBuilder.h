@@ -15,6 +15,8 @@
 
 namespace dla {
 
+using LayoutTypePtrVec = std::vector<LayoutTypePtr>;
+
 /// This class is used to print LLVM information when debugging the TS
 ///
 /// Since nodes in the TypeSystem graph only have IDs, which are grouped into

@@ -13,7 +13,6 @@
 #include "revng-c/DataLayoutAnalysis/DLAPass.h"
 #include "revng-c/Pipes/Kinds.h"
 
-#include "Backend/DLAMakeLayouts.h"
 #include "Backend/DLAMakeModelTypes.h"
 #include "Frontend/DLATypeSystemBuilder.h"
 #include "Middleend/DLAStep.h"
@@ -75,10 +74,6 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   auto &WritableModel = ModelWrapper.getWriteableModel();
   auto ValueToTypeMap = dla::makeModelTypes(TS, Values, WritableModel);
   bool Changed = dla::updateFuncSignatures(M, WritableModel, ValueToTypeMap);
-
-  // Generate Layouts
-  dla::LayoutPtrVector OrderedLayouts = makeLayouts(TS, this->Layouts);
-  this->ValueLayoutsMap = makeLayoutMap(Values, OrderedLayouts, EqClasses);
 
   return Changed;
 }
