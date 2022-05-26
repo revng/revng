@@ -11,6 +11,7 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/QualifiedType.h"
 #include "revng/Model/Qualifier.h"
+#include "revng/Support/Assert.h"
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/Support/ModelHelpers.h"
@@ -145,18 +146,26 @@ serializeToLLVMString(model::QualifiedType &QT, llvm::Module &M) {
 
 RecursiveCoroutine<model::QualifiedType>
 dropPointer(const model::QualifiedType &QT) {
-  model::QualifiedType NewQT = QT;
+  revng_assert(QT.isPointer());
 
-  auto It = std::find_if(NewQT.Qualifiers.rbegin(),
-                         NewQT.Qualifiers.rend(),
-                         model::Qualifier::isPointer);
+  auto QEnd = QT.Qualifiers.end();
+  for (auto QIt = QT.Qualifiers.begin(); QIt != QEnd; ++QIt) {
 
-  if (It != NewQT.Qualifiers.rend()) {
-    std::erase(NewQT.Qualifiers, *It);
-    rc_return NewQT;
+    if (model::Qualifier::isConst(*QIt))
+      continue;
+
+    if (model::Qualifier::isPointer(*QIt)) {
+      rc_return model::QualifiedType(QT.UnqualifiedType,
+                                     { std::next(QIt), QEnd });
+    } else {
+      revng_abort("Error: this is not a pointer");
+    }
+
+    rc_return QT;
   }
 
-  if (auto *TD = dyn_cast<TypedefType>(NewQT.UnqualifiedType.getConst()))
+  // Recur if it has no pointer qualifier but it is a Typedef
+  if (auto *TD = dyn_cast<model::TypedefType>(QT.UnqualifiedType.get()))
     rc_return rc_recur dropPointer(TD->UnderlyingType);
 
   revng_abort("Cannot dropPointer, QT does not have pointer qualifiers");
