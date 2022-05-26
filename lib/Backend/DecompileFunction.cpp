@@ -936,7 +936,7 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
 
     StringToken Condition = TokenMap.at(Select->getCondition());
     const llvm::Value *Op1 = Select->getOperand(1);
-    const llvm::Value *Op2 = Select->getOperand(1);
+    const llvm::Value *Op2 = Select->getOperand(2);
 
     StringToken Op1Token = buildCastExpr(TokenMap.at(Op1),
                                          TypeMap.at(Op1),
