@@ -957,8 +957,8 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
                                          TypeMap.at(Op2),
                                          TypeMap.at(Select));
 
-    Expression = (Condition + " ? " + addParentheses(Op1Token) + " : "
-                  + addParentheses(Op2Token))
+    Expression = (addParentheses(Condition) + " ? " + addParentheses(Op1Token)
+                  + " : " + addParentheses(Op2Token))
                    .str();
 
   } else if (auto *Alloca = dyn_cast<llvm::AllocaInst>(&I)) {
@@ -1011,29 +1011,34 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
     const llvm::Value *Op2 = Bin->getOperand(1);
     const QualifiedType &ResultType = TypeMap.at(Bin);
 
+    const auto &Op1Token = buildCastExpr(TokenMap.at(Op1),
+                                         TypeMap.at(Op1),
+                                         ResultType);
+    const auto &Op2Token = buildCastExpr(TokenMap.at(Op2),
+                                         TypeMap.at(Op2),
+                                         ResultType);
+
     // TODO: Integer promotion
-    Expression = (buildCastExpr(TokenMap.at(Op1), TypeMap.at(Op1), ResultType)
-                  + getBinOpString(Bin)
-                  + buildCastExpr(TokenMap.at(Op2),
-                                  TypeMap.at(Op2),
-                                  ResultType))
+    Expression = (addParentheses(Op1Token) + getBinOpString(Bin)
+                  + addParentheses(Op2Token))
                    .str();
-    Expression = addParentheses(Expression);
 
   } else if (auto *Cmp = dyn_cast<llvm::CmpInst>(&I)) {
-
     const llvm::Value *Op1 = Cmp->getOperand(0);
     const llvm::Value *Op2 = Cmp->getOperand(1);
     const QualifiedType &ResultType = llvmIntToModelType(Op1->getType(), Model);
 
+    const auto &Op1Token = buildCastExpr(TokenMap.at(Op1),
+                                         TypeMap.at(Op1),
+                                         ResultType);
+    const auto &Op2Token = buildCastExpr(TokenMap.at(Op2),
+                                         TypeMap.at(Op2),
+                                         ResultType);
+
     // TODO: Integer promotion
-    Expression = (buildCastExpr(TokenMap.at(Op1), TypeMap.at(Op1), ResultType)
-                  + getCmpOpString(Cmp->getPredicate())
-                  + buildCastExpr(TokenMap.at(Op2),
-                                  TypeMap.at(Op2),
-                                  ResultType))
+    Expression = (addParentheses(Op1Token) + getCmpOpString(Cmp->getPredicate())
+                  + addParentheses(Op2Token))
                    .str();
-    Expression = addParentheses(Expression);
 
   } else if (auto *Cast = dyn_cast<llvm::CastInst>(&I)) {
 
