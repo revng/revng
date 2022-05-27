@@ -53,7 +53,6 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   revng_check(SM.addStep<dla::SimplifyInstanceAtOffset0>());
   revng_check(SM.addStep<dla::PruneLayoutNodesWithoutLayout>());
   revng_check(SM.addStep<dla::ComputeUpperMemberAccesses>());
-  revng_check(SM.addStep<dla::CollapseCompatibleArrays>());
   revng_check(SM.addStep<dla::RemoveInvalidStrideEdges>());
   revng_check(SM.addStep<dla::PruneLayoutNodesWithoutLayout>());
   revng_check(SM.addStep<dla::ComputeUpperMemberAccesses>());

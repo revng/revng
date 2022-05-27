@@ -146,25 +146,6 @@ public:
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
-/// dla::Step that tries to aggregate compatible arrays into a single array
-class CollapseCompatibleArrays : public Step {
-  static const char ID;
-
-public:
-  static const constexpr void *getID() { return &ID; }
-
-  CollapseCompatibleArrays() :
-    Step(ID,
-         // Dependencies
-         { ComputeUpperMemberAccesses::getID() },
-         // Invalidated
-         {}) {}
-
-  virtual ~CollapseCompatibleArrays() override = default;
-
-  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override { return true; }
-};
-
 /// dla::Step that collapses nodes that have a single child at offset 0
 class CollapseSingleChild : public Step {
   static const char ID;
