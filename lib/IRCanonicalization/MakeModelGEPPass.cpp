@@ -2133,6 +2133,10 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
 
   for (auto &[TheUseToGEPify, GEPArgs] : GEPReplacementMap) {
 
+    // Skip ModelGEPs that have no arguments
+    if (GEPArgs.IndexVector.empty())
+      continue;
+
     revng_log(ModelGEPLog,
               "GEPify use of: " << dumpToString(TheUseToGEPify->get()));
     revng_log(ModelGEPLog,
