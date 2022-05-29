@@ -438,15 +438,15 @@ public:
   /// Public constructor creating an invalid MetaAddress
   ///
   /// \note Prefer MetaAddress::invalid()
-  explicit MetaAddress() : PlainMetaAddress({}) {}
+  constexpr explicit MetaAddress() : PlainMetaAddress({}) {}
 
   /// Public constructor allowing to create a custom instance to validate
   ///
   /// \note Prefer MetaAddress:fromPC or MetaAddress::fromGeneric
-  explicit MetaAddress(uint64_t Address,
-                       MetaAddressType::Values Type,
-                       uint32_t Epoch = 0,
-                       uint16_t AddressSpace = 0) :
+  constexpr explicit MetaAddress(uint64_t Address,
+                                 MetaAddressType::Values Type,
+                                 uint32_t Epoch = 0,
+                                 uint16_t AddressSpace = 0) :
     PlainMetaAddress({ Epoch, AddressSpace, Type, Address }) {
 
     // Verify the given data
@@ -461,7 +461,7 @@ public:
   /// @{
 
   /// Create an invalid MetaAddress
-  static MetaAddress invalid() { return MetaAddress(); }
+  static constexpr MetaAddress invalid() { return MetaAddress(); }
 
   /// Create a MetaAddress from a pointer to \p Arch code
   static MetaAddress fromPC(llvm::Triple::ArchType Arch,
