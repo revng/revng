@@ -10,6 +10,7 @@
 #include "llvm/Support/raw_os_ostream.h"
 
 #include "revng/ADT/GenericGraph.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
 #include "revng/Model/Binary.h"
 
@@ -23,99 +24,54 @@ struct FunctionCFGNodeData {
 };
 
 using FunctionCFGNode = ForwardNode<FunctionCFGNodeData>;
+using FunctionCFG = GenericGraph<FunctionCFGNode, 16, true>;
 
-/// Graph data structure to represent the CFG for verification purposes
-struct FunctionCFG : public GenericGraph<FunctionCFGNode> {
-private:
-  MetaAddress Entry;
+/// A helper data structure to simplify working with the graph
+/// when verifying the CFG.
+struct FunctionCFGVerificationHelper {
+public:
+  FunctionCFG Graph;
   std::map<MetaAddress, FunctionCFGNode *> Map;
 
 public:
-  FunctionCFG(MetaAddress Entry) : Entry(Entry) {}
-
-public:
-  MetaAddress entry() const { return Entry; }
-  FunctionCFGNode *entryNode() const { return Map.at(Entry); }
-
-public:
-  FunctionCFGNode *get(MetaAddress MA) {
-    FunctionCFGNode *Result = nullptr;
-    auto It = Map.find(MA);
-    if (It == Map.end()) {
-      Result = addNode(MA);
-      Map[MA] = Result;
-    } else {
-      Result = It->second;
-    }
-
-    return Result;
+  FunctionCFGVerificationHelper(const efa::FunctionMetadata &Metadata,
+                                const model::Binary &Binary) {
+    using G = FunctionCFG;
+    std::tie(Graph, Map) = buildControlFlowGraph<G>(Metadata.ControlFlowGraph,
+                                                    Metadata.Entry,
+                                                    Binary);
   }
 
+public:
   bool allNodesAreReachable() const {
+    revng_assert(Graph.size() == Map.size());
     if (Map.size() == 0)
       return true;
 
     // Ensure all the nodes are reachable from the entry node
     df_iterator_default_set<FunctionCFGNode *> Visited;
-    for (auto &Ignore : depth_first_ext(entryNode(), Visited))
+    revng_assert(Graph.getEntryNode() != nullptr);
+    for (auto &Ignore : depth_first_ext(Graph.getEntryNode(), Visited))
       ;
-    return Visited.size() == size();
+    return Visited.size() == Graph.size();
   }
 
-  bool hasOnlyInvalidExits() const {
-    for (auto &[Address, Node] : Map)
-      if (Address.isValid() and not Node->hasSuccessors())
-        return false;
+  bool hasAtMostOneInvalidExit() const {
+    FunctionCFGNode *Exit = nullptr;
+    for (const auto &[Address, Node] : Map) {
+      if (Address.isInvalid()) {
+        if (Node->hasSuccessors() || Exit != nullptr)
+          return false;
+        Exit = Node;
+      } else {
+        if (!Node->hasSuccessors())
+          return false;
+      }
+    }
+
     return true;
   }
 };
-
-static FunctionCFG getGraph(const model::Binary &Binary,
-                            const SortedVector<efa::BasicBlock> &CFG,
-                            MetaAddress Entry) {
-  using namespace efa::FunctionEdgeType;
-
-  FunctionCFG Graph(Entry);
-  for (const BasicBlock &Block : CFG) {
-    auto *Source = Graph.get(Block.Start);
-
-    for (const auto &Edge : Block.Successors) {
-      switch (Edge->Type) {
-      case DirectBranch:
-      case FakeFunctionCall:
-      case FakeFunctionReturn:
-      case Return:
-      case BrokenReturn:
-      case IndirectTailCall:
-      case LongJmp:
-      case Unreachable:
-        Source->addSuccessor(Graph.get(Edge->Destination));
-        break;
-
-      case FunctionCall:
-      case IndirectCall: {
-        auto *CE = cast<efa::CallEdge>(Edge.get());
-        if (hasAttribute(Binary, *CE, model::FunctionAttribute::NoReturn))
-          Source->addSuccessor(Graph.get(MetaAddress::invalid()));
-        else
-          Source->addSuccessor(Graph.get(Block.End));
-        break;
-      }
-
-      case Killer:
-        Source->addSuccessor(Graph.get(MetaAddress::invalid()));
-        break;
-
-      case Invalid:
-      case Count:
-        revng_abort();
-        break;
-      }
-    }
-  }
-
-  return Graph;
-}
 
 bool FunctionMetadata::verify(const model::Binary &Binary) const {
   return verify(Binary, false);
@@ -135,14 +91,14 @@ bool FunctionMetadata::verify(const model::Binary &Binary,
     return VH.maybeFail(ControlFlowGraph.size() == 0);
 
   // Populate graph
-  FunctionCFG Graph = getGraph(Binary, ControlFlowGraph, Entry);
+  FunctionCFGVerificationHelper Helper(*this, Binary);
 
   // Ensure all the nodes are reachable from the entry node
-  if (not Graph.allNodesAreReachable())
+  if (not Helper.allNodesAreReachable())
     return VH.fail();
 
   // Ensure the only node with no successors is invalid
-  if (not Graph.hasOnlyInvalidExits())
+  if (not Helper.hasAtMostOneInvalidExit())
     return VH.fail();
 
   // Verify blocks
@@ -209,9 +165,11 @@ void FunctionMetadata::dump() const {
 }
 
 void FunctionMetadata::dumpCFG(const model::Binary &Binary) const {
-  FunctionCFG FuncCFG = getGraph(Binary, ControlFlowGraph, Entry);
+  auto [Graph, _] = buildControlFlowGraph<FunctionCFG>(ControlFlowGraph,
+                                                       Entry,
+                                                       Binary);
   raw_os_ostream Stream(dbg);
-  WriteGraph(Stream, &FuncCFG);
+  WriteGraph(Stream, &Graph);
 }
 
 void FunctionEdge::dump() const {
@@ -363,7 +321,7 @@ struct llvm::DOTGraphTraits<efa::FunctionCFG *> : public DefaultDOTGraphTraits {
 
   static std::string getNodeAttributes(const efa::FunctionCFGNode *Node,
                                        const efa::FunctionCFG *Graph) {
-    if (Node->Start == Graph->entry()) {
+    if (Node->Start == Graph->getEntryNode()->Start) {
       return "shape=box,peripheries=2";
     }
 
