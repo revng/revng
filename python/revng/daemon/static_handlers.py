@@ -214,6 +214,18 @@ async def resolve_step_analyses(step_obj, info):
     return await run_in_executor(lambda: [a.as_dict() for a in step.analyses()])
 
 
+@step.field("artifacts")
+async def resolve_step_artifacts(step_obj, info):
+    manager: Manager = info.context["manager"]
+    step = await run_in_executor(lambda: manager.get_step(step_obj["name"]))
+    artifacts_container = await run_in_executor(step.get_artifacts_container)
+    artifacts_kind = await run_in_executor(step.get_artifacts_kind)
+    if artifacts_container is None or artifacts_kind is None:
+        return None
+
+    return {"kind": artifacts_kind.as_dict(), "container": artifacts_container}
+
+
 @container.field("targets")
 async def resolve_container_targets(container_obj, info):
     if "targets" in container_obj:
