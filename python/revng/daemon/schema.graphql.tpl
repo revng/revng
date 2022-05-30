@@ -6,8 +6,8 @@ type Query {
     step(name: String!): Step
     container(name: String!, step: String!): Container
     targets(pathspec: String!): [Step!]!
-    produce(step: String!, container: String!, target_list: String!, only_if_ready: Boolean): String
-    produce_artifacts(step: String!, paths: String, only_if_ready: Boolean): String
+    produce(step: String!, container: String!, targetList: String!, onlyIfReady: Boolean): String
+    produceArtifacts(step: String!, paths: String, onlyIfReady: Boolean): String
 
     {%- for rank in structure.keys() %}
     {{ rank.name }}{{ rank | rank_param }}: {{ rank.name | capitalize }}!
@@ -15,17 +15,17 @@ type Query {
 }
 
 type Mutation {
-    upload_b64(input: String!, container: String!): Boolean!
-    upload_file(file: Upload, container: String!): Boolean!
-    run_analysis(step: String!, analysis: String!, container: String!, targets: String!): String!
-    run_all_analyses: String!
+    uploadB64(input: String!, container: String!): Boolean!
+    uploadFile(file: Upload, container: String!): Boolean!
+    runAnalysis(step: String!, analysis: String!, container: String!, targets: String!): String!
+    runAllAnalyses: String!
     analyses: AnalysisMutations!
 }
 
 type AnalysisMutations {
     {%- for step in steps %}
     {%- if step.analyses_count() > 0 %}
-    {{ step.name | snake_case }}: {{ step.name }}Analyses!
+    {{ step.name | pascal_to_camel }}: {{ step.name }}Analyses!
     {%- endif %}
     {%- endfor %}
 }
@@ -64,7 +64,7 @@ type Analysis {
 
 type AnalysisArgument {
     name: ID
-    acceptable_kinds: [Kind!]!
+    acceptableKinds: [Kind!]!
 }
 
 type Container {
@@ -76,7 +76,7 @@ type Container {
 type Target {
     serialized: String
     exact: Boolean
-    path_components: [String!]!
+    pathComponents: [String!]!
     kind: String
     ready: Boolean
 }
@@ -84,7 +84,7 @@ type Target {
 {% for rank, steps in structure.items() %}
 type {{ rank.name | capitalize }} {
 {%- for step in steps %}
-    {{ step.name | snake_case }}(only_if_ready: Boolean): String!
+    {{ step.name | pascal_to_camel }}(onlyIfReady: Boolean): String!
 {%- endfor %}
 }
 {% endfor %}
@@ -93,7 +93,7 @@ type {{ rank.name | capitalize }} {
 {%- if step.analyses_count() > 0 %}
 type {{ step.name }}Analyses {
     {%- for analysis in step.analyses() %}
-    {{ analysis.name | snake_case }}({{ analysis | generate_analysis_parameters }}): String!
+    {{ analysis.name | pascal_to_camel }}({{ analysis | generate_analysis_parameters }}): String!
     {%- endfor %}
 }
 {%- endif %}

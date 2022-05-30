@@ -17,7 +17,7 @@ from revng.api.rank import Rank
 from revng.api.step import Step
 
 from .static_handlers import DEFAULT_BINDABLES, analysis_mutations, run_in_executor
-from .util import str_to_snake_case
+from .util import pascal_to_camel, str_to_snake_case
 
 
 class SchemaGen:
@@ -27,7 +27,8 @@ class SchemaGen:
         local_folder = Path(__file__).parent.resolve()
         self.jenv = Environment(loader=FileSystemLoader(str(local_folder)))
         self.jenv.filters["rank_param"] = self._rank_to_arguments
-        self.jenv.filters["snake_case"] = str_to_snake_case
+        self.jenv.filters["pascal_to_camel"] = pascal_to_camel
+        self.jenv.filters["str_to_snake_case"] = str_to_snake_case
         self.jenv.filters["generate_analysis_parameters"] = self._generate_analysis_parameters
 
     def get_schema(self, manager: Manager) -> GraphQLSchema:
@@ -88,7 +89,7 @@ class BindableGen:
             bindables.append(rank_obj)
             for step in steps:
                 handle = self.gen_step_handle(step)
-                rank_obj.set_field(str_to_snake_case(step.name), handle)
+                rank_obj.set_field(pascal_to_camel(step.name), handle)
 
         return bindables
 
@@ -97,14 +98,12 @@ class BindableGen:
         for step in self.steps:
             if step.analyses_count() < 1:
                 continue
-            analysis_mutations.set_field(
-                str_to_snake_case(step.name), self.analysis_mutation_handle
-            )
+            analysis_mutations.set_field(pascal_to_camel(step.name), self.analysis_mutation_handle)
             step_analysis_obj = ObjectType(f"{step.name}Analyses")
             bindables.append(step_analysis_obj)
             for analysis in step.analyses():
                 handle = self.gen_step_analysis_handle(step, analysis)
-                step_analysis_obj.set_field(str_to_snake_case(analysis.name), handle)
+                step_analysis_obj.set_field(pascal_to_camel(analysis.name), handle)
         return bindables
 
     @staticmethod
@@ -127,12 +126,10 @@ class BindableGen:
 
     @staticmethod
     def gen_step_handle(step: Step):
-        async def rank_step_handle(obj, info, *, only_if_ready=False):
+        async def rank_step_handle(obj, info, *, onlyIfReady=False):  # noqa: N803
             manager: Manager = info.context["manager"]
             return await run_in_executor(
-                lambda: manager.produce_target(
-                    step.name, obj["_target"], only_if_ready=only_if_ready
-                )
+                lambda: manager.produce_target(step.name, obj["_target"], only_if_ready=onlyIfReady)
             )
 
         return rank_step_handle

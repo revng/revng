@@ -62,6 +62,13 @@ def str_to_snake_case(string: str) -> str:
     return "".join(ret)
 
 
+def pascal_to_camel(string: str) -> str:
+    if len(string) == 0:
+        return ""
+    first = string[0]
+    return first.lower() + string[1:]
+
+
 def b64e(string: str) -> str:
     ret = b64encode(string.encode("utf-8"))
     return ret.decode("utf-8")
@@ -83,3 +90,7 @@ def project_workdir() -> Path:
 
     workdir.mkdir(parents=True, exist_ok=True)
     return workdir
+
+
+def target_dict_to_graphql(target_dict: Dict[str, str]):
+    return {"pathComponents": target_dict["path_components"], **target_dict}

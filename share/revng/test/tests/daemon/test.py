@@ -67,7 +67,7 @@ def client(pytestconfig: Config, request) -> Generator[Client, None, None]:
     upload_q = gql(
         """
         mutation upload($file: Upload!) {
-            upload_file(file: $file, container: "input")
+            uploadFile(file: $file, container: "input")
         }
     """
     )
@@ -147,7 +147,7 @@ def test_lift_ready_fail(client):
         """
     {
         root {
-            lift(only_if_ready: true)
+            lift(onlyIfReady: true)
         }
     }
     """
@@ -304,7 +304,7 @@ def test_produce(client):
     q = gql(
         """
     {
-        produce(step: "Lift", container: "module.ll", target_list: ":Root")
+        produce(step: "Lift", container: "module.ll", targetList: ":Root")
     }
     """
     )
@@ -317,13 +317,13 @@ def test_produce_artifact(client):
     q = gql(
         """
     {
-        produce_artifacts(step: "Lift")
+        produceArtifacts(step: "Lift")
     }
     """
     )
     result = client.execute(q)
 
-    assert "produce_artifacts" in result, result["produce_artifacts"] != ""
+    assert "produceArtifacts" in result, result["produceArtifacts"] != ""
 
 
 def test_function_endpoint(client):
@@ -333,7 +333,7 @@ def test_function_endpoint(client):
     mutation {
         analyses {
             lift {
-                detect_abi(module_ll: ":Root")
+                detectABI(module_ll: ":Root")
             }
         }
     }
@@ -377,7 +377,7 @@ def test_analysis_kind_check(client):
     mutation {
         analyses {
             lift {
-                detect_abi(module_ll: ":IsolatedRoot")
+                detectABI(module_ll: ":IsolatedRoot")
             }
         }
     }

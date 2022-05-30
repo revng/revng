@@ -50,8 +50,8 @@
         }).then((res) => res.json());
     }
 
-    async function produce(step_name, container_name, kind_name, exact, path_components) {
-        let target_path = `${path_components.join("/")}:${kind_name}`;
+    async function produce(step_name, container_name, kind_name, exact, pathComponents) {
+        let target_path = `${pathComponents.join("/")}:${kind_name}`;
         let query = `
     {
       produce(step: "${step_name}", container: "${container_name}", target_list: "${target_path}")
@@ -75,7 +75,7 @@
                 ready
                 serialized
                 exact
-                path_components
+                pathComponents
               }
             }
           }
@@ -87,7 +87,7 @@
         for (let step of targets.data.info.steps) {
             for (let container of step.containers) {
                 for (let target of container.targets) {
-                    let target_name = target.path_components.join("/");
+                    let target_name = target.pathComponents.join("/");
                     let target_fullname = `${step.name}/${container.name}/${target_name}:${target.kind}`;
 
                     let target_properties = {
@@ -95,7 +95,7 @@
                         container: container.name,
                         kind: target.kind,
                         exact: true,
-                        path_components: target.path_components,
+                        pathComponents: target.pathComponents,
                     };
 
                     let ready = target.ready ? "Yes" : "No";
@@ -121,7 +121,7 @@
         });
         let input_query = `
       mutation {
-        upload_b64(input: "${btoa(file_reader.result)}", container: "input")
+        uploadB64(input: "${btoa(file_reader.result)}", container: "input")
       }
     `;
 
@@ -130,7 +130,7 @@
         try {
             let analysis_response = await gql(`
         mutation {
-          run_all_analyses
+          runAllAnalyses
         }
       `);
         } catch (err) {
@@ -159,7 +159,7 @@
         });
         $("#targets-table tbody").on("click", "button.produce-btn", async function () {
             let data = $("#targets-table").DataTable().row($(this).parents("tr")).data()[1];
-            await produce(data.step, data.container, data.kind, data.exact, data.path_components);
+            await produce(data.step, data.container, data.kind, data.exact, data.pathComponents);
         });
         loadTargets();
     });
