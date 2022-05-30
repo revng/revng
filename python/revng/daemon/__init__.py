@@ -3,6 +3,7 @@
 #
 
 import logging
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -10,6 +11,7 @@ from starlette.applications import Starlette
 from starlette.config import Config
 from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse
 
@@ -79,10 +81,20 @@ def shutdown():
 
 app = Starlette(
     debug=DEBUG,
-    middleware=[Middleware(ManagerMiddleware)],
+    middleware=[
+        Middleware(ManagerMiddleware),
+        Middleware(
+            CORSMiddleware,
+            allow_origins=os.environ["REVNG_ORIGINS"].split(",")
+            if "REVNG_ORIGINS" in os.environ
+            else [],
+            allow_methods=["*"],
+        ),
+    ],
     on_startup=[startup],
     on_shutdown=[shutdown],
 )
+
 
 app.add_route("/status", status, ["GET"])
 if DEBUG:
