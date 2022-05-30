@@ -128,9 +128,10 @@ class BindableGen:
     def gen_step_handle(step: Step):
         async def rank_step_handle(obj, info, *, onlyIfReady=False):  # noqa: N803
             manager: Manager = info.context["manager"]
-            return await run_in_executor(
+            result = await run_in_executor(
                 lambda: manager.produce_target(step.name, obj["_target"], only_if_ready=onlyIfReady)
             )
+            return json.dumps(result)
 
         return rank_step_handle
 

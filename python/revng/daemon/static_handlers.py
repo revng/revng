@@ -54,9 +54,10 @@ async def resolve_produce(
 ):
     manager: Manager = info.context["manager"]
     targets = targetList.split(",")
-    return await run_in_executor(
+    result = await run_in_executor(
         lambda: manager.produce_target(step, targets, container, onlyIfReady)
     )
+    return json.dumps(result)
 
 
 @query.field("produceArtifacts")
@@ -65,9 +66,10 @@ async def resolve_produce_artifacts(
 ):
     manager: Manager = info.context["manager"]
     target_paths = paths.split(",") if paths is not None else None
-    return await run_in_executor(
+    result = await run_in_executor(
         lambda: manager.produce_target(step, target_paths, only_if_ready=onlyIfReady)
     )
+    return json.dumps(result)
 
 
 @query.field("step")

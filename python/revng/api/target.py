@@ -62,7 +62,7 @@ class Target:
         return make_python_string(_serialized)
 
     def extract(self) -> str:
-        _element = _api.rp_container_extract_one(self._container, self._target)
+        _element = _api.rp_container_extract_one(self._container._container, self._target)
         return make_python_string(_element)
 
     def as_dict(self):
@@ -76,8 +76,6 @@ class Target:
 
 
 class TargetsList:
-    # TODO: maybe we want to have __iter__ and __next__
-
     def __init__(self, targets_list, container: Container):
         self._targets_list = targets_list
         self._container = container

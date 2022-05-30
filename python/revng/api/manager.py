@@ -95,17 +95,20 @@ class Manager:
         step: Step,
         target: Union[Target, List[Target]],
         container: Container,
-    ) -> str:
+    ) -> Dict[str, str]:
         if isinstance(target, Target):
-            _targets = [target._target]
+            targets = [
+                target,
+            ]
         else:
-            _targets = [t._target for t in target]
+            targets = target
         _step = step._step
         _container = container._container
-        _product = _api.rp_manager_produce_targets(
-            self._manager, len(_targets), _targets, _step, _container
+        _api.rp_manager_produce_targets(
+            self._manager, len(targets), [t._target for t in targets], _step, _container
         )
-        return make_python_string(_product)
+
+        return {t.serialize(): t.extract() for t in targets}
 
     def produce_target(
         self,
@@ -113,7 +116,7 @@ class Manager:
         target: Union[None, str, List[str]],
         container_name: Optional[str] = None,
         only_if_ready=False,
-    ) -> str:
+    ) -> Dict[str, str]:
         step = self.get_step(step_name)
         if step is None:
             raise RevngException(f"Invalid step {step_name}")
