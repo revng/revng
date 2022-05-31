@@ -483,10 +483,7 @@ CCodeGenerator::addOperandToken(const llvm::Value *Operand) {
     llvm::APInt Value = Const->getValue();
     if (Value.isIntN(64)) {
       // TODO: Decide how to print constants
-      Value.toString(TokenMap[Operand],
-                     /*radix=*/10,
-                     /*signed=*/false,
-                     /*formatAsCLiteral=*/true);
+      TokenMap[Operand] = to_string(Value.getLimitedValue());
     } else {
       // In C, even if you can have 128-bit variables, you cannot have 128-bit
       // literals, so we need this hack to assign a big constant value to a
