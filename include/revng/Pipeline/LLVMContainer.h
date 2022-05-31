@@ -31,6 +31,7 @@
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -142,49 +143,79 @@ private:
     auto BeforeEnumeration = this->enumerate();
     auto OtherEnumeration = Other.enumerate();
 
+    // We must ensure that merge(Module1, Module2).enumerate() ==
+    // merge(Module1.enumerate(), Module2.enumerate())
+    //
+    // So we enumerate now to have it later.
     BeforeEnumeration.merge(OtherEnumeration);
 
     ThisType &ToMerge = Other;
-    auto Composite = std::make_unique<llvm::Module>("llvm-link",
-                                                    Module->getContext());
-    std::set<std::string> Globals;
+    std::set<std::string> Internals;
+    std::set<std::string> Externals;
 
-    for (auto &Global : Module->globals()) {
-      if (Global.getLinkage() != llvm::GlobalValue::InternalLinkage)
-        continue;
-      Globals.insert(Global.getName().str());
-      Global.setLinkage(llvm::GlobalValue::ExternalLinkage);
+    // All symbols privated and not must be transformed into weak symbols, so
+    // that when multiple with the same name exists, one is dropped.
+    for (auto &Global : ToMerge.getModule().global_objects()) {
+
+      if (Global.getLinkage() == llvm::GlobalValue::InternalLinkage) {
+        Internals.insert(Global.getName().str());
+        Global.setLinkage(llvm::GlobalValue::LinkOnceODRLinkage);
+      }
+
+      if (Global.getLinkage() == llvm::GlobalValue::ExternalLinkage
+          and not Global.isDeclaration()) {
+        Externals.insert(Global.getName().str());
+        Global.setLinkage(llvm::GlobalValue::LinkOnceODRLinkage);
+      }
     }
 
-    for (auto &Global : ToMerge.getModule().globals()) {
-      if (Global.getLinkage() != llvm::GlobalValue::InternalLinkage)
-        continue;
-      Globals.insert(Global.getName().str());
-      Global.setLinkage(llvm::GlobalValue::ExternalLinkage);
+    for (auto &Global : Module->global_objects()) {
+
+      if (Global.getLinkage() == llvm::GlobalValue::InternalLinkage) {
+        Internals.insert(Global.getName().str());
+        Global.setLinkage(llvm::GlobalValue::LinkOnceODRLinkage);
+      }
+
+      if (Global.getLinkage() == llvm::GlobalValue::ExternalLinkage
+          and not Global.isDeclaration()) {
+        Externals.insert(Global.getName().str());
+        Global.setLinkage(llvm::GlobalValue::LinkOnceODRLinkage);
+      }
     }
 
+    // Drops all metadata in the copied in module to avoid a single debug
+    // metadata to be attached to multiple fuctions, which is illformed.
+    for (auto &Global : Module->functions()) {
+      if (ToMerge.getModule().getFunction(Global.getName()))
+        Global.clearMetadata();
+    }
+
+    // We require inputs to be valid
     revng_assert(llvm::verifyModule(ToMerge.getModule(), &llvm::dbgs()) == 0);
     revng_assert(llvm::verifyModule(*Module, &llvm::dbgs()) == 0);
 
-    llvm::Linker TheLinker(*Composite);
+    llvm::Linker TheLinker(*ToMerge.Module);
 
-    bool Failure = TheLinker.linkInModule(std::move(Module),
-                                          llvm::Linker::OverrideFromSrc);
-
-    Failure = Failure
-              or TheLinker.linkInModule(std::move(ToMerge.Module),
-                                        llvm::Linker::OverrideFromSrc);
+    // Actually link
+    bool Failure = TheLinker.linkInModule(std::move(Module));
 
     revng_assert(not Failure, "Linker failed");
+    revng_assert(llvm::verifyModule(*ToMerge.Module, &llvm::dbgs()) == 0);
 
-    for (auto &Global : Composite->globals()) {
-      if (Globals.contains(Global.getName().str()))
+    // Restores the initial linkage for all functions.
+    for (auto &Global : ToMerge.Module->global_objects()) {
+      if (Internals.contains(Global.getName().str()))
         Global.setLinkage(llvm::GlobalValue::InternalLinkage);
+      if (Externals.contains(Global.getName().str()))
+        Global.setLinkage(llvm::GlobalValue::ExternalLinkage);
     }
 
-    revng_assert(llvm::verifyModule(*Composite, nullptr) == 0);
-    Module = std::move(Composite);
+    // We must ensure output is valid
+    revng_assert(llvm::verifyModule(*ToMerge.Module, nullptr) == 0);
+    Module = std::move(ToMerge.Module);
 
+    // checks that module merging commutes w.r.t. enumeration, as specified in
+    // the first comment.
     revng_assert(BeforeEnumeration.contains(this->enumerate()));
     revng_assert(this->enumerate().contains(BeforeEnumeration));
   }
