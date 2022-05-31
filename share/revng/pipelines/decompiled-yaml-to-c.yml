@@ -3,16 +3,15 @@
 #
 
 Containers:
- - Name:            decompiled.c
-   Type:            DecompiledCCode
+  - Name: decompiled.c
+    Type: DecompiledCCode
 Branches:
- - From:            DecompileToCInYAML
-   Steps:
-    - Name:            DecompiledYAMLToC
-      Pipes:
-       - Type:             DecompiledYAMLToC
-         UsedContainers: [decompiled.yml, decompiled.c]
-      Artifacts:
-        Container: decompiled.c
-        Kind: DecompiledToC
-
+  - From: DecompileToCInYAML
+    Steps:
+      - Name: DecompiledYAMLToC
+        Pipes:
+          - Type: DecompiledYAMLToC
+            UsedContainers: [decompiled.yml, decompiled.c]
+        Artifacts:
+          Container: decompiled.c
+          Kind: DecompiledToC

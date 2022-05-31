@@ -3,15 +3,15 @@
 #
 
 Containers:
- - Name:            model_header.h
-   Type:            ModelHeader
+  - Name: model_header.h
+    Type: ModelHeader
 Branches:
- - From:            IRCanonicalization
-   Steps:
-    - Name:            PrintModelHeader
-      Pipes:
-       - Type:             ModelToHeader
-         UsedContainers: [input, model_header.h]
-      Artifacts:
-       Container: model_header.h
-       Kind: ModelHeader
+  - From: IRCanonicalization
+    Steps:
+      - Name: PrintModelHeader
+        Pipes:
+          - Type: ModelToHeader
+            UsedContainers: [input, model_header.h]
+        Artifacts:
+          Container: model_header.h
+          Kind: ModelHeader

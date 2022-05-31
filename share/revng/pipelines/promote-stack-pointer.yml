@@ -3,12 +3,12 @@
 #
 
 Branches:
- - From:            RemoveLiftingArtifacts
-   Steps:
-    - Name:            PromoteStackPointer
-      Pipes:
-       - Type:             LLVMPipe
-         UsedContainers: [module.ll]
-         Passes:
-          - measure-stack-size-at-call-sites
-          - promote-stack-pointer
+  - From: RemoveLiftingArtifacts
+    Steps:
+      - Name: PromoteStackPointer
+        Pipes:
+          - Type: LLVMPipe
+            UsedContainers: [module.ll]
+            Passes:
+              - measure-stack-size-at-call-sites
+              - promote-stack-pointer

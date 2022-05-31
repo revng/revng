@@ -3,25 +3,25 @@
 #
 
 Branches:
- - From:            LateOptimizeForDecompilation
-   Steps:
-   - Name:            IRCanonicalization
-     Pipes:
-       - Type:             LLVMPipe
-         UsedContainers: [module.ll]
-         Passes:
-           - remove-pointer-casts
-           - make-model-gep
-           - dce
-           - exit-ssa
-           - twoscomplement-normalization
-           - make-local-variables
-           - remove-load-store
-           - fold-model-gep
-           - remove-ref-deref
-           - dce
-           - duplicate-references
-           - dce
-           - add-assignment-markers
-           - make-model-cast
-           - operatorprecedence-resolution
+  - From: LateOptimizeForDecompilation
+    Steps:
+      - Name: IRCanonicalization
+        Pipes:
+          - Type: LLVMPipe
+            UsedContainers: [module.ll]
+            Passes:
+              - remove-pointer-casts
+              - make-model-gep
+              - dce
+              - exit-ssa
+              - twoscomplement-normalization
+              - make-local-variables
+              - remove-load-store
+              - fold-model-gep
+              - remove-ref-deref
+              - dce
+              - duplicate-references
+              - dce
+              - add-assignment-markers
+              - make-model-cast
+              - operatorprecedence-resolution

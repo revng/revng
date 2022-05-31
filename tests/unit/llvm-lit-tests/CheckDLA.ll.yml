@@ -4,41 +4,40 @@
 
 ---
 Functions:
-  - Entry:           "0x401200:Code_x86_64"
-    Prototype:       "/Types/RawFunctionType-6646220838590018230"
+  - Entry: "0x401200:Code_x86_64"
+    Prototype: "/Types/RawFunctionType-6646220838590018230"
 Types:
-  - Kind:            StructType
-    ID:              7208194089656236300
+  - Kind: StructType
+    ID: 7208194089656236300
     Fields:
       - Type:
           UnqualifiedType: "/Types/StructType-14349066955625060511"
           Qualifiers:
-            - Kind:            Pointer
+            - Kind: Pointer
       - Type:
           UnqualifiedType: "/Types/PrimitiveType-1032"
-  - Kind:            StructType
-    ID:              14349066955625060511
+  - Kind: StructType
+    ID: 14349066955625060511
     Fields:
       - Type:
           UnqualifiedType: "/Types/StructType-14349066955625060511"
           Qualifiers:
-            - Kind:            Pointer
-            - Kind:            Pointer
+            - Kind: Pointer
+            - Kind: Pointer
       - Type:
           UnqualifiedType: "/Types/StructType-14349066955625060511"
           Qualifiers:
-            - Kind:            Pointer
+            - Kind: Pointer
       - Type:
           UnqualifiedType: "/Types/PrimitiveType-1032"
-  - Kind:            RawFunctionType
-    ID:              6646220838590018230
+  - Kind: RawFunctionType
+    ID: 6646220838590018230
     Arguments:
       - Type:
           UnqualifiedType: "/Types/StructType-14349066955625060511"
           Qualifiers:
-            - Kind:            Pointer
+            - Kind: Pointer
       - Type:
           UnqualifiedType: "/Types/StructType-7208194089656236300"
           Qualifiers:
-            - Kind:            Pointer
-...
+            - Kind: Pointer

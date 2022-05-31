@@ -1,3 +1,7 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
 commands:
   - type: revng-c.lifting-artifacts-removed
     from:
@@ -104,7 +108,7 @@ commands:
         | revng llvm pipeline - - Lift Lift --analysis DetectABI :Root
         | revng llvm pipeline - - Lift DetectStackSize *:LiftingArtifactsRemoved --analysis detect-stack-size
         | revng llvm pipeline - - DetectStackSize LateOptimizeForDecompilation *:StackAccessesSegregated
-        | revng opt -S 
+        | revng opt -S
         | FileCheck ${SOURCE}.filecheck.ll
   - type: revng-c.test-detect-stack-size
     from:

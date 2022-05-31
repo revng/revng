@@ -3,15 +3,15 @@
 #
 
 Containers:
- - Name:            helpers_header.h
-   Type:            HelpersHeader
+  - Name: helpers_header.h
+    Type: HelpersHeader
 Branches:
- - From:            IRCanonicalization
-   Steps:
-   - Name:            PrintHelpersHeader
-     Pipes:
-      - Type:             HelpersToHeader
-        UsedContainers: [module.ll, helpers_header.h]
-     Artifacts:
-       Container: helpers_header.h
-       Kind: HelpersHeader
+  - From: IRCanonicalization
+    Steps:
+      - Name: PrintHelpersHeader
+        Pipes:
+          - Type: HelpersToHeader
+            UsedContainers: [module.ll, helpers_header.h]
+        Artifacts:
+          Container: helpers_header.h
+          Kind: HelpersHeader
