@@ -138,9 +138,13 @@ dropPointer(const model::QualifiedType &QT) {
 
   if (It != NewQT.Qualifiers.rend()) {
     std::erase(NewQT.Qualifiers, *It);
-  } else if (auto *TD = dyn_cast<TypedefType>(NewQT.UnqualifiedType.get())) {
-    rc_return rc_recur dropPointer(TD->UnderlyingType);
+    rc_return NewQT;
   }
 
-  rc_return NewQT;
+  if (auto *TD = dyn_cast<TypedefType>(NewQT.UnqualifiedType.getConst()))
+    rc_return rc_recur dropPointer(TD->UnderlyingType);
+
+  revng_abort("Cannot dropPointer, QT does not have pointer qualifiers");
+
+  rc_return{};
 }

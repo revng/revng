@@ -11,4 +11,5 @@ Steps:
        UsedContainers: [module.ll]
        Passes:
          - remove-lifting-artifacts
+         - promote-init-csv-to-undef
 
