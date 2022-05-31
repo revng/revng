@@ -227,7 +227,7 @@ static StringToken buildAssignmentExpr(const model::QualifiedType &LHSType,
     AssignmentStr += LHSToken;
 
   AssignmentStr += " = ";
-  AssignmentStr += buildCastExpr(RHSToken, LHSType, RHSType);
+  AssignmentStr += buildCastExpr(RHSToken, RHSType, LHSType);
 
   return AssignmentStr;
 }
