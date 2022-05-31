@@ -26,6 +26,8 @@ Tag ModelGEP(ModelGEPName);
 Tag AssignmentMarker(MarkerName);
 Tag OpaqueExtractValue("OpaqueExtractvalue");
 Tag Parentheses("Parentheses");
+Tag WritesMemory("WritesMemory");
+Tag ReadsMemory("ReadsMemory");
 } // namespace FunctionTags
 
 static std::string makeTypeName(const llvm::Type *Ty) {
@@ -141,6 +143,7 @@ getModelGEP(llvm::Module &M, llvm::Type *RetTy, llvm::Type *BaseAddressTy) {
   ModelGEPFunction->addFnAttr(llvm::Attribute::InaccessibleMemOnly);
   FunctionTags::ModelGEP.addTo(ModelGEPFunction);
   FunctionTags::IsRef.addTo(ModelGEPFunction);
+  FunctionTags::ReadsMemory.addTo(ModelGEPFunction);
 
   return ModelGEPFunction;
 }

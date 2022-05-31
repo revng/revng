@@ -32,14 +32,57 @@ Logger<> MarkLog{ "mark-assignments" };
 
 namespace MarkAssignments {
 
+static bool hasSideEffects(const llvm::Instruction &I) {
+  if (isa<llvm::StoreInst>(&I))
+    return true;
+
+  if (auto *Call = llvm::dyn_cast<llvm::CallInst>(&I)) {
+    auto *CalledFunc = Call->getCalledFunction();
+
+    if (not CalledFunc)
+      return false;
+
+    if (FunctionTags::Isolated.isTagOf(CalledFunc)
+        or FunctionTags::WritesMemory.isTagOf(CalledFunc)
+        or FunctionTags::QEMU.isTagOf(CalledFunc) or CalledFunc->isIntrinsic())
+      return true;
+  }
+
+  return false;
+}
+
+using TaintSetT = std::set<const llvm::Instruction *>;
+
 static bool
 haveInterferingSideEffects(const llvm::Instruction & /*InstrWithSideEffects*/,
-                           const llvm::Instruction &Other) {
-  // Calls to pure functions never have interfering side effects.
-  if (isCallToPure(Other))
-    return false;
+                           const llvm::Instruction &Other,
+                           const TaintSetT &TaintSet) {
 
-  return true;
+  auto MightInterfere = [](const llvm::Instruction *I) {
+    if (isa<llvm::StoreInst>(I) or isa<llvm::LoadInst>(I))
+      return true;
+
+    if (auto *Call = llvm::dyn_cast<llvm::CallInst>(I)) {
+      auto *CalledFunc = Call->getCalledFunction();
+
+      if (not CalledFunc)
+        return false;
+
+      if (FunctionTags::Isolated.isTagOf(CalledFunc)
+          or FunctionTags::WritesMemory.isTagOf(CalledFunc)
+          or FunctionTags::ReadsMemory.isTagOf(CalledFunc)
+          or FunctionTags::QEMU.isTagOf(CalledFunc)
+          or CalledFunc->isIntrinsic())
+        return true;
+    }
+
+    return false;
+  };
+
+  // TODO: at the moment we consider any instruction that might interfere with
+  // an instruction with a side effect as interfering. We might want to refine
+  // this by verifying if the interference actually occurs.
+  return MightInterfere(&Other) or llvm::any_of(TaintSet, MightInterfere);
 }
 
 class IntersectionMonotoneSetWithTaint;
@@ -321,20 +364,9 @@ public:
       if (isa<BranchInst>(I) or isa<SwitchInst>(I))
         continue;
 
-      if (isa<StoreInst>(&I) or (isa<CallInst>(&I) and not isCallToPure(I))) {
-        // StoreInst and CallInst that are not pure always have side effects.
+      if (hasSideEffects(I)) {
         Assignments[&I].set(Reasons::HasSideEffects);
         revng_log(MarkLog, "Instr HasSideEffects");
-
-        // Also, force calls to revng_stack_frame to behave like if they had
-        // many uses, so that they generate a local variable.
-        if (auto *Call = dyn_cast<CallInst>(&I)) {
-          auto *Callee = Call->getCalledFunction();
-          if (Callee and FunctionTags::AllocatesLocalVariable.isTagOf(Callee)) {
-            Assignments[&I].set(Reasons::HasManyUses);
-            revng_log(MarkLog, "Instr HasManyUses");
-          }
-        }
       }
 
       switch (I.getNumUses()) {
@@ -373,7 +405,7 @@ public:
           revng_log(MarkLog,
                     "Pending: '" << PendingInstr
                                  << "': " << dumpToString(PendingInstr));
-          if (haveInterferingSideEffects(I, *PendingInstr)) {
+          if (haveInterferingSideEffects(I, *PendingInstr, PendingIt->second)) {
             Assignments[PendingInstr].set(Reasons::HasInterferingSideEffects);
             revng_log(MarkLog, "HasInterferingSideEffects");
 

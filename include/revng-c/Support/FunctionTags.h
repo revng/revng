@@ -25,6 +25,8 @@ extern Tag ModelCast;
 extern Tag AssignmentMarker;
 extern Tag OpaqueExtractValue;
 extern Tag Parentheses;
+extern Tag ReadsMemory;
+extern Tag WritesMemory;
 
 inline Tag LiftingArtifactsRemoved("LiftingArtifactsRemoved", Isolated);
 
