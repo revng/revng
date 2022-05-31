@@ -949,23 +949,13 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
   } else if (auto *Switch = dyn_cast<llvm::SwitchInst>(&I)) {
     // This is never emitted directly in the BB: it is used when emitting
     // control-flow statements during the GHAST visit
-  } else if (auto *IntToPtr = dyn_cast<llvm::IntToPtrInst>(&I)) {
+  } else if (isa<llvm::IntToPtrInst>(&I) or isa<llvm::PtrToIntInst>(&I)) {
+    // Pointer <-> Integer casts are transparent, since the distinction between
+    // integers and pointers is left to the model to decide
+    const llvm::Value *Operand = I.getOperand(0);
+    Expression = TokenMap.at(Operand);
 
-    const llvm::Value *Operand = IntToPtr->getOperand(0);
-    const QualifiedType &OpType = TypeMap.at(Operand);
-
-    if (OpType.isPointer()) {
-      // If the operand has already a pointer type in the model, IntToPtr has
-      // no effect
-      Expression = TokenMap.at(Operand);
-    } else {
-      // If we were not able to identify this value as a pointer, fallback to
-      // converting directly its LLVM type to a QualifiedType
-      QualifiedType PtrType = llvmIntToModelType(IntToPtr->getDestTy(), Model);
-      Expression = buildCastExpr(TokenMap.at(Operand), OpType, PtrType);
-    }
   } else if (auto *Bin = dyn_cast<llvm::BinaryOperator>(&I)) {
-
     const llvm::Value *Op1 = Bin->getOperand(0);
     const llvm::Value *Op2 = Bin->getOperand(1);
     const QualifiedType &ResultType = TypeMap.at(Bin);

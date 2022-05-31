@@ -510,19 +510,16 @@ ModelTypesMap initModelTypes(const llvm::Function &F,
 
       } break;
 
-      case Instruction::IntToPtr: {
-        const llvm::IntToPtrInst *IntToPtr = dyn_cast<llvm::IntToPtrInst>(&I);
-        const llvm::Value *Operand = IntToPtr->getOperand(0);
+      case Instruction::IntToPtr:
+      case Instruction::PtrToInt: {
+        // If the PointersOnly flag is set, we ignore IntToPtr and PtrToInt
+        if (not PointersOnly) {
+          const llvm::Value *Operand = I.getOperand(0);
 
-        auto It = TypeMap.find(Operand);
-        if (It == TypeMap.end())
-          continue;
-
-        const QualifiedType &OperandType = It->second;
-
-        // If the operand has already a pointer qualified type, forward it
-        if (OperandType.isPointer()) {
-          Type = OperandType;
+          // Forward the type if there is one
+          auto It = TypeMap.find(Operand);
+          if (It != TypeMap.end())
+            Type = It->second;
         }
 
       } break;
