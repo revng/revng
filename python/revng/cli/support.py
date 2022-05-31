@@ -7,7 +7,7 @@ import shlex
 import signal
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from itertools import chain
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, NoReturn, Optional, Set, Tuple, Union
@@ -20,16 +20,19 @@ try:
 except ImportError:
     from backports.shutil_which import which  # type: ignore
 
+script_path = os.path.dirname(os.path.realpath(__file__))
+root_path = os.path.join(script_path, "..", "..", "..", "..")
+
 
 @dataclass
 class Options:
     parsed_args: Any
     remaining_args: List[str]
-    search_prefixes: List[str]
     command_prefix: List[str]
     verbose: bool
     dry_run: bool
     keep_temporaries: bool
+    search_prefixes: List[str] = field(default_factory=lambda: [root_path])
 
 
 def shlex_join(split_command: Iterable[str]) -> str:

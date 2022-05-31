@@ -37,10 +37,7 @@ def run_revng_command(arguments, options: Options):
             prefixes += [arg[len("--prefix=") :]]
         elif arg == "--prefix" and next_arg != "":
             prefixes += [next_arg]
-    script_path = os.path.dirname(os.path.realpath(__file__))
-    options.search_prefixes = extend_list(
-        options.search_prefixes, prefixes + [os.path.join(script_path, "..", "..", "..", "..")]
-    )
+    options.search_prefixes = extend_list(options.search_prefixes, prefixes)
 
     # Register external commands
     prefix = "revng-"
@@ -53,4 +50,4 @@ def run_revng_command(arguments, options: Options):
 
 
 def main():
-    return run_revng_command(sys.argv[1:], Options(None, [], [], [], False, False, False))
+    return run_revng_command(sys.argv[1:], Options(None, [], [], False, False, False))
