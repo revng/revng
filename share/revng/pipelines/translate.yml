@@ -27,6 +27,7 @@ Branches:
         Artifacts:
           Container: module.ll
           Kind: Root
+          SingleTargetFilename: module_lifted.ll
         Analyses:
           - Name: DetectABI
             Type: DetectABI
@@ -46,3 +47,4 @@ Branches:
         Artifacts:
           Container: output
           Kind: Translated
+          SingleTargetFilename: translated_binary

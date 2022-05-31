@@ -14,9 +14,6 @@ Branches:
         Pipes:
           - Type: process-assembly
             UsedContainers: [input, module.ll, assembly-internal.yml]
-        Artifacts:
-          Container: assembly-internal.yml
-          Kind: FunctionAssemblyInternal
       - Name: YieldAssembly
         Pipes:
           - Type: yield-assembly
@@ -24,3 +21,4 @@ Branches:
         Artifacts:
           Container: assembly-html.yml
           Kind: FunctionAssemblyHTML
+          SingleTargetFilename: disassembly.S

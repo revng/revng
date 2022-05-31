@@ -44,6 +44,10 @@ class Step:
         _container = _api.rp_step_get_artifacts_container(self._step)
         return Container(_container, self.name) if _container != ffi.NULL else None
 
+    def get_artifacts_single_target_filename(self) -> Optional[str]:
+        _filename = _api.rp_step_get_artifacts_single_target_filename(self._step)
+        return make_python_string(_filename) if _filename != ffi.NULL else None
+
     def analyses_count(self) -> int:
         return _api.rp_step_get_analyses_count(self._step)
 

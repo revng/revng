@@ -18,3 +18,4 @@ Branches:
         Artifacts:
           Container: module.ll
           Kind: CSVsPromoted
+          SingleTargetFilename: module_abienforced.ll

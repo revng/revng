@@ -230,10 +230,21 @@ async def resolve_step_artifacts(step_obj, info):
     step = await run_in_executor(lambda: manager.get_step(step_obj["name"]))
     artifacts_container = await run_in_executor(step.get_artifacts_container)
     artifacts_kind = await run_in_executor(step.get_artifacts_kind)
-    if artifacts_container is None or artifacts_kind is None:
+    artifacts_single_target_filename = await run_in_executor(
+        step.get_artifacts_single_target_filename
+    )
+    if (
+        artifacts_container is None
+        or artifacts_kind is None
+        or artifacts_single_target_filename is None
+    ):
         return None
 
-    return {"kind": artifacts_kind.as_dict(), "container": artifacts_container}
+    return {
+        "kind": artifacts_kind.as_dict(),
+        "container": artifacts_container,
+        "singleTargetFilename": artifacts_single_target_filename,
+    }
 
 
 @container.field("targets")

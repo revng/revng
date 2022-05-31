@@ -312,6 +312,11 @@ rp_kind *rp_step_get_artifacts_kind(rp_step *step);
 rp_container *rp_step_get_artifacts_container(rp_step *step);
 
 /**
+ * \return the artifacts filename to use for a single target
+ */
+const char *rp_step_get_artifacts_single_target_filename(rp_step *step);
+
+/**
  * \return the number of analysis present in this step
  */
 int rp_step_get_analyses_count(rp_step *step);

@@ -244,6 +244,11 @@ rp_container *rp_step_get_artifacts_container(rp_step *step) {
   return step->getArtifactsContainer();
 }
 
+const char *rp_step_get_artifacts_single_target_filename(rp_step *step) {
+  revng_check(step != nullptr);
+  return copyString(step->getArtifactsSingleTargetFilename());
+}
+
 uint64_t rp_targets_list_targets_count(rp_targets_list *targets_list) {
   revng_check(targets_list != nullptr);
   return targets_list->size();

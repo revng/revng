@@ -44,12 +44,20 @@ private:
   struct ArtifactsInfo {
     std::string Container;
     const Kind *Kind;
+    std::string SingleTargetFilename;
 
-    ArtifactsInfo() : Container(""), Kind(nullptr) {}
-    ArtifactsInfo(std::string Container, const pipeline::Kind *Kind) :
-      Container(std::move(Container)), Kind(Kind) {}
+    ArtifactsInfo() : Container(), Kind(nullptr), SingleTargetFilename() {}
+    ArtifactsInfo(std::string Container,
+                  const pipeline::Kind *Kind,
+                  std::string SingleTargetFilename) :
+      Container(std::move(Container)),
+      Kind(Kind),
+      SingleTargetFilename(std::move(SingleTargetFilename)) {}
 
-    bool isValid() { return !Container.empty() && Kind != nullptr; }
+    bool isValid() {
+      return !Container.empty() && Kind != nullptr
+             && !SingleTargetFilename.empty();
+    }
   };
 
   std::string Name;
@@ -110,13 +118,16 @@ public:
   const ContainerSet &containers() const { return Containers; }
   ContainerSet &containers() { return Containers; }
 
-  llvm::Error
-  setArtifacts(std::string ContainerName, const Kind *ArtifactsKind) {
+  llvm::Error setArtifacts(std::string ContainerName,
+                           const Kind *ArtifactsKind,
+                           std::string SingleTargetFilename) {
     if (Containers.find(ContainerName) == Containers.end()) {
       return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                      "Artifact Container does not exist");
     }
-    Artifacts = ArtifactsInfo(std::move(ContainerName), ArtifactsKind);
+    Artifacts = ArtifactsInfo(std::move(ContainerName),
+                              ArtifactsKind,
+                              std::move(SingleTargetFilename));
     return llvm::Error::success();
   }
 
@@ -140,6 +151,14 @@ public:
     } else {
       return nullptr;
     }
+  }
+
+  llvm::StringRef getArtifactsSingleTargetFilename() {
+    if (!Artifacts.isValid()) {
+      return llvm::StringRef();
+    }
+
+    return Artifacts.SingleTargetFilename;
   }
 
 public:

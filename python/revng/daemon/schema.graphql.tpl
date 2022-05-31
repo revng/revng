@@ -67,6 +67,7 @@ type Step {
 type Artifacts {
     kind: Kind!
     container: Container!
+    singleTargetFilename: String!
 }
 
 type Analysis {
