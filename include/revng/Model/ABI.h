@@ -220,6 +220,27 @@ inline constexpr model::ABI::Values getDefault(model::Architecture::Values V) {
   }
 }
 
+// TODO: Consider factoring these binary specific things into a ELF/PEModel.h.
+inline constexpr model::ABI::Values
+getDefaultMicrosoftABI(model::Architecture::Values V) {
+  switch (V) {
+  case model::Architecture::x86_64:
+    return model::ABI::Microsoft_x86_64;
+  case model::Architecture::x86:
+    return model::ABI::Microsoft_x86_cdecl;
+  case model::Architecture::mips:
+    return model::ABI::SystemV_MIPS_o32;
+  case model::Architecture::mipsel:
+    return model::ABI::SystemV_MIPSEL_o32;
+  case model::Architecture::arm:
+    return model::ABI::AAPCS;
+  case model::Architecture::aarch64:
+    return model::ABI::AAPCS64;
+  default:
+    revng_abort();
+  }
+}
+
 inline constexpr llvm::StringRef getDescription(model::ABI::Values V) {
   switch (V) {
   case model::ABI::SystemV_x86_64:

@@ -8,7 +8,9 @@
 #include "llvm/Object/COFF.h"
 #include "llvm/Object/ObjectFile.h"
 
+#include "revng/ABI/DefaultFunctionPrototype.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/Importer/DebugInfo/PDBImporter.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Support/Debug.h"
 
@@ -319,6 +321,15 @@ Error PECOFFImporter::import() {
   // Parse delay dynamic symbol table (similar to ELF's symbols used for lazy
   // linking).
   parseDelayImportedSymbols();
+
+  if (Model->DefaultABI == model::ABI::Invalid)
+    Model->DefaultABI = model::ABI::getDefaultMicrosoftABI(Model->Architecture);
+
+  // Create a default prototype.
+  Model->DefaultPrototype = abi::registerDefaultFunctionPrototype(*Model);
+
+  PDBImporter PDBI(Model, ImageBase);
+  PDBI.import(TheBinary);
 
   return Error::success();
 }

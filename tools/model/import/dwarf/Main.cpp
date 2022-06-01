@@ -9,7 +9,7 @@
 
 #include "llvm/Support/CommandLine.h"
 
-#include "revng/Model/Importer/Dwarf/DwarfImporter.h"
+#include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
 #include "revng/Model/ToolHelpers.h"
 #include "revng/Support/InitRevng.h"
 

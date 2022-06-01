@@ -5,4 +5,4 @@
 revng_add_executable(revng-model-import-dwarf Main.cpp)
 
 target_link_libraries(revng-model-import-dwarf revngModel
-                      revngModelImporterDwarf)
+                      revngModelImporterDebugInfo)
