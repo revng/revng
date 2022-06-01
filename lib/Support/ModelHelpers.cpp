@@ -173,3 +173,11 @@ dropPointer(const model::QualifiedType &QT) {
 
   rc_return{};
 }
+
+model::QualifiedType
+deserializeAndParseQualifiedType(llvm::Value *Operand,
+                                 const model::Binary &Model) {
+  llvm::StringRef BaseTypeString = extractFromConstantStringPtr(Operand);
+  auto CurType = parseQualifiedType(BaseTypeString, Model);
+  return CurType;
+}

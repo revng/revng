@@ -16,3 +16,4 @@ Branches:
            - exit-ssa
            - twoscomplement-normalization
            - add-assignment-markers
+           - make-model-cast

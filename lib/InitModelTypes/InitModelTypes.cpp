@@ -237,26 +237,29 @@ static TypeVector getReturnTypes(const llvm::CallInst *Call,
     auto *CalledFunc = Call->getCalledFunction();
     const auto &FuncName = CalledFunc->getName();
 
-    if (FunctionTags::ModelGEP.isTagOf(CalledFunc)) {
+    if (FunctionTags::ModelGEP.isTagOf(CalledFunc)
+        || FunctionTags::ModelCast.isTagOf(CalledFunc)) {
       revng_assert(Call->getNumArgOperands() >= 2);
-      // ModelGEPs contain a string with the serialization of the pointer's
-      // base QualifiedType as a first argument
+      // ModelGEPs and ModelCasts contain a string with the serialization of the
+      // pointer's base QualifiedType as a first argument
       StringRef FirstOp = extractFromConstantStringPtr(Call->getArgOperand(0));
-      QualifiedType GEPpedType = parseQualifiedType(FirstOp, Model);
+      QualifiedType ParsedType = parseQualifiedType(FirstOp, Model);
 
-      // Second argument is the base llvm::Value
-      // Further arguments are used to traverse the model
-      auto CurArg = Call->arg_begin() + 2;
-      for (; CurArg != Call->arg_end(); ++CurArg) {
-        uint64_t Idx = 0;
+      if (FunctionTags::ModelGEP.isTagOf(CalledFunc)) {
+        // Second argument is the base llvm::Value
+        // Further arguments are used to traverse the model
+        auto CurArg = Call->arg_begin() + 2;
+        for (; CurArg != Call->arg_end(); ++CurArg) {
+          uint64_t Idx = 0;
 
-        if (auto *ArgAsInt = dyn_cast<llvm::ConstantInt>(CurArg->get()))
-          Idx = ArgAsInt->getValue().getLimitedValue();
+          if (auto *ArgAsInt = dyn_cast<llvm::ConstantInt>(CurArg->get()))
+            Idx = ArgAsInt->getValue().getLimitedValue();
 
-        GEPpedType = traverseModelGEP(GEPpedType, Idx);
+          ParsedType = traverseModelGEP(ParsedType, Idx);
+        }
       }
 
-      ReturnTypes.push_back(GEPpedType);
+      ReturnTypes.push_back(ParsedType);
 
     } else if (FunctionTags::AddressOf.isTagOf(CalledFunc)) {
       // AddressOf contains a string with the serialization of the pointed type

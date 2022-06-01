@@ -21,6 +21,7 @@ extern Tag MallocLike;
 extern Tag IsRef;
 extern Tag AddressOf;
 extern Tag ModelGEP;
+extern Tag ModelCast;
 extern Tag AssignmentMarker;
 extern Tag OpaqueExtractValue;
 
@@ -66,6 +67,9 @@ void initAddressOfPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
 
 llvm::Function *
 getModelGEP(llvm::Module &M, llvm::Type *RetTy, llvm::Type *BaseAddressTy);
+
+/// Initializes a pool of ModelCast functions
+void initModelCastPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
 
 llvm::Function *getAssignmentMarker(llvm::Module &M, llvm::Type *T);
 
