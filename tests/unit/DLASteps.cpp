@@ -396,6 +396,7 @@ BOOST_AUTO_TEST_CASE(ComputeUpperMemberAccesses_basic) {
   dla::StepManager SM;
   revng_check(SM.addStep<CollapseEqualitySCC>());
   revng_check(SM.addStep<CollapseInstanceAtOffset0SCC>());
+  revng_check(SM.addStep<PruneLayoutNodesWithoutLayout>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
   SM.run(TS);
   // Compress the equivalence classes
@@ -466,6 +467,7 @@ BOOST_AUTO_TEST_CASE(ComputeNonInterferingComponents_basic) {
   dla::StepManager SM;
   revng_check(SM.addStep<CollapseEqualitySCC>());
   revng_check(SM.addStep<CollapseInstanceAtOffset0SCC>());
+  revng_check(SM.addStep<PruneLayoutNodesWithoutLayout>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
   SM.run(TS);
@@ -535,6 +537,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_basic) {
   dla::StepManager SM;
   revng_check(SM.addStep<CollapseEqualitySCC>());
   revng_check(SM.addStep<CollapseInstanceAtOffset0SCC>());
+  revng_check(SM.addStep<PruneLayoutNodesWithoutLayout>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
   revng_check(SM.addStep<DeduplicateUnionFields>());
@@ -586,6 +589,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_diamond) {
   dla::StepManager SM;
   revng_check(SM.addStep<CollapseEqualitySCC>());
   revng_check(SM.addStep<CollapseInstanceAtOffset0SCC>());
+  revng_check(SM.addStep<PruneLayoutNodesWithoutLayout>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
   revng_check(SM.addStep<DeduplicateUnionFields>());
@@ -628,6 +632,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeSymmetric) {
   dla::StepManager SM;
   revng_check(SM.addStep<CollapseEqualitySCC>());
   revng_check(SM.addStep<CollapseInstanceAtOffset0SCC>());
+  revng_check(SM.addStep<PruneLayoutNodesWithoutLayout>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
   revng_check(SM.addStep<DeduplicateUnionFields>());
@@ -669,6 +674,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeAsymmetric) {
   dla::StepManager SM;
   revng_check(SM.addStep<CollapseEqualitySCC>());
   revng_check(SM.addStep<CollapseInstanceAtOffset0SCC>());
+  revng_check(SM.addStep<PruneLayoutNodesWithoutLayout>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
   revng_check(SM.addStep<DeduplicateUnionFields>());
@@ -712,6 +718,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeAsymmetricCollapse) {
   dla::StepManager SM;
   revng_check(SM.addStep<CollapseEqualitySCC>());
   revng_check(SM.addStep<CollapseInstanceAtOffset0SCC>());
+  revng_check(SM.addStep<PruneLayoutNodesWithoutLayout>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
   revng_check(SM.addStep<DeduplicateUnionFields>());

@@ -118,7 +118,7 @@ class PruneLayoutNodesWithoutLayout : public Step {
 public:
   static const constexpr void *getID() { return &ID; }
 
-  PruneLayoutNodesWithoutLayout() : Step(ID){};
+  PruneLayoutNodesWithoutLayout() : Step(ID) {}
 
   virtual ~PruneLayoutNodesWithoutLayout() override = default;
 
@@ -136,8 +136,11 @@ public:
   ComputeUpperMemberAccesses() :
     Step(ID,
          // Dependencies
-         { CollapseInstanceAtOffset0SCC::getID(),
-           CollapseEqualitySCC::getID() },
+         {
+           CollapseInstanceAtOffset0SCC::getID(),
+           CollapseEqualitySCC::getID(),
+           PruneLayoutNodesWithoutLayout::getID(),
+         },
          // Invalidated
          {}) {}
 
