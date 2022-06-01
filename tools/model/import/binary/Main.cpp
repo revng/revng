@@ -11,7 +11,7 @@
 
 #include "revng/Model/Importer/Binary/BinaryImporter.h"
 #include "revng/Model/Importer/Binary/BinaryImporterOptions.h"
-#include "revng/Model/Importer/Dwarf/DwarfImporter.h"
+#include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
 #include "revng/Model/ToolHelpers.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/InitRevng.h"

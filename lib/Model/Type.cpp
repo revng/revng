@@ -407,8 +407,13 @@ isValidPrimitiveSize(PrimitiveTypeKind::Values PrimKind, uint8_t BS) {
   case PrimitiveTypeKind::Signed:
     return BS == 1 or BS == 2 or BS == 4 or BS == 8 or BS == 16;
 
+  // NOTE: We are supporting floats that are 10 bytes long, since we found such
+  // cases in some PDB files by using VS on Windows platforms. The source code
+  // of those cases could be written in some language other than C/C++ (probably
+  // Swift). We faced some struct fields by using this (10b long float) type, so
+  // by ignoring it we would not have accurate layout for the structs.
   case PrimitiveTypeKind::Float:
-    return BS == 2 or BS == 4 or BS == 8 or BS == 12 or BS == 16;
+    return BS == 2 or BS == 4 or BS == 8 or BS == 10 or BS == 12 or BS == 16;
 
   default:
     revng_abort();
@@ -1027,10 +1032,11 @@ verifyImpl(VerifyHelper &VH, const StructType *T) {
     if (NextFieldIt != FieldEnd) {
       // If this field is not the last, check that it does not overlap with the
       // following field.
-      if (FieldEndOffset > NextFieldIt->Offset)
+      if (FieldEndOffset > NextFieldIt->Offset) {
         rc_return VH.fail("Field " + Twine(Index + 1)
                             + " overlaps with the next one",
                           *T);
+      }
     } else if (FieldEndOffset > T->Size) {
       // Otherwise, if this field is the last, check that it's not larger than
       // size.
@@ -1097,31 +1103,31 @@ verifyImpl(VerifyHelper &VH, const CABIFunctionType *T) {
     rc_return VH.fail();
 
   if (T->ABI == model::ABI::Invalid)
-    rc_return VH.fail();
+    rc_return VH.fail("An invalid ABI", *T);
 
   for (auto &Group : llvm::enumerate(T->Arguments)) {
     auto &Argument = Group.value();
     uint64_t ArgPos = Group.index();
 
     if (not Argument.CustomName.verify(VH))
-      rc_return VH.fail();
+      rc_return VH.fail("An argument has invalid CustomName", *T);
 
     if (Argument.Index != ArgPos)
-      rc_return VH.fail();
+      rc_return VH.fail("An argument has invalid index", *T);
 
     if (not rc_recur Argument.Type.verify(VH))
-      rc_return VH.fail();
+      rc_return VH.fail("An argument has invalid type", *T);
 
     VoidConstResult VoidConst = isVoidConst(&Argument.Type);
     if (VoidConst.IsVoid) {
       // If we have a void argument it must be the only one, and the function
       // cannot be vararg.
       if (T->Arguments.size() > 1)
-        rc_return VH.fail();
+        rc_return VH.fail("More than 1 void argument", *T);
 
       // Cannot have const-qualified void as argument.
       if (VoidConst.IsConst)
-        rc_return VH.fail();
+        rc_return VH.fail("Cannot have const void argument", *T);
     }
   }
 
@@ -1260,9 +1266,10 @@ RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
 
     if (Qualifier::isPointer(Q)) {
       // Don't proceed the verification, just make sure the pointer is either
-      // 32- or 64-bits
+      // 32- or 64-bit
       rc_return VH.maybeFail(Q.Size == 4 or Q.Size == 8,
-                             "Only 32-bit and 64-bit pointers are currently "
+                             "Only 32-bit and 64-bit pointers "
+                             "are currently "
                              "supported",
                              *this);
 
@@ -1395,7 +1402,7 @@ RecursiveCoroutine<bool> UnionField::verify(VerifyHelper &VH) const {
   // Aggregated fields cannot be zero-sized fields
   auto MaybeSize = rc_recur Type.size(VH);
   if (not MaybeSize)
-    rc_return VH.fail("Aggregate field is zero-sized");
+    rc_return VH.fail("Aggregate field is zero-sized", Type);
 
   rc_return VH.maybeFail(CustomName.verify(VH));
 }

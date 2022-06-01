@@ -58,6 +58,7 @@ BOOST_AUTO_TEST_CASE(PrimitiveTypes) {
   revng_check(PrimitiveType(PrimitiveTypeKind::Float, 2).verify(true));
   revng_check(PrimitiveType(PrimitiveTypeKind::Float, 4).verify(true));
   revng_check(PrimitiveType(PrimitiveTypeKind::Float, 8).verify(true));
+  revng_check(PrimitiveType(PrimitiveTypeKind::Float, 10).verify(true));
   revng_check(PrimitiveType(PrimitiveTypeKind::Float, 16).verify(true));
 
   auto Unsigned = PrimitiveType(PrimitiveTypeKind::Unsigned, 1);
@@ -87,8 +88,8 @@ BOOST_AUTO_TEST_CASE(PrimitiveTypes) {
     using namespace std::string_literals;
 
     Float = PrimitiveType(PrimitiveTypeKind::Float, ByteSize);
-    if (ByteSize == 2 or ByteSize == 4 or ByteSize == 8 or ByteSize == 12
-        or ByteSize == 16) {
+    if (ByteSize == 2 or ByteSize == 4 or ByteSize == 8 or ByteSize == 10
+        or ByteSize == 12 or ByteSize == 16) {
       revng_check(Float.verify(true));
       revng_check(Float.name() == ("float" + Twine(8 * ByteSize) + "_t").str());
     } else {

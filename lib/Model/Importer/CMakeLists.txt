@@ -3,4 +3,4 @@
 #
 
 add_subdirectory(Binary)
-add_subdirectory(Dwarf)
+add_subdirectory(DebugInfo)

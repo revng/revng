@@ -8,7 +8,7 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/Importer/Binary/BinaryImporter.h"
 #include "revng/Model/Importer/Binary/BinaryImporterOptions.h"
-#include "revng/Model/Importer/Dwarf/DwarfImporter.h"
+#include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Pipes/ImportBinaryPipe.h"
 #include "revng/Pipes/ModelGlobal.h"
