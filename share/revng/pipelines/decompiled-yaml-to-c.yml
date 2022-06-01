@@ -15,3 +15,4 @@ Branches:
         Artifacts:
           Container: decompiled.c
           Kind: DecompiledToC
+          SingleTargetFilename: binary_decompiled.c

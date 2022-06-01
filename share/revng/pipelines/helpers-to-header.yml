@@ -15,3 +15,4 @@ Branches:
         Artifacts:
           Container: helpers_header.h
           Kind: HelpersHeader
+          SingleTargetFilename: helpers_header.h

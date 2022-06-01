@@ -19,3 +19,4 @@ Branches:
         Artifacts:
           Container: decompiled.yml
           Kind: DecompiledToYAML
+          SingleTargetFilename: decompiled.c
