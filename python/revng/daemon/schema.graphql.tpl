@@ -34,8 +34,14 @@ type Info {
     kinds: [Kind!]!
     ranks: [Rank!]!
     steps: [Step!]!
-    globals: [String!]!
+    globals: [Global!]!
+    global(name: String!): String!
     model: String!
+}
+
+type Global {
+    name: ID
+    content: String!
 }
 
 type Kind {

@@ -175,7 +175,15 @@ async def resolve_root_kinds(_, info):
 @info.field("globals")
 async def resolve_info_globals(_, info):
     manager: Manager = info.context["manager"]
-    return await run_in_executor(lambda: list(manager.globals_list()))
+    return await run_in_executor(
+        lambda: [{"name": g, "content": manager.get_global(g)} for g in manager.globals_list()]
+    )
+
+
+@info.field("global")
+async def resolve_info_global(_, info, *, name: str):
+    manager: Manager = info.context["manager"]
+    return await run_in_executor(lambda: manager.get_global(name))
 
 
 @info.field("model")

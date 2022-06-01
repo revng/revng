@@ -125,6 +125,31 @@ def test_info(client):
     assert "begin" in step_names
 
 
+def test_info_global(client):
+    q = gql(
+        """
+    {
+        info {
+            globals {
+                name
+                content
+            }
+            model: global(name: "model.yml")
+        }
+    }
+    """
+    )
+
+    result = client.execute(q)
+
+    model = next(r for r in result["info"]["globals"] if r["name"] == "model.yml")
+    model_content = result["info"]["model"]
+
+    assert model is not None
+    assert model_content is not None
+    assert model["content"] == model_content
+
+
 def test_lift(client):
     q = gql(
         """

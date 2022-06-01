@@ -387,18 +387,18 @@ class Manager:
 
     # Global Handling & misc.
 
-    def _get_global(self, name) -> str:
+    def get_global(self, name) -> str:
         _name = make_c_string(name)
         _out = _api.rp_manager_create_global_copy(self._manager, _name)
         return make_python_string(_out)
 
-    def _set_global(self, name, content):
+    def set_global(self, name, content):
         _name = make_c_string(name)
         _content = make_c_string(content)
         _api.rp_manager_set_global(self._manager, _content, _name)
 
     def get_model(self) -> str:
-        return self._get_global("model.yml")
+        return self.get_global("model.yml")
 
     def globals_count(self) -> int:
         return _api.rp_manager_get_globals_count(self._manager)
