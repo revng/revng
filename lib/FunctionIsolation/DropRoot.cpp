@@ -9,6 +9,7 @@
 
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Contract.h"
+#include "revng/Pipeline/RegisterLLVMPass.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/RootKind.h"
 #include "revng/Pipes/TaggedFunctionKind.h"
@@ -50,3 +51,5 @@ struct DropRootPipe {
     Manager.add(new DropRootPass());
   }
 };
+
+static pipeline::RegisterLLVMPass<DropRootPipe> R;

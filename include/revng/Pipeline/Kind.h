@@ -20,6 +20,8 @@ class TargetsList;
 class ContainerBase;
 class InvalidationEventBase;
 
+class DeadKind;
+
 /// A Kind is used to accumunate objects that logically belongs to the same
 /// category.
 ///
@@ -76,10 +78,23 @@ public:
 
 public:
   template<Rank *R>
-  static Kind &deadKind() {
-    static Kind DeadKind("Dead", R);
-    return DeadKind;
-  }
+  static Kind &deadKind();
 };
+
+class DeadKind : public Kind {
+
+public:
+  DeadKind(Rank *R) : Kind("Dead", R) {}
+
+  void expandTarget(const Context &Ctx,
+                    const Target &Input,
+                    TargetsList &Output) const final {}
+};
+
+template<Rank *R>
+inline Kind &Kind::deadKind() {
+  static DeadKind Kind(R);
+  return Kind;
+}
 
 } // namespace pipeline

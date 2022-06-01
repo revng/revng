@@ -5,6 +5,7 @@
 //
 
 #include "revng/Pipeline/Kind.h"
+#include "revng/Pipes/FunctionKind.h"
 #include "revng/Pipes/RootKind.h"
 #include "revng/Pipes/TaggedFunctionKind.h"
 
@@ -29,9 +30,9 @@ inline TaggedFunctionKind
 inline pipeline::Kind Object("Object", &RootRank);
 inline pipeline::Kind Translated("Translated", &RootRank);
 
-inline pipeline::Kind
+inline FunctionKind
   FunctionAssemblyInternal("FunctionAssemblyInternal", &FunctionsRank);
-inline pipeline::Kind
+inline FunctionKind
   FunctionAssemblyHTML("FunctionAssemblyHTML", &FunctionsRank);
 inline pipeline::Kind
   FunctionControlFlowGraphSVG("FunctionControlFlowGraphSVG", &FunctionsRank);

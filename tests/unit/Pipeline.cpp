@@ -285,6 +285,21 @@ BOOST_AUTO_TEST_CASE(InputOutputContractExactExactForward) {
   BOOST_TEST((Targets[CName][0].kindExactness() == KE::Exact));
 }
 
+BOOST_AUTO_TEST_CASE(InputOutputContractExactKillForward) {
+  ContainerToTargetsMap Targets;
+  Targets[CName].emplace_back(Target({}, RootKind2));
+  ContractGroup Contract1(RootKind,
+                          KE::DerivedFrom,
+                          0,
+                          RootKind3,
+                          0,
+                          InputPreservation::Erase);
+  Contract1.deduceResults(Targets, { CName });
+  BOOST_TEST((Targets[CName].size() == 1));
+  BOOST_TEST((&Targets[CName][0].getKind() == &RootKind3));
+  BOOST_TEST((Targets[CName][0].kindExactness() == KE::Exact));
+}
+
 BOOST_AUTO_TEST_CASE(InputOutputContractMultiLine) {
   ContainerToTargetsMap Targets;
   Targets["third"].emplace_back(Target({}, RootKind));
