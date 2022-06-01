@@ -40,7 +40,6 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
       continue;
 
     for (LTSN *N : llvm::post_order_ext(NonPointerFilterT(Root), Visited)) {
-      revng_assert(not isLeaf(N) or N->Size);
       revng_assert(N->Size);
 
       struct OrderedChild {
