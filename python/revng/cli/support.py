@@ -52,8 +52,12 @@ def relative(path: str) -> str:
 def try_run(
     command, options: Options, environment: Optional[Dict[str, str]] = None, do_exec=False
 ) -> Union[int, NoReturn]:
-    if is_executable(command[0]):
-        command = wrap(command, options.command_prefix)
+    if len(options.command_prefix) > 0:
+        if is_executable(command[0]):
+            command = wrap(command, options.command_prefix)
+        else:
+            sh = get_command("sh", options.search_prefixes)
+            command = wrap([sh, "-c", 'exec "$0" "$@"', *command], options.command_prefix)
 
     if options.verbose:
         program_path = relative(command[0])
