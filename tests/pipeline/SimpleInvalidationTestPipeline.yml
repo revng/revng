@@ -3,13 +3,13 @@
 #
 
 Containers:
- - Name:            Strings1
-   Type:            StringContainer
- - Name:            Strings2
-   Type:            StringContainer
+  - Name: Strings1
+    Type: StringContainer
+  - Name: Strings2
+    Type: StringContainer
 Branches:
   - Steps:
-    - Name:            FirstStep
-      Pipes:
-      - Type:             CopyPipe
-        UsedContainers: [Strings1, Strings2]
+      - Name: FirstStep
+        Pipes:
+          - Type: CopyPipe
+            UsedContainers: [Strings1, Strings2]

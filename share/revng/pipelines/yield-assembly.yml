@@ -3,24 +3,24 @@
 #
 
 Containers:
- - Name:            assembly-internal.yml
-   Type:            FunctionAssemblyInternal
- - Name:            assembly-html.yml
-   Type:            FunctionAssemblyHTML
+  - Name: assembly-internal.yml
+    Type: FunctionAssemblyInternal
+  - Name: assembly-html.yml
+    Type: FunctionAssemblyHTML
 Branches:
- - From:            Isolate
-   Steps:
-    - Name:            ProcessAssembly
-      Pipes:
-        - Type:             process-assembly
-          UsedContainers: [input, module.ll, assembly-internal.yml]
-      Artifacts:
-        Container: assembly-internal.yml
-        Kind: FunctionAssemblyInternal
-    - Name:            YieldAssembly
-      Pipes:
-        - Type:             yield-assembly
-          UsedContainers: [assembly-internal.yml, assembly-html.yml]
-      Artifacts:
-        Container: assembly-html.yml
-        Kind: FunctionAssemblyHTML
+  - From: Isolate
+    Steps:
+      - Name: ProcessAssembly
+        Pipes:
+          - Type: process-assembly
+            UsedContainers: [input, module.ll, assembly-internal.yml]
+        Artifacts:
+          Container: assembly-internal.yml
+          Kind: FunctionAssemblyInternal
+      - Name: YieldAssembly
+        Pipes:
+          - Type: yield-assembly
+            UsedContainers: [assembly-internal.yml, assembly-html.yml]
+        Artifacts:
+          Container: assembly-html.yml
+          Kind: FunctionAssemblyHTML

@@ -144,7 +144,6 @@ definitions:
       - name
       - sequence
 
-
   ReferenceStructField:
     type: object
     additionalProperties: false

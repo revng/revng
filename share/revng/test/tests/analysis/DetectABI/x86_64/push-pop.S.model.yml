@@ -4,11 +4,11 @@
 
 ---
 Functions:
-- OriginalName: push_pop
-  Prototype: "/Types/RawFunctionType-1"
+  - OriginalName: push_pop
+    Prototype: "/Types/RawFunctionType-1"
 Types:
-- Arguments:
-  - Location: rax_x86_64
-  ID: 1
-  ReturnValues:
-  - Location: rdx_x86_64
+  - Arguments:
+      - Location: rax_x86_64
+    ID: 1
+    ReturnValues:
+      - Location: rdx_x86_64

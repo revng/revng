@@ -3,12 +3,12 @@
 #
 
 Containers:
- - Name:            C1
-   Type:            LLVMContainer
+  - Name: C1
+    Type: LLVMContainer
 Branches:
- - Steps:
-   - Name:            FirstStep
-     Pipes:
-       - Type:             PureLLVMPipe
-         UsedContainers: [C1]
-         Passes: [NonExistantAtAllPass]
+  - Steps:
+      - Name: FirstStep
+        Pipes:
+          - Type: PureLLVMPipe
+            UsedContainers: [C1]
+            Passes: [NonExistantAtAllPass]

@@ -5,43 +5,43 @@
 ---
 - FunctionMetadata:
     ControlFlowGraph:
-      - End: '2'
-        Start: '1'
+      - End: "2"
+        Start: "1"
         Successors:
-        - Destination: '2'
-          Type: DirectBranch
-        - Destination: '6'
-          Type: DirectBranch
-      - End: '3'
-        Start: '2'
+          - Destination: "2"
+            Type: DirectBranch
+          - Destination: "6"
+            Type: DirectBranch
+      - End: "3"
+        Start: "2"
         Successors:
-        - Destination: '3'
-          Type: DirectBranch
-        - Destination: '4'
-          Type: DirectBranch
-        - Destination: '5'
-          Type: DirectBranch
-        - Destination: '6'
-          Type: DirectBranch
-      - End: '4'
-        Start: '3'
+          - Destination: "3"
+            Type: DirectBranch
+          - Destination: "4"
+            Type: DirectBranch
+          - Destination: "5"
+            Type: DirectBranch
+          - Destination: "6"
+            Type: DirectBranch
+      - End: "4"
+        Start: "3"
         Successors:
-        - Destination: ":Invalid"
-          Type: Return
-      - End: '5'
-        Start: '4'
+          - Destination: ":Invalid"
+            Type: Return
+      - End: "5"
+        Start: "4"
         Successors:
-        - Destination: ":Invalid"
-          Type: Return
-      - End: '6'
-        Start: '5'
+          - Destination: ":Invalid"
+            Type: Return
+      - End: "6"
+        Start: "5"
         Successors:
-        - Destination: ":Invalid"
-          Type: Return
-      - End: '7'
-        Start: '6'
+          - Destination: ":Invalid"
+            Type: Return
+      - End: "7"
+        Start: "6"
         Successors:
-        - Destination: ":Invalid"
-          Type: Return
+          - Destination: ":Invalid"
+            Type: Return
   OriginalName: _start
   Type: Regular

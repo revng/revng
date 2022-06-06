@@ -4,9 +4,9 @@
 
 ---
 Functions:
-- OriginalName: func
-  Prototype: "/Types/RawFunctionType-1"
+  - OriginalName: func
+    Prototype: "/Types/RawFunctionType-1"
 Types:
-- Arguments:
-  - Location: rax_x86_64
-  ID: 1
+  - Arguments:
+      - Location: rax_x86_64
+    ID: 1

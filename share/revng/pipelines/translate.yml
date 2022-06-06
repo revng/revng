@@ -3,46 +3,46 @@
 #
 
 Containers:
- - Name:            module.ll
-   Type:            LLVMContainer
- - Name:            input
-   Type:            Binary
- - Name:            object.o
-   Type:            Object
- - Name:            output
-   Type:            Translated
+  - Name: module.ll
+    Type: LLVMContainer
+  - Name: input
+    Type: Binary
+  - Name: object.o
+    Type: Object
+  - Name: output
+    Type: Translated
 Branches:
- - Steps:
-   - Name:            Lift
-     Pipes:
-       - Type:             ImportBinary
-         UsedContainers: [input]
-       - Type:             add-primitive-types
-         UsedContainers: [input]
-       - Type:             Lift
-         UsedContainers: [input, module.ll]
-       - Type:             LLVMPipe
-         UsedContainers: [module.ll]
-         Passes: [globaldce]
-     Artifacts:
-       Container: module.ll
-       Kind: Root
-     Analyses:
-       - Name: DetectABI
-         Type: DetectABI
-         UsedContainers: [module.ll]
-   - Name:            Recompile
-     Pipes:
-       - Type:             LinkSupport
-         UsedContainers: [module.ll]
-       - Type:             LLVMPipe
-         UsedContainers: [module.ll]
-         Passes: [O2]
-         EnabledWhen: [O2]
-       - Type:             Compile
-         UsedContainers: [module.ll, object.o]
-       - Type:             LinkForTranslation
-         UsedContainers: [input, object.o, output]
-     Artifacts:
-       Container: output
-       Kind: Translated
+  - Steps:
+      - Name: Lift
+        Pipes:
+          - Type: ImportBinary
+            UsedContainers: [input]
+          - Type: add-primitive-types
+            UsedContainers: [input]
+          - Type: Lift
+            UsedContainers: [input, module.ll]
+          - Type: LLVMPipe
+            UsedContainers: [module.ll]
+            Passes: [globaldce]
+        Artifacts:
+          Container: module.ll
+          Kind: Root
+        Analyses:
+          - Name: DetectABI
+            Type: DetectABI
+            UsedContainers: [module.ll]
+      - Name: Recompile
+        Pipes:
+          - Type: LinkSupport
+            UsedContainers: [module.ll]
+          - Type: LLVMPipe
+            UsedContainers: [module.ll]
+            Passes: [O2]
+            EnabledWhen: [O2]
+          - Type: Compile
+            UsedContainers: [module.ll, object.o]
+          - Type: LinkForTranslation
+            UsedContainers: [input, object.o, output]
+        Artifacts:
+          Container: output
+          Kind: Translated

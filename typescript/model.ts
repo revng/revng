@@ -2,7 +2,7 @@
  * This file is distributed under the MIT License. See LICENSE.md for details.
  */
 
-import { safeParseInt, genGuid } from "./tuple_tree"
+import { safeParseInt, genGuid } from "./tuple_tree";
 
 const metaAddressTypes = [
     "Invalid",
@@ -48,14 +48,16 @@ export class MetaAddress {
 
     toString(): string {
         function cleanStr(str?: string | number, end = true): string {
-            if(str !== undefined) {
+            if (str !== undefined) {
                 return end ? `:${str}` : `${str}`;
             } else {
-                return ''
+                return "";
             }
         }
-        return `${cleanStr(this.address, false)}:${this.type}` +
-               `${cleanStr(this.epoch)}${cleanStr(this.addressSpace)}`;
+        return (
+            `${cleanStr(this.address, false)}:${this.type}` +
+            `${cleanStr(this.epoch)}${cleanStr(this.addressSpace)}`
+        );
     }
 
     toJSON(): string {

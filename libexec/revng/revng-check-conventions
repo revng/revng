@@ -259,6 +259,7 @@ C_FILES_N=$(printf '%s\n' "${C_FILES[@]}")
 readarray -t PYTHON_FILES < <(find_by_ext_or_shebang py python)
 readarray -t BASH_FILES < <(find_by_ext_or_shebang sh bash)
 readarray -t CMAKE_FILES < <(grep -i cmake <<< "$ALL_FILES_N")
+readarray -t PRETTIER_FILES < <(grep -iP '\.(html|js|json|ts|yaml|yml)$' <<< "$ALL_FILES_N")
 
 GREP="grep -Hn --color=always"
 
@@ -321,6 +322,17 @@ function run_cmake_format() {
         cmake-format -i "${CMAKE_FILES[@]}" -l error
     else
         cmake-format --check "${CMAKE_FILES[@]}" -l error
+    fi
+}
+
+# Run prettier
+function run_prettier() {
+    if [[ ${#PRETTIER_FILES[@]} -eq 0 ]]; then return; fi
+    CFG="$(config_file_path prettierrc.yml)"
+    if [[ "$FORCE_FORMAT" -ne 0 ]]; then
+        prettier --write --config "$CFG" --loglevel silent "${PRETTIER_FILES[@]}"
+    else
+        prettier --check --config "$CFG" --loglevel silent "${PRETTIER_FILES[@]}"
     fi
 }
 
@@ -473,6 +485,7 @@ run_clang_format || EXIT_CODE=$?
 run_cmake_format || EXIT_CODE=$?
 run_black || EXIT_CODE=$?
 run_isort || EXIT_CODE=$?
+run_prettier || EXIT_CODE=$?
 run_flake8 || EXIT_CODE=$?
 run_mypy || EXIT_CODE=$?
 run_bash_check || EXIT_CODE=$?

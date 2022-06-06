@@ -2,13 +2,13 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 Containers:
- - Name:            Strings1
-   Type:            StringContainer
- - Name:            Strings2
-   Type:            StringContainer
+  - Name: Strings1
+    Type: StringContainer
+  - Name: Strings2
+    Type: StringContainer
 Branches:
- - Steps:
-   - Name:            FirstStep
-     Pipes:
-      - Type:             CopyPipe
-        UsedContainers: [Strings1, Strings2]
+  - Steps:
+      - Name: FirstStep
+        Pipes:
+          - Type: CopyPipe
+            UsedContainers: [Strings1, Strings2]

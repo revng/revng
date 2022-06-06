@@ -5,46 +5,46 @@
 ---
 - FunctionMetadata:
     ControlFlowGraph:
-      - End: '2'
-        Start: '1'
+      - End: "2"
+        Start: "1"
         Successors:
-        - Destination: '2'
-          Type: DirectBranch
-        - Destination: '5'
-          Type: DirectBranch
-      - End: '3'
-        Start: '2'
+          - Destination: "2"
+            Type: DirectBranch
+          - Destination: "5"
+            Type: DirectBranch
+      - End: "3"
+        Start: "2"
         Successors:
-        - Destination: '1'
-          Type: FunctionCall
-      - End: '4'
-        Start: '3'
+          - Destination: "1"
+            Type: FunctionCall
+      - End: "4"
+        Start: "3"
         Successors:
-        - Destination: '1'
-          Type: FunctionCall
-      - End: '5'
-        Start: '4'
+          - Destination: "1"
+            Type: FunctionCall
+      - End: "5"
+        Start: "4"
         Successors:
-        - Destination: '5'
-          Type: DirectBranch
-      - End: '6'
-        Start: '5'
+          - Destination: "5"
+            Type: DirectBranch
+      - End: "6"
+        Start: "5"
         Successors:
-        - Destination: ":Invalid"
-          Type: Return
+          - Destination: ":Invalid"
+            Type: Return
   OriginalName: fibonacci
   Type: Regular
 - FunctionMetadata:
     ControlFlowGraph:
-      - End: '7'
-        Start: '6'
+      - End: "7"
+        Start: "6"
         Successors:
-        - Destination: '1'
-          Type: FunctionCall
-      - End: '8'
-        Start: '7'
+          - Destination: "1"
+            Type: FunctionCall
+      - End: "8"
+        Start: "7"
         Successors:
-        - Destination: ":Invalid"
-          Type: Return
+          - Destination: ":Invalid"
+            Type: Return
   OriginalName: _start
   Type: Regular

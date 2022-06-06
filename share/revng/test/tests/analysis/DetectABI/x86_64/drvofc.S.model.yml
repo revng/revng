@@ -4,9 +4,9 @@
 
 ---
 Functions:
-- OriginalName: drvofc
-  Prototype: "/Types/RawFunctionType-1"
+  - OriginalName: drvofc
+    Prototype: "/Types/RawFunctionType-1"
 Types:
-- ID: 1
-  ReturnValues:
-  - Location: rax_x86_64
+  - ID: 1
+    ReturnValues:
+      - Location: rax_x86_64
