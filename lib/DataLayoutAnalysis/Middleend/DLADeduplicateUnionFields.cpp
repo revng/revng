@@ -374,9 +374,6 @@ bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
     if (not isRoot(Root))
       continue;
 
-    for (LTSN *Node : post_order(NonPointerFilterT(Root)))
-      TypeSystemChanged |= CollapseSingleChild::collapseSingle(TS, Node);
-
     llvm::SmallVector<LTSN *, 8> PostOrderFromRoot;
     for (LTSN *UnionNode : post_order(NonPointerFilterT(Root))) {
       if (UnionNode->InterferingInfo != AllChildrenAreInterfering
@@ -456,8 +453,8 @@ bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
               // to Erased.
               // BUT:
               //  - postProcessMerge only calls
-              //    - CollapseSingleChild::collapseSingle only removes nodes
-              //    with if these two are safe we're good
+              //    CollapseSingleChild::collapseSingle.
+              //    If these two are safe we're good
               //  - CollapseSingleChild::collapseSingle only removes nodes with
               //    exactly one parent, so it cannot remove nodes that were not
               //    originally children of the union, because if they were they

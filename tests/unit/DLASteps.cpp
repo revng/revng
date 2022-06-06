@@ -257,18 +257,59 @@ BOOST_AUTO_TEST_CASE(CollapseSingleChild_offsetZero) {
   dla::LayoutTypeSystem TS;
 
   // Build TS
-  LTSN *Parent = createRoot(TS, 0U);
+  LTSN *Parent = createRoot(TS, 8U);
   /*LTSN *Child =*/addInstanceAtOffset(TS,
                                        Parent,
                                        /*offset=*/0U,
                                        /*size=*/8U);
 
   // Run step
-  runStep<dla::CollapseSingleChild>(TS);
+  dla::StepManager SM;
+  revng_check(SM.addStep<CollapseEqualitySCC>());
+  revng_check(SM.addStep<CollapseInstanceAtOffset0SCC>());
+  revng_check(SM.addStep<PruneLayoutNodesWithoutLayout>());
+  revng_check(SM.addStep<ComputeUpperMemberAccesses>());
+  revng_check(SM.addStep<CollapseSingleChild>());
+  SM.run(TS);
+
+  // Compress the equivalence classes
+  dla::VectEqClasses &Eq = TS.getEqClasses();
+  Eq.compress();
 
   // Check graph
   revng_check(TS.getNumLayouts() == 1);
   checkNode(TS, Parent, 8, InterferingChildrenInfo::Unknown, { 0, 1 });
+}
+
+/// Test we don't collapse if the size of the parent is different from the
+/// child.
+BOOST_AUTO_TEST_CASE(CollapseSingleChild_offsetZero_expected_dontcollapse) {
+  dla::LayoutTypeSystem TS;
+
+  // Build TS
+  LTSN *Parent = createRoot(TS, 10U);
+  LTSN *Child = addInstanceAtOffset(TS,
+                                    Parent,
+                                    /*offset=*/0U,
+                                    /*size=*/8U);
+
+  // Run step
+  dla::StepManager SM;
+  revng_check(SM.addStep<CollapseEqualitySCC>());
+  revng_check(SM.addStep<CollapseInstanceAtOffset0SCC>());
+  revng_check(SM.addStep<PruneLayoutNodesWithoutLayout>());
+  revng_check(SM.addStep<ComputeUpperMemberAccesses>());
+  revng_check(SM.addStep<CollapseSingleChild>());
+  SM.run(TS);
+
+  // Compress the equivalence classes
+  dla::VectEqClasses &Eq = TS.getEqClasses();
+  Eq.compress();
+
+  // Check graph
+  revng_check(TS.getNumLayouts() == 2);
+  checkNode(TS, Parent, 10, InterferingChildrenInfo::Unknown, { 0 });
+  checkNode(TS, Child, 8, InterferingChildrenInfo::Unknown, { 1 });
 }
 
 /// Test the case where there is only one child but with offset > 0
@@ -276,18 +317,28 @@ BOOST_AUTO_TEST_CASE(CollapseSingleChild_offsetNonZero) {
   dla::LayoutTypeSystem TS;
 
   // Build TS
-  LTSN *Parent = createRoot(TS, 0U);
+  LTSN *Parent = createRoot(TS, 16U);
   LTSN *Child = addInstanceAtOffset(TS,
                                     Parent,
                                     /*offset=*/8U,
                                     /*size=*/8U);
 
   // Run step
-  runStep<dla::CollapseSingleChild>(TS);
+  dla::StepManager SM;
+  revng_check(SM.addStep<CollapseEqualitySCC>());
+  revng_check(SM.addStep<CollapseInstanceAtOffset0SCC>());
+  revng_check(SM.addStep<PruneLayoutNodesWithoutLayout>());
+  revng_check(SM.addStep<ComputeUpperMemberAccesses>());
+  revng_check(SM.addStep<CollapseSingleChild>());
+  SM.run(TS);
+
+  // Compress the equivalence classes
+  dla::VectEqClasses &Eq = TS.getEqClasses();
+  Eq.compress();
 
   // Check graph
   revng_check(TS.getNumLayouts() == 2);
-  checkNode(TS, Parent, 0, InterferingChildrenInfo::Unknown, { 0 });
+  checkNode(TS, Parent, 16, InterferingChildrenInfo::Unknown, { 0 });
   checkNode(TS, Child, 8, InterferingChildrenInfo::Unknown, { 1 });
 }
 
@@ -296,11 +347,11 @@ BOOST_AUTO_TEST_CASE(CollapseSingleChild_multiChild) {
   dla::LayoutTypeSystem TS;
 
   // Build TS
-  LTSN *Parent = createRoot(TS, 0U);
+  LTSN *Parent = createRoot(TS, 16U);
   LTSN *Child1 = addInstanceAtOffset(TS,
                                      Parent,
                                      /*offset=*/0U,
-                                     /*size=*/0U);
+                                     /*size=*/8U);
   addInstanceAtOffset(TS,
                       Child1,
                       /*offset=*/0U,
@@ -308,18 +359,28 @@ BOOST_AUTO_TEST_CASE(CollapseSingleChild_multiChild) {
   LTSN *Child2 = addInstanceAtOffset(TS,
                                      Parent,
                                      /*offset=*/8U,
-                                     /*size=*/0U);
+                                     /*size=*/8U);
   addInstanceAtOffset(TS,
                       Child2,
                       /*offset=*/0U,
                       /*size=*/8U);
 
   // Run step
-  runStep<dla::CollapseSingleChild>(TS);
+  dla::StepManager SM;
+  revng_check(SM.addStep<CollapseEqualitySCC>());
+  revng_check(SM.addStep<CollapseInstanceAtOffset0SCC>());
+  revng_check(SM.addStep<PruneLayoutNodesWithoutLayout>());
+  revng_check(SM.addStep<ComputeUpperMemberAccesses>());
+  revng_check(SM.addStep<CollapseSingleChild>());
+  SM.run(TS);
+
+  // Compress the equivalence classes
+  dla::VectEqClasses &Eq = TS.getEqClasses();
+  Eq.compress();
 
   // Check graph
   revng_check(TS.getNumLayouts() == 3);
-  checkNode(TS, Parent, 0, InterferingChildrenInfo::Unknown, { 0 });
+  checkNode(TS, Parent, 16, InterferingChildrenInfo::Unknown, { 0 });
   checkNode(TS, Child1, 8, InterferingChildrenInfo::Unknown, { 1, 2 });
   checkNode(TS, Child2, 8, InterferingChildrenInfo::Unknown, { 3, 4 });
 }
@@ -330,26 +391,36 @@ BOOST_AUTO_TEST_CASE(CollapseSingleChild_multiLevel) {
   dla::LayoutTypeSystem TS;
 
   // Build TS
-  LTSN *Level0 = createRoot(TS, 0U);
+  LTSN *Level0 = createRoot(TS, 8U);
   LTSN *Level1 = addInstanceAtOffset(TS,
                                      Level0,
                                      /*offset=*/0U,
-                                     /*size=*/0U);
+                                     /*size=*/8U);
   LTSN *Level2 = addInstanceAtOffset(TS,
                                      Level1,
                                      /*offset=*/0U,
-                                     /*size=*/0U);
+                                     /*size=*/8U);
   LTSN *Level3 = addInstanceAtOffset(TS,
                                      Level2,
                                      /*offset=*/0U,
-                                     /*size=*/0U);
+                                     /*size=*/8U);
   /*LTSN *Level4 = */ addInstanceAtOffset(TS,
                                           Level3,
                                           /*offset=*/0U,
                                           /*size=*/8U);
 
   // Run step
-  runStep<dla::CollapseSingleChild>(TS);
+  dla::StepManager SM;
+  revng_check(SM.addStep<CollapseEqualitySCC>());
+  revng_check(SM.addStep<CollapseInstanceAtOffset0SCC>());
+  revng_check(SM.addStep<PruneLayoutNodesWithoutLayout>());
+  revng_check(SM.addStep<ComputeUpperMemberAccesses>());
+  revng_check(SM.addStep<CollapseSingleChild>());
+  SM.run(TS);
+
+  // Compress the equivalence classes
+  dla::VectEqClasses &Eq = TS.getEqClasses();
+  Eq.compress();
 
   // Check graph
   revng_check(TS.getNumLayouts() == 1);
@@ -469,6 +540,7 @@ BOOST_AUTO_TEST_CASE(ComputeNonInterferingComponents_basic) {
   revng_check(SM.addStep<CollapseInstanceAtOffset0SCC>());
   revng_check(SM.addStep<PruneLayoutNodesWithoutLayout>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
+  revng_check(SM.addStep<CollapseSingleChild>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
   SM.run(TS);
   // Compress the equivalence classes
@@ -539,6 +611,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_basic) {
   revng_check(SM.addStep<CollapseInstanceAtOffset0SCC>());
   revng_check(SM.addStep<PruneLayoutNodesWithoutLayout>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
+  revng_check(SM.addStep<CollapseSingleChild>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
   revng_check(SM.addStep<DeduplicateUnionFields>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
@@ -591,6 +664,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_diamond) {
   revng_check(SM.addStep<CollapseInstanceAtOffset0SCC>());
   revng_check(SM.addStep<PruneLayoutNodesWithoutLayout>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
+  revng_check(SM.addStep<CollapseSingleChild>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
   revng_check(SM.addStep<DeduplicateUnionFields>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
@@ -634,6 +708,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeSymmetric) {
   revng_check(SM.addStep<CollapseInstanceAtOffset0SCC>());
   revng_check(SM.addStep<PruneLayoutNodesWithoutLayout>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
+  revng_check(SM.addStep<CollapseSingleChild>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
   revng_check(SM.addStep<DeduplicateUnionFields>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
@@ -676,6 +751,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeAsymmetric) {
   revng_check(SM.addStep<CollapseInstanceAtOffset0SCC>());
   revng_check(SM.addStep<PruneLayoutNodesWithoutLayout>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
+  revng_check(SM.addStep<CollapseSingleChild>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
   revng_check(SM.addStep<DeduplicateUnionFields>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
@@ -700,7 +776,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeAsymmetricCollapse) {
   LTSN *NodeUnion = createRoot(TS);
   LTSN *NodeA = addInstanceAtOffset(TS, NodeUnion, /*offset=*/0, /*size=*/0);
   LTSN *NodeB = addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/8);
-  LTSN *NodeC = addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/0);
+  LTSN *NodeC = addInstanceAtOffset(TS, NodeA, /*offset=*/0, /*size=*/10);
   LTSN *NodeD = addInstanceAtOffset(TS, NodeC, /*offset=*/0, /*size=*/8);
 
   LTSN *NodeA1 = addInstanceAtOffset(TS, NodeUnion, /*offset=*/0, /*size=*/0);
@@ -720,6 +796,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeAsymmetricCollapse) {
   revng_check(SM.addStep<CollapseInstanceAtOffset0SCC>());
   revng_check(SM.addStep<PruneLayoutNodesWithoutLayout>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
+  revng_check(SM.addStep<CollapseSingleChild>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
   revng_check(SM.addStep<DeduplicateUnionFields>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
@@ -731,12 +808,10 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeAsymmetricCollapse) {
   Eq.compress();
 
   // Check TS
-  revng_check(TS.getNumLayouts() == 6);
-  checkNode(TS, NodeUnion, 8, AllChildrenAreInterfering, { 0 });
-  checkNode(TS, NodeA, 8, AllChildrenAreInterfering, { 1 });
+  revng_check(TS.getNumLayouts() == 5);
+  checkNode(TS, NodeUnion, 10, AllChildrenAreInterfering, { 0 });
+  checkNode(TS, NodeA, 10, AllChildrenAreInterfering, { 1 });
   checkNode(TS, NodeB, 8, AllChildrenAreNonInterfering, { 2 });
-  checkNode(TS, NodeC, 8, AllChildrenAreNonInterfering, { 3 });
-
-  checkNode(TS, NodeA1, 8, AllChildrenAreNonInterfering, { 5 });
-  checkNode(TS, NodeC1, 8, AllChildrenAreNonInterfering, { 4, 6, 7 });
+  checkNode(TS, NodeC, 10, AllChildrenAreNonInterfering, { 3 });
+  checkNode(TS, NodeD, 8, AllChildrenAreNonInterfering, { 4, 5, 6, 7 });
 }

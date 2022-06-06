@@ -446,10 +446,17 @@ bool LayoutTypeSystem::verifyConsistency() const {
     unsigned NonPtrChildren = 0U;
     bool IsPointer = false;
     for (const auto &Edge : NodePtr->Successors) {
-      if (isPointerEdge(Edge))
+      if (isPointerEdge(Edge)) {
+        // Node with outgoing pointer edges, only have one pointer edge.
+        if (IsPointer) {
+          if (VerifyDLALog.isEnabled())
+            revng_check(false);
+          return false;
+        }
         IsPointer = true;
-      else if (isInstanceEdge(Edge))
+      } else if (isInstanceEdge(Edge)) {
         NonPtrChildren++;
+      }
 
       if (IsPointer and NonPtrChildren > 0) {
         if (VerifyDLALog.isEnabled())

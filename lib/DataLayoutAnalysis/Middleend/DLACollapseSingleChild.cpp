@@ -24,51 +24,44 @@ static Logger<> Log("dla-collapse-single-child");
 namespace dla {
 bool CollapseSingleChild::collapseSingle(LayoutTypeSystem &TS,
                                          LayoutTypeSystemNode *Node) {
+  LoggerIndent Indent{ Log };
   bool Changed = false;
 
-  auto HasSingleChild = [](const LTSN *Node) {
-    return (Node->Successors.size() == 1);
+  auto HasSingleChildAtOffset0 = [](const LTSN *Node) {
+    return (Node->Successors.size() == 1)
+           and isInstanceOff0(*Node->Successors.begin());
   };
 
-  auto HasAtMostOneParent = [](const LTSN *Node) {
-    return (Node->Predecessors.size() <= 1);
-  };
-
-  if (VerifyLog.isEnabled() and not HasSingleChild(Node)) {
-    revng_assert(llvm::none_of(Node->Successors,
-                               [](const Link &L) { return isPointerEdge(L); }));
-  }
-
-  // Get nodes that have a single instance or inheritance child
-  if (HasSingleChild(Node) and isInstanceEdge(*Node->Successors.begin())) {
+  // Get nodes that have a single instance-at-offset-0 child
+  while (HasSingleChildAtOffset0(Node)) {
     auto &ChildEdge = *(Node->Successors.begin());
-    const unsigned ChildOffset = ChildEdge.second->getOffsetExpr().Offset;
-    auto &ToMerge = ChildEdge.first;
+    LTSN *Child = ChildEdge.first;
 
-    // Don't collapse if the child has more than one parent
-    if (not HasAtMostOneParent(ToMerge))
-      return false;
+    revng_log(Log, "Has single child at offset 0. Child: " << Child->ID);
+    LoggerIndent MoreIndent{ Log };
 
-    // Collapse only if the child is at offset 0
-    if (ChildOffset == 0) {
-      revng_log(Log, "Collapsing " << ToMerge->ID << " into " << Node->ID);
-
-      const unsigned ChildSize = ToMerge->Size;
-      revng_assert(Node->Size == 0 or Node->Size >= ChildSize);
-
-      // Merge single child into parent.
-      // mergeNodes resets InterferingInfo of Node, but we're collapsing
-      // ToMerge that is the only child of Node, so we have to attach ToMerge's
-      // InterferingInfo to the parent Node that we're preserving.
-      // This is always correct because the InterferingInfo of a node only
-      // depend on its children.
-      auto ChildInterferingInfo = ToMerge->InterferingInfo;
-      TS.mergeNodes({ /*Into=*/Node, /*From=*/ToMerge });
-      Node->Size = ChildSize;
-      Node->InterferingInfo = ChildInterferingInfo;
-
-      Changed = true;
+    // If the parent has a size different from the child, bail out.
+    const unsigned ChildSize = Child->Size;
+    if (ChildSize != Node->Size) {
+      revng_log(Log,
+                "Size mismatch! Node = " << Node->Size
+                                         << " Child = " << ChildSize);
+      break;
     }
+
+    revng_log(Log, "Collapsing " << Child->ID << " into " << Node->ID);
+
+    // Merge single child into parent.
+    // mergeNodes resets InterferingInfo of Node, but we're collapsing
+    // Child that is the only child of Node, so we have to attach Child's
+    // InterferingInfo to the parent Node that we're preserving.
+    // This is always correct because the InterferingInfo of a node only
+    // depend on its children.
+    auto ChildInterferingInfo = Child->InterferingInfo;
+    TS.mergeNodes({ /*Into=*/Node, /*From=*/Child });
+    Node->InterferingInfo = ChildInterferingInfo;
+
+    Changed = true;
   }
 
   return Changed;
@@ -79,13 +72,9 @@ bool CollapseSingleChild::runOnTypeSystem(LayoutTypeSystem &TS) {
   if (VerifyLog.isEnabled())
     revng_assert(TS.verifyDAG());
 
-  for (LTSN *Root : llvm::nodes(&TS)) {
-    revng_assert(Root != nullptr);
-    if (not isRoot(Root))
-      continue;
-
-    for (LTSN *Node : post_order(Root))
-      Changed |= collapseSingle(TS, Node);
+  for (LTSN *Node : llvm::nodes(&TS)) {
+    revng_log(Log, "Analyzing Node: " << Node->ID);
+    Changed |= collapseSingle(TS, Node);
   }
 
   if (VerifyLog.isEnabled())

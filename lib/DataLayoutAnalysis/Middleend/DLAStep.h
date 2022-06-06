@@ -160,7 +160,7 @@ public:
   CollapseSingleChild() :
     Step(ID,
          // Dependencies
-         {},
+         { ComputeUpperMemberAccesses::getID() },
          // Invalidated
          {}) {}
 

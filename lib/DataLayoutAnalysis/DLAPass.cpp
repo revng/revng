@@ -56,6 +56,7 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   revng_check(SM.addStep<dla::RemoveInvalidStrideEdges>());
   revng_check(SM.addStep<dla::PruneLayoutNodesWithoutLayout>());
   revng_check(SM.addStep<dla::ComputeUpperMemberAccesses>());
+  revng_check(SM.addStep<dla::CollapseSingleChild>());
   revng_check(SM.addStep<dla::ComputeNonInterferingComponents>());
   revng_check(SM.addStep<dla::DeduplicateUnionFields>());
   revng_check(SM.addStep<dla::ComputeNonInterferingComponents>());
