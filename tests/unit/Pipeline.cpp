@@ -854,9 +854,9 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineWithRemove) {
 BOOST_AUTO_TEST_CASE(LoaderTest) {
   StepDeclaration SDeclaration{ "FirstStep",
                                 { { "FineGranerPipe", { CName, CName } } } };
-  PipelineDeclaration PDeclaration{ "",
-                                    { { CName, "MapContainer" } },
-                                    { move(SDeclaration) } };
+  BranchDeclaration BDeclaration{ "", { move(SDeclaration) } };
+  PipelineDeclaration PDeclaration{ { { CName, "MapContainer" } },
+                                    { move(BDeclaration) } };
 
   auto Ctx = Context::fromRegistry(Registry::registerAllKinds());
   Loader Loader(Ctx);
@@ -888,13 +888,14 @@ static const std::string Pipeline(R"(---
                        Containers:
                          - Name:            ContainerName
                            Type:            MapContainer
-                       Steps:
-                         - Name:            FirstStep
-                           Pipes:
-                             - Type:            FineGranerPipe
-                               UsedContainers:
-                                 - ContainerName
-                                 - ContainerName
+                       Branches:
+                         - Steps:
+                             - Name:            FirstStep
+                               Pipes:
+                                 - Type:            FineGranerPipe
+                                   UsedContainers:
+                                     - ContainerName
+                                     - ContainerName
                        )");
 
 BOOST_AUTO_TEST_CASE(LoaderTestFromYaml) {
@@ -910,27 +911,30 @@ static const std::string PipelineTree(R"(---
                        Containers:
                          - Name:            ContainerName
                            Type:            MapContainer
-                       Steps:
-                         - Name:            FirstStep
-                           Pipes:
-                             - Type:            FineGranerPipe
-                               UsedContainers:
-                                 - ContainerName
-                                 - ContainerName
+                       Branches:
+                         - Steps:
+                             - Name:            FirstStep
+                               Pipes:
+                                 - Type:            FineGranerPipe
+                                   UsedContainers:
+                                     - ContainerName
+                                     - ContainerName
                        )");
 
 static const std::string PipelineTree2(R"(---
-                       From:      FirstStep
                        Containers:
-                       Steps:
-                         - Name:            SecondStep
+                       Branches:
+                         - From:      FirstStep
+                           Steps:
+                             - Name:            SecondStep
                        )");
 
 static const std::string PipelineTree3(R"(---
-                       From:      FirstStep
                        Containers:
-                       Steps:
-                         - Name:            ThirdStep
+                       Branches:
+                         - From:      FirstStep
+                           Steps:
+                             - Name:            ThirdStep
                        )");
 
 BOOST_AUTO_TEST_CASE(LoaderTestFromYamlTree) {
@@ -958,15 +962,16 @@ BOOST_AUTO_TEST_CASE(LoaderTestFromYamlLLVM) {
                        Containers:
                          - Name:            CustomName
                            Type:            LLVMContainer
-                       Steps:
-                         - Name:            FirstStep
-                           Pipes:
-                             - Type:             LLVMPipe
-                               UsedContainers:
-                                 - CustomName
-                               Passes:
-                                 - CreateFunctionPass
-                                 - IdentityPass
+                       Branches:
+                         - Steps:
+                             - Name:            FirstStep
+                               Pipes:
+                                 - Type:             LLVMPipe
+                                   UsedContainers:
+                                     - CustomName
+                                   Passes:
+                                     - CreateFunctionPass
+                                     - IdentityPass
                        )");
 
   auto MaybePipeline = Loader.load(LLVMPipeline);

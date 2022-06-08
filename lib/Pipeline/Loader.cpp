@@ -156,8 +156,8 @@ Loader::load(llvm::ArrayRef<std::string> Pipelines) const {
   return load(Declarations);
 }
 
-llvm::Error Loader::parseSteps(Runner &Runner,
-                               const PipelineDeclaration &Declaration) const {
+llvm::Error
+Loader::parseSteps(Runner &Runner, const BranchDeclaration &Declaration) const {
 
   std::string LastAddedStep = Declaration.From.empty() ? "begin" :
                                                          Declaration.From;
@@ -180,9 +180,8 @@ Loader::parseDeclarations(Runner &Runner,
   return llvm::Error::success();
 }
 
-static bool
-requirementsMet(llvm::ArrayRef<const PipelineDeclaration *> Scheduled,
-                const PipelineDeclaration &ToSchedule) {
+static bool requirementsMet(llvm::ArrayRef<const BranchDeclaration *> Scheduled,
+                            const BranchDeclaration &ToSchedule) {
   if (ToSchedule.From.empty())
     return true;
 
@@ -195,10 +194,10 @@ requirementsMet(llvm::ArrayRef<const PipelineDeclaration *> Scheduled,
 }
 
 static llvm::Error
-sortPipeline(llvm::SmallVector<const PipelineDeclaration *, 2> &ToSort) {
-  llvm::SmallVector<const PipelineDeclaration *> Sorted;
+sortPipeline(llvm::SmallVector<const BranchDeclaration *, 2> &ToSort) {
+  llvm::SmallVector<const BranchDeclaration *> Sorted;
 
-  const auto RequirementsMet = [&](const PipelineDeclaration *Declaration) {
+  const auto RequirementsMet = [&](const BranchDeclaration *Declaration) {
     if (not requirementsMet(Sorted, *Declaration))
       return false;
 
@@ -222,15 +221,16 @@ llvm::Expected<Runner>
 Loader::load(llvm::ArrayRef<PipelineDeclaration> Pipelines) const {
   Runner ToReturn(*PipelineContext);
 
-  llvm::SmallVector<const PipelineDeclaration *, 2> ToSort;
+  llvm::SmallVector<const BranchDeclaration *, 2> ToSort;
   for (const auto &Pipeline : Pipelines)
-    ToSort.push_back(&Pipeline);
+    for (const auto &Declartion : Pipeline.Branches)
+      ToSort.push_back(&Declartion);
 
   if (auto Error = sortPipeline(ToSort); Error)
     return std::move(Error);
 
-  for (const auto *Declaration : ToSort)
-    if (auto Error = parseDeclarations(ToReturn, *Declaration); Error)
+  for (const auto &Declaration : Pipelines)
+    if (auto Error = parseDeclarations(ToReturn, Declaration); Error)
       return std::move(Error);
 
   ToReturn.emplaceStep("", "begin");
@@ -239,8 +239,8 @@ Loader::load(llvm::ArrayRef<PipelineDeclaration> Pipelines) const {
     if (auto Error = parseSteps(ToReturn, *Declaration); Error)
       return std::move(Error);
 
-  for (const auto *Declaration : ToSort)
-    for (const auto &Analysis : Declaration->Analyses) {
+  for (const auto &Declaration : Pipelines)
+    for (const auto &Analysis : Declaration.Analyses) {
       auto MaybeAnalysis = parseAnalysis(Analysis);
       if (not MaybeAnalysis)
         return MaybeAnalysis.takeError();

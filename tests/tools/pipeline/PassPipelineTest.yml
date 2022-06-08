@@ -5,9 +5,10 @@
 Containers:
  - Name:            C1
    Type:            LLVMContainer
-Steps:
- - Name:            FirstStep
-   Pipes:
-     - Type:             LLVMPipe
-       UsedContainers: [C1]
-       Passes: [example-pass]
+Branches:
+ - Steps:
+    - Name:            FirstStep
+      Pipes:
+       - Type:             LLVMPipe
+         UsedContainers: [C1]
+         Passes: [example-pass]

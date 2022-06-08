@@ -8,12 +8,13 @@ Containers:
    Type:            StringContainer
  - Name:            Strings3
    Type:            StringContainer
-Steps:
- - Name:            FirstStep
-   Pipes:
-     - Type:             CopyPipe
-       UsedContainers: [Strings1, Strings2]
- - Name:            SecondStep
-   Pipes:
-     - Type:             CopyPipe
-       UsedContainers: [Strings2, Strings3]
+Branches:
+ - Steps:
+   - Name:            FirstStep
+     Pipes:
+       - Type:             CopyPipe
+         UsedContainers: [Strings1, Strings2]
+   - Name:            SecondStep
+     Pipes:
+       - Type:             CopyPipe
+         UsedContainers: [Strings2, Strings3]

@@ -5,9 +5,10 @@
 Containers:
  - Name:            C1
    Type:            LLVMContainer
-Steps:
- - Name:            FirstStep
-   Pipes:
-     - Type:             PureLLVMPipe
-       UsedContainers: [C1]
-       Passes: [NonExistantAtAllPass]
+Branches:
+ - Steps:
+   - Name:            FirstStep
+     Pipes:
+       - Type:             PureLLVMPipe
+         UsedContainers: [C1]
+         Passes: [NonExistantAtAllPass]

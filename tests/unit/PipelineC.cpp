@@ -19,11 +19,12 @@ const auto PipelineTextContent =
    Type:            StringContainer
  - Name:            Strings2
    Type:            StringContainer
-Steps:
- - Name:            FirstStep
-   Pipes:
-     - Type:             CopyPipe
-       UsedContainers: [Strings1, Strings2]
+Branches:
+  -  Steps:
+     - Name:            FirstStep
+       Pipes:
+         - Type:             CopyPipe
+           UsedContainers: [Strings1, Strings2]
 )";
 
 static rp_manager *Runner;

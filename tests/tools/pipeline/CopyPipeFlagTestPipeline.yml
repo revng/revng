@@ -6,9 +6,10 @@ Containers:
    Type:            StringContainer
  - Name:            Strings2
    Type:            StringContainer
-Steps:
- - Name:            FirstStep
-   Pipes:
-     - Type:             CopyPipe
-       UsedContainers: [Strings1, Strings2]
-       EnabledWhen: [~DisableCopyPipe]
+Branches:
+ - Steps:
+   - Name:            FirstStep
+     Pipes:
+      - Type:             CopyPipe
+        UsedContainers: [Strings1, Strings2]
+        EnabledWhen: [~DisableCopyPipe]

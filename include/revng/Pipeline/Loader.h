@@ -61,10 +61,14 @@ struct StepDeclaration {
   std::vector<AnalysisDeclaration> Analyses = {};
 };
 
-struct PipelineDeclaration {
+struct BranchDeclaration {
   std::string From;
-  std::vector<ContainerDeclaration> Containers;
   std::vector<StepDeclaration> Steps;
+};
+
+struct PipelineDeclaration {
+  std::vector<ContainerDeclaration> Containers;
+  std::vector<BranchDeclaration> Branches;
   std::vector<AnalysisDeclaration> Analyses = {};
 };
 
@@ -101,6 +105,7 @@ public:
   Context &getContext() { return *PipelineContext; }
 
 public:
+  llvm::Expected<Runner> load(const BranchDeclaration &) const;
   llvm::Expected<Runner> load(const PipelineDeclaration &) const;
   llvm::Expected<Runner> load(llvm::ArrayRef<PipelineDeclaration>) const;
   llvm::Expected<Runner> load(llvm::ArrayRef<std::string> Pipelines) const;
@@ -178,7 +183,7 @@ public:
 
 private:
   llvm::Error
-  parseSteps(Runner &Runner, const PipelineDeclaration &Declaration) const;
+  parseSteps(Runner &Runner, const BranchDeclaration &Declaration) const;
   llvm::Error parseDeclarations(Runner &Runner,
                                 const PipelineDeclaration &Declaration) const;
 
@@ -236,16 +241,24 @@ struct llvm::yaml::MappingTraits<pipeline::StepDeclaration> {
 
 LLVM_YAML_IS_SEQUENCE_VECTOR(pipeline::StepDeclaration)
 LLVM_YAML_IS_SEQUENCE_VECTOR(pipeline::AnalysisDeclaration)
+LLVM_YAML_IS_SEQUENCE_VECTOR(pipeline::BranchDeclaration)
 
-INTROSPECTION_NS(pipeline, PipelineDeclaration, Containers, Steps);
 template<>
 struct llvm::yaml::MappingTraits<pipeline::PipelineDeclaration>
   : public TupleLikeMappingTraits<pipeline::PipelineDeclaration> {
   static void mapping(IO &TheIO, pipeline::PipelineDeclaration &Info) {
-    TheIO.mapOptional("From", Info.From);
-    TheIO.mapRequired("Containers", Info.Containers);
-    TheIO.mapRequired("Steps", Info.Steps);
+    TheIO.mapOptional("Containers", Info.Containers);
+    TheIO.mapRequired("Branches", Info.Branches);
     TheIO.mapOptional("Analyses", Info.Analyses);
+  }
+};
+
+template<>
+struct llvm::yaml::MappingTraits<pipeline::BranchDeclaration>
+  : public TupleLikeMappingTraits<pipeline::BranchDeclaration> {
+  static void mapping(IO &TheIO, pipeline::BranchDeclaration &Info) {
+    TheIO.mapOptional("From", Info.From);
+    TheIO.mapRequired("Steps", Info.Steps);
   }
 };
 
