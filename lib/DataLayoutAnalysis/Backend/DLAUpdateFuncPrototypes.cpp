@@ -244,9 +244,6 @@ static bool updateFuncStackFrame(model::Function &ModelFunc,
           OldStackFrameStruct->Fields.insert(Field);
 
       } else if (auto *NewU = dyn_cast<model::UnionType>(UnqualNewStack)) {
-        // Prepare the new stack type, which cannot be a union, it has to be
-        // a model::StructType
-        model::TypePath NewStackStruct = createEmptyStruct(Model, OldStackSize);
 
         // If DLA recoverd a new stack size that is too large, we have to shrink
         // it. For now the shrinking does not look deeply inside the types, only
@@ -297,12 +294,10 @@ static bool updateFuncStackFrame(model::Function &ModelFunc,
         // If there are fields left in the union, then inject them in the stack
         // struct as fields.
         if (FieldsRemaining) {
-          cast<model::StructType>(NewStackStruct.get())
+          cast<model::StructType>(ModelFunc.StackFrameType.get())
             ->Fields[0]
             .Type = model::QualifiedType(Model.getTypePath(NewU), {});
         }
-
-        ModelFunc.StackFrameType = NewStackStruct;
 
       } else {
         revng_abort();
