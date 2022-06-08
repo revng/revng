@@ -206,7 +206,7 @@ static StringToken buildCastExpr(StringRef ExprToCast,
                                  const model::QualifiedType &DestType) {
   StringToken Result = ExprToCast;
   if (SrcType == DestType or not SrcType.UnqualifiedType.isValid()
-      or not SrcType.UnqualifiedType.isValid())
+      or not DestType.UnqualifiedType.isValid())
     return Result;
 
   revng_assert((SrcType.isScalar() or SrcType.isPointer())
