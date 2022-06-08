@@ -15,6 +15,7 @@ const char CollapseSingleChild::ID = 0;
 const char ComputeNonInterferingComponents::ID = 0;
 const char ComputeUpperMemberAccesses::ID = 0;
 const char DeduplicateUnionFields::ID = 0;
+const char MergePointerNodes::ID = 0;
 const char PruneLayoutNodesWithoutLayout::ID = 0;
 const char RemoveInvalidStrideEdges::ID = 0;
 const char RemoveInvalidPointers::ID = 0;

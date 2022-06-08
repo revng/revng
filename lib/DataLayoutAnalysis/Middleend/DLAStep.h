@@ -125,6 +125,20 @@ public:
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
+/// dla::Step that merge pointer nodes pointing to the same layout
+class MergePointerNodes : public Step {
+  static const char ID;
+
+public:
+  static const constexpr void *getID() { return &ID; }
+
+  MergePointerNodes() : Step(ID) {}
+
+  virtual ~MergePointerNodes() override = default;
+
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
+};
+
 /// dla::Step that computes and propagates informations on accesses and type
 /// sizes.
 class ComputeUpperMemberAccesses : public Step {

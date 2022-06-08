@@ -16,6 +16,7 @@ revng_add_analyses_library(
   Middleend/DLADeduplicateUnionFields.cpp
   Middleend/DLAStep.cpp
   Middleend/FieldSizeComputation.cpp
+  Middleend/MergePointerNodes.cpp
   Middleend/RemoveBackedges.cpp
   Middleend/RemoveInvalidPointers.cpp
   Middleend/RemoveInvalidStrideEdges.cpp
