@@ -93,8 +93,8 @@ static_assert(sizeof(DoRet) == (str_len(DoRet) + 1));
 static_assert(sizeof(NoRet) == (str_len(NoRet) + 1));
 
 static constexpr const char Equal[] = "Equal";
-static constexpr const char Instance[] = "Has Instance of: ";
-static constexpr const char Pointer[] = "Points to ";
+static constexpr const char Instance[] = "Instance of: ";
+static constexpr const char Pointer[] = "Points to: ";
 static constexpr const char Unexpected[] = "Unexpected!";
 static_assert(sizeof(Equal) == (str_len(Equal) + 1));
 static_assert(sizeof(Instance) == (str_len(Instance) + 1));
@@ -700,6 +700,24 @@ void TSDebugPrinter::printNodeContent(const LayoutTypeSystem &TS,
   for (auto ID : EqClasses.computeEqClass(N->ID))
     File << ID << ", ";
   File << "]" << DoRet;
+}
+
+void writeToLog(Logger<true> &Log, const TypeLinkTag &Tag, int /* Ignore */) {
+
+  switch (Tag.getKind()) {
+  case TypeLinkTag::LK_Equality: {
+    Log << Equal;
+  } break;
+  case TypeLinkTag::LK_Instance: {
+    Log << Instance << dumpToString(Tag.getOffsetExpr());
+  } break;
+  case TypeLinkTag::LK_Pointer: {
+    Log << Pointer;
+  } break;
+  default: {
+    Log << Unexpected;
+  } break;
+  }
 }
 
 } // end namespace dla

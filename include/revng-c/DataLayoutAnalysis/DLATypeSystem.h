@@ -102,6 +102,9 @@ public:
   }
 
   std::strong_ordering operator<=>(const TypeLinkTag &Other) const = default;
+
+  friend void
+  writeToLog(Logger<true> &L, const dla::TypeLinkTag &T, int /* Ignore */);
 }; // end class TypeLinkTag
 
 class LayoutTypeSystem;
