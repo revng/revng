@@ -362,12 +362,12 @@ static auto getSuccEdgesToChild(LTSN *Parent, LTSN *Child) {
                               Succ.upper_bound({ std::next(Child), nullptr }));
 }
 
-bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
+bool DeduplicateFields::runOnTypeSystem(LayoutTypeSystem &TS) {
   bool TypeSystemChanged = false;
   if (VerifyLog.isEnabled())
     revng_assert(TS.verifyDAG());
 
-  llvm::SmallPtrSet<LTSN *, 16> VisitedUnions;
+  llvm::SmallPtrSet<LTSN *, 16> VisitedNodes;
 
   for (LTSN *Root : llvm::nodes(&TS)) {
     revng_assert(Root != nullptr);
@@ -375,79 +375,120 @@ bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
       continue;
 
     llvm::SmallVector<LTSN *, 8> PostOrderFromRoot;
-    for (LTSN *UnionNode : post_order(NonPointerFilterT(Root))) {
-      if (UnionNode->InterferingInfo != AllChildrenAreInterfering
-          or VisitedUnions.contains(UnionNode))
+    for (LTSN *N : post_order_ext(NonPointerFilterT(Root), VisitedNodes)) {
+
+      size_t NumInstanceEdges = 0;
+
+      for ([[maybe_unused]] const auto &Edge :
+           llvm::children_edges<NonPointerFilterT>(Root))
+        ++NumInstanceEdges;
+
+      if (NumInstanceEdges < 2)
         continue;
 
-      revng_log(Log, "****** Union Node found: " << UnionNode->ID);
-      VisitedUnions.insert(UnionNode);
-      PostOrderFromRoot.push_back(UnionNode);
+      revng_log(Log, "****** Node with many fields found: " << N->ID);
+      PostOrderFromRoot.push_back(N);
     }
 
-    // Visit all Union nodes in post-order. The post-order needs to be cached
-    // because children can be merged during traversal, which would invalidate
-    // iterators in llvm::post_order if we use it vanilla.
-    for (LTSN *UnionNode : PostOrderFromRoot) {
+    // Visit all nodes with fields in post-order. The post-order needs to be
+    // cached because children can be merged during traversal, which would
+    // invalidate iterators in llvm::post_order if we use it vanilla.
+    for (LTSN *NodeWithFields : PostOrderFromRoot) {
       revng_log(Log,
-                "****** Try to dedup children of UnionNode with ID: "
-                  << UnionNode->ID);
+                "****** Try to dedup children of NodeWithFields with ID: "
+                  << NodeWithFields->ID);
 
-      // Since a node can be connected to the parent union by more than one
+      // Since a node can be connected to the parent by more than one
       // edge, we keep track of the **nodes** that we have to visit and the
       // **edges** we visited. In this way, when comparing subtrees, we consider
       // all the edges incoming from the parent node, so that, if we merge
       // two nodes, we don't have to update other links in the worklist.
-      llvm::SmallSetVector<LTSN *, 8> UnionChildrenToCompare;
-      llvm::SmallSet<LTSN *, 8> OriginalUnionChildren;
+      llvm::SmallSetVector<LTSN *, 8> FieldsToCompare;
+      llvm::SmallSet<LTSN *, 8> OriginalFields;
       llvm::SmallSet<LTSN *, 8> AnalyzedNodesNotMerged;
 
       // We keep a separate list of successors since we might need to re-enqueue
       // some of them.
-      for (const Link &L : UnionNode->Successors) {
-        UnionChildrenToCompare.insert(L.first);
-        OriginalUnionChildren.insert(L.first);
+      revng_log(Log, "Children are:");
+      LoggerIndent TmpIndent{ Log };
+      for (const Link &L : NodeWithFields->Successors) {
+        revng_log(Log, L.first->ID);
+        FieldsToCompare.insert(L.first);
+        OriginalFields.insert(L.first);
       }
 
-      bool UnionNodeChanged = false;
-      while (UnionChildrenToCompare.size() > 0) {
-        LTSN *CurChild = UnionChildrenToCompare.pop_back_val();
+      bool NodeWithFieldsChanged = false;
+      while (FieldsToCompare.size() > 0) {
+        LTSN *CurChild = FieldsToCompare.pop_back_val();
 
-        // The CurChild can be connected to UnionNode with more than one edge
-        // (inheritance and instance at offset 0), so consider them all when
-        // comparing CurChild with the AnalyzedNotMerged.
-        // TODO: turn this into an iterator range
-        bool UnionChildrenMerged = false;
-        auto CurChildEdges = getSuccEdgesToChild(UnionNode, CurChild);
+        LoggerIndent Indent{ Log };
+        revng_log(Log, "Consider CurChild: " << CurChild->ID);
+
+        // The CurChild can be connected to NodeWithFields with more than one
+        // edge, so consider them all when comparing CurChild with the
+        // AnalyzedNotMerged.
+        bool FieldsMerged = false;
+        auto CurChildEdges = getSuccEdgesToChild(NodeWithFields, CurChild);
+        revng_log(Log,
+                  "There are "
+                    << std::distance(CurChildEdges.begin(), CurChildEdges.end())
+                    << " edges from " << NodeWithFields->ID << " to "
+                    << CurChild->ID);
         for (auto &CurLink : CurChildEdges) {
-          revng_assert(isInstanceEdge(CurLink));
+
+          LoggerIndent MoreIndent{ Log };
+          revng_log(Log, "Edge: " << *CurLink.second);
+
+          if (isPointerEdge(CurLink)) {
+            revng_log(Log, "skip pointer edge");
+            continue;
+          }
 
           // We want to compare CurChild with all the other nodes that we have
           // looked at in previous iterations, and try to merge it with one of
           // them.
           for (LTSN *NotMergedNode : AnalyzedNodesNotMerged) {
-            auto MergedEdges = getSuccEdgesToChild(UnionNode, NotMergedNode);
+            LoggerIndent MoreMoreIndent{ Log };
+            revng_log(Log,
+                      "Try to merge: " << CurLink.first->ID << " with "
+                                       << NotMergedNode->ID);
+
+            auto NotMergedEdges = getSuccEdgesToChild(NodeWithFields,
+                                                      NotMergedNode);
+            revng_log(Log,
+                      "There are " << std::distance(NotMergedEdges.begin(),
+                                                    NotMergedEdges.end())
+                                   << " edges from " << NodeWithFields->ID
+                                   << " to " << NotMergedNode->ID);
 
             bool AnalyzedNotMergedInvalidated = false;
-            for (const Link &NotMergedLink : MergedEdges) {
-              revng_assert(isInstanceEdge(NotMergedLink));
+            for (const Link &NotMergedLink : NotMergedEdges) {
+
+              LoggerIndent MoreMoreIndent{ Log };
+              revng_log(Log, "Edge to merge: " << *NotMergedLink.second);
+
+              if (isPointerEdge(NotMergedLink)) {
+                revng_log(Log, "skip pointer edge");
+              }
 
               auto [IsMerged,
                     Preserved,
                     Erased] = mergeIfTopologicallyEq(TS,
                                                      NotMergedLink,
                                                      CurLink);
-              if (not IsMerged)
+              if (not IsMerged) {
+                revng_log(Log, "Edge not merged!");
                 continue;
+              }
+              revng_log(Log, "Edge merged!");
 
               // If we merged something, there should be at least one preserved
-              // node and one erase one
+              // node and one erased node
               revng_assert(not Preserved.empty());
               revng_assert(not Erased.empty());
 
               TypeSystemChanged = true;
-              UnionNodeChanged = true;
-              revng_log(Log, "Merged!");
+              NodeWithFieldsChanged = true;
 
               // The following call coul remove stuff from Preserved and add it
               // to Erased.
@@ -462,29 +503,40 @@ bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
               //    be removed.
               postProcessMerge(TS, Preserved);
 
+              revng_log(Log, "The merge has erased the following nodes:");
               for (auto &ErasedNode : Erased) {
+                LoggerIndent MoreMoreMoreIndent{ Log };
+                revng_log(Log, ErasedNode->ID);
                 // The ErasedNode has been deleted while merging, so we never
                 // want it to be processed again.
-                bool Erased = UnionChildrenToCompare.remove(ErasedNode);
-                UnionChildrenMerged |= Erased;
+                bool Erased = FieldsToCompare.remove(ErasedNode);
+                FieldsMerged |= Erased;
                 Erased = AnalyzedNodesNotMerged.erase(ErasedNode);
                 AnalyzedNotMergedInvalidated |= Erased;
               }
 
-              UnionChildrenMerged |= Erased.contains(CurChild);
+              FieldsMerged |= Erased.contains(CurChild);
 
               // This should always be true, since whenever we merge we are at
               // least erasing CurChild, merging it with NotMergedNode.
-              revng_assert(UnionChildrenMerged);
+              revng_assert(FieldsMerged);
 
+              revng_log(Log, "The merge has preserved the following nodes:");
               for (auto &[PreservedNode, _] : Preserved) {
+                LoggerIndent MoreMoreMoreIndent{ Log };
+                revng_log(Log, PreservedNode->ID);
                 // The PreservedNode is preserved (not erased) by merge, but
                 // the merge process might have changed it.
-                // So, if it'a an original children of the UnionNode, we need
-                // to re-process it, hence we add it to UnionChildreToCompare,
-                // and remove it from AnalyzedNodesNotMerged.
-                if (OriginalUnionChildren.count(PreservedNode)) {
-                  UnionChildrenToCompare.insert(PreservedNode);
+                // So, if it'a an original children of the NodeWithFields, we
+                // need to re-process it, hence we add it to FieldsToCompare,
+                // then set NodeWithFieldsChanged, and remove it from
+                // AnalyzedNodesNotMerged.
+                if (OriginalFields.count(PreservedNode)) {
+                  LoggerIndent MaxIndent{ Log };
+                  revng_log(Log,
+                            "Is an original field. Re-enqueue it for "
+                            "comparison");
+                  FieldsToCompare.insert(PreservedNode);
                   bool Erased = AnalyzedNodesNotMerged.erase(PreservedNode);
                   AnalyzedNotMergedInvalidated |= Erased;
                 }
@@ -499,7 +551,7 @@ bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
               // brake out of all the loops looking at CurChild and at
               // AnalyzedNodesNotMerged, since both of these might have
               // changed.
-              // looking at the next node in UnionChildrenToCompare.
+              // looking at the next node in FieldsToCompare.
               break;
             }
 
@@ -507,29 +559,32 @@ bool DeduplicateUnionFields::runOnTypeSystem(LayoutTypeSystem &TS) {
               // If we just merged CurChild into NotMergedNode we have
               // invalidated the AnalyzedNodesNotMerged iterators.
               // So we have to exit this loop and re-start iterating on
-              // UnionChildrenToCompare.
+              // FieldsToCompare.
               break;
             }
           }
 
-          // If the children of the UnionNode have been changed by the merge,
-          // the CurChildEdges iterator ranges have been invalidated. So we
-          // have to break out of this loop as well.
-          if (UnionChildrenMerged)
+          // If the children of the NodeWithFields have been changed by the
+          // merge, the CurChildEdges iterator ranges have been invalidated. So
+          // we have to break out of this loop as well.
+          if (FieldsMerged) {
             break;
+          }
         }
 
         // If we haven't merged CurChild with anything we can mark it as
         // analyzed and not merged.
-        if (not UnionChildrenMerged) {
+        if (not FieldsMerged) {
           AnalyzedNodesNotMerged.insert(CurChild);
-          revng_log(Log, "Child " << CurChild->ID << " not merged");
+          revng_log(Log, "CurChild " << CurChild->ID << " not merged");
         }
       }
 
       // Collapse the union node if we are left with only one member
-      if (UnionNodeChanged)
-        TypeSystemChanged |= CollapseSingleChild::collapseSingle(TS, UnionNode);
+      if (NodeWithFieldsChanged) {
+        bool Changed = CollapseSingleChild::collapseSingle(TS, NodeWithFields);
+        TypeSystemChanged |= Changed;
+      }
     }
   }
 

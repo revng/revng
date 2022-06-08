@@ -586,7 +586,7 @@ BOOST_AUTO_TEST_CASE(ComputeNonInterferingComponents_basic) {
 
 // ----------------- Deduplicate Union Fields --------------
 
-BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_basic) {
+BOOST_AUTO_TEST_CASE(DeduplicateFields_basic) {
   dla::LayoutTypeSystem TS;
 
   // Build TS
@@ -612,8 +612,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_basic) {
   revng_check(SM.addStep<PruneLayoutNodesWithoutLayout>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
   revng_check(SM.addStep<CollapseSingleChild>());
-  revng_check(SM.addStep<ComputeNonInterferingComponents>());
-  revng_check(SM.addStep<DeduplicateUnionFields>());
+  revng_check(SM.addStep<DeduplicateFields>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
 
   SM.run(TS);
@@ -634,7 +633,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_basic) {
   checkNode(TS, Node4, 4, AllChildrenAreNonInterfering, { 10 });
 }
 
-BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_diamond) {
+BOOST_AUTO_TEST_CASE(DeduplicateFields_diamond) {
   dla::LayoutTypeSystem TS;
 
   // Build TS
@@ -665,8 +664,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_diamond) {
   revng_check(SM.addStep<PruneLayoutNodesWithoutLayout>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
   revng_check(SM.addStep<CollapseSingleChild>());
-  revng_check(SM.addStep<ComputeNonInterferingComponents>());
-  revng_check(SM.addStep<DeduplicateUnionFields>());
+  revng_check(SM.addStep<DeduplicateFields>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
 
   SM.run(TS);
@@ -684,7 +682,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_diamond) {
             { 0, 1, 2, 3, 4, 5, 6, 7, 8 });
 }
 
-BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeSymmetric) {
+BOOST_AUTO_TEST_CASE(DeduplicateFields_commonNodeSymmetric) {
   dla::LayoutTypeSystem TS;
 
   // Build TS
@@ -709,8 +707,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeSymmetric) {
   revng_check(SM.addStep<PruneLayoutNodesWithoutLayout>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
   revng_check(SM.addStep<CollapseSingleChild>());
-  revng_check(SM.addStep<ComputeNonInterferingComponents>());
-  revng_check(SM.addStep<DeduplicateUnionFields>());
+  revng_check(SM.addStep<DeduplicateFields>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
 
   SM.run(TS);
@@ -727,7 +724,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeSymmetric) {
   checkNode(TS, NodeD1, 8, AllChildrenAreNonInterfering, { 4, 7 });
 }
 
-BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeAsymmetric) {
+BOOST_AUTO_TEST_CASE(DeduplicateFields_commonNodeAsymmetric) {
   dla::LayoutTypeSystem TS;
 
   // Build TS
@@ -752,8 +749,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeAsymmetric) {
   revng_check(SM.addStep<PruneLayoutNodesWithoutLayout>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
   revng_check(SM.addStep<CollapseSingleChild>());
-  revng_check(SM.addStep<ComputeNonInterferingComponents>());
-  revng_check(SM.addStep<DeduplicateUnionFields>());
+  revng_check(SM.addStep<DeduplicateFields>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
 
   SM.run(TS);
@@ -769,7 +765,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeAsymmetric) {
   checkNode(TS, NodeD1, 8, AllChildrenAreNonInterfering, { 2, 4, 7 });
 }
 
-BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeAsymmetricCollapse) {
+BOOST_AUTO_TEST_CASE(DeduplicateFields_commonNodeAsymmetricCollapse) {
   dla::LayoutTypeSystem TS;
 
   // Build TS
@@ -797,8 +793,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeAsymmetricCollapse) {
   revng_check(SM.addStep<PruneLayoutNodesWithoutLayout>());
   revng_check(SM.addStep<ComputeUpperMemberAccesses>());
   revng_check(SM.addStep<CollapseSingleChild>());
-  revng_check(SM.addStep<ComputeNonInterferingComponents>());
-  revng_check(SM.addStep<DeduplicateUnionFields>());
+  revng_check(SM.addStep<DeduplicateFields>());
   revng_check(SM.addStep<ComputeNonInterferingComponents>());
 
   SM.run(TS);
@@ -813,5 +808,5 @@ BOOST_AUTO_TEST_CASE(DeduplicateUnionFields_commonNodeAsymmetricCollapse) {
   checkNode(TS, NodeA, 10, AllChildrenAreInterfering, { 1 });
   checkNode(TS, NodeB, 8, AllChildrenAreNonInterfering, { 2 });
   checkNode(TS, NodeC, 10, AllChildrenAreNonInterfering, { 3 });
-  checkNode(TS, NodeD, 8, AllChildrenAreNonInterfering, { 4, 5, 6, 7 });
+  checkNode(TS, NodeA1, 8, AllChildrenAreNonInterfering, { 4, 5, 6, 7 });
 }

@@ -13,7 +13,7 @@ revng_add_analyses_library(
   Middleend/DLAComputeUpperMemberAccess.cpp
   Middleend/DLAPruneLayoutNodesWithoutLayout.cpp
   Middleend/DLACollapseSingleChild.cpp
-  Middleend/DLADeduplicateUnionFields.cpp
+  Middleend/DeduplicateFields.cpp
   Middleend/DLAStep.cpp
   Middleend/FieldSizeComputation.cpp
   Middleend/MergePointerNodes.cpp

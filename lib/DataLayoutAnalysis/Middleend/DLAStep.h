@@ -241,20 +241,20 @@ public:
 
 /// dla::Step that merges structurally identical subtrees of an interfering
 /// node.
-class DeduplicateUnionFields : public Step {
+class DeduplicateFields : public Step {
   static const char ID;
 
 public:
   static const constexpr void *getID() { return &ID; }
 
-  DeduplicateUnionFields() :
+  DeduplicateFields() :
     Step(ID,
          // Dependencies
-         { ComputeNonInterferingComponents::getID() },
+         {},
          // Invalidated
-         { ComputeNonInterferingComponents::getID() }) {}
+         {}) {}
 
-  virtual ~DeduplicateUnionFields() override = default;
+  virtual ~DeduplicateFields() override = default;
 
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
