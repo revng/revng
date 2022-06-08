@@ -51,15 +51,7 @@ bool CollapseSingleChild::collapseSingle(LayoutTypeSystem &TS,
 
     revng_log(Log, "Collapsing " << Child->ID << " into " << Node->ID);
 
-    // Merge single child into parent.
-    // mergeNodes resets InterferingInfo of Node, but we're collapsing
-    // Child that is the only child of Node, so we have to attach Child's
-    // InterferingInfo to the parent Node that we're preserving.
-    // This is always correct because the InterferingInfo of a node only
-    // depend on its children.
-    auto ChildInterferingInfo = Child->InterferingInfo;
     TS.mergeNodes({ /*Into=*/Node, /*From=*/Child });
-    Node->InterferingInfo = ChildInterferingInfo;
 
     Changed = true;
   }
