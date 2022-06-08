@@ -2,13 +2,13 @@
 # Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 #
 
-From:            RemoveLiftingArtifacts
-Containers:
-Steps:
- - Name:            PromoteStackPointer
-   Pipes:
-     - Type:             LLVMPipe
-       UsedContainers: [module.ll]
-       Passes:
-         - measure-stack-size-at-call-sites
-         - promote-stack-pointer
+Branches:
+ - From:            RemoveLiftingArtifacts
+   Steps:
+    - Name:            PromoteStackPointer
+      Pipes:
+       - Type:             LLVMPipe
+         UsedContainers: [module.ll]
+         Passes:
+          - measure-stack-size-at-call-sites
+          - promote-stack-pointer

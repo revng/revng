@@ -5,16 +5,17 @@
 Containers:
  - Name:            decompiled.yml
    Type:            DecompiledCCodeInYAML
-From:            IRCanonicalization
-Steps:
- - Name:            DecompileToCInYAML
-   Pipes:
-     - Type:             HelpersToHeader
-       UsedContainers: [module.ll, helpers_header.h]
-     - Type:             ModelToHeader
-       UsedContainers: [input, model_header.h]
-     - Type:             CDecompilation
-       UsedContainers: [module.ll, decompiled.yml]
-   Artifacts:
-     Container: decompiled.yml
-     Kind: DecompiledToYAML
+Branches:
+ - From:            IRCanonicalization
+   Steps:
+    - Name:            DecompileToCInYAML
+      Pipes:
+       - Type:             HelpersToHeader
+         UsedContainers: [module.ll, helpers_header.h]
+       - Type:             ModelToHeader
+         UsedContainers: [input, model_header.h]
+       - Type:             CDecompilation
+         UsedContainers: [module.ll, decompiled.yml]
+      Artifacts:
+       Container: decompiled.yml
+       Kind: DecompiledToYAML
