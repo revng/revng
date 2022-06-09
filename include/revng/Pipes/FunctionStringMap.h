@@ -21,8 +21,11 @@ class FunctionStringMap : public pipeline::Container<FunctionStringMap> {
 public:
   /// Wrapper for std::string that allows YAML-serialization as multiline string
   struct String {
-    std::string TheString;
-    operator std::string() const { return TheString; }
+    std::string Value;
+
+    String() : Value() {}
+    String(const std::string &NewValue) : Value(NewValue) {}
+    String(std::string &&NewValue) : Value(std::move(NewValue)) {}
   };
 
 public:
@@ -82,37 +85,55 @@ protected:
 public:
   /// std::map-like methods
 
-  std::string &operator[](MetaAddress M) { return Map[M].TheString; };
+  std::string &operator[](MetaAddress M) { return Map[M].Value; };
 
-  std::string &at(MetaAddress M) { return Map.at(M).TheString; };
-  const std::string &at(MetaAddress M) const { return Map.at(M).TheString; };
+  std::string &at(MetaAddress M) { return Map.at(M).Value; };
+  const std::string &at(MetaAddress M) const { return Map.at(M).Value; };
 
-  std::pair<Iterator, bool> insert(const ValueType &V) {
-    return Map.insert(V);
-  };
-  std::pair<Iterator, bool> insert(ValueType &&V) {
-    return Map.insert(std::move(V));
+private:
+  using IteratedValue = std::pair<const MetaAddress &, std::string &>;
+  inline constexpr static auto mapIt = [](auto &Iterated) -> IteratedValue {
+    return { Iterated.first, Iterated.second.Value };
   };
 
-  std::pair<Iterator, bool>
-  insert_or_assign(MetaAddress Key, const std::string &Value) {
-    return Map.insert_or_assign(Key, String{ Value });
+  using IteratedCValue = std::pair<const MetaAddress &, const std::string &>;
+  inline constexpr static auto mapCIt = [](auto &Iterated) -> IteratedCValue {
+    return { Iterated.first, Iterated.second.Value };
   };
-  std::pair<Iterator, bool>
-  insert_or_assign(MetaAddress Key, std::string &&Value) {
-    return Map.insert_or_assign(Key, String{ std::move(Value) });
+
+public:
+  auto insert(const ValueType &V) {
+    auto [Iterator, Success] = Map.insert(V);
+    return std::pair{ revng::map_iterator(Iterator, mapIt), Success };
+  };
+  auto insert(ValueType &&V) {
+    auto [Iterator, Success] = Map.insert(std::move(V));
+    return std::pair{ revng::map_iterator(Iterator, mapIt), Success };
+  };
+
+  auto insert_or_assign(MetaAddress Key, const std::string &Value) {
+    auto [Iterator, Success] = Map.insert_or_assign(Key, Value);
+    return std::pair{ revng::map_iterator(Iterator, mapIt), Success };
+  };
+  auto insert_or_assign(MetaAddress Key, std::string &&Value) {
+    auto [Iterator, Success] = Map.insert_or_assign(Key, std::move(Value));
+    return std::pair{ revng::map_iterator(Iterator, mapIt), Success };
   };
 
   bool contains(MetaAddress Key) const { return Map.contains(Key); }
 
-  Iterator find(MetaAddress Key) { return Map.find(Key); }
-  ConstIterator find(MetaAddress Key) const { return Map.find(Key); }
+  auto find(MetaAddress Key) {
+    return revng::map_iterator(Map.find(Key), this->mapIt);
+  }
+  auto find(MetaAddress Key) const {
+    return revng::map_iterator(Map.find(Key), this->mapCIt);
+  }
 
-  Iterator begin() { return Map.begin(); }
-  Iterator end() { return Map.end(); }
+  auto begin() { return revng::map_iterator(Map.begin(), this->mapIt); }
+  auto end() { return revng::map_iterator(Map.end(), this->mapIt); }
 
-  ConstIterator begin() const { return Map.begin(); }
-  ConstIterator end() const { return Map.end(); }
+  auto begin() const { return revng::map_iterator(Map.begin(), this->mapCIt); }
+  auto end() const { return revng::map_iterator(Map.end(), this->mapCIt); }
 
 }; // end class FunctionStringMap
 
