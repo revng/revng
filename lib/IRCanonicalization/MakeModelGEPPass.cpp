@@ -29,6 +29,7 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/Type.h"
+#include "revng/Model/TypeKind.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
@@ -205,9 +206,14 @@ struct IRAccessPattern {
   void dump() const debug_function { dump(llvm::dbgs()); }
 };
 
-static IRAccessPattern computeAccessPattern(const Use &U,
-                                            const ModelGEPSummation &GEPSum,
-                                            const model::Binary &Model) {
+using UseTypeMap = std::map<llvm::Use *, model::QualifiedType>;
+
+static IRAccessPattern
+computeAccessPattern(const Use &U,
+                     const ModelGEPSummation &GEPSum,
+                     const model::Binary &Model,
+                     const ModelTypesMap &PointerTypes,
+                     const UseTypeMap &GEPifiedUseTypes) {
   using namespace model;
   revng_assert(GEPSum.isAddress());
 
@@ -264,10 +270,22 @@ static IRAccessPattern computeAccessPattern(const Use &U,
       const llvm::DataLayout &DL = UserInstr->getModule()->getDataLayout();
       auto PointeeSize = DL.getTypeAllocSize(Load->getType());
 
-      model::TypePath
-        Pointee = Model.getPrimitiveType(model::PrimitiveTypeKind::Generic,
-                                         PointeeSize);
-      model::QualifiedType QPointee = model::QualifiedType(Pointee, {});
+      model::QualifiedType QPointee;
+      auto *PtrOp = Load->getPointerOperand();
+      auto *PtrOpUse = &Load->getOperandUse(Load->getPointerOperandIndex());
+      if (auto It = PointerTypes.find(PtrOp); It != PointerTypes.end()) {
+        QPointee = dropPointer(It->second);
+      }
+      if (auto It = GEPifiedUseTypes.find(PtrOpUse);
+          It != GEPifiedUseTypes.end()) {
+        QPointee = dropPointer(It->second);
+      } else {
+        model::TypePath
+          Pointee = Model.getPrimitiveType(model::PrimitiveTypeKind::Generic,
+                                           PointeeSize);
+        QPointee = model::QualifiedType(Pointee, {});
+      }
+
       revng_log(ModelGEPLog, "QPointee: " << serializeToString(QPointee));
       IRPattern.PointeeType = QPointee;
 
@@ -286,7 +304,28 @@ static IRAccessPattern computeAccessPattern(const Use &U,
         model::TypePath
           Pointee = Model.getPrimitiveType(model::PrimitiveTypeKind::Generic,
                                            PointeeSize);
-        model::QualifiedType QPointee = model::QualifiedType(Pointee, {});
+        model::QualifiedType Generic = model::QualifiedType(Pointee, {});
+        model::QualifiedType QPointee = Generic;
+
+        auto *PtrOp = Store->getPointerOperand();
+        auto *PtrOpUse = &Store->getOperandUse(Store->getPointerOperandIndex());
+
+        if (auto It = PointerTypes.find(PtrOp); It != PointerTypes.end()) {
+          QPointee = dropPointer(It->second);
+          if (QPointee.is(model::TypeKind::StructType)
+              or QPointee.is(model::TypeKind::UnionType)) {
+            QPointee = Generic;
+          }
+        }
+        if (auto It = GEPifiedUseTypes.find(PtrOpUse);
+            It != GEPifiedUseTypes.end()) {
+          QPointee = dropPointer(It->second);
+          if (QPointee.is(model::TypeKind::StructType)
+              or QPointee.is(model::TypeKind::UnionType)) {
+            QPointee = Generic;
+          }
+        }
+
         revng_log(ModelGEPLog, "QPointee: " << serializeToString(QPointee));
         IRPattern.PointeeType = QPointee;
       } else {
@@ -608,6 +647,9 @@ struct DifferenceScore {
   // from the beginning of the type.
   size_t Difference = std::numeric_limits<size_t>::max();
 
+  // Among two DifferenceScore, the one with ExactSize is considered closer.
+  bool ExactSize = false;
+
   // This field represents how deep the type system was traversed to compute the
   // score. Scores with a higher depth are considered better (so lower
   // difference) because it means that the type system was traversed deeply.
@@ -640,14 +682,24 @@ struct DifferenceScore {
 
     // Here both have the same difference, e.g. they reach the same offset.
 
+    // If the ExactSize is not the same, we give precedence to the one with
+    // ExactSize, which means that it's closer in size to the
+    // perfect match.
+    if (ExactSize != Other.ExactSize)
+      return ExactSize ? std::strong_ordering::less :
+                         std::strong_ordering::greater;
+
     // Notice that in the following line the terms are inverted, because lower
     // depth needs to be scored "better" (so lower difference).
     return Other.Depth <=> Depth;
   }
 
   void dump(llvm::raw_ostream &OS) const debug_function {
-    OS << "DifferenceScore { .PerfectTypeMatch = " << PerfectTypeMatch
-       << ", .Difference = " << Difference << ", .Depth = " << Depth
+    OS << "DifferenceScore { .PerfectTypeMatch = "
+       << (PerfectTypeMatch ? "true" : "false")
+       << ", .Difference = " << Difference
+       << ", .ExactSize = " << (ExactSize ? "true" : "false")
+       << ", .Depth = " << Depth
        << ", .InRange = " << (InRange ? "true" : "false") << "}";
   }
 
@@ -664,6 +716,7 @@ struct ScoredIndices {
   static ScoredIndices outOfBound(size_t DiffScore) {
     return ScoredIndices{ .Score = DifferenceScore{ .PerfectTypeMatch = false,
                                                     .Difference = DiffScore,
+                                                    .ExactSize = false,
                                                     .Depth = 0,
                                                     .InRange = false },
                           .Indices{} };
@@ -676,6 +729,7 @@ struct ScoredIndices {
       Indices.resize(Depth);
     auto Score = DifferenceScore{ .PerfectTypeMatch = false,
                                   .Difference = DiffScore,
+                                  .ExactSize = false,
                                   .Depth = Depth,
                                   .InRange = false };
     return ScoredIndices{ .Score = std::move(Score),
@@ -842,9 +896,14 @@ differenceScore(const model::QualifiedType &BaseType,
   bool PerfectMatch = IRAP.PointeeType.has_value()
                       and IRAP.PointeeType.value() == TAP.AccessedType;
 
+  bool SameSize = false;
+  if (IRAP.PointeeType.has_value())
+    SameSize = *TAP.AccessedType.size() == *IRAP.PointeeType.value().size();
+
   return ScoredIndices{
     .Score = DifferenceScore{ .PerfectTypeMatch = PerfectMatch,
                               .Difference = RestOff.getZExtValue(),
+                              .ExactSize = SameSize,
                               .Depth = Depth,
                               .InRange = true },
     .Indices = std::move(ResultIndices),
@@ -1874,6 +1933,8 @@ makeGEPReplacements(llvm::Function &F, const model::Binary &Model) {
   TypedAccessCache TAPCache;
   model::VerifyHelper VH;
 
+  UseTypeMap GEPifiedUsedTypes;
+
   LLVMContext &Ctxt = F.getContext();
   auto RPOT = ReversePostOrderTraversal(&F.getEntryBlock());
   for (auto *BB : RPOT) {
@@ -1896,24 +1957,20 @@ makeGEPReplacements(llvm::Function &F, const model::Binary &Model) {
           continue;
         }
 
-        // Skip callee operands in CallInst
+        // Skip callee operands in CallInst if it's not an llvm::Instruction.
+        // If it is an Instruction we should handle it.
         if (auto *CallUser = dyn_cast<CallInst>(U.getUser())) {
-          if (&U == &CallUser->getCalledOperandUse()) {
-            revng_log(ModelGEPLog, "Skipping callee operand in CallInst");
-            continue;
+          if (not isa<llvm::Instruction>(CallUser->getCalledOperand())) {
+            if (&U == &CallUser->getCalledOperandUse()) {
+              revng_log(ModelGEPLog, "Skipping callee operand in CallInst");
+              continue;
+            }
           }
         }
 
-        // Skip all but the pointer operands of load and store instructions
+        // Skip all but the pointer operands of load instructions
         if (auto *Load = dyn_cast<LoadInst>(U.getUser())) {
           if (U.getOperandNo() != Load->getPointerOperandIndex()) {
-            revng_log(ModelGEPLog, "Skipping non-pointer operand in LoadInst");
-            continue;
-          }
-        }
-
-        if (auto *Store = dyn_cast<StoreInst>(U.getUser())) {
-          if (U.getOperandNo() != Store->getPointerOperandIndex()) {
             revng_log(ModelGEPLog, "Skipping non-pointer operand in LoadInst");
             continue;
           }
@@ -1955,7 +2012,11 @@ makeGEPReplacements(llvm::Function &F, const model::Binary &Model) {
           continue;
 
         // Now we extract an IRAccessPattern from the ModelGEPSummation
-        IRAccessPattern IRPattern = computeAccessPattern(U, GEPSum, Model);
+        IRAccessPattern IRPattern = computeAccessPattern(U,
+                                                         GEPSum,
+                                                         Model,
+                                                         PointerTypes,
+                                                         GEPifiedUsedTypes);
 
         // Select among the computed TAPIndices the one which best fits the
         // IRPattern
@@ -1970,6 +2031,13 @@ makeGEPReplacements(llvm::Function &F, const model::Binary &Model) {
           continue;
 
         ModelGEPArgs &GEPArgs = BestGEPArgsOrNone.value();
+
+        {
+          model::QualifiedType UseType = GEPArgs.PointeeType;
+          addPointerQualifier(UseType, Model);
+
+          GEPifiedUsedTypes.insert({ &U, UseType });
+        }
 
         revng_log(ModelGEPLog, "Best GEPArgs: " << GEPArgs);
 
