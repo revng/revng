@@ -69,6 +69,9 @@ def try_run(
     if environment is None:
         environment = dict(os.environ)
 
+    if "valgrind" in command:
+        environment["PYTHONMALLOC"] = "malloc"
+
     if do_exec:
         return os.execvpe(command[0], command, environment)
     else:
