@@ -8,7 +8,7 @@ import sys
 
 import yaml
 
-from . import SafeLoaderIgnoreUnknown, remap_metaaddress
+from . import remap_metaaddress
 
 
 def log(message):
@@ -31,7 +31,7 @@ def main():
     input_file = sys.stdin
 
     # Decode YAML
-    parsed_text = yaml.load(input_file, Loader=SafeLoaderIgnoreUnknown)
+    parsed_text = yaml.load(input_file, Loader=yaml.SafeLoader)
 
     # Remap MetaAddress
     if args.remap:

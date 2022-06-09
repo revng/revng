@@ -13,14 +13,6 @@ from .revng import run_revng_command
 from .support import log_error
 
 
-class SafeLoaderIgnoreUnknown(yaml.SafeLoader):
-    def ignore_unknown(self, node):
-        return self.construct_mapping(node)
-
-
-SafeLoaderIgnoreUnknown.add_constructor(None, SafeLoaderIgnoreUnknown.ignore_unknown)
-
-
 class ModelOverrideByName(Command):
     def __init__(self):
         super().__init__(("model", "override-by-name"), "Override parts of the model")
@@ -81,9 +73,9 @@ class ModelOverrideByName(Command):
                 return result
 
             self.log("Loading the base model")
-            base_model = yaml.load(model_file, Loader=SafeLoaderIgnoreUnknown)
+            base_model = yaml.load(model_file, Loader=yaml.SafeLoader)
             self.log("Loading the override model")
-            override_model = yaml.load(override_file, Loader=SafeLoaderIgnoreUnknown)
+            override_model = yaml.load(override_file, Loader=yaml.SafeLoader)
 
             self.log("Importing Entry and OriginalName")
             for function_to_override in override_model["Functions"]:
@@ -115,7 +107,7 @@ class ModelOverrideByName(Command):
 
             self.log("Loading the patch file")
             with open(patch_file.name) as loaded_patch_file:
-                patch = yaml.load(stream=loaded_patch_file, Loader=SafeLoaderIgnoreUnknown)
+                patch = yaml.load(stream=loaded_patch_file, Loader=yaml.SafeLoader)
 
             self.log("Removing all removals from the patch file")
             patch["Changes"] = [

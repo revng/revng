@@ -5,14 +5,6 @@
 import yaml
 
 
-class SafeLoaderIgnoreUnknown(yaml.SafeLoader):
-    def ignore_unknown(self, node):
-        return self.construct_mapping(node)
-
-
-SafeLoaderIgnoreUnknown.add_constructor(None, SafeLoaderIgnoreUnknown.ignore_unknown)
-
-
 def is_metaaddress(value):
     return (
         isinstance(value, str)
@@ -85,4 +77,4 @@ def remap_metaaddress(model):
 
 
 def parse_model(text_model):
-    return yaml.load(text_model, Loader=SafeLoaderIgnoreUnknown)
+    return yaml.load(text_model, Loader=yaml.SafeLoader)
