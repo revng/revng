@@ -39,6 +39,15 @@ using namespace llvm::pdb;
 
 static Logger<> DILogger("pdb-importer");
 
+static llvm::cl::list<std::string> SearchPathPDB("search-path-pdb",
+                                                 llvm::cl::desc("path"),
+                                                 llvm::cl::ZeroOrMore,
+                                                 llvm::cl::cat(MainCategory));
+// Force using a specific PDB.
+static llvm::cl::opt<std::string> UsePDB("use-pdb",
+                                         llvm::cl::desc("Path to the PDB."),
+                                         llvm::cl::cat(MainCategory));
+
 namespace {
 class PDBImporterImpl {
 private:
@@ -276,8 +285,21 @@ void PDBImporter::import(const COFFObjectFile &TheBinary) {
       // first try to find it in the current `.` dir.
       auto PDBFileNameOnly = PDBFilePath.substr(PDBFilePath.find_last_of('\\')
                                                 + 1);
-      if (llvm::sys::fs::exists(PDBFileNameOnly.str()))
+      if (llvm::sys::fs::exists(PDBFileNameOnly.str())) {
         loadDataFromPDB(PDBFileNameOnly.str());
+      } else if (not UsePDB.empty()) {
+        // Sometimes we may rename a PDB file, so we can force using that one.
+        loadDataFromPDB(UsePDB);
+      } else if (SearchPathPDB.size() > 0) {
+        // Otherwise, try to find the PDB in user defined paths.
+        for (const std::string &Path : SearchPathPDB) {
+          std::string UserDefinedPDBFilePath = Path + PDBFileNameOnly.str();
+          if (llvm::sys::fs::exists(UserDefinedPDBFilePath)) {
+            loadDataFromPDB(UserDefinedPDBFilePath);
+            break;
+          }
+        }
+      }
     }
   } else {
     revng_log(DILogger, "Unable to find PDB path in the binary.");
