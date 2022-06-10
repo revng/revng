@@ -1301,6 +1301,8 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
 
     if (LoopBody->isDoWhile())
       Out << " while (" + CondExpr + ");\n";
+    else
+      Out << "\n";
 
   } break;
 
