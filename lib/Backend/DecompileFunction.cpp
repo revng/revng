@@ -812,7 +812,8 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
 
         // Cast the variable that holds the function pointer to the correct
         // type, and use it as the callee part of the expression
-        CalleeToken = (addParentheses(getTypeName(FuncPtrType)) + VarName)
+        CalleeToken = (addParentheses(getTypeName(FuncPtrType))
+                       + addParentheses(VarName))
                         .str();
         CalleeToken = addParentheses(buildDerefExpr(CalleeToken));
 
