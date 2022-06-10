@@ -527,13 +527,18 @@ ModelTypesMap initModelTypes(const llvm::Function &F,
         break;
       }
 
-      // As a fallback, use the LLVM type to build the QualifiedType
-      if (not Type)
-        Type = llvmIntToModelType(InstType, Model);
+      if (PointersOnly) {
+        // Skip if it's not a pointer and we are only interested in pointers
+        if (Type and Type->isPointer())
+          TypeMap.insert({ &I, *Type });
 
-      // Skip if it's not a pointer and we are only interested in pointers
-      if (not PointersOnly or Type->isPointer())
+      } else {
+        // As a fallback, use the LLVM type to build the QualifiedType
+        if (not Type)
+          Type = llvmIntToModelType(InstType, Model);
+
         TypeMap.insert({ &I, *Type });
+      }
     }
   }
 
