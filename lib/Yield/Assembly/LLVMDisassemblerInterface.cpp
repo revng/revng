@@ -314,9 +314,6 @@ yield::Instruction DI::parse(const llvm::MCInst &Instruction,
     return Whitespaces.contains(C);
   };
 
-  const auto &Info = InstructionInformation->get(Instruction.getOpcode());
-  Result.HasDelaySlot = Info.hasDelaySlot();
-
   // Investigate the llvm-provided tags.
   constexpr llvm::StringRef TagBoundaries = "<>";
   llvm::SmallVector<size_t, 8> OpenTagStack;
@@ -392,7 +389,7 @@ yield::Instruction DI::parse(const llvm::MCInst &Instruction,
   return Result;
 }
 
-std::pair<yield::Instruction, uint64_t>
+DI::Disassembled
 DI::instruction(const MetaAddress &Where, llvm::ArrayRef<uint8_t> RawBytes) {
   revng_assert(Where.isValid() && !RawBytes.empty());
 
@@ -400,12 +397,14 @@ DI::instruction(const MetaAddress &Where, llvm::ArrayRef<uint8_t> RawBytes) {
   if (Instruction.has_value()) {
     revng_assert(Size != 0);
     auto P = parse(*Instruction, Where, Size, *Printer, *SubtargetInformation);
-    return std::pair{ std::move(P), Size };
+
+    const auto &Info = InstructionInformation->get(Instruction->getOpcode());
+    return { std::move(P), Info.hasDelaySlot(), Size };
   } else {
     if (Size == 0)
       Size = RawBytes.size();
-    return std::pair{
-      makeInvalidInstruction(Where, Size, "MCDisassembler failed"), Size
-    };
+    return { makeInvalidInstruction(Where, Size, "MCDisassembler failed"),
+             false,
+             Size };
   }
 }

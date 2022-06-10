@@ -53,13 +53,6 @@ fields:
     type: std::string
     optional: true
 
-  - name: HasDelaySlot
-    doc: >
-      This flag is set if the instruction following this one is in the delay
-      slot (executed at the same time as this instruction).
-    type: bool
-    optional: true
-
 key:
   - Address
 

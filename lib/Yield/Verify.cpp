@@ -55,15 +55,22 @@ bool yield::BasicBlock::verify(model::VerifyHelper &VH) const {
     if (!Instruction.verify(VH))
       return VH.fail("Instuction verification failed.");
 
-    if (PreviousAddress.isValid() && Instruction.Address >= PreviousAddress)
+    if (PreviousAddress.isValid() && Instruction.Address >= PreviousAddress) {
       return VH.fail("Instructions must be strongly ordered and their size "
                      "must be bigger than zero.");
+    }
     PreviousAddress = Instruction.Address;
   }
 
-  if (PreviousAddress.isInvalid() || PreviousAddress >= End)
+  if (PreviousAddress.isInvalid() || PreviousAddress >= End) {
     return VH.fail("The size of the last instruction must be bigger than "
                    "zero.");
+  }
+
+  if (HasDelaySlot && Instructions.size() < 2) {
+    return VH.fail("A basic block with a delay slot must contain at least two "
+                   "instructions.");
+  }
 
   return true;
 }

@@ -33,7 +33,12 @@ private:
 public:
   explicit LLVMDisassemblerInterface(MetaAddressType::Values AddressType);
 
-  std::pair<yield::Instruction, uint64_t>
+  struct Disassembled {
+    yield::Instruction Instruction;
+    bool HasDelaySlot;
+    uint64_t Size;
+  };
+  Disassembled
   instruction(const MetaAddress &Where, llvm::ArrayRef<uint8_t> RawBytes);
 
 public:

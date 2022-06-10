@@ -571,8 +571,8 @@ static std::string instruction(const yield::Instruction &Instruction,
                                const yield::BasicBlock &BasicBlock,
                                const yield::Function &Function,
                                const model::Binary &Binary,
-                               bool IsInDelayedSlot = false,
-                               bool ShouldPrintTargets = false) {
+                               bool ShouldPrintTargets = false,
+                               bool IsInDelayedSlot = false) {
   // MetaAddress of the instruction.
   std::string Result = blockComment(tags::InstructionAddress,
                                     Binary,
@@ -652,42 +652,40 @@ static std::string basicBlock(const yield::BasicBlock &BasicBlock,
                               const model::Binary &Binary,
                               bool HasLabel = true) {
   revng_assert(!BasicBlock.Instructions.empty());
-
-  // Compile the list of delayed instructions so the corresponding comment
-  // can be emited.
-  llvm::SmallVector<MetaAddress, 2> DelayedList;
-  bool IsNextInstructionDelayed = false;
-  for (const auto &Instruction : BasicBlock.Instructions) {
-    if (IsNextInstructionDelayed)
-      DelayedList.emplace_back(Instruction.Address);
-    IsNextInstructionDelayed = Instruction.HasDelaySlot;
+  auto FromIterator = BasicBlock.Instructions.begin();
+  auto ToIterator = std::prev(BasicBlock.Instructions.end());
+  if (BasicBlock.HasDelaySlot) {
+    revng_assert(BasicBlock.Instructions.size() > 1);
+    --ToIterator;
   }
-  revng_assert(IsNextInstructionDelayed == false,
-               "Last instruction has an unfilled delayed slot.");
 
-  // Determine the last non-delayed instruction.
-  // This is the instruction "targets" get printed for in horizontal layout.
-  MetaAddress LastNotDelayedInstruction = MetaAddress::invalid();
-  for (const auto &Instruction : llvm::reverse(BasicBlock.Instructions)) {
-    if (!llvm::is_contained(DelayedList, Instruction.Address)) {
-      LastNotDelayedInstruction = Instruction.Address;
-      break;
-    }
-  }
-  revng_assert(LastNotDelayedInstruction.isValid());
-
-  // String the instructions together.
   std::string Result;
-  for (const auto &Instruction : BasicBlock.Instructions) {
-    bool IsInDelayedSlot = llvm::is_contained(DelayedList, Instruction.Address);
-    bool ShouldPrintTargets = LastNotDelayedInstruction == Instruction.Address;
-    Result += instruction<UseVerticalLayout>(Instruction,
+  for (auto Iterator = FromIterator; Iterator != ToIterator; ++Iterator) {
+    // Print most of the instructions.
+    Result += instruction<UseVerticalLayout>(*Iterator,
+                                             BasicBlock,
+                                             Function,
+                                             Binary);
+  }
+
+  // Print the instruction with targets.
+  Result += instruction<UseVerticalLayout>(*ToIterator++,
+                                           BasicBlock,
+                                           Function,
+                                           Binary,
+                                           true);
+
+  if (BasicBlock.HasDelaySlot) {
+    // Print the instruction in the delay slot, if applicable.
+    Result += instruction<UseVerticalLayout>(*ToIterator++,
                                              BasicBlock,
                                              Function,
                                              Binary,
-                                             IsInDelayedSlot,
-                                             ShouldPrintTargets);
+                                             false,
+                                             true);
   }
+
+  revng_assert(ToIterator == BasicBlock.Instructions.end());
 
   if (HasLabel)
     return llvm::formatv(templates::SimpleDiv,

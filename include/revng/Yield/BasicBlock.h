@@ -50,6 +50,15 @@ fields:
       or not.
     type: bool
 
+  - name: HasDelaySlot
+    doc: >
+      This flag is set if the last instruction of the block is in a delay slot
+      and is executed at the same time as the instruction preceding it.
+      \note: This is always equal to `false` on architectures that do not
+      support delay slots.
+    type: bool
+    optional: true
+
 key:
   - Start
 
