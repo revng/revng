@@ -114,14 +114,24 @@ yield::Function DH::disassemble(const model::Function &Function,
     revng_assert(RawBytes.has_value());
 
     MetaAddress CurrentAddress = BasicBlock.Start;
+    MetaAddress InstructionWithTheDelaySlot = MetaAddress::invalid();
     for (auto InstrInserter = ResultBasicBlock.Instructions.batch_insert();
          CurrentAddress < BasicBlock.End;) {
       auto MaybeInstructionOffset = CurrentAddress - BasicBlock.Start;
       revng_assert(MaybeInstructionOffset.has_value());
       auto InstructionBytes = RawBytes->drop_front(*MaybeInstructionOffset);
 
-      auto [Instruction, Size] = Helper.instruction(CurrentAddress,
-                                                    InstructionBytes);
+      auto [Instruction,
+            HasDelaySlot,
+            Size] = Helper.instruction(CurrentAddress, InstructionBytes);
+      revng_assert(Instruction.Address.isValid());
+
+      if (HasDelaySlot) {
+        revng_assert(InstructionWithTheDelaySlot.isInvalid(),
+                     "Multiple instructions with delay slots are not allowed "
+                     "in the same basic block.");
+        InstructionWithTheDelaySlot = Instruction.Address;
+      }
 
       auto MaybeBytes = BinaryView.getByAddress(CurrentAddress, Size);
       revng_assert(MaybeBytes.has_value());
@@ -134,6 +144,14 @@ yield::Function DH::disassemble(const model::Function &Function,
       revng_assert(CurrentAddress <= BasicBlock.End);
 
       InstrInserter.insert(std::move(Instruction));
+    }
+
+    if (InstructionWithTheDelaySlot.isValid()) {
+      revng_assert(ResultBasicBlock.Instructions.size() > 1);
+      auto Last = std::prev(ResultBasicBlock.Instructions.end());
+      revng_assert(InstructionWithTheDelaySlot == std::prev(Last)->Address);
+
+      ResultBasicBlock.HasDelaySlot = true;
     }
 
     BasicBlockInserter.insert(std::move(ResultBasicBlock));
