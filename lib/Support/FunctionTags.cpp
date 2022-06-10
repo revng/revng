@@ -84,7 +84,8 @@ void initAddressOfPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   // Set attributes
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
-  Pool.addFnAttribute(llvm::Attribute::ReadNone);
+  Pool.addFnAttribute(llvm::Attribute::ReadOnly);
+  Pool.addFnAttribute(llvm::Attribute::InaccessibleMemOnly);
   // Set revng tags
   Pool.setTags({ &FunctionTags::AddressOf });
   // Initialize the pool from its internal llvm::Module if possible.
@@ -136,7 +137,8 @@ getModelGEP(llvm::Module &M, llvm::Type *RetTy, llvm::Type *BaseAddressTy) {
   auto *ModelGEPFunction = cast<Function>(MGEPCallee.getCallee());
   ModelGEPFunction->addFnAttr(llvm::Attribute::NoUnwind);
   ModelGEPFunction->addFnAttr(llvm::Attribute::WillReturn);
-  ModelGEPFunction->addFnAttr(llvm::Attribute::ReadNone);
+  ModelGEPFunction->addFnAttr(llvm::Attribute::ReadOnly);
+  ModelGEPFunction->addFnAttr(llvm::Attribute::InaccessibleMemOnly);
   FunctionTags::ModelGEP.addTo(ModelGEPFunction);
   FunctionTags::IsRef.addTo(ModelGEPFunction);
 

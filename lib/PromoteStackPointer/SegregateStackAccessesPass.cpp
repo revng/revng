@@ -308,6 +308,7 @@ public:
                                       Name,
                                       &M);
       Result->addFnAttr(Attribute::NoUnwind);
+      Result->addFnAttr(Attribute::ReadOnly);
       Result->addFnAttr(Attribute::InaccessibleMemOnly);
       Result->addFnAttr(Attribute::WillReturn);
       FunctionTags::AllocatesLocalVariable.addTo(Result);
