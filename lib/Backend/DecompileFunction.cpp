@@ -466,7 +466,13 @@ CCodeGenerator::addOperandToken(const llvm::Value *Operand) {
   revng_assert(not Operand->getType()->isVoidTy());
   if (auto *Undef = dyn_cast<llvm::UndefValue>(Operand)) {
     revng_assert(Undef->getType()->isIntOrPtrTy());
-    TokenMap[Operand] = "0 /* undef */";
+    TokenMap[Operand] = "0";
+
+    // Unfortunately, since the InlineLogger prints out values inside "/*"
+    // comments, printing this if we're using such logger would break the C
+    // code, since it would introduce unterminated "/*" comments.
+    if (not InlineLog.isEnabled())
+      TokenMap[Operand] += " /* undef */";
     rc_return true;
   }
 
