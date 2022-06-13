@@ -485,10 +485,10 @@ static bool compareQualifiedTypes(const model::QualifiedType &LHS,
   if (LHS.Qualifiers < RHS.Qualifiers)
     return true;
 
-  if (LHS.UnqualifiedType.get() < RHS.UnqualifiedType.get())
-    return true;
+  if (LHS.Qualifiers > RHS.Qualifiers)
+    return false;
 
-  return false;
+  return LHS.UnqualifiedType.get() < RHS.UnqualifiedType.get();
 }
 
 struct ArrayInfo {
