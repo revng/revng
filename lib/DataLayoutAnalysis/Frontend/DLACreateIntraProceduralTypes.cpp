@@ -49,6 +49,11 @@ static int64_t getSCEVConstantSExtVal(const SCEV *S) {
 }
 
 class DLATypeSystemLLVMBuilder::InstanceLinkAdder {
+public:
+  InstanceLinkAdder(const model::Binary &M) : Model(M) {}
+
+private:
+  const model::Binary &Model;
   Function *F;
   ScalarEvolution *SE;
   llvm::DominatorTree DT;
@@ -397,10 +402,16 @@ public:
             continue;
 
           if (Callee->hasName() and FunctionTags::MallocLike.isTagOf(Callee)) {
+
             const auto &[StackLayout, New] = Builder.getOrCreateLayoutType(C);
             Changed |= New;
             const SCEV *CallSCEV = SE->getSCEV(C);
             SCEVToLayoutType.insert(std::make_pair(CallSCEV, StackLayout));
+
+            auto *Placeholder = TS.createArtificialLayoutType();
+            Placeholder->Size = getPointerSize(Model.Architecture);
+            TS.addPointerLink(Placeholder, StackLayout);
+            Changed = true;
             continue;
           }
 
@@ -674,7 +685,7 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
                                          llvm::ModulePass *MP,
                                          const model::Binary &Model) {
   bool Changed = false;
-  InstanceLinkAdder ILA;
+  InstanceLinkAdder ILA{ Model };
 
   raw_fd_ostream *OutFile = nullptr;
 

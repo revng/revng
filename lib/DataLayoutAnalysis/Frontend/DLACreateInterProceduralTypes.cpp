@@ -112,6 +112,9 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
               TS.addInstanceLink(ActualTypes[FieldId].first,
                                  FormalTypes[FieldId].first,
                                  OffsetExpression{});
+              auto *Placeholder = TS.createArtificialLayoutType();
+              Placeholder->Size = getPointerSize(Model.Architecture);
+              TS.addPointerLink(Placeholder, ActualTypes[FieldId].first);
             }
             ++ArgNo;
           }
@@ -144,10 +147,14 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
             revng_assert(RetTypes.size() == FRetTypes.size());
             auto FieldNum = RetTypes.size();
             for (auto FieldId = 0ULL; FieldId < FieldNum; ++FieldId) {
-              if (RetTypes[FieldId].first != nullptr)
+              if (RetTypes[FieldId].first != nullptr) {
                 TS.addInstanceLink(RetTypes[FieldId].first,
                                    FRetTypes[FieldId].first,
                                    OffsetExpression{});
+                auto *Placeholder = TS.createArtificialLayoutType();
+                Placeholder->Size = getPointerSize(Model.Architecture);
+                TS.addPointerLink(Placeholder, RetTypes[FieldId].first);
+              }
             }
           }
         }
