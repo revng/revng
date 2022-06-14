@@ -2,17 +2,17 @@
 # Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 #
 
-Containers:
-From:            LateOptimizeForDecompilation
-Steps:
- - Name:            IRCanonicalization
-   Pipes:
-     - Type:             LLVMPipe
-       UsedContainers: [module.ll]
-       Passes:
-         - make-model-gep
-         - early-cse
-         - dce
-         - exit-ssa
-         - twoscomplement-normalization
-         - add-assignment-markers
+Branches:
+ - From:            LateOptimizeForDecompilation
+   Steps:
+   - Name:            IRCanonicalization
+     Pipes:
+       - Type:             LLVMPipe
+         UsedContainers: [module.ll]
+         Passes:
+           - make-model-gep
+           - early-cse
+           - dce
+           - exit-ssa
+           - twoscomplement-normalization
+           - add-assignment-markers

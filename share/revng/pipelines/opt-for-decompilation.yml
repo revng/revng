@@ -2,31 +2,31 @@
 # Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 #
 
-From:            PromoteStackPointer
-Containers:
-Steps:
- - Name:            EarlyOptimizeForDecompilation
-   Pipes:
-     - Type:             LLVMPipe
-       UsedContainers: [module.ll]
-       Passes:
-         - remove-extractvalues
-         - dce
-         - simplifycfg
-         - dse
-         - instcombine
-         - sroa
-         - instsimplify
-         - jump-threading
-         - licm
-         - unreachableblockelim
-         - instcombine
-         - early-cse
-         - simplifycfg
-         - type-shrinking
-         - early-cse
-         - instsimplify
-         - gvn
-         - instsimplify
-         - dse
-         - dce
+Branches:
+ - From:            PromoteStackPointer
+   Steps:
+    - Name:            EarlyOptimizeForDecompilation
+      Pipes:
+       - Type:             LLVMPipe
+         UsedContainers: [module.ll]
+         Passes:
+          - remove-extractvalues
+          - dce
+          - simplifycfg
+          - dse
+          - instcombine
+          - sroa
+          - instsimplify
+          - jump-threading
+          - licm
+          - unreachableblockelim
+          - instcombine
+          - early-cse
+          - simplifycfg
+          - type-shrinking
+          - early-cse
+          - instsimplify
+          - gvn
+          - instsimplify
+          - dse
+          - dce

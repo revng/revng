@@ -2,8 +2,7 @@
 # Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 #
 
-Containers:
-Steps:
+Branches:
 Analyses:
    - Name: detect-stack-size
      Type: detect-stack-size
