@@ -321,47 +321,47 @@ void LayoutTypeSystem::removeNode(LayoutTypeSystemNode *ToRemove) {
   NodeAllocator.Deallocate(ToRemove);
 }
 
-using NeighborIterator = LayoutTypeSystemNode::NeighborsSet::iterator;
+using NeighborIterator = LayoutTypeSystemNode::NeighborIterator;
 
-static void moveEdgeWithoutSumming(LayoutTypeSystemNode *OldSrc,
-                                   LayoutTypeSystemNode *NewSrc,
-                                   NeighborIterator EdgeIt) {
 
-  // First, move successor edge from OldSrc to NewSrc
-  auto SuccHandle = OldSrc->Successors.extract(EdgeIt);
-  revng_assert(not SuccHandle.empty());
-  NewSrc->Successors.insert(std::move(SuccHandle));
-
-  // Then, move predecessor edge from OldSrc to NewSrc
+static void moveEdgeSourceWithoutSumming(LayoutTypeSystemNode *OldSrc,
+                                         LayoutTypeSystemNode *NewSrc,
+                                         NeighborIterator EdgeIt) {
+  // First, move the predecessor edge from OldSrc to NewSrc.
   LayoutTypeSystemNode *Tgt = EdgeIt->first;
   auto PredHandle = Tgt->Predecessors.extract({ OldSrc, EdgeIt->second });
   revng_assert(not PredHandle.empty());
   PredHandle.value().first = NewSrc;
   Tgt->Predecessors.insert(std::move(PredHandle));
+
+  // Then, move the successor edge from OldSrc to NewSrc
+  auto SuccHandle = OldSrc->Successors.extract(EdgeIt);
+  revng_assert(not SuccHandle.empty());
+  NewSrc->Successors.insert(std::move(SuccHandle));
 }
 
-void LayoutTypeSystem::moveEdge(LayoutTypeSystemNode *OldSrc,
-                                LayoutTypeSystemNode *NewSrc,
-                                NeighborIterator EdgeIt,
-                                int64_t OffsetToSum) {
+void LayoutTypeSystem::moveEdgeSource(LayoutTypeSystemNode *OldSrc,
+                                      LayoutTypeSystemNode *NewSrc,
+                                      NeighborIterator EdgeIt,
+                                      int64_t OffsetToSum) {
 
   if (not OldSrc or not NewSrc)
     return;
 
   if (not OffsetToSum)
-    return moveEdgeWithoutSumming(OldSrc, NewSrc, EdgeIt);
+    return moveEdgeSourceWithoutSumming(OldSrc, NewSrc, EdgeIt);
 
   LayoutTypeSystemNode *Tgt = EdgeIt->first;
 
-  // First, move successor edges from OldSrc to NewSrc
+  // Erase info in Tgt that represent the fact that OldSrc was a predecessor.
+  bool Erased = Tgt->Predecessors.erase({ OldSrc, EdgeIt->second });
+  revng_assert(Erased);
+
+  // Extract the successor edge to be moved from OldSrc to NewSrc
   auto OldSuccHandle = OldSrc->Successors.extract(EdgeIt);
   revng_assert(not OldSuccHandle.empty());
 
   // Add new instance links with adjusted offsets from NewSrc to Tgt.
-  // Using the addInstanceLink methods already marks injects NewSrc among the
-  // predecessors of Tgt, so after this we only need to remove OldSrc from
-  // Tgt's predecessors and we're done.
-
   const TypeLinkTag *EdgeTag = OldSuccHandle.value().second;
   switch (EdgeTag->getKind()) {
 
@@ -377,10 +377,6 @@ void LayoutTypeSystem::moveEdge(LayoutTypeSystemNode *OldSrc,
   default:
     revng_unreachable("unexpected edge kind");
   }
-
-  // Then, remove all the remaining info in Tgt that represent the fact that
-  // OldSrc was a predecessor.
-  auto PredHandle = Tgt->Predecessors.extract({ OldSrc, EdgeIt->second });
 }
 
 static Logger<> VerifyDLALog("dla-verify-strict");
