@@ -622,13 +622,12 @@ BOOST_AUTO_TEST_CASE(DeduplicateFields_basic) {
   Eq.compress();
 
   // Check TS
-  revng_check(TS.getNumLayouts() == 8);
+  revng_check(TS.getNumLayouts() == 7);
   checkNode(TS, NodeA, 16, AllChildrenAreInterfering, { 0 });
   checkNode(TS, NodeC, 16, AllChildrenAreNonInterfering, { 1, 4 });
   checkNode(TS, NodeF, 8, AllChildrenAreNonInterfering, { 2, 5 });
   checkNode(TS, NodeG, 8, AllChildrenAreNonInterfering, { 3, 6 });
-  checkNode(TS, Node1, 12, AllChildrenAreNonInterfering, { 7 });
-  checkNode(TS, Node2, 8, AllChildrenAreNonInterfering, { 8 });
+  checkNode(TS, Node1, 8, AllChildrenAreNonInterfering, { 7, 8 });
   checkNode(TS, Node3, 4, AllChildrenAreNonInterfering, { 9 });
   checkNode(TS, Node4, 4, AllChildrenAreNonInterfering, { 10 });
 }
@@ -694,7 +693,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateFields_commonNodeSymmetric) {
 
   LTSN *NodeA1 = addInstanceAtOffset(TS, NodeUnion, /*offset=*/0, /*size=*/0);
   LTSN *NodeC1 = addInstanceAtOffset(TS, NodeA1, /*offset=*/0, /*size=*/0);
-  LTSN *NodeD1 = addInstanceAtOffset(TS, NodeC1, /*offset=*/8, /*size=*/8);
+  /*LTSN *NodeD1 =*/addInstanceAtOffset(TS, NodeC1, /*offset=*/8, /*size=*/8);
   OffsetExpression OE{};
   OE.Offset = 0;
   TS.addInstanceLink(NodeA1, NodeB, std::move(OE));
@@ -717,11 +716,10 @@ BOOST_AUTO_TEST_CASE(DeduplicateFields_commonNodeSymmetric) {
   Eq.compress();
 
   // Check TS
-  revng_check(TS.getNumLayouts() == 4);
-  checkNode(TS, NodeUnion, 16, AllChildrenAreInterfering, { 0, 1, 5 });
+  revng_check(TS.getNumLayouts() == 3);
+  checkNode(TS, NodeUnion, 16, AllChildrenAreNonInterfering, { 0, 1, 5 });
   checkNode(TS, NodeB, 8, AllChildrenAreNonInterfering, { 2 });
-  checkNode(TS, NodeC1, 16, AllChildrenAreNonInterfering, { 3, 6 });
-  checkNode(TS, NodeD1, 8, AllChildrenAreNonInterfering, { 4, 7 });
+  checkNode(TS, NodeC1, 8, AllChildrenAreNonInterfering, { 3, 4, 6, 7 });
 }
 
 BOOST_AUTO_TEST_CASE(DeduplicateFields_commonNodeAsymmetric) {
@@ -736,7 +734,7 @@ BOOST_AUTO_TEST_CASE(DeduplicateFields_commonNodeAsymmetric) {
 
   LTSN *NodeA1 = addInstanceAtOffset(TS, NodeUnion, /*offset=*/0, /*size=*/0);
   LTSN *NodeC1 = addInstanceAtOffset(TS, NodeA1, /*offset=*/0, /*size=*/0);
-  LTSN *NodeD1 = addInstanceAtOffset(TS, NodeC1, /*offset=*/4, /*size=*/8);
+  /*LTSN *NodeD1 =*/addInstanceAtOffset(TS, NodeC1, /*offset=*/4, /*size=*/8);
   OffsetExpression OE{};
   OE.Offset = 0;
   TS.addInstanceLink(NodeA1, NodeD, std::move(OE));
@@ -759,10 +757,9 @@ BOOST_AUTO_TEST_CASE(DeduplicateFields_commonNodeAsymmetric) {
   Eq.compress();
 
   // Check TS
-  revng_check(TS.getNumLayouts() == 3);
+  revng_check(TS.getNumLayouts() == 2);
   checkNode(TS, NodeUnion, 12, AllChildrenAreInterfering, { 0, 1, 5 });
-  checkNode(TS, NodeC1, 12, AllChildrenAreNonInterfering, { 3, 6 });
-  checkNode(TS, NodeD1, 8, AllChildrenAreNonInterfering, { 2, 4, 7 });
+  checkNode(TS, NodeC1, 8, AllChildrenAreNonInterfering, { 2, 3, 4, 6, 7 });
 }
 
 BOOST_AUTO_TEST_CASE(DeduplicateFields_commonNodeAsymmetricCollapse) {

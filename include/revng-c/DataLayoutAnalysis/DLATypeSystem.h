@@ -288,6 +288,11 @@ public:
 
   void removeNode(LayoutTypeSystemNode *N);
 
+  void moveEdgeTarget(LayoutTypeSystemNode *OldTgt,
+                      LayoutTypeSystemNode *NewTgt,
+                      LayoutTypeSystemNode::NeighborIterator InverseEdgeIt,
+                      int64_t OffsetToSum);
+
   void moveEdgeSource(LayoutTypeSystemNode *OldSrc,
                       LayoutTypeSystemNode *NewSrc,
                       LayoutTypeSystemNode::NeighborIterator EdgeIt,

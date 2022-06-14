@@ -323,6 +323,22 @@ void LayoutTypeSystem::removeNode(LayoutTypeSystemNode *ToRemove) {
 
 using NeighborIterator = LayoutTypeSystemNode::NeighborIterator;
 
+static void moveEdgeTargetWithoutSumming(LayoutTypeSystemNode *OldTgt,
+                                         LayoutTypeSystemNode *NewTgt,
+                                         NeighborIterator InverseEdgeIt) {
+
+  // First, move the successor from OldTgt to NewTgt
+  LayoutTypeSystemNode *Src = InverseEdgeIt->first;
+  auto SuccHandle = Src->Successors.extract({ Src, InverseEdgeIt->second });
+  revng_assert(not SuccHandle.empty());
+  SuccHandle.value().first = NewTgt;
+  Src->Successors.insert(std::move(SuccHandle));
+
+  // Then, move the predecessor edge from OldTgt to NewTgt
+  auto PredHandle = OldTgt->Predecessors.extract(InverseEdgeIt);
+  revng_assert(not PredHandle.empty());
+  NewTgt->Predecessors.insert(std::move(PredHandle));
+}
 
 static void moveEdgeSourceWithoutSumming(LayoutTypeSystemNode *OldSrc,
                                          LayoutTypeSystemNode *NewSrc,
@@ -338,6 +354,45 @@ static void moveEdgeSourceWithoutSumming(LayoutTypeSystemNode *OldSrc,
   auto SuccHandle = OldSrc->Successors.extract(EdgeIt);
   revng_assert(not SuccHandle.empty());
   NewSrc->Successors.insert(std::move(SuccHandle));
+}
+
+void LayoutTypeSystem::moveEdgeTarget(LayoutTypeSystemNode *OldTgt,
+                                      LayoutTypeSystemNode *NewTgt,
+                                      NeighborIterator InverseEdgeIt,
+                                      int64_t OffsetToSum) {
+
+  if (not OldTgt or not NewTgt)
+    return;
+
+  if (not OffsetToSum)
+    return moveEdgeTargetWithoutSumming(OldTgt, NewTgt, InverseEdgeIt);
+
+  LayoutTypeSystemNode *Src = InverseEdgeIt->first;
+
+  // Erase info in Src that represent the fact that OldTgt was a successor.
+  bool Erased = Src->Successors.erase({ OldTgt, InverseEdgeIt->second });
+  revng_assert(Erased);
+
+  // Extract the predecessor edge to be moved from OldTgt to NewTgt
+  auto OldPredHandle = OldTgt->Predecessors.extract(InverseEdgeIt);
+  revng_assert(not OldPredHandle.empty());
+
+  // Add new instance links with adjusted offsets from Src to NewTgt.
+  const TypeLinkTag *EdgeTag = OldPredHandle.value().second;
+  switch (EdgeTag->getKind()) {
+
+  case TypeLinkTag::LK_Instance: {
+    OffsetExpression NewOE = EdgeTag->getOffsetExpr();
+    NewOE.Offset += OffsetToSum;
+    revng_assert(NewOE.Offset >= 0LL);
+    addInstanceLink(Src, NewTgt, std::move(NewOE));
+  } break;
+
+  case TypeLinkTag::LK_Equality:
+  case TypeLinkTag::LK_Pointer:
+  default:
+    revng_unreachable("unexpected edge kind");
+  }
 }
 
 void LayoutTypeSystem::moveEdgeSource(LayoutTypeSystemNode *OldSrc,
