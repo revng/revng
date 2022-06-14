@@ -224,7 +224,7 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
         using llvm::iterator_range;
         auto OrderedChildRange = iterator_range(C.StartChildIt, C.EndChildIt);
         for (auto &OrderedChild : OrderedChildRange)
-          TS.moveEdge(N, New, OrderedChild.ChildIt, -C.StartByte);
+          TS.moveEdgeSource(N, New, OrderedChild.ChildIt, -C.StartByte);
 
         // Add a link between N and the New node representing the component.
         // The component is at offset C.StartByte inside N.

@@ -119,6 +119,7 @@ struct LayoutTypeSystemNode {
   const uint64_t ID = 0ULL;
   using Link = std::pair<LayoutTypeSystemNode *, const TypeLinkTag *>;
   using NeighborsSet = std::set<Link>;
+  using NeighborIterator = NeighborsSet::iterator;
   NeighborsSet Successors{};
   NeighborsSet Predecessors{};
   uint64_t Size{};
@@ -287,10 +288,15 @@ public:
 
   void removeNode(LayoutTypeSystemNode *N);
 
-  void moveEdge(LayoutTypeSystemNode *OldSrc,
-                LayoutTypeSystemNode *NewSrc,
-                LayoutTypeSystemNode::NeighborsSet::iterator EdgeIt,
-                int64_t OffsetToSum);
+  void moveEdgeTarget(LayoutTypeSystemNode *OldTgt,
+                      LayoutTypeSystemNode *NewTgt,
+                      LayoutTypeSystemNode::NeighborIterator InverseEdgeIt,
+                      int64_t OffsetToSum);
+
+  void moveEdgeSource(LayoutTypeSystemNode *OldSrc,
+                      LayoutTypeSystemNode *NewSrc,
+                      LayoutTypeSystemNode::NeighborIterator EdgeIt,
+                      int64_t OffsetToSum);
 
 private:
   uint64_t NID = 0ULL;
