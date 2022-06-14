@@ -1189,7 +1189,7 @@ collapseSequences(ASTTree &AST, ASTNode *Node) {
   rc_return Node;
 }
 
-ASTNode *promoteNoFallthroughIf(ASTNode *RootNode, ASTTree &AST) {
+static ASTNode *promoteNoFallthroughIf(ASTNode *RootNode, ASTTree &AST) {
 
   // This map will contain the result of the fallthough analysis.
   // We considered using a `std::set` in place of the `std::map`, but the `map`

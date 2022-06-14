@@ -60,11 +60,11 @@ addEquality(LayoutTypeSystem &TS, LTSN *Parent, unsigned ChildSize = 0U) {
   return Child;
 }
 
-void checkNode(const LayoutTypeSystem &TS,
-               const LayoutTypeSystemNode *N,
-               const unsigned ExpectedSize,
-               const InterferingChildrenInfo ExpectedInfo,
-               const std::set<unsigned> &ExpectedEqClass) {
+static void checkNode(const LayoutTypeSystem &TS,
+                      const LayoutTypeSystemNode *N,
+                      const unsigned ExpectedSize,
+                      const InterferingChildrenInfo ExpectedInfo,
+                      const std::set<unsigned> &ExpectedEqClass) {
   const dla::VectEqClasses &Eq = TS.getEqClasses();
   revng_check(N);
   revng_check(not Eq.isRemoved(N->ID));

@@ -595,7 +595,7 @@ struct TypedAccessPattern {
 
 enum AggregateKind { Struct, Union, Array };
 
-std::string toString(AggregateKind K) {
+static std::string toString(AggregateKind K) {
   switch (K) {
   case Struct:
     return "Struct";

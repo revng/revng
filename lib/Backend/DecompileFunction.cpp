@@ -84,7 +84,7 @@ static void decompilerLog(llvm::raw_ostream &Out, const llvm::Twine &Expr) {
     Out << "/* " << Expr << " */\n";
 }
 
-debug_function void dumpTokenMap(const TokenMapT &TokenMap) {
+static void debug_function dumpTokenMap(const TokenMapT &TokenMap) {
   llvm::dbgs() << "========== TokenMap ===========\n";
   for (auto [Value, Token] : TokenMap) {
     llvm::dbgs() << "Value: " << dumpToString(Value) << "\n";
@@ -1511,11 +1511,11 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
   Out << "}\n";
 }
 
-std::string decompileFunction(const llvm::Function &LLVMFunc,
-                              const ASTTree &CombedAST,
-                              const Binary &Model,
-                              const ValueSet &TopScopeVariables,
-                              bool NeedsLocalStateVar) {
+static std::string decompileFunction(const llvm::Function &LLVMFunc,
+                                     const ASTTree &CombedAST,
+                                     const Binary &Model,
+                                     const ValueSet &TopScopeVariables,
+                                     bool NeedsLocalStateVar) {
   std::string Result;
 
   llvm::raw_string_ostream Out(Result);

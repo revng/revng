@@ -195,7 +195,7 @@ void CodeNode::dumpEdge(llvm::raw_fd_ostream &ASTFile) {
   // Do nothing, we don't have outgoing edges.
 }
 
-std::string printBBName(ExprNode *Condition) {
+static std::string printBBName(ExprNode *Condition) {
   if (auto *Atomic = llvm::dyn_cast<AtomicNode>(Condition))
     return Atomic->getConditionalBasicBlock()->getName().str();
 

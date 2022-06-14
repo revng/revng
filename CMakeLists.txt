@@ -108,6 +108,13 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror ")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall ")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra ")
 
+# Enable some additional warnings
+add_flag_if_available("-Wimplicit-fallthrough")
+add_flag_if_available("-Wnon-virtual-dtor")
+add_flag_if_available("-Winconsistent-missing-destructor-override")
+add_flag_if_available("-Wnewline-eof")
+add_flag_if_available("-Wmissing-prototypes")
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstrict-aliasing ")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wstrict-aliasing ")
 

@@ -26,6 +26,7 @@ using NodeAllocatorT = SpecificBumpPtrAllocator<dla::LayoutTypeSystemNode>;
 
 static Logger<> CollapsedNodePrinter("dla-print-collapsed-in-dot");
 
+void *operator new(size_t, NodeAllocatorT &NodeAllocator);
 void *operator new(size_t, NodeAllocatorT &NodeAllocator) {
   return NodeAllocator.Allocate();
 }
