@@ -8,9 +8,11 @@ revng_add_analyses_library(
   revngcIRCanonicalization
   revngc
   ExitSSAPass.cpp
+  FoldModelGEP.cpp
   MakeLocalVariables.cpp
   MakeModelCastPass.cpp
   MakeModelGEPPass.cpp
+  RemoveRefDeref.cpp
   RemoveLoadStore.cpp
   RemovePointerCasts.cpp
   TwosComplementArithmeticNormalizationPass.cpp

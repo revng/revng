@@ -23,6 +23,7 @@ Tag IsRef("IsRef");
 Tag AddressOf("AddressOf");
 Tag ModelCast("ModelCast");
 Tag ModelGEP(ModelGEPName);
+Tag ModelGEPRef("ModelGEPRef");
 Tag AssignmentMarker(MarkerName);
 Tag OpaqueExtractValue("OpaqueExtractvalue");
 Tag Parentheses("Parentheses");
@@ -156,6 +157,40 @@ getModelGEP(llvm::Module &M, llvm::Type *RetType, llvm::Type *BaseType) {
   ModelGEPFunction->addFnAttr(llvm::Attribute::ReadOnly);
   ModelGEPFunction->addFnAttr(llvm::Attribute::InaccessibleMemOnly);
   FunctionTags::ModelGEP.addTo(ModelGEPFunction);
+  FunctionTags::IsRef.addTo(ModelGEPFunction);
+  FunctionTags::ReadsMemory.addTo(ModelGEPFunction);
+
+  return ModelGEPFunction;
+}
+
+llvm::Function *
+getModelGEPRef(llvm::Module &M, llvm::Type *ReturnType, llvm::Type *BaseType) {
+
+  using namespace llvm;
+  // There are 2 fixed arguments:
+  // - the first is a pointer to a constant string that contains a serialization
+  //   of the key of the base type;
+  // - the second is the type of the base pointer.
+  SmallVector<llvm::Type *, 2> FixedArgs = { getStringPtrType(M.getContext()),
+                                             BaseType };
+  // The function is vararg, because we might need to access a number of fields
+  // that is variable.
+  FunctionType *ModelGEPType = FunctionType::get(ReturnType,
+                                                 FixedArgs,
+                                                 true /* IsVarArg */);
+
+  FunctionCallee MGEPCallee = M.getOrInsertFunction(makeModelGEPName(ReturnType,
+                                                                     BaseType,
+                                                                     "ModelGEPR"
+                                                                     "ef"),
+                                                    ModelGEPType);
+
+  auto *ModelGEPFunction = cast<Function>(MGEPCallee.getCallee());
+  ModelGEPFunction->addFnAttr(llvm::Attribute::NoUnwind);
+  ModelGEPFunction->addFnAttr(llvm::Attribute::WillReturn);
+  ModelGEPFunction->addFnAttr(llvm::Attribute::ReadOnly);
+  ModelGEPFunction->addFnAttr(llvm::Attribute::InaccessibleMemOnly);
+  FunctionTags::ModelGEPRef.addTo(ModelGEPFunction);
   FunctionTags::IsRef.addTo(ModelGEPFunction);
   FunctionTags::ReadsMemory.addTo(ModelGEPFunction);
 

@@ -618,40 +618,54 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
 
   StringToken Expression;
 
-  if (FunctionTags::ModelGEP.isTagOf(CalledFunc)) {
+  if (FunctionTags::ModelGEP.isTagOf(CalledFunc)
+      or FunctionTags::ModelGEPRef.isTagOf(CalledFunc)) {
     revng_assert(Call->getNumArgOperands() >= 2);
+
+    bool IsRef = FunctionTags::ModelGEPRef.isTagOf(CalledFunc);
 
     // First argument is a string containing the base type
     auto *CurArg = Call->arg_begin();
     StringRef BaseTypeString = extractFromConstantStringPtr(CurArg->get());
 
     QualifiedType CurType = parseQualifiedType(BaseTypeString, Model);
-    QualifiedType CurTypePtr = CurType;
-    addPointerQualifier(CurTypePtr, Model);
 
     // Second argument is the base llvm::Value
     ++CurArg;
-
     llvm::Value *BaseValue = CurArg->get();
     Expression = TokenMap.at(BaseValue);
 
-    revng_assert(TypeMap.at(BaseValue) == CurTypePtr,
-                 "The ModelGEP base type is not coherent with the propagated "
-                 "type.");
+    if (IsRef) {
+      // In ModelGEPRefs, the base value is a reference, and the base type is
+      // its type
+      revng_assert(TypeMap.at(BaseValue) == CurType,
+                   "The ModelGEP base type is not coherent with the "
+                   "propagated type.");
+    } else {
+      // In ModelGEPs, the base value is a pointer, and the base type is the
+      // type pointed by the base value
+      QualifiedType PointerQt = CurType;
+      addPointerQualifier(PointerQt, Model);
+      revng_assert(TypeMap.at(BaseValue) == PointerQt,
+                   "The ModelGEP base type is not coherent with the "
+                   "propagated type.");
+    }
 
     ++CurArg;
     if (CurArg == Call->arg_end()) {
-      // If there are no further arguments, we are casting from one reference
-      // type to another
-      Expression = buildDerefExpr(Expression);
+      if (not IsRef) {
+        // If there are no further arguments, we are just dereferencing the base
+        // value
+        Expression = buildDerefExpr(Expression);
+      } else {
+        // Dereferencing a reference does not produce any code
+      }
 
     } else {
-      // The base type is implicitly a pointer, so the first dereference should
-      // use "->"
       StringToken CurExpr = addParentheses(Expression);
-      StringRef DerefSymbol = "->";
+      StringRef DerefSymbol = IsRef ? "." : "->";
 
-      // Traverse the model to decide when to emit ".","->" or "[]"
+      // Traverse the model to decide whether to emit "." or "[]"
       for (; CurArg != Call->arg_end(); ++CurArg) {
         flattenTypedefs(CurType);
         keepOnlyPtrAndArrayQualifiers(CurType);
@@ -660,8 +674,8 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
         if (CurType.Qualifiers.size() > 0)
           MainQualifier = &CurType.Qualifiers.back();
 
-        // If it's an array, add "[]"
         if (MainQualifier and model::Qualifier::isArray(*MainQualifier)) {
+          // If it's an array, add "[]"
           CurExpr += "[";
           StringToken IndexExpr("");
 
@@ -677,32 +691,38 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
           CurExpr += "]";
           // Remove the qualifier we just analysed
           CurType.Qualifiers.pop_back();
-          DerefSymbol = ".";
-          continue;
-        }
-
-        // We shouldn't be going past pointers in a single ModelGEP
-        revng_assert(not MainQualifier);
-        CurExpr += DerefSymbol;
-        auto *FieldIdxConst = cast<llvm::ConstantInt>(CurArg->get());
-        uint64_t FieldIdx = FieldIdxConst->getValue().getLimitedValue();
-
-        // Find the field name
-        const auto *UnqualType = CurType.UnqualifiedType.getConst();
-
-        if (auto *Struct = dyn_cast<model::StructType>(UnqualType)) {
-          CurExpr += Struct->Fields.at(FieldIdx).name();
-          CurType = Struct->Fields.at(FieldIdx).Type;
-
-        } else if (auto *Union = dyn_cast<model::UnionType>(UnqualType)) {
-          CurExpr += Union->Fields.at(FieldIdx).name();
-          CurType = Union->Fields.at(FieldIdx).Type;
 
         } else {
-          revng_abort("Unexpected ModelGEP type found: ");
-          CurType.dump();
+          // We shouldn't be going past pointers in a single ModelGEP
+          revng_assert(not MainQualifier);
+
+          // If it's a struct or union, we can only navigate it with fixed
+          // indexes.
+          // TODO: decide how to emit constants
+          auto *FieldIdxConst = cast<llvm::ConstantInt>(CurArg->get());
+          uint64_t FieldIdx = FieldIdxConst->getValue().getLimitedValue();
+
+          CurExpr += DerefSymbol;
+
+          // Find the field name
+          const auto *UnqualType = CurType.UnqualifiedType.getConst();
+
+          if (auto *Struct = dyn_cast<model::StructType>(UnqualType)) {
+            CurExpr += Struct->Fields.at(FieldIdx).name();
+            CurType = Struct->Fields.at(FieldIdx).Type;
+
+          } else if (auto *Union = dyn_cast<model::UnionType>(UnqualType)) {
+            CurExpr += Union->Fields.at(FieldIdx).name();
+            CurType = Union->Fields.at(FieldIdx).Type;
+
+          } else {
+            revng_abort("Unexpected ModelGEP type found: ");
+            CurType.dump();
+          }
         }
 
+        // Regardless if the base type was a pointer or not, we are now
+        // navigating only references
         DerefSymbol = ".";
       }
 

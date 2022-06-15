@@ -13,6 +13,7 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Support/FunctionTags.h"
 
 #include "revng-c/InitModelTypes/InitModelTypes.h"
 #include "revng-c/Support/FunctionTags.h"
@@ -70,14 +71,20 @@ MMCP::serializeTypesForModelCast(Instruction *I, const model::Binary &Model) {
   if (auto *CI = dyn_cast<CallInst>(I)) {
     if (auto *Callee = CI->getCalledFunction()) {
       // Do we have a ModelGEP which has its base llvm::Value embedding a cast?
-      if (FunctionTags::ModelGEP.isTagOf(Callee)) {
-        auto &PtrType = TypeMap.at(CI->getArgOperand(1));
-        auto CurTypePtr = deserializeAndParseQualifiedType(CI->getArgOperand(0),
-                                                           Model);
-        addPointerQualifier(CurTypePtr, Model);
+      if (FunctionTags::ModelGEP.isTagOf(Callee)
+          or FunctionTags::ModelGEPRef.isTagOf(Callee)) {
 
-        if (PtrType != CurTypePtr) {
-          auto Type = SerializedType(serializeToLLVMString(CurTypePtr, *M), 1);
+        bool IsRef = FunctionTags::ModelGEPRef.isTagOf(Callee);
+
+        auto &PtrType = TypeMap.at(CI->getArgOperand(1));
+        auto CurType = deserializeAndParseQualifiedType(CI->getArgOperand(0),
+                                                        Model);
+
+        if (not IsRef)
+          addPointerQualifier(CurType, Model);
+
+        if (PtrType != CurType) {
+          auto Type = SerializedType(serializeToLLVMString(CurType, *M), 1);
           Result.emplace_back(std::move(Type));
         }
       } else if (FunctionTags::StructInitializer.isTagOf(Callee)) {

@@ -22,6 +22,7 @@ extern Tag IsRef;
 extern Tag AddressOf;
 extern Tag ModelGEP;
 extern Tag ModelCast;
+extern Tag ModelGEPRef;
 extern Tag AssignmentMarker;
 extern Tag OpaqueExtractValue;
 extern Tag Parentheses;
@@ -95,6 +96,11 @@ void initParenthesesPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
 /// \param BaseType The LLVM type of the second argument (the base pointer)
 llvm::Function *
 getModelGEP(llvm::Module &M, llvm::Type *RetType, llvm::Type *BaseType);
+
+/// ModelGEP Ref is a ModelGEP where the base value is considered to be a
+/// reference.
+llvm::Function *
+getModelGEPRef(llvm::Module &M, llvm::Type *RetType, llvm::Type *BaseType);
 
 /// Initializes a pool of ModelCast functions
 void initModelCastPool(OpaqueFunctionsPool<llvm::Type *> &Pool);

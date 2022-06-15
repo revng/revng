@@ -18,6 +18,10 @@ Branches:
            - twoscomplement-normalization
            - make-local-variables
            - remove-load-store
+           - fold-model-gep
+           - remove-ref-deref
+           - early-cse
+           - dce
            - add-assignment-markers
            - make-model-cast
            - operatorprecedence-resolution
