@@ -21,6 +21,7 @@
 #include "revng/Model/RawFunctionType.h"
 #include "revng/Model/TypedefType.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/YAMLTraits.h"
 
 #include "revng-c/InitModelTypes/InitModelTypes.h"
@@ -315,22 +316,10 @@ static TypeVector getReturnTypes(const llvm::CallInst *Call,
 
       ReturnTypes.push_back(StackArgsType);
 
-    } else if (FuncName.startswith("revng_init_local_sp")) {
-      using model::PrimitiveTypeKind::Unsigned;
-
-      // TODO: For now we use uint8_t* as the type returned by
-      // revng_init_local_sp, but perhaps we could choose a more appropriate
-      // type to represent SP
-      QualifiedType StackPtrQT;
-      StackPtrQT.UnqualifiedType = Model.getPrimitiveType(Unsigned, 1);
-      addPointerQualifier(StackPtrQT, Model);
-
-      ReturnTypes.push_back(StackPtrQT);
-
     } else if (FunctionTags::QEMU.isTagOf(CalledFunc)
                or FunctionTags::Helper.isTagOf(CalledFunc)
-               or FuncName.startswith("llvm.")
-               or FuncName.startswith("init_")) {
+               or CalledFunc->isIntrinsic()
+               or FunctionTags::OpaqueCSVValue.isTagOf(CalledFunc)) {
 
       llvm::Type *ReturnedType = Call->getType();
       if (ReturnedType->isVoidTy())
@@ -429,7 +418,7 @@ ModelTypesMap initModelTypes(const llvm::Function &F,
       for (const llvm::Value *Op : I.operand_values())
         addOperandType(Op, Model, TypeMap, PointersOnly);
 
-      // Insert void types for consistency, although they
+      // Insert void types for consistency
       if (InstType->isVoidTy()) {
         using model::PrimitiveTypeKind::Values::Void;
         QualifiedType VoidTy(Model.getPrimitiveType(Void, 0), {});

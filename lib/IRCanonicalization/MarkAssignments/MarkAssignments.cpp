@@ -12,6 +12,7 @@
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRHelpers.h"
 #include "revng/Support/MonotoneFramework.h"
 
 #include "revng-c/Backend/VariableScopeAnalysis.h"
