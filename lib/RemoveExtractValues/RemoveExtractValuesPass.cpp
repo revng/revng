@@ -60,7 +60,7 @@ bool RemoveExtractValues::runOnFunction(llvm::Function &F) {
     }
 
     // Get or generate the function
-    auto *EVFunctionType = getOpaqueEVFunctionType(F.getContext(), I);
+    auto *EVFunctionType = getOpaqueEVFunctionType(I);
     const TypePair &Key = { I->getType(), I->getAggregateOperand()->getType() };
     auto *ExtractValueFunction = OpaqueEVPool.get(Key,
                                                   EVFunctionType,

@@ -60,10 +60,11 @@ static std::string makeTypeName(const llvm::Type *Ty) {
   return Name;
 }
 
-static std::string
-makeModelGEPName(const llvm::Type *RetTy, const llvm::Type *BaseAddressTy) {
+static std::string makeModelGEPName(const llvm::Type *RetTy,
+                                    const llvm::Type *BaseAddressTy,
+                                    llvm::StringRef Prefix) {
   using llvm::Twine;
-  return (Twine(ModelGEPName) + Twine("_ret_") + Twine(makeTypeName(RetTy))
+  return (Prefix + Twine("_ret_") + Twine(makeTypeName(RetTy))
           + Twine("_baseptr_") + Twine(makeTypeName(BaseAddressTy)))
     .str();
 }
@@ -73,16 +74,18 @@ static std::string makeMarkerName(const llvm::Type *Ty) {
 }
 
 llvm::FunctionType *
-getAddressOfFunctionType(llvm::LLVMContext &C, llvm::Type *T) {
+getAddressOfType(llvm::Type *RetType, llvm::Type *BaseType) {
   // There are 2 fixed arguments:
   // - the first is a pointer to a constant string that contains a serialization
   //   of the key of the base type;
-  // - the second is T, i.e. the type of the base pointer.
-  llvm::SmallVector<llvm::Type *, 2> FixedArgs = { getStringPtrType(C), T };
-  return llvm::FunctionType::get(T, FixedArgs, false /* IsVarArg */);
+  // - the second is BaseType, i.e. the type of the base pointer.
+  auto &C = RetType->getContext();
+  llvm::SmallVector<llvm::Type *, 2> FixedArgs = { getStringPtrType(C),
+                                                   BaseType };
+  return llvm::FunctionType::get(RetType, FixedArgs, false /* IsVarArg */);
 }
 
-void initAddressOfPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
+void initAddressOfPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M) {
   // Set attributes
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
@@ -90,8 +93,14 @@ void initAddressOfPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.addFnAttribute(llvm::Attribute::InaccessibleMemOnly);
   // Set revng tags
   Pool.setTags({ &FunctionTags::AddressOf });
+
   // Initialize the pool from its internal llvm::Module if possible.
-  Pool.initializeFromReturnType(FunctionTags::AddressOf);
+  auto &AddressOfTag = FunctionTags::AddressOf;
+  for (llvm::Function &F : AddressOfTag.functions(M)) {
+    auto *ArgType = F.getFunctionType()->getParamType(1);
+    auto *RetType = F.getFunctionType()->getReturnType();
+    Pool.record({ RetType, ArgType }, &F);
+  }
 }
 
 void initModelCastPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
@@ -117,23 +126,26 @@ void initParenthesesPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
 }
 
 llvm::Function *
-getModelGEP(llvm::Module &M, llvm::Type *RetTy, llvm::Type *BaseAddressTy) {
+getModelGEP(llvm::Module &M, llvm::Type *RetType, llvm::Type *BaseType) {
+
   using namespace llvm;
 
   // There are 2 fixed arguments:
   // - the first is a pointer to a constant string that contains a serialization
   //   of the key of the base type;
-  // - the second is BaseAddressTy, i.e. the type of the base pointer.
+  // - the second is the type of the base pointer.
   SmallVector<llvm::Type *, 2> FixedArgs = { getStringPtrType(M.getContext()),
-                                             BaseAddressTy };
+                                             BaseType };
   // The function is vararg, because we might need to access a number of fields
   // that is variable.
-  FunctionType *ModelGEPType = FunctionType::get(RetTy,
+  FunctionType *ModelGEPType = FunctionType::get(RetType,
                                                  FixedArgs,
                                                  true /* IsVarArg */);
 
   FunctionCallee
-    MGEPCallee = M.getOrInsertFunction(makeModelGEPName(RetTy, BaseAddressTy),
+    MGEPCallee = M.getOrInsertFunction(makeModelGEPName(RetType,
+                                                        BaseType,
+                                                        ModelGEPName),
                                        ModelGEPType);
 
   auto *ModelGEPFunction = cast<Function>(MGEPCallee.getCallee());
@@ -171,12 +183,12 @@ llvm::Function *getAssignmentMarker(llvm::Module &M, llvm::Type *T) {
   return MarkerF;
 }
 
-llvm::FunctionType *
-getOpaqueEVFunctionType(llvm::LLVMContext &C, llvm::ExtractValueInst *Extract) {
+llvm::FunctionType *getOpaqueEVFunctionType(llvm::ExtractValueInst *Extract) {
   using namespace llvm;
   // First argument is the struct we are extracting from
   std::vector ArgTypes = { Extract->getAggregateOperand()->getType() };
   // All other arguments are indices, which we decided to be of type i64
+  auto &C = Extract->getContext();
   Type *I64Type = IntegerType::getInt64Ty(C);
   ArgTypes.insert(ArgTypes.end(), Extract->getNumIndices(), I64Type);
   // The return type is the type of the extracted field
