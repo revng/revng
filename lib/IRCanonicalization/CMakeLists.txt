@@ -10,6 +10,7 @@ revng_add_analyses_library(
   ExitSSAPass.cpp
   MakeModelCastPass.cpp
   MakeModelGEPPass.cpp
+  RemovePointerCasts.cpp
   TwosComplementArithmeticNormalizationPass.cpp
   OperatorPrecedenceResolutionPass.cpp)
 
