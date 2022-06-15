@@ -92,3 +92,20 @@ macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
   endif()
 endmacro()
 register_derived_artifact("compiled" "assembly-html" ".yml" "FILE")
+
+macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
+  if("${CATEGORY}" STREQUAL "tests_runtime" AND NOT "${CONFIGURATION}" STREQUAL
+                                                "static_native")
+    set(COMMAND_TO_RUN
+        "./bin/revng"
+        pipeline
+        Lift:DetectABI:module.ll::Root
+        YieldCFG:cfg-svg.yml:*:FunctionControlFlowGraphSVG
+        -i
+        "begin:input:${INPUT_FILE}"
+        -o
+        "YieldCFG:cfg-svg.yml:${OUTPUT}")
+    set(DEPEND_ON revng-all-binaries)
+  endif()
+endmacro()
+register_derived_artifact("compiled" "cfg-svg" ".yml" "FILE")
