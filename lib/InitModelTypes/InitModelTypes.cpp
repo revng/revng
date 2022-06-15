@@ -301,7 +301,7 @@ static TypeVector getReturnTypes(const llvm::CallInst *Call,
       auto &StackType = ParentFunc->StackFrameType;
       revng_assert(StackType.get());
 
-      ReturnTypes.push_back(createPointerTo(StackType, Model));
+      ReturnTypes.push_back(QualifiedType{ StackType, {} });
 
     } else if (FuncName.startswith("revng_call_stack_arguments")) {
       // The prototype attached to this callsite represents the prototype of
@@ -312,7 +312,6 @@ static TypeVector getReturnTypes(const llvm::CallInst *Call,
       // Only RawFunctionTypes have explicit stack arguments
       auto *RawPrototype = cast<model::RawFunctionType>(Prototype.get());
       QualifiedType StackArgsType = RawPrototype->StackArgumentsType;
-      addPointerQualifier(StackArgsType, Model);
 
       ReturnTypes.push_back(StackArgsType);
 

@@ -415,6 +415,23 @@ public:
             continue;
           }
 
+          if (Callee->hasName() and FunctionTags::AddressOf.isTagOf(Callee)) {
+            // AddressOf always generates a Layout node
+            const auto &[AddrLayout, New] = Builder.getOrCreateLayoutType(C);
+            Changed |= New;
+            const SCEV *CallSCEV = SE->getSCEV(C);
+            SCEVToLayoutType.insert(std::make_pair(CallSCEV, AddrLayout));
+
+            // Add an equality edge between the `AddressOf` node and it's
+            // pointee node
+            auto *Arg = C->getArgOperand(1);
+            auto [PointedLayout, ArgIsNew] = Builder.getOrCreateLayoutType(Arg);
+            Changed |= ArgIsNew;
+            auto [_, NewLink] = TS.addEqualityLink(PointedLayout, AddrLayout);
+            Changed |= NewLink;
+            continue;
+          }
+
           auto CTags = FunctionTags::TagsSet::from(Callee);
           if (CTags.contains(FunctionTags::StructInitializer)) {
 

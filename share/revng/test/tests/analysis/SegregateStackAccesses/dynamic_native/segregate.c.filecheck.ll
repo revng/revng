@@ -61,15 +61,19 @@ CHECK: }
 CHECK: define i64 @local_caller() [[IGN:.*]] {
 CHECK:   = call i64 @local_raw_primitives_on_registers(i64 2, i64 1)
 CHECK:   = call i64 @local_raw_pointers_on_registers(i64 %[[ARG:.*]], i64 %[[ARG]])
-CHECK:   %[[STACK:.*]] = call i64 @revng_call_stack_arguments(i64 16)
+CHECK:   %[[STACK1:.*]] = call i64 @revng_call_stack_arguments(i64 16)
+CHECK:   %[[STACK:.*]] = call i64 @AddressOf([[IGN:.*]], i64 %[[STACK1]])
 CHECK:   = call i64 @local_raw_primitives_on_stack(i64 4, i64 3, i64 2, i64 1, i64 5, i64 6, i64 %[[STACK]])
 CHECK:   = call i64 @local_cabi_primitives_on_registers(i64 1, i64 2)
 TODO: devise a pipeline that highlights both arguments as immediates
 CHECK:   = call i64 @local_cabi_primitives_on_stack(i64 1, i64 2, i64 3, i64 4, i64 5, i64 6, i64 [[SCALAR1:.*]], i64 [[SCALAR2:.*]])
-CHECK:   %[[AGGREGATE:.*]] = call i64 @revng_call_stack_arguments(i64 16)
+CHECK:   %[[AGGREGATE1:.*]] = call i64 @revng_call_stack_arguments(i64 16)
+CHECK:   %[[AGGREGATE:.*]] = call i64 @AddressOf([[IGN:.*]], i64 %[[AGGREGATE1]])
 CHECK:   = call i64 @local_cabi_aggregate_on_registers(i64 %[[AGGREGATE]])
-CHECK:   %[[AGGREGATE:.*]] = call i64 @revng_call_stack_arguments(i64 16)
+CHECK:   %[[AGGREGATE1:.*]] = call i64 @revng_call_stack_arguments(i64 16)
+CHECK:   %[[AGGREGATE:.*]] = call i64 @AddressOf([[IGN:.*]], i64 %[[AGGREGATE1]])
 CHECK:   = call i64 @local_cabi_aggregate_on_stack(i64 1, i64 2, i64 3, i64 4, i64 5, i64 6, i64 %[[AGGREGATE]])
-CHECK:   %[[AGGREGATE:.*]] = call i64 @revng_call_stack_arguments(i64 16)
+CHECK:   %[[AGGREGATE1:.*]] = call i64 @revng_call_stack_arguments(i64 16)
+CHECK:   %[[AGGREGATE:.*]] = call i64 @AddressOf([[IGN:.*]], i64 %[[AGGREGATE1]])
 CHECK:   = call i64 @local_cabi_aggregate_on_stack_and_registers(i64 1, i64 2, i64 3, i64 4, i64 5, i64 %[[AGGREGATE]])
 CHECK: }

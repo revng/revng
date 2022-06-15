@@ -86,6 +86,19 @@ haveInterferingSideEffects(const llvm::Instruction & /*InstrWithSideEffects*/,
   return MightInterfere(&Other) or llvm::any_of(TaintSet, MightInterfere);
 }
 
+static bool allocatesLocalVariable(const llvm::Instruction &I) {
+  // Some instructions might return an LLVM aggregate type, e.g. calls to
+  // functions with a `RawFunctionType`s that return more than one value. Since
+  // LLVM aggregate types never have a corresponding model type, any instruction
+  // returning aggregates has to construct its return type during the emission
+  // phase. This can be done only when visiting the instruction, and causes the
+  // backend to emit a local variable.
+  if (I.getType()->isAggregateType())
+    return true;
+
+  return isCallToTagged(&I, FunctionTags::AllocatesLocalVariable);
+}
+
 class IntersectionMonotoneSetWithTaint;
 
 using LatticeElement = IntersectionMonotoneSetWithTaint;
@@ -363,6 +376,11 @@ public:
 
       // Skip branching instructions, since they never generate assignments.
       if (isa<BranchInst>(I) or isa<SwitchInst>(I))
+        continue;
+
+      // Instructions that only allocate a local variable do no need an
+      // assignment.
+      if (allocatesLocalVariable(I))
         continue;
 
       if (hasSideEffects(I)) {

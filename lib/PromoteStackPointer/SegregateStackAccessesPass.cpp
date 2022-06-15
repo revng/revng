@@ -24,6 +24,7 @@
 #include "revng-c/PromoteStackPointer/SegregateStackAccessesPass.h"
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/IRHelpers.h"
+#include "revng-c/Support/ModelHelpers.h"
 
 using namespace llvm;
 
@@ -53,33 +54,6 @@ static CallInst *findCallTo(Function *F, Function *ToSearch) {
       if ((Call = getCallTo(&I, ToSearch)))
         return Call;
   return nullptr;
-}
-
-template<typename... Types>
-static CallInst *
-createCall(IRBuilder<> &B, FunctionCallee Callee, Types... Arguments) {
-
-  SmallVector<Value *> ArgumentsValues;
-  FunctionType *CalleeType = Callee.getFunctionType();
-
-  unsigned Index = 0;
-  auto AddArgument = [&](auto Argument) {
-    using ArgumentType = decltype(Argument);
-    Value *ArgumentValue = nullptr;
-    if constexpr (std::is_same_v<ArgumentType, uint64_t>) {
-      auto *ArgumentType = cast<IntegerType>(CalleeType->getParamType(Index));
-      ArgumentValue = ConstantInt::get(ArgumentType, Argument);
-    } else {
-      ArgumentValue = Argument;
-    }
-
-    ArgumentsValues.push_back(ArgumentValue);
-    ++Index;
-  };
-
-  (AddArgument(Arguments), ...);
-
-  return B.CreateCall(Callee, ArgumentsValues);
 }
 
 static std::optional<int64_t> getStackOffset(Value *Pointer) {
@@ -284,7 +258,10 @@ private:
   std::map<Function *, Function *> OldToNew;
   std::set<Function *> FunctionsWithStackArguments;
   std::map<Function *, StackAccessRedirector> StackArgumentsRedirectors;
-  std::set<Instruction *, SortByFunction> ToPushALAP;
+  std::vector<Instruction *> ToPushALAP;
+
+  llvm::Type *PtrSizedInteger;
+  OpaqueFunctionsPool<TypePair> AddressOfPool;
 
 public:
   SegregateStackAccesses(const model::Binary &Binary,
@@ -296,10 +273,14 @@ public:
     InitLocalSP(M.getFunction("revng_init_local_sp")),
     SABuilder(M.getContext()),
     CallInstructionPushSize(getCallPushSize(Binary)),
-    SPType(StackPointer->getType()->getPointerElementType()) {
+    SPType(StackPointer->getType()->getPointerElementType()),
+    PtrSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
+    AddressOfPool(&M, false) {
 
     revng_assert(SSACS != nullptr);
     revng_assert(InitLocalSP != nullptr);
+
+    initAddressOfPool(AddressOfPool, &M);
 
     auto StackAllocatorType = FunctionType::get(SPType, { SPType }, false);
     auto Create = [&StackAllocatorType, &M](StringRef Name) {
@@ -313,6 +294,8 @@ public:
       Result->addFnAttr(Attribute::WillReturn);
       FunctionTags::AllocatesLocalVariable.addTo(Result);
       FunctionTags::MallocLike.addTo(Result);
+      FunctionTags::IsRef.addTo(Result);
+
       return Result;
     };
 
@@ -348,6 +331,47 @@ public:
   }
 
 private:
+  template<typename... Types>
+  std::pair<CallInst *, CallInst *>
+  createCallWithAddressOf(IRBuilder<> &B,
+                          model::QualifiedType &AllocatedType,
+                          FunctionCallee Callee,
+                          Types... Arguments) {
+
+    SmallVector<Value *> ArgumentsValues;
+    FunctionType *CalleeType = Callee.getFunctionType();
+
+    unsigned Index = 0;
+    auto AddArgument = [&](auto Argument) {
+      using ArgumentType = decltype(Argument);
+      Value *ArgumentValue = nullptr;
+      if constexpr (std::is_same_v<ArgumentType, uint64_t>) {
+        auto *ArgumentType = cast<IntegerType>(CalleeType->getParamType(Index));
+        ArgumentValue = ConstantInt::get(ArgumentType, Argument);
+      } else {
+        ArgumentValue = Argument;
+      }
+
+      ArgumentsValues.push_back(ArgumentValue);
+      ++Index;
+    };
+
+    (AddArgument(Arguments), ...);
+
+    auto *Call = B.CreateCall(Callee, ArgumentsValues);
+    auto CallType = Call->getType();
+
+    // Inject a call to AddressOf
+    llvm::Constant *ModelTypeString = serializeToLLVMString(AllocatedType, M);
+    auto *AddressOfFunctionType = getAddressOfType(PtrSizedInteger, CallType);
+    auto *AddressOfFunction = AddressOfPool.get({ PtrSizedInteger, CallType },
+                                                AddressOfFunctionType,
+                                                "AddressOf");
+    auto *AddressofCall = B.CreateCall(AddressOfFunction,
+                                       { ModelTypeString, Call });
+    return { Call, AddressofCall };
+  }
+
   void upgradeDynamicFunctions() {
     SmallVector<Function *, 8> Functions;
     for (Function &F : FunctionTags::DynamicFunction.functions(&M))
@@ -683,22 +707,26 @@ private:
         Arguments.push_back(Accumulator);
       } else {
         // Allocate memory for stack arguments
-        auto *CallStackArguments = createCall(SABuilder,
-                                              CallStackArgumentsAllocator,
-                                              NewSize);
-        CallStackArguments->setMetadata("revng.callerblock.start", MD);
+        auto [StackArgsCall,
+              AddrOfCall] = createCallWithAddressOf(SABuilder,
+                                                    ModelArgument.Type,
+                                                    CallStackArgumentsAllocator,
+                                                    NewSize);
+
+        StackArgsCall->setMetadata("revng.callerblock.start", MD);
 
         // Record for pushing ALAP
-        ToPushALAP.insert(CallStackArguments);
+        ToPushALAP.push_back(AddrOfCall);
+        ToPushALAP.push_back(StackArgsCall);
 
         unsigned OffsetInNewArgument = 0;
         for (auto &Register : ModelArgument.Registers) {
           Value *OldArgument = ArgumentToRegister.at(Register);
           unsigned OldSize = model::Register::getSize(Register);
 
-          Constant *Offset = ConstantInt::get(CallStackArguments->getType(),
+          Constant *Offset = ConstantInt::get(AddrOfCall->getType(),
                                               OffsetInNewArgument);
-          Value *Address = Builder.CreateAdd(CallStackArguments, Offset);
+          Value *Address = Builder.CreateAdd(AddrOfCall, Offset);
 
           // Store value
           Type *StorePointerTy = OldArgument->getType()->getPointerTo();
@@ -710,9 +738,9 @@ private:
         }
 
         if (ModelArgument.Stack)
-          Redirector.recordSpan(*ModelArgument.Stack, CallStackArguments);
+          Redirector.recordSpan(*ModelArgument.Stack, AddrOfCall);
 
-        Arguments.push_back(CallStackArguments);
+        Arguments.push_back(AddrOfCall);
       }
     }
 
@@ -837,10 +865,13 @@ private:
     //
     if (StackFrameSize != 0) {
       IRBuilder<> Builder(Call);
-      auto *StackFrame = createCall(Builder,
-                                    StackFrameAllocator,
-                                    StackFrameSize);
-      auto *SP0 = Builder.CreateAdd(StackFrame, getSPConstant(StackFrameSize));
+      model::QualifiedType StackFrameType(ModelFunction.StackFrameType, {});
+      auto [_, StackFrameCall] = createCallWithAddressOf(Builder,
+                                                         StackFrameType,
+                                                         StackFrameAllocator,
+                                                         StackFrameSize);
+      auto *SP0 = Builder.CreateAdd(StackFrameCall,
+                                    getSPConstant(StackFrameSize));
       Call->replaceAllUsesWith(SP0);
 
       // Cleanup revng_init_local_sp
