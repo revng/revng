@@ -75,6 +75,10 @@ OrderedEdgeContainer orderEdges(InternalGraph &&Graph,
                                 const RankContainer &Ranks,
                                 const LaneContainer &Lanes);
 
+void route(const OrderedEdgeContainer &OrderedListOfEdges,
+           float MarginSize,
+           float EdgeDistance);
+
 /// Computes the layout given a graph and the configuration.
 ///
 /// \note: it only works with `MutableEdgeNode`s.
@@ -128,6 +132,9 @@ inline bool calculateSugiyamaLayout(ExternalGraph &Graph,
   // an ordered list of edges with all the information necessary for them
   // to get routed (see `OrderedEdgeContainer`).
   auto Edges = orderEdges(std::move(DAG), std::move(Prerouted), Ranks, Lanes);
+
+  // Route the edges.
+  route(Edges, Margin, EdgeGap);
 
   return true;
 }
