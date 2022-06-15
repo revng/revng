@@ -14,6 +14,7 @@
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/MonotoneFramework.h"
 
+#include "revng-c/Backend/VariableScopeAnalysis.h"
 #include "revng-c/Support/DecompilationHelpers.h"
 #include "revng-c/Support/FunctionTags.h"
 
@@ -391,6 +392,14 @@ public:
         Assignments[&I].set(Reasons::HasManyUses);
         revng_log(MarkLog, "Instr HasManyUses: " << I.getNumUses());
       } break;
+      }
+
+      // If an instruction is used outside of the scope in which it appears in
+      // the LLVM IR, we need to create a local variable for it.
+      if (needsTopScopeDeclaration(I)) {
+        Assignments[&I].set(Reasons::HasUsesOutsideBB);
+        revng_log(MarkLog,
+                  "Instr has uses outside its basic block: " << I.getNumUses());
       }
 
       auto SerIt = Assignments.find(&I);

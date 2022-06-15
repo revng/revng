@@ -32,20 +32,21 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/YAMLTraits.h"
 
 #include "revng-c/Backend/DecompileFunction.h"
+#include "revng-c/Backend/VariableScopeAnalysis.h"
 #include "revng-c/InitModelTypes/InitModelTypes.h"
 #include "revng-c/RestructureCFG/ASTNode.h"
 #include "revng-c/RestructureCFG/ASTTree.h"
 #include "revng-c/RestructureCFG/BeautifyGHAST.h"
 #include "revng-c/RestructureCFG/RestructureCFG.h"
+#include "revng-c/Support/DecompilationHelpers.h"
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
 #include "revng-c/TypeNames/LLVMTypeNames.h"
 #include "revng-c/TypeNames/ModelTypeNames.h"
-
-#include "VariableScopeAnalysis.h"
 
 using llvm::cast;
 using llvm::dyn_cast;
@@ -67,7 +68,7 @@ using model::TypedefType;
 using StringToken = llvm::SmallString<32>;
 using TokenMapT = std::map<const llvm::Value *, StringToken>;
 using ModelTypesMap = std::map<const llvm::Value *, const model::QualifiedType>;
-using ValueSet = llvm::SmallPtrSet<const llvm::Value *, 32>;
+using ValueSet = llvm::SmallPtrSet<const llvm::Instruction *, 32>;
 
 static constexpr const char *StackFrameVarName = "stack";
 static constexpr const char *StackPtrVarName = "stack_ptr";
@@ -1488,7 +1489,7 @@ void decompile(llvm::Module &Module,
     }
 
     // Generated C code for F
-    auto TopScopeVariables = collectLocalVariables(F);
+    auto TopScopeVariables = collectTopScopeVariables(F);
     auto NeedsLoopStateVar = hasLoopDispatchers(GHAST);
     std::string CCode = decompileFunction(F,
                                           GHAST,

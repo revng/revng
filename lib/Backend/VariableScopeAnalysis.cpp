@@ -12,16 +12,17 @@
 
 #include "revng/ADT/RecursiveCoroutine-coroutine.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRHelpers.h"
 
+#include "revng-c/Backend/VariableScopeAnalysis.h"
 #include "revng-c/RestructureCFG/ASTNode.h"
 #include "revng-c/RestructureCFG/ASTTree.h"
 #include "revng-c/Support/FunctionTags.h"
 
-#include "VariableScopeAnalysis.h"
-
-using ValuePtrSet = llvm::SmallPtrSet<const llvm::Value *, 32>;
+using ValuePtrSet = llvm::SmallPtrSet<const llvm::Instruction *, 32>;
 
 using llvm::BasicBlock;
+using llvm::CallInst;
 using llvm::Function;
 using llvm::Instruction;
 using llvm::User;
@@ -98,47 +99,23 @@ static RecursiveCoroutine<bool> needsLoopVar(ASTNode *N) {
   }
 }
 
-/// Check if the GHAST has loop dispatchers, which indicate the need for
-/// a loop state variable to be declared.
 bool hasLoopDispatchers(const ASTTree &GHAST) {
   return needsLoopVar(GHAST.getRoot());
 }
 
-/// Fill \a VarsToDeclare with all the llvm::Values for
-/// which we need a top-level variable declaration.
-ValuePtrSet collectLocalVariables(const Function &F) {
-  ValuePtrSet VarsToDeclare;
+ValuePtrSet collectTopScopeVariables(const Function &F) {
+  ValuePtrSet TopScopeVars;
 
   for (const BasicBlock &BB : F) {
     for (const Instruction &I : BB) {
 
-      // Only marked instructions have a local variables associated
-      auto *Call = llvm::dyn_cast<llvm::CallInst>(&I);
-      if (not Call)
-        continue;
-
-      llvm::Function *CalledFunction = Call->getCalledFunction();
-      if (not CalledFunction)
-        continue;
-      if (not FunctionTags::AssignmentMarker.isTagOf(CalledFunction))
-        continue;
-
-      // If an instruction's uses are all inside the same basic block, we are
-      // sure that it can be declared ALAP.
-      auto HasDifferentParent = [&I](const User *U) {
-        const Instruction *UserInst = cast<const Instruction>(U);
-        return UserInst->getParent() != I.getParent();
-      };
-      bool HasUsersOutsideBB = any_of(I.users(), HasDifferentParent);
-
-      // TODO: we can further refine this logic introducing the concept of
-      // scopes and associating variable declarations to a scope.
-      // For now, we decided to declare all variables that have at least one
-      // use outside of their basic block right at the start of the function.
-      if (HasUsersOutsideBB)
-        VarsToDeclare.insert(&I);
+      // We always want to put the stack frame among the top-scope variables,
+      // since it is is logical for it to appear at the top of the function even
+      // if it is used only in a later scope.
+      if (isCallTo(&I, "revng_stack_frame") or needsTopScopeDeclaration(I))
+        TopScopeVars.insert(&I);
     }
   }
 
-  return VarsToDeclare;
+  return TopScopeVars;
 }
