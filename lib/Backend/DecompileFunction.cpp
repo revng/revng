@@ -186,64 +186,6 @@ static const char *getCmpOpString(const llvm::CmpInst::Predicate &Pred) {
   }
 }
 
-static StringToken addParentheses(const llvm::Twine &Expr) {
-  return StringToken(("(" + Expr + ")").str());
-}
-
-static StringToken buildDerefExpr(const llvm::Twine &Expr) {
-  return StringToken(("*" + addParentheses(Expr)).str());
-}
-
-static StringToken buildAddressExpr(const llvm::Twine &Expr) {
-  return StringToken(("&" + addParentheses(Expr)).str());
-}
-
-/// Return a C string that represents a cast of \a ExprToCast to a given
-/// \a DestType. If no casting is needed between the two expression, the
-/// original expression is returned.
-static StringToken buildCastExpr(StringRef ExprToCast,
-                                 const model::QualifiedType &SrcType,
-                                 const model::QualifiedType &DestType) {
-  StringToken Result = ExprToCast;
-  if (SrcType == DestType or not SrcType.UnqualifiedType.isValid()
-      or not DestType.UnqualifiedType.isValid())
-    return Result;
-
-  revng_assert((SrcType.isScalar() or SrcType.isPointer())
-               and (DestType.isScalar() or DestType.isPointer()));
-
-  Result.assign(addParentheses(getTypeName(DestType)));
-  Result.append(addParentheses(ExprToCast));
-
-  return Result;
-}
-
-/// Return a string that represents a C assignment:
-///
-///         [<TYPE>] LHSToken = [<CAST>] RHSToken
-///
-/// \note <TYPE> is added if \a WithDeclaration is true (transforms the
-/// assignment into a declaration + assignment string)
-/// \note <CAST> is automatically added if LHSType and RHSType are different
-static StringToken buildAssignmentExpr(const model::QualifiedType &LHSType,
-                                       const llvm::StringRef &LHSToken,
-                                       const model::QualifiedType &RHSType,
-                                       const llvm::StringRef &RHSToken,
-                                       bool WithDeclaration) {
-
-  StringToken AssignmentStr;
-
-  if (WithDeclaration)
-    AssignmentStr += getNamedCInstance(LHSType, LHSToken);
-  else
-    AssignmentStr += LHSToken;
-
-  AssignmentStr += " = ";
-  AssignmentStr += buildCastExpr(RHSToken, RHSType, LHSType);
-
-  return AssignmentStr;
-}
-
 /// Stateful name assignment for local variables.
 class VarNameGenerator {
 private:
@@ -333,6 +275,10 @@ private:
   /// During emission, keep track of the values that already have a declaration
   llvm::SmallPtrSet<const llvm::Value *, 8> AlreadyDeclared;
 
+private:
+  /// Emission of parentheses may change whether the OPRP is enabled or not
+  bool IsOperatorPrecedenceResolutionPassEnabled = false;
+
 public:
   CCodeGenerator(const Binary &Model,
                  const llvm::Function &LLVMFunction,
@@ -354,6 +300,9 @@ public:
 
     // TODO: don't use a global loop state variable
     LoopStateVar = "loop_state_var";
+
+    if (LLVMFunction.getMetadata(ExplicitParenthesesMDName))
+      IsOperatorPrecedenceResolutionPassEnabled = true;
   }
 
   void emitFunction(bool NeedsLocalStateVar);
@@ -394,7 +343,89 @@ private:
   /// Handle calls to functions that have been artificially injected by
   /// the decompiler pipeline and have a special meaning for decompilation.
   StringToken handleSpecialFunction(const llvm::CallInst *Call);
+
+private:
+  StringToken addAlwaysParentheses(const llvm::Twine &Expr);
+
+  StringToken addParentheses(const llvm::Twine &Expr);
+
+  StringToken buildDerefExpr(const llvm::Twine &Expr);
+
+  StringToken buildAddressExpr(const llvm::Twine &Expr);
+
+  /// Return a C string that represents a cast of \a ExprToCast to a given
+  /// \a DestType. If no casting is needed between the two expression, the
+  /// original expression is returned.
+  StringToken buildCastExpr(StringRef ExprToCast,
+                            const model::QualifiedType &SrcType,
+                            const model::QualifiedType &DestType);
+
+  /// Return a string that represents a C assignment:
+  ///
+  ///         [<TYPE>] LHSToken = [<CAST>] RHSToken
+  ///
+  /// \note <TYPE> is added if \a WithDeclaration is true (transforms the
+  /// assignment into a declaration + assignment string)
+  StringToken buildAssignmentExpr(const model::QualifiedType &LHSType,
+                                  const llvm::StringRef &LHSToken,
+                                  const llvm::StringRef &RHSToken,
+                                  bool WithDeclaration);
 };
+
+StringToken CCodeGenerator::addAlwaysParentheses(const llvm::Twine &Expr) {
+  return StringToken(("(" + Expr + ")").str());
+}
+
+StringToken CCodeGenerator::addParentheses(const llvm::Twine &Expr) {
+  if (IsOperatorPrecedenceResolutionPassEnabled)
+    return StringToken(Expr.str());
+  return StringToken(("(" + Expr + ")").str());
+}
+
+StringToken CCodeGenerator::buildDerefExpr(const llvm::Twine &Expr) {
+  return StringToken(("*" + addParentheses(Expr)).str());
+}
+
+StringToken CCodeGenerator::buildAddressExpr(const llvm::Twine &Expr) {
+  return StringToken(("&" + addParentheses(Expr)).str());
+}
+
+StringToken
+CCodeGenerator::buildCastExpr(StringRef ExprToCast,
+                              const model::QualifiedType &SrcType,
+                              const model::QualifiedType &DestType) {
+  StringToken Result = ExprToCast;
+  if (SrcType == DestType or not SrcType.UnqualifiedType.isValid()
+      or not DestType.UnqualifiedType.isValid())
+    return Result;
+
+  revng_assert((SrcType.isScalar() or SrcType.isPointer())
+               and (DestType.isScalar() or DestType.isPointer()));
+
+  Result.assign(addAlwaysParentheses(getTypeName(DestType)));
+  Result.append(addParentheses(ExprToCast));
+
+  return Result;
+}
+
+StringToken
+CCodeGenerator::buildAssignmentExpr(const model::QualifiedType &LHSType,
+                                    const llvm::StringRef &LHSToken,
+                                    const llvm::StringRef &RHSToken,
+                                    bool WithDeclaration) {
+
+  StringToken AssignmentStr;
+
+  if (WithDeclaration)
+    AssignmentStr += getNamedCInstance(LHSType, LHSToken);
+  else
+    AssignmentStr += LHSToken;
+
+  AssignmentStr += " = ";
+  AssignmentStr += RHSToken;
+
+  return AssignmentStr;
+}
 
 StringToken
 CCodeGenerator::buildFuncCallExpr(const llvm::CallInst *Call,
@@ -409,52 +440,10 @@ CCodeGenerator::buildFuncCallExpr(const llvm::CallInst *Call,
   } else {
     llvm::StringRef Separator = "(";
 
-    for (auto &ArgEnum : llvm::enumerate(Call->arg_operands())) {
+    for (const auto &Arg : Call->arg_operands()) {
       Expression += Separator;
+      Expression += TokenMap.at(Arg);
 
-      model::QualifiedType FormalArgType;
-      if (Prototype) {
-        // If we have the function's model prototype, we can infer the formal
-        // argument type from it
-        if (auto *RawPrototype = dyn_cast<RawFunctionType>(Prototype)) {
-          const auto ModelArgSize = RawPrototype->Arguments.size();
-          const auto ArgIdx = ArgEnum.index();
-
-          if (ArgIdx < ModelArgSize) {
-            auto ModelArg = RawPrototype->Arguments.begin() + ArgEnum.index();
-            FormalArgType = ModelArg->Type;
-
-          } else if (ArgIdx == ModelArgSize) {
-            // If the LLVM argument is past the end of the model arguments list,
-            // it's a stack argument: create a pointer to the
-            // stackArgumentsType.
-            QualifiedType StackArgsType = RawPrototype->StackArgumentsType;
-            addPointerQualifier(StackArgsType, Model);
-            revng_assert(StackArgsType.UnqualifiedType.isValid());
-            FormalArgType = StackArgsType;
-
-          } else {
-            revng_abort("Out-of-bounds access to model arguments");
-          }
-
-        } else if (auto *CPrototype = dyn_cast<CABIFunctionType>(Prototype)) {
-          auto ModelArg = CPrototype->Arguments.begin() + ArgEnum.index();
-          FormalArgType = ModelArg->Type;
-        }
-      } else {
-        // If we don't have the model prototype, we inspect the LLVM prototype
-        // and convert the argument's LLVM type to a QUalifiedType
-        const llvm::Function *CalledF = Call->getCalledFunction();
-        revng_assert(CalledF);
-        const llvm::Argument *LLVMArg = CalledF->getArg(ArgEnum.index());
-
-        FormalArgType = llvmIntToModelType(LLVMArg->getType(), Model);
-      }
-
-      const llvm::Value *Arg = ArgEnum.value();
-      Expression += buildCastExpr(TokenMap.at(Arg),
-                                  TypeMap.at(Arg),
-                                  FormalArgType);
       Separator = ", ";
     }
     Expression += ")";
@@ -517,7 +506,7 @@ CCodeGenerator::addOperandToken(const llvm::Value *Operand) {
 
       auto CompositeConstant = addParentheses(HighBitsString + " << 64") + " | "
                                + LowBitsString;
-      TokenMap[Operand] = addParentheses(CompositeConstant).str();
+      TokenMap[Operand] = addAlwaysParentheses(CompositeConstant).str();
     }
 
     rc_return true;
@@ -576,11 +565,10 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
 
     // Second argument is the base llvm::Value
     ++CurArg;
-    llvm::Value *BaseValue = CurArg->get();
 
-    Expression = buildCastExpr(TokenMap.at(BaseValue),
-                               TypeMap.at(BaseValue),
-                               CurTypePtr);
+    llvm::Value *BaseValue = CurArg->get();
+    Expression = TokenMap.at(BaseValue);
+
     ++CurArg;
     if (CurArg == Call->arg_end()) {
       // If there are no further arguments, we are casting from one reference
@@ -650,10 +638,29 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
 
       Expression = CurExpr;
     }
+  } else if (FunctionTags::ModelCast.isTagOf(CalledFunc)) {
+    // First argument is a string containing the base type
+    auto *CurArg = Call->arg_begin();
+    StringRef BaseTypeString = extractFromConstantStringPtr(CurArg->get());
+
+    QualifiedType CurType = parseQualifiedType(BaseTypeString, Model);
+    QualifiedType CurTypePtr = CurType;
+
+    // Second argument is the base llvm::Value
+    ++CurArg;
+    llvm::Value *BaseValue = CurArg->get();
+
+    // Emit the parenthesized cast expr, and we are done
+    StringToken CastExpr = buildCastExpr(TokenMap.at(BaseValue),
+                                         TypeMap.at(BaseValue),
+                                         CurTypePtr);
+    Expression = CastExpr;
   } else if (FunctionTags::AddressOf.isTagOf(CalledFunc)) {
     // Second argument is the value being addressed
     const llvm::Value *Arg = Call->getArgOperand(1);
     Expression = buildAddressExpr(TokenMap.at(Arg));
+  } else if (FunctionTags::Parentheses.isTagOf(CalledFunc)) {
+    Expression = addAlwaysParentheses(TokenMap.at(Call->getArgOperand(0)));
   } else if (FunctionTags::AssignmentMarker.isTagOf(CalledFunc)) {
     const llvm::Value *Arg = Call->getArgOperand(0);
 
@@ -669,7 +676,6 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
       revng_log(Log, "Already declared! Assigning " << Expression.str());
       Out << buildAssignmentExpr(TypeMap.at(Call),
                                  TokenMap.at(Call),
-                                 TypeMap.at(Arg),
                                  TokenMap.at(Arg),
                                  /*WithDeclaration=*/false)
           << ";\n";
@@ -681,7 +687,6 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
       revng_log(Log, "Declaring new local var for " << Expression.str());
       Out << buildAssignmentExpr(TypeMap.at(Call),
                                  VarName,
-                                 TypeMap.at(Arg),
                                  TokenMap.at(Arg),
                                  /*WithDeclaration=*/true)
           << ";\n";
@@ -709,11 +714,8 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
 
     // Emit RHS
     char Separator = '{';
-    for (const auto &[Arg, ArgType] :
-         llvm::zip(Call->args(), RawPrototype->ReturnValues)) {
-
-      Out << Separator << " "
-          << buildCastExpr(TokenMap.at(Arg), TypeMap.at(Arg), ArgType.Type);
+    for (const auto &Arg : Call->args()) {
+      Out << Separator << " " << TokenMap.at(Arg);
       Separator = ',';
     }
     Out << "};\n";
@@ -740,7 +742,7 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
 
     // Print the stack variable declaration
     Out << getNamedCInstance(TypeMap.at(Call), StackPtrVarName) << " = "
-        << addParentheses(getNamedCInstance(TypeMap.at(Call), ""))
+        << addAlwaysParentheses(getNamedCInstance(TypeMap.at(Call), ""))
         << " revng_init_local_sp();\n";
 
     Expression = StackPtrVarName;
@@ -808,14 +810,7 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
         addOperandToken(CalledVal);
         auto &VarName = TokenMap.at(CalledVal);
 
-        QualifiedType FuncPtrType = createPointerTo(PrototypePath, Model);
-
-        // Cast the variable that holds the function pointer to the correct
-        // type, and use it as the callee part of the expression
-        CalleeToken = (addParentheses(getTypeName(FuncPtrType))
-                       + addParentheses(VarName))
-                        .str();
-        CalleeToken = addParentheses(buildDerefExpr(CalleeToken));
+        CalleeToken = addParentheses(VarName);
 
       } else {
         if (not CallEdge->DynamicFunction.empty()) {
@@ -894,54 +889,12 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
 
     const llvm::Value *PointerOp = Store->getPointerOperand();
     const llvm::Value *ValueOp = Store->getValueOperand();
-    const QualifiedType &PointerType = TypeMap.at(PointerOp);
     const QualifiedType &StoredType = TypeMap.at(ValueOp);
 
     StringToken PointerOperandExpr = TokenMap.at(PointerOp);
 
-    QualifiedType DerefPointedType;
-    StringToken PointerExprToDeref;
-
-    // This may be false if the pointer is null, because in that case we emit
-    // NULL, whose type is integer
-    bool PointerOperandIsInteger = not PointerType.isPointer();
-    if (PointerOperandIsInteger) {
-      // The pointer operand does not contain enough information to figure out
-      // the type of the pointee. In this sense the pointer is integer, because
-      // it's just a bag of bytes without useful type information. In this case
-      // we want the stored value to determine the type pointed-to by the
-      // pointer.
-      DerefPointedType = StoredType;
-      QualifiedType DerefPointerType = DerefPointedType;
-      addPointerQualifier(DerefPointerType, Model);
-      revng_assert(DerefPointerType.verify());
-      PointerExprToDeref = buildCastExpr(PointerOperandExpr,
-                                         PointerType,
-                                         DerefPointerType);
-    } else {
-      // Otherwise the type pointed-to by the pointer operand can be obtained
-      // just dropping the pointer qualifier.
-      DerefPointedType = dropPointer(PointerType);
-      PointerExprToDeref = PointerOperandExpr;
-
-      if (StoredType.UnqualifiedType.isValid() and StoredType.isScalar()
-          and not DerefPointedType.is(model::TypeKind::PrimitiveType)) {
-        // If we are storing a scalar value into a pointer to a struct, union or
-        // pointer, cast the LHS to the scalar type before assigning it
-        DerefPointedType = StoredType;
-        QualifiedType DerefPointerType = StoredType;
-        addPointerQualifier(DerefPointerType, Model);
-        revng_assert(DerefPointerType.verify());
-        PointerExprToDeref = buildCastExpr(PointerOperandExpr,
-                                           PointerType,
-                                           DerefPointerType);
-      }
-    }
-    revng_assert(DerefPointedType.verify());
-
-    Expression = buildAssignmentExpr(DerefPointedType,
-                                     buildDerefExpr(PointerExprToDeref),
-                                     StoredType,
+    Expression = buildAssignmentExpr(StoredType,
+                                     buildDerefExpr(PointerOperandExpr),
                                      TokenMap.at(ValueOp),
                                      /*WithDeclaration=*/false);
 
@@ -981,27 +934,8 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
   } else if (auto *Ret = dyn_cast<llvm::ReturnInst>(&I)) {
     Expression = "return";
 
-    if (llvm::Value *ReturnedVal = Ret->getReturnValue()) {
-      Expression += " ";
-
-      if (LLVMFunction.getReturnType()->isAggregateType()) {
-        Expression += TokenMap.at(ReturnedVal);
-
-      } else {
-        QualifiedType ReturnedType;
-        if (auto *RawF = dyn_cast<RawFunctionType>(&ParentPrototype)) {
-          ReturnedType = RawF->ReturnValues.begin()->Type;
-        } else if (auto *CABIF = dyn_cast<CABIFunctionType>(&ParentPrototype)) {
-          ReturnedType = CABIF->ReturnType;
-        } else {
-          revng_abort("Unknown function type");
-        }
-
-        Expression += buildCastExpr(TokenMap.at(ReturnedVal),
-                                    TypeMap.at(ReturnedVal),
-                                    ReturnedType);
-      }
-    }
+    if (llvm::Value *ReturnedVal = Ret->getReturnValue())
+      Expression += (" " + TokenMap.at(ReturnedVal)).str();
 
   } else if (auto *Branch = dyn_cast<llvm::BranchInst>(&I)) {
     // This is never emitted directly in the BB: it is used when
@@ -1162,7 +1096,8 @@ CCodeGenerator::buildGHASTCondition(const ExprNode *E) {
     ExprNode *Negated = N->getNegatedNode();
 
     StringToken Expression;
-    Expression = ("!" + addParentheses(rc_recur buildGHASTCondition(Negated)))
+    Expression = ("!"
+                  + addAlwaysParentheses(rc_recur buildGHASTCondition(Negated)))
                    .str();
     rc_return Expression;
   } break;
@@ -1178,9 +1113,9 @@ CCodeGenerator::buildGHASTCondition(const ExprNode *E) {
     const auto Child2Token = rc_recur buildGHASTCondition(Child2);
     const llvm::StringRef OpToken = E->getKind() == NodeKind::NK_And ? " && " :
                                                                        " || ";
-    StringToken Expression = addParentheses(Child1Token);
+    StringToken Expression = addAlwaysParentheses(Child1Token);
     Expression += OpToken;
-    Expression += addParentheses(Child2Token);
+    Expression += addAlwaysParentheses(Child2Token);
     rc_return Expression;
   } break;
 

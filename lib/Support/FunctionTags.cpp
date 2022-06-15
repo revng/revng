@@ -21,9 +21,11 @@ Tag AllocatesLocalVariable("AllocatesLocalVariable");
 Tag MallocLike("MallocLike");
 Tag IsRef("IsRef");
 Tag AddressOf("AddressOf");
+Tag ModelCast("ModelCast");
 Tag ModelGEP(ModelGEPName);
 Tag AssignmentMarker(MarkerName);
 Tag OpaqueExtractValue("OpaqueExtractvalue");
+Tag Parentheses("Parentheses");
 } // namespace FunctionTags
 
 static std::string makeTypeName(const llvm::Type *Ty) {
@@ -89,10 +91,32 @@ void initAddressOfPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.initializeFromReturnType(FunctionTags::AddressOf);
 }
 
+void initModelCastPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
+  // Set attributes
+  Pool.addFnAttribute(llvm::Attribute::NoUnwind);
+  Pool.addFnAttribute(llvm::Attribute::WillReturn);
+  Pool.addFnAttribute(llvm::Attribute::ReadNone);
+  // Set revng tags
+  Pool.setTags({ &FunctionTags::ModelCast });
+  // Initialize the pool from its internal llvm::Module if possible.
+  Pool.initializeFromReturnType(FunctionTags::ModelCast);
+}
+
+void initParenthesesPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
+  // Set attributes
+  Pool.addFnAttribute(llvm::Attribute::NoUnwind);
+  Pool.addFnAttribute(llvm::Attribute::WillReturn);
+  Pool.addFnAttribute(llvm::Attribute::ReadNone);
+  // Set revng tags
+  Pool.setTags({ &FunctionTags::Parentheses });
+  // Initialize the pool from its internal llvm::Module if possible.
+  Pool.initializeFromReturnType(FunctionTags::Parentheses);
+}
+
 llvm::Function *
 getModelGEP(llvm::Module &M, llvm::Type *RetTy, llvm::Type *BaseAddressTy) {
-
   using namespace llvm;
+
   // There are 2 fixed arguments:
   // - the first is a pointer to a constant string that contains a serialization
   //   of the key of the base type;

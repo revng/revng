@@ -5,8 +5,13 @@
 add_subdirectory(MarkAssignments)
 
 revng_add_analyses_library(
-  revngcIRCanonicalization revngc ExitSSAPass.cpp MakeModelGEPPass.cpp
-  TwosComplementArithmeticNormalizationPass.cpp)
+  revngcIRCanonicalization
+  revngc
+  ExitSSAPass.cpp
+  MakeModelCastPass.cpp
+  MakeModelGEPPass.cpp
+  TwosComplementArithmeticNormalizationPass.cpp
+  OperatorPrecedenceResolutionPass.cpp)
 
 target_link_libraries(
   revngcIRCanonicalization revngcInitModelTypes revngcSupport revng::revngModel

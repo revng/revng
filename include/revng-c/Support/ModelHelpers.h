@@ -70,3 +70,7 @@ createPointerTo(const model::TypePath &BaseT, const model::Binary &Binary) {
 /// qualifier is found.
 extern RecursiveCoroutine<model::QualifiedType>
 dropPointer(const model::QualifiedType &QT);
+
+extern model::QualifiedType
+deserializeAndParseQualifiedType(llvm::Value *Operand,
+                                 const model::Binary &Model);

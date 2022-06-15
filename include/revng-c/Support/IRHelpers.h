@@ -70,6 +70,8 @@ getSignedConstantArg(llvm::CallInst *Call, unsigned Index) {
   return getConstantArg<int64_t>(Call, Index);
 }
 
+inline const char *ExplicitParenthesesMDName = "revng.explicit_parentheses";
+
 namespace llvm {
 
 class InsertValueInst;
