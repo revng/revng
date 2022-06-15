@@ -635,6 +635,10 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
     llvm::Value *BaseValue = CurArg->get();
     Expression = TokenMap.at(BaseValue);
 
+    revng_assert(TypeMap.at(BaseValue) == CurTypePtr,
+                 "The ModelGEP base type is not coherent with the propagated "
+                 "type.");
+
     ++CurArg;
     if (CurArg == Call->arg_end()) {
       // If there are no further arguments, we are casting from one reference
@@ -783,6 +787,16 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
       Out << getNamedCInstance(TypeMap.at(Call), VarName) << ";\n";
 
     Expression = VarName;
+
+  } else if (FunctionTags::Assign.isTagOf(CalledFunc)) {
+    const llvm::Value *StoredVal = Call->getArgOperand(0);
+    const llvm::Value *PointerVal = Call->getArgOperand(1);
+    const QualifiedType PointedType = TypeMap.at(PointerVal);
+
+    Expression = buildAssignmentExpr(PointedType,
+                                     TokenMap.at(PointerVal),
+                                     TokenMap.at(StoredVal),
+                                     /*WithDeclaration=*/false);
 
   } else if (FunctionTags::QEMU.isTagOf(CalledFunc)
              or FunctionTags::Helper.isTagOf(CalledFunc)

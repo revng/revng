@@ -27,6 +27,7 @@ Tag AssignmentMarker(MarkerName);
 Tag OpaqueExtractValue("OpaqueExtractvalue");
 Tag Parentheses("Parentheses");
 Tag LocalVariable("LocalVariable");
+Tag Assign("Assign");
 Tag WritesMemory("WritesMemory");
 Tag ReadsMemory("ReadsMemory");
 } // namespace FunctionTags
@@ -236,4 +237,25 @@ void initOpaqueEVPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M) {
     auto RetType = F.getFunctionType()->getReturnType();
     Pool.record({ RetType, StructType }, &F);
   }
+}
+
+llvm::FunctionType *
+getAssignFunctionType(llvm::Type *ValueType, llvm::Type *PtrType) {
+  llvm::SmallVector<llvm::Type *, 2> FixedArgs = { ValueType, PtrType };
+  auto &C = ValueType->getContext();
+  return llvm::FunctionType::get(llvm::Type::getVoidTy(C),
+                                 FixedArgs,
+                                 false /* IsVarArg */);
+}
+
+void initAssignPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
+  // Set attributes
+  Pool.addFnAttribute(llvm::Attribute::NoUnwind);
+  Pool.addFnAttribute(llvm::Attribute::WillReturn);
+  Pool.addFnAttribute(llvm::Attribute::WriteOnly);
+  // Set revng tags
+  Pool.setTags({ &FunctionTags::Assign, &FunctionTags::WritesMemory });
+  // Initialize the pool from its internal llvm::Module if possible.
+  // Use the stored type as a key.
+  Pool.initializeFromNthArgType(FunctionTags::Assign, 0);
 }

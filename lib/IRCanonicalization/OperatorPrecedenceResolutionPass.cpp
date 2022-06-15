@@ -148,6 +148,7 @@ static bool isCustomOpcode(Instruction *I) {
 
   if (FunctionTags::AddressOf.isTagOf(CalledFunc)
       || FunctionTags::AssignmentMarker.isTagOf(CalledFunc)
+      || FunctionTags::Assign.isTagOf(CalledFunc)
       || (FunctionTags::ModelCast.isTagOf(CalledFunc))
       || (FunctionTags::ModelGEP.isTagOf(CalledFunc)))
     return true;
@@ -160,7 +161,8 @@ static unsigned getCustomOpcode(Instruction *I) {
 
   if (FunctionTags::AddressOf.isTagOf(CalledFunc))
     return CustomInstruction::AddressOf;
-  else if (FunctionTags::AssignmentMarker.isTagOf(CalledFunc))
+  else if (FunctionTags::AssignmentMarker.isTagOf(CalledFunc)
+           or FunctionTags::Assign.isTagOf(CalledFunc))
     return CustomInstruction::Assignment;
   else if (FunctionTags::ModelCast.isTagOf(CalledFunc))
     return CustomInstruction::Cast;

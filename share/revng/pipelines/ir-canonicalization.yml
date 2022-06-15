@@ -17,6 +17,7 @@ Branches:
            - exit-ssa
            - twoscomplement-normalization
            - make-local-variables
+           - remove-load-store
            - add-assignment-markers
            - make-model-cast
            - operatorprecedence-resolution

@@ -26,6 +26,7 @@ extern Tag AssignmentMarker;
 extern Tag OpaqueExtractValue;
 extern Tag Parentheses;
 extern Tag LocalVariable;
+extern Tag Assign;
 extern Tag ReadsMemory;
 extern Tag WritesMemory;
 
@@ -117,3 +118,12 @@ llvm::FunctionType *getLocalVarType(llvm::Type *ReturnedType);
 /// Initializes a pool of LocalVariable functions, initializing it its internal
 /// Module.
 void initLocalVarPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+
+/// Assign() are meant to replace `store` instructions in which the pointer
+/// operand is a reference.
+llvm::FunctionType *
+getAssignFunctionType(llvm::Type *ValueType, llvm::Type *PtrType);
+
+/// Initializes a pool of Assign functions, initializing it its internal
+/// Module.
+void initAssignPool(OpaqueFunctionsPool<llvm::Type *> &Pool);

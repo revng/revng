@@ -13,6 +13,7 @@
 #include "llvm/Support/Casting.h"
 
 #include "revng/EarlyFunctionAnalysis/IRHelpers.h"
+#include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/CABIFunctionType.h"
 #include "revng/Model/IRHelpers.h"
@@ -25,6 +26,7 @@
 #include "revng/Support/YAMLTraits.h"
 
 #include "revng-c/InitModelTypes/InitModelTypes.h"
+#include "revng-c/Support/DecompilationHelpers.h"
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
@@ -473,10 +475,13 @@ ModelTypesMap initModelTypes(const llvm::Function &F,
         // field.
         if (PtrOperandType.isPointer()) {
           model::QualifiedType Pointee = dropPointer(PtrOperandType);
-          if (Pointee.isPointer() or Pointee.isScalar()) {
+
+          if (areMemOpCompatible(Pointee, *Load->getType(), Model))
             Type = Pointee;
-          }
         }
+
+        // If it's not a pointer or a scalar of the right size, just
+        // fallback to the LLVM type
 
       } break;
 
@@ -501,6 +506,42 @@ ModelTypesMap initModelTypes(const llvm::Function &F,
         if (Op1Entry != TypeMap.end() and Op2Entry != TypeMap.end()
             and Op1Entry->second == Op2Entry->second)
           Type = Op1Entry->second;
+
+      } break;
+
+      // Handle zext from i1 to i8
+      case Instruction::ZExt: {
+        auto *ZExt = dyn_cast<llvm::ZExtInst>(&I);
+
+        auto IsBoolZext = ZExt->getSrcTy()->getScalarSizeInBits() == 1
+                          and ZExt->getDestTy()->getScalarSizeInBits() == 8;
+
+        if (not PointersOnly and IsBoolZext) {
+          const llvm::Value *Operand = I.getOperand(0);
+
+          // Forward the type if there is one
+          auto It = TypeMap.find(Operand);
+          if (It != TypeMap.end())
+            Type = It->second;
+        }
+
+      } break;
+
+      // Handle trunc from i8 to i1
+      case Instruction::Trunc: {
+        auto *Trunc = dyn_cast<llvm::TruncInst>(&I);
+
+        auto IsBoolTrunc = Trunc->getSrcTy()->getScalarSizeInBits() == 8
+                           and Trunc->getDestTy()->getScalarSizeInBits() == 1;
+
+        if (not PointersOnly and IsBoolTrunc) {
+          const llvm::Value *Operand = I.getOperand(0);
+
+          // Forward the type if there is one
+          auto It = TypeMap.find(Operand);
+          if (It != TypeMap.end())
+            Type = It->second;
+        }
 
       } break;
 

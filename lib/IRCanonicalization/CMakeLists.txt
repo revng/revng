@@ -11,6 +11,7 @@ revng_add_analyses_library(
   MakeLocalVariables.cpp
   MakeModelCastPass.cpp
   MakeModelGEPPass.cpp
+  RemoveLoadStore.cpp
   RemovePointerCasts.cpp
   TwosComplementArithmeticNormalizationPass.cpp
   OperatorPrecedenceResolutionPass.cpp)
