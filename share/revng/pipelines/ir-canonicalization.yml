@@ -16,6 +16,7 @@ Branches:
            - dce
            - exit-ssa
            - twoscomplement-normalization
+           - make-local-variables
            - add-assignment-markers
            - make-model-cast
            - operatorprecedence-resolution

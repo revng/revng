@@ -26,6 +26,7 @@ Tag ModelGEP(ModelGEPName);
 Tag AssignmentMarker(MarkerName);
 Tag OpaqueExtractValue("OpaqueExtractvalue");
 Tag Parentheses("Parentheses");
+Tag LocalVariable("LocalVariable");
 Tag WritesMemory("WritesMemory");
 Tag ReadsMemory("ReadsMemory");
 } // namespace FunctionTags
@@ -181,6 +182,30 @@ llvm::Function *getAssignmentMarker(llvm::Module &M, llvm::Type *T) {
   FunctionTags::Marker.addTo(MarkerF);
 
   return MarkerF;
+}
+
+llvm::FunctionType *getLocalVarType(llvm::Type *ReturnedType) {
+  using namespace llvm;
+
+  // There only argument is a pointer to a constant string that contains a
+  // serialization of the allocated variable's type
+  auto &C = ReturnedType->getContext();
+  SmallVector<llvm::Type *, 1> FixedArgs = { getStringPtrType(C) };
+  return FunctionType::get(ReturnedType, FixedArgs, false /* IsVarArg */);
+}
+
+void initLocalVarPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
+  // Set attributes
+  Pool.addFnAttribute(llvm::Attribute::NoUnwind);
+  Pool.addFnAttribute(llvm::Attribute::WillReturn);
+  Pool.addFnAttribute(llvm::Attribute::ReadNone);
+  // Set revng tags
+  Pool.setTags({ &FunctionTags::LocalVariable,
+                 &FunctionTags::IsRef,
+                 &FunctionTags::AllocatesLocalVariable });
+  // Initialize the pool from its internal llvm::Module if possible.
+  // Use the stored type as a key.
+  Pool.initializeFromReturnType(FunctionTags::LocalVariable);
 }
 
 llvm::FunctionType *getOpaqueEVFunctionType(llvm::ExtractValueInst *Extract) {

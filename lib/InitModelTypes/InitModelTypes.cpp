@@ -287,6 +287,12 @@ static TypeVector getReturnTypes(const llvm::CallInst *Call,
         ReturnTypes.push_back(It->second);
       }
 
+    } else if (FunctionTags::LocalVariable.isTagOf(CalledFunc)) {
+      StringRef StringOp = extractFromConstantStringPtr(Call->getArgOperand(0));
+      const model::QualifiedType VarType = parseQualifiedType(StringOp, Model);
+
+      ReturnTypes.push_back(VarType);
+
     } else if (FunctionTags::StructInitializer.isTagOf(CalledFunc)) {
       // Struct initializers are only used to pack together return values of
       // RawFunctionTypes that return multiple values, therefore they have the

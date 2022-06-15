@@ -8,6 +8,7 @@ revng_add_analyses_library(
   revngcIRCanonicalization
   revngc
   ExitSSAPass.cpp
+  MakeLocalVariables.cpp
   MakeModelCastPass.cpp
   MakeModelGEPPass.cpp
   RemovePointerCasts.cpp

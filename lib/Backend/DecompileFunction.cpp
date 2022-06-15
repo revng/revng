@@ -773,7 +773,8 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
     // Use the name of the assigned variable when referencing this value
     Expression = VarName;
 
-  } else if (FuncName.startswith("revng_stack_frame")
+  } else if (FunctionTags::LocalVariable.isTagOf(CalledFunc)
+             or FuncName.startswith("revng_stack_frame")
              or FuncName.startswith("revng_call_stack_arguments")) {
     const auto &[VarName, New] = getOrCreateVarName(Call);
 

@@ -25,6 +25,7 @@ extern Tag ModelCast;
 extern Tag AssignmentMarker;
 extern Tag OpaqueExtractValue;
 extern Tag Parentheses;
+extern Tag LocalVariable;
 extern Tag ReadsMemory;
 extern Tag WritesMemory;
 
@@ -108,3 +109,11 @@ llvm::FunctionType *getOpaqueEVFunctionType(llvm::ExtractValueInst *Extract);
 // Initializes a pool of OpaqueExtractValue instructions, so that a new one can
 // be created on-demand.
 void initOpaqueEVPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M);
+
+/// LocalVariable is used to indicate the allocation of a local variable. It
+/// returns a reference to the allocated variable.
+llvm::FunctionType *getLocalVarType(llvm::Type *ReturnedType);
+
+/// Initializes a pool of LocalVariable functions, initializing it its internal
+/// Module.
+void initLocalVarPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
