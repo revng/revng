@@ -44,7 +44,7 @@ private:
                  llvm::StringRef ExecutionDirectory);
 
   /// recalculates all possible targets and keeps overship of the computed info
-  void recalculateAllPossibleTargets();
+  void recalculateAllPossibleTargets(bool ExpandTargets = true);
 
 public:
   PipelineManager(PipelineManager &&Other) = default;
@@ -83,6 +83,9 @@ public:
   /// Path
   llvm::Error overrideModel(llvm::StringRef Path);
 
+  /// Entirelly replaces the model with the one provided
+  llvm::Error overrideModel(TupleTree<model::Binary> Binary);
+
   /// Stores the content of the container indicated by the mapping at the path
   /// indicated by the mapping, and  nothing else.
   llvm::Error store(const pipeline::PipelineFileMapping &StoresOverride);
@@ -116,7 +119,8 @@ public:
   void recalculateCache();
 
   /// like recalculate by the ownerhip is maintained by State
-  void getAllPossibleTargets(pipeline::Runner::State &State) const;
+  void getAllPossibleTargets(pipeline::Runner::State &State,
+                             bool ExpandTargets = true) const;
   /// like recalculate by the ownerhip is maintained by State
   void getCurrentState(pipeline::Runner::State &State) const;
 
@@ -126,7 +130,7 @@ public:
 
   /// A helper function used to produce all possible targets. It is used for
   /// debug purposes to see if any particular target crashes.
-  llvm::Error produceAllPossibleTargets();
+  llvm::Error produceAllPossibleTargets(bool ExpandTargets = true);
 
   llvm::Error invalidateAllPossibleTargets();
 

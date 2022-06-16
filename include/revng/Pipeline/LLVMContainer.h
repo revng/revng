@@ -46,6 +46,11 @@
 
 namespace pipeline {
 
+/// Creates a global variable in the provided module that holds a pointer to
+/// each other global object so that they can't be removed by the linker
+void makeGlobalObjectsArray(llvm::Module &Module,
+                            llvm::StringRef GlobalArrayName);
+
 template<typename LLVMContainer>
 class GenericLLVMPipe;
 
@@ -102,6 +107,8 @@ public:
     llvm::ValueToValueMapTy Map;
     revng_assert(llvm::verifyModule(*Module, &llvm::dbgs()) == 0);
     auto Cloned = llvm::CloneModule(*Module, Map, Filter);
+    auto *F = Cloned->getFunction("rcu_init");
+    revng_assert(!F or F->isDeclaration() or F->hasMetadata());
 
     return std::make_unique<ThisType>(*this->Ctx,
                                       std::move(Cloned),
@@ -165,7 +172,8 @@ private:
     // merge(Module1.enumerate(), Module2.enumerate())
     //
     // So we enumerate now to have it later.
-    BeforeEnumeration.merge(OtherEnumeration);
+    auto ExpectedEnumeration = BeforeEnumeration;
+    ExpectedEnumeration.merge(OtherEnumeration);
 
     ThisType &ToMerge = Other;
     std::set<std::string> Internals;
@@ -177,12 +185,12 @@ private:
     makeLinkageWeak(*Other.Module, Internals, Externals);
     makeLinkageWeak(*Module, Internals, Externals);
 
-    // Drops all metadata in the copied in module to avoid a single debug
-    // metadata to be attached to multiple fuctions, which is illformed.
-    for (auto &Global : Module->functions()) {
-      if (ToMerge.getModule().getFunction(Global.getName()))
-        Global.clearMetadata();
-    }
+    // Make a global array of all global objects so that they don't get dropped
+    std::string GlobalArray1 = "REVNGAllSymbolsArrayLeft";
+    makeGlobalObjectsArray(*Module, GlobalArray1);
+
+    std::string GlobalArray2 = "REVNGAllSymbolsArrayRight";
+    makeGlobalObjectsArray(*Other.Module, GlobalArray2);
 
     // We require inputs to be valid
     revng_assert(llvm::verifyModule(ToMerge.getModule(), &llvm::dbgs()) == 0);
@@ -210,8 +218,16 @@ private:
 
     // Checks that module merging commutes w.r.t. enumeration, as specified in
     // the first comment.
-    revng_assert(BeforeEnumeration.contains(this->enumerate()));
-    revng_assert(this->enumerate().contains(BeforeEnumeration));
+    auto ActualEnumeration = this->enumerate();
+    revng_assert(ExpectedEnumeration.contains(ActualEnumeration));
+    revng_assert(ActualEnumeration.contains(ExpectedEnumeration));
+
+    // Remove the global arrays since they are no longer needed.
+    if (auto *Global = Module->getGlobalVariable(GlobalArray1))
+      Global->eraseFromParent();
+
+    if (auto *Global = Module->getGlobalVariable(GlobalArray2))
+      Global->eraseFromParent();
   }
 };
 

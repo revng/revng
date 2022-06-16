@@ -24,9 +24,9 @@ using namespace std;
 using namespace pipeline;
 
 ContainerToTargetsMap
-Step::analyzeGoals(const ContainerToTargetsMap &RequiredGoals,
-                   ContainerToTargetsMap &AlreadyAviable) const {
+Step::analyzeGoals(const ContainerToTargetsMap &RequiredGoals) const {
 
+  ContainerToTargetsMap AlreadyAviable;
   ContainerToTargetsMap Targets = RequiredGoals;
   removeSatisfiedGoals(Targets, AlreadyAviable);
   for (const auto &Pipe : llvm::make_range(Pipes.rbegin(), Pipes.rend())) {
@@ -41,6 +41,17 @@ void Step::explainStartStep(const ContainerToTargetsMap &Targets,
 
   indent(ExplanationLogger, Indentation);
   ExplanationLogger << "STARTING step on containers\n";
+  indent(ExplanationLogger, Indentation + 1);
+  ExplanationLogger << getName() << ":\n";
+  prettyPrintStatus(Targets, ExplanationLogger, Indentation + 2);
+  ExplanationLogger << DoLog;
+}
+
+void Step::explainEndStep(const ContainerToTargetsMap &Targets,
+                          size_t Indentation) const {
+
+  indent(ExplanationLogger, Indentation);
+  ExplanationLogger << "ENDING step, the following have been produced\n";
   indent(ExplanationLogger, Indentation + 1);
   ExplanationLogger << getName() << ":\n";
   prettyPrintStatus(Targets, ExplanationLogger, Indentation + 2);
@@ -77,13 +88,11 @@ ContainerSet Step::cloneAndRun(Context &Ctx, ContainerSet &&Input) {
   explainStartStep(InputEnumeration);
 
   for (auto &Pipe : Pipes) {
-    if (not Pipe->areRequirementsMet(Input.enumerate()))
-      continue;
-
     explainExecutedPipe(Ctx, *Pipe);
     Pipe->run(Ctx, Input);
     llvm::cantFail(Input.verify());
   }
+  explainEndStep(Input.enumerate());
   Containers.mergeBack(std::move(Input));
   InputEnumeration = deduceResults(InputEnumeration);
   return Containers.cloneFiltered(InputEnumeration);

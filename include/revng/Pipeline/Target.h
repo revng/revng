@@ -146,6 +146,7 @@ public:
     };
 
     auto Path = llvm::join(llvm::map_range(Components, ComponentToString), "/");
+    OS << Path;
     OS << ':' << K->name().str();
     if (Exact == Exactness::DerivedFrom)
       OS << '^';
@@ -154,11 +155,13 @@ public:
 
   std::string serialize() const;
 
-  template<typename OStream, typename Range>
-  static void dumpPathComponents(OStream &OS, Range R) debug_function {
-    for (const auto &Entry : R) {
+  template<typename OStream>
+  void dumpPathComponents(OStream &OS) const debug_function {
+    OS << "/";
+    for (const auto &Entry : Components) {
       Entry.dump(OS);
-      OS << "/";
+      if (&Entry != &Components.back())
+        OS << "/";
     }
   }
 

@@ -21,6 +21,8 @@ void LinkForTranslationPipe::run(const Context &Ctx,
                                  FileContainer &InputBinary,
                                  FileContainer &ObjectFile,
                                  FileContainer &OutputBinary) {
+  if (not InputBinary.exists() or not ObjectFile.exists())
+    return;
 
   const model::Binary &Model = *getModelFromContext(Ctx);
   linkForTranslation(Model,

@@ -197,6 +197,8 @@ public:
 };
 
 bool InvokeIsolatedFunctionsPass::runOnModule(Module &M) {
+  if (not M.getFunction("root") or M.getFunction("root")->isDeclaration())
+    return false;
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
   const auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
   const model::Binary &Binary = *ModelWrapper.getReadOnlyModel();

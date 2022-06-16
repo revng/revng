@@ -20,7 +20,9 @@
 
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/LLVMContainer.h"
+#include "revng/Pipeline/Target.h"
 #include "revng/Pipes/CompileModulePipe.h"
+#include "revng/Pipes/Kinds.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRAnnotators.h"
 #include "revng/Support/OriginalAssemblyAnnotationWriter.h"
@@ -43,6 +45,14 @@ static cl::opt<char> OptLevel("compile-opt-level",
 
 static void
 compileModuleRunImpl(LLVMContainer &Module, FileContainer &TargetBinary) {
+  auto Enumeration = Module.enumerate();
+  if (not Enumeration.contains(pipeline::Target(Root))
+      and not Enumeration.contains(pipeline::Target(IsolatedRoot)))
+    return;
+
+  if (Enumeration.contains(pipeline::Target(IsolatedRoot))
+      and not Enumeration.contains(pipeline::Target(Isolated)))
+    return;
 
   StringMap<Option *> &RegOptions(getRegisteredOptions());
   getOption<bool>(RegOptions, "disable-machine-licm")->setInitialValue(true);

@@ -177,7 +177,7 @@ int main(int argc, const char *argv[]) {
   runPipeline(Manager.getRunner());
 
   if (ProduceAllPossibleTargets)
-    AbortOnError(Manager.produceAllPossibleTargets());
+    AbortOnError(Manager.produceAllPossibleTargets(false));
 
   if (InvalidateAll) {
     AbortOnError(Manager.invalidateAllPossibleTargets());

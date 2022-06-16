@@ -99,6 +99,13 @@ llvm::Error PipelineManager::overrideModel(llvm::StringRef ModelOverride) {
   return Model->loadFromDisk(ModelOverride);
 }
 
+llvm::Error PipelineManager::overrideModel(TupleTree<model::Binary> NewModel) {
+  const auto &Name = ModelGlobalName;
+  auto *Model(cantFail(PipelineContext->getGlobal<ModelGlobal>(Name)));
+  Model->get() = std::move(NewModel);
+  return llvm::Error::success();
+}
+
 static llvm::Expected<Runner>
 setUpPipeline(pipeline::Context &PipelineContext,
               Loader &Loader,
@@ -200,9 +207,9 @@ void PipelineManager::recalculateCache() {
   }
 }
 
-void PipelineManager::recalculateAllPossibleTargets() {
+void PipelineManager::recalculateAllPossibleTargets(bool ExpandTargets) {
   CurrentState = Runner::State();
-  getAllPossibleTargets(CurrentState);
+  getAllPossibleTargets(CurrentState, ExpandTargets);
   recalculateCache();
 }
 
@@ -224,13 +231,24 @@ void PipelineManager::getCurrentState(Runner::State &State) const {
   }
 }
 
-void PipelineManager::getAllPossibleTargets(Runner::State &State) const {
+static bool isExpansionEmpty(const Context &Ctx, const Target &Target) {
+  TargetsList Expansions;
+  Target.expand(Ctx, Expansions);
+  return Expansions.empty();
+}
+
+void PipelineManager::getAllPossibleTargets(Runner::State &State,
+                                            bool ExpandTargets) const {
   Runner->deduceAllPossibleTargets(State);
   for (auto &Step : State) {
     for (auto &Container : Step.second) {
       TargetsList Expansions;
-      for (auto &Target : Container.second)
-        Target.expand(*PipelineContext, Expansions);
+      for (auto &Target : Container.second) {
+        if (ExpandTargets or isExpansionEmpty(*PipelineContext, Target))
+          Target.expand(*PipelineContext, Expansions);
+        else
+          Expansions.push_back(Target);
+      }
       State[Step.first()][Container.first()] = std::move(Expansions);
     }
   }
@@ -351,8 +369,8 @@ llvm::Error PipelineManager::invalidateAllPossibleTargets() {
   return llvm::Error::success();
 }
 
-llvm::Error PipelineManager::produceAllPossibleTargets() {
-  recalculateAllPossibleTargets();
+llvm::Error PipelineManager::produceAllPossibleTargets(bool ExpandTargets) {
+  recalculateAllPossibleTargets(ExpandTargets);
 
   for (const auto &Step : CurrentState) {
     for (const auto &Container : Step.second) {

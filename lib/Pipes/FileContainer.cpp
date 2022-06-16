@@ -7,6 +7,7 @@
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
@@ -108,7 +109,13 @@ void FileContainer::mergeBackImpl(FileContainer &&Container) {
   Container.Path = "";
 }
 
+static std::unique_ptr<llvm::MemoryBuffer>
+unfailableGetFileAsStream(llvm::StringRef Path) {
+  return cantFail(errorOrToExpected(MemoryBuffer::getFileAsStream(Path)));
+}
+
 llvm::Error FileContainer::storeToDisk(llvm::StringRef Path) const {
+  using namespace llvm;
   // We must ensure that if we got invalidated then no file on disk is present,
   // so that the next time we load we don't mistakenly think that we have some
   // content.
@@ -121,6 +128,12 @@ llvm::Error FileContainer::storeToDisk(llvm::StringRef Path) const {
       llvm::sys::fs::remove(Path);
 
     return llvm::Error::success();
+  }
+
+  if (Path == "-") {
+    auto Buffer = unfailableGetFileAsStream(this->Path);
+
+    llvm::outs() << Buffer->getBuffer();
   }
 
   auto Error = errorCodeToError(llvm::sys::fs::copy_file(this->Path, Path));

@@ -704,6 +704,9 @@ void IsolateFunctionsImpl::run() {
 }
 
 bool IF::runOnModule(Module &TheModule) {
+  if (not TheModule.getFunction("root")
+      or TheModule.getFunction("root")->isDeclaration())
+    return false;
   // Retrieve analyses
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
   const auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();

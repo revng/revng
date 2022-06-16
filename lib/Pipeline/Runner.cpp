@@ -6,6 +6,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
@@ -15,6 +16,7 @@
 #include "revng/Pipeline/Kind.h"
 #include "revng/Pipeline/Runner.h"
 #include "revng/Pipeline/Target.h"
+#include "revng/Support/Assert.h"
 
 using namespace std;
 using namespace llvm;
@@ -23,32 +25,33 @@ using namespace pipeline;
 class PipelineExecutionEntry {
 public:
   Step *ToExecute;
-  ContainerToTargetsMap Objectives;
+  ContainerToTargetsMap Output;
+  ContainerToTargetsMap Input;
 
-  PipelineExecutionEntry(Step &ToExecute, ContainerToTargetsMap Objectives) :
-    ToExecute(&ToExecute), Objectives(std::move(Objectives)) {}
+  PipelineExecutionEntry(Step &ToExecute,
+                         ContainerToTargetsMap Output,
+                         ContainerToTargetsMap Input) :
+    ToExecute(&ToExecute), Output(std::move(Output)), Input(std::move(Input)) {}
 };
 
 static Error getObjectives(Runner &Runner,
                            llvm::StringRef EndingStepName,
                            const ContainerToTargetsMap &Targets,
-                           ContainerToTargetsMap &ToLoad,
                            std::vector<PipelineExecutionEntry> &ToExec) {
-  ContainerToTargetsMap PartialGoals = Targets;
+  ContainerToTargetsMap ToLoad = Targets;
   auto *CurrentStep = &(Runner[EndingStepName]);
-  while (CurrentStep != nullptr) {
-    if (PartialGoals.empty())
-      break;
+  while (CurrentStep != nullptr and not ToLoad.empty()) {
 
-    PartialGoals = CurrentStep->analyzeGoals(PartialGoals, ToLoad);
-    ToExec.emplace_back(*CurrentStep, PartialGoals);
+    ContainerToTargetsMap Output = ToLoad;
+    ToLoad = CurrentStep->analyzeGoals(ToLoad);
+    ToExec.emplace_back(*CurrentStep, Output, ToLoad);
     CurrentStep = CurrentStep->hasPredecessor() ?
                     &CurrentStep->getPredecessor() :
                     nullptr;
   }
 
-  if (not PartialGoals.empty())
-    return make_error<UnsatisfiableRequestError>(Targets, PartialGoals);
+  if (not ToLoad.empty())
+    return make_error<UnsatisfiableRequestError>(Targets, ToLoad);
   reverse(ToExec.begin(), ToExec.end());
   return Error::success();
 }
@@ -56,7 +59,6 @@ static Error getObjectives(Runner &Runner,
 using StatusMap = llvm::StringMap<ContainerToTargetsMap>;
 
 static void explainPipeline(const ContainerToTargetsMap &Targets,
-                            const ContainerToTargetsMap &ToLoad,
                             ArrayRef<PipelineExecutionEntry> Requirements) {
 
   ExplanationLogger << "OBJECTIVES requested\n";
@@ -75,9 +77,9 @@ static void explainPipeline(const ContainerToTargetsMap &Targets,
   ExplanationLogger << Requirements.back().ToExecute->getName() << ":\n";
   prettyPrintStatus(Targets, ExplanationLogger, 2);
 
-  for (size_t I = Requirements.size(); I != 1; I--) {
-    StringRef StepName = Requirements[I - 2].ToExecute->getName();
-    const auto &TargetsNeeded = Requirements[I - 1].Objectives;
+  for (size_t I = Requirements.size(); I != 0; I--) {
+    StringRef StepName = Requirements[I - 1].ToExecute->getName();
+    const auto &TargetsNeeded = Requirements[I - 1].Input;
 
     indent(ExplanationLogger, 1);
     ExplanationLogger << StepName << ":\n";
@@ -144,15 +146,17 @@ PipelineFileMapping::parse(StringRef ToParse) {
   SmallVector<StringRef, 4> Splitted;
   ToParse.split(Splitted, ':', 2);
 
-  if (Splitted.size() != 3) {
-    auto *Message = "could not parse %s into three strings "
-                    "step:container:inputfile";
+  if (Splitted.size() != 2) {
+    auto *Message = "could not parse %s into two parts "
+                    "file_path:step/container";
     return createStringError(inconvertibleErrorCode(),
                              Message,
                              ToParse.str().c_str());
   }
 
-  return PipelineFileMapping(Splitted[0], Splitted[1], Splitted[2]);
+  auto [StepName, ContainerName] = Splitted.back().split('/');
+
+  return PipelineFileMapping(StepName, ContainerName, Splitted[0]);
 }
 
 Error PipelineFileMapping::loadFromDisk(Runner &LoadInto) const {
@@ -289,33 +293,36 @@ llvm::Expected<DiffMap> Runner::runAllAnalyses() {
 Error Runner::run(llvm::StringRef EndingStepName,
                   const ContainerToTargetsMap &Targets) {
 
-  ContainerToTargetsMap ToLoad;
   vector<PipelineExecutionEntry> ToExec;
 
-  if (auto
-        Error = getObjectives(*this, EndingStepName, Targets, ToLoad, ToExec);
-      Error)
+  if (auto Error = getObjectives(*this, EndingStepName, Targets, ToExec); Error)
     return Error;
 
-  explainPipeline(Targets, ToLoad, ToExec);
+  explainPipeline(Targets, ToExec);
 
   if (ToExec.size() <= 1)
     return Error::success();
 
-  auto &FirstStepContainers = ToExec.front().ToExecute->containers();
-  auto CurrentContainer(FirstStepContainers.cloneFiltered(ToLoad));
-  for (auto &StepGoalsPairs :
-       llvm::make_range(ToExec.begin() + 1, ToExec.end())) {
-    auto &[Step, Goals] = StepGoalsPairs;
-    CurrentContainer = Step->cloneAndRun(*TheContext,
-                                         std::move(CurrentContainer));
+  for (auto &StepGoalsPairs : llvm::drop_begin(ToExec)) {
+    auto &[Step, PredictedOutput, Input] = StepGoalsPairs;
+    auto &Parent = Step->getPredecessor();
+    auto CurrentContainer = Parent.containers().cloneFiltered(Input);
+    auto Produced = Step->cloneAndRun(*TheContext, std::move(CurrentContainer));
+    revng_check(Produced.enumerate().contains(PredictedOutput),
+                "predicted output was not fully contained in actually "
+                "produced");
+    revng_check(Step->containers().enumerate().contains(PredictedOutput));
   }
 
-  ExplanationLogger << "PRODUCED \n";
-  indent(ExplanationLogger, 1);
-  ExplanationLogger << EndingStepName << ":\n";
-  CurrentContainer.enumerate().dump(ExplanationLogger, 2, false);
-  ExplanationLogger << DoLog;
+  if (ExplanationLogger.isEnabled()) {
+    ExplanationLogger << "PRODUCED \n";
+    indent(ExplanationLogger, 1);
+    ExplanationLogger << EndingStepName << ":\n";
+    ToExec.back().ToExecute->containers().enumerate().dump(ExplanationLogger,
+                                                           2,
+                                                           false);
+    ExplanationLogger << DoLog;
+  }
 
   return Error::success();
 }

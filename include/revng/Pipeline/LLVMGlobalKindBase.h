@@ -37,13 +37,19 @@ public:
 
 public:
   LLVMGlobalKindBase(llvm::StringRef Name, Rank *Rank) :
-    KindForContainer<LLVMContainer>(Name, Rank) {}
+    KindForContainer<LLVMContainer>(Name, Rank) {
+    getRegisteredInspectors().push_back(this);
+  }
 
   LLVMGlobalKindBase(llvm::StringRef Name, Kind &Parent) :
-    KindForContainer<LLVMContainer>(Name, Parent) {}
+    KindForContainer<LLVMContainer>(Name, Parent) {
+    getRegisteredInspectors().push_back(this);
+  }
 
   LLVMGlobalKindBase(llvm::StringRef Name, Kind &Parent, Rank *Rank) :
-    KindForContainer<LLVMContainer>(Name, Parent, Rank) {}
+    KindForContainer<LLVMContainer>(Name, Parent, Rank) {
+    getRegisteredInspectors().push_back(this);
+  }
   ~LLVMGlobalKindBase() override {}
 
 public:

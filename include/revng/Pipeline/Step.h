@@ -54,7 +54,7 @@ private:
       Kind(Kind),
       SingleTargetFilename(std::move(SingleTargetFilename)) {}
 
-    bool isValid() {
+    bool isValid() const {
       return !Container.empty() && Kind != nullptr
              && !SingleTargetFilename.empty();
     }
@@ -131,7 +131,7 @@ public:
     return llvm::Error::success();
   }
 
-  const Kind *getArtifactsKind() {
+  const Kind *getArtifactsKind() const {
     if (Artifacts.isValid()) {
       return Artifacts.Kind;
     } else {
@@ -190,8 +190,7 @@ public:
   /// containers of this step, futhermore adds to the container ToLoad those
   /// that were not present.
   ContainerToTargetsMap
-  analyzeGoals(const ContainerToTargetsMap &RequiredGoals,
-               ContainerToTargetsMap &AlreadyAvbiable) const;
+  analyzeGoals(const ContainerToTargetsMap &RequiredGoals) const;
 
   /// Returns the predicted state of the Input containers status after the
   /// execution of all the pipes in this step.
@@ -240,6 +239,8 @@ private:
                            size_t Indentation = 0) const;
   void explainStartStep(const ContainerToTargetsMap &Wrapper,
                         size_t Indentation = 0) const;
+  void explainEndStep(const ContainerToTargetsMap &Wrapper,
+                      size_t Indentation = 0) const;
 };
 
 } // namespace pipeline

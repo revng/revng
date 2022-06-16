@@ -94,8 +94,8 @@ macro(
 endmacro()
 
 set(COPY_PIPE_TEST_INPUTS
-    "begin:Strings1:${CMAKE_CURRENT_SOURCE_DIR}/CopyPipeTestInput.txt")
-set(COPY_PIPE_TEST_OUTPUTS "FirstStep:Strings2:CopyPipeTestOutput.txt")
+    "${CMAKE_CURRENT_SOURCE_DIR}/CopyPipeTestInput.txt:begin/Strings1")
+set(COPY_PIPE_TEST_OUTPUTS "CopyPipeTestOutput.txt:FirstStep/Strings2")
 
 test_pipeline_output(
   pipeline-copy-pipe
@@ -107,7 +107,7 @@ test_pipeline_output(
   CopyPipeTestOutput.txt
   "${CMAKE_CURRENT_SOURCE_DIR}/CopyPipeTestExpected.txt")
 
-set(ROLE_COPY_PIPE_TEST_OUTPUTS "FirstStep:Strings2:RoleCopyPipeTestOutput.txt")
+set(ROLE_COPY_PIPE_TEST_OUTPUTS "RoleCopyPipeTestOutput.txt:FirstStep/Strings2")
 
 test_pipeline_output(
   role-pipeline-copy-pipe
@@ -173,7 +173,7 @@ function(add_invalidation_test TEST_NAME)
       ${CMAKE_BINARY_DIR}/libexec/revng/revng-pipeline \
       -P ${OPT_PIPELINE} \
       ${OPT_TARGETS} \
-      -i begin:Strings1:${OPT_INPUT} \
+      -i ${OPT_INPUT}:begin/Strings1 \
       -l ${CMAKE_BINARY_DIR}/lib/librevngStringContainerLibrary.so \
       -p ${CMAKE_BINARY_DIR}/${TEST_NAME} &&
       ${CMAKE_BINARY_DIR}/libexec/revng/revng-invalidate \

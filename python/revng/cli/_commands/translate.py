@@ -54,9 +54,9 @@ class TranslateCommand(Command):
         command = command + [
             f"{step_name}:output::Translated",
             "-i",
-            "begin:input:" + args.input[0],
+            f"{args.input[0]}:begin/input",
             "-o",
-            step_name + ":output:" + out_file,
+            f"{out_file}:{step_name}/output",
         ]
 
         if args.O1:

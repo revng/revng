@@ -22,6 +22,9 @@ void ProcessAssemblyPipe::run(pipeline::Context &Context,
                               const FileContainer &SourceBinary,
                               const pipeline::LLVMContainer &TargetList,
                               FunctionStringMap &Output) {
+  if (not SourceBinary.exists())
+    return;
+
   // Access the model
   const auto &Model = revng::pipes::getModelFromContext(Context);
 

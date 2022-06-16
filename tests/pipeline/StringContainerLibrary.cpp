@@ -53,7 +53,7 @@ public:
   }
 
   bool remove(const Target &Target) {
-    if (contains(Target))
+    if (not contains(Target))
       return false;
 
     ContainedStrings.erase(toString(Target));
@@ -100,10 +100,7 @@ public:
 
 private:
   static std::string toString(const Target &Target) {
-    std::stringstream S;
-    Target::dumpPathComponents(S, Target.getPathComponents());
-    std::string ToInsert = S.str();
-    return ToInsert;
+    return Target.getPathComponents().front().toString();
   }
 
   void mergeBackImpl(StringContainer &&Container) override {
