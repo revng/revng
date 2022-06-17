@@ -77,6 +77,7 @@ public:
   bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;
   void dump() const debug_function;
+  void dumpTypeGraph(const char *Path) const debug_function;
 };
 
 #include "revng/Model/Generated/Late/Function.h"

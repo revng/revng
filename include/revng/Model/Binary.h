@@ -141,6 +141,7 @@ public:
   bool verify(VerifyHelper &VH) const;
   void verify(ErrorList &EL) const;
   void dump() const debug_function;
+  void dumpTypeGraph(const char *Path) const debug_function;
   std::string toString() const debug_function;
 };
 

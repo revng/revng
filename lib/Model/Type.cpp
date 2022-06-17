@@ -16,6 +16,7 @@
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/Register.h"
+#include "revng/Model/TypeSystemPrinter.h"
 #include "revng/Model/VerifyHelper.h"
 
 using llvm::cast;
@@ -1162,6 +1163,16 @@ void Type::dump() const {
   auto *This = this;
   auto Dump = [](auto &Upcasted) { serialize(dbg, Upcasted); };
   upcast(This, Dump);
+}
+
+void Type::dumpTypeGraph(const char *Path) const {
+  std::error_code EC;
+  llvm::raw_fd_ostream Out(Path, EC);
+  if (EC)
+    revng_abort(EC.message().c_str());
+
+  TypeSystemPrinter TSPrinter(Out);
+  TSPrinter.print(*this);
 }
 
 bool Type::verify() const {

@@ -4,7 +4,12 @@
 
 # Define revngModel library
 revng_add_analyses_library_internal(
-  revngModel Binary.cpp LoadModelPass.cpp Processing.cpp SerializeModelPass.cpp
+  revngModel
+  Binary.cpp
+  LoadModelPass.cpp
+  TypeSystemPrinter.cpp
+  Processing.cpp
+  SerializeModelPass.cpp
   Type.cpp)
 
 target_link_libraries(revngModel revngSupport)

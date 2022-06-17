@@ -85,6 +85,7 @@ public:
   bool verify(bool Assert) const debug_function;
   RecursiveCoroutine<bool> verify(VerifyHelper &VH) const;
   void dump() const debug_function;
+  void dumpTypeGraph(const char *Path) const debug_function;
 };
 
 namespace model {

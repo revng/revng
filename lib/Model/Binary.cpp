@@ -13,6 +13,7 @@
 
 #include "revng/ADT/GenericGraph.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/TypeSystemPrinter.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/OverflowSafeInt.h"
 
@@ -75,6 +76,16 @@ bool Binary::verifyTypes(VerifyHelper &VH) const {
 
 void Binary::dump() const {
   serialize(dbg, *this);
+}
+
+void Binary::dumpTypeGraph(const char *Path) const {
+  std::error_code EC;
+  llvm::raw_fd_ostream Out(Path, EC);
+  if (EC)
+    revng_abort(EC.message().c_str());
+
+  TypeSystemPrinter TSPrinter(Out);
+  TSPrinter.print(*this);
 }
 
 std::string Binary::toString() const {
@@ -290,6 +301,16 @@ bool Segment::verify(VerifyHelper &VH) const {
 
 void Function::dump() const {
   serialize(dbg, *this);
+}
+
+void Function::dumpTypeGraph(const char *Path) const {
+  std::error_code EC;
+  llvm::raw_fd_ostream Out(Path, EC);
+  if (EC)
+    revng_abort(EC.message().c_str());
+
+  TypeSystemPrinter TSPrinter(Out);
+  TSPrinter.print(*this);
 }
 
 bool Function::verify() const {
