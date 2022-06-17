@@ -1,0 +1,17 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+Containers:
+ - Name:            cfg-svg.yml
+   Type:            FunctionControlFlowGraphSVG
+Branches:
+ - From:            ProcessAssembly
+   Steps:
+    - Name:            YieldCFG
+      Pipes:
+        - Type:             yield-cfg
+          UsedContainers: [assembly-internal.yml, cfg-svg.yml]
+      Artifacts:
+        Container: cfg-svg.yml
+        Kind: FunctionControlFlowGraphSVG

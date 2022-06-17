@@ -17,7 +17,8 @@ revng_add_library_internal(
   Pipes.cpp
   RootKind.cpp
   TaggedFunctionKind.cpp
-  Yield/Assembly.cpp)
+  Yield/AssemblyPipes.cpp
+  Yield/CFGPipes.cpp)
 
 llvm_map_components_to_libnames(
   LLVM_LIBRARIES

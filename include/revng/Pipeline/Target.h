@@ -75,8 +75,12 @@ public:
          const Kind &K,
          Exactness::Values Exactness = Exactness::Exact) :
     K(&K), Exact(Exactness) {
-    for (auto Name : Names)
-      Components.emplace_back(std::move(Name));
+    for (auto Name : Names) {
+      if (Name != "*")
+        Components.emplace_back(Name);
+      else
+        Components.emplace_back(PathComponent::all());
+    }
     revng_assert(this->Components.size() == getKind().depth());
   }
 

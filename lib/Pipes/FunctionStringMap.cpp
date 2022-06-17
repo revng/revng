@@ -46,8 +46,8 @@ FunctionStringMap::extractOne(llvm::raw_ostream &OS,
 
   std::string MetaAddrStr = Target.getPathComponents().back().getName();
 
-  auto It = Map.find(MetaAddress::fromString(MetaAddrStr));
-  revng_check(It != Map.end());
+  auto It = find(MetaAddress::fromString(MetaAddrStr));
+  revng_check(It != end());
 
   OS << It->second;
 
@@ -104,13 +104,12 @@ using StringType = revng::pipes::FunctionStringMap::String;
 
 template<>
 struct BlockScalarTraits<StringType> {
-  static void
-  output(const StringType &Value, void *Ctxt, llvm::raw_ostream &OS) {
-    OS << Value.TheString;
+  static void output(const StringType &String, void *, llvm::raw_ostream &OS) {
+    OS << String.Value;
   }
 
-  static StringRef input(StringRef Scalar, void *Ctxt, StringType &Value) {
-    Value.TheString = Scalar.str();
+  static StringRef input(StringRef Scalar, void *, StringType &String) {
+    String.Value = Scalar.str();
     return StringRef();
   }
 };

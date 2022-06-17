@@ -7,12 +7,10 @@
 
 #include "llvm/Support/FormatVariadic.h"
 
-#include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
 #include "revng/Model/Binary.h"
-#include "revng/Yield/Assembly/Assembly.h"
+#include "revng/Yield/ControlFlow/FallthroughDetection.h"
+#include "revng/Yield/Function.h"
 #include "revng/Yield/Plain.h"
-
-namespace yield::plain {
 
 static std::string linkAddress(const MetaAddress &Address) {
   std::string Result = Address.toString();
@@ -28,15 +26,15 @@ static std::string linkAddress(const MetaAddress &Address) {
   return Result;
 }
 
-static std::string link(const MetaAddress &Target,
-                        const efa::FunctionMetadata &Metadata,
-                        const model::Binary &Binary) {
+static std::string deduceName(const MetaAddress &Target,
+                              const yield::Function &Function,
+                              const model::Binary &Binary) {
   if (auto Iterator = Binary.Functions.find(Target);
       Iterator != Binary.Functions.end()) {
     // The target is a function
     return Iterator->name().str().str();
-  } else if (auto Iterator = Metadata.ControlFlowGraph.find(Target);
-             Iterator != Metadata.ControlFlowGraph.end()) {
+  } else if (auto Iterator = Function.ControlFlowGraph.find(Target);
+             Iterator != Function.ControlFlowGraph.end()) {
     // The target is a basic block
 
     // TODO: maybe there's something better than the address to put here.
@@ -46,49 +44,93 @@ static std::string link(const MetaAddress &Target,
     return "instruction_at_" + linkAddress(Target);
   } else {
     // The target is impossible to deduce, it's an indirect call or the like.
-    return "(unknown)";
+    return "(error)";
   }
 }
 
-static std::string label(const assembly::BasicBlock &BasicBlock,
-                         const efa::FunctionMetadata &Metadata,
+static std::string label(const yield::BasicBlock &BasicBlock,
+                         const yield::Function &Function,
                          const model::Binary &Binary) {
-  if (BasicBlock.CanBeMergedWithPredecessor || BasicBlock.IsAFallthroughTarget)
-    return "";
+  std::string Result = deduceName(BasicBlock.Start, Function, Binary);
 
-  return link(BasicBlock.Address, Metadata, Binary) + ":\n";
+  namespace Arch = model::Architecture;
+  auto LabelIndicator = Arch::getAssemblyLabelIndicator(Binary.Architecture);
+  return (Result += LabelIndicator) += "\n";
 }
 
-static std::string instruction(const assembly::Instruction &Instruction) {
-  return Instruction.Text + '\n';
+static std::string instruction(const yield::Instruction &Instruction,
+                               const yield::BasicBlock &BasicBlock,
+                               const model::Binary &Binary) {
+  std::string Result = Instruction.Disassembled;
+
+  namespace A = model::Architecture;
+  auto CommentIndicator = A::getAssemblyCommentIndicator(Binary.Architecture);
+
+  if (!Instruction.Error.empty()) {
+    Result += ' ';
+    Result += CommentIndicator;
+    Result += " Error: ";
+    Result += Instruction.Error;
+  } else if (!Instruction.Comment.empty()) {
+    Result += ' ';
+    Result += CommentIndicator;
+    Result += ' ';
+    Result += Instruction.Comment;
+  }
+
+  return Result;
 }
 
-static std::string basicBlock(const assembly::BasicBlock &BasicBlock,
-                              const efa::FunctionMetadata &Metadata,
+static std::string basicBlock(const yield::BasicBlock &BasicBlock,
+                              const yield::Function &Function,
                               const model::Binary &Binary) {
   std::string Result;
 
-  Result += label(BasicBlock, Metadata, Binary);
   for (const auto &Instruction : BasicBlock.Instructions)
-    Result += instruction(Instruction);
+    Result += instruction(Instruction, BasicBlock, Binary);
 
   return Result;
 }
 
-std::string assembly(const assembly::BasicBlock &BasicBlock,
-                     const efa::FunctionMetadata &Metadata,
-                     const model::Binary &Binary) {
-  return basicBlock(BasicBlock, Metadata, Binary);
+template<bool ShouldMergeFallthroughTargets>
+static std::string labeledBlock(const yield::BasicBlock &FirstBlock,
+                                const yield::Function &Function,
+                                const model::Binary &Binary) {
+  std::string Result;
+  Result += label(FirstBlock, Function, Binary);
+
+  if constexpr (ShouldMergeFallthroughTargets == false) {
+    Result += basicBlock(FirstBlock, Function, Binary);
+  } else {
+    auto BasicBlocks = yield::cfg::labeledBlock(FirstBlock, Function, Binary);
+    if (BasicBlocks.empty())
+      return "";
+
+    for (auto BasicBlock : BasicBlocks)
+      Result += basicBlock(*BasicBlock, Function, Binary);
+  }
+
+  return Result;
 }
-std::string assembly(const assembly::Function &Function,
-                     const efa::FunctionMetadata &Metadata,
-                     const model::Binary &Binary) {
+
+std::string yield::plain::functionAssembly(const yield::Function &Function,
+                                           const model::Binary &Binary) {
   std::string Result;
 
-  for (const auto &BasicBlock : Function.BasicBlocks)
-    Result += basicBlock(BasicBlock, Metadata, Binary);
+  for (const auto &BasicBlock : Function.ControlFlowGraph)
+    Result += labeledBlock<true>(BasicBlock, Function, Binary);
 
   return Result;
 }
 
-} // namespace yield::plain
+std::string yield::plain::controlFlowNode(const MetaAddress &Address,
+                                          const yield::Function &Function,
+                                          const model::Binary &Binary) {
+  auto Iterator = Function.ControlFlowGraph.find(Address);
+  revng_assert(Iterator != Function.ControlFlowGraph.end());
+
+  auto Result = labeledBlock<false>(*Iterator, Function, Binary);
+  revng_assert(!Result.empty());
+
+  return Result;
+}

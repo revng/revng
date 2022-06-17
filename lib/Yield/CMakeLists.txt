@@ -3,8 +3,29 @@
 #
 
 revng_add_analyses_library_internal(
-  revngYield SHARED Assembly/DisassemblyHelper.cpp Assembly/HTML.cpp
-  Assembly/LLVMDisassemblerInterface.cpp Assembly/Plain.cpp)
+  revngYield
+  SHARED
+  Assembly/DisassemblyHelper.cpp
+  Assembly/HTML.cpp
+  Assembly/LLVMDisassemblerInterface.cpp
+  Assembly/Plain.cpp
+  ControlFlow/Extraction.cpp
+  ControlFlow/FallthroughDetection.cpp
+  ControlFlow/NodeSizeCalculation.cpp
+  ControlFlow/SVG.cpp
+  Support/SugiyamaStyleGraphLayout/EdgeRouting.cpp
+  Support/SugiyamaStyleGraphLayout/GraphPreparation.cpp
+  Support/SugiyamaStyleGraphLayout/HorizontalPositions.cpp
+  Support/SugiyamaStyleGraphLayout/LaneDistribution.cpp
+  Support/SugiyamaStyleGraphLayout/LayoutConversion.cpp
+  Support/SugiyamaStyleGraphLayout/LinearSegmentSelection.cpp
+  Support/SugiyamaStyleGraphLayout/NodeRanking.cpp
+  Support/SugiyamaStyleGraphLayout/PermutationSelection.cpp
+  Support/SugiyamaStyleGraphLayout/TopologicalOrdering.cpp
+  Support/SugiyamaStyleGraphLayout/VerticalPositions.cpp
+  Support/SugiyamaStyleGraphLayout.cpp
+  Dump.cpp
+  Verify.cpp)
 
 set(DISASSEMBLER_ARCHITECTURE_SUPPORT "")
 foreach(CURRENT_ARCHITECTURE AArch64 AMDGPU ARM Mips SystemZ X86)
@@ -25,3 +46,22 @@ llvm_map_components_to_libnames(
 
 target_link_libraries(revngYield revngEarlyFunctionAnalysis revngModelPasses
                       revngSupport ${LLVM_LIBRARIES})
+
+set(INTERNAL_ASSEMBLY_HEADERS "${CMAKE_SOURCE_DIR}/include/revng/Yield")
+target_tuple_tree_generator(
+  revngYield
+  INSTALL
+  HEADER_DIRECTORY
+  "Yield"
+  NAMESPACE
+  "yield"
+  SCHEMA_PATH
+  "${CMAKE_BINARY_DIR}/yield-internal-schema.yml"
+  SEPARATE_STRING_TYPES
+  "MetaAddress"
+  HEADERS
+  "${INTERNAL_ASSEMBLY_HEADERS}/BasicBlock.h"
+  "${INTERNAL_ASSEMBLY_HEADERS}/Function.h"
+  "${INTERNAL_ASSEMBLY_HEADERS}/Instruction.h"
+  "${INTERNAL_ASSEMBLY_HEADERS}/Tag.h"
+  "${INTERNAL_ASSEMBLY_HEADERS}/TagType.h")

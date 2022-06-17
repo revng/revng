@@ -16,7 +16,7 @@
 #include "llvm/MC/MCSubtargetInfo.h"
 
 #include "revng/Support/MetaAddress.h"
-#include "revng/Yield/Assembly/Assembly.h"
+#include "revng/Yield/Instruction.h"
 
 class LLVMDisassemblerInterface {
 private:
@@ -33,7 +33,12 @@ private:
 public:
   explicit LLVMDisassemblerInterface(MetaAddressType::Values AddressType);
 
-  std::pair<assembly::Instruction, uint64_t>
+  struct Disassembled {
+    yield::Instruction Instruction;
+    bool HasDelaySlot;
+    uint64_t Size;
+  };
+  Disassembled
   instruction(const MetaAddress &Where, llvm::ArrayRef<uint8_t> RawBytes);
 
 public:
@@ -49,9 +54,9 @@ private:
   disassemble(const MetaAddress &Address,
               llvm::ArrayRef<uint8_t> RawBytes,
               const llvm::MCDisassembler &Disassembler);
-  assembly::Instruction parse(const llvm::MCInst &Instruction,
-                              const MetaAddress &Address,
-                              size_t InstructionSize,
-                              llvm::MCInstPrinter &Printer,
-                              const llvm::MCSubtargetInfo &SI);
+  yield::Instruction parse(const llvm::MCInst &Instruction,
+                           const MetaAddress &Address,
+                           size_t InstructionSize,
+                           llvm::MCInstPrinter &Printer,
+                           const llvm::MCSubtargetInfo &SI);
 };

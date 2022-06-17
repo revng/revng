@@ -5,29 +5,27 @@
 //
 
 #include <array>
+#include <string>
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Pipeline/Contract.h"
-#include "revng/Pipeline/Target.h"
-#include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/FunctionStringMap.h"
 
 namespace revng::pipes {
 
-class YieldAssemblyPipe {
+class YieldControlFlowPipe {
 public:
-  static constexpr const auto Name = "yield-assembly";
+  static constexpr const auto Name = "yield-cfg";
 
 public:
   std::array<pipeline::ContractGroup, 1> getContract() const;
 
 public:
   void run(pipeline::Context &Context,
-           const FileContainer &SourceBinary,
-           const pipeline::LLVMContainer &TargetsList,
-           FunctionStringMap &OutputAssembly);
+           const FunctionStringMap &Input,
+           FunctionStringMap &Output);
 
   void print(const pipeline::Context &Ctx,
              llvm::raw_ostream &OS,
