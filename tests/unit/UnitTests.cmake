@@ -4,8 +4,6 @@
 
 cmake_policy(SET CMP0060 NEW)
 
-include(${CMAKE_INSTALL_PREFIX}/share/revng/qa/cmake/revng-qa.cmake)
-
 set(SRC "${CMAKE_SOURCE_DIR}/tests/unit")
 
 include(${SRC}/llvm-lit-tests/CMakeLists.txt)

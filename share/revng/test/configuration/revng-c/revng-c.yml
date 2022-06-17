@@ -1,0 +1,114 @@
+commands:
+  - type: revng-c.lifting-artifacts-removed
+    from:
+      - type: revng.abi-enforced-for-decompilation
+        filter: (for-runtime and one-per-architecture) or for-analysis or for-detect-stack-size
+    suffix: .bc
+    command: |-
+      revng llvm pipeline
+        "$INPUT"
+        "$OUTPUT"
+        EnforceABI
+        RemoveLiftingArtifacts
+        "*:LiftingArtifactsRemoved"
+  - type: revng-c.stack-pointer-promoted
+    from:
+      - type: revng-c.lifting-artifacts-removed
+    suffix: .bc
+    command: |-
+      revng llvm pipeline
+        "$INPUT"
+        "$OUTPUT"
+        RemoveLiftingArtifacts
+        PromoteStackPointer
+        "*:StackPointerPromoted"
+  - type: revng-c.analyzed
+    from:
+      - type: revng-c.stack-pointer-promoted
+    suffix: .bc
+    command: |-
+      revng llvm pipeline
+        "$INPUT"
+        "$OUTPUT"
+        PromoteStackPointer
+        DetectStackSize
+        "*:StackPointerPromoted"
+        --analysis detect-stack-size;
+      revng llvm pipeline
+        "$OUTPUT"
+        "$OUTPUT"
+        DetectStackSize
+        LateOptimizeForDecompilation
+        "*:StackAccessesSegregated"
+        --analysis dla
+  - type: revng-c.vma
+    from:
+      - type: revng-c.analyzed
+    command: revng opt -vma -vma-mincut-iter=50 "$INPUT" -o /dev/null
+  - type: revng-c.canonicalized
+    from:
+      - type: revng-c.analyzed
+    suffix: .bc
+    command: |-
+      revng llvm pipeline
+        "$INPUT"
+        "$OUTPUT"
+        LateOptimizeForDecompilation
+        IRCanonicalization
+        "*:StackAccessesSegregated"
+  - type: revng-c.model-to-header
+    from:
+      - type: revng-c.analyzed
+    suffix: .model.h
+    command: |-
+      revng model to-header -i "$INPUT" -o "$OUTPUT";
+      revng check-decompiled-c "$OUTPUT"
+  - type: revng-c.helpers-to-header
+    from:
+      - type: revng-c.analyzed
+    suffix: .helpers.h
+    command: |-
+      revng helpers-to-header -i "$INPUT" -o "$OUTPUT";
+      revng check-decompiled-c "$OUTPUT"
+  - type: revng-c.decompiled-c
+    from:
+      - type: revng-c.canonicalized
+    suffix: .c
+    command: |-
+      MODEL="$$(mktemp)";
+      trap 'rm -f -- "$$MODEL"' EXIT;
+      revng model dump "$INPUT" > "$$MODEL";
+      revng pipeline
+        -m "$$MODEL"
+        -i "IRCanonicalization:module.ll:$INPUT"
+        -o "DecompiledYAMLToC:decompiled.c:$OUTPUT"
+        DecompiledYAMLToC:decompiled.c::DecompiledToC
+  - type: revng-c.check-decompiled-c
+    from:
+      - type: revng-c.decompiled-c
+      - type: revng-c.model-to-header
+      - type: revng-c.helpers-to-header
+    command: |-
+      TMP="$$(mktemp -d)";
+      trap 'rm -rf -- "$$TMP"' EXIT;
+      cp -a "$INPUT1" "$$TMP/decompiled.c";
+      cp -a "$INPUT2" "$$TMP/revng-model-declarations.h";
+      cp -a "$INPUT3" "$$TMP/revng-qemu-helpers-declarations.h";
+      revng check-decompiled-c "$$TMP/decompiled.c" -I"$$TMP"
+  - type: revng-c.test-segregate-stack-accesses
+    from:
+      - type: revng.lifted
+        filter: for-segregate-stack-accesses
+    command: |-
+      revng model override-by-name $INPUT ${SOURCE}.override.yml
+        | revng llvm pipeline - - Lift Lift --analysis DetectABI :Root
+        | revng llvm pipeline - - Lift DetectStackSize *:LiftingArtifactsRemoved --analysis detect-stack-size
+        | revng llvm pipeline - - DetectStackSize LateOptimizeForDecompilation *:StackAccessesSegregated
+        | revng opt -S 
+        | FileCheck ${SOURCE}.filecheck.ll
+  - type: revng-c.test-detect-stack-size
+    from:
+      - type: revng-c.analyzed
+        filter: for-detect-stack-size
+    command: |-
+      revng model dump "$INPUT" | revng model compare "${SOURCE}.model.yml" -

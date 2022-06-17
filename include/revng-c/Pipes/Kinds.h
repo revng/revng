@@ -26,7 +26,7 @@ inline TaggedFunctionKind
                           &FunctionsRank,
                           FunctionTags::StackAccessesSegregated);
 
-inline pipeline::Kind DecompiledToYAML("DecompiledToYAML", &FunctionsRank);
+inline FunctionKind DecompiledToYAML("DecompiledToYAML", &FunctionsRank);
 
 inline pipeline::Kind ModelHeader("ModelHeader", Binary, &RootRank);
 
