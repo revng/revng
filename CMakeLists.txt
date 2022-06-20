@@ -6,81 +6,31 @@ cmake_minimum_required(VERSION 3.15.0)
 
 project(revng-c)
 
-#
-# Install revng-c cmake files
-#
-install(FILES cmake/revngcConfig.cmake DESTINATION share/revngc/cmake)
-
-#
-# Export CMake targets
-#
-install(
-  EXPORT revngc
-  NAMESPACE revngc::
-  DESTINATION share/revngc/cmake)
-
-# Enable testing with ctest
-enable_testing()
-
-# This has to be first to get highest priority
-include_directories(include/)
-
 # Require revng
 find_package(revng REQUIRED)
 
-# LLVM and clang CMake stuff
-find_package(LLVM REQUIRED CONFIG)
-add_definitions(${LLVM_DEFINITIONS})
-include_directories(${LLVM_INCLUDE_DIRS})
-llvm_map_components_to_libnames(
-  LLVM_LIBRARIES
-  Analysis
-  CodeGen
-  InstCombine
-  ScalarOpts
-  core
-  irreader
-  linker
-  object
-  support
-  transformutils)
+#
+# Compile flags
+#
 
-# Set build and install path
+# These have to be first to get highest priority
+include_directories("${CMAKE_SOURCE_DIR}/include")
+include_directories("${CMAKE_BINARY_DIR}/include")
+
 add_definitions("-DINSTALL_PATH=\"${CMAKE_INSTALL_PREFIX}\"")
-add_definitions("-DBUILD_PATH=\"${CMAKE_BINARY_DIR}\"")
-
-#
-# Support files (share/revng)
-#
-make_directory("${CMAKE_BINARY_DIR}/share/revng/")
-copy_to_build_and_install(
-  FILES
-  share/revng/pipelines
-  share/revng/pipelines/revng-c-analyses.yml
-  share/revng/pipelines/c-code-generation.yml
-  share/revng/pipelines/decompiled-yaml-to-c.yml
-  share/revng/pipelines/helpers-to-header.yml
-  share/revng/pipelines/ir-canonicalization.yml
-  share/revng/pipelines/model-to-header.yml
-  share/revng/pipelines/opt-for-decompilation.yml
-  share/revng/pipelines/promote-stack-pointer.yml
-  share/revng/pipelines/remove-lifting-artifacts.yml
-  share/revng/pipelines/segregate-stack-accesses.yml)
-
-copy_to_build_and_install(PROGRAMS libexec/revng
-                          "scripts/revng-check-decompiled-c")
-
-#
-# Install all of share/ as is
-#
-install(DIRECTORY share/ DESTINATION share/)
-
-#
-# Set compilation flags for the whole project
-#
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# Remove -rdynamic
+set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
+
+# Uncomment the following line if recursive coroutines make debugging hard
+# add_definitions("-DDISABLE_RECURSIVE_COROUTINES")
+
+# Basic compiler options
+# cmake-format: off
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -shared-libasan")
+# cmake-format: on
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions")
@@ -102,11 +52,55 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wstrict-aliasing ")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-parameter")
 
 #
-# Include other cmake files
+# Link LLVM
 #
 
+# LLVM and clang CMake stuff
+find_package(LLVM REQUIRED CONFIG)
+add_definitions(${LLVM_DEFINITIONS})
+include_directories(${LLVM_INCLUDE_DIRS})
+llvm_map_components_to_libnames(
+  LLVM_LIBRARIES
+  Analysis
+  CodeGen
+  InstCombine
+  ScalarOpts
+  core
+  irreader
+  linker
+  object
+  support
+  transformutils)
+
+#
+# share/revng
+#
+add_custom_target(copy_share
+  ALL COMMAND cp -Tar "${CMAKE_SOURCE_DIR}/share/" "${CMAKE_BINARY_DIR}/share/")
+install(DIRECTORY "${CMAKE_BINARY_DIR}/share/" DESTINATION share/ USE_SOURCE_PERMISSIONS)
+
+# Export CMake targets
+install(
+  EXPORT revngc
+  NAMESPACE revngc::
+  DESTINATION share/revngc/cmake)
+
+#
+# libexec/revng
+#
+add_custom_target(copy_libexec
+  ALL COMMAND cp -Tar "${CMAKE_SOURCE_DIR}/libexec/" "${CMAKE_BINARY_DIR}/libexec/")
+install(DIRECTORY "${CMAKE_BINARY_DIR}/libexec/" DESTINATION libexec/ USE_SOURCE_PERMISSIONS)
+
+#
+# Enable CTest
+#
+enable_testing()
+
+#
+# Proceed to subdirectories
+#
 add_subdirectory(include)
 add_subdirectory(lib)
+add_subdirectory(tests)
 add_subdirectory(tools)
-
-include(tests/Tests.cmake)
