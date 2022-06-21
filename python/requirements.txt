@@ -24,3 +24,6 @@ requests
 requests-toolbelt
 gql
 psutil
+
+# Requirements for pdb-download
+pefile

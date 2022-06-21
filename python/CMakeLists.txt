@@ -144,6 +144,12 @@ python_module(TARGET_NAME revng-python-cmd-daemon MODULE_FILES
               "revng/cli/daemon.py")
 
 #
+# Install revng.cli.download_pdbs
+#
+python_module(TARGET_NAME revng-python-cmd-download-pdb MODULE_FILES
+              "revng/cli/download_pdb.py")
+
+#
 # Install revng.api
 #
 set(REVNG_API_MODULE_FILES
