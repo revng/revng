@@ -6,7 +6,6 @@
 
 import io
 import os
-from random import randint
 from subprocess import Popen
 from time import sleep
 from typing import Generator
@@ -15,6 +14,7 @@ from urllib.request import urlopen
 
 from gql import Client, gql
 from gql.transport.requests import RequestsHTTPTransport
+from psutil import Process
 from pytest import Config, fixture, mark
 
 
@@ -22,6 +22,16 @@ def print_fd(fd: int):
     os.lseek(fd, 0, io.SEEK_SET)
     out_read = os.fdopen(fd, "r")
     print(out_read.read())
+
+
+def get_listen_port(pid: int) -> int:
+    psutil_process = Process(pid)
+    while True:
+        connections = psutil_process.connections()
+        for connection in connections:
+            if connection.raddr == () and connection.status == "LISTEN":
+                return connection.laddr.port
+        sleep(0.5)
 
 
 def check_server_up(port: int):
@@ -38,12 +48,11 @@ def check_server_up(port: int):
 
 @fixture
 def client(pytestconfig: Config, request) -> Generator[Client, None, None]:
-    port = randint(20000, 65000)
-
     out_fd = os.memfd_create("flask_debug", 0)
     out = os.fdopen(out_fd, "w")
 
-    process = Popen(["revng", "daemon", "-p", str(port)], stdout=out, stderr=out, text=True)
+    process = Popen(["revng", "daemon", "-p", "0"], stdout=out, stderr=out, text=True)
+    port = get_listen_port(process.pid)
 
     try:
         check_server_up(port)
