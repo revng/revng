@@ -128,8 +128,8 @@ target_include_directories(test_filtered_graph_traits
 target_link_libraries(
   test_filtered_graph_traits revngSupport revngUnitTestHelpers
   Boost::unit_test_framework ${LLVM_LIBRARIES})
-add_test(NAME test_filtered_graph_traits COMMAND test_filtered_graph_traits
-                                                 -- "${SRC}/test_graphs/")
+add_test(NAME test_filtered_graph_traits COMMAND test_filtered_graph_traits --
+                                                 "${SRC}/test_graphs/")
 set_tests_properties(test_filtered_graph_traits PROPERTIES LABELS "unit")
 
 #
@@ -310,8 +310,7 @@ target_include_directories(test_diff_invalidation_event
                            PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_diff_invalidation_event revngUnitTestHelpers
                       revngPipes Boost::unit_test_framework ${LLVM_LIBRARIES})
-add_test(NAME test_diff_invalidation_event
-         COMMAND test_diff_invalidation_event)
+add_test(NAME test_diff_invalidation_event COMMAND test_diff_invalidation_event)
 set_tests_properties(test_diff_invalidation_event PROPERTIES LABELS "unit")
 
 #

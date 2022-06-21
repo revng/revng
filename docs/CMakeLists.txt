@@ -69,8 +69,8 @@ if(DOXYGEN_FOUND)
     foreach(FILE ${GIT_LS_OUTPUT})
       set(DOXYGEN_INPUTS "${DOXYGEN_INPUTS} ${CMAKE_SOURCE_DIR}/${FILE}")
     endforeach(FILE)
-    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in ${CMAKE_BINARY_DIR}/Doxyfile
-                   @ONLY)
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in
+                   ${CMAKE_BINARY_DIR}/Doxyfile @ONLY)
     add_custom_target(
       doc
       ${DOXYGEN_EXECUTABLE} ${CMAKE_BINARY_DIR}/Doxyfile

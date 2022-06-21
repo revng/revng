@@ -137,7 +137,7 @@ add_test(
 set_tests_properties(pipeline-multistep-test PROPERTIES DEPENDS revng-pipeline
                                                         LABELS "pipeline")
 
-                                                      #
+#
 # Invalidate
 #
 
