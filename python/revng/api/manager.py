@@ -16,7 +16,7 @@ from .exceptions import RevngException
 from .kind import Kind
 from .step import Step
 from .target import Target, TargetsList
-from .utils import make_c_string, make_generator, make_python_string, save_file
+from .utils import make_c_string, make_generator, make_python_string
 
 INVALID_INDEX = 0xFFFFFFFFFFFFFFFF
 
@@ -221,6 +221,12 @@ class Manager:
                 return container
         return None
 
+    def deserialize_container(self, step: Step, container_name: str, content: Union[str, bytes]):
+        _content = make_c_string(content)
+        return _api.rp_manager_container_deserialize(
+            self._manager, step._step, make_c_string(container_name), _content, len(_content)
+        )
+
     def _get_container_identifier(self, idx: int) -> Optional[ContainerIdentifier]:
         _container_identifier = _api.rp_manager_get_container_identifier(self._manager, idx)
         if _container_identifier != ffi.NULL:
@@ -414,37 +420,17 @@ class Manager:
     def globals_list(self) -> Generator[str, None, None]:
         return make_generator(self.globals_count(), self._get_global_from_index)
 
-    def set_input(self, container_name: str, content: Union[bytes, str], _key=None) -> str:
+    def set_input(self, container_name: str, content: bytes, _key=None):
         step = self.get_step("begin")
         if step is None:
-            return ""
+            raise RevngException('Step "begin" not found')
 
-        container_identifier = self.get_container_with_name(container_name)
-        if container_identifier is None:
-            raise RevngException("Invalid container name")
+        success = self.deserialize_container(step, container_name, content)
 
-        container = step.get_container(container_identifier)
-        if container is None:
-            raise RevngException(f"Step {step.name} does not use container {container_name}")
-
-        # TODO: replace when proper C API is present
-        _container_path = self.container_path(step.name, container_name)
-        if _container_path is None:
-            raise RevngException("Invalid step or container name")
-
-        container_path = Path(_container_path)
-        container_path.parent.mkdir(parents=True, exist_ok=True)
-        save_file(container_path, content)
-
-        success = container.load(str(container_path))
         if not success:
             raise RevngException(
                 f"Failed loading user provided input for container {container_name}"
             )
-
-        self.save()
-
-        return str(container_path.resolve())
 
     def pipeline_artifact_structure(self):
         structure = defaultdict(list)

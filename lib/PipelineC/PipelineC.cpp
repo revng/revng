@@ -386,15 +386,25 @@ bool rp_container_store(rp_container *container, const char *path) {
   return false;
 }
 
-bool rp_container_load(rp_container *container, const char *path) {
-  revng_check(container != nullptr);
-  revng_check(path != nullptr);
-  auto Error = container->second->loadFromDisk(path);
-  if (not Error)
-    return true;
+bool rp_manager_container_deserialize(rp_manager *manager,
+                                      rp_step *step,
+                                      const char *container_name,
+                                      const char *content,
+                                      uint64_t size) {
+  revng_check(manager != nullptr);
+  revng_check(step != nullptr);
+  revng_check(container_name != nullptr);
+  revng_check(content != nullptr);
 
-  llvm::consumeError(std::move(Error));
-  return false;
+  auto Buffer = llvm::MemoryBuffer::getMemBuffer(llvm::StringRef(content, size),
+                                                 "",
+                                                 false);
+  auto Error = manager->deserializeContainer(*step, container_name, *Buffer);
+  if (!!Error) {
+    llvm::consumeError(std::move(Error));
+    return false;
+  }
+  return true;
 }
 
 rp_kind *rp_target_get_kind(rp_target *target) {

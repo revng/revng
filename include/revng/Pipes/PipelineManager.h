@@ -97,6 +97,10 @@ public:
   llvm::Error storeStepToDisk(llvm::StringRef StepName,
                               llvm::StringRef DirPath = llvm::StringRef());
 
+  llvm::Error deserializeContainer(pipeline::Step &Step,
+                                   llvm::StringRef ContainerName,
+                                   const llvm::MemoryBuffer &Buffer);
+
   const pipeline::Context &context() const { return *PipelineContext; }
 
   pipeline::Context &context() { return *PipelineContext; }

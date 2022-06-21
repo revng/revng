@@ -500,7 +500,11 @@ bool rp_container_store(rp_container *container, const char *path);
  * \return 0 if a error was encountered 1 otherwise
  *
  */
-bool rp_container_load(rp_container *container, const char *path);
+bool rp_manager_container_deserialize(rp_manager *manager,
+                                      rp_step *step,
+                                      const char *container_name,
+                                      const char *content,
+                                      uint64_t size);
 
 /**
  * \return the serialized content of the element associated to the provided

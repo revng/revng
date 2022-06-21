@@ -270,6 +270,28 @@ llvm::Error PipelineManager::storeStepToDisk(llvm::StringRef StepName,
   return Runner->storeStepToDisk(StepName, ExecutionDirectory);
 }
 
+llvm::Error
+PipelineManager::deserializeContainer(pipeline::Step &Step,
+                                      llvm::StringRef ContainerName,
+                                      const llvm::MemoryBuffer &Buffer) {
+  if (!Step.containers().isContainerRegistered(ContainerName))
+    return createStringError(inconvertibleErrorCode(),
+                             "Could not find container %s in step %s\n",
+                             ContainerName.str().c_str(),
+                             Step.getName().str().c_str());
+
+  auto &Container = Step.containers()[ContainerName];
+  if (auto Error = Container.deserialize(Buffer); !!Error)
+    return Error;
+
+  recalculateAllPossibleTargets();
+
+  if (auto Error = storeStepToDisk(Step.getName()); !!Error)
+    return Error;
+
+  return Error::success();
+}
+
 llvm::Error PipelineManager::store(const PipelineFileMapping &Mapping) {
   return Mapping.storeToDisk(*Runner);
 }
