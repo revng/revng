@@ -43,7 +43,7 @@ def client(pytestconfig: Config, request) -> Generator[Client, None, None]:
     out_fd = os.memfd_create("flask_debug", 0)
     out = os.fdopen(out_fd, "w")
 
-    process = Popen([f"revng", "daemon", "-p", str(port)], stdout=out, stderr=out, text=True)
+    process = Popen(["revng", "daemon", "-p", str(port)], stdout=out, stderr=out, text=True)
 
     try:
         check_server_up(port)
