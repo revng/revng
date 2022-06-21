@@ -379,12 +379,12 @@ function run_revng_cpp_checks() {
     local NON_SUPPORT_FILES CXX_FILES REGEXPS REGEXP FILE
 
     readarray -t NON_SUPPORT_FILES < <(grep -v \
-        -e '^runtime/support\.c$' \
+        -e '^share/revng/support\.c$' \
         -e '^lib/Support/Assert\.cpp$' \
         <<< "$C_FILES_N")
 
     readarray -t CXX_FILES < <(grep -v \
-            -e '^runtime/support\.h$' \
+            -e '^share/revng/support\.h$' \
             -e '^include/revng/Runtime/.*$' \
             -e '^include/revng/PipelineC/.*$' \
             -e '^include/revng/Support/Assert\.h$' \
