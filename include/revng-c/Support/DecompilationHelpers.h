@@ -14,25 +14,21 @@
 
 #include "revng-c/Support/FunctionTags.h"
 
-/// Returns true if F is an llvm::Function should be considered pure for
-/// decompilation purposes
-inline bool isPure(const llvm::Function *F) {
-  if (F) {
-    if (FunctionTags::ModelGEP.isTagOf(F)
-        or FunctionTags::StructInitializer.isTagOf(F)
-        or FunctionTags::AddressOf.isTagOf(F)
-        or FunctionTags::OpaqueCSVValue.isTagOf(F)) {
-      return true;
-    }
-  }
-  return false;
-}
+/// Returns true if I should be considered with side effects for decompilation
+/// purposes.
+inline bool hasSideEffects(const llvm::Instruction &I) {
+  if (isa<llvm::StoreInst>(&I))
+    return true;
 
-/// Returns true if I is a call to an llvm::Function that should be considered
-/// pure for decompilation purposes
-inline bool isCallToPure(const llvm::Instruction &I) {
-  if (auto *Call = dyn_cast<llvm::CallInst>(&I))
-    return isPure(Call->getCalledFunction());
+  if (auto *Call = llvm::dyn_cast<llvm::CallInst>(&I)) {
+    auto *CalledFunc = Call->getCalledFunction();
+
+    if (not CalledFunc or CalledFunc->isIntrinsic()
+        or FunctionTags::Isolated.isTagOf(CalledFunc)
+        or FunctionTags::WritesMemory.isTagOf(CalledFunc)
+        or FunctionTags::QEMU.isTagOf(CalledFunc))
+      return true;
+  }
 
   return false;
 }

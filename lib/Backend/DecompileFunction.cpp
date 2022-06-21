@@ -191,28 +191,11 @@ class VarNameGenerator {
 private:
   uint64_t CurVarID = 0;
 
-  StringToken nextFuncPtrName() {
-    StringToken FuncName("func_ptr_");
-    FuncName += to_string(CurVarID++);
-    return FuncName;
-  }
-
 public:
   StringToken nextVarName() {
     StringToken VarName("var_");
     VarName += to_string(CurVarID++);
     return VarName;
-  }
-
-  StringToken nextVarName(const llvm::Value *V) {
-    if (V->getType()->isPointerTy()) {
-      const auto *PtrType = llvm::cast<llvm::PointerType>(V->getType());
-      const auto *PointedType = PtrType->getElementType();
-      if (PointedType->isFunctionTy())
-        return nextFuncPtrName();
-    }
-
-    return nextVarName();
   }
 
   StringToken nextSwitchStateVar() {
@@ -371,26 +354,25 @@ private:
   /// Implements special naming policies for special variables (e.g. stack
   /// frame)
   StringToken createVarName(const llvm::Value *V) {
-    auto *I = dyn_cast<Instruction>(V);
 
-    if (not I)
-      return NameGenerator.nextVarName();
+    if (auto *I = dyn_cast<Instruction>(V)) {
 
-    if (isCallTo(I, "revng_stack_frame"))
-      return { StackFrameVarName };
-    else if (isCallTo(I, "revng_call_stack_argument"))
-      return NameGenerator.nextStackArgsVar();
-    else
-      return NameGenerator.nextVarName(I);
+      if (isCallTo(I, "revng_stack_frame"))
+        return { StackFrameVarName };
+
+      if (isCallTo(I, "revng_call_stack_argument"))
+        return NameGenerator.nextStackArgsVar();
+    }
+
+    return NameGenerator.nextVarName();
   }
 
   /// Returns a variable name and a boolean indicating if the variable is new
   /// (i.e. it has never been declared) or it was already declared.
   std::pair<StringToken, bool> getOrCreateVarName(const llvm::Value *V) {
-    auto *I = dyn_cast<Instruction>(V);
-
-    if (I and TopScopeVariables.contains(I))
-      return { TokenMap.at(I), false };
+    if (auto *I = dyn_cast<Instruction>(V))
+      if (TopScopeVariables.contains(I))
+        return { TokenMap.at(I), false };
 
     StringToken VarName = createVarName(V);
     return { VarName, true };
@@ -756,14 +738,17 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
   } else if (FunctionTags::AssignmentMarker.isTagOf(CalledFunc)) {
     const llvm::Value *Arg = Call->getArgOperand(0);
 
-    const auto &[VarName, New] = getOrCreateVarName(Call);
-    Out << buildAssignmentExpr(TypeMap.at(Call),
-                               VarName,
-                               TokenMap.at(Arg),
-                               /*WithDeclaration=*/New)
-        << ";\n";
-
-    Expression = VarName;
+    if (not Call->getType()->isAggregateType()) {
+      const auto &[VarName, New] = getOrCreateVarName(Call);
+      Out << buildAssignmentExpr(TypeMap.at(Call),
+                                 VarName,
+                                 TokenMap.at(Arg),
+                                 /*WithDeclaration=*/New)
+          << ";\n";
+      Expression = VarName;
+    } else {
+      Expression = TokenMap.at(Arg);
+    }
 
   } else if (FunctionTags::StructInitializer.isTagOf(CalledFunc)) {
     // Struct initializers should be used only to pack together return values

@@ -99,7 +99,7 @@ public:
 
   bool isSet(Reasons::Values Flag) const { return TheFlags & Flag; }
 
-  bool hasSideEffects() const {
+  bool hasMarkedSideEffects() const {
     // Either HasSideEffects or HasInterferingSideEffects imply side effects.
     return isSet(Reasons::HasSideEffects)
            or isSet(Reasons::HasInterferingSideEffects);

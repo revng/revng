@@ -73,7 +73,7 @@ bool AddAssignmentMarkersPass::runOnFunction(llvm::Function &F) {
       // The second arg operand needs to be true if the assignment is
       // required because of side effects.
       auto *BoolType = MarkerF->getArg(1)->getType();
-      auto *MarkSideEffects = Flag.hasSideEffects() ?
+      auto *MarkSideEffects = Flag.hasMarkedSideEffects() ?
                                 llvm::ConstantInt::getAllOnesValue(BoolType) :
                                 llvm::ConstantInt::getNullValue(BoolType);
 
