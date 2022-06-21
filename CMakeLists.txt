@@ -57,6 +57,7 @@ add_flag_if_available("-Wunreachable-code-break")
 add_flag_if_available("-Winconsistent-missing-destructor-override")
 add_flag_if_available("-Wnewline-eof")
 add_flag_if_available("-Wmissing-prototypes")
+add_flag_if_available("-Wimplicit-fallthrough")
 
 add_definitions("-D_FILE_OFFSET_BITS=64")
 
