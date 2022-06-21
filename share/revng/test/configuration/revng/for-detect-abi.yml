@@ -1,0 +1,9 @@
+command:
+  - type: revng.test-detect-abi
+    from:
+      - type: revng.lifted
+        filter: for-detect-abi
+    command: |-
+      revng opt --abi-enforcement-level=no --detect-abi "$INPUT"
+        | revng model dump
+        | revng model compare "${SOURCE}.model.yml"

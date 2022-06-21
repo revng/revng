@@ -1,0 +1,22 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+---
+Functions:
+- OriginalName: func1
+  Prototype: "/Types/RawFunctionType-1"
+- OriginalName: func2
+  Prototype: "/Types/RawFunctionType-2"
+- OriginalName: callee
+  Prototype: "/Types/RawFunctionType-3"
+Types:
+- ID: 2
+  ReturnValues:
+  - Location: rbx_x86_64
+- ID: 3
+  ReturnValues:
+  - Location: rax_x86_64
+- ID: 1
+  ReturnValues:
+  - Location: rax_x86_64

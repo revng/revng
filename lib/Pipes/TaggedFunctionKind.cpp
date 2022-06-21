@@ -16,6 +16,7 @@
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/PathComponent.h"
 #include "revng/Pipeline/Target.h"
+#include "revng/Pipes/FunctionKind.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/RootKind.h"
@@ -31,22 +32,7 @@ using namespace llvm;
 void TaggedFunctionKind::expandTarget(const Context &Ctx,
                                       const Target &Input,
                                       TargetsList &Output) const {
-  if (not Input.getPathComponents().back().isAll()) {
-    Output.push_back(Input);
-    return;
-  }
-
-  const model::Binary &Model = *getModelFromContext(Ctx);
-  if (Model.Functions.empty()) {
-    Output.push_back(Input);
-    return;
-  }
-
-  for (const auto &Function : Model.Functions) {
-
-    Target ToInsert({ PathComponent(Function.Entry.toString()) }, *this);
-    Output.emplace_back(std::move(ToInsert));
-  }
+  expandTargetImpl(Ctx, Input, Output, *this);
 }
 
 std::optional<pipeline::Target>

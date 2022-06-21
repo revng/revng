@@ -1,0 +1,30 @@
+commands:
+  - type: revng.qemu-run
+    from:
+      - type: revng-qa.compiled
+        filter: for-runtime and cross-compiler
+    suffix: /
+    command: |-
+      ( grep RUN $SOURCE || true ) | sed 's|/\* RUN-\(.*\): \(.*\) \*/|\1,\2|' | while IFS=',' read -r NAME ARGUMENTS; do
+          qemu-$QEMU_NAME $INPUT $$ARGUMENTS > $OUTPUT/$$NAME.stdout || true;
+      done
+  - type: revng.translated
+    from:
+      - type: revng-qa.compiled
+        filter: for-runtime and for-comparison
+    command: revng translate -i "$INPUT" -o "$OUTPUT"
+  - type: revng.translated-run
+    from:
+      - type: revng.translated
+        filter: for-runtime and !aarch64
+    suffix: /
+    command: |-
+      ( grep RUN $SOURCE || true ) | sed 's|/\* RUN-\(.*\): \(.*\) \*/|\1,\2|' | while IFS=',' read -r NAME ARGUMENTS; do
+        $INPUT $$ARGUMENTS 2>/dev/null > $OUTPUT/$$NAME.stdout || true;
+      done
+  - type: revng.diff-runs
+    from:
+      - type: revng.qemu-run
+        filter: for-comparison
+      - type: revng.translated-run
+    command: diff -ur "$INPUT1" "$INPUT2"

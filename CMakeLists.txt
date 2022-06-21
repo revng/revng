@@ -6,128 +6,20 @@ cmake_minimum_required(VERSION 3.15.0)
 
 project(revng)
 
-include(cmake/Common.cmake)
-install(FILES cmake/revngConfig.cmake cmake/Common.cmake
-              cmake/TupleTreeGenerator.cmake DESTINATION share/revng/cmake)
+include(share/revng/cmake/Common.cmake)
 
-# This has to be first to get highest priority
-include_directories(include/)
+#
+# Compile flags
+#
+
+# These have to be first to get highest priority
+include_directories("${CMAKE_SOURCE_DIR}/include")
 include_directories("${CMAKE_BINARY_DIR}/include")
-
-# Doxygen
-find_package(Doxygen)
-if(DOXYGEN_FOUND)
-  execute_process(
-    COMMAND git ls-files
-    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-    RESULT_VARIABLE GIT_LS_EXIT_CODE
-    OUTPUT_VARIABLE GIT_LS_OUTPUT
-    ERROR_VARIABLE GIT_LS_OUTPUT_STDERR)
-
-  if(GIT_LS_EXIT_CODE EQUAL "0")
-    string(REGEX REPLACE "\n" ";" GIT_LS_OUTPUT "${GIT_LS_OUTPUT}")
-    set(DOXYGEN_INPUTS "")
-    foreach(FILE ${GIT_LS_OUTPUT})
-      set(DOXYGEN_INPUTS "${DOXYGEN_INPUTS} ${CMAKE_SOURCE_DIR}/${FILE}")
-    endforeach(FILE)
-    configure_file(${CMAKE_SOURCE_DIR}/Doxyfile.in ${CMAKE_BINARY_DIR}/Doxyfile
-                   @ONLY)
-    add_custom_target(
-      doc
-      ${DOXYGEN_EXECUTABLE} ${CMAKE_BINARY_DIR}/Doxyfile
-      WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-      COMMENT "Generating API documentation with Doxygen"
-      VERBATIM)
-  else()
-    message(
-      WARNING
-        "Source directory is not a git repository, disabling Doxygen. Error was: ${GIT_LS_OUTPUT_STDERR}"
-    )
-  endif()
-
-endif(DOXYGEN_FOUND)
-
-# LLVM CMake stuff
-find_package(LLVM REQUIRED CONFIG)
-include_directories(${LLVM_INCLUDE_DIRS})
-add_definitions(${LLVM_DEFINITIONS})
-llvm_map_components_to_libnames(
-  LLVM_LIBRARIES
-  core
-  support
-  irreader
-  ScalarOpts
-  linker
-  Analysis
-  object
-  transformutils
-  BitWriter
-  InstCombine
-  CodeGen
-  Passes)
-
-# Build the support module for each architecture and in several configurations
-set(CLANG "${LLVM_TOOLS_BINARY_DIR}/clang")
-
-set(SUPPORT_MODULES_CONFIGS "normal;trace")
-set(SUPPORT_MODULES_CONFIG_normal "")
-set(SUPPORT_MODULES_CONFIG_trace "-DTRACE")
-
-make_directory("${CMAKE_BINARY_DIR}/share/revng/")
-
-foreach(
-  ARCH
-  aarch64
-  arm
-  mips
-  mipsel
-  x86_64
-  i386
-  s390x)
-  set(OUTPUT "early-linked-${ARCH}.ll")
-  add_custom_command(
-    OUTPUT "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
-    DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/early-linked.c"
-    COMMAND
-      "${CLANG}" ARGS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/early-linked.c" -o
-      "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}" -S -emit-llvm -g
-      -DTARGET_${ARCH} -I"${CMAKE_CURRENT_SOURCE_DIR}/runtime"
-      -I"${CMAKE_CURRENT_SOURCE_DIR}/include")
-  add_custom_target("early-linked-module-${OUTPUT}" ALL
-                    DEPENDS "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}")
-  add_dependencies(revng-all-binaries "early-linked-module-${OUTPUT}")
-  install(FILES "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
-          DESTINATION share/revng)
-
-  # Enable the support for C exceptions to avoid optimizations that break
-  # exception support when linking a module with isolated functions
-  foreach(CONFIG ${SUPPORT_MODULES_CONFIGS})
-    set(OUTPUT "support-${ARCH}-${CONFIG}.ll")
-    add_custom_command(
-      OUTPUT "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
-      DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/support.c"
-      COMMAND
-        "${CLANG}" ARGS "${CMAKE_CURRENT_SOURCE_DIR}/runtime/support.c" -O2
-        -fexceptions -o "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}" -S
-        -emit-llvm -g -DTARGET_${ARCH} -I"${CMAKE_CURRENT_SOURCE_DIR}/runtime"
-        -I"${CMAKE_CURRENT_SOURCE_DIR}/include"
-        ${SUPPORT_MODULES_CONFIG_${CONFIG}})
-    add_custom_target("support-module-${OUTPUT}" ALL
-                      DEPENDS "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}")
-    add_dependencies(revng-all-binaries "support-module-${OUTPUT}")
-    install(FILES "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
-            DESTINATION share/revng)
-  endforeach()
-endforeach()
 
 add_definitions("-DINSTALL_PATH=\"${CMAKE_INSTALL_PREFIX}\"")
 
 # Uncomment the following line if recursive coroutines make debugging hard
 # add_definitions("-DDISABLE_RECURSIVE_COROUTINES")
-
-#
-# Compiler options
-#
 
 # Remove -rdynamic
 set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
@@ -179,37 +71,95 @@ if(HAVE_VALGRIND_CALLGRIND_H)
   add_definitions("-DHAVE_VALGRIND_CALLGRIND_H")
 endif()
 
-set(VERSION 0.0.0)
+#
+# Link LLVM
+#
+find_package(LLVM REQUIRED CONFIG)
+include_directories(${LLVM_INCLUDE_DIRS})
+add_definitions(${LLVM_DEFINITIONS})
+llvm_map_components_to_libnames(
+  LLVM_LIBRARIES
+  core
+  support
+  irreader
+  ScalarOpts
+  linker
+  Analysis
+  object
+  transformutils
+  BitWriter
+  InstCombine
+  CodeGen
+  Passes)
 
 #
-# Support files (share/revng)
+# share/revng
 #
-copy_to_build_and_install(
-  FILES
-  share/revng
-  runtime/support.c
-  runtime/support.h
-  scripts/clang-format-style-file
-  scripts/flake8-config
-  scripts/isort.cfg)
+add_custom_target(copy_share
+  ALL COMMAND cp -Tar "${CMAKE_SOURCE_DIR}/share/" "${CMAKE_BINARY_DIR}/share/")
+install(DIRECTORY "${CMAKE_BINARY_DIR}/share/" DESTINATION share/ USE_SOURCE_PERMISSIONS)
 
-copy_to_build_and_install(
-  FILES
-  share/revng/pipelines
-  share/revng/pipelines/isolate-translate.yml
-  share/revng/pipelines/translate.yml
-  share/revng/pipelines/enforce-abi.yml
-  share/revng/pipelines/yield-assembly.yml
-  share/revng/pipelines/yield-cfg.yml)
+# Export CMake targets
+install(
+  EXPORT revng
+  NAMESPACE revng::
+  DESTINATION share/revng/cmake)
 
-configure_file(runtime/early-linked.c
-               "${CMAKE_BINARY_DIR}/share/revng/early-linked.c" COPYONLY)
+# Build the support module for each architecture and in several configurations
+set(CLANG "${LLVM_TOOLS_BINARY_DIR}/clang")
+
+set(SUPPORT_MODULES_CONFIGS "normal;trace")
+set(SUPPORT_MODULES_CONFIG_normal "")
+set(SUPPORT_MODULES_CONFIG_trace "-DTRACE")
+
+foreach(
+  ARCH
+  aarch64
+  arm
+  mips
+  mipsel
+  x86_64
+  i386
+  s390x)
+  set(OUTPUT "early-linked-${ARCH}.ll")
+  add_custom_command(
+    OUTPUT "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
+    DEPENDS "${CMAKE_SOURCE_DIR}/share/revng/early-linked.c"
+    COMMAND
+      "${CLANG}" ARGS "${CMAKE_SOURCE_DIR}/share/revng/early-linked.c" -o
+      "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}" -S -emit-llvm -g
+      -DTARGET_${ARCH} -I"${CMAKE_SOURCE_DIR}/share/revng"
+      -I"${CMAKE_CURRENT_SOURCE_DIR}/include")
+  add_custom_target("early-linked-module-${OUTPUT}" ALL
+                    DEPENDS "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}")
+  add_dependencies(revng-all-binaries "early-linked-module-${OUTPUT}")
+
+  # Enable the support for C exceptions to avoid optimizations that break
+  # exception support when linking a module with isolated functions
+  foreach(CONFIG ${SUPPORT_MODULES_CONFIGS})
+    set(OUTPUT "support-${ARCH}-${CONFIG}.ll")
+    add_custom_command(
+      OUTPUT "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}"
+      DEPENDS "${CMAKE_SOURCE_DIR}/share/revng/support.c"
+      COMMAND
+        "${CLANG}" ARGS "${CMAKE_SOURCE_DIR}/share/revng/support.c" -O2
+        -fexceptions -o "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}" -S
+        -emit-llvm -g -DTARGET_${ARCH} -I"${CMAKE_SOURCE_DIR}/share/revng"
+        -I"${CMAKE_CURRENT_SOURCE_DIR}/include"
+        ${SUPPORT_MODULES_CONFIG_${CONFIG}})
+    add_custom_target("support-module-${OUTPUT}" ALL
+                      DEPENDS "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}")
+    add_dependencies(revng-all-binaries "support-module-${OUTPUT}")
+  endforeach()
+endforeach()
 
 # Custom command to create .clang-format file from revng-check-conventions
 add_custom_command(
   OUTPUT "${CMAKE_BINARY_DIR}/share/revng/.clang-format"
-  DEPENDS "${CMAKE_BINARY_DIR}/libexec/revng/revng-check-conventions"
-          "${CMAKE_BINARY_DIR}/share/revng/clang-format-style-file"
+  DEPENDS "${CMAKE_SOURCE_DIR}/libexec/revng/revng-check-conventions"
+          "${CMAKE_SOURCE_DIR}/share/revng/clang-format-style-file"
+          copy_share
+          copy_libexec
   COMMAND
     "${CMAKE_BINARY_DIR}/libexec/revng/revng-check-conventions" ARGS
     --print-clang-format-config >
@@ -217,22 +167,13 @@ add_custom_command(
 
 add_custom_target(clang-format-dot-file ALL
                   DEPENDS "${CMAKE_BINARY_DIR}/share/revng/.clang-format")
-install(FILES "${CMAKE_BINARY_DIR}/share/revng/.clang-format"
-        DESTINATION share/revng)
 
 #
-# Executable scripts
+# libexec/revng
 #
-copy_to_build_and_install(PROGRAMS libexec/revng
-                          "scripts/revng-check-conventions")
-
-#
-# Export CMake targets
-#
-install(
-  EXPORT revng
-  NAMESPACE revng::
-  DESTINATION share/revng/cmake)
+add_custom_target(copy_libexec
+  ALL COMMAND cp -Tar "${CMAKE_SOURCE_DIR}/libexec/" "${CMAKE_BINARY_DIR}/libexec/")
+install(DIRECTORY "${CMAKE_BINARY_DIR}/libexec/" DESTINATION libexec/ USE_SOURCE_PERMISSIONS)
 
 #
 # Export information useful for subdirectories
@@ -242,16 +183,18 @@ set(MODEL_JSONSCHEMA_PATH "${CMAKE_BINARY_DIR}/model-jsonschema.yml")
 set(PYTHON_GENERATED_MODEL_PATH revng/model/v1/_generated.py)
 
 #
-# Include other CMake files
+# Enable CTest
 #
-add_subdirectory(scripts)
+enable_testing()
+
+#
+# Proceed to subdirectories
+#
+add_subdirectory(docs)
 add_subdirectory(include)
 add_subdirectory(lib)
-add_subdirectory(tools)
-add_subdirectory(docs/)
 add_subdirectory(python)
+add_subdirectory(scripts)
+add_subdirectory(tests)
+add_subdirectory(tools)
 add_subdirectory(typescript)
-
-include(${CMAKE_INSTALL_PREFIX}/share/revng/qa/cmake/revng-qa.cmake)
-
-include(tests/Tests.cmake)
