@@ -645,6 +645,9 @@ void FunctionEntrypointAnalyzer::importModel() {
 
     auto [Entry, _] = getPC(&*BB.begin());
 
+    if (Binary->Functions.count(Entry) != 0)
+      continue;
+
     // TODO: should we assert that all dynamic function have been imported?
     auto It = Binary->ImportedDynamicFunctions.find(SymbolName.str());
     if (It == Binary->ImportedDynamicFunctions.end())
