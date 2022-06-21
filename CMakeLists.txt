@@ -6,100 +6,31 @@ cmake_minimum_required(VERSION 3.15.0)
 
 project(revng-c)
 
-#
-# Install revng-c cmake files
-#
-install(FILES cmake/revngcConfig.cmake DESTINATION share/revngc/cmake)
-
-#
-# Export CMake targets
-#
-install(
-  EXPORT revngc
-  NAMESPACE revngc::
-  DESTINATION share/revngc/cmake)
-
-# Enable testing with ctest
-enable_testing()
-
-# This has to be first to get highest priority
-include_directories(include/)
-
 # Require revng
 find_package(revng REQUIRED)
 
-# LLVM and clang CMake stuff
-find_package(LLVM REQUIRED CONFIG)
-add_definitions(${LLVM_DEFINITIONS})
-include_directories(${LLVM_INCLUDE_DIRS})
-llvm_map_components_to_libnames(
-  LLVM_LIBRARIES
-  Analysis
-  CodeGen
-  InstCombine
-  ScalarOpts
-  core
-  irreader
-  linker
-  object
-  support
-  transformutils)
+#
+# Compile flags
+#
 
-# Set build and install path
+# These have to be first to get highest priority
+include_directories("${CMAKE_SOURCE_DIR}/include")
+include_directories("${CMAKE_BINARY_DIR}/include")
+
 add_definitions("-DINSTALL_PATH=\"${CMAKE_INSTALL_PREFIX}\"")
-add_definitions("-DBUILD_PATH=\"${CMAKE_BINARY_DIR}\"")
-
-#
-# Support files (share/revng)
-#
-make_directory("${CMAKE_BINARY_DIR}/share/revng/")
-copy_to_build_and_install(
-  FILES
-  share/revng/pipelines
-  share/revng/pipelines/revng-c-analyses.yml
-  share/revng/pipelines/c-code-generation.yml
-  share/revng/pipelines/decompiled-yaml-to-c.yml
-  share/revng/pipelines/helpers-to-header.yml
-  share/revng/pipelines/ir-canonicalization.yml
-  share/revng/pipelines/model-to-header.yml
-  share/revng/pipelines/opt-for-decompilation.yml
-  share/revng/pipelines/promote-stack-pointer.yml
-  share/revng/pipelines/remove-lifting-artifacts.yml
-  share/revng/pipelines/segregate-stack-accesses.yml)
-
-# ##############################################################################
-# Handle assets for recompilation #
-# ##############################################################################
-# TODO: For now we only put these assets in the build directory for tests. If we
-# ever want to allow recompilation in production we need to decide how to
-# provide these assets to users too.
-set(ASSETS_DIR assets)
-# Copy the recompilation headers in the build directory
-file(COPY ${CMAKE_SOURCE_DIR}/${ASSETS_DIR}/recompilation-headers
-     DESTINATION ${CMAKE_BINARY_DIR}/${ASSETS_DIR})
-# Configure the compile_flags blueprint
-configure_file(${CMAKE_SOURCE_DIR}/${ASSETS_DIR}/compile_flags.txt.in
-               ${CMAKE_BINARY_DIR}/${ASSETS_DIR}/compile_flags.txt.in)
-# Strip leading comments, used for documentation, away from the compile flags
-# blueprint, actually producing the real compile_flags.txt 1. Parse the file,
-# filling a list of lines.
-file(STRINGS ${CMAKE_BINARY_DIR}/${ASSETS_DIR}/compile_flags.txt.in
-     RECOMPILATION_COMPILE_FLAGS)
-# A. Drop lines starting with '#' and lines with only whitespace
-list(FILTER RECOMPILATION_COMPILE_FLAGS EXCLUDE REGEX "^#.*")
-list(FILTER RECOMPILATION_COMPILE_FLAGS EXCLUDE REGEX "^[ \t\r\n]*$")
-# B. Splat the remaining lines
-list(JOIN RECOMPILATION_COMPILE_FLAGS "\n" RECOMPILATION_COMPILE_FLAGS)
-# C. Generate the acutal compile_flags.txt
-file(WRITE ${CMAKE_BINARY_DIR}/${ASSETS_DIR}/compile_flags.txt
-     ${RECOMPILATION_COMPILE_FLAGS})
-
-#
-# Set compilation flags for the whole project
-#
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# Remove -rdynamic
+set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
+
+# Uncomment the following line if recursive coroutines make debugging hard
+# add_definitions("-DDISABLE_RECURSIVE_COROUTINES")
+
+# Basic compiler options
+# cmake-format: off
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -shared-libasan")
+# cmake-format: on
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions")
@@ -121,391 +52,55 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wstrict-aliasing ")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-parameter")
 
 #
-# Include other cmake files
+# Link LLVM
 #
 
+# LLVM and clang CMake stuff
+find_package(LLVM REQUIRED CONFIG)
+add_definitions(${LLVM_DEFINITIONS})
+include_directories(${LLVM_INCLUDE_DIRS})
+llvm_map_components_to_libnames(
+  LLVM_LIBRARIES
+  Analysis
+  CodeGen
+  InstCombine
+  ScalarOpts
+  core
+  irreader
+  linker
+  object
+  support
+  transformutils)
+
+#
+# share/revng
+#
+add_custom_target(copy_share
+  ALL COMMAND cp -Tar "${CMAKE_SOURCE_DIR}/share/" "${CMAKE_BINARY_DIR}/share/")
+install(DIRECTORY "${CMAKE_BINARY_DIR}/share/" DESTINATION share/ USE_SOURCE_PERMISSIONS)
+
+# Export CMake targets
+install(
+  EXPORT revngc
+  NAMESPACE revngc::
+  DESTINATION share/revngc/cmake)
+
+#
+# libexec/revng
+#
+add_custom_target(copy_libexec
+  ALL COMMAND cp -Tar "${CMAKE_SOURCE_DIR}/libexec/" "${CMAKE_BINARY_DIR}/libexec/")
+install(DIRECTORY "${CMAKE_BINARY_DIR}/libexec/" DESTINATION libexec/ USE_SOURCE_PERMISSIONS)
+
+#
+# Enable CTest
+#
+enable_testing()
+
+#
+# Proceed to subdirectories
+#
 add_subdirectory(include)
 add_subdirectory(lib)
+add_subdirectory(tests)
 add_subdirectory(tools)
-
-include(tests/Tests.cmake)
-
-include(${CMAKE_INSTALL_PREFIX}/share/revng/qa/cmake/revng-qa.cmake)
-
-#
-# Define tests with revng-qa artifacts
-#
-
-# Macro for creating the tests for decompilation pipeline
-macro(add_decompilation_pipeline_test CATEGORY INPUT_FILE CONFIGURATION OUTPUT
-      TARGET_NAME)
-
-  # setup a directory for all the output files for this family of tests
-  get_filename_component(FILENAME ${INPUT_FILE} NAME_WLE)
-  set(OUTFOLDER ${CATEGORY}/${FILENAME}/${CONFIGURATION})
-  make_directory(${OUTFOLDER})
-
-  # Remove lifting artifacts
-  add_test(
-    NAME remove_lifting_artifacts_${TARGET_NAME}
-    COMMAND
-      revng --prefix=${CMAKE_BINARY_DIR} llvm pipeline "${INPUT_FILE}"
-      "${OUTFOLDER}/lifted_artifacts_removed.bc" EnforceABI
-      RemoveLiftingArtifacts "*:LiftingArtifactsRemoved")
-  set_property(
-    TEST remove_lifting_artifacts_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_SETUP remove_lifting_artifacts_fixture_${TARGET_NAME})
-
-  # Promote stack pointer
-  add_test(
-    NAME promote_stack_pointer_${TARGET_NAME}
-    COMMAND
-      revng --prefix=${CMAKE_BINARY_DIR} llvm pipeline
-      "${OUTFOLDER}/lifted_artifacts_removed.bc"
-      "${OUTFOLDER}/promoted_stack_pointer.bc" RemoveLiftingArtifacts
-      PromoteStackPointer "*:StackPointerPromoted")
-  set_property(
-    TEST promote_stack_pointer_${TARGET_NAME}
-    APPEND
-    PROPERTY DEPENDS remove_lifting_artifacts_${TARGET_NAME})
-  set_property(
-    TEST promote_stack_pointer_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_REQUIRED remove_lifting_artifacts_fixture_${TARGET_NAME})
-  set_property(
-    TEST promote_stack_pointer_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_SETUP promote_stack_pointer_fixture_${TARGET_NAME})
-
-  # Optimize for Decompilation, Segregate Stack Sccesses, and run
-  # DataLayoutAnalysis
-  add_test(
-    NAME optimize_and_slice_stack_${TARGET_NAME}
-    COMMAND
-      bash -c -e
-      "revng --prefix=${CMAKE_BINARY_DIR} llvm pipeline ${OUTFOLDER}/promoted_stack_pointer.bc ${OUTFOLDER}/optimized_and_sliced_stack.bc PromoteStackPointer DetectStackSize *:LiftingArtifactsRemoved --analysis detect-stack-size && revng --prefix=${CMAKE_BINARY_DIR} llvm pipeline ${OUTFOLDER}/optimized_and_sliced_stack.bc ${OUTFOLDER}/optimized_and_sliced_stack.bc DetectStackSize LateOptimizeForDecompilation *:StackAccessesSegregated --analysis dla"
-  )
-  set_property(
-    TEST optimize_and_slice_stack_${TARGET_NAME}
-    APPEND
-    PROPERTY DEPENDS promote_stack_pointer_${TARGET_NAME})
-  set_property(
-    TEST optimize_and_slice_stack_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_REQUIRED promote_stack_pointer_fixture_${TARGET_NAME})
-  set_property(
-    TEST optimize_and_slice_stack_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_SETUP optimize_and_slice_stack_fixture_${TARGET_NAME})
-
-  get_filename_component(BASENAME "${INPUT_FILE}" NAME_WE)
-  set(GROUND_TRUTH_MODEL
-      "${CMAKE_SOURCE_DIR}/tests/Analysis/PromoteStackPointer/${BASENAME}.yml")
-  if("${CATEGORY}" STREQUAL "tests_analysis_PromoteStackPointer"
-     AND "${CONFIGURATION}" STREQUAL "dynamic_native"
-     AND EXISTS "${GROUND_TRUTH_MODEL}")
-    add_test(
-      NAME psp_${TARGET_NAME}
-      COMMAND
-        sh -e -c
-        "revng opt -S ${OUTFOLDER}/optimized_and_sliced_stack.bc | revng model dump | revng model compare - ${GROUND_TRUTH_MODEL}"
-    )
-    set_property(
-      TEST psp_${TARGET_NAME}
-      APPEND
-      PROPERTY DEPENDS optimize_and_slice_stack_${TARGET_NAME})
-    set_property(
-      TEST psp_${TARGET_NAME}
-      APPEND
-      PROPERTY FIXTURES_REQUIRED
-               optimize_and_slice_stack_fixture_${TARGET_NAME})
-  endif()
-
-  # test VMA
-  add_test(
-    NAME vma_${TARGET_NAME}
-    COMMAND revng --prefix=${CMAKE_BINARY_DIR} opt -vma -vma-mincut-iter=50
-            ${OUTFOLDER}/optimized_and_sliced_stack.bc -o /dev/null)
-  set_property(
-    TEST vma_${TARGET_NAME}
-    APPEND
-    PROPERTY DEPENDS optimize_and_slice_stack_${TARGET_NAME})
-  set_property(
-    TEST vma_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_REQUIRED optimize_and_slice_stack_fixture_${TARGET_NAME})
-  set_property(
-    TEST vma_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_SETUP VMA_fixture_${TARGET_NAME})
-
-  # Setup directory for decompilation tests
-  set(DECOMPILED_DIR ${OUTFOLDER}/decompiled)
-  make_directory(${DECOMPILED_DIR})
-
-  # From now on the Model is read-only. Let's dump it
-  add_test(
-    NAME model_snapshot_${TARGET_NAME}
-    COMMAND
-      revng --prefix=${CMAKE_BINARY_DIR} model dump
-      "${OUTFOLDER}/optimized_and_sliced_stack.bc" -o
-      "${DECOMPILED_DIR}/model-snapshot.yml")
-  set_property(
-    TEST model_snapshot_${TARGET_NAME}
-    APPEND
-    PROPERTY DEPENDS optimize_and_slice_stack_${TARGET_NAME})
-  set_property(
-    TEST model_snapshot_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_REQUIRED optimize_and_slice_stack_fixture_${TARGET_NAME})
-  set_property(
-    TEST model_snapshot_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_SETUP model_snapshot_fixture_${TARGET_NAME})
-
-  # tests for IR Canonicalization
-  add_test(
-    NAME ir_canonicalization_${TARGET_NAME}
-    COMMAND
-      revng --prefix=${CMAKE_BINARY_DIR} pipeline -m
-      ${DECOMPILED_DIR}/model-snapshot.yml -i
-      LateOptimizeForDecompilation:module.ll:${OUTFOLDER}/optimized_and_sliced_stack.bc
-      -o IRCanonicalization:module.ll:${OUTFOLDER}/canonicalized.bc
-      IRCanonicalization:module.ll:*:StackAccessesSegregated)
-  set_property(
-    TEST ir_canonicalization_${TARGET_NAME}
-    APPEND
-    PROPERTY DEPENDS optimize_and_slice_stack_${TARGET_NAME})
-  set_property(
-    TEST ir_canonicalization_${TARGET_NAME}
-    APPEND
-    PROPERTY DEPENDS model_snapshot_${TARGET_NAME})
-  set_property(
-    TEST ir_canonicalization_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_REQUIRED optimize_and_slice_stack_fixture_${TARGET_NAME})
-  set_property(
-    TEST ir_canonicalization_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_REQUIRED model_snapshot_fixture_${TARGET_NAME})
-  set_property(
-    TEST ir_canonicalization_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_SETUP IRCanonicalization_fixture_${TARGET_NAME})
-
-  # Test model header generation
-  add_test(
-    NAME model_to_header_${TARGET_NAME}
-    COMMAND
-      revng --prefix=${CMAKE_BINARY_DIR} pipeline -m
-      ${DECOMPILED_DIR}/model-snapshot.yml -i
-      IRCanonicalization:module.ll:${OUTFOLDER}/canonicalized.bc -i
-      IRCanonicalization:input:/dev/null -o
-      PrintModelHeader:model_header.h:${DECOMPILED_DIR}/revng-model-declarations.h
-      PrintModelHeader:model_header.h::ModelHeader
-      # revng --prefix=${CMAKE_BINARY_DIR} model to-header
-      # -i=${OUTFOLDER}/canonicalized.bc
-      # -o=${DECOMPILED_DIR}/revng-model-declarations.h
-  )
-  set_property(
-    TEST model_to_header_${TARGET_NAME}
-    APPEND
-    PROPERTY DEPENDS ir_canonicalization_${TARGET_NAME})
-  set_property(
-    TEST model_to_header_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_REQUIRED IRCanonicalization_fixture_${TARGET_NAME})
-  set_property(
-    TEST model_to_header_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_SETUP ${TARGET_NAME}_model_header)
-
-  # Compile model headers without warnings
-  add_test(
-    NAME compile_model_header_${TARGET_NAME}
-    COMMAND clang --config ${CMAKE_BINARY_DIR}/${ASSETS_DIR}/compile_flags.txt
-            ${DECOMPILED_DIR}/revng-model-declarations.h -o /dev/null)
-  set_property(
-    TEST compile_model_header_${TARGET_NAME}
-    APPEND
-    PROPERTY DEPENDS model_to_header_${TARGET_NAME})
-  set_property(
-    TEST compile_model_header_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_REQUIRED ${TARGET_NAME}_model_header)
-  set_property(
-    TEST compile_model_header_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_SETUP ${TARGET_NAME}_model_header_recompiled)
-
-  # Test helpers header generation
-  add_test(
-    NAME helpers_to_header_${TARGET_NAME}
-    COMMAND
-      revng --prefix=${CMAKE_BINARY_DIR} pipeline -m
-      ${DECOMPILED_DIR}/model-snapshot.yml -i
-      IRCanonicalization:module.ll:${OUTFOLDER}/canonicalized.bc -o
-      PrintHelpersHeader:helpers_header.h:${DECOMPILED_DIR}/revng-qemu-helpers-declarations.h
-      PrintHelpersHeader:helpers_header.h::HelpersHeader
-      # revng --prefix=${CMAKE_BINARY_DIR} helpers-to-header
-      # -i=${OUTFOLDER}/canonicalized.bc
-      # -o=${DECOMPILED_DIR}/revng-qemu-helpers-declarations.h
-  )
-  set_property(
-    TEST helpers_to_header_${TARGET_NAME}
-    APPEND
-    PROPERTY DEPENDS ir_canonicalization_${TARGET_NAME})
-  set_property(
-    TEST helpers_to_header_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_REQUIRED IRCanonicalization_fixture_${TARGET_NAME})
-  set_property(
-    TEST helpers_to_header_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_SETUP ${TARGET_NAME}_helpers_header)
-
-  # Compile helpers headers without warnings
-  add_test(
-    NAME compile_helpers_header_${TARGET_NAME}
-    COMMAND clang --config ${CMAKE_BINARY_DIR}/${ASSETS_DIR}/compile_flags.txt
-            ${DECOMPILED_DIR}/revng-qemu-helpers-declarations.h -o /dev/null)
-  set_property(
-    TEST compile_helpers_header_${TARGET_NAME}
-    APPEND
-    PROPERTY DEPENDS helpers_to_header_${TARGET_NAME})
-  set_property(
-    TEST compile_helpers_header_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_REQUIRED ${TARGET_NAME}_helpers_header)
-  set_property(
-    TEST compile_helpers_header_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_SETUP ${TARGET_NAME}_helpers_header_recompiled)
-
-  # Test the C decompiler backend
-  add_test(
-    NAME decompile_${TARGET_NAME}
-    COMMAND
-      revng --prefix=${CMAKE_BINARY_DIR} pipeline -m
-      ${DECOMPILED_DIR}/model-snapshot.yml -i
-      IRCanonicalization:module.ll:${OUTFOLDER}/canonicalized.bc -o
-      DecompileToCInYAML:decompiled.yml:${DECOMPILED_DIR}/decompiled-functions.yml
-      -o DecompiledYAMLToC:decompiled.c:${DECOMPILED_DIR}/decompiled.c
-      DecompiledYAMLToC:decompiled.c::DecompiledToC)
-  set_property(
-    TEST decompile_${TARGET_NAME}
-    APPEND
-    PROPERTY DEPENDS ir_canonicalization_${TARGET_NAME})
-  set_property(
-    TEST decompile_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_REQUIRED IRCanonicalization_fixture_${TARGET_NAME})
-  set_property(
-    TEST decompile_${TARGET_NAME}
-    APPEND
-    PROPERTY DEPENDS helpers_to_header_${TARGET_NAME})
-  set_property(
-    TEST decompile_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_REQUIRED ${TARGET_NAME}_helpers_header)
-  set_property(
-    TEST decompile_${TARGET_NAME}
-    APPEND
-    PROPERTY DEPENDS model_to_header_${TARGET_NAME})
-  set_property(
-    TEST decompile_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_REQUIRED ${TARGET_NAME}_model_header)
-  set_property(
-    TEST decompile_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_SETUP Decompiled_fixture_${TARGET_NAME})
-
-  # test recompilation of C code generated by C decompiler backend
-  add_test(
-    NAME recompilation_${TARGET_NAME}
-    COMMAND clang ${DECOMPILED_DIR}/decompiled.c --config
-            ${CMAKE_BINARY_DIR}/${ASSETS_DIR}/compile_flags.txt -o /dev/null)
-  set_property(
-    TEST recompilation_${TARGET_NAME}
-    APPEND
-    PROPERTY DEPENDS decompile_${TARGET_NAME})
-  set_property(
-    TEST recompilation_${TARGET_NAME}
-    APPEND
-    PROPERTY DEPENDS compile_model_header_${TARGET_NAME})
-  set_property(
-    TEST recompilation_${TARGET_NAME}
-    APPEND
-    PROPERTY DEPENDS compile_helpers_header_${TARGET_NAME})
-  set_property(
-    TEST recompilation_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_REQUIRED Decompiled_fixture_${TARGET_NAME})
-  set_property(
-    TEST recompilation_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_REQUIRED ${TARGET_NAME}_model_header_recompiled)
-  set_property(
-    TEST recompilation_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_REQUIRED ${TARGET_NAME}_helpers_header_recompiled)
-  set_property(
-    TEST recompilation_${TARGET_NAME}
-    APPEND
-    PROPERTY FIXTURES_SETUP Recompiled_fixture_${TARGET_NAME})
-
-endmacro()
-
-# Decompilation tests
-macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
-
-  if(EXISTS ${INPUT_FILE})
-    # Run decompilation tests on all analysis tests from revng and only on the
-    # printf runtime tests from revng.
-    if(("${INPUT_FILE}" MATCHES ".*/runtime/.*printf.*")
-       OR ("${INPUT_FILE}" MATCHES ".*/analysis/.*"))
-      add_decompilation_pipeline_test(${CATEGORY} ${INPUT_FILE}
-                                      ${CONFIGURATION} ${OUTPUT} ${TARGET_NAME})
-    endif()
-  endif()
-
-endmacro()
-
-register_derived_artifact(
-  "abi-enforced-for-decompilation" # FROM_ARTIFACTS: input artifacts
-  "" # NAME: name of the new aritfact
-  "" # SUFFIX: extension of output file
-  "FILE" # TYPE: "FILE" or "DIRECTORY"
-)
-
-macro(artifact_handler CATEGORY INPUT_FILE CONFIGURATION OUTPUT TARGET_NAME)
-  get_filename_component(BASENAME "${INPUT_FILE}" NAME_WE)
-  set(MODEL_OVERRIDE
-      "${CMAKE_SOURCE_DIR}/tests/Analysis/SegregateStackAccesses/${BASENAME}.override.yml"
-  )
-  set(FILECHECK_FILE
-      "${CMAKE_SOURCE_DIR}/tests/Analysis/SegregateStackAccesses/${BASENAME}.filecheck.ll"
-  )
-
-  if("${CATEGORY}" STREQUAL "tests_analysis_SegregateStackAccesses"
-     AND "${CONFIGURATION}" STREQUAL "dynamic_native"
-     AND EXISTS "${MODEL_OVERRIDE}"
-     AND EXISTS "${FILECHECK_FILE}")
-    set(REVNG "revng --prefix=${CMAKE_BINARY_DIR}")
-    add_test(
-      NAME segregate_stack_accesses_${TARGET_NAME}
-      COMMAND
-        bash -c -e
-        "${REVNG} model override-by-name ${INPUT_FILE} ${MODEL_OVERRIDE} | ${REVNG} llvm pipeline - - Lift Lift --analysis DetectABI :Root | ${REVNG} llvm pipeline - - Lift DetectStackSize *:LiftingArtifactsRemoved --analysis detect-stack-size | ${REVNG} llvm pipeline - - DetectStackSize LateOptimizeForDecompilation *:StackAccessesSegregated | ${REVNG} opt -S | FileCheck ${FILECHECK_FILE}"
-    )
-  endif()
-
-endmacro()
-register_derived_artifact(
-  "lifted" # FROM_ARTIFACTS: input artifacts
-  "" # NAME: name of the new aritfact
-  "" # SUFFIX: extension of output file
-  "FILE" # TYPE: "FILE" or "DIRECTORY"
-)
