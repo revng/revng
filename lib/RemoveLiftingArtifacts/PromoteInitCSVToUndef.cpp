@@ -20,18 +20,21 @@ static bool makeInitRegsUndef(Function &F) {
   bool Changed = false;
 
   for (auto &BB : F) {
-    for (auto &I : BB) {
-      auto *Call = dyn_cast<CallInst>(&I);
-      if (not Call)
-        continue;
+    auto It = BB.begin();
+    auto End = BB.end();
+    while (It != End) {
+      auto Next = std::next(It);
 
-      auto *Callee = Call->getCalledFunction();
-      if (not Callee or not FunctionTags::OpaqueCSVValue.isTagOf(Callee))
-        continue;
+      if (auto *Call = dyn_cast<CallInst>(&*It)) {
+        auto *Callee = Call->getCalledFunction();
+        if (Callee and FunctionTags::OpaqueCSVValue.isTagOf(Callee)) {
+          Call->replaceAllUsesWith(llvm::UndefValue::get(Call->getType()));
+          Call->eraseFromParent();
+          Changed = true;
+        }
+      }
 
-      Call->replaceAllUsesWith(llvm::UndefValue::get(Call->getType()));
-
-      Changed = true;
+      It = Next;
     }
   }
 
