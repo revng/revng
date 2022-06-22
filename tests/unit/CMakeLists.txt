@@ -26,8 +26,7 @@ target_link_libraries(
   revng::revngUnitTestHelpers
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME test_combingpass COMMAND test_combingpass --
-                                       "${SRC}/TestGraphs/")
+add_test(NAME test_combingpass COMMAND test_combingpass -- "${SRC}/TestGraphs/")
 
 #
 # test_vma

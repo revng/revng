@@ -75,9 +75,12 @@ llvm_map_components_to_libnames(
 #
 # share/revng
 #
-add_custom_target(copy_share
-  ALL COMMAND cp -Tar "${CMAKE_SOURCE_DIR}/share/" "${CMAKE_BINARY_DIR}/share/")
-install(DIRECTORY "${CMAKE_BINARY_DIR}/share/" DESTINATION share/ USE_SOURCE_PERMISSIONS)
+add_custom_target(copy_share ALL COMMAND cp -Tar "${CMAKE_SOURCE_DIR}/share/"
+                                         "${CMAKE_BINARY_DIR}/share/")
+install(
+  DIRECTORY "${CMAKE_BINARY_DIR}/share/"
+  DESTINATION share/
+  USE_SOURCE_PERMISSIONS)
 
 # Export CMake targets
 install(
@@ -88,9 +91,13 @@ install(
 #
 # libexec/revng
 #
-add_custom_target(copy_libexec
-  ALL COMMAND cp -Tar "${CMAKE_SOURCE_DIR}/libexec/" "${CMAKE_BINARY_DIR}/libexec/")
-install(DIRECTORY "${CMAKE_BINARY_DIR}/libexec/" DESTINATION libexec/ USE_SOURCE_PERMISSIONS)
+add_custom_target(
+  copy_libexec ALL COMMAND cp -Tar "${CMAKE_SOURCE_DIR}/libexec/"
+                           "${CMAKE_BINARY_DIR}/libexec/")
+install(
+  DIRECTORY "${CMAKE_BINARY_DIR}/libexec/"
+  DESTINATION libexec/
+  USE_SOURCE_PERMISSIONS)
 
 #
 # Enable CTest
