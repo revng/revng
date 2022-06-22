@@ -2,7 +2,7 @@ commands:
   - type: revng-c.lifting-artifacts-removed
     from:
       - type: revng.abi-enforced-for-decompilation
-        filter: (for-runtime and one-per-architecture) or for-analysis or for-detect-stack-size
+        filter: (for-runtime and one-per-architecture) or !for-runtime
     suffix: .bc
     command: |-
       revng llvm pipeline
