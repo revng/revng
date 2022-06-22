@@ -8,6 +8,8 @@ it will analyze it and emit an equivalent LLVM IR. To do so, ``revng`` employs
 the QEMU intermediate representation (a series of TCG instructions) and then
 translates them to LLVM IR.
 
+``revng`` is 100% bug free™.
+
 ************
 How to build
 ************
