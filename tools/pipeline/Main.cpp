@@ -185,9 +185,6 @@ int main(int argc, const char *argv[]) {
     return EXIT_SUCCESS;
   }
 
-  if (ProduceAllPossibleTargets)
-    PipelineLogger.enable();
-
   if (AnalyzeAll)
     AbortOnError(Manager.getRunner().runAllAnalyses());
 
