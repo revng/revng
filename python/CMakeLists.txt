@@ -178,8 +178,10 @@ endforeach()
 set(REVNG_DAEMON_MODULE_FILES
     revng/daemon/__init__.py
     revng/daemon/demo_webpage.py
-    revng/daemon/schema.py
+    revng/daemon/manager_proxy.py
+    revng/daemon/schema_generator.py
     revng/daemon/schema.graphql.tpl
+    revng/daemon/static_handlers.py
     revng/daemon/util.py
     revng/daemon/templates/base.html
     revng/daemon/templates/index.html)

@@ -16,14 +16,15 @@ from starlette.responses import PlainTextResponse
 from ariadne.asgi import GraphQL
 from ariadne.contrib.tracing.apollotracing import ApolloTracingExtension
 
+from revng.api import Manager
 from revng.api._capi import initialize as capi_initialize
 
 from .demo_webpage import demo_page, production_demo_page
-from .schema import SchemafulManager
+from .schema_generator import SchemaGen
 from .util import project_workdir
 
 workdir: Path = project_workdir()
-manager: Optional[SchemafulManager] = None
+manager: Optional[Manager] = None
 startup_done = False
 
 config = Config()
@@ -55,11 +56,11 @@ async def status(request):
 def startup():
     global manager, startup_done
     capi_initialize()
-    manager = SchemafulManager(workdir=str(workdir.resolve()))
+    manager = Manager(workdir=str(workdir.resolve()))
     app.mount(
         "/graphql",
         GraphQL(
-            manager.schema,
+            SchemaGen().get_schema(manager),
             context_value={"manager": manager, "workdir": workdir},
             extensions=[ApolloTracingExtension],
             debug=DEBUG,
