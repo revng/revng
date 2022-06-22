@@ -4,7 +4,7 @@
 
 import os
 import shlex
-from argparse import ArgumentParser
+from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from sys import executable as py_executable
 
 from .commands_registry import Command, Options, commands_registry
@@ -16,6 +16,25 @@ class DaemonCommand(Command):
         super().__init__(("daemon",), "Run revng GraphQL server")
 
     def register_arguments(self, parser: ArgumentParser):
+        parser.formatter_class = RawDescriptionHelpFormatter
+        parser.description = """Run revng GraphQL server
+
+This command starts the execution of the revng graphql server with all installed
+analysis libraries and pipelines.
+
+Environment variables that are used:
+
+STARLETTE_DEBUG: if set to "1" enables debug mode, unset when using --production
+
+Persistence:
+revng needs a directory to preserve progress across restarts, this is controlled
+by the environment variables REVNG_DATA_DIR and REVNG_PROJECT_ID
+Neither of them set: use a uniquely generated temporary directory
+REVNG_DATA_DIR set, REVNG_PROJECT_ID unset: use '$REVNG_DATA_DIR' as persistance folder
+REVNG_PROJECT_ID set, REVNG_DATA_DIR unset: use '$XDG_DATA_HOME/revng/$REVNG_PROJECT_ID'
+REVNG_DATA_DIR and REVNG_PROJECT_ID set: use '$REVNG_DATA_DIR/$REVNG_PROJECT_ID'
+"""
+
         parser.add_argument("-p", "--port", type=str, default="8000", help="Port to use")
         parser.add_argument(
             "--hypercorn-args", type=str, default="", help="Extra arguments to pass to hypercorn"
