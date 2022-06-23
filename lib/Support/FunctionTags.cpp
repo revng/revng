@@ -93,8 +93,7 @@ void initAddressOfPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M) {
   // Set attributes
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
-  Pool.addFnAttribute(llvm::Attribute::ReadOnly);
-  Pool.addFnAttribute(llvm::Attribute::InaccessibleMemOnly);
+  Pool.addFnAttribute(llvm::Attribute::ReadNone);
   // Set revng tags
   Pool.setTags({ &FunctionTags::AddressOf });
 
@@ -155,8 +154,7 @@ getModelGEP(llvm::Module &M, llvm::Type *RetType, llvm::Type *BaseType) {
   auto *ModelGEPFunction = cast<Function>(MGEPCallee.getCallee());
   ModelGEPFunction->addFnAttr(llvm::Attribute::NoUnwind);
   ModelGEPFunction->addFnAttr(llvm::Attribute::WillReturn);
-  ModelGEPFunction->addFnAttr(llvm::Attribute::ReadOnly);
-  ModelGEPFunction->addFnAttr(llvm::Attribute::InaccessibleMemOnly);
+  ModelGEPFunction->addFnAttr(llvm::Attribute::ReadNone);
   FunctionTags::ModelGEP.addTo(ModelGEPFunction);
   FunctionTags::IsRef.addTo(ModelGEPFunction);
 
@@ -188,8 +186,7 @@ getModelGEPRef(llvm::Module &M, llvm::Type *ReturnType, llvm::Type *BaseType) {
   auto *ModelGEPFunction = cast<Function>(MGEPCallee.getCallee());
   ModelGEPFunction->addFnAttr(llvm::Attribute::NoUnwind);
   ModelGEPFunction->addFnAttr(llvm::Attribute::WillReturn);
-  ModelGEPFunction->addFnAttr(llvm::Attribute::ReadOnly);
-  ModelGEPFunction->addFnAttr(llvm::Attribute::InaccessibleMemOnly);
+  ModelGEPFunction->addFnAttr(llvm::Attribute::ReadNone);
   FunctionTags::ModelGEPRef.addTo(ModelGEPFunction);
   FunctionTags::IsRef.addTo(ModelGEPFunction);
 
