@@ -29,6 +29,7 @@ Tag OpaqueExtractValue("OpaqueExtractvalue");
 Tag Parentheses("Parentheses");
 Tag LocalVariable("LocalVariable");
 Tag Assign("Assign");
+Tag Copy("Copy");
 Tag WritesMemory("WritesMemory");
 Tag ReadsMemory("ReadsMemory");
 } // namespace FunctionTags
@@ -158,7 +159,6 @@ getModelGEP(llvm::Module &M, llvm::Type *RetType, llvm::Type *BaseType) {
   ModelGEPFunction->addFnAttr(llvm::Attribute::InaccessibleMemOnly);
   FunctionTags::ModelGEP.addTo(ModelGEPFunction);
   FunctionTags::IsRef.addTo(ModelGEPFunction);
-  FunctionTags::ReadsMemory.addTo(ModelGEPFunction);
 
   return ModelGEPFunction;
 }
@@ -192,7 +192,6 @@ getModelGEPRef(llvm::Module &M, llvm::Type *ReturnType, llvm::Type *BaseType) {
   ModelGEPFunction->addFnAttr(llvm::Attribute::InaccessibleMemOnly);
   FunctionTags::ModelGEPRef.addTo(ModelGEPFunction);
   FunctionTags::IsRef.addTo(ModelGEPFunction);
-  FunctionTags::ReadsMemory.addTo(ModelGEPFunction);
 
   return ModelGEPFunction;
 }
@@ -293,4 +292,24 @@ void initAssignPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   // Initialize the pool from its internal llvm::Module if possible.
   // Use the stored type as a key.
   Pool.initializeFromNthArgType(FunctionTags::Assign, 0);
+}
+
+llvm::FunctionType *getCopyType(llvm::Type *ReturnedType) {
+  using namespace llvm;
+
+  // The argument is an llvm::Value representing a reference
+  SmallVector<llvm::Type *, 1> FixedArgs = { ReturnedType };
+  return FunctionType::get(ReturnedType, FixedArgs, false /* IsVarArg */);
+}
+
+void initCopyPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
+  // Set attributes
+  Pool.addFnAttribute(llvm::Attribute::NoUnwind);
+  Pool.addFnAttribute(llvm::Attribute::WillReturn);
+  Pool.addFnAttribute(llvm::Attribute::ReadOnly);
+  // Set revng tags
+  Pool.setTags({ &FunctionTags::Copy, &FunctionTags::ReadsMemory });
+  // Initialize the pool from its internal llvm::Module if possible.
+  // Use the stored type as a key.
+  Pool.initializeFromReturnType(FunctionTags::Copy);
 }

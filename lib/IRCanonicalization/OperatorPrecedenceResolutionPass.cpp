@@ -9,6 +9,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/PatternMatch.h"
+#include "llvm/IR/Value.h"
 #include "llvm/Pass.h"
 
 #include "revng/Support/Assert.h"
@@ -151,6 +152,7 @@ static bool isCustomOpcode(Instruction *I) {
       || FunctionTags::Assign.isTagOf(CalledFunc)
       || FunctionTags::ModelCast.isTagOf(CalledFunc)
       || FunctionTags::ModelGEP.isTagOf(CalledFunc)
+      || FunctionTags::Copy.isTagOf(CalledFunc)
       || FunctionTags::ModelGEPRef.isTagOf(CalledFunc)
       || FunctionTags::AllocatesLocalVariable.isTagOf(CalledFunc))
     return true;
@@ -177,6 +179,8 @@ static unsigned getCustomOpcode(Instruction *I) {
   } else if (FunctionTags::ModelGEPRef.isTagOf(CalledFunc)) {
     if (cast<CallInst>(I)->getNumArgOperands() > 2)
       return CustomInstruction::MemberAccess;
+    return CustomInstruction::Transparent;
+  } else if (FunctionTags::Copy.isTagOf(CalledFunc)) {
     return CustomInstruction::Transparent;
   }
 

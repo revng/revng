@@ -297,14 +297,15 @@ static TypeVector getReturnTypes(const llvm::CallInst *Call,
       ReturnTypes.push_back(PointedType);
 
     } else if (FunctionTags::AssignmentMarker.isTagOf(CalledFunc)
-               || FunctionTags::Parentheses.isTagOf(CalledFunc)) {
+               || FunctionTags::Parentheses.isTagOf(CalledFunc)
+               || FunctionTags::Copy.isTagOf(CalledFunc)) {
       const llvm::Value *Arg = Call->getArgOperand(0);
 
       // Structs are handled on their own
       if (Arg->getType()->isStructTy())
         return {};
 
-      // AssignmentMarker and Parentheses are transparent
+      // Forward the type
       auto It = TypeMap.find(Arg);
       if (It != TypeMap.end()) {
         ReturnTypes.push_back(It->second);

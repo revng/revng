@@ -88,6 +88,8 @@ bool RemoveLoadStore::runOnFunction(llvm::Function &F) {
   // Initialize function pool
   OpaqueFunctionsPool<llvm::Type *> AssignPool(&M, false);
   initAssignPool(AssignPool);
+  OpaqueFunctionsPool<llvm::Type *> CopyPool(&M, false);
+  initCopyPool(CopyPool);
 
   llvm::SmallVector<llvm::Instruction *, 32> ToRemove;
 
@@ -117,11 +119,18 @@ bool RemoveLoadStore::runOnFunction(llvm::Function &F) {
         revng_assert(areMemOpCompatible(PointedType, *Load->getType(), *Model));
 
         // Create an index-less ModelGEP for the pointer operand
-        auto *InjectedCall = buildDerefCall(M,
-                                            Builder,
-                                            PtrOp,
-                                            PointedType,
-                                            Load->getType());
+        auto *DerefCall = buildDerefCall(M,
+                                         Builder,
+                                         PtrOp,
+                                         PointedType,
+                                         Load->getType());
+
+        // Create a Copy to dereference the ModelGEP
+        auto *CopyFnType = getCopyType(DerefCall->getType());
+        auto *CopyFunction = CopyPool.get(DerefCall->getType(),
+                                          CopyFnType,
+                                          "Copy");
+        InjectedCall = Builder.CreateCall(CopyFunction, { DerefCall });
 
         // Add the dereferenced type to the type map
         auto [_, Inserted] = TypeMap.insert({ InjectedCall, PointedType });

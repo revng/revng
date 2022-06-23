@@ -803,6 +803,10 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
                                      TokenMap.at(StoredVal),
                                      /*WithDeclaration=*/false);
 
+  } else if (FunctionTags::Copy.isTagOf(CalledFunc)) {
+    // Forward expression
+    Expression = TokenMap.at(Call->getArgOperand(0));
+
   } else if (FunctionTags::QEMU.isTagOf(CalledFunc)
              or FunctionTags::Helper.isTagOf(CalledFunc)
              or CalledFunc->isIntrinsic()

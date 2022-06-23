@@ -28,6 +28,7 @@ extern Tag OpaqueExtractValue;
 extern Tag Parentheses;
 extern Tag LocalVariable;
 extern Tag Assign;
+extern Tag Copy;
 extern Tag ReadsMemory;
 extern Tag WritesMemory;
 
@@ -133,3 +134,11 @@ getAssignFunctionType(llvm::Type *ValueType, llvm::Type *PtrType);
 /// Initializes a pool of Assign functions, initializing it its internal
 /// Module.
 void initAssignPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+
+/// Copy() are meant to replace `load` instructions in which the pointer
+/// operand is a reference.
+llvm::FunctionType *getCopyType(llvm::Type *ReturnedType);
+
+/// Initializes a pool of Copy functions, initializing it its internal
+/// Module.
+void initCopyPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
