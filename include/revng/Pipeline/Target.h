@@ -98,7 +98,7 @@ public:
   }
 
   Target(const Kind &K) : K(&K), Exact(Exactness::Exact) {
-    for (size_t I = 0; K.depth(); I++)
+    for (size_t I = 0; I < K.depth(); I++)
       Components.emplace_back(PathComponent::all());
   }
 

@@ -10,6 +10,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/Signals.h"
 
 #include "revng/Pipes/FileContainer.h"
 
@@ -40,23 +41,29 @@ FileContainer::~FileContainer() {
 }
 
 llvm::StringRef FileContainer::getOrCreatePath() {
-  if (Path.empty())
+  if (Path.empty()) {
     cantFail(llvm::sys::fs::createTemporaryFile("", Suffix, Path));
+    llvm::sys::RemoveFileOnSignal(Path);
+  }
 
   return llvm::StringRef(Path);
 }
 
 void FileContainer::remove() {
-  if (not Path.empty())
+  if (not Path.empty()) {
+    llvm::sys::DontRemoveFileOnSignal(Path);
     cantFail(llvm::sys::fs::remove(Path));
+  }
 }
 
 FileContainer &FileContainer::operator=(const FileContainer &Other) noexcept {
   if (this == &Other)
     return *this;
 
-  if (Path.empty())
+  if (Path.empty()) {
     cantFail(llvm::sys::fs::createTemporaryFile("", Other.Suffix, Path));
+    llvm::sys::RemoveFileOnSignal(Path);
+  }
   cantFail(llvm::sys::fs::copy_file(Other.Path, Path));
   return *this;
 }

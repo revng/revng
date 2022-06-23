@@ -37,7 +37,7 @@ static cl::list<string>
   InputPipeline("P", desc("<Pipeline>"), cat(PipelineCategory));
 
 static cl::list<string> Targets(Positional,
-                                OneOrMore,
+                                ZeroOrMore,
                                 desc("<Targets to produce>..."),
                                 cat(PipelineCategory));
 
@@ -62,6 +62,12 @@ static opt<bool> ProduceAllPossibleTargets("produce-all",
                                                 "targets"),
                                            cat(PipelineCategory),
                                            init(false));
+
+static opt<bool> AnalyzeAll("analyze-all",
+                            desc("Try analyzing all possible "
+                                 "targets"),
+                            cat(PipelineCategory),
+                            init(false));
 
 static opt<bool> InvalidateAll("invalidate-all",
                                desc("Try invalidating all possible "
@@ -178,6 +184,9 @@ int main(int argc, const char *argv[]) {
 
   if (ProduceAllPossibleTargets)
     PipelineLogger.enable();
+
+  if (AnalyzeAll)
+    AbortOnError(Manager.getRunner().runAllAnalyses());
 
   runPipeline(Manager.getRunner());
 
