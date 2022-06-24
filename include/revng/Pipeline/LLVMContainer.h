@@ -139,6 +139,24 @@ public:
   }
 
 private:
+  void makeLinkageWeak(llvm::Module &Module,
+                       std::set<std::string> &Internals,
+                       std::set<std::string> &Externals) {
+    for (auto &Global : Module.global_objects()) {
+
+      if (Global.getLinkage() == llvm::GlobalValue::InternalLinkage) {
+        Internals.insert(Global.getName().str());
+        Global.setLinkage(llvm::GlobalValue::LinkOnceODRLinkage);
+      }
+
+      if (Global.getLinkage() == llvm::GlobalValue::ExternalLinkage
+          and not Global.isDeclaration()) {
+        Externals.insert(Global.getName().str());
+        Global.setLinkage(llvm::GlobalValue::LinkOnceODRLinkage);
+      }
+    }
+  }
+
   void mergeBackImpl(ThisType &&Other) final {
     auto BeforeEnumeration = this->enumerate();
     auto OtherEnumeration = Other.enumerate();
@@ -153,35 +171,11 @@ private:
     std::set<std::string> Internals;
     std::set<std::string> Externals;
 
-    // All symbols privated and not must be transformed into weak symbols, so
-    // that when multiple with the same name exists, one is dropped.
-    for (auto &Global : ToMerge.getModule().global_objects()) {
-
-      if (Global.getLinkage() == llvm::GlobalValue::InternalLinkage) {
-        Internals.insert(Global.getName().str());
-        Global.setLinkage(llvm::GlobalValue::LinkOnceODRLinkage);
-      }
-
-      if (Global.getLinkage() == llvm::GlobalValue::ExternalLinkage
-          and not Global.isDeclaration()) {
-        Externals.insert(Global.getName().str());
-        Global.setLinkage(llvm::GlobalValue::LinkOnceODRLinkage);
-      }
-    }
-
-    for (auto &Global : Module->global_objects()) {
-
-      if (Global.getLinkage() == llvm::GlobalValue::InternalLinkage) {
-        Internals.insert(Global.getName().str());
-        Global.setLinkage(llvm::GlobalValue::LinkOnceODRLinkage);
-      }
-
-      if (Global.getLinkage() == llvm::GlobalValue::ExternalLinkage
-          and not Global.isDeclaration()) {
-        Externals.insert(Global.getName().str());
-        Global.setLinkage(llvm::GlobalValue::LinkOnceODRLinkage);
-      }
-    }
+    // All symbols internal and external symbols myst be transformed into weak
+    // symbols, so that when multiple with the same name exists, one is
+    // dropped.
+    makeLinkageWeak(*Other.Module, Internals, Externals);
+    makeLinkageWeak(*Module, Internals, Externals);
 
     // Drops all metadata in the copied in module to avoid a single debug
     // metadata to be attached to multiple fuctions, which is illformed.
@@ -214,7 +208,7 @@ private:
     revng_assert(llvm::verifyModule(*ToMerge.Module, nullptr) == 0);
     Module = std::move(ToMerge.Module);
 
-    // checks that module merging commutes w.r.t. enumeration, as specified in
+    // Checks that module merging commutes w.r.t. enumeration, as specified in
     // the first comment.
     revng_assert(BeforeEnumeration.contains(this->enumerate()));
     revng_assert(this->enumerate().contains(BeforeEnumeration));
