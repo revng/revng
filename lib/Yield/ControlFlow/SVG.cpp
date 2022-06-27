@@ -5,12 +5,16 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <unordered_map>
+
+#include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/Support/FormatVariadic.h"
 
 #include "revng/Model/Binary.h"
 #include "revng/Yield/ControlFlow/Configuration.h"
 #include "revng/Yield/ControlFlow/Extraction.h"
 #include "revng/Yield/ControlFlow/NodeSizeCalculation.h"
+#include "revng/Yield/CrossRelations.h"
 #include "revng/Yield/Graph.h"
 #include "revng/Yield/PTML.h"
 #include "revng/Yield/SVG.h"
@@ -98,6 +102,20 @@ static std::string_view edgeTypeAsString(yield::Graph::EdgeType Type) {
   }
 }
 
+static std::string
+cubicBend(const yield::Graph::Point &From, const yield::Graph::Point &To) {
+  static constexpr yield::Graph::Coordinate BendFactor = 0.8;
+
+  yield::Graph::Coordinate XDistance = To.X - From.X;
+  return llvm::formatv(templates::BezierCubic,
+                       From.X + XDistance * BendFactor,
+                       -From.Y,
+                       To.X - XDistance * BendFactor,
+                       -To.Y,
+                       To.X,
+                       -To.Y);
+}
+
 static std::string edge(const std::vector<yield::Graph::Point> &Path,
                         const yield::Graph::EdgeType &Type,
                         bool UseOrthogonalBends) {
@@ -111,19 +129,9 @@ static std::string edge(const std::vector<yield::Graph::Point> &Path,
     for (size_t Index = 1; Index < Path.size(); ++Index)
       Points += llvm::formatv(templates::Line, Path[Index].X, -Path[Index].Y);
   } else {
-    revng_assert(Path.size() == 2);
-    const auto &Second = Path.back();
-
-    static constexpr yield::Graph::Coordinate BendFactor = 0.8;
-
-    yield::Graph::Coordinate XDistance = Second.X - First.X;
-    Points += llvm::formatv(templates::BezierCubic,
-                            First.X + XDistance * BendFactor,
-                            -First.Y,
-                            Second.X - XDistance * BendFactor,
-                            -Second.Y,
-                            Second.X,
-                            -Second.Y);
+    revng_assert(Path.size() >= 2);
+    for (auto Iter = Path.begin(); Iter != std::prev(Path.end()); ++Iter)
+      Points += cubicBend(*Iter, *std::next(Iter));
   }
 
   revng_assert(!Points.empty());
@@ -134,23 +142,8 @@ static std::string edge(const std::vector<yield::Graph::Point> &Path,
   return llvm::formatv(templates::Edge, edgeTypeAsString(Type), Points);
 }
 
-static std::string content(const yield::Node *Node,
-                           const yield::Function &Function,
-                           const model::Binary &Binary) {
-  revng_assert(Node != nullptr);
-
-  if (Node->Address.isValid()) {
-    // A normal node.
-    return yield::ptml::controlFlowNode(Node->Address, Function, Binary);
-  } else {
-    // The entry/exit/error node.
-    return "";
-  }
-}
-
 static std::string node(const yield::Node *Node,
-                        const yield::Function &Function,
-                        const model::Binary &Binary,
+                        std::string &&Content,
                         const yield::cfg::Configuration &Configuration) {
   yield::Graph::Size HalfSize{ Node->Size.W / 2, Node->Size.H / 2 };
   yield::Graph::Point TopLeft{ Node->Center.X - HalfSize.W,
@@ -162,7 +155,7 @@ static std::string node(const yield::Node *Node,
                             TopLeft.Y,
                             Node->Size.W,
                             Node->Size.H,
-                            content(Node, Function, Binary));
+                            std::move(Content));
 
   auto Body = llvm::formatv(templates::Rect,
                             tags::NodeBody,
@@ -264,29 +257,31 @@ defaultArrowHeads(const yield::cfg::Configuration &Configuration) {
     return duplicateArrowHeadsImpl(8, 3, 2);
 }
 
-static std::string exportCFG(const yield::Graph &Graph,
-                             const yield::Function &Function,
-                             const model::Binary &Binary,
-                             const yield::cfg::Configuration &Configuration) {
+template<bool ShouldEmitEmptyNodes, typename CallableType>
+static std::string exportGraph(const yield::Graph &Graph,
+                               const yield::cfg::Configuration &Configuration,
+                               CallableType &&Callable) {
   std::string Result;
 
   // Export all the edges.
   for (const auto *From : Graph.nodes()) {
-    for (const auto [To, Edge] : From->successor_edges()) {
-      revng_assert(Edge != nullptr);
-      // TODO: remove this if after the layouter is functional!
-      if (!Edge->Path.empty()) {
-        revng_assert(Edge->Status != yield::Graph::EdgeStatus::Unrouted);
-        Result += edge(Edge->Path,
-                       Edge->Type,
-                       Configuration.UseOrthogonalBends);
+    if (ShouldEmitEmptyNodes || From->Address.isValid()) {
+      for (const auto [To, Edge] : From->successor_edges()) {
+        if (ShouldEmitEmptyNodes || To->Address.isValid()) {
+          revng_assert(Edge != nullptr);
+          revng_assert(Edge->Status != yield::Graph::EdgeStatus::Unrouted);
+          Result += edge(Edge->Path,
+                         Edge->Type,
+                         Configuration.UseOrthogonalBends);
+        }
       }
     }
   }
 
   // Export all the nodes.
   for (const auto *Node : Graph.nodes())
-    Result += node(Node, Function, Binary, Configuration);
+    if (ShouldEmitEmptyNodes || Node->Address.isValid())
+      Result += node(Node, Callable(*Node), Configuration);
 
   Viewbox Box = calculateViewbox(Graph);
   return llvm::formatv(templates::Graph,
@@ -313,5 +308,59 @@ std::string yield::svg::controlFlow(const yield::Function &InternalFunction,
 
   sugiyama::layout(ControlFlowGraph, Configuration);
 
-  return exportCFG(ControlFlowGraph, InternalFunction, Binary, Configuration);
+  auto ContentHelper = [&](const yield::Graph::Node &Node) {
+    if (Node.Address.isValid())
+      return yield::ptml::controlFlowNode(Node.Address,
+                                          InternalFunction,
+                                          Binary);
+    else
+      return std::string{};
+  };
+  return exportGraph<true>(ControlFlowGraph, Configuration, ContentHelper);
+}
+
+std::string yield::svg::calls(const yield::CrossRelations &Relations,
+                              const model::Binary &Binary) {
+  auto Configuration = cfg::Configuration::getDefault();
+  Configuration.UseOrthogonalBends = false;
+
+  auto InternalGraph = Relations.toYieldGraph();
+
+  // Calculate node sizes
+  for (auto *Node : InternalGraph.nodes()) {
+    if (Node->Address.isValid()) {
+      // A normal node
+      auto FunctionIterator = Binary.Functions.find(Node->Address);
+      revng_assert(FunctionIterator != Binary.Functions.end());
+
+      size_t NameLength = FunctionIterator->name().size();
+      revng_assert(NameLength != 0);
+
+      Node->Size = yield::Graph::Size{ NameLength * Configuration.LabelFontSize
+                                         * Configuration.HorizontalFontFactor,
+                                       1 * Configuration.LabelFontSize
+                                         * Configuration.VerticalFontFactor };
+    } else {
+      // An entry node.
+      Node->Size = yield::Graph::Size{ 30, 30 };
+    }
+
+    Node->Size.W += Configuration.InternalNodeMarginSize * 2;
+    Node->Size.H += Configuration.InternalNodeMarginSize * 2;
+  }
+
+  sugiyama::layout(InternalGraph,
+                   Configuration,
+                   sugiyama::RankingStrategy::BreadthFirstSearch,
+                   sugiyama::LayoutOrientation::LeftToRight);
+
+  auto ContentHelper = [&Binary](const yield::Graph::Node &Node) {
+    revng_assert(Node.Address.isValid());
+
+    if (Node.NextAddress.isValid())
+      return yield::ptml::shallowFunctionLink(Node.NextAddress, Binary);
+    else
+      return yield::ptml::functionNameDefinition(Node.Address, Binary);
+  };
+  return exportGraph<false>(InternalGraph, Configuration, ContentHelper);
 }
