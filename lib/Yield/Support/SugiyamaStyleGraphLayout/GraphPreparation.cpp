@@ -213,21 +213,26 @@ void partition(const std::vector<EdgeType> &Edges,
   }
 }
 
-/// Breaks long edges into partitions by introducing new internal nodes.
-template<RankingStrategy Strategy>
-RankContainer
-partitionLongEdges(InternalGraph &Graph, NodeClassifier<Strategy> &Classifier) {
-  // To simplify the ranking algorithms, if there's more than one entry point,
-  // an artifitial entry node is added. This new node has a single edge per
-  // real entry point.
+/// To simplify the ranking algorithms, if there's more than one entry point,
+/// an artifitial entry node is added. This new node has a single edge per
+/// real entry point.
+static void
+ensureSingleEntry(InternalGraph &Graph, RankContainer *MaybeRanks = nullptr) {
   llvm::SmallVector<NodeView, 4> EntryNodes;
   for (auto *Node : Graph.nodes())
     if (!Node->hasPredecessors())
       EntryNodes.emplace_back(Node);
   revng_assert(!EntryNodes.empty());
 
-  revng_assert(Graph.getEntryNode() == nullptr);
   if (EntryNodes.size() > 1) {
+    if (Graph.getEntryNode() != nullptr) {
+      if (Graph.getEntryNode()->isVirtual()) {
+        Graph.removeNode(Graph.getEntryNode());
+        if (MaybeRanks != nullptr)
+          MaybeRanks->erase(Graph.getEntryNode());
+      }
+    }
+
     auto EntryPoint = Graph.addNode(nullptr);
     for (auto *Node : Graph.nodes())
       if (!Node->hasPredecessors() && Node->Index != EntryPoint->Index)
@@ -236,6 +241,22 @@ partitionLongEdges(InternalGraph &Graph, NodeClassifier<Strategy> &Classifier) {
   } else {
     Graph.setEntryNode(EntryNodes.front());
   }
+}
+
+/// Breaks long edges into partitions by introducing new internal nodes.
+template<RankingStrategy Strategy>
+RankContainer
+partitionLongEdges(InternalGraph &Graph, NodeClassifier<Strategy> &Classifier) {
+  // The current partitioning algorithm can only work on graphs that allow
+  // specifying the entry point in a mutable way.
+  static_assert(InternalGraph::hasEntryNode == true);
+
+  ensureSingleEntry(Graph);
+
+  // Helper lambda for graph verification.
+  auto HasNoPredecessors = [](const InternalGraph::Node *Node) -> bool {
+    return !Node->predecessorCount();
+  };
 
   // Because a long edge can also be a backwards edge, edges that are certainly
   // long need to be removed first, so that DFS-based rankind algorithms don't
@@ -243,6 +264,7 @@ partitionLongEdges(InternalGraph &Graph, NodeClassifier<Strategy> &Classifier) {
   // internally to differencite such "certainly long" edges.
 
   // Rank nodes based on a BreadthFirstSearch pass-through.
+  revng_assert(llvm::count_if(Graph.nodes(), HasNoPredecessors) == 1);
   auto Ranks = rankNodes<RankingStrategy::BreadthFirstSearch>(Graph);
 
   /// A copy of an edge label.
@@ -264,6 +286,8 @@ partitionLongEdges(InternalGraph &Graph, NodeClassifier<Strategy> &Classifier) {
   }
 
   // Calculate real ranks for the remainder of the graph.
+  ensureSingleEntry(Graph, &Ranks);
+  revng_assert(llvm::count_if(Graph.nodes(), HasNoPredecessors) == 1);
   Ranks = rankNodes<Strategy>(Graph);
 
   // Pick new long edges based on the real ranks.
@@ -281,6 +305,7 @@ partitionLongEdges(InternalGraph &Graph, NodeClassifier<Strategy> &Classifier) {
   // is greater than the rank of its predecessors.
   //
   // Eventually, this ranking score becomes a proper hierarchy.
+  revng_assert(llvm::count_if(Graph.nodes(), HasNoPredecessors) == 1);
   updateRanks(Graph, Ranks);
 
   // Make sure that new long edges are properly broken up.
@@ -289,10 +314,12 @@ partitionLongEdges(InternalGraph &Graph, NodeClassifier<Strategy> &Classifier) {
   for (auto &Edge : NewLongEdges)
     Edge.From->removeSuccessors(Edge.To);
 
+  revng_assert(llvm::count_if(Graph.nodes(), HasNoPredecessors) == 1);
   updateRanks(Graph, Ranks);
 
-  // Remove an artificial entry node if it was added.
-  if (Graph.hasEntryNode && Graph.getEntryNode() != nullptr) {
+  // Remove an artificial entry node if it was ever added.
+  revng_assert(llvm::count_if(Graph.nodes(), HasNoPredecessors) == 1);
+  if (Graph.getEntryNode() != nullptr) {
     if (Graph.getEntryNode()->isVirtual()) {
       Ranks.erase(Graph.getEntryNode());
       Graph.removeNode(Graph.getEntryNode());
