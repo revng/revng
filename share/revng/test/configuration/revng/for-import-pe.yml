@@ -1,0 +1,13 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+commands:
+  - type: revng.test-import-pe
+    from:
+      - type: revng-qa.compiled
+      - type: revng-qa.generated-pdb
+    filter: windows
+    command: |-
+      revng model import binary --use-pdb="$INPUT2" "$INPUT1"
+        | revng model compare "${SOURCE}.model.yml"

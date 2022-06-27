@@ -1,0 +1,20 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+---
+Functions:
+  - CustomName: "main"
+    OriginalName: main
+    Prototype: "/Types/CABIFunctionType-1215409121627673421"
+Types:
+  - Kind: PrimitiveType
+    ID: 1540
+    PrimitiveKind: Signed
+    Size: 4
+  - Kind: CABIFunctionType
+    ID: 1215409121627673421
+    ABI: Microsoft_x86_cdecl
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-1540"
+    Arguments: []
