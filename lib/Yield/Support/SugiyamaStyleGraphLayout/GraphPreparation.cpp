@@ -229,8 +229,9 @@ partitionLongEdges(InternalGraph &Graph, NodeClassifier<Strategy> &Classifier) {
   revng_assert(Graph.getEntryNode() == nullptr);
   if (EntryNodes.size() > 1) {
     auto EntryPoint = Graph.addNode(nullptr);
-    for (auto &Node : EntryNodes)
-      EntryPoint->addSuccessor(Node, nullptr);
+    for (auto *Node : Graph.nodes())
+      if (!Node->hasPredecessors() && Node->Index != EntryPoint->Index)
+        EntryPoint->addSuccessor(Node, nullptr);
     Graph.setEntryNode(EntryPoint);
   } else {
     Graph.setEntryNode(EntryNodes.front());
