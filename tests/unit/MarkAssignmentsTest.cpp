@@ -491,13 +491,10 @@ BOOST_AUTO_TEST_CASE(Loop) {
                          None,
                        } },
     BBAssignmentFlags{ /*.BBName =*/"head",
-                       /*.InstrFlags =*/{ None, None } },
-    BBAssignmentFlags{ /*.BBName =*/"tail",
-                       /*.InstrFlags =*/{ None,
-                                          None,
-                                          HasInterferingSideEffects,
-                                          HasSideEffects,
-                                          None } },
+                       /*.InstrFlags =*/{ HasUsesOutsideBB, None } },
+    BBAssignmentFlags{
+      /*.BBName =*/"tail",
+      /*.InstrFlags =*/{ None, None, None, HasSideEffects, None } },
     BBAssignmentFlags{ /*.BBName =*/"end",
                        /*.InstrFlags =*/{ None } },
   };

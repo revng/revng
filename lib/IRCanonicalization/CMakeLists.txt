@@ -7,9 +7,15 @@ add_subdirectory(MarkAssignments)
 revng_add_analyses_library(
   revngcIRCanonicalization
   revngc
+  DuplicateReferences.cpp
   ExitSSAPass.cpp
+  FoldModelGEP.cpp
+  MakeLocalVariables.cpp
   MakeModelCastPass.cpp
   MakeModelGEPPass.cpp
+  RemoveRefDeref.cpp
+  RemoveLoadStore.cpp
+  RemovePointerCasts.cpp
   TwosComplementArithmeticNormalizationPass.cpp
   OperatorPrecedenceResolutionPass.cpp)
 

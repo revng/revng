@@ -12,8 +12,10 @@
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRHelpers.h"
 #include "revng/Support/MonotoneFramework.h"
 
+#include "revng-c/Backend/VariableScopeAnalysis.h"
 #include "revng-c/Support/DecompilationHelpers.h"
 #include "revng-c/Support/FunctionTags.h"
 
@@ -32,47 +34,64 @@ Logger<> MarkLog{ "mark-assignments" };
 
 namespace MarkAssignments {
 
+using TaintSetT = std::set<const llvm::Instruction *>;
+
 static bool
-haveInterferingSideEffects(const llvm::Instruction & /*InstrWithSideEffects*/,
-                           const llvm::Instruction &Other) {
-  // Calls to pure functions never have interfering side effects.
-  if (isCallToPure(Other))
+haveInterferingSideEffects(const llvm::Instruction *InstrWithSideEffects,
+                           const llvm::Instruction &Other,
+                           const TaintSetT &TaintSet) {
+  // Branch instructions never have side effects, so no Other could possibly
+  // interfere with them.
+  if (isa<llvm::BranchInst>(InstrWithSideEffects)
+      or isa<llvm::SwitchInst>(InstrWithSideEffects))
     return false;
 
-  return true;
+  const auto MightInterfere = [](const llvm::Instruction *I) {
+    if (hasSideEffects(*I))
+      return true;
+
+    // TODO: we could check for aliasing between InstrWithSideEffects and Other
+    // here, but it's costly and complicated. We should do that only if
+    // necessary.
+    if (isa<llvm::LoadInst>(I))
+      return true;
+
+    // TODO: we could check for aliasing between InstrWithSideEffects and Other
+    // here, but it's costly and complicated. We should do that only if
+    // necessary.
+    if (isCallToTagged(I, FunctionTags::ReadsMemory))
+      return true;
+
+    return false;
+  };
+
+  return MightInterfere(&Other) or llvm::any_of(TaintSet, MightInterfere);
 }
 
-class IntersectionMonotoneSetWithTaint;
-
-using LatticeElement = IntersectionMonotoneSetWithTaint;
-
-class IntersectionMonotoneSetWithTaint {
+class MonotoneTaintMap {
 public:
   using Instruction = llvm::Instruction;
   using TaintMap = std::map<Instruction *, std::set<const Instruction *>>;
   using const_iterator = typename TaintMap::const_iterator;
   using iterator = typename TaintMap::iterator;
   using size_type = typename TaintMap::size_type;
+  using node_type = typename TaintMap::node_type;
 
 protected:
   TaintMap TaintedPending;
   bool IsBottom;
 
 protected:
-  IntersectionMonotoneSetWithTaint(const IntersectionMonotoneSetWithTaint &) =
-    default;
+  MonotoneTaintMap(const MonotoneTaintMap &) = default;
 
 public:
-  IntersectionMonotoneSetWithTaint() : TaintedPending(), IsBottom(true){};
+  MonotoneTaintMap() : TaintedPending(), IsBottom(true){};
 
-  IntersectionMonotoneSetWithTaint copy() const { return *this; }
-  IntersectionMonotoneSetWithTaint &
-  operator=(const IntersectionMonotoneSetWithTaint &) = default;
+  MonotoneTaintMap copy() const { return *this; }
+  MonotoneTaintMap &operator=(const MonotoneTaintMap &) = default;
 
-  IntersectionMonotoneSetWithTaint(IntersectionMonotoneSetWithTaint &&) =
-    default;
-  IntersectionMonotoneSetWithTaint &
-  operator=(IntersectionMonotoneSetWithTaint &&) = default;
+  MonotoneTaintMap(MonotoneTaintMap &&) = default;
+  MonotoneTaintMap &operator=(MonotoneTaintMap &&) = default;
 
 public:
   const_iterator begin() const { return TaintedPending.begin(); }
@@ -94,14 +113,11 @@ public:
     return TaintedPending.size();
   }
 
-  void insert(Instruction *Key) {
+  void insertWithTaint(Instruction *Key, TaintSetT &&Taint) {
     revng_assert(not IsBottom);
-    TaintedPending[Key];
-  }
-
-  size_type erase(Instruction *El) {
-    revng_assert(not IsBottom);
-    return TaintedPending.erase(El);
+    auto &TaintSet = TaintedPending[Key];
+    TaintSet.insert(Key);
+    TaintSet.merge(std::move(Taint));
   }
 
   const_iterator erase(const_iterator It) {
@@ -109,25 +125,24 @@ public:
     return this->TaintedPending.erase(It);
   }
 
+  node_type extract(Instruction *I) { return TaintedPending.extract(I); }
+
   bool isPending(Instruction *Key) const {
     revng_assert(not IsBottom);
     return TaintedPending.count(Key);
   }
 
 public:
-  static IntersectionMonotoneSetWithTaint bottom() {
-    return IntersectionMonotoneSetWithTaint();
-  }
+  static MonotoneTaintMap bottom() { return MonotoneTaintMap(); }
 
-  static IntersectionMonotoneSetWithTaint top() {
-    IntersectionMonotoneSetWithTaint Res = {};
+  static MonotoneTaintMap top() {
+    MonotoneTaintMap Res = {};
     Res.IsBottom = false;
     return Res;
   }
 
 public:
-  void combine(const IntersectionMonotoneSetWithTaint &Other) {
-    // Simply intersects the sets
+  void combine(const MonotoneTaintMap &Other) {
     if (Other.IsBottom)
       return;
 
@@ -142,21 +157,24 @@ public:
     auto OtherCopy = Other.copy();
     const_iterator OtherEnd = OtherCopy.end();
 
+    // For each element in TaintedPending, check if Other also has it.
     iterator SetIt = this->TaintedPending.begin();
     iterator SetEnd = this->TaintedPending.end();
-    for (; SetIt != SetEnd; ++SetIt) {
+    while (SetIt != SetEnd) {
       iterator OtherIt = OtherCopy.TaintedPending.find(SetIt->first);
-      if (OtherIt == OtherEnd)
+      if (OtherIt == OtherEnd) {
+        // If Other does not have the same entry, we drop it.
         ToDrop.push_back(SetIt);
-      else
-        SetIt->second.merge(OtherIt->second);
+        SetIt = this->TaintedPending.erase(SetIt);
+      } else {
+        // If Other also has the same entry, we merge the taint sets
+        SetIt->second.merge(std::move(OtherIt->second));
+        ++SetIt;
+      }
     }
-
-    for (iterator I : ToDrop)
-      this->TaintedPending.erase(I);
   }
 
-  bool lowerThanOrEqual(const IntersectionMonotoneSetWithTaint &Other) const {
+  bool lowerThanOrEqual(const MonotoneTaintMap &Other) const {
     if (IsBottom)
       return true;
 
@@ -191,6 +209,8 @@ public:
 };
 
 using SuccVector = llvm::SmallVector<llvm::BasicBlock *, 2>;
+
+using LatticeElement = MonotoneTaintMap;
 
 class Analysis : public MonotoneFramework<Analysis,
                                           llvm::BasicBlock *,
@@ -288,24 +308,34 @@ public:
       revng_log(MarkLog,
                 "Analyzing Instr: '" << &I << "': " << dumpToString(&I));
 
+      TaintSetT OperandTaintSet;
       {
-        // Operands are removed from pending
+        // Look at the operands of I.
+        // If some of them is still pending, we want to remove them from
+        // pending, because at the end of this function we will either mark I
+        // as assigned, or insert I in pending.
+
         revng_log(MarkLog, "Remove operands from pending.");
         LoggerIndent MoreIndent(MarkLog);
 
         {
           revng_log(MarkLog, "Operands:");
           LoggerIndent EvenMoreMoreIndent(MarkLog);
+
           for (auto &TheUse : I.operands()) {
             Value *V = TheUse.get();
+
             revng_log(MarkLog, "Op: '" << V << "': " << dumpToString(V));
             LoggerIndent _(MarkLog);
 
             if (auto *UsedInstr = dyn_cast<Instruction>(V)) {
               revng_log(MarkLog, "Op is Instruction: erase it from pending");
-              Pending.erase(UsedInstr);
+              auto Handle = Pending.extract(UsedInstr);
+              if (not Handle.empty())
+                OperandTaintSet.merge(std::move(Handle.mapped()));
+
             } else {
-              revng_log(MarkLog, "Op is NOT Instruction: leave it in pending");
+              revng_log(MarkLog, "Op is NOT Instruction: never in pending");
               revng_assert(isa<Argument>(V) or isa<Constant>(V)
                            or isa<BasicBlock>(V) or isa<MetadataAsValue>(V));
             }
@@ -317,30 +347,26 @@ public:
       // reach this stage.
       revng_assert(not isa<PHINode>(I));
 
-      // Skip branching instructions, since they never generate assignments.
-      if (isa<BranchInst>(I) or isa<SwitchInst>(I))
+      // Instructions that only allocate a local variable do not need an
+      // assignment.
+      if (isCallToTagged(&I, FunctionTags::AllocatesLocalVariable)) {
+        // The OperandTaintSet is discarded here. This is not a problem, because
+        // it should always be empty.
+        revng_assert(not hasSideEffects(I));
+        revng_assert(OperandTaintSet.empty());
         continue;
+      }
 
-      if (isa<StoreInst>(&I) or (isa<CallInst>(&I) and not isCallToPure(I))) {
-        // StoreInst and CallInst that are not pure always have side effects.
+      // Assign instructions that have side effects
+      if (hasSideEffects(I)) {
         Assignments[&I].set(Reasons::HasSideEffects);
         revng_log(MarkLog, "Instr HasSideEffects");
-
-        // Also, force calls to revng_stack_frame to behave like if they had
-        // many uses, so that they generate a local variable.
-        if (auto *Call = dyn_cast<CallInst>(&I)) {
-          auto *Callee = Call->getCalledFunction();
-          if (Callee and FunctionTags::AllocatesLocalVariable.isTagOf(Callee)) {
-            Assignments[&I].set(Reasons::HasManyUses);
-            revng_log(MarkLog, "Instr HasManyUses");
-          }
-        }
       }
 
       switch (I.getNumUses()) {
 
       case 1: {
-        // Instructions with a single used do not necessarily need to generate
+        // Instructions with a single use do not necessarily need to generate
         // an assignment.
       } break;
 
@@ -361,19 +387,26 @@ public:
       } break;
       }
 
-      auto SerIt = Assignments.find(&I);
-      if (SerIt != Assignments.end()
-          and (SerIt->second.hasSideEffects()
-               or SerIt->second.isSet(Reasons::AlwaysAssign))) {
+      // If an instruction is used outside of the scope in which it appears in
+      // the LLVM IR, we need to create a local variable for it.
+      if (needsTopScopeDeclaration(I)) {
+        Assignments[&I].set(Reasons::HasUsesOutsideBB);
+        revng_log(MarkLog,
+                  "Instr has uses outside its basic block: " << I.getNumUses());
+      }
+
+      // If we've decided to assign I, we need to consider if it might interfere
+      // with other instructions that are still pending.
+      if (Assignments.contains(&I) or I.getType()->isVoidTy()) {
         revng_log(MarkLog, "Assign Pending");
         // We also have to assign all the instructions that are still pending
         // and have interfering side effects.
         for (auto PendingIt = Pending.begin(); PendingIt != Pending.end();) {
-          auto *PendingInstr = PendingIt->first;
+          const auto [PendingInstr, TaintSet] = *PendingIt;
           revng_log(MarkLog,
                     "Pending: '" << PendingInstr
                                  << "': " << dumpToString(PendingInstr));
-          if (haveInterferingSideEffects(I, *PendingInstr)) {
+          if (haveInterferingSideEffects(&I, *PendingInstr, TaintSet)) {
             Assignments[PendingInstr].set(Reasons::HasInterferingSideEffects);
             revng_log(MarkLog, "HasInterferingSideEffects");
 
@@ -383,9 +416,26 @@ public:
           }
         }
       } else {
-        Pending.insert(&I);
-        revng_log(MarkLog,
-                  "Add to pending: '" << &I << "': " << dumpToString(&I));
+        // I is not assigned and it's not void (which are always emitted), so
+        // we have to track that it's pending.
+        if (not I.getType()->isVoidTy()) {
+          Pending.insertWithTaint(&I, std::move(OperandTaintSet));
+          revng_log(MarkLog,
+                    "Add to pending: '" << &I << "': " << dumpToString(&I));
+        } else {
+          // The OperandTaintSet is discarded here. This is not a problem,
+          // because one of the two following cases is always true.
+          // - The instructions in the taint set were only ever affecting the
+          //   current I. Discarding them means loosing track of them, but given
+          //   that the void instructions are always serialized in C, this does
+          //   not constitute a problem for side effects.
+          // - The instruction in the taint set were also in the taint set of
+          //   some other instruction J. That could cause J to be assigned later
+          //   for interfering side effects. This would still be correct.
+          revng_log(MarkLog,
+                    "void instruction without side effects: '"
+                      << &I << "': " << dumpToString(&I));
+        }
       }
     }
 

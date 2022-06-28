@@ -9,6 +9,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/PatternMatch.h"
+#include "llvm/IR/Value.h"
 #include "llvm/Pass.h"
 
 #include "revng/Support/Assert.h"
@@ -39,7 +40,9 @@ enum CustomInstruction : unsigned {
   Assignment = getInstructionLLVMOpcodeCount() + 2,
   Cast = getInstructionLLVMOpcodeCount() + 3,
   Indirection = getInstructionLLVMOpcodeCount() + 4,
-  MemberAccess = getInstructionLLVMOpcodeCount() + 5
+  MemberAccess = getInstructionLLVMOpcodeCount() + 5,
+  LocalVariable = getInstructionLLVMOpcodeCount() + 6,
+  Transparent = getInstructionLLVMOpcodeCount() + 7
 };
 
 struct InstToOpPrec {
@@ -56,9 +59,10 @@ struct InstToOpPrec {
 };
 
 // Table that maps LLVM opcodes to the equivalent C operator precedence priority
-static constexpr std::array<const InstToOpPrec, 35>
+static constexpr std::array<const InstToOpPrec, 34>
   LLVMOpcodeToCOpPrecedenceArray{
     { { InstToOpPrec(CustomInstruction::Assignment, 0, RIGHT_TO_LEFT) },
+      { InstToOpPrec(CustomInstruction::LocalVariable, 10, LEFT_TO_RIGHT) },
       { InstToOpPrec(Instruction::Select, 1, RIGHT_TO_LEFT) },
       { InstToOpPrec(Instruction::Or, 2, LEFT_TO_RIGHT) },
       { InstToOpPrec(Instruction::Xor, 3, LEFT_TO_RIGHT) },
@@ -83,21 +87,20 @@ static constexpr std::array<const InstToOpPrec, 35>
       { InstToOpPrec(Instruction::FNeg, 9, RIGHT_TO_LEFT) },
       { InstToOpPrec(Instruction::Load, 9, RIGHT_TO_LEFT) },
       { InstToOpPrec(Instruction::SExt, 9, RIGHT_TO_LEFT) },
-      { InstToOpPrec(Instruction::ZExt, 9, RIGHT_TO_LEFT) },
       { InstToOpPrec(Instruction::Trunc, 9, RIGHT_TO_LEFT) },
-      { InstToOpPrec(Instruction::IntToPtr, 9, RIGHT_TO_LEFT) },
-      { InstToOpPrec(Instruction::PtrToInt, 9, RIGHT_TO_LEFT) },
       { InstToOpPrec(Instruction::BitCast, 9, RIGHT_TO_LEFT) },
       { InstToOpPrec(Instruction::GetElementPtr, 9, RIGHT_TO_LEFT) },
+      { InstToOpPrec(Instruction::Alloca, 9, RIGHT_TO_LEFT) },
       { InstToOpPrec(CustomInstruction::AddressOf, 9, RIGHT_TO_LEFT) },
       { InstToOpPrec(CustomInstruction::Indirection, 9, RIGHT_TO_LEFT) },
       { InstToOpPrec(CustomInstruction::Cast, 9, RIGHT_TO_LEFT) },
       { InstToOpPrec(CustomInstruction::MemberAccess, 10, LEFT_TO_RIGHT) } }
   };
 
-static constexpr std::array<const InstToOpPrec, 35>
+static constexpr std::array<const InstToOpPrec, 34>
   LLVMOpcodeToNopOpPrecedenceArray{
     { { InstToOpPrec(CustomInstruction::Assignment, 0, RIGHT_TO_LEFT) },
+      { InstToOpPrec(CustomInstruction::LocalVariable, 0, LEFT_TO_RIGHT) },
       { InstToOpPrec(Instruction::Select, 0, RIGHT_TO_LEFT) },
       { InstToOpPrec(Instruction::Or, 0, LEFT_TO_RIGHT) },
       { InstToOpPrec(Instruction::Xor, 0, LEFT_TO_RIGHT) },
@@ -122,12 +125,10 @@ static constexpr std::array<const InstToOpPrec, 35>
       { InstToOpPrec(Instruction::FNeg, 0, RIGHT_TO_LEFT) },
       { InstToOpPrec(Instruction::Load, 0, RIGHT_TO_LEFT) },
       { InstToOpPrec(Instruction::SExt, 0, RIGHT_TO_LEFT) },
-      { InstToOpPrec(Instruction::ZExt, 0, RIGHT_TO_LEFT) },
       { InstToOpPrec(Instruction::Trunc, 0, RIGHT_TO_LEFT) },
-      { InstToOpPrec(Instruction::IntToPtr, 0, RIGHT_TO_LEFT) },
-      { InstToOpPrec(Instruction::PtrToInt, 0, RIGHT_TO_LEFT) },
       { InstToOpPrec(Instruction::BitCast, 0, RIGHT_TO_LEFT) },
       { InstToOpPrec(Instruction::GetElementPtr, 0, RIGHT_TO_LEFT) },
+      { InstToOpPrec(Instruction::Alloca, 0, RIGHT_TO_LEFT) },
       { InstToOpPrec(CustomInstruction::AddressOf, 0, RIGHT_TO_LEFT) },
       { InstToOpPrec(CustomInstruction::Indirection, 0, RIGHT_TO_LEFT) },
       { InstToOpPrec(CustomInstruction::Cast, 0, RIGHT_TO_LEFT) },
@@ -135,7 +136,7 @@ static constexpr std::array<const InstToOpPrec, 35>
   };
 
 static auto
-findOpcode(const std::array<const InstToOpPrec, 35> *Table, unsigned Opcode) {
+findOpcode(const std::array<const InstToOpPrec, 34> *Table, unsigned Opcode) {
   return find_if(*Table, [&](const auto &Elem) {
     return Elem.InstructionOpcode == Opcode;
   });
@@ -148,8 +149,12 @@ static bool isCustomOpcode(Instruction *I) {
 
   if (FunctionTags::AddressOf.isTagOf(CalledFunc)
       || FunctionTags::AssignmentMarker.isTagOf(CalledFunc)
-      || (FunctionTags::ModelCast.isTagOf(CalledFunc))
-      || (FunctionTags::ModelGEP.isTagOf(CalledFunc)))
+      || FunctionTags::Assign.isTagOf(CalledFunc)
+      || FunctionTags::ModelCast.isTagOf(CalledFunc)
+      || FunctionTags::ModelGEP.isTagOf(CalledFunc)
+      || FunctionTags::Copy.isTagOf(CalledFunc)
+      || FunctionTags::ModelGEPRef.isTagOf(CalledFunc)
+      || FunctionTags::AllocatesLocalVariable.isTagOf(CalledFunc))
     return true;
 
   return false;
@@ -160,14 +165,23 @@ static unsigned getCustomOpcode(Instruction *I) {
 
   if (FunctionTags::AddressOf.isTagOf(CalledFunc))
     return CustomInstruction::AddressOf;
-  else if (FunctionTags::AssignmentMarker.isTagOf(CalledFunc))
+  else if (FunctionTags::AssignmentMarker.isTagOf(CalledFunc)
+           or FunctionTags::Assign.isTagOf(CalledFunc))
     return CustomInstruction::Assignment;
+  else if (FunctionTags::AllocatesLocalVariable.isTagOf(CalledFunc))
+    return CustomInstruction::LocalVariable;
   else if (FunctionTags::ModelCast.isTagOf(CalledFunc))
     return CustomInstruction::Cast;
   else if (FunctionTags::ModelGEP.isTagOf(CalledFunc)) {
     if (cast<CallInst>(I)->getNumArgOperands() > 2)
       return CustomInstruction::MemberAccess;
     return CustomInstruction::Indirection;
+  } else if (FunctionTags::ModelGEPRef.isTagOf(CalledFunc)) {
+    if (cast<CallInst>(I)->getNumArgOperands() > 2)
+      return CustomInstruction::MemberAccess;
+    return CustomInstruction::Transparent;
+  } else if (FunctionTags::Copy.isTagOf(CalledFunc)) {
+    return CustomInstruction::Transparent;
   }
 
   revng_abort();
@@ -181,9 +195,31 @@ static unsigned getOpcode(Instruction *I) {
   return I->getOpcode();
 }
 
+static bool isTransparentOpCode(llvm::Value *V) {
+  if (isa<IntToPtrInst>(V) || isa<PtrToIntInst>(V) || isa<ZExtInst>(V))
+    return true;
+
+  if (auto *I = dyn_cast<llvm::Instruction>(V))
+    if (getOpcode(I) == CustomInstruction::Transparent)
+      return true;
+
+  return false;
+}
+
+static llvm::Value *traverseTransparentOpcode(llvm::Value *V) {
+  if (isa<IntToPtrInst>(V) || isa<PtrToIntInst>(V) || isa<ZExtInst>(V))
+    return llvm::cast<llvm::Instruction>(V)->getOperand(0);
+
+  if (auto *Call = dyn_cast<llvm::CallInst>(V))
+    if (getOpcode(Call) == CustomInstruction::Transparent)
+      return Call->getArgOperand(0);
+
+  revng_abort();
+}
+
 struct OperatorPrecedenceResolutionPass : public llvm::FunctionPass {
 private:
-  const std::array<const InstToOpPrec, 35>
+  const std::array<const InstToOpPrec, 34>
     *LLVMOpcodeToLangOpPrecedenceArray = nullptr;
 
 public:
@@ -219,22 +255,25 @@ bool OPRP::needsParentheses(Instruction *I, Use &U) {
   // not for sure.
   bool VerifyParentheses = false;
 
-  // Isn't the use an instruction? Will not emit parentheses
-  if (!isa<Instruction>(U.get()))
+  // If the operand is not an instruction (e.g. constant, arguments), don't emit
+  // parentheses
+  llvm::Value *Op = dyn_cast<Instruction>(U.get());
+  if (not Op)
     return false;
 
   // Verify emission of parentheses for binary operators, load and cast
   // instructions. Always emit parentheses when encountering calls.
-  if (isa<BinaryOperator>(I) || isa<CmpInst>(I) || isa<ICmpInst>(I)
-      || isa<SelectInst>(I) || isa<LoadInst>(I) || isa<CastInst>(I))
-    VerifyParentheses = true;
-  else if (isa<AllocaInst>(I) || isa<InsertElementInst>(I)
-           || isa<ExtractElementInst>(I) || isa<InsertValueInst>(I)
-           || isa<ExtractValueInst>(I) || isa<ShuffleVectorInst>(I)
-           || isa<StoreInst>(I) || isa<BranchInst>(I) || isa<CallBrInst>(I)
-           || isa<IndirectBrInst>(I) || isa<ReturnInst>(I)
-           || isa<IntrinsicInst>(I))
+  if (isa<AllocaInst>(I) || isa<InsertElementInst>(I)
+      || isa<ExtractElementInst>(I) || isa<InsertValueInst>(I)
+      || isa<ExtractValueInst>(I) || isa<ShuffleVectorInst>(I)
+      || isa<StoreInst>(I) || isa<BranchInst>(I) || isa<CallBrInst>(I)
+      || isa<IndirectBrInst>(I) || isa<ReturnInst>(I) || isa<IntrinsicInst>(I)
+      || isa<IntToPtrInst>(I) || isa<PtrToIntInst>(I) || isa<ZExtInst>(I))
     return false;
+
+  else if (isa<BinaryOperator>(I) || isa<CmpInst>(I) || isa<ICmpInst>(I)
+           || isa<SelectInst>(I) || isa<LoadInst>(I) || isa<CastInst>(I))
+    VerifyParentheses = true;
 
   // Does the current instruction represent a custom operator?
   if (isa<CallInst>(I) && isCustomOpcode(I)) {
@@ -245,15 +284,26 @@ bool OPRP::needsParentheses(Instruction *I, Use &U) {
       VerifyParentheses = (U.getOperandNo() == 1);
       break;
     case CustomInstruction::Assignment:
+    case CustomInstruction::LocalVariable:
+    case CustomInstruction::Transparent:
       return false;
     }
   }
 
-  Instruction *Ins = cast<Instruction>(U.get());
+  // Traverse transparent instructions
+  while (isTransparentOpCode(Op))
+    Op = traverseTransparentOpcode(Op);
+
+  // If the traversed operand is not an instruction (i.e. constant, argument
+  // etc.), don't emit parenthesis
+  llvm::Instruction *Ins = dyn_cast<Instruction>(Op);
+  if (not Ins)
+    return false;
 
   // Skip parenthesizing the expression when the Use is an `Assignment`
   if (isa<CallInst>(Ins) && isCustomOpcode(Ins)
-      && getCustomOpcode(Ins) == CustomInstruction::Assignment)
+      && (getCustomOpcode(Ins) == CustomInstruction::Assignment
+          or getCustomOpcode(Ins) == CustomInstruction::LocalVariable))
     return false;
 
   // No need to emit parentheses when the operand is a custom operator or a
@@ -305,8 +355,11 @@ bool OPRP::runOnFunction(Function &F) {
         if (needsParentheses(&I, Op))
           InstructionsToBeParenthesized.emplace_back(&I, &Op);
 
-  if (InstructionsToBeParenthesized.empty())
+  if (InstructionsToBeParenthesized.empty()) {
+    // OPRP has executed for this function
+    F.setMetadata(ExplicitParenthesesMDName, MDNode::get(F.getContext(), {}));
     return false;
+  }
 
   IRBuilder<> Builder(F.getContext());
   for (const auto &[I, Op] : InstructionsToBeParenthesized) {

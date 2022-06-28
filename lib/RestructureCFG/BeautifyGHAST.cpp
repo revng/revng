@@ -113,35 +113,62 @@ static void flipEmptyThen(ASTNode *RootNode, ASTTree &AST) {
   }
 }
 
-static bool hasSideEffects(IfNode *If) {
-  // Compute how many statement we need to serialize for the basicblock
-  // associated with the internal `IfNode`.
-  ExprNode *ExprBB = If->getCondExpr();
-  if (auto *Atomic = llvm::dyn_cast<AtomicNode>(ExprBB)) {
+static RecursiveCoroutine<bool> hasSideEffects(ExprNode *Expr) {
+  switch (Expr->getKind()) {
+
+  case ExprNode::NodeKind::NK_Atomic: {
+    auto *Atomic = llvm::cast<AtomicNode>(Expr);
     llvm::BasicBlock *BB = Atomic->getConditionalBasicBlock();
     for (llvm::Instruction &I : *BB) {
 
-      // All stores have side effects
-      if (llvm::isa<llvm::StoreInst>(I))
-        return true;
-
-      if (auto *Call = llvm::dyn_cast<CallInst>(&I)) {
-        // If it's a call to an assignment marker, look at the second
-        // argument. If it's a true constant, than it has side effects.
-        auto *Callee = Call->getCalledFunction();
-        if (Callee and FunctionTags::AssignmentMarker.isTagOf(Callee)) {
+      if (I.getType()->isVoidTy() and hasSideEffects(I)) {
+        // For Instructions with void type, the MarkAssignment pass cannot
+        // properly wrap them in calls to AssignmentMarker, so we need to
+        // explicitly ask if they have side effects.
+        rc_return true;
+      } else {
+        // For Instruction with non-void type, the side effects are marked by
+        // the MarkAssignment pass, so we take that in consideration.
+        if (auto *Call = isCallToTagged(&I, FunctionTags::AssignmentMarker)) {
+          // If it's a call to an assignment marker, look at the second
+          // argument. If it's a true constant, than it has side effects.
           auto *Arg1 = Call->getArgOperand(1);
           auto *HasSideEffects = llvm::cast<llvm::ConstantInt>(Arg1);
-          return HasSideEffects->isOne();
+          if (HasSideEffects->isOne())
+            rc_return true;
         }
-
-        // All calls that are not pure have side effects
-        if (not isCallToPure(*Call))
-          return true;
       }
     }
+    rc_return false;
+  } break;
+
+  case ExprNode::NodeKind::NK_Not: {
+    auto *Not = llvm::cast<NotNode>(Expr);
+    rc_return not rc_recur hasSideEffects(Not->getNegatedNode());
+  } break;
+
+  case ExprNode::NodeKind::NK_And: {
+    auto *And = llvm::cast<AndNode>(Expr);
+    const auto [LHS, RHS] = And->getInternalNodes();
+    rc_return rc_recur hasSideEffects(LHS) and rc_recur hasSideEffects(RHS);
+  } break;
+
+  case ExprNode::NodeKind::NK_Or: {
+    auto *Or = llvm::cast<OrNode>(Expr);
+    const auto [LHS, RHS] = Or->getInternalNodes();
+    rc_return rc_recur hasSideEffects(LHS) or rc_recur hasSideEffects(RHS);
+  } break;
+
+  default:
+    revng_abort();
   }
-  return false;
+  rc_return true;
+}
+
+static bool hasSideEffects(IfNode *If) {
+  // Compute how many statement we need to serialize for the basicblock
+  // associated with the internal `IfNode`.
+  return hasSideEffects(If->getCondExpr());
 }
 
 // Helper function to simplify short-circuit IFs
@@ -780,7 +807,7 @@ computeCumulativeNodeWeight(ASTNode *Node,
   } break;
   case ASTNode::NK_Code: {
 
-    // TODO: At the moment we use the BasicBlock size to assign a weight to the
+    // FIXME: At the moment we use the BasicBlock size to assign a weight to the
     //       code nodes. In future, we would want to use the number of statement
     //       emitted in the decompiled code as weight (and use
     //       `AssignmentMarker`s to do that).

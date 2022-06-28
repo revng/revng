@@ -22,9 +22,15 @@ extern Tag IsRef;
 extern Tag AddressOf;
 extern Tag ModelGEP;
 extern Tag ModelCast;
+extern Tag ModelGEPRef;
 extern Tag AssignmentMarker;
 extern Tag OpaqueExtractValue;
 extern Tag Parentheses;
+extern Tag LocalVariable;
+extern Tag Assign;
+extern Tag Copy;
+extern Tag ReadsMemory;
+extern Tag WritesMemory;
 
 inline Tag LiftingArtifactsRemoved("LiftingArtifactsRemoved", Isolated);
 
@@ -56,21 +62,46 @@ inline llvm::CallInst *isCallToTagged(llvm::Value *V, FunctionTags::Tag &T) {
   return nullptr;
 }
 
-/// Returns the type of an AddressOf function with return type T, in context C.
-/// This is intended to be used to get functions from the AddressOfPool created
-/// with createAddresOfPool()
-llvm::FunctionType *
-getAddressOfFunctionType(llvm::LLVMContext &C, llvm::Type *T);
+/// This struct can be used as a key of an OpaqueFunctionsPool where both
+/// the return type and one of the arguments are needed to identify a function
+/// in the pool.
+struct TypePair {
+  llvm::Type *RetType;
+  llvm::Type *ArgType;
+
+  bool operator<(const TypePair &Rhs) const {
+    return RetType < Rhs.RetType
+           or (RetType == Rhs.RetType and ArgType < Rhs.ArgType);
+  }
+};
+
+/// AddressOf functions are used to transform a reference into a pointer.
+///
+/// \param RetType The LLVM type returned by the Addressof call
+/// \param BaseType The LLVM type of the second argument (the reference that
+/// we want to transform into a pointer).
+llvm::FunctionType *getAddressOfType(llvm::Type *RetType, llvm::Type *BaseType);
 
 /// Initializes a pool of AddressOf functions, initializing it its internal
 /// Module
-void initAddressOfPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+void initAddressOfPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M);
 
 /// Initializes a pool of Parentheses functions
 void initParenthesesPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
 
+/// ModelGEP functions are used to replace pointer arithmetics with a navigation
+/// of the Model.
+///
+/// \param RetType ModelGEP should return an integer of the size of the gepped
+/// element
+/// \param BaseType The LLVM type of the second argument (the base pointer)
 llvm::Function *
-getModelGEP(llvm::Module &M, llvm::Type *RetTy, llvm::Type *BaseAddressTy);
+getModelGEP(llvm::Module &M, llvm::Type *RetType, llvm::Type *BaseType);
+
+/// ModelGEP Ref is a ModelGEP where the base value is considered to be a
+/// reference.
+llvm::Function *
+getModelGEPRef(llvm::Module &M, llvm::Type *RetType, llvm::Type *BaseType);
 
 /// Initializes a pool of ModelCast functions
 void initModelCastPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
@@ -78,25 +109,36 @@ void initModelCastPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
 llvm::Function *getAssignmentMarker(llvm::Module &M, llvm::Type *T);
 
 /// Derive the function type of the corresponding OpaqueExtractValue() function
-/// from an ExtractValue instruction. OpaqueExtractValue() basically wraps an
+/// from an ExtractValue instruction. OpaqueExtractValues wrap an
 /// ExtractValue to prevent it from being optimized out, so the return type and
 /// arguments are the same as the instruction being wrapped.
-llvm::FunctionType *
-getOpaqueEVFunctionType(llvm::LLVMContext &C, llvm::ExtractValueInst *Extract);
-
-/// Key to uniquely identify an OpaqueExtractvalue in the Pool
-struct TypePair {
-  /// Type extracted
-  llvm::Type *RetType;
-  /// Aggregate type from which we are extracting a value
-  llvm::Type *StructType;
-
-  bool operator<(const TypePair &Rhs) const {
-    return RetType < Rhs.RetType
-           or (RetType == Rhs.RetType and StructType < Rhs.StructType);
-  }
-};
+llvm::FunctionType *getOpaqueEVFunctionType(llvm::ExtractValueInst *Extract);
 
 // Initializes a pool of OpaqueExtractValue instructions, so that a new one can
 // be created on-demand.
 void initOpaqueEVPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M);
+
+/// LocalVariable is used to indicate the allocation of a local variable. It
+/// returns a reference to the allocated variable.
+llvm::FunctionType *getLocalVarType(llvm::Type *ReturnedType);
+
+/// Initializes a pool of LocalVariable functions, initializing it its internal
+/// Module.
+void initLocalVarPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+
+/// Assign() are meant to replace `store` instructions in which the pointer
+/// operand is a reference.
+llvm::FunctionType *
+getAssignFunctionType(llvm::Type *ValueType, llvm::Type *PtrType);
+
+/// Initializes a pool of Assign functions, initializing it its internal
+/// Module.
+void initAssignPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+
+/// Copy() are meant to replace `load` instructions in which the pointer
+/// operand is a reference.
+llvm::FunctionType *getCopyType(llvm::Type *ReturnedType);
+
+/// Initializes a pool of Copy functions, initializing it its internal
+/// Module.
+void initCopyPool(OpaqueFunctionsPool<llvm::Type *> &Pool);

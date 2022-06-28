@@ -10,11 +10,18 @@ Branches:
        - Type:             LLVMPipe
          UsedContainers: [module.ll]
          Passes:
+           - remove-pointer-casts
            - make-model-gep
-           - early-cse
            - dce
            - exit-ssa
            - twoscomplement-normalization
+           - make-local-variables
+           - remove-load-store
+           - fold-model-gep
+           - remove-ref-deref
+           - dce
+           - duplicate-references
+           - dce
            - add-assignment-markers
            - make-model-cast
            - operatorprecedence-resolution

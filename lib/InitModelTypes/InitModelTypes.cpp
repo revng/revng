@@ -13,6 +13,7 @@
 #include "llvm/Support/Casting.h"
 
 #include "revng/EarlyFunctionAnalysis/IRHelpers.h"
+#include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/CABIFunctionType.h"
 #include "revng/Model/IRHelpers.h"
@@ -21,9 +22,11 @@
 #include "revng/Model/RawFunctionType.h"
 #include "revng/Model/TypedefType.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/YAMLTraits.h"
 
 #include "revng-c/InitModelTypes/InitModelTypes.h"
+#include "revng-c/Support/DecompilationHelpers.h"
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
@@ -261,6 +264,27 @@ static TypeVector getReturnTypes(const llvm::CallInst *Call,
 
       ReturnTypes.push_back(ParsedType);
 
+    } else if (FunctionTags::ModelGEPRef.isTagOf(CalledFunc)) {
+      revng_assert(Call->getNumArgOperands() >= 2);
+      // ModelGEPs contain a string with the serialization of the pointer's
+      // base QualifiedType as a first argument
+      StringRef FirstOp = extractFromConstantStringPtr(Call->getArgOperand(0));
+      QualifiedType GEPpedType = parseQualifiedType(FirstOp, Model);
+
+      // Second argument is the base llvm::Value
+      // Further arguments are used to traverse the model
+      auto CurArg = Call->arg_begin() + 2;
+      for (; CurArg != Call->arg_end(); ++CurArg) {
+        uint64_t Idx = 0;
+
+        if (auto *ArgAsInt = dyn_cast<llvm::ConstantInt>(CurArg->get()))
+          Idx = ArgAsInt->getValue().getLimitedValue();
+
+        GEPpedType = traverseModelGEP(GEPpedType, Idx);
+      }
+
+      ReturnTypes.push_back(GEPpedType);
+
     } else if (FunctionTags::AddressOf.isTagOf(CalledFunc)) {
       // AddressOf contains a string with the serialization of the pointed type
       // as a first argument
@@ -273,18 +297,25 @@ static TypeVector getReturnTypes(const llvm::CallInst *Call,
       ReturnTypes.push_back(PointedType);
 
     } else if (FunctionTags::AssignmentMarker.isTagOf(CalledFunc)
-               || FunctionTags::Parentheses.isTagOf(CalledFunc)) {
+               || FunctionTags::Parentheses.isTagOf(CalledFunc)
+               || FunctionTags::Copy.isTagOf(CalledFunc)) {
       const llvm::Value *Arg = Call->getArgOperand(0);
 
       // Structs are handled on their own
       if (Arg->getType()->isStructTy())
         return {};
 
-      // AssignmentMarker and Parentheses are transparent
+      // Forward the type
       auto It = TypeMap.find(Arg);
       if (It != TypeMap.end()) {
         ReturnTypes.push_back(It->second);
       }
+
+    } else if (FunctionTags::LocalVariable.isTagOf(CalledFunc)) {
+      StringRef StringOp = extractFromConstantStringPtr(Call->getArgOperand(0));
+      const model::QualifiedType VarType = parseQualifiedType(StringOp, Model);
+
+      ReturnTypes.push_back(VarType);
 
     } else if (FunctionTags::StructInitializer.isTagOf(CalledFunc)) {
       // Struct initializers are only used to pack together return values of
@@ -301,7 +332,7 @@ static TypeVector getReturnTypes(const llvm::CallInst *Call,
       auto &StackType = ParentFunc->StackFrameType;
       revng_assert(StackType.get());
 
-      ReturnTypes.push_back(createPointerTo(StackType, Model));
+      ReturnTypes.push_back(QualifiedType{ StackType, {} });
 
     } else if (FuncName.startswith("revng_call_stack_arguments")) {
       // The prototype attached to this callsite represents the prototype of
@@ -312,26 +343,13 @@ static TypeVector getReturnTypes(const llvm::CallInst *Call,
       // Only RawFunctionTypes have explicit stack arguments
       auto *RawPrototype = cast<model::RawFunctionType>(Prototype.get());
       QualifiedType StackArgsType = RawPrototype->StackArgumentsType;
-      addPointerQualifier(StackArgsType, Model);
 
       ReturnTypes.push_back(StackArgsType);
 
-    } else if (FuncName.startswith("revng_init_local_sp")) {
-      using model::PrimitiveTypeKind::Unsigned;
-
-      // TODO: For now we use uint8_t* as the type returned by
-      // revng_init_local_sp, but perhaps we could choose a more appropriate
-      // type to represent SP
-      QualifiedType StackPtrQT;
-      StackPtrQT.UnqualifiedType = Model.getPrimitiveType(Unsigned, 1);
-      addPointerQualifier(StackPtrQT, Model);
-
-      ReturnTypes.push_back(StackPtrQT);
-
     } else if (FunctionTags::QEMU.isTagOf(CalledFunc)
                or FunctionTags::Helper.isTagOf(CalledFunc)
-               or FuncName.startswith("llvm.")
-               or FuncName.startswith("init_")) {
+               or CalledFunc->isIntrinsic()
+               or FunctionTags::OpaqueCSVValue.isTagOf(CalledFunc)) {
 
       llvm::Type *ReturnedType = Call->getType();
       if (ReturnedType->isVoidTy())
@@ -430,7 +448,7 @@ ModelTypesMap initModelTypes(const llvm::Function &F,
       for (const llvm::Value *Op : I.operand_values())
         addOperandType(Op, Model, TypeMap, PointersOnly);
 
-      // Insert void types for consistency, although they
+      // Insert void types for consistency
       if (InstType->isVoidTy()) {
         using model::PrimitiveTypeKind::Values::Void;
         QualifiedType VoidTy(Model.getPrimitiveType(Void, 0), {});
@@ -479,10 +497,13 @@ ModelTypesMap initModelTypes(const llvm::Function &F,
         // field.
         if (PtrOperandType.isPointer()) {
           model::QualifiedType Pointee = dropPointer(PtrOperandType);
-          if (Pointee.isPointer() or Pointee.isScalar()) {
+
+          if (areMemOpCompatible(Pointee, *Load->getType(), Model))
             Type = Pointee;
-          }
         }
+
+        // If it's not a pointer or a scalar of the right size, just
+        // fallback to the LLVM type
 
       } break;
 
@@ -510,19 +531,52 @@ ModelTypesMap initModelTypes(const llvm::Function &F,
 
       } break;
 
-      case Instruction::IntToPtr: {
-        const llvm::IntToPtrInst *IntToPtr = dyn_cast<llvm::IntToPtrInst>(&I);
-        const llvm::Value *Operand = IntToPtr->getOperand(0);
+      // Handle zext from i1 to i8
+      case Instruction::ZExt: {
+        auto *ZExt = dyn_cast<llvm::ZExtInst>(&I);
 
-        auto It = TypeMap.find(Operand);
-        if (It == TypeMap.end())
-          continue;
+        auto IsBoolZext = ZExt->getSrcTy()->getScalarSizeInBits() == 1
+                          and ZExt->getDestTy()->getScalarSizeInBits() == 8;
 
-        const QualifiedType &OperandType = It->second;
+        if (not PointersOnly and IsBoolZext) {
+          const llvm::Value *Operand = I.getOperand(0);
 
-        // If the operand has already a pointer qualified type, forward it
-        if (OperandType.isPointer()) {
-          Type = OperandType;
+          // Forward the type if there is one
+          auto It = TypeMap.find(Operand);
+          if (It != TypeMap.end())
+            Type = It->second;
+        }
+
+      } break;
+
+      // Handle trunc from i8 to i1
+      case Instruction::Trunc: {
+        auto *Trunc = dyn_cast<llvm::TruncInst>(&I);
+
+        auto IsBoolTrunc = Trunc->getSrcTy()->getScalarSizeInBits() == 8
+                           and Trunc->getDestTy()->getScalarSizeInBits() == 1;
+
+        if (not PointersOnly and IsBoolTrunc) {
+          const llvm::Value *Operand = I.getOperand(0);
+
+          // Forward the type if there is one
+          auto It = TypeMap.find(Operand);
+          if (It != TypeMap.end())
+            Type = It->second;
+        }
+
+      } break;
+
+      case Instruction::IntToPtr:
+      case Instruction::PtrToInt: {
+        // If the PointersOnly flag is set, we ignore IntToPtr and PtrToInt
+        if (not PointersOnly) {
+          const llvm::Value *Operand = I.getOperand(0);
+
+          // Forward the type if there is one
+          auto It = TypeMap.find(Operand);
+          if (It != TypeMap.end())
+            Type = It->second;
         }
 
       } break;

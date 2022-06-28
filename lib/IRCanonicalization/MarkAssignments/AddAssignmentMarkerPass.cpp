@@ -60,6 +60,10 @@ bool AddAssignmentMarkersPass::runOnFunction(llvm::Function &F) {
 
     if (bool(Flag)) {
 
+      // We should never be adding an assignment marker for a reference, since
+      // we cannot express them in C.
+      revng_assert(not isCallToTagged(I, FunctionTags::IsRef));
+
       auto *MarkerF = getAssignmentMarker(*M, IType);
 
       // Insert a call to the SCEV barrier right after I. For now the call to
@@ -73,7 +77,7 @@ bool AddAssignmentMarkersPass::runOnFunction(llvm::Function &F) {
       // The second arg operand needs to be true if the assignment is
       // required because of side effects.
       auto *BoolType = MarkerF->getArg(1)->getType();
-      auto *MarkSideEffects = Flag.hasSideEffects() ?
+      auto *MarkSideEffects = Flag.hasMarkedSideEffects() ?
                                 llvm::ConstantInt::getAllOnesValue(BoolType) :
                                 llvm::ConstantInt::getNullValue(BoolType);
 

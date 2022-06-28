@@ -2126,12 +2126,19 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
   IRBuilder<> Builder(Ctxt);
   ModelGEPArgCache TypeArgCache;
 
-  OpaqueFunctionsPool<llvm::Type *>
-    AddressOfPool(&M, /* PurgeOnDestruction */ false);
+  // Create a function pool for AddressOf calls
+  OpaqueFunctionsPool<TypePair> AddressOfPool(&M,
+                                              /* PurgeOnDestruction */ false);
   if (not GEPReplacementMap.empty())
-    initAddressOfPool(AddressOfPool);
+    initAddressOfPool(AddressOfPool, &M);
+
+  llvm::IntegerType *PtrSizedInteger = getPointerSizedInteger(Ctxt, *Model);
 
   for (auto &[TheUseToGEPify, GEPArgs] : GEPReplacementMap) {
+
+    // Skip ModelGEPs that have no arguments
+    if (GEPArgs.IndexVector.empty())
+      continue;
 
     revng_log(ModelGEPLog,
               "GEPify use of: " << dumpToString(TheUseToGEPify->get()));
@@ -2140,7 +2147,23 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
 
     llvm::Type *UseType = TheUseToGEPify->get()->getType();
     llvm::Type *BaseAddrType = GEPArgs.BaseAddress.Address->getType();
-    auto *ModelGEPFunction = getModelGEP(M, UseType, BaseAddrType);
+
+    llvm::IntegerType *ModelGEPReturnedType;
+
+    // Calculate the size of the GEPPed field
+    if (GEPArgs.RestOff.isStrictlyPositive()) {
+      // If there is a remaining offset, we are returning something more similar
+      // to a pointer than the actual value
+      ModelGEPReturnedType = PtrSizedInteger;
+    } else {
+      const auto &PointeeSize = GEPArgs.PointeeType.size();
+      revng_assert(PointeeSize.has_value());
+
+      ModelGEPReturnedType = llvm::IntegerType::get(Ctxt,
+                                                    PointeeSize.value() * 8);
+    }
+
+    auto *ModelGEPFunction = getModelGEP(M, ModelGEPReturnedType, BaseAddrType);
 
     // Build the arguments for the call to modelGEP
     SmallVector<Value *, 4> Args;
@@ -2176,9 +2199,18 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
 
     Value *ModelGEPRef = Builder.CreateCall(ModelGEPFunction, Args);
 
-    auto *AddressOfFunctionType = getAddressOfFunctionType(M.getContext(),
-                                                           UseType);
-    auto *AddressOfFunction = AddressOfPool.get(UseType,
+    auto AddrOfReturnedType = UseType;
+    if (GEPArgs.RestOff.isStrictlyPositive()) {
+      // If there is a remaining offset, we are returning something more similar
+      // to a pointer than the actual value
+      AddrOfReturnedType = PtrSizedInteger;
+    }
+
+    // Inject a call to AddressOf
+    auto *AddressOfFunctionType = getAddressOfType(AddrOfReturnedType,
+                                                   ModelGEPReturnedType);
+    auto *AddressOfFunction = AddressOfPool.get({ AddrOfReturnedType,
+                                                  ModelGEPReturnedType },
                                                 AddressOfFunctionType,
                                                 "AddressOf");
     auto *PointeeConstantStrPtr = TypeArgCache
@@ -2191,24 +2223,19 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
     if (GEPArgs.RestOff.isStrictlyPositive()) {
       // If the GEPArgs have a RestOff that is strictly positive, we have to
       // inject the remaining part of the pointer arithmetic as normal sums
-      revng_assert(UseType->isIntOrPtrTy());
-
-      // First, cast it to int if necessary.
-      if (UseType->isPointerTy()) {
-        auto *IntType = llvm::IntegerType::get(Ctxt,
-                                               GEPArgs.RestOff.getBitWidth());
-        ModelGEPPtr = Builder.CreatePtrToInt(ModelGEPPtr, IntType);
-      }
-
-      // Then, inject the actuall add
       auto GEPResultBitWidth = ModelGEPPtr->getType()->getIntegerBitWidth();
       APInt OffsetToAdd = GEPArgs.RestOff.zextOrTrunc(GEPResultBitWidth);
       ModelGEPPtr = Builder.CreateAdd(ModelGEPPtr,
                                       ConstantInt::get(Ctxt, OffsetToAdd));
 
-      // Finally, convert it back to pointer.
-      if (UseType->isPointerTy())
+      if (UseType->isPointerTy()) {
+        // Convert the `AddressOf` result to a pointer in the IR if needed
         ModelGEPPtr = Builder.CreateIntToPtr(ModelGEPPtr, UseType);
+      } else if (UseType != ModelGEPPtr->getType() and UseType->isIntegerTy()) {
+        ModelGEPPtr = Builder.CreateZExt(ModelGEPPtr, UseType);
+      }
+
+      revng_assert(UseType == ModelGEPPtr->getType());
     }
 
     // Finally, replace the use to gepify with the call to the address of
