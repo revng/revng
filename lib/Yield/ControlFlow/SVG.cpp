@@ -68,9 +68,9 @@ static constexpr auto ArrowHead = R"(<marker
   id="{0}"
   markerWidth="{1}"
   markerHeight="{1}"
-  refX="{1}"
+  refX="{5}"
   refY="{2}"
-  orient="{5}"><polygon
+  orient="{6}"><polygon
   points="{4}, {1} {3}, {2} {4}, {4} {1}, {2}" /></marker>
 )";
 
@@ -236,21 +236,32 @@ static Viewbox calculateViewbox(const yield::Graph &Graph) {
   return Result;
 }
 
-static std::string arrowHead(llvm::StringRef Name, float Size, float Dip) {
+static std::string
+arrowHead(llvm::StringRef Name, float Size, float Dip, float Shift = 0) {
   return llvm::formatv(templates::ArrowHead,
                        Name,
                        std::to_string(Size),
                        std::to_string(Size / 2),
                        std::to_string(Dip),
                        "0",
+                       std::to_string(Size - Shift),
                        "auto");
 }
 
-static std::string defaultArrowHeads() {
-  return arrowHead(tags::UnconditionalArrowHead, 8, 3)
-         + arrowHead(tags::CallArrowHead, 8, 3)
-         + arrowHead(tags::TakenArrowHead, 8, 3)
-         + arrowHead(tags::RefusedArrowHead, 8, 3);
+static std::string
+duplicateArrowHeadsImpl(float Size, float Dip, float Shift = 0) {
+  return arrowHead(tags::UnconditionalArrowHead, Size, Dip, Shift)
+         + arrowHead(tags::CallArrowHead, Size, Dip, Shift)
+         + arrowHead(tags::TakenArrowHead, Size, Dip, Shift)
+         + arrowHead(tags::RefusedArrowHead, Size, Dip, Shift);
+}
+
+static std::string
+defaultArrowHeads(const yield::cfg::Configuration &Configuration) {
+  if (Configuration.UseOrthogonalBends == true)
+    return duplicateArrowHeadsImpl(8, 3, 0);
+  else
+    return duplicateArrowHeadsImpl(8, 3, 2);
 }
 
 static std::string exportCFG(const yield::Graph &Graph,
@@ -283,7 +294,7 @@ static std::string exportCFG(const yield::Graph &Graph,
                        Box.TopLeft.Y,
                        Box.BottomRight.X - Box.TopLeft.X,
                        Box.BottomRight.Y - Box.TopLeft.Y,
-                       defaultArrowHeads(),
+                       defaultArrowHeads(Configuration),
                        std::move(Result));
 }
 
