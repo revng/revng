@@ -140,3 +140,12 @@ SegmentContainer selectLinearSegments(InternalGraph &Graph,
 
   return Result;
 }
+
+SegmentContainer emptyLinearSegments(InternalGraph &Graph) {
+  SegmentContainer Result;
+
+  for (auto *Node : Graph.nodes())
+    Result[Node] = Node;
+
+  return Result;
+}

@@ -31,6 +31,9 @@ public:
   bool AddEntryNode;
   bool AddExitNode;
 
+  bool PreserveLinearSegments;
+  float VirtualNodeWeight;
+
 public:
   constexpr static Configuration getDefault() {
     return Configuration{ .EdgeMarginSize = 20.f,
@@ -52,7 +55,10 @@ public:
 
                           .UseOrthogonalBends = true,
                           .AddEntryNode = true,
-                          .AddExitNode = false };
+                          .AddExitNode = false,
+
+                          .PreserveLinearSegments = true,
+                          .VirtualNodeWeight = 0.1f };
   }
 };
 

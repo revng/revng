@@ -39,6 +39,9 @@ SegmentContainer selectLinearSegments(InternalGraph &Graph,
                                       const LayerContainer &Layers,
                                       const std::vector<NodeView> &Order);
 
+/// Builds an empty linear segments map.
+SegmentContainer emptyLinearSegments(InternalGraph &Graph);
+
 /// "Levels up" a `LayerContainer` to a `LayoutContainer`.
 LayoutContainer convertToLayout(const LayerContainer &Layers);
 
@@ -47,7 +50,8 @@ void setHorizontalCoordinates(const LayerContainer &Layers,
                               const std::vector<NodeView> &Order,
                               const SegmentContainer &LinearSegments,
                               const LayoutContainer &Layout,
-                              float MarginSize);
+                              float MarginSize,
+                              float VirtualNodeWeight = 0.1f);
 
 /// Distributes "touching" edges accross lanes to minimize the crossing count.
 LaneContainer assignLanes(InternalGraph &Graph,
@@ -108,17 +112,22 @@ inline bool calculateSugiyamaLayout(ExternalGraph &Graph,
 
   // Decide on which segments of the graph can be made linear, e.g. each edge
   // within the same linear segment is a straight line.
-  auto LinearSegments = selectLinearSegments(DAG, Ranks, Layers, Order);
+  SegmentContainer LinearSegments;
+  if (Configuration.PreserveLinearSegments)
+    LinearSegments = selectLinearSegments(DAG, Ranks, Layers, Order);
+  else
+    LinearSegments = emptyLinearSegments(DAG);
 
   // Finalize the logical positions for each of the nodes.
-  const auto FinalLayout = convertToLayout(Layers);
+  const auto Final = convertToLayout(Layers);
 
   // Finalize the horizontal node positions.
   const auto &Margin = Configuration.NodeMarginSize;
-  setHorizontalCoordinates(Layers, Order, LinearSegments, FinalLayout, Margin);
+  const auto &W = Configuration.VirtualNodeWeight;
+  setHorizontalCoordinates(Layers, Order, LinearSegments, Final, Margin, W);
 
   // Distribute edge lanes in a way that minimizes the number of crossings.
-  auto Lanes = assignLanes(DAG, LinearSegments, FinalLayout);
+  auto Lanes = assignLanes(DAG, LinearSegments, Final);
 
   // Set the rest of the coordinates. Node layouting is complete after this.
   const auto &EdgeGap = Configuration.EdgeMarginSize;

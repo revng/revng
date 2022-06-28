@@ -19,7 +19,8 @@ void setHorizontalCoordinates(const LayerContainer &Layers,
                               const std::vector<NodeView> &Order,
                               const SegmentContainer &LinearSegments,
                               const LayoutContainer &Layout,
-                              float MarginSize) {
+                              float MarginSize,
+                              float VirtualNodeWeight) {
   // `IterationCount` can be tuned depending on the types of nodes and edges
   // \note: BFS layouts have wider layers, so it might make sense to make
   // `IterationCount` larger for them.
@@ -151,12 +152,12 @@ void setHorizontalCoordinates(const LayerContainer &Layers,
         if (Node->successorCount() > 0) {
           double Barycenter = 0, TotalWeight = 0;
           for (auto *Next : Node->successors()) {
-            float Weight = Next->isVirtual() ? 1 : 10;
+            float Weight = Next->isVirtual() ? 1 : VirtualNodeWeight;
             // This weight as an arbitrary number used to help the algorithm
             // prioritize putting a node closer to its non-virtual successors.
 
-            Barycenter += Weight * Next->center().X;
-            TotalWeight += Weight;
+            Barycenter += Next->center().X / Weight;
+            TotalWeight += 1.f / Weight;
           }
           Barycenter /= TotalWeight;
 
@@ -174,12 +175,12 @@ void setHorizontalCoordinates(const LayerContainer &Layers,
           double Barycenter = 0;
           double TotalWeight = 0;
           for (auto *Next : Node->successors()) {
-            float Weight = Next->isVirtual() ? 1 : 10;
+            float Weight = Next->isVirtual() ? 1 : VirtualNodeWeight;
             // This weight as an arbitrary number used to help the algorithm
             // prioritize putting a node closer to its non-virtual successors.
 
-            Barycenter += Weight * Next->center().X;
-            TotalWeight += Weight;
+            Barycenter += Next->center().X / Weight;
+            TotalWeight += 1.f / Weight;
           }
           Barycenter /= TotalWeight;
 

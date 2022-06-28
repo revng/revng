@@ -16,10 +16,21 @@ enum class RankingStrategy {
   DisjointDepthFirstSearch
 };
 
+enum class LayoutOrientation {
+  LeftToRight,
+  RightToLeft,
+  TopToBottom,
+  BottomToTop
+};
+
 struct Configuration {
 public:
   RankingStrategy Ranking;
+  LayoutOrientation Orientation;
   bool UseOrthogonalBends;
+
+  bool PreserveLinearSegments;
+  float VirtualNodeWeight;
 
   Graph::Dimension NodeMarginSize;
   Graph::Dimension EdgeMarginSize;
@@ -32,12 +43,17 @@ bool layout(Graph &Graph, const Configuration &Configuration);
 inline bool
 layout(Graph &Graph,
        const cfg::Configuration &CFG,
-       RankingStrategy Ranking = RankingStrategy::DisjointDepthFirstSearch) {
+       RankingStrategy Ranking = RankingStrategy::DisjointDepthFirstSearch,
+       LayoutOrientation Orientation = LayoutOrientation::TopToBottom) {
   return layout(Graph,
-                Configuration{ .Ranking = Ranking,
-                               .UseOrthogonalBends = CFG.UseOrthogonalBends,
-                               .NodeMarginSize = CFG.ExternalNodeMarginSize,
-                               .EdgeMarginSize = CFG.EdgeMarginSize });
+                Configuration{
+                  .Ranking = Ranking,
+                  .Orientation = Orientation,
+                  .UseOrthogonalBends = CFG.UseOrthogonalBends,
+                  .PreserveLinearSegments = CFG.PreserveLinearSegments,
+                  .VirtualNodeWeight = CFG.VirtualNodeWeight,
+                  .NodeMarginSize = CFG.ExternalNodeMarginSize,
+                  .EdgeMarginSize = CFG.EdgeMarginSize });
 }
 
 } // namespace yield::sugiyama
