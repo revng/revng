@@ -8,7 +8,7 @@ from argparse import ArgumentParser
 from sys import executable as py_executable
 
 from .commands_registry import Command, Options, commands_registry
-from .support import collect_files, collect_libraries, handle_asan, run
+from .support import collect_libraries, handle_asan, run
 
 
 class DaemonCommand(Command):
@@ -28,15 +28,10 @@ class DaemonCommand(Command):
         )
 
     def run(self, options: Options):
-        (libraries, dependencies) = collect_libraries(options.search_prefixes)
-        pipelines = collect_files(options.search_prefixes, ["share", "revng", "pipelines"], "*.yml")
+        _, dependencies = collect_libraries(options.search_prefixes)
         prefix = handle_asan(dependencies, options.search_prefixes)
 
-        env = {
-            "REVNG_ANALYSIS_LIBRARIES": ":".join(libraries),
-            "REVNG_PIPELINES": ",".join(pipelines),
-        }
-
+        env = {**os.environ}
         args = ["-k", "asyncio", "-w", "1"]
         extra_args = shlex.split(options.parsed_args.hypercorn_args)
 
@@ -57,7 +52,7 @@ class DaemonCommand(Command):
                 "revng.daemon:app",
             ],
             options,
-            {**os.environ, **env},
+            env,
             True,
         )
 

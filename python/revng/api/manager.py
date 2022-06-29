@@ -2,13 +2,14 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import os
-import shlex
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Generator, List, Optional, Union
+from typing import Dict, Generator, Iterable, List, Optional, Union
 
-from ._capi import _api, ffi
+from revng.support import AnyPath, AnyPaths, to_iterable
+from revng.support.collect import collect_files
+
+from ._capi import ROOT, _api, ffi
 from .analysis import Analysis
 from .container import Container, ContainerIdentifier
 from .exceptions import RevngException
@@ -22,19 +23,19 @@ INVALID_INDEX = 0xFFFFFFFFFFFFFFFF
 
 class Manager:
     def __init__(
-        self,
-        workdir: str,
+        self, workdir: AnyPath, pipeline_files: Optional[AnyPaths] = None, flags: Iterable[str] = ()
     ):
-        REVNG_PIPELINES = os.getenv("REVNG_PIPELINES", "")  # noqa: N806
-        pipelines = [Path(f) for f in REVNG_PIPELINES.split(",")]
+        if pipeline_files is None:
+            pipeline_files = collect_files(ROOT, ["share", "revng", "pipelines"], "*.yml")
+        else:
+            pipeline_files = to_iterable(pipeline_files)
+
+        pipelines = [Path(f) for f in pipeline_files]
         assert len(pipelines) > 0, "Pipelines must have len > 0"
         assert all(x.is_file() for x in pipelines), "Pipeline files must exist"
 
-        REVNG_FLAGS = os.getenv("REVNG_FLAGS", "")  # noqa: N806
-        flags = shlex.split(REVNG_FLAGS)
-
         _flags = [make_c_string(s) for s in flags]
-        _workdir = make_c_string(workdir)
+        _workdir = make_c_string(str(workdir))
         _pipelines_paths = [make_c_string(str(s.resolve())) for s in pipelines]
 
         # Ensures that the _manager property is always defined even if the API call fails
