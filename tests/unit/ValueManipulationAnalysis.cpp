@@ -56,7 +56,7 @@ static ColorCounter countColors(const TypeFlowGraph &TG) {
 
   for (const TypeFlowNode *const N : nodes(&TG))
     for (size_t I = 0; I < MAX_COLORS; I++)
-      CC[I] += N->Candidates.Bits.test(I);
+      CC[I] += N->getCandidates().Bits.test(I);
 
   return CC;
 }
@@ -116,7 +116,7 @@ static void checkShape(const TypeFlowGraph &TG, const ExpectedShape &Expected) {
 static void checkTGCorrectness(TypeFlowGraph &TG) {
   // Check consistency between the graph and the reverse map
   for (TypeFlowNode *N : TG.nodes()) {
-    auto MapIter = TG.ContentToNodeMap.find(N->Content);
+    auto MapIter = TG.ContentToNodeMap.find(N->getContent());
     revng_check(MapIter != TG.ContentToNodeMap.end());
     revng_check(MapIter->second == N);
   }
@@ -126,12 +126,12 @@ static void checkTGCorrectness(TypeFlowGraph &TG) {
 
     auto NodeIter = llvm::find(TG.nodes(), Elem.second);
     revng_check(NodeIter != TG.nodes().end());
-    revng_check((*NodeIter)->Content == Elem.first);
+    revng_check((*NodeIter)->getContent() == Elem.first);
   }
 
   for (const TypeFlowNode *N : TG.nodes()) {
     // Candidates should be a subset of accepted colors
-    revng_check(N->Accepted.contains(N->Candidates));
+    revng_check(N->getAccepted().contains(N->getCandidates()));
     // Nodes can contain either uses or values
     revng_check(N->isUse() xor N->isValue());
 
@@ -162,6 +162,7 @@ static void checkInit(const char *Body,
 
   // Build the TG
   TypeFlowGraph TG = makeTypeFlowGraphFromFunction(F);
+
   checkTGCorrectness(TG);
   checkShape(TG, ExpectedInit);
 
@@ -173,7 +174,7 @@ static void checkInit(const char *Body,
   // Numberness
   propagateNumberness(TG);
   for (auto *N : TG.nodes())
-    revng_check(not N->Candidates.Bits.test(NUMBERNESS_INDEX));
+    revng_check(not N->getCandidates().Bits.test(NUMBERNESS_INDEX));
 
   // Undirected graph
   makeBidirectional(TG);
@@ -710,8 +711,8 @@ BOOST_AUTO_TEST_CASE(TestMajorityVoting) {
   makeBidirectional(G);
   applyMajorityVoting(G);
 
-  revng_check(Undecided1->Candidates == (POINTERNESS | UNSIGNEDNESS));
-  revng_check(Undecided2->Candidates == (POINTERNESS | UNSIGNEDNESS));
+  revng_check(Undecided1->getCandidates() == (POINTERNESS | UNSIGNEDNESS));
+  revng_check(Undecided2->getCandidates() == (POINTERNESS | UNSIGNEDNESS));
 
   TypeFlowNode *Decided5 = AddNode(G, POINTERNESS);
   Undecided1->addSuccessor(Decided5);
@@ -719,6 +720,6 @@ BOOST_AUTO_TEST_CASE(TestMajorityVoting) {
   makeBidirectional(G);
   applyMajorityVoting(G);
 
-  revng_check(Undecided1->Candidates == POINTERNESS);
-  revng_check(Undecided2->Candidates == POINTERNESS);
+  revng_check(Undecided1->getCandidates() == POINTERNESS);
+  revng_check(Undecided2->getCandidates() == POINTERNESS);
 }

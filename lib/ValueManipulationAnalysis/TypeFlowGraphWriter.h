@@ -83,8 +83,10 @@ struct DOTGraphTraits<vma::TypeFlowGraph *> : public DefaultDOTGraphTraits {
     }
 
     // Node colors
-    Out << "color : " << dumpToString(Node->Candidates)
-        << "}\n{accepted: " << dumpToString(Node->Accepted);
+    Out << "color : ";
+    Node->getCandidates().print(Out);
+    Out << "}\n{accepted: ";
+    Node->getAccepted().print(Out);
 
     return Out.str();
   }
@@ -111,7 +113,7 @@ struct DOTGraphTraits<vma::TypeFlowGraph *> : public DefaultDOTGraphTraits {
     if (Node->isUndecided()) {
       Out << " style=filled, fillcolor=lightgrey, color=lightgrey";
     } else if (Node->isDecided()) {
-      auto First = Node->Candidates.firstSetBit();
+      auto First = Node->getCandidates().firstSetBit();
       revng_assert(First != vma::NUMBERNESS_INDEX);
 
       Out << " style=filled, fillcolor=" << ColorCode[First].str()

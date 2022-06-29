@@ -127,8 +127,8 @@ static bool connect(TypeFlowNode *N1, TypeFlowNode *N2) {
   if (UseNode->getUse()->get() == ValNode->getValue()) {
     bool Connected = false;
 
-    Connected |= addSuccessorIfAbsent(ValNode, UseNode, UseNode->Accepted);
-    Connected |= addSuccessorIfAbsent(UseNode, ValNode, ValNode->Accepted);
+    Connected |= addSuccessorIfAbsent(ValNode, UseNode, UseNode->getAccepted());
+    Connected |= addSuccessorIfAbsent(UseNode, ValNode, ValNode->getAccepted());
 
     return Connected;
   }
@@ -316,7 +316,7 @@ void vma::propagateColor(TypeFlowGraph &TG) {
   for (auto *Node : TG.nodes()) {
     bool AlreadyVisited = (Visited.find(Node) != Visited.end());
     // Start from nodes that have only the desired color
-    if (AlreadyVisited or not Node->Candidates.contains(ColorSet(Filter)))
+    if (AlreadyVisited or not Node->getCandidates().contains(ColorSet(Filter)))
       continue;
 
     // Explore only the edges that have the desired color
@@ -325,8 +325,11 @@ void vma::propagateColor(TypeFlowGraph &TG) {
       // If a node is reachable from a source with a certain color through edges
       // that all have that color, by construction it should also accept that
       // color
-      revng_assert(Reachable->Accepted.contains(Filter));
-      Reachable->Candidates.addColor(Filter);
+      revng_assert(Reachable->getAccepted().contains(Filter));
+
+      auto InitialColor = Reachable->getCandidates();
+      InitialColor.addColor(Filter);
+      Reachable->setCandidates(InitialColor);
     }
   }
 }
@@ -337,8 +340,11 @@ bool vma::propagateNumberness(TypeFlowGraph &TG) {
   // TODO: forward propagate numberness for known patterns (e.g. n+n = n )
 
   // For now, just reset all numberness flags
-  for (auto *N : TG.nodes())
-    N->Candidates.Bits.reset(NUMBERNESS_INDEX);
+  for (auto *N : TG.nodes()) {
+    auto InitialColor = N->getCandidates();
+    InitialColor.Bits.reset(NUMBERNESS_INDEX);
+    N->setCandidates(InitialColor);
+  }
 
   return false;
 }
@@ -375,7 +381,7 @@ unsigned vma::countCasts(const TypeFlowGraph &TG) {
   unsigned Cost = 0;
 
   for (const TypeFlowNode *TGNode : TG.nodes()) {
-    const auto &NodeBits = TGNode->Candidates.Bits;
+    auto NodeBits = TGNode->getCandidates().Bits;
     // Ignore nodes with no candidates
     if (NodeBits.count() == 0 or NodeBits == NUMBERNESS)
       continue;
@@ -385,7 +391,7 @@ unsigned vma::countCasts(const TypeFlowGraph &TG) {
       if (Visited.count(Succ))
         continue;
 
-      const auto &SuccBits = Succ->Candidates.Bits;
+      auto SuccBits = Succ->getCandidates().Bits;
 
       // If they have no common candidates it means there's a cast
       if ((SuccBits & NodeBits) == 0)
@@ -431,9 +437,9 @@ static llvm::Optional<ColorSet> majorityVote(const TypeFlowNode *Node) {
   // For each color, count the number of decided neighbors with that color
   int NUndecided = 0;
   for (const TypeFlowNode *Succ : Node->successors()) {
-    const ColorSet SuccColor = Succ->Candidates;
+    const ColorSet SuccColor = Succ->getCandidates();
 
-    if (Succ->isDecided() and Node->Candidates.contains(SuccColor)) {
+    if (Succ->isDecided() and Node->getCandidates().contains(SuccColor)) {
       // Since the node is decided, its color has exactly one set bit
       ColorIndex I = SuccColor.firstSetBit();
       // The index of the set bit corresponds to the color
@@ -456,7 +462,7 @@ static llvm::Optional<ColorSet> majorityVote(const TypeFlowNode *Node) {
   // common even if all the undecided nodes are colored with the second most
   // common color, then we have a winner.
   if (Max.Frequency > (SecondMax.Frequency + NUndecided)) {
-    revng_assert(Node->Candidates.contains(Max.Color));
+    revng_assert(Node->getCandidates().contains(Max.Color));
     return Max.Color;
   }
 
@@ -473,7 +479,7 @@ bool vma::applyMajorityVoting(TypeFlowGraph &TG) {
       if (N->isUndecided()) {
         // Check if the neighbors of a node agree on a certain color
         if (auto VotedColor = majorityVote(N)) {
-          N->Candidates = *VotedColor;
+          N->setCandidates(*VotedColor);
           Modified = true;
         }
       }

@@ -90,10 +90,10 @@ bool VMA::runOnFunction(Function &F) {
 
   // Populate Output Map
   for (const auto *N : TG.nodes()) {
-    revng_assert(N->Candidates.countValid() <= 1);
+    revng_assert(N->getCandidates().countValid() <= 1);
 
     if (N->isValue())
-      ColorMap.insert({ N->getValue(), N->Candidates });
+      ColorMap.insert({ N->getValue(), N->getCandidates() });
   }
 
   return false;

@@ -125,7 +125,7 @@ void ContractedGraph::check() {
   }
 
   const auto IsCentralNode = [Col(this->Color)](const TypeFlowNode *TFGNode) {
-    return TFGNode->isUndecided() and TFGNode->Candidates.contains(Col);
+    return TFGNode->isUndecided() and TFGNode->getCandidates().contains(Col);
   };
 
   // Check map
@@ -158,7 +158,7 @@ void ContractedGraph::check() {
     }
     // Check that the right nodes belong to the special nodes
     if (not IsCentralNode(CurNode)) {
-      if (CurNode->Candidates.contains(Color))
+      if (CurNode->getCandidates().contains(Color))
         revng_assert(Contracted == NodesToColor);
       else
         revng_assert(Contracted == NodesToUncolor);
@@ -180,7 +180,7 @@ void ContractedGraph::check() {
 
       // Check that the right nodes belong to the special nodes
       if (not IsCentralNode(TFGNode)) {
-        if (TFGNode->Candidates.contains(Color))
+        if (TFGNode->getCandidates().contains(Color))
           revng_assert(CN.get() == NodesToColor);
         else
           revng_assert(CN.get() == NodesToUncolor);
@@ -205,7 +205,7 @@ static void addInitialNode(ContractedGraph &G, TypeFlowNode *TFGNode) {
   if (G.ReverseMap.find(TFGNode) != G.ReverseMap.end())
     return;
 
-  bool HasWrongColor = not TFGNode->Candidates.contains(G.Color);
+  bool HasWrongColor = not TFGNode->getCandidates().contains(G.Color);
 
   if (HasWrongColor) {
     // Wrong color => uncolor
@@ -231,7 +231,8 @@ void vma::makeContractedGraph(ContractedGraph &G,
                               TypeFlowNode *Entry,
                               const ColorSet CurColor) {
   // Check entrypoint properties
-  revng_assert(Entry->isDecided() and Entry->Candidates.contains(CurColor));
+  revng_assert(Entry->isDecided()
+               and Entry->getCandidates().contains(CurColor));
 
   // Create special nodes
   G.NodesToColor = G.addNode(Entry);
@@ -240,7 +241,7 @@ void vma::makeContractedGraph(ContractedGraph &G,
 
   const auto IsBorderNode = [CurColor](const TypeFlowNode *TFNode) {
     return TFNode->isDecided() or TFNode->isUncolored()
-           or (not TFNode->Candidates.contains(CurColor));
+           or (not TFNode->getCandidates().contains(CurColor));
   };
 
   // Visit the TypeFlowGraph depth-first. Stop when you find a decided node of

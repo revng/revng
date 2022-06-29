@@ -78,7 +78,7 @@ static unsigned calcCost(ContractedGraph &G) {
     unsigned AdditionalCost = 0;
 
     // If the node belongs to NodesToUncolor, remove G.Color from the candidates
-    ColorSet NodeColor = TFGNode->Candidates;
+    ColorSet NodeColor = TFGNode->getCandidates();
     NodeColor.Bits.reset(G.Color.firstSetBit());
 
     for (auto *Succ : TFGNode->successors()) {
@@ -86,7 +86,7 @@ static unsigned calcCost(ContractedGraph &G) {
         continue;
 
       ColorSet CommonColors;
-      CommonColors.Bits = Succ->Candidates.Bits & NodeColor.Bits;
+      CommonColors.Bits = Succ->getCandidates().Bits & NodeColor.Bits;
       // If the node and its successor have no common candidates, pay a cost
       if (CommonColors.countValid() == 0)
         AdditionalCost++;
@@ -165,7 +165,7 @@ static void generateColorAllSolution(ContractedGraph &G) {
 
     for (TypeFlowNode *TFGNode : CN->InitialNodes) {
       revng_assert(not TFGNode->isDecided()
-                   or not TFGNode->Candidates.contains(G.Color));
+                   or not TFGNode->getCandidates().contains(G.Color));
       G.NodesToColor->AdditionalNodes.insert(TFGNode);
       G.getMapEntry(TFGNode) = G.NodesToColor;
     }
@@ -177,7 +177,7 @@ static void moveAllColoredToUncolored(ContractedGraph &G) {
   std::swap(G.NodesToUncolor->AdditionalNodes, G.NodesToColor->AdditionalNodes);
   for (TypeFlowNode *TFGNode : G.NodesToUncolor->AdditionalNodes) {
     revng_assert(not TFGNode->isDecided()
-                 or not TFGNode->Candidates.contains(G.Color));
+                 or not TFGNode->getCandidates().contains(G.Color));
     G.getMapEntry(TFGNode) = G.NodesToUncolor;
   }
 }
@@ -227,11 +227,12 @@ void vma::minCut(TypeFlowGraph &TG) {
       auto HasUndecidedNeighbors = [CurColor](TypeFlowNode *TFGNodeode) {
         return llvm::any_of(TFGNodeode->successors(),
                             [CurColor](TypeFlowNode *Succ) {
+                              auto SuccCandidates = Succ->getCandidates();
                               return Succ->isUndecided()
-                                     and Succ->Candidates.contains(CurColor);
+                                     and SuccCandidates.contains(CurColor);
                             });
       };
-      if (not(N->isDecided() and N->Candidates.contains(CurColor)
+      if (not(N->isDecided() and N->getCandidates().contains(CurColor)
               and HasUndecidedNeighbors(N)))
         continue;
 
@@ -269,23 +270,30 @@ void vma::minCut(TypeFlowGraph &TG) {
 
       // Color all nodes that belong to NodesToColor
       for (TypeFlowNode *TFGNode : BestNodesToColor.InitialNodes) {
-        revng_assert(TFGNode->Candidates.contains(G.Color));
-        TFGNode->Candidates = G.Color;
+        revng_assert(TFGNode->getCandidates().contains(G.Color));
+        TFGNode->setCandidates(G.Color);
       }
       for (TypeFlowNode *TFGNode : BestNodesToColor.AdditionalNodes) {
-        revng_assert(TFGNode->Candidates.contains(G.Color));
-        TFGNode->Candidates = G.Color;
+        revng_assert(TFGNode->getCandidates().contains(G.Color));
+        TFGNode->setCandidates(G.Color);
       }
       // Uncolor all nodes that belong to NodesToColor
       for (TypeFlowNode *TFGNode : BestNodesToUncolor.InitialNodes) {
+        auto InitialColor = TFGNode->getCandidates();
+
         revng_assert(not TFGNode->isDecided()
-                     or not TFGNode->Candidates.contains(G.Color));
-        TFGNode->Candidates.Bits.reset(I);
+                     or not InitialColor.contains(G.Color));
+
+        InitialColor.Bits.reset(I);
+        TFGNode->setCandidates(InitialColor);
       }
       for (TypeFlowNode *TFGNode : BestNodesToUncolor.AdditionalNodes) {
+        auto InitialColor = TFGNode->getCandidates();
+
         revng_assert(not TFGNode->isDecided()
-                     or not TFGNode->Candidates.contains(G.Color));
-        TFGNode->Candidates.Bits.reset(I);
+                     or not InitialColor.contains(G.Color));
+        InitialColor.Bits.reset(I);
+        TFGNode->setCandidates(InitialColor);
       }
 
       revng_log(MincutLog, "CurCost after applying mincut  " << countCasts(TG));
@@ -293,9 +301,14 @@ void vma::minCut(TypeFlowGraph &TG) {
 
     // Remove CurColor from the candidates of any remaining grey node before
     // going to another color
-    for (TypeFlowNode *N : TG.nodes())
-      if (N->isUndecided() and N->Candidates.contains(CurColor))
-        N->Candidates.Bits.reset(I);
+    for (TypeFlowNode *N : TG.nodes()) {
+      auto InitialColor = N->getCandidates();
+
+      if (N->isUndecided() and InitialColor.contains(CurColor)) {
+        InitialColor.Bits.reset(I);
+        N->setCandidates(InitialColor);
+      }
+    }
 
     revng_log(MincutLog, "CurCost after resetting color  " << countCasts(TG));
 
