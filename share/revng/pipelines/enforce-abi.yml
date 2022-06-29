@@ -3,18 +3,19 @@
 #
 
 Branches:
- - From:            Isolate
-   Steps:
-    - Name:            EnforceABI
-      Pipes:
-       - Type:             LLVMPipe
-         UsedContainers: [module.ll]
-         Passes:
-          - drop-root
-          - enforce-abi
-          - inline-helpers
-          - promote-csvs
-          - remove-exceptional-functions
-      Artifacts:
-       Container: module.ll
-       Kind: CSVsPromoted
+  - From: Isolate
+    Steps:
+      - Name: EnforceABI
+        Pipes:
+          - Type: LLVMPipe
+            UsedContainers: [module.ll]
+            Passes:
+              - drop-root
+              - enforce-abi
+              - inline-helpers
+              - promote-csvs
+              - remove-exceptional-functions
+        Artifacts:
+          Container: module.ll
+          Kind: CSVsPromoted
+          SingleTargetFilename: module_abienforced.ll

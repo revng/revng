@@ -102,7 +102,8 @@ static rp_manager *rp_manager_create_impl(uint64_t pipelines_count,
     return nullptr;
   }
 
-  return new PipelineManager(std::move(*Pipeline));
+  auto manager = new PipelineManager(std::move(*Pipeline));
+  return manager;
 }
 
 rp_manager *rp_manager_create_from_string(uint64_t pipelines_count,
@@ -137,10 +138,38 @@ rp_manager *rp_manager_create_memory_only(const char *pipeline_path,
   return rp_manager_create(1, paths, flags_count, flags, "");
 }
 
-bool rp_manager_store_containers(rp_manager *manager) {
+bool rp_manager_save(rp_manager *manager, const char *path) {
   revng_check(manager != nullptr);
 
-  auto Error = manager->storeToDisk();
+  llvm::StringRef DirPath;
+  if (path != nullptr)
+    DirPath = llvm::StringRef(path);
+
+  auto Error = manager->storeToDisk(DirPath);
+  if (not Error)
+    return true;
+
+  llvm::consumeError(std::move(Error));
+  return false;
+}
+
+bool rp_step_save(rp_step *step, const char *path) {
+  revng_check(step != nullptr);
+  revng_check(path != nullptr);
+
+  auto Error = step->storeToDisk(path);
+  if (not Error)
+    return true;
+
+  llvm::consumeError(std::move(Error));
+  return false;
+}
+
+bool rp_manager_save_context(rp_manager *manager, const char *path) {
+  revng_check(manager != nullptr);
+  revng_check(path != nullptr);
+
+  auto Error = manager->context().storeToDisk(path);
   if (not Error)
     return true;
 
@@ -215,6 +244,11 @@ rp_container *rp_step_get_artifacts_container(rp_step *step) {
   return step->getArtifactsContainer();
 }
 
+const char *rp_step_get_artifacts_single_target_filename(rp_step *step) {
+  revng_check(step != nullptr);
+  return copyString(step->getArtifactsSingleTargetFilename());
+}
+
 uint64_t rp_targets_list_targets_count(rp_targets_list *targets_list) {
   revng_check(targets_list != nullptr);
   return targets_list->size();
@@ -254,9 +288,7 @@ rp_diff_map *rp_manager_run_analysis(rp_manager *manager,
   for (size_t I = 0; I < targets_count; I++)
     Targets[container->second->name()].push_back(*targets[I]);
 
-  auto MaybeDiffs = manager->getRunner().runAnalysis(analysis_name,
-                                                     step_name,
-                                                     Targets);
+  auto MaybeDiffs = manager->runAnalysis(analysis_name, step_name, Targets);
   if (not MaybeDiffs) {
     llvm::consumeError(MaybeDiffs.takeError());
     return nullptr;
@@ -358,15 +390,25 @@ bool rp_container_store(rp_container *container, const char *path) {
   return false;
 }
 
-bool rp_container_load(rp_container *container, const char *path) {
-  revng_check(container != nullptr);
-  revng_check(path != nullptr);
-  auto Error = container->second->loadFromDisk(path);
-  if (not Error)
-    return true;
+bool rp_manager_container_deserialize(rp_manager *manager,
+                                      rp_step *step,
+                                      const char *container_name,
+                                      const char *content,
+                                      uint64_t size) {
+  revng_check(manager != nullptr);
+  revng_check(step != nullptr);
+  revng_check(container_name != nullptr);
+  revng_check(content != nullptr);
 
-  llvm::consumeError(std::move(Error));
-  return false;
+  auto Buffer = llvm::MemoryBuffer::getMemBuffer(llvm::StringRef(content, size),
+                                                 "",
+                                                 false);
+  auto Error = manager->deserializeContainer(*step, container_name, *Buffer);
+  if (!!Error) {
+    llvm::consumeError(std::move(Error));
+    return false;
+  }
+  return true;
 }
 
 rp_kind *rp_target_get_kind(rp_target *target) {
@@ -403,15 +445,12 @@ char *rp_manager_create_container_path(rp_manager *manager,
   if (manager->executionDirectory().empty())
     return nullptr;
 
-  auto Path = (manager->executionDirectory() + "/" + step_name + "/"
-               + container_name)
-                .str();
+  llvm::SmallString<128> Path;
+  llvm::sys::path::append(Path,
+                          manager->executionDirectory(),
+                          step_name,
+                          container_name);
   return copyString(Path);
-}
-
-void rp_manager_recompute_all_available_targets(rp_manager *manager) {
-  revng_check(manager != nullptr);
-  manager->recalculateAllPossibleTargets();
 }
 
 rp_targets_list *
@@ -627,11 +666,20 @@ const rp_kind *rp_analysis_get_argument_acceptable_kind(rp_analysis *analysis,
 }
 
 rp_diff_map *rp_manager_run_all_analyses(rp_manager *manager) {
-  auto MaybeDiffs = manager->getRunner().runAllAnalyses(nullptr);
+  auto MaybeDiffs = manager->runAllAnalyses();
   if (not MaybeDiffs) {
     llvm::consumeError(MaybeDiffs.takeError());
     return nullptr;
   }
 
   return new rp_diff_map(std::move(*MaybeDiffs));
+}
+
+bool rp_diff_map_is_empty(rp_diff_map *map) {
+  for (auto &Entry : *map) {
+    if (!Entry.second.isEmpty()) {
+      return false;
+    }
+  }
+  return true;
 }

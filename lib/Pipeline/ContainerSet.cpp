@@ -76,12 +76,13 @@ void ContainerSet::intersect(ContainerToTargetsMap &ToIntersect) const {
 
 llvm::Error ContainerSet::storeToDisk(StringRef Directory) const {
   for (const auto &Pair : Content) {
-    const auto &Name = Directory.str() + "/" + Pair.first().str();
+    llvm::SmallString<128> Filename;
+    llvm::sys::path::append(Filename, Directory, Pair.first());
     const auto &Container = Pair.second;
     if (Container == nullptr)
       continue;
 
-    if (auto Error = Container->storeToDisk(Name); !!Error)
+    if (auto Error = Container->storeToDisk(Filename); !!Error)
       return Error;
   }
   return Error::success();
@@ -89,9 +90,10 @@ llvm::Error ContainerSet::storeToDisk(StringRef Directory) const {
 
 llvm::Error ContainerSet::loadFromDisk(StringRef Directory) {
   for (auto &Pair : Content) {
-    const auto &Name = Directory.str() + "/" + Pair.first().str();
+    llvm::SmallString<128> Filename;
+    llvm::sys::path::append(Filename, Directory, Pair.first());
 
-    if (auto Error = (*this)[Pair.first()].loadFromDisk(Name); !!Error)
+    if (auto Error = (*this)[Pair.first()].loadFromDisk(Filename); !!Error)
       return Error;
   }
   return Error::success();

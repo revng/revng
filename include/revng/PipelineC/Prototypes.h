@@ -115,10 +115,17 @@ rp_manager_get_container_identifier(rp_manager *manager, uint64_t index);
 
 /**
  *  Trigger the serialization of the pipeline on disk.
- *
+ *  If path is not nullptr, serialize to the specified path otherwise serialize
+ *  in the manager's execution directory
  *  \return 0 if a error happened, 1 otherwise.
  */
-bool rp_manager_store_containers(rp_manager *manager);
+bool rp_manager_save(rp_manager *manager, const char *path);
+
+/**
+ * Serialize the pipeline context to the specified directory
+ *  \return 0 if a error happened, 1 otherwise.
+ */
+bool rp_manager_save_context(rp_manager *manager, const char *path);
 
 /**
  * \return the number of steps present in the manager.
@@ -219,11 +226,6 @@ rp_diff_map * /*owning*/ rp_manager_run_analysis(rp_manager *manager,
 rp_diff_map * /*owning*/ rp_manager_run_all_analyses(rp_manager *manager);
 
 /**
- *
- */
-void rp_manager_recompute_all_available_targets(rp_manager *manager);
-
-/**
  * \return the container status associated to the provided \p container
  *         or NULL if no status is associated to the provided container.
  */
@@ -310,6 +312,11 @@ rp_kind *rp_step_get_artifacts_kind(rp_step *step);
 rp_container *rp_step_get_artifacts_container(rp_step *step);
 
 /**
+ * \return the artifacts filename to use for a single target
+ */
+const char *rp_step_get_artifacts_single_target_filename(rp_step *step);
+
+/**
  * \return the number of analysis present in this step
  */
 int rp_step_get_analyses_count(rp_step *step);
@@ -355,6 +362,12 @@ int rp_analysis_get_argument_acceptable_kinds_count(rp_analysis *analysis,
 const rp_kind *rp_analysis_get_argument_acceptable_kind(rp_analysis *analysis,
                                                         int argument_index,
                                                         int kind_index);
+
+/**
+ * Serialize a single pipeline step to the specified directory
+ *  \return 0 if a error happened, 1 otherwise.
+ */
+bool rp_step_save(rp_step *step, const char *path);
 
 /** \} */
 
@@ -485,9 +498,12 @@ bool rp_container_store(rp_container *container, const char *path);
  * Load the provided container from the provided path.
  *
  * \return 0 if a error was encountered 1 otherwise
- *
  */
-bool rp_container_load(rp_container *container, const char *path);
+bool rp_manager_container_deserialize(rp_manager *manager,
+                                      rp_step *step,
+                                      const char *container_name,
+                                      const char *content,
+                                      uint64_t size);
 
 /**
  * \return the serialized content of the element associated to the provided
@@ -518,6 +534,11 @@ void rp_diff_map_destroy(rp_diff_map *to_free);
  */
 const char * /*owning*/
 rp_diff_map_get_diff(rp_diff_map *map, const char *global_name);
+
+/**
+ * \returns true if the rp_diff_map is empty (no changes), false otherwise
+ */
+bool rp_diff_map_is_empty(rp_diff_map *map);
 
 /** \} */
 

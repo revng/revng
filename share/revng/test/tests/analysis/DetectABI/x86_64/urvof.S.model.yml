@@ -4,9 +4,9 @@
 
 ---
 Functions:
-- OriginalName: urvof
-  Prototype: "/Types/RawFunctionType-1"
+  - OriginalName: urvof
+    Prototype: "/Types/RawFunctionType-1"
 Types:
-- ID: 1
-  ReturnValues:
-  - Location: rax_x86_64
+  - ID: 1
+    ReturnValues:
+      - Location: rax_x86_64

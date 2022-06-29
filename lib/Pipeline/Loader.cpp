@@ -32,7 +32,9 @@ llvm::Error Loader::parseStepDeclaration(Runner &Runner,
                                      "Artifact Kind not found");
     }
     if (auto Error = JustAdded.setArtifacts(Declaration.Artifacts.Container,
-                                            Kind);
+                                            Kind,
+                                            Declaration.Artifacts
+                                              .SingleTargetFilename);
         !!Error) {
       return Error;
     }

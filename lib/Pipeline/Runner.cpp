@@ -177,18 +177,55 @@ Error PipelineFileMapping::storeToDisk(const Runner &LoadInto) const {
 }
 
 Error Runner::storeToDisk(llvm::StringRef DirPath) const {
-  for (const auto &Step : Steps)
-    if (auto Error = Step.second.storeToDisk(DirPath); !!Error)
+  for (const auto &StepName : Steps.keys()) {
+    if (auto Error = storeStepToDisk(StepName, DirPath); !!Error) {
       return Error;
-  return TheContext->storeToDisk(DirPath);
+    }
+  }
+
+  llvm::SmallString<128> ContextDir;
+  llvm::sys::path::append(ContextDir, DirPath, "context");
+  if (auto EC = llvm::sys::fs::create_directories(ContextDir); EC)
+    return llvm::createStringError(EC,
+                                   "Could not create dir %s",
+                                   ContextDir.c_str());
+
+  return TheContext->storeToDisk(std::string(ContextDir));
+}
+
+Error Runner::storeStepToDisk(llvm::StringRef StepName,
+                              llvm::StringRef DirPath) const {
+  auto Step = Steps.find(StepName);
+  if (Step == Steps.end())
+    return createStringError(inconvertibleErrorCode(),
+                             "Could not find a step named %s\n",
+                             StepName.str().c_str());
+  llvm::SmallString<128> StepDir;
+  llvm::sys::path::append(StepDir, DirPath, Step->first());
+  if (auto EC = llvm::sys::fs::create_directories(StepDir); EC)
+    return llvm::createStringError(EC,
+                                   "Could not create dir %s",
+                                   StepDir.c_str());
+
+  if (auto Error = Step->second.storeToDisk(std::string(StepDir)); !!Error)
+    return Error;
+
+  return Error::success();
 }
 
 Error Runner::loadFromDisk(llvm::StringRef DirPath) {
-  if (auto Error = TheContext->loadFromDisk(DirPath); !!Error)
+  llvm::SmallString<128> ContextDir;
+  llvm::sys::path::append(ContextDir, DirPath, "context");
+  if (auto Error = TheContext->loadFromDisk(std::string(ContextDir)); !!Error)
     return Error;
-  for (auto &Step : Steps)
-    if (auto Error = Step.second.loadFromDisk(DirPath); !!Error)
+
+  for (auto &Step : Steps) {
+    llvm::SmallString<128> StepDir;
+    llvm::sys::path::append(StepDir, DirPath, Step.first());
+    if (auto Error = Step.second.loadFromDisk(std::string(StepDir)); !!Error)
       return Error;
+  }
+
   return Error::success();
 }
 

@@ -8,10 +8,13 @@ import traceback
 from functools import wraps
 from pathlib import Path
 from threading import Lock
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Collection, Dict, Iterable, Optional
 
 from cffi import FFI
 from cffi.backend_ctypes import CTypesBackend
+
+from revng.support import AnyPaths, to_iterable
+from revng.support.collect import collect_libraries, collect_one
 
 
 class ApiWrapper:
@@ -45,12 +48,11 @@ class ApiWrapper:
             function = getattr(self.__api, attribute_name)
             self.__proxy[attribute_name] = self.__wrap_lock(function)
 
-    @staticmethod
-    def __wrap_gc(function, destructor):
+    def __wrap_gc(self, function, destructor):
         @wraps(function)
         def new_function(*args):
             ret = function(*args)
-            return ffi.gc(ret, destructor)
+            return ffi.gc(ret, self.__wrap_lock(destructor))
 
         return new_function
 
@@ -80,12 +82,13 @@ ROOT = (Path(__file__) / "../../../../..").resolve()
 HEADERS_DIR = ROOT / "include" / "revng" / "PipelineC"
 
 header_paths = [
-    HEADERS_DIR / "ForwardDeclarationsC.h",
-    HEADERS_DIR / "Prototypes.h",
+    collect_one(ROOT, ["include", "revng", "PipelineC"], "ForwardDeclarationsC.h"),
+    collect_one(ROOT, ["include", "revng", "PipelineC"], "Prototypes.h"),
 ]
 
 ffi = FFI()
 for header_path in header_paths:
+    assert header_path is not None, "Missing header file"
     with open(header_path, encoding="utf-8") as header_file:
         lines = []
         for line in header_file:
@@ -99,20 +102,8 @@ def pytraceback():
     traceback.print_stack()
 
 
-LIBRARY_PATH = ROOT / "lib" / "librevngPipelineC.so"
-assert LIBRARY_PATH.is_file()
-
-ARGV: List[str] = []
-
-REVNG_ANALYSIS_LIBRARIES = os.getenv("REVNG_ANALYSIS_LIBRARIES", "")
-ANALYSIS_LIBRARIES = [Path(f) for f in REVNG_ANALYSIS_LIBRARIES.split(":")]
-
-assert all(lib.is_file() for lib in ANALYSIS_LIBRARIES), "Analysis libraries must all be present"
-
-
-_ANALYSIS_LIBRARIES = [
-    ffi.new("char[]", str(s.resolve()).encode("utf-8")) for s in ANALYSIS_LIBRARIES
-]
+LIBRARY_PATH = collect_one(ROOT, ["lib"], "librevngPipelineC.so")
+assert LIBRARY_PATH is not None, "librevngPipelineC.so not found"
 
 ctypes_backend = CTypesBackend()
 
@@ -121,7 +112,19 @@ _api = ApiWrapper(_raw_api, ffi)
 _api.rp_set_custom_abort_hook(pytraceback)
 
 
-def initialize():
+def initialize(args: Iterable[str] = (), libraries: Optional[AnyPaths] = None):
     """Initialize library, must be called exactly once"""
-    success = _api.rp_initialize(len(ARGV), ARGV, len(_ANALYSIS_LIBRARIES), _ANALYSIS_LIBRARIES)
+
+    if libraries is None:
+        libraries, _ = collect_libraries(ROOT)
+    else:
+        libraries = to_iterable(libraries)
+
+    path_libraries = [Path(f) for f in libraries]
+    assert all(lib.is_file() for lib in path_libraries), "Analysis libraries must all be present"
+
+    _libraries = [ffi.new("char[]", str(s.resolve()).encode("utf-8")) for s in path_libraries]
+    _args = [ffi.new("char[]", arg.encode("utf-8")) for arg in args]
+
+    success = _api.rp_initialize(len(_args), _args, len(_libraries), _libraries)
     assert success, "Failed revng C API initialization"

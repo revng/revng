@@ -5,29 +5,29 @@
 ---
 - FunctionMetadata:
     ControlFlowGraph:
-      - End: '2'
-        Start: '1'
+      - End: "2"
+        Start: "1"
         Successors:
-        - Destination: '3'
-          Type: FunctionCall
-      - End: '3'
-        Start: '2'
+          - Destination: "3"
+            Type: FunctionCall
+      - End: "3"
+        Start: "2"
         Successors:
-        - Destination: ":Invalid"
-          Type: Return
+          - Destination: ":Invalid"
+            Type: Return
   OriginalName: _start
   Type: Regular
 - FunctionMetadata:
     ControlFlowGraph:
-      - End: '4'
-        Start: '3'
+      - End: "4"
+        Start: "3"
         Successors:
-        - Destination: ":Invalid"
-          Type: IndirectCall
-      - End: '5'
-        Start: '4'
+          - Destination: ":Invalid"
+            Type: IndirectCall
+      - End: "5"
+        Start: "4"
         Successors:
-        - Destination: ":Invalid"
-          Type: Return
+          - Destination: ":Invalid"
+            Type: Return
   OriginalName: indirectcall
   Type: Regular

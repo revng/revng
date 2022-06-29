@@ -142,6 +142,7 @@ PipelineManager::create(llvm::ArrayRef<std::string> Pipelines,
   else
     return MaybePipeline.takeError();
 
+  Manager.recalculateAllPossibleTargets();
   return std::move(Manager);
 }
 
@@ -177,6 +178,7 @@ PipelineManager::createFromMemory(llvm::ArrayRef<std::string> PipelineContent,
   else
     return MaybePipeline.takeError();
 
+  Manager.recalculateAllPossibleTargets();
   return std::move(Manager);
 }
 
@@ -248,10 +250,48 @@ void PipelineManager::writeAllPossibleTargets(llvm::raw_ostream &OS) const {
   }
 }
 
-llvm::Error PipelineManager::storeToDisk() {
+llvm::Error PipelineManager::storeToDisk(llvm::StringRef DirPath) {
+  if (!DirPath.empty())
+    return Runner->storeToDisk(DirPath);
+
   if (ExecutionDirectory.empty())
     return llvm::Error::success();
+
   return Runner->storeToDisk(ExecutionDirectory);
+}
+
+llvm::Error PipelineManager::storeStepToDisk(llvm::StringRef StepName,
+                                             llvm::StringRef DirPath) {
+  auto &Step = Runner->getStep(StepName);
+  if (!DirPath.empty())
+    return Runner->storeStepToDisk(StepName, DirPath);
+
+  if (ExecutionDirectory.empty())
+    return llvm::Error::success();
+
+  return Runner->storeStepToDisk(StepName, ExecutionDirectory);
+}
+
+llvm::Error
+PipelineManager::deserializeContainer(pipeline::Step &Step,
+                                      llvm::StringRef ContainerName,
+                                      const llvm::MemoryBuffer &Buffer) {
+  if (!Step.containers().isContainerRegistered(ContainerName))
+    return createStringError(inconvertibleErrorCode(),
+                             "Could not find container %s in step %s\n",
+                             ContainerName.str().c_str(),
+                             Step.getName().str().c_str());
+
+  auto &Container = Step.containers()[ContainerName];
+  if (auto Error = Container.deserialize(Buffer); !!Error)
+    return Error;
+
+  recalculateAllPossibleTargets();
+
+  if (auto Error = storeStepToDisk(Step.getName()); !!Error)
+    return Error;
+
+  return Error::success();
 }
 
 llvm::Error PipelineManager::store(const PipelineFileMapping &Mapping) {
@@ -329,4 +369,23 @@ PipelineManager::produceAllPossibleTargets(llvm::raw_ostream &Stream) {
   }
 
   return llvm::Error::success();
+}
+
+llvm::Expected<DiffMap>
+PipelineManager::runAnalysis(llvm::StringRef AnalysisName,
+                             llvm::StringRef StepName,
+                             const ContainerToTargetsMap &Targets,
+                             llvm::raw_ostream *DiagnosticLog) {
+  auto Result = Runner->runAnalysis(AnalysisName, StepName, Targets);
+  if (Result)
+    recalculateAllPossibleTargets();
+
+  return Result;
+}
+
+llvm::Expected<DiffMap> PipelineManager::runAllAnalyses(llvm::raw_ostream *OS) {
+  auto Result = Runner->runAllAnalyses(OS);
+  if (Result)
+    recalculateAllPossibleTargets();
+  return Result;
 }

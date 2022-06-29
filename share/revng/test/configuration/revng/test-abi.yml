@@ -3,15 +3,15 @@
 #
 
 tags:
-- name: x86-64-systemv-abi
-  variables:
-    ABI_NAME: SystemV_x86_64
+  - name: x86-64-systemv-abi
+    variables:
+      ABI_NAME: SystemV_x86_64
 commands:
-- type: revng.test-abi
-  from:
-  - type: revng.qemu-run
-    filter: abi-describe-functions
-  - type: revng-qa.compiled
-    filter: abi-functions-library
-  command: |-
-    "${SOURCES_ROOT}/tests/abi/test.sh" "${ABI_NAME}" "${INPUT1}/normal.stdout" "${INPUT2}"
+  - type: revng.test-abi
+    from:
+      - type: revng.qemu-run
+        filter: abi-describe-functions
+      - type: revng-qa.compiled
+        filter: abi-functions-library
+    command: |-
+      "${SOURCES_ROOT}/tests/abi/test.sh" "${ABI_NAME}" "${INPUT1}/normal.stdout" "${INPUT2}"

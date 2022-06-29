@@ -2,39 +2,40 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import os
-import shlex
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Generator, List, Optional, Union
+from typing import Dict, Generator, Iterable, List, Optional, Union
 
-from ._capi import _api, ffi
+from revng.support import AnyPath, AnyPaths, to_iterable
+from revng.support.collect import collect_files
+
+from ._capi import ROOT, _api, ffi
 from .analysis import Analysis
 from .container import Container, ContainerIdentifier
 from .exceptions import RevngException
 from .kind import Kind
 from .step import Step
 from .target import Target, TargetsList
-from .utils import make_c_string, make_generator, make_python_string, save_file
+from .utils import make_c_string, make_generator, make_python_string
 
 INVALID_INDEX = 0xFFFFFFFFFFFFFFFF
 
 
 class Manager:
     def __init__(
-        self,
-        workdir: str,
+        self, workdir: AnyPath, pipeline_files: Optional[AnyPaths] = None, flags: Iterable[str] = ()
     ):
-        REVNG_PIPELINES = os.getenv("REVNG_PIPELINES", "")  # noqa: N806
-        pipelines = [Path(f) for f in REVNG_PIPELINES.split(",")]
+        if pipeline_files is None:
+            pipeline_files = collect_files(ROOT, ["share", "revng", "pipelines"], "*.yml")
+        else:
+            pipeline_files = to_iterable(pipeline_files)
+
+        pipelines = [Path(f) for f in pipeline_files]
         assert len(pipelines) > 0, "Pipelines must have len > 0"
         assert all(x.is_file() for x in pipelines), "Pipeline files must exist"
 
-        REVNG_FLAGS = os.getenv("REVNG_FLAGS", "")  # noqa: N806
-        flags = shlex.split(REVNG_FLAGS)
-
         _flags = [make_c_string(s) for s in flags]
-        _workdir = make_c_string(workdir)
+        _workdir = make_c_string(str(workdir))
         _pipelines_paths = [make_c_string(str(s.resolve())) for s in pipelines]
 
         # Ensures that the _manager property is always defined even if the API call fails
@@ -50,8 +51,20 @@ class Manager:
 
         assert self._manager, "Failed to instantiate manager"
 
-    def store_containers(self):
-        return _api.rp_manager_store_containers(self._manager)
+    def save(self, destination_directory: Optional[Union[Path, str]] = None):
+        if destination_directory is None:
+            _dir_path = ffi.NULL
+        else:
+            dir_path = Path(destination_directory)
+            if not dir_path.is_dir():
+                dir_path.mkdir()
+            _dir_path = make_c_string(str(dir_path.resolve()))
+        return _api.rp_manager_save(self._manager, _dir_path)
+
+    def save_context(self, destination_directory: Union[Path, str]):
+        dest_dir = Path(destination_directory).resolve()
+        _dest_dir = make_c_string(str(dest_dir))
+        return _api.rp_manager_save_context(self._manager, _dest_dir)
 
     # Kind-related Functions
 
@@ -82,17 +95,20 @@ class Manager:
         step: Step,
         target: Union[Target, List[Target]],
         container: Container,
-    ) -> str:
+    ) -> Dict[str, str]:
         if isinstance(target, Target):
-            _targets = [target._target]
+            targets = [
+                target,
+            ]
         else:
-            _targets = [t._target for t in target]
+            targets = target
         _step = step._step
         _container = container._container
-        _product = _api.rp_manager_produce_targets(
-            self._manager, len(_targets), _targets, _step, _container
+        _api.rp_manager_produce_targets(
+            self._manager, len(targets), [t._target for t in targets], _step, _container
         )
-        return make_python_string(_product)
+
+        return {t.serialize(): t.extract() for t in targets}
 
     def produce_target(
         self,
@@ -100,7 +116,7 @@ class Manager:
         target: Union[None, str, List[str]],
         container_name: Optional[str] = None,
         only_if_ready=False,
-    ) -> str:
+    ) -> Dict[str, str]:
         step = self.get_step(step_name)
         if step is None:
             raise RevngException(f"Invalid step {step_name}")
@@ -175,9 +191,6 @@ class Manager:
             raise RevngException("Invalid target")
         return target
 
-    def recalculate_all_available_targets(self):
-        _api.rp_manager_recompute_all_available_targets(self._manager)
-
     def get_targets_list(self, container: Container) -> Optional[TargetsList]:
         targets_list = _api.rp_manager_get_container_targets_list(
             self._manager, container._container
@@ -207,6 +220,12 @@ class Manager:
             if container.name == name:
                 return container
         return None
+
+    def deserialize_container(self, step: Step, container_name: str, content: Union[str, bytes]):
+        _content = make_c_string(content)
+        return _api.rp_manager_container_deserialize(
+            self._manager, step._step, make_c_string(container_name), _content, len(_content)
+        )
 
     def _get_container_identifier(self, idx: int) -> Optional[ContainerIdentifier]:
         _container_identifier = _api.rp_manager_get_container_identifier(self._manager, idx)
@@ -240,7 +259,7 @@ class Manager:
 
     # Utility target functions
 
-    def get_targets(self, step_name: str, container_name: str, recalc: bool = True) -> List[Target]:
+    def get_targets(self, step_name: str, container_name: str) -> List[Target]:
         step = self.get_step(step_name)
         if step is None:
             raise RevngException("Invalid step name")
@@ -253,22 +272,13 @@ class Manager:
         if container is None:
             raise RevngException(f"Step {step_name} does not use container {container_name}")
 
-        if recalc:
-            self.recalculate_all_available_targets()
-
         targets_list = self.get_targets_list(container)
-        if targets_list is None:
-            raise RevngException("Invalid container name (cannot get targets list)")
+        return list(targets_list.targets()) if targets_list is not None else []
 
-        return list(targets_list.targets())
-
-    def get_targets_from_step(self, step_name: str, recalc: bool = True) -> Dict[str, List[Target]]:
+    def get_targets_from_step(self, step_name: str) -> Dict[str, List[Target]]:
         step = self.get_step(step_name)
         if step is None:
             raise RevngException("Invalid step name")
-
-        if recalc:
-            self.recalculate_all_available_targets()
 
         containers = []
         for container_id in self.containers():
@@ -277,14 +287,13 @@ class Manager:
         ret = {}
         for container in containers:
             if container is not None:
-                targets = self.get_targets(step_name, container.name, False)
+                targets = self.get_targets(step_name, container.name)
                 ret[container.name] = targets
         return ret
 
     def get_all_targets(self) -> Dict[str, Dict[str, List[Target]]]:
         targets: Dict[str, Dict[str, List[Target]]] = {}
         container_ids = list(self.containers())
-        self.recalculate_all_available_targets()
         for step in self.steps():
             targets[step.name] = {}
             containers = [step.get_container(cid) for cid in container_ids]
@@ -354,11 +363,22 @@ class Manager:
             make_c_string(analysis.name),
             first_key._container,
         )
-        return self.parse_diff_map(result) if result != ffi.NULL else None
+
+        if result != ffi.NULL:
+            if not _api.rp_diff_map_is_empty(result):
+                self.save()
+            return self.parse_diff_map(result)
+        else:
+            return None
 
     def run_all_analyses(self) -> Optional[Dict[str, str]]:
         result = _api.rp_manager_run_all_analyses(self._manager)
-        return self.parse_diff_map(result) if result != ffi.NULL else None
+        if result != ffi.NULL:
+            if not _api.rp_diff_map_is_empty(result):
+                self.save()
+            return self.parse_diff_map(result)
+        else:
+            return None
 
     def parse_diff_map(self, diff_map) -> Dict[str, str]:
         result = {}
@@ -370,18 +390,18 @@ class Manager:
 
     # Global Handling & misc.
 
-    def _get_global(self, name) -> str:
+    def get_global(self, name) -> str:
         _name = make_c_string(name)
         _out = _api.rp_manager_create_global_copy(self._manager, _name)
         return make_python_string(_out)
 
-    def _set_global(self, name, content):
+    def set_global(self, name, content):
         _name = make_c_string(name)
         _content = make_c_string(content)
         _api.rp_manager_set_global(self._manager, _content, _name)
 
     def get_model(self) -> str:
-        return self._get_global("model.yml")
+        return self.get_global("model.yml")
 
     def globals_count(self) -> int:
         return _api.rp_manager_get_globals_count(self._manager)
@@ -393,35 +413,17 @@ class Manager:
     def globals_list(self) -> Generator[str, None, None]:
         return make_generator(self.globals_count(), self._get_global_from_index)
 
-    def set_input(self, container_name: str, content: Union[bytes, str], _key=None) -> str:
+    def set_input(self, container_name: str, content: bytes, _key=None):
         step = self.get_step("begin")
         if step is None:
-            return ""
+            raise RevngException('Step "begin" not found')
 
-        container_identifier = self.get_container_with_name(container_name)
-        if container_identifier is None:
-            raise RevngException("Invalid container name")
+        success = self.deserialize_container(step, container_name, content)
 
-        container = step.get_container(container_identifier)
-        if container is None:
-            raise RevngException(f"Step {step.name} does not use container {container_name}")
-
-        # TODO: replace when proper C API is present
-        _container_path = self.container_path(step.name, container_name)
-        if _container_path is None:
-            raise RevngException("Invalid step or container name")
-
-        container_path = Path(_container_path)
-        container_path.parent.mkdir(parents=True, exist_ok=True)
-        save_file(container_path, content)
-
-        success = container.load(str(container_path))
         if not success:
             raise RevngException(
                 f"Failed loading user provided input for container {container_name}"
             )
-
-        return str(container_path.resolve())
 
     def pipeline_artifact_structure(self):
         structure = defaultdict(list)

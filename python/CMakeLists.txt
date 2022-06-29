@@ -89,7 +89,7 @@ python_module(TARGET_NAME revng-dump-model MODULE_FILES
 #
 # Install revng.cli.support
 #
-python_module(TARGET_NAME revng-python-support MODULE_FILES
+python_module(TARGET_NAME revng-python-cli-support MODULE_FILES
               "revng/cli/support.py")
 
 #
@@ -153,6 +153,7 @@ set(REVNG_API_MODULE_FILES
     revng/api/container.py
     revng/api/exceptions.py
     revng/api/kind.py
+    revng/api/listenable_manager.py
     revng/api/manager.py
     revng/api/rank.py
     revng/api/step.py
@@ -178,10 +179,20 @@ endforeach()
 set(REVNG_DAEMON_MODULE_FILES
     revng/daemon/__init__.py
     revng/daemon/demo_webpage.py
-    revng/daemon/schema.py
+    revng/daemon/manager.py
+    revng/daemon/schema_generator.py
     revng/daemon/schema.graphql.tpl
+    revng/daemon/static_handlers.py
     revng/daemon/util.py
     revng/daemon/templates/base.html
     revng/daemon/templates/index.html)
 python_module(TARGET_NAME revng-python-daemon MODULE_FILES
               ${REVNG_DAEMON_MODULE_FILES})
+
+#
+# Install revng.daemon
+#
+set(REVNG_SUPPORT_MODULE_FILES revng/support/__init__.py revng/support/elf.py
+                               revng/support/collect.py)
+python_module(TARGET_NAME revng-python-support MODULE_FILES
+              ${REVNG_SUPPORT_MODULE_FILES})

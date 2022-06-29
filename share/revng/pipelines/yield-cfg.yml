@@ -3,15 +3,16 @@
 #
 
 Containers:
- - Name:            cfg-svg.yml
-   Type:            FunctionControlFlowGraphSVG
+  - Name: cfg-svg.yml
+    Type: FunctionControlFlowGraphSVG
 Branches:
- - From:            ProcessAssembly
-   Steps:
-    - Name:            YieldCFG
-      Pipes:
-        - Type:             yield-cfg
-          UsedContainers: [assembly-internal.yml, cfg-svg.yml]
-      Artifacts:
-        Container: cfg-svg.yml
-        Kind: FunctionControlFlowGraphSVG
+  - From: ProcessAssembly
+    Steps:
+      - Name: YieldCFG
+        Pipes:
+          - Type: yield-cfg
+            UsedContainers: [assembly-internal.yml, cfg-svg.yml]
+        Artifacts:
+          Container: cfg-svg.yml
+          Kind: FunctionControlFlowGraphSVG
+          SingleTargetFilename: cfg.svg

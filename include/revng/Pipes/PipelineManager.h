@@ -43,6 +43,9 @@ private:
   createContexts(llvm::ArrayRef<std::string> EnablingFlags,
                  llvm::StringRef ExecutionDirectory);
 
+  /// recalculates all possible targets and keeps overship of the computed info
+  void recalculateAllPossibleTargets();
+
 public:
   PipelineManager(PipelineManager &&Other) = default;
   PipelineManager &operator=(PipelineManager &&Other) = default;
@@ -89,15 +92,22 @@ public:
   llvm::Error store(llvm::ArrayRef<std::string> StoresOverrides);
 
   /// Triggers the full serialization of every step and every container to the
-  /// ExecutionDirectory.
-  llvm::Error storeToDisk();
+  /// the specified DirPath or the Execution directory if omitted.
+  llvm::Error storeToDisk(llvm::StringRef DirPath = llvm::StringRef());
+
+  /// Trigger the serialization of a single Step to the specified DirPath or
+  /// the Execution directory if omitted.
+  llvm::Error storeStepToDisk(llvm::StringRef StepName,
+                              llvm::StringRef DirPath = llvm::StringRef());
+
+  llvm::Error deserializeContainer(pipeline::Step &Step,
+                                   llvm::StringRef ContainerName,
+                                   const llvm::MemoryBuffer &Buffer);
 
   const pipeline::Context &context() const { return *PipelineContext; }
 
   pipeline::Context &context() { return *PipelineContext; }
 
-  /// recalculates all possible targets and keeps overship of the computed info
-  void recalculateAllPossibleTargets();
   /// recalculates the current aviable targetsd and keeps overship of the
   /// computer info
   void recalculateCurrentState();
@@ -135,6 +145,16 @@ public:
 
   const pipeline::Runner &getRunner() const { return *Runner; }
   pipeline::Runner &getRunner() { return *Runner; }
+
+  llvm::Expected<pipeline::DiffMap>
+  runAnalysis(llvm::StringRef AnalysisName,
+              llvm::StringRef StepName,
+              const pipeline::ContainerToTargetsMap &Targets,
+              llvm::raw_ostream *DiagnosticLog = nullptr);
+
+  /// Run all analysis in reverse post order (that is: parents first),
+  llvm::Expected<pipeline::DiffMap>
+  runAllAnalyses(llvm::raw_ostream *OS = nullptr);
 
   /// prints to the provided raw_ostream all possible targets that can
   /// be produced by the pipeline in the current state

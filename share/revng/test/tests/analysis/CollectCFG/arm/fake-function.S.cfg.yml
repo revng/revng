@@ -5,34 +5,34 @@
 ---
 - FunctionMetadata:
     ControlFlowGraph:
-      - End: '2'
-        Start: '1'
+      - End: "2"
+        Start: "1"
         Successors:
-        - Destination: '3'
-          Type: FakeFunctionCall
-      - End: '3'
-        Start: '2'
+          - Destination: "3"
+            Type: FakeFunctionCall
+      - End: "3"
+        Start: "2"
         Successors:
-        - Destination: '4'
-          Type: DirectBranch
-      - End: '4'
-        Start: '3'
+          - Destination: "4"
+            Type: DirectBranch
+      - End: "4"
+        Start: "3"
         Successors:
-        - Destination: '2'
-          Type: DirectBranch
-      - End: '5'
-        Start: '4'
+          - Destination: "2"
+            Type: DirectBranch
+      - End: "5"
+        Start: "4"
         Successors:
-        - Destination: ":Invalid"
-          Type: Return
+          - Destination: ":Invalid"
+            Type: Return
   OriginalName: _start
   Type: Regular
 - FunctionMetadata:
     ControlFlowGraph:
-      - End: '5'
-        Start: '4'
+      - End: "5"
+        Start: "4"
         Successors:
-        - Destination: ":Invalid"
-          Type: IndirectTailCall
+          - Destination: ":Invalid"
+            Type: IndirectTailCall
   OriginalName: epilogue
   Type: NoReturn

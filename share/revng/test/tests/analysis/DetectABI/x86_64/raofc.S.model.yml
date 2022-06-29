@@ -4,8 +4,8 @@
 
 ---
 Functions:
-- OriginalName: raofc
-  Prototype: "/Types/RawFunctionType-1"
+  - OriginalName: raofc
+    Prototype: "/Types/RawFunctionType-1"
 Types:
-- Arguments: []
-  ID: 1
+  - Arguments: []
+    ID: 1

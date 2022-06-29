@@ -8,12 +8,10 @@ import signal
 import subprocess
 import sys
 from dataclasses import dataclass, field
-from itertools import chain
-from pathlib import Path
-from typing import Any, Dict, Iterable, List, NoReturn, Optional, Set, Tuple, Union
+from typing import Any, Dict, Iterable, List, NoReturn, Optional, Union
 
-from elftools.elf.dynamic import DynamicSegment
-from elftools.elf.elffile import ELFFile
+from revng.support.collect import collect_files, collect_libraries
+from revng.support.elf import is_executable
 
 try:
     from shutil import which
@@ -88,25 +86,6 @@ def run(command, options: Options, environment: Optional[Dict[str, str]] = None,
         sys.exit(result)
 
 
-def is_executable(path: str) -> bool:
-    with open(path, "rb") as program:
-        return program.read(4) == b"\x7fELF"
-
-
-def is_dynamic(path: str) -> bool:
-    with open(path, "rb") as input_file:
-        return (
-            len(
-                [
-                    segment
-                    for segment in ELFFile(input_file).iter_segments()
-                    if segment.header.p_type == "PT_DYNAMIC"
-                ]
-            )
-            != 0
-        )
-
-
 def get_command(command: str, search_prefixes: Iterable[str]) -> str:
     if command.startswith("revng-"):
         for executable in collect_files(search_prefixes, ["libexec", "revng"], command):
@@ -123,86 +102,6 @@ def get_command(command: str, search_prefixes: Iterable[str]) -> str:
 
 def interleave(base: List[str], repeat: str):
     return list(sum(zip([repeat] * len(base), base), ()))
-
-
-# Use in case different version of pyelftools might give str or bytes
-def to_string(obj: Union[str, bytes]) -> str:
-    if isinstance(obj, str):
-        return obj
-    return obj.decode("utf-8")
-
-
-def get_elf_needed(path: str) -> List[str]:
-    with open(path, "rb") as elf_file:
-        segments = [
-            segment
-            for segment in ELFFile(elf_file).iter_segments()
-            if isinstance(segment, DynamicSegment)
-        ]
-
-        if len(segments) != 1:
-            return []
-
-        needed = [
-            to_string(tag.needed)
-            for tag in segments[0].iter_tags()
-            if tag.entry.d_tag == "DT_NEEDED"
-        ]
-
-        elf_runpath: List[str] = [
-            tag.runpath for tag in segments[0].iter_tags() if tag.entry.d_tag == "DT_RUNPATH"
-        ]
-
-        assert len(elf_runpath) < 2
-
-        if not elf_runpath:
-            return needed
-
-        runpaths = [
-            runpath.replace("$ORIGIN", str(Path(path).parent))
-            for runpath in elf_runpath[0].split(":")
-        ]
-        absolute_needed = []
-        for lib in needed:
-            found = False
-            for runpath in runpaths:
-                full_path = Path(runpath) / lib
-                if full_path.is_file():
-                    absolute_needed.append(str(full_path.resolve()))
-                    found = True
-                    break
-
-            if not found:
-                absolute_needed.append(lib)
-
-        return absolute_needed
-
-
-def collect_files(
-    search_prefixes: Iterable[str], path_components: Iterable[str], pattern: str
-) -> List[str]:
-    to_load: Dict[str, Path] = {}
-    for prefix in search_prefixes:
-        analyses_path = Path(prefix).joinpath(*path_components)
-        if not analyses_path.is_dir():
-            continue
-
-        # Enumerate all the libraries containing analyses
-        for library in analyses_path.glob(pattern):
-            if library.name not in to_load:
-                to_load[library.name] = library.resolve()
-
-    return [str(v) for v in to_load.values()]
-
-
-def collect_libraries(search_prefixes: Iterable[str]) -> Tuple[List[str], Set[str]]:
-    to_load = collect_files(search_prefixes, ["lib", "revng", "analyses"], "*.so")
-
-    # Identify all the libraries that are dependencies of other libraries, i.e.,
-    # non-roots in the dependencies tree. Note that circular dependencies are
-    # not allowed.
-    dependencies = set(chain.from_iterable([get_elf_needed(path) for path in to_load]))
-    return (to_load, dependencies)
 
 
 def handle_asan(dependencies: Iterable[str], search_prefixes: Iterable[str]) -> List[str]:

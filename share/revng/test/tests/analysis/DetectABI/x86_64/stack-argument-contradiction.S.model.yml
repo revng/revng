@@ -4,12 +4,12 @@
 
 ---
 Functions:
-- OriginalName: func
-  Prototype: "/Types/RawFunctionType-1"
-- OriginalName: callee
-  Prototype: "/Types/RawFunctionType-2"
+  - OriginalName: func
+    Prototype: "/Types/RawFunctionType-1"
+  - OriginalName: callee
+    Prototype: "/Types/RawFunctionType-2"
 Types:
-- Arguments: []
-  ID: 2
-- Arguments: []
-  ID: 1
+  - Arguments: []
+    ID: 2
+  - Arguments: []
+    ID: 1

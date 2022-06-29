@@ -47,10 +47,13 @@ struct PipeInvocation {
 struct ArtifactsDeclaration {
   std::string Container;
   std::string Kind;
+  std::string SingleTargetFilename;
 
-  ArtifactsDeclaration() : Container(), Kind() {}
+  ArtifactsDeclaration() : Container(), Kind(), SingleTargetFilename() {}
 
-  bool isValid() const { return !Container.empty() && !Kind.empty(); }
+  bool isValid() const {
+    return !Container.empty() && !Kind.empty() && !SingleTargetFilename.empty();
+  }
 };
 
 struct StepDeclaration {
@@ -267,6 +270,7 @@ struct llvm::yaml::MappingTraits<pipeline::ArtifactsDeclaration> {
   static void mapping(IO &TheIO, pipeline::ArtifactsDeclaration &Info) {
     TheIO.mapRequired("Container", Info.Container);
     TheIO.mapRequired("Kind", Info.Kind);
+    TheIO.mapRequired("SingleTargetFilename", Info.SingleTargetFilename);
   }
 };
 

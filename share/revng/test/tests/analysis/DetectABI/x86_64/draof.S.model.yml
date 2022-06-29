@@ -4,8 +4,8 @@
 
 ---
 Functions:
-- OriginalName: draof
-  Prototype: "/Types/RawFunctionType-1"
+  - OriginalName: draof
+    Prototype: "/Types/RawFunctionType-1"
 Types:
-- Arguments: []
-  ID: 1
+  - Arguments: []
+    ID: 1

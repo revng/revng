@@ -5,21 +5,21 @@
 ---
 - FunctionMetadata:
     ControlFlowGraph:
-      - End: '2'
-        Start: '1'
+      - End: "2"
+        Start: "1"
         Successors:
-        - Attributes:
-          - NoReturn
-          Destination: '3'
-          Type: FunctionCall
+          - Attributes:
+              - NoReturn
+            Destination: "3"
+            Type: FunctionCall
   OriginalName: _start
   Type: NoReturn
 - FunctionMetadata:
     ControlFlowGraph:
-      - End: '4'
-        Start: '3'
+      - End: "4"
+        Start: "3"
         Successors:
-        - Destination: ":Invalid"
-          Type: IndirectTailCall
+          - Destination: ":Invalid"
+            Type: IndirectTailCall
   OriginalName: tailcall
   Type: NoReturn

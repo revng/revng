@@ -3,6 +3,7 @@
 #
 
 import logging
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -10,20 +11,23 @@ from starlette.applications import Starlette
 from starlette.config import Config
 from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse
 
 from ariadne.asgi import GraphQL
 from ariadne.contrib.tracing.apollotracing import ApolloTracingExtension
 
+from revng.api import Manager
 from revng.api._capi import initialize as capi_initialize
 
 from .demo_webpage import demo_page, production_demo_page
-from .schema import SchemafulManager
+from .manager import make_manager
+from .schema_generator import SchemaGen
 from .util import project_workdir
 
 workdir: Path = project_workdir()
-manager: Optional[SchemafulManager] = None
+manager: Optional[Manager] = None
 startup_done = False
 
 config = Config()
@@ -55,11 +59,11 @@ async def status(request):
 def startup():
     global manager, startup_done
     capi_initialize()
-    manager = SchemafulManager(workdir=str(workdir.resolve()))
+    manager = make_manager(workdir)
     app.mount(
         "/graphql",
         GraphQL(
-            manager.schema,
+            SchemaGen().get_schema(manager),
             context_value={"manager": manager, "workdir": workdir},
             extensions=[ApolloTracingExtension],
             debug=DEBUG,
@@ -70,17 +74,27 @@ def startup():
 
 def shutdown():
     if manager is not None:
-        store_result = manager.store_containers()
+        store_result = manager.save()
         if not store_result:
             logging.warning("Failed to store manager's containers")
 
 
 app = Starlette(
     debug=DEBUG,
-    middleware=[Middleware(ManagerMiddleware)],
+    middleware=[
+        Middleware(ManagerMiddleware),
+        Middleware(
+            CORSMiddleware,
+            allow_origins=os.environ["REVNG_ORIGINS"].split(",")
+            if "REVNG_ORIGINS" in os.environ
+            else [],
+            allow_methods=["*"],
+        ),
+    ],
     on_startup=[startup],
     on_shutdown=[shutdown],
 )
+
 
 app.add_route("/status", status, ["GET"])
 if DEBUG:
