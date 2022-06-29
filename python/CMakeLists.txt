@@ -150,6 +150,12 @@ python_module(TARGET_NAME revng-python-cmd-download-pdb MODULE_FILES
               "revng/cli/download_pdb.py")
 
 #
+# Install revng.cli.hard_purge
+#
+python_module(TARGET_NAME revng-python-cmd-hard-purge MODULE_FILES
+              "revng/cli/hard_purge.py")
+
+#
 # Install revng.api
 #
 set(REVNG_API_MODULE_FILES

@@ -18,6 +18,7 @@ def run_revng_command(arguments, options: Options):
     # Import built-in commands
     from .daemon import DaemonCommand
     from .download_pdb import DownloadPDBCommand
+    from .hard_purge import HardPurgeCommand
     from .lift import LiftCommand
     from .llvm_pipeline import IRPipelineCommand
     from .opt import IROptCommand
