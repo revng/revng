@@ -73,7 +73,10 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   // Generate model types
   auto &WritableModel = ModelWrapper.getWriteableModel();
   auto ValueToTypeMap = dla::makeModelTypes(TS, Values, WritableModel);
-  bool Changed = dla::updateFuncSignatures(M, WritableModel, ValueToTypeMap);
+  bool Changed = false;
+
+  Changed |= dla::updateFuncSignatures(M, WritableModel, ValueToTypeMap);
+  Changed |= dla::updateSegmentsTypes(M, WritableModel, ValueToTypeMap);
 
   return Changed;
 }
