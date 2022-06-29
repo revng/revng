@@ -3,32 +3,32 @@
 #
 
 Branches:
- - From:            EarlyOptimizeForDecompilation
-   Steps:
-    - Name:            DetectStackSize
-      Pipes:
-       - Type:             LLVMPipe
-         UsedContainers: [module.ll]
-         Passes:
-          - instrument-stack-accesses
-          - instcombine
-          - compute-stack-accesses-bounds
-    - Name:            SegregateStackAccesses
-      Pipes:
-       - Type:             LLVMPipe
-         UsedContainers: [module.ll]
-         Passes:
-          - segregate-stack-accesses
-    - Name:            LateOptimizeForDecompilation
-      Pipes:
-       - Type:             LLVMPipe
-         UsedContainers: [module.ll]
-         Passes:
-          - cleanup-stack-size-markers
-          - dce
-          - sroa
-          - instcombine
-          - sroa
-          - simplifycfg
-          - restore-extractvalues
-          - strip-dead-prototypes
+  - From: EarlyOptimizeForDecompilation
+    Steps:
+      - Name: DetectStackSize
+        Pipes:
+          - Type: LLVMPipe
+            UsedContainers: [module.ll]
+            Passes:
+              - instrument-stack-accesses
+              - instcombine
+              - compute-stack-accesses-bounds
+      - Name: SegregateStackAccesses
+        Pipes:
+          - Type: LLVMPipe
+            UsedContainers: [module.ll]
+            Passes:
+              - segregate-stack-accesses
+      - Name: LateOptimizeForDecompilation
+        Pipes:
+          - Type: LLVMPipe
+            UsedContainers: [module.ll]
+            Passes:
+              - cleanup-stack-size-markers
+              - dce
+              - sroa
+              - instcombine
+              - sroa
+              - simplifycfg
+              - restore-extractvalues
+              - strip-dead-prototypes

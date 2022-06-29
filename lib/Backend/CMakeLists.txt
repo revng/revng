@@ -13,6 +13,7 @@ target_link_libraries(
   revng::revngModel
   revng::revngPipes
   revng::revngSupport
+  MLIRSupportIndentedOstream
   ${LLVM_LIBRARIES})
 
 revng_add_analyses_library(

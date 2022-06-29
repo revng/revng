@@ -4,11 +4,11 @@
 
 Branches:
 Analyses:
-   - Name: detect-stack-size
-     Type: detect-stack-size
-     UsedContainers: [module.ll]
-     Step: DetectStackSize
-   - Name: dla
-     Type: dla
-     UsedContainers: [module.ll]
-     Step: LateOptimizeForDecompilation
+  - Name: detect-stack-size
+    Type: detect-stack-size
+    UsedContainers: [module.ll]
+    Step: DetectStackSize
+  - Name: dla
+    Type: dla
+    UsedContainers: [module.ll]
+    Step: LateOptimizeForDecompilation

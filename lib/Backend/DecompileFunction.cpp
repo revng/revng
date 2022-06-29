@@ -48,6 +48,8 @@
 #include "revng-c/TypeNames/LLVMTypeNames.h"
 #include "revng-c/TypeNames/ModelTypeNames.h"
 
+#include "mlir/Support/IndentedOstream.h"
+
 using llvm::cast;
 using llvm::dyn_cast;
 using llvm::isa;
@@ -237,7 +239,7 @@ private:
   const ModelTypesMap TypeMap;
 
   /// Where to output the decompiled C code
-  raw_ostream &Out;
+  mlir::raw_indented_ostream Out;
 
   /// Name of the local variable used to break out of loops from within nested
   /// switches
@@ -274,7 +276,7 @@ public:
                            &ModelFunction,
                            Model,
                            /*PointersOnly=*/false)),
-    Out(Out),
+    Out(Out, 4),
     SwitchStateVars() {
 
     // TODO: don't use a global loop state variable
@@ -1239,20 +1241,29 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     // TODO: possibly cast the CondExpr if it's not convertible to boolean?
     revng_assert(not CondExpr.empty());
     Out << "if (" + CondExpr + ") {\n";
+    {
+      auto scope = Out.scope();
 
-    // "Then" expression (always emitted)
-    if (nullptr == If->getThen()) {
-      Out << " // Empty\n";
-    } else {
-      rc_recur emitGHASTNode(If->getThen());
+      // "Then" expression (always emitted)
+      if (nullptr == If->getThen()) {
+        Out << " // Empty\n";
+      } else {
+        rc_recur emitGHASTNode(If->getThen());
+      }
     }
-    Out << "}\n";
+
+    Out << "}";
 
     // "Else" expression (optional)
     if (If->hasElse()) {
-      Out << "else {\n";
-      rc_recur emitGHASTNode(If->getElse());
+      Out << " else {\n";
+      {
+        auto scope = Out.scope();
+        rc_recur emitGHASTNode(If->getElse());
+      }
       Out << "}\n";
+    } else {
+      Out << "\n";
     }
 
     break;
@@ -1283,7 +1294,11 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
 
     revng_assert(LoopBody->hasBody());
     Out << "{\n";
-    rc_recur emitGHASTNode(LoopBody->getBody());
+
+    {
+      auto scope = Out.scope();
+      rc_recur emitGHASTNode(LoopBody->getBody());
+    }
     Out << "}";
 
     if (LoopBody->isDoWhile())
@@ -1353,41 +1368,49 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
 
     // Generate the switch statement
     Out << "switch (" << SwitchVarToken << ") {\n";
+    {
+      auto scope = Out.scope();
 
-    // Generate the body of the switch (except for the default)
-    for (const auto &[Labels, CaseNode] : Switch->cases_const_range()) {
-      revng_assert(not Labels.empty());
-      // Generate the case label(s) (multiple case labels might share the
-      // same body)
-      for (uint64_t CaseVal : Labels) {
-        Out << "case ";
-        if (SwitchVar) {
-          llvm::Type *SwitchVarT = SwitchVar->getType();
-          auto *IntType = cast<llvm::IntegerType>(SwitchVarT);
-          auto *CaseConst = llvm::ConstantInt::get(IntType, CaseVal);
-          // TODO: assigned the signedness based on the signedness of the
-          // condition
-          CaseConst->getValue().print(Out, false);
-        } else {
-          Out << CaseVal;
+      // Generate the body of the switch (except for the default)
+      for (const auto &[Labels, CaseNode] : Switch->cases_const_range()) {
+        revng_assert(not Labels.empty());
+        // Generate the case label(s) (multiple case labels might share the
+        // same body)
+        for (uint64_t CaseVal : Labels) {
+          Out << "case ";
+          if (SwitchVar) {
+            llvm::Type *SwitchVarT = SwitchVar->getType();
+            auto *IntType = cast<llvm::IntegerType>(SwitchVarT);
+            auto *CaseConst = llvm::ConstantInt::get(IntType, CaseVal);
+            // TODO: assigned the signedness based on the signedness of the
+            // condition
+            CaseConst->getValue().print(Out, false);
+          } else {
+            Out << CaseVal;
+          }
+          Out << ":\n";
         }
-        Out << ":\n";
+        Out << "{\n";
+        {
+          Out.scope();
+
+          // Generate the case body
+          rc_recur emitGHASTNode(CaseNode);
+        }
+        Out << "} break;\n";
       }
-      Out << "{\n";
 
-      // Generate the case body
-      rc_recur emitGHASTNode(CaseNode);
+      // Generate the default case if it exists
+      if (auto *Default = Switch->getDefault()) {
+        Out << "default: \n{\n";
 
-      Out << "} break;\n";
+        {
+          auto scope = Out.scope();
+          rc_recur emitGHASTNode(Default);
+        }
+        Out << "} break;\n";
+      }
     }
-
-    // Generate the default case if it exists
-    if (auto *Default = Switch->getDefault()) {
-      Out << "default: {\n";
-      rc_recur emitGHASTNode(Default);
-      Out << "} break;\n";
-    }
-
     Out << "}\n";
 
     // If the switch needs a loop break dispatcher, reset the associated
@@ -1477,59 +1500,62 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
   // Print function's prototype
   printFunctionPrototype(ParentPrototype, ModelFunction.name(), Out, Model);
   Out << " {\n";
+  {
+    auto scope = Out.scope();
 
-  // Emit a declaration for the loop state variable, which is used to
-  // redirect control flow inside loops (e.g. if we want to jump in the
-  // middle of a loop during a certain iteration)
-  if (NeedsLocalStateVar)
-    Out << "uint64_t " << LoopStateVar << ";\n";
+    // Emit a declaration for the loop state variable, which is used to
+    // redirect control flow inside loops (e.g. if we want to jump in the
+    // middle of a loop during a certain iteration)
+    if (NeedsLocalStateVar)
+      Out << "uint64_t " << LoopStateVar << ";\n";
 
-  // Declare all variables that have the entire function as a scope
-  decompilerLog(Out, "Top-Scope Declarations");
-  for (const llvm::Instruction *VarToDeclare : TopScopeVariables) {
-    decompilerLog(Out, "VarToDeclare: " + dumpToString(VarToDeclare));
+    // Declare all variables that have the entire function as a scope
+    decompilerLog(Out, "Top-Scope Declarations");
+    for (const llvm::Instruction *VarToDeclare : TopScopeVariables) {
+      decompilerLog(Out, "VarToDeclare: " + dumpToString(VarToDeclare));
 
-    StringToken VarName = createVarName(VarToDeclare);
+      StringToken VarName = createVarName(VarToDeclare);
 
-    auto VarTypeIt = TypeMap.find(VarToDeclare);
-    if (VarTypeIt != TypeMap.end()) {
+      auto VarTypeIt = TypeMap.find(VarToDeclare);
+      if (VarTypeIt != TypeMap.end()) {
 
-      if (auto *Alloca = llvm::dyn_cast<llvm::AllocaInst>(VarToDeclare)) {
-        // Allocas are special, since the expression associated to them is
-        // `&var` while the variable allocated is `var`
-        VarName = declareAllocaVariable(Alloca, VarName);
+        if (auto *Alloca = llvm::dyn_cast<llvm::AllocaInst>(VarToDeclare)) {
+          // Allocas are special, since the expression associated to them is
+          // `&var` while the variable allocated is `var`
+          VarName = declareAllocaVariable(Alloca, VarName);
+        } else {
+          Out << getNamedCInstance(TypeMap.at(VarToDeclare), VarName) << ";\n";
+        }
+
       } else {
-        Out << getNamedCInstance(TypeMap.at(VarToDeclare), VarName) << ";\n";
+        // The only types that are allowed to be missing from the TypeMap are
+        // LLVM aggregates returned by RawFunctionTypes or by helpers
+        auto *Call = llvm::cast<CallInst>(VarToDeclare);
+        auto *CalledFunction = Call->getCalledFunction();
+        revng_assert(CalledFunction);
+
+        if (FunctionTags::Isolated.isTagOf(CalledFunction)) {
+          const auto &Prototype = getCallSitePrototype(Model, Call).getConst();
+          auto *RawPrototype = llvm::cast<RawFunctionType>(Prototype);
+          Out << getReturnTypeName(*RawPrototype) << " " << VarName << ";\n";
+        } else {
+          Out << getReturnType(CalledFunction) << " " << VarName << ";\n";
+        }
       }
 
-    } else {
-      // The only types that are allowed to be missing from the TypeMap are
-      // LLVM aggregates returned by RawFunctionTypes or by helpers
-      auto *Call = llvm::cast<CallInst>(VarToDeclare);
-      auto *CalledFunction = Call->getCalledFunction();
-      revng_assert(CalledFunction);
-
-      if (FunctionTags::Isolated.isTagOf(CalledFunction)) {
-        const auto &Prototype = getCallSitePrototype(Model, Call);
-        auto *RawPrototype = llvm::cast<RawFunctionType>(Prototype.getConst());
-        Out << getReturnTypeName(*RawPrototype) << " " << VarName << ";\n";
-      } else {
-        Out << getReturnType(CalledFunction) << " " << VarName << ";\n";
-      }
+      TokenMap[VarToDeclare] = VarName;
     }
 
-    TokenMap[VarToDeclare] = VarName;
-  }
+    if (not TopScopeVariables.empty()) {
+      // Emit a blank line between top scope declarations and the rest of the
+      // body
+      Out << "\n";
+      decompilerLog(Out, "End of Top-Scope Declarations");
+    }
 
-  if (not TopScopeVariables.empty()) {
-    // Emit a blank line between top scope declarations and the rest of the
-    // body
-    Out << "\n";
-    decompilerLog(Out, "End of Top-Scope Declarations");
+    // Recursively print the body of this function
+    emitGHASTNode(GHAST.getRoot());
   }
-
-  // Recursively print the body of this function
-  emitGHASTNode(GHAST.getRoot());
 
   Out << "}\n";
 }

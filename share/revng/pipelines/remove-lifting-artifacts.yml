@@ -3,13 +3,12 @@
 #
 
 Branches:
- - From:            EnforceABI
-   Steps:
-    - Name:            RemoveLiftingArtifacts
-      Pipes:
-       - Type:             LLVMPipe
-         UsedContainers: [module.ll]
-         Passes:
-          - remove-lifting-artifacts
-          - promote-init-csv-to-undef
-
+  - From: EnforceABI
+    Steps:
+      - Name: RemoveLiftingArtifacts
+        Pipes:
+          - Type: LLVMPipe
+            UsedContainers: [module.ll]
+            Passes:
+              - remove-lifting-artifacts
+              - promote-init-csv-to-undef
