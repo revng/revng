@@ -8,9 +8,11 @@
 
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/MetaAddress.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 #include "revng-c/Support/FunctionTags.h"
+#include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/Mangling.h"
 
 static constexpr const char *const ModelGEPName = "ModelGEP";
@@ -32,6 +34,7 @@ Tag Assign("Assign");
 Tag Copy("Copy");
 Tag WritesMemory("WritesMemory");
 Tag ReadsMemory("ReadsMemory");
+Tag SegmentRef("SegmentRef");
 } // namespace FunctionTags
 
 static std::string makeTypeName(const llvm::Type *Ty) {
@@ -126,6 +129,25 @@ void initParenthesesPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.setTags({ &FunctionTags::Parentheses, &FunctionTags::Marker });
   // Initialize the pool from its internal llvm::Module if possible.
   Pool.initializeFromReturnType(FunctionTags::Parentheses);
+}
+
+void initSegmentRefPool(OpaqueFunctionsPool<SegmentRefPoolKey> &Pool,
+                        llvm::Module *M) {
+  // Set attributes
+  Pool.addFnAttribute(llvm::Attribute::NoUnwind);
+  Pool.addFnAttribute(llvm::Attribute::WillReturn);
+  Pool.addFnAttribute(llvm::Attribute::ReadNone);
+  // Set revng tags
+  Pool.setTags({ &FunctionTags::SegmentRef, &FunctionTags::IsRef });
+
+  // Initialize the pool
+  for (llvm::Function &F : FunctionTags::SegmentRef.functions(M)) {
+    const auto &[StartAddress, VirtualSize] = extractSegmentKeyFromMetadata(F);
+    auto *RetType = F.getFunctionType()->getReturnType();
+
+    SegmentRefPoolKey Key = { { StartAddress, VirtualSize }, RetType };
+    Pool.record(Key, &F);
+  }
 }
 
 llvm::Function *

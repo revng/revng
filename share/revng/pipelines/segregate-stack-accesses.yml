@@ -32,3 +32,9 @@ Branches:
               - simplifycfg
               - restore-extractvalues
               - strip-dead-prototypes
+      - Name: MakeSegmentRefs
+        Pipes:
+          - Type: LLVMPipe
+            UsedContainers: [module.ll]
+            Passes:
+              - make-segment-ref

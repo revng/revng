@@ -31,6 +31,7 @@ extern Tag Assign;
 extern Tag Copy;
 extern Tag ReadsMemory;
 extern Tag WritesMemory;
+extern Tag SegmentRef;
 
 inline Tag LiftingArtifactsRemoved("LiftingArtifactsRemoved", Isolated);
 
@@ -105,6 +106,13 @@ getModelGEPRef(llvm::Module &M, llvm::Type *RetType, llvm::Type *BaseType);
 
 /// Initializes a pool of ModelCast functions
 void initModelCastPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+
+using SegmentRefPoolKey = std::pair<std::pair<MetaAddress, uint64_t>,
+                                    llvm::Type *>;
+
+/// Initializes a pool of SegmentRef functions
+void initSegmentRefPool(OpaqueFunctionsPool<SegmentRefPoolKey> &Pool,
+                        llvm::Module *M);
 
 llvm::Function *getAssignmentMarker(llvm::Module &M, llvm::Type *T);
 

@@ -3,7 +3,7 @@
 #
 
 Branches:
-  - From: LateOptimizeForDecompilation
+  - From: MakeSegmentRefs
     Steps:
       - Name: IRCanonicalization
         Pipes:
