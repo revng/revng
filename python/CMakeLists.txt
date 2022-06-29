@@ -102,7 +102,8 @@ set(REVNG_CLI_COMMANDS_MODULE_FILES
     revng/cli/_commands/opt.py revng/cli/_commands/pipeline.py
     revng/cli/_commands/llvm_pipeline.py
     revng/cli/_commands/override_by_name.py revng/cli/_commands/daemon.py
-    revng/cli/_commands/download_pdb.py)
+    revng/cli/_commands/download_pdb.py revng/cli/_commands/hard_purge.py)
+
 python_module(TARGET_NAME revng-python-cli-commands MODULE_FILES
               ${REVNG_CLI_COMMANDS_MODULE_FILES})
 
