@@ -245,8 +245,8 @@ static TypeVector getReturnTypes(const llvm::CallInst *Call,
       revng_assert(Call->getNumArgOperands() >= 2);
       // ModelGEPs and ModelCasts contain a string with the serialization of the
       // pointer's base QualifiedType as a first argument
-      StringRef FirstOp = extractFromConstantStringPtr(Call->getArgOperand(0));
-      QualifiedType ParsedType = parseQualifiedType(FirstOp, Model);
+      auto ParsedType = deserializeFromLLVMString(Call->getArgOperand(0),
+                                                  Model);
 
       if (FunctionTags::ModelGEP.isTagOf(CalledFunc)) {
         // Second argument is the base llvm::Value
@@ -268,8 +268,8 @@ static TypeVector getReturnTypes(const llvm::CallInst *Call,
       revng_assert(Call->getNumArgOperands() >= 2);
       // ModelGEPs contain a string with the serialization of the pointer's
       // base QualifiedType as a first argument
-      StringRef FirstOp = extractFromConstantStringPtr(Call->getArgOperand(0));
-      QualifiedType GEPpedType = parseQualifiedType(FirstOp, Model);
+      auto GEPpedType = deserializeFromLLVMString(Call->getArgOperand(0),
+                                                  Model);
 
       // Second argument is the base llvm::Value
       // Further arguments are used to traverse the model
@@ -288,8 +288,8 @@ static TypeVector getReturnTypes(const llvm::CallInst *Call,
     } else if (FunctionTags::AddressOf.isTagOf(CalledFunc)) {
       // AddressOf contains a string with the serialization of the pointed type
       // as a first argument
-      StringRef FirstOp = extractFromConstantStringPtr(Call->getArgOperand(0));
-      QualifiedType PointedType = parseQualifiedType(FirstOp, Model);
+      auto PointedType = deserializeFromLLVMString(Call->getArgOperand(0),
+                                                   Model);
 
       // Since we are taking the address, the final type will be a pointer to
       // the base type
@@ -312,8 +312,8 @@ static TypeVector getReturnTypes(const llvm::CallInst *Call,
       }
 
     } else if (FunctionTags::LocalVariable.isTagOf(CalledFunc)) {
-      StringRef StringOp = extractFromConstantStringPtr(Call->getArgOperand(0));
-      const model::QualifiedType VarType = parseQualifiedType(StringOp, Model);
+      QualifiedType VarType = deserializeFromLLVMString(Call->getArgOperand(0),
+                                                        Model);
 
       ReturnTypes.push_back(VarType);
 

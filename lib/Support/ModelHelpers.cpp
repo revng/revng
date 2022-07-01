@@ -7,7 +7,6 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/Casting.h"
 
-#include "revng/ADT/RecursiveCoroutine-coroutine.h"
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/QualifiedType.h"
 #include "revng/Model/Qualifier.h"
@@ -18,6 +17,7 @@
 
 using llvm::dyn_cast;
 using QualKind = model::QualifierKind::Values;
+using model::QualifiedType;
 using model::TypedefType;
 
 model::QualifiedType
@@ -115,11 +115,15 @@ llvmIntToModelType(const llvm::Type *LLVMType, const model::Binary &Model) {
   return ModelType;
 }
 
-model::QualifiedType
-parseQualifiedType(const llvm::StringRef QTString, const model::Binary &Model) {
-  model::QualifiedType ParsedType;
+QualifiedType
+deserializeFromLLVMString(llvm::Value *V, const model::Binary &Model) {
+  // Try to get a string out of the llvm::Value
+  llvm::StringRef BaseTypeString = extractFromConstantStringPtr(V);
+
+  // Try to parse the string as a qualified type (aborts on failure)
+  QualifiedType ParsedType;
   {
-    llvm::yaml::Input YAMLInput(QTString);
+    llvm::yaml::Input YAMLInput(BaseTypeString);
     YAMLInput >> ParsedType;
     std::error_code EC = YAMLInput.error();
     if (EC)
@@ -172,12 +176,4 @@ dropPointer(const model::QualifiedType &QT) {
   revng_abort("Cannot dropPointer, QT does not have pointer qualifiers");
 
   rc_return{};
-}
-
-model::QualifiedType
-deserializeAndParseQualifiedType(llvm::Value *Operand,
-                                 const model::Binary &Model) {
-  llvm::StringRef BaseTypeString = extractFromConstantStringPtr(Operand);
-  auto CurType = parseQualifiedType(BaseTypeString, Model);
-  return CurType;
 }

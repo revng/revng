@@ -77,8 +77,7 @@ MMCP::serializeTypesForModelCast(Instruction *I, const model::Binary &Model) {
         bool IsRef = FunctionTags::ModelGEPRef.isTagOf(Callee);
 
         auto &PtrType = TypeMap.at(CI->getArgOperand(1));
-        auto CurType = deserializeAndParseQualifiedType(CI->getArgOperand(0),
-                                                        Model);
+        auto CurType = deserializeFromLLVMString(CI->getArgOperand(0), Model);
 
         if (not IsRef)
           addPointerQualifier(CurType, Model);

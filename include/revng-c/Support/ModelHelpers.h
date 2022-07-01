@@ -31,9 +31,11 @@ extern model::TypePath createEmptyStruct(model::Binary &Binary, uint64_t Size);
 extern const model::QualifiedType
 llvmIntToModelType(const llvm::Type *LLVMType, const model::Binary &Model);
 
-/// Parse a QualifiedType from a string.
+/// Tries to extract a QualifiedType from an llvm::Value. V must be a pointer to
+/// a string which contains a valid serialization of a QualifiedType, otherwise
+/// this function will abort.
 extern model::QualifiedType
-parseQualifiedType(const llvm::StringRef QTString, const model::Binary &Model);
+deserializeFromLLVMString(llvm::Value *V, const model::Binary &Model);
 
 /// Create a global string in the given LLVM module that contains a
 /// serialization of \a QT.
@@ -70,7 +72,3 @@ createPointerTo(const model::TypePath &BaseT, const model::Binary &Binary) {
 /// qualifier is found.
 extern RecursiveCoroutine<model::QualifiedType>
 dropPointer(const model::QualifiedType &QT);
-
-extern model::QualifiedType
-deserializeAndParseQualifiedType(llvm::Value *Operand,
-                                 const model::Binary &Model);

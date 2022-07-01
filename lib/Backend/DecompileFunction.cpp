@@ -610,9 +610,7 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
 
     // First argument is a string containing the base type
     auto *CurArg = Call->arg_begin();
-    StringRef BaseTypeString = extractFromConstantStringPtr(CurArg->get());
-
-    QualifiedType CurType = parseQualifiedType(BaseTypeString, Model);
+    QualifiedType CurType = deserializeFromLLVMString(CurArg->get(), Model);
 
     // Second argument is the base llvm::Value
     ++CurArg;
@@ -715,10 +713,7 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
   } else if (FunctionTags::ModelCast.isTagOf(CalledFunc)) {
     // First argument is a string containing the base type
     auto *CurArg = Call->arg_begin();
-    StringRef BaseTypeString = extractFromConstantStringPtr(CurArg->get());
-
-    QualifiedType CurType = parseQualifiedType(BaseTypeString, Model);
-    QualifiedType CurTypePtr = CurType;
+    QualifiedType CurType = deserializeFromLLVMString(CurArg->get(), Model);
 
     // Second argument is the base llvm::Value
     ++CurArg;
@@ -727,7 +722,7 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
     // Emit the parenthesized cast expr, and we are done
     StringToken CastExpr = buildCastExpr(TokenMap.at(BaseValue),
                                          TypeMap.at(BaseValue),
-                                         CurTypePtr);
+                                         CurType);
     Expression = CastExpr;
   } else if (FunctionTags::AddressOf.isTagOf(CalledFunc)) {
     // Second argument is the value being addressed
