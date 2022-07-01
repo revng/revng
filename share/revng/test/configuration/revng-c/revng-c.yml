@@ -84,8 +84,8 @@ commands:
       revng model dump "$INPUT" > "$$MODEL";
       revng pipeline
         -m "$$MODEL"
-        -i "IRCanonicalization:module.ll:$INPUT"
-        -o "DecompiledYAMLToC:decompiled.c:$OUTPUT"
+        -i "$INPUT:IRCanonicalization/module.ll"
+        -o "$OUTPUT:DecompiledYAMLToC/decompiled.c"
         DecompiledYAMLToC:decompiled.c::DecompiledToC
   - type: revng-c.check-decompiled-c
     from:
