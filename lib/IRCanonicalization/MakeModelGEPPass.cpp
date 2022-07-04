@@ -1242,7 +1242,7 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
         Result = ModelGEPArgs{ .BaseAddress = TBA,
                                .IndexVector = std::move(Indices),
                                .RestOff = RestOff,
-                               .PointeeType = CurrentType };
+                               .PointeeType = FieldType };
         return Result;
       }
 
@@ -1281,7 +1281,7 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
         Result = ModelGEPArgs{ .BaseAddress = TBA,
                                .IndexVector = std::move(Indices),
                                .RestOff = RestOff,
-                               .PointeeType = CurrentType };
+                               .PointeeType = FieldType };
         return Result;
       }
 
