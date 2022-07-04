@@ -8,3 +8,4 @@ target_link_libraries(revng-pipeline revngPipeline revngPipes revngRecompile
                       revngEarlyFunctionAnalysis)
 
 add_subdirectory(invalidate)
+add_subdirectory(artifact)

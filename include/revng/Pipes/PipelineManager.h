@@ -43,6 +43,7 @@ private:
   createContexts(llvm::ArrayRef<std::string> EnablingFlags,
                  llvm::StringRef ExecutionDirectory);
 
+public:
   /// recalculates all possible targets and keeps overship of the computed info
   void recalculateAllPossibleTargets(bool ExpandTargets = true);
 
