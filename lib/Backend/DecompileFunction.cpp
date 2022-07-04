@@ -725,8 +725,15 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
                                          CurType);
     Expression = CastExpr;
   } else if (FunctionTags::AddressOf.isTagOf(CalledFunc)) {
+    // First operand is the type of the value being addressed (should not
+    // introduce casts)
+    QualifiedType ArgType = deserializeFromLLVMString(Call->getArgOperand(0),
+                                                      Model);
+
     // Second argument is the value being addressed
-    const llvm::Value *Arg = Call->getArgOperand(1);
+    llvm::Value *Arg = Call->getArgOperand(1);
+    revng_assert(ArgType == TypeMap.at(Arg));
+
     Expression = buildAddressExpr(TokenMap.at(Arg));
 
   } else if (FunctionTags::Parentheses.isTagOf(CalledFunc)) {
