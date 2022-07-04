@@ -126,6 +126,14 @@ public:
   llvm::Error
   run(llvm::StringRef EndingStepName, const ContainerToTargetsMap &Targets);
 
+  llvm::Error run(const State &ToProduce) {
+    for (const auto &Request : ToProduce)
+      if (auto Error = run(Request.first(), Request.second))
+        return Error;
+
+    return llvm::Error::success();
+  }
+
   llvm::Expected<DiffMap> runAnalysis(llvm::StringRef AnalysisName,
                                       llvm::StringRef StepName,
                                       const ContainerToTargetsMap &Targets);

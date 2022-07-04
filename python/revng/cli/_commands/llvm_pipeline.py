@@ -47,9 +47,9 @@ class IRPipelineCommand(Command):
             run_revng_command(["model", "dump", saved_input_file.name, "-o", model.name], options)
 
             # Run revng-pipeline
-            target = f"{args.to}:module.ll:{args.target}"
+            target = f"--produce={args.to}:module.ll:{args.target}"
             if args.analysis:
-                target = f"{args.to}:{args.analysis}:module.ll:{args.target}"
+                target = f"--analyze={args.to}:{args.analysis}:module.ll:{args.target}"
 
             run_revng_command(
                 [

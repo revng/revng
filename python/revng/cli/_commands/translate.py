@@ -49,10 +49,10 @@ class TranslateCommand(Command):
             "pipeline",
         ]
 
-        command.append("Lift:DetectABI:module.ll::Root")
+        command.append("--analyze=Lift:DetectABI:module.ll::Root")
 
         command = command + [
-            f"{step_name}:output::Translated",
+            f"--produce={step_name}:output::Translated",
             "-i",
             f"{args.input[0]}:begin/input",
             "-o",

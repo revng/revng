@@ -29,7 +29,7 @@ commands:
         -i "begin:input:$INPUT1"
         -i "EnforceABI:module.ll:$INPUT2"
         -o "$OUTPUT:YieldAssembly/assembly-ptml.yml"
-        YieldAssembly:assembly-ptml.yml:*:FunctionAssemblyPTML
+        --produce YieldAssembly/assembly-ptml.yml/*:FunctionAssemblyPTML
   - type: revng.cfg-svg
     from:
       - type: revng-qa.compiled
@@ -44,7 +44,7 @@ commands:
         -i "$INPUT1:begin/input"
         -i "$INPUT2:EnforceABI/module.ll"
         -o "$OUTPUT:YieldCFG/cfg-svg.yml"
-        YieldCFG:cfg-svg.yml:*:FunctionControlFlowGraphSVG
+        --produce YieldCFG:cfg-svg.yml:*:FunctionControlFlowGraphSVG
   - type: revng.test-python-model-serialization-roundtrip
     from:
       - type: revng.abi-enforced-for-decompilation

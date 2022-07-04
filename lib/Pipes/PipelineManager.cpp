@@ -403,7 +403,7 @@ PipelineManager::runAnalysis(llvm::StringRef AnalysisName,
   return Result;
 }
 
-llvm::Expected<DiffMap> PipelineManager::runAllAnalyses(llvm::raw_ostream *OS) {
+llvm::Expected<DiffMap> PipelineManager::runAllAnalyses() {
   auto Result = Runner->runAllAnalyses();
   if (Result)
     recalculateAllPossibleTargets();

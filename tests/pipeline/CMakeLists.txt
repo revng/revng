@@ -47,8 +47,9 @@ macro(add_pipeline_dump_test TEST_NAME PIPELINE_FILE)
     NAME "${TEST_NAME}"
     COMMAND
       "${CMAKE_BINARY_DIR}/libexec/revng/revng-pipeline" -P
-      "${CMAKE_CURRENT_SOURCE_DIR}/${PIPELINE_FILE}" FirstStep:dc:dc:StringKind
-      -l "${CMAKE_BINARY_DIR}/lib/librevngStringContainerLibrary.so" -d)
+      "${CMAKE_CURRENT_SOURCE_DIR}/${PIPELINE_FILE}"
+      --produce=FirstStep:dc:dc:StringKind -l
+      "${CMAKE_BINARY_DIR}/lib/librevngStringContainerLibrary.so" -d)
   set_tests_properties(
     "${TEST_NAME}" PROPERTIES LABELS "pipeline;dump" ENVIRONMENT
                               "PATH=${CMAKE_BINARY_DIR}/bin:$ENV{PATH}")
@@ -100,7 +101,7 @@ set(COPY_PIPE_TEST_OUTPUTS "CopyPipeTestOutput.txt:FirstStep/Strings2")
 test_pipeline_output(
   pipeline-copy-pipe
   CopyPipeTestPipeline.yml
-  FirstStep:Strings2:Root:StringKind
+  --produce=FirstStep:Strings2:Root:StringKind
   "${COPY_PIPE_TEST_INPUTS}"
   "${COPY_PIPE_TEST_OUTPUTS}"
   None
@@ -112,7 +113,7 @@ set(ROLE_COPY_PIPE_TEST_OUTPUTS "RoleCopyPipeTestOutput.txt:FirstStep/Strings2")
 test_pipeline_output(
   role-pipeline-copy-pipe
   RoleCopyPipeTestPipeline.yml
-  FirstStep:Strings2:Root:StringKind
+  --produce=FirstStep/Strings2/Root:StringKind
   "${COPY_PIPE_TEST_INPUTS}"
   "${ROLE_COPY_PIPE_TEST_OUTPUTS}"
   None
@@ -123,7 +124,7 @@ test_pipeline_output(
 test_pipeline_output(
   pipeline-copy-pipe-flag
   CopyPipeFlagTestPipeline.yml
-  FirstStep:Strings2:Root:StringKind
+  --produce=FirstStep:Strings2:Root:StringKind
   "${COPY_PIPE_TEST_INPUTS}"
   "${COPY_PIPE_TEST_OUTPUTS}"
   None
@@ -133,13 +134,13 @@ test_pipeline_output(
 # Try to produce a target produced by a disabled pipe
 ensure_pipeline_failure(
   pipeline-flag-fail-test CopyPipeFlagTestPipeline.yml
-  FirstStep:Strings2:Root:StringKind "${COPY_PIPE_TEST_INPUTS}"
+  --produce=FirstStep:Strings2:Root:StringKind "${COPY_PIPE_TEST_INPUTS}"
   "${COPY_PIPE_TEST_OUTPUTS}" DisableCopyPipe)
 
 # Try to invoke a non-existing pass using a PureLLVMPipe
 ensure_pipeline_failure(
   pipeline-test-missing-pipe MissingPassPipelineTest.yml
-  FirstStep:Strings2:Root:StringKind "${COPY_PIPE_TEST_INPUTS}"
+  --produce=FirstStep:Strings2:Root:StringKind "${COPY_PIPE_TEST_INPUTS}"
   "${COPY_PIPE_TEST_OUTPUTS}" DontCare)
 
 # Test an LLVMPass pipe
@@ -189,7 +190,7 @@ endfunction()
 add_invalidation_test(
   simple_invalidation_test
   TARGETS
-  "FirstStep:Strings2:Root:StringKind"
+  "--produce=FirstStep:Strings2:Root:StringKind"
   STEP
   "FirstStep"
   INPUT

@@ -6,6 +6,9 @@
 
 #include <cstdlib>
 
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/PluginLoader.h"
@@ -19,6 +22,7 @@
 #include "revng/Pipeline/LLVMContainerFactory.h"
 #include "revng/Pipeline/LLVMGlobalKindBase.h"
 #include "revng/Pipeline/Loader.h"
+#include "revng/Pipeline/Runner.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/PipelineManager.h"
@@ -34,11 +38,6 @@ cl::OptionCategory PipelineCategory("revng-pipeline options", "");
 
 static cl::list<string>
   InputPipeline("P", desc("<Pipeline>"), cat(PipelineCategory));
-
-static cl::list<string> Targets(Positional,
-                                ZeroOrMore,
-                                desc("<Targets to produce>..."),
-                                cat(PipelineCategory));
 
 static cl::list<string> ContainerOverrides("i",
                                            desc("Load the target file in the "
@@ -89,6 +88,14 @@ static cl::list<string> EnablingFlags("f",
                                       desc("list of pipeline enabling flags"),
                                       cat(PipelineCategory));
 
+static cl::list<string> Produce("produce",
+                                desc("comma separated list of targets to be "
+                                     "produced in one sweep."),
+                                cat(PipelineCategory));
+
+static cl::list<string>
+  Analyze("analyze", desc("analyses to be performed."), cat(PipelineCategory));
+
 static opt<string> ExecutionDirectory("p",
                                       desc("Directory from which all "
                                            "containers will "
@@ -114,29 +121,42 @@ static alias A2("t",
 
 static ExitOnError AbortOnError;
 
-static void runPipelineOnce(Runner &Pipeline, llvm::StringRef Target) {
-  bool IsAnalysis = llvm::count(Target, ':') == 4;
-
-  ContainerToTargetsMap ToProduce;
+static Runner::State
+parseProductionRequest(Runner &Pipeline,
+                       llvm::ArrayRef<llvm::StringRef> Targets) {
+  Runner::State ToProduce;
 
   const auto &Registry = Pipeline.getKindsRegistry();
-  auto [StepName, Rest] = Target.split(":");
-
-  if (not IsAnalysis) {
-    AbortOnError(parseTarget(ToProduce, Rest, Registry));
-    AbortOnError(Pipeline.run(StepName, ToProduce));
-    return;
+  for (const auto &Target : Targets) {
+    auto [StepName, Rest] = Target.split(":");
+    AbortOnError(parseTarget(ToProduce[StepName], Rest, Registry));
   }
 
+  return ToProduce;
+}
+
+static void runAnalysis(Runner &Pipeline, llvm::StringRef Target) {
+  const auto &Registry = Pipeline.getKindsRegistry();
+
+  auto [Step, Rest] = Target.split(":");
   auto [AnalysisName, Rest2] = Rest.split(":");
+
+  ContainerToTargetsMap ToProduce;
   AbortOnError(parseTarget(ToProduce, Rest2, Registry));
-  AbortOnError(Pipeline.runAnalysis(AnalysisName, StepName, ToProduce));
+  AbortOnError(Pipeline.runAnalysis(AnalysisName, Step, ToProduce));
 }
 
 static void runPipeline(Runner &Pipeline) {
 
-  for (const auto &Target : Targets)
-    runPipelineOnce(Pipeline, Target);
+  for (llvm::StringRef Entry : Analyze) {
+    runAnalysis(Pipeline, Entry);
+  }
+
+  for (llvm::StringRef Entry : Produce) {
+    llvm::SmallVector<llvm::StringRef, 3> Targets;
+    Entry.split(Targets, ",");
+    AbortOnError(Pipeline.run(parseProductionRequest(Pipeline, Targets)));
+  }
 }
 
 static auto makeManager() {

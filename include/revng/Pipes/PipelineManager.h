@@ -44,10 +44,6 @@ private:
                  llvm::StringRef ExecutionDirectory);
 
 public:
-  /// recalculates all possible targets and keeps overship of the computed info
-  void recalculateAllPossibleTargets(bool ExpandTargets = true);
-
-public:
   PipelineManager(PipelineManager &&Other) = default;
   PipelineManager &operator=(PipelineManager &&Other) = default;
   PipelineManager &operator=(const PipelineManager &Other) = delete;
@@ -158,8 +154,10 @@ public:
               llvm::raw_ostream *DiagnosticLog = nullptr);
 
   /// Run all analysis in reverse post order (that is: parents first),
-  llvm::Expected<pipeline::DiffMap>
-  runAllAnalyses(llvm::raw_ostream *OS = nullptr);
+  llvm::Expected<pipeline::DiffMap> runAllAnalyses();
+
+  /// recalculates all possible targets and keeps overship of the computed info
+  void recalculateAllPossibleTargets(bool ExpandTargets = true);
 
   /// prints to the provided raw_ostream all possible targets that can
   /// be produced by the pipeline in the current state
