@@ -101,7 +101,7 @@ set(COPY_PIPE_TEST_OUTPUTS "CopyPipeTestOutput.txt:FirstStep/Strings2")
 test_pipeline_output(
   pipeline-copy-pipe
   CopyPipeTestPipeline.yml
-  --produce=FirstStep:Strings2:Root:StringKind
+  --produce=FirstStep/Strings2/Root:StringKind
   "${COPY_PIPE_TEST_INPUTS}"
   "${COPY_PIPE_TEST_OUTPUTS}"
   None
@@ -124,7 +124,7 @@ test_pipeline_output(
 test_pipeline_output(
   pipeline-copy-pipe-flag
   CopyPipeFlagTestPipeline.yml
-  --produce=FirstStep:Strings2:Root:StringKind
+  --produce=FirstStep/Strings2/Root:StringKind
   "${COPY_PIPE_TEST_INPUTS}"
   "${COPY_PIPE_TEST_OUTPUTS}"
   None
@@ -134,13 +134,13 @@ test_pipeline_output(
 # Try to produce a target produced by a disabled pipe
 ensure_pipeline_failure(
   pipeline-flag-fail-test CopyPipeFlagTestPipeline.yml
-  --produce=FirstStep:Strings2:Root:StringKind "${COPY_PIPE_TEST_INPUTS}"
+  --produce=FirstStep/Strings2/Root:StringKind "${COPY_PIPE_TEST_INPUTS}"
   "${COPY_PIPE_TEST_OUTPUTS}" DisableCopyPipe)
 
 # Try to invoke a non-existing pass using a PureLLVMPipe
 ensure_pipeline_failure(
   pipeline-test-missing-pipe MissingPassPipelineTest.yml
-  --produce=FirstStep:Strings2:Root:StringKind "${COPY_PIPE_TEST_INPUTS}"
+  --produce=FirstStep/Strings2/Root:StringKind "${COPY_PIPE_TEST_INPUTS}"
   "${COPY_PIPE_TEST_OUTPUTS}" DontCare)
 
 # Test an LLVMPass pipe
@@ -190,7 +190,7 @@ endfunction()
 add_invalidation_test(
   simple_invalidation_test
   TARGETS
-  "--produce=FirstStep:Strings2:Root:StringKind"
+  "--produce=FirstStep/Strings2/Root:StringKind"
   STEP
   "FirstStep"
   INPUT
@@ -198,7 +198,7 @@ add_invalidation_test(
   PIPELINE
   "${CMAKE_CURRENT_SOURCE_DIR}/SimpleInvalidationTestPipeline.yml"
   INVALIDATIONS
-  "FirstStep:Strings1:Root:StringKind")
+  "FirstStep/Strings1/Root:StringKind")
 
 #
 # Bad behavior handling

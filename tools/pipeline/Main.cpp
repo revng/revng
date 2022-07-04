@@ -128,7 +128,7 @@ parseProductionRequest(Runner &Pipeline,
 
   const auto &Registry = Pipeline.getKindsRegistry();
   for (const auto &Target : Targets) {
-    auto [StepName, Rest] = Target.split(":");
+    auto [StepName, Rest] = Target.split("/");
     AbortOnError(parseTarget(ToProduce[StepName], Rest, Registry));
   }
 
@@ -138,8 +138,8 @@ parseProductionRequest(Runner &Pipeline,
 static void runAnalysis(Runner &Pipeline, llvm::StringRef Target) {
   const auto &Registry = Pipeline.getKindsRegistry();
 
-  auto [Step, Rest] = Target.split(":");
-  auto [AnalysisName, Rest2] = Rest.split(":");
+  auto [Step, Rest] = Target.split("/");
+  auto [AnalysisName, Rest2] = Rest.split("/");
 
   ContainerToTargetsMap ToProduce;
   AbortOnError(parseTarget(ToProduce, Rest2, Registry));

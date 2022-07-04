@@ -26,8 +26,8 @@ commands:
       revng model dump "$INPUT2" > "$$MODEL";
       revng pipeline
         -m "$$MODEL"
-        -i "begin:input:$INPUT1"
-        -i "EnforceABI:module.ll:$INPUT2"
+        -i "$INPUT1:begin/input"
+        -i "$INPUT2:EnforceABI/module.ll"
         -o "$OUTPUT:YieldAssembly/assembly-ptml.yml"
         --produce YieldAssembly/assembly-ptml.yml/*:FunctionAssemblyPTML
   - type: revng.cfg-svg
@@ -44,7 +44,7 @@ commands:
         -i "$INPUT1:begin/input"
         -i "$INPUT2:EnforceABI/module.ll"
         -o "$OUTPUT:YieldCFG/cfg-svg.yml"
-        --produce YieldCFG:cfg-svg.yml:*:FunctionControlFlowGraphSVG
+        --produce YieldCFG/cfg-svg.yml/*:FunctionControlFlowGraphSVG
   - type: revng.test-python-model-serialization-roundtrip
     from:
       - type: revng.abi-enforced-for-decompilation

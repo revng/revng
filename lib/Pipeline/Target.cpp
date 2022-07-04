@@ -150,10 +150,10 @@ llvm::Error pipeline::parseTarget(ContainerToTargetsMap &CurrentStatus,
                                   llvm::StringRef AsString,
                                   const KindsRegistry &Dict) {
   llvm::SmallVector<llvm::StringRef, 2> Parts;
-  AsString.split(Parts, ':', 1);
+  AsString.split(Parts, '/', 1);
 
   if (Parts.size() != 2) {
-    auto *Message = "string %s was not in expected form <ContainerName:Target>";
+    auto *Message = "string %s was not in expected form <ContainerName/Target>";
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    Message,
                                    AsString.str().c_str());

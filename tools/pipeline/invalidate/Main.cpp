@@ -84,7 +84,7 @@ static InvalidationMap getInvalidationMap(Runner &Pipeline) {
 
   const auto &Registry = Pipeline.getKindsRegistry();
   for (llvm::StringRef Target : Targets) {
-    auto [StepName, Rest] = Target.split(":");
+    auto [StepName, Rest] = Target.split("/");
     auto &ToInvalidate = Invalidations[StepName];
     AbortOnError(parseTarget(ToInvalidate, Rest, Registry));
   }
