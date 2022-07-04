@@ -15,5 +15,8 @@
 
 using namespace pipeline;
 
+Logger<> pipeline::ExplanationLogger("pipeline");
+Logger<> pipeline::CommandLogger("commands");
+
 Context::Context() : TheKindRegistry(Registry::registerAllKinds()) {
 }

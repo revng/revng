@@ -177,17 +177,14 @@ public:
 public:
   void runAnalysis(llvm::StringRef AnalysisName,
                    Context &Ctx,
-                   const ContainerToTargetsMap &Targets,
-                   llvm::raw_ostream *OS = nullptr);
+                   const ContainerToTargetsMap &Targets);
 
   /// Clones the Targets from the backing containers of this step
   /// and excutes all the pipes in sequence contained by this step
   /// and returns the transformed containers.
   ///
   /// The contained values stays unchanged.
-  ContainerSet cloneAndRun(Context &Ctx,
-                           ContainerSet &&Targets,
-                           llvm::raw_ostream *OS = nullptr);
+  ContainerSet cloneAndRun(Context &Ctx, ContainerSet &&Targets);
 
   /// Returns the set of goals that are already contained in the backing
   /// containers of this step, futhermore adds to the container ToLoad those
@@ -240,10 +237,8 @@ private:
 
   void explainExecutedPipe(const Context &Ctx,
                            const InvokableWrapperBase &Wrapper,
-                           llvm::raw_ostream *OS,
                            size_t Indentation = 0) const;
   void explainStartStep(const ContainerToTargetsMap &Wrapper,
-                        llvm::raw_ostream *OS,
                         size_t Indentation = 0) const;
 };
 

@@ -6,8 +6,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
+#include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Errors.h"
 #include "revng/Pipeline/GlobalTupleTreeDiff.h"
 #include "revng/Pipeline/Kind.h"
@@ -55,33 +57,34 @@ using StatusMap = llvm::StringMap<ContainerToTargetsMap>;
 
 static void explainPipeline(const ContainerToTargetsMap &Targets,
                             const ContainerToTargetsMap &ToLoad,
-                            ArrayRef<PipelineExecutionEntry> Requirements,
-                            raw_ostream &OS) {
-  OS.changeColor(llvm::raw_ostream::Colors::GREEN);
-  OS << "Objectives: \n";
+                            ArrayRef<PipelineExecutionEntry> Requirements) {
 
-  prettyPrintStatus(Targets, OS, 1);
+  ExplanationLogger << "OBJECTIVES requested\n";
+  indent(ExplanationLogger, 1);
+  ExplanationLogger << Requirements.back().ToExecute->getName() << ":\n";
+  prettyPrintStatus(Targets, ExplanationLogger, 2);
 
   if (Requirements.size() <= 1) {
-    OS.changeColor(llvm::raw_ostream::Colors::GREEN);
-    OS << "Already satisfied\n";
+    ExplanationLogger << "Already satisfied\n";
     return;
   }
-  OS << "\n";
+  ExplanationLogger << DoLog;
+  ExplanationLogger << "DEDUCED steps content to be produced: \n";
 
-  OS.changeColor(llvm::raw_ostream::Colors::GREEN);
-  OS << "Deduced Step Level Requirements: \n";
+  indent(ExplanationLogger, 1);
+  ExplanationLogger << Requirements.back().ToExecute->getName() << ":\n";
+  prettyPrintStatus(Targets, ExplanationLogger, 2);
 
-  for (const PipelineExecutionEntry &Entry : llvm::reverse(Requirements)) {
+  for (size_t I = Requirements.size(); I != 1; I--) {
+    StringRef StepName = Requirements[I - 2].ToExecute->getName();
+    const auto &TargetsNeeded = Requirements[I - 1].Objectives;
 
-    OS.indent(1);
-    OS.changeColor(llvm::raw_ostream::Colors::MAGENTA);
-    OS << Entry.ToExecute->getName() << "\n";
-
-    prettyPrintStatus(Entry.Objectives, OS, 2);
+    indent(ExplanationLogger, 1);
+    ExplanationLogger << StepName << ":\n";
+    prettyPrintStatus(TargetsNeeded, ExplanationLogger, 2);
   }
 
-  OS.resetColor();
+  ExplanationLogger << DoLog;
 }
 
 Error Runner::getInvalidations(StatusMap &Invalidated) const {
@@ -232,8 +235,7 @@ Error Runner::loadFromDisk(llvm::StringRef DirPath) {
 llvm::Expected<DiffMap>
 Runner::runAnalysis(llvm::StringRef AnalysisName,
                     llvm::StringRef StepName,
-                    const ContainerToTargetsMap &Targets,
-                    llvm::raw_ostream *DiagnosticLog) {
+                    const ContainerToTargetsMap &Targets) {
 
   auto Before = getContext().getGlobals();
 
@@ -245,13 +247,10 @@ Runner::runAnalysis(llvm::StringRef AnalysisName,
                              StepName.str().c_str());
   }
 
-  if (auto Error = run(StepName, Targets, DiagnosticLog))
+  if (auto Error = run(StepName, Targets))
     return std::move(Error);
 
-  MaybeStep->second.runAnalysis(AnalysisName,
-                                *TheContext,
-                                Targets,
-                                DiagnosticLog);
+  MaybeStep->second.runAnalysis(AnalysisName, *TheContext, Targets);
 
   auto &After = getContext().getGlobals();
   auto Map = Before.diff(After);
@@ -263,7 +262,7 @@ Runner::runAnalysis(llvm::StringRef AnalysisName,
 }
 
 /// Run all analysis in reverse post order (that is: parents first),
-llvm::Expected<DiffMap> Runner::runAllAnalyses(llvm::raw_ostream *OS) {
+llvm::Expected<DiffMap> Runner::runAllAnalyses() {
   auto Before = getContext().getGlobals();
 
   for (const Step *Step : ReversePostOrderIndexes) {
@@ -277,7 +276,7 @@ llvm::Expected<DiffMap> Runner::runAllAnalyses(llvm::raw_ostream *OS) {
         }
       }
 
-      auto Result = runAnalysis(Pair.first(), Step->getName(), Map, OS);
+      auto Result = runAnalysis(Pair.first(), Step->getName(), Map);
       if (not Result)
         return Result.takeError();
     }
@@ -288,8 +287,7 @@ llvm::Expected<DiffMap> Runner::runAllAnalyses(llvm::raw_ostream *OS) {
 }
 
 Error Runner::run(llvm::StringRef EndingStepName,
-                  const ContainerToTargetsMap &Targets,
-                  llvm::raw_ostream *DiagnosticLog) {
+                  const ContainerToTargetsMap &Targets) {
 
   ContainerToTargetsMap ToLoad;
   vector<PipelineExecutionEntry> ToExec;
@@ -299,8 +297,7 @@ Error Runner::run(llvm::StringRef EndingStepName,
       Error)
     return Error;
 
-  if (DiagnosticLog != nullptr)
-    explainPipeline(Targets, ToLoad, ToExec, *DiagnosticLog);
+  explainPipeline(Targets, ToLoad, ToExec);
 
   if (ToExec.size() <= 1)
     return Error::success();
@@ -311,14 +308,14 @@ Error Runner::run(llvm::StringRef EndingStepName,
        llvm::make_range(ToExec.begin() + 1, ToExec.end())) {
     auto &[Step, Goals] = StepGoalsPairs;
     CurrentContainer = Step->cloneAndRun(*TheContext,
-                                         std::move(CurrentContainer),
-                                         DiagnosticLog);
+                                         std::move(CurrentContainer));
   }
 
-  if (DiagnosticLog != nullptr) {
-    *DiagnosticLog << "Produced:\n";
-    CurrentContainer.enumerate().dump(*DiagnosticLog);
-  }
+  ExplanationLogger << "PRODUCED \n";
+  indent(ExplanationLogger, 1);
+  ExplanationLogger << EndingStepName << ":\n";
+  CurrentContainer.enumerate().dump(ExplanationLogger, 2, false);
+  ExplanationLogger << DoLog;
 
   return Error::success();
 }

@@ -30,8 +30,6 @@ using namespace llvm::cl;
 using namespace pipeline;
 using namespace ::revng::pipes;
 
-static Logger<> PipelineLogger("pipeline");
-
 cl::OptionCategory PipelineCategory("revng-pipeline options", "");
 
 static cl::list<string>
@@ -81,16 +79,6 @@ static opt<bool> DumpPipeline("d",
                               desc("Dump built pipeline, but dont run it"),
                               cat(PipelineCategory));
 
-static opt<bool> Verbose("verbose",
-                         desc("Print explanation while running"),
-                         cat(PipelineCategory),
-                         init(false));
-
-static alias VerboseAlias1("v",
-                           desc("Alias for --verbose"),
-                           aliasopt(Verbose),
-                           cat(PipelineCategory));
-
 static cl::list<string> StoresOverrides("o",
                                         desc("Store the target container at "
                                              "the "
@@ -133,17 +121,16 @@ static void runPipelineOnce(Runner &Pipeline, llvm::StringRef Target) {
 
   const auto &Registry = Pipeline.getKindsRegistry();
   auto [StepName, Rest] = Target.split(":");
-  auto *Stream = Verbose ? &dbgs() : nullptr;
 
   if (not IsAnalysis) {
     AbortOnError(parseTarget(ToProduce, Rest, Registry));
-    AbortOnError(Pipeline.run(StepName, ToProduce, Stream));
+    AbortOnError(Pipeline.run(StepName, ToProduce));
     return;
   }
 
   auto [AnalysisName, Rest2] = Rest.split(":");
   AbortOnError(parseTarget(ToProduce, Rest2, Registry));
-  AbortOnError(Pipeline.runAnalysis(AnalysisName, StepName, ToProduce, Stream));
+  AbortOnError(Pipeline.runAnalysis(AnalysisName, StepName, ToProduce));
 }
 
 static void runPipeline(Runner &Pipeline) {
@@ -163,7 +150,6 @@ int main(int argc, const char *argv[]) {
 
   HideUnrelatedOptions(PipelineCategory);
   ParseCommandLineOptions(argc, argv);
-  auto LoggerOS = PipelineLogger.getAsLLVMStream();
 
   Registry::runAllInitializationRoutines();
 
@@ -191,11 +177,10 @@ int main(int argc, const char *argv[]) {
   runPipeline(Manager.getRunner());
 
   if (ProduceAllPossibleTargets)
-    AbortOnError(Manager.produceAllPossibleTargets(*LoggerOS));
+    AbortOnError(Manager.produceAllPossibleTargets());
 
   if (InvalidateAll) {
-    PipelineLogger.enable();
-    AbortOnError(Manager.invalidateAllPossibleTargets(*LoggerOS));
+    AbortOnError(Manager.invalidateAllPossibleTargets());
   }
 
   AbortOnError(Manager.store(StoresOverrides));

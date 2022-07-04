@@ -158,7 +158,7 @@ inline void writeToLog(Logger<X> &This, const LogTerminator &LineInfo, int) {
 /// \brief Specialization for llvm::StringRef
 template<bool X>
 inline void writeToLog(Logger<X> &This, const llvm::StringRef &S, int Ign) {
-  writeToLog(This, S.data(), Ign);
+  writeToLog(This, S.str(), Ign);
 }
 
 /// \brief Specialization for llvm::StringRef

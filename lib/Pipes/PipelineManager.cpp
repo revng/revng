@@ -243,9 +243,10 @@ void PipelineManager::writeAllPossibleTargets(llvm::raw_ostream &OS) const {
 
     OS << Step.first() << ":\n";
     for (const auto &Container : Step.second) {
+      indent(OS, 1);
       OS << Container.first() << ":\n";
       for (const auto &ExpandedTarget : Container.second)
-        ExpandedTarget.dump(OS);
+        ExpandedTarget.dump(OS, 2);
     }
   }
 }
@@ -315,8 +316,8 @@ PipelineManager::store(llvm::ArrayRef<std::string> StoresOverrides) {
   return llvm::Error::success();
 }
 
-llvm::Error
-PipelineManager::invalidateAllPossibleTargets(llvm::raw_ostream &Stream) {
+llvm::Error PipelineManager::invalidateAllPossibleTargets() {
+  auto Stream = ExplanationLogger.getAsLLVMStream();
   recalculateAllPossibleTargets();
 
   for (const auto &Step : CurrentState) {
@@ -328,9 +329,9 @@ PipelineManager::invalidateAllPossibleTargets(llvm::raw_ostream &Stream) {
                   .contains(Target))
           continue;
 
-        Stream << "Invalidating: ";
-        Stream << Step.first() << "/" << Container.first() << "/";
-        Target.dump(Stream);
+        *Stream << "Invalidating: ";
+        *Stream << Step.first() << "/" << Container.first() << "/";
+        Target.dump(*Stream);
         InvalidationMap Map;
         Map[Step.first()][Container.first()].push_back(Target);
         if (auto Error = Runner->getInvalidations(Map); Error)
@@ -340,8 +341,8 @@ PipelineManager::invalidateAllPossibleTargets(llvm::raw_ostream &Stream) {
 
         for (const auto &First : Map)
           for (const auto &Second : First.second) {
-            Stream << "\t" << First.first() << " " << Second.first() << " ";
-            Target.dump(Stream);
+            *Stream << "\t" << First.first() << " " << Second.first() << " ";
+            Target.dump(*Stream);
           }
       }
     }
@@ -350,8 +351,7 @@ PipelineManager::invalidateAllPossibleTargets(llvm::raw_ostream &Stream) {
   return llvm::Error::success();
 }
 
-llvm::Error
-PipelineManager::produceAllPossibleTargets(llvm::raw_ostream &Stream) {
+llvm::Error PipelineManager::produceAllPossibleTargets() {
   recalculateAllPossibleTargets();
 
   for (const auto &Step : CurrentState) {
@@ -359,10 +359,12 @@ PipelineManager::produceAllPossibleTargets(llvm::raw_ostream &Stream) {
       for (const auto &Target : Container.second) {
         ContainerToTargetsMap ToProduce;
         ToProduce.add(Container.first(), Target);
-        Stream << Step.first() << "/" << Container.first() << "/";
-        Target.dump(Stream);
+        ExplanationLogger << Step.first() << "/" << Container.first() << "/";
+        auto Logger = ExplanationLogger.getAsLLVMStream();
+        Target.dump(*Logger);
+        ExplanationLogger << DoLog;
 
-        if (auto Error = Runner->run(Step.first(), ToProduce, &Stream); Error)
+        if (auto Error = Runner->run(Step.first(), ToProduce); Error)
           return Error;
       }
     }
@@ -384,7 +386,7 @@ PipelineManager::runAnalysis(llvm::StringRef AnalysisName,
 }
 
 llvm::Expected<DiffMap> PipelineManager::runAllAnalyses(llvm::raw_ostream *OS) {
-  auto Result = Runner->runAllAnalyses(OS);
+  auto Result = Runner->runAllAnalyses();
   if (Result)
     recalculateAllPossibleTargets();
   return Result;
