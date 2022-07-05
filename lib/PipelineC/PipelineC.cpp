@@ -521,14 +521,6 @@ bool rp_target_is_ready(rp_target *target, rp_container *container) {
   return container->second->enumerate().contains(*target);
 }
 
-void rp_apply_model_diff(rp_manager *manager, const char *diff) {
-  auto Diff(cantFail(deserialize<TupleTreeDiff<model::Binary>>(diff)));
-  llvm::cantFail(manager->getRunner().apply(Diff));
-
-  auto &Model(getWritableModelFromContext(manager->context()));
-  Diff.apply(Model);
-}
-
 /// TODO Remove the redundant copy by writing a custom string stream that writes
 /// direclty to a buffer to return.
 const char *
@@ -556,19 +548,61 @@ const char *rp_manager_get_global_name(rp_manager *manager, int index) {
 
 bool rp_manager_set_global(rp_manager *manager,
                            const char *serialized,
-                           const char *global_name) {
-  auto MaybeBuffer = llvm::MemoryBuffer::getMemBuffer(serialized);
-  if (MaybeBuffer == nullptr)
-    return false;
+                           const char *global_name,
+                           bool dry_run,
+                           rp_error_container *error_container) {
+  revng_check(manager != nullptr);
+  revng_check(serialized != nullptr);
+  revng_check(global_name != nullptr);
 
-  if (auto Error = manager->context().deserializeGlobal(global_name,
-                                                        *MaybeBuffer);
-      Error) {
-    llvm::consumeError(std::move(Error));
-    return false;
-  }
+  auto &Context = manager->context();
+  auto Buffer = llvm::MemoryBuffer::getMemBuffer(serialized);
 
-  return true;
+  return withErrorContainer<bool>(error_container, [&](ErrorContainer *EC) {
+    if (auto Error = Context.getGlobals().verify(global_name, *Buffer); Error)
+      return EC->fail(std::move(Error), false);
+
+    if (!dry_run) {
+      if (auto Error = Context.deserializeGlobal(global_name, *Buffer); Error)
+        return EC->fail(std::move(Error), false);
+    }
+
+    return true;
+  });
+}
+
+bool rp_manager_apply_diff(rp_manager *manager,
+                           const char *diff,
+                           const char *global_name,
+                           bool dry_run,
+                           rp_error_container *error_container) {
+  revng_check(manager != nullptr);
+  revng_check(diff != nullptr);
+  revng_check(global_name != nullptr);
+
+  auto &Context = manager->context();
+  auto Buffer = llvm::MemoryBuffer::getMemBuffer(diff);
+
+  return withErrorContainer<bool>(error_container, [&](ErrorContainer *EC) {
+    auto GlobalCloneOrError = Context.cloneGlobal(global_name);
+    if (!GlobalCloneOrError)
+      return EC->fail(GlobalCloneOrError.takeError(), false);
+
+    auto GlobalClone = GlobalCloneOrError->get();
+
+    if (auto DiffError = GlobalClone->applyDiff(*Buffer); DiffError)
+      return EC->fail(std::move(DiffError), false);
+
+    if (auto VerifyError = GlobalClone->verify(); VerifyError)
+      return EC->fail(std::move(VerifyError), false);
+
+    if (!dry_run) {
+      auto Error = Context.applyDiffToGlobal(global_name, *Buffer);
+      return EC->failIf(std::move(Error));
+    } else {
+      return true;
+    }
+  });
 }
 
 uint64_t rp_ranks_count() {
@@ -682,4 +716,35 @@ bool rp_diff_map_is_empty(rp_diff_map *map) {
     }
   }
   return true;
+}
+
+rp_error_container *rp_make_error_container() {
+  return new ErrorContainer();
+}
+
+bool rp_error_container_is_empty(rp_error_container *error_container) {
+  revng_check(error_container != nullptr);
+  return error_container->empty();
+}
+
+uint64_t rp_error_container_error_count(rp_error_container *error_container) {
+  revng_check(error_container != nullptr);
+  return error_container->count();
+}
+
+const char *
+rp_error_container_get_error_message(rp_error_container *error_container,
+                                     uint64_t index) {
+  revng_check(error_container != nullptr);
+  std::string Out;
+  llvm::raw_string_ostream Serialized(Out);
+  Serialized << *error_container->get(index);
+  Serialized.flush();
+
+  return copyString(Out);
+}
+
+void rp_error_container_destroy(rp_error_container *error_container) {
+  revng_check(error_container != nullptr);
+  delete error_container;
 }

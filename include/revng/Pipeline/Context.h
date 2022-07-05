@@ -62,6 +62,16 @@ public:
     return Globals.deserialize(GlobalName, Buffer);
   }
 
+  llvm::Expected<std::unique_ptr<Global>>
+  cloneGlobal(llvm::StringRef GlobalName) {
+    return Globals.clone(GlobalName);
+  }
+
+  llvm::Error applyDiffToGlobal(llvm::StringRef GlobalName,
+                                const llvm::MemoryBuffer &Buffer) {
+    return Globals.applyDiff(GlobalName, Buffer);
+  }
+
   template<typename T, typename... ArgsT>
   void addGlobal(llvm::StringRef Name, ArgsT &&...Args) {
     Globals.emplace<T>(Name, std::forward<T>(Args)...);

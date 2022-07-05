@@ -41,10 +41,16 @@ info = ObjectType("Info")
 step = ObjectType("Step")
 container = ObjectType("Container")
 analysis_mutations = ObjectType("AnalysisMutations")
+debug = ObjectType("Debug")
 
 
 @query.field("info")
 async def resolve_root(_, info):
+    return {}
+
+
+@query.field("debug")
+async def resolve_debug(_, info):
     return {}
 
 
@@ -163,6 +169,18 @@ async def mutation_analyses(_, info):
     return {}
 
 
+@mutation.field("setGlobal")
+async def mutation_set_global(_, info, *, name: str, content: str) -> bool:
+    manager: Manager = info.context["manager"]
+    return await run_in_executor(lambda: manager.set_global(name, content, False))
+
+
+@mutation.field("applyDiff")
+async def mutation_apply_diff(_, info, *, globalName: str, content: str) -> bool:  # noqa: N803
+    manager: Manager = info.context["manager"]
+    return await run_in_executor(lambda: manager.apply_diff(globalName, content, False))
+
+
 @info.field("ranks")
 async def resolve_ranks(_, info):
     return await run_in_executor(lambda: [x.as_dict() for x in Rank.ranks()])
@@ -260,4 +278,25 @@ async def resolve_container_targets(container_obj, info):
     return await run_in_executor(lambda: [target_dict_to_graphql(t.as_dict()) for t in targets])
 
 
-DEFAULT_BINDABLES = (query, mutation, info, step, container, upload_scalar, analysis_mutations)
+@debug.field("verifyGlobal")
+async def debug_verify_global(_, info, *, name: str, content: str) -> bool:
+    manager: Manager = info.context["manager"]
+    return await run_in_executor(lambda: manager.set_global(name, content, True))
+
+
+@debug.field("verifyDiff")
+async def debug_verify_diff(_, info, *, globalName: str, content: str) -> bool:  # noqa: N803
+    manager: Manager = info.context["manager"]
+    return await run_in_executor(lambda: manager.apply_diff(globalName, content, True))
+
+
+DEFAULT_BINDABLES = (
+    query,
+    mutation,
+    info,
+    step,
+    container,
+    upload_scalar,
+    analysis_mutations,
+    debug,
+)

@@ -100,12 +100,6 @@ void rp_manager_destroy(rp_manager *manager);
 uint64_t rp_manager_containers_count(rp_manager *manager);
 
 /**
- * Applies the diff to the model and triggers a ModelInvalidationEvent
- *
- */
-void rp_apply_model_diff(rp_manager *manager, const char *diff);
-
-/**
  * \param index must be less than rp_manager_containers_count(manager).
  *
  * \return the container at the provided index.
@@ -154,11 +148,33 @@ rp_manager_create_global_copy(rp_manager *manager, const char *global_name);
 /**
  * sets the indicated global with the deserialized content of the serialized
  * string
+ * \param serialied a c-string representing the serialized new global
+ * \param global_name the name of the global
+ * \param dry_run if true, the global is not set, but any error that would arise is still reported
+ * \param error_container container that will store the errors, if any
+ *      if nullptr is passed then errors are silently ignored
  * \return true on success
  */
 bool rp_manager_set_global(rp_manager *manager,
                            const char *serialized,
-                           const char *global_name);
+                           const char *global_name,
+                           bool dry_run,
+                           rp_error_container *error_container);
+
+/**
+ * Apply the specified diff to the global
+ * \param diff a c-string representing the serialized diff
+ * \param global_name the name of the global
+ * \param dry_run if true, the diff is not committed, but any error that would arise is still reported
+ * \param error_container container that will store the errors, if any
+ *      if nullptr is passed then errors are silently ignored
+ * \return true on success
+ */
+bool rp_manager_apply_diff(rp_manager *manager,
+                           const char *diff,
+                           const char *global_name,
+                           bool dry_run,
+                           rp_error_container *error_container);
 
 /**
  * \returns the number of serializable global objects
@@ -578,3 +594,36 @@ uint64_t rp_rank_get_depth(rp_rank *rank);
  * \return \p Rank 's parent, or NULL if it has none
  */
 rp_rank *rp_rank_get_parent(rp_rank *rank);
+
+/**
+ * \defgroup rp_error_container rp_error_container methods
+ * \{
+ */
+
+/**
+ * \return a new error container
+ */
+rp_error_container * /*owning*/ rp_make_error_container();
+
+/**
+ * \return if an error_container contains a valid error
+ */
+bool rp_error_container_is_empty(rp_error_container *error);
+
+/**
+ * \return number of errors present in the container
+ */
+uint64_t rp_error_container_error_count(rp_error_container *error);
+
+/**
+ * \return the error's message at the specified index if present or nullptr
+ */
+const char * /*owning*/
+rp_error_container_get_error_message(rp_error_container *error, uint64_t index);
+
+/**
+ * Frees the provided error_container
+ */
+void rp_error_container_destroy(rp_error_container *error);
+
+/** \} */

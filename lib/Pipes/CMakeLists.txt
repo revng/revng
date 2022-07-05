@@ -13,6 +13,7 @@ revng_add_library_internal(
   ImportBinaryPipe.cpp
   LiftPipe.cpp
   LinkSupportPipe.cpp
+  ModelGlobal.cpp
   PipelineManager.cpp
   Pipes.cpp
   RootKind.cpp
