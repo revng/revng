@@ -151,6 +151,7 @@ set(REVNG_API_MODULE_FILES
     revng/api/_capi.py
     revng/api/analysis.py
     revng/api/container.py
+    revng/api/error_list.py
     revng/api/exceptions.py
     revng/api/kind.py
     revng/api/listenable_manager.py

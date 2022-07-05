@@ -31,17 +31,25 @@ public:
     Map.try_emplace(Name, std::make_unique<ToAdd>(std::forward<T>(Args)...));
   }
 
+  llvm::Error
+  replace(llvm::StringRef GlobalName, std::unique_ptr<Global> &&Global) {
+    if (auto OldGlobal = get(GlobalName); !OldGlobal)
+      return OldGlobal.takeError();
+    Map.insert_or_assign(GlobalName, std::move(Global));
+    return llvm::Error::success();
+  }
+
   template<typename T>
   llvm::Expected<T *> get(llvm::StringRef Name) const {
-    auto Iter = Map.find(Name);
-    if (Iter == Map.end()) {
-      auto *Message = "could not find %s";
+    auto It = Map.find(Name);
+    if (It == Map.end()) {
+      auto *Message = "Unknown Global %s";
       return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                      Message,
                                      Name.str().c_str());
     }
 
-    auto *Casted = llvm::dyn_cast<T>(Iter->second.get());
+    auto *Casted = llvm::dyn_cast<T>(It->second.get());
     if (Casted == nullptr) {
       auto *Message = "requested to cast %s to the wrong type";
       return llvm::createStringError(llvm::inconvertibleErrorCode(),
@@ -52,34 +60,60 @@ public:
     return Casted;
   }
 
+  llvm::Expected<pipeline::Global *> get(llvm::StringRef Name) const {
+    auto It = Map.find(Name);
+    if (It == Map.end()) {
+      auto *Message = "Unknown Global %s";
+      return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                     Message,
+                                     Name.str().c_str());
+    }
+    return &*It->second;
+  }
+
   llvm::StringRef getName(size_t Index) const {
     return std::next(Map.begin(), Index)->first();
   }
 
   llvm::Error
   serialize(llvm::StringRef GlobalName, llvm::raw_ostream &OS) const {
-    auto Iter = Map.find(GlobalName);
-    if (Iter == Map.end()) {
-      auto *Message = "pipeline loader context did not contained object %s";
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     Message,
-                                     GlobalName.str().c_str());
-    }
-
-    return Iter->second->serialize(OS);
+    auto MaybeGlobal = get(GlobalName);
+    if (!MaybeGlobal)
+      return MaybeGlobal.takeError();
+    return MaybeGlobal.get()->serialize(OS);
   }
 
   llvm::Error
   deserialize(llvm::StringRef GlobalName, const llvm::MemoryBuffer &Buffer) {
-    auto Iter = Map.find(GlobalName);
-    if (Iter == Map.end()) {
-      auto *Message = "pipeline loader context did not contained object %s";
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     Message,
-                                     GlobalName.str().c_str());
-    }
+    auto MaybeGlobal = get(GlobalName);
+    if (!MaybeGlobal)
+      return MaybeGlobal.takeError();
+    return MaybeGlobal.get()->deserialize(Buffer);
+  }
 
-    return Iter->second->deserialize(Buffer);
+  ErrorList verify(llvm::StringRef GlobalName) const {
+    ErrorList EL;
+    auto MaybeGlobal = get(GlobalName);
+    if (!MaybeGlobal)
+      return MaybeGlobal.takeError();
+    MaybeGlobal.get()->verify(EL);
+    return EL;
+  }
+
+  llvm::Expected<std::unique_ptr<Global>>
+  createNew(llvm::StringRef GlobalName,
+            const llvm::MemoryBuffer &Buffer) const {
+    auto MaybeGlobal = get(GlobalName);
+    if (!MaybeGlobal)
+      return MaybeGlobal.takeError();
+    return MaybeGlobal.get()->createNew(Buffer);
+  }
+
+  llvm::Expected<std::unique_ptr<Global>> clone(llvm::StringRef GlobalName) {
+    auto MaybeGlobal = get(GlobalName);
+    if (!MaybeGlobal)
+      return MaybeGlobal.takeError();
+    return MaybeGlobal.get()->clone();
   }
 
   llvm::Error storeToDisk(llvm::StringRef Path) const;

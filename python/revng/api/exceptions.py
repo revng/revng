@@ -5,3 +5,7 @@
 
 class RevngException(Exception):
     pass
+
+
+class RevngPipelineCException(Exception):
+    pass

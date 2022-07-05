@@ -57,16 +57,6 @@ public:
     return Globals.get<T>(Name);
   }
 
-  llvm::Error
-  serializeGlobal(llvm::StringRef GlobalName, llvm::raw_ostream &OS) const {
-    return Globals.serialize(GlobalName, OS);
-  }
-
-  llvm::Error deserializeGlobal(llvm::StringRef GlobalName,
-                                const llvm::MemoryBuffer &Buffer) {
-    return Globals.deserialize(GlobalName, Buffer);
-  }
-
   template<typename T, typename... ArgsT>
   void addGlobal(llvm::StringRef Name, ArgsT &&...Args) {
     Globals.emplace<T>(Name, std::forward<T>(Args)...);
@@ -100,6 +90,7 @@ public:
   }
 
   const GlobalsMap &getGlobals() const { return Globals; }
+  GlobalsMap &getGlobals() { return Globals; }
 
   void addReadOnlyContainer(llvm::StringRef Name,
                             const ContainerSet::value_type &Entry) {

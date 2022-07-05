@@ -93,6 +93,14 @@ bool Binary::verify(bool Assert) const {
   return verify(VH);
 }
 
+void Binary::verify(::ErrorList &EL) const {
+  VerifyHelper VH(false);
+  bool Result = verify(VH);
+  if (not Result)
+    EL.push_back(llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                         "Binary verify failed"));
+}
+
 bool Binary::verify(VerifyHelper &VH) const {
   // Prepare for checking symbol names. We will populate and check this against
   // functions, dynamic functions, segments, types and enum entries

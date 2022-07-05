@@ -14,3 +14,4 @@ typedef struct rp_target rp_target;
 typedef struct rp_targets_list rp_targets_list;
 typedef struct rp_analysis rp_analysis;
 typedef struct rp_diff_map rp_diff_map;
+typedef struct rp_error_list rp_error_list;
