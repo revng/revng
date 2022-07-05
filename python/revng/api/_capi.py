@@ -2,13 +2,12 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import os
 import re
 import traceback
 from functools import wraps
 from pathlib import Path
 from threading import Lock
-from typing import Any, Callable, Collection, Dict, Iterable, Optional
+from typing import Any, Callable, Dict, Iterable, Optional
 
 from cffi import FFI
 from cffi.backend_ctypes import CTypesBackend
@@ -52,7 +51,10 @@ class ApiWrapper:
         @wraps(function)
         def new_function(*args):
             ret = function(*args)
-            return ffi.gc(ret, self.__wrap_lock(destructor))
+            if ret != ffi.NULL:
+                return ffi.gc(ret, self.__wrap_lock(destructor))
+            else:
+                return ret
 
         return new_function
 
