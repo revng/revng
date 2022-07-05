@@ -187,11 +187,17 @@ constexpr inline auto IsYamlizable = [](auto *K) {
 template<typename S, Yamlizable T>
 void serialize(S &Stream, T &Element) {
   if constexpr (std::is_base_of_v<llvm::raw_ostream, S>) {
-    llvm::yaml::Output YAMLOutput(Stream);
-    YAMLOutput << Element;
+    if constexpr (llvm::yaml::has_ScalarTraits<T>::value) {
+      Stream << llvm::StringRef(getNameFromYAMLScalar(Element));
+    } else {
+      llvm::yaml::Output YAMLOutput(Stream);
+      YAMLOutput << Element;
+    }
   } else {
     std::string Buffer;
-    {
+    if constexpr (llvm::yaml::has_ScalarTraits<T>::value) {
+      Buffer = getNameFromYAMLScalar(Element);
+    } else {
       llvm::raw_string_ostream StringStream(Buffer);
       llvm::yaml::Output YAMLOutput(StringStream);
       YAMLOutput << Element;
@@ -233,16 +239,20 @@ std::string serializeToString(const T &ToDump) {
 namespace detail {
 template<typename T>
 llvm::Expected<T> deserializeImpl(llvm::StringRef YAMLString) {
-  T Result;
+  if constexpr (llvm::yaml::has_ScalarTraits<T>::value) {
+    return getValueFromYAMLScalar<T>(YAMLString);
+  } else {
+    T Result;
 
-  llvm::yaml::Input YAMLInput(YAMLString);
-  YAMLInput >> Result;
+    llvm::yaml::Input YAMLInput(YAMLString);
+    YAMLInput >> Result;
 
-  std::error_code EC = YAMLInput.error();
-  if (EC)
-    return llvm::errorCodeToError(EC);
+    std::error_code EC = YAMLInput.error();
+    if (EC)
+      return llvm::errorCodeToError(EC);
 
-  return Result;
+    return Result;
+  }
 }
 
 } // namespace detail
