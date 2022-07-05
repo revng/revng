@@ -13,6 +13,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Model/ToolHelpers.h"
+#include "revng/Support/InitRevng.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
@@ -35,6 +36,8 @@ static cl::opt<std::string> DiffPath(cl::Positional,
 static ModelOutputOptions<false> Options(ThisToolCategory);
 
 int main(int Argc, char *Argv[]) {
+  revng::InitRevng X(Argc, Argv);
+
   cl::HideUnrelatedOptions({ &ThisToolCategory });
   cl::ParseCommandLineOptions(Argc, Argv);
 

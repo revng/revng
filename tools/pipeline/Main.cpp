@@ -22,6 +22,7 @@
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/PipelineManager.h"
+#include "revng/Support/InitRevng.h"
 
 using std::string;
 using namespace llvm;
@@ -158,6 +159,8 @@ static auto makeManager() {
 }
 
 int main(int argc, const char *argv[]) {
+  revng::InitRevng X(argc, argv);
+
   HideUnrelatedOptions(PipelineCategory);
   ParseCommandLineOptions(argc, argv);
   auto LoggerOS = PipelineLogger.getAsLLVMStream();
