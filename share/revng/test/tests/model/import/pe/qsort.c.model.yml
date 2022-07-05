@@ -1,0 +1,82 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+---
+Functions:
+  - CustomName: "cmpfunc"
+    OriginalName: cmpfunc
+    Prototype: "/Types/CABIFunctionType-5944255354151483434"
+  - CustomName: "qsort"
+    OriginalName: qsort
+    Prototype: "/Types/CABIFunctionType-17913232940792519997"
+Types:
+  - Kind: PrimitiveType
+    ID: 256
+    PrimitiveKind: Void
+    Size: 0
+  - Kind: PrimitiveType
+    ID: 1540
+    PrimitiveKind: Signed
+    Size: 4
+  - Kind: PrimitiveType
+    ID: 1284
+    PrimitiveKind: Unsigned
+    Size: 4
+  - Kind: TypedefType
+    ID: 14210609572455956746
+    UnderlyingType:
+      UnqualifiedType: "/Types/PrimitiveType-256"
+      Qualifiers:
+        - Kind: Const
+  - Kind: TypedefType
+    ID: 3290784804431442976
+    UnderlyingType:
+      UnqualifiedType: "/Types/TypedefType-14210609572455956746"
+      Qualifiers:
+        - Kind: Pointer
+          Size: 4
+  - Kind: CABIFunctionType
+    ID: 5944255354151483434
+    ABI: Microsoft_x86_cdecl
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-1540"
+    Arguments:
+      - Index: 0
+        Type:
+          UnqualifiedType: "/Types/TypedefType-3290784804431442976"
+      - Index: 1
+        Type:
+          UnqualifiedType: "/Types/TypedefType-3290784804431442976"
+  - Kind: CABIFunctionType
+    ID: 17913232940792519997
+    ABI: Microsoft_x86_cdecl
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-256"
+    Arguments:
+      - Index: 0
+        Type:
+          UnqualifiedType: "/Types/TypedefType-9032570991415481170"
+      - Index: 1
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1284"
+      - Index: 2
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1284"
+      - Index: 3
+        Type:
+          UnqualifiedType: "/Types/TypedefType-17163826859945186478"
+  - Kind: TypedefType
+    ID: 9032570991415481170
+    UnderlyingType:
+      UnqualifiedType: "/Types/PrimitiveType-256"
+      Qualifiers:
+        - Kind: Pointer
+          Size: 4
+  - Kind: TypedefType
+    ID: 17163826859945186478
+    UnderlyingType:
+      UnqualifiedType: "/Types/CABIFunctionType-5944255354151483434"
+      Qualifiers:
+        - Kind: Pointer
+          Size: 4
