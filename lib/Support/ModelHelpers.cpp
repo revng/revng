@@ -22,6 +22,7 @@
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/Support/FunctionTags.h"
+#include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
 
 using llvm::dyn_cast;
@@ -337,6 +338,12 @@ getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
         for (const auto &RetVal : RawPrototype->ReturnValues)
           ReturnTypes.push_back(RetVal.Type);
 
+      } else if (FTags.contains(FunctionTags::SegmentRef)) {
+        const auto &[StartAddress,
+                     VirtualSize] = extractSegmentKeyFromMetadata(*CalledFunc);
+        auto Segment = Model.Segments.at({ StartAddress, VirtualSize });
+
+        ReturnTypes.push_back(Segment.Type);
       } else if (FuncName.startswith("revng_stack_frame")) {
         // Retrieve the stack frame type
         auto &StackType = ParentFunc()->StackFrameType;

@@ -179,6 +179,11 @@ printDeclaration(const model::TypedefType &TD, llvm::raw_ostream &Header) {
          << ";\n";
 }
 
+static void
+printSegmentsTypes(const model::Segment &Segment, llvm::raw_ostream &Header) {
+  Header << getNamedCInstance(Segment.Type, Segment.name()) << ";\n";
+}
+
 /// Generate the definition of a new struct type that wraps all the
 ///        return values of \a F. The name of the struct type is provided by the
 ///        caller.
@@ -487,8 +492,8 @@ bool dumpModelToHeader(const model::Binary &Model, llvm::raw_ostream &Header) {
     Header << ";\n";
   }
 
-  // TODO: eventually we should emit types and declarations of global variables
-  // representing types and data containted in segments.
+  for (const model::Segment &Segment : Model.Segments)
+    printSegmentsTypes(Segment, Header);
 
   return true;
 }
