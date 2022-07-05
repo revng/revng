@@ -5,6 +5,7 @@
 //
 
 #include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/PrettyStackTrace.h"
 
 namespace revng {
 
@@ -17,10 +18,21 @@ public:
   InitRevng(int &Argc,
             const char **&Argv,
             bool InstallPipeSignalExitHandler = true) :
-    InitLLVM(Argc, Argv, InstallPipeSignalExitHandler) {}
+    InitLLVM(Argc, Argv, InstallPipeSignalExitHandler) {
+    init();
+  }
 
   InitRevng(int &Argc, char **&Argv, bool InstallPipeSignalExitHandler = true) :
-    InitLLVM(Argc, Argv, InstallPipeSignalExitHandler) {}
+    InitLLVM(Argc, Argv, InstallPipeSignalExitHandler) {
+    init();
+  }
+
+private:
+  void init() {
+    llvm::setBugReportMsg("PLEASE submit a bug report to "
+                          "https://github.com/revng/revng and include the "
+                          "crash backtrace\n");
+  }
 };
 
 } // namespace revng
