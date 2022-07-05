@@ -2,7 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-from collections import Iterable as CIterable
+from collections.abc import Iterable as CIterable
 from pathlib import Path
 from typing import Iterable, TypeVar, Union
 
