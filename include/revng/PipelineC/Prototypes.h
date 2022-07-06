@@ -31,11 +31,21 @@ void rp_set_custom_abort_hook(AbortHook Hook);
  * needed by the revng pipeline to operate.
  *
  * Do not initialize all stuff on your own.
+ *
+ * \return true if the initialization was successful.
  */
 bool rp_initialize(int argc,
                    char *argv[],
                    int libraries_count,
                    const char *libraries_path[]);
+
+/**
+ * Should be called on clean exit to clean up all LLVM-related stuff used by
+ * revng-pipeline.
+ *
+ * \return true if the shutdown was successful.
+ */
+bool rp_shutdown();
 
 /**
  * Free a string return by a rp_*_create_* method.
