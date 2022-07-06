@@ -12,6 +12,10 @@ revng_add_library_internal(
   ${CMAKE_CURRENT_SOURCE_DIR}/StringContainerLibrary.cpp)
 target_link_libraries(revngStringContainerLibrary revngPipeline revngPipes)
 
+# Define BadBehaviorLibrary
+revng_add_library_internal(revngBadBehaviorLibrary SHARED
+                           ${CMAKE_CURRENT_SOURCE_DIR}/BadBehaviorLibrary.cpp)
+
 macro(
   add_pipeline_test
   TEST_NAME
@@ -181,3 +185,32 @@ add_invalidation_test(
   "${CMAKE_CURRENT_SOURCE_DIR}/SimpleInvalidationTestPipeline.yml"
   INVALIDATIONS
   "FirstStep:Strings1:Root:StringKind")
+
+#
+# Bad behavior handling
+#
+
+macro(add_crash_test TEST_NAME SIGNAL EXPECTED_STATUS)
+  add_test(
+    NAME "${TEST_NAME}"
+    COMMAND
+      bash ${CMAKE_CURRENT_SOURCE_DIR}/run_crash_test.sh ${CMAKE_BINARY_DIR} ${EXPECTED_STATUS} ${SIGNAL})
+  set_tests_properties(
+    "${TEST_NAME}" PROPERTIES LABELS "pipeline;crash" ENVIRONMENT
+                              "PATH=${CMAKE_BINARY_DIR}/bin:$ENV{PATH}")
+endmacro()
+
+add_crash_test(crash_test_sigill 4 132)
+
+add_crash_test(crash_test_sigabrt 6 134)
+
+add_crash_test(crash_test_sigsegv 11 139)
+
+# The following end up segfaulting in the signal handler due to unwinding issues
+add_crash_test(crash_test_sigquit 3 134)
+
+add_crash_test(crash_test_sigtrap 5 134)
+
+add_crash_test(crash_test_sigbus 7 134)
+
+add_crash_test(crash_test_sigfpe 8 134)
