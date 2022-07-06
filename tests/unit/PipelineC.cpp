@@ -42,7 +42,10 @@ public:
     revng_check(Runner != nullptr);
   }
 
-  ~Fixture() { rp_manager_destroy(Runner); }
+  ~Fixture() {
+    rp_manager_destroy(Runner);
+    rp_shutdown();
+  }
 };
 
 BOOST_AUTO_TEST_SUITE(PipelineCTestSuite, *boost::unit_test::fixture<Fixture>())

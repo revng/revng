@@ -69,6 +69,10 @@ bool rp_initialize(int argc,
   return true;
 }
 
+bool rp_shutdown() {
+  return true;
+}
+
 static rp_manager *rp_manager_create_impl(uint64_t pipelines_count,
                                           const char *pipelines_path[],
                                           uint64_t pipeline_flags_count,

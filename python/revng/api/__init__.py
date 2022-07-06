@@ -3,12 +3,14 @@
 #
 # flake8: noqa: F401
 
+import atexit
+
 from tempfile import mkdtemp
 from typing import Optional
 
 from revng.support import AnyPath
 
-from ._capi import initialize
+from ._capi import initialize, shutdown
 from .manager import Manager
 from .rank import Rank
 
@@ -19,5 +21,6 @@ def make_manager(workdir: Optional[AnyPath] = None):
     global _initialized
     if not _initialized:
         initialize()
+        atexit.register(shutdown)
         _initialized = True
     return Manager(workdir if workdir is not None else mkdtemp())
