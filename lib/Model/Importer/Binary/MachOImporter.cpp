@@ -290,6 +290,7 @@ void MachOImporter::parseMachOSegment(ArrayRef<uint8_t> RawDataRef,
     return;
   }
 
+  Segment.OriginalName = SegmentCommand.segname;
   Segment.FileSize = SegmentCommand.filesize;
 
   Segment.IsReadable = SegmentCommand.initprot & VM_PROT_READ;
@@ -302,6 +303,8 @@ void MachOImporter::parseMachOSegment(ArrayRef<uint8_t> RawDataRef,
   Segment.verify(true);
 
   Model->Segments.insert(std::move(Segment));
+
+  // TODO: parse sections contained in segments LC_SEGMENT and LC_SEGMENT_64
 }
 
 void MachOImporter::registerBindEntry(const object::MachOBindEntry *Entry) {
