@@ -28,9 +28,6 @@ peelConstAndTypedefs(const model::QualifiedType &QT) {
   return peelConstAndTypedefs(QT, VH);
 }
 
-/// Create an empty model::StructType of size Size in Binary
-extern model::TypePath createEmptyStruct(model::Binary &Binary, uint64_t Size);
-
 /// Convert an LLVM integer type (i1, i8, i16, ...) to the corresponding
 /// primitive type (uint8_t, uint16_t, ...).
 extern const model::QualifiedType

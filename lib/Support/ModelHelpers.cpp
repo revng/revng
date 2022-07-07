@@ -60,15 +60,6 @@ peelConstAndTypedefs(const model::QualifiedType &QT, model::VerifyHelper &VH) {
   return Result;
 }
 
-model::TypePath createEmptyStruct(model::Binary &Binary, uint64_t Size) {
-  using namespace model;
-  revng_assert(Size > 0 and Size < std::numeric_limits<int64_t>::max());
-  TypePath Path = Binary.recordNewType(makeType<model::StructType>());
-  model::StructType *NewStruct = llvm::cast<model::StructType>(Path.get());
-  NewStruct->Size = Size;
-  return Path;
-}
-
 const model::QualifiedType
 llvmIntToModelType(const llvm::Type *LLVMType, const model::Binary &Model) {
   using namespace model::PrimitiveTypeKind;
