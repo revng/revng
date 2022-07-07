@@ -154,7 +154,6 @@ Identifier Function::name() const {
   if (not CustomName.empty()) {
     return CustomName;
   } else {
-    // TODO: this prefix needs to be reserved
     auto AutomaticName = (Twine("function_") + Entry.toString()).str();
     return Identifier::fromString(AutomaticName);
   }
@@ -178,7 +177,6 @@ Identifier DynamicFunction::name() const {
   if (not CustomName.empty()) {
     return CustomName;
   } else {
-    // TODO: this prefix needs to be reserved
     auto AutomaticName = (Twine("dynamic_function_") + OriginalName).str();
     return Identifier::fromString(AutomaticName);
   }
@@ -227,7 +225,6 @@ Identifier Segment::name() const {
   if (not CustomName.empty()) {
     return CustomName;
   } else {
-    // TODO: this prefix needs to be reserved
     auto AutomaticName = (Twine("segment_") + StartAddress.toString() + "_"
                           + Twine(VirtualSize))
                            .str();

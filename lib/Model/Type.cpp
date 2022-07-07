@@ -262,6 +262,11 @@ const std::set<llvm::StringRef> ReservedKeywords = {
   "asm",
 };
 
+const std::set<llvm::StringRef> ReservedPrefixes = { "unnnamed_",
+                                                     "function_",
+                                                     "dynamic_function_",
+                                                     "segment_" };
+
 static llvm::cl::opt<uint64_t> ModelTypeIDSeed("model-type-id-seed",
                                                llvm::cl::desc("Set the seed "
                                                               "for the "
@@ -523,7 +528,10 @@ PrimitiveType::PrimitiveType(uint64_t ID) :
 }
 
 static bool beginsWithReservedPrefix(llvm::StringRef Name) {
-  return Name.startswith("unnamed_");
+  for (const auto &Prefix : ReservedPrefixes)
+    if (Name.startswith(Prefix))
+      return true;
+  return false;
 }
 
 void EnumEntry::dump() const {
