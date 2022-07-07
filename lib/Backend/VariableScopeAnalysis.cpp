@@ -10,7 +10,7 @@
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
 
-#include "revng/ADT/RecursiveCoroutine-coroutine.h"
+#include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
