@@ -9,6 +9,7 @@
 #include "llvm/Object/ObjectFile.h"
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Support/Debug.h"
 
 #include "BinaryImporterHelper.h"
@@ -90,6 +91,10 @@ Error PECOFFImporter::import() {
     Segment.IsWriteable = CoffRef->Characteristics & COFF::IMAGE_SCN_MEM_WRITE;
     Segment.IsExecutable = CoffRef->Characteristics
                            & COFF::IMAGE_SCN_MEM_EXECUTE;
+
+    model::TypePath StructPath = createEmptyStruct(*Model, Segment.VirtualSize);
+    Segment.Type = model::QualifiedType(std::move(StructPath), {});
+
     Segment.verify(true);
     Model->Segments.insert(std::move(Segment));
   }

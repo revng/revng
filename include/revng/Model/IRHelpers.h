@@ -47,3 +47,14 @@ inline llvm::IntegerType *getLLVMTypeForScalar(llvm::LLVMContext &Context,
   revng_assert(QT.size());
   return llvm::IntegerType::getIntNTy(Context, *QT.size() * 8);
 }
+
+/// Create an empty model::StructType of size Size in Binary
+inline model::TypePath createEmptyStruct(model::Binary &Binary, uint64_t Size) {
+  using namespace model;
+
+  revng_assert(Size > 0 and Size < std::numeric_limits<int64_t>::max());
+  TypePath Path = Binary.recordNewType(makeType<model::StructType>());
+  model::StructType *NewStruct = llvm::cast<model::StructType>(Path.get());
+  NewStruct->Size = Size;
+  return Path;
+}
