@@ -24,6 +24,7 @@ revng_add_analyses_library_internal(
   Support/SugiyamaStyleGraphLayout/TopologicalOrdering.cpp
   Support/SugiyamaStyleGraphLayout/VerticalPositions.cpp
   Support/SugiyamaStyleGraphLayout.cpp
+  CrossRelations.cpp
   Dump.cpp
   Verify.cpp)
 
@@ -64,4 +65,8 @@ target_tuple_tree_generator(
   "${INTERNAL_ASSEMBLY_HEADERS}/Function.h"
   "${INTERNAL_ASSEMBLY_HEADERS}/Instruction.h"
   "${INTERNAL_ASSEMBLY_HEADERS}/Tag.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/TagType.h")
+  "${INTERNAL_ASSEMBLY_HEADERS}/TagType.h"
+  "${INTERNAL_ASSEMBLY_HEADERS}/CrossRelations.h"
+  "${INTERNAL_ASSEMBLY_HEADERS}/RelationDescription.h"
+  "${INTERNAL_ASSEMBLY_HEADERS}/RelationTarget.h"
+  "${INTERNAL_ASSEMBLY_HEADERS}/RelationType.h")
