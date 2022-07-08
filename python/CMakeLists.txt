@@ -105,6 +105,12 @@ set(REVNG_CLI_COMMANDS_MODULE_FILES
 python_module(TARGET_NAME revng-python-cli-commands MODULE_FILES
               ${REVNG_CLI_COMMANDS_MODULE_FILES})
 
+set(REVNG_CLI_COMMANDS_PTML_MODULE_FILES
+    revng/cli/_commands/ptml/cat.py revng/cli/_commands/ptml/common.py
+    revng/cli/_commands/ptml/__init__.py revng/cli/_commands/ptml/strip.py)
+python_module(TARGET_NAME revng-python-cli-commands-ptml MODULE_FILES
+              ${REVNG_CLI_COMMANDS_PTML_MODULE_FILES})
+
 #
 # Install revng.api
 #

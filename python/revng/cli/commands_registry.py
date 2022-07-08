@@ -6,7 +6,7 @@ import argparse
 import dataclasses
 import os
 import sys
-from typing import Tuple
+from typing import Optional, Sequence, Tuple
 
 from .support import Options, try_run
 
@@ -134,8 +134,14 @@ class CommandsRegistry:
 
         return self.commands[command_sorted].run(options)
 
-    def define_namespace(self, namespace):
-        self._get_namespace_parser(namespace)
+    def define_namespace(self, namespace: Sequence[str], help_text: Optional[str] = None):
+        parent_parser = self._get_namespace_parser(namespace[:-1])
+        new_parser = parent_parser.add_parser(
+            namespace[-1], **({"help": help_text} if help_text is not None else {})
+        )
+        result = new_parser.add_subparsers(dest=f"{COMMAND_ARG_PREFIX}{len(namespace)}")
+        self.namespaces[namespace] = result
+        return result
 
     def _parse_command(self, command: str):
         parts = command.split("-")
@@ -170,11 +176,7 @@ class CommandsRegistry:
 
     def _get_namespace_parser(self, namespace):
         if namespace not in self.namespaces:
-            parent_parser = self._get_namespace_parser(namespace[:-1])
-            new_parser = parent_parser.add_parser(namespace[-1])
-            result = new_parser.add_subparsers(dest=f"{COMMAND_ARG_PREFIX}{len(namespace)}")
-            self.namespaces[namespace] = result
-            return result
+            self.define_namespace(namespace)
         return self.namespaces[namespace]
 
 
