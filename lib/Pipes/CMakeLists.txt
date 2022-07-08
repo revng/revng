@@ -18,6 +18,7 @@ revng_add_library_internal(
   RootKind.cpp
   TaggedFunctionKind.cpp
   Yield/AssemblyPipes.cpp
+  Yield/CallGraphPipes.cpp
   Yield/CFGPipes.cpp)
 
 llvm_map_components_to_libnames(
