@@ -61,22 +61,18 @@ bool DuplicateReferences::runOnFunction(llvm::Function &F) {
       llvm::Instruction &I = *CurInst;
       auto NextInst = std::next(CurInst);
 
-      // Consider only instructions that have more than one use
-      if (not I.hasNUsesOrMore(2)) {
-        CurInst = NextInst;
-        continue;
-      }
-
       if (isCallToTagged(&I, FunctionTags::ModelGEP)
-          or isCallToTagged(&I, FunctionTags::ModelGEPRef)) {
+          or isCallToTagged(&I, FunctionTags::ModelGEPRef)
+          or isCallToTagged(&I, FunctionTags::SegmentRef)) {
         auto *Call = llvm::cast<CallInst>(&I);
-        Builder.SetInsertPoint(&I);
 
-        llvm::SmallVector<llvm::User *> Users;
+        llvm::SmallVector<llvm::Instruction *> Users;
         for (auto *Usr : I.users())
-          Users.push_back(Usr);
+          Users.push_back(cast<llvm::Instruction>(Usr));
 
         for (auto &Usr : Users) {
+          Builder.SetInsertPoint(Usr);
+
           // Create a new call
           llvm::SmallVector<llvm::Value *, 16> Args;
           for (auto &Op : Call->arg_operands())
