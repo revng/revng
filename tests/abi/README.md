@@ -22,7 +22,7 @@ The same pass is run again to obtain one more set of "raw" functions. Those get 
 
 ### `revng ensure-rft-equivalence`
 
-This tool is used to compare `downgraded_reference_binary.yml` and `downgraded_upgraded_downgraded_reference_binary.yml`. If no information was lost during these convertions, the models are to be the same. More [here](##RFT-equivalence-testing).
+This tool is used to compare `downgraded_reference_binary.yml` and `downgraded_upgraded_downgraded_reference_binary.yml`. If no information was lost during these conversions, the models are to be the same. More [here](##RFT-equivalence-testing).
 
 ### `revng abi-verify`
 

@@ -428,13 +428,13 @@ prepareGraph(ExternalGraph &Graph) {
   // Temporarily remove self-loops from the graph.
   auto SelfLoops = extractSelfLoops(Result);
 
-  // Temporarily reverse edges so the graph doesn't contain loops.
+  // Temporarily reverse some of the edges so the graph doesn't contain loops.
   convertToDAG(Result);
 
-  // Robust node classification simplifies the permutation selection.
+  // Use a robust node classification to speed the permutation selection up.
   NodeClassifier<Strategy> Classifier;
 
-  // Split long edges into 1 rank wide partitions.
+  // Split long edges into one rank wide partitions.
   auto Ranks = partitionLongEdges(Result, Classifier);
 
   // Split backwards facing edges created when partitioning the long edges up.
