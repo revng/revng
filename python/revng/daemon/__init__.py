@@ -4,6 +4,7 @@
 
 import logging
 import os
+import signal
 from typing import Optional
 
 from starlette.applications import Starlette
@@ -54,7 +55,7 @@ async def status(request):
 
 def startup():
     global manager, startup_done
-    capi_initialize()
+    capi_initialize(signals_to_preserve=(signal.SIGINT, signal.SIGTERM))
     manager = make_manager(project_workdir())
     app.mount(
         "/graphql",

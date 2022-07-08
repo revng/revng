@@ -36,7 +36,9 @@
 bool rp_initialize(int argc,
                    char *argv[],
                    int libraries_count,
-                   const char *libraries_path[]);
+                   const char *libraries_path[],
+                   int signals_to_preserve_count,
+                   int signals_to_preserve[]);
 
 /**
  * Should be called on clean exit to clean up all LLVM-related stuff used by
