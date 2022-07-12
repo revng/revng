@@ -121,8 +121,7 @@ class StructBase:
             if _field_is_optional(field) and (field_val is None or field_val == []):
                 continue
             mapping_to_dump[field.name] = field_val
-
-        return dumper.represent_mapping(f"!{cls.__name__}", mapping_to_dump)
+        return dumper.represent_dict(mapping_to_dump)
 
     def __post_init__(self):
         # Before python 3.10 dataclasses had an annoying limitation regarding inheritance:

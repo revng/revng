@@ -39,26 +39,4 @@ def test_deserialize_multiple_versions():
     print("test_deserialize_multiple_versions: OK")
 
 
-def test_tagged_deserialize_multiple_versions():
-    """Tests that the custom YAML loaders can be used to deserialize multiple conflicting versions
-    at the same time. Differing from test_deserialize_multiple_versions, this test uses tagged
-    documents to test that the default path resolver installed in the `YamlLoader`s does not cause
-    issues. Also tests that deserializing using an invalid version fails.
-    """
-    with open("v1_tagged.yml", encoding="utf-8") as f:
-        v1_serialized = yaml.load(f, Loader=YamlLoaderV1)
-        assert isinstance(v1_serialized, RootV1)
-    with open("v2_tagged.yml", encoding="utf-8") as f:
-        v2_serialized = yaml.load(f, Loader=YamlLoaderV2)
-        assert isinstance(v2_serialized, RootV2)
-
-    with open("v1_tagged.yml", encoding="utf-8") as f:
-        assert_parsing_fails(f, YamlLoaderV2)
-    with open("v2_tagged.yml", encoding="utf-8") as f:
-        assert_parsing_fails(f, YamlLoaderV1)
-
-    print("test_tagged_deserialize_multiple_versions: OK")
-
-
 test_deserialize_multiple_versions()
-test_tagged_deserialize_multiple_versions()

@@ -121,11 +121,11 @@ force_constructor_kwarg('child.name', "Kind", 'struct.name'Kind.'child.name')
 YamlDumper.add_representer('enum.name', 'enum.name'.yaml_representer)
 ##- endfor ##
 ## for struct in structs ##
-YamlLoader.add_constructor("!'struct.name'", 'struct.name'.yaml_constructor)
 YamlDumper.add_representer('struct.name', 'struct.name'.yaml_representer)
 ##- endfor ##
 ## if generator.root_type ##
 # Allows to deserialize YAML as a 'generator.root_type' even if the root of the YAML document is
 # not tagged
+YamlLoader.add_constructor("!'generator.root_type'", 'generator.root_type'.yaml_constructor)
 YamlLoader.add_path_resolver("!'generator.root_type'", [])
 ## endif ##

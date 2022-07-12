@@ -44,7 +44,6 @@ class Binary(_generated.Binary):
 
 
 # Since we subclassed them we need to re-register their constructors and representers
-YamlLoader.add_constructor("!PrimitiveType", PrimitiveType.yaml_constructor)
 YamlDumper.add_representer(PrimitiveType, PrimitiveType.yaml_representer)
 YamlLoader.add_constructor("!Binary", Binary.yaml_constructor)
 YamlDumper.add_representer(Binary, Binary.yaml_representer)
