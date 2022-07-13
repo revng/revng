@@ -7,18 +7,8 @@ from collections.abc import MutableSequence
 from dataclasses import dataclass, fields
 from enum import Enum
 from functools import lru_cache
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Generic,
-    List,
-    Type,
-    TypeVar,
-    get_args,
-    get_origin,
-    get_type_hints,
-)
+from typing import Any, Callable, Dict, Generic, List, Type, TypeVar, get_args, get_origin
+from typing import get_type_hints
 
 import yaml
 

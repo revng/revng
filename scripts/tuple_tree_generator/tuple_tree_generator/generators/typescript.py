@@ -9,15 +9,8 @@ from typing import List, Optional
 from jinja2 import Environment
 from markupsafe import Markup
 
-from ..schema import (
-    ReferenceDefinition,
-    ScalarDefinition,
-    Schema,
-    SequenceDefinition,
-    StructDefinition,
-    StructField,
-    UpcastableDefinition,
-)
+from ..schema import ReferenceDefinition, ScalarDefinition, Schema, SequenceDefinition
+from ..schema import StructDefinition, StructField, UpcastableDefinition
 from .jinja_utils import loader
 
 int_re = re.compile(r"(u)?int(8|16|32|64)_t")

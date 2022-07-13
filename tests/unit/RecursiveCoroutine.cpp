@@ -20,7 +20,7 @@
 size_t MaxDepth = 0;
 size_t Iterations = 0;
 
-int main(int, char *[]) {
+int main() {
 
   //
   // Run a simple recursive coroutine

@@ -1,499 +1,730 @@
-#!/bin/bash
+#!/usr/bin/env python3
 
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-set -euo pipefail
+import abc
+import argparse
+import asyncio
+import os
+import re
+import sys
+import time
+from asyncio import create_subprocess_exec
+from collections import defaultdict
+from dataclasses import dataclass
+from itertools import groupby
+from pathlib import Path
+from string import Template
+from subprocess import PIPE, STDOUT, check_output
+from subprocess import run as process_run
+from textwrap import indent
+from typing import Dict, Iterable, List, Mapping, NoReturn, Optional, Protocol, Sequence, Set
+from typing import Sized, TypeVar, Union
 
-function print_usage() {
-    cat > /dev/stderr << END_USAGE_TEXT
-SYNOPSIS
-   $0 [<options>] [FILES...]
+import yaml
 
-
-DESCRIPTION
-   Checks that the files specified in FILES... respect the rev.ng coding
-   conventions, and prints all the violations.
-
-   If the FILES... arguments are missing, checks that all the C++ source files in
-   the project that have already been added to the git repository project
-   respect the rev.ng coding conventions.
-
-
-OPTIONS
-   --help
-       Prints this help and exit
-
-   --force-format
-       In addition to checking the rev.ng coding conventions on the specified
-       files, uses clang-format to try to enforce the coding conventions
-       automatically.
-       If this fails, exit with failure, otherwise exit with success.
-       WARNING: using this option will overwrite your files, make sure to backup
-       important stuff.
-
-    --use-local-clang-format-file
-      By default, clang-format is executed with a hard-coded configuration that
-      should apply to all the projects under the rev.ng umbrella.
-      When this option is passed, the hard-coded configuration is ignored, and
-      clang-format looks for configuration in a .clang-format file in the
-      current directory or in its parent directories.
-
-      This allows to use different clang-format configuration on per-project
-      basis, in cases where the hard-coded configuration does not fit (e.g Qt
-      projects where Qt coding conventions are a better fit).
-
-      See clang-format documentation for more details.
-
-    --print-clang-format-config
-      Print the clang-format configuration to stdout, ignoring all the other
-      arguments except for --use-local-clang-format-file.
-      The conventions are not checked.
-
-    --commit-range <RANGE>
-      Check files changed in the specified commit range
-
-    --HEAD
-      Alias for '--commit-range HEAD^..HEAD'
-
-    --cached
-      Only check staged files
-
-    --all
-      Check all files instead of only changed ones
-
-    FILES
-      List of filenames of the files for which you want to check the rev.ng
-      coding conventions.
-
-RETURN VALUES
-   On success exit code is 0.
-   On failure, i.e. if there is at least one file that is not respecting the
-   coding conventions, exit code is 1.
-END_USAGE_TEXT
-}
-
-# git diff wrapper
-# Wraps git diff to extract only Added, Modified, Renamed and Copied files
-function git_diff_wrapper() {
-    local FIELDS RESULT
-    readarray -d '' FIELDS < <(git diff -z --diff-filter=AMRC --name-status "$@")
-    RESULT=()
-    # Simple "parser"
-    # The format is
-    # A|M <filename>
-    # R|C <old_filename> <new_filename>
-    set -- "${FIELDS[@]}"
-    while [[ $# -gt 0 ]]; do
-        type="$1"
-        case $type in
-            A|M)
-                RESULT+=("$2")
-                shift; shift;
-                ;;
-            R|C)
-                RESULT+=("$3")
-                shift; shift; shift;
-                ;;
-            *)
-                exit 1
-                ;;
-        esac
-    done
-    printf '%s\n' "${RESULT[@]}"
-}
-
-# git ls-files wrapper
-# wrap git ls-files to exclude deleted files
-function git_ls_files_wrapper() {
-    comm -23 <(git ls-files "$@" | sort) <(git ls-files --deleted | sort)
+T = TypeVar("T")
+RuleResult = Mapping[str, Sequence[str]]
+LineResult = Mapping[Path, Sequence[int]]
+FileResult = Sequence[Path]
+term_colors = {
+    "reset": "\033[0;0m",
+    "red": "\033[1;31m",
+    "green": "\033[1;32m",
+    "blue": "\033[1;34m",
+    "purple": "\033[1;35m",
+    "cyan": "\033[1;36m",
 }
 
 
-SCRIPT_PATH="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
-
-FORCE_FORMAT="0"
-
-USE_CLANG_FORMAT_FILE="0"
-
-PRINT_CLANG_FORMAT_CONFIG="0"
-
-GIT_LS_FILES="git_ls_files_wrapper -m --exclude-standard"
-
-while [[ $# -gt 0 ]]; do
-    key="$1"
-    case $key in
-        --print-clang-format-config)
-            PRINT_CLANG_FORMAT_CONFIG="1"
-            shift # past argument
-            ;;
-        --force-format)
-            FORCE_FORMAT="1"
-            shift # past argument
-            ;;
-        --use-local-clang-format-file)
-            USE_CLANG_FORMAT_FILE="1"
-            shift # past argument
-            ;;
-        --commit-range)
-            shift # get next argument
-            GIT_LS_FILES="git_diff_wrapper $1"
-            shift # past argument
-            ;;
-        --HEAD)
-            GIT_LS_FILES="git_diff_wrapper HEAD^..HEAD"
-            shift # past argument
-            ;;
-        --cached)
-            GIT_LS_FILES="git_diff_wrapper --cached"
-            shift # past argument
-            ;;
-        --all)
-            GIT_LS_FILES="git_ls_files_wrapper"
-            shift # past argument
-            ;;
-        --help)
-            print_usage
-            exit 0
-            ;;
-        -*)
-            echo "Error: unrecognized option $key" > /dev/stderr
-            print_usage
-            exit 1
-            ;;
-        *)
-            break
-            ;;
-    esac
-done
-
-# Retrieve files by extension or shebang
-# $1: extension to match
-# $2: shebang to match
-function find_by_ext_or_shebang() {
-    local EXT_FILES SHEBANG_FILES FILES FILE
-    readarray -t EXT_FILES < <(grep "\.${1}$" <<< "$ALL_FILES_N")
-    SHEBANG_FILES=()
-    for FILE in "${ALL_FILES[@]}"; do
-        if head -n1 "$FILE" | grep -qE "^#!.*${2}"; then
-            SHEBANG_FILES+=("$FILE")
-        fi
-    done
-    FILES=("${EXT_FILES[@]}" "${SHEBANG_FILES[@]}")
-    if [[ ${#FILES[@]} -eq 0 ]]; then
-        return
-    fi
-    printf "%s\n" "${FILES[@]}" | sort -u
-}
-
-# cat, but print header if input is not empty
-# stdin: lines to print
-# $1: Header to print if stdin is not empty
-function cat_header() {
-    local INPUT
-    INPUT="$(cat -)"
-
-    if echo "$INPUT" | grep -vqz '^\s*$'; then
-        echo "$1"
-
-        # shellcheck disable=SC2001
-        sed 's;^;  ;' <<< "$INPUT"
-    fi
-}
+def colored(text, color: str) -> str:
+    return f"{term_colors[color]}{text}{term_colors['reset']}"
 
 
-# Checks that all file names are proper
-function check_file_names() {
-    if ! git status &> /dev/null; then
-        return
-    fi
-    if git ls-files -z | grep -zq '\s'; then
-        echo "Error, the following files have whitespace in their name:"
-        git ls-files -z | grep -z '\s' | tr '\0' '\n' | sed 's;^;  ;g'
-        exit 1
-    fi
-}
-
-# Get config file path, if not found error out
-# $1: config file to search
-function config_file_path() {
-    if [[ -e "$SCRIPT_PATH/../../share/revng/$1" ]]; then
-        echo "$SCRIPT_PATH/../../share/revng/$1"
-        return 0
-    else
-        echo "Can't find $1" > /dev/stderr
-        exit 1
-    fi
-}
-
-CLANG_FORMAT_STYLE_FILE="$(config_file_path clang-format-style-file)"
-CLANG_FORMAT_STYLE=$(cat "$CLANG_FORMAT_STYLE_FILE")
-
-if [[ "$USE_CLANG_FORMAT_FILE" -ne 0 ]]; then
-    CLANG_FORMAT_STYLE="file"
-fi
-
-# If the user passed the --print-clang-format-config, dump the config and exit
-# with success.
-if [[ "$PRINT_CLANG_FORMAT_CONFIG" -ne 0 ]]; then
-    clang-format --dry-run -style="$CLANG_FORMAT_STYLE" --dump-config
-    exit 0
-fi
+term_colon = colored(":", "cyan")
 
 
-check_file_names
-
-if [[ $# -eq 0 ]]; then
-    readarray -t ALL_FILES < <($GIT_LS_FILES)
-    if [[ "${#ALL_FILES[@]}" -eq 0 ]]; then exit 0; fi
-else
-    ALL_FILES=("$@")
-fi
-
-ALL_FILES_N=$(printf '%s\n' "${ALL_FILES[@]}")
-
-readarray -t C_FILES < <(grep -E '\.(c|cc|cpp|h|hpp)$' <<< "$ALL_FILES_N")
-C_FILES_N=$(printf '%s\n' "${C_FILES[@]}")
-
-readarray -t PYTHON_FILES < <(find_by_ext_or_shebang py python)
-readarray -t BASH_FILES < <(find_by_ext_or_shebang sh bash)
-readarray -t CMAKE_FILES < <(grep -i cmake <<< "$ALL_FILES_N")
-readarray -t PRETTIER_FILES < <(grep -iP '\.(html|js|json|ts|yaml|yml)$' <<< "$ALL_FILES_N")
-
-GREP="grep -Hn --color=always"
+class Matcher(Protocol):
+    def __call__(self, path: Path, line: str) -> List[re.Match]:
+        """Abstraction that's used by passes to check if line matches"""
+        ...
 
 
-# Run clang-format on FILES
-function run_clang_format() {
-    if [[ ${#C_FILES[@]} -eq 0 ]]; then return; fi
-    if [[ "$FORCE_FORMAT" -ne 0 ]]; then
-        clang-format -Werror -style="$CLANG_FORMAT_STYLE" -i "${C_FILES[@]}"
-    else
-        clang-format -Werror --dry-run -style="$CLANG_FORMAT_STYLE" -i "${C_FILES[@]}"
-    fi
-}
-
-# Run black
-function run_black() {
-    if [[ ${#PYTHON_FILES[@]} -eq 0 ]]; then return; fi
-    if [[ "$FORCE_FORMAT" -ne 0 ]]; then
-        black -q -l 100 "${PYTHON_FILES[@]}"
-    else
-        black -q --check -l 100 "${PYTHON_FILES[@]}"
-    fi
-}
-
-# Run flake8
-function run_flake8() {
-    if [[ ${#PYTHON_FILES[@]} -eq 0 ]]; then return; fi
-    flake8 --config "$(config_file_path flake8-config)" "${PYTHON_FILES[@]}"
-}
-
-# Run mypy
-function run_mypy() {
-    local MYPY_FILES
-    # mypy will complain that there are multiple __main__ files
-    # in the python/scripts directory, manually exclude them
-    # Will be fixed by https://github.com/python/mypy/pull/12543/files
-    readarray -t MYPY_FILES < <(printf '%s\n' "${PYTHON_FILES[@]}" | grep -vF 'python/scripts')
-    if [[ ${#MYPY_FILES[@]} -eq 0 ]]; then return; fi
-    mypy --scripts-are-modules --ignore-missing-imports --no-error-summary \
-         "${MYPY_FILES[@]}"
-}
-
-# Run isort
-function run_isort() {
-    local CFG
-    if [[ ${#PYTHON_FILES[@]} -eq 0 ]]; then return; fi
-    CFG="$(config_file_path isort.cfg)"
-    if [[ "$FORCE_FORMAT" -ne 0 ]]; then
-        isort --settings-file "$CFG" "${PYTHON_FILES[@]}"
-    else
-        isort --settings-file "$CFG" --diff "${PYTHON_FILES[@]}"
-    fi
-}
+class FileFilter(Protocol):
+    def __call__(self, path: Path, content: str) -> bool:
+        """Used in filters to determine if a file belongs to a tag
+        path is the path of the file and content is the first 512 bytes of it
+        """
+        ...
 
 
-# Run cmake-format
-function run_cmake_format() {
-    if [[ ${#CMAKE_FILES[@]} -eq 0 ]]; then return; fi
-    if [[ "$FORCE_FORMAT" -ne 0 ]]; then
-        cmake-format -i "${CMAKE_FILES[@]}" -l error
-    else
-        cmake-format --check "${CMAKE_FILES[@]}" -l error
-    fi
-}
+@dataclass
+class ProcessResult:
+    output: str
+    returncode: int
 
-# Run prettier
-function run_prettier() {
-    if [[ ${#PRETTIER_FILES[@]} -eq 0 ]]; then return; fi
-    CFG="$(config_file_path prettierrc.yml)"
-    if [[ "$FORCE_FORMAT" -ne 0 ]]; then
-        prettier --write --config "$CFG" --loglevel silent "${PRETTIER_FILES[@]}"
-    else
-        prettier --check --config "$CFG" --loglevel silent "${PRETTIER_FILES[@]}"
-    fi
-}
 
-# Run shellcheck + check for set -euo pipefail
-function run_bash_check() {
-    local NO_SET_FILES FILE
-    if [[ ${#BASH_FILES[@]} -eq 0 ]]; then return; fi
-    shellcheck "${BASH_FILES[@]}"
+@dataclass
+class PassResult:
+    output: str
+    ok: bool
 
-    NO_SET_FILES=()
-    for FILE in "${BASH_FILES[@]}"; do
-        if ! head -n 10 "$FILE" | grep -qFe 'set -euo pipefail'; then
-            NO_SET_FILES+=("$FILE")
-        fi
-    done
-    if [[ ${#NO_SET_FILES[@]} -gt 0 ]]; then
-        echo "There are script files without 'set -euo pipefail':"
-        printf '  %s\n' "${NO_SET_FILES[@]}"
-    fi
-}
+    def verify(self):
+        return self.output.strip() == "" and self.ok
 
-# Check that all files have a license header
-function run_license_check() {
-    local LICENSE_FILES NO_LICENSE_FILES FILE
-    readarray -t LICENSE_FILES < <(grep -Ev \
-            -e '\.txt$' \
-            -e '\.md$' \
-            -e '\.rst$' \
-            -e '.gitignore' \
-            -e 'LICENSE.*$' \
-            -e 'pyproject.toml$' \
-            -e 'clang-format-style-file$' \
-            -e '.clang-tidy$' \
-            -e '\.dot$' \
-            -e 'Doxyfile.in$' \
-            -e 'package-lock.json$' \
-            <<< "$ALL_FILES_N"
+    @staticmethod
+    def _check_processes(*args: ProcessResult) -> bool:
+        combined_stdout = "\n".join(p.output for p in args)
+        return all(p.returncode == 0 for p in args) and combined_stdout.strip() == ""
+
+    @classmethod
+    def from_process(cls, *processes: ProcessResult) -> "PassResult":
+        return PassResult("\n".join(p.output for p in processes), cls._check_processes(*processes))
+
+    @staticmethod
+    def combine(*pass_results: "PassResult") -> "PassResult":
+        return PassResult(
+            "\n".join(p.output for p in pass_results), all(p.ok for p in pass_results)
+        )
+
+    @staticmethod
+    def make_from(
+        *,
+        files: Mapping[str, FileResult] = {},
+        lines: Mapping[str, LineResult] = {},
+        rules: Iterable[RuleResult] = (),
+    ) -> "PassResult":
+        output = ""
+        output += "".join(generate_error_files(m, f) for m, f in files.items())
+        output += "".join(generate_error_lines(m, l) for m, l in lines.items())
+        output += "".join(generate_rule_results(r) for r in rules)
+        return PassResult(output, all_empty(*files.values(), *lines.values(), *rules))
+
+
+class Pass(abc.ABC):
+    """Abstraction that describes the operations on a set of files
+    When called it will be given a dictionary of <tag>:list<files> and a
+    dictionary of arguments (e.g. dry_run=1), in general the pass can operate on
+    more than one tag, but in most cases it's better to override the `process` method
+    that will give a list of files given the tag attribute"""
+
+    def __init__(self, name: str, tag: str):
+        self.name = name
+        self.tag = tag
+
+    async def run(self, files: Dict[str, Dict[Path, str]], args: Dict[str, str]) -> PassResult:
+        file_list = files[self.tag]
+        if len(file_list.keys()) == 0:
+            return PassResult("", True)
+        return await self.process(files[self.tag], args)
+
+    @abc.abstractmethod
+    async def process(self, files: Dict[Path, str], args: Dict[str, str]) -> PassResult:
+        ...
+
+
+def log(string: str):
+    sys.stdout.write(f"{string}\n")
+
+
+def fail(reason: str, returncode: int = 1) -> NoReturn:
+    sys.stderr.write(f"{reason}\n")
+    sys.stderr.flush()
+    sys.exit(returncode)
+
+
+def template_iterable(iterable: Iterable[str], args: Dict[str, str]) -> List[str]:
+    return [Template(element).substitute(args) for element in iterable]
+
+
+async def run_with_capture(cmd: Sequence[Union[str, Path]]) -> ProcessResult:
+    proc = await create_subprocess_exec(cmd[0], *cmd[1:], stdout=PIPE, stderr=STDOUT)
+    returncode = await proc.wait()
+    assert proc.stdout is not None
+    stdout = await proc.stdout.read()
+    return ProcessResult(stdout.decode("utf-8"), returncode)
+
+
+def read_file(filename, size: Optional[int] = None):
+    with open(filename) as f:
+        return f.read(size)
+
+
+def chunk(values: Sequence[T], number: int = 1) -> List[List[T]]:
+    res: List[List[T]] = [[] for _ in range(0, number)]
+    for i in range(0, len(values)):
+        res[i % number].append(values[i])
+    return [r for r in res if len(r) > 0]
+
+
+def all_empty(*args: Sized) -> bool:
+    return all(len(a) == 0 for a in args)
+
+
+def deserialize_config_item(dictionary: dict):
+    assert "type" in dictionary
+    type_ = dictionary["type"]
+    assert type_ in globals(), f"Type {type_} not defined"
+    return globals()[type_](**{k: v for k, v in dictionary.items() if k != "type"})
+
+
+def deserialize_matchers(matcher_list: List[dict]) -> Dict[str, Matcher]:
+    return {f"{item['name']}:": deserialize_config_item(item["matcher"]) for item in matcher_list}
+
+
+def highlight_line(line: str, matches: List[re.Match]) -> str:
+    result = ""
+    is_red = False
+    for index, char in enumerate(line):
+        if any(m.start() <= index < m.end() for m in matches):
+            result += (term_colors["red"] if not is_red else "") + char
+            is_red = True
+        else:
+            result += (term_colors["reset"] if is_red else "") + char
+            is_red = False
+    return result + (term_colors["reset"] if is_red else "")
+
+
+def line_matcher(files: Dict[Path, str], matchers: Mapping[str, Matcher]) -> RuleResult:
+    result: Dict[str, List[str]] = defaultdict(list)
+    for path, content in files.items():
+        for lineno, line in enumerate(content.splitlines()):
+            for msg, matcher in matchers.items():
+                if matches := matcher(path, line):
+                    result[msg].append(
+                        f"{colored(path, 'purple')}{term_colon}{colored(lineno+1, 'green')}"
+                        f"{term_colon} {highlight_line(line, matches)}"
+                    )
+    return result
+
+
+def regexes_matcher(regexes: Iterable[str]) -> Matcher:
+    compiled_regexes = [re.compile(r) for r in regexes]
+
+    def matcher(path: Path, line: str):
+        result = []
+        for regex in compiled_regexes:
+            if match := regex.search(line):
+                result.append(match)
+        return result
+
+    return matcher
+
+
+def regexes_matcher_prefix(prefix: str, regexes: Iterable[str]) -> Matcher:
+    return regexes_matcher((prefix + r for r in regexes))
+
+
+def any_startswith(string: str, prefixes: Iterable[str]) -> bool:
+    return any(string.startswith(p) for p in prefixes)
+
+
+def join_items(items: Iterable[str], join: str = "\n", indent_: str = "  ") -> str:
+    return indent(join.join(items), indent_)
+
+
+def generate_error_files(msg: str, files: FileResult) -> str:
+    if len(files) == 0:
+        return ""
+    return f"{msg}\n" + join_items((colored(f, "purple") for f in files))
+
+
+def generate_error_lines(msg: str, files: LineResult) -> str:
+    if len(files) == 0:
+        return ""
+    return f"{msg}\n" + join_items(
+        (
+            f"{colored(path, 'purple')}{term_colon} {'line' if len(lines) == 1 else 'lines'} "
+            + join_items((colored(line, "green") for line in lines), ", ", "")
+            for path, lines in files.items()
+        ),
     )
 
-    NO_LICENSE_FILES=()
-    for FILE in "${LICENSE_FILES[@]}"; do
-        if ! head -n 10 "$FILE" | grep -qF 'See LICENSE.md for details'; then
-            NO_LICENSE_FILES+=("$FILE")
-        fi
-    done
 
-    if [[ ${#NO_LICENSE_FILES[@]} -gt 0 ]]; then
-        echo "There are files without a license header:"
-        printf '  %s\n' "${NO_LICENSE_FILES[@]}"
-    fi
-}
+def generate_rule_results(result: RuleResult) -> str:
+    return "".join(f"{rule}\n" + join_items(items) for rule, items in result.items())
 
 
-# Run revng-specific checks on c/cpp files
-function run_revng_cpp_checks() {
-    if [[ ${#C_FILES[@]} -eq 0 ]]; then return; fi
-    local NON_SUPPORT_FILES CXX_FILES REGEXPS REGEXP FILE
+class SingleCommandPass(Pass):
+    def __init__(
+        self,
+        name: str,
+        tag: str,
+        command: Iterable[str],
+        dry_command: Optional[Iterable[str]] = None,
+    ):
+        super().__init__(name, tag)
+        self.command = command
+        self.dry_command = dry_command if dry_command is not None else command
 
-    readarray -t NON_SUPPORT_FILES < <(grep -v \
-        -e '^share/revng/support\.c$' \
-        -e '^lib/Support/Assert\.cpp$' \
-        <<< "$C_FILES_N")
+    async def process(self, files: Dict[Path, str], args) -> PassResult:
+        cmd_args = template_iterable(self.dry_command if args["dry_run"] else self.command, args)
+        process = await run_with_capture((*cmd_args, *map(str, files)))
+        return PassResult.from_process(process)
 
-    readarray -t CXX_FILES < <(grep -v \
-            -e '^share/revng/support\.h$' \
-            -e '^include/revng/Runtime/.*$' \
-            -e '^include/revng/PipelineC/.*$' \
-            -e '^include/revng/Support/Assert\.h$' \
-            -e '^include/revng/Support/ClassSentinel\.h$' \
-            -e '\.c$' \
-            <<< "$C_FILES_N"
+
+class ParallelCommandPass(Pass):
+    def __init__(
+        self,
+        name: str,
+        tag: str,
+        command: Iterable[str],
+        dry_command: Optional[Iterable[str]] = None,
+    ):
+        super().__init__(name, tag)
+        self.command = command
+        self.dry_command = dry_command if dry_command is not None else command
+
+    async def process(self, files: Dict[Path, str], args) -> PassResult:
+        cpu_count = os.cpu_count()
+        chunks = chunk(list(files), cpu_count if cpu_count else 1)
+        cmd_args = template_iterable(self.dry_command if args["dry_run"] else self.command, args)
+        processes = [run_with_capture((*cmd_args, *files)) for files in chunks]
+        process_results = await asyncio.gather(*processes)
+        return PassResult.from_process(*process_results)
+
+
+class MyPyPass(SingleCommandPass):
+    def __init__(self, command: List[str]):
+        super().__init__("mypy", "python", command)
+
+    async def process(self, files: Dict[Path, str], args) -> PassResult:
+        script_files: List[Path] = []
+        normal_files: List[Path] = []
+        for filepath in files:
+            if str(filepath).startswith("python/scripts"):
+                script_files.append(filepath)
+            else:
+                normal_files.append(filepath)
+        runs = [await super().process({f: "" for f in normal_files}, args)]
+        for script in script_files:
+            runs.append(await super().process({script: ""}, args))
+        return PassResult.combine(*runs)
+
+
+class LicenseCheckPass(Pass):
+    def __init__(
+        self,
+        ignore_suffixes: List[str],
+        ignore_pathnames: List[str],
+        ignore_stems: List[str],
+    ):
+        super().__init__("license-check", "all")
+        self.ignore_suffixes = ignore_suffixes
+        self.ignore_pathnames = ignore_pathnames
+        self.ignore_stems = ignore_stems
+
+    def skip_test(self, path: Path) -> bool:
+        return (
+            path.suffix in self.ignore_suffixes
+            or path.name in self.ignore_pathnames
+            or path.stem in self.ignore_stems
+        )
+
+    @staticmethod
+    def check_license(content: str) -> bool:
+        return any("See LICENSE.md for details" in line for line in content.splitlines()[:10])
+
+    async def process(self, files: Dict[Path, str], args: Dict[str, str]) -> PassResult:
+        missing_license = []
+        for path, content in files.items():
+            if self.skip_test(path):
+                continue
+            if not self.check_license(content):
+                missing_license.append(path)
+        return PassResult.make_from(
+            files={"There are files without a license header:": missing_license}
+        )
+
+
+class BashPass(SingleCommandPass):
+    def __init__(self):
+        super().__init__("bash-check", "bash", ("shellcheck",))
+
+    @staticmethod
+    def check_set(content: str) -> bool:
+        return any(
+            "# rcc-ignore: bash-set-flags" in line or "set -euo pipefail" in line
+            for line in content.splitlines()[:10]
+        )
+
+    async def process(self, files: Dict[Path, str], args: Dict[str, str]) -> PassResult:
+        shellcheck = await super().process(files, args)
+        noset_files = [path for path, content in files.items() if not self.check_set(content)]
+        output = generate_error_files(
+            "There are script files without 'set -euo pipefail':", noset_files
+        )
+        return PassResult.combine(shellcheck, PassResult(output, len(noset_files) == 0))
+
+
+class WhitespaceCheckPass(Pass):
+    def __init__(self):
+        super().__init__("whitespace-check", "all")
+
+    async def process(self, files: Dict[Path, str], args) -> PassResult:
+        trailing_whitespace = defaultdict(list)
+        tabs = defaultdict(list)
+        no_end_newline = []
+        for path, content in files.items():
+            lines = content.splitlines()
+            for index, line in enumerate(lines):
+                if line.endswith(" "):
+                    trailing_whitespace[path].append(index)
+                if "\t" in line:
+                    tabs[path].append(index)
+            if content[-1] != "\n":
+                no_end_newline.append(path)
+
+        return PassResult.make_from(
+            files={"Files that don't end in a newline:": no_end_newline},
+            lines={
+                "Whitespace at the end of line:": trailing_whitespace,
+                "Tabs present:": tabs,
+            },
+        )
+
+
+class CPPCheckPass(Pass):
+    def __init__(
+        self,
+        support_files: List[str],
+        ignore_cpp: Dict[str, List[str]],
+        matchers: Dict[str, List[dict]],
+    ):
+        super().__init__("cpp-checks", "c")
+        self.support_files = support_files
+        self.ignore_cpp = ignore_cpp
+        self.non_support_matchers = deserialize_matchers(matchers["non_support"])
+        self.header_matchers = deserialize_matchers(matchers["header"])
+        self.cpp_matchers = deserialize_matchers(matchers["cpp"])
+        self.cpp_object_matchers = deserialize_matchers(matchers["cpp_object"])
+        self.generic_matchers = deserialize_matchers(matchers["generic"])
+        self.generic_matchers["Parenthesis at the end of line:"] = self.parethesis_matcher
+
+    @staticmethod
+    def parethesis_matcher(path: Path, line: str) -> List[re.Match]:
+        if re.search(r"R\"LLVM.*\($", line):
+            return []
+        main_match = re.search(r"\($", line)
+        return [main_match] if main_match else []
+
+    @staticmethod
+    def include_matcher(cpp_files: Dict[Path, str]) -> Matcher:
+        def include_matcher_inner(path: Path, line: str) -> List[re.Match]:
+            if path in cpp_files:
+                match = re.search(r"^\s*#include <.*\.h(|pp)>", line)
+            else:
+                match = re.search(r"^\s*#include <.*\.hpp>", line)
+            return [match] if match else []
+
+        return include_matcher_inner
+
+    @staticmethod
+    def initrevng_matcher(cpp_files: Dict[Path, str]) -> List[Path]:
+        return [
+            file
+            for file, contents in cpp_files.items()
+            if re.search(r"int main\([^)]+\) {", contents) and "InitRevng" not in contents
+        ]
+
+    async def process(self, files: Dict[Path, str], args) -> PassResult:
+        non_support_files = {
+            path: content for path, content in files.items() if str(path) not in self.support_files
+        }
+
+        cpp_files = {
+            path: content
+            for path, content in files.items()
+            if not any_startswith(str(path), self.ignore_cpp["paths"])
+            and str(path) not in self.ignore_cpp["files"]
+            and path.suffix != ".c"
+        }
+
+        header_files = {path: content for path, content in cpp_files.items() if path.suffix == ".h"}
+        cpp_object_files = {
+            path: content for path, content in cpp_files.items() if path.suffix != ".h"
+        }
+
+        include_matcher = {
+            "Includes should never use <..> except for C++ "
+            "standard includes:": self.include_matcher(cpp_files)
+        }
+
+        generic_result = line_matcher(files, self.generic_matchers)
+        non_support_result = line_matcher(non_support_files, self.non_support_matchers)
+        cpp_include_result = line_matcher(files, include_matcher)
+        cpp_result = line_matcher(cpp_files, self.cpp_matchers)
+        cpp_object_result = line_matcher(cpp_object_files, self.cpp_object_matchers)
+        header_result = line_matcher(header_files, self.header_matchers)
+        main_no_init = self.initrevng_matcher(cpp_object_files)
+
+        headers_without_pragma_once = [
+            file
+            for file, content in header_files.items()
+            if content.splitlines()[0] != "#pragma once"
+        ]
+
+        return PassResult.make_from(
+            files={
+                "Header does not start with #pragma once": headers_without_pragma_once,
+                "Main executable does not have 'InitRevng'": main_no_init,
+            },
+            rules=(
+                generic_result,
+                non_support_result,
+                cpp_result,
+                cpp_include_result,
+                header_result,
+                cpp_object_result,
+            ),
+        )
+
+
+def suffix_or_shebang(suffixes: Sequence[str] = (), shebang: str = "") -> FileFilter:
+    def matcher(path: Path, content: str) -> bool:
+        if len(suffixes) > 0 and path.suffix.startswith(".") and path.suffix[1:] in suffixes:
+            return True
+        if shebang != "":
+            first_line = content.splitlines()[0]
+            if re.search(r"#!.*" + shebang, first_line):
+                return True
+        return False
+
+    return matcher
+
+
+def cmake_filter() -> FileFilter:
+    return lambda path, content: "cmake" in path.name.lower()
+
+
+def all_filter() -> FileFilter:
+    return lambda path, content: True
+
+
+def get_config(filename: str) -> Path:
+    filepath = Path(__file__).parent / "../../share/revng" / filename
+    if filepath.is_file():
+        return filepath
+    else:
+        fail(f"Could not find config file {filename}")  # noqa: R503
+
+
+def read_rcc_config():
+    config_path = get_config("rcc-config.yml")
+    with open(config_path) as config_file:
+        return yaml.safe_load(config_file)
+
+
+def filter_files(
+    file_content_list: Dict[Path, str], filters: Dict[str, FileFilter]
+) -> Dict[str, Dict[Path, str]]:
+    return {
+        tag: {
+            filename: content
+            for filename, content in file_content_list.items()
+            if matcher(filename, content)
+        }
+        for tag, matcher in filters.items()
+    }
+
+
+def git_ls_files_wrapper(*args: str) -> List[str]:
+    file_list = check_output(["git", "ls-files", "-z", *args], text=True)
+    deleted_list = check_output(["git", "ls-files", "-z", "--deleted"], text=True)
+    return [f for f in file_list.split("\x00") if f != "" and f not in deleted_list.split("\x00")]
+
+
+def git_diff_wrapper(*args: str) -> List[str]:
+    file_list = check_output(
+        ["git", "diff", "-z", "--diff-filter=AMRC", "--name-status", *args], text=True
+    )
+    split_file_list = [c for c in file_list.split("\x00") if c != ""]
+    result = []
+    while len(split_file_list) > 0:
+        op = split_file_list.pop(0)
+        if op in ["A", "M"]:
+            result.append(split_file_list.pop(0))
+        elif op in ["R", "C"]:
+            split_file_list.pop(0)
+            result.append(split_file_list.pop(0))
+        else:
+            fail(f"Invalid git operation: {op}")
+    return result
+
+
+def get_file_list(args) -> List[Path]:
+    if len(args.FILES) > 0:
+        files = args.FILES
+        for file in (f for f in files if not os.path.isfile(f)):
+            fail(f"File {file} does not exist")
+    elif args.HEAD:
+        files = git_diff_wrapper("HEAD^..HEAD")
+    elif args.commit_range:
+        files = git_diff_wrapper(args.commit_range)
+    elif args.staged:
+        files = git_diff_wrapper("--cached")
+    elif args.unstaged:
+        files = git_ls_files_wrapper("-m", "--exclude-standard")
+    else:
+        files = git_ls_files_wrapper()
+    return [Path(f) for f in files]
+
+
+def read_clang_style(args) -> str:
+    if not args.use_local_clang_format_file:
+        style = get_config("clang-format-style-file").read_text()
+    else:
+        style = "file"
+    if args.print_clang_format_config:
+        process_run(["clang-format", "--dry-run", f"-style={style}", "--dump-config"])
+        sys.exit(0)
+    return style
+
+
+async def inflate_files(initial_dict: Dict[str, Dict[Path, str]]) -> Dict[str, Dict[Path, str]]:
+    paths: Set[Path] = set()
+    for pathset in initial_dict.values():
+        paths.update(pathset.keys())
+    contents = {path: read_file(path) for path in paths}
+    return {
+        tag: {path: contents[path] for path in paths.keys()} for tag, paths in initial_dict.items()
+    }
+
+
+@dataclass
+class PassRun:
+    name: str
+    result: PassResult
+    time: float
+
+
+async def run_passes(files: Dict[str, Dict[Path, str]], args: Dict[str, str], config: dict):
+    async def pass_wrapper(pass_: Pass, *args) -> PassRun:
+        start = time.time()
+        result = await pass_.run(*args)
+        return PassRun(pass_.name, result, time.time() - start)
+
+    def combine_passes(*passes: Pass):
+        async def combined_pass(*args):
+            return [await pass_wrapper(pass_, *args) for pass_ in passes]
+
+        return combined_pass
+
+    write_passes = [deserialize_config_item(pass_) for pass_ in config["write_passes"]]
+    read_passes = [deserialize_config_item(pass_) for pass_ in config["read_passes"]]
+    combined_rw_passes = [
+        combine_passes(*passes) for _, passes in groupby(write_passes, lambda p: p.tag)
+    ]
+
+    runs: List[PassRun] = []
+    start = time.time()
+    rw_pass_runs = [p(files, args) for p in combined_rw_passes]
+    for pass_group in await asyncio.gather(*rw_pass_runs):
+        runs.extend(pass_group)
+    files = await inflate_files(files)
+    ro_pass_runs = [pass_wrapper(p, files, args) for p in read_passes]
+    runs.extend(await asyncio.gather(*ro_pass_runs))
+
+    for run in runs:
+        if not run.result.verify():
+            log(f"Pass {colored(run.name, 'blue')} failed")
+            if run.result.output.strip() != "":
+                log(indent(run.result.output.strip(), "  "))
+
+    if args["print_timings"]:
+        log(f"{colored('Timing Information:', 'blue')}")
+        max_len = max(len(run.name) for run in runs) + 2
+        for run in runs:
+            log(f"{f'{run.name}:' : <{max_len}}{run.time:.4f}s")
+        log("---")
+        log(f"Total Time: {time.time() - start:.4f}s")
+
+    sys.exit(0 if all(r.result.verify() for r in runs) else 1)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawTextHelpFormatter,
+        description="""Checks that the files specified in FILES... respect the rev.ng coding
+conventions, and prints all the violations.
+
+If no FILES are specified then all the files tracked by git will be checked.""",
+        epilog="""RETURN VALUES
+On success exit code is 0.
+On failure, i.e. if there is at least one file that is not respecting the
+coding conventions, exit code is 1.""",
+    )
+    parser.add_argument(
+        "--force-format",
+        action="store_true",
+        help="""Run linters on the specified files before checking.
+WARNING: using this option will overwrite your files, make sure to backup
+important stuff.""",
     )
 
-    # Check for lines longer than 80 columns
-    $GREP -E '^.{81,}$' "${C_FILES[@]}" | cat_header "There are lines longer than 80 characters:"
+    parser.add_argument(
+        "--print-timings",
+        action="store_true",
+        help="After execution, print timing information for each pass",
+    )
 
-    # Things should never match
-    for REGEXP in '\(--> 0\)' ';;' '^\s*->.*;$' 'Twine [^&]'; do
-        $GREP "$REGEXP" "${C_FILES[@]}"
-    done | cat_header "Found snippets that should not be present:"
+    parser.add_argument(
+        "--use-local-clang-format-file",
+        action="store_true",
+        help="""Instead of using the repository config, let clang-format search in its default
+locations for a config file.
+See clang-format documentation for more details.""",
+    )
 
-    # Things should never match (except in support.c)
-    for REGEXP in '\babort(' '\bassert(' 'assert(false' 'llvm_unreachable'; do
-        $GREP "$REGEXP" "${NON_SUPPORT_FILES[@]}"
-    done | cat_header "Use revng_{assert,check,abort,unreachable}:"
+    parser.add_argument(
+        "--print-clang-format-config",
+        action="store_true",
+        help="""Print the clang-format configuration to stdout and then exit, ignoring other
+arguments except for --use-local-clang-format-file.""",
+    )
 
-    # Things should never be at the end of a line
-    for REGEXP in '::' '<' 'RegisterPass.*>' '} else' '\bopt\b.*>'; do
-        $GREP "$REGEXP\$" "${C_FILES[@]}"
-    done | cat_header "Found snippets that shouldn't be at the end of a line:"
+    parser_file_selection = parser.add_mutually_exclusive_group()
+    parser_file_selection.add_argument(
+        "--commit-range", metavar="RANGE", help="Check files changed in the specified commit range"
+    )
+    parser_file_selection.add_argument(
+        "--HEAD", action="store_true", help="Alias for '--commit-range HEAD^..HEAD'"
+    )
+    parser_file_selection.add_argument(
+        "--staged", action="store_true", help="Only check staged files"
+    )
+    parser_file_selection.add_argument(
+        "--unstaged", action="store_true", help="Only check unstaged files"
+    )
+    parser.add_argument(
+        "FILES",
+        nargs="*",
+        help="List of files to check against the rev.ng coding conventions.",
+    )
 
-    # Includes should never use <..> except for C++ standard includes
-    if [[ ${#CXX_FILES[@]} -ne 0 ]]; then
-        cat <($GREP "^\s*#include <.*\.hpp>" "${C_FILES[@]}") \
-            <($GREP "^\s*#include <.*\.h>" "${CXX_FILES[@]}") \
-            | cat_header "Includes should never use <..> except for C++ standard includes:"
-    else
-        $GREP "^\s*#include <.*\.hpp>" "${C_FILES[@]}" | \
-            cat_header "Includes should never use <..> except for C++ standard includes:"
-    fi
+    return parser.parse_args()
 
-    # Parenthesis at the end of line (except for raw strings)
-    $GREP "(\$" "${C_FILES[@]}" | grep -v 'R"LLVM.*(' | cat_header "Parenthesis at the end of line:"
 
-    # Things should never be at the beginning of a line
-    REGEXPS=('\*>' '/[^/\*]' ':[^:\(]*)' '==' '\!=' '<[^<]' '>' '>=' '<=' '//\s*WIP' '#if\s*[01]')
-    for REGEXP in "${REGEXPS[@]}"; do
-        $GREP "^\s*$REGEXP" "${C_FILES[@]}"
-    done | cat_header "Found snippets that should never be at the beginning of a line:"
+async def amain():
+    args = parse_args()
+    clang_style = read_clang_style(args)
+    file_list = get_file_list(args)
+    files = {filename: read_file(filename, 512) for filename in file_list}
+    config = read_rcc_config()
+    filters = {k: deserialize_config_item(v) for k, v in config["matchers"].items()}
+    filtered_files = filter_files(files, filters)
+    new_args = {
+        "dry_run": not args.force_format,
+        "print_timings": args.print_timings,
+        "clang_style": clang_style,
+        "isort_config": str(get_config("isort.cfg")),
+        "flake8_config": str(get_config("flake8-config")),
+        "prettier_config": str(get_config("prettierrc.yml")),
+    }
+    await run_passes(filtered_files, new_args, config)
 
-    # Check there are no static functions in C++ header files
-    for FILE in "${CXX_FILES[@]}"; do
-        if [[ $FILE == *h ]]; then
-            $GREP -H '^static\b[^=]*$' "$FILE" | cat
-            head -n1 "$FILE" |  grep -E '^#pragma once$' > /dev/null || \
-                echo "$FILE: header does not start with #pragma once"
-        fi
-    done
-}
 
-# Run revng-specific checks on all files
-function run_revng_checks() {
-    # Ban whitespaces at the end of a line
-    $GREP " \$" "${ALL_FILES[@]}" | cat_header "Whitespace at the end of line:"
-
-    # Ban tabs altogether
-    $GREP -P "\t" "${ALL_FILES[@]}" | cat_header "Tabs present:"
-
-    # Ensure all files end with a newline
-    for FILE in "${ALL_FILES[@]}"; do
-        if [[ -s "$FILE" && ! $(tail -c 1 "$FILE" | base64) == "Cg==" ]]; then
-            echo "$FILE"
-        fi
-    done | cat_header "Files that don't end in a newline:"
-}
-
-# Replace fd #1 (stdout) with process substitution so that after the exec any
-# write to it will also get written into $TMP_FILE
-TMP_FILE=$(mktemp)
-exec 3>&1 1> >(tee "$TMP_FILE" > /dev/stdout)
-
-function cleanup() {
-    trap - SIGINT SIGTERM ERR EXIT
-    rm "$TMP_FILE"
-}
-trap cleanup SIGINT SIGTERM ERR EXIT
-
-EXIT_CODE=0
-
-run_clang_format || EXIT_CODE=$?
-run_cmake_format || EXIT_CODE=$?
-run_black || EXIT_CODE=$?
-run_isort || EXIT_CODE=$?
-run_prettier || EXIT_CODE=$?
-run_flake8 || EXIT_CODE=$?
-run_mypy || EXIT_CODE=$?
-run_bash_check || EXIT_CODE=$?
-run_license_check || EXIT_CODE=$?
-run_revng_cpp_checks || EXIT_CODE=$?
-run_revng_checks || EXIT_CODE=$?
-
-if [[ $(wc -c < "$TMP_FILE") -ne 0 || $EXIT_CODE -ne 0 ]]; then
-    exit 1
-fi
+if __name__ == "__main__":
+    asyncio.run(amain())
