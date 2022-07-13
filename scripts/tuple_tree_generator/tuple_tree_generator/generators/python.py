@@ -4,17 +4,8 @@
 
 import black
 
-from ..schema import (
-    Definition,
-    EnumDefinition,
-    ReferenceDefinition,
-    ScalarDefinition,
-    Schema,
-    SequenceDefinition,
-    StructDefinition,
-    StructField,
-    UpcastableDefinition,
-)
+from ..schema import Definition, EnumDefinition, ReferenceDefinition, ScalarDefinition, Schema
+from ..schema import SequenceDefinition, StructDefinition, StructField, UpcastableDefinition
 from .jinja_utils import python_environment
 
 

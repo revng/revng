@@ -3,13 +3,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-# TODO: errexit and pipefail are intentionally not set. Here I'm setting and
-# and unsetting them just to silence check-conventions. Remove hack once
-# silencing functionality is added to check-conventions.
-set -euo pipefail
-
-set +o pipefail
-set +o errexit
+# rcc-ignore: bash-set-flags
+set -u
 
 CMAKE_BINARY_DIR="$1"
 EXPECTED_STATUS="$2"

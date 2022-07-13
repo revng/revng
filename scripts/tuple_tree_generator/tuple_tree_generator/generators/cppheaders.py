@@ -6,18 +6,9 @@ import graphlib
 from collections import defaultdict
 from typing import Dict, Optional
 
-from ..schema import (
-    Definition,
-    EnumDefinition,
-    ReferenceDefinition,
-    ScalarDefinition,
-    Schema,
-    SequenceDefinition,
-    SequenceStructField,
-    StructDefinition,
-    StructField,
-    UpcastableDefinition,
-)
+from ..schema import Definition, EnumDefinition, ReferenceDefinition, ScalarDefinition, Schema
+from ..schema import SequenceDefinition, SequenceStructField, StructDefinition, StructField
+from ..schema import UpcastableDefinition
 from .jinja_utils import environment
 
 

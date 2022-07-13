@@ -7,6 +7,7 @@
 #include "revng/Model/QualifiedType.h"
 #include "revng/Model/ToolHelpers.h"
 #include "revng/Model/TypeSystemPrinter.h"
+#include "revng/Support/InitRevng.h"
 
 using namespace llvm;
 
@@ -25,6 +26,8 @@ static cl::opt<std::string> InputModulePath(cl::Positional,
                                             cl::value_desc("module"));
 
 int main(int Argc, char *Argv[]) {
+  revng::InitRevng X(Argc, Argv);
+
   cl::HideUnrelatedOptions({ &ThisToolCategory });
   cl::ParseCommandLineOptions(Argc, Argv);
 

@@ -1,0 +1,131 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+matchers:
+  c:
+    type: suffix_or_shebang
+    suffixes: ["c", "cc", "cpp", "h", "hpp"]
+  python:
+    type: suffix_or_shebang
+    suffixes: ["py"]
+    shebang: python
+  bash:
+    type: suffix_or_shebang
+    suffixes: ["sh"]
+    shebang: bash
+  cmake: { type: cmake_filter }
+  prettier:
+    type: suffix_or_shebang
+    suffixes: ["html", "js", "json", "ts", "yaml", "yml"]
+  all: { type: all_filter }
+
+write_passes:
+  - type: ParallelCommandPass
+    name: clang-format
+    tag: c
+    command: ["clang-format", "-Werror", "-style=${clang_style}", "-i"]
+    dry_command: ["clang-format", "-Werror", "--dry-run", "-style=${clang_style}", "-i"]
+  - type: ParallelCommandPass
+    name: cmake-format
+    tag: cmake
+    command: ["cmake-format", "-l", "error", "-i"]
+    dry_command: ["cmake-format", "-l", "error", "--check"]
+  - type: SingleCommandPass
+    name: black
+    tag: python
+    command: ["black", "-q", "-l", "100"]
+    dry_command: ["black", "-q", "--diff", "-l", "100"]
+  - type: SingleCommandPass
+    name: isort
+    tag: python
+    command: ["isort", "--settings-file", "$isort_config"]
+    dry_command: ["isort", "--settings-file", "$isort_config", "--diff"]
+  - type: SingleCommandPass
+    name: prettier
+    tag: prettier
+    command: ["prettier", "--write", "--config", "$prettier_config", "--loglevel", "silent"]
+    dry_command: ["prettier", "--check", "--config", "$prettier_config", "--loglevel", "silent"]
+
+read_passes:
+  - type: SingleCommandPass
+    name: flake8
+    tag: python
+    command: ["flake8", "--config", "$flake8_config"]
+  - type: MyPyPass
+    command:
+      - mypy
+      - --scripts-are-modules
+      - --ignore-missing-imports
+      - --no-error-summary
+      - --sqlite-cache
+      - --skip-cache-mtime-checks
+  - type: LicenseCheckPass
+    ignore_suffixes: [".txt", ".md", ".rst", ".dot"]
+    ignore_stems: ["LICENSE"]
+    ignore_pathnames:
+      - .gitignore
+      - pyproject.toml
+      - clang-format-style-file
+      - .clang-tidy
+      - Doxyfile.in
+  - type: BashPass
+  - type: CPPCheckPass
+    support_files: ["share/revng/support.c", "lib/Support/Assert.cpp"]
+    ignore_cpp:
+      paths: ["include/revng/Runtime/", "include/revng/PipelineC/"]
+      files:
+        - share/revng/support.h
+        - include/revng/Support/Assert.h
+        - include/revng/Support/ClassSentinel.h
+    matchers:
+      generic:
+        - name: There are lines longer than 80 characters
+          matcher:
+            type: regexes_matcher
+            regexes: ["^.{81,}$"]
+        - name: Found snippets that should not be present
+          matcher:
+            type: regexes_matcher
+            regexes: ['\(--> 0\)', ";;", '^\s*->.*;$', "Twine [^&]"]
+        - name: Found snippets that shouldn't be at the end of a line
+          matcher:
+            type: regexes_matcher
+            regexes: ["::$", "RegisterPass.*>$", "} else$", '\bopt\b.*>$']
+        - name: Includes should never use <..> except for C++ standard includes
+          matcher:
+            type: regexes_matcher
+            regexes: [r"^\s*#include <.*\.hpp>"]
+        - name: Found snippets that should never be at the beginning of a line:"
+          matcher:
+            type: regexes_matcher_prefix
+            prefix: '^\s*'
+            regexes:
+              - '\*>'
+              - '/[^/\*]'
+              - ':[^:\(]*\)'
+              - "=="
+              - '\!='
+              - "<[^<]"
+              - ">"
+              - ">="
+              - "<="
+              - '//\s*WIP'
+              - '#if\s*[01]'
+      non_support:
+        - name: Use revng_{assert,check,abort,unreachable}
+          matcher:
+            type: regexes_matcher
+            regexes: ['\babort\(', r'\bassert\(', 'assert\(false', "llvm_unreachable"]
+      cpp: []
+      cpp_object:
+        - name: Found snippets that shouldn't be at the end of a line
+          matcher:
+            type: regexes_matcher
+            regexes: ["<$"]
+      header:
+        - name: Headers should not use static
+          matcher:
+            type: regexes_matcher
+            regexes: ['^static\s']
+  - type: WhitespaceCheckPass

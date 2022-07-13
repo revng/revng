@@ -8,14 +8,8 @@ from typing import Dict, Optional
 
 from revng.cli.commands_registry import Command, Options
 
-from .common import (
-    handle_file,
-    log,
-    normalize_filter_extract,
-    strip_ptml,
-    suppress_brokenpipe,
-    yaml_dump,
-)
+from .common import handle_file, log, normalize_filter_extract, strip_ptml, suppress_brokenpipe
+from .common import yaml_dump
 
 
 def strip_ptml_many(content: Dict[str, str]) -> str:

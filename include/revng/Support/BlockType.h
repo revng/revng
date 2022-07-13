@@ -7,7 +7,7 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRHelpers.h"
 
-static const char *BlockTypeMDName = "revng.block.type";
+inline const char *BlockTypeMDName = "revng.block.type";
 
 namespace BlockType {
 

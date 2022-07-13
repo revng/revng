@@ -783,7 +783,7 @@ inline bool isFirst(T *I) {
   return I == &*I->getParent()->begin();
 }
 
-static std::array<unsigned, 3> CastOpcodes = {
+inline std::array<unsigned, 3> CastOpcodes = {
   llvm::Instruction::BitCast,
   llvm::Instruction::PtrToInt,
   llvm::Instruction::IntToPtr,
