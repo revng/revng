@@ -2,8 +2,6 @@
 // Copyright rev.ng Labs Srl. See LICENSE.md for details.
 //
 
-#include <cstddef>
-
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Debug.h"
 
@@ -12,11 +10,10 @@
 #include "revng/Support/FunctionTags.h"
 
 #include "revng-c/ValueManipulationAnalysis/TypeColors.h"
+#include "revng-c/ValueManipulationAnalysis/VMAPipeline.h"
 #include "revng-c/ValueManipulationAnalysis/ValueManipulationAnalysis.h"
 
-#include "Mincut.h"
 #include "TypeFlowGraph.h"
-#include "TypeFlowNode.h"
 
 using namespace llvm;
 using namespace vma;
@@ -31,6 +28,25 @@ static Register X("vma", "Value Manipulation Analysis", false, false);
 
 using VMA = ValueManipulationAnalysis;
 
+/// Simple updater for testing
+class ColorMapUpdater : public VMAUpdater {
+private:
+  VMA::ColorMapT &ColorMap;
+
+public:
+  ColorMapUpdater(VMA::ColorMapT &Map) : ColorMap(Map) {}
+
+  void updateWithResults(const vma::TypeFlowGraph *TFG) override {
+    // Populate Output Map
+    for (const auto *N : TFG->nodes()) {
+      revng_assert(N->getCandidates().countValid() <= 1);
+
+      if (N->isValue())
+        ColorMap.insert({ N->getValue(), N->getCandidates() });
+    }
+  }
+};
+
 // LLVM Pass
 void VMA::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<LoadModelWrapperPass>();
@@ -43,58 +59,19 @@ bool VMA::runOnFunction(Function &F) {
   if (not FTags.contains(FunctionTags::Isolated))
     return false;
 
+  auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
+  const model::Binary &Model = *ModelWrapper.getReadOnlyModel();
+
   revng_log(VMALog, "------ Function: " << F.getName() << " ------");
 
-  // Color initialization
   ColorMap.clear();
-  TypeFlowGraph TG = makeTypeFlowGraphFromFunction(&F);
 
-  // Color propagation
-  do {
-    propagateColors(TG);
-  } while (propagateNumberness(TG));
+  VMAPipeline VMA(Model);
+  VMA.addInitializer(std::make_unique<LLVMInitializer>());
+  VMA.setUpdater(std::make_unique<ColorMapUpdater>(ColorMap));
+  VMA.enableSolver();
 
-  // Mincut preprocessing
-  makeBidirectional(TG);
-  applyMajorityVoting(TG);
-
-  if (GraphLog.isEnabled())
-    TG.view();
-
-  // Assign grey nodes
-  if (llvm::any_of(TG.nodes(),
-                   [](TypeFlowNode *N) { return N->isUndecided(); })) {
-
-    revng_log(VMALog, "Executing mincut");
-
-    std::chrono::steady_clock::time_point Begin;
-    if (TimerLogger.isEnabled()) {
-      Begin = std::chrono::steady_clock::now();
-    }
-
-    minCut(TG);
-
-    if (TimerLogger.isEnabled()) {
-      auto End = std::chrono::steady_clock::now();
-      auto Dur = End - Begin;
-      revng_log(TimerLogger, "total time: " << Dur.count());
-      revng_log(TimerLogger, "total dim: " << TG.size());
-    }
-  } else {
-    revng_log(VMALog, "Nothing to assign");
-  }
-
-  if (GraphLog.isEnabled())
-    TG.view();
-  revng_log(VMALog, "Total function cost: " << countCasts(TG));
-
-  // Populate Output Map
-  for (const auto *N : TG.nodes()) {
-    revng_assert(N->getCandidates().countValid() <= 1);
-
-    if (N->isValue())
-      ColorMap.insert({ N->getValue(), N->getCandidates() });
-  }
+  VMA.run(&F);
 
   return false;
 }

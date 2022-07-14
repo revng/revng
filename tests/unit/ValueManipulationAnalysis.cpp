@@ -20,6 +20,7 @@ bool init_unit_test();
 #include "revng/UnitTestHelpers/UnitTestHelpers.h"
 
 #include "revng-c/ValueManipulationAnalysis/TypeColors.h"
+#include "revng-c/ValueManipulationAnalysis/VMAPipeline.h"
 #include "revng-c/ValueManipulationAnalysis/ValueManipulationAnalysis.h"
 
 #include "lib/ValueManipulationAnalysis/Mincut.h"
@@ -161,7 +162,9 @@ static void checkInit(const char *Body,
   Function *F = M->getFunction("main");
 
   // Build the TG
-  TypeFlowGraph TG = makeTypeFlowGraphFromFunction(F);
+  TypeFlowGraph TG = makeTypeFlowGraphFromFunction(F, /*Model=*/nullptr);
+  LLVMInitializer Init;
+  Init.initializeColors(&TG);
 
   checkTGCorrectness(TG);
   checkShape(TG, ExpectedInit);

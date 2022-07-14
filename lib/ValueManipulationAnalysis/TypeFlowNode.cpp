@@ -2,7 +2,6 @@
 // Copyright rev.ng Labs Srl. See LICENSE.md for details.
 //
 
-#include <algorithm>
 #include <cstddef>
 #include <variant>
 
@@ -11,10 +10,16 @@
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/Support/Casting.h"
 
+#include "revng/Model/Binary.h"
+#include "revng/Model/PrimitiveTypeKind.h"
+#include "revng/Model/TypeKind.h"
+#include "revng/Model/TypedefType.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRHelpers.h"
 
+#include "revng-c/Support/ModelHelpers.h"
 #include "revng-c/ValueManipulationAnalysis/TypeColors.h"
 
 #include "TypeFlowNode.h"
@@ -22,21 +27,76 @@
 using namespace vma;
 using namespace llvm;
 
-NodeColorProperty vma::nodeColors(const UseOrValue &Content) {
+RecursiveCoroutine<ColorSet> vma::QTToColor(const model::QualifiedType &QT) {
+
+  if (QT.isPointer())
+    rc_return POINTERNESS;
+
+  if (QT.is(model::TypeKind::TypedefType)) {
+    auto *UnqualT = QT.UnqualifiedType.getConst();
+    auto *TypedefT = llvm::cast<model::TypedefType>(UnqualT);
+
+    rc_return rc_recur QTToColor(TypedefT->UnderlyingType);
+  }
+
+  if (QT.is(model::TypeKind::PrimitiveType)) {
+    auto *UnqualT = QT.UnqualifiedType.getConst();
+    auto *PrimitiveT = llvm::cast<model::PrimitiveType>(UnqualT);
+
+    switch (PrimitiveT->PrimitiveKind) {
+
+    case model::PrimitiveTypeKind::Void:
+      rc_return NO_COLOR;
+      break;
+
+    case model::PrimitiveTypeKind::Unsigned:
+      rc_return UNSIGNEDNESS;
+      break;
+
+    case model::PrimitiveTypeKind::Signed:
+      rc_return SIGNEDNESS;
+      break;
+
+    case model::PrimitiveTypeKind::Float:
+      rc_return FLOATNESS;
+      break;
+
+    case model::PrimitiveTypeKind::Number:
+      rc_return SIGNEDNESS | UNSIGNEDNESS;
+      break;
+
+    case model::PrimitiveTypeKind::PointerOrNumber:
+      rc_return POINTERNESS | SIGNEDNESS | UNSIGNEDNESS;
+      break;
+
+    case model::PrimitiveTypeKind::Generic:
+      rc_return ~NUMBERNESS;
+      break;
+
+    default:
+      revng_abort("Unknown Primitive Type");
+    }
+  }
+
+  rc_return NO_COLOR;
+}
+
+ColorSet
+vma::getAcceptedColors(const UseOrValue &Content, const model::Binary *Model) {
   // Arguments, constants, globals etc.
   if (isValue(Content)) {
     const Value *V = getValue(Content);
 
     if (isa<Argument>(V))
-      return { /*initial=*/NO_COLOR, /*accepted=*/ALL_COLORS };
+      return ALL_COLORS;
 
     // Constants and globals should not be infected, since they don't belong to
     // a single function
     if (isa<Constant>(V) or isa<GlobalValue>(V))
-      return { /*initial=*/NO_COLOR, /*accepted=*/NO_COLOR };
+      return NO_COLOR;
 
     if (not isa<Instruction>(V))
-      return { /*initial=*/NO_COLOR, /*accepted=*/NO_COLOR };
+      return NO_COLOR;
   }
 
   // Instructions and operand uses should be the only thing remaining
@@ -51,6 +111,29 @@ NodeColorProperty vma::nodeColors(const UseOrValue &Content) {
                            cast<Instruction>(getValue(Content)) :
                            cast<Instruction>(getUse(Content)->getUser());
 
+  // Do we have strong model information about this node? If so, use that
+  if (Model) {
+    // Deduce type for the use or for the value, depending on which type of node
+    // we are looking at
+    auto DeducedTypes = IsContentInst ?
+                          getStrongModelInfo(I, *Model) :
+                          getExpectedModelType(getUse(Content), *Model);
+
+    if (DeducedTypes.size() == 1)
+      return QTToColor(DeducedTypes.back());
+
+    if (DeducedTypes.size() > 1) {
+      // There are cases in which we can associate to an LLVM value (typically
+      // an aggregate) more than one model type, e.g. for values returned by
+      // RawFunctionTypes or for calls to StructInitializer.
+      // In these cases, the aggregate itself has no color. Not that the value
+      // extracted from that will instead have a color, which is inferred by
+      // `getStrongModelInfo()`.
+    }
+  }
+
+  // Fallback to manually matching LLVM instructions that provides us with rich
+  // type information
   switch (I->getOpcode()) {
   case Instruction::FNeg:
   case Instruction::FAdd:
@@ -59,109 +142,93 @@ NodeColorProperty vma::nodeColors(const UseOrValue &Content) {
   case Instruction::FDiv:
   case Instruction::FRem:
   case Instruction::FPExt:
-    return { /*initial=*/FLOATNESS, /*accepted=*/FLOATNESS };
+    return FLOATNESS;
     break;
 
   case Instruction::FCmp:
     if (IsContentInst)
-      return { /*initial=*/BOOLNESS, /*accepted=*/BOOLNESS };
+      return BOOLNESS;
     else
-      return { /*initial=*/FLOATNESS, /*accepted=*/FLOATNESS };
+      return FLOATNESS;
     break;
 
   case Instruction::ICmp:
     if (IsContentInst)
-      return { /*initial=*/BOOLNESS, /*accepted=*/BOOLNESS };
+      return BOOLNESS;
     if (cast<ICmpInst>(I)->isSigned())
-      return { /*initial=*/SIGNEDNESS, /*accepted=*/SIGNEDNESS };
+      return SIGNEDNESS;
     if (cast<ICmpInst>(I)->isUnsigned())
-      return { /*initial=*/UNSIGNEDNESS,
-               /*accepted=*/UNSIGNEDNESS | POINTERNESS };
+      return UNSIGNEDNESS | POINTERNESS;
     break;
 
   case Instruction::SDiv:
   case Instruction::SRem:
-    return { /*initial=*/(SIGNEDNESS | NUMBERNESS),
-             /*accepted=*/(SIGNEDNESS | NUMBERNESS) };
+    return SIGNEDNESS | NUMBERNESS;
     break;
 
   case Instruction::UDiv:
   case Instruction::URem:
-    return { /*initial=*/(UNSIGNEDNESS | NUMBERNESS),
-             /*accepted=*/(UNSIGNEDNESS | NUMBERNESS) };
+    return UNSIGNEDNESS | NUMBERNESS;
     break;
 
   case Instruction::Alloca:
     if (IsContentInst)
-      return { /*initial=*/POINTERNESS,
-               /*accepted=*/POINTERNESS };
+      return POINTERNESS;
     if (getUse(Content)->get() == cast<AllocaInst>(I)->getArraySize())
-      return { /*initial=*/UNSIGNEDNESS,
-               /*accepted=*/UNSIGNEDNESS };
+      return UNSIGNEDNESS;
     break;
 
   case Instruction::Load:
     if (isUse(Content)
         && getOpNo(Content) == cast<LoadInst>(I)->getPointerOperandIndex())
-      return { /*initial=*/POINTERNESS,
-               /*accepted=*/POINTERNESS };
+      return POINTERNESS;
     break;
 
   case Instruction::Store:
     if (isUse(Content)
         && getOpNo(Content) == cast<StoreInst>(I)->getPointerOperandIndex())
-      return { /*initial=*/POINTERNESS,
-               /*accepted=*/POINTERNESS };
+      return POINTERNESS;
     break;
 
   case Instruction::AShr:
     if (IsContentInst or getOpNo(Content) == 0)
-      return { /*initial=*/SIGNEDNESS,
-               /*accepted=*/SIGNEDNESS };
+      return SIGNEDNESS;
     if (getOpNo(Content) == 1)
-      return { /*initial=*/UNSIGNEDNESS,
-               /*accepted=*/~(FLOATNESS | POINTERNESS) };
+      return ~(FLOATNESS | POINTERNESS);
     break;
 
   case Instruction::LShr:
     if (IsContentInst or getOpNo(Content) == 0)
       // TODO: rule on first operand too strict?
-      return { /*initial=*/UNSIGNEDNESS,
-               /*accepted=*/UNSIGNEDNESS };
+      return UNSIGNEDNESS;
     if (getOpNo(Content) == 1)
-      return { /*initial=*/UNSIGNEDNESS,
-               /*accepted=*/~(FLOATNESS | POINTERNESS) };
+      return ~(FLOATNESS | POINTERNESS);
     break;
 
   case Instruction::Shl:
     if (IsContentInst)
-      return { /*initial=*/NO_COLOR,
-               /*accepted=*/~(FLOATNESS | POINTERNESS) };
+      return ~(FLOATNESS | POINTERNESS);
     if (getOpNo(Content) == 0)
       // TODO: rule on first operand too strict?
-      return { /*initial = */ NO_COLOR,
-               /*accepted=*/
-               (SIGNEDNESS | UNSIGNEDNESS | BOOLNESS) };
+      return (SIGNEDNESS | UNSIGNEDNESS | BOOLNESS);
     if (getOpNo(Content) == 1)
-      return { /*initial=*/UNSIGNEDNESS,
-               /*accepted=*/~(FLOATNESS | POINTERNESS) };
+      return ~(FLOATNESS | POINTERNESS);
     break;
 
   case Instruction::Mul:
-    return { /*initial=*/NUMBERNESS,
-             /*accepted=*/~(FLOATNESS | POINTERNESS) };
+    return ~(FLOATNESS | POINTERNESS);
     break;
 
   case Instruction::Br:
     if (isUse(Content) && cast<BranchInst>(I)->isConditional()
         && getUse(Content)->get() == cast<BranchInst>(I)->getCondition())
-      return { /*initial=*/BOOLNESS, /*accepted=*/BOOLNESS };
+      return BOOLNESS;
     break;
 
   case Instruction::Select:
     if (isUse(Content)
         && getUse(Content)->get() == cast<SelectInst>(I)->getCondition())
-      return { /*initial=*/BOOLNESS, /*accepted=*/BOOLNESS };
+      return BOOLNESS;
     break;
 
   case Instruction::Trunc:
@@ -169,7 +236,7 @@ NodeColorProperty vma::nodeColors(const UseOrValue &Content) {
   case Instruction::Or:
   case Instruction::Xor:
     // TODO: Restrict more what can be accepted by bitwise operations?
-    return { /*initial=*/NO_COLOR, /*accepted=*/~NUMBERNESS };
+    return ~NUMBERNESS;
     break;
 
   case Instruction::GetElementPtr:
@@ -177,7 +244,7 @@ NodeColorProperty vma::nodeColors(const UseOrValue &Content) {
     break;
   }
 
-  return { /*initial=*/NO_COLOR, /*accepted=*/~NUMBERNESS };
+  return ~NUMBERNESS;
 }
 
 void TypeFlowNodeData::print(llvm::raw_ostream &Out) const {

@@ -48,13 +48,15 @@ struct TypeFlowGraph : public GenericGraph<TypeFlowNode> {
   void view() debug_function;
 
   const llvm::Function *Func;
+  const model::Binary *Model;
   std::map<UseOrValue, TypeFlowNode *> ContentToNodeMap;
 };
 
 // --------------- TypeFlowGraph manipulation
 
 /// Add to \a TG the `llvm::Use`s and `llvm::Value`s inside \a F
-TypeFlowGraph makeTypeFlowGraphFromFunction(const llvm::Function *F);
+TypeFlowGraph makeTypeFlowGraphFromFunction(const llvm::Function *F,
+                                            const model::Binary *Model);
 
 /// Propagate colors from colored nodes trough colored edges
 void propagateColors(TypeFlowGraph &TG);

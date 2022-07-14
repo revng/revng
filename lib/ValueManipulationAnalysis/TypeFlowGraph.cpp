@@ -19,7 +19,9 @@
 #include "revng/ADT/ReversePostOrderTraversal.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/FunctionTags.h"
 
+#include "revng-c/Support/FunctionTags.h"
 #include "revng-c/ValueManipulationAnalysis/TypeColors.h"
 
 #include "TypeFlowGraph.h"
@@ -36,7 +38,7 @@ static Logger<> TGLog("vma-tg");
 TypeFlowNode *TypeFlowGraph::addNodeContaining(const UseOrValue &NC) {
   revng_assert(not ContentToNodeMap.count(NC));
 
-  NodeColorProperty InitialColors = nodeColors(NC);
+  NodeColorProperty InitialColors = { NO_COLOR, getAcceptedColors(NC, Model) };
   auto *N = this->addNode(NC, InitialColors);
   ContentToNodeMap[NC] = N;
 
@@ -211,14 +213,33 @@ static bool connect(TypeFlowNode *N1, TypeFlowNode *N2) {
                                   ~(FLOATNESS | POINTERNESS | NUMBERNESS));
       break;
     }
+
+    if (auto *Call = llvm::dyn_cast<CallInst>(I)) {
+      if (FunctionTags::CallToLifted.isTagOf(Call)) {
+        // No type flows between arguments and return value
+        return false;
+
+      } else {
+        auto *Callee = Call->getCalledFunction();
+        revng_assert(Callee);
+
+        // These opcodes are transparent
+        if (FunctionTags::Parentheses.isTagOf(Callee)
+            or FunctionTags::AssignmentMarker.isTagOf(Callee)
+            or FunctionTags::Copy.isTagOf(Callee))
+          return AddBidirectionalEdge(UseNode, ValNode, ALL_COLORS);
+      }
+    }
   }
 
   return false;
 }
 
-TypeFlowGraph vma::makeTypeFlowGraphFromFunction(const llvm::Function *F) {
+TypeFlowGraph vma::makeTypeFlowGraphFromFunction(const llvm::Function *F,
+                                                 const model::Binary *Model) {
   TypeFlowGraph TG;
   TG.Func = F;
+  TG.Model = Model;
 
   // Visit values before users (a part from phis)
   for (const BasicBlock *BB : ReversePostOrderTraversal(F)) {

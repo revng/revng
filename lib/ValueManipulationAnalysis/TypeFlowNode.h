@@ -12,6 +12,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/ADT/GenericGraph.h"
+#include "revng/Model/Binary.h"
 #include "revng/Support/Assert.h"
 
 #include "revng-c/ValueManipulationAnalysis/TypeColors.h"
@@ -63,8 +64,14 @@ struct NodeColorProperty {
     InitialColor(Initial), AcceptedColors(Accepted) {}
 };
 
-/// Return the type colors associated to a given Use or Value
-NodeColorProperty nodeColors(const UseOrValue &NC);
+/// Returns the colors associated to a given QualifiedType (or NO_COLOR if there
+/// are none).
+RecursiveCoroutine<ColorSet> QTToColor(const model::QualifiedType &QT);
+
+/// Returns a ColorSet with the types that can be assigned to a given use or
+/// value.
+ColorSet
+getAcceptedColors(const UseOrValue &NC, const model::Binary *Model = nullptr);
 
 // --------------- TypeFlowGraph Node
 
