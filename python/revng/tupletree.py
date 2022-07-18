@@ -12,10 +12,10 @@ import yaml
 
 try:
     from yaml import CDumper as Dumper
-    from yaml import CLoader as Loader
+    from yaml import CSafeLoader as Loader
 except ImportError:
     sys.stderr.write("Warning: using the slow pure-python YAML loader and dumper!\n")
-    from yaml import Dumper, Loader  # type: ignore
+    from yaml import Dumper, SafeLoader as Loader  # type: ignore
 
 no_default = object()
 
