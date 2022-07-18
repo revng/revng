@@ -68,11 +68,6 @@ struct NodeColorProperty {
 /// are none).
 RecursiveCoroutine<ColorSet> QTToColor(const model::QualifiedType &QT);
 
-/// Returns a ColorSet with the types that can be assigned to a given use or
-/// value.
-ColorSet
-getAcceptedColors(const UseOrValue &NC, const model::Binary *Model = nullptr);
-
 // --------------- TypeFlowGraph Node
 
 /// Label of a TypeFlowGraph edge
