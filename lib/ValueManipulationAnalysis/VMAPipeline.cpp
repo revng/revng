@@ -45,7 +45,8 @@ using model::Qualifier;
 void TypeMapInitializer::initializeColors(vma::TypeFlowGraph *TFG) {
   for (TypeFlowNode *N : TFG->nodes()) {
     // Initialize only value nodes that don't have a color yet
-    if (N->isValue() and N->getCandidates() == NO_COLOR) {
+    if (N->isValue() and N->getCandidates() == NO_COLOR
+        and N->getAccepted() != NO_COLOR) {
       if (auto It = TypeMap.find(N->getValue()); It != TypeMap.end()) {
         ColorSet InitialColor = QTToColor(It->second);
 
@@ -211,7 +212,7 @@ static ColorSet getInitialCandidates(const UseOrValue &Content) {
 
 void LLVMInitializer::initializeColors(vma::TypeFlowGraph *TFG) {
   for (TypeFlowNode *N : TFG->nodes())
-    if (N->getCandidates() == NO_COLOR)
+    if (N->getCandidates() == NO_COLOR and N->getAccepted() != NO_COLOR)
       N->setCandidates(getInitialCandidates(N->getContent()));
 }
 

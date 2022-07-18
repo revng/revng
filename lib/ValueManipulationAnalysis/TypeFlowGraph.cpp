@@ -38,6 +38,56 @@ static Logger<> TGLog("vma-tg");
 /// value.
 static ColorSet
 getAcceptedColors(const UseOrValue &Content, const model::Binary *Model) {
+
+  // Instructions and operand uses should be the only thing remaining
+  bool IsContentInst = isInst(Content);
+  auto *ContentInst = IsContentInst ? dyn_cast<Instruction>(getValue(Content)) :
+                                      nullptr;
+
+  // Do we have strong model information about this node? If so, use that
+  if (Model) {
+
+    if (isValue(Content)) {
+      const Value *V = getValue(Content);
+      // TODO arguments should take the model types
+      if (isa<Argument>(V))
+        return ALL_COLORS;
+    }
+
+    if (IsContentInst or isUse(Content)) {
+
+      // Deduce type for the use or for the value, depending on which type of
+      // node we are looking at
+      auto DeducedTypes = IsContentInst ?
+                            getStrongModelInfo(ContentInst, *Model) :
+                            getExpectedModelType(getUse(Content), *Model);
+
+      // If we weren't able to deduce anything, fallthrough to the default
+      // handling when there is no model.
+      if (not DeducedTypes.empty()) {
+
+        if (DeducedTypes.size() == 1)
+          return QTToColor(DeducedTypes.back());
+
+        // There are cases in which we can associate to an LLVM value (typically
+        // an aggregate) more than one model type, e.g. for values returned by
+        // RawFunctionTypes or for calls to StructInitializer.
+        // In these cases, the aggregate itself has no color. Not that the value
+        // extracted from that will instead have a color, which is inferred by
+        // `getStrongModelInfo()`.
+        return NO_COLOR;
+      }
+    }
+  }
+
+  // If the content of the node is an Instruction's Value, assign colors
+  // based on the instruction's opcode. Otherwise, if we are creating a node for
+  // one of the operands, find which the user of the operand and check its
+  // opcode.
+  const Instruction *I = IsContentInst ?
+                           ContentInst :
+                           cast<Instruction>(getUse(Content)->getUser());
+
   // Arguments, constants, globals etc.
   if (isValue(Content)) {
     const Value *V = getValue(Content);
@@ -46,45 +96,9 @@ getAcceptedColors(const UseOrValue &Content, const model::Binary *Model) {
       return ALL_COLORS;
 
     // Constants and globals should not be infected, since they don't belong to
-    // a single function
-    if (isa<Constant>(V) or isa<GlobalValue>(V))
-      return NO_COLOR;
-
+    // a single function.
     if (not isa<Instruction>(V))
       return NO_COLOR;
-  }
-
-  // Instructions and operand uses should be the only thing remaining
-  bool IsContentInst = isInst(Content);
-  revng_assert(IsContentInst or isUse(Content));
-
-  // If the content of the node is an Instruction's Value, assign colors
-  // based on the instruction's opcode. Otherwise, if we are creating a node for
-  // one of the operands, find which the user of the operand and check its
-  // opcode.
-  const Instruction *I = IsContentInst ?
-                           cast<Instruction>(getValue(Content)) :
-                           cast<Instruction>(getUse(Content)->getUser());
-
-  // Do we have strong model information about this node? If so, use that
-  if (Model) {
-    // Deduce type for the use or for the value, depending on which type of node
-    // we are looking at
-    auto DeducedTypes = IsContentInst ?
-                          getStrongModelInfo(I, *Model) :
-                          getExpectedModelType(getUse(Content), *Model);
-
-    if (DeducedTypes.size() == 1)
-      return QTToColor(DeducedTypes.back());
-
-    if (DeducedTypes.size() > 1) {
-      // There are cases in which we can associate to an LLVM value (typically
-      // an aggregate) more than one model type, e.g. for values returned by
-      // RawFunctionTypes or for calls to StructInitializer.
-      // In these cases, the aggregate itself has no color. Not that the value
-      // extracted from that will instead have a color, which is inferred by
-      // `getStrongModelInfo()`.
-    }
   }
 
   // Fallback to manually matching LLVM instructions that provides us with rich
