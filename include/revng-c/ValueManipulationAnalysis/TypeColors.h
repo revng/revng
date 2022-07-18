@@ -5,8 +5,7 @@
 //
 
 #include <bitset>
-#include <cstddef>
-#include <cstdint>
+#include <compare>
 #include <map>
 
 #include "llvm/ADT/StringRef.h"
@@ -102,16 +101,13 @@ struct ColorSet {
   /// \return MAX_COLORS if there's no set bit
   ColorIndex firstSetBit() const { return nextSetBit(/*StartIndex*/ -1); }
 
+  friend std::strong_ordering
+  operator<=>(const ColorSet &Lhs, const ColorSet &Rhs) {
+    return Lhs.Bits.to_ulong() <=> Rhs.Bits.to_ulong();
+  }
+
   friend bool operator==(const ColorSet &Lhs, const ColorSet &Rhs) {
-    return Lhs.Bits == Rhs.Bits;
-  }
-
-  friend bool operator!=(const ColorSet &Lhs, const ColorSet &Rhs) {
-    return !(Lhs == Rhs);
-  }
-
-  bool operator<(const ColorSet &Other) const {
-    return this->Bits.to_ulong() < Other.Bits.to_ulong();
+    return Lhs.Bits.to_ulong() == Rhs.Bits.to_ulong();
   }
 };
 
