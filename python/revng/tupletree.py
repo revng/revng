@@ -19,6 +19,12 @@ except ImportError:
 
 no_default = object()
 
+dataclass_kwargs = {}
+if sys.version_info >= (3, 10, 0):
+    # Performance optimization available since python 3.10
+    dataclass_kwargs["slots"] = True
+    dataclass_kwargs["kw_only"] = True
+
 
 def _create_instance(field_value, field_type):
     # First we check if the value is already of the required type

@@ -30,3 +30,20 @@ def force_constructor_kwarg(base_class: type, kwarg_name, kwarg_value):
         original_init(self, *args, **kwargs)
 
     base_class.__init__ = init_forcing_value  # type: ignore
+
+
+# NOTE: remove after upgrade to python 3.10 (which introduces kw_only in dataclasses)
+def force_kw_only(base_class: type):
+    """Monkeypatches the __init__ method so that only kwargs are passed, raises ValueError if args
+    contains values
+    """
+    assert isinstance(base_class, type)
+
+    original_init = base_class.__init__  # type: ignore
+
+    def init_check_kw_only(self, *args, **kwargs):
+        if args is not None and len(args) > 0:
+            raise ValueError(f"Non-keyword arguments passed to constructor: {args}")
+        original_init(self, *args, **kwargs)
+
+    base_class.__init__ = init_check_kw_only  # type: ignore

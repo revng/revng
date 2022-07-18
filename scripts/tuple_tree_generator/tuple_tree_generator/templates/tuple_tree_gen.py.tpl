@@ -8,10 +8,17 @@ import sys
 from dataclasses import dataclass, field
 from typing import List
 
-from revng.tupletree import EnumBase, Reference, StructBase, AbstractStructBase, no_default
+from revng.tupletree import (
+    EnumBase,
+    Reference,
+    StructBase,
+    AbstractStructBase,
+    dataclass_kwargs,
+    no_default,
+)
 from revng.tupletree import YamlLoader as _ExternalYamlLoader
 from revng.tupletree import YamlDumper as _ExternalYamlDumper
-from .._util import force_constructor_kwarg
+from .._util import force_constructor_kwarg, force_kw_only
 
 ##- for t in generator.external_types ##
 from .external import 't'
@@ -45,12 +52,6 @@ class 'enum.name'(EnumBase):
 ## for t in generator.string_types ##
 't' = str
 ## endfor ##
-
-dataclass_kwargs = {}
-if sys.version_info >= (3,10,0):
-    # Performance optimization available since python 3.10
-    dataclass_kwargs["slots"] = True
-
 
 ## for struct in structs ##
 @dataclass(**dataclass_kwargs)
@@ -109,13 +110,17 @@ class 'struct.name'(
         ##- endfor -##
     }
 
-### Override child's constructor so that the 'Kind' kwarg is always consisten -###
+### Override child's constructor so that the 'Kind' kwarg is always consistent -###
 ## for child in struct.children -##
 force_constructor_kwarg('child.name', "Kind", 'struct.name'Kind.'child.name')
 ## endfor ##
 
 ##- endif ##
 ## endfor ##
+if sys.version_info < (3, 10, 0):
+##- for struct in structs ##
+    force_kw_only('struct.name')
+##- endfor ##
 
 ## for enum in enums ##
 YamlDumper.add_representer('enum.name', 'enum.name'.yaml_representer)
