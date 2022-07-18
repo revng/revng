@@ -74,6 +74,8 @@ class 'struct.name'(
     '-field.name': "'field | python_type'"
     ##- if field.is_guid -##
     = field(default_factory=random_id)
+    ##- elif field is sequence_field -##
+    = field(default_factory=list)
     ##- elif struct.inherits -##
     = field(default=no_default)
     ##- endif ##
