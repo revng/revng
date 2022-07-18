@@ -37,6 +37,7 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/ValueMapper.h"
 
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/LLVMGlobalKindBase.h"
@@ -75,8 +76,6 @@ public:
     EnumerableContainer<ThisType>(Ctx, Name, "text/x.llvm.ir"),
     Module(std::move(M)) {}
 
-  ~LLVMContainerBase() override {}
-
 public:
   template<typename... LLVMPasses>
   static PipeWrapper
@@ -107,8 +106,18 @@ public:
     llvm::ValueToValueMapTy Map;
     revng_assert(llvm::verifyModule(*Module, &llvm::dbgs()) == 0);
     auto Cloned = llvm::CloneModule(*Module, Map, Filter);
-    auto *F = Cloned->getFunction("rcu_init");
-    revng_assert(!F or F->isDeclaration() or F->hasMetadata());
+
+    for (auto &Function : Module->functions()) {
+      auto *Other = Cloned->getFunction(Function.getName());
+      if (not Other)
+        continue;
+
+      Other->clearMetadata();
+      llvm::SmallVector<std::pair<unsigned, llvm::MDNode *>, 2> MDs;
+      Function.getAllMetadata(MDs);
+      for (auto &MD : MDs)
+        Other->addMetadata(MD.first, *llvm::MapMetadata(MD.second, Map));
+    }
 
     return std::make_unique<ThisType>(*this->Ctx,
                                       std::move(Cloned),

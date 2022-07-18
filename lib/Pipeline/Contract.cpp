@@ -34,6 +34,21 @@ void Contract::deduceResults(ContainerToTargetsMap &StepStatus,
   deduceResults(StepStatus, OutputContainerTarget, Names);
 }
 
+bool Contract::targetCanBePromotedToShallowerRank(const Target &In) const {
+  // If target kind has depth equal or less than the kind of the input this
+  // cycle is not executed, otherwise it ensures that all granularities between
+  // the kind of the target and the kind of the input are *
+  if (TargetKind) {
+    for (size_t I = TargetKind->depth(); I < In.getKind().depth(); I++) {
+      if (In.getPathComponents()[I].isSingle()) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
 void Contract::deduceResults(ContainerToTargetsMap &StepStatus,
                              TargetsList &Results,
                              ArrayRef<string> Names) const {
@@ -50,7 +65,7 @@ void Contract::deduceResults(ContainerToTargetsMap &StepStatus,
   auto &SourceContainerTargets = StepStatus[Names[PipeArgumentSourceIndex]];
 
   const auto Matches = [this](const pipeline::Target &Input) {
-    return forwardMatches(Input);
+    return forwardMatches(Input) and targetCanBePromotedToShallowerRank(Input);
   };
 
   TargetsList Tmp;
@@ -112,6 +127,7 @@ void Contract::forward(pipeline::Target &Input) const {
 }
 
 bool Contract::forwardMatches(const Target &In) const {
+
   switch (InputContract) {
   case Exactness::DerivedFrom:
     return Source->ancestorOf(In.getKind());

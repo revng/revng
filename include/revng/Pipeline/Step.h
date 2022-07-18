@@ -100,6 +100,10 @@ public:
     return AnalysisMap.find(Name)->second;
   }
 
+  bool hasAnalysis(llvm::StringRef Name) const {
+    return AnalysisMap.find(Name) != AnalysisMap.end();
+  }
+
   AnalysisIterator analysesBegin() { return AnalysisMap.begin(); }
   AnalysisIterator analysesEnd() { return AnalysisMap.end(); }
   ConstAnalysisIterator analysesBegin() const { return AnalysisMap.begin(); }

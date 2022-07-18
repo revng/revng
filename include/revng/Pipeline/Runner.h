@@ -167,6 +167,9 @@ public:
 
 public:
   llvm::Error storeToDisk(llvm::StringRef DirPath) const;
+  llvm::Error storeToDiskDebug(const char *DirPath) const debug_function {
+    return storeToDisk(DirPath);
+  }
   llvm::Error
   storeStepToDisk(llvm::StringRef StepName, llvm::StringRef DirPath) const;
   llvm::Error loadFromDisk(llvm::StringRef DirPath);

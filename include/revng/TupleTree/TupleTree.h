@@ -42,6 +42,11 @@ public:
     *this = Other;
   }
   TupleTree &operator=(const TupleTree &Other) {
+    if (Other.get() == nullptr) {
+      Root = nullptr;
+      return *this;
+    }
+
     if (this != &Other) {
       *Root = *Other.Root;
       initializeReferences();

@@ -23,6 +23,8 @@ using namespace ::revng::pipes;
 
 std::optional<Target>
 RootKind::symbolToTarget(const llvm::Function &Symbol) const {
+  if (Symbol.isDeclaration())
+    return std::nullopt;
   if (FunctionTags::Root.isTagOf(&Symbol)
       and not FunctionTags::IsolatedRoot.isTagOf(&Symbol))
     return Target({}, *this);
@@ -32,6 +34,8 @@ RootKind::symbolToTarget(const llvm::Function &Symbol) const {
 
 std::optional<Target>
 IsolatedRootKind::symbolToTarget(const llvm::Function &Symbol) const {
+  if (Symbol.isDeclaration())
+    return std::nullopt;
   if (FunctionTags::IsolatedRoot.isTagOf(&Symbol))
     return Target({}, *this);
 
