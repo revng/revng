@@ -6,6 +6,7 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Use.h"
 #include "llvm/Pass.h"
 
 #include "revng/ABI/FunctionType.h"
@@ -13,7 +14,10 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Model/QualifiedType.h"
+#include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/YAMLTraits.h"
 
 #include "revng-c/InitModelTypes/InitModelTypes.h"
 #include "revng-c/Support/FunctionTags.h"
@@ -66,104 +70,58 @@ MMCP::serializeTypesForModelCast(Instruction *I, const model::Binary &Model) {
 
   std::vector<SerializedType> Result;
   Module *M = I->getModule();
-  const model::Type *ParentPrototype = ModelFunction->Prototype.get();
 
-  if (auto *CI = dyn_cast<CallInst>(I)) {
-    if (auto *Callee = CI->getCalledFunction()) {
-      // Do we have a ModelGEP which has its base llvm::Value embedding a cast?
-      if (FunctionTags::ModelGEP.isTagOf(Callee)
-          or FunctionTags::ModelGEPRef.isTagOf(Callee)) {
+  auto SerializeTypeFor = [this, &Model, &Result, &M](const llvm::Use &Op) {
+    // Check if we have strong model information about this operand
+    auto ModelTypes = getExpectedModelType(&Op, Model);
 
-        bool IsRef = FunctionTags::ModelGEPRef.isTagOf(Callee);
+    // Aggregates that do not correspond to model structs (e.g. return types of
+    // RawFunctionTypes that return more than one value) cannot be handled with
+    // casts, since we don't have a model::Type to cast them to.
+    if (ModelTypes.size() == 1) {
+      QualifiedType ExpectedType = ModelTypes.back();
+      revng_assert(ExpectedType.UnqualifiedType.isValid());
 
-        auto &PtrType = TypeMap.at(CI->getArgOperand(1));
-        auto CurType = deserializeAndParseQualifiedType(CI->getArgOperand(0),
-                                                        Model);
-
-        if (not IsRef)
-          addPointerQualifier(CurType, Model);
-
-        if (PtrType != CurType) {
-          auto Type = SerializedType(serializeToLLVMString(CurType, *M), 1);
-          Result.emplace_back(std::move(Type));
-        }
-      } else if (FunctionTags::StructInitializer.isTagOf(Callee)) {
-        // Do we have a function that return multiple return values and may not
-        // match function's return type?
-        auto *RFT = cast<RawFunctionType>(ParentPrototype);
-        auto &FormalRetVals = RFT->ReturnValues;
-
-        for (const auto &[LLVMArg, RetVal] :
-             llvm::zip(CI->args(), FormalRetVals)) {
-          auto &StructInitializerArgType = TypeMap.at(LLVMArg);
-          auto FormalRetValType = RetVal.Type;
-
-          if (StructInitializerArgType != FormalRetValType) {
-            auto Type = SerializedType(serializeToLLVMString(FormalRetValType,
-                                                             *M),
-                                       LLVMArg.getOperandNo());
-            Result.emplace_back(std::move(Type));
-          }
-        }
-      } else if (auto *ModelFunctionCallee = llvmToModelFunction(Model,
-                                                                 *Callee)) {
-        // Do we have a function call with a cast on one of its argument?
-        auto Layout = Layout::make(ModelFunctionCallee->Prototype);
-        for (const auto &Pair : llvm::enumerate(Layout.Arguments)) {
-          auto &Arg = Pair.value();
-          uint64_t OperandId = Pair.index();
-
-          auto &ArgType = TypeMap.at(CI->getArgOperand(OperandId));
-
-          // Stack argument type
-          if (!Arg.Type.isScalar())
-            addPointerQualifier(Arg.Type, Model);
-
-          model::QualifiedType FormalArgType = Arg.Type;
-
-          if (ArgType != FormalArgType) {
-            auto Type = SerializedType(serializeToLLVMString(FormalArgType, *M),
-                                       OperandId);
-            Result.emplace_back(std::move(Type));
-          }
-        }
-      }
-    } else {
-      // Indirect call
-      const auto &PrototypePath = getCallSitePrototype(Model, CI);
-      llvm::Value *CalledVal = CI->getCalledOperand();
-
-      auto &FuncPtrType = TypeMap.at(CalledVal);
-      QualifiedType FormalPtrType = createPointerTo(PrototypePath, Model);
-
-      if (FuncPtrType != FormalPtrType) {
-        auto Type = SerializedType(serializeToLLVMString(FormalPtrType, *M),
-                                   CI->getCalledOperandUse().getOperandNo());
+      if (ExpectedType != TypeMap.at(Op.get())) {
+        // Create a cast only if the expected type is different from the actual
+        // type propagated until here
+        auto Type = SerializedType(serializeToLLVMString(ExpectedType, *M),
+                                   Op.getOperandNo());
         Result.emplace_back(std::move(Type));
       }
     }
-  } else if (auto *RI = dyn_cast<ReturnInst>(I)) {
-    // Do we have a return instruction whose operand type is different from the
-    // function type being returned? Multiple return values are already handled
-    // in StructInitializer.
-    if (RI->getNumOperands() != 0 && !isa<Instruction>(RI->getReturnValue())) {
-      QualifiedType FuncRetType;
+  };
 
-      if (auto *RFT = dyn_cast<RawFunctionType>(ParentPrototype)) {
-        FuncRetType = RFT->ReturnValues.begin()->Type;
-        revng_assert(RFT->ReturnValues.size() == 1);
-      } else if (auto *CABIF = dyn_cast<CABIFunctionType>(ParentPrototype)) {
-        FuncRetType = CABIF->ReturnType;
-      } else {
-        revng_abort("Unknown function type");
-      }
+  if (auto *Call = dyn_cast<CallInst>(I)) {
+    // Lifted functions have their prototype on the model
+    auto *Callee = Call->getCalledFunction();
 
-      auto &RetValueType = TypeMap.at(RI->getOperand(0));
-      if (RetValueType != FuncRetType) {
-        auto Type = SerializedType(serializeToLLVMString(FuncRetType, *M));
-        Result.emplace_back(std::move(Type));
-      }
+    if (FunctionTags::CallToLifted.isTagOf(Call)) {
+      // For indirect calls, cast the callee to the right function type
+      if (not Callee)
+        SerializeTypeFor(Call->getCalledOperandUse());
+
+      // For all calls, check the formal arguments types
+      for (llvm::Use &Op : Call->arg_operands())
+        SerializeTypeFor(Op);
+
+    } else if (FunctionTags::ModelGEP.isTagOf(Callee)
+               or FunctionTags::ModelGEPRef.isTagOf(Callee)
+               or FunctionTags::AddressOf.isTagOf(Callee)) {
+      // Check the type of the base operand
+      SerializeTypeFor(Call->getArgOperandUse(1));
+
+    } else if (FunctionTags::StructInitializer.isTagOf(Callee)) {
+      // StructInitializers are used to pack together a returned struct, so we
+      // know the types of each element by looking at the Prototype
+      for (llvm::Use &Op : Call->arg_operands())
+        SerializeTypeFor(Op);
     }
+  } else if (auto *Ret = dyn_cast<ReturnInst>(I)) {
+    // Check the formal return type
+    if (Ret->getNumOperands() > 0)
+      SerializeTypeFor(Ret->getOperandUse(0));
+
   } else if (auto *SI = dyn_cast<StoreInst>(I)) {
     auto &PtrOperandPtrType = TypeMap.at(SI->getPointerOperand());
     auto &ValOperandType = TypeMap.at(SI->getValueOperand());
@@ -184,8 +142,8 @@ MMCP::serializeTypesForModelCast(Instruction *I, const model::Binary &Model) {
 
       if (isa<ConstantPointerNull>(SI->getPointerOperand())
           || IsPtrOperandOfAggregateType) {
-        // Pointer operand needs to be casted to the model::QualifiedType of the
-        // value operand, added pointer qualified.
+        // Pointer operand needs to be casted to the model::QualifiedType of
+        // the value operand, added pointer qualified.
         auto Type = SerializedType(serializeToLLVMString(ValOperandPtrType, *M),
                                    SI->getPointerOperandIndex());
         Result.emplace_back(std::move(Type));

@@ -5,5 +5,10 @@
 revng_add_analyses_library(revngcInitModelTypes revngc InitModelTypes.cpp)
 
 target_link_libraries(
-  revngcInitModelTypes revngcSupport revng::revngEarlyFunctionAnalysis
-  revng::revngModel revng::revngSupport ${LLVM_LIBRARIES})
+  revngcInitModelTypes
+  revngcValueManipulationAnalysis
+  revngcSupport
+  revng::revngEarlyFunctionAnalysis
+  revng::revngModel
+  revng::revngSupport
+  ${LLVM_LIBRARIES})

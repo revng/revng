@@ -72,8 +72,7 @@ getValueToSubstitute(llvm::Instruction &I, const model::Binary &Model) {
 
       // First argument is the model type of the base pointer
       llvm::Value *GEPFirstArg = Call->getArgOperand(0);
-      StringRef GEPTypeStr = extractFromConstantStringPtr(GEPFirstArg);
-      QualifiedType GEPBaseType = parseQualifiedType(GEPTypeStr, Model);
+      QualifiedType GEPBaseType = deserializeFromLLVMString(GEPFirstArg, Model);
 
       // Second argument is the base pointer
       llvm::Value *SecondArg = Call->getArgOperand(1);
@@ -90,8 +89,8 @@ getValueToSubstitute(llvm::Instruction &I, const model::Binary &Model) {
 
       // First argument of the AddressOf is the pointer's base type
       llvm::Value *AddrOfFirstArg = AddrOfCall->getArgOperand(0);
-      StringRef AddrOfTypeStr = extractFromConstantStringPtr(AddrOfFirstArg);
-      QualifiedType AddrOfBaseType = parseQualifiedType(AddrOfTypeStr, Model);
+      QualifiedType AddrOfBaseType = deserializeFromLLVMString(AddrOfFirstArg,
+                                                               Model);
 
       // Skip if the ModelGEP is dereferencing the AddressOf with a
       // different type

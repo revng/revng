@@ -5,12 +5,13 @@
 //
 
 #include <bitset>
-#include <cstddef>
-#include <cstdint>
+#include <compare>
+#include <map>
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/Model/PrimitiveTypeKind.h"
 #include "revng/Support/Debug.h"
 
 namespace vma {
@@ -100,13 +101,69 @@ struct ColorSet {
   /// \return MAX_COLORS if there's no set bit
   ColorIndex firstSetBit() const { return nextSetBit(/*StartIndex*/ -1); }
 
-  friend bool operator==(const ColorSet &Lhs, const ColorSet &Rhs) {
-    return Lhs.Bits == Rhs.Bits;
+  friend std::strong_ordering
+  operator<=>(const ColorSet &Lhs, const ColorSet &Rhs) {
+    return Lhs.Bits.to_ulong() <=> Rhs.Bits.to_ulong();
   }
 
-  friend bool operator!=(const ColorSet &Lhs, const ColorSet &Rhs) {
-    return !(Lhs == Rhs);
+  friend bool operator==(const ColorSet &Lhs, const ColorSet &Rhs) {
+    return Lhs.Bits.to_ulong() == Rhs.Bits.to_ulong();
   }
 };
+
+// --------------- Model Colors
+
+/// Colors that are in a 1-to-1 relationship with primitive kinds of the model
+enum ModelColor : unsigned {
+  VOID = NO_COLOR,
+  POINTER = POINTERNESS,
+  SIGNED = SIGNEDNESS,
+  UNSIGNED = UNSIGNEDNESS,
+  FLOAT = FLOATNESS,
+  NUMBER = SIGNED | UNSIGNED,
+  PTR_OR_NUMBER = NUMBER | POINTER,
+  GENERIC = PTR_OR_NUMBER | FLOAT
+};
+
+inline const ColorSet ModelColors[] = {
+  ModelColor::POINTER, ModelColor::SIGNED, ModelColor::UNSIGNED,
+  ModelColor::FLOAT,   ModelColor::NUMBER, ModelColor::PTR_OR_NUMBER,
+  ModelColor::GENERIC
+};
+
+/// Map each model color to a primitive kind
+inline const std::map<ColorSet, model::PrimitiveTypeKind::Values>
+  ColorToPrimitiveType = {
+    { ModelColor::POINTER, model::PrimitiveTypeKind::PointerOrNumber },
+    { ModelColor::SIGNED, model::PrimitiveTypeKind::Signed },
+    { ModelColor::UNSIGNED, model::PrimitiveTypeKind::Unsigned },
+    { ModelColor::FLOAT, model::PrimitiveTypeKind::Float },
+    { ModelColor::NUMBER, model::PrimitiveTypeKind::Number },
+    { ModelColor::PTR_OR_NUMBER, model::PrimitiveTypeKind::PointerOrNumber },
+    { ModelColor::GENERIC, model::PrimitiveTypeKind::Generic },
+  };
+
+/// Map each primitive kind to a model color
+inline const std::map<model::PrimitiveTypeKind::Values, ModelColor>
+  PrimitiveTypeToColor = {
+    { model::PrimitiveTypeKind::Signed, ModelColor::SIGNED },
+    { model::PrimitiveTypeKind::Unsigned, ModelColor::UNSIGNED },
+    { model::PrimitiveTypeKind::Float, ModelColor::FLOAT },
+    { model::PrimitiveTypeKind::Number, ModelColor::NUMBER },
+    { model::PrimitiveTypeKind::PointerOrNumber, ModelColor::PTR_OR_NUMBER },
+    { model::PrimitiveTypeKind::Generic, ModelColor::GENERIC },
+  };
+
+/// Get the smallest ModelColor that contains the given ColorSet
+inline ColorSet getNearestModelColor(ColorSet Color) {
+  ColorSet BestModelColor = NO_COLOR;
+  for (auto MC : ModelColors)
+    if (MC.contains(Color))
+      if (BestModelColor == NO_COLOR
+          or BestModelColor.countValid() > MC.countValid())
+        BestModelColor = MC;
+
+  return BestModelColor;
+}
 
 } // namespace vma

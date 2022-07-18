@@ -12,6 +12,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/ADT/GenericGraph.h"
+#include "revng/Model/Binary.h"
 #include "revng/Support/Assert.h"
 
 #include "revng-c/ValueManipulationAnalysis/TypeColors.h"
@@ -63,8 +64,9 @@ struct NodeColorProperty {
     InitialColor(Initial), AcceptedColors(Accepted) {}
 };
 
-/// Return the type colors associated to a given Use or Value
-NodeColorProperty nodeColors(const UseOrValue &NC);
+/// Returns the colors associated to a given QualifiedType (or NO_COLOR if there
+/// are none).
+RecursiveCoroutine<ColorSet> QTToColor(const model::QualifiedType &QT);
 
 // --------------- TypeFlowGraph Node
 
@@ -82,7 +84,7 @@ struct EdgeLabel {
 
 /// Node data containing colors for an `llvm::Use` or `llvm::Value`
 class TypeFlowNodeData {
-public:
+private:
   /// LLVM Use or Value to which the type information is attached
   const UseOrValue Content;
   /// Candidate types for this node
@@ -103,6 +105,7 @@ public:
   TypeFlowNodeData &operator=(TypeFlowNodeData &&N) = delete;
 
 public:
+  UseOrValue getContent() const { return Content; }
   bool isUse() const { return vma::isUse(Content); }
   bool isValue() const { return vma::isValue(Content); }
   const llvm::Use *getUse() const { return vma::getUse(Content); }
@@ -115,6 +118,15 @@ public:
   /// Has more than one candidate color
   bool isUndecided() const { return Candidates.countValid() > 1; }
 
+  ColorSet getCandidates() const { return Candidates; }
+  void setCandidates(ColorSet Color) {
+    revng_assert(Accepted.contains(Color));
+    Candidates = Color;
+  }
+
+  ColorSet getAccepted() const { return Accepted; }
+
+public:
   /// Print a textual representation of the node's content
   void print(llvm::raw_ostream &Out) const debug_function;
 

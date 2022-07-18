@@ -19,7 +19,10 @@
 #include "revng/ADT/ReversePostOrderTraversal.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/FunctionTags.h"
 
+#include "revng-c/Support/FunctionTags.h"
+#include "revng-c/Support/ModelHelpers.h"
 #include "revng-c/ValueManipulationAnalysis/TypeColors.h"
 
 #include "TypeFlowGraph.h"
@@ -31,17 +34,199 @@ using namespace llvm;
 
 static Logger<> TGLog("vma-tg");
 
-// --------------- TypeFlowGraph
+/// Returns a ColorSet with the types that can be assigned to a given use or
+/// value.
+static ColorSet
+getAcceptedColors(const UseOrValue &Content, const model::Binary *Model) {
+
+  // Instructions and operand uses should be the only thing remaining
+  bool IsContentInst = isInst(Content);
+  auto *ContentInst = IsContentInst ? dyn_cast<Instruction>(getValue(Content)) :
+                                      nullptr;
+
+  // Do we have strong model information about this node? If so, use that
+  if (Model) {
+
+    if (isValue(Content)) {
+      const Value *V = getValue(Content);
+      // TODO arguments should take the model types
+      if (isa<Argument>(V))
+        return ALL_COLORS;
+    }
+
+    if (IsContentInst or isUse(Content)) {
+
+      // Deduce type for the use or for the value, depending on which type of
+      // node we are looking at
+      auto DeducedTypes = IsContentInst ?
+                            getStrongModelInfo(ContentInst, *Model) :
+                            getExpectedModelType(getUse(Content), *Model);
+
+      // If we weren't able to deduce anything, fallthrough to the default
+      // handling when there is no model.
+      if (not DeducedTypes.empty()) {
+
+        if (DeducedTypes.size() == 1)
+          return QTToColor(DeducedTypes.back());
+
+        // There are cases in which we can associate to an LLVM value (typically
+        // an aggregate) more than one model type, e.g. for values returned by
+        // RawFunctionTypes or for calls to StructInitializer.
+        // In these cases, the aggregate itself has no color. Not that the value
+        // extracted from that will instead have a color, which is inferred by
+        // `getStrongModelInfo()`.
+        return NO_COLOR;
+      }
+    }
+  }
+
+  // If the content of the node is an Instruction's Value, assign colors
+  // based on the instruction's opcode. Otherwise, if we are creating a node for
+  // one of the operands, find which the user of the operand and check its
+  // opcode.
+  const Instruction *I = IsContentInst ?
+                           ContentInst :
+                           cast<Instruction>(getUse(Content)->getUser());
+
+  // Arguments, constants, globals etc.
+  if (isValue(Content)) {
+    const Value *V = getValue(Content);
+
+    if (isa<Argument>(V))
+      return ALL_COLORS;
+
+    // Constants and globals should not be infected, since they don't belong to
+    // a single function.
+    if (not isa<Instruction>(V))
+      return NO_COLOR;
+  }
+
+  // Fallback to manually matching LLVM instructions that provides us with rich
+  // type information
+  switch (I->getOpcode()) {
+  case Instruction::FNeg:
+  case Instruction::FAdd:
+  case Instruction::FMul:
+  case Instruction::FSub:
+  case Instruction::FDiv:
+  case Instruction::FRem:
+  case Instruction::FPExt:
+    return FLOATNESS;
+    break;
+
+  case Instruction::FCmp:
+    if (IsContentInst)
+      return BOOLNESS;
+    else
+      return FLOATNESS;
+    break;
+
+  case Instruction::ICmp:
+    if (IsContentInst)
+      return BOOLNESS;
+    if (cast<ICmpInst>(I)->isSigned())
+      return SIGNEDNESS;
+    if (cast<ICmpInst>(I)->isUnsigned())
+      return UNSIGNEDNESS | POINTERNESS;
+    break;
+
+  case Instruction::SDiv:
+  case Instruction::SRem:
+    return SIGNEDNESS | NUMBERNESS;
+    break;
+
+  case Instruction::UDiv:
+  case Instruction::URem:
+    return UNSIGNEDNESS | NUMBERNESS;
+    break;
+
+  case Instruction::Alloca:
+    if (IsContentInst)
+      return POINTERNESS;
+    if (getUse(Content)->get() == cast<AllocaInst>(I)->getArraySize())
+      return UNSIGNEDNESS;
+    break;
+
+  case Instruction::Load:
+    if (isUse(Content)
+        && getOpNo(Content) == cast<LoadInst>(I)->getPointerOperandIndex())
+      return POINTERNESS;
+    break;
+
+  case Instruction::Store:
+    if (isUse(Content)
+        && getOpNo(Content) == cast<StoreInst>(I)->getPointerOperandIndex())
+      return POINTERNESS;
+    break;
+
+  case Instruction::AShr:
+    if (IsContentInst or getOpNo(Content) == 0)
+      return SIGNEDNESS;
+    if (getOpNo(Content) == 1)
+      return ~(FLOATNESS | POINTERNESS);
+    break;
+
+  case Instruction::LShr:
+    if (IsContentInst or getOpNo(Content) == 0)
+      // TODO: rule on first operand too strict?
+      return UNSIGNEDNESS;
+    if (getOpNo(Content) == 1)
+      return ~(FLOATNESS | POINTERNESS);
+    break;
+
+  case Instruction::Shl:
+    if (IsContentInst)
+      return ~(FLOATNESS | POINTERNESS);
+    if (getOpNo(Content) == 0)
+      // TODO: rule on first operand too strict?
+      return (SIGNEDNESS | UNSIGNEDNESS | BOOLNESS);
+    if (getOpNo(Content) == 1)
+      return ~(FLOATNESS | POINTERNESS);
+    break;
+
+  case Instruction::Mul:
+    return ~(FLOATNESS | POINTERNESS);
+    break;
+
+  case Instruction::Br:
+    if (isUse(Content) && cast<BranchInst>(I)->isConditional()
+        && getUse(Content)->get() == cast<BranchInst>(I)->getCondition())
+      return BOOLNESS;
+    break;
+
+  case Instruction::Select:
+    if (isUse(Content)
+        && getUse(Content)->get() == cast<SelectInst>(I)->getCondition())
+      return BOOLNESS;
+    break;
+
+  case Instruction::Trunc:
+  case Instruction::And:
+  case Instruction::Or:
+  case Instruction::Xor:
+    // TODO: Restrict more what can be accepted by bitwise operations?
+    return ~NUMBERNESS;
+    break;
+
+  case Instruction::GetElementPtr:
+    revng_abort("Didn't expect to find a GEP here");
+    break;
+  }
+
+  return ~NUMBERNESS;
+}
 
 TypeFlowNode *TypeFlowGraph::addNodeContaining(const UseOrValue &NC) {
   revng_assert(not ContentToNodeMap.count(NC));
 
-  NodeColorProperty InitialColors = nodeColors(NC);
+  NodeColorProperty InitialColors = { NO_COLOR, getAcceptedColors(NC, Model) };
   auto *N = this->addNode(NC, InitialColors);
   ContentToNodeMap[NC] = N;
 
   return N;
 }
+
+// --------------- TypeFlowGraph
 
 TypeFlowNode *
 TypeFlowGraph::getNodeContaining(const UseOrValue &Content) const {
@@ -127,8 +312,8 @@ static bool connect(TypeFlowNode *N1, TypeFlowNode *N2) {
   if (UseNode->getUse()->get() == ValNode->getValue()) {
     bool Connected = false;
 
-    Connected |= addSuccessorIfAbsent(ValNode, UseNode, UseNode->Accepted);
-    Connected |= addSuccessorIfAbsent(UseNode, ValNode, ValNode->Accepted);
+    Connected |= addSuccessorIfAbsent(ValNode, UseNode, UseNode->getAccepted());
+    Connected |= addSuccessorIfAbsent(UseNode, ValNode, ValNode->getAccepted());
 
     return Connected;
   }
@@ -211,14 +396,33 @@ static bool connect(TypeFlowNode *N1, TypeFlowNode *N2) {
                                   ~(FLOATNESS | POINTERNESS | NUMBERNESS));
       break;
     }
+
+    if (auto *Call = llvm::dyn_cast<CallInst>(I)) {
+      if (FunctionTags::CallToLifted.isTagOf(Call)) {
+        // No type flows between arguments and return value
+        return false;
+
+      } else {
+        auto *Callee = Call->getCalledFunction();
+        revng_assert(Callee);
+
+        // These opcodes are transparent
+        if (FunctionTags::Parentheses.isTagOf(Callee)
+            or FunctionTags::AssignmentMarker.isTagOf(Callee)
+            or FunctionTags::Copy.isTagOf(Callee))
+          return AddBidirectionalEdge(UseNode, ValNode, ALL_COLORS);
+      }
+    }
   }
 
   return false;
 }
 
-TypeFlowGraph vma::makeTypeFlowGraphFromFunction(const llvm::Function *F) {
+TypeFlowGraph vma::makeTypeFlowGraphFromFunction(const llvm::Function *F,
+                                                 const model::Binary *Model) {
   TypeFlowGraph TG;
   TG.Func = F;
+  TG.Model = Model;
 
   // Visit values before users (a part from phis)
   for (const BasicBlock *BB : ReversePostOrderTraversal(F)) {
@@ -316,7 +520,7 @@ void vma::propagateColor(TypeFlowGraph &TG) {
   for (auto *Node : TG.nodes()) {
     bool AlreadyVisited = (Visited.find(Node) != Visited.end());
     // Start from nodes that have only the desired color
-    if (AlreadyVisited or not Node->Candidates.contains(ColorSet(Filter)))
+    if (AlreadyVisited or not Node->getCandidates().contains(ColorSet(Filter)))
       continue;
 
     // Explore only the edges that have the desired color
@@ -325,8 +529,11 @@ void vma::propagateColor(TypeFlowGraph &TG) {
       // If a node is reachable from a source with a certain color through edges
       // that all have that color, by construction it should also accept that
       // color
-      revng_assert(Reachable->Accepted.contains(Filter));
-      Reachable->Candidates.addColor(Filter);
+      revng_assert(Reachable->getAccepted().contains(Filter));
+
+      auto InitialColor = Reachable->getCandidates();
+      InitialColor.addColor(Filter);
+      Reachable->setCandidates(InitialColor);
     }
   }
 }
@@ -337,8 +544,11 @@ bool vma::propagateNumberness(TypeFlowGraph &TG) {
   // TODO: forward propagate numberness for known patterns (e.g. n+n = n )
 
   // For now, just reset all numberness flags
-  for (auto *N : TG.nodes())
-    N->Candidates.Bits.reset(NUMBERNESS_INDEX);
+  for (auto *N : TG.nodes()) {
+    auto InitialColor = N->getCandidates();
+    InitialColor.Bits.reset(NUMBERNESS_INDEX);
+    N->setCandidates(InitialColor);
+  }
 
   return false;
 }
@@ -375,7 +585,7 @@ unsigned vma::countCasts(const TypeFlowGraph &TG) {
   unsigned Cost = 0;
 
   for (const TypeFlowNode *TGNode : TG.nodes()) {
-    const auto &NodeBits = TGNode->Candidates.Bits;
+    auto NodeBits = TGNode->getCandidates().Bits;
     // Ignore nodes with no candidates
     if (NodeBits.count() == 0 or NodeBits == NUMBERNESS)
       continue;
@@ -385,7 +595,7 @@ unsigned vma::countCasts(const TypeFlowGraph &TG) {
       if (Visited.count(Succ))
         continue;
 
-      const auto &SuccBits = Succ->Candidates.Bits;
+      auto SuccBits = Succ->getCandidates().Bits;
 
       // If they have no common candidates it means there's a cast
       if ((SuccBits & NodeBits) == 0)
@@ -431,9 +641,9 @@ static llvm::Optional<ColorSet> majorityVote(const TypeFlowNode *Node) {
   // For each color, count the number of decided neighbors with that color
   int NUndecided = 0;
   for (const TypeFlowNode *Succ : Node->successors()) {
-    const ColorSet SuccColor = Succ->Candidates;
+    const ColorSet SuccColor = Succ->getCandidates();
 
-    if (Succ->isDecided() and Node->Candidates.contains(SuccColor)) {
+    if (Succ->isDecided() and Node->getCandidates().contains(SuccColor)) {
       // Since the node is decided, its color has exactly one set bit
       ColorIndex I = SuccColor.firstSetBit();
       // The index of the set bit corresponds to the color
@@ -456,7 +666,7 @@ static llvm::Optional<ColorSet> majorityVote(const TypeFlowNode *Node) {
   // common even if all the undecided nodes are colored with the second most
   // common color, then we have a winner.
   if (Max.Frequency > (SecondMax.Frequency + NUndecided)) {
-    revng_assert(Node->Candidates.contains(Max.Color));
+    revng_assert(Node->getCandidates().contains(Max.Color));
     return Max.Color;
   }
 
@@ -473,7 +683,7 @@ bool vma::applyMajorityVoting(TypeFlowGraph &TG) {
       if (N->isUndecided()) {
         // Check if the neighbors of a node agree on a certain color
         if (auto VotedColor = majorityVote(N)) {
-          N->Candidates = *VotedColor;
+          N->setCandidates(*VotedColor);
           Modified = true;
         }
       }

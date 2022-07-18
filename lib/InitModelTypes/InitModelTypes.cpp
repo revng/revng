@@ -30,6 +30,7 @@
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
+#include "revng-c/ValueManipulationAnalysis/VMAPipeline.h"
 
 using llvm::BasicBlock;
 using llvm::Function;
@@ -158,58 +159,6 @@ static RecursiveCoroutine<bool> addOperandType(const llvm::Value *Operand,
   rc_return false;
 }
 
-/// Return the \a Idx -th Type contained in \a QT.
-/// \note QT must be an array, struct or union.
-/// TODO: this could be avoided if we the GEPped type was embedded in the
-/// ModelGEP call
-static QualifiedType traverseModelGEP(const QualifiedType &QT, uint64_t Idx) {
-  QualifiedType ReturnedQT = QT;
-  auto *UnqualType = ReturnedQT.UnqualifiedType.getConst();
-
-  // Peel Typedefs transparently
-  while (auto *Typedef = dyn_cast<model::TypedefType>(UnqualType)) {
-    const model::QualifiedType &Underlying = Typedef->UnderlyingType;
-    // Copy Qualifiers
-    for (const model::Qualifier &Q : Underlying.Qualifiers)
-      ReturnedQT.Qualifiers.push_back(Q);
-    // Visit Underlying type
-    ReturnedQT.UnqualifiedType = Underlying.UnqualifiedType;
-    UnqualType = ReturnedQT.UnqualifiedType.getConst();
-  }
-
-  // Remove Qualifiers from the right until we find an array qualifier
-  auto It = ReturnedQT.Qualifiers.end();
-  while (It != ReturnedQT.Qualifiers.begin()) {
-    --It;
-
-    if (model::Qualifier::isArray(*It)) {
-      // If we are traversing an array, the Idx-th element has the same type of
-      // the array, except for the array Qualifier
-      ReturnedQT.Qualifiers.erase(It);
-      return ReturnedQT;
-    }
-
-    ReturnedQT.Qualifiers.erase(It);
-  }
-
-  // If we arrived here, there are no qualifiers left to traverse
-  revng_assert(It == ReturnedQT.Qualifiers.end());
-
-  // Traverse the UnqualifiedType
-  if (auto *Struct = dyn_cast<model::StructType>(UnqualType)) {
-    ReturnedQT = Struct->Fields.at(Idx).Type;
-
-  } else if (auto *Union = dyn_cast<model::UnionType>(UnqualType)) {
-    ReturnedQT = Union->Fields.at(Idx).Type;
-
-  } else {
-    revng_abort("Unexpected ModelGEP type found: ");
-    UnqualType->dump();
-  }
-
-  return ReturnedQT;
-}
-
 /// Reconstruct the return type(s) of a Call instruction from its
 /// prototype, if it's an isolated function. For non-isolated functions,
 /// special rules apply to recover the returned type.
@@ -219,160 +168,52 @@ static TypeVector getReturnTypes(const llvm::CallInst *Call,
                                  ModelTypesMap &TypeMap) {
   TypeVector ReturnTypes;
 
-  if (FunctionTags::CallToLifted.isTagOf(Call)) {
-    // Retrieve the function prototype
-    auto Prototype = getCallSitePrototype(Model, Call, ParentFunc);
-    revng_assert(Prototype.isValid());
-    auto PrototypePath = Prototype.get();
+  if (Call->getType()->isVoidTy())
+    return {};
 
-    // Collect returned type(s)
-    if (auto *CPrototype = dyn_cast<CABIFunctionType>(PrototypePath)) {
-      ReturnTypes.push_back(CPrototype->ReturnType);
+  // Check if we already have strong model information for this call
+  ReturnTypes = getStrongModelInfo(Call, Model);
 
-    } else if (auto *RawPrototype = dyn_cast<RawFunctionType>(PrototypePath)) {
-      for (const auto &RetVal : RawPrototype->ReturnValues)
-        ReturnTypes.push_back(RetVal.Type);
-    }
+  if (not ReturnTypes.empty())
+    return ReturnTypes;
 
-  } else {
-    // Non-lifted functions do not have a Prototype in the model, but we can
-    // infer their returned type(s) in other ways
-    auto *CalledFunc = Call->getCalledFunction();
-    const auto &FuncName = CalledFunc->getName();
+  auto *CalledFunc = Call->getCalledFunction();
+  revng_assert(CalledFunc);
 
-    if (FunctionTags::ModelGEP.isTagOf(CalledFunc)
-        || FunctionTags::ModelCast.isTagOf(CalledFunc)) {
-      revng_assert(Call->getNumArgOperands() >= 2);
-      // ModelGEPs and ModelCasts contain a string with the serialization of the
-      // pointer's base QualifiedType as a first argument
-      StringRef FirstOp = extractFromConstantStringPtr(Call->getArgOperand(0));
-      QualifiedType ParsedType = parseQualifiedType(FirstOp, Model);
+  if (FunctionTags::AssignmentMarker.isTagOf(CalledFunc)
+      || FunctionTags::Parentheses.isTagOf(CalledFunc)
+      || FunctionTags::Copy.isTagOf(CalledFunc)) {
+    const llvm::Value *Arg = Call->getArgOperand(0);
 
-      if (FunctionTags::ModelGEP.isTagOf(CalledFunc)) {
-        // Second argument is the base llvm::Value
-        // Further arguments are used to traverse the model
-        auto CurArg = Call->arg_begin() + 2;
-        for (; CurArg != Call->arg_end(); ++CurArg) {
-          uint64_t Idx = 0;
+    // Forward the type
+    auto It = TypeMap.find(Arg);
+    if (It != TypeMap.end())
+      ReturnTypes.push_back(It->second);
 
-          if (auto *ArgAsInt = dyn_cast<llvm::ConstantInt>(CurArg->get()))
-            Idx = ArgAsInt->getValue().getLimitedValue();
+  } else if (FunctionTags::QEMU.isTagOf(CalledFunc)
+             or FunctionTags::Helper.isTagOf(CalledFunc)
+             or CalledFunc->isIntrinsic()
+             or FunctionTags::OpaqueCSVValue.isTagOf(CalledFunc)) {
 
-          ParsedType = traverseModelGEP(ParsedType, Idx);
-        }
-      }
+    llvm::Type *ReturnedType = Call->getType();
 
-      ReturnTypes.push_back(ParsedType);
+    if (ReturnedType->isSingleValueType()) {
+      ReturnTypes.push_back(llvmIntToModelType(ReturnedType, Model));
 
-    } else if (FunctionTags::ModelGEPRef.isTagOf(CalledFunc)) {
-      revng_assert(Call->getNumArgOperands() >= 2);
-      // ModelGEPs contain a string with the serialization of the pointer's
-      // base QualifiedType as a first argument
-      StringRef FirstOp = extractFromConstantStringPtr(Call->getArgOperand(0));
-      QualifiedType GEPpedType = parseQualifiedType(FirstOp, Model);
-
-      // Second argument is the base llvm::Value
-      // Further arguments are used to traverse the model
-      auto CurArg = Call->arg_begin() + 2;
-      for (; CurArg != Call->arg_end(); ++CurArg) {
-        uint64_t Idx = 0;
-
-        if (auto *ArgAsInt = dyn_cast<llvm::ConstantInt>(CurArg->get()))
-          Idx = ArgAsInt->getValue().getLimitedValue();
-
-        GEPpedType = traverseModelGEP(GEPpedType, Idx);
-      }
-
-      ReturnTypes.push_back(GEPpedType);
-
-    } else if (FunctionTags::AddressOf.isTagOf(CalledFunc)) {
-      // AddressOf contains a string with the serialization of the pointed type
-      // as a first argument
-      StringRef FirstOp = extractFromConstantStringPtr(Call->getArgOperand(0));
-      QualifiedType PointedType = parseQualifiedType(FirstOp, Model);
-
-      // Since we are taking the address, the final type will be a pointer to
-      // the base type
-      addPointerQualifier(PointedType, Model);
-      ReturnTypes.push_back(PointedType);
-
-    } else if (FunctionTags::AssignmentMarker.isTagOf(CalledFunc)
-               || FunctionTags::Parentheses.isTagOf(CalledFunc)
-               || FunctionTags::Copy.isTagOf(CalledFunc)) {
-      const llvm::Value *Arg = Call->getArgOperand(0);
-
-      // Structs are handled on their own
-      if (Arg->getType()->isStructTy())
-        return {};
-
-      // Forward the type
-      auto It = TypeMap.find(Arg);
-      if (It != TypeMap.end()) {
-        ReturnTypes.push_back(It->second);
-      }
-
-    } else if (FunctionTags::LocalVariable.isTagOf(CalledFunc)) {
-      StringRef StringOp = extractFromConstantStringPtr(Call->getArgOperand(0));
-      const model::QualifiedType VarType = parseQualifiedType(StringOp, Model);
-
-      ReturnTypes.push_back(VarType);
-
-    } else if (FunctionTags::StructInitializer.isTagOf(CalledFunc)) {
-      // Struct initializers are only used to pack together return values of
-      // RawFunctionTypes that return multiple values, therefore they have the
-      // same type as the parent function's return type
-      revng_assert(Call->getFunction()->getReturnType() == Call->getType());
-      auto *RawPrototype = cast<RawFunctionType>(ParentFunc->Prototype.get());
-
-      for (const auto &RetVal : RawPrototype->ReturnValues)
-        ReturnTypes.push_back(RetVal.Type);
-
-    } else if (FuncName.startswith("revng_stack_frame")) {
-      // Retrieve the stack frame type
-      auto &StackType = ParentFunc->StackFrameType;
-      revng_assert(StackType.get());
-
-      ReturnTypes.push_back(QualifiedType{ StackType, {} });
-
-    } else if (FuncName.startswith("revng_call_stack_arguments")) {
-      // The prototype attached to this callsite represents the prototype of
-      // the function that needs the stack arguments returned by this call
-      auto Prototype = getCallSitePrototype(Model, Call, ParentFunc);
-      revng_assert(Prototype.isValid());
-
-      // Only RawFunctionTypes have explicit stack arguments
-      auto *RawPrototype = cast<model::RawFunctionType>(Prototype.get());
-      QualifiedType StackArgsType = RawPrototype->StackArgumentsType;
-
-      ReturnTypes.push_back(StackArgsType);
-
-    } else if (FunctionTags::QEMU.isTagOf(CalledFunc)
-               or FunctionTags::Helper.isTagOf(CalledFunc)
-               or CalledFunc->isIntrinsic()
-               or FunctionTags::OpaqueCSVValue.isTagOf(CalledFunc)) {
-
-      llvm::Type *ReturnedType = Call->getType();
-      if (ReturnedType->isVoidTy())
-        return {};
-
-      if (ReturnedType->isSingleValueType()) {
-        ReturnTypes.push_back(llvmIntToModelType(ReturnedType, Model));
-
-      } else if (ReturnedType->isAggregateType()) {
-        // For intrinsics and helpers returning aggregate types, we simply
-        // return a lit of all the subtypes, after transforming each in the
-        // corresponding primitive QualifiedType
-        for (llvm::Type *Subtype : ReturnedType->subtypes()) {
-          ReturnTypes.push_back(llvmIntToModelType(Subtype, Model));
-        }
-
-      } else {
-        revng_abort("Unknown value returned by non-isolated function");
+    } else if (ReturnedType->isAggregateType()) {
+      // For intrinsics and helpers returning aggregate types, we simply
+      // return a list of all the subtypes, after transforming each in the
+      // corresponding primitive QualifiedType
+      for (llvm::Type *Subtype : ReturnedType->subtypes()) {
+        ReturnTypes.push_back(llvmIntToModelType(Subtype, Model));
       }
 
     } else {
-      revng_abort("Unknown non-isolated function");
+      revng_abort("Unknown value returned by non-isolated function");
     }
+
+  } else {
+    revng_abort("Unknown non-isolated function");
   }
 
   return ReturnTypes;
@@ -599,6 +440,15 @@ ModelTypesMap initModelTypes(const llvm::Function &F,
       }
     }
   }
+
+  // Run VMA
+  VMAPipeline VMA(Model);
+  VMA.addInitializer(std::make_unique<LLVMInitializer>());
+  VMA.addInitializer(std::make_unique<TypeMapInitializer>(TypeMap));
+  VMA.setUpdater(std::make_unique<TypeMapUpdater>(TypeMap, &Model));
+  VMA.disableSolver();
+
+  VMA.run(&F);
 
   return TypeMap;
 }
