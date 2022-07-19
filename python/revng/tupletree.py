@@ -3,10 +3,22 @@
 #
 
 import sys
+from collections.abc import MutableSequence
 from dataclasses import dataclass, fields
 from enum import Enum
 from functools import lru_cache
-from typing import Dict, Generic, Type, TypeVar, get_args, get_origin, get_type_hints
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generic,
+    List,
+    Type,
+    TypeVar,
+    get_args,
+    get_origin,
+    get_type_hints,
+)
 
 import yaml
 
@@ -15,7 +27,8 @@ try:
     from yaml import CSafeLoader as Loader
 except ImportError:
     sys.stderr.write("Warning: using the slow pure-python YAML loader and dumper!\n")
-    from yaml import Dumper, SafeLoader as Loader  # type: ignore
+    from yaml import Dumper  # type: ignore
+    from yaml import SafeLoader as Loader  # type: ignore
 
 no_default = object()
 
@@ -137,8 +150,14 @@ class StructBase:
         # fields as kw_only, but we want to support older python versions.
         # Hence this workaround, inspired by https://stackoverflow.com/a/53085935
         for field in fields(self):
-            if self.__getattribute__(field.name) is no_default:
+            field_value = self.__getattribute__(field.name)
+            field_hints = get_type_hint_cached(self.__class__, field.name)
+            if field_value is no_default:
                 raise TypeError(f"__init__ missing 1 required argument: {field.name}")
+            if get_origin(field_hints) is list:
+                new_field_value = TypedList(get_args(field_hints)[0])
+                new_field_value.extend(field_value)
+                setattr(self, field.name, new_field_value)
 
     def __setattr__(self, key, value):
         # Prevent setting undefined attributes
@@ -237,3 +256,52 @@ class YamlDumper(Dumper):
 
     def ignore_aliases(self, data):
         return True
+
+
+class TypedList(MutableSequence):
+    def __init__(self, base_class: type):
+        self._data: List[Any] = []
+        self._base_class = base_class
+
+    def __setitem__(self, idx, obj):
+        if not isinstance(obj, self._base_class):
+            raise ValueError(
+                f"Cannot insert object, must be of type {self._base_class.__name__} (or subclass)"
+            )
+        self._data[idx] = obj
+
+    def insert(self, index: int, obj):
+        if not isinstance(obj, self._base_class):
+            raise ValueError(
+                f"Cannot insert object, must be of type {self._base_class.__name__} (or subclass)"
+            )
+        self._data.insert(index, obj)
+
+    @classmethod
+    def yaml_representer(cls, dumper: YamlDumper, instance) -> yaml.Node:
+        return dumper.represent_list(instance._data)
+
+    def __getitem__(self, idx):
+        return self._data[idx]
+
+    def __delitem__(self, idx):
+        del self._data[idx]
+
+    def __len__(self) -> int:
+        return len(self._data)
+
+    def __repr__(self):
+        return repr(self._data)
+
+    def __str__(self):
+        return str(self._data)
+
+
+YamlDumper.add_representer(TypedList, TypedList.yaml_representer)
+
+
+def typedlist_factory(base_class: type) -> Callable[[], TypedList]:
+    def factory():
+        return TypedList(base_class)
+
+    return factory

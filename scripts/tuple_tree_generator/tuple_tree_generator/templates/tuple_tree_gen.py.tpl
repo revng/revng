@@ -15,6 +15,7 @@ from revng.tupletree import (
     AbstractStructBase,
     dataclass_kwargs,
     no_default,
+    typedlist_factory,
 )
 from revng.tupletree import YamlLoader as _ExternalYamlLoader
 from revng.tupletree import YamlDumper as _ExternalYamlDumper
@@ -75,7 +76,7 @@ class 'struct.name'(
     ##- if field.is_guid -##
     = field(default_factory=random_id)
     ##- elif field is sequence_field -##
-    = field(default_factory=list)
+    = field(default_factory=typedlist_factory('field | python_list_type'))
     ##- elif struct.inherits -##
     = field(default=no_default)
     ##- endif ##
@@ -92,7 +93,7 @@ class 'struct.name'(
         ## if field is simple_field ##
         default=None
         ## elif field is sequence_field ##
-        default_factory=list
+        default_factory=typedlist_factory('field | python_list_type')
         ## elif field is reference_field ##
         default=None
         ## endif ##
