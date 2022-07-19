@@ -30,6 +30,8 @@ inline constexpr auto locationDefinition = "data-location-definition";
 inline constexpr auto locationReferences = "data-location-references";
 inline constexpr auto modelEditPath = "data-model-edit-path";
 
+inline constexpr auto htmlExclusiveMetadata = "data-html-exclusive";
+
 } // namespace attributes
 
 namespace scopes {
@@ -50,9 +52,10 @@ private:
 
 public:
   explicit Tag() {}
-  explicit Tag(llvm::StringRef Tag) : TheTag(Tag.str()) {}
-  explicit Tag(llvm::StringRef Tag, llvm::StringRef Content) :
-    TheTag(Tag.str()), Content(Content.str()) {}
+  explicit Tag(llvm::StringRef TheTag, std::string &&Content) :
+    TheTag(TheTag.str()), Content(std::move(Content)) {}
+  explicit Tag(llvm::StringRef TheTag, llvm::StringRef Content = "") :
+    Tag(TheTag, Content.str()) {}
 
   struct Scope {
   private:
