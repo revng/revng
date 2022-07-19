@@ -27,6 +27,7 @@
 #include "revng/Model/QualifiedType.h"
 #include "revng/Model/Qualifier.h"
 #include "revng/Model/RawFunctionType.h"
+#include "revng/Model/Segment.h"
 #include "revng/Model/StructType.h"
 #include "revng/Model/Type.h"
 #include "revng/Support/Assert.h"
@@ -796,6 +797,14 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
       Out << getNamedCInstance(TypeMap.at(Call), VarName) << ";\n";
 
     Expression = VarName;
+
+  } else if (FunctionTags::SegmentRef.isTagOf(CalledFunc)) {
+    const auto &[StartAddress,
+                 VirtualSize] = extractSegmentKeyFromMetadata(*CalledFunc);
+    model::Segment Segment = Model.Segments.at({ StartAddress, VirtualSize });
+    auto Name = Segment.name();
+
+    Expression = Name;
 
   } else if (FunctionTags::Assign.isTagOf(CalledFunc)) {
     const llvm::Value *StoredVal = Call->getArgOperand(0);

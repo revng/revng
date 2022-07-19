@@ -28,6 +28,8 @@
 #include "revng/Support/Debug.h"
 
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
+#include "revng-c/Support/FunctionTags.h"
+#include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
 
 #include "../FuncOrCallInst.h"
@@ -169,6 +171,101 @@ static bool updateRawFuncArgs(model::Binary &Model,
   return Updated;
 }
 
+static void fillStructWithRecoveredDLAType(model::Binary &Model,
+                                           model::Type *OriginalType,
+                                           model::QualifiedType &RecoveredType,
+                                           uint64_t OriginalStructSize,
+                                           uint64_t RecoveredStructSize) {
+  revng_assert(isa<model::StructType>(OriginalType));
+  revng_assert(RecoveredStructSize > 0
+               and RecoveredStructSize < std::numeric_limits<int64_t>::max());
+
+  auto *OriginalStructType = cast<model::StructType>(OriginalType);
+  bool IsPointerOrArray = RecoveredType.isArray() || RecoveredType.isPointer();
+  auto *RecoveredUnqualType = RecoveredType.UnqualifiedType.get();
+
+  if (IsPointerOrArray or isa<model::PrimitiveType>(RecoveredUnqualType)
+      or isa<model::EnumType>(RecoveredUnqualType)) {
+    revng_assert(RecoveredStructSize <= OriginalStructSize);
+
+    // OriginalStructType is an empty struct, just add the new stack type
+    // as the first field.
+    OriginalStructType->Fields[0].Type = RecoveredType;
+  } else if (auto *NewS = dyn_cast<model::StructType>(RecoveredUnqualType)) {
+    // If DLA recoverd a struct, whose size is too large, we have to shrink
+    // it. For now the shrinking does not look deeply inside the types, only
+    // at step one into the fields of the struct. We drop all the fields
+    // that go over the OriginalStructSize.
+    if (RecoveredStructSize > OriginalStructSize) {
+      const auto IsTooLarge = [OriginalStructSize](const auto &Field) {
+        return (Field.Offset + *Field.Type.size()) > OriginalStructSize;
+      };
+
+      auto It = llvm::find_if(NewS->Fields, IsTooLarge);
+      auto End = NewS->Fields.end();
+      NewS->Fields.erase(It, End);
+    }
+
+    // Best case scenario, the recovered type struct size is less or equal than
+    // the size of the original struct. In this case, no fields to drop.
+    for (const auto &Field : NewS->Fields)
+      OriginalStructType->Fields.insert(Field);
+  } else if (auto *NewU = dyn_cast<model::UnionType>(RecoveredUnqualType)) {
+    // If DLA recoverd an union kind, whose size that is too large, we have to
+    // shrink it, likewise we did with a struct kind.
+    auto FieldsRemaining = NewU->Fields.size();
+    if (RecoveredStructSize > OriginalStructSize) {
+
+      const auto IsTooLarge = [OriginalStructSize](const auto &Field) {
+        return *Field.Type.size() > OriginalStructSize;
+      };
+
+      // First, detect the fields that are too large.
+      llvm::SmallSet<size_t, 8> FieldsToDrop;
+      auto It = NewU->Fields.begin();
+      auto End = NewU->Fields.end();
+      for (; It != End; ++It) {
+        revng_assert(It->verify());
+        revng_assert(It->Type.verify());
+        if (IsTooLarge(*It))
+          FieldsToDrop.insert(It->Index);
+      }
+
+      revng_assert(not FieldsToDrop.empty());
+
+      // Count the fields that are left in the union if we remove those
+      // selected to be dropped.
+      FieldsRemaining = NewU->Fields.size() - FieldsToDrop.size();
+
+      // If we need to drop at least one field but not all of them, we have
+      // to renumber the remaining fields, otherwise the union will not
+      // verify.
+      if (FieldsRemaining) {
+
+        // Drop the large fields
+        for (auto &FieldNum : FieldsToDrop)
+          NewU->Fields.erase(FieldNum);
+
+        // Re-enumerate the remaining fields
+        for (auto &Group : llvm::enumerate(NewU->Fields))
+          Group.value().Index = Group.index();
+
+        revng_assert(NewU->Fields.size() == FieldsRemaining);
+        revng_assert(NewU->verify());
+      }
+    }
+
+    // If there are fields left in the union, then inject them in the struct
+    // as fields.
+    if (FieldsRemaining) {
+      OriginalStructType->Fields[0]
+        .Type = model::QualifiedType(Model.getTypePath(NewU), {});
+    }
+  } else {
+    revng_abort();
+  }
+}
+
 static bool updateFuncStackFrame(model::Function &ModelFunc,
                                  const llvm::Function &LLVMFunc,
                                  const TypeMapT &DLATypes,
@@ -205,103 +302,19 @@ static bool updateFuncStackFrame(model::Function &ModelFunc,
     revng_log(Log, "Was " << OldModelStackFrameType->ID);
 
     LayoutTypePtr Key{ Call, LayoutTypePtr::fieldNumNone };
+
     if (auto NewTypeIt = DLATypes.find(Key); NewTypeIt != DLATypes.end()) {
       model::QualifiedType NewStackType = NewTypeIt->second;
       NewStackType = peelConstAndTypedefs(NewStackType);
-      bool IsPointerOrArray = not NewStackType.Qualifiers.empty();
 
       auto NewStackSize = *NewStackType.size();
       uint64_t OldStackSize = *OldStackFrameStruct->size();
 
-      revng_assert(NewStackSize > 0
-                   and NewStackSize < std::numeric_limits<int64_t>::max());
-
-      auto *UnqualNewStack = NewStackType.UnqualifiedType.get();
-      if (IsPointerOrArray or isa<model::PrimitiveType>(UnqualNewStack)
-          or isa<model::EnumType>(UnqualNewStack)) {
-        revng_assert(NewStackSize <= OldStackSize);
-
-        // OldStackFrameStruct is an empty struct, just add the new stack type
-        // as the first field
-        OldStackFrameStruct->Fields[0].Type = NewStackType;
-
-      } else if (auto *NewS = dyn_cast<model::StructType>(UnqualNewStack)) {
-        // If DLA recoverd a new stack size that is too large, we have to shrink
-        // it. For now the shrinking does not look deeply inside the types, only
-        // at step one into the fields of the struct. We drop all the fields
-        // that go over the OldStackSize.
-        if (NewStackSize > OldStackSize) {
-          const auto IsTooLarge = [OldStackSize](const model::StructField &F) {
-            return (F.Offset + *F.Type.size()) > OldStackSize;
-          };
-
-          auto It = llvm::find_if(NewS->Fields, IsTooLarge);
-          auto End = NewS->Fields.end();
-          NewS->Fields.erase(It, End);
-        }
-
-        for (const auto &Field : NewS->Fields)
-          OldStackFrameStruct->Fields.insert(Field);
-
-      } else if (auto *NewU = dyn_cast<model::UnionType>(UnqualNewStack)) {
-
-        // If DLA recoverd a new stack size that is too large, we have to shrink
-        // it. For now the shrinking does not look deeply inside the types, only
-        // at step one into the fields of the union. We drop all the fields that
-        // are larger than OldStackSize.
-        auto FieldsRemaining = NewU->Fields.size();
-        if (NewStackSize > OldStackSize) {
-
-          const auto IsTooLarge = [OldStackSize](const model::UnionField &F) {
-            return *F.Type.size() > OldStackSize;
-          };
-
-          // First, detect the fields that are too large.
-          llvm::SmallSet<size_t, 8> FieldsToDrop;
-          auto It = NewU->Fields.begin();
-          auto End = NewU->Fields.end();
-          for (; It != End; ++It) {
-            revng_assert(It->verify());
-            revng_assert(It->Type.verify());
-            if (IsTooLarge(*It))
-              FieldsToDrop.insert(It->Index);
-          }
-
-          revng_assert(not FieldsToDrop.empty());
-
-          // Count the fields that are left in the union if we remove those
-          // selected to be dropped.
-          FieldsRemaining = NewU->Fields.size() - FieldsToDrop.size();
-
-          // If we need to drop at least one field but not all of them, we have
-          // to renumber the remaining fields, otherwise the union will not
-          // verify.
-          if (FieldsRemaining) {
-
-            // Drop the large fields
-            for (auto &FieldNum : FieldsToDrop)
-              NewU->Fields.erase(FieldNum);
-
-            // Re-enumerate the remaining fields
-            for (auto &Group : llvm::enumerate(NewU->Fields))
-              Group.value().Index = Group.index();
-
-            revng_assert(NewU->Fields.size() == FieldsRemaining);
-            revng_assert(NewU->verify());
-          }
-        }
-
-        // If there are fields left in the union, then inject them in the stack
-        // struct as fields.
-        if (FieldsRemaining) {
-          cast<model::StructType>(ModelFunc.StackFrameType.get())
-            ->Fields[0]
-            .Type = model::QualifiedType(Model.getTypePath(NewU), {});
-        }
-
-      } else {
-        revng_abort();
-      }
+      fillStructWithRecoveredDLAType(Model,
+                                     OldModelStackFrameType,
+                                     NewStackType,
+                                     OldStackSize,
+                                     NewStackSize);
 
       revng_log(Log, "Updated to " << ModelFunc.StackFrameType.get()->ID);
 
@@ -312,6 +325,7 @@ static bool updateFuncStackFrame(model::Function &ModelFunc,
       Updated = true;
     }
   }
+
   return Updated;
 }
 
@@ -440,6 +454,47 @@ bool dla::updateFuncSignatures(const llvm::Module &M,
     writeToFile(Model->toString(), "model-after-func-update.yaml");
   if (VerifyLog.isEnabled())
     revng_assert(Model->verify());
+
+  return Updated;
+}
+
+bool dla::updateSegmentsTypes(const llvm::Module &M,
+                              TupleTree<model::Binary> &Model,
+                              const TypeMapT &TypeMap) {
+  bool Updated = false;
+
+  for (const auto &F : FunctionTags::SegmentRef.functions(&M)) {
+    const auto &[StartAddress, VirtualSize] = extractSegmentKeyFromMetadata(F);
+    model::Segment Segment = Model->Segments.at({ StartAddress, VirtualSize });
+
+    // We know that the Segment's type is of StructType.
+    // It's empty, we'll fill it up.
+    auto *UnqualSegment = Segment.Type.UnqualifiedType.get();
+    revng_assert(isa<model::StructType>(UnqualSegment));
+    auto *SegmentStruct = cast<model::StructType>(UnqualSegment);
+    auto SegmentStructSize = *SegmentStruct->size();
+
+    LayoutTypePtr Key{ &F, LayoutTypePtr::fieldNumNone };
+    if (auto TypeIt = TypeMap.find(Key); TypeIt != TypeMap.end()) {
+      // Let's examine the recovered type by DLA.
+      model::QualifiedType RecoveredSegmentType = TypeIt->second;
+      auto RecoveredSegmentTypeSize = *RecoveredSegmentType.size();
+
+      fillStructWithRecoveredDLAType(*Model,
+                                     UnqualSegment,
+                                     RecoveredSegmentType,
+                                     SegmentStructSize,
+                                     RecoveredSegmentTypeSize);
+
+      auto *NewUnqualType = Segment.Type.UnqualifiedType.get();
+      revng_log(Log, "Updated to " << NewUnqualType->ID);
+      revng_assert(isa<model::StructType>(NewUnqualType));
+      revng_assert(*NewUnqualType->size() == SegmentStructSize);
+      revng_assert(NewUnqualType->verify());
+
+      Updated = true;
+    }
+  }
 
   return Updated;
 }

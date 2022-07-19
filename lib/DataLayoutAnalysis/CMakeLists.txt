@@ -22,7 +22,7 @@ revng_add_analyses_library(
   Middleend/RemoveInvalidStrideEdges.cpp
   Middleend/SimplifyInstanceAtOffset0.cpp
   Backend/DLAMakeModelTypes.cpp
-  Backend/DLAUpdateFuncPrototypes.cpp
+  Backend/DLAUpdateModelTypes.cpp
   FuncOrCallInst.cpp
   DLAPass.cpp
   DLATypeSystem.cpp)

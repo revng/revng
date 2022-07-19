@@ -42,7 +42,8 @@ enum CustomInstruction : unsigned {
   Indirection = getInstructionLLVMOpcodeCount() + 4,
   MemberAccess = getInstructionLLVMOpcodeCount() + 5,
   LocalVariable = getInstructionLLVMOpcodeCount() + 6,
-  Transparent = getInstructionLLVMOpcodeCount() + 7
+  Transparent = getInstructionLLVMOpcodeCount() + 7,
+  SegmentRef = getInstructionLLVMOpcodeCount() + 8
 };
 
 struct InstToOpPrec {
@@ -154,7 +155,8 @@ static bool isCustomOpcode(Instruction *I) {
       || FunctionTags::ModelGEP.isTagOf(CalledFunc)
       || FunctionTags::Copy.isTagOf(CalledFunc)
       || FunctionTags::ModelGEPRef.isTagOf(CalledFunc)
-      || FunctionTags::AllocatesLocalVariable.isTagOf(CalledFunc))
+      || FunctionTags::AllocatesLocalVariable.isTagOf(CalledFunc)
+      || FunctionTags::SegmentRef.isTagOf(CalledFunc))
     return true;
 
   return false;
@@ -182,6 +184,8 @@ static unsigned getCustomOpcode(Instruction *I) {
     return CustomInstruction::Transparent;
   } else if (FunctionTags::Copy.isTagOf(CalledFunc)) {
     return CustomInstruction::Transparent;
+  } else if (FunctionTags::SegmentRef.isTagOf(CalledFunc)) {
+    return CustomInstruction::SegmentRef;
   }
 
   revng_abort();
@@ -286,6 +290,7 @@ bool OPRP::needsParentheses(Instruction *I, Use &U) {
     case CustomInstruction::Assignment:
     case CustomInstruction::LocalVariable:
     case CustomInstruction::Transparent:
+    case CustomInstruction::SegmentRef:
       return false;
     }
   }
@@ -303,7 +308,8 @@ bool OPRP::needsParentheses(Instruction *I, Use &U) {
   // Skip parenthesizing the expression when the Use is an `Assignment`
   if (isa<CallInst>(Ins) && isCustomOpcode(Ins)
       && (getCustomOpcode(Ins) == CustomInstruction::Assignment
-          or getCustomOpcode(Ins) == CustomInstruction::LocalVariable))
+          or getCustomOpcode(Ins) == CustomInstruction::LocalVariable
+          or getCustomOpcode(Ins) == CustomInstruction::SegmentRef))
     return false;
 
   // No need to emit parentheses when the operand is a custom operator or a

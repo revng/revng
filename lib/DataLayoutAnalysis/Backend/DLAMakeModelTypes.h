@@ -27,4 +27,9 @@ bool updateFuncSignatures(const llvm::Module &M,
                           TupleTree<model::Binary> &Model,
                           const TypeMapT &TypeMap);
 
+/// Attach model types to segments and update the model.
+bool updateSegmentsTypes(const llvm::Module &M,
+                         TupleTree<model::Binary> &Model,
+                         const TypeMapT &TypeMap);
+
 } // end namespace dla

@@ -11,4 +11,4 @@ Analyses:
   - Name: dla
     Type: dla
     UsedContainers: [module.ll]
-    Step: LateOptimizeForDecompilation
+    Step: MakeSegmentRefs

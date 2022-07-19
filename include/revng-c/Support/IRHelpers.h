@@ -71,6 +71,7 @@ getSignedConstantArg(llvm::CallInst *Call, unsigned Index) {
 }
 
 inline const char *ExplicitParenthesesMDName = "revng.explicit_parentheses";
+inline const char *SegmentRefMDName = "revng.segment_ref";
 
 namespace llvm {
 
@@ -98,3 +99,11 @@ getExtractedValuesFromInstruction(const llvm::Instruction *);
 /// attributes (which llvm::Function::deleteBody() does not preserve).
 /// Returns true if the body was cleared, false if it was already empty.
 extern bool deleteOnlyBody(llvm::Function &F);
+
+void setSegmentKeyMetadata(llvm::Function *SegmentRefFunction,
+                           MetaAddress StartAddress,
+                           uint64_t VirtualSize);
+
+/// Extract the key of a model::Segment stored as a metadata.
+extern std::pair<MetaAddress, uint64_t>
+extractSegmentKeyFromMetadata(const llvm::Function &F);

@@ -7,6 +7,7 @@
 #include "llvm/IR/Constants.h"
 
 #include "revng/EarlyFunctionAnalysis/IRHelpers.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Pipeline/Context.h"
@@ -19,7 +20,6 @@
 #include "revng-c/Pipes/Kinds.h"
 #include "revng-c/PromoteStackPointer/DetectStackSizePass.h"
 #include "revng-c/PromoteStackPointer/InstrumentStackAccessesPass.h"
-#include "revng-c/Support/ModelHelpers.h"
 
 using namespace llvm;
 using model::RawFunctionType;

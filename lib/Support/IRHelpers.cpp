@@ -13,6 +13,7 @@
 #include "llvm/IR/Instructions.h"
 
 #include "revng/Support/Assert.h"
+#include "revng/Support/MetaAddress.h"
 
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/IRHelpers.h"
@@ -210,4 +211,39 @@ bool deleteOnlyBody(llvm::Function &F) {
     Result = true;
   }
   return Result;
+}
+
+void setSegmentKeyMetadata(llvm::Function *SegmentRefFunction,
+                           MetaAddress StartAddress,
+                           uint64_t VirtualSize) {
+  using namespace llvm;
+
+  auto *M = SegmentRefFunction->getParent();
+  auto &Ctx = SegmentRefFunction->getContext();
+
+  StructType *MetaAddressTy = MetaAddress::getStruct(M);
+  Constant *SAConstant = StartAddress.toConstant(MetaAddressTy);
+  auto *SAMD = ConstantAsMetadata::get(SAConstant);
+
+  auto *VSConstant = ConstantInt::get(Type::getInt64Ty(Ctx), VirtualSize);
+  auto *VSMD = ConstantAsMetadata::get(VSConstant);
+
+  auto *Node = MDNode::get(Ctx, { SAMD, VSMD });
+  SegmentRefFunction->setMetadata(SegmentRefMDName, Node);
+}
+
+std::pair<MetaAddress, uint64_t>
+extractSegmentKeyFromMetadata(const llvm::Function &F) {
+  using namespace llvm;
+
+  auto *Node = F.getMetadata(SegmentRefMDName);
+  revng_assert(Node != nullptr);
+
+  auto *SAMD = cast<ConstantAsMetadata>(Node->getOperand(0))->getValue();
+  auto *SAConstant = cast<Constant>(SAMD);
+  MetaAddress StartAddress = MetaAddress::fromConstant(SAConstant);
+  auto *VSMD = cast<ConstantAsMetadata>(Node->getOperand(1))->getValue();
+  uint64_t VirtualSize = cast<ConstantInt>(VSMD)->getZExtValue();
+
+  return { StartAddress, VirtualSize };
 }

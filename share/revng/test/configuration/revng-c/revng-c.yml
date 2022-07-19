@@ -42,7 +42,7 @@ commands:
         "$OUTPUT"
         "$OUTPUT"
         DetectStackSize
-        LateOptimizeForDecompilation
+        MakeSegmentRefs
         "*:StackAccessesSegregated"
         --analysis dla
   - type: revng-c.vma
@@ -57,7 +57,7 @@ commands:
       revng llvm pipeline
         "$INPUT"
         "$OUTPUT"
-        LateOptimizeForDecompilation
+        MakeSegmentRefs
         IRCanonicalization
         "*:StackAccessesSegregated"
   - type: revng-c.model-to-header
@@ -107,7 +107,7 @@ commands:
       revng model override-by-name $INPUT ${SOURCE}.override.yml
         | revng llvm pipeline - - Lift Lift --analysis DetectABI :Root
         | revng llvm pipeline - - Lift DetectStackSize *:LiftingArtifactsRemoved --analysis detect-stack-size
-        | revng llvm pipeline - - DetectStackSize LateOptimizeForDecompilation *:StackAccessesSegregated
+        | revng llvm pipeline - - DetectStackSize MakeSegmentRefs *:StackAccessesSegregated
         | revng opt -S
         | FileCheck ${SOURCE}.filecheck.ll
   - type: revng-c.test-detect-stack-size

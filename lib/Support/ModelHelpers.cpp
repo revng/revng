@@ -22,6 +22,7 @@
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/Support/FunctionTags.h"
+#include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
 
 using llvm::dyn_cast;
@@ -58,15 +59,6 @@ peelConstAndTypedefs(const model::QualifiedType &QT, model::VerifyHelper &VH) {
   }
   revng_assert(Result.verify(VH));
   return Result;
-}
-
-model::TypePath createEmptyStruct(model::Binary &Binary, uint64_t Size) {
-  using namespace model;
-  revng_assert(Size > 0 and Size < std::numeric_limits<int64_t>::max());
-  TypePath Path = Binary.recordNewType(makeType<model::StructType>());
-  model::StructType *NewStruct = llvm::cast<model::StructType>(Path.get());
-  NewStruct->Size = Size;
-  return Path;
 }
 
 const model::QualifiedType
@@ -346,6 +338,12 @@ getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
         for (const auto &RetVal : RawPrototype->ReturnValues)
           ReturnTypes.push_back(RetVal.Type);
 
+      } else if (FTags.contains(FunctionTags::SegmentRef)) {
+        const auto &[StartAddress,
+                     VirtualSize] = extractSegmentKeyFromMetadata(*CalledFunc);
+        auto Segment = Model.Segments.at({ StartAddress, VirtualSize });
+
+        ReturnTypes.push_back(Segment.Type);
       } else if (FuncName.startswith("revng_stack_frame")) {
         // Retrieve the stack frame type
         auto &StackType = ParentFunc()->StackFrameType;

@@ -16,6 +16,8 @@
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
+#include "revng-c/Support/FunctionTags.h"
+#include "revng-c/Support/IRHelpers.h"
 
 #include "../FuncOrCallInst.h"
 #include "DLATypeSystemBuilder.h"
@@ -75,6 +77,27 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
         auto *OtherArgNode = getLayoutType(&OtherArg);
         revng_assert(OtherArgNode);
         TS.addEqualityLink(ArgNode, OtherArgNode);
+      }
+    }
+
+    // Create types for segments
+    std::map<model::Segment *, LayoutTypeSystemNode *> SegmentNodeMap;
+    for (Function &F : FunctionTags::SegmentRef.functions(&M)) {
+      const auto &[StartAddress,
+                   VirtualSize] = extractSegmentKeyFromMetadata(F);
+      model::Segment Segment = Model.Segments.at({ StartAddress, VirtualSize });
+      auto [SegmentTypeNode, _] = getOrCreateLayoutType(&F);
+      auto [It, Success] = SegmentNodeMap.insert({ &Segment, SegmentTypeNode });
+
+      // Already inserted? Reference the Node of the current function to the
+      // already found segment.
+      if (Success == false)
+        TS.addEqualityLink(SegmentTypeNode, It->second);
+
+      for (const Use &U : F.uses()) {
+        auto *Call = cast<CallInst>(U.getUser());
+        auto [SegmentRefCallNode, _] = getOrCreateLayoutType(Call);
+        TS.addEqualityLink(SegmentTypeNode, SegmentRefCallNode);
       }
     }
 
