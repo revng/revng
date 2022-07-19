@@ -20,8 +20,7 @@ public:
   Graph::Dimension VerticalFontFactor;
 
   Graph::Dimension InstructionFontSize;
-  Graph::Dimension InstructionAddressFontSize;
-  Graph::Dimension InstructionBytesFontSize;
+  Graph::Dimension AnnotationFontSize;
   Graph::Dimension CommentFontSize;
   Graph::Dimension LabelFontSize;
 
@@ -37,14 +36,13 @@ public:
                           .InternalNodeMarginSize = 12.f,
                           .ExternalNodeMarginSize = 40.f,
                           .HorizontalInstructionMarginSize = 20.f,
-                          .VerticalInstructionMarginSize = 2.f,
+                          .VerticalInstructionMarginSize = 4.f,
 
                           .HorizontalFontFactor = 0.6f,
                           .VerticalFontFactor = 1.25f,
 
                           .InstructionFontSize = 18.f,
-                          .InstructionAddressFontSize = 12.f,
-                          .InstructionBytesFontSize = 0.f,
+                          .AnnotationFontSize = 12.f,
                           .CommentFontSize = 15.f,
                           .LabelFontSize = 18.f,
 
