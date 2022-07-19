@@ -7,6 +7,7 @@
 
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/CopyPipe.h"
+#include "revng/Pipeline/RegisterContainerFactory.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Support/Assert.h"
@@ -130,3 +131,4 @@ char StringContainer::ID;
 static RegisterPipe<CopyPipe<StringContainer>> E1(StringKind);
 static const std::string Name = "StringContainer";
 static RegisterDefaultConstructibleContainer<StringContainer> C(Name);
+static RegisterRole R(Name, "StringRole");

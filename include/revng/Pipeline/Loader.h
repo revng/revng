@@ -27,6 +27,7 @@ namespace pipeline {
 struct ContainerDeclaration {
   std::string Name;
   std::string Type;
+  std::string Role = "";
 };
 
 struct AnalysisDeclaration {
@@ -96,6 +97,8 @@ private:
   llvm::StringMap<std::function<std::unique_ptr<LLVMPassWrapperBase>()>>
     KnownLLVMPipeTypes;
 
+  llvm::StringMap<std::string> KnownContainerRoles;
+
   std::set<std::string> EnabledFlags;
   std::optional<LoaderCallback> OnLLVMContainerCreationAction = std::nullopt;
   Context *PipelineContext;
@@ -125,6 +128,10 @@ public:
 
   void addContainerFactory(llvm::StringRef Name, ContainerFactory Factory) {
     KnownContainerTypes.try_emplace(Name, std::move(Factory));
+  }
+
+  void addContainerRole(llvm::StringRef Name, llvm::StringRef Role) {
+    KnownContainerRoles.try_emplace(Role, Name.str());
   }
 
   template<typename LLVMPass>
@@ -185,21 +192,29 @@ public:
   }
 
 private:
-  llvm::Error
-  parseSteps(Runner &Runner, const BranchDeclaration &Declaration) const;
+  llvm::Error parseSteps(Runner &Runner,
+                         const BranchDeclaration &Declaration,
+                         const std::vector<std::string> &ReadOnlyNames) const;
   llvm::Error parseDeclarations(Runner &Runner,
-                                const PipelineDeclaration &Declaration) const;
+                                const PipelineDeclaration &Declaration,
+                                std::vector<std::string> &ReadOnlyNames) const;
 
-  llvm::Error parseStepDeclaration(Runner &Runner,
-                                   const StepDeclaration &,
-                                   std::string &LastAddedStep) const;
+  llvm::Error
+  parseStepDeclaration(Runner &Runner,
+                       const StepDeclaration &,
+                       std::string &LastAddedStep,
+                       const std::vector<std::string> &ReadOnlyNames) const;
 
   llvm::Expected<PipeWrapper>
-  parseInvocation(Step &Step, const PipeInvocation &Invocation) const;
+  parseInvocation(Step &Step,
+                  const PipeInvocation &Invocation,
+                  const std::vector<std::string> &ReadOnlyNames) const;
   llvm::Expected<AnalysisWrapper>
   parseAnalysis(const AnalysisDeclaration &Declaration) const;
   llvm::Error
-  parseContainerDeclaration(Runner &Runner, const ContainerDeclaration &) const;
+  parseContainerDeclaration(Runner &Runner,
+                            const ContainerDeclaration &,
+                            std::vector<std::string> &ReadOnlyNames) const;
 
   llvm::Expected<PipeWrapper>
   parseLLVMPass(const PipeInvocation &Invocation) const;
@@ -211,10 +226,15 @@ private:
 };
 } // namespace pipeline
 
-INTROSPECTION_NS(pipeline, ContainerDeclaration, Name, Type);
+INTROSPECTION_NS(pipeline, ContainerDeclaration, Name, Type, Role);
 template<>
-struct llvm::yaml::MappingTraits<pipeline::ContainerDeclaration>
-  : public TupleLikeMappingTraits<pipeline::ContainerDeclaration> {};
+struct llvm::yaml::MappingTraits<pipeline::ContainerDeclaration> {
+  static void mapping(IO &TheIO, pipeline::ContainerDeclaration &Info) {
+    TheIO.mapRequired("Name", Info.Name);
+    TheIO.mapRequired("Type", Info.Type);
+    TheIO.mapOptional("Role", Info.Role);
+  }
+};
 
 LLVM_YAML_IS_SEQUENCE_VECTOR(pipeline::ContainerDeclaration)
 

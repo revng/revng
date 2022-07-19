@@ -15,9 +15,12 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/Pipeline/Container.h"
+#include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Global.h"
 #include "revng/Pipeline/GlobalsMap.h"
 #include "revng/Pipeline/KindsRegistry.h"
+#include "revng/Support/Assert.h"
 
 namespace pipeline {
 
@@ -31,6 +34,8 @@ private:
   GlobalsMap Globals;
   llvm::StringMap<std::any> Contexts;
   KindsRegistry TheKindRegistry;
+
+  llvm::StringMap<const ContainerSet::value_type *> ReadOnlyContainers;
 
 private:
   explicit Context(KindsRegistry Registry) :
@@ -95,6 +100,28 @@ public:
   }
 
   const GlobalsMap &getGlobals() const { return Globals; }
+
+  void addReadOnlyContainer(llvm::StringRef Name,
+                            const ContainerSet::value_type &Entry) {
+    ReadOnlyContainers[Name] = &Entry;
+  }
+
+  bool containsReadOnlyContainer(llvm::StringRef Name) const {
+    return ReadOnlyContainers.count(Name)
+           and ReadOnlyContainers.find(Name)->second != nullptr;
+  }
+
+  bool hasRegisteredReadOnlyContainer(llvm::StringRef Name) const {
+    return ReadOnlyContainers.count(Name);
+  }
+
+  template<typename ContainerType>
+  const ContainerType &getReadOnlyContainer(llvm::StringRef Name) const {
+    revng_assert(containsReadOnlyContainer(Name));
+    auto *ToReturn = &*ReadOnlyContainers.find(Name)->second->second;
+    revng_assert(llvm::isa<ContainerType>(ToReturn));
+    return *llvm::cast<ContainerType>(ToReturn);
+  }
 
 public:
   llvm::Error storeToDisk(llvm::StringRef Path) const {

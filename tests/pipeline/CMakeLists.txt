@@ -106,6 +106,18 @@ test_pipeline_output(
   CopyPipeTestOutput.txt
   "${CMAKE_CURRENT_SOURCE_DIR}/CopyPipeTestExpected.txt")
 
+set(ROLE_COPY_PIPE_TEST_OUTPUTS "FirstStep:Strings2:RoleCopyPipeTestOutput.txt")
+
+test_pipeline_output(
+  role-pipeline-copy-pipe
+  RoleCopyPipeTestPipeline.yml
+  FirstStep:Strings2:Root:StringKind
+  "${COPY_PIPE_TEST_INPUTS}"
+  "${ROLE_COPY_PIPE_TEST_OUTPUTS}"
+  None
+  RoleCopyPipeTestOutput.txt
+  "${CMAKE_CURRENT_SOURCE_DIR}/CopyPipeTestExpected.txt")
+
 # Try to produce a target produced by a non-disabled pipe
 test_pipeline_output(
   pipeline-copy-pipe-flag

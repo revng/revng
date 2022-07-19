@@ -18,9 +18,10 @@ using namespace pipeline;
 using namespace std;
 using namespace llvm;
 
-llvm::Error Loader::parseStepDeclaration(Runner &Runner,
-                                         const StepDeclaration &Declaration,
-                                         std::string &LastAddedStep) const {
+Error Loader::parseStepDeclaration(Runner &Runner,
+                                   const StepDeclaration &Declaration,
+                                   std::string &LastAddedStep,
+                                   const vector<string> &ReadOnlyNames) const {
   auto &JustAdded = Runner.emplaceStep(LastAddedStep, Declaration.Name);
   LastAddedStep = Declaration.Name;
 
@@ -44,7 +45,9 @@ llvm::Error Loader::parseStepDeclaration(Runner &Runner,
     if (not isInvocationUsed(Invocation.EnabledWhen))
       continue;
 
-    if (auto MaybeInvocation = parseInvocation(JustAdded, Invocation);
+    if (auto MaybeInvocation = parseInvocation(JustAdded,
+                                               Invocation,
+                                               ReadOnlyNames);
         !MaybeInvocation)
       return MaybeInvocation.takeError();
     else
@@ -110,7 +113,9 @@ Loader::parseAnalysis(const AnalysisDeclaration &Declaration) const {
 }
 
 llvm::Expected<PipeWrapper>
-Loader::parseInvocation(Step &Step, const PipeInvocation &Invocation) const {
+Loader::parseInvocation(Step &Step,
+                        const PipeInvocation &Invocation,
+                        const std::vector<std::string> &ReadOnlyNames) const {
   if (Invocation.Type == "LLVMPipe")
     return parseLLVMPass(Invocation);
 
@@ -123,12 +128,49 @@ Loader::parseInvocation(Step &Step, const PipeInvocation &Invocation) const {
                              Invocation.Type.c_str());
   }
   auto &Entry = It->second;
+  for (const auto &ContainerName : Invocation.UsedContainers) {
+
+    if (llvm::find(ReadOnlyNames, ContainerName) == ReadOnlyNames.end())
+      continue;
+
+    if (PipelineContext->hasRegisteredReadOnlyContainer(ContainerName)) {
+      return createStringError(inconvertibleErrorCode(),
+                               "Detected two uses of read only container %s\n",
+                               ContainerName.c_str());
+    }
+
+    const auto &Container = *Step.containers().find(ContainerName);
+    PipelineContext->addReadOnlyContainer(ContainerName, Container);
+  }
+
   return Entry(Invocation.UsedContainers);
 }
 
 using BCDecl = ContainerDeclaration;
 Error Loader::parseContainerDeclaration(Runner &Pipeline,
-                                        const BCDecl &Dec) const {
+                                        const BCDecl &Dec,
+                                        vector<string> &ReadOnlyNames) const {
+  if (not Dec.Role.empty() and KnownContainerRoles.count(Dec.Role) == 0) {
+    auto *Message = "while parsing container declaration with Name %s has a "
+                    "unkown "
+                    "role %s.\n";
+    return createStringError(inconvertibleErrorCode(),
+                             Message,
+                             Dec.Name.c_str(),
+                             Dec.Role.c_str());
+  }
+
+  if (not Dec.Role.empty()
+      and KnownContainerRoles.find(Dec.Role)->second != Dec.Type) {
+    auto *Message = "while parsing container declaration with Name %s: "
+                    "role %s was not a valid role for container of type %s.\n";
+    return createStringError(inconvertibleErrorCode(),
+                             Message,
+                             Dec.Name.c_str(),
+                             Dec.Role.c_str(),
+                             Dec.Type.c_str());
+  }
+
   auto It = KnownContainerTypes.find(Dec.Type);
   if (It == KnownContainerTypes.end()) {
     auto *Message = "while parsing container declaration: No known container "
@@ -139,6 +181,8 @@ Error Loader::parseContainerDeclaration(Runner &Pipeline,
   }
   auto &Entry = It->second;
   Pipeline.addContainerFactory(Dec.Name, Entry);
+  if (not Dec.Role.empty())
+    ReadOnlyNames.push_back(Dec.Name);
 
   return Error::success();
 }
@@ -159,7 +203,9 @@ Loader::load(llvm::ArrayRef<std::string> Pipelines) const {
 }
 
 llvm::Error
-Loader::parseSteps(Runner &Runner, const BranchDeclaration &Declaration) const {
+Loader::parseSteps(Runner &Runner,
+                   const BranchDeclaration &Declaration,
+                   const std::vector<std::string> &ReadOnlyNames) const {
 
   std::string LastAddedStep = Declaration.From.empty() ? "begin" :
                                                          Declaration.From;
@@ -167,7 +213,11 @@ Loader::parseSteps(Runner &Runner, const BranchDeclaration &Declaration) const {
     if (not isInvocationUsed(Step.EnabledWhen))
       continue;
 
-    if (auto Error = parseStepDeclaration(Runner, Step, LastAddedStep); !!Error)
+    if (auto Error = parseStepDeclaration(Runner,
+                                          Step,
+                                          LastAddedStep,
+                                          ReadOnlyNames);
+        !!Error)
       return Error;
   }
   return llvm::Error::success();
@@ -175,9 +225,14 @@ Loader::parseSteps(Runner &Runner, const BranchDeclaration &Declaration) const {
 
 llvm::Error
 Loader::parseDeclarations(Runner &Runner,
-                          const PipelineDeclaration &Declaration) const {
+                          const PipelineDeclaration &Declaration,
+                          std::vector<std::string> &ReadOnlyNames) const {
+
   for (const auto &Container : Declaration.Containers)
-    if (auto Error = parseContainerDeclaration(Runner, Container); !!Error)
+    if (auto Error = parseContainerDeclaration(Runner,
+                                               Container,
+                                               ReadOnlyNames);
+        !!Error)
       return Error;
   return llvm::Error::success();
 }
@@ -231,14 +286,16 @@ Loader::load(llvm::ArrayRef<PipelineDeclaration> Pipelines) const {
   if (auto Error = sortPipeline(ToSort); Error)
     return std::move(Error);
 
+  std::vector<std::string> ReadOnlyNames;
   for (const auto &Declaration : Pipelines)
-    if (auto Error = parseDeclarations(ToReturn, Declaration); Error)
+    if (auto Error = parseDeclarations(ToReturn, Declaration, ReadOnlyNames);
+        Error)
       return std::move(Error);
 
   ToReturn.emplaceStep("", "begin");
 
   for (const auto *Declaration : ToSort)
-    if (auto Error = parseSteps(ToReturn, *Declaration); Error)
+    if (auto Error = parseSteps(ToReturn, *Declaration, ReadOnlyNames); Error)
       return std::move(Error);
 
   for (const auto &Declaration : Pipelines)

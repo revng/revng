@@ -56,4 +56,26 @@ public:
   void libraryInitialization() override {}
 };
 
+/// Instantiate a global object of this class
+/// for each role you wish to create.
+class RegisterRole : Registry {
+private:
+  llvm::StringRef Name;
+  llvm::StringRef Role;
+
+public:
+  RegisterRole(llvm::StringRef Name, llvm::StringRef Role) :
+    Name(Name), Role(Role) {}
+
+  ~RegisterRole() override = default;
+
+public:
+  void registerContainersAndPipes(Loader &Loader) override {
+    Loader.addContainerRole(Name, Role);
+  }
+
+  void registerKinds(KindsRegistry &KindDictionary) override {}
+  void libraryInitialization() override {}
+};
+
 } // namespace pipeline
