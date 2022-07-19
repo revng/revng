@@ -29,6 +29,8 @@ bool InjectStackSizeProbesAtCallSitesPass::runOnModule(llvm::Module &M) {
   F->addFnAttr(Attribute::InaccessibleMemOnly);
 
   for (Function &F : FunctionTags::Isolated.functions(&M)) {
+    if (F.isDeclaration())
+      continue;
     setInsertPointToFirstNonAlloca(B, F);
 
     auto *SP0 = B.CreateLoad(SP);

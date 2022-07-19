@@ -494,6 +494,8 @@ private:
   }
 
   void segregateStackAccesses(Function &F) {
+    if (F.isDeclaration())
+      return;
 
     setInsertPointToFirstNonAlloca(SABuilder, F);
 
