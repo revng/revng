@@ -54,24 +54,35 @@ static std::string labelAddress(const MetaAddress &Address) {
   return Result;
 }
 
+static std::string link(const MetaAddress &TargetAddress,
+                        const yield::Function &Function,
+                        const model::Binary &Binary) {
+  if (auto Iterator = Binary.Functions.find(TargetAddress);
+      Iterator != Binary.Functions.end()) {
+    return Iterator->name().str().str();
+  } else if (auto Iterator = Function.ControlFlowGraph.find(TargetAddress);
+             Iterator != Function.ControlFlowGraph.end()) {
+    return "basic_block_at_" + labelAddress(TargetAddress);
+  } else if (TargetAddress.isValid()) {
+    return "instruction_at_" + labelAddress(TargetAddress);
+  } else {
+    return "unknown location";
+  }
+}
+
 static std::string label(const yield::BasicBlock &BasicBlock,
                          const yield::Function &Function,
                          const model::Binary &Binary) {
-  std::string LabelName;
-  std::string FunctionPath;
-  if (auto Iterator = Binary.Functions.find(BasicBlock.Start);
-      Iterator != Binary.Functions.end()) {
-    LabelName = Iterator->name().str().str();
-    FunctionPath = "/Functions/" + Iterator->stringKey() + "/CustomName";
-  } else {
-    LabelName = "basic_block_at_" + labelAddress(BasicBlock.Start);
-  }
   using model::Architecture::getAssemblyLabelIndicator;
   auto LabelIndicator = getAssemblyLabelIndicator(Binary.Architecture);
-  Tag LabelTag(tags::Span, LabelName);
+  Tag LabelTag(tags::Span, link(BasicBlock.Start, Function, Binary));
   LabelTag.add(attributes::token, tokenTypes::Label);
-  if (!FunctionPath.empty())
-    LabelTag.add(attributes::modelEditPath, FunctionPath);
+
+  if (auto Iterator = Binary.Functions.find(BasicBlock.Start);
+      Iterator != Binary.Functions.end()) {
+    LabelTag.add(attributes::modelEditPath,
+                 "/Functions/" + Iterator->Entry.toString() + "/CustomName");
+  }
 
   return LabelTag.serialize()
          + Tag(tags::Span, LabelIndicator)
@@ -80,7 +91,8 @@ static std::string label(const yield::BasicBlock &BasicBlock,
 }
 
 static std::string indent() {
-  return Tag(tags::Span, "  ")
+  using namespace std::string_literals;
+  return Tag(tags::Span, "  "s)
     .add(attributes::scope, ptmlScopes::Indentation)
     .serialize();
 }
@@ -96,13 +108,13 @@ static std::string targetPath(const MetaAddress &Target,
              Iterator != Function.ControlFlowGraph.end()) {
     // The target is a basic block
     return "/basic-block/" + Function.stringKey() + "/"
-           + Iterator->Start.toString();
+           + Iterator->stringKey();
   } else if (Target.isValid()) {
     for (auto BasicBlock : Function.ControlFlowGraph) {
       for (auto Instruction : BasicBlock.Instructions) {
         if (Instruction.Address == Target) {
           return "/instruction/" + Function.stringKey() + "/"
-                 + BasicBlock.Start.toString() + "/" + Target.toString();
+                 + BasicBlock.stringKey() + "/" + Target.toString();
         }
       }
     }
@@ -113,31 +125,15 @@ static std::string targetPath(const MetaAddress &Target,
 static std::set<std::string> targets(const yield::BasicBlock &BasicBlock,
                                      const yield::Function &Function,
                                      const model::Binary &Binary) {
-
-  static const efa::ParsedSuccessor UnknownTarget{
-    .NextInstructionAddress = MetaAddress::invalid(),
-    .OptionalCallAddress = MetaAddress::invalid()
-  };
-
   std::set<std::string> Result;
   for (const auto &Edge : BasicBlock.Successors) {
-    auto TargetPair = efa::parseSuccessor(*Edge, BasicBlock.End, Binary);
-    if (TargetPair.NextInstructionAddress.isValid()) {
-      std::string Path = targetPath(TargetPair.NextInstructionAddress,
-                                    Function,
-                                    Binary);
-      if (!Path.empty()) {
-        Result.insert(Path);
-      }
-    }
-    if (TargetPair.OptionalCallAddress.isValid()) {
-      std::string Path = targetPath(TargetPair.OptionalCallAddress,
-                                    Function,
-                                    Binary);
-      if (!Path.empty()) {
-        Result.insert(Path);
-      }
-    }
+    auto [Next, Call] = efa::parseSuccessor(*Edge, BasicBlock.End, Binary);
+    if (Next.has_value() && Next->isValid())
+      if (auto Path = targetPath(*Next, Function, Binary); !Path.empty())
+        Result.insert(std::move(Path));
+    if (Call.has_value() && Call->isValid())
+      if (auto Path = targetPath(*Call, Function, Binary); !Path.empty())
+        Result.insert(std::move(Path));
   }
 
   return Result;
@@ -206,6 +202,137 @@ static std::string taggedText(const yield::Instruction &Instruction) {
   return Result;
 }
 
+static std::string bytes(const yield::ByteContainer &Bytes,
+                         size_t Limit = std::numeric_limits<size_t>::max()) {
+  std::string Result;
+  llvm::raw_string_ostream FormattingStream(Result);
+
+  bool NeedsSpace = false;
+  for (const auto &Byte : llvm::ArrayRef<uint8_t>{ Bytes }.take_front(Limit)) {
+    if (NeedsSpace)
+      FormattingStream << "&nbsp;";
+    else
+      NeedsSpace = true;
+
+    llvm::write_hex(FormattingStream, Byte, llvm::HexPrintStyle::Upper, 2);
+  }
+
+  if (Bytes.size() > Limit)
+    FormattingStream << "&nbsp;[...]";
+
+  FormattingStream.flush();
+  return Result;
+}
+
+static std::string targetTypes(const MetaAddress &NextAddress,
+                               const yield::BasicBlock &BasicBlock,
+                               const yield::Function &Function,
+                               const model::Binary &Binary) {
+  std::string Result;
+
+  revng_assert(NextAddress.isValid());
+  for (const auto &Edge : BasicBlock.Successors) {
+    auto [Next, Call] = efa::parseSuccessor(*Edge, BasicBlock.End, Binary);
+    if (Call.has_value()) {
+      // The target is a call.
+      if (Call->isValid()) {
+        // The call is direct.
+        if (Next.has_value()) {
+          revng_assert(Next->isValid());
+          Result += "call:";
+          if (Next.value() == NextAddress)
+            Result += "the next instruction:";
+          else
+            Result += link(*Next, Function, Binary) + ":";
+          Result += link(*Call, Function, Binary) + ",";
+        } else {
+          Result += "noreturn-call:" + link(*Call, Function, Binary) + ",";
+        }
+      } else {
+        // The call is indirect.
+        if (Next.has_value()) {
+          revng_assert(Next->isValid());
+          Result += "indirect-call:";
+          if (Next.value() == NextAddress)
+            Result += "the next instruction,";
+          else
+            Result += link(*Next, Function, Binary) + ",";
+        } else {
+          Result += "indirect-noreturn-call,";
+        }
+      }
+    } else {
+      // The target is not a call.
+      if (Next.has_value()) {
+        // The target is a branch.
+        if (Next->isValid()) {
+          if (Next.value() == NextAddress)
+            Result += "jump:the next instruction,";
+          else
+            Result += "jump:" + link(*Next, Function, Binary) + ",";
+        } else {
+          Result += "indirect-jump,";
+        }
+      } else {
+        Result += "indirect-jump,";
+      }
+    }
+  }
+
+  Result.erase(Result.size() - 1);
+  return Result;
+}
+
+static std::string metadata(const yield::Instruction &Instruction,
+                            const yield::BasicBlock &BasicBlock,
+                            const yield::Function &Function,
+                            const model::Binary &Binary,
+                            bool AddTargets = false) {
+  std::string Result = scopes::Instruction;
+  MetaAddress NextAddress = MetaAddress::invalid();
+
+  static constexpr auto Separator = "|";
+  Result += Separator;
+
+  // The next instruction address.
+  auto Iterator = BasicBlock.Instructions.find(Instruction.Address);
+  revng_assert(Iterator != BasicBlock.Instructions.end());
+  if (std::next(Iterator) != BasicBlock.Instructions.end()) {
+    if (!BasicBlock.HasDelaySlot
+        || std::next(Iterator, 2) != BasicBlock.Instructions.end()) {
+      NextAddress = std::next(Iterator)->Address;
+    }
+  }
+  if (NextAddress.isInvalid())
+    NextAddress = BasicBlock.End;
+
+  // Raw instruction bytes.
+  Result += bytes(Instruction.RawBytes);
+  Result += Separator;
+
+  // Comment indicator.
+  using model::Architecture::getAssemblyCommentIndicator;
+  Result += getAssemblyCommentIndicator(Binary.Architecture);
+  Result += Separator;
+
+  // Extra information.
+  Result += Instruction.OpcodeIdentifier + Separator;
+  Result += Instruction.Error + Separator;
+  Result += Instruction.Comment + Separator;
+
+  // "Delayed" notice if applicable.
+  if (BasicBlock.HasDelaySlot
+      && std::next(Iterator) == BasicBlock.Instructions.end())
+    Result += "delayed";
+  Result += Separator;
+
+  // Target type annotation.
+  if (AddTargets)
+    Result += targetTypes(NextAddress, BasicBlock, Function, Binary);
+
+  return Result;
+}
+
 static std::string instruction(const yield::Instruction &Instruction,
                                const yield::BasicBlock &BasicBlock,
                                const yield::Function &Function,
@@ -220,43 +347,50 @@ static std::string instruction(const yield::Instruction &Instruction,
               .add(attributes::scope, scopes::Instruction)
               .add(attributes::locationDefinition,
                    "/instruction/" + Function.stringKey() + "/"
-                     + BasicBlock.Start.toString() + "/"
-                     + Instruction.Address.toString());
+                     + BasicBlock.stringKey() + "/"
+                     + Instruction.Address.toString())
+              .add(attributes::htmlExclusiveMetadata,
+                   metadata(Instruction,
+                            BasicBlock,
+                            Function,
+                            Binary,
+                            AddTargets));
 
   if (AddTargets) {
     auto Targets = targets(BasicBlock, Function, Binary);
     Out.add(attributes::locationReferences, Targets);
   }
 
-  return Out.serialize();
+  return Out.serialize() + '\n';
 }
 
 static std::string basicBlock(const yield::BasicBlock &BasicBlock,
                               const yield::Function &Function,
-                              const model::Binary &Binary,
-                              std::string Label) {
+                              const model::Binary &Bin,
+                              std::string &&Label) {
   revng_assert(!BasicBlock.Instructions.empty());
-  auto FromIterator = BasicBlock.Instructions.begin();
-  auto ToIterator = std::prev(BasicBlock.Instructions.end());
+  auto Begin = BasicBlock.Instructions.begin();
+  auto End = std::prev(BasicBlock.Instructions.end());
   if (BasicBlock.HasDelaySlot) {
     revng_assert(BasicBlock.Instructions.size() > 1);
-    --ToIterator;
+    std::advance(End, -1);
   }
 
   std::string Result;
-  for (auto Iterator = FromIterator; Iterator != ToIterator; ++Iterator) {
-    Result += indent() + instruction(*Iterator, BasicBlock, Function, Binary)
-              + "\n";
-  }
-  Result += indent()
-            + instruction(*(ToIterator++), BasicBlock, Function, Binary, true)
-            + "\n";
+  for (auto Iterator = Begin; Iterator != End; ++Iterator)
+    Result += indent() + instruction(*Iterator, BasicBlock, Function, Bin);
+  Result += indent() + instruction(*(End++), BasicBlock, Function, Bin, true);
+  if (BasicBlock.HasDelaySlot)
+    Result += indent() + instruction(*(End++), BasicBlock, Function, Bin);
 
-  return Tag(tags::Div, Label + (Label.empty() ? "" : "\n") + Result)
+  if (!Label.empty())
+    Label += '\n';
+
+  return Tag(tags::Div, std::move(Label) += std::move(Result))
     .add(attributes::scope, scopes::BasicBlock)
     .add(attributes::locationDefinition,
          "/basic-block/" + Function.stringKey() + "/"
-           + BasicBlock.Start.toString())
+           + BasicBlock.stringKey())
     .serialize();
 }
 
@@ -268,7 +402,7 @@ static std::string labeledBlock(const yield::BasicBlock &FirstBlock,
   std::string Label = label(FirstBlock, Function, Binary);
 
   if constexpr (ShouldMergeFallthroughTargets == false) {
-    Result = basicBlock(FirstBlock, Function, Binary, std::move(Label)) + "\n";
+    Result = basicBlock(FirstBlock, Function, Binary, std::move(Label));
   } else {
     auto BasicBlocks = yield::cfg::labeledBlock(FirstBlock, Function, Binary);
     if (BasicBlocks.empty())
@@ -276,13 +410,13 @@ static std::string labeledBlock(const yield::BasicBlock &FirstBlock,
 
     bool IsFirst = true;
     for (const auto &BasicBlock : BasicBlocks) {
-      Result += basicBlock(*BasicBlock, Function, Binary, IsFirst ? Label : "");
+      std::string L = IsFirst ? std::move(Label) : "";
+      Result += basicBlock(*BasicBlock, Function, Binary, std::move(L));
       IsFirst = false;
     }
-    Result += "\n";
   }
 
-  return Result;
+  return Result += '\n';
 }
 
 std::string yield::html::functionAssembly(const yield::Function &Function,
