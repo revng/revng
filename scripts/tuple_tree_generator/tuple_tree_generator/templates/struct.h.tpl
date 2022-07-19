@@ -123,6 +123,13 @@ struct /*= struct.fullname =*/
       /**- endfor -**/
     };
   }
+
+  std::string stringKey() const {
+    return /** for key_field in struct.key_fields -**/
+    /*= key_field | string_converter =*//** if not loop.last **/ + "-" + /** endif **/
+    /**- endfor -**/;
+  }
+
   bool operator==(const /*= struct.name =*/ &Other) const { return key() == Other.key(); }
   bool operator<(const /*= struct.name =*/ &Other) const { return key() < Other.key(); }
   bool operator>(const /*= struct.name =*/ &Other) const { return key() > Other.key(); }
