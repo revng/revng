@@ -49,12 +49,12 @@ static void analyzeBasicBlocks(yield::Function &Function,
   for (const efa::BasicBlock &BasicBlock : Metadata.ControlFlowGraph) {
     for (const auto &Edge : BasicBlock.Successors) {
       auto [NextBlock, _] = efa::parseSuccessor(*Edge, BasicBlock.End, Binary);
-      if (NextBlock.isInvalid()) {
+      if (!NextBlock.has_value() || NextBlock->isInvalid()) {
         // Ignore edges with unknown destinations (like indirect jumps).
         continue;
       }
 
-      auto Iterator = Predecessors.find(NextBlock);
+      auto Iterator = Predecessors.find(NextBlock.value());
       if (Iterator != Predecessors.end()) {
         if (Iterator->second.has_value()) {
           // This basic block already has a predecessor, remove it.

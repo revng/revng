@@ -26,8 +26,8 @@ concept IsBasicBlock = requires {
 };
 
 struct ParsedSuccessor {
-  MetaAddress NextInstructionAddress;
-  MetaAddress OptionalCallAddress;
+  std::optional<MetaAddress> NextInstructionAddress;
+  std::optional<MetaAddress> OptionalCallAddress;
 };
 
 inline ParsedSuccessor parseSuccessor(const efa::FunctionEdgeBase &Edge,
@@ -43,7 +43,7 @@ inline ParsedSuccessor parseSuccessor(const efa::FunctionEdgeBase &Edge,
   case FunctionEdgeType::LongJmp:
   case FunctionEdgeType::Unreachable:
     return ParsedSuccessor{ .NextInstructionAddress = Edge.Destination,
-                            .OptionalCallAddress = MetaAddress::invalid() };
+                            .OptionalCallAddress = std::nullopt };
 
   case FunctionEdgeType::FunctionCall:
   case FunctionEdgeType::IndirectCall:
@@ -52,13 +52,13 @@ inline ParsedSuccessor parseSuccessor(const efa::FunctionEdgeBase &Edge,
       return ParsedSuccessor{ .NextInstructionAddress = FallthroughAddress,
                               .OptionalCallAddress = Edge.Destination };
     } else {
-      return ParsedSuccessor{ .NextInstructionAddress = MetaAddress::invalid(),
+      return ParsedSuccessor{ .NextInstructionAddress = std::nullopt,
                               .OptionalCallAddress = Edge.Destination };
     }
 
   case FunctionEdgeType::Killer:
-    return ParsedSuccessor{ .NextInstructionAddress = MetaAddress::invalid(),
-                            .OptionalCallAddress = MetaAddress::invalid() };
+    return ParsedSuccessor{ .NextInstructionAddress = std::nullopt,
+                            .OptionalCallAddress = std::nullopt };
 
   default:
   case FunctionEdgeType::Invalid:
@@ -117,8 +117,8 @@ buildControlFlowGraph(const Container<BasicBlockType, OtherTs...> &BasicBlocks,
 
     for (const auto &Edge : Block.Successors) {
       auto [NextInstruction, _] = parseSuccessor(*Edge, Block.End, Binary);
-      if (NextInstruction.isValid()) {
-        auto ToNodeIterator = AddressToNodeMap.find(NextInstruction);
+      if (NextInstruction.has_value() && NextInstruction->isValid()) {
+        auto ToNodeIterator = AddressToNodeMap.find(NextInstruction.value());
         revng_assert(ToNodeIterator != AddressToNodeMap.end());
         FromNodeIterator->second->addSuccessor(ToNodeIterator->second);
       } else {
