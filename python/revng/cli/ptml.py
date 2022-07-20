@@ -14,6 +14,8 @@ from xml.dom.minidom import Document, parseString
 
 import yaml
 
+from .commands_registry import Command, Options, commands_registry
+
 try:
     from rich.console import Console
 
@@ -187,81 +189,84 @@ def cmd_strip(args):
         args.output.write(result)
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Tool to manipulate PTML files")
-    subparsers = parser.add_subparsers(title="Subcommands", metavar="")
+class PTMLCommand(Command):
+    def __init__(self):
+        super().__init__(("ptml",), "Tool to manipulate PTML files", True)
 
-    parser_cat = subparsers.add_parser("cat", help="Print the ptml on the console")
-    parser_cat_filter = parser_cat.add_mutually_exclusive_group()
-    parser_cat_filter.add_argument(
-        "-f",
-        "--filter",
-        type=str,
-        action="append",
-        default=[],
-        required=False,
-        help="Only show the keys specified (if present)",
-    )
-    parser_cat_filter.add_argument(
-        "-e", "--extract", type=str, required=False, help="Extract the specified key"
-    )
-    parser_cat_color = parser_cat.add_mutually_exclusive_group()
-    parser_cat_color.add_argument(
-        "-p", "--plain", action="store_true", help="Force plaintext output"
-    )
-    parser_cat_color.add_argument("-c", "--color", action="store_true", help="Force color output")
-    parser_cat.add_argument(
-        "input",
-        type=argparse.FileType("r"),
-        default=sys.stdin,
-        nargs="?",
-        help="Input file (stdin if omitted)",
-    )
-    parser_cat.set_defaults(func=cmd_cat)
+    def register_arguments(self, parser):
+        subparsers = parser.add_subparsers(title="Subcommands", metavar="")
 
-    parser_strip = subparsers.add_parser("strip", help="Strip PTML from a file")
-    parser_strip_filter = parser_strip.add_mutually_exclusive_group()
-    parser_strip_filter.add_argument(
-        "-f",
-        "--filter",
-        type=str,
-        action="append",
-        default=[],
-        required=False,
-        help="Only show the keys specified (if present)",
-    )
-    parser_strip_filter.add_argument(
-        "-e", "--extract", type=str, required=False, help="Extract the specified key"
-    )
-    parser_strip.add_argument(
-        "input",
-        type=argparse.FileType("r+"),
-        default=sys.stdin,
-        nargs="?",
-        help="Input file (stdin if omitted)",
-    )
-    parser_strip_out = parser_strip.add_mutually_exclusive_group()
-    parser_strip_out.add_argument("-i", "--inplace", action="store_true", help="Strip inplace")
-    parser_strip_out.add_argument(
-        "output",
-        type=argparse.FileType("w"),
-        default=sys.stdout,
-        nargs="?",
-        help="Output file (stdout if omitted)",
-    )
-    parser_strip.set_defaults(func=cmd_strip)
+        parser_cat = subparsers.add_parser("cat", help="Print the ptml on the console")
+        parser_cat_filter = parser_cat.add_mutually_exclusive_group()
+        parser_cat_filter.add_argument(
+            "-f",
+            "--filter",
+            type=str,
+            action="append",
+            default=[],
+            required=False,
+            help="Only show the keys specified (if present)",
+        )
+        parser_cat_filter.add_argument(
+            "-e", "--extract", type=str, required=False, help="Extract the specified key"
+        )
+        parser_cat_color = parser_cat.add_mutually_exclusive_group()
+        parser_cat_color.add_argument(
+            "-p", "--plain", action="store_true", help="Force plaintext output"
+        )
+        parser_cat_color.add_argument(
+            "-c", "--color", action="store_true", help="Force color output"
+        )
+        parser_cat.add_argument(
+            "input",
+            type=argparse.FileType("r"),
+            default=sys.stdin,
+            nargs="?",
+            help="Input file (stdin if omitted)",
+        )
+        parser_cat.set_defaults(func=cmd_cat)
 
-    args = parser.parse_args()
-    args.func(args)
+        parser_strip = subparsers.add_parser("strip", help="Strip PTML from a file")
+        parser_strip_filter = parser_strip.add_mutually_exclusive_group()
+        parser_strip_filter.add_argument(
+            "-f",
+            "--filter",
+            type=str,
+            action="append",
+            default=[],
+            required=False,
+            help="Only show the keys specified (if present)",
+        )
+        parser_strip_filter.add_argument(
+            "-e", "--extract", type=str, required=False, help="Extract the specified key"
+        )
+        parser_strip.add_argument(
+            "input",
+            type=argparse.FileType("r+"),
+            default=sys.stdin,
+            nargs="?",
+            help="Input file (stdin if omitted)",
+        )
+        parser_strip_out = parser_strip.add_mutually_exclusive_group()
+        parser_strip_out.add_argument("-i", "--inplace", action="store_true", help="Strip inplace")
+        parser_strip_out.add_argument(
+            "output",
+            type=argparse.FileType("w"),
+            default=sys.stdout,
+            nargs="?",
+            help="Output file (stdout if omitted)",
+        )
+        parser_strip.set_defaults(func=cmd_strip)
+
+    def run(self, options: Options):
+        def new_unraisablehook(arg):
+            if arg.exc_type != BrokenPipeError:
+                sys.__unraisablehook__(arg)
+
+        sys.unraisablehook = new_unraisablehook
+
+        with suppress(BrokenPipeError, KeyboardInterrupt):
+            options.parsed_args.func(options.parsed_args)
 
 
-if __name__ == "__main__":
-
-    def new_unraisablehook(arg):
-        if arg.exc_type != BrokenPipeError:
-            sys.__unraisablehook__(arg)
-
-    sys.unraisablehook = new_unraisablehook
-
-    with suppress(BrokenPipeError, KeyboardInterrupt):
-        main()
+commands_registry.register_command(PTMLCommand())
