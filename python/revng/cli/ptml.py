@@ -5,6 +5,7 @@
 #
 
 import argparse
+import os
 import re
 import sys
 from contextlib import suppress
@@ -153,6 +154,18 @@ def _cat_ptml_color(node: Document, console, indent: str, metadata: Dict[str, st
             pass
 
 
+def fix_url(string: str):
+    forbidden_charactes = {" ", ":", "!", "#", "?", "<", ">", "/", "\\", "{", "}", "[", "]"}
+
+    output = ""
+    for char in string:
+        if char in forbidden_charactes:
+            output = output + "_"
+        else:
+            output = output + char
+    return output
+
+
 def cmd_cat(args):
     if args.color and not color:
         print("Module 'rich' not found, please install it to use color mode")
@@ -187,6 +200,23 @@ def cmd_strip(args):
         args.input.write(result)
     else:
         args.output.write(result)
+
+
+def cmd_export(args):
+    for address, ptml in yaml.safe_load(args.input).items():
+        os.makedirs(os.path.dirname(args.output_directory), exist_ok=True)
+        with open(args.output_directory + fix_url(address) + ".html", "w") as file:
+            file.write('<!DOCTYPE html><html lang="en-US"><head>')
+            file.write("<title>" + fix_url(address) + "</title>")
+            file.write('<meta charset="utf-8">')
+            file.write('<link rel="icon" href="https://rev.ng/favicon.ico">')
+            file.write('<link href="../style/assembly.css" rel="stylesheet">')
+            file.write('<link href="../style/control-flow.css" rel="stylesheet">')
+            file.write('<script src="../script/assembly.js" defer></script>')
+            file.write('<script src="../script/labeled-blocks.js" defer></script>')
+            file.write("</head><body>")
+            file.write(ptml)
+            file.write("</body></html>")
 
 
 class PTMLCommand(Command):
@@ -257,6 +287,30 @@ class PTMLCommand(Command):
             help="Output file (stdout if omitted)",
         )
         parser_strip.set_defaults(func=cmd_strip)
+
+        parser_export = subparsers.add_parser("export", help="export PTML into normal HTML")
+        parser_export.add_argument(
+            "input",
+            metavar="<input ptml.yml>",
+            type=argparse.FileType("r+"),
+            default=sys.stdin,
+            nargs="?",
+            help="Input file (stdin if omitted)",
+        )
+        parser_export.add_argument(
+            "output_directory",
+            metavar="<output directory>",
+            type=str,
+            default=".",
+            help="Specifies the directory where to output the pages to",
+        )
+        parser_export.add_argument(
+            "--keep-temporaries",
+            action="store_true",
+            help="Prevents temporary directories from being deleted after the script execution",
+            dest="keep_temporaries",
+        )
+        parser_export.set_defaults(func=cmd_export)
 
     def run(self, options: Options):
         def new_unraisablehook(arg):
