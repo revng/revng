@@ -5,8 +5,8 @@
 Containers:
   - Name: assembly-internal.yml
     Type: FunctionAssemblyInternal
-  - Name: assembly-html.yml
-    Type: FunctionAssemblyHTML
+  - Name: assembly-ptml.yml
+    Type: FunctionAssemblyPTML
 Branches:
   - From: Isolate
     Steps:
@@ -17,8 +17,8 @@ Branches:
       - Name: YieldAssembly
         Pipes:
           - Type: yield-assembly
-            UsedContainers: [assembly-internal.yml, assembly-html.yml]
+            UsedContainers: [assembly-internal.yml, assembly-ptml.yml]
         Artifacts:
-          Container: assembly-html.yml
-          Kind: FunctionAssemblyHTML
+          Container: assembly-ptml.yml
+          Kind: FunctionAssemblyPTML
           SingleTargetFilename: disassembly.S

@@ -14,7 +14,7 @@
 #include "revng/Pipes/Yield/YieldAssemblyPipe.h"
 #include "revng/Yield/Assembly/DisassemblyHelper.h"
 #include "revng/Yield/Function.h"
-#include "revng/Yield/HTML.h"
+#include "revng/Yield/PTML.h"
 
 namespace revng::pipes {
 
@@ -85,7 +85,7 @@ void YieldAssemblyPipe::run(pipeline::Context &Context,
     revng_assert((*MaybeFunction)->Entry == Address);
 
     Output.insert_or_assign((*MaybeFunction)->Entry,
-                            yield::html::functionAssembly(**MaybeFunction,
+                            yield::ptml::functionAssembly(**MaybeFunction,
                                                           *Model));
   }
 }
@@ -100,7 +100,7 @@ std::array<pipeline::ContractGroup, 1> YieldAssemblyPipe::getContract() const {
   return { pipeline::ContractGroup(FunctionAssemblyInternal,
                                    pipeline::Exactness::Exact,
                                    0,
-                                   FunctionAssemblyHTML,
+                                   FunctionAssemblyPTML,
                                    1,
                                    pipeline::InputPreservation::Preserve) };
 }
@@ -112,9 +112,9 @@ static revng::pipes::RegisterFunctionStringMap
                     "application/x.yaml.function-assembly.internal",
                     revng::pipes::FunctionAssemblyInternal);
 static revng::pipes::RegisterFunctionStringMap
-  HTMLContainer("FunctionAssemblyHTML",
-                "application/x.yaml.function-assembly.html-body",
-                revng::pipes::FunctionAssemblyHTML);
+  PTMLContainer("FunctionAssemblyPTML",
+                "application/x.yaml.function-assembly.ptml-body",
+                revng::pipes::FunctionAssemblyPTML);
 
 static pipeline::RegisterPipe<revng::pipes::ProcessAssemblyPipe> ProcessPipe;
 static pipeline::RegisterPipe<revng::pipes::YieldAssemblyPipe> YieldPipe;

@@ -12,7 +12,7 @@
 #include "revng/Yield/ControlFlow/Extraction.h"
 #include "revng/Yield/ControlFlow/NodeSizeCalculation.h"
 #include "revng/Yield/Graph.h"
-#include "revng/Yield/HTML.h"
+#include "revng/Yield/PTML.h"
 #include "revng/Yield/SVG.h"
 #include "revng/Yield/Support/SugiyamaStyleGraphLayout.h"
 
@@ -141,7 +141,7 @@ static std::string content(const yield::Node *Node,
 
   if (Node->Address.isValid()) {
     // A normal node.
-    return yield::html::controlFlowNode(Node->Address, Function, Binary);
+    return yield::ptml::controlFlowNode(Node->Address, Function, Binary);
   } else {
     // The entry/exit/error node.
     return "";

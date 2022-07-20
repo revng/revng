@@ -6,7 +6,7 @@ revng_add_analyses_library_internal(
   revngYield
   SHARED
   Assembly/DisassemblyHelper.cpp
-  Assembly/HTML.cpp
+  Assembly/PTML.cpp
   Assembly/LLVMDisassemblerInterface.cpp
   Assembly/Plain.cpp
   ControlFlow/Extraction.cpp
@@ -45,7 +45,7 @@ llvm_map_components_to_libnames(
   ${DISASSEMBLER_ARCHITECTURE_SUPPORT})
 
 target_link_libraries(revngYield revngEarlyFunctionAnalysis revngModelPasses
-                      revngSupport ${LLVM_LIBRARIES})
+                      revngPTML revngSupport ${LLVM_LIBRARIES})
 
 set(INTERNAL_ASSEMBLY_HEADERS "${CMAKE_SOURCE_DIR}/include/revng/Yield")
 target_tuple_tree_generator(
