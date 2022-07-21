@@ -87,61 +87,23 @@ python_module(TARGET_NAME revng-dump-model MODULE_FILES
               ${DUMP_MODEL_MODULE_FILES})
 
 #
-# Install revng.cli.support
+# Install revng.cli
 #
-python_module(TARGET_NAME revng-python-cli-support MODULE_FILES
-              "revng/cli/support.py")
+set(REVNG_CLI_MODULE_FILES revng/cli/commands_registry.py revng/cli/__init__.py
+                           revng/cli/revng.py revng/cli/support.py)
+python_module(TARGET_NAME revng-python-cli MODULE_FILES
+              ${REVNG_CLI_MODULE_FILES})
 
 #
-# Install revng.cli.translate
+# Install revng.cli._commands
 #
-python_module(TARGET_NAME revng-python-translate MODULE_FILES
-              "revng/cli/translate.py")
-
-#
-# Install revng.cli.lift
-#
-python_module(TARGET_NAME revng-python-lift MODULE_FILES "revng/cli/lift.py")
-
-#
-# Install revng.cli.opt
-#
-python_module(TARGET_NAME revng-python-opt MODULE_FILES "revng/cli/opt.py")
-
-#
-# Install revng.cli.revng
-#
-python_module(TARGET_NAME revng-python-revng MODULE_FILES "revng/cli/revng.py")
-
-#
-# Install revng.cli.revng
-#
-python_module(TARGET_NAME revng-python-pipeline MODULE_FILES
-              "revng/cli/pipeline.py")
-
-#
-# Install revng.cli.commands_registry
-#
-python_module(TARGET_NAME revng-python-commands_registry MODULE_FILES
-              "revng/cli/commands_registry.py")
-
-#
-# Install revng.cli.llvm_pipeline
-#
-python_module(TARGET_NAME revng-python-llvm_pipeline MODULE_FILES
-              "revng/cli/llvm_pipeline.py")
-
-#
-# Install revng.cli.override_by_name
-#
-python_module(TARGET_NAME revng-python-override_by_name MODULE_FILES
-              "revng/cli/override_by_name.py")
-
-#
-# Install revng.cli.daemon
-#
-python_module(TARGET_NAME revng-python-cmd-daemon MODULE_FILES
-              "revng/cli/daemon.py")
+set(REVNG_CLI_COMMANDS_MODULE_FILES
+    revng/cli/_commands/translate.py revng/cli/_commands/lift.py
+    revng/cli/_commands/opt.py revng/cli/_commands/pipeline.py
+    revng/cli/_commands/llvm_pipeline.py
+    revng/cli/_commands/override_by_name.py revng/cli/_commands/daemon.py)
+python_module(TARGET_NAME revng-python-cli-commands MODULE_FILES
+              ${REVNG_CLI_COMMANDS_MODULE_FILES})
 
 #
 # Install revng.api

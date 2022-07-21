@@ -6,9 +6,9 @@ import sys
 from shutil import copyfileobj
 from tempfile import NamedTemporaryFile
 
-from .commands_registry import Command, Options, commands_registry
-from .revng import run_revng_command
-from .support import log_error
+from revng.cli.commands_registry import Command, Options
+from revng.cli.revng import run_revng_command
+from revng.cli.support import log_error
 
 
 class IRPipelineCommand(Command):
@@ -72,6 +72,3 @@ class IRPipelineCommand(Command):
                 ["model", "inject", model.name, module.name, "-o", args.output], options
             )
         return 0
-
-
-commands_registry.register_command(IRPipelineCommand())

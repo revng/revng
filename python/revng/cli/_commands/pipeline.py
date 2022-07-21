@@ -2,8 +2,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-from .commands_registry import Command, Options, commands_registry
-from .support import build_command_with_loads, collect_files, interleave, run
+from revng.cli.commands_registry import Command, Options
+from revng.cli.support import build_command_with_loads, collect_files, interleave, run
 
 
 class PipelineCommand(Command):
@@ -20,6 +20,3 @@ class PipelineCommand(Command):
             "revng-pipeline", pipelines_args + options.remaining_args, options
         )
         return run(command, options)
-
-
-commands_registry.register_command(PipelineCommand())
