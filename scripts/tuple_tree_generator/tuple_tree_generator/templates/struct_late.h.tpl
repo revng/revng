@@ -76,7 +76,7 @@ struct llvm::yaml::MappingTraits</*= struct.user_fullname =*/>
       /** endfor -**/
     > {};
 
-/** if struct._key and struct.keytype == "composite" **/
+/** if struct._key **/
 template<>
 struct llvm::yaml::ScalarTraits</*= struct.user_fullname =*/::Key>
   : public CompositeScalar</*= struct.user_fullname =*/::Key, '-'> {};
