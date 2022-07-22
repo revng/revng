@@ -13,6 +13,7 @@
 #include "revng/Model/Pass/RegisterModelPass.h"
 #include "revng/Model/Processing.h"
 #include "revng/Model/ToolHelpers.h"
+#include "revng/Support/InitRevng.h"
 
 using namespace llvm;
 
@@ -62,6 +63,8 @@ static void loadPassesList() {
 }
 
 int main(int Argc, char *Argv[]) {
+  revng::InitRevng X(Argc, Argv);
+
   loadPassesList();
   cl::HideUnrelatedOptions({ &ThisToolCategory, &ModelPassCategory });
   cl::ParseCommandLineOptions(Argc, Argv);

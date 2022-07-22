@@ -14,6 +14,7 @@
 #include "revng/Model/Importer/Dwarf/DwarfImporter.h"
 #include "revng/Model/ToolHelpers.h"
 #include "revng/Support/CommandLine.h"
+#include "revng/Support/InitRevng.h"
 
 using namespace llvm;
 using namespace cl;
@@ -32,6 +33,8 @@ static opt<std::string> OutputFilename("o",
                                        value_desc("filename"));
 
 int main(int Argc, char *Argv[]) {
+  revng::InitRevng X(Argc, Argv);
+
   HideUnrelatedOptions({ &MainCategory });
   ParseCommandLineOptions(Argc, Argv);
 

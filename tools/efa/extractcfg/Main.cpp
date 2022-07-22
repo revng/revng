@@ -12,6 +12,7 @@
 #include "revng/EarlyFunctionAnalysis/IRHelpers.h"
 #include "revng/Model/ToolHelpers.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/InitRevng.h"
 
 #include "./DecoratedFunction.h"
 
@@ -30,6 +31,8 @@ static cl::opt<std::string> OutputFilename("o",
                                            cl::value_desc("filename"));
 
 int main(int argc, const char **argv) {
+  revng::InitRevng X(argc, argv);
+
   cl::HideUnrelatedOptions({ &MainCategory });
   cl::ParseCommandLineOptions(argc, argv);
 

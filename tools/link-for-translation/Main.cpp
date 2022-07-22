@@ -12,6 +12,7 @@
 #include "llvm/Support/raw_os_ostream.h"
 
 #include "revng/Recompile/LinkForTranslation.h"
+#include "revng/Support/InitRevng.h"
 #include "revng/TupleTree/TupleTree.h"
 
 using std::string;
@@ -44,6 +45,8 @@ static opt<bool> DryRun("dry-run",
 static ExitOnError AbortOnError;
 
 int main(int argc, const char *argv[]) {
+  revng::InitRevng X(argc, argv);
+
   HideUnrelatedOptions({ &MainCategory });
   ParseCommandLineOptions(argc, argv);
 

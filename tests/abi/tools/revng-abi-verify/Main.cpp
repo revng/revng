@@ -24,6 +24,8 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Signals.h"
 
+#include "revng/Support/InitRevng.h"
+
 #include "ABIArtifactParser.h"
 #include "Verify.h"
 
@@ -90,6 +92,8 @@ static llvm::Error impl() {
 }
 
 int main(int argc, const char *argv[]) {
+  revng::InitRevng X(argc, argv);
+
   llvm::cl::HideUnrelatedOptions(Options::ThisToolCategory);
   llvm::cl::ParseCommandLineOptions(argc, argv);
 

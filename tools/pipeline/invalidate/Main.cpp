@@ -21,6 +21,7 @@
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/PipelineManager.h"
+#include "revng/Support/InitRevng.h"
 
 using std::string;
 using namespace llvm;
@@ -100,6 +101,8 @@ dumpInvalidationMap(llvm::raw_ostream &OS, const InvalidationMap &Map) {
 }
 
 int main(int argc, const char *argv[]) {
+  revng::InitRevng X(argc, argv);
+
   HideUnrelatedOptions(PipelineCategory);
   ParseCommandLineOptions(argc, argv);
 

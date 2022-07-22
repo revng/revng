@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -23,6 +24,7 @@
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/PipelineManager.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/InitRevng.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
 
 using namespace pipeline;
@@ -51,12 +53,17 @@ static bool loadLibraryPermanently(const char *LibraryPath) {
   return llvm::sys::DynamicLibrary::LoadLibraryPermanently(LibraryPath, &Msg);
 }
 
+static std::optional<revng::InitRevng> InitRevngInstance = std::nullopt;
+
 bool rp_initialize(int argc,
                    char *argv[],
                    int libraries_count,
                    const char *libraries_path[]) {
   if (Initialized)
     return false;
+
+  revng_check(not InitRevngInstance.has_value());
+  InitRevngInstance.emplace(argc, argv);
 
   llvm::cl::ParseCommandLineOptions(argc, argv);
   for (int I = 0; I < libraries_count; I++)
@@ -67,6 +74,14 @@ bool rp_initialize(int argc,
 
   Registry::runAllInitializationRoutines();
   return true;
+}
+
+bool rp_shutdown() {
+  if (InitRevngInstance.has_value()) {
+    InitRevngInstance.reset();
+    return true;
+  }
+  return false;
 }
 
 static rp_manager *rp_manager_create_impl(uint64_t pipelines_count,

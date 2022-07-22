@@ -127,3 +127,7 @@ def initialize(args: Iterable[str] = (), libraries: Optional[AnyPaths] = None):
 
     success = _api.rp_initialize(len(_args), _args, len(_libraries), _libraries)
     assert success, "Failed revng C API initialization"
+
+
+def shutdown():
+    _api.rp_shutdown()
