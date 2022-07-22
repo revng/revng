@@ -17,6 +17,14 @@ from gql.transport.requests import RequestsHTTPTransport
 from psutil import Process
 from pytest import Config, fixture, mark
 
+FILTER_ENV = [
+    "STARLETTE_DEBUG",
+    "REVNG_NOTIFY_FIFOS",
+    "REVNG_ORIGINS",
+    "REVNG_DATA_DIR",
+    "REVNG_PROJECT_ID",
+]
+
 
 def print_fd(fd: int):
     os.lseek(fd, 0, io.SEEK_SET)
@@ -51,7 +59,8 @@ def client(pytestconfig: Config, request) -> Generator[Client, None, None]:
     out_fd = os.memfd_create("flask_debug", 0)
     out = os.fdopen(out_fd, "w")
 
-    process = Popen(["revng", "daemon", "-p", "0"], stdout=out, stderr=out, text=True)
+    new_env = {k: v for k, v in os.environ.items() if k not in FILTER_ENV}
+    process = Popen(["revng", "daemon", "-p", "0"], stdout=out, stderr=out, text=True, env=new_env)
     port = get_listen_port(process.pid)
 
     try:
