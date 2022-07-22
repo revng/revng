@@ -95,7 +95,7 @@ bool Binary::verify(bool Assert) const {
 
 bool Binary::verify(VerifyHelper &VH) const {
   // Prepare for checking symbol names. We will populate and check this against
-  // functions, dynamic functions, types and enum entries
+  // functions, dynamic functions, segments, types and enum entries
   std::set<Identifier> Symbols;
   auto CheckCustomName = [&VH, &Symbols, this](const Identifier &CustomName) {
     if (CustomName.empty())
@@ -134,6 +134,15 @@ bool Binary::verify(VerifyHelper &VH) const {
           return VH.fail();
   }
 
+  // Verify Segments
+  for (const Segment &S : Segments) {
+    if (not S.verify(VH))
+      return VH.fail();
+
+    if (not CheckCustomName(S.CustomName))
+      return VH.fail();
+  }
+
   //
   // Verify the type system
   //
@@ -145,7 +154,6 @@ Identifier Function::name() const {
   if (not CustomName.empty()) {
     return CustomName;
   } else {
-    // TODO: this prefix needs to be reserved
     auto AutomaticName = (Twine("function_") + Entry.toString()).str();
     return Identifier::fromString(AutomaticName);
   }
@@ -169,7 +177,6 @@ Identifier DynamicFunction::name() const {
   if (not CustomName.empty()) {
     return CustomName;
   } else {
-    // TODO: this prefix needs to be reserved
     auto AutomaticName = (Twine("dynamic_function_") + OriginalName).str();
     return Identifier::fromString(AutomaticName);
   }
@@ -211,6 +218,18 @@ bool Section::verify(VerifyHelper &VH) const {
     return VH.fail("Computing the end address leads to overflow");
 
   return true;
+}
+
+Identifier Segment::name() const {
+  using llvm::Twine;
+  if (not CustomName.empty()) {
+    return CustomName;
+  } else {
+    auto AutomaticName = (Twine("segment_") + StartAddress.toString() + "_"
+                          + Twine(VirtualSize))
+                           .str();
+    return Identifier::fromString(AutomaticName);
+  }
 }
 
 bool Segment::verify() const {

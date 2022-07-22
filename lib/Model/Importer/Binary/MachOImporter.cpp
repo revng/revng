@@ -9,6 +9,7 @@
 #include "llvm/Object/ObjectFile.h"
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Model/RawBinaryView.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/OverflowSafeInt.h"
@@ -289,15 +290,21 @@ void MachOImporter::parseMachOSegment(ArrayRef<uint8_t> RawDataRef,
     return;
   }
 
+  Segment.OriginalName = SegmentCommand.segname;
   Segment.FileSize = SegmentCommand.filesize;
 
   Segment.IsReadable = SegmentCommand.initprot & VM_PROT_READ;
   Segment.IsWriteable = SegmentCommand.initprot & VM_PROT_WRITE;
   Segment.IsExecutable = SegmentCommand.initprot & VM_PROT_EXECUTE;
 
+  model::TypePath StructPath = createEmptyStruct(*Model, Segment.VirtualSize);
+  Segment.Type = model::QualifiedType(std::move(StructPath), {});
+
   Segment.verify(true);
 
   Model->Segments.insert(std::move(Segment));
+
+  // TODO: parse sections contained in segments LC_SEGMENT and LC_SEGMENT_64
 }
 
 void MachOImporter::registerBindEntry(const object::MachOBindEntry *Entry) {

@@ -15,6 +15,7 @@
 
 #include "revng/ABI/DefaultFunctionPrototype.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Model/Importer/Dwarf/DwarfImporter.h"
 #include "revng/Model/RawBinaryView.h"
 #include "revng/Support/Debug.h"
@@ -643,6 +644,10 @@ void ELFImporter::parseProgramHeaders(object::ELFFile<T> &TheELF) {
       NewSegment.IsReadable = hasFlag(ProgramHeader.p_flags, ELF::PF_R);
       NewSegment.IsWriteable = hasFlag(ProgramHeader.p_flags, ELF::PF_W);
       NewSegment.IsExecutable = hasFlag(ProgramHeader.p_flags, ELF::PF_X);
+
+      model::TypePath StructPath = createEmptyStruct(*Model,
+                                                     NewSegment.VirtualSize);
+      NewSegment.Type = model::QualifiedType(std::move(StructPath), {});
 
       // If it's an executable segment, and we've been asked so, register
       // which sections actually contain code

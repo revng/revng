@@ -7,6 +7,7 @@
 #include "revng/ADT/SortedVector.h"
 #include "revng/Model/Identifier.h"
 #include "revng/Model/Section.h"
+#include "revng/Model/Type.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
@@ -29,7 +30,10 @@ fields:
     type: bool
   - name: IsExecutable
     type: bool
-  - name: Name
+  - name: CustomName
+    type: Identifier
+    optional: true
+  - name: OriginalName
     type: std::string
     optional: true
   - name: Relocations
@@ -44,6 +48,9 @@ fields:
       elementType: model::Section
     doc: If there's at least one Section, only Sections where
          ContainsCode == true will be searched for code.
+  - name: Type
+    type: model::QualifiedType
+    optional: true
 
 key:
   - StartAddress

@@ -83,6 +83,9 @@ void model::promoteOriginalName(TupleTree<model::Binary> &Model) {
                              AddressOf,
                              Symbols);
 
+  // Promote segment names
+  promoteOriginalNamesInList(Model->Segments, AddressOf, Symbols);
+
   for (auto &UP : Model->Types) {
     model::Type *T = UP.get();
 
