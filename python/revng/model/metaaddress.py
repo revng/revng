@@ -109,6 +109,11 @@ class MetaAddress:
 
 
 def init_metaaddress_yaml_classes(loader: Type[yaml.Loader], dumper: Type[yaml.Dumper]):
+    def metaaddress_constructor(loader: yaml.Loader, node):
+        string = loader.construct_scalar(node)
+        return MetaAddress.from_string(string)
+
     dumper.add_representer(MetaAddress, MetaAddress.yaml_representer)
     dumper.add_representer(MetaAddressType, MetaAddressType.yaml_representer)
+    loader.add_constructor("!MetaAddress", metaaddress_constructor)
     loader.add_implicit_resolver("!MetaAddress", MetaAddress.yaml_regexp, None)

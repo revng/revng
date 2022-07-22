@@ -8,10 +8,18 @@ import sys
 from dataclasses import dataclass, field
 from typing import List
 
-from revng.tupletree import EnumBase, Reference, StructBase, AbstractStructBase, no_default
+from revng.tupletree import (
+    EnumBase,
+    Reference,
+    StructBase,
+    AbstractStructBase,
+    dataclass_kwargs,
+    no_default,
+    typedlist_factory,
+)
 from revng.tupletree import YamlLoader as _ExternalYamlLoader
 from revng.tupletree import YamlDumper as _ExternalYamlDumper
-from .._util import force_constructor_kwarg
+from .._util import force_constructor_kwarg, force_kw_only
 
 ##- for t in generator.external_types ##
 from .external import 't'
@@ -46,12 +54,6 @@ class 'enum.name'(EnumBase):
 't' = str
 ## endfor ##
 
-dataclass_kwargs = {}
-if sys.version_info >= (3,10,0):
-    # Performance optimization available since python 3.10
-    dataclass_kwargs["slots"] = True
-
-
 ## for struct in structs ##
 @dataclass(**dataclass_kwargs)
 class 'struct.name'(
@@ -73,6 +75,8 @@ class 'struct.name'(
     '-field.name': "'field | python_type'"
     ##- if field.is_guid -##
     = field(default_factory=random_id)
+    ##- elif field is sequence_field -##
+    = field(default_factory=typedlist_factory('field | python_list_type'))
     ##- elif struct.inherits -##
     = field(default=no_default)
     ##- endif ##
@@ -89,7 +93,7 @@ class 'struct.name'(
         ## if field is simple_field ##
         default=None
         ## elif field is sequence_field ##
-        default_factory=list
+        default_factory=typedlist_factory('field | python_list_type')
         ## elif field is reference_field ##
         default=None
         ## endif ##
@@ -109,23 +113,27 @@ class 'struct.name'(
         ##- endfor -##
     }
 
-### Override child's constructor so that the 'Kind' kwarg is always consisten -###
+### Override child's constructor so that the 'Kind' kwarg is always consistent -###
 ## for child in struct.children -##
 force_constructor_kwarg('child.name', "Kind", 'struct.name'Kind.'child.name')
 ## endfor ##
 
 ##- endif ##
 ## endfor ##
+if sys.version_info < (3, 10, 0):
+##- for struct in structs ##
+    force_kw_only('struct.name')
+##- endfor ##
 
 ## for enum in enums ##
 YamlDumper.add_representer('enum.name', 'enum.name'.yaml_representer)
 ##- endfor ##
 ## for struct in structs ##
-YamlLoader.add_constructor("!'struct.name'", 'struct.name'.yaml_constructor)
 YamlDumper.add_representer('struct.name', 'struct.name'.yaml_representer)
 ##- endfor ##
 ## if generator.root_type ##
 # Allows to deserialize YAML as a 'generator.root_type' even if the root of the YAML document is
 # not tagged
+YamlLoader.add_constructor("!'generator.root_type'", 'generator.root_type'.yaml_constructor)
 YamlLoader.add_path_resolver("!'generator.root_type'", [])
 ## endif ##

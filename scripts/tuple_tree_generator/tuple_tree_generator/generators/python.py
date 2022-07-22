@@ -4,7 +4,7 @@
 
 import black
 
-from ..schema import Schema, StructField
+from ..schema import Schema, SequenceStructField, StructField
 from .jinja_utils import python_environment
 
 
@@ -15,6 +15,7 @@ class PythonGenerator:
         self.string_types = string_types or []
         self.external_types = external_types or []
         python_environment.filters["python_type"] = self.python_type
+        python_environment.filters["python_list_type"] = self.python_list_type
         self.template = python_environment.get_template("tuple_tree_gen.py.tpl")
 
     def emit_python(self) -> str:
@@ -40,6 +41,13 @@ class PythonGenerator:
                 return f"List[{type_info.type}]"
         else:
             return f"Reference[{type_info.type}, {type_info.root_type}]"
+
+    @classmethod
+    def python_list_type(cls, field: SequenceStructField):
+        type_info = field.type_info(cls.scalar_converter)
+        assert type_info.root_type == "", "Must not be a Reference"
+        assert type_info.is_sequence, "Must be a sequence"
+        return type_info.type
 
     @staticmethod
     def scalar_converter(type_name: str) -> str:
