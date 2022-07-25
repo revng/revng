@@ -77,8 +77,8 @@ public:
                                 const GlobalTupleTreeDiff &Diff) const {}
 
 public:
-  template<Rank *R>
-  static Kind &deadKind();
+  template<typename RankDefinitionType>
+  static Kind &deadKind(RankDefinitionType &Rank);
 };
 
 class DeadKind : public Kind {
@@ -91,9 +91,9 @@ public:
                     TargetsList &Output) const final {}
 };
 
-template<Rank *R>
-inline Kind &Kind::deadKind() {
-  static DeadKind Kind(R);
+template<typename RankDefinitionType>
+inline Kind &Kind::deadKind(RankDefinitionType &Rank) {
+  static DeadKind Kind(&Rank);
   return Kind;
 }
 

@@ -118,17 +118,17 @@ def test_info(client):
 
     binary_kind = next(k for k in result["info"]["kinds"] if k["name"] == "Binary")
     isolated_kind = next(k for k in result["info"]["kinds"] if k["name"] == "IsolatedRoot")
-    assert binary_kind["rank"] == "root"
+    assert binary_kind["rank"] == "binary"
     assert binary_kind["parent"] is None
-    assert isolated_kind["rank"] == "root"
+    assert isolated_kind["rank"] == "binary"
     assert isolated_kind["parent"] == "Root"
 
-    root_rank = next(r for r in result["info"]["ranks"] if r["name"] == "root")
+    root_rank = next(r for r in result["info"]["ranks"] if r["name"] == "binary")
     function_rank = next(r for r in result["info"]["ranks"] if r["name"] == "function")
     assert root_rank["depth"] == 0
     assert root_rank["parent"] is None
     assert function_rank["depth"] == 1
-    assert function_rank["parent"] == "root"
+    assert function_rank["parent"] == "binary"
 
     step_names = [s["name"] for s in result["info"]["steps"]]
     assert "begin" in step_names
@@ -163,7 +163,7 @@ def test_lift(client):
     q = gql(
         """
     {
-        root {
+        binary {
             lift
         }
     }
@@ -172,7 +172,7 @@ def test_lift(client):
 
     result = client.execute(q)
 
-    assert result["root"]["lift"] is not None
+    assert result["binary"]["lift"] is not None
 
 
 @mark.xfail(raises=Exception)
@@ -180,7 +180,7 @@ def test_lift_ready_fail(client):
     q = gql(
         """
     {
-        root {
+        binary {
             lift(onlyIfReady: true)
         }
     }
@@ -255,7 +255,7 @@ def test_begin_has_containers(client):
 
 
 def test_get_model(client):
-    client.execute(gql("{root{lift}}"))
+    client.execute(gql("{binary{lift}}"))
 
     q = gql(
         """
