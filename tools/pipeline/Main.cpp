@@ -12,7 +12,6 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/DynamicLibrary.h"
-#include "llvm/Support/PluginLoader.h"
 #include "llvm/Support/raw_os_ostream.h"
 
 #include "revng/Model/LoadModelPass.h"
@@ -27,6 +26,7 @@
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/PipelineManager.h"
+#include "revng/Pipes/ToolCLOptions.h"
 #include "revng/Support/InitRevng.h"
 
 using std::string;
@@ -37,19 +37,11 @@ using namespace ::revng::pipes;
 
 cl::OptionCategory PipelineCategory("revng-pipeline options", "");
 
-static cl::list<string>
-  InputPipeline("P", desc("<Pipeline>"), cat(PipelineCategory));
-
 static cl::list<string> ContainerOverrides("i",
                                            desc("Load the target file in the "
                                                 "target container at the "
                                                 "target step"),
                                            cat(PipelineCategory));
-
-static opt<string> ModelOverride("m",
-                                 desc("Load the model from a provided file"),
-                                 cat(PipelineCategory),
-                                 init(""));
 
 static opt<string> SaveModel("save-model",
                              desc("Save the model at the end of the run"),
@@ -93,10 +85,6 @@ static cl::list<string> StoresOverrides("o",
                                              "target step in the target file"),
                                         cat(PipelineCategory));
 
-static cl::list<string> EnablingFlags("f",
-                                      desc("list of pipeline enabling flags"),
-                                      cat(PipelineCategory));
-
 static cl::list<string> Produce("produce",
                                 desc("comma separated list of targets to be "
                                      "produced in one sweep."),
@@ -104,18 +92,6 @@ static cl::list<string> Produce("produce",
 
 static cl::list<string>
   Analyze("analyze", desc("analyses to be performed."), cat(PipelineCategory));
-
-static opt<string> ExecutionDirectory("p",
-                                      desc("Directory from which all "
-                                           "containers will "
-                                           "be loaded before everything else "
-                                           "and "
-                                           "to which it will be store after "
-                                           "everything else"),
-                                      cat(PipelineCategory));
-
-static alias
-  A1("l", desc("Alias for --load"), aliasopt(LoadOpt), cat(PipelineCategory));
 
 static opt<bool> PrintBuildableTargets("targets",
                                        desc("Prints the target that can be "
@@ -127,6 +103,8 @@ static alias A2("t",
                 desc("Alias for --targets"),
                 aliasopt(PrintBuildableTargets),
                 cat(PipelineCategory));
+
+static ToolCLOptions BaseOptions(PipelineCategory);
 
 static ExitOnError AbortOnError;
 
@@ -168,12 +146,6 @@ static void runPipeline(Runner &Pipeline) {
   }
 }
 
-static auto makeManager() {
-  return PipelineManager::create(InputPipeline,
-                                 EnablingFlags,
-                                 ExecutionDirectory);
-}
-
 int main(int argc, const char *argv[]) {
   revng::InitRevng X(argc, argv);
 
@@ -182,13 +154,10 @@ int main(int argc, const char *argv[]) {
 
   Registry::runAllInitializationRoutines();
 
-  auto Manager = AbortOnError(makeManager());
+  auto Manager = AbortOnError(BaseOptions.makeManager());
 
   for (const auto &Override : ContainerOverrides)
     AbortOnError(Manager.overrideContainer(Override));
-
-  if (not ModelOverride.empty())
-    AbortOnError(Manager.overrideModel(ModelOverride));
 
   if (DumpPipeline) {
     Manager.dump();

@@ -13,7 +13,6 @@
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/PluginLoader.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_os_ostream.h"
 
@@ -30,6 +29,7 @@
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/PipelineManager.h"
+#include "revng/Pipes/ToolCLOptions.h"
 #include "revng/TupleTree/TupleTree.h"
 
 using std::string;
@@ -40,18 +40,10 @@ using namespace ::revng::pipes;
 
 cl::OptionCategory PipelineCategory("revng-pipeline options", "");
 
-static cl::list<string>
-  InputPipeline("P", desc("<Pipeline>"), cat(PipelineCategory));
-
 static cl::list<string> Arguments(Positional,
                                   ZeroOrMore,
                                   desc("<ArtifactToProduce> <InputBinary>"),
                                   cat(PipelineCategory));
-
-static opt<string> ModelOverride("m",
-                                 desc("Load the model from a provided file"),
-                                 cat(PipelineCategory),
-                                 init(""));
 
 static opt<string> Output("o",
                           desc("Output filepath of produced model"),
@@ -65,29 +57,9 @@ static opt<bool> NoApplyModel("no-apply",
                               cat(PipelineCategory),
                               init(false));
 
-static cl::list<string> EnablingFlags("f",
-                                      desc("list of pipeline enabling flags"),
-                                      cat(PipelineCategory));
-
-static opt<string> ExecutionDirectory("p",
-                                      desc("Directory from which all "
-                                           "containers will "
-                                           "be loaded before everything else "
-                                           "and "
-                                           "to which it will be store after "
-                                           "everything else"),
-                                      cat(PipelineCategory));
-
-static alias
-  A1("l", desc("Alias for --load"), aliasopt(LoadOpt), cat(PipelineCategory));
+static ToolCLOptions BaseOptions(PipelineCategory);
 
 static ExitOnError AbortOnError;
-
-static auto makeManager() {
-  return PipelineManager::create(InputPipeline,
-                                 EnablingFlags,
-                                 ExecutionDirectory);
-}
 
 static TupleTreeGlobal<model::Binary> &getModel(PipelineManager &Manager) {
   auto &Context = Manager.context();
@@ -108,17 +80,21 @@ getStepOfAnalysis(pipeline::Runner &Runner, llvm::StringRef AnalysisName) {
   return &*It;
 }
 
+static llvm::Error
+overrideModel(PipelineManager &Manager, TupleTree<model::Binary> NewModel) {
+  const auto &Name = ModelGlobalName;
+  auto *Model(cantFail(Manager.context().getGlobal<ModelGlobal>(Name)));
+  Model->get() = std::move(NewModel);
+  return llvm::Error::success();
+}
+
 int main(int argc, const char *argv[]) {
   HideUnrelatedOptions(PipelineCategory);
   ParseCommandLineOptions(argc, argv);
 
   Registry::runAllInitializationRoutines();
 
-  auto Manager = AbortOnError(makeManager());
-
-  if (not ModelOverride.empty())
-    AbortOnError(Manager.overrideModel(ModelOverride));
-
+  auto Manager = AbortOnError(BaseOptions.makeManager());
   auto OriginalModel = getModel(Manager);
 
   if (Arguments.size() == 0) {
@@ -166,7 +142,7 @@ int main(int argc, const char *argv[]) {
     AbortOnError(Manager.getRunner().run(Step->getName(), Map));
   }
   if (NoApplyModel)
-    AbortOnError(Manager.overrideModel(OriginalModel.get()));
+    AbortOnError(overrideModel(Manager, OriginalModel.get()));
 
   AbortOnError(Manager.storeToDisk());
 

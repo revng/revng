@@ -93,19 +93,6 @@ PipelineManager::overrideContainer(llvm::StringRef PipelineFileMapping) {
   return MaybeMapping->loadFromDisk(*Runner);
 }
 
-llvm::Error PipelineManager::overrideModel(llvm::StringRef ModelOverride) {
-  const auto &Name = ModelGlobalName;
-  auto *Model(cantFail(PipelineContext->getGlobal<ModelGlobal>(Name)));
-  return Model->loadFromDisk(ModelOverride);
-}
-
-llvm::Error PipelineManager::overrideModel(TupleTree<model::Binary> NewModel) {
-  const auto &Name = ModelGlobalName;
-  auto *Model(cantFail(PipelineContext->getGlobal<ModelGlobal>(Name)));
-  Model->get() = std::move(NewModel);
-  return llvm::Error::success();
-}
-
 static llvm::Expected<Runner>
 setUpPipeline(pipeline::Context &PipelineContext,
               Loader &Loader,

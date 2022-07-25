@@ -21,6 +21,7 @@
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/PipelineManager.h"
+#include "revng/Pipes/ToolCLOptions.h"
 #include "revng/Support/InitRevng.h"
 
 using std::string;
@@ -31,30 +32,10 @@ using namespace ::revng::pipes;
 
 cl::OptionCategory PipelineCategory("revng-invalidate options", "");
 
-static cl::list<string>
-  InputPipeline("P", desc("<Pipeline>"), cat(PipelineCategory));
-
 static cl::list<string> Targets(Positional,
                                 Required,
                                 desc("<Targets to invalidate>..."),
                                 cat(PipelineCategory));
-
-static opt<string> ExecutionDirectory("p",
-                                      desc("Directory from which all "
-                                           "containers will "
-                                           "be loaded before everything else "
-                                           "and "
-                                           "to which it will be store after "
-                                           "everything else"),
-                                      cat(PipelineCategory),
-                                      init("."));
-
-static cl::list<string>
-  LoadLibraries("load", desc("libraries to open"), cat(PipelineCategory));
-
-static cl::list<string> EnablingFlags("f",
-                                      desc("list of pipeline enabling flags"),
-                                      cat(PipelineCategory));
 
 static opt<bool> DumpPredictedRemovals("dump-invalidations",
                                        desc("dump predicted invalidate "
@@ -66,18 +47,9 @@ static opt<bool> DumpFinalStatus("dump-status",
                                       "targets"),
                                  cat(PipelineCategory));
 
-static alias A1("l",
-                desc("Alias for --load"),
-                aliasopt(LoadLibraries),
-                cat(PipelineCategory));
+static ToolCLOptions BaseOptions(PipelineCategory);
 
 static ExitOnError AbortOnError;
-
-static auto makeManager() {
-  return PipelineManager::create(InputPipeline,
-                                 EnablingFlags,
-                                 ExecutionDirectory);
-}
 
 static InvalidationMap getInvalidationMap(Runner &Pipeline) {
   InvalidationMap Invalidations;
@@ -106,15 +78,9 @@ int main(int argc, const char *argv[]) {
   HideUnrelatedOptions(PipelineCategory);
   ParseCommandLineOptions(argc, argv);
 
-  std::string Msg;
-  for (const auto &Library : LoadLibraries) {
-    if (sys::DynamicLibrary::LoadLibraryPermanently(Library.c_str(), &Msg))
-      AbortOnError(createStringError(inconvertibleErrorCode(), Msg));
-  }
-
   Registry::runAllInitializationRoutines();
 
-  auto Manager = AbortOnError(makeManager());
+  auto Manager = AbortOnError(BaseOptions.makeManager());
 
   auto Map = getInvalidationMap(Manager.getRunner());
   AbortOnError(Manager.getRunner().getInvalidations(Map));

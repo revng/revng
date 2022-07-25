@@ -76,13 +76,6 @@ public:
   /// triple to be parsed is the usual way.
   llvm::Error overrideContainer(llvm::StringRef PipelineFileMapping);
 
-  /// Entirelly replaces the model with the content of the file indicated by
-  /// Path
-  llvm::Error overrideModel(llvm::StringRef Path);
-
-  /// Entirelly replaces the model with the one provided
-  llvm::Error overrideModel(TupleTree<model::Binary> Binary);
-
   /// Stores the content of the container indicated by the mapping at the path
   /// indicated by the mapping, and  nothing else.
   llvm::Error store(const pipeline::PipelineFileMapping &StoresOverride);

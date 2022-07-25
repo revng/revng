@@ -23,6 +23,7 @@
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/PipelineManager.h"
+#include "revng/Pipes/ToolCLOptions.h"
 
 using std::string;
 using namespace llvm;
@@ -32,18 +33,10 @@ using namespace ::revng::pipes;
 
 cl::OptionCategory PipelineCategory("revng-pipeline options", "");
 
-static cl::list<string>
-  InputPipeline("P", desc("<Pipeline>"), cat(PipelineCategory));
-
 static cl::list<string> Arguments(Positional,
                                   ZeroOrMore,
                                   desc("<ArtifactToProduce> <InputBinary>"),
                                   cat(PipelineCategory));
-
-static opt<string> ModelOverride("m",
-                                 desc("Load the model from a provided file"),
-                                 cat(PipelineCategory),
-                                 init(""));
 
 static opt<string> Output("o",
                           desc("Output filepath of produced artifact"),
@@ -67,29 +60,9 @@ static opt<bool> AnalyzeAll("analyze-all",
                             cat(PipelineCategory),
                             init(false));
 
-static cl::list<string> EnablingFlags("f",
-                                      desc("list of pipeline enabling flags"),
-                                      cat(PipelineCategory));
-
-static opt<string> ExecutionDirectory("p",
-                                      desc("Directory from which all "
-                                           "containers will "
-                                           "be loaded before everything else "
-                                           "and "
-                                           "to which it will be store after "
-                                           "everything else"),
-                                      cat(PipelineCategory));
-
-static alias
-  A1("l", desc("Alias for --load"), aliasopt(LoadOpt), cat(PipelineCategory));
+static ToolCLOptions BaseOptions(PipelineCategory);
 
 static ExitOnError AbortOnError;
-
-static auto makeManager() {
-  return PipelineManager::create(InputPipeline,
-                                 EnablingFlags,
-                                 ExecutionDirectory);
-}
 
 int main(int argc, const char *argv[]) {
   HideUnrelatedOptions(PipelineCategory);
@@ -97,10 +70,7 @@ int main(int argc, const char *argv[]) {
 
   Registry::runAllInitializationRoutines();
 
-  auto Manager = AbortOnError(makeManager());
-
-  if (not ModelOverride.empty())
-    AbortOnError(Manager.overrideModel(ModelOverride));
+  auto Manager = AbortOnError(BaseOptions.makeManager());
 
   if (Arguments.size() == 0) {
     for (const auto &Step : Manager.getRunner())
