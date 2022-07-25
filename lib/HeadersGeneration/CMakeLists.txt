@@ -14,6 +14,7 @@ target_link_libraries(
   revng::revngSupport
   revng::revngPipeline
   revng::revngPipes
+  revng::revngPTML
   ${LLVM_LIBRARIES})
 
 # HelpersToHeader
@@ -29,4 +30,5 @@ target_link_libraries(
   revng::revngSupport
   revng::revngPipeline
   revng::revngPipes
+  revng::revngPTML
   ${LLVM_LIBRARIES})

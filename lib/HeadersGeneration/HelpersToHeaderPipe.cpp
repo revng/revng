@@ -9,10 +9,10 @@
 
 namespace revng::pipes {
 
+inline auto &makeFCF = makeFileContainerFactory;
 static pipeline::RegisterContainerFactory
   HelpersHeaderFactory("HelpersHeader",
-                       makeFileContainerFactory(kinds::HelpersHeader,
-                                                "text/plain.h"));
+                       makeFCF(kinds::HelpersHeader, "text/plain", ".h"));
 
 void HelpersToHeader::run(const pipeline::Context &Ctx,
                           pipeline::LLVMContainer &IRContainer,

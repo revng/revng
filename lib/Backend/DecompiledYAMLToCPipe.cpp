@@ -16,7 +16,7 @@ namespace revng::pipes {
 using RegFactory = pipeline::RegisterContainerFactory;
 static RegFactory DecompiledCFactory("DecompiledCCode",
                                      makeFileContainerFactory(DecompiledToC,
-                                                              "text/plain",
+                                                              "text/ptml",
                                                               ".c"));
 
 void DecompiledYAMLToC::run(const pipeline::Context &Ctx,

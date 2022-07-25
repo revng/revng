@@ -12,79 +12,125 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/Model/Binary.h"
 #include "revng/Model/Identifier.h"
+#include "revng/PTML/IndentedOstream.h"
+#include "revng/Pipeline/Location.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 
 #include "revng-c/HeadersGeneration/HelpersToHeader.h"
+#include "revng-c/Pipes/Ranks.h"
 #include "revng-c/Support/FunctionTags.h"
+#include "revng-c/Support/PTMLC.h"
 #include "revng-c/TypeNames/LLVMTypeNames.h"
 
 using llvm::dyn_cast;
+
+using pipeline::serializedLocation;
+using ptml::Tag;
+namespace tags = ptml::tags;
+namespace attributes = ptml::attributes;
+namespace tokens = ptml::c::tokenTypes;
+namespace ranks = revng::ranks;
 
 static Logger<> Log{ "helpers-to-header" };
 
 /// Print the declaration a C struct corresponding to an LLVM struct
 /// type.
 static void printDefinition(const llvm::StructType *S,
-                            const llvm::StringRef StructName,
-                            llvm::raw_ostream &Header) {
-  Header << "typedef struct __attribute__((packed)) {\n";
+                            const VariableTokensWithName Struct,
+                            ptml::PTMLIndentedOstream &Header) {
+  Header << keywords::Typedef << " " << keywords::Struct << " "
+         << helpers::Packed << " ";
+  {
+    Scope Scope(Header, scopeTags::Struct);
 
-  for (const auto &Field : llvm::enumerate(S->elements()))
-    Header << getScalarCType(Field.value()) << " "
-           << getFieldName(S, Field.index()).FieldName << ";\n";
+    for (const auto &Field : llvm::enumerate(S->elements())) {
+      auto Info = getFieldInfo(S, Field.index());
+      Header
+        << tokenTag(Info.FieldTypeName, tokens::Type) << " "
+        << Tag(tags::Span, Info.FieldName.str())
+             .addAttribute(attributes::Token, tokens::Field)
+             .addAttribute(attributes::LocationDefinition,
+                           serializedLocation(ranks::HelperStructField,
+                                              Struct.VariableName.str().str(),
+                                              Info.FieldName.str().str()))
+        << ";\n";
+    }
+  }
 
-  Header << "} " << StructName << ";\n";
+  Header << " " << Struct.Declaration << ";\n";
 }
 
 /// Print the prototype of a helper .
-static void
-printHelperPrototype(const llvm::Function *Func, llvm::raw_ostream &Header) {
-  Header << getReturnType(Func) << " "
-         << model::Identifier::fromString(Func->getName());
+static void printHelperPrototype(const llvm::Function *Func,
+                                 ptml::PTMLIndentedOstream &Header) {
+  Header << getReturnType(Func).Use << " "
+         << tokenTag(model::Identifier::fromString(Func->getName()).str(),
+                     tokens::Function)
+              .addAttribute(attributes::LocationDefinition,
+                            serializedLocation(ranks::Helpers,
+                                               Func->getName().str()));
 
   if (Func->arg_empty()) {
-    Header << "(void);\n";
+    Header << "(" + tokenTag("void", tokens::Type) + ");\n";
   } else {
     const llvm::StringRef Open = "(";
     const llvm::StringRef Comma = ", ";
     llvm::StringRef Separator = Open;
     for (const auto &Arg : Func->args()) {
-      Header << Separator << getScalarCType(Arg.getType());
+      auto Type = getScalarCType(Arg.getType());
+      std::string TypeTag;
+      if (Type.endswith(" *")) {
+        Type.pop_back_n(2);
+        TypeTag = tokenTag(Type.str(), tokens::Type) + " "
+                  + operators::PointerDereference;
+      } else {
+        TypeTag = tokenTag(Type.str(), tokens::Type).serialize();
+      }
+      Header << Separator << TypeTag;
       Separator = Comma;
     }
     Header << ");\n";
   }
 }
 
-bool dumpHelpersToHeader(const llvm::Module &M, llvm::raw_ostream &Header) {
-  Header << "#pragma once\n";
-  Header << "#include <stdint.h>\n";
-  Header << "#include <stdbool.h>\n";
-  Header << "#include \"revngfloat.h\"\n\n";
+bool dumpHelpersToHeader(const llvm::Module &M, llvm::raw_ostream &Out) {
+  auto Header = ptml::PTMLIndentedOstream(Out, 4);
+  {
+    auto Scope = Tag(tags::Div).scope(Header);
+    Header << helpers::pragmaOnce();
+    Header << helpers::includeAngle("stdint.h");
+    Header << helpers::includeAngle("stdbool.h");
+    Header << helpers::includeQuote("revngfloat.h");
+    Header << "\n";
 
-  for (const llvm::Function &F : M.functions()) {
-    const auto &FuncName = F.getName();
-    if (FunctionTags::QEMU.isTagOf(&F) or FunctionTags::Helper.isTagOf(&F)
-        or F.isIntrinsic() or FuncName.startswith("llvm.")
-        or FuncName.startswith("init_") or FuncName.startswith("revng_init_")) {
+    for (const llvm::Function &F : M.functions()) {
+      const auto &FuncName = F.getName();
+      if (FunctionTags::QEMU.isTagOf(&F) or FunctionTags::Helper.isTagOf(&F)
+          or F.isIntrinsic() or FuncName.startswith("llvm.")
+          or FuncName.startswith("init_")
+          or FuncName.startswith("revng_init_")) {
 
-      if (Log.isEnabled())
-        Header << "// " << *F.getType() << "\n";
+        if (Log.isEnabled()) {
+          auto LineCommentScope = helpers::LineComment(Header);
+          Header << *F.getType();
+        }
 
-      // Print the declaration of the return type, if it's not scalar
-      const auto *RetTy = F.getReturnType();
-      if (auto *RetStructTy = dyn_cast<llvm::StructType>(RetTy)) {
-        const auto &StructName = getReturnType(&F);
-        printDefinition(RetStructTy, StructName, Header);
+        // Print the declaration of the return type, if it's not scalar
+        const auto *RetTy = F.getReturnType();
+        if (auto *RetStructTy = dyn_cast<llvm::StructType>(RetTy)) {
+          const auto &StructName = getReturnType(&F);
+          printDefinition(RetStructTy, StructName, Header);
+        }
+
+        for (auto &Arg : F.args())
+          revng_assert(Arg.getType()->isSingleValueType());
+
+        printHelperPrototype(&F, Header);
       }
-
-      for (auto &Arg : F.args())
-        revng_assert(Arg.getType()->isSingleValueType());
-
-      printHelperPrototype(&F, Header);
     }
   }
 

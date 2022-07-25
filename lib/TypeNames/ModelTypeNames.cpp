@@ -14,17 +14,33 @@
 #include "revng/Model/Identifier.h"
 #include "revng/Model/QualifiedType.h"
 #include "revng/Model/RawFunctionType.h"
+#include "revng/PTML/Constants.h"
+#include "revng/PTML/ModelHelpers.h"
+#include "revng/PTML/Tag.h"
+#include "revng/Pipeline/Location.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
 
+#include "revng-c/Pipes/Ranks.h"
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/ModelHelpers.h"
+#include "revng-c/Support/PTMLC.h"
 #include "revng-c/TypeNames/ModelTypeNames.h"
 
 using llvm::dyn_cast;
 using llvm::isa;
 using llvm::StringRef;
 using llvm::Twine;
+using tokenDefinition::types::TypeString;
+
+using modelEditPath::getCustomNamePath;
+using pipeline::serializedLocation;
+using ptml::str;
+using ptml::Tag;
+namespace tags = ptml::tags;
+namespace attributes = ptml::attributes;
+namespace tokens = ptml::c::tokenTypes;
+namespace ranks = revng::ranks;
 
 using namespace ArtificialTypes;
 
@@ -33,44 +49,64 @@ TypeString getReturnField(const model::RawFunctionType &F, size_t Index) {
   return TypeString((Twine(RetFieldPrefix) + Twine(Index)).str());
 }
 
-TypeString getTypeName(const model::Type &T) {
-  TypeString Result;
+TypeString getTypeName(const model::Type &T, bool TypeDefinition) {
+  Tag Result;
 
   if (isa<model::RawFunctionType>(&T) or isa<model::CABIFunctionType>(&T)) {
-    Result.append(ArtificialTypes::FunctionTypedefPrefix);
-    Result.append(model::Identifier::fromString(T.name()));
-
+    TypeString Name;
+    Name.append(ArtificialTypes::FunctionTypedefPrefix);
+    Name.append(model::Identifier::fromString(T.name()));
+    Result = Tag(tags::Span, Name.str())
+               .addAttribute(attributes::ModelEditPath, getCustomNamePath(T));
+  } else if (isa<model::PrimitiveType>(&T)) {
+    Result = Tag(tags::Span, T.name().str());
   } else {
-    Result.append(T.name());
+    Result = Tag(tags::Span, T.name().str())
+               .addAttribute(attributes::ModelEditPath, getCustomNamePath(T));
   }
-  return Result;
+  Result.addAttribute(attributes::Token, tokens::Type);
+  if (TypeDefinition)
+    Result.addAttribute(attributes::LocationDefinition,
+                        serializedLocation(ranks::Type, T.key()));
+  else
+    Result.addAttribute(attributes::LocationReferences,
+                        serializedLocation(ranks::Type, T.key()));
+  return TypeString(Result.serialize());
 }
 
-TypeString
-getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
+TypeString getNamedCInstance(const model::QualifiedType &QT,
+                             StringRef InstanceName,
+                             bool TypeDefinition) {
   TypeString Result;
+  bool LastPointer = false;
   const model::Type *Unqualified = QT.UnqualifiedType.getConst();
 
-  Result = getTypeName(*Unqualified);
+  Result = getTypeName(*Unqualified, TypeDefinition);
 
   auto QIt = QT.Qualifiers.rbegin();
   auto QEnd = QT.Qualifiers.rend();
-  bool PointerFound = false;
   for (; QIt != QEnd and not model::Qualifier::isArray(*QIt); ++QIt) {
     switch (QIt->Kind) {
     case model::QualifierKind::Const:
-      Result.append(" const");
+      LastPointer = false;
+      Result.append({ " ",
+                      Tag(tags::Span, "const")
+                        .addAttribute(attributes::Token, tokens::Operator)
+                        .serialize() });
       break;
     case model::QualifierKind::Pointer:
-      Result.append(" *");
-      PointerFound = true;
+      Result.append({ LastPointer ? "" : " ",
+                      Tag(tags::Span, "*")
+                        .addAttribute(attributes::Token, tokens::Operator)
+                        .serialize() });
+      LastPointer = true;
       break;
     default:
       revng_abort();
     }
   }
 
-  if (not Result.empty() and Result.back() != '*')
+  if (!LastPointer && !InstanceName.empty())
     Result.append(" ");
 
   Result.append(InstanceName.str());
@@ -122,25 +158,30 @@ TypeString getArrayWrapper(const model::QualifiedType &QT) {
   }
 
   Result.append(QT.UnqualifiedType.get()->name());
-  return Result;
+  Tag ResultTag = Tag(tags::Span, Result.str());
+  return TypeString(ResultTag.serialize());
 }
 
 TypeString getReturnTypeName(const model::RawFunctionType &F) {
   TypeString Result;
 
   if (F.ReturnValues.size() == 0) {
-    Result = "void";
+    Result = Tag(tags::Span, "void")
+               .addAttribute(attributes::Token, tokens::Type)
+               .serialize();
   } else if (F.ReturnValues.size() == 1) {
     auto RetTy = F.ReturnValues.begin()->Type;
     // RawFunctionTypes should never be returning an array
     revng_assert(not RetTy.isArray());
-    Result = getNamedCInstance(RetTy, "");
+    Result = getNamedCInstance(RetTy, "", false);
   } else {
     // RawFunctionTypes can return multiple values, which need to be wrapped
     // in a struct
-    Result = (Twine(RetStructPrefix) + "returned_by_"
-              + model::Identifier::fromString(F.name()))
-               .str();
+    Result = tokenTag((Twine(RetStructPrefix) + "returned_by_"
+                       + model::Identifier::fromString(F.name()))
+                        .str(),
+                      tokens::Type)
+               .serialize();
   }
 
   revng_assert(not Result.empty());
@@ -155,66 +196,220 @@ TypeString getReturnTypeName(const model::CABIFunctionType &F) {
     // Returned arrays get wrapped in an artificial struct
     Result = getArrayWrapper(RetTy);
   } else {
-    Result = getNamedCInstance(RetTy, "");
+    Result = getNamedCInstance(RetTy, "", false);
   }
 
   revng_assert(not Result.empty());
   return Result;
 }
 
+using model::NamedTypedRegister;
+using std::function;
+using RawArgumentPrinter = function<std::string(const NamedTypedRegister &)>;
+static void printFunctionPrototypeImpl(const model::RawFunctionType &RF,
+                                       const llvm::StringRef &FunctionName,
+                                       RawArgumentPrinter ArgumentPrinter,
+                                       const llvm::StringRef StackVarsName,
+                                       llvm::raw_ostream &Header,
+                                       const model::Binary &Model,
+                                       bool Declaration) {
+  Header << getReturnTypeName(RF) << " " << FunctionName;
+
+  revng_assert(RF.StackArgumentsType.Qualifiers.empty());
+  if (RF.Arguments.empty()
+      and not RF.StackArgumentsType.UnqualifiedType.isValid()) {
+    Header << "(" << tokenTag("void", tokens::Type) << ")";
+  } else {
+    const StringRef Open = "(";
+    const StringRef Comma = ", ";
+    StringRef Separator = Open;
+    for (const auto &Arg : RF.Arguments) {
+      std::string ArgumentName = ArgumentPrinter(Arg);
+      Header << Separator
+             << getNamedCInstance(Arg.Type, ArgumentName, Declaration);
+      Separator = Comma;
+    }
+
+    revng_assert(RF.StackArgumentsType.Qualifiers.empty());
+    if (RF.StackArgumentsType.UnqualifiedType.isValid()) {
+      // Add last argument representing a pointer to the stack arguments
+      model::QualifiedType StackArgsPtr = RF.StackArgumentsType;
+      addPointerQualifier(StackArgsPtr, Model);
+      Header << Separator
+             << getNamedCInstance(StackArgsPtr, StackVarsName, Declaration);
+    }
+    Header << ")";
+  }
+}
+
+using model::Argument;
+using CABIArgumentPrinter = std::function<std::string(const Argument &)>;
+static void printFunctionPrototypeImpl(const model::CABIFunctionType &CF,
+                                       const llvm::StringRef &FunctionName,
+                                       CABIArgumentPrinter ArgumentPrinter,
+                                       llvm::raw_ostream &Header,
+                                       const model::Binary &Model,
+                                       bool Declaration) {
+  Header << getReturnTypeName(CF) << " " << FunctionName;
+
+  if (CF.Arguments.empty()) {
+    Header << "(" << tokenTag("void", tokens::Type) << ")";
+  } else {
+    const StringRef Open = "(";
+    const StringRef Comma = ", ";
+    StringRef Separator = Open;
+
+    for (const auto &Arg : CF.Arguments) {
+      TypeString ArgTypeName;
+      if (Arg.Type.isArray())
+        ArgTypeName = getArrayWrapper(Arg.Type);
+      else
+        ArgTypeName = getNamedCInstance(Arg.Type, "", Declaration);
+
+      std::string ArgumentName = ArgumentPrinter(Arg);
+      if (!ArgumentName.empty())
+        Header << Separator << ArgTypeName << " " << ArgumentName;
+      else
+        Header << Separator << ArgTypeName;
+
+      Separator = Comma;
+    }
+    Header << ")";
+  }
+}
+
 void printFunctionPrototype(const model::Type &FT,
-                            StringRef FunctionName,
+                            const model::Function &Function,
                             llvm::raw_ostream &Header,
-                            const model::Binary &Model) {
+                            const model::Binary &Model,
+                            bool Declaration) {
+  Tag FunctionTag = tokenTag(Function.name(), tokens::Function)
+                      .addAttribute(attributes::ModelEditPath,
+                                    getCustomNamePath(Function))
+                      .addAttribute(Declaration ?
+                                      attributes::LocationDefinition :
+                                      attributes::LocationReferences,
+                                    serializedLocation(ranks::Function,
+                                                       Function.key()));
+  if (auto *RF = dyn_cast<model::RawFunctionType>(&FT)) {
+    auto ArgumentPrinter = [&](const NamedTypedRegister &Reg) {
+      return tokenTag(Reg.name().str(), tokens::FunctionParameter)
+        .addAttribute(attributes::LocationDefinition,
+                      serializedLocation(ranks::RawFunctionArgument,
+                                         Function.key(),
+                                         Reg.key()))
+        .serialize();
+    };
 
-  if (const auto *RF = dyn_cast<model::RawFunctionType>(&FT)) {
-    Header << getReturnTypeName(*RF) << " " << FunctionName.str();
+    std::string
+      StackName = tokenTag("stack_args", tokens::FunctionParameter)
+                    .addAttribute(attributes::LocationDefinition,
+                                  serializedLocation(ranks::SpecialVariable,
+                                                     Function.key(),
+                                                     "stack_args"))
+                    .serialize();
 
-    revng_assert(RF->StackArgumentsType.Qualifiers.empty());
-    if (RF->Arguments.empty()
-        and not RF->StackArgumentsType.UnqualifiedType.isValid()) {
-      Header << "(void)";
-    } else {
-      const StringRef Open = "(";
-      const StringRef Comma = ", ";
-      StringRef Separator = Open;
-      for (const auto &Arg : RF->Arguments) {
-        Header << Separator << getNamedCInstance(Arg.Type, Arg.name());
-        Separator = Comma;
-      }
+    printFunctionPrototypeImpl(*RF,
+                               FunctionTag.serialize(),
+                               ArgumentPrinter,
+                               StackName,
+                               Header,
+                               Model,
+                               Declaration);
+  } else if (auto *CF = dyn_cast<model::CABIFunctionType>(&FT)) {
+    auto ArgumentPrinter = [&](const Argument &Arg) {
+      return tokenTag(Arg.name().str(), tokens::FunctionParameter)
+        .addAttribute(attributes::LocationDefinition,
+                      serializedLocation(ranks::CABIFunctionArgument,
+                                         Function.key(),
+                                         Arg.key()))
+        .serialize();
+    };
 
-      revng_assert(RF->StackArgumentsType.Qualifiers.empty());
-      if (RF->StackArgumentsType.UnqualifiedType.isValid()) {
-        // Add last argument representing a pointer to the stack arguments
-        model::QualifiedType StackArgsPtr = RF->StackArgumentsType;
-        addPointerQualifier(StackArgsPtr, Model);
-        Header << Separator << getNamedCInstance(StackArgsPtr, "stack_args");
-      }
-      Header << ")";
-    }
-  } else if (const auto *CF = dyn_cast<model::CABIFunctionType>(&FT)) {
-    Header << getReturnTypeName(*CF) << FunctionName;
+    printFunctionPrototypeImpl(*CF,
+                               FunctionTag.serialize(),
+                               ArgumentPrinter,
+                               Header,
+                               Model,
+                               Declaration);
+  } else {
+    revng_abort();
+  }
+}
 
-    if (CF->Arguments.empty()) {
-      Header << "(void)";
+void printFunctionPrototype(const model::Type &FT,
+                            const model::DynamicFunction &Function,
+                            llvm::raw_ostream &Header,
+                            const model::Binary &Model,
+                            bool Declaration) {
+  Tag FunctionTag = tokenTag(Function.name(), tokens::Function)
+                      .addAttribute(attributes::ModelEditPath,
+                                    getCustomNamePath(Function))
+                      .addAttribute(Declaration ?
+                                      attributes::LocationDefinition :
+                                      attributes::LocationReferences,
+                                    serializedLocation(ranks::DynamicFunction,
+                                                       Function.key()));
+  if (auto *RF = dyn_cast<model::RawFunctionType>(&FT)) {
+    auto ArgumentPrinter = [&](const NamedTypedRegister &Reg) {
+      return tokenTag(Reg.name().str(), tokens::FunctionParameter)
+        .addAttribute(attributes::LocationDefinition,
+                      serializedLocation(ranks::RawDynFunctionArgument,
+                                         Function.key(),
+                                         Reg.key()))
+        .serialize();
+    };
 
-    } else {
-      const StringRef Open = "(";
-      const StringRef Comma = ", ";
-      StringRef Separator = Open;
+    printFunctionPrototypeImpl(*RF,
+                               FunctionTag.serialize(),
+                               ArgumentPrinter,
+                               "stack_args",
+                               Header,
+                               Model,
+                               Declaration);
+  } else if (auto *CF = dyn_cast<model::CABIFunctionType>(&FT)) {
+    auto ArgumentPrinter = [&](const Argument &Arg) {
+      return tokenTag(Arg.name().str(), tokens::FunctionParameter)
+        .addAttribute(attributes::LocationDefinition,
+                      serializedLocation(ranks::CABIDynFunctionArgument,
+                                         Function.key(),
+                                         Arg.key()))
+        .serialize();
+    };
 
-      for (const auto &Arg : CF->Arguments) {
-        TypeString ArgTypeName;
-        if (Arg.Type.isArray())
-          ArgTypeName = getArrayWrapper(Arg.Type);
-        else
-          ArgTypeName = getNamedCInstance(Arg.Type, "");
+    printFunctionPrototypeImpl(*CF,
+                               FunctionTag.serialize(),
+                               ArgumentPrinter,
+                               Header,
+                               Model,
+                               Declaration);
+  } else {
+    revng_abort();
+  }
+}
 
-        Header << Separator << ArgTypeName << " " << Arg.name();
-        Separator = Comma;
-      }
-      Header << ")";
-    }
+void printFunctionPrototype(const model::Type &FT,
+                            const llvm::StringRef &FunctionName,
+                            llvm::raw_ostream &Header,
+                            const model::Binary &Model,
+                            bool Declaration) {
+  if (auto *RF = dyn_cast<model::RawFunctionType>(&FT)) {
+    auto ArgumentPrinter = [&](const NamedTypedRegister &Reg) { return ""; };
+    printFunctionPrototypeImpl(*RF,
+                               FunctionName,
+                               ArgumentPrinter,
+                               "stack_args",
+                               Header,
+                               Model,
+                               Declaration);
+  } else if (auto *CF = dyn_cast<model::CABIFunctionType>(&FT)) {
+    auto ArgumentPrinter = [&](const Argument &Arg) { return ""; };
+    printFunctionPrototypeImpl(*CF,
+                               FunctionName,
+                               ArgumentPrinter,
+                               Header,
+                               Model,
+                               Declaration);
   } else {
     revng_abort();
   }

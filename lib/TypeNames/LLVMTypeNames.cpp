@@ -9,15 +9,23 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Type.h"
 
+#include "revng/Model/Binary.h"
 #include "revng/Model/Identifier.h"
+#include "revng/Pipeline/Location.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
 
+#include "revng-c/Pipes/Ranks.h"
 #include "revng-c/Support/FunctionTags.h"
+#include "revng-c/Support/PTMLC.h"
 #include "revng-c/TypeNames/LLVMTypeNames.h"
 
 using llvm::Twine;
+using tokenDefinition::types::TypeString;
 using namespace ArtificialTypes;
+
+namespace tokens = ptml::c::tokenTypes;
+namespace ranks = revng::ranks;
 
 TypeString
 getScalarCType(const llvm::Type *LLVMType, llvm::StringRef BaseType) {
@@ -82,20 +90,32 @@ getScalarCType(const llvm::Type *LLVMType, llvm::StringRef BaseType) {
   }
 }
 
-TypeString getReturnType(const llvm::Function *Func) {
+VariableTokensWithName getReturnType(const llvm::Function *Func) {
   auto *RetType = Func->getReturnType();
   // Isolated functions' return types must be converted using model types
   revng_assert(not FunctionTags::Isolated.isTagOf(Func));
 
   if (RetType->isStructTy()) {
     const auto &FuncName = model::Identifier::fromString(Func->getName());
-    return TypeString((StructWrapperPrefix + FuncName).str());
+    const std::string StructName = (StructWrapperPrefix + FuncName).str();
+    return {
+      StructName,
+      tokenTag(StructName, tokens::Type)
+        .addAttribute(ptml::attributes::LocationDefinition,
+                      pipeline::serializedLocation(ranks::Helpers, StructName)),
+      tokenTag(StructName, tokens::Type)
+        .addAttribute(ptml::attributes::LocationReferences,
+                      pipeline::serializedLocation(ranks::Helpers, StructName))
+    };
+  } else {
+    auto CType = getScalarCType(RetType).str();
+    return { CType,
+             tokenTag(CType, tokens::Type),
+             tokenTag(CType, tokens::Type) };
   }
-
-  return getScalarCType(RetType);
 }
 
-FieldInfo getFieldName(const llvm::StructType *StructTy, size_t Index) {
+FieldInfo getFieldInfo(const llvm::StructType *StructTy, size_t Index) {
   FieldInfo FieldInfo;
   FieldInfo.FieldName = TypeString((StructFieldPrefix + Twine(Index)).str());
   FieldInfo.FieldTypeName = getScalarCType(StructTy->getTypeAtIndex(Index));

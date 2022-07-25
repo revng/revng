@@ -4,19 +4,11 @@
 // Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 //
 
-namespace llvm {
+#include "llvm/Support/raw_ostream.h"
 
-class raw_ostream;
-
-} // end namespace llvm
-
-namespace model {
-
-class Binary;
-
-} // end namespace model
+#include "revng/Model/ForwardDecls.h"
 
 /// Generate a C header containing a serialization of the type system,
 /// i.e. function prototypes, structs, unions, typedefs, and anything that
 /// resides in the model.
-bool dumpModelToHeader(const model::Binary &Model, llvm::raw_ostream &Header);
+bool dumpModelToHeader(const model::Binary &Model, llvm::raw_ostream &Out);

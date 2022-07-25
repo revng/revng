@@ -13,12 +13,16 @@
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/Type.h"
+#include "revng/PTML/ModelHelpers.h"
+#include "revng/Pipeline/Location.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/YAMLTraits.h"
 
 #include "revng-c/HeadersGeneration/ModelToHeader.h"
+#include "revng-c/Pipes/Ranks.h"
 #include "revng-c/Support/ModelHelpers.h"
+#include "revng-c/Support/PTMLC.h"
 #include "revng-c/TypeNames/ModelTypeNames.h"
 
 #include "DependencyGraph.h"
@@ -29,79 +33,89 @@ using llvm::cast;
 using llvm::isa;
 using llvm::Twine;
 
+using modelEditPath::getCustomNamePath;
+using pipeline::serializedLocation;
+using ptml::str;
+using ptml::Tag;
+namespace attributes = ptml::attributes;
+namespace tokens = ptml::c::tokenTypes;
+namespace ranks = revng::ranks;
+
 static Logger<> Log{ "model-to-header" };
 
 static bool declarationIsDefinition(const model::Type *T) {
   return not isa<model::StructType>(T) and not isa<model::UnionType>(T);
 }
 
-static void
-printDeclaration(const model::PrimitiveType &P, llvm::raw_ostream &Header) {
+static void printDeclaration(const model::PrimitiveType &P,
+                             ptml::PTMLIndentedOstream &Header) {
   switch (P.PrimitiveKind) {
 
   case model::PrimitiveTypeKind::Unsigned: {
     // If it's 16 byte wide we need a typedef, since uint128_t is not defined
     // by the language
     if (P.Size == 16)
-      Header << "typedef __uint128_t " << P.name() << ";\n";
+      Header << keywords::Typedef << " "
+             << tokenTag("__uint128_t", tokens::Type) << " "
+             << tokenTag(P.name().str(), tokens::Type) << ";\n";
     else if (Log.isEnabled())
-      Header << "// not necessary, already in stdint.h\n";
+      Header << helpers::lineComment("not necessary, already in stdint.h");
 
   } break;
 
   case model::PrimitiveTypeKind::Signed: {
     if (P.Size == 16)
-      Header << "typedef __int128_t " << P.name() << ";\n";
+      Header << keywords::Typedef << " " << tokenTag("__int128_t", tokens::Type)
+             << " " << tokenTag(P.name(), tokens::Type) << ";\n";
     else if (Log.isEnabled())
-      Header << "// not necessary, already in stdint.h\n";
+      Header << helpers::lineComment("not necessary, already in stdint.h");
 
   } break;
 
   case model::PrimitiveTypeKind::Void: {
     if (Log.isEnabled())
-      Header << "// not necessary, already in stdint.h\n";
+      Header << helpers::lineComment("not necessary, already in stdint.h");
   } break;
 
   case model::PrimitiveTypeKind::Float: {
     if (Log.isEnabled())
-      Header << "// not necessary, already in revngfloat.h\n";
+      Header << helpers::lineComment("not necessary, already in revngfloat.h");
   } break;
 
   case model::PrimitiveTypeKind::Number:
   case model::PrimitiveTypeKind::PointerOrNumber:
   case model::PrimitiveTypeKind::Generic: {
-    switch (P.Size) {
-    case 1:
-      Header << "typedef uint8_t " << P.name() << ";\n";
-      break;
-
-    case 2:
-      Header << "typedef uint16_t " << P.name() << ";\n";
-      break;
-
-    case 4:
-      Header << "typedef uint32_t " << P.name() << ";\n";
-      break;
-
-    case 8:
-      Header << "typedef uint64_t " << P.name() << ";\n";
-      break;
-
-    case 16:
-      Header << "typedef __uint128_t " << P.name() << ";\n";
-      break;
+    std::string IntType = [&]() constexpr {
+      switch (P.Size) {
+      case 1:
+        return "uint8_t";
+      case 2:
+        return "uint16_t";
+      case 4:
+        return "uint32_t";
+      case 8:
+        return "uint64_t";
+      case 16:
+        return "__uint128_t";
+      default:
+        return "";
+      }
     }
+    ();
+    if (!IntType.empty())
+      Header << keywords::Typedef << " " << tokenTag(IntType, tokens::Type)
+             << " " << tokenTag(P.name().str(), tokens::Type) << ";\n";
   } break;
 
   default:
     if (Log.isEnabled())
-      Header << "// invalid primitive type\n";
+      Header << helpers::lineComment("invalid primitive type");
     revng_abort("Invalid primitive type");
   }
 }
 
 static void
-printDeclaration(const model::EnumType &E, llvm::raw_ostream &Header) {
+printDeclaration(const model::EnumType &E, ptml::PTMLIndentedOstream &Header) {
   // We have to make the enum of the correct size of the underlying type
   auto ByteSize = *E.size();
   revng_assert(ByteSize <= 8);
@@ -110,104 +124,185 @@ printDeclaration(const model::EnumType &E, llvm::raw_ostream &Header) {
                                  FullMask :
                                  ((FullMask) xor (FullMask << (8 * ByteSize)));
 
-  Header << "typedef enum __attribute__((packed)) {\n";
+  Header << keywords::Typedef << " " << keywords::Enum << " " << helpers::Packed
+         << " ";
 
-  for (const auto &Entry : E.Entries) {
-    if (not Entry.CustomName.empty()) {
-      Header << "  " << E.name() << "_" << Entry.CustomName << " = 0x";
-      Header.write_hex(Entry.Value);
-      Header << "U,\n";
+  {
+    Scope Scope(Header);
+
+    for (const auto &Entry : E.Entries) {
+      if (not Entry.CustomName.empty()) {
+        Header << tokenTag(E.name().str().str() + "_"
+                             + Entry.CustomName.str().str(),
+                           tokens::Field)
+                    .addAttribute(attributes::LocationDefinition,
+                                  serializedLocation(ranks::TypeField,
+                                                     E.key(),
+                                                     Entry.key()))
+                    .addAttribute(attributes::ModelEditPath,
+                                  getCustomNamePath(E, Entry))
+               << " " << operators::Assign << " " << constants::hex(Entry.Value)
+               << ",\n";
+      }
     }
+
+    // This ensures the enum is large exactly like the Underlying type
+    Header << tokenTag((E.name() + "_max_held_value").str(), tokens::Field)
+           << " " + operators::Assign + " "
+           << constants::hex(MaxBitPatternInEnum) << ",\n";
   }
 
-  // This ensures the enum is large exactly like the Underlying type
-  Header << "  " << E.name() << "_max_held_value = 0x";
-  Header.write_hex(MaxBitPatternInEnum);
-  Header << "U,\n} " << E.name() << ";\n";
-}
-
-static void
-printForwardDeclaration(const model::StructType &S, llvm::raw_ostream &Header) {
-  Header << "struct __attribute__((packed)) " << S.name() << ";\n";
-  Header << "typedef struct __attribute__((packed)) " << S.name() << ' '
-         << S.name() << ";\n";
-}
-
-static void
-printDefinition(const model::StructType &S, llvm::raw_ostream &Header) {
-  Header << "struct __attribute__((packed)) " << S.name() << "{\n";
-
-  size_t NextOffset = 0ULL;
-  for (const auto &Field : S.Fields) {
-
-    if (NextOffset < Field.Offset)
-      Header << "  uint8_t padding_at_offset_" << Twine(NextOffset) << "["
-             << Twine(Field.Offset - NextOffset) << "];\n";
-
-    Header << "  " << getNamedCInstance(Field.Type, Field.name()) << ";\n";
-
-    NextOffset = Field.Offset + Field.Type.size().value();
-  }
-
-  if (NextOffset < S.Size)
-    Header << "  uint8_t padding_at_offset_" << Twine(NextOffset) << "["
-           << Twine(S.Size - NextOffset) << "];\n";
-
-  Header << "};\n";
-}
-
-static void
-printForwardDeclaration(const model::UnionType &U, llvm::raw_ostream &Header) {
-  Header << "union __attribute__((packed)) " << U.name() << ";\n";
-  Header << "typedef union __attribute__((packed)) " << U.name() << ' '
-         << U.name() << ";\n";
-}
-
-static void
-printDefinition(const model::UnionType &U, llvm::raw_ostream &Header) {
-  Header << "union __attribute__((packed)) " << U.name() << "{\n";
-
-  for (const auto &Field : U.Fields)
-    Header << "  " << getNamedCInstance(Field.Type, Field.name()) << ";\n";
-
-  Header << "};\n";
-}
-
-static void
-printDeclaration(const model::TypedefType &TD, llvm::raw_ostream &Header) {
-  Header << "typedef " << getNamedCInstance(TD.UnderlyingType, TD.name())
+  Header << " "
+         << tokenTag(E.name(), tokens::Type)
+              .addAttribute(attributes::LocationDefinition,
+                            serializedLocation(ranks::Type, E.key()))
+              .addAttribute(attributes::ModelEditPath, getCustomNamePath(E))
          << ";\n";
 }
 
+static void printForwardDeclaration(const model::StructType &S,
+                                    ptml::PTMLIndentedOstream &Header) {
+  Tag TheTag = tokenTag(S.name(), tokens::Type)
+                 .addAttribute(attributes::LocationReferences,
+                               serializedLocation(ranks::Type, S.key()))
+                 .addAttribute(attributes::ModelEditPath, getCustomNamePath(S));
+  Header << keywords::Struct << " " << helpers::Packed << " " + TheTag + ";\n";
+  Header << keywords::Typedef << " " << keywords::Struct << " "
+         << helpers::Packed << " " << TheTag << " " << TheTag << ";\n";
+}
+
 static void
-printSegmentsTypes(const model::Segment &Segment, llvm::raw_ostream &Header) {
-  Header << getNamedCInstance(Segment.Type, Segment.name()) << ";\n";
+printDefinition(const model::StructType &S, ptml::PTMLIndentedOstream &Header) {
+  Header << keywords::Struct << " " << helpers::Packed << " ";
+  Header << tokenTag(S.name(), tokens::Type)
+              .addAttribute(attributes::LocationDefinition,
+                            serializedLocation(ranks::Type, S.key()))
+              .addAttribute(attributes::ModelEditPath, getCustomNamePath(S))
+         << " ";
+  {
+    Scope Scope(Header, scopeTags::Struct);
+
+    size_t NextOffset = 0ULL;
+    for (const auto &Field : S.Fields) {
+      if (NextOffset < Field.Offset)
+        Header << tokenTag("uint8_t", tokens::Type) << " "
+               << tokenTag("padding_at_offset_" + std::to_string(NextOffset),
+                           tokens::Field)
+               << "[" << constants::number(Field.Offset - NextOffset) << "];\n";
+
+      Tag FieldTag = tokenTag(Field.name().str(), tokens::Field)
+                       .addAttribute(attributes::LocationDefinition,
+                                     serializedLocation(ranks::TypeField,
+                                                        S.key(),
+                                                        Field.key()))
+                       .addAttribute(attributes::ModelEditPath,
+                                     getCustomNamePath(S, Field));
+      Header << getNamedCInstance(Field.Type, FieldTag.serialize(), true)
+             << ";\n";
+
+      NextOffset = Field.Offset + Field.Type.size().value();
+    }
+
+    if (NextOffset < S.Size)
+      Header << tokenTag("uint8_t", tokens::Type) << " "
+             << tokenTag("padding_at_offset_" + std::to_string(NextOffset),
+                         tokens::Field)
+             << "[" << constants::number(S.Size - NextOffset) << "];\n";
+  }
+  Header << ";\n";
+}
+
+static void printForwardDeclaration(const model::UnionType &U,
+                                    ptml::PTMLIndentedOstream &Header) {
+  Tag TheTag = tokenTag(U.name(), tokens::Type)
+                 .addAttribute(attributes::LocationReferences,
+                               serializedLocation(ranks::Type, U.key()))
+                 .addAttribute(attributes::ModelEditPath, getCustomNamePath(U));
+  Header << keywords::Union << " " << helpers::Packed << " " + TheTag + ";\n";
+  Header << keywords::Typedef << " " << keywords::Union << " "
+         << helpers::Packed << " " << TheTag << " " << TheTag << ";\n";
+}
+
+static void
+printDefinition(const model::UnionType &U, ptml::PTMLIndentedOstream &Header) {
+  Header << keywords::Union << " " << helpers::Packed << " ";
+  Header << tokenTag(U.name(), tokens::Type)
+              .addAttribute(attributes::LocationDefinition,
+                            serializedLocation(ranks::Type, U.key()))
+              .addAttribute(attributes::ModelEditPath, getCustomNamePath(U))
+         << " ";
+
+  {
+    Scope Scope(Header, scopeTags::Union);
+    for (const auto &Field : U.Fields) {
+      Tag FieldTag = tokenTag(Field.name().str(), tokens::Field)
+                       .addAttribute(attributes::LocationDefinition,
+                                     serializedLocation(ranks::TypeField,
+                                                        U.key(),
+                                                        Field.key()))
+                       .addAttribute(attributes::ModelEditPath,
+                                     getCustomNamePath(U, Field));
+      Header << getNamedCInstance(Field.Type, FieldTag.serialize(), true)
+             << ";\n";
+    }
+  }
+
+  Header << ";\n";
+}
+
+static void printDeclaration(const model::TypedefType &TD,
+                             ptml::PTMLIndentedOstream &Header) {
+  Header << keywords::Typedef << " "
+         << getNamedCInstance(TD.UnderlyingType,
+                              tokenTag(TD.name(), tokens::Type).serialize(),
+                              true)
+         << ";\n";
+}
+
+static void printSegmentsTypes(const model::Segment &Segment,
+                               ptml::PTMLIndentedOstream &Header) {
+  auto SegmentTag = tokenTag(Segment.name(), tokens::Variable)
+                      .addAttribute(attributes::ModelEditPath,
+                                    getCustomNamePath(Segment))
+                      .addAttribute(attributes::LocationDefinition,
+                                    serializedLocation(ranks::Segment,
+                                                       Segment.key()));
+  Header << getNamedCInstance(Segment.Type, SegmentTag.serialize(), true)
+         << ";\n";
 }
 
 /// Generate the definition of a new struct type that wraps all the
 ///        return values of \a F. The name of the struct type is provided by the
 ///        caller.
 static void generateReturnValueWrapper(const model::RawFunctionType &F,
-                                       llvm::raw_ostream &Header) {
+                                       ptml::PTMLIndentedOstream &Header) {
   revng_assert(F.ReturnValues.size() > 1);
   if (Log.isEnabled())
-    Header << "// definition the of return type needed\n";
+    Header << helpers::lineComment("definition the of return type needed");
 
-  Header << "typedef struct __attribute__((packed)) {\n";
+  Header << keywords::Typedef << " " << keywords::Struct << " "
+         << helpers::Packed << " ";
 
-  for (auto &Group : llvm::enumerate(F.ReturnValues)) {
-    const model::QualifiedType &RetTy = Group.value().Type;
-    const auto &FieldName = getReturnField(F, Group.index());
-    Header << "  " << getNamedCInstance(RetTy, FieldName) << ";\n";
+  {
+    Scope Scope(Header, scopeTags::Struct);
+    for (auto &Group : llvm::enumerate(F.ReturnValues)) {
+      const model::QualifiedType &RetTy = Group.value().Type;
+      const auto &FieldName = getReturnField(F, Group.index());
+      Header
+        << getNamedCInstance(RetTy,
+                             tokenTag(FieldName, tokens::Field).serialize(),
+                             true)
+        << ";\n";
+    }
   }
 
-  Header << "} " << getReturnTypeName(F) << ";\n ";
+  Header << " " << getReturnTypeName(F) << ";\n";
 }
 
 /// If the function has more than one return value, generate a wrapper
 ///        struct that contains them.
 static void printRawFunctionWrappers(const model::RawFunctionType *F,
-                                     llvm::raw_ostream &Header) {
+                                     ptml::PTMLIndentedOstream &Header) {
   if (F->ReturnValues.size() > 1)
     generateReturnValueWrapper(*F, Header);
 
@@ -218,14 +313,14 @@ static void printRawFunctionWrappers(const model::RawFunctionType *F,
 /// Print a typedef for a RawFunctionType, that can be used when you have
 ///        a variable that is a pointer to a function.
 static void printDeclaration(const model::RawFunctionType &F,
-                             llvm::raw_ostream &Header,
+                             ptml::PTMLIndentedOstream &Header,
                              const model::Binary &Model) {
   printRawFunctionWrappers(&F, Header);
 
-  Header << "typedef ";
+  Header << keywords::Typedef << " ";
   // In this case, we are defining a type for the function, not the function
   // itself, so the token right before the parenthesis is the name of the type.
-  printFunctionPrototype(F, getTypeName(F), Header, Model);
+  printFunctionPrototype(F, getTypeName(F, true), Header, Model, true);
   Header << ";\n";
 }
 
@@ -254,7 +349,7 @@ using QualifiedTypeNameMap = std::map<FrozenQualifiedType, std::string>;
 ///        This is used to wrap array arguments or array return values of
 ///        CABIFunctionTypes.
 static void generateArrayWrapper(const model::QualifiedType &ArrayType,
-                                 llvm::raw_ostream &Header,
+                                 ptml::PTMLIndentedOstream &Header,
                                  QualifiedTypeNameMap &NamesCache) {
   revng_assert(ArrayType.isArray());
   auto WrapperName = getArrayWrapper(ArrayType);
@@ -264,16 +359,20 @@ static void generateArrayWrapper(const model::QualifiedType &ArrayType,
   if (not IsNew)
     return;
 
-  Header << "typedef struct __attribute__((packed)) {\n";
-  Header << "  " << getNamedCInstance(ArrayType, ArrayWrapperFieldName)
-         << ";\n";
-  Header << "} " << WrapperName << ";\n ";
+  Header << keywords::Typedef << " " << keywords::Struct << " "
+         << helpers::Packed << " ";
+  {
+    Scope Scope(Header, scopeTags::Struct);
+    Header << getNamedCInstance(ArrayType, ArrayWrapperFieldName, true)
+           << ";\n";
+  }
+  Header << " " << WrapperName << ";\n";
 }
 
 /// If the return value or any of the arguments is an array, generate
 ///        a wrapper struct for each of them, if it's not already in the cache.
 static void printCABIFunctionWrappers(const model::CABIFunctionType *F,
-                                      llvm::raw_ostream &Header,
+                                      ptml::PTMLIndentedOstream &Header,
                                       QualifiedTypeNameMap &NamesCache) {
   if (F->ReturnType.isArray())
     generateArrayWrapper(F->ReturnType, Header, NamesCache);
@@ -286,24 +385,26 @@ static void printCABIFunctionWrappers(const model::CABIFunctionType *F,
 /// Print a typedef for a CABIFunctionType, that can be used when you
 ///        have a variable that is a pointer to a function.
 static void printDeclaration(const model::CABIFunctionType &F,
-                             llvm::raw_ostream &Header,
+                             ptml::PTMLIndentedOstream &Header,
                              QualifiedTypeNameMap &NamesCache,
                              const model::Binary &Model) {
   printCABIFunctionWrappers(&F, Header, NamesCache);
 
-  Header << "typedef ";
+  Header << keywords::Typedef << " ";
   // In this case, we are defining a type for the function, not the function
   // itself, so the token right before the parenthesis is the name of the type.
-  printFunctionPrototype(F, getTypeName(F), Header, Model);
+  printFunctionPrototype(F, getTypeName(F, true), Header, Model, true);
   Header << ";\n";
 }
 
 static void printDeclaration(const model::Type &T,
-                             llvm::raw_ostream &Header,
+                             ptml::PTMLIndentedOstream &Header,
                              QualifiedTypeNameMap &AdditionalTypeNames,
                              const model::Binary &Model) {
-  if (Log.isEnabled())
-    Header << "// Declaration of " << getNameFromYAMLScalar(T.key()) << '\n';
+  if (Log.isEnabled()) {
+    auto Scope = helpers::LineComment(Header);
+    Header << "Declaration of " << getNameFromYAMLScalar(T.key());
+  }
 
   revng_log(Log, "Declaring " << getNameFromYAMLScalar(T.key()));
 
@@ -311,7 +412,7 @@ static void printDeclaration(const model::Type &T,
 
   case model::TypeKind::Invalid: {
     if (Log.isEnabled())
-      Header << "// invalid\n";
+      Header << helpers::lineComment("invalid");
   } break;
 
   case model::TypeKind::PrimitiveType: {
@@ -350,11 +451,12 @@ static void printDeclaration(const model::Type &T,
 }
 
 static void printDefinition(const model::Type &T,
-                            llvm::raw_ostream &Header,
+                            ptml::PTMLIndentedOstream &Header,
                             QualifiedTypeNameMap &AdditionalTypeNames,
                             const model::Binary &Model) {
   if (Log.isEnabled())
-    Header << "// Definition of " << getNameFromYAMLScalar(T.key()) << '\n';
+    Header << helpers::lineComment("Definition of "
+                                   + getNameFromYAMLScalar(T.key()));
 
   revng_log(Log, "Defining " << getNameFromYAMLScalar(T.key()));
 
@@ -365,7 +467,7 @@ static void printDefinition(const model::Type &T,
 
     case model::TypeKind::Invalid: {
       if (Log.isEnabled())
-        Header << "// invalid\n";
+        Header << helpers::lineComment("invalid");
     } break;
 
     case model::TypeKind::StructType: {
@@ -384,7 +486,7 @@ static void printDefinition(const model::Type &T,
 
 /// Print all type definitions for the types in the model
 static void printTypeDefinitions(const model::Binary &Model,
-                                 llvm::raw_ostream &Header,
+                                 ptml::PTMLIndentedOstream &Header,
                                  QualifiedTypeNameMap &AdditionalTypeNames) {
   DependencyGraph Dependencies = buildDependencyGraph(Model.Types);
   const auto &TypeNodes = Dependencies.TypeNodes();
@@ -443,53 +545,59 @@ static void printTypeDefinitions(const model::Binary &Model,
   }
 }
 
-bool dumpModelToHeader(const model::Binary &Model, llvm::raw_ostream &Header) {
-  Header << "#pragma once\n";
-  Header << "#include <stdint.h>\n";
-  Header << "#include <stdbool.h>\n";
-  Header << "#include \"revngfloat.h\"\n\n";
+bool dumpModelToHeader(const model::Binary &Model, llvm::raw_ostream &Out) {
+  ptml::PTMLIndentedOstream Header(Out, 4);
+  {
+    auto Scope = Tag(ptml::tags::Div).scope(Header);
 
-  Header << "#ifndef NULL \n"
-         << "#define NULL (0) \n"
-         << "#endif \n\n";
+    Header << helpers::pragmaOnce();
+    Header << helpers::includeAngle("stdint.h");
+    Header << helpers::includeAngle("stdbool.h");
+    Header << helpers::includeQuote("revngfloat.h");
+    Header << "\n";
 
-  QualifiedTypeNameMap AdditionalTypeNames;
-  printTypeDefinitions(Model, Header, AdditionalTypeNames);
+    Header << directives::IfNotDef << " " << constants::Null << "\n"
+           << directives::Define << " " << constants::Null << " ("
+           << constants::Zero << ")\n"
+           << directives::EndIf << "\n\n";
 
-  for (const model::Function &MF : Model.Functions) {
-    const model::Type *FT = MF.Prototype.get();
-    auto FName = model::Identifier::fromString(MF.name());
+    QualifiedTypeNameMap AdditionalTypeNames;
+    printTypeDefinitions(Model, Header, AdditionalTypeNames);
 
-    if (Log.isEnabled()) {
-      Header << "/* Analyzing Model function " << FName << "\n";
-      serialize(Header, MF);
-      Header << "Prototype\n";
-      serialize(Header, *FT);
-      Header << "*/\n";
+    for (const model::Function &MF : Model.Functions) {
+      const model::Type *FT = MF.Prototype.get();
+      auto FName = model::Identifier::fromString(MF.name());
+
+      if (Log.isEnabled()) {
+        helpers::BlockComment CommentScope(Header);
+        Header << "Analyzing Model function " << FName << "\n";
+        serialize(Header, MF);
+        Header << "Prototype\n";
+        serialize(Header, *FT);
+      }
+
+      printFunctionPrototype(*FT, MF, Header, Model, true);
+      Header << ";\n";
     }
 
-    printFunctionPrototype(*FT, FName, Header, Model);
-    Header << ";\n";
-  }
+    for (const model::DynamicFunction &MF : Model.ImportedDynamicFunctions) {
+      const model::Type *FT = MF.prototype(Model).get();
+      revng_assert(FT != nullptr);
+      auto FName = model::Identifier::fromString(MF.name());
 
-  for (const model::DynamicFunction &MF : Model.ImportedDynamicFunctions) {
-    const model::Type *FT = MF.prototype(Model).get();
-    revng_assert(FT != nullptr);
-    auto FName = model::Identifier::fromString(MF.name());
-
-    if (Log.isEnabled()) {
-      Header << "/* Analyzing dynamic function " << FName << "\n";
-      serialize(Header, MF);
-      Header << "Prototype\n";
-      serialize(Header, *FT);
-      Header << "*/\n";
+      if (Log.isEnabled()) {
+        helpers::BlockComment CommentScope(Header);
+        Header << "Analyzing dynamic function " << FName << "\n";
+        serialize(Header, MF);
+        Header << "Prototype\n";
+        serialize(Header, *FT);
+      }
+      printFunctionPrototype(*FT, MF, Header, Model, true);
+      Header << ";\n";
     }
-    printFunctionPrototype(*FT, FName, Header, Model);
-    Header << ";\n";
+
+    for (const model::Segment &Segment : Model.Segments)
+      printSegmentsTypes(Segment, Header);
   }
-
-  for (const model::Segment &Segment : Model.Segments)
-    printSegmentsTypes(Segment, Header);
-
   return true;
 }

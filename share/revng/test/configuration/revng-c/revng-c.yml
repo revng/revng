@@ -60,24 +60,36 @@ commands:
         MakeSegmentRefs
         IRCanonicalization
         "*:StackAccessesSegregated"
-  - type: revng-c.model-to-header
+  - type: revng-c.ptml-model-to-header
     from:
       - type: revng-c.analyzed
-    suffix: .model.h
+    suffix: .ptml.model.h
     command: |-
       revng model to-header -i "$INPUT" -o "$OUTPUT";
-      revng check-decompiled-c "$OUTPUT"
-  - type: revng-c.helpers-to-header
+  - type: revng-c.model-to-header
+    from:
+      - type: revng-c.ptml-model-to-header
+    suffix: .model.h
+    command: |-
+      revng ptml strip "$INPUT" "$OUTPUT";
+      revng check-decompiled-c "$OUTPUT";
+  - type: revng-c.ptml-helpers-to-header
     from:
       - type: revng-c.analyzed
-    suffix: .helpers.h
+    suffix: .ptml.helpers.h
     command: |-
       revng helpers-to-header -i "$INPUT" -o "$OUTPUT";
+  - type: revng-c.helpers-to-header
+    from:
+      - type: revng-c.ptml-helpers-to-header
+    suffix: .helpers.h
+    command: |-
+      revng ptml strip "$INPUT" "$OUTPUT"
       revng check-decompiled-c "$OUTPUT"
-  - type: revng-c.decompiled-c
+  - type: revng-c.ptml-decompiled-c
     from:
       - type: revng-c.canonicalized
-    suffix: .c
+    suffix: .ptml.c
     command: |-
       MODEL="$$(mktemp)";
       trap 'rm -f -- "$$MODEL"' EXIT;
@@ -87,6 +99,12 @@ commands:
         -i "$INPUT:IRCanonicalization/module.ll"
         -o "$OUTPUT:DecompiledYAMLToC/decompiled.c"
         --produce DecompiledYAMLToC/decompiled.c/:DecompiledToC
+  - type: revng-c.decompiled-c
+    from:
+      - type: revng-c.ptml-decompiled-c
+    suffix: .c
+    command: |-
+      revng ptml strip "$INPUT" "$OUTPUT"
   - type: revng-c.check-decompiled-c
     from:
       - type: revng-c.decompiled-c
