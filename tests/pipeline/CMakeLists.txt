@@ -15,6 +15,7 @@ target_link_libraries(revngStringContainerLibrary revngPipeline revngPipes)
 # Define BadBehaviorLibrary
 revng_add_library_internal(revngBadBehaviorLibrary SHARED
                            ${CMAKE_CURRENT_SOURCE_DIR}/BadBehaviorLibrary.cpp)
+target_link_libraries(revngBadBehaviorLibrary revngSupport)
 
 macro(
   add_pipeline_test
