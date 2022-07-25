@@ -31,7 +31,7 @@ public:
     EnablingFlags("f",
                   llvm::cl::desc("list of pipeline enabling flags"),
                   llvm::cl::cat(Category)),
-    ExecutionDirectory("p",
+    ExecutionDirectory("resume",
                        llvm::cl::desc("Directory from which all containers "
                                       "will be loaded before everything else "
                                       "and to which it will be store after "

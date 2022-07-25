@@ -17,7 +17,7 @@ function run() {
     --produce=SecondStep/Strings3/Root:StringKind\
     -i "$SCRIPT_DIR/MultiStepPipelineInput.txt:begin/Strings1" \
     -o "$OUTPUT:SecondStep/Strings3" \
-    -p "$WORKING_DIRECTORY" \
+    --resume "$WORKING_DIRECTORY" \
     "$@"
 }
 

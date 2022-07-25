@@ -35,7 +35,7 @@ macro(
       -i ${INPUTS_LIST} \
       -o ${OUTPUTS_LIST} \
       -l ${CMAKE_BINARY_DIR}/lib/librevngStringContainerLibrary.so \
-      -p ${CMAKE_BINARY_DIR}/${TEST_NAME} \
+      --resume ${CMAKE_BINARY_DIR}/${TEST_NAME} \
       -f ${FLAGS}")
   set_tests_properties(
     "${TEST_NAME}" PROPERTIES LABELS "pipeline;run" ENVIRONMENT
@@ -176,12 +176,12 @@ function(add_invalidation_test TEST_NAME)
       ${OPT_TARGETS} \
       -i ${OPT_INPUT}:begin/Strings1 \
       -l ${CMAKE_BINARY_DIR}/lib/librevngStringContainerLibrary.so \
-      -p ${CMAKE_BINARY_DIR}/${TEST_NAME} &&
+      --resume ${CMAKE_BINARY_DIR}/${TEST_NAME} &&
       ${CMAKE_BINARY_DIR}/libexec/revng/revng-invalidate \
       -P ${OPT_PIPELINE} \
       ${OPT_INVALIDATIONS} \
       -l ${CMAKE_BINARY_DIR}/lib/librevngStringContainerLibrary.so \
-      -p ${CMAKE_BINARY_DIR}/${TEST_NAME}")
+      --resume ${CMAKE_BINARY_DIR}/${TEST_NAME}")
   set_tests_properties(
     "${TEST_NAME}" PROPERTIES LABELS "pipeline;run" ENVIRONMENT
                               "PATH=${CMAKE_BINARY_DIR}/bin:$ENV{PATH}")
