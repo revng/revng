@@ -203,10 +203,9 @@ add_invalidation_test(
 #
 
 macro(add_crash_test TEST_NAME SIGNAL EXPECTED_STATUS)
-  add_test(
-    NAME "${TEST_NAME}"
-    COMMAND
-      bash ${CMAKE_CURRENT_SOURCE_DIR}/run_crash_test.sh ${CMAKE_BINARY_DIR} ${EXPECTED_STATUS} ${SIGNAL})
+  add_test(NAME "${TEST_NAME}"
+           COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/run_crash_test.sh
+                   ${CMAKE_BINARY_DIR} ${EXPECTED_STATUS} ${SIGNAL})
   set_tests_properties(
     "${TEST_NAME}" PROPERTIES LABELS "pipeline;crash" ENVIRONMENT
                               "PATH=${CMAKE_BINARY_DIR}/bin:$ENV{PATH}")
