@@ -6,10 +6,10 @@
 
 #include "revng/Pipeline/Rank.h"
 
-namespace revng::pipes {
+namespace revng::pipes::ranks {
 
-inline pipeline::Rank RootRank("root");
+inline pipeline::Rank Root("root");
 
-inline pipeline::Rank FunctionsRank("function", RootRank);
+inline pipeline::Rank Function("function", Root);
 
-} // namespace revng::pipes
+} // namespace revng::pipes::ranks

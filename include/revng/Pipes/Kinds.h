@@ -12,26 +12,26 @@
 
 namespace revng::pipes {
 
-inline pipeline::Kind Binary("Binary", &RootRank);
+inline pipeline::Kind Binary("Binary", &ranks::Root);
 
-inline RootKind Root("Root", &RootRank);
-inline IsolatedRootKind IsolatedRoot("IsolatedRoot", Root);
+inline RootKind Root("Root", &ranks::Root);
+inline IsolatedRootKind IsolatedRoot("IsolatedRoot", &ranks::Root);
 
 inline TaggedFunctionKind
-  Isolated("Isolated", &FunctionsRank, FunctionTags::Isolated);
+  Isolated("Isolated", &ranks::Function, FunctionTags::Isolated);
 inline TaggedFunctionKind
-  ABIEnforced("ABIEnforced", &FunctionsRank, FunctionTags::ABIEnforced);
+  ABIEnforced("ABIEnforced", &ranks::Function, FunctionTags::ABIEnforced);
 inline TaggedFunctionKind
-  CSVsPromoted("CSVsPromoted", &FunctionsRank, FunctionTags::CSVsPromoted);
+  CSVsPromoted("CSVsPromoted", &ranks::Function, FunctionTags::CSVsPromoted);
 
-inline pipeline::Kind Object("Object", &RootRank);
-inline pipeline::Kind Translated("Translated", &RootRank);
+inline pipeline::Kind Object("Object", &ranks::Root);
+inline pipeline::Kind Translated("Translated", &ranks::Root);
 
 inline FunctionKind
-  FunctionAssemblyInternal("FunctionAssemblyInternal", &FunctionsRank);
+  FunctionAssemblyInternal("FunctionAssemblyInternal", &ranks::Function);
 inline FunctionKind
-  FunctionAssemblyPTML("FunctionAssemblyPTML", &FunctionsRank);
+  FunctionAssemblyPTML("FunctionAssemblyPTML", &ranks::Function);
 inline FunctionKind
-  FunctionControlFlowGraphSVG("FunctionControlFlowGraphSVG", &FunctionsRank);
+  FunctionControlFlowGraphSVG("FunctionControlFlowGraphSVG", &ranks::Function);
 
 } // namespace revng::pipes
