@@ -10,7 +10,7 @@
 
 namespace revng::pipes::ranks {
 
-inline pipeline::RootRankDefinition<"binary"> Binary;
+inline auto Binary = pipeline::defineRootRank<"binary">();
 
 using pipeline::defineRank;
 inline auto Function = defineRank<"function", MetaAddress>(Binary);
