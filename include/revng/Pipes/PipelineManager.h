@@ -127,7 +127,12 @@ public:
 
   /// A helper function used to produce all possible targets. It is used for
   /// debug purposes to see if any particular target crashes.
-  llvm::Error produceAllPossibleTargets(bool ExpandTargets = true);
+  llvm::Error produceAllPossibleTargets() {
+    return produceAllPossibleTargets(false);
+  }
+  llvm::Error produceAllPossibleSingleTargets() {
+    return produceAllPossibleTargets(true);
+  }
 
   llvm::Error invalidateAllPossibleTargets();
 
@@ -164,5 +169,8 @@ public:
   void writeAllPossibleTargets(llvm::raw_ostream &OS) const;
 
   llvm::StringRef executionDirectory() const { return ExecutionDirectory; }
+
+private:
+  llvm::Error produceAllPossibleTargets(bool ExpandTargets);
 };
 } // namespace revng::pipes

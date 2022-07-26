@@ -9,6 +9,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/IR/LLVMContext.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/DynamicLibrary.h"
 #include "llvm/Support/PluginLoader.h"
@@ -60,6 +61,14 @@ static opt<bool> ProduceAllPossibleTargets("produce-all",
                                                 "targets"),
                                            cat(PipelineCategory),
                                            init(false));
+
+static opt<bool> ProduceAllPossibleTargetsSingle("produce-all-single",
+                                                 desc("Try producing all "
+                                                      "possible "
+                                                      "targets one element at "
+                                                      "the time"),
+                                                 cat(PipelineCategory),
+                                                 init(false));
 
 static opt<bool> AnalyzeAll("analyze-all",
                             desc("Try analyzing all possible "
@@ -197,7 +206,9 @@ int main(int argc, const char *argv[]) {
   runPipeline(Manager.getRunner());
 
   if (ProduceAllPossibleTargets)
-    AbortOnError(Manager.produceAllPossibleTargets(false));
+    AbortOnError(Manager.produceAllPossibleTargets());
+  else if (ProduceAllPossibleTargetsSingle)
+    AbortOnError(Manager.produceAllPossibleSingleTargets());
 
   if (InvalidateAll) {
     AbortOnError(Manager.invalidateAllPossibleTargets());
