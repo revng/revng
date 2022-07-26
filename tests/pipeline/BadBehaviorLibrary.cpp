@@ -13,6 +13,12 @@
 #include <string>
 #include <string_view>
 
+#include "revng/Support/Assert.h"
+
+// Ugly way to bypass the check-conventions check that enforces the usage of
+// revng_abort(). We specifically don't want to use it in this case.
+#define sneaky_abort abort
+
 int *SomeGlobalPointerNobodyWillInitialize;
 
 static void printAndFlush(std::string_view String) {
@@ -22,8 +28,10 @@ static void printAndFlush(std::string_view String) {
 
 static void doCrash() {
   const char *CEnv = std::getenv("REVNG_CRASH_SIGNAL");
-  if (CEnv == nullptr)
-    abort(); // But would this be a bug or a feature?
+  if (CEnv == nullptr) {
+    // But would this be a bug or a feature?
+    revng_abort("$REVNG_CRASH_SIGNAL not set");
+  }
   std::string Env(CEnv);
   int Signal = std::stoi(Env);
 
@@ -33,8 +41,8 @@ static void doCrash() {
     asm(".byte 0x0f, 0x0b");
     break;
   case SIGABRT:
-    printAndFlush("SIGABRT via abort()");
-    abort();
+    printAndFlush("SIGABRT via abort");
+    sneaky_abort();
   case SIGSEGV:
     printAndFlush("SIGSEGV via write to uninitialized pointer");
     *SomeGlobalPointerNobodyWillInitialize = 69;
@@ -45,8 +53,7 @@ static void doCrash() {
     std::raise(Signal);
     break;
   }
-  std::cerr << "This shouldn't be executed" << std::endl;
-  abort();
+  revng_abort("This shouldn't be executed");
 }
 
 class WillCrash {
