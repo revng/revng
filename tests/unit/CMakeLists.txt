@@ -353,3 +353,24 @@ add_test(NAME test_register_state_deductions
          COMMAND test_register_state_deductions)
 set_tests_properties(test_register_state_deductions PROPERTIES LABELS
                                                                "unit;abi")
+
+#
+# test_location_infrastructure
+#
+
+revng_add_test_executable(test_location_infrastructure "${SRC}/Location.cpp")
+target_compile_definitions(test_location_infrastructure
+                           PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(test_location_infrastructure
+                           PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(
+  test_location_infrastructure
+  revngModel
+  revngPipeline
+  revngSupport
+  revngUnitTestHelpers
+  Boost::unit_test_framework
+  ${LLVM_LIBRARIES})
+add_test(NAME test_location_infrastructure COMMAND test_location_infrastructure)
+set_tests_properties(test_location_infrastructure
+                     PROPERTIES LABELS "unit;pipeline;location")
