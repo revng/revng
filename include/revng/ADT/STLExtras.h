@@ -5,6 +5,8 @@
 //
 
 #include <array>
+#include <optional>
+#include <string_view>
 #include <type_traits>
 
 #include "llvm/ADT/ArrayRef.h"
@@ -196,3 +198,68 @@ auto append(FromType &&From, ToType &To) {
   To.resize(ExistingElementCount + From.size());
   return llvm::copy(From, std::next(To.begin(), ExistingElementCount));
 }
+
+//
+// constexpr repeat
+//
+
+namespace detail {
+
+template<typename TemplatedCallableType, std::size_t... Indices>
+constexpr void constexprRepeatImpl(std::index_sequence<Indices...>,
+                                   TemplatedCallableType &&Callable) {
+  (Callable.template operator()<Indices>(), ...);
+}
+
+template<typename TemplatedCallableType, std::size_t... Indices>
+constexpr bool constexprAndImpl(std::index_sequence<Indices...>,
+                                TemplatedCallableType &&Callable) {
+  return (Callable.template operator()<Indices>() && ...);
+}
+
+template<typename TemplatedCallableType, std::size_t... Indices>
+constexpr bool constexprOrImpl(std::index_sequence<Indices...>,
+                               TemplatedCallableType &&Callable) {
+  return (Callable.template operator()<Indices>() || ...);
+}
+
+} // namespace detail
+
+template<std::size_t IterationCount, typename CallableType>
+constexpr void constexprRepeat(CallableType &&Callable) {
+  detail::constexprRepeatImpl(std::make_index_sequence<IterationCount>(),
+                              std::forward<CallableType>(Callable));
+}
+
+template<std::size_t IterationCount, typename CallableType>
+constexpr bool constexprAnd(CallableType &&Callable) {
+  return detail::constexprAndImpl(std::make_index_sequence<IterationCount>(),
+                                  std::forward<CallableType>(Callable));
+}
+
+template<std::size_t IterationCount, typename CallableType>
+constexpr bool constexprOr(CallableType &&Callable) {
+  return detail::constexprOrImpl(std::make_index_sequence<IterationCount>(),
+                                 std::forward<CallableType>(Callable));
+}
+
+namespace examples {
+using namespace std::string_view_literals;
+
+template<std::size_t Count>
+consteval std::size_t fullSize(std::array<std::string_view, Count> Components,
+                               std::string_view Separator) {
+  std::size_t Result = Separator.size() * Count;
+  constexprRepeat<Count>([&Result, &Components]<std::size_t Index> {
+    Result += std::get<Index>(Components).size();
+  });
+  return Result;
+}
+
+inline constexpr std::array Components = { "instruction"sv,
+                                           "0x401000:Code_x86_64"sv,
+                                           "0x402000:Code_x86_64"sv,
+                                           "0x403000:Code_x86_64"sv };
+static_assert(fullSize(Components, "/"sv) == 75);
+
+} // namespace examples
