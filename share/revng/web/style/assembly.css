@@ -1,0 +1,74 @@
+/*
+ * This file is distributed under the MIT License. See LICENSE.md for details.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Source+Code+Pro&display=swap');
+body {
+  background-color: #2e2f30;
+  font-family: 'Source Code Pro', monospace;
+  font-size: 18px;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+:target {
+  background-color: #252627;
+}
+
+[data-scope="annotation"] {
+  font-size: 12px;
+  color: #71747f;
+}
+
+[data-scope="comment"] {
+  color: #a8abb0;
+  font-size: 15px;
+}
+
+[data-scope="error"] {
+  color: #e05050;
+  font-size: 15px;
+}
+
+[data-scope="indentation"] {
+  color: #2e2f30;
+}
+
+[data-scope="link"] {
+  color: #a69a3f;
+}
+
+[data-scope="asm.labeled-block"] {
+  padding: 12px;
+}
+
+[data-scope="asm.instruction"] {
+  padding: 4px;
+  padding-left: 2ch;
+  color: #d6cf9a;
+}
+
+[data-token="asm.label"],
+[data-token="asm.label-indicator"] {
+  color: #d6c540;
+}
+
+[data-token="asm.opcode"],
+[data-token="asm.mnemonic"],
+[data-token="asm.mnemonic-prefix"],
+[data-token="asm.mnemonic-suffix"] {
+  color: #ff8080;
+}
+
+[data-token="asm.immediate-value"] {
+  color: #a87e49;
+}
+
+[data-token="asm.register"] {
+  color: #66a334;
+}

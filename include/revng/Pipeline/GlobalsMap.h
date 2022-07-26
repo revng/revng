@@ -26,6 +26,18 @@ public:
     return ToReturn;
   }
 
+  llvm::Error
+  applyDiff(llvm::StringRef GlobalName, const llvm::MemoryBuffer &Buffer) {
+    auto Iter = Map.find(GlobalName);
+    if (Iter == Map.end()) {
+      auto *Message = "pipeline loader context did not contain object %s";
+      return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                     Message,
+                                     GlobalName.str().c_str());
+    }
+    return Iter->second->applyDiff(Buffer);
+  }
+
   template<typename ToAdd, typename... T>
   void emplace(llvm::StringRef Name, T &&...Args) {
     Map.try_emplace(Name, std::make_unique<ToAdd>(std::forward<T>(Args)...));
@@ -80,6 +92,42 @@ public:
     }
 
     return Iter->second->deserialize(Buffer);
+  }
+
+  llvm::Error verify(llvm::StringRef GlobalName) const {
+    auto Iter = Map.find(GlobalName);
+    if (Iter == Map.end()) {
+      auto *Message = "pipeline loader context did not contained object %s";
+      return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                     Message,
+                                     GlobalName.str().c_str());
+    }
+
+    return Iter->second->verify();
+  }
+
+  llvm::Error
+  verify(llvm::StringRef GlobalName, const llvm::MemoryBuffer &Buffer) const {
+    auto Iter = Map.find(GlobalName);
+    if (Iter == Map.end()) {
+      auto *Message = "pipeline loader context did not contained object %s";
+      return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                     Message,
+                                     GlobalName.str().c_str());
+    }
+
+    return Iter->second->verifyOther(Buffer);
+  }
+
+  llvm::Expected<std::unique_ptr<Global>> clone(llvm::StringRef GlobalName) {
+    auto Iter = Map.find(GlobalName);
+    if (Iter == Map.end()) {
+      auto *Message = "pipeline loader context did not contained object %s";
+      return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                     Message,
+                                     GlobalName.str().c_str());
+    }
+    return Iter->second->clone();
   }
 
   llvm::Error storeToDisk(llvm::StringRef Path) const;

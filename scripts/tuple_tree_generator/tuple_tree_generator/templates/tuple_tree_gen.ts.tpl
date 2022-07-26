@@ -43,6 +43,10 @@ export class {{ type_name }} {
         return this.str;
     }
 
+    toString(): string {
+        return this.str;
+    }
+
     static parse(str?: string): {{ type_name }} | undefined {
         if(str !== undefined) {
             return new Identifier(str);

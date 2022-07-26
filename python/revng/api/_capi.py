@@ -51,7 +51,10 @@ class ApiWrapper:
         @wraps(function)
         def new_function(*args):
             ret = function(*args)
-            return ffi.gc(ret, self.__wrap_lock(destructor))
+            if ret != ffi.NULL:
+                return ffi.gc(ret, self.__wrap_lock(destructor))
+            else:
+                return ret
 
         return new_function
 

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import jinja2
 
+from ..schema.enum import EnumDefinition
 from ..schema.struct import ReferenceStructField, SequenceStructField, SimpleStructField
 
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
@@ -42,7 +43,22 @@ def render_docstring(docstr: str):
     return rendered_docstring
 
 
+def string_converter(field: SimpleStructField):
+    if field.type == "MetaAddress":
+        return f"{field.name}.toString()"
+    elif "int" in field.type:
+        return f"std::to_string({field.name})"
+    elif "string" in field.type:
+        return field.name
+    elif isinstance(field.resolved_type, EnumDefinition):
+        rt: EnumDefinition = field.resolved_type
+        return f"{rt.namespace}::getName({field.name}).str()"
+    else:
+        raise ValueError("Invalid key field")
+
+
 environment.filters["docstring"] = render_docstring
+environment.filters["string_converter"] = string_converter
 
 # More convenient than escaping the double braces
 environment.globals["nodiscard"] = "[[ nodiscard ]]"

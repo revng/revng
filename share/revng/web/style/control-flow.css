@@ -1,0 +1,39 @@
+/*
+ * This file is distributed under the MIT License. See LICENSE.md for details.
+ */
+
+ .node-body {
+  stroke-width: 2px;
+  stroke: #d6cf9a;
+  fill: transparent;
+  pointer-events: none;
+}
+
+.node-contents {
+  border-radius: 5px;
+  background: transparent;
+}
+
+.unconditional-edge {
+  stroke: #d6cf9a;
+  stroke-width: 2px;
+}
+#unconditional-arrow-head {
+  fill: #d6cf9a;
+}
+
+.taken-edge {
+  stroke: #66a334;
+  stroke-width: 2px;
+}
+#taken-arrow-head {
+  fill: #66a334;
+}
+
+.refused-edge {
+  stroke: #ff8080;
+  stroke-width: 2px;
+}
+#refused-arrow-head {
+  fill: #ff8080;
+}

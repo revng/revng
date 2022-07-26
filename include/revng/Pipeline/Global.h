@@ -36,6 +36,8 @@ public:
   virtual llvm::Error applyDiff(const llvm::MemoryBuffer &Diff) = 0;
   virtual llvm::Error serialize(llvm::raw_ostream &OS) const = 0;
   virtual llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) = 0;
+  virtual llvm::Error verify() const = 0;
+  virtual llvm::Error verifyOther(const llvm::MemoryBuffer &Buffer) const = 0;
   virtual void clear() = 0;
   virtual std::unique_ptr<Global> clone() const = 0;
   virtual llvm::Error storeToDisk(llvm::StringRef Path) const;
@@ -84,6 +86,20 @@ public:
       return llvm::errorCodeToError(MaybeDiff.getError());
 
     Value = *MaybeDiff;
+    return llvm::Error::success();
+  }
+
+  llvm::Error verify() const override;
+
+  llvm::Error verifyOther(const llvm::MemoryBuffer &Buffer) const override {
+    auto MaybeGlobal = TupleTree<Object>::deserialize(Buffer.getBuffer());
+    if (!MaybeGlobal)
+      return llvm::errorCodeToError(MaybeGlobal.getError());
+
+    if (!MaybeGlobal->verify())
+      return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                     "Global verify failed");
+
     return llvm::Error::success();
   }
 

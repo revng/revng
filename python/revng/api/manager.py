@@ -12,6 +12,7 @@ from revng.support.collect import collect_files
 from ._capi import ROOT, _api, ffi
 from .analysis import Analysis
 from .container import Container, ContainerIdentifier
+from .error_container import run_with_ec
 from .exceptions import RevngException
 from .kind import Kind
 from .step import Step
@@ -395,10 +396,15 @@ class Manager:
         _out = _api.rp_manager_create_global_copy(self._manager, _name)
         return make_python_string(_out)
 
-    def set_global(self, name, content):
+    def set_global(self, name, content, dry_run=False):
         _name = make_c_string(name)
         _content = make_c_string(content)
-        _api.rp_manager_set_global(self._manager, _content, _name)
+        return run_with_ec(_api.rp_manager_set_global, self._manager, _content, _name, dry_run)
+
+    def apply_diff(self, name, diff, dry_run=False):
+        _name = make_c_string(name)
+        _diff = make_c_string(diff)
+        return run_with_ec(_api.rp_manager_apply_diff, self._manager, _diff, _name, dry_run)
 
     def get_model(self) -> str:
         return self.get_global("model.yml")

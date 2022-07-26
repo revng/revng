@@ -12,6 +12,8 @@ type Query {
     {%- for rank in structure.keys() %}
     {{ rank.name }}{{ rank | rank_param }}: {{ rank.name | capitalize }}!
     {%- endfor %}
+
+    debug: Debug!
 }
 
 type Mutation {
@@ -20,6 +22,8 @@ type Mutation {
     runAnalysis(step: String!, analysis: String!, container: String!, targets: String!): String!
     runAllAnalyses: String!
     analyses: AnalysisMutations!
+    setGlobal(name: String!, content: String!, verify: Boolean): Boolean!
+    applyDiff(globalName: String!, content: String!, verify: Boolean): Boolean!
 }
 
 type AnalysisMutations {
@@ -111,6 +115,11 @@ type {{ step.name }}Analyses {
 }
 {%- endif %}
 {%- endfor %}
+
+type Debug {
+    verifyGlobal(name: String!, content: String!): Boolean!
+    verifyDiff(globalName: String!, content: String!): Boolean!
+}
 
 
 scalar Upload

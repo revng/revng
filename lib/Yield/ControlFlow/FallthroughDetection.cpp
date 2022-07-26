@@ -18,9 +18,9 @@ yield::cfg::detectFallthrough(const yield::BasicBlock &BasicBlock,
   const yield::BasicBlock *Result = nullptr;
 
   for (const auto &Edge : BasicBlock.Successors) {
-    auto [NextAddress, _] = efa::parseSuccessor(*Edge, BasicBlock.End, Binary);
-    if (NextAddress.isValid() && NextAddress == BasicBlock.End) {
-      if (auto Iterator = Function.ControlFlowGraph.find(NextAddress);
+    auto [Next, _] = efa::parseSuccessor(*Edge, BasicBlock.End, Binary);
+    if (Next.has_value() && Next->isValid() && Next == BasicBlock.End) {
+      if (auto Iterator = Function.ControlFlowGraph.find(Next.value());
           Iterator != Function.ControlFlowGraph.end()) {
         if (Iterator->IsLabelAlwaysRequired == false) {
           revng_assert(Result == nullptr,

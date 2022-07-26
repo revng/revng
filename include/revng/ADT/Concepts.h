@@ -32,6 +32,11 @@ concept range = requires(T &R) {
   std::end(R);
 };
 
+template<class Container, typename ElementType>
+concept typed = range<Container> &&
+                std::is_convertible_v<typename Container::value_type,
+                                      ElementType>;
+
 template<class T>
 concept sized_range = ranges::range<T> && requires(T &R) {
   std::size(R);
