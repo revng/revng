@@ -68,6 +68,18 @@ struct OffsetExpression {
 
     return true;
   }
+
+  static OffsetExpression
+  append(OffsetExpression LHS, const OffsetExpression &RHS) {
+    revng_assert(LHS.verify());
+    revng_assert(RHS.verify());
+    LHS.Offset += RHS.Offset;
+    LHS.Strides.append(RHS.Strides);
+    LHS.TripCounts.append(RHS.TripCounts);
+    revng_assert(LHS.verify());
+    return LHS;
+  }
+
 }; // end class OffsetExpression
 
 class TypeLinkTag {
@@ -132,6 +144,7 @@ public:
 
   friend void
   writeToLog(Logger<true> &L, const dla::TypeLinkTag &T, int /* Ignore */);
+
 }; // end class TypeLinkTag
 
 class LayoutTypeSystem;
