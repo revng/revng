@@ -275,12 +275,6 @@ bool Segment::verify(VerifyHelper &VH) const {
   for (const model::Relocation &Relocation : Relocations) {
     if (not Relocation.verify(VH))
       return VH.fail("Invalid relocation", Relocation);
-
-    if (not contains(Relocation.Address)
-        or not contains(Relocation.endAddress())) {
-      return VH.fail("The segment contains a relocation out of its boundaries",
-                     Relocation);
-    }
   }
 
   return true;
