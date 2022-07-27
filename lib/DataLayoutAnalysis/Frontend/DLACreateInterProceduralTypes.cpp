@@ -90,9 +90,15 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
       auto [It, Success] = SegmentNodeMap.insert({ &Segment, SegmentTypeNode });
 
       // Already inserted? Reference the Node of the current function to the
-      // already found segment.
-      if (Success == false)
+      // found segment, otherwise emit a placeholder for a new node in order to
+      // prevent DLA's middle-end from doing certain optimizations.
+      if (Success == false) {
         TS.addEqualityLink(SegmentTypeNode, It->second);
+      } else {
+        auto *Placeholder = TS.createArtificialLayoutType();
+        Placeholder->Size = getPointerSize(Model.Architecture);
+        TS.addPointerLink(Placeholder, SegmentTypeNode);
+      }
 
       for (const Use &U : F.uses()) {
         auto *Call = cast<CallInst>(U.getUser());
