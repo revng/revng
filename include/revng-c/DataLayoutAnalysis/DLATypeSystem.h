@@ -41,6 +41,33 @@ struct OffsetExpression {
   operator<=>(const OffsetExpression &Other) const = default;
 
   void print(llvm::raw_ostream &OS) const;
+
+  bool verify() const debug_function {
+    if (Offset < 0)
+      return false;
+
+    if (Strides.size() != TripCounts.size())
+      return false;
+
+    int64_t PrevStride = std::numeric_limits<int64_t>::max();
+    for (const auto &[Stride, MaybeTC] : llvm::zip_first(Strides, TripCounts)) {
+
+      // Strides should go from larger to smaller
+      if (PrevStride < Stride)
+        return false;
+
+      // Arrays with unknown length are considered as if they had one element
+      auto TripCount = MaybeTC.value_or(1);
+      // If the current stride times the current trip count is larger than the
+      // previous stride, it would trip over the element of the outer array.
+      if (Stride * TripCount > PrevStride)
+        return false;
+
+      PrevStride = Stride;
+    }
+
+    return true;
+  }
 }; // end class OffsetExpression
 
 class TypeLinkTag {
