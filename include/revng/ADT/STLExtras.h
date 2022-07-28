@@ -6,6 +6,7 @@
 
 #include <array>
 #include <optional>
+#include <set>
 #include <string_view>
 #include <type_traits>
 
@@ -197,6 +198,18 @@ auto append(FromType &&From, ToType &To) {
   size_t ExistingElementCount = To.size();
   To.resize(ExistingElementCount + From.size());
   return llvm::copy(From, std::next(To.begin(), ExistingElementCount));
+}
+
+/// Intersects two std::sets
+template<typename T>
+std::set<T *> intersect(const std::set<T *> &First, const std::set<T *> &Last) {
+  std::set<T *> Output;
+  std::set_intersection(First.begin(),
+                        First.end(),
+                        Last.begin(),
+                        Last.end(),
+                        std::inserter(Output, Output.begin()));
+  return Output;
 }
 
 //
