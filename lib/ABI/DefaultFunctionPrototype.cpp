@@ -45,6 +45,9 @@ TypePath defaultPrototype(Binary &TheBinary) {
   for (const auto &Register : abi::Trait<ABI>::CalleeSavedRegisters)
     Prototype.PreservedRegisters.insert(Register);
 
+  using namespace Architecture;
+  Prototype.FinalStackOffset = getCallPushSize(TheBinary.Architecture);
+
   return TypePath;
 }
 
