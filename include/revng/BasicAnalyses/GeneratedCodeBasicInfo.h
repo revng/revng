@@ -316,6 +316,8 @@ public:
     bool Other = false;
     std::set<MetaAddress> Addresses;
 
+    bool operator==(const SuccessorsList &Other) const = default;
+
     static SuccessorsList other() {
       SuccessorsList Result;
       Result.Other = true;
