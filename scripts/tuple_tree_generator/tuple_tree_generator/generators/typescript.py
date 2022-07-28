@@ -148,7 +148,7 @@ class TypeScriptGenerator:
                     return f"this.{name} = rawObject.{name}{opt}.map(e => {ftype}.parse(e));"
                 else:
                     return f"this.{name} = {ftype}.parse(rawObject.{name});"
-        raise ValueError()
+        raise ValueError(field.name)
 
     @staticmethod
     def gen_key(struct: StructDefinition) -> str:
