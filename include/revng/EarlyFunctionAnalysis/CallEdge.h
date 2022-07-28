@@ -79,8 +79,6 @@ inline model::TypePath getPrototype(const model::Binary &Binary,
     } else if (Edge.Destination.isValid()) {
       // Get the function prototype
       Result = Binary.Functions.at(Edge.Destination).Prototype;
-    } else {
-      revng_abort();
     }
   }
 
