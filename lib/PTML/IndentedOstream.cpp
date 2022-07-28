@@ -16,24 +16,26 @@ uint64_t PTMLIndentedOstream::current_pos() const {
 
 void PTMLIndentedOstream::write_impl(const char *Ptr, size_t Size) {
   llvm::StringRef Str(Ptr, Size);
+  llvm::SmallVector<llvm::StringRef> Lines;
+  Str.split(Lines, '\n');
 
-  bool BufferEndsNewline = Str.endswith("\n");
+  bool EndsInNewLine = Str.endswith("\n");
+  if (EndsInNewLine)
+    Lines.pop_back();
 
-  std::pair<llvm::StringRef, llvm::StringRef> Pair;
-  while (Pair = Str.split('\n'), Pair.first != "") {
-    if (TrailingNewline)
-      writeIndent();
-    OS << Pair.first;
-    if (Pair.second != "") {
-      OS << '\n';
-      writeIndent();
-    }
-    Str = Pair.second;
+  if (TrailingNewline)
+    writeIndent();
+
+  for (auto &Line : llvm::make_range(Lines.begin(), std::prev(Lines.end()))) {
+    OS << Line << '\n';
+    writeIndent();
   }
 
-  if (BufferEndsNewline)
+  OS << Lines.pop_back_val();
+  if (EndsInNewLine)
     OS << '\n';
-  TrailingNewline = BufferEndsNewline;
+
+  TrailingNewline = EndsInNewLine;
 }
 
 void PTMLIndentedOstream::writeIndent() {
