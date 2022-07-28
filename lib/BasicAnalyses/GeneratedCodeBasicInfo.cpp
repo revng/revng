@@ -144,7 +144,7 @@ GeneratedCodeBasicInfo::getSuccessors(BasicBlock *BB) {
       } else if (getType(Successor) == IBDHB) {
         // Ignore
       } else {
-        return SuccessorsList::other();
+        Result.Other = true;
       }
     }
   }
