@@ -207,9 +207,46 @@ static void fillStructWithRecoveredDLAType(model::Binary &Model,
     }
 
     // Best case scenario, the recovered type struct size is less or equal than
-    // the size of the original struct. In this case, no fields to drop.
-    for (const auto &Field : NewS->Fields)
-      OriginalStructType->Fields.insert(Field);
+    // the size of the original struct. In this case, just make sure we are not
+    // introducing new overlapping fields with the original ones, if they exist.
+    std::set<model::StructField *> CompatibleFields;
+    auto OriginalFieldsIt = OriginalStructType->Fields.begin();
+    auto NewFieldsIt = NewS->Fields.begin();
+
+    while (OriginalFieldsIt != OriginalStructType->Fields.end()
+           and NewFieldsIt != NewS->Fields.end()) {
+
+      uint64_t OriginalStart = OriginalFieldsIt->Offset;
+      uint64_t OriginalEnd = OriginalFieldsIt->Offset
+                             + *OriginalFieldsIt->Type.size();
+
+      uint64_t NewStart = NewFieldsIt->Offset;
+      uint64_t NewEnd = NewFieldsIt->Offset + *NewFieldsIt->Type.size();
+
+      if (NewEnd <= OriginalStart) {
+        CompatibleFields.insert(&*NewFieldsIt);
+        ++NewFieldsIt;
+        continue;
+      }
+
+      if (OriginalEnd <= NewStart) {
+        ++OriginalFieldsIt;
+        continue;
+      }
+
+      if (NewStart > OriginalStart)
+        ++OriginalFieldsIt;
+      else if (NewStart < OriginalStart)
+        ++NewFieldsIt;
+      else if (NewStart == OriginalStart) {
+        ++OriginalFieldsIt;
+        ++NewFieldsIt;
+      }
+    }
+
+    for (model::StructField *NewField : CompatibleFields)
+      OriginalStructType->Fields.insert(*NewField);
+
   } else if (auto *NewU = dyn_cast<model::UnionType>(RecoveredUnqualType)) {
     // If DLA recoverd an union kind, whose size that is too large, we have to
     // shrink it, likewise we did with a struct kind.
