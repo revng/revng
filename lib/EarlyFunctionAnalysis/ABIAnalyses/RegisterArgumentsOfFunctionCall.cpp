@@ -31,6 +31,7 @@ analyze(const BasicBlock *CallSiteBlock, const GeneratedCodeBasicInfo &GCBI) {
   MFI::LatticeElement ExtremalValue(CoreLattice::ExtremalLatticeElement);
 
   auto *Start = CallSiteBlock->getUniquePredecessor();
+  revng_assert(Start != nullptr, "Call site has multiple predecessors");
   auto
     Results = MFP::getMaximalFixedPoint<MFI, MFI::GT, MFI::LGT>(Instance,
                                                                 Start,
