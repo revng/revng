@@ -62,12 +62,14 @@ add_flag_if_available("-Wimplicit-fallthrough")
 add_definitions("-D_FILE_OFFSET_BITS=64")
 
 check_cxx_compiler_flag("-no-pie" COMPILER_SUPPORTS_NO_PIE)
+
 if(COMPILER_SUPPORTS_NO_PIE)
   set(NO_PIE "-no-pie")
 endif()
 
 include(CheckIncludeFiles)
 check_include_files(valgrind/callgrind.h HAVE_VALGRIND_CALLGRIND_H)
+
 if(HAVE_VALGRIND_CALLGRIND_H)
   add_definitions("-DHAVE_VALGRIND_CALLGRIND_H")
 endif()

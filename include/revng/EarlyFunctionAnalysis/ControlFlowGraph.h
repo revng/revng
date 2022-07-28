@@ -68,8 +68,6 @@ inline ParsedSuccessor parseSuccessor(const efa::FunctionEdgeBase &Edge,
   }
 }
 
-// clang-format off
-
 /// \brief A function for converting EFA's internal CFG representation into
 /// a generic graph.
 ///
@@ -99,18 +97,19 @@ buildControlFlowGraph(const Container<BasicBlockType, OtherTs...> &BasicBlocks,
                       const MetaAddress &EntryAddress,
                       const model::Binary &Binary) {
   // clang-format on
-  std::pair<GraphType, std::map<MetaAddress, typename GraphType::Node *>> Res;
+  using Node = typename GraphType::Node;
+  std::pair<GraphType, std::map<MetaAddress, Node *>> Res;
 
   auto &[Graph, AddressToNodeMap] = Res;
   for (const BasicBlockType &Block : BasicBlocks) {
     revng_assert(Block.Start.isValid());
-    auto *Node = Graph.addNode(typename GraphType::Node{ Block.Start });
-    auto [_, Success] = AddressToNodeMap.try_emplace(Block.Start, Node);
+    auto *NewNode = Graph.addNode(Node{ Block.Start });
+    auto [_, Success] = AddressToNodeMap.try_emplace(Block.Start, NewNode);
     revng_assert(Success != false,
                  "Different basic blocks with the same `Start` address");
   }
 
-  typename GraphType::Node *ExitNode = nullptr;
+  Node *ExitNode = nullptr;
   for (const BasicBlockType &Block : BasicBlocks) {
     auto FromNodeIterator = AddressToNodeMap.find(Block.Start);
     revng_assert(FromNodeIterator != AddressToNodeMap.end());
@@ -124,7 +123,7 @@ buildControlFlowGraph(const Container<BasicBlockType, OtherTs...> &BasicBlocks,
       } else {
         if (ExitNode == nullptr) {
           constexpr auto Invalid = MetaAddress::invalid();
-          ExitNode = Graph.addNode(typename GraphType::Node{ Invalid });
+          ExitNode = Graph.addNode(Node{ Invalid });
           auto [_, Succ] = AddressToNodeMap.try_emplace(MetaAddress::invalid(),
                                                         ExitNode);
           revng_assert(Succ != false);
