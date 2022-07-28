@@ -5,6 +5,7 @@
 Containers:
   - Name: cross-relations.yml
     Type: BinaryCrossRelations
+    Role: CrossRelations
 Branches:
   - From: Isolate
     Steps:

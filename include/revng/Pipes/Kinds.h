@@ -37,4 +37,6 @@ inline FunctionKind
 inline pipeline::Kind
   BinaryCrossRelations("BinaryCrossRelations", &ranks::Binary);
 
+inline constexpr auto BinaryCrossRelationsRole = "CrossRelations";
+
 } // namespace revng::pipes

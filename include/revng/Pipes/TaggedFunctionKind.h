@@ -6,6 +6,7 @@
 
 #include "llvm/ADT/StringRef.h"
 
+#include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/LLVMContainer.h"
 #include "revng/Pipes/AllFunctions.h"
 #include "revng/Pipes/ModelGlobal.h"
@@ -44,6 +45,11 @@ public:
 
   std::optional<pipeline::Target>
   symbolToTarget(const llvm::Function &Symbol) const override;
+
+  void
+  getInvalidations(const pipeline::Context &Ctx,
+                   pipeline::TargetsList &ToRemove,
+                   const pipeline::GlobalTupleTreeDiff &Diff) const override;
 };
 
 } // namespace revng::pipes

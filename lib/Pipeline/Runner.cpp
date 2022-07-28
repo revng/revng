@@ -365,7 +365,7 @@ void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
 
       auto &ContainerInvalidations = StepInvalidations[Cotainer.first()];
       for (const Kind &Rule : getKindsRegistry())
-        Rule.getInvalidations(ContainerInvalidations, Diff);
+        Rule.getInvalidations(getContext(), ContainerInvalidations, Diff);
     }
   }
 }

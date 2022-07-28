@@ -38,7 +38,8 @@ IsolatedRootKind::symbolToTarget(const llvm::Function &Symbol) const {
   return std::nullopt;
 }
 
-void RootKind::getInvalidations(TargetsList &ToRemove,
+void RootKind::getInvalidations(const Context &Ctx,
+                                TargetsList &ToRemove,
                                 const GlobalTupleTreeDiff &Base) const {
 
   const auto *Diff = Base.getAs<model::Binary>();

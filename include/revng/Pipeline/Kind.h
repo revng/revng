@@ -73,7 +73,8 @@ public:
                             const Target &Input,
                             TargetsList &Output) const;
 
-  virtual void getInvalidations(pipeline::TargetsList &ToRemove,
+  virtual void getInvalidations(const Context &Ctx,
+                                pipeline::TargetsList &ToRemove,
                                 const GlobalTupleTreeDiff &Diff) const {}
 
 public:
