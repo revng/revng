@@ -22,7 +22,7 @@ target_link_libraries(
          m
          revngABI
          revngBasicAnalyses
-         revngModelImporterDwarf
+         revngModelImporterDebugInfo
          revngFunctionCallIdentification
          revngModel
          revngSupport

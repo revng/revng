@@ -1,0 +1,50 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+---
+Functions:
+  - CustomName: "main"
+    OriginalName: main
+    Prototype: "/Types/CABIFunctionType-14349581157410972103"
+  - Entry: "0x401040:Code_x86"
+    CustomName: "doSomething"
+    OriginalName: doSomething
+    Prototype: "/Types/CABIFunctionType-12460153539718472348"
+Types:
+  - Kind: PrimitiveType
+    ID: 256
+    PrimitiveKind: Void
+    Size: 0
+  - Kind: PrimitiveType
+    ID: 1540
+    PrimitiveKind: Signed
+    Size: 4
+  - Kind: CABIFunctionType
+    ID: 14349581157410972103
+    ABI: Microsoft_x86_cdecl
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-1540"
+    Arguments: []
+  - Kind: CABIFunctionType
+    ID: 12460153539718472348
+    ABI: Microsoft_x86_cdecl
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-256"
+    Arguments:
+      - Index: 0
+        Type:
+          UnqualifiedType: "/Types/TypedefType-15633732224814581737"
+  - Kind: TypedefType
+    ID: 15633732224814581737
+    UnderlyingType:
+      UnqualifiedType: "/Types/TypedefType-7275868073853708434"
+      Qualifiers:
+        - Kind: Pointer
+          Size: 4
+  - Kind: TypedefType
+    ID: 7275868073853708434
+    CustomName: "Foo_"
+    OriginalName: Foo
+    UnderlyingType:
+      UnqualifiedType: "/Types/PrimitiveType-256"

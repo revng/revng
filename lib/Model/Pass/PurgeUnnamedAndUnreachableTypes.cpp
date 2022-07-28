@@ -19,6 +19,12 @@ static RegisterModelPass R("purge-unnamed-and-unreachable-types",
                            "system itself",
                            model::purgeUnnamedAndUnreachableTypes);
 
+static RegisterModelPass RPruneUnusedTypes("prune-unused-types",
+                                           "Remove all the types that cannot "
+                                           "be reached from "
+                                           "any type from a Function ",
+                                           model::pruneUnusedTypes);
+
 template<typename V, typename T, size_t... Indices>
 static void
 visitTuple(V &&Visitor, T &Tuple, const std::index_sequence<Indices...> &) {
@@ -48,6 +54,15 @@ static auto visitTupleExcept(V &&Visitor, T &Tuple, E *Exclude) {
 }
 
 void model::purgeUnnamedAndUnreachableTypes(TupleTree<model::Binary> &Model) {
+  purgeTypesImpl<false>(Model);
+}
+
+void model::pruneUnusedTypes(TupleTree<model::Binary> &Model) {
+  purgeTypesImpl<true>(Model);
+}
+
+template<bool PruneAllUnusedTypes>
+void model::purgeTypesImpl(TupleTree<model::Binary> &Model) {
   struct NodeData {
     model::Type *T;
   };
@@ -59,13 +74,25 @@ void model::purgeUnnamedAndUnreachableTypes(TupleTree<model::Binary> &Model) {
 
   llvm::SmallPtrSet<Type *, 16> ToKeep;
 
-  // Create nodes
-  for (UpcastablePointer<model::Type> &T : Model->Types) {
+  // Remember those types we want to preserve.
+  if constexpr (PruneAllUnusedTypes) {
+    for (const auto &Function : Model->Functions) {
+      if (Function.Prototype.isValid()) {
+        ToKeep.insert(const_cast<Type *>(Function.Prototype.get()));
+      }
+    }
 
-    if (not T->CustomName.empty() or not T->OriginalName.empty())
-      ToKeep.insert(T.get());
+    for (UpcastablePointer<model::Type> &T : Model->Types) {
+      TypeToNode[T.get()] = TypeGraph.addNode(NodeData{ T.get() });
+    }
+  } else {
+    for (UpcastablePointer<model::Type> &T : Model->Types) {
 
-    TypeToNode[T.get()] = TypeGraph.addNode(NodeData{ T.get() });
+      if (not T->CustomName.empty() or not T->OriginalName.empty())
+        ToKeep.insert(T.get());
+
+      TypeToNode[T.get()] = TypeGraph.addNode(NodeData{ T.get() });
+    }
   }
 
   // Create type system edges
@@ -77,16 +104,18 @@ void model::purgeUnnamedAndUnreachableTypes(TupleTree<model::Binary> &Model) {
   }
 
   // Record references to types *outside* of Model->Types
-  auto VisitBinary = [&](auto &Field) {
-    auto Visitor = [&](auto &Element) {
-      using type = std::decay_t<decltype(Element)>;
-      if constexpr (std::is_same_v<type, TypePath>)
-        if (Element.isValid())
-          ToKeep.insert(Element.get());
+  if constexpr (!PruneAllUnusedTypes) {
+    auto VisitBinary = [&](auto &Field) {
+      auto Visitor = [&](auto &Element) {
+        using type = std::decay_t<decltype(Element)>;
+        if constexpr (std::is_same_v<type, TypePath>)
+          if (Element.isValid())
+            ToKeep.insert(Element.get());
+      };
+      visitTupleTree(Field, Visitor, [](auto) {});
     };
-    visitTupleTree(Field, Visitor, [](auto) {});
-  };
-  visitTupleExcept(VisitBinary, *Model, &Model->Types);
+    visitTupleExcept(VisitBinary, *Model, &Model->Types);
+  }
 
   // Visit all the nodes reachable from ToKeep
   df_iterator_default_set<Node *> Visited;

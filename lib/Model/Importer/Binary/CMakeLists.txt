@@ -8,4 +8,4 @@ revng_add_analyses_library_internal(
 
 llvm_map_components_to_libnames(LLVM_LIBRARIES Object)
 target_link_libraries(revngModelImporterBinary revngModel
-                      revngModelImporterDwarf revngABI ${LLVM_LIBRARIES})
+                      revngModelImporterDebugInfo revngABI ${LLVM_LIBRARIES})

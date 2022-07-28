@@ -185,3 +185,7 @@ commands_registry.define_namespace(("model",))
 commands_registry.define_namespace(("model", "import"))
 commands_registry.define_namespace(("yield",))
 commands_registry.define_namespace(("yield", "assembly"))
+
+
+commands_registry.define_namespace(("model", "download-pdb"))
+commands_registry.define_namespace(("model", "hard-purge"))
