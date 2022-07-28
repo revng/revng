@@ -5,6 +5,7 @@
 //
 
 #include "revng/Pipes/PipelineManager.h"
+#include "revng/Support/ErrorList.h"
 
 typedef revng::pipes::PipelineManager rp_manager;
 typedef const pipeline::Kind rp_kind;
@@ -16,3 +17,4 @@ typedef const pipeline::Target rp_target;
 typedef const pipeline::TargetsList rp_targets_list;
 typedef const pipeline::Step::AnalysisValueType rp_analysis;
 typedef const pipeline::DiffMap rp_diff_map;
+typedef ErrorList rp_error_list;

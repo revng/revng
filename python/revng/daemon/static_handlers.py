@@ -163,6 +163,20 @@ async def mutation_analyses(_, info):
     return {}
 
 
+@mutation.field("setGlobal")
+async def mutation_set_global(_, info, *, name: str, content: str) -> bool:
+    manager: Manager = info.context["manager"]
+    result = await run_in_executor(lambda: manager.set_global(name, content))
+    return result.check()
+
+
+@mutation.field("applyDiff")
+async def mutation_apply_diff(_, info, *, globalName: str, content: str) -> bool:  # noqa: N803
+    manager: Manager = info.context["manager"]
+    result = await run_in_executor(lambda: manager.apply_diff(globalName, content))
+    return result.check()
+
+
 @info.field("ranks")
 async def resolve_ranks(_, info):
     return await run_in_executor(lambda: [x.as_dict() for x in Rank.ranks()])
@@ -260,4 +274,26 @@ async def resolve_container_targets(container_obj, info):
     return await run_in_executor(lambda: [target_dict_to_graphql(t.as_dict()) for t in targets])
 
 
-DEFAULT_BINDABLES = (query, mutation, info, step, container, upload_scalar, analysis_mutations)
+@info.field("verifyGlobal")
+async def info_verify_global(_, info, *, name: str, content: str) -> bool:
+    manager: Manager = info.context["manager"]
+    result = await run_in_executor(lambda: manager.verify_global(name, content))
+    return result.check()
+
+
+@info.field("verifyDiff")
+async def info_verify_diff(_, info, *, globalName: str, content: str) -> bool:  # noqa: N803
+    manager: Manager = info.context["manager"]
+    result = await run_in_executor(lambda: manager.verify_diff(globalName, content))
+    return result.check()
+
+
+DEFAULT_BINDABLES = (
+    query,
+    mutation,
+    info,
+    step,
+    container,
+    upload_scalar,
+    analysis_mutations,
+)

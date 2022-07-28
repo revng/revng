@@ -14,9 +14,7 @@ namespace yield {
 class Function;
 }
 
-namespace yield {
-
-namespace html {
+namespace yield::ptml {
 
 std::string functionAssembly(const yield::Function &InternalFunction,
                              const model::Binary &Binary);
@@ -24,6 +22,4 @@ std::string controlFlowNode(const MetaAddress &BasicBlockAddress,
                             const yield::Function &Function,
                             const model::Binary &Binary);
 
-} // namespace html
-
-} // namespace yield
+} // namespace yield::ptml

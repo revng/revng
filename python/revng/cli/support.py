@@ -95,7 +95,7 @@ def get_command(command: str, search_prefixes: Iterable[str]) -> str:
 
     path = which(command)
     if not path:
-        log_error('Couldn\'t find "{command}".')
+        log_error(f'Couldn\'t find "{command}".')
         assert False
     return os.path.abspath(path)
 

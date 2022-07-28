@@ -536,22 +536,14 @@ bool rp_target_is_ready(rp_target *target, rp_container *container) {
   return container->second->enumerate().contains(*target);
 }
 
-void rp_apply_model_diff(rp_manager *manager, const char *diff) {
-  auto Diff(cantFail(deserialize<TupleTreeDiff<model::Binary>>(diff)));
-  llvm::cantFail(manager->getRunner().apply(Diff));
-
-  auto &Model(getWritableModelFromContext(manager->context()));
-  Diff.apply(Model);
-}
-
 /// TODO Remove the redundant copy by writing a custom string stream that writes
 /// direclty to a buffer to return.
 const char *
 rp_manager_create_global_copy(rp_manager *manager, const char *global_name) {
   std::string Out;
   llvm::raw_string_ostream Serialized(Out);
-  if (auto Error = manager->context().serializeGlobal(global_name, Serialized);
-      Error) {
+  auto &GlobalsMap = manager->context().getGlobals();
+  if (auto Error = GlobalsMap.serialize(global_name, Serialized); Error) {
     llvm::consumeError(std::move(Error));
     return nullptr;
   }
@@ -569,21 +561,105 @@ const char *rp_manager_get_global_name(rp_manager *manager, int index) {
   return nullptr;
 }
 
-bool rp_manager_set_global(rp_manager *manager,
-                           const char *serialized,
-                           const char *global_name) {
-  auto MaybeBuffer = llvm::MemoryBuffer::getMemBuffer(serialized);
-  if (MaybeBuffer == nullptr)
+template<bool commit>
+inline bool rp_manager_set_global_impl(rp_manager *manager,
+                                       const char *serialized,
+                                       const char *global_name,
+                                       rp_error_list *error_list) {
+  revng_check(manager != nullptr);
+  revng_check(serialized != nullptr);
+  revng_check(global_name != nullptr);
+  ErrorListWrapper EL(error_list);
+  revng_check(EL->empty());
+
+  auto &GlobalsMap = manager->context().getGlobals();
+  auto Buffer = llvm::MemoryBuffer::getMemBuffer(serialized);
+
+  auto MaybeNewGlobal = GlobalsMap.createNew(global_name, *Buffer);
+  if (!MaybeNewGlobal)
+    return EL->fail(MaybeNewGlobal.takeError(), false);
+
+  if (MaybeNewGlobal->get()->verify(*EL); *EL)
     return false;
 
-  if (auto Error = manager->context().deserializeGlobal(global_name,
-                                                        *MaybeBuffer);
-      Error) {
-    llvm::consumeError(std::move(Error));
-    return false;
+  if constexpr (commit) {
+    auto &NewGlobal = MaybeNewGlobal.get();
+    return EL->failIf(GlobalsMap.replace(global_name, std::move(NewGlobal)));
   }
 
   return true;
+}
+
+bool rp_manager_set_global(rp_manager *manager,
+                           const char *serialized,
+                           const char *global_name,
+                           rp_error_list *error_list) {
+  return rp_manager_set_global_impl<true>(manager,
+                                          serialized,
+                                          global_name,
+                                          error_list);
+}
+
+bool rp_manager_verify_global(rp_manager *manager,
+                              const char *serialized,
+                              const char *global_name,
+                              rp_error_list *error_list) {
+  return rp_manager_set_global_impl<false>(manager,
+                                           serialized,
+                                           global_name,
+                                           error_list);
+}
+
+template<bool commit>
+inline bool rp_manager_apply_diff_impl(rp_manager *manager,
+                                       const char *diff,
+                                       const char *global_name,
+                                       rp_error_list *error_list) {
+  revng_check(manager != nullptr);
+  revng_check(diff != nullptr);
+  revng_check(global_name != nullptr);
+  ErrorListWrapper EL(error_list);
+  revng_check(EL->empty());
+
+  auto &GlobalsMap = manager->context().getGlobals();
+  auto Buffer = llvm::MemoryBuffer::getMemBuffer(diff);
+
+  auto GlobalCloneOrError = GlobalsMap.clone(global_name);
+  if (!GlobalCloneOrError)
+    return EL->fail(GlobalCloneOrError.takeError(), false);
+
+  auto &GlobalClone = GlobalCloneOrError.get();
+
+  if (auto DiffError = GlobalClone->applyDiff(*Buffer); DiffError)
+    return EL->fail(std::move(DiffError), false);
+
+  if (GlobalClone->verify(*EL); *EL)
+    return false;
+
+  if constexpr (commit)
+    return EL->failIf(GlobalsMap.replace(global_name, std::move(GlobalClone)));
+
+  return true;
+}
+
+bool rp_manager_apply_diff(rp_manager *manager,
+                           const char *diff,
+                           const char *global_name,
+                           rp_error_list *error_list) {
+  return rp_manager_apply_diff_impl<true>(manager,
+                                          diff,
+                                          global_name,
+                                          error_list);
+}
+
+bool rp_manager_verify_diff(rp_manager *manager,
+                            const char *diff,
+                            const char *global_name,
+                            rp_error_list *error_list) {
+  return rp_manager_apply_diff_impl<false>(manager,
+                                           diff,
+                                           global_name,
+                                           error_list);
 }
 
 uint64_t rp_ranks_count() {
@@ -697,4 +773,34 @@ bool rp_diff_map_is_empty(rp_diff_map *map) {
     }
   }
   return true;
+}
+
+rp_error_list *rp_make_error_list() {
+  return new ErrorList();
+}
+
+bool rp_error_list_is_empty(rp_error_list *error_list) {
+  revng_check(error_list != nullptr);
+  return error_list->empty();
+}
+
+uint64_t rp_error_list_size(rp_error_list *error_list) {
+  revng_check(error_list != nullptr);
+  return error_list->size();
+}
+
+const char *
+rp_error_list_get_error_message(rp_error_list *error_list, uint64_t index) {
+  revng_check(error_list != nullptr);
+  std::string Out;
+  llvm::raw_string_ostream Serialized(Out);
+  Serialized << *error_list->get(index);
+  Serialized.flush();
+
+  return copyString(Out);
+}
+
+void rp_error_list_destroy(rp_error_list *error_list) {
+  revng_check(error_list != nullptr);
+  delete error_list;
 }

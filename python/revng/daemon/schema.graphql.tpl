@@ -20,6 +20,8 @@ type Mutation {
     runAnalysis(step: String!, analysis: String!, container: String!, targets: String!): String!
     runAllAnalyses: String!
     analyses: AnalysisMutations!
+    setGlobal(name: String!, content: String!, verify: Boolean): Boolean!
+    applyDiff(globalName: String!, content: String!, verify: Boolean): Boolean!
 }
 
 type AnalysisMutations {
@@ -36,6 +38,8 @@ type Info {
     steps: [Step!]!
     globals: [Global!]!
     global(name: String!): String!
+    verifyGlobal(name: String!, content: String!): Boolean!
+    verifyDiff(globalName: String!, content: String!): Boolean!
     model: String!
 }
 

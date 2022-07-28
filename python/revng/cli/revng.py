@@ -4,8 +4,11 @@
 
 import os
 import sys
+from importlib import import_module
+from inspect import isclass
+from pathlib import Path
 
-from .commands_registry import Options, commands_registry
+from .commands_registry import Command, Options, commands_registry
 from .support import collect_files
 
 
@@ -15,14 +18,26 @@ def extend_list(paths, new_items):
 
 # flake8: noqa: F401
 def run_revng_command(arguments, options: Options):
-    # Import built-in commands
-    from .daemon import DaemonCommand
-    from .lift import LiftCommand
-    from .llvm_pipeline import IRPipelineCommand
-    from .opt import IROptCommand
-    from .override_by_name import ModelOverrideByName
-    from .pipeline import PipelineCommand
-    from .translate import TranslateCommand
+    modules = []
+    with os.scandir(Path(__file__).parent / "_commands") as scan:
+        for entry in scan:
+            entry_path = Path(entry.path)
+            if entry_path.name.startswith("__") or entry_path.name.startswith("."):
+                continue
+            if entry.is_file():
+                modules.append(import_module(f"._commands.{entry_path.stem}", "revng.cli"))
+            elif entry.is_dir():
+                modules.append(import_module(f"._commands.{entry_path.name}", "revng.cli"))
+
+    for module in modules:
+        for attribute in dir(module):
+            maybe_command = getattr(module, attribute)
+            if (
+                isclass(maybe_command)
+                and maybe_command != Command
+                and issubclass(maybe_command, Command)
+            ):
+                commands_registry.register_command(maybe_command())  # type: ignore
 
     if options.verbose:
         sys.stderr.write("{}\n\n".format(" \\\n  ".join([sys.argv[0]] + arguments)))

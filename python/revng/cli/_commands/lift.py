@@ -4,9 +4,9 @@
 
 from tempfile import NamedTemporaryFile
 
-from .commands_registry import Command, Options, commands_registry
-from .revng import run_revng_command
-from .support import log_error
+from revng.cli.commands_registry import Command, Options
+from revng.cli.revng import run_revng_command
+from revng.cli.support import log_error
 
 
 class LiftCommand(Command):
@@ -97,6 +97,3 @@ class LiftCommand(Command):
             )
         return 0
         # TODO: annotate IR
-
-
-commands_registry.register_command(LiftCommand())

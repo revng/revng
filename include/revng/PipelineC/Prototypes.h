@@ -17,6 +17,14 @@
  */
 
 /**
+ * Some functions can report detailed errors, these accept a rp_error_list as
+ * their last parameter, which will contain a list of errors in case the return
+ * value of the method is false or nullptr. The rp_error_list_* methods can then
+ * be used to inspect the errors provided. In case errors are not of interest, a
+ * nullptr can be passed instead and errors will be silently ignored.
+ */
+
+/**
  * Allow setting a custom abort hook.
  * This will be called just before revng_abort() in case of an assertion
  * failure. Useful if calling from a non-C language to print extra debug
@@ -110,12 +118,6 @@ void rp_manager_destroy(rp_manager *manager);
 uint64_t rp_manager_containers_count(rp_manager *manager);
 
 /**
- * Applies the diff to the model and triggers a ModelInvalidationEvent
- *
- */
-void rp_apply_model_diff(rp_manager *manager, const char *diff);
-
-/**
  * \param index must be less than rp_manager_containers_count(manager).
  *
  * \return the container at the provided index.
@@ -162,13 +164,48 @@ const char * /*owning*/
 rp_manager_create_global_copy(rp_manager *manager, const char *global_name);
 
 /**
- * sets the indicated global with the deserialized content of the serialized
- * string
- * \return true on success
+ * Sets the contents of the specified global
+ * \param serialied a c-string representing the serialized new global
+ * \param global_name the name of the global
+ * \return true on success, false otherwise
  */
 bool rp_manager_set_global(rp_manager *manager,
                            const char *serialized,
-                           const char *global_name);
+                           const char *global_name,
+                           rp_error_list *error_list);
+
+/**
+ * Checks that the serialized global would be correct if set as global_name
+ * \param serialied a c-string representing the serialized new global
+ * \param global_name the name of the global
+ * \return true on success, false otherwise
+ */
+bool rp_manager_verify_global(rp_manager *manager,
+                              const char *serialized,
+                              const char *global_name,
+                              rp_error_list *error_list);
+
+/**
+ * Apply the specified diff to the global
+ * \param diff a c-string representing the serialized diff
+ * \param global_name the name of the global
+ * \return true on success, false otherwise
+ */
+bool rp_manager_apply_diff(rp_manager *manager,
+                           const char *diff,
+                           const char *global_name,
+                           rp_error_list *error_list);
+
+/**
+ * Checks that the specified diff would apply correctly to the global
+ * \param diff a c-string representing the serialized diff
+ * \param global_name the name of the global
+ * \return true on success, false otherwise
+ */
+bool rp_manager_verify_diff(rp_manager *manager,
+                            const char *diff,
+                            const char *global_name,
+                            rp_error_list *error_list);
 
 /**
  * \returns the number of serializable global objects
@@ -588,3 +625,36 @@ uint64_t rp_rank_get_depth(rp_rank *rank);
  * \return \p Rank 's parent, or NULL if it has none
  */
 rp_rank *rp_rank_get_parent(rp_rank *rank);
+
+/**
+ * \defgroup rp_error_list rp_error_list methods
+ * \{
+ */
+
+/**
+ * \return a new rp_error_list
+ */
+rp_error_list * /*owning*/ rp_make_error_list();
+
+/**
+ * \return if an error_list is empty (contains no errors)
+ */
+bool rp_error_list_is_empty(rp_error_list *error);
+
+/**
+ * \return number of errors present
+ */
+uint64_t rp_error_list_size(rp_error_list *error);
+
+/**
+ * \return the error's message at the specified index if present or nullptr
+ */
+const char * /*owning*/
+rp_error_list_get_error_message(rp_error_list *error, uint64_t index);
+
+/**
+ * Frees the provided error_error_list
+ */
+void rp_error_list_destroy(rp_error_list *error);
+
+/** \} */

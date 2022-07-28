@@ -36,13 +36,16 @@ public:
   virtual llvm::Error applyDiff(const llvm::MemoryBuffer &Diff) = 0;
   virtual llvm::Error serialize(llvm::raw_ostream &OS) const = 0;
   virtual llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) = 0;
+  virtual void verify(ErrorList &EL) const = 0;
   virtual void clear() = 0;
+  virtual llvm::Expected<std::unique_ptr<Global>>
+  createNew(const llvm::MemoryBuffer &Buffer) const = 0;
   virtual std::unique_ptr<Global> clone() const = 0;
   virtual llvm::Error storeToDisk(llvm::StringRef Path) const;
   virtual llvm::Error loadFromDisk(llvm::StringRef Path);
 };
 
-template<TupleTreeCompatible Object>
+template<TupleTreeCompatibleWithVerify Object>
 class TupleTreeGlobal : public Global {
 private:
   TupleTree<Object> Value;
@@ -66,6 +69,14 @@ public:
   static bool classof(const Global *T) { return T->getID() == &getID(); }
 
 public:
+  llvm::Expected<std::unique_ptr<Global>>
+  createNew(const llvm::MemoryBuffer &Buffer) const override {
+    auto MaybeTree = TupleTree<Object>::deserialize(Buffer.getBuffer());
+    if (!MaybeTree)
+      return llvm::errorCodeToError(MaybeTree.getError());
+    return std::make_unique<TupleTreeGlobal>(MaybeTree.get());
+  }
+
   std::unique_ptr<Global> clone() const override {
     auto Ptr = new TupleTreeGlobal(*this);
     return std::unique_ptr<Global>(Ptr);
@@ -86,6 +97,8 @@ public:
     Value = *MaybeDiff;
     return llvm::Error::success();
   }
+
+  void verify(ErrorList &EL) const override { Value->verify(EL); }
 
   GlobalTupleTreeDiff diff(const Global &Other) const override {
     const TupleTreeGlobal &Casted = llvm::cast<TupleTreeGlobal>(Other);

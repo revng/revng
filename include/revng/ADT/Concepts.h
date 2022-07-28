@@ -39,4 +39,9 @@ concept sized_range = ranges::range<T> && requires(T &R) {
 
 } // namespace ranges
 
+template<class Range, typename ValueType>
+concept range_with_value_type = ranges::range<Range> &&
+                std::is_convertible_v<typename Range::value_type,
+                                      ValueType>;
+
 // clang-format off

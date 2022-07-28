@@ -15,11 +15,11 @@ commands:
     command: |-
       revng llvm pipeline "$INPUT" "$OUTPUT" Lift Lift ":Root" --analysis DetectABI;
       revng llvm pipeline "$OUTPUT" "$OUTPUT" Lift EnforceABI "*:CSVsPromoted";
-  - type: revng.assembly-html
+  - type: revng.assembly-ptml
     from:
       - type: revng-qa.compiled
       - type: revng.abi-enforced-for-decompilation
-    suffix: .html.yml
+    suffix: .ptml.yml
     command: |-
       MODEL="$$(mktemp)";
       trap 'rm -f -- "$$MODEL"' EXIT;
@@ -28,8 +28,8 @@ commands:
         -m "$$MODEL"
         -i "begin:input:$INPUT1"
         -i "EnforceABI:module.ll:$INPUT2"
-        -o "YieldAssembly:assembly-html.yml:$OUTPUT"
-        YieldAssembly:assembly-html.yml:*:FunctionAssemblyHTML
+        -o "YieldAssembly:assembly-ptml.yml:$OUTPUT"
+        YieldAssembly:assembly-ptml.yml:*:FunctionAssemblyPTML
   - type: revng.cfg-svg
     from:
       - type: revng-qa.compiled
