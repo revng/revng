@@ -1407,11 +1407,15 @@ void JumpTargetManager::harvestWithAVI() {
   {
     // Break all the call edges. We want to ignore those for CFG recovery
     // purposes.
+    std::set<BasicBlock *> Callees;
     std::map<Use *, BasicBlock *> Undo;
     auto *FunctionCall = TheModule.getFunction("function_call");
     revng_assert(FunctionCall != nullptr);
     for (CallBase *Call : callers(FunctionCall)) {
       auto *T = Call->getParent()->getTerminator();
+
+      Callees.insert(getFunctionCallCallee(Call->getParent()));
+
       if (auto *Branch = dyn_cast<BranchInst>(T)) {
         revng_assert(Branch->isUnconditional());
         BasicBlock *Target = Branch->getSuccessor(0);
@@ -1443,6 +1447,30 @@ void JumpTargetManager::harvestWithAVI() {
     // Restore callees after function_call
     for (auto [U, BB] : Undo)
       U->set(BB);
+
+    Callees.erase(nullptr);
+    llvm::IRBuilder<> Builder(Context);
+    for (BasicBlock *BB : Callees) {
+      if (OldToNew.count(BB) == 0)
+        continue;
+      BB = cast<BasicBlock>(OldToNew[BB]);
+      revng_assert(BB->getTerminator() != nullptr);
+      Builder.SetInsertPoint(BB->getFirstNonPHI());
+
+      for (const model::Segment &Segment : Model->Segments) {
+        if (Segment.contains(getBasicBlockPC(BB))) {
+          for (const auto &CanonicalValue : Segment.CanonicalRegisterValues) {
+            auto Name = model::Register::getCSVName(CanonicalValue.Register);
+            if (auto *CSV = M->getGlobalVariable(Name)) {
+              auto *Type = getCSVType(CSV);
+              Builder.CreateStore(ConstantInt::get(Type, CanonicalValue.Value),
+                                  CSV);
+            }
+          }
+          break;
+        }
+      }
+    }
 
     // Record the size of OptimizedFunction
     size_t BlocksCount = OptimizedFunction->getBasicBlockList().size();

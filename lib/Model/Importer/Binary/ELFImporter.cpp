@@ -250,6 +250,7 @@ Error ELFImporter<T, HasAddend>::import() {
     ReldynPortion = std::make_unique<FilePortion>(File);
     RelpltPortion = std::make_unique<FilePortion>(File);
     GotPortion = std::make_unique<FilePortion>(File);
+    bool IsX86 = Model->Architecture == model::Architecture::x86;
 
     using Elf_Dyn = const typename object::ELFFile<T>::Elf_Dyn;
     for (Elf_Dyn &DynamicTag : *DynamicEntries) {
@@ -295,6 +296,20 @@ Error ELFImporter<T, HasAddend>::import() {
                             *DynsymPortion.get(),
                             *DynstrPortion.get());
       }
+      auto SetCanonicalValue = [this](model::Register::Values Register,
+                                      uint64_t Value) {
+        for (model::Segment &Segment : Model->Segments)
+          if (Segment.IsExecutable)
+            Segment.CanonicalRegisterValues[Register].Value = Value;
+      };
+
+      if (IsX86 and GotPortion->isAvailable()) {
+        SetCanonicalValue(model::Register::ebx_x86,
+                          GotPortion->address().address());
+      }
+
+      SetCanonicalValue(model::Register::gp_mips,
+                        GotPortion->address().address() + 0x7ff0);
 
       if (RelpltPortion->isAvailable()) {
         registerRelocations(RelpltPortion->extractAs<Elf_Rel>(),

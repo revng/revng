@@ -45,6 +45,7 @@ target_tuple_tree_generator(
   "${MODEL_HEADERS_DIR}/Argument.h"
   "${MODEL_HEADERS_DIR}/Binary.h"
   "${MODEL_HEADERS_DIR}/CABIFunctionType.h"
+  "${MODEL_HEADERS_DIR}/CanonicalRegisterValue.h"
   "${MODEL_HEADERS_DIR}/CallSitePrototype.h"
   "${MODEL_HEADERS_DIR}/DynamicFunction.h"
   "${MODEL_HEADERS_DIR}/EnumEntry.h"
