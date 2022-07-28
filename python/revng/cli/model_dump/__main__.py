@@ -3,7 +3,6 @@
 #
 
 import argparse
-import json
 import sys
 
 import yaml
@@ -38,5 +37,5 @@ def main():
         parsed_text = remap_metaaddress(parsed_text)
 
     # Dump as JSON
-    print(json.dumps(parsed_text, indent=2, sort_keys=True, check_circular=False))
+    print(yaml.dump(parsed_text))
     return 0
