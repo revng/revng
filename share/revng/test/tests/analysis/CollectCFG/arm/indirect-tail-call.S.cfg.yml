@@ -8,18 +8,15 @@
       - End: "2"
         Start: "1"
         Successors:
-          - Attributes:
-              - NoReturn
-            Destination: "3"
+          - Destination: "3"
             Type: FunctionCall
   OriginalName: _start
-  Type: NoReturn
 - FunctionMetadata:
     ControlFlowGraph:
       - End: "4"
         Start: "3"
         Successors:
           - Destination: ":Invalid"
-            Type: IndirectTailCall
+            Type: FunctionCall
+            IsTailCall: true
   OriginalName: tailcall
-  Type: NoReturn

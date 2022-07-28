@@ -21,6 +21,10 @@ fields:
       Name of the dynamic function being called, or empty if not a dynamic call
     type: "std::string"
     optional: true
+  - name: IsTailCall
+    doc: Is this a tail call?
+    type: bool
+    optional: true
   - name: Attributes
     doc: |
       Attributes for this function
@@ -54,10 +58,51 @@ public:
   }
 
 public:
+  bool hasAttribute(const model::Binary &Binary,
+                    model::FunctionAttribute::Values Attribute) const {
+    using namespace model;
+
+    if (Attributes.count(Attribute) != 0)
+      return true;
+
+    if (const auto *CalleeAttributes = calleeAttributes(Binary))
+      return CalleeAttributes->count(Attribute) != 0;
+    else
+      return false;
+  }
+
+  MutableSet<model::FunctionAttribute::Values>
+  attributes(const model::Binary &Binary) const {
+    MutableSet<model::FunctionAttribute::Values> Result;
+    auto Inserter = Result.batch_insert();
+    for (auto &Attribute : Attributes)
+      Inserter.insert(Attribute);
+
+    if (const auto *CalleeAttributes = calleeAttributes(Binary))
+      for (auto &Attribute : *CalleeAttributes)
+        Inserter.insert(Attribute);
+
+    return Result;
+  }
+
+public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   bool verify(model::VerifyHelper &VH) const;
   void dump() const debug_function;
+
+private:
+  const MutableSet<model::FunctionAttribute::Values> *
+  calleeAttributes(const model::Binary &Binary) const {
+    if (not DynamicFunction.empty()) {
+      const auto &F = Binary.ImportedDynamicFunctions.at(DynamicFunction);
+      return &F.Attributes;
+    } else if (Destination.isValid()) {
+      return &Binary.Functions.at(Destination).Attributes;
+    } else {
+      return nullptr;
+    }
+  }
 };
 
 inline model::TypePath getPrototype(const model::Binary &Binary,
@@ -86,31 +131,6 @@ inline model::TypePath getPrototype(const model::Binary &Binary,
     Result = Binary.DefaultPrototype;
 
   return Result;
-}
-
-inline bool hasAttribute(const model::Binary &Binary,
-                         const efa::CallEdge &Edge,
-                         model::FunctionAttribute::Values Attribute) {
-  using namespace model;
-
-  if (Edge.Attributes.count(Attribute) != 0)
-    return true;
-
-  if (Edge.Type == efa::FunctionEdgeType::FunctionCall) {
-    const MutableSet<FunctionAttribute::Values> *CalleeAttributes = nullptr;
-    if (not Edge.DynamicFunction.empty()) {
-      const auto &F = Binary.ImportedDynamicFunctions.at(Edge.DynamicFunction);
-      CalleeAttributes = &F.Attributes;
-    } else if (Edge.Destination.isValid()) {
-      CalleeAttributes = &Binary.Functions.at(Edge.Destination).Attributes;
-    } else {
-      revng_abort();
-    }
-
-    return CalleeAttributes->count(Attribute) != 0;
-  }
-
-  return false;
 }
 
 #include "revng/EarlyFunctionAnalysis/Generated/Late/CallEdge.h"

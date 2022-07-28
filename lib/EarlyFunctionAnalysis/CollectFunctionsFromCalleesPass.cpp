@@ -36,16 +36,12 @@ static void collectFunctionsFromCallees(Module &M,
     if (Binary.Functions.find(Entry) != Binary.Functions.end())
       continue;
 
-    // Do not consider dynamic functions (e.g., PLT entries), they are imported
-    // directly from EarlyFunctionAnalysis.
-    if (not getDynamicSymbol(&BB).empty())
-      continue;
-
     uint32_t Reasons = GCBI.getJTReasons(&BB);
     bool IsCallee = hasReason(Reasons, JTReason::Callee);
 
     if (IsCallee) {
-      Binary.Functions[Entry].Type = model::FunctionType::Invalid;
+      // Create the function
+      Binary.Functions[Entry];
       revng_log(Log, "Found function from callee: " << BB.getName().str());
     }
   }

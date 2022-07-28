@@ -8,6 +8,8 @@
 #include <map>
 #include <utility>
 
+#include "llvm/ADT/Any.h"
+#include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/GlobalObject.h"
 #include "llvm/IR/PassManager.h"
@@ -255,7 +257,7 @@ public:
 
   llvm::BasicBlock *getCallReturnBlock(llvm::BasicBlock *BB) const {
     using namespace llvm;
-    CallInst *FunctionCallMarker = getFunctionCall(BB);
+    CallInst *FunctionCallMarker = getMarker(BB, "function_call");
     revng_assert(FunctionCallMarker != nullptr);
     auto *FallthroughBA = cast<BlockAddress>(FunctionCallMarker->getOperand(1));
     return FallthroughBA->getBasicBlock();

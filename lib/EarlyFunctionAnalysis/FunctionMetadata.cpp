@@ -10,9 +10,11 @@
 #include "llvm/Support/raw_os_ostream.h"
 
 #include "revng/ADT/GenericGraph.h"
+#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
 #include "revng/Model/Binary.h"
+#include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
 
@@ -73,6 +75,108 @@ public:
   }
 };
 
+const efa::BasicBlock *FunctionMetadata::findBlock(GeneratedCodeBasicInfo &GCBI,
+                                                   llvm::BasicBlock *BB) const {
+  llvm::BasicBlock *JumpTargetBB = GCBI.getJumpTargetBlock(BB);
+  if (JumpTargetBB == nullptr)
+    return nullptr;
+
+  MetaAddress CallerBlockAddress = GCBI.getPCFromNewPC(JumpTargetBB);
+  revng_assert(CallerBlockAddress.isValid());
+  auto It = ControlFlowGraph.find(CallerBlockAddress);
+
+  while (It == ControlFlowGraph.end()) {
+
+    llvm::BasicBlock *PredecessorJumpTargetBB = nullptr;
+    for (llvm::BasicBlock *Predecessor : predecessors(JumpTargetBB)) {
+      if (GCBI.isTranslated(Predecessor)) {
+        auto *NewJT = GCBI.getJumpTargetBlock(Predecessor);
+        if (PredecessorJumpTargetBB != nullptr) {
+          revng_assert(PredecessorJumpTargetBB == NewJT,
+                       "Jump target is not in the CFG but it has mutiple "
+                       "predecessors");
+        }
+        PredecessorJumpTargetBB = NewJT;
+      }
+    }
+    JumpTargetBB = PredecessorJumpTargetBB;
+
+    revng_assert(JumpTargetBB != nullptr);
+    CallerBlockAddress = GCBI.getPCFromNewPC(JumpTargetBB);
+    revng_assert(CallerBlockAddress.isValid());
+    It = ControlFlowGraph.find(CallerBlockAddress);
+  }
+
+  return &*It;
+}
+
+void FunctionMetadata::simplify(const model::Binary &Binary) {
+  // If A does not end with a call and A.end == B.start and A is the only
+  // predecessor of B and B is the only successor of A, merge
+
+  // Create quick map of predecessors
+  std::map<MetaAddress, SmallVector<MetaAddress, 2>> Predecessors;
+  for (efa::BasicBlock &Block : ControlFlowGraph) {
+    for (auto &Successor : Block.Successors) {
+      if (Successor->Type == efa::FunctionEdgeType::DirectBranch
+          and Successor->Destination.isValid()) {
+        Predecessors[Successor->Destination].push_back(Block.Start);
+      } else if (auto *Call = dyn_cast<efa::CallEdge>(Successor.get())) {
+        if (not Call->IsTailCall
+            and not Call->hasAttribute(Binary,
+                                       model::FunctionAttribute::NoReturn)) {
+          Predecessors[Block.End].push_back(Block.Start);
+        }
+      }
+    }
+  }
+
+  // Identify blocks that need to be merged in their predecessor
+  SmallVector<std::pair<MetaAddress, MetaAddress>, 4> ToMerge;
+  for (efa::BasicBlock &Block : ControlFlowGraph) {
+    // Ignore entry block entirely
+    if (Block.End == Entry)
+      continue;
+
+    // Do we have only one successor?
+    if (Block.Successors.size() != 1)
+      continue;
+
+    // Is the successor a direct branch to the end of the block?
+    auto &OnlySuccessor = *Block.Successors.begin();
+    if (not(OnlySuccessor->Type == efa::FunctionEdgeType::DirectBranch
+            and OnlySuccessor->Destination == Block.End))
+      continue;
+
+    // Does the only successor has only one predeccessor?
+    auto PredecessorsAddress = Predecessors.at(Block.End);
+    if (PredecessorsAddress.size() != 1)
+      continue;
+
+    // Are we the only predecessor?
+    if (*PredecessorsAddress.begin() != Block.Start)
+      continue;
+
+    ToMerge.emplace_back(Block.Start, Block.End);
+  }
+
+  for (auto [PredecessorAddress, BlockAddress] : llvm::reverse(ToMerge)) {
+    efa::BasicBlock &Predecessor = ControlFlowGraph.at(PredecessorAddress);
+    efa::BasicBlock &Block = ControlFlowGraph.at(BlockAddress);
+
+    // Safety checks
+    revng_assert(Predecessor.Successors.size() == 1);
+    revng_assert(Predecessor.End == Block.Start);
+
+    // Merge Block into Predecessor
+    Predecessor.End = Block.End;
+    Predecessor.Successors = std::move(Block.Successors);
+
+    // Drop Block
+    ControlFlowGraph.erase(BlockAddress);
+  }
+}
+
 bool FunctionMetadata::verify(const model::Binary &Binary) const {
   return verify(Binary, false);
 }
@@ -86,9 +190,8 @@ bool FunctionMetadata::verify(const model::Binary &Binary,
                               model::VerifyHelper &VH) const {
   const auto &Function = Binary.Functions.at(Entry);
 
-  if (Function.Type == model::FunctionType::Fake
-      || Function.Type == model::FunctionType::Invalid)
-    return VH.maybeFail(ControlFlowGraph.size() == 0);
+  if (ControlFlowGraph.size() == 0)
+    return VH.fail("The function has no CFG");
 
   // Populate graph
   FunctionCFGVerificationHelper Helper(*this, Binary);
@@ -108,9 +211,12 @@ bool FunctionMetadata::verify(const model::Binary &Binary,
 
       if (Block.Start == Entry) {
         if (HasEntry)
-          return VH.fail();
+          return VH.fail("Multiple entry point blocks found");
         HasEntry = true;
       }
+
+      if (Block.Successors.size() == 0)
+        return VH.fail("A block has no successors", Block);
 
       for (const auto &Edge : Block.Successors)
         if (not Edge->verify(VH))
@@ -133,19 +239,13 @@ bool FunctionMetadata::verify(const model::Binary &Binary,
 
         if (not Call->DynamicFunction.empty()) {
           // It's a dynamic call
-
-          if (Call->Destination.isValid()) {
-            return VH.fail("Destination must be invalid for dynamic function "
-                           "calls");
-          }
-
           auto It = Binary.ImportedDynamicFunctions.find(Call->DynamicFunction);
 
           // If missing, fail
           if (It == Binary.ImportedDynamicFunctions.end())
             return VH.fail("Can't find callee \"" + Call->DynamicFunction
                            + "\"");
-        } else {
+        } else if (Call->isDirect()) {
           // Regular call
           auto It = Binary.Functions.find(Call->Destination);
 
@@ -172,55 +272,6 @@ void FunctionMetadata::dumpCFG(const model::Binary &Binary) const {
   WriteGraph(Stream, &Graph);
 }
 
-void FunctionEdge::dump() const {
-  serialize(dbg, *this);
-}
-
-bool FunctionEdge::verify() const {
-  return verify(false);
-}
-
-bool FunctionEdge::verify(bool Assert) const {
-  model::VerifyHelper VH(Assert);
-  return verify(VH);
-}
-
-static bool
-verifyFunctionEdge(model::VerifyHelper &VH, const FunctionEdgeBase &E) {
-  using namespace efa::FunctionEdgeType;
-
-  switch (E.Type) {
-  case Invalid:
-  case Count:
-    return VH.fail();
-
-  case DirectBranch:
-  case FakeFunctionCall:
-  case FakeFunctionReturn:
-    if (E.Destination.isInvalid())
-      return VH.fail();
-    break;
-  case FunctionCall: {
-    const auto &Call = cast<const CallEdge>(E);
-    if (not(E.Destination.isValid() == Call.DynamicFunction.empty()))
-      return VH.fail();
-  } break;
-
-  case IndirectCall:
-  case Return:
-  case BrokenReturn:
-  case IndirectTailCall:
-  case LongJmp:
-  case Killer:
-  case Unreachable:
-    if (E.Destination.isValid())
-      return VH.fail();
-    break;
-  }
-
-  return true;
-}
-
 bool FunctionEdgeBase::verify() const {
   return verify(false);
 }
@@ -231,52 +282,42 @@ bool FunctionEdgeBase::verify(bool Assert) const {
 }
 
 bool FunctionEdgeBase::verify(model::VerifyHelper &VH) const {
-  if (auto *Edge = dyn_cast<efa::CallEdge>(this))
-    return VH.maybeFail(Edge->verify(VH));
-  else if (auto *Edge = dyn_cast<efa::FunctionEdge>(this))
-    return VH.maybeFail(Edge->verify(VH));
-  else
-    revng_abort("Invalid FunctionEdgeBase instance");
+  using namespace efa::FunctionEdgeType;
 
-  return false;
+  switch (Type) {
+  case Invalid:
+  case Count:
+    return VH.fail();
+
+  case DirectBranch:
+    if (Destination.isInvalid())
+      return VH.fail();
+    break;
+  case FunctionCall: {
+    const auto &Call = cast<const CallEdge>(*this);
+    if (Destination.isValid() and not Call.DynamicFunction.empty())
+      return VH.fail("Dynamic function has destination address");
+  } break;
+
+  case Return:
+  case BrokenReturn:
+  case LongJmp:
+  case Killer:
+  case Unreachable:
+    if (Destination.isValid())
+      return VH.fail();
+    break;
+  }
+
+  return true;
 }
 
 void FunctionEdgeBase::dump() const {
   serialize(dbg, *this);
 }
 
-bool FunctionEdge::verify(model::VerifyHelper &VH) const {
-  if (auto *Call = dyn_cast<efa::CallEdge>(this))
-    return VH.maybeFail(Call->verify(VH));
-  else
-    return verifyFunctionEdge(VH, *this);
-}
-
 void CallEdge::dump() const {
   serialize(dbg, *this);
-}
-
-bool CallEdge::verify() const {
-  return verify(false);
-}
-
-bool CallEdge::verify(bool Assert) const {
-  model::VerifyHelper VH(Assert);
-  return verify(VH);
-}
-
-bool CallEdge::verify(model::VerifyHelper &VH) const {
-  if (Type == efa::FunctionEdgeType::FunctionCall) {
-    // We're in a direct function call (either dynamic or not)
-    bool IsDynamic = not DynamicFunction.empty();
-    bool HasDestination = Destination.isValid();
-    if (not HasDestination and not IsDynamic)
-      return VH.fail("Direct call is missing Destination");
-    else if (HasDestination and IsDynamic)
-      return VH.fail("Dynamic function calls cannot have a valid Destination");
-  }
-
-  return VH.maybeFail(verifyFunctionEdge(VH, *this));
 }
 
 model::Identifier BasicBlock::name() const {

@@ -33,7 +33,6 @@
           - Destination: ":Invalid"
             Type: Return
   OriginalName: fibonacci
-  Type: Regular
 - FunctionMetadata:
     ControlFlowGraph:
       - End: "7"
@@ -47,4 +46,3 @@
           - Destination: ":Invalid"
             Type: Return
   OriginalName: _start
-  Type: Regular

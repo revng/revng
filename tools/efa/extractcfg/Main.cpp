@@ -51,15 +51,38 @@ int main(int argc, const char **argv) {
     ExitOnError("Unable to extract model\n");
 
   SortedVector<revng::DecoratedFunction> DecoratedFunctions;
-  for (BasicBlock &BB : *Module->getFunction("root")) {
-    llvm::Instruction *Term = BB.getTerminator();
-    auto *FMMDNode = Term->getMetadata(FunctionMetadataMDName);
-    if (not FMMDNode)
+  auto *RootFunction = Module->getFunction("root");
+  revng_assert(RootFunction != nullptr);
+
+  if (not RootFunction->isDeclaration()) {
+    for (BasicBlock &BB : *Module->getFunction("root")) {
+      llvm::Instruction *Term = BB.getTerminator();
+      auto *FMMDNode = Term->getMetadata(FunctionMetadataMDName);
+      if (not FMMDNode)
+        continue;
+
+      efa::FunctionMetadata FM = *extractFunctionMetadata(&BB).get();
+      auto &Function = Model->Functions.at(FM.Entry);
+      revng::DecoratedFunction NewFunction(FM.Entry,
+                                           Function.OriginalName,
+                                           FM,
+                                           Function.Attributes);
+      DecoratedFunctions.insert(std::move(NewFunction));
+    }
+  }
+
+  for (Function &F : FunctionTags::Isolated.functions(Module.get())) {
+    auto *FMMDNode = F.getMetadata(FunctionMetadataMDName);
+    efa::FunctionMetadata FM = *extractFunctionMetadata(&F).get();
+    if (not FMMDNode or DecoratedFunctions.count(FM.Entry) != 0)
       continue;
 
-    efa::FunctionMetadata FM = *extractFunctionMetadata(&BB).get();
-    auto &Function = Model->Functions.at(getBasicBlockPC(&BB));
-    DecoratedFunctions.insert({ Function.OriginalName, Function.Type, FM });
+    auto &Function = Model->Functions.at(FM.Entry);
+    revng::DecoratedFunction NewFunction(FM.Entry,
+                                         Function.OriginalName,
+                                         FM,
+                                         Function.Attributes);
+    DecoratedFunctions.insert(std::move(NewFunction));
   }
 
   ExitOnError AbortOnError;

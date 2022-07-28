@@ -20,6 +20,8 @@
 #include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/ScopedNoAliasAA.h"
 #include "llvm/CodeGen/UnreachableBlockElim.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/MDBuilder.h"
@@ -179,6 +181,21 @@ void TDBP::pinExitTB(CallInst *ExitTBCall, DispatcherTargets &Destinations) {
 
 bool TDBP::pinAVIResults(Function &F) {
   QuickMetadata QMD(getContext(&F));
+  Module *M = F.getParent();
+
+  // Lazily create the `jump_to_symbol` marker
+  auto *JumpToSymbolMarker = M->getFunction("jump_to_symbol");
+  if (JumpToSymbolMarker == nullptr) {
+    LLVMContext &C = M->getContext();
+    auto *FT = FunctionType::get(Type::getVoidTy(C),
+                                 { Type::getInt8PtrTy(C) },
+                                 false);
+    JumpToSymbolMarker = Function::Create(FT,
+                                          GlobalValue::ExternalLinkage,
+                                          "jump_to_symbol",
+                                          M);
+    FunctionTags::Marker.addTo(JumpToSymbolMarker);
+  }
 
   Function *ExitTB = JTM->exitTB();
   for (User *U : ExitTB->users()) {
@@ -188,17 +205,57 @@ bool TDBP::pinAVIResults(Function &F) {
 
       auto *MD = Call->getMetadata("revng.targets");
       if (auto *T = dyn_cast_or_null<MDTuple>(MD)) {
-        if (T->getNumOperands() > 0) {
-          // We have at least a value, prepare a list of jump targets
+        // Compute the list of MetaAddress/symbols destinations
+        SmallVector<llvm::StringRef> SymbolDestinations;
+        SmallVector<MetaAddress> DirectDestinations;
+        for (const MDOperand &Operand : T->operands()) {
+          auto *Tuple = QMD.extract<MDTuple *>(Operand.get());
+          auto SymbolName = QMD.extract<StringRef>(Tuple->getOperand(0).get());
+          auto *Value = QMD.extract<ConstantInt *>(Tuple->getOperand(1).get());
+          bool HasDynamicSymbol = SymbolName.size() != 0;
+          if (HasDynamicSymbol) {
+            SymbolDestinations.push_back(SymbolName);
+          } else {
+            auto Address = MetaAddress::decomposeIntegerPC(Value);
+            revng_assert(Address.isValid());
+            DirectDestinations.push_back(Address);
+          }
+        }
+
+        // We handle two situations: all DirectDestinations or one symbol
+        // destination
+        bool HasDirectDestinations = DirectDestinations.size() > 0;
+        bool HasSymbolDestinations = SymbolDestinations.size() > 0;
+        bool HasOneSymbolDestination = SymbolDestinations.size() == 1;
+        if (HasDirectDestinations and not HasSymbolDestinations) {
+          // We have at least a direct destination, prepare a list of jump
+          // targets
           ProgramCounterHandler::DispatcherTargets Values;
           Values.reserve(T->getNumOperands());
-          for (const MDOperand &Operand : T->operands()) {
-            auto *CMA = QMD.extract<Constant *>(Operand.get());
-            auto MA = MetaAddress::fromConstant(CMA);
-            Values.emplace_back(MA, JTM->getBlockAt(MA));
-          }
-
+          for (const auto &Address : DirectDestinations)
+            Values.emplace_back(Address, JTM->getBlockAt(Address));
           pinExitTB(Call, Values);
+        } else if (HasOneSymbolDestination) {
+          // Jump to a symbol
+
+          auto *T = Call->getParent()->getTerminator();
+          revng_assert(hasMarker(T, Call->getCalledFunction()));
+
+          // Purge existing marker, if any
+          if (CallInst *Marker = getMarker(T, JumpToSymbolMarker))
+            Marker->eraseFromParent();
+
+          // Create the marker
+          StringRef SymbolName = SymbolDestinations[0];
+          // TODO: in theory we could insert this befor T, not Call, but it's
+          //       violating some assumption somewhere
+          CallInst::Create({ JumpToSymbolMarker },
+                           { buildStringPtr(M,
+                                            SymbolName,
+                                            Twine("symbol_") + SymbolName) },
+                           None,
+                           "",
+                           Call);
         }
       }
     }
@@ -1749,43 +1806,22 @@ void JumpTargetManager::harvestWithAVI() {
       auto *Value = QMD.extract<ConstantInt *>(Tuple->getOperand(1).get());
 
       bool HasDynamicSymbol = SymbolName.size() != 0;
-      if (HasDynamicSymbol) {
-        SymbolNames.push_back(SymbolName);
-        continue;
+      if (not HasDynamicSymbol) {
+        // Deserialize value into a MetaAddress, depending on the tracked
+        // instruction type
+        auto MA = (IsComposedIntegerPC ?
+                     MetaAddress::decomposeIntegerPC(Value) :
+                     MetaAddress::fromPC(TV.Address, getLimitedValue(Value)));
+
+        if (MA.isInvalid()) {
+          AllValid = false;
+        } else {
+          if (not isPC(MA))
+            AllPCs = false;
+
+          Targets.push_back(MA);
+        }
       }
-
-      // Deserialize value into a MetaAddress, depending on the tracked
-      // instruction type
-      auto MA = (IsComposedIntegerPC ?
-                   MetaAddress::decomposeIntegerPC(Value) :
-                   MetaAddress::fromPC(TV.Address, getLimitedValue(Value)));
-
-      if (MA.isInvalid()) {
-        AllValid = false;
-      } else {
-        if (not isPC(MA))
-          AllPCs = false;
-
-        Targets.push_back(MA);
-      }
-    }
-
-    // We're jumping to a single symbol
-    bool IsPCStore = (TIT == TrackedInstructionType::WrittenInPC);
-    if (IsPCStore and SymbolNames.size() == 1) {
-      StringRef SymbolName = SymbolNames[0];
-
-      // Obtain the jump target's newpc call
-      CallInst *NewPCCall = getJumpTarget(I->getParent());
-      revng_assert(NewPCCall != nullptr);
-
-      // Set the fifth argument of newpc to the symbol
-      auto *IsJT = cast<ConstantInt>(NewPCCall->getArgOperand(2));
-      revng_assert(IsJT->getLimitedValue() == 1);
-      auto *SymbolVariable = buildStringPtr(M,
-                                            SymbolName,
-                                            Twine("symbol_") + SymbolName);
-      NewPCCall->setArgOperand(4, SymbolVariable);
     }
 
     // Proceed only if all the results are valid
@@ -1799,7 +1835,6 @@ void JumpTargetManager::harvestWithAVI() {
       continue;
 
     // Register the resulting addresses
-    SmallVector<Metadata *, 16> TargetsMD;
     for (const MetaAddress &MA : Targets) {
       switch (TIT) {
       case TrackedInstructionType::WrittenInPC:
@@ -1818,14 +1853,13 @@ void JumpTargetManager::harvestWithAVI() {
       case TrackedInstructionType::Invalid:
         revng_abort();
       }
-
-      // Turn the MetaAddress in a Constant(AsMetadata)
-      TargetsMD.push_back(QMD.get(MA.toConstant(MetaAddressStruct)));
     }
 
-    // Save the results in root too for pinAVIResults to use
     if (TIT == TrackedInstructionType::WrittenInPC) {
-      TV.I->setMetadata("revng.targets", QMD.tuple(TargetsMD));
+      // This is a call to `exit_tb`, transfer the revng.abi metadata on the
+      // call as revng.targets for later processing
+      revng_assert(TV.I != nullptr);
+      TV.I->setMetadata("revng.targets", T);
     }
 
     auto OperandsCount = Targets.size();
@@ -1834,7 +1868,6 @@ void JumpTargetManager::harvestWithAVI() {
                 OperandsCount << " targets from " << getName(Call));
     }
   }
-
   //
   // Drop the optimized function
   //

@@ -8,14 +8,18 @@ add_subdirectory(ABIAnalyses)
 revng_add_analyses_library_internal(
   revngEarlyFunctionAnalysis
   AAWriterPass.cpp
-  IndirectBranchInfoPrinterPass.cpp
-  PromoteGlobalToLocalVars.cpp
-  SegregateDirectStackAccesses.cpp
-  EarlyFunctionAnalysis.cpp
+  CFGAnalyzer.cpp
+  CollectCFG.cpp
   CollectFunctionsFromCalleesPass.cpp
   CollectFunctionsFromUnusedAddressesPass.cpp
+  DetectABI.cpp
   FunctionMetadata.cpp
+  FunctionSummaryOracle.cpp
+  IndirectBranchInfoPrinterPass.cpp
   LoadFunctionMetadataPass.cpp
+  Outliner.cpp
+  PromoteGlobalToLocalVars.cpp
+  SegregateDirectStackAccesses.cpp
   ${GENERATED_IMPLS})
 
 llvm_map_components_to_libnames(

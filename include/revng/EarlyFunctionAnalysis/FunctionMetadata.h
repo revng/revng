@@ -11,6 +11,11 @@
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTree.h"
 
+namespace llvm {
+class BasicBlock;
+}
+class GeneratedCodeBasicInfo;
+
 /* TUPLE-TREE-YAML
 name: FunctionMetadata
 doc: "Metadata attached to a function. As of now, it includes a list of basic
@@ -37,11 +42,18 @@ public:
   using generated::FunctionMetadata::FunctionMetadata;
 
 public:
+  const efa::BasicBlock *
+  findBlock(GeneratedCodeBasicInfo &GCBI, llvm::BasicBlock *BB) const;
+
+public:
   bool verify(const model::Binary &Binary) const debug_function;
   bool verify(const model::Binary &Binary, bool Assert) const debug_function;
   bool verify(const model::Binary &Binary, model::VerifyHelper &VH) const;
   void dump() const debug_function;
   void dumpCFG(const model::Binary &Binary) const debug_function;
+
+public:
+  void simplify(const model::Binary &Binary);
 };
 
 #include "revng/EarlyFunctionAnalysis/Generated/Late/FunctionMetadata.h"

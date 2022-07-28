@@ -4,24 +4,26 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include <memory>
-
 #include "llvm/Pass.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 
-class EnforceABI : public llvm::ModulePass {
+namespace efa {
+
+class DetectABIPass : public llvm::ModulePass {
 public:
   static char ID;
 
 public:
-  EnforceABI() : ModulePass(ID) {}
-
-  bool runOnModule(llvm::Module &M) override;
+  DetectABIPass() : llvm::ModulePass(ID) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
+    AU.setPreservesAll();
     AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
     AU.addRequired<LoadModelWrapperPass>();
-    AU.setPreservesAll();
   }
+
+  bool runOnModule(llvm::Module &M) override;
 };
+
+} // namespace efa

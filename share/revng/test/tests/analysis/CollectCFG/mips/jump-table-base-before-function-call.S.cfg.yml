@@ -3,37 +3,54 @@
 #
 
 ---
-- FunctionMetadata:
+- OriginalName: __start
+  Attributes: []
+  FunctionMetadata:
     ControlFlowGraph:
-      - End: "2"
-        Start: "1"
+      - Start: "1"
+        End: "2"
         Successors:
           - Destination: "2"
             Type: DirectBranch
-          - Destination: "4"
+          - Destination: "5"
             Type: DirectBranch
-      - End: "3"
-        Start: "2"
+      - Start: "2"
+        End: "3"
         Successors:
-          - Attributes:
-              - NoReturn
-            Destination: "6"
+          - Destination: "8"
             Type: FunctionCall
-      - End: "5"
-        Start: "4"
+      - Start: "3"
+        End: "4"
         Successors:
-          - Destination: ":Invalid"
-            Type: IndirectTailCall
-    Entry: "1"
-  OriginalName: __start
-  Type: NoReturn
-- FunctionMetadata:
+          - Destination: "4"
+            Kind: FunctionEdge
+            Type: DirectBranch
+          - Destination: "6"
+            Type: DirectBranch
+      - Start: "4"
+        End: "5"
+        Successors:
+          # TODO: we don't recognize this since we cannot track the jump table since
+          #       we cannot prove the value of the register containing it is
+          #       preserved across the function call
+          - Destination: :Invalid
+            Type: LongJmp
+      - Start: "5"
+        End: "6"
+        Successors:
+          - Destination: :Invalid
+            Type: Return
+      - Start: "6"
+        End: "7"
+        Successors:
+          - Destination: :Invalid
+            Type: LongJmp
+- OriginalName: function
+  Attributes: []
+  FunctionMetadata:
     ControlFlowGraph:
-      - End: "7"
-        Start: "6"
+      - Start: "8"
+        End: "9"
         Successors:
-          - Destination: ":Invalid"
-            Type: IndirectTailCall
-    Entry: "6"
-  OriginalName: function
-  Type: NoReturn
+          - Destination: :Invalid
+            Type: Return

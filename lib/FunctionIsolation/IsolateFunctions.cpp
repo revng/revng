@@ -6,11 +6,17 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/CFG.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/raw_os_ostream.h"
@@ -20,9 +26,15 @@
 #include "llvm/Transforms/Utils/Local.h"
 
 #include "revng/ADT/KeyedObjectContainer.h"
+#include "revng/ADT/Queue.h"
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/EarlyFunctionAnalysis/BasicBlock.h"
+#include "revng/EarlyFunctionAnalysis/CallHandler.h"
+#include "revng/EarlyFunctionAnalysis/FunctionEdge.h"
+#include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 #include "revng/EarlyFunctionAnalysis/IRHelpers.h"
+#include "revng/EarlyFunctionAnalysis/Outliner.h"
 #include "revng/FunctionIsolation/IsolateFunctions.h"
 #include "revng/Model/Binary.h"
 #include "revng/Pipeline/AllRegistries.h"
@@ -33,6 +45,7 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/MetaAddress.h"
 
 using namespace llvm;
 
@@ -70,15 +83,6 @@ struct IsolatePipe {
 };
 
 static pipeline::RegisterLLVMPass<IsolatePipe> Y;
-
-static void
-eraseBranch(Instruction *I, BasicBlock *ExpectedUniqueSuccessor = nullptr) {
-  auto *T = cast<BranchInst>(I);
-  revng_assert(T->isUnconditional());
-  if (ExpectedUniqueSuccessor != nullptr)
-    revng_assert(T->getSuccessor(0) == ExpectedUniqueSuccessor);
-  eraseFromParent(T);
-}
 
 class ConstantStringsPool {
 private:
@@ -151,6 +155,10 @@ public:
   auto end() { return Blocks.end(); }
 
   void push_back(BasicBlock *BB) { Blocks.push_back(BB); }
+
+  bool contains(BasicBlock *BB) const {
+    return llvm::find(Blocks, BB) != Blocks.end();
+  }
 };
 
 class IsolateFunctionsImpl {
@@ -182,82 +190,20 @@ public:
     Binary(Binary),
     Strings(TheModule) {}
 
+public:
+  Function *getLocalFunction(MetaAddress Entry) const {
+    return IsolatedFunctionsMap.at(Entry);
+  }
+
+  Function *getDynamicFunction(llvm::StringRef SymbolName) const {
+    return DynamicFunctionsMap.at(SymbolName);
+  }
+
+  Function *dispatcher() const { return FunctionDispatcher; }
+  auto &gcbi() const { return GCBI; }
+
+public:
   void run();
-
-private:
-  /// Isolate the function described by \p Function
-  void isolate(const model::Function &Function);
-
-  /// Process a basic block from the model
-  void handleBasicBlock(const efa::BasicBlock &Block,
-                        ValueToValueMapTy &OldToNew,
-                        FunctionBlocks &ClonedBlocks);
-
-  /// Clone the basic blocks involved in \p Entry jump target
-  ///
-  /// \return a vector of boundary basic blocks
-  std::vector<Boundary>
-  cloneAndIdentifyBoundaries(const efa::BasicBlock &Block,
-                             ValueToValueMapTy &OldToNew,
-                             FunctionBlocks &ClonedBlocks);
-
-  /// Create the code necessary to handle a direct branch in the IR
-  bool handleDirectBoundary(const Boundary &TheBoundary,
-                            const efa::BasicBlock &Block,
-                            SuccessorsContainer &ExpectedSuccessors,
-                            FunctionBlocks &ClonedBlocks);
-
-  /// Create the code necessary to handle an indirect branch in the IR
-  bool handleIndirectBoundary(const std::vector<Boundary> &Boundaries,
-                              const efa::BasicBlock &Block,
-                              const SuccessorsContainer &ExpectedSuccessors,
-                              bool CallConsumed,
-                              FunctionBlocks &ClonedBlocks);
-
-  /// Emit a function call marker and a branch to the return address
-  void createFunctionCall(IRBuilder<> &Builder,
-                          Function *Callee,
-                          const Boundary &TheBoundary,
-                          const MetaAddress &CallerBlockAddress,
-                          bool IsNoReturn);
-
-  void createFunctionCall(IRBuilder<> &Builder,
-                          MetaAddress ExpectedCallee,
-                          const Boundary &TheBoundary,
-                          const MetaAddress &CallerBlockAddress,
-                          bool IsNoReturn);
-
-  void createFunctionCall(BasicBlock *BB,
-                          Function *Callee,
-                          const Boundary &TheBoundary,
-                          const MetaAddress &CallerBlockAddress,
-                          bool IsNoReturn) {
-    IRBuilder<> Builder(BB);
-    createFunctionCall(Builder,
-                       Callee,
-                       TheBoundary,
-                       CallerBlockAddress,
-                       IsNoReturn);
-  }
-
-  void createFunctionCall(BasicBlock *BB,
-                          MetaAddress Callee,
-                          const Boundary &TheBoundary,
-                          const MetaAddress &CallerBlockAddress,
-                          bool IsNoReturn) {
-    IRBuilder<> Builder(BB);
-    createFunctionCall(Builder,
-                       Callee,
-                       TheBoundary,
-                       CallerBlockAddress,
-                       IsNoReturn);
-  }
-
-  /// Post process all the call markers, replacing them with actual calls
-  void replaceCallMarker() const;
-
-  /// Populate the function_dispatcher, needed to handle the indirect calls
-  void populateFunctionDispatcher();
 
   /// Create code to throw of an exception
   void throwException(IRBuilder<> &Builder,
@@ -270,6 +216,10 @@ private:
     IRBuilder<> Builder(BB);
     throwException(Builder, Reason, DbgLocation);
   }
+
+private:
+  /// Populate the function_dispatcher, needed to handle the indirect calls
+  void populateFunctionDispatcher();
 };
 
 void IFI::throwException(IRBuilder<> &Builder,
@@ -300,6 +250,14 @@ void IFI::throwException(IRBuilder<> &Builder,
                                        ExceptionDestinationPC });
   NewCall->setDebugLoc(DbgLocation);
   Builder.CreateUnreachable();
+
+  // Assert there's one and only one terminator
+  auto *BB = Builder.GetInsertBlock();
+  unsigned Terminators = 0;
+  for (Instruction &I : *BB)
+    if (I.isTerminator())
+      ++Terminators;
+  revng_assert(Terminators == 1);
 }
 
 void IFI::populateFunctionDispatcher() {
@@ -391,35 +349,6 @@ public:
   operator bool() const { return State; }
 };
 
-static bool isDirectEdge(efa::FunctionEdgeType::Values Type) {
-  using namespace efa::FunctionEdgeType;
-
-  switch (Type) {
-  case IndirectCall:
-  case Return:
-  case BrokenReturn:
-  case IndirectTailCall:
-  case LongJmp:
-  case Killer:
-  case Unreachable:
-    return false;
-
-  case DirectBranch:
-  case FakeFunctionCall:
-  case FunctionCall:
-  case FakeFunctionReturn:
-    return true;
-
-  case Invalid:
-  case Count:
-    revng_abort();
-  }
-}
-
-static bool isIndirectEdge(efa::FunctionEdgeType::Values Type) {
-  return not isDirectEdge(Type);
-}
-
 template<typename LeftMap, typename RightMap>
 void printAddressListComparison(const LeftMap &ExpectedAddresses,
                                 const RightMap &ActualAddresses) {
@@ -443,549 +372,107 @@ void printAddressListComparison(const LeftMap &ExpectedAddresses,
   }
 }
 
-bool IFI::handleIndirectBoundary(const std::vector<Boundary> &Boundaries,
-                                 const efa::BasicBlock &Block,
-                                 const SuccessorsContainer &ExpectedSuccessors,
-                                 bool CallConsumed,
-                                 FunctionBlocks &ClonedBlocks) {
-  std::vector<const efa::FunctionEdgeBase *> RemainingEdges;
-  for (auto &[Edge, EdgeUsageCount] : ExpectedSuccessors)
-    if (EdgeUsageCount == 0)
-      RemainingEdges.push_back(Edge);
+class CallIsolatedFunction : public efa::CallHandler {
+private:
+  IsolateFunctionsImpl &IFI;
+  const efa::FunctionMetadata &FM;
 
-  // At this point RemainingEdges must either be a series of
-  // `DirectBranch` or a single one of the indirect ones
-  bool NoMore = RemainingEdges.size() == 0;
-  using namespace efa::FunctionEdgeType;
+public:
+  CallIsolatedFunction(IsolateFunctionsImpl &IFI,
+                       const efa::FunctionMetadata &FM) :
+    IFI(IFI), FM(FM) {}
 
-  auto IsDirectEdge = [](const efa::FunctionEdgeBase *E) {
-    return isDirectEdge(E->Type);
-  };
-  bool AllDirect = allOrNone(RemainingEdges, IsDirectEdge, false);
-
-  auto IndirectType = Invalid;
-  if (not NoMore and not AllDirect) {
-    // We're not out of expected successors, but they are not all direct.
-    // We expect a single indirect edge.
-    revng_assert(RemainingEdges.size() == 1);
-    IndirectType = (*RemainingEdges.begin())->Type;
-    revng_assert(isIndirectEdge(IndirectType));
+public:
+  void handleCall(MetaAddress CallerBlock,
+                  llvm::IRBuilder<> &Builder,
+                  MetaAddress Callee,
+                  const std::set<llvm::GlobalVariable *> &ClobberedRegisters,
+                  const std::optional<int64_t> &MaybeFSO,
+                  bool IsNoReturn,
+                  bool IsTailCall,
+                  llvm::Value *SymbolNamePointer) final {
+    handleCall(Builder, Callee, SymbolNamePointer);
   }
 
-  // We now consumed all the direct jump/calls, let's proceed with the
-  // indirect jump/call
-  auto IsIndirectBoundary = [](const Boundary &B) {
-    const auto &S = B.Successors;
-    return S.AnyPC or S.UnexpectedPC or not S.hasSuccessors();
-  };
-  const Boundary *IndirectBoundary = zeroOrOne(Boundaries, IsIndirectBoundary);
-
-  if (IndirectBoundary == nullptr) {
-    // Is there a leftover direct boundary? If so, assign it anyways
-    if (not NoMore and Boundaries.size()) {
-      for (const Boundary &B : Boundaries)
-        if (isFunctionCall(B.Block))
-          IndirectBoundary = &B;
-    } else {
-      revng_assert(NoMore);
-      return false;
-    }
+  void handlePostNoReturn(llvm::IRBuilder<> &Builder) final {
+    // TODO: can we do better than DebugLoc()?
+    IFI.throwException(Builder,
+                       "We return from a noreturn function call",
+                       DebugLoc());
   }
 
-  BasicBlock *BB = IndirectBoundary->Block;
-
-  // Whatever the situation, we need to replace the terminator of this basic
-  // block at this point
-  Instruction *OldTerminator = BB->getTerminator();
-  IRBuilder<> Builder(OldTerminator);
-
-  if (AllDirect) {
-    if (IndirectBoundary->isCall()) {
-      if (TheLogger.isEnabled()) {
-        TheLogger << "The model expects a set of direct branches from ";
-        Block.End.dump(TheLogger);
-        TheLogger << ", but in the binary a function call has been identified."
-                  << DoLog;
-      }
-    }
-
-    SortedVector<MetaAddress> ExpectedAddresses;
-    {
-      auto Inserter = ExpectedAddresses.batch_insert();
-      for (const efa::FunctionEdgeBase *Edge : RemainingEdges)
-        Inserter.insert(Edge->Destination);
-    }
-
-    // Print comparison of targets mandated by the model and those identified in
-    // the IR
-    printAddressListComparison(ExpectedAddresses,
-                               IndirectBoundary->Successors.Addresses);
-
-    // Create the dispatcher for the targets
-    auto Dispatcher = GCBI.buildDispatcher(ExpectedAddresses,
-                                           Builder,
-                                           ClonedBlocks.unexpectedPCBlock());
-    for (BasicBlock *BB : Dispatcher.NewBlocks)
-      ClonedBlocks.push_back(BB);
-
-  } else if (not NoMore) {
-    if (TheLogger.isEnabled()
-        and IndirectBoundary->isCall() != (IndirectType == IndirectCall)) {
-      TheLogger << "The model, at ";
-      Block.End.dump(TheLogger);
-      TheLogger << ", ";
-      if (IndirectType == IndirectCall)
-        TheLogger << "expects an indirect call, but it's not";
-      else
-        TheLogger << "does not expect an indirect call, but it's";
-      TheLogger << " in the binary." << DoLog;
-    }
-
-    switch (IndirectType) {
-    case IndirectCall:
-    case IndirectTailCall:
-      createFunctionCall(Builder,
-                         MetaAddress::invalid(),
-                         *IndirectBoundary,
-                         Block.Start,
-                         false);
-      break;
-
-    case Return:
-      Builder.CreateBr(ClonedBlocks.returnBlock());
-      break;
-
-    case BrokenReturn: {
-      BasicBlock::iterator InsertPoint = Builder.GetInsertPoint();
-      revng_assert(not Builder.GetInsertBlock()->empty());
-      Instruction *Old = InsertPoint == Builder.GetInsertBlock()->end() ?
-                           &*Builder.GetInsertBlock()->rbegin() :
-                           &*InsertPoint;
-      throwException(Builder, "A broken return was taken", Old->getDebugLoc());
-    } break;
-    case LongJmp: {
-      BasicBlock::iterator InsertPoint = Builder.GetInsertPoint();
-      revng_assert(not Builder.GetInsertBlock()->empty());
-      Instruction *Old = InsertPoint == Builder.GetInsertBlock()->end() ?
-                           &*Builder.GetInsertBlock()->rbegin() :
-                           &*InsertPoint;
-      throwException(Builder, "A longjmp was taken", Old->getDebugLoc());
-    } break;
-    case Killer: {
-      BasicBlock::iterator InsertPoint = Builder.GetInsertPoint();
-      revng_assert(not Builder.GetInsertBlock()->empty());
-      Instruction *Old = InsertPoint == Builder.GetInsertBlock()->end() ?
-                           &*Builder.GetInsertBlock()->rbegin() :
-                           &*InsertPoint;
-      throwException(Builder,
-                     "A killer block has been reached",
-                     Old->getDebugLoc());
-    } break;
-    case Unreachable: {
-      BasicBlock::iterator InsertPoint = Builder.GetInsertPoint();
-      revng_assert(not Builder.GetInsertBlock()->empty());
-      Instruction *Old = InsertPoint == Builder.GetInsertBlock()->end() ?
-                           &*Builder.GetInsertBlock()->rbegin() :
-                           &*InsertPoint;
-      throwException(Builder,
-                     "An unrechable instruction has been "
-                     "reached",
-                     Old->getDebugLoc());
-    } break;
-
-    default:
-      revng_abort();
-    }
-  } else {
-    // We have an indirect boundary but the model does not expect it
-
-    if (TheLogger.isEnabled()) {
-      TheLogger << "The model, at ";
-      Block.End.dump(TheLogger);
-      TheLogger << ", does not expect an indirect branch, ";
-      TheLogger << "but it's in the binary." << DoLog;
-    }
-
-    Builder.CreateBr(ClonedBlocks.unexpectedPCBlock());
+  void handleIndirectJump(llvm::IRBuilder<> &Builder,
+                          MetaAddress Block,
+                          llvm::Value *SymbolNamePointer) final {
+    revng_assert(SymbolNamePointer != nullptr);
+    if (not isa<ConstantPointerNull>(SymbolNamePointer))
+      handleCall(Builder, MetaAddress::invalid(), SymbolNamePointer);
   }
 
-  eraseFromParent(OldTerminator);
+private:
+  void handleCall(llvm::IRBuilder<> &Builder,
+                  MetaAddress Callee,
+                  llvm::Value *SymbolNamePointer) {
+    StringRef SymbolName = extractFromConstantStringPtr(SymbolNamePointer);
 
-  return true;
+    // Identify callee
+    Function *CalledFunction = nullptr;
+    if (Callee.isValid())
+      CalledFunction = IFI.getLocalFunction(Callee);
+    else if (not SymbolName.empty())
+      CalledFunction = IFI.getDynamicFunction(SymbolName);
+    else
+      CalledFunction = IFI.dispatcher();
+
+    //
+    // Create the call
+    //
+    BasicBlock::iterator InsertPoint = Builder.GetInsertPoint();
+    revng_assert(not Builder.GetInsertBlock()->empty());
+    bool AtEnd = InsertPoint == Builder.GetInsertBlock()->end();
+    Instruction *Old = AtEnd ? &*Builder.GetInsertBlock()->rbegin() :
+                               &*InsertPoint;
+    auto *NewCall = Builder.CreateCall(CalledFunction);
+    NewCall->setDebugLoc(Old->getDebugLoc());
+    FunctionTags::CallToLifted.addTo(NewCall);
+    const auto *Caller = FM.findBlock(IFI.gcbi(), NewCall->getParent());
+    IFI.gcbi().setMetaAddressMetadata(NewCall,
+                                      CallerBlockStartMDName,
+                                      Caller->Start);
+  }
+};
+
+template<typename R>
+inline auto toVector(R &&Range) {
+  using ResultType = decltype(*Range.begin());
+  SmallVector<ResultType> Result;
+  for (auto Element : Range)
+    Result.push_back(Element);
+  return Result;
 }
 
-/// \return true if this was a call
-bool IFI::handleDirectBoundary(const Boundary &TheBoundary,
-                               const efa::BasicBlock &Block,
-                               SuccessorsContainer &ExpectedSuccessors,
-                               FunctionBlocks &ClonedBlocks) {
-  BasicBlock *BB = TheBoundary.Block;
-  SetAtMostOnce IsCall;
-  size_t Consumed = 0;
-  for (auto &[Edge, EdgeUsageCount] : ExpectedSuccessors) {
-    // Is this edge targeting who we expect?
-    if (TheBoundary.Successors.Addresses.count(Edge->Destination) == 0)
-      continue;
+class FunctionOutliner {
+private:
+  GeneratedCodeBasicInfo &GCBI;
+  efa::FunctionSummaryOracle Oracle;
+  efa::Outliner Outliner;
 
-    bool Match = false;
-    switch (Edge->Type) {
-    case efa::FunctionEdgeType::DirectBranch:
-      if (not TheBoundary.isCall())
-        Match = true;
-      break;
-
-    case efa::FunctionEdgeType::FunctionCall:
-    case efa::FunctionEdgeType::FakeFunctionCall:
-      if (TheBoundary.isCall())
-        Match = true;
-      break;
-
-    default:
-      break;
-    }
-
-    if (not Match)
-      continue;
-
-    ++Consumed;
-    ++EdgeUsageCount;
-
-    if (TheBoundary.isCall()) {
-      IsCall.set();
-
-      if (Edge->Type == efa::FunctionEdgeType::FunctionCall) {
-        auto *Call = cast<efa::CallEdge>(Edge);
-        eraseBranch(BB->getTerminator(), TheBoundary.CalleeBlock);
-        createFunctionCall(BB,
-                           Edge->Destination,
-                           TheBoundary,
-                           Block.Start,
-                           hasAttribute(Binary,
-                                        *Call,
-                                        model::FunctionAttribute::NoReturn));
-      }
-    }
+public:
+  FunctionOutliner(llvm::Module &M,
+                   const model::Binary &Binary,
+                   GeneratedCodeBasicInfo &GCBI,
+                   efa::CallHandler *TheCallHandler) :
+    GCBI(GCBI), Outliner(M, GCBI, Oracle, TheCallHandler) {
+    importModel(M, GCBI, Binary, Oracle);
   }
 
-  // Under certain conditions, we might have a direct boundary that does not
-  // correspond to any direct `efa::FunctionEdgeBase`. An example is when we
-  // have a direct call to a function that is not available in the model. In
-  // fact, in this case, EFA will emit an `efa::FunctionEdgeBase` representing
-  // and *Indirect*Call.
-  revng_assert(Consumed <= TheBoundary.Successors.Addresses.size());
-
-  return IsCall;
-}
-
-std::vector<Boundary>
-IFI::cloneAndIdentifyBoundaries(const efa::BasicBlock &Block,
-                                ValueToValueMapTy &OldToNew,
-                                FunctionBlocks &ClonedBlocks) {
-  MetaAddress Entry = Block.Start;
-  std::set<BasicBlock *> Blocks;
-  for (BasicBlock *Block : GCBI.getBlocksGeneratedByPC(Entry))
-    Blocks.insert(Block);
-  revng_assert(Blocks.size() > 0);
-
-  std::vector<Boundary> Boundaries;
-
-  for (BasicBlock *BB : Blocks) {
-    // Clone basic block in root and register it
-    auto *NewBB = CloneBasicBlock(BB, OldToNew, "", RootFunction);
-    revng_assert(OldToNew.count(BB) == 0);
-    OldToNew.insert({ BB, NewBB });
-    ClonedBlocks.push_back(NewBB);
-
-    // Is this a boundary basic block?
-    auto HasNotBeenCloned = [&Blocks](BasicBlock *Successor) {
-      return Blocks.count(Successor) == 0;
-    };
-    if (succ_empty(BB) or llvm::any_of(successors(BB), HasNotBeenCloned)) {
-      BasicBlock *Callee = getFunctionCallCallee(BB);
-      BasicBlock *Fallthrough = getFallthrough(BB);
-      Boundary NewBoundary{
-        NewBB, Callee, Fallthrough, GCBI.getSuccessors(BB)
-      };
-      Boundaries.push_back(NewBoundary);
-    }
+public:
+  efa::OutlinedFunction outline(MetaAddress Entry) {
+    return Outliner.outline(GCBI.getBlockAt(Entry));
   }
+};
 
-  if (TheLogger.isEnabled()) {
-    TheLogger << "Boundaries: \n";
-    for (const Boundary &B : Boundaries) {
-      B.dump(TheLogger);
-      TheLogger << "\n";
-    }
-    TheLogger << DoLog;
-    TheLogger << "Expected:\n";
-    std::string Buffer;
-    {
-      raw_string_ostream StringStream(Buffer);
-      yaml::Output YAMLOutput(StringStream);
-      for (auto Edge : Block.Successors) {
-        YAMLOutput << Edge;
-      }
-    }
-    TheLogger << Buffer << DoLog;
-  }
-
-  return Boundaries;
-}
-
-void IFI::handleBasicBlock(const efa::BasicBlock &Block,
-                           ValueToValueMapTy &OldToNew,
-                           FunctionBlocks &ClonedBlocks) {
-  if (TheLogger.isEnabled()) {
-    TheLogger << "Isolating ";
-    Block.Start.dump(TheLogger);
-    TheLogger << "-";
-    Block.End.dump(TheLogger);
-    TheLogger << DoLog;
-  }
-
-  LoggerIndent<> Indent(TheLogger);
-
-  // Sentinel to ensure we don't have more than a call within a basic block
-  SetAtMostOnce CallConsumed;
-
-  // Identify boundary blocks
-  std::vector<Boundary> Boundaries = cloneAndIdentifyBoundaries(Block.Start,
-                                                                OldToNew,
-                                                                ClonedBlocks);
-
-  // Handle call to dynamic functions
-  efa::CallEdge *Call = nullptr;
-  for (const auto &Edge : Block.Successors)
-    if ((Call = dyn_cast<efa::CallEdge>(Edge.get())))
-      break;
-
-  if (Call != nullptr and not Call->DynamicFunction.empty()) {
-    revng_assert(Boundaries.size() == 1);
-    const auto &TheBoundary = Boundaries[0];
-    auto *BB = TheBoundary.Block;
-
-    eraseBranch(BB->getTerminator(), TheBoundary.CalleeBlock);
-
-    createFunctionCall(BB,
-                       DynamicFunctionsMap.at(Call->DynamicFunction),
-                       TheBoundary,
-                       Block.Start,
-                       hasAttribute(Binary,
-                                    *Call,
-                                    model::FunctionAttribute::NoReturn));
-
-    return;
-  }
-
-  // At this point, we first need to handle all the boundary blocks that
-  // represent direct jumps, then we'll take care of the (only) indirect jump,
-  // if any
-
-  SuccessorsContainer ExpectedSuccessors;
-  for (const auto &E : Block.Successors) {
-    // Ignore self-loops
-    if (E->Destination != Block.Start) {
-      ExpectedSuccessors[E.get()] = 0;
-    }
-  }
-
-  // Consume direct jumps calls
-  for (const auto &Boundary : Boundaries) {
-    if (not(Boundary.Successors.AnyPC or Boundary.Successors.UnexpectedPC)) {
-      bool Result = handleDirectBoundary(Boundary,
-                                         Block,
-                                         ExpectedSuccessors,
-                                         ClonedBlocks);
-      CallConsumed.setIf(Result);
-    }
-  }
-
-  bool HasIndirectBoundary = handleIndirectBoundary(Boundaries,
-                                                    Block,
-                                                    ExpectedSuccessors,
-                                                    CallConsumed,
-                                                    ClonedBlocks);
-
-  // TODO: this is obscure and confusing
-  revng_assert(not(HasIndirectBoundary and CallConsumed));
-}
-
-void IFI::isolate(const model::Function &Function) {
-  // Map from original values to new ones
-  ValueToValueMapTy OldToNew;
-
-  // List of cloned basic blocks, dummy entry and return block are preallocated
-  FunctionBlocks ClonedBlocks;
-
-  auto CreateBB = [this](StringRef Name) {
-    return BasicBlock::Create(Context, Name, RootFunction, nullptr);
-  };
-
-  // Create return block
-  ClonedBlocks.returnBlock() = CreateBB("return");
-  ReturnInst::Create(Context, ClonedBlocks.returnBlock());
-
-  // Create unexpectedPC block
-  ClonedBlocks.unexpectedPCBlock() = CreateBB("unexpectedPC");
-  const DebugLoc &Dbg = GCBI.unexpectedPC()->getTerminator()->getDebugLoc();
-  throwException(ClonedBlocks.unexpectedPCBlock(), "unexpectedPC", Dbg);
-  OldToNew[GCBI.unexpectedPC()] = ClonedBlocks.unexpectedPCBlock();
-
-  // Get the entry basic block
-  BasicBlock *OriginalEntry = GCBI.getBlockAt(Function.Entry);
-
-  TheLogger << "Isolating ";
-  Function.Entry.dump(TheLogger);
-  TheLogger << DoLog;
-  LoggerIndent<> Indent(TheLogger);
-
-  // The CFG must exist if the type of function is not `Invalid`
-  auto *Term = OriginalEntry->getTerminator();
-  auto *FMMDNode = Term->getMetadata(FunctionMetadataMDName);
-  revng_assert(FMMDNode && Function.Type != model::FunctionType::Invalid);
-
-  // Extract function metadata
-  efa::FunctionMetadata FM = *extractFunctionMetadata(OriginalEntry).get();
-
-  // Process each basic block
-  for (const efa::BasicBlock &Block : FM.ControlFlowGraph)
-    handleBasicBlock(Block, OldToNew, ClonedBlocks);
-
-  // Create a dummy entry branching to real entry
-  revng_assert(ClonedBlocks.dummyEntryBlock() == nullptr);
-  ClonedBlocks.dummyEntryBlock() = CreateBB("dummyentry");
-  BranchInst::Create(cast<BasicBlock>(&*OldToNew[OriginalEntry]),
-                     ClonedBlocks.dummyEntryBlock());
-
-  // Drop all calls to `function_call`
-  std::vector<Instruction *> ToDrop;
-  for (BasicBlock *BB : ClonedBlocks)
-    for (Instruction &I : *BB)
-      if (isCallTo(&I, "function_call"))
-        ToDrop.push_back(&I);
-
-  for (Instruction *I : ToDrop)
-    eraseFromParent(I);
-
-  remapInstructionsInBlocks(ClonedBlocks.Blocks, OldToNew);
-
-  // Let CodeExtractor create the new function
-  // TODO: can we hoist CEAC?
-  CodeExtractorAnalysisCache CEAC(*RootFunction);
-  CodeExtractor CE(ClonedBlocks.Blocks,
-                   nullptr,
-                   false,
-                   nullptr,
-                   nullptr,
-                   nullptr,
-                   false,
-                   true,
-                   "");
-  llvm::Function *NewFunction = CE.extractCodeRegion(CEAC);
-  revng_assert(NewFunction != nullptr);
-
-  FunctionType *FT = NewFunction->getFunctionType();
-  revng_assert(FT->getReturnType()->isVoidTy());
-  revng_assert(FT->getNumParams() == 0);
-
-  auto *TargetFunction = IsolatedFunctionsMap.at(Function.Entry);
-
-  // Record all the blocks
-  SmallVector<BasicBlock *, 16> Blocks;
-  for (BasicBlock &BB : *NewFunction)
-    Blocks.push_back(&BB);
-
-  // Move the blocks
-  for (BasicBlock *BB : Blocks) {
-    BB->removeFromParent();
-    TargetFunction->getBasicBlockList().push_back(BB);
-  }
-
-  // Drop the temporary isolated functions and its call
-  auto UserIt = NewFunction->user_begin();
-  revng_assert(UserIt != NewFunction->user_end());
-  auto *Call = cast<CallInst>(*UserIt);
-  ++UserIt;
-  revng_assert(UserIt == NewFunction->user_end());
-  eraseFromParent(Call);
-
-  revng_assert(NewFunction->use_empty());
-  revng_assert(NewFunction->getBasicBlockList().empty());
-  eraseFromParent(NewFunction);
-}
-
-void IFI::createFunctionCall(IRBuilder<> &Builder,
-                             MetaAddress ExpectedCallee,
-                             const Boundary &TheBoundary,
-                             const MetaAddress &CallerBlockAddress,
-                             bool IsNoReturn) {
-  Function *Callee = nullptr;
-  BasicBlock *ExpectedCalleeBB = nullptr;
-  if (ExpectedCallee.isValid()) {
-    Callee = IsolatedFunctionsMap.at(ExpectedCallee);
-    ExpectedCalleeBB = GCBI.getBlockAt(ExpectedCallee);
-  }
-
-  if (TheBoundary.CalleeBlock != nullptr
-      and TheBoundary.CalleeBlock != ExpectedCalleeBB) {
-    revng_log(TheLogger,
-              "Warning: The callee in the binary ("
-                << getName(TheBoundary.CalleeBlock)
-                << ") is different from the one provided by the model ("
-                << getName(ExpectedCalleeBB) << ")");
-  }
-
-  createFunctionCall(Builder,
-                     Callee,
-                     TheBoundary,
-                     CallerBlockAddress,
-                     IsNoReturn);
-}
-
-void IFI::createFunctionCall(IRBuilder<> &Builder,
-                             Function *Callee,
-                             const Boundary &TheBoundary,
-                             const MetaAddress &CallerBlockAddress,
-                             bool IsNoReturn) {
-
-  if (Callee == nullptr)
-    Callee = FunctionDispatcher;
-
-  BasicBlock::iterator InsertPoint = Builder.GetInsertPoint();
-  revng_assert(not Builder.GetInsertBlock()->empty());
-  bool AtEnd = InsertPoint == Builder.GetInsertBlock()->end();
-  Instruction *Old = AtEnd ? &*Builder.GetInsertBlock()->rbegin() :
-                             &*InsertPoint;
-  auto *NewCall = Builder.CreateCall(Callee);
-  NewCall->setDebugLoc(Old->getDebugLoc());
-  FunctionTags::CallToLifted.addTo(NewCall);
-  GCBI.setMetaAddressMetadata(NewCall,
-                              CallerBlockStartMDName,
-                              CallerBlockAddress);
-
-  if (IsNoReturn) {
-    throwException(Builder,
-                   "We return from a noreturn function call",
-                   Old->getDebugLoc());
-  } else if (TheBoundary.ReturnBlock != nullptr) {
-    // Emit jump to fallthrough
-    Builder.CreateBr(TheBoundary.ReturnBlock);
-  } else {
-    if (TheLogger.isEnabled()) {
-      TheLogger << "Call to " << Callee->getName() << " in "
-                << getName(TheBoundary.Block)
-                << " has not been detected as a function call in the binary."
-                << DoLog;
-    }
-
-    throwException(Builder,
-                   "An instruction marked as a call has not been "
-                   "identified as such in the binary",
-                   Old->getDebugLoc());
-  }
-}
-
-void IFI::run() {
+void IsolateFunctionsImpl::run() {
   ExceptionSourcePC = MetaAddress::createStructVariable(TheModule,
                                                         "exception_source_pc");
   ExceptionDestinationPC = MetaAddress::createStructVariable(TheModule,
@@ -1013,7 +500,9 @@ void IFI::run() {
 
   auto *IsolatedFunctionType = createFunctionType<void>(Context);
 
-  // Create all the dynamic functions
+  //
+  // Create the dynamic functions
+  //
   for (const model::DynamicFunction &Function :
        Binary.ImportedDynamicFunctions) {
     StringRef Name = Function.OriginalName;
@@ -1047,11 +536,10 @@ void IFI::run() {
     DynamicFunctionsMap[Name] = NewFunction;
   }
 
-  // Precreate all the isolated functions
+  //
+  // Precreate the isolated functions
+  //
   for (const model::Function &Function : Binary.Functions) {
-    if (Function.Type == model::FunctionType::Fake)
-      continue;
-
     auto *NewFunction = Function::Create(IsolatedFunctionType,
                                          GlobalValue::ExternalLinkage,
                                          "local_" + Function.name(),
@@ -1069,14 +557,106 @@ void IFI::run() {
     NewFunction->setMetadata(FunctionMetadataMDName, MDNode);
   }
 
-  std::set<Function *> IsolatedFunctions;
-  for (const model::Function &Function : Binary.Functions) {
-    // Do not isolate fake functions
-    if (Function.Type == model::FunctionType::Fake)
-      continue;
+  using namespace efa;
+  using llvm::BasicBlock;
 
-    // Perform isolation
-    isolate(Function);
+  for (auto &[Entry, F] : IsolatedFunctionsMap) {
+    BasicBlock *OriginalEntryBlock = GCBI.getBlockAt(Entry);
+    efa::FunctionMetadata FM = *extractFunctionMetadata(OriginalEntryBlock)
+                                  .get();
+
+    CallIsolatedFunction CallHandler(*this, FM);
+    FunctionOutliner Outliner(*TheModule, Binary, GCBI, &CallHandler);
+    OutlinedFunction Outlined = Outliner.outline(Entry);
+
+    //
+    // Handle UnexpectedPCCloned
+    //
+    if (BasicBlock *UnexpectedPC = Outlined.UnexpectedPCCloned) {
+      UnexpectedPC->getInstList().clear();
+      revng_assert(UnexpectedPC->empty());
+      const DebugLoc &Dbg = GCBI.unexpectedPC()->getTerminator()->getDebugLoc();
+      throwException(UnexpectedPC, "unexpectedPC", Dbg);
+    }
+
+    //
+    // Handle jumps to AnyPC
+    //
+    if (BasicBlock *AnyPC = Outlined.AnyPCCloned) {
+      for (BasicBlock *AnyPCPredecessor : toVector(predecessors(AnyPC))) {
+        // First of all, identify the basic block
+        const efa::BasicBlock *Block = FM.findBlock(GCBI, AnyPCPredecessor);
+
+        Instruction *T = AnyPCPredecessor->getTerminator();
+        revng_assert(not cast<BranchInst>(T)->isConditional());
+        T->eraseFromParent();
+        IRBuilder<> Builder(AnyPCPredecessor);
+
+        // Get the only outgoing edge jumping to anypc
+        if (Block == nullptr) {
+          throwException(Builder, "Unexpected jump", DebugLoc());
+          continue;
+        }
+
+        bool AtLeastAMatch = false;
+        for (auto &Edge : Block->Successors) {
+          if (Edge->Type == efa::FunctionEdgeType::DirectBranch)
+            continue;
+
+          revng_assert(not AtLeastAMatch);
+          AtLeastAMatch = true;
+
+          switch (Edge->Type) {
+          case efa::FunctionEdgeType::Return:
+            Builder.CreateRetVoid();
+            break;
+          case efa::FunctionEdgeType::BrokenReturn:
+            // TODO: can we do better than DebugLoc()?
+            throwException(Builder, "A broken return was taken", DebugLoc());
+            break;
+          case efa::FunctionEdgeType::LongJmp:
+            throwException(Builder, "A longjmp was taken", DebugLoc());
+            break;
+          case efa::FunctionEdgeType::Killer:
+            throwException(Builder,
+                           "A killer block has been reached",
+                           DebugLoc());
+            revng_abort();
+            break;
+          case efa::FunctionEdgeType::Unreachable:
+            throwException(Builder,
+                           "An unrechable instruction has been "
+                           "reached",
+                           DebugLoc());
+            break;
+          case efa::FunctionEdgeType::FunctionCall: {
+            auto *Call = cast<efa::CallEdge>(Edge.get());
+            revng_assert(Call->IsTailCall);
+            Builder.CreateRetVoid();
+          } break;
+          case efa::FunctionEdgeType::Invalid:
+          case efa::FunctionEdgeType::DirectBranch:
+          case efa::FunctionEdgeType::Count:
+            revng_abort();
+            break;
+          }
+        }
+
+        if (not AtLeastAMatch) {
+          throwException(Builder, "Unexpected jump", DebugLoc());
+          continue;
+        }
+      }
+
+      eraseFromParent(AnyPC);
+    }
+
+    if (Outlined.Function)
+      for (BasicBlock &BB : *Outlined.Function)
+        revng_assert(BB.getTerminator() != nullptr);
+
+    // Steal the function body and let the outlined function be destroyed
+    moveBlocksInto(*Outlined.Function, *F);
   }
 
   revng_check(not verifyModule(*TheModule, &dbgs()));

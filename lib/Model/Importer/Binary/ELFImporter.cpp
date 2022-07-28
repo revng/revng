@@ -438,7 +438,6 @@ void ELFImporter<T, HasAddend>::parseSymbols(object::ELFFile<T> &TheELF,
     auto It = Model->Functions.find(Address);
     if (It == Model->Functions.end()) {
       model::Function &Function = Model->Functions[Address];
-      Function.Type = model::FunctionType::Regular;
       if (MaybeName)
         Function.OriginalName = *MaybeName;
     }
@@ -626,7 +625,6 @@ void ELFImporter<T, HasAddend>::parseDynamicSymbol(Elf_Sym_Impl<T> &Symbol,
       auto It = Model->Functions.find(Address);
       if (It == Model->Functions.end()) {
         model::Function &Function = Model->Functions[Address];
-        Function.Type = model::FunctionType::Regular;
         Function.OriginalName = Name;
       }
     } else {

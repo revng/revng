@@ -10,12 +10,13 @@
 #include <set>
 
 #include "llvm/ADT/DepthFirstIterator.h"
+#include "llvm/IR/CFG.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 
+#include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
-#include "revng/Model/Generated/Early/Register.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Debug.h"
 

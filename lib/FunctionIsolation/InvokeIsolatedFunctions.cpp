@@ -68,9 +68,6 @@ public:
     GCBI(GCBI) {
 
     for (const model::Function &Function : Binary.Functions) {
-      if (Function.Type == model::FunctionType::Fake)
-        continue;
-
       // TODO: this temporary
       auto Name = (Twine("local_") + Function.name()).str();
       llvm::Function *F = M->getFunction(Name);

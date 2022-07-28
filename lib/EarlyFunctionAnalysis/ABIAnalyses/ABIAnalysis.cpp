@@ -12,6 +12,7 @@
 
 #include "revng/ABI/RegisterState.h"
 #include "revng/ADT/ZipMapIterator.h"
+#include "revng/EarlyFunctionAnalysis/ABIAnalysis.h"
 #include "revng/EarlyFunctionAnalysis/Common.h"
 #include "revng/Model/Binary.h"
 #include "revng/Support/Assert.h"
@@ -19,7 +20,6 @@
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 
-#include "ABIAnalysis.h"
 #include "Analyses.h"
 
 using namespace llvm;
@@ -318,19 +318,19 @@ void ABIAnalysesResults::dump(T &Output, const char *Prefix) const {
 
   Output << Prefix << "Call site:\n";
   for (auto &[PC, StateMap] : CallSites) {
-    Output << Prefix << "  " << PC.address() << '\n';
+    Output << Prefix << "  " << PC.toString() << '\n';
     Output << Prefix << "  "
            << "  "
            << "Arguments:\n";
     for (auto &[GV, State] : StateMap.ArgumentsRegisters) {
-      Output << Prefix << "    " << GV->getName().str() << " = "
+      Output << Prefix << "      " << GV->getName().str() << " = "
              << abi::RegisterState::getName(State).str() << '\n';
     }
     Output << Prefix << "  "
            << "  "
            << "Return values:\n";
     for (auto &[GV, State] : StateMap.ReturnValuesRegisters) {
-      Output << Prefix << "    " << GV->getName().str() << " = "
+      Output << Prefix << "      " << GV->getName().str() << " = "
              << abi::RegisterState::getName(State).str() << '\n';
     }
   }
@@ -345,7 +345,7 @@ void ABIAnalysesResults::dump(T &Output, const char *Prefix) const {
 
   Output << Prefix << "Final Return values:\n";
   for (auto &[GV, State] : FinalReturnValuesRegisters) {
-    Output << Prefix << " " << GV->getName().str() << " = "
+    Output << Prefix << "  " << GV->getName().str() << " = "
            << abi::RegisterState::getName(State).str() << '\n';
   }
 }

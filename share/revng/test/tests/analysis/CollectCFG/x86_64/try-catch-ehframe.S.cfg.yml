@@ -11,7 +11,6 @@
           - Destination: ":Invalid"
             Type: Return
   OriginalName: function_call
-  Type: Regular
 - FunctionMetadata:
     ControlFlowGraph:
       - End: "3"
@@ -22,17 +21,11 @@
       - End: "4"
         Start: "3"
         Successors:
-          - Destination: "4"
+          - Destination: "5"
             Type: DirectBranch
-      - End: "5"
-        Start: "4"
-        Successors:
-          - Destination: "6"
-            Type: DirectBranch
-      - End: "7"
-        Start: "6"
+      - End: "6"
+        Start: "5"
         Successors:
           - Destination: ":Invalid"
             Type: Return
   OriginalName: _start
-  Type: Regular

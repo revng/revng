@@ -16,7 +16,6 @@
           - Destination: ":Invalid"
             Type: Return
   OriginalName: _start
-  Type: Regular
 - FunctionMetadata:
     ControlFlowGraph:
       - End: "4"
@@ -25,4 +24,3 @@
           - Destination: ":Invalid"
             Type: Return
   OriginalName: call
-  Type: Regular

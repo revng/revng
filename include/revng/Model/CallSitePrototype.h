@@ -22,6 +22,16 @@ fields:
     reference:
       pointeeType: model::Type
       rootType: model::Binary
+  - name: IsTailCall
+    doc: Whether this call site is a tail call or not
+    type: bool
+    optional: true
+  - name: Attributes
+    doc: Attributes for this call site
+    sequence:
+      type: MutableSet
+      elementType: model::FunctionAttribute::Values
+    optional: true
 key:
   - CallerBlockAddress
 TUPLE-TREE-YAML */

@@ -35,27 +35,24 @@ inline ParsedSuccessor parseSuccessor(const efa::FunctionEdgeBase &Edge,
                                       const model::Binary &Binary) {
   switch (Edge.Type) {
   case FunctionEdgeType::DirectBranch:
-  case FunctionEdgeType::FakeFunctionCall:
-  case FunctionEdgeType::FakeFunctionReturn:
   case FunctionEdgeType::Return:
   case FunctionEdgeType::BrokenReturn:
-  case FunctionEdgeType::IndirectTailCall:
   case FunctionEdgeType::LongJmp:
   case FunctionEdgeType::Unreachable:
     return ParsedSuccessor{ .NextInstructionAddress = Edge.Destination,
                             .OptionalCallAddress = MetaAddress::invalid() };
 
-  case FunctionEdgeType::FunctionCall:
-  case FunctionEdgeType::IndirectCall:
-    if (auto *CE = llvm::cast<efa::CallEdge>(&Edge);
-        !hasAttribute(Binary, *CE, model::FunctionAttribute::NoReturn)) {
-      return ParsedSuccessor{ .NextInstructionAddress = FallthroughAddress,
-                              .OptionalCallAddress = Edge.Destination };
-    } else {
-      return ParsedSuccessor{ .NextInstructionAddress = MetaAddress::invalid(),
-                              .OptionalCallAddress = Edge.Destination };
-    }
+  case FunctionEdgeType::FunctionCall: {
+    auto *CE = llvm::cast<efa::CallEdge>(&Edge);
 
+    MetaAddress NextInstructionAddress = MetaAddress::invalid();
+    if (not CE->hasAttribute(Binary, model::FunctionAttribute::NoReturn)
+        and not CE->IsTailCall) {
+      NextInstructionAddress = FallthroughAddress;
+    }
+    return ParsedSuccessor{ .NextInstructionAddress = NextInstructionAddress,
+                            .OptionalCallAddress = Edge.Destination };
+  }
   case FunctionEdgeType::Killer:
     return ParsedSuccessor{ .NextInstructionAddress = MetaAddress::invalid(),
                             .OptionalCallAddress = MetaAddress::invalid() };

@@ -8,7 +8,6 @@
 #include "revng/ADT/SortedVector.h"
 #include "revng/Model/CallSitePrototype.h"
 #include "revng/Model/FunctionAttribute.h"
-#include "revng/Model/FunctionType.h"
 #include "revng/Model/Identifier.h"
 #include "revng/Model/Type.h"
 #include "revng/Model/VerifyHelper.h"
@@ -34,10 +33,6 @@ fields:
     optional: true
   - name: OriginalName
     type: std::string
-    optional: true
-  - name: Type
-    doc: Type of the function
-    type: model::FunctionType::Values
     optional: true
   - name: StackFrameType
     doc: The type of the stack frame
