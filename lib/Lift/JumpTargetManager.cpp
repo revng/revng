@@ -110,20 +110,10 @@ void JumpTargetManager::assertNoUnreachable() const {
   }
 }
 
-/// \brief Purges everything is after a call to exitTB (except the call itself)
 static void exitTBCleanup(Instruction *ExitTBCall) {
-  BasicBlock *BB = ExitTBCall->getParent();
-
-  // Cleanup everything it's aftewards starting from the end
-  Instruction *ToDelete = &*(--BB->end());
-  while (ToDelete != ExitTBCall) {
-    if (auto DeadBranch = dyn_cast<BranchInst>(ToDelete))
-      purgeBranch(BasicBlock::iterator(DeadBranch));
-    else
-      eraseFromParent(ToDelete);
-
-    ToDelete = &*(--BB->end());
-  }
+  // TODO: for some reason we don't always have a terminator
+  if (auto *T = nextNonMarker(ExitTBCall))
+    eraseFromParent(T);
 }
 
 using TDBP = TranslateDirectBranchesPass;
