@@ -22,28 +22,8 @@ class PipelineToolCommand(Command):
         return run(command, options)
 
 
-class ArtifactTool(PipelineToolCommand):
-    def __init__(self):
-        super().__init__("artifact", "revng artifact producer")
-
-
-class AnalyzeTool(PipelineToolCommand):
-    def __init__(self):
-        super().__init__("analyze", "revng analyzer")
-
-
-class InvalidateTool(PipelineToolCommand):
-    def __init__(self):
-        super().__init__("invalidate", "revng invalidate")
-
-
-class PipelineTool(PipelineToolCommand):
-    def __init__(self):
-        super().__init__("pipeline", "revng pipeline")
-
-
 def setup(commands_registry: CommandsRegistry):
-    commands_registry.register_command(ArtifactTool())
-    commands_registry.register_command(AnalyzeTool())
-    commands_registry.register_command(InvalidateTool())
-    commands_registry.register_command(PipelineTool())
+    commands_registry.register_command(PipelineToolCommand("artifact", "revng artifact producer"))
+    commands_registry.register_command(PipelineToolCommand("analyze", "revng analyzer"))
+    commands_registry.register_command(PipelineToolCommand("invalidate", "revng invalidate"))
+    commands_registry.register_command(PipelineToolCommand("pipeline", "revng pipeline"))

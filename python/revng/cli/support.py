@@ -137,3 +137,7 @@ def build_command_with_loads(command: str, args: Iterable[str], options: Options
         + interleave(to_load, "-load")
         + args
     )
+
+
+def executable_name() -> str:
+    return os.path.basename(sys.argv[0])

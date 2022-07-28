@@ -4,7 +4,7 @@
 
 import argparse
 import sys
-from typing import Dict
+from typing import Dict, Optional
 
 from revng.cli.commands_registry import Command, Options
 
@@ -76,5 +76,5 @@ class PTMLStripCommand(Command):
         )
         parser.set_defaults(func=cmd_strip)
 
-    def run(self, options: Options) -> int:
+    def run(self, options: Options) -> Optional[int]:
         return suppress_brokenpipe(cmd_strip, options.parsed_args)

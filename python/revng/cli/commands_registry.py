@@ -4,31 +4,32 @@
 
 import argparse
 import dataclasses
-import os
 import sys
+from abc import ABC, abstractmethod
 from typing import Optional, Sequence, Tuple
 
-from .support import Options, try_run
+from .support import Options, executable_name, try_run
 
 
-class Command:
-    def __init__(self, command, help_text, add_help=True):
+class Command(ABC):
+    def __init__(self, command: Tuple[str], help_text: str, add_help=True):
         self.namespace = command[:-1]
         self.name = command[-1]
         self.help = help_text
         self.add_help = add_help
 
-    def register_arguments(self, parser):
+    @abstractmethod
+    def register_arguments(self, parser: argparse.ArgumentParser):
         pass
 
-    def run(self, options: Options):
+    @abstractmethod
+    def run(self, options: Options) -> Optional[int]:
         raise NotImplementedError("Please implement this method")
 
 
 class ExternalCommand(Command):
     def __init__(self, command, path):
-        executable_name = os.path.basename(sys.argv[0])
-        super().__init__(command, f"""see {executable_name} {" ".join(command)} --help""", False)
+        super().__init__(command, f"see {executable_name()} {' '.join(command)} --help", False)
         self.path = path
 
     def register_arguments(self, parser):
@@ -181,11 +182,9 @@ class CommandsRegistry:
 
 
 commands_registry = CommandsRegistry()
-commands_registry.define_namespace(("model",))
-commands_registry.define_namespace(("model", "import"))
-commands_registry.define_namespace(("yield",))
-commands_registry.define_namespace(("yield", "assembly"))
-
-
-commands_registry.define_namespace(("model", "download-pdb"))
-commands_registry.define_namespace(("model", "hard-purge"))
+commands_registry.define_namespace(
+    ("model",), f"Model manipulation helpers, see {executable_name()} model --help"
+)
+commands_registry.define_namespace(
+    ("model", "import"), f"Model import helpers, see {executable_name()} model import --help"
+)

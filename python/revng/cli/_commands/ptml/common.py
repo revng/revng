@@ -86,7 +86,7 @@ def _strip_ptml(node: Document, parts: List[str]):
             pass
 
 
-def suppress_brokenpipe(func: Callable[..., T], *args) -> T:
+def suppress_brokenpipe(func: Callable[..., T], *args) -> Optional[T]:
     """When running a program with a pipe, BrokenPipeError might be raised. This signals that the
     output pipe was closed, which we expect. Suppressing the exception is not enough since it can
     also happen at shutdown, which will trigger python's unraisable hook, to remedy this we
@@ -99,5 +99,5 @@ def suppress_brokenpipe(func: Callable[..., T], *args) -> T:
     sys.unraisablehook = new_unraisablehook
 
     with suppress(BrokenPipeError):
-        result = func(*args)
-    return result
+        return func(*args)
+    return None

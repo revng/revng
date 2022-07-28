@@ -5,7 +5,7 @@
 import argparse
 import re
 import sys
-from typing import Dict
+from typing import Dict, Optional
 from xml.dom import Node
 from xml.dom.minidom import Document, parseString
 
@@ -112,7 +112,7 @@ def cmd_cat(args):
 
 class PTMLCatCommand(Command):
     def __init__(self):
-        super().__init__(("ptml", "cat"), "Print the ptml on the console")
+        super().__init__(("ptml", "cat"), "Print PTML on the console (with color if possible)")
 
     def register_arguments(self, parser: argparse.ArgumentParser):
         parser_filter = parser.add_mutually_exclusive_group()
@@ -142,5 +142,5 @@ class PTMLCatCommand(Command):
         )
         parser.set_defaults(func=cmd_cat)
 
-    def run(self, options: Options) -> int:
+    def run(self, options: Options) -> Optional[int]:
         return suppress_brokenpipe(cmd_cat, options.parsed_args)
