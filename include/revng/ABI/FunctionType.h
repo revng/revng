@@ -57,7 +57,7 @@ public:
   llvm::SmallVector<model::Register::Values, 24> CalleeSavedRegisters;
   uint64_t FinalStackOffset;
 
-private:
+public:
   Layout() = default;
 
 public:
