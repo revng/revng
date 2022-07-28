@@ -729,11 +729,17 @@ public:
             DL = &M->getDataLayout();
           }
 
-          if (SymbolName
-              and not(I != nullptr
-                      and (I->isCast() or I->getOpcode() == Instruction::Add
-                           or I->getOpcode() == Instruction::Sub))) {
-            return {};
+          if (SymbolName and I != nullptr) {
+            auto *Call = dyn_cast<CallInst>(I);
+            // TODO: AND should be allowed only if second operand is a mask
+            //       compatible with being a PC mask
+            if (not(I->isCast() or I->getOpcode() == Instruction::Add
+                    or I->getOpcode() == Instruction::Sub
+                    or I->getOpcode() == Instruction::And
+                    or (Call != nullptr
+                        and Call->getIntrinsicID() == Intrinsic::bswap))) {
+              return {};
+            }
           }
 
           if (auto *C = dyn_cast<Constant>(Op.V)) {
