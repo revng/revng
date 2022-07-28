@@ -1390,6 +1390,10 @@ inline llvm::StringRef getDynamicSymbol(llvm::BasicBlock *BB) {
   return extractFromConstantStringPtr(SymbolNameValue);
 }
 
+/// Steal the body of \p OldFunction and move it into \p NewFunction
+void moveBlocksInto(llvm::Function &OldFunction, llvm::Function &NewFunction);
+
+/// Create a function identical to \p OldFunction but use \p NewType as type
 llvm::Function &
 moveToNewFunctionType(llvm::Function &OldFunction, llvm::FunctionType &NewType);
 
