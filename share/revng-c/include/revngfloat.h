@@ -31,6 +31,14 @@ typedef struct {
 } float64_t;
 #endif
 
+#if __SIZEOF_LONG_DOUBLE__ == 10
+typedef long double float80_t;
+#else
+typedef struct {
+  char data[10];
+} float80_t;
+#endif
+
 #if __SIZEOF_LONG_DOUBLE__ == 12
 typedef long double float96_t;
 #else
@@ -56,5 +64,6 @@ typedef struct {
 static_assert_size(float16_t, 2);
 static_assert_size(float32_t, 4);
 static_assert_size(float64_t, 8);
+static_assert_size(float80_t, 10);
 static_assert_size(float96_t, 12);
 static_assert_size(float128_t, 16);
