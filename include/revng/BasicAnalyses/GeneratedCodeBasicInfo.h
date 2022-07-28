@@ -262,17 +262,25 @@ public:
   }
 
   auto getBlocksGeneratedByPC(MetaAddress PC) {
-    // Lazily initialize the pc-to-BasicBlock cache
-    if (PCToBlockCache.size() == 0)
-      initializePCToBlockCache();
+    using namespace llvm;
+    BasicBlock *Entry = getBlockAt(PC);
+    revng_assert(isJumpTarget(Entry));
+    std::set<BasicBlock *> Result;
 
-    auto GetSecond = [](PCToBlockMap::value_type &Element) {
-      return Element.second;
-    };
+    llvm::df_iterator_default_set<BasicBlock *> Visited;
+    for (BasicBlock *BB : llvm::depth_first_ext(Entry, Visited)) {
+      Result.insert(BB);
 
-    auto [Start, End] = PCToBlockCache.equal_range(PC);
-    return llvm::make_range(llvm::map_iterator(Start, GetSecond),
-                            llvm::map_iterator(End, GetSecond));
+      for (BasicBlock *Successor : successors(BB)) {
+        const auto IBDHB = BlockType::IndirectBranchDispatcherHelperBlock;
+        if (isJumpTarget(Successor)
+            or (not isTranslated(Successor) and getType(Successor) != IBDHB)) {
+          Visited.insert(Successor);
+        }
+      }
+    }
+
+    return Result;
   }
 
   llvm::BasicBlock *anyPC() {
@@ -366,14 +374,6 @@ public:
     return getPCFromNewPC(&*BB->begin());
   }
 
-  // TODO: `purgeDomTree`, `getDomTree`, `getJumpTargetBlock` et al
-  //        need to be moved into a new class.
-  void purgeDomTree(llvm::Function *F) {
-    auto It = DTMap.find(F);
-    if (It != DTMap.end())
-      DTMap.erase(It);
-  }
-
   template<HasMetadata T>
   void setMetaAddressMetadata(T *U,
                               llvm::StringRef Name,
@@ -386,18 +386,6 @@ public:
 
 private:
   void parseRoot();
-  void initializePCToBlockCache();
-
-private:
-  const llvm::DominatorTree &getDomTree(llvm::Function *F) {
-    auto It = DTMap.find(F);
-    if (It == DTMap.end()) {
-      llvm::DominatorTree &Result = DTMap[F];
-      Result.recalculate(*F);
-      return Result;
-    }
-    return It->second;
-  }
 
 private:
   const model::Binary *Binary;
@@ -418,8 +406,6 @@ private:
   llvm::Function *NewPC;
   std::unique_ptr<ProgramCounterHandler> PCH;
   using PCToBlockMap = std::multimap<MetaAddress, llvm::BasicBlock *>;
-  PCToBlockMap PCToBlockCache;
-  std::map<llvm::Function *, llvm::DominatorTree> DTMap;
   bool RootParsed = false;
 };
 

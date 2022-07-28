@@ -68,6 +68,9 @@ void GeneratedCodeBasicInfo::run(Module &M) {
 }
 
 void GeneratedCodeBasicInfo::parseRoot() {
+  revng_assert(RootFunction != nullptr);
+  revng_assert(not RootFunction->isDeclaration());
+
   if (RootParsed)
     return;
   RootParsed = true;
@@ -199,41 +202,33 @@ GeneratedCodeBasicInfo::blocksByPCRange(MetaAddress Start, MetaAddress End) {
   return Result;
 }
 
-llvm::BasicBlock *
-GeneratedCodeBasicInfo::getJumpTargetBlock(llvm::BasicBlock *BB) {
-  const DominatorTree &DT = getDomTree(BB->getParent());
-  auto *Node = DT.getNode(BB);
-  revng_assert(Node != nullptr);
+static RecursiveCoroutine<void>
+findJumpTarget(llvm::BasicBlock *&Result,
+               llvm::BasicBlock *BB,
+               std::set<BasicBlock *> &Visited) {
+  Visited.insert(BB);
 
-  while (Node != nullptr and not isJumpTarget(Node->getBlock())) {
-    Node = Node->getIDom();
+  if (GeneratedCodeBasicInfo::isJumpTarget(BB)) {
+    revng_assert(Result == nullptr,
+                 "This block leads to multiple jump targets");
+    Result = BB;
+  } else {
+    for (BasicBlock *Predecessor : predecessors(BB)) {
+      if (Visited.count(Predecessor) == 0) {
+        rc_recur findJumpTarget(Result, Predecessor, Visited);
+      }
+    }
   }
 
-  if (Node == nullptr)
-    return nullptr;
-  else
-    return Node->getBlock();
+  rc_return;
 }
 
-void GeneratedCodeBasicInfo::initializePCToBlockCache() {
-  const DominatorTree &DT = getDomTree(RootFunction);
-  for (BasicBlock &BB : *RootFunction) {
-    if (not GeneratedCodeBasicInfo::isTranslated(&BB))
-      continue;
-
-    auto *DTNode = DT.getNode(&BB);
-
-    // Ignore unreachable basic block
-    if (DTNode == nullptr)
-      continue;
-
-    while (not GeneratedCodeBasicInfo::isJumpTarget(DTNode->getBlock())) {
-      DTNode = DTNode->getIDom();
-      revng_assert(DTNode != nullptr);
-    }
-
-    PCToBlockCache.insert({ getBasicBlockPC(DTNode->getBlock()), &BB });
-  }
+llvm::BasicBlock *
+GeneratedCodeBasicInfo::getJumpTargetBlock(llvm::BasicBlock *BB) {
+  BasicBlock *Result = nullptr;
+  std::set<BasicBlock *> Visited;
+  findJumpTarget(Result, BB, Visited);
+  return Result;
 }
 
 GeneratedCodeBasicInfo

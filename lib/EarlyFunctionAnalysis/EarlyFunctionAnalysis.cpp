@@ -1519,10 +1519,6 @@ FunctionEntrypointAnalyzer::analyze(BasicBlock *Entry, bool ShouldAnalyzeABI) {
                                          RetHookMarker.F);
   }
 
-  // Recompute the DomTree for the current outlined function due to split
-  // basic blocks.
-  GCBI->purgeDomTree(OutlinedFunction.F);
-
   // The analysis aims at identifying the callee-saved registers of a function
   // and establishing if a function returns properly, i.e., it jumps to the
   // return address (regular function). In order to achieve this, the IR is
@@ -1566,9 +1562,6 @@ FunctionEntrypointAnalyzer::analyze(BasicBlock *Entry, bool ShouldAnalyzeABI) {
   // inlined in its call-site.
   if (FunctionInfo.Type == FunctionTypeValue::Fake)
     FunctionInfo.FakeFunction = createFakeFunction(Entry);
-
-  // Reset the DomTree for the current outlined function
-  GCBI->purgeDomTree(OutlinedFunction.F);
 
   return FunctionInfo;
 }
