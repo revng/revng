@@ -128,7 +128,7 @@ public:
   ~TagScope() { OS << TheTag.close(); }
 };
 
-TagScope Tag::scope(llvm::raw_ostream &OS, bool Newline) const {
+inline TagScope Tag::scope(llvm::raw_ostream &OS, bool Newline) const {
   revng_check(Content.empty());
   return TagScope(OS, *this, Newline);
 }
