@@ -23,6 +23,11 @@ concept ConstOrNot = std::is_same_v<R, T> or std::is_same_v<const R, T>;
 template<typename T>
 concept Integral = std::is_integral_v<T>;
 
+template<class T>
+concept EqualityComparable = requires(T &&LHS, T &&RHS) {
+  { LHS == RHS } -> convertible_to<bool>;
+};
+
 // clang-format off
 namespace ranges {
 
