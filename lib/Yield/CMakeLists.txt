@@ -13,6 +13,9 @@ revng_add_analyses_library_internal(
   ControlFlow/FallthroughDetection.cpp
   ControlFlow/NodeSizeCalculation.cpp
   ControlFlow/SVG.cpp
+  Pipes/AssemblyPipes.cpp
+  Pipes/CallGraphPipes.cpp
+  Pipes/CFGPipes.cpp
   Support/SugiyamaStyleGraphLayout/EdgeRouting.cpp
   Support/SugiyamaStyleGraphLayout/GraphPreparation.cpp
   Support/SugiyamaStyleGraphLayout/HorizontalPositions.cpp
@@ -45,8 +48,14 @@ llvm_map_components_to_libnames(
   Target
   ${DISASSEMBLER_ARCHITECTURE_SUPPORT})
 
-target_link_libraries(revngYield revngEarlyFunctionAnalysis revngModelPasses
-                      revngPTML revngSupport ${LLVM_LIBRARIES})
+target_link_libraries(
+  revngYield
+  revngEarlyFunctionAnalysis
+  revngModelPasses
+  revngPipes
+  revngPTML
+  revngSupport
+  ${LLVM_LIBRARIES})
 
 set(INTERNAL_ASSEMBLY_HEADERS "${CMAKE_SOURCE_DIR}/include/revng/Yield")
 target_tuple_tree_generator(

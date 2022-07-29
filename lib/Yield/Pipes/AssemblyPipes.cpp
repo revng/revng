@@ -10,11 +10,11 @@
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
-#include "revng/Pipes/Yield/ProcessAssemblyPipe.h"
-#include "revng/Pipes/Yield/YieldAssemblyPipe.h"
 #include "revng/Yield/Assembly/DisassemblyHelper.h"
 #include "revng/Yield/Function.h"
 #include "revng/Yield/PTML.h"
+#include "revng/Yield/Pipes/ProcessAssemblyPipe.h"
+#include "revng/Yield/Pipes/YieldAssemblyPipe.h"
 
 namespace revng::pipes {
 

@@ -11,8 +11,8 @@
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
-#include "revng/Pipes/Yield/ProcessCallGraphPipe.h"
 #include "revng/Yield/CrossRelations.h"
+#include "revng/Yield/Pipes/ProcessCallGraphPipe.h"
 
 namespace revng::pipes {
 
