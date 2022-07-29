@@ -459,32 +459,36 @@ computeAccessPattern(const Use &U,
           revng_log(ModelGEPLog, "model::RawFunctionType");
 
           auto _ = LoggerIndent(ModelGEPLog);
-          unsigned ArgOpNum = Call->getArgOperandNo(&U);
-          revng_log(ModelGEPLog, "ArgOpNum: " << ArgOpNum);
-          revng_log(ModelGEPLog, "ArgOperand: " << U.get());
+          if (not Call->isCallee(&U)) {
+            unsigned ArgOpNum = Call->getArgOperandNo(&U);
+            revng_log(ModelGEPLog, "ArgOpNum: " << ArgOpNum);
+            revng_log(ModelGEPLog, "ArgOperand: " << U.get());
 
-          model::QualifiedType ArgTy;
-          if (ArgOpNum >= ModelArgSize) {
-            // The only case in which the argument's index can be greater than
-            // the number of arguments in the model is for RawFunctionType
-            // functions that have stack arguments.
-            // Stack arguments are passed as the last argument of the llvm
-            // function, but they do not have a corresponding argument in the
-            // model. In this case, we have to retrieve the StackArgumentsType
-            // from the function prototype.
-            ArgTy = RFT->StackArgumentsType;
-            revng_assert(ArgTy.UnqualifiedType.isValid());
+            model::QualifiedType ArgTy;
+            if (ArgOpNum >= ModelArgSize) {
+              // The only case in which the argument's index can be greater than
+              // the number of arguments in the model is for RawFunctionType
+              // functions that have stack arguments.
+              // Stack arguments are passed as the last argument of the llvm
+              // function, but they do not have a corresponding argument in the
+              // model. In this case, we have to retrieve the StackArgumentsType
+              // from the function prototype.
+              ArgTy = RFT->StackArgumentsType;
+              revng_assert(ArgTy.UnqualifiedType.isValid());
+            } else {
+              auto ArgIt = std::next(RFT->Arguments.begin(), ArgOpNum);
+              ArgTy = ArgIt->Type;
+            }
+
+            revng_log(ModelGEPLog,
+                      "model::QualifiedType: " << serializeToString(ArgTy));
+            if (ArgTy.isPointer()) {
+              model::QualifiedType Pointee = dropPointer(ArgTy);
+              revng_log(ModelGEPLog, "Pointee: " << serializeToString(Pointee));
+              IRPattern.PointeeType = Pointee;
+            }
           } else {
-            auto ArgIt = std::next(RFT->Arguments.begin(), ArgOpNum);
-            ArgTy = ArgIt->Type;
-          }
-
-          revng_log(ModelGEPLog,
-                    "model::QualifiedType: " << serializeToString(ArgTy));
-          if (ArgTy.isPointer()) {
-            model::QualifiedType Pointee = dropPointer(ArgTy);
-            revng_log(ModelGEPLog, "Pointee: " << serializeToString(Pointee));
-            IRPattern.PointeeType = Pointee;
+            revng_log(ModelGEPLog, "IsCallee");
           }
 
         } else if (const auto *CFT = dyn_cast<CABIFunctionType>(Proto.get())) {
@@ -494,16 +498,20 @@ computeAccessPattern(const Use &U,
           revng_log(ModelGEPLog, "model::CABIFunctionType");
 
           auto _ = LoggerIndent(ModelGEPLog);
-          unsigned ArgOpNum = Call->getArgOperandNo(&U);
-          revng_log(ModelGEPLog, "ArgOpNum: " << ArgOpNum);
-          revng_log(ModelGEPLog, "ArgOperand: " << U.get());
-          model::QualifiedType ArgTy = CFT->Arguments.at(ArgOpNum).Type;
-          revng_log(ModelGEPLog,
-                    "model::QualifiedType: " << serializeToString(ArgTy));
-          if (ArgTy.isPointer()) {
-            model::QualifiedType Pointee = dropPointer(ArgTy);
-            revng_log(ModelGEPLog, "Pointee: " << serializeToString(Pointee));
-            IRPattern.PointeeType = Pointee;
+          if (not Call->isCallee(&U)) {
+            unsigned ArgOpNum = Call->getArgOperandNo(&U);
+            revng_log(ModelGEPLog, "ArgOpNum: " << ArgOpNum);
+            revng_log(ModelGEPLog, "ArgOperand: " << U.get());
+            model::QualifiedType ArgTy = CFT->Arguments.at(ArgOpNum).Type;
+            revng_log(ModelGEPLog,
+                      "model::QualifiedType: " << serializeToString(ArgTy));
+            if (ArgTy.isPointer()) {
+              model::QualifiedType Pointee = dropPointer(ArgTy);
+              revng_log(ModelGEPLog, "Pointee: " << serializeToString(Pointee));
+              IRPattern.PointeeType = Pointee;
+            }
+          } else {
+            revng_log(ModelGEPLog, "IsCallee");
           }
 
         } else {
