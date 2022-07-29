@@ -13,25 +13,25 @@ namespace revng::pipes {
 
 inline TaggedFunctionKind
   LiftingArtifactsRemoved("LiftingArtifactsRemoved",
-                          &FunctionsRank,
+                          &ranks::Function,
                           FunctionTags::LiftingArtifactsRemoved);
 
 inline TaggedFunctionKind
   StackPointerPromoted("StackPointerPromoted",
-                       &FunctionsRank,
+                       &ranks::Function,
                        FunctionTags::StackPointerPromoted);
 
 inline TaggedFunctionKind
   StackAccessesSegregated("StackAccessesSegregated",
-                          &FunctionsRank,
+                          &ranks::Function,
                           FunctionTags::StackAccessesSegregated);
 
-inline FunctionKind DecompiledToYAML("DecompiledToYAML", &FunctionsRank);
+inline FunctionKind DecompiledToYAML("DecompiledToYAML", &ranks::Function);
 
-inline pipeline::Kind ModelHeader("ModelHeader", Binary, &RootRank);
+inline pipeline::Kind ModelHeader("ModelHeader", Binary, &ranks::Binary);
 
-inline pipeline::Kind HelpersHeader("HelpersHeader", Binary, &RootRank);
+inline pipeline::Kind HelpersHeader("HelpersHeader", Binary, &ranks::Binary);
 
-inline pipeline::Kind DecompiledToC("DecompiledToC", Binary, &RootRank);
+inline pipeline::Kind DecompiledToC("DecompiledToC", Binary, &ranks::Binary);
 
 } // end namespace revng::pipes
