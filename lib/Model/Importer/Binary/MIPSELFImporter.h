@@ -6,16 +6,19 @@
 
 #include "ELFImporter.h"
 
-using namespace llvm;
-
 template<typename T, bool HasAddend>
 class MIPSELFImporter : public ELFImporter<T, HasAddend> {
+public:
+  template<typename Q>
+  using SmallVectorImpl = llvm::SmallVectorImpl<Q>;
+
+private:
   std::optional<uint64_t> MIPSFirstGotSymbol;
   std::optional<uint64_t> MIPSLocalGotEntries;
 
 public:
   MIPSELFImporter(TupleTree<model::Binary> &Model,
-                  const object::ELFObjectFileBase &TheBinary,
+                  const llvm::object::ELFObjectFileBase &TheBinary,
                   uint64_t PreferredBaseAddress) :
     ELFImporter<T, HasAddend>(Model, TheBinary, PreferredBaseAddress),
     MIPSFirstGotSymbol(std::nullopt),
@@ -26,6 +29,8 @@ public:
                          MetaAddress Relocated,
                          SmallVectorImpl<uint64_t> &NeededLibraryNameOffsets,
                          uint64_t Val) override {
+    using namespace llvm;
+
     switch (Tag) {
     case ELF::DT_MIPS_SYMTABNO:
       this->SymbolsCount = Tag;
@@ -50,7 +55,7 @@ public:
   }
 
   void fixupMIPSGOT() {
-    using Elf_Addr = const typename object::ELFFile<T>::Elf_Addr;
+    using Elf_Addr = const typename llvm::object::ELFFile<T>::Elf_Addr;
     // In MIPS the GOT has one entry per symbol.
     if (this->SymbolsCount and MIPSFirstGotSymbol and MIPSLocalGotEntries) {
       uint32_t GotEntries = (*MIPSLocalGotEntries
@@ -63,7 +68,7 @@ public:
   using Elf_Rel_Array = llvm::ArrayRef<Elf_Rel>;
 
   void registerMIPSRelocations() {
-    using Elf_Addr = const typename object::ELFFile<T>::Elf_Addr;
+    using Elf_Addr = const typename llvm::object::ELFFile<T>::Elf_Addr;
     using Elf_Rel = llvm::object::Elf_Rel_Impl<T, HasAddend>;
     std::vector<Elf_Rel> MIPSImplicitRelocations;
     // GOT index.
@@ -106,9 +111,9 @@ public:
   }
 
   llvm::Error import() override {
-    if (Error E = ELFImporter<T, HasAddend>::import())
+    if (llvm::Error E = ELFImporter<T, HasAddend>::import())
       return E;
     registerMIPSRelocations();
-    return Error::success();
+    return llvm::Error::success();
   }
 };

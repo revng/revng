@@ -244,6 +244,7 @@ Error ELFImporter<T, HasAddend>::import() {
   if (DynamicEntries) {
     SmallVector<uint64_t, 10> NeededLibraryNameOffsets;
 
+    // TODO: use std::optional
     DynstrPortion = std::make_unique<FilePortion>(File);
     DynsymPortion = std::make_unique<FilePortion>(File);
     ReldynPortion = std::make_unique<FilePortion>(File);
