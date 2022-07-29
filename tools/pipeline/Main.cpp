@@ -12,6 +12,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/DynamicLibrary.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/raw_os_ostream.h"
 
 #include "revng/Model/LoadModelPass.h"
@@ -28,6 +29,7 @@
 #include "revng/Pipes/PipelineManager.h"
 #include "revng/Pipes/ToolCLOptions.h"
 #include "revng/Support/InitRevng.h"
+#include "revng/TupleTree/TupleTreeDiff.h"
 
 using std::string;
 using namespace llvm;
@@ -47,6 +49,11 @@ static opt<string> SaveModel("save-model",
                              desc("Save the model at the end of the run"),
                              cat(PipelineCategory),
                              init(""));
+
+static opt<string> ApplyModelDiff("apply-model-diff",
+                                  desc("Apply model diff"),
+                                  cat(PipelineCategory),
+                                  init(""));
 
 static opt<bool> ProduceAllPossibleTargets("produce-all",
                                            desc("Try producing all possible "
@@ -167,6 +174,14 @@ int main(int argc, const char *argv[]) {
     llvm::raw_os_ostream OS(dbg);
     Manager.writeAllPossibleTargets(OS);
     return EXIT_SUCCESS;
+  }
+
+  if (not ApplyModelDiff.empty()) {
+    using Type = TupleTreeDiff<model::Binary>;
+    auto Diff = AbortOnError(deserializeFileOrSTDIN<Type>(ApplyModelDiff));
+
+    auto &Runner = Manager.getRunner();
+    AbortOnError(Runner.apply(GlobalTupleTreeDiff(std::move(Diff))));
   }
 
   if (AnalyzeAll)
