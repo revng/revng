@@ -65,3 +65,4 @@ The simplest possible example consists in the following:
     # Run translated version
     ./hello.arm.translated
     # Hello, world!
+lol
