@@ -33,7 +33,7 @@
 #include "revng-c/RestructureCFG/Utils.h"
 
 template<typename IterT>
-bool intersect(IterT I1, IterT E1, IterT I2, IterT E2) {
+bool intersects(IterT I1, IterT E1, IterT I2, IterT E2) {
   while ((I1 != E1) and (I2 != E2)) {
     if (*I1 < *I2)
       ++I1;
@@ -46,18 +46,18 @@ bool intersect(IterT I1, IterT E1, IterT I2, IterT E2) {
 }
 
 template<typename IterT>
-bool disjoint(IterT I1, IterT E1, IterT I2, IterT E2) {
-  return not intersect(I1, E1, I2, E2);
+bool isDisjoint(IterT I1, IterT E1, IterT I2, IterT E2) {
+  return not intersects(I1, E1, I2, E2);
 }
 
 template<typename RangeT>
-bool intersect(const RangeT &R1, const RangeT &R2) {
-  return intersect(R1.begin(), R1.end(), R2.begin(), R2.end());
+bool intersects(const RangeT &R1, const RangeT &R2) {
+  return intersects(R1.begin(), R1.end(), R2.begin(), R2.end());
 }
 
 template<typename RangeT>
-bool disjoint(const RangeT &R1, const RangeT &R2) {
-  return not intersect(R1, R2);
+bool isDisjoint(const RangeT &R1, const RangeT &R2) {
+  return not intersects(R1, R2);
 }
 
 unsigned const SmallSetSize = 16;
@@ -762,7 +762,7 @@ inline void RegionCFG<NodeT>::inflate() {
       // If the exit nodes reachable from the Then and from the Else are not
       // disjoint, then the conditional node is not eligible for having its
       // successor nodes marked as inlined.
-      if (not disjoint(ThenExits, ElseExits))
+      if (not isDisjoint(ThenExits, ElseExits))
         break;
 
       // Check that we do not dominate at maximum on of the two sets of
