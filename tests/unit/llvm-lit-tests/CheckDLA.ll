@@ -75,7 +75,7 @@ ControlFlowGraph:
     Successors:
       - Kind: CallEdge
         Destination:     \22:Invalid\22
-        Type:            IndirectCall
+        Type:            FunctionCall
   - Start:           \220x40108e:Code_x86_64\22
     End:             \220x40108f:Code_x86_64\22
     Successors:
@@ -90,10 +90,8 @@ ControlFlowGraph:
 EntryPoint: \220x401200:Code_x86_64\22
 Functions:
   - Entry:           \220x401200:Code_x86_64\22
-    Type:            Regular
     Prototype:       \22/Types/RawFunctionType-6646220838590018230\22
   - Entry:           \220x401060:Code_x86_64\22
-    Type:            Regular
     Prototype:       \22/Types/RawFunctionType-6646220838590018230\22
 ImportedDynamicFunctions: []
 Types:
