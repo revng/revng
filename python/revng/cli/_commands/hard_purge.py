@@ -4,25 +4,13 @@
 #
 
 import sys
+from argparse import FileType
 from tempfile import NamedTemporaryFile
 
 import yaml
 
-from revng.cli.commands_registry import Command, Options
+from revng.cli.commands_registry import Command, CommandsRegistry, Options
 from revng.cli.revng import run_revng_command
-
-
-def log(message):
-    sys.stderr.write(message + "\n")
-
-
-# TODO: Use argparse.FileType instead.
-def open_argument(path, mode):
-    if path == "-":
-        return sys.stdin
-    elif path == "/dev/stdout":
-        return sys.stdout
-    return open(path, mode)  # noqa: SIM115
 
 
 class HardPurgeCommand(Command):
@@ -35,12 +23,13 @@ class HardPurgeCommand(Command):
 
     def register_arguments(self, parser):
         parser.add_argument(
-            "reference_model_path", default="", help="The reference model in form of YAML."
+            "reference_model_path", type=FileType("rb"), help="The reference model in form of YAML."
         )
         parser.add_argument(
             "original_model_path",
+            type=FileType("r"),
+            default=sys.stdin,
             nargs="?",
-            default="-",
             help="The original model in form of YAML.",
         )
         parser.add_argument(
@@ -62,7 +51,7 @@ class HardPurgeCommand(Command):
         functions_to_preserve = set()
 
         # Collect functions to be preserved.
-        with open_argument(args.reference_model_path, "rb") as reference_model_file:
+        with args.reference_model_path as reference_model_file:
             self.log("Loading the reference model...")
             reference_model = yaml.load(reference_model_file, Loader=yaml.SafeLoader)
 
@@ -81,7 +70,7 @@ class HardPurgeCommand(Command):
         # Remove the functions.
         self.log("Removing functions from original mode...")
         patched_model = {}
-        with open_argument(args.original_model_path, "r") as patched_file:
+        with args.original_model_path as patched_file:
             patched_model = yaml.load(patched_file, Loader=yaml.SafeLoader)
 
             # Delete functions.
@@ -121,3 +110,7 @@ class HardPurgeCommand(Command):
             return result
 
         return 0
+
+
+def setup(commands_registry: CommandsRegistry):
+    commands_registry.register_command(HardPurgeCommand())

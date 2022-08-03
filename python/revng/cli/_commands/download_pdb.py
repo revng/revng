@@ -10,7 +10,7 @@ import sys
 import pefile
 import requests
 
-from revng.cli.commands_registry import Command, Options
+from revng.cli.commands_registry import Command, CommandsRegistry, Options
 from revng.cli.support import log_error
 
 microsoft_symbol_server_url = "http://msdl.microsoft.com/download/symbols/"
@@ -87,3 +87,7 @@ class DownloadPDBCommand(Command):
             break
 
         return 0
+
+
+def setup(commands_registry: CommandsRegistry):
+    commands_registry.register_command(DownloadPDBCommand())

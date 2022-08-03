@@ -5,7 +5,7 @@
 import os
 import sys
 from importlib import import_module
-from inspect import isclass
+from inspect import isfunction
 from pathlib import Path
 
 from .commands_registry import Command, Options, commands_registry
@@ -30,14 +30,9 @@ def run_revng_command(arguments, options: Options):
                 modules.append(import_module(f"._commands.{entry_path.name}", "revng.cli"))
 
     for module in modules:
-        for attribute in dir(module):
-            maybe_command = getattr(module, attribute)
-            if (
-                isclass(maybe_command)
-                and maybe_command != Command
-                and issubclass(maybe_command, Command)
-            ):
-                commands_registry.register_command(maybe_command())  # type: ignore
+        setup = getattr(module, "setup", None)
+        if setup is not None and isfunction(setup):
+            setup(commands_registry)
 
     if options.verbose:
         sys.stderr.write("{}\n\n".format(" \\\n  ".join([sys.argv[0]] + arguments)))

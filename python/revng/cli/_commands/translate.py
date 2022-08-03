@@ -2,7 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-from revng.cli.commands_registry import Command, Options
+from revng.cli.commands_registry import Command, CommandsRegistry, Options
 from revng.cli.revng import run_revng_command
 
 
@@ -73,3 +73,7 @@ class TranslateCommand(Command):
             command.append("--link-trace")
 
         return run_revng_command(command, options)
+
+
+def setup(commands_registry: CommandsRegistry):
+    commands_registry.register_command(TranslateCommand())
