@@ -29,6 +29,7 @@ public:
 
 public:
   MetaAddress address() const { return Address; }
+  uint64_t size() const { return Size; }
 
 public:
   void setAddress(MetaAddress Address);

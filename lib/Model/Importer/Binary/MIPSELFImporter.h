@@ -33,15 +33,15 @@ public:
 
     switch (Tag) {
     case ELF::DT_MIPS_SYMTABNO:
-      this->SymbolsCount = Tag;
+      this->SymbolsCount = Val;
       break;
 
     case ELF::DT_MIPS_GOTSYM:
-      MIPSFirstGotSymbol = Tag;
+      MIPSFirstGotSymbol = Val;
       break;
 
     case ELF::DT_MIPS_LOCAL_GOTNO:
-      MIPSLocalGotEntries = Tag;
+      MIPSLocalGotEntries = Val;
       break;
       // TODO:
       // ```
@@ -71,17 +71,31 @@ public:
     using Elf_Addr = const typename llvm::object::ELFFile<T>::Elf_Addr;
     using Elf_Rel = llvm::object::Elf_Rel_Impl<T, HasAddend>;
     std::vector<Elf_Rel> MIPSImplicitRelocations;
-    // GOT index.
-    uint32_t Index = 0;
+
     auto &GOT = this->GotPortion;
+    uint32_t Index = 0;
 
     // Perform local relocations on GOT.
     if (MIPSLocalGotEntries) {
+
+      if (*MIPSLocalGotEntries > (GOT->size() / sizeof(Elf_Addr))) {
+        revng_log(ELFImporterLog, "Too many GOT entries");
+        *MIPSLocalGotEntries = 0;
+      }
+
       for (; Index < *MIPSLocalGotEntries; Index++) {
         auto RelocationAddress = GOT->template addressAtIndex<Elf_Addr>(Index);
+
+        if (not RelocationAddress.isValid()) {
+          revng_log(ELFImporterLog,
+                    "Local GOT entry " << Index << " is not valid");
+          continue;
+        }
+
         Elf_Rel NewRelocation;
         NewRelocation.r_offset = RelocationAddress.address();
         NewRelocation.setSymbolAndType(0, R_MIPS_IMPLICIT_RELATIVE, false);
+
         MIPSImplicitRelocations.push_back(NewRelocation);
       }
     }

@@ -462,6 +462,18 @@ void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
         continue;
       }
 
+      auto VirtualSize = ProgramHeader.p_memsz;
+      if (VirtualSize == 0) {
+        revng_log(ELFImporterLog, "Ignoring zero-sized segment");
+        continue;
+      }
+
+      if (VirtualSize >= std::numeric_limits<int64_t>::max()) {
+        revng_log(ELFImporterLog,
+                  "Ignoring too large segment: " << VirtualSize << " bytes");
+        continue;
+      }
+
       model::Segment NewSegment({ Start, ProgramHeader.p_memsz });
 
       NewSegment.StartOffset = ProgramHeader.p_offset;
