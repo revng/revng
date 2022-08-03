@@ -826,8 +826,6 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
 
   JumpTargets.setCFGForm(CFGForm::SemanticPreserving);
 
-  std::tie(VirtualAddress, Entry) = JumpTargets.peek();
-
   std::vector<BasicBlock *> Blocks;
 
   bool EndianessMismatch;
@@ -843,6 +841,8 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
                                    Blocks,
                                    EndianessMismatch,
                                    PCH.get());
+
+  std::tie(VirtualAddress, Entry) = JumpTargets.peek();
 
   while (Entry != nullptr) {
     Builder.SetInsertPoint(Entry);
