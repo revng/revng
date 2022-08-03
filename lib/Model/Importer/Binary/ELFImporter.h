@@ -12,6 +12,8 @@
 #include "BinaryImporterHelper.h"
 #include "DwarfReader.h"
 
+extern Logger<> ELFImporterLog;
+
 namespace {
 
 class FilePortion {

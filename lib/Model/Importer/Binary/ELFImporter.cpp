@@ -29,7 +29,7 @@
 using namespace llvm;
 using namespace llvm::object;
 
-static Logger<> Log("elf-importer");
+Logger<> ELFImporterLog("elf-importer");
 
 FilePortion::FilePortion(const RawBinaryView &File) :
   File(File),
@@ -99,7 +99,7 @@ ArrayRef<uint8_t> FilePortion::extractData() const {
     if (MaybeData) {
       return *MaybeData;
     } else {
-      revng_log(Log,
+      revng_log(ELFImporterLog,
                 "Cannot access address " << Address.toString() << " and size "
                                          << Size);
       return {};
@@ -109,7 +109,7 @@ ArrayRef<uint8_t> FilePortion::extractData() const {
     if (MaybeData) {
       return *MaybeData;
     } else {
-      revng_log(Log, "Cannot access address " << Address.toString());
+      revng_log(ELFImporterLog, "Cannot access address " << Address.toString());
       return {};
     }
   }
@@ -194,19 +194,19 @@ Error ELFImporter<T, HasAddend>::import() {
           if (SymtabShdr == nullptr)
             SymtabShdr = &Section;
           else
-            revng_log(Log, "Multiple .symtab. Ignoring.");
+            revng_log(ELFImporterLog, "Multiple .symtab. Ignoring.");
         } else if (Name == ".eh_frame") {
           if (not EHFrameAddress) {
             EHFrameAddress = relocate(fromGeneric(Section.sh_addr));
             EHFrameSize = static_cast<uint64_t>(Section.sh_size);
           } else {
-            revng_log(Log, "Duplicate .eh_frame. Ignoring.");
+            revng_log(ELFImporterLog, "Duplicate .eh_frame. Ignoring.");
           }
         } else if (Name == ".dynamic") {
           if (not DynamicAddress)
             DynamicAddress = relocate(fromGeneric(Section.sh_addr));
           else
-            revng_log(Log, "Duplicate .dynamic. Ignoring.");
+            revng_log(ELFImporterLog, "Duplicate .dynamic. Ignoring.");
         }
       }
     }
@@ -226,7 +226,7 @@ Error ELFImporter<T, HasAddend>::import() {
     std::tie(Address, FDEsCount) = ehFrameFromEhFrameHdr();
     if (Address.isValid()) {
       if (EHFrameAddress and *EHFrameAddress != Address) {
-        revng_log(Log,
+        revng_log(ELFImporterLog,
                   "Incoherent .eh_frame information: .eh_frame is at "
                     << EHFrameAddress->toString()
                     << " while .eh_frame_hdr reports " << Address.toString());
@@ -349,9 +349,9 @@ void ELFImporter<T, HasAddend>::parseDynamicTag(uint64_t Tag,
   case ELF::DT_RELA:
     if (Tag != (HasAddend ? ELF::DT_RELA : ELF::DT_REL)) {
       if (Tag == ELF::DT_RELA)
-        revng_log(Log, "Unexpected addend in relocation");
+        revng_log(ELFImporterLog, "Unexpected addend in relocation");
       else
-        revng_log(Log, "Addend was expected in relocation");
+        revng_log(ELFImporterLog, "Addend was expected in relocation");
     }
     ReldynPortion->setAddress(Relocated);
     break;
@@ -360,9 +360,9 @@ void ELFImporter<T, HasAddend>::parseDynamicTag(uint64_t Tag,
   case ELF::DT_RELASZ:
     if (Tag != (HasAddend ? ELF::DT_RELASZ : ELF::DT_RELSZ)) {
       if (Tag == ELF::DT_RELASZ)
-        revng_log(Log, "Unexpected addend in relocation");
+        revng_log(ELFImporterLog, "Unexpected addend in relocation");
       else
-        revng_log(Log, "Addend was expected in relocation");
+        revng_log(ELFImporterLog, "Addend was expected in relocation");
     }
     ReldynPortion->setSize(Val);
     break;
@@ -386,13 +386,14 @@ void ELFImporter<T, HasAddend>::parseSymbols(object::ELFFile<T> &TheELF,
   // Obtain a reference to the string table
   auto Strtab = TheELF.getSection(SymtabShdr->sh_link);
   if (not Strtab) {
-    revng_log(Log, "Cannot find .strtab: " << Strtab.takeError());
+    revng_log(ELFImporterLog, "Cannot find .strtab: " << Strtab.takeError());
     return;
   }
 
   auto StrtabArray = TheELF.getSectionContents(**Strtab);
   if (not StrtabArray) {
-    revng_log(Log, "Cannot access .strtab: " << StrtabArray.takeError());
+    revng_log(ELFImporterLog,
+              "Cannot access .strtab: " << StrtabArray.takeError());
     return;
   }
 
@@ -402,7 +403,7 @@ void ELFImporter<T, HasAddend>::parseSymbols(object::ELFFile<T> &TheELF,
   // Collect symbol names
   auto ELFSymbols = TheELF.symbols(SymtabShdr);
   if (not ELFSymbols) {
-    revng_log(Log, "Cannot get symbols: " << ELFSymbols.takeError());
+    revng_log(ELFImporterLog, "Cannot get symbols: " << ELFSymbols.takeError());
     return;
   }
 
@@ -446,7 +447,7 @@ void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
 
   auto ProgHeaders = TheELF.program_headers();
   if (not ProgHeaders) {
-    revng_log(Log,
+    revng_log(ELFImporterLog,
               "Cannot access program headers: " << ProgHeaders.takeError());
     return;
   }
@@ -457,7 +458,7 @@ void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
       auto Start = relocate(fromGeneric(ProgramHeader.p_vaddr));
       auto EndVirtualAddress = Start + u64(ProgramHeader.p_memsz);
       if (Start.isInvalid() or EndVirtualAddress.isInvalid()) {
-        revng_log(Log, "Invalid segment found");
+        revng_log(ELFImporterLog, "Invalid segment found");
         continue;
       }
 
@@ -468,7 +469,7 @@ void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
       auto MaybeEndOffset = (OverflowSafeInt(u64(ProgramHeader.p_offset))
                              + u64(ProgramHeader.p_filesz));
       if (not MaybeEndOffset) {
-        revng_log(Log,
+        revng_log(ELFImporterLog,
                   "Invalid segment found: overflow in computing end offset");
         continue;
       }
@@ -526,19 +527,19 @@ void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
       if (not EHFrameHdrAddress)
         EHFrameHdrAddress = relocate(fromGeneric(ProgramHeader.p_vaddr));
       else
-        revng_log(Log, "Multiple PT_GNU_EH_FRAME. Ignoring.");
+        revng_log(ELFImporterLog, "Multiple PT_GNU_EH_FRAME. Ignoring.");
       break;
 
     case ELF::PT_DYNAMIC:
       if (DynamicPhdr != nullptr) {
-        revng_log(Log, "Duplicate .dynamic program header");
+        revng_log(ELFImporterLog, "Duplicate .dynamic program header");
         break;
       }
       DynamicPhdr = &ProgramHeader;
       MetaAddress DynamicPhdrMA = relocate(fromGeneric(DynamicPhdr->p_vaddr));
 
       if (DynamicAddress and DynamicPhdrMA != *DynamicAddress) {
-        revng_log(Log,
+        revng_log(ELFImporterLog,
                   "Different addresses for .dynamic ("
                     << DynamicAddress->toString()
                     << ") and PT_DYNAMIC program header ("
@@ -553,7 +554,7 @@ void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
   }
 
   if ((DynamicPhdr != nullptr) != (DynamicAddress.has_value())) {
-    revng_log(Log, "Invalid .dynamic/PT_DYNAMIC");
+    revng_log(ELFImporterLog, "Invalid .dynamic/PT_DYNAMIC");
     DynamicPhdr = nullptr;
     DynamicAddress = {};
   }
@@ -565,14 +566,14 @@ void ELFImporter<T, HasAddend>::parseDynamicSymbol(Elf_Sym_Impl<T> &Symbol,
   Expected<llvm::StringRef> MaybeName = Symbol.getName(Dynstr);
   if (not MaybeName) {
     auto TheError = MaybeName.takeError();
-    revng_log(Log, "Cannot access symbol name: " << TheError);
+    revng_log(ELFImporterLog, "Cannot access symbol name: " << TheError);
     consumeError(std::move(TheError));
     return;
   }
 
   StringRef Name = *MaybeName;
   if (Name.contains('\0')) {
-    revng_log(Log,
+    revng_log(ELFImporterLog,
               "SymbolName contains a NUL character: \"" << Name.str() << "\"");
     return;
   }
@@ -615,7 +616,8 @@ ELFImporter<T, HasAddend>::ehFrameFromEhFrameHdr() {
 
   auto MaybeEHFrameHdr = File.getFromAddressOn(*EHFrameHdrAddress);
   if (not MaybeEHFrameHdr) {
-    revng_log(Log, ".eh_frame_hdr section not available in any segment");
+    revng_log(ELFImporterLog,
+              ".eh_frame_hdr section not available in any segment");
     return { MetaAddress::invalid(), 0 };
   }
   ArrayRef<uint8_t> EHFrameHdr = *MaybeEHFrameHdr;
@@ -627,7 +629,8 @@ ELFImporter<T, HasAddend>::ehFrameFromEhFrameHdr() {
 
   uint64_t VersionNumber = EHFrameHdrReader.readNextU8();
   if (VersionNumber != 1) {
-    revng_log(Log, "Unexpected version number in .eh_frame: " << VersionNumber);
+    revng_log(ELFImporterLog,
+              "Unexpected version number in .eh_frame: " << VersionNumber);
     return { MetaAddress::invalid(), 0 };
   }
 
@@ -645,7 +648,7 @@ ELFImporter<T, HasAddend>::ehFrameFromEhFrameHdr() {
 
   MetaAddress Address = getGenericPointer(EHFramePointer);
   if (Address.isInvalid()) {
-    revng_log(Log, "Invalid address of .eh_frame in .eh_frame_hdr");
+    revng_log(ELFImporterLog, "Invalid address of .eh_frame in .eh_frame_hdr");
     return { MetaAddress::invalid(), 0 };
   }
 
@@ -657,7 +660,7 @@ void ELFImporter<T, HasAddend>::parseEHFrame(MetaAddress EHFrameAddress,
                                              Optional<uint64_t> FDEsCount,
                                              Optional<uint64_t> EHFrameSize) {
   if (not FDEsCount and not EHFrameSize) {
-    revng_log(Log, "Neither FDE count and .eh_frame size available");
+    revng_log(ELFImporterLog, "Neither FDE count and .eh_frame size available");
     return;
   }
 
@@ -704,7 +707,7 @@ void ELFImporter<T, HasAddend>::parseEHFrame(MetaAddress EHFrameAddress,
     // Zero-sized entry, skip it
     if (Length == 0) {
       if (EHFrameReader.offset() != EndOffset) {
-        revng_log(Log, ".eh_frame end was expected");
+        revng_log(ELFImporterLog, ".eh_frame end was expected");
         return;
       }
       continue;
@@ -718,7 +721,7 @@ void ELFImporter<T, HasAddend>::parseEHFrame(MetaAddress EHFrameAddress,
       // Ensure the version is the one we expect
       uint32_t Version = EHFrameReader.readNextU8();
       if (Version != 1) {
-        revng_log(Log, "Unexpected version: " << Version);
+        revng_log(ELFImporterLog, "Unexpected version: " << Version);
         return;
       }
 
@@ -755,7 +758,7 @@ void ELFImporter<T, HasAddend>::parseEHFrame(MetaAddress EHFrameAddress,
           switch (Char) {
           case 'e':
             if (not((I + 1) != E and AugmentationString[I + 1] == 'h')) {
-              revng_log(Log, "Expected 'eh' in augmentation string");
+              revng_log(ELFImporterLog, "Expected 'eh' in augmentation string");
               return;
             }
             break;
@@ -765,12 +768,12 @@ void ELFImporter<T, HasAddend>::parseEHFrame(MetaAddress EHFrameAddress,
             if (not LSDAPointerEncoding)
               LSDAPointerEncoding = EHFrameReader.readNextU8();
             else
-              revng_log(Log, "Duplicate LSDA encoding. Ignoroing.");
+              revng_log(ELFImporterLog, "Duplicate LSDA encoding. Ignoroing.");
 
             break;
           case 'P': {
             if (PersonalityEncoding) {
-              revng_log(Log, "Duplicate personality. Ignoring.");
+              revng_log(ELFImporterLog, "Duplicate personality. Ignoring.");
               break;
             }
             PersonalityEncoding = EHFrameReader.readNextU8();
@@ -778,7 +781,9 @@ void ELFImporter<T, HasAddend>::parseEHFrame(MetaAddress EHFrameAddress,
             Pointer Personality;
             Personality = EHFrameReader.readPointer(*PersonalityEncoding);
             auto PersonalityPtr = getCodePointer(Personality);
-            logAddress(Log, "Personality function: ", PersonalityPtr);
+            logAddress(ELFImporterLog,
+                       "Personality function: ",
+                       PersonalityPtr);
 
             // Register in the model for exploration
             Model->ExtraCodeAddresses.insert(PersonalityPtr);
@@ -786,13 +791,14 @@ void ELFImporter<T, HasAddend>::parseEHFrame(MetaAddress EHFrameAddress,
           }
           case 'R':
             if (FDEPointerEncoding) {
-              revng_log(Log, "Duplicate FDE encoding. Ignoring.");
+              revng_log(ELFImporterLog, "Duplicate FDE encoding. Ignoring.");
               break;
             }
             FDEPointerEncoding = EHFrameReader.readNextU8();
             break;
           case 'z':
-            revng_log(Log, "'z' must be first in the augmentation string");
+            revng_log(ELFImporterLog,
+                      "'z' must be first in the augmentation string");
             return;
           }
         }
@@ -814,14 +820,16 @@ void ELFImporter<T, HasAddend>::parseEHFrame(MetaAddress EHFrameAddress,
       // Ensure we already met this CIE
       auto CIEIt = CachedCIEs.find(CIEOffset);
       if (CIEIt == CachedCIEs.end()) {
-        revng_log(Log, "Couldn't find CIE at offset in to __eh_frame section");
+        revng_log(ELFImporterLog,
+                  "Couldn't find CIE at offset in to __eh_frame section");
         return;
       }
 
       // Ensure we have at least the pointer encoding
       const DecodedCIE &CIE = CIEIt->getSecond();
       if (not CIE.FDEPointerEncoding) {
-        revng_log(Log, "FDE references CIE which did not set pointer encoding");
+        revng_log(ELFImporterLog,
+                  "FDE references CIE which did not set pointer encoding");
         return;
       }
 
@@ -850,11 +858,11 @@ void ELFImporter<T, HasAddend>::parseEHFrame(MetaAddress EHFrameAddress,
 template<typename T, bool HasAddend>
 void ELFImporter<T, HasAddend>::parseLSDA(MetaAddress FDEStart,
                                           MetaAddress LSDAAddress) {
-  logAddress(Log, "LSDAAddress: ", LSDAAddress);
+  logAddress(ELFImporterLog, "LSDAAddress: ", LSDAAddress);
 
   auto MaybeLSDA = File.getFromAddressOn(LSDAAddress);
   if (not MaybeLSDA) {
-    revng_log(Log, "LSDA not available in any segment");
+    revng_log(ELFImporterLog, "LSDA not available in any segment");
     return;
   }
   llvm::ArrayRef<uint8_t> LSDA = *MaybeLSDA;
@@ -872,7 +880,7 @@ void ELFImporter<T, HasAddend>::parseLSDA(MetaAddress FDEStart,
     LandingPadBase = FDEStart;
   }
 
-  logAddress(Log, "LandingPadBase: ", LandingPadBase);
+  logAddress(ELFImporterLog, "LandingPadBase: ", LandingPadBase);
 
   uint32_t TypeTableEncoding = LSDAReader.readNextU8();
   if (TypeTableEncoding != dwarf::DW_EH_PE_omit)
@@ -900,7 +908,7 @@ void ELFImporter<T, HasAddend>::parseLSDA(MetaAddress FDEStart,
     if (LandingPad.isValid()) {
       auto &ExtraCodeAddresses = Model->ExtraCodeAddresses;
       if (ExtraCodeAddresses.count(LandingPad) == 0)
-        logAddress(Log, "New landing pad found: ", LandingPad);
+        logAddress(ELFImporterLog, "New landing pad found: ", LandingPad);
 
       ExtraCodeAddresses.insert(LandingPad);
     }
@@ -951,7 +959,7 @@ void ELFImporter<T, HasAddend>::registerRelocations(Elf_Rel_Array Relocations,
     if (Dynsym.isAvailable() and Dynstr.isAvailable()) {
       uint32_t SymbolIndex = Relocation.getSymbol(false);
       if (not(SymbolIndex < Symbols.size())) {
-        revng_log(Log,
+        revng_log(ELFImporterLog,
                   "Invalid symbol index "
                     << SymbolIndex << ". "
                     << "Symbol count: " << Symbols.size());
@@ -970,7 +978,8 @@ void ELFImporter<T, HasAddend>::registerRelocations(Elf_Rel_Array Relocations,
     auto RelocationName = getELFRelocationTypeName(TheBinary.getEMachine(),
                                                    Type);
     if (RelocationType == Invalid) {
-      revng_log(Log, "Ignoring unknown relocation: " << RelocationName);
+      revng_log(ELFImporterLog,
+                "Ignoring unknown relocation: " << RelocationName);
       continue;
     }
 
@@ -980,13 +989,14 @@ void ELFImporter<T, HasAddend>::registerRelocations(Elf_Rel_Array Relocations,
     bool IsBaseRelative = isELFRelocationBaseRelative(Architecture, Type);
 
     if (HasName and IsBaseRelative) {
-      revng_log(Log,
+      revng_log(ELFImporterLog,
                 "We found a base-relative relocation ("
                   << RelocationName << ") associated to a symbol, ignoring.");
     } else if (not HasName and not IsBaseRelative) {
-      if (Log.isEnabled()) {
-        Log << "We found a non-base-relative relocation (" << RelocationName
-            << ") not associated to a symbol, ignoring." << DoLog;
+      if (ELFImporterLog.isEnabled()) {
+        ELFImporterLog << "We found a non-base-relative relocation ("
+                       << RelocationName
+                       << ") not associated to a symbol, ignoring." << DoLog;
       }
     } else if (HasName) {
       // Symbol-relative relcation
@@ -1006,7 +1016,7 @@ void ELFImporter<T, HasAddend>::registerRelocations(Elf_Rel_Array Relocations,
         NewRelocation.verify(true);
         LowestSegment->Relocations.insert(NewRelocation);
       } else {
-        revng_log(Log,
+        revng_log(ELFImporterLog,
                   "Found a base-relative relocation, but no segment is "
                   "available! Ignoring.");
       }
