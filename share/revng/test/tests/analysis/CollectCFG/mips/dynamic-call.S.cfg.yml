@@ -1,0 +1,20 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+---
+- OriginalName: __start
+  FunctionMetadata:
+    Entry: "1"
+    ControlFlowGraph:
+      - Start: "1"
+        End: "2"
+        Successors:
+          - Destination: ":Invalid"
+            Type: FunctionCall
+            DynamicFunction: strlen
+      - Start: "2"
+        End: "3"
+        Successors:
+          - Destination: ":Invalid"
+            Type: Return

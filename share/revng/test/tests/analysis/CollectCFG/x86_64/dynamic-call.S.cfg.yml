@@ -1,0 +1,51 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+---
+- Entry: "1"
+  OriginalName: ""
+  FunctionMetadata:
+    Entry: "1"
+    ControlFlowGraph:
+      - Start: "1"
+        End: "2"
+        Successors:
+          - Destination: ":Invalid"
+            Type: FunctionCall
+            DynamicFunction: strlen
+            IsTailCall: true
+- OriginalName: use_plt
+  FunctionMetadata:
+    ControlFlowGraph:
+      - Start: "7"
+        End: "8"
+        Successors:
+          - Kind: CallEdge
+            Destination: "1"
+            Type: FunctionCall
+      - Start: "8"
+        End: "9"
+        Successors:
+          - Type: FunctionCall
+      - Start: "9"
+        End: "10"
+        Successors:
+          - Type: Return
+- OriginalName: do_not_use_plt
+  FunctionMetadata:
+    ControlFlowGraph:
+      - Start: "10"
+        End: "11"
+        Successors:
+          - Destination: ":Invalid"
+            Type: FunctionCall
+            DynamicFunction: strlen
+      - Start: "11"
+        End: "12"
+        Successors:
+          - Type: FunctionCall
+      - Start: "12"
+        End: "13"
+        Successors:
+          - Type: Return
