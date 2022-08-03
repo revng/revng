@@ -533,24 +533,38 @@ public:
     SetBlockType(SetBlockType),
     NewBlocksRegistry(NewBlocksRegistry) {}
 
-  SwitchManager(SwitchInst *Root, Optional<BlockType::Values> SetBlockType) :
+  SwitchManager(SwitchInst *Root,
+                GlobalVariable *EpochCSV,
+                GlobalVariable *AddressSpaceCSV,
+                GlobalVariable *TypeCSV,
+                GlobalVariable *AddressCSV,
+                Optional<BlockType::Values> SetBlockType) :
     Context(getContext(Root)),
     F(Root->getParent()->getParent()),
     Default(Root->getDefaultDest()),
     SetBlockType(SetBlockType) {
 
-    // Get the switches of the the first MA. This is just in order to get a
-    // reference to their conditions
-    SwitchInst *EpochSwitch = Root;
-    SwitchInst *AddressSpaceSwitch = getNextSwitch(EpochSwitch->case_begin());
-    SwitchInst *TypeSwitch = getNextSwitch(AddressSpaceSwitch->case_begin());
-    SwitchInst *AddressSwitch = getNextSwitch(TypeSwitch->case_begin());
+    bool Empty = Root->case_begin() == Root->case_end();
+    if (Empty) {
+      IRBuilder<> Builder(Root);
+      CurrentEpoch = Builder.CreateLoad(EpochCSV);
+      CurrentAddressSpace = Builder.CreateLoad(AddressSpaceCSV);
+      CurrentType = Builder.CreateLoad(TypeCSV);
+      CurrentAddress = Builder.CreateLoad(AddressCSV);
+    } else {
+      // Get the switches of the the first MA. This is just in order to get a
+      // reference to their conditions
+      SwitchInst *EpochSwitch = Root;
+      SwitchInst *AddressSpaceSwitch = getNextSwitch(EpochSwitch->case_begin());
+      SwitchInst *TypeSwitch = getNextSwitch(AddressSpaceSwitch->case_begin());
+      SwitchInst *AddressSwitch = getNextSwitch(TypeSwitch->case_begin());
 
-    // Get the conditions
-    CurrentEpoch = EpochSwitch->getCondition();
-    CurrentAddressSpace = AddressSpaceSwitch->getCondition();
-    CurrentType = TypeSwitch->getCondition();
-    CurrentAddress = AddressSwitch->getCondition();
+      // Get the conditions
+      CurrentEpoch = EpochSwitch->getCondition();
+      CurrentAddressSpace = AddressSpaceSwitch->getCondition();
+      CurrentType = TypeSwitch->getCondition();
+      CurrentAddress = AddressSwitch->getCondition();
+    }
   }
 
 public:
@@ -689,7 +703,12 @@ void PCH::addCaseToDispatcher(SwitchInst *Root,
                               Optional<BlockType::Values> SetBlockType) const {
   auto &[MA, BB] = NewTarget;
 
-  SwitchManager SM(Root, SetBlockType);
+  SwitchManager SM(Root,
+                   EpochCSV,
+                   AddressSpaceCSV,
+                   TypeCSV,
+                   AddressCSV,
+                   SetBlockType);
 
   SwitchInst *EpochSwitch = Root;
   SwitchInst *AddressSpaceSwitch = nullptr;
@@ -706,7 +725,8 @@ void PCH::addCaseToDispatcher(SwitchInst *Root,
 }
 
 void PCH::destroyDispatcher(SwitchInst *Root) const {
-  SwitchManager(Root, {}).destroy(Root);
+  SwitchManager SM(Root, EpochCSV, AddressSpaceCSV, TypeCSV, AddressCSV, {});
+  SM.destroy(Root);
 }
 
 PCH::DispatcherInfo
@@ -715,7 +735,6 @@ PCH::buildDispatcher(DispatcherTargets &Targets,
                      BasicBlock *Default,
                      Optional<BlockType::Values> SetBlockType) const {
   DispatcherInfo Result;
-  revng_assert(Targets.size() != 0);
 
   LLVMContext &Context = getContext(Default);
 
