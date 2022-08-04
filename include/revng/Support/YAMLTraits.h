@@ -10,7 +10,6 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/ADT/KeyedObjectContainer.h"
-#include "revng/ADT/KeyedObjectTraits.h"
 #include "revng/Support/Assert.h"
 #include "revng/TupleTree/TupleTreeCompatible.h"
 
@@ -146,14 +145,16 @@ concept Yamlizable
     or llvm::yaml::has_ScalarEnumerationTraits<T>::value;
 // clang-format on
 
-template<typename T>
-concept NotYamlizable = not Yamlizable<T>;
+/// TODO: Remove after updating to clang-format with concept support.
+struct ClangFormatPleaseDoNotBreakMyCode;
+// clang-format off
+// clang-format on
 
 namespace revng::detail {
 
 struct NoYaml {};
 
-static_assert(NotYamlizable<NoYaml>);
+static_assert(not Yamlizable<NoYaml>);
 
 } // end namespace revng::detail
 
@@ -236,7 +237,7 @@ std::string serializeToString(const T &ToDump) {
   return Buffer;
 }
 
-namespace detail {
+namespace revng::detail {
 template<typename T>
 llvm::Expected<T> deserializeImpl(llvm::StringRef YAMLString) {
   if constexpr (llvm::yaml::has_ScalarTraits<T>::value) {
@@ -255,14 +256,15 @@ llvm::Expected<T> deserializeImpl(llvm::StringRef YAMLString) {
   }
 }
 
-} // namespace detail
+} // namespace revng::detail
 
-template<NotTupleTreeCompatible T>
+// clang-format off
+template<typename T> requires (not TupleTreeCompatible<T>)
 llvm::Expected<T> deserialize(llvm::StringRef YAMLString) {
-  return detail::deserializeImpl<T>(YAMLString);
+  return revng::detail::deserializeImpl<T>(YAMLString);
 }
 
-template<NotTupleTreeCompatible T>
+template<typename T> requires (not TupleTreeCompatible<T>)
 llvm::Expected<T> deserializeFileOrSTDIN(const llvm::StringRef &Path) {
   auto MaybeBuffer = llvm::MemoryBuffer::getFileOrSTDIN(Path);
   if (not MaybeBuffer)
@@ -270,3 +272,4 @@ llvm::Expected<T> deserializeFileOrSTDIN(const llvm::StringRef &Path) {
 
   return deserialize<T>((*MaybeBuffer)->getBuffer());
 }
+// clang-format on

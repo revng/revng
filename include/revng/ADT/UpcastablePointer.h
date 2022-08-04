@@ -10,13 +10,11 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
 
-#include "revng/ADT/Concepts.h"
-#include "revng/ADT/KeyedObjectTraits.h"
 #include "revng/ADT/STLExtras.h"
 #include "revng/Support/Assert.h"
 
 template<typename T>
-concept is_pointer = std::is_pointer_v<T>;
+struct KeyedObjectTraits;
 
 template<typename T>
 struct concrete_types_traits;
@@ -24,40 +22,40 @@ struct concrete_types_traits;
 template<typename T>
 using concrete_types_traits_t = typename concrete_types_traits<T>::type;
 
-template<typename T>
-concept HasConcretTypeTraits = requires {
-  typename concrete_types_traits_t<T>;
-};
-
 // clang-format off
+template<typename T>
+concept ConcreteTypeTraitCompatible = requires {
+  typename concrete_types_traits_t<T>;
+} && StrictSpecializationOf<concrete_types_traits_t<T>, std::tuple>;
+// clang-format on
+
 template<typename T>
 concept HasLLVMRTTI = requires(T *A) {
   { A->classof(A) } -> std::same_as<bool>;
 };
-// clang-format on
 
 template<typename T>
-concept Upcastable = HasLLVMRTTI<T> and HasConcretTypeTraits<T>;
+concept Upcastable = HasLLVMRTTI<T> and ConcreteTypeTraitCompatible<T>;
 
 template<typename T>
 using pointee = typename std::pointer_traits<std::decay_t<T>>::element_type;
 
 template<typename T>
-concept PointerLike = requires(T A) {
+concept Dereferenceable = requires(T A) {
   { *A };
 };
 
-static_assert(PointerLike<int *>);
-static_assert(not PointerLike<int>);
+static_assert(Dereferenceable<int *>);
+static_assert(not Dereferenceable<int>);
 
 template<typename T>
-concept UpcastablePointerLike = PointerLike<T> and Upcastable<pointee<T>>;
+concept UpcastablePointerLike = Dereferenceable<T> and Upcastable<pointee<T>>;
 
-template<typename T>
-concept NotUpcastablePointerLike = not UpcastablePointerLike<T>;
-
-template<NotVoid ReturnT, typename L, UpcastablePointerLike P, size_t I = 0>
+// clang-format off
+template<typename ReturnT, typename L, UpcastablePointerLike P, size_t I = 0>
+  requires(not std::is_void_v<ReturnT>)
 ReturnT upcast(P &Upcastable, const L &Callable, const ReturnT &IfNull) {
+  // clang-format on
   using pointee = std::remove_reference_t<decltype(*Upcastable)>;
   using concrete_types = concrete_types_traits_t<pointee>;
   auto *Pointer = &*Upcastable;
@@ -149,7 +147,7 @@ public:
   explicit UpcastablePointer(pointer P) noexcept : Pointer(P, Deleter) {}
 
 public:
-  template<DerivesFrom<T> Q, typename... Args>
+  template<derived_from<T> Q, typename... Args>
   static UpcastablePointer<T> make(Args &&...TheArgs) {
     return UpcastablePointer<T>(new Q(std::forward<Args>(TheArgs)...));
   }
@@ -202,9 +200,3 @@ public:
 private:
   inner_pointer Pointer;
 };
-
-template<typename T>
-concept IsUpcastablePointer = is_specialization_v<T, UpcastablePointer>;
-
-template<typename T>
-concept IsNotUpcastablePointer = not IsUpcastablePointer<T>;

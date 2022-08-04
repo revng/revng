@@ -7,7 +7,6 @@
 #include "llvm/ADT/STLExtras.h"
 
 #include "revng/ADT/KeyedObjectContainer.h"
-#include "revng/ADT/KeyedObjectTraits.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
@@ -29,7 +28,8 @@ unique_last(ForwardIt First, ForwardIt Last, BinaryPredicate Predicate) {
   return ++Result;
 }
 
-template<HasKeyObjectTraits T, class Compare>
+template<KeyedObjectContainerCompatible T,
+         class Compare = DefaultKeyObjectComparator<T>>
 class SortedVector {
 public:
   using KOT = KeyedObjectTraits<T>;
@@ -53,6 +53,9 @@ public:
   using const_iterator = typename vector_type::const_iterator;
   using reverse_iterator = typename vector_type::reverse_iterator;
   using const_reverse_iterator = typename vector_type::const_reverse_iterator;
+
+public:
+  static constexpr bool KeyedObjectContainerTag = true;
 
 private:
   vector_type TheVector;
@@ -408,3 +411,5 @@ private:
     TheVector.erase(NewEnd, end());
   }
 };
+
+static_assert(KeyedObjectContainer<SortedVector<int>>);

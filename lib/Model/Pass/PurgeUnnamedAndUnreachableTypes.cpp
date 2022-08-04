@@ -31,14 +31,14 @@ visitTuple(V &&Visitor, T &Tuple, const std::index_sequence<Indices...> &) {
   (Visitor(get<Indices>(Tuple)), ...);
 }
 
-template<typename V, IsTupleLike T>
+template<typename V, TupleLike T>
 static void visitTuple(V &&Visitor, T &Tuple) {
   visitTuple(std::forward<V>(Visitor),
              Tuple,
              std::make_index_sequence<std::tuple_size_v<T>>{});
 }
 
-template<typename V, IsTupleLike T, typename E>
+template<typename V, TupleLike T, typename E>
 static auto visitTupleExcept(V &&Visitor, T &Tuple, E *Exclude) {
   auto WrappedVisitor = [&Visitor, Exclude](auto &Field) {
     if constexpr (std::is_same_v<std::decay_t<decltype(Field)>, E>) {

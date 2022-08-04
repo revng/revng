@@ -56,13 +56,12 @@ public:
   size_t size() const { return Queue.size(); }
 };
 
-template<VisitType V>
-concept IsPostOrderLike = V == PostOrder or V == ReversePostOrder;
-
 // (Reverse) post order implementation
+// clang-format off
 template<typename Iterated, VisitType Visit>
-requires IsPostOrderLike<Visit>
+  requires (Visit == PostOrder or Visit == ReversePostOrder)
 class MonotoneFrameworkWorkList<Iterated, Visit> {
+  // clang-format on
 private:
   /// \brief Class for an entry in the work list
   ///

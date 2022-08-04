@@ -50,7 +50,7 @@ static RegisterModelPass ToCABI("convert-all-raw-functions-to-cabi",
 
 static Logger Log("convert-function-types");
 
-template<DerivesFrom<model::Type> DerivedType>
+template<derived_from<model::Type> DerivedType>
 static std::vector<DerivedType *>
 chooseTypes(SortedVector<UpcastablePointer<model::Type>> &Types) {
   std::vector<DerivedType *> Result;

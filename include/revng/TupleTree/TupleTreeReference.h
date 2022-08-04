@@ -15,6 +15,13 @@
 #include "revng/TupleTree/TupleTreePath.h"
 #include "revng/TupleTree/Visits.h"
 
+namespace revng::detail {
+
+template<typename T, typename R>
+concept ConstOrNot = std::is_same_v<R, T> or std::is_same_v<const R, T>;
+
+} // namespace revng::detail
+
 template<typename T, typename RootType>
 class TupleTreeReference {
 public:
@@ -27,13 +34,13 @@ public:
 
 public:
   static TupleTreeReference
-  fromPath(ConstOrNot<TupleTreeReference::RootT> auto *Root,
+  fromPath(revng::detail::ConstOrNot<TupleTreeReference::RootT> auto *Root,
            const TupleTreePath &Path) {
     return TupleTreeReference{ .Root = RootVariant{ Root }, .Path = Path };
   }
 
   static TupleTreeReference
-  fromString(ConstOrNot<TupleTreeReference::RootT> auto *Root,
+  fromString(revng::detail::ConstOrNot<TupleTreeReference::RootT> auto *Root,
              llvm::StringRef Path) {
     std::optional<TupleTreePath> OptionalPath = stringAsPath<RootT>(Path);
     if (not OptionalPath.has_value())
@@ -120,10 +127,7 @@ public:
   }
 };
 
-template<typename T>
-concept IsTupleTreeReference = is_specialization_v<T, TupleTreeReference>;
-
-template<IsTupleTreeReference T>
+template<StrictSpecializationOf<TupleTreeReference> T>
 struct llvm::yaml::ScalarTraits<T> {
 
   static void output(const T &Obj, void *, llvm::raw_ostream &Out) {

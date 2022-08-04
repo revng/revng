@@ -4,7 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/ADT/KeyedObjectTraits.h"
+#include "revng/ADT/KeyedObjectContainer.h"
 #include "revng/TupleTree/Introspection.h"
 #include "revng/TupleTree/TupleTree.h"
 
@@ -34,5 +34,5 @@ template<>
 struct llvm::yaml::MappingTraits<Element>
   : public TupleLikeMappingTraits<Element> {};
 
-static_assert(HasKeyObjectTraits<Element>);
-static_assert(not IsKeyedObjectContainer<std::vector<std::pair<int, int>>>);
+static_assert(KeyedObjectContainerCompatible<Element>);
+static_assert(not KeyedObjectContainer<std::vector<std::pair<int, int>>>);

@@ -8,9 +8,10 @@
 
 #include "llvm/ADT/STLExtras.h"
 
-#include "revng/ADT/KeyedObjectTraits.h"
+#include "revng/ADT/KeyedObjectContainer.h"
 
-template<HasKeyObjectTraits T, class Compare>
+template<KeyedObjectContainerCompatible T,
+         class Compare = DefaultKeyObjectComparator<T>>
 class MutableSet {
 private:
   using KOT = KeyedObjectTraits<T>;
@@ -60,6 +61,9 @@ public:
                                            decltype(getSecond) *>;
   using const_reverse_iterator = mapped_iterator<const_inner_reverse_iterator,
                                                  decltype(getConstSecond) *>;
+
+public:
+  static constexpr bool KeyedObjectContainerTag = true;
 
 private:
   map_type TheMap;
@@ -206,3 +210,5 @@ private:
     return const_reverse_iterator(It, getConstSecond);
   }
 };
+
+static_assert(KeyedObjectContainer<MutableSet<int>>);

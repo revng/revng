@@ -45,7 +45,7 @@ public:
   virtual llvm::Error loadFromDisk(llvm::StringRef Path);
 };
 
-template<TupleTreeCompatibleWithVerify Object>
+template<TupleTreeCompatibleAndVerifiable Object>
 class TupleTreeGlobal : public Global {
 private:
   TupleTree<Object> Value;

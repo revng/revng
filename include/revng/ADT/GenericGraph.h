@@ -50,24 +50,24 @@
 ///  use multiple different graph architectures side by side.
 
 template<typename T>
-concept IsForwardNode = requires {
+concept SpecializationOfForwardNode = requires {
   T::is_forward_node;
 };
 
 template<typename T>
-concept IsBidirectionalNode = requires {
+concept StrictSpecializationOfBidirectionalNode = requires {
   T::is_bidirectional_node;
   typename llvm::Inverse<T *>;
 };
 
 template<typename T>
-concept IsMutableEdgeNode = requires {
+concept StrictSpecializationOfMutableEdgeNode = requires {
   T::is_mutable_edge_node;
   typename llvm::Inverse<T *>;
 };
 
 template<typename T>
-concept IsGenericGraph = requires {
+concept SpecializationOfGenericGraph = requires {
   T::is_generic_graph;
   typename T::Node;
 };
@@ -1250,7 +1250,7 @@ public:
   }
 
   nodes_iterator removeNode(nodes_iterator It) {
-    if constexpr (IsMutableEdgeNode<Node>)
+    if constexpr (StrictSpecializationOfMutableEdgeNode<Node>)
       (*It.getCurrent())->disconnect();
 
     auto InternalIt = Nodes.erase(It.getCurrent());
@@ -1286,8 +1286,8 @@ private:
 //
 namespace llvm {
 
-/// Implement GraphTraits<ForwardNode>
-template<IsForwardNode T>
+/// Specializes GraphTraits<ForwardNode<...> *>
+template<SpecializationOfForwardNode T>
 struct GraphTraits<T *> {
 public:
   using NodeRef = T *;
@@ -1324,8 +1324,8 @@ public:
   static NodeRef getEntryNode(NodeRef N) { return N; };
 };
 
-/// Implement GraphTraits<MutableEdgeNode>
-template<IsMutableEdgeNode T>
+/// Specializes GraphTraits<MutableEdgeNode<...> *>
+template<StrictSpecializationOfMutableEdgeNode T>
 struct GraphTraits<T *> {
 public:
   using NodeRef = T *;
@@ -1350,8 +1350,8 @@ public:
   static T *getEntryNode(T *N) { return N; };
 };
 
-/// Implement GraphTraits<Inverse<MutableEdgeNode>>
-template<IsMutableEdgeNode T>
+/// Specializes GraphTraits<llvm::Inverse<MutableEdgeNode<...> *>>
+template<StrictSpecializationOfMutableEdgeNode T>
 struct GraphTraits<llvm::Inverse<T *>> {
 public:
   using NodeRef = T *;
@@ -1376,8 +1376,8 @@ public:
   static T *getEntryNode(llvm::Inverse<T *> N) { return N.Graph; };
 };
 
-/// Implement GraphTraits<GenericGraph>
-template<IsGenericGraph T>
+/// Specializes GraphTraits<GenericGraph<...> *>>
+template<SpecializationOfGenericGraph T>
 struct GraphTraits<T *> : public GraphTraits<typename T::Node *> {
 
   using NodeRef = std::conditional_t<std::is_const_v<T>,
@@ -1396,8 +1396,8 @@ struct GraphTraits<T *> : public GraphTraits<typename T::Node *> {
   static size_t size(T *G) { return G->size(); }
 };
 
-/// Implement GraphTraits<Inverse<BidirectionalNode>>
-template<IsBidirectionalNode T>
+/// Specializes GraphTraits<llvm::Inverse<BidirectionalNode<...> *>>
+template<StrictSpecializationOfBidirectionalNode T>
 struct GraphTraits<llvm::Inverse<T *>> {
 public:
   using NodeRef = T *;

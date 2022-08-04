@@ -20,7 +20,6 @@
 #include "llvm/Transforms/Utils/Local.h"
 
 #include "revng/ADT/KeyedObjectContainer.h"
-#include "revng/ADT/KeyedObjectTraits.h"
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/IRHelpers.h"

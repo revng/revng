@@ -43,7 +43,7 @@ struct KeyContainer<T> {
   static void sort(T &) {}
 };
 
-template<SortedContainer T>
+template<SetLike T>
 struct KeyContainer<T> {
   using key_type = const typename T::key_type;
 

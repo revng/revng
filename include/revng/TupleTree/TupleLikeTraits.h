@@ -6,8 +6,12 @@
 
 #include <array>
 #include <cstdint>
+#include <span>
+#include <string_view>
 
 #include "llvm/Support/YAMLTraits.h"
+
+#include "revng/ADT/Concepts.h"
 
 /// Trait to provide name of the tuple-like class and its fields
 template<typename T>
@@ -15,20 +19,26 @@ struct TupleLikeTraits {
   enum class Fields {};
 };
 
+// clang-format off
 template<typename T>
-concept HasTupleLikeTraits = requires {
+concept TraitedTupleLike = requires {
+  { TupleLikeTraits<T>::Name } -> convertible_to<std::string_view>;
+  { TupleLikeTraits<T>::FullName } -> convertible_to<std::string_view>;
+  { TupleLikeTraits<T>::FieldNames } ->
+    convertible_to<const std::span<const llvm::StringRef>>;
+
   typename TupleLikeTraits<T>::tuple;
   typename TupleLikeTraits<T>::Fields;
-  { TupleLikeTraits<T>::Name };
-  { TupleLikeTraits<T>::FieldsName };
-};
+} && StrictSpecializationOf<typename TupleLikeTraits<T>::tuple, std::tuple>
+  && std::is_enum_v<typename TupleLikeTraits<T>::Fields>;
+// clang-format on
 
 //
 // Implementation of MappingTraits for TupleLikeTraits implementors
 //
 
 /// Tuple-like can implement llvm::yaml::MappingTraits inheriting this class
-template<typename T, typename TupleLikeTraits<T>::Fields... Optionals>
+template<TraitedTupleLike T, typename TupleLikeTraits<T>::Fields... Optionals>
 struct TupleLikeMappingTraits {
   using Fields = typename TupleLikeTraits<T>::Fields;
 
@@ -47,15 +57,15 @@ struct TupleLikeMappingTraits {
   template<size_t I = 0>
   static void mapping(llvm::yaml::IO &IO, T &Obj) {
     if constexpr (I < std::tuple_size_v<T>) {
-      auto Name = TupleLikeTraits<T>::FieldsName[I];
+      auto Name = TupleLikeTraits<T>::FieldNames[I];
       constexpr Fields Field = static_cast<Fields>(I);
 
       using tuple_element = std::tuple_element_t<I, T>;
       auto &Element = get<I>(Obj);
       if constexpr (isOptional<Field>()) {
-        IO.mapOptional(Name, Element, tuple_element{});
+        IO.mapOptional(Name.data(), Element, tuple_element{});
       } else {
-        IO.mapRequired(Name, Element);
+        IO.mapRequired(Name.data(), Element);
       }
 
       // Recur
@@ -64,7 +74,7 @@ struct TupleLikeMappingTraits {
   }
 };
 
-template<size_t Index, HasTupleLikeTraits T>
+template<size_t Index, TraitedTupleLike T>
 struct std::tuple_element<Index, T> {
   using type = std::tuple_element_t<Index, typename TupleLikeTraits<T>::tuple>;
 };
@@ -72,7 +82,7 @@ struct std::tuple_element<Index, T> {
 template<typename T>
 using TupleLikeTraitsTuple = typename TupleLikeTraits<T>::tuple;
 
-template<HasTupleLikeTraits T>
+template<TraitedTupleLike T>
 struct std::tuple_size<T>
   : std::integral_constant<size_t, std::tuple_size_v<TupleLikeTraitsTuple<T>>> {
 };

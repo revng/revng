@@ -12,22 +12,29 @@ The notice below applies to the generated files.
 
 #pragma once
 
+#include <array>
+
+#include "llvm/ADT/StringRef.h"
+
 #include "revng/ADT/UpcastablePointer.h"
 #include "revng/ADT/UpcastablePointer/YAMLTraits.h"
+#include "revng/TupleTree/TupleLikeTraits.h"
 #include "revng/TupleTree/TupleTree.h"
+
+using namespace std::string_view_literals;
 
 /*# --- TupleLikeTraits --- -#*/
 template <> struct TupleLikeTraits</*=- struct.user_fullname =*/> {
-  static constexpr const char *Name = "/*=- struct.name =*/";
-  static constexpr const char *FullName = "/*=- struct.user_fullname =*/";
+  static constexpr const llvm::StringRef Name = "/*=- struct.name =*/";
+  static constexpr const llvm::StringRef FullName = "/*=- struct.user_fullname =*/";
   using tuple = std::tuple<
     /**- for field in struct.all_fields -**/
     decltype(/*=- struct.user_fullname =*/::/*=- field.name =*/)/** if not loop.last **/, /** endif -**/
     /**- endfor **/>;
 
-  static constexpr const char *FieldsName[std::tuple_size_v<tuple>] = {
+  static constexpr std::array<llvm::StringRef, std::tuple_size_v<tuple>> FieldNames = {
     /**- for field in struct.all_fields -**/
-    "/*=- field.name =*/",
+    "/*=- field.name =*/"sv,
     /**- endfor **/
   };
 

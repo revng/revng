@@ -14,25 +14,6 @@
 #include "revng/Support/Debug.h"
 
 //
-// is_specialization
-//
-template<typename Test, template<typename...> class Ref>
-struct is_specialization : std::false_type {};
-
-template<template<typename...> class Ref, typename... Args>
-struct is_specialization<Ref<Args...>, Ref> : std::true_type {};
-
-template<template<typename...> class Ref, typename... Args>
-struct is_specialization<const Ref<Args...>, Ref> : std::true_type {};
-
-template<typename Test, template<typename...> class Ref>
-constexpr bool is_specialization_v = is_specialization<Test, Ref>::value;
-
-static_assert(is_specialization_v<std::vector<int>, std::vector>);
-static_assert(is_specialization_v<const std::vector<int>, std::vector>);
-static_assert(is_specialization_v<std::pair<int, long>, std::pair>);
-
-//
 // always_true and always_false
 //
 // Since an assert in the `else` branch of an `if_constexpr` condition said
@@ -67,58 +48,6 @@ struct value_always_true {
 };
 template<auto V>
 constexpr inline bool value_always_true_v = value_always_true<V>::value;
-
-//
-// HasTupleSize
-//
-
-template<class T>
-concept HasTupleSize = requires {
-  typename std::tuple_size<T>::type;
-  { std::tuple_size_v<T> } -> convertible_to<size_t>;
-};
-
-static_assert(HasTupleSize<std::tuple<>>);
-static_assert(!HasTupleSize<std::vector<int>>);
-static_assert(!HasTupleSize<int>);
-
-//
-// IsTupleLike
-//
-
-namespace revng::detail {
-
-template<class T, std::size_t N>
-concept HasTupleElement = requires(T Value) {
-  typename std::tuple_element_t<N, std::remove_const_t<T>>;
-  { get<N>(Value) } -> convertible_to<std::tuple_element_t<N, T> &>;
-};
-
-template<typename T, size_t... N>
-constexpr auto checkTupleElementTypes(std::index_sequence<N...>) {
-  return (HasTupleElement<T, N> && ...);
-}
-
-template<HasTupleSize T>
-constexpr auto checkAllTupleElementTypes() {
-  auto Sequence = std::make_index_sequence<std::tuple_size_v<T>>();
-  return checkTupleElementTypes<T>(Sequence);
-}
-
-} // namespace revng::detail
-
-// clang-format off
-template<class T>
-concept IsTupleLike = (not std::is_reference_v<T>
-                       and HasTupleSize<T>
-                       and revng::detail::checkAllTupleElementTypes<T>());
-// clang-format on
-
-static_assert(IsTupleLike<std::tuple<>>);
-static_assert(IsTupleLike<std::tuple<int, int, long>>);
-static_assert(IsTupleLike<std::pair<int, int>>);
-static_assert(IsTupleLike<std::array<int, 0>>);
-static_assert(not IsTupleLike<int>);
 
 //===----------------------------------------------------------------------===//
 //     Extra additions to <iterator>

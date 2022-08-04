@@ -20,7 +20,6 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/ADT/KeyedObjectContainer.h"
-#include "revng/ADT/KeyedObjectTraits.h"
 #include "revng/ADT/UpcastablePointer.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
@@ -54,7 +53,7 @@ public:
   TupleTree(TupleTree &&Other) = default;
   TupleTree &operator=(TupleTree &&Other) = default;
 
-  template<IsTupleTreeReference TTR>
+  template<StrictSpecializationOf<TupleTreeReference> TTR>
   void replaceReferences(const std::map<TTR, TTR> &Map) {
     auto Visitor = [&Map](TTR &Reference) {
       auto It = Map.find(Reference);
@@ -71,7 +70,7 @@ public:
     Result.Root = std::make_unique<T>();
     llvm::yaml::Input YAMLInput(YAMLString);
 
-    auto MaybeRoot = detail::deserializeImpl<T>(YAMLString);
+    auto MaybeRoot = revng::detail::deserializeImpl<T>(YAMLString);
     if (not MaybeRoot)
       return llvm::errorToErrorCode(MaybeRoot.takeError());
 
@@ -127,7 +126,7 @@ public:
   void visitReferences(const L &InnerVisitor) {
     auto Visitor = [&InnerVisitor](auto &Element) {
       using type = std::remove_cvref_t<decltype(Element)>;
-      if constexpr (IsTupleTreeReference<type>)
+      if constexpr (StrictSpecializationOf<type, TupleTreeReference>)
         InnerVisitor(Element);
     };
 
@@ -138,7 +137,7 @@ public:
   void visitReferences(const L &InnerVisitor) const {
     auto Visitor = [&InnerVisitor](const auto &Element) {
       using type = std::remove_cvref_t<decltype(Element)>;
-      if constexpr (IsTupleTreeReference<type>)
+      if constexpr (StrictSpecializationOf<type, TupleTreeReference>)
         InnerVisitor(Element);
     };
 

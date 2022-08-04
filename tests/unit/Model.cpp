@@ -38,12 +38,13 @@ BOOST_AUTO_TEST_CASE(TestIntrospection) {
   static_assert(std::tuple_size<Function>::value >= 2);
 
   // Test TupleLikeTraits
+  static_assert(TraitedTupleLike<Function>);
   using TLT = TupleLikeTraits<Function>;
   static_assert(std::is_same_v<std::tuple_element_t<1, Function>,
                                decltype(TheFunction.CustomName)>);
   revng_check(StringRef(TLT::Name) == "Function");
   revng_check(StringRef(TLT::FullName) == "model::Function");
-  revng_check(StringRef(TLT::FieldsName[1]) == "CustomName");
+  revng_check(StringRef(TLT::FieldNames[1]) == "CustomName");
 }
 
 BOOST_AUTO_TEST_CASE(TestPathAccess) {
@@ -152,7 +153,7 @@ public:
 
 INTROSPECTION_NS(TestTupleTree, Root, Elements)
 
-static_assert(IsTupleLike<TestTupleTree::Root>);
+static_assert(TupleLike<TestTupleTree::Root>);
 
 BOOST_AUTO_TEST_CASE(TestTupleTreeReference) {
   using namespace TestTupleTree;

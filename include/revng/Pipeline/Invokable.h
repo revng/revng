@@ -25,18 +25,11 @@
 namespace pipeline {
 
 template<typename T>
-concept IsContext = std::is_convertible_v<T, Context &>;
-
-template<typename T>
-concept IsConstContext = std::is_convertible_v<T, const Context &>;
-
-template<typename T>
-concept IsContainer = std::is_base_of_v<ContainerBase, std::decay_t<T>>;
-
-template<typename T>
 concept HasName = requires() {
   { T::Name } -> convertible_to<const char *>;
 };
+
+// clang-format off
 
 /// A Invokable is a class with the following characteristics:
 ///
@@ -45,8 +38,11 @@ concept HasName = requires() {
 /// * a void run(T...) method where the first argument must be a Context and
 ///   every other type must be the most derived type of a Container.
 template<typename InvokableType, typename FirstRunArg, typename... Rest>
-concept Invokable = HasName<InvokableType> and(IsContainer<Rest> and...)
-                    and (IsContext<FirstRunArg> || IsConstContext<FirstRunArg>);
+concept Invokable = (derived_from<std::decay_t<Rest>, ContainerBase> and ...)
+                    and convertible_to<Context &, std::remove_cv_t<FirstRunArg>>
+                    and HasName<InvokableType>;
+
+// clang-format on
 
 namespace detail {
 using StringArrayRef = llvm::ArrayRef<std::string>;

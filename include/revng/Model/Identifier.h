@@ -7,7 +7,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 
-#include "revng/ADT/KeyedObjectTraits.h"
+#include "revng/ADT/KeyedObjectContainer.h"
 #include "revng/Model/VerifyHelper.h"
 
 namespace model {

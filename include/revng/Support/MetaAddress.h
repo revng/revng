@@ -6,7 +6,7 @@
 
 #include "llvm/ADT/Triple.h"
 
-#include "revng/ADT/KeyedObjectTraits.h"
+#include "revng/ADT/KeyedObjectContainer.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/OverflowSafeInt.h"
 
@@ -639,7 +639,7 @@ public:
   ///
   /// @{
 
-  template<Integral T>
+  template<integral T>
   MetaAddress &operator+=(T Offset) {
     if (isInvalid())
       return *this;
@@ -668,7 +668,7 @@ public:
     return *this;
   }
 
-  template<Integral T>
+  template<integral T>
   MetaAddress &operator-=(T Offset) {
     if (isInvalid())
       return *this;
@@ -697,14 +697,14 @@ public:
     return *this;
   }
 
-  template<Integral T>
+  template<integral T>
   MetaAddress operator+(T Offset) const {
     MetaAddress Result = *this;
     Result += Offset;
     return Result;
   }
 
-  template<Integral T>
+  template<integral T>
   MetaAddress operator-(T Offset) const {
     MetaAddress Result = *this;
     Result -= Offset;
