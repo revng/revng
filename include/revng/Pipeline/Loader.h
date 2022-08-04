@@ -267,8 +267,7 @@ LLVM_YAML_IS_SEQUENCE_VECTOR(pipeline::AnalysisDeclaration)
 LLVM_YAML_IS_SEQUENCE_VECTOR(pipeline::BranchDeclaration)
 
 template<>
-struct llvm::yaml::MappingTraits<pipeline::PipelineDeclaration>
-  : public TupleLikeMappingTraits<pipeline::PipelineDeclaration> {
+struct llvm::yaml::MappingTraits<pipeline::PipelineDeclaration> {
   static void mapping(IO &TheIO, pipeline::PipelineDeclaration &Info) {
     TheIO.mapOptional("Containers", Info.Containers);
     TheIO.mapRequired("Branches", Info.Branches);
@@ -277,8 +276,7 @@ struct llvm::yaml::MappingTraits<pipeline::PipelineDeclaration>
 };
 
 template<>
-struct llvm::yaml::MappingTraits<pipeline::BranchDeclaration>
-  : public TupleLikeMappingTraits<pipeline::BranchDeclaration> {
+struct llvm::yaml::MappingTraits<pipeline::BranchDeclaration> {
   static void mapping(IO &TheIO, pipeline::BranchDeclaration &Info) {
     TheIO.mapOptional("From", Info.From);
     TheIO.mapRequired("Steps", Info.Steps);
