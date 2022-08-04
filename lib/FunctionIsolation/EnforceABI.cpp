@@ -69,7 +69,7 @@ class EnforceABIImpl {
 public:
   EnforceABIImpl(Module &M,
                  GeneratedCodeBasicInfo &GCBI,
-                 model::Binary &Binary) :
+                 const model::Binary &Binary) :
     M(M),
     GCBI(GCBI),
     FunctionDispatcher(M.getFunction("function_dispatcher")),
@@ -102,7 +102,7 @@ private:
   Function *FunctionDispatcher;
   LLVMContext &Context;
   StructInitializers Initializers;
-  model::Binary &Binary;
+  const model::Binary &Binary;
   StructType *MetaAddressStruct;
 };
 
@@ -111,7 +111,7 @@ bool EnforceABI::runOnModule(Module &M) {
   auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
   // TODO: prepopulate type system with basic types of the ABI, so this can be
   //       const
-  model::Binary &Binary = *ModelWrapper.getWriteableModel().get();
+  const model::Binary &Binary = *ModelWrapper.getReadOnlyModel().get();
 
   EnforceABIImpl Impl(M, GCBI, Binary);
   Impl.run();
