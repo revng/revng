@@ -8,11 +8,11 @@ commands:
       - type: revng.lifted
         filter: for-collect-cfg
     command: |-
-      revng opt \
-        --collect-functions-from-callees \
-        --detect-abi \
-        --collect-cfg \
-        "$INPUT" | \
-        revng efa-extractcfg | \
-        revng model to-json --remap | \
+      revng opt
+        --collect-functions-from-callees
+        --detect-abi
+        --collect-cfg
+        "$INPUT" |
+        revng efa-extractcfg |
+        revng model to-json --remap |
         revng model compare "${SOURCE}.cfg.yml"

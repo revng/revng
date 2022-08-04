@@ -92,7 +92,7 @@ bool CollectCFGPass::runOnModule(Module &M) {
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
   auto &LMP = getAnalysis<LoadModelWrapperPass>().get();
 
-  TupleTree<model::Binary> &Binary = LMP.getWriteableModel();
+  const TupleTree<model::Binary> &Binary = LMP.getReadOnlyModel();
 
   FunctionSummaryOracle Oracle;
   importModel(M, GCBI, *Binary, Oracle);

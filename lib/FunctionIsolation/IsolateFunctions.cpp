@@ -32,7 +32,9 @@
 #include "revng/EarlyFunctionAnalysis/BasicBlock.h"
 #include "revng/EarlyFunctionAnalysis/CallHandler.h"
 #include "revng/EarlyFunctionAnalysis/FunctionEdge.h"
+#include "revng/EarlyFunctionAnalysis/FunctionEdgeBase.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
+#include "revng/EarlyFunctionAnalysis/Generated/ForwardDecls.h"
 #include "revng/EarlyFunctionAnalysis/IRHelpers.h"
 #include "revng/EarlyFunctionAnalysis/Outliner.h"
 #include "revng/FunctionIsolation/IsolateFunctions.h"
@@ -413,7 +415,31 @@ private:
   void handleCall(llvm::IRBuilder<> &Builder,
                   MetaAddress Callee,
                   llvm::Value *SymbolNamePointer) {
+    // Identify caller block
+    const auto *Caller = FM.findBlock(IFI.gcbi(), Builder.GetInsertBlock());
+
+    // Identify call edge
+    auto IsCallEdge = [](const UpcastablePointer<efa::FunctionEdgeBase> &E) {
+      return isa<efa::CallEdge>(E.get());
+    };
+    auto ZeroOrOneCallEdge = [](const auto &Range,
+                                const auto &Predicate) -> efa::CallEdge * {
+      auto *Result = zeroOrOne(Range, Predicate);
+      if (Result == nullptr)
+        return nullptr;
+      else
+        return dyn_cast<efa::CallEdge>(Result->get());
+    };
+    const auto *CallEdge = ZeroOrOneCallEdge(Caller->Successors, IsCallEdge);
+
+    if (CallEdge == nullptr) {
+      // There's no CallEdge, this is likely a LongJmp
+      return;
+    }
+
     StringRef SymbolName = extractFromConstantStringPtr(SymbolNamePointer);
+    revng_assert(SymbolName == CallEdge->DynamicFunction);
+    revng_assert(Callee == CallEdge->Destination);
 
     // Identify callee
     Function *CalledFunction = nullptr;
@@ -435,7 +461,6 @@ private:
     auto *NewCall = Builder.CreateCall(CalledFunction);
     NewCall->setDebugLoc(Old->getDebugLoc());
     FunctionTags::CallToLifted.addTo(NewCall);
-    const auto *Caller = FM.findBlock(IFI.gcbi(), NewCall->getParent());
     IFI.gcbi().setMetaAddressMetadata(NewCall,
                                       CallerBlockStartMDName,
                                       Caller->Start);

@@ -347,6 +347,7 @@ Outliner::outlineFunctionInternal(llvm::BasicBlock *Entry,
   // Extract outlined function
   CodeExtractorAnalysisCache CEAC(*M.getFunction("root"));
   llvm::Function *F = CodeExtractor(BlocksToExtract).extractCodeRegion(CEAC);
+  F->addFnAttr(Attribute::NullPointerIsValid);
   OutlinedFunction.Function = UniqueValuePtr<llvm::Function>(F);
 
   revng_assert(OutlinedFunction.Function != nullptr);
