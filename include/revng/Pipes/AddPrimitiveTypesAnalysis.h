@@ -13,22 +13,21 @@
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/FileContainer.h"
+#include "revng/Pipes/Kinds.h"
 
 namespace revng::pipes {
 
-class AddPrimitiveTypesPipe {
+class AddPrimitiveTypesAnalysis {
 public:
-  static constexpr const auto Name = model::AddPrimitiveTypesFlag;
+  static constexpr const auto Name = "AddPrimitiveTypes";
 
 public:
-  std::array<pipeline::ContractGroup, 1> getContract() const { return {}; }
+  std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {
+    { &revng::pipes::Binary }
+  };
 
 public:
   void run(pipeline::Context &Context, const FileContainer &SourceBinary);
-
-  void print(const pipeline::Context &Ctx,
-             llvm::raw_ostream &OS,
-             llvm::ArrayRef<std::string> ContainerNames) const;
 };
 
 } // namespace revng::pipes

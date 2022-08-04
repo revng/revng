@@ -13,11 +13,14 @@ Containers:
     Type: Translated
 Branches:
   - Steps:
+      - Name: Import
+        Analyses:
+          - Name: AddPrimitiveTypes
+            Type: AddPrimitiveTypes
+            UsedContainers: [input]
       - Name: Lift
         Pipes:
           - Type: ImportBinary
-            UsedContainers: [input]
-          - Type: add-primitive-types
             UsedContainers: [input]
           - Type: Lift
             UsedContainers: [input, module.ll]

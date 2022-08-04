@@ -5,7 +5,7 @@
 revng_add_library_internal(
   revngPipes
   SHARED
-  AddPrimitiveTypesPipe.cpp
+  AddPrimitiveTypesAnalysis.cpp
   AllFunctions.cpp
   CompileModulePipe.cpp
   FileContainer.cpp
