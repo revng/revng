@@ -9,16 +9,16 @@
 #include "revng/Model/Importer/Binary/BinaryImporter.h"
 #include "revng/Model/Importer/Binary/BinaryImporterOptions.h"
 #include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
-#include "revng/Pipeline/RegisterPipe.h"
-#include "revng/Pipes/ImportBinaryPipe.h"
+#include "revng/Pipeline/RegisterAnalysis.h"
+#include "revng/Pipes/ImportBinaryAnalysis.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Support/ResourceFinder.h"
 #include "revng/TupleTree/TupleTree.h"
 
 using namespace revng::pipes;
 
-void revng::pipes::ImportBinaryPipe::run(pipeline::Context &Context,
-                                         const FileContainer &SourceBinary) {
+void ImportBinaryAnalysis::run(pipeline::Context &Context,
+                               const FileContainer &SourceBinary) {
   if (not SourceBinary.exists())
     return;
 
@@ -33,11 +33,4 @@ void revng::pipes::ImportBinaryPipe::run(pipeline::Context &Context,
   }
 }
 
-void ImportBinaryPipe::print(const pipeline::Context &Ctx,
-                             llvm::raw_ostream &OS,
-                             llvm::ArrayRef<std::string> Names) const {
-  OS << *revng::ResourceFinder.findFile("bin/revng");
-  OS << " model import binary " << Names[0] << " -o model.yml";
-}
-
-static pipeline::RegisterPipe<ImportBinaryPipe> E;
+static pipeline::RegisterAnalysis<ImportBinaryAnalysis> E;
