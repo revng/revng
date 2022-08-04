@@ -50,7 +50,7 @@ struct Trait;
 /// the requirements for an ABI defining calling convention trait.
 template<template<model::ABI::Values> typename TraitType,
          model::ABI::Values ABI>
-concept IsTrait = requires(TraitType<ABI> Trait) {
+concept TraitLike = requires(TraitType<ABI> Trait) {
 
   /// Indicates the ABI this `Trait` specialization describes.
   { Trait.ABI } -> convertible_to<model::ABI::Values>;
@@ -250,11 +250,10 @@ consteval bool verifyTraitSpecializations() {
     return true;
   } else {
     constexpr model::ABI::Values CurrentABI = model::ABI::Values(StartFrom);
-    constexpr bool IsValid = IsTrait<Trait, CurrentABI>;
-    static_assert(IsValid); // Improves error messages.
+    static_assert(TraitLike<Trait, CurrentABI>); // Improves error messages.
 
     constexpr bool R = verifyTraitSpecializations<Trait, StartFrom + 1>();
-    return IsValid && R;
+    return TraitLike<Trait, CurrentABI> && R;
   }
 }
 static_assert(verifyTraitSpecializations<Trait, 1>());
