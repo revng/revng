@@ -10,6 +10,8 @@
 #include "revng/Model/Binary.h"
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/Tag.h"
+#include "revng/Pipeline/Location.h"
+#include "revng/Pipes/Ranks.h"
 #include "revng/Yield/ControlFlow/FallthroughDetection.h"
 #include "revng/Yield/Function.h"
 #include "revng/Yield/PTML.h"
@@ -89,25 +91,31 @@ static std::string indent() {
 static std::string targetPath(const MetaAddress &Target,
                               const yield::Function &Function,
                               const model::Binary &Binary) {
+  using pipeline::serializedLocation;
+  namespace ranks = revng::pipes::ranks;
   if (auto Iterator = Binary.Functions.find(Target);
       Iterator != Binary.Functions.end()) {
     // The target is a function
-    return "/function/" + str(Iterator->key());
+    return serializedLocation(ranks::Function, Iterator->Entry);
   } else if (auto Iterator = Function.ControlFlowGraph.find(Target);
              Iterator != Function.ControlFlowGraph.end()) {
     // The target is a basic block
-    return "/basic-block/" + str(Function.key()) + "/"
-           + Iterator->Start.toString();
+    return serializedLocation(ranks::BasicBlock,
+                              Function.Entry,
+                              Iterator->Start);
   } else if (Target.isValid()) {
-    for (auto BasicBlock : Function.ControlFlowGraph) {
-      for (auto Instruction : BasicBlock.Instructions) {
-        if (Instruction.Address == Target) {
-          return "/instruction/" + str(Function.key()) + "/"
-                 + BasicBlock.Start.toString() + "/" + Target.toString();
-        }
+    for (const auto &Block : Function.ControlFlowGraph) {
+      if (Block.Instructions.find(Target) != Block.Instructions.end()) {
+        // The target is an instruction
+        return serializedLocation(ranks::Instruction,
+                                  Function.Entry,
+                                  Block.Start,
+                                  Target);
       }
     }
   }
+
+  // The target is not known
   return "";
 }
 
@@ -219,12 +227,15 @@ static std::string instruction(const yield::Instruction &Instruction,
   std::string Result = taggedText(Instruction);
   size_t Tail = Instruction.Disassembled.size() + 1;
 
+  using pipeline::serializedLocation;
+  namespace ranks = revng::pipes::ranks;
   Tag Out = Tag(tags::Div, std::move(Result))
               .addAttribute(attributes::Scope, scopes::Instruction)
               .addAttribute(attributes::LocationDefinition,
-                            "/instruction/" + str(Function.key()) + "/"
-                              + BasicBlock.Start.toString() + "/"
-                              + Instruction.Address.toString());
+                            serializedLocation(ranks::Instruction,
+                                               Function.Entry,
+                                               BasicBlock.Start,
+                                               Instruction.Address));
 
   if (AddTargets) {
     auto Targets = targets(BasicBlock, Function, Binary);
@@ -296,10 +307,12 @@ std::string yield::ptml::functionAssembly(const yield::Function &Function,
     Result += labeledBlock<true>(BasicBlock, Function, Binary);
   }
 
+  using pipeline::serializedLocation;
+  namespace ranks = revng::pipes::ranks;
   return ::Tag(tags::Div, Result)
     .addAttribute(attributes::Scope, scopes::Function)
     .addAttribute(attributes::LocationDefinition,
-                  "/function/" + str(Function.key()))
+                  serializedLocation(ranks::Function, Function.Entry))
     .serialize();
 }
 
