@@ -19,7 +19,7 @@ namespace revng::pipes {
 
 class ProcessCallGraphPipe {
 public:
-  static constexpr const auto Name = "process-call-graph";
+  static constexpr const auto Name = "ProcessCallGraph";
 
 public:
   std::array<pipeline::ContractGroup, 1> getContract() const;

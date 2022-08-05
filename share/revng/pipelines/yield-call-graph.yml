@@ -11,5 +11,5 @@ Branches:
     Steps:
       - Name: ProcessCallGraph
         Pipes:
-          - Type: process-call-graph
+          - Type: ProcessCallGraph
             UsedContainers: [module.ll, cross-relations.yml]

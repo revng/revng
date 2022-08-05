@@ -17,7 +17,7 @@ namespace revng::pipes {
 
 class YieldAssemblyPipe {
 public:
-  static constexpr const auto Name = "yield-assembly";
+  static constexpr const auto Name = "YieldAssembly";
 
 public:
   std::array<pipeline::ContractGroup, 1> getContract() const;

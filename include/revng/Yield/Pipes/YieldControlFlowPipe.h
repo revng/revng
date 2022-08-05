@@ -17,7 +17,7 @@ namespace revng::pipes {
 
 class YieldControlFlowPipe {
 public:
-  static constexpr const auto Name = "yield-cfg";
+  static constexpr const auto Name = "YieldCFG";
 
 public:
   std::array<pipeline::ContractGroup, 1> getContract() const;
