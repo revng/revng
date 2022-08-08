@@ -17,20 +17,24 @@
 
 using namespace revng::pipes;
 
-void ImportBinaryAnalysis::run(pipeline::Context &Context,
-                               const FileContainer &SourceBinary) {
+llvm::Error ImportBinaryAnalysis::run(pipeline::Context &Context,
+                                      const FileContainer &SourceBinary) {
   if (not SourceBinary.exists())
-    return;
+    return llvm::Error::success();
 
   TupleTree<model::Binary> &Model = getWritableModelFromContext(Context);
 
-  revng_check(not importBinary(Model, *SourceBinary.path(), BaseAddress));
+  if (auto Error = importBinary(Model, *SourceBinary.path(), BaseAddress);
+      Error)
+    return Error;
 
   if (ImportDebugInfo.size() > 0) {
     DwarfImporter Importer(Model);
     for (const std::string &Path : ImportDebugInfo)
       Importer.import(Path);
   }
+
+  return llvm::Error::success();
 }
 
 static pipeline::RegisterAnalysis<ImportBinaryAnalysis> E;

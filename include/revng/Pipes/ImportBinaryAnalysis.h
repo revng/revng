@@ -24,7 +24,8 @@ public:
   };
 
 public:
-  void run(pipeline::Context &Context, const FileContainer &SourceBinary);
+  llvm::Error
+  run(pipeline::Context &Context, const FileContainer &SourceBinary);
 };
 
 } // namespace revng::pipes

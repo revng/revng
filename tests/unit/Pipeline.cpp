@@ -1373,7 +1373,8 @@ BOOST_AUTO_TEST_CASE(PipeOptions) {
     return std::make_unique<MapContainer>(Name);
   });
   Set["container_name"];
-  W.run(Ctx, Set, {});
+  if (auto Error = W.run(Ctx, Set, {}); Error)
+    BOOST_FAIL("unrechable");
 }
 
 BOOST_AUTO_TEST_SUITE_END()

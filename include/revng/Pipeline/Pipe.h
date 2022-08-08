@@ -29,6 +29,7 @@
 namespace pipeline {
 
 namespace detail {
+
 template<typename T>
 concept HasContract = requires(T P) {
   { llvm::ArrayRef<ContractGroup>(P.getContract()) };
@@ -45,7 +46,7 @@ concept HasPrecondition = requires(const T &P) {
 
 template<typename C, typename First, typename... Rest>
 constexpr bool
-checkPipe(void (C::*)(First, Rest...)) requires Pipe<C, First, Rest...> {
+checkPipe(auto (C::*)(First, Rest...)) requires Pipe<C, First, Rest...> {
   return true;
 }
 
@@ -148,10 +149,10 @@ public:
     Invokable.print(Ctx, OS, Indentation);
   }
 
-  void run(Context &Ctx,
-           ContainerSet &Containers,
-           const llvm::StringMap<std::string> &ExtraArgs) override {
-    Invokable.run(Ctx, Containers, ExtraArgs);
+  llvm::Error run(Context &Ctx,
+                  ContainerSet &Containers,
+                  const llvm::StringMap<std::string> &ExtraArgs) override {
+    return Invokable.run(Ctx, Containers, ExtraArgs);
   }
 
   std::vector<std::string> getOptionsNames() const override {

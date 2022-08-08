@@ -90,7 +90,7 @@ ContainerSet Step::cloneAndRun(Context &Ctx, ContainerSet &&Input) {
 
   for (auto &Pipe : Pipes) {
     explainExecutedPipe(Ctx, *Pipe);
-    Pipe->run(Ctx, Input);
+    cantFail(Pipe->run(Ctx, Input));
     llvm::cantFail(Input.verify());
   }
   explainEndStep(Input.enumerate());
@@ -99,10 +99,10 @@ ContainerSet Step::cloneAndRun(Context &Ctx, ContainerSet &&Input) {
   return Containers.cloneFiltered(InputEnumeration);
 }
 
-void Step::runAnalysis(llvm::StringRef AnalysisName,
-                       Context &Ctx,
-                       const ContainerToTargetsMap &Targets,
-                       const llvm::StringMap<std::string> &ExtraArgs) {
+llvm::Error Step::runAnalysis(llvm::StringRef AnalysisName,
+                              Context &Ctx,
+                              const ContainerToTargetsMap &Targets,
+                              const llvm::StringMap<std::string> &ExtraArgs) {
   auto Stream = ExplanationLogger.getAsLLVMStream();
   ContainerToTargetsMap Map = Containers.enumerate();
   revng_assert(Map.contains(Targets),
@@ -113,7 +113,7 @@ void Step::runAnalysis(llvm::StringRef AnalysisName,
   explainExecutedPipe(Ctx, *TheAnalysis);
 
   auto Cloned = Containers.cloneFiltered(Targets);
-  TheAnalysis->run(Ctx, Cloned, ExtraArgs);
+  return TheAnalysis->run(Ctx, Cloned, ExtraArgs);
 }
 
 void Step::removeSatisfiedGoals(TargetsList &RequiredInputs,
