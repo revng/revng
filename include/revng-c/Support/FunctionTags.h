@@ -46,7 +46,7 @@ inline Tag DecompiledToYAML("DecompiledToYAML", StackPointerPromoted);
 
 inline const llvm::CallInst *
 isCallToTagged(const llvm::Value *V, FunctionTags::Tag &T) {
-  if (auto *Call = llvm::dyn_cast<llvm::CallInst>(V))
+  if (auto *Call = llvm::dyn_cast_or_null<llvm::CallInst>(V))
     if (auto *CalledFunc = Call->getCalledFunction())
       if (T.isTagOf(CalledFunc))
         return Call;
@@ -55,7 +55,7 @@ isCallToTagged(const llvm::Value *V, FunctionTags::Tag &T) {
 }
 
 inline llvm::CallInst *isCallToTagged(llvm::Value *V, FunctionTags::Tag &T) {
-  if (auto *Call = llvm::dyn_cast<llvm::CallInst>(V))
+  if (auto *Call = llvm::dyn_cast_or_null<llvm::CallInst>(V))
     if (auto *CalledFunc = Call->getCalledFunction())
       if (T.isTagOf(CalledFunc))
         return Call;
