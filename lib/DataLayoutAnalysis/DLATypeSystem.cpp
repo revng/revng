@@ -8,6 +8,7 @@
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/raw_ostream.h"
@@ -211,6 +212,14 @@ LayoutTypeSystemNode *LayoutTypeSystem::createArtificialLayoutType() {
   bool Success = Layouts.insert(New).second;
   revng_assert(Success);
   return New;
+}
+
+SmallVector<LayoutTypeSystemNode *, 2>
+LayoutTypeSystem::createArtificialLayoutTypes(unsigned N) {
+  llvm::SmallVector<LayoutTypeSystemNode *, 2> Result;
+  while (N--)
+    Result.push_back(createArtificialLayoutType());
+  return Result;
 }
 
 static void

@@ -218,6 +218,9 @@ public:
 public:
   LayoutTypeSystemNode *createArtificialLayoutType();
 
+  llvm::SmallVector<LayoutTypeSystemNode *, 2>
+  createArtificialLayoutTypes(unsigned N);
+
 protected:
   // This method is templated only to enable perfect forwarding.
   template<typename TagT>
