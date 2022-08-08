@@ -16,7 +16,7 @@ namespace pipeline {
 
 class Kind;
 
-/// Instantiate a global object of this class for each kind you whish to
+/// Instantiate a global object of this class for each kind you wish to
 /// register
 class RegisterKind : Registry {
 private:

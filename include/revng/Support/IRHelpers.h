@@ -480,12 +480,9 @@ inline llvm::BasicBlock *blockByName(llvm::Function *F, const char *Name) {
   return nullptr;
 }
 
-template<typename T>
-concept DerivedFromLLVMValue = std::is_base_of_v<llvm::Value,
-                                                 std::remove_const_t<T>>;
-
 /// \brief Specialization of writeToLog for llvm::Value-derived types
-template<DerivedFromLLVMValue T>
+template<typename T>
+requires derived_from<llvm::Value, std::remove_const_t<T>>
 inline void writeToLog(Logger<true> &This, T *I, int) {
   if (I != nullptr)
     This << getName(I);

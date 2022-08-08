@@ -7,8 +7,9 @@
 #include "llvm/ADT/GraphTraits.h"
 
 #include "revng/ADT/GenericGraph.h"
-#include "revng/ADT/KeyedObjectTraits.h"
+#include "revng/ADT/KeyedObjectContainer.h"
 #include "revng/ADT/SortedVector.h"
+#include "revng/TupleTree/Introspection.h"
 #include "revng/TupleTree/TupleTree.h"
 
 //
@@ -37,7 +38,7 @@ public:
 };
 
 template<typename NodeType, typename EdgeLabel>
-class KeyedObjectTraits<SerializableEdge<NodeType, EdgeLabel>> {
+struct KeyedObjectTraits<SerializableEdge<NodeType, EdgeLabel>> {
 private:
   using KOC = KeyedObjectTraits<NodeType>;
 
@@ -78,7 +79,7 @@ public:
 };
 
 template<typename NodeType, typename EdgeLabel>
-class KeyedObjectTraits<SerializableNode<NodeType, EdgeLabel>> {
+struct KeyedObjectTraits<SerializableNode<NodeType, EdgeLabel>> {
 private:
   using KOC = KeyedObjectTraits<NodeType>;
 
@@ -174,8 +175,18 @@ toSerializable(const G &Graph) {
 //
 // Make `struct Empty` serialiazible
 //
+
 template<>
 struct std::tuple_size<Empty> : std::integral_constant<size_t, 0> {};
+
+template<>
+struct TupleLikeTraits<Empty> {
+  static constexpr const llvm::StringRef Name = "Empty";
+  static constexpr const llvm::StringRef FullName = "Empty";
+  using tuple = std::tuple<>;
+  static constexpr std::array<llvm::StringRef, 0> FieldNames{};
+  enum class Fields {};
+};
 
 template<>
 struct llvm::yaml::MappingTraits<Empty> : public TupleLikeMappingTraits<Empty> {

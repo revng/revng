@@ -16,6 +16,7 @@
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/PathComponent.h"
 #include "revng/Pipeline/Target.h"
+#include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/FunctionKind.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
@@ -43,4 +44,23 @@ TaggedFunctionKind::symbolToTarget(const llvm::Function &Symbol) const {
   auto Address = getMetaAddressOfIsolatedFunction(Symbol);
   revng_assert(Address.isValid());
   return pipeline::Target({ Address.toString() }, *this);
+}
+
+using TaggedFK = TaggedFunctionKind;
+void TaggedFK::getInvalidations(const Context &Ctx,
+                                TargetsList &ToRemove,
+                                const GlobalTupleTreeDiff &Diff) const {
+  const auto &CurrentModel = getModelFromContext(Ctx);
+
+  if (not Ctx.containsReadOnlyContainer(BinaryCrossRelationsRole))
+    return;
+
+  static constexpr auto BCRR = BinaryCrossRelationsRole;
+  const auto &Container = Ctx.getReadOnlyContainer<FileContainer>(BCRR);
+
+  const auto *ModelDiff = Diff.getAs<model::Binary>();
+  if (not ModelDiff)
+    return;
+
+  // ToRemove.push_back(Target("0x1000", *this));
 }

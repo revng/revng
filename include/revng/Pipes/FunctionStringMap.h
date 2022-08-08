@@ -51,7 +51,7 @@ public:
     Map(),
     TheKind(&K),
     Model(&Model) {
-    revng_assert(&K.rank() == &FunctionsRank);
+    revng_assert(&K.rank() == &ranks::Function);
   }
 
   FunctionStringMap(const FunctionStringMap &) = default;

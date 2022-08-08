@@ -85,7 +85,7 @@ void route(const OrderedEdgeContainer &OrderedListOfEdges,
 template<yield::sugiyama::RankingStrategy RS>
 inline bool calculateSugiyamaLayout(ExternalGraph &Graph,
                                     const Configuration &Configuration) {
-  static_assert(IsMutableEdgeNode<InternalNode>,
+  static_assert(StrictSpecializationOfMutableEdgeNode<InternalNode>,
                 "LayouterSugiyama requires mutable edge nodes.");
 
   // Prepare the graph for the layouter: this converts `Graph` into

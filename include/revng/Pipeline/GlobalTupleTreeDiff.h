@@ -62,7 +62,7 @@ private:
   std::unique_ptr<GlobalTupleTreeDiffBase> Diff;
 
 public:
-  template<typename T>
+  template<TupleTreeCompatible T>
   GlobalTupleTreeDiff(TupleTreeDiff<T> Diff) :
     Diff(new GlobalTupleTreeDiffImpl<T>(std::move(Diff))) {}
 
@@ -83,7 +83,7 @@ public:
 
   void serialize(llvm::raw_ostream &OS) const { Diff->serialize(OS); }
 
-  template<typename T>
+  template<TupleTreeCompatible T>
   const TupleTreeDiff<T> *getAs() const {
     const auto *Casted = llvm::dyn_cast<GlobalTupleTreeDiffImpl<T>>(Diff.get());
     if (not Casted)
@@ -92,7 +92,7 @@ public:
     return &Casted->getDiff();
   }
 
-  template<typename T>
+  template<TupleTreeCompatible T>
   TupleTreeDiff<T> *getAs() {
     const auto *Casted = llvm::dyn_cast<GlobalTupleTreeDiffImpl<T>>(Diff.get());
     if (not Casted)

@@ -1,0 +1,15 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+Containers:
+  - Name: cross-relations.yml
+    Type: BinaryCrossRelations
+    Role: CrossRelations
+Branches:
+  - From: Isolate
+    Steps:
+      - Name: ProcessCallGraph
+        Pipes:
+          - Type: ProcessCallGraph
+            UsedContainers: [module.ll, cross-relations.yml]

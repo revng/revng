@@ -9,46 +9,58 @@
 
 #include "llvm/Support/YAMLTraits.h"
 
-#include "revng/ADT/KeyedObjectTraits.h"
 #include "revng/ADT/STLExtras.h"
 #include "revng/ADT/UpcastablePointer.h"
 #include "revng/Support/Assert.h"
 
 template<typename T>
-using KOTKey = decltype(KeyedObjectTraits<T>::key(std::declval<T>()));
+struct KeyedObjectTraits;
 
-template<HasKeyObjectTraits T>
-using KOTCompare = std::less<const KOTKey<T>>;
+// clang-format off
+template<typename T, typename Traits = KeyedObjectTraits<T>>
+concept KeyedObjectContainerCompatible = requires(T A) {
+  { Traits::key(A) };
+  { Traits::fromKey(Traits::key(A)) } -> std::same_as<T>;
+} && std::is_same_v<Traits, KeyedObjectTraits<T>>;
+// clang-format on
 
-template<HasKeyObjectTraits T, class Compare = KOTCompare<T>>
-class MutableSet;
+/// Inherit if T is the key of itself
+template<typename T>
+struct IdentityKeyedObjectTraits {
+  static T key(const T &Obj) { return Obj; }
 
-template<HasKeyObjectTraits T, class Compare = KOTCompare<T>>
-class SortedVector;
+  static T fromKey(T Obj) { return Obj; }
+};
 
-//
-// IsKeyedObjectContainer
-//
+/// Trivial specializations
+template<integral T>
+struct KeyedObjectTraits<T> : public IdentityKeyedObjectTraits<T> {};
+
+template<>
+struct KeyedObjectTraits<std::string>
+  : public IdentityKeyedObjectTraits<std::string> {};
+
+static_assert(KeyedObjectContainerCompatible<int>);
+
+template<typename T>
+concept KeyedObjectContainer = requires(T &&) {
+  T::KeyedObjectContainerTag;
+};
+
 namespace revng::detail {
 
-template<typename T>
-concept IsMutableSet = is_specialization_v<T, MutableSet>;
+  template<KeyedObjectContainerCompatible T>
+  using KOT = KeyedObjectTraits<T>;
 
-template<typename T>
-concept IsSortedVector = is_specialization_v<T, SortedVector>;
-
-template<typename T>
-concept IsKOC = IsMutableSet<T> or IsSortedVector<T>;
+  template<KeyedObjectContainerCompatible T>
+  using Key = std::decay_t<decltype(KOT<T>::key(std::declval<T>()))>;
 
 } // namespace revng::detail
 
-template<typename T>
-concept IsKeyedObjectContainer = revng::detail::IsKOC<T>;
+template<KeyedObjectContainerCompatible T>
+using DefaultKeyObjectComparator = std::less<const revng::detail::Key<T>>;
 
-static_assert(IsKeyedObjectContainer<MutableSet<int>>);
-static_assert(IsKeyedObjectContainer<SortedVector<int>>);
-
-template<IsKeyedObjectContainer T>
+template<KeyedObjectContainer T>
 struct llvm::yaml::SequenceTraits<T> {
   static size_t size(IO &TheIO, T &Seq) { return Seq.size(); }
 
@@ -99,70 +111,3 @@ struct llvm::yaml::SequenceTraits<T> {
     };
   };
 };
-
-//
-// Iterable
-//
-template<typename T>
-concept Iterable = requires {
-  // * begin/end
-  // * operator!=
-  std::begin(std::declval<T &>()) != std::end(std::declval<T &>());
-  // * operator++
-  ++std::declval<decltype(std::begin(std::declval<T &>())) &>();
-  // * operator*
-  void(*std::begin(std::declval<T &>()));
-};
-
-static_assert(Iterable<std::vector<int>>);
-static_assert(not Iterable<int>);
-
-//
-// StringLike
-//
-template<typename T>
-concept HasCStr = std::is_same_v<decltype(std::declval<T>().c_str()),
-                                 const char *>;
-
-static_assert(HasCStr<llvm::SmallString<4>>);
-static_assert(not HasCStr<int>);
-
-template<typename T>
-concept StringLike = std::is_convertible_v<std::string, T> or HasCStr<T>;
-
-static_assert(StringLike<llvm::SmallString<4>>);
-static_assert(StringLike<std::string>);
-static_assert(not StringLike<llvm::ArrayRef<int>>);
-static_assert(StringLike<llvm::StringRef>);
-
-//
-// IsContainer
-//
-
-template<typename T>
-concept IsContainer = Iterable<T> and not StringLike<T>;
-
-static_assert(IsContainer<std::vector<int>>);
-static_assert(IsContainer<std::set<int>>);
-static_assert(IsContainer<std::map<int, int>>);
-static_assert(IsContainer<llvm::SmallVector<int, 4>>);
-static_assert(!IsContainer<std::string>);
-static_assert(!IsContainer<llvm::SmallString<4>>);
-static_assert(!IsContainer<llvm::StringRef>);
-
-//
-// SortedContainer and UnsortedContainer
-//
-// TODO: this is not very nice
-namespace revng::detail {
-
-template<typename T>
-concept IsSet = is_specialization_v<T, std::set>;
-
-} // namespace revng::detail
-
-template<typename T>
-concept SortedContainer = revng::detail::IsSet<T> or IsKeyedObjectContainer<T>;
-
-template<typename T>
-concept UnsortedContainer = IsContainer<T> and not SortedContainer<T>;

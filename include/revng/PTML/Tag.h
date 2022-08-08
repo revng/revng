@@ -43,7 +43,7 @@ public:
     return *this;
   }
 
-  template<range_with_value_type<llvm::StringRef> T>
+  template<ranges::range_with_value_type<llvm::StringRef> T>
   Tag &addListAttribute(llvm::StringRef Name, const T &Values) {
     for (auto &Value : Values)
       revng_check(!llvm::StringRef(Value).contains(","));

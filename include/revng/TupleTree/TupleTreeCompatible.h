@@ -10,20 +10,20 @@
 
 // clang-format off
 template<typename T>
-concept TupleTreeCompatible = (IsKeyedObjectContainer<T>
-                               or HasTupleSize<T>
-                               or UpcastablePointerLike<T>);
+concept TupleTreeCompatible = (KeyedObjectContainer<T>
+                               or UpcastablePointerLike<T>
+                               or TupleLike<T>);
 // clang-format on
 
 template<typename T>
 concept NotTupleTreeCompatible = not TupleTreeCompatible<T>;
 
 template<typename T>
-concept Verifyable = requires(const T &TT, ErrorList &EL) {
+concept Verifiable = requires(const T &TT, ErrorList &EL) {
   { TT.verify(EL) };
   { TT.verify() } -> std::same_as<bool>;
 };
 
 template<typename T>
-concept TupleTreeCompatibleWithVerify =
-  (TupleTreeCompatible<T> and Verifyable<T>);
+concept TupleTreeCompatibleAndVerifiable =
+  (TupleTreeCompatible<T> and Verifiable<T>);

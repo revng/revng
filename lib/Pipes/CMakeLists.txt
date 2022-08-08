@@ -16,9 +16,7 @@ revng_add_library_internal(
   PipelineManager.cpp
   Pipes.cpp
   RootKind.cpp
-  TaggedFunctionKind.cpp
-  Yield/AssemblyPipes.cpp
-  Yield/CFGPipes.cpp)
+  TaggedFunctionKind.cpp)
 
 llvm_map_components_to_libnames(
   LLVM_LIBRARIES
@@ -55,6 +53,5 @@ target_link_libraries(
   revngModelPasses
   revngPipeline
   revngSupport
-  revngYield
   revngEarlyFunctionAnalysis
   ${LLVM_LIBRARIES})

@@ -13,6 +13,9 @@ revng_add_analyses_library_internal(
   ControlFlow/FallthroughDetection.cpp
   ControlFlow/NodeSizeCalculation.cpp
   ControlFlow/SVG.cpp
+  Pipes/AssemblyPipes.cpp
+  Pipes/CallGraphPipes.cpp
+  Pipes/CFGPipes.cpp
   Support/SugiyamaStyleGraphLayout/EdgeRouting.cpp
   Support/SugiyamaStyleGraphLayout/GraphPreparation.cpp
   Support/SugiyamaStyleGraphLayout/HorizontalPositions.cpp
@@ -24,6 +27,7 @@ revng_add_analyses_library_internal(
   Support/SugiyamaStyleGraphLayout/TopologicalOrdering.cpp
   Support/SugiyamaStyleGraphLayout/VerticalPositions.cpp
   Support/SugiyamaStyleGraphLayout.cpp
+  CrossRelations.cpp
   Dump.cpp
   Verify.cpp)
 
@@ -44,8 +48,14 @@ llvm_map_components_to_libnames(
   Target
   ${DISASSEMBLER_ARCHITECTURE_SUPPORT})
 
-target_link_libraries(revngYield revngEarlyFunctionAnalysis revngModelPasses
-                      revngPTML revngSupport ${LLVM_LIBRARIES})
+target_link_libraries(
+  revngYield
+  revngEarlyFunctionAnalysis
+  revngModelPasses
+  revngPipes
+  revngPTML
+  revngSupport
+  ${LLVM_LIBRARIES})
 
 set(INTERNAL_ASSEMBLY_HEADERS "${CMAKE_SOURCE_DIR}/include/revng/Yield")
 target_tuple_tree_generator(
@@ -64,4 +74,8 @@ target_tuple_tree_generator(
   "${INTERNAL_ASSEMBLY_HEADERS}/Function.h"
   "${INTERNAL_ASSEMBLY_HEADERS}/Instruction.h"
   "${INTERNAL_ASSEMBLY_HEADERS}/Tag.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/TagType.h")
+  "${INTERNAL_ASSEMBLY_HEADERS}/TagType.h"
+  "${INTERNAL_ASSEMBLY_HEADERS}/CrossRelations.h"
+  "${INTERNAL_ASSEMBLY_HEADERS}/RelationDescription.h"
+  "${INTERNAL_ASSEMBLY_HEADERS}/RelationTarget.h"
+  "${INTERNAL_ASSEMBLY_HEADERS}/RelationType.h")

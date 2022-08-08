@@ -10,7 +10,7 @@ Branches:
     Steps:
       - Name: YieldCFG
         Pipes:
-          - Type: yield-cfg
+          - Type: YieldCFG
             UsedContainers: [assembly-internal.yml, cfg-svg.yml]
         Artifacts:
           Container: cfg-svg.yml

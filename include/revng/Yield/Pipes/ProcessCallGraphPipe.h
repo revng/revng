@@ -11,21 +11,23 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Pipeline/Contract.h"
+#include "revng/Pipeline/Target.h"
+#include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/FunctionStringMap.h"
 
 namespace revng::pipes {
 
-class YieldControlFlowPipe {
+class ProcessCallGraphPipe {
 public:
-  static constexpr const auto Name = "yield-cfg";
+  static constexpr const auto Name = "ProcessCallGraph";
 
 public:
   std::array<pipeline::ContractGroup, 1> getContract() const;
 
 public:
   void run(pipeline::Context &Context,
-           const FunctionStringMap &Input,
-           FunctionStringMap &Output);
+           const pipeline::LLVMContainer &TargetsList,
+           FileContainer &OutputFile);
 
   void print(const pipeline::Context &Ctx,
              llvm::raw_ostream &OS,

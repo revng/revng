@@ -13,6 +13,16 @@
 
 #include "NodeRanking.h"
 
+// This is a workaround for the case where back-edge normalization causes new
+// nodes to be added before the root node. Since ranks of those nodes has to be
+// smaller than the rank of the root node - they loop around causing huge
+// numbers to appear.
+// As a temporary workaround, the root node rank can be set to a bigger value
+// allowing a couple of "free" layers above it to mitigate the problem.
+// This is not a perfect solution BUT it should be good enough for any
+// resonable graph.
+constexpr Rank RootNodeRankValue = 4;
+
 /// `RankingStrategy::BreadthFirstSearch` template specialization.
 /// Assigns ranks based on the BFS visit order.
 /// This is the general ranking induced by the graph.
@@ -22,7 +32,7 @@ RankContainer rankNodes<BFS>(InternalGraph &Graph) {
   RankContainer Ranks;
 
   for (auto *Node : llvm::breadth_first(Graph.getEntryNode())) {
-    auto CurrentRank = Ranks.try_emplace(Node, Rank(-1)).first->second;
+    auto CurrentRank = Ranks.try_emplace(Node, RootNodeRankValue).first->second;
     for (auto *Successor : Node->successors())
       if (auto SuccessorIt = Ranks.find(Successor); SuccessorIt == Ranks.end())
         Ranks.emplace(Successor, CurrentRank + 1);
@@ -41,7 +51,7 @@ template<>
 RankContainer rankNodes<DFS>(InternalGraph &Graph) {
   RankContainer Ranks;
 
-  auto Counter = Graph.getEntryNode()->isVirtual() ? Rank(-1) : Rank(0);
+  auto Counter = RootNodeRankValue;
   for (auto *Node : llvm::depth_first(Graph.getEntryNode()))
     Ranks.try_emplace(Node, Counter++);
 
@@ -65,7 +75,7 @@ template<>
 RankContainer rankNodes<TRS>(InternalGraph &Graph) {
   RankContainer Ranks;
 
-  auto Counter = Graph.getEntryNode()->isVirtual() ? Rank(-1) : Rank(0);
+  auto Counter = RootNodeRankValue;
   for (auto *Node : llvm::ReversePostOrderTraversal(Graph.getEntryNode()))
     Ranks.try_emplace(Node, Counter++);
 
@@ -131,7 +141,7 @@ RankContainer rankNodes<DDFS>(InternalGraph &Graph, int64_t DiamondBound) {
     if (!Node->hasPredecessors() && !Ranks.contains(Node)) {
       Stack.emplace_back(Node);
 
-      size_t DFSTime = 0;
+      size_t DFSTime = RootNodeRankValue;
       while (!Stack.empty()) {
         auto Current = Stack.back();
         Stack.pop_back();

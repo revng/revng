@@ -12,11 +12,11 @@ Branches:
     Steps:
       - Name: ProcessAssembly
         Pipes:
-          - Type: process-assembly
+          - Type: ProcessAssembly
             UsedContainers: [input, module.ll, assembly-internal.yml]
       - Name: YieldAssembly
         Pipes:
-          - Type: yield-assembly
+          - Type: YieldAssembly
             UsedContainers: [assembly-internal.yml, assembly-ptml.yml]
         Artifacts:
           Container: assembly-ptml.yml

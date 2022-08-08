@@ -4,7 +4,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <array>
 #include <tuple>
+
+#include "llvm/ADT/StringRef.h"
 
 //
 // FOR_EACH macro implemenation
@@ -149,19 +152,19 @@
 template<typename ToSkip, typename... A>
 using skip_first_tuple = std::tuple<A...>;
 
-#define INTROSPECTION_1(classname, ...)                                   \
-  template<>                                                              \
-  struct TupleLikeTraits<classname> {                                     \
-    static constexpr const char *Name = #classname;                       \
-                                                                          \
-    using tuple = skip_first_tuple<                                       \
-      void FOR_EACH(TUPLE_TYPES, classname, __VA_ARGS__)>;                \
-                                                                          \
-    static constexpr const char *FieldsName[std::tuple_size_v<tuple>] = { \
-      FOR_EACH(TUPLE_FIELD_NAME, classname, __VA_ARGS__)                  \
-    };                                                                    \
-                                                                          \
-    enum class Fields { FOR_EACH(ENUM_ENTRY, classname, __VA_ARGS__) };   \
+#define INTROSPECTION_1(classname, ...)                                    \
+  template<>                                                               \
+  struct TupleLikeTraits<classname> {                                      \
+    static constexpr const char *Name = #classname;                        \
+    static constexpr const char *FullName = #classname;                    \
+                                                                           \
+    using tuple = skip_first_tuple<                                        \
+      void FOR_EACH(TUPLE_TYPES, classname, __VA_ARGS__)>;                 \
+                                                                           \
+    static constexpr std::array<llvm::StringRef, std::tuple_size_v<tuple>> \
+      FieldNames = { FOR_EACH(TUPLE_FIELD_NAME, classname, __VA_ARGS__) }; \
+                                                                           \
+    enum class Fields { FOR_EACH(ENUM_ENTRY, classname, __VA_ARGS__) };    \
   };
 
 #define GET_IMPLEMENTATIONS(class, index, field) \

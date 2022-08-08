@@ -6,35 +6,37 @@
 
 #include "revng/Pipeline/Kind.h"
 #include "revng/Pipes/FunctionKind.h"
+#include "revng/Pipes/Ranks.h"
 #include "revng/Pipes/RootKind.h"
 #include "revng/Pipes/TaggedFunctionKind.h"
 
 namespace revng::pipes {
 
-inline pipeline::Rank RootRank("root");
+inline pipeline::Kind Binary("Binary", &ranks::Binary);
 
-inline pipeline::Rank FunctionsRank("function", RootRank);
-
-inline pipeline::Kind Binary("Binary", &RootRank);
-
-inline RootKind Root("Root", &RootRank);
+inline RootKind Root("Root", &ranks::Binary);
 inline IsolatedRootKind IsolatedRoot("IsolatedRoot", Root);
 
 inline TaggedFunctionKind
-  Isolated("Isolated", &FunctionsRank, FunctionTags::Isolated);
+  Isolated("Isolated", &ranks::Function, FunctionTags::Isolated);
 inline TaggedFunctionKind
-  ABIEnforced("ABIEnforced", &FunctionsRank, FunctionTags::ABIEnforced);
+  ABIEnforced("ABIEnforced", &ranks::Function, FunctionTags::ABIEnforced);
 inline TaggedFunctionKind
-  CSVsPromoted("CSVsPromoted", &FunctionsRank, FunctionTags::CSVsPromoted);
+  CSVsPromoted("CSVsPromoted", &ranks::Function, FunctionTags::CSVsPromoted);
 
-inline pipeline::Kind Object("Object", &RootRank);
-inline pipeline::Kind Translated("Translated", &RootRank);
+inline pipeline::Kind Object("Object", &ranks::Binary);
+inline pipeline::Kind Translated("Translated", &ranks::Binary);
 
 inline FunctionKind
-  FunctionAssemblyInternal("FunctionAssemblyInternal", &FunctionsRank);
+  FunctionAssemblyInternal("FunctionAssemblyInternal", &ranks::Function);
 inline FunctionKind
-  FunctionAssemblyPTML("FunctionAssemblyPTML", &FunctionsRank);
+  FunctionAssemblyPTML("FunctionAssemblyPTML", &ranks::Function);
 inline FunctionKind
-  FunctionControlFlowGraphSVG("FunctionControlFlowGraphSVG", &FunctionsRank);
+  FunctionControlFlowGraphSVG("FunctionControlFlowGraphSVG", &ranks::Function);
+
+inline pipeline::Kind
+  BinaryCrossRelations("BinaryCrossRelations", &ranks::Binary);
+
+inline constexpr auto BinaryCrossRelationsRole = "CrossRelations";
 
 } // namespace revng::pipes

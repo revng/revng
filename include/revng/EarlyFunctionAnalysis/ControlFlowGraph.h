@@ -19,7 +19,7 @@ using SuccessorContainer = SortedVector<UpcastablePointer<FunctionEdgeBase>>;
 }
 
 template<typename T>
-concept IsBasicBlock = requires {
+concept SpecializationOfBasicBlock = requires {
   { T::Start } -> convertible_to<MetaAddress>;
   { T::End } -> convertible_to<MetaAddress>;
   { T::Successors } -> convertible_to<detail::SuccessorContainer>;
@@ -88,8 +88,8 @@ inline ParsedSuccessor parseSuccessor(const efa::FunctionEdgeBase &Edge,
 /// \returns A pair of the generic graph object (type of which is specified by
 /// the first template parameter) and a map of all the basic block start
 /// addresses to corresponding nodes that were created for them.
-template<IsGenericGraph GraphType,
-         IsBasicBlock BasicBlockType,
+template<SpecializationOfGenericGraph GraphType,
+         SpecializationOfBasicBlock BasicBlockType,
          typename ...OtherTs,
          template<typename...> typename Container>
   requires std::is_constructible_v<typename GraphType::Node,

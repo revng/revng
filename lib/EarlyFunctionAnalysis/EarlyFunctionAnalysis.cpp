@@ -46,7 +46,7 @@
 
 #include "revng/ABI/FunctionType.h"
 #include "revng/ABI/RegisterStateDeductions.h"
-#include "revng/ADT/KeyedObjectTraits.h"
+#include "revng/ADT/KeyedObjectContainer.h"
 #include "revng/ADT/Queue.h"
 #include "revng/ADT/SortedVector.h"
 #include "revng/ADT/ZipMapIterator.h"

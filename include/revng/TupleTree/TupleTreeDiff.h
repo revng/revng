@@ -20,83 +20,107 @@
 #include "revng/ADT/STLExtras.h"
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/Support/Assert.h"
+#include "revng/TupleTree/TupleLikeTraits.h"
 #include "revng/TupleTree/TupleTree.h"
 #include "revng/TupleTree/TupleTreePath.h"
 
-template<typename>
-struct is_std_vector : std::false_type {};
+template<typename T>
+concept HasValueType = requires(T &&) {
+  typename T::value_type;
+};
 
-template<typename T, typename A>
-struct is_std_vector<std::vector<T, A>> : std::true_type {};
+// clang-format off
 
 template<typename T>
-concept HasPushBack = is_std_vector<T>::value;
+concept HasPushBack = HasValueType<T>
+                      && requires(T &&C,
+                                  const typename T::value_type &V) {
+  { C.push_back(V) };
+};
 
 template<typename T>
-concept HasInsertOrAssign = not HasPushBack<T>;
+concept HasInsertOrAssign = HasValueType<T>
+                            && requires(T &&C,
+                                        const typename T::value_type &V) {
+  { C.insert_or_assign(V) };
+};
 
-template<HasInsertOrAssign C>
-void addToContainer(C &Container, const typename C::value_type &Value) {
-  Container.insert_or_assign(Value);
-}
+// clang-format on
 
 template<HasPushBack C>
 void addToContainer(C &Container, const typename C::value_type &Value) {
   Container.push_back(Value);
 }
 
+template<HasInsertOrAssign C>
+void addToContainer(C &Container, const typename C::value_type &Value) {
+  Container.insert_or_assign(Value);
+}
+
+namespace revng::detail {
 template<typename T>
-struct TupleTreeEntries;
+concept Set = StrictSpecializationOf<T, std::set>;
 
 template<typename T>
-using TupleTreeEntriesT = typename TupleTreeEntries<T>::Types;
+concept SetOrKOC = Set<T> || KeyedObjectContainer<T>;
+} // namespace revng::detail
+
+template<typename T>
+struct TupleTreeEntries {};
+
+template<typename T>
+using AllowedTupleTreeTypes = typename TupleTreeEntries<T>::Types;
+
+template<typename T>
+concept TupleTreeRootLike = StrictSpecializationOf<AllowedTupleTreeTypes<T>,
+                                                   std::variant>;
 
 namespace detail {
-template<typename Model>
-struct CheckTypeIsCorrect {
-  using Variant = TupleTreeEntriesT<Model>;
-  const Variant *Alternatives;
-  bool IsCorrect = false;
+  template<TupleTreeRootLike Model>
+  struct CheckTypeIsCorrect {
+    const AllowedTupleTreeTypes<Model> *Alternatives;
+    bool IsCorrect = false;
 
-  template<typename T, int I>
-  void visitTupleElement() {
-    using tuple_element = typename std::tuple_element<I, T>::type;
-    visit<tuple_element>();
+    template<typename T, int I>
+    void visitTupleElement() {
+      using tuple_element = typename std::tuple_element<I, T>::type;
+      visit<tuple_element>();
+    }
+
+    template<typename T, typename KeyT>
+    void visitContainerElement(KeyT Key) {}
+
+    template<revng::detail::SetOrKOC T>
+    void visit() {
+      check<typename T::value_type>();
+    }
+
+    template<typename T>
+    void visit() {
+      check<T>();
+    }
+
+    template<typename T>
+    void check() {
+      IsCorrect = std::holds_alternative<T>(*Alternatives);
+    }
+  };
+
+  template<TupleTreeRootLike Model>
+  bool checkTypeIsCorrect(const TupleTreePath &Path,
+                          const AllowedTupleTreeTypes<Model> &Content) {
+    CheckTypeIsCorrect<Model> Checker{ &Content };
+    callByPath<Model>(Checker, Path);
+    return Checker.IsCorrect;
   }
-
-  template<typename T, typename KeyT>
-  void visitContainerElement(KeyT Key) {}
-
-  template<SortedContainer T>
-  void visit() {
-    check<typename T::value_type>();
-  }
-
-  template<typename T>
-  void visit() {
-    check<T>();
-  }
-
-  template<typename T>
-  void check() {
-    IsCorrect = std::holds_alternative<T>(*Alternatives);
-  }
-};
-
-template<typename Model>
-bool checkTypeIsCorrect(const TupleTreePath &Path,
-                        const TupleTreeEntriesT<Model> &Content) {
-  detail::CheckTypeIsCorrect<Model> Checker{ &Content };
-  callByPath<Model>(Checker, Path);
-  return Checker.IsCorrect;
-}
 
 } // namespace detail
 
-template<typename T>
+template<TupleTreeRootLike T>
 struct Change {
 public:
-  using EntryType = std::optional<TupleTreeEntriesT<T>>;
+  using Variant = AllowedTupleTreeTypes<T>;
+  using EntryType = std::optional<Variant>;
 
 public:
   TupleTreePath Path;
@@ -106,40 +130,33 @@ public:
 public:
   Change() = default;
   using TupleTreeType = T;
-  explicit Change(TupleTreePath Path,
-                  std::optional<TupleTreeEntriesT<T>> Old,
-                  std::optional<TupleTreeEntriesT<T>> New) :
+  explicit Change(TupleTreePath Path, EntryType Old, EntryType New) :
     Path(std::move(Path)), Old(std::move(Old)), New(std::move(New)) {}
 
 public:
-  static Change createRemoval(TupleTreePath Path, TupleTreeEntriesT<T> Old) {
+  static Change createRemoval(TupleTreePath Path, Variant Old) {
     revng_check(detail::checkTypeIsCorrect<T>(Path, Old));
     return Change(std::move(Path), std::move(Old), std::nullopt);
   }
 
-  static Change createAddition(TupleTreePath Path, TupleTreeEntriesT<T> New) {
+  static Change createAddition(TupleTreePath Path, Variant New) {
     revng_check(detail::checkTypeIsCorrect<T>(Path, New));
     return Change(std::move(Path), std::nullopt, std::move(New));
   }
 
-  static Change createChange(TupleTreePath Path,
-                             TupleTreeEntriesT<T> Old,
-                             TupleTreeEntriesT<T> New) {
+  static Change createChange(TupleTreePath Path, Variant Old, Variant New) {
     revng_check(detail::checkTypeIsCorrect<T>(Path, New));
     revng_check(detail::checkTypeIsCorrect<T>(Path, Old));
     return Change(std::move(Path), std::move(Old), std::move(New));
   }
 };
 
-template<typename T>
-using ChangesVector = std::vector<Change<T>>;
-
-template<typename T>
+template<TupleTreeRootLike T>
 struct TupleTreeDiff {
 
 public:
   using Change = Change<T>;
-  ChangesVector<T> Changes;
+  std::vector<Change> Changes;
   // TODO: invalidated instances
 
 public:
@@ -179,30 +196,26 @@ public:
   void apply(TupleTree<T> &M) const;
 };
 
-template<typename T>
-concept DiffSpecialization = is_specialization_v<T, TupleTreeDiff>;
-
-template<typename T>
-concept ChangeSpecialization = is_specialization_v<T, Change>;
-
-template<DiffSpecialization T>
+/// TODO: use non-strict specialization after it's available.
+template<StrictSpecializationOf<TupleTreeDiff> T>
 struct llvm::yaml::MappingTraits<T> {
   static void mapping(IO &IO, T &Info) {
     IO.mapOptional("Changes", Info.Changes);
   }
 };
 
-template<ChangeSpecialization T, typename X>
+/// TODO: use non-strict specialization after it's available.
+template<StrictSpecializationOf<Change> T, typename X>
 struct llvm::yaml::SequenceElementTraits<T, X> {
   // NOLINTNEXTLINE
   static const bool flow = false;
 };
 
 namespace detail {
-template<typename Model>
+template<TupleTreeRootLike Model>
 struct MapDiffVisitor {
   llvm::yaml::IO *Io;
-  TupleTreeEntriesT<Model> *Change;
+  AllowedTupleTreeTypes<Model> *Change;
   const char *MappingName;
 
   template<typename T, int I>
@@ -214,7 +227,7 @@ struct MapDiffVisitor {
   template<typename T, typename KeyT>
   void visitContainerElement(KeyT Key) {}
 
-  template<SortedContainer T>
+  template<revng::detail::SetOrKOC T>
   void visit() {
     dump<typename T::value_type>();
   }
@@ -238,7 +251,8 @@ struct MapDiffVisitor {
 
 } // namespace detail
 
-template<ChangeSpecialization T>
+/// TODO: use non-strict specialization after it's available.
+template<StrictSpecializationOf<Change> T>
 struct llvm::yaml::MappingTraits<T> {
   using EntryType = typename T::EntryType;
   using Model = typename T::TupleTreeType;
@@ -315,7 +329,7 @@ private:
     }
   }
 
-  template<IsUpcastablePointer T>
+  template<StrictSpecializationOf<UpcastablePointer> T>
   void diffImpl(const T &LHS, const T &RHS) {
     LHS.upcast([&](auto &LHSUpcasted) {
       RHS.upcast([&](auto &RHSUpcasted) {
@@ -330,12 +344,12 @@ private:
     });
   }
 
-  template<HasTupleSize T>
+  template<TupleSizeCompatible T>
   void diffImpl(const T &LHS, const T &RHS) {
     diffTuple(LHS, RHS);
   }
 
-  template<SortedContainer T>
+  template<revng::detail::SetOrKOC T>
   void diffImpl(const T &LHS, const T &RHS) {
     for (auto [LHSElement, RHSElement] : zipmap_range(LHS, RHS)) {
       if (LHSElement == nullptr) {
@@ -354,8 +368,10 @@ private:
     }
   }
 
-  template<NotTupleTreeCompatible T>
+  // clang-format off
+  template<typename T> requires (not TupleTreeCompatible<T>)
   void diffImpl(const T &LHS, const T &RHS) {
+    // clang-format on
     if (LHS != RHS)
       Result.change(Stack, LHS, RHS);
   }
@@ -363,7 +379,7 @@ private:
 
 } // namespace tupletreediff::detail
 
-template<typename M>
+template<TupleTreeRootLike M>
 TupleTreeDiff<M> diff(const M &LHS, const M &RHS) {
   return tupletreediff::detail::Diff<M>().diff(LHS, RHS);
 }
@@ -372,7 +388,7 @@ TupleTreeDiff<M> diff(const M &LHS, const M &RHS) {
 // TupleTreeDiff::dump
 //
 
-template<typename T>
+template<TupleTreeRootLike T>
 inline void TupleTreeDiff<T>::dump(llvm::raw_ostream &OutputStream) const {
   serialize(OutputStream, *this);
 }
@@ -386,7 +402,7 @@ namespace tupletreediff::detail {
 
 // clang-format on
 
-template<typename T>
+template<TupleTreeRootLike T>
 struct ApplyDiffVisitor {
   using Change = typename TupleTreeDiff<T>::Change;
   const Change *C;
@@ -401,7 +417,7 @@ struct ApplyDiffVisitor {
     visit(Element);
   }
 
-  template<SortedContainer S>
+  template<revng::detail::SetOrKOC S>
   void visit(S &M) {
     revng_assert((C->Old == std::nullopt) != (C->New == std::nullopt));
 
@@ -427,7 +443,7 @@ struct ApplyDiffVisitor {
   }
 
   template<typename S>
-  void visit(S &M) requires(not SortedContainer<S>) {
+  void visit(S &M) {
     revng_assert(C->Old != std::nullopt and C->New != std::nullopt);
     auto &Old = std::get<S>(*C->Old);
     auto &New = std::get<S>(*C->New);
@@ -438,7 +454,7 @@ struct ApplyDiffVisitor {
 
 } // namespace tupletreediff::detail
 
-template<typename T>
+template<TupleTreeRootLike T>
 inline void TupleTreeDiff<T>::apply(TupleTree<T> &M) const {
   TupleTreePath LastPath;
   for (const Change &C : Changes) {

@@ -30,7 +30,8 @@ public:
   symbolToTarget(const llvm::Function &Symbol) const override;
 
   void
-  getInvalidations(pipeline::TargetsList &ToRemove,
+  getInvalidations(const pipeline::Context &Ctx,
+                   pipeline::TargetsList &ToRemove,
                    const pipeline::GlobalTupleTreeDiff &Base) const override;
 };
 

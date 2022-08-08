@@ -11,21 +11,24 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Pipeline/Contract.h"
+#include "revng/Pipeline/Target.h"
+#include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/FunctionStringMap.h"
 
 namespace revng::pipes {
 
-class YieldAssemblyPipe {
+class ProcessAssemblyPipe {
 public:
-  static constexpr const auto Name = "yield-assembly";
+  static constexpr const auto Name = "ProcessAssembly";
 
 public:
   std::array<pipeline::ContractGroup, 1> getContract() const;
 
 public:
   void run(pipeline::Context &Context,
-           const FunctionStringMap &Input,
-           FunctionStringMap &Output);
+           const FileContainer &SourceBinary,
+           const pipeline::LLVMContainer &TargetsList,
+           FunctionStringMap &OutputAssembly);
 
   void print(const pipeline::Context &Ctx,
              llvm::raw_ostream &OS,
