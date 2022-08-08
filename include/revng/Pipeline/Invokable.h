@@ -29,8 +29,24 @@ concept HasName = requires() {
   { T::Name } -> convertible_to<const char *>;
 };
 
-// clang-format off
+template<typename InvokableType, typename... Args>
+constexpr bool
+invokableTypeReturnsErrorImpl(void (InvokableType::*F)(Args...)) {
+  return false;
+}
 
+template<typename InvokableType, typename... Args>
+constexpr bool
+invokableTypeReturnsErrorImpl(llvm::Error (InvokableType::*F)(Args...)) {
+  return true;
+}
+
+template<typename Invokable>
+constexpr bool invokableTypeReturnsError() {
+  return invokableTypeReturnsErrorImpl(&Invokable::run);
+}
+
+// clang-format off
 /// A Invokable is a class with the following characteristics:
 ///
 /// * It must have a static constexpr field named Name that is a string
@@ -48,60 +64,60 @@ namespace detail {
 using StringArrayRef = llvm::ArrayRef<std::string>;
 
 template<typename T>
-auto &getContainerFromName(ContainerSet &Containers, llvm::StringRef Name) {
+auto &getContainer(ContainerSet &Containers, llvm::StringRef Name) {
   return llvm::cast<T>(Containers[Name]);
 }
 
 template<typename InvokableType, typename... Args, size_t... S>
-void invokeImpl(Context &Ctx,
+auto invokeImpl(Context &Ctx,
                 InvokableType &Pipe,
-                void (InvokableType::*F)(Context &, Args...),
+                auto (InvokableType::*F)(Context &, Args...),
                 ContainerSet &Containers,
                 const StringArrayRef &ArgsNames,
                 const std::integer_sequence<size_t, S...> &) {
 
   using namespace std;
-  (Pipe.*F)(Ctx,
-            getContainerFromName<decay_t<Args>>(Containers, ArgsNames[S])...);
+  return (Pipe.*F)(Ctx,
+                   getContainer<decay_t<Args>>(Containers, ArgsNames[S])...);
 }
 
 template<typename InvokableType, typename... Args, size_t... S>
-void invokeImpl(const Context &Ctx,
+auto invokeImpl(const Context &Ctx,
                 InvokableType &Pipe,
-                void (InvokableType::*F)(const Context &, Args...),
+                auto (InvokableType::*F)(const Context &, Args...),
                 ContainerSet &Containers,
                 const StringArrayRef &ArgsNames,
                 const std::integer_sequence<size_t, S...> &) {
   using namespace std;
-  (Pipe.*F)(Ctx,
-            getContainerFromName<decay_t<Args>>(Containers, ArgsNames[S])...);
+  return (Pipe.*F)(Ctx,
+                   getContainer<decay_t<Args>>(Containers, ArgsNames[S])...);
 }
 } // namespace detail
 
 /// Invokes the F member function on the Pipe Pipe passing as nth argument the
 /// container with the name equal to the nth element of ArgsNames.
 template<typename InvokableType, typename... Args>
-void invokePipeFunction(Context &Ctx,
+auto invokePipeFunction(Context &Ctx,
                         InvokableType &Pipe,
-                        void (InvokableType::*F)(Context &, Args...),
+                        auto (InvokableType::*F)(Context &, Args...),
                         ContainerSet &Containers,
                         const llvm::ArrayRef<std::string> &ArgsNames) {
   constexpr auto
     Indexes = std::make_integer_sequence<size_t, sizeof...(Args)>();
   revng_assert(sizeof...(Args) == ArgsNames.size());
-  detail::invokeImpl(Ctx, Pipe, F, Containers, ArgsNames, Indexes);
+  return detail::invokeImpl(Ctx, Pipe, F, Containers, ArgsNames, Indexes);
 }
 
 template<typename InvokableType, typename... Args>
-void invokePipeFunction(Context &Ctx,
+auto invokePipeFunction(Context &Ctx,
                         InvokableType &Pipe,
-                        void (InvokableType::*F)(const Context &, Args...),
+                        auto (InvokableType::*F)(const Context &, Args...),
                         ContainerSet &Containers,
                         const llvm::ArrayRef<std::string> &ArgsNames) {
   constexpr auto
     Indexes = std::make_integer_sequence<size_t, sizeof...(Args)>();
   revng_assert(sizeof...(Args) == ArgsNames.size());
-  detail::invokeImpl(Ctx, Pipe, F, Containers, ArgsNames, Indexes);
+  return detail::invokeImpl(Ctx, Pipe, F, Containers, ArgsNames, Indexes);
 }
 
 template<typename T>
@@ -118,7 +134,7 @@ concept Printable = requires(InvokableType Pipe) {
 
 class InvokableWrapperBase {
 public:
-  virtual void run(Context &Ctx, ContainerSet &Containers) = 0;
+  virtual llvm::Error run(Context &Ctx, ContainerSet &Containers) = 0;
   virtual ~InvokableWrapperBase() = default;
   virtual std::vector<std::string> getRunningContainersNames() const = 0;
   virtual std::string getName() const = 0;
@@ -149,12 +165,22 @@ public:
   std::string getName() const override { return InvokableType::Name; }
 
 public:
-  void run(Context &Ctx, ContainerSet &Containers) override {
-    invokePipeFunction(Ctx,
-                       ActualPipe,
-                       &InvokableType::run,
-                       Containers,
-                       RunningContainersNames);
+  llvm::Error run(Context &Ctx, ContainerSet &Containers) override {
+    if constexpr (invokableTypeReturnsError<InvokableType>()) {
+      return invokePipeFunction(Ctx,
+                                ActualPipe,
+                                &InvokableType::run,
+                                Containers,
+                                RunningContainersNames);
+
+    } else {
+      invokePipeFunction(Ctx,
+                         ActualPipe,
+                         &InvokableType::run,
+                         Containers,
+                         RunningContainersNames);
+    }
+    return llvm::Error::success();
   }
 
 public:

@@ -179,9 +179,9 @@ public:
   }
 
 public:
-  void runAnalysis(llvm::StringRef AnalysisName,
-                   Context &Ctx,
-                   const ContainerToTargetsMap &Targets);
+  llvm::Error runAnalysis(llvm::StringRef AnalysisName,
+                          Context &Ctx,
+                          const ContainerToTargetsMap &Targets);
 
   /// Clones the Targets from the backing containers of this step
   /// and excutes all the pipes in sequence contained by this step

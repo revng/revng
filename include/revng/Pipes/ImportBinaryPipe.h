@@ -21,7 +21,8 @@ public:
   std::array<pipeline::ContractGroup, 1> getContract() const { return {}; }
 
 public:
-  void run(pipeline::Context &Context, const FileContainer &SourceBinary);
+  llvm::Error
+  run(pipeline::Context &Context, const FileContainer &SourceBinary);
 
   void print(const pipeline::Context &Ctx,
              llvm::raw_ostream &OS,

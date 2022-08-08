@@ -254,7 +254,11 @@ Runner::runAnalysis(llvm::StringRef AnalysisName,
   if (auto Error = run(StepName, Targets))
     return std::move(Error);
 
-  MaybeStep->second.runAnalysis(AnalysisName, *TheContext, Targets);
+  if (auto Error = MaybeStep->second.runAnalysis(AnalysisName,
+                                                 *TheContext,
+                                                 Targets);
+      Error)
+    return std::move(Error);
 
   auto &After = getContext().getGlobals();
   auto Map = Before.diff(After);
