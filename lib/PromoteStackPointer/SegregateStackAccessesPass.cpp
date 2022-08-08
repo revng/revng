@@ -43,10 +43,6 @@ static MetaAddress getCallerBlockAddress(Instruction *I) {
   return getMetaAddressMetadata(I, "revng.callerblock.start");
 }
 
-static bool isCallToIsolatedFunction(Instruction *I) {
-  return FunctionTags::CallToLifted.isTagOf(I);
-}
-
 static CallInst *findCallTo(Function *F, Function *ToSearch) {
   CallInst *Call = nullptr;
   for (BasicBlock &BB : *F)
