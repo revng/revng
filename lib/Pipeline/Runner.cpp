@@ -306,6 +306,14 @@ Error Runner::run(llvm::StringRef EndingStepName,
     return Error::success();
 
   for (auto &StepGoalsPairs : llvm::drop_begin(ToExec)) {
+    auto &Step = *StepGoalsPairs.ToExecute;
+    if (auto Error = Step.checkPrecondition(getContext()); Error)
+      return llvm::make_error<AnnotatedError>(std::move(Error),
+                                              "while scheduling "
+                                                + Step.getName());
+  }
+
+  for (auto &StepGoalsPairs : llvm::drop_begin(ToExec)) {
     auto &[Step, PredictedOutput, Input] = StepGoalsPairs;
     auto &Parent = Step->getPredecessor();
     auto CurrentContainer = Parent.containers().cloneFiltered(Input);

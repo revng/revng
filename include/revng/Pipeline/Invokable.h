@@ -23,6 +23,7 @@
 #include "revng/Pipeline/Container.h"
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Context.h"
+#include "revng/Pipeline/Target.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/YAMLTraits.h"

@@ -8,6 +8,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Pipeline/Contract.h"
+#include "revng/Support/Assert.h"
 
 namespace pipeline {
 
@@ -44,6 +45,30 @@ private:
 public:
   UnknownTargetError(TargetsList Unknown, llvm::StringRef ContainerName) :
     Unknown(std::move(Unknown)), ContainerName(ContainerName.str()) {}
+
+public:
+  std::error_code convertToErrorCode() const override;
+  void log(llvm::raw_ostream &OS) const override;
+};
+
+/// Error thrown when one needs to annotate another error with extra data
+class AnnotatedError : public llvm::ErrorInfo<AnnotatedError> {
+public:
+  static char ID;
+
+private:
+  std::string Inner;
+  std::string ExtraData;
+
+public:
+  AnnotatedError(llvm::Error Error, const llvm::Twine &ExtraData) :
+    ExtraData(ExtraData.str()) {
+    revng_assert(Error);
+    llvm::raw_string_ostream S(Inner);
+    S << Error;
+    S.flush();
+    llvm::consumeError(std::move(Error));
+  }
 
 public:
   std::error_code convertToErrorCode() const override;

@@ -39,7 +39,9 @@ public:
 
   void run(pipeline::Context &Ctx,
            const FileContainer &SourceBinary,
-           pipeline::LLVMContainer &TargetsList);
+           pipeline::LLVMContainer &Output);
+
+  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const;
 
   void print(const pipeline::Context &Ctx,
              llvm::raw_ostream &OS,

@@ -42,3 +42,14 @@ void UnknownTargetError::log(raw_ostream &OS) const {
 std::error_code UnknownTargetError::convertToErrorCode() const {
   return inconvertibleErrorCode();
 }
+
+char AnnotatedError::ID;
+
+void AnnotatedError::log(raw_ostream &OS) const {
+  OS << ExtraData << "\n";
+  OS << Inner;
+}
+
+std::error_code AnnotatedError::convertToErrorCode() const {
+  return inconvertibleErrorCode();
+}

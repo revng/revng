@@ -23,6 +23,7 @@
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/Invokable.h"
+#include "revng/Pipeline/Target.h"
 #include "revng/Support/Debug.h"
 
 namespace pipeline {
@@ -36,6 +37,11 @@ concept HasContract = requires(T P) {
 template<typename T, typename FirstRunArg, typename... Args>
 concept Pipe = Invokable<T, FirstRunArg, Args...> and(IsContainer<Args> and...)
                and HasContract<T>;
+
+template<typename T>
+concept HasPrecondition = requires(const T &P) {
+  { P.checkPrecondition };
+};
 
 template<typename C, typename First, typename... Rest>
 constexpr bool
@@ -58,6 +64,7 @@ public:
   deduceResults(ContainerToTargetsMap &Target) const = 0;
   virtual bool areRequirementsMet(const ContainerToTargetsMap &Input) const = 0;
   virtual std::unique_ptr<PipeWrapperBase> clone() const = 0;
+  virtual llvm::Error checkPrecondition(const Context &Ctx) const = 0;
 
   virtual ~PipeWrapperBase() = default;
 };
@@ -120,6 +127,13 @@ public:
 
   std::unique_ptr<PipeWrapperBase> clone() const override {
     return std::make_unique<PipeWrapperImpl>(*this);
+  }
+
+  llvm::Error checkPrecondition(const Context &Ctx) const override {
+    if constexpr (not HasPrecondition<PipeType>)
+      return llvm::Error::success();
+    else
+      return Invokable.getPipe().checkPrecondition(Ctx);
   }
 
 public:

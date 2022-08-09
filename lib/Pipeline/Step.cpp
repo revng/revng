@@ -14,6 +14,7 @@
 
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Context.h"
+#include "revng/Pipeline/Errors.h"
 #include "revng/Pipeline/Step.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Support/Assert.h"
@@ -155,6 +156,16 @@ Error Step::invalidate(const ContainerToTargetsMap &ToRemove) {
 
 Error Step::storeToDisk(llvm::StringRef DirPath) const {
   return Containers.storeToDisk(DirPath);
+}
+
+Error Step::checkPrecondition(const Context &Ctx) const {
+  for (const auto &Pipe : Pipes) {
+    if (auto Error = Pipe->checkPrecondition(Ctx); Error)
+      return llvm::make_error<AnnotatedError>(std::move(Error),
+                                              "while scheduling "
+                                                + Pipe->getName());
+  }
+  return llvm::Error::success();
 }
 
 Error Step::loadFromDisk(llvm::StringRef DirPath) {

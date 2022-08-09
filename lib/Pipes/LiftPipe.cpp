@@ -46,4 +46,8 @@ void LiftPipe::run(Context &Ctx,
   PM.run(TargetsList.getModule());
 }
 
+llvm::Error LiftPipe::checkPrecondition(const pipeline::Context &Ctx) const {
+  return llvm::Error::success();
+}
+
 static RegisterPipe<LiftPipe> E1;
