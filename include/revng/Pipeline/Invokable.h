@@ -269,6 +269,28 @@ template<typename T>
 std::vector<std::string> getOptionsTypes() {
   return getOptionsNamesImpl<T>(&T::run);
 }
+
+template<typename First, typename... Rest>
+constexpr bool isNthTypeConst(size_t I) {
+  if (I == 0)
+    return std::is_const_v<std::remove_reference_t<First>>;
+
+  if constexpr (sizeof...(Rest) == 0)
+    return false;
+  else
+    return isNthTypeConst<Rest...>(I - 1);
+}
+
+template<typename InvokableType, typename... Args>
+constexpr bool
+isRunArgumentConstImpl(auto (InvokableType::*F)(Args...), size_t Index) {
+  return isNthTypeConst<Args...>(Index);
+}
+
+template<typename InvokableType>
+constexpr bool isRunArgumentConst(size_t ArgumentIndex) {
+  return isRunArgumentConstImpl(&InvokableType::run, ArgumentIndex);
+}
 } // namespace detail
 
 template<typename T>
@@ -331,6 +353,7 @@ public:
   virtual std::vector<std::string> getRunningContainersNames() const = 0;
   virtual std::string getName() const = 0;
   virtual void dump(std::ostream &OS, size_t Indents) const = 0;
+  virtual bool isContainerArgumentConst(size_t ArgumentIndex) const = 0;
   virtual void
   print(const Context &Ctx, llvm::raw_ostream &OS, size_t Indents) const = 0;
   virtual std::vector<std::string> getOptionsNames() const = 0;
@@ -423,6 +446,10 @@ public:
       for (const auto &Name : getRunningContainersNames())
         OS << Name << " ";
     }
+  }
+
+  bool isContainerArgumentConst(size_t ArgumentIndex) const override {
+    return detail::isRunArgumentConst<InvokableType>(ArgumentIndex + 1);
   }
 };
 

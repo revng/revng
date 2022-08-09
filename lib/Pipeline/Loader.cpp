@@ -128,14 +128,20 @@ Loader::parseInvocation(Step &Step,
                              Invocation.Type.c_str());
   }
   auto &Entry = It->second;
-  for (const auto &ContainerName : Invocation.UsedContainers) {
+  auto Pipe = Entry(Invocation.UsedContainers);
+  for (const auto &ContainerNameAndIndex :
+       llvm::enumerate(Invocation.UsedContainers)) {
 
+    const auto &ContainerName = ContainerNameAndIndex.value();
+    size_t Index = ContainerNameAndIndex.index();
     if (llvm::find(ReadOnlyNames, ContainerName) == ReadOnlyNames.end())
       continue;
 
-    if (PipelineContext->hasRegisteredReadOnlyContainer(ContainerName)) {
+    if (PipelineContext->hasRegisteredReadOnlyContainer(ContainerName)
+        and not Pipe->isContainerArgumentConst(Index)) {
       return createStringError(inconvertibleErrorCode(),
-                               "Detected two uses of read only container %s\n",
+                               "Detected two non const uses of read only "
+                               "container %s\n",
                                ContainerName.c_str());
     }
 
@@ -143,7 +149,7 @@ Loader::parseInvocation(Step &Step,
     PipelineContext->addReadOnlyContainer(ContainerName, Container);
   }
 
-  return Entry(Invocation.UsedContainers);
+  return Pipe;
 }
 
 using BCDecl = ContainerDeclaration;
