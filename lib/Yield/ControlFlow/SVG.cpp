@@ -263,6 +263,10 @@ static std::string exportGraph(const yield::Graph &Graph,
                                CallableType &&Callable) {
   std::string Result;
 
+  // Short circuit the execution for an empty graph.
+  if (Graph.size() == 0)
+    return Result;
+
   // Export all the edges.
   for (const auto *From : Graph.nodes()) {
     if (ShouldEmitEmptyNodes || From->Address.isValid()) {

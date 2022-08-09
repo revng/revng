@@ -94,6 +94,10 @@ inline bool calculateSugiyamaLayout(ExternalGraph &Graph,
   static_assert(StrictSpecializationOfMutableEdgeNode<InternalNode>,
                 "LayouterSugiyama requires mutable edge nodes.");
 
+  // There's nothing to lay out in a graph without any nodes.
+  if (Graph.size() == 0)
+    return true;
+
   // Prepare the graph for the layouter: this converts `Graph` into
   // an internal graph and guaranties that it's has no loops (some of the
   // edges might have to be temporarily inverted to ensure this), a single
