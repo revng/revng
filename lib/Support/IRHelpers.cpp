@@ -184,6 +184,20 @@ StringRef getText(const Instruction *I, unsigned Kind) {
   }
 }
 
+void moveBlocksInto(Function &OldFunction, Function &NewFunction) {
+  // Steal body
+  std::vector<BasicBlock *> Body;
+  for (BasicBlock &BB : OldFunction)
+    Body.push_back(&BB);
+  auto &NewBody = NewFunction.getBasicBlockList();
+  for (BasicBlock *BB : Body) {
+    BB->removeFromParent();
+    revng_assert(BB->getParent() == nullptr);
+    NewBody.push_back(BB);
+    revng_assert(BB->getParent() == &NewFunction);
+  }
+}
+
 Function &moveToNewFunctionType(Function &OldFunction, FunctionType &NewType) {
   //
   // Recreate the function as similar as possible
@@ -197,16 +211,7 @@ Function &moveToNewFunctionType(Function &OldFunction, FunctionType &NewType) {
   NewFunction->copyMetadata(&OldFunction, 0);
 
   // Steal body
-  std::vector<BasicBlock *> Body;
-  for (BasicBlock &BB : OldFunction)
-    Body.push_back(&BB);
-  auto &NewBody = NewFunction->getBasicBlockList();
-  for (BasicBlock *BB : Body) {
-    BB->removeFromParent();
-    revng_assert(BB->getParent() == nullptr);
-    NewBody.push_back(BB);
-    revng_assert(BB->getParent() == NewFunction);
-  }
+  moveBlocksInto(OldFunction, *NewFunction);
 
   return *NewFunction;
 }

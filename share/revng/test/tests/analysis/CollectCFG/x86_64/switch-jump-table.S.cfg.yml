@@ -44,4 +44,3 @@
           - Destination: ":Invalid"
             Type: Return
   OriginalName: _start
-  Type: Regular

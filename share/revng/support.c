@@ -10,7 +10,6 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdnoreturn.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -18,6 +17,8 @@
 #include <sys/ucontext.h>
 #include <unistd.h>
 #include <unwind.h>
+
+#include "revng/Runtime/PlainMetaAddress.h"
 
 #ifdef TARGET_x86_64
 #include <asm/prctl.h>
@@ -258,6 +259,11 @@ void unknownPC(PlainMetaAddress *PC) {
   write(2, "\n", 1);
 
   abort();
+}
+
+void jump_to_symbol(char *Symbol) {
+  PlainMetaAddress Empty = { 0 };
+  raise_exception_helper(Symbol, &Empty, &Empty);
 }
 
 #ifdef TRACE

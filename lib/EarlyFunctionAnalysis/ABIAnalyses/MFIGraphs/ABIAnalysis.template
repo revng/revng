@@ -14,7 +14,6 @@
 #include "revng/ABI/RegisterState.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/Common.h"
-#include "revng/EarlyFunctionAnalysis/EarlyFunctionAnalysis.h"
 #include "revng/MFP/MFP.h"
 #include "revng/Model/Binary.h"
 

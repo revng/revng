@@ -3,13 +3,14 @@
 #
 
 ---
-- FunctionMetadata:
+- OriginalName: _start
+  FunctionMetadata:
     ControlFlowGraph:
       - End: "2"
         Start: "1"
         Successors:
           - Destination: "3"
-            Type: FakeFunctionCall
+            Type: DirectBranch
       - End: "3"
         Start: "2"
         Successors:
@@ -25,14 +26,21 @@
         Successors:
           - Destination: ":Invalid"
             Type: Return
-  OriginalName: _start
-  Type: Regular
-- FunctionMetadata:
+- OriginalName: prologue
+  Attributes: [Inline]
+  FunctionMetadata:
+    ControlFlowGraph:
+      - Start: "3"
+        End: "4"
+        Successors:
+          - Destination: ":Invalid"
+            Type: BrokenReturn
+- OriginalName: epilogue
+  Attributes: [NoReturn]
+  FunctionMetadata:
     ControlFlowGraph:
       - End: "5"
         Start: "4"
         Successors:
           - Destination: ":Invalid"
-            Type: IndirectTailCall
-  OriginalName: epilogue
-  Type: NoReturn
+            Type: LongJmp

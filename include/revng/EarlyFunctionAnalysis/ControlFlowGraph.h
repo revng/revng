@@ -35,27 +35,24 @@ inline ParsedSuccessor parseSuccessor(const efa::FunctionEdgeBase &Edge,
                                       const model::Binary &Binary) {
   switch (Edge.Type) {
   case FunctionEdgeType::DirectBranch:
-  case FunctionEdgeType::FakeFunctionCall:
-  case FunctionEdgeType::FakeFunctionReturn:
   case FunctionEdgeType::Return:
   case FunctionEdgeType::BrokenReturn:
-  case FunctionEdgeType::IndirectTailCall:
   case FunctionEdgeType::LongJmp:
   case FunctionEdgeType::Unreachable:
     return ParsedSuccessor{ .NextInstructionAddress = Edge.Destination,
                             .OptionalCallAddress = MetaAddress::invalid() };
 
-  case FunctionEdgeType::FunctionCall:
-  case FunctionEdgeType::IndirectCall:
-    if (auto *CE = llvm::cast<efa::CallEdge>(&Edge);
-        !hasAttribute(Binary, *CE, model::FunctionAttribute::NoReturn)) {
-      return ParsedSuccessor{ .NextInstructionAddress = FallthroughAddress,
-                              .OptionalCallAddress = Edge.Destination };
-    } else {
-      return ParsedSuccessor{ .NextInstructionAddress = MetaAddress::invalid(),
-                              .OptionalCallAddress = Edge.Destination };
-    }
+  case FunctionEdgeType::FunctionCall: {
+    auto *CE = llvm::cast<efa::CallEdge>(&Edge);
 
+    MetaAddress NextInstructionAddress = MetaAddress::invalid();
+    if (not CE->hasAttribute(Binary, model::FunctionAttribute::NoReturn)
+        and not CE->IsTailCall) {
+      NextInstructionAddress = FallthroughAddress;
+    }
+    return ParsedSuccessor{ .NextInstructionAddress = NextInstructionAddress,
+                            .OptionalCallAddress = Edge.Destination };
+  }
   case FunctionEdgeType::Killer:
     return ParsedSuccessor{ .NextInstructionAddress = MetaAddress::invalid(),
                             .OptionalCallAddress = MetaAddress::invalid() };
@@ -67,8 +64,6 @@ inline ParsedSuccessor parseSuccessor(const efa::FunctionEdgeBase &Edge,
     break;
   }
 }
-
-// clang-format off
 
 /// \brief A function for converting EFA's internal CFG representation into
 /// a generic graph.
@@ -99,18 +94,19 @@ buildControlFlowGraph(const Container<BasicBlockType, OtherTs...> &BasicBlocks,
                       const MetaAddress &EntryAddress,
                       const model::Binary &Binary) {
   // clang-format on
-  std::pair<GraphType, std::map<MetaAddress, typename GraphType::Node *>> Res;
+  using Node = typename GraphType::Node;
+  std::pair<GraphType, std::map<MetaAddress, Node *>> Res;
 
   auto &[Graph, AddressToNodeMap] = Res;
   for (const BasicBlockType &Block : BasicBlocks) {
     revng_assert(Block.Start.isValid());
-    auto *Node = Graph.addNode(typename GraphType::Node{ Block.Start });
-    auto [_, Success] = AddressToNodeMap.try_emplace(Block.Start, Node);
+    auto *NewNode = Graph.addNode(Node{ Block.Start });
+    auto [_, Success] = AddressToNodeMap.try_emplace(Block.Start, NewNode);
     revng_assert(Success != false,
                  "Different basic blocks with the same `Start` address");
   }
 
-  typename GraphType::Node *ExitNode = nullptr;
+  Node *ExitNode = nullptr;
   for (const BasicBlockType &Block : BasicBlocks) {
     auto FromNodeIterator = AddressToNodeMap.find(Block.Start);
     revng_assert(FromNodeIterator != AddressToNodeMap.end());
@@ -124,7 +120,7 @@ buildControlFlowGraph(const Container<BasicBlockType, OtherTs...> &BasicBlocks,
       } else {
         if (ExitNode == nullptr) {
           constexpr auto Invalid = MetaAddress::invalid();
-          ExitNode = Graph.addNode(typename GraphType::Node{ Invalid });
+          ExitNode = Graph.addNode(Node{ Invalid });
           auto [_, Succ] = AddressToNodeMap.try_emplace(MetaAddress::invalid(),
                                                         ExitNode);
           revng_assert(Succ != false);

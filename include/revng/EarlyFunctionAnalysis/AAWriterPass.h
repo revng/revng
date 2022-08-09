@@ -8,11 +8,11 @@
 #include "llvm/IR/PassManager.h"
 
 class AAWriterPass : public llvm::PassInfoMixin<AAWriterPass> {
-  llvm::raw_fd_ostream &OS;
+  llvm::raw_ostream &OS;
   const bool StoresOnly;
 
 public:
-  AAWriterPass(llvm::raw_fd_ostream &OS, bool StoresOnly = false) :
+  AAWriterPass(llvm::raw_ostream &OS, bool StoresOnly = false) :
     OS(OS), StoresOnly(StoresOnly){};
 
   llvm::PreservedAnalyses

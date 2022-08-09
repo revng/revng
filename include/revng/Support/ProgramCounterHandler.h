@@ -47,6 +47,7 @@ protected:
   static constexpr const char *TypeName = "pc_type";
 
 protected:
+  unsigned Alignment;
   llvm::GlobalVariable *AddressCSV;
   llvm::GlobalVariable *EpochCSV;
   llvm::GlobalVariable *AddressSpaceCSV;
@@ -59,7 +60,8 @@ public:
   using DispatcherTargets = std::vector<DispatcherTarget>;
 
 protected:
-  ProgramCounterHandler() :
+  ProgramCounterHandler(unsigned Alignment) :
+    Alignment(Alignment),
     AddressCSV(nullptr),
     EpochCSV(nullptr),
     AddressSpaceCSV(nullptr),
@@ -177,7 +179,7 @@ public:
 
   llvm::Instruction *composeIntegerPC(llvm::IRBuilder<> &B) const {
     return MetaAddress::composeIntegerPC(B,
-                                         B.CreateLoad(AddressCSV),
+                                         align(B, B.CreateLoad(AddressCSV)),
                                          B.CreateLoad(EpochCSV),
                                          B.CreateLoad(AddressSpaceCSV),
                                          B.CreateLoad(TypeCSV));
@@ -232,6 +234,19 @@ protected:
       AddressSpaceCSV = createAddressSpace(M);
     if (TypeCSV == nullptr)
       TypeCSV = createType(M);
+  }
+
+  llvm::Value *align(llvm::IRBuilder<> &Builder, llvm::Value *V) const {
+    revng_assert(Alignment != 0);
+
+    if (Alignment == 1)
+      return V;
+
+    using namespace llvm;
+    revng_assert(isPowerOf2_64(Alignment));
+    auto *Type = cast<IntegerType>(V->getType());
+    Value *Mask = ConstantInt::get(Type, ~(Alignment - 1));
+    return Builder.CreateAnd(V, Mask);
   }
 
 public:

@@ -14,9 +14,13 @@ using PCH = ProgramCounterHandler;
 
 class PCOnlyProgramCounterHandler : public ProgramCounterHandler {
 public:
+  PCOnlyProgramCounterHandler(unsigned Alignment) :
+    ProgramCounterHandler(Alignment) {}
+
+public:
   static std::unique_ptr<ProgramCounterHandler>
-  create(Module *M, const CSVFactory &Factory) {
-    auto Result = std::make_unique<PCOnlyProgramCounterHandler>();
+  create(Module *M, const CSVFactory &Factory, unsigned Alignment) {
+    auto Result = std::make_unique<PCOnlyProgramCounterHandler>(Alignment);
 
     // Create and register the pc CSV
     Result->AddressCSV = Factory(PCAffectingCSV::PC, AddressName);
@@ -28,8 +32,9 @@ public:
     return Result;
   }
 
-  static std::unique_ptr<ProgramCounterHandler> fromModule(Module *M) {
-    auto Result = std::make_unique<PCOnlyProgramCounterHandler>();
+  static std::unique_ptr<ProgramCounterHandler>
+  fromModule(Module *M, unsigned Alignment) {
+    auto Result = std::make_unique<PCOnlyProgramCounterHandler>(Alignment);
 
     // Initialize the standard variables
     Result->setMissingVariables(M);
@@ -55,7 +60,7 @@ public:
                                            Triple::ArchType Arch) const final {
     IntegerType *Ty = getCSVType(TypeCSV);
 
-    Value *Address = ToDissect;
+    Value *Address = align(Builder, ToDissect);
     Value *Epoch = ConstantInt::get(Ty, 0);
     Value *AddressSpace = ConstantInt::get(Ty, 0);
     Value *Type = ConstantInt::get(Ty,
@@ -80,6 +85,9 @@ private:
 
 private:
   GlobalVariable *IsThumb;
+
+public:
+  ARMProgramCounterHandler() : ProgramCounterHandler(2), IsThumb(nullptr) {}
 
 public:
   static std::unique_ptr<ProgramCounterHandler>
@@ -149,6 +157,7 @@ private:
     IntegerType *Ty = getCSVType(TypeCSV);
 
     Value *IsThumb = Builder.CreateAnd(ToDissect, ThumbMask);
+    // We should align(Address) but we're doing exactly the same here so no need
     Value *Address = Builder.CreateAnd(ToDissect, AddressMask);
     Value *Epoch = ConstantInt::get(Ty, 0);
     Value *AddressSpace = ConstantInt::get(Ty, 0);
@@ -807,10 +816,29 @@ PCH::buildDispatcher(DispatcherTargets &Targets,
   return Result;
 }
 
+static unsigned getMinimumPCAlignment(Triple::ArchType Architecture) {
+  switch (Architecture) {
+  case Triple::x86:
+  case Triple::x86_64:
+    return 1;
+  case Triple::arm:
+  case Triple::systemz:
+    return 2;
+  case Triple::mips:
+  case Triple::mipsel:
+  case Triple::aarch64:
+    return 4;
+  default:
+    revng_abort();
+  }
+}
+
 std::unique_ptr<ProgramCounterHandler>
 PCH::create(Triple::ArchType Architecture,
             Module *M,
             const CSVFactory &Factory) {
+  auto Alignment = getMinimumPCAlignment(Architecture);
+
   switch (Architecture) {
   case Triple::arm:
     return ARMProgramCounterHandler::create(M, Factory);
@@ -821,7 +849,7 @@ PCH::create(Triple::ArchType Architecture,
   case Triple::aarch64:
   case Triple::systemz:
   case Triple::x86:
-    return PCOnlyProgramCounterHandler::create(M, Factory);
+    return PCOnlyProgramCounterHandler::create(M, Factory, Alignment);
 
   default:
     revng_abort("Unsupported architecture");
@@ -832,6 +860,8 @@ PCH::create(Triple::ArchType Architecture,
 
 std::unique_ptr<ProgramCounterHandler>
 PCH::fromModule(Triple::ArchType Architecture, Module *M) {
+  auto Alignment = getMinimumPCAlignment(Architecture);
+
   switch (Architecture) {
   case Triple::arm:
     return ARMProgramCounterHandler::fromModule(M);
@@ -842,7 +872,7 @@ PCH::fromModule(Triple::ArchType Architecture, Module *M) {
   case Triple::aarch64:
   case Triple::systemz:
   case Triple::x86:
-    return PCOnlyProgramCounterHandler::fromModule(M);
+    return PCOnlyProgramCounterHandler::fromModule(M, Alignment);
 
   default:
     revng_abort("Unsupported architecture");

@@ -24,7 +24,7 @@
 
 #include "revng/EarlyFunctionAnalysis/CollectFunctionsFromCalleesPass.h"
 #include "revng/EarlyFunctionAnalysis/CollectFunctionsFromUnusedAddressesPass.h"
-#include "revng/EarlyFunctionAnalysis/EarlyFunctionAnalysis.h"
+#include "revng/EarlyFunctionAnalysis/DetectABI.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Context.h"
@@ -123,9 +123,9 @@ public:
     auto Global = llvm::cantFail(Ctx.getGlobal<ModelGlobal>(ModelGlobalName));
     Manager.add(new LoadModelWrapperPass(ModelWrapper(Global->get())));
     Manager.add(new CollectFunctionsFromCalleesWrapperPass());
-    Manager.add(new EarlyFunctionAnalysis::EarlyFunctionAnalysis<true>());
+    Manager.add(new efa::DetectABIPass());
     Manager.add(new CollectFunctionsFromUnusedAddressesWrapperPass());
-    Manager.add(new EarlyFunctionAnalysis::EarlyFunctionAnalysis<true>());
+    Manager.add(new efa::DetectABIPass());
   };
 };
 

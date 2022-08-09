@@ -45,6 +45,11 @@ public:
   static bool classof(const FunctionEdgeBase *A) { return classof(A->key()); }
   static bool classof(const Key &K) { return true; }
 
+public:
+  bool isDirect() const { return Destination.isValid(); }
+  bool isIndirect() const { return not isDirect(); }
+
+public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   bool verify(model::VerifyHelper &VH) const;

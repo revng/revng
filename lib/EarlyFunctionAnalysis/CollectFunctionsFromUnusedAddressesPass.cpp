@@ -43,9 +43,6 @@ private:
 
 void CFFUAImpl::loadAllCFGs() {
   for (auto &Function : Binary.Functions) {
-    if (Function.Type == model::FunctionType::Fake)
-      continue;
-
     llvm::BasicBlock *Entry = GCBI.getBlockAt(Function.Entry);
     llvm::Instruction *Term = Entry->getTerminator();
     auto *FMMDNode = Term->getMetadata(FunctionMetadataMDName);
@@ -71,11 +68,6 @@ void CFFUAImpl::collectFunctionsFromUnusedAddresses() {
     if (Binary.Functions.find(Entry) != Binary.Functions.end())
       continue;
 
-    // Do not consider dynamic functions (e.g., PLT entries), they are imported
-    // directly from EarlyFunctionAnalysis.
-    if (not getDynamicSymbol(&BB).empty())
-      continue;
-
     uint32_t Reasons = GCBI.getJTReasons(&BB);
     bool IsUnusedGlobalData = hasReason(Reasons, JTReason::UnusedGlobalData);
     bool IsMemoryStore = hasReason(Reasons, JTReason::MemoryStore);
@@ -94,7 +86,7 @@ void CFFUAImpl::collectFunctionsFromUnusedAddresses() {
       // Consider addresses found in global data that have not been used or
       // addresses that are not return addresses and do not end up in the PC
       // directly.
-      Binary.Functions[Entry].Type = model::FunctionType::Invalid;
+      Binary.Functions[Entry];
       revng_log(Log,
                 "Found function from unused addresses: " << BB.getName().str());
     }

@@ -8,10 +8,10 @@
 
 class IndirectBranchInfoPrinterPass
   : public llvm::PassInfoMixin<IndirectBranchInfoPrinterPass> {
-  llvm::raw_fd_ostream &OS;
+  llvm::raw_ostream &OS;
 
 public:
-  IndirectBranchInfoPrinterPass(llvm::raw_fd_ostream &OS) : OS(OS){};
+  IndirectBranchInfoPrinterPass(llvm::raw_ostream &OS) : OS(OS){};
 
   llvm::PreservedAnalyses
   run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM);

@@ -164,7 +164,6 @@ void PECOFFImporter::parseSymbols() {
       continue;
 
     model::Function &Function = Model->Functions[Address];
-    Function.Type = model::FunctionType::Invalid;
     Function.OriginalName = *NameOrErr;
   }
 }

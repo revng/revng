@@ -36,6 +36,11 @@ fields:
   - name: OriginalName
     type: std::string
     optional: true
+  - name: CanonicalRegisterValues
+    optional: true
+    sequence:
+      type: SortedVector
+      elementType: model::CanonicalRegisterValue
   - name: Relocations
     optional: true
     sequence:

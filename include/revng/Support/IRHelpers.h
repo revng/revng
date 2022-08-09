@@ -1185,23 +1185,20 @@ inline bool isMarker(const llvm::Instruction *I) {
 inline llvm::Instruction *nextNonMarker(llvm::Instruction *I) {
   auto It = I->getIterator();
   auto End = I->getParent()->end();
-  do {
-    It++;
-    revng_assert(It != End);
-  } while (isMarker(&*It));
+  while (++It != End) {
+    if (not isMarker(&*It))
+      return &*It;
+  }
 
-  revng_assert(It != End);
-  return &*It;
+  return nullptr;
 }
 
-/// \brief Return the call to the marker function_call
-///        if \p T is a function call in the input assembly.
-inline llvm::CallInst *getFunctionCall(llvm::Instruction *T) {
+inline llvm::CallInst *getMarker(llvm::Instruction *T, llvm::Function *Marker) {
   revng_assert(T && T->isTerminator());
   llvm::Instruction *Previous = getPrevious(T);
   while (Previous != nullptr
          && (isMarker(Previous) || isCallTo(Previous, "abort"))) {
-    if (auto *Call = getCallTo(Previous, "function_call"))
+    if (auto *Call = getCallTo(Previous, Marker))
       return Call;
 
     Previous = getPrevious(Previous);
@@ -1210,22 +1207,39 @@ inline llvm::CallInst *getFunctionCall(llvm::Instruction *T) {
   return nullptr;
 }
 
-inline llvm::CallInst *getFunctionCall(llvm::BasicBlock *BB) {
-  return getFunctionCall(BB->getTerminator());
+inline llvm::CallInst *
+getMarker(llvm::Instruction *I, llvm::StringRef MarkerName) {
+  return getMarker(I, getModule(I)->getFunction(MarkerName));
 }
 
-/// \brief Return true if \p T is a function call in the input assembly.
-inline bool isFunctionCall(llvm::Instruction *T) {
-  return getFunctionCall(T) != nullptr;
+inline llvm::CallInst *
+getMarker(llvm::BasicBlock *BB, llvm::StringRef MarkerName) {
+  return getMarker(BB->getTerminator(), MarkerName);
 }
 
-inline bool isFunctionCall(llvm::BasicBlock *BB) {
-  return isFunctionCall(BB->getTerminator());
+inline llvm::CallInst *getMarker(llvm::BasicBlock *BB, llvm::Function *Marker) {
+  return getMarker(BB->getTerminator(), Marker);
+}
+
+inline bool hasMarker(llvm::Instruction *T, llvm::StringRef MarkerName) {
+  return getMarker(T, MarkerName);
+}
+
+inline bool hasMarker(llvm::BasicBlock *BB, llvm::StringRef MarkerName) {
+  return getMarker(BB->getTerminator(), MarkerName);
+}
+
+inline bool hasMarker(llvm::Instruction *T, llvm::Function *Marker) {
+  return getMarker(T, Marker);
+}
+
+inline bool hasMarker(llvm::BasicBlock *BB, llvm::Function *Marker) {
+  return getMarker(BB->getTerminator(), Marker);
 }
 
 /// \brief Return the callee basic block given a function_call marker.
 inline llvm::BasicBlock *getFunctionCallCallee(llvm::Instruction *T) {
-  if (auto *Call = getFunctionCall(T)) {
+  if (auto *Call = getMarker(T, "function_call")) {
     if (auto *Callee = llvm::dyn_cast<llvm::BlockAddress>(Call->getOperand(0)))
       return Callee->getBasicBlock();
   }
@@ -1239,7 +1253,7 @@ inline llvm::BasicBlock *getFunctionCallCallee(llvm::BasicBlock *BB) {
 
 /// \brief Return the fall-through basic block given a function_call marker.
 inline llvm::BasicBlock *getFallthrough(llvm::Instruction *T) {
-  if (auto *Call = getFunctionCall(T)) {
+  if (auto *Call = getMarker(T, "function_call")) {
     auto *Fallthrough = llvm::cast<llvm::BlockAddress>(Call->getOperand(1));
     return Fallthrough->getBasicBlock();
   }
@@ -1381,15 +1395,10 @@ inline unsigned getMemoryAccessSize(llvm::Instruction *I) {
   return getPointeeSize(getPointer(I));
 }
 
-inline llvm::StringRef getDynamicSymbol(llvm::BasicBlock *BB) {
-  auto *NewPCCall = getCallTo(&*BB->begin(), "newpc");
-  revng_assert(NewPCCall != nullptr);
-  auto *SymbolNameValue = NewPCCall->getArgOperand(4);
-  if (isa<llvm::ConstantPointerNull>(SymbolNameValue))
-    return {};
-  return extractFromConstantStringPtr(SymbolNameValue);
-}
+/// Steal the body of \p OldFunction and move it into \p NewFunction
+void moveBlocksInto(llvm::Function &OldFunction, llvm::Function &NewFunction);
 
+/// Create a function identical to \p OldFunction but use \p NewType as type
 llvm::Function &
 moveToNewFunctionType(llvm::Function &OldFunction, llvm::FunctionType &NewType);
 

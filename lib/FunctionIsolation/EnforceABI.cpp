@@ -8,6 +8,7 @@
 
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/IRBuilder.h"
@@ -32,6 +33,7 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/RootKind.h"
 #include "revng/Pipes/TaggedFunctionKind.h"
+#include "revng/Support/BlockType.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
@@ -150,9 +152,6 @@ void EnforceABIImpl::run() {
 
   // Recreate isolated functions with arguments
   for (const model::Function &FunctionModel : Binary.Functions) {
-    if (FunctionModel.Type == model::FunctionType::Fake)
-      continue;
-
     revng_assert(not FunctionModel.name().empty());
     auto OldFunctionName = (Twine("local_") + FunctionModel.name()).str();
     Function *OldFunction = M.getFunction(OldFunctionName);
@@ -326,17 +325,20 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
     Callee = OldToNew.at(Callee);
 
   // Identify the corresponding call site in the model
-  MetaAddress BasicBlockAddress = GCBI.getJumpTarget(Call->getParent());
   efa::FunctionMetadata FM = *extractFunctionMetadata(CallerFunction).get();
 
-  const efa::BasicBlock &Block = FM.ControlFlowGraph.at(BasicBlockAddress);
+  const efa::BasicBlock *CallerBlock = FM.findBlock(GCBI, Call->getParent());
+  revng_assert(CallerBlock != nullptr);
+
+  // Find the CallEdge
   const efa::CallEdge *CallSite = nullptr;
-  for (const auto &Edge : Block.Successors) {
+  for (const auto &Edge : CallerBlock->Successors) {
     using namespace efa::FunctionEdgeType;
     CallSite = dyn_cast<efa::CallEdge>(Edge.get());
     if (CallSite != nullptr)
       break;
   }
+  revng_assert(CallSite != nullptr);
 
   // Note that currently, in case of indirect call, we emit a call to a
   // placeholder function that will throw an exception. If exceptions are
@@ -345,9 +347,9 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
   //
   // Alternatives:
   //
-  // 1. Emit an inline dispatcher that calls all the compatible functions (i.e.,
-  //    they take a subset of the call site's arguments and return a superset of
-  //    the call site's return values).
+  // 1. Emit an inline dispatcher that calls all the compatible function (i.e.,
+  //    they take a subset of the call site's arguments and return a superset
+  //    of the call site's return values).
   // 2. We have a dedicated outlined dispatcher that takes all the arguments of
   //    the call site, plus all the registers of the return values. Under the
   //    assumption that each return value of the call site is either a return
@@ -363,12 +365,12 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
   CallInst *NewCall = generateCall(Builder,
                                    FunctionModel.Entry,
                                    Callee,
-                                   Block,
+                                   *CallerBlock,
                                    *CallSite);
   NewCall->copyMetadata(*Call);
 
   // Set PC to the expected value
-  GCBI.programCounterHandler()->setPC(Builder, Block.End);
+  GCBI.programCounterHandler()->setPC(Builder, CallerBlock->Start);
 
   // Drop the original call
   eraseFromParent(Call);

@@ -33,18 +33,13 @@ compactFunctionTargets(const TupleTree<model::Binary> &Model,
     TargetsSet.insert(Target.getPathComponents().back().getName());
   }
 
-  // check if all functions in the model, that are not fake, are in the targets.
+  // Check if all functions in the model, that are not fake, are in the targets.
   // if they are, return *
-  const auto IsNotFake = [](const auto &F) {
-    return F.Type != model::FunctionType::Fake;
-  };
   const auto IsInTargetSet = [&TargetsSet](const model::Function &F) {
     return TargetsSet.contains(F.Entry.toString());
   };
-  if (llvm::all_of(llvm::make_filter_range(Model->Functions, IsNotFake),
-                   IsInTargetSet)) {
+  if (llvm::all_of(Model->Functions, IsInTargetSet))
     return pipeline::TargetsList({ AllFunctions });
-  }
 
   return Targets;
 }

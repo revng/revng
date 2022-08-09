@@ -15,15 +15,16 @@ name: DecoratedFunction
 doc: A decorated function meant to be used for EFA tests
 type: struct
 fields:
+  - name: Entry
+    type: MetaAddress
   - name: OriginalName
     type: std::string
-  - name: Type
-    doc: Type of the function
-    type: model::FunctionType::Values
   - name: FunctionMetadata
     type: efa::FunctionMetadata
+  - name: Attributes
+    type: MutableSet<model::FunctionAttribute::Values>
 key:
-  - OriginalName
+  - Entry
 TUPLE-TREE-YAML */
 
 #include "Generated/Early/DecoratedFunction.h"

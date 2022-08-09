@@ -63,7 +63,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
     Instruction *Terminator = BB.getTerminator();
 
     if (Terminator != nullptr) {
-      if (CallInst *Call = getFunctionCall(Terminator)) {
+      if (CallInst *Call = getMarker(Terminator, "function_call")) {
         auto Address = MetaAddress::fromConstant(Call->getOperand(2));
         FallthroughAddresses.insert(Address);
         continue;
@@ -242,6 +242,10 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
         Callee = Int8NullPtr;
       } else if (SuccessorsCount == 1) {
         auto *Succ = Terminator->getSuccessor(0);
+
+        if (Succ == GCBI.unexpectedPC())
+          continue;
+
         bool IsTranslated = GCBI.isTranslated(Succ);
         Callee = IsTranslated ? static_cast<Value *>(BlockAddress::get(Succ)) :
                                 static_cast<Value *>(Int8NullPtr);
@@ -306,7 +310,7 @@ void FunctionCallIdentification::buildFilteredCFG(llvm::Function &F) {
     CustomCFGNode *Node = FilteredCFG.getNode(&BB);
 
     // Is this a function call?
-    if (CallInst *Call = getFunctionCall(&BB)) {
+    if (CallInst *Call = getMarker(&BB, "function_call")) {
 
       Value *SecondArgument = Call->getArgOperand(1);
       auto *Fallthrough = cast<BlockAddress>(SecondArgument)->getBasicBlock();

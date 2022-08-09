@@ -805,6 +805,11 @@ public:
   /// @}
 
 public:
+  bool isIn(const MetaAddress &Start, const MetaAddress &End) const {
+    return Start <= *this and *this < End;
+  }
+
+public:
   void dump() const debug_function { dump(dbg); }
 
   template<typename T>

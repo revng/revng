@@ -4,7 +4,15 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-using namespace llvm;
+#include "llvm/Object/ELFObjectFile.h"
+
+#include "revng/Model/RawBinaryView.h"
+#include "revng/Support/MetaAddress.h"
+
+#include "BinaryImporterHelper.h"
+#include "DwarfReader.h"
+
+extern Logger<> ELFImporterLog;
 
 namespace {
 
@@ -19,6 +27,11 @@ private:
 public:
   FilePortion(const RawBinaryView &File);
 
+public:
+  MetaAddress address() const { return Address; }
+  uint64_t size() const { return Size; }
+
+public:
   void setAddress(MetaAddress Address);
   void setSize(uint64_t Size);
 
@@ -30,11 +43,11 @@ public:
   bool isAvailable() const;
   bool isExact() const;
 
-  StringRef extractString() const;
+  llvm::StringRef extractString() const;
 
   template<typename T>
-  ArrayRef<T> extractAs() const;
-  ArrayRef<uint8_t> extractData() const;
+  llvm::ArrayRef<T> extractAs() const;
+  llvm::ArrayRef<uint8_t> extractData() const;
 };
 
 class ELFImporterBase {
@@ -48,7 +61,7 @@ class ELFImporter : public BinaryImporterHelper, public ELFImporterBase {
 private:
   RawBinaryView File;
   TupleTree<model::Binary> &Model;
-  const object::ELFObjectFileBase &TheBinary;
+  const llvm::object::ELFObjectFileBase &TheBinary;
   uint64_t PreferredBaseAddress;
 
   std::optional<MetaAddress> EHFrameHdrAddress;
@@ -64,7 +77,7 @@ protected:
 
 public:
   ELFImporter(TupleTree<model::Binary> &Model,
-              const object::ELFObjectFileBase &TheBinary,
+              const llvm::object::ELFObjectFileBase &TheBinary,
               uint64_t PreferredBaseAddress) :
     File(*Model, toArrayRef(TheBinary.getData())),
     Model(Model),
@@ -74,7 +87,7 @@ public:
 private:
   using Elf_Rel = llvm::object::Elf_Rel_Impl<T, HasAddend>;
   using Elf_Rel_Array = llvm::ArrayRef<Elf_Rel>;
-  using ConstElf_Shdr = const typename object::ELFFile<T>::Elf_Shdr;
+  using ConstElf_Shdr = const typename llvm::object::ELFFile<T>::Elf_Shdr;
 
 public:
   llvm::Error import() override;
@@ -113,8 +126,8 @@ private:
   ///
   /// \note Either \p FDEsCount or \p EHFrameSize have to be specified
   void parseEHFrame(MetaAddress EHFrameAddress,
-                    Optional<uint64_t> FDEsCount,
-                    Optional<uint64_t> EHFrameSize);
+                    llvm::Optional<uint64_t> FDEsCount,
+                    llvm::Optional<uint64_t> EHFrameSize);
 
   /// \brief Parse an LSDA to collect its landing pads
   ///
@@ -123,14 +136,18 @@ private:
   /// \param LSDAAddress the address of the target LSDA
   void parseLSDA(MetaAddress FDEStart, MetaAddress LSDAAddress);
 
-  void parseSymbols(object::ELFFile<T> &TheELF, ConstElf_Shdr *SectionHeader);
-
-  void parseProgramHeaders(object::ELFFile<T> &TheELF);
-
   void
-  parseDynamicSymbol(llvm::object::Elf_Sym_Impl<T> &Symbol, StringRef Dynstr);
+  parseSymbols(llvm::object::ELFFile<T> &TheELF, ConstElf_Shdr *SectionHeader);
+
+  void parseProgramHeaders(llvm::object::ELFFile<T> &TheELF);
+
+  void parseDynamicSymbol(llvm::object::Elf_Sym_Impl<T> &Symbol,
+                          llvm::StringRef Dynstr);
 
 protected:
+  template<typename Q>
+  using SmallVectorImpl = llvm::SmallVectorImpl<Q>;
+
   /// \brief Register a label for each input relocation
   void registerRelocations(Elf_Rel_Array Relocations,
                            const FilePortion &Dynsym,
@@ -140,6 +157,7 @@ protected:
                        MetaAddress Relocated,
                        SmallVectorImpl<uint64_t> &NeededLibraryNameOffsets,
                        uint64_t Val);
+
   /// \brief Parse architecture dynamic tags.
   virtual void
   parseTargetDynamicTags(uint64_t Tag,
