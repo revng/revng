@@ -387,21 +387,8 @@ public:
           }
 
         } else if (auto *C = dyn_cast<CallInst>(&I)) {
-          const Function *Callee = getCallee(C);
 
-          // TODO: this case will need to be handled properly to be able to
-          // infer types from calls to dynamic functions.
-          // Calls to dynamic functions at the moment don't have a callee,
-          // because the callees are generated with a bunch of pointer
-          // arithmetic from integer constants.
-          if (not Callee)
-            continue;
-
-          // Skip llvm intrinsics
-          if (Callee->isIntrinsic())
-            continue;
-
-          if (Callee->hasName() and FunctionTags::MallocLike.isTagOf(Callee)) {
+          if (isCallToTagged(C, FunctionTags::MallocLike)) {
 
             const auto &[StackLayout, New] = Builder.getOrCreateLayoutType(C);
             Changed |= New;
@@ -415,7 +402,7 @@ public:
             continue;
           }
 
-          if (Callee->hasName() and FunctionTags::AddressOf.isTagOf(Callee)) {
+          if (isCallToTagged(C, FunctionTags::AddressOf)) {
             // AddressOf always generates a Layout node
             const auto &[AddrLayout, New] = Builder.getOrCreateLayoutType(C);
             Changed |= New;
@@ -432,9 +419,9 @@ public:
             continue;
           }
 
-          auto CTags = FunctionTags::TagsSet::from(Callee);
-          if (CTags.contains(FunctionTags::StructInitializer)) {
+          if (isCallToTagged(C, FunctionTags::StructInitializer)) {
 
+            const Function *Callee = getCallee(C);
             revng_assert(not Callee->isVarArg());
 
             auto *RetTy = cast<StructType>(Callee->getReturnType());
@@ -467,14 +454,18 @@ public:
           //  2. @env is not a construct coming from the original program being
           //     decompiled, rather a QEMU artifact that represents the CPU
           //     state. Hence it has no really meaningful type in the program.
-          if (not CTags.contains(FunctionTags::Isolated))
+          if (not isCallToIsolatedFunction(C))
             continue;
 
-          revng_assert(not Callee->isVarArg());
-          revng_assert(isa<PointerType>(Callee->getType()));
-          const auto *PointerT = cast<PointerType>(Callee->getType());
-          const auto *FunctionT = PointerT->getPointerElementType();
-          revng_assert(isa<FunctionType>(FunctionT));
+          const auto PrototypeRef = getCallSitePrototype(Model, C);
+          if (not PrototypeRef.isValid())
+            continue;
+
+          const model::Type *Prototype = PrototypeRef.getConst();
+          revng_assert(Prototype);
+
+          const Function *Callee = getCallee(C);
+          revng_assert(not Callee or not Callee->isVarArg());
 
           // Add entry in SCEVToLayoutType map for return values of CallInst
           if (C->getNumUses()) {
@@ -485,10 +476,11 @@ public:
 
             if (isa<StructType>(C->getType())) {
               // Types representing the return type
-              auto FormalRetTys = Builder.getLayoutTypes(*Callee);
-              auto Size = FormalRetTys.size();
               auto ExtractedVals = getExtractedValuesFromInstruction(C);
-              revng_assert(Size == ExtractedVals.size());
+              auto Size = ExtractedVals.size();
+              auto FormalRetTys = Callee ? Builder.getLayoutTypes(*Callee) :
+                                           TS.createArtificialLayoutTypes(Size);
+              revng_assert(Size == FormalRetTys.size());
               for (const auto &[Ext, RetTy] :
                    llvm::zip(ExtractedVals, FormalRetTys)) {
 
@@ -512,7 +504,9 @@ public:
             } else {
               // Type representing the return type
               revng_assert(not C->getType()->isIntegerTy(1));
-              LayoutTypeSystemNode *RetTy = Builder.getLayoutType(Callee);
+              LayoutTypeSystemNode *RetTy = Callee ?
+                                              Builder.getLayoutType(Callee) :
+                                              TS.createArtificialLayoutType();
               const auto &[CType, NewC] = Builder.getOrCreateLayoutType(C);
               Changed |= NewC;
               Changed |= Builder.TS.addEqualityLink(RetTy, CType).second;
