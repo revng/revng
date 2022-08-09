@@ -75,7 +75,8 @@ bool MakeSegmentRefPass::runOnFunction(Function &F) {
           if (BI->getCondition() != Op)
             continue;
 
-      if (ConstantInt *ConstOp = dyn_cast<CI>(skipCasts(Op))) {
+      ConstantInt *ConstOp = dyn_cast<CI>(skipCasts(Op));
+      if (ConstOp != nullptr and ConstOp->getBitWidth() <= 64) {
         uint64_t Literal = ConstOp->getZExtValue();
 
         if (auto Segment = findLiteralInSegments(*Model, Literal); Segment) {

@@ -457,10 +457,6 @@ bool dumpModelToHeader(const model::Binary &Model, llvm::raw_ostream &Header) {
   printTypeDefinitions(Model, Header, AdditionalTypeNames);
 
   for (const model::Function &MF : Model.Functions) {
-    // Ignore fake functions
-    if (MF.Type == model::FunctionType::Fake)
-      continue;
-
     const model::Type *FT = MF.Prototype.get();
     auto FName = model::Identifier::fromString(MF.name());
 

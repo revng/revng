@@ -30,15 +30,35 @@ using TSBuilder = DLATypeSystemLLVMBuilder;
 bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
                                            const model::Binary &Model) {
   for (const Function &F : M.functions()) {
+
     auto FTags = FunctionTags::TagsSet::from(&F);
-    if (F.isIntrinsic() or not FTags.contains(FunctionTags::Isolated))
+    // Skip intrinsics
+    if (F.isIntrinsic())
       continue;
+
+    // Ignore everything that is not isolated or dynamic
+    if (not FunctionTags::Isolated.isTagOf(&F)
+        and not FunctionTags::DynamicFunction.isTagOf(&F))
+      continue;
+
     revng_assert(not F.isVarArg());
 
     // Check if a function with the same prototype has already been visited
-    const model::Function *ModelFunc = llvmToModelFunction(Model, F);
-    revng_assert(ModelFunc);
-    const model::Type *Prototype = ModelFunc->Prototype.getConst();
+    const model::Type *Prototype = nullptr;
+    if (FunctionTags::Isolated.isTagOf(&F)) {
+      const model::Function *ModelFunc = llvmToModelFunction(Model, F);
+      Prototype = ModelFunc->Prototype.getConst();
+    } else {
+      llvm::StringRef SymbolName = F.getName().drop_front(strlen("dynamic_"));
+
+      auto It = Model.ImportedDynamicFunctions.find(SymbolName.str());
+      revng_assert(It != Model.ImportedDynamicFunctions.end());
+      const model::DynamicFunction &DF = *It;
+      const auto &TTR = getPrototype(Model, DF);
+      revng_assert(TTR.isValid());
+      Prototype = TTR.getConst();
+    }
+    revng_assert(Prototype);
 
     FuncOrCallInst FuncWithSameProto;
     auto It = VisitedPrototypes.find(Prototype);
@@ -80,62 +100,30 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
       }
     }
 
-    // Create types for segments
-    std::map<model::Segment *, LayoutTypeSystemNode *> SegmentNodeMap;
-    for (Function &F : FunctionTags::SegmentRef.functions(&M)) {
-      const auto &[StartAddress,
-                   VirtualSize] = extractSegmentKeyFromMetadata(F);
-      model::Segment Segment = Model.Segments.at({ StartAddress, VirtualSize });
-      auto [SegmentTypeNode, _] = getOrCreateLayoutType(&F);
-      auto [It, Success] = SegmentNodeMap.insert({ &Segment, SegmentTypeNode });
-
-      // Already inserted? Reference the Node of the current function to the
-      // found segment, otherwise emit a placeholder for a new node in order to
-      // prevent DLA's middle-end from doing certain optimizations.
-      if (Success == false) {
-        TS.addEqualityLink(SegmentTypeNode, It->second);
-      } else {
-        auto *Placeholder = TS.createArtificialLayoutType();
-        Placeholder->Size = getPointerSize(Model.Architecture);
-        TS.addPointerLink(Placeholder, SegmentTypeNode);
-      }
-
-      for (const Use &U : F.uses()) {
-        auto *Call = cast<CallInst>(U.getUser());
-        auto [SegmentRefCallNode, _] = getOrCreateLayoutType(Call);
-        TS.addEqualityLink(SegmentTypeNode, SegmentRefCallNode);
-      }
-    }
-
     for (const BasicBlock &B : F) {
       for (const Instruction &I : B) {
-        if (auto *Call = dyn_cast<CallInst>(&I)) {
+        if (auto *Call = isCallToIsolatedFunction(&I)) {
 
           const Function *Callee = getCallee(Call);
-
-          // TODO: this case will need to be handled properly to be able to
-          // infer types from calls to dynamic functions.
-          // Calls to dynamic functions at the moment don't have a callee,
-          // because the callees are generated with a bunch of pointer
-          // arithmetic from integer constants.
           if (not Callee)
             continue;
 
-          auto CTags = FunctionTags::TagsSet::from(Callee);
-          if (Callee->isIntrinsic()
-              or not CTags.contains(FunctionTags::Isolated))
-            continue;
-
           unsigned ArgNo = 0U;
-          for (const Argument &FormalArg : Callee->args()) {
-            Value *ActualArg = Call->getOperand(ArgNo);
+          for (const Use &ArgUse : Call->args()) {
+
+            // Create the layout for the call arguments
+            const auto *ActualArg = ArgUse.get();
             revng_assert(isa<IntegerType>(ActualArg->getType())
                          or isa<PointerType>(ActualArg->getType()));
-            revng_assert(isa<IntegerType>(FormalArg.getType())
-                         or isa<PointerType>(FormalArg.getType()));
             auto ActualTypes = getOrCreateLayoutTypes(*ActualArg);
-            auto FormalTypes = getOrCreateLayoutTypes(FormalArg);
+
+            // Create the layout for the formal arguments.
+            Value *FormalArg = Callee->getArg(ArgNo);
+            revng_assert(isa<IntegerType>(FormalArg->getType())
+                         or isa<PointerType>(FormalArg->getType()));
+            auto FormalTypes = getOrCreateLayoutTypes(*FormalArg);
             revng_assert(1ULL == ActualTypes.size() == FormalTypes.size());
+
             auto FieldNum = FormalTypes.size();
             for (auto FieldId = 0ULL; FieldId < FieldNum; ++FieldId) {
               TS.addInstanceLink(ActualTypes[FieldId].first,
@@ -188,6 +176,32 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
           }
         }
       }
+    }
+  }
+
+  // Create types for segments
+  std::map<model::Segment *, LayoutTypeSystemNode *> SegmentNodeMap;
+  for (Function &F : FunctionTags::SegmentRef.functions(&M)) {
+    const auto &[StartAddress, VirtualSize] = extractSegmentKeyFromMetadata(F);
+    model::Segment Segment = Model.Segments.at({ StartAddress, VirtualSize });
+    auto [SegmentTypeNode, _] = getOrCreateLayoutType(&F);
+    auto [It, Success] = SegmentNodeMap.insert({ &Segment, SegmentTypeNode });
+
+    // Already inserted? Reference the Node of the current function to the
+    // found segment, otherwise emit a placeholder for a new node in order to
+    // prevent DLA's middle-end from doing certain optimizations.
+    if (Success == false) {
+      TS.addEqualityLink(SegmentTypeNode, It->second);
+    } else {
+      auto *Placeholder = TS.createArtificialLayoutType();
+      Placeholder->Size = getPointerSize(Model.Architecture);
+      TS.addPointerLink(Placeholder, SegmentTypeNode);
+    }
+
+    for (const Use &U : F.uses()) {
+      auto *Call = cast<CallInst>(U.getUser());
+      auto [SegmentRefCallNode, _] = getOrCreateLayoutType(Call);
+      TS.addEqualityLink(SegmentTypeNode, SegmentRefCallNode);
     }
   }
 
