@@ -207,10 +207,9 @@ static void expandViewbox(Viewbox &Box, const yield::Graph::Point &Point) {
 
 static Viewbox calculateViewbox(const yield::Graph &Graph) {
   revng_assert(Graph.size() != 0);
-  revng_assert(Graph.getEntryNode() != nullptr);
 
   // Ensure every node fits.
-  Viewbox Result = makeViewbox(Graph.getEntryNode());
+  Viewbox Result = makeViewbox(*Graph.nodes().begin());
   for (const auto *Node : Graph.nodes())
     expandViewbox(Result, makeViewbox(Node));
 
