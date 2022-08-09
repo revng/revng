@@ -9,6 +9,7 @@ revng_add_analyses_library_internal(
   Assembly/PTML.cpp
   Assembly/LLVMDisassemblerInterface.cpp
   Assembly/Plain.cpp
+  CallGraphs/CallGraphSlices.cpp
   ControlFlow/Extraction.cpp
   ControlFlow/FallthroughDetection.cpp
   ControlFlow/NodeSizeCalculation.cpp
