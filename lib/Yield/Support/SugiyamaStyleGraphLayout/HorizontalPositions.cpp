@@ -194,3 +194,117 @@ void setHorizontalCoordinates(const LayerContainer &Layers,
     }
   }
 }
+
+void setStaticOffsetHorizontalCoordinates(const LayerContainer &Layers,
+                                          float MarginSize) {
+  struct Subtree {
+    /// Represents the required width of a subtree where `1` unit represents
+    /// a width of single node.
+    size_t LogicalWidth = 0;
+
+    /// Represents the index of the node in it's layer (it's position relative
+    /// to its sibling nodes).
+    size_t LogicalPosition = 0;
+
+    /// A place to store final node position, after tree widths are taken into
+    /// the account.
+    size_t ActualPosition = 0;
+  };
+
+  // Build a table of sub-trees for each node, where a subtree represents
+  // the logical space required to fit all the successors of the node as well
+  // it's logical position in relation to its siblings.
+  //
+  // \note: this only computes logical placement, so `ActualPosition` is left
+  // unset.
+  std::unordered_map<NodeView, Subtree> LookupTable;
+  for (auto LayerInd = Layers.size() - 1; LayerInd != size_t(-1); --LayerInd) {
+    for (size_t Index = 0; Index < Layers[LayerInd].size(); ++Index) {
+      auto NodeView = Layers[LayerInd][Index];
+      auto SubtreeIterator = LookupTable.find(NodeView);
+      if (SubtreeIterator == LookupTable.end()) {
+        // Only add new lookup entry if there is not one present already.
+
+        bool Success = false;
+        std::tie(SubtreeIterator, Success) = LookupTable.try_emplace(NodeView);
+        revng_assert(Success);
+
+        SubtreeIterator->second.LogicalWidth = 1;
+      }
+
+      // Fill logical positions based on the input layer structure.
+      auto &CurrentSubtree = SubtreeIterator->second;
+      CurrentSubtree.LogicalPosition = Index;
+
+      // This relies on the fact that every node has at most one predecessor.
+      revng_assert(NodeView->predecessorCount() <= 1);
+
+      if (NodeView->hasPredecessors()) {
+        auto *Predecessor = *NodeView->predecessors().begin();
+        auto Iterator = LookupTable.find(Predecessor);
+        if (Iterator == LookupTable.end()) {
+          bool Success = false;
+          std::tie(Iterator, Success) = LookupTable.try_emplace(Predecessor);
+          revng_assert(Success);
+
+          // If the only predecessor of this node is not in the lookup table,
+          // add it while setting its width to that of the current node.
+          auto &PredecessorSubtree = Iterator->second;
+          PredecessorSubtree.LogicalWidth = CurrentSubtree.LogicalWidth;
+        } else {
+          // If there predecessor was already added (it has multiple
+          // successors), just add the current width to it.
+          auto &PredecessorSubtree = Iterator->second;
+          PredecessorSubtree.LogicalWidth += CurrentSubtree.LogicalWidth;
+        }
+      }
+    }
+  }
+
+  // Now that all the logical positions we decided by going over the layers
+  // backwards, one more forwards facing pass is used to decide on their actual
+  // placement.
+  for (size_t LayerIndex = 0; LayerIndex < Layers.size(); ++LayerIndex) {
+    size_t CurrentPosition = 0;
+    for (size_t Index = 0; Index < Layers[LayerIndex].size(); ++Index) {
+      auto &NodeView = Layers[LayerIndex][Index];
+      auto SubtreeIterator = LookupTable.find(NodeView);
+      revng_assert(SubtreeIterator != LookupTable.end());
+      auto &CurrentSubtree = SubtreeIterator->second;
+
+      // This relies on the fact that every node has at most one predecessor.
+      revng_assert(NodeView->predecessorCount() <= 1);
+
+      // If this node has to predecessors, consider it's `PredecessorPosition`
+      // to be the first available space to the right.
+      //
+      // \note: this also sets the position of the first entry node to 0.
+      size_t PredecessorPosition = CurrentPosition;
+      if (NodeView->hasPredecessors()) {
+        auto *Predecessor = *NodeView->predecessors().begin();
+        auto Iterator = LookupTable.find(Predecessor);
+        revng_assert(Iterator != LookupTable.end());
+
+        // Otherwise, if there is a predecessor, fill the position based on
+        // that.
+        auto &PredecessorSubtree = Iterator->second;
+        PredecessorPosition = PredecessorSubtree.ActualPosition;
+      }
+
+      // Make sure the current node is never to the left of its predecessor
+      // as that space might be occupied by the predecessor's sibling's tree.
+      CurrentPosition = std::max(CurrentPosition, PredecessorPosition);
+
+      // Export the computed position into both the lookup map (for
+      // the successors of this node to use) and as its final horizontal
+      // coordinate.
+      CurrentSubtree.ActualPosition = CurrentPosition;
+      auto Width = CurrentSubtree.LogicalWidth;
+      NodeView->center().X = (Width / 2 + CurrentPosition) * MarginSize;
+
+      // Update the current position, so that no sibling tree occupies the same
+      // space.
+      CurrentPosition += CurrentSubtree.LogicalWidth;
+    }
+  }
+}

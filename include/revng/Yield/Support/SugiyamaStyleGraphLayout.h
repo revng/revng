@@ -46,6 +46,12 @@ public:
   /// with a straight line (they both have the same horizontal position).
   bool PreserveLinearSegments;
 
+  /// Specifies whether simple tree optimizations should be used.
+  ///
+  /// A simple tree expects every single node to only have one predecessor and
+  /// to not have any back-edges.
+  bool UseSimpleTreeOptimization;
+
   /// Specifies the "weight" of virtual nodes as opposed to the real ones.
   ///
   /// Virtual nodes represent long edges (both forwards and backwards facing).
@@ -78,14 +84,16 @@ bool layout(Graph &Graph, const Configuration &Configuration);
 inline bool
 layout(Graph &Graph,
        const cfg::Configuration &CFG,
+       LayoutOrientation Orientation = LayoutOrientation::TopToBottom,
        RankingStrategy Ranking = RankingStrategy::DisjointDepthFirstSearch,
-       LayoutOrientation Orientation = LayoutOrientation::TopToBottom) {
+       bool UseSimpleTreeOptimization = false) {
   return layout(Graph,
                 Configuration{
                   .Ranking = Ranking,
                   .Orientation = Orientation,
                   .UseOrthogonalBends = CFG.UseOrthogonalBends,
                   .PreserveLinearSegments = CFG.PreserveLinearSegments,
+                  .UseSimpleTreeOptimization = UseSimpleTreeOptimization,
                   .VirtualNodeWeight = CFG.VirtualNodeWeight,
                   .NodeMarginSize = CFG.ExternalNodeMarginSize,
                   .EdgeMarginSize = CFG.EdgeMarginSize });

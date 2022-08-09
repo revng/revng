@@ -44,11 +44,11 @@ bool yield::sugiyama::layout(Graph &Graph, const Configuration &Configuration) {
       || Configuration.Orientation == LayoutOrientation::RightToLeft) {
     for (auto *Node : Graph.nodes()) {
       std::swap(Node->Size.W, Node->Size.H);
-      std::swap(Node->Center.X, Node->Center.Y = -Node->Center.Y);
+      std::swap(Node->Center.X, Node->Center.Y);
 
       for (auto [_, Edge] : Node->successor_edges())
         for (auto &[X, Y] : Edge->Path)
-          std::swap(X, Y = -Y);
+          std::swap(X, Y);
     }
   }
 

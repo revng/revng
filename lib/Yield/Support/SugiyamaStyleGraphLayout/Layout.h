@@ -7,16 +7,20 @@
 #include "InternalGraph.h"
 #include "NodeClassification.h"
 
-/// Prepares the graph for futher processing.
+/// Prepares the graph for further processing.
 template<RankingStrategy Strategy>
-std::tuple<InternalGraph, RankContainer, NodeClassifier<Strategy>>
-prepareGraph(ExternalGraph &Graph);
+std::tuple<InternalGraph, RankContainer, MaybeClassifier<Strategy>>
+prepareGraph(ExternalGraph &Graph, bool OmitClassification);
 
 /// Approximates an optimal permutation selection.
 template<RankingStrategy Strategy>
 LayerContainer selectPermutation(InternalGraph &Graph,
                                  RankContainer &Ranks,
-                                 const NodeClassifier<Strategy> &Classifier);
+                                 const MaybeClassifier<Strategy> &Classifier);
+
+/// A simplified permutation selection to only be used with simple tree.
+LayerContainer
+selectSimpleTreePermutation(InternalGraph &Graph, RankContainer &Ranks);
 
 /// Topologically orders nodes of an augmented graph generated based on a
 /// layered version of the graph.
@@ -52,6 +56,10 @@ void setHorizontalCoordinates(const LayerContainer &Layers,
                               const LayoutContainer &Layout,
                               float MarginSize,
                               float VirtualNodeWeight = 0.1f);
+
+/// Simplified horizontal coordinate calculation based on layers only.
+void setStaticOffsetHorizontalCoordinates(const LayerContainer &Layers,
+                                          float MarginSize);
 
 /// Distributes "touching" edges accross lanes to minimize the crossing count.
 LaneContainer assignLanes(InternalGraph &Graph,
@@ -104,14 +112,17 @@ inline bool calculateSugiyamaLayout(ExternalGraph &Graph,
   // entry point (an extra node might have to be added) and that both
   // long edges and backwards facing edges are split up into into chunks
   // that span at most one layer at a time.
-  auto [DAG, Ranks, Classified] = prepareGraph<RS>(Graph);
+  bool ShouldClassify = !Configuration.UseSimpleTreeOptimization;
+  auto [DAG, Ranks, Classified] = prepareGraph<RS>(Graph, !ShouldClassify);
 
   // Try to select an optimal node permutation per layer.
   // \note: since this is the part with the highest complexity, it needs extra
   // care for the layouter to perform well.
   // \suggestion: Maybe we should consider something more optimal instead of
   // a simple hill climbing algorithm.
-  auto Layers = selectPermutation<RS>(DAG, Ranks, Classified);
+  auto Layers = Configuration.UseSimpleTreeOptimization ?
+                  selectSimpleTreePermutation(DAG, Ranks) :
+                  selectPermutation<RS>(DAG, Ranks, *Classified);
 
   // Compute an augmented topological ordering of the nodes of the graph.
   auto Order = extractAugmentedTopologicalOrder(DAG, Layers);
@@ -129,8 +140,16 @@ inline bool calculateSugiyamaLayout(ExternalGraph &Graph,
 
   // Finalize the horizontal node positions.
   const auto &Margin = Configuration.NodeMarginSize;
-  const auto &W = Configuration.VirtualNodeWeight;
-  setHorizontalCoordinates(Layers, Order, LinearSegments, Final, Margin, W);
+  if (Configuration.UseSimpleTreeOptimization) {
+    size_t MaximumNodeWidth = 0;
+    for (auto *Node : Graph.nodes())
+      if (Node->Size.W > MaximumNodeWidth)
+        MaximumNodeWidth = Node->Size.W;
+    setStaticOffsetHorizontalCoordinates(Layers, MaximumNodeWidth + Margin);
+  } else {
+    const auto &W = Configuration.VirtualNodeWeight;
+    setHorizontalCoordinates(Layers, Order, LinearSegments, Final, Margin, W);
+  }
 
   // Distribute edge lanes in a way that minimizes the number of crossings.
   auto Lanes = assignLanes(DAG, LinearSegments, Final);
