@@ -20,6 +20,7 @@
 #include "revng/ADT/STLExtras.h"
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Context.h"
+#include "revng/Pipeline/Target.h"
 #include "revng/Support/Debug.h"
 
 namespace pipeline {
@@ -27,6 +28,11 @@ namespace pipeline {
 template<typename T>
 concept HasName = requires() {
   { T::Name } -> convertible_to<const char *>;
+};
+
+template<typename T>
+concept HasPrecondition = requires(const T &P) {
+  { P.precondition };
 };
 
 // clang-format off
@@ -76,6 +82,7 @@ void invokeImpl(const Context &Ctx,
   (Pipe.*F)(Ctx,
             getContainerFromName<decay_t<Args>>(Containers, ArgsNames[S])...);
 }
+
 } // namespace detail
 
 /// Invokes the F member function on the Pipe Pipe passing as nth argument the
@@ -119,6 +126,9 @@ concept Printable = requires(InvokableType Pipe) {
 class InvokableWrapperBase {
 public:
   virtual void run(Context &Ctx, ContainerSet &Containers) = 0;
+  virtual llvm::Error
+  precondition(const Context &Ctx,
+               const ContainerToTargetsMap &Containers) const = 0;
   virtual ~InvokableWrapperBase() = default;
   virtual std::vector<std::string> getRunningContainersNames() const = 0;
   virtual std::string getName() const = 0;
@@ -155,6 +165,16 @@ public:
                        &InvokableType::run,
                        Containers,
                        RunningContainersNames);
+  }
+
+  llvm::Error
+  precondition(const Context &Ctx,
+               const ContainerToTargetsMap &Containers) const override {
+
+    if constexpr (not HasPrecondition<InvokableType>)
+      return llvm::Error::success();
+    else
+      return ActualPipe.precondition(Ctx);
   }
 
 public:

@@ -53,6 +53,12 @@ public:
     Invokable.dump(OS, Indentation);
   }
 
+  llvm::Error
+  precondition(const Context &Ctx,
+               const ContainerToTargetsMap &Containers) const override {
+    return Invokable.precondition(Ctx, Containers);
+  }
+
   void print(const Context &Ctx,
              llvm::raw_ostream &OS,
              size_t Indentation) const override {

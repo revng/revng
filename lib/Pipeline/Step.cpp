@@ -156,6 +156,15 @@ Error Step::storeToDisk(llvm::StringRef DirPath) const {
   return Containers.storeToDisk(DirPath);
 }
 
+Error Step::precondition(const Context &Ctx,
+                         const ContainerToTargetsMap &Map) const {
+  for (const auto &Pipe : Pipes) {
+    if (auto Error = Pipe->precondition(Ctx, Map); Error)
+      return Error;
+  }
+  return llvm::Error::success();
+}
+
 Error Step::loadFromDisk(llvm::StringRef DirPath) {
   if (not llvm::sys::fs::exists(DirPath))
     return llvm::Error::success();

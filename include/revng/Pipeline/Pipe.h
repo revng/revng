@@ -23,6 +23,7 @@
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/Invokable.h"
+#include "revng/Pipeline/Target.h"
 #include "revng/Support/Debug.h"
 
 namespace pipeline {
@@ -119,6 +120,12 @@ public:
 
   std::unique_ptr<PipeWrapperBase> clone() const override {
     return std::make_unique<PipeWrapperImpl>(*this);
+  }
+
+  llvm::Error
+  precondition(const Context &Ctx,
+               const ContainerToTargetsMap &Containers) const override {
+    return Invokable.precondition(Ctx, Containers);
   }
 
 public:

@@ -304,6 +304,13 @@ Error Runner::run(llvm::StringRef EndingStepName,
     return Error::success();
 
   for (auto &StepGoalsPairs : llvm::drop_begin(ToExec)) {
+    auto &Step = *StepGoalsPairs.ToExecute;
+    if (auto Error = Step.precondition(getContext(), StepGoalsPairs.Input);
+        Error)
+      return Error;
+  }
+
+  for (auto &StepGoalsPairs : llvm::drop_begin(ToExec)) {
     auto &[Step, PredictedOutput, Input] = StepGoalsPairs;
     auto &Parent = Step->getPredecessor();
     auto CurrentContainer = Parent.containers().cloneFiltered(Input);

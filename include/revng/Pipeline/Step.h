@@ -196,6 +196,9 @@ public:
   ContainerToTargetsMap
   analyzeGoals(const ContainerToTargetsMap &RequiredGoals) const;
 
+  llvm::Error
+  precondition(const Context &Ctx, const ContainerToTargetsMap &Map) const;
+
   /// Returns the predicted state of the Input containers status after the
   /// execution of all the pipes in this step.
   ContainerToTargetsMap deduceResults(ContainerToTargetsMap Input) const;
