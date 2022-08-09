@@ -18,6 +18,14 @@ static pipeline::RegisterContainerFactory
 void HelpersToHeaderPipe::run(const pipeline::Context &Ctx,
                               pipeline::LLVMContainer &IRContainer,
                               FileContainer &HeaderFile) {
+  auto HasAllFunctions = [](const pipeline::Target &Target) {
+    return &Target.getKind() == &StackAccessesSegregated
+           and Target.getPathComponents().back().isAll();
+  };
+
+  auto Enumeration = IRContainer.enumerate();
+  if (llvm::none_of(Enumeration, HasAllFunctions))
+    return;
 
   std::error_code EC;
   llvm::raw_fd_ostream Header(HeaderFile.getOrCreatePath(), EC);
