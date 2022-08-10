@@ -139,6 +139,21 @@ public:
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
+/// dla::Step that takes all strided edges and decompose in edges with only one
+/// stride layer
+class DecomposeStridedEdges : public Step {
+  static const char ID;
+
+public:
+  static const constexpr void *getID() { return &ID; }
+
+  inline DecomposeStridedEdges();
+
+  virtual ~DecomposeStridedEdges() override = default;
+
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
+};
+
 /// dla::Step that computes and propagates informations on accesses and type
 /// sizes.
 class ComputeUpperMemberAccesses : public Step {
@@ -252,12 +267,20 @@ public:
          // Dependencies
          {},
          // Invalidated
-         {}) {}
+         { DecomposeStridedEdges::getID() }) {}
 
   virtual ~DeduplicateFields() override = default;
 
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
+
+inline DecomposeStridedEdges::DecomposeStridedEdges() :
+  Step(ID,
+       // Dependencies
+       { ComputeUpperMemberAccesses::getID() },
+       // Invalidated
+       { DeduplicateFields::getID() }) {
+}
 
 template<typename IterT>
 bool intersect(IterT I1, IterT E1, IterT I2, IterT E2) {
