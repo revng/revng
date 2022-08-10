@@ -81,7 +81,28 @@ public:
 static RootKindType RootKind;
 static Kind RootKind2("RootKind2", RootKind, &Root);
 static Kind RootKind3("RootKind3", &Root);
-static Kind FunctionKind("FunctionKind", &FunctionRank);
+class SingleFunctionKind : public LLVMKind {
+public:
+  using LLVMKind::LLVMKind;
+
+  std::optional<Target>
+  symbolToTarget(const llvm::Function &Symbol) const override {
+    if (Symbol.getName() == "f1")
+      return Target("f1", *this);
+    return std::nullopt;
+  }
+
+  TargetsList compactTargets(const Context &Ctx,
+                             TargetsList::List &Targets) const override {
+    pipeline::TargetsList TList;
+    TList.push_back(Target(*this));
+    return Targets.empty() or Targets.front() != Target("f1", *this) ? Targets :
+                                                                       TList;
+  }
+
+  ~SingleFunctionKind() override {}
+};
+static SingleFunctionKind FunctionKind("FunctionKind", &FunctionRank);
 
 static std::string CName = "ContainerName";
 
@@ -679,6 +700,7 @@ struct FunctionInserterPass : public llvm::ModulePass {
   FunctionInserterPass() : llvm::ModulePass(ID) {}
 
   bool runOnModule(llvm::Module &M) override {
+    M.getFunction("root")->eraseFromParent();
     makeF(M, "f1");
     return true;
   }
@@ -1033,7 +1055,7 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineStoreToDiskWithOverrides) {
   auto MaybePipeline = Loader.load(Pipeline);
   BOOST_TEST(!!MaybePipeline);
   auto &Pipeline = *MaybePipeline;
-  auto *Mapping = "FirstStep:ContainerName:DontCareSourceFile";
+  auto *Mapping = "DontCareSourceFile:FirstStep/ContainerName";
   auto MaybeMapping = PipelineFileMapping::parse(Mapping);
   BOOST_TEST(!!MaybeMapping);
 

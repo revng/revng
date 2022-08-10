@@ -68,7 +68,7 @@ inline ParsedSuccessor parseSuccessor(const efa::FunctionEdgeBase &Edge,
 /// \brief A function for converting EFA's internal CFG representation into
 /// a generic graph.
 ///
-/// \p BasicBlocks An arbitrary container of basic blocks that are verified
+/// \p BB An arbitrary container of basic blocks that are verified
 /// using the `IsBasicBlock` concept. These blocks are required to have start
 /// and end addresses as well as a list of their successors. It's expected for
 /// the graph it represents to be self contained, as in "no block can ever
@@ -85,20 +85,20 @@ inline ParsedSuccessor parseSuccessor(const efa::FunctionEdgeBase &Edge,
 /// addresses to corresponding nodes that were created for them.
 template<SpecializationOfGenericGraph GraphType,
          SpecializationOfBasicBlock BasicBlockType,
-         typename ...OtherTs,
-         template<typename...> typename Container>
-  requires std::is_constructible_v<typename GraphType::Node,
-                                   const MetaAddress &>
-std::pair<GraphType, std::map<MetaAddress, typename GraphType::Node *>>
-buildControlFlowGraph(const Container<BasicBlockType, OtherTs...> &BasicBlocks,
-                      const MetaAddress &EntryAddress,
-                      const model::Binary &Binary) {
+         typename... OtherTs,
+         template<typename...>
+         typename Container>
+requires std::is_constructible_v<typename GraphType::Node, const MetaAddress &>
+  std::pair<GraphType, std::map<MetaAddress, typename GraphType::Node *>>
+  buildControlFlowGraph(const Container<BasicBlockType, OtherTs...> &BB,
+                        const MetaAddress &EntryAddress,
+                        const model::Binary &Binary) {
   // clang-format on
   using Node = typename GraphType::Node;
   std::pair<GraphType, std::map<MetaAddress, Node *>> Res;
 
   auto &[Graph, AddressToNodeMap] = Res;
-  for (const BasicBlockType &Block : BasicBlocks) {
+  for (const BasicBlockType &Block : BB) {
     revng_assert(Block.Start.isValid());
     auto *NewNode = Graph.addNode(Node{ Block.Start });
     auto [_, Success] = AddressToNodeMap.try_emplace(Block.Start, NewNode);
@@ -107,7 +107,7 @@ buildControlFlowGraph(const Container<BasicBlockType, OtherTs...> &BasicBlocks,
   }
 
   Node *ExitNode = nullptr;
-  for (const BasicBlockType &Block : BasicBlocks) {
+  for (const BasicBlockType &Block : BB) {
     auto FromNodeIterator = AddressToNodeMap.find(Block.Start);
     revng_assert(FromNodeIterator != AddressToNodeMap.end());
 

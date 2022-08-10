@@ -142,7 +142,7 @@ endmacro()
 macro(git_ls_files_or_glob RESULT)
 
   execute_process(
-    COMMAND git ls-files ${ARGN}
+    COMMAND env --unset=GIT_DIR git ls-files ${ARGN}
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     RESULT_VARIABLE GIT_LS_EXIT_CODE
     OUTPUT_VARIABLE GIT_LS_OUTPUT

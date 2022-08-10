@@ -6,6 +6,7 @@
 //
 
 #include <array>
+#include <string>
 
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
@@ -14,6 +15,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/InitializePasses.h"
+#include "llvm/Pass.h"
 #include "llvm/PassRegistry.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/DynamicLibrary.h"
@@ -104,10 +106,9 @@ public:
 
 static LLVMPipelineRegistry Registry;
 
-class DetectABIAnalysis {
+template<typename... Passes>
+class LLVMAnalysisImplementation {
 public:
-  static constexpr auto Name = "DetectABI";
-
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {
     { &revng::pipes::Root }
   };
@@ -118,15 +119,55 @@ public:
     Manager.run(Container.getModule());
   }
 
+  void print(const Context &Ctx,
+             llvm::raw_ostream &OS,
+             llvm::ArrayRef<std::string> ContainerNames) const {
+    OS << *revng::ResourceFinder.findFile("bin/revng");
+    OS << " opt --model-path=model.yml " << ContainerNames[0] << " -o "
+       << ContainerNames[0];
+    std::vector<std::string> PassNames;
+    (PassNames.push_back(llvm::PassRegistry::getPassRegistry()
+                           ->getPassInfo(&Passes::ID)
+                           ->getPassArgument()
+                           .str()),
+     ...);
+    for (const auto &Name : PassNames)
+      OS << "-" << Name << " ";
+    OS << "\n";
+  }
+
   void registerPasses(const pipeline::Context &Ctx,
                       llvm::legacy::PassManager &Manager) const {
     auto Global = llvm::cantFail(Ctx.getGlobal<ModelGlobal>(ModelGlobalName));
     Manager.add(new LoadModelWrapperPass(ModelWrapper(Global->get())));
-    Manager.add(new CollectFunctionsFromCalleesWrapperPass());
-    Manager.add(new efa::DetectABIPass());
-    Manager.add(new CollectFunctionsFromUnusedAddressesWrapperPass());
-    Manager.add(new efa::DetectABIPass());
+    (Manager.add(new Passes()), ...);
   };
+};
+
+class DetectABIAnalysis {
+private:
+  LLVMAnalysisImplementation<CollectFunctionsFromCalleesWrapperPass,
+                             efa::DetectABIPass,
+                             CollectFunctionsFromUnusedAddressesWrapperPass,
+                             efa::DetectABIPass>
+    Implementation;
+
+public:
+  static constexpr auto Name = "DetectABI";
+
+  std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {
+    { &revng::pipes::Root }
+  };
+
+  void print(const Context &Ctx,
+             llvm::raw_ostream &OS,
+             llvm::ArrayRef<std::string> ContainerNames) const {
+    Implementation.print(Ctx, OS, ContainerNames);
+  }
+
+  void run(const pipeline::Context &Ctx, pipeline::LLVMContainer &Container) {
+    Implementation.run(Ctx, Container);
+  }
 };
 
 static pipeline::RegisterAnalysis<DetectABIAnalysis> A1;

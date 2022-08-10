@@ -13,6 +13,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Pipeline/ContainerSet.h"
+#include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Step.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Support/Assert.h"
@@ -23,9 +24,9 @@ using namespace std;
 using namespace pipeline;
 
 ContainerToTargetsMap
-Step::analyzeGoals(const ContainerToTargetsMap &RequiredGoals,
-                   ContainerToTargetsMap &AlreadyAviable) const {
+Step::analyzeGoals(const ContainerToTargetsMap &RequiredGoals) const {
 
+  ContainerToTargetsMap AlreadyAviable;
   ContainerToTargetsMap Targets = RequiredGoals;
   removeSatisfiedGoals(Targets, AlreadyAviable);
   for (const auto &Pipe : llvm::make_range(Pipes.rbegin(), Pipes.rend())) {
@@ -36,66 +37,62 @@ Step::analyzeGoals(const ContainerToTargetsMap &RequiredGoals,
 }
 
 void Step::explainStartStep(const ContainerToTargetsMap &Targets,
-                            llvm::raw_ostream *OS,
                             size_t Indentation) const {
-  if (OS == nullptr)
-    return;
 
-  (*OS) << "\n";
-  OS->changeColor(llvm::raw_ostream::Colors::GREEN);
-  (*OS) << "Starting Step: ";
-  OS->changeColor(llvm::raw_ostream::Colors::MAGENTA);
-  (*OS) << getName();
-  OS->changeColor(llvm::raw_ostream::Colors::GREEN);
-  (*OS) << " running on \n";
+  indent(ExplanationLogger, Indentation);
+  ExplanationLogger << "STARTING step on containers\n";
+  indent(ExplanationLogger, Indentation + 1);
+  ExplanationLogger << getName() << ":\n";
+  prettyPrintStatus(Targets, ExplanationLogger, Indentation + 2);
+  ExplanationLogger << DoLog;
+}
 
-  prettyPrintStatus(Targets, *OS, Indentation + 1);
+void Step::explainEndStep(const ContainerToTargetsMap &Targets,
+                          size_t Indentation) const {
+
+  indent(ExplanationLogger, Indentation);
+  ExplanationLogger << "ENDING step, the following have been produced\n";
+  indent(ExplanationLogger, Indentation + 1);
+  ExplanationLogger << getName() << ":\n";
+  prettyPrintStatus(Targets, ExplanationLogger, Indentation + 2);
+  ExplanationLogger << DoLog;
 }
 
 void Step::explainExecutedPipe(const Context &Ctx,
                                const InvokableWrapperBase &Wrapper,
-                               llvm::raw_ostream *OS,
                                size_t Indentation) const {
-  if (OS == nullptr)
-    return;
-
-  OS->changeColor(llvm::raw_ostream::Colors::GREEN);
-  (*OS) << Wrapper.getName();
-  OS->changeColor(llvm::raw_ostream::Colors::GREEN);
-  (*OS) << "(";
+  ExplanationLogger << "RUN " << Wrapper.getName();
+  ExplanationLogger << "(";
 
   auto Vec = Wrapper.getRunningContainersNames();
   if (not Vec.empty()) {
     for (size_t I = 0; I < Vec.size() - 1; I++) {
-      OS->changeColor(llvm::raw_ostream::Colors::BLUE);
-      (*OS) << Vec[I];
-      OS->changeColor(llvm::raw_ostream::Colors::GREEN);
-      (*OS) << ", ";
+      ExplanationLogger << Vec[I];
+      ExplanationLogger << ", ";
     }
-    OS->changeColor(llvm::raw_ostream::Colors::BLUE);
-    (*OS) << Vec.back();
+    ExplanationLogger << Vec.back();
   }
 
-  OS->changeColor(llvm::raw_ostream::Colors::GREEN);
-  (*OS) << ")";
-  (*OS) << "\n";
-  Wrapper.print(Ctx, *OS, Indentation);
-  (*OS) << "\n";
+  ExplanationLogger << ")";
+  ExplanationLogger << "\n";
+  ExplanationLogger << DoLog;
+
+  auto CommandStream = CommandLogger.getAsLLVMStream();
+  Wrapper.print(Ctx, *CommandStream, Indentation);
+  CommandStream->flush();
+  CommandLogger << DoLog;
 }
 
-ContainerSet
-Step::cloneAndRun(Context &Ctx, ContainerSet &&Input, llvm::raw_ostream *OS) {
+ContainerSet Step::cloneAndRun(Context &Ctx, ContainerSet &&Input) {
   auto InputEnumeration = Input.enumerate();
-  explainStartStep(InputEnumeration, OS);
+  explainStartStep(InputEnumeration);
 
   for (auto &Pipe : Pipes) {
-    if (not Pipe->areRequirementsMet(Input.enumerate()))
-      continue;
-
-    explainExecutedPipe(Ctx, *Pipe, OS);
+    explainExecutedPipe(Ctx, *Pipe);
     Pipe->run(Ctx, Input);
     llvm::cantFail(Input.verify());
   }
+  explainEndStep(Input.enumerate());
   Containers.mergeBack(std::move(Input));
   InputEnumeration = deduceResults(InputEnumeration);
   return Containers.cloneFiltered(InputEnumeration);
@@ -103,16 +100,15 @@ Step::cloneAndRun(Context &Ctx, ContainerSet &&Input, llvm::raw_ostream *OS) {
 
 void Step::runAnalysis(llvm::StringRef AnalysisName,
                        Context &Ctx,
-                       const ContainerToTargetsMap &Targets,
-                       llvm::raw_ostream *OS) {
+                       const ContainerToTargetsMap &Targets) {
+  auto Stream = ExplanationLogger.getAsLLVMStream();
   ContainerToTargetsMap Map = Containers.enumerate();
   revng_assert(Map.contains(Targets),
                "An analysis was requested, but not all targets are aviable");
 
   auto &TheAnalysis = getAnalysis(AnalysisName);
 
-  if (OS)
-    explainExecutedPipe(Ctx, *TheAnalysis, OS);
+  explainExecutedPipe(Ctx, *TheAnalysis);
 
   auto Cloned = Containers.cloneFiltered(Targets);
   TheAnalysis->run(Ctx, Cloned);

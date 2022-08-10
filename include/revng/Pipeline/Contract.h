@@ -145,6 +145,12 @@ private:
   const Kind &backwardInputKind(const Target &Output) const;
   bool backwardMatches(const Target &Output) const;
 
+  ///
+  /// returns false iff the output kind has less depth than the input and the
+  /// input is not *
+  ///
+  bool targetCanBePromotedToShallowerRank(const Target &Input) const;
+
   /// Target is the container in which the Pipe would write when used to produce
   /// the targets.
   void deduceRequirements(TargetsList &SourceContainer,

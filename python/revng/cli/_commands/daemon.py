@@ -7,7 +7,7 @@ import shlex
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from sys import executable as py_executable
 
-from revng.cli.commands_registry import Command, Options
+from revng.cli.commands_registry import Command, CommandsRegistry, Options
 from revng.cli.support import collect_libraries, handle_asan, run
 
 
@@ -79,3 +79,7 @@ REVNG_DATA_DIR and REVNG_PROJECT_ID set: use '$REVNG_DATA_DIR/$REVNG_PROJECT_ID'
             env,
             True,
         )
+
+
+def setup(commands_registry: CommandsRegistry):
+    commands_registry.register_command(DaemonCommand())

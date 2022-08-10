@@ -150,10 +150,10 @@ llvm::Error pipeline::parseTarget(ContainerToTargetsMap &CurrentStatus,
                                   llvm::StringRef AsString,
                                   const KindsRegistry &Dict) {
   llvm::SmallVector<llvm::StringRef, 2> Parts;
-  AsString.split(Parts, ':', 1);
+  AsString.split(Parts, '/', 1);
 
   if (Parts.size() != 2) {
-    auto *Message = "string %s was not in expected form <ContainerName:Target>";
+    auto *Message = "string %s was not in expected form <ContainerName/Target>";
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    Message,
                                    AsString.str().c_str());
@@ -165,39 +165,4 @@ llvm::Error pipeline::parseTarget(ContainerToTargetsMap &CurrentStatus,
 
   CurrentStatus.add(Parts[0], std::move(*MaybeTarget));
   return llvm::Error::success();
-}
-
-void pipeline::prettyPrintTarget(const Target &Target,
-                                 llvm::raw_ostream &OS,
-                                 size_t Indentation) {
-  OS.indent(Indentation);
-
-  OS.changeColor(llvm::raw_ostream::Colors::CYAN);
-  OS << Target.getKind().name();
-
-  OS << " ";
-
-  OS.changeColor(llvm::raw_ostream::Colors::YELLOW);
-  for (const auto &PathComponent : Target.getPathComponents())
-    OS << (PathComponent.isAll() ? "*" : PathComponent.getName()) << "/";
-
-  OS << "\n";
-}
-
-void pipeline::prettyPrintStatus(const ContainerToTargetsMap &Targets,
-                                 llvm::raw_ostream &OS,
-                                 size_t Indentation) {
-  for (const auto &Pair : Targets) {
-    const auto &Name = Pair.first();
-    const auto &List = Pair.second;
-    if (List.empty())
-      continue;
-
-    OS.changeColor(llvm::raw_ostream::Colors::BLUE);
-    OS.indent(Indentation);
-    OS << Name << "\n";
-
-    for (const auto &Target : List)
-      prettyPrintTarget(Target, OS, Indentation + 1);
-  }
 }

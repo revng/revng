@@ -123,18 +123,23 @@ public:
 
   Step &addStep(Step &&NewStep);
 
-  llvm::Error run(llvm::StringRef EndingStepName,
-                  const ContainerToTargetsMap &Targets,
-                  llvm::raw_ostream *DiagnosticLog = nullptr);
+  llvm::Error
+  run(llvm::StringRef EndingStepName, const ContainerToTargetsMap &Targets);
 
-  llvm::Expected<DiffMap>
-  runAnalysis(llvm::StringRef AnalysisName,
-              llvm::StringRef StepName,
-              const ContainerToTargetsMap &Targets,
-              llvm::raw_ostream *DiagnosticLog = nullptr);
+  llvm::Error run(const State &ToProduce) {
+    for (const auto &Request : ToProduce)
+      if (auto Error = run(Request.first(), Request.second))
+        return Error;
+
+    return llvm::Error::success();
+  }
+
+  llvm::Expected<DiffMap> runAnalysis(llvm::StringRef AnalysisName,
+                                      llvm::StringRef StepName,
+                                      const ContainerToTargetsMap &Targets);
 
   /// Run all analysis in reverse post order (that is: parents first),
-  llvm::Expected<DiffMap> runAllAnalyses(llvm::raw_ostream *OS = nullptr);
+  llvm::Expected<DiffMap> runAllAnalyses();
 
   void addContainerFactory(llvm::StringRef Name, ContainerFactory Entry) {
     ContainerFactoriesRegistry.registerContainerFactory(Name, std::move(Entry));
@@ -162,6 +167,9 @@ public:
 
 public:
   llvm::Error storeToDisk(llvm::StringRef DirPath) const;
+  llvm::Error storeToDiskDebug(const char *DirPath) const debug_function {
+    return storeToDisk(DirPath);
+  }
   llvm::Error
   storeStepToDisk(llvm::StringRef StepName, llvm::StringRef DirPath) const;
   llvm::Error loadFromDisk(llvm::StringRef DirPath);

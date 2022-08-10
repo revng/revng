@@ -735,6 +735,9 @@ void DetectABI::runInterproceduralAnalysis() {
 bool DetectABIPass::runOnModule(Module &M) {
   revng_log(PassesLog, "Starting EarlyFunctionAnalysis");
 
+  if (not M.getFunction("root") or M.getFunction("root")->isDeclaration())
+    return false;
+
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
   auto &LMP = getAnalysis<LoadModelWrapperPass>().get();
 

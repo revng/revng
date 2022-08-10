@@ -132,7 +132,8 @@ void EnforceABIImpl::run() {
     auto OldFunctionName = (Twine("dynamic_") + FunctionModel.OriginalName)
                              .str();
     Function *OldFunction = M.getFunction(OldFunctionName);
-    revng_assert(OldFunction != nullptr);
+    if (not OldFunction or OldFunction->isDeclaration())
+      continue;
     OldFunctions.push_back(OldFunction);
 
     using namespace abi::FunctionType;
@@ -155,6 +156,8 @@ void EnforceABIImpl::run() {
     revng_assert(not FunctionModel.name().empty());
     auto OldFunctionName = (Twine("local_") + FunctionModel.name()).str();
     Function *OldFunction = M.getFunction(OldFunctionName);
+    if (not OldFunction or OldFunction->isDeclaration())
+      continue;
     revng_assert(OldFunction != nullptr);
     OldFunctions.push_back(OldFunction);
 

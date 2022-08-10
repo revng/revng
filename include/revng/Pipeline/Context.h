@@ -24,6 +24,9 @@
 
 namespace pipeline {
 
+extern Logger<> ExplanationLogger;
+extern Logger<> CommandLogger;
+
 /// A class that contains every object that has a lifetime longer than a
 /// pipeline.
 ///

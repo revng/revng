@@ -15,6 +15,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
@@ -138,23 +139,29 @@ public:
   template<typename OStream>
   void dump(OStream &OS, size_t Indentation = 0) const debug_function {
     indent(OS, Indentation);
+    OS << '/';
 
-    OS << (Exact == Exactness::DerivedFrom ? "derived from " : "exactly ")
-       << K->name().str() << " with path: ";
-    for (const auto &Entry : Components) {
-      Entry.dump(OS);
-      OS << "/";
-    }
-    OS << "\n";
+    const auto ComponentToString = [](const PathComponent &Component) {
+      return Component.toString();
+    };
+
+    auto Path = llvm::join(llvm::map_range(Components, ComponentToString), "/");
+    OS << Path;
+    OS << ':' << K->name().str();
+    if (Exact == Exactness::DerivedFrom)
+      OS << '^';
+    OS << '\n';
   }
 
   std::string serialize() const;
 
-  template<typename OStream, typename Range>
-  static void dumpPathComponents(OStream &OS, Range R) debug_function {
-    for (const auto &Entry : R) {
+  template<typename OStream>
+  void dumpPathComponents(OStream &OS) const debug_function {
+    OS << "/";
+    for (const auto &Entry : Components) {
       Entry.dump(OS);
-      OS << "/";
+      if (&Entry != &Components.back())
+        OS << "/";
     }
   }
 
@@ -331,16 +338,21 @@ public:
 
 public:
   template<typename OStream>
-  void dump(OStream &OS, size_t Indentation = 0) const {
-    indent(OS, Indentation);
-    OS << "{\n";
-    for (const auto &Container : Status) {
-      indent(OS, Indentation + 1);
-      OS << Container.first().str() << ":\n";
-      Container.second.dump(OS, Indentation + 2);
+  void dump(OStream &OS, size_t Indentation = 0, bool Parentesis = true) const {
+    if (Parentesis) {
+      indent(OS, Indentation);
+      OS << "{\n";
     }
-    indent(OS, Indentation);
-    OS << "}\n";
+    auto ExtraIndentation = Indentation + (Parentesis ? 1 : 0);
+    for (const auto &Container : Status) {
+      indent(OS, ExtraIndentation);
+      OS << Container.first().str() << ":\n";
+      Container.second.dump(OS, ExtraIndentation + 1);
+    }
+    if (Parentesis) {
+      indent(OS, Indentation);
+      OS << "}\n";
+    }
   }
 
   void dump() const debug_function { dump(dbg); }
@@ -360,12 +372,22 @@ llvm::Error parseTarget(ContainerToTargetsMap &CurrentStatus,
                         llvm::StringRef AsString,
                         const KindsRegistry &Dict);
 
-void prettyPrintTarget(const Target &Target,
-                       llvm::raw_ostream &OS,
-                       size_t Indentation = 0);
-
+template<typename T>
 void prettyPrintStatus(const ContainerToTargetsMap &Targets,
-                       llvm::raw_ostream &OS,
-                       size_t Indentation = 0);
+                       T &OS,
+                       size_t Indentation = 0) {
+  for (const auto &Pair : Targets) {
+    const auto &Name = Pair.first();
+    const auto &List = Pair.second;
+    if (List.empty())
+      continue;
+
+    indent(OS, Indentation);
+    OS << Name << ":\n";
+
+    for (const auto &Target : List)
+      Target.dump(OS, Indentation + 1);
+  }
+}
 
 } // namespace pipeline

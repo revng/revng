@@ -93,12 +93,6 @@ PipelineManager::overrideContainer(llvm::StringRef PipelineFileMapping) {
   return MaybeMapping->loadFromDisk(*Runner);
 }
 
-llvm::Error PipelineManager::overrideModel(llvm::StringRef ModelOverride) {
-  const auto &Name = ModelGlobalName;
-  auto *Model(cantFail(PipelineContext->getGlobal<ModelGlobal>(Name)));
-  return Model->loadFromDisk(ModelOverride);
-}
-
 static llvm::Expected<Runner>
 setUpPipeline(pipeline::Context &PipelineContext,
               Loader &Loader,
@@ -200,9 +194,9 @@ void PipelineManager::recalculateCache() {
   }
 }
 
-void PipelineManager::recalculateAllPossibleTargets() {
+void PipelineManager::recalculateAllPossibleTargets(bool ExpandTargets) {
   CurrentState = Runner::State();
-  getAllPossibleTargets(CurrentState);
+  getAllPossibleTargets(CurrentState, ExpandTargets);
   recalculateCache();
 }
 
@@ -224,13 +218,24 @@ void PipelineManager::getCurrentState(Runner::State &State) const {
   }
 }
 
-void PipelineManager::getAllPossibleTargets(Runner::State &State) const {
+static bool isExpansionEmpty(const Context &Ctx, const Target &Target) {
+  TargetsList Expansions;
+  Target.expand(Ctx, Expansions);
+  return Expansions.empty();
+}
+
+void PipelineManager::getAllPossibleTargets(Runner::State &State,
+                                            bool ExpandTargets) const {
   Runner->deduceAllPossibleTargets(State);
   for (auto &Step : State) {
     for (auto &Container : Step.second) {
       TargetsList Expansions;
-      for (auto &Target : Container.second)
-        Target.expand(*PipelineContext, Expansions);
+      for (auto &Target : Container.second) {
+        if (ExpandTargets or isExpansionEmpty(*PipelineContext, Target))
+          Target.expand(*PipelineContext, Expansions);
+        else
+          Expansions.push_back(Target);
+      }
       State[Step.first()][Container.first()] = std::move(Expansions);
     }
   }
@@ -243,9 +248,10 @@ void PipelineManager::writeAllPossibleTargets(llvm::raw_ostream &OS) const {
 
     OS << Step.first() << ":\n";
     for (const auto &Container : Step.second) {
+      indent(OS, 1);
       OS << Container.first() << ":\n";
       for (const auto &ExpandedTarget : Container.second)
-        ExpandedTarget.dump(OS);
+        ExpandedTarget.dump(OS, 2);
     }
   }
 }
@@ -315,8 +321,8 @@ PipelineManager::store(llvm::ArrayRef<std::string> StoresOverrides) {
   return llvm::Error::success();
 }
 
-llvm::Error
-PipelineManager::invalidateAllPossibleTargets(llvm::raw_ostream &Stream) {
+llvm::Error PipelineManager::invalidateAllPossibleTargets() {
+  auto Stream = ExplanationLogger.getAsLLVMStream();
   recalculateAllPossibleTargets();
 
   for (const auto &Step : CurrentState) {
@@ -328,9 +334,9 @@ PipelineManager::invalidateAllPossibleTargets(llvm::raw_ostream &Stream) {
                   .contains(Target))
           continue;
 
-        Stream << "Invalidating: ";
-        Stream << Step.first() << "/" << Container.first() << "/";
-        Target.dump(Stream);
+        *Stream << "Invalidating: ";
+        *Stream << Step.first() << "/" << Container.first() << "/";
+        Target.dump(*Stream);
         InvalidationMap Map;
         Map[Step.first()][Container.first()].push_back(Target);
         if (auto Error = Runner->getInvalidations(Map); Error)
@@ -340,8 +346,8 @@ PipelineManager::invalidateAllPossibleTargets(llvm::raw_ostream &Stream) {
 
         for (const auto &First : Map)
           for (const auto &Second : First.second) {
-            Stream << "\t" << First.first() << " " << Second.first() << " ";
-            Target.dump(Stream);
+            *Stream << "\t" << First.first() << " " << Second.first() << " ";
+            Target.dump(*Stream);
           }
       }
     }
@@ -350,19 +356,20 @@ PipelineManager::invalidateAllPossibleTargets(llvm::raw_ostream &Stream) {
   return llvm::Error::success();
 }
 
-llvm::Error
-PipelineManager::produceAllPossibleTargets(llvm::raw_ostream &Stream) {
-  recalculateAllPossibleTargets();
+llvm::Error PipelineManager::produceAllPossibleTargets(bool ExpandTargets) {
+  recalculateAllPossibleTargets(ExpandTargets);
 
   for (const auto &Step : CurrentState) {
     for (const auto &Container : Step.second) {
       for (const auto &Target : Container.second) {
         ContainerToTargetsMap ToProduce;
         ToProduce.add(Container.first(), Target);
-        Stream << Step.first() << "/" << Container.first() << "/";
-        Target.dump(Stream);
+        ExplanationLogger << Step.first() << "/" << Container.first() << "/";
+        auto Logger = ExplanationLogger.getAsLLVMStream();
+        Target.dump(*Logger);
+        ExplanationLogger << DoLog;
 
-        if (auto Error = Runner->run(Step.first(), ToProduce, &Stream); Error)
+        if (auto Error = Runner->run(Step.first(), ToProduce); Error)
           return Error;
       }
     }
@@ -383,8 +390,8 @@ PipelineManager::runAnalysis(llvm::StringRef AnalysisName,
   return Result;
 }
 
-llvm::Expected<DiffMap> PipelineManager::runAllAnalyses(llvm::raw_ostream *OS) {
-  auto Result = Runner->runAllAnalyses(OS);
+llvm::Expected<DiffMap> PipelineManager::runAllAnalyses() {
+  auto Result = Runner->runAllAnalyses();
   if (Result)
     recalculateAllPossibleTargets();
   return Result;

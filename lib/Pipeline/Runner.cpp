@@ -6,13 +6,17 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
+#include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Errors.h"
 #include "revng/Pipeline/GlobalTupleTreeDiff.h"
 #include "revng/Pipeline/Kind.h"
 #include "revng/Pipeline/Runner.h"
 #include "revng/Pipeline/Target.h"
+#include "revng/Support/Assert.h"
 
 using namespace std;
 using namespace llvm;
@@ -21,32 +25,33 @@ using namespace pipeline;
 class PipelineExecutionEntry {
 public:
   Step *ToExecute;
-  ContainerToTargetsMap Objectives;
+  ContainerToTargetsMap Output;
+  ContainerToTargetsMap Input;
 
-  PipelineExecutionEntry(Step &ToExecute, ContainerToTargetsMap Objectives) :
-    ToExecute(&ToExecute), Objectives(std::move(Objectives)) {}
+  PipelineExecutionEntry(Step &ToExecute,
+                         ContainerToTargetsMap Output,
+                         ContainerToTargetsMap Input) :
+    ToExecute(&ToExecute), Output(std::move(Output)), Input(std::move(Input)) {}
 };
 
 static Error getObjectives(Runner &Runner,
                            llvm::StringRef EndingStepName,
                            const ContainerToTargetsMap &Targets,
-                           ContainerToTargetsMap &ToLoad,
                            std::vector<PipelineExecutionEntry> &ToExec) {
-  ContainerToTargetsMap PartialGoals = Targets;
+  ContainerToTargetsMap ToLoad = Targets;
   auto *CurrentStep = &(Runner[EndingStepName]);
-  while (CurrentStep != nullptr) {
-    if (PartialGoals.empty())
-      break;
+  while (CurrentStep != nullptr and not ToLoad.empty()) {
 
-    PartialGoals = CurrentStep->analyzeGoals(PartialGoals, ToLoad);
-    ToExec.emplace_back(*CurrentStep, PartialGoals);
+    ContainerToTargetsMap Output = ToLoad;
+    ToLoad = CurrentStep->analyzeGoals(ToLoad);
+    ToExec.emplace_back(*CurrentStep, Output, ToLoad);
     CurrentStep = CurrentStep->hasPredecessor() ?
                     &CurrentStep->getPredecessor() :
                     nullptr;
   }
 
-  if (not PartialGoals.empty())
-    return make_error<UnsatisfiableRequestError>(Targets, PartialGoals);
+  if (not ToLoad.empty())
+    return make_error<UnsatisfiableRequestError>(Targets, ToLoad);
   reverse(ToExec.begin(), ToExec.end());
   return Error::success();
 }
@@ -54,34 +59,34 @@ static Error getObjectives(Runner &Runner,
 using StatusMap = llvm::StringMap<ContainerToTargetsMap>;
 
 static void explainPipeline(const ContainerToTargetsMap &Targets,
-                            const ContainerToTargetsMap &ToLoad,
-                            ArrayRef<PipelineExecutionEntry> Requirements,
-                            raw_ostream &OS) {
-  OS.changeColor(llvm::raw_ostream::Colors::GREEN);
-  OS << "Objectives: \n";
+                            ArrayRef<PipelineExecutionEntry> Requirements) {
 
-  prettyPrintStatus(Targets, OS, 1);
+  ExplanationLogger << "OBJECTIVES requested\n";
+  indent(ExplanationLogger, 1);
+  ExplanationLogger << Requirements.back().ToExecute->getName() << ":\n";
+  prettyPrintStatus(Targets, ExplanationLogger, 2);
 
   if (Requirements.size() <= 1) {
-    OS.changeColor(llvm::raw_ostream::Colors::GREEN);
-    OS << "Already satisfied\n";
+    ExplanationLogger << "Already satisfied\n";
     return;
   }
-  OS << "\n";
+  ExplanationLogger << DoLog;
+  ExplanationLogger << "DEDUCED steps content to be produced: \n";
 
-  OS.changeColor(llvm::raw_ostream::Colors::GREEN);
-  OS << "Deduced Step Level Requirements: \n";
+  indent(ExplanationLogger, 1);
+  ExplanationLogger << Requirements.back().ToExecute->getName() << ":\n";
+  prettyPrintStatus(Targets, ExplanationLogger, 2);
 
-  for (const PipelineExecutionEntry &Entry : llvm::reverse(Requirements)) {
+  for (size_t I = Requirements.size(); I != 0; I--) {
+    StringRef StepName = Requirements[I - 1].ToExecute->getName();
+    const auto &TargetsNeeded = Requirements[I - 1].Input;
 
-    OS.indent(1);
-    OS.changeColor(llvm::raw_ostream::Colors::MAGENTA);
-    OS << Entry.ToExecute->getName() << "\n";
-
-    prettyPrintStatus(Entry.Objectives, OS, 2);
+    indent(ExplanationLogger, 1);
+    ExplanationLogger << StepName << ":\n";
+    prettyPrintStatus(TargetsNeeded, ExplanationLogger, 2);
   }
 
-  OS.resetColor();
+  ExplanationLogger << DoLog;
 }
 
 Error Runner::getInvalidations(StatusMap &Invalidated) const {
@@ -141,15 +146,17 @@ PipelineFileMapping::parse(StringRef ToParse) {
   SmallVector<StringRef, 4> Splitted;
   ToParse.split(Splitted, ':', 2);
 
-  if (Splitted.size() != 3) {
-    auto *Message = "could not parse %s into three strings "
-                    "step:container:inputfile";
+  if (Splitted.size() != 2) {
+    auto *Message = "could not parse %s into two parts "
+                    "file_path:step/container";
     return createStringError(inconvertibleErrorCode(),
                              Message,
                              ToParse.str().c_str());
   }
 
-  return PipelineFileMapping(Splitted[0], Splitted[1], Splitted[2]);
+  auto [StepName, ContainerName] = Splitted.back().split('/');
+
+  return PipelineFileMapping(StepName, ContainerName, Splitted[0]);
 }
 
 Error PipelineFileMapping::loadFromDisk(Runner &LoadInto) const {
@@ -232,8 +239,7 @@ Error Runner::loadFromDisk(llvm::StringRef DirPath) {
 llvm::Expected<DiffMap>
 Runner::runAnalysis(llvm::StringRef AnalysisName,
                     llvm::StringRef StepName,
-                    const ContainerToTargetsMap &Targets,
-                    llvm::raw_ostream *DiagnosticLog) {
+                    const ContainerToTargetsMap &Targets) {
 
   auto Before = getContext().getGlobals();
 
@@ -245,13 +251,10 @@ Runner::runAnalysis(llvm::StringRef AnalysisName,
                              StepName.str().c_str());
   }
 
-  if (auto Error = run(StepName, Targets, DiagnosticLog))
+  if (auto Error = run(StepName, Targets))
     return std::move(Error);
 
-  MaybeStep->second.runAnalysis(AnalysisName,
-                                *TheContext,
-                                Targets,
-                                DiagnosticLog);
+  MaybeStep->second.runAnalysis(AnalysisName, *TheContext, Targets);
 
   auto &After = getContext().getGlobals();
   auto Map = Before.diff(After);
@@ -263,7 +266,7 @@ Runner::runAnalysis(llvm::StringRef AnalysisName,
 }
 
 /// Run all analysis in reverse post order (that is: parents first),
-llvm::Expected<DiffMap> Runner::runAllAnalyses(llvm::raw_ostream *OS) {
+llvm::Expected<DiffMap> Runner::runAllAnalyses() {
   auto Before = getContext().getGlobals();
 
   for (const Step *Step : ReversePostOrderIndexes) {
@@ -277,7 +280,7 @@ llvm::Expected<DiffMap> Runner::runAllAnalyses(llvm::raw_ostream *OS) {
         }
       }
 
-      auto Result = runAnalysis(Pair.first(), Step->getName(), Map, OS);
+      auto Result = runAnalysis(Pair.first(), Step->getName(), Map);
       if (not Result)
         return Result.takeError();
     }
@@ -288,36 +291,37 @@ llvm::Expected<DiffMap> Runner::runAllAnalyses(llvm::raw_ostream *OS) {
 }
 
 Error Runner::run(llvm::StringRef EndingStepName,
-                  const ContainerToTargetsMap &Targets,
-                  llvm::raw_ostream *DiagnosticLog) {
+                  const ContainerToTargetsMap &Targets) {
 
-  ContainerToTargetsMap ToLoad;
   vector<PipelineExecutionEntry> ToExec;
 
-  if (auto
-        Error = getObjectives(*this, EndingStepName, Targets, ToLoad, ToExec);
-      Error)
+  if (auto Error = getObjectives(*this, EndingStepName, Targets, ToExec); Error)
     return Error;
 
-  if (DiagnosticLog != nullptr)
-    explainPipeline(Targets, ToLoad, ToExec, *DiagnosticLog);
+  explainPipeline(Targets, ToExec);
 
   if (ToExec.size() <= 1)
     return Error::success();
 
-  auto &FirstStepContainers = ToExec.front().ToExecute->containers();
-  auto CurrentContainer(FirstStepContainers.cloneFiltered(ToLoad));
-  for (auto &StepGoalsPairs :
-       llvm::make_range(ToExec.begin() + 1, ToExec.end())) {
-    auto &[Step, Goals] = StepGoalsPairs;
-    CurrentContainer = Step->cloneAndRun(*TheContext,
-                                         std::move(CurrentContainer),
-                                         DiagnosticLog);
+  for (auto &StepGoalsPairs : llvm::drop_begin(ToExec)) {
+    auto &[Step, PredictedOutput, Input] = StepGoalsPairs;
+    auto &Parent = Step->getPredecessor();
+    auto CurrentContainer = Parent.containers().cloneFiltered(Input);
+    auto Produced = Step->cloneAndRun(*TheContext, std::move(CurrentContainer));
+    revng_check(Produced.enumerate().contains(PredictedOutput),
+                "predicted output was not fully contained in actually "
+                "produced");
+    revng_check(Step->containers().enumerate().contains(PredictedOutput));
   }
 
-  if (DiagnosticLog != nullptr) {
-    *DiagnosticLog << "Produced:\n";
-    CurrentContainer.enumerate().dump(*DiagnosticLog);
+  if (ExplanationLogger.isEnabled()) {
+    ExplanationLogger << "PRODUCED \n";
+    indent(ExplanationLogger, 1);
+    ExplanationLogger << EndingStepName << ":\n";
+    ToExec.back().ToExecute->containers().enumerate().dump(ExplanationLogger,
+                                                           2,
+                                                           false);
+    ExplanationLogger << DoLog;
   }
 
   return Error::success();

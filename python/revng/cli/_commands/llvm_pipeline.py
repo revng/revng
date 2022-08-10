@@ -6,7 +6,7 @@ import sys
 from shutil import copyfileobj
 from tempfile import NamedTemporaryFile
 
-from revng.cli.commands_registry import Command, Options
+from revng.cli.commands_registry import Command, CommandsRegistry, Options
 from revng.cli.revng import run_revng_command
 from revng.cli.support import log_error
 
@@ -47,9 +47,9 @@ class IRPipelineCommand(Command):
             run_revng_command(["model", "dump", saved_input_file.name, "-o", model.name], options)
 
             # Run revng-pipeline
-            target = f"{args.to}:module.ll:{args.target}"
+            target = f"--produce={args.to}/module.ll/{args.target}"
             if args.analysis:
-                target = f"{args.to}:{args.analysis}:module.ll:{args.target}"
+                target = f"--analyze={args.to}/{args.analysis}/module.ll/{args.target}"
 
             run_revng_command(
                 [
@@ -57,9 +57,9 @@ class IRPipelineCommand(Command):
                     "-m",
                     model.name,
                     "-i",
-                    f"""{args.__dict__["from"]}:module.ll:{saved_input_file.name}""",
+                    f"""{saved_input_file.name}:{args.__dict__["from"]}/module.ll""",
                     "-o",
-                    f"{args.to}:module.ll:{module.name}",
+                    f"{module.name}:{args.to}/module.ll",
                     "--save-model",
                     model.name,
                     target,
@@ -72,3 +72,7 @@ class IRPipelineCommand(Command):
                 ["model", "inject", model.name, module.name, "-o", args.output], options
             )
         return 0
+
+
+def setup(commands_registry: CommandsRegistry):
+    commands_registry.register_command(IRPipelineCommand())

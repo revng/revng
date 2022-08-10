@@ -6,9 +6,13 @@
 
 #include <cstdlib>
 
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/IR/LLVMContext.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/DynamicLibrary.h"
-#include "llvm/Support/PluginLoader.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/raw_os_ostream.h"
 
 #include "revng/Model/LoadModelPass.h"
@@ -19,10 +23,13 @@
 #include "revng/Pipeline/LLVMContainerFactory.h"
 #include "revng/Pipeline/LLVMGlobalKindBase.h"
 #include "revng/Pipeline/Loader.h"
+#include "revng/Pipeline/Runner.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/PipelineManager.h"
+#include "revng/Pipes/ToolCLOptions.h"
 #include "revng/Support/InitRevng.h"
+#include "revng/TupleTree/TupleTreeDiff.h"
 
 using std::string;
 using namespace llvm;
@@ -30,17 +37,7 @@ using namespace llvm::cl;
 using namespace pipeline;
 using namespace ::revng::pipes;
 
-static Logger<> PipelineLogger("pipeline");
-
 cl::OptionCategory PipelineCategory("revng-pipeline options", "");
-
-static cl::list<string>
-  InputPipeline("P", desc("<Pipeline>"), cat(PipelineCategory));
-
-static cl::list<string> Targets(Positional,
-                                ZeroOrMore,
-                                desc("<Targets to produce>..."),
-                                cat(PipelineCategory));
 
 static cl::list<string> ContainerOverrides("i",
                                            desc("Load the target file in the "
@@ -48,21 +45,29 @@ static cl::list<string> ContainerOverrides("i",
                                                 "target step"),
                                            cat(PipelineCategory));
 
-static opt<string> ModelOverride("m",
-                                 desc("Load the model from a provided file"),
-                                 cat(PipelineCategory),
-                                 init(""));
-
 static opt<string> SaveModel("save-model",
                              desc("Save the model at the end of the run"),
                              cat(PipelineCategory),
                              init(""));
+
+static opt<string> ApplyModelDiff("apply-model-diff",
+                                  desc("Apply model diff"),
+                                  cat(PipelineCategory),
+                                  init(""));
 
 static opt<bool> ProduceAllPossibleTargets("produce-all",
                                            desc("Try producing all possible "
                                                 "targets"),
                                            cat(PipelineCategory),
                                            init(false));
+
+static opt<bool> ProduceAllPossibleTargetsSingle("produce-all-single",
+                                                 desc("Try producing all "
+                                                      "possible "
+                                                      "targets one element at "
+                                                      "the time"),
+                                                 cat(PipelineCategory),
+                                                 init(false));
 
 static opt<bool> AnalyzeAll("analyze-all",
                             desc("Try analyzing all possible "
@@ -81,37 +86,19 @@ static opt<bool> DumpPipeline("d",
                               desc("Dump built pipeline, but dont run it"),
                               cat(PipelineCategory));
 
-static opt<bool> Verbose("verbose",
-                         desc("Print explanation while running"),
-                         cat(PipelineCategory),
-                         init(false));
-
-static alias VerboseAlias1("v",
-                           desc("Alias for --verbose"),
-                           aliasopt(Verbose),
-                           cat(PipelineCategory));
-
 static cl::list<string> StoresOverrides("o",
                                         desc("Store the target container at "
                                              "the "
                                              "target step in the target file"),
                                         cat(PipelineCategory));
 
-static cl::list<string> EnablingFlags("f",
-                                      desc("list of pipeline enabling flags"),
-                                      cat(PipelineCategory));
+static cl::list<string> Produce("produce",
+                                desc("comma separated list of targets to be "
+                                     "produced in one sweep."),
+                                cat(PipelineCategory));
 
-static opt<string> ExecutionDirectory("p",
-                                      desc("Directory from which all "
-                                           "containers will "
-                                           "be loaded before everything else "
-                                           "and "
-                                           "to which it will be store after "
-                                           "everything else"),
-                                      cat(PipelineCategory));
-
-static alias
-  A1("l", desc("Alias for --load"), aliasopt(LoadOpt), cat(PipelineCategory));
+static cl::list<string>
+  Analyze("analyze", desc("analyses to be performed."), cat(PipelineCategory));
 
 static opt<bool> PrintBuildableTargets("targets",
                                        desc("Prints the target that can be "
@@ -124,38 +111,46 @@ static alias A2("t",
                 aliasopt(PrintBuildableTargets),
                 cat(PipelineCategory));
 
+static ToolCLOptions BaseOptions(PipelineCategory);
+
 static ExitOnError AbortOnError;
 
-static void runPipelineOnce(Runner &Pipeline, llvm::StringRef Target) {
-  bool IsAnalysis = llvm::count(Target, ':') == 4;
-
-  ContainerToTargetsMap ToProduce;
+static Runner::State
+parseProductionRequest(Runner &Pipeline,
+                       llvm::ArrayRef<llvm::StringRef> Targets) {
+  Runner::State ToProduce;
 
   const auto &Registry = Pipeline.getKindsRegistry();
-  auto [StepName, Rest] = Target.split(":");
-  auto *Stream = Verbose ? &dbgs() : nullptr;
-
-  if (not IsAnalysis) {
-    AbortOnError(parseTarget(ToProduce, Rest, Registry));
-    AbortOnError(Pipeline.run(StepName, ToProduce, Stream));
-    return;
+  for (const auto &Target : Targets) {
+    auto [StepName, Rest] = Target.split("/");
+    AbortOnError(parseTarget(ToProduce[StepName], Rest, Registry));
   }
 
-  auto [AnalysisName, Rest2] = Rest.split(":");
+  return ToProduce;
+}
+
+static void runAnalysis(Runner &Pipeline, llvm::StringRef Target) {
+  const auto &Registry = Pipeline.getKindsRegistry();
+
+  auto [Step, Rest] = Target.split("/");
+  auto [AnalysisName, Rest2] = Rest.split("/");
+
+  ContainerToTargetsMap ToProduce;
   AbortOnError(parseTarget(ToProduce, Rest2, Registry));
-  AbortOnError(Pipeline.runAnalysis(AnalysisName, StepName, ToProduce, Stream));
+  AbortOnError(Pipeline.runAnalysis(AnalysisName, Step, ToProduce));
 }
 
 static void runPipeline(Runner &Pipeline) {
 
-  for (const auto &Target : Targets)
-    runPipelineOnce(Pipeline, Target);
-}
+  for (llvm::StringRef Entry : Analyze) {
+    runAnalysis(Pipeline, Entry);
+  }
 
-static auto makeManager() {
-  return PipelineManager::create(InputPipeline,
-                                 EnablingFlags,
-                                 ExecutionDirectory);
+  for (llvm::StringRef Entry : Produce) {
+    llvm::SmallVector<llvm::StringRef, 3> Targets;
+    Entry.split(Targets, ",");
+    AbortOnError(Pipeline.run(parseProductionRequest(Pipeline, Targets)));
+  }
 }
 
 int main(int argc, const char *argv[]) {
@@ -163,17 +158,13 @@ int main(int argc, const char *argv[]) {
 
   HideUnrelatedOptions(PipelineCategory);
   ParseCommandLineOptions(argc, argv);
-  auto LoggerOS = PipelineLogger.getAsLLVMStream();
 
   Registry::runAllInitializationRoutines();
 
-  auto Manager = AbortOnError(makeManager());
+  auto Manager = AbortOnError(BaseOptions.makeManager());
 
   for (const auto &Override : ContainerOverrides)
     AbortOnError(Manager.overrideContainer(Override));
-
-  if (not ModelOverride.empty())
-    AbortOnError(Manager.overrideModel(ModelOverride));
 
   if (DumpPipeline) {
     Manager.dump();
@@ -185,8 +176,13 @@ int main(int argc, const char *argv[]) {
     return EXIT_SUCCESS;
   }
 
-  if (ProduceAllPossibleTargets)
-    PipelineLogger.enable();
+  if (not ApplyModelDiff.empty()) {
+    using Type = TupleTreeDiff<model::Binary>;
+    auto Diff = AbortOnError(deserializeFileOrSTDIN<Type>(ApplyModelDiff));
+
+    auto &Runner = Manager.getRunner();
+    AbortOnError(Runner.apply(GlobalTupleTreeDiff(std::move(Diff))));
+  }
 
   if (AnalyzeAll)
     AbortOnError(Manager.getRunner().runAllAnalyses());
@@ -194,11 +190,12 @@ int main(int argc, const char *argv[]) {
   runPipeline(Manager.getRunner());
 
   if (ProduceAllPossibleTargets)
-    AbortOnError(Manager.produceAllPossibleTargets(*LoggerOS));
+    AbortOnError(Manager.produceAllPossibleTargets());
+  else if (ProduceAllPossibleTargetsSingle)
+    AbortOnError(Manager.produceAllPossibleSingleTargets());
 
   if (InvalidateAll) {
-    PipelineLogger.enable();
-    AbortOnError(Manager.invalidateAllPossibleTargets(*LoggerOS));
+    AbortOnError(Manager.invalidateAllPossibleTargets());
   }
 
   AbortOnError(Manager.store(StoresOverrides));

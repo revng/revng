@@ -8,7 +8,7 @@ from tempfile import NamedTemporaryFile
 
 import yaml
 
-from revng.cli.commands_registry import Command, Options
+from revng.cli.commands_registry import Command, CommandsRegistry, Options
 from revng.cli.revng import run_revng_command
 from revng.cli.support import log_error
 
@@ -142,3 +142,7 @@ class ModelOverrideByName(Command):
                 )
 
             return result
+
+
+def setup(commands_registry: CommandsRegistry):
+    commands_registry.register_command(ModelOverrideByName())

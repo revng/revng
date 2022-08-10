@@ -182,10 +182,15 @@ public:
   void print(const Context &Ctx,
              llvm::raw_ostream &OS,
              size_t Indentation) const override {
+    indent(OS, Indentation);
     if constexpr (Printable<InvokableType>) {
-      indent(OS, Indentation);
       const auto &Names = getRunningContainersNames();
       ActualPipe.print(Ctx, OS, Names);
+    } else {
+      OS << "revng pipe ";
+      OS << getName() << " ";
+      for (const auto &Name : getRunningContainersNames())
+        OS << Name << " ";
     }
   }
 };

@@ -2,7 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-from revng.cli.commands_registry import Command, Options
+from revng.cli.commands_registry import Command, CommandsRegistry, Options
 from revng.cli.revng import run_revng_command
 
 
@@ -49,14 +49,14 @@ class TranslateCommand(Command):
             "pipeline",
         ]
 
-        command.append("Lift:DetectABI:module.ll::Root")
+        command.append("--analyze=Lift/DetectABI/module.ll/:Root")
 
         command = command + [
-            f"{step_name}:output::Translated",
+            f"--produce={step_name}/output/:Translated",
             "-i",
-            "begin:input:" + args.input[0],
+            f"{args.input[0]}:begin/input",
             "-o",
-            step_name + ":output:" + out_file,
+            f"{out_file}:{step_name}/output",
         ]
 
         if args.O1:
@@ -73,3 +73,7 @@ class TranslateCommand(Command):
             command.append("--link-trace")
 
         return run_revng_command(command, options)
+
+
+def setup(commands_registry: CommandsRegistry):
+    commands_registry.register_command(TranslateCommand())

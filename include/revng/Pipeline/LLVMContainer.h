@@ -37,6 +37,7 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/ValueMapper.h"
 
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/LLVMGlobalKindBase.h"
@@ -45,6 +46,11 @@
 #include "revng/Support/IRHelpers.h"
 
 namespace pipeline {
+
+/// Creates a global variable in the provided module that holds a pointer to
+/// each other global object so that they can't be removed by the linker
+void makeGlobalObjectsArray(llvm::Module &Module,
+                            llvm::StringRef GlobalArrayName);
 
 template<typename LLVMContainer>
 class GenericLLVMPipe;
@@ -69,8 +75,6 @@ public:
                     llvm::StringRef Name) :
     EnumerableContainer<ThisType>(Ctx, Name, "text/x.llvm.ir"),
     Module(std::move(M)) {}
-
-  ~LLVMContainerBase() override {}
 
 public:
   template<typename... LLVMPasses>
@@ -102,6 +106,18 @@ public:
     llvm::ValueToValueMapTy Map;
     revng_assert(llvm::verifyModule(*Module, &llvm::dbgs()) == 0);
     auto Cloned = llvm::CloneModule(*Module, Map, Filter);
+
+    for (auto &Function : Module->functions()) {
+      auto *Other = Cloned->getFunction(Function.getName());
+      if (not Other)
+        continue;
+
+      Other->clearMetadata();
+      llvm::SmallVector<std::pair<unsigned, llvm::MDNode *>, 2> MDs;
+      Function.getAllMetadata(MDs);
+      for (auto &MD : MDs)
+        Other->addMetadata(MD.first, *llvm::MapMetadata(MD.second, Map));
+    }
 
     return std::make_unique<ThisType>(*this->Ctx,
                                       std::move(Cloned),
@@ -139,6 +155,24 @@ public:
   }
 
 private:
+  void makeLinkageWeak(llvm::Module &Module,
+                       std::set<std::string> &Internals,
+                       std::set<std::string> &Externals) {
+    for (auto &Global : Module.global_objects()) {
+
+      if (Global.getLinkage() == llvm::GlobalValue::InternalLinkage) {
+        Internals.insert(Global.getName().str());
+        Global.setLinkage(llvm::GlobalValue::LinkOnceODRLinkage);
+      }
+
+      if (Global.getLinkage() == llvm::GlobalValue::ExternalLinkage
+          and not Global.isDeclaration()) {
+        Externals.insert(Global.getName().str());
+        Global.setLinkage(llvm::GlobalValue::LinkOnceODRLinkage);
+      }
+    }
+  }
+
   void mergeBackImpl(ThisType &&Other) final {
     auto BeforeEnumeration = this->enumerate();
     auto OtherEnumeration = Other.enumerate();
@@ -147,48 +181,25 @@ private:
     // merge(Module1.enumerate(), Module2.enumerate())
     //
     // So we enumerate now to have it later.
-    BeforeEnumeration.merge(OtherEnumeration);
+    auto ExpectedEnumeration = BeforeEnumeration;
+    ExpectedEnumeration.merge(OtherEnumeration);
 
     ThisType &ToMerge = Other;
     std::set<std::string> Internals;
     std::set<std::string> Externals;
 
-    // All symbols privated and not must be transformed into weak symbols, so
-    // that when multiple with the same name exists, one is dropped.
-    for (auto &Global : ToMerge.getModule().global_objects()) {
+    // All symbols internal and external symbols myst be transformed into weak
+    // symbols, so that when multiple with the same name exists, one is
+    // dropped.
+    makeLinkageWeak(*Other.Module, Internals, Externals);
+    makeLinkageWeak(*Module, Internals, Externals);
 
-      if (Global.getLinkage() == llvm::GlobalValue::InternalLinkage) {
-        Internals.insert(Global.getName().str());
-        Global.setLinkage(llvm::GlobalValue::LinkOnceODRLinkage);
-      }
+    // Make a global array of all global objects so that they don't get dropped
+    std::string GlobalArray1 = "REVNGAllSymbolsArrayLeft";
+    makeGlobalObjectsArray(*Module, GlobalArray1);
 
-      if (Global.getLinkage() == llvm::GlobalValue::ExternalLinkage
-          and not Global.isDeclaration()) {
-        Externals.insert(Global.getName().str());
-        Global.setLinkage(llvm::GlobalValue::LinkOnceODRLinkage);
-      }
-    }
-
-    for (auto &Global : Module->global_objects()) {
-
-      if (Global.getLinkage() == llvm::GlobalValue::InternalLinkage) {
-        Internals.insert(Global.getName().str());
-        Global.setLinkage(llvm::GlobalValue::LinkOnceODRLinkage);
-      }
-
-      if (Global.getLinkage() == llvm::GlobalValue::ExternalLinkage
-          and not Global.isDeclaration()) {
-        Externals.insert(Global.getName().str());
-        Global.setLinkage(llvm::GlobalValue::LinkOnceODRLinkage);
-      }
-    }
-
-    // Drops all metadata in the copied in module to avoid a single debug
-    // metadata to be attached to multiple fuctions, which is illformed.
-    for (auto &Global : Module->functions()) {
-      if (ToMerge.getModule().getFunction(Global.getName()))
-        Global.clearMetadata();
-    }
+    std::string GlobalArray2 = "REVNGAllSymbolsArrayRight";
+    makeGlobalObjectsArray(*Other.Module, GlobalArray2);
 
     // We require inputs to be valid
     revng_assert(llvm::verifyModule(ToMerge.getModule(), &llvm::dbgs()) == 0);
@@ -214,10 +225,18 @@ private:
     revng_assert(llvm::verifyModule(*ToMerge.Module, nullptr) == 0);
     Module = std::move(ToMerge.Module);
 
-    // checks that module merging commutes w.r.t. enumeration, as specified in
+    // Checks that module merging commutes w.r.t. enumeration, as specified in
     // the first comment.
-    revng_assert(BeforeEnumeration.contains(this->enumerate()));
-    revng_assert(this->enumerate().contains(BeforeEnumeration));
+    auto ActualEnumeration = this->enumerate();
+    revng_assert(ExpectedEnumeration.contains(ActualEnumeration));
+    revng_assert(ActualEnumeration.contains(ExpectedEnumeration));
+
+    // Remove the global arrays since they are no longer needed.
+    if (auto *Global = Module->getGlobalVariable(GlobalArray1))
+      Global->eraseFromParent();
+
+    if (auto *Global = Module->getGlobalVariable(GlobalArray2))
+      Global->eraseFromParent();
   }
 };
 

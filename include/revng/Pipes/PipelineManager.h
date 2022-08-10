@@ -43,9 +43,6 @@ private:
   createContexts(llvm::ArrayRef<std::string> EnablingFlags,
                  llvm::StringRef ExecutionDirectory);
 
-  /// recalculates all possible targets and keeps overship of the computed info
-  void recalculateAllPossibleTargets();
-
 public:
   PipelineManager(PipelineManager &&Other) = default;
   PipelineManager &operator=(PipelineManager &&Other) = default;
@@ -78,10 +75,6 @@ public:
   /// The same as the previous overload except the mapping is provided as a
   /// triple to be parsed is the usual way.
   llvm::Error overrideContainer(llvm::StringRef PipelineFileMapping);
-
-  /// Entirelly replaces the model with the content of the file indicated by
-  /// Path
-  llvm::Error overrideModel(llvm::StringRef Path);
 
   /// Stores the content of the container indicated by the mapping at the path
   /// indicated by the mapping, and  nothing else.
@@ -116,7 +109,8 @@ public:
   void recalculateCache();
 
   /// like recalculate by the ownerhip is maintained by State
-  void getAllPossibleTargets(pipeline::Runner::State &State) const;
+  void getAllPossibleTargets(pipeline::Runner::State &State,
+                             bool ExpandTargets = true) const;
   /// like recalculate by the ownerhip is maintained by State
   void getCurrentState(pipeline::Runner::State &State) const;
 
@@ -126,9 +120,14 @@ public:
 
   /// A helper function used to produce all possible targets. It is used for
   /// debug purposes to see if any particular target crashes.
-  llvm::Error produceAllPossibleTargets(llvm::raw_ostream &Stream);
+  llvm::Error produceAllPossibleTargets() {
+    return produceAllPossibleTargets(false);
+  }
+  llvm::Error produceAllPossibleSingleTargets() {
+    return produceAllPossibleTargets(true);
+  }
 
-  llvm::Error invalidateAllPossibleTargets(llvm::raw_ostream &OS);
+  llvm::Error invalidateAllPossibleTargets();
 
   /// returns the cached list of targets that are known to be aviable to be
   /// produced in a container
@@ -153,13 +152,18 @@ public:
               llvm::raw_ostream *DiagnosticLog = nullptr);
 
   /// Run all analysis in reverse post order (that is: parents first),
-  llvm::Expected<pipeline::DiffMap>
-  runAllAnalyses(llvm::raw_ostream *OS = nullptr);
+  llvm::Expected<pipeline::DiffMap> runAllAnalyses();
+
+  /// recalculates all possible targets and keeps overship of the computed info
+  void recalculateAllPossibleTargets(bool ExpandTargets = true);
 
   /// prints to the provided raw_ostream all possible targets that can
   /// be produced by the pipeline in the current state
   void writeAllPossibleTargets(llvm::raw_ostream &OS) const;
 
   llvm::StringRef executionDirectory() const { return ExecutionDirectory; }
+
+private:
+  llvm::Error produceAllPossibleTargets(bool ExpandTargets);
 };
 } // namespace revng::pipes
