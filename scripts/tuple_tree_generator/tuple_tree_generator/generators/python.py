@@ -4,7 +4,17 @@
 
 import black
 
-from ..schema import Schema, SequenceStructField, StructField
+from ..schema import (
+    Definition,
+    EnumDefinition,
+    ReferenceDefinition,
+    ScalarDefinition,
+    Schema,
+    SequenceDefinition,
+    StructDefinition,
+    StructField,
+    UpcastableDefinition,
+)
 from .jinja_utils import python_environment
 
 
@@ -15,7 +25,6 @@ class PythonGenerator:
         self.string_types = string_types or []
         self.external_types = external_types or []
         python_environment.filters["python_type"] = self.python_type
-        python_environment.filters["python_list_type"] = self.python_list_type
         self.template = python_environment.get_template("tuple_tree_gen.py.tpl")
 
     def emit_python(self) -> str:
@@ -33,26 +42,30 @@ class PythonGenerator:
 
     @classmethod
     def python_type(cls, field: StructField):
-        type_info = field.type_info(cls.scalar_converter)
-        if type_info.root_type == "":
-            if not type_info.is_sequence:
-                return type_info.type
-            else:
-                return f"List[{type_info.type}]"
-        else:
-            return f"Reference[{type_info.type}, {type_info.root_type}]"
+        resolved_type = field.resolved_type
+        return cls._python_type(resolved_type)
 
     @classmethod
-    def python_list_type(cls, field: SequenceStructField):
-        type_info = field.type_info(cls.scalar_converter)
-        assert type_info.root_type == "", "Must not be a Reference"
-        assert type_info.is_sequence, "Must be a sequence"
-        return type_info.type
-
-    @staticmethod
-    def scalar_converter(type_name: str) -> str:
-        if "int" in type_name:
-            return "int"
-        elif "string" in type_name:
-            return "str"
-        return type_name
+    def _python_type(cls, resolved_type: Definition):
+        assert isinstance(resolved_type, Definition)
+        if isinstance(resolved_type, StructDefinition):
+            return resolved_type.name
+        elif isinstance(resolved_type, SequenceDefinition):
+            return f"List[{cls._python_type(resolved_type.element_type)}]"
+        elif isinstance(resolved_type, EnumDefinition):
+            return resolved_type.name
+        elif isinstance(resolved_type, ScalarDefinition):
+            if resolved_type.name == "string":
+                return "str"
+            elif "int" in resolved_type.name:
+                return "int"
+            else:
+                return resolved_type.name
+        elif isinstance(resolved_type, ReferenceDefinition):
+            pointee = cls._python_type(resolved_type.pointee)
+            root = cls._python_type(resolved_type.root)
+            return f"Reference[{pointee}, {root}]"
+        elif isinstance(resolved_type, UpcastableDefinition):
+            return cls._python_type(resolved_type.base)
+        else:
+            assert False

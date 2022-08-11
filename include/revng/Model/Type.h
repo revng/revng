@@ -26,7 +26,7 @@ doc: Base class of model types used for LLVM-style RTTI
 type: struct
 fields:
   - name: Kind
-    type: model::TypeKind::Values
+    type: TypeKind
   - name: ID
     type: uint64_t
     is_guid: true
@@ -34,7 +34,7 @@ fields:
     type: Identifier
     optional: true
   - name: OriginalName
-    type: std::string
+    type: string
     optional: true
 key:
   - Kind

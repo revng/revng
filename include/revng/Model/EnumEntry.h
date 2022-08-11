@@ -19,7 +19,7 @@ fields:
     type: Identifier
     optional: true
   - name: OriginalName
-    type: std::string
+    type: string
     optional: true
 key:
   - Value

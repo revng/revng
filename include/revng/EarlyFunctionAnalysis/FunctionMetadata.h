@@ -29,7 +29,7 @@ fields:
   - name: ControlFlowGraph
     sequence:
       type: SortedVector
-      elementType: efa::BasicBlock
+      elementType: BasicBlock
     optional: true
 key:
   - Entry

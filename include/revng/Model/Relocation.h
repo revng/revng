@@ -16,7 +16,7 @@ fields:
   - name: Address
     type: MetaAddress
   - name: Type
-    type: model::RelocationType::Values
+    type: RelocationType
   - name: Addend
     type: uint64_t
 

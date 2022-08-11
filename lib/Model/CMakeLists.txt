@@ -39,6 +39,9 @@ target_tuple_tree_generator(
   "Identifier"
   SEPARATE_STRING_TYPES
   "MetaAddress"
+  SCALAR_TYPES
+  "Identifier"
+  "MetaAddress"
   HEADERS
   "${MODEL_HEADERS_DIR}/ABI.h"
   "${MODEL_HEADERS_DIR}/Architecture.h"

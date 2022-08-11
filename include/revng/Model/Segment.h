@@ -34,27 +34,27 @@ fields:
     type: Identifier
     optional: true
   - name: OriginalName
-    type: std::string
+    type: string
     optional: true
   - name: CanonicalRegisterValues
     optional: true
     sequence:
       type: SortedVector
-      elementType: model::CanonicalRegisterValue
+      elementType: CanonicalRegisterValue
   - name: Relocations
     optional: true
     sequence:
       type: SortedVector
-      elementType: model::Relocation
+      elementType: Relocation
   - name: Sections
     optional: true
     sequence:
       type: SortedVector
-      elementType: model::Section
+      elementType: Section
     doc: If there's at least one Section, only Sections where
          ContainsCode == true will be searched for code.
   - name: Type
-    type: model::QualifiedType
+    type: QualifiedType
     optional: true
 
 key:

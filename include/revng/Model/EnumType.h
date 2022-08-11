@@ -15,11 +15,11 @@ type: struct
 inherits: Type
 fields:
   - name: UnderlyingType
-    type: model::QualifiedType
+    type: QualifiedType
   - name: Entries
     sequence:
       type: SortedVector
-      elementType: model::EnumEntry
+      elementType: EnumEntry
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/EnumType.h"

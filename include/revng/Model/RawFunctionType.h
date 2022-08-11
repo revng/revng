@@ -17,19 +17,19 @@ fields:
   - name: Arguments
     sequence:
       type: SortedVector
-      elementType: model::NamedTypedRegister
+      elementType: NamedTypedRegister
   - name: ReturnValues
     sequence:
       type: SortedVector
-      elementType: model::TypedRegister
+      elementType: TypedRegister
   - name: PreservedRegisters
     sequence:
       type: SortedVector
-      elementType: model::Register::Values
+      elementType: Register
   - name: FinalStackOffset
     type: uint64_t
   - name: StackArgumentsType
-    type: model::QualifiedType
+    type: QualifiedType
     optional: true
 TUPLE-TREE-YAML */
 

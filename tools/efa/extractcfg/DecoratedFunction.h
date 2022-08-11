@@ -18,11 +18,13 @@ fields:
   - name: Entry
     type: MetaAddress
   - name: OriginalName
-    type: std::string
+    type: string
   - name: FunctionMetadata
     type: efa::FunctionMetadata
   - name: Attributes
-    type: MutableSet<model::FunctionAttribute::Values>
+    sequence:
+      type: MutableSet
+      elementType: model::FunctionAttribute::Values
 key:
   - Entry
 TUPLE-TREE-YAML */

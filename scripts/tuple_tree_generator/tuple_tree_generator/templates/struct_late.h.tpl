@@ -24,12 +24,12 @@ The notice below applies to the generated files.
 using namespace std::string_view_literals;
 
 /*# --- TupleLikeTraits --- -#*/
-template <> struct TupleLikeTraits</*=- struct.user_fullname =*/> {
+template <> struct TupleLikeTraits</*=- struct | user_fullname =*/> {
   static constexpr const llvm::StringRef Name = "/*=- struct.name =*/";
-  static constexpr const llvm::StringRef FullName = "/*=- struct.user_fullname =*/";
+  static constexpr const llvm::StringRef FullName = "/*=- struct | user_fullname =*/";
   using tuple = std::tuple<
     /**- for field in struct.all_fields -**/
-    decltype(/*=- struct.user_fullname =*/::/*=- field.name =*/)/** if not loop.last **/, /** endif -**/
+    decltype(/*=- struct | user_fullname =*/::/*=- field.name =*/)/** if not loop.last **/, /** endif -**/
     /**- endfor **/>;
 
   static constexpr std::array<llvm::StringRef, std::tuple_size_v<tuple>> FieldNames = {
@@ -45,7 +45,7 @@ template <> struct TupleLikeTraits</*=- struct.user_fullname =*/> {
   };
 };
 
-namespace /*= struct.user_namespace =*/ {
+namespace /*= struct.namespace =*/ {
 template <int I> auto &get(/*= struct.name =*/ &&x) {
   if constexpr (false)
     return __null;
@@ -76,34 +76,34 @@ template <int I> auto &get(/*= struct.name =*/ &x) {
 /*# --- End TupleLikeTraits --- -#*/
 
 template<>
-struct llvm::yaml::MappingTraits</*= struct.user_fullname =*/>
-  : public TupleLikeMappingTraits</*= struct.user_fullname =*/
+struct llvm::yaml::MappingTraits</*= struct | user_fullname =*/>
+  : public TupleLikeMappingTraits</*= struct | user_fullname =*/
       /**- for field in struct.all_optional_fields -**/
-      , TupleLikeTraits</*= struct.user_fullname =*/>::Fields::/*= field.name =*/
+      , TupleLikeTraits</*= struct | user_fullname =*/>::Fields::/*= field.name =*/
       /** endfor -**/
     > {};
 
 /** if struct._key **/
 template<>
-struct llvm::yaml::ScalarTraits</*= struct.user_fullname =*/::Key>
-  : public CompositeScalar</*= struct.user_fullname =*/::Key, '-'> {};
+struct llvm::yaml::ScalarTraits</*= struct | user_fullname =*/::Key>
+  : public CompositeScalar</*= struct | user_fullname =*/::Key, '-'> {};
 /** endif **//*# --- End YAML traits --- #*/
 
 /*# --- KeyedObjectTraits implementation --- #*/
 /** if struct._key **/
 /** if struct.keytype == "simple" **/
 template<>
-struct KeyedObjectTraits</*= struct.user_fullname =*/> {
-  static /*= struct.key_fields[0].type =*/ key(const /*= struct.user_fullname =*/ &Obj) { return Obj./*= struct.key_fields[0].name =*/; }
-  static /*= struct.user_fullname =*/ fromKey(const /*= struct.key_fields[0].type =*/ &Key) {
-    return /*= struct.user_fullname =*/(Key);
+struct KeyedObjectTraits</*= struct | user_fullname =*/> {
+  static /*= struct.key_fields[0] | field_type =*/ key(const /*= struct | user_fullname =*/ &Obj) { return Obj./*= struct.key_fields[0].name =*/; }
+  static /*= struct | user_fullname =*/ fromKey(const /*= struct.key_fields[0] | field_type =*/ &Key) {
+    return /*= struct | user_fullname =*/(Key);
   }
 };
 /** elif struct.keytype == "composite" **/
 template<>
-struct KeyedObjectTraits</*= struct.user_fullname =*/> {
-  using Key = /*= struct.fullname =*/::Key;
-  static Key key(const /*= struct.user_fullname =*/ &Obj) {
+struct KeyedObjectTraits</*= struct | user_fullname =*/> {
+  using Key = /*= struct | fullname =*/::Key;
+  static Key key(const /*= struct | user_fullname =*/ &Obj) {
     return {
       /** for key_field in struct.key_fields -**/
       Obj./*= key_field.name =*/
@@ -113,10 +113,10 @@ struct KeyedObjectTraits</*= struct.user_fullname =*/> {
     };
   }
 
-  static /*= struct.user_fullname =*/ fromKey(const Key &K) {
-    return std::make_from_tuple</*= struct.user_fullname =*/>(K);
+  static /*= struct | user_fullname =*/ fromKey(const Key &K) {
+    return std::make_from_tuple</*= struct | user_fullname =*/>(K);
     /*#
-    return /*= struct.user_fullname =*/{
+    return /*= struct | user_fullname =*/{
       /**- for key_field in struct.key_fields **/
       std::get</*= loop.index0 =*/>(K)/** if not loop.last **/, /** endif **/
       /**- endfor **/
@@ -131,27 +131,29 @@ struct KeyedObjectTraits</*= struct.user_fullname =*/> {
 /** if upcastable **/
 /// \brief Make UpcastablePointer yaml-serializable polymorphically
 template<>
-struct llvm::yaml::MappingTraits<UpcastablePointer</*= struct.user_fullname =*/>>
-  : public PolymorphicMappingTraits<UpcastablePointer</*= struct.user_fullname =*/>> {};
+struct llvm::yaml::MappingTraits<UpcastablePointer</*= struct | user_fullname =*/>>
+  : public PolymorphicMappingTraits<UpcastablePointer</*= struct | user_fullname =*/>> {};
 
 template<>
-struct KeyedObjectTraits<UpcastablePointer</*= struct.user_fullname =*/>> {
-  using Key = /*= struct.user_fullname =*/::Key;
-  static Key key(const UpcastablePointer</*= struct.user_fullname =*/> &Obj);
-  static UpcastablePointer</*= struct.user_fullname =*/> fromKey(const Key &K);
+struct KeyedObjectTraits<UpcastablePointer</*= struct | user_fullname =*/>> {
+  using Key = /*= struct | user_fullname =*/::Key;
+  static Key key(const UpcastablePointer</*= struct | user_fullname =*/> &Obj);
+  static UpcastablePointer</*= struct | user_fullname =*/> fromKey(const Key &K);
 };
 /** endif **//*# End UpcastablePointer stuff #*/
 
-static_assert(validateTupleTree</*= struct.user_fullname =*/>(IsYamlizable),
-              "/*= struct.user_fullname =*/ must be YAMLizable");
+static_assert(validateTupleTree</*= struct | user_fullname =*/>(IsYamlizable),
+              "/*= struct | user_fullname =*/ must be YAMLizable");
 
-LLVM_YAML_IS_SEQUENCE_VECTOR(/*= struct.user_fullname =*/)
+LLVM_YAML_IS_SEQUENCE_VECTOR(/*= struct | user_fullname =*/)
+static_assert(Yamlizable<std::vector</*= struct | user_fullname =*/>>,
+              "/*= struct | user_fullname =*/ must be YAMLizable");
 
 /** if root_type == struct.name **/
 #include "revng/Model/Generated/AllTypesVariant.h"
 
 template<>
-struct TupleTreeEntries</*= struct.user_fullname =*/> {
+struct TupleTreeEntries</*= struct | user_fullname =*/> {
   using Types = /*= namespace =*/::AllTypes;
 };
 /** endif **/

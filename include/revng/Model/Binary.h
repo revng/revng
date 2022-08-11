@@ -33,32 +33,33 @@ fields:
     doc: List of the functions within the binary
     sequence:
       type: SortedVector
-      elementType: model::Function
+      elementType: Function
+    optional: true
   - name: ImportedDynamicFunctions
     doc: List of the functions within the binary
     sequence:
       type: SortedVector
-      elementType: model::DynamicFunction
+      elementType: DynamicFunction
     optional: true
   - name: Architecture
     doc: Binary architecture
-    type: model::Architecture::Values
+    type: Architecture
     optional: true
   - name: DefaultABI
     doc: The default ABI of `RawFunctionType`s within the binary
-    type: model::ABI::Values
+    type: ABI
     optional: true
   - name: DefaultPrototype
     doc: The default function prototype
     reference:
-      pointeeType: model::Type
-      rootType: model::Binary
+      pointeeType: Type
+      rootType: Binary
     optional: true
   - name: Segments
     doc: List of segments in the original binary
     sequence:
       type: SortedVector
-      elementType: model::Segment
+      elementType: Segment
     optional: true
   - name: EntryPoint
     doc: Program entry point
@@ -69,12 +70,13 @@ fields:
     sequence:
       type: SortedVector
       upcastable: true
-      elementType: model::Type
+      elementType: Type
+    optional: true
   - name: ImportedLibraries
     doc: List of imported libraries
     sequence:
       type: SortedVector
-      elementType: std::string
+      elementType: string
     optional: true
   - name: ExtraCodeAddresses
     doc: Addresses containing code in order to help translation

@@ -29,28 +29,28 @@ fields:
   - name: RawBytes
     type: yield::ByteContainer
   - name: Disassembled
-    type: std::string
+    type: string
 
   - name: Tags
     sequence:
       type: SortedVector
-      elementType: yield::Tag
+      elementType: Tag
     optional: true
 
   - name: OpcodeIdentifier
-    type: std::string
+    type: string
     optional: true
   - name: Comment
     doc: >
       Contains any extra information deduced based on the disassembly of this
       instruction that could be relevant for the user.
-    type: std::string
+    type: string
     optional: true
   - name: Error
     doc: >
       Contains any extra extra warning/error style information deduced based on
       the disassembly of this instruction that could be relevant for the user.
-    type: std::string
+    type: string
     optional: true
 
 key:

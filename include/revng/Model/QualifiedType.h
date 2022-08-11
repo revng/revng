@@ -19,12 +19,12 @@ type: struct
 fields:
   - name: UnqualifiedType
     reference:
-      pointeeType: model::Type
-      rootType: model::Binary
+      pointeeType: Type
+      rootType: Binary
   - name: Qualifiers
     sequence:
       type: "std::vector"
-      elementType: model::Qualifier
+      elementType: Qualifier
     optional: true
 TUPLE-TREE-YAML */
 

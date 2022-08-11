@@ -9,7 +9,15 @@ from typing import List, Optional
 from jinja2 import Environment
 from markupsafe import Markup
 
-from ..schema import Schema, StructDefinition, StructField, TypeInfo
+from ..schema import (
+    ReferenceDefinition,
+    ScalarDefinition,
+    Schema,
+    SequenceDefinition,
+    StructDefinition,
+    StructField,
+    UpcastableDefinition,
+)
 from .jinja_utils import loader
 
 int_re = re.compile(r"(u)?int(8|16|32|64)_t")
@@ -72,32 +80,48 @@ class TypeScriptGenerator:
         return None
 
     def ts_type(self, field: StructField) -> str:
-        info = self._get_type(field)
-        if self._is_reference_type(field):
-            return f"Reference<{info.type},{info.root_type}>"
-        return f'{info.type}{"[]" if info.is_sequence else ""}'
+        if isinstance(field.resolved_type, ReferenceDefinition):
+            pointee_type = field.resolved_type.pointee.name
+            root_type = field.resolved_type.root.name
+            return f"Reference<{pointee_type},{root_type}>"
+        elif isinstance(field.resolved_type, SequenceDefinition):
+            real_type = self._real_type(field)
+            return f"{real_type}[]"
+        else:
+            return self._real_type(field)
 
     def ts_itype(self, field: StructField) -> str:
         if self._is_simple_type(field):
             return self.ts_type(field)
-        if self._is_reference_type(field):
+        if isinstance(field.resolved_type, ReferenceDefinition):
             return "IReference"
         return f"I{self.ts_type(field)}"
 
+    def _real_type(self, field: StructField) -> str:
+        resolved_type = field.resolved_type
+
+        if isinstance(resolved_type, SequenceDefinition):
+            resolved_type = resolved_type.element_type
+
+        if isinstance(resolved_type, UpcastableDefinition):
+            resolved_type = resolved_type.base
+
+        real_type = resolved_type.name
+
+        if isinstance(resolved_type, ScalarDefinition):
+            real_type = self.scalar_converter(real_type)
+
+        return real_type
+
+    # TODO: this should be called _is_simple_class_or_sequence_of_simple_class
     def _is_simple_type(self, field: StructField) -> bool:
-        type_info = self._get_type(field)
-        real_type = type_info.type
+        real_type = self._real_type(field)
         return (real_type in BUILTINS) or (
             real_type in [e.name for e in self.schema.enum_definitions()]
         )
 
-    def _is_reference_type(self, field: StructField) -> bool:
-        type_info = self._get_type(field)
-        return type_info.root_type != ""
-
     def _is_class_type(self, field: StructField, only_concrete=False) -> bool:
-        type_info = self._get_type(field)
-        real_type = type_info.type
+        real_type = self._real_type(field)
         cls_builtins = self.external_types + (self.string_types if not only_concrete else [])
         return (real_type in cls_builtins) or (
             real_type
@@ -107,10 +131,6 @@ class TypeScriptGenerator:
                 if (not only_concrete) or (not s.abstract)
             ]
         )
-
-    def _get_type(self, field: StructField) -> TypeInfo:
-        field.resolve_references(self.schema)
-        return field.type_info(self.type_converter)
 
     @classmethod
     def get_guid_field(cls, class_: StructDefinition) -> Optional[StructField]:
@@ -122,19 +142,20 @@ class TypeScriptGenerator:
     def gen_assignment(self, field: StructField) -> str:
         if self._is_simple_type(field):
             return f"this.{field.name} = rawObject.{field.name};"
-        if self._is_reference_type(field):
-            info = self._get_type(field)
+        if isinstance(field.resolved_type, ReferenceDefinition):
+            pointee_type = field.resolved_type.pointee.name
+            root_type = field.resolved_type.root.name
             return (
                 f"this.{field.name} = "
-                + f"Reference.parse<{info.type},{info.root_type}>(rawObject.{field.name});"
+                + f"Reference.parse<{pointee_type},{root_type}>(rawObject.{field.name});"
             )
         if self._is_class_type(field):
-            type_info = self._get_type(field)
-            ftype = type_info.type
+            is_sequence = isinstance(field.resolved_type, SequenceDefinition)
+            ftype = self._real_type(field)
             name = field.name
             opt = "?" if field.optional else ""
             if self._is_class_type(field, True):
-                if type_info.is_sequence:
+                if is_sequence:
                     return f"this.{name} = rawObject.{name}{opt}.map(e => new {ftype}(e));"
                 else:
                     element = f"rawObject.{name}"
@@ -144,7 +165,7 @@ class TypeScriptGenerator:
                         ctor = f"new {ftype}({element})"
                     return f"this.{name} = {ctor};"
             else:
-                if type_info.is_sequence:
+                if is_sequence:
                     return f"this.{name} = rawObject.{name}{opt}.map(e => {ftype}.parse(e));"
                 else:
                     return f"this.{name} = {ftype}.parse(rawObject.{name});"
@@ -181,8 +202,8 @@ class TypeScriptGenerator:
         else:
             return ""
 
-    def type_converter(self, type_name: str) -> str:
-        if type_name == "std::string":
+    def scalar_converter(self, type_name: str) -> str:
+        if type_name == "string":
             return "string"
         elif type_name == "bool":
             return "boolean"
@@ -190,7 +211,8 @@ class TypeScriptGenerator:
             return "bigint"
         elif type_name in self.external_types + self.string_types:
             return type_name
-        return ""
+        else:
+            raise Exception(f"Unexpected scalar: {type_name}")
 
     @staticmethod
     def read_file(path: str) -> str:
@@ -203,31 +225,36 @@ class TypeScriptGenerator:
             raise ValueError()
 
     def type_hint(self, field: StructField) -> str:
-        type_info = self._get_type(field)
+        real_type = self._real_type(field)
         possible_values = None
-        if type_info.type in BUILTINS:
-            hint_type = BUILTINS_CLASSES.get(type_info.type)
+        if real_type in BUILTINS:
+            hint_type = BUILTINS_CLASSES.get(real_type)
             ctor = "native"
-        elif type_info.type in [e.name for e in self.schema.enum_definitions()]:
+        elif real_type in [e.name for e in self.schema.enum_definitions()]:
             hint_type = "String"
             ctor = "enum"
-            possible_values = f"{type_info.type}Values"
-        elif self._is_reference_type(field):
+            possible_values = f"{real_type}Values"
+        elif isinstance(field.resolved_type, ReferenceDefinition):
             hint_type = "Reference"
             ctor = "parse"
-        elif type_info.type in [
+        elif real_type in [
             *(s.name for s in self.schema.struct_definitions() if s.abstract),
             *(self.string_types),
         ]:
-            hint_type = type_info.type
+            hint_type = real_type
             ctor = "parse"
         else:
-            hint_type = type_info.type
+            hint_type = real_type
             ctor = "class"
+
+        assert hint_type
+
+        is_sequence = isinstance(field.resolved_type, SequenceDefinition)
+
         return (
             f"{{type: {hint_type}, "
             + (f"possibleValues: {possible_values}," if possible_values is not None else "")
             + f"ctor: '{ctor}', "
             + f"optional: {'true' if field.optional else 'false'}, "
-            + f"isArray: {'true' if type_info.is_sequence else 'false'}}}"
+            + f"isArray: {'true' if is_sequence else 'false'}}}"
         )

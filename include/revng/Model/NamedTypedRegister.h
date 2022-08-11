@@ -15,9 +15,9 @@ name: NamedTypedRegister
 type: struct
 fields:
   - name: Location
-    type: model::Register::Values
+    type: Register
   - name: Type
-    type: model::QualifiedType
+    type: QualifiedType
   - name: CustomName
     type: Identifier
     optional: true

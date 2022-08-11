@@ -12,7 +12,7 @@ name: CanonicalRegisterValue
 type: struct
 fields:
   - name: Register
-    type: model::Register::Values
+    type: Register
   - name: Value
     type: uint64_t
 key:

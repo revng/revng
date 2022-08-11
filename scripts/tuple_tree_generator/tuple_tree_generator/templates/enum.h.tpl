@@ -16,7 +16,7 @@ The notice below applies to the generated files.
 #include "revng/TupleTree/NamedEnumScalarTraits.h"
 #include "revng/Support/Assert.h"
 
-namespace /*= enum.namespace =*/ {
+namespace /*= enum.namespace =*/::/*= enum.name =*/ {
 /*= enum.doc | docstring =*/
 enum Values
 /**- if enum.underlying_type is defined **/ : /*= enum.underlying_type =*//** endif **/{
@@ -58,23 +58,23 @@ inline Values fromName(llvm::StringRef Name) {
     return Invalid;
   }
 }
-} // namespace /*= enum.namespace =*/
+} // namespace /*= enum.namespace =*/::/*= enum.name =*/
 
 template<>
-struct KeyedObjectTraits</*= enum.fullname =*/>
-  : public IdentityKeyedObjectTraits</*= enum.fullname =*/> {};
+struct KeyedObjectTraits</*= enum | fullname =*/>
+  : public IdentityKeyedObjectTraits</*= enum | fullname =*/> {};
 
 namespace llvm::yaml {
 template<>
-struct ScalarEnumerationTraits</*= enum.fullname =*/>
-  : public NamedEnumScalarTraits</*= enum.fullname =*/> {
+struct ScalarEnumerationTraits</*= enum | fullname =*/>
+  : public NamedEnumScalarTraits</*= enum | fullname =*/> {
 };
 } // namespace llvm::yaml
 
 /*# length + 1 to account for the implicit Invalid member -#*/
 template<>
-inline constexpr size_t EnumElementsCount</*= enum.fullname =*/> = /*= enum.members|length + 1 =*/;
+inline constexpr size_t EnumElementsCount</*= enum | fullname =*/> = /*= enum.members|length + 1 =*/;
 
 template<>
-inline llvm::StringRef getEnumName</*= enum.fullname =*/>() { return "/*= enum.name =*/"; }
+inline llvm::StringRef getEnumName</*= enum | fullname =*/>() { return "/*= enum.name =*/"; }
 

@@ -24,7 +24,7 @@ fields:
   - name: ControlFlowGraph
     sequence:
       type: SortedVector
-      elementType: yield::BasicBlock
+      elementType: BasicBlock
 
 key:
   - Entry

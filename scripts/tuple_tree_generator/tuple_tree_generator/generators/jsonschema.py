@@ -10,6 +10,7 @@ import yaml
 from ..schema import (
     EnumDefinition,
     ReferenceStructField,
+    ScalarDefinition,
     Schema,
     SequenceStructField,
     SimpleStructField,
@@ -44,15 +45,18 @@ class JSONSchemaGenerator:
             definitions[t] = {"type": "string"}
 
         for type_definition in self.schema.definitions.values():
-            assert type_definition.name not in definitions
             if isinstance(type_definition, EnumDefinition):
                 definition = self._enum_jsonschema(type_definition)
             elif isinstance(type_definition, StructDefinition):
                 definition = self._struct_jsonschema(type_definition)
+            elif isinstance(type_definition, ScalarDefinition):
+                definition = None
             else:
                 raise ValueError()
 
-            definitions[type_definition.name] = definition
+            if definition is not None:
+                assert type_definition.name not in definitions
+                definitions[type_definition.name] = definition
 
         return yaml.dump(jsonschema)
 
@@ -117,7 +121,7 @@ class JSONSchemaGenerator:
         elif type_name in self.separate_string_types:
             schema = {"$ref": f"#/definitions/{type_name}"}
         else:
-            if type_name in ["std::string", *self.string_types]:
+            if type_name in ["string", *self.string_types]:
                 field_type = "string"
             elif type_name == "bool":
                 field_type = "boolean"

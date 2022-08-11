@@ -15,13 +15,13 @@ The notice below applies to the generated files.
 #include "revng/TupleTree/TupleTreeReference.h"
 #include "revng/Support/Assert.h"
 
-/**- for header in struct.includes **/
+/**- for header in includes **/
 #include "/*= generator.user_include_path =*//*= header =*/"
 /**- endfor **/
 
 /*= struct.doc | docstring -=*/
-struct /*= struct.fullname =*/
-  /**- if struct.inherits **/ : public /*= struct.inherits.user_fullname =*/ /** endif -**/
+struct /*= struct | fullname =*/
+  /**- if struct.inherits **/ : public /*= struct.inherits | user_fullname =*/ /** endif -**/
 {
   /**- if struct.inherits **/
   static constexpr const /*= struct.inherits.name =*/Kind::Values AssociatedKind = /*= struct.inherits.name =*/Kind::/*= struct.name =*/;
@@ -31,7 +31,8 @@ struct /*= struct.fullname =*/
   /**- for field in struct.fields **/
   /*= field.doc | docstring =*/
   /**- if field.const **/const /** endif -**/
-  /*= field.type =*/ /*= field.name =*/ = /*= field.type =*/{};
+  /*= field | field_type =*/ /*= field.name =*/ = /*= field | field_type =*/{};
+  static_assert(Yamlizable</*= field | field_type =*/>);
   /**- endfor **/
 
   /*# --- Default constructor --- #*/
@@ -51,7 +52,7 @@ struct /*= struct.fullname =*/
   /// Key constructor
   /*= struct.name =*/(
     /**- for field in struct.key_fields **/
-    /*=- field.type =*/ /*= field.name =*//** if not loop.last **/, /** endif **/
+    /*=- field | field_type =*/ /*= field.name =*//** if not loop.last **/, /** endif **/
     /**- endfor **/
   ) :
     /**- if struct.inherits **/
@@ -77,13 +78,13 @@ struct /*= struct.fullname =*/
   /*= struct.name =*/(
     /*#- Inherited fields #*/
     /**- for field in struct.inherits.fields **/
-    /*=- field.type =*/ /*= field.name =*/
+    /*=- field | field_type =*/ /*= field.name =*/
     /** if (struct.fields | length > 0) or (not loop.last) **/, /** endif **/
     /**- endfor **/
 
     /*#- Own fields #*/
     /**- for field in struct.fields **/
-    /*=- field.type =*/ /*= field.name =*//** if not loop.last **/, /** endif **/
+    /*=- field | field_type =*/ /*= field.name =*//** if not loop.last **/, /** endif **/
     /**- endfor **/
   ) :
     /*#- Invoke base class constructor #*/
@@ -106,7 +107,7 @@ struct /*= struct.fullname =*/
   /** if struct._key **/
   using KeyTuple = std::tuple<
     /**- for key_field in struct.key_fields -**/
-    /*= key_field.type =*//** if not loop.last **/, /** endif **/
+    /*= key_field | field_type =*//** if not loop.last **/, /** endif **/
     /**- endfor -**/
   >;
   struct Key : public KeyTuple {
@@ -131,17 +132,17 @@ struct /*= struct.fullname =*/
   bool operator==(const /*= struct.name =*/ &Other) const = default;
   /** endif **/
 
-  bool localCompare(const /*= struct.user_fullname =*/ &Other) const;
+  bool localCompare(const /*= struct | user_fullname =*/ &Other) const;
 };
 
 /** if struct._key **/
 template<>
-struct std::tuple_size</*= struct.fullname =*/::Key>
-  : public std::tuple_size</*= struct.fullname =*/::KeyTuple> {};
+struct std::tuple_size</*= struct | fullname =*/::Key>
+  : public std::tuple_size</*= struct | fullname =*/::KeyTuple> {};
 
 template<std::size_t I>
-struct std::tuple_element<I, /*= struct.fullname =*/::Key>
-  : public std::tuple_element<I, /*= struct.fullname =*/::KeyTuple> {};
+struct std::tuple_element<I, /*= struct | fullname =*/::Key>
+  : public std::tuple_element<I, /*= struct | fullname =*/::KeyTuple> {};
 /** endif **/
 
 /*# --- UpcastablePointer stuff --- #*/
@@ -149,12 +150,12 @@ struct std::tuple_element<I, /*= struct.fullname =*/::Key>
 /*# Emit both const and non-const specialization of concrete_types_traits #*/
 /** for const_qualifier in ["", "const"] **/
 template<>
-struct concrete_types_traits</*= const_qualifier =*/ /*= struct.user_fullname =*/> {
+struct concrete_types_traits</*= const_qualifier =*/ /*= struct | user_fullname =*/> {
   using type = std::tuple<
     /**- for child_type in upcastable|sort(attribute="user_fullname") **/
-    /*=- const_qualifier =*/ /*= child_type.user_fullname =*//** if not loop.last **/, /** endif **/
+    /*=- const_qualifier =*/ /*= child_type | user_fullname =*//** if not loop.last **/, /** endif **/
     /**- endfor **/
-    /**- if not struct.abstract **/, /*=- const_qualifier =*/ /*= struct.user_fullname =*//** endif **/>;
+    /**- if not struct.abstract **/, /*=- const_qualifier =*/ /*= struct | user_fullname =*//** endif **/>;
 };
 /** endfor **/
 /** endif **//*# End UpcastablePointer stuff #*/

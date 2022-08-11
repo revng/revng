@@ -32,30 +32,30 @@ fields:
     type: Identifier
     optional: true
   - name: OriginalName
-    type: std::string
+    type: string
     optional: true
   - name: StackFrameType
     doc: The type of the stack frame
     reference:
-      pointeeType: model::Type
-      rootType: model::Binary
+      pointeeType: Type
+      rootType: Binary
     optional: true
   - name: Prototype
     doc: The prototype of the function
     reference:
-      pointeeType: model::Type
-      rootType: model::Binary
+      pointeeType: Type
+      rootType: Binary
     optional: true
   - name: Attributes
     doc: Attributes for this call site
     sequence:
       type: MutableSet
-      elementType: model::FunctionAttribute::Values
+      elementType: FunctionAttribute
     optional: true
   - name: CallSitePrototypes
     sequence:
       type: SortedVector
-      elementType: model::CallSitePrototype
+      elementType: CallSitePrototype
     optional: true
 key:
   - Entry

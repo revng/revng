@@ -56,6 +56,9 @@ target_tuple_tree_generator(
   ${SCHEMA_PATH}
   SEPARATE_STRING_TYPES
   "MetaAddress"
+  SCALAR_TYPES
+  "MetaAddress"
+  "model::FunctionAttribute::Values"
   HEADERS
   "${EFA_HEADERS_DIR}/BasicBlock.h"
   "${EFA_HEADERS_DIR}/CallEdge.h"

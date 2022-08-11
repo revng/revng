@@ -15,7 +15,7 @@ type: struct
 inherits: Type
 fields:
   - name: UnderlyingType
-    type: model::QualifiedType
+    type: QualifiedType
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/TypedefType.h"

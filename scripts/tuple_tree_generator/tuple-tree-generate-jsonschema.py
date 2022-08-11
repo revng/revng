@@ -15,19 +15,23 @@ argparser.add_argument("schema", help="YAML schema")
 argparser.add_argument("--output", "-o", help="Output to this file")
 argparser.add_argument("--namespace", required=True, help="Base namespace for generated types")
 argparser.add_argument("--root-type", required=True, help="Schema root type")
-argparser.add_argument("--string-type", action="append", help="Treat this type as a string")
+argparser.add_argument(
+    "--string-type", action="append", default=[], help="Treat this type as a string"
+)
 argparser.add_argument(
     "--separate-string-type",
     action="append",
+    default=[],
     help="Treat this type as a string, but emit a separate definition for it",
 )
+argparser.add_argument("--scalar-type", action="append", default=[], help="Scalar type")
 
 
 def main(args):
     with open(args.schema, encoding="utf-8") as f:
         raw_schema = yaml.safe_load(f)
 
-    schema = Schema(raw_schema, args.namespace)
+    schema = Schema(raw_schema, args.namespace, args.scalar_type)
     jsonschema_source = generate_jsonschema(
         schema,
         args.root_type,

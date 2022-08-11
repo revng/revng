@@ -19,7 +19,7 @@ fields:
   - name: DynamicFunction
     doc: |
       Name of the dynamic function being called, or empty if not a dynamic call
-    type: "std::string"
+    type: string
     optional: true
   - name: IsTailCall
     doc: Is this a tail call?

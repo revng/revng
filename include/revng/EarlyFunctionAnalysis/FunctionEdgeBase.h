@@ -15,7 +15,7 @@ doc: An edge on the CFG
 type: struct
 fields:
   - name: Kind
-    type: efa::FunctionEdgeBaseKind::Values
+    type: FunctionEdgeBaseKind
   - name: Destination
     doc: |
       Target of the CFG edge
@@ -28,7 +28,7 @@ fields:
     type: MetaAddress
   - name: Type
     doc: Type of the CFG edge
-    type: FunctionEdgeType::Values
+    type: FunctionEdgeType
 key:
   - Destination
   - Type

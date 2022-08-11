@@ -19,7 +19,7 @@ fields:
   - name: Fields
     sequence:
       type: SortedVector
-      elementType: model::StructField
+      elementType: StructField
   - name: Size
     doc: Size in bytes
     type: uint64_t
