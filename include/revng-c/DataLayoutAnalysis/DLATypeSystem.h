@@ -239,6 +239,7 @@ public:
   using Node = LayoutTypeSystemNode;
   using NodePtr = LayoutTypeSystemNode *;
   using NodeUniquePtr = std::unique_ptr<LayoutTypeSystemNode>;
+  using NeighborIterator = LayoutTypeSystemNode::NeighborIterator;
 
   static dla::LayoutTypeSystem::NodePtr
   getNodePtr(const dla::LayoutTypeSystem::NodeUniquePtr &P) {
@@ -333,12 +334,12 @@ public:
 
   void moveEdgeTarget(LayoutTypeSystemNode *OldTgt,
                       LayoutTypeSystemNode *NewTgt,
-                      LayoutTypeSystemNode::NeighborIterator InverseEdgeIt,
+                      NeighborIterator InverseEdgeIt,
                       int64_t OffsetToSum);
 
   void moveEdgeSource(LayoutTypeSystemNode *OldSrc,
                       LayoutTypeSystemNode *NewSrc,
-                      LayoutTypeSystemNode::NeighborIterator EdgeIt,
+                      NeighborIterator EdgeIt,
                       int64_t OffsetToSum);
 
 private:

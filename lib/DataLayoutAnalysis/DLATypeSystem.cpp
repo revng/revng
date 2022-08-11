@@ -330,7 +330,7 @@ void LayoutTypeSystem::removeNode(LayoutTypeSystemNode *ToRemove) {
   NodeAllocator.Deallocate(ToRemove);
 }
 
-using NeighborIterator = LayoutTypeSystemNode::NeighborIterator;
+using NeighborIterator = LayoutTypeSystem::NeighborIterator;
 
 static void moveEdgeTargetWithoutSumming(LayoutTypeSystemNode *OldTgt,
                                          LayoutTypeSystemNode *NewTgt,
