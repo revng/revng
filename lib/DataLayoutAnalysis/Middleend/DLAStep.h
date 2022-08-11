@@ -254,6 +254,26 @@ public:
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
+/// dla::Step that tries to pushes down instance edges that are actually part of
+/// a child node.
+class ArrangeAccessesHierarchically : public Step {
+  static const char ID;
+
+public:
+  static const constexpr void *getID() { return &ID; }
+
+  ArrangeAccessesHierarchically() :
+    Step(ID,
+         { ComputeUpperMemberAccesses::getID(),
+           PruneLayoutNodesWithoutLayout::getID() },
+         // Invalidated
+         {}) {}
+
+  virtual ~ArrangeAccessesHierarchically() override = default;
+
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
+};
+
 /// dla::Step that merges structurally identical subtrees of an interfering
 /// node.
 class DeduplicateFields : public Step {
