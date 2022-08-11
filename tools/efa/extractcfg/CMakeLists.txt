@@ -21,4 +21,8 @@ target_tuple_tree_generator(
   HEADERS_PATH
   "${CMAKE_CURRENT_BINARY_DIR}/Generated"
   INCLUDE_PATH_PREFIX
-  ".")
+  "."
+  SCALAR_TYPES
+  "MetaAddress"
+  "efa::FunctionMetadata"
+  "model::FunctionAttribute::Values")

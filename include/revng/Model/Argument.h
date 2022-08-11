@@ -19,12 +19,12 @@ fields:
   - name: Index
     type: uint64_t
   - name: Type
-    type: model::QualifiedType
+    type: QualifiedType
   - name: CustomName
     type: Identifier
     optional: true
   - name: OriginalName
-    type: std::string
+    type: string
     optional: true
 key:
   - Index

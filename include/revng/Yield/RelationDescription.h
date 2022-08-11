@@ -12,11 +12,11 @@ name: RelationDescription
 type: struct
 fields:
   - name: Location
-    type: std::string
+    type: string
   - name: Related
     sequence:
       type: SortedVector
-      elementType: yield::RelationTarget
+      elementType: RelationTarget
 key:
   - Location
 

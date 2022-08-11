@@ -16,7 +16,7 @@ type: struct
 fields:
   - name: OriginalName
     doc: The name of the symbol for this dynamic function
-    type: std::string
+    type: string
   - name: CustomName
     doc: An optional custom name
     type: Identifier
@@ -24,19 +24,19 @@ fields:
   - name: Prototype
     doc: The prototype of the function
     reference:
-      pointeeType: model::Type
-      rootType: model::Binary
+      pointeeType: Type
+      rootType: Binary
     optional: true
   - name: Attributes
     doc: Function attributes
     sequence:
       type: MutableSet
-      elementType: model::FunctionAttribute::Values
+      elementType: FunctionAttribute
     optional: true
   - name: Relocations
     sequence:
       type: SortedVector
-      elementType: model::Relocation
+      elementType: Relocation
     optional: true
 
 key:

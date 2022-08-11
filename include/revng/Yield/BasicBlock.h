@@ -39,7 +39,7 @@ fields:
   - name: Instructions
     sequence:
       type: SortedVector
-      elementType: yield::Instruction
+      elementType: Instruction
 
   - name: IsLabelAlwaysRequired
     doc: |

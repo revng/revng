@@ -17,7 +17,7 @@ function(tuple_tree_generator_impl)
       PYTHON_PATH
       TYPESCRIPT_PATH)
   set(multiValueArgs HEADERS TYPESCRIPT_INCLUDE STRING_TYPES
-                     SEPARATE_STRING_TYPES)
+                     SEPARATE_STRING_TYPES SCALAR_TYPES)
   cmake_parse_arguments(GENERATOR "" "${oneValueArgs}" "${multiValueArgs}"
                         "${ARGN}")
   if(NOT DEFINED GENERATOR_JSONSCHEMA_PATH)
@@ -34,6 +34,9 @@ function(tuple_tree_generator_impl)
   endif()
   if(NOT DEFINED GENERATOR_SEPARATE_STRING_TYPES)
     set(GENERATOR_SEPARATE_STRING_TYPES "")
+  endif()
+  if(NOT DEFINED GENERATOR_SCALAR_TYPES)
+    set(GENERATOR_SCALAR_TYPES "")
   endif()
   if(NOT DEFINED GENERATOR_PYTHON_PATH)
     set(GENERATOR_PYTHON_PATH "")
@@ -62,7 +65,8 @@ function(tuple_tree_generator_impl)
     "${GENERATOR_INCLUDE_PATH_PREFIX}"
     "${LOCAL_GENERATED_HEADERS}"
     "${LOCAL_GENERATED_IMPLS}"
-    "${GENERATOR_ROOT_TYPE}")
+    "${GENERATOR_ROOT_TYPE}"
+    "${GENERATOR_SCALAR_TYPES}")
 
   set("${GENERATOR_GENERATED_HEADERS_VARIABLE}"
       ${LOCAL_GENERATED_HEADERS}
@@ -77,9 +81,13 @@ function(tuple_tree_generator_impl)
   #
   if(NOT "${GENERATOR_JSONSCHEMA_PATH}" STREQUAL "")
     tuple_tree_generator_generate_jsonschema(
-      "${GENERATOR_SCHEMA_PATH}" "${GENERATOR_NAMESPACE}"
-      "${GENERATOR_ROOT_TYPE}" "${GENERATOR_STRING_TYPES}"
-      "${GENERATOR_SEPARATE_STRING_TYPES}" "${GENERATOR_JSONSCHEMA_PATH}")
+      "${GENERATOR_SCHEMA_PATH}"
+      "${GENERATOR_NAMESPACE}"
+      "${GENERATOR_ROOT_TYPE}"
+      "${GENERATOR_STRING_TYPES}"
+      "${GENERATOR_SEPARATE_STRING_TYPES}"
+      "${GENERATOR_SCALAR_TYPES}"
+      "${GENERATOR_JSONSCHEMA_PATH}")
     list(APPEND EXTRA_TARGETS ${GENERATOR_JSONSCHEMA_PATH})
   endif()
 
@@ -88,9 +96,13 @@ function(tuple_tree_generator_impl)
   #
   if(NOT "${GENERATOR_PYTHON_PATH}" STREQUAL "")
     tuple_tree_generator_generate_python(
-      "${GENERATOR_SCHEMA_PATH}" "${GENERATOR_NAMESPACE}"
-      "${GENERATOR_ROOT_TYPE}" "${GENERATOR_STRING_TYPES}"
-      "${GENERATOR_SEPARATE_STRING_TYPES}" "${GENERATOR_PYTHON_PATH}")
+      "${GENERATOR_SCHEMA_PATH}"
+      "${GENERATOR_NAMESPACE}"
+      "${GENERATOR_ROOT_TYPE}"
+      "${GENERATOR_STRING_TYPES}"
+      "${GENERATOR_SEPARATE_STRING_TYPES}"
+      "${GENERATOR_SCALAR_TYPES}"
+      "${GENERATOR_PYTHON_PATH}")
     list(APPEND EXTRA_TARGETS ${GENERATOR_PYTHON_PATH})
   endif()
 
@@ -106,6 +118,7 @@ function(tuple_tree_generator_impl)
       "${GENERATOR_TYPESCRIPT_INCLUDE}"
       "${GENERATOR_STRING_TYPES}"
       "${GENERATOR_SEPARATE_STRING_TYPES}"
+      "${GENERATOR_SCALAR_TYPES}"
       "${GENERATOR_TYPESCRIPT_PATH}")
     list(APPEND EXTRA_TARGETS ${GENERATOR_TYPESCRIPT_PATH})
   endif()
@@ -216,12 +229,20 @@ function(
   # List of implementation files expected to be generated
   EXPECTED_GENERATED_IMPLS
   # Root type of the schema, if there is any
-  ROOT_TYPE)
+  ROOT_TYPE
+  SCALAR_TYPES)
+
+  set(SCALAR_TYPE_ARGS)
+  foreach(ST ${SCALAR_TYPES})
+    list(APPEND SCALAR_TYPE_ARGS --scalar-type "'${ST}'")
+  endforeach()
+
   add_custom_command(
     COMMAND
       "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-cpp.py" --namespace
       "${NAMESPACE}" --include-path-prefix "${INCLUDE_PATH_PREFIX}" --root-type
-      \""${ROOT_TYPE}"\" "${YAML_DEFINITIONS}" "${OUTPUT_DIR}"
+      \""${ROOT_TYPE}"\" ${SCALAR_TYPE_ARGS} "${YAML_DEFINITIONS}"
+      "${OUTPUT_DIR}"
     OUTPUT ${EXPECTED_GENERATED_HEADERS} ${EXPECTED_GENERATED_IMPLS}
     DEPENDS "${YAML_DEFINITIONS}" ${CPP_TEMPLATES}
             "${SCRIPTS_ROOT_DIR}/extract_yaml.py"
@@ -237,6 +258,7 @@ function(
   STRING_TYPES # Types equivalent to plain strings
   SEPARATE_STRING_TYPES # Types equivalent to plain strings that get a separate
                         # type definition
+  SCALAR_TYPES
   OUTPUT_PATH # Output path
 )
   set(STRING_TYPE_ARGS)
@@ -249,11 +271,17 @@ function(
     list(APPEND SEPARATE_STRING_TYPE_ARGS --separate-string-type "${ST}")
   endforeach()
 
+  set(SCALAR_TYPE_ARGS)
+  foreach(ST ${SCALAR_TYPES})
+    list(APPEND SCALAR_TYPE_ARGS --scalar-type "'${ST}'")
+  endforeach()
+
   add_custom_command(
     COMMAND
       "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-jsonschema.py" --namespace
       "${NAMESPACE}" --root-type "${ROOT_TYPE}" --output "${OUTPUT_PATH}"
-      ${STRING_TYPE_ARGS} ${SEPARATE_STRING_TYPE_ARGS} "${YAML_DEFINITIONS}"
+      ${STRING_TYPE_ARGS} ${SEPARATE_STRING_TYPE_ARGS} ${SCALAR_TYPE_ARGS}
+      "${YAML_DEFINITIONS}"
     OUTPUT "${OUTPUT_PATH}"
     DEPENDS "${YAML_DEFINITIONS}" ${TUPLE_TREE_GENERATOR_SOURCES})
 endfunction()
@@ -275,6 +303,7 @@ function(
   STRING_TYPES
   # Types equivalent to plain strings that get a separate type definition
   EXTERNAL_TYPES
+  SCALAR_TYPES
   # Output path
   OUTPUT_PATH)
 
@@ -293,6 +322,11 @@ function(
     list(APPEND EXTERNAL_TYPE_ARGS --external-type "${ET}")
   endforeach()
 
+  set(SCALAR_TYPE_ARGS)
+  foreach(ET ${SCALAR_TYPES})
+    list(APPEND SCALAR_TYPE_ARGS --scalar-type "'${ET}'")
+  endforeach()
+
   add_custom_command(
     COMMAND
       "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-typescript.py" --namespace
@@ -300,7 +334,7 @@ function(
       --global-name "${GLOBAL_NAME}" --prettier
       "${CMAKE_BINARY_DIR}/node_build/node_modules/.bin/prettier"
       ${INCLUDE_FILE_ARGS} ${STRING_TYPE_ARGS} ${EXTERNAL_TYPE_ARGS}
-      "${YAML_DEFINITIONS}"
+      ${SCALAR_TYPE_ARGS} "${YAML_DEFINITIONS}"
     OUTPUT "${OUTPUT_PATH}"
     DEPENDS "${YAML_DEFINITIONS}" ${TYPESCRIPT_TEMPLATES}
             "${CMAKE_SOURCE_DIR}/typescript/model.ts"
@@ -320,6 +354,7 @@ function(
   STRING_TYPES
   # Types equivalent to plain strings that get a separate type definition
   EXTERNAL_TYPES
+  SCALAR_TYPES
   # Output path
   OUTPUT_PATH)
   set(STRING_TYPE_ARGS)
@@ -332,11 +367,17 @@ function(
     list(APPEND EXTERNAL_TYPE_ARGS --external-type "${ET}")
   endforeach()
 
+  set(SCALAR_TYPE_ARGS)
+  foreach(ET ${SCALAR_TYPES})
+    list(APPEND SCALAR_TYPE_ARGS --scalar-type "'${ET}'")
+  endforeach()
+
   add_custom_command(
     COMMAND
       "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-python.py" --namespace
       "${NAMESPACE}" --root-type "${ROOT_TYPE}" --output "${OUTPUT_PATH}"
-      ${STRING_TYPE_ARGS} ${EXTERNAL_TYPE_ARGS} "${YAML_DEFINITIONS}"
+      ${STRING_TYPE_ARGS} ${EXTERNAL_TYPE_ARGS} ${SCALAR_TYPE_ARGS}
+      "${YAML_DEFINITIONS}"
     OUTPUT "${OUTPUT_PATH}"
     DEPENDS "${YAML_DEFINITIONS}" ${PYTHON_TEMPLATES}
             ${TUPLE_TREE_GENERATOR_SOURCES})
@@ -385,7 +426,7 @@ function(target_tuple_tree_generator TARGET_ID)
       TYPESCRIPT_PATH
       HEADERS_PATH)
   set(multiValueArgs HEADERS TYPESCRIPT_INCLUDE STRING_TYPES
-                     SEPARATE_STRING_TYPES)
+                     SEPARATE_STRING_TYPES SCALAR_TYPES)
   cmake_parse_arguments(GEN "${options}" "${oneValueArgs}" "${multiValueArgs}"
                         "${ARGN}")
 
@@ -433,7 +474,9 @@ function(target_tuple_tree_generator TARGET_ID)
     TYPESCRIPT_PATH
     ${GEN_TYPESCRIPT_PATH}
     TYPESCRIPT_INCLUDE
-    ${GEN_TYPESCRIPT_INCLUDE})
+    ${GEN_TYPESCRIPT_INCLUDE}
+    SCALAR_TYPES
+    ${GEN_SCALAR_TYPES})
   if(GEN_INSTALL)
     install(DIRECTORY ${GEN_HEADERS_PATH}
             DESTINATION include/revng/${GEN_HEADER_DIRECTORY})

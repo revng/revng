@@ -17,7 +17,7 @@ name: Tag
 type: struct
 fields:
   - name: Type
-    type: yield::TagType::Values
+    type: TagType
   - name: From
     type: uint64_t
   - name: To

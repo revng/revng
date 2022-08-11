@@ -20,10 +20,10 @@ fields:
     type: Identifier
     optional: true
   - name: OriginalName
-    type: std::string
+    type: string
     optional: true
   - name: Type
-    type: model::QualifiedType
+    type: QualifiedType
 key:
   - Index
 TUPLE-TREE-YAML */

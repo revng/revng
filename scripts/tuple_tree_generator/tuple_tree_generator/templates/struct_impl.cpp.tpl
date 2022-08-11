@@ -8,18 +8,18 @@ The notice below applies to the generated files.
 
 #include "revng/Model/Binary.h"
 
-/**- for child_type in upcastable|sort(attribute="user_fullname") **/
-#include "/*= generator.user_include_path =*//*= child_type.filename =*/"
+/**- for child_type in upcastable **/
+#include "/*= generator.user_include_path =*//*= child_type.name =*/.h"
 /**- endfor **/
 
-#include "/*= generator.user_include_path =*//*= struct.filename =*/"
+#include "/*= generator.user_include_path =*//*= struct.name =*/.h"
 
 /** if upcastable **/
 
-using Key = /*= struct.user_fullname =*/::Key;
+using Key = /*= struct | user_fullname =*/::Key;
 
-Key KeyedObjectTraits<UpcastablePointer</*= struct.user_fullname =*/>>::key(
-  const UpcastablePointer</*= struct.user_fullname =*/> &Obj)
+Key KeyedObjectTraits<UpcastablePointer</*= struct | user_fullname =*/>>::key(
+  const UpcastablePointer</*= struct | user_fullname =*/> &Obj)
 {
 
   return {
@@ -29,15 +29,15 @@ Key KeyedObjectTraits<UpcastablePointer</*= struct.user_fullname =*/>>::key(
   };
 }
 
-UpcastablePointer</*= struct.user_fullname =*/>
-KeyedObjectTraits<UpcastablePointer</*= struct.user_fullname =*/>>::fromKey(
+UpcastablePointer</*= struct | user_fullname =*/>
+KeyedObjectTraits<UpcastablePointer</*= struct | user_fullname =*/>>::fromKey(
   const Key &K)
 {
   using namespace model;
-  using ResultType = UpcastablePointer</*= struct.user_fullname =*/>;
+  using ResultType = UpcastablePointer</*= struct | user_fullname =*/>;
   /**- for child_type in upcastable|sort(attribute="user_fullname") **/
-  if (/*= child_type.user_fullname =*/::classof(K)) {
-    auto *Tmp = new /*= child_type.user_fullname =*/(
+  if (/*= child_type | user_fullname =*/::classof(K)) {
+    auto *Tmp = new /*= child_type | user_fullname =*/(
       /**- for key_field in child_type.key_fields **/
       std::get</*= loop.index0 =*/>(K)/** if not loop.last **/, /** endif **/
       /**- endfor **/);
@@ -46,8 +46,8 @@ KeyedObjectTraits<UpcastablePointer</*= struct.user_fullname =*/>>::fromKey(
   /** if not loop.last **/else /** endif **/
   /**- endfor **/
   /** if not struct.abstract **/
-  else if (/*= struct.user_fullname =*/::classof(K)) {
-    auto *Tmp = new /*= struct.user_fullname =*/(
+  else if (/*= struct | user_fullname =*/::classof(K)) {
+    auto *Tmp = new /*= struct | user_fullname =*/(
       /**- for key_field in struct.key_fields **/
       std::get</*= loop.index0 =*/>(K)/** if not loop.last **/, /** endif **/
       /**- endfor **/);
@@ -60,10 +60,10 @@ KeyedObjectTraits<UpcastablePointer</*= struct.user_fullname =*/>>::fromKey(
 }
 /** endif **/
 
-bool /*= struct.fullname =*/::localCompare(const /*= struct.user_fullname =*/ &Other) const {
+bool /*= struct | fullname =*/::localCompare(const /*= struct | user_fullname =*/ &Other) const {
   /**- if struct.abstract **/
 
-  auto *Left = static_cast<const /*= struct.user_fullname =*/ *>(this);
+  auto *Left = static_cast<const /*= struct | user_fullname =*/ *>(this);
   auto *Right = &Other;
   return upcast(Left, [&Right](const auto &UpcastedL) -> bool {
     return upcast(Right, [&UpcastedL](const auto &UpcastedR) -> bool{

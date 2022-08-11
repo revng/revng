@@ -23,13 +23,13 @@ type: struct
 inherits: Type
 fields:
   - name: ABI
-    type: model::ABI::Values
+    type: ABI
   - name: ReturnType
-    type: model::QualifiedType
+    type: QualifiedType
   - name: Arguments
     sequence:
       type: SortedVector
-      elementType: model::Argument
+      elementType: Argument
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/CABIFunctionType.h"

@@ -20,8 +20,8 @@ fields:
   - name: Prototype
     doc: Prototype
     reference:
-      pointeeType: model::Type
-      rootType: model::Binary
+      pointeeType: Type
+      rootType: Binary
   - name: IsTailCall
     doc: Whether this call site is a tail call or not
     type: bool
@@ -30,7 +30,7 @@ fields:
     doc: Attributes for this call site
     sequence:
       type: MutableSet
-      elementType: model::FunctionAttribute::Values
+      elementType: FunctionAttribute
     optional: true
 key:
   - CallerBlockAddress

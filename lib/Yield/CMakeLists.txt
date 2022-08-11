@@ -69,6 +69,10 @@ target_tuple_tree_generator(
   "${CMAKE_BINARY_DIR}/yield-internal-schema.yml"
   SEPARATE_STRING_TYPES
   "MetaAddress"
+  SCALAR_TYPES
+  "MetaAddress"
+  "efa::FunctionEdgeBase"
+  "yield::ByteContainer"
   HEADERS
   "${INTERNAL_ASSEMBLY_HEADERS}/BasicBlock.h"
   "${INTERNAL_ASSEMBLY_HEADERS}/Function.h"

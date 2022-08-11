@@ -5,12 +5,15 @@
 
 from .definition import Definition
 from .enum import EnumDefinition, EnumMember
+from .reference import ReferenceDefinition
+from .scalar import ScalarDefinition
 from .schema import Schema
+from .sequence import SequenceDefinition
 from .struct import (
     ReferenceStructField,
     SequenceStructField,
     SimpleStructField,
     StructDefinition,
     StructField,
-    TypeInfo,
 )
+from .upcastable import UpcastableDefinition

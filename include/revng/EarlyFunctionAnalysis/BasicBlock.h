@@ -29,7 +29,7 @@ fields:
     sequence:
       type: SortedVector
       upcastable: true
-      elementType: efa::FunctionEdgeBase
+      elementType: FunctionEdgeBase
 key:
   - Start
 TUPLE-TREE-YAML */

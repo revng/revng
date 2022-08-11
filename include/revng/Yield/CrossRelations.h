@@ -17,7 +17,7 @@ fields:
   - name: Relations
     sequence:
       type: SortedVector
-      elementType: yield::RelationDescription
+      elementType: RelationDescription
 TUPLE-TREE-YAML */
 
 #include "revng/Yield/Generated/Early/CrossRelations.h"

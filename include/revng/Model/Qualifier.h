@@ -14,7 +14,7 @@ doc: A qualifier for a model::Type
 type: struct
 fields:
   - name: Kind
-    type: QualifierKind::Values
+    type: QualifierKind
   - name: Size
     doc: Size in bytes for Pointer, number of elements for Array, 0 otherwise
     type: uint64_t

@@ -19,7 +19,7 @@ fields:
   - name: Fields
     sequence:
       type: SortedVector
-      elementType: model::UnionField
+      elementType: UnionField
 TUPLE-TREE-YAML */
 
 #include "revng/Model/Generated/Early/UnionType.h"

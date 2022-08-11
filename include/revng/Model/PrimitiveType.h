@@ -14,7 +14,7 @@ type: struct
 inherits: Type
 fields:
   - name: PrimitiveKind
-    type: model::PrimitiveTypeKind::Values
+    type: PrimitiveTypeKind
   - name: Size
     doc: Size in bytes
     type: uint8_t

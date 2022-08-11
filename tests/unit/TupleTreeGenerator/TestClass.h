@@ -21,7 +21,7 @@ fields:
     type: uint64_t
     optional: true
   - name: EnumField
-    type: ttgtest::TestEnum::Values
+    type: TestEnum
   - name: SequenceField
     sequence:
       type: SortedVector
@@ -29,7 +29,7 @@ fields:
   - name: ReferenceField
     reference:
       pointeeType: uint64_t
-      rootType: ttgtest::TestClass
+      rootType: TestClass
 key:
   - RequiredField
 TUPLE-TREE-YAML */

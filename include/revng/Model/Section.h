@@ -17,7 +17,7 @@ fields:
   - name: Size
     type: uint64_t
   - name: Name
-    type: std::string
+    type: string
   - name: ContainsCode
     type: bool
 

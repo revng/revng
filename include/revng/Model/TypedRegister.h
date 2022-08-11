@@ -13,9 +13,9 @@ name: TypedRegister
 type: struct
 fields:
   - name: Location
-    type: model::Register::Values
+    type: Register
   - name: Type
-    type: model::QualifiedType
+    type: QualifiedType
 key:
   - Location
 TUPLE-TREE-YAML */

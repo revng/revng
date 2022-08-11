@@ -21,17 +21,23 @@ argparser.add_argument("--root-type", required=True, help="Schema root type")
 argparser.add_argument("--global-name", required=True, help="Name of the top-level object")
 argparser.add_argument("--prettier", help="Path to the prettier binary for formatting")
 argparser.add_argument("--external-file", action="append", help="Additional ts file to include")
-argparser.add_argument("--string-type", action="append", help="Treat this type as a string")
 argparser.add_argument(
-    "--external-type", action="append", help="Assume these types are externally defined. "
+    "--string-type", action="append", default=[], help="Treat this type as a string"
 )
+argparser.add_argument(
+    "--external-type",
+    action="append",
+    default=[],
+    help="Assume these types are externally defined. ",
+)
+argparser.add_argument("--scalar-type", action="append", default=[], help="Scalar type")
 
 
 def main(args):
     with open(args.schema) as f:
         raw_schema = yaml.safe_load(f)
 
-    schema = Schema(raw_schema, args.namespace)
+    schema = Schema(raw_schema, args.namespace, args.scalar_type)
     source = generate_typescript(
         schema,
         args.root_type,

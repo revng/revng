@@ -12,9 +12,9 @@ name: RelationTarget
 type: struct
 fields:
   - name: Kind
-    type: yield::RelationType::Values
+    type: RelationType
   - name: Location
-    type: std::string
+    type: string
 key:
   - Kind
   - Location
