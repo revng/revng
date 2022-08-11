@@ -23,7 +23,7 @@ add_custom_command(
     "${CMAKE_CURRENT_SOURCE_DIR}/build-model.sh" "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_BINARY_DIR}/node_build/node_modules"
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
-  DEPENDS generate-revngModel-tuple-tree-code generate-node_modules)
+  DEPENDS "${CMAKE_BINARY_DIR}/lib/typescript/model.ts")
 
 add_custom_target(generate-model.ts.tgz ALL
                   DEPENDS "${CMAKE_BINARY_DIR}/model.ts.tgz")
