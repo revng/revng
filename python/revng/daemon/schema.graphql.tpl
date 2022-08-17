@@ -9,7 +9,7 @@ type Query {
     produce(step: String!, container: String!, targetList: String!, onlyIfReady: Boolean): String
     produceArtifacts(step: String!, paths: String, onlyIfReady: Boolean): String
 
-    {%- for rank in structure.keys() %}
+    {%- for rank in rank_to_artifact_steps.keys() %}
     {{ rank.name }}{{ rank | rank_param }}: {{ rank.name | capitalize }}!
     {%- endfor %}
 }
@@ -98,7 +98,7 @@ type Target {
     ready: Boolean
 }
 
-{% for rank, steps in structure.items() %}
+{% for rank, steps in rank_to_artifact_steps.items() %}
 type {{ rank.name | capitalize }} {
 {%- for step in steps %}
     {{ step.name | pascal_to_camel }}(onlyIfReady: Boolean): String!
