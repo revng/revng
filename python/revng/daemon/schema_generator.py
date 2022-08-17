@@ -3,9 +3,9 @@
 #
 
 import json
-from functools import reduce
+from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Set
 
 from ariadne import ObjectType, QueryType, make_executable_schema
 from graphql.type.schema import GraphQLSchema
@@ -20,53 +20,63 @@ from .static_handlers import DEFAULT_BINDABLES, analysis_mutations, run_in_execu
 from .util import pascal_to_camel, str_to_snake_case
 
 
-class SchemaGen:
-    jenv: Environment
+class SchemaGenerator:
+    """Class that generates a GraphQL schema object given a Manager.
+    This class deals with generating the textual schema from the manager, while
+    the sister class DynamicBindableGenerator is used to create the bindable objects
+    that will be used to resolve the schema"""
 
     def __init__(self):
         local_folder = Path(__file__).parent.resolve()
-        self.jenv = Environment(loader=FileSystemLoader(str(local_folder)))
-        self.jenv.filters["rank_param"] = self._rank_to_arguments
-        self.jenv.filters["pascal_to_camel"] = pascal_to_camel
-        self.jenv.filters["str_to_snake_case"] = str_to_snake_case
-        self.jenv.filters["generate_analysis_parameters"] = self._generate_analysis_parameters
+        self.jinja_environment = Environment(loader=FileSystemLoader(str(local_folder)))
+        filters = self.jinja_environment.filters
+        filters["rank_param"] = self._rank_to_arguments
+        filters["pascal_to_camel"] = pascal_to_camel
+        filters["str_to_snake_case"] = str_to_snake_case
+        filters["generate_analysis_parameters"] = self._generate_analysis_parameters
 
     def get_schema(self, manager: Manager) -> GraphQLSchema:
-        structure = manager.pipeline_artifact_structure()
-        str_schema = self._generate_schema(structure)
-        bindable_gen = BindableGen(structure)
-        bindables = [*DEFAULT_BINDABLES, *bindable_gen.get_bindables()]
-        schema = make_executable_schema(str_schema, *bindables)  # type: ignore
-        return schema
+        string_schema = self._generate_schema(manager)
+        bindable_generator = DynamicBindableGenerator(manager)
+        bindables = [*DEFAULT_BINDABLES, *bindable_generator.get_bindables()]
+        return make_executable_schema(string_schema, *bindables)  # type: ignore
+
+    def _generate_schema(self, manager: Manager) -> str:
+        template = self.jinja_environment.get_template("schema.graphql.tpl")
+        rank_to_artifact_steps: Dict[Rank, List[Step]] = defaultdict(list)
+        for step in manager.steps():
+            step_kind = step.get_artifacts_kind()
+            if step_kind is not None and step_kind.rank is not None:
+                rank_to_artifact_steps[step_kind.rank].append(step)
+
+        return template.render(
+            rank_to_artifact_steps=rank_to_artifact_steps, steps=list(manager.steps())
+        )
+
+    @staticmethod
+    def _generate_analysis_parameters(analysis: Analysis) -> str:
+        return ", ".join(
+            f"{str_to_snake_case(argument.name)}: String!" for argument in analysis.arguments()
+        )
 
     @staticmethod
     def _rank_to_arguments(rank: Rank):
         if rank.depth == 0:
             return ""
-        params = ", ".join([f"param{i+1}: String!" for i in range(rank.depth)])
+        params = ", ".join(f"param{i+1}: String!" for i in range(rank.depth))
         return f"({params})"
 
-    def _generate_schema(self, structure: Dict[Rank, List[Step]]) -> str:
-        steps = list(reduce(lambda x, y: [*x, *y], structure.values()))
-        template = self.jenv.get_template("schema.graphql.tpl")
-        render = template.render(structure=structure, steps=steps)
-        return render
 
-    def _generate_analysis_parameters(self, analysis: Analysis) -> str:
-        parameters = []
-        for argument in analysis.arguments():
-            parameters.append(f"{str_to_snake_case(argument.name)}: String!")
-        return ", ".join(parameters)
+class DynamicBindableGenerator:
+    """Helper class that deals with generating bindables for artifacts/analyses given a manager"""
 
-
-class BindableGen:
-    structure: Dict[Rank, List[Step]]
-
-    def __init__(self, structure: Dict[Rank, List[Step]]):
-        self.structure = structure
-        self.steps = []
-        for steps in structure.values():
-            self.steps.extend(steps)
+    def __init__(self, manager: Manager):
+        self.manager = manager
+        self.artifact_ranks: Set[Rank] = set()
+        for step in self.manager.steps():
+            step_kind = step.get_artifacts_kind()
+            if step_kind is not None and step_kind.rank is not None:
+                self.artifact_ranks.add(step_kind.rank)
 
     def get_bindables(self) -> List[ObjectType]:
         return [
@@ -77,33 +87,44 @@ class BindableGen:
 
     def get_query_bindable(self) -> QueryType:
         query_obj = QueryType()
-        for rank in self.structure.keys():
+
+        for rank in self.artifact_ranks:
             query_obj.set_field(rank.name.lower(), self.rank_handle)
 
         return query_obj
 
     def get_rank_bindables(self) -> List[ObjectType]:
         bindables = []
-        for rank, steps in self.structure.items():
-            rank_obj = ObjectType(rank.name.capitalize())
+        rank_objects = {rank: ObjectType(rank.name.capitalize()) for rank in self.artifact_ranks}
+
+        for rank_obj in rank_objects.values():
             bindables.append(rank_obj)
-            for step in steps:
-                handle = self.gen_step_handle(step)
-                rank_obj.set_field(pascal_to_camel(step.name), handle)
+
+        for step in self.manager.steps():
+            step_kind = step.get_artifacts_kind()
+            if step_kind is None or step_kind.rank is None:
+                continue
+
+            handle = self.gen_step_handle(step)
+            rank_obj = rank_objects[step_kind.rank]
+            rank_obj.set_field(pascal_to_camel(step.name), handle)
 
         return bindables
 
     def get_analysis_bindables(self) -> List[ObjectType]:
         bindables: List[ObjectType] = []
-        for step in self.steps:
+
+        for step in self.manager.steps():
             if step.analyses_count() < 1:
                 continue
+
             analysis_mutations.set_field(pascal_to_camel(step.name), self.analysis_mutation_handle)
             step_analysis_obj = ObjectType(f"{step.name}Analyses")
             bindables.append(step_analysis_obj)
             for analysis in step.analyses():
                 handle = self.gen_step_analysis_handle(step, analysis)
                 step_analysis_obj.set_field(pascal_to_camel(analysis.name), handle)
+
         return bindables
 
     @staticmethod
