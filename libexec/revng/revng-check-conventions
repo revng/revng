@@ -362,12 +362,13 @@ function run_license_check() {
             -e '\.md$' \
             -e '\.rst$' \
             -e '.gitignore' \
-            -e 'LICENSE.*' \
-            -e 'pyproject.toml' \
-            -e 'clang-format-style-file' \
-            -e '.clang-tidy' \
+            -e 'LICENSE.*$' \
+            -e 'pyproject.toml$' \
+            -e 'clang-format-style-file$' \
+            -e '.clang-tidy$' \
             -e '\.dot$' \
-            -e 'Doxyfile.in' \
+            -e 'Doxyfile.in$' \
+            -e 'package-lock.json$' \
             <<< "$ALL_FILES_N"
     )
 

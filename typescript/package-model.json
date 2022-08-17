@@ -8,6 +8,6 @@
     "types": "dist/model.d.ts",
     "files": ["/dist"],
     "dependencies": {
-        "yaml": "2.0.0"
+        "yaml": "^2"
     }
 }
