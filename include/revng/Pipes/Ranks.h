@@ -4,7 +4,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/Model/DynamicFunction.h"
 #include "revng/Model/Function.h"
+#include "revng/Model/Segment.h"
 #include "revng/Model/Type.h"
 #include "revng/Pipeline/Rank.h"
 #include "revng/Support/MetaAddress.h"
@@ -24,5 +26,10 @@ inline auto TypeField = defineRank<"type-field", std::tuple<uint64_t>>(Type);
 
 inline auto RawByte = defineRank<"raw-byte", MetaAddress>(Binary);
 inline auto RawByteRange = defineRank<"raw-byte-range", MetaAddress>(RawByte);
+
+inline auto Segment = defineRank<"segment", model::Segment::Key>(Binary);
+
+inline auto DynamicFunction = defineRank<"dynamic-function",
+                                         model::DynamicFunction::Key>(Binary);
 
 } // namespace revng::ranks
