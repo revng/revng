@@ -77,7 +77,9 @@ struct AppendToTupleHelper {
 
 } // namespace detail
 
-template<ConstexprString String, Yamlizable Key, RankSpecialization ParentRank>
+template<ConstexprString String,
+         HasScalarOrEnumTraits Key,
+         RankSpecialization ParentRank>
 class TypedRank : public Rank {
 public:
   static constexpr bool RankTag = true;
@@ -102,7 +104,9 @@ public:
 /// \tparam Type is the type for the tuple representing the location of an.
 /// object with this rank or rank depending on this one.
 /// \arg ParentObject is the rank this rank extends.
-template<ConstexprString Name, Yamlizable Type, RankSpecialization Parent>
+template<ConstexprString Name,
+         HasScalarOrEnumTraits Type,
+         RankSpecialization Parent>
 pipeline::TypedRank<Name, Type, Parent> defineRank(Parent &ParentObject) {
   return pipeline::TypedRank<Name, Type, Parent>(ParentObject);
 }
