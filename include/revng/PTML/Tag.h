@@ -99,7 +99,7 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Tag &TheTag) {
 }
 
 template<typename T>
-inline std::string str(T Obj) {
+inline std::string str(const T &Obj) {
   return getNameFromYAMLScalar(Obj);
 };
 
