@@ -292,7 +292,8 @@ rp_diff_map *rp_manager_run_analysis(rp_manager *manager,
                                      rp_target *targets[],
                                      const char *step_name,
                                      const char *analysis_name,
-                                     rp_container *container) {
+                                     rp_container *container,
+                                     const rp_string_map *map) {
   revng_check(manager != nullptr);
   revng_check(targets_count != 0);
   revng_check(targets != nullptr);
@@ -303,7 +304,10 @@ rp_diff_map *rp_manager_run_analysis(rp_manager *manager,
   for (size_t I = 0; I < targets_count; I++)
     Targets[container->second->name()].push_back(*targets[I]);
 
-  auto MaybeDiffs = manager->runAnalysis(analysis_name, step_name, Targets);
+  auto MaybeDiffs = manager->runAnalysis(analysis_name,
+                                         step_name,
+                                         Targets,
+                                         *map);
   if (not MaybeDiffs) {
     llvm::consumeError(MaybeDiffs.takeError());
     return nullptr;
@@ -756,8 +760,9 @@ const rp_kind *rp_analysis_get_argument_acceptable_kind(rp_analysis *analysis,
   return Accepted[kind_index];
 }
 
-rp_diff_map *rp_manager_run_all_analyses(rp_manager *manager) {
-  auto MaybeDiffs = manager->runAllAnalyses();
+rp_diff_map *
+rp_manager_run_all_analyses(rp_manager *manager, const rp_string_map *map) {
+  auto MaybeDiffs = manager->runAllAnalyses(*map);
   if (not MaybeDiffs) {
     llvm::consumeError(MaybeDiffs.takeError());
     return nullptr;
@@ -803,4 +808,43 @@ rp_error_list_get_error_message(rp_error_list *error_list, uint64_t index) {
 void rp_error_list_destroy(rp_error_list *error_list) {
   revng_check(error_list != nullptr);
   delete error_list;
+}
+
+int rp_analysis_get_options_count(rp_analysis *analysis) {
+  return analysis->second->getOptionsNames().size();
+}
+
+const char * /*owning*/
+rp_analysis_get_option_name(rp_analysis *analysis, int extra_argument_index) {
+
+  auto Names = analysis->second->getOptionsNames();
+  if (extra_argument_index < 0
+      or static_cast<size_t>(extra_argument_index) >= Names.size())
+    return nullptr;
+  return copyString(Names[extra_argument_index]);
+}
+
+const char * /*owning*/
+rp_analysis_get_option_type(rp_analysis *analysis, int extra_argument_index) {
+
+  auto Names = analysis->second->getOptionsTypes();
+  if (extra_argument_index < 0
+      or static_cast<size_t>(extra_argument_index) >= Names.size())
+    return nullptr;
+  return copyString(Names[extra_argument_index]);
+}
+
+rp_string_map *rp_string_map_create() {
+  return new rp_string_map();
+}
+
+void rp_string_map_destroy(rp_string_map *map) {
+  delete map;
+}
+
+void rp_string_map_insert(rp_string_map *map,
+                          const char *key,
+                          const char *value) {
+  auto Result = map->insert_or_assign(key, value);
+  revng_assert(Result.second);
 }

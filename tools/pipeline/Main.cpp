@@ -37,28 +37,26 @@ using namespace llvm::cl;
 using namespace pipeline;
 using namespace ::revng::pipes;
 
-cl::OptionCategory PipelineCategory("revng-pipeline options", "");
-
 static cl::list<string> ContainerOverrides("i",
                                            desc("Load the target file in the "
                                                 "target container at the "
                                                 "target step"),
-                                           cat(PipelineCategory));
+                                           cat(MainCategory));
 
 static opt<string> SaveModel("save-model",
                              desc("Save the model at the end of the run"),
-                             cat(PipelineCategory),
+                             cat(MainCategory),
                              init(""));
 
 static opt<string> ApplyModelDiff("apply-model-diff",
                                   desc("Apply model diff"),
-                                  cat(PipelineCategory),
+                                  cat(MainCategory),
                                   init(""));
 
 static opt<bool> ProduceAllPossibleTargets("produce-all",
                                            desc("Try producing all possible "
                                                 "targets"),
-                                           cat(PipelineCategory),
+                                           cat(MainCategory),
                                            init(false));
 
 static opt<bool> ProduceAllPossibleTargetsSingle("produce-all-single",
@@ -66,52 +64,52 @@ static opt<bool> ProduceAllPossibleTargetsSingle("produce-all-single",
                                                       "possible "
                                                       "targets one element at "
                                                       "the time"),
-                                                 cat(PipelineCategory),
+                                                 cat(MainCategory),
                                                  init(false));
 
 static opt<bool> AnalyzeAll("analyze-all",
                             desc("Try analyzing all possible "
                                  "targets"),
-                            cat(PipelineCategory),
+                            cat(MainCategory),
                             init(false));
 
 static opt<bool> InvalidateAll("invalidate-all",
                                desc("Try invalidating all possible "
                                     "targets after producing them. Used for "
                                     "debug purposes"),
-                               cat(PipelineCategory),
+                               cat(MainCategory),
                                init(false));
 
 static opt<bool> DumpPipeline("d",
                               desc("Dump built pipeline, but dont run it"),
-                              cat(PipelineCategory));
+                              cat(MainCategory));
 
 static cl::list<string> StoresOverrides("o",
                                         desc("Store the target container at "
                                              "the "
                                              "target step in the target file"),
-                                        cat(PipelineCategory));
+                                        cat(MainCategory));
 
 static cl::list<string> Produce("produce",
                                 desc("comma separated list of targets to be "
                                      "produced in one sweep."),
-                                cat(PipelineCategory));
+                                cat(MainCategory));
 
 static cl::list<string>
-  Analyze("analyze", desc("analyses to be performed."), cat(PipelineCategory));
+  Analyze("analyze", desc("analyses to be performed."), cat(MainCategory));
 
 static opt<bool> PrintBuildableTargets("targets",
                                        desc("Prints the target that can be "
                                             "produced from the current status "
                                             "and exit"),
-                                       cat(PipelineCategory));
+                                       cat(MainCategory));
 
 static alias A2("t",
                 desc("Alias for --targets"),
                 aliasopt(PrintBuildableTargets),
-                cat(PipelineCategory));
+                cat(MainCategory));
 
-static ToolCLOptions BaseOptions(PipelineCategory);
+static ToolCLOptions BaseOptions(MainCategory);
 
 static ExitOnError AbortOnError;
 
@@ -156,7 +154,7 @@ static void runPipeline(Runner &Pipeline) {
 int main(int argc, const char *argv[]) {
   revng::InitRevng X(argc, argv);
 
-  HideUnrelatedOptions(PipelineCategory);
+  HideUnrelatedOptions(MainCategory);
   ParseCommandLineOptions(argc, argv);
 
   Registry::runAllInitializationRoutines();

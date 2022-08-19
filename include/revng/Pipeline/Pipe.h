@@ -34,7 +34,8 @@ concept HasContract = requires(T P) {
 };
 
 template<typename T, typename FirstRunArg, typename... Args>
-concept Pipe = Invokable<T, FirstRunArg, Args...> and HasContract<T>;
+concept Pipe = Invokable<T, FirstRunArg, Args...> and(IsContainer<Args> and...)
+               and HasContract<T>;
 
 template<typename C, typename First, typename... Rest>
 constexpr bool
@@ -133,8 +134,18 @@ public:
     Invokable.print(Ctx, OS, Indentation);
   }
 
-  void run(Context &Ctx, ContainerSet &Containers) override {
-    Invokable.run(Ctx, Containers);
+  void run(Context &Ctx,
+           ContainerSet &Containers,
+           const llvm::StringMap<std::string> &ExtraArgs) override {
+    Invokable.run(Ctx, Containers, ExtraArgs);
+  }
+
+  std::vector<std::string> getOptionsNames() const override {
+    return Invokable.getOptionsNames();
+  }
+
+  std::vector<std::string> getOptionsTypes() const override {
+    return Invokable.getOptionsTypes();
   }
 
   std::vector<std::string> getRunningContainersNames() const override {

@@ -18,3 +18,4 @@ typedef const pipeline::TargetsList rp_targets_list;
 typedef const pipeline::Step::AnalysisValueType rp_analysis;
 typedef const pipeline::DiffMap rp_diff_map;
 typedef ErrorList rp_error_list;
+typedef llvm::StringMap<std::string> rp_string_map;

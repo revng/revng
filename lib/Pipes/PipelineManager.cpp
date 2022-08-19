@@ -382,16 +382,18 @@ llvm::Expected<DiffMap>
 PipelineManager::runAnalysis(llvm::StringRef AnalysisName,
                              llvm::StringRef StepName,
                              const ContainerToTargetsMap &Targets,
+                             const llvm::StringMap<std::string> &Options,
                              llvm::raw_ostream *DiagnosticLog) {
-  auto Result = Runner->runAnalysis(AnalysisName, StepName, Targets);
+  auto Result = Runner->runAnalysis(AnalysisName, StepName, Targets, Options);
   if (Result)
     recalculateAllPossibleTargets();
 
   return Result;
 }
 
-llvm::Expected<DiffMap> PipelineManager::runAllAnalyses() {
-  auto Result = Runner->runAllAnalyses();
+llvm::Expected<DiffMap>
+PipelineManager::runAllAnalyses(const llvm::StringMap<std::string> &Options) {
+  auto Result = Runner->runAllAnalyses(Options);
   if (Result)
     recalculateAllPossibleTargets();
   return Result;

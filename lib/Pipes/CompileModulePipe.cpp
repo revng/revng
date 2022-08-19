@@ -54,7 +54,7 @@ compileModuleRunImpl(LLVMContainer &Module, FileContainer &TargetBinary) {
       and not Enumeration.contains(pipeline::Target(Isolated)))
     return;
 
-  StringMap<Option *> &RegOptions(getRegisteredOptions());
+  StringMap<llvm::cl::Option *> &RegOptions(getRegisteredOptions());
   getOption<bool>(RegOptions, "disable-machine-licm")->setInitialValue(true);
 
   llvm::Module *M = &Module.getModule();
