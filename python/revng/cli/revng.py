@@ -25,9 +25,9 @@ def run_revng_command(arguments, options: Options):
             if entry_path.name.startswith("__") or entry_path.name.startswith("."):
                 continue
             if entry.is_file():
-                modules.append(import_module(f"._commands.{entry_path.stem}", "revng.cli"))
+                modules.append(import_module(f"._commands.{entry_path.stem}", __package__))
             elif entry.is_dir():
-                modules.append(import_module(f"._commands.{entry_path.name}", "revng.cli"))
+                modules.append(import_module(f"._commands.{entry_path.name}", __package__))
 
     for module in modules:
         setup = getattr(module, "setup", None)
@@ -55,6 +55,8 @@ def run_revng_command(arguments, options: Options):
         name = os.path.basename(executable)[len(prefix) :]
         if not commands_registry.has_command(name):
             commands_registry.register_external_command(name, executable)
+
+    commands_registry.post_init()
 
     return commands_registry.run(arguments, options)
 
