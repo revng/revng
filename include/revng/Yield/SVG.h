@@ -22,6 +22,9 @@ std::string controlFlowGraph(const yield::Function &InternalFunction,
                              const model::Binary &Binary);
 std::string callGraph(const yield::CrossRelations &CrossRelationTree,
                       const model::Binary &Binary);
+std::string callGraphSlice(const MetaAddress &SlicePoint,
+                           const yield::CrossRelations &CrossRelationTree,
+                           const model::Binary &Binary);
 
 } // namespace svg
 

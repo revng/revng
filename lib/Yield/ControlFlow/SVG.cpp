@@ -411,3 +411,120 @@ std::string yield::svg::callGraph(const yield::CrossRelations &Relations,
   sugiyama::layout(InternalGraph, Configuration, Orientation, Ranking);
   return exportGraph<false>(InternalGraph, Configuration, Orientation, Helper);
 }
+
+static auto flipPoint(yield::Graph::Point const &Point) {
+  return yield::Graph::Point{ -Point.X, -Point.Y };
+};
+static auto
+calculateDelta(yield::Graph::Point const &LHS, yield::Graph::Point const &RHS) {
+  return yield::Graph::Point{ RHS.X - LHS.X, RHS.Y - LHS.Y };
+}
+static auto translatePoint(yield::Graph::Point const &Point,
+                           yield::Graph::Point const &Delta) {
+  return yield::Graph::Point{ Point.X + Delta.X, Point.Y + Delta.Y };
+}
+static auto convertPoint(yield::Graph::Point const &Point,
+                         yield::Graph::Point const &Delta) {
+  return translatePoint(flipPoint(Point), Delta);
+}
+
+static yield::Graph combineHalvesHelper(const MetaAddress &SlicePoint,
+                                        yield::Graph &&ForwardsSlice,
+                                        yield::Graph &&BackwardsSlice) {
+  revng_assert(ForwardsSlice.size() != 0 && BackwardsSlice.size() != 0);
+
+  auto IsSlicePoint = [&SlicePoint](const auto *Node) {
+    return Node->Address == SlicePoint;
+  };
+
+  auto ForwardsIterator = llvm::find_if(ForwardsSlice.nodes(), IsSlicePoint);
+  revng_assert(ForwardsIterator != ForwardsSlice.nodes().end());
+  auto *ForwardsSlicePoint = *ForwardsIterator;
+  revng_assert(ForwardsSlicePoint != nullptr);
+
+  auto BackwardsIterator = llvm::find_if(BackwardsSlice.nodes(), IsSlicePoint);
+  revng_assert(BackwardsIterator != BackwardsSlice.nodes().end());
+  auto *BackwardsSlicePoint = *BackwardsIterator;
+  revng_assert(BackwardsSlicePoint != nullptr);
+
+  // Find the distance all the nodes of one of the graphs need to be shifted so
+  // that the `SlicePoint`s overlap.
+  auto Delta = calculateDelta(flipPoint((*BackwardsIterator)->Center),
+                              (*ForwardsIterator)->Center);
+
+  // Ready the backwards part of the graph
+  for (auto *From : BackwardsSlice.nodes()) {
+    From->Center = convertPoint(From->Center, Delta);
+    for (auto [Neighbor, Label] : From->successor_edges())
+      for (auto &Point : Label->Path)
+        Point = convertPoint(Point, Delta);
+  }
+
+  // Define a map for faster node lookup.
+  llvm::DenseMap<yield::Graph::Node *, yield::Graph::Node *> Lookup;
+  auto AccessLookup = [&Lookup](yield::Graph::Node *Key) {
+    auto Iterator = Lookup.find(Key);
+    revng_assert(Iterator != Lookup.end() && Iterator->second != nullptr);
+    return Iterator->second;
+  };
+
+  // Move the nodes from the backwards slice into the forwards one.
+  for (auto *Node : BackwardsSlice.nodes()) {
+    revng_assert(Node != nullptr);
+    if (Node != BackwardsSlicePoint) {
+      auto NewNode = ForwardsSlice.addNode(Node->moveData());
+      auto [Iterator, Success] = Lookup.try_emplace(Node, NewNode);
+      revng_assert(Success == true);
+    } else {
+      auto [Iterator, Success] = Lookup.try_emplace(BackwardsSlicePoint,
+                                                    ForwardsSlicePoint);
+      revng_assert(Success == true);
+    }
+  }
+
+  // Move all the edges while also inverting their direction.
+  for (auto *From : BackwardsSlice.nodes()) {
+    for (auto [To, Label] : From->successor_edges()) {
+      std::reverse(Label->Path.begin(), Label->Path.end());
+      AccessLookup(To)->addSuccessor(AccessLookup(From), std::move(*Label));
+    }
+  }
+
+  return std::move(ForwardsSlice);
+}
+
+std::string yield::svg::callGraphSlice(const MetaAddress &SlicePoint,
+                                       const yield::CrossRelations &Relations,
+                                       const model::Binary &Binary) {
+  // TODO: make configuration accessible from outside.
+  auto Configuration = cfg::Configuration::getDefault();
+  Configuration.UseOrthogonalBends = false;
+  constexpr auto Orientation = sugiyama::LayoutOrientation::LeftToRight;
+  constexpr auto Ranking = sugiyama::RankingStrategy::BreadthFirstSearch;
+
+  LabelNodeHelper Helper{ Binary, Configuration, SlicePoint };
+
+  // Ready the forwards facing part of the slice
+  auto ForwardsGraph = calls::makeCalleeTree(Relations.toYieldGraph(),
+                                             SlicePoint);
+  for (auto *From : ForwardsGraph.nodes())
+    for (auto [To, Label] : From->successor_edges())
+      Label->Type = yield::Graph::EdgeType::Taken;
+  Helper.computeSizes(ForwardsGraph);
+  sugiyama::layout(ForwardsGraph, Configuration, Orientation, Ranking);
+
+  // Ready the backwards facing part of the slice
+  auto BackwardsGraph = calls::makeCallerTree(Relations.toYieldGraph(),
+                                              SlicePoint);
+  for (auto *From : BackwardsGraph.nodes())
+    for (auto [To, Label] : From->successor_edges())
+      Label->Type = yield::Graph::EdgeType::Refused;
+  Helper.computeSizes(BackwardsGraph);
+  sugiyama::layout(BackwardsGraph, Configuration, Orientation, Ranking);
+
+  // Consume the halves to produce a combined graph and export it.
+  auto CombinedGraph = combineHalvesHelper(SlicePoint,
+                                           std::move(ForwardsGraph),
+                                           std::move(BackwardsGraph));
+  return exportGraph<false>(CombinedGraph, Configuration, Orientation, Helper);
+}
