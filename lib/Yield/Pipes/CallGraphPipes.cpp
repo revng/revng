@@ -56,15 +56,6 @@ void ProcessCallGraph::print(const pipeline::Context &,
   OS << *revng::ResourceFinder.findFile("bin/revng") << " magic ^_^\n";
 }
 
-std::array<pipeline::ContractGroup, 1> ProcessCallGraph::getContract() const {
-  return { pipeline::ContractGroup(kinds::IsolatedRoot,
-                                   pipeline::Exactness::Exact,
-                                   0,
-                                   kinds::BinaryCrossRelations,
-                                   1,
-                                   pipeline::InputPreservation::Preserve) };
-}
-
 void YieldCallGraph::run(pipeline::Context &Context,
                          const FileContainer &Input,
                          FileContainer &Output) {

@@ -58,23 +58,6 @@ void ProcessAssembly::print(const pipeline::Context &,
   OS << *revng::ResourceFinder.findFile("bin/revng") << " magic ^_^\n";
 }
 
-std::array<pipeline::ContractGroup, 1> ProcessAssembly::getContract() const {
-  pipeline::Contract BinaryContract(kinds::Binary,
-                                    pipeline::Exactness::Exact,
-                                    0,
-                                    pipeline::InputPreservation::Preserve);
-
-  pipeline::Contract FunctionContract(kinds::Isolated,
-                                      pipeline::Exactness::Exact,
-                                      1,
-                                      kinds::FunctionAssemblyInternal,
-                                      2,
-                                      pipeline::InputPreservation::Preserve);
-
-  return { pipeline::ContractGroup{ std::move(BinaryContract),
-                                    std::move(FunctionContract) } };
-}
-
 void YieldAssembly::run(pipeline::Context &Context,
                         const FunctionStringMap &Input,
                         FunctionStringMap &Output) {
@@ -96,15 +79,6 @@ void YieldAssembly::print(const pipeline::Context &,
                           llvm::raw_ostream &OS,
                           llvm::ArrayRef<std::string> Files) const {
   OS << *revng::ResourceFinder.findFile("bin/revng") << " magic ^_^\n";
-}
-
-std::array<pipeline::ContractGroup, 1> YieldAssembly::getContract() const {
-  return { pipeline::ContractGroup(kinds::FunctionAssemblyInternal,
-                                   pipeline::Exactness::Exact,
-                                   0,
-                                   kinds::FunctionAssemblyPTML,
-                                   1,
-                                   pipeline::InputPreservation::Preserve) };
 }
 
 } // end namespace revng::pipes

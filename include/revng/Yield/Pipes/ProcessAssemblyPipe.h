@@ -22,7 +22,22 @@ public:
   static constexpr const auto Name = "ProcessAssembly";
 
 public:
-  std::array<pipeline::ContractGroup, 1> getContract() const;
+  inline std::array<pipeline::ContractGroup, 1> getContract() const {
+    pipeline::Contract BinaryContract(kinds::Binary,
+                                      pipeline::Exactness::Exact,
+                                      0,
+                                      pipeline::InputPreservation::Preserve);
+
+    pipeline::Contract FunctionContract(kinds::Isolated,
+                                        pipeline::Exactness::Exact,
+                                        1,
+                                        kinds::FunctionAssemblyInternal,
+                                        2,
+                                        pipeline::InputPreservation::Preserve);
+
+    return { pipeline::ContractGroup{ std::move(BinaryContract),
+                                      std::move(FunctionContract) } };
+  }
 
 public:
   void run(pipeline::Context &Context,
