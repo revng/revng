@@ -74,7 +74,7 @@ void YieldCallGraph::run(pipeline::Context &Context,
   YAMLInput >> Relations;
 
   // Convert the graph to SVG.
-  auto Result = yield::svg::calls(Relations, *Model);
+  auto Result = yield::svg::callGraph(Relations, *Model);
 
   // Open the output file.
   std::error_code ErrorCode;

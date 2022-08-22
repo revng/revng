@@ -26,7 +26,8 @@ void YieldControlFlow::run(pipeline::Context &Context,
     revng_assert((*MaybeFunction)->Entry == Address);
 
     Output.insert_or_assign((*MaybeFunction)->Entry,
-                            yield::svg::controlFlow(**MaybeFunction, *Model));
+                            yield::svg::controlFlowGraph(**MaybeFunction,
+                                                         *Model));
   }
 }
 

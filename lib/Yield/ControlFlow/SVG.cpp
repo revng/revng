@@ -296,8 +296,9 @@ static std::string exportGraph(const yield::Graph &Graph,
                        std::move(Result));
 }
 
-std::string yield::svg::controlFlow(const yield::Function &InternalFunction,
-                                    const model::Binary &Binary) {
+std::string
+yield::svg::controlFlowGraph(const yield::Function &InternalFunction,
+                             const model::Binary &Binary) {
   constexpr auto Configuration = cfg::Configuration::getDefault();
 
   yield::Graph ControlFlowGraph = cfg::extractFromInternal(InternalFunction,
@@ -322,8 +323,8 @@ std::string yield::svg::controlFlow(const yield::Function &InternalFunction,
   return exportGraph<true>(ControlFlowGraph, Configuration, ContentHelper);
 }
 
-std::string yield::svg::calls(const yield::CrossRelations &Relations,
-                              const model::Binary &Binary) {
+std::string yield::svg::callGraph(const yield::CrossRelations &Relations,
+                                  const model::Binary &Binary) {
   auto Configuration = cfg::Configuration::getDefault();
   Configuration.UseOrthogonalBends = false;
 
