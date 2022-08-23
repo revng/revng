@@ -6,6 +6,7 @@ revng_add_library_internal(
   revngModelPasses
   SHARED
   AddPrimitiveTypes.cpp
+  AddPrimitiveTypesAnalysis.cpp
   ConvertFunctionTypes.cpp
   DeduplicateEquivalentTypes.cpp
   OptionCategory.cpp
@@ -13,4 +14,4 @@ revng_add_library_internal(
   PurgeUnnamedAndUnreachableTypes.cpp
   Verify.cpp)
 
-target_link_libraries(revngModelPasses revngABI revngModel)
+target_link_libraries(revngModelPasses revngABI revngModel revngPipes)

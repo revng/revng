@@ -13,6 +13,7 @@
 #include "revng/Pipeline/LLVMContainer.h"
 #include "revng/Pipeline/LLVMGlobalKindBase.h"
 #include "revng/Pipeline/Target.h"
+#include "revng/Pipes/Kinds.h"
 
 namespace revng::pipes {
 

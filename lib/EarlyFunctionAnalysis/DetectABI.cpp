@@ -16,10 +16,16 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/CFGAnalyzer.h"
 #include "revng/EarlyFunctionAnalysis/CallGraph.h"
+#include "revng/EarlyFunctionAnalysis/CollectFunctionsFromCalleesPass.h"
+#include "revng/EarlyFunctionAnalysis/CollectFunctionsFromUnusedAddressesPass.h"
 #include "revng/EarlyFunctionAnalysis/DetectABI.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 #include "revng/Model/Binary.h"
+#include "revng/Pipeline/Pipe.h"
+#include "revng/Pipeline/RegisterAnalysis.h"
+#include "revng/Pipes/Kinds.h"
+#include "revng/Pipes/LLVMAnalysisImplementation.h"
 
 using namespace llvm;
 using namespace llvm::cl;
@@ -59,6 +65,37 @@ static opt<ABIOpt> ABIEnforcement("abi-enforcement-level",
                                   init(ABIOpt::FullABIEnforcement));
 
 static Logger<> Log("detect-abi");
+
+class DetectABIAnalysis {
+private:
+  template<typename... T>
+  using Impl = revng::pipes::LLVMAnalysisImplementation<T...>;
+
+  Impl<CollectFunctionsFromCalleesWrapperPass,
+       efa::DetectABIPass,
+       CollectFunctionsFromUnusedAddressesWrapperPass,
+       efa::DetectABIPass>
+    Implementation;
+
+public:
+  static constexpr auto Name = "DetectABI";
+
+  std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {
+    { &revng::pipes::Root }
+  };
+
+  void print(const pipeline::Context &Ctx,
+             llvm::raw_ostream &OS,
+             llvm::ArrayRef<std::string> ContainerNames) const {
+    Implementation.print(Ctx, OS, ContainerNames);
+  }
+
+  void run(const pipeline::Context &Ctx, pipeline::LLVMContainer &Container) {
+    Implementation.run(Ctx, Container);
+  }
+};
+
+static pipeline::RegisterAnalysis<DetectABIAnalysis> A1;
 
 namespace efa {
 

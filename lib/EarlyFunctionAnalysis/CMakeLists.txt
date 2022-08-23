@@ -38,6 +38,7 @@ target_link_libraries(
   revngABIAnalyses
   revngSupport
   revngModel
+  revngPipes
   ${LLVM_LIBRARIES})
 
 # Header files containing efa YAML must be added here

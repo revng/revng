@@ -11,12 +11,12 @@ extern "C" {
 }
 
 #include "revng/Lift/Lift.h"
+#include "revng/Lift/LiftPipe.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/SerializeModelPass.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/Kinds.h"
-#include "revng/Pipes/LiftPipe.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/RootKind.h"
 #include "revng/Support/IRAnnotators.h"

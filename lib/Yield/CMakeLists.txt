@@ -55,6 +55,7 @@ target_link_libraries(
   revngPipes
   revngPTML
   revngSupport
+  revngLift
   ${LLVM_LIBRARIES})
 
 set(INTERNAL_ASSEMBLY_HEADERS "${CMAKE_SOURCE_DIR}/include/revng/Yield")

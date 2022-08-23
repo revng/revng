@@ -32,12 +32,10 @@
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/LLVMGlobalKindBase.h"
 #include "revng/Pipeline/Target.h"
-#include "revng/Pipes/CompileModulePipe.h"
 #include "revng/Pipes/FileContainer.h"
-#include "revng/Pipes/LiftPipe.h"
-#include "revng/Pipes/LinkSupportPipe.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/RootKind.h"
+#include "revng/Recompile/CompileModulePipe.h"
 #include "revng/Support/Statistics.h"
 
 using namespace std;
@@ -105,71 +103,5 @@ public:
 };
 
 static LLVMPipelineRegistry Registry;
-
-template<typename... Passes>
-class LLVMAnalysisImplementation {
-public:
-  std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {
-    { &revng::pipes::Root }
-  };
-
-  void run(const pipeline::Context &Ctx, pipeline::LLVMContainer &Container) {
-    llvm::legacy::PassManager Manager;
-    registerPasses(Ctx, Manager);
-    Manager.run(Container.getModule());
-  }
-
-  void print(const Context &Ctx,
-             llvm::raw_ostream &OS,
-             llvm::ArrayRef<std::string> ContainerNames) const {
-    OS << *revng::ResourceFinder.findFile("bin/revng");
-    OS << " opt --model-path=model.yml " << ContainerNames[0] << " -o "
-       << ContainerNames[0];
-    std::vector<std::string> PassNames;
-    (PassNames.push_back(llvm::PassRegistry::getPassRegistry()
-                           ->getPassInfo(&Passes::ID)
-                           ->getPassArgument()
-                           .str()),
-     ...);
-    for (const auto &Name : PassNames)
-      OS << "-" << Name << " ";
-    OS << "\n";
-  }
-
-  void registerPasses(const pipeline::Context &Ctx,
-                      llvm::legacy::PassManager &Manager) const {
-    auto Global = llvm::cantFail(Ctx.getGlobal<ModelGlobal>(ModelGlobalName));
-    Manager.add(new LoadModelWrapperPass(ModelWrapper(Global->get())));
-    (Manager.add(new Passes()), ...);
-  };
-};
-
-class DetectABIAnalysis {
-private:
-  LLVMAnalysisImplementation<CollectFunctionsFromCalleesWrapperPass,
-                             efa::DetectABIPass,
-                             CollectFunctionsFromUnusedAddressesWrapperPass,
-                             efa::DetectABIPass>
-    Implementation;
-
-public:
-  static constexpr auto Name = "DetectABI";
-
-  std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {
-    { &revng::pipes::Root }
-  };
-
-  void print(const Context &Ctx,
-             llvm::raw_ostream &OS,
-             llvm::ArrayRef<std::string> ContainerNames) const {
-    Implementation.print(Ctx, OS, ContainerNames);
-  }
-
-  void run(const pipeline::Context &Ctx, pipeline::LLVMContainer &Container) {
-    Implementation.run(Ctx, Container);
-  }
-};
-
-static pipeline::RegisterAnalysis<DetectABIAnalysis> A1;
 
 } // namespace revng::pipes
