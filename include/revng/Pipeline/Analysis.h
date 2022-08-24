@@ -46,7 +46,7 @@ public:
 public:
   llvm::ArrayRef<Kind *>
   getAcceptedKinds(size_t ContainerIndex) const override {
-    return Invokable.getPipe().AcceptedKinds[ContainerIndex];
+    return Invokable.getPipe().AcceptedKinds.at(ContainerIndex);
   }
 
   void dump(std::ostream &OS, size_t Indentation) const override {
