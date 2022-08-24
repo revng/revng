@@ -104,9 +104,12 @@ class Manager:
             targets = target
         _step = step._step
         _container = container._container
-        _api.rp_manager_produce_targets(
+        product = _api.rp_manager_produce_targets(
             self._manager, len(targets), [t._target for t in targets], _step, _container
         )
+        if not product:
+            # TODO: we really should be able to provide a detailed error here
+            raise RevngException("Failed to produce targets")
 
         return {t.serialize(): t.extract() for t in targets}
 
