@@ -27,7 +27,7 @@ type Mutation {
 type AnalysisMutations {
     {%- for step in steps %}
     {%- if step.analyses_count() > 0 %}
-    {{ step.name | pascal_to_camel }}: {{ step.name }}Analyses!
+    {{ step.name }}: {{ step.name }}Analyses!
     {%- endif %}
     {%- endfor %}
 }
@@ -101,7 +101,7 @@ type Target {
 {% for rank, steps in rank_to_artifact_steps.items() %}
 type {{ rank.name | capitalize }} {
 {%- for step in steps %}
-    {{ step.name | pascal_to_camel }}(onlyIfReady: Boolean): String!
+    {{ step.name }}(onlyIfReady: Boolean): String!
 {%- endfor %}
 }
 {% endfor %}
@@ -110,7 +110,7 @@ type {{ rank.name | capitalize }} {
 {%- if step.analyses_count() > 0 %}
 type {{ step.name }}Analyses {
     {%- for analysis in step.analyses() %}
-    {{ analysis.name | pascal_to_camel }}({{ analysis | generate_analysis_parameters }}): String!
+    {{ analysis.name | normalize }}({{ analysis | generate_analysis_parameters }}): String!
     {%- endfor %}
 }
 {%- endif %}

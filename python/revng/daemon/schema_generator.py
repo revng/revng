@@ -3,6 +3,7 @@
 #
 
 import json
+import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Set
@@ -17,7 +18,6 @@ from revng.api.rank import Rank
 from revng.api.step import Step
 
 from .static_handlers import DEFAULT_BINDABLES, analysis_mutations, run_in_executor
-from .util import pascal_to_camel, str_to_snake_case
 
 
 class SchemaGenerator:
@@ -31,8 +31,7 @@ class SchemaGenerator:
         self.jinja_environment = Environment(loader=FileSystemLoader(str(local_folder)))
         filters = self.jinja_environment.filters
         filters["rank_param"] = self._rank_to_arguments
-        filters["pascal_to_camel"] = pascal_to_camel
-        filters["str_to_snake_case"] = str_to_snake_case
+        filters["normalize"] = normalize
         filters["generate_analysis_parameters"] = self._generate_analysis_parameters
 
     def get_schema(self, manager: Manager) -> GraphQLSchema:
@@ -56,7 +55,7 @@ class SchemaGenerator:
     @staticmethod
     def _generate_analysis_parameters(analysis: Analysis) -> str:
         return ", ".join(
-            f"{str_to_snake_case(argument.name)}: String!" for argument in analysis.arguments()
+            f"{normalize(argument.name)}: String!" for argument in analysis.arguments()
         )
 
     @staticmethod
@@ -107,7 +106,7 @@ class DynamicBindableGenerator:
 
             handle = self.gen_step_handle(step)
             rank_obj = rank_objects[step_kind.rank]
-            rank_obj.set_field(pascal_to_camel(step.name), handle)
+            rank_obj.set_field(step.name, handle)
 
         return bindables
 
@@ -118,12 +117,12 @@ class DynamicBindableGenerator:
             if step.analyses_count() < 1:
                 continue
 
-            analysis_mutations.set_field(pascal_to_camel(step.name), self.analysis_mutation_handle)
+            analysis_mutations.set_field(step.name, self.analysis_mutation_handle)
             step_analysis_obj = ObjectType(f"{step.name}Analyses")
             bindables.append(step_analysis_obj)
             for analysis in step.analyses():
                 handle = self.gen_step_analysis_handle(step, analysis)
-                step_analysis_obj.set_field(pascal_to_camel(analysis.name), handle)
+                step_analysis_obj.set_field(normalize(analysis.name), handle)
 
         return bindables
 
@@ -158,7 +157,7 @@ class DynamicBindableGenerator:
 
     @staticmethod
     def gen_step_analysis_handle(step: Step, analysis: Analysis):
-        argument_mapping = {str_to_snake_case(a.name): a.name for a in analysis.arguments()}
+        argument_mapping = {normalize(a.name): a.name for a in analysis.arguments()}
 
         async def step_analysis_handle(_, info, **kwargs):
             manager: Manager = info.context["manager"]
@@ -174,3 +173,8 @@ class DynamicBindableGenerator:
             return json.dumps(result)
 
         return step_analysis_handle
+
+
+def normalize(string: str) -> str:
+    leading_digit = bool(re.match(r"\d", string))
+    return re.sub(r"[^A-Za-z0-9_]", "_", f"{'_' if leading_digit else ''}{string}")
