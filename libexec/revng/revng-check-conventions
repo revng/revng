@@ -410,7 +410,7 @@ function run_revng_cpp_checks() {
     $GREP -E '^.{81,}$' "${C_FILES[@]}" | cat_header "There are lines longer than 80 characters:"
 
     # Things should never match
-    for REGEXP in '\(--> 0\)' ';;' '^\s*->.*;$' 'Twine [^&]'; do
+    for REGEXP in '\(--> 0\)' ';;' 'Twine [^&]'; do
         $GREP "$REGEXP" "${C_FILES[@]}"
     done | cat_header "Found snippets that should not be present:"
 
