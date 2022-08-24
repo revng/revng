@@ -159,7 +159,26 @@ def test_info_global(client):
     assert model["content"] == model_content
 
 
+def run_preliminary_analyses(client):
+    client.execute(
+        gql(
+            """
+    mutation {
+        analyses {
+            Import {
+                ImportBinary(input: ":Binary"),
+                AddPrimitiveTypes(input: ":Binary")
+            }
+        }
+    }
+    """
+        )
+    )
+
+
 def test_lift(client):
+    run_preliminary_analyses(client)
+
     result = client.execute(gql("{ binary { Lift } }"))
     assert result["binary"]["Lift"] is not None
 
@@ -191,7 +210,7 @@ def test_valid_steps(client):
             name
             parent
         }
-        lift: step(name: "Lift") {
+        import: step(name: "Import") {
             name
             parent
         }
@@ -203,8 +222,8 @@ def test_valid_steps(client):
     assert result["begin"]["name"] == "begin"
     assert result["begin"]["parent"] is None
 
-    assert result["lift"]["name"] == "Lift"
-    assert result["lift"]["parent"] == "begin"
+    assert result["import"]["name"] == "Import"
+    assert result["import"]["parent"] == "begin"
 
 
 def test_begin_has_containers(client):
@@ -235,7 +254,7 @@ def test_begin_has_containers(client):
 
 
 def test_get_model(client):
-    client.execute(gql("{ binary { Lift } }"))
+    test_lift(client)
     result = client.execute(gql("{ info { model } }"))
 
     assert result["info"]["model"] is not None
@@ -305,6 +324,8 @@ def test_targets(client):
 
 
 def test_produce(client):
+    run_preliminary_analyses(client)
+
     q = gql(
         """
     {
@@ -318,6 +339,8 @@ def test_produce(client):
 
 
 def test_produce_artifact(client):
+    run_preliminary_analyses(client)
+
     q = gql(
         """
     {
@@ -331,6 +354,8 @@ def test_produce_artifact(client):
 
 
 def test_function_endpoint(client):
+    run_preliminary_analyses(client)
+
     client.execute(
         gql(
             """
