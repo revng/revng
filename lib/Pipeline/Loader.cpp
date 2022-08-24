@@ -18,11 +18,12 @@
 using namespace pipeline;
 using namespace std;
 using namespace llvm;
+using StringsMap = llvm::StringMap<string>;
 
 Error Loader::parseStepDeclaration(Runner &Runner,
                                    const StepDeclaration &Declaration,
                                    std::string &LastAddedStep,
-                                   const vector<string> &ReadOnlyNames) const {
+                                   const StringsMap &ReadOnlyNames) const {
   auto &JustAdded = Runner.emplaceStep(LastAddedStep, Declaration.Name);
   LastAddedStep = Declaration.Name;
 
@@ -116,7 +117,7 @@ Loader::parseAnalysis(const AnalysisDeclaration &Declaration) const {
 llvm::Expected<PipeWrapper>
 Loader::parseInvocation(Step &Step,
                         const PipeInvocation &Invocation,
-                        const std::vector<std::string> &ReadOnlyNames) const {
+                        const StringsMap &ReadOnlyNames) const {
   if (Invocation.Type == "LLVMPipe")
     return parseLLVMPass(Invocation);
 
@@ -134,19 +135,25 @@ Loader::parseInvocation(Step &Step,
 
     const auto &ContainerName = ContainerNameAndIndex.value();
     size_t Index = ContainerNameAndIndex.index();
-    if (llvm::find(ReadOnlyNames, ContainerName) == ReadOnlyNames.end())
+    if (ReadOnlyNames.find(ContainerName) == ReadOnlyNames.end())
       continue;
 
-    if (PipelineContext->hasRegisteredReadOnlyContainer(ContainerName)
-        and not Pipe->isContainerArgumentConst(Index)) {
+    const auto &RoleName = ReadOnlyNames.find(ContainerName)->second;
+    if (Pipe->isContainerArgumentConst(Index))
+      continue;
+
+    if (PipelineContext->hasRegisteredReadOnlyContainer(ContainerName)) {
       return createStringError(inconvertibleErrorCode(),
                                "Detected two non const uses of read only "
                                "container %s\n",
                                ContainerName.c_str());
     }
 
+    const auto &ContainersEnd = Step.containers().end();
+    revng_assert(Step.containers().find(ContainerName) != ContainersEnd);
+
     const auto &Container = *Step.containers().find(ContainerName);
-    PipelineContext->addReadOnlyContainer(ContainerName, Container);
+    PipelineContext->addReadOnlyContainer(RoleName, Container);
   }
 
   return PipeWrapper(Pipe, Invocation.UsedContainers);
@@ -155,7 +162,7 @@ Loader::parseInvocation(Step &Step,
 using BCDecl = ContainerDeclaration;
 Error Loader::parseContainerDeclaration(Runner &Pipeline,
                                         const BCDecl &Dec,
-                                        vector<string> &ReadOnlyNames) const {
+                                        StringsMap &ReadOnlyNames) const {
   if (not Dec.Role.empty() and KnownContainerRoles.count(Dec.Role) == 0) {
     auto *Message = "while parsing container declaration with Name %s has a "
                     "unkown "
@@ -188,7 +195,7 @@ Error Loader::parseContainerDeclaration(Runner &Pipeline,
   auto &Entry = It->second;
   Pipeline.addContainerFactory(Dec.Name, Entry);
   if (not Dec.Role.empty())
-    ReadOnlyNames.push_back(Dec.Name);
+    ReadOnlyNames[Dec.Name] = Dec.Role;
 
   return Error::success();
 }
@@ -208,10 +215,9 @@ Loader::load(llvm::ArrayRef<std::string> Pipelines) const {
   return load(Declarations);
 }
 
-llvm::Error
-Loader::parseSteps(Runner &Runner,
-                   const BranchDeclaration &Declaration,
-                   const std::vector<std::string> &ReadOnlyNames) const {
+llvm::Error Loader::parseSteps(Runner &Runner,
+                               const BranchDeclaration &Declaration,
+                               const StringsMap &ReadOnlyNames) const {
 
   std::string LastAddedStep = Declaration.From.empty() ? "begin" :
                                                          Declaration.From;
@@ -229,10 +235,9 @@ Loader::parseSteps(Runner &Runner,
   return llvm::Error::success();
 }
 
-llvm::Error
-Loader::parseDeclarations(Runner &Runner,
-                          const PipelineDeclaration &Declaration,
-                          std::vector<std::string> &ReadOnlyNames) const {
+llvm::Error Loader::parseDeclarations(Runner &Runner,
+                                      const PipelineDeclaration &Declaration,
+                                      StringsMap &ReadOnlyNames) const {
 
   for (const auto &Container : Declaration.Containers)
     if (auto Error = parseContainerDeclaration(Runner,
@@ -292,7 +297,7 @@ Loader::load(llvm::ArrayRef<PipelineDeclaration> Pipelines) const {
   if (auto Error = sortPipeline(ToSort); Error)
     return std::move(Error);
 
-  std::vector<std::string> ReadOnlyNames;
+  llvm::StringMap<std::string> ReadOnlyNames;
   for (const auto &Declaration : Pipelines)
     if (auto Error = parseDeclarations(ToReturn, Declaration, ReadOnlyNames);
         Error)
