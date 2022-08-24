@@ -47,28 +47,6 @@ def clean_container_list(container_list: List):
             container_list.remove(container)
 
 
-def str_to_snake_case(string: str) -> str:
-    ret = []
-    for idx, char in enumerate(string):
-        if char.isupper():
-            if (idx > 0 and string[idx - 1].isupper()) or idx == 0:
-                ret.append(char.lower())
-            else:
-                ret += ["_", char.lower()]
-        elif char == ".":
-            ret.append("_")
-        else:
-            ret.append(char)
-    return "".join(ret)
-
-
-def pascal_to_camel(string: str) -> str:
-    if len(string) == 0:
-        return ""
-    first = string[0]
-    return first.lower() + string[1:]
-
-
 def b64e(string: str) -> str:
     ret = b64encode(string.encode("utf-8"))
     return ret.decode("utf-8")

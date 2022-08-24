@@ -160,33 +160,13 @@ def test_info_global(client):
 
 
 def test_lift(client):
-    q = gql(
-        """
-    {
-        binary {
-            lift
-        }
-    }
-    """
-    )
-
-    result = client.execute(q)
-
-    assert result["binary"]["lift"] is not None
+    result = client.execute(gql("{ binary { Lift } }"))
+    assert result["binary"]["Lift"] is not None
 
 
 @mark.xfail(raises=Exception)
 def test_lift_ready_fail(client):
-    q = gql(
-        """
-    {
-        binary {
-            lift(onlyIfReady: true)
-        }
-    }
-    """
-    )
-    client.execute(q)
+    client.execute(gql("{ binary { Lift(onlyIfReady: true) } }"))
 
 
 @mark.xfail(raises=Exception)
@@ -255,18 +235,8 @@ def test_begin_has_containers(client):
 
 
 def test_get_model(client):
-    client.execute(gql("{binary{lift}}"))
-
-    q = gql(
-        """
-    {
-        info {
-            model
-        }
-    }
-    """
-    )
-    result = client.execute(q)
+    client.execute(gql("{ binary { Lift } }"))
+    result = client.execute(gql("{ info { model } }"))
 
     assert result["info"]["model"] is not None
 
@@ -366,8 +336,8 @@ def test_function_endpoint(client):
             """
     mutation {
         analyses {
-            lift {
-                detectABI(module_ll: ":Root")
+            Lift {
+                DetectABI(module_ll: ":Root")
             }
         }
     }
@@ -393,14 +363,14 @@ def test_function_endpoint(client):
         """
     query function($param1: String!) {
         function(param1: $param1) {
-            isolate
+            Isolate
         }
     }
     """
     )
     result = client.execute(q, {"param1": first_function["serialized"]})
 
-    assert result["function"]["isolate"] is not None
+    assert result["function"]["Isolate"] is not None
 
 
 @mark.xfail(raises=Exception)
@@ -410,8 +380,8 @@ def test_analysis_kind_check(client):
             """
     mutation {
         analyses {
-            lift {
-                detectABI(module_ll: ":IsolatedRoot")
+            Lift {
+                DetectABI(module_ll: ":IsolatedRoot")
             }
         }
     }
