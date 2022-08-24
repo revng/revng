@@ -20,86 +20,17 @@
 #include "llvm/Support/Error.h"
 
 #include "revng/ADT/STLExtras.h"
+#include "revng/Pipeline/CLOption.h"
 #include "revng/Pipeline/Container.h"
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Context.h"
+#include "revng/Pipeline/Option.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/YAMLTraits.h"
 
 namespace pipeline {
-
-class CLOptionBase {
-public:
-  explicit CLOptionBase(llvm::StringRef Name) {
-    getRegisteredOptions()[Name] = this;
-  }
-  virtual ~CLOptionBase() = default;
-  virtual bool isSet() const = 0;
-  virtual llvm::StringRef get() const = 0;
-  virtual llvm::StringRef name() const = 0;
-
-  static const CLOptionBase &getOption(llvm::StringRef Name) {
-    std::string Msg = "option has not been registered " + Name.str();
-
-    revng_assert(hasOption(Name), Msg.c_str());
-    return *getRegisteredOptions()[Name];
-  }
-
-  static bool hasOption(llvm::StringRef Name) {
-    return getRegisteredOptions().count(Name) != 0;
-  }
-
-private:
-  static llvm::StringMap<const CLOptionBase *> &getRegisteredOptions() {
-    static llvm::StringMap<const CLOptionBase *> RegisteredOption;
-    return RegisteredOption;
-  }
-};
-
-namespace detail {
-
-template<typename T>
-llvm::StringRef typeNameImpl();
-
-template<>
-inline llvm::StringRef typeNameImpl<std::string>() {
-  return "string";
-}
-
-template<>
-inline llvm::StringRef typeNameImpl<int>() {
-  return "int";
-}
-
-}; // namespace detail
-
-template<typename T>
-class CLOptionWrapper : public CLOptionBase {
-public:
-  CLOptionWrapper(const CLOptionWrapper &) = delete;
-  CLOptionWrapper(CLOptionWrapper &&) = delete;
-  CLOptionWrapper &operator=(const CLOptionWrapper &) = delete;
-  CLOptionWrapper &operator=(CLOptionWrapper &&) = delete;
-
-  template<typename... Args>
-  CLOptionWrapper(llvm::StringRef InvokableType,
-                  llvm::StringRef Name,
-                  Args &&...Options) :
-    CLOptionBase(Name),
-    FullName((InvokableType + "-" + Name).str()),
-    Option(llvm::StringRef(FullName), std::forward<Args>(Options)...) {}
-
-  bool isSet() const override { return not Option.isDefaultOption(); }
-  llvm::StringRef get() const override { return Option.ValueStr; }
-  llvm::StringRef name() const override { return Option.ArgStr; }
-
-private:
-  std::string FullName;
-  llvm::cl::opt<T> Option;
-};
-
 template<typename T>
 concept HasName = requires() {
   { T::Name } -> convertible_to<const char *>;
@@ -153,55 +84,12 @@ concept Invokable = convertible_to<Context &, std::remove_cv_t<FirstRunArg>>
 
 // clang-format on
 
-template<typename T>
-class Option {
-public:
-  constexpr Option(const char *Name, T Default) :
-    Default(Default), Name(Name) {}
-
-  using Type = std::decay_t<T>;
-  T Default;
-  const char *Name;
-};
-
-template<typename T>
-concept HasOptionsInfo = requires(T) {
-  { T::Options };
-};
-
 /// TODO: Remove after updating to clang-format with concept support.
 struct ClangFormatPleaseDoNotBreakMyCode2;
 // clang-format off
 // clang-format on
 
 namespace detail {
-
-template<typename Invokable, size_t Index>
-constexpr auto &getOptionInfo() {
-  return std::get<Index>(Invokable::Options);
-}
-
-template<typename Invokable, size_t Index>
-llvm::StringRef getOptionName() {
-  return getOptionInfo<Invokable, Index>().Name;
-}
-
-template<typename T, size_t Index>
-using ArgTypeImpl = std::decay_t<decltype(getOptionInfo<T, Index>())>;
-
-template<typename InvokableType, size_t Index>
-using OptionType = typename ArgTypeImpl<InvokableType, Index>::Type;
-
-template<typename Invokable, size_t Index>
-llvm::StringRef getTypeName() {
-  return typeNameImpl<ArgTypeImpl<Invokable, Index>>();
-}
-
-template<typename InvokableType, size_t Index>
-const OptionType<InvokableType, Index> &getOptionDefault() {
-  return getOptionInfo<InvokableType, Index>().Default;
-}
-
 using StringArrayRef = llvm::ArrayRef<std::string>;
 
 template<typename T>
