@@ -176,29 +176,31 @@ public:
   }
 
 private:
-  llvm::Error parseSteps(Runner &Runner,
-                         const BranchDeclaration &Declaration,
-                         const std::vector<std::string> &ReadOnlyNames) const;
-  llvm::Error parseDeclarations(Runner &Runner,
-                                const PipelineDeclaration &Declaration,
-                                std::vector<std::string> &ReadOnlyNames) const;
+  llvm::Error
+  parseSteps(Runner &Runner,
+             const BranchDeclaration &Declaration,
+             const llvm::StringMap<std::string> &ReadOnlyNames) const;
+  llvm::Error
+  parseDeclarations(Runner &Runner,
+                    const PipelineDeclaration &Declaration,
+                    llvm::StringMap<std::string> &ReadOnlyNames) const;
 
   llvm::Error
   parseStepDeclaration(Runner &Runner,
                        const StepDeclaration &,
                        std::string &LastAddedStep,
-                       const std::vector<std::string> &ReadOnlyNames) const;
+                       const llvm::StringMap<std::string> &ReadOnlyNames) const;
 
   llvm::Expected<PipeWrapper>
   parseInvocation(Step &Step,
                   const PipeInvocation &Invocation,
-                  const std::vector<std::string> &ReadOnlyNames) const;
+                  const llvm::StringMap<std::string> &ReadOnlyNames) const;
   llvm::Expected<AnalysisWrapper>
   parseAnalysis(const AnalysisDeclaration &Declaration) const;
   llvm::Error
   parseContainerDeclaration(Runner &Runner,
                             const ContainerDeclaration &,
-                            std::vector<std::string> &ReadOnlyNames) const;
+                            llvm::StringMap<std::string> &ReadOnlyNames) const;
 
   llvm::Expected<PipeWrapper>
   parseLLVMPass(const PipeInvocation &Invocation) const;
