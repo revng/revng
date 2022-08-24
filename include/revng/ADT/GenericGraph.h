@@ -1324,6 +1324,27 @@ public:
   static NodeRef getEntryNode(NodeRef N) { return N; };
 };
 
+/// Specializes GraphTraits<llvm::Inverse<BidirectionalNode<...> *>>
+template<StrictSpecializationOfBidirectionalNode T>
+struct GraphTraits<llvm::Inverse<T *>> {
+public:
+  using NodeRef = T *;
+  using ChildIteratorType = std::conditional_t<std::is_const_v<T>,
+                                               typename T::const_child_iterator,
+                                               typename T::child_iterator>;
+
+public:
+  static ChildIteratorType child_begin(NodeRef N) {
+    return N->predecessors().begin();
+  }
+
+  static ChildIteratorType child_end(NodeRef N) {
+    return N->predecessors().end();
+  }
+
+  static NodeRef getEntryNode(llvm::Inverse<NodeRef> N) { return N.Graph; };
+};
+
 /// Specializes GraphTraits<MutableEdgeNode<...> *>
 template<StrictSpecializationOfMutableEdgeNode T>
 struct GraphTraits<T *> {
@@ -1396,25 +1417,33 @@ struct GraphTraits<T *> : public GraphTraits<typename T::Node *> {
   static size_t size(T *G) { return G->size(); }
 };
 
-/// Specializes GraphTraits<llvm::Inverse<BidirectionalNode<...> *>>
-template<StrictSpecializationOfBidirectionalNode T>
-struct GraphTraits<llvm::Inverse<T *>> {
-public:
-  using NodeRef = T *;
-  using ChildIteratorType = std::conditional_t<std::is_const_v<T>,
-                                               typename T::const_child_iterator,
-                                               typename T::child_iterator>;
+/// Specializes GraphTraits<llvm::Inverse<GenericGraph<...> *>>>
+template<SpecializationOfGenericGraph T>
+struct GraphTraits<llvm::Inverse<T *>>
+  : public GraphTraits<llvm::Inverse<typename T::Node *>> {
 
-public:
-  static ChildIteratorType child_begin(NodeRef N) {
-    return N->predecessors().begin();
+  using NodeRef = std::conditional_t<std::is_const_v<T>,
+                                     const typename T::Node *,
+                                     typename T::Node *>;
+  using nodes_iterator = std::conditional_t<std::is_const_v<T>,
+                                            typename T::const_nodes_iterator,
+                                            typename T::nodes_iterator>;
+
+  static NodeRef getEntryNode(llvm::Inverse<T *> Inv) {
+    // TODO: we might want to consider an option of having optional
+    // `ExitNode`s as well, for consistency.
+    return Inv.Graph->getEntryNode();
   }
 
-  static ChildIteratorType child_end(NodeRef N) {
-    return N->predecessors().end();
+  static nodes_iterator nodes_begin(llvm::Inverse<T *> Inv) {
+    return Inv.Graph->nodes().begin();
   }
 
-  static NodeRef getEntryNode(llvm::Inverse<NodeRef> N) { return N.Graph; };
+  static nodes_iterator nodes_end(llvm::Inverse<T *> Inv) {
+    return Inv.Graph->nodes().end();
+  }
+
+  static size_t size(T *G) { return G->size(); }
 };
 
 } // namespace llvm
