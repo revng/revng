@@ -20,8 +20,10 @@ xdg
 
 # revng.daemon - tests
 pytest
+pytest-asyncio
 requests
 requests-toolbelt
+aiohttp
 gql
 psutil
 
