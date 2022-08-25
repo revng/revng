@@ -8,6 +8,8 @@
 #include <set>
 #include <vector>
 
+#include "revng/Support/GraphAlgorithms.h"
+
 #include "Layout.h"
 #include "NodeRanking.h"
 
@@ -218,10 +220,7 @@ void partition(const std::vector<EdgeType> &Edges,
 /// real entry point.
 static void
 ensureSingleEntry(InternalGraph &Graph, RankContainer *MaybeRanks = nullptr) {
-  llvm::SmallVector<NodeView, 4> EntryNodes;
-  for (auto *Node : Graph.nodes())
-    if (!Node->hasPredecessors())
-      EntryNodes.emplace_back(Node);
+  auto EntryNodes = entryPoints(&Graph);
   revng_assert(!EntryNodes.empty());
 
   if (EntryNodes.size() > 1) {
@@ -254,8 +253,19 @@ partitionLongEdges(InternalGraph &Graph, NodeClassifier<Strategy> &Classifier) {
   ensureSingleEntry(Graph);
 
   // Helper lambda for graph verification.
-  auto HasNoPredecessors = [](const InternalGraph::Node *Node) -> bool {
-    return !Node->predecessorCount();
+  auto HasSingleEntryPoint = [](const InternalGraph &Graph) -> bool {
+    auto HasNoPredecessors = [](const InternalGraph::Node *Node) -> bool {
+      return !Node->predecessorCount();
+    };
+    if (llvm::count_if(Graph.nodes(), HasNoPredecessors) != 1)
+      return false;
+
+    if (auto Iterator = llvm::find_if(Graph.nodes(), HasNoPredecessors);
+        Iterator == Graph.nodes().end() || *Iterator != Graph.getEntryNode()) {
+      return false;
+    }
+
+    return true;
   };
 
   // Because a long edge can also be a backwards edge, edges that are certainly
@@ -264,7 +274,7 @@ partitionLongEdges(InternalGraph &Graph, NodeClassifier<Strategy> &Classifier) {
   // internally to differencite such "certainly long" edges.
 
   // Rank nodes based on a BreadthFirstSearch pass-through.
-  revng_assert(llvm::count_if(Graph.nodes(), HasNoPredecessors) == 1);
+  revng_assert(HasSingleEntryPoint(Graph));
   auto Ranks = rankNodes<RankingStrategy::BreadthFirstSearch>(Graph);
 
   /// A copy of an edge label.
@@ -287,7 +297,7 @@ partitionLongEdges(InternalGraph &Graph, NodeClassifier<Strategy> &Classifier) {
 
   // Calculate real ranks for the remainder of the graph.
   ensureSingleEntry(Graph, &Ranks);
-  revng_assert(llvm::count_if(Graph.nodes(), HasNoPredecessors) == 1);
+  revng_assert(HasSingleEntryPoint(Graph));
   Ranks = rankNodes<Strategy>(Graph);
 
   // Pick new long edges based on the real ranks.
@@ -305,7 +315,7 @@ partitionLongEdges(InternalGraph &Graph, NodeClassifier<Strategy> &Classifier) {
   // is greater than the rank of its predecessors.
   //
   // Eventually, this ranking score becomes a proper hierarchy.
-  revng_assert(llvm::count_if(Graph.nodes(), HasNoPredecessors) == 1);
+  revng_assert(HasSingleEntryPoint(Graph));
   updateRanks(Graph, Ranks);
 
   // Make sure that new long edges are properly broken up.
@@ -314,11 +324,11 @@ partitionLongEdges(InternalGraph &Graph, NodeClassifier<Strategy> &Classifier) {
   for (auto &Edge : NewLongEdges)
     Edge.From->removeSuccessors(Edge.To);
 
-  revng_assert(llvm::count_if(Graph.nodes(), HasNoPredecessors) == 1);
+  revng_assert(HasSingleEntryPoint(Graph));
   updateRanks(Graph, Ranks);
 
   // Remove an artificial entry node if it was ever added.
-  revng_assert(llvm::count_if(Graph.nodes(), HasNoPredecessors) == 1);
+  revng_assert(HasSingleEntryPoint(Graph));
   if (Graph.getEntryNode() != nullptr) {
     if (Graph.getEntryNode()->isVirtual()) {
       Ranks.erase(Graph.getEntryNode());
