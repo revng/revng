@@ -20,9 +20,9 @@ static pipeline::RegisterContainerFactory
 // At the moment revng-pipeline does not support pipes with no inputs, so we
 // had to resort to this trick. Whenever pipes with no inputs are supported
 // BinaryFile can be dropped.
-void ModelToHeaderPipe::run(const pipeline::Context &Ctx,
-                            const FileContainer &BinaryFile,
-                            FileContainer &HeaderFile) {
+void ModelToHeader::run(const pipeline::Context &Ctx,
+                        const FileContainer &BinaryFile,
+                        FileContainer &HeaderFile) {
 
   std::error_code EC;
   llvm::raw_fd_ostream Header(HeaderFile.getOrCreatePath(), EC);
@@ -38,13 +38,13 @@ void ModelToHeaderPipe::run(const pipeline::Context &Ctx,
     revng_abort(EC.message().c_str());
 }
 
-void ModelToHeaderPipe::print(const pipeline::Context &Ctx,
-                              llvm::raw_ostream &OS,
-                              llvm::ArrayRef<std::string> Names) const {
+void ModelToHeader::print(const pipeline::Context &Ctx,
+                          llvm::raw_ostream &OS,
+                          llvm::ArrayRef<std::string> Names) const {
   OS << *revng::ResourceFinder.findFile("bin/revng");
   OS << " model to-header -yaml -i=model.yml -o=" << Names[1] << "\n";
 }
 
 } // end namespace revng::pipes
 
-static pipeline::RegisterPipe<revng::pipes::ModelToHeaderPipe> Y;
+static pipeline::RegisterPipe<revng::pipes::ModelToHeader> Y;

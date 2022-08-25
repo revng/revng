@@ -19,7 +19,7 @@
 
 namespace revng::pipes {
 
-class HelpersToHeaderPipe {
+class HelpersToHeader {
 public:
   static constexpr auto Name = "HelpersToHeader";
 

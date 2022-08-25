@@ -20,7 +20,7 @@
 
 namespace revng::pipes {
 
-class DecompiledYAMLToCPipe {
+class DecompiledYAMLToC {
 public:
   static constexpr auto Name = "DecompiledYAMLToC";
 

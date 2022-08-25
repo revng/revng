@@ -19,22 +19,22 @@ static RegisterFunctionStringMap DecompiledYAML("DecompiledCCodeInYAML",
                                                 "x.yaml.c.decompiled",
                                                 kinds::DecompiledToYAML);
 
-void CDecompilationPipe::run(const pipeline::Context &Ctx,
-                             pipeline::LLVMContainer &IRContainer,
-                             FunctionStringMap &DecompiledFunctions) {
+void CDecompilation::run(const pipeline::Context &Ctx,
+                         pipeline::LLVMContainer &IRContainer,
+                         FunctionStringMap &DecompiledFunctions) {
 
   llvm::Module &Module = IRContainer.getModule();
   const model::Binary &Model = *getModelFromContext(Ctx);
   decompile(Module, Model, DecompiledFunctions);
 }
 
-void CDecompilationPipe::print(const pipeline::Context &Ctx,
-                               llvm::raw_ostream &OS,
-                               llvm::ArrayRef<std::string> Names) const {
+void CDecompilation::print(const pipeline::Context &Ctx,
+                           llvm::raw_ostream &OS,
+                           llvm::ArrayRef<std::string> Names) const {
   OS << *revng::ResourceFinder.findFile("bin/revng");
   OS << " decompile -m model.yml -i " << Names[0] << " -o " << Names[1];
 }
 
 } // end namespace revng::pipes
 
-static pipeline::RegisterPipe<revng::pipes::CDecompilationPipe> Y;
+static pipeline::RegisterPipe<revng::pipes::CDecompilation> Y;

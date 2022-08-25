@@ -20,7 +20,7 @@
 
 namespace revng::pipes {
 
-class CDecompilationPipe {
+class CDecompilation {
 public:
   static constexpr auto Name = "CDecompilation";
 

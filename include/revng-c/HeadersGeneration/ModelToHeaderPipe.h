@@ -19,7 +19,7 @@
 
 namespace revng::pipes {
 
-class ModelToHeaderPipe {
+class ModelToHeader {
 public:
   static constexpr auto Name = "ModelToHeader";
 
