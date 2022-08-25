@@ -14,9 +14,9 @@
 
 namespace revng::pipes {
 
-void YieldControlFlowPipe::run(pipeline::Context &Context,
-                               const FunctionStringMap &Input,
-                               FunctionStringMap &Output) {
+void YieldControlFlow::run(pipeline::Context &Context,
+                           const FunctionStringMap &Input,
+                           FunctionStringMap &Output) {
   // Access the model
   const auto &Model = revng::getModelFromContext(Context);
 
@@ -30,14 +30,13 @@ void YieldControlFlowPipe::run(pipeline::Context &Context,
   }
 }
 
-void YieldControlFlowPipe::print(const pipeline::Context &,
-                                 llvm::raw_ostream &OS,
-                                 llvm::ArrayRef<std::string> Files) const {
+void YieldControlFlow::print(const pipeline::Context &,
+                             llvm::raw_ostream &OS,
+                             llvm::ArrayRef<std::string> Files) const {
   OS << *revng::ResourceFinder.findFile("bin/revng") << " magic ^_^\n";
 }
 
-std::array<pipeline::ContractGroup, 1>
-YieldControlFlowPipe::getContract() const {
+std::array<pipeline::ContractGroup, 1> YieldControlFlow::getContract() const {
   return { pipeline::ContractGroup(kinds::FunctionAssemblyInternal,
                                    pipeline::Exactness::Exact,
                                    0,
@@ -53,4 +52,4 @@ static revng::pipes::RegisterFunctionStringMap
                  "application/x.yaml.cfg.svg-body",
                  revng::kinds::FunctionControlFlowGraphSVG);
 
-static pipeline::RegisterPipe<revng::pipes::YieldControlFlowPipe> CFGPipe;
+static pipeline::RegisterPipe<revng::pipes::YieldControlFlow> CFGPipe;

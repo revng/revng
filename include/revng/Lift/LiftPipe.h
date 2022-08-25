@@ -25,7 +25,7 @@
 
 namespace revng::pipes {
 
-class LiftPipe {
+class Lift {
 public:
   static constexpr auto Name = "Lift";
   std::array<pipeline::ContractGroup, 1> getContract() const {

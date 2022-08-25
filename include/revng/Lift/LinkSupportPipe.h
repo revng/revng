@@ -17,7 +17,7 @@
 
 namespace revng::pipes {
 
-class LinkSupportPipe {
+class LinkSupport {
 public:
   static constexpr auto Name = "LinkSupport";
 

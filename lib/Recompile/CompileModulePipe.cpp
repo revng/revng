@@ -141,17 +141,17 @@ compileModuleRunImpl(LLVMContainer &Module, FileContainer &TargetBinary) {
   fs::setPermissions(*TargetBinary.path(), Permissions);
 }
 
-void CompileModulePipe::run(const Context &,
-                            LLVMContainer &Module,
-                            FileContainer &TargetBinary) {
+void CompileModule::run(const Context &,
+                        LLVMContainer &Module,
+                        FileContainer &TargetBinary) {
   compileModuleRunImpl(Module, TargetBinary);
 }
 
-void CompileIsolatedModulePipe::run(const Context &,
-                                    LLVMContainer &Module,
-                                    FileContainer &TargetBinary) {
+void CompileIsolatedModule::run(const Context &,
+                                LLVMContainer &Module,
+                                FileContainer &TargetBinary) {
   compileModuleRunImpl(Module, TargetBinary);
 }
 
-static RegisterPipe<CompileModulePipe> E2;
-static RegisterPipe<CompileIsolatedModulePipe> E3;
+static RegisterPipe<CompileModule> E2;
+static RegisterPipe<CompileIsolatedModule> E3;

@@ -18,10 +18,10 @@
 
 namespace revng::pipes {
 
-void ProcessAssemblyPipe::run(pipeline::Context &Context,
-                              const FileContainer &SourceBinary,
-                              const pipeline::LLVMContainer &TargetList,
-                              FunctionStringMap &Output) {
+void ProcessAssembly::run(pipeline::Context &Context,
+                          const FileContainer &SourceBinary,
+                          const pipeline::LLVMContainer &TargetList,
+                          FunctionStringMap &Output) {
   if (not SourceBinary.exists())
     return;
 
@@ -52,14 +52,13 @@ void ProcessAssemblyPipe::run(pipeline::Context &Context,
   }
 }
 
-void ProcessAssemblyPipe::print(const pipeline::Context &,
-                                llvm::raw_ostream &OS,
-                                llvm::ArrayRef<std::string> Files) const {
+void ProcessAssembly::print(const pipeline::Context &,
+                            llvm::raw_ostream &OS,
+                            llvm::ArrayRef<std::string> Files) const {
   OS << *revng::ResourceFinder.findFile("bin/revng") << " magic ^_^\n";
 }
 
-std::array<pipeline::ContractGroup, 1>
-ProcessAssemblyPipe::getContract() const {
+std::array<pipeline::ContractGroup, 1> ProcessAssembly::getContract() const {
   pipeline::Contract BinaryContract(kinds::Binary,
                                     pipeline::Exactness::Exact,
                                     0,
@@ -76,9 +75,9 @@ ProcessAssemblyPipe::getContract() const {
                                     std::move(FunctionContract) } };
 }
 
-void YieldAssemblyPipe::run(pipeline::Context &Context,
-                            const FunctionStringMap &Input,
-                            FunctionStringMap &Output) {
+void YieldAssembly::run(pipeline::Context &Context,
+                        const FunctionStringMap &Input,
+                        FunctionStringMap &Output) {
   // Access the model
   const auto &Model = getModelFromContext(Context);
 
@@ -93,13 +92,13 @@ void YieldAssemblyPipe::run(pipeline::Context &Context,
   }
 }
 
-void YieldAssemblyPipe::print(const pipeline::Context &,
-                              llvm::raw_ostream &OS,
-                              llvm::ArrayRef<std::string> Files) const {
+void YieldAssembly::print(const pipeline::Context &,
+                          llvm::raw_ostream &OS,
+                          llvm::ArrayRef<std::string> Files) const {
   OS << *revng::ResourceFinder.findFile("bin/revng") << " magic ^_^\n";
 }
 
-std::array<pipeline::ContractGroup, 1> YieldAssemblyPipe::getContract() const {
+std::array<pipeline::ContractGroup, 1> YieldAssembly::getContract() const {
   return { pipeline::ContractGroup(kinds::FunctionAssemblyInternal,
                                    pipeline::Exactness::Exact,
                                    0,
@@ -119,5 +118,5 @@ static revng::pipes::RegisterFunctionStringMap
                 "application/x.yaml.function-assembly.ptml-body",
                 revng::kinds::FunctionAssemblyPTML);
 
-static pipeline::RegisterPipe<revng::pipes::ProcessAssemblyPipe> ProcessPipe;
-static pipeline::RegisterPipe<revng::pipes::YieldAssemblyPipe> YieldPipe;
+static pipeline::RegisterPipe<revng::pipes::ProcessAssembly> ProcessPipe;
+static pipeline::RegisterPipe<revng::pipes::YieldAssembly> YieldPipe;

@@ -19,7 +19,7 @@
 
 namespace revng::pipes {
 
-class LinkForTranslationPipe {
+class LinkForTranslation {
 public:
   static constexpr auto Name = "LinkForTranslation";
 

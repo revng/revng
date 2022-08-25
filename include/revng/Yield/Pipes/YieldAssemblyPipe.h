@@ -15,7 +15,7 @@
 
 namespace revng::pipes {
 
-class YieldAssemblyPipe {
+class YieldAssembly {
 public:
   static constexpr const auto Name = "YieldAssembly";
 

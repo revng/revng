@@ -22,7 +22,7 @@
 
 namespace revng::pipes {
 
-class CompileModulePipe {
+class CompileModule {
 public:
   static constexpr auto Name = "Compile";
   std::array<pipeline::ContractGroup, 1> getContract() const {
@@ -45,7 +45,7 @@ public:
   };
 };
 
-class CompileIsolatedModulePipe {
+class CompileIsolatedModule {
 public:
   static constexpr auto Name = "CompileIsolated";
   std::array<pipeline::ContractGroup, 1> getContract() const {

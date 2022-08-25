@@ -16,9 +16,9 @@
 
 namespace revng::pipes {
 
-void ProcessCallGraphPipe::run(pipeline::Context &Context,
-                               const pipeline::LLVMContainer &TargetList,
-                               FileContainer &OutputFile) {
+void ProcessCallGraph::run(pipeline::Context &Context,
+                           const pipeline::LLVMContainer &TargetList,
+                           FileContainer &OutputFile) {
   // Access the model
   const auto &Model = getModelFromContext(Context);
 
@@ -48,14 +48,13 @@ void ProcessCallGraphPipe::run(pipeline::Context &Context,
     revng_abort(ErrorCode.message().c_str());
 }
 
-void ProcessCallGraphPipe::print(const pipeline::Context &,
-                                 llvm::raw_ostream &OS,
-                                 llvm::ArrayRef<std::string>) const {
+void ProcessCallGraph::print(const pipeline::Context &,
+                             llvm::raw_ostream &OS,
+                             llvm::ArrayRef<std::string>) const {
   OS << *revng::ResourceFinder.findFile("bin/revng") << " magic ^_^\n";
 }
 
-std::array<pipeline::ContractGroup, 1>
-ProcessCallGraphPipe::getContract() const {
+std::array<pipeline::ContractGroup, 1> ProcessCallGraph::getContract() const {
   return { pipeline::ContractGroup(kinds::IsolatedRoot,
                                    pipeline::Exactness::Exact,
                                    0,
@@ -73,6 +72,6 @@ static pipeline::RegisterContainerFactory
 static pipeline::RegisterRole
   Role("BinaryCrossRelations", kinds::BinaryCrossRelationsRole);
 
-static pipeline::RegisterPipe<ProcessCallGraphPipe> ProcessPipe;
+static pipeline::RegisterPipe<ProcessCallGraph> ProcessPipe;
 
 } // end namespace revng::pipes

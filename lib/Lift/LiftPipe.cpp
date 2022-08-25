@@ -26,9 +26,9 @@ using namespace llvm;
 using namespace pipeline;
 using namespace ::revng::pipes;
 
-void LiftPipe::run(Context &Ctx,
-                   const FileContainer &SourceBinary,
-                   LLVMContainer &TargetsList) {
+void Lift::run(Context &Ctx,
+               const FileContainer &SourceBinary,
+               LLVMContainer &TargetsList) {
   if (not SourceBinary.exists())
     return;
 
@@ -46,8 +46,8 @@ void LiftPipe::run(Context &Ctx,
   PM.run(TargetsList.getModule());
 }
 
-llvm::Error LiftPipe::checkPrecondition(const pipeline::Context &Ctx) const {
+llvm::Error Lift::checkPrecondition(const pipeline::Context &Ctx) const {
   return llvm::Error::success();
 }
 
-static RegisterPipe<LiftPipe> E1;
+static RegisterPipe<Lift> E1;
