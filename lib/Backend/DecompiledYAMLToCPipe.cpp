@@ -9,6 +9,8 @@
 #include "revng-c/Backend/DecompiledYAMLToCPipe.h"
 #include "revng-c/Pipes/Kinds.h"
 
+using namespace revng::kinds;
+
 namespace revng::pipes {
 
 using RegFactory = pipeline::RegisterContainerFactory;

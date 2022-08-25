@@ -12,9 +12,8 @@ namespace revng::pipes {
 
 static pipeline::RegisterContainerFactory
   ModelHeaderFactory("ModelHeader",
-                     makeFileContainerFactory(ModelHeader,
-                                              "text/plain"
-                                              ".h"));
+                     makeFileContainerFactory(kinds::ModelHeader,
+                                              "text/plain.h"));
 
 // TODO: BinaryFile here is a placeholder. In principle this pipe has no real
 // input container. It just juses the model in Ctx to generated HeaderFile.

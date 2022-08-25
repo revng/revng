@@ -79,7 +79,7 @@ int main(int Argc, const char *Argv[]) {
   FunctionStringMap Functions("" /*Name*/,
                               "application/"
                               "x.yaml.c.decompiled",
-                              revng::pipes::DecompiledToYAML,
+                              revng::kinds::DecompiledToYAML,
                               Model);
 
   // Deserialize the map

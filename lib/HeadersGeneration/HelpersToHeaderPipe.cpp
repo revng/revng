@@ -11,15 +11,14 @@ namespace revng::pipes {
 
 static pipeline::RegisterContainerFactory
   HelpersHeaderFactory("HelpersHeader",
-                       makeFileContainerFactory(HelpersHeader,
-                                                "text/plain"
-                                                ".h"));
+                       makeFileContainerFactory(kinds::HelpersHeader,
+                                                "text/plain.h"));
 
 void HelpersToHeaderPipe::run(const pipeline::Context &Ctx,
                               pipeline::LLVMContainer &IRContainer,
                               FileContainer &HeaderFile) {
   auto HasAllFunctions = [](const pipeline::Target &Target) {
-    return &Target.getKind() == &StackAccessesSegregated
+    return &Target.getKind() == &kinds::StackAccessesSegregated
            and Target.getPathComponents().back().isAll();
   };
 

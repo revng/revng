@@ -86,11 +86,11 @@ public:
   static constexpr auto Name = "dla";
 
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {
-    { &revng::pipes::StackAccessesSegregated }
+    { &revng::kinds::StackAccessesSegregated }
   };
 
   void run(pipeline::Context &Ctx, pipeline::LLVMContainer &Module) {
-    using namespace revng::pipes;
+    using namespace revng;
 
     llvm::legacy::PassManager Manager;
     auto Global = llvm::cantFail(Ctx.getGlobal<ModelGlobal>(ModelGlobalName));

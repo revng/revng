@@ -9,7 +9,7 @@
 
 #include "revng-c/Support/FunctionTags.h"
 
-namespace revng::pipes {
+namespace revng::kinds {
 
 inline TaggedFunctionKind
   LiftingArtifactsRemoved("LiftingArtifactsRemoved",
@@ -34,4 +34,4 @@ inline pipeline::Kind HelpersHeader("HelpersHeader", Binary, &ranks::Binary);
 
 inline pipeline::Kind DecompiledToC("DecompiledToC", Binary, &ranks::Binary);
 
-} // end namespace revng::pipes
+} // namespace revng::kinds
