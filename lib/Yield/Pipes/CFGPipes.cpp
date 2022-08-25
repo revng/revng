@@ -18,7 +18,7 @@ void YieldControlFlowPipe::run(pipeline::Context &Context,
                                const FunctionStringMap &Input,
                                FunctionStringMap &Output) {
   // Access the model
-  const auto &Model = revng::pipes::getModelFromContext(Context);
+  const auto &Model = revng::getModelFromContext(Context);
 
   for (auto [Address, S] : Input) {
     auto MaybeFunction = TupleTree<yield::Function>::deserialize(S);
@@ -38,10 +38,10 @@ void YieldControlFlowPipe::print(const pipeline::Context &,
 
 std::array<pipeline::ContractGroup, 1>
 YieldControlFlowPipe::getContract() const {
-  return { pipeline::ContractGroup(FunctionAssemblyInternal,
+  return { pipeline::ContractGroup(kinds::FunctionAssemblyInternal,
                                    pipeline::Exactness::Exact,
                                    0,
-                                   FunctionControlFlowGraphSVG,
+                                   kinds::FunctionControlFlowGraphSVG,
                                    1,
                                    pipeline::InputPreservation::Preserve) };
 }
@@ -51,6 +51,6 @@ YieldControlFlowPipe::getContract() const {
 static revng::pipes::RegisterFunctionStringMap
   GraphContainer("FunctionControlFlowGraphSVG",
                  "application/x.yaml.cfg.svg-body",
-                 revng::pipes::FunctionControlFlowGraphSVG);
+                 revng::kinds::FunctionControlFlowGraphSVG);
 
 static pipeline::RegisterPipe<revng::pipes::YieldControlFlowPipe> CFGPipe;

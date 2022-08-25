@@ -10,7 +10,7 @@
 #include "revng/Pipes/RootKind.h"
 #include "revng/Pipes/TaggedFunctionKind.h"
 
-namespace revng::pipes {
+namespace revng::kinds {
 
 inline pipeline::Kind Binary("Binary", &ranks::Binary);
 
@@ -39,4 +39,4 @@ inline pipeline::Kind
 
 inline constexpr auto BinaryCrossRelationsRole = "CrossRelations";
 
-} // namespace revng::pipes
+} // namespace revng::kinds

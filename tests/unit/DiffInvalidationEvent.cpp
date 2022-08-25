@@ -15,7 +15,7 @@ bool init_unit_test();
 
 #include "revng/UnitTestHelpers/UnitTestHelpers.h"
 
-using namespace revng::pipes;
+using namespace revng::kinds;
 using namespace pipeline;
 
 BOOST_AUTO_TEST_SUITE(ModelInvalidationDiffSuite)

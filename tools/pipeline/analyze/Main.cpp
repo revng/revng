@@ -37,6 +37,7 @@ using namespace llvm;
 using namespace llvm::cl;
 using namespace pipeline;
 using namespace ::revng::pipes;
+using namespace revng;
 
 static cl::list<string> Arguments(Positional,
                                   ZeroOrMore,
@@ -61,7 +62,7 @@ static ExitOnError AbortOnError;
 
 static TupleTreeGlobal<model::Binary> &getModel(PipelineManager &Manager) {
   auto &Context = Manager.context();
-  const auto &ModelName = ModelGlobalName;
+  const auto &ModelName = revng::ModelGlobalName;
   auto *FinalModel = AbortOnError(Context.getGlobal<ModelGlobal>(ModelName));
   revng_assert(FinalModel != nullptr);
   return *FinalModel;
@@ -80,8 +81,8 @@ getStepOfAnalysis(pipeline::Runner &Runner, llvm::StringRef AnalysisName) {
 
 static llvm::Error
 overrideModel(PipelineManager &Manager, TupleTree<model::Binary> NewModel) {
-  const auto &Name = ModelGlobalName;
-  auto *Model(cantFail(Manager.context().getGlobal<ModelGlobal>(Name)));
+  const auto &Name = revng::ModelGlobalName;
+  auto *Model(cantFail(Manager.context().getGlobal<revng::ModelGlobal>(Name)));
   Model->get() = std::move(NewModel);
   return llvm::Error::success();
 }

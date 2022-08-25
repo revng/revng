@@ -26,7 +26,7 @@ void ProcessAssemblyPipe::run(pipeline::Context &Context,
     return;
 
   // Access the model
-  const auto &Model = revng::pipes::getModelFromContext(Context);
+  const auto &Model = getModelFromContext(Context);
 
   // Access the binary
   revng_assert(SourceBinary.path().has_value());
@@ -60,15 +60,15 @@ void ProcessAssemblyPipe::print(const pipeline::Context &,
 
 std::array<pipeline::ContractGroup, 1>
 ProcessAssemblyPipe::getContract() const {
-  pipeline::Contract BinaryContract(Binary,
+  pipeline::Contract BinaryContract(kinds::Binary,
                                     pipeline::Exactness::Exact,
                                     0,
                                     pipeline::InputPreservation::Preserve);
 
-  pipeline::Contract FunctionContract(Isolated,
+  pipeline::Contract FunctionContract(kinds::Isolated,
                                       pipeline::Exactness::Exact,
                                       1,
-                                      FunctionAssemblyInternal,
+                                      kinds::FunctionAssemblyInternal,
                                       2,
                                       pipeline::InputPreservation::Preserve);
 
@@ -80,7 +80,7 @@ void YieldAssemblyPipe::run(pipeline::Context &Context,
                             const FunctionStringMap &Input,
                             FunctionStringMap &Output) {
   // Access the model
-  const auto &Model = revng::pipes::getModelFromContext(Context);
+  const auto &Model = getModelFromContext(Context);
 
   for (auto [Address, S] : Input) {
     auto MaybeFunction = TupleTree<yield::Function>::deserialize(S);
@@ -100,10 +100,10 @@ void YieldAssemblyPipe::print(const pipeline::Context &,
 }
 
 std::array<pipeline::ContractGroup, 1> YieldAssemblyPipe::getContract() const {
-  return { pipeline::ContractGroup(FunctionAssemblyInternal,
+  return { pipeline::ContractGroup(kinds::FunctionAssemblyInternal,
                                    pipeline::Exactness::Exact,
                                    0,
-                                   FunctionAssemblyPTML,
+                                   kinds::FunctionAssemblyPTML,
                                    1,
                                    pipeline::InputPreservation::Preserve) };
 }
@@ -113,11 +113,11 @@ std::array<pipeline::ContractGroup, 1> YieldAssemblyPipe::getContract() const {
 static revng::pipes::RegisterFunctionStringMap
   InternalContainer("FunctionAssemblyInternal",
                     "application/x.yaml.function-assembly.internal",
-                    revng::pipes::FunctionAssemblyInternal);
+                    revng::kinds::FunctionAssemblyInternal);
 static revng::pipes::RegisterFunctionStringMap
   PTMLContainer("FunctionAssemblyPTML",
                 "application/x.yaml.function-assembly.ptml-body",
-                revng::pipes::FunctionAssemblyPTML);
+                revng::kinds::FunctionAssemblyPTML);
 
 static pipeline::RegisterPipe<revng::pipes::ProcessAssemblyPipe> ProcessPipe;
 static pipeline::RegisterPipe<revng::pipes::YieldAssemblyPipe> YieldPipe;

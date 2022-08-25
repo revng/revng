@@ -20,7 +20,7 @@ void ProcessCallGraphPipe::run(pipeline::Context &Context,
                                const pipeline::LLVMContainer &TargetList,
                                FileContainer &OutputFile) {
   // Access the model
-  const auto &Model = revng::pipes::getModelFromContext(Context);
+  const auto &Model = getModelFromContext(Context);
 
   // Access the llvm module
   const llvm::Module &Module = TargetList.getModule();
@@ -56,22 +56,22 @@ void ProcessCallGraphPipe::print(const pipeline::Context &,
 
 std::array<pipeline::ContractGroup, 1>
 ProcessCallGraphPipe::getContract() const {
-  return { pipeline::ContractGroup(IsolatedRoot,
+  return { pipeline::ContractGroup(kinds::IsolatedRoot,
                                    pipeline::Exactness::Exact,
                                    0,
-                                   BinaryCrossRelations,
+                                   kinds::BinaryCrossRelations,
                                    1,
                                    pipeline::InputPreservation::Preserve) };
 }
 
 static pipeline::RegisterContainerFactory
   InternalContainer("BinaryCrossRelations",
-                    makeFileContainerFactory(BinaryCrossRelations,
+                    makeFileContainerFactory(kinds::BinaryCrossRelations,
                                              "application/"
                                              "x.yaml.cross-relations"));
 
 static pipeline::RegisterRole
-  Role("BinaryCrossRelations", BinaryCrossRelationsRole);
+  Role("BinaryCrossRelations", kinds::BinaryCrossRelationsRole);
 
 static pipeline::RegisterPipe<ProcessCallGraphPipe> ProcessPipe;
 

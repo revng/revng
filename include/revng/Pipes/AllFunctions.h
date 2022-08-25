@@ -8,11 +8,11 @@
 #include "revng/Pipeline/Kind.h"
 #include "revng/Pipeline/Target.h"
 
-namespace revng::pipes {
+namespace revng::kinds {
 
 pipeline::TargetsList
 compactFunctionTargets(const TupleTree<model::Binary> &Model,
                        pipeline::TargetsList::List &Targets,
                        const pipeline::Kind &K);
 
-} // end namespace revng::pipes
+} // namespace revng::kinds

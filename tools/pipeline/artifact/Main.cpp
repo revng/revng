@@ -30,6 +30,7 @@ using namespace llvm;
 using namespace llvm::cl;
 using namespace pipeline;
 using namespace ::revng::pipes;
+using namespace ::revng;
 
 static cl::list<string> Arguments(Positional,
                                   ZeroOrMore,
@@ -137,7 +138,7 @@ int main(int argc, const char *argv[]) {
 
   if (not SaveModel.empty()) {
     auto Context = Manager.context();
-    const auto &ModelName = ModelGlobalName;
+    const auto &ModelName = revng::ModelGlobalName;
     auto FinalModel = AbortOnError(Context.getGlobal<ModelGlobal>(ModelName));
     AbortOnError(FinalModel->storeToDisk(SaveModel));
   }

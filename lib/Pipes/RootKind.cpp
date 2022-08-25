@@ -19,7 +19,7 @@
 #include "revng/TupleTree/Visits.h"
 
 using namespace pipeline;
-using namespace ::revng::pipes;
+using namespace ::revng::kinds;
 
 std::optional<Target>
 RootKind::symbolToTarget(const llvm::Function &Symbol) const {

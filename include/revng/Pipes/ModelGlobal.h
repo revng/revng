@@ -18,7 +18,7 @@
 #include "revng/Pipeline/Target.h"
 #include "revng/TupleTree/TupleTree.h"
 
-namespace revng::pipes {
+namespace revng {
 constexpr static const char *ModelGlobalName = "model.yml";
 using ModelGlobal = pipeline::TupleTreeGlobal<model::Binary>;
 
@@ -36,4 +36,4 @@ getWritableModelFromContext(pipeline::Context &Ctx) {
   return Model->get();
 }
 
-} // namespace revng::pipes
+} // namespace revng

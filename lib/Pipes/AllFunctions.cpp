@@ -10,7 +10,7 @@
 #include "revng/Pipes/AllFunctions.h"
 #include "revng/TupleTree/TupleTree.h"
 
-namespace revng::pipes {
+namespace revng::kinds {
 
 pipeline::TargetsList
 compactFunctionTargets(const TupleTree<model::Binary> &Model,
@@ -44,4 +44,4 @@ compactFunctionTargets(const TupleTree<model::Binary> &Model,
   return Targets;
 }
 
-} // end namespace revng::pipes
+} // namespace revng::kinds

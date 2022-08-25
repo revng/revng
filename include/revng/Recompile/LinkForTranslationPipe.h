@@ -24,16 +24,16 @@ public:
   static constexpr auto Name = "LinkForTranslation";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
-    pipeline::Contract BinaryPart(Binary,
+    pipeline::Contract BinaryPart(kinds::Binary,
                                   pipeline::Exactness::Exact,
                                   0,
-                                  Translated,
+                                  kinds::Translated,
                                   2,
                                   pipeline::InputPreservation::Preserve);
-    pipeline::Contract ObjectPart(Object,
+    pipeline::Contract ObjectPart(kinds::Object,
                                   pipeline::Exactness::Exact,
                                   1,
-                                  Translated,
+                                  kinds::Translated,
                                   2,
                                   pipeline::InputPreservation::Preserve);
     return { pipeline::ContractGroup({ BinaryPart, ObjectPart }) };

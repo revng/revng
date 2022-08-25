@@ -14,7 +14,7 @@
 #include "revng/TupleTree/TupleTreeDiff.h"
 #include "revng/TupleTree/TupleTreePath.h"
 
-namespace revng::pipes {
+namespace revng::kinds {
 
 class RootKind : public pipeline::LLVMKind {
 public:
@@ -49,4 +49,4 @@ public:
   symbolToTarget(const llvm::Function &Symbol) const override;
 };
 
-} // namespace revng::pipes
+} // namespace revng::kinds

@@ -18,7 +18,7 @@ CR::CrossRelations(const SortedVector<efa::FunctionMetadata> &Metadata,
                    const model::Binary &Binary) {
   revng_assert(Metadata.size() == Binary.Functions.size());
 
-  namespace ranks = revng::pipes::ranks;
+  namespace ranks = revng::ranks;
 
   for (auto Inserter = Relations.batch_insert();
        const auto &Function : Binary.Functions) {
@@ -102,7 +102,7 @@ yield::Graph yield::CrossRelations::toYieldGraph() const {
 
   std::unordered_map<std::string_view, yield::Graph::Node *> LookupHelper;
 
-  namespace ranks = revng::pipes::ranks;
+  namespace ranks = revng::ranks;
   namespace p = pipeline;
   auto AddNode = [&Result, &LookupHelper](std::string_view Location) {
     auto MaybeAddress = p::genericLocationFromString<0>(Location,

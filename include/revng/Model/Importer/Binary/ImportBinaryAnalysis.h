@@ -20,7 +20,7 @@ public:
 
 public:
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {
-    { &revng::pipes::Binary }
+    { &revng::kinds::Binary }
   };
 
 public:

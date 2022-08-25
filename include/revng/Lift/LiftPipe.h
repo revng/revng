@@ -29,10 +29,10 @@ class LiftPipe {
 public:
   static constexpr auto Name = "Lift";
   std::array<pipeline::ContractGroup, 1> getContract() const {
-    return { pipeline::ContractGroup(Binary,
+    return { pipeline::ContractGroup(kinds::Binary,
                                      pipeline::Exactness::Exact,
                                      0,
-                                     Root,
+                                     kinds::Root,
                                      1,
                                      pipeline::InputPreservation::Preserve) };
   }

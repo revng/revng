@@ -53,19 +53,19 @@ public:
 };
 
 static Context setUpContext(LLVMContext &Context) {
-  const auto &ModelName = ModelGlobalName;
+  const auto &ModelName = revng::ModelGlobalName;
   class Context Ctx;
 
-  Ctx.addGlobal<ModelGlobal>(ModelName);
+  Ctx.addGlobal<revng::ModelGlobal>(ModelName);
   Ctx.addExternalContext("LLVMContext", Context);
   return Ctx;
 }
 
 static llvm::Error
 pipelineConfigurationCallback(const Loader &Loader, LLVMPipe &NewPass) {
-  using Wrapper = ModelGlobal;
+  using Wrapper = revng::ModelGlobal;
   auto &Context = Loader.getContext();
-  auto MaybeModelWrapper = Context.getGlobal<Wrapper>(ModelGlobalName);
+  auto MaybeModelWrapper = Context.getGlobal<Wrapper>(revng::ModelGlobalName);
   if (not MaybeModelWrapper)
     return MaybeModelWrapper.takeError();
 

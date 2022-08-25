@@ -81,7 +81,7 @@ public:
   static constexpr auto Name = "DetectABI";
 
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {
-    { &revng::pipes::Root }
+    { &revng::kinds::Root }
   };
 
   void print(const pipeline::Context &Ctx,

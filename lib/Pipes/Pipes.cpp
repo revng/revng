@@ -41,6 +41,7 @@
 using namespace std;
 using namespace pipeline;
 using namespace ::revng::pipes;
+using namespace ::revng::kinds;
 
 namespace revng::pipes {
 

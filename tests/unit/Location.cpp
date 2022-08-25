@@ -13,7 +13,7 @@ bool init_unit_test();
 BOOST_AUTO_TEST_SUITE(RevngLocationInfrastructure);
 
 BOOST_AUTO_TEST_CASE(DefinitionStyles) {
-  namespace ranks = revng::pipes::ranks;
+  namespace ranks = revng::ranks;
 
   const MetaAddress A0 = MetaAddress::fromString("0x1:Generic64");
   const MetaAddress A1 = MetaAddress::fromString("0x2:Generic64");
@@ -29,7 +29,7 @@ BOOST_AUTO_TEST_CASE(DefinitionStyles) {
 }
 
 BOOST_AUTO_TEST_CASE(MetaAddressAsTheKey) {
-  namespace ranks = revng::pipes::ranks;
+  namespace ranks = revng::ranks;
 
   const MetaAddress A0 = MetaAddress::fromString("0x123:Generic64");
   const MetaAddress A1 = MetaAddress::fromString("0x456:Generic64");
@@ -65,7 +65,7 @@ BOOST_AUTO_TEST_CASE(TypeIDAsTheKey) {
   TupleTree<model::Binary> NewModel;
   auto Function = makeFunction(*NewModel);
 
-  namespace ranks = revng::pipes::ranks;
+  namespace ranks = revng::ranks;
   auto FieldLocation = pipeline::location(ranks::TypeField,
                                           Function.get()->key(),
                                           2);
@@ -90,7 +90,7 @@ BOOST_AUTO_TEST_CASE(Serialization) {
   };
 
   using pipeline::locationFromString;
-  namespace ranks = revng::pipes::ranks;
+  namespace ranks = revng::ranks;
   for (auto TestCase : TestCases) {
     bool ParsedOnce = false;
 

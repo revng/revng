@@ -45,13 +45,15 @@ static cl::opt<char> OptLevel("compile-opt-level",
 
 static void
 compileModuleRunImpl(LLVMContainer &Module, FileContainer &TargetBinary) {
+  using namespace revng;
+
   auto Enumeration = Module.enumerate();
-  if (not Enumeration.contains(pipeline::Target(Root))
-      and not Enumeration.contains(pipeline::Target(IsolatedRoot)))
+  if (not Enumeration.contains(pipeline::Target(kinds::Root))
+      and not Enumeration.contains(pipeline::Target(kinds::IsolatedRoot)))
     return;
 
-  if (Enumeration.contains(pipeline::Target(IsolatedRoot))
-      and not Enumeration.contains(pipeline::Target(Isolated)))
+  if (Enumeration.contains(pipeline::Target(kinds::IsolatedRoot))
+      and not Enumeration.contains(pipeline::Target(kinds::Isolated)))
     return;
 
   StringMap<llvm::cl::Option *> &RegOptions(getRegisteredOptions());

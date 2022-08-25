@@ -27,7 +27,7 @@
 #include "revng/Support/MetaAddress.h"
 
 using namespace pipeline;
-using namespace ::revng::pipes;
+using namespace ::revng::kinds;
 using namespace llvm;
 
 void TaggedFunctionKind::expandTarget(const Context &Ctx,
@@ -56,7 +56,7 @@ void TaggedFK::getInvalidations(const Context &Ctx,
     return;
 
   static constexpr auto BCRR = BinaryCrossRelationsRole;
-  const auto &Container = Ctx.getReadOnlyContainer<FileContainer>(BCRR);
+  const auto &Container = Ctx.getReadOnlyContainer<pipes::FileContainer>(BCRR);
 
   const auto *ModelDiff = Diff.getAs<model::Binary>();
   if (not ModelDiff)
