@@ -5,12 +5,12 @@
 revng_add_library_internal(
   revngPipes
   SHARED
-  AddPrimitiveTypesPipe.cpp
+  AddPrimitiveTypesAnalysis.cpp
   AllFunctions.cpp
   CompileModulePipe.cpp
   FileContainer.cpp
   FunctionStringMap.cpp
-  ImportBinaryPipe.cpp
+  ImportBinaryAnalysis.cpp
   LiftPipe.cpp
   LinkSupportPipe.cpp
   PipelineManager.cpp

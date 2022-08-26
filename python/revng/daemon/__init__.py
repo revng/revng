@@ -23,7 +23,7 @@ from revng.api._capi import initialize as capi_initialize
 
 from .demo_webpage import demo_page, production_demo_page
 from .manager import make_manager
-from .schema_generator import SchemaGen
+from .schema_generator import SchemaGenerator
 from .util import project_workdir
 
 workdir: Path = project_workdir()
@@ -63,7 +63,7 @@ def startup():
     app.mount(
         "/graphql",
         GraphQL(
-            SchemaGen().get_schema(manager),
+            SchemaGenerator().get_schema(manager),
             context_value={"manager": manager, "workdir": workdir},
             extensions=[ApolloTracingExtension],
             debug=DEBUG,

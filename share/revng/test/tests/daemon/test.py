@@ -6,6 +6,7 @@
 
 import io
 import os
+import socket
 from subprocess import Popen
 from time import sleep
 from typing import Generator
@@ -14,7 +15,6 @@ from urllib.request import urlopen
 
 from gql import Client, gql
 from gql.transport.requests import RequestsHTTPTransport
-from psutil import Process
 from pytest import Config, fixture, mark
 
 FILTER_ENV = [
@@ -30,16 +30,6 @@ def print_fd(fd: int):
     os.lseek(fd, 0, io.SEEK_SET)
     out_read = os.fdopen(fd, "r")
     print(out_read.read())
-
-
-def get_listen_port(pid: int) -> int:
-    psutil_process = Process(pid)
-    while True:
-        connections = psutil_process.connections()
-        for connection in connections:
-            if connection.raddr == () and connection.status == "LISTEN":
-                return connection.laddr.port
-        sleep(0.5)
 
 
 def check_server_up(port: int):
@@ -60,8 +50,12 @@ def client(pytestconfig: Config, request) -> Generator[Client, None, None]:
     out = os.fdopen(out_fd, "w")
 
     new_env = {k: v for k, v in os.environ.items() if k not in FILTER_ENV}
-    process = Popen(["revng", "daemon", "-p", "0"], stdout=out, stderr=out, text=True, env=new_env)
-    port = get_listen_port(process.pid)
+    ephemeral_socket = socket.create_server(("127.0.0.1", 0))
+    port = ephemeral_socket.getsockname()[1]
+    ephemeral_socket.close()
+    process = Popen(
+        ["revng", "daemon", "-p", str(port)], stdout=out, stderr=out, text=True, env=new_env
+    )
 
     try:
         check_server_up(port)
@@ -159,34 +153,33 @@ def test_info_global(client):
     assert model["content"] == model_content
 
 
-def test_lift(client):
-    q = gql(
-        """
-    {
-        binary {
-            lift
+def run_preliminary_analyses(client):
+    client.execute(
+        gql(
+            """
+    mutation {
+        analyses {
+            Import {
+                ImportBinary(input: ":Binary"),
+                AddPrimitiveTypes(input: ":Binary")
+            }
         }
     }
     """
+        )
     )
 
-    result = client.execute(q)
 
-    assert result["binary"]["lift"] is not None
+def test_lift(client):
+    run_preliminary_analyses(client)
+
+    result = client.execute(gql("{ binary { Lift } }"))
+    assert result["binary"]["Lift"] is not None
 
 
 @mark.xfail(raises=Exception)
 def test_lift_ready_fail(client):
-    q = gql(
-        """
-    {
-        binary {
-            lift(onlyIfReady: true)
-        }
-    }
-    """
-    )
-    client.execute(q)
+    client.execute(gql("{ binary { Lift(onlyIfReady: true) } }"))
 
 
 @mark.xfail(raises=Exception)
@@ -211,7 +204,7 @@ def test_valid_steps(client):
             name
             parent
         }
-        lift: step(name: "Lift") {
+        import: step(name: "Import") {
             name
             parent
         }
@@ -223,8 +216,8 @@ def test_valid_steps(client):
     assert result["begin"]["name"] == "begin"
     assert result["begin"]["parent"] is None
 
-    assert result["lift"]["name"] == "Lift"
-    assert result["lift"]["parent"] == "begin"
+    assert result["import"]["name"] == "Import"
+    assert result["import"]["parent"] == "begin"
 
 
 def test_begin_has_containers(client):
@@ -255,18 +248,8 @@ def test_begin_has_containers(client):
 
 
 def test_get_model(client):
-    client.execute(gql("{binary{lift}}"))
-
-    q = gql(
-        """
-    {
-        info {
-            model
-        }
-    }
-    """
-    )
-    result = client.execute(q)
+    test_lift(client)
+    result = client.execute(gql("{ info { model } }"))
 
     assert result["info"]["model"] is not None
 
@@ -335,6 +318,8 @@ def test_targets(client):
 
 
 def test_produce(client):
+    run_preliminary_analyses(client)
+
     q = gql(
         """
     {
@@ -348,6 +333,8 @@ def test_produce(client):
 
 
 def test_produce_artifact(client):
+    run_preliminary_analyses(client)
+
     q = gql(
         """
     {
@@ -361,13 +348,15 @@ def test_produce_artifact(client):
 
 
 def test_function_endpoint(client):
+    run_preliminary_analyses(client)
+
     client.execute(
         gql(
             """
     mutation {
         analyses {
-            lift {
-                detectABI(module_ll: ":Root")
+            Lift {
+                DetectABI(module_ll: ":Root")
             }
         }
     }
@@ -393,14 +382,14 @@ def test_function_endpoint(client):
         """
     query function($param1: String!) {
         function(param1: $param1) {
-            isolate
+            Isolate
         }
     }
     """
     )
     result = client.execute(q, {"param1": first_function["serialized"]})
 
-    assert result["function"]["isolate"] is not None
+    assert result["function"]["Isolate"] is not None
 
 
 @mark.xfail(raises=Exception)
@@ -410,8 +399,8 @@ def test_analysis_kind_check(client):
             """
     mutation {
         analyses {
-            lift {
-                detectABI(module_ll: ":IsolatedRoot")
+            Lift {
+                DetectABI(module_ll: ":IsolatedRoot")
             }
         }
     }

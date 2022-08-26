@@ -2,7 +2,6 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-from collections import defaultdict
 from pathlib import Path
 from typing import Dict, Generator, Iterable, List, Optional, Union
 
@@ -105,9 +104,12 @@ class Manager:
             targets = target
         _step = step._step
         _container = container._container
-        _api.rp_manager_produce_targets(
+        product = _api.rp_manager_produce_targets(
             self._manager, len(targets), [t._target for t in targets], _step, _container
         )
+        if not product:
+            # TODO: we really should be able to provide a detailed error here
+            raise RevngException("Failed to produce targets")
 
         return {t.serialize(): t.extract() for t in targets}
 
@@ -440,13 +442,3 @@ class Manager:
             raise RevngException(
                 f"Failed loading user provided input for container {container_name}"
             )
-
-    def pipeline_artifact_structure(self):
-        structure = defaultdict(list)
-
-        for step in self.steps():
-            step_kind = step.get_artifacts_kind()
-            if step_kind is not None:
-                structure[step_kind.rank].append(step)
-
-        return structure
