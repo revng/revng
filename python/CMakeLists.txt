@@ -98,9 +98,9 @@ python_module(TARGET_NAME revng-python-cli MODULE_FILES
 # Install revng.cli._commands
 #
 set(REVNG_CLI_COMMANDS_MODULE_FILES
-    revng/cli/_commands/translate.py revng/cli/_commands/lift.py
+    revng/cli/_commands/translate.py revng/cli/_commands/llvm_pipeline.py
+    revng/cli/_commands/lift.py revng/cli/_commands/daemon_self_test.py
     revng/cli/_commands/opt.py revng/cli/_commands/pipeline_tools.py
-    revng/cli/_commands/llvm_pipeline.py
     revng/cli/_commands/override_by_name.py revng/cli/_commands/daemon.py
     revng/cli/_commands/download_pdb.py revng/cli/_commands/hard_purge.py
     revng/cli/_commands/import_idb.py revng/cli/_commands/idb_converter.py)

@@ -82,7 +82,14 @@ async def client(pytestconfig: Config, request) -> AsyncGenerator[AsyncClientSes
     socket_path = f"{temp_dir.name}/daemon.sock"
     new_env = {k: v for k, v in os.environ.items() if k not in FILTER_ENV}
     process = Popen(
-        ["revng", "daemon", "-b", f"unix:{socket_path}"],
+        [
+            "revng",
+            "daemon",
+            "--uvicorn-args",
+            "--timeout-keep-alive 600",
+            "-b",
+            f"unix:{socket_path}",
+        ],
         stdout=out,
         stderr=out,
         text=True,
@@ -105,9 +112,13 @@ async def client(pytestconfig: Config, request) -> AsyncGenerator[AsyncClientSes
     tracing.on_request_end.append(response_trace)
     transport = AIOHTTPTransport(
         "http://dummyhost/graphql/",
-        client_session_args={"connector": connector, "trace_configs": [tracing]},
+        client_session_args={
+            "connector": connector,
+            "timeout": ClientTimeout(),
+            "trace_configs": [tracing],
+        },
     )
-    gql_client = Client(transport=transport, fetch_schema_from_transport=True)
+    gql_client = Client(transport=transport, fetch_schema_from_transport=True, execute_timeout=None)
 
     upload_q = gql(
         """
