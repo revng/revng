@@ -33,7 +33,9 @@ commands:
   - type: revng.cfg-svg
     from:
       - type: revng-qa.compiled
+        filter: one-per-architecture
       - type: revng.abi-enforced-for-decompilation
+        filter: one-per-architecture
     suffix: .svg.yml
     command: |-
       MODEL="$$(mktemp)";
