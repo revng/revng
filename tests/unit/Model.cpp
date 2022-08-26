@@ -67,6 +67,19 @@ BOOST_AUTO_TEST_CASE(TestPathAccess) {
   // Test existing entry in container
   Function &F = TheBinary.Functions[MetaAddress::invalid()];
   revng_check(getByPath<Function>("/Functions/:Invalid", TheBinary) == &F);
+
+  // Test UpcastablePointer
+  auto UInt8Path = TheBinary.getPrimitiveType(PrimitiveTypeKind::Unsigned, 8);
+  model::Type *UInt8 = UInt8Path.get();
+  using llvm::Twine;
+  std::string TypePath = (Twine("/Types/PrimitiveType-") + Twine(UInt8->ID)
+                          + "/OriginalName")
+                           .str();
+  auto *OriginalNamePointer = getByPath<std::string>(TypePath, TheBinary);
+  revng_check(OriginalNamePointer == &UInt8->OriginalName);
+
+  TypePath = (Twine("/Types/PrimitiveType-") + Twine(UInt8->ID)).str();
+  revng_check(getByPath<model::Type>(TypePath, TheBinary) == UInt8);
 }
 
 BOOST_AUTO_TEST_CASE(TestCompositeScalar) {
@@ -109,7 +122,7 @@ BOOST_AUTO_TEST_CASE(TestStringPathConversion) {
 
 BOOST_AUTO_TEST_CASE(TestPathMatcher) {
   //
-  // Single matcher
+  // Test regular matcher
   //
   {
     auto Matcher = PathMatcher::create<Binary>("/Functions/*/Entry").value();
@@ -122,6 +135,29 @@ BOOST_AUTO_TEST_CASE(TestPathMatcher) {
     auto MaybeMatch = Matcher.match<MetaAddress>(MaybeToMatch.value());
     revng_check(MaybeMatch);
     revng_check(std::get<0>(*MaybeMatch) == ARM1000);
+  }
+
+  //
+  // Test matching through an UpcastablePointer
+  //
+  {
+    auto Matcher = PathMatcher::create<Binary>("/Types/RawFunctionType-*/"
+                                               "FinalStackOffset")
+                     .value();
+
+    model::Type::Key Key{ model::TypeKind::RawFunctionType, 1000 };
+    auto Path1000 = pathAsString<Binary>(Matcher.apply(Key));
+    revng_check(Path1000 == "/Types/RawFunctionType-1000/FinalStackOffset");
+
+    auto MaybeToMatch = stringAsPath<Binary>(*Path1000);
+    revng_check(MaybeToMatch);
+    auto MaybeMatch = Matcher.match<model::Type::Key>(MaybeToMatch.value());
+    revng_check(MaybeMatch);
+    revng_check(std::get<0>(*MaybeMatch) == Key);
+
+    MaybeToMatch = stringAsPath<Binary>("/Types/CABIFunctionType-1000/ID");
+    MaybeMatch = Matcher.match<model::Type::Key>(MaybeToMatch.value());
+    revng_check(not MaybeMatch);
   }
 }
 
