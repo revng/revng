@@ -188,7 +188,9 @@ void PECOFFImporter::recordImportedFunctions(ImportedSymbolRange Range,
       continue;
     }
 
-    if (Model->ImportedDynamicFunctions.count(Sym.str()))
+    // Dynamic functions must have a name, so skip those without it.
+    // TODO: handle imports by ordinal
+    if (Sym.empty() or Model->ImportedDynamicFunctions.count(Sym.str()))
       continue;
 
     // NOTE: This address will occur in the .text section as a target of a jump.
@@ -271,7 +273,9 @@ void PECOFFImporter::recordDelayImportedFunctions(DelayDirectoryRef &I,
       continue;
     }
 
-    if (Model->ImportedDynamicFunctions.count(Sym.str()))
+    // Dynamic functions must have a name, so skip those without it.
+    // TODO: handle imports by ordinal
+    if (Sym.empty() or Model->ImportedDynamicFunctions.count(Sym.str()))
       continue;
 
     MetaAddress AddressOfDelayImportEntry = ImageBase + u64(Addr);
