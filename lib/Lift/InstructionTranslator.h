@@ -49,6 +49,12 @@ public:
                         bool EndianessMismatch,
                         ProgramCounterHandler *PCH);
 
+  // Emit a call to newpc
+  llvm::CallInst *emitNewPCCall(llvm::IRBuilder<> &Builder,
+                                MetaAddress PC,
+                                uint64_t Size,
+                                llvm::Value *String) const;
+
   /// \brief Result status of the translation of a PTC opcode
   enum TranslationResult {
     Abort, ///< An error occurred during translation, call abort and stop
