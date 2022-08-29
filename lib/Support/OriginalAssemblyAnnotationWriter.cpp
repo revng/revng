@@ -10,22 +10,11 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/Support/FormattedStream.h"
 
+#include "revng/ADT/STLExtras.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/OriginalAssemblyAnnotationWriter.h"
 
 using namespace llvm;
-
-static void
-replaceAll(std::string &Input, const std::string &From, const std::string &To) {
-  if (From.empty())
-    return;
-
-  size_t Start = 0;
-  while ((Start = Input.find(From, Start)) != std::string::npos) {
-    Input.replace(Start, From.length(), To);
-    Start += To.length();
-  }
-}
 
 /// Writes the text contained in the metadata with the specified kind ID to the
 /// output stream, unless that metadata is exactly the same as in the previous
