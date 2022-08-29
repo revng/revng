@@ -25,6 +25,9 @@ analysis libraries and pipelines.
 Environment variables that are used:
 
 STARLETTE_DEBUG: if set to "1" enables debug mode, unset when using --production
+STARLETTE_MIDDLEWARES_{EARLY,LATE}: a comma-separated list of extra Middlewares to use
+in starlette. It follows the syntax:
+  import.path.to.module.ObjectName,...
 REVNG_NOTIFY_FIFOS: list of fifo pipes to be notified of changes in the pipeline
   it follows the following format:
   <fifo path 1>:<event type 1>,<fifo path 2>:<event type 2>,...

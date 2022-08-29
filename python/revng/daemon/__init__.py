@@ -6,7 +6,8 @@ import logging
 import os
 import signal
 from datetime import timedelta
-from typing import Optional
+from importlib import import_module
+from typing import List, Optional
 
 from starlette.applications import Starlette
 from starlette.config import Config
@@ -107,19 +108,44 @@ def shutdown():
     capi_shutdown()
 
 
-app = Starlette(
-    debug=DEBUG,
-    middleware=[
-        Middleware(ManagerMiddleware),
+def get_middlewares() -> List[Middleware]:
+    extra_middlewares_early = parse_middleware_env(os.environ.get("STARLETTE_MIDDLEWARES_EARLY"))
+    extra_middlewares_late = parse_middleware_env(os.environ.get("STARLETTE_MIDDLEWARES_LATE"))
+
+    origins: List[str] = []
+    if "REVNG_ORIGINS" in os.environ:
+        origins = os.environ["REVNG_ORIGINS"].split(",")
+
+    return [
+        *extra_middlewares_early,
         Middleware(
             CORSMiddleware,
-            allow_origins=os.environ["REVNG_ORIGINS"].split(",")
-            if "REVNG_ORIGINS" in os.environ
-            else [],
+            allow_origins=origins,
             allow_methods=["*"],
             allow_headers=["*"],
         ),
-    ],
+        *extra_middlewares_late,
+    ]
+
+
+def parse_middleware_env(string: str | None) -> List[Middleware]:
+    if string is None:
+        return []
+
+    result = []
+    for element in string.split(","):
+        module_path, attribute_name = element.rsplit(".", 1)
+        module = import_module(module_path)
+        if not hasattr(module, attribute_name):
+            raise ValueError(f"Middleware not found: {element}")
+        result.append(getattr(module, attribute_name))
+
+    return result
+
+
+app = Starlette(
+    debug=DEBUG,
+    middleware=get_middlewares(),
     on_startup=[startup],
     on_shutdown=[shutdown],
 )
