@@ -82,7 +82,6 @@ def try_run(
 def run(command, options: Options, environment: Optional[Dict[str, str]] = None, do_exec=False):
     result = try_run(command, options, environment, do_exec)
     if result != 0:
-        log_error(f"The following command exited with {result}:\n{shlex_join(command)}")
         sys.exit(result)
 
 
