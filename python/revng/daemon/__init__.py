@@ -25,11 +25,12 @@ from revng.api._capi import initialize as capi_initialize
 from revng.api._capi import shutdown as capi_shutdown
 
 from .demo_webpage import demo_page, production_demo_page
-from .manager import make_manager
+from .event_manager import EventManager
 from .schema_generator import SchemaGenerator
 from .util import project_workdir
 
 manager: Optional[Manager] = None
+event_manager: Optional[EventManager] = None
 startup_done = False
 
 config = Config()
@@ -54,8 +55,16 @@ async def status(request):
         return PlainTextResponse("KO", 503)
 
 
+def generate_context(request: Request):
+    return {
+        "manager": manager,
+        "event_manager": event_manager,
+        "headers": request.headers,
+    }
+
+
 def startup():
-    global manager, startup_done
+    global manager, event_manager, startup_done
     capi_initialize(
         signals_to_preserve=(
             # Common terminal signals
@@ -71,12 +80,13 @@ def startup():
             signal.SIGQUIT,
         )
     )
-    manager = make_manager(project_workdir())
+    manager = Manager(project_workdir())
+    event_manager = EventManager(manager)
     app.mount(
         "/graphql",
         GraphQL(
             SchemaGenerator().get_schema(manager),
-            context_value={"manager": manager},
+            context_value=generate_context,
             http_handler=GraphQLHTTPHandler(extensions=[ApolloTracingExtension]),
             websocket_handler=GraphQLTransportWSHandler(
                 connection_init_wait_timeout=timedelta(seconds=5)

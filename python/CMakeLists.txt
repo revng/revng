@@ -131,7 +131,6 @@ set(REVNG_API_MODULE_FILES
     revng/api/exceptions.py
     revng/api/invalidations.py
     revng/api/kind.py
-    revng/api/listenable_manager.py
     revng/api/manager.py
     revng/api/rank.py
     revng/api/step.py
@@ -158,8 +157,8 @@ endforeach()
 set(REVNG_DAEMON_MODULE_FILES
     revng/daemon/__init__.py
     revng/daemon/demo_webpage.py
-    revng/daemon/manager.py
     revng/daemon/multiqueue.py
+    revng/daemon/event_manager.py
     revng/daemon/schema_generator.py
     revng/daemon/schema.graphql.tpl
     revng/daemon/static_handlers.py
