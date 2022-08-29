@@ -6,7 +6,8 @@ import logging
 import os
 import signal
 from datetime import timedelta
-from typing import Optional
+from importlib import import_module
+from typing import List, Optional
 
 from starlette.applications import Starlette
 from starlette.config import Config
@@ -93,9 +94,18 @@ def shutdown():
     capi_shutdown()
 
 
-app = Starlette(
-    debug=DEBUG,
-    middleware=[
+def get_middlewares() -> List[Middleware]:
+    extra_middlewares: List[Middleware] = []
+    if "STARLETTE_MIDDLEWARES" in os.environ:
+        for element in os.environ["STARLETTE_MIDDLEWARES"].split(","):
+            module_path, attribute_name = element.split(":", 1)
+            module = import_module(module_path)
+            if not hasattr(module, attribute_name):
+                raise ValueError(f"Middleware not found: {element}")
+            extra_middlewares.append(getattr(module, attribute_name))
+
+    return [
+        *extra_middlewares,
         Middleware(ManagerMiddleware),
         Middleware(
             CORSMiddleware,
@@ -104,7 +114,12 @@ app = Starlette(
             else [],
             allow_methods=["*"],
         ),
-    ],
+    ]
+
+
+app = Starlette(
+    debug=DEBUG,
+    middleware=get_middlewares(),
     on_startup=[startup],
     on_shutdown=[shutdown],
 )
