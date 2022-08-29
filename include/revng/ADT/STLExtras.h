@@ -323,3 +323,15 @@ constexprSplit(std::string_view Separator, std::string_view Input) {
   else
     return std::nullopt;
 }
+
+inline void
+replaceAll(std::string &Input, const std::string &From, const std::string &To) {
+  if (From.empty())
+    return;
+
+  size_t Start = 0;
+  while ((Start = Input.find(From, Start)) != std::string::npos) {
+    Input.replace(Start, From.length(), To);
+    Start += To.length();
+  }
+}
