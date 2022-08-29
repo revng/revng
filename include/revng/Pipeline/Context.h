@@ -103,7 +103,7 @@ public:
 
   bool containsReadOnlyContainer(llvm::StringRef Name) const {
     return ReadOnlyContainers.count(Name)
-           and ReadOnlyContainers.find(Name)->second != nullptr;
+           and ReadOnlyContainers.find(Name)->second->second != nullptr;
   }
 
   bool hasRegisteredReadOnlyContainer(llvm::StringRef Name) const {
