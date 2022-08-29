@@ -575,6 +575,28 @@ SmallSet<unsigned, 1> IT::preprocess(PTCInstructionList *InstructionList) {
   return Result;
 }
 
+CallInst *IT::emitNewPCCall(IRBuilder<> &Builder,
+                            MetaAddress PC,
+                            uint64_t Size,
+                            Value *String) const {
+  revng_assert(MetaAddressStruct != nullptr);
+  PointerType *Int8PtrTy = getStringPtrType(TheModule.getContext());
+  auto *Int8NullPtr = ConstantPointerNull::get(Int8PtrTy);
+  std::vector<Value *> Args = { PC.toConstant(MetaAddressStruct),
+                                Builder.getInt64(Size),
+                                Builder.getInt32(-1),
+                                String != nullptr ? String : Int8NullPtr,
+                                Int8NullPtr };
+
+  // Insert a call to NewPCMarker capturing all the local temporaries
+  // This prevents SROA from transforming them in SSA values, which is bad
+  // in case we have to split a basic block
+  for (AllocaInst *Local : Variables.locals())
+    Args.push_back(Local);
+
+  return Builder.CreateCall(NewPCMarker, Args);
+}
+
 std::tuple<IT::TranslationResult, MDNode *, MetaAddress, MetaAddress>
 IT::newInstruction(PTCInstruction *Instr,
                    PTCInstruction *Next,
@@ -644,21 +666,8 @@ IT::newInstruction(PTCInstruction *Instr,
 
   Variables.newBasicBlock();
 
-  // Insert a call to NewPCMarker capturing all the local temporaries
-  // This prevents SROA from transforming them in SSA values, which is bad
-  // in case we have to split a basic block
-  revng_assert(MetaAddressStruct != nullptr);
-  auto *Int8NullPtr = ConstantPointerNull::get(Int8PtrTy);
   revng_assert(NextPC - PC);
-  std::vector<Value *> Args = { PC.toConstant(MetaAddressStruct),
-                                Builder.getInt64(*(NextPC - PC)),
-                                Builder.getInt32(-1),
-                                String,
-                                Int8NullPtr };
-  for (AllocaInst *Local : Variables.locals())
-    Args.push_back(Local);
-
-  auto *Call = Builder.CreateCall(NewPCMarker, Args);
+  auto *Call = emitNewPCCall(Builder, PC, *(NextPC - PC), String);
 
   if (!IsFirst) {
     // Inform the JumpTargetManager about the new PC we met
