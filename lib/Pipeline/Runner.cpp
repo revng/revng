@@ -314,8 +314,8 @@ Error Runner::run(llvm::StringRef EndingStepName,
     auto &Step = *StepGoalsPairs.ToExecute;
     if (auto Error = Step.checkPrecondition(getContext()); Error)
       return llvm::make_error<AnnotatedError>(std::move(Error),
-                                              "while scheduling "
-                                                + Step.getName());
+                                              "While scheduling step "
+                                                + Step.getName() + ":");
   }
 
   for (auto &StepGoalsPairs : llvm::drop_begin(ToExec)) {

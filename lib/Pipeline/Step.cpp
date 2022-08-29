@@ -162,8 +162,8 @@ Error Step::checkPrecondition(const Context &Ctx) const {
   for (const auto &Pipe : Pipes) {
     if (auto Error = Pipe->checkPrecondition(Ctx); Error)
       return llvm::make_error<AnnotatedError>(std::move(Error),
-                                              "while scheduling "
-                                                + Pipe->getName());
+                                              "While scheduling pipe "
+                                                + Pipe->getName() + ":");
   }
   return llvm::Error::success();
 }
