@@ -47,6 +47,14 @@ void Lift::run(Context &Ctx,
 }
 
 llvm::Error Lift::checkPrecondition(const pipeline::Context &Ctx) const {
+  const auto &Model = *getModelFromContext(Ctx);
+
+  if (Model.Architecture == model::Architecture::Invalid) {
+    return llvm::createStringError(inconvertibleErrorCode(),
+                                   "Cannot lift binary with architecture "
+                                   "invalid.");
+  }
+
   return llvm::Error::success();
 }
 
