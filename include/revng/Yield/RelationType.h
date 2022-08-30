@@ -11,6 +11,7 @@ doc: Enum for identifying different instruction markup tag types
 type: enum
 members:
   - name: IsCalledFrom
+  - name: IsDynamicallyCalledFrom
 
 TUPLE-TREE-YAML */
 
