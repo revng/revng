@@ -322,6 +322,7 @@ Error Runner::run(llvm::StringRef EndingStepName,
     auto &[Step, PredictedOutput, Input] = StepGoalsPairs;
     auto &Parent = Step->getPredecessor();
     auto CurrentContainer = Parent.containers().cloneFiltered(Input);
+    PredictedOutput.collapseEmptyTargets(*TheContext);
     auto Produced = Step->cloneAndRun(*TheContext, std::move(CurrentContainer));
     revng_check(Produced.enumerate().contains(PredictedOutput),
                 "predicted output was not fully contained in actually "
