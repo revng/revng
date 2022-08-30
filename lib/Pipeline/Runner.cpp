@@ -267,9 +267,16 @@ Runner::runAnalysis(llvm::StringRef AnalysisName,
 
   auto &After = getContext().getGlobals();
   auto Map = Before.diff(After);
-  for (const auto &GlobalNameDiffPair : Map)
-    if (auto Error = apply(GlobalNameDiffPair.second, InvalidationsMap))
+  for (const auto &Pair : Map) {
+    const auto &EntryBefore = cantFail(Before.get(Pair.first()));
+    const auto &EntryAfter = cantFail(After.get(Pair.first()));
+
+    if (auto Error = apply(Pair.second,
+                           *EntryBefore,
+                           *EntryAfter,
+                           InvalidationsMap))
       return std::move(Error);
+  }
 
   return std::move(Map);
 }
@@ -385,6 +392,8 @@ const KindsRegistry &Runner::getKindsRegistry() const {
 }
 
 void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
+                                  const Global &Before,
+                                  const Global &After,
                                   InvalidationMap &Map) const {
   // the custom writte invalidation rules do not know what is the current
   // content of each container, so first we overestimate the targets to be
@@ -392,7 +401,11 @@ void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
   // and those that do exists.
   TargetsList OverestimatedTargets;
   for (const Kind &Kind : getKindsRegistry())
-    Kind.getInvalidations(getContext(), OverestimatedTargets, Diff);
+    Kind.getInvalidations(getContext(),
+                          OverestimatedTargets,
+                          Diff,
+                          Before,
+                          After);
 
   for (const auto &Step : llvm::drop_begin(*this)) {
     auto &StepInvalidations = Map[Step.getName()];
@@ -411,9 +424,11 @@ void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
   }
 }
 
-llvm::Error
-Runner::apply(const GlobalTupleTreeDiff &Diff, InvalidationMap &Map) {
-  getDiffInvalidations(Diff, Map);
+llvm::Error Runner::apply(const GlobalTupleTreeDiff &Diff,
+                          const Global &Before,
+                          const Global &After,
+                          InvalidationMap &Map) {
+  getDiffInvalidations(Diff, Before, After, Map);
   if (auto Error = getInvalidations(Map); Error)
     return Error;
   return invalidate(Map);
