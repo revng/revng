@@ -2,6 +2,10 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+Containers:
+  - Name: cross-relations.yml
+    Type: BinaryCrossRelations
+    Role: CrossRelations
 Branches:
   - From: Lift
     Steps:
@@ -10,6 +14,8 @@ Branches:
           - Type: LLVMPipe
             UsedContainers: [module.ll]
             Passes: [collect-cfg, isolate, invoke-isolated-functions]
+          - Type: ProcessCallGraph
+            UsedContainers: [module.ll, cross-relations.yml]
         Artifacts:
           Container: module.ll
           Kind: Isolated
