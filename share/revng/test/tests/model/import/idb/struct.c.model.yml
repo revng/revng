@@ -1,0 +1,21 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+Types:
+  - Kind: StructType
+    ID: 10354558065911308391
+    CustomName: "my_struct"
+    OriginalName: my_struct
+    Fields:
+      - Offset: 0
+        CustomName: "x"
+        OriginalName: x
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1028"
+      - Offset: 4
+        CustomName: "y"
+        OriginalName: "y"
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1028"
+    Size: 8
