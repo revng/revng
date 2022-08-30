@@ -60,8 +60,8 @@ commands:
         -m "$$MODEL"
         -i "$INPUT1:begin/input"
         -i "$INPUT2:EnforceABI/module.ll"
-        -o "$OUTPUT:ProcessCallGraph/cross-relations.yml"
-        --produce ProcessCallGraph/cross-relations.yml/:BinaryCrossRelations
+        -o "$OUTPUT:Isolate/cross-relations.yml"
+        --produce Isolate/cross-relations.yml/:BinaryCrossRelations
 
   - type: revng.call-graph-svg
     from:
@@ -73,7 +73,7 @@ commands:
       revng model dump "$INPUT2" > "$$MODEL";
       revng pipeline
         -m "$$MODEL"
-        -i "$INPUT1:ProcessCallGraph/cross-relations.yml"
+        -i "$INPUT1:Isolate/cross-relations.yml"
         -o "$OUTPUT:YieldCallGraph/call-graph-svg.yml"
         --produce YieldCallGraph/call-graph-svg.yml/:CallGraphSVG
 
@@ -88,7 +88,7 @@ commands:
       revng model dump "$INPUT2" > "$$MODEL";
       revng pipeline
         -m "$$MODEL"
-        -i "$INPUT1:ProcessCallGraph/cross-relations.yml"
+        -i "$INPUT1:Isolate/cross-relations.yml"
         -i "$INPUT2:EnforceABI/module.ll"
         -i "$INPUT3:begin/input"
         -o "$OUTPUT:YieldCallGraphSlice/call-graph-slice-svg.yml"
