@@ -166,3 +166,9 @@ llvm::Error pipeline::parseTarget(ContainerToTargetsMap &CurrentStatus,
   CurrentStatus.add(Parts[0], std::move(*MaybeTarget));
   return llvm::Error::success();
 }
+
+size_t pipeline::Target::expandedSize(const Context &Ctx) const {
+  TargetsList List;
+  expand(Ctx, List);
+  return List.size();
+}
