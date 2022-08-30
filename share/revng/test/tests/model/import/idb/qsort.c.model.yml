@@ -1,0 +1,75 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+ImportedDynamicFunctions:
+  - OriginalName:    qsort
+    CustomName:      "qsort_"
+    Prototype:       "/Types/CABIFunctionType-3821538295510931842"
+Types:
+  - Kind:            CABIFunctionType
+    ID:              3821538295510931842
+    CustomName:      "qsort"
+    OriginalName:    qsort
+    ABI:             SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-256"
+    Arguments:
+      - Index:           0
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-256"
+          Qualifiers:
+            - Kind:            Pointer
+              Size:            8
+        CustomName:      "base"
+        OriginalName:    base
+      - Index:           1
+        Type:
+          UnqualifiedType: "/Types/TypedefType-855760813070670525"
+        CustomName:      "nmemb"
+        OriginalName:    nmemb
+      - Index:           2
+        Type:
+          UnqualifiedType: "/Types/TypedefType-855760813070670525"
+        CustomName:      "size"
+        OriginalName:    size
+      - Index:           3
+        Type:
+          UnqualifiedType: "/Types/TypedefType-7339777181910699325"
+        CustomName:      "compar"
+        OriginalName:    compar
+  - Kind:            TypedefType
+    ID:              855760813070670525
+    CustomName:      "size_t"
+    OriginalName:    size_t
+    UnderlyingType:
+      UnqualifiedType: "/Types/PrimitiveType-1288"
+  - Kind:            TypedefType
+    ID:              7339777181910699325
+    CustomName:      "prefix___compar_fn_t"
+    OriginalName:    __compar_fn_t
+    UnderlyingType:
+      UnqualifiedType: "/Types/CABIFunctionType-5090678720539169893"
+      Qualifiers:
+        - Kind:            Pointer
+          Size:            8
+  - Kind:            CABIFunctionType
+    ID:              5090678720539169893
+    ABI:             SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-1028"
+    Arguments:
+      - Index:           0
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-256"
+          Qualifiers:
+            - Kind:            Pointer
+              Size:            8
+            - Kind:            Const
+      - Index:           1
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-256"
+          Qualifiers:
+            - Kind:            Pointer
+              Size:            8
+            - Kind:            Const
