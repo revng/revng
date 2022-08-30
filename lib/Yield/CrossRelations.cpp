@@ -20,31 +20,51 @@ CR::CrossRelations(const SortedVector<efa::FunctionMetadata> &Metadata,
 
   namespace ranks = revng::ranks;
 
+  // Make sure all the functions are present.
   for (auto Inserter = Relations().batch_insert();
        const auto &Function : Binary.Functions()) {
     const auto Location = pipeline::location(ranks::Function, Function.Entry());
     Inserter.insert(yield::RelationDescription(Location.toString(), {}));
   }
 
-  for (const auto &[EntryAddress, ControlFlowGraph] : Metadata) {
-    auto CallLocation = pipeline::location(ranks::Instruction,
-                                           EntryAddress,
-                                           MetaAddress::invalid(),
-                                           MetaAddress::invalid());
+  // Make sure all the dynamic functions are present
+  for (auto Inserter = Relations.batch_insert();
+       const auto &Function : Binary.ImportedDynamicFunctions()) {
+    const auto Location = pipeline::location(ranks::DynamicFunction,
+                                             Function.OriginalName());
+    Inserter.insert(yield::RelationDescription(Location.toString(), {}));
+  }
 
+  for (const auto &[EntryAddress, ControlFlowGraph] : Metadata) {
     for (const auto &BasicBlock : ControlFlowGraph) {
       for (const auto &Edge : BasicBlock.Successors()) {
-        if (efa::FunctionEdgeType::isCall(Edge->Type())) {
-          if (const auto &Callee = Edge->Destination(); Callee.isValid()) {
-            // TODO: embed information about the call instruction into
-            //       `CallLocation` after efa starts providing it.
+        if (auto *CallEdge = llvm::dyn_cast<yield::CallEdge>(Edge.get())) {
+          if (efa::FunctionEdgeType::isCall(Edge->Type())) {
+            if (const auto &Callee = Edge->Destination(); Callee.isValid()) {
+              // TODO: embed information about the call instruction into
+              //       `CallLocation` after yield starts providing it.
 
-            auto L = pipeline::location(ranks::Function, Callee).toString();
-            if (auto It = Relations().find(L); It != Relations().end()) {
-              yield::RelationTarget T(yield::RelationType::IsCalledFrom,
-                                      CallLocation.toString());
-              It->Related().insert(std::move(T));
+              auto L = pipeline::location(ranks::Function, Callee).toString();
+              if (auto It = Relations().find(L); It != Relations().end()) {
+                yield::RelationTarget T(yield::RelationType::IsCalledFrom,
+                                        CallLocation.toString());
+                It->Related().insert(std::move(T));
+              }
+            } else if (!CallEdge->DynamicFunction.empty()) {
+              auto L = pipeline::location(ranks::DynamicFunction,
+                                          CallEdge->DynamicFunction)
+                         .toString();
+              if (auto It = Relations().find(L); It != Relations().end()) {
+                using namespace yield::RelationType;
+                yield::RelationTarget T(IsDynamicallyCalledFrom,
+                                        CallLocation.toString());
+                It->Related().insert(std::move(T));
+              }
+            } else {
+              // Ignore indirect calls.
             }
+          } else {
+            // Ignore non-call edges.
           }
         }
       }
@@ -64,6 +84,10 @@ static void conversionHelper(const yield::CrossRelations &Input,
       switch (RelationKind) {
       case yield::RelationType::IsCalledFrom:
         AddEdge(LocationString, TargetString, RelationKind);
+        break;
+
+      // TODO: handle dynamic function calls properly
+      case yield::RelationType::IsDynamicallyCalledFrom:
         break;
 
       case yield::RelationType::Invalid:
@@ -109,11 +133,13 @@ yield::Graph yield::CrossRelations::toYieldGraph() const {
                                                     ranks::Function,
                                                     ranks::BasicBlock,
                                                     ranks::Instruction);
-    revng_assert(MaybeKey.has_value());
-    auto Address = std::get<0>(MaybeKey.value());
-    auto [_, Success] = LookupHelper.try_emplace(Address,
-                                                 Result.addNode(Address));
-    revng_assert(Success);
+    // TODO: extend to support dynamic functions
+    if (MaybeKey.has_value()) {
+      auto Address = std::get<0>(MaybeKey.value());
+      auto [_, Success] = LookupHelper.try_emplace(Address,
+                                                   Result.addNode(Address));
+      revng_assert(Success);
+    }
   };
   auto AddEdge = [&LookupHelper](std::string_view FromLocation,
                                  std::string_view ToLocation,
