@@ -6,6 +6,7 @@
 //
 
 #include "revng/Model/Binary.h"
+#include "revng/Pipeline/Global.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Support/MetaAddress.h"
 
@@ -21,16 +22,16 @@ using namespace pipeline;
 BOOST_AUTO_TEST_SUITE(ModelInvalidationDiffSuite)
 
 BOOST_AUTO_TEST_CASE(RootInvalidationTest) {
-  model::Binary Empty;
-  model::Binary New;
+  pipeline::TupleTreeGlobal<model::Binary> Empty;
+  pipeline::TupleTreeGlobal<model::Binary> New;
 
   Context Ctx;
   MetaAddress Address(0x1000, MetaAddressType::Code_aarch64);
-  New.ExtraCodeAddresses.insert(Address);
+  New.get()->ExtraCodeAddresses.insert(Address);
 
   TargetsList ToRemove;
-  GlobalTupleTreeDiff Event(diff(Empty, New));
-  Root.getInvalidations(Ctx, ToRemove, Event);
+  GlobalTupleTreeDiff Event(Empty.diff(New));
+  Root.getInvalidations(Ctx, ToRemove, Event, Empty, New);
   BOOST_TEST(ToRemove.size() == 1);
   BOOST_TEST(&ToRemove.front().getKind() == &Root);
 }

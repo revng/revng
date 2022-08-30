@@ -43,7 +43,9 @@ TaggedFunctionKind::symbolToTarget(const llvm::Function &Symbol) const {
 using TaggedFK = TaggedFunctionKind;
 void TaggedFK::getInvalidations(const Context &Ctx,
                                 TargetsList &ToRemove,
-                                const GlobalTupleTreeDiff &Diff) const {
+                                const GlobalTupleTreeDiff &Diff,
+                                const pipeline::Global &Before,
+                                const pipeline::Global &After) const {
   const auto &CurrentModel = getModelFromContext(Ctx);
 
   if (not Ctx.containsReadOnlyContainer(BinaryCrossRelationsRole))

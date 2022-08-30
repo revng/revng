@@ -14,6 +14,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Pipeline/ContainerFactorySet.h"
+#include "revng/Pipeline/Global.h"
 #include "revng/Pipeline/GlobalTupleTreeDiff.h"
 #include "revng/Pipeline/KindsRegistry.h"
 #include "revng/Pipeline/Step.h"
@@ -66,9 +67,13 @@ public:
 
   const KindsRegistry &getKindsRegistry() const;
 
-  llvm::Error
-  apply(const GlobalTupleTreeDiff &Diff, pipeline::InvalidationMap &Map);
+  llvm::Error apply(const GlobalTupleTreeDiff &Diff,
+                    const Global &Before,
+                    const Global &After,
+                    pipeline::InvalidationMap &Map);
   void getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
+                            const Global &Before,
+                            const Global &After,
                             pipeline::InvalidationMap &Out) const;
 
 public:

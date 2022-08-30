@@ -416,9 +416,12 @@ PipelineManager::runAllAnalyses(InvalidationMap &Map,
 
 llvm::Expected<InvalidationMap>
 PipelineManager::invalidateFromDiff(const llvm::StringRef Name,
+                                    const pipeline::Global &Before,
+                                    const pipeline::Global &After,
                                     const pipeline::GlobalTupleTreeDiff &Diff) {
   InvalidationMap Map;
-  if (auto ApplyError = getRunner().apply(Diff, Map); !!ApplyError)
+  if (auto ApplyError = getRunner().apply(Diff, Before, After, Map);
+      !!ApplyError)
     return std::move(ApplyError);
 
   // TODO: once invalidations are working, return `Map` instead of this

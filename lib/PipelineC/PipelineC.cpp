@@ -648,7 +648,10 @@ inline bool rp_manager_set_global_impl(rp_manager *manager,
     auto Diff = MaybeGlobal.get()->diff(*NewGlobal);
     *MaybeGlobal.get() = *NewGlobal;
 
-    auto MaybeInvalidations = manager->invalidateFromDiff(global_name, Diff);
+    auto MaybeInvalidations = manager->invalidateFromDiff(global_name,
+                                                          *MaybeGlobal.get(),
+                                                          *NewGlobal,
+                                                          Diff);
     if (!MaybeInvalidations)
       return ErrorList->fail(MaybeInvalidations.takeError(), false);
 
@@ -718,7 +721,10 @@ inline bool rp_manager_apply_diff_impl(rp_manager *manager,
 
   if constexpr (commit) {
     *Global = *GlobalClone;
-    auto MaybeInvalidations = manager->invalidateFromDiff(global_name, Diff);
+    auto MaybeInvalidations = manager->invalidateFromDiff(global_name,
+                                                          *Global,
+                                                          *GlobalClone,
+                                                          Diff);
     if (!MaybeInvalidations)
       return ErrorList->fail(MaybeInvalidations.takeError(), false);
 
