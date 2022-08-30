@@ -6,6 +6,7 @@
 
 #include <set>
 
+#include "revng/Pipeline/Global.h"
 #include "revng/Pipeline/GlobalTupleTreeDiff.h"
 #include "revng/Pipeline/Rank.h"
 #include "revng/Pipeline/RegisterKind.h"
@@ -110,7 +111,9 @@ public:
 
   virtual void getInvalidations(const Context &Ctx,
                                 pipeline::TargetsList &ToRemove,
-                                const GlobalTupleTreeDiff &Diff) const {}
+                                const GlobalTupleTreeDiff &Diff,
+                                const Global &Before,
+                                const Global &After) const {}
 
   virtual void appendAllTargets(const Context &Ctx, TargetsList &Out) const = 0;
   TargetsList allTargets(const Context &Ctx) const;

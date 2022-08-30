@@ -137,6 +137,10 @@ public:
     MaybeDiff->apply(Value, EL);
   }
 
+  void applyDiff(const TupleTreeDiff<Object> &Diff, revng::ErrorList &EL) {
+    Diff.apply(Value, EL);
+  }
+
   void
   applyDiff(const GlobalTupleTreeDiff &Diff, revng::ErrorList &EL) override {
     Diff.getAs<Object>()->apply(Value, EL);

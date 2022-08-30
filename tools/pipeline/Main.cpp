@@ -178,12 +178,23 @@ int main(int argc, const char *argv[]) {
   }
 
   if (not ApplyModelDiff.empty()) {
+    const auto &ModelName = ModelGlobalName;
+    auto &Global(*AbortOnError(Manager.context().getGlobals().get(ModelName)));
+
+    auto &Model = llvm::cast<TupleTreeGlobal<model::Binary>>(Global);
+    const auto Before = Model.clone();
+
     using Type = TupleTreeDiff<model::Binary>;
     auto Diff = AbortOnError(deserializeFileOrSTDIN<Type>(ApplyModelDiff));
+    revng::ErrorList EL;
+    Model.applyDiff(Diff, EL);
+    cantFail(std::move(EL));
 
     auto &Runner = Manager.getRunner();
+
+    auto GlobalDiff = GlobalTupleTreeDiff(std::move(Diff));
     InvalidationMap Map;
-    AbortOnError(Runner.apply(GlobalTupleTreeDiff(std::move(Diff)), Map));
+    AbortOnError(Runner.apply(GlobalDiff, *Before, Model, Map));
   }
 
   if (AnalyzeAll) {

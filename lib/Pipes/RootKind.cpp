@@ -44,7 +44,9 @@ IsolatedRootKind::symbolToTarget(const llvm::Function &Symbol) const {
 
 void RootKind::getInvalidations(const Context &Ctx,
                                 TargetsList &ToRemove,
-                                const GlobalTupleTreeDiff &Base) const {
+                                const GlobalTupleTreeDiff &Base,
+                                const pipeline::Global &Before,
+                                const pipeline::Global &After) const {
 
   const auto *Diff = Base.getAs<model::Binary>();
   if (not Diff)

@@ -265,9 +265,16 @@ Runner::runAnalysis(llvm::StringRef AnalysisName,
 
   auto &After = getContext().getGlobals();
   auto Map = Before.diff(After);
-  for (const auto &GlobalNameDiffPair : Map)
-    if (auto Error = apply(GlobalNameDiffPair.second, InvalidationsMap))
+  for (const auto &Pair : Map) {
+    const auto &EntryBefore = cantFail(Before.get(Pair.first()));
+    const auto &EntryAfter = cantFail(After.get(Pair.first()));
+
+    if (auto Error = apply(Pair.second,
+                           *EntryBefore,
+                           *EntryAfter,
+                           InvalidationsMap))
       return std::move(Error);
+  }
 
   return std::move(Map);
 }
@@ -383,25 +390,33 @@ const KindsRegistry &Runner::getKindsRegistry() const {
 }
 
 void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
+                                  const Global &Before,
+                                  const Global &After,
                                   InvalidationMap &Map) const {
   for (const auto &Step : llvm::drop_begin(*this)) {
     auto &StepInvalidations = Map[Step.getName()];
-    for (const auto &Cotainer : Step.containers()) {
-      if (not Cotainer.second)
+    for (const auto &Container : Step.containers()) {
+      if (not Container.second)
         continue;
 
-      auto &ContainerInvalidations = StepInvalidations[Cotainer.first()];
+      auto &ContainerInvalidations = StepInvalidations[Container.first()];
       for (const Kind &Rule : getKindsRegistry())
-        Rule.getInvalidations(getContext(), ContainerInvalidations, Diff);
-      auto Enumeration = Cotainer.second->enumerate();
+        Rule.getInvalidations(getContext(),
+                              ContainerInvalidations,
+                              Diff,
+                              Before,
+                              After);
+      auto Enumeration = Container.second->enumerate();
       ContainerInvalidations = ContainerInvalidations.intersect(Enumeration);
     }
   }
 }
 
-llvm::Error
-Runner::apply(const GlobalTupleTreeDiff &Diff, InvalidationMap &Map) {
-  getDiffInvalidations(Diff, Map);
+llvm::Error Runner::apply(const GlobalTupleTreeDiff &Diff,
+                          const Global &Before,
+                          const Global &After,
+                          InvalidationMap &Map) {
+  getDiffInvalidations(Diff, Before, After, Map);
   if (auto Error = getInvalidations(Map); Error)
     return Error;
   return invalidate(Map);

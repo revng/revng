@@ -37,10 +37,11 @@ public:
   std::optional<pipeline::Target>
   symbolToTarget(const llvm::Function &Symbol) const override;
 
-  void
-  getInvalidations(const pipeline::Context &Ctx,
-                   pipeline::TargetsList &ToRemove,
-                   const pipeline::GlobalTupleTreeDiff &Diff) const override;
+  void getInvalidations(const pipeline::Context &Ctx,
+                        pipeline::TargetsList &ToRemove,
+                        const pipeline::GlobalTupleTreeDiff &Diff,
+                        const pipeline::Global &Before,
+                        const pipeline::Global &After) const override;
 
   void appendAllTargets(const pipeline::Context &Ctx,
                         pipeline::TargetsList &Out) const override;
