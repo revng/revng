@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "llvm/ADT/GraphTraits.h"
+#include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -195,4 +196,93 @@ auto exitless_scc_range(NodeTy Entry) {
   };
 
   return make_filter_range(Range, Filter);
+}
+
+// clang-format off
+
+/// A generic way to compute a set of entry points to a graph such that any node
+/// in said graph is reachable from at least one of those points.
+template<typename GraphType>
+  requires std::is_pointer_v<GraphType>
+std::vector<typename llvm::GraphTraits<GraphType>::NodeRef>
+entryPoints(GraphType &&Graph) {
+  // clang-format on
+
+  using NodeRef = typename llvm::GraphTraits<GraphType>::NodeRef;
+
+  std::vector<NodeRef> Result;
+
+  // First, find all SCCs reachable from nodes without predecessors
+  std::set<const NodeRef> Visited;
+  for (const auto &Node : llvm::nodes(Graph)) {
+    const auto &Preds = llvm::children<llvm::Inverse<NodeRef>>(Node);
+    // If the Node has predecessors, skip it for now. It will be reached by a
+    // visit from its predecessor.
+    if (Preds.begin() != Preds.end())
+      continue;
+
+    // Node has no predecessor, add it to Result.
+    Result.push_back(Node);
+    // Mark all the nodes reachable from it as Visited.
+    for (const auto &Child : llvm::post_order_ext(NodeRef(Node), Visited))
+      ;
+  }
+
+  // At this point, everything in Visited is reachable from the "easy" entry
+  // points, e.g. the nodes without predecessors that we have just detected
+  // above.
+  for (auto *Node : llvm::nodes(Graph)) {
+    if (Visited.contains(Node))
+      continue;
+
+    auto SCCBeg = llvm::scc_begin(NodeRef(Node));
+    auto SCCEnd = llvm::scc_end(NodeRef(Node));
+    // Ignore the case where there are no SCCs.
+    if (SCCBeg == SCCEnd)
+      continue;
+
+    // Now we look only at the first SCC. We don't want to ever increment the
+    // SCC iterator, because we want to only compute one SCC at a time, while
+    // incrementing the SCC iterator computes the next SCC, possibly stepping
+    // over stuff that has been Visited in the meantime.
+    // For an example where this may happen, imagine the graph
+    // A->B, B->A, B->C, C->D, D->C, where llvm::nodes visits D before A.
+    // When visiting D, it would only see the SCC {C, D}, then when visiting A,
+    // it would see the SCC {A, B} first, but it would recompute the SCC {C, D}
+    // if incrementing the SCC iterator. This is something we want to avoid.
+    const auto &TheSCC = *SCCBeg;
+    const NodeRef &SCCEntryNode = TheSCC.front();
+
+    // If the initial node of the SCC is Visited, it means that the whole SCC
+    // was visited by one of the previous iterations, so we just ignore it.
+    if (Visited.contains(SCCEntryNode))
+      continue;
+
+    // Then we mark all the nodes in the SCC as Visited, since we're visiting
+    // them now.
+    Visited.insert(TheSCC.begin(), TheSCC.end());
+
+    // Now, let's try to figure out if this SCC is reachable from outside.
+    // If it is NOT, then we have to add the first element of the SCC to
+    // Results.
+    bool HasPredecessorOutsideSCC = false;
+    for (const NodeRef &SCCNode : TheSCC) {
+      for (auto *PredNode : llvm::inverse_children<NodeRef>(SCCNode)) {
+        if (llvm::find(TheSCC, PredNode) == TheSCC.end()) {
+          HasPredecessorOutsideSCC = true;
+          break;
+        }
+      }
+      if (HasPredecessorOutsideSCC)
+        break;
+    }
+
+    // If no element in TheSCC has a predecessor outside TheSCC we have to elect
+    // an entry point for TheSCC. We just pick the first element since we have
+    // no better clue about which entry would be best.
+    if (not HasPredecessorOutsideSCC)
+      Result.push_back(SCCEntryNode);
+  }
+
+  return Result;
 }
