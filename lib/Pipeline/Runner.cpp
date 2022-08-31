@@ -395,21 +395,27 @@ void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
                                   const Global &Before,
                                   const Global &After,
                                   InvalidationMap &Map) const {
+  TargetsList OverestimatedTargets;
+  for (const Kind &Kind : getKindsRegistry())
+    Kind.getInvalidations(getContext(),
+                          OverestimatedTargets,
+                          Diff,
+                          Before,
+                          After);
+
   for (const auto &Step : llvm::drop_begin(*this)) {
     auto &StepInvalidations = Map[Step.getName()];
     for (const auto &Container : Step.containers()) {
       if (not Container.second)
         continue;
 
-      auto &ContainerInvalidations = StepInvalidations[Container.first()];
-      for (const Kind &Rule : getKindsRegistry())
-        Rule.getInvalidations(getContext(),
-                              ContainerInvalidations,
-                              Diff,
-                              Before,
-                              After);
-      auto Enumeration = Container.second->enumerate();
-      ContainerInvalidations = ContainerInvalidations.intersect(Enumeration);
+      const TargetsList &ExisitingTargets = Container.second->enumerate();
+      TargetsList NewTargets;
+      for (const auto &Target : OverestimatedTargets)
+        if (ExisitingTargets.contains(Target))
+          NewTargets.emplace_back(Target);
+
+      StepInvalidations[Container.first()] = NewTargets;
     }
   }
 }
