@@ -357,11 +357,11 @@ public:
   static constexpr auto Name = "detect-stack-size";
 
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {
-    { &revng::pipes::LiftingArtifactsRemoved }
+    { &revng::kinds::LiftingArtifactsRemoved }
   };
 
   void run(pipeline::Context &Ctx, pipeline::LLVMContainer &Module) {
-    using namespace revng::pipes;
+    using namespace revng;
 
     llvm::legacy::PassManager Manager;
     auto Global = llvm::cantFail(Ctx.getGlobal<ModelGlobal>(ModelGlobalName));

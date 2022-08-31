@@ -9,6 +9,8 @@
 #include "revng-c/Backend/DecompiledYAMLToCPipe.h"
 #include "revng-c/Pipes/Kinds.h"
 
+using namespace revng::kinds;
+
 namespace revng::pipes {
 
 using RegFactory = pipeline::RegisterContainerFactory;
@@ -17,9 +19,9 @@ static RegFactory DecompiledCFactory("DecompiledCCode",
                                                               "text/plain",
                                                               ".c"));
 
-void DecompiledYAMLToCPipe::run(const pipeline::Context &Ctx,
-                                const FunctionStringMap &DecompiledFunctions,
-                                FileContainer &OutCFile) {
+void DecompiledYAMLToC::run(const pipeline::Context &Ctx,
+                            const FunctionStringMap &DecompiledFunctions,
+                            FileContainer &OutCFile) {
 
   std::error_code EC;
   llvm::raw_fd_ostream Out(OutCFile.getOrCreatePath(), EC);
@@ -36,13 +38,13 @@ void DecompiledYAMLToCPipe::run(const pipeline::Context &Ctx,
     revng_abort(EC.message().c_str());
 }
 
-void DecompiledYAMLToCPipe::print(const pipeline::Context &Ctx,
-                                  llvm::raw_ostream &OS,
-                                  llvm::ArrayRef<std::string> Names) const {
+void DecompiledYAMLToC::print(const pipeline::Context &Ctx,
+                              llvm::raw_ostream &OS,
+                              llvm::ArrayRef<std::string> Names) const {
   OS << *revng::ResourceFinder.findFile("bin/revng");
   OS << " decompiled-yaml-to-c -i " << Names[0] << " -o " << Names[1];
 }
 
 } // end namespace revng::pipes
 
-static pipeline::RegisterPipe<revng::pipes::DecompiledYAMLToCPipe> Y;
+static pipeline::RegisterPipe<revng::pipes::DecompiledYAMLToC> Y;

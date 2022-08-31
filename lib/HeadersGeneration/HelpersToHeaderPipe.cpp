@@ -11,15 +11,14 @@ namespace revng::pipes {
 
 static pipeline::RegisterContainerFactory
   HelpersHeaderFactory("HelpersHeader",
-                       makeFileContainerFactory(HelpersHeader,
-                                                "text/plain"
-                                                ".h"));
+                       makeFileContainerFactory(kinds::HelpersHeader,
+                                                "text/plain.h"));
 
-void HelpersToHeaderPipe::run(const pipeline::Context &Ctx,
-                              pipeline::LLVMContainer &IRContainer,
-                              FileContainer &HeaderFile) {
+void HelpersToHeader::run(const pipeline::Context &Ctx,
+                          pipeline::LLVMContainer &IRContainer,
+                          FileContainer &HeaderFile) {
   auto HasAllFunctions = [](const pipeline::Target &Target) {
-    return &Target.getKind() == &StackAccessesSegregated
+    return &Target.getKind() == &kinds::StackAccessesSegregated
            and Target.getPathComponents().back().isAll();
   };
 
@@ -40,13 +39,13 @@ void HelpersToHeaderPipe::run(const pipeline::Context &Ctx,
     revng_abort(EC.message().c_str());
 }
 
-void HelpersToHeaderPipe::print(const pipeline::Context &Ctx,
-                                llvm::raw_ostream &OS,
-                                llvm::ArrayRef<std::string> Names) const {
+void HelpersToHeader::print(const pipeline::Context &Ctx,
+                            llvm::raw_ostream &OS,
+                            llvm::ArrayRef<std::string> Names) const {
   OS << *revng::ResourceFinder.findFile("bin/revng");
   OS << " helpers-to-header -i=" << Names[0] << " -o=" << Names[1] << "\n";
 }
 
 } // end namespace revng::pipes
 
-static pipeline::RegisterPipe<revng::pipes::HelpersToHeaderPipe> Y;
+static pipeline::RegisterPipe<revng::pipes::HelpersToHeader> Y;

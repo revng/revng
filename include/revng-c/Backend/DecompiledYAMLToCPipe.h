@@ -20,13 +20,13 @@
 
 namespace revng::pipes {
 
-class DecompiledYAMLToCPipe {
+class DecompiledYAMLToC {
 public:
   static constexpr auto Name = "DecompiledYAMLToC";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;
-    using namespace revng::pipes;
+    using namespace revng::kinds;
 
     return { ContractGroup({ Contract(DecompiledToYAML,
                                       Exactness::Exact,

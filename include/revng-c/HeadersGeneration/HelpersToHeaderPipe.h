@@ -19,13 +19,13 @@
 
 namespace revng::pipes {
 
-class HelpersToHeaderPipe {
+class HelpersToHeader {
 public:
   static constexpr auto Name = "HelpersToHeader";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;
-    using namespace revng::pipes;
+    using namespace revng::kinds;
 
     return { ContractGroup{ Contract(StackAccessesSegregated,
                                      Exactness::Exact,

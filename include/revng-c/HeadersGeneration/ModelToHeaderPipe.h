@@ -19,13 +19,13 @@
 
 namespace revng::pipes {
 
-class ModelToHeaderPipe {
+class ModelToHeader {
 public:
   static constexpr auto Name = "ModelToHeader";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;
-    using namespace revng::pipes;
+    using namespace revng::kinds;
 
     return { ContractGroup({ Contract(Binary,
                                       Exactness::Exact,
