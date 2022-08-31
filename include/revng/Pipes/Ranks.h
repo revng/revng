@@ -8,7 +8,7 @@
 #include "revng/Pipeline/Rank.h"
 #include "revng/Support/MetaAddress.h"
 
-namespace revng::pipes::ranks {
+namespace revng::ranks {
 
 inline auto Binary = pipeline::defineRootRank<"binary">();
 
@@ -23,4 +23,4 @@ inline auto TypeField = defineRank<"type-field", uint64_t>(Type);
 inline auto RawByte = defineRank<"raw-byte", MetaAddress>(Binary);
 inline auto RawByteRange = defineRank<"raw-byte-range", MetaAddress>(RawByte);
 
-} // namespace revng::pipes::ranks
+} // namespace revng::ranks

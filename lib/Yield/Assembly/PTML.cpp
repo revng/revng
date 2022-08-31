@@ -92,7 +92,7 @@ static std::string targetPath(const MetaAddress &Target,
                               const yield::Function &Function,
                               const model::Binary &Binary) {
   using pipeline::serializedLocation;
-  namespace ranks = revng::pipes::ranks;
+  namespace ranks = revng::ranks;
   if (auto Iterator = Binary.Functions.find(Target);
       Iterator != Binary.Functions.end()) {
     // The target is a function
@@ -228,7 +228,7 @@ static std::string instruction(const yield::Instruction &Instruction,
   size_t Tail = Instruction.Disassembled.size() + 1;
 
   using pipeline::serializedLocation;
-  namespace ranks = revng::pipes::ranks;
+  namespace ranks = revng::ranks;
   Tag Out = Tag(tags::Div, std::move(Result))
               .addAttribute(attributes::Scope, scopes::Instruction)
               .addAttribute(attributes::LocationDefinition,
@@ -308,7 +308,7 @@ std::string yield::ptml::functionAssembly(const yield::Function &Function,
   }
 
   using pipeline::serializedLocation;
-  namespace ranks = revng::pipes::ranks;
+  namespace ranks = revng::ranks;
   return ::Tag(tags::Div, Result)
     .addAttribute(attributes::Scope, scopes::Function)
     .addAttribute(attributes::LocationDefinition,

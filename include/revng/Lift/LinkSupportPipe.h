@@ -13,15 +13,16 @@
 #include "revng/Pipeline/LLVMContainer.h"
 #include "revng/Pipeline/LLVMGlobalKindBase.h"
 #include "revng/Pipeline/Target.h"
+#include "revng/Pipes/Kinds.h"
 
 namespace revng::pipes {
 
-class LinkSupportPipe {
+class LinkSupport {
 public:
   static constexpr auto Name = "LinkSupport";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
-    return { pipeline::ContractGroup(Root,
+    return { pipeline::ContractGroup(kinds::Root,
                                      pipeline::Exactness::DerivedFrom,
                                      0,
                                      pipeline::InputPreservation::Preserve) };

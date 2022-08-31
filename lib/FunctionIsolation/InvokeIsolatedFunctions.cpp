@@ -31,7 +31,7 @@ struct InvokeIsolatedPipe {
   static constexpr auto Name = "invoke-isolated-functions";
 
   std::vector<pipeline::ContractGroup> getContract() const {
-    using namespace revng::pipes;
+    using namespace revng::kinds;
     return { pipeline::ContractGroup(Root,
                                      pipeline::Exactness::Exact,
                                      0,

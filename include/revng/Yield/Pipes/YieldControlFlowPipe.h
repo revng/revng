@@ -15,7 +15,7 @@
 
 namespace revng::pipes {
 
-class YieldControlFlowPipe {
+class YieldControlFlow {
 public:
   static constexpr const auto Name = "YieldCFG";
 

@@ -127,6 +127,7 @@ set(REVNG_API_MODULE_FILES
     revng/api/manager.py
     revng/api/rank.py
     revng/api/step.py
+    revng/api/string_map.py
     revng/api/target.py
     revng/api/utils.py)
 python_module(TARGET_NAME revng-python-api MODULE_FILES

@@ -239,7 +239,8 @@ Error Runner::loadFromDisk(llvm::StringRef DirPath) {
 llvm::Expected<DiffMap>
 Runner::runAnalysis(llvm::StringRef AnalysisName,
                     llvm::StringRef StepName,
-                    const ContainerToTargetsMap &Targets) {
+                    const ContainerToTargetsMap &Targets,
+                    const llvm::StringMap<std::string> &Options) {
 
   auto Before = getContext().getGlobals();
 
@@ -254,7 +255,12 @@ Runner::runAnalysis(llvm::StringRef AnalysisName,
   if (auto Error = run(StepName, Targets))
     return std::move(Error);
 
-  MaybeStep->second.runAnalysis(AnalysisName, *TheContext, Targets);
+  if (auto Error = MaybeStep->second.runAnalysis(AnalysisName,
+                                                 *TheContext,
+                                                 Targets,
+                                                 Options);
+      Error)
+    return std::move(Error);
 
   auto &After = getContext().getGlobals();
   auto Map = Before.diff(After);
@@ -266,7 +272,8 @@ Runner::runAnalysis(llvm::StringRef AnalysisName,
 }
 
 /// Run all analysis in reverse post order (that is: parents first),
-llvm::Expected<DiffMap> Runner::runAllAnalyses() {
+llvm::Expected<DiffMap>
+Runner::runAllAnalyses(const llvm::StringMap<std::string> &Options) {
   auto Before = getContext().getGlobals();
 
   for (const Step *Step : ReversePostOrderIndexes) {
@@ -280,7 +287,7 @@ llvm::Expected<DiffMap> Runner::runAllAnalyses() {
         }
       }
 
-      auto Result = runAnalysis(Pair.first(), Step->getName(), Map);
+      auto Result = runAnalysis(Pair.first(), Step->getName(), Map, Options);
       if (not Result)
         return Result.takeError();
     }
@@ -304,9 +311,18 @@ Error Runner::run(llvm::StringRef EndingStepName,
     return Error::success();
 
   for (auto &StepGoalsPairs : llvm::drop_begin(ToExec)) {
+    auto &Step = *StepGoalsPairs.ToExecute;
+    if (auto Error = Step.checkPrecondition(getContext()); Error)
+      return llvm::make_error<AnnotatedError>(std::move(Error),
+                                              "While scheduling step "
+                                                + Step.getName() + ":");
+  }
+
+  for (auto &StepGoalsPairs : llvm::drop_begin(ToExec)) {
     auto &[Step, PredictedOutput, Input] = StepGoalsPairs;
     auto &Parent = Step->getPredecessor();
     auto CurrentContainer = Parent.containers().cloneFiltered(Input);
+    PredictedOutput.collapseEmptyTargets(*TheContext);
     auto Produced = Step->cloneAndRun(*TheContext, std::move(CurrentContainer));
     revng_check(Produced.enumerate().contains(PredictedOutput),
                 "predicted output was not fully contained in actually "

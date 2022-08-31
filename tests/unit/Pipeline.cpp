@@ -26,10 +26,12 @@
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/ContainerEnumerator.h"
 #include "revng/Pipeline/ContainerFactorySet.h"
+#include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/Errors.h"
 #include "revng/Pipeline/GenericLLVMPipe.h"
+#include "revng/Pipeline/Invokable.h"
 #include "revng/Pipeline/Kind.h"
 #include "revng/Pipeline/LLVMContainerFactory.h"
 #include "revng/Pipeline/LLVMGlobalKindBase.h"
@@ -1342,6 +1344,37 @@ BOOST_AUTO_TEST_CASE(MultiStepInvalidationTest) {
   BOOST_TEST(C1End.get(T) == 0);
 
   BOOST_TEST(C2End.get(ToProduce) == 0);
+}
+
+class ArgumentTestAnalysis {
+public:
+  constexpr static const char *Name = "dont_care";
+
+  constexpr static std::tuple Options = { pipeline::Option("first", 10),
+                                          pipeline::Option("second",
+                                                           "something") };
+
+  std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = { { &RootKind } };
+
+  void run(const Context &Ctx,
+           const MapContainer &Cont,
+           int First,
+           std::string Second) {
+    BOOST_TEST(First == 10);
+    BOOST_TEST(Second == "something");
+  }
+};
+
+BOOST_AUTO_TEST_CASE(PipeOptions) {
+  pipeline::AnalysisWrapperImpl W(ArgumentTestAnalysis(), { "container_name" });
+  Context Ctx;
+  ContainerSet Set;
+  Set.add("container_name", [](llvm::StringRef Name) {
+    return std::make_unique<MapContainer>(Name);
+  });
+  Set["container_name"];
+  if (auto Error = W.run(Ctx, Set, {}); Error)
+    BOOST_FAIL("unrechable");
 }
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -873,6 +873,17 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
                                  Type,
                                  InstructionList.get());
 
+    if (ConsumedSize == 0) {
+      Translator.emitNewPCCall(Builder, VirtualAddress, 1, nullptr);
+      Builder.CreateCall(AbortFunction);
+      Builder.CreateUnreachable();
+
+      // Obtain a new program counter to translate
+      std::tie(VirtualAddress, Entry) = JumpTargets.peek();
+
+      continue;
+    }
+
     // Check whether we ended up in an unmapped page
     MetaAddress AbortAt = MetaAddress::invalid();
     MetaAddress LastByte = VirtualAddress.toGeneric() + (ConsumedSize - 1);

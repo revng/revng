@@ -179,9 +179,10 @@ public:
   }
 
 public:
-  void runAnalysis(llvm::StringRef AnalysisName,
-                   Context &Ctx,
-                   const ContainerToTargetsMap &Targets);
+  llvm::Error runAnalysis(llvm::StringRef AnalysisName,
+                          Context &Ctx,
+                          const ContainerToTargetsMap &Targets,
+                          const llvm::StringMap<std::string> &ExtraArgs = {});
 
   /// Clones the Targets from the backing containers of this step
   /// and excutes all the pipes in sequence contained by this step
@@ -195,6 +196,8 @@ public:
   /// that were not present.
   ContainerToTargetsMap
   analyzeGoals(const ContainerToTargetsMap &RequiredGoals) const;
+
+  llvm::Error checkPrecondition(const Context &Ctx) const;
 
   /// Returns the predicted state of the Input containers status after the
   /// execution of all the pipes in this step.

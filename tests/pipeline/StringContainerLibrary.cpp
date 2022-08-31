@@ -16,9 +16,9 @@ using std::string;
 using namespace llvm;
 using namespace llvm::cl;
 using namespace pipeline;
-using namespace ::revng::pipes;
+using namespace ::revng::kinds;
 
-static Kind StringKind("StringKind", &revng::pipes::ranks::Function);
+static Kind StringKind("StringKind", &revng::ranks::Function);
 
 class StringContainer : public Container<StringContainer> {
 public:

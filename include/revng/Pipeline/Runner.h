@@ -134,12 +134,15 @@ public:
     return llvm::Error::success();
   }
 
-  llvm::Expected<DiffMap> runAnalysis(llvm::StringRef AnalysisName,
-                                      llvm::StringRef StepName,
-                                      const ContainerToTargetsMap &Targets);
+  llvm::Expected<DiffMap>
+  runAnalysis(llvm::StringRef AnalysisName,
+              llvm::StringRef StepName,
+              const ContainerToTargetsMap &Targets,
+              const llvm::StringMap<std::string> &Options = {});
 
   /// Run all analysis in reverse post order (that is: parents first),
-  llvm::Expected<DiffMap> runAllAnalyses();
+  llvm::Expected<DiffMap>
+  runAllAnalyses(const llvm::StringMap<std::string> &Options = {});
 
   void addContainerFactory(llvm::StringRef Name, ContainerFactory Entry) {
     ContainerFactoriesRegistry.registerContainerFactory(Name, std::move(Entry));

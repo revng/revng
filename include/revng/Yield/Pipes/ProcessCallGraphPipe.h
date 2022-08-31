@@ -17,7 +17,7 @@
 
 namespace revng::pipes {
 
-class ProcessCallGraphPipe {
+class ProcessCallGraph {
 public:
   static constexpr const auto Name = "ProcessCallGraph";
 

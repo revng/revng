@@ -59,8 +59,18 @@ public:
     Invokable.print(Ctx, OS, Indentation);
   }
 
-  void run(Context &Ctx, ContainerSet &Containers) override {
-    Invokable.run(Ctx, Containers);
+  llvm::Error run(Context &Ctx,
+                  ContainerSet &Containers,
+                  const llvm::StringMap<std::string> &ExtraArgs) override {
+    return Invokable.run(Ctx, Containers, ExtraArgs);
+  }
+
+  std::vector<std::string> getOptionsNames() const override {
+    return Invokable.getOptionsNames();
+  }
+
+  std::vector<std::string> getOptionsTypes() const override {
+    return Invokable.getOptionsTypes();
   }
 
   std::vector<std::string> getRunningContainersNames() const override {

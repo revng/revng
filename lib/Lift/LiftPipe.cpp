@@ -11,12 +11,12 @@ extern "C" {
 }
 
 #include "revng/Lift/Lift.h"
+#include "revng/Lift/LiftPipe.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/SerializeModelPass.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/Kinds.h"
-#include "revng/Pipes/LiftPipe.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/RootKind.h"
 #include "revng/Support/IRAnnotators.h"
@@ -26,9 +26,9 @@ using namespace llvm;
 using namespace pipeline;
 using namespace ::revng::pipes;
 
-void LiftPipe::run(Context &Ctx,
-                   const FileContainer &SourceBinary,
-                   LLVMContainer &TargetsList) {
+void Lift::run(Context &Ctx,
+               const FileContainer &SourceBinary,
+               LLVMContainer &TargetsList) {
   if (not SourceBinary.exists())
     return;
 
@@ -46,4 +46,16 @@ void LiftPipe::run(Context &Ctx,
   PM.run(TargetsList.getModule());
 }
 
-static RegisterPipe<LiftPipe> E1;
+llvm::Error Lift::checkPrecondition(const pipeline::Context &Ctx) const {
+  const auto &Model = *getModelFromContext(Ctx);
+
+  if (Model.Architecture == model::Architecture::Invalid) {
+    return llvm::createStringError(inconvertibleErrorCode(),
+                                   "Cannot lift binary with architecture "
+                                   "invalid.");
+  }
+
+  return llvm::Error::success();
+}
+
+static RegisterPipe<Lift> E1;

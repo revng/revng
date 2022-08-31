@@ -68,7 +68,7 @@ TargetsList FunctionStringMap::enumerate() const {
   for (const auto &[MetaAddress, Mapped] : Map)
     Result.push_back({ MetaAddress.toString(), *TheKind });
 
-  return compactFunctionTargets(*Model, Result, *TheKind);
+  return kinds::compactFunctionTargets(*Model, Result, *TheKind);
 }
 
 bool FunctionStringMap::remove(const TargetsList &Targets) {

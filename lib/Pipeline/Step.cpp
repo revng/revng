@@ -14,6 +14,7 @@
 
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Context.h"
+#include "revng/Pipeline/Errors.h"
 #include "revng/Pipeline/Step.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Support/Assert.h"
@@ -89,7 +90,7 @@ ContainerSet Step::cloneAndRun(Context &Ctx, ContainerSet &&Input) {
 
   for (auto &Pipe : Pipes) {
     explainExecutedPipe(Ctx, *Pipe);
-    Pipe->run(Ctx, Input);
+    cantFail(Pipe->run(Ctx, Input));
     llvm::cantFail(Input.verify());
   }
   explainEndStep(Input.enumerate());
@@ -98,9 +99,10 @@ ContainerSet Step::cloneAndRun(Context &Ctx, ContainerSet &&Input) {
   return Containers.cloneFiltered(InputEnumeration);
 }
 
-void Step::runAnalysis(llvm::StringRef AnalysisName,
-                       Context &Ctx,
-                       const ContainerToTargetsMap &Targets) {
+llvm::Error Step::runAnalysis(llvm::StringRef AnalysisName,
+                              Context &Ctx,
+                              const ContainerToTargetsMap &Targets,
+                              const llvm::StringMap<std::string> &ExtraArgs) {
   auto Stream = ExplanationLogger.getAsLLVMStream();
   ContainerToTargetsMap Map = Containers.enumerate();
   revng_assert(Map.contains(Targets),
@@ -111,7 +113,7 @@ void Step::runAnalysis(llvm::StringRef AnalysisName,
   explainExecutedPipe(Ctx, *TheAnalysis);
 
   auto Cloned = Containers.cloneFiltered(Targets);
-  TheAnalysis->run(Ctx, Cloned);
+  return TheAnalysis->run(Ctx, Cloned, ExtraArgs);
 }
 
 void Step::removeSatisfiedGoals(TargetsList &RequiredInputs,
@@ -154,6 +156,16 @@ Error Step::invalidate(const ContainerToTargetsMap &ToRemove) {
 
 Error Step::storeToDisk(llvm::StringRef DirPath) const {
   return Containers.storeToDisk(DirPath);
+}
+
+Error Step::checkPrecondition(const Context &Ctx) const {
+  for (const auto &Pipe : Pipes) {
+    if (auto Error = Pipe->checkPrecondition(Ctx); Error)
+      return llvm::make_error<AnnotatedError>(std::move(Error),
+                                              "While scheduling pipe "
+                                                + Pipe->getName() + ":");
+  }
+  return llvm::Error::success();
 }
 
 Error Step::loadFromDisk(llvm::StringRef DirPath) {

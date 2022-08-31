@@ -5,14 +5,9 @@
 revng_add_library_internal(
   revngPipes
   SHARED
-  AddPrimitiveTypesAnalysis.cpp
   AllFunctions.cpp
-  CompileModulePipe.cpp
   FileContainer.cpp
   FunctionStringMap.cpp
-  ImportBinaryAnalysis.cpp
-  LiftPipe.cpp
-  LinkSupportPipe.cpp
   PipelineManager.cpp
   Pipes.cpp
   RootKind.cpp
@@ -45,13 +40,5 @@ llvm_map_components_to_libnames(
   X86Desc
   X86Info)
 
-target_link_libraries(
-  revngPipes
-  revngEarlyFunctionAnalysis
-  revngLift
-  revngModelImporterBinary
-  revngModelPasses
-  revngPipeline
-  revngSupport
-  revngEarlyFunctionAnalysis
-  ${LLVM_LIBRARIES})
+target_link_libraries(revngPipes revngPipeline revngModel revngSupport
+                      ${LLVM_LIBRARIES})

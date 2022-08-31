@@ -12,11 +12,11 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/SourceMgr.h"
 
+#include "revng/Lift/LinkSupportPipe.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipes/Kinds.h"
-#include "revng/Pipes/LinkSupportPipe.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/CommandLine.h"
@@ -74,15 +74,15 @@ static std::string getSupportPath(const Context &Ctx) {
   return SupportPath;
 }
 
-void LinkSupportPipe::print(const pipeline::Context &Ctx,
-                            llvm::raw_ostream &OS,
-                            llvm::ArrayRef<std::string> Names) const {
+void LinkSupport::print(const pipeline::Context &Ctx,
+                        llvm::raw_ostream &OS,
+                        llvm::ArrayRef<std::string> Names) const {
   OS << "llvm-link " << Names[0] << " " << getSupportPath(Ctx) << " -o "
      << Names[0] << "\n";
 }
 
-void revng::pipes::LinkSupportPipe::run(const Context &Ctx,
-                                        LLVMContainer &TargetsList) {
+void revng::pipes::LinkSupport::run(const Context &Ctx,
+                                    LLVMContainer &TargetsList) {
   if (TargetsList.enumerate().empty())
     return;
 
@@ -100,4 +100,4 @@ void revng::pipes::LinkSupportPipe::run(const Context &Ctx,
   revng_assert(not Failed);
 }
 
-static pipeline::RegisterPipe<LinkSupportPipe> E4;
+static pipeline::RegisterPipe<LinkSupport> E4;

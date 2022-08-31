@@ -70,7 +70,7 @@ struct IsolatePipe {
 
   std::vector<pipeline::ContractGroup> getContract() const {
     using namespace pipeline;
-    using namespace ::revng::pipes;
+    using namespace ::revng::kinds;
     return {
       ContractGroup::transformOnlyArgument(Root,
                                            Exactness::Exact,

@@ -25,21 +25,23 @@
 
 namespace revng::pipes {
 
-class LiftPipe {
+class Lift {
 public:
   static constexpr auto Name = "Lift";
   std::array<pipeline::ContractGroup, 1> getContract() const {
-    return { pipeline::ContractGroup(Binary,
+    return { pipeline::ContractGroup(kinds::Binary,
                                      pipeline::Exactness::Exact,
                                      0,
-                                     Root,
+                                     kinds::Root,
                                      1,
                                      pipeline::InputPreservation::Preserve) };
   }
 
   void run(pipeline::Context &Ctx,
            const FileContainer &SourceBinary,
-           pipeline::LLVMContainer &TargetsList);
+           pipeline::LLVMContainer &Output);
+
+  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const;
 
   void print(const pipeline::Context &Ctx,
              llvm::raw_ostream &OS,

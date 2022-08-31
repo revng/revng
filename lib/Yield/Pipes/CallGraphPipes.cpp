@@ -16,11 +16,11 @@
 
 namespace revng::pipes {
 
-void ProcessCallGraphPipe::run(pipeline::Context &Context,
-                               const pipeline::LLVMContainer &TargetList,
-                               FileContainer &OutputFile) {
+void ProcessCallGraph::run(pipeline::Context &Context,
+                           const pipeline::LLVMContainer &TargetList,
+                           FileContainer &OutputFile) {
   // Access the model
-  const auto &Model = revng::pipes::getModelFromContext(Context);
+  const auto &Model = getModelFromContext(Context);
 
   // Access the llvm module
   const llvm::Module &Module = TargetList.getModule();
@@ -48,31 +48,30 @@ void ProcessCallGraphPipe::run(pipeline::Context &Context,
     revng_abort(ErrorCode.message().c_str());
 }
 
-void ProcessCallGraphPipe::print(const pipeline::Context &,
-                                 llvm::raw_ostream &OS,
-                                 llvm::ArrayRef<std::string>) const {
+void ProcessCallGraph::print(const pipeline::Context &,
+                             llvm::raw_ostream &OS,
+                             llvm::ArrayRef<std::string>) const {
   OS << *revng::ResourceFinder.findFile("bin/revng") << " magic ^_^\n";
 }
 
-std::array<pipeline::ContractGroup, 1>
-ProcessCallGraphPipe::getContract() const {
-  return { pipeline::ContractGroup(IsolatedRoot,
+std::array<pipeline::ContractGroup, 1> ProcessCallGraph::getContract() const {
+  return { pipeline::ContractGroup(kinds::IsolatedRoot,
                                    pipeline::Exactness::Exact,
                                    0,
-                                   BinaryCrossRelations,
+                                   kinds::BinaryCrossRelations,
                                    1,
                                    pipeline::InputPreservation::Preserve) };
 }
 
 static pipeline::RegisterContainerFactory
   InternalContainer("BinaryCrossRelations",
-                    makeFileContainerFactory(BinaryCrossRelations,
+                    makeFileContainerFactory(kinds::BinaryCrossRelations,
                                              "application/"
                                              "x.yaml.cross-relations"));
 
 static pipeline::RegisterRole
-  Role("BinaryCrossRelations", BinaryCrossRelationsRole);
+  Role("BinaryCrossRelations", kinds::BinaryCrossRelationsRole);
 
-static pipeline::RegisterPipe<ProcessCallGraphPipe> ProcessPipe;
+static pipeline::RegisterPipe<ProcessCallGraph> ProcessPipe;
 
 } // end namespace revng::pipes

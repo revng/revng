@@ -12,7 +12,7 @@
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Support/FunctionTags.h"
 
-namespace revng::pipes {
+namespace revng::kinds {
 
 /// A tagged function kind is a kind associated to tagged global elements. When
 /// enumerating a llvm::Module it will produce a target for each global object
@@ -52,4 +52,4 @@ public:
                    const pipeline::GlobalTupleTreeDiff &Diff) const override;
 };
 
-} // namespace revng::pipes
+} // namespace revng::kinds

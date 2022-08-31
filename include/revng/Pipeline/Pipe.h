@@ -23,22 +23,30 @@
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/Invokable.h"
+#include "revng/Pipeline/Target.h"
 #include "revng/Support/Debug.h"
 
 namespace pipeline {
 
 namespace detail {
+
 template<typename T>
 concept HasContract = requires(T P) {
   { llvm::ArrayRef<ContractGroup>(P.getContract()) };
 };
 
 template<typename T, typename FirstRunArg, typename... Args>
-concept Pipe = Invokable<T, FirstRunArg, Args...> and HasContract<T>;
+concept Pipe = Invokable<T, FirstRunArg, Args...> and(IsContainer<Args> and...)
+               and HasContract<T>;
+
+template<typename T>
+concept HasPrecondition = requires(const T &P) {
+  { P.checkPrecondition };
+};
 
 template<typename C, typename First, typename... Rest>
 constexpr bool
-checkPipe(void (C::*)(First, Rest...)) requires Pipe<C, First, Rest...> {
+checkPipe(auto (C::*)(First, Rest...)) requires Pipe<C, First, Rest...> {
   return true;
 }
 
@@ -57,6 +65,7 @@ public:
   deduceResults(ContainerToTargetsMap &Target) const = 0;
   virtual bool areRequirementsMet(const ContainerToTargetsMap &Input) const = 0;
   virtual std::unique_ptr<PipeWrapperBase> clone() const = 0;
+  virtual llvm::Error checkPrecondition(const Context &Ctx) const = 0;
 
   virtual ~PipeWrapperBase() = default;
 };
@@ -121,6 +130,13 @@ public:
     return std::make_unique<PipeWrapperImpl>(*this);
   }
 
+  llvm::Error checkPrecondition(const Context &Ctx) const override {
+    if constexpr (not HasPrecondition<PipeType>)
+      return llvm::Error::success();
+    else
+      return Invokable.getPipe().checkPrecondition(Ctx);
+  }
+
 public:
   void
   dump(std::ostream &OS, size_t Indentation) const override debug_function {
@@ -133,8 +149,18 @@ public:
     Invokable.print(Ctx, OS, Indentation);
   }
 
-  void run(Context &Ctx, ContainerSet &Containers) override {
-    Invokable.run(Ctx, Containers);
+  llvm::Error run(Context &Ctx,
+                  ContainerSet &Containers,
+                  const llvm::StringMap<std::string> &ExtraArgs) override {
+    return Invokable.run(Ctx, Containers, ExtraArgs);
+  }
+
+  std::vector<std::string> getOptionsNames() const override {
+    return Invokable.getOptionsNames();
+  }
+
+  std::vector<std::string> getOptionsTypes() const override {
+    return Invokable.getOptionsTypes();
   }
 
   std::vector<std::string> getRunningContainersNames() const override {

@@ -11,7 +11,7 @@
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/ModelGlobal.h"
 
-namespace revng::pipes {
+namespace revng::kinds {
 
 inline void expandTargetImpl(const pipeline::Context &Ctx,
                              const pipeline::Target &Input,
@@ -45,4 +45,4 @@ public:
     expandTargetImpl(Ctx, Input, Output, *this);
   }
 };
-} // namespace revng::pipes
+} // namespace revng::kinds

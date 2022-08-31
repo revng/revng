@@ -22,14 +22,14 @@
 
 namespace revng::pipes {
 
-class CompileModulePipe {
+class CompileModule {
 public:
   static constexpr auto Name = "Compile";
   std::array<pipeline::ContractGroup, 1> getContract() const {
-    return { pipeline::ContractGroup(Root,
+    return { pipeline::ContractGroup(kinds::Root,
                                      pipeline::Exactness::DerivedFrom,
                                      0,
-                                     Object,
+                                     kinds::Object,
                                      1) };
   }
   void run(const pipeline::Context &,
@@ -45,20 +45,20 @@ public:
   };
 };
 
-class CompileIsolatedModulePipe {
+class CompileIsolatedModule {
 public:
   static constexpr auto Name = "CompileIsolated";
   std::array<pipeline::ContractGroup, 1> getContract() const {
-    pipeline::Contract RootPart(IsolatedRoot,
+    pipeline::Contract RootPart(kinds::IsolatedRoot,
                                 pipeline::Exactness::Exact,
                                 0,
-                                Object,
+                                kinds::Object,
                                 1,
                                 pipeline::InputPreservation::Preserve);
-    pipeline::Contract IsolatedPart(Isolated,
+    pipeline::Contract IsolatedPart(kinds::Isolated,
                                     pipeline::Exactness::Exact,
                                     0,
-                                    Object,
+                                    kinds::Object,
                                     1);
     return { pipeline::ContractGroup({ RootPart, IsolatedPart }) };
   }

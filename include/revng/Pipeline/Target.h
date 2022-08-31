@@ -135,6 +135,8 @@ public:
     K->expandTarget(Ctx, *this, Out);
   }
 
+  size_t expandedSize(const Context &Ctx) const;
+
 public:
   template<typename OStream>
   void dump(OStream &OS, size_t Indentation = 0) const debug_function {
@@ -257,6 +259,12 @@ public:
       Entry.dump(OS, Indentation);
   }
 
+  void collapseEmptyTargets(const Context &Ctx) {
+    llvm::erase_if(Contained, [&Ctx](const Target &Target) {
+      return Target.expandedSize(Ctx);
+    });
+  }
+
 private:
   void removeDuplicates();
 };
@@ -353,6 +361,11 @@ public:
       indent(OS, Indentation);
       OS << "}\n";
     }
+  }
+
+  void collapseEmptyTargets(const Context &Ctx) {
+    for (auto &Entry : *this)
+      Entry.second.collapseEmptyTargets(Ctx);
   }
 
   void dump() const debug_function { dump(dbg); }

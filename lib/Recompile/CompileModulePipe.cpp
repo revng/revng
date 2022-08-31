@@ -21,8 +21,8 @@
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/LLVMContainer.h"
 #include "revng/Pipeline/Target.h"
-#include "revng/Pipes/CompileModulePipe.h"
 #include "revng/Pipes/Kinds.h"
+#include "revng/Recompile/CompileModulePipe.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRAnnotators.h"
 #include "revng/Support/OriginalAssemblyAnnotationWriter.h"
@@ -45,16 +45,18 @@ static cl::opt<char> OptLevel("compile-opt-level",
 
 static void
 compileModuleRunImpl(LLVMContainer &Module, FileContainer &TargetBinary) {
+  using namespace revng;
+
   auto Enumeration = Module.enumerate();
-  if (not Enumeration.contains(pipeline::Target(Root))
-      and not Enumeration.contains(pipeline::Target(IsolatedRoot)))
+  if (not Enumeration.contains(pipeline::Target(kinds::Root))
+      and not Enumeration.contains(pipeline::Target(kinds::IsolatedRoot)))
     return;
 
-  if (Enumeration.contains(pipeline::Target(IsolatedRoot))
-      and not Enumeration.contains(pipeline::Target(Isolated)))
+  if (Enumeration.contains(pipeline::Target(kinds::IsolatedRoot))
+      and not Enumeration.contains(pipeline::Target(kinds::Isolated)))
     return;
 
-  StringMap<Option *> &RegOptions(getRegisteredOptions());
+  StringMap<llvm::cl::Option *> &RegOptions(getRegisteredOptions());
   getOption<bool>(RegOptions, "disable-machine-licm")->setInitialValue(true);
 
   llvm::Module *M = &Module.getModule();
@@ -139,17 +141,17 @@ compileModuleRunImpl(LLVMContainer &Module, FileContainer &TargetBinary) {
   fs::setPermissions(*TargetBinary.path(), Permissions);
 }
 
-void CompileModulePipe::run(const Context &,
-                            LLVMContainer &Module,
-                            FileContainer &TargetBinary) {
+void CompileModule::run(const Context &,
+                        LLVMContainer &Module,
+                        FileContainer &TargetBinary) {
   compileModuleRunImpl(Module, TargetBinary);
 }
 
-void CompileIsolatedModulePipe::run(const Context &,
-                                    LLVMContainer &Module,
-                                    FileContainer &TargetBinary) {
+void CompileIsolatedModule::run(const Context &,
+                                LLVMContainer &Module,
+                                FileContainer &TargetBinary) {
   compileModuleRunImpl(Module, TargetBinary);
 }
 
-static RegisterPipe<CompileModulePipe> E2;
-static RegisterPipe<CompileIsolatedModulePipe> E3;
+static RegisterPipe<CompileModule> E2;
+static RegisterPipe<CompileIsolatedModule> E3;

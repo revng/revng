@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/Support/CommandLine.h"
+
 #include "revng/Pipeline/Loader.h"
 #include "revng/Pipeline/Pipe.h"
 #include "revng/Pipeline/Registry.h"

@@ -17,7 +17,7 @@
 
 namespace revng::pipes {
 
-class ProcessAssemblyPipe {
+class ProcessAssembly {
 public:
   static constexpr const auto Name = "ProcessAssembly";
 

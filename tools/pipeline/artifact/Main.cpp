@@ -30,42 +30,41 @@ using namespace llvm;
 using namespace llvm::cl;
 using namespace pipeline;
 using namespace ::revng::pipes;
-
-cl::OptionCategory PipelineCategory("revng-pipeline options", "");
+using namespace ::revng;
 
 static cl::list<string> Arguments(Positional,
                                   ZeroOrMore,
                                   desc("<ArtifactToProduce> <InputBinary>"),
-                                  cat(PipelineCategory));
+                                  cat(MainCategory));
 
 static opt<string> Output("o",
                           desc("Output filepath of produced artifact"),
-                          cat(PipelineCategory),
+                          cat(MainCategory),
                           init("-"));
 
 static opt<string> SaveModel("save-model",
                              desc("Save the model at the end of the run"),
-                             cat(PipelineCategory),
+                             cat(MainCategory),
                              init(""));
 
 static opt<bool> ListArtifacts("list",
                                desc("list all possible targets of artifact and "
                                     "exit"),
-                               cat(PipelineCategory),
+                               cat(MainCategory),
                                init(false));
 
 static opt<bool> AnalyzeAll("analyze-all",
                             desc("Try analyzing all possible "
                                  "targets"),
-                            cat(PipelineCategory),
+                            cat(MainCategory),
                             init(false));
 
-static ToolCLOptions BaseOptions(PipelineCategory);
+static ToolCLOptions BaseOptions(MainCategory);
 
 static ExitOnError AbortOnError;
 
 int main(int argc, const char *argv[]) {
-  HideUnrelatedOptions(PipelineCategory);
+  HideUnrelatedOptions(MainCategory);
   ParseCommandLineOptions(argc, argv);
 
   Registry::runAllInitializationRoutines();
@@ -139,7 +138,7 @@ int main(int argc, const char *argv[]) {
 
   if (not SaveModel.empty()) {
     auto Context = Manager.context();
-    const auto &ModelName = ModelGlobalName;
+    const auto &ModelName = revng::ModelGlobalName;
     auto FinalModel = AbortOnError(Context.getGlobal<ModelGlobal>(ModelName));
     AbortOnError(FinalModel->storeToDisk(SaveModel));
   }

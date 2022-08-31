@@ -208,12 +208,12 @@ bool rp_manager_verify_diff(rp_manager *manager,
                             rp_error_list *error_list);
 
 /**
- * \returns the number of serializable global objects
+ * \return the number of serializable global objects
  */
 int rp_manager_get_globals_count(rp_manager *manager);
 
 /**
- * \returns the owning pointer to the name of serializable global object
+ * \return the owning pointer to the name of serializable global object
  * with the provided index, nullptr if the index was out of bound.
  */
 const char * /*owning*/
@@ -262,7 +262,8 @@ rp_diff_map * /*owning*/ rp_manager_run_analysis(rp_manager *manager,
                                                  rp_target *targets[],
                                                  const char *step_name,
                                                  const char *analysis_name,
-                                                 rp_container *container);
+                                                 rp_container *container,
+                                                 const rp_string_map *options);
 
 /**
  * Request to run all analyses on all targets
@@ -270,7 +271,8 @@ rp_diff_map * /*owning*/ rp_manager_run_analysis(rp_manager *manager,
  * \return 0 if an error was encountered, the owning diff map of affected global
  * objects
  */
-rp_diff_map * /*owning*/ rp_manager_run_all_analyses(rp_manager *manager);
+rp_diff_map * /*owning*/
+rp_manager_run_all_analyses(rp_manager *manager, const rp_string_map *options);
 
 /**
  * \return the container status associated to the provided \p container
@@ -400,6 +402,27 @@ rp_analysis_get_argument_name(rp_analysis *analysis, int index);
  */
 int rp_analysis_get_argument_acceptable_kinds_count(rp_analysis *analysis,
                                                     int argument_index);
+
+/**
+ * \return the ammout of extra arguments of the provided analysis
+ */
+int rp_analysis_get_options_count(rp_analysis *analysis);
+
+/**
+ * \return the name of the extra argument with the provided index. Returns
+ * nullptr if extra_argument_index < 0 or extra_argument_index >
+ * rp_analysis_get_extra_argument_count(analysis)
+ */
+const char * /*owning*/
+rp_analysis_get_option_name(rp_analysis *analysis, int extra_argument_index);
+
+/**
+ * \return the type of the extra argument with the provided index. Returns
+ * nullptr if extra_argument_index < 0 or extra_argument_index >
+ * rp_analysis_get_extra_argument_count(analysis)
+ */
+const char * /*owning*/
+rp_analysis_get_option_type(rp_analysis *analysis, int extra_argument_index);
 
 /**
  * \return the pointer to a acceptable kind for the container with index
@@ -576,14 +599,14 @@ rp_container_extract_one(rp_container *container, rp_target *target);
 void rp_diff_map_destroy(rp_diff_map *to_free);
 
 /**
- * \returns nullptr if global_name did not named a global variable in the
+ * \return nullptr if global_name did not named a global variable in the
  * diff_map else return the serialized diff of the indicated global
  */
 const char * /*owning*/
 rp_diff_map_get_diff(rp_diff_map *map, const char *global_name);
 
 /**
- * \returns true if the rp_diff_map is empty (no changes), false otherwise
+ * \return true if the rp_diff_map is empty (no changes), false otherwise
  */
 bool rp_diff_map_is_empty(rp_diff_map *map);
 
@@ -656,5 +679,29 @@ rp_error_list_get_error_message(rp_error_list *error, uint64_t index);
  * Frees the provided error_error_list
  */
 void rp_error_list_destroy(rp_error_list *error);
+
+/** \} */
+
+/**
+ * \defgroup rp_string_map rp_string_map methods
+ * \{
+ */
+
+/**
+ * \return a owning pointer to a new string map
+ */
+rp_string_map * /*owning*/ rp_string_map_create();
+
+/**
+ * destroys the provided map
+ */
+void rp_string_map_destroy(rp_string_map *map);
+
+/**
+ * inserts the pair of key and value in the provided map
+ */
+void rp_string_map_insert(rp_string_map *map,
+                          const char *key,
+                          const char *value);
 
 /** \} */

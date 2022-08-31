@@ -30,24 +30,22 @@ using namespace llvm::cl;
 using namespace pipeline;
 using namespace ::revng::pipes;
 
-cl::OptionCategory PipelineCategory("revng-invalidate options", "");
-
 static cl::list<string> Targets(Positional,
                                 Required,
                                 desc("<Targets to invalidate>..."),
-                                cat(PipelineCategory));
+                                cat(MainCategory));
 
 static opt<bool> DumpPredictedRemovals("dump-invalidations",
                                        desc("dump predicted invalidate "
                                             "targets"),
-                                       cat(PipelineCategory));
+                                       cat(MainCategory));
 
 static opt<bool> DumpFinalStatus("dump-status",
                                  desc("dump status after invalidation "
                                       "targets"),
-                                 cat(PipelineCategory));
+                                 cat(MainCategory));
 
-static ToolCLOptions BaseOptions(PipelineCategory);
+static ToolCLOptions BaseOptions(MainCategory);
 
 static ExitOnError AbortOnError;
 
@@ -75,7 +73,7 @@ dumpInvalidationMap(llvm::raw_ostream &OS, const InvalidationMap &Map) {
 int main(int argc, const char *argv[]) {
   revng::InitRevng X(argc, argv);
 
-  HideUnrelatedOptions(PipelineCategory);
+  HideUnrelatedOptions(MainCategory);
   ParseCommandLineOptions(argc, argv);
 
   Registry::runAllInitializationRoutines();

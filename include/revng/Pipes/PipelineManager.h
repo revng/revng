@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -149,10 +150,12 @@ public:
   runAnalysis(llvm::StringRef AnalysisName,
               llvm::StringRef StepName,
               const pipeline::ContainerToTargetsMap &Targets,
+              const llvm::StringMap<std::string> &Options = {},
               llvm::raw_ostream *DiagnosticLog = nullptr);
 
   /// Run all analysis in reverse post order (that is: parents first),
-  llvm::Expected<pipeline::DiffMap> runAllAnalyses();
+  llvm::Expected<pipeline::DiffMap>
+  runAllAnalyses(const llvm::StringMap<std::string> &Options = {});
 
   /// recalculates all possible targets and keeps overship of the computed info
   void recalculateAllPossibleTargets(bool ExpandTargets = true);

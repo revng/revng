@@ -15,6 +15,7 @@ from .error_list import Expected, run_with_el
 from .exceptions import RevngException
 from .kind import Kind
 from .step import Step
+from .string_map import StringMap
 from .target import Target, TargetsList
 from .utils import make_c_string, make_generator, make_python_string
 
@@ -314,6 +315,7 @@ class Manager:
         step_name: str,
         analysis_name: str,
         target_mapping: Dict[str, List[str]],
+        options: Dict[str, str] = {},
     ) -> Dict[str, str]:
         step = self.get_step(step_name)
         if step is None:
@@ -348,13 +350,18 @@ class Manager:
                     )
             concrete_target_mapping[container] = concrete_targets
 
-        analysis_result = self._run_analysis(step, analysis, concrete_target_mapping)
+        options_map = StringMap(options)
+        analysis_result = self._run_analysis(step, analysis, concrete_target_mapping, options_map)
         if not analysis_result:
             raise RevngException("Failed to run analysis")
         return analysis_result
 
     def _run_analysis(
-        self, step: Step, analysis: Analysis, target_mapping: Dict[Container, List[Target]]
+        self,
+        step: Step,
+        analysis: Analysis,
+        target_mapping: Dict[Container, List[Target]],
+        options: StringMap,
     ) -> Optional[Dict[str, str]]:
         first_key = list(target_mapping.keys())[0]
         targets = target_mapping[first_key]
@@ -365,6 +372,7 @@ class Manager:
             make_c_string(step.name),
             make_c_string(analysis.name),
             first_key._container,
+            options._string_map,
         )
 
         if result != ffi.NULL:
@@ -374,8 +382,9 @@ class Manager:
         else:
             return None
 
-    def run_all_analyses(self) -> Optional[Dict[str, str]]:
-        result = _api.rp_manager_run_all_analyses(self._manager)
+    def run_all_analyses(self, options: Dict[str, str] = {}) -> Optional[Dict[str, str]]:
+        options_map = StringMap(options)
+        result = _api.rp_manager_run_all_analyses(self._manager, options_map._string_map)
         if result != ffi.NULL:
             if not _api.rp_diff_map_is_empty(result):
                 self.save()

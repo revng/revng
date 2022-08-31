@@ -20,11 +20,12 @@ public:
 
 public:
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {
-    { &revng::pipes::Binary }
+    { &revng::kinds::Binary }
   };
 
 public:
-  void run(pipeline::Context &Context, const FileContainer &SourceBinary);
+  llvm::Error
+  run(pipeline::Context &Context, const FileContainer &SourceBinary);
 };
 
 } // namespace revng::pipes

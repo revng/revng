@@ -17,10 +17,10 @@ using namespace llvm::sys;
 using namespace pipeline;
 using namespace ::revng::pipes;
 
-void LinkForTranslationPipe::run(const Context &Ctx,
-                                 FileContainer &InputBinary,
-                                 FileContainer &ObjectFile,
-                                 FileContainer &OutputBinary) {
+void LinkForTranslation::run(const Context &Ctx,
+                             FileContainer &InputBinary,
+                             FileContainer &ObjectFile,
+                             FileContainer &OutputBinary) {
   if (not InputBinary.exists() or not ObjectFile.exists())
     return;
 
@@ -31,12 +31,12 @@ void LinkForTranslationPipe::run(const Context &Ctx,
                      OutputBinary.getOrCreatePath());
 }
 
-void LinkForTranslationPipe::print(const Context &Ctx,
-                                   llvm::raw_ostream &OS,
-                                   llvm::ArrayRef<std::string> Names) const {
+void LinkForTranslation::print(const Context &Ctx,
+                               llvm::raw_ostream &OS,
+                               llvm::ArrayRef<std::string> Names) const {
   OS << *revng::ResourceFinder.findFile("bin/revng");
   OS << " link-for-translation " << Names[0] << " model.yml " << Names[1]
      << " -o=" << Names[2] << "\n";
 }
 
-static RegisterPipe<LinkForTranslationPipe> E5;
+static RegisterPipe<LinkForTranslation> E5;

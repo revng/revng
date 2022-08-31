@@ -18,15 +18,15 @@
 
 namespace revng::pipes {
 
-void ProcessAssemblyPipe::run(pipeline::Context &Context,
-                              const FileContainer &SourceBinary,
-                              const pipeline::LLVMContainer &TargetList,
-                              FunctionStringMap &Output) {
+void ProcessAssembly::run(pipeline::Context &Context,
+                          const FileContainer &SourceBinary,
+                          const pipeline::LLVMContainer &TargetList,
+                          FunctionStringMap &Output) {
   if (not SourceBinary.exists())
     return;
 
   // Access the model
-  const auto &Model = revng::pipes::getModelFromContext(Context);
+  const auto &Model = getModelFromContext(Context);
 
   // Access the binary
   revng_assert(SourceBinary.path().has_value());
@@ -52,23 +52,22 @@ void ProcessAssemblyPipe::run(pipeline::Context &Context,
   }
 }
 
-void ProcessAssemblyPipe::print(const pipeline::Context &,
-                                llvm::raw_ostream &OS,
-                                llvm::ArrayRef<std::string> Files) const {
+void ProcessAssembly::print(const pipeline::Context &,
+                            llvm::raw_ostream &OS,
+                            llvm::ArrayRef<std::string> Files) const {
   OS << *revng::ResourceFinder.findFile("bin/revng") << " magic ^_^\n";
 }
 
-std::array<pipeline::ContractGroup, 1>
-ProcessAssemblyPipe::getContract() const {
-  pipeline::Contract BinaryContract(Binary,
+std::array<pipeline::ContractGroup, 1> ProcessAssembly::getContract() const {
+  pipeline::Contract BinaryContract(kinds::Binary,
                                     pipeline::Exactness::Exact,
                                     0,
                                     pipeline::InputPreservation::Preserve);
 
-  pipeline::Contract FunctionContract(Isolated,
+  pipeline::Contract FunctionContract(kinds::Isolated,
                                       pipeline::Exactness::Exact,
                                       1,
-                                      FunctionAssemblyInternal,
+                                      kinds::FunctionAssemblyInternal,
                                       2,
                                       pipeline::InputPreservation::Preserve);
 
@@ -76,11 +75,11 @@ ProcessAssemblyPipe::getContract() const {
                                     std::move(FunctionContract) } };
 }
 
-void YieldAssemblyPipe::run(pipeline::Context &Context,
-                            const FunctionStringMap &Input,
-                            FunctionStringMap &Output) {
+void YieldAssembly::run(pipeline::Context &Context,
+                        const FunctionStringMap &Input,
+                        FunctionStringMap &Output) {
   // Access the model
-  const auto &Model = revng::pipes::getModelFromContext(Context);
+  const auto &Model = getModelFromContext(Context);
 
   for (auto [Address, S] : Input) {
     auto MaybeFunction = TupleTree<yield::Function>::deserialize(S);
@@ -93,17 +92,17 @@ void YieldAssemblyPipe::run(pipeline::Context &Context,
   }
 }
 
-void YieldAssemblyPipe::print(const pipeline::Context &,
-                              llvm::raw_ostream &OS,
-                              llvm::ArrayRef<std::string> Files) const {
+void YieldAssembly::print(const pipeline::Context &,
+                          llvm::raw_ostream &OS,
+                          llvm::ArrayRef<std::string> Files) const {
   OS << *revng::ResourceFinder.findFile("bin/revng") << " magic ^_^\n";
 }
 
-std::array<pipeline::ContractGroup, 1> YieldAssemblyPipe::getContract() const {
-  return { pipeline::ContractGroup(FunctionAssemblyInternal,
+std::array<pipeline::ContractGroup, 1> YieldAssembly::getContract() const {
+  return { pipeline::ContractGroup(kinds::FunctionAssemblyInternal,
                                    pipeline::Exactness::Exact,
                                    0,
-                                   FunctionAssemblyPTML,
+                                   kinds::FunctionAssemblyPTML,
                                    1,
                                    pipeline::InputPreservation::Preserve) };
 }
@@ -113,11 +112,11 @@ std::array<pipeline::ContractGroup, 1> YieldAssemblyPipe::getContract() const {
 static revng::pipes::RegisterFunctionStringMap
   InternalContainer("FunctionAssemblyInternal",
                     "application/x.yaml.function-assembly.internal",
-                    revng::pipes::FunctionAssemblyInternal);
+                    revng::kinds::FunctionAssemblyInternal);
 static revng::pipes::RegisterFunctionStringMap
   PTMLContainer("FunctionAssemblyPTML",
                 "application/x.yaml.function-assembly.ptml-body",
-                revng::pipes::FunctionAssemblyPTML);
+                revng::kinds::FunctionAssemblyPTML);
 
-static pipeline::RegisterPipe<revng::pipes::ProcessAssemblyPipe> ProcessPipe;
-static pipeline::RegisterPipe<revng::pipes::YieldAssemblyPipe> YieldPipe;
+static pipeline::RegisterPipe<revng::pipes::ProcessAssembly> ProcessPipe;
+static pipeline::RegisterPipe<revng::pipes::YieldAssembly> YieldPipe;

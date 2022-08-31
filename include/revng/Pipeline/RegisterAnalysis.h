@@ -17,15 +17,20 @@ class RegisterAnalysis : Registry {
 private:
   llvm::StringRef Name;
   AnalsysisType Pipe;
+  std::vector<std::unique_ptr<CLOptionBase>> RegisteredOptions;
 
 public:
   template<typename... Args>
   RegisterAnalysis(llvm::StringRef Name, Args &&...Arguments) :
-    Name(Name), Pipe(std::forward<Args>(Arguments)...) {}
+    Name(Name),
+    Pipe(std::forward<Args>(Arguments)...),
+    RegisteredOptions(createCLOptions<AnalsysisType>(&MainCategory)) {}
 
   template<typename... Args>
   RegisterAnalysis(Args &&...Arguments) requires HasName<AnalsysisType>
-    : Name(AnalsysisType::Name), Pipe(std::forward<Args>(Arguments)...) {}
+    : Name(AnalsysisType::Name),
+      Pipe(std::forward<Args>(Arguments)...),
+      RegisteredOptions(createCLOptions<AnalsysisType>(&MainCategory)) {}
 
   ~RegisterAnalysis() override = default;
 
