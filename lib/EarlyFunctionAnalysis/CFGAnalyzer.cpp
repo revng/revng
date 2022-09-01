@@ -942,15 +942,17 @@ FunctionSummary CFGAnalyzer::analyze(llvm::BasicBlock *Entry) {
   // `rbx` and `rbp` are callee-saved registers.
   createIBIMarker(&OutlinedFunction);
 
+  Function *F = OutlinedFunction.Function.get();
+
   // Prevent DCE by making branch conditions opaque
-  opaqueBranchConditions(OutlinedFunction.Function.get(), Builder);
+  opaqueBranchConditions(F, Builder);
 
   // Store the values that build up the program counter in order to have them
   // constant-folded away by the optimization pipeline.
-  materializePCValues(OutlinedFunction.Function.get(), Builder);
+  materializePCValues(F, Builder);
 
   // Execute the optimization pipeline over the outlined function
-  runOptimizationPipeline(OutlinedFunction.Function.get());
+  runOptimizationPipeline(F);
 
   // Squeeze out the results obtained from the optimization passes
   auto FunctionInfo = milkInfo(&OutlinedFunction, std::move(CFG));
