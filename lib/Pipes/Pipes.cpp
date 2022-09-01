@@ -26,9 +26,6 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/TargetSelect.h"
 
-#include "revng/EarlyFunctionAnalysis/CollectFunctionsFromCalleesPass.h"
-#include "revng/EarlyFunctionAnalysis/CollectFunctionsFromUnusedAddressesPass.h"
-#include "revng/EarlyFunctionAnalysis/DetectABI.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Context.h"
