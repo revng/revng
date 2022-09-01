@@ -11,15 +11,18 @@
 ///
 /// Objects of this type should only ever be constructed from a string literal.
 /// Internally, it stores the string (minus the last '\0' character as an array)
-template<size_t N>
+template<size_t N = 1>
 struct ConstexprString {
+public:
   /// The data members have to be public for a literal type to be usable as
   /// a template parameter :{
   std::array<char, N - 1> String;
 
-  constexpr ConstexprString(const char (&Value)[N]) noexcept {
+  constexpr ConstexprString(const char (&Value)[N]) noexcept requires(N >= 2) {
     std::copy(Value, Value + N - 1, String.data());
   }
+
+  constexpr ConstexprString() noexcept requires(N == 1) : String({}) {}
 
   constexpr ConstexprString(const ConstexprString &) = default;
   constexpr ConstexprString(ConstexprString &&) = default;

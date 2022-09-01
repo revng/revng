@@ -5,7 +5,7 @@
 import argparse
 import re
 import sys
-from typing import Dict
+from typing import Dict, Optional
 from xml.dom import Node
 from xml.dom.minidom import Document, parseString
 
@@ -15,7 +15,7 @@ from .common import handle_file, normalize_filter_extract, strip_ptml, suppress_
 
 COLOR_CONVERSION = {
     "asm.label": "bright_red",
-    "asm.label-indicator": "",
+    "asm.label-indicator": "bright_white",
     "asm.comment-indicator": "white",
     "asm.mnemonic": "dodger_blue1",
     "asm.mnemonic-prefix": "bright_green",
@@ -23,6 +23,17 @@ COLOR_CONVERSION = {
     "asm.immediate-value": "dark_slate_gray2",
     "asm.memory-operand": "dodger_blue1",
     "asm.register": "orange1",
+    "c.function": "bright_red",
+    "c.type": "sea_green1",
+    "c.operator": "dodger_blue1",
+    "c.comparison": "dodger_blue1",
+    "c.function_parameter": "orange1",
+    "c.variable": "orange1",
+    "c.field": "orange1",
+    "c.constant": "dark_slate_gray2",
+    "c.string_literal": "medium_purple1",
+    "c.keyword": "dodger_blue1",
+    "c.directive": "dodger_blue1",
 }
 
 
@@ -101,7 +112,7 @@ def cmd_cat(args):
 
 class PTMLCatCommand(Command):
     def __init__(self):
-        super().__init__(("ptml", "cat"), "Print the ptml on the console")
+        super().__init__(("ptml", "cat"), "Print PTML on the console (with color if possible)")
 
     def register_arguments(self, parser: argparse.ArgumentParser):
         parser_filter = parser.add_mutually_exclusive_group()
@@ -131,5 +142,5 @@ class PTMLCatCommand(Command):
         )
         parser.set_defaults(func=cmd_cat)
 
-    def run(self, options: Options) -> int:
+    def run(self, options: Options) -> Optional[int]:
         return suppress_brokenpipe(cmd_cat, options.parsed_args)

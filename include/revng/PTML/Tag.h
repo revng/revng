@@ -17,7 +17,7 @@
 
 namespace ptml {
 
-struct TagScope;
+struct ScopeTag;
 
 class Tag {
 private:
@@ -31,7 +31,7 @@ public:
   explicit Tag(llvm::StringRef Tag, llvm::StringRef Content) :
     TheTag(Tag.str()), Content(Content.str()) {}
 
-  TagScope scope(llvm::raw_ostream &OS, bool Newline = false) const;
+  ScopeTag scope(llvm::raw_ostream &OS, bool Newline = false) const;
 
   Tag &setContent(const llvm::StringRef Content) {
     this->Content = Content.str();
@@ -99,7 +99,7 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Tag &TheTag) {
 }
 
 template<typename T>
-inline std::string str(T Obj) {
+inline std::string str(const T &Obj) {
   return getNameFromYAMLScalar(Obj);
 };
 
@@ -112,25 +112,26 @@ inline std::string str(T Obj) {
 ///        Out << "Bar"
 /// } // Out of scope, </span> will be emitted
 /// \endcode
-struct TagScope {
+/// the parameter \param NewLine will output a newline after the opening tag
+struct ScopeTag {
 private:
   llvm::raw_ostream &OS;
-  const Tag &TheTag;
+  const std::string TagClose;
 
 public:
-  TagScope(llvm::raw_ostream &OS, const Tag &TheTag, bool Newline) :
-    OS(OS), TheTag(TheTag) {
+  ScopeTag(llvm::raw_ostream &OS, const Tag &TheTag, bool Newline) :
+    OS(OS), TagClose(TheTag.close()) {
     OS << TheTag.open();
     if (Newline)
       OS << "\n";
   }
 
-  ~TagScope() { OS << TheTag.close(); }
+  ~ScopeTag() { OS << TagClose; }
 };
 
-TagScope Tag::scope(llvm::raw_ostream &OS, bool Newline) const {
+inline ScopeTag Tag::scope(llvm::raw_ostream &OS, bool Newline) const {
   revng_check(Content.empty());
-  return TagScope(OS, *this, Newline);
+  return ScopeTag(OS, *this, Newline);
 }
 
 } // namespace ptml

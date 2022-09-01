@@ -273,3 +273,23 @@ llvm::Expected<T> deserializeFileOrSTDIN(const llvm::StringRef &Path) {
   return deserialize<T>((*MaybeBuffer)->getBuffer());
 }
 // clang-format on
+
+template<HasScalarTraits T>
+struct llvm::yaml::ScalarTraits<std::tuple<T>> {
+  using ValueType = std::tuple<T>;
+  using ValueTrait = llvm::yaml::ScalarTraits<T>;
+
+  static void
+  output(const ValueType &Value, void *Ctx, llvm::raw_ostream &Output) {
+    ValueTrait().output(std::get<0>(Value), Ctx, Output);
+  }
+
+  static llvm::StringRef
+  input(llvm::StringRef Scalar, void *Ctx, ValueType &Value) {
+    return ValueTrait().input(Scalar, Ctx, std::get<0>(Value));
+  }
+
+  static llvm::yaml::QuotingType mustQuote(llvm::StringRef String) {
+    return ValueTrait().mustQuote(String);
+  }
+};

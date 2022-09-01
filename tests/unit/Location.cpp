@@ -36,7 +36,7 @@ BOOST_AUTO_TEST_CASE(MetaAddressAsTheKey) {
   const MetaAddress A2 = MetaAddress::fromString("0x789:Generic64");
   auto Location = pipeline::location(ranks::Instruction, A0, A1, A2);
 
-  revng_check(Location.at(ranks::Function).address() == 0x123);
+  revng_check(std::get<0>(Location.at(ranks::Function)).address() == 0x123);
   revng_check(Location.at(ranks::BasicBlock).address() == 0x456);
   revng_check(Location.at(ranks::Instruction).address() == 0x789);
 
@@ -107,7 +107,8 @@ BOOST_AUTO_TEST_CASE(Serialization) {
       revng_check(ParsedOnce == false);
       ParsedOnce = true;
 
-      revng_check(Instruction->at(ranks::Function).address() == 0x12);
+      auto FunctionMetaAddress = std::get<0>(Instruction->at(ranks::Function));
+      revng_check(FunctionMetaAddress.address() == 0x12);
       revng_check(Instruction->at(ranks::BasicBlock).address() == 0x34);
       revng_check(Instruction->at(ranks::Instruction).address() == 0x56);
 

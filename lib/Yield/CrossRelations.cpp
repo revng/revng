@@ -110,8 +110,9 @@ yield::Graph yield::CrossRelations::toYieldGraph() const {
                                                         ranks::BasicBlock,
                                                         ranks::Instruction);
     revng_assert(MaybeAddress.has_value());
-    auto [_, Success] = LookupHelper.try_emplace(MaybeAddress->toString(),
-                                                 Result.addNode(*MaybeAddress));
+    MetaAddress Address = std::get<0>(*MaybeAddress);
+    auto [_, Success] = LookupHelper.try_emplace(Address.toString(),
+                                                 Result.addNode(Address));
     revng_assert(Success);
   };
   auto AddEdge = [&LookupHelper](std::string_view FromLocation,
@@ -127,8 +128,8 @@ yield::Graph yield::CrossRelations::toYieldGraph() const {
                                                      ranks::Instruction);
     revng_assert(FromAddress.has_value() && ToAddress.has_value());
 
-    auto *FromNode = LookupHelper.at(FromAddress->toString());
-    FromNode->addSuccessor(LookupHelper.at(ToAddress->toString()));
+    auto *FromNode = LookupHelper.at(std::get<0>(*FromAddress).toString());
+    FromNode->addSuccessor(LookupHelper.at(std::get<0>(*ToAddress).toString()));
   };
   conversionHelper(*this, AddNode, AddEdge);
 
