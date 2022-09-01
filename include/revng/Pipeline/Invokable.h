@@ -101,8 +101,8 @@ template<typename T, size_t I>
 OptionType<T, I> deserializeImpl(llvm::StringRef Value) {
   using ReturnType = OptionType<T, I>;
 
-  if constexpr (std::is_same_v<const char *, ReturnType>)
-    return Value.data();
+  if constexpr (std::is_same_v<std::string, ReturnType>)
+    return Value.str();
   else
     return llvm::cantFail(deserialize<ReturnType>(Value));
 }
