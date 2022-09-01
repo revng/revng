@@ -274,7 +274,6 @@ public:
     AddressOfPool(&M, false) {
 
     revng_assert(SSACS != nullptr);
-    revng_assert(InitLocalSP != nullptr);
 
     initAddressOfPool(AddressOfPool, &M);
 
@@ -320,8 +319,9 @@ public:
       eraseFromParent(OldFunction);
 
     // Drop InitLocalSP if it's not used anymore
-    if (InitLocalSP->getNumUses() == 0)
-      eraseFromParent(InitLocalSP);
+    if (InitLocalSP != nullptr)
+      if (InitLocalSP->getNumUses() == 0)
+        eraseFromParent(InitLocalSP);
 
     return true;
   }
@@ -496,6 +496,8 @@ private:
   void segregateStackAccesses(Function &F) {
     if (F.isDeclaration())
       return;
+
+    revng_assert(InitLocalSP != nullptr);
 
     setInsertPointToFirstNonAlloca(SABuilder, F);
 
