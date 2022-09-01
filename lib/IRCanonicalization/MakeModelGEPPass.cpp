@@ -1190,10 +1190,6 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
           // The current IR indices have been handled, increase the iterator.
           ++IRIndicesIt;
         } else {
-          // If we ran out of indices in IRAP there's no offset left, so
-          // consider this to be zero
-          revng_assert(RestOff.isNullValue());
-
           Back.Index = ConstantInt::get(llvm::IntegerType::get(Ctxt,
                                                                64 /*NumBits*/),
                                         RestOff);
