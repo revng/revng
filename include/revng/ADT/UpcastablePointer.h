@@ -54,7 +54,7 @@ concept UpcastablePointerLike = Dereferenceable<T> and Upcastable<pointee<T>>;
 // clang-format off
 template<typename ReturnT, typename L, UpcastablePointerLike P, size_t I = 0>
   requires(not std::is_void_v<ReturnT>)
-ReturnT upcast(P &Upcastable, const L &Callable, const ReturnT &IfNull) {
+ReturnT upcast(P &&Upcastable, const L &Callable, const ReturnT &IfNull) {
   // clang-format on
   using pointee = std::remove_reference_t<decltype(*Upcastable)>;
   using concrete_types = concrete_types_traits_t<pointee>;
@@ -75,7 +75,7 @@ ReturnT upcast(P &Upcastable, const L &Callable, const ReturnT &IfNull) {
 }
 
 template<typename L, UpcastablePointerLike P>
-void upcast(P &Upcastable, const L &Callable) {
+void upcast(P &&Upcastable, const L &Callable) {
   auto Wrapper = [&](auto &Upcasted) {
     Callable(Upcasted);
     return true;
