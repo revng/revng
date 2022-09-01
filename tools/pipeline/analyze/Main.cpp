@@ -30,6 +30,7 @@
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/PipelineManager.h"
 #include "revng/Pipes/ToolCLOptions.h"
+#include "revng/Support/CommandLine.h"
 #include "revng/Support/InitRevng.h"
 #include "revng/TupleTree/TupleTree.h"
 
@@ -89,6 +90,8 @@ overrideModel(PipelineManager &Manager, TupleTree<model::Binary> NewModel) {
 }
 
 int main(int argc, const char *argv[]) {
+  using BinaryRef = TupleTreeGlobal<model::Binary>;
+
   revng::InitRevng X(argc, argv);
 
   HideUnrelatedOptions(MainCategory);
@@ -97,7 +100,8 @@ int main(int argc, const char *argv[]) {
   Registry::runAllInitializationRoutines();
 
   auto Manager = AbortOnError(BaseOptions.makeManager());
-  auto OriginalModel = getModel(Manager);
+  const auto &Ctx = Manager.context();
+  auto OriginalModel = *AbortOnError(Ctx.getGlobal<BinaryRef>(ModelGlobalName));
 
   if (Arguments.size() == 0) {
     dbg << "all\n";
@@ -146,6 +150,7 @@ int main(int argc, const char *argv[]) {
     InvalidationMap InvMap;
     AbortOnError(Manager.runAnalysis(AnalysisName, StepName, Map, InvMap));
   }
+
   if (NoApplyModel)
     AbortOnError(overrideModel(Manager, OriginalModel.get()));
 
