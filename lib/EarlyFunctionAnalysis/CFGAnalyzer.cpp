@@ -512,7 +512,7 @@ void CFGAnalyzer::opaqueBranchConditions(llvm::Function *F,
                            cast<SwitchInst>(Term)->getCondition();
 
       OpaqueBranchConditionsPool.addFnAttribute(Attribute::NoUnwind);
-      OpaqueBranchConditionsPool.addFnAttribute(Attribute::ReadOnly);
+      OpaqueBranchConditionsPool.addFnAttribute(Attribute::InaccessibleMemOnly);
       OpaqueBranchConditionsPool.addFnAttribute(Attribute::WillReturn);
 
       auto *FTy = llvm::FunctionType::get(Condition->getType(),
