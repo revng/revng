@@ -30,6 +30,7 @@
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/PipelineManager.h"
 #include "revng/Pipes/ToolCLOptions.h"
+#include "revng/Support/InitRevng.h"
 #include "revng/TupleTree/TupleTree.h"
 
 using std::string;
@@ -88,6 +89,8 @@ overrideModel(PipelineManager &Manager, TupleTree<model::Binary> NewModel) {
 }
 
 int main(int argc, const char *argv[]) {
+  revng::InitRevng X(argc, argv);
+
   HideUnrelatedOptions(MainCategory);
   ParseCommandLineOptions(argc, argv);
 
