@@ -99,8 +99,8 @@ set(REVNG_CLI_COMMANDS_MODULE_FILES
     revng/cli/_commands/lift.py revng/cli/_commands/daemon_self_test.py
     revng/cli/_commands/opt.py revng/cli/_commands/pipeline_tools.py
     revng/cli/_commands/override_by_name.py revng/cli/_commands/daemon.py
-    revng/cli/_commands/download_pdb.py revng/cli/_commands/hard_purge.py
-    revng/cli/_commands/import_idb.py revng/cli/_commands/idb_converter.py)
+    revng/cli/_commands/hard_purge.py revng/cli/_commands/import_idb.py
+    revng/cli/_commands/idb_converter.py)
 
 python_module(TARGET_NAME revng-python-cli-commands MODULE_FILES
               ${REVNG_CLI_COMMANDS_MODULE_FILES})
@@ -110,6 +110,14 @@ set(REVNG_CLI_COMMANDS_PTML_MODULE_FILES
     revng/cli/_commands/ptml/__init__.py)
 python_module(TARGET_NAME revng-python-cli-commands-ptml MODULE_FILES
               ${REVNG_CLI_COMMANDS_PTML_MODULE_FILES})
+
+set(REVNG_CLI_COMMANDS_FETCHDEBUGINFO_MODULE_FILES
+    revng/cli/_commands/fetch_debuginfo/pe.py
+    revng/cli/_commands/fetch_debuginfo/elf.py
+    revng/cli/_commands/fetch_debuginfo/common.py
+    revng/cli/_commands/fetch_debuginfo/__init__.py)
+python_module(TARGET_NAME revng-python-cli-commands-fetchdebuginfo MODULE_FILES
+              ${REVNG_CLI_COMMANDS_FETCHDEBUGINFO_MODULE_FILES})
 
 #
 # Install revng.api
