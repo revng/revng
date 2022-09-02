@@ -24,6 +24,7 @@
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/PipelineManager.h"
 #include "revng/Pipes/ToolCLOptions.h"
+#include "revng/Support/InitRevng.h"
 
 using std::string;
 using namespace llvm;
@@ -64,6 +65,8 @@ static ToolCLOptions BaseOptions(MainCategory);
 static ExitOnError AbortOnError;
 
 int main(int argc, const char *argv[]) {
+  revng::InitRevng X(argc, argv);
+
   HideUnrelatedOptions(MainCategory);
   ParseCommandLineOptions(argc, argv);
 
