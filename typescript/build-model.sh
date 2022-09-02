@@ -9,10 +9,8 @@ rm -rf model.ts-package
 
 mkdir model.ts-package
 BUILD_DIR="$(realpath model.ts-package)"
-YARN_CACHE="$(mktemp -d)"
 function cleanup() {
   trap - SIGINT SIGTERM ERR EXIT
-  rm -rf "$YARN_CACHE"
   rm -rf "$BUILD_DIR"
 }
 trap cleanup SIGINT SIGTERM ERR EXIT
@@ -27,10 +25,8 @@ CHECKSUM=$(cat model.ts tuple_tree.ts | sha1sum - | cut -d' ' -f1)
 sed -i "s;##CHECKSUM##;$CHECKSUM;g" package.json
 cp -rT "$2" node_modules
 ./node_modules/.bin/tsc -p .
-yarn -s pack
-cp revng-model-v1.*.tgz ../model.ts.tgz
+npm pack --silent > /dev/null
+cp revng-model-1.*.tgz ../model.ts.tgz
 
 cd ..
-
-# Use temporary cache folder to be extra sure that no caching is happening
-yarn -s add --cache-folder "$YARN_CACHE" ./model.ts.tgz
+npm --silent install --no-package-lock ./model.ts.tgz

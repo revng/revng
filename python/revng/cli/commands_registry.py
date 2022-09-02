@@ -83,14 +83,17 @@ class CommandsRegistry:
         self.register_command(ExternalCommand(self._parse_command(command), path))
 
     def run(self, arguments, options: Options):
-        (args, rest) = self._create_parser().parse_known_args(arguments)
+        original_options = {k: v for k, v in options.__dict__.items()}
+        (args, rest) = self.root_parser.parse_known_args(arguments)
         command = []
         for name, value in args.__dict__.items():
             if name.startswith(COMMAND_ARG_PREFIX):
                 index = int(name[len(COMMAND_ARG_PREFIX) :])
                 command.append((index, value))
 
-        command_sorted = tuple((value for _, value in sorted(command, key=lambda pair: pair[0])))
+        command_sorted = tuple(value for _, value in sorted(command, key=lambda pair: pair[0]))
+        if command_sorted[-1] is None:
+            command_sorted = command_sorted[:-1]
 
         options = dataclasses.replace(options)
         options.parsed_args = args
@@ -133,7 +136,12 @@ class CommandsRegistry:
             sys.stdout.write("rev.ng version @VERSION@\n")
             return 0
 
-        return self.commands[command_sorted].run(options)
+        if command_sorted in self.commands:
+            return self.commands[command_sorted].run(options)
+        elif command_sorted in self.namespaces:
+            return self.run((*arguments, "--help"), Options(**original_options))
+        else:
+            return 1
 
     def define_namespace(self, namespace: Sequence[str], help_text: Optional[str] = None):
         parent_parser = self._get_namespace_parser(namespace[:-1])
@@ -166,14 +174,12 @@ class CommandsRegistry:
 
         return current_namespace + (command_name,)
 
-    def _create_parser(self):
+    def post_init(self):
         for command in self.commands.values():
             parser = self._get_namespace_parser(command.namespace)
             command.register_arguments(
                 parser.add_parser(command.name, help=command.help, add_help=command.add_help)
             )
-
-        return self.root_parser
 
     def _get_namespace_parser(self, namespace):
         if namespace not in self.namespaces:

@@ -75,9 +75,7 @@ class TypeScriptGenerator:
 
     @staticmethod
     def get_attr(obj, attr_name):
-        if hasattr(obj, attr_name):
-            return getattr(obj, attr_name)
-        return None
+        return getattr(obj, attr_name, None)
 
     def ts_type(self, field: StructField) -> str:
         if isinstance(field.resolved_type, ReferenceDefinition):
@@ -113,8 +111,8 @@ class TypeScriptGenerator:
 
         return real_type
 
-    # TODO: this should be called _is_simple_class_or_sequence_of_simple_class
     def _is_simple_type(self, field: StructField) -> bool:
+        """If True the field is either a builtin or enum or a sequence of them"""
         real_type = self._real_type(field)
         return (real_type in BUILTINS) or (
             real_type in [e.name for e in self.schema.enum_definitions()]
@@ -134,10 +132,7 @@ class TypeScriptGenerator:
 
     @classmethod
     def get_guid_field(cls, class_: StructDefinition) -> Optional[StructField]:
-        for field in class_.fields:
-            if field.is_guid:
-                return field
-        return None
+        return next((field for field in class_.fields if field.is_guid), None)
 
     def gen_assignment(self, field: StructField) -> str:
         if self._is_simple_type(field):
