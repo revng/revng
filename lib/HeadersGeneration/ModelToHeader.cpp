@@ -57,7 +57,10 @@ static void printDeclaration(const model::PrimitiveType &P,
     if (P.Size == 16)
       Header << keywords::Typedef << " "
              << tokenTag("__uint128_t", tokens::Type) << " "
-             << tokenTag(P.name().str(), tokens::Type) << ";\n";
+             << tokenTag(P.name().str(), tokens::Type)
+                  .addAttribute(attributes::LocationDefinition,
+                                serializedLocation(ranks::Type, P.key()))
+             << ";\n";
     else if (Log.isEnabled())
       Header << helpers::lineComment("not necessary, already in stdint.h");
 
@@ -66,7 +69,11 @@ static void printDeclaration(const model::PrimitiveType &P,
   case model::PrimitiveTypeKind::Signed: {
     if (P.Size == 16)
       Header << keywords::Typedef << " " << tokenTag("__int128_t", tokens::Type)
-             << " " << tokenTag(P.name(), tokens::Type) << ";\n";
+             << " "
+             << tokenTag(P.name(), tokens::Type)
+                  .addAttribute(attributes::LocationDefinition,
+                                serializedLocation(ranks::Type, P.key()))
+             << ";\n";
     else if (Log.isEnabled())
       Header << helpers::lineComment("not necessary, already in stdint.h");
 
@@ -104,7 +111,11 @@ static void printDeclaration(const model::PrimitiveType &P,
     ();
     if (!IntType.empty())
       Header << keywords::Typedef << " " << tokenTag(IntType, tokens::Type)
-             << " " << tokenTag(P.name().str(), tokens::Type) << ";\n";
+             << " "
+             << tokenTag(P.name().str(), tokens::Type)
+                  .addAttribute(attributes::LocationDefinition,
+                                serializedLocation(ranks::Type, P.key()))
+             << ";\n";
   } break;
 
   default:
