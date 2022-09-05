@@ -20,8 +20,8 @@
 
 namespace revng::pipes {
 
-inline char DecompiledCCodeInYAMLMime[] = "application/x.yaml.c.decompiled";
-inline char DecompiledCCodeInYAMLName[] = "DecompiledCCodeInYAML";
+inline constexpr char DecompiledCCodeInYAMLMime[] = "text/x.c+ptml+yaml";
+inline constexpr char DecompiledCCodeInYAMLName[] = "DecompiledCCodeInYAML";
 using DecompiledCCodeInYAMLStringMap = FunctionStringMap<
   &kinds::DecompiledToYAML,
   DecompiledCCodeInYAMLName,
