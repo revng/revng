@@ -70,7 +70,7 @@ public:
 
 public:
   auto operator<(const Qualifier &Other) const {
-    return this->Kind < Other.Kind && this->Size < Other.Size;
+    return std::tie(this->Kind, this->Size) < std::tie(Other.Kind, Other.Size);
   }
 };
 
