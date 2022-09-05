@@ -7,6 +7,7 @@
 import io
 import os
 import socket
+from http.client import HTTPConnection
 from subprocess import Popen
 from time import sleep
 from typing import Generator
@@ -48,6 +49,7 @@ def check_server_up(port: int):
 def client(pytestconfig: Config, request) -> Generator[Client, None, None]:
     out_fd = os.memfd_create("flask_debug", 0)
     out = os.fdopen(out_fd, "w")
+    HTTPConnection.debuglevel = 1
 
     new_env = {k: v for k, v in os.environ.items() if k not in FILTER_ENV}
     ephemeral_socket = socket.create_server(("127.0.0.1", 0))
@@ -74,8 +76,14 @@ def client(pytestconfig: Config, request) -> Generator[Client, None, None]:
         }
     """
     )
-    with open(binary, "rb") as binary_file:
-        gql_client.execute(upload_q, variable_values={"file": binary_file}, upload_files=True)
+
+    try:
+        with open(binary, "rb") as binary_file:
+            gql_client.execute(upload_q, variable_values={"file": binary_file}, upload_files=True)
+    except Exception as e:
+        print_fd(out_fd)
+        raise e
+
     yield gql_client
 
     process.terminate()
