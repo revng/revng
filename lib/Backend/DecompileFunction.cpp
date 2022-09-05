@@ -462,7 +462,7 @@ private:
     QualifiedType AllocatedType = dropPointer(AllocaType);
 
     // Declare the variable
-    Out << getNamedCInstance(AllocatedType, Var.Declaration, false) << ";\n";
+    Out << getNamedCInstance(AllocatedType, Var.Declaration) << ";\n";
 
     // Use the address of this variable as the token associated to the alloca
     return { Var.Declaration, operators::AddressOf + Var.Use };
@@ -499,7 +499,7 @@ CCodeGenerator::buildCastExpr(StringRef ExprToCast,
   revng_assert((SrcType.isScalar() or SrcType.isPointer())
                and (DestType.isScalar() or DestType.isPointer()));
 
-  Result.assign(addAlwaysParentheses(getTypeName(DestType, false)));
+  Result.assign(addAlwaysParentheses(getTypeName(DestType)));
   Result.append({ " ", addParentheses(ExprToCast) });
 
   return Result;
@@ -512,7 +512,7 @@ CCodeGenerator::buildAssignmentExpr(const model::QualifiedType &LHSType,
   StringToken AssignmentStr;
 
   if (LHSTokens.hasDeclaration())
-    AssignmentStr += getNamedCInstance(LHSType, LHSTokens.Declaration, false);
+    AssignmentStr += getNamedCInstance(LHSType, LHSTokens.Declaration);
   else
     AssignmentStr += LHSTokens.Use;
 
@@ -881,8 +881,7 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
 
     // Declare a new local variable if it hasn't already been declared
     if (VarNames.hasDeclaration()) {
-      Out << getNamedCInstance(TypeMap.at(Call), VarNames.Declaration, false)
-          << ";\n";
+      Out << getNamedCInstance(TypeMap.at(Call), VarNames.Declaration) << ";\n";
     }
 
     Expression = VarNames.Use;
@@ -1712,8 +1711,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
             VarName = declareAllocaVariable(Alloca, VarName);
           } else {
             Out << getNamedCInstance(TypeMap.at(VarToDeclare),
-                                     VarName.Declaration,
-                                     true)
+                                     VarName.Declaration)
                 << ";\n";
           }
 

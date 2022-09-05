@@ -23,19 +23,16 @@ constexpr const char *const ArrayWrapperFieldName = "the_array";
 
 /// Print a string containing the C Type name of \a QT and a
 /// (possibly empty) \a InstanceName .
-extern tokenTypes::TypeString getNamedCInstance(const model::QualifiedType &QT,
-                                                llvm::StringRef InstanceName,
-                                                bool TypeDefinition);
+extern tokenTypes::TypeString
+getNamedCInstance(const model::QualifiedType &QT, llvm::StringRef InstanceName);
 
 /// Return an escaped name for the type
 /// \note If T is a function type, the appropriate function typename will be
 /// returned
-extern tokenTypes::TypeString
-getTypeName(const model::Type &T, bool TypeDefinition);
+extern tokenTypes::TypeString getTypeName(const model::Type &T);
 
-inline tokenTypes::TypeString
-getTypeName(const model::QualifiedType &QT, bool TypeDefinition) {
-  return getNamedCInstance(QT, "", TypeDefinition);
+inline tokenTypes::TypeString getTypeName(const model::QualifiedType &QT) {
+  return getNamedCInstance(QT, "");
 }
 
 /// Return the name of the array wrapper that wraps \a QT (QT must be
