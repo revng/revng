@@ -1768,9 +1768,10 @@ static std::string decompileFunction(const llvm::Function &LLVMFunc,
   return Result;
 }
 
+using Container = revng::pipes::DecompiledCCodeInYAMLStringMap;
 void decompile(llvm::Module &Module,
                const model::Binary &Model,
-               revng::pipes::FunctionStringMap &DecompiledFunctions) {
+               Container &DecompiledFunctions) {
 
   if (Log.isEnabled())
     writeToFile(Model.toString(), "model-during-c-codegen.yaml");

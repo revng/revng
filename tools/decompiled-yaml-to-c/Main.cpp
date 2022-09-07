@@ -78,11 +78,7 @@ int main(int Argc, const char *Argv[]) {
   using revng::pipes::FunctionStringMap;
   TupleTree<model::Binary> Model;
 
-  FunctionStringMap Functions("" /*Name*/,
-                              "application/"
-                              "x.yaml.c.decompiled",
-                              revng::kinds::DecompiledToYAML,
-                              Model);
+  revng::pipes::DecompiledCCodeInYAMLStringMap Functions("" /*Name*/, &Model);
 
   // Deserialize the map
   llvm::cantFail(Functions.deserialize(**InputBuffer));

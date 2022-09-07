@@ -3,20 +3,22 @@
 //
 
 #include "revng/Pipeline/AllRegistries.h"
+#include "revng/Pipeline/RegisterContainerFactory.h"
+#include "revng/Pipes/FileContainer.h"
 
 #include "revng-c/HeadersGeneration/HelpersToHeader.h"
 #include "revng-c/HeadersGeneration/HelpersToHeaderPipe.h"
+#include "revng-c/Pipes/Kinds.h"
 
 namespace revng::pipes {
 
-inline auto &makeFCF = makeFileContainerFactory;
-static pipeline::RegisterContainerFactory
-  HelpersHeaderFactory("HelpersHeader",
-                       makeFCF(kinds::HelpersHeader, "text/plain", ".h"));
+using namespace pipeline;
+static RegisterDefaultConstructibleContainer<HelpersHeaderFileContainer>
+  Reg("HelpersHeader");
 
 void HelpersToHeader::run(const pipeline::Context &Ctx,
                           pipeline::LLVMContainer &IRContainer,
-                          FileContainer &HeaderFile) {
+                          HelpersHeaderFileContainer &HeaderFile) {
   auto HasAllFunctions = [](const pipeline::Target &Target) {
     return &Target.getKind() == &kinds::StackAccessesSegregated
            and Target.getPathComponents().back().isAll();

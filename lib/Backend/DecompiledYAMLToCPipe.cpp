@@ -3,6 +3,8 @@
 //
 
 #include "revng/Pipeline/AllRegistries.h"
+#include "revng/Pipeline/RegisterContainerFactory.h"
+#include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/Kinds.h"
 
 #include "revng-c/Backend/DecompiledYAMLToC.h"
@@ -13,15 +15,13 @@ using namespace revng::kinds;
 
 namespace revng::pipes {
 
-using RegFactory = pipeline::RegisterContainerFactory;
-static RegFactory DecompiledCFactory("DecompiledCCode",
-                                     makeFileContainerFactory(DecompiledToC,
-                                                              "text/ptml",
-                                                              ".c"));
+static pipeline::RegisterDefaultConstructibleContainer<DecompiledFileContainer>
+  Reg("DecompiledCCode");
 
+using Container = DecompiledCCodeInYAMLStringMap;
 void DecompiledYAMLToC::run(const pipeline::Context &Ctx,
-                            const FunctionStringMap &DecompiledFunctions,
-                            FileContainer &OutCFile) {
+                            const Container &DecompiledFunctions,
+                            DecompiledFileContainer &OutCFile) {
 
   std::error_code EC;
   llvm::raw_fd_ostream Out(OutCFile.getOrCreatePath(), EC);

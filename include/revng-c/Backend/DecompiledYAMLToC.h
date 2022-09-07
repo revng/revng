@@ -9,6 +9,12 @@
 #include "revng/Pipes/FunctionStringMap.h"
 #include "revng/Support/MetaAddress.h"
 
+#include "revng-c/Backend/CDecompilationPipe.h"
+
+namespace detail {
+using DecompiledStringMap = revng::pipes::DecompiledCCodeInYAMLStringMap;
+}
+
 void printSingleCFile(llvm::raw_ostream &Out,
-                      const revng::pipes::FunctionStringMap &Functions,
+                      const detail::DecompiledStringMap &Functions,
                       const std::set<MetaAddress> &Targets);

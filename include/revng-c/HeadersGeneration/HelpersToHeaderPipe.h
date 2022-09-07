@@ -19,6 +19,12 @@
 
 namespace revng::pipes {
 
+inline char HelpersHeaderFactoryMIMEType[] = "text/plain";
+inline char HelpersHeaderFactorySuffix[] = ".h";
+using HelpersHeaderFileContainer = FileContainer<&kinds::HelpersHeader,
+                                                 HelpersHeaderFactoryMIMEType,
+                                                 HelpersHeaderFactorySuffix>;
+
 class HelpersToHeader {
 public:
   static constexpr auto Name = "HelpersToHeader";
@@ -37,7 +43,7 @@ public:
 
   void run(const pipeline::Context &Ctx,
            pipeline::LLVMContainer &IRContainer,
-           FileContainer &HeaderFile);
+           HelpersHeaderFileContainer &HeaderFile);
 
   void print(const pipeline::Context &Ctx,
              llvm::raw_ostream &OS,

@@ -9,6 +9,12 @@
 #include "revng/Model/Binary.h"
 #include "revng/Pipes/FunctionStringMap.h"
 
+#include "revng-c/Backend/CDecompilationPipe.h"
+
+namespace detail {
+using Container = revng::pipes::DecompiledCCodeInYAMLStringMap;
+}
+
 void decompile(llvm::Module &M,
                const model::Binary &Model,
-               revng::pipes::FunctionStringMap &DecompiledFunctions);
+               detail::Container &DecompiledFunctions);
