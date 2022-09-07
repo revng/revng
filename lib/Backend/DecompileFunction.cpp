@@ -764,7 +764,7 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
             CurExpr += Tag(tags::Span, Struct->Fields.at(FieldIdx).name().str())
                          .addAttribute(attributes::Token, tokens::Field)
                          .addAttribute(attributes::LocationReferences,
-                                       serializedLocation(ranks::TypeField,
+                                       serializedLocation(ranks::StructField,
                                                           Struct->key(),
                                                           FieldIdx))
                          .addAttribute(attributes::ModelEditPath,
@@ -775,7 +775,7 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
             CurExpr += Tag(tags::Span, Union->Fields.at(FieldIdx).name().str())
                          .addAttribute(attributes::Token, tokens::Field)
                          .addAttribute(attributes::LocationReferences,
-                                       serializedLocation(ranks::TypeField,
+                                       serializedLocation(ranks::UnionField,
                                                           Union->key(),
                                                           FieldIdx))
                          .addAttribute(attributes::ModelEditPath,

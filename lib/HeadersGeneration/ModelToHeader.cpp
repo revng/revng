@@ -136,7 +136,7 @@ printDeclaration(const model::EnumType &E, ptml::PTMLIndentedOstream &Header) {
                              + Entry.CustomName.str().str(),
                            tokens::Field)
                     .addAttribute(attributes::LocationDefinition,
-                                  serializedLocation(ranks::TypeField,
+                                  serializedLocation(ranks::EnumEntry,
                                                      E.key(),
                                                      Entry.key()))
                     .addAttribute(attributes::ModelEditPath,
@@ -192,7 +192,7 @@ printDefinition(const model::StructType &S, ptml::PTMLIndentedOstream &Header) {
 
       Tag FieldTag = tokenTag(Field.name().str(), tokens::Field)
                        .addAttribute(attributes::LocationDefinition,
-                                     serializedLocation(ranks::TypeField,
+                                     serializedLocation(ranks::StructField,
                                                         S.key(),
                                                         Field.key()))
                        .addAttribute(attributes::ModelEditPath,
@@ -237,7 +237,7 @@ printDefinition(const model::UnionType &U, ptml::PTMLIndentedOstream &Header) {
     for (const auto &Field : U.Fields) {
       Tag FieldTag = tokenTag(Field.name().str(), tokens::Field)
                        .addAttribute(attributes::LocationDefinition,
-                                     serializedLocation(ranks::TypeField,
+                                     serializedLocation(ranks::UnionField,
                                                         U.key(),
                                                         Field.key()))
                        .addAttribute(attributes::ModelEditPath,
