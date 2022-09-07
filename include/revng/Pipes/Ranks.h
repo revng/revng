@@ -14,6 +14,13 @@
 
 namespace revng::ranks {
 
+namespace detail {
+
+using SFK = model::StructField::Key;
+using UFK = model::UnionField::Key;
+
+} // namespace detail
+
 inline auto Binary = pipeline::defineRootRank<"binary">();
 
 using pipeline::defineRank;
@@ -22,7 +29,9 @@ inline auto BasicBlock = defineRank<"basic-block", MetaAddress>(Function);
 inline auto Instruction = defineRank<"instruction", MetaAddress>(BasicBlock);
 
 inline auto Type = defineRank<"type", model::Type::Key>(Binary);
-inline auto TypeField = defineRank<"type-field", std::tuple<uint64_t>>(Type);
+inline auto StructField = defineRank<"struct-field", detail::SFK>(Type);
+inline auto UnionField = defineRank<"union-field", detail::UFK>(Type);
+inline auto EnumEntry = defineRank<"enum-entry", model::EnumEntry::Key>(Type);
 
 inline auto RawByte = defineRank<"raw-byte", MetaAddress>(Binary);
 inline auto RawByteRange = defineRank<"raw-byte-range", MetaAddress>(RawByte);
