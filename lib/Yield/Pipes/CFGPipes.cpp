@@ -15,8 +15,8 @@
 namespace revng::pipes {
 
 void YieldControlFlow::run(pipeline::Context &Context,
-                           const FunctionStringMap &Input,
-                           FunctionStringMap &Output) {
+                           const FunctionAssemblyStringMap &Input,
+                           FunctionControlFlowStringMap &Output) {
   // Access the model
   const auto &Model = revng::getModelFromContext(Context);
 
@@ -39,9 +39,8 @@ void YieldControlFlow::print(const pipeline::Context &,
 
 } // end namespace revng::pipes
 
-static revng::pipes::RegisterFunctionStringMap
-  GraphContainer("FunctionControlFlowGraphSVG",
-                 "application/x.yaml.cfg.svg-body",
-                 revng::kinds::FunctionControlFlowGraphSVG);
+using namespace revng::pipes;
+static RegisterFunctionStringMap<FunctionControlFlowStringMap>
+  GraphContainer("FunctionControlFlowGraphSVG");
 
 static pipeline::RegisterPipe<revng::pipes::YieldControlFlow> CFGPipe;

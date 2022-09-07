@@ -5,11 +5,14 @@
 //
 #include <optional>
 
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Signals.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/LLVMContainerFactory.h"
 #include "revng/Pipeline/Target.h"
+#include "revng/Pipes/Kinds.h"
 #include "revng/Support/Assert.h"
 
 namespace revng::pipes {
@@ -19,41 +22,155 @@ namespace revng::pipes {
 /// currently no file associated to a instance of Temporary file, and will
 /// return The target ("root", K) otherwise, where K is the kind provided at
 /// construction time.
-class FileContainer : public pipeline::Container<FileContainer> {
+template<pipeline::Kind *K, const char *MIMEType, const char *Suffix>
+class FileContainer
+  : public pipeline::Container<FileContainer<K, MIMEType, Suffix>> {
 private:
   llvm::SmallString<32> Path;
-  pipeline::Kind *K;
-  std::string Suffix;
+
+  static void cantFail(std::error_code EC) { revng_assert(!EC); }
+
+  static std::unique_ptr<llvm::MemoryBuffer>
+  unfailableGetFileAsStream(llvm::StringRef Path) {
+    auto Value = errorOrToExpected(llvm::MemoryBuffer::getFileAsStream(Path));
+    return llvm::cantFail(std::move(Value));
+  }
 
 public:
-  static char ID;
+  inline static char ID = '0';
 
-  FileContainer(pipeline::Kind &K,
-                llvm::StringRef Name,
-                llvm::StringRef MIMEType,
-                llvm::StringRef Suffix);
+  FileContainer(llvm::StringRef Name) :
+    pipeline::Container<FileContainer>(Name, MIMEType), Path() {}
+
   FileContainer(FileContainer &&);
-  ~FileContainer() override;
+  ~FileContainer() override { remove(); }
+
   FileContainer(const FileContainer &);
-  FileContainer &operator=(const FileContainer &Other) noexcept;
-  FileContainer &operator=(FileContainer &&Other) noexcept;
+  FileContainer &operator=(const FileContainer &Other) noexcept {
+    if (this == &Other)
+      return *this;
 
-  std::unique_ptr<ContainerBase>
-  cloneFiltered(const pipeline::TargetsList &Container) const final;
+    if (Path.empty()) {
+      using llvm::sys::fs::createTemporaryFile;
+      cantFail(createTemporaryFile(llvm::Twine("revng-") + this->name(),
+                                   Other.Suffix,
+                                   Path));
+      llvm::sys::RemoveFileOnSignal(Path);
+    }
+    cantFail(llvm::sys::fs::copy_file(Other.Path, Path));
+    return *this;
+  }
 
-  pipeline::TargetsList enumerate() const final;
+  FileContainer &operator=(FileContainer &&Other) noexcept {
+    if (this == &Other)
+      return *this;
 
-  bool remove(const pipeline::TargetsList &Target) final;
+    remove();
+    Path = std::move(Other.Path);
+    return *this;
+  }
 
-  llvm::Error storeToDisk(llvm::StringRef Path) const override;
+  std::unique_ptr<pipeline::ContainerBase>
+  cloneFiltered(const pipeline::TargetsList &Container) const final {
+    bool MustCloneFile = Container.contains(getOnlyPossibleTarget());
 
-  llvm::Error loadFromDisk(llvm::StringRef Path) override;
+    if (not MustCloneFile) {
+      return std::make_unique<FileContainer>(this->name());
+    }
 
-  void clear() override;
-  llvm::Error serialize(llvm::raw_ostream &OS) const override;
-  llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) override;
+    auto Result = std::make_unique<FileContainer>(this->name());
+    Result->getOrCreatePath();
+    cantFail(llvm::sys::fs::copy_file(Path, Result->Path));
+    return Result;
+  }
+
+  pipeline::TargetsList enumerate() const final {
+    if (Path.empty())
+      return {};
+
+    return pipeline::TargetsList({ getOnlyPossibleTarget() });
+  }
+
+  bool remove(const pipeline::TargetsList &Target) final {
+    auto NotFound = llvm::find(Target, getOnlyPossibleTarget()) == Target.end();
+    if (NotFound)
+      return false;
+
+    clear();
+
+    return true;
+  }
+
+  llvm::Error storeToDisk(llvm::StringRef Path) const override {
+    using namespace llvm;
+    // We must ensure that if we got invalidated then no file on disk is
+    // present, so that the next time we load we don't mistakenly think that we
+    // have some content.
+    //
+    // Other containers do not need this because they determine their content by
+    // looking inside the stored file, instead of only checking if the file
+    // exists.
+    if (this->Path.empty()) {
+      if (llvm::sys::fs::exists(Path))
+        llvm::sys::fs::remove(Path);
+
+      return llvm::Error::success();
+    }
+
+    if (Path == "-") {
+      auto Buffer = unfailableGetFileAsStream(this->Path);
+
+      llvm::outs() << Buffer->getBuffer();
+    }
+
+    auto Error = errorCodeToError(llvm::sys::fs::copy_file(this->Path, Path));
+    auto MaybeError = llvm::sys::fs::getPermissions(this->Path);
+    auto Perm = llvm::cantFail(llvm::errorOrToExpected(std::move(MaybeError)));
+    llvm::sys::fs::setPermissions(Path, Perm);
+    return Error;
+  }
+
+  llvm::Error loadFromDisk(llvm::StringRef Path) override {
+    if (not llvm::sys::fs::exists(Path)) {
+      *this = FileContainer(this->name());
+      return llvm::Error::success();
+    }
+    getOrCreatePath();
+    return llvm::errorCodeToError(llvm::sys::fs::copy_file(Path, this->Path));
+  }
+
+  void clear() override { *this = FileContainer(this->name()); }
+
+  llvm::Error serialize(llvm::raw_ostream &OS) const override {
+    if (Path.empty())
+      return llvm::Error::success();
+
+    if (auto MaybeBuffer = llvm::MemoryBuffer::getFile(Path); !MaybeBuffer)
+      return llvm::createStringError(MaybeBuffer.getError(),
+                                     "could not read file");
+    else
+      OS << (*MaybeBuffer)->getBuffer();
+
+    return llvm::Error::success();
+  }
+
+  llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) override {
+    std::error_code EC;
+    llvm::raw_fd_ostream OS(getOrCreatePath(), EC, llvm::sys::fs::F_None);
+    if (EC)
+      return llvm::createStringError(EC,
+                                     "could not write file at %s",
+                                     Path.str().str().c_str());
+
+    OS << Buffer.getBuffer();
+    return llvm::Error::success();
+  }
+
   llvm::Error extractOne(llvm::raw_ostream &OS,
-                         const pipeline::Target &Target) const override;
+                         const pipeline::Target &Target) const override {
+    revng_check(Target == getOnlyPossibleTarget());
+    return serialize(OS);
+  }
 
 public:
   std::optional<llvm::StringRef> path() const {
@@ -62,28 +179,60 @@ public:
     return llvm::StringRef(Path);
   }
 
-  llvm::StringRef getOrCreatePath();
+  llvm::StringRef getOrCreatePath() {
+    if (Path.empty()) {
+      using llvm::sys::fs::createTemporaryFile;
+      cantFail(createTemporaryFile(llvm::Twine("revng-") + this->name(),
+                                   Suffix,
+                                   Path));
+      llvm::sys::RemoveFileOnSignal(Path);
+    }
+
+    return llvm::StringRef(Path);
+  }
 
   bool exists() const { return not Path.empty(); }
 
   void dump() const debug_function { dbg << Path.data() << "\n"; }
 
 private:
-  void mergeBackImpl(FileContainer &&Container) override;
-  void remove();
+  void mergeBackImpl(FileContainer &&Container) override {
+    if (not Container.exists())
+      return;
+    cantFail(llvm::sys::fs::rename(*Container.path(), getOrCreatePath()));
+    Container.Path = "";
+  }
+
+  void remove() {
+    if (not Path.empty()) {
+      llvm::sys::DontRemoveFileOnSignal(Path);
+      cantFail(llvm::sys::fs::remove(Path));
+    }
+  }
+
   pipeline::Target getOnlyPossibleTarget() const {
     return pipeline::Target({}, *K);
   }
 };
 
-inline pipeline::ContainerFactory
-makeFileContainerFactory(pipeline::Kind &K,
-                         llvm::StringRef MIMEType,
-                         const llvm::Twine &Suffix = "") {
-  std::string SuffixString = Suffix.str();
-  return [&K, MIMEType, SuffixString](llvm::StringRef Name) {
-    return std::make_unique<FileContainer>(K, Name, MIMEType, SuffixString);
-  };
-}
+inline constexpr char BinaryFileMIMEType[] = "application/"
+                                             "x-executable";
+
+inline constexpr char BinaryFileSuffix[] = "";
+using BinaryFileContainer = FileContainer<&kinds::Binary,
+                                          BinaryFileMIMEType,
+                                          BinaryFileSuffix>;
+
+inline constexpr char ObjectFileMIMEType[] = "application/x-object";
+inline constexpr char ObjectFileSuffix[] = ".o";
+using ObjectFileContainer = FileContainer<&kinds::Object,
+                                          ObjectFileMIMEType,
+                                          ObjectFileSuffix>;
+
+inline constexpr char TranslatedFileMIMEType[] = "application/x-executable";
+inline constexpr char TranslatedFileSuffix[] = "";
+using TranslatedFileContainer = FileContainer<&kinds::Translated,
+                                              TranslatedFileMIMEType,
+                                              TranslatedFileSuffix>;
 
 } // namespace revng::pipes

@@ -14,6 +14,7 @@
 #include "llvm/Support/YAMLTraits.h"
 
 #include "revng/Pipeline/Analysis.h"
+#include "revng/Pipeline/ContainerFactory.h"
 #include "revng/Pipeline/GenericLLVMPipe.h"
 #include "revng/Pipeline/LLVMContainer.h"
 #include "revng/Pipeline/Runner.h"
@@ -120,9 +121,8 @@ public:
   void addDefaultConstructibleContainer(llvm::StringRef Name) {
     auto [_,
           inserted] = KnownContainerTypes
-                        .try_emplace(Name, [](llvm::StringRef ContainerName) {
-                          return std::make_unique<ContainerType>(ContainerName);
-                        });
+                        .try_emplace(Name,
+                                     ContainerFactory::create<ContainerType>());
     revng_assert(inserted);
   }
 

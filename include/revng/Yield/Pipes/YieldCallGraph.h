@@ -12,6 +12,7 @@
 
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipes/FunctionStringMap.h"
+#include "revng/Yield/Pipes/ProcessCallGraph.h"
 
 namespace revng::pipes {
 
@@ -31,8 +32,8 @@ public:
 
 public:
   void run(pipeline::Context &Context,
-           const FileContainer &InputFile,
-           FileContainer &OutputFile);
+           const CrossRelationsFileContainer &InputFile,
+           CallGraphSVGFileContainer &OutputFile);
 
   void print(const pipeline::Context &Ctx,
              llvm::raw_ostream &OS,

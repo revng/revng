@@ -34,7 +34,7 @@ public:
   }
   void run(const pipeline::Context &,
            pipeline::LLVMContainer &TargetsList,
-           FileContainer &TargetBinary);
+           ObjectFileContainer &TargetBinary);
 
   void print(const pipeline::Context &Ctx,
              llvm::raw_ostream &OS,
@@ -64,7 +64,7 @@ public:
   }
   void run(const pipeline::Context &,
            pipeline::LLVMContainer &TargetsList,
-           FileContainer &TargetBinary);
+           ObjectFileContainer &TargetBinary);
 
   void print(const pipeline::Context &Ctx,
              llvm::raw_ostream &OS,

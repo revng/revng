@@ -18,9 +18,9 @@ using namespace pipeline;
 using namespace ::revng::pipes;
 
 void LinkForTranslation::run(const Context &Ctx,
-                             FileContainer &InputBinary,
-                             FileContainer &ObjectFile,
-                             FileContainer &OutputBinary) {
+                             BinaryFileContainer &InputBinary,
+                             ObjectFileContainer &ObjectFile,
+                             TranslatedFileContainer &OutputBinary) {
   if (not InputBinary.exists() or not ObjectFile.exists())
     return;
 

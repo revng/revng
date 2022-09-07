@@ -5,53 +5,57 @@
 //
 
 #include <map>
+#include <utility>
+
+#include "llvm/Support/YAMLTraits.h"
 
 #include "revng/Pipeline/Container.h"
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Loader.h"
 #include "revng/Pipeline/Registry.h"
+#include "revng/Pipes/FunctionKind.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Support/MetaAddress.h"
+#include "revng/Support/MetaAddress/YAMLTraits.h"
+#include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTree.h"
+
+/// Wrapper for std::string that allows YAML-serialization as multiline string
+struct MultiLineString {
+  std::string Value;
+
+  MultiLineString() : Value() {}
+  MultiLineString(const std::string &NewValue) : Value(NewValue) {}
+  MultiLineString(std::string &&NewValue) : Value(std::move(NewValue)) {}
+};
 
 namespace revng::pipes {
 
-class FunctionStringMap : public pipeline::Container<FunctionStringMap> {
+template<kinds::FunctionKind *K, const char *MIMEType>
+class FunctionStringMap
+  : public pipeline::Container<FunctionStringMap<K, MIMEType>> {
 public:
-  /// Wrapper for std::string that allows YAML-serialization as multiline string
-  struct String {
-    std::string Value;
-
-    String() : Value() {}
-    String(const std::string &NewValue) : Value(NewValue) {}
-    String(std::string &&NewValue) : Value(std::move(NewValue)) {}
-  };
-
 public:
-  using MapType = std::map<MetaAddress, String>;
-  using ValueType = MapType::value_type;
-  using Iterator = MapType::iterator;
-  using ConstIterator = MapType::const_iterator;
+  using MapType = typename std::map<MetaAddress, MultiLineString>;
+  using ValueType = typename MapType::value_type;
+  using Iterator = typename MapType::iterator;
+  using ConstIterator = typename MapType::const_iterator;
 
 private:
   MapType Map;
-  const pipeline::Kind *TheKind;
   const TupleTree<model::Binary> *Model;
 
 public:
-  static char ID;
+  inline static char ID = '0';
 
 public:
   FunctionStringMap(llvm::StringRef Name,
-                    llvm::StringRef MIMEType,
-                    const pipeline::Kind &K,
-                    const TupleTree<model::Binary> &Model) :
+                    const TupleTree<model::Binary> *Model) :
     pipeline::Container<FunctionStringMap>(Name, MIMEType),
     Map(),
-    TheKind(&K),
-    Model(&Model) {
-    revng_assert(&K.rank() == &ranks::Function);
+    Model(Model) {
+    revng_assert(&K->rank() == &ranks::Function);
   }
 
   FunctionStringMap(const FunctionStringMap &) = default;
@@ -66,21 +70,83 @@ public:
   void clear() override { Map.clear(); }
 
   std::unique_ptr<pipeline::ContainerBase>
-  cloneFiltered(const pipeline::TargetsList &Targets) const override;
+  cloneFiltered(const pipeline::TargetsList &Targets) const override {
+    auto Clone = std::make_unique<FunctionStringMap>(*this);
+
+    // Returns true if Targets contains a Target that matches the Entry in the
+    // Map
+    const auto EntryIsInTargets = [&](const auto &Entry) {
+      const auto &KeyMetaAddress = Entry.first;
+      pipeline::Target EntryTarget{ KeyMetaAddress.toString(), *K };
+      return Targets.contains(EntryTarget);
+    };
+
+    // Drop all the entries in Map that are not in Targets
+    std::erase_if(Clone->Map, std::not_fn(EntryIsInTargets));
+
+    return Clone;
+  }
 
   llvm::Error extractOne(llvm::raw_ostream &OS,
-                         const pipeline::Target &Target) const override;
+                         const pipeline::Target &Target) const override {
+    revng_check(Target.getPathComponents().back().isSingle());
+    revng_check(&Target.getKind() == K);
 
-  pipeline::TargetsList enumerate() const override;
+    std::string MetaAddrStr = Target.getPathComponents().back().getName();
 
-  bool remove(const pipeline::TargetsList &Targets) override;
+    auto It = find(MetaAddress::fromString(MetaAddrStr));
+    revng_check(It != end());
+
+    OS << It->second;
+
+    return llvm::Error::success();
+  }
+
+  pipeline::TargetsList enumerate() const override {
+    pipeline::TargetsList::List Result;
+    for (const auto &[MetaAddress, Mapped] : Map)
+      Result.push_back({ MetaAddress.toString(), *K });
+
+    return kinds::compactFunctionTargets(*Model, Result, *K);
+  }
+
+  bool remove(const pipeline::TargetsList &Targets) override {
+    bool Changed = false;
+
+    auto End = Map.end();
+    for (const pipeline::Target &T : Targets) {
+      revng_assert(&T.getKind() == K);
+
+      // if a target to remove is *, drop everything
+      if (T.getPathComponents().back().isAll()) {
+        clear();
+        return true;
+      }
+
+      std::string MetaAddrStr = T.getPathComponents().back().getName();
+      auto It = Map.find(MetaAddress::fromString(MetaAddrStr));
+      if (It != End) {
+        Map.erase(It);
+        Changed = true;
+      }
+    }
+
+    return Changed;
+  }
 
   llvm::Error serialize(llvm::raw_ostream &OS) const override;
 
   llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) override;
 
 protected:
-  void mergeBackImpl(FunctionStringMap &&Container) override;
+  void mergeBackImpl(FunctionStringMap &&Other) override {
+    // Stuff in Other should overwrite what's in this container.
+    // We first merge this->Map into Other.Map (which keeps Other's version if
+    // present), and then we replace this->Map with the newly merged version of
+    // Other.Map.
+    Other.Map.merge(std::move(this->Map));
+    this->Map = std::move(Other.Map);
+  }
 
 public:
   /// std::map-like methods
@@ -137,17 +203,74 @@ public:
 
 }; // end class FunctionStringMap
 
+} // namespace revng::pipes
+
+namespace llvm {
+namespace yaml {
+
+template<>
+struct BlockScalarTraits<MultiLineString> {
+  inline static void
+  output(const MultiLineString &String, void *, llvm::raw_ostream &OS) {
+    OS << String.Value;
+  }
+
+  inline static StringRef
+  input(StringRef Scalar, void *, MultiLineString &String) {
+    String.Value = Scalar.str();
+    return StringRef();
+  }
+};
+
+template<>
+struct CustomMappingTraits<std::map<MetaAddress, MultiLineString>> {
+
+  inline static void
+  inputOne(IO &IO, StringRef Key, std::map<MetaAddress, MultiLineString> &M) {
+    IO.mapRequired(Key.str().c_str(), M[MetaAddress::fromString(Key)]);
+  }
+
+  inline static void output(IO &IO, std::map<MetaAddress, MultiLineString> &M) {
+    for (auto &[MetaAddr, String] : M)
+      IO.mapRequired(MetaAddr.toString().c_str(), String);
+  }
+};
+
+} // end namespace yaml
+} // end namespace llvm
+
+namespace revng::pipes {
+
+template<kinds::FunctionKind *K, const char *MIMEType>
+llvm::Error
+FunctionStringMap<K, MIMEType>::serialize(llvm::raw_ostream &OS) const {
+  ::serialize(OS, Map);
+  return llvm::Error::success();
+}
+
+template<kinds::FunctionKind *K, const char *MIMEType>
+llvm::Error
+FunctionStringMap<K, MIMEType>::deserialize(const llvm::MemoryBuffer &Buffer) {
+
+  llvm::yaml::Input YAMLInput(Buffer);
+  YAMLInput >> Map;
+
+  if (YAMLInput.error()) {
+    this->Map.clear();
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   YAMLInput.error().message());
+  }
+
+  return llvm::Error::success();
+}
+
+template<typename ToRegister>
 class RegisterFunctionStringMap : public pipeline::Registry {
 private:
   llvm::StringRef Name;
-  llvm::StringRef MIMEType;
-  const pipeline::Kind &K;
 
 public:
-  RegisterFunctionStringMap(llvm::StringRef Name,
-                            llvm::StringRef MIMEType,
-                            const pipeline::Kind &K) :
-    Name(Name), MIMEType(MIMEType), K(K) {}
+  RegisterFunctionStringMap(llvm::StringRef Name) : Name(Name) {}
 
 public:
   virtual ~RegisterFunctionStringMap() override = default;
@@ -155,16 +278,10 @@ public:
 public:
   void registerContainersAndPipes(pipeline::Loader &Loader) override {
     const auto &Model = getModelFromContext(Loader.getContext());
-    auto Factory = [&Model, this](llvm::StringRef ContainerName) {
-      return std::make_unique<FunctionStringMap>(ContainerName,
-                                                 MIMEType,
-                                                 K,
-                                                 Model);
-    };
-    Loader.addContainerFactory(Name, Factory);
+    auto Factory = pipeline::ContainerFactory::fromGlobal<ToRegister>(&Model);
+    Loader.addContainerFactory(Name, std::move(Factory));
   }
   void registerKinds(pipeline::KindsRegistry &KindDictionary) override {}
   void libraryInitialization() override {}
 };
-
-} // end namespace revng::pipes
+} // namespace revng::pipes

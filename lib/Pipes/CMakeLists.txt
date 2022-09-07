@@ -6,8 +6,6 @@ revng_add_library_internal(
   revngPipes
   SHARED
   AllFunctions.cpp
-  FileContainer.cpp
-  FunctionStringMap.cpp
   PipelineManager.cpp
   Pipes.cpp
   RootKind.cpp

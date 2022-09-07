@@ -25,6 +25,7 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/MetaAddress.h"
+#include "revng/Yield/Pipes/ProcessCallGraph.h"
 
 using namespace pipeline;
 using namespace ::revng::kinds;
@@ -56,7 +57,8 @@ void TaggedFK::getInvalidations(const Context &Ctx,
     return;
 
   static constexpr auto BCRR = BinaryCrossRelationsRole;
-  const auto &Container = Ctx.getReadOnlyContainer<pipes::FileContainer>(BCRR);
+  using CrossContainer = revng::pipes::CrossRelationsFileContainer;
+  const auto &Container = Ctx.getReadOnlyContainer<CrossContainer>(BCRR);
 
   const auto *ModelDiff = Diff.getAs<model::Binary>();
   if (not ModelDiff)

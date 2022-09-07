@@ -44,7 +44,7 @@ static cl::opt<char> OptLevel("compile-opt-level",
                               cl::init(' '));
 
 static void
-compileModuleRunImpl(LLVMContainer &Module, FileContainer &TargetBinary) {
+compileModuleRunImpl(LLVMContainer &Module, ObjectFileContainer &TargetBinary) {
   using namespace revng;
 
   auto Enumeration = Module.enumerate();
@@ -143,13 +143,13 @@ compileModuleRunImpl(LLVMContainer &Module, FileContainer &TargetBinary) {
 
 void CompileModule::run(const Context &,
                         LLVMContainer &Module,
-                        FileContainer &TargetBinary) {
+                        ObjectFileContainer &TargetBinary) {
   compileModuleRunImpl(Module, TargetBinary);
 }
 
 void CompileIsolatedModule::run(const Context &,
                                 LLVMContainer &Module,
-                                FileContainer &TargetBinary) {
+                                ObjectFileContainer &TargetBinary) {
   compileModuleRunImpl(Module, TargetBinary);
 }
 

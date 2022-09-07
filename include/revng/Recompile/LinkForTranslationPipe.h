@@ -40,9 +40,9 @@ public:
   }
 
   void run(const pipeline::Context &Ctx,
-           FileContainer &InputBinary,
-           FileContainer &ObjectFile,
-           FileContainer &OutputBinary);
+           BinaryFileContainer &InputBinary,
+           ObjectFileContainer &ObjectFile,
+           TranslatedFileContainer &OutputBinary);
 
   void print(const pipeline::Context &Ctx,
              llvm::raw_ostream &OS,

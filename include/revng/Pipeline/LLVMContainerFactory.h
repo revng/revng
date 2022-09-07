@@ -7,30 +7,4 @@
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/LLVMContainer.h"
 
-namespace pipeline {
-
-namespace detail {
-template<typename LLVMContainerType>
-ContainerFactory makeLLVMContainerFactoryImpl(pipeline::Context *Ctx,
-                                              llvm::LLVMContext *Context) {
-  return [Ctx, Context](llvm::StringRef Name) {
-    auto Module = std::make_unique<llvm::Module>(Name, *Context);
-    return std::make_unique<LLVMContainerType>(*Ctx, std::move(Module), Name);
-  };
-}
-} // namespace detail
-
-template<typename LLVMContainerType>
-ContainerFactory
-makeLLVMContainerFactory(pipeline::Context &Ctx, llvm::LLVMContext &Context) {
-  return detail::makeLLVMContainerFactoryImpl<LLVMContainerType>(&Ctx,
-                                                                 &Context);
-}
-
-inline ContainerFactory
-makeDefaultLLVMContainerFactory(pipeline::Context &Ctx,
-                                llvm::LLVMContext &Context) {
-  return makeLLVMContainerFactory<LLVMContainer>(Ctx, Context);
-}
-
-} // namespace pipeline
+namespace detail {} // namespace detail

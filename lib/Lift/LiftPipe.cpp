@@ -27,7 +27,7 @@ using namespace pipeline;
 using namespace ::revng::pipes;
 
 void Lift::run(Context &Ctx,
-               const FileContainer &SourceBinary,
+               const BinaryFileContainer &SourceBinary,
                LLVMContainer &TargetsList) {
   if (not SourceBinary.exists())
     return;

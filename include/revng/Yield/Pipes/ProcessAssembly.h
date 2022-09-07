@@ -14,6 +14,7 @@
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/FunctionStringMap.h"
+#include "revng/Yield/Pipes/YieldControlFlow.h"
 
 namespace revng::pipes {
 
@@ -41,9 +42,9 @@ public:
 
 public:
   void run(pipeline::Context &Context,
-           const FileContainer &SourceBinary,
+           const BinaryFileContainer &SourceBinary,
            const pipeline::LLVMContainer &TargetsList,
-           FunctionStringMap &OutputAssembly);
+           FunctionAssemblyStringMap &OutputAssembly);
 
   void print(const pipeline::Context &Ctx,
              llvm::raw_ostream &OS,
