@@ -21,8 +21,10 @@ namespace revng::pipes {
 
 inline char ModelHeaderFileContainerMIMEType[] = "text/plain";
 inline char ModelHeaderFileContainerSuffix[] = ".h";
+inline char ModelHeaderFileContainerName[] = "ModelHeader";
 
 using ModelHeaderFileContainer = FileContainer<&kinds::ModelHeader,
+                                               ModelHeaderFileContainerName,
                                                ModelHeaderFileContainerMIMEType,
                                                ModelHeaderFileContainerSuffix>;
 

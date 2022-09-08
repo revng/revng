@@ -16,7 +16,7 @@ using namespace revng::kinds;
 namespace revng::pipes {
 
 static pipeline::RegisterDefaultConstructibleContainer<DecompiledFileContainer>
-  Reg("DecompiledCCode");
+  Reg;
 
 using Container = DecompiledCCodeInYAMLStringMap;
 void DecompiledYAMLToC::run(const pipeline::Context &Ctx,

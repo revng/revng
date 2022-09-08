@@ -14,9 +14,7 @@
 
 namespace revng::pipes {
 
-static RegisterFunctionStringMap<DecompiledCCodeInYAMLStringMap> Reg("Decompile"
-                                                                     "dCCodeInY"
-                                                                     "AML");
+static RegisterFunctionStringMap<DecompiledCCodeInYAMLStringMap> Reg;
 
 void CDecompilation::run(const pipeline::Context &Ctx,
                          pipeline::LLVMContainer &IRContainer,

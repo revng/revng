@@ -22,7 +22,9 @@ namespace revng::pipes {
 
 inline constexpr char DecompiledMIMEType[] = "text/ptml.c";
 inline constexpr char DecompiledMIMESuffix[] = "";
+inline constexpr char DecompiledName[] = "DecompiledCCode";
 using DecompiledFileContainer = FileContainer<&kinds::DecompiledToC,
+                                              DecompiledName,
                                               DecompiledMIMEType,
                                               DecompiledMIMESuffix>;
 

@@ -21,7 +21,9 @@ namespace revng::pipes {
 
 inline char HelpersHeaderFactoryMIMEType[] = "text/plain";
 inline char HelpersHeaderFactorySuffix[] = ".h";
+inline char HelpersHeaderFactoryName[] = "HelpersHeader";
 using HelpersHeaderFileContainer = FileContainer<&kinds::HelpersHeader,
+                                                 HelpersHeaderFactoryName,
                                                  HelpersHeaderFactoryMIMEType,
                                                  HelpersHeaderFactorySuffix>;
 

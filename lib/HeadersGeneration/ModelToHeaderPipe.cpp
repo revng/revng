@@ -14,7 +14,7 @@
 namespace revng::pipes {
 
 static pipeline::RegisterDefaultConstructibleContainer<ModelHeaderFileContainer>
-  Reg("ModelHeader");
+  Reg;
 
 // TODO: BinaryFile here is a placeholder. In principle this pipe has no real
 // input container. It just juses the model in Ctx to generated HeaderFile.

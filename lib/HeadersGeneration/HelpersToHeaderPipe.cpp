@@ -13,8 +13,7 @@
 namespace revng::pipes {
 
 using namespace pipeline;
-static RegisterDefaultConstructibleContainer<HelpersHeaderFileContainer>
-  Reg("HelpersHeader");
+static RegisterDefaultConstructibleContainer<HelpersHeaderFileContainer> Reg;
 
 void HelpersToHeader::run(const pipeline::Context &Ctx,
                           pipeline::LLVMContainer &IRContainer,
