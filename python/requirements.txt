@@ -13,7 +13,7 @@ cffi
 # revng.daemon
 ariadne
 aiodataloader
-hypercorn
+uvicorn
 Jinja2
 python-multipart
 xdg
