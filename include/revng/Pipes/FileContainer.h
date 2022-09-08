@@ -22,9 +22,12 @@ namespace revng::pipes {
 /// currently no file associated to a instance of Temporary file, and will
 /// return The target ("root", K) otherwise, where K is the kind provided at
 /// construction time.
-template<pipeline::Kind *K, const char *MIMEType, const char *Suffix>
+template<pipeline::Kind *K,
+         const char *TypeName,
+         const char *MIME,
+         const char *Suffix>
 class FileContainer
-  : public pipeline::Container<FileContainer<K, MIMEType, Suffix>> {
+  : public pipeline::Container<FileContainer<K, TypeName, MIME, Suffix>> {
 private:
   llvm::SmallString<32> Path;
 
@@ -38,9 +41,11 @@ private:
 
 public:
   inline static char ID = '0';
+  inline static const llvm::StringRef MIMEType = MIME;
+  inline static const char *Name = TypeName;
 
   FileContainer(llvm::StringRef Name) :
-    pipeline::Container<FileContainer>(Name, MIMEType), Path() {}
+    pipeline::Container<FileContainer>(Name), Path() {}
 
   FileContainer(FileContainer &&);
   ~FileContainer() override { remove(); }
@@ -219,19 +224,25 @@ inline constexpr char BinaryFileMIMEType[] = "application/"
                                              "x-executable";
 
 inline constexpr char BinaryFileSuffix[] = "";
+inline constexpr char BinaryFileName[] = "Binary";
 using BinaryFileContainer = FileContainer<&kinds::Binary,
+                                          BinaryFileName,
                                           BinaryFileMIMEType,
                                           BinaryFileSuffix>;
 
 inline constexpr char ObjectFileMIMEType[] = "application/x-object";
 inline constexpr char ObjectFileSuffix[] = ".o";
+inline constexpr char ObjectFileName[] = "Object";
 using ObjectFileContainer = FileContainer<&kinds::Object,
+                                          ObjectFileName,
                                           ObjectFileMIMEType,
                                           ObjectFileSuffix>;
 
 inline constexpr char TranslatedFileMIMEType[] = "application/x-executable";
 inline constexpr char TranslatedFileSuffix[] = "";
+inline constexpr char TranslatedFileName[] = "Translated";
 using TranslatedFileContainer = FileContainer<&kinds::Translated,
+                                              TranslatedFileName,
                                               TranslatedFileMIMEType,
                                               TranslatedFileSuffix>;
 

@@ -36,20 +36,11 @@ public:
 /// for each default constructible container you wish to register
 template<typename ContainerT>
 class RegisterDefaultConstructibleContainer : Registry {
-private:
-  llvm::StringRef Name;
-
 public:
-  explicit RegisterDefaultConstructibleContainer(llvm::StringRef Name) :
-    Name(Name) {}
-
-  explicit RegisterDefaultConstructibleContainer() : Name(ContainerT::Name) {}
-
   ~RegisterDefaultConstructibleContainer() override = default;
 
-public:
   void registerContainersAndPipes(Loader &Loader) override {
-    Loader.addDefaultConstructibleContainer<ContainerT>(Name);
+    Loader.addDefaultConstructibleContainer<ContainerT>(ContainerT::Name);
   }
 
   void registerKinds(KindsRegistry &KindDictionary) override {}

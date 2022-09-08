@@ -49,11 +49,9 @@ namespace revng::pipes {
 
 static RegisterLLVMPass<O2Pipe> P2;
 
-static RegisterDefaultConstructibleContainer<BinaryFileContainer> F1("Binary");
-static RegisterDefaultConstructibleContainer<ObjectFileContainer> F2("Object");
-static RegisterDefaultConstructibleContainer<TranslatedFileContainer> F4("Trans"
-                                                                         "late"
-                                                                         "d");
+static RegisterDefaultConstructibleContainer<BinaryFileContainer> F1;
+static RegisterDefaultConstructibleContainer<ObjectFileContainer> F2;
+static RegisterDefaultConstructibleContainer<TranslatedFileContainer> F4;
 
 class LLVMPipelineRegistry : public Registry {
 

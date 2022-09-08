@@ -85,10 +85,8 @@ void YieldAssembly::print(const pipeline::Context &,
 } // end namespace revng::pipes
 
 using namespace revng::pipes;
-static RegisterFunctionStringMap<FunctionAssemblyStringMap> X1("FunctionAssembl"
-                                                               "yInternal");
-static RegisterFunctionStringMap<FunctionAssemblyPTMLStringMap> X2("FunctionAss"
-                                                                   "emblyPTML");
+static RegisterFunctionStringMap<FunctionAssemblyStringMap> X1;
+static RegisterFunctionStringMap<FunctionAssemblyPTMLStringMap> X2;
 
 static pipeline::RegisterPipe<revng::pipes::ProcessAssembly> ProcessPipe;
 static pipeline::RegisterPipe<revng::pipes::YieldAssembly> YieldPipe;

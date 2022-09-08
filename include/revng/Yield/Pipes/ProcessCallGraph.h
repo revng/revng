@@ -21,25 +21,30 @@ namespace revng::pipes {
 inline constexpr char CrossRelationsFileMIMEType[] = "application/"
                                                      "x.yaml.cross-relations";
 inline constexpr char CrossRelationsFileSuffix[] = "";
+inline constexpr char CrossRelationsName[] = "BinaryCrossRelations";
 
 using CrossRelationsFileContainer = FileContainer<&kinds::BinaryCrossRelations,
+                                                  CrossRelationsName,
                                                   CrossRelationsFileMIMEType,
                                                   CrossRelationsFileSuffix>;
 
 inline constexpr char CallGraphSVGMIMEType[] = "application/"
                                                "x.yaml.call-graph.svg-body";
 inline constexpr char CallGraphSVGSuffix[] = "";
+inline constexpr char CallGraphSVGName[] = "CallGraphSliceSVG";
 
 using CallGraphSVGFileContainer = FileContainer<&kinds::CallGraphSVG,
+                                                CallGraphSVGName,
                                                 CallGraphSVGMIMEType,
                                                 CallGraphSVGSuffix>;
 
 inline constexpr char CallGraphSliceSVGMIMEType[] = "application/"
-                                                    "application/"
                                                     "x.yaml.call-graph-slice."
                                                     "svg-body";
+inline constexpr char CallGraphSliceName[] = "CallGraphSlice";
 
 using CallGraphSliceSVGStringMap = FunctionStringMap<&kinds::CallGraphSliceSVG,
+                                                     CallGraphSliceName,
                                                      CallGraphSliceSVGMIMEType>;
 
 class ProcessCallGraph {

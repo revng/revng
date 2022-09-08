@@ -40,7 +40,6 @@ void YieldControlFlow::print(const pipeline::Context &,
 } // end namespace revng::pipes
 
 using namespace revng::pipes;
-static RegisterFunctionStringMap<FunctionControlFlowStringMap>
-  GraphContainer("FunctionControlFlowGraphSVG");
+static RegisterFunctionStringMap<FunctionControlFlowStringMap> GraphContainer;
 
 static pipeline::RegisterPipe<revng::pipes::YieldControlFlow> CFGPipe;

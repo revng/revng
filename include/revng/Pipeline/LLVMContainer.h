@@ -70,17 +70,18 @@ private:
   std::unique_ptr<llvm::Module> Module;
 
 public:
+  inline static const llvm::StringRef MIMEType = "text/x.llvm.ir";
+
   LLVMContainerBase(llvm::StringRef Name,
                     Context *Ctx,
                     llvm::LLVMContext *LLVMCtx) :
-    EnumerableContainer<ThisType>(*Ctx, Name, "text/x.llvm.ir"),
+    EnumerableContainer<ThisType>(*Ctx, Name),
     Module(std::make_unique<llvm::Module>("revng.module", *LLVMCtx)) {}
 
   LLVMContainerBase(llvm::StringRef Name,
                     Context *Ctx,
                     std::unique_ptr<llvm::Module> M) :
-    EnumerableContainer<ThisType>(*Ctx, Name, "text/x.llvm.ir"),
-    Module(std::move(M)) {}
+    EnumerableContainer<ThisType>(*Ctx, Name), Module(std::move(M)) {}
 
 public:
   template<typename... LLVMPasses>

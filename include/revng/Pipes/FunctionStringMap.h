@@ -7,6 +7,7 @@
 #include <map>
 #include <utility>
 
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/YAMLTraits.h"
 
 #include "revng/Pipeline/Container.h"
@@ -32,15 +33,20 @@ struct MultiLineString {
 
 namespace revng::pipes {
 
-template<kinds::FunctionKind *K, const char *MIMEType>
+template<kinds::FunctionKind *K,
+         const char *TypeName,
+         const char *MIMETypeParam>
 class FunctionStringMap
-  : public pipeline::Container<FunctionStringMap<K, MIMEType>> {
+  : public pipeline::Container<FunctionStringMap<K, TypeName, MIMETypeParam>> {
 public:
 public:
   using MapType = typename std::map<MetaAddress, MultiLineString>;
   using ValueType = typename MapType::value_type;
   using Iterator = typename MapType::iterator;
   using ConstIterator = typename MapType::const_iterator;
+
+  inline static const llvm::StringRef MIMEType = MIMETypeParam;
+  inline static const char *Name = TypeName;
 
 private:
   MapType Map;
@@ -52,9 +58,7 @@ public:
 public:
   FunctionStringMap(llvm::StringRef Name,
                     const TupleTree<model::Binary> *Model) :
-    pipeline::Container<FunctionStringMap>(Name, MIMEType),
-    Map(),
-    Model(Model) {
+    pipeline::Container<FunctionStringMap>(Name), Map(), Model(Model) {
     revng_assert(&K->rank() == &ranks::Function);
   }
 
@@ -241,18 +245,18 @@ struct CustomMappingTraits<std::map<MetaAddress, MultiLineString>> {
 
 namespace revng::pipes {
 
-template<kinds::FunctionKind *K, const char *MIMEType>
+template<kinds::FunctionKind *K, const char *Name, const char *MIMEType>
 llvm::Error
-FunctionStringMap<K, MIMEType>::serialize(llvm::raw_ostream &OS) const {
+FunctionStringMap<K, Name, MIMEType>::serialize(llvm::raw_ostream &OS) const {
   ::serialize(OS, Map);
   return llvm::Error::success();
 }
 
-template<kinds::FunctionKind *K, const char *MIMEType>
+template<kinds::FunctionKind *K, const char *Name, const char *MIME>
 llvm::Error
-FunctionStringMap<K, MIMEType>::deserialize(const llvm::MemoryBuffer &Buffer) {
+FunctionStringMap<K, Name, MIME>::deserialize(const llvm::MemoryBuffer &Buf) {
 
-  llvm::yaml::Input YAMLInput(Buffer);
+  llvm::yaml::Input YAMLInput(Buf);
   YAMLInput >> Map;
 
   if (YAMLInput.error()) {
@@ -266,11 +270,6 @@ FunctionStringMap<K, MIMEType>::deserialize(const llvm::MemoryBuffer &Buffer) {
 
 template<typename ToRegister>
 class RegisterFunctionStringMap : public pipeline::Registry {
-private:
-  llvm::StringRef Name;
-
-public:
-  RegisterFunctionStringMap(llvm::StringRef Name) : Name(Name) {}
 
 public:
   virtual ~RegisterFunctionStringMap() override = default;
@@ -279,7 +278,7 @@ public:
   void registerContainersAndPipes(pipeline::Loader &Loader) override {
     const auto &Model = getModelFromContext(Loader.getContext());
     auto Factory = pipeline::ContainerFactory::fromGlobal<ToRegister>(&Model);
-    Loader.addContainerFactory(Name, std::move(Factory));
+    Loader.addContainerFactory(ToRegister::Name, std::move(Factory));
   }
   void registerKinds(pipeline::KindsRegistry &KindDictionary) override {}
   void libraryInitialization() override {}
