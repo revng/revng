@@ -10,16 +10,10 @@
 namespace pipeline {
 
 /// A pipe that copies items from a container to another
-template<typename Source, typename Destination = Source>
+template<Kind *K, typename Source, typename Destination = Source>
 class CopyPipe {
 public:
   static constexpr auto Name = "CopyPipe";
-
-private:
-  Kind *K;
-
-public:
-  CopyPipe(Kind &K) : K(&K) {}
 
 public:
   std::array<ContractGroup, 1> getContract() const {

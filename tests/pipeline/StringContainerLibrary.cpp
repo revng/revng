@@ -126,7 +126,7 @@ static llvm::RegisterPass<ExamplePass> X2("example-pass", "ExamplePass");
 
 char StringContainer::ID;
 
-static RegisterPipe<CopyPipe<StringContainer>> E1(StringKind);
+static RegisterPipe<CopyPipe<&StringKind, StringContainer>> E1;
 static const std::string Name = "StringContainer";
 static RegisterDefaultConstructibleContainer<StringContainer> C;
 static RegisterRole R(Name, "StringRole");

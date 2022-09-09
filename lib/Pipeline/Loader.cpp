@@ -107,7 +107,7 @@ Loader::parseAnalysis(const AnalysisDeclaration &Declaration) const {
                              Declaration.Type.c_str());
   }
   auto &Entry = It->second;
-  auto ToReturn = Entry(Declaration.UsedContainers);
+  auto ToReturn = AnalysisWrapper(Entry, Declaration.UsedContainers);
   ToReturn->setUserBoundName(Declaration.Name);
   return ToReturn;
 }
@@ -127,8 +127,7 @@ Loader::parseInvocation(Step &Step,
                              Message,
                              Invocation.Type.c_str());
   }
-  auto &Entry = It->second;
-  auto Pipe = Entry(Invocation.UsedContainers);
+  auto &Pipe = It->second;
   for (const auto &ContainerNameAndIndex :
        llvm::enumerate(Invocation.UsedContainers)) {
 

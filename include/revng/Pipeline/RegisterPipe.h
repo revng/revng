@@ -33,7 +33,7 @@ public:
 
 public:
   void registerContainersAndPipes(Loader &Loader) override {
-    Loader.registerPipe(Name, Pipe);
+    Loader.registerPipe<PipeT>(Name);
   }
 
   void registerKinds(KindsRegistry &KindDictionary) override {}

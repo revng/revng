@@ -91,10 +91,8 @@ public:
 
 private:
   llvm::StringMap<ContainerFactory> KnownContainerTypes;
-  llvm::StringMap<std::function<PipeWrapper(std::vector<std::string>)>>
-    KnownPipesTypes;
-  llvm::StringMap<std::function<AnalysisWrapper(std::vector<std::string>)>>
-    KnownAnalysisTypes;
+  llvm::StringMap<PipeWrapper> KnownPipesTypes;
+  llvm::StringMap<AnalysisWrapper> KnownAnalysisTypes;
   llvm::StringMap<std::function<std::unique_ptr<LLVMPassWrapperBase>()>>
     KnownLLVMPipeTypes;
 
@@ -145,40 +143,17 @@ public:
   }
 
   template<typename AnalysisType>
-  void registerAnalysis(llvm::StringRef Name) {
-    const auto LambdaToEmplace = [](std::vector<std::string> CName) {
-      return AnalysisWrapper::make<AnalysisType>(std::move(CName));
-    };
-    auto [_, inserted] = KnownAnalysisTypes.try_emplace(Name, LambdaToEmplace);
-    revng_assert(inserted);
-  }
-
-  template<typename AnalysisType>
   void registerAnalysis(llvm::StringRef Name, const AnalysisType &Analysis) {
-    const auto LambdaToEmplace =
-      [Analysis](std::vector<std::string> ContainerNames) {
-        return AnalysisWrapper::make(Analysis, std::move(ContainerNames));
-      };
-    auto [_, inserted] = KnownAnalysisTypes.try_emplace(Name, LambdaToEmplace);
+    auto [_, inserted] = KnownAnalysisTypes
+                           .try_emplace(Name,
+                                        AnalysisWrapper::make(Analysis, {}));
     revng_assert(inserted);
   }
 
   template<typename PipeType>
   void registerPipe(llvm::StringRef Name) {
-    const auto LambdaToEmplace = [](std::vector<std::string> CName) {
-      return PipeWrapper::make<PipeType>(std::move(CName));
-    };
-    auto [_, inserted] = KnownPipesTypes.try_emplace(Name, LambdaToEmplace);
-    revng_assert(inserted);
-  }
-
-  template<typename PipeType>
-  void registerPipe(llvm::StringRef Name, const PipeType &Pipe) {
-    const auto LambdaToEmplace =
-      [Pipe](std::vector<std::string> ContainerNames) {
-        return PipeWrapper::make(Pipe, std::move(ContainerNames));
-      };
-    auto [_, inserted] = KnownPipesTypes.try_emplace(Name, LambdaToEmplace);
+    auto [_, inserted] = KnownPipesTypes
+                           .try_emplace(Name, PipeWrapper::make<PipeType>({}));
     revng_assert(inserted);
   }
 
@@ -189,6 +164,15 @@ public:
 
   void setLLVMPipeConfigurer(LoaderCallback CallBack) {
     OnLLVMContainerCreationAction = std::move(CallBack);
+  }
+
+public:
+  const llvm::StringMap<PipeWrapper> &getRegisteredPipes() {
+    return KnownPipesTypes;
+  }
+
+  const llvm::StringMap<AnalysisWrapper> &getRegisteredAnalyses() {
+    return KnownAnalysisTypes;
   }
 
 private:
