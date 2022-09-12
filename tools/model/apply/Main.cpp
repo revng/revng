@@ -47,7 +47,7 @@ int main(int Argc, char *Argv[]) {
   if (not Model)
     ExitOnError(Model.takeError());
 
-  ::ErrorList EL;
+  revng::ErrorList EL;
   auto Diff = deserializeFileOrSTDIN<TupleTreeDiff<model::Binary>>(DiffPath,
                                                                    &EL);
   if (not Diff)

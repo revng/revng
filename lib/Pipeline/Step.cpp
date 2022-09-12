@@ -101,10 +101,11 @@ ContainerSet Step::cloneAndRun(Context &Ctx, ContainerSet &&Input) {
   return Cloned;
 }
 
-llvm::Error Step::runAnalysis(llvm::StringRef AnalysisName,
-                              Context &Ctx,
-                              const ContainerToTargetsMap &Targets,
-                              const llvm::StringMap<std::string> &ExtraArgs) {
+revng::ErrorList
+Step::runAnalysis(llvm::StringRef AnalysisName,
+                  Context &Ctx,
+                  const ContainerToTargetsMap &Targets,
+                  const llvm::StringMap<std::string> &ExtraArgs) {
   auto Stream = ExplanationLogger.getAsLLVMStream();
   ContainerToTargetsMap Map = Containers.enumerate();
 
