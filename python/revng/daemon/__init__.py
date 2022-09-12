@@ -16,6 +16,7 @@ from starlette.requests import Request
 from starlette.responses import PlainTextResponse
 
 from ariadne.asgi import GraphQL
+from ariadne.asgi.handlers import GraphQLHTTPHandler
 from ariadne.contrib.tracing.apollotracing import ApolloTracingExtension
 
 from revng.api import Manager
@@ -65,7 +66,7 @@ def startup():
         GraphQL(
             SchemaGenerator().get_schema(manager),
             context_value={"manager": manager, "workdir": workdir},
-            extensions=[ApolloTracingExtension],
+            http_handler=GraphQLHTTPHandler(extensions=[ApolloTracingExtension]),
             debug=DEBUG,
         ),
     )
