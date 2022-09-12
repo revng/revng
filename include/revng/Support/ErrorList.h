@@ -6,12 +6,15 @@
 
 #include <optional>
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Error.h"
 
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
-class ErrorList {
+namespace revng {
+
+class [[nodiscard]] ErrorList {
 private:
   std::vector<llvm::Error> Errors;
 
@@ -29,6 +32,17 @@ public:
       llvm::consumeError(std::move(Error));
     }
   }
+
+  using iterator = std::vector<llvm::Error>::iterator;
+  using const_iterator = std::vector<llvm::Error>::const_iterator;
+
+  iterator begin() { return Errors.begin(); }
+
+  const_iterator begin() const { return Errors.begin(); }
+
+  iterator end() { return Errors.end(); }
+
+  const_iterator end() const { return Errors.end(); }
 
   operator bool() const { return !empty(); }
 
@@ -86,6 +100,17 @@ public:
 
   void dump() const debug_function { dump(dbg); }
 
+  llvm::Error asLLVMError() {
+    if (empty())
+      return llvm::Error::success();
+    llvm::Error Error = std::move(Errors.front());
+    for (auto &Error2 : llvm::drop_begin(Errors))
+      Error = llvm::joinErrors(std::move(Error), std::move(Error2));
+    Errors.clear();
+
+    return Error;
+  }
+
   friend llvm::raw_ostream &
   operator<<(llvm::raw_ostream &OS, const ErrorList &EL) {
     EL.dump(OS);
@@ -97,3 +122,13 @@ public:
     return OS;
   }
 };
+
+inline void cantFail(ErrorList &&List) {
+  if (not List.empty()) {
+    for (auto &Error : List) {
+      llvm::cantFail(std::move(Error));
+    }
+  }
+}
+
+} // namespace revng

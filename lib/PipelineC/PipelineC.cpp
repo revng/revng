@@ -626,7 +626,7 @@ inline bool rp_manager_set_global_impl(rp_manager *manager,
   revng_check(manager != nullptr);
   revng_check(serialized != nullptr);
   revng_check(global_name != nullptr);
-  ExistingOrNew<ErrorList> ErrorList(error_list);
+  ExistingOrNew<revng::ErrorList> ErrorList(error_list);
   revng_check(ErrorList->empty());
 
   auto &GlobalsMap = manager->context().getGlobals();
@@ -691,7 +691,7 @@ inline bool rp_manager_apply_diff_impl(rp_manager *manager,
   revng_check(manager != nullptr);
   revng_check(diff != nullptr);
   revng_check(global_name != nullptr);
-  ExistingOrNew<ErrorList> ErrorList(error_list);
+  ExistingOrNew<revng::ErrorList> ErrorList(error_list);
   revng_check(ErrorList->empty());
 
   auto &GlobalsMap = manager->context().getGlobals();
@@ -873,7 +873,7 @@ bool rp_diff_map_is_empty(rp_diff_map *map) {
 }
 
 rp_error_list *rp_make_error_list() {
-  return new ErrorList();
+  return new revng::ErrorList();
 }
 
 bool rp_error_list_is_empty(rp_error_list *error_list) {

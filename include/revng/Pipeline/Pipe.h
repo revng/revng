@@ -25,6 +25,7 @@
 #include "revng/Pipeline/Invokable.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/ErrorList.h"
 
 namespace pipeline {
 
@@ -172,9 +173,9 @@ public:
     Invokable.print(Ctx, OS, Indentation);
   }
 
-  llvm::Error run(Context &Ctx,
-                  ContainerSet &Containers,
-                  const llvm::StringMap<std::string> &ExtraArgs) override {
+  revng::ErrorList run(Context &Ctx,
+                       ContainerSet &Containers,
+                       const llvm::StringMap<std::string> &ExtraArgs) override {
     return Invokable.run(Ctx, Containers, ExtraArgs);
   }
 

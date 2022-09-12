@@ -28,6 +28,7 @@
 #include "revng/Pipeline/Target.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/ErrorList.h"
 #include "revng/Support/YAMLTraits.h"
 
 namespace pipeline {
@@ -43,25 +44,31 @@ concept IsContainer = derived_from<std::decay_t<T>, ContainerBase>;
 template<typename T>
 concept IsNotContainer = not IsContainer<T>;
 
-template<typename InvokableType, typename... Args>
-constexpr bool
-invokableTypeReturnsErrorImpl(void (InvokableType::*F)(Args...)) {
-  return false;
+template<typename InvokableType, typename ReturnType, typename... Args>
+constexpr ReturnType
+invokableReturnTypeImpl(ReturnType (InvokableType::*F)(Args...)) {
+  return ReturnType();
 }
 
-template<typename InvokableType, typename... Args>
-constexpr bool
-invokableTypeReturnsErrorImpl(llvm::Error (InvokableType::*F)(Args...)) {
-  return true;
-}
+template<typename InvokableType>
+using invokableReturnType =
+    decltype(invokableReturnTypeImpl(&InvokableType::run));
 
 template<typename Invokable>
 constexpr bool invokableTypeReturnsError() {
-  return invokableTypeReturnsErrorImpl(&Invokable::run);
+  return std::is_same_v<invokableReturnType<Invokable>, llvm::Error>;
+}
+
+template<typename Invokable>
+constexpr bool invokableTypeReturnsErrorList() {
+  return std::is_same_v<invokableReturnType<Invokable>, revng::ErrorList>;
 }
 
 template<typename Invokable>
 concept ReturnsError = invokableTypeReturnsError<Invokable>();
+
+template<typename Invokable>
+concept ReturnsErrorList = invokableTypeReturnsErrorList<Invokable>();
 
 /// A Invokable is a class with the following characteristics:
 ///
@@ -346,9 +353,10 @@ concept Printable = requires(InvokableType Pipe) {
 
 class InvokableWrapperBase {
 public:
-  virtual llvm::Error run(Context &Ctx,
-                          ContainerSet &Containers,
-                          const llvm::StringMap<std::string> &Options = {}) = 0;
+  virtual revng::ErrorList
+  run(Context &Ctx,
+      ContainerSet &Containers,
+      const llvm::StringMap<std::string> &Options = {}) = 0;
   virtual ~InvokableWrapperBase() = default;
   virtual std::vector<std::string> getRunningContainersNames() const = 0;
   virtual std::string getName() const = 0;
@@ -387,10 +395,20 @@ public:
   std::string getName() const override { return InvokableType::Name; }
 
 public:
-  llvm::Error run(Context &Ctx,
-                  ContainerSet &Containers,
-                  const llvm::StringMap<std::string> &OptionArgs) override {
+  revng::ErrorList
+  run(Context &Ctx,
+      ContainerSet &Containers,
+      const llvm::StringMap<std::string> &OptionArgs) override {
     if constexpr (invokableTypeReturnsError<InvokableType>()) {
+      revng::ErrorList ToReturn;
+      ToReturn.push_back(invokePipeFunction(Ctx,
+                                            ActualPipe,
+                                            &InvokableType::run,
+                                            Containers,
+                                            RunningContainersNames,
+                                            OptionArgs));
+      return ToReturn;
+    } else if constexpr (invokableTypeReturnsErrorList<InvokableType>()) {
       return invokePipeFunction(Ctx,
                                 ActualPipe,
                                 &InvokableType::run,
@@ -405,7 +423,7 @@ public:
                          RunningContainersNames,
                          OptionArgs);
     }
-    return llvm::Error::success();
+    return revng::ErrorList();
   }
 
 public:

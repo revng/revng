@@ -83,8 +83,8 @@ public:
     return MaybeGlobal.get()->deserialize(Buffer);
   }
 
-  ErrorList verify(llvm::StringRef GlobalName) const {
-    ErrorList EL;
+  revng::ErrorList verify(llvm::StringRef GlobalName) const {
+    revng::ErrorList EL;
     auto MaybeGlobal = get(GlobalName);
     if (!MaybeGlobal)
       return MaybeGlobal.takeError();
