@@ -20,3 +20,4 @@ typedef struct rp_simple_error rp_simple_error;
 typedef struct rp_string_map rp_string_map;
 typedef struct rp_invalidations rp_invalidations;
 typedef struct rp_buffer rp_buffer;
+typedef struct rp_container_targets_map rp_container_targets_map;
