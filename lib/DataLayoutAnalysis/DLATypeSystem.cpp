@@ -443,6 +443,18 @@ void LayoutTypeSystem::moveEdgeSource(LayoutTypeSystemNode *OldSrc,
   }
 }
 
+NeighborIterator LayoutTypeSystem::eraseEdge(LayoutTypeSystemNode *Src,
+                                             NeighborIterator EdgeIt) {
+  LayoutTypeSystemNode *Tgt = EdgeIt->first;
+
+  // Erase the inverse edge from Tgt to Src
+  bool Erased = Tgt->Predecessors.erase({ Src, EdgeIt->second });
+  revng_assert(Erased);
+
+  // Erase the actual forward edge from Src to Tgt
+  return Src->Successors.erase(EdgeIt);
+}
+
 static Logger<> VerifyDLALog("dla-verify-strict");
 
 bool LayoutTypeSystem::verifyConsistency() const {

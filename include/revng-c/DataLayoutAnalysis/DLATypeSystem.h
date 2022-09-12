@@ -342,6 +342,9 @@ public:
                       NeighborIterator EdgeIt,
                       int64_t OffsetToSum);
 
+  NeighborIterator
+  eraseEdge(LayoutTypeSystemNode *Src, NeighborIterator EdgeIt);
+
 private:
   uint64_t NID = 0ULL;
 
