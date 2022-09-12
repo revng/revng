@@ -117,7 +117,7 @@ type {{ rank.name | capitalize }} {
 {%- if step.analyses_count() > 0 %}
 type {{ step.name }}Analyses {
     {%- for analysis in step.analyses() %}
-    {{ analysis.name | normalize }}({{ analysis | generate_analysis_parameters }}): String!
+    {{ analysis.name | normalize }}{{ analysis | generate_analysis_parameters }}: String!
     {%- endfor %}
 }
 {%- endif %}
