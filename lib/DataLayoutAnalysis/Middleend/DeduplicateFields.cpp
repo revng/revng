@@ -380,7 +380,7 @@ bool DeduplicateFields::runOnTypeSystem(LayoutTypeSystem &TS) {
       size_t NumInstanceEdges = 0;
 
       for ([[maybe_unused]] const auto &Edge :
-           llvm::children_edges<NonPointerFilterT>(Root))
+           llvm::children_edges<NonPointerFilterT>(N))
         ++NumInstanceEdges;
 
       if (NumInstanceEdges < 2)
