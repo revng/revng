@@ -2,7 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-from typing import Generator, List, Optional
+from typing import Any, Generator, List, Optional
 
 from ._capi import _api, ffi
 from .container import Container
@@ -83,3 +83,15 @@ class TargetsList:
 
     def __len__(self):
         return _api.rp_targets_list_targets_count(self._targets_list)
+
+
+class ContainerToTargetsMap:
+    def __init__(self, _map: Any | None = None):
+        if _map is None:
+            self._map = _api.rp_container_targets_map_create()
+        else:
+            self._map = _map
+
+    def add(self, container: Container, *targets: Target):
+        for target in targets:
+            _api.rp_container_targets_map_add(self._map, container._container, target._target)

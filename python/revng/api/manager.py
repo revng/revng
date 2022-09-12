@@ -18,7 +18,7 @@ from .invalidations import Invalidations, ResultWithInvalidations
 from .kind import Kind
 from .step import Step
 from .string_map import StringMap
-from .target import Target, TargetsList
+from .target import ContainerToTargetsMap, Target, TargetsList
 from .utils import make_c_string, make_generator, make_python_string
 
 INVALID_INDEX = 0xFFFFFFFFFFFFFFFF
@@ -381,16 +381,16 @@ class Manager:
         target_mapping: Dict[Container, List[Target]],
         options: StringMap,
     ) -> ResultWithInvalidations[Optional[Dict[str, str]]]:
-        first_key = list(target_mapping.keys())[0]
-        targets = target_mapping[first_key]
+        target_map = ContainerToTargetsMap()
+        for container, targets in target_mapping.items():
+            target_map.add(container, *targets)
+
         invalidations = Invalidations()
         result = _api.rp_manager_run_analysis(
             self._manager,
-            len(targets),
-            [t._target for t in targets],
             make_c_string(step.name),
             make_c_string(analysis.name),
-            first_key._container,
+            target_map._map,
             invalidations._invalidations,
             options._string_map,
         )
