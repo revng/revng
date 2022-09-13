@@ -10,6 +10,7 @@
 #include "llvm/Support/SourceMgr.h"
 
 #include "revng/Support/Assert.h"
+#include "revng/Support/InitRevng.h"
 
 #include "revng-c/HeadersGeneration/HelpersToHeader.h"
 
@@ -38,6 +39,7 @@ using llvm::LLVMContext;
 using llvm::Module;
 
 int main(int Argc, const char *Argv[]) {
+  revng::InitRevng X(Argc, Argv);
 
   // Enable LLVM stack trace
   llvm::sys::PrintStackTraceOnErrorSignal(Argv[0]);

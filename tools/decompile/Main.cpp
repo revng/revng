@@ -11,6 +11,7 @@
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/InitRevng.h"
 
 #include "revng-c/Backend/DecompileFunction.h"
 #include "revng-c/Pipes/Kinds.h"
@@ -60,6 +61,7 @@ static opt<std::string> TargetFunction("t",
                                        cat(DecompileCategory));
 
 int main(int Argc, const char *Argv[]) {
+  revng::InitRevng X(Argc, Argv);
 
   // Enable LLVM stack trace
   llvm::sys::PrintStackTraceOnErrorSignal(Argv[0]);
