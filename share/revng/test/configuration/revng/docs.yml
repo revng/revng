@@ -1,0 +1,11 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# commands:
+#   - type: revng.test-docs
+#     from:
+#       - type: source
+#         filter: example-executable-1
+#       command: |-
+#         revng test-docs 

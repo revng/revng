@@ -1,0 +1,29 @@
+site_name: rev.ng docs
+theme: material
+nav:
+  - "What's rev.ng?": 'what-is-revng.md'
+  - "Quick Start":
+    - Introduction: 'quick-start/index.md'
+  - "User's Manual":
+    - Introduction: 'user-manual/index.md'
+    - MetaAddress: 'user-manual/metaaddress.md'
+    - Model: 'user-manual/model.md'
+  - "Developer's Manual":
+    - Introduction: 'developer-manual/index.md'
+  - "References":
+    - Analyses: references/analyses.md
+    - Artifacts: references/artifacts.md
+    - Kinds: references/kinds.md
+    - Model: references/model.md
+    - Pipeline: references/pipeline.md
+    - Pipes: references/pipes.md
+    - Ranks: references/ranks.md
+markdown_extensions:
+  - mkdocs_graphviz
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: "#"
+extra_javascript:
+  - https://cdn.jsdelivr.net/gh/rod2ik/cdn@main/mkdocs/javascripts/mkdocs-graphviz.js
