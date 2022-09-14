@@ -122,8 +122,7 @@ struct GraphTraits<SubGraph<InnerNodeType>> {
   using ChildIteratorType = typename GraphType::ChildIteratorType;
   using nodes_iterator = typename GraphType::nodes_iterator;
 
-  // TODO: here G should be const
-  static NodeRef getEntryNode(GraphType &G) { return G.EntryNode; }
+  static NodeRef getEntryNode(const GraphType &G) { return G.EntryNode; }
 
   static ChildIteratorType child_begin(NodeRef Parent) {
     return Parent->Children.begin();
