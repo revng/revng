@@ -70,7 +70,7 @@ enum Values : uint16_t {
 
 };
 
-inline bool isValid(Values V) {
+inline constexpr bool isValid(Values V) {
   switch (V) {
   case Invalid:
   case Generic32:
@@ -89,7 +89,7 @@ inline bool isValid(Values V) {
   }
 }
 
-inline const char *toString(Values V) {
+inline constexpr const char *toString(Values V) {
   switch (V) {
   case Invalid:
     return "Invalid";
@@ -118,7 +118,7 @@ inline const char *toString(Values V) {
   revng_abort();
 }
 
-inline Values fromString(llvm::StringRef String) {
+inline constexpr Values fromString(llvm::StringRef String) {
   if (String == "Generic32") {
     return Generic32;
   } else if (String == "Generic64") {
@@ -146,7 +146,7 @@ inline Values fromString(llvm::StringRef String) {
   revng_abort();
 }
 
-inline const llvm::Optional<llvm::Triple::ArchType> arch(Values V) {
+inline constexpr const llvm::Optional<llvm::Triple::ArchType> arch(Values V) {
   switch (V) {
   case Code_x86:
     return llvm::Triple::x86;
@@ -173,7 +173,7 @@ inline const llvm::Optional<llvm::Triple::ArchType> arch(Values V) {
 }
 
 /// Returns Generic32 or Generic64 depending on the size of addresses in \p Arch
-inline Values genericFromArch(llvm::Triple::ArchType Arch) {
+inline constexpr Values genericFromArch(llvm::Triple::ArchType Arch) {
   switch (Arch) {
   case llvm::Triple::x86:
   case llvm::Triple::arm:
@@ -192,7 +192,7 @@ inline Values genericFromArch(llvm::Triple::ArchType Arch) {
 }
 
 /// Convert \p Type to the corresponding generic type
-inline Values toGeneric(Values Type) {
+inline constexpr Values toGeneric(Values Type) {
   switch (Type) {
   case Invalid:
     revng_abort("Can't convert to generic an invalid type");
@@ -218,7 +218,7 @@ inline Values toGeneric(Values Type) {
 }
 
 /// Get the default type for code of the given architecture
-inline Values defaultCodeFromArch(llvm::Triple::ArchType Arch) {
+inline constexpr Values defaultCodeFromArch(llvm::Triple::ArchType Arch) {
   switch (Arch) {
   case llvm::Triple::x86:
     return Code_x86;
@@ -242,7 +242,7 @@ inline Values defaultCodeFromArch(llvm::Triple::ArchType Arch) {
 /// Get the alignment of the corresponding type
 ///
 /// \note Generic types have alignment of 1
-inline unsigned alignment(Values Type) {
+inline constexpr unsigned alignment(Values Type) {
   switch (Type) {
   case Invalid:
     revng_abort("Invalid addresses have no alignment");
@@ -265,7 +265,7 @@ inline unsigned alignment(Values Type) {
 }
 
 /// Get the size in bit of an address of the given type
-inline unsigned bitSize(Values Type) {
+inline constexpr unsigned bitSize(Values Type) {
   switch (Type) {
   case Invalid:
     revng_abort("Invalid addresses have no bit size");
@@ -289,13 +289,13 @@ inline unsigned bitSize(Values Type) {
 /// Get a 64-bits mask representing the relevant bits for the given type
 ///
 /// \note The alignment is not considered in this mask.
-inline uint64_t addressMask(Values Type) {
+inline constexpr uint64_t addressMask(Values Type) {
   revng_assert(bitSize(Type) != 0);
   return std::numeric_limits<uint64_t>::max() >> (64 - bitSize(Type));
 }
 
 /// Does \p Type represent a code address?
-inline bool isCode(Values Type) {
+inline constexpr bool isCode(Values Type) {
   switch (Type) {
   case Invalid:
   case Generic32:
@@ -317,7 +317,7 @@ inline bool isCode(Values Type) {
 }
 
 /// Does \p Type represent an address pointing to \p Arch code?
-inline bool isCode(Values Type, llvm::Triple::ArchType Arch) {
+inline constexpr bool isCode(Values Type, llvm::Triple::ArchType Arch) {
   switch (Arch) {
   case llvm::Triple::x86:
     return Type == Code_x86;
@@ -341,7 +341,7 @@ inline bool isCode(Values Type, llvm::Triple::ArchType Arch) {
 }
 
 /// Is \p Type a generic address?
-inline bool isGeneric(Values Type) {
+inline constexpr bool isGeneric(Values Type) {
   switch (Type) {
   case Invalid:
   case Code_x86:
@@ -362,7 +362,7 @@ inline bool isGeneric(Values Type) {
   revng_abort();
 }
 
-inline bool isDefaultCode(Values Type) {
+inline constexpr bool isDefaultCode(Values Type) {
   switch (Type) {
   case Code_x86:
   case Code_mips:
@@ -383,7 +383,7 @@ inline bool isDefaultCode(Values Type) {
   revng_abort();
 }
 
-inline llvm::StringRef getLLVMCPUFeatures(Values Type) {
+inline constexpr llvm::StringRef getLLVMCPUFeatures(Values Type) {
   switch (Type) {
   case Code_arm_thumb:
     return "+thumb-mode";
@@ -464,10 +464,10 @@ public:
   static constexpr MetaAddress invalid() { return MetaAddress(); }
 
   /// Create a MetaAddress from a pointer to \p Arch code
-  static MetaAddress fromPC(llvm::Triple::ArchType Arch,
-                            uint64_t PC,
-                            uint32_t Epoch = 0,
-                            uint16_t AddressSpace = 0) {
+  static constexpr MetaAddress fromPC(llvm::Triple::ArchType Arch,
+                                      uint64_t PC,
+                                      uint32_t Epoch = 0,
+                                      uint16_t AddressSpace = 0) {
 
     // Create the base MetaAddress, it points to code at zero
     MetaAddress Result(0,
@@ -498,10 +498,10 @@ public:
   }
 
   /// Create a generic MetaAddress for architecture \p Arch
-  static MetaAddress fromGeneric(llvm::Triple::ArchType Arch,
-                                 uint64_t Address,
-                                 uint32_t Epoch = 0,
-                                 uint16_t AddressSpace = 0) {
+  static constexpr MetaAddress fromGeneric(llvm::Triple::ArchType Arch,
+                                           uint64_t Address,
+                                           uint32_t Epoch = 0,
+                                           uint16_t AddressSpace = 0) {
     return MetaAddress(Address,
                        MetaAddressType::genericFromArch(Arch),
                        Epoch,
@@ -553,7 +553,7 @@ public:
 
 public:
   /// If isCode(), let this decay to the corresponding generic address
-  MetaAddress toGeneric() const {
+  constexpr MetaAddress toGeneric() const {
     revng_check(isValid());
 
     MetaAddress Result = *this;
@@ -561,26 +561,30 @@ public:
     return Result;
   }
 
-  MetaAddress toPC(llvm::Triple::ArchType Arch) const {
+  constexpr MetaAddress toPC(llvm::Triple::ArchType Arch) const {
     return fromPC(Arch, Address, Epoch, AddressSpace);
   }
 
 public:
   /// @{
-  bool operator==(const MetaAddress &Other) const {
+  constexpr bool operator==(const MetaAddress &Other) const {
     return tie() == Other.tie();
   }
 
-  bool operator!=(const MetaAddress &Other) const {
+  constexpr bool operator!=(const MetaAddress &Other) const {
     return not(*this == Other);
   }
 
-  bool operator<(const MetaAddress &Other) const { return tie() < Other.tie(); }
-  bool operator<=(const MetaAddress &Other) const {
+  constexpr bool operator<(const MetaAddress &Other) const {
+    return tie() < Other.tie();
+  }
+  constexpr bool operator<=(const MetaAddress &Other) const {
     return tie() <= Other.tie();
   }
-  bool operator>(const MetaAddress &Other) const { return tie() > Other.tie(); }
-  bool operator>=(const MetaAddress &Other) const {
+  constexpr bool operator>(const MetaAddress &Other) const {
+    return tie() > Other.tie();
+  }
+  constexpr bool operator>=(const MetaAddress &Other) const {
     return tie() >= Other.tie();
   }
 
@@ -597,35 +601,35 @@ public:
   ///
   /// Two MetaAddresses are comparable if they are both valid, they refer to the
   /// same address space and they have the same size in bits.
-  bool addressIsComparableWith(const MetaAddress &Other) const {
+  constexpr bool addressIsComparableWith(const MetaAddress &Other) const {
     return (isValid() and Other.isValid() and AddressSpace == Other.AddressSpace
             and bitSize() == Other.bitSize());
   }
 
-  bool addressEquals(const MetaAddress &Other) const {
+  constexpr bool addressEquals(const MetaAddress &Other) const {
     revng_check(addressIsComparableWith(Other));
     return Address == Other.Address;
   }
 
-  bool addressDiffers(const MetaAddress &Other) const {
+  constexpr bool addressDiffers(const MetaAddress &Other) const {
     return !addressEquals(Other);
   }
 
-  bool addressLowerThan(const MetaAddress &Other) const {
+  constexpr bool addressLowerThan(const MetaAddress &Other) const {
     revng_check(addressIsComparableWith(Other));
     return Address < Other.Address;
   }
 
-  bool addressLowerThanOrEqual(const MetaAddress &Other) const {
+  constexpr bool addressLowerThanOrEqual(const MetaAddress &Other) const {
     revng_check(addressIsComparableWith(Other));
     return Address <= Other.Address;
   }
 
-  bool addressGreaterThanOrEqual(const MetaAddress &Other) const {
+  constexpr bool addressGreaterThanOrEqual(const MetaAddress &Other) const {
     return not(addressLowerThan(Other));
   }
 
-  bool addressGreaterThan(const MetaAddress &Other) const {
+  constexpr bool addressGreaterThan(const MetaAddress &Other) const {
     return not(addressLowerThanOrEqual(Other));
   }
 
@@ -717,7 +721,7 @@ public:
   ///
   /// The given address must be valid for the current type. The resulting type
   /// has the same epoch, type and address space as this.
-  MetaAddress replaceAddress(uint64_t Address) const {
+  constexpr MetaAddress replaceAddress(uint64_t Address) const {
     revng_check(isValid());
 
     MetaAddress Result = *this;
@@ -730,7 +734,7 @@ public:
   /// \name Accessors
   ///
   /// @{
-  uint64_t address() const {
+  constexpr uint64_t address() const {
     revng_assert(isValid());
     return Address;
   }
@@ -738,13 +742,13 @@ public:
   /// Return the wrapped address in its PC representation
   ///
   /// \note Don't call this method if `!(isValid() && isCode())`
-  uint64_t asPC() const {
+  constexpr uint64_t asPC() const {
     revng_check(isValid());
     return asPCOrZero();
   }
 
   /// Return the wrapped address in its PC representation, or 0 if invalid
-  uint64_t asPCOrZero() const {
+  constexpr uint64_t asPCOrZero() const {
     revng_check(isCode() or isInvalid());
 
     switch (type()) {
@@ -773,39 +777,51 @@ public:
     revng_abort();
   }
 
-  uint16_t addressSpace() const {
+  constexpr uint16_t addressSpace() const {
     revng_check(isValid());
     return AddressSpace;
   }
-  bool isDefaultAddressSpace() const { return addressSpace() == 0; }
+  constexpr bool isDefaultAddressSpace() const { return addressSpace() == 0; }
 
-  uint32_t epoch() const {
+  constexpr uint32_t epoch() const {
     revng_check(isValid());
     return Epoch;
   }
-  bool isDefaultEpoch() const { return epoch() == 0; }
+  constexpr bool isDefaultEpoch() const { return epoch() == 0; }
 
-  MetaAddressType::Values type() const { return MetaAddressType::Values(Type); }
-  bool isInvalid() const { return type() == MetaAddressType::Invalid; }
-  bool isValid() const { return not isInvalid(); }
-  bool isCode() const { return MetaAddressType::isCode(type()); }
-  bool isCode(llvm::Triple::ArchType Arch) const {
+  constexpr MetaAddressType::Values type() const {
+    return MetaAddressType::Values(Type);
+  }
+  constexpr bool isInvalid() const {
+    return type() == MetaAddressType::Invalid;
+  }
+  constexpr bool isValid() const { return not isInvalid(); }
+  constexpr bool isCode() const { return MetaAddressType::isCode(type()); }
+  constexpr bool isCode(llvm::Triple::ArchType Arch) const {
     return MetaAddressType::isCode(type(), Arch);
   }
-  bool isGeneric() const { return MetaAddressType::isGeneric(type()); }
-  unsigned bitSize() const { return MetaAddressType::bitSize(type()); }
-  unsigned alignment() const { return MetaAddressType::alignment(type()); }
+  constexpr bool isGeneric() const {
+    return MetaAddressType::isGeneric(type());
+  }
+  constexpr unsigned bitSize() const {
+    return MetaAddressType::bitSize(type());
+  }
+  constexpr unsigned alignment() const {
+    return MetaAddressType::alignment(type());
+  }
 
   llvm::Optional<llvm::Triple::ArchType> arch() {
     return MetaAddressType::arch(type());
   }
 
-  bool isDefaultCode() const { return MetaAddressType::isDefaultCode(type()); }
+  constexpr bool isDefaultCode() const {
+    return MetaAddressType::isDefaultCode(type());
+  }
 
   /// @}
 
 public:
-  bool isIn(const MetaAddress &Start, const MetaAddress &End) const {
+  constexpr bool isIn(const MetaAddress &Start, const MetaAddress &End) const {
     return Start <= *this and *this < End;
   }
 
@@ -836,7 +852,7 @@ public:
   }
 
 public:
-  MetaAddress pageStart() const {
+  constexpr MetaAddress pageStart() const {
     revng_check(isValid());
     return toGeneric() - (Address % 4096);
   }
@@ -854,7 +870,7 @@ public:
   }
 
 private:
-  bool verify() const debug_function {
+  constexpr bool verify() const debug_function {
     // Invalid addresses are all the same
     if (type() == MetaAddressType::Invalid) {
       return *this == invalid();
@@ -874,16 +890,18 @@ private:
     return true;
   }
 
-  void validate() {
+  constexpr void validate() {
     if (not verify())
       setInvalid();
   }
 
-  void setInvalid() { *this = MetaAddress(); }
+  constexpr void setInvalid() { *this = MetaAddress(); }
 
-  uint64_t addressMask() const { return MetaAddressType::addressMask(type()); }
+  constexpr uint64_t addressMask() const {
+    return MetaAddressType::addressMask(type());
+  }
 
-  void setPC(uint64_t PC) {
+  constexpr void setPC(uint64_t PC) {
     if (type() == MetaAddressType::Code_arm_thumb) {
 
       if ((PC & 1) == 0) {
@@ -897,7 +915,7 @@ private:
     setAddress(PC);
   }
 
-  void setAddress(uint64_t NewAddress) {
+  constexpr void setAddress(uint64_t NewAddress) {
     Address = NewAddress & addressMask();
     validate();
   }
@@ -929,7 +947,9 @@ private:
                           const uint16_t &,
                           const uint16_t &,
                           const uint64_t &>;
-  Tied tie() const { return std::tie(Epoch, AddressSpace, Type, Address); }
+  constexpr Tied tie() const {
+    return std::tie(Epoch, AddressSpace, Type, Address);
+  }
 };
 
 static_assert(sizeof(MetaAddress) <= 128 / 8,
