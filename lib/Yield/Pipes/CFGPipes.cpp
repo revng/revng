@@ -9,7 +9,7 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Yield/Function.h"
-#include "revng/Yield/Pipes/YieldControlFlowPipe.h"
+#include "revng/Yield/Pipes/YieldControlFlow.h"
 #include "revng/Yield/SVG.h"
 
 namespace revng::pipes {

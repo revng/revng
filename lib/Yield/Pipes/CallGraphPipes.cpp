@@ -12,9 +12,9 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Yield/CrossRelations.h"
-#include "revng/Yield/Pipes/ProcessCallGraphPipe.h"
-#include "revng/Yield/Pipes/YieldCallGraphPipe.h"
-#include "revng/Yield/Pipes/YieldCallGraphSlicePipe.h"
+#include "revng/Yield/Pipes/ProcessCallGraph.h"
+#include "revng/Yield/Pipes/YieldCallGraph.h"
+#include "revng/Yield/Pipes/YieldCallGraphSlice.h"
 #include "revng/Yield/SVG.h"
 
 namespace revng::pipes {

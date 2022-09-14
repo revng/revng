@@ -13,8 +13,8 @@
 #include "revng/Yield/Assembly/DisassemblyHelper.h"
 #include "revng/Yield/Function.h"
 #include "revng/Yield/PTML.h"
-#include "revng/Yield/Pipes/ProcessAssemblyPipe.h"
-#include "revng/Yield/Pipes/YieldAssemblyPipe.h"
+#include "revng/Yield/Pipes/ProcessAssembly.h"
+#include "revng/Yield/Pipes/YieldAssembly.h"
 
 namespace revng::pipes {
 
