@@ -23,7 +23,7 @@ Error Loader::parseStepDeclaration(Runner &Runner,
                                    const StepDeclaration &Declaration,
                                    std::string &LastAddedStep,
                                    const vector<string> &ReadOnlyNames) const {
-  auto &JustAdded = Runner.emplaceStep(LastAddedStep, Declaration.Name);
+  auto &JustAdded = Runner.emplaceStep(LastAddedStep, Declaration.Name, Declaration.Doc);
   LastAddedStep = Declaration.Name;
 
   if (Declaration.Artifacts.isValid()) {
@@ -36,7 +36,8 @@ Error Loader::parseStepDeclaration(Runner &Runner,
     if (auto Error = JustAdded.setArtifacts(Declaration.Artifacts.Container,
                                             Kind,
                                             Declaration.Artifacts
-                                              .SingleTargetFilename);
+                                              .SingleTargetFilename,
+                                            Declaration.Artifacts.Doc);
         !!Error) {
       return Error;
     }
@@ -298,7 +299,7 @@ Loader::load(llvm::ArrayRef<PipelineDeclaration> Pipelines) const {
         Error)
       return std::move(Error);
 
-  ToReturn.emplaceStep("", "begin");
+  ToReturn.emplaceStep("", "begin", "Initial virtual step");
 
   for (const auto *Declaration : ToSort)
     if (auto Error = parseSteps(ToReturn, *Declaration, ReadOnlyNames); Error)

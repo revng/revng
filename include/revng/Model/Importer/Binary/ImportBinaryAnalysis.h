@@ -17,6 +17,11 @@ namespace revng::pipes {
 class ImportBinaryAnalysis {
 public:
   static constexpr auto Name = "ImportBinary";
+  static constexpr auto Doc = "Import into the model all the available "
+                              "metadata in one of the supported binary formats "
+                              "(ELF, PE/COFF, Mach-O). Typically, this "
+                              "includes loading directives, static and dynamic "
+                              "symbols and debug information.";
 
 public:
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {

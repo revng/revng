@@ -147,7 +147,8 @@ public:
 
 public:
   static llvm::Expected<ModelInModule> load(const llvm::MemoryBuffer &MB) {
-    if (MB.getBuffer().startswith("---")) {
+    llvm::StringRef Buffer = MB.getBuffer();
+    if (Buffer.startswith("---") or Buffer.size() == 0) {
       return loadYAML(MB);
     } else {
       return loadModule(MB);

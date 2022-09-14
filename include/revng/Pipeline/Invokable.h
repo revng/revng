@@ -352,6 +352,7 @@ public:
   virtual ~InvokableWrapperBase() = default;
   virtual std::vector<std::string> getRunningContainersNames() const = 0;
   virtual std::string getName() const = 0;
+  virtual std::string getDoc() const = 0;
   virtual void dump(std::ostream &OS, size_t Indents) const = 0;
   virtual bool isContainerArgumentConst(size_t ArgumentIndex) const = 0;
   virtual void
@@ -365,6 +366,8 @@ public:
 /// any pipeline type, and it will expose the contract and run method of that
 /// enforcer.
 template<typename InvokableType>
+// WIP: InvokableWrapperImplHelper
+// WIP: "public InvokableWrapperBase" could go, in theory
 class InvokableWrapperImpl : public InvokableWrapperBase {
 private:
   InvokableType ActualPipe;
@@ -385,6 +388,7 @@ public:
 
 public:
   std::string getName() const override { return InvokableType::Name; }
+  std::string getDoc() const override { return InvokableType::Doc; }
 
 public:
   llvm::Error run(Context &Ctx,

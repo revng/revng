@@ -79,6 +79,10 @@ private:
 
 public:
   static constexpr auto Name = "DetectABI";
+  static constexpr auto Doc = "Produce a `RawFunctionType` for all the "
+                              "`Function`s with an `Invalid` value for "
+                              "`Prototype`. This analysis ignores stack "
+                              "arguments.";
 
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {
     { &revng::kinds::Root }

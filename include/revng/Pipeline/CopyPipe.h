@@ -14,6 +14,8 @@ template<typename Kind, Kind *K, typename Source, typename Destination = Source>
 class CopyPipe {
 public:
   static constexpr auto Name = "CopyPipe";
+  static constexpr auto Doc = "Copy input container to the output container as "
+                              "is.";
 
 public:
   std::array<ContractGroup, 1> getContract() const {

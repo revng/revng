@@ -51,6 +51,7 @@ locationsToRanks(std::tuple<const T &...> Locations) {
 /// LLVMKind instead.
 class Kind : public DynamicHierarchy<Kind> {
 private:
+  std::string Doc;
   RegisterKind Register;
   const Rank *TheRank;
   std::vector<const Rank *> DefinedLocations;
@@ -60,10 +61,12 @@ public:
   template<RankSpecialization BaseRank, typename... T>
   requires(RankConvertibleTo<BaseRank, T> and...)
     Kind(llvm::StringRef Name,
+         llvm::StringRef Doc,
          const BaseRank &TheRank,
          std::tuple<const T &...> Locations,
          std::vector<const Kind *> PreferredKinds) :
     DynamicHierarchy<Kind>(Name),
+    Doc(Doc),
     Register(*this),
     TheRank(&TheRank),
     DefinedLocations(locationsToRanks(Locations)),
@@ -74,11 +77,13 @@ public:
   template<RankSpecialization BaseRank, typename... T>
   requires(RankConvertibleTo<BaseRank, T> and...)
     Kind(llvm::StringRef Name,
+         llvm::StringRef Doc,
          Kind &Parent,
          const BaseRank &TheRank,
          std::tuple<const T &...> Locations,
          std::vector<const Kind *> PreferredKinds) :
     DynamicHierarchy<Kind>(Name, Parent),
+    Doc(Doc),
     Register(*this),
     TheRank(&TheRank),
     DefinedLocations(locationsToRanks(Locations)),
@@ -105,6 +110,8 @@ public:
     return DefinedLocations;
   }
 
+  llvm::StringRef doc() const { return Doc; }
+
 public:
   virtual ~Kind() = default;
 
@@ -129,7 +136,7 @@ class DeadKind : public Kind {
 
 public:
   template<RankSpecialization BaseRank>
-  DeadKind(const BaseRank &R) : Kind("Dead", R, {}, {}) {}
+  DeadKind(const BaseRank &R) : Kind("Dead", ("Terminating kind for rank " + R->name()).str(), R, {}, {}) {}
 
   void appendAllTargets(const Context &Ctx, TargetsList &Out) const override {
     revng_abort();

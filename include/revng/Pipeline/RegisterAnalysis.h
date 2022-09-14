@@ -16,6 +16,7 @@ template<typename AnalsysisType>
 class RegisterAnalysis : Registry {
 private:
   llvm::StringRef Name;
+  llvm::StringRef Doc;
   AnalsysisType Pipe;
   std::vector<std::unique_ptr<CLOptionBase>> RegisteredOptions;
 

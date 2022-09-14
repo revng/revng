@@ -50,6 +50,7 @@ struct ArtifactsDeclaration {
   std::string Container;
   std::string Kind;
   std::string SingleTargetFilename;
+  std::string Doc;
 
   ArtifactsDeclaration() : Container(), Kind(), SingleTargetFilename() {}
 
@@ -60,6 +61,7 @@ struct ArtifactsDeclaration {
 
 struct StepDeclaration {
   std::string Name;
+  std::string Doc;
   std::vector<PipeInvocation> Pipes;
   std::vector<std::string> EnabledWhen = {};
   ArtifactsDeclaration Artifacts = {};
@@ -239,6 +241,7 @@ template<>
 struct llvm::yaml::MappingTraits<pipeline::StepDeclaration> {
   static void mapping(IO &TheIO, pipeline::StepDeclaration &Info) {
     TheIO.mapRequired("Name", Info.Name);
+    TheIO.mapRequired("Doc", Info.Doc);
     TheIO.mapOptional("Pipes", Info.Pipes);
     TheIO.mapOptional("EnabledWhen", Info.EnabledWhen);
     TheIO.mapOptional("Artifacts", Info.Artifacts);
@@ -273,6 +276,7 @@ struct llvm::yaml::MappingTraits<pipeline::ArtifactsDeclaration> {
     TheIO.mapRequired("Container", Info.Container);
     TheIO.mapRequired("Kind", Info.Kind);
     TheIO.mapRequired("SingleTargetFilename", Info.SingleTargetFilename);
+    TheIO.mapRequired("Doc", Info.Doc);
   }
 };
 

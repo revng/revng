@@ -26,60 +26,85 @@
 
 /* TUPLE-TREE-YAML
 name: Binary
-doc: Data structure representing the whole binary
+doc: |-
+  Data structure representing the whole binary.
+  This is the entry point of the model.
+  It contains the type system (`Types`), the list of functions (`Functions`),
+  loading information (`Segments`) and more.
 type: struct
 fields:
   - name: Functions
-    doc: List of the functions within the binary
+    doc: List of the function present in the binary.
     sequence:
       type: SortedVector
       elementType: Function
     optional: true
   - name: ImportedDynamicFunctions
-    doc: List of the functions within the binary
+    doc: List of functions imported from dynamic libraries (`.so`, `.dll`).
     sequence:
       type: SortedVector
       elementType: DynamicFunction
     optional: true
   - name: Architecture
-    doc: Binary architecture
+    doc: The architecture for this binary.
     type: Architecture
     optional: true
   - name: DefaultABI
-    doc: The default ABI of `RawFunctionType`s within the binary
+    doc: |-
+      The default ABI to adopt for analysis purposes.
     type: ABI
     optional: true
   - name: DefaultPrototype
-    doc: The default function prototype
+    doc: |-
+      The default function prototype to adopt for functions that do not provide
+      it explicitly.
     reference:
       pointeeType: Type
       rootType: Binary
     optional: true
   - name: Segments
-    doc: List of segments in the original binary
+    doc: |-
+      A list of `Segment`.
+      Basically, these represent instructions on what part of the raw binary
+      needs to be loaded at which address.
     sequence:
       type: SortedVector
       elementType: Segment
     optional: true
   - name: EntryPoint
-    doc: Program entry point
+    doc: The program entry point, if any.
     type: MetaAddress
     optional: true
   - name: Types
-    doc: The type system
+    doc: |-
+      The type system.
+      It contains primitive types, `struct`, `union`, `typedef`, `enum` 
+      and function prototypes.
     sequence:
       type: SortedVector
       upcastable: true
       elementType: Type
     optional: true
   - name: ImportedLibraries
-    doc: List of imported libraries
+    doc: |-
+      The list of imported libraries identified by their file name.
+      For instance, if the input binary is linked to OpenSSL this list would
+      contain `libcrypto.so.1.1`.
     sequence:
       type: SortedVector
       elementType: string
     optional: true
   - name: ExtraCodeAddresses
-    doc: Addresses containing code in order to help translation
+    doc: |-
+      A list of addresses known to contain code.
+      rev.ng is usually able to discover all the code by itself by recursively
+      visiting the control-flow graph of functions and the call graph.
+      However, certain pieces of code cannot be identified through these
+      techniques.
+      A prime example are the addresses of `catch` blocks of C++ exception
+      handlers: no code ever directly jumps there and their address is not
+      stored in jump tables. Their address can only be obtained by interpreting
+      metadata in the ELF.
     optional: true
     sequence:
       type: SortedVector

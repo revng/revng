@@ -14,6 +14,9 @@ Containers:
 Branches:
   - Steps:
       - Name: Import
+        Doc: |-
+          A simple step that does not run any pipe.
+          Its only purpose is to list a set of analysis that can be performed before lifting.
         Analyses:
           - Name: ImportBinary
             Type: ImportBinary
@@ -22,6 +25,9 @@ Branches:
             Type: AddPrimitiveTypes
             UsedContainers: [input]
       - Name: Lift
+        Doc: |-
+          This step takes the binary and lifts it, producing an LLVM module containing the `root` function.
+          It also performs some basic optimizations.
         Pipes:
           - Type: Lift
             UsedContainers: [input, module.ll]
@@ -32,11 +38,18 @@ Branches:
           Container: module.ll
           Kind: Root
           SingleTargetFilename: module_lifted.ll
+          Doc: |-
+            The `root` function, produced by lifting.
         Analyses:
           - Name: DetectABI
             Type: DetectABI
             UsedContainers: [module.ll]
       - Name: Recompile
+        Doc: |-
+          This the binary translation step.
+          Given an LLVM module containing the `root` function, links the necessary runtime, optionally performs some optimizations, compiles the module to an object file and links it.
+          The final outcome is the translated program, that can be executed for the target architecture.
+          Currently, the only supported inputs are ELF binaries for Linux for the supported architectures, while the supported output is x86-64 ELF for Linux only.
         Pipes:
           - Type: LinkSupport
             UsedContainers: [module.ll]
@@ -52,3 +65,6 @@ Branches:
           Container: output
           Kind: Translated
           SingleTargetFilename: translated_binary
+          Doc: |-
+            The translated version of the input binary.
+            This artifact is an ELF executable for Linux x86-64 containing the `root` function plus the required runtime.

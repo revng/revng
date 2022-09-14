@@ -28,6 +28,9 @@ namespace revng::pipes {
 class Lift {
 public:
   static constexpr auto Name = "Lift";
+  static constexpr auto Doc = "Given a binary, identify all the executable "
+                              "code and collect it into the `root` function.";
+
   std::array<pipeline::ContractGroup, 1> getContract() const {
     return { pipeline::ContractGroup(kinds::Binary,
                                      0,

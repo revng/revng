@@ -19,7 +19,11 @@ namespace revng::pipes {
 
 class AddPrimitiveTypesAnalysis {
 public:
-  static constexpr const auto Name = "AddPrimitiveTypes";
+  static constexpr auto Name = "AddPrimitiveTypes";
+  static constexpr auto Doc = "Introduce in the model all the combinations of "
+                              "`PrimitiveTypes` (`Generic`, `PointerOrNumber`, "
+                              "`Number`, `Unsigned`, and `Signed`) for 8-, "
+                              "16-, 32-, 64- and 128-bit sizes.";
 
 public:
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {

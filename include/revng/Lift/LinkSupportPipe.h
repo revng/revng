@@ -20,6 +20,7 @@ namespace revng::pipes {
 class LinkSupport {
 public:
   static constexpr auto Name = "LinkSupport";
+  static constexpr auto Doc = "Link into the module support-$ARCH-$MODE.ll";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     return { pipeline::ContractGroup(kinds::Root,

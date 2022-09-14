@@ -9,6 +9,7 @@ Branches:
   - From: ProcessAssembly
     Steps:
       - Name: YieldCFG
+        Doc: "WIP"
         Pipes:
           - Type: YieldCFG
             UsedContainers: [assembly-internal.yml, cfg-svg.yml]
@@ -16,3 +17,4 @@ Branches:
           Container: cfg-svg.yml
           Kind: FunctionControlFlowGraphSVG
           SingleTargetFilename: cfg.svg
+          Doc: "WIP"

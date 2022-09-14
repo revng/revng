@@ -155,6 +155,7 @@ class StructDefinition(Definition):
         self.emit_full_constructor = None
         self.children: List[StructDefinition] = []
         self._refs_resolved = False
+        self.inheritors = []
 
     def resolve_references(self, schema):
         if self._refs_resolved:

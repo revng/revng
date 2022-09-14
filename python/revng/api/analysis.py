@@ -18,6 +18,11 @@ class Analysis:
         _name = _api.rp_analysis_get_name(self._analysis)
         return make_python_string(_name)
 
+    @property
+    def doc(self) -> str:
+        _doc = _api.rp_analysis_get_doc(self._analysis)
+        return make_python_string(_doc)
+
     def get_arguments_count(self) -> int:
         return _api.rp_analysis_get_arguments_count(self._analysis)
 
@@ -25,7 +30,11 @@ class Analysis:
         return make_generator(self.get_arguments_count(), lambda idx: AnalysisArgument(self, idx))
 
     def as_dict(self) -> Dict[str, Any]:
-        return {"name": self.name, "arguments": [a.as_dict() for a in self.arguments()]}
+        return {
+            "name": self.name,
+            "doc": self.doc,
+            "arguments": [a.as_dict() for a in self.arguments()],
+        }
 
 
 class AnalysisArgument:

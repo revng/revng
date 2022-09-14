@@ -37,14 +37,14 @@ public:
 
 public:
   template<RankSpecialization BaseRank>
-  LLVMGlobalKindBase(llvm::StringRef Name, const BaseRank &Rank) :
-    KindForContainer<LLVMContainer>(Name, Rank) {
+  LLVMGlobalKindBase(llvm::StringRef Name, llvm::StringRef Doc, const BaseRank &Rank) :
+    KindForContainer<LLVMContainer>(Name, Doc, Rank) {
     getRegisteredInspectors().push_back(this);
   }
 
   template<RankSpecialization BaseRank>
-  LLVMGlobalKindBase(llvm::StringRef Name, Kind &Parent, const BaseRank &Rank) :
-    KindForContainer<LLVMContainer>(Name, Parent, Rank) {
+  LLVMGlobalKindBase(llvm::StringRef Name, llvm::StringRef Doc, Kind &Parent, const BaseRank &Rank) :
+    KindForContainer<LLVMContainer>(Name, Doc, Parent, Rank) {
     getRegisteredInspectors().push_back(this);
   }
   ~LLVMGlobalKindBase() override {}

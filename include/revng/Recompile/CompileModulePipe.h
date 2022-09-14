@@ -25,6 +25,9 @@ namespace revng::pipes {
 class CompileModule {
 public:
   static constexpr auto Name = "Compile";
+  static constexpr auto Doc = "Compile to an object file the input LLVM module "
+                              "containing the `root` function.";
+
   std::array<pipeline::ContractGroup, 1> getContract() const {
     return { pipeline::ContractGroup(kinds::Root, 0, kinds::Object, 1) };
   }
@@ -44,6 +47,10 @@ public:
 class CompileIsolatedModule {
 public:
   static constexpr auto Name = "CompileIsolated";
+  static constexpr auto Doc = "Compile to an object file the input LLVM module "
+                              "containing the `root` function and all the "
+                              "isolated functions.";
+
   std::array<pipeline::ContractGroup, 1> getContract() const {
     pipeline::Contract RootPart(kinds::IsolatedRoot,
                                 0,

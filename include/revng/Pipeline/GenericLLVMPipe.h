@@ -144,6 +144,10 @@ private:
 
 public:
   static constexpr auto Name = "GenericLLVMPipe";
+  static constexpr auto Doc = "A pipe able to run a set of LLVM passes that do "
+                              "not corrupt any invariant specified by any "
+                              "Kind.";
+
   template<typename... T>
   explicit GenericLLVMPipe(T... Pass) {
     (addPass(std::move(Pass)), ...);

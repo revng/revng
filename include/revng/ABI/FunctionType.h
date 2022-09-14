@@ -45,6 +45,8 @@ public:
       StackSpan operator+(uint64_t Offset) const {
         return { this->Offset + Offset, Size };
       }
+
+      // WIP: safe endOffset
     };
 
   public:

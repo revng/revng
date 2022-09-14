@@ -2,6 +2,7 @@
 
 from .generators import CppHeadersGenerator, JSONSchemaGenerator, PythonGenerator
 from .generators import TypeScriptGenerator
+    DocsGenerator,
 from .schema import Schema
 
 
@@ -34,3 +35,13 @@ def generate_python(schema: Schema, root_type: str, string_types=None, external_
 def generate_typescript(*args, **kwargs) -> str:
     generator = TypeScriptGenerator(*args, **kwargs)
     return generator.emit_typescript()
+
+
+def generate_docs(schema: Schema, root_type: str, string_types=None, external_types=None) -> str:
+    generator = DocsGenerator(
+        schema,
+        root_type,
+        string_types=string_types,
+        external_types=external_types,
+    )
+    return generator.emit_docs()

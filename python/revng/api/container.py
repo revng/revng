@@ -7,7 +7,9 @@ from typing import Dict
 from ._capi import _api
 from .utils import make_c_string, make_python_string
 
+# WIP: ContainerType
 
+# WIP: ContainerDeclaration
 class ContainerIdentifier:
     def __init__(self, container_identifier):
         self._container_identifier = container_identifier

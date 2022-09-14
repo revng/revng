@@ -109,14 +109,17 @@ public:
   template<typename... PipeWrappers>
   Step &emplaceStep(llvm::StringRef PreviousStepName,
                     llvm::StringRef StepName,
+                    llvm::StringRef StepDoc,
                     PipeWrappers &&...Wrappers) {
     IsContainerFactoriesRegistryFinalized = true;
     if (PreviousStepName.empty())
       return addStep(Step(StepName.str(),
+                          StepDoc.str(),
                           ContainerFactoriesRegistry.createEmpty(),
                           std::forward<PipeWrappers>(Wrappers)...));
     else
       return addStep(Step(StepName.str(),
+                          StepDoc.str(),
                           ContainerFactoriesRegistry.createEmpty(),
                           operator[](PreviousStepName),
                           std::forward<PipeWrappers>(Wrappers)...));

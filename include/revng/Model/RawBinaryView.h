@@ -36,8 +36,8 @@ public:
 public:
   std::optional<llvm::ArrayRef<uint8_t>>
   getByOffset(uint64_t Offset, uint64_t Size) const {
-    auto Sum = OverflowSafeInt(Offset) + Size;
-    if (not Sum or *Sum >= Data.size())
+    auto End = OverflowSafeInt(Offset) + Size;
+    if (not End or *End > Data.size())
       return std::nullopt;
 
     return Data.slice(Offset, Size);

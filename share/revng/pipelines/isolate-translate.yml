@@ -6,6 +6,9 @@ Branches:
   - From: Lift
     Steps:
       - Name: Isolate
+        Doc: |-
+          This step performs function isolation.
+          In practice it identifies the control-flow graph of each function, isolates each function into an individual LLVM function and updates the `root` function to call the isolated functions whenever possible.
         Pipes:
           - Type: LLVMPipe
             UsedContainers: [module.ll]
@@ -14,7 +17,11 @@ Branches:
           Container: module.ll
           Kind: Isolated
           SingleTargetFilename: module_isolated.ll
+          Doc: |-
+            A module containing a set of LLVM functions obtained by extracting from the `root` function each function described in the model.
       - Name: RecompileIsolated
+        Doc: |-
+          This step is analogous to the `Recompile` step, except that it works on the `root` function invoking the isolated functions, which also needs to be present.
         Pipes:
           - Type: LinkSupport
             UsedContainers: [module.ll]
@@ -30,3 +37,6 @@ Branches:
           Container: output
           Kind: Translated
           SingleTargetFilename: isolated_translated_binary
+          Doc: |-
+            The translated version of the input binary.
+            This artifact is an ELF executable for Linux x86-64 containing the `root` function, all the isolated functions plus the required runtime.

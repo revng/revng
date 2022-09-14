@@ -11,10 +11,12 @@ Branches:
   - From: Isolate
     Steps:
       - Name: ProcessAssembly
+        Doc: "WIP"
         Pipes:
           - Type: ProcessAssembly
             UsedContainers: [input, module.ll, assembly-internal.yml]
       - Name: YieldAssembly
+        Doc: "WIP"
         Pipes:
           - Type: YieldAssembly
             UsedContainers: [assembly-internal.yml, assembly-ptml.yml]
@@ -22,3 +24,4 @@ Branches:
           Container: assembly-ptml.yml
           Kind: FunctionAssemblyPTML
           SingleTargetFilename: disassembly.S
+          Doc: "WIP"

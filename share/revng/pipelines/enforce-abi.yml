@@ -6,6 +6,15 @@ Branches:
   - From: Isolate
     Steps:
       - Name: EnforceABI
+        Doc: |-
+          This step takes an LLVM module with isolated functions and performs the following tasks:
+          - discards the `root` function;
+          - it adds register arguments and return values;
+          - inlines certain helper functions;
+          - promotes all the CSVs to local variables;
+          - drop safety fallback functions;
+
+          This step basically aggressively applies the results of static analysis in order to put the IR in form suitable for decompilation but not for re-execution.
         Pipes:
           - Type: LLVMPipe
             UsedContainers: [module.ll]
@@ -19,3 +28,12 @@ Branches:
           Container: module.ll
           Kind: CSVsPromoted
           SingleTargetFilename: module_abienforced.ll
+          Doc: |-
+            A module containing a set of LLVM functions, one per each function described in the model.
+            Unlike the functions in the `Isolated` artifact, here functions do not access CSVs and have register arguments and return values.
+            
+            Arguments and return values are still considered as registers.
+            This means that, for instance, a function using the SystemV ABI for x86-64 that has two `uint8_t` arguments, will have two 64-bits registers, not two 8-bits registers.
+            This reflects the fact that in the considered ABI, two `uint8_t` arguments are passed on the `rdi` and `rsi` registers.
+
+            Stack arguments are not promoted yet.

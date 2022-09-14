@@ -6,6 +6,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#pragma clang optimize off
+
 #include <cstring>
 #include <fstream>
 #include <memory>
@@ -805,10 +807,11 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   } else {
     JumpTargets.harvestGlobalData();
     VirtualAddress = Model->EntryPoint;
-    revng_assert(VirtualAddress.isCode());
   }
 
   if (VirtualAddress.isValid()) {
+    // WIP: asserting on a valid model
+    revng_assert(VirtualAddress.isCode());
     JumpTargets.registerJT(VirtualAddress, JTReason::GlobalData);
 
     // Initialize the program counter

@@ -6,6 +6,7 @@
 
 #include "revng/ABI/FunctionType.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
+#include "revng/ABI/DefaultFunctionPrototype.h"
 
 using namespace llvm;
 
@@ -155,9 +156,18 @@ void importModel(Module &M,
     if (CSV != nullptr && !(GCBI.isSPReg(CSV)))
       ABICSVs.emplace_back(CSV);
 
+  model::Binary SecondaryBinary;
+  const model::Binary *BinaryWithPrototype = &Binary;
+  if (not Binary.DefaultPrototype.isValid()) {
+    revng_assert(Binary.DefaultABI != model::ABI::Invalid);
+    SecondaryBinary.Architecture = Binary.Architecture;
+    SecondaryBinary.DefaultABI = Binary.DefaultABI;
+    SecondaryBinary.DefaultPrototype = abi::registerDefaultFunctionPrototype(SecondaryBinary);
+    BinaryWithPrototype = &SecondaryBinary;
+  }
+
   // Import the default prototype
-  revng_assert(Binary.DefaultPrototype.isValid());
-  Oracle.setDefault(importPrototype(M, ABICSVs, {}, Binary.DefaultPrototype));
+  Oracle.setDefault(importPrototype(M, ABICSVs, {}, BinaryWithPrototype->DefaultPrototype));
 
   std::map<llvm::BasicBlock *, MetaAddress> InlineFunctions;
 
@@ -179,7 +189,7 @@ void importModel(Module &M,
     auto Summary = importPrototype(M,
                                    ABICSVs,
                                    Function.Attributes,
-                                   Function.prototype(Binary));
+                                   Function.prototype(*BinaryWithPrototype));
 
     // Create function to inline, if necessary
     if (Summary.Attributes.count(model::FunctionAttribute::Inline))
@@ -190,7 +200,7 @@ void importModel(Module &M,
 
   // Register all dynamic symbols
   for (const auto &DynamicFunction : Binary.ImportedDynamicFunctions) {
-    const auto &Prototype = getPrototype(Binary, DynamicFunction);
+    const auto &Prototype = getPrototype(*BinaryWithPrototype, DynamicFunction);
     Oracle.registerDynamicFunction(DynamicFunction.OriginalName,
                                    importPrototype(M,
                                                    ABICSVs,

@@ -14,9 +14,17 @@ namespace pipeline {
 /// The rank tree is a tree used by targets to find out how many names
 /// are required to name a target
 class Rank : public DynamicHierarchy<Rank> {
+private:
+  std::string Doc;
+
 public:
-  Rank(llvm::StringRef Name) : DynamicHierarchy(Name) {}
-  Rank(llvm::StringRef Name, Rank &Parent) : DynamicHierarchy(Name, Parent) {}
+  Rank(llvm::StringRef Name, llvm::StringRef Doc) :
+    DynamicHierarchy(Name), Doc(Doc) {}
+  Rank(llvm::StringRef Name, llvm::StringRef Doc, Rank &Parent) :
+    DynamicHierarchy(Name, Parent), Doc(Doc) {}
+
+public:
+  llvm::StringRef doc() const { return Doc; }
 };
 
 // Root rank specialization
@@ -33,7 +41,7 @@ public:
   using Tuple = std::tuple<>;
 
 public:
-  explicit RootRank() : Rank(RankName) {}
+  explicit RootRank(llvm::StringRef Doc) : Rank(RankName, Doc) {}
 };
 
 /// A helper function used for defining a root rank.
@@ -41,8 +49,8 @@ public:
 /// Root rank doesn't have corresponding storage location and is only
 /// used to defining a single logical starting poing in the rank hierarhy.
 template<ConstexprString Name>
-pipeline::RootRank<Name> defineRootRank() {
-  return pipeline::RootRank<Name>();
+pipeline::RootRank<Name> defineRootRank(llvm::StringRef Doc) {
+  return pipeline::RootRank<Name>(Doc);
 }
 
 template<typename RankType>
@@ -94,7 +102,8 @@ public:
                                                      Type>::type;
 
 public:
-  explicit TypedRank(Parent &ParentObj) : Rank(RankName, ParentObj) {}
+  explicit TypedRank(llvm::StringRef Doc, Parent &ParentObj) :
+    Rank(RankName, Doc, ParentObj) {}
 };
 
 /// A helper function for defining a new rank.
@@ -107,8 +116,9 @@ public:
 template<ConstexprString Name,
          HasScalarOrEnumTraits Type,
          RankSpecialization Parent>
-pipeline::TypedRank<Name, Type, Parent> defineRank(Parent &ParentObject) {
-  return pipeline::TypedRank<Name, Type, Parent>(ParentObject);
+pipeline::TypedRank<Name, Type, Parent>
+defineRank(llvm::StringRef Doc, Parent &ParentObject) {
+  return pipeline::TypedRank<Name, Type, Parent>(Doc, ParentObject);
 }
 
 namespace detail {

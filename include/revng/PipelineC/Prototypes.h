@@ -6,6 +6,8 @@
 
 #include "PipelineC.h"
 
+// WIP: s/int .*_count/uint64_t .*_count/
+
 /**
  * TODO: move to mkdocs
  *
@@ -118,6 +120,7 @@ rp_manager_create_from_string(uint64_t pipelines_count,
  */
 void rp_manager_destroy(rp_manager *manager);
 
+// WIP: container identifiers
 /**
  * \return the number of containers registered in this pipeline.
  */
@@ -347,12 +350,40 @@ rp_targets_list_get_target(rp_targets_list *targets_list, uint64_t index);
  */
 
 /**
- * \return the name of the n-th container registered inside the manager.
+ * \return the name container identifier.
  *
  * \note The returned string must not be freed by the caller.
  */
 const char *
 rp_container_identifier_get_name(rp_container_identifier *container_identifier);
+
+// WIP
+/**
+ * \return the type of the container identifier.
+ */
+rp_container_type *
+rp_container_identifier_get_type(rp_container_identifier *container_identifier);
+
+/** \} */
+
+/**
+ * \defgroup rp_container_type rp_container_type methods
+ * \{
+ */
+
+/**
+ * \return the name of the container type.
+ *
+ * \note The returned string must not be freed by the caller.
+ */
+const char *rp_container_type_get_name(rp_container_type *container_type);
+
+/**
+ * \return the MIME Type of the container type.
+ *
+ * \note The returned string must not be freed by the caller.
+ */
+const char *rp_container_type_get_mime(rp_container_type *container_type);
 
 /** \} */
 
@@ -365,6 +396,11 @@ rp_container_identifier_get_name(rp_container_identifier *container_identifier);
  * \return the step name.
  */
 const char *rp_step_get_name(rp_step *step);
+
+/**
+ * \return the step doc.
+ */
+const char *rp_step_get_doc(rp_step *step);
 
 /**
  * \return the container associated to the provided \p identifier at the given
@@ -388,27 +424,64 @@ rp_kind *rp_step_get_artifacts_kind(rp_step *step);
  */
 rp_container *rp_step_get_artifacts_container(rp_step *step);
 
+// WIP: returns copyString, not owning. check others too
 /**
  * \return the artifacts filename to use for a single target
  */
 const char *rp_step_get_artifacts_single_target_filename(rp_step *step);
 
 /**
- * \return the number of analysis present in this step
+ * \return the artifacts doc
+ */
+const char *rp_step_get_artifacts_doc(rp_step *step);
+
+/**
+ * \return the number of analyses present in this step
  */
 int rp_step_get_analyses_count(rp_step *step);
 
 /**
- * \return the of the analysis in the provided step with the provided index.
+ * \return the analysis in the provided step with the provided index.
  *
  * index must be less than rp_step_get_analyses_count
  */
 rp_analysis *rp_step_get_analysis(rp_step *step, int index);
 
 /**
+ * \return the number of pipes present in this step
+ */
+int rp_step_get_pipes_count(rp_step *step);
+
+/**
+ * \return the pipe in the provided step with the provided index.
+ *
+ * index must be less than rp_step_get_pipes_count
+ */
+rp_pipe *rp_step_get_pipe(rp_step *step, int index);
+
+/**
+ * Serialize a single pipeline step to the specified directory
+ *  \return 0 if a error happened, 1 otherwise.
+ */
+bool rp_step_save(rp_step *step, const char *path);
+
+/** \} */
+
+/**
+ * \defgroup rp_analysis rp_analysis methods
+ * \{
+ */
+
+// WIP: owning?
+/**
  * \return the name of the analysis
  */
 const char *rp_analysis_get_name(rp_analysis *analysis);
+
+/**
+ * \return the doc of the analysis
+ */
+const char * /*owning*/ rp_analysis_get_doc(rp_analysis *analysis);
 
 /**
  * \return the count of containers used by the provided analysis.
@@ -461,11 +534,22 @@ const rp_kind *rp_analysis_get_argument_acceptable_kind(rp_analysis *analysis,
                                                         int argument_index,
                                                         int kind_index);
 
+/** \} */
+
 /**
- * Serialize a single pipeline step to the specified directory
- *  \return 0 if a error happened, 1 otherwise.
+ * \defgroup rp_pipe rp_pipe methods
+ * \{
  */
-bool rp_step_save(rp_step *step, const char *path);
+
+/**
+ * \return the name of the pipe
+ */
+const char * /*owning*/ rp_pipe_get_name(rp_pipe *pipe);
+
+/**
+ * \return the doc of the pipe
+ */
+const char * /*owning*/ rp_pipe_get_doc(rp_pipe *pipe);
 
 /** \} */
 
@@ -543,6 +627,14 @@ bool rp_target_is_ready(rp_target *target, rp_container *container);
 const char *rp_kind_get_name(rp_kind *kind);
 
 /**
+ *
+ * \return the doc of \p kind.
+ *
+ * \note The returned string must not be freed by the caller.
+ */
+const char *rp_kind_get_doc(rp_kind *kind);
+
+/**
  * \return a \p kind 's parent if present, otherwise nullptr.
  */
 rp_kind *rp_kind_get_parent(rp_kind *kind);
@@ -584,6 +676,7 @@ const rp_kind *rp_kind_get_preferred_kind(rp_kind *kind, uint64_t index);
  */
 const char *rp_container_get_name(rp_container *container);
 
+// WIP: drop in favor of rp_container_type_get_mime
 /**
  * \return the mime type of \p container
  */
@@ -653,6 +746,7 @@ bool rp_diff_map_is_empty(rp_diff_map *map);
  * \{
  */
 
+// WIP: rank*s*?
 /**
  * \return the number of ranks present in the manager
  */
@@ -674,6 +768,12 @@ rp_rank *rp_rank_get_from_name(const char *rank_name);
  * \note The returned string must not be freed by the caller.
  */
 const char *rp_rank_get_name(rp_rank *rank);
+
+/**
+ * \return the doc of \p Rank
+ * \note The returned string must not be freed by the caller.
+ */
+const char *rp_rank_get_doc(rp_rank *rank);
 
 /**
  * \return the depth of \p Rank

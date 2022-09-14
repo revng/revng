@@ -29,6 +29,8 @@
 #include "revng/Support/InitRevng.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
 
+// WIP: revng_check all pointers
+
 using namespace pipeline;
 using namespace ::revng::pipes;
 
@@ -278,16 +280,46 @@ const char *rp_step_get_name(rp_step *step) {
   return step->getName().data();
 }
 
+const char *rp_step_get_doc(rp_step *step) {
+  revng_check(step != nullptr);
+  return step->getDoc().data();
+}
+
 int rp_step_get_analyses_count(rp_step *step) {
   return step->getAnalysesSize();
 }
 
 rp_analysis *rp_step_get_analysis(rp_step *step, int index) {
   revng_check(step != nullptr);
+  // WIP: assert
   if (index >= rp_step_get_analyses_count(step))
     return nullptr;
 
-  return &*(std::next(step->analysesBegin(), index));
+  return &*std::next(step->analysesBegin(), index)->second;
+}
+
+int rp_step_get_pipes_count(rp_step *step) {
+  return step->getPipesSize();
+}
+
+rp_pipe *rp_step_get_pipe(rp_step *step, int index) {
+  revng_check(step != nullptr);
+
+  // WIP: assert
+  if (index >= rp_step_get_pipes_count(step))
+    return nullptr;
+
+  return &*(std::next(step->pipes().begin(), index));
+}
+
+const char *rp_pipe_get_name(rp_pipe *pipe) {
+  revng_check(pipe != nullptr);
+  return copyString((**pipe).getName());
+}
+
+const char *rp_pipe_get_doc(rp_pipe *pipe) {
+  revng_check(pipe != nullptr);
+  return copyString((**pipe).getDoc());
 }
 
 rp_container *
@@ -317,6 +349,11 @@ const char *rp_step_get_artifacts_single_target_filename(rp_step *step) {
   return copyString(step->getArtifactsSingleTargetFilename());
 }
 
+const char *rp_step_get_artifacts_doc(rp_step *step) {
+  revng_check(step != nullptr);
+  return step->getArtifactsDoc().data();
+}
+
 uint64_t rp_targets_list_targets_count(rp_targets_list *targets_list) {
   revng_check(targets_list != nullptr);
   return targets_list->size();
@@ -333,6 +370,11 @@ rp_manager_get_kind_from_name(rp_manager *manager, const char *kind_name) {
 const char *rp_kind_get_name(rp_kind *kind) {
   revng_check(kind != nullptr);
   return kind->name().data();
+}
+
+const char *rp_kind_get_doc(rp_kind *kind) {
+  revng_check(kind != nullptr);
+  return kind->doc().data();
 }
 
 rp_kind *rp_kind_get_parent(rp_kind *kind) {
@@ -564,6 +606,25 @@ rp_container_identifier_get_name(rp_container_identifier *identifier) {
   return identifier->first().data();
 }
 
+rp_container_type *rp_container_identifier_get_type(
+  rp_container_identifier *container_identifier) {
+  revng_check(container_identifier != nullptr);
+  // WIP
+  revng_abort();
+}
+
+const char *rp_container_type_get_name(rp_container_type *container_type) {
+  revng_check(container_type != nullptr);
+  // WIP
+  revng_abort();
+}
+
+const char *rp_container_type_get_mime(rp_container_type *container_type) {
+  revng_check(container_type != nullptr);
+  // WIP
+  revng_abort();
+}
+
 char *rp_target_create_serialized_string(rp_target *target) {
   revng_check(target != nullptr);
   return copyString(target->serialize());
@@ -776,6 +837,11 @@ const char *rp_rank_get_name(rp_rank *rank) {
   return rank->name().data();
 }
 
+const char *rp_rank_get_doc(rp_rank *rank) {
+  revng_check(rank != nullptr);
+  return rank->doc().data();
+}
+
 uint64_t rp_rank_get_depth(rp_rank *rank) {
   revng_check(rank != nullptr);
   return rank->depth();
@@ -818,29 +884,34 @@ rp_container_extract_one(rp_container *container, rp_target *target) {
 }
 
 const char *rp_analysis_get_name(rp_analysis *analysis) {
-  return analysis->second->getUserBoundName().c_str();
+  return analysis->getUserBoundName().c_str();
+}
+
+const char *rp_analysis_get_doc(rp_analysis *analysis) {
+  revng_check(analysis != nullptr);
+  return copyString(analysis->getDoc());
 }
 
 int rp_analysis_get_arguments_count(rp_analysis *analysis) {
-  return analysis->second->getRunningContainersNames().size();
+  return analysis->getRunningContainersNames().size();
 }
 
 const char *rp_analysis_get_argument_name(rp_analysis *analysis, int index) {
   revng_check(index < rp_analysis_get_arguments_count(analysis));
-  std::string Name = analysis->second->getRunningContainersNames()[index];
+  std::string Name = analysis->getRunningContainersNames()[index];
 
   return copyString(Name);
 }
 
 int rp_analysis_get_argument_acceptable_kinds_count(rp_analysis *analysis,
                                                     int argument_index) {
-  return analysis->second->getAcceptedKinds(argument_index).size();
+  return analysis->getAcceptedKinds(argument_index).size();
 }
 
 const rp_kind *rp_analysis_get_argument_acceptable_kind(rp_analysis *analysis,
                                                         int argument_index,
                                                         int kind_index) {
-  const auto &Accepted = analysis->second->getAcceptedKinds(argument_index);
+  const auto &Accepted = analysis->getAcceptedKinds(argument_index);
   if (static_cast<size_t>(kind_index) >= Accepted.size())
     return nullptr;
   return Accepted[kind_index];
@@ -903,13 +974,13 @@ void rp_error_list_destroy(rp_error_list *error_list) {
 }
 
 int rp_analysis_get_options_count(rp_analysis *analysis) {
-  return analysis->second->getOptionsNames().size();
+  return analysis->getOptionsNames().size();
 }
 
 const char * /*owning*/
 rp_analysis_get_option_name(rp_analysis *analysis, int extra_argument_index) {
 
-  auto Names = analysis->second->getOptionsNames();
+  auto Names = analysis->getOptionsNames();
   if (extra_argument_index < 0
       or static_cast<size_t>(extra_argument_index) >= Names.size())
     return nullptr;
@@ -919,7 +990,7 @@ rp_analysis_get_option_name(rp_analysis *analysis, int extra_argument_index) {
 const char * /*owning*/
 rp_analysis_get_option_type(rp_analysis *analysis, int extra_argument_index) {
 
-  auto Names = analysis->second->getOptionsTypes();
+  auto Names = analysis->getOptionsTypes();
   if (extra_argument_index < 0
       or static_cast<size_t>(extra_argument_index) >= Names.size())
     return nullptr;

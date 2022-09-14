@@ -83,6 +83,7 @@ private:
   static constexpr bool CheckPipe = checkPipe(&PipeType::run);
   static_assert(CheckPipe);
 
+  // WIP: rename in SomethingHelper
   InvokableWrapperImpl<PipeType> Invokable;
 
 public:
@@ -193,6 +194,7 @@ public:
     return Invokable.isContainerArgumentConst(ArgumentIndex);
   }
   std::string getName() const override { return Invokable.getName(); }
+  std::string getDoc() const override { return Invokable.getDoc(); }
 };
 
 } // namespace detail

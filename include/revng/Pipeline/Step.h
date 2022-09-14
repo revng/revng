@@ -45,14 +45,17 @@ private:
     std::string Container;
     const Kind *Kind;
     std::string SingleTargetFilename;
+    std::string Doc;
 
-    ArtifactsInfo() : Container(), Kind(nullptr), SingleTargetFilename() {}
+    ArtifactsInfo() : Container(), Kind(nullptr), SingleTargetFilename(), Doc() {}
     ArtifactsInfo(std::string Container,
                   const pipeline::Kind *Kind,
-                  std::string SingleTargetFilename) :
+                  std::string SingleTargetFilename,
+                  std::string Doc) :
       Container(std::move(Container)),
       Kind(Kind),
-      SingleTargetFilename(std::move(SingleTargetFilename)) {}
+      SingleTargetFilename(std::move(SingleTargetFilename)),
+      Doc(std::move(Doc)) {}
 
     bool isValid() const {
       return !Container.empty() && Kind != nullptr
@@ -61,6 +64,7 @@ private:
   };
 
   std::string Name;
+  std::string Doc;
   ContainerSet Containers;
   std::vector<PipeWrapper> Pipes;
   Step *PreviousStep;
@@ -70,19 +74,23 @@ private:
 public:
   template<typename... PipeWrapperTypes>
   Step(std::string Name,
+       std::string Doc,
        ContainerSet Containers,
        PipeWrapperTypes &&...PipeWrappers) :
     Name(std::move(Name)),
+    Doc(std::move(Doc)),
     Containers(std::move(Containers)),
     Pipes({ std::forward<PipeWrapperTypes>(PipeWrappers)... }),
     PreviousStep(nullptr) {}
 
   template<typename... PipeWrapperTypes>
   Step(std::string Name,
+       std::string Doc,
        ContainerSet Containers,
        Step &PreviousStep,
        PipeWrapperTypes &&...PipeWrappers) :
     Name(std::move(Name)),
+    Doc(std::move(Doc)),
     Containers(std::move(Containers)),
     Pipes({ std::forward<PipeWrapperTypes>(PipeWrappers)... }),
     PreviousStep(&PreviousStep) {}
@@ -104,6 +112,7 @@ public:
     return AnalysisMap.find(Name) != AnalysisMap.end();
   }
 
+  // WIP: just use ranges
   AnalysisIterator analysesBegin() { return AnalysisMap.begin(); }
   AnalysisIterator analysesEnd() { return AnalysisMap.end(); }
   ConstAnalysisIterator analysesBegin() const { return AnalysisMap.begin(); }
@@ -117,21 +126,28 @@ public:
 
   size_t getAnalysesSize() const { return AnalysisMap.size(); }
 
+  auto pipes() { return llvm::make_range(Pipes.begin(), Pipes.end()); }
+  auto pipes() const { return llvm::make_range(Pipes.begin(), Pipes.end()); }
+  size_t getPipesSize() const { return Pipes.size(); }
+
 public:
   llvm::StringRef getName() const { return Name; }
+  llvm::StringRef getDoc() const { return Doc; }
   const ContainerSet &containers() const { return Containers; }
   ContainerSet &containers() { return Containers; }
 
   llvm::Error setArtifacts(std::string ContainerName,
                            const Kind *ArtifactsKind,
-                           std::string SingleTargetFilename) {
+                           std::string SingleTargetFilename,
+                           std::string Doc) {
     if (Containers.find(ContainerName) == Containers.end()) {
       return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                      "Artifact Container does not exist");
     }
     Artifacts = ArtifactsInfo(std::move(ContainerName),
                               ArtifactsKind,
-                              std::move(SingleTargetFilename));
+                              std::move(SingleTargetFilename),
+                              std::move(Doc));
     return llvm::Error::success();
   }
 
@@ -163,6 +179,14 @@ public:
     }
 
     return Artifacts.SingleTargetFilename;
+  }
+
+  llvm::StringRef getArtifactsDoc() {
+    if (!Artifacts.isValid()) {
+      return llvm::StringRef();
+    }
+
+    return Artifacts.Doc;
   }
 
 public:

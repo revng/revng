@@ -86,9 +86,18 @@ class Schema:
         return definitions
 
     def _resolve_references(self):
+        inheritors_map = defaultdict(list)
+
         for t in self.definitions.values():
             if isinstance(t, StructDefinition):
                 t.resolve_references(self)
+
+                if t.inherits:
+                    inheritors_map[t.inherits].append(t)
+
+        for base, inheritors in inheritors_map.items():
+            assert base.abstract
+            base.inheritors = inheritors
 
     def _generate_kinds(self):
         children = defaultdict(list)

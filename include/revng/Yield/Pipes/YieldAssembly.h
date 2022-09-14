@@ -18,7 +18,9 @@ namespace revng::pipes {
 
 class YieldAssembly {
 public:
-  static constexpr const auto Name = "YieldAssembly";
+  static constexpr auto Name = "YieldAssembly";
+  static constexpr auto Doc = "Produce a PTML document containing the "
+                              "disassembled code.";
 
 public:
   inline std::array<pipeline::ContractGroup, 1> getContract() const {

@@ -37,15 +37,21 @@ class Rank:
         return make_python_string(_name)
 
     @property
+    def doc(self) -> str:
+        _doc = _api.rp_rank_get_doc(self._rank)
+        return make_python_string(_doc)
+
+    @property
     def depth(self) -> int:
         return _api.rp_rank_get_depth(self._rank)
 
+    # WIP: property
     def get_parent(self) -> Optional["Rank"]:
         _rank = _api.rp_rank_get_parent(self._rank)
         return Rank(_rank) if _rank != ffi.NULL else None
 
     def as_dict(self):
-        ret = {"name": self.name, "depth": self.depth}
+        ret = {"name": self.name, "doc": self.doc, "depth": self.depth}
         parent = self.get_parent()
 
         if parent is not None:

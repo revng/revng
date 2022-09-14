@@ -22,6 +22,9 @@ namespace revng::pipes {
 class LinkForTranslation {
 public:
   static constexpr auto Name = "LinkForTranslation";
+  static constexpr auto Doc = "Given the original binary and the object file "
+                              "recompiled by LLVM, link it so that it can be "
+                              "re-executed for the target architecture.";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     pipeline::Contract BinaryPart(kinds::Binary,

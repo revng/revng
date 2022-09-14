@@ -36,6 +36,7 @@ public:
 template<typename Analysis>
 class AnalysisWrapperImpl : public AnalysisWrapperBase {
 private:
+  // WIP: rename in SomethingHelper
   InvokableWrapperImpl<Analysis> Invokable;
 
 public:
@@ -95,6 +96,7 @@ public:
     return Invokable.isContainerArgumentConst(ArgumentIndex);
   }
   std::string getName() const override { return Invokable.getName(); }
+  std::string getDoc() const override { return Invokable.getDoc(); }
 };
 
 using AnalysisWrapper = InvokableWrapper<AnalysisWrapperBase>;

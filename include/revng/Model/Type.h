@@ -22,20 +22,36 @@
 
 /* TUPLE-TREE-YAML
 name: Type
-doc: Base class of model types used for LLVM-style RTTI
+doc: Base data structure for all the types in the type system.
 type: struct
 fields:
   - name: Kind
     type: TypeKind
+    doc: |-
+      A discriminator field to identify the concrete type.
   - name: ID
     type: uint64_t
     is_guid: true
+    doc: |-
+      A unique identifier for this type.
+      Usually this is a random, globally unique 64-bits number.
+      As an exception, for `PrimitiveType`, the ID is deterministically obtained
+      from its size and `PrimitiveTypeKind`.
+      As a result, the first 2048 values are reserved for `PrimitiveType`.
+
+      There can be no two types with the same ID.
   - name: CustomName
     type: Identifier
     optional: true
+    doc: |-
+      A user-chosen [`Identifier`](#Identifier) for this type.
   - name: OriginalName
     type: string
     optional: true
+    doc: |-
+      The name this type had upon import.
+      This value can differ from `CustomName`, since `CustomName` needs to
+      respect the constraints of an [`Identifier`](#Identifier).
 key:
   - Kind
   - ID

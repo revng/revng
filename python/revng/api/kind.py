@@ -19,10 +19,16 @@ class Kind:
         return make_python_string(name)
 
     @property
+    def doc(self) -> str:
+        doc = _api.rp_kind_get_doc(self._kind)
+        return make_python_string(doc)
+
+    @property
     def rank(self) -> Optional[Rank]:
         _rank = _api.rp_kind_get_rank(self._kind)
         return Rank(_rank) if _rank != ffi.NULL else None
 
+    # WIP: not optional
     def get_parent(self) -> Optional["Kind"]:
         _kind = _api.rp_kind_get_parent(self._kind)
         return Kind(_kind) if _kind != ffi.NULL else None

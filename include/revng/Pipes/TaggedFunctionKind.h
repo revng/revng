@@ -23,16 +23,18 @@ private:
 public:
   template<typename BaseRank>
   TaggedFunctionKind(llvm::StringRef Name,
+                     llvm::StringRef Doc,
                      const BaseRank &Rank,
                      const FunctionTags::Tag &Tag) :
-    pipeline::LLVMKind(Name, Rank), Tag(&Tag) {}
+    pipeline::LLVMKind(Name, Doc, Rank), Tag(&Tag) {}
 
   template<typename BaseRank>
   TaggedFunctionKind(llvm::StringRef Name,
+                     llvm::StringRef Doc,
                      TaggedFunctionKind &Parent,
                      const BaseRank &Rank,
                      const FunctionTags::Tag &Tag) :
-    pipeline::LLVMKind(Name, Parent, Rank), Tag(&Tag) {}
+    pipeline::LLVMKind(Name, Doc, Parent, Rank), Tag(&Tag) {}
 
   std::optional<pipeline::Target>
   symbolToTarget(const llvm::Function &Symbol) const override;
