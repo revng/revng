@@ -13,6 +13,7 @@ const char ArrangeAccessesHierarchically::ID = 0;
 const char CollapseEqualitySCC::ID = 0;
 const char CollapseInstanceAtOffset0SCC::ID = 0;
 const char CollapseSingleChild::ID = 0;
+const char CompactCompatibleArrays::ID = 0;
 const char ComputeNonInterferingComponents::ID = 0;
 const char ComputeUpperMemberAccesses::ID = 0;
 const char DecomposeStridedEdges::ID = 0;

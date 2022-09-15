@@ -58,6 +58,7 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   revng_check(SM.addStep<dla::ComputeUpperMemberAccesses>());
   revng_check(SM.addStep<dla::MergePointerNodes>());
   revng_check(SM.addStep<dla::DecomposeStridedEdges>());
+  revng_check(SM.addStep<dla::CompactCompatibleArrays>());
   revng_check(SM.addStep<dla::ArrangeAccessesHierarchically>());
   revng_check(SM.addStep<dla::CollapseSingleChild>());
   revng_check(SM.addStep<dla::DeduplicateFields>());

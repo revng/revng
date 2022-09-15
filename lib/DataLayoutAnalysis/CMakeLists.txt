@@ -10,6 +10,7 @@ revng_add_analyses_library(
   Frontend/SCEVBaseAddressExplorer.cpp
   Middleend/ArrangeAccessesHierarchically.cpp
   Middleend/CollapseSCC.cpp
+  Middleend/CompactCompatibleArrays.cpp
   Middleend/DLAComputeNonInterferingComponents.cpp
   Middleend/DLAComputeUpperMemberAccess.cpp
   Middleend/DLAPruneLayoutNodesWithoutLayout.cpp

@@ -255,6 +255,26 @@ public:
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
+/// dla::Step that tries to compact partly overlapping compatible arrays
+class CompactCompatibleArrays : public Step {
+  static const char ID;
+
+public:
+  static const constexpr void *getID() { return &ID; }
+
+  CompactCompatibleArrays() :
+    Step(ID,
+         { ComputeUpperMemberAccesses::getID(),
+           DecomposeStridedEdges::getID(),
+           PruneLayoutNodesWithoutLayout::getID() },
+         // Invalidated
+         {}) {}
+
+  virtual ~CompactCompatibleArrays() override = default;
+
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
+};
+
 /// dla::Step that tries to pushes down instance edges that are actually part of
 /// a child node.
 class ArrangeAccessesHierarchically : public Step {
@@ -266,6 +286,7 @@ public:
   ArrangeAccessesHierarchically() :
     Step(ID,
          { ComputeUpperMemberAccesses::getID(),
+           DecomposeStridedEdges::getID(),
            PruneLayoutNodesWithoutLayout::getID() },
          // Invalidated
          {}) {}
