@@ -41,6 +41,45 @@ struct OffsetExpression {
   operator<=>(const OffsetExpression &Other) const = default;
 
   void print(llvm::raw_ostream &OS) const;
+
+  bool verify() const debug_function {
+    if (Offset < 0)
+      return false;
+
+    if (Strides.size() != TripCounts.size())
+      return false;
+
+    int64_t PrevStride = std::numeric_limits<int64_t>::max();
+    for (const auto &[Stride, MaybeTC] : llvm::zip_first(Strides, TripCounts)) {
+
+      // Strides should go from larger to smaller
+      if (PrevStride < Stride)
+        return false;
+
+      // Arrays with unknown length are considered as if they had one element
+      auto TripCount = MaybeTC.value_or(1);
+      // If the current stride times the current trip count is larger than the
+      // previous stride, it would trip over the element of the outer array.
+      if (Stride * TripCount > PrevStride)
+        return false;
+
+      PrevStride = Stride;
+    }
+
+    return true;
+  }
+
+  static OffsetExpression
+  append(OffsetExpression LHS, const OffsetExpression &RHS) {
+    revng_assert(LHS.verify());
+    revng_assert(RHS.verify());
+    LHS.Offset += RHS.Offset;
+    LHS.Strides.append(RHS.Strides);
+    LHS.TripCounts.append(RHS.TripCounts);
+    revng_assert(LHS.verify());
+    return LHS;
+  }
+
 }; // end class OffsetExpression
 
 class TypeLinkTag {
@@ -105,6 +144,7 @@ public:
 
   friend void
   writeToLog(Logger<true> &L, const dla::TypeLinkTag &T, int /* Ignore */);
+
 }; // end class TypeLinkTag
 
 class LayoutTypeSystem;
@@ -199,6 +239,7 @@ public:
   using Node = LayoutTypeSystemNode;
   using NodePtr = LayoutTypeSystemNode *;
   using NodeUniquePtr = std::unique_ptr<LayoutTypeSystemNode>;
+  using NeighborIterator = LayoutTypeSystemNode::NeighborIterator;
 
   static dla::LayoutTypeSystem::NodePtr
   getNodePtr(const dla::LayoutTypeSystem::NodeUniquePtr &P) {
@@ -293,13 +334,16 @@ public:
 
   void moveEdgeTarget(LayoutTypeSystemNode *OldTgt,
                       LayoutTypeSystemNode *NewTgt,
-                      LayoutTypeSystemNode::NeighborIterator InverseEdgeIt,
+                      NeighborIterator InverseEdgeIt,
                       int64_t OffsetToSum);
 
   void moveEdgeSource(LayoutTypeSystemNode *OldSrc,
                       LayoutTypeSystemNode *NewSrc,
-                      LayoutTypeSystemNode::NeighborIterator EdgeIt,
+                      NeighborIterator EdgeIt,
                       int64_t OffsetToSum);
+
+  NeighborIterator
+  eraseEdge(LayoutTypeSystemNode *Src, NeighborIterator EdgeIt);
 
 private:
   uint64_t NID = 0ULL;

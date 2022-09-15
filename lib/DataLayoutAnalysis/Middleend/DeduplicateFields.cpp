@@ -405,7 +405,7 @@ bool DeduplicateFields::runOnTypeSystem(LayoutTypeSystem &TS) {
       // two nodes, we don't have to update other links in the worklist.
       llvm::SmallSetVector<LTSN *, 8> FieldsToCompare;
       llvm::SmallSet<LTSN *, 8> OriginalFields;
-      llvm::SmallSet<LTSN *, 8> AnalyzedNodesNotMerged;
+      llvm::SmallSetVector<LTSN *, 8> AnalyzedNodesNotMerged;
 
       // We keep a separate list of successors since we might need to re-enqueue
       // some of them.
@@ -511,7 +511,7 @@ bool DeduplicateFields::runOnTypeSystem(LayoutTypeSystem &TS) {
                 // want it to be processed again.
                 bool Erased = FieldsToCompare.remove(ErasedNode);
                 FieldsMerged |= Erased;
-                Erased = AnalyzedNodesNotMerged.erase(ErasedNode);
+                Erased = AnalyzedNodesNotMerged.remove(ErasedNode);
                 AnalyzedNotMergedInvalidated |= Erased;
               }
 
@@ -537,7 +537,7 @@ bool DeduplicateFields::runOnTypeSystem(LayoutTypeSystem &TS) {
                             "Is an original field. Re-enqueue it for "
                             "comparison");
                   FieldsToCompare.insert(PreservedNode);
-                  bool Erased = AnalyzedNodesNotMerged.erase(PreservedNode);
+                  bool Erased = AnalyzedNodesNotMerged.remove(PreservedNode);
                   AnalyzedNotMergedInvalidated |= Erased;
                 }
               }

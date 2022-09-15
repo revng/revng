@@ -9,11 +9,13 @@
 
 namespace dla {
 
+const char ArrangeAccessesHierarchically::ID = 0;
 const char CollapseEqualitySCC::ID = 0;
 const char CollapseInstanceAtOffset0SCC::ID = 0;
 const char CollapseSingleChild::ID = 0;
 const char ComputeNonInterferingComponents::ID = 0;
 const char ComputeUpperMemberAccesses::ID = 0;
+const char DecomposeStridedEdges::ID = 0;
 const char DeduplicateFields::ID = 0;
 const char MergePointerNodes::ID = 0;
 const char PruneLayoutNodesWithoutLayout::ID = 0;
@@ -78,8 +80,9 @@ void StepManager::run(LayoutTypeSystem &TS) {
     TS.dumpDotOnFile("type-system-0.dot", true);
   for (auto &S : Schedule) {
     S->runOnTypeSystem(TS);
+    ++x;
     if (DLADumpDot.isEnabled()) {
-      std::string DotName = "type-system-" + std::to_string(++x) + ".dot";
+      std::string DotName = "type-system-" + std::to_string(x) + ".dot";
       TS.dumpDotOnFile(DotName.c_str(), true);
     }
   }

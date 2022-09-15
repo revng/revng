@@ -330,7 +330,7 @@ void LayoutTypeSystem::removeNode(LayoutTypeSystemNode *ToRemove) {
   NodeAllocator.Deallocate(ToRemove);
 }
 
-using NeighborIterator = LayoutTypeSystemNode::NeighborIterator;
+using NeighborIterator = LayoutTypeSystem::NeighborIterator;
 
 static void moveEdgeTargetWithoutSumming(LayoutTypeSystemNode *OldTgt,
                                          LayoutTypeSystemNode *NewTgt,
@@ -441,6 +441,18 @@ void LayoutTypeSystem::moveEdgeSource(LayoutTypeSystemNode *OldSrc,
   default:
     revng_unreachable("unexpected edge kind");
   }
+}
+
+NeighborIterator LayoutTypeSystem::eraseEdge(LayoutTypeSystemNode *Src,
+                                             NeighborIterator EdgeIt) {
+  LayoutTypeSystemNode *Tgt = EdgeIt->first;
+
+  // Erase the inverse edge from Tgt to Src
+  bool Erased = Tgt->Predecessors.erase({ Src, EdgeIt->second });
+  revng_assert(Erased);
+
+  // Erase the actual forward edge from Src to Tgt
+  return Src->Successors.erase(EdgeIt);
 }
 
 static Logger<> VerifyDLALog("dla-verify-strict");

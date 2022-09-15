@@ -14,8 +14,6 @@ Types:
           UnqualifiedType: "/Types/StructType-14349066955625060511"
           Qualifiers:
             - Kind: Pointer
-      - Type:
-          UnqualifiedType: "/Types/PrimitiveType-1032"
   - Kind: StructType
     ID: 14349066955625060511
     Fields:
@@ -28,8 +26,6 @@ Types:
           UnqualifiedType: "/Types/StructType-14349066955625060511"
           Qualifiers:
             - Kind: Pointer
-      - Type:
-          UnqualifiedType: "/Types/PrimitiveType-1032"
   - Kind: RawFunctionType
     ID: 6646220838590018230
     Arguments:

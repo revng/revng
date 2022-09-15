@@ -8,11 +8,13 @@ revng_add_analyses_library(
   Frontend/DLACreateIntraProceduralTypes.cpp
   Frontend/DLATypeSystemBuilder.cpp
   Frontend/SCEVBaseAddressExplorer.cpp
+  Middleend/ArrangeAccessesHierarchically.cpp
   Middleend/CollapseSCC.cpp
   Middleend/DLAComputeNonInterferingComponents.cpp
   Middleend/DLAComputeUpperMemberAccess.cpp
   Middleend/DLAPruneLayoutNodesWithoutLayout.cpp
   Middleend/DLACollapseSingleChild.cpp
+  Middleend/DecomposeStridedEdges.cpp
   Middleend/DeduplicateFields.cpp
   Middleend/DLAStep.cpp
   Middleend/FieldSizeComputation.cpp

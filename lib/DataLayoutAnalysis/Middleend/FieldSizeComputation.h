@@ -4,6 +4,8 @@
 // Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 //
 
+#include <cstdint>
+
 namespace dla {
 
 struct LayoutTypeSystemNode;
