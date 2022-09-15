@@ -15,38 +15,6 @@ commands:
     command: |-
       revng llvm pipeline "$INPUT" "$OUTPUT" Lift Lift ":Root" --analysis DetectABI;
       revng llvm pipeline "$OUTPUT" "$OUTPUT" Lift EnforceABI "*:CSVsPromoted";
-  - type: revng.assembly-ptml
-    from:
-      - type: revng-qa.compiled
-      - type: revng.abi-enforced-for-decompilation
-    suffix: .ptml.yml
-    command: |-
-      MODEL="$$(mktemp)";
-      trap 'rm -f -- "$$MODEL"' EXIT;
-      revng model dump "$INPUT2" > "$$MODEL";
-      revng pipeline
-        -m "$$MODEL"
-        -i "$INPUT1:begin/input"
-        -i "$INPUT2:EnforceABI/module.ll"
-        -o "$OUTPUT:YieldAssembly/assembly-ptml.yml"
-        --produce YieldAssembly/assembly-ptml.yml/*:FunctionAssemblyPTML
-  - type: revng.cfg-svg
-    from:
-      - type: revng-qa.compiled
-        filter: one-per-architecture
-      - type: revng.abi-enforced-for-decompilation
-        filter: one-per-architecture
-    suffix: .svg.yml
-    command: |-
-      MODEL="$$(mktemp)";
-      trap 'rm -f -- "$$MODEL"' EXIT;
-      revng model dump "$INPUT2" > "$$MODEL";
-      revng pipeline
-        -m "$$MODEL"
-        -i "$INPUT1:begin/input"
-        -i "$INPUT2:EnforceABI/module.ll"
-        -o "$OUTPUT:YieldCFG/cfg-svg.yml"
-        --produce YieldCFG/cfg-svg.yml/*:FunctionControlFlowGraphSVG
   - type: revng.test-python-model-serialization-roundtrip
     from:
       - type: revng.abi-enforced-for-decompilation

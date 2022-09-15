@@ -1,0 +1,103 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+commands:
+  - type: revng.assembly-internal
+    from:
+      - type: revng-qa.compiled
+      - type: revng.abi-enforced-for-decompilation
+    suffix: .yml.yml
+    command: |-
+      MODEL="$$(mktemp)";
+      trap 'rm -f -- "$$MODEL"' EXIT;
+      revng model dump "$INPUT2" > "$$MODEL";
+      revng pipeline
+        -m "$$MODEL"
+        -i "$INPUT1:begin/input"
+        -i "$INPUT2:EnforceABI/module.ll"
+        -o "$OUTPUT:ProcessAssembly/assembly-internal.yml"
+        --produce ProcessAssembly/assembly-internal.yml/*:FunctionAssemblyInternal
+
+  - type: revng.assembly-ptml
+    from:
+      - type: revng.assembly-internal
+      - type: revng.abi-enforced-for-decompilation
+    suffix: .ptml.yml
+    command: |-
+      MODEL="$$(mktemp)";
+      trap 'rm -f -- "$$MODEL"' EXIT;
+      revng model dump "$INPUT2" > "$$MODEL";
+      revng pipeline
+        -m "$$MODEL"
+        -i "$INPUT1:ProcessAssembly/assembly-internal.yml"
+        -o "$OUTPUT:YieldAssembly/assembly-ptml.yml"
+        --produce YieldAssembly/assembly-ptml.yml/*:FunctionAssemblyPTML
+
+  - type: revng.cfg-svg
+    from:
+      - type: revng.assembly-internal
+      - type: revng.abi-enforced-for-decompilation
+        filter: one-per-architecture
+    suffix: .svg.yml
+    command: |-
+      MODEL="$$(mktemp)";
+      trap 'rm -f -- "$$MODEL"' EXIT;
+      revng model dump "$INPUT2" > "$$MODEL";
+      revng pipeline
+        -m "$$MODEL"
+        -i "$INPUT1:ProcessAssembly/assembly-internal.yml"
+        -o "$OUTPUT:YieldCFG/cfg-svg.yml"
+        --produce YieldCFG/cfg-svg.yml/*:FunctionControlFlowGraphSVG
+
+  - type: revng.cross-relations
+    from:
+      - type: revng-qa.compiled
+      - type: revng.abi-enforced-for-decompilation
+        filter: one-per-architecture
+    suffix: .yml
+    command: |-
+      MODEL="$$(mktemp)";
+      trap 'rm -f -- "$$MODEL"' EXIT;
+      revng model dump "$INPUT2" > "$$MODEL";
+      revng pipeline
+        -m "$$MODEL"
+        -i "$INPUT1:begin/input"
+        -i "$INPUT2:EnforceABI/module.ll"
+        -o "$OUTPUT:ProcessCallGraph/cross-relations.yml"
+        --produce ProcessCallGraph/cross-relations.yml/:BinaryCrossRelations
+
+  - type: revng.call-graph-svg
+    from:
+      - type: revng.cross-relations
+      - type: revng.abi-enforced-for-decompilation
+        filter: one-per-architecture
+    suffix: .svg.yml
+    command: |-
+      MODEL="$$(mktemp)";
+      trap 'rm -f -- "$$MODEL"' EXIT;
+      revng model dump "$INPUT2" > "$$MODEL";
+      revng pipeline
+        -m "$$MODEL"
+        -i "$INPUT1:ProcessCallGraph/cross-relations.yml"
+        -o "$OUTPUT:YieldCallGraph/call-graph-svg.yml"
+        --produce YieldCallGraph/call-graph-svg.yml/:CallGraphSVG
+
+  - type: revng.call-graph-slice-svg
+    from:
+      - type: revng.cross-relations
+      - type: revng.abi-enforced-for-decompilation
+        filter: one-per-architecture
+      - type: revng-qa.compiled
+    suffix: .svg.yml
+    command: |-
+      MODEL="$$(mktemp)";
+      trap 'rm -f -- "$$MODEL"' EXIT;
+      revng model dump "$INPUT2" > "$$MODEL";
+      revng pipeline
+        -m "$$MODEL"
+        -i "$INPUT1:ProcessCallGraph/cross-relations.yml"
+        -i "$INPUT2:EnforceABI/module.ll"
+        -i "$INPUT3:begin/input"
+        -o "$OUTPUT:YieldCallGraphSlice/call-graph-slice-svg.yml"
+        --produce YieldCallGraphSlice/call-graph-slice-svg.yml/*:CallGraphSliceSVG
