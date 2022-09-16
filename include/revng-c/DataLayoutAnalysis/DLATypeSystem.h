@@ -613,6 +613,15 @@ isInstanceOff0(const llvm::GraphTraits<LayoutTypeSystemNode *>::EdgeRef &E) {
 }
 
 inline bool
+isStridedInstance(const llvm::GraphTraits<LayoutTypeSystemNode *>::EdgeRef &E) {
+  if (not isInstanceEdge(E))
+    return false;
+
+  auto &OE = E.second->getOffsetExpr();
+  return not OE.Strides.empty();
+}
+
+inline bool
 isInstanceOffNon0(const llvm::GraphTraits<LayoutTypeSystemNode *>::EdgeRef &E) {
   return isInstanceEdge(E) and not isInstanceOff0(E);
 }
