@@ -141,8 +141,8 @@ makePushThroughComparisonResult(NeighborIterator ToBePushed,
 
   // The edge to push through always has the larger offset. Just subtract the
   // offset of the other edge.
+  revng_assert(ToPushOE.Offset >= ThroughOE.Offset);
   Final.Offset = ToPushOE.Offset - ThroughOE.Offset;
-  revng_assert(Final.Offset >= 0LL);
 
   // If a strided edge is being pushed down another edge it means that the
   // whole array represented by the edge to push is contained inside the
@@ -254,8 +254,8 @@ canPushThrough(const NeighborIterator &AIt, const NeighborIterator &BIt) {
                                               OuterStrides.front();
 
   // The inner fields starts at an higher offset (or equal) than the outer
+  revng_assert(InnerOffset >= OuterOffset);
   auto OffsetAfterPush = InnerOffset - OuterOffset;
-  revng_assert(OffsetAfterPush >= 0LL);
 
   auto OffsetInElem = OffsetAfterPush % OuterElemSize;
   auto EndByteInElem = OffsetInElem + InnerFieldSize;

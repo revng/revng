@@ -118,7 +118,7 @@ makeInstanceQualifiedType(const LTSN *N,
   // The Strides in OE go from bigger to smaller by construction, so we have to
   // iterate in reverse, to build the instance type bottom-up.
   auto NestedArrayLevels = llvm::reverse(llvm::zip(OE.TripCounts, OE.Strides));
-  int64_t PrevStride = 0LL;
+  uint64_t PrevStride = 0ULL;
   for (const auto &[TC, Stride] : NestedArrayLevels) {
     revng_log(Log, "Stride " << Stride << "  Trip Count " << (TC ? *TC : 0U));
     auto InnerSize = Result.size().value();

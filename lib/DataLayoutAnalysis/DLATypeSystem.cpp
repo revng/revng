@@ -393,7 +393,6 @@ void LayoutTypeSystem::moveEdgeTarget(LayoutTypeSystemNode *OldTgt,
   case TypeLinkTag::LK_Instance: {
     OffsetExpression NewOE = EdgeTag->getOffsetExpr();
     NewOE.Offset += OffsetToSum;
-    revng_assert(NewOE.Offset >= 0LL);
     addInstanceLink(Src, NewTgt, std::move(NewOE));
   } break;
 
@@ -432,7 +431,6 @@ void LayoutTypeSystem::moveEdgeSource(LayoutTypeSystemNode *OldSrc,
   case TypeLinkTag::LK_Instance: {
     OffsetExpression NewOE = EdgeTag->getOffsetExpr();
     NewOE.Offset += OffsetToSum;
-    revng_assert(NewOE.Offset >= 0LL);
     addInstanceLink(NewSrc, Tgt, std::move(NewOE));
   } break;
 
