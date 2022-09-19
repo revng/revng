@@ -12,6 +12,7 @@
 #include "llvm/Support/Error.h"
 
 #include "revng/Pipeline/Loader.h"
+#include "revng/Pipeline/Pipe.h"
 #include "revng/Pipeline/Runner.h"
 
 using namespace pipeline;
@@ -148,7 +149,7 @@ Loader::parseInvocation(Step &Step,
     PipelineContext->addReadOnlyContainer(ContainerName, Container);
   }
 
-  return Pipe;
+  return PipeWrapper(Pipe, Invocation.UsedContainers);
 }
 
 using BCDecl = ContainerDeclaration;

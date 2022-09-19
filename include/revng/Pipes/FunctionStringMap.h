@@ -142,6 +142,8 @@ public:
 
   llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) override;
 
+  static std::vector<pipeline::Kind *> possibleKinds() { return { K }; }
+
 protected:
   void mergeBackImpl(FunctionStringMap &&Other) override {
     // Stuff in Other should overwrite what's in this container.

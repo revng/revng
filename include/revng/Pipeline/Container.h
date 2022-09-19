@@ -29,6 +29,7 @@ public:
   virtual llvm::StringRef getMIMEType() const = 0;
   virtual const char *getID() const = 0;
   virtual ~ContainerTypeInfoBase() = default;
+  virtual std::vector<Kind *> getPossibleKinds() const = 0;
 };
 
 template<typename T>
@@ -37,6 +38,9 @@ public:
   llvm::StringRef getMIMEType() const override { return T::MIMEType; }
   const char *getID() const override { return &T::ID; }
   ~ContainerTypeInfo() override = default;
+  std::vector<Kind *> getPossibleKinds() const override {
+    return T::possibleKinds();
+  }
 };
 
 class ContainerBase {
@@ -55,6 +59,8 @@ private:
 
 public:
   static const RegistryType &getTypeRegistry() { return getTypeRegistryImpl(); }
+
+  virtual std::vector<Kind *> getPossibleKinds() const = 0;
 
 public:
   ContainerBase(llvm::StringRef Name, char const *ID) :
@@ -164,6 +170,9 @@ public:
 
 protected:
   virtual void mergeBackImpl(Derived &&Container) = 0;
+  std::vector<Kind *> getPossibleKinds() const final {
+    return Derived::possibleKinds();
+  }
 };
 
 } // namespace pipeline

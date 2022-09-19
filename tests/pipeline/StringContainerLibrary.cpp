@@ -37,6 +37,10 @@ public:
     return ToReturn;
   }
 
+  static std::vector<pipeline::Kind *> possibleKinds() {
+    return { &StringKind };
+  }
+
   void insert(const Target &Target) {
     ContainedStrings.insert(toString(Target));
   }

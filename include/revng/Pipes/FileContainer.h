@@ -177,6 +177,8 @@ public:
     return serialize(OS);
   }
 
+  static std::vector<pipeline::Kind *> possibleKinds() { return { K }; }
+
 public:
   std::optional<llvm::StringRef> path() const {
     if (Path.empty())

@@ -31,7 +31,7 @@ using CrossRelationsFileContainer = FileContainer<&kinds::BinaryCrossRelations,
 inline constexpr char CallGraphSVGMIMEType[] = "application/"
                                                "x.yaml.call-graph.svg-body";
 inline constexpr char CallGraphSVGSuffix[] = "";
-inline constexpr char CallGraphSVGName[] = "CallGraphSliceSVG";
+inline constexpr char CallGraphSVGName[] = "CallGraphSVG";
 
 using CallGraphSVGFileContainer = FileContainer<&kinds::CallGraphSVG,
                                                 CallGraphSVGName,
@@ -41,7 +41,7 @@ using CallGraphSVGFileContainer = FileContainer<&kinds::CallGraphSVG,
 inline constexpr char CallGraphSliceSVGMIMEType[] = "application/"
                                                     "x.yaml.call-graph-slice."
                                                     "svg-body";
-inline constexpr char CallGraphSliceName[] = "CallGraphSlice";
+inline constexpr char CallGraphSliceName[] = "CallGraphSliceSVG";
 
 using CallGraphSliceSVGStringMap = FunctionStringMap<&kinds::CallGraphSliceSVG,
                                                      CallGraphSliceName,

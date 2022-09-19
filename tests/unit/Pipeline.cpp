@@ -123,6 +123,9 @@ public:
   cloneFiltered(const TargetsList &Container) const final {
     return make_unique<MapContainer>(Map, this->name());
   }
+  static std::vector<pipeline::Kind *> possibleKinds() {
+    return { &FunctionKind };
+  }
 
   bool contains(const Target &T) const {
     if (T.getPathComponents().size() != 0

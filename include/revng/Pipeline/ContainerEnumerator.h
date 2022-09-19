@@ -121,6 +121,15 @@ public:
 
     return RemovedAll;
   }
+
+  static std::vector<Kind *> possibleKinds() {
+    std::vector<Kind *> ToReturn;
+    for (auto *Inspector : getRegisteredInspectors()) {
+      ToReturn.push_back(&Inspector->getKind());
+    }
+
+    return ToReturn;
+  }
 };
 
 template<typename Container>
