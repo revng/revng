@@ -33,9 +33,6 @@ static constexpr auto ImmediateValue = "asm.immediate-value";
 static constexpr auto MemoryOperand = "asm.memory-operand";
 static constexpr auto Register = "asm.register";
 
-static constexpr auto FunctionLink = "call-graph.function-link";
-static constexpr auto ShallowFunctionLink = "call-graph.shallow-function-link";
-
 } // namespace tokenTypes
 
 namespace scopes {
@@ -331,6 +328,13 @@ std::string yield::ptml::controlFlowNode(const MetaAddress &Address,
   return Result;
 }
 
+namespace callGraphTokens {
+
+static constexpr auto NodeLabel = "call-graph.node-label";
+static constexpr auto ShallowNodeLabel = "call-graph.shallow-node-label";
+
+} // namespace callGraphTokens
+
 static Tag functionLinkHelper(const model::Function &Function,
                               llvm::StringRef TokenAttributeValue) {
   Tag Result(tags::Div, Function.name());
@@ -348,7 +352,7 @@ yield::ptml::functionNameDefinition(const MetaAddress &FunctionEntryPoint,
     return "";
 
   return functionLinkHelper(Binary.Functions.at(FunctionEntryPoint),
-                            tokenTypes::FunctionLink)
+                            callGraphTokens::NodeLabel)
     .addAttribute(attributes::LocationDefinition,
                   serializedLocation(revng::ranks::Function,
                                      FunctionEntryPoint))
@@ -361,7 +365,7 @@ std::string yield::ptml::functionLink(const MetaAddress &FunctionEntryPoint,
     return "";
 
   return functionLinkHelper(Binary.Functions.at(FunctionEntryPoint),
-                            tokenTypes::FunctionLink)
+                            callGraphTokens::NodeLabel)
     .addListAttribute(attributes::LocationReferences,
                       serializedLocation(revng::ranks::Function,
                                          FunctionEntryPoint))
@@ -375,7 +379,7 @@ yield::ptml::shallowFunctionLink(const MetaAddress &FunctionEntryPoint,
     return "";
 
   return functionLinkHelper(Binary.Functions.at(FunctionEntryPoint),
-                            tokenTypes::ShallowFunctionLink)
+                            callGraphTokens::ShallowNodeLabel)
     .addListAttribute(attributes::LocationReferences,
                       serializedLocation(revng::ranks::Function,
                                          FunctionEntryPoint))

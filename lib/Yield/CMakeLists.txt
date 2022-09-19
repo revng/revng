@@ -6,9 +6,7 @@ revng_add_analyses_library_internal(
   revngYield
   SHARED
   Assembly/DisassemblyHelper.cpp
-  Assembly/PTML.cpp
   Assembly/LLVMDisassemblerInterface.cpp
-  Assembly/Plain.cpp
   CallGraphs/CallGraphSlices.cpp
   ControlFlow/Extraction.cpp
   ControlFlow/FallthroughDetection.cpp
@@ -30,6 +28,8 @@ revng_add_analyses_library_internal(
   Support/SugiyamaStyleGraphLayout.cpp
   CrossRelations.cpp
   Dump.cpp
+  Plain.cpp
+  PTML.cpp
   Verify.cpp)
 
 set(DISASSEMBLER_ARCHITECTURE_SUPPORT "")
