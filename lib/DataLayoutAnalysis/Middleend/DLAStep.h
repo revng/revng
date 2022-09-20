@@ -32,6 +32,7 @@ public:
 protected:
   const void *StepID;
 
+  // TODO: rework and check dependencies and invalidations
   IDSet Dependencies;
   IDSet Invalidated;
 
@@ -287,7 +288,7 @@ public:
          // Dependencies
          {},
          // Invalidated
-         { DecomposeStridedEdges::getID() }) {}
+         {}) {}
 
   virtual ~DeduplicateFields() override = default;
 
