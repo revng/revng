@@ -6,8 +6,6 @@ import re
 import sys
 from contextlib import suppress
 from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
-from xml.dom import Node
-from xml.dom.minidom import Document, parseString
 
 import yaml
 
@@ -38,20 +36,16 @@ def is_ptml(content: str) -> bool:
     return bool(re.match(r"\s*<", content))
 
 
-T = TypeVar("T")
-
-
 def handle_file(
     raw: str,
-    func_one: Callable[[str], T],
-    func_many: Callable[[Dict[str, str]], T],
+    func_one: Callable[[str], Optional[int]],
+    func_many: Callable[[Dict[str, str]], Optional[int]],
     filters: Union[str, List[str]],
-) -> T:
+) -> Optional[int]:
     if is_ptml(raw):
         if len(filters) > 0:
             log("Cannot extract/filter a plain ptml file")
-            sys.exit(1)
-
+            return 1
         return func_one(raw)
     else:
         parsed_yaml = yaml_load(raw)
@@ -69,21 +63,7 @@ def handle_file(
             return func_many(filtered_yaml)
 
 
-def strip_ptml(content: str) -> str:
-    dom = parseString(content)
-    result: List[str] = []
-    _strip_ptml(dom, result)
-    return "".join(result)
-
-
-def _strip_ptml(node: Document, parts: List[str]):
-    for node in node.childNodes:
-        if node.nodeType == Node.TEXT_NODE:
-            parts.append(node.nodeValue)
-        elif node.nodeType == Node.ELEMENT_NODE:
-            _strip_ptml(node, parts)
-        else:
-            pass
+T = TypeVar("T")
 
 
 def suppress_brokenpipe(func: Callable[..., T], *args) -> Optional[T]:
