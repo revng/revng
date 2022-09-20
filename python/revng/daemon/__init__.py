@@ -5,6 +5,7 @@
 import logging
 import os
 import signal
+from datetime import timedelta
 from typing import Optional
 
 from starlette.applications import Starlette
@@ -16,7 +17,7 @@ from starlette.requests import Request
 from starlette.responses import PlainTextResponse
 
 from ariadne.asgi import GraphQL
-from ariadne.asgi.handlers import GraphQLHTTPHandler
+from ariadne.asgi.handlers import GraphQLHTTPHandler, GraphQLTransportWSHandler
 from ariadne.contrib.tracing.apollotracing import ApolloTracingExtension
 
 from revng.api import Manager
@@ -63,6 +64,9 @@ def startup():
             SchemaGenerator().get_schema(manager),
             context_value={"manager": manager},
             http_handler=GraphQLHTTPHandler(extensions=[ApolloTracingExtension]),
+            websocket_handler=GraphQLTransportWSHandler(
+                connection_init_wait_timeout=timedelta(seconds=5)
+            ),
             debug=DEBUG,
         ),
     )

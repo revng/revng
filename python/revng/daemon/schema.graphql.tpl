@@ -24,6 +24,10 @@ type Mutation {
     applyDiff(globalName: String!, content: String!, verify: Boolean): Boolean!
 }
 
+type Subscription {
+    invalidations: String!
+}
+
 type AnalysisMutations {
     {%- for step in steps %}
     {%- if step.analyses_count() > 0 %}

@@ -383,6 +383,16 @@ llvm::Error parseTarget(const Context &Ctx,
                         llvm::StringRef AsString,
                         const KindsRegistry &Dict);
 
+inline void merge(InvalidationMap &Map, const InvalidationMap &Other) {
+  for (const auto &Entry : Other) {
+    if (auto Iter = Map.find(Entry.first()); Iter != Map.end()) {
+      Iter->second.merge(Entry.second);
+    } else {
+      Map.try_emplace(Entry.first(), Entry.second);
+    }
+  }
+}
+
 template<typename T>
 void prettyPrintStatus(const ContainerToTargetsMap &Targets,
                        T &OS,

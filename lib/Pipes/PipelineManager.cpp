@@ -28,7 +28,6 @@
 #include "revng/Support/ResourceFinder.h"
 
 using namespace pipeline;
-using namespace std;
 using namespace llvm;
 using namespace ::revng::pipes;
 
@@ -309,11 +308,16 @@ PipelineManager::store(llvm::ArrayRef<std::string> StoresOverrides) {
   return llvm::Error::success();
 }
 
-llvm::Error PipelineManager::invalidateAllPossibleTargets() {
+llvm::Expected<InvalidationMap>
+PipelineManager::invalidateAllPossibleTargets() {
+  InvalidationMap ResultMap;
   auto Stream = ExplanationLogger.getAsLLVMStream();
   recalculateAllPossibleTargets();
 
   for (const auto &Step : CurrentState) {
+    if (Step.first() == "begin")
+      continue;
+
     for (const auto &Container : Step.second) {
       for (const auto &Target : Container.second) {
         if (not getRunner()[Step.first()]
@@ -325,23 +329,27 @@ llvm::Error PipelineManager::invalidateAllPossibleTargets() {
         *Stream << "Invalidating: ";
         *Stream << Step.first() << "/" << Container.first() << "/";
         Target.dump(*Stream);
+
         InvalidationMap Map;
         Map[Step.first()][Container.first()].push_back(Target);
         if (auto Error = Runner->getInvalidations(Map); Error)
-          return Error;
+          return std::move(Error);
         if (auto Error = Runner->invalidate(Map); Error)
-          return Error;
+          return std::move(Error);
 
-        for (const auto &First : Map)
+        for (const auto &First : Map) {
           for (const auto &Second : First.second) {
             *Stream << "\t" << First.first() << " " << Second.first() << " ";
             Target.dump(*Stream);
           }
+        }
+
+        pipeline::merge(ResultMap, Map);
       }
     }
   }
 
-  return llvm::Error::success();
+  return ResultMap;
 }
 
 llvm::Error PipelineManager::produceAllPossibleTargets(bool ExpandTargets) {
@@ -370,19 +378,49 @@ llvm::Expected<DiffMap>
 PipelineManager::runAnalysis(llvm::StringRef AnalysisName,
                              llvm::StringRef StepName,
                              const ContainerToTargetsMap &Targets,
+                             InvalidationMap &Map,
                              const llvm::StringMap<std::string> &Options,
                              llvm::raw_ostream *DiagnosticLog) {
-  auto Result = Runner->runAnalysis(AnalysisName, StepName, Targets, Options);
+  auto Result = Runner->runAnalysis(AnalysisName,
+                                    StepName,
+                                    Targets,
+                                    Map,
+                                    Options);
   if (Result)
     recalculateAllPossibleTargets();
+
+  // TODO: to remove once invalidations are working
+  if (auto Invalidations = invalidateAllPossibleTargets(); !!Invalidations)
+    Map = Invalidations.get();
+  else
+    return Invalidations.takeError();
 
   return Result;
 }
 
 llvm::Expected<DiffMap>
-PipelineManager::runAllAnalyses(const llvm::StringMap<std::string> &Options) {
-  auto Result = Runner->runAllAnalyses(Options);
+PipelineManager::runAllAnalyses(InvalidationMap &Map,
+                                const llvm::StringMap<std::string> &Options) {
+  auto Result = Runner->runAllAnalyses(Map, Options);
   if (Result)
     recalculateAllPossibleTargets();
+
+  // TODO: to remove once invalidations are working
+  if (auto Invalidations = invalidateAllPossibleTargets(); !!Invalidations)
+    Map = Invalidations.get();
+  else
+    return Invalidations.takeError();
+
   return Result;
+}
+
+llvm::Expected<InvalidationMap>
+PipelineManager::invalidateFromDiff(const llvm::StringRef Name,
+                                    const pipeline::GlobalTupleTreeDiff &Diff) {
+  InvalidationMap Map;
+  if (auto ApplyError = getRunner().apply(Diff, Map); !!ApplyError)
+    return std::move(ApplyError);
+
+  // TODO: once invalidations are working, return `Map` instead of this
+  return invalidateAllPossibleTargets();
 }

@@ -31,14 +31,6 @@ public:
     Map.try_emplace(Name, std::make_unique<ToAdd>(std::forward<T>(Args)...));
   }
 
-  llvm::Error
-  replace(llvm::StringRef GlobalName, std::unique_ptr<Global> &&Global) {
-    if (auto OldGlobal = get(GlobalName); !OldGlobal)
-      return OldGlobal.takeError();
-    Map.insert_or_assign(GlobalName, std::move(Global));
-    return llvm::Error::success();
-  }
-
   template<typename T>
   llvm::Expected<T *> get(llvm::StringRef Name) const {
     auto It = Map.find(Name);
