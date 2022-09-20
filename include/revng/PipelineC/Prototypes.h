@@ -8,12 +8,23 @@
 
 /**
  * Every pointer returned by this library is owned by the library and must not
- * be deleted, except for pointers returned by functions containing the word
- * "create". Objects returned by functions named "create" are owned by the
- * caller and must be destroyed invoking the appropriate function called
- * rp_TYPE_destroy, or, in the case of strings, rp_string_destroy.
+ * be deleted, except for pointers returned by functions with the 'owning'
+ * comment in the return type, these are owned by caller and must be destroyed
+ * invoking the appropriate function called rp_TYPE_destroy, or, in the case of
+ * strings, rp_string_destroy.
  *
  * Unless otherwise noted, no pointer arguments can be NULL.
+ */
+
+/**
+ * INVALIDATIONS
+ * If a user of the pipeline wishes to cache the output of
+ * rp_manager_produce_targets it can do so, however some modifications can lead
+ * to a produced output to be invalid. To help with this there is
+ * rp_invalidations, which if provided to the methods that have it in their
+ * argument, will fill in all the targets that have been invalidated by the
+ * operation. If the user is not interested in having invalidation information
+ * the parameter can be set to nullptr.
  */
 
 /**
@@ -165,6 +176,7 @@ rp_manager_create_global_copy(rp_manager *manager, const char *global_name);
 bool rp_manager_set_global(rp_manager *manager,
                            const char *serialized,
                            const char *global_name,
+                           rp_invalidations *invalidations,
                            rp_error_list *error_list);
 
 /**
@@ -182,11 +194,15 @@ bool rp_manager_verify_global(rp_manager *manager,
  * Apply the specified diff to the global
  * \param diff a c-string representing the serialized diff
  * \param global_name the name of the global
+ * \param invalidations the targets that have become invalid due to the diff
+ * being applied. Can be nullptr if the
+ *
  * \return true on success, false otherwise
  */
 bool rp_manager_apply_diff(rp_manager *manager,
                            const char *diff,
                            const char *global_name,
+                           rp_invalidations *invalidations,
                            rp_error_list *error_list);
 
 /**
@@ -245,27 +261,46 @@ const char * /*owning*/ rp_manager_produce_targets(rp_manager *manager,
 /**
  * Request to run the required analysis
  *
- * \param tagets_count must be equal to the size of targets.
+ * \param targets_count must be equal to the size of targets.
+ * \param targets array (of size of targets_count) of pointers to rp_target
+ * instances
+ * \param step_name the name of the step
+ * \param analysis_name the name of the analysis in that step
+ * \param container the container to operate on
+ * \param invalidations invalidations, after exectution this will be populated
+ * with entries that indicate that the target in question has been invalidated
+ * This option accepts nullptr in case the invalidations want to be ignored
+ * \param options key-value associative array of options to pass to the analysis
+ * This option accepts nullptr in case there are no options to pass
  *
- * \return 0 if an error was encountered, the owning diff map of affected global
- * objects
+ * \return nullptr if an error was encountered, the owning diff map of affected
+ * global objects otherwise
  */
-rp_diff_map * /*owning*/ rp_manager_run_analysis(rp_manager *manager,
-                                                 uint64_t targets_count,
-                                                 rp_target *targets[],
-                                                 const char *step_name,
-                                                 const char *analysis_name,
-                                                 rp_container *container,
-                                                 const rp_string_map *options);
+rp_diff_map * /*owning*/
+rp_manager_run_analysis(rp_manager *manager,
+                        uint64_t targets_count,
+                        rp_target *targets[],
+                        const char *step_name,
+                        const char *analysis_name,
+                        rp_container *container,
+                        rp_invalidations *invalidations,
+                        const rp_string_map *options);
 
 /**
  * Request to run all analyses on all targets
+ * \param invalidations invalidations, after exectution this will be populated
+ * with entries that indicate that the target in question has been invalidated
+ * This option accepts nullptr in case the invalidations want to be ignored
+ * \param options key-value associative array of options to pass to the analysis
+ * This option accepts nullptr in case there are no options to pass
  *
- * \return 0 if an error was encountered, the owning diff map of affected global
- * objects
+ * \return nullptr if an error was encountered, the owning diff map of affected
+ * global objects otherwise
  */
 rp_diff_map * /*owning*/
-rp_manager_run_all_analyses(rp_manager *manager, const rp_string_map *options);
+rp_manager_run_all_analyses(rp_manager *manager,
+                            rp_invalidations *invalidations,
+                            const rp_string_map *options);
 
 /**
  * \return the container status associated to the provided \p container
@@ -689,5 +724,29 @@ void rp_string_map_destroy(rp_string_map *map);
 void rp_string_map_insert(rp_string_map *map,
                           const char *key,
                           const char *value);
+
+/** \} */
+
+/**
+ * \defgroup rp_invalidations rp_invalidations methods
+ * \{
+ */
+
+/**
+ * Create a new rp_invalidations object
+ * \return owning pointer to the newly created object
+ */
+rp_invalidations * /*owning*/ rp_invalidations_create();
+
+/**
+ * Free a rp_invalidations
+ */
+void rp_invalidations_destroy(rp_invalidations *invalidations);
+
+/**
+ * \return a string where each line is a target that has been invalidated
+ */
+const char * /* owning */
+rp_invalidations_serialize(const rp_invalidations *invalidations);
 
 /** \} */

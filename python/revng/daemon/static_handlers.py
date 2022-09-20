@@ -7,18 +7,20 @@ import json
 import logging
 from base64 import b64decode
 from concurrent.futures import ThreadPoolExecutor
-from typing import Awaitable, Callable, Optional, TypeVar
+from typing import AsyncGenerator, Awaitable, Callable, Optional, TypeVar
 
 from starlette.datastructures import UploadFile
 
-from ariadne import MutationType, ObjectType, QueryType, upload_scalar
+from ariadne import MutationType, ObjectType, QueryType, SubscriptionType, upload_scalar
 
 from revng.api.manager import Manager
 from revng.api.rank import Rank
 
+from .multiqueue import MultiQueue
 from .util import clean_step_list, target_dict_to_graphql
 
 executor = ThreadPoolExecutor(1)
+invalidation_queue: MultiQueue[str] = MultiQueue()
 
 T = TypeVar("T")
 
@@ -37,6 +39,7 @@ def run_in_executor(function: Callable[[], T]) -> Awaitable[T]:
 
 query = QueryType()
 mutation = MutationType()
+subscription = SubscriptionType()
 info = ObjectType("Info")
 step = ObjectType("Step")
 container = ObjectType("Container")
@@ -129,6 +132,7 @@ async def resolve_targets(_, info, *, pathspec: str):
 async def resolve_upload_b64(_, info, *, input: str, container: str):  # noqa: A002
     manager: Manager = info.context["manager"]
     await run_in_executor(lambda: manager.set_input(container, b64decode(input)))
+    await invalidation_queue.send("begin/input/:Binary")
     logging.info(f"Saved file for container {container}")
     return True
 
@@ -138,6 +142,7 @@ async def resolve_upload_file(_, info, *, file: UploadFile, container: str):
     manager: Manager = info.context["manager"]
     contents = await file.read()
     await run_in_executor(lambda: manager.set_input(container, contents))
+    await invalidation_queue.send("begin/input/:Binary")
     logging.info(f"Saved file for container {container}")
     return True
 
@@ -148,14 +153,16 @@ async def resolve_run_analysis(_, info, *, step: str, analysis: str, container: 
     result = await run_in_executor(
         lambda: manager.run_analysis(step, analysis, {container: targets.split(",")})
     )
-    return json.dumps(result)
+    await invalidation_queue.send(str(result.invalidations))
+    return json.dumps(result.result)
 
 
 @mutation.field("runAllAnalyses")
 async def resolve_run_all_analyses(_, info):
     manager: Manager = info.context["manager"]
     result = await run_in_executor(manager.run_all_analyses)
-    return json.dumps(result)
+    await invalidation_queue.send(str(result.invalidations))
+    return json.dumps(result.result)
 
 
 @mutation.field("analyses")
@@ -167,14 +174,16 @@ async def mutation_analyses(_, info):
 async def mutation_set_global(_, info, *, name: str, content: str) -> bool:
     manager: Manager = info.context["manager"]
     result = await run_in_executor(lambda: manager.set_global(name, content))
-    return result.check()
+    await invalidation_queue.send(str(result.invalidations))
+    return result.result.check()
 
 
 @mutation.field("applyDiff")
 async def mutation_apply_diff(_, info, *, globalName: str, content: str) -> bool:  # noqa: N803
     manager: Manager = info.context["manager"]
     result = await run_in_executor(lambda: manager.apply_diff(globalName, content))
-    return result.check()
+    await invalidation_queue.send(str(result.invalidations))
+    return result.result.check()
 
 
 @info.field("ranks")
@@ -288,9 +297,22 @@ async def info_verify_diff(_, info, *, globalName: str, content: str) -> bool:  
     return result.check()
 
 
+@subscription.source("invalidations")
+async def invalidations_generator(_, info) -> AsyncGenerator[str, None]:
+    with invalidation_queue.stream() as stream:
+        async for message in stream:
+            yield message
+
+
+@subscription.field("invalidations")
+async def invalidations(message: str, info):
+    return message
+
+
 DEFAULT_BINDABLES = (
     query,
     mutation,
+    subscription,
     info,
     step,
     container,

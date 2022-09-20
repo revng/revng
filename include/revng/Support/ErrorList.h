@@ -70,25 +70,3 @@ public:
     return failIf(std::move(Error), true, false);
   }
 };
-
-/// Wrapper class to handle nullptr
-/// PipelineC can accept a nullptr as an ErrorList argument, this class wraps
-/// the pointer so that if it is nullptr it will point to the throwaway local
-/// ErrorList EL
-class ErrorListWrapper {
-private:
-  ErrorList EL;
-  ErrorList *ELP;
-
-public:
-  ErrorListWrapper(ErrorList *EL) : EL() {
-    if (EL == nullptr) {
-      ELP = &this->EL;
-    } else {
-      ELP = EL;
-    }
-  }
-
-  ErrorList &operator*() { return *ELP; }
-  ErrorList *operator->() { return ELP; }
-};

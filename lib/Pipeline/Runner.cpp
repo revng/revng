@@ -56,8 +56,6 @@ static Error getObjectives(Runner &Runner,
   return Error::success();
 }
 
-using StatusMap = llvm::StringMap<ContainerToTargetsMap>;
-
 static void explainPipeline(const ContainerToTargetsMap &Targets,
                             ArrayRef<PipelineExecutionEntry> Requirements) {
 
@@ -89,7 +87,7 @@ static void explainPipeline(const ContainerToTargetsMap &Targets,
   ExplanationLogger << DoLog;
 }
 
-Error Runner::getInvalidations(StatusMap &Invalidated) const {
+Error Runner::getInvalidations(InvalidationMap &Invalidated) const {
 
   for (const auto &NextS : *this) {
     if (not NextS.hasPredecessor())
@@ -240,6 +238,7 @@ llvm::Expected<DiffMap>
 Runner::runAnalysis(llvm::StringRef AnalysisName,
                     llvm::StringRef StepName,
                     const ContainerToTargetsMap &Targets,
+                    InvalidationMap &InvalidationsMap,
                     const llvm::StringMap<std::string> &Options) {
 
   auto Before = getContext().getGlobals();
@@ -264,8 +263,8 @@ Runner::runAnalysis(llvm::StringRef AnalysisName,
 
   auto &After = getContext().getGlobals();
   auto Map = Before.diff(After);
-  for (const auto &Pair : Map)
-    if (auto Error = apply(Pair.second))
+  for (const auto &GlobalNameDiffPair : Map)
+    if (auto Error = apply(GlobalNameDiffPair.second, InvalidationsMap))
       return std::move(Error);
 
   return std::move(Map);
@@ -273,7 +272,8 @@ Runner::runAnalysis(llvm::StringRef AnalysisName,
 
 /// Run all analysis in reverse post order (that is: parents first),
 llvm::Expected<DiffMap>
-Runner::runAllAnalyses(const llvm::StringMap<std::string> &Options) {
+Runner::runAllAnalyses(InvalidationMap &InvalidationsMap,
+                       const llvm::StringMap<std::string> &Options) {
   auto Before = getContext().getGlobals();
 
   for (const Step *Step : ReversePostOrderIndexes) {
@@ -287,7 +287,11 @@ Runner::runAllAnalyses(const llvm::StringMap<std::string> &Options) {
         }
       }
 
-      auto Result = runAnalysis(Pair.first(), Step->getName(), Map, Options);
+      auto Result = runAnalysis(Pair.first(),
+                                Step->getName(),
+                                Map,
+                                InvalidationsMap,
+                                Options);
       if (not Result)
         return Result.takeError();
     }
@@ -343,7 +347,7 @@ Error Runner::run(llvm::StringRef EndingStepName,
   return Error::success();
 }
 
-Error Runner::invalidate(const StatusMap &Invalidations) {
+Error Runner::invalidate(const InvalidationMap &Invalidations) {
   for (const auto &Step : Invalidations) {
     const auto &StepName = Step.first();
     const auto &ToRemove = Step.second;
@@ -391,8 +395,8 @@ void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
   }
 }
 
-llvm::Error Runner::apply(const GlobalTupleTreeDiff &Diff) {
-  InvalidationMap Map;
+llvm::Error
+Runner::apply(const GlobalTupleTreeDiff &Diff, InvalidationMap &Map) {
   getDiffInvalidations(Diff, Map);
   if (auto Error = getInvalidations(Map); Error)
     return Error;

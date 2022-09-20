@@ -90,8 +90,10 @@ int main(int argc, const char *argv[]) {
   auto &InputContainer = Manager.getRunner().begin()->containers()["input"];
   AbortOnError(InputContainer.loadFromDisk(Arguments[1]));
 
-  if (AnalyzeAll)
-    AbortOnError(Manager.getRunner().runAllAnalyses());
+  if (AnalyzeAll) {
+    InvalidationMap Map;
+    AbortOnError(Manager.runAllAnalyses(Map));
+  }
 
   if (not Manager.getRunner().containsStep(Arguments[0])) {
     AbortOnError(createStringError(inconvertibleErrorCode(),

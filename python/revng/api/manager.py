@@ -14,6 +14,7 @@ from .analysis import Analysis
 from .container import Container, ContainerIdentifier
 from .error_list import Expected, run_with_el
 from .exceptions import RevngException
+from .invalidations import Invalidations, ResultWithInvalidations
 from .kind import Kind
 from .step import Step
 from .string_map import StringMap
@@ -63,6 +64,10 @@ class Manager:
         )
 
         assert self._manager, "Failed to instantiate manager"
+
+    @property
+    def uid(self) -> int:
+        return int(ffi.cast("uintptr_t", self._manager))
 
     def save(self, destination_directory: Optional[Union[Path, str]] = None):
         if destination_directory is None:
@@ -327,7 +332,7 @@ class Manager:
         analysis_name: str,
         target_mapping: Dict[str, List[str]],
         options: Dict[str, str] = {},
-    ) -> Dict[str, str]:
+    ) -> ResultWithInvalidations[Dict[str, str]]:
         step = self.get_step(step_name)
         if step is None:
             raise RevngException(f"Invalid step {step_name}")
@@ -363,9 +368,9 @@ class Manager:
 
         options_map = StringMap(options)
         analysis_result = self._run_analysis(step, analysis, concrete_target_mapping, options_map)
-        if not analysis_result:
+        if analysis_result.result is None:
             raise RevngException("Failed to run analysis")
-        return analysis_result
+        return analysis_result  # type: ignore
 
     def _run_analysis(
         self,
@@ -373,9 +378,10 @@ class Manager:
         analysis: Analysis,
         target_mapping: Dict[Container, List[Target]],
         options: StringMap,
-    ) -> Optional[Dict[str, str]]:
+    ) -> ResultWithInvalidations[Optional[Dict[str, str]]]:
         first_key = list(target_mapping.keys())[0]
         targets = target_mapping[first_key]
+        invalidations = Invalidations()
         result = _api.rp_manager_run_analysis(
             self._manager,
             len(targets),
@@ -383,25 +389,29 @@ class Manager:
             make_c_string(step.name),
             make_c_string(analysis.name),
             first_key._container,
+            invalidations._invalidations,
             options._string_map,
         )
 
-        if result != ffi.NULL:
-            if not _api.rp_diff_map_is_empty(result):
-                self.save()
-            return self.parse_diff_map(result)
-        else:
-            return None
+        if result != ffi.NULL and not _api.rp_diff_map_is_empty(result):
+            self.save()
+        return ResultWithInvalidations(
+            self.parse_diff_map(result) if result != ffi.NULL else None, invalidations
+        )
 
-    def run_all_analyses(self, options: Dict[str, str] = {}) -> Optional[Dict[str, str]]:
+    def run_all_analyses(
+        self, options: Dict[str, str] = {}
+    ) -> ResultWithInvalidations[Optional[Dict[str, str]]]:
         options_map = StringMap(options)
-        result = _api.rp_manager_run_all_analyses(self._manager, options_map._string_map)
-        if result != ffi.NULL:
-            if not _api.rp_diff_map_is_empty(result):
-                self.save()
-            return self.parse_diff_map(result)
-        else:
-            return None
+        invalidations = Invalidations()
+        result = _api.rp_manager_run_all_analyses(
+            self._manager, invalidations._invalidations, options_map._string_map
+        )
+        if result != ffi.NULL and not _api.rp_diff_map_is_empty(result):
+            self.save()
+        return ResultWithInvalidations(
+            self.parse_diff_map(result) if result != ffi.NULL else None, invalidations
+        )
 
     def parse_diff_map(self, diff_map) -> Dict[str, str]:
         result = {}
@@ -418,20 +428,28 @@ class Manager:
         _out = _api.rp_manager_create_global_copy(self._manager, _name)
         return make_python_string(_out)
 
-    def set_global(self, name, content) -> Expected[bool]:
+    def set_global(self, name, content) -> ResultWithInvalidations[Expected[bool]]:
         _name = make_c_string(name)
         _content = make_c_string(content)
-        return run_with_el(_api.rp_manager_set_global, self._manager, _content, _name)
+        invalidations = Invalidations()
+        res = run_with_el(
+            _api.rp_manager_set_global, self._manager, _content, _name, invalidations._invalidations
+        )
+        return ResultWithInvalidations(res, invalidations)
 
     def verify_global(self, name, content) -> Expected[bool]:
         _name = make_c_string(name)
         _content = make_c_string(content)
         return run_with_el(_api.rp_manager_verify_global, self._manager, _content, _name)
 
-    def apply_diff(self, name, diff) -> Expected[bool]:
+    def apply_diff(self, name, diff) -> ResultWithInvalidations[Expected[bool]]:
         _name = make_c_string(name)
         _diff = make_c_string(diff)
-        return run_with_el(_api.rp_manager_apply_diff, self._manager, _diff, _name)
+        invalidations = Invalidations()
+        res = run_with_el(
+            _api.rp_manager_apply_diff, self._manager, _diff, _name, invalidations._invalidations
+        )
+        return ResultWithInvalidations(res, invalidations)
 
     def verify_diff(self, name, diff) -> Expected[bool]:
         _name = make_c_string(name)

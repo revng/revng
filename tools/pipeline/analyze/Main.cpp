@@ -117,7 +117,8 @@ int main(int argc, const char *argv[]) {
   AbortOnError(InputContainer.loadFromDisk(Arguments[1]));
 
   if (Arguments[0] == "all") {
-    AbortOnError(Manager.getRunner().runAllAnalyses());
+    InvalidationMap Map;
+    AbortOnError(Manager.runAllAnalyses(Map));
   } else {
     auto *Step = getStepOfAnalysis(Manager.getRunner(), Arguments[0]);
     if (not Step) {
@@ -140,9 +141,10 @@ int main(int argc, const char *argv[]) {
       }
     }
 
-    AbortOnError(Manager.getRunner().runAnalysis(Analysis->getName(),
-                                                 Step->getName(),
-                                                 Map));
+    llvm::StringRef StepName = Step->getName();
+    std::string AnalysisName = Analysis->getName();
+    InvalidationMap InvMap;
+    AbortOnError(Manager.runAnalysis(AnalysisName, StepName, Map, InvMap));
   }
   if (NoApplyModel)
     AbortOnError(overrideModel(Manager, OriginalModel.get()));

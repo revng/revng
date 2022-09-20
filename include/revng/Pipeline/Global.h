@@ -24,23 +24,34 @@ private:
 
 public:
   Global(const char *ID) : ID(ID) {}
-
   virtual ~Global() {}
+  virtual Global &operator=(const Global &NewGlobal) = 0;
+
+public:
+  Global(const Global &) = default;
+  Global(Global &&) = default;
+  Global &operator=(Global &&) = default;
 
 public:
   const char *getID() const { return ID; }
 
 public:
   virtual GlobalTupleTreeDiff diff(const Global &Other) const = 0;
-
   virtual llvm::Error applyDiff(const llvm::MemoryBuffer &Diff) = 0;
+  virtual llvm::Error applyDiff(const GlobalTupleTreeDiff &Diff) = 0;
+
   virtual llvm::Error serialize(llvm::raw_ostream &OS) const = 0;
   virtual llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) = 0;
+  virtual llvm::Expected<GlobalTupleTreeDiff>
+  deserializeDiff(const llvm::MemoryBuffer &Diff) = 0;
+
   virtual void verify(ErrorList &EL) const = 0;
   virtual void clear() = 0;
+
   virtual llvm::Expected<std::unique_ptr<Global>>
   createNew(const llvm::MemoryBuffer &Buffer) const = 0;
   virtual std::unique_ptr<Global> clone() const = 0;
+
   virtual llvm::Error storeToDisk(llvm::StringRef Path) const;
   virtual llvm::Error loadFromDisk(llvm::StringRef Path);
 };
@@ -101,6 +112,11 @@ public:
     return llvm::Error::success();
   }
 
+  llvm::Expected<GlobalTupleTreeDiff>
+  deserializeDiff(const llvm::MemoryBuffer &Buffer) override {
+    return ::deserialize<TupleTreeDiff<Object>>(Buffer.getBuffer());
+  }
+
   void verify(ErrorList &EL) const override { Value->verify(EL); }
 
   GlobalTupleTreeDiff diff(const Global &Other) const override {
@@ -115,6 +131,17 @@ public:
       return MaybeDiff.takeError();
     MaybeDiff->apply(Value);
     return llvm::Error::success();
+  }
+
+  llvm::Error applyDiff(const GlobalTupleTreeDiff &Diff) override {
+    Diff.getAs<Object>()->apply(Value);
+    return llvm::Error::success();
+  }
+
+  Global &operator=(const Global &Other) override {
+    const TupleTreeGlobal &Casted = llvm::cast<TupleTreeGlobal>(Other);
+    Value = Casted.Value;
+    return *this;
   }
 
   const TupleTree<Object> &get() const { return Value; }
