@@ -58,8 +58,16 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   revng_check(SM.addStep<dla::ComputeUpperMemberAccesses>());
   revng_check(SM.addStep<dla::MergePointerNodes>());
   revng_check(SM.addStep<dla::DecomposeStridedEdges>());
+  // CollapseSingleChild and DeduplicateFields run becore
+  // CompactCompatibleArrays and ArrangeAccessesHierarchically, to allow them to
+  // produce better results
+  revng_check(SM.addStep<dla::CollapseSingleChild>());
+  revng_check(SM.addStep<dla::DeduplicateFields>());
   revng_check(SM.addStep<dla::CompactCompatibleArrays>());
   revng_check(SM.addStep<dla::ArrangeAccessesHierarchically>());
+  // CollapseSingleChild and DeduplicateFields run again after
+  // CompactCompatibleArrays and ArrangeAccessesHierarchically, to allow them to
+  // improve the results even further.
   revng_check(SM.addStep<dla::CollapseSingleChild>());
   revng_check(SM.addStep<dla::DeduplicateFields>());
   revng_check(SM.addStep<dla::ComputeNonInterferingComponents>());
