@@ -206,6 +206,7 @@ static CommandList linkingArgs(const model::Binary &Model,
 
     ObjCopy.Arguments = { "-Ibinary",
                           "-Oelf64-x86-64",
+                          "--add-section=.note.GNU-stack=/dev/null",
                           "--rename-section=.data=." + SectionName,
                           "--set-section-flags=.data=" + SectionFlags,
                           RawSegment.path().str(),
