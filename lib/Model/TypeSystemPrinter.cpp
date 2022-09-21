@@ -318,7 +318,7 @@ void TypeSystemPrinter::dumpTypeNode(const model::Type *T, int NodeID) {
   Out << "label= < <TABLE " << TableOpts << ">";
 
   // Print the name of the type on top
-  Out << "<TR><TD bgcolor=" << Color << " " << PaddingOpts << "><B>"
+  Out << "<TR><TD bgcolor=" << Color << " " << PaddingOpts << " PORT='TOP'><B>"
       << T->name() << "</B>  (size: " << to_string(T->size().value_or(0))
       << ")</TD></TR>";
 
@@ -344,7 +344,7 @@ void TypeSystemPrinter::addEdge(int SrcID, int SrcPort, int DstID) {
   Out << "node_" << to_string(SrcID) << ":<P" << to_string(SrcPort) << ">";
   Out << " -> ";
   Out << "node_" << to_string(DstID);
-  Out << ";\n";
+  Out << ":<TOP>;\n";
 }
 
 void TypeSystemPrinter::addFieldEdge(const model::QualifiedType &QT,
@@ -354,7 +354,7 @@ void TypeSystemPrinter::addFieldEdge(const model::QualifiedType &QT,
   // Edge
   Out << "node_" << to_string(SrcID) << ":<P" << to_string(SrcPort) << ">";
   Out << " -> ";
-  Out << "node_" << to_string(DstID);
+  Out << "node_" << to_string(DstID) << ":<TOP>";
 
   // Label
   Out << "[label=\"";
