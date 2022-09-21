@@ -27,3 +27,6 @@ psutil
 
 # Requirements for pdb-download
 pefile
+
+# revng.import_idb dependencies
+python-idb

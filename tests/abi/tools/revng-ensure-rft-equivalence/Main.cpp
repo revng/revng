@@ -133,10 +133,11 @@ int main(int Argc, char *Argv[]) {
   model::purgeUnnamedAndUnreachableTypes(LeftModel->Model);
   model::purgeUnnamedAndUnreachableTypes(RightModel->Model);
   auto Diff = diff(*LeftModel->Model, *RightModel->Model);
-  Diff.dump(OutputFile.os());
 
-  if (Diff.Changes.empty())
+  if (Diff.Changes.empty()) {
     return EXIT_SUCCESS;
-  else
+  } else {
+    Diff.dump(OutputFile.os());
     return EXIT_FAILURE;
+  }
 }
