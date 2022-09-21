@@ -36,7 +36,7 @@ using ConstNonPointerFilterT = EdgeFilteredGraph<const LTSN *,
 using TypeVect = std::vector<std::optional<model::QualifiedType>>;
 
 using model::Qualifier;
-using model::PrimitiveTypeKind::Number;
+using model::PrimitiveTypeKind::Generic;
 using model::QualifierKind::Array;
 using model::QualifierKind::Pointer;
 
@@ -362,9 +362,8 @@ static QualifiedType &createNodeType(TupleTree<model::Binary> &Model,
 
   } else if (isLeaf(Node)) {
     revng_assert(Node->Size);
-    MaybeResult = QualifiedType{
-      Model->getPrimitiveType(model::PrimitiveTypeKind::Number, Node->Size), {}
-    };
+    MaybeResult = QualifiedType{ Model->getPrimitiveType(Generic, Node->Size),
+                                 {} };
   } else if (isStructNode(Node)) {
     MaybeResult = makeStructFromNode(Node,
                                      Types,
