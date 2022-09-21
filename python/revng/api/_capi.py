@@ -16,6 +16,31 @@ from revng.support import AnyPaths, to_iterable
 from revng.support.collect import collect_libraries, collect_one
 
 
+class AtomicCounterWithCallback:
+    """Simple atomic counter, will call callback once mark_end has been called
+    and the counter reaches zero"""
+
+    def __init__(self, callback: Callable[[], None]):
+        self.lock = Lock()
+        self.counter = 0
+        self.ending = False
+        self.callback = callback
+
+    def increment(self):
+        with self.lock:
+            self.counter += 1
+
+    def decrement(self):
+        with self.lock:
+            self.counter -= 1
+            if self.counter == 0 and self.ending:
+                self.callback()
+
+    def mark_end(self):
+        with self.lock:
+            self.ending = True
+
+
 class ApiWrapper:
     function_matcher = re.compile(
         r"(?P<return_type>[\w_]+)\s*\*\s*\/\*\s*owning\s*\*\/\s*(?P<function_name>[\w_]+)",
@@ -26,6 +51,7 @@ class ApiWrapper:
         self.__api = api
         self.__ffi = ffi
         self.__lock = Lock()
+        self.__counter = AtomicCounterWithCallback(self.__api.rp_shutdown)
         self.__proxy: Dict[str, Callable[..., Any]] = {}
 
         for match in self.function_matcher.finditer("\n".join(ffi._cdefsources)):
@@ -48,15 +74,24 @@ class ApiWrapper:
             self.__proxy[attribute_name] = self.__wrap_lock(function)
 
     def __wrap_gc(self, function, destructor):
+        def wrapped_destructor(ptr):
+            with self.__lock:
+                destructor(ptr)
+            self.__counter.decrement()
+
         @wraps(function)
         def new_function(*args):
             ret = function(*args)
             if ret != ffi.NULL:
-                return ffi.gc(ret, self.__wrap_lock(destructor))
+                self.__counter.increment()
+                return ffi.gc(ret, wrapped_destructor)
             else:
                 return ret
 
         return new_function
+
+    def close(self):
+        self.__counter.mark_end()
 
     def __wrap_lock(self, function):
         @wraps(function)
@@ -133,4 +168,4 @@ def initialize(args: Iterable[str] = (), libraries: Optional[AnyPaths] = None):
 
 
 def shutdown():
-    _api.rp_shutdown()
+    _api.close()

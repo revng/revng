@@ -20,6 +20,7 @@ from ariadne.contrib.tracing.apollotracing import ApolloTracingExtension
 
 from revng.api import Manager
 from revng.api._capi import initialize as capi_initialize
+from revng.api._capi import shutdown as capi_shutdown
 
 from .demo_webpage import demo_page, production_demo_page
 from .manager import make_manager
@@ -68,10 +69,13 @@ def startup():
 
 
 def shutdown():
+    global manager
     if manager is not None:
         store_result = manager.save()
         if not store_result:
             logging.warning("Failed to store manager's containers")
+        del manager
+    capi_shutdown()
 
 
 app = Starlette(
