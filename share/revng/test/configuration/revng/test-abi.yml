@@ -14,4 +14,4 @@ commands:
       - type: revng-qa.compiled
         filter: abi-functions-library
     command: |-
-      "${SOURCES_ROOT}/tests/abi/test.sh" "${ABI_NAME}" "${INPUT1}/normal.stdout" "${INPUT2}"
+      "${SOURCES_ROOT}/tests/abi/test.sh" "${ABI_NAME}" "${INPUT1}/default.stdout" "${INPUT2}"
