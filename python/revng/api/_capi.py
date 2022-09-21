@@ -2,8 +2,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+import faulthandler
 import re
-import traceback
 from functools import wraps
 from pathlib import Path
 from threading import Lock
@@ -134,11 +134,6 @@ for header_path in header_paths:
         ffi.cdef("\n".join(lines))
 
 
-@ffi.callback("void ()")
-def pytraceback():
-    traceback.print_stack()
-
-
 LIBRARY_PATH = collect_one(ROOT, ["lib"], "librevngPipelineC.so")
 assert LIBRARY_PATH is not None, "librevngPipelineC.so not found"
 
@@ -146,7 +141,6 @@ ctypes_backend = CTypesBackend()
 
 _raw_api = ffi.dlopen(str(LIBRARY_PATH), flags=ctypes_backend.RTLD_NOW | ctypes_backend.RTLD_GLOBAL)
 _api = ApiWrapper(_raw_api, ffi)
-_api.rp_set_custom_abort_hook(pytraceback)
 
 
 def initialize(args: Iterable[str] = (), libraries: Optional[AnyPaths] = None):
@@ -165,6 +159,7 @@ def initialize(args: Iterable[str] = (), libraries: Optional[AnyPaths] = None):
 
     success = _api.rp_initialize(len(_args), _args, len(_libraries), _libraries)
     assert success, "Failed revng C API initialization"
+    faulthandler.enable()
 
 
 def shutdown():

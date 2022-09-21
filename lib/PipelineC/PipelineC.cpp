@@ -30,10 +30,6 @@
 using namespace pipeline;
 using namespace ::revng::pipes;
 
-void rp_set_custom_abort_hook(AbortHook Hook) {
-  setAbortHook(Hook);
-}
-
 /// Used when we want to return a stack allocated string. Copies the string onto
 /// the heap and gives ownership of to the caller
 static char *copyString(llvm::StringRef str) {
