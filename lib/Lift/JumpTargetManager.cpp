@@ -827,8 +827,11 @@ void JumpTargetManager::translateIndirectJumps() {
         // Look for the last write to the PC
         BasicBlock *CallBB = Call->getParent();
         auto [Result, NextPC] = PCH->getUniqueJumpTarget(CallBB);
-        revng_check(Result != NextJumpTarget::Unique
-                    and "Direct jumps should not be handled here");
+
+        if (NextPC.isValid() and isExecutableAddress(NextPC)) {
+          revng_check(Result != NextJumpTarget::Unique
+                      and "Direct jumps should not be handled here");
+        }
 
         if (getLimitedValue(Call->getArgOperand(0)) == 0) {
           exitTBCleanup(Call);
