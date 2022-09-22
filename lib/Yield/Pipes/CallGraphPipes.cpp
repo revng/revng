@@ -136,10 +136,9 @@ void YieldCallGraphSlice::print(const pipeline::Context &,
   OS << *revng::ResourceFinder.findFile("bin/revng") << " magic ^_^\n";
 }
 using namespace pipeline;
+
 static RegisterDefaultConstructibleContainer<CrossRelationsFileContainer> X1;
-
 static RegisterDefaultConstructibleContainer<CallGraphSVGFileContainer> X2;
-
 static RegisterFunctionStringMap<CallGraphSliceSVGStringMap> X3;
 
 static pipeline::RegisterRole
