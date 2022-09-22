@@ -304,12 +304,7 @@ class DeduplicateFields : public Step {
 public:
   static const constexpr void *getID() { return &ID; }
 
-  DeduplicateFields() :
-    Step(ID,
-         // Dependencies
-         {},
-         // Invalidated
-         {}) {}
+  DeduplicateFields() : Step(ID) {}
 
   virtual ~DeduplicateFields() override = default;
 
