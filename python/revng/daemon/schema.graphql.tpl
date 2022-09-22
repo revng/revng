@@ -5,6 +5,7 @@ type Query {
     info: Info!
     step(name: String!): Step
     container(name: String!, step: String!): Container
+    target(step: String!, container: String!, target: String!): Target
     targets(pathspec: String!): [Step!]!
     produce(step: String!, container: String!, targetList: String!, onlyIfReady: Boolean): String
     produceArtifacts(step: String!, paths: String, onlyIfReady: Boolean): String
