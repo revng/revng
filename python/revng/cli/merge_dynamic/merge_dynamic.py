@@ -57,7 +57,7 @@ def merge_dynamic(
     to_extend_file,
     source_file,
     output_file,
-    base=0x400000,
+    base,
     merge_load_segments=False,
 ):
     to_extend_elf = ParsedElf(to_extend_file)
