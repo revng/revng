@@ -105,7 +105,12 @@ llvm::Error Step::runAnalysis(llvm::StringRef AnalysisName,
                               const llvm::StringMap<std::string> &ExtraArgs) {
   auto Stream = ExplanationLogger.getAsLLVMStream();
   ContainerToTargetsMap Map = Containers.enumerate();
-  revng_assert(Map.contains(Targets),
+
+  auto CollapsedTargets = Targets;
+  for (auto &Entry : CollapsedTargets)
+    Entry.second.collapseEmptyTargets(Ctx);
+
+  revng_assert(Map.contains(CollapsedTargets),
                "An analysis was requested, but not all targets are available");
 
   auto &TheAnalysis = getAnalysis(AnalysisName);
