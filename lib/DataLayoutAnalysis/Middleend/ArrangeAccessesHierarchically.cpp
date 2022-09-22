@@ -331,8 +331,9 @@ absorbVolatileChildren(LayoutTypeSystem &TS, LayoutTypeSystemNode *Parent) {
 
     // Remove all volatile nodes
     for (LayoutTypeSystemNode *Volatile : VolatileChildren) {
-      TS.removeNode(Volatile);
       Absorbed.insert(Volatile);
+      TS.dropOutgoingEdges(Volatile);
+      TS.mergeNodes({ Parent, Volatile });
     }
 
     for (auto &[OffsetExpr, Target] : CompoundEdges.takeVector())
