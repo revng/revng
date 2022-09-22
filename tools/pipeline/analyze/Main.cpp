@@ -124,8 +124,7 @@ int main(int argc, const char *argv[]) {
       AbortOnError(createStringError(inconvertibleErrorCode(),
                                      "no known analysis named %s, invoke this "
                                      "command without arguments to see the "
-                                     "list "
-                                     "of aviable analysis",
+                                     "list of available analysis",
                                      Arguments[0].c_str()));
     }
 

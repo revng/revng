@@ -27,9 +27,9 @@ using namespace pipeline;
 ContainerToTargetsMap
 Step::analyzeGoals(const ContainerToTargetsMap &RequiredGoals) const {
 
-  ContainerToTargetsMap AlreadyAviable;
+  ContainerToTargetsMap AlreadyAvailable;
   ContainerToTargetsMap Targets = RequiredGoals;
-  removeSatisfiedGoals(Targets, AlreadyAviable);
+  removeSatisfiedGoals(Targets, AlreadyAvailable);
   for (const auto &Pipe : llvm::make_range(Pipes.rbegin(), Pipes.rend())) {
     Targets = Pipe->getRequirements(Targets);
   }
@@ -106,7 +106,7 @@ llvm::Error Step::runAnalysis(llvm::StringRef AnalysisName,
   auto Stream = ExplanationLogger.getAsLLVMStream();
   ContainerToTargetsMap Map = Containers.enumerate();
   revng_assert(Map.contains(Targets),
-               "An analysis was requested, but not all targets are aviable");
+               "An analysis was requested, but not all targets are available");
 
   auto &TheAnalysis = getAnalysis(AnalysisName);
 

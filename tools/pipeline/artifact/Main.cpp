@@ -97,7 +97,7 @@ int main(int argc, const char *argv[]) {
     AbortOnError(createStringError(inconvertibleErrorCode(),
                                    "no known artifact named %s, invoke this "
                                    "command without arguments to see the list "
-                                   "of aviable artifacts",
+                                   "of available artifacts",
                                    Arguments[0].c_str()));
   }
   auto &Step = Manager.getRunner().getStep(Arguments[0]);

@@ -102,7 +102,7 @@ public:
 
   pipeline::Context &context() { return *PipelineContext; }
 
-  /// recalculates the current aviable targetsd and keeps overship of the
+  /// recalculates the current available targetsd and keeps overship of the
   /// computer info
   void recalculateCurrentState();
 
@@ -130,7 +130,7 @@ public:
 
   llvm::Error invalidateAllPossibleTargets();
 
-  /// returns the cached list of targets that are known to be aviable to be
+  /// returns the cached list of targets that are known to be available to be
   /// produced in a container
   const pipeline::TargetsList *
   getTargetsAvailableFor(const pipeline::ContainerSet::value_type &Container) {
