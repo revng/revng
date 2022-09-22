@@ -71,6 +71,7 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   // CollapseSingleChild and DeduplicateFields run again after
   // CompactCompatibleArrays and ArrangeAccessesHierarchically, to allow them to
   // improve the results even further.
+  revng_check(SM.addStep<dla::ResolveLeafUnions>());
   revng_check(SM.addStep<dla::CollapseSingleChild>());
   revng_check(SM.addStep<dla::DeduplicateFields>());
   revng_check(SM.addStep<dla::ComputeNonInterferingComponents>());

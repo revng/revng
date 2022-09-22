@@ -23,6 +23,7 @@ revng_add_analyses_library(
   Middleend/RemoveBackedges.cpp
   Middleend/RemoveInvalidPointers.cpp
   Middleend/RemoveInvalidStrideEdges.cpp
+  Middleend/ResolveLeafUnions.cpp
   Middleend/SimplifyInstanceAtOffset0.cpp
   Backend/DLAMakeModelTypes.cpp
   Backend/DLAUpdateModelTypes.cpp

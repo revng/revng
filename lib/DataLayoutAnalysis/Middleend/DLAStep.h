@@ -296,6 +296,20 @@ public:
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
+/// dla::Step that resolves unions of primitive and pointer types
+class ResolveLeafUnions : public Step {
+  static const char ID;
+
+public:
+  static const constexpr void *getID() { return &ID; }
+
+  ResolveLeafUnions() : Step(ID) {}
+
+  virtual ~ResolveLeafUnions() override = default;
+
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
+};
+
 /// dla::Step that merges structurally identical subtrees of an interfering
 /// node.
 class DeduplicateFields : public Step {
