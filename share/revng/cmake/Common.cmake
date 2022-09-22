@@ -106,6 +106,7 @@ macro(revng_add_executable_internal NAME TARGET_PATH)
   endif()
 
   add_executable("${NAME}" ${ARGN})
+  append_target_property("${NAME}" "LINK_FLAGS" "-pie" " ")
 
   add_dependencies(revng-all-binaries "${NAME}")
 
