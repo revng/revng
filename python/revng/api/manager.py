@@ -104,9 +104,11 @@ class Manager:
 
     # Target-related Functions
 
-    def deserialize_target(self, serialized_target: str, container: Container) -> Target:
-        _target = _api.rp_target_create_from_string(self._manager, serialized_target)
-        return Target(_target, container)
+    def deserialize_target(self, serialized_target: str) -> Optional[Target]:
+        step_name, container_name, target = serialized_target.split("/", 2)
+        target_path, kind_name = target.split(":", 1)
+        targets = self.get_targets(step_name, container_name)
+        return next((t for t in targets if t.serialize() == target), None)
 
     def _produce_target(
         self,

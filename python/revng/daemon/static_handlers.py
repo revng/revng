@@ -15,6 +15,7 @@ from ariadne import MutationType, ObjectType, QueryType, SubscriptionType, uploa
 
 from revng.api.manager import Manager
 from revng.api.rank import Rank
+from revng.api.target import Target
 
 from .multiqueue import MultiQueue
 from .util import clean_step_list, target_dict_to_graphql
@@ -126,6 +127,15 @@ async def resolve_targets(_, info, *, pathspec: str):
     ]
     clean_step_list(result)
     return result
+
+
+@query.field("target")
+async def resolve_target(_, info, *, step: str, container: str, target: str) -> Optional[Target]:
+    manager: Manager = info.context["manager"]
+    result = await run_in_executor(
+        lambda: manager.deserialize_target(f"{step}/{container}/{target}")
+    )
+    return result.as_dict() if result is not None else None
 
 
 @mutation.field("uploadB64")
