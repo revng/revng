@@ -352,6 +352,8 @@ public:
   NeighborIterator
   eraseEdge(LayoutTypeSystemNode *Src, NeighborIterator EdgeIt);
 
+  void dropOutgoingEdges(LayoutTypeSystemNode *N);
+
 private:
   uint64_t NID = 0ULL;
 

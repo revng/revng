@@ -453,6 +453,13 @@ NeighborIterator LayoutTypeSystem::eraseEdge(LayoutTypeSystemNode *Src,
   return Src->Successors.erase(EdgeIt);
 }
 
+void LayoutTypeSystem::dropOutgoingEdges(LayoutTypeSystemNode *N) {
+  auto It = N->Successors.begin();
+  auto End = N->Successors.end();
+  while (It != End)
+    It = eraseEdge(N, It);
+}
+
 static Logger<> VerifyDLALog("dla-verify-strict");
 
 bool LayoutTypeSystem::verifyConsistency() const {
