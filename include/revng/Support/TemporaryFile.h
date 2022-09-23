@@ -6,6 +6,7 @@
 
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/Signals.h"
 
 #include "revng/Support/Debug.h"
 
@@ -16,6 +17,7 @@ private:
 public:
   TemporaryFile(const llvm::Twine &Prefix, llvm::StringRef Suffix = "") {
     cantFail(llvm::sys::fs::createTemporaryFile(Prefix, Suffix, Path));
+    llvm::sys::RemoveFileOnSignal(Path);
   }
 
   TemporaryFile(TemporaryFile &&Other) { *this = std::move(Other); }
