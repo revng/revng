@@ -86,7 +86,12 @@ class HardPurgeCommand(Command):
             ]
 
         def temporary_file(suffix="", mode="w+"):
-            return NamedTemporaryFile(suffix=suffix, mode=mode, delete=not options.keep_temporaries)
+            return NamedTemporaryFile(
+                prefix="revng-hard-purge-",
+                suffix=suffix,
+                mode=mode,
+                delete=not options.keep_temporaries,
+            )
 
         with temporary_file(suffix=".yml") as model_file:
             model_file.write("---\n")

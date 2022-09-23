@@ -146,7 +146,9 @@ static CommandList linkingArgs(const model::Binary &Model,
 
   const size_t PageSize = 4096;
 
-  TemporaryFile &LinkerOutput = Result.createTemporary("", "");
+  TemporaryFile &LinkerOutput = Result.createTemporary("revng-link-for-"
+                                                       "translation",
+                                                       "");
 
   auto MaybeBuffer = llvm::MemoryBuffer::getFileOrSTDIN(InputBinary);
   revng_assert(MaybeBuffer);
@@ -179,7 +181,9 @@ static CommandList linkingArgs(const model::Binary &Model,
                  << Segment.endAddress().toString();
     }
 
-    TemporaryFile &RawSegment = Result.createTemporary("", "");
+    TemporaryFile &RawSegment = Result.createTemporary("revng-link-for-"
+                                                       "translation",
+                                                       "raw");
 
     Command DD("dd");
     DD.Arguments = { { "status=none",
@@ -198,7 +202,9 @@ static CommandList linkingArgs(const model::Binary &Model,
     Command ObjCopy("objcopy");
 
     // Create an object file we can later link
-    TemporaryFile &SegmentELF = Result.createTemporary("", "o");
+    TemporaryFile &SegmentELF = Result.createTemporary("revng-link-for-"
+                                                       "translation",
+                                                       "o");
 
     std::string SectionFlags = "alloc";
     if (not Segment.IsWriteable)

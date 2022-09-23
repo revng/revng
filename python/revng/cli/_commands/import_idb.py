@@ -49,7 +49,12 @@ class ImportIDBCommand(Command):
         yaml_model = yaml.dump(revng_model, Dumper=YamlDumper)
 
         def temporary_file(suffix="", mode="w+"):
-            return NamedTemporaryFile(suffix=suffix, mode=mode, delete=not options.keep_temporaries)
+            return NamedTemporaryFile(
+                prefix="revng-import-idb-",
+                suffix=suffix,
+                mode=mode,
+                delete=not options.keep_temporaries,
+            )
 
         with temporary_file(suffix=".yml") as model_file:
             model_file.write(yaml_model)

@@ -31,13 +31,16 @@ class IRPipelineCommand(Command):
         args = options.parsed_args
 
         with NamedTemporaryFile(
-            suffix=".yml", delete=not options.keep_temporaries
+            prefix="revng-llvm-pipeline-", suffix=".yml", delete=not options.keep_temporaries
         ) as model, NamedTemporaryFile(
-            suffix=".bc", delete=not options.keep_temporaries
+            prefix="revng-llvm-pipeline-", suffix=".bc", delete=not options.keep_temporaries
         ) as module, open(  # noqa: SIM115
             args.input, "rb"
         ) if args.input != "-" else sys.stdin.buffer as input_file, NamedTemporaryFile(
-            suffix=".bc", delete=not options.keep_temporaries, mode="wb"
+            prefix="revng-llvm-pipeline-",
+            suffix=".bc",
+            delete=not options.keep_temporaries,
+            mode="wb",
         ) as saved_input_file:
             # Copy so we can work with stdin too
             copyfileobj(input_file, saved_input_file)

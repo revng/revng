@@ -471,7 +471,7 @@ function run_revng_checks() {
 
 # Replace fd #1 (stdout) with process substitution so that after the exec any
 # write to it will also get written into $TMP_FILE
-TMP_FILE=$(mktemp)
+TMP_FILE=$(mktemp tmp.revng-check-conventions.XXXXXXXXXX)
 exec 3>&1 1> >(tee "$TMP_FILE" > /dev/stdout)
 
 function cleanup() {

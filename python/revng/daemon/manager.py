@@ -39,7 +39,7 @@ class BeginListener(BaseListener):
         begin_step = manager.get_step("begin")
         assert begin_step is not None
 
-        tmpdir = mkdtemp()
+        tmpdir = mkdtemp(prefix="revng-daemon-begin-")
         begin_step.save(tmpdir)
         self.write_fifo(f"PUSH begin {tmpdir}\n")
 
@@ -47,7 +47,7 @@ class BeginListener(BaseListener):
 class ContextListener(BaseListener):
     def __call__(self, manager: Manager, type_: EventType):
         assert type_ == EventType.CONTEXT
-        tmpdir = mkdtemp()
+        tmpdir = mkdtemp(prefix="revng-daemon-context-")
         manager.save_context(tmpdir)
         self.write_fifo(f"PUSH context {tmpdir}\n")
 

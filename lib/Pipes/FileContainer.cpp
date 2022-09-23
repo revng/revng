@@ -49,7 +49,9 @@ FileContainer::~FileContainer() {
 
 llvm::StringRef FileContainer::getOrCreatePath() {
   if (Path.empty()) {
-    cantFail(llvm::sys::fs::createTemporaryFile("", Suffix, Path));
+    cantFail(llvm::sys::fs::createTemporaryFile(Twine("revng-") + name(),
+                                                Suffix,
+                                                Path));
     llvm::sys::RemoveFileOnSignal(Path);
   }
 
@@ -68,7 +70,9 @@ FileContainer &FileContainer::operator=(const FileContainer &Other) noexcept {
     return *this;
 
   if (Path.empty()) {
-    cantFail(llvm::sys::fs::createTemporaryFile("", Other.Suffix, Path));
+    cantFail(llvm::sys::fs::createTemporaryFile(Twine("revng-") + name(),
+                                                Other.Suffix,
+                                                Path));
     llvm::sys::RemoveFileOnSignal(Path);
   }
   cantFail(llvm::sys::fs::copy_file(Other.Path, Path));

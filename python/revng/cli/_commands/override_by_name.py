@@ -43,7 +43,12 @@ class ModelOverrideByName(Command):
         self.verbose = args.verbose
 
         def temporary_file(suffix="", mode="w+"):
-            return NamedTemporaryFile(suffix=suffix, mode=mode, delete=not options.keep_temporaries)
+            return NamedTemporaryFile(
+                prefix="revng-override-by-name-",
+                suffix=suffix,
+                mode=mode,
+                delete=not options.keep_temporaries,
+            )
 
         with open(args.input_model_path, "rb") as input_file, temporary_file(
             mode="wb+"

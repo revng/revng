@@ -36,9 +36,9 @@ class LiftCommand(Command):
         )
 
         with NamedTemporaryFile(
-            suffix=".yml", delete=not options.keep_temporaries
+            prefix="revng-lift-", suffix=".yml", delete=not options.keep_temporaries
         ) as model, NamedTemporaryFile(
-            suffix=".ll", delete=not options.keep_temporaries
+            prefix="revng-lift-", suffix=".ll", delete=not options.keep_temporaries
         ) as model_in_module:
             # Run revng model import args.input
             run_revng_command(
