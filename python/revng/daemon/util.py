@@ -4,7 +4,6 @@
 
 import os
 import re
-from base64 import b64encode
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -45,11 +44,6 @@ def clean_container_list(container_list: List):
     for container in container_list[:]:
         if len(container["targets"]) == 0:
             container_list.remove(container)
-
-
-def b64e(string: str) -> str:
-    ret = b64encode(string.encode("utf-8"))
-    return ret.decode("utf-8")
 
 
 def project_workdir() -> Optional[Path]:
