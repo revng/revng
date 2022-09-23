@@ -50,7 +50,7 @@ static RegisterLLVMPass<O2Pipe> P2;
 static RegisterContainerFactory
   F1("Binary", makeFileContainerFactory(Binary, "application/x-executable"));
 static RegisterContainerFactory
-  F2("Object", makeFileContainerFactory(Object, "application/x-object", ".o"));
+  F2("Object", makeFileContainerFactory(Object, "application/x-object", "o"));
 static RegisterContainerFactory
   F3("Translated",
      makeFileContainerFactory(Translated, "application/x-executable"));
