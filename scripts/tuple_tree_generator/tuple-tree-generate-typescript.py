@@ -4,10 +4,9 @@
 #
 
 import argparse
-import os
 from pathlib import Path
 from subprocess import DEVNULL, run
-from tempfile import mkstemp
+from tempfile import NamedTemporaryFile
 
 import yaml
 
@@ -60,12 +59,11 @@ def main(args):
 
 
 def prettify_typescript(source: str, prettier: str) -> str:
-    _, temp_file = mkstemp(suffix=".ts")
-    source_file = Path(temp_file)
-    source_file.write_text(source)
-    run([prettier, "--write", temp_file], check=True, stdout=DEVNULL, stderr=DEVNULL)
-    new_source = source_file.read_text()
-    os.remove(temp_file)
+    with NamedTemporaryFile(suffix=".ts") as temp_file:
+        source_file = Path(temp_file.name)
+        source_file.write_text(source)
+        run([prettier, "--write", temp_file.name], check=True, stdout=DEVNULL, stderr=DEVNULL)
+        new_source = source_file.read_text()
     return new_source
 
 
