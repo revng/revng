@@ -7,9 +7,11 @@ import os
 from abc import ABC, abstractmethod
 from pathlib import Path
 from tempfile import mkdtemp
+from typing import Optional
 
 from revng.api.listenable_manager import EventType, ListenableManager
 from revng.api.manager import Manager
+from revng.support import AnyPath
 
 
 class BaseListener(ABC):
@@ -52,11 +54,11 @@ class ContextListener(BaseListener):
         self.write_fifo(f"PUSH context {tmpdir}\n")
 
 
-def make_manager(workdir: Path):
+def make_manager(workdir: Optional[AnyPath]) -> Manager:
     if "REVNG_NOTIFY_FIFOS" not in os.environ:
-        return Manager(str(workdir.resolve()))
+        return Manager(workdir)
 
-    manager = ListenableManager(str(workdir.resolve()))
+    manager = ListenableManager(workdir)
     for fifo_definition in os.environ["REVNG_NOTIFY_FIFOS"].split(","):
         fifo_path, string_type = fifo_definition.split(":", 1)
         if string_type == "begin":

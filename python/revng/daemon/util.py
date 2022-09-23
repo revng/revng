@@ -3,10 +3,10 @@
 #
 
 import os
+import re
 from base64 import b64encode
 from pathlib import Path
-from tempfile import mkdtemp
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from xdg import xdg_data_home
 
@@ -52,22 +52,20 @@ def b64e(string: str) -> str:
     return ret.decode("utf-8")
 
 
-def project_workdir() -> Path:
-    data_dir = os.getenv("REVNG_DATA_DIR")
-    project_id = os.getenv("REVNG_PROJECT_ID")
+def project_workdir() -> Optional[Path]:
+    data_dir = os.getenv("REVNG_DATA_DIR", "")
+    project_id = os.getenv("REVNG_PROJECT_ID", "")
 
-    if data_dir is None and project_id is None:
-        workdir = Path(mkdtemp())
-    elif data_dir is not None and project_id is None:
-        workdir = Path(data_dir)
-    elif project_id is not None:
-        if data_dir is not None:
-            workdir = Path(data_dir) / b64e(project_id)
+    if data_dir != "" and project_id == "":
+        return Path(data_dir)
+    elif project_id != "":
+        real_data_dir = Path(data_dir) if data_dir != "" else xdg_data_home() / "revng"
+        if re.match(r"^[\w_-]$", project_id, re.ASCII):
+            return real_data_dir / project_id
         else:
-            workdir = xdg_data_home() / "revng" / b64e(project_id)
-
-    workdir.mkdir(parents=True, exist_ok=True)
-    return workdir
+            raise ValueError("Invalid Project ID")
+    else:
+        return None
 
 
 def target_dict_to_graphql(target_dict: Dict[str, str]):

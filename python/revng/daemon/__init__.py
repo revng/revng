@@ -4,7 +4,6 @@
 
 import logging
 import os
-from pathlib import Path
 from typing import Optional
 
 from starlette.applications import Starlette
@@ -27,7 +26,6 @@ from .manager import make_manager
 from .schema_generator import SchemaGenerator
 from .util import project_workdir
 
-workdir: Path = project_workdir()
 manager: Optional[Manager] = None
 startup_done = False
 
@@ -38,13 +36,9 @@ DEBUG = config("STARLETTE_DEBUG", cast=bool, default=False)
 class ManagerMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         assert manager, "Manager not initialized"
-
-        request.scope["workdir"] = workdir
         request.scope["manager"] = manager
 
         # Safety checks
-        assert request.scope["workdir"] is not None
-        assert request.scope["workdir"].exists() and request.scope["workdir"].is_dir()
         assert request.scope["manager"] is not None
 
         return await call_next(request)
@@ -60,12 +54,12 @@ async def status(request):
 def startup():
     global manager, startup_done
     capi_initialize()
-    manager = make_manager(workdir)
+    manager = make_manager(project_workdir())
     app.mount(
         "/graphql",
         GraphQL(
             SchemaGenerator().get_schema(manager),
-            context_value={"manager": manager, "workdir": workdir},
+            context_value={"manager": manager},
             http_handler=GraphQLHTTPHandler(extensions=[ApolloTracingExtension]),
             debug=DEBUG,
         ),
