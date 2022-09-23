@@ -87,10 +87,13 @@ def client(pytestconfig: Config, request) -> Generator[Client, None, None]:
     yield gql_client
 
     process.terminate()
-    process.wait()
+    return_code = process.wait()
 
-    if request.node.rep_call.failed:
+    if request.node.rep_call.failed or return_code != 0:
         print_fd(out_fd)
+
+    # Assert that the daemon exited cleanly
+    assert return_code == 0, f"Daemon exited with non-zero return code: {return_code}"
 
 
 def test_info(client):
