@@ -162,8 +162,8 @@ public:
 
       // Create a new trampoline entry block and substitute it to the old entry
       // block
-      BasicBlock *NewBB = BasicBlock::Create(Context, "", BB->getParent(), BB);
-      BB->replaceAllUsesWith(NewBB);
+      BasicBlock *NewBB = BB->splitBasicBlockBefore(BB->begin());
+      NewBB->getTerminator()->eraseFromParent();
       NewBB->takeName(BB);
 
       IRBuilder<> Builder(NewBB);
