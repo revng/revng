@@ -91,6 +91,9 @@ static bool makeEnvNull(Function &F) {
   GlobalVariable *Env = M->getGlobalVariable("env",
                                              /* AllowInternal */ true);
 
+  if (Env == nullptr)
+    return false;
+
   SmallPtrSet<LoadInst *, 8> LoadsFromEnvInF;
   for (Use &EnvUse : Env->uses()) {
 
