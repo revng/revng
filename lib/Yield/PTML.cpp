@@ -327,3 +327,61 @@ std::string yield::ptml::controlFlowNode(const MetaAddress &Address,
 
   return Result;
 }
+
+namespace callGraphTokens {
+
+static constexpr auto NodeLabel = "call-graph.node-label";
+static constexpr auto ShallowNodeLabel = "call-graph.shallow-node-label";
+
+} // namespace callGraphTokens
+
+static Tag functionLinkHelper(const model::Function &Function,
+                              llvm::StringRef TokenAttributeValue) {
+  Tag Result(tags::Div, Function.name());
+  Result.addAttribute(attributes::Token, TokenAttributeValue);
+
+  return Result;
+}
+
+using pipeline::serializedLocation;
+
+std::string
+yield::ptml::functionNameDefinition(const MetaAddress &FunctionEntryPoint,
+                                    const model::Binary &Binary) {
+  if (FunctionEntryPoint.isInvalid())
+    return "";
+
+  return functionLinkHelper(Binary.Functions.at(FunctionEntryPoint),
+                            callGraphTokens::NodeLabel)
+    .addAttribute(attributes::LocationDefinition,
+                  serializedLocation(revng::ranks::Function,
+                                     FunctionEntryPoint))
+    .serialize();
+}
+
+std::string yield::ptml::functionLink(const MetaAddress &FunctionEntryPoint,
+                                      const model::Binary &Binary) {
+  if (FunctionEntryPoint.isInvalid())
+    return "";
+
+  return functionLinkHelper(Binary.Functions.at(FunctionEntryPoint),
+                            callGraphTokens::NodeLabel)
+    .addListAttribute(attributes::LocationReferences,
+                      serializedLocation(revng::ranks::Function,
+                                         FunctionEntryPoint))
+    .serialize();
+}
+
+std::string
+yield::ptml::shallowFunctionLink(const MetaAddress &FunctionEntryPoint,
+                                 const model::Binary &Binary) {
+  if (FunctionEntryPoint.isInvalid())
+    return "";
+
+  return functionLinkHelper(Binary.Functions.at(FunctionEntryPoint),
+                            callGraphTokens::ShallowNodeLabel)
+    .addListAttribute(attributes::LocationReferences,
+                      serializedLocation(revng::ranks::Function,
+                                         FunctionEntryPoint))
+    .serialize();
+}

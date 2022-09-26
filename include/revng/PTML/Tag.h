@@ -51,9 +51,11 @@ public:
     return *this;
   }
 
+  // clang-format off
   template<typename... T>
-  requires(std::is_convertible_v<llvm::StringRef, T> and...)
-    Tag &addListAttribute(llvm::StringRef Name, const T &...Value) {
+    requires(std::is_convertible_v<T, llvm::StringRef> and ...)
+  Tag &addListAttribute(llvm::StringRef Name, const T &...Value) {
+    // clang-format on
     std::initializer_list<llvm::StringRef> Values = { Value... };
     return this->addListAttribute(Name, Values);
   }

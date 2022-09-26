@@ -11,22 +11,27 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Pipeline/Contract.h"
-#include "revng/Pipeline/Target.h"
-#include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/FunctionStringMap.h"
 
 namespace revng::pipes {
 
-class ProcessCallGraph {
+class YieldCallGraph {
 public:
-  static constexpr const auto Name = "ProcessCallGraph";
+  static constexpr const auto Name = "YieldCallGraph";
 
 public:
-  std::array<pipeline::ContractGroup, 1> getContract() const;
+  inline std::array<pipeline::ContractGroup, 1> getContract() const {
+    return { pipeline::ContractGroup(kinds::BinaryCrossRelations,
+                                     pipeline::Exactness::Exact,
+                                     0,
+                                     kinds::CallGraphSVG,
+                                     1,
+                                     pipeline::InputPreservation::Preserve) };
+  }
 
 public:
   void run(pipeline::Context &Context,
-           const pipeline::LLVMContainer &TargetsList,
+           const FileContainer &InputFile,
            FileContainer &OutputFile);
 
   void print(const pipeline::Context &Ctx,

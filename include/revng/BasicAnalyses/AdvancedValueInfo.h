@@ -126,11 +126,11 @@ inline llvm::ConstantInt *replaceAllUnknownsWith(llvm::ScalarEvolution &SE,
   return cast<SCEVConstant>(RW.visit(SC))->getValue();
 }
 
-struct Edge {
+struct CFGEdge {
   llvm::BasicBlock *Start;
   llvm::BasicBlock *End;
 
-  bool operator<(const Edge &Other) const {
+  bool operator<(const CFGEdge &Other) const {
     return std::tie(Start, End) < std::tie(Other.Start, Other.End);
   }
 
@@ -205,7 +205,7 @@ private:
   llvm::LazyValueInfo &LVI;
   const llvm::DominatorTree &DT;
   std::map<llvm::Instruction *, ConstantRangeSet> InstructionRanges;
-  std::set<Edge> TargetEdges;
+  std::set<CFGEdge> TargetEdges;
   std::set<llvm::BasicBlock *> WhiteList;
 
 public:
@@ -213,7 +213,7 @@ public:
            llvm::LazyValueInfo &LVI,
            const llvm::DominatorTree &DT,
            const std::vector<llvm::Instruction *> &TargetInstructions,
-           const std::vector<Edge> &TargetEdges) :
+           const std::vector<CFGEdge> &TargetEdges) :
     Base(RPOT), Entry(RPOT[0]), LVI(LVI), DT(DT) {
     using namespace llvm;
 
@@ -226,7 +226,7 @@ public:
       }
     }
 
-    for (const Edge &E : TargetEdges) {
+    for (const CFGEdge &E : TargetEdges) {
       this->TargetEdges.insert(E);
     }
 
@@ -409,7 +409,7 @@ private:
   bool Materialized;
 
 public:
-  using PhiEdges = std::vector<Edge>;
+  using PhiEdges = std::vector<CFGEdge>;
 
 public:
   Expression(const llvm::DataLayout &DL, llvm::ScalarEvolution &SE) :
@@ -580,7 +580,7 @@ public:
     if (Targets.size() != 0) {
       BasicBlock *StartBB = Targets.back()->getParent();
 
-      const Edge &FirstEdge = Edges.front();
+      const CFGEdge &FirstEdge = Edges.front();
       revng_assert(FirstEdge.End == nullptr);
       BasicBlock *EndBB = FirstEdge.Start;
 
@@ -982,7 +982,7 @@ AdvancedValueInfo<MemoryOracle>::explore(llvm::BasicBlock *BB, llvm::Value *V) {
       // No processing in progress, proceed
       unsigned NextIndex = Current.NextIncomingIndex;
       Value *NextValue = nullptr;
-      Edge NewEdge;
+      CFGEdge NewEdge;
 
       if (auto *Phi = dyn_cast<PHINode>(Current.Phi)) {
         NextValue = Phi->getIncomingValue(NextIndex);

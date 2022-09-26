@@ -100,36 +100,36 @@ yield::CrossRelations::toGenericGraph() const {
 yield::Graph yield::CrossRelations::toYieldGraph() const {
   yield::Graph Result;
 
-  std::unordered_map<std::string_view, yield::Graph::Node *> LookupHelper;
+  std::map<MetaAddress, yield::Graph::Node *> LookupHelper;
 
   namespace ranks = revng::ranks;
   namespace p = pipeline;
   auto AddNode = [&Result, &LookupHelper](std::string_view Location) {
-    auto MaybeAddress = p::genericLocationFromString<0>(Location,
-                                                        ranks::Function,
-                                                        ranks::BasicBlock,
-                                                        ranks::Instruction);
-    revng_assert(MaybeAddress.has_value());
-    MetaAddress Address = std::get<0>(*MaybeAddress);
-    auto [_, Success] = LookupHelper.try_emplace(Address.toString(),
+    auto MaybeKey = p::genericLocationFromString<0>(Location,
+                                                    ranks::Function,
+                                                    ranks::BasicBlock,
+                                                    ranks::Instruction);
+    revng_assert(MaybeKey.has_value());
+    auto Address = std::get<0>(MaybeKey.value());
+    auto [_, Success] = LookupHelper.try_emplace(Address,
                                                  Result.addNode(Address));
     revng_assert(Success);
   };
   auto AddEdge = [&LookupHelper](std::string_view FromLocation,
                                  std::string_view ToLocation,
                                  yield::RelationType::Values) {
-    auto FromAddress = p::genericLocationFromString<0>(FromLocation,
-                                                       ranks::Function,
-                                                       ranks::BasicBlock,
-                                                       ranks::Instruction);
-    auto ToAddress = p::genericLocationFromString<0>(ToLocation,
-                                                     ranks::Function,
-                                                     ranks::BasicBlock,
-                                                     ranks::Instruction);
-    revng_assert(FromAddress.has_value() && ToAddress.has_value());
+    auto FromKey = p::genericLocationFromString<0>(FromLocation,
+                                                   ranks::Function,
+                                                   ranks::BasicBlock,
+                                                   ranks::Instruction);
+    auto ToKey = p::genericLocationFromString<0>(ToLocation,
+                                                 ranks::Function,
+                                                 ranks::BasicBlock,
+                                                 ranks::Instruction);
+    revng_assert(FromKey.has_value() && ToKey.has_value());
 
-    auto *FromNode = LookupHelper.at(std::get<0>(*FromAddress).toString());
-    FromNode->addSuccessor(LookupHelper.at(std::get<0>(*ToAddress).toString()));
+    auto *FromNode = LookupHelper.at(std::get<0>(FromKey.value()));
+    FromNode->addSuccessor(LookupHelper.at(std::get<0>(ToKey.value())));
   };
   conversionHelper(*this, AddNode, AddEdge);
 

@@ -35,6 +35,12 @@ FileContainer::FileContainer(Kind &K,
   Path(),
   K(&K),
   Suffix(Suffix.str()) {
+
+  // Because file container is unable to contain more than one internal object
+  // (the file it represents either contains something or is empty), any kinds
+  // with non-zero rank are impossible to represent.
+  revng_assert(K.rank().depth() == 0,
+               "`FileContainer`s can only be used for root-ranked kinds");
 }
 
 FileContainer::~FileContainer() {

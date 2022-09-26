@@ -8,6 +8,8 @@
 #include <set>
 #include <vector>
 
+#include "revng/Support/GraphAlgorithms.h"
+
 #include "Layout.h"
 #include "NodeRanking.h"
 
@@ -190,7 +192,7 @@ template<typename EdgeType, RankingStrategy Strategy>
 void partition(const std::vector<EdgeType> &Edges,
                InternalGraph &Graph,
                const RankContainer &Ranks,
-               NodeClassifier<Strategy> &Classifier) {
+               MaybeClassifier<Strategy> &Classifier) {
   for (auto &Edge : Edges) {
     size_t PartitionCount = delta(Edge.From, Edge.To, Ranks);
 
@@ -201,7 +203,9 @@ void partition(const std::vector<EdgeType> &Edges,
 
         const InternalLabel &LabelCopy = Edge.label();
         Current->addSuccessor(NewNode, LabelCopy);
-        Classifier.addLongEdgePartition(Current, NewNode);
+
+        if (Classifier.has_value())
+          Classifier->addLongEdgePartition(Current, NewNode);
 
         Current = NewNode;
       }
@@ -209,33 +213,71 @@ void partition(const std::vector<EdgeType> &Edges,
 
     const InternalLabel &LabelCopy = Edge.label();
     Current->addSuccessor(Edge.To, LabelCopy);
-    Classifier.addLongEdgePartition(Current, Edge.To);
+
+    if (Classifier.has_value())
+      Classifier->addLongEdgePartition(Current, Edge.To);
   }
 }
 
-/// Breaks long edges into partitions by introducing new internal nodes.
-template<RankingStrategy Strategy>
-RankContainer
-partitionLongEdges(InternalGraph &Graph, NodeClassifier<Strategy> &Classifier) {
-  // To simplify the ranking algorithms, if there's more than one entry point,
-  // an artifitial entry node is added. This new node has a single edge per
-  // real entry point.
-  llvm::SmallVector<NodeView, 4> EntryNodes;
-  for (auto *Node : Graph.nodes())
-    if (!Node->hasPredecessors())
-      EntryNodes.emplace_back(Node);
+/// To simplify the ranking algorithms, if there's more than one entry point,
+/// an artifitial entry node is added. This new node has a single edge per
+/// real entry point.
+static void
+ensureSingleEntry(InternalGraph &Graph, RankContainer *MaybeRanks = nullptr) {
+  auto EntryNodes = entryPoints(&Graph);
   revng_assert(!EntryNodes.empty());
 
-  revng_assert(Graph.getEntryNode() == nullptr);
-  if (EntryNodes.size() > 1) {
+  if (EntryNodes.size() == 1) {
+    // If there's only a single entry point, make sure it's set.
+    Graph.setEntryNode(EntryNodes.front());
+  } else {
+    // If there's more than one, add a new virtual node with all the real
+    // entry nodes as its direct successors.
+
+    // BUT if the currently set entry node is already virtual, remove it first:
+    // this prevents the possibility of chaining virtual entry nodes when this
+    // function is invoked on a slightly-modified graph multiple times.
+    if (Graph.getEntryNode() != nullptr) {
+      if (Graph.getEntryNode()->isVirtual()) {
+        Graph.removeNode(Graph.getEntryNode());
+        if (MaybeRanks != nullptr)
+          MaybeRanks->erase(Graph.getEntryNode());
+      }
+    }
+
     auto EntryPoint = Graph.addNode(nullptr);
     for (auto *Node : Graph.nodes())
       if (!Node->hasPredecessors() && Node->Index != EntryPoint->Index)
         EntryPoint->addSuccessor(Node, nullptr);
     Graph.setEntryNode(EntryPoint);
-  } else {
-    Graph.setEntryNode(EntryNodes.front());
   }
+}
+
+/// Breaks long edges into partitions by introducing new internal nodes.
+template<RankingStrategy Strategy>
+RankContainer partitionLongEdges(InternalGraph &Graph,
+                                 MaybeClassifier<Strategy> &Classifier) {
+  // The current partitioning algorithm can only work on graphs that allow
+  // specifying the entry point in a mutable way.
+  static_assert(InternalGraph::hasEntryNode == true);
+
+  ensureSingleEntry(Graph);
+
+  // Helper lambda for graph verification.
+  auto HasSingleEntryPoint = [](const InternalGraph &Graph) -> bool {
+    auto HasNoPredecessors = [](const InternalGraph::Node *Node) -> bool {
+      return !Node->predecessorCount();
+    };
+    if (llvm::count_if(Graph.nodes(), HasNoPredecessors) != 1)
+      return false;
+
+    if (auto Iterator = llvm::find_if(Graph.nodes(), HasNoPredecessors);
+        Iterator == Graph.nodes().end() || *Iterator != Graph.getEntryNode()) {
+      return false;
+    }
+
+    return true;
+  };
 
   // Because a long edge can also be a backwards edge, edges that are certainly
   // long need to be removed first, so that DFS-based rankind algorithms don't
@@ -243,6 +285,7 @@ partitionLongEdges(InternalGraph &Graph, NodeClassifier<Strategy> &Classifier) {
   // internally to differencite such "certainly long" edges.
 
   // Rank nodes based on a BreadthFirstSearch pass-through.
+  revng_assert(HasSingleEntryPoint(Graph));
   auto Ranks = rankNodes<RankingStrategy::BreadthFirstSearch>(Graph);
 
   /// A copy of an edge label.
@@ -264,6 +307,8 @@ partitionLongEdges(InternalGraph &Graph, NodeClassifier<Strategy> &Classifier) {
   }
 
   // Calculate real ranks for the remainder of the graph.
+  ensureSingleEntry(Graph, &Ranks);
+  revng_assert(HasSingleEntryPoint(Graph));
   Ranks = rankNodes<Strategy>(Graph);
 
   // Pick new long edges based on the real ranks.
@@ -281,6 +326,7 @@ partitionLongEdges(InternalGraph &Graph, NodeClassifier<Strategy> &Classifier) {
   // is greater than the rank of its predecessors.
   //
   // Eventually, this ranking score becomes a proper hierarchy.
+  revng_assert(HasSingleEntryPoint(Graph));
   updateRanks(Graph, Ranks);
 
   // Make sure that new long edges are properly broken up.
@@ -289,10 +335,12 @@ partitionLongEdges(InternalGraph &Graph, NodeClassifier<Strategy> &Classifier) {
   for (auto &Edge : NewLongEdges)
     Edge.From->removeSuccessors(Edge.To);
 
+  revng_assert(HasSingleEntryPoint(Graph));
   updateRanks(Graph, Ranks);
 
-  // Remove an artificial entry node if it was added.
-  if (Graph.hasEntryNode && Graph.getEntryNode() != nullptr) {
+  // Remove an artificial entry node if it was ever added.
+  revng_assert(HasSingleEntryPoint(Graph));
+  if (Graph.getEntryNode() != nullptr) {
     if (Graph.getEntryNode()->isVirtual()) {
       Ranks.erase(Graph.getEntryNode());
       Graph.removeNode(Graph.getEntryNode());
@@ -306,7 +354,7 @@ partitionLongEdges(InternalGraph &Graph, NodeClassifier<Strategy> &Classifier) {
 template<RankingStrategy Strategy>
 void partitionArtificialBackwardsEdges(InternalGraph &Graph,
                                        RankContainer &Ranks,
-                                       NodeClassifier<Strategy> &Classifier) {
+                                       MaybeClassifier<Strategy> &Classifier) {
   for (size_t NodeIndex = 0; NodeIndex < Graph.size(); ++NodeIndex) {
     auto *From = *std::next(Graph.nodes().begin(), NodeIndex);
     for (auto EdgeIterator = From->successor_edges_rbegin();
@@ -325,9 +373,11 @@ void partitionArtificialBackwardsEdges(InternalGraph &Graph,
           NewNode2->addSuccessor(NewNode1, InternalLabel(LabelPointer, true));
           To->addSuccessor(NewNode1, InternalLabel(LabelPointer, false));
 
-          Classifier.addBackwardsEdgePartition(From, NewNode2);
-          Classifier.addBackwardsEdgePartition(NewNode2, NewNode1);
-          Classifier.addBackwardsEdgePartition(To, NewNode1);
+          if (Classifier.has_value()) {
+            Classifier->addBackwardsEdgePartition(From, NewNode2);
+            Classifier->addBackwardsEdgePartition(NewNode2, NewNode1);
+            Classifier->addBackwardsEdgePartition(To, NewNode1);
+          }
 
           Ranks[NewNode1] = Ranks.at(To) + 1;
           Ranks[NewNode2] = Ranks.at(To);
@@ -337,9 +387,11 @@ void partitionArtificialBackwardsEdges(InternalGraph &Graph,
           NewNode1->addSuccessor(NewNode2, InternalLabel(LabelPointer, true));
           NewNode2->addSuccessor(To, InternalLabel(LabelPointer, true));
 
-          Classifier.addBackwardsEdgePartition(NewNode1, From);
-          Classifier.addBackwardsEdgePartition(NewNode1, NewNode2);
-          Classifier.addBackwardsEdgePartition(NewNode2, To);
+          if (Classifier.has_value()) {
+            Classifier->addBackwardsEdgePartition(NewNode1, From);
+            Classifier->addBackwardsEdgePartition(NewNode1, NewNode2);
+            Classifier->addBackwardsEdgePartition(NewNode2, To);
+          }
 
           Ranks[NewNode1] = Ranks.at(From) - 1;
           Ranks[NewNode2] = Ranks.at(From);
@@ -354,7 +406,7 @@ void partitionArtificialBackwardsEdges(InternalGraph &Graph,
 template<RankingStrategy Strategy>
 void partitionOriginalBackwardsEdges(InternalGraph &Graph,
                                      RankContainer &Ranks,
-                                     NodeClassifier<Strategy> &Classifier) {
+                                     MaybeClassifier<Strategy> &Classifier) {
   for (size_t NodeIndex = 0; NodeIndex < Graph.size(); ++NodeIndex) {
     auto *From = *std::next(Graph.nodes().begin(), NodeIndex);
     for (auto EdgeIterator = From->successor_edges_rbegin();
@@ -376,11 +428,13 @@ void partitionOriginalBackwardsEdges(InternalGraph &Graph,
         NewNode3->addSuccessor(NewNode4, InternalLabel(LabelPointer, true));
         To->addSuccessor(NewNode4, InternalLabel(LabelPointer, false));
 
-        Classifier.addBackwardsEdgePartition(NewNode1, From);
-        Classifier.addBackwardsEdgePartition(NewNode1, NewNode2);
-        Classifier.addBackwardsEdgePartition(NewNode2, NewNode3);
-        Classifier.addBackwardsEdgePartition(NewNode3, NewNode4);
-        Classifier.addBackwardsEdgePartition(To, NewNode4);
+        if (Classifier.has_value()) {
+          Classifier->addBackwardsEdgePartition(NewNode1, From);
+          Classifier->addBackwardsEdgePartition(NewNode1, NewNode2);
+          Classifier->addBackwardsEdgePartition(NewNode2, NewNode3);
+          Classifier->addBackwardsEdgePartition(NewNode3, NewNode4);
+          Classifier->addBackwardsEdgePartition(To, NewNode4);
+        }
 
         Ranks[NewNode1] = Ranks.at(From) - 1;
         Ranks[NewNode2] = Ranks.at(From);
@@ -397,7 +451,7 @@ template<RankingStrategy Strategy>
 void partitionSelfLoops(InternalGraph &Graph,
                         RankContainer &Ranks,
                         SelfLoopContainer &SelfLoops,
-                        NodeClassifier<Strategy> &Classifier) {
+                        MaybeClassifier<Strategy> &Classifier) {
   for (auto &Edge : SelfLoops) {
     auto *NewNode1 = Graph.addNode(nullptr);
     auto *NewNode2 = Graph.addNode(nullptr);
@@ -408,10 +462,12 @@ void partitionSelfLoops(InternalGraph &Graph,
     NewNode2->addSuccessor(NewNode3, InternalLabel(Edge.Label, true));
     Edge.Node->addSuccessor(NewNode3, InternalLabel(Edge.Label, false));
 
-    Classifier.addBackwardsEdgePartition(NewNode1, Edge.Node);
-    Classifier.addBackwardsEdgePartition(NewNode1, NewNode2);
-    Classifier.addBackwardsEdgePartition(NewNode2, NewNode3);
-    Classifier.addBackwardsEdgePartition(Edge.Node, NewNode3);
+    if (Classifier.has_value()) {
+      Classifier->addBackwardsEdgePartition(NewNode1, Edge.Node);
+      Classifier->addBackwardsEdgePartition(NewNode1, NewNode2);
+      Classifier->addBackwardsEdgePartition(NewNode2, NewNode3);
+      Classifier->addBackwardsEdgePartition(Edge.Node, NewNode3);
+    }
 
     Ranks[NewNode1] = Ranks.at(Edge.Node) - 1;
     Ranks[NewNode2] = Ranks.at(Edge.Node);
@@ -419,9 +475,14 @@ void partitionSelfLoops(InternalGraph &Graph,
   }
 }
 
+// clang-format off
 template<RankingStrategy Strategy>
-std::tuple<InternalGraph, RankContainer, NodeClassifier<Strategy>>
-prepareGraph(ExternalGraph &Graph) {
+std::tuple<InternalGraph,
+           RankContainer,
+           MaybeClassifier<Strategy>>
+prepareGraph(ExternalGraph &Graph, bool ShouldOmitClassification) {
+  // clang-format on
+
   // Get the internal representation of the graph.
   InternalGraph Result = convertToInternal(Graph);
 
@@ -432,7 +493,9 @@ prepareGraph(ExternalGraph &Graph) {
   convertToDAG(Result);
 
   // Use a robust node classification to speed the permutation selection up.
-  NodeClassifier<Strategy> Classifier;
+  MaybeClassifier<Strategy> Classifier;
+  if (!ShouldOmitClassification)
+    Classifier = NodeClassifier<Strategy>{};
 
   // Split long edges into one rank wide partitions.
   auto Ranks = partitionLongEdges(Result, Classifier);
@@ -450,16 +513,16 @@ prepareGraph(ExternalGraph &Graph) {
 }
 
 template<RankingStrategy Strategy>
-using RV = std::tuple<InternalGraph, RankContainer, NodeClassifier<Strategy>>;
+using RV = std::tuple<InternalGraph, RankContainer, MaybeClassifier<Strategy>>;
 
 template RV<RankingStrategy::BreadthFirstSearch>
-prepareGraph<RankingStrategy::BreadthFirstSearch>(ExternalGraph &Graph);
+prepareGraph<RankingStrategy::BreadthFirstSearch>(ExternalGraph &, bool);
 
 template RV<RankingStrategy::DepthFirstSearch>
-prepareGraph<RankingStrategy::DepthFirstSearch>(ExternalGraph &Graph);
+prepareGraph<RankingStrategy::DepthFirstSearch>(ExternalGraph &, bool);
 
 template RV<RankingStrategy::Topological>
-prepareGraph<RankingStrategy::Topological>(ExternalGraph &Graph);
+prepareGraph<RankingStrategy::Topological>(ExternalGraph &, bool);
 
 template RV<RankingStrategy::DisjointDepthFirstSearch>
-prepareGraph<RankingStrategy::DisjointDepthFirstSearch>(ExternalGraph &Graph);
+prepareGraph<RankingStrategy::DisjointDepthFirstSearch>(ExternalGraph &, bool);

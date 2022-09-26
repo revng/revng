@@ -16,9 +16,6 @@ concept TupleTreeCompatible = (KeyedObjectContainer<T>
 // clang-format on
 
 template<typename T>
-concept NotTupleTreeCompatible = not TupleTreeCompatible<T>;
-
-template<typename T>
 concept Verifiable = requires(const T &TT, ErrorList &EL) {
   { TT.verify(EL) };
   { TT.verify() } -> std::same_as<bool>;

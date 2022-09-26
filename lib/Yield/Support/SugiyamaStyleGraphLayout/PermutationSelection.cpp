@@ -7,6 +7,8 @@
 
 #include <map>
 
+#include "llvm/ADT/PostOrderIterator.h"
+
 #include "Layout.h"
 
 /// Converts given rankings to a layer container and updates ranks to remove
@@ -395,14 +397,16 @@ LayerContainer sortNodes(const RankContainer &Ranks,
 template<RankingStrategy Strategy>
 LayerContainer selectPermutation(InternalGraph &Graph,
                                  RankContainer &Ranks,
-                                 const NodeClassifier<Strategy> &Classifier) {
+                                 const MaybeClassifier<Strategy> &Classifier) {
+  revng_assert(Classifier.has_value());
+
   // Build a layer container based on a given ranking, then remove layers
   // without any original nodes or nodes that are required for correct
   // backwards edge routing. Update ranks accordingly.
   auto InitialLayers = optimizeLayers(Graph, Ranks);
 
   auto MinimalCrossingLayers = minimizeCrossingCount(Ranks,
-                                                     Classifier,
+                                                     *Classifier,
                                                      std::move(InitialLayers));
 
   // Iteration counts are chosen arbitrarily. If the computation time was not
@@ -420,7 +424,7 @@ LayerContainer selectPermutation(InternalGraph &Graph,
 
   auto SortedLayers = sortNodes(Ranks,
                                 Iterations * 3 + 10,
-                                Classifier,
+                                *Classifier,
                                 std::move(MinimalCrossingLayers));
 
   return SortedLayers;
@@ -434,19 +438,101 @@ constexpr auto DDFSRS = RankingStrategy::DisjointDepthFirstSearch;
 template LayerContainer
 selectPermutation<BFSRS>(InternalGraph &Graph,
                          RankContainer &Ranks,
-                         const NodeClassifier<BFSRS> &Classifier);
+                         const MaybeClassifier<BFSRS> &Classifier);
 
 template LayerContainer
 selectPermutation<DFSRS>(InternalGraph &Graph,
                          RankContainer &Ranks,
-                         const NodeClassifier<DFSRS> &Classifier);
+                         const MaybeClassifier<DFSRS> &Classifier);
 
 template LayerContainer
 selectPermutation<TRS>(InternalGraph &Graph,
                        RankContainer &Ranks,
-                       const NodeClassifier<TRS> &Classifier);
+                       const MaybeClassifier<TRS> &Classifier);
 
 template LayerContainer
 selectPermutation<DDFSRS>(InternalGraph &Graph,
                           RankContainer &Ranks,
-                          const NodeClassifier<DDFSRS> &Classifier);
+                          const MaybeClassifier<DDFSRS> &Classifier);
+
+static std::unordered_map<NodeView, size_t> rankSubtrees(InternalGraph &Graph) {
+  std::unordered_map<NodeView, size_t> Result;
+
+  for (auto *Node : Graph.nodes()) {
+    if (!Node->hasPredecessors()) {
+      for (auto *CurrentNode : llvm::post_order(Node)) {
+        size_t CurrentRank = 1;
+        for (auto *Successor : CurrentNode->successors()) {
+          auto Iterator = Result.find(Successor);
+          revng_assert(Iterator != Result.end());
+          CurrentRank += Iterator->second;
+        }
+        auto [_, Success] = Result.try_emplace(CurrentNode, CurrentRank);
+        revng_assert(Success);
+      }
+    }
+  }
+
+  return Result;
+}
+
+LayerContainer
+selectSimpleTreePermutation(InternalGraph &Graph, RankContainer &Ranks) {
+  // Build a layer container based on a given ranking, then remove layers
+  // that can be discarded without losing any improtant information, for example
+  // layers only containing virtual nodes added when splitting long edges.
+  // Update all the ranks so that the difference between the ranks of two layers
+  // next to each other is always equal to one.
+  auto InitialLayers = optimizeLayers(Graph, Ranks);
+
+  // Build internal ranking lookup table based on subtree sizes.
+  auto SubtreeLookup = rankSubtrees(Graph);
+
+  // Define node rank comparator
+  std::unordered_map<NodeView, Rank> LastLayerLookup;
+  auto PredecessorRankComparator =
+    [&SubtreeLookup, &LastLayerLookup](const auto &LHS, const auto RHS) {
+      revng_assert(LHS->predecessorCount() <= 1);
+      revng_assert(RHS->predecessorCount() <= 1);
+
+      if (!LastLayerLookup.empty()) {
+        auto LHSRank = std::numeric_limits<Rank>::max();
+        auto RHSRank = std::numeric_limits<Rank>::max();
+
+        if (LHS->hasPredecessors()) {
+          auto LHSIterator = LastLayerLookup.find(*LHS->predecessors().begin());
+          revng_assert(LHSIterator != LastLayerLookup.end());
+          LHSRank = LHSIterator->second;
+        }
+        if (RHS->hasPredecessors()) {
+          auto RHSIterator = LastLayerLookup.find(*RHS->predecessors().begin());
+          revng_assert(RHSIterator != LastLayerLookup.end());
+          RHSRank = RHSIterator->second;
+        }
+
+        if (LHSRank != RHSRank)
+          return LHSRank < RHSRank;
+      }
+
+      auto LHSSubtreeSizeIterator = SubtreeLookup.find(LHS);
+      revng_assert(LHSSubtreeSizeIterator != SubtreeLookup.end());
+      auto RHSSubtreeSizeIterator = SubtreeLookup.find(RHS);
+      revng_assert(RHSSubtreeSizeIterator != SubtreeLookup.end());
+
+      return LHSSubtreeSizeIterator->second > RHSSubtreeSizeIterator->second;
+    };
+
+  for (auto &Layer : InitialLayers) {
+    // Sort the layer.
+    llvm::sort(Layer, PredecessorRankComparator);
+
+    // Update the last layer lookup table.
+    LastLayerLookup.clear();
+    for (size_t Index = 0; Index < Layer.size(); ++Index) {
+      auto [_, Success] = LastLayerLookup.try_emplace(Layer[Index], Index);
+      revng_assert(Success);
+    }
+  }
+
+  return InitialLayers;
+}

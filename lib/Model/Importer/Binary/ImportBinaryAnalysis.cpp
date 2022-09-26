@@ -1,4 +1,4 @@
-/// \file ImportBinaryPipe.cpp
+/// \file ImportBinaryAnalysis.cpp
 /// \brief
 
 //

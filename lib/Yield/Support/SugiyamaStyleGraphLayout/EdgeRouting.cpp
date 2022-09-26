@@ -339,3 +339,21 @@ void route(const OrderedEdgeContainer &OrderedListOfEdges,
     Edge.Label->Status = ExternalGraph::EdgeStatus::Routed;
   }
 }
+
+void routeWithStraightLines(const OrderedEdgeContainer &OrderedListOfEdges) {
+  for (auto &Edge : OrderedListOfEdges) {
+    if (Edge.Label->Status == ExternalGraph::EdgeStatus::Hidden)
+      continue;
+
+    revng_assert(Edge.Prerouted == std::nullopt,
+                 "Straight line routing doesn't support prerouted corners");
+
+    appendPoint(Edge.Label->Path,
+                Point{ Edge.FromCenter.X,
+                       Edge.FromCenter.Y - Edge.FromSize.H / 2 });
+    appendPoint(Edge.Label->Path,
+                Point{ Edge.ToCenter.X, Edge.ToCenter.Y + Edge.ToSize.H / 2 });
+
+    Edge.Label->Status = ExternalGraph::EdgeStatus::Routed;
+  }
+}

@@ -9,7 +9,7 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Yield/Function.h"
-#include "revng/Yield/Pipes/YieldControlFlowPipe.h"
+#include "revng/Yield/Pipes/YieldControlFlow.h"
 #include "revng/Yield/SVG.h"
 
 namespace revng::pipes {
@@ -26,7 +26,8 @@ void YieldControlFlow::run(pipeline::Context &Context,
     revng_assert((*MaybeFunction)->Entry == Address);
 
     Output.insert_or_assign((*MaybeFunction)->Entry,
-                            yield::svg::controlFlow(**MaybeFunction, *Model));
+                            yield::svg::controlFlowGraph(**MaybeFunction,
+                                                         *Model));
   }
 }
 
@@ -34,15 +35,6 @@ void YieldControlFlow::print(const pipeline::Context &,
                              llvm::raw_ostream &OS,
                              llvm::ArrayRef<std::string> Files) const {
   OS << *revng::ResourceFinder.findFile("bin/revng") << " magic ^_^\n";
-}
-
-std::array<pipeline::ContractGroup, 1> YieldControlFlow::getContract() const {
-  return { pipeline::ContractGroup(kinds::FunctionAssemblyInternal,
-                                   pipeline::Exactness::Exact,
-                                   0,
-                                   kinds::FunctionControlFlowGraphSVG,
-                                   1,
-                                   pipeline::InputPreservation::Preserve) };
 }
 
 } // end namespace revng::pipes

@@ -20,7 +20,14 @@ public:
   static constexpr const auto Name = "YieldCFG";
 
 public:
-  std::array<pipeline::ContractGroup, 1> getContract() const;
+  inline std::array<pipeline::ContractGroup, 1> getContract() const {
+    return { pipeline::ContractGroup(kinds::FunctionAssemblyInternal,
+                                     pipeline::Exactness::Exact,
+                                     0,
+                                     kinds::FunctionControlFlowGraphSVG,
+                                     1,
+                                     pipeline::InputPreservation::Preserve) };
+  }
 
 public:
   void run(pipeline::Context &Context,

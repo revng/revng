@@ -76,6 +76,9 @@ public:
   std::vector<std::string> getRunningContainersNames() const override {
     return Invokable.getRunningContainersNames();
   }
+  bool isContainerArgumentConst(size_t ArgumentIndex) const override {
+    return Invokable.isContainerArgumentConst(ArgumentIndex);
+  }
   std::string getName() const override { return Invokable.getName(); }
 };
 

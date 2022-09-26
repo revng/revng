@@ -6,6 +6,10 @@ Containers:
   - Name: cross-relations.yml
     Type: BinaryCrossRelations
     Role: CrossRelations
+  - Name: call-graph-svg.yml
+    Type: CallGraphSVG
+  - Name: call-graph-slice-svg.yml
+    Type: CallGraphSliceSVG
 Branches:
   - From: Isolate
     Steps:
@@ -13,3 +17,21 @@ Branches:
         Pipes:
           - Type: ProcessCallGraph
             UsedContainers: [module.ll, cross-relations.yml]
+      - Name: YieldCallGraph
+        Pipes:
+          - Type: YieldCallGraph
+            UsedContainers: [cross-relations.yml, call-graph-svg.yml]
+        Artifacts:
+          Container: call-graph-svg.yml
+          Kind: CallGraphSVG
+          SingleTargetFilename: call-graph.svg
+  - From: ProcessCallGraph
+    Steps:
+      - Name: YieldCallGraphSlice
+        Pipes:
+          - Type: YieldCallGraphSlice
+            UsedContainers: [module.ll, cross-relations.yml, call-graph-slice-svg.yml]
+        Artifacts:
+          Container: call-graph-slice-svg.yml
+          Kind: CallGraphSliceSVG
+          SingleTargetFilename: call-graph-slice.svg

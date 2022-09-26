@@ -36,6 +36,8 @@ inline FunctionKind
 
 inline pipeline::Kind
   BinaryCrossRelations("BinaryCrossRelations", &ranks::Binary);
+inline pipeline::Kind CallGraphSVG("CallGraphSVG", &ranks::Binary);
+inline FunctionKind CallGraphSliceSVG("CallGraphSliceSVG", &ranks::Function);
 
 inline constexpr auto BinaryCrossRelationsRole = "CrossRelations";
 
