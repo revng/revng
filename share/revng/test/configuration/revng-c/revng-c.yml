@@ -91,7 +91,7 @@ commands:
       - type: revng-c.canonicalized
     suffix: .ptml.c
     command: |-
-      MODEL="$$(mktemp)";
+      MODEL="$$(mktemp tmp.revng-c.canonicalized.XXXXXXXXXX)";
       trap 'rm -f -- "$$MODEL"' EXIT;
       revng model dump "$INPUT" > "$$MODEL";
       revng pipeline
@@ -111,7 +111,7 @@ commands:
       - type: revng-c.model-to-header
       - type: revng-c.helpers-to-header
     command: |-
-      TMP="$$(mktemp -d)";
+      TMP="$$(mktemp -d tmp.revng-c.check-decompiled-c.XXXXXXXXXX)";
       trap 'rm -rf -- "$$TMP"' EXIT;
       cp -a "$INPUT1" "$$TMP/decompiled.c";
       cp -a "$INPUT2" "$$TMP/revng-model-declarations.h";
