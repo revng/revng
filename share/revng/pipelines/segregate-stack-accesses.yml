@@ -30,6 +30,10 @@ Branches:
               - instcombine
               - sroa
               - simplifycfg
+              - loop-rewrite-with-canonical-induction-variable
+              - instcombine
+              - early-cse
+              - dce
               - restore-extractvalues
               - strip-dead-prototypes
       - Name: MakeSegmentRefs
