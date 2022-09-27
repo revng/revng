@@ -65,6 +65,9 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   revng_check(SM.addStep<dla::DeduplicateFields>());
   revng_check(SM.addStep<dla::CompactCompatibleArrays>());
   revng_check(SM.addStep<dla::ArrangeAccessesHierarchically>());
+  // ArrangeAccessesHierarchically can move pointer edges around in some cases,
+  // so we want to run MergePointerNodes again afterwards.
+  revng_check(SM.addStep<dla::MergePointerNodes>());
   // CollapseSingleChild and DeduplicateFields run again after
   // CompactCompatibleArrays and ArrangeAccessesHierarchically, to allow them to
   // improve the results even further.

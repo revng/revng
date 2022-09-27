@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <utility>
 
+#include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SetVector.h"
@@ -342,6 +343,48 @@ absorbVolatileChildren(LayoutTypeSystem &TS, LayoutTypeSystemNode *Parent) {
   return Absorbed;
 }
 
+using GT = llvm::GraphTraits<LayoutTypeSystemNode *>;
+
+static bool isInstanceAtOffset0(const GT::EdgeRef &E) {
+  if (not isInstanceEdge(E))
+    return false;
+
+  return not E.second->getOffsetExpr().Offset;
+}
+
+using Instance0Graph = EdgeFilteredGraph<dla::LayoutTypeSystemNode *,
+                                         isInstanceAtOffset0>;
+using Instance0Inverse = llvm::Inverse<Instance0Graph>;
+
+static llvm::SmallPtrSet<LayoutTypeSystemNode *, 8>
+getGrandParentsAtOffset0(LayoutTypeSystemNode *N) {
+
+  llvm::SmallPtrSet<LayoutTypeSystemNode *, 8> Result;
+  for ([[maybe_unused]] auto *GP :
+       llvm::post_order_ext(Instance0Inverse(N), Result))
+    ;
+  return Result;
+}
+
+using CInstance0Graph = EdgeFilteredGraph<const dla::LayoutTypeSystemNode *,
+                                          isInstanceAtOffset0>;
+
+/// Returns true if a visit from node N reaches a pointer to a node in Targets
+static bool
+reachesPointerTo(const LayoutTypeSystemNode *N,
+                 const llvm::SmallPtrSet<LayoutTypeSystemNode *, 8> &Targets) {
+  for (auto *Child : llvm::post_order(CInstance0Graph(N))) {
+    if (not isPointerNode(Child))
+      continue;
+    revng_assert(Child->Successors.size() == 1);
+    auto PointeeEdgeIt = Child->Successors.begin();
+    const LayoutTypeSystemNode *Pointee = PointeeEdgeIt->first;
+    if (Targets.contains(Pointee))
+      return true;
+  }
+  return false;
+};
+
 bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
   if (VerifyLog.isEnabled())
     revng_assert(TS.verifyDAG());
@@ -436,7 +479,7 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
       // Edges of this custom graph represent a relationship between the custom
       // nodes (representing edges).
       // If a EdgeNode A has an edge towards an EdgeNode B it means that the
-      // edge represented by B can be pushed through the edge represented by A.
+      // edge represented by A can be pushed through the edge represented by B.
       // Whenever the graph is build, we also attach to each edge of the custom
       // graph an OffsetExpression, that represents the computed final offset
       // after the push down.
@@ -444,7 +487,6 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
       using EdgeInclusionGraph = GenericGraph<EdgeNode>;
       EdgeInclusionGraph EdgeInclusion;
 
-      using GT = llvm::GraphTraits<LayoutTypeSystemNode *>;
       auto AIt = GT::child_edge_begin(Parent);
       auto ChildEnd = GT::child_edge_end(Parent);
 
@@ -475,8 +517,8 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
 
           auto &[ToPush, Through, OEAfterPush] = MaybePushThrough.value();
 
-          ItEdgeNodes.at(Through)->addSuccessor(ItEdgeNodes.at(ToPush),
-                                                OEAfterPush);
+          ItEdgeNodes.at(Through)->addPredecessor(ItEdgeNodes.at(ToPush),
+                                                  OEAfterPush);
 
           revng_log(Log, "======================================");
           revng_log(Log, "Through: " << Through->first->ID);
@@ -501,41 +543,90 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
         }
       }
 
-      llvm::SmallSet<NeighborIterator, 4> PushedEdges;
+      auto GrandParentsAtOffset0 = getGrandParentsAtOffset0(Parent);
+
+      llvm::SmallSet<NeighborIterator, 4> EdgesToErase;
       for (auto *EdgeNodeToPushThrough : EdgeInclusion.nodes()) {
 
-        // If EdgeNodeToPushThrough has some predecessors, it means that there
+        // If EdgeNodeToPushThrough has some successors, it means that there
         // are other edges across which it should be pushed through. At this
         // point we don't want to push the others down EdgeNodeToPushThrough,
         // because that operation could change the overall result on the graph.
         // So we back off. The other edges that could be pushed down through
         // EdgeNodeToPushThrough will be resolved at a later time.
-        if (not EdgeNodeToPushThrough->predecessors().empty())
+        if (not EdgeNodeToPushThrough->successors().empty())
           continue;
 
-        // If EdgeNodeToPushThrough has no successors, there is no other edge to
-        // push through it, so we just skip it.
-        if (EdgeNodeToPushThrough->successors().empty())
+        // If EdgeNodeToPushThrough has no predecessors, there is no other edge
+        // to push through it, so we just skip it.
+        if (EdgeNodeToPushThrough->predecessors().empty())
           continue;
 
         auto &ToPushThroughEdgeIt = EdgeNodeToPushThrough->data();
         auto *ToPushThrough = ToPushThroughEdgeIt->first;
         ToAnalyze.insert(ToPushThrough);
 
-        for (auto &Edge : EdgeNodeToPushThrough->successor_edges()) {
+        for (auto &Edge : EdgeNodeToPushThrough->predecessor_edges()) {
           auto &[EdgeNodeToPushDown, FinalOE] = Edge;
           auto &PushedEdgeIt = EdgeNodeToPushDown->data();
-          PushedEdges.insert(PushedEdgeIt);
+          EdgesToErase.insert(PushedEdgeIt);
           auto *ToPushDown = PushedEdgeIt->first;
 
           revng_assert(not isLeaf(ToPushThrough));
           TS.addInstanceLink(ToPushThrough, ToPushDown, std::move(FinalOE));
+
+          // If we're pushing through an edge at instance 0 we may want to push
+          // down pointer edges as well. But if we're not pushing through an
+          // instance at offset 0 we can look at the next.
+          if (not isInstanceAtOffset0(*ToPushThroughEdgeIt))
+            continue;
+
+          // However, if the edge ToPushDown can be pushed down through many
+          // other edges at offset zero that reach pointers with different
+          // target nodes among the GrandParentsAtOffset0, we don't want to do
+          // it.
+          const auto OtherInstanceAtOffset0ToPushThrough =
+            [&ToPushThrough,
+             &GP = std::as_const(GrandParentsAtOffset0)](const EdgeNode *EN) {
+              const auto &E = *EN->data();
+              const LayoutTypeSystemNode *OtherToPushThrough = E.first;
+              return isInstanceAtOffset0(E)
+                     and ToPushThrough != OtherToPushThrough
+                     and reachesPointerTo(OtherToPushThrough, GP);
+            };
+
+          // So if there is another successor that ToPushDown can be pushed
+          // through (but different from ToPushThrough), and from that successor
+          // we can reach a pointer to one of the GrandParentsAtOffset0, we bail
+          // out.
+          if (llvm::count_if(EdgeNodeToPushDown->successors(),
+                             OtherInstanceAtOffset0ToPushThrough))
+            continue;
+
+          // If, starting from ToPushDown, we find a pointer edge that
+          // points to Parent (or one of its GrandParents at offset 0), we
+          // want to move that pointer edge down with ToPushDown, so that it
+          // points to ToPushThrough.
+          for (LayoutTypeSystemNode *Child :
+               llvm::post_order(Instance0Graph(ToPushDown))) {
+            if (not isPointerNode(Child))
+              continue;
+            revng_assert(Child->Successors.size() == 1);
+            auto PointeeEdgeIt = Child->Successors.begin();
+            const LayoutTypeSystemNode *Pointee = PointeeEdgeIt->first;
+            if (GrandParentsAtOffset0.contains(Pointee)) {
+              TS.eraseEdge(Child, PointeeEdgeIt);
+              TS.addPointerLink(Child, ToPushThrough);
+            }
+          }
         }
       }
 
       // Now finally clean up the edges that were pushed down.
-      for (const auto &PushedEdge : PushedEdges)
-        TS.eraseEdge(Parent, PushedEdge);
+      for (const auto &ToErase : EdgesToErase)
+        TS.eraseEdge(Parent, ToErase);
+
+      Changed |= not EdgesToErase.empty();
     }
   }
 
