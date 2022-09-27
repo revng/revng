@@ -592,8 +592,13 @@ CCodeGenerator::addOperandToken(const llvm::Value *Operand) {
   }
 
   if (auto *Glob = dyn_cast<llvm::GlobalVariable>(Operand)) {
-    TokenMap[Operand] = Glob->getNameOrAsOperand();
-    rc_return true;
+    StringRef Name = Glob->getName();
+    if (Name.size() > 0) {
+      TokenMap[Operand] = Name;
+      rc_return true;
+    } else {
+      rc_return false;
+    }
   }
 
   if (auto *Const = dyn_cast<llvm::ConstantInt>(Operand)) {
@@ -1693,7 +1698,9 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
       // Declare all variables that have the entire function as a scope
       decompilerLog(Out, "Top-Scope Declarations");
       for (const llvm::Instruction *VarToDeclare : TopScopeVariables) {
-        decompilerLog(Out, "VarToDeclare: " + dumpToString(VarToDeclare));
+        if (Log.isEnabled() or InlineLog.isEnabled()) {
+          decompilerLog(Out, "VarToDeclare: " + dumpToString(VarToDeclare));
+        }
 
         VariableTokens VarName = createVarName(VarToDeclare);
 
