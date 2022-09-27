@@ -1265,7 +1265,7 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
           revng_assert(not model::Qualifier::isPointer(Q)
                        and not model::Qualifier::isArray(Q));
 
-        auto *Unqualified = CurrentType.UnqualifiedType.get();
+        auto *Unqualified = CurrentType.UnqualifiedType.getConst();
         Union = dyn_cast<model::UnionType>(Unqualified);
         // If this is Unqualified was not a union, the only valid thing for
         // it is to be a Typedef, in which case we unwrap it and keep looking
