@@ -145,36 +145,17 @@ Function *PromoteCSVs::createWrapper(const WrapperKey &Key) {
   for (GlobalVariable *CSV : Read)
     NewArguments.push_back(CSV->getType()->getPointerElementType());
 
-  //
-  // Create return type
-  //
-
-  // If the helpers does not write any register, reuse the original
-  // return type
-  Type *OriginalReturnType = HelperType->getReturnType();
-  Type *NewReturnType = OriginalReturnType;
-
-  bool HasOutputCSVs = Written.size() != 0;
-  bool OriginalWasVoid = OriginalReturnType->isVoidTy();
-  if (HasOutputCSVs) {
-    SmallVector<Type *, 16> ReturnTypes;
-
-    // If the original return type was not void, put it as first field
-    // in the return type struct
-    if (not OriginalWasVoid) {
-      ReturnTypes.push_back(OriginalReturnType);
-    }
-
-    for (GlobalVariable *CSV : Written)
-      ReturnTypes.push_back(CSV->getType()->getPointerElementType());
-
-    NewReturnType = StructType::create(ReturnTypes);
-  }
+  // Add out arguments for written registers
+  const unsigned FirstOutArgument = NewArguments.size();
+  for (GlobalVariable *CSV : Written)
+    NewArguments.push_back(CSV->getType());
 
   //
   // Create new helper wrapper function
   //
-  auto *NewHelperType = FunctionType::get(NewReturnType, NewArguments, false);
+  auto *NewHelperType = FunctionType::get(HelperType->getReturnType(),
+                                          NewArguments,
+                                          false);
   auto *HelperWrapper = Function::Create(NewHelperType,
                                          Helper->getLinkage(),
                                          Twine(Helper->getName()) + "_wrapper",
@@ -205,7 +186,6 @@ Function *PromoteCSVs::createWrapper(const WrapperKey &Key) {
     Builder.CreateStore(&*It, CSV);
     It++;
   }
-  revng_assert(It == HelperWrapper->arg_end());
 
   // Prepare the arguments
   SmallVector<Value *, 16> HelperArguments;
@@ -218,19 +198,15 @@ Function *PromoteCSVs::createWrapper(const WrapperKey &Key) {
   // Create the function call
   auto *HelperResult = Builder.CreateCall(Helper, HelperArguments);
 
-  // Deserialize and return the appropriate values
-  if (HasOutputCSVs) {
-    SmallVector<Value *, 16> ReturnValues;
+  // Update values of the out arguments
+  unsigned OutArgument = FirstOutArgument;
+  for (GlobalVariable *CSV : Written) {
+    Builder.CreateStore(Builder.CreateLoad(CSV),
+                        HelperWrapper->getArg(OutArgument));
+    ++OutArgument;
+  }
 
-    if (not OriginalWasVoid)
-      ReturnValues.push_back(HelperResult);
-
-    for (GlobalVariable *CSV : Written)
-      ReturnValues.push_back(Builder.CreateLoad(CSV));
-
-    Initializers.createReturn(Builder, ReturnValues);
-
-  } else if (OriginalWasVoid) {
+  if (HelperResult->getType()->isVoidTy()) {
     Builder.CreateRetVoid();
   } else {
     Builder.CreateRet(HelperResult);
@@ -269,6 +245,8 @@ void PromoteCSVs::wrap(CallInst *Call,
   //
   // Emit call to the helper wrapper
   //
+  auto EntryIt = Call->getParent()->getParent()->getEntryBlock().begin();
+  IRBuilder<> AllocaBuilder(&*EntryIt);
   IRBuilder<> Builder(Call);
 
   // Initialize the new set of arguments with the old ones
@@ -280,32 +258,22 @@ void PromoteCSVs::wrap(CallInst *Call,
   for (GlobalVariable *CSV : Read)
     NewArguments.push_back(Builder.CreateLoad(CSV));
 
+  SmallVector<AllocaInst *, 16> WrittenCSVAllocas;
+  for (GlobalVariable *CSV : Written) {
+    Type *AllocaType = CSV->getType()->getPointerElementType();
+    auto *OutArgument = AllocaBuilder.CreateAlloca(AllocaType);
+    WrittenCSVAllocas.push_back(OutArgument);
+    NewArguments.push_back(OutArgument);
+  }
+
   // Emit the actual call
   Instruction *Result = Builder.CreateCall(HelperWrapper, NewArguments);
   Result->setDebugLoc(Call->getDebugLoc());
+  Call->replaceAllUsesWith(Result);
 
-  bool HasOutputCSVs = Written.size() != 0;
-  bool OriginalWasVoid = HelperType->getReturnType()->isVoidTy();
-  if (HasOutputCSVs) {
-
-    unsigned FirstDeserialized = 0;
-    if (not OriginalWasVoid) {
-      FirstDeserialized = 1;
-      // RAUW the new result
-      Value *HelperResult = Builder.CreateExtractValue(Result, { 0 });
-      Call->replaceAllUsesWith(HelperResult);
-    }
-
-    // Restore into CSV the written registers
-    for (unsigned I = 0; I < Written.size(); I++) {
-      unsigned ResultIndex = { FirstDeserialized + I };
-      Builder.CreateStore(Builder.CreateExtractValue(Result, ResultIndex),
-                          Written[I]);
-    }
-
-  } else if (not OriginalWasVoid) {
-    Call->replaceAllUsesWith(Result);
-  }
+  // Restore into CSV the written registers
+  for (const auto &[CSV, Alloca] : zip(Written, WrittenCSVAllocas))
+    Builder.CreateStore(Builder.CreateLoad(Alloca), CSV);
 
   // Erase the old call
   eraseFromParent(Call);
