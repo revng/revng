@@ -71,7 +71,7 @@ commands:
       - type: revng-c.ptml-model-to-header
     suffix: .model.h
     command: |-
-      revng ptml strip "$INPUT" "$OUTPUT";
+      revng ptml --plain "$INPUT" -o "$OUTPUT";
       revng check-decompiled-c "$OUTPUT";
   - type: revng-c.ptml-helpers-to-header
     from:
@@ -84,7 +84,7 @@ commands:
       - type: revng-c.ptml-helpers-to-header
     suffix: .helpers.h
     command: |-
-      revng ptml strip "$INPUT" "$OUTPUT"
+      revng ptml --plain "$INPUT" -o "$OUTPUT"
       revng check-decompiled-c "$OUTPUT"
   - type: revng-c.ptml-decompiled-c
     from:
@@ -104,7 +104,7 @@ commands:
       - type: revng-c.ptml-decompiled-c
     suffix: .c
     command: |-
-      revng ptml strip "$INPUT" "$OUTPUT"
+      revng ptml --plain "$INPUT" -o "$OUTPUT"
   - type: revng-c.check-decompiled-c
     from:
       - type: revng-c.decompiled-c
