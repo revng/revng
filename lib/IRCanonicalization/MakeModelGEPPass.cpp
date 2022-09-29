@@ -754,12 +754,12 @@ differenceScore(const model::QualifiedType &BaseType,
   const auto &[TAP, ChildIndices] = TAPWithIndices;
   ChildIndexVector ResultIndices = ChildIndices;
 
-  size_t BaseSize = *BaseType.size();
+  size_t BaseSize = *BaseType.size(VH);
   if (IRAP.BaseOffset.uge(BaseSize))
     return ScoredIndices::outOfBound(IRAP.BaseOffset.getZExtValue());
 
   revng_assert(TAP.BaseOffset.ult(BaseSize));
-  revng_assert((TAP.BaseOffset + *TAP.AccessedType.size()).ule(BaseSize));
+  revng_assert((TAP.BaseOffset + *TAP.AccessedType.size(VH)).ule(BaseSize));
 
   APInt RestOff = IRAP.BaseOffset;
 
@@ -906,7 +906,7 @@ differenceScore(const model::QualifiedType &BaseType,
 
   bool SameSize = false;
   if (IRAP.PointeeType.has_value())
-    SameSize = *TAP.AccessedType.size() == *IRAP.PointeeType.value().size();
+    SameSize = *TAP.AccessedType.size(VH) == *IRAP.PointeeType.value().size(VH);
 
   return ScoredIndices{
     .Score = DifferenceScore{ .PerfectTypeMatch = PerfectMatch,
@@ -1147,7 +1147,7 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
 
       // First of all, the rest of the offset needs to be smaller than the
       // array type size.
-      revng_assert(RestOff.ule(*CurrentType.size()));
+      revng_assert(RestOff.ule(*CurrentType.size(VH)));
 
       // Second, the TAP needs to still have non-consumed info associated to
       // arrays
@@ -1155,7 +1155,7 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
 
       // The array in BestTAP that we're unwrapping has a stride equal to
       // the size of this array element.
-      uint64_t ElementSize = *ElementType.size();
+      uint64_t ElementSize = *ElementType.size(VH);
       revng_assert(TAPArrayIt->Stride == ElementSize);
 
       if (RestOff.uge(ElementSize)) {
@@ -1201,7 +1201,7 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
       // have another array index and another array qualifier left in
       // CurrentType
       CurrentType = ElementType;
-      revng_assert(RestOff.ule(*CurrentType.size()));
+      revng_assert(RestOff.ule(*CurrentType.size(VH)));
 
       // We also omve the TAPArrayIt to point to the next array info available
       // in BestTAP
@@ -1242,7 +1242,7 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
 
       APInt OffsetInField = RestOff - FieldOff;
       auto &FieldType = Struct->Fields.at(FieldOff).Type;
-      if (OffsetInField.uge(*FieldType.size())) {
+      if (OffsetInField.uge(*FieldType.size(VH))) {
         Result = ModelGEPArgs{ .BaseAddress = TBA,
                                .IndexVector = std::move(Indices),
                                .RestOff = RestOff,
@@ -1281,7 +1281,7 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
       // the offset.
       uint64_t FieldId = cast<ConstantInt>(Back.Index)->getZExtValue();
       auto &FieldType = Union->Fields.at(FieldId).Type;
-      if (RestOff.uge(*FieldType.size())) {
+      if (RestOff.uge(*FieldType.size(VH))) {
         Result = ModelGEPArgs{ .BaseAddress = TBA,
                                .IndexVector = std::move(Indices),
                                .RestOff = RestOff,
@@ -1629,7 +1629,9 @@ class TypedAccessCache {
   // BaseType, mapping them to the vector of child indices that need to be
   // traversed on the type system to access types represented by that TAP.
   RecursiveCoroutine<TAPToChildIdsMapConstRef>
-  getTAPImpl(const model::QualifiedType &BaseType, LLVMContext &Ctxt) {
+  getTAPImpl(const model::QualifiedType &BaseType,
+             LLVMContext &Ctxt,
+             model::VerifyHelper &VH) {
 
     revng_log(ModelGEPLog,
               "getTAPImpl for BaseType: " << serializeToString(BaseType));
@@ -1689,7 +1691,8 @@ class TypedAccessCache {
 
             // First, traverse each child's type to get the TAPs from it
             TAPToChildIdsMap FieldResult = rc_recur getTAPImpl(Field.Type,
-                                                               Ctxt);
+                                                               Ctxt,
+                                                               VH);
 
             revng_log(ModelGEPLog,
                       "Number of types inside field: " << FieldResult.size());
@@ -1745,7 +1748,8 @@ class TypedAccessCache {
 
             // First, traverse each child's type to get the TAPs from it
             TAPToChildIdsMap FieldResult = rc_recur getTAPImpl(Field.Type,
-                                                               Ctxt);
+                                                               Ctxt,
+                                                               VH);
 
             revng_log(ModelGEPLog,
                       "Number of types inside field: " << FieldResult.size());
@@ -1794,7 +1798,8 @@ class TypedAccessCache {
           // traverse it.
           const auto *TD = cast<model::TypedefType>(BaseT);
           TAPToChildIdsMap InnerResult = rc_recur getTAPImpl(TD->UnderlyingType,
-                                                             Ctxt);
+                                                             Ctxt,
+                                                             VH);
           // The InnerResult can just be merged into the Result, because
           // typedefs are shallow names that don't really add ids to the
           // traversal of the typesystem.
@@ -1832,7 +1837,9 @@ class TypedAccessCache {
           // from the InnerType going downward. At this point we do make a
           // copy of it, because we'll need to change it with information on
           // BaseType
-          TAPToChildIdsMap InnerResult = rc_recur getTAPImpl(InnerType, Ctxt);
+          TAPToChildIdsMap InnerResult = rc_recur getTAPImpl(InnerType,
+                                                             Ctxt,
+                                                             VH);
 
           if (not model::Qualifier::isConst(FirstQualifier)) {
             // If the first qualifier is const, we can just use the
@@ -1845,8 +1852,10 @@ class TypedAccessCache {
             // First, build the array info associated to the array we're
             // handling.
             uint64_t NElems = FirstQualifier.Size;
-            revng_assert(InnerType.size());
-            uint64_t Stride = *InnerType.size();
+            std::optional<uint64_t> MaybeInnerTypeSize = InnerType.size(VH);
+            revng_assert(MaybeInnerTypeSize.has_value()
+                         and MaybeInnerTypeSize.value());
+            uint64_t Stride = MaybeInnerTypeSize.value();
             ArrayInfo AI{ .Stride = APInt(/*NumBits*/ 64, /*Value*/ Stride),
                           .NumElems = APInt(/*NumBits*/ 64,
                                             /*Value*/ NElems) };
@@ -1902,9 +1911,10 @@ class TypedAccessCache {
   }
 
 public:
-  const TAPToChildIdsMap &
-  getTAP(const model::QualifiedType &BaseType, LLVMContext &Ctxt) {
-    return static_cast<TAPToChildIdsMapConstRef>(getTAPImpl(BaseType, Ctxt))
+  const TAPToChildIdsMap &getTAP(const model::QualifiedType &BaseType,
+                                 LLVMContext &Ctxt,
+                                 model::VerifyHelper &VH) {
+    return static_cast<TAPToChildIdsMapConstRef>(getTAPImpl(BaseType, Ctxt, VH))
       .get();
   }
 
@@ -1913,8 +1923,9 @@ public:
 
 using UseGEPInfoMap = std::map<Use *, ModelGEPArgs>;
 
-static UseGEPInfoMap
-makeGEPReplacements(llvm::Function &F, const model::Binary &Model) {
+static UseGEPInfoMap makeGEPReplacements(llvm::Function &F,
+                                         const model::Binary &Model,
+                                         model::VerifyHelper &VH) {
 
   UseGEPInfoMap Result;
 
@@ -1935,7 +1946,6 @@ makeGEPReplacements(llvm::Function &F, const model::Binary &Model) {
 
   GEPSummationCache GEPSumCache{ Model };
   TypedAccessCache TAPCache;
-  model::VerifyHelper VH;
 
   UseTypeMap GEPifiedUsedTypes;
 
@@ -2008,7 +2018,7 @@ makeGEPReplacements(llvm::Function &F, const model::Binary &Model) {
         // the GEPSum, or get them from the caches if we've already computed
         // them.
         const model::QualifiedType &BaseTy = GEPSum.BaseAddress.Type;
-        const auto &TAPToChildIds = TAPCache.getTAP(BaseTy, Ctxt);
+        const auto &TAPToChildIds = TAPCache.getTAP(BaseTy, Ctxt, VH);
 
         // If the set of typed access patterns from BaseTy is empty we can skip
         // to the next instruction
@@ -2123,7 +2133,8 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
 
   auto &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
 
-  UseGEPInfoMap GEPReplacementMap = makeGEPReplacements(F, *Model);
+  model::VerifyHelper VH;
+  UseGEPInfoMap GEPReplacementMap = makeGEPReplacements(F, *Model, VH);
 
   llvm::Module &M = *F.getParent();
   LLVMContext &Ctxt = M.getContext();
@@ -2160,7 +2171,7 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
       // to a pointer than the actual value
       ModelGEPReturnedType = PtrSizedInteger;
     } else {
-      const auto &PointeeSize = GEPArgs.PointeeType.size();
+      std::optional<uint64_t> PointeeSize = GEPArgs.PointeeType.size(VH);
       revng_assert(PointeeSize.has_value());
 
       ModelGEPReturnedType = llvm::IntegerType::get(Ctxt,
