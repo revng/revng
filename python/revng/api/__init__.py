@@ -4,7 +4,6 @@
 # flake8: noqa: F401
 
 import atexit
-from tempfile import mkdtemp
 from typing import Optional
 
 from revng.support import AnyPath
