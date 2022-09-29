@@ -63,9 +63,6 @@ static opt<std::string> TargetFunction("t",
 int main(int Argc, const char *Argv[]) {
   revng::InitRevng X(Argc, Argv);
 
-  // Enable LLVM stack trace
-  llvm::sys::PrintStackTraceOnErrorSignal(Argv[0]);
-
   // Hide options not related to this tool
   llvm::cl::HideUnrelatedOptions({ &DecompileCategory });
 
