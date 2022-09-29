@@ -613,8 +613,13 @@ IT::newInstruction(PTCInstruction *Instr,
   // A new original instruction, let's create a new metadata node
   // referencing it for all the next instructions to come
   MetaAddress PC = StartPC.replaceAddress(TheInstruction.pc());
-  MetaAddress NextPC = MetaAddress::invalid();
 
+  // Prevent translation of non-executable code
+  if (not JumpTargets.isExecutableAddress(PC))
+    return R{ Abort, nullptr, MetaAddress::invalid(), MetaAddress::invalid() };
+
+  // Compute NextPC
+  MetaAddress NextPC = MetaAddress::invalid();
   if (Next != nullptr)
     NextPC = StartPC.replaceAddress(PTC::Instruction(Next).pc());
   else
