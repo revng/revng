@@ -296,6 +296,21 @@ public:
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
+/// dla::Step that tries to move pointer edges to push further down in the type
+/// hierarchy.
+class PushDownPointers : public Step {
+  static const char ID;
+
+public:
+  static const constexpr void *getID() { return &ID; }
+
+  PushDownPointers() : Step(ID) {}
+
+  virtual ~PushDownPointers() override = default;
+
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
+};
+
 /// dla::Step that resolves unions of primitive and pointer types
 class ResolveLeafUnions : public Step {
   static const char ID;

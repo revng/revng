@@ -343,48 +343,6 @@ absorbVolatileChildren(LayoutTypeSystem &TS, LayoutTypeSystemNode *Parent) {
   return Absorbed;
 }
 
-using GT = llvm::GraphTraits<LayoutTypeSystemNode *>;
-
-static bool isInstanceAtOffset0(const GT::EdgeRef &E) {
-  if (not isInstanceEdge(E))
-    return false;
-
-  return not E.second->getOffsetExpr().Offset;
-}
-
-using Instance0Graph = EdgeFilteredGraph<dla::LayoutTypeSystemNode *,
-                                         isInstanceAtOffset0>;
-using Instance0Inverse = llvm::Inverse<Instance0Graph>;
-
-static llvm::SmallPtrSet<LayoutTypeSystemNode *, 8>
-getGrandParentsAtOffset0(LayoutTypeSystemNode *N) {
-
-  llvm::SmallPtrSet<LayoutTypeSystemNode *, 8> Result;
-  for ([[maybe_unused]] auto *GP :
-       llvm::post_order_ext(Instance0Inverse(N), Result))
-    ;
-  return Result;
-}
-
-using CInstance0Graph = EdgeFilteredGraph<const dla::LayoutTypeSystemNode *,
-                                          isInstanceAtOffset0>;
-
-/// Returns true if a visit from node N reaches a pointer to a node in Targets
-static bool
-reachesPointerTo(const LayoutTypeSystemNode *N,
-                 const llvm::SmallPtrSet<LayoutTypeSystemNode *, 8> &Targets) {
-  for (auto *Child : llvm::post_order(CInstance0Graph(N))) {
-    if (not isPointerNode(Child))
-      continue;
-    revng_assert(Child->Successors.size() == 1);
-    auto PointeeEdgeIt = Child->Successors.begin();
-    const LayoutTypeSystemNode *Pointee = PointeeEdgeIt->first;
-    if (Targets.contains(Pointee))
-      return true;
-  }
-  return false;
-};
-
 bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
   if (VerifyLog.isEnabled())
     revng_assert(TS.verifyDAG());
@@ -487,6 +445,7 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
       using EdgeInclusionGraph = GenericGraph<EdgeNode>;
       EdgeInclusionGraph EdgeInclusion;
 
+      using GT = llvm::GraphTraits<LayoutTypeSystemNode *>;
       auto AIt = GT::child_edge_begin(Parent);
       auto ChildEnd = GT::child_edge_end(Parent);
 
@@ -543,8 +502,6 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
         }
       }
 
-      auto GrandParentsAtOffset0 = getGrandParentsAtOffset0(Parent);
-
       llvm::SmallSet<NeighborIterator, 4> EdgesToErase;
       for (auto *EdgeNodeToPushThrough : EdgeInclusion.nodes()) {
 
@@ -574,51 +531,6 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
 
           revng_assert(not isLeaf(ToPushThrough));
           TS.addInstanceLink(ToPushThrough, ToPushDown, std::move(FinalOE));
-
-          // If we're pushing through an edge at instance 0 we may want to push
-          // down pointer edges as well. But if we're not pushing through an
-          // instance at offset 0 we can look at the next.
-          if (not isInstanceAtOffset0(*ToPushThroughEdgeIt))
-            continue;
-
-          // However, if the edge ToPushDown can be pushed down through many
-          // other edges at offset zero that reach pointers with different
-          // target nodes among the GrandParentsAtOffset0, we don't want to do
-          // it.
-          const auto OtherInstanceAtOffset0ToPushThrough =
-            [&ToPushThrough,
-             &GP = std::as_const(GrandParentsAtOffset0)](const EdgeNode *EN) {
-              const auto &E = *EN->data();
-              const LayoutTypeSystemNode *OtherToPushThrough = E.first;
-              return isInstanceAtOffset0(E)
-                     and ToPushThrough != OtherToPushThrough
-                     and reachesPointerTo(OtherToPushThrough, GP);
-            };
-
-          // So if there is another successor that ToPushDown can be pushed
-          // through (but different from ToPushThrough), and from that successor
-          // we can reach a pointer to one of the GrandParentsAtOffset0, we bail
-          // out.
-          if (llvm::count_if(EdgeNodeToPushDown->successors(),
-                             OtherInstanceAtOffset0ToPushThrough))
-            continue;
-
-          // If, starting from ToPushDown, we find a pointer edge that
-          // points to Parent (or one of its GrandParents at offset 0), we
-          // want to move that pointer edge down with ToPushDown, so that it
-          // points to ToPushThrough.
-          for (LayoutTypeSystemNode *Child :
-               llvm::post_order(Instance0Graph(ToPushDown))) {
-            if (not isPointerNode(Child))
-              continue;
-            revng_assert(Child->Successors.size() == 1);
-            auto PointeeEdgeIt = Child->Successors.begin();
-            const LayoutTypeSystemNode *Pointee = PointeeEdgeIt->first;
-            if (GrandParentsAtOffset0.contains(Pointee)) {
-              TS.eraseEdge(Child, PointeeEdgeIt);
-              TS.addPointerLink(Child, ToPushThrough);
-            }
-          }
         }
       }
 

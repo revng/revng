@@ -20,6 +20,7 @@ revng_add_analyses_library(
   Middleend/DLAStep.cpp
   Middleend/FieldSizeComputation.cpp
   Middleend/MergePointerNodes.cpp
+  Middleend/PushDownPointers.cpp
   Middleend/RemoveBackedges.cpp
   Middleend/RemoveInvalidPointers.cpp
   Middleend/RemoveInvalidStrideEdges.cpp
