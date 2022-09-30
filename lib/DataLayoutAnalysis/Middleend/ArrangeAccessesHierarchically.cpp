@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <utility>
 
+#include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SetVector.h"
@@ -141,8 +142,8 @@ makePushThroughComparisonResult(NeighborIterator ToBePushed,
 
   // The edge to push through always has the larger offset. Just subtract the
   // offset of the other edge.
+  revng_assert(ToPushOE.Offset >= ThroughOE.Offset);
   Final.Offset = ToPushOE.Offset - ThroughOE.Offset;
-  revng_assert(Final.Offset >= 0LL);
 
   // If a strided edge is being pushed down another edge it means that the
   // whole array represented by the edge to push is contained inside the
@@ -254,8 +255,8 @@ canPushThrough(const NeighborIterator &AIt, const NeighborIterator &BIt) {
                                               OuterStrides.front();
 
   // The inner fields starts at an higher offset (or equal) than the outer
+  revng_assert(InnerOffset >= OuterOffset);
   auto OffsetAfterPush = InnerOffset - OuterOffset;
-  revng_assert(OffsetAfterPush >= 0LL);
 
   auto OffsetInElem = OffsetAfterPush % OuterElemSize;
   auto EndByteInElem = OffsetInElem + InnerFieldSize;
@@ -331,8 +332,9 @@ absorbVolatileChildren(LayoutTypeSystem &TS, LayoutTypeSystemNode *Parent) {
 
     // Remove all volatile nodes
     for (LayoutTypeSystemNode *Volatile : VolatileChildren) {
-      TS.removeNode(Volatile);
       Absorbed.insert(Volatile);
+      TS.dropOutgoingEdges(Volatile);
+      TS.mergeNodes({ Parent, Volatile });
     }
 
     for (auto &[OffsetExpr, Target] : CompoundEdges.takeVector())
@@ -435,7 +437,7 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
       // Edges of this custom graph represent a relationship between the custom
       // nodes (representing edges).
       // If a EdgeNode A has an edge towards an EdgeNode B it means that the
-      // edge represented by B can be pushed through the edge represented by A.
+      // edge represented by A can be pushed through the edge represented by B.
       // Whenever the graph is build, we also attach to each edge of the custom
       // graph an OffsetExpression, that represents the computed final offset
       // after the push down.
@@ -474,8 +476,8 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
 
           auto &[ToPush, Through, OEAfterPush] = MaybePushThrough.value();
 
-          ItEdgeNodes.at(Through)->addSuccessor(ItEdgeNodes.at(ToPush),
-                                                OEAfterPush);
+          ItEdgeNodes.at(Through)->addPredecessor(ItEdgeNodes.at(ToPush),
+                                                  OEAfterPush);
 
           revng_log(Log, "======================================");
           revng_log(Log, "Through: " << Through->first->ID);
@@ -500,31 +502,31 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
         }
       }
 
-      llvm::SmallSet<NeighborIterator, 4> PushedEdges;
+      llvm::SmallSet<NeighborIterator, 4> EdgesToErase;
       for (auto *EdgeNodeToPushThrough : EdgeInclusion.nodes()) {
 
-        // If EdgeNodeToPushThrough has some predecessors, it means that there
+        // If EdgeNodeToPushThrough has some successors, it means that there
         // are other edges across which it should be pushed through. At this
         // point we don't want to push the others down EdgeNodeToPushThrough,
         // because that operation could change the overall result on the graph.
         // So we back off. The other edges that could be pushed down through
         // EdgeNodeToPushThrough will be resolved at a later time.
-        if (not EdgeNodeToPushThrough->predecessors().empty())
+        if (not EdgeNodeToPushThrough->successors().empty())
           continue;
 
-        // If EdgeNodeToPushThrough has no successors, there is no other edge to
-        // push through it, so we just skip it.
-        if (EdgeNodeToPushThrough->successors().empty())
+        // If EdgeNodeToPushThrough has no predecessors, there is no other edge
+        // to push through it, so we just skip it.
+        if (EdgeNodeToPushThrough->predecessors().empty())
           continue;
 
         auto &ToPushThroughEdgeIt = EdgeNodeToPushThrough->data();
         auto *ToPushThrough = ToPushThroughEdgeIt->first;
         ToAnalyze.insert(ToPushThrough);
 
-        for (auto &Edge : EdgeNodeToPushThrough->successor_edges()) {
+        for (auto &Edge : EdgeNodeToPushThrough->predecessor_edges()) {
           auto &[EdgeNodeToPushDown, FinalOE] = Edge;
           auto &PushedEdgeIt = EdgeNodeToPushDown->data();
-          PushedEdges.insert(PushedEdgeIt);
+          EdgesToErase.insert(PushedEdgeIt);
           auto *ToPushDown = PushedEdgeIt->first;
 
           revng_assert(not isLeaf(ToPushThrough));
@@ -533,8 +535,10 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
       }
 
       // Now finally clean up the edges that were pushed down.
-      for (const auto &PushedEdge : PushedEdges)
-        TS.eraseEdge(Parent, PushedEdge);
+      for (const auto &ToErase : EdgesToErase)
+        TS.eraseEdge(Parent, ToErase);
+
+      Changed |= not EdgesToErase.empty();
     }
   }
 

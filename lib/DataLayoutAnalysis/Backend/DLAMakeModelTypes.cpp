@@ -36,7 +36,7 @@ using ConstNonPointerFilterT = EdgeFilteredGraph<const LTSN *,
 using TypeVect = std::vector<std::optional<model::QualifiedType>>;
 
 using model::Qualifier;
-using model::PrimitiveTypeKind::Number;
+using model::PrimitiveTypeKind::Generic;
 using model::QualifierKind::Array;
 using model::QualifierKind::Pointer;
 
@@ -118,7 +118,7 @@ makeInstanceQualifiedType(const LTSN *N,
   // The Strides in OE go from bigger to smaller by construction, so we have to
   // iterate in reverse, to build the instance type bottom-up.
   auto NestedArrayLevels = llvm::reverse(llvm::zip(OE.TripCounts, OE.Strides));
-  int64_t PrevStride = 0LL;
+  uint64_t PrevStride = 0ULL;
   for (const auto &[TC, Stride] : NestedArrayLevels) {
     revng_log(Log, "Stride " << Stride << "  Trip Count " << (TC ? *TC : 0U));
     auto InnerSize = Result.size().value();
@@ -362,9 +362,8 @@ static QualifiedType &createNodeType(TupleTree<model::Binary> &Model,
 
   } else if (isLeaf(Node)) {
     revng_assert(Node->Size);
-    MaybeResult = QualifiedType{
-      Model->getPrimitiveType(model::PrimitiveTypeKind::Number, Node->Size), {}
-    };
+    MaybeResult = QualifiedType{ Model->getPrimitiveType(Generic, Node->Size),
+                                 {} };
   } else if (isStructNode(Node)) {
     MaybeResult = makeStructFromNode(Node,
                                      Types,

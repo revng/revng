@@ -10,6 +10,7 @@
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SetOperations.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Support/Debug.h"
 
@@ -189,7 +190,7 @@ exploreAndCompare(const Link &Child1, const Link &Child2) {
     }
 
     // Perform bfs on new nodes
-    for (; CurIdx < VisitStack1.size(); CurIdx++) {
+    for (; CurIdx < VisitStack1.size(); ++CurIdx) {
       const Link &L1 = VisitStack1[CurIdx];
       const Link &L2 = VisitStack2[CurIdx];
       const auto &[Node1, Edge1] = L1;
@@ -249,7 +250,7 @@ areEquivSubtrees(const Link &Child1, const Link &Child2) {
 ///\param Child1 the root of the first subtree
 ///\param Child2 the root of the second subtree, will be collapsed if
 ///           equivalent to the subtree of \a Child1
-static std::tuple<bool, EdgeList, std::set<LTSN *>>
+static std::tuple<bool, std::set<LTSN *>, std::set<LTSN *>>
 mergeIfTopologicallyEq(LayoutTypeSystem &TS,
                        const Link &Child1,
                        const Link &Child2) {
@@ -314,46 +315,20 @@ mergeIfTopologicallyEq(LayoutTypeSystem &TS,
     if (NodeToKeep == NodeToMerge)
       continue;
 
-    // TODO: light merge
     TS.mergeNodes({ NodeToKeep, NodeToMerge });
     ErasedNodes.insert(NodeToMerge);
   }
 
-  // Remove merged nodes from subtree1
-  if (Subtree1MergedNodes.size() > 0) {
-    for (auto It = Subtree1.begin(); It != Subtree1.end();) {
-      if (Subtree1MergedNodes.contains(It->first))
-        It = Subtree1.erase(It);
-      else
-        ++It;
-    }
-  }
+  // Build the set of preserved nodes
+  std::set<LTSN *> Preserved;
+  for (const auto &[Node, Tag] : Subtree1)
+    if (not Subtree1MergedNodes.contains(Node))
+      Preserved.insert(Node);
 
-  return { true, Subtree1, ErasedNodes };
-}
+  // The root of Subtree1 should always be preserved
+  revng_assert(Preserved.contains(Child1.first));
 
-/// Remove conflicting edges and collapse single children after merging.
-static bool
-postProcessMerge(LayoutTypeSystem &TS, const EdgeList &MergedSubtree) {
-  bool Modified = false;
-
-  // Merging nodes together might have created conflicting edges, i.e.
-  // instance-offset-0 edges that connect two nodes with an already
-  // existing inheritance edges: remove them.
-  for (auto &E : MergedSubtree) {
-    // Materialize predecessors to avoid iterator invalidation
-    llvm::SmallVector<LTSN *, 8> PredNodes;
-    for (auto &PredLink : E.first->Predecessors)
-      PredNodes.push_back(PredLink.first);
-  }
-
-  // Merging nodes and removing conflicts might have created situations in
-  // which a node has a single collapsible child: collapse it into its parent.
-  LTSN *SubtreeRoot = MergedSubtree.begin()->first;
-  for (auto &N : post_order(NonPointerFilterT(SubtreeRoot)))
-    Modified |= CollapseSingleChild::collapseSingle(TS, N);
-
-  return Modified;
+  return { true, Preserved, ErasedNodes };
 }
 
 static auto getSuccEdgesToChild(LTSN *Parent, LTSN *Child) {
@@ -398,11 +373,6 @@ bool DeduplicateFields::runOnTypeSystem(LayoutTypeSystem &TS) {
                 "****** Try to dedup children of NodeWithFields with ID: "
                   << NodeWithFields->ID);
 
-      // Since a node can be connected to the parent by more than one
-      // edge, we keep track of the **nodes** that we have to visit and the
-      // **edges** we visited. In this way, when comparing subtrees, we consider
-      // all the edges incoming from the parent node, so that, if we merge
-      // two nodes, we don't have to update other links in the worklist.
       llvm::SmallSetVector<LTSN *, 8> FieldsToCompare;
       llvm::SmallSet<LTSN *, 8> OriginalFields;
       llvm::SmallSetVector<LTSN *, 8> AnalyzedNodesNotMerged;
@@ -463,9 +433,10 @@ bool DeduplicateFields::runOnTypeSystem(LayoutTypeSystem &TS) {
 
             bool AnalyzedNotMergedInvalidated = false;
             for (const Link &NotMergedLink : NotMergedEdges) {
+              const auto &[NotMergedNode, NotMergedTag] = NotMergedLink;
 
               LoggerIndent MoreMoreIndent{ Log };
-              revng_log(Log, "Edge to merge: " << *NotMergedLink.second);
+              revng_log(Log, "Edge to merge with: " << *NotMergedTag);
 
               if (isPointerEdge(NotMergedLink)) {
                 revng_log(Log, "skip pointer edge");
@@ -487,21 +458,35 @@ bool DeduplicateFields::runOnTypeSystem(LayoutTypeSystem &TS) {
               revng_assert(not Preserved.empty());
               revng_assert(not Erased.empty());
 
+              // This should always be true, since whenever we merge we are at
+              // least erasing CurChild, merging it with NotMergedNode.
+              FieldsMerged |= Erased.contains(CurChild);
+              revng_assert(FieldsMerged);
+
               TypeSystemChanged = true;
               NodeWithFieldsChanged = true;
 
-              // The following call coul remove stuff from Preserved and add it
-              // to Erased.
-              // BUT:
-              //  - postProcessMerge only calls
-              //    CollapseSingleChild::collapseSingle.
-              //    If these two are safe we're good
-              //  - CollapseSingleChild::collapseSingle only removes nodes with
-              //    exactly one parent, so it cannot remove nodes that were not
-              //    originally children of the union, because if they were they
-              //    would have had more than one incoming edge so they wouldn't
-              //    be removed.
-              postProcessMerge(TS, Preserved);
+              // Collapse new single children that could emerge while merging
+              {
+                // Copy the post_order into a SmallVector, since collapseSingle
+                // might mutate the graph and screw up the po_iterator.
+                for (auto &N : llvm::SmallVector<LTSN *>{
+                       post_order(NonPointerFilterT(NotMergedNode)) })
+                  CollapseSingleChild::collapseSingle(TS, N);
+
+                // Notice that collapseSingle can actually remove more nodes.
+                // In principle we shoudl add them to Erased and remove them
+                // from Preserved.
+                // However, in the remainder of the code below, both Preserved
+                // and Erased are only used to update FieldsToCompare and
+                // AnalyzedNodesNotMerged, and to set boolean flags to control
+                // iteration.
+                // Hence, we can get away without updating Preseved and Erased,
+                // since the following assertions hold.
+
+                revng_assert(not Erased.contains(NotMergedNode));
+                revng_assert(Preserved.contains(NotMergedNode));
+              }
 
               revng_log(Log, "The merge has erased the following nodes:");
               for (auto &ErasedNode : Erased) {
@@ -515,14 +500,8 @@ bool DeduplicateFields::runOnTypeSystem(LayoutTypeSystem &TS) {
                 AnalyzedNotMergedInvalidated |= Erased;
               }
 
-              FieldsMerged |= Erased.contains(CurChild);
-
-              // This should always be true, since whenever we merge we are at
-              // least erasing CurChild, merging it with NotMergedNode.
-              revng_assert(FieldsMerged);
-
               revng_log(Log, "The merge has preserved the following nodes:");
-              for (auto &[PreservedNode, _] : Preserved) {
+              for (LTSN *PreservedNode : Preserved) {
                 LoggerIndent MoreMoreMoreIndent{ Log };
                 revng_log(Log, PreservedNode->ID);
                 // The PreservedNode is preserved (not erased) by merge, but
@@ -547,11 +526,10 @@ bool DeduplicateFields::runOnTypeSystem(LayoutTypeSystem &TS) {
               // changed by the merge.
               revng_assert(AnalyzedNotMergedInvalidated);
 
-              // We have merged the NotMergedNode into CurChild, we have to
+              // We have merged the CurChild into NotMergedNode, we have to
               // brake out of all the loops looking at CurChild and at
               // AnalyzedNodesNotMerged, since both of these might have
               // changed.
-              // looking at the next node in FieldsToCompare.
               break;
             }
 

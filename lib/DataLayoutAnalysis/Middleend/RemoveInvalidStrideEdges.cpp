@@ -36,7 +36,7 @@ static bool hasValidStrides(const LayoutTypeSystemNode::Link &Edge) {
 
     // If the Stride is smaller than the inner size the strided edge is not
     // iterating over an entire element, so it's not well formed.
-    revng_assert(Stride > 0LL);
+    revng_assert(Stride > 0ULL);
     auto UStride = static_cast<uint64_t>(Stride);
     if (UStride < InnerSize)
       return false;

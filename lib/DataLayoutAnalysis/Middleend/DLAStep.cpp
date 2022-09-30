@@ -13,14 +13,17 @@ const char ArrangeAccessesHierarchically::ID = 0;
 const char CollapseEqualitySCC::ID = 0;
 const char CollapseInstanceAtOffset0SCC::ID = 0;
 const char CollapseSingleChild::ID = 0;
+const char CompactCompatibleArrays::ID = 0;
 const char ComputeNonInterferingComponents::ID = 0;
 const char ComputeUpperMemberAccesses::ID = 0;
 const char DecomposeStridedEdges::ID = 0;
 const char DeduplicateFields::ID = 0;
 const char MergePointerNodes::ID = 0;
 const char PruneLayoutNodesWithoutLayout::ID = 0;
+const char PushDownPointers::ID = 0;
 const char RemoveInvalidStrideEdges::ID = 0;
 const char RemoveInvalidPointers::ID = 0;
+const char ResolveLeafUnions::ID = 0;
 const char SimplifyInstanceAtOffset0::ID = 0;
 
 static Logger<> DLAStepManagerLog("dla-step-manager");

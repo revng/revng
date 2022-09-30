@@ -29,13 +29,19 @@ namespace dla {
 
 /// Class used to mark InstanceLinkTags between LayoutTypes
 struct OffsetExpression {
-  int64_t Offset;
-  llvm::SmallVector<int64_t, 4> Strides;
-  llvm::SmallVector<std::optional<int64_t>, 4> TripCounts;
+  uint64_t Offset;
+  llvm::SmallVector<uint64_t, 4> Strides;
+  llvm::SmallVector<std::optional<uint64_t>, 4> TripCounts;
 
-  explicit OffsetExpression() : OffsetExpression(0LL){};
-  explicit OffsetExpression(int64_t Off) :
+  explicit OffsetExpression() : OffsetExpression(0ULL){};
+  explicit OffsetExpression(uint64_t Off) :
     Offset(Off), Strides(), TripCounts() {}
+
+  OffsetExpression(const OffsetExpression &) = default;
+  OffsetExpression &operator=(const OffsetExpression &) = default;
+
+  OffsetExpression(OffsetExpression &&) = default;
+  OffsetExpression &operator=(OffsetExpression &&) = default;
 
   std::strong_ordering
   operator<=>(const OffsetExpression &Other) const = default;
@@ -49,7 +55,7 @@ struct OffsetExpression {
     if (Strides.size() != TripCounts.size())
       return false;
 
-    int64_t PrevStride = std::numeric_limits<int64_t>::max();
+    uint64_t PrevStride = std::numeric_limits<uint64_t>::max();
     for (const auto &[Stride, MaybeTC] : llvm::zip_first(Strides, TripCounts)) {
 
       // Strides should go from larger to smaller
@@ -109,7 +115,8 @@ protected:
   OffsetExpression OE;
   const LinkKind Kind;
 
-  explicit TypeLinkTag(LinkKind K, OffsetExpression &&O) : OE(O), Kind(K) {}
+  explicit TypeLinkTag(LinkKind K, OffsetExpression &&O) :
+    OE(std::move(O)), Kind(K) {}
 
   // TODO: potentially we are interested in marking TypeLinkTags with some info
   // that allows us to track which step on the type system has created them.
@@ -344,6 +351,8 @@ public:
 
   NeighborIterator
   eraseEdge(LayoutTypeSystemNode *Src, NeighborIterator EdgeIt);
+
+  void dropOutgoingEdges(LayoutTypeSystemNode *N);
 
 private:
   uint64_t NID = 0ULL;
@@ -603,6 +612,15 @@ isInstanceOff0(const llvm::GraphTraits<LayoutTypeSystemNode *>::EdgeRef &E) {
 
   auto &OE = E.second->getOffsetExpr();
   return OE.Offset == 0 and OE.Strides.empty() and OE.TripCounts.empty();
+}
+
+inline bool
+isStridedInstance(const llvm::GraphTraits<LayoutTypeSystemNode *>::EdgeRef &E) {
+  if (not isInstanceEdge(E))
+    return false;
+
+  auto &OE = E.second->getOffsetExpr();
+  return not OE.Strides.empty();
 }
 
 inline bool

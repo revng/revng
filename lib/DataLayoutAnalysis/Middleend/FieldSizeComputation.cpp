@@ -11,10 +11,10 @@
 
 uint64_t getFieldSize(const dla::LayoutTypeSystemNode *Child,
                       const dla::TypeLinkTag *EdgeTag) {
-  uint64_t Result = 0LL;
+  uint64_t Result = 0ULL;
 
   auto ChildSize = Child->Size;
-  revng_assert(ChildSize > 0LL);
+  revng_assert(ChildSize > 0ULL);
 
   switch (EdgeTag->getKind()) {
 
@@ -23,22 +23,22 @@ uint64_t getFieldSize(const dla::LayoutTypeSystemNode *Child,
     revng_assert(OE.Strides.size() == OE.TripCounts.size());
 
     // Ignore stuff at negative offsets.
-    revng_assert(OE.Offset >= 0LL);
+    revng_assert(OE.Offset >= 0ULL);
 
     // If we have an array, we have to compute its size, taking into
     // account the strides and the trip counts.
     // In an OffsetExpression the larger strides come first, so we need to build
     // the instance bottom-up, in reverse, starting from the smaller strides.
-    int64_t PrevStride = 0LL;
+    uint64_t PrevStride = 0ULL;
     for (const auto &[TripCount, Stride] :
          llvm::reverse(llvm::zip(OE.TripCounts, OE.Strides))) {
 
       revng_assert(not PrevStride or PrevStride < Stride);
-      revng_assert(Stride > 0LL);
-      auto StrideSize = static_cast<uint64_t>(Stride);
+      revng_assert(Stride > 0ULL);
+      auto StrideSize = Stride;
 
       // If we have a TripCount, we expect it to be strictly positive.
-      revng_assert(not TripCount.has_value() or TripCount.value() > 0LL);
+      revng_assert(not TripCount.has_value() or TripCount.value() > 0ULL);
 
       // Arrays with unknown numbers of elements are considered as if
       // they had a single element
@@ -68,9 +68,9 @@ uint64_t getFieldSize(const dla::LayoutTypeSystemNode *Child,
 uint64_t getFieldUpperMember(const dla::LayoutTypeSystemNode *Child,
                              const dla::TypeLinkTag *EdgeTag) {
   auto ChildSize = getFieldSize(Child, EdgeTag);
-  revng_assert(ChildSize > 0LL);
+  revng_assert(ChildSize > 0ULL);
 
-  int64_t ChildOffset = 0LL;
+  uint64_t ChildOffset = 0ULL;
   if (EdgeTag->getKind() == dla::TypeLinkTag::LK_Instance) {
     const dla::OffsetExpression &OE = EdgeTag->getOffsetExpr();
     ChildOffset = std::max<int64_t>(OE.Offset, ChildOffset);

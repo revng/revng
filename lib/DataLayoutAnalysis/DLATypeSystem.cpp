@@ -393,7 +393,6 @@ void LayoutTypeSystem::moveEdgeTarget(LayoutTypeSystemNode *OldTgt,
   case TypeLinkTag::LK_Instance: {
     OffsetExpression NewOE = EdgeTag->getOffsetExpr();
     NewOE.Offset += OffsetToSum;
-    revng_assert(NewOE.Offset >= 0LL);
     addInstanceLink(Src, NewTgt, std::move(NewOE));
   } break;
 
@@ -432,7 +431,6 @@ void LayoutTypeSystem::moveEdgeSource(LayoutTypeSystemNode *OldSrc,
   case TypeLinkTag::LK_Instance: {
     OffsetExpression NewOE = EdgeTag->getOffsetExpr();
     NewOE.Offset += OffsetToSum;
-    revng_assert(NewOE.Offset >= 0LL);
     addInstanceLink(NewSrc, Tgt, std::move(NewOE));
   } break;
 
@@ -453,6 +451,13 @@ NeighborIterator LayoutTypeSystem::eraseEdge(LayoutTypeSystemNode *Src,
 
   // Erase the actual forward edge from Src to Tgt
   return Src->Successors.erase(EdgeIt);
+}
+
+void LayoutTypeSystem::dropOutgoingEdges(LayoutTypeSystemNode *N) {
+  auto It = N->Successors.begin();
+  auto End = N->Successors.end();
+  while (It != End)
+    It = eraseEdge(N, It);
 }
 
 static Logger<> VerifyDLALog("dla-verify-strict");

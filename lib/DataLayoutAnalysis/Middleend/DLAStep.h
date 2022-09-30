@@ -32,6 +32,7 @@ public:
 protected:
   const void *StepID;
 
+  // TODO: rework and check dependencies and invalidations
   IDSet Dependencies;
   IDSet Invalidated;
 
@@ -254,6 +255,26 @@ public:
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
+/// dla::Step that tries to compact partly overlapping compatible arrays
+class CompactCompatibleArrays : public Step {
+  static const char ID;
+
+public:
+  static const constexpr void *getID() { return &ID; }
+
+  CompactCompatibleArrays() :
+    Step(ID,
+         { ComputeUpperMemberAccesses::getID(),
+           DecomposeStridedEdges::getID(),
+           PruneLayoutNodesWithoutLayout::getID() },
+         // Invalidated
+         {}) {}
+
+  virtual ~CompactCompatibleArrays() override = default;
+
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
+};
+
 /// dla::Step that tries to pushes down instance edges that are actually part of
 /// a child node.
 class ArrangeAccessesHierarchically : public Step {
@@ -265,11 +286,41 @@ public:
   ArrangeAccessesHierarchically() :
     Step(ID,
          { ComputeUpperMemberAccesses::getID(),
+           DecomposeStridedEdges::getID(),
            PruneLayoutNodesWithoutLayout::getID() },
          // Invalidated
          {}) {}
 
   virtual ~ArrangeAccessesHierarchically() override = default;
+
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
+};
+
+/// dla::Step that tries to move pointer edges to push further down in the type
+/// hierarchy.
+class PushDownPointers : public Step {
+  static const char ID;
+
+public:
+  static const constexpr void *getID() { return &ID; }
+
+  PushDownPointers() : Step(ID) {}
+
+  virtual ~PushDownPointers() override = default;
+
+  virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
+};
+
+/// dla::Step that resolves unions of primitive and pointer types
+class ResolveLeafUnions : public Step {
+  static const char ID;
+
+public:
+  static const constexpr void *getID() { return &ID; }
+
+  ResolveLeafUnions() : Step(ID) {}
+
+  virtual ~ResolveLeafUnions() override = default;
 
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
@@ -282,12 +333,7 @@ class DeduplicateFields : public Step {
 public:
   static const constexpr void *getID() { return &ID; }
 
-  DeduplicateFields() :
-    Step(ID,
-         // Dependencies
-         {},
-         // Invalidated
-         { DecomposeStridedEdges::getID() }) {}
+  DeduplicateFields() : Step(ID) {}
 
   virtual ~DeduplicateFields() override = default;
 

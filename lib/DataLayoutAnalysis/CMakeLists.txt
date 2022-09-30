@@ -10,6 +10,7 @@ revng_add_analyses_library(
   Frontend/SCEVBaseAddressExplorer.cpp
   Middleend/ArrangeAccessesHierarchically.cpp
   Middleend/CollapseSCC.cpp
+  Middleend/CompactCompatibleArrays.cpp
   Middleend/DLAComputeNonInterferingComponents.cpp
   Middleend/DLAComputeUpperMemberAccess.cpp
   Middleend/DLAPruneLayoutNodesWithoutLayout.cpp
@@ -19,9 +20,11 @@ revng_add_analyses_library(
   Middleend/DLAStep.cpp
   Middleend/FieldSizeComputation.cpp
   Middleend/MergePointerNodes.cpp
+  Middleend/PushDownPointers.cpp
   Middleend/RemoveBackedges.cpp
   Middleend/RemoveInvalidPointers.cpp
   Middleend/RemoveInvalidStrideEdges.cpp
+  Middleend/ResolveLeafUnions.cpp
   Middleend/SimplifyInstanceAtOffset0.cpp
   Backend/DLAMakeModelTypes.cpp
   Backend/DLAUpdateModelTypes.cpp

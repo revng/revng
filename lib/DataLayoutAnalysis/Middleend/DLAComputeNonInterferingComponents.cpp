@@ -123,7 +123,7 @@ bool ComputeNonInterferingComponents::runOnTypeSystem(LayoutTypeSystem &TS) {
       struct Component {
         OrderedChildIt StartChildIt;
         OrderedChildIt EndChildIt;
-        int64_t StartByte;
+        uint64_t StartByte;
         uint64_t EndByte;
         size_t NumChildren;
         bool HasAccesses;
