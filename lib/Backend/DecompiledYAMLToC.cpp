@@ -7,8 +7,10 @@
 #include "revng-c/Backend/DecompiledYAMLToC.h"
 #include "revng-c/Support/PTMLC.h"
 
+using namespace revng::pipes;
+
 void printSingleCFile(llvm::raw_ostream &Out,
-                      const revng::pipes::FunctionStringMap &Functions,
+                      const DecompiledCCodeInYAMLStringMap &Functions,
                       const std::set<MetaAddress> &Targets) {
   auto Scope = ptml::Tag(ptml::tags::Div).scope(Out);
   // Print headers

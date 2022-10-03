@@ -20,6 +20,13 @@
 
 namespace revng::pipes {
 
+inline char DecompiledCCodeInYAMLMime[] = "application/x.yaml.c.decompiled";
+inline char DecompiledCCodeInYAMLName[] = "DecompiledCCodeInYAML";
+using DecompiledCCodeInYAMLStringMap = FunctionStringMap<
+  &kinds::DecompiledToYAML,
+  DecompiledCCodeInYAMLName,
+  DecompiledCCodeInYAMLMime>;
+
 class CDecompilation {
 public:
   static constexpr auto Name = "CDecompilation";
@@ -38,7 +45,7 @@ public:
 
   void run(const pipeline::Context &Ctx,
            pipeline::LLVMContainer &IRContainer,
-           FunctionStringMap &DecompiledFunctionsContainer);
+           DecompiledCCodeInYAMLStringMap &DecompiledFunctionsContainer);
 
   void print(const pipeline::Context &Ctx,
              llvm::raw_ostream &OS,

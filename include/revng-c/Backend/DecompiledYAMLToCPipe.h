@@ -20,6 +20,14 @@
 
 namespace revng::pipes {
 
+inline constexpr char DecompiledMIMEType[] = "text/ptml.c";
+inline constexpr char DecompiledMIMESuffix[] = "";
+inline constexpr char DecompiledName[] = "DecompiledCCode";
+using DecompiledFileContainer = FileContainer<&kinds::DecompiledToC,
+                                              DecompiledName,
+                                              DecompiledMIMEType,
+                                              DecompiledMIMESuffix>;
+
 class DecompiledYAMLToC {
 public:
   static constexpr auto Name = "DecompiledYAMLToC";
@@ -37,8 +45,8 @@ public:
   }
 
   void run(const pipeline::Context &Ctx,
-           const FunctionStringMap &DecompiledFunctionsContainer,
-           FileContainer &OutCFile);
+           const DecompiledCCodeInYAMLStringMap &DecompiledFunctionsContainer,
+           DecompiledFileContainer &OutCFile);
 
   void print(const pipeline::Context &Ctx,
              llvm::raw_ostream &OS,

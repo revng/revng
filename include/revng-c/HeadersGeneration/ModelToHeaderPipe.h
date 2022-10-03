@@ -19,6 +19,15 @@
 
 namespace revng::pipes {
 
+inline char ModelHeaderFileContainerMIMEType[] = "text/plain";
+inline char ModelHeaderFileContainerSuffix[] = ".h";
+inline char ModelHeaderFileContainerName[] = "ModelHeader";
+
+using ModelHeaderFileContainer = FileContainer<&kinds::ModelHeader,
+                                               ModelHeaderFileContainerName,
+                                               ModelHeaderFileContainerMIMEType,
+                                               ModelHeaderFileContainerSuffix>;
+
 class ModelToHeader {
 public:
   static constexpr auto Name = "ModelToHeader";
@@ -36,8 +45,8 @@ public:
   }
 
   void run(const pipeline::Context &Ctx,
-           const FileContainer &BinaryFile,
-           FileContainer &HeaderFile);
+           const BinaryFileContainer &BinaryFile,
+           ModelHeaderFileContainer &HeaderFile);
 
   void print(const pipeline::Context &Ctx,
              llvm::raw_ostream &OS,

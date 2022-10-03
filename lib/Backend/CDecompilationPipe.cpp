@@ -14,14 +14,11 @@
 
 namespace revng::pipes {
 
-static RegisterFunctionStringMap DecompiledYAML("DecompiledCCodeInYAML",
-                                                "application/"
-                                                "x.yaml.c.decompiled",
-                                                kinds::DecompiledToYAML);
+static RegisterFunctionStringMap<DecompiledCCodeInYAMLStringMap> Reg;
 
 void CDecompilation::run(const pipeline::Context &Ctx,
                          pipeline::LLVMContainer &IRContainer,
-                         FunctionStringMap &DecompiledFunctions) {
+                         DecompiledCCodeInYAMLStringMap &DecompiledFunctions) {
 
   llvm::Module &Module = IRContainer.getModule();
   const model::Binary &Model = *getModelFromContext(Ctx);

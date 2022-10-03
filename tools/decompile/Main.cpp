@@ -128,11 +128,8 @@ int main(int Argc, const char *Argv[]) {
   }
 
   using revng::pipes::FunctionStringMap;
-  FunctionStringMap DecompiledFunctions("" /*Name*/,
-                                        "application/"
-                                        "x.yaml.c.decompiled",
-                                        revng::kinds::DecompiledToYAML,
-                                        Model);
+  revng::pipes::DecompiledCCodeInYAMLStringMap DecompiledFunctions("" /*Name*/,
+                                                                   &Model);
 
   decompile(*Module, *Model, DecompiledFunctions);
 
