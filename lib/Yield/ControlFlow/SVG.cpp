@@ -408,7 +408,7 @@ std::string yield::svg::callGraph(const yield::CrossRelations &Relations,
   auto InternalGraph = calls::makeCalleeTree(Result);
   Helper.computeSizes(InternalGraph);
 
-  sugiyama::layout(InternalGraph, Configuration, Orientation, Ranking);
+  sugiyama::layout(InternalGraph, Configuration, Orientation, Ranking, true);
   return exportGraph<false>(InternalGraph, Configuration, Orientation, Helper);
 }
 
@@ -511,7 +511,7 @@ std::string yield::svg::callGraphSlice(const MetaAddress &SlicePoint,
     for (auto [To, Label] : From->successor_edges())
       Label->Type = yield::Graph::EdgeType::Taken;
   Helper.computeSizes(ForwardsGraph);
-  sugiyama::layout(ForwardsGraph, Configuration, Orientation, Ranking);
+  sugiyama::layout(ForwardsGraph, Configuration, Orientation, Ranking, true);
 
   // Ready the backwards facing part of the slice
   auto BackwardsGraph = calls::makeCallerTree(Relations.toYieldGraph(),
@@ -520,7 +520,7 @@ std::string yield::svg::callGraphSlice(const MetaAddress &SlicePoint,
     for (auto [To, Label] : From->successor_edges())
       Label->Type = yield::Graph::EdgeType::Refused;
   Helper.computeSizes(BackwardsGraph);
-  sugiyama::layout(BackwardsGraph, Configuration, Orientation, Ranking);
+  sugiyama::layout(BackwardsGraph, Configuration, Orientation, Ranking, true);
 
   // Consume the halves to produce a combined graph and export it.
   auto CombinedGraph = combineHalvesHelper(SlicePoint,
