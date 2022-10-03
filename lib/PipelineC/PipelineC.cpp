@@ -716,7 +716,7 @@ rp_step *rp_step_get_parent(rp_step *step) {
 
 const char *rp_container_get_mime(rp_container *container) {
   revng_check(container != nullptr);
-  return container->getValue()->mimeType().c_str();
+  return container->getValue()->mimeType().data();
 }
 
 const char *

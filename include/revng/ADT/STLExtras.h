@@ -12,6 +12,7 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/iterator_range.h"
 
 #include "revng/ADT/Concepts.h"
 #include "revng/Support/Debug.h"
@@ -130,6 +131,9 @@ using DIT = decltype(dereferenceIterator(std::declval<T>()));
 
 template<typename T>
 using DereferenceIteratorType = revng::detail::DIT<T>;
+
+template<typename T>
+using DereferenceRangeType = llvm::iterator_range<revng::detail::DIT<T>>;
 
 auto dereferenceRange(auto &&Range) {
   return llvm::make_range(dereferenceIterator(Range.begin()),

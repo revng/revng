@@ -11,6 +11,7 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 
+#include "revng/Pipeline/ContainerFactory.h"
 #include "revng/Pipeline/ContainerSet.h"
 
 namespace pipeline {
@@ -40,9 +41,7 @@ public:
 
   template<typename Cont>
   void registerDefaultConstructibleFactory(llvm::StringRef Name) {
-    registerContainerFactory(Name, [](llvm::StringRef Name) {
-      return std::make_unique<Cont>(Name);
-    });
+    registerContainerFactory(Name, ContainerFactory::create<Cont>());
   }
 
   ContainerSet createEmpty() const {

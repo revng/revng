@@ -6,6 +6,7 @@
 #include "revng/EarlyFunctionAnalysis/IRHelpers.h"
 #include "revng/Lift/LoadBinaryPass.h"
 #include "revng/Model/Binary.h"
+#include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Pipe.h"
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Pipes/Kinds.h"
@@ -19,9 +20,9 @@
 namespace revng::pipes {
 
 void ProcessAssembly::run(pipeline::Context &Context,
-                          const FileContainer &SourceBinary,
+                          const BinaryFileContainer &SourceBinary,
                           const pipeline::LLVMContainer &TargetList,
-                          FunctionStringMap &Output) {
+                          FunctionAssemblyStringMap &Output) {
   if (not SourceBinary.exists())
     return;
 
@@ -59,8 +60,8 @@ void ProcessAssembly::print(const pipeline::Context &,
 }
 
 void YieldAssembly::run(pipeline::Context &Context,
-                        const FunctionStringMap &Input,
-                        FunctionStringMap &Output) {
+                        const FunctionAssemblyStringMap &Input,
+                        FunctionAssemblyPTMLStringMap &Output) {
   // Access the model
   const auto &Model = getModelFromContext(Context);
 
@@ -83,14 +84,9 @@ void YieldAssembly::print(const pipeline::Context &,
 
 } // end namespace revng::pipes
 
-static revng::pipes::RegisterFunctionStringMap
-  InternalContainer("FunctionAssemblyInternal",
-                    "application/x.yaml.function-assembly.internal",
-                    revng::kinds::FunctionAssemblyInternal);
-static revng::pipes::RegisterFunctionStringMap
-  PTMLContainer("FunctionAssemblyPTML",
-                "application/x.yaml.function-assembly.ptml-body",
-                revng::kinds::FunctionAssemblyPTML);
+using namespace revng::pipes;
+static RegisterFunctionStringMap<FunctionAssemblyStringMap> X1;
+static RegisterFunctionStringMap<FunctionAssemblyPTMLStringMap> X2;
 
 static pipeline::RegisterPipe<revng::pipes::ProcessAssembly> ProcessPipe;
 static pipeline::RegisterPipe<revng::pipes::YieldAssembly> YieldPipe;

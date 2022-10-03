@@ -21,15 +21,13 @@
 #include "llvm/Support/MemoryBuffer.h"
 
 #include "revng/Pipeline/Container.h"
+#include "revng/Pipeline/ContainerFactory.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/Kind.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Support/Assert.h"
 
 namespace pipeline {
-
-using FactorySignature = std::unique_ptr<ContainerBase>(llvm::StringRef);
-using ContainerFactory = std::function<FactorySignature>;
 
 /// A map from containerName to the container itself, which is initially empty.
 ///

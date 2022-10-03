@@ -5,12 +5,17 @@
 //
 
 #include <memory>
+#include <type_traits>
+#include <vector>
 
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/ADT/Concepts.h"
+#include "revng/ADT/STLExtras.h"
 #include "revng/Pipeline/Target.h"
+#include "revng/Support/Assert.h"
 
 namespace pipeline {
 
@@ -19,17 +24,47 @@ concept HasID = requires {
   { T::ID } -> convertible_to<const char &>;
 };
 
+class ContainerTypeInfoBase {
+public:
+  virtual llvm::StringRef getMIMEType() const = 0;
+  virtual const char *getID() const = 0;
+  virtual ~ContainerTypeInfoBase() = default;
+  virtual std::vector<Kind *> getPossibleKinds() const = 0;
+};
+
+template<typename T>
+class ContainerTypeInfo : public ContainerTypeInfoBase {
+public:
+  llvm::StringRef getMIMEType() const override { return T::MIMEType; }
+  const char *getID() const override { return &T::ID; }
+  ~ContainerTypeInfo() override = default;
+  std::vector<Kind *> getPossibleKinds() const override {
+    return T::possibleKinds();
+  }
+};
+
 class ContainerBase {
 private:
+  template<typename Derived>
+  friend class Container;
+
   const char *ID;
   std::string Name;
-  std::string MIMEType;
+
+  using RegistryType = std::vector<std::unique_ptr<ContainerTypeInfoBase>>;
+  static RegistryType &getTypeRegistryImpl() {
+    static std::vector<std::unique_ptr<ContainerTypeInfoBase>> V;
+    return V;
+  }
 
 public:
-  ContainerBase(char const *ID,
-                llvm::StringRef Name,
-                llvm::StringRef MIMEType) :
-    ID(ID), Name(Name.str()), MIMEType(MIMEType.str()) {}
+  static const RegistryType &getTypeRegistry() { return getTypeRegistryImpl(); }
+
+  virtual std::vector<Kind *> getPossibleKinds() const = 0;
+
+public:
+  ContainerBase(llvm::StringRef Name, char const *ID) :
+    ID(ID), Name(Name.str()) {}
 
 public:
   static bool classof(const ContainerBase *) { return true; }
@@ -37,10 +72,11 @@ public:
 public:
   const char *getTypeID() const { return ID; }
   const std::string &name() const { return Name; }
-  const std::string &mimeType() const { return MIMEType; }
 
 public:
   virtual ~ContainerBase() = default;
+
+  virtual llvm::StringRef mimeType() const = 0;
 
   /// The implementation of cloneFiltered must return a copy of the current
   /// container and a invocation of enumerate on such container must be
@@ -96,15 +132,23 @@ public:
 /// The methods that must be implemented are those shown in ContainerBase.
 template<typename Derived>
 class Container : public ContainerBase {
+private:
+  static int registerType() {
+    auto &Registry = ContainerBase::getTypeRegistryImpl();
+    revng_assert(llvm::find(Registry, &Derived::ID) == Registry.end(),
+                 "cannot register same container type twice");
+    Registry.push_back(std::make_unique<ContainerTypeInfo<Derived>>());
+    return 0;
+  }
+  inline static const int ForceRegister = registerType();
+
 public:
   /// This is a template to force the evaluation of the concept from the class
   /// definition to this class objects instantiation, otherwise the derived
   /// type would not be fully defined yet and the constraints would fail.
   template<HasID T = Derived>
-  Container(llvm::StringRef Name,
-            const llvm::StringRef MIMEType,
-            const char *ID = &Derived::ID) :
-    ContainerBase(ID, Name, MIMEType) {}
+  Container(llvm::StringRef Name, const char *ID = &Derived::ID) :
+    ContainerBase(Name, ID) {}
 
   ~Container() override = default;
 
@@ -112,6 +156,8 @@ public:
   static bool classof(const ContainerBase *Base) {
     return Base->getTypeID() == &Derived::ID;
   }
+
+  llvm::StringRef mimeType() const override { return Derived::MIMEType; }
 
 public:
   void mergeBack(ContainerBase &&Container) final {
@@ -124,6 +170,9 @@ public:
 
 protected:
   virtual void mergeBackImpl(Derived &&Container) = 0;
+  std::vector<Kind *> getPossibleKinds() const final {
+    return Derived::possibleKinds();
+  }
 };
 
 } // namespace pipeline

@@ -376,6 +376,11 @@ public:
     ActualPipe(std::move(ActualPipe)),
     RunningContainersNames(std::move(RunningContainersNames)) {}
 
+  InvokableWrapperImpl(const InvokableWrapperImpl &Other,
+                       std::vector<std::string> RunningContainersNames) :
+    ActualPipe(Other.ActualPipe),
+    RunningContainersNames(std::move(RunningContainersNames)) {}
+
   ~InvokableWrapperImpl() override = default;
 
 public:
@@ -467,6 +472,9 @@ private:
   std::unique_ptr<BaseInterface> Pipe;
 
 public:
+  InvokableWrapper(const InvokableWrapper &Other,
+                   std::vector<std::string> RunningContainersNames) :
+    Pipe(Other.Pipe->clone(std::move(RunningContainersNames))) {}
   InvokableWrapper(const InvokableWrapper &Other) : Pipe(Other.Pipe->clone()) {}
   InvokableWrapper(InvokableWrapper &&Other) = default;
 

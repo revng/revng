@@ -25,6 +25,7 @@
 
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/ContainerEnumerator.h"
+#include "revng/Pipeline/ContainerFactory.h"
 #include "revng/Pipeline/ContainerFactorySet.h"
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Context.h"
@@ -33,6 +34,7 @@
 #include "revng/Pipeline/GenericLLVMPipe.h"
 #include "revng/Pipeline/Invokable.h"
 #include "revng/Pipeline/Kind.h"
+#include "revng/Pipeline/LLVMContainer.h"
 #include "revng/Pipeline/LLVMContainerFactory.h"
 #include "revng/Pipeline/LLVMGlobalKindBase.h"
 #include "revng/Pipeline/Loader.h"
@@ -110,17 +112,19 @@ static std::string CName = "ContainerName";
 
 class MapContainer : public Container<MapContainer> {
 public:
+  static inline const llvm::StringRef MIMEType = "application/x.test.map";
   MapContainer(std::map<Target, int> Map, llvm::StringRef Name) :
-    Container<MapContainer>(Name, "application/x.test.map"),
-    Map(std::move(Map)) {}
-  MapContainer(llvm::StringRef Name) :
-    Container<MapContainer>(Name, "application/x.test.map"), Map() {}
+    Container<MapContainer>(Name), Map(std::move(Map)) {}
+  MapContainer(llvm::StringRef Name) : Container<MapContainer>(Name), Map() {}
 
   ~MapContainer() override = default;
 
   unique_ptr<ContainerBase>
   cloneFiltered(const TargetsList &Container) const final {
     return make_unique<MapContainer>(Map, this->name());
+  }
+  static std::vector<pipeline::Kind *> possibleKinds() {
+    return { &FunctionKind };
   }
 
   bool contains(const Target &T) const {
@@ -247,9 +251,7 @@ BOOST_AUTO_TEST_CASE(ContainerIsa) {
 }
 
 static ContainerFactory getMapFactoryContainer() {
-
-  return
-    [](llvm::StringRef Name) { return std::make_unique<MapContainer>(Name); };
+  return ContainerFactory::create<MapContainer>();
 }
 
 BOOST_AUTO_TEST_CASE(ContainersCanBeCreated) {
@@ -750,7 +752,9 @@ BOOST_AUTO_TEST_CASE(SingleElementLLVMPipelineBackwardFinedGrained) {
 
   Context Ctx;
   Runner Pipeline(Ctx);
-  Pipeline.addContainerFactory(CName, makeDefaultLLVMContainerFactory(Ctx, C));
+  Pipeline.addContainerFactory(CName,
+                               ContainerFactory::fromGlobal<LLVMContainer>(&Ctx,
+                                                                           &C));
 
   const std::string Name = "first_step";
   Pipeline.emplaceStep("", Name);
@@ -781,7 +785,9 @@ BOOST_AUTO_TEST_CASE(LLVMPurePipe) {
 
   Context Ctx;
   Runner Pipeline(Ctx);
-  Pipeline.addContainerFactory(CName, makeDefaultLLVMContainerFactory(Ctx, C));
+  Pipeline.addContainerFactory(CName,
+                               ContainerFactory::fromGlobal<LLVMContainer>(&Ctx,
+                                                                           &C));
 
   const std::string Name = "first_step";
   PureLLVMPassWrapper IdentityPass("IdentityPass");
@@ -990,8 +996,10 @@ BOOST_AUTO_TEST_CASE(LoaderTestFromYamlLLVM) {
   llvm::LLVMContext C;
   Context Ctx;
   Loader Loader(Ctx);
+
   Loader.addContainerFactory("LLVMContainer",
-                             makeDefaultLLVMContainerFactory(Ctx, C));
+                             ContainerFactory::fromGlobal<LLVMContainer>(&Ctx,
+                                                                         &C));
   auto *Name = "CreateFunctionPass";
   Loader.registerLLVMPass<LLVMPassFunctionCreator>(Name);
   Name = "IdentityPass";
@@ -1077,10 +1085,9 @@ class EnumerableContainerExample
 public:
   static char ID;
 
-  EnumerableContainerExample(Context &Ctx,
-                             llvm::StringRef Name,
-                             llvm::StringRef MIMEType) :
-    EnumerableContainer<EnumerableContainerExample>(Ctx, Name, MIMEType) {}
+  static inline const llvm::StringRef MIMEType = "";
+  EnumerableContainerExample(Context &Ctx, llvm::StringRef Name) :
+    EnumerableContainer<EnumerableContainerExample>(Ctx, Name) {}
 
   unique_ptr<ContainerBase>
   cloneFiltered(const TargetsList &Container) const final {
@@ -1171,9 +1178,7 @@ static ExampleContainerInpsector Example;
 
 BOOST_AUTO_TEST_CASE(EnumerableContainersTest) {
   Context Ctx;
-  EnumerableContainerExample Example(Ctx,
-                                     "dont_care",
-                                     "application/x.dont.care");
+  EnumerableContainerExample Example(Ctx, "dont_care");
   Target T({}, RootKind, Exactness::DerivedFrom);
   Example.Targets.insert(T);
   BOOST_TEST(Example.contains(T));
@@ -1227,7 +1232,8 @@ BOOST_AUTO_TEST_CASE(LLVMKindTest) {
 
   Context Ctx;
   Runner Pipeline(Ctx);
-  Pipeline.addContainerFactory(CName, makeLLVMContainerFactory<Cont>(Ctx, C));
+  Pipeline.addContainerFactory(CName,
+                               ContainerFactory::fromGlobal<Cont>(&Ctx, &C));
 
   Pipeline.emplaceStep("", "first_step");
   Pipeline.emplaceStep("first_step",
@@ -1286,7 +1292,7 @@ BOOST_AUTO_TEST_CASE(InspectorKindTest) {
   llvm::LLVMContext C;
 
   using Cont = ExampleLLVMInspectalbeContainer;
-  auto Factory = makeLLVMContainerFactory<Cont>(Ctx, C);
+  auto Factory = ContainerFactory::fromGlobal<Cont>(&Ctx, &C);
 
   auto Container = Factory("dont_care");
 
@@ -1369,9 +1375,8 @@ BOOST_AUTO_TEST_CASE(PipeOptions) {
   pipeline::AnalysisWrapperImpl W(ArgumentTestAnalysis(), { "container_name" });
   Context Ctx;
   ContainerSet Set;
-  Set.add("container_name", [](llvm::StringRef Name) {
-    return std::make_unique<MapContainer>(Name);
-  });
+  auto Factory = ContainerFactory::create<MapContainer>();
+  Set.add("container_name", Factory);
   Set["container_name"];
   if (auto Error = W.run(Ctx, Set, {}); Error)
     BOOST_FAIL("unrechable");

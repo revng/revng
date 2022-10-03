@@ -38,7 +38,7 @@ public:
   }
 
   void run(pipeline::Context &Ctx,
-           const FileContainer &SourceBinary,
+           const BinaryFileContainer &SourceBinary,
            pipeline::LLVMContainer &Output);
 
   llvm::Error checkPrecondition(const pipeline::Context &Ctx) const;

@@ -70,11 +70,18 @@ private:
   std::unique_ptr<llvm::Module> Module;
 
 public:
-  LLVMContainerBase(Context &Ctx,
-                    std::unique_ptr<llvm::Module> M,
-                    llvm::StringRef Name) :
-    EnumerableContainer<ThisType>(Ctx, Name, "text/x.llvm.ir"),
-    Module(std::move(M)) {}
+  inline static const llvm::StringRef MIMEType = "text/x.llvm.ir";
+
+  LLVMContainerBase(llvm::StringRef Name,
+                    Context *Ctx,
+                    llvm::LLVMContext *LLVMCtx) :
+    EnumerableContainer<ThisType>(*Ctx, Name),
+    Module(std::make_unique<llvm::Module>("revng.module", *LLVMCtx)) {}
+
+  LLVMContainerBase(llvm::StringRef Name,
+                    Context *Ctx,
+                    std::unique_ptr<llvm::Module> M) :
+    EnumerableContainer<ThisType>(*Ctx, Name), Module(std::move(M)) {}
 
 public:
   template<typename... LLVMPasses>
@@ -119,9 +126,9 @@ public:
         Other->addMetadata(MD.first, *llvm::MapMetadata(MD.second, Map));
     }
 
-    return std::make_unique<ThisType>(*this->Ctx,
-                                      std::move(Cloned),
-                                      this->name());
+    return std::make_unique<ThisType>(this->name(),
+                                      this->Ctx,
+                                      std::move(Cloned));
   }
 
   llvm::Error

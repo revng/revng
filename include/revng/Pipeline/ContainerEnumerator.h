@@ -85,16 +85,11 @@ protected:
   Context *Ctx;
 
 public:
-  EnumerableContainer(Context &Ctx,
-                      llvm::StringRef Name,
-                      llvm::StringRef MIMEType) :
-    Container<Derived>(Name, MIMEType), Ctx(&Ctx) {}
+  EnumerableContainer(Context &Ctx, llvm::StringRef Name) :
+    Container<Derived>(Name), Ctx(&Ctx) {}
 
-  EnumerableContainer(Context &Ctx,
-                      llvm::StringRef Name,
-                      llvm::StringRef MIMEType,
-                      const char *ID) :
-    Container<Derived>(Name, MIMEType, ID), Ctx(&Ctx) {}
+  EnumerableContainer(Context &Ctx, llvm::StringRef Name, const char *ID) :
+    Container<Derived>(Name, ID), Ctx(&Ctx) {}
 
 public:
   const Context &getContext() const { return *Ctx; }
@@ -125,6 +120,15 @@ public:
                    and RemovedAll;
 
     return RemovedAll;
+  }
+
+  static std::vector<Kind *> possibleKinds() {
+    std::vector<Kind *> ToReturn;
+    for (auto *Inspector : getRegisteredInspectors()) {
+      ToReturn.push_back(&Inspector->getKind());
+    }
+
+    return ToReturn;
   }
 };
 

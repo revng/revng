@@ -9,6 +9,7 @@
 #include "revng/Pipeline/Pipe.h"
 #include "revng/Pipeline/RegisterContainerFactory.h"
 #include "revng/Pipeline/RegisterPipe.h"
+#include "revng/Pipes/FunctionStringMap.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Yield/CrossRelations.h"
@@ -21,7 +22,7 @@ namespace revng::pipes {
 
 void ProcessCallGraph::run(pipeline::Context &Context,
                            const pipeline::LLVMContainer &TargetList,
-                           FileContainer &OutputFile) {
+                           CrossRelationsFileContainer &OutputFile) {
   // Access the model
   const auto &Model = getModelFromContext(Context);
 
@@ -58,8 +59,8 @@ void ProcessCallGraph::print(const pipeline::Context &,
 }
 
 void YieldCallGraph::run(pipeline::Context &Context,
-                         const FileContainer &Input,
-                         FileContainer &Output) {
+                         const CrossRelationsFileContainer &Input,
+                         CallGraphSVGFileContainer &Output) {
   // Access the model
   const auto &Model = revng::getModelFromContext(Context);
 
@@ -98,8 +99,8 @@ void YieldCallGraph::print(const pipeline::Context &,
 
 void YieldCallGraphSlice::run(pipeline::Context &Context,
                               const pipeline::LLVMContainer &TargetList,
-                              const FileContainer &Input,
-                              FunctionStringMap &Output) {
+                              const CrossRelationsFileContainer &Input,
+                              CallGraphSliceSVGStringMap &Output) {
   // Access the model
   const auto &Model = revng::getModelFromContext(Context);
 
@@ -134,21 +135,12 @@ void YieldCallGraphSlice::print(const pipeline::Context &,
                                 llvm::ArrayRef<std::string>) const {
   OS << *revng::ResourceFinder.findFile("bin/revng") << " magic ^_^\n";
 }
+using namespace pipeline;
+static RegisterDefaultConstructibleContainer<CrossRelationsFileContainer> X1;
 
-static pipeline::RegisterContainerFactory
-  InternalContainer("BinaryCrossRelations",
-                    makeFileContainerFactory(kinds::BinaryCrossRelations,
-                                             "application/"
-                                             "x.yaml.cross-relations"));
-static pipeline::RegisterContainerFactory
-  FullGraphContainer("CallGraphSVG",
-                     makeFileContainerFactory(kinds::CallGraphSVG,
-                                              "application/"
-                                              "x.yaml.call-graph.svg-body"));
-static revng::pipes::RegisterFunctionStringMap
-  GraphSliceContainer("CallGraphSliceSVG",
-                      "application/x.yaml.call-graph-slice.svg-body",
-                      kinds::CallGraphSliceSVG);
+static RegisterDefaultConstructibleContainer<CallGraphSVGFileContainer> X2;
+
+static RegisterFunctionStringMap<CallGraphSliceSVGStringMap> X3;
 
 static pipeline::RegisterRole
   Role("BinaryCrossRelations", kinds::BinaryCrossRelationsRole);

@@ -64,7 +64,8 @@ public:
   virtual ContainerToTargetsMap
   deduceResults(ContainerToTargetsMap &Target) const = 0;
   virtual bool areRequirementsMet(const ContainerToTargetsMap &Input) const = 0;
-  virtual std::unique_ptr<PipeWrapperBase> clone() const = 0;
+  virtual std::unique_ptr<PipeWrapperBase>
+  clone(std::vector<std::string> NewRunningContainersNames = {}) const = 0;
   virtual llvm::Error checkPrecondition(const Context &Ctx) const = 0;
 
   virtual ~PipeWrapperBase() = default;
@@ -87,7 +88,14 @@ public:
                   std::vector<std::string> RunningContainersNames) :
     Invokable(std::move(ActualPipe), std::move(RunningContainersNames)) {}
 
-  ~PipeWrapperImpl() override = default;
+  PipeWrapperImpl(const PipeWrapperImpl &ActualPipe,
+                  std::vector<std::string> RunningContainersNames) :
+    Invokable(ActualPipe.Invokable, std::move(RunningContainersNames)) {}
+
+  PipeWrapperImpl(PipeWrapperImpl &&ActualPipe,
+                  std::vector<std::string> RunningContainersNames) :
+    Invokable(std::move(ActualPipe.Invokable),
+              std::move(RunningContainersNames)) {}
 
 public:
   bool areRequirementsMet(const ContainerToTargetsMap &Input) const override {
@@ -126,8 +134,12 @@ public:
     return Target;
   }
 
-  std::unique_ptr<PipeWrapperBase> clone() const override {
-    return std::make_unique<PipeWrapperImpl>(*this);
+  std::unique_ptr<PipeWrapperBase>
+  clone(std::vector<std::string> NewContainersNames = {}) const override {
+    if (NewContainersNames.empty())
+      return std::make_unique<PipeWrapperImpl>(*this);
+    return std::make_unique<PipeWrapperImpl>(*this,
+                                             std::move(NewContainersNames));
   }
 
   llvm::Error checkPrecondition(const Context &Ctx) const override {

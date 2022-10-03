@@ -12,6 +12,7 @@
 #include "llvm/Support/Error.h"
 
 #include "revng/Pipeline/Loader.h"
+#include "revng/Pipeline/Pipe.h"
 #include "revng/Pipeline/Runner.h"
 
 using namespace pipeline;
@@ -107,7 +108,7 @@ Loader::parseAnalysis(const AnalysisDeclaration &Declaration) const {
                              Declaration.Type.c_str());
   }
   auto &Entry = It->second;
-  auto ToReturn = Entry(Declaration.UsedContainers);
+  auto ToReturn = AnalysisWrapper(Entry, Declaration.UsedContainers);
   ToReturn->setUserBoundName(Declaration.Name);
   return ToReturn;
 }
@@ -127,8 +128,7 @@ Loader::parseInvocation(Step &Step,
                              Message,
                              Invocation.Type.c_str());
   }
-  auto &Entry = It->second;
-  auto Pipe = Entry(Invocation.UsedContainers);
+  auto &Pipe = It->second;
   for (const auto &ContainerNameAndIndex :
        llvm::enumerate(Invocation.UsedContainers)) {
 
@@ -149,7 +149,7 @@ Loader::parseInvocation(Step &Step,
     PipelineContext->addReadOnlyContainer(ContainerName, Container);
   }
 
-  return Pipe;
+  return PipeWrapper(Pipe, Invocation.UsedContainers);
 }
 
 using BCDecl = ContainerDeclaration;
