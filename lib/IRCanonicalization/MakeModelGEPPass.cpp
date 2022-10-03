@@ -644,7 +644,7 @@ using QualifiedTypeToTAPChildIdsMap = std::map<const model::QualifiedType,
                                                QTLess>;
 // clang-format on
 
-using TAPToChildIdsMapConstRef = std::reference_wrapper<const TAPToChildIdsMap>;
+using TAPToChildIdsMapRef = std::reference_wrapper<TAPToChildIdsMap>;
 
 struct DifferenceScore {
   // Among two DifferenceScore, the one with PerfectTypeMatch set to true is
@@ -1628,7 +1628,7 @@ class TypedAccessCache {
   // Builds a map of all the possible TypedAccessPattern starting from
   // BaseType, mapping them to the vector of child indices that need to be
   // traversed on the type system to access types represented by that TAP.
-  RecursiveCoroutine<TAPToChildIdsMapConstRef>
+  RecursiveCoroutine<TAPToChildIdsMapRef>
   getTAPImpl(const model::QualifiedType &BaseType,
              LLVMContext &Ctxt,
              model::VerifyHelper &VH) {
@@ -1914,7 +1914,7 @@ public:
   const TAPToChildIdsMap &getTAP(const model::QualifiedType &BaseType,
                                  LLVMContext &Ctxt,
                                  model::VerifyHelper &VH) {
-    return static_cast<TAPToChildIdsMapConstRef>(getTAPImpl(BaseType, Ctxt, VH))
+    return static_cast<TAPToChildIdsMapRef>(getTAPImpl(BaseType, Ctxt, VH))
       .get();
   }
 
