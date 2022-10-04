@@ -61,6 +61,14 @@ public:
   bool is(model::TypeKind::Values K) const;
 
 public:
+  model::QualifiedType getPointerTo(model::Architecture::Values Arch) const {
+    QualifiedType Result = *this;
+    Result.Qualifiers.insert(Result.Qualifiers.begin(),
+                             model::Qualifier::createPointer(Arch));
+    return Result;
+  }
+
+public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   RecursiveCoroutine<bool> verify(VerifyHelper &VH) const;
