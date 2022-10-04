@@ -63,24 +63,24 @@ selectTypeKind(model::Register::Values) {
 }
 
 static model::QualifiedType
-buildType(model::Register::Values Register, model::Binary &TheBinary) {
+buildType(model::Register::Values Register, model::Binary &Binary) {
   model::PrimitiveTypeKind::Values Kind = selectTypeKind(Register);
   size_t Size = model::Register::getSize(Register);
-  return model::QualifiedType(TheBinary.getPrimitiveType(Kind, Size), {});
+  return model::QualifiedType(Binary.getPrimitiveType(Kind, Size), {});
 }
 
 static model::QualifiedType
-buildGenericType(model::Register::Values Register, model::Binary &TheBinary) {
+buildGenericType(model::Register::Values Register, model::Binary &Binary) {
   constexpr auto Kind = model::PrimitiveTypeKind::Generic;
   size_t Size = model::Register::getSize(Register);
-  return model::QualifiedType(TheBinary.getPrimitiveType(Kind, Size), {});
+  return model::QualifiedType(Binary.getPrimitiveType(Kind, Size), {});
 }
 
 static std::optional<model::QualifiedType>
 buildDoubleType(model::Register::Values UpperRegister,
                 model::Register::Values LowerRegister,
                 model::PrimitiveTypeKind::Values CustomKind,
-                model::Binary &TheBinary) {
+                model::Binary &Binary) {
   model::PrimitiveTypeKind::Values UpperKind = selectTypeKind(UpperRegister);
   model::PrimitiveTypeKind::Values LowerKind = selectTypeKind(LowerRegister);
   if (UpperKind != LowerKind)
@@ -88,8 +88,8 @@ buildDoubleType(model::Register::Values UpperRegister,
 
   size_t UpperSize = model::Register::getSize(UpperRegister);
   size_t LowerSize = model::Register::getSize(LowerRegister);
-  return model::QualifiedType(TheBinary.getPrimitiveType(CustomKind,
-                                                         UpperSize + LowerSize),
+  return model::QualifiedType(Binary.getPrimitiveType(CustomKind,
+                                                      UpperSize + LowerSize),
                               {});
 }
 
@@ -190,7 +190,7 @@ class ConversionHelper {
 public:
   static std::optional<model::TypePath>
   toCABI(const model::RawFunctionType &Function,
-         TupleTree<model::Binary> &TheBinary) {
+         TupleTree<model::Binary> &Binary) {
     static constexpr auto Arch = model::ABI::getArchitecture(ABI);
     if (!verify<Arch>(Function.Arguments(),
                       AT::GeneralPurposeArgumentRegisters))
@@ -215,19 +215,19 @@ public:
 
     if (!verifyArgumentsToBeConvertible(Function.Arguments(),
                                         AT::GeneralPurposeArgumentRegisters,
-                                        *TheBinary))
+                                        *Binary))
       return std::nullopt;
 
     using C = AT;
     if (!verifyReturnValueToBeConvertible(Function.ReturnValues(),
                                           C::GeneralPurposeReturnValueRegisters,
                                           C::ReturnValueLocationRegister,
-                                          *TheBinary))
+                                          *Binary))
       return std::nullopt;
 
     auto ArgumentList = convertArguments(Function.Arguments(),
                                          AT::GeneralPurposeArgumentRegisters,
-                                         *TheBinary);
+                                         *Binary);
     revng_assert(ArgumentList != std::nullopt);
     for (auto &Argument : *ArgumentList)
       Result.Arguments().insert(Argument);
@@ -241,7 +241,7 @@ public:
     auto ReturnValue = convertReturnValue(Function.ReturnValues(),
                                           C::GeneralPurposeReturnValueRegisters,
                                           C::ReturnValueLocationRegister,
-                                          *TheBinary);
+                                          *Binary);
     revng_assert(ReturnValue != std::nullopt);
     Result.ReturnType() = *ReturnValue;
 
@@ -251,16 +251,16 @@ public:
     // Add converted type to the model.
     using UT = model::UpcastableType;
     auto Ptr = UT::make<model::CABIFunctionType>(std::move(Result));
-    auto NewTypePath = TheBinary->recordNewType(std::move(Ptr));
+    auto NewTypePath = Binary->recordNewType(std::move(Ptr));
 
     // Replace all references to the old type with references to the new one.
-    replaceReferences(Function.key(), NewTypePath, TheBinary);
+    replaceReferences(Function.key(), NewTypePath, Binary);
 
     return NewTypePath;
   }
 
   static model::TypePath toRaw(const model::CABIFunctionType &Function,
-                               TupleTree<model::Binary> &TheBinary) {
+                               TupleTree<model::Binary> &Binary) {
     // TODO: fix the return value distribution.
     auto Arguments = distributeArguments(Function.Arguments(), 0);
 
@@ -281,7 +281,7 @@ public:
           Argument.Type() = chooseArgumentType(ArgumentType,
                                                Register,
                                                ArgumentStorage.Registers,
-                                               *TheBinary);
+                                               *Binary);
 
           // TODO: see what can be done to preserve names better
           if (llvm::StringRef{ ArgumentName.str() }.take_front(8) != "unnamed_")
@@ -316,7 +316,7 @@ public:
 
       using namespace model;
       auto Type = UpcastableType::make<StructType>(std::move(StackArguments));
-      Result.StackArgumentsType() = { TheBinary->recordNewType(std::move(Type)),
+      Result.StackArgumentsType() = { Binary->recordNewType(std::move(Type)),
                                       {} };
     }
 
@@ -332,7 +332,7 @@ public:
           ReturnValueRegister.Type() = chooseArgumentType(Function.ReturnType(),
                                                           Register,
                                                           ReturnValue.Registers,
-                                                          *TheBinary);
+                                                          *Binary);
 
           Result.ReturnValues().insert(std::move(ReturnValueRegister));
         }
@@ -410,10 +410,10 @@ public:
     // Add converted type to the model.
     using UT = model::UpcastableType;
     auto Ptr = UT::make<model::RawFunctionType>(std::move(Result));
-    auto NewTypePath = TheBinary->recordNewType(std::move(Ptr));
+    auto NewTypePath = Binary->recordNewType(std::move(Ptr));
 
     // Replace all references to the old type with references to the new one.
-    replaceReferences(Function.key(), NewTypePath, TheBinary);
+    replaceReferences(Function.key(), NewTypePath, Binary);
 
     return NewTypePath;
   }
@@ -463,7 +463,7 @@ private:
   static std::optional<llvm::SmallVector<model::Argument, 8>>
   convertArguments(const SortedVector<RegisterType> &UsedRegisters,
                    const RegisterArray<RegisterCount> &AllowedRegisters,
-                   model::Binary &TheBinary) {
+                   model::Binary &Binary) {
     llvm::SmallVector<model::Argument, 8> Result;
 
     bool MustUseTheNextOne = false;
@@ -477,7 +477,7 @@ private:
         if constexpr (!DryRun)
           Temporary.Type() = getTypeOrDefault(UsedRegisters.at(Register).Type(),
                                               Register,
-                                              TheBinary);
+                                              Binary);
         Temporary.CustomName() = UsedRegisters.at(Register).CustomName();
         Result.emplace_back(Temporary);
       } else if (MustUseTheNextOne) {
@@ -497,7 +497,7 @@ private:
             auto NewType = buildDoubleType(AllowedRegisters.at(Index - 2),
                                            AllowedRegisters.at(Index - 1),
                                            model::PrimitiveTypeKind::Generic,
-                                           TheBinary);
+                                           Binary);
             if (NewType == std::nullopt)
               return std::nullopt;
 
@@ -549,9 +549,9 @@ private:
   convertReturnValue(const SortedVector<RegisterType> &UsedRegisters,
                      const RegisterArray<RegisterCount> &AllowedRegisters,
                      const model::Register::Values PointerToCopyLocation,
-                     model::Binary &TheBinary) {
+                     model::Binary &Binary) {
     if (UsedRegisters.size() == 0) {
-      auto Void = TheBinary.getPrimitiveType(model::PrimitiveTypeKind::Void, 0);
+      auto Void = Binary.getPrimitiveType(model::PrimitiveTypeKind::Void, 0);
       return model::QualifiedType{ Void, {} };
     }
 
@@ -562,7 +562,7 @@ private:
         else
           return getTypeOrDefault(UsedRegisters.begin()->Type(),
                                   PointerToCopyLocation,
-                                  TheBinary);
+                                  Binary);
       } else {
         if constexpr (RegisterCount == 0)
           return std::nullopt;
@@ -572,7 +572,7 @@ private:
           else
             return getTypeOrDefault(UsedRegisters.begin()->Type(),
                                     UsedRegisters.begin()->Location(),
-                                    TheBinary);
+                                    Binary);
         } else {
           return std::nullopt;
         }
@@ -595,7 +595,7 @@ private:
           if constexpr (!DryRun)
             CurrentField.Type() = getTypeOrDefault(UsedIterator->Type(),
                                                    UsedIterator->Location(),
-                                                   TheBinary);
+                                                   Binary);
           ReturnStruct->Fields().insert(std::move(CurrentField));
 
           ReturnStruct->Size() += model::Register::getSize(Register);
@@ -614,7 +614,7 @@ private:
                    && !ReturnStruct->Fields().empty());
 
       if constexpr (!DryRun) {
-        auto ReturnStructTypePath = TheBinary.recordNewType(std::move(Result));
+        auto ReturnStructTypePath = Binary.recordNewType(std::move(Result));
         revng_assert(ReturnStructTypePath.isValid());
         return model::QualifiedType{ ReturnStructTypePath, {} };
       } else {
@@ -866,21 +866,21 @@ private:
   chooseArgumentType(const model::QualifiedType &ArgumentType,
                      model::Register::Values Register,
                      const RegisterList &RegisterList,
-                     model::Binary &TheBinary) {
+                     model::Binary &Binary) {
     if (RegisterList.size() > 1) {
-      return buildGenericType(Register, TheBinary);
+      return buildGenericType(Register, Binary);
     } else {
       auto ResultType = ArgumentType;
       auto MaybeSize = ArgumentType.size();
       auto TargetSize = model::Register::getSize(Register);
 
       if (!MaybeSize.has_value()) {
-        return buildType(Register, TheBinary);
+        return buildType(Register, Binary);
       } else if (*MaybeSize > TargetSize) {
         auto Qualifier = model::Qualifier::createPointer(TargetSize);
         ResultType.Qualifiers().emplace_back(Qualifier);
       } else if (!ResultType.isScalar()) {
-        return buildGenericType(Register, TheBinary);
+        return buildGenericType(Register, Binary);
       }
 
       return ResultType;
@@ -890,21 +890,21 @@ private:
 
 std::optional<model::TypePath>
 tryConvertToCABI(const model::RawFunctionType &Function,
-                 TupleTree<model::Binary> &TheBinary,
+                 TupleTree<model::Binary> &Binary,
                  std::optional<model::ABI::Values> MaybeABI) {
   if (!MaybeABI.has_value())
-    MaybeABI = TheBinary->DefaultABI();
+    MaybeABI = Binary->DefaultABI();
   revng_assert(*MaybeABI != model::ABI::Invalid);
   return skippingEnumSwitch<1>(*MaybeABI, [&]<model::ABI::Values A>() {
-    return ConversionHelper<A>::toCABI(Function, TheBinary);
+    return ConversionHelper<A>::toCABI(Function, Binary);
   });
 }
 
 model::TypePath convertToRaw(const model::CABIFunctionType &Function,
-                             TupleTree<model::Binary> &TheBinary) {
+                             TupleTree<model::Binary> &Binary) {
   revng_assert(Function.ABI() != model::ABI::Invalid);
   return skippingEnumSwitch<1>(Function.ABI(), [&]<model::ABI::Values A>() {
-    return ConversionHelper<A>::toRaw(Function, TheBinary);
+    return ConversionHelper<A>::toRaw(Function, Binary);
   });
 }
 
