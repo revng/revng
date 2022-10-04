@@ -128,22 +128,22 @@ public:
   }
 
   template<typename L>
-  void visitReferences(const L &InnerVisitor) {
+  void visitReferences(L &&InnerVisitor) {
     auto Visitor = [&InnerVisitor](auto &Element) {
       using type = std::remove_cvref_t<decltype(Element)>;
       if constexpr (StrictSpecializationOf<type, TupleTreeReference>)
-        InnerVisitor(Element);
+        std::invoke(std::forward<L>(InnerVisitor), Element);
     };
 
     visitTupleTree(*Root, Visitor, [](auto &) {});
   }
 
   template<typename L>
-  void visitReferences(const L &InnerVisitor) const {
+  void visitReferences(L &&InnerVisitor) const {
     auto Visitor = [&InnerVisitor](const auto &Element) {
       using type = std::remove_cvref_t<decltype(Element)>;
       if constexpr (StrictSpecializationOf<type, TupleTreeReference>)
-        InnerVisitor(Element);
+        std::invoke(std::forward<L>(InnerVisitor), Element);
     };
 
     visitTupleTree(*Root, Visitor, [](auto) {});
