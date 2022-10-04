@@ -73,7 +73,7 @@ static void addArgumentsTypes(const llvm::Function &LLVMFunc,
       if (not PointersOnly or ArgModelType.isPointer())
         TypeMap.insert({ &LLVMArg, ArgModelType });
     } else {
-      QualifiedType ArgType = Model.getPointerTo(ArgModelType);
+      QualifiedType ArgType = ArgModelType.getPointerTo(Model.Architecture);
       TypeMap.insert({ &LLVMArg, std::move(ArgType) });
     }
   }
@@ -360,7 +360,8 @@ ModelTypesMap initModelTypes(FunctionMetadataCache &Cache,
         llvm::PointerType *PtrType = llvm::cast<llvm::PointerType>(I.getType());
         llvm::Type *BaseType = PtrType->getElementType();
         revng_assert(BaseType->isSingleValueType());
-        Type = Model.getPointerTo(llvmIntToModelType(BaseType, Model));
+        const model::Architecture::Values &Architecture = Model.Architecture;
+        Type = llvmIntToModelType(BaseType, Model).getPointerTo(Architecture);
       } break;
 
       case Instruction::Select: {

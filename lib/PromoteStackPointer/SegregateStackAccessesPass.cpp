@@ -973,7 +973,7 @@ private:
       if (Argument.Type.isScalar())
         ArgumentType = Argument.Type;
       else
-        ArgumentType = Binary.getPointerTo(Argument.Type);
+        ArgumentType = Argument.Type.getPointerTo(Binary.Architecture);
 
       auto *LLVMType = getLLVMTypeForScalar(M.getContext(), ArgumentType);
       FunctionArguments.push_back(LLVMType);

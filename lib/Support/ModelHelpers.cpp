@@ -113,7 +113,7 @@ llvmIntToModelType(const llvm::Type *LLVMType, const model::Binary &Model) {
     }
     // Add qualifiers
     for (size_t I = 0; I < NPtrQualifiers; ++I)
-      ModelType = Model.getPointerTo(ModelType);
+      ModelType = ModelType.getPointerTo(Model.Architecture);
 
   } else if (NPtrQualifiers > 0) {
     // If it's a pointer to a non-integer type, return an integer type of the
@@ -330,7 +330,7 @@ getStrongModelInfo(FunctionMetadataCache &Cache,
       } else if (FTags.contains(FunctionTags::AddressOf)) {
         // The first argument is the base type (not the pointer's type)
         auto Base = deserializeFromLLVMString(Call->getArgOperand(0), Model);
-        Base = Model.getPointerTo(Base);
+        Base = Base.getPointerTo(Model.Architecture);
 
         ReturnTypes.push_back(Base);
 
@@ -432,7 +432,7 @@ getExpectedModelType(FunctionMetadataCache &Cache,
             revng_assert(ArgOperandIdx == RawPrototype->Arguments.size());
 
             const auto &StackArgsType = RawPrototype->StackArgumentsType;
-            auto StackArgs = Model.getPointerTo(StackArgsType);
+            auto StackArgs = StackArgsType.getPointerTo(Model.Architecture);
             revng_assert(StackArgs.UnqualifiedType.isValid());
             return { StackArgs };
           }
@@ -467,7 +467,7 @@ getExpectedModelType(FunctionMetadataCache &Cache,
         // The pointed type is contained in the first operand
         QualifiedType Base = deserializeFromLLVMString(Call->getArgOperand(0),
                                                        Model);
-        Base = Model.getPointerTo(Base);
+        Base = Base.getPointerTo(Model.Architecture);
         return { std::move(Base) };
 
       } else if (FTags.contains(FunctionTags::StructInitializer)) {

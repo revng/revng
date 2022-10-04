@@ -354,7 +354,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
                                                                    *Function) :
                                      "";
       Header << Separator
-             << getNamedCInstance(Model.getPointerTo(RF.StackArgumentsType),
+             << getNamedCInstance(RF.StackArgumentsType.getPointerTo(Arch),
                                   StackArgName);
     }
     Header << ")";
