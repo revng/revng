@@ -339,3 +339,26 @@ replaceAll(std::string &Input, const std::string &From, const std::string &To) {
     Start += To.length();
   }
 }
+
+//
+// `constexpr` versions of the llvm algorithm adaptors.
+//
+
+namespace revng {
+
+/// \note use `llvm::find` instead after it's made `constexpr`.
+template<typename R, typename T>
+constexpr decltype(auto) find(R &&Range, const T &Value) {
+  return std::find(std::begin(Range), std::end(Range), Value);
+}
+
+/// \note use `llvm::is_contained` instead after it's made `constexpr`.
+template<typename R, typename T> // NOLINTNEXTLINE
+constexpr bool is_contained(R &&Range, const T &Value) {
+  return revng::find(Range, Value) != std::end(Range);
+}
+
+static_assert(is_contained(std::array{ 1, 2, 3 }, 2) == true);
+static_assert(is_contained(std::array{ 1, 2, 3 }, 4) == false);
+
+} // namespace revng
