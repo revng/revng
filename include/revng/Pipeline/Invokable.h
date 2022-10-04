@@ -167,11 +167,11 @@ using ConcatImpl = std::decay_t<decltype(*concatImpl(std::declval<T1 *>(),
                                                      std::declval<T2 *>()))>;
 
 template<typename First, typename... Rest>
-auto *concantMultiImp(const First *, const Rest *...Others) {
+auto *concatMultiple(const First *, const Rest *...Others) {
   if constexpr (sizeof...(Rest) == 0) {
     return static_cast<First *>(nullptr);
   } else {
-    auto *Recurred = concantMultiImp<Rest...>(Others...);
+    auto *Recurred = concatMultiple<Rest...>(Others...);
     using TupleType = std::decay_t<decltype(*Recurred)>;
     using Concatted = ConcatImpl<First, TupleType>;
     return static_cast<Concatted *>(nullptr);
@@ -182,7 +182,7 @@ template<typename T>
 using Decay = std::decay_t<T>;
 
 template<typename... T>
-using TupleConcat = Decay<decltype(*concantMultiImp(std::declval<T *>()...))>;
+using TupleConcat = Decay<decltype(*concatMultiple(std::declval<T *>()...))>;
 
 template<typename... T>
 using FilterContainers = TupleConcat<ContainerToTuple<T>...>;

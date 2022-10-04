@@ -40,7 +40,7 @@ struct LogTerminator {
 };
 #define DoLog (LogTerminator{ __FILE__, __LINE__ })
 
-/// \brief Logger that self-registers itself, can be disable, has a name and
+/// \brief Logger that self-registers itself, can be disabled, has a name and
 ///        follows the global indentation level
 ///
 /// The typical usage of this class is to be a static global variable in a

@@ -45,18 +45,18 @@ public:
   }
 
 public:
-  bool isVerificationInProgess(const model::Type *T) const {
+  bool isVerificationInProgress(const model::Type *T) const {
     return InProgress.count(T) != 0;
   }
 
-  void verificationInProgess(const model::Type *T) {
-    revng_assert(not isVerificationInProgess(T));
+  void verificationInProgress(const model::Type *T) {
+    revng_assert(not isVerificationInProgress(T));
     revng_assert(not isVerified(T));
     InProgress.insert(T);
   }
 
   void verificationCompleted(const model::Type *T) {
-    revng_assert(isVerificationInProgess(T));
+    revng_assert(isVerificationInProgress(T));
     InProgress.erase(T);
   }
 

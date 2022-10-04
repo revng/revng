@@ -116,10 +116,10 @@ inline bool calculateSugiyamaLayout(ExternalGraph &Graph,
   auto [DAG, Ranks, Classified] = prepareGraph<RS>(Graph, !ShouldClassify);
 
   // Try to select an optimal node permutation per layer.
-  // \note: since this is the part with the highest complexity, it needs extra
+  // NOTE: since this is the part with the highest complexity, it needs extra
   // care for the layouter to perform well.
-  // \suggestion: Maybe we should consider something more optimal instead of
-  // a simple hill climbing algorithm.
+  // Maybe we should consider something more optimal instead of a simple hill
+  // climbing algorithm.
   auto Layers = Configuration.UseSimpleTreeOptimization ?
                   selectSimpleTreePermutation(DAG, Ranks) :
                   selectPermutation<RS>(DAG, Ranks, *Classified);

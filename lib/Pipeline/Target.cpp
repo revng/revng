@@ -105,7 +105,7 @@ llvm::Error pipeline::parseTarget(const Context &Ctx,
   AsString.split(Parts, ':', 2);
 
   if (Parts.size() != 2) {
-    auto *Message = "string %s was not in expected form <path:kind>";
+    auto *Message = "string '%s' was not in expected form <path:kind>";
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    Message,
                                    AsString.str().c_str());
@@ -118,7 +118,7 @@ llvm::Error pipeline::parseTarget(const Context &Ctx,
                           [&Parts](Kind &K) { return Parts[1] == K.name(); });
   if (It == Dict.end())
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   "No known Kind %s in dictionary",
+                                   "No known Kind '%s' in dictionary",
                                    Parts[1].str().c_str());
 
   if (AsString[0] == ':') {
@@ -143,9 +143,9 @@ llvm::Error pipeline::parseTarget(const Context &Ctx,
   AsString.split(Parts, '/', 1);
 
   if (Parts.size() != 2) {
-    auto *Message = "string %s was not in expected form <ContainerName/Target>";
+    auto *Text = "string '%s' was not in expected form <ContainerName/Target>";
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                   Message,
+                                   Text,
                                    AsString.str().c_str());
   }
 

@@ -1262,7 +1262,7 @@ createELFImporter(TupleTree<model::Binary> &M,
     }
   }
 
-  revng_abort("Unexpect address size");
+  revng_abort("Unexpected address size");
 }
 
 Error importELF(TupleTree<model::Binary> &Model,

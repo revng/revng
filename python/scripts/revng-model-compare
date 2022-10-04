@@ -334,13 +334,13 @@ def open_argument(path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Compare a YAML file against " "a reference.")
+    parser = argparse.ArgumentParser(description="Compare a YAML file against a reference.")
     parser.add_argument("reference", metavar="REFERENCE", help="The reference file.")
     parser.add_argument("input", metavar="INPUT", default="-", nargs="?", help="The input file.")
     parser.add_argument(
         "--exact",
         action="store_true",
-        help=("Match exactly, containing the reference is not " + "enough."),
+        help=("Match exactly, containing the reference is not enough."),
     )
     parser.add_argument("--not", action="store_true", help="If it matches, return an error.")
     parser.add_argument(
