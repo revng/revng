@@ -10,3 +10,4 @@ target_link_libraries(revng-pipeline revngPipeline revngPipes revngRecompile
 add_subdirectory(invalidate)
 add_subdirectory(artifact)
 add_subdirectory(analyze)
+add_subdirectory(print-invalidations)
