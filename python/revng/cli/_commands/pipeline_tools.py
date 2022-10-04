@@ -27,3 +27,6 @@ def setup(commands_registry: CommandsRegistry):
     commands_registry.register_command(PipelineToolCommand("analyze", "revng analyzer"))
     commands_registry.register_command(PipelineToolCommand("invalidate", "revng invalidate"))
     commands_registry.register_command(PipelineToolCommand("pipeline", "revng pipeline"))
+    commands_registry.register_command(
+        PipelineToolCommand("print-invalidations", "revng print-invalidations")
+    )
