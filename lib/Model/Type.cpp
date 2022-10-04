@@ -991,14 +991,19 @@ verifyImpl(VerifyHelper &VH, const StructType *T) {
     auto &Field = *FieldIt;
 
     if (not rc_recur Field.verify(VH))
-      rc_return VH.fail("Can't verify type of field " + Twine(Index + 1), *T);
-
-    if (Field.Offset() >= T->Size())
-      rc_return VH.fail("Field " + Twine(Index + 1)
-                          + " out of struct boundaries (offset: "
-                          + Twine(Field.Offset())
-                          + ", size: " + Twine(T->Size()) + ")",
+      rc_return VH.fail("Can't verify type of field at offset "
+                          + Twine(Field.Offset()),
                         *T);
+
+    if (Field.Offset() >= T->Size()) {
+      std::uint64_t Size = *Field.Type().size();
+      rc_return VH.fail("Field at offset " + Twine(Field.Offset())
+                          + " is out of struct boundaries (field size: "
+                          + Twine(Size) + ", field offset + size: "
+                          + Twine(Field.Offset() + Size)
+                          + ", struct size: " + Twine(T->Size()) + ")",
+                        *T);
+    }
 
     auto MaybeSize = rc_recur Field.Type().size(VH);
     // This is verified AggregateField::verify
@@ -1010,8 +1015,11 @@ verifyImpl(VerifyHelper &VH, const StructType *T) {
       // If this field is not the last, check that it does not overlap with the
       // following field.
       if (FieldEndOffset > NextFieldIt->Offset()) {
-        rc_return VH.fail("Field " + Twine(Index + 1)
-                            + " overlaps with the next one",
+        rc_return VH.fail("Field at offset " + Twine(Field.Offset())
+                            + " (with size: " + Twine(*Field.Type().size())
+                            + ") overlaps with the field at offset "
+                            + Twine(NextFieldIt->Offset()) + " (with size: "
+                            + Twine(*NextFieldIt->Type().size()) + ")",
                           *T);
       }
     } else if (FieldEndOffset > T->Size()) {
@@ -1165,10 +1173,10 @@ RecursiveCoroutine<bool> Type::verify(VerifyHelper &VH) const {
     rc_return true;
 
   // Ensure we have not infinite recursion
-  if (VH.isVerificationInProgess(this))
+  if (VH.isVerificationInProgress(this))
     rc_return VH.fail();
 
-  VH.verificationInProgess(this);
+  VH.verificationInProgress(this);
 
   if (ID() == 0)
     rc_return VH.fail();

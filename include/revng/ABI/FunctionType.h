@@ -38,8 +38,7 @@ inline const char *getName(Values Kind) {
 
 /// Best effort `CABIFunctionType` to `RawFunctionType` conversion.
 ///
-/// If `ABI` is not specified, `TheBinary.DefaultABI`
-/// is used instead.
+/// If `ABI` is not specified, `TheBinary.DefaultABI` is used instead.
 std::optional<model::TypePath>
 tryConvertToCABI(const model::RawFunctionType &Function,
                  TupleTree<model::Binary> &TheBinary,
@@ -138,9 +137,9 @@ public:
       dbg << "    StackSpan: ";
       if (A.Stack) {
         dbg << "{ Offset: " << A.Stack->Offset << ", Size: " << A.Stack->Size
-            << " }";
+            << " }\n";
       } else {
-        dbg << "no";
+        dbg << "no\n";
       }
       dbg << "    Kind: " << getName(A.Kind);
       dbg << "\n";

@@ -1216,7 +1216,7 @@ void DwarfImporter::import(StringRef FileName,
     return false;
   };
 
-  auto PerfromImport = [this](StringRef FilePath, StringRef TheDebugFile) {
+  auto PerformImport = [this](StringRef FilePath, StringRef TheDebugFile) {
     auto ExpectedBinary = object::createBinary(FilePath);
     if (!ExpectedBinary) {
       revng_log(DILogger, "Can't create binary for " << FilePath);
@@ -1252,10 +1252,10 @@ void DwarfImporter::import(StringRef FileName,
         } else {
           DebugFilePath = findDebugInfoFileByName(FileName, DebugFile, ELF);
           if (DebugFilePath)
-            PerfromImport(*DebugFilePath, DebugFile);
+            PerformImport(*DebugFilePath, DebugFile);
         }
       } else {
-        PerfromImport(*DebugFilePath, DebugFile);
+        PerformImport(*DebugFilePath, DebugFile);
       }
     }
   }
@@ -1343,7 +1343,7 @@ computeEquivalentSymbols(const llvm::object::ObjectFile &ELF) {
   return Result;
 }
 
-// TODO: it wuold be beneficial to do this even at other levels
+// TODO: it would be beneficial to do this even at other levels
 inline void detectAliases(const llvm::object::ObjectFile &ELF,
                           TupleTree<model::Binary> &Model) {
   EquivalenceClasses<StringRef> Aliases = computeEquivalentSymbols(ELF);

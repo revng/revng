@@ -151,7 +151,7 @@ constexpr bool
 /// allows direct specializations (and aliases) - no inheritance.
 ///
 /// It's useful in the cases when template parameter deduction is important,
-/// e.g. when instanciating traits.
+/// e.g. when instantiating traits.
 template<typename Test, template<typename...> class Ref>
 concept StrictSpecializationOf = revng::detail::StrictSpecialization<Test, Ref>;
 
@@ -162,7 +162,7 @@ static_assert(not StrictSpecializationOf<std::ostream, std::basic_ios>);
 static_assert(not StrictSpecializationOf<std::string, std::basic_string_view>);
 
 //
-// Other Miscellanious concepts.
+// Other Miscellaneous concepts.
 //
 
 template<typename T, typename R>

@@ -380,11 +380,11 @@ void PDBImporter::import(const COFFObjectFile &TheBinary,
       // Sometimes we may rename a PDB file, so we can force using that one.
       loadDataFromPDB(UsePDB);
     } else if (llvm::sys::fs::exists(PDBFilePath)) {
-      // Use the filepath of the PDB file if it exists on the device.
+      // Use the path of the PDB file if it exists on the device.
       loadDataFromPDB(PDBFilePath.str());
     } else {
       if (FetchDebugInfoWithLevel) {
-        // Usualy the PDB files will be generated on a different machine,
+        // Usually the PDB files will be generated on a different machine,
         // so the location read from the debug directory wont be up to date.
 
         auto PositionOfLastDirectoryChar = PDBFilePath.rfind("\\");

@@ -940,8 +940,8 @@ Layout::Layout(const model::CABIFunctionType &Function) :
       const model::QualifiedType
         &ArgumentType = Function.Arguments().at(Index).Type();
 
-      // Disambiguate scalar and aggregate arguments. Scalars are passed by
-      // value, aggregate by pointer.
+      // Disambiguate scalar and aggregate arguments.
+      // Scalars are passed by value, aggregates - by pointer.
       Current.Type = ArgumentType;
       if (ArgumentType.isScalar())
         Current.Kind = ArgumentKind::Scalar;
@@ -993,7 +993,6 @@ Layout::Layout(const model::RawFunctionType &Function) {
 
     auto &Argument = Arguments.emplace_back();
 
-    const auto &Arch = StackArgType.UnqualifiedType().getRoot()->Architecture();
     // Stack argument is always passed by pointer for RawFunctionType
     Argument.Type = StackArgType;
     Argument.Kind = ArgumentKind::ReferenceToAggregate;

@@ -42,7 +42,7 @@ extractAugmentedTopologicalOrder(InternalGraph &Graph,
   }
 
   // Ensure there's a single entry point.
-  // \note: `EntryNode` is not added to the augmented graph and is never
+  // NOTE: `EntryNode` is not added to the augmented graph and is never
   // `disconnect`ed, so be careful when using the graph from this point on.
   // The "broken" state is used as a minor optimization to avoid unnecessary
   // cleanup since the graph is stack-allocated and only exists until this
