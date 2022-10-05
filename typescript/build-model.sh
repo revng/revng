@@ -29,4 +29,4 @@ npm pack --silent > /dev/null
 cp revng-model-1.*.tgz ../model.ts.tgz
 
 cd ..
-npm --silent install --no-package-lock ./model.ts.tgz
+npm --silent install --global --prefix=. ./model.ts.tgz
