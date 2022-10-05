@@ -12,7 +12,7 @@ from typing import Any, Callable, Dict, Iterable, Optional
 from cffi import FFI
 from cffi.backend_ctypes import CTypesBackend
 
-from revng.support import AnyPaths, to_iterable
+from revng.support import AnyPaths, get_root, to_iterable
 from revng.support.collect import collect_libraries, collect_one
 
 
@@ -114,8 +114,7 @@ class ApiWrapper:
             raise NotImplementedError()
 
 
-# We assume this file is in <root>/lib/python/revng/api
-ROOT = (Path(__file__) / "../../../../../..").resolve()
+ROOT = get_root()
 HEADERS_DIR = ROOT / "include" / "revng" / "PipelineC"
 
 header_paths = [
