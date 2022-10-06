@@ -13,7 +13,7 @@ Branches:
         Pipes:
           - Type: LLVMPipe
             UsedContainers: [module.ll]
-            Passes: [collect-cfg, isolate, invoke-isolated-functions, attach-debug-info]
+            Passes: [isolate, invoke-isolated-functions, attach-debug-info]
           - Type: ProcessCallGraph
             UsedContainers: [module.ll, cross-relations.yml]
         Artifacts:

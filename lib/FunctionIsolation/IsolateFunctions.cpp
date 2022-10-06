@@ -31,6 +31,7 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/BasicBlock.h"
 #include "revng/EarlyFunctionAnalysis/CallHandler.h"
+#include "revng/EarlyFunctionAnalysis/CollectCFG.h"
 #include "revng/EarlyFunctionAnalysis/FunctionEdge.h"
 #include "revng/EarlyFunctionAnalysis/FunctionEdgeBase.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
@@ -79,6 +80,7 @@ struct IsolatePipe {
   }
 
   void registerPasses(llvm::legacy::PassManager &Manager) {
+    Manager.add(new efa::CollectCFGPass());
     Manager.add(new IsolateFunctions());
   }
 };
