@@ -1,0 +1,24 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# Ensure that function `baz` and its callers are invalidated when changing its FinalStackOffset
+
+---
+Functions:
+  - CustomName: "baz"
+    OriginalName: baz
+    Prototype: "/Types/RawFunctionType-12005182500180626567"
+Types:
+  - Kind: RawFunctionType
+    ID: 12005182500180626567
+    Arguments: []
+    ReturnValues: []
+    PreservedRegisters:
+      - rbx_x86_64
+      - rbp_x86_64
+      - r12_x86_64
+      - r13_x86_64
+      - r14_x86_64
+      - r15_x86_64
+    FinalStackOffset: 4

@@ -1,0 +1,18 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# Ensure that function `baz` is not invalidated when converting its prototype
+
+---
+Functions:
+  - CustomName: "baz"
+    OriginalName: baz
+    Prototype: "/Types/CABIFunctionType-2124216521743561362"
+Types:
+  - Kind: CABIFunctionType
+    ID: 2124216521743561362
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-256"
+    Arguments: []

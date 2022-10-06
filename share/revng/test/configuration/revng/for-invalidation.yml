@@ -1,0 +1,98 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+commands:
+  - type: revng.test-invalidation
+    from:
+      - type: revng.lifted
+        filter: for-invalidation
+    command: |-
+      BASELINE_LLVM_BITCODE="$$(mktemp)";
+      BASELINE_MODEL="$$(mktemp)";
+      BASELINE_MODEL_NAMED_DYN_FUNC="$$(mktemp)";
+      BASELINE_MODEL_OVERRIDEN="$$(mktemp)";
+      CFG="$$(mktemp)";
+      DIFF="$$(mktemp)";
+      TMP_FOLDER="$$(mktemp -d)";
+      trap 'rm -rf -- "$$BASELINE_LLVM_BITCODE" "$$BASELINE_MODEL" "$$DIFF" "$$TMP_FOLDER"' EXIT;
+      revng opt --collect-functions-from-callees --detect-abi --collect-cfg $INPUT  > "$$BASELINE_LLVM_BITCODE";
+      revng model dump < "$$BASELINE_LLVM_BITCODE" > "$$BASELINE_MODEL";
+      revng efa-extractcfg < "$$BASELINE_LLVM_BITCODE" > "$$CFG";
+      ./customname-and-inline-to-dynamicfunctions.py "$$CFG" "$$BASELINE_MODEL" > "$$BASELINE_MODEL_NAMED_DYN_FUNC";
+      revng model override-by-name "$$BASELINE_MODEL_NAMED_DYN_FUNC" ${SOURCE}.override.yml > "$$BASELINE_MODEL_OVERRIDEN";
+      revng pipeline
+        -i "$$BASELINE_LLVM_BITCODE":Lift/module.ll
+        -m "$$BASELINE_MODEL_OVERRIDEN"
+        --analyze Lift/DetectABI/module.ll/:Root
+        --resume "$$TMP_FOLDER"
+        --produce Isolate/module.ll/*:Isolated;
+      for FILE in ${SOURCE}.overrides/*.yml; do
+        revng model override-by-name "$$BASELINE_MODEL_OVERRIDEN" "$$FILE"
+          | ./remove-candidate-functions-from-model.py /dev/stdin "$$FILE"
+          | (revng model diff "$$BASELINE_MODEL_OVERRIDEN" /dev/stdin || true) > "$$DIFF";
+        revng print-invalidations --resume "$$TMP_FOLDER" "$$DIFF"
+          | ./metaaddress-to-customname.py "$$BASELINE_MODEL_OVERRIDEN" /dev/stdin
+          | diff -B /dev/stdin <(grep -vE '^\s*#' "$$FILE".invalidations);
+      done
+    scripts:
+      customname-and-inline-to-dynamicfunctions.py: |-
+        #!/usr/bin/env python3
+
+        import sys
+        import yaml
+        from revng import model
+
+        with open(sys.argv[1]) as input_cfg:
+          cfg = yaml.safe_load(input_cfg)
+
+        with open(sys.argv[2]) as input_model_file:
+          baseline_model = yaml.load(input_model_file, Loader=model.YamlLoader)
+
+        for line in cfg:
+          for entry in line['FunctionMetadata']['ControlFlowGraph']:
+            for successor in entry['Successors']:
+              if 'DynamicFunction' in successor:
+                function = next(f for f in baseline_model.Functions if repr(f.Entry) == line['Entry'])
+                function.Attributes = ["Inline"]
+                function.OriginalName = "plt_" + successor['DynamicFunction']
+                function.CustomName = "plt_" + successor['DynamicFunction']
+
+        print(yaml.dump(baseline_model, Dumper=model.YamlDumper))
+
+      remove-candidate-functions-from-model.py: |-
+        #!/usr/bin/env python3
+
+        import sys
+        import yaml
+        from revng import model
+
+        with open(sys.argv[1]) as input_model_file:
+          baseline_model = yaml.load(input_model_file, Loader=model.YamlLoader)
+
+        with open(sys.argv[2]) as input_override_file:
+          override_model = yaml.load(input_override_file, Loader=yaml.SafeLoader)
+
+        for function_to_override in override_model["Functions"]:
+          if function_to_override["CustomName"].startswith('-'):
+            function_name = function_to_override["OriginalName"]
+            baseline_model.Functions = [d for d in baseline_model.Functions if d.OriginalName != function_name]
+
+        print(yaml.dump(baseline_model, Dumper=model.YamlDumper))
+
+      metaaddress-to-customname.py: |-
+        #!/usr/bin/env python3
+
+        import sys
+        import yaml
+        from revng import model
+
+        with open(sys.argv[1]) as input_model_file:
+          baseline_model = yaml.load(input_model_file, Loader=model.YamlLoader)
+
+        with open(sys.argv[2]) as input_invalidations_file:
+          for line in input_invalidations_file:
+            metaaddress = ':'.join(line[1:].split(':')[:-1])
+            for function in baseline_model.Functions:
+              if function.Entry == model.MetaAddress.from_string(metaaddress):
+                print(function.CustomName)
