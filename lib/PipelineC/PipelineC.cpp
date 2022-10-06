@@ -205,13 +205,6 @@ rp_manager *rp_manager_create(uint64_t pipelines_count,
                                 execution_directory);
 }
 
-rp_manager *rp_manager_create_memory_only(const char *pipeline_path,
-                                          uint64_t flags_count,
-                                          const char *flags[]) {
-  const char *paths[1] = { pipeline_path };
-  return rp_manager_create(1, paths, flags_count, flags, "");
-}
-
 bool rp_manager_save(rp_manager *manager, const char *path) {
   revng_check(manager != nullptr);
 
