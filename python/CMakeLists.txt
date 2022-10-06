@@ -15,16 +15,19 @@ function(python_module)
                         "${multiValueArgs}" ${ARGN})
 
   foreach(MODULE_FILE ${PYTHON_MODULE_MODULE_FILES})
-    configure_file("${MODULE_FILE}"
-                   "${CMAKE_BINARY_DIR}/lib/python/${MODULE_FILE}" COPYONLY)
+    configure_file(
+      "${MODULE_FILE}"
+      "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/${MODULE_FILE}" COPYONLY)
   endforeach()
 
   foreach(MODULE_FILE ${PYTHON_MODULE_MODULE_FILES}
                       ${PYTHON_MODULE_MODULE_GENERATED_FILES})
     # Copy module in the root at install time
     get_filename_component(MODULE_FILE_DIR "${MODULE_FILE}" DIRECTORY)
-    install(FILES "${CMAKE_BINARY_DIR}/lib/python/${MODULE_FILE}"
-            DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/python/${MODULE_FILE_DIR}")
+    install(
+      FILES "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/${MODULE_FILE}"
+      DESTINATION
+        "${CMAKE_INSTALL_PREFIX}/${PYTHON_INSTALL_PATH}/${MODULE_FILE_DIR}")
   endforeach()
   add_custom_target(
     "${PYTHON_MODULE_TARGET_NAME}"
