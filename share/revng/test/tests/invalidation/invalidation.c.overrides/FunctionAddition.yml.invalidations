@@ -1,0 +1,18 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+prefix__init
+plt_puts
+plt___libc_start_main
+prefix__dl_relocate_static_pie
+deregister_tm_clones
+register_tm_clones
+prefix___do_global_dtors_aux
+frame_dummy
+bar
+foo
+qux
+baz
+main
+prefix__fini

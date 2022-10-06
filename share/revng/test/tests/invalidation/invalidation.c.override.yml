@@ -1,0 +1,164 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+---
+Functions:
+  - CustomName: "bar"
+    OriginalName: bar
+    Prototype: "/Types/RawFunctionType-13090241523659220176"
+  - CustomName: "foo"
+    OriginalName: foo
+    Prototype: "/Types/RawFunctionType-15357695279870196297"
+  - CustomName: "qux"
+    OriginalName: qux
+    Prototype: "/Types/RawFunctionType-6494433326490644482"
+  - CustomName: "baz"
+    OriginalName: baz
+    Prototype: "/Types/RawFunctionType-12005182500180626567"
+  - CustomName: "main"
+    OriginalName: main
+    Prototype: "/Types/CABIFunctionType-17140048229552705196"
+ImportedDynamicFunctions:
+  - OriginalName: __libc_start_main
+    CustomName: "prefix___libc_start_main"
+    Prototype: "/Types/CABIFunctionType-3475954398804502039"
+    Relocations:
+      - Address: "0x402000:Generic64"
+        Type: WriteAbsoluteAddress64
+        Addend: 0
+  - OriginalName: puts
+    CustomName: "puts"
+    Prototype: "/Types/CABIFunctionType-2425851358607508017"
+    Relocations:
+      - Address: "0x402008:Generic64"
+        Type: WriteAbsoluteAddress64
+        Addend: 0
+Types:
+  - Kind: CABIFunctionType
+    ID: 3475954398804502039
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-256"
+    Arguments: []
+  - Kind: CABIFunctionType
+    ID: 2425851358607508017
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-256"
+    Arguments: []
+  - Kind: CABIFunctionType
+    ID: 17140048229552705196
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-1540"
+    Arguments:
+      - Index: 0
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1540"
+        CustomName: "argc"
+        OriginalName: argc
+      - Index: 1
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1537"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
+            - Kind: Pointer
+              Size: 8
+            - Kind: Const
+        CustomName: "argv"
+        OriginalName: argv
+  - Kind: PrimitiveType
+    ID: 256
+    PrimitiveKind: Void
+    Size: 0
+  - Kind: PrimitiveType
+    ID: 520
+    PrimitiveKind: Generic
+    Size: 8
+  - Kind: PrimitiveType
+    ID: 1537
+    PrimitiveKind: Signed
+    Size: 1
+  - Kind: PrimitiveType
+    ID: 1540
+    PrimitiveKind: Signed
+    Size: 4
+  - Kind: RawFunctionType
+    ID: 6494433326490644482
+    Arguments:
+      - Location: rdx_x86_64
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+      - Location: rsi_x86_64
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+      - Location: rdi_x86_64
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+    ReturnValues:
+      - Location: rax_x86_64
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+    PreservedRegisters:
+      - rbx_x86_64
+      - rbp_x86_64
+      - r12_x86_64
+      - r13_x86_64
+      - r14_x86_64
+      - r15_x86_64
+    FinalStackOffset: 8
+  - Kind: RawFunctionType
+    ID: 12005182500180626567
+    Arguments: []
+    ReturnValues: []
+    PreservedRegisters:
+      - rbx_x86_64
+      - rbp_x86_64
+      - rsp_x86_64
+      - r12_x86_64
+      - r13_x86_64
+      - r14_x86_64
+      - r15_x86_64
+      - fs_x86_64
+    FinalStackOffset: 8
+  - Kind: RawFunctionType
+    ID: 13090241523659220176
+    Arguments:
+      - Location: rdi_x86_64
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+    ReturnValues:
+      - Location: rax_x86_64
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+    PreservedRegisters:
+      - rbx_x86_64
+      - rbp_x86_64
+      - r12_x86_64
+      - r13_x86_64
+      - r14_x86_64
+      - r15_x86_64
+    FinalStackOffset: 8
+  - Kind: RawFunctionType
+    ID: 15357695279870196297
+    Arguments:
+      - Location: rsi_x86_64
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+      - Location: rdi_x86_64
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+    ReturnValues:
+      - Location: rax_x86_64
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+    PreservedRegisters:
+      - rbx_x86_64
+      - rbp_x86_64
+      - r12_x86_64
+      - r13_x86_64
+      - r14_x86_64
+      - r15_x86_64
+    FinalStackOffset: 8

@@ -1,0 +1,23 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# Ensure that external function `puts` and its callers are invalidated when changing its FinalStackOffset (changed via ABI)
+
+---
+Functions: []
+ImportedDynamicFunctions:
+  - OriginalName: __libc_start_main
+    CustomName: "prefix___libc_start_main"
+    Prototype: "/Types/CABIFunctionType-3475954398804502039"
+    Relocations:
+      - Address: "0x402000:Generic64"
+        Type: WriteAbsoluteAddress64
+        Addend: 0
+Types:
+  - Kind: CABIFunctionType
+    ID: 3475954398804502039
+    ABI: SystemV_x86
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-256"
+    Arguments: []
