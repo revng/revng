@@ -8,15 +8,14 @@
 #include "llvm/ADT/STLExtras.h"
 
 #include "revng/ADT/GenericGraph.h"
+#include "revng/FunctionIsolation/IsolationFunctionKind.h"
 #include "revng/FunctionIsolation/PromoteCSVs.h"
 #include "revng/FunctionIsolation/StructInitializers.h"
 #include "revng/MFP/MFP.h"
 #include "revng/MFP/SetLattices.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Contract.h"
-#include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/RootKind.h"
-#include "revng/Pipes/TaggedFunctionKind.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;

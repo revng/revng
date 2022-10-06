@@ -32,9 +32,9 @@
 #include "revng/Pipeline/LLVMGlobalKindBase.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/FileContainer.h"
+#include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/RootKind.h"
-#include "revng/Recompile/CompileModulePipe.h"
 #include "revng/Support/Statistics.h"
 
 using namespace std;
