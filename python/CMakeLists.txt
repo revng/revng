@@ -36,12 +36,6 @@ function(python_module)
 endfunction()
 
 #
-# Check that required python dependencies are available
-#
-file(STRINGS "requirements.txt" REQUIREMENTS REGEX "^[^#].+$")
-check_python_requirements(${REQUIREMENTS})
-
-#
 # Install scripts
 #
 set(SCRIPTS "scripts/revng-merge-dynamic" "scripts/revng-model-compare"
