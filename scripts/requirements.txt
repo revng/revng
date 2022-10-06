@@ -2,8 +2,6 @@
 jsonschema
 PyYAML
 Jinja2
-# Needed for python < 3.9
-graphlib-backport
 
 # Requirements for monotone-framework
 networkx
