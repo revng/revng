@@ -204,4 +204,172 @@ const Definition &Definition::get(model::ABI::Values ABI) {
   return It->second;
 }
 
+static RecursiveCoroutine<std::optional<std::uint64_t>>
+naturalAlignment(const abi::Definition &ABI,
+                 model::VerifyHelper &VH,
+                 const model::Type &Type);
+static RecursiveCoroutine<std::optional<std::uint64_t>>
+naturalAlignment(const abi::Definition &ABI,
+                 model::VerifyHelper &VH,
+                 const model::QualifiedType &Type);
+
+template<typename RealType>
+RecursiveCoroutine<std::optional<std::uint64_t>>
+underlyingAlignment(const abi::Definition &ABI,
+                    model::VerifyHelper &VH,
+                    const model::Type &Type) {
+  const auto &Underlying = llvm::cast<RealType>(&Type)->UnderlyingType();
+  rc_return rc_recur naturalAlignment(ABI, VH, Underlying);
+}
+
+template<typename RealType>
+RecursiveCoroutine<std::optional<std::uint64_t>>
+fieldAlignment(const abi::Definition &ABI,
+               model::VerifyHelper &VH,
+               const model::Type &Type) {
+  std::uint64_t Alignment = 0;
+  for (const auto &Field : llvm::cast<RealType>(&Type)->Fields()) {
+    if (auto A = rc_recur naturalAlignment(ABI, VH, Field.Type()))
+      Alignment = std::max(Alignment, *A);
+    else
+      rc_return std::nullopt;
+  }
+
+  rc_return Alignment;
+}
+
+static RecursiveCoroutine<std::optional<std::uint64_t>>
+naturalAlignment(const abi::Definition &ABI,
+                 model::VerifyHelper &VH,
+                 const model::Type &Type) {
+  std::optional<std::uint64_t> MaybeAlignment = VH.alignment(&Type);
+  if (MaybeAlignment)
+    rc_return MaybeAlignment;
+
+  std::uint64_t Alignment;
+
+  // This code assumes that the type `Type` is well formed.
+  switch (Type.Kind()) {
+  case model::TypeKind::RawFunctionType:
+  case model::TypeKind::CABIFunctionType:
+    // Function prototypes have no size - hence no alignment.
+    Alignment = 0;
+    break;
+
+  case model::TypeKind::PrimitiveType: {
+    // The alignment of primitives is simple to figure out based on the abi
+    const auto *P = llvm::cast<model::PrimitiveType>(&Type);
+    if (P->PrimitiveKind() == model::PrimitiveTypeKind::Void) {
+      // `void` has no size either - hence no alignment.
+      if (P->Size() != 0)
+        rc_return std::nullopt;
+
+      Alignment = 0;
+    } else if (P->PrimitiveKind() == model::PrimitiveTypeKind::Float) {
+      auto Iterator = ABI.FloatingPointScalarTypes().find(P->Size());
+      if (Iterator == ABI.FloatingPointScalarTypes().end())
+        rc_return std::nullopt;
+      Alignment = Iterator->alignedAt();
+    } else {
+      auto Iterator = ABI.ScalarTypes().find(P->Size());
+      if (Iterator == ABI.ScalarTypes().end())
+        rc_return std::nullopt;
+      Alignment = Iterator->alignedAt();
+    }
+  } break;
+
+  case model::TypeKind::EnumType:
+    // The alignment of an enum is the same as the alignment of its underlying
+    // type
+    if (auto A = rc_recur underlyingAlignment<model::EnumType>(ABI, VH, Type))
+      Alignment = *A;
+    else
+      rc_return std::nullopt;
+    break;
+
+  case model::TypeKind::TypedefType:
+    // The alignment of an enum is the same as the alignment of its underlying
+    // type
+    using model::TypedefType;
+    if (auto A = rc_recur underlyingAlignment<TypedefType>(ABI, VH, Type))
+      Alignment = *A;
+    else
+      rc_return std::nullopt;
+    break;
+
+  case model::TypeKind::StructType:
+    // The alignment of a struct is the same as the alignment of its most
+    // strictly aligned member.
+    if (auto A = rc_recur fieldAlignment<model::StructType>(ABI, VH, Type))
+      Alignment = *A;
+    else
+      rc_return std::nullopt;
+    break;
+
+  case model::TypeKind::UnionType:
+    // The alignment of a union is the same as the alignment of its most
+    // strictly aligned member.
+    if (auto A = rc_recur fieldAlignment<model::UnionType>(ABI, VH, Type))
+      Alignment = *A;
+    else
+      rc_return std::nullopt;
+    break;
+
+  case model::TypeKind::Invalid:
+  case model::TypeKind::Count:
+  default:
+    rc_return std::nullopt;
+  }
+
+  VH.setAlignment(&Type, Alignment);
+
+  rc_return Alignment;
+}
+
+static RecursiveCoroutine<std::optional<std::uint64_t>>
+naturalAlignment(const abi::Definition &ABI,
+                 model::VerifyHelper &VH,
+                 const model::QualifiedType &QT) {
+  // This code assumes that the QualifiedType is well formed.
+  for (auto It = QT.Qualifiers().begin(); It != QT.Qualifiers().end(); ++It) {
+    switch (It->Kind()) {
+    case model::QualifierKind::Pointer:
+      // Doesn't matter what the type is, use alignment of the pointer.
+      rc_return ABI.ScalarTypes().at(It->Size()).alignedAt();
+
+    case model::QualifierKind::Array: {
+      // The alignment of an array is the same as the alignment of its element.
+      const model::QualifiedType Element{
+        QT.UnqualifiedType(), { std::next(It), QT.Qualifiers().end() }
+      };
+      if (auto MaybeAlignment = rc_recur naturalAlignment(ABI, VH, Element))
+        rc_return *MaybeAlignment;
+      else
+        rc_return std::nullopt;
+    }
+
+    case model::QualifierKind::Const:
+      // Const has no impact on alignment, look at the next qualifier.
+      break;
+
+    case model::QualifierKind::Invalid:
+    case model::QualifierKind::Count:
+    default:
+      rc_return std::nullopt;
+    }
+  }
+
+  rc_return rc_recur naturalAlignment(ABI, VH, *QT.UnqualifiedType().get());
+}
+
+std::optional<std::uint64_t>
+Definition::alignment(model::VerifyHelper &VH,
+                      const model::QualifiedType &QT) const {
+  std::optional<std::uint64_t> Result = naturalAlignment(*this, VH, QT);
+  if (Result.has_value() && Result.value() != 0)
+    return Result.value();
+  else
+    return std::nullopt;
+}
+
 } // namespace abi

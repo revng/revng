@@ -310,6 +310,36 @@ public:
   /// \return `false` if the function is definitely NOT compatible with the ABI,
   ///         `true` if it might be compatible.
   bool isIncompatibleWith(const model::RawFunctionType &Function) const;
+
+  /// Compute the natural alignment of the type in accordance with
+  /// the current ABI
+  ///
+  /// \note  It mirrors, `model::Type::size()` pretty closely, see documentation
+  ///        related to it (and usage of the coroutines inside this codebase
+  ///        in general) for more details on how it works.
+  ///
+  /// \param Type The type to compute the alignment of.
+  /// \param ABI The ABI used to determine alignment of the primitive components
+  ///        of the type
+  ///
+  /// \return either an alignment or a `std::nullopt` when it's not applicable.
+  inline std::optional<uint64_t>
+  alignment(const model::QualifiedType &Type) const {
+    model::VerifyHelper VH;
+    return alignment(VH, Type);
+  }
+
+  std::optional<uint64_t>
+  alignment(model::VerifyHelper &VH, const model::QualifiedType &Type) const;
+
+  std::uint64_t
+  alignedOffset(std::uint64_t Offset, const model::QualifiedType &Type) const {
+    const std::uint64_t Alignment = *alignment(Type);
+    if (Offset % Alignment != 0)
+      return Offset + Alignment - Offset % Alignment;
+
+    return Offset;
+  }
 };
 
 } // namespace abi
