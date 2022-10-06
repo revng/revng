@@ -25,15 +25,6 @@
  */
 
 /**
- * Allow setting a custom abort hook.
- * This will be called just before revng_abort() in case of an assertion
- * failure. Useful if calling from a non-C language to print extra debug
- * information.
- */
-typedef void (*AbortHook)(void);
-void rp_set_custom_abort_hook(AbortHook Hook);
-
-/**
  * Must be invoked before any other rp_* function is used, must be invoked
  * exactly once. This will take care of initializing all llvm related stuff
  * needed by the revng pipeline to operate.
@@ -45,7 +36,9 @@ void rp_set_custom_abort_hook(AbortHook Hook);
 bool rp_initialize(int argc,
                    char *argv[],
                    int libraries_count,
-                   const char *libraries_path[]);
+                   const char *libraries_path[],
+                   int signals_to_preserve_count,
+                   int signals_to_preserve[]);
 
 /**
  * Should be called on clean exit to clean up all LLVM-related stuff used by

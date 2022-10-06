@@ -2,6 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <csignal>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -30,10 +31,6 @@
 using namespace pipeline;
 using namespace ::revng::pipes;
 
-void rp_set_custom_abort_hook(AbortHook Hook) {
-  setAbortHook(Hook);
-}
-
 /// Used when we want to return a stack allocated string. Copies the string onto
 /// the heap and gives ownership of to the caller
 static char *copyString(llvm::StringRef str) {
@@ -54,13 +51,38 @@ static bool loadLibraryPermanently(const char *LibraryPath) {
 }
 
 static std::optional<revng::InitRevng> InitRevngInstance = std::nullopt;
+typedef void (*sighandler_t)(int);
 
 bool rp_initialize(int argc,
                    char *argv[],
                    int libraries_count,
-                   const char *libraries_path[]) {
+                   const char *libraries_path[],
+                   int signals_to_preserve_count,
+                   int signals_to_preserve[]) {
+  if (argc != 0)
+    revng_check(argv != nullptr);
+  if (libraries_count != 0)
+    revng_check(libraries_path != nullptr);
+
   if (Initialized)
     return false;
+
+  std::map<int, sighandler_t> Signals;
+  for (int I = 0; I < signals_to_preserve_count; I++) {
+    // For each signal number we are asked to preserve we need to extract the
+    // function pointer to the signal and save it. The constructor for
+    // revng::InitRevng will call LLVM's RegisterHandlers which overrides most
+    // signal handlers and chains the previous one afterwards, we want instead
+    // to keep the already existing handler and remove the LLVM's one
+    int SigNumber = signals_to_preserve[I];
+    sighandler_t Handler = signal(SigNumber, SIG_DFL);
+    if (Handler != SIG_ERR && Handler != NULL) {
+      // We save the signal handler for restoration after we initialize LLVM's
+      // machinery, as said we do not restore the signal to avoid LLVM chaining
+      // it after its own
+      Signals[SigNumber] = Handler;
+    }
+  }
 
   revng_check(not InitRevngInstance.has_value());
   InitRevngInstance.emplace(argc, argv);
@@ -73,6 +95,13 @@ bool rp_initialize(int argc,
   Initialized = true;
 
   Registry::runAllInitializationRoutines();
+
+  for (const auto &[SigNumber, Handler] : Signals) {
+    // All of LLVM's initialization is complete, restore the original signals to
+    // the respective signal number
+    signal(SigNumber, Handler);
+  }
+
   return true;
 }
 
@@ -214,6 +243,7 @@ uint64_t rp_manager_step_name_to_index(rp_manager *manager, const char *name) {
 
   return RP_STEP_NOT_FOUND;
 }
+
 rp_step *rp_manager_get_step(rp_manager *manager, uint64_t index) {
   revng_check(manager != nullptr);
   revng_check(index < manager->getRunner().size());

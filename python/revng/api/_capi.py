@@ -2,8 +2,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+import faulthandler
 import re
-import traceback
 from functools import wraps
 from pathlib import Path
 from threading import Lock
@@ -16,6 +16,31 @@ from revng.support import AnyPaths, to_iterable
 from revng.support.collect import collect_libraries, collect_one
 
 
+class AtomicCounterWithCallback:
+    """Simple atomic counter, will call callback once mark_end has been called
+    and the counter reaches zero"""
+
+    def __init__(self, callback: Callable[[], None]):
+        self.lock = Lock()
+        self.counter = 0
+        self.ending = False
+        self.callback = callback
+
+    def increment(self):
+        with self.lock:
+            self.counter += 1
+
+    def decrement(self):
+        with self.lock:
+            self.counter -= 1
+            if self.counter == 0 and self.ending:
+                self.callback()
+
+    def mark_end(self):
+        with self.lock:
+            self.ending = True
+
+
 class ApiWrapper:
     function_matcher = re.compile(
         r"(?P<return_type>[\w_]+)\s*\*\s*\/\*\s*owning\s*\*\/\s*(?P<function_name>[\w_]+)",
@@ -26,6 +51,7 @@ class ApiWrapper:
         self.__api = api
         self.__ffi = ffi
         self.__lock = Lock()
+        self.__counter = AtomicCounterWithCallback(self.__api.rp_shutdown)
         self.__proxy: Dict[str, Callable[..., Any]] = {}
 
         for match in self.function_matcher.finditer("\n".join(ffi._cdefsources)):
@@ -48,15 +74,24 @@ class ApiWrapper:
             self.__proxy[attribute_name] = self.__wrap_lock(function)
 
     def __wrap_gc(self, function, destructor):
+        def wrapped_destructor(ptr):
+            with self.__lock:
+                destructor(ptr)
+            self.__counter.decrement()
+
         @wraps(function)
         def new_function(*args):
             ret = function(*args)
             if ret != ffi.NULL:
-                return ffi.gc(ret, self.__wrap_lock(destructor))
+                self.__counter.increment()
+                return ffi.gc(ret, wrapped_destructor)
             else:
                 return ret
 
         return new_function
+
+    def close(self):
+        self.__counter.mark_end()
 
     def __wrap_lock(self, function):
         @wraps(function)
@@ -99,11 +134,6 @@ for header_path in header_paths:
         ffi.cdef("\n".join(lines))
 
 
-@ffi.callback("void ()")
-def pytraceback():
-    traceback.print_stack()
-
-
 LIBRARY_PATH = collect_one(ROOT, ["lib"], "librevngPipelineC.so")
 assert LIBRARY_PATH is not None, "librevngPipelineC.so not found"
 
@@ -111,10 +141,13 @@ ctypes_backend = CTypesBackend()
 
 _raw_api = ffi.dlopen(str(LIBRARY_PATH), flags=ctypes_backend.RTLD_NOW | ctypes_backend.RTLD_GLOBAL)
 _api = ApiWrapper(_raw_api, ffi)
-_api.rp_set_custom_abort_hook(pytraceback)
 
 
-def initialize(args: Iterable[str] = (), libraries: Optional[AnyPaths] = None):
+def initialize(
+    args: Iterable[str] = (),
+    libraries: Optional[AnyPaths] = None,
+    signals_to_preserve: Iterable[int] = (),
+):
     """Initialize library, must be called exactly once"""
 
     if libraries is None:
@@ -127,10 +160,19 @@ def initialize(args: Iterable[str] = (), libraries: Optional[AnyPaths] = None):
 
     _libraries = [ffi.new("char[]", str(s.resolve()).encode("utf-8")) for s in path_libraries]
     _args = [ffi.new("char[]", arg.encode("utf-8")) for arg in args]
+    _signals_to_preserve = [int(s) for s in signals_to_preserve]
 
-    success = _api.rp_initialize(len(_args), _args, len(_libraries), _libraries)
+    success = _api.rp_initialize(
+        len(_args),
+        _args,
+        len(_libraries),
+        _libraries,
+        len(_signals_to_preserve),
+        _signals_to_preserve,
+    )
     assert success, "Failed revng C API initialization"
+    faulthandler.enable()
 
 
 def shutdown():
-    _api.rp_shutdown()
+    _api.close()

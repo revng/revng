@@ -4,19 +4,25 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+import asyncio
 import io
 import os
-import socket
-from http.client import HTTPConnection
+import sys
 from subprocess import Popen
-from time import sleep
-from typing import Generator
-from urllib.error import URLError
-from urllib.request import urlopen
+from tempfile import TemporaryDirectory
+from typing import Any, AsyncGenerator
 
+from aiohttp.client import ClientConnectionError, ClientSession, ClientTimeout
+from aiohttp.connector import UnixConnector
+from aiohttp.tracing import TraceConfig, TraceRequestChunkSentParams, TraceRequestEndParams
+from aiohttp.tracing import TraceRequestHeadersSentParams
 from gql import Client, gql
-from gql.transport.requests import RequestsHTTPTransport
-from pytest import Config, fixture, mark
+from gql.client import AsyncClientSession
+from gql.transport.aiohttp import AIOHTTPTransport
+from pytest import Config, mark
+from pytest_asyncio import fixture
+
+pytestmark = mark.asyncio
 
 FILTER_ENV = [
     "STARLETTE_DEBUG",
@@ -27,47 +33,92 @@ FILTER_ENV = [
 ]
 
 
+def log(string: Any):
+    sys.stderr.write(f"{string}\n")
+    sys.stderr.flush()
+
+
 def print_fd(fd: int):
     os.lseek(fd, 0, io.SEEK_SET)
     out_read = os.fdopen(fd, "r")
-    print(out_read.read())
+    log(out_read.read())
 
 
-def check_server_up(port: int):
-    for _ in range(10):
-        try:
-            req = urlopen(f"http://127.0.0.1:{port}/status", timeout=1.0)
-            if req.code == 200:
-                return
-            sleep(1.0)
-        except (URLError, TimeoutError):
-            sleep(1.0)
-    raise ValueError()
+async def check_server_up(connector):
+    async with ClientSession(
+        connector=connector, connector_owner=False, timeout=ClientTimeout(total=2.0)
+    ) as session:
+        for _ in range(10):
+            try:
+                async with session.get("http://dummyhost/status") as req:
+                    if req.status == 200:
+                        return
+                    await asyncio.sleep(1.0)
+            except ClientConnectionError:
+                await asyncio.sleep(1.0)
+        raise ValueError()
+
+
+async def header_trace(session, trace_config_ctx, params: TraceRequestHeadersSentParams):
+    log(f"URL: {params.url}")
+    log(f"METHOD: {params.method}")
+    log(f"HEADERS: {params.headers}")
+
+
+async def payload_trace(session, trace_config_ctx, params: TraceRequestChunkSentParams):
+    log(f"DATA: {params.chunk[:256]!r}")
+
+
+async def response_trace(session, trace_config_ctx, params: TraceRequestEndParams):
+    log(f"RESPONSE: {params.response}")
 
 
 @fixture
-def client(pytestconfig: Config, request) -> Generator[Client, None, None]:
+async def client(pytestconfig: Config, request) -> AsyncGenerator[AsyncClientSession, None]:
     out_fd = os.memfd_create("flask_debug", 0)
     out = os.fdopen(out_fd, "w")
-    HTTPConnection.debuglevel = 1
 
+    temp_dir = TemporaryDirectory()
+    socket_path = f"{temp_dir.name}/daemon.sock"
     new_env = {k: v for k, v in os.environ.items() if k not in FILTER_ENV}
-    ephemeral_socket = socket.create_server(("127.0.0.1", 0))
-    port = ephemeral_socket.getsockname()[1]
-    ephemeral_socket.close()
     process = Popen(
-        ["revng", "daemon", "-p", str(port)], stdout=out, stderr=out, text=True, env=new_env
+        [
+            "revng",
+            "daemon",
+            "--uvicorn-args",
+            "--timeout-keep-alive 600",
+            "-b",
+            f"unix:{socket_path}",
+        ],
+        stdout=out,
+        stderr=out,
+        text=True,
+        env=new_env,
     )
 
+    connector = UnixConnector(socket_path, force_close=True)
+
     try:
-        check_server_up(port)
+        await check_server_up(connector)
     except ValueError as e:
         print_fd(out_fd)
+        log(process.poll())
         raise e
 
     binary = pytestconfig.getoption("binary")
-    transport = RequestsHTTPTransport(f"http://127.0.0.1:{port}/graphql/")
-    gql_client = Client(transport=transport, fetch_schema_from_transport=True)
+    tracing = TraceConfig()
+    tracing.on_request_headers_sent.append(header_trace)
+    tracing.on_request_chunk_sent.append(payload_trace)
+    tracing.on_request_end.append(response_trace)
+    transport = AIOHTTPTransport(
+        "http://dummyhost/graphql/",
+        client_session_args={
+            "connector": connector,
+            "timeout": ClientTimeout(),
+            "trace_configs": [tracing],
+        },
+    )
+    gql_client = Client(transport=transport, fetch_schema_from_transport=True, execute_timeout=None)
 
     upload_q = gql(
         """
@@ -78,22 +129,28 @@ def client(pytestconfig: Config, request) -> Generator[Client, None, None]:
     )
 
     try:
-        with open(binary, "rb") as binary_file:
-            gql_client.execute(upload_q, variable_values={"file": binary_file}, upload_files=True)
+        async with gql_client as session:
+            with open(binary, "rb") as binary_file:
+                await session.execute(
+                    upload_q, variable_values={"file": binary_file}, upload_files=True
+                )
+            yield session
     except Exception as e:
         print_fd(out_fd)
         raise e
 
-    yield gql_client
-
     process.terminate()
-    process.wait()
+    return_code = process.wait()
 
-    if request.node.rep_call.failed:
+    if request.node.rep_call.failed or return_code != 0:
         print_fd(out_fd)
+        log(process.returncode)
+
+    # Assert that the daemon exited cleanly
+    assert return_code == 0, f"Daemon exited with non-zero return code: {return_code}"
 
 
-def test_info(client):
+async def test_info(client):
     q = gql(
         """
     {
@@ -116,7 +173,7 @@ def test_info(client):
     """
     )
 
-    result = client.execute(q)
+    result = await client.execute(q)
 
     binary_kind = next(k for k in result["info"]["kinds"] if k["name"] == "Binary")
     isolated_kind = next(k for k in result["info"]["kinds"] if k["name"] == "IsolatedRoot")
@@ -136,7 +193,7 @@ def test_info(client):
     assert "begin" in step_names
 
 
-def test_info_global(client):
+async def test_info_global(client):
     q = gql(
         """
     {
@@ -151,7 +208,7 @@ def test_info_global(client):
     """
     )
 
-    result = client.execute(q)
+    result = await client.execute(q)
 
     model = next(r for r in result["info"]["globals"] if r["name"] == "model.yml")
     model_content = result["info"]["model"]
@@ -161,8 +218,8 @@ def test_info_global(client):
     assert model["content"] == model_content
 
 
-def run_preliminary_analyses(client):
-    client.execute(
+async def run_preliminary_analyses(client):
+    await client.execute(
         gql(
             """
     mutation {
@@ -172,39 +229,31 @@ def run_preliminary_analyses(client):
                 AddPrimitiveTypes(input: ":Binary")
             }
         }
-    }
-    """
+    }"""
         )
     )
 
 
-def test_lift(client):
-    run_preliminary_analyses(client)
+async def test_lift(client):
+    await run_preliminary_analyses(client)
 
-    result = client.execute(gql("{ binary { Lift } }"))
+    result = await client.execute(gql("{ binary { Lift } }"))
     assert result["binary"]["Lift"] is not None
 
 
 @mark.xfail(raises=Exception)
-def test_lift_ready_fail(client):
-    client.execute(gql("{ binary { Lift(onlyIfReady: true) } }"))
+async def test_lift_ready_fail(client):
+    await run_preliminary_analyses(client)
+    await client.execute(gql("{ binary { Lift(onlyIfReady: true) } }"))
 
 
 @mark.xfail(raises=Exception)
-def test_invalid_step(client):
-    q = gql(
-        """
-    {
-        step(name: "this_step_does_not_exist") {
-            name
-        }
-    }
-    """
-    )
-    client.execute(q)
+async def test_invalid_step(client):
+    q = gql('{ step(name: "this_step_does_not_exist") { name } }')
+    await client.execute(q)
 
 
-def test_valid_steps(client):
+async def test_valid_steps(client):
     q = gql(
         """
     {
@@ -219,7 +268,7 @@ def test_valid_steps(client):
     }
     """
     )
-    result = client.execute(q)
+    result = await client.execute(q)
 
     assert result["begin"]["name"] == "begin"
     assert result["begin"]["parent"] is None
@@ -228,7 +277,7 @@ def test_valid_steps(client):
     assert result["import"]["parent"] == "begin"
 
 
-def test_begin_has_containers(client):
+async def test_begin_has_containers(client):
     q = gql(
         """
     {
@@ -245,7 +294,7 @@ def test_begin_has_containers(client):
     }
     """
     )
-    result = client.execute(q)
+    result = await client.execute(q)
 
     container_names = [c["name"] for c in result["step"]["containers"]]
     input_container = next(c for c in result["step"]["containers"] if c["name"] == "input")
@@ -255,14 +304,15 @@ def test_begin_has_containers(client):
     assert input_container["mime"] == result["container"]["mime"]
 
 
-def test_get_model(client):
-    test_lift(client)
-    result = client.execute(gql("{ info { model } }"))
+async def test_get_model(client):
+    await run_preliminary_analyses(client)
+    await client.execute(gql("{ binary { Lift } }"))
 
+    result = await client.execute(gql("{ info { model } }"))
     assert result["info"]["model"] is not None
 
 
-def test_targets_from_step(client):
+async def test_targets_from_step(client):
     q = gql(
         """
     {
@@ -290,7 +340,7 @@ def test_targets_from_step(client):
     }
     """
     )
-    result = client.execute(q)
+    result = await client.execute(q)
 
     binary_target = next(
         t
@@ -309,7 +359,7 @@ def test_targets_from_step(client):
     assert not lift_target["ready"]
 
 
-def test_targets(client):
+async def test_targets(client):
     q = gql(
         """
     {
@@ -319,46 +369,31 @@ def test_targets(client):
     }
     """
     )
-    result = client.execute(q)
+    result = await client.execute(q)
 
     names = [s["name"] for s in result["targets"]]
     assert "begin" in names
 
 
-def test_produce(client):
-    run_preliminary_analyses(client)
-
-    q = gql(
-        """
-    {
-        produce(step: "Lift", container: "module.ll", targetList: ":Root")
-    }
-    """
-    )
-    result = client.execute(q)
+async def test_produce(client):
+    await run_preliminary_analyses(client)
+    q = gql('{ produce(step: "Lift", container: "module.ll", targetList: ":Root") }')
+    result = await client.execute(q)
 
     assert "produce" in result, result["produce"] != ""
 
 
-def test_produce_artifact(client):
-    run_preliminary_analyses(client)
-
-    q = gql(
-        """
-    {
-        produceArtifacts(step: "Lift")
-    }
-    """
-    )
-    result = client.execute(q)
+async def test_produce_artifact(client):
+    await run_preliminary_analyses(client)
+    q = gql('{ produceArtifacts(step: "Lift") }')
+    result = await client.execute(q)
 
     assert "produceArtifacts" in result, result["produceArtifacts"] != ""
 
 
-def test_function_endpoint(client):
-    run_preliminary_analyses(client)
-
-    client.execute(
+async def test_function_endpoint(client):
+    await run_preliminary_analyses(client)
+    await client.execute(
         gql(
             """
     mutation {
@@ -383,7 +418,7 @@ def test_function_endpoint(client):
     }
     """
     )
-    result = client.execute(q)
+    result = await client.execute(q)
 
     first_function = next(t for t in result["container"]["targets"] if t["serialized"] != "")
     q = gql(
@@ -395,14 +430,14 @@ def test_function_endpoint(client):
     }
     """
     )
-    result = client.execute(q, {"param1": first_function["serialized"]})
+    result = await client.execute(q, {"param1": first_function["serialized"]})
 
     assert result["function"]["Isolate"] is not None
 
 
 @mark.xfail(raises=Exception)
-def test_analysis_kind_check(client):
-    client.execute(
+async def test_analysis_kind_check(client):
+    await client.execute(
         gql(
             """
     mutation {

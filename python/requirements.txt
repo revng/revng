@@ -13,15 +13,17 @@ cffi
 # revng.daemon
 ariadne
 aiodataloader
-hypercorn
+uvicorn
 Jinja2
 python-multipart
 xdg
 
 # revng.daemon - tests
 pytest
+pytest-asyncio
 requests
 requests-toolbelt
+aiohttp
 gql
 psutil
 

@@ -13,15 +13,7 @@
 
 #include "revng/Support/Assert.h"
 
-static AbortHook TheAbortHook = nullptr;
-
-void setAbortHook(AbortHook Hook) {
-  TheAbortHook = Hook;
-}
-
 [[noreturn]] static void terminate(void) {
-  if (TheAbortHook != nullptr)
-    TheAbortHook();
   abort();
 }
 

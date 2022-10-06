@@ -40,29 +40,42 @@ REVNG_PROJECT_ID set, REVNG_DATA_DIR unset: use '$XDG_DATA_HOME/revng/$REVNG_PRO
 REVNG_DATA_DIR and REVNG_PROJECT_ID set: use '$REVNG_DATA_DIR/$REVNG_PROJECT_ID'
 """
 
-        parser.add_argument("-p", "--port", type=str, default="8000", help="Port to use")
+        parser.add_argument("-p", "--port", type=int, default=8000, help="Port to use")
         parser.add_argument(
-            "--hypercorn-args", type=str, default="", help="Extra arguments to pass to hypercorn"
+            "--uvicorn-args", type=str, default="", help="Extra arguments to pass to uvicorn"
         )
         parser.add_argument(
             "--production",
             action="store_true",
-            help="Start server in production mode, "
-            + "this runs the server on all interfaces and disables debug information",
+            help="Start server in production mode, this runs the server on all interfaces",
         )
+        parser.add_argument("-b", "--bind", type=str, help="Manually bind to the specified address")
 
     def run(self, options: Options):
         _, dependencies = collect_libraries(options.search_prefixes)
         prefix = handle_asan(dependencies, options.search_prefixes)
 
         env = {**os.environ}
-        args = ["-k", "asyncio", "-w", "1"]
-        extra_args = shlex.split(options.parsed_args.hypercorn_args)
+        args = ["--no-access-log", "--workers", "1"]
+        extra_args = shlex.split(options.parsed_args.uvicorn_args)
 
-        if options.parsed_args.production:
-            args.extend(["-b", f"0.0.0.0:{options.parsed_args.port}"])
+        host = "127.0.0.1"
+        port = str(options.parsed_args.port)
+        if bind := options.parsed_args.bind:
+            if bind.startswith("tcp:"):
+                _, host, port = bind.split(":", 2)
+                args.extend(["--host", host, "--port", port])
+            elif bind.startswith("unix:"):
+                _, path = bind.split(":", 1)
+                args.extend(["--uds", path])
+            else:
+                raise ValueError(f"Unknown bind address: {bind}")
         else:
-            args.extend(["-b", f"127.0.0.1:{options.parsed_args.port}", "--debug"])
+            if options.parsed_args.production:
+                host = "0.0.0.0"
+            args.extend(["--host", host, "--port", port])
+
+        if not options.parsed_args.production:
             env["STARLETTE_DEBUG"] = "1"
 
         run(
@@ -70,7 +83,7 @@ REVNG_DATA_DIR and REVNG_PROJECT_ID set: use '$REVNG_DATA_DIR/$REVNG_PROJECT_ID'
             + [
                 py_executable,
                 "-m",
-                "hypercorn",
+                "uvicorn",
                 *args,
                 *extra_args,
                 "revng.daemon:app",
