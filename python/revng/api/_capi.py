@@ -115,7 +115,7 @@ class ApiWrapper:
 
 
 # We assume this file is in <root>/lib/python/revng/api
-ROOT = (Path(__file__) / "../../../../..").resolve()
+ROOT = (Path(__file__) / "../../../../../..").resolve()
 HEADERS_DIR = ROOT / "include" / "revng" / "PipelineC"
 
 header_paths = [

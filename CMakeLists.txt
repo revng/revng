@@ -196,6 +196,9 @@ set(PYTHON_GENERATED_MODEL_PATH revng/model/v1/_generated.py)
 #
 enable_testing()
 
+find_package(Python REQUIRED)
+file(RELATIVE_PATH PYTHON_INSTALL_PATH "${CMAKE_INSTALL_PREFIX}" "${Python_SITELIB}")
+
 #
 # Proceed to subdirectories
 #
