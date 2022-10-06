@@ -4,6 +4,7 @@
 
 #include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
+#include "revng/FunctionIsolation/IsolationFunctionKind.h"
 #include "revng/Lift/LoadBinaryPass.h"
 #include "revng/Model/Binary.h"
 #include "revng/Pipeline/AllRegistries.h"

@@ -10,6 +10,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/FunctionIsolation/IsolationFunctionKind.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipes/FunctionStringMap.h"
 #include "revng/Yield/Pipes/ProcessCallGraph.h"

@@ -8,6 +8,7 @@ revng_add_analyses_library_internal(
   EnforceABI.cpp
   InlineHelpers.cpp
   InvokeIsolatedFunctions.cpp
+  IsolatedFunctionKind.cpp
   IsolateFunctions.cpp
   PromoteCSVs.cpp
   RemoveExceptionalCalls.cpp
@@ -22,4 +23,5 @@ target_link_libraries(
   revngEarlyFunctionAnalysis
   revngSupport
   revngPipes
+  revngYield
   ${LLVM_LIBRARIES})

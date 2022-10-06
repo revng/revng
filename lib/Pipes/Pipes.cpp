@@ -26,18 +26,15 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/TargetSelect.h"
 
-#include "revng/EarlyFunctionAnalysis/CollectFunctionsFromCalleesPass.h"
-#include "revng/EarlyFunctionAnalysis/CollectFunctionsFromUnusedAddressesPass.h"
-#include "revng/EarlyFunctionAnalysis/DetectABI.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/LLVMGlobalKindBase.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/FileContainer.h"
+#include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/RootKind.h"
-#include "revng/Recompile/CompileModulePipe.h"
 #include "revng/Support/Statistics.h"
 
 using namespace std;
