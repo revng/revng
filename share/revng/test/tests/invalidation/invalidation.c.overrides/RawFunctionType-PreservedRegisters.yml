@@ -1,0 +1,39 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# Ensure that function `called_twice` and its callers are invalidated when
+# changing its PreservedRegisters.
+
+---
+Functions:
+  - CustomName: "caller_2"
+    OriginalName: caller_2
+    Prototype: "/Types/RawFunctionType-6494433326490644482"
+Types:
+  - Kind: RawFunctionType
+    ID: 6494433326490644482
+    Arguments:
+      - Location: rdx_x86_64
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+      - Location: rsi_x86_64
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+      - Location: rdi_x86_64
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+    ReturnValues:
+      - Location: rax_x86_64
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+    PreservedRegisters:
+      - rsi_x86_64
+      - rdx_x86_64
+      - rbx_x86_64
+      - rbp_x86_64
+      - r12_x86_64
+      - r13_x86_64
+      - r14_x86_64
+      - r15_x86_64
+    FinalStackOffset: 8

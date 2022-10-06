@@ -1,0 +1,33 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# Ensure that function `main` is not invalidated when converting its prototype.
+# Here, the prototype of `main` is changed to use a RawFunctionType.
+
+---
+Functions:
+  - OriginalName: main
+    CustomName: "main"
+    Prototype: "/Types/RawFunctionType-5850358928209835510"
+Types:
+  - Kind: RawFunctionType
+    ID: 5850358928209835510
+    Arguments:
+      - Location: rdi_x86_64
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+    ReturnValues:
+      - Location: rax_x86_64
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+    PreservedRegisters:
+      - rbx_x86_64
+      - rbp_x86_64
+      - rsp_x86_64
+      - r12_x86_64
+      - r13_x86_64
+      - r14_x86_64
+      - r15_x86_64
+      - fs_x86_64
+    FinalStackOffset: 8

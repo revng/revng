@@ -1,0 +1,6 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# Target of function `main` should not be invalidated when converting its prototype
+# from RawFunctionType to CABIFunctionType, this should be empty.

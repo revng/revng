@@ -1,0 +1,21 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# Ensure that external function `puts` and its callers (if inline) are invalidated
+# when changing its FinalStackOffset. Here, FSO is altered by changing ABI from
+# SystemV_x86_64 to SystemV_x86.
+
+---
+Functions: []
+ImportedDynamicFunctions:
+  - OriginalName: puts
+    CustomName: "puts"
+    Prototype: "/Types/CABIFunctionType-2425851358607508017"
+Types:
+  - Kind: CABIFunctionType
+    ID: 2425851358607508017
+    ABI: SystemV_x86
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-256"
+    Arguments: []

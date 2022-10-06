@@ -1,0 +1,8 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# `plt_puts` is invalidated when altering `puts` prototype. Since, the plt entry
+# has not the Inline attribute, only such an entry is invalidated.
+
+plt_puts

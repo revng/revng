@@ -1,0 +1,34 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# Ensure that function `caller_1` is not invalidated when changing its
+# RawFunctionType name.
+
+---
+Functions:
+  - CustomName: "caller_1"
+    OriginalName: caller_1
+    Prototype: "/Types/RawFunctionType-15357695279870196297"
+Types:
+  - Kind: RawFunctionType
+    ID: 10000000000000000000
+    Arguments:
+      - Location: rsi_x86_64
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+      - Location: rdi_x86_64
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+    ReturnValues:
+      - Location: rax_x86_64
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+    PreservedRegisters:
+      - rbx_x86_64
+      - rbp_x86_64
+      - r12_x86_64
+      - r13_x86_64
+      - r14_x86_64
+      - r15_x86_64
+    FinalStackOffset: 8

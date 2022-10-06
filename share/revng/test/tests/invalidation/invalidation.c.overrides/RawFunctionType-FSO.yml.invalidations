@@ -1,0 +1,9 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# `use_puts` FSO has changed, thus the function itself and its callers (`main`) targets
+# need to be invalidated.
+
+use_puts
+main
