@@ -25,7 +25,6 @@ requests
 requests-toolbelt
 aiohttp
 gql
-psutil
 
 # Requirements for pdb-download
 pefile
