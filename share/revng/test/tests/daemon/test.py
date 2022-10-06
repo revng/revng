@@ -101,7 +101,7 @@ async def client(pytestconfig: Config, request) -> AsyncGenerator[AsyncClientSes
     try:
         await check_server_up(connector)
     except ValueError as e:
-        print_fd(out_fd)
+        log(process.communicate()[0])
         log(process.poll())
         raise e
 
