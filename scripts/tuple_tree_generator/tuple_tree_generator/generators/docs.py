@@ -18,6 +18,7 @@ from ..schema import (
     UpcastableDefinition,
 )
 
+from collections import defaultdict
 
 environment = jinja2.Environment(
     block_start_string="<!-- ",
@@ -65,6 +66,19 @@ def is_struct(obj):
     return isinstance(obj, StructDefinition)
 
 
+def leaf(type):
+    if is_sequence(type):
+        return type.element_type
+
+    if isinstance(type, ReferenceDefinition):
+        return type.pointee
+
+    if isinstance(type, UpcastableDefinition):
+        return type.base
+
+    return type
+
+
 class DocsGenerator:
     def __init__(self, 
                  schema: Schema,
@@ -88,11 +102,20 @@ class DocsGenerator:
         self.template = environment.get_template("docs.md.tpl")
 
     def emit_docs(self) -> str:
+        references = defaultdict(set)
+
+        enums = self.schema.enum_definitions()
+        structs = self.schema.struct_definitions()
+        for struct in structs:
+            for field in struct.fields:
+                references[leaf(field.resolved_type).name].add((struct, field))
+
         rendered_template = self.template.render(
-            enums=self.schema.enum_definitions(),
-            structs=self.schema.struct_definitions(),
+            enums=enums,
+            structs=structs,
             generator=self,
             schema=self.schema,
-            root_type=self.root_type
+            root_type=self.root_type,
+            references_map=dict(references)
         )
         return rendered_template

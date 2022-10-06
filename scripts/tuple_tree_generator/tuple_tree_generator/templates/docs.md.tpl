@@ -1,6 +1,14 @@
 <!--- - This template file is distributed under the MIT License. See LICENSE.md for details. - --->
 <!--- - The notice below applies to the generated files. - --->
 
+<!-- - macro references(type) - -->
+<!-- - if references_map[type.name] -->
+**Referenced by**: <!-- for struct, field in references_map[type.name] - -->
+<!-- if loop.index > 1 -->, <!-- endif -->[`{{ struct.name }}.{{ field.name }}`](#{{ struct.name }}.{{ field.name }})
+<!-- - endfor - -->
+<!-- - endif -->
+<!-- - endmacro - -->
+
 <!-- - macro process_struct(struct) - -->
 ### <a id="{{ struct.name }}"></a>`{{ struct.name }}`
 
@@ -18,10 +26,12 @@
 **Inheritors**: <!-- for inheritor in struct.inheritors - --><!-- if loop.index > 1 -->, <!-- endif -->{{inheritor | type_name}}<!-- endfor -->
 <!-- endif -->
 
+{{ references(struct) }}
+
 **Fields**:
 
 <!-- for field in struct.fields - -->
-- `{{field.name}}` ({{field.resolved_type | type_name}})<!-- if field.doc -->: {{field.doc | indent(1) }}<!-- endif -->
+- <a id="{{ struct.name }}.{{ field.name }}"></a>`{{field.name}}` ({{field.resolved_type | type_name}})<!-- if field.doc -->: {{field.doc | indent(1) }}<!-- endif -->
 <!-- endfor -->
 <!-- endmacro - -->
 
@@ -35,7 +45,10 @@
 <!-- for member in enum.members - -->
 - `{{member.name}}`<!-- if member.doc -->: {{member.doc | indent(1) }}<!-- endif -->
 <!-- endfor - -->
-<!-- - endmacro - -->
+
+{{ references(enum) }}
+
+<!-- endmacro - -->
 
 ## Data structures
 

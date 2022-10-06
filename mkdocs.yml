@@ -18,6 +18,8 @@ nav:
     - Pipeline: references/pipeline.md
     - Pipes: references/pipes.md
     - Ranks: references/ranks.md
+  - "Schemas":
+    - Model JSON Schema: schemas/model-json-schema.md
 markdown_extensions:
   - mkdocs_graphviz
   - pymdownx.superfences

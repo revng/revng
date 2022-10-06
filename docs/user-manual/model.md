@@ -143,6 +143,8 @@ TODO: not on multi-ISA programs
 
 At this point, we provided rev.ng enough information to be able to show us the disassembly of our program.
 
+TODO: drop the grep
+
 ```bash
 $ revng artifact YieldAssembly sum -m model.yml | revng ptml cat | grep -vE '^\s*$'
 0x400000:Code_x86_64:
@@ -162,9 +164,24 @@ By looking at the code above, we can see that the registers `rdi` and `rsi` are 
 
 Let's create such prototype then.
 
-First, we create a *primitive type* for an `uint64_t`:
+Specifically, we want to define the prototype for something that in C would look like the following:
 
-```yaml title="model.yml"
+```c
+uint64_t sum(uint64_t rdi, uint64_t rsi);
+```
+
+First, let's populate the model type system with a bunch of *primitive types* such as `void`, `uint64_t`, `uint32_t` and so on.
+We could write them by hand, but the `AddPrimitiveTypes` analysis can help us with that:
+
+```bash
+$ revng analyze AddPrimitiveTypes /dev/null | grep -vE '^(---|\.\.\.)$' >> model.yml
+```
+
+TODO: note that we'll talk more about analyses later on + link
+
+This will add to tthe model something simialar to the following:
+
+```yaml
 Types:
   - Kind:            PrimitiveType
     ID:              1288
@@ -176,12 +193,7 @@ Here we are defining a *primitive* type (such as `void`, an integral type or a f
 
 TODO: note about type IDs
 
-Now, we can define the prototype for something that in C would look like the following:
-
-```c
-uint64_t sum(uint64_t rdi, uint64_t rsi);
-```
-
+Now that we have our `uint64_t`, we can define the function prototype.
 In the model type system, it looks like this:
 
 ```yaml title="model.yml"
@@ -260,23 +272,205 @@ At this point, we have all the information we need to successfully decompile our
     ```
 
 ```bash
-$ revng artifact DecompileToCInYAML sum -m model.yml
+$ revng artifact DecompileToCInYAML sum -m model.yml | revng ptml cat
+0x400000:Code_x86_64:
+  uint64_t function_0x400000_Code_x86_64(uint64_t unnamed_arg_0, uint64_t unnamed_arg_1) {
+      return (uint64_t) ((generic64_t) unnamed_arg_0 + (generic64_t) unnamed_arg_1);
+  }
 ```
 
 ### Step 4: Naming
 
-One of the main activities of a reverse engineer is giving things a name.
+One of the main activities of a reverse engineer is giving things a name, just like Adam in the Genesis.
 Let's try to give a name to our function:
 
-TODO
+```diff
+--- a/model.yml
++++ b/model.yml
+@@ -11,6 +11,7 @@ Segments:
+ Functions:
+   - Entry:           "0x400000:Code_x86_64"
+     Prototype:       "/Types/CABIFunctionType-67426649700812539"
++    CustomName:      Sum
+ Types:
+   - Kind:            PrimitiveType
+     ID:              256
+```
 
-Almost everything in the model can have a name:
+Almost everything in the model can have a name. Let's add a name to the function arguments:
 
-TODO
+```diff
+--- a/model.yml
++++ b/model.yml
+@@ -119,12 +120,14 @@ Types:
+   - Kind:            CABIFunctionType
+     ABI:             SystemV_x86_64
+     ID:              67426649700812539
+     Arguments:
+       - Index:           0
+         Type:
+           UnqualifiedType: "/Types/PrimitiveType-1288"
++        CustomName:      FirstAddend
+       - Index:           1
+         Type:
+           UnqualifiedType: "/Types/PrimitiveType-1288"
++        CustomName:      SecondAddend
+     ReturnType:
+       UnqualifiedType: "/Types/PrimitiveType-1288"
+```
+
+Here's what we get now if we try to decompile again:
+
+```bash
+$ revng artifact DecompileToCInYAML sum -m model.yml | revng ptml cat
+0x400000:Code_x86_64:
+  uint64_t Sum(uint64_t FirstAddend, uint64_t SecondAddend) {
+      return (uint64_t) ((generic64_t) FirstAddend + (generic64_t) SecondAddend);
+  }
+```
 
 ### The final model
 
 Here, you can find the final model. Take it and play around with it:
 
-```yaml
+```yaml title="final-model.yml"
+Architecture:    x86_64
+DefaultABI:      SystemV_x86_64
+Segments:
+  - StartAddress:    "0x400000:Generic64"
+    VirtualSize:     7
+    StartOffset:     0
+    FileSize:        7
+    IsReadable:      true
+    IsWriteable:     false
+    IsExecutable:    true
+Functions:
+  - Entry:           "0x400000:Code_x86_64"
+    Prototype:       "/Types/CABIFunctionType-67426649700812539"
+    CustomName:      Sum
+Types:
+  - Kind:            PrimitiveType
+    ID:              256
+    PrimitiveKind:   Void
+    Size:            0
+  - Kind:            PrimitiveType
+    ID:              513
+    PrimitiveKind:   Generic
+    Size:            1
+  - Kind:            PrimitiveType
+    ID:              514
+    PrimitiveKind:   Generic
+    Size:            2
+  - Kind:            PrimitiveType
+    ID:              516
+    PrimitiveKind:   Generic
+    Size:            4
+  - Kind:            PrimitiveType
+    ID:              520
+    PrimitiveKind:   Generic
+    Size:            8
+  - Kind:            PrimitiveType
+    ID:              528
+    PrimitiveKind:   Generic
+    Size:            16
+  - Kind:            PrimitiveType
+    ID:              769
+    PrimitiveKind:   PointerOrNumber
+    Size:            1
+  - Kind:            PrimitiveType
+    ID:              770
+    PrimitiveKind:   PointerOrNumber
+    Size:            2
+  - Kind:            PrimitiveType
+    ID:              772
+    PrimitiveKind:   PointerOrNumber
+    Size:            4
+  - Kind:            PrimitiveType
+    ID:              776
+    PrimitiveKind:   PointerOrNumber
+    Size:            8
+  - Kind:            PrimitiveType
+    ID:              784
+    PrimitiveKind:   PointerOrNumber
+    Size:            16
+  - Kind:            PrimitiveType
+    ID:              1025
+    PrimitiveKind:   Number
+    Size:            1
+  - Kind:            PrimitiveType
+    ID:              1026
+    PrimitiveKind:   Number
+    Size:            2
+  - Kind:            PrimitiveType
+    ID:              1028
+    PrimitiveKind:   Number
+    Size:            4
+  - Kind:            PrimitiveType
+    ID:              1032
+    PrimitiveKind:   Number
+    Size:            8
+  - Kind:            PrimitiveType
+    ID:              1040
+    PrimitiveKind:   Number
+    Size:            16
+  - Kind:            PrimitiveType
+    ID:              1281
+    PrimitiveKind:   Unsigned
+    Size:            1
+  - Kind:            PrimitiveType
+    ID:              1282
+    PrimitiveKind:   Unsigned
+    Size:            2
+  - Kind:            PrimitiveType
+    ID:              1284
+    PrimitiveKind:   Unsigned
+    Size:            4
+  - Kind:            PrimitiveType
+    ID:              1288
+    PrimitiveKind:   Unsigned
+    Size:            8
+  - Kind:            PrimitiveType
+    ID:              1296
+    PrimitiveKind:   Unsigned
+    Size:            16
+  - Kind:            PrimitiveType
+    ID:              1537
+    PrimitiveKind:   Signed
+    Size:            1
+  - Kind:            PrimitiveType
+    ID:              1538
+    PrimitiveKind:   Signed
+    Size:            2
+  - Kind:            PrimitiveType
+    ID:              1540
+    PrimitiveKind:   Signed
+    Size:            4
+  - Kind:            PrimitiveType
+    ID:              1544
+    PrimitiveKind:   Signed
+    Size:            8
+  - Kind:            PrimitiveType
+    ID:              1552
+    PrimitiveKind:   Signed
+    Size:            16
+  - Kind:            CABIFunctionType
+    ABI:             SystemV_x86_64
+    ID:              67426649700812539
+    Arguments:
+      - Index:           0
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1288"
+        CustomName:      FirstAddend
+      - Index:           1
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1288"
+        CustomName:      SecondAddend
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-1288"
+```
+
+TODO: hide
+
+```bash
+$ diff model.yml final-model.yml
 ```
