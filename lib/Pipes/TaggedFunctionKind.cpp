@@ -1,5 +1,4 @@
-/// \file CompileModule.cpp
-/// \brief The isolated kind is used to rappresent isolated root and functions.
+/// \file TaggedFunctionKind.cpp
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -24,7 +23,7 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/MetaAddress.h"
-#include "revng/Yield/Pipes/ProcessCallGraph.h"
+#include "revng/TupleTree/TupleTreeDiff.h"
 
 using namespace pipeline;
 using namespace ::revng::kinds;
@@ -46,18 +45,7 @@ void TaggedFK::getInvalidations(const Context &Ctx,
                                 const GlobalTupleTreeDiff &Diff,
                                 const pipeline::Global &Before,
                                 const pipeline::Global &After) const {
-  const auto &CurrentModel = getModelFromContext(Ctx);
-
-  if (not Ctx.containsReadOnlyContainer(BinaryCrossRelationsRole))
-    return;
-
-  static constexpr auto BCRR = BinaryCrossRelationsRole;
-  using CrossContainer = revng::pipes::CrossRelationsFileContainer;
-  const auto &Container = Ctx.getReadOnlyContainer<CrossContainer>(BCRR);
-
-  const auto *ModelDiff = Diff.getAs<model::Binary>();
-  if (not ModelDiff)
-    return;
+  return;
 }
 
 void TaggedFunctionKind::appendAllTargets(const pipeline::Context &Ctx,
