@@ -103,15 +103,6 @@ rp_manager_create_from_string(uint64_t pipelines_count,
                               const char *execution_directory);
 
 /**
- * Exactly like rp_manager_create, except that it is run without loading and
- * saving the state of the pipeline before and after the execution, and that no
- * flags are provided.
- */
-rp_manager * /*owning*/ rp_manager_create_memory_only(const char *pipeline_path,
-                                                      uint64_t flags_count,
-                                                      const char *flags[]);
-
-/**
  * Delete the manager object and destroy all the resourced acquired by it.
  */
 void rp_manager_destroy(rp_manager *manager);
