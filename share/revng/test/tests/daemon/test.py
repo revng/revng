@@ -9,7 +9,7 @@ import io
 import os
 import sys
 import sys
-from subprocess import Popen
+from subprocess import Popen, PIPE, STDOUT
 from tempfile import TemporaryDirectory
 from typing import Any, AsyncGenerator
 
@@ -76,8 +76,6 @@ async def response_trace(session, trace_config_ctx, params: TraceRequestEndParam
 
 @fixture
 async def client(pytestconfig: Config, request) -> AsyncGenerator[AsyncClientSession, None]:
-    out_fd = os.memfd_create("flask_debug", 0)
-    out = os.fdopen(out_fd, "w")
 
     temp_dir = TemporaryDirectory()
     socket_path = f"{temp_dir.name}/daemon.sock"
@@ -91,8 +89,8 @@ async def client(pytestconfig: Config, request) -> AsyncGenerator[AsyncClientSes
             "-b",
             f"unix:{socket_path}",
         ],
-        stdout=out,
-        stderr=out,
+        stdout=PIPE,
+        stderr=STDOUT,
         text=True,
         env=new_env,
     )
