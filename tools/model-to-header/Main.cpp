@@ -63,7 +63,7 @@ int main(int Argc, const char *Argv[]) {
 
   // Load the module either in yaml or bitcode format
   auto ModelWrapper = llvm::cantFail(ModelInModule::load(**Buffer));
-  TupleTree<model::Binary> &Model = ModelWrapper.getModel();
+  const model::Binary &Model = ModelWrapper.getReadOnlyModel();
   if (not Model.verify()) {
     llvm::errs() << "Invalid Model\n";
     std::exit(EXIT_FAILURE);
@@ -74,7 +74,7 @@ int main(int Argc, const char *Argv[]) {
   if (EC)
     revng_abort(EC.message().c_str());
 
-  dumpModelToHeader(*Model, Header);
+  dumpModelToHeader(Model, Header);
 
   Header.flush();
   EC = Header.error();

@@ -139,7 +139,7 @@ deserializeFromLLVMString(llvm::Value *V, const model::Binary &Model) {
     if (EC)
       revng_abort("Could not deserialize the ModelGEP base type");
   }
-  ParsedType.UnqualifiedType.Root = &Model;
+  ParsedType.UnqualifiedType.setRoot(&Model);
   revng_assert(ParsedType.UnqualifiedType.isValid());
 
   return ParsedType;

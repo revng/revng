@@ -527,17 +527,6 @@ computeAccessPattern(const Use &U,
   return IRPattern;
 }
 
-static bool compareQualifiedTypes(const model::QualifiedType &LHS,
-                                  const model::QualifiedType &RHS) {
-  if (LHS.Qualifiers < RHS.Qualifiers)
-    return true;
-
-  if (LHS.Qualifiers > RHS.Qualifiers)
-    return false;
-
-  return LHS.UnqualifiedType.get() < RHS.UnqualifiedType.get();
-}
-
 struct ArrayInfo {
   APInt Stride = APInt(/*NumBits*/ 64, /*Value*/ 0);
   APInt NumElems = APInt(/*NumBits*/ 64, /*Value*/ 0);
@@ -582,7 +571,7 @@ struct TypedAccessPattern {
     if (Other.Arrays < Arrays)
       return false;
 
-    return compareQualifiedTypes(AccessedType, Other.AccessedType);
+    return AccessedType < Other.AccessedType;
   }
 
   void dump(llvm::raw_ostream &OS) const debug_function {
@@ -635,13 +624,9 @@ using ChildIndexVector = SmallVector<ChildInfo, 4>;
 
 using TAPToChildIdsMap = std::map<TypedAccessPattern, ChildIndexVector>;
 
-using QTLess = std::integral_constant<decltype(&compareQualifiedTypes),
-                                      compareQualifiedTypes>;
-
 // clang-format off
 using QualifiedTypeToTAPChildIdsMap = std::map<const model::QualifiedType,
-                                               TAPToChildIdsMap,
-                                               QTLess>;
+                                               TAPToChildIdsMap>;
 // clang-format on
 
 using TAPToChildIdsMapRef = std::reference_wrapper<TAPToChildIdsMap>;
@@ -2101,7 +2086,7 @@ static UseGEPInfoMap makeGEPReplacements(llvm::Function &F,
 
 class ModelGEPArgCache {
 
-  std::map<model::QualifiedType, Constant *, QTLess> GlobalModelGEPTypeArgs;
+  std::map<model::QualifiedType, Constant *> GlobalModelGEPTypeArgs;
 
 public:
   Value *getQualifiedTypeArg(model::QualifiedType &QT, llvm::Module &M) {

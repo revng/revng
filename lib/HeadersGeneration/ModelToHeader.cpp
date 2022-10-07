@@ -333,26 +333,7 @@ static void printDeclaration(const model::RawFunctionType &F,
   Header << ";\n";
 }
 
-// Some model::QualifiedTypes require to declare new types (e.g. for returning
-// an array from a functions you need to wrap it into a struct).
-// For those model::QualifiedTypes we need to keep track of which already have
-// the associated type, because otherwise the type declarations will be
-// duplicated.
-// This FrozenQualifiedType is used for that.
-class FrozenQualifiedType {
-  const model::Type *Unqualified;
-
-  std::vector<model::Qualifier> Qualifiers = {};
-
-public:
-  FrozenQualifiedType(const model::QualifiedType &QT) :
-    Unqualified{ QT.UnqualifiedType.get() }, Qualifiers{ QT.Qualifiers } {}
-
-  std::strong_ordering
-  operator<=>(const FrozenQualifiedType &Other) const = default;
-};
-
-using QualifiedTypeNameMap = std::map<FrozenQualifiedType, std::string>;
+using QualifiedTypeNameMap = std::map<model::QualifiedType, std::string>;
 
 /// Generate the definition of a new struct type that wraps \a ArrayType.
 ///        This is used to wrap array arguments or array return values of
