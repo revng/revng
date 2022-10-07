@@ -9,6 +9,7 @@
 #include "llvm/Support/Error.h"
 
 #include "revng/Support/Assert.h"
+#include "revng/Support/Debug.h"
 
 class ErrorList {
 private:
@@ -49,7 +50,7 @@ public:
 
   size_t size() const { return Errors.size(); }
 
-  llvm::Error *get(size_t Index) { return &Errors.at(Index); }
+  const llvm::Error *get(size_t Index) const { return &Errors.at(Index); }
 
   template<typename T>
   T fail(llvm::Error &&Error, T ReturnValue) {
@@ -68,5 +69,31 @@ public:
 
   bool failIf(llvm::Error &&Error) {
     return failIf(std::move(Error), true, false);
+  }
+
+  std::string serialize() const {
+    std::string Out;
+    llvm::raw_string_ostream RSS(Out);
+    for (const llvm::Error &Error : Errors)
+      RSS << Error << '\n';
+    RSS.flush();
+    return Out;
+  }
+
+  void dump(llvm::raw_ostream &OS) const { OS << serialize(); }
+
+  void dump(std::ostream &OS) const { OS << serialize(); }
+
+  void dump() const debug_function { dump(dbg); }
+
+  friend llvm::raw_ostream &
+  operator<<(llvm::raw_ostream &OS, const ErrorList &EL) {
+    EL.dump(OS);
+    return OS;
+  }
+
+  friend std::ostream &operator<<(std::ostream &OS, const ErrorList &EL) {
+    EL.dump(OS);
+    return OS;
   }
 };

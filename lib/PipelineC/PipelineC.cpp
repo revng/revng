@@ -708,10 +708,12 @@ inline bool rp_manager_apply_diff_impl(rp_manager *manager,
 
   auto &Diff = MaybeDiff.get();
   auto GlobalClone = Global->clone();
-  if (auto ApplyError = GlobalClone->applyDiff(Diff); !!ApplyError)
-    return ErrorList->fail(std::move(ApplyError), false);
+  GlobalClone->applyDiff(Diff, *ErrorList);
+  if (*ErrorList)
+    return false;
 
-  if (GlobalClone->verify(*ErrorList); *ErrorList)
+  GlobalClone->verify(*ErrorList);
+  if (*ErrorList)
     return false;
 
   if constexpr (commit) {
