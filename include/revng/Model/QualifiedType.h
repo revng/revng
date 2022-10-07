@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <compare>
 #include <optional>
 
 #include "revng/ADT/RecursiveCoroutine.h"
@@ -62,6 +63,17 @@ public:
   bool verify(bool Assert) const debug_function;
   RecursiveCoroutine<bool> verify(VerifyHelper &VH) const;
   void dump() const debug_function;
+
+  bool operator==(const QualifiedType &) const = default;
+  std::strong_ordering operator<=>(const QualifiedType &Other) const {
+    if (Qualifiers < Other.Qualifiers)
+      return std::strong_ordering::less;
+
+    if (Qualifiers > Other.Qualifiers)
+      return std::strong_ordering::greater;
+
+    return UnqualifiedType <=> Other.UnqualifiedType;
+  }
 };
 
 #include "revng/Model/Generated/Late/QualifiedType.h"
