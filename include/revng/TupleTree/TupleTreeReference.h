@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <compare>
 #include <optional>
 #include <variant>
 
@@ -46,9 +47,9 @@ public:
     return Path == Other.Path;
   }
 
-  bool operator<(const TupleTreeReference &Other) const {
+  std::strong_ordering operator<=>(const TupleTreeReference &Other) const {
     // The paths are the same even if they are referred to different roots
-    return Path < Other.Path;
+    return Path <=> Other.Path;
   }
 
 public:
