@@ -22,11 +22,11 @@ bool hasModel(const llvm::Module &M);
 
 class ModelWrapper {
 private:
-  using Storage = std::variant<TupleTree<model::Binary> *,
-                               const TupleTree<model::Binary> *>;
+  using ModelPointer = std::variant<TupleTree<model::Binary> *,
+                                    const TupleTree<model::Binary> *>;
 
 private:
-  Storage TheBinary;
+  ModelPointer TheBinary;
   bool HasChanged = false;
 
 public:
@@ -41,22 +41,25 @@ public:
 
 public:
   const TupleTree<model::Binary> &getReadOnlyModel() const {
-    return std::visit([](auto &Model)
-                        -> const TupleTree<model::Binary> & { return *Model; },
-                      TheBinary);
+    auto Result = [](auto &Model) -> const TupleTree<model::Binary> & {
+      using TupleTreeT = std::remove_pointer_t<std::decay_t<decltype(Model)>>;
+      if constexpr (not std::is_const_v<TupleTreeT>)
+        Model->cacheReferences();
+      return *std::as_const(Model);
+    };
+    return std::visit(Result, TheBinary);
   }
 
   TupleTree<model::Binary> &getWriteableModel() {
     HasChanged = true;
     auto Result = [](auto &Model) -> TupleTree<model::Binary> & {
-      using T = std::decay_t<decltype(Model)>;
-      if constexpr (std::is_same_v<T, const TupleTree<model::Binary> *>) {
+      using TupleTreeT = std::remove_pointer_t<std::decay_t<decltype(Model)>>;
+      if constexpr (std::is_const_v<TupleTreeT>) {
         revng_abort("A writeable model has been requested, but the wrapper has "
                     "a reference to a const model");
-      } else if constexpr (std::is_same_v<T, TupleTree<model::Binary> *>) {
-        return *Model;
       } else {
-        revng_abort();
+        Model->evictCachedReferences();
+        return *Model;
       }
     };
     return std::visit(Result, TheBinary);
