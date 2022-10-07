@@ -9,6 +9,8 @@
 
 #include "revng/ADT/KeyedObjectContainer.h"
 #include "revng/ADT/UpcastablePointer.h"
+#include "revng/Support/ErrorList.h"
+#include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleLikeTraits.h"
 #include "revng/TupleTree/TupleTreeCompatible.h"
 #include "revng/TupleTree/TupleTreePath.h"
@@ -58,10 +60,8 @@ void visitTupleTree(Visitor &V, T &Obj) {
 }
 
 // All the others
-// clang-format off
-template<typename Visitor, typename T> requires (not TupleTreeCompatible<T>)
+template<typename Visitor, NotTupleTreeCompatible T>
 void visitTupleTree(Visitor &V, T &Element) {
-  // clang-format on
   V.PreVisit(Element);
   V.PostVisit(Element);
 }
@@ -142,17 +142,15 @@ ResultT *getByKey(RootT &M, KeyT Key) {
 template<TupleSizeCompatible RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path);
 
-// clang-format off
-template<typename T, typename Visitor> requires (not TupleTreeCompatible<T>)
+template<NotTupleTreeCompatible T, typename Visitor>
 bool callOnPathSteps(Visitor &, llvm::ArrayRef<TupleTreeKeyWrapper>) {
   return false;
 }
 
-template<typename T, typename Visitor> requires(not UpcastablePointerLike<T>)
+template<NotUpcastablePointerLike T, typename Visitor>
 bool callOnPathStepsImpl(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
   return callOnPathSteps<T, Visitor>(V, Path.slice(1));
 }
-// clang-format on
 
 template<UpcastablePointerLike RootT, typename Visitor>
 bool callOnPathStepsImpl(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
@@ -218,27 +216,31 @@ bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
 
 namespace tupletree::detail {
 
-// clang-format off
-template<typename T, typename Visitor> requires (not TupleTreeCompatible<T>)
-bool callOnPathSteps(Visitor &, llvm::ArrayRef<TupleTreeKeyWrapper>, T &) {
-  // clang-format on
+template<NotTupleTreeCompatible T, typename Visitor>
+bool callOnPathSteps(Visitor &,
+                     llvm::ArrayRef<TupleTreeKeyWrapper>,
+                     T &,
+                     ErrorList &,
+                     const llvm::StringRef) {
   return false;
 }
 
 template<size_t I = 0, typename RootT, typename Visitor>
 bool callOnPathStepsTuple(Visitor &V,
                           llvm::ArrayRef<TupleTreeKeyWrapper> Path,
-                          RootT &M) {
+                          RootT &M,
+                          ErrorList &EL,
+                          const llvm::StringRef FullPath) {
   if constexpr (I < std::tuple_size_v<RootT>) {
     if (Path[0].get<size_t>() == I) {
       using next_type = typename std::tuple_element<I, RootT>::type;
       next_type &Element = get<I>(M);
       V.template visitTupleElement<RootT, I>(Element);
       if (Path.size() > 1) {
-        return callOnPathSteps(V, Path.slice(1), Element);
+        return callOnPathSteps(V, Path.slice(1), Element, EL, FullPath);
       }
     } else {
-      return callOnPathStepsTuple<I + 1>(V, Path, M);
+      return callOnPathStepsTuple<I + 1>(V, Path, M, EL, FullPath);
     }
   }
 
@@ -250,9 +252,11 @@ bool callOnPathStepsTuple(Visitor &V,
 template<UpcastablePointerLike RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V,
                      llvm::ArrayRef<TupleTreeKeyWrapper> Path,
-                     RootT &M) {
+                     RootT &M,
+                     ErrorList &EL,
+                     const llvm::StringRef FullPath) {
   auto Dispatcher = [&](auto &Upcasted) {
-    return callOnPathStepsTuple(V, Path, Upcasted);
+    return callOnPathStepsTuple(V, Path, Upcasted, EL, FullPath);
   };
   // TODO: in case of nullptr we should abort
   return upcast(M, Dispatcher, false);
@@ -261,28 +265,47 @@ bool callOnPathSteps(Visitor &V,
 template<TupleSizeCompatible RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V,
                      llvm::ArrayRef<TupleTreeKeyWrapper> Path,
-                     RootT &M) {
-  return tupletree::detail::callOnPathStepsTuple(V, Path, M);
+                     RootT &M,
+                     ErrorList &EL,
+                     const llvm::StringRef FullPath) {
+  return tupletree::detail::callOnPathStepsTuple(V, Path, M, EL, FullPath);
 }
 
 template<KeyedObjectContainer RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V,
                      llvm::ArrayRef<TupleTreeKeyWrapper> Path,
-                     RootT &M) {
+                     RootT &M,
+                     ErrorList &EL,
+                     const llvm::StringRef FullPath) {
   using value_type = typename RootT::value_type;
   using KOT = KeyedObjectTraits<value_type>;
   using key_type = decltype(KOT::key(std::declval<value_type>()));
   auto TargetKey = Path[0].get<key_type>();
 
   auto It = M.find(TargetKey);
-  if (It == M.end())
+  if (It == M.end()) {
+    std::string ErrorMessage;
+    llvm::raw_string_ostream OS(ErrorMessage);
+    OS << "Error while walking, could not find key";
+    if constexpr (HasScalarTraits<key_type>) {
+      OS << " ";
+      ::serialize(OS, TargetKey);
+    }
+    if (!FullPath.empty()) {
+      OS << " in path " << FullPath;
+    }
+    OS.flush();
+    auto Error = llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                         ErrorMessage);
+    EL.push_back(std::move(Error));
     return false;
+  }
 
   auto *Matching = &*It;
 
   V.template visitContainerElement<RootT>(TargetKey, *Matching);
   if (Path.size() > 1) {
-    return callOnPathSteps(V, Path.slice(1), *Matching);
+    return callOnPathSteps(V, Path.slice(1), *Matching, EL, FullPath);
   }
 
   return true;
@@ -362,10 +385,22 @@ struct CallByPathVisitorWithInstance {
 } // namespace tupletree::detail
 
 template<typename RootT, typename Visitor>
-bool callByPath(Visitor &V, const TupleTreePath &Path, RootT &M) {
+bool callByPath(Visitor &V,
+                const TupleTreePath &Path,
+                RootT &M,
+                ErrorList &EL) {
+  return callByPath(V, Path, M, EL, "");
+}
+
+template<typename RootT, typename Visitor>
+bool callByPath(Visitor &V,
+                const TupleTreePath &Path,
+                RootT &M,
+                ErrorList &EL,
+                const llvm::StringRef OriginalPath) {
   using namespace tupletree::detail;
   CallByPathVisitorWithInstance<Visitor> CBPV{ Path.size(), V };
-  return callOnPathSteps(CBPV, Path.toArrayRef(), M);
+  return callOnPathSteps(CBPV, Path.toArrayRef(), M, EL, OriginalPath);
 }
 
 //
@@ -403,8 +438,9 @@ struct GetByPathVisitor {
 template<typename ResultT, typename RootT>
 ResultT *getByPath(const TupleTreePath &Path, RootT &M) {
   using namespace tupletree::detail;
+  ErrorList EL;
   GetByPathVisitor<ResultT> GBPV;
-  if (not callByPath(GBPV, Path, M))
+  if (not callByPath(GBPV, Path, M, EL))
     return nullptr;
   else
     return GBPV.Result;
@@ -553,10 +589,8 @@ private:
   template<KeyedObjectContainer T>
   static bool visitTupleTreeNode(llvm::StringRef String, PathMatcher &Result);
 
-  // clang-format off
-  template<typename T> requires (not TupleTreeCompatible<T>)
+  template<NotTupleTreeCompatible T>
   static bool visitTupleTreeNode(llvm::StringRef Path, PathMatcher &Result);
-  // clang-format on
 };
 
 template<UpcastablePointerLike P, typename L>
@@ -624,11 +658,9 @@ bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
     return visitTupleTreeNode<Value>(After, Result);
 }
 
-// clang-format off
-template<typename T> requires (not TupleTreeCompatible<T>)
+template<NotTupleTreeCompatible T>
 bool PathMatcher::visitTupleTreeNode(llvm::StringRef Path,
                                      PathMatcher &Result) {
-  // clang-format on
   return Path.size() == 0;
 }
 

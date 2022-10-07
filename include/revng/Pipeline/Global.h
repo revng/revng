@@ -37,8 +37,8 @@ public:
 
 public:
   virtual GlobalTupleTreeDiff diff(const Global &Other) const = 0;
-  virtual llvm::Error applyDiff(const llvm::MemoryBuffer &Diff) = 0;
-  virtual llvm::Error applyDiff(const GlobalTupleTreeDiff &Diff) = 0;
+  virtual void applyDiff(const llvm::MemoryBuffer &Diff, ErrorList &EL) = 0;
+  virtual void applyDiff(const GlobalTupleTreeDiff &Diff, ErrorList &EL) = 0;
 
   virtual llvm::Error serialize(llvm::raw_ostream &OS) const = 0;
   virtual llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) = 0;
@@ -125,17 +125,17 @@ public:
     return GlobalTupleTreeDiff(std::move(Diff));
   }
 
-  llvm::Error applyDiff(const llvm::MemoryBuffer &Diff) override {
-    auto MaybeDiff = ::deserialize<TupleTreeDiff<Object>>(Diff.getBuffer());
-    if (not MaybeDiff)
-      return MaybeDiff.takeError();
-    MaybeDiff->apply(Value);
-    return llvm::Error::success();
+  void applyDiff(const llvm::MemoryBuffer &Diff, ErrorList &EL) override {
+    auto MaybeDiff = TupleTreeDiff<Object>::deserialize(Diff.getBuffer(), EL);
+    if (not MaybeDiff) {
+      EL.push_back(MaybeDiff.takeError());
+      return;
+    }
+    MaybeDiff->apply(Value, EL);
   }
 
-  llvm::Error applyDiff(const GlobalTupleTreeDiff &Diff) override {
-    Diff.getAs<Object>()->apply(Value);
-    return llvm::Error::success();
+  void applyDiff(const GlobalTupleTreeDiff &Diff, ErrorList &EL) override {
+    Diff.getAs<Object>()->apply(Value, EL);
   }
 
   Global &operator=(const Global &Other) override {

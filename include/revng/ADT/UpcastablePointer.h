@@ -51,6 +51,9 @@ static_assert(not Dereferenceable<int>);
 template<typename T>
 concept UpcastablePointerLike = Dereferenceable<T> and Upcastable<pointee<T>>;
 
+template<typename T>
+concept NotUpcastablePointerLike = not UpcastablePointerLike<T>;
+
 // clang-format off
 template<typename ReturnT, typename L, UpcastablePointerLike P, size_t I = 0>
   requires(not std::is_void_v<ReturnT>)
