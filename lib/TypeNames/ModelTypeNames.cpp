@@ -49,7 +49,7 @@ TypeString getReturnField(const model::RawFunctionType &F, size_t Index) {
   return TypeString((Twine(RetFieldPrefix) + Twine(Index)).str());
 }
 
-TypeString getTypeName(const model::Type &T, bool TypeDefinition) {
+TypeString getTypeName(const model::Type &T) {
   Tag Result;
 
   if (isa<model::RawFunctionType>(&T) or isa<model::CABIFunctionType>(&T)) {
@@ -64,24 +64,19 @@ TypeString getTypeName(const model::Type &T, bool TypeDefinition) {
     Result = Tag(tags::Span, T.name().str())
                .addAttribute(attributes::ModelEditPath, getCustomNamePath(T));
   }
-  Result.addAttribute(attributes::Token, tokens::Type);
-  if (TypeDefinition)
-    Result.addAttribute(attributes::LocationDefinition,
-                        serializedLocation(ranks::Type, T.key()));
-  else
-    Result.addAttribute(attributes::LocationReferences,
-                        serializedLocation(ranks::Type, T.key()));
+  Result.addAttribute(attributes::Token, tokens::Type)
+    .addAttribute(attributes::LocationReferences,
+                  serializedLocation(ranks::Type, T.key()));
   return TypeString(Result.serialize());
 }
 
-TypeString getNamedCInstance(const model::QualifiedType &QT,
-                             StringRef InstanceName,
-                             bool TypeDefinition) {
+TypeString
+getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
   TypeString Result;
   bool LastPointer = false;
   const model::Type *Unqualified = QT.UnqualifiedType.getConst();
 
-  Result = getTypeName(*Unqualified, TypeDefinition);
+  Result = getTypeName(*Unqualified);
 
   auto QIt = QT.Qualifiers.rbegin();
   auto QEnd = QT.Qualifiers.rend();
@@ -173,7 +168,7 @@ TypeString getReturnTypeName(const model::RawFunctionType &F) {
     auto RetTy = F.ReturnValues.begin()->Type;
     // RawFunctionTypes should never be returning an array
     revng_assert(not RetTy.isArray());
-    Result = getNamedCInstance(RetTy, "", false);
+    Result = getNamedCInstance(RetTy, "");
   } else {
     // RawFunctionTypes can return multiple values, which need to be wrapped
     // in a struct
@@ -196,7 +191,7 @@ TypeString getReturnTypeName(const model::CABIFunctionType &F) {
     // Returned arrays get wrapped in an artificial struct
     Result = getArrayWrapper(RetTy);
   } else {
-    Result = getNamedCInstance(RetTy, "", false);
+    Result = getNamedCInstance(RetTy, "");
   }
 
   revng_assert(not Result.empty());
@@ -225,8 +220,7 @@ static void printFunctionPrototypeImpl(const model::RawFunctionType &RF,
     StringRef Separator = Open;
     for (const auto &Arg : RF.Arguments) {
       std::string ArgumentName = ArgumentPrinter(Arg);
-      Header << Separator
-             << getNamedCInstance(Arg.Type, ArgumentName, Declaration);
+      Header << Separator << getNamedCInstance(Arg.Type, ArgumentName);
       Separator = Comma;
     }
 
@@ -235,8 +229,7 @@ static void printFunctionPrototypeImpl(const model::RawFunctionType &RF,
       // Add last argument representing a pointer to the stack arguments
       model::QualifiedType StackArgsPtr = RF.StackArgumentsType;
       addPointerQualifier(StackArgsPtr, Model);
-      Header << Separator
-             << getNamedCInstance(StackArgsPtr, StackVarsName, Declaration);
+      Header << Separator << getNamedCInstance(StackArgsPtr, StackVarsName);
     }
     Header << ")";
   }
@@ -264,7 +257,7 @@ static void printFunctionPrototypeImpl(const model::CABIFunctionType &CF,
       if (Arg.Type.isArray())
         ArgTypeName = getArrayWrapper(Arg.Type);
       else
-        ArgTypeName = getNamedCInstance(Arg.Type, "", Declaration);
+        ArgTypeName = getNamedCInstance(Arg.Type, "");
 
       std::string ArgumentName = ArgumentPrinter(Arg);
       if (!ArgumentName.empty())

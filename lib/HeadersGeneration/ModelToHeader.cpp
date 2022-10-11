@@ -57,7 +57,10 @@ static void printDeclaration(const model::PrimitiveType &P,
     if (P.Size == 16)
       Header << keywords::Typedef << " "
              << tokenTag("__uint128_t", tokens::Type) << " "
-             << tokenTag(P.name().str(), tokens::Type) << ";\n";
+             << tokenTag(P.name().str(), tokens::Type)
+                  .addAttribute(attributes::LocationDefinition,
+                                serializedLocation(ranks::Type, P.key()))
+             << ";\n";
     else if (Log.isEnabled())
       Header << helpers::lineComment("not necessary, already in stdint.h");
 
@@ -66,7 +69,11 @@ static void printDeclaration(const model::PrimitiveType &P,
   case model::PrimitiveTypeKind::Signed: {
     if (P.Size == 16)
       Header << keywords::Typedef << " " << tokenTag("__int128_t", tokens::Type)
-             << " " << tokenTag(P.name(), tokens::Type) << ";\n";
+             << " "
+             << tokenTag(P.name(), tokens::Type)
+                  .addAttribute(attributes::LocationDefinition,
+                                serializedLocation(ranks::Type, P.key()))
+             << ";\n";
     else if (Log.isEnabled())
       Header << helpers::lineComment("not necessary, already in stdint.h");
 
@@ -104,7 +111,11 @@ static void printDeclaration(const model::PrimitiveType &P,
     ();
     if (!IntType.empty())
       Header << keywords::Typedef << " " << tokenTag(IntType, tokens::Type)
-             << " " << tokenTag(P.name().str(), tokens::Type) << ";\n";
+             << " "
+             << tokenTag(P.name().str(), tokens::Type)
+                  .addAttribute(attributes::LocationDefinition,
+                                serializedLocation(ranks::Type, P.key()))
+             << ";\n";
   } break;
 
   default:
@@ -136,7 +147,7 @@ printDeclaration(const model::EnumType &E, ptml::PTMLIndentedOstream &Header) {
                              + Entry.CustomName.str().str(),
                            tokens::Field)
                     .addAttribute(attributes::LocationDefinition,
-                                  serializedLocation(ranks::TypeField,
+                                  serializedLocation(ranks::EnumEntry,
                                                      E.key(),
                                                      Entry.key()))
                     .addAttribute(attributes::ModelEditPath,
@@ -192,13 +203,12 @@ printDefinition(const model::StructType &S, ptml::PTMLIndentedOstream &Header) {
 
       Tag FieldTag = tokenTag(Field.name().str(), tokens::Field)
                        .addAttribute(attributes::LocationDefinition,
-                                     serializedLocation(ranks::TypeField,
+                                     serializedLocation(ranks::StructField,
                                                         S.key(),
                                                         Field.key()))
                        .addAttribute(attributes::ModelEditPath,
                                      getCustomNamePath(S, Field));
-      Header << getNamedCInstance(Field.Type, FieldTag.serialize(), true)
-             << ";\n";
+      Header << getNamedCInstance(Field.Type, FieldTag.serialize()) << ";\n";
 
       NextOffset = Field.Offset + Field.Type.size().value();
     }
@@ -237,13 +247,12 @@ printDefinition(const model::UnionType &U, ptml::PTMLIndentedOstream &Header) {
     for (const auto &Field : U.Fields) {
       Tag FieldTag = tokenTag(Field.name().str(), tokens::Field)
                        .addAttribute(attributes::LocationDefinition,
-                                     serializedLocation(ranks::TypeField,
+                                     serializedLocation(ranks::UnionField,
                                                         U.key(),
                                                         Field.key()))
                        .addAttribute(attributes::ModelEditPath,
                                      getCustomNamePath(U, Field));
-      Header << getNamedCInstance(Field.Type, FieldTag.serialize(), true)
-             << ";\n";
+      Header << getNamedCInstance(Field.Type, FieldTag.serialize()) << ";\n";
     }
   }
 
@@ -252,11 +261,13 @@ printDefinition(const model::UnionType &U, ptml::PTMLIndentedOstream &Header) {
 
 static void printDeclaration(const model::TypedefType &TD,
                              ptml::PTMLIndentedOstream &Header) {
+  Tag NewType = tokenTag(TD.name(), tokens::Type)
+                  .addAttribute(attributes::ModelEditPath,
+                                getCustomNamePath(TD))
+                  .addAttribute(attributes::LocationDefinition,
+                                serializedLocation(ranks::Type, TD.key()));
   Header << keywords::Typedef << " "
-         << getNamedCInstance(TD.UnderlyingType,
-                              tokenTag(TD.name(), tokens::Type).serialize(),
-                              true)
-         << ";\n";
+         << getNamedCInstance(TD.UnderlyingType, NewType.serialize()) << ";\n";
 }
 
 static void printSegmentsTypes(const model::Segment &Segment,
@@ -267,8 +278,7 @@ static void printSegmentsTypes(const model::Segment &Segment,
                       .addAttribute(attributes::LocationDefinition,
                                     serializedLocation(ranks::Segment,
                                                        Segment.key()));
-  Header << getNamedCInstance(Segment.Type, SegmentTag.serialize(), true)
-         << ";\n";
+  Header << getNamedCInstance(Segment.Type, SegmentTag.serialize()) << ";\n";
 }
 
 /// Generate the definition of a new struct type that wraps all the
@@ -290,8 +300,7 @@ static void generateReturnValueWrapper(const model::RawFunctionType &F,
       const auto &FieldName = getReturnField(F, Group.index());
       Header
         << getNamedCInstance(RetTy,
-                             tokenTag(FieldName, tokens::Field).serialize(),
-                             true)
+                             tokenTag(FieldName, tokens::Field).serialize())
         << ";\n";
     }
   }
@@ -320,7 +329,7 @@ static void printDeclaration(const model::RawFunctionType &F,
   Header << keywords::Typedef << " ";
   // In this case, we are defining a type for the function, not the function
   // itself, so the token right before the parenthesis is the name of the type.
-  printFunctionPrototype(F, getTypeName(F, true), Header, Model, true);
+  printFunctionPrototype(F, getTypeName(F), Header, Model, true);
   Header << ";\n";
 }
 
@@ -363,10 +372,9 @@ static void generateArrayWrapper(const model::QualifiedType &ArrayType,
          << helpers::Packed << " ";
   {
     Scope Scope(Header, scopeTags::Struct);
-    Header << getNamedCInstance(ArrayType, ArrayWrapperFieldName, true)
-           << ";\n";
+    Header << getNamedCInstance(ArrayType, ArrayWrapperFieldName) << ";\n";
   }
-  Header << " " << WrapperName << ";\n";
+  Header << " " << tokenTag(WrapperName, tokens::Type) << ";\n";
 }
 
 /// If the return value or any of the arguments is an array, generate
@@ -393,7 +401,7 @@ static void printDeclaration(const model::CABIFunctionType &F,
   Header << keywords::Typedef << " ";
   // In this case, we are defining a type for the function, not the function
   // itself, so the token right before the parenthesis is the name of the type.
-  printFunctionPrototype(F, getTypeName(F, true), Header, Model, true);
+  printFunctionPrototype(F, getTypeName(F), Header, Model, true);
   Header << ";\n";
 }
 

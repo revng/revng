@@ -19,9 +19,9 @@
 
 namespace revng::pipes {
 
-inline char HelpersHeaderFactoryMIMEType[] = "text/plain";
-inline char HelpersHeaderFactorySuffix[] = ".h";
-inline char HelpersHeaderFactoryName[] = "HelpersHeader";
+inline constexpr char HelpersHeaderFactoryMIMEType[] = "text/x.c+ptml";
+inline constexpr char HelpersHeaderFactorySuffix[] = ".h";
+inline constexpr char HelpersHeaderFactoryName[] = "HelpersHeader";
 using HelpersHeaderFileContainer = FileContainer<&kinds::HelpersHeader,
                                                  HelpersHeaderFactoryName,
                                                  HelpersHeaderFactoryMIMEType,
