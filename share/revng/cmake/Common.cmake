@@ -171,20 +171,6 @@ endmacro()
 
 include("${CMAKE_CURRENT_LIST_DIR}/TupleTreeGenerator.cmake")
 
-function(check_python_requirements)
-  execute_process(
-    COMMAND pip3 freeze
-    RESULT_VARIABLE RETURNCODE
-    OUTPUT_VARIABLE PYTHON_PACKAGES
-    ERROR_FILE "/dev/null")
-  foreach(REQUIREMENT ${ARGN})
-    string(REGEX MATCH "\n${REQUIREMENT}" RESULT "\n${PYTHON_PACKAGES}")
-    if("${RESULT}" STREQUAL "")
-      message(FATAL_ERROR "Python requirement missing: ${REQUIREMENT}")
-    endif()
-  endforeach()
-endfunction()
-
 function(copy_to_build_and_install INSTALL_TYPE DESTINATION)
   foreach(INPUT_FILE ${ARGN})
     make_directory("${CMAKE_BINARY_DIR}/${DESTINATION}")

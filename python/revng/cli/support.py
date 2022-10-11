@@ -19,7 +19,7 @@ except ImportError:
     from backports.shutil_which import which  # type: ignore
 
 script_path = os.path.dirname(os.path.realpath(__file__))
-root_path = os.path.join(script_path, "..", "..", "..", "..")
+root_path = os.path.join(script_path, "..", "..", "..", "..", "..")
 
 
 @dataclass
