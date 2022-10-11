@@ -16,11 +16,13 @@
 #include "revng/Yield/Function.h"
 #include "revng/Yield/PTML.h"
 
+using pipeline::serializedLocation;
 using ptml::str;
 using ptml::Tag;
 namespace attributes = ptml::attributes;
 namespace ptmlScopes = ptml::scopes;
 namespace tags = ptml::tags;
+namespace ranks = revng::ranks;
 
 namespace tokenTypes {
 
@@ -62,17 +64,23 @@ static std::string label(const yield::BasicBlock &BasicBlock,
                          const model::Binary &Binary) {
   std::string LabelName;
   std::string FunctionPath;
+  std::string Location;
   if (auto Iterator = Binary.Functions.find(BasicBlock.Start);
       Iterator != Binary.Functions.end()) {
     LabelName = Iterator->name().str().str();
     FunctionPath = "/Functions/" + str(Iterator->key()) + "/CustomName";
+    Location = serializedLocation(ranks::Function, Iterator->key());
   } else {
     LabelName = "basic_block_at_" + labelAddress(BasicBlock.Start);
+    Location = serializedLocation(ranks::BasicBlock,
+                                  model::Function(Function.Entry).key(),
+                                  BasicBlock.Start);
   }
   using model::Architecture::getAssemblyLabelIndicator;
   auto LabelIndicator = getAssemblyLabelIndicator(Binary.Architecture);
   Tag LabelTag(tags::Span, LabelName);
-  LabelTag.addAttribute(attributes::Token, tokenTypes::Label);
+  LabelTag.addAttribute(attributes::Token, tokenTypes::Label)
+    .addAttribute(attributes::LocationDefinition, Location);
   if (!FunctionPath.empty())
     LabelTag.addAttribute(attributes::ModelEditPath, FunctionPath);
 
@@ -91,8 +99,6 @@ static std::string indent() {
 static std::string targetPath(const MetaAddress &Target,
                               const yield::Function &Function,
                               const model::Binary &Binary) {
-  using pipeline::serializedLocation;
-  namespace ranks = revng::ranks;
   if (auto Iterator = Binary.Functions.find(Target);
       Iterator != Binary.Functions.end()) {
     // The target is a function
@@ -227,22 +233,21 @@ static std::string instruction(const yield::Instruction &Instruction,
   std::string Result = taggedText(Instruction);
   size_t Tail = Instruction.Disassembled.size() + 1;
 
-  using pipeline::serializedLocation;
-  namespace ranks = revng::ranks;
+  Tag Location = Tag(tags::Span)
+                   .addAttribute(attributes::LocationDefinition,
+                                 serializedLocation(ranks::Instruction,
+                                                    Function.Entry,
+                                                    BasicBlock.Start,
+                                                    Instruction.Address));
   Tag Out = Tag(tags::Div, std::move(Result))
-              .addAttribute(attributes::Scope, scopes::Instruction)
-              .addAttribute(attributes::LocationDefinition,
-                            serializedLocation(ranks::Instruction,
-                                               Function.Entry,
-                                               BasicBlock.Start,
-                                               Instruction.Address));
+              .addAttribute(attributes::Scope, scopes::Instruction);
 
   if (AddTargets) {
     auto Targets = targets(BasicBlock, Function, Binary);
     Out.addListAttribute(attributes::LocationReferences, Targets);
   }
 
-  return Out.serialize();
+  return Location + Out;
 }
 
 static std::string basicBlock(const yield::BasicBlock &BasicBlock,
@@ -266,11 +271,21 @@ static std::string basicBlock(const yield::BasicBlock &BasicBlock,
             + instruction(*(ToIterator++), BasicBlock, Function, Binary, true)
             + "\n";
 
-  return Tag(tags::Div, Label + (Label.empty() ? "" : "\n") + Result)
+  std::string LabelString;
+  if (!Label.empty()) {
+    LabelString = Label + "\n";
+  } else {
+    std::string Location = serializedLocation(ranks::BasicBlock,
+                                              model::Function(Function.Entry)
+                                                .key(),
+                                              BasicBlock.Start);
+    LabelString = Tag(tags::Span)
+                    .addAttribute(attributes::LocationDefinition, Location)
+                    .serialize();
+  }
+
+  return Tag(tags::Div, LabelString + Result)
     .addAttribute(attributes::Scope, scopes::BasicBlock)
-    .addAttribute(attributes::LocationDefinition,
-                  "/basic-block/" + str(Function.key()) + "/"
-                    + BasicBlock.Start.toString())
     .serialize();
 }
 
@@ -311,8 +326,6 @@ std::string yield::ptml::functionAssembly(const yield::Function &Function,
   namespace ranks = revng::ranks;
   return ::Tag(tags::Div, Result)
     .addAttribute(attributes::Scope, scopes::Function)
-    .addAttribute(attributes::LocationDefinition,
-                  serializedLocation(ranks::Function, Function.Entry))
     .serialize();
 }
 

@@ -66,7 +66,7 @@ BOOST_AUTO_TEST_CASE(TypeIDAsTheKey) {
   auto Function = makeFunction(*NewModel);
 
   namespace ranks = revng::ranks;
-  auto FieldLocation = pipeline::location(ranks::TypeField,
+  auto FieldLocation = pipeline::location(ranks::UnionField,
                                           Function.get()->key(),
                                           2);
 
@@ -75,7 +75,7 @@ BOOST_AUTO_TEST_CASE(TypeIDAsTheKey) {
 
   std::string ID = Function.toString();
   ID = ID.substr(ID.find_last_of('/') + 1);
-  revng_check(FieldLocation.toString() == "/type-field/" + ID + "/2");
+  revng_check(FieldLocation.toString() == "/union-field/" + ID + "/2");
   revng_check(FieldLocation.toString() == serializeToString(FieldLocation));
 }
 
@@ -138,7 +138,9 @@ BOOST_AUTO_TEST_CASE(Serialization) {
 
     revng_check(!locationFromString(ranks::Function, TestCase).has_value());
     revng_check(!locationFromString(ranks::BasicBlock, TestCase).has_value());
-    revng_check(!locationFromString(ranks::TypeField, TestCase).has_value());
+    revng_check(!locationFromString(ranks::StructField, TestCase).has_value());
+    revng_check(!locationFromString(ranks::UnionField, TestCase).has_value());
+    revng_check(!locationFromString(ranks::EnumEntry, TestCase).has_value());
     revng_check(!locationFromString(ranks::RawByte, TestCase).has_value());
 
     using namespace std::string_literals;

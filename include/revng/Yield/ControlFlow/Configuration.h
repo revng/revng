@@ -58,19 +58,13 @@ public:
   /// It's used to approximate node sizes.
   Graph::Dimension InstructionFontSize;
 
-  /// Specifies the size of the font used for instruction address rendering.
-  ///
-  /// It's used to approximate node sizes.
-  ///
-  /// \note this value should be set to zero if no addresses are displayed.
-  Graph::Dimension InstructionAddressFontSize;
-
-  /// Specifies the size of the font used for raw instruction byte rendering.
+  /// Specifies the size of the font used for instruction address and raw bytes
+  /// rendering.
   ///
   /// It's used to approximate node sizes.
   ///
   /// \note this value should be set to zero if no bytes are displayed.
-  Graph::Dimension InstructionBytesFontSize;
+  Graph::Dimension AnnotationFontSize;
 
   /// Specifies the size of the font used for comment rendering.
   ///
@@ -116,8 +110,7 @@ public:
                           .VerticalFontFactor = 1.25f,
 
                           .InstructionFontSize = 18.f,
-                          .InstructionAddressFontSize = 12.f,
-                          .InstructionBytesFontSize = 0.f,
+                          .AnnotationFontSize = 0.f,
                           .CommentFontSize = 15.f,
                           .LabelFontSize = 18.f,
 
