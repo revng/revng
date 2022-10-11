@@ -96,7 +96,7 @@ getDependencyForFullType(const model::QualifiedType &QT,
       ArrayFound = true;
   }
 
-  // If we reach this pointe we haven't found not even a single pointer
+  // If we reach this point we haven't found not even a single pointer
   // qualifier. Given that we need the full definition, we need the full
   // type of of the unqualified type.
   return TypeToNode.at({ Unqualified, TypeNode::FullType });
