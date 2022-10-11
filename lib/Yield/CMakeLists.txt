@@ -2,20 +2,17 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-revng_add_analyses_library_internal(
+revng_add_library_internal(
   revngYield
   SHARED
   Assembly/DisassemblyHelper.cpp
   Assembly/LLVMDisassemblerInterface.cpp
   CallGraphs/CallGraphSlices.cpp
+  ControlFlow/ConvertFromEFA.cpp
   ControlFlow/Extraction.cpp
   ControlFlow/FallthroughDetection.cpp
   ControlFlow/NodeSizeCalculation.cpp
   ControlFlow/SVG.cpp
-  ControlFlow/ConvertFromEFA.cpp
-  Pipes/AssemblyPipes.cpp
-  Pipes/CallGraphPipes.cpp
-  Pipes/CFGPipes.cpp
   Support/SugiyamaStyleGraphLayout/EdgeRouting.cpp
   Support/SugiyamaStyleGraphLayout/GraphPreparation.cpp
   Support/SugiyamaStyleGraphLayout/HorizontalPositions.cpp
@@ -54,7 +51,6 @@ target_link_libraries(
   revngYield
   revngEarlyFunctionAnalysis
   revngModelPasses
-  revngPipes
   revngPTML
   revngSupport
   revngLift
@@ -112,3 +108,10 @@ target_tuple_tree_generator(
   "${INTERNAL_ASSEMBLY_HEADERS}/RelationDescription.h"
   "${INTERNAL_ASSEMBLY_HEADERS}/RelationTarget.h"
   "${INTERNAL_ASSEMBLY_HEADERS}/RelationType.h")
+
+revng_add_analyses_library_internal(
+  revngYieldPipes SHARED Pipes/AssemblyPipes.cpp Pipes/CallGraphPipes.cpp
+  Pipes/CFGPipes.cpp)
+
+target_link_libraries(revngYieldPipes revngYield revngFunctionIsolation
+                      revngPipes revngSupport)
