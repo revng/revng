@@ -88,13 +88,9 @@ getDependencyForFullType(const model::QualifiedType &QT,
 
   // If we find at least a pointer qualifier, then we only need the name of
   // the unqualified type, not its full definition.
-  bool ArrayFound = false;
-  for (const auto &Qualifier : QT.Qualifiers) {
+  for (const auto &Qualifier : QT.Qualifiers)
     if (model::Qualifier::isPointer(Qualifier))
       return TypeToNode.at({ Unqualified, TypeNode::TypeName });
-    if (model::Qualifier::isArray(Qualifier))
-      ArrayFound = true;
-  }
 
   // If we reach this point we haven't found not even a single pointer
   // qualifier. Given that we need the full definition, we need the full
