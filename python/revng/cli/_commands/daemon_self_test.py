@@ -83,9 +83,8 @@ class DaemonSelfTestCommand(Command):
     def fail(self, ex: Exception):
         if self.process is not None:
             self.process.terminate()
-            self.process.communicate()
-            if self.process.stdout is not None:
-                self.log(f"\n\n Daemon Stacktrace:\n{self.process.stdout.read()}")
+            stdout = self.process.communicate()[0]
+            self.log(f"\n\nrevng-daemon output:\n{stdout}")
         raise ex
 
     async def get_connection(self) -> Tuple[aiohttp.BaseConnector, str]:
