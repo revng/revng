@@ -552,6 +552,26 @@ rp_kind *rp_kind_get_parent(rp_kind *kind);
  */
 rp_rank *rp_kind_get_rank(rp_kind *kind);
 
+/**
+ * \return the number of rank-locations the kind exposes
+ */
+uint64_t rp_kind_get_defined_location_count(rp_kind *kind);
+
+/**
+ * \return the rank-location at index or nullptr
+ */
+const rp_rank *rp_kind_get_defined_location(rp_kind *kind, uint64_t index);
+
+/**
+ * \return the number of kinds the kind can reference
+ */
+uint64_t rp_kind_get_preferred_kind_count(rp_kind *kind);
+
+/**
+ * \return the kind definition at index or nullptr
+ */
+const rp_kind *rp_kind_get_preferred_kind(rp_kind *kind, uint64_t index);
+
 /** \} */
 
 /**

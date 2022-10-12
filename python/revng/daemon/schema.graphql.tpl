@@ -57,6 +57,8 @@ type Kind {
     name: ID
     rank: String!
     parent: String
+    definedLocations: [Rank!]!
+    preferredKinds: [String!]!
 }
 
 type Rank {

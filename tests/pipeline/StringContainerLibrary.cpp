@@ -27,7 +27,7 @@ class StringKindType : public Kind {
   }
 };
 
-static StringKindType StringKind("StringKind", &revng::ranks::Function);
+static StringKindType StringKind("StringKind", revng::ranks::Function, {}, {});
 
 class StringContainer : public Container<StringContainer> {
 public:

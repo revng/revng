@@ -966,3 +966,31 @@ const char *rp_invalidations_serialize(const rp_invalidations *invalidations) {
 
   return copyString(Out);
 }
+
+uint64_t rp_kind_get_defined_location_count(rp_kind *kind) {
+  revng_check(kind != nullptr);
+  return kind->definedLocations().size();
+}
+
+const rp_rank *rp_kind_get_defined_location(rp_kind *kind, uint64_t index) {
+  revng_check(kind != nullptr);
+  const llvm::ArrayRef<const Rank *> Locations = kind->definedLocations();
+  if (index < Locations.size())
+    return Locations[index];
+  else
+    return nullptr;
+}
+
+uint64_t rp_kind_get_preferred_kind_count(rp_kind *kind) {
+  revng_check(kind != nullptr);
+  return kind->preferredKinds().size();
+}
+
+const rp_kind *rp_kind_get_preferred_kind(rp_kind *kind, uint64_t index) {
+  revng_check(kind != nullptr);
+  const llvm::ArrayRef<const Kind *> PreferredKinds = kind->preferredKinds();
+  if (index < PreferredKinds.size())
+    return PreferredKinds[index];
+  else
+    return nullptr;
+}

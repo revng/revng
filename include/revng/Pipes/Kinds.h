@@ -12,32 +12,48 @@
 
 namespace revng::kinds {
 
-inline pipeline::SingleElementKind Binary("Binary", &ranks::Binary);
+template<typename... T>
+inline std::tuple<const T &...> fat(const T &...Refs) {
+  return std::forward_as_tuple(Refs...);
+}
 
-inline RootKind Root("Root", &ranks::Binary);
-inline IsolatedRootKind IsolatedRoot("IsolatedRoot", Root);
+inline pipeline::SingleElementKind Binary("Binary", ranks::Binary, {}, {});
+
+inline RootKind Root("Root", ranks::Binary);
+inline IsolatedRootKind IsolatedRoot("IsolatedRoot", Root, ranks::Binary);
 
 inline TaggedFunctionKind
-  Isolated("Isolated", &ranks::Function, FunctionTags::Isolated);
+  Isolated("Isolated", ranks::Function, FunctionTags::Isolated);
 inline TaggedFunctionKind
-  ABIEnforced("ABIEnforced", &ranks::Function, FunctionTags::ABIEnforced);
+  ABIEnforced("ABIEnforced", ranks::Function, FunctionTags::ABIEnforced);
 inline TaggedFunctionKind
-  CSVsPromoted("CSVsPromoted", &ranks::Function, FunctionTags::CSVsPromoted);
+  CSVsPromoted("CSVsPromoted", ranks::Function, FunctionTags::CSVsPromoted);
 
-inline pipeline::SingleElementKind Object("Object", &ranks::Binary);
-inline pipeline::SingleElementKind Translated("Translated", &ranks::Binary);
+inline pipeline::SingleElementKind Object("Object", ranks::Binary, {}, {});
+inline pipeline::SingleElementKind
+  Translated("Translated", ranks::Binary, {}, {});
 
 inline FunctionKind
-  FunctionAssemblyInternal("FunctionAssemblyInternal", &ranks::Function);
-inline FunctionKind
-  FunctionAssemblyPTML("FunctionAssemblyPTML", &ranks::Function);
-inline FunctionKind
-  FunctionControlFlowGraphSVG("FunctionControlFlowGraphSVG", &ranks::Function);
+  FunctionAssemblyInternal("FunctionAssemblyInternal", ranks::Function, {}, {});
+
+inline FunctionKind FunctionAssemblyPTML("FunctionAssemblyPTML",
+                                         ranks::Function,
+                                         fat(ranks::Function,
+                                             ranks::BasicBlock,
+                                             ranks::Instruction),
+                                         {});
+
+inline FunctionKind FunctionControlFlowGraphSVG("FunctionControlFlowGraphSVG",
+                                                ranks::Function,
+                                                {},
+                                                {});
 
 inline pipeline::SingleElementKind
-  BinaryCrossRelations("BinaryCrossRelations", &ranks::Binary);
-inline pipeline::SingleElementKind CallGraphSVG("CallGraphSVG", &ranks::Binary);
-inline FunctionKind CallGraphSliceSVG("CallGraphSliceSVG", &ranks::Function);
+  BinaryCrossRelations("BinaryCrossRelations", ranks::Binary, {}, {});
+inline pipeline::SingleElementKind
+  CallGraphSVG("CallGraphSVG", ranks::Binary, {}, {});
+inline FunctionKind
+  CallGraphSliceSVG("CallGraphSliceSVG", ranks::Function, {}, {});
 
 inline constexpr auto BinaryCrossRelationsRole = "CrossRelations";
 

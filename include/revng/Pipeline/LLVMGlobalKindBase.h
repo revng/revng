@@ -36,17 +36,14 @@ public:
   using StaticContainer = llvm::SmallVector<LLVMGlobalKindBase *, 4>;
 
 public:
-  LLVMGlobalKindBase(llvm::StringRef Name, Rank *Rank) :
+  template<RankSpecialization BaseRank>
+  LLVMGlobalKindBase(llvm::StringRef Name, const BaseRank &Rank) :
     KindForContainer<LLVMContainer>(Name, Rank) {
     getRegisteredInspectors().push_back(this);
   }
 
-  LLVMGlobalKindBase(llvm::StringRef Name, Kind &Parent) :
-    KindForContainer<LLVMContainer>(Name, Parent) {
-    getRegisteredInspectors().push_back(this);
-  }
-
-  LLVMGlobalKindBase(llvm::StringRef Name, Kind &Parent, Rank *Rank) :
+  template<RankSpecialization BaseRank>
+  LLVMGlobalKindBase(llvm::StringRef Name, Kind &Parent, const BaseRank &Rank) :
     KindForContainer<LLVMContainer>(Name, Parent, Rank) {
     getRegisteredInspectors().push_back(this);
   }
