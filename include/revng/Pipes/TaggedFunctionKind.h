@@ -21,14 +21,16 @@ private:
   const FunctionTags::Tag *Tag;
 
 public:
+  template<typename BaseRank>
   TaggedFunctionKind(llvm::StringRef Name,
-                     pipeline::Rank *Rank,
+                     const BaseRank &Rank,
                      const FunctionTags::Tag &Tag) :
     pipeline::LLVMKind(Name, Rank), Tag(&Tag) {}
 
+  template<typename BaseRank>
   TaggedFunctionKind(llvm::StringRef Name,
                      TaggedFunctionKind &Parent,
-                     pipeline::Rank *Rank,
+                     const BaseRank &Rank,
                      const FunctionTags::Tag &Tag) :
     pipeline::LLVMKind(Name, Parent, Rank), Tag(&Tag) {}
 
