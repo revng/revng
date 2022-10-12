@@ -90,8 +90,7 @@ class DaemonSelfTestCommand(Command):
     async def get_connection(self) -> Tuple[aiohttp.BaseConnector, str]:
         if self.url.startswith("unix:"):
             return (aiohttp.UnixConnector(self.url.replace("unix:", "", 1)), "dummy")
-        else:
-            return (aiohttp.TCPConnector(), self.url)
+        return (aiohttp.TCPConnector(), self.url)
 
     async def run_self_test(self, executable_path: str):
         try:
