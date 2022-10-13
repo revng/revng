@@ -160,7 +160,7 @@ private:
 
         return std::visit(GetPtrToConstRoot, Element.Root) == Root.get();
       };
-      Result = Result and SameRoot();
+      Result = Result and not Element.isConst() and SameRoot();
     });
 
     return Result;
