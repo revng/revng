@@ -2,6 +2,7 @@
 // Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
@@ -72,55 +73,126 @@ TypeString getTypeName(const model::Type &T) {
 
 TypeString
 getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
+
+  const auto &isConst = model::Qualifier::isConst;
+  const auto &isPointer = model::Qualifier::isPointer;
+
   TypeString Result;
-  bool LastPointer = false;
-  const model::Type *Unqualified = QT.UnqualifiedType.getConst();
 
-  Result = getTypeName(*Unqualified);
+  // Here we have a bunch of pointers, const, and array qualifiers.
+  // Because of arrays, we have to emit the types with C infamous clockwise
+  // spiral rule. Luckily all our function types have names, so at least this
+  // cannot become too nasty.
 
-  auto QIt = QT.Qualifiers.rbegin();
-  auto QEnd = QT.Qualifiers.rend();
-  for (; QIt != QEnd and not model::Qualifier::isArray(*QIt); ++QIt) {
-    switch (QIt->Kind) {
-    case model::QualifierKind::Const:
-      LastPointer = false;
-      Result.append({ " ",
-                      Tag(tags::Span, "const")
-                        .addAttribute(attributes::Token, tokens::Operator)
-                        .serialize() });
-      break;
-    case model::QualifierKind::Pointer:
-      Result.append({ LastPointer ? "" : " ",
-                      Tag(tags::Span, "*")
-                        .addAttribute(attributes::Token, tokens::Operator)
-                        .serialize() });
-      LastPointer = true;
-      break;
-    default:
-      revng_abort();
+  auto QIt = QT.Qualifiers.begin();
+  auto QEnd = QT.Qualifiers.end();
+  do {
+    // Find the first qualifer that is an array.
+    auto QArrayIt = std::find_if(QIt, QEnd, model::Qualifier::isArray);
+    {
+      // If we find it, go back to the first previous const-qualifier that
+      // const-qualifies the array itself. This is necessary because C does not
+      // have const arrays, only arrays of const, so we have to handle
+      // const-arrays specially, and emit the const-qualifier on the element in
+      // C, even if in the model it was on the array.
+      if (QArrayIt != QEnd and QArrayIt != QIt
+          and isConst(*std::make_reverse_iterator(QArrayIt)))
+        QArrayIt = std::prev(QArrayIt);
     }
-  }
 
-  if (!LastPointer && !InstanceName.empty())
-    Result.append(" ");
+    // Emit non-array qualifiers.
+    {
+      bool PrevPointer = false;
+      for (const model::Qualifier &Q :
+           llvm::reverse(llvm::make_range(QIt, QArrayIt))) {
+        if (not PrevPointer)
+          Result.append(" ");
 
-  Result.append(InstanceName.str());
+        switch (Q.Kind) {
 
-  for (; QIt != QEnd; ++QIt) {
-    // TODO: We would actually want to assert:
-    //   revng_assert(model::Qualifier::isArray(*QIt));
-    // but at the moment we can't, because e.g. debug info imported from DWARF
-    // allow specifying both a const array and an array of const.
-    // The first is not emittable in C, the second is.
-    // Because DWARF allows specifying this, we can end up with const qualifiers
-    // in positions where C does not allow us to emit them.
-    // In principle we could assert hard, but we would need a pre-processing
-    // stage that massages the model so that all array types can be emitted in
-    // C. At the moment this is a workaround that drops const qualifiers on
-    // arrays.
-    revng_assert(not model::Qualifier::isPointer(*QIt));
-    Result.append((Twine("[") + Twine(QIt->Size) + Twine("]")).str());
-  }
+        case model::QualifierKind::Const:
+          Result.append(Tag(tags::Span, "const")
+                          .addAttribute(attributes::Token, tokens::Operator)
+                          .serialize());
+          PrevPointer = false;
+          break;
+        case model::QualifierKind::Pointer:
+          Result.append(Tag(tags::Span, "*")
+                          .addAttribute(attributes::Token, tokens::Operator)
+                          .serialize());
+          PrevPointer = true;
+          break;
+
+        default:
+          revng_abort();
+        }
+      }
+    }
+
+    bool IsPointer = QArrayIt != QIt
+                     and isPointer(*std::make_reverse_iterator(QArrayIt));
+
+    // Print the actual instance name.
+    if (QIt == QT.Qualifiers.begin() and not InstanceName.empty()) {
+      if (not IsPointer)
+        Result.append(" ");
+      Result.append(InstanceName.str());
+    }
+
+    // Find the next non-array qualifier. Skip over const-qualifiers, because in
+    // C there are no const-arrays, so we'll have to deal with const-arrays
+    // separately.
+    auto QPointerIt = std::find_if(QArrayIt, QEnd, model::Qualifier::isPointer);
+    {
+      // If we find the next pointer qualifier, go back to the first previous
+      // const-qualifier that const-qualifies the pointer itself. This is
+      // necessary, so that we can reason about the element of the array being
+      // const, and we can deal properly with const arrays.
+      if (QPointerIt != QEnd and QPointerIt != QArrayIt
+          and isConst(*std::make_reverse_iterator(QPointerIt)))
+        QPointerIt = std::prev(QPointerIt);
+    }
+    if (QArrayIt != QPointerIt) {
+      // If QT is s a pointer to an array we have to add parentheses for the
+      // clockwise spiral rule
+      if (IsPointer)
+        Result = (Twine("(") + Twine(Result) + Twine(")")).str();
+
+      const auto &ArrayOrConstRange = llvm::make_range(QArrayIt, QPointerIt);
+      bool ConstQualifiedArray = llvm::any_of(ArrayOrConstRange, isConst);
+
+      // If the array is const-qualfied and its element is not const-qualified,
+      // just print it as an array of const-qualified elements, because that's
+      // the equivalent semantics in C anyway.
+      if (ConstQualifiedArray) {
+        bool ElementIsConstQualified = QPointerIt != QEnd
+                                       and isConst(*QPointerIt);
+        // If the array is const qualified but the element is not, we have to
+        // force const-ness onto the element, because in C there's no way to
+        // const-qualify arrays. If the element is already const-qualified, then
+        // there's no need to do that, because we're still gonna print the
+        // const-qualifier for the element.
+        if (not ElementIsConstQualified) {
+          const auto &Const = Tag(tags::Span, "const")
+                                .addAttribute(attributes::Token,
+                                              tokens::Operator)
+                                .serialize();
+          Result = (Twine(" ") + Twine(Const) + Twine(" ") + Twine(Result))
+                     .str();
+        }
+      }
+
+      for (const model::Qualifier &ArrayQ :
+           llvm::reverse(llvm::make_filter_range(ArrayOrConstRange,
+                                                 model::Qualifier::isArray)))
+        Result.append((Twine("[") + Twine(ArrayQ.Size) + Twine("]")).str());
+    }
+
+    QIt = QPointerIt;
+  } while (QIt != QEnd);
+
+  TypeString UnqualifiedName = getTypeName(*QT.UnqualifiedType.getConst());
+  Result = (Twine(UnqualifiedName) + Twine(" ") + Twine(Result)).str();
 
   return Result;
 }
@@ -254,17 +326,17 @@ static void printFunctionPrototypeImpl(const model::CABIFunctionType &CF,
 
     for (const auto &Arg : CF.Arguments) {
       TypeString ArgTypeName;
-      if (Arg.Type.isArray())
-        ArgTypeName = getArrayWrapper(Arg.Type);
-      else
-        ArgTypeName = getNamedCInstance(Arg.Type, "");
-
       std::string ArgumentName = ArgumentPrinter(Arg);
-      if (!ArgumentName.empty())
-        Header << Separator << ArgTypeName << " " << ArgumentName;
-      else
-        Header << Separator << ArgTypeName;
-
+      if (Arg.Type.isArray()) {
+        ArgTypeName = getArrayWrapper(Arg.Type);
+        if (not ArgumentName.empty()) {
+          ArgTypeName.append(" ");
+          ArgTypeName.append(ArgumentName);
+        }
+      } else {
+        ArgTypeName = getNamedCInstance(Arg.Type, ArgumentName);
+      }
+      Header << Separator << ArgTypeName;
       Separator = Comma;
     }
     Header << ")";
