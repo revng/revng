@@ -115,6 +115,8 @@ public:
     }
   }
 
+  bool isConst() const { return std::holds_alternative<const RootT *>(Root); }
+
   bool isValid() const debug_function {
     return canGet() and not Path.empty() and get() != nullptr;
   }
