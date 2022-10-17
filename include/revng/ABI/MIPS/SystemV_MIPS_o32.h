@@ -69,7 +69,6 @@ struct Trait<model::ABI::SystemV_MIPS_o32> {
 
   static constexpr bool CalleeIsResponsibleForStackCleanup = false;
   static constexpr size_t StackAlignment = 4;
-  static constexpr size_t MinimumStackArgumentSize = 4;
 };
 
 } // namespace abi
