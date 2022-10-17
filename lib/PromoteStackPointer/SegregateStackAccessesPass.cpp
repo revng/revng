@@ -1023,7 +1023,6 @@ struct SegregateStackAccessesPipe {
     using namespace pipeline;
     using namespace revng::kinds;
     return { ContractGroup::transformOnlyArgument(StackPointerPromoted,
-                                                  Exactness::Exact,
                                                   StackAccessesSegregated,
                                                   InputPreservation::Erase) };
   }

@@ -196,7 +196,6 @@ struct PromoteStackPointerPipe {
     using namespace pipeline;
     using namespace revng::kinds;
     return { ContractGroup::transformOnlyArgument(LiftingArtifactsRemoved,
-                                                  Exactness::Exact,
                                                   StackPointerPromoted,
                                                   InputPreservation::Erase) };
   }

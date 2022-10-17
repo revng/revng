@@ -18,13 +18,9 @@ static RegisterDefaultConstructibleContainer<HelpersHeaderFileContainer> Reg;
 void HelpersToHeader::run(const pipeline::Context &Ctx,
                           pipeline::LLVMContainer &IRContainer,
                           HelpersHeaderFileContainer &HeaderFile) {
-  auto HasAllFunctions = [](const pipeline::Target &Target) {
-    return &Target.getKind() == &kinds::StackAccessesSegregated
-           and Target.getPathComponents().back().isAll();
-  };
 
   auto Enumeration = IRContainer.enumerate();
-  if (llvm::none_of(Enumeration, HasAllFunctions))
+  if (not Enumeration.contains(kinds::StackAccessesSegregated.allTargets(Ctx)))
     return;
 
   std::error_code EC;

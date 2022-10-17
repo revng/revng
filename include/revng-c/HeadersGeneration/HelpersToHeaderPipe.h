@@ -36,7 +36,6 @@ public:
     using namespace revng::kinds;
 
     return { ContractGroup{ Contract(StackAccessesSegregated,
-                                     Exactness::Exact,
                                      0,
                                      HelpersHeader,
                                      1,

@@ -224,7 +224,6 @@ struct RemoveLiftingArtifactsPipe {
     using namespace pipeline;
     using namespace revng::kinds;
     return { ContractGroup::transformOnlyArgument(Isolated,
-                                                  Exactness::DerivedFrom,
                                                   LiftingArtifactsRemoved,
                                                   InputPreservation::Erase) };
   }

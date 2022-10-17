@@ -37,7 +37,6 @@ public:
     using namespace revng::kinds;
 
     return { ContractGroup({ Contract(DecompiledToYAML,
-                                      Exactness::Exact,
                                       0,
                                       DecompiledToC,
                                       1,

@@ -35,12 +35,8 @@ public:
     using namespace pipeline;
     using namespace revng::kinds;
 
-    return { ContractGroup({ Contract(Binary,
-                                      Exactness::Exact,
-                                      0,
-                                      ModelHeader,
-                                      1,
-                                      InputPreservation::Preserve) }) };
+    Contract C1(Binary, 0, ModelHeader, 1, InputPreservation::Preserve);
+    return { ContractGroup({ C1 }) };
   }
 
   void run(const pipeline::Context &Ctx,
