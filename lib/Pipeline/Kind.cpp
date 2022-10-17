@@ -13,13 +13,18 @@
 
 using namespace pipeline;
 
-void Kind::expandTarget(const Context &Ctx,
-                        const Target &Input,
-                        TargetsList &Output) const {
-  Output.emplace_back(Input);
-}
-
 llvm::Error
 Kind::verify(const ContainerBase &Container, const Target &T) const {
   return llvm::Error::success();
+}
+
+void SingleElementKind::appendAllTargets(const Context &Ctx,
+                                         TargetsList &Out) const {
+  Out.push_back(Target(*this));
+}
+
+TargetsList Kind::allTargets(const Context &Ctx) const {
+  TargetsList Out;
+  appendAllTargets(Ctx, Out);
+  return Out;
 }

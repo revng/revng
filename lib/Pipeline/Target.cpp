@@ -7,34 +7,27 @@
 //
 
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Error.h"
 
 #include "revng/Pipeline/Container.h"
+#include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Kind.h"
 #include "revng/Pipeline/KindsRegistry.h"
 #include "revng/Pipeline/Target.h"
+#include "revng/Support/Assert.h"
 
 using namespace pipeline;
 using namespace std;
 using namespace llvm;
 
-void TargetsList::removeDuplicates() {
-  sort(Contained);
-  const auto IsSuperSet = [](const Target &L, const Target &R) {
-    return L.satisfies(R);
-  };
-  Contained.erase(unique(begin(), end(), IsSuperSet), end());
-}
-
 bool TargetsList::contains(const Target &Target) const {
-  const auto IsCompatible = [&Target](const pipeline::Target &ToCheck) {
-    return ToCheck.satisfies(Target);
-  };
-  return find_if(*this, IsCompatible) != end();
+  return find(*this, Target) != end();
 }
 
 void TargetsList::merge(const TargetsList &Source) {
   copy(Source, back_inserter(Contained));
-  removeDuplicates();
+  llvm::sort(Contained);
+  Contained.erase(unique(Contained.begin(), Contained.end()), Contained.end());
 }
 
 void ContainerToTargetsMap::merge(const ContainerToTargetsMap &Other) {
@@ -48,14 +41,9 @@ void ContainerToTargetsMap::merge(const ContainerToTargetsMap &Other) {
 }
 
 int Target::operator<=>(const Target &Other) const {
-  if (K > Other.K)
-    return -1;
   if (K < Other.K)
-    return 1;
-
-  if (Exact > Other.Exact)
     return -1;
-  if (Exact < Other.Exact)
+  if (K > Other.K)
     return 1;
 
   if (Components.size() != Other.Components.size()) {
@@ -66,38 +54,13 @@ int Target::operator<=>(const Target &Other) const {
   }
 
   for (const auto &[l, r] : zip(Components, Other.Components)) {
-    auto Val = l <=> r;
-    if (Val != 0)
-      return Val;
+    if (l < r)
+      return -1;
+    if (l > r)
+      return 1;
   }
 
   return 0;
-}
-
-bool Target::satisfies(const Target &Other) const {
-  // if they require a exact kind match and we are different return false
-  if (Other.kindExactness() == Exactness::Exact
-      and &Other.getKind() != &getKind())
-    return false;
-
-  // if they require a derived match and they are not our ancestor return false
-  if (Other.kindExactness() == Exactness::DerivedFrom
-      and not Other.getKind().ancestorOf(getKind()))
-    return false;
-
-  revng_assert(getPathComponents().size() == Other.getPathComponents().size());
-
-  // for all path components
-  for (size_t I = 0; I < getPathComponents().size(); I++) {
-    // if describe all it does not matter what they are
-    if (getPathComponents()[I].isAll())
-      continue;
-
-    // otherwise we must be identical else we return
-    if (getPathComponents()[I] != Other.getPathComponents()[I])
-      return false;
-  }
-  return true;
 }
 
 std::string Target::serialize() const {
@@ -108,17 +71,35 @@ std::string Target::serialize() const {
   }
 
   for (size_t I = 0; I < Components.size() - 1; I++)
-    ToReturn += Components[I].toString() + "/";
+    ToReturn += Components[I] + "/";
 
-  ToReturn += Components.back().toString();
+  ToReturn += Components.back();
   ToReturn += ":";
   ToReturn += K->name();
 
   return ToReturn;
 }
 
-llvm::Expected<Target>
-pipeline::parseTarget(llvm::StringRef AsString, const KindsRegistry &Dict) {
+llvm::Expected<Target> Target::deserialize(Context &Ctx,
+                                           const KindsRegistry &Dict,
+                                           llvm::StringRef String) {
+  if (String.contains('*'))
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "String cannot contain *");
+
+  TargetsList Out;
+  if (auto Error = parseTarget(Ctx, String, Dict, Out); Error) {
+    return std::move(Error);
+  }
+
+  revng_assert(Out.size() == 1);
+  return Out.front();
+}
+
+llvm::Error pipeline::parseTarget(const Context &Ctx,
+                                  llvm::StringRef AsString,
+                                  const KindsRegistry &Dict,
+                                  TargetsList &Out) {
 
   llvm::SmallVector<llvm::StringRef, 2> Parts;
   AsString.split(Parts, ':', 2);
@@ -140,13 +121,22 @@ pipeline::parseTarget(llvm::StringRef AsString, const KindsRegistry &Dict) {
                                    "No known Kind %s in dictionary",
                                    Parts[1].str().c_str());
 
-  if (AsString[0] == ':')
-    return Target({}, *It);
+  if (AsString[0] == ':') {
+    Out.push_back(Target({}, *It));
+    return llvm::Error::success();
+  }
 
-  return Target(std::move(Path), *It);
+  if (find(AsString, '*') != AsString.end()) {
+    It->appendAllTargets(Ctx, Out);
+    return llvm::Error::success();
+  }
+
+  Out.push_back(Target(std::move(Path), *It));
+  return llvm::Error::success();
 }
 
-llvm::Error pipeline::parseTarget(ContainerToTargetsMap &CurrentStatus,
+llvm::Error pipeline::parseTarget(const Context &Ctx,
+                                  ContainerToTargetsMap &CurrentStatus,
                                   llvm::StringRef AsString,
                                   const KindsRegistry &Dict) {
   llvm::SmallVector<llvm::StringRef, 2> Parts;
@@ -159,16 +149,5 @@ llvm::Error pipeline::parseTarget(ContainerToTargetsMap &CurrentStatus,
                                    AsString.str().c_str());
   }
 
-  auto MaybeTarget = parseTarget(Parts[1], Dict);
-  if (not MaybeTarget)
-    return MaybeTarget.takeError();
-
-  CurrentStatus.add(Parts[0], std::move(*MaybeTarget));
-  return llvm::Error::success();
-}
-
-size_t pipeline::Target::expandedSize(const Context &Ctx) const {
-  TargetsList List;
-  expand(Ctx, List);
-  return List.size();
+  return parseTarget(Ctx, Parts[1], Dict, CurrentStatus[Parts[0]]);
 }

@@ -23,7 +23,6 @@ public:
 public:
   inline std::array<pipeline::ContractGroup, 1> getContract() const {
     return { pipeline::ContractGroup(kinds::FunctionAssemblyInternal,
-                                     pipeline::Exactness::Exact,
                                      0,
                                      kinds::FunctionAssemblyPTML,
                                      1,

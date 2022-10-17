@@ -7,7 +7,6 @@
 #include <set>
 
 #include "revng/Pipeline/GlobalTupleTreeDiff.h"
-#include "revng/Pipeline/PathComponent.h"
 #include "revng/Pipeline/Rank.h"
 #include "revng/Pipeline/RegisterKind.h"
 #include "revng/Support/Assert.h"
@@ -63,33 +62,30 @@ public:
 public:
   virtual ~Kind() = default;
 
-  /// A Kind can have an expand target method, which will be used to expand all
-  /// targets that represents a collection of objects instead of a single one.
-  ///
-  /// As an example, the expansion of Input equal to /Root/* of isolated
-  /// functions kind will create a target equivalent to /Root/FX for each FX
-  /// container in the revng model.
-  virtual void expandTarget(const Context &Ctx,
-                            const Target &Input,
-                            TargetsList &Output) const;
-
   virtual void getInvalidations(const Context &Ctx,
                                 pipeline::TargetsList &ToRemove,
                                 const GlobalTupleTreeDiff &Diff) const {}
+
+  virtual void appendAllTargets(const Context &Ctx, TargetsList &Out) const = 0;
+  TargetsList allTargets(const Context &Ctx) const;
 
 public:
   template<typename RankDefinitionType>
   static Kind &deadKind(RankDefinitionType &Rank);
 };
 
+class SingleElementKind : public Kind {
+  using Kind::Kind;
+  void appendAllTargets(const Context &Ctx, TargetsList &Out) const override;
+};
+
 class DeadKind : public Kind {
 
 public:
   DeadKind(Rank *R) : Kind("Dead", R) {}
-
-  void expandTarget(const Context &Ctx,
-                    const Target &Input,
-                    TargetsList &Output) const final {}
+  void appendAllTargets(const Context &Ctx, TargetsList &Out) const override {
+    revng_abort();
+  }
 };
 
 template<typename RankDefinitionType>

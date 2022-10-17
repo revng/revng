@@ -93,10 +93,9 @@ public:
 
   llvm::Error extractOne(llvm::raw_ostream &OS,
                          const pipeline::Target &Target) const override {
-    revng_check(Target.getPathComponents().back().isSingle());
     revng_check(&Target.getKind() == K);
 
-    std::string MetaAddrStr = Target.getPathComponents().back().getName();
+    std::string MetaAddrStr = Target.getPathComponents().back();
 
     auto It = find(MetaAddress::fromString(MetaAddrStr));
     revng_check(It != end());
@@ -111,7 +110,7 @@ public:
     for (const auto &[MetaAddress, Mapped] : Map)
       Result.push_back({ MetaAddress.toString(), *K });
 
-    return kinds::compactFunctionTargets(*Model, Result, *K);
+    return Result;
   }
 
   bool remove(const pipeline::TargetsList &Targets) override {
@@ -121,13 +120,7 @@ public:
     for (const pipeline::Target &T : Targets) {
       revng_assert(&T.getKind() == K);
 
-      // if a target to remove is *, drop everything
-      if (T.getPathComponents().back().isAll()) {
-        clear();
-        return true;
-      }
-
-      std::string MetaAddrStr = T.getPathComponents().back().getName();
+      std::string MetaAddrStr = T.getPathComponents().back();
       auto It = Map.find(MetaAddress::fromString(MetaAddrStr));
       if (It != End) {
         Map.erase(It);

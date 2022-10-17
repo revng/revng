@@ -195,13 +195,15 @@ public:
   /// containers of this step, futhermore adds to the container ToLoad those
   /// that were not present.
   ContainerToTargetsMap
-  analyzeGoals(const ContainerToTargetsMap &RequiredGoals) const;
+  analyzeGoals(const Context &Ctx,
+               const ContainerToTargetsMap &RequiredGoals) const;
 
   llvm::Error checkPrecondition(const Context &Ctx) const;
 
   /// Returns the predicted state of the Input containers status after the
   /// execution of all the pipes in this step.
-  ContainerToTargetsMap deduceResults(ContainerToTargetsMap Input) const;
+  ContainerToTargetsMap
+  deduceResults(const Context &Ctx, ContainerToTargetsMap Input) const;
 
 public:
   void addPipe(PipeWrapper Wrapper) { Pipes.push_back(std::move(Wrapper)); }

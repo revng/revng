@@ -109,12 +109,8 @@ int main(int argc, const char *argv[]) {
     Manager.recalculateAllPossibleTargets();
     auto &StepState = *Manager.getLastState().find(Step.getName());
     auto State = StepState.second.find(ContainerName)->second.filter(*Kind);
-    TargetsList ToDump;
-    for (const auto &Entry : State) {
-      Entry.expand(Manager.context(), ToDump);
-    }
 
-    for (const auto &Entry : ToDump) {
+    for (const auto &Entry : State) {
       Entry.dumpPathComponents(dbg);
       dbg << "\n";
     }

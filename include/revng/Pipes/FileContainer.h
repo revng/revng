@@ -22,7 +22,7 @@ namespace revng::pipes {
 /// currently no file associated to a instance of Temporary file, and will
 /// return The target ("root", K) otherwise, where K is the kind provided at
 /// construction time.
-template<pipeline::Kind *K,
+template<pipeline::SingleElementKind *K,
          const char *TypeName,
          const char *MIME,
          const char *Suffix>

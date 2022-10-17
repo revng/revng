@@ -20,14 +20,11 @@ class RootKind : public pipeline::LLVMKind {
 public:
   using pipeline::LLVMKind::LLVMKind;
 
-  pipeline::TargetsList
-  compactTargets(const pipeline::Context &Ctx,
-                 pipeline::TargetsList::List &Targets) const final {
-    return Targets;
-  }
-
   std::optional<pipeline::Target>
   symbolToTarget(const llvm::Function &Symbol) const override;
+
+  void appendAllTargets(const pipeline::Context &Ctx,
+                        pipeline::TargetsList &Out) const override;
 
   void
   getInvalidations(const pipeline::Context &Ctx,
@@ -39,14 +36,11 @@ class IsolatedRootKind : public pipeline::LLVMKind {
 public:
   using pipeline::LLVMKind::LLVMKind;
 
-  pipeline::TargetsList
-  compactTargets(const pipeline::Context &Ctx,
-                 pipeline::TargetsList::List &Targets) const final {
-    return Targets;
-  }
-
   std::optional<pipeline::Target>
   symbolToTarget(const llvm::Function &Symbol) const override;
+
+  void appendAllTargets(const pipeline::Context &Ctx,
+                        pipeline::TargetsList &Out) const override;
 };
 
 } // namespace revng::kinds

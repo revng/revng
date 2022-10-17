@@ -8,6 +8,7 @@
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/CopyPipe.h"
 #include "revng/Pipeline/RegisterContainerFactory.h"
+#include "revng/Pipeline/Target.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Support/Assert.h"
@@ -18,7 +19,15 @@ using namespace llvm::cl;
 using namespace pipeline;
 using namespace ::revng::kinds;
 
-static Kind StringKind("StringKind", &revng::ranks::Function);
+class StringKindType : public Kind {
+  using Kind::Kind;
+  void appendAllTargets(const pipeline::Context &Ctx,
+                        pipeline::TargetsList &Out) const override {
+    Out.push_back(Target("f1", *this));
+  }
+};
+
+static StringKindType StringKind("StringKind", &revng::ranks::Function);
 
 class StringContainer : public Container<StringContainer> {
 public:
@@ -46,7 +55,7 @@ public:
   }
 
   bool contains(const Target &Target) const {
-    return ContainedStrings.count(Target.getPathComponents().back().getName());
+    return ContainedStrings.count(Target.getPathComponents().back());
   }
 
   bool remove(const TargetsList &Targets) override {
@@ -105,7 +114,7 @@ public:
 
 private:
   static std::string toString(const Target &Target) {
-    return Target.getPathComponents().front().toString();
+    return Target.getPathComponents().front();
   }
 
   void mergeBackImpl(StringContainer &&Container) override {
@@ -130,7 +139,7 @@ static llvm::RegisterPass<ExamplePass> X2("example-pass", "ExamplePass");
 
 char StringContainer::ID;
 
-static RegisterPipe<CopyPipe<&StringKind, StringContainer>> E1;
+static RegisterPipe<CopyPipe<StringKindType, &StringKind, StringContainer>> E1;
 static const std::string Name = "StringContainer";
 static RegisterDefaultConstructibleContainer<StringContainer> C;
 static RegisterRole R(Name, "StringRole");

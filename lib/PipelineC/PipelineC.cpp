@@ -394,22 +394,18 @@ const char *rp_manager_produce_targets(rp_manager *manager,
 }
 
 rp_target *rp_target_create(rp_kind *kind,
-                            int is_exact,
                             uint64_t path_components_count,
                             const char *path_components[]) {
   revng_check(kind != nullptr);
   revng_check(path_components != nullptr);
   revng_check(kind->rank().depth() == path_components_count);
-  PathComponents List;
+  std::vector<std::string> List;
   for (size_t I = 0; I < path_components_count; I++) {
-
     llvm::StringRef Rank(path_components[I]);
-    List.push_back(Rank == "*" ? PathComponent::all() :
-                                 PathComponent(Rank.str()));
+    List.push_back(Rank.str());
   }
 
-  auto Exact = is_exact ? Exactness::Exact : Exactness::DerivedFrom;
-  return new Target(std::move(List), *kind, Exact);
+  return new Target(std::move(List), *kind);
 }
 
 void rp_target_destroy(rp_target *target) {
@@ -465,10 +461,6 @@ rp_kind *rp_target_get_kind(rp_target *target) {
   return &target->getKind();
 }
 
-bool rp_target_is_exact(rp_target *target) {
-  revng_check(target != nullptr);
-  return target->kindExactness() == Exactness::Exact;
-}
 uint64_t rp_target_path_components_count(rp_target *target) {
   revng_check(target != nullptr);
   return target->getPathComponents().size();
@@ -478,10 +470,7 @@ const char *rp_target_get_path_component(rp_target *target, uint64_t index) {
   auto &PathComponents = target->getPathComponents();
   revng_check(index < PathComponents.size());
 
-  if (PathComponents[index].isAll())
-    return "*";
-
-  return PathComponents[index].getName().c_str();
+  return PathComponents[index].c_str();
 }
 
 char *rp_manager_create_container_path(rp_manager *manager,
@@ -556,11 +545,16 @@ rp_target *
 rp_target_create_from_string(rp_manager *manager, const char *string) {
   revng_check(manager != nullptr);
   revng_check(string != nullptr);
-  auto MaybeTarget = parseTarget(string, manager->context().getKindsRegistry());
-  if (MaybeTarget)
-    return new Target(std::move(*MaybeTarget));
+  TargetsList Targets;
+  auto Error = parseTarget(manager->context(),
+                           string,
+                           manager->context().getKindsRegistry(),
+                           Targets);
+  revng_check(Targets.size() == 1);
+  if (not Error)
+    return new Target(std::move(Targets.front()));
 
-  llvm::consumeError(MaybeTarget.takeError());
+  llvm::consumeError(std::move(Error));
   return nullptr;
 }
 

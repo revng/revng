@@ -62,3 +62,12 @@ void RootKind::getInvalidations(const Context &Ctx,
   if (RootChanged)
     ToRemove.emplace_back(*this);
 }
+
+void RootKind::appendAllTargets(const Context &Ctx, TargetsList &Out) const {
+  Out.push_back(Target(*this));
+}
+
+void IsolatedRootKind::appendAllTargets(const Context &Ctx,
+                                        TargetsList &Out) const {
+  Out.push_back(Target(*this));
+}

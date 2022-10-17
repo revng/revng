@@ -43,7 +43,7 @@ static Error getObjectives(Runner &Runner,
   while (CurrentStep != nullptr and not ToLoad.empty()) {
 
     ContainerToTargetsMap Output = ToLoad;
-    ToLoad = CurrentStep->analyzeGoals(ToLoad);
+    ToLoad = CurrentStep->analyzeGoals(Runner.getContext(), ToLoad);
     ToExec.emplace_back(*CurrentStep, Output, ToLoad);
     CurrentStep = CurrentStep->hasPredecessor() ?
                     &CurrentStep->getPredecessor() :
@@ -101,7 +101,7 @@ Error Runner::getInvalidations(StatusMap &Invalidated) const {
 
     ContainerToTargetsMap &Outputs = Invalidated[NextS.getName()];
 
-    auto Deduced = NextS.deduceResults(Inputs);
+    auto Deduced = NextS.deduceResults(getContext(), Inputs);
     NextS.containers().intersect(Deduced);
     Outputs.merge(Deduced);
   }
@@ -283,7 +283,7 @@ Runner::runAllAnalyses(const llvm::StringMap<std::string> &Options) {
       const auto &Containers = Analysis->getRunningContainersNames();
       for (size_t I = 0; I < Containers.size(); I++) {
         for (const Kind *K : Analysis->getAcceptedKinds(I)) {
-          Map.add(Containers[I], Target(*K));
+          Map.add(Containers[I], TargetsList::allTargets(getContext(), *K));
         }
       }
 
@@ -322,8 +322,8 @@ Error Runner::run(llvm::StringRef EndingStepName,
     auto &[Step, PredictedOutput, Input] = StepGoalsPairs;
     auto &Parent = Step->getPredecessor();
     auto CurrentContainer = Parent.containers().cloneFiltered(Input);
-    PredictedOutput.collapseEmptyTargets(*TheContext);
-    auto Produced = Step->cloneAndRun(*TheContext, std::move(CurrentContainer));
+    Step->cloneAndRun(*TheContext, std::move(CurrentContainer));
+    auto Produced = Step->containers().cloneFiltered(PredictedOutput);
     revng_check(Produced.enumerate().contains(PredictedOutput),
                 "predicted output was not fully contained in actually "
                 "produced");
@@ -368,7 +368,8 @@ void Runner::deduceAllPossibleTargets(State &Out) const {
       continue;
 
     const Step &Step = NextStep.getPredecessor();
-    Out[NextStep.getName()].merge(NextStep.deduceResults(Out[Step.getName()]));
+    auto Result = NextStep.deduceResults(getContext(), Out[Step.getName()]);
+    Out[NextStep.getName()].merge(std::move(Result));
   }
 }
 const KindsRegistry &Runner::getKindsRegistry() const {

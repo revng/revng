@@ -25,13 +25,11 @@ public:
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     pipeline::Contract BinaryPart(kinds::Binary,
-                                  pipeline::Exactness::Exact,
                                   0,
                                   kinds::Translated,
                                   2,
                                   pipeline::InputPreservation::Preserve);
     pipeline::Contract ObjectPart(kinds::Object,
-                                  pipeline::Exactness::Exact,
                                   1,
                                   kinds::Translated,
                                   2,

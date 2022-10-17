@@ -22,7 +22,6 @@
 
 #include "revng/Pipeline/Container.h"
 #include "revng/Pipeline/ContainerFactory.h"
-#include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/Kind.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Support/Assert.h"

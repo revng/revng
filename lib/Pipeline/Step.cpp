@@ -25,13 +25,14 @@ using namespace std;
 using namespace pipeline;
 
 ContainerToTargetsMap
-Step::analyzeGoals(const ContainerToTargetsMap &RequiredGoals) const {
+Step::analyzeGoals(const Context &Ctx,
+                   const ContainerToTargetsMap &RequiredGoals) const {
 
   ContainerToTargetsMap AlreadyAvailable;
   ContainerToTargetsMap Targets = RequiredGoals;
   removeSatisfiedGoals(Targets, AlreadyAvailable);
   for (const auto &Pipe : llvm::make_range(Pipes.rbegin(), Pipes.rend())) {
-    Targets = Pipe->getRequirements(Targets);
+    Targets = Pipe->getRequirements(Ctx, Targets);
   }
 
   return Targets;
@@ -95,8 +96,9 @@ ContainerSet Step::cloneAndRun(Context &Ctx, ContainerSet &&Input) {
   }
   explainEndStep(Input.enumerate());
   Containers.mergeBack(std::move(Input));
-  InputEnumeration = deduceResults(InputEnumeration);
-  return Containers.cloneFiltered(InputEnumeration);
+  InputEnumeration = deduceResults(Ctx, InputEnumeration);
+  auto Cloned = Containers.cloneFiltered(InputEnumeration);
+  return Cloned;
 }
 
 llvm::Error Step::runAnalysis(llvm::StringRef AnalysisName,
@@ -107,8 +109,6 @@ llvm::Error Step::runAnalysis(llvm::StringRef AnalysisName,
   ContainerToTargetsMap Map = Containers.enumerate();
 
   auto CollapsedTargets = Targets;
-  for (auto &Entry : CollapsedTargets)
-    Entry.second.collapseEmptyTargets(Ctx);
 
   revng_assert(Map.contains(CollapsedTargets),
                "An analysis was requested, but not all targets are available");
@@ -149,9 +149,10 @@ void Step::removeSatisfiedGoals(ContainerToTargetsMap &Targets,
   }
 }
 
-ContainerToTargetsMap Step::deduceResults(ContainerToTargetsMap Input) const {
+ContainerToTargetsMap
+Step::deduceResults(const Context &Ctx, ContainerToTargetsMap Input) const {
   for (const auto &Pipe : Pipes)
-    Input = Pipe->deduceResults(Input);
+    Input = Pipe->deduceResults(Ctx, Input);
   return Input;
 }
 

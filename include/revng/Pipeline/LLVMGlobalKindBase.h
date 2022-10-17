@@ -76,9 +76,6 @@ public:
   virtual std::optional<Target>
   symbolToTarget(const llvm::Function &Symbol) const = 0;
 
-  virtual TargetsList
-  compactTargets(const Context &Ctx, TargetsList::List &Targets) const = 0;
-
 public:
   llvm::DenseSet<const llvm::Function *>
   targetsIntersection(const TargetsList &Targets,
@@ -141,7 +138,7 @@ public:
       L.push_back(std::move(*MaybeTarget));
     }
 
-    return compactTargets(Ctx, L);
+    return L;
   }
 
   static llvm::DenseSet<const llvm::Function *>

@@ -448,7 +448,6 @@ bool rp_step_save(rp_step *step, const char *path);
  * \return 0 if a error was encountered, 1 otherwise.
  */
 rp_target * /*owning*/ rp_target_create(rp_kind *kind,
-                                        int is_exact,
                                         uint64_t path_components_count,
                                         const char *path_components[]);
 /**
@@ -479,12 +478,6 @@ rp_kind *rp_target_get_kind(rp_target *target);
  *       rp_string_destroy.
  */
 char * /*owning*/ rp_target_create_serialized_string(rp_target *target);
-
-/**
- * \return 1 if \p target is requiring exactly a particular kind, 0 if target
- *         can accept derived from targets.
- */
-bool rp_target_is_exact(rp_target *target);
 
 /**
  * \return the number of path component in \p target.

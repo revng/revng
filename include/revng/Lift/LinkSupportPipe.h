@@ -23,7 +23,6 @@ public:
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     return { pipeline::ContractGroup(kinds::Root,
-                                     pipeline::Exactness::DerivedFrom,
                                      0,
                                      pipeline::InputPreservation::Preserve) };
   }
