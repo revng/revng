@@ -117,9 +117,13 @@ static void replaceReferences(const model::Type::Key &OldKey,
   Model->Types.erase(OldKey);
 }
 
+namespace ModelArch = model::Architecture;
+
 template<model::ABI::Values ABI>
 class ConversionHelper {
   using AT = abi::Trait<ABI>;
+  static constexpr auto Architecture = model::ABI::getArchitecture(ABI);
+  static constexpr auto RegisterSize = ModelArch::getPointerSize(Architecture);
 
   using IndexType = decltype(model::Argument::Index);
   using RegisterList = llvm::SmallVector<model::Register::Values, 1>;
@@ -245,20 +249,10 @@ public:
         Field.Type = Argument.Type;
         StackArguments.Fields.insert(std::move(Field));
 
+        // Compute the full size of the argument (including padding if needed).
         auto MaybeSize = Argument.Type.size();
         revng_assert(MaybeSize.has_value() && MaybeSize.value() != 0);
-
-        // Take stack alignment into consideration.
-        if (MaybeSize.value() < AT::MinimumStackArgumentSize) {
-          MaybeSize.value() = AT::MinimumStackArgumentSize;
-        } else {
-          constexpr auto MinStackArgSize = AT::MinimumStackArgumentSize;
-          static_assert((MinStackArgSize & (MinStackArgSize - 1)) == 0);
-          MaybeSize.value() += MinStackArgSize - 1;
-          MaybeSize.value() &= ~(MinStackArgSize - 1);
-        }
-
-        CombinedStackArgumentSize += MaybeSize.value();
+        CombinedStackArgumentSize += paddedSizeOnStack(MaybeSize.value());
       }
     }
 
@@ -388,6 +382,26 @@ public:
   }
 
 private:
+  /// Takes care of extending (padding) the size of a stack argument.
+  ///
+  /// \note This only accounts for the post-padding (extension).
+  ///       Pre-padding (offset) needs to be taken care of separately.
+  ///
+  /// \param RealSize The size of the argument without the padding.
+  ///
+  /// \return The size of the argument with the padding.
+  static uint64_t paddedSizeOnStack(uint64_t RealSize) {
+    if (RealSize <= RegisterSize) {
+      RealSize = RegisterSize;
+    } else {
+      static_assert((RegisterSize & (RegisterSize - 1)) == 0);
+      RealSize += RegisterSize - 1;
+      RealSize &= ~(RegisterSize - 1);
+    }
+
+    return RealSize;
+  }
+
   template<typename RegisterType, size_t RegisterCount, bool DryRun = false>
   static std::optional<llvm::SmallVector<model::Argument, 8>>
   convertArguments(const SortedVector<RegisterType> &UsedRegisters,
@@ -587,14 +601,14 @@ private:
           auto Register = AT::VectorArgumentRegisters[Argument.Index];
           Distributed.Registers.emplace_back(Register);
         } else {
-          Distributed.SizeOnStack = Distributed.Size;
+          Distributed.SizeOnStack = paddedSizeOnStack(Distributed.Size);
         }
       } else {
         if (Argument.Index < AT::GeneralPurposeArgumentRegisters.size()) {
           auto Reg = AT::GeneralPurposeArgumentRegisters[Argument.Index];
           Distributed.Registers.emplace_back(Reg);
         } else {
-          Distributed.SizeOnStack = Distributed.Size;
+          Distributed.SizeOnStack = paddedSizeOnStack(Distributed.Size);
         }
       }
     }
@@ -650,17 +664,8 @@ private:
       ConsideredRegisterCounter = OccupiedRegisterCount;
     }
 
-    if (DA.SizeOnStack != 0) {
-      // Take stack alignment into consideration.
-      if (DA.SizeOnStack < AT::MinimumStackArgumentSize) {
-        DA.SizeOnStack = AT::MinimumStackArgumentSize;
-      } else {
-        constexpr auto MinStackArgumentSize = AT::MinimumStackArgumentSize;
-        static_assert((MinStackArgumentSize & (MinStackArgumentSize - 1)) == 0);
-        DA.SizeOnStack += MinStackArgumentSize - 1;
-        DA.SizeOnStack &= ~(MinStackArgumentSize - 1);
-      }
-    }
+    if (DA.SizeOnStack != 0)
+      DA.SizeOnStack = paddedSizeOnStack(DA.SizeOnStack);
 
     return { DA, ConsideredRegisterCounter };
   }

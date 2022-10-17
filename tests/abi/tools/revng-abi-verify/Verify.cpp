@@ -150,9 +150,8 @@ llvm::Error VH::verify(const abi::FunctionType::Layout &FunctionLayout,
                        "expected stack part nor the expected registers.\n");
 
         // Stack matches.
-        size_t ToDrop = std::max(ArgumentBytes.size(),
-                                 abi::getMinimumStackArgumentSize(ABI));
-        StackBytes = StackBytes.drop_front(ToDrop);
+        auto Min = model::Architecture::getPointerSize(Architecture);
+        StackBytes = StackBytes.drop_front(std::max(ArgumentBytes.size(), Min));
         ArgumentBytes = {};
       } while (!ArgumentBytes.empty());
     }

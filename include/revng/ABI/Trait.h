@@ -237,9 +237,6 @@ concept TraitLike = requires(TraitType<ABI> Trait) {
   /// ARM ABI), the value of `StackAlignment` should be equal to 4.
   { Trait.StackAlignment } -> convertible_to<size_t>;
 
-  /// States the required size for a single stack argument in bytes.
-  { Trait.MinimumStackArgumentSize } -> convertible_to<size_t>;
-
 };
 
 namespace detail {

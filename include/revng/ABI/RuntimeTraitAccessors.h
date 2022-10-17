@@ -139,11 +139,4 @@ constexpr size_t getStackAlignment(model::ABI::Values ABI) {
   });
 }
 
-constexpr size_t getMinimumStackArgumentSize(model::ABI::Values ABI) {
-  revng_assert(ABI != model::ABI::Invalid);
-  return skippingEnumSwitch<1>(ABI, [&]<model::ABI::Values A>() {
-    return abi::Trait<A>::MinimumStackArgumentSize;
-  });
-}
-
 } // namespace abi
