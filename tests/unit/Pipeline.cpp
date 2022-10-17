@@ -1331,7 +1331,7 @@ BOOST_AUTO_TEST_CASE(PipeOptions) {
   Set.add("container_name", Factory);
   Set["container_name"];
   if (auto Error = W.run(Ctx, Set, {}); Error)
-    BOOST_FAIL("unrechable");
+    BOOST_FAIL("unreachable");
 }
 
 BOOST_AUTO_TEST_SUITE_END()

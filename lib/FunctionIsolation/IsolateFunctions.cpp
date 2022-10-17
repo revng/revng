@@ -649,7 +649,7 @@ void IsolateFunctionsImpl::run() {
             break;
           case efa::FunctionEdgeType::Unreachable:
             throwException(Builder,
-                           "An unrechable instruction has been "
+                           "An unreachable instruction has been "
                            "reached",
                            DebugLoc());
             break;
