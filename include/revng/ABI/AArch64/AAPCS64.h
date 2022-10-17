@@ -70,7 +70,6 @@ struct Trait<model::ABI::AAPCS64> {
 
   static constexpr bool CalleeIsResponsibleForStackCleanup = false;
   static constexpr size_t StackAlignment = 16;
-  static constexpr size_t MinimumStackArgumentSize = 8;
 };
 
 } // namespace abi
