@@ -14,7 +14,6 @@
 #include "revng/Model/IRHelpers.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Context.h"
-#include "revng/Pipeline/PathComponent.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/FunctionKind.h"
@@ -30,12 +29,6 @@
 using namespace pipeline;
 using namespace ::revng::kinds;
 using namespace llvm;
-
-void TaggedFunctionKind::expandTarget(const Context &Ctx,
-                                      const Target &Input,
-                                      TargetsList &Output) const {
-  expandTargetImpl(Ctx, Input, Output, *this);
-}
 
 std::optional<pipeline::Target>
 TaggedFunctionKind::symbolToTarget(const llvm::Function &Symbol) const {
@@ -63,6 +56,12 @@ void TaggedFK::getInvalidations(const Context &Ctx,
   const auto *ModelDiff = Diff.getAs<model::Binary>();
   if (not ModelDiff)
     return;
+}
 
-  // ToRemove.push_back(Target("0x1000", *this));
+void TaggedFunctionKind::appendAllTargets(const pipeline::Context &Ctx,
+                                          pipeline::TargetsList &Out) const {
+  const auto &Model = getModelFromContext(Ctx);
+  for (const auto &Function : Model->Functions) {
+    Out.push_back(Target(Function.Entry.toString(), *this));
+  }
 }

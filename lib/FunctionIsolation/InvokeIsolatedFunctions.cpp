@@ -32,11 +32,7 @@ struct InvokeIsolatedPipe {
 
   std::vector<pipeline::ContractGroup> getContract() const {
     using namespace revng::kinds;
-    return { pipeline::ContractGroup(Root,
-                                     pipeline::Exactness::Exact,
-                                     0,
-                                     IsolatedRoot,
-                                     0) };
+    return { pipeline::ContractGroup(Root, 0, IsolatedRoot, 0) };
   }
 
   void registerPasses(llvm::legacy::PassManager &Manager) {

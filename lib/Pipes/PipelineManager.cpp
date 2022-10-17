@@ -210,18 +210,9 @@ void PipelineManager::getCurrentState(Runner::State &State) const {
   Runner->getCurrentState(State);
   for (auto &Step : State) {
     for (auto &Container : Step.second) {
-      TargetsList Expansions;
-      for (auto &Target : Container.second)
-        Target.expand(*PipelineContext, Expansions);
-      State[Step.first()][Container.first()] = std::move(Expansions);
+      State[Step.first()][Container.first()] = Container.second;
     }
   }
-}
-
-static bool isExpansionEmpty(const Context &Ctx, const Target &Target) {
-  TargetsList Expansions;
-  Target.expand(Ctx, Expansions);
-  return Expansions.empty();
 }
 
 void PipelineManager::getAllPossibleTargets(Runner::State &State,
@@ -231,10 +222,7 @@ void PipelineManager::getAllPossibleTargets(Runner::State &State,
     for (auto &Container : Step.second) {
       TargetsList Expansions;
       for (auto &Target : Container.second) {
-        if (ExpandTargets or isExpansionEmpty(*PipelineContext, Target))
-          Target.expand(*PipelineContext, Expansions);
-        else
-          Expansions.push_back(Target);
+        Expansions.push_back(Target);
       }
       State[Step.first()][Container.first()] = std::move(Expansions);
     }

@@ -55,7 +55,6 @@ struct EnforceABIPipe {
     using namespace pipeline;
     using namespace ::revng::kinds;
     return { ContractGroup::transformOnlyArgument(Isolated,
-                                                  Exactness::Exact,
                                                   ABIEnforced,
                                                   InputPreservation::Erase) };
   }

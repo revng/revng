@@ -420,7 +420,9 @@ async def test_function_endpoint(client):
     )
     result = await client.execute(q)
 
-    first_function = next(t for t in result["container"]["targets"] if t["serialized"] != "")
+    first_function = next(
+        t for t in result["container"]["targets"] if not t["serialized"].startswith(":")
+    )["serialized"].rsplit(":", 1)[0]
     q = gql(
         """
     query function($param1: String!) {
@@ -430,7 +432,7 @@ async def test_function_endpoint(client):
     }
     """
     )
-    result = await client.execute(q, {"param1": first_function["serialized"]})
+    result = await client.execute(q, {"param1": first_function})
 
     assert result["function"]["Isolate"] is not None
 

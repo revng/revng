@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <algorithm>
 #include <cstring>
 #include <initializer_list>
 #include <iterator>
@@ -18,22 +19,19 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/iterator_range.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Pipeline/Kind.h"
-#include "revng/Pipeline/PathComponent.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
 namespace pipeline {
 
-namespace Exactness {
-enum Values { Exact, DerivedFrom };
-}
-
 class TargetsList;
 class ContainerBase;
+class Context;
 
 /// A target is a triple of Kind, PathComponents, and Exactness used to
 /// enumerate and transform the contents of a container.
@@ -41,72 +39,45 @@ class ContainerBase;
 /// The kind is used to tell apart objects that are conceptually different or
 /// have a relationship of containment or extension.
 /// The PathComponent list is used to tell apart objects belonging to the same
-/// Kind The Exactness express that a requirements can be satisfied by a kind or
-/// its extension.
+/// Kind
 class Target {
 private:
+  using PathComponents = std::vector<std::string>;
   PathComponents Components;
   const Kind *K;
-  Exactness::Values Exact;
 
 public:
-  Target(PathComponents Components,
-         const Kind &K,
-         Exactness::Values Exactness = Exactness::Exact) :
-    Components(std::move(Components)), K(&K), Exact(Exactness) {
+  Target(PathComponents Components, const Kind &K) :
+    Components(std::move(Components)), K(&K) {
     revng_assert(this->Components.size() == getKind().depth());
   }
 
-  Target(PathComponent PathComponent,
-         const Kind &K,
-         Exactness::Values Exactness = Exactness::Exact) :
-    Components({ std::move(PathComponent) }), K(&K), Exact(Exactness) {
+  Target(std::string PathComponent, const Kind &K) :
+    Components({ std::move(PathComponent) }), K(&K) {
     revng_assert(this->Components.size() == getKind().depth());
   }
 
-  Target(std::string Name,
-         const Kind &K,
-         Exactness::Values Exactness = Exactness::Exact) :
-    Components({ PathComponent(std::move(Name)) }), K(&K), Exact(Exactness) {
-
+  Target(std::initializer_list<std::string> Names, const Kind &K) : K(&K) {
+    for (auto Name : Names)
+      Components.emplace_back(Name);
     revng_assert(this->Components.size() == getKind().depth());
   }
 
-  Target(std::initializer_list<std::string> Names,
-         const Kind &K,
-         Exactness::Values Exactness = Exactness::Exact) :
-    K(&K), Exact(Exactness) {
+  Target(llvm::ArrayRef<llvm::StringRef> Names, const Kind &K) : K(&K) {
     for (auto Name : Names) {
-      if (Name != "*")
-        Components.emplace_back(Name);
-      else
-        Components.emplace_back(PathComponent::all());
+      Components.emplace_back(Name.str());
     }
     revng_assert(this->Components.size() == getKind().depth());
   }
 
-  Target(llvm::ArrayRef<llvm::StringRef> Names,
-         const Kind &K,
-         Exactness::Values Exactness = Exactness::Exact) :
-    K(&K), Exact(Exactness) {
-    for (auto Name : Names) {
-      if (Name != "*")
-        Components.emplace_back(Name.str());
-      else
-        Components.emplace_back(PathComponent::all());
-    }
+  Target(const Kind &K) : K(&K) {
     revng_assert(this->Components.size() == getKind().depth());
-  }
-
-  Target(const Kind &K) : K(&K), Exact(Exactness::Exact) {
-    for (size_t I = 0; I < K.depth(); I++)
-      Components.emplace_back(PathComponent::all());
   }
 
 public:
   bool operator<(const Target &Other) const {
-    auto Self = std::tie(Components, K, Exact);
-    auto OtherSelf = std::tie(Other.Components, Other.K, Other.Exact);
+    auto Self = std::tie(K, Components);
+    auto OtherSelf = std::tie(Other.K, Other.Components);
     return Self < OtherSelf;
   }
 
@@ -116,26 +87,14 @@ public:
 
 public:
   const Kind &getKind() const { return *K; }
-  Exactness::Values kindExactness() const { return Exact; }
   const PathComponents &getPathComponents() const { return Components; }
-  bool satisfies(const Target &Target) const;
 
 public:
   void setKind(const Kind &NewKind) { K = &NewKind; }
-  void setExactness(Exactness::Values NewExactness) { Exact = NewExactness; }
 
-  void addPathComponent() { Components.emplace_back(PathComponent::all()); }
-  void dropPathComponent() { Components.pop_back(); }
   llvm::Error verify(const ContainerBase &Container) const {
     return K->verify(Container, *this);
   }
-
-public:
-  void expand(const Context &Ctx, TargetsList &Out) const {
-    K->expandTarget(Ctx, *this, Out);
-  }
-
-  size_t expandedSize(const Context &Ctx) const;
 
 public:
   template<typename OStream>
@@ -143,28 +102,29 @@ public:
     indent(OS, Indentation);
     OS << '/';
 
-    const auto ComponentToString = [](const PathComponent &Component) {
-      return Component.toString();
+    const auto ComponentToString = [](const std::string &Component) {
+      return Component;
     };
 
     auto Path = llvm::join(llvm::map_range(Components, ComponentToString), "/");
     OS << Path;
     OS << ':' << K->name().str();
-    if (Exact == Exactness::DerivedFrom)
-      OS << '^';
     OS << '\n';
   }
 
   std::string serialize() const;
+  static llvm::Expected<Target>
+  deserialize(Context &Ctx, const KindsRegistry &Dict, llvm::StringRef String);
 
   template<typename OStream>
   void dumpPathComponents(OStream &OS) const debug_function {
     OS << "/";
     for (const auto &Entry : Components) {
-      Entry.dump(OS);
+      OS << Entry;
       if (&Entry != &Components.back())
         OS << "/";
     }
+    OS << ":" << K->name().str();
   }
 
   void dump() const debug_function { dump(dbg); }
@@ -172,8 +132,10 @@ public:
 
 class KindsRegistry;
 
-llvm::Expected<Target>
-parseTarget(llvm::StringRef AsString, const KindsRegistry &Dict);
+llvm::Error parseTarget(const Context &Ctx,
+                        llvm::StringRef AsString,
+                        const KindsRegistry &Dict,
+                        TargetsList &Out);
 
 /// a sorted list of targets.
 class TargetsList {
@@ -191,7 +153,15 @@ private:
 
 public:
   TargetsList() = default;
-  TargetsList(List C) : Contained(std::move(C)) { removeDuplicates(); }
+  TargetsList(List C) : Contained(std::move(C)) {}
+  static TargetsList allTargets(const Context &Ctx, const Kind &K) {
+    TargetsList ToReturn;
+    K.appendAllTargets(Ctx, ToReturn);
+    return ToReturn;
+  }
+
+  bool operator==(const TargetsList &Other) const = default;
+  bool operator!=(const TargetsList &Other) const = default;
 
 public:
   const Target &operator[](size_t Index) const { return Contained[Index]; }
@@ -235,19 +205,56 @@ public:
   template<typename... Args>
   void emplace_back(Args &&...A) {
     Contained.emplace_back(std::forward<Args>(A)...);
-    removeDuplicates();
+    llvm::sort(Contained);
+    Contained.erase(unique(Contained.begin(), Contained.end()),
+                    Contained.end());
   }
 
   void merge(const TargetsList &Other);
 
   void push_back(const Target &Target) {
     Contained.push_back(Target);
-    removeDuplicates();
+    llvm::sort(Contained);
+    Contained.erase(unique(Contained.begin(), Contained.end()),
+                    Contained.end());
   }
 
   template<typename... Args>
   auto erase(Args &&...A) {
     return Contained.erase(std::forward<Args>(A)...);
+  }
+
+private:
+  struct Comp {
+    bool operator()(const Target &T, const Kind &K) const {
+      return &T.getKind() < &K;
+    }
+    bool operator()(const Kind &K, const Target &T) const {
+      return &K < &T.getKind();
+    }
+  };
+
+public:
+  llvm::iterator_range<iterator> filterByKind(const Kind &K) {
+    auto [b, e] = std::equal_range(begin(), end(), K, Comp());
+    return llvm::make_range(b, e);
+  }
+
+  llvm::iterator_range<const_iterator> filterByKind(const Kind &K) const {
+    auto [b, e] = std::equal_range(begin(), end(), K, Comp());
+    return llvm::make_range(b, e);
+  }
+
+  llvm::SmallVector<const Kind *, 4> getContainedKinds() const {
+    llvm::SmallVector<const Kind *, 4> ToReturn;
+
+    auto Current = begin();
+    while (Current != end()) {
+      ToReturn.push_back(&Current->getKind());
+      Current = std::upper_bound(Current, end(), Current->getKind(), Comp());
+    }
+
+    return ToReturn;
   }
 
 public:
@@ -258,15 +265,6 @@ public:
     for (const auto &Entry : Contained)
       Entry.dump(OS, Indentation);
   }
-
-  void collapseEmptyTargets(const Context &Ctx) {
-    llvm::erase_if(Contained, [&Ctx](const Target &Target) {
-      return Target.expandedSize(Ctx);
-    });
-  }
-
-private:
-  void removeDuplicates();
 };
 
 /// A map from container name to target list that is usually used to represents
@@ -335,13 +333,17 @@ public:
 
   void add(llvm::StringRef Name,
            std::initializer_list<std::string> Names,
-           const Kind &K,
-           Exactness::Values Exactness = Exactness::Exact) {
-    Status[Name].emplace_back(Names, K, Exactness);
+           const Kind &K) {
+    Status[Name].emplace_back(Names, K);
   }
 
   void add(llvm::StringRef Name, Target Target) {
     Status[Name].emplace_back(std::move(Target));
+  }
+
+  void add(llvm::StringRef Name, const TargetsList &Targets) {
+    for (const auto &Target : Targets)
+      Status[Name].emplace_back(Target);
   }
 
 public:
@@ -363,11 +365,6 @@ public:
     }
   }
 
-  void collapseEmptyTargets(const Context &Ctx) {
-    for (auto &Entry : *this)
-      Entry.second.collapseEmptyTargets(Ctx);
-  }
-
   void dump() const debug_function { dump(dbg); }
 
 private:
@@ -381,7 +378,8 @@ private:
 
 using InvalidationMap = llvm::StringMap<ContainerToTargetsMap>;
 
-llvm::Error parseTarget(ContainerToTargetsMap &CurrentStatus,
+llvm::Error parseTarget(const Context &Ctx,
+                        ContainerToTargetsMap &CurrentStatus,
                         llvm::StringRef AsString,
                         const KindsRegistry &Dict);
 

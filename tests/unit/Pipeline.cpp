@@ -38,7 +38,6 @@
 #include "revng/Pipeline/LLVMContainerFactory.h"
 #include "revng/Pipeline/LLVMGlobalKindBase.h"
 #include "revng/Pipeline/Loader.h"
-#include "revng/Pipeline/PathComponent.h"
 #include "revng/Pipeline/Runner.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Support/Assert.h"
@@ -59,7 +58,6 @@ bool init_unit_test();
 using namespace pipeline;
 using namespace std;
 using namespace llvm;
-using KE = Exactness::Values;
 
 static Rank Root("Root");
 static Rank FunctionRank("Function", Root);
@@ -74,17 +72,17 @@ public:
     return std::nullopt;
   }
 
-  TargetsList compactTargets(const Context &Ctx,
-                             TargetsList::List &Targets) const override {
-    return Targets;
+  void appendAllTargets(const pipeline::Context &Ctx,
+                        pipeline::TargetsList &Out) const override {
+    Out.push_back(Target(*this));
   }
 
   ~RootKindType() override {}
 };
 
 static RootKindType RootKind;
-static Kind RootKind2("RootKind2", RootKind, &Root);
-static Kind RootKind3("RootKind3", &Root);
+static SingleElementKind RootKind2("RootKind2", RootKind, &Root);
+static SingleElementKind RootKind3("RootKind3", &Root);
 class SingleFunctionKind : public LLVMKind {
 public:
   using LLVMKind::LLVMKind;
@@ -93,15 +91,15 @@ public:
   symbolToTarget(const llvm::Function &Symbol) const override {
     if (Symbol.getName() == "f1")
       return Target("f1", *this);
+    if (Symbol.getName() == "f2")
+      return Target("f2", *this);
     return std::nullopt;
   }
 
-  TargetsList compactTargets(const Context &Ctx,
-                             TargetsList::List &Targets) const override {
-    pipeline::TargetsList TList;
-    TList.push_back(Target(*this));
-    return Targets.empty() or Targets.front() != Target("f1", *this) ? Targets :
-                                                                       TList;
+  void appendAllTargets(const pipeline::Context &Ctx,
+                        pipeline::TargetsList &Out) const override {
+    Out.push_back(Target("f1", *this));
+    Out.push_back(Target("f2", *this));
   }
 
   ~SingleFunctionKind() override {}
@@ -124,27 +122,16 @@ public:
     return make_unique<MapContainer>(Map, this->name());
   }
   static std::vector<pipeline::Kind *> possibleKinds() {
-    return { &FunctionKind };
+    return { &FunctionKind, &RootKind };
   }
 
   bool contains(const Target &T) const {
-    if (T.getPathComponents().size() != 0
-        and T.getPathComponents().back().isAll())
-      return Map.count(Target({ "f1" }, FunctionKind))
-             and Map.count(Target({ "f2" }, FunctionKind));
     bool Contained = Map.count(T);
     return Contained;
   }
 
-  const static Target AllTargets;
-
   TargetsList enumerate() const final {
     TargetsList ToReturn;
-
-    if (contains(AllTargets)) {
-      ToReturn.emplace_back(AllTargets);
-      return ToReturn;
-    }
 
     for (const auto &Target : Map)
       ToReturn.push_back(Target.first);
@@ -153,12 +140,6 @@ public:
   }
 
   bool remove(const TargetsList &Targets) override {
-
-    if (Targets.contains(AllTargets)) {
-      Map.clear();
-      return true;
-    }
-
     bool RemovedAll = true;
     for (const auto &Target : Targets)
       RemovedAll = remove(Target) && RemovedAll;
@@ -223,9 +204,6 @@ private:
   }
 };
 
-const Target MapContainer::AllTargets = Target({ PathComponent::all() },
-                                               FunctionKind);
-
 char MapContainer::ID;
 
 static const Target ExampleTarget({}, RootKind);
@@ -270,15 +248,23 @@ public:
   static constexpr auto Name = "TestPipe";
 
   std::vector<ContractGroup> getContract() const {
-    return { ContractGroup(RootKind, KE::Exact, 0, RootKind2, 0) };
+    return {
+      ContractGroup(RootKind, 0, RootKind2, 0, InputPreservation::Preserve)
+    };
   }
 
   void run(const Context &, const MapContainer &Source, MapContainer &Target) {
-    for (const auto &Element : Source.getMap())
+    Source.enumerate().dump();
+    auto SrcCopy = Source;
+    for (const auto &Element : SrcCopy.getMap())
       if (&Element.first.getKind() == &RootKind) {
+        llvm::outs() << "Invoked\n";
         pipeline::Target NewTar(RootKind2);
+        NewTar.dump();
         Target.get(NewTar) = Element.second;
+        Target.enumerate().dump();
       }
+    Target.enumerate().dump();
   }
 };
 
@@ -295,55 +281,38 @@ BOOST_AUTO_TEST_CASE(InputOutputContractExactPassForward) {
   ContainerToTargetsMap Targets;
   Targets[CName].emplace_back(Target({}, RootKind));
 
-  ContractGroup Contract1(RootKind, KE::Exact);
-  Contract1.deduceResults(Targets, { CName });
+  ContractGroup Contract1(RootKind);
+  Contract1.deduceResults(Context(), Targets, { CName });
   BOOST_TEST((&Targets[CName][0].getKind() == &RootKind));
-  BOOST_TEST((Targets[CName][0].kindExactness() == KE::Exact));
 }
 
 BOOST_AUTO_TEST_CASE(InputOutputContractExactExactForward) {
   ContainerToTargetsMap Targets;
   Targets[CName].emplace_back(Target({}, RootKind));
-  ContractGroup Contract1(RootKind, KE::Exact, 0, RootKind2, 0);
-  Contract1.deduceResults(Targets, { CName });
+  ContractGroup Contract1(RootKind, 0, RootKind2, 0);
+  Contract1.deduceResults(Context(), Targets, { CName });
   BOOST_TEST((&Targets[CName][0].getKind() == &RootKind2));
-  BOOST_TEST((Targets[CName][0].kindExactness() == KE::Exact));
 }
 
 BOOST_AUTO_TEST_CASE(InputOutputContractExactKillForward) {
   ContainerToTargetsMap Targets;
-  Targets[CName].emplace_back(Target({}, RootKind2));
-  ContractGroup Contract1(RootKind,
-                          KE::DerivedFrom,
-                          0,
-                          RootKind3,
-                          0,
-                          InputPreservation::Erase);
-  Contract1.deduceResults(Targets, { CName });
+  Targets[CName].emplace_back(Target({}, RootKind));
+  ContractGroup Contract1(RootKind, 0, RootKind3, 0, InputPreservation::Erase);
+  Contract1.deduceResults(Context(), Targets, { CName });
   BOOST_TEST((Targets[CName].size() == 1));
   BOOST_TEST((&Targets[CName][0].getKind() == &RootKind3));
-  BOOST_TEST((Targets[CName][0].kindExactness() == KE::Exact));
 }
 
 BOOST_AUTO_TEST_CASE(InputOutputContractMultiLine) {
   ContainerToTargetsMap Targets;
   Targets["third"].emplace_back(Target({}, RootKind));
 
-  Contract FirstPart(RootKind2,
-                     Exactness::Exact,
-                     0,
-                     RootKind,
-                     2,
-                     InputPreservation::Preserve);
-  Contract SecondPart(RootKind3,
-                      Exactness::Exact,
-                      1,
-                      RootKind,
-                      2,
-                      InputPreservation::Preserve);
+  Contract FirstPart(RootKind2, 0, RootKind, 2, InputPreservation::Preserve);
+  Contract SecondPart(RootKind3, 1, RootKind, 2, InputPreservation::Preserve);
   ContractGroup Contract({ FirstPart, SecondPart });
 
-  auto Res = Contract.deduceRequirements(Targets,
+  auto Res = Contract.deduceRequirements(Context(),
+                                         Targets,
                                          { "first", "second", "third" });
 
   BOOST_TEST(Res["first"].size() == 1);
@@ -354,70 +323,64 @@ BOOST_AUTO_TEST_CASE(InputOutputContractDerivedPassForward) {
   ContainerToTargetsMap Targets;
   Targets[CName].emplace_back(Target({}, RootKind2));
 
-  ContractGroup Contract1(RootKind, KE::DerivedFrom);
-  Contract1.deduceResults(Targets, { CName });
+  ContractGroup Contract1(RootKind, 0, RootKind2, 0);
+  Contract1.deduceResults(Context(), Targets, { CName });
   BOOST_TEST((&Targets[CName][0].getKind() == &RootKind2));
-  BOOST_TEST((Targets[CName][0].kindExactness() == KE::Exact));
 }
 
 BOOST_AUTO_TEST_CASE(InputOutputContractDerivedExactForward) {
   ContainerToTargetsMap Targets;
-  Targets[CName].emplace_back(Target({}, RootKind2));
+  Targets[CName].emplace_back(Target({}, RootKind));
 
-  ContractGroup Contract1(RootKind, KE::DerivedFrom, 0, RootKind, 0);
-  Contract1.deduceResults(Targets, { CName });
+  ContractGroup Contract1(RootKind, 0, RootKind, 0);
+  Contract1.deduceResults(Context(), Targets, { CName });
   BOOST_TEST((&Targets[CName][0].getKind() == &RootKind));
-  BOOST_TEST((Targets[CName][0].kindExactness() == KE::Exact));
+  BOOST_TEST((Targets[CName].size() == 1));
 }
 
 BOOST_AUTO_TEST_CASE(InputOutputContractExactPassBackward) {
   ContainerToTargetsMap Targets;
   Targets[CName].emplace_back(Target({}, RootKind));
 
-  ContractGroup Contract1(RootKind, KE::Exact);
-  auto Res = Contract1.deduceRequirements(Targets, { CName });
+  ContractGroup Contract1(RootKind);
+  auto Res = Contract1.deduceRequirements(Context(), Targets, { CName });
   BOOST_TEST((&Res[CName][0].getKind() == &RootKind));
-  BOOST_TEST((Res[CName][0].kindExactness() == KE::Exact));
 }
 
 BOOST_AUTO_TEST_CASE(InputOutputContractExactExactBackward) {
   ContainerToTargetsMap Targets;
   Targets[CName].emplace_back(Target({}, RootKind2));
 
-  ContractGroup Contract1(RootKind, KE::Exact, 0, RootKind2, 0);
-  auto Res = Contract1.deduceRequirements(Targets, { CName });
+  ContractGroup Contract1(RootKind, 0, RootKind2, 0);
+  auto Res = Contract1.deduceRequirements(Context(), Targets, { CName });
   BOOST_TEST((&Res[CName][0].getKind() == &RootKind));
-  BOOST_TEST((Res[CName][0].kindExactness() == KE::Exact));
 }
 
 BOOST_AUTO_TEST_CASE(InputOutputContractDerivedPassBackward) {
   ContainerToTargetsMap Targets;
   Targets[CName].emplace_back(Target({}, RootKind2));
 
-  ContractGroup Contract1(RootKind, KE::DerivedFrom);
-  auto Res = Contract1.deduceRequirements(Targets, { CName });
+  ContractGroup Contract1(RootKind);
+  auto Res = Contract1.deduceRequirements(Context(), Targets, { CName });
   BOOST_TEST((&Res[CName][0].getKind() == &RootKind2));
-  BOOST_TEST((Res[CName][0].kindExactness() == KE::Exact));
 }
 
 BOOST_AUTO_TEST_CASE(InputOutputContractDerivedExactBackward) {
   ContainerToTargetsMap Targets;
   Targets[CName].emplace_back(Target({}, RootKind2));
 
-  ContractGroup Contract1(RootKind, KE::DerivedFrom, 0, RootKind2, 0);
-  auto Res = Contract1.deduceRequirements(Targets, { CName });
+  ContractGroup Contract1(RootKind, 0, RootKind2, 0);
+  auto Res = Contract1.deduceRequirements(Context(), Targets, { CName });
   BOOST_TEST((&Res[CName][0].getKind() == &RootKind));
-  BOOST_TEST((Res[CName][0].kindExactness() == KE::DerivedFrom));
 }
 
 BOOST_AUTO_TEST_CASE(InputOutputContractExactExactFineGrainedBackward) {
   ContainerToTargetsMap Targets;
   Targets.add(CName, { "f1" }, FunctionKind);
 
-  ContractGroup Contract1(RootKind, KE::Exact, 0, FunctionKind, 0);
-  auto Res = Contract1.deduceRequirements(Targets, { CName });
+  ContractGroup Contract1(RootKind, 0, FunctionKind, 0);
+  auto Res = Contract1.deduceRequirements(Context(), Targets, { CName });
   BOOST_TEST((&Res[CName][0].getKind() == &RootKind));
-  BOOST_TEST((Res[CName][0].kindExactness() == KE::Exact));
   BOOST_TEST((Res[CName][0].getPathComponents().size() == 0));
 }
 
@@ -425,17 +388,15 @@ BOOST_AUTO_TEST_CASE(InputOutputContractExactExactFineGrainedForward) {
   ContainerToTargetsMap Targets;
   Targets[CName].emplace_back(Target({}, RootKind));
 
-  ContractGroup Contract1(RootKind, KE::Exact, 0, FunctionKind, 0);
-  Contract1.deduceResults(Targets, { CName });
+  ContractGroup Contract1(RootKind, 0, FunctionKind, 0);
+  Contract1.deduceResults(Context(), Targets, { CName });
   BOOST_TEST((&Targets[CName][0].getKind() == &FunctionKind));
-  BOOST_TEST((Targets[CName][0].kindExactness() == KE::Exact));
   BOOST_TEST((Targets[CName][0].getPathComponents().size() == 1));
-  BOOST_TEST((Targets[CName][0].getPathComponents()[0].isAll()));
 }
 
-static void checkIfContains(auto &TargetRange, const Kind &K, KE Exact) {
-  const auto ToFind = [&K, Exact](const Target &Target) {
-    return &Target.getKind() == &K and Target.kindExactness() == Exact;
+static void checkIfContains(auto &TargetRange, const Kind &K) {
+  const auto ToFind = [&K](const Target &Target) {
+    return &Target.getKind() == &K;
   };
   BOOST_TEST(llvm::find_if(TargetRange, ToFind) != TargetRange.end());
 }
@@ -445,11 +406,11 @@ BOOST_AUTO_TEST_CASE(InputOutputContractMupltipleInputTest) {
   Targets[CName].emplace_back(Target(RootKind2));
   Targets[CName].emplace_back(Target(RootKind));
 
-  ContractGroup Contract1(RootKind, KE::DerivedFrom, 0, RootKind2, 0);
-  auto Res = Contract1.deduceRequirements(Targets, { CName });
+  ContractGroup Contract1(RootKind, 0, RootKind2, 0);
+  auto Res = Contract1.deduceRequirements(Context(), Targets, { CName });
 
   const auto &ProducedResults = Res[CName];
-  checkIfContains(ProducedResults, RootKind, KE::Exact);
+  checkIfContains(ProducedResults, RootKind);
 }
 
 BOOST_AUTO_TEST_CASE(InputOutputContractPreserved) {
@@ -458,16 +419,15 @@ BOOST_AUTO_TEST_CASE(InputOutputContractPreserved) {
   Targets[CName].emplace_back(Target({}, RootKind));
 
   ContractGroup Contract1(RootKind,
-                          KE::DerivedFrom,
                           0,
                           RootKind2,
                           0,
                           InputPreservation::Preserve);
-  Contract1.deduceResults(Targets, { CName });
+  Contract1.deduceResults(Context(), Targets, { CName });
   const auto &ProducedResults = Targets[CName];
-  checkIfContains(ProducedResults, RootKind2, KE::Exact);
-  checkIfContains(ProducedResults, RootKind, KE::Exact);
-  checkIfContains(ProducedResults, RootKind2, KE::Exact);
+  checkIfContains(ProducedResults, RootKind2);
+  checkIfContains(ProducedResults, RootKind);
+  checkIfContains(ProducedResults, RootKind2);
 }
 
 BOOST_AUTO_TEST_CASE(InputOutputContractPreservedBackwardMain) {
@@ -475,14 +435,12 @@ BOOST_AUTO_TEST_CASE(InputOutputContractPreservedBackwardMain) {
   Targets[CName].emplace_back(Target({}, RootKind2));
 
   ContractGroup Contract1(RootKind,
-                          KE::DerivedFrom,
                           0,
                           RootKind2,
                           0,
                           InputPreservation::Preserve);
-  auto Res = Contract1.deduceRequirements(Targets, { CName });
+  auto Res = Contract1.deduceRequirements(Context(), Targets, { CName });
   BOOST_TEST((&Res[CName][0].getKind() == &RootKind));
-  BOOST_TEST((Res[CName][0].kindExactness() == KE::DerivedFrom));
 }
 
 BOOST_AUTO_TEST_CASE(InputOutputContractPreservedBackwardSecondary) {
@@ -490,14 +448,12 @@ BOOST_AUTO_TEST_CASE(InputOutputContractPreservedBackwardSecondary) {
   Targets[CName].emplace_back(Target({}, RootKind));
 
   ContractGroup Contract1(RootKind,
-                          KE::DerivedFrom,
                           0,
                           RootKind2,
                           0,
                           InputPreservation::Preserve);
-  auto Res = Contract1.deduceRequirements(Targets, { CName });
+  auto Res = Contract1.deduceRequirements(Context(), Targets, { CName });
   BOOST_TEST((&Res[CName][0].getKind() == &RootKind));
-  BOOST_TEST((Res[CName][0].kindExactness() == KE::Exact));
 }
 
 BOOST_AUTO_TEST_CASE(StepCanCloneAndRun) {
@@ -582,7 +538,9 @@ class FineGranerPipe {
 public:
   static constexpr auto Name = "FinedGranedPipe";
   std::vector<ContractGroup> getContract() const {
-    return { ContractGroup(RootKind, KE::Exact, 0, FunctionKind, 1) };
+    return {
+      ContractGroup(RootKind, 0, FunctionKind, 1, InputPreservation::Preserve)
+    };
   }
 
   void run(Context &, const MapContainer &Source, MapContainer &Target) {
@@ -608,7 +566,6 @@ public:
   static constexpr auto Name = "CopyPipe";
   std::vector<ContractGroup> getContract() const {
     return { ContractGroup(FunctionKind,
-                           KE::Exact,
                            0,
                            FunctionKind,
                            1,
@@ -617,7 +574,8 @@ public:
 
   void run(Context &, const MapContainer &Source, MapContainer &Target) {
     for (const auto &Element : Source.getMap())
-      Target.get(Element.first) = Element.second;
+      if (&Element.first.getKind() == &FunctionKind)
+        Target.get(Element.first) = Element.second;
   }
 };
 
@@ -651,8 +609,8 @@ BOOST_AUTO_TEST_CASE(DifferentNamesAreNotCompatible) {
   Target Target1({ "f1Wrong" }, FunctionKind);
   Target Target2({ "f1" }, FunctionKind);
 
-  BOOST_TEST(not Target1.satisfies(Target2));
-  BOOST_TEST(not Target2.satisfies(Target1));
+  BOOST_TEST((Target1 != Target2));
+  BOOST_TEST((Target2 != Target1));
 }
 
 BOOST_AUTO_TEST_CASE(DifferentNamesRootOnlyAreNotCompatibleSet) {
@@ -727,7 +685,7 @@ struct LLVMPassFunctionCreator {
   static constexpr auto Name = "Function Creator";
 
   std::vector<ContractGroup> getContract() const {
-    return { ContractGroup(RootKind, KE::Exact, 0, FunctionKind) };
+    return { ContractGroup(RootKind, 0, FunctionKind) };
   }
 
   void registerPasses(llvm::legacy::PassManager &Manager) {
@@ -739,7 +697,7 @@ struct LLVMPassFunctionIdentity {
   static constexpr auto Name = "Identity";
 
   std::vector<ContractGroup> getContract() const {
-    return { ContractGroup(FunctionKind, KE::Exact) };
+    return { ContractGroup(FunctionKind) };
   }
 
   void registerPasses(llvm::legacy::PassManager &Manager) {
@@ -769,7 +727,7 @@ BOOST_AUTO_TEST_CASE(SingleElementLLVMPipelineBackwardFinedGrained) {
   makeF(C1.getModule(), "root");
 
   ContainerToTargetsMap Targets;
-  Targets.add(CName, Target({ PathComponent("f1") }, FunctionKind));
+  Targets.add(CName, Target({ "f1" }, FunctionKind));
 
   auto Error = Pipeline.run("End", Targets);
   BOOST_TEST(!Error);
@@ -802,7 +760,7 @@ BOOST_AUTO_TEST_CASE(LLVMPurePipe) {
   makeF(C1.getModule(), "root");
 
   ContainerToTargetsMap Targets;
-  Targets.add(CName, Target({ PathComponent("f1") }, FunctionKind));
+  Targets.add(CName, Target({ "f1" }, FunctionKind));
 
   auto Error = Pipeline.run("End", Targets);
   BOOST_TEST(!Error);
@@ -828,8 +786,10 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineForwardFinedGrained) {
   C1.get(Target({}, RootKind)) = 1;
   auto &C2 = Pipeline["End"].containers().getOrCreate<MapContainer>(CName);
 
-  const auto T = Target({ PathComponent::all() }, FunctionKind);
+  const auto T = Target({ "f1" }, FunctionKind);
+  const auto T2 = Target({ "f2" }, FunctionKind);
   C2.get(T) = 1;
+  C2.get(T2) = 1;
 
   llvm::StringMap<ContainerToTargetsMap> Invalidations;
   Invalidations[Name].add(CName, {}, RootKind);
@@ -839,9 +799,7 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineForwardFinedGrained) {
 
   const auto &EndContainerInvalidations = Invalidations["End"][CName];
   BOOST_TEST(not EndContainerInvalidations.empty());
-  const auto &QuantifOfInvalidated = EndContainerInvalidations.front()
-                                       .getPathComponents();
-  BOOST_TEST((QuantifOfInvalidated.back().isAll()));
+  BOOST_TEST((EndContainerInvalidations == TargetsList({ T, T2 })));
 }
 
 BOOST_AUTO_TEST_CASE(SingleElementPipelineInvalidation) {
@@ -859,8 +817,10 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineInvalidation) {
   C1.get(Target({}, RootKind)) = 1;
   auto &C2 = Pipeline["End"].containers().getOrCreate<MapContainer>(CName);
 
-  const auto T = Target({ PathComponent::all() }, FunctionKind);
+  const auto T = Target({ "f1" }, FunctionKind);
+  const auto T2 = Target({ "f2" }, FunctionKind);
   C2.get(T) = 1;
+  C2.get(T2) = 1;
 
   Target ToKill({}, RootKind);
 
@@ -870,7 +830,7 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineInvalidation) {
   const auto &QuantifOfInvalidated = Invalidations["End"][CName]
                                        .front()
                                        .getPathComponents();
-  BOOST_TEST((QuantifOfInvalidated.front().isAll()));
+  BOOST_TEST((QuantifOfInvalidated.front() == "f1"));
 }
 
 BOOST_AUTO_TEST_CASE(SingleElementPipelineWithRemove) {
@@ -1179,7 +1139,7 @@ static ExampleContainerInpsector Example;
 BOOST_AUTO_TEST_CASE(EnumerableContainersTest) {
   Context Ctx;
   EnumerableContainerExample Example(Ctx, "dont_care");
-  Target T({}, RootKind, Exactness::DerivedFrom);
+  Target T({}, RootKind);
   Example.Targets.insert(T);
   BOOST_TEST(Example.contains(T));
   BOOST_TEST(Example.remove(TargetsList({ T })));
@@ -1195,16 +1155,10 @@ public:
     return Target({ Symbol.getName() }, FunctionKind);
   }
 
-  TargetsList compactTargets(const Context &Ctx,
-                             TargetsList::List &Targets) const override {
-    Target F1({ "f1" }, FunctionKind);
-    Target F2({ "f2" }, FunctionKind);
-    Target All({ PathComponent::all() }, FunctionKind);
-    if (find(Targets, F1) != Targets.end()
-        and find(Targets, F2) != Targets.end())
-
-      return TargetsList({ All });
-    return TargetsList(move(Targets));
+  void appendAllTargets(const pipeline::Context &Ctx,
+                        pipeline::TargetsList &Out) const override {
+    Out.push_back(Target("f1", *this));
+    Out.push_back(Target("f2", *this));
   }
 };
 
@@ -1217,9 +1171,9 @@ public:
     return Target({}, RootKind);
   }
 
-  TargetsList compactTargets(const Context &Ctx,
-                             TargetsList::List &Targets) const override {
-    return TargetsList(move(Targets));
+  void appendAllTargets(const pipeline::Context &Ctx,
+                        pipeline::TargetsList &Out) const override {
+    Out.push_back(Target(*this));
   }
 };
 
@@ -1269,17 +1223,10 @@ public:
   symbolToTarget(const llvm::Function &Symbol) const final {
     return Target({ Symbol.getName() }, *this);
   }
-
-  TargetsList
-  compactTargets(const Context &Ctx, TargetsList::List &Targets) const final {
-    Target F1({ "f1" }, *this);
-    Target F2({ "f2" }, *this);
-    Target All({ PathComponent::all() }, *this);
-    if (find(Targets, F1) != Targets.end()
-        and find(Targets, F2) != Targets.end())
-
-      return TargetsList({ All });
-    return TargetsList(move(Targets));
+  void appendAllTargets(const pipeline::Context &Ctx,
+                        pipeline::TargetsList &Out) const override {
+    Out.push_back(Target("f1", *this));
+    Out.push_back(Target("f2", *this));
   }
 
   ~InspectorKindExample() override {}
@@ -1323,10 +1270,10 @@ BOOST_AUTO_TEST_CASE(MultiStepInvalidationTest) {
   auto &C1End = Pipeline["End"].containers().getOrCreate<MapContainer>(CName);
   auto &C2End = Pipeline["End"].containers().getOrCreate<MapContainer>(CName2);
 
-  const auto T = Target({}, RootKind);
+  const auto T = Target(RootKind);
   C1.get(T) = 1;
 
-  const auto ToProduce = Target({ PathComponent("f1") }, FunctionKind);
+  const auto ToProduce = Target({ "f1" }, FunctionKind);
   ContainerToTargetsMap Map;
   Map[CName2].emplace_back(ToProduce);
   cantFail(Pipeline.run("End", Map));
@@ -1339,7 +1286,12 @@ BOOST_AUTO_TEST_CASE(MultiStepInvalidationTest) {
   pipeline::InvalidationMap Invalidations;
   Invalidations[Name][CName].push_back(T);
 
+  // C2End.enumerate().dump();
+  llvm::outs() << "Invalidations\n";
   auto Error = Pipeline.getInvalidations(Invalidations);
+  // Invalidations[Name].dump();
+  // Invalidations[SecondName].dump();
+  // Invalidations["End"].dump();
   BOOST_TEST(!Error);
 
   Error = Pipeline.invalidate(Invalidations);

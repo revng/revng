@@ -56,7 +56,8 @@ static InvalidationMap getInvalidationMap(Runner &Pipeline) {
   for (llvm::StringRef Target : Targets) {
     auto [StepName, Rest] = Target.split("/");
     auto &ToInvalidate = Invalidations[StepName];
-    AbortOnError(parseTarget(ToInvalidate, Rest, Registry));
+    auto &Ctx = Pipeline.getContext();
+    AbortOnError(parseTarget(Ctx, ToInvalidate, Rest, Registry));
   }
 
   return Invalidations;

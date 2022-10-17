@@ -33,7 +33,6 @@ struct PromoteCSVsPipe {
     using namespace pipeline;
     using namespace ::revng::kinds;
     return { ContractGroup::transformOnlyArgument(ABIEnforced,
-                                                  Exactness::Exact,
                                                   CSVsPromoted,
                                                   InputPreservation::Erase) };
   }

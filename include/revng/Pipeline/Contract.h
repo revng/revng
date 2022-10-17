@@ -8,6 +8,8 @@
 
 #include "llvm/ADT/ArrayRef.h"
 
+#include "revng/Pipeline/Context.h"
+#include "revng/Pipeline/Kind.h"
 #include "revng/Pipeline/Target.h"
 
 namespace pipeline {
@@ -68,7 +70,6 @@ public:
 
 private:
   const Kind *Source;
-  Exactness::Values InputContract;
   const Kind *TargetKind;
   size_t PipeArgumentSourceIndex;
   size_t PipeArgumentTargetIndex;
@@ -76,84 +77,67 @@ private:
 
 public:
   constexpr Contract(const Kind &Source,
-                     Exactness::Values InputContract,
                      size_t PipeArgumentSourceIndex,
                      const Kind &Target,
                      size_t PipeArgumentTargetIndex = 0,
                      InputPreservation::Values Preserve = Erase) :
     Source(&Source),
-    InputContract(InputContract),
     TargetKind(&Target),
     PipeArgumentSourceIndex(PipeArgumentSourceIndex),
     PipeArgumentTargetIndex(PipeArgumentTargetIndex),
     Preservation(Preserve) {}
 
-  constexpr Contract(const Kind &Target, size_t PipeArgumentTargetIndex = 0) :
+  constexpr Contract(const Kind &Target,
+                     size_t PipeArgumentTargetIndex = 0,
+                     InputPreservation::Values Preserve = Erase) :
     Source(nullptr),
-    InputContract(Exactness::Exact),
     TargetKind(&Target),
     PipeArgumentSourceIndex(0),
-    PipeArgumentTargetIndex(PipeArgumentTargetIndex),
-    Preservation(Erase) {}
-
-  constexpr Contract(const Kind &Source,
-                     Exactness::Values InputContract,
-                     size_t PipeArgumentSourceIndex = 0,
-                     InputPreservation::Values Preserve = Erase) :
-    Source(&Source),
-    InputContract(InputContract),
-    TargetKind(nullptr),
-    PipeArgumentSourceIndex(PipeArgumentSourceIndex),
     PipeArgumentTargetIndex(PipeArgumentSourceIndex),
     Preservation(Preserve) {}
 
 public:
-  void deduceResults(ContainerToTargetsMap &StepStatus,
+  void deduceResults(const Context &Ctx,
+                     ContainerToTargetsMap &StepStatus,
                      llvm::ArrayRef<std::string> ContainerNames) const;
 
-  void deduceResults(ContainerToTargetsMap &StepStatus,
+  void deduceResults(const Context &Ctx,
+                     ContainerToTargetsMap &StepStatus,
                      TargetsList &Results,
                      llvm::ArrayRef<std::string> ContainerNames) const;
 
-  void deduceResults(ContainerToTargetsMap &StepStatus,
+  void deduceResults(const Context &Ctx,
+                     ContainerToTargetsMap &StepStatus,
                      ContainerToTargetsMap &Results,
                      llvm::ArrayRef<std::string> ContainerNames) const;
 
   ContainerToTargetsMap
-  deduceRequirements(const ContainerToTargetsMap &PipeOutput,
+  deduceRequirements(const Context &Ctx,
+                     const ContainerToTargetsMap &PipeOutput,
                      llvm::ArrayRef<std::string> ContainerNames) const;
 
-  bool forwardMatches(const ContainerToTargetsMap &Status,
+  bool forwardMatches(const Context &Ctx,
+                      const ContainerToTargetsMap &Status,
                       llvm::ArrayRef<std::string> ContainerNames) const;
-  bool backwardMatches(const ContainerToTargetsMap &Status,
+  bool backwardMatches(const Context &Ctx,
+                       const ContainerToTargetsMap &Status,
                        llvm::ArrayRef<std::string> ContainerNames) const;
 
-  void insertDefaultInput(ContainerToTargetsMap &Status,
+  void insertDefaultInput(const Context &Ctx,
+                          ContainerToTargetsMap &Status,
                           llvm::ArrayRef<std::string> ContainerNames) const;
 
 private:
-  void forward(Target &Input) const;
-  bool forwardMatches(const Target &Input) const;
-  void forwardRank(Target &Input) const;
+  TargetsList forward(const Context &Ctx, TargetsList Input) const;
+  TargetsList backward(const Context &Ctx, TargetsList Output) const;
+  bool forwardMatches(const Context &Ctx, const TargetsList &Input) const;
 
-  /// Target fixed -> Output must be exactly Target.
-  /// Target same as Source, Source derived from base -> Most strict between
-  /// source and target Target same as source, source exactly base -> base.
-  void backward(Target &Output) const;
-  Exactness::Values backwardInputContract(const Target &Output) const;
-  void backwardRank(Target &Output) const;
-  const Kind &backwardInputKind(const Target &Output) const;
-  bool backwardMatches(const Target &Output) const;
-
-  ///
-  /// returns false iff the output kind has less depth than the input and the
-  /// input is not *
-  ///
-  bool targetCanBePromotedToShallowerRank(const Target &Input) const;
+  bool backwardMatchesImpl(const Context &Ct, const TargetsList &List) const;
 
   /// Target is the container in which the Pipe would write when used to produce
   /// the targets.
-  void deduceRequirements(TargetsList &SourceContainer,
+  void deduceRequirements(const Context &Ctx,
+                          TargetsList &SourceContainer,
                           TargetsList &TargetContainer) const;
 };
 
@@ -181,48 +165,42 @@ public:
   }
 
   ContractGroup(const Kind &Source,
-                Exactness::Values InputContract,
                 size_t PipeArgumentSourceIndex,
                 const Kind &Target,
                 size_t PipeArgumentTargetIndex = 0,
                 InputPreservation::Values Preservation = Erase) :
     Content({ Contract(Source,
-                       InputContract,
                        PipeArgumentSourceIndex,
                        Target,
                        PipeArgumentTargetIndex,
                        Preservation) }) {}
 
   ContractGroup(const Kind &Source,
-                Exactness::Values InputContract,
                 size_t PipeArgumentSourceIndex = 0,
                 InputPreservation::Values Preservation = Erase) :
-    Content({ Contract(Source,
-                       InputContract,
-                       PipeArgumentSourceIndex,
-                       Preservation) }) {}
-
-  ContractGroup(const Kind &Target, size_t PipeArgumentTargetIndex = 0) :
-    Content({ Contract(Target, PipeArgumentTargetIndex) }) {}
+    Content({ Contract(Source, PipeArgumentSourceIndex, Preservation) }) {}
 
   static ContractGroup
   transformOnlyArgument(const Kind &Source,
-                        Exactness::Values Exact,
                         const Kind &Target,
                         InputPreservation::Values Preservation) {
-    return ContractGroup(Source, Exact, 0, Target, 0, Preservation);
+    return ContractGroup(Source, 0, Target, 0, Preservation);
   }
 
 public:
   [[nodiscard]] ContainerToTargetsMap
-  deduceRequirements(const ContainerToTargetsMap &StepStatus,
+  deduceRequirements(const Context &Ctx,
+                     const ContainerToTargetsMap &StepStatus,
                      llvm::ArrayRef<std::string> ContainerNames) const;
-  void deduceResults(ContainerToTargetsMap &StepStatus,
+  void deduceResults(const Context &Ctx,
+                     ContainerToTargetsMap &StepStatus,
                      llvm::ArrayRef<std::string> ContainerNames) const;
 
-  bool forwardMatches(const ContainerToTargetsMap &Status,
+  bool forwardMatches(const Context &Ctx,
+                      const ContainerToTargetsMap &Status,
                       llvm::ArrayRef<std::string> ContainerNames) const;
-  bool backwardMatches(const ContainerToTargetsMap &Status,
+  bool backwardMatches(const Context &Ctx,
+                       const ContainerToTargetsMap &Status,
                        llvm::ArrayRef<std::string> ContainerNames) const;
 };
 

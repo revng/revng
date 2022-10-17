@@ -73,7 +73,6 @@ struct IsolatePipe {
     using namespace ::revng::kinds;
     return {
       ContractGroup::transformOnlyArgument(Root,
-                                           Exactness::Exact,
                                            Isolated,
                                            InputPreservation::Preserve)
     };
@@ -707,7 +706,7 @@ bool IF::runOnModule(Module &TheModule) {
   if (not TheModule.getFunction("root")
       or TheModule.getFunction("root")->isDeclaration())
     return false;
-  // Retrieve analyses
+  //  Retrieve analyses
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
   const auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
   const model::Binary &Binary = *ModelWrapper.getReadOnlyModel();

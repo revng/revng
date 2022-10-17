@@ -60,10 +60,12 @@ public:
 
 public:
   virtual ContainerToTargetsMap
-  getRequirements(const ContainerToTargetsMap &Target) const = 0;
+  getRequirements(const Context &Ctx,
+                  const ContainerToTargetsMap &Target) const = 0;
   virtual ContainerToTargetsMap
-  deduceResults(ContainerToTargetsMap &Target) const = 0;
-  virtual bool areRequirementsMet(const ContainerToTargetsMap &Input) const = 0;
+  deduceResults(const Context &Ctx, ContainerToTargetsMap &Target) const = 0;
+  virtual bool areRequirementsMet(const Context &Ctx,
+                                  const ContainerToTargetsMap &Input) const = 0;
   virtual std::unique_ptr<PipeWrapperBase>
   clone(std::vector<std::string> NewRunningContainersNames = {}) const = 0;
   virtual llvm::Error checkPrecondition(const Context &Ctx) const = 0;
@@ -98,39 +100,48 @@ public:
               std::move(RunningContainersNames)) {}
 
 public:
-  bool areRequirementsMet(const ContainerToTargetsMap &Input) const override {
+  bool areRequirementsMet(const Context &Ctx,
+                          const ContainerToTargetsMap &Input) const override {
     const auto &Contracts = Invokable.getPipe().getContract();
     if (Contracts.size() == 0)
       return true;
 
     ContainerToTargetsMap ToCheck = Input;
     for (const auto &Contract : Contracts) {
-      if (Contract.forwardMatches(ToCheck,
+      if (Contract.forwardMatches(Ctx,
+                                  ToCheck,
                                   Invokable.getRunningContainersNames()))
         return true;
 
-      Contract.deduceResults(ToCheck, Invokable.getRunningContainersNames());
+      Contract.deduceResults(Ctx,
+                             ToCheck,
+                             Invokable.getRunningContainersNames());
     }
 
     return false;
   }
 
   ContainerToTargetsMap
-  getRequirements(const ContainerToTargetsMap &Target) const override {
+  getRequirements(const Context &Ctx,
+                  const ContainerToTargetsMap &Target) const override {
     const auto &Contracts = Invokable.getPipe().getContract();
     auto ToReturn = Target;
     for (const auto &Contract : llvm::reverse(Contracts))
       ToReturn = Contract
-                   .deduceRequirements(ToReturn,
+                   .deduceRequirements(Ctx,
+                                       ToReturn,
                                        Invokable.getRunningContainersNames());
     return ToReturn;
   }
 
   ContainerToTargetsMap
-  deduceResults(ContainerToTargetsMap &Target) const override {
+  deduceResults(const Context &Ctx,
+                ContainerToTargetsMap &Target) const override {
     const auto &Contracts = Invokable.getPipe().getContract();
     for (const auto &Contract : Contracts)
-      Contract.deduceResults(Target, Invokable.getRunningContainersNames());
+      Contract.deduceResults(Ctx,
+                             Target,
+                             Invokable.getRunningContainersNames());
     return Target;
   }
 

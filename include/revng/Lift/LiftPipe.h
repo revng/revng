@@ -30,7 +30,6 @@ public:
   static constexpr auto Name = "Lift";
   std::array<pipeline::ContractGroup, 1> getContract() const {
     return { pipeline::ContractGroup(kinds::Binary,
-                                     pipeline::Exactness::Exact,
                                      0,
                                      kinds::Root,
                                      1,

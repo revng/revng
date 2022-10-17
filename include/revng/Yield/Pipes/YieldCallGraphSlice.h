@@ -23,12 +23,12 @@ public:
 public:
   inline std::array<pipeline::ContractGroup, 1> getContract() const {
     pipeline::Contract BinaryContract(kinds::BinaryCrossRelations,
-                                      pipeline::Exactness::Exact,
+                                      1,
+                                      kinds::BinaryCrossRelations,
                                       1,
                                       pipeline::InputPreservation::Preserve);
 
     pipeline::Contract FunctionContract(kinds::Isolated,
-                                        pipeline::Exactness::Exact,
                                         0,
                                         kinds::CallGraphSliceSVG,
                                         2,

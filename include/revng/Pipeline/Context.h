@@ -38,7 +38,8 @@ private:
   llvm::StringMap<std::any> Contexts;
   KindsRegistry TheKindRegistry;
 
-  llvm::StringMap<const ContainerSet::value_type *> ReadOnlyContainers;
+  llvm::StringMap<const pipeline::ContainerSet::value_type *>
+    ReadOnlyContainers;
 
 private:
   explicit Context(KindsRegistry Registry) :

@@ -8,7 +8,6 @@
 
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/LLVMContainer.h"
-#include "revng/Pipes/AllFunctions.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Support/FunctionTags.h"
 
@@ -33,16 +32,6 @@ public:
                      const FunctionTags::Tag &Tag) :
     pipeline::LLVMKind(Name, Parent, Rank), Tag(&Tag) {}
 
-  pipeline::TargetsList
-  compactTargets(const pipeline::Context &Ctx,
-                 pipeline::TargetsList::List &Targets) const final {
-    return compactFunctionTargets(getModelFromContext(Ctx), Targets, *this);
-  }
-
-  void expandTarget(const pipeline::Context &Ctx,
-                    const pipeline::Target &Input,
-                    pipeline::TargetsList &Output) const override;
-
   std::optional<pipeline::Target>
   symbolToTarget(const llvm::Function &Symbol) const override;
 
@@ -50,6 +39,9 @@ public:
   getInvalidations(const pipeline::Context &Ctx,
                    pipeline::TargetsList &ToRemove,
                    const pipeline::GlobalTupleTreeDiff &Diff) const override;
+
+  void appendAllTargets(const pipeline::Context &Ctx,
+                        pipeline::TargetsList &Out) const override;
 };
 
 } // namespace revng::kinds

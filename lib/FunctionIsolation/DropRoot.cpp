@@ -42,7 +42,6 @@ struct DropRootPipe {
     using namespace pipeline;
     namespace ranks = ::revng::ranks;
     return { ContractGroup::transformOnlyArgument(::revng::kinds::Root,
-                                                  Exactness::DerivedFrom,
                                                   Kind::deadKind(ranks::Binary),
                                                   InputPreservation::Erase) };
   }

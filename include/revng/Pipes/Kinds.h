@@ -12,7 +12,7 @@
 
 namespace revng::kinds {
 
-inline pipeline::Kind Binary("Binary", &ranks::Binary);
+inline pipeline::SingleElementKind Binary("Binary", &ranks::Binary);
 
 inline RootKind Root("Root", &ranks::Binary);
 inline IsolatedRootKind IsolatedRoot("IsolatedRoot", Root);
@@ -24,8 +24,8 @@ inline TaggedFunctionKind
 inline TaggedFunctionKind
   CSVsPromoted("CSVsPromoted", &ranks::Function, FunctionTags::CSVsPromoted);
 
-inline pipeline::Kind Object("Object", &ranks::Binary);
-inline pipeline::Kind Translated("Translated", &ranks::Binary);
+inline pipeline::SingleElementKind Object("Object", &ranks::Binary);
+inline pipeline::SingleElementKind Translated("Translated", &ranks::Binary);
 
 inline FunctionKind
   FunctionAssemblyInternal("FunctionAssemblyInternal", &ranks::Function);
@@ -34,9 +34,9 @@ inline FunctionKind
 inline FunctionKind
   FunctionControlFlowGraphSVG("FunctionControlFlowGraphSVG", &ranks::Function);
 
-inline pipeline::Kind
+inline pipeline::SingleElementKind
   BinaryCrossRelations("BinaryCrossRelations", &ranks::Binary);
-inline pipeline::Kind CallGraphSVG("CallGraphSVG", &ranks::Binary);
+inline pipeline::SingleElementKind CallGraphSVG("CallGraphSVG", &ranks::Binary);
 inline FunctionKind CallGraphSliceSVG("CallGraphSliceSVG", &ranks::Function);
 
 inline constexpr auto BinaryCrossRelationsRole = "CrossRelations";
