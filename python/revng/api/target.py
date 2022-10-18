@@ -16,13 +16,10 @@ class Target:
         self._container = container
 
     @staticmethod
-    def create(
-        kind: Kind, container: Container, exact: bool, path_components: List[str]
-    ) -> Optional["Target"]:
+    def create(kind: Kind, container: Container, path_components: List[str]) -> Optional["Target"]:
         _path_components = [make_c_string(c) for c in path_components]
         _target = _api.rp_target_create(
             kind._kind,
-            int(exact),
             len(_path_components),
             _path_components,
         )
@@ -33,10 +30,6 @@ class Target:
     def kind(self) -> Optional[Kind]:
         _kind = _api.rp_target_get_kind(self._target)
         return Kind(_kind) if _kind != ffi.NULL else None
-
-    @property
-    def is_exact(self) -> bool:
-        return bool(_api.rp_target_is_exact(self._target))
 
     @property
     def is_ready(self) -> bool:
@@ -68,7 +61,6 @@ class Target:
     def as_dict(self):
         return {
             "serialized": self.serialize(),
-            "exact": self.is_exact,
             "path_components": list(self.path_components()),
             "kind": self.kind.name if self.kind is not None else None,
             "ready": self.is_ready,

@@ -323,7 +323,6 @@ async def test_targets_from_step(client):
                     serialized
                     kind
                     ready
-                    exact
                 }
             }
         }
@@ -355,7 +354,6 @@ async def test_targets_from_step(client):
         if t["kind"] == "Root"
     )
     assert binary_target["ready"]
-    assert binary_target["exact"]
     assert not lift_target["ready"]
 
 

@@ -394,7 +394,6 @@ const char *rp_manager_produce_targets(rp_manager *manager,
 }
 
 rp_target *rp_target_create(rp_kind *kind,
-                            int is_exact,
                             uint64_t path_components_count,
                             const char *path_components[]) {
   revng_check(kind != nullptr);
@@ -462,9 +461,6 @@ rp_kind *rp_target_get_kind(rp_target *target) {
   return &target->getKind();
 }
 
-bool rp_target_is_exact(rp_target *target) {
-  return true;
-}
 uint64_t rp_target_path_components_count(rp_target *target) {
   revng_check(target != nullptr);
   return target->getPathComponents().size();

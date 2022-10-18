@@ -182,7 +182,6 @@ class Manager:
         target_path: str,
         container: Container,
         step: Optional[Step] = None,
-        exact: bool = True,
     ) -> Target:
         if step is not None:
             path = target_path
@@ -202,7 +201,7 @@ class Manager:
         if kind.rank is not None and len(path_components) != kind.rank.depth:
             raise RevngException("Path components need to equal kind rank")
 
-        target = Target.create(kind, container, exact, path_components)
+        target = Target.create(kind, container, path_components)
         if target is None:
             raise RevngException("Invalid target")
         return target
