@@ -980,7 +980,7 @@ pickBestTAP(const model::QualifiedType &BaseType,
   // But in principle we should be able to integrate the policy into the
   // similarity score, more than adding another layer of decision making here.
   revng_assert(not BestTAPsWithIndices.empty());
-  return *BestTAPsWithIndices.begin();
+  return std::move(*BestTAPsWithIndices.begin());
 }
 
 struct ModelGEPArgs {
