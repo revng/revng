@@ -620,7 +620,7 @@ struct ChildInfo {
   AggregateKind Type;
 
   void dump(llvm::raw_ostream &OS) const debug_function {
-    OS << "ModelGEPSummationElement{\nIndex:\n";
+    OS << "ChildInfo{\nIndex:\n";
     if (Index)
       Index->print(OS);
     else
