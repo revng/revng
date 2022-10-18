@@ -64,7 +64,7 @@ commands:
       - type: revng-qa.compiled
         filter: example-executable-1
     command: |-
-      TMP="$$(mktemp tmp.revng.test-daemon.XXXXXXXXXX)";
+      TMP="$$(mktemp --tmpdir tmp.revng.test-daemon.XXXXXXXXXX)";
       trap 'rm -f -- "$$TMP"' EXIT;
       if ! python3 -m pytest "${SOURCES_ROOT}/tests/daemon/test.py" --binary "$INPUT" >& "$$TMP"; then
       cat "$$TMP";
@@ -75,7 +75,7 @@ commands:
       - type: revng-qa.compiled
         filter: example-executable-1
     command: |-
-      TMP="$$(mktemp tmp.revng.test-daemon-self-test.XXXXXXXXXX)";
+      TMP="$$(mktemp --tmpdir tmp.revng.test-daemon-self-test.XXXXXXXXXX)";
       trap 'rm -f -- "$$TMP"' EXIT;
       if ! revng daemon-self-test "$INPUT" >& "$$TMP"; then
         cat "$$TMP";
