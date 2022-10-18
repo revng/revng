@@ -857,7 +857,12 @@ differenceScore(const model::QualifiedType &BaseType,
 
         APInt ElemIndex;
         APInt OffInElem;
-        APInt::udivrem(RestOff, ArrayInfoIt->Stride, ElemIndex, OffInElem);
+        auto MaxBitWidth = std::max(RestOff.getBitWidth(),
+                                    ArrayInfoIt->Stride.getBitWidth());
+        APInt::udivrem(RestOff.zextOrTrunc(MaxBitWidth),
+                       ArrayInfoIt->Stride.zextOrTrunc(MaxBitWidth),
+                       ElemIndex,
+                       OffInElem);
 
         if (ElemIndex.uge(ArrayInfoIt->NumElems)) {
           // If IRAP is trying to access an element that is larger than the
@@ -1158,17 +1163,20 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
       uint64_t ElementSize = *ElementType.size(VH);
       revng_assert(TAPArrayIt->Stride == ElementSize);
 
+      using llvm::IntegerType;
+      auto MaxBitWidth = std::max(RestOff.getBitWidth(), 64U);
       if (RestOff.uge(ElementSize)) {
         // If the remaining offset is larger than or equal to an element size,
         // we have to compute the exact index of the element that is being
         // accessed
         APInt ElementIndex;
-        APInt::udivrem(RestOff,
-                       APInt(/*bitwidth*/ 64, /*value*/ ElementSize),
+        APInt::udivrem(RestOff.zextOrTrunc(MaxBitWidth),
+                       APInt(/*bitwidth*/ MaxBitWidth, /*value*/ ElementSize),
                        ElementIndex,
                        RestOff);
-        Back.Index = ConstantInt::get(llvm::IntegerType::get(Ctxt,
-                                                             64 /*NumBits*/),
+
+        Back.Index = ConstantInt::get(IntegerType::get(Ctxt,
+                                                       MaxBitWidth /*NumBits*/),
                                       ElementIndex);
 
       } else {
@@ -1190,9 +1198,7 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
           // The current IR indices have been handled, increase the iterator.
           ++IRIndicesIt;
         } else {
-          Back.Index = ConstantInt::get(llvm::IntegerType::get(Ctxt,
-                                                               64 /*NumBits*/),
-                                        RestOff);
+          Back.Index = ConstantInt::get(IntegerType::get(Ctxt, MaxBitWidth), 0);
         }
       }
 
