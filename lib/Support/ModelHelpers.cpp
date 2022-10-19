@@ -10,6 +10,7 @@
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
 
+#include "revng/ABI/FunctionType.h"
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/EarlyFunctionAnalysis/IRHelpers.h"
 #include "revng/Model/Binary.h"
@@ -25,12 +26,15 @@
 #include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
 
+using llvm::cast;
 using llvm::dyn_cast;
+
 using QualKind = model::QualifierKind::Values;
 using CABIFT = model::CABIFunctionType;
+using RawFT = model::RawFunctionType;
+
 using model::QualifiedType;
 using model::Qualifier;
-using RawFT = model::RawFunctionType;
 using model::TypedefType;
 
 constexpr const size_t ModelGEPBaseArgIndex = 1;
@@ -293,19 +297,42 @@ getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
       revng_assert(Prototype.isValid());
       auto PrototypePath = Prototype.get();
 
-      // Collect returned type(s)
-      if (auto *CPrototype = dyn_cast<CABIFT>(PrototypePath)) {
-        ReturnTypes.push_back(CPrototype->ReturnType);
-      } else if (auto *RawPrototype = dyn_cast<RawFT>(PrototypePath)) {
-        for (const auto &RetVal : RawPrototype->ReturnValues)
-          ReturnTypes.push_back(RetVal.Type);
+      if (auto *RawPrototype = dyn_cast<RawFT>(PrototypePath)) {
+        for (model::QualifiedType RetVal :
+             llvm::map_range(RawPrototype->ReturnValues,
+                             [](const model::TypedRegister &TR) {
+                               return TR.Type;
+                             }))
+          ReturnTypes.push_back(std::move(RetVal));
+      } else if (auto *CABIPrototype = dyn_cast<CABIFT>(PrototypePath)) {
+        const auto Layout = abi::FunctionType::Layout::make(*CABIPrototype);
+        // Layout has an invalid ReturnValue.Type if PrototypePath returns void.
+        model::QualifiedType ReturnType = Layout.ReturnValue.Type;
+        if (ReturnType.UnqualifiedType.isValid()) {
+          if (ReturnType.isScalar()) {
+            ReturnTypes.push_back(std::move(ReturnType));
+          } else {
+            ReturnType = peelConstAndTypedefs(ReturnType);
+            revng_assert(ReturnType.is(model::TypeKind::StructType));
+            revng_assert(ReturnType.Qualifiers.empty());
+            auto *ModelReturnType = ReturnType.UnqualifiedType.get();
+            auto *StructReturnType = cast<model::StructType>(ModelReturnType);
+            for (model::QualifiedType FieldType :
+                 llvm::map_range(StructReturnType->Fields,
+                                 [](const model::StructField &F) {
+                                   return F.Type;
+                                 })) {
+              revng_assert(FieldType.isScalar());
+              ReturnTypes.push_back(std::move(FieldType));
+            }
+          }
+        }
       } else {
-        revng_abort("Unknown prototype");
+        revng_abort("Unknown prototype kind.");
       }
-
     } else {
-      // Non-isolated functions do not have a Prototype in the model, but we can
-      // infer their returned type(s) in other ways
+      // Non-isolated functions do not have a Prototype in the model, but we
+      // can infer their returned type(s) in other ways
       auto *CalledFunc = Call->getCalledFunction();
       const auto &FuncName = CalledFunc->getName();
       auto FTags = FunctionTags::TagsSet::from(CalledFunc);
@@ -333,7 +360,7 @@ getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
         // RawFunctionTypes that return multiple values, therefore they have
         // the same type as the parent function's return type
         revng_assert(Call->getFunction()->getReturnType() == Call->getType());
-        auto *RawPrototype = llvm::cast<RawFT>(ParentFunc()->Prototype.get());
+        auto *RawPrototype = cast<RawFT>(ParentFunc()->Prototype.get());
 
         for (const auto &RetVal : RawPrototype->ReturnValues)
           ReturnTypes.push_back(RetVal.Type);
@@ -358,7 +385,7 @@ getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
         revng_assert(Prototype.isValid());
 
         // Only RawFunctionTypes have explicit stack arguments
-        auto *RawPrototype = llvm::cast<RawFT>(Prototype.get());
+        auto *RawPrototype = cast<RawFT>(Prototype.get());
         QualifiedType StackArgsType = RawPrototype->StackArgumentsType;
 
         ReturnTypes.push_back(StackArgsType);
@@ -462,7 +489,7 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
         // RawFunctionTypes that return multiple values, therefore they have
         // the same type as the parent function's return type
         revng_assert(Call->getFunction()->getReturnType() == Call->getType());
-        auto *RawPrototype = llvm::cast<RawFT>(ParentFunc()->Prototype.get());
+        auto *RawPrototype = cast<RawFT>(ParentFunc()->Prototype.get());
 
         auto ArgIt = RawPrototype->ReturnValues.begin() + ArgOperandIdx;
         return { ArgIt->Type };

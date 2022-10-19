@@ -12,6 +12,7 @@
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
 
+#include "revng/ABI/FunctionType.h"
 #include "revng/EarlyFunctionAnalysis/IRHelpers.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
@@ -60,43 +61,22 @@ static void addArgumentsTypes(const llvm::Function &LLVMFunc,
                               ModelTypesMap &TypeMap,
                               bool PointersOnly) {
 
-  if (auto *RawPrototype = dyn_cast<model::RawFunctionType>(Prototype)) {
-    const auto &ModelArgs = RawPrototype->Arguments;
-    const auto &LLVMArgs = LLVMFunc.args();
-
-    // Assign each argument in the model prototype to the corresponding LLVM
-    // argument
-    auto ModelArgsIt = ModelArgs.begin();
-    auto LLVMArgsIt = LLVMArgs.begin();
-    while (ModelArgsIt != ModelArgs.end()) {
-      revng_assert(LLVMArgsIt != LLVMArgs.end());
-
-      // Skip if it's not a pointer and we are only interested in pointers
-      if (not PointersOnly or ModelArgsIt->Type.isPointer()) {
-        TypeMap.insert({ LLVMArgsIt, ModelArgsIt->Type });
-      }
-      ++LLVMArgsIt;
-      ++ModelArgsIt;
+  const auto Layout = abi::FunctionType::Layout::make(*Prototype);
+  revng_assert(Layout.Arguments.size() == LLVMFunc.arg_size());
+  const auto &
+    ArgModelTypes = llvm::map_range(Layout.Arguments,
+                                    [](const abi::FunctionType::Layout::Argument
+                                         &A) { return A.Type; });
+  for (const auto &[ArgModelType, LLVMArg] :
+       llvm::zip_first(ArgModelTypes, LLVMFunc.args())) {
+    if (ArgModelType.isScalar()) {
+      if (not PointersOnly or ArgModelType.isPointer())
+        TypeMap.insert({ &LLVMArg, ArgModelType });
+    } else {
+      QualifiedType ArgType = ArgModelType;
+      addPointerQualifier(ArgType, Model);
+      TypeMap.insert({ &LLVMArg, std::move(ArgType) });
     }
-
-    QualifiedType StackArgs = RawPrototype->StackArgumentsType;
-    // If there is still an argument left, it's a pointer to the stack arguments
-    if (StackArgs.UnqualifiedType.isValid()) {
-      revng_assert(LLVMArgsIt != LLVMArgs.end());
-      // It's a pointer by definition, we don't need to check the `PointersOnly`
-      // flag
-      addPointerQualifier(StackArgs, Model);
-      TypeMap.insert({ LLVMArgsIt, StackArgs });
-
-      ++LLVMArgsIt;
-    }
-
-    // There should be no remaining arguments to visit
-    revng_assert(LLVMArgsIt == LLVMArgs.end());
-
-  } else {
-    // TODO: handle CABIFunctionTypes
-    revng_abort("CABIFunctionTypes are not supported yet.");
   }
 }
 
