@@ -565,7 +565,7 @@ bool dumpModelToHeader(const model::Binary &Model, llvm::raw_ostream &Out) {
         serialize(Header, *FT);
       }
 
-      printFunctionPrototype(*FT, MF, Header, Model, true);
+      printFunctionPrototype(*FT, MF, Header, Model, false);
       Header << ";\n";
     }
 
