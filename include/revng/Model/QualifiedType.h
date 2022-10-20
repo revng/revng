@@ -46,6 +46,8 @@ public:
   /// Checks if is a scalar type, unwrapping typedefs
   bool isScalar() const;
   /// Checks if is a primitive type, unwrapping typedefs
+  bool isPrimitive() const;
+  /// Checks if is a primitive type of a specific kind, unwrapping typedefs
   bool isPrimitive(model::PrimitiveTypeKind::Values V) const;
   /// Checks if is float, unwrapping typedefs
   bool isFloat() const { return isPrimitive(model::PrimitiveTypeKind::Float); }
