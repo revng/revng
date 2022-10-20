@@ -110,7 +110,7 @@ llvmIntToModelType(const llvm::Type *LLVMType, const model::Binary &Model) {
     }
     // Add qualifiers
     for (size_t I = 0; I < NPtrQualifiers; ++I)
-      addPointerQualifier(ModelType, Model);
+      ModelType = Model.getPointerTo(ModelType);
 
   } else if (NPtrQualifiers > 0) {
     // If it's a pointer to a non-integer type, return an integer type of the
@@ -345,7 +345,7 @@ getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
       } else if (FTags.contains(FunctionTags::AddressOf)) {
         // The first argument is the base type (not the pointer's type)
         auto Base = deserializeFromLLVMString(Call->getArgOperand(0), Model);
-        addPointerQualifier(Base, Model);
+        Base = Model.getPointerTo(Base);
 
         ReturnTypes.push_back(Base);
 
@@ -444,10 +444,9 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
             // inspecting the StackArgument of the call
             revng_assert(ArgOperandIdx == RawPrototype->Arguments.size());
 
-            auto StackArgs = RawPrototype->StackArgumentsType;
+            const auto &StackArgsType = RawPrototype->StackArgumentsType;
+            auto StackArgs = Model.getPointerTo(StackArgsType);
             revng_assert(StackArgs.UnqualifiedType.isValid());
-
-            addPointerQualifier(StackArgs, Model);
             return { StackArgs };
           }
         } else {
@@ -481,7 +480,7 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
         // The pointed type is contained in the first operand
         QualifiedType Base = deserializeFromLLVMString(Call->getArgOperand(0),
                                                        Model);
-        addPointerQualifier(Base, Model);
+        Base = Model.getPointerTo(Base);
         return { std::move(Base) };
 
       } else if (FTags.contains(FunctionTags::StructInitializer)) {

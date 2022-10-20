@@ -126,9 +126,7 @@ MMCP::serializeTypesForModelCast(Instruction *I, const model::Binary &Model) {
     auto &PtrOperandPtrType = TypeMap.at(SI->getPointerOperand());
     auto &ValOperandType = TypeMap.at(SI->getValueOperand());
 
-    QualifiedType ValOperandPtrType = ValOperandType;
-    addPointerQualifier(ValOperandPtrType, Model);
-
+    QualifiedType ValOperandPtrType = Model.getPointerTo(ValOperandType);
     if (PtrOperandPtrType != ValOperandPtrType) {
       bool IsPtrOperandOfAggregateType = false;
       QualifiedType PtrOperandType;

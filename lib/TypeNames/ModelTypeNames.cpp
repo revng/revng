@@ -299,9 +299,9 @@ static void printFunctionPrototypeImpl(const model::RawFunctionType &RF,
     revng_assert(RF.StackArgumentsType.Qualifiers.empty());
     if (RF.StackArgumentsType.UnqualifiedType.isValid()) {
       // Add last argument representing a pointer to the stack arguments
-      model::QualifiedType StackArgsPtr = RF.StackArgumentsType;
-      addPointerQualifier(StackArgsPtr, Model);
-      Header << Separator << getNamedCInstance(StackArgsPtr, StackVarsName);
+      Header << Separator
+             << getNamedCInstance(Model.getPointerTo(RF.StackArgumentsType),
+                                  StackVarsName);
     }
     Header << ")";
   }

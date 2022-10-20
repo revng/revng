@@ -2051,13 +2051,8 @@ static UseGEPInfoMap makeGEPReplacements(llvm::Function &F,
           continue;
 
         ModelGEPArgs &GEPArgs = BestGEPArgsOrNone.value();
-
-        {
-          model::QualifiedType UseType = GEPArgs.PointeeType;
-          addPointerQualifier(UseType, Model);
-
-          GEPifiedUsedTypes.insert({ &U, UseType });
-        }
+        auto PointerToGEPArgs = Model.getPointerTo(GEPArgs.PointeeType);
+        GEPifiedUsedTypes.insert({ &U, PointerToGEPArgs });
 
         revng_log(ModelGEPLog, "Best GEPArgs: " << GEPArgs);
 

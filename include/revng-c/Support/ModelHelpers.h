@@ -44,13 +44,6 @@ deserializeFromLLVMString(llvm::Value *V, const model::Binary &Model);
 llvm::Constant *
 serializeToLLVMString(model::QualifiedType &QT, llvm::Module &M);
 
-/// Add a pointer Qualifier of the right dimension to a given \a QT
-inline void
-addPointerQualifier(model::QualifiedType &QT, const model::Binary &Binary) {
-  using Qualifier = model::Qualifier;
-  QT.Qualifiers.push_back(Qualifier::createPointer(Binary.Architecture));
-}
-
 /// Return an LLVM IntegerType that has the size of a pointer in the given
 /// architecture.
 inline llvm::IntegerType *

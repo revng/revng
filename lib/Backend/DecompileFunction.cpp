@@ -703,8 +703,7 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
     } else {
       // In ModelGEPs, the base value is a pointer, and the base type is the
       // type pointed by the base value
-      QualifiedType PointerQt = CurType;
-      addPointerQualifier(PointerQt, Model);
+      QualifiedType PointerQt = Model.getPointerTo(CurType);
       revng_assert(TypeMap.at(BaseValue) == PointerQt,
                    "The ModelGEP base type is not coherent with the "
                    "propagated type.");
@@ -1080,9 +1079,7 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
     // The pointer operand's type and the actual loaded value's type might have
     // a mismatch. In this case, we want to cast the pointer operand to correct
     // type pointer before dereferencing it.
-    QualifiedType ResultPtrType = TypeMap.at(Load);
-    addPointerQualifier(ResultPtrType, Model);
-
+    QualifiedType ResultPtrType = Model.getPointerTo(TypeMap.at(Load));
     Expression = (buildDerefExpr(buildCastExpr(TokenMap.at(LoadedArg),
                                                TypeMap.at(LoadedArg),
                                                ResultPtrType)))
