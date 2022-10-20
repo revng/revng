@@ -53,7 +53,7 @@ public:
 
 public:
   llvm::SmallVector<Argument, 4> Arguments;
-  ReturnValue ReturnValue;
+  llvm::SmallVector<ReturnValue, 2> ReturnValues;
   llvm::SmallVector<model::Register::Values, 24> CalleeSavedRegisters;
   uint64_t FinalStackOffset;
 
@@ -96,7 +96,6 @@ public:
     // Arguments
     //
     dbg << "Arguments:\n";
-    const char *Prefix = "  - ";
     for (const Argument &A : Arguments) {
       dbg << "  - Type: ";
       A.Type.dump();
@@ -107,25 +106,27 @@ public:
       dbg << " ]\n";
       dbg << "    StackSpan: ";
       if (A.Stack) {
-        dbg << "no";
-      } else {
         dbg << "{ Offset: " << A.Stack->Offset << ", Size: " << A.Stack->Size
             << " }";
+      } else {
+        dbg << "no";
       }
       dbg << "\n";
     }
 
     //
-    // ReturnValue
+    // ReturnValues
     //
-    dbg << "ReturnValue: \n";
-    dbg << "  Type: ";
-    ReturnValue.Type.dump();
-    dbg << "\n";
-    dbg << "  Registers: [";
-    for (model::Register::Values Register : ReturnValue.Registers)
-      dbg << " " << model::Register::getName(Register).str();
-    dbg << " ]\n";
+    dbg << "ReturnValues: \n";
+    for (const ReturnValue &RV : ReturnValues) {
+      dbg << "  - Type: ";
+      RV.Type.dump();
+      dbg << "\n";
+      dbg << "    Registers: [";
+      for (model::Register::Values Register : RV.Registers)
+        dbg << " " << model::Register::getName(Register).str();
+      dbg << " ]\n";
+    }
 
     //
     // CalleeSavedRegisters

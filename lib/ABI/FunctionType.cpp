@@ -117,6 +117,56 @@ static void replaceReferences(const model::Type::Key &OldKey,
   Model->Types.erase(OldKey);
 }
 
+/// A helper used to differentiate vector registers.
+///
+/// \param Register Any CPU register the model is aware of.
+///
+/// \return `true` if `Register` is a vector register, `false` otherwise.
+constexpr bool isVectorRegister(model::Register::Values Register) {
+  namespace PrimitiveTypeKind = model::PrimitiveTypeKind;
+  return model::Register::primitiveKind(Register) == PrimitiveTypeKind::Float;
+}
+
+/// Helps detecting unsupported ABI trait definition with respect to
+/// the way they return the return values.
+///
+/// This is an important piece of abi trait verification. For more information
+/// see the `static_assert` that invokes it in \ref distributeArguments
+///
+/// \note Make this function `consteval` after clang-14 is available.
+///
+/// \tparam ABI the ABI, `abi::Trait` of which is to be checked.
+///
+/// \return `true` if the ABI is valid, `false` otherwise.
+template<model::ABI::Values ABI>
+constexpr bool verifyReturnValueLocationRegister() {
+  using AT = abi::Trait<ABI>;
+  constexpr auto &LocationRegister = AT::ReturnValueLocationRegister;
+
+  // Skip ABIs that do not allow returning big values.
+  // They do not benefit from this check.
+  if constexpr (LocationRegister != model::Register::Invalid) {
+    if constexpr (isVectorRegister(LocationRegister)) {
+      // Vector register used as the return value locations are not supported.
+      return false;
+    } else if constexpr (revng::is_contained(AT::CalleeSavedRegisters,
+                                             LocationRegister)) {
+      // Using callee saved register as a return value location doesn't make
+      // much sense: filter those out.
+      return false;
+    } else {
+      // The return value location register can optionally also be the first
+      // GPRs, but only the first one.
+      constexpr auto &GPRs = AT::GeneralPurposeArgumentRegisters;
+      constexpr auto Iterator = revng::find(GPRs, LocationRegister);
+      if constexpr (Iterator != GPRs.end() && Iterator != GPRs.begin())
+        return false;
+    }
+  }
+
+  return true;
+}
+
 namespace ModelArch = model::Architecture;
 
 template<model::ABI::Values ABI>
@@ -207,7 +257,8 @@ public:
 
   static model::TypePath toRaw(const model::CABIFunctionType &Function,
                                TupleTree<model::Binary> &TheBinary) {
-    auto Arguments = distributeArguments(Function.Arguments);
+    // TODO: fix the return value distribution.
+    auto Arguments = distributeArguments(Function.Arguments, 0);
 
     model::RawFunctionType Result;
     Result.CustomName = Function.CustomName;
@@ -584,28 +635,30 @@ private:
   }
 
   static DistributedArguments
-  distributePositionBasedArguments(const ArgumentContainer &Arguments) {
+  distributePositionBasedArguments(const ArgumentContainer &Arguments,
+                                   std::size_t SkippedRegisters = 0) {
     DistributedArguments Result;
 
     for (const model::Argument &Argument : Arguments) {
-      if (Result.size() <= Argument.Index)
-        Result.resize(Argument.Index + 1);
-      auto &Distributed = Result[Argument.Index];
+      std::size_t RegisterIndex = Argument.Index + SkippedRegisters;
+      if (Result.size() <= RegisterIndex)
+        Result.resize(RegisterIndex + 1);
+      auto &Distributed = Result[RegisterIndex];
 
       auto MaybeSize = Argument.Type.size();
       revng_assert(MaybeSize.has_value());
       Distributed.Size = *MaybeSize;
 
       if (Argument.Type.isFloat()) {
-        if (Argument.Index < AT::VectorArgumentRegisters.size()) {
-          auto Register = AT::VectorArgumentRegisters[Argument.Index];
+        if (RegisterIndex < AT::VectorArgumentRegisters.size()) {
+          auto Register = AT::VectorArgumentRegisters[RegisterIndex];
           Distributed.Registers.emplace_back(Register);
         } else {
           Distributed.SizeOnStack = paddedSizeOnStack(Distributed.Size);
         }
       } else {
-        if (Argument.Index < AT::GeneralPurposeArgumentRegisters.size()) {
-          auto Reg = AT::GeneralPurposeArgumentRegisters[Argument.Index];
+        if (RegisterIndex < AT::GeneralPurposeArgumentRegisters.size()) {
+          auto Reg = AT::GeneralPurposeArgumentRegisters[RegisterIndex];
           Distributed.Registers.emplace_back(Reg);
         } else {
           Distributed.SizeOnStack = paddedSizeOnStack(Distributed.Size);
@@ -671,9 +724,10 @@ private:
   }
 
   static DistributedArguments
-  distributeNonPositionBasedArguments(const ArgumentContainer &Arguments) {
+  distributeNonPositionBasedArguments(const ArgumentContainer &Arguments,
+                                      std::size_t SkippedRegisters = 0) {
     DistributedArguments Result;
-    size_t UsedGeneralPurposeRegisterCounter = 0;
+    size_t UsedGeneralPurposeRegisterCounter = SkippedRegisters;
     size_t UsedVectorRegisterCounter = 0;
 
     for (const model::Argument &Argument : Arguments) {
@@ -731,11 +785,25 @@ private:
 
 public:
   static DistributedArguments
-  distributeArguments(const ArgumentContainer &Arguments) {
+  distributeArguments(const ArgumentContainer &Arguments,
+                      bool PassesReturnValueLocationAsAnArgument) {
+    bool SkippedRegisters = 0;
+    if (PassesReturnValueLocationAsAnArgument == true) {
+      static_assert(verifyReturnValueLocationRegister<ABI>(),
+                    "ABIs where non-first argument GPR is used for passing the "
+                    "address of the space allocated for big return values are "
+                    "not currently supported.");
+
+      static constexpr auto &GPRs = AT::GeneralPurposeArgumentRegisters;
+      if constexpr (!GPRs.empty())
+        if (AT::ReturnValueLocationRegister == GPRs[0])
+          SkippedRegisters = 1;
+    }
+
     if constexpr (AT::ArgumentsArePositionBased)
-      return distributePositionBasedArguments(Arguments);
+      return distributePositionBasedArguments(Arguments, SkippedRegisters);
     else
-      return distributeNonPositionBasedArguments(Arguments);
+      return distributeNonPositionBasedArguments(Arguments, SkippedRegisters);
   }
 
   static DistributedArgument
@@ -812,28 +880,40 @@ Layout::Layout(const model::CABIFunctionType &Function) :
   Layout(skippingEnumSwitch<1>(Function.ABI, [&]<model::ABI::Values A>() {
     Layout Result;
 
+    using AT = abi::Trait<A>;
+    auto RV = ConversionHelper<A>::distributeReturnValue(Function.ReturnType);
+    if (RV.SizeOnStack == 0) {
+      // Nothing on the stack, the return value fits into the registers.
+      Result.ReturnValues.emplace_back().Registers = std::move(RV.Registers);
+      Result.ReturnValues.back().Type = Function.ReturnType;
+    } else {
+      revng_assert(RV.Registers.empty(),
+                   "Register and stack return values should never be present "
+                   "at the same time.");
+      revng_assert(AT::ReturnValueLocationRegister != model::Register::Invalid,
+                   "Big return values are not supported by the current ABI");
+      auto &RVLocationArg = Result.Arguments.emplace_back();
+      RVLocationArg.Registers.emplace_back(AT::ReturnValueLocationRegister);
+      static constexpr auto Architecture = model::ABI::getArchitecture(A);
+      RVLocationArg.Type = Function.ReturnType.getPointerTo(Architecture);
+    }
+
     size_t CurrentOffset = 0;
-    auto Args = ConversionHelper<A>::distributeArguments(Function.Arguments);
+    auto Args = ConversionHelper<A>::distributeArguments(Function.Arguments,
+                                                         RV.SizeOnStack != 0);
     revng_assert(Args.size() == Function.Arguments.size());
     for (size_t Index = 0; Index < Args.size(); ++Index) {
       auto &Current = Result.Arguments.emplace_back();
       Current.Type = Function.Arguments.at(Index).Type;
       Current.Registers = std::move(Args[Index].Registers);
       if (Args[Index].SizeOnStack != 0) {
-        // TODO: maybe some kind of alignment considerations are needed here.
+        // TODO: further alignment considerations are needed here.
         Current.Stack = typename Layout::Argument::StackSpan{
           CurrentOffset, Args[Index].SizeOnStack
         };
         CurrentOffset += Args[Index].SizeOnStack;
       }
     }
-
-    auto RV = ConversionHelper<A>::distributeReturnValue(Function.ReturnType);
-    revng_assert(RV.SizeOnStack == 0);
-    Result.ReturnValue.Registers = std::move(RV.Registers);
-    Result.ReturnValue.Type = Function.ReturnType;
-
-    using AT = abi::Trait<A>;
     Result.CalleeSavedRegisters.resize(AT::CalleeSavedRegisters.size());
     llvm::copy(AT::CalleeSavedRegisters, Result.CalleeSavedRegisters.begin());
 
@@ -852,8 +932,8 @@ Layout::Layout(const model::RawFunctionType &Function) {
 
   // Lay the return value out.
   for (const model::TypedRegister &Register : Function.ReturnValues) {
-    ReturnValue.Registers.emplace_back(Register.Location);
-    ReturnValue.Type = Register.Type;
+    ReturnValues.emplace_back().Registers = { Register.Location };
+    ReturnValues.back().Type = Register.Type;
   }
 
   // Lay stack arguments out.
@@ -864,9 +944,9 @@ Layout::Layout(const model::RawFunctionType &Function) {
     auto *StackStruct = llvm::dyn_cast<model::StructType>(OriginalStackType);
     revng_assert(StackStruct,
                  "`RawFunctionType::StackArgumentsType` must be a struct.");
-    typename Layout::Argument::StackSpan StackSpan{ 0, StackStruct->Size };
-    Arguments.emplace_back().Stack = std::move(StackSpan);
-    Arguments.back().Type = Function.StackArgumentsType;
+    Arguments.emplace_back().Type = Function.StackArgumentsType;
+    if (StackStruct->Size != 0)
+      Arguments.back().Stack = { 0, StackStruct->Size };
   }
 
   // Fill callee saved registers.
@@ -895,14 +975,13 @@ bool Layout::verify() const {
 
   // Verify arguments
   LookupHelper.clear();
-  for (const Layout::Argument &Argument : Arguments)
-    for (model::Register::Values Register : Argument.Registers)
-      if (!VerificationHelper(Register))
-        return false;
+  for (model::Register::Values Register : argumentRegisters())
+    if (!VerificationHelper(Register))
+      return false;
 
   // Verify return values
   LookupHelper.clear();
-  for (model::Register::Values Register : ReturnValue.Registers)
+  for (model::Register::Values Register : returnValueRegisters())
     if (!VerificationHelper(Register))
       return false;
 
@@ -912,21 +991,26 @@ bool Layout::verify() const {
 size_t Layout::argumentRegisterCount() const {
   size_t Result = 0;
 
-  for (auto &Argument : Arguments)
+  for (const auto &Argument : Arguments)
     Result += Argument.Registers.size();
 
   return Result;
 }
 
 size_t Layout::returnValueRegisterCount() const {
-  return ReturnValue.Registers.size();
+  size_t Result = 0;
+
+  for (const ReturnValue &ReturnValue : ReturnValues)
+    Result += ReturnValue.Registers.size();
+
+  return Result;
 }
 
 llvm::SmallVector<model::Register::Values, 8>
 Layout::argumentRegisters() const {
   llvm::SmallVector<model::Register::Values, 8> Result;
 
-  for (auto &Argument : Arguments)
+  for (const auto &Argument : Arguments)
     Result.append(Argument.Registers.begin(), Argument.Registers.end());
 
   return Result;
@@ -934,9 +1018,12 @@ Layout::argumentRegisters() const {
 
 llvm::SmallVector<model::Register::Values, 8>
 Layout::returnValueRegisters() const {
-  return llvm::SmallVector<model::Register::Values,
-                           8>(ReturnValue.Registers.begin(),
-                              ReturnValue.Registers.end());
+  llvm::SmallVector<model::Register::Values, 8> Result;
+
+  for (const ReturnValue &ReturnValue : ReturnValues)
+    Result.append(ReturnValue.Registers.begin(), ReturnValue.Registers.end());
+
+  return Result;
 }
 
 } // namespace abi::FunctionType
