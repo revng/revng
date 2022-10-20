@@ -211,11 +211,10 @@ getLLVMReturnTypeAndArguments(llvm::Module *M, const FTLayout &Prototype) {
   SmallVector<llvm::Type *, 8> ArgumentsTypes;
   SmallVector<llvm::Type *, 8> ReturnTypes;
 
-  for (const auto &ArgumentLayout : Prototype.Arguments)
-    for (model::Register::Values Register : ArgumentLayout.Registers)
-      ArgumentsTypes.push_back(getLLVMTypeForRegister(M, Register));
+  for (model::Register::Values Register : Prototype.argumentRegisters())
+    ArgumentsTypes.push_back(getLLVMTypeForRegister(M, Register));
 
-  for (model::Register::Values Register : Prototype.ReturnValue.Registers)
+  for (model::Register::Values Register : Prototype.returnValueRegisters())
     ReturnTypes.push_back(getLLVMTypeForRegister(M, Register));
 
   // Create the return type
@@ -282,11 +281,10 @@ void EnforceABIImpl::createPrologue(Function *NewFunction,
   SmallVector<Constant *, 8> ReturnCSVs;
 
   // We sort arguments by their CSV name
-  for (const FTLayout::Argument &TR : Prototype.Arguments)
-    for (model::Register::Values Register : TR.Registers)
-      ArgumentCSVs.push_back(getCSVOrUndef(&M, Register));
+  for (model::Register::Values Register : Prototype.argumentRegisters())
+    ArgumentCSVs.push_back(getCSVOrUndef(&M, Register));
 
-  for (model::Register::Values Register : Prototype.ReturnValue.Registers)
+  for (model::Register::Values Register : Prototype.returnValueRegisters())
     ReturnCSVs.push_back(getCSVOrUndef(&M, Register));
 
   // Store arguments to CSVs
@@ -426,11 +424,10 @@ CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   //
   // Collect arguments and returns
   //
-  for (const auto &ArgumentLayout : Prototype.Arguments)
-    for (model::Register::Values Register : ArgumentLayout.Registers)
-      Arguments.push_back(Builder.CreateLoad(getCSVOrUndef(&M, Register)));
+  for (model::Register::Values Register : Prototype.argumentRegisters())
+    Arguments.push_back(Builder.CreateLoad(getCSVOrUndef(&M, Register)));
 
-  for (model::Register::Values Register : Prototype.ReturnValue.Registers)
+  for (model::Register::Values Register : Prototype.returnValueRegisters())
     ReturnCSVs.push_back(getCSVOrUndef(&M, Register));
 
   //

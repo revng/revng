@@ -36,15 +36,13 @@ importPrototype(Module &M,
 
   auto Layout = abi::FunctionType::Layout::make(Prototype);
 
-  for (const auto &ArgumentLayout : Layout.Arguments) {
-    for (Register ArgumentRegister : ArgumentLayout.Registers) {
-      StringRef Name = model::Register::getCSVName(ArgumentRegister);
-      if (GlobalVariable *CSV = M.getGlobalVariable(Name, true))
-        Summary.ABIResults.ArgumentsRegisters.at(CSV) = State::Yes;
-    }
+  for (Register ArgumentRegister : Layout.argumentRegisters()) {
+    StringRef Name = model::Register::getCSVName(ArgumentRegister);
+    if (GlobalVariable *CSV = M.getGlobalVariable(Name, true))
+      Summary.ABIResults.ArgumentsRegisters.at(CSV) = State::Yes;
   }
 
-  for (Register ReturnValueRegister : Layout.ReturnValue.Registers) {
+  for (Register ReturnValueRegister : Layout.returnValueRegisters()) {
     StringRef Name = model::Register::getCSVName(ReturnValueRegister);
     if (GlobalVariable *CSV = M.getGlobalVariable(Name, true))
       Summary.ABIResults.FinalReturnValuesRegisters.at(CSV) = State::Yes;
