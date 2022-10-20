@@ -68,7 +68,7 @@ class ModelOverrideByName(Command):
 
             # Check if it's YAML
             saved_file.seek(0)
-            input_is_yaml = saved_file.read(3) == "---"
+            input_is_yaml = saved_file.read(3) == b"---"
 
             # Extract model, if necessary
             result = run_revng_command(
