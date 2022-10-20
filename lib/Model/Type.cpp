@@ -747,19 +747,23 @@ bool QualifiedType::isConst() const {
 
 static RecursiveCoroutine<bool>
 isPrimitiveImpl(const model::QualifiedType &QT,
-                model::PrimitiveTypeKind::Values V) {
+                std::optional<model::PrimitiveTypeKind::Values> V) {
   if (QT.Qualifiers.size() != 0
       and not llvm::all_of(QT.Qualifiers, Qualifier::isConst))
     rc_return false;
 
   const model::Type *UnqualifiedType = QT.UnqualifiedType.get();
   if (auto *Primitive = llvm::dyn_cast<PrimitiveType>(UnqualifiedType))
-    rc_return Primitive->PrimitiveKind == V;
+    rc_return !V.has_value() || Primitive->PrimitiveKind == *V;
 
   if (auto *Typedef = llvm::dyn_cast<TypedefType>(UnqualifiedType))
     rc_return rc_recur isPrimitiveImpl(Typedef->UnderlyingType, V);
 
   rc_return false;
+}
+
+bool QualifiedType::isPrimitive() const {
+  return isPrimitiveImpl(*this, std::nullopt);
 }
 
 bool QualifiedType::isPrimitive(PrimitiveTypeKind::Values V) const {
