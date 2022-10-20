@@ -22,6 +22,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/ABI/FunctionType.h"
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
@@ -344,66 +345,43 @@ computeAccessPattern(FunctionMetadataCache &Cache,
       const model::Function *MF = llvmToModelFunction(Model, *ReturningF);
       revng_assert(MF);
 
-      const model::Type *FType = MF->Prototype.get();
-      revng_assert(FType);
+      const auto Layout = abi::FunctionType::Layout::make(MF->Prototype);
 
-      if (const auto *RFT = dyn_cast<model::RawFunctionType>(FType)) {
-        revng_log(ModelGEPLog, "Has RawFunctionType prototype.");
+      // If the callee function does not return anything, skip to the next
+      // instruction.
+      if (Layout.ReturnValues.empty()) {
+        revng_log(ModelGEPLog, "Does not return values in the model. Skip ...");
+        revng_assert(not Ret->getReturnValue());
+      } else if (Layout.ReturnValues.size() == 1) {
+        revng_log(ModelGEPLog, "Has a single return value.");
 
-        // If the callee function does not return anything, skip to the next
-        // instruction.
-        if (RFT->ReturnValues.empty()) {
-          revng_log(ModelGEPLog, "Does not return values on model. Skip ...");
-          revng_assert(not Ret->getReturnValue());
-        } else if (RFT->ReturnValues.size() == 1) {
-          revng_log(ModelGEPLog, "Has single return type.");
+        revng_assert(Ret->getReturnValue()->getType()->isVoidTy()
+                     or Ret->getReturnValue()->getType()->isIntOrPtrTy());
 
-          revng_assert(Ret->getReturnValue()->getType()->isVoidTy()
-                       or Ret->getReturnValue()->getType()->isIntOrPtrTy());
-
-          const model::QualifiedType &ModT = RFT->ReturnValues.begin()->Type;
-          // If the returned type is a pointer, we unwrap it and set the pointee
-          // type of IRPattern to the pointee of the return type.
-          // Otherwise the Function is not returning a pointer, and we can skip
-          // it.
-          if (ModT.isPointer()) {
-            auto _ = LoggerIndent(ModelGEPLog);
-            revng_log(ModelGEPLog, "llvm::ReturnInst: " << dumpToString(Ret));
-            revng_log(ModelGEPLog,
-                      "Pointee: model::QualifiedType: "
-                        << serializeToString(ModT));
-            IRPattern.PointeeType = dropPointer(ModT);
-          }
-
-        } else {
-          auto *RetVal = Ret->getReturnValue();
-          auto *StructTy = cast<llvm::StructType>(RetVal->getType());
-          revng_log(ModelGEPLog, "Has many return types.");
-          revng_assert(StructTy->getNumElements() == RFT->ReturnValues.size());
-
-          // Assert that we're returning a proper struct, initialized with
-          // struct initializers, but don't do anything here.
-          const auto *Returned = cast<CallInst>(RetVal)->getCalledFunction();
-          revng_assert(FunctionTags::StructInitializer.isTagOf(Returned));
-        }
-
-      } else if (const auto *CFT = dyn_cast<model::CABIFunctionType>(FType)) {
-        revng_log(ModelGEPLog, "Has CABIFunctionType prototype.");
-
-        // If the callee function does not return anything, skip to the next
-        // instruction.
-        if (CFT->ReturnType.isVoid()) {
-          revng_log(ModelGEPLog, "Returns void. Skip ...");
-          revng_assert(not Ret->getReturnValue());
-        } else {
-
-          // TODO: we haven't handled return values of CABIFunctions yet
-          revng_abort();
+        const model::QualifiedType &ModT = Layout.ReturnValues.front().Type;
+        // If the returned type is a pointer, we unwrap it and set the pointee
+        // type of IRPattern to the pointee of the return type.
+        // Otherwise the Function is not returning a pointer, and we can skip
+        // it.
+        if (ModT.isPointer()) {
+          auto _ = LoggerIndent(ModelGEPLog);
+          revng_log(ModelGEPLog, "llvm::ReturnInst: " << dumpToString(Ret));
+          revng_log(ModelGEPLog,
+                    "Pointee: model::QualifiedType: "
+                      << serializeToString(ModT));
+          IRPattern.PointeeType = dropPointer(ModT);
         }
 
       } else {
-        revng_abort("Function should have RawFunctionType or "
-                    "CABIFunctionType");
+        auto *RetVal = Ret->getReturnValue();
+        auto *StructTy = cast<llvm::StructType>(RetVal->getType());
+        revng_log(ModelGEPLog, "Has many return types.");
+        revng_assert(StructTy->getNumElements() == Layout.ReturnValues.size());
+
+        // Assert that we're returning a proper struct, initialized with
+        // struct initializers, but don't do anything here.
+        const auto *Returned = cast<CallInst>(RetVal)->getCalledFunction();
+        revng_assert(FunctionTags::StructInitializer.isTagOf(Returned));
       }
 
     } else if (auto *Call = dyn_cast<CallInst>(UserInstr)) {

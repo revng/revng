@@ -8,6 +8,7 @@ target_link_libraries(
   revngcInitModelTypes
   revngcValueManipulationAnalysis
   revngcSupport
+  revng::revngABI
   revng::revngEarlyFunctionAnalysis
   revng::revngModel
   revng::revngSupport

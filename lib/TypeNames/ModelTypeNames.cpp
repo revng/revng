@@ -10,6 +10,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Type.h"
 
+#include "revng/ABI/FunctionType.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/CABIFunctionType.h"
 #include "revng/Model/Identifier.h"
@@ -111,8 +112,12 @@ std::string getVariableLocationReference(llvm::StringRef VariableName,
   return getVariableLocation<false>(VariableName, F);
 }
 
-TypeString getReturnField(const model::RawFunctionType &F, size_t Index) {
-  revng_assert(F.ReturnValues.size() > 1);
+TypeString getReturnField(const model::Type &Function, size_t Index) {
+  const auto Layout = abi::FunctionType::Layout::make(Function);
+  revng_assert(Layout.ReturnValues.size() > Index, "Index out of bounds");
+  revng_assert(Layout.ReturnValues.size() > 1,
+               "This function should only ever be called for return values "
+               "that require a struct to be created");
   return TypeString((Twine(RetFieldPrefix) + Twine(Index)).str());
 }
 
@@ -271,41 +276,30 @@ TypeString getArrayWrapper(const model::QualifiedType &QT) {
   return TypeString(ResultTag.serialize());
 }
 
-TypeString getReturnTypeName(const model::RawFunctionType &F) {
+TypeString getReturnTypeName(const model::Type &Function) {
   TypeString Result;
 
-  if (F.ReturnValues.size() == 0) {
+  const auto Layout = abi::FunctionType::Layout::make(Function);
+  if (Layout.ReturnValues.size() == 0) {
     Result = Tag(tags::Span, "void")
                .addAttribute(attributes::Token, tokens::Type)
                .serialize();
-  } else if (F.ReturnValues.size() == 1) {
-    auto RetTy = F.ReturnValues.begin()->Type;
-    // RawFunctionTypes should never be returning an array
-    revng_assert(not RetTy.isArray());
-    Result = getNamedCInstance(RetTy, "");
+  } else if (Layout.ReturnValues.size() == 1) {
+    auto RetTy = Layout.ReturnValues.front().Type;
+    // When returning arrays, they need to be wrapped into an artificial struct
+    if (RetTy.isArray())
+      Result = getArrayWrapper(RetTy);
+    else
+      Result = getNamedCInstance(RetTy, "");
   } else {
     // RawFunctionTypes can return multiple values, which need to be wrapped
     // in a struct
+    revng_assert(llvm::isa<model::RawFunctionType>(Function));
     Result = ptml::tokenTag((Twine(RetStructPrefix) + "returned_by_"
-                             + model::Identifier::fromString(F.name()))
+                             + model::Identifier::fromString(Function.name()))
                               .str(),
                             tokens::Type)
                .serialize();
-  }
-
-  revng_assert(not Result.empty());
-  return Result;
-}
-
-TypeString getReturnTypeName(const model::CABIFunctionType &F) {
-  TypeString Result;
-  const auto &RetTy = F.ReturnType;
-
-  if (RetTy.isArray()) {
-    // Returned arrays get wrapped in an artificial struct
-    Result = getArrayWrapper(RetTy);
-  } else {
-    Result = getNamedCInstance(RetTy, "");
   }
 
   revng_assert(not Result.empty());
@@ -353,6 +347,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
       auto StackArgName = Function ? getArgumentLocationDefinition("stack_args",
                                                                    *Function) :
                                      "";
+      const auto &Arch = Model.Architecture;
       Header << Separator
              << getNamedCInstance(RF.StackArgumentsType.getPointerTo(Arch),
                                   StackArgName);

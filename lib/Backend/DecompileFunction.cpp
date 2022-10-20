@@ -20,6 +20,7 @@
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/ABI/FunctionType.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
@@ -808,14 +809,11 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
     llvm::StructType *StructTy = cast<llvm::StructType>(Call->getType());
     revng_assert(Call->getFunction()->getReturnType() == StructTy);
 
-    auto *RawPrototype = cast<model::RawFunctionType>(&ParentPrototype);
-    revng_assert(RawPrototype);
-
     const auto VarNames = getOrCreateVarName(Call);
 
     if (VarNames.hasDeclaration()) {
       // If needed, declare a new variable that contains the struct
-      StringToken StructTyName = getReturnTypeName(*RawPrototype);
+      StringToken StructTyName = getReturnTypeName(ParentPrototype);
       // Emit LHS as a definition
       Out << StructTyName << " " << VarNames.Declaration;
     } else {
@@ -977,47 +975,44 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
       auto *Prototype = PrototypePath.get();
       Expression = buildFuncCallExpr(Call, CalleeToken, Prototype);
 
-      if (auto *RawPrototype = dyn_cast<RawFunctionType>(Prototype)) {
-        // RawFunctionTypes are allowed to return more than one value. In this
-        // case, we need to derive the name of the struct that will hold the
-        // returned values from the callee function, and emit the call
-        // immediately.
-        // If we were to postpone the emission to the next
-        // `AssignmentMarker`, we would loose information on the name of the
-        // return struct.
-        if (Call->getType()->isAggregateType()) {
+      const auto Layout = abi::FunctionType::Layout::make(*Prototype);
+      if (Layout.ReturnValues.size() > 1) {
+        revng_assert(Call->getType()->isAggregateType());
+        // When functions return multiple values, we need to insert a struct
+        // to represent those.
+        //
+        // The name of such a struct should be derived immediately as postponing
+        // the emission to the next `AssignmentMarker` would result in the loss
+        // of the name of this struct.
+        const auto VarNames = getOrCreateVarName(Call);
+
+        // Declare a new local variable if it hasn't already been declared
+        if (VarNames.hasDeclaration())
+          Out << getReturnTypeName(*Prototype) << " " << VarNames.Declaration;
+        else
+          Out << VarNames.Use;
+
+        Out << " " << operators::Assign << " " << Expression << ";\n";
+        Expression = VarNames.Use;
+      } else if (Layout.ReturnValues.size() == 1) {
+        // Similarly to multiple return values, when returning an array, it
+        // should be enclosed into a struct.
+        if (Layout.ReturnValues.front().Type.isArray()) {
+          revng_assert(llvm::isa<CABIFunctionType>(Prototype),
+                       "Array return values are only supported when "
+                       "the function has `CABIFunctionType`.");
+
           const auto VarNames = getOrCreateVarName(Call);
 
           // Declare a new local variable if it hasn't already been declared
           if (VarNames.hasDeclaration())
-            Out << getReturnTypeName(*RawPrototype) << " "
-                << VarNames.Declaration;
+            Out << getReturnTypeName(*Prototype) << " " << VarNames.Declaration;
           else
             Out << VarNames.Use;
 
           Out << " " << operators::Assign << " " << Expression << ";\n";
           Expression = VarNames.Use;
         }
-      } else if (auto *CPrototype = dyn_cast<CABIFunctionType>(Prototype)) {
-        // CABIFunctionTypes are allowed to return arrays, which get enclosed
-        // in a wrapper whose type name is derive by the callee. If we were to
-        // postpone the emission to the next `AssignmentMarker`, we would
-        // loose information on the name of the return struct.
-        if (CPrototype->ReturnType.isArray()) {
-          const auto VarNames = getOrCreateVarName(Call);
-
-          // Declare a new local variable if it hasn't already been declared
-          if (VarNames.hasDeclaration())
-            Out << getReturnTypeName(*CPrototype) << " "
-                << VarNames.Declaration;
-          else
-            Out << VarNames.Use;
-
-          Out << " " << operators::Assign << " " << Expression << ";\n";
-          Expression = VarNames.Use;
-        }
-      } else {
-        revng_abort("The called function has an unknown prototype type.");
       }
     } else {
       // Non-lifted function calls have to be dealt with separately
@@ -1649,11 +1644,10 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
           revng_assert(CalledFunction);
 
           if (FunctionTags::Isolated.isTagOf(CalledFunction)) {
-            const auto &Prototype = Cache.getCallSitePrototype(Model, Call)
+            const auto *Prototype = Cache.getCallSitePrototype(Model, Call)
                                       .getConst();
-            auto *RawPrototype = llvm::cast<RawFunctionType>(Prototype);
-            Out << getReturnTypeName(*RawPrototype) << " "
-                << VarName.Declaration << ";\n";
+            Out << getReturnTypeName(*Prototype) << " " << VarName.Declaration
+                << ";\n";
           } else {
             Out << getReturnTypeLocationReference(CalledFunction) << " "
                 << VarName.Declaration << ";\n";

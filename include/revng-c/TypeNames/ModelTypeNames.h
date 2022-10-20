@@ -5,6 +5,7 @@
 //
 
 #include "llvm/ADT/SmallString.h"
+#include "llvm/Support/Casting.h"
 
 #include "revng/Model/ForwardDecls.h"
 
@@ -33,25 +34,18 @@ getTypeName(const model::QualifiedType &QT) {
 extern tokenDefinition::types::TypeString
 getArrayWrapper(const model::QualifiedType &QT);
 
-/// Return the name of the type returned by \a F
+/// Return the name of the type returned by \a FunctionType
 /// \note If F returns more than one value, the name of the wrapping struct
 /// will be returned.
 extern tokenDefinition::types::TypeString
-getReturnTypeName(const model::RawFunctionType &F);
-
-/// Return the name of the array wrapper that wraps \a QT (QT must be
-/// an array).
-/// \note If F returns an array, the name of the wrapping struct will be
-/// returned.
-extern tokenDefinition::types::TypeString
-getReturnTypeName(const model::CABIFunctionType &F);
+getReturnTypeName(const model::Type &FunctionType);
 
 /// Return the name of the \a Index -th field of the struct returned
-/// by \a F.
-/// \note F must be returning more than one value, otherwise
+/// by the \a FunctionType.
+/// \note FunctionType must be returning more than one value, otherwise
 /// there is no wrapping struct.
 extern tokenDefinition::types::TypeString
-getReturnField(const model::RawFunctionType &F, size_t Index);
+getReturnField(const model::Type &FunctionType, size_t Index);
 
 /// Print the function prototype (without any trailing ';') of \a FT
 ///        using \a FunctionName as the function's name. If the return value
