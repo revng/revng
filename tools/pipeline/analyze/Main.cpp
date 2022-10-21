@@ -136,7 +136,7 @@ int main(int argc, const char *argv[]) {
       auto Index = Pair.index();
       const auto &ContainerName = Pair.value();
       for (const auto &Kind : Analysis->getAcceptedKinds(Index)) {
-        Map.add(ContainerName, Target(*Kind));
+        Map.add(ContainerName, Kind->allTargets(Manager.context()));
       }
     }
 
