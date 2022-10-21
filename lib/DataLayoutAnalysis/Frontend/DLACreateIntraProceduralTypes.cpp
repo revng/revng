@@ -27,12 +27,12 @@
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/DataLayoutAnalysis/DLATypeSystem.h"
-#include "revng-c/DataLayoutAnalysis/SCEVBaseAddressExplorer.h"
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/IRHelpers.h"
 
 #include "../FuncOrCallInst.h"
 #include "DLATypeSystemBuilder.h"
+#include "SCEVBaseAddressExplorer.h"
 
 using namespace dla;
 using namespace llvm;
