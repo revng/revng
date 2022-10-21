@@ -6,7 +6,9 @@ commands:
   - type: revng.assembly-internal
     from:
       - type: revng-qa.compiled
+        filter: one-per-architecture
       - type: revng.abi-enforced-for-decompilation
+        filter: one-per-architecture
     suffix: .yml.yml
     command: |-
       MODEL="$$(mktemp tmp.revng.assembly-internal.XXXXXXXXXX)";
@@ -22,7 +24,9 @@ commands:
   - type: revng.assembly-ptml
     from:
       - type: revng.assembly-internal
+        filter: one-per-architecture
       - type: revng.abi-enforced-for-decompilation
+        filter: one-per-architecture
     suffix: .ptml.yml
     command: |-
       MODEL="$$(mktemp tmp.revng.assembly-ptml.XXXXXXXXXX)";
@@ -37,6 +41,7 @@ commands:
   - type: revng.cfg-svg
     from:
       - type: revng.assembly-internal
+        filter: one-per-architecture
       - type: revng.abi-enforced-for-decompilation
         filter: one-per-architecture
     suffix: .svg.yml
@@ -53,6 +58,7 @@ commands:
   - type: revng.cross-relations
     from:
       - type: revng-qa.compiled
+        filter: one-per-architecture
       - type: revng.abi-enforced-for-decompilation
         filter: one-per-architecture
     suffix: .yml
@@ -70,6 +76,7 @@ commands:
   - type: revng.call-graph-svg
     from:
       - type: revng.cross-relations
+        filter: one-per-architecture
       - type: revng.abi-enforced-for-decompilation
         filter: one-per-architecture
     suffix: .svg.yml
@@ -86,9 +93,11 @@ commands:
   - type: revng.call-graph-slice-svg
     from:
       - type: revng.cross-relations
+        filter: one-per-architecture
       - type: revng.abi-enforced-for-decompilation
         filter: one-per-architecture
       - type: revng-qa.compiled
+        filter: one-per-architecture
     suffix: .svg.yml
     command: |-
       MODEL="$$(mktemp tmp.revng.call-graph-slice-svg.XXXXXXXXXX)";
