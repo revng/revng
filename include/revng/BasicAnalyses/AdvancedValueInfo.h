@@ -4,12 +4,20 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <algorithm>
+#include <iterator>
+#include <memory>
 #include <set>
+#include <vector>
 
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/iterator_range.h"
 #include "llvm/Analysis/ConstantFolding.h"
 #include "llvm/Analysis/LazyValueInfo.h"
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
+#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Instruction.h"
@@ -102,6 +110,11 @@ getUniqueUnknown(llvm::ScalarEvolution &SE, const llvm::SCEV *SC) {
   return FSU.UniqueUnknown;
 }
 
+namespace detail {
+using GraphValue = llvm::SmallVector<llvm::BasicBlock *, 2>;
+using Graph = llvm::DenseMap<llvm::BasicBlock *, std::unique_ptr<GraphValue>>;
+} // namespace detail
+
 inline llvm::ConstantInt *replaceAllUnknownsWith(llvm::ScalarEvolution &SE,
                                                  const llvm::SCEV *SC,
                                                  llvm::ConstantInt *C) {
@@ -188,17 +201,29 @@ public:
 };
 
 class Analysis
-  : public MonotoneFramework<Analysis,
-                             llvm::BasicBlock *,
-                             Element,
-                             ReversePostOrder,
-                             llvm::SmallVector<llvm::BasicBlock *, 2>> {
+  : public MonotoneFramework<
+      Analysis,
+      llvm::BasicBlock *,
+      Element,
+      ReversePostOrder,
+      llvm::iterator_range<
+        llvm::SmallVector<llvm::BasicBlock *, 2>::const_iterator>> {
 private:
+  using Range = llvm::iterator_range<
+    llvm::SmallVector<llvm::BasicBlock *, 2>::const_iterator>;
   using Base = MonotoneFramework<Analysis,
                                  llvm::BasicBlock *,
                                  Element,
                                  ReversePostOrder,
-                                 llvm::SmallVector<llvm::BasicBlock *, 2>>;
+                                 Range>;
+
+public:
+private:
+  // Using unique_ptr<SmallVector> is ensuring that the key type of the dense
+  // map has a size equal to a pointer, which a significant speedup.
+  detail::Graph SuccessorsCache;
+
+  const detail::Graph *GraphSuccessors;
 
 private:
   llvm::BasicBlock *Entry;
@@ -206,15 +231,20 @@ private:
   const llvm::DominatorTree &DT;
   std::map<llvm::Instruction *, ConstantRangeSet> InstructionRanges;
   std::set<CFGEdge> TargetEdges;
-  std::set<llvm::BasicBlock *> WhiteList;
+  llvm::SmallVector<llvm::BasicBlock *, 4> WhiteList;
 
 public:
   Analysis(const llvm::SmallVectorImpl<llvm::BasicBlock *> &RPOT,
            llvm::LazyValueInfo &LVI,
            const llvm::DominatorTree &DT,
            const std::vector<llvm::Instruction *> &TargetInstructions,
-           const std::vector<CFGEdge> &TargetEdges) :
-    Base(RPOT), Entry(RPOT[0]), LVI(LVI), DT(DT) {
+           const std::vector<CFGEdge> &TargetEdges,
+           const detail::Graph &FunctionCFG) :
+    Base(RPOT),
+    GraphSuccessors(&FunctionCFG),
+    Entry(RPOT[0]),
+    LVI(LVI),
+    DT(DT) {
     using namespace llvm;
 
     registerExtremal(Entry);
@@ -231,7 +261,12 @@ public:
     }
 
     for (BasicBlock *BB : RPOT) {
-      WhiteList.insert(BB);
+      WhiteList.push_back(BB);
+    }
+    llvm::sort(WhiteList);
+
+    for (BasicBlock *BB : RPOT) {
+      cacheSuccessors(BB);
     }
   }
 
@@ -257,19 +292,34 @@ public:
     return compute(Original, Source, Destination, IsTargetEdge);
   }
 
-  llvm::SmallVector<llvm::BasicBlock *, 2>
-  successors(llvm::BasicBlock *L, DefaultInterrupt<Element> &I) const {
+  void cacheSuccessors(llvm::BasicBlock *L) {
     using namespace llvm;
-    SmallVector<BasicBlock *, 2> Result;
-    for (llvm::BasicBlock *Successor : make_range(succ_begin(L), succ_end(L)))
-      if (WhiteList.count(Successor) != 0)
-        Result.push_back(Successor);
-    return Result;
+    const auto &Res = SuccessorsCache
+                        .try_emplace(L,
+                                     std::make_unique<::detail::GraphValue>());
+    auto &Result = Res.first->getSecond();
+    auto &AllSuccessors = *GraphSuccessors->find(L)->getSecond();
+
+    std::set_intersection(AllSuccessors.begin(),
+                          AllSuccessors.end(),
+                          WhiteList.begin(),
+                          WhiteList.end(),
+                          std::back_inserter(*Result));
+  }
+
+  const llvm::SmallVector<llvm::BasicBlock *, 2> &
+  getSuccessors(llvm::BasicBlock *L) const {
+    return *SuccessorsCache.find(L)->second;
+  }
+
+  Range successors(llvm::BasicBlock *L, DefaultInterrupt<Element> &I) const {
+    const auto &Successors = getSuccessors(L);
+    return llvm::make_range(Successors.begin(), Successors.end());
   }
 
   size_t
   successor_size(llvm::BasicBlock *L, DefaultInterrupt<Element> &I) const {
-    return successors(L, I).size();
+    return getSuccessors(L).size();
   }
 
   const ConstantRangeSet &get(llvm::Instruction *I) const {
@@ -463,28 +513,11 @@ public:
     return OperationsStack.at(SmallestRangeIndex).V;
   }
 
-  /// Use LVI to build an expression about \p V
-  ///
-  /// 1. Build a chain of single non-const-operand instructions until you find a
-  ///    phi or a load from a global variable.
-  /// 2. For each instruction in the chain record the number of possible values
-  ///    according to LVI.
-  /// 3. Iterate over the chain looking for the instruction associated with the
-  ///    smallest range.
-  llvm::Instruction *buildExpression(llvm::LazyValueInfo &LVI,
-                                     const llvm::DominatorTree &DT,
-                                     PhiEdges &Edges,
-                                     llvm::Value *V,
-                                     llvm::BasicBlock *StopAt) {
+  /// Builds a chain of single non-const-operand instructions until you find a
+  /// phi or a load from a global variable.
+  llvm::Instruction *buildExpression(llvm::User *U) {
     using namespace llvm;
-
-    revng_log(AVILogger, "Building expression for " << V);
-
     Instruction *Result = nullptr;
-
-    reset();
-
-    User *U = cast<User>(V);
     do {
 
       revng_log(AVILogger, "  Considering " << U);
@@ -561,60 +594,102 @@ public:
       U = cast_or_null<User>(Next);
 
     } while (U != nullptr);
+    return Result;
+  }
 
-    auto IsInteresting = [](const Operation &O) -> llvm::Instruction * {
-      if (O.Range.isFullSet())
-        if (auto *I = dyn_cast<Instruction>(O.V))
-          if (isa<IntegerType>(I->getType()))
-            return I;
-      return nullptr;
-    };
+  llvm::Instruction *isInteresting(const Operation &O) {
+    if (O.Range.isFullSet())
+      if (auto *I = dyn_cast<llvm::Instruction>(O.V))
+        if (isa<llvm::IntegerType>(I->getType()))
+          return I;
+    return nullptr;
+  };
+
+  void computeOperationString(llvm::ArrayRef<llvm::Instruction *> Targets,
+                              llvm::LazyValueInfo &LVI,
+                              const llvm::DominatorTree &DT,
+                              PhiEdges &Edges,
+                              llvm::BasicBlock *StopAt,
+                              const detail::Graph &Graph) {
+    using namespace llvm;
+
+    if (Targets.size() == 0)
+      return;
+
+    BasicBlock *StartBB = Targets.back()->getParent();
+
+    const CFGEdge &FirstEdge = Edges.front();
+    revng_assert(FirstEdge.End == nullptr);
+    BasicBlock *EndBB = FirstEdge.Start;
+
+    BasicBlock *LimitedStartBB = StartBB;
+    if (not DT.dominates(StopAt, LimitedStartBB))
+      LimitedStartBB = StopAt;
+
+    SmallPtrSet<BasicBlock *, 4> IgnoreList = { StopAt };
+
+    auto Reachable = nodesBetweenReverse(EndBB, LimitedStartBB, &IgnoreList);
+    for (Instruction *I : Targets)
+      Reachable.insert(I->getParent());
+    Reachable.insert(EndBB);
+
+    // Note: ordering in reverse post order is more costly than beneficial
+    Reachable.erase(StartBB);
+    SmallVector<BasicBlock *, 8> ReachableVector{ StartBB };
+    for (BasicBlock *BB : Reachable)
+      ReachableVector.push_back(BB);
+
+    DisjointRanges::Analysis DR(ReachableVector,
+                                LVI,
+                                DT,
+                                Targets,
+                                Edges,
+                                Graph);
+    DR.initialize();
+    DR.run();
+
+    for (Operation &O : OperationsStack) {
+      if (auto *I = isInteresting(O)) {
+        O.Range = DR.get(I);
+        AVILogger << I << ": ";
+        O.Range.dump(AVILogger);
+        AVILogger << DoLog;
+        O.RangeSize = O.Range.size().getLimitedValue();
+      }
+    }
+  }
+
+  /// Use LVI to build an expression about \p V
+  ///
+  /// 1. Build a chain of single non-const-operand instructions until you find a
+  ///    phi or a load from a global variable.
+  /// 2. For each instruction in the chain record the number of possible values
+  ///    according to LVI.
+  /// 3. Iterate over the chain looking for the instruction associated with the
+  ///    smallest range.
+  llvm::Instruction *buildAndAnalyzeExpression(llvm::LazyValueInfo &LVI,
+                                               const llvm::DominatorTree &DT,
+                                               PhiEdges &Edges,
+                                               llvm::Value *V,
+                                               llvm::BasicBlock *StopAt,
+                                               const detail::Graph &Graph) {
+    using namespace llvm;
+
+    revng_log(AVILogger, "Building expression for " << V);
+
+    reset();
+
+    User *U = cast<User>(V);
+    llvm::Instruction *Result = buildExpression(U);
 
     std::vector<Instruction *> Targets;
     for (const Operation &O : OperationsStack) {
-      if (auto *I = IsInteresting(O)) {
+      if (auto *I = isInteresting(O)) {
         Targets.push_back(I);
       }
     }
 
-    if (Targets.size() != 0) {
-      BasicBlock *StartBB = Targets.back()->getParent();
-
-      const CFGEdge &FirstEdge = Edges.front();
-      revng_assert(FirstEdge.End == nullptr);
-      BasicBlock *EndBB = FirstEdge.Start;
-
-      BasicBlock *LimitedStartBB = StartBB;
-      if (not DT.dominates(StopAt, LimitedStartBB))
-        LimitedStartBB = StopAt;
-
-      SmallPtrSet<BasicBlock *, 4> IgnoreList = { StopAt };
-
-      auto Reachable = nodesBetweenReverse(EndBB, LimitedStartBB, &IgnoreList);
-      for (Instruction *I : Targets)
-        Reachable.insert(I->getParent());
-      Reachable.insert(EndBB);
-
-      // Note: ordering in reverse post order is more costly than beneficial
-      Reachable.erase(StartBB);
-      SmallVector<BasicBlock *, 8> ReachableVector{ StartBB };
-      for (BasicBlock *BB : Reachable)
-        ReachableVector.push_back(BB);
-
-      DisjointRanges::Analysis DR(ReachableVector, LVI, DT, Targets, Edges);
-      DR.initialize();
-      DR.run();
-
-      for (Operation &O : OperationsStack) {
-        if (auto *I = IsInteresting(O)) {
-          O.Range = DR.get(I);
-          AVILogger << I << ": ";
-          O.Range.dump(AVILogger);
-          AVILogger << DoLog;
-          O.RangeSize = O.Range.size().getLimitedValue();
-        }
-      }
-    }
+    computeOperationString(Targets, LVI, DT, Edges, StopAt, Graph);
 
     for (const Operation &O : OperationsStack) {
       // Get the LVI and record if it's the smallest
@@ -750,7 +825,7 @@ public:
           } else if (auto *Load = dyn_cast<LoadInst>(Op.V)) {
             revng_assert(isMemory(skipCasts(Load->getPointerOperand())));
 
-            MaterializedValue Loaded = MO.load(Current);
+            const MaterializedValue &Loaded = MO.load(Current);
 
             if (AVILogger.isEnabled()) {
               AVILogger << "  MemoryOracle says its ";
@@ -927,13 +1002,30 @@ private:
   MemoryOracle &MO;
   llvm::BasicBlock *StopAt;
 
+  // Using unique_ptr<SmallVector> is ensuring that the key type of the dense
+  // map has a size equal to a pointer, which a significant speedup
+  detail::Graph SuccessorsCache;
+
 public:
   AdvancedValueInfo(llvm::LazyValueInfo &LVI,
                     llvm::ScalarEvolution &SE,
                     const llvm::DominatorTree &DT,
                     MemoryOracle &MO,
                     llvm::BasicBlock *StopAt) :
-    LVI(LVI), SE(SE), DT(DT), MO(MO), StopAt(StopAt) {}
+    LVI(LVI), SE(SE), DT(DT), MO(MO), StopAt(StopAt) {
+    auto *Parent = DT.getRoot()->getParent();
+
+    for (llvm::BasicBlock &BB : *Parent) {
+      auto Ptr = std::make_unique<detail::GraphValue>();
+      auto Res = SuccessorsCache.try_emplace(&BB, std::move(Ptr));
+      auto &Vector = *(*Res.first).getSecond();
+      for (auto *Succesor : llvm::successors(&BB)) {
+        Vector.push_back(Succesor);
+      }
+
+      llvm::sort(Vector);
+    }
+  }
 
   MaterializedValues explore(llvm::BasicBlock *BB, llvm::Value *V);
 };
@@ -996,7 +1088,12 @@ AdvancedValueInfo<MemoryOracle>::explore(llvm::BasicBlock *BB, llvm::Value *V) {
 
       Edges.push_back(NewEdge);
 
-      NextPhi = Current.Expr.buildExpression(LVI, DT, Edges, NextValue, StopAt);
+      NextPhi = Current.Expr.buildAndAnalyzeExpression(LVI,
+                                                       DT,
+                                                       Edges,
+                                                       NextValue,
+                                                       StopAt,
+                                                       SuccessorsCache);
       Current.NextIncomingIndex++;
     }
 
@@ -1060,7 +1157,7 @@ AdvancedValueInfo<MemoryOracle>::explore(llvm::BasicBlock *BB, llvm::Value *V) {
 
           // Save and deduplicate the result
           Result = std::move(Current.Values);
-          std::sort(Result.begin(), Result.end());
+          llvm::sort(Result);
           auto LastIt = std::unique(Result.begin(), Result.end());
           Result.erase(LastIt, Result.end());
 
