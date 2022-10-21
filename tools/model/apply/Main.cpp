@@ -51,7 +51,7 @@ int main(int Argc, char *Argv[]) {
   if (not Diff)
     ExitOnError(Diff.takeError());
 
-  Diff->apply(Model->getModel());
+  Diff->apply(Model->getWriteableModel());
 
   auto DesiredOutput = Options.getDesiredOutput(Model->hasModule());
   ExitOnError(Model->save(Options.getPath(), DesiredOutput));
