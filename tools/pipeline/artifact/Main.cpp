@@ -119,7 +119,7 @@ int main(int argc, const char *argv[]) {
 
   ContainerToTargetsMap Map;
   if (Arguments.size() == 2) {
-    Map.add(ContainerName, Target(*Kind));
+    Map.add(ContainerName, Kind->allTargets(Manager.context()));
   } else {
     for (llvm::StringRef Argument : llvm::drop_begin(Arguments, 2)) {
       auto SlashRemoved = Argument.drop_front();
