@@ -165,6 +165,9 @@ static_assert(not StrictSpecializationOf<std::string, std::basic_string_view>);
 // Other Miscellanious concepts.
 //
 
+template<typename T, typename R>
+concept ConstOrNot = std::is_same_v<R, T> or std::is_same_v<const R, T>;
+
 // clang-format off
 namespace ranges {
 template<class Range, typename ValueType>
