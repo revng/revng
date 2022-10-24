@@ -77,13 +77,13 @@ public:
 
   std::unique_ptr<pipeline::ContainerBase>
   cloneFiltered(const pipeline::TargetsList &Container) const final {
-    bool MustCloneFile = Container.contains(getOnlyPossibleTarget());
-
-    if (not MustCloneFile) {
-      return std::make_unique<FileContainer>(this->name());
-    }
-
     auto Result = std::make_unique<FileContainer>(this->name());
+
+    // Return an empty FileContainer if we are empty or our target has not been
+    // requested
+    if (Path.empty() or not Container.contains(getOnlyPossibleTarget()))
+      return Result;
+
     Result->getOrCreatePath();
     cantFail(llvm::sys::fs::copy_file(Path, Result->Path));
     return Result;
