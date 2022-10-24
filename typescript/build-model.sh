@@ -29,4 +29,16 @@ npm pack --silent > /dev/null
 cp revng-model-1.*.tgz ../model.ts.tgz
 
 cd ..
+
+if test -e lib64/node_modules; then
+    echo "lib64/node_modules should not exist" > /dev/stderr
+    exit 1
+fi
+
 npm --silent install --global --prefix=. ./model.ts.tgz
+
+# Handle npm implementations using lib64
+if test -e lib64/node_modules; then
+    cp -ar lib64/node_modules lib/
+    rm -rf lib64/node_modules
+fi
