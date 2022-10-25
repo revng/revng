@@ -117,12 +117,10 @@ inline const Tag Enum = keyword("enum");
 } // namespace keywords
 
 namespace scopeTags {
+
+using ptml::scopeTag;
 using ptml::Tag;
 namespace scopes = ptml::c::scopes;
-
-inline Tag scopeTag(const llvm::StringRef Scope) {
-  return Tag(ptml::tags::Div).addAttribute(ptml::attributes::Scope, Scope);
-}
 
 inline const Tag Scope = scopeTag(scopes::Scope);
 inline const Tag Function = scopeTag(scopes::Function);
