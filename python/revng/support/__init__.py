@@ -17,3 +17,8 @@ def to_iterable(obj: SingleOrIterable[T]) -> Iterable[T]:
     if isinstance(obj, CIterable):
         return obj
     return (obj,)
+
+
+# We assume this file is in <root>/lib/python$VERSION/site-packages/revng/support
+def get_root() -> Path:
+    return (Path(__file__) / "../../../../../../").resolve()

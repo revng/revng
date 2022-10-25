@@ -10,6 +10,7 @@ import sys
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, NoReturn, Optional, Union
 
+from revng.support import get_root
 from revng.support.collect import collect_files, collect_libraries
 from revng.support.elf import is_executable
 
@@ -19,7 +20,7 @@ except ImportError:
     from backports.shutil_which import which  # type: ignore
 
 script_path = os.path.dirname(os.path.realpath(__file__))
-root_path = os.path.join(script_path, "..", "..", "..", "..", "..")
+root_path = str(get_root())
 
 
 @dataclass
