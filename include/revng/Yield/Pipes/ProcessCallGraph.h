@@ -10,6 +10,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/FunctionIsolation/IsolationFunctionKind.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/FileContainer.h"
@@ -54,7 +55,7 @@ public:
 
 public:
   inline std::array<pipeline::ContractGroup, 1> getContract() const {
-    return { pipeline::ContractGroup(kinds::IsolatedRoot,
+    return { pipeline::ContractGroup(kinds::Isolated,
                                      0,
                                      kinds::BinaryCrossRelations,
                                      1,
