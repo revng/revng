@@ -35,7 +35,10 @@ void ProcessCallGraph::run(pipeline::Context &Context,
   SortedVector<efa::FunctionMetadata> Metadata;
   for (const auto &LLVMFunction : FunctionTags::Isolated.functions(&Module))
     Metadata.insert(*::detail::extractFunctionMetadata(&LLVMFunction));
-  revng_assert(Metadata.size() == Model->Functions().size());
+
+  // If some functions are missing, do not output anything
+  if (Metadata.size() != Model->Functions().size())
+    return;
 
   OutputFile.emplace(Metadata, *Model);
 }
