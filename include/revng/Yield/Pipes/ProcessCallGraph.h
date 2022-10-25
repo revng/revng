@@ -55,7 +55,7 @@ public:
 
 public:
   inline std::array<pipeline::ContractGroup, 1> getContract() const {
-    return { pipeline::ContractGroup(kinds::IsolatedRoot,
+    return { pipeline::ContractGroup(kinds::Isolated,
                                      0,
                                      kinds::BinaryCrossRelations,
                                      1,
