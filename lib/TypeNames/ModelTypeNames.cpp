@@ -40,7 +40,7 @@ using ptml::str;
 using ptml::Tag;
 namespace tags = ptml::tags;
 namespace attributes = ptml::attributes;
-namespace tokens = ptml::c::tokenTypes;
+namespace tokens = ptml::c::tokens;
 namespace ranks = revng::ranks;
 
 using namespace ArtificialTypes;
@@ -244,10 +244,10 @@ TypeString getReturnTypeName(const model::RawFunctionType &F) {
   } else {
     // RawFunctionTypes can return multiple values, which need to be wrapped
     // in a struct
-    Result = tokenTag((Twine(RetStructPrefix) + "returned_by_"
-                       + model::Identifier::fromString(F.name()))
-                        .str(),
-                      tokens::Type)
+    Result = ptml::tokenTag((Twine(RetStructPrefix) + "returned_by_"
+                             + model::Identifier::fromString(F.name()))
+                              .str(),
+                            tokens::Type)
                .serialize();
   }
 
@@ -285,7 +285,7 @@ static void printFunctionPrototypeImpl(const model::RawFunctionType &RF,
   revng_assert(RF.StackArgumentsType.Qualifiers.empty());
   if (RF.Arguments.empty()
       and not RF.StackArgumentsType.UnqualifiedType.isValid()) {
-    Header << "(" << tokenTag("void", tokens::Type) << ")";
+    Header << "(" << ptml::tokenTag("void", tokens::Type) << ")";
   } else {
     const StringRef Open = "(";
     const StringRef Comma = ", ";
@@ -318,7 +318,7 @@ static void printFunctionPrototypeImpl(const model::CABIFunctionType &CF,
   Header << getReturnTypeName(CF) << " " << FunctionName;
 
   if (CF.Arguments.empty()) {
-    Header << "(" << tokenTag("void", tokens::Type) << ")";
+    Header << "(" << ptml::tokenTag("void", tokens::Type) << ")";
   } else {
     const StringRef Open = "(";
     const StringRef Comma = ", ";
@@ -348,7 +348,7 @@ void printFunctionPrototype(const model::Type &FT,
                             llvm::raw_ostream &Header,
                             const model::Binary &Model,
                             bool Declaration) {
-  Tag FunctionTag = tokenTag(Function.name(), tokens::Function)
+  Tag FunctionTag = ptml::tokenTag(Function.name(), tokens::Function)
                       .addAttribute(attributes::ModelEditPath,
                                     getCustomNamePath(Function))
                       .addAttribute(Declaration ?
@@ -358,7 +358,7 @@ void printFunctionPrototype(const model::Type &FT,
                                                        Function.key()));
   if (auto *RF = dyn_cast<model::RawFunctionType>(&FT)) {
     auto ArgumentPrinter = [&](const NamedTypedRegister &Reg) {
-      return tokenTag(Reg.name().str(), tokens::FunctionParameter)
+      return ptml::tokenTag(Reg.name().str(), tokens::FunctionParameter)
         .addAttribute(attributes::LocationDefinition,
                       serializedLocation(ranks::RawFunctionArgument,
                                          Function.key(),
@@ -367,7 +367,7 @@ void printFunctionPrototype(const model::Type &FT,
     };
 
     std::string
-      StackName = tokenTag("stack_args", tokens::FunctionParameter)
+      StackName = ptml::tokenTag("stack_args", tokens::FunctionParameter)
                     .addAttribute(attributes::LocationDefinition,
                                   serializedLocation(ranks::SpecialVariable,
                                                      Function.key(),
@@ -383,7 +383,7 @@ void printFunctionPrototype(const model::Type &FT,
                                Declaration);
   } else if (auto *CF = dyn_cast<model::CABIFunctionType>(&FT)) {
     auto ArgumentPrinter = [&](const Argument &Arg) {
-      return tokenTag(Arg.name().str(), tokens::FunctionParameter)
+      return ptml::tokenTag(Arg.name().str(), tokens::FunctionParameter)
         .addAttribute(attributes::LocationDefinition,
                       serializedLocation(ranks::CABIFunctionArgument,
                                          Function.key(),
@@ -407,7 +407,7 @@ void printFunctionPrototype(const model::Type &FT,
                             llvm::raw_ostream &Header,
                             const model::Binary &Model,
                             bool Declaration) {
-  Tag FunctionTag = tokenTag(Function.name(), tokens::Function)
+  Tag FunctionTag = ptml::tokenTag(Function.name(), tokens::Function)
                       .addAttribute(attributes::ModelEditPath,
                                     getCustomNamePath(Function))
                       .addAttribute(Declaration ?
@@ -417,7 +417,7 @@ void printFunctionPrototype(const model::Type &FT,
                                                        Function.key()));
   if (auto *RF = dyn_cast<model::RawFunctionType>(&FT)) {
     auto ArgumentPrinter = [&](const NamedTypedRegister &Reg) {
-      return tokenTag(Reg.name().str(), tokens::FunctionParameter)
+      return ptml::tokenTag(Reg.name().str(), tokens::FunctionParameter)
         .addAttribute(attributes::LocationDefinition,
                       serializedLocation(ranks::RawDynFunctionArgument,
                                          Function.key(),
@@ -434,7 +434,7 @@ void printFunctionPrototype(const model::Type &FT,
                                Declaration);
   } else if (auto *CF = dyn_cast<model::CABIFunctionType>(&FT)) {
     auto ArgumentPrinter = [&](const Argument &Arg) {
-      return tokenTag(Arg.name().str(), tokens::FunctionParameter)
+      return ptml::tokenTag(Arg.name().str(), tokens::FunctionParameter)
         .addAttribute(attributes::LocationDefinition,
                       serializedLocation(ranks::CABIDynFunctionArgument,
                                          Function.key(),

@@ -75,10 +75,10 @@ using modelEditPath::getCustomNamePath;
 using pipeline::serializedLocation;
 using ptml::str;
 using ptml::Tag;
-namespace tags = ptml::tags;
-namespace attributes = ptml::attributes;
-namespace tokens = ptml::c::tokenTypes;
 namespace ranks = revng::ranks;
+namespace attributes = ptml::attributes;
+namespace tokens = ptml::c::tokens;
+namespace tags = ptml::tags;
 
 using tokenDefinition::types::StringToken;
 using tokenDefinition::types::TypeString;
@@ -929,7 +929,7 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
 
     std::string
       FunctionName = model::Identifier::fromString(FuncName).str().str();
-    Tag FunctionTag = tokenTag(FunctionName, tokens::Function)
+    Tag FunctionTag = ptml::tokenTag(FunctionName, tokens::Function)
                         .addAttribute(attributes::LocationReferences,
                                       serializedLocation(ranks::Helpers,
                                                          FunctionName));
@@ -1458,12 +1458,12 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
       std::string Location = serializedLocation(ranks::SpecialVariable,
                                                 ModelFunction.key(),
                                                 NewVarName.str().str());
-      Tag SwitchStateTag = tokenTag(NewVarName, tokens::Variable)
+      Tag SwitchStateTag = ptml::tokenTag(NewVarName, tokens::Variable)
                              .addAttribute(attributes::LocationReferences,
                                            Location);
       SwitchStateVars.push_back(SwitchStateTag.serialize());
-      Out << tokenTag("bool", tokens::Type) << " "
-          << tokenTag(NewVarName, tokens::Variable)
+      Out << ptml::tokenTag("bool", tokens::Type) << " "
+          << ptml::tokenTag(NewVarName, tokens::Variable)
                .addAttribute(attributes::LocationDefinition, Location)
           << " " + operators::Assign + " " + constants::False + ";\n";
     }
@@ -1698,7 +1698,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
       // redirect control flow inside loops (e.g. if we want to jump in the
       // middle of a loop during a certain iteration)
       if (NeedsLocalStateVar)
-        Out << tokenTag("uint64_t", tokens::Type) << " "
+        Out << ptml::tokenTag("uint64_t", tokens::Type) << " "
             << LoopStateVarDeclaration << ";\n";
 
       // Declare all variables that have the entire function as a scope

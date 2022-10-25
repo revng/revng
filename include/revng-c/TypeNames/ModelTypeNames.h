@@ -10,8 +10,6 @@
 
 #include "revng-c/Support/TokenDefinitions.h"
 
-namespace tokenTypes = tokenDefinition::types;
-
 namespace ArtificialTypes {
 constexpr const char *const RetStructPrefix = "artificial_struct_";
 constexpr const char *const ArrayWrapperPrefix = "artificial_wrapper_";
@@ -23,40 +21,42 @@ constexpr const char *const ArrayWrapperFieldName = "the_array";
 
 /// Print a string containing the C Type name of \a QT and a
 /// (possibly empty) \a InstanceName .
-extern tokenTypes::TypeString
+extern tokenDefinition::types::TypeString
 getNamedCInstance(const model::QualifiedType &QT, llvm::StringRef InstanceName);
 
 /// Return an escaped name for the type
 /// \note If T is a function type, the appropriate function typename will be
 /// returned
-extern tokenTypes::TypeString getTypeName(const model::Type &T);
+extern tokenDefinition::types::TypeString getTypeName(const model::Type &T);
 
-inline tokenTypes::TypeString getTypeName(const model::QualifiedType &QT) {
+inline tokenDefinition::types::TypeString
+getTypeName(const model::QualifiedType &QT) {
   return getNamedCInstance(QT, "");
 }
 
 /// Return the name of the array wrapper that wraps \a QT (QT must be
 /// an array).
-extern tokenTypes::TypeString getArrayWrapper(const model::QualifiedType &QT);
+extern tokenDefinition::types::TypeString
+getArrayWrapper(const model::QualifiedType &QT);
 
 /// Return the name of the type returned by \a F
 /// \note If F returns more than one value, the name of the wrapping struct
 /// will be returned.
-extern tokenTypes::TypeString
+extern tokenDefinition::types::TypeString
 getReturnTypeName(const model::RawFunctionType &F);
 
 /// Return the name of the array wrapper that wraps \a QT (QT must be
 /// an array).
 /// \note If F returns an array, the name of the wrapping struct will be
 /// returned.
-extern tokenTypes::TypeString
+extern tokenDefinition::types::TypeString
 getReturnTypeName(const model::CABIFunctionType &F);
 
 /// Return the name of the \a Index -th field of the struct returned
 /// by \a F.
 /// \note F must be returning more than one value, otherwise
 /// there is no wrapping struct.
-extern tokenTypes::TypeString
+extern tokenDefinition::types::TypeString
 getReturnField(const model::RawFunctionType &F, size_t Index);
 
 /// Print the function prototype (without any trailing ';') of \a FT

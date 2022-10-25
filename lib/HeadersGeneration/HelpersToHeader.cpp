@@ -32,7 +32,7 @@ using pipeline::serializedLocation;
 using ptml::Tag;
 namespace tags = ptml::tags;
 namespace attributes = ptml::attributes;
-namespace tokens = ptml::c::tokenTypes;
+namespace tokens = ptml::c::tokens;
 namespace ranks = revng::ranks;
 
 static Logger<> Log{ "helpers-to-header" };
@@ -50,7 +50,7 @@ static void printDefinition(const llvm::StructType *S,
     for (const auto &Field : llvm::enumerate(S->elements())) {
       auto Info = getFieldInfo(S, Field.index());
       Header
-        << tokenTag(Info.FieldTypeName, tokens::Type) << " "
+        << ptml::tokenTag(Info.FieldTypeName, tokens::Type) << " "
         << Tag(tags::Span, Info.FieldName.str())
              .addAttribute(attributes::Token, tokens::Field)
              .addAttribute(attributes::LocationDefinition,
@@ -68,14 +68,14 @@ static void printDefinition(const llvm::StructType *S,
 static void printHelperPrototype(const llvm::Function *Func,
                                  ptml::PTMLIndentedOstream &Header) {
   Header << getReturnType(Func).Use << " "
-         << tokenTag(model::Identifier::fromString(Func->getName()).str(),
-                     tokens::Function)
+         << ptml::tokenTag(model::Identifier::fromString(Func->getName()).str(),
+                           tokens::Function)
               .addAttribute(attributes::LocationDefinition,
                             serializedLocation(ranks::Helpers,
                                                Func->getName().str()));
 
   if (Func->arg_empty()) {
-    Header << "(" + tokenTag("void", tokens::Type) + ");\n";
+    Header << "(" + ptml::tokenTag("void", tokens::Type) + ");\n";
   } else {
     const llvm::StringRef Open = "(";
     const llvm::StringRef Comma = ", ";
@@ -85,10 +85,10 @@ static void printHelperPrototype(const llvm::Function *Func,
       std::string TypeTag;
       if (Type.endswith(" *")) {
         Type.pop_back_n(2);
-        TypeTag = tokenTag(Type.str(), tokens::Type) + " "
+        TypeTag = ptml::tokenTag(Type.str(), tokens::Type) + " "
                   + operators::PointerDereference;
       } else {
-        TypeTag = tokenTag(Type.str(), tokens::Type).serialize();
+        TypeTag = ptml::tokenTag(Type.str(), tokens::Type).serialize();
       }
       Header << Separator << TypeTag;
       Separator = Comma;

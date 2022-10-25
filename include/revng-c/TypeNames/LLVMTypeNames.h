@@ -10,7 +10,6 @@
 
 #include "revng-c/Support/TokenDefinitions.h"
 
-namespace tokenTypes = tokenDefinition::types;
 namespace ArtificialTypes {
 constexpr const char *const StructWrapperPrefix = "artificial_struct_";
 constexpr const char *const StructFieldPrefix = "field_";
@@ -19,7 +18,7 @@ constexpr const char *const StructFieldPrefix = "field_";
 /// Print the C name of an LLVM Scalar type.
 /// \note Pointer types use the \a BaseType provided if it's not empty,
 /// otherwise they are converted as `void *`
-extern tokenTypes::TypeString
+extern tokenDefinition::types::TypeString
 getScalarCType(const llvm::Type *LLVMType, llvm::StringRef BaseType = "");
 
 /// Get the name of the type returned by an llvm::Function.
@@ -28,8 +27,8 @@ getScalarCType(const llvm::Type *LLVMType, llvm::StringRef BaseType = "");
 extern VariableTokensWithName getReturnType(const llvm::Function *Func);
 
 struct FieldInfo {
-  tokenTypes::TypeString FieldName;
-  tokenTypes::TypeString FieldTypeName;
+  tokenDefinition::types::TypeString FieldName;
+  tokenDefinition::types::TypeString FieldTypeName;
 };
 
 /// Return the name and type of the \a Index -th field of a struct type.

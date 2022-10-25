@@ -24,7 +24,7 @@ using llvm::Twine;
 using tokenDefinition::types::TypeString;
 using namespace ArtificialTypes;
 
-namespace tokens = ptml::c::tokenTypes;
+namespace tokens = ptml::c::tokens;
 namespace ranks = revng::ranks;
 
 TypeString
@@ -100,18 +100,18 @@ VariableTokensWithName getReturnType(const llvm::Function *Func) {
     const std::string StructName = (StructWrapperPrefix + FuncName).str();
     return {
       StructName,
-      tokenTag(StructName, tokens::Type)
+      ptml::tokenTag(StructName, tokens::Type)
         .addAttribute(ptml::attributes::LocationDefinition,
                       pipeline::serializedLocation(ranks::Helpers, StructName)),
-      tokenTag(StructName, tokens::Type)
+      ptml::tokenTag(StructName, tokens::Type)
         .addAttribute(ptml::attributes::LocationReferences,
                       pipeline::serializedLocation(ranks::Helpers, StructName))
     };
   } else {
     auto CType = getScalarCType(RetType).str();
     return { CType,
-             tokenTag(CType, tokens::Type),
-             tokenTag(CType, tokens::Type) };
+             ptml::tokenTag(CType, tokens::Type),
+             ptml::tokenTag(CType, tokens::Type) };
   }
 }
 

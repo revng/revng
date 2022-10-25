@@ -13,22 +13,18 @@
 #include "revng/ADT/ConstexprString.h"
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/IndentedOstream.h"
+#include "revng/PTML/ModelHelpers.h"
 #include "revng/PTML/Tag.h"
+#include "revng/Pipeline/Location.h"
 
 #include "revng-c/Support/PTML.h"
 #include "revng-c/Support/TokenDefinitions.h"
-
-inline ptml::Tag
-tokenTag(const llvm::StringRef Str, const llvm::StringRef Token) {
-  return ptml::Tag(ptml::tags::Span, Str)
-    .addAttribute(ptml::attributes::Token, Token);
-}
 
 namespace operators {
 using ptml::Tag;
 
 inline Tag operatorTag(const llvm::StringRef Str) {
-  return tokenTag(Str, ptml::c::tokenTypes::Operator);
+  return ptml::tokenTag(Str, ptml::c::tokens::Operator);
 }
 
 inline const Tag PointerDereference = operatorTag("*");
@@ -62,7 +58,7 @@ namespace constants {
 using ptml::Tag;
 
 inline Tag constant(const llvm::StringRef Str) {
-  return tokenTag(Str, ptml::c::tokenTypes::Constant);
+  return ptml::tokenTag(Str, ptml::c::tokens::Constant);
 }
 
 inline const Tag True = constant("true");
@@ -86,7 +82,7 @@ number(const llvm::APInt &I, unsigned int Radix = 10, bool Signed = false) {
 }
 
 inline Tag stringLiteral(const llvm::StringRef Str) {
-  return tokenTag(Str, ptml::c::tokenTypes::StringLiteral);
+  return ptml::tokenTag(Str, ptml::c::tokens::StringLiteral);
 }
 
 } // namespace constants
@@ -96,7 +92,7 @@ using ptml::Tag;
 
 inline Tag keyword(const llvm::StringRef str) {
   return Tag(ptml::tags::Span, str)
-    .addAttribute(ptml::attributes::Token, ptml::c::tokenTypes::Keyword);
+    .addAttribute(ptml::attributes::Token, ptml::c::tokens::Keyword);
 }
 
 inline const Tag Case = keyword("case");
@@ -122,11 +118,24 @@ using ptml::scopeTag;
 using ptml::Tag;
 namespace scopes = ptml::c::scopes;
 
+namespace detail {
+
+inline constexpr auto TDL = scopes::TypeDeclarationsList;
+inline constexpr auto FDL = scopes::FunctionDeclarationsList;
+inline constexpr auto DFDL = scopes::DynamicFunctionDeclarationsList;
+inline constexpr auto SDL = scopes::SegmentDeclarationsList;
+
+} // end namespace detail
+
 inline const Tag Scope = scopeTag(scopes::Scope);
 inline const Tag Function = scopeTag(scopes::Function);
 inline const Tag FunctionBody = scopeTag(scopes::FunctionBody);
 inline const Tag Struct = scopeTag(scopes::StructBody);
 inline const Tag Union = scopeTag(scopes::UnionBody);
+inline const Tag TypeDeclarations = scopeTag(detail::TDL);
+inline const Tag FunctionDeclarations = scopeTag(detail::FDL);
+inline const Tag DynamicFunctionDeclarations = scopeTag(detail::DFDL);
+inline const Tag SegmentDeclarations = scopeTag(detail::SDL);
 
 } // namespace scopeTags
 
@@ -134,7 +143,7 @@ namespace directives {
 using ptml::Tag;
 
 inline Tag directive(const llvm::StringRef Str) {
-  return tokenTag(Str, ptml::c::tokenTypes::Directive);
+  return ptml::tokenTag(Str, ptml::c::tokens::Directive);
 }
 
 inline const Tag Include = directive("#include");
@@ -167,13 +176,13 @@ inline std::string includeQuote(const llvm::StringRef Str) {
 
 inline std::string
 blockComment(const llvm::StringRef Str, bool Newline = true) {
-  return tokenTag("/* " + Str.str() + " */", ptml::tokens::Comment)
+  return ptml::tokenTag("/* " + Str.str() + " */", ptml::tokens::Comment)
          + (Newline ? "\n" : "");
 }
 
 inline std::string lineComment(const llvm::StringRef Str) {
   revng_check(Str.find("\n") == llvm::StringRef::npos);
-  return tokenTag("// " + Str.str(), ptml::tokens::Comment) + "\n";
+  return ptml::tokenTag("// " + Str.str(), ptml::tokens::Comment) + "\n";
 }
 
 inline std::string attribute(const llvm::StringRef Str) {
@@ -243,7 +252,7 @@ private:
 
 public:
   CommentScope(llvm::raw_ostream &OS) :
-    ScopeTag(tokenTag("", ptml::tokens::Comment).scope(OS, false)),
+    ScopeTag(ptml::tokenTag("", ptml::tokens::Comment).scope(OS, false)),
     PairScope(OS) {}
 };
 
@@ -254,3 +263,149 @@ using BlockComment = CommentScope<"/* ", " */">;
 using LineComment = CommentScope<"// ", ConstexprString{}>;
 
 } // namespace helpers
+
+namespace ptml {
+
+constexpr inline const char *locationAttribute(bool IsDefinition) {
+  return IsDefinition ? attributes::LocationDefinition :
+                        attributes::LocationReferences;
+}
+
+inline std::string serializeLocation(const model::Type &T) {
+  return pipeline::serializedLocation(revng::ranks::Type, T.key());
+}
+
+inline Tag getNameTag(const model::Type &T) {
+  return ptml::tokenTag(T.name(), ptml::c::tokens::Type);
+}
+
+template<bool IsDefinition>
+inline Tag getLocationTag(const model::Type &T) {
+  auto Result = getNameTag(T).addAttribute(locationAttribute(IsDefinition),
+                                           serializeLocation(T));
+  // non-primitive types are editable
+  if (not llvm::isa<model::PrimitiveType>(&T))
+    Result.addAttribute(attributes::ModelEditPath,
+                        modelEditPath::getCustomNamePath(T));
+  return Result;
+}
+
+inline Tag getLocationDefinitionTag(const model::Type &T) {
+  return getLocationTag<true>(T);
+}
+
+inline Tag getLocationReferenceTag(const model::Type &T) {
+  return getLocationTag<false>(T);
+}
+
+inline std::string serializeLocation(const model::Segment &T) {
+  return pipeline::serializedLocation(revng::ranks::Segment, T.key());
+}
+
+inline Tag getNameTag(const model::Segment &S) {
+  return ptml::tokenTag(S.name(), ptml::c::tokens::Variable);
+}
+
+template<bool IsDefinition>
+inline Tag getLocationTag(const model::Segment &S) {
+  return getNameTag(S)
+    .addAttribute(locationAttribute(IsDefinition), serializeLocation(S))
+    .addAttribute(attributes::ModelEditPath,
+                  modelEditPath::getCustomNamePath(S));
+}
+
+inline Tag getLocationDefinitionTag(const model::Segment &S) {
+  return getLocationTag<true>(S);
+}
+
+inline Tag getLocationReferenceTag(const model::Segment &S) {
+  return getLocationTag<false>(S);
+}
+
+inline std::string
+serializeLocation(const model::EnumType &Enum, const model::EnumEntry &Entry) {
+  return pipeline::serializedLocation(revng::ranks::EnumEntry,
+                                      Enum.key(),
+                                      Entry.key());
+}
+
+inline std::string serializeLocation(const model::StructType &Struct,
+                                     const model::StructField &Field) {
+  return pipeline::serializedLocation(revng::ranks::StructField,
+                                      Struct.key(),
+                                      Field.key());
+}
+
+inline std::string serializeLocation(const model::UnionType &Union,
+                                     const model::UnionField &Field) {
+  return pipeline::serializedLocation(revng::ranks::UnionField,
+                                      Union.key(),
+                                      Field.key());
+}
+
+inline Tag
+getNameTag(const model::EnumType &Enum, const model::EnumEntry &Entry) {
+  return ptml::tokenTag(Enum.name().str().str() + "_"
+                          + Entry.CustomName.str().str(),
+                        c::tokens::Field);
+}
+
+template<bool IsDefinition>
+inline Tag
+getLocationTag(const model::EnumType &Enum, const model::EnumEntry &Entry) {
+  return getNameTag(Enum, Entry)
+    .addAttribute(locationAttribute(IsDefinition),
+                  serializeLocation(Enum, Entry))
+    .addAttribute(attributes::ModelEditPath,
+                  modelEditPath::getCustomNamePath(Enum, Entry));
+}
+
+// clang-format off
+template<typename Field>
+concept ModelStructOrUnionField =
+  std::same_as<Field, model::StructField>
+  or std::same_as<Field, model::UnionField>;
+// clang-format on
+
+template<ModelStructOrUnionField Field>
+inline Tag getNameTag(const Field &F) {
+  return ptml::tokenTag(F.name(), c::tokens::Field);
+}
+
+template<typename Aggregate, typename Field>
+concept ModelStructOrUnionWithField =
+  (std::same_as<model::StructType,
+                Aggregate> and std::same_as<model::StructField, Field>)
+  or (std::same_as<model::UnionType,
+                   Aggregate> and std::same_as<model::UnionField, Field>);
+
+template<bool IsDefinition, typename Aggregate, typename Field>
+requires ModelStructOrUnionWithField<Aggregate, Field>
+inline Tag getLocationTag(const Aggregate &A, const Field &F) {
+  return getNameTag(F)
+    .addAttribute(locationAttribute(IsDefinition), serializeLocation(A, F))
+    .addAttribute(attributes::ModelEditPath,
+                  modelEditPath::getCustomNamePath(A, F));
+}
+
+// clang-format off
+template<typename Aggregate, typename Field>
+concept ModelAggregateWithField =
+  ModelStructOrUnionWithField<Aggregate, Field>
+  or (std::same_as<model::EnumType, Aggregate>
+      and std::same_as<model::EnumEntry, Field>);
+// clang-format on
+
+template<typename Aggregate, typename Field>
+requires ModelAggregateWithField<Aggregate, Field>
+inline Tag getLocationDefinitionTag(const Aggregate &A, const Field &F) {
+  return getLocationTag<true>(A, F);
+}
+
+template<typename Aggregate, typename Field>
+requires ModelAggregateWithField<Aggregate, Field>
+inline Tag getLocationReferenceTag(const Aggregate &A, const Field &F) {
+  return getLocationTag<false>(A, F);
+}
+
+} // namespace ptml

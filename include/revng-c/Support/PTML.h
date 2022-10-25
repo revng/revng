@@ -4,9 +4,11 @@
 // Copyright rev.ng Labs Srl. See LICENSE.md for details.
 //
 
+#include "revng/PTML/Constants.h"
+
 namespace ptml::c {
 
-namespace tokenTypes {
+namespace tokens {
 
 inline constexpr auto Function = "c.function";
 inline constexpr auto Type = "c.type";
@@ -20,7 +22,7 @@ inline constexpr auto StringLiteral = "c.string_literal";
 inline constexpr auto Keyword = "c.keyword";
 inline constexpr auto Directive = "c.directive";
 
-} // namespace tokenTypes
+} // namespace tokens
 
 namespace scopes {
 
@@ -29,7 +31,26 @@ inline constexpr auto FunctionBody = "c.function_body";
 inline constexpr auto Scope = "c.scope";
 inline constexpr auto StructBody = "c.struct";
 inline constexpr auto UnionBody = "c.union";
+inline constexpr auto TypeDeclarationsList = "c.type_declarations_list";
+inline constexpr auto FunctionDeclarationsList = "c.function_declarations_"
+                                                 "list";
+inline constexpr auto DynamicFunctionDeclarationsList = "c.dynamic_"
+                                                        "function_"
+                                                        "declaration"
+                                                        "s_list";
+inline constexpr auto SegmentDeclarationsList = "c.segment_"
+                                                "declarations_"
+                                                "list";
 
 } // namespace scopes
 
 } // namespace ptml::c
+
+namespace ptml {
+
+inline Tag tokenTag(const llvm::StringRef Str, const llvm::StringRef Token) {
+  return ptml::Tag(ptml::tags::Span, Str)
+    .addAttribute(ptml::attributes::Token, Token);
+}
+
+} // namespace ptml
