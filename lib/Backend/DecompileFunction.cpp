@@ -770,26 +770,15 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
           const auto *UnqualType = CurType.UnqualifiedType.getConst();
 
           if (auto *Struct = dyn_cast<model::StructType>(UnqualType)) {
-            CurExpr += Tag(tags::Span, Struct->Fields.at(FieldIdx).name().str())
-                         .addAttribute(attributes::Token, tokens::Field)
-                         .addAttribute(attributes::LocationReferences,
-                                       serializedLocation(ranks::StructField,
-                                                          Struct->key(),
-                                                          FieldIdx))
-                         .addAttribute(attributes::ModelEditPath,
-                                       getCustomNamePath(*Struct, FieldIdx))
-                         .serialize();
+            const model::StructField &Field = Struct->Fields.at(FieldIdx);
+            auto FieldRefTag = ptml::getLocationReferenceTag(*Struct, Field);
+            CurExpr += FieldRefTag.serialize();
             CurType = Struct->Fields.at(FieldIdx).Type;
+
           } else if (auto *Union = dyn_cast<model::UnionType>(UnqualType)) {
-            CurExpr += Tag(tags::Span, Union->Fields.at(FieldIdx).name().str())
-                         .addAttribute(attributes::Token, tokens::Field)
-                         .addAttribute(attributes::LocationReferences,
-                                       serializedLocation(ranks::UnionField,
-                                                          Union->key(),
-                                                          FieldIdx))
-                         .addAttribute(attributes::ModelEditPath,
-                                       getCustomNamePath(*Union, FieldIdx))
-                         .serialize();
+            const model::UnionField &Field = Union->Fields.at(FieldIdx);
+            auto FieldRefTag = ptml::getLocationReferenceTag(*Union, Field);
+            CurExpr += FieldRefTag.serialize();
             CurType = Union->Fields.at(FieldIdx).Type;
 
           } else {
@@ -900,14 +889,7 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
     model::Segment Segment = Model.Segments.at({ StartAddress, VirtualSize });
     auto Name = Segment.name();
 
-    Expression = Tag(tags::Span, Segment.name().str())
-                   .addAttribute(attributes::Token, tokens::Variable)
-                   .addAttribute(attributes::ModelEditPath,
-                                 getCustomNamePath(Segment))
-                   .addAttribute(attributes::LocationReferences,
-                                 serializedLocation(ranks::Segment,
-                                                    Segment.key()))
-                   .serialize();
+    Expression = ptml::getLocationReferenceTag(Segment).serialize();
 
   } else if (FunctionTags::Assign.isTagOf(CalledFunc)) {
     const llvm::Value *StoredVal = Call->getArgOperand(0);
