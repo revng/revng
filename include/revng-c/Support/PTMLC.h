@@ -95,6 +95,7 @@ inline Tag keyword(const llvm::StringRef str) {
     .addAttribute(ptml::attributes::Token, ptml::c::tokens::Keyword);
 }
 
+inline const Tag Const = keyword("const");
 inline const Tag Case = keyword("case");
 inline const Tag Switch = keyword("switch");
 inline const Tag While = keyword("while");

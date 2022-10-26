@@ -111,9 +111,7 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
         switch (Q.Kind) {
 
         case model::QualifierKind::Const:
-          Result.append(Tag(tags::Span, "const")
-                          .addAttribute(attributes::Token, tokens::Operator)
-                          .serialize());
+          Result.append(keywords::Const.serialize());
           PrevPointer = false;
           break;
         case model::QualifierKind::Pointer:
@@ -173,10 +171,8 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
         // there's no need to do that, because we're still gonna print the
         // const-qualifier for the element.
         if (not ElementIsConstQualified) {
-          const auto &Const = Tag(tags::Span, "const")
-                                .addAttribute(attributes::Token,
-                                              tokens::Operator)
-                                .serialize();
+
+          const auto &Const = keywords::Const.serialize();
           Result = (Twine(" ") + Twine(Const) + Twine(" ") + Twine(Result))
                      .str();
         }
