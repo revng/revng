@@ -913,7 +913,7 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
       FunctionName = model::Identifier::fromString(FuncName).str().str();
     Tag FunctionTag = ptml::tokenTag(FunctionName, tokens::Function)
                         .addAttribute(attributes::LocationReferences,
-                                      serializedLocation(ranks::Helpers,
+                                      serializedLocation(ranks::HelperFunction,
                                                          FunctionName));
     Expression = buildFuncCallExpr(Call,
                                    FunctionTag.serialize(),
@@ -930,7 +930,7 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
 
       // Declare a new local variable if it hasn't already been declared
       if (VarNames.hasDeclaration())
-        Out << getReturnType(Call->getCalledFunction()).Use << " "
+        Out << getReturnTypeReference(Call->getCalledFunction()) << " "
             << VarNames.Declaration;
       else
         Out << VarNames.Use;
@@ -1718,7 +1718,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
             Out << getReturnTypeName(*RawPrototype) << " "
                 << VarName.Declaration << ";\n";
           } else {
-            Out << getReturnType(CalledFunction).Use << " "
+            Out << getReturnTypeReference(CalledFunction) << " "
                 << VarName.Declaration << ";\n";
           }
         }

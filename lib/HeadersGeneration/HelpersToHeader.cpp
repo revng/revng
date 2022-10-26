@@ -40,38 +40,39 @@ static Logger<> Log{ "helpers-to-header" };
 /// Print the declaration a C struct corresponding to an LLVM struct
 /// type.
 static void printDefinition(const llvm::StructType *S,
-                            const VariableTokensWithName Struct,
+                            const llvm::Function &F,
                             ptml::PTMLIndentedOstream &Header) {
   Header << keywords::Typedef << " " << keywords::Struct << " "
          << helpers::Packed << " ";
+
+  auto StructName = getReturnTypeStructName(F);
   {
     Scope Scope(Header, scopeTags::Struct);
 
     for (const auto &Field : llvm::enumerate(S->elements())) {
       auto Info = getFieldInfo(S, Field.index());
-      Header
-        << ptml::tokenTag(Info.FieldTypeName, tokens::Type) << " "
-        << Tag(tags::Span, Info.FieldName.str())
-             .addAttribute(attributes::Token, tokens::Field)
-             .addAttribute(attributes::LocationDefinition,
-                           serializedLocation(ranks::HelperStructField,
-                                              Struct.VariableName.str().str(),
-                                              Info.FieldName.str().str()))
-        << ";\n";
+      Header << Info.FieldTypeName << " "
+             << Tag(tags::Span, Info.FieldName.str())
+                  .addAttribute(attributes::Token, tokens::Field)
+                  .addAttribute(attributes::LocationDefinition,
+                                serializedLocation(ranks::HelperStructField,
+                                                   StructName.str().str(),
+                                                   Info.FieldName.str().str()))
+             << ";\n";
     }
   }
 
-  Header << " " << Struct.Declaration << ";\n";
+  Header << " " << getReturnTypeDefinition(&F) << ";\n";
 }
 
 /// Print the prototype of a helper .
 static void printHelperPrototype(const llvm::Function *Func,
                                  ptml::PTMLIndentedOstream &Header) {
-  Header << getReturnType(Func).Use << " "
+  Header << getReturnTypeReference(Func) << " "
          << ptml::tokenTag(model::Identifier::fromString(Func->getName()).str(),
                            tokens::Function)
               .addAttribute(attributes::LocationDefinition,
-                            serializedLocation(ranks::Helpers,
+                            serializedLocation(ranks::HelperFunction,
                                                Func->getName().str()));
 
   if (Func->arg_empty()) {
@@ -81,16 +82,7 @@ static void printHelperPrototype(const llvm::Function *Func,
     const llvm::StringRef Comma = ", ";
     llvm::StringRef Separator = Open;
     for (const auto &Arg : Func->args()) {
-      auto Type = getScalarCType(Arg.getType());
-      std::string TypeTag;
-      if (Type.endswith(" *")) {
-        Type.pop_back_n(2);
-        TypeTag = ptml::tokenTag(Type.str(), tokens::Type) + " "
-                  + operators::PointerDereference;
-      } else {
-        TypeTag = ptml::tokenTag(Type.str(), tokens::Type).serialize();
-      }
-      Header << Separator << TypeTag;
+      Header << Separator << getScalarCType(Arg.getType());
       Separator = Comma;
     }
     Header << ");\n";
@@ -122,8 +114,7 @@ bool dumpHelpersToHeader(const llvm::Module &M, llvm::raw_ostream &Out) {
         // Print the declaration of the return type, if it's not scalar
         const auto *RetTy = F.getReturnType();
         if (auto *RetStructTy = dyn_cast<llvm::StructType>(RetTy)) {
-          const auto &StructName = getReturnType(&F);
-          printDefinition(RetStructTy, StructName, Header);
+          printDefinition(RetStructTy, F, Header);
         }
 
         for (auto &Arg : F.args())

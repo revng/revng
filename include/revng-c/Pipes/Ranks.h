@@ -29,8 +29,9 @@ inline const constexpr ConstexprString SV("special-variable");
 inline auto SpecialVariable = defineRank<SV, std::string>(Function);
 inline auto LocalVariable = defineRank<"local-variable", std::string>(Function);
 
-inline auto Helpers = defineRank<"helpers", std::string>(Binary);
+inline auto HelperFunction = defineRank<"helper-function", std::string>(Binary);
+inline auto HelperStruct = defineRank<"helper-struct", std::string>(Binary);
 inline const constexpr ConstexprString HSF("helper-struct-field");
-inline auto HelperStructField = defineRank<HSF, std::string>(Helpers);
+inline auto HelperStructField = defineRank<HSF, std::string>(HelperStruct);
 
 } // namespace revng::ranks
