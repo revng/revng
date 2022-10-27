@@ -14,8 +14,10 @@
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/Process.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Regex.h"
+#include "llvm/Support/StringSaver.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Model/Importer/Binary/BinaryImporterOptions.h"
@@ -23,6 +25,7 @@
 #include "revng/Model/RawBinaryView.h"
 #include "revng/Recompile/LinkForTranslation.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/PathList.h"
 #include "revng/Support/ProgramRunner.h"
 #include "revng/Support/ResourceFinder.h"
 #include "revng/Support/TemporaryFile.h"
@@ -60,9 +63,9 @@ defineProgramHeadersSymbols(RawBinaryView &BinaryView,
     revng_assert(ProgramHeadersAddress.isValid());
 
     auto Address = Twine::utohexstr(ProgramHeadersAddress.address()).str();
-    return { ("-Wl,--defsym=e_phnum=0x" + Twine(Header.e_phnum)).str(),
-             ("-Wl,--defsym=e_phentsize=0x" + Twine(Header.e_phentsize)).str(),
-             "-Wl,--defsym=phdr_address=0x" + Address };
+    return { ("--defsym=e_phnum=0x" + Twine(Header.e_phnum)).str(),
+             ("--defsym=e_phentsize=0x" + Twine(Header.e_phentsize)).str(),
+             "--defsym=phdr_address=0x" + Address };
   };
 
   auto MaybeObject = ObjectFile::createELFObjectFile(Data);
@@ -136,6 +139,13 @@ public:
   }
 };
 
+template<typename T = std::string,
+         typename Container = std::initializer_list<T>>
+void appendTo(Container &&Range, auto &Destination) {
+  for (auto &&Element : Range)
+    Destination.push_back(std::forward<decltype(Element)>(Element));
+}
+
 static CommandList linkingArgs(const model::Binary &Model,
                                llvm::StringRef InputBinary,
                                llvm::StringRef ObjectFile,
@@ -155,22 +165,36 @@ static CommandList linkingArgs(const model::Binary &Model,
   llvm::MemoryBuffer &Buffer = **MaybeBuffer;
   RawBinaryView BinaryView(Model, Buffer.getBuffer());
 
-  Command Linker("c++");
-  Linker.Arguments = { ObjectFile.str(),
-                       "-lz",
-                       "-lm",
-                       "-lrt",
-                       "-lpthread",
-                       "-L./",
-                       "-no-pie",
-                       "-o",
-                       LinkerOutput.path().str(),
-                       ("-Wl,-z,max-page-size=" + Twine(PageSize)).str(),
-                       "-fuse-ld=bfd" };
+  Command Linker("ld.bfd");
+
+  // Parse options from environment variable.
+  if (auto EnvValue = sys::Process::GetEnv("REVNG_TRANSLATE_LDFLAGS")) {
+    SmallVector<const char *, 20> ExtraArguments;
+    BumpPtrAllocator A;
+    StringSaver Saver(A);
+    cl::TokenizeGNUCommandLine(*EnvValue, Saver, ExtraArguments);
+
+    appendTo(ExtraArguments, Linker.Arguments);
+  }
+
+  // Disable PIE
+  appendTo({ "-no-pie" }, Linker.Arguments);
+
+  // Disable huge pages
+  appendTo({ "-z", ("max-page-size=" + Twine(PageSize)).str() },
+           Linker.Arguments);
+
+  // Output file
+  appendTo({ "-o", LinkerOutput.path().str() }, Linker.Arguments);
 
   revng_assert(Model.Segments.size() > 0);
   uint64_t Min = Model.Segments.begin()->StartAddress.address();
   uint64_t Max = Model.Segments.begin()->endAddress().address();
+
+  // Link opening crt files
+  appendTo({ "-l:crt1.o", "-l:crti.o", "-l:crtbegin.o" }, Linker.Arguments);
+
+  Linker.Arguments.push_back(ObjectFile.str());
 
   for (auto &[Segment, Data] : BinaryView.segments()) {
     // Compute section name
@@ -229,25 +253,41 @@ static CommandList linkingArgs(const model::Binary &Model,
 
     // Force section address at link-time
     const auto &StartAddr = Segment.StartAddress.address();
-    Linker.Arguments.push_back((Twine("-Wl,--section-start=.") + SectionName
+    Linker.Arguments.push_back((Twine("--section-start=.") + SectionName
                                 + Twine("=0x") + UToHexStr(StartAddr))
                                  .str());
   }
 
+  // Link C standard library
+  appendTo({ "/lib64/ld-linux-x86-64.so.2", "-lc", "-lm", "-lrt", "-lpthread" },
+           Linker.Arguments);
+
+  // Link additional libraries needed by helpers
+  appendTo({ "-lgcc", "-lz", "-lunwind" }, Linker.Arguments);
+
+  // Link C++ standard library, we use its personality function
+  appendTo({ "-lstdc++" }, Linker.Arguments);
+
+  appendTo({ "-dynamic-linker", "/lib64/ld-linux-x86-64.so.2" },
+           Linker.Arguments);
+
+  // Link closing crt files
+  appendTo({ "-l:crtend.o", "-l:crtn.o" }, Linker.Arguments);
+
   // Force text to start on the page after all the original program segments
   auto PageAddress = PageSize * ((Max + PageSize - 1) / PageSize);
   auto HexPageAddress = UToHexStr(PageAddress).str();
-  Linker.Arguments.push_back("-Wl,-Ttext-segment=0x" + HexPageAddress);
+  Linker.Arguments.push_back("-Ttext-segment=0x" + HexPageAddress);
 
   // Force a page before the lowest original address for the ELF header
-  auto Str = "-Wl,--section-start=.elfheaderhelper=0x";
+  auto Str = "--section-start=.elfheaderhelper=0x";
   Linker.Arguments.push_back((Str + UToHexStr(Min - 1)).str());
 
   // Link required dynamic libraries
-  Linker.Arguments.push_back("-Wl,--no-as-needed");
+  Linker.Arguments.push_back("--no-as-needed");
   for (const std::string &ImportedLibrary : Model.ImportedLibraries)
     Linker.Arguments.push_back(linkFunctionArgument(ImportedLibrary));
-  Linker.Arguments.push_back("-Wl,--as-needed");
+  Linker.Arguments.push_back("--as-needed");
 
   // Define program headers-related symbols
   llvm::copy(defineProgramHeadersSymbols(BinaryView, Buffer),
