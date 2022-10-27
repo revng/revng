@@ -17,7 +17,10 @@
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/Process.h"
+#include "llvm/Support/StringSaver.h"
 
+#include "revng/Support/PathList.h"
 #include "revng/Model/Importer/Binary/BinaryImporterOptions.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/RawBinaryView.h"
@@ -136,6 +139,12 @@ public:
   }
 };
 
+template <typename T = std::string, typename Container = std::initializer_list<T>>
+void appendTo(Container &&Range, auto &Destination) {
+  for (auto &&Element : Range)
+    Destination.push_back(std::forward<decltype(Element)>(Element));
+}
+
 static CommandList linkingArgs(const model::Binary &Model,
                                llvm::StringRef InputBinary,
                                llvm::StringRef ObjectFile,
@@ -155,22 +164,38 @@ static CommandList linkingArgs(const model::Binary &Model,
   llvm::MemoryBuffer &Buffer = **MaybeBuffer;
   RawBinaryView BinaryView(Model, Buffer.getBuffer());
 
-  Command Linker("c++");
-  Linker.Arguments = { ObjectFile.str(),
-                       "-lz",
-                       "-lm",
-                       "-lrt",
-                       "-lpthread",
-                       "-L./",
-                       "-no-pie",
-                       "-o",
-                       LinkerOutput.path().str(),
-                       ("-Wl,-z,max-page-size=" + Twine(PageSize)).str(),
-                       "-fuse-ld=bfd" };
+  Command Linker("ld.bfd");
+
+  // Parse options from environment variable.
+  if (auto EnvValue = sys::Process::GetEnv("REVNG_TRANSLATE_LDFLAGS")) {
+    SmallVector<const char *, 20> ExtraArguments;
+    BumpPtrAllocator A;
+    StringSaver Saver(A);
+    cl::TokenizeGNUCommandLine(*EnvValue, Saver, ExtraArguments);
+
+    appendTo(ExtraArguments, Linker.Arguments);
+  }
+
+  appendTo({
+      "-L./",
+      "-no-pie",
+      "-o", LinkerOutput.path().str(),
+      "-z", ("max-page-size=" + Twine(PageSize)).str()
+    },
+    Linker.Arguments);
 
   revng_assert(Model.Segments.size() > 0);
   uint64_t Min = Model.Segments.begin()->StartAddress.address();
   uint64_t Max = Model.Segments.begin()->endAddress().address();
+
+  appendTo({
+      "-l:crt1.o",
+      "-l:crti.o",
+      "-l:crtbegin.o"
+    },
+    Linker.Arguments);
+
+  Linker.Arguments.push_back(ObjectFile.str());
 
   for (auto &[Segment, Data] : BinaryView.segments()) {
     // Compute section name
@@ -234,6 +259,35 @@ static CommandList linkingArgs(const model::Binary &Model,
                                  .str());
   }
 
+  appendTo({
+      "/lib64/ld-linux-x86-64.so.2",
+      "-lc",
+      "-lm",
+      "-lrt",
+      "-lpthread"
+    },
+    Linker.Arguments);
+
+  appendTo({
+      "-lstdc++",
+      "-lgcc",
+      "-lz",
+      "-lunwind",
+    },
+    Linker.Arguments);
+
+  appendTo({
+      "-dynamic-linker",
+      "/lib64/ld-linux-x86-64.so.2",
+    },
+    Linker.Arguments);
+
+  appendTo({
+      "-l:crtend.o",
+      "-l:crtn.o",
+    },
+    Linker.Arguments);
+
   // Force text to start on the page after all the original program segments
   auto PageAddress = PageSize * ((Max + PageSize - 1) / PageSize);
   auto HexPageAddress = UToHexStr(PageAddress).str();
@@ -252,6 +306,10 @@ static CommandList linkingArgs(const model::Binary &Model,
   // Define program headers-related symbols
   llvm::copy(defineProgramHeadersSymbols(BinaryView, Buffer),
              std::back_inserter(Linker.Arguments));
+
+  for (const auto &Argument : Linker.Arguments)
+    dbg << Argument << "\n";
+  dbg << "\n";
 
   Result.enqueueCommand(std::move(Linker));
 
