@@ -256,7 +256,15 @@ static void printFunctionPrototypeImpl(const model::RawFunctionType &RF,
                                        llvm::raw_ostream &Header,
                                        const model::Binary &Model,
                                        bool Declaration) {
-  Header << getReturnTypeName(RF) << " " << FunctionName;
+  Header << getReturnTypeName(RF);
+  if (RF.ReturnValues.size() == 1) {
+    const model::QualifiedType &ReturnType = RF.ReturnValues.begin()->Type;
+    if (not ReturnType.isPointer() or ReturnType.isConst())
+      Header << " ";
+  } else {
+    Header << " ";
+  }
+  Header << FunctionName;
 
   revng_assert(RF.StackArgumentsType.Qualifiers.empty());
   if (RF.Arguments.empty()
@@ -291,7 +299,10 @@ static void printFunctionPrototypeImpl(const model::CABIFunctionType &CF,
                                        llvm::raw_ostream &Header,
                                        const model::Binary &Model,
                                        bool Declaration) {
-  Header << getReturnTypeName(CF) << " " << FunctionName;
+  Header << getReturnTypeName(CF);
+  if (not CF.ReturnType.isPointer() or CF.ReturnType.isConst())
+    Header << " ";
+  Header << FunctionName;
 
   if (CF.Arguments.empty()) {
     Header << "(" << ptml::tokenTag("void", tokens::Type) << ")";
