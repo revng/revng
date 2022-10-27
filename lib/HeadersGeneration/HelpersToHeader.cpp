@@ -32,7 +32,6 @@ using pipeline::serializedLocation;
 using ptml::Tag;
 namespace tags = ptml::tags;
 namespace attributes = ptml::attributes;
-namespace tokens = ptml::c::tokens;
 namespace ranks = revng::ranks;
 
 static Logger<> Log{ "helpers-to-header" };
@@ -45,38 +44,27 @@ static void printDefinition(const llvm::StructType *S,
   Header << keywords::Typedef << " " << keywords::Struct << " "
          << helpers::Packed << " ";
 
-  auto StructName = getReturnTypeStructName(F);
   {
     Scope Scope(Header, scopeTags::Struct);
 
     for (const auto &Field : llvm::enumerate(S->elements())) {
-      auto Info = getFieldInfo(S, Field.index());
-      Header << Info.FieldTypeName << " "
-             << Tag(tags::Span, Info.FieldName.str())
-                  .addAttribute(attributes::Token, tokens::Field)
-                  .addAttribute(attributes::LocationDefinition,
-                                serializedLocation(ranks::HelperStructField,
-                                                   StructName.str().str(),
-                                                   Info.FieldName.str().str()))
+      Header << getReturnStructFieldType(&F, Field.index()) << " "
+             << getReturnStructFieldLocationDefinition(&F, Field.index())
              << ";\n";
     }
   }
 
-  Header << " " << getReturnTypeDefinition(&F) << ";\n";
+  Header << " " << getReturnTypeLocationDefinition(&F) << ";\n";
 }
 
 /// Print the prototype of a helper .
 static void printHelperPrototype(const llvm::Function *Func,
                                  ptml::PTMLIndentedOstream &Header) {
-  Header << getReturnTypeReference(Func) << " "
-         << ptml::tokenTag(model::Identifier::fromString(Func->getName()).str(),
-                           tokens::Function)
-              .addAttribute(attributes::LocationDefinition,
-                            serializedLocation(ranks::HelperFunction,
-                                               Func->getName().str()));
+  Header << getReturnTypeLocationReference(Func) << " "
+         << getHelperFunctionLocationDefinition(Func);
 
   if (Func->arg_empty()) {
-    Header << "(" + ptml::tokenTag("void", tokens::Type) + ");\n";
+    Header << "(" + ptml::tokenTag("void", ptml::c::tokens::Type) + ");\n";
   } else {
     const llvm::StringRef Open = "(";
     const llvm::StringRef Comma = ", ";
@@ -100,11 +88,8 @@ bool dumpHelpersToHeader(const llvm::Module &M, llvm::raw_ostream &Out) {
     Header << "\n";
 
     for (const llvm::Function &F : M.functions()) {
-      const auto &FuncName = F.getName();
       if (FunctionTags::QEMU.isTagOf(&F) or FunctionTags::Helper.isTagOf(&F)
-          or F.isIntrinsic() or FuncName.startswith("llvm.")
-          or FuncName.startswith("init_")
-          or FuncName.startswith("revng_init_")) {
+          or FunctionTags::OpaqueCSVValue.isTagOf(&F) or F.isIntrinsic()) {
 
         if (Log.isEnabled()) {
           auto LineCommentScope = helpers::LineComment(Header);
@@ -115,12 +100,14 @@ bool dumpHelpersToHeader(const llvm::Module &M, llvm::raw_ostream &Out) {
         const auto *RetTy = F.getReturnType();
         if (auto *RetStructTy = dyn_cast<llvm::StructType>(RetTy)) {
           printDefinition(RetStructTy, F, Header);
+          Header << '\n';
         }
 
         for (auto &Arg : F.args())
           revng_assert(Arg.getType()->isSingleValueType());
 
         printHelperPrototype(&F, Header);
+        Header << '\n';
       }
     }
   }

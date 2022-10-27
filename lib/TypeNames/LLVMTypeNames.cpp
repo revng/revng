@@ -21,11 +21,15 @@
 #include "revng-c/TypeNames/LLVMTypeNames.h"
 
 using llvm::Twine;
-using tokenDefinition::types::TypeString;
-using namespace ArtificialTypes;
+
+constexpr const char *const StructWrapperPrefix = "artificial_struct_returned_"
+                                                  "by_";
+constexpr const char *const StructFieldPrefix = "field_";
 
 namespace tokens = ptml::c::tokens;
 namespace ranks = revng::ranks;
+namespace tags = ptml::tags;
+namespace attributes = ptml::attributes;
 
 std::string getScalarCType(const llvm::Type *LLVMType) {
   switch (LLVMType->getTypeID()) {
@@ -88,26 +92,30 @@ std::string getScalarCType(const llvm::Type *LLVMType) {
   }
 }
 
-tokenDefinition::types::TypeString
-getReturnTypeStructName(const llvm::Function &F) {
-  revng_assert(F.getReturnType()->isStructTy());
-  TypeString Result = llvm::StringRef(StructWrapperPrefix);
-  Result.append(model::Identifier::fromString(F.getName()));
-  return Result;
+static std::string getHelperFunctionIdentifier(const llvm::Function *F) {
+  revng_assert(not FunctionTags::Isolated.isTagOf(F));
+  return model::Identifier::fromString(F->getName()).str().str();
 }
 
-static std::string serializeHelperStructLocation(llvm::StringRef Name) {
-  return pipeline::serializedLocation(revng::ranks::HelperStruct, Name.str());
+static std::string getReturnedStructIdentifier(const llvm::Function *F) {
+  revng_assert(not FunctionTags::Isolated.isTagOf(F));
+  revng_assert(llvm::isa<llvm::StructType>(F->getReturnType()));
+  return (Twine(StructWrapperPrefix) + Twine(getHelperFunctionIdentifier(F)))
+    .str();
+}
+
+static std::string serializeHelperStructLocation(const std::string &Name) {
+  return pipeline::serializedLocation(revng::ranks::HelperStruct, Name);
 }
 
 template<bool IsDefinition>
-static std::string getReturnType(const llvm::Function *Func) {
-  auto *RetType = Func->getReturnType();
+static std::string getReturnTypeLocation(const llvm::Function *F) {
+  auto *RetType = F->getReturnType();
   // Isolated functions' return types must be converted using model types
-  revng_assert(not FunctionTags::Isolated.isTagOf(Func));
+  revng_assert(not FunctionTags::Isolated.isTagOf(F));
 
   if (RetType->isStructTy()) {
-    auto StructName = getReturnTypeStructName(*Func);
+    std::string StructName = getReturnedStructIdentifier(F);
     return ptml::tokenTag(StructName, tokens::Type)
       .addAttribute(ptml::locationAttribute(IsDefinition),
                     serializeHelperStructLocation(StructName))
@@ -117,18 +125,71 @@ static std::string getReturnType(const llvm::Function *Func) {
   }
 }
 
-std::string getReturnTypeDefinition(const llvm::Function *Func) {
-  return getReturnType<false>(Func);
+std::string getReturnTypeLocationDefinition(const llvm::Function *F) {
+  return getReturnTypeLocation<false>(F);
 }
 
-std::string getReturnTypeReference(const llvm::Function *Func) {
-  return getReturnType<true>(Func);
+std::string getReturnTypeLocationReference(const llvm::Function *F) {
+  return getReturnTypeLocation<true>(F);
 }
 
-FieldInfo getFieldInfo(const llvm::StructType *StructTy, size_t Index) {
-  FieldInfo FieldInfo;
-  FieldInfo.FieldName = TypeString((StructFieldPrefix + Twine(Index)).str());
-  std::string CTypeName = getScalarCType(StructTy->getTypeAtIndex(Index));
-  FieldInfo.FieldTypeName.assign(CTypeName);
-  return FieldInfo;
+std::string getReturnStructFieldType(const llvm::Function *F, size_t Index) {
+  revng_assert(not FunctionTags::Isolated.isTagOf(F));
+  auto *StructTy = llvm::cast<llvm::StructType>(F->getReturnType());
+  return getScalarCType(StructTy->getTypeAtIndex(Index));
+}
+
+static std::string
+serializeHelperStructFieldLocation(const std::string &StructName,
+                                   const std::string &FieldName) {
+  revng_assert(not StructName.empty() and not FieldName.empty());
+  return pipeline::serializedLocation(revng::ranks::HelperStructField,
+                                      StructName,
+                                      FieldName);
+}
+
+template<bool IsDefinition>
+static std::string
+getReturnStructFieldLocation(const llvm::Function *F, size_t Index) {
+  revng_assert(not FunctionTags::Isolated.isTagOf(F));
+  revng_assert(F->getReturnType()->isStructTy());
+
+  std::string StructName = getReturnedStructIdentifier(F);
+  std::string FieldName = (Twine(StructFieldPrefix) + Twine(Index)).str();
+  return ptml::Tag(tags::Span, FieldName)
+    .addAttribute(attributes::Token, tokens::Field)
+    .addAttribute(ptml::locationAttribute(IsDefinition),
+                  serializeHelperStructFieldLocation(StructName, FieldName))
+    .serialize();
+}
+
+std::string
+getReturnStructFieldLocationDefinition(const llvm::Function *F, size_t Index) {
+  return getReturnStructFieldLocation<true>(F, Index);
+}
+
+std::string
+getReturnStructFieldLocationReference(const llvm::Function *F, size_t Index) {
+  return getReturnStructFieldLocation<false>(F, Index);
+}
+
+static std::string serializeHelperFunctionLocation(const llvm::Function *F) {
+  return pipeline::serializedLocation(revng::ranks::HelperFunction,
+                                      F->getName().str());
+}
+
+template<bool IsDefinition>
+static std::string getHelperFunctionLocation(const llvm::Function *F) {
+  return ptml::tokenTag(getHelperFunctionIdentifier(F), tokens::Function)
+    .addAttribute(ptml::locationAttribute(IsDefinition),
+                  serializeHelperFunctionLocation(F))
+    .serialize();
+}
+
+std::string getHelperFunctionLocationDefinition(const llvm::Function *F) {
+  return getHelperFunctionLocation<true>(F);
+}
+
+std::string getHelperFunctionLocationReference(const llvm::Function *F) {
+  return getHelperFunctionLocation<false>(F);
 }

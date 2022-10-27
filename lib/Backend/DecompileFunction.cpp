@@ -906,18 +906,11 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
 
   } else if (FunctionTags::QEMU.isTagOf(CalledFunc)
              or FunctionTags::Helper.isTagOf(CalledFunc)
-             or CalledFunc->isIntrinsic()
-             or FunctionTags::OpaqueCSVValue.isTagOf(CalledFunc)) {
+             or FunctionTags::OpaqueCSVValue.isTagOf(CalledFunc)
+             or CalledFunc->isIntrinsic()) {
 
-    std::string
-      FunctionName = model::Identifier::fromString(FuncName).str().str();
-    Tag FunctionTag = ptml::tokenTag(FunctionName, tokens::Function)
-                        .addAttribute(attributes::LocationReferences,
-                                      serializedLocation(ranks::HelperFunction,
-                                                         FunctionName));
-    Expression = buildFuncCallExpr(Call,
-                                   FunctionTag.serialize(),
-                                   /*prototype=*/nullptr);
+    std::string HelperRef = getHelperFunctionLocationReference(CalledFunc);
+    Expression = buildFuncCallExpr(Call, HelperRef, /*prototype=*/nullptr);
 
     // If this call returns an aggregate type, we have to serialize the call
     // immediately and declare a local variable for it on-the-fly. This is
@@ -930,7 +923,7 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
 
       // Declare a new local variable if it hasn't already been declared
       if (VarNames.hasDeclaration())
-        Out << getReturnTypeReference(Call->getCalledFunction()) << " "
+        Out << getReturnTypeLocationReference(Call->getCalledFunction()) << " "
             << VarNames.Declaration;
       else
         Out << VarNames.Use;
@@ -1184,16 +1177,36 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
     // Note: ExtractValues at this point should have been already
     // handled when visiting the instruction that generated their
     // struct operand
-    // revng_assert(TokenMap.contains(&I));
     revng_assert(ExtractVal->getNumIndices() == 1);
-
     const auto &Idx = ExtractVal->getIndices().back();
     const llvm::Value *AggregateOp = ExtractVal->getAggregateOperand();
-    const auto *AggregateType = cast<llvm::StructType>(AggregateOp->getType());
 
-    Expression = (TokenMap.at(AggregateOp) + "."
-                  + getFieldInfo(AggregateType, Idx).FieldName)
-                   .str();
+    const auto *CallReturnsStruct = llvm::cast<llvm::CallInst>(AggregateOp);
+    const llvm::Function *Callee = CallReturnsStruct->getCalledFunction();
+    // Unwrap potential calls to assignment marker
+    if (Callee and FunctionTags::AssignmentMarker.isTagOf(Callee)) {
+      const llvm::Value *FirstArg = CallReturnsStruct->getArgOperand(0);
+      CallReturnsStruct = llvm::cast<llvm::CallInst>(FirstArg);
+      Callee = CallReturnsStruct->getCalledFunction();
+      revng_assert(not Callee
+                   or not FunctionTags::AssignmentMarker.isTagOf(Callee));
+    }
+
+    const auto CalleePrototype = getCallSitePrototype(Model, CallReturnsStruct);
+
+    std::string StructFieldRef;
+    if (not CalleePrototype.isValid()) {
+      // The call returning a struct is a call to a helper function.
+      // It must be a direct call.
+      revng_assert(Callee);
+      StructFieldRef = getReturnStructFieldLocationReference(Callee, Idx);
+    } else {
+      const model::Type *CalleeType = CalleePrototype.getConst();
+      const auto *RFT = llvm::cast<model::RawFunctionType>(CalleeType);
+      StructFieldRef = getReturnField(*RFT, Idx).str().str();
+    }
+
+    Expression.assign(TokenMap.at(AggregateOp) + "." + StructFieldRef);
 
   } else if (auto *Unreach = dyn_cast<llvm::UnreachableInst>(&I)) {
     Expression = "__builtin_unreachable()";
@@ -1718,7 +1731,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
             Out << getReturnTypeName(*RawPrototype) << " "
                 << VarName.Declaration << ";\n";
           } else {
-            Out << getReturnTypeReference(CalledFunction) << " "
+            Out << getReturnTypeLocationReference(CalledFunction) << " "
                 << VarName.Declaration << ";\n";
           }
         }
