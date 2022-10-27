@@ -60,9 +60,9 @@ defineProgramHeadersSymbols(RawBinaryView &BinaryView,
     revng_assert(ProgramHeadersAddress.isValid());
 
     auto Address = Twine::utohexstr(ProgramHeadersAddress.address()).str();
-    return { ("-Wl,--defsym=e_phnum=0x" + Twine(Header.e_phnum)).str(),
-             ("-Wl,--defsym=e_phentsize=0x" + Twine(Header.e_phentsize)).str(),
-             "-Wl,--defsym=phdr_address=0x" + Address };
+    return { ("--defsym=e_phnum=0x" + Twine(Header.e_phnum)).str(),
+             ("--defsym=e_phentsize=0x" + Twine(Header.e_phentsize)).str(),
+             "--defsym=phdr_address=0x" + Address };
   };
 
   auto MaybeObject = ObjectFile::createELFObjectFile(Data);
@@ -229,7 +229,7 @@ static CommandList linkingArgs(const model::Binary &Model,
 
     // Force section address at link-time
     const auto &StartAddr = Segment.StartAddress.address();
-    Linker.Arguments.push_back((Twine("-Wl,--section-start=.") + SectionName
+    Linker.Arguments.push_back((Twine("--section-start=.") + SectionName
                                 + Twine("=0x") + UToHexStr(StartAddr))
                                  .str());
   }
@@ -237,17 +237,17 @@ static CommandList linkingArgs(const model::Binary &Model,
   // Force text to start on the page after all the original program segments
   auto PageAddress = PageSize * ((Max + PageSize - 1) / PageSize);
   auto HexPageAddress = UToHexStr(PageAddress).str();
-  Linker.Arguments.push_back("-Wl,-Ttext-segment=0x" + HexPageAddress);
+  Linker.Arguments.push_back("-Ttext-segment=0x" + HexPageAddress);
 
   // Force a page before the lowest original address for the ELF header
-  auto Str = "-Wl,--section-start=.elfheaderhelper=0x";
+  auto Str = "--section-start=.elfheaderhelper=0x";
   Linker.Arguments.push_back((Str + UToHexStr(Min - 1)).str());
 
   // Link required dynamic libraries
-  Linker.Arguments.push_back("-Wl,--no-as-needed");
+  Linker.Arguments.push_back("--no-as-needed");
   for (const std::string &ImportedLibrary : Model.ImportedLibraries)
     Linker.Arguments.push_back(linkFunctionArgument(ImportedLibrary));
-  Linker.Arguments.push_back("-Wl,--as-needed");
+  Linker.Arguments.push_back("--as-needed");
 
   // Define program headers-related symbols
   llvm::copy(defineProgramHeadersSymbols(BinaryView, Buffer),
