@@ -8,7 +8,7 @@ from importlib import import_module
 from inspect import isfunction
 from pathlib import Path
 
-from .commands_registry import Command, Options, commands_registry
+from .commands_registry import Options, commands_registry
 from .support import collect_files
 
 
@@ -16,8 +16,8 @@ def extend_list(paths, new_items):
     return new_items + [path for path in paths if path not in new_items]
 
 
-# flake8: noqa: F401
-def run_revng_command(arguments, options: Options):
+def revng_driver_init(arguments) -> Options:
+    options = Options(None, [], [], False, False, False)
     modules = []
     with os.scandir(Path(__file__).parent / "_commands") as scan:
         for entry in scan:
@@ -33,12 +33,6 @@ def run_revng_command(arguments, options: Options):
         setup = getattr(module, "setup", None)
         if setup is not None and isfunction(setup):
             setup(commands_registry)
-
-    if options.verbose:
-        sys.stderr.write("{}\n\n".format(" \\\n  ".join([sys.argv[0]] + arguments)))
-
-    if options.dry_run:
-        return 0
 
     # Collect search prefixes
     prefixes = []
@@ -57,9 +51,20 @@ def run_revng_command(arguments, options: Options):
             commands_registry.register_external_command(name, executable)
 
     commands_registry.post_init()
+    return options
+
+
+def run_revng_command(arguments, options: Options):
+    if options.verbose:
+        sys.stderr.write("{}\n\n".format(" \\\n  ".join([sys.argv[0]] + arguments)))
+
+    if options.dry_run:
+        return 0
 
     return commands_registry.run(arguments, options)
 
 
 def main():
-    return run_revng_command(sys.argv[1:], Options(None, [], [], False, False, False))
+    arguments = sys.argv[1:]
+    options = revng_driver_init(arguments)
+    return run_revng_command(sys.argv[1:], options)
