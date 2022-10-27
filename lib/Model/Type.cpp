@@ -727,6 +727,23 @@ bool QualifiedType::isPointer() const {
   return isPointerImpl(*this);
 }
 
+static RecursiveCoroutine<bool> isConstImpl(const model::QualifiedType &QT) {
+  if (not QT.Qualifiers.empty()) {
+    // If there are qualifiers, just look at the first
+    rc_return Qualifier::isConst(QT.Qualifiers.front());
+  } else if (auto *TD = dyn_cast<model::TypedefType>(QT.UnqualifiedType.get())) {
+    // If there are no qualifiers, but it's a typedef, traverse it
+    rc_return rc_recur isConstImpl(TD->UnderlyingType);
+  }
+
+  // If there are no qualifiers, and it's not a typedef, it's not const.
+  rc_return false;
+}
+
+bool QualifiedType::isConst() const {
+  return isConstImpl(*this);
+}
+
 static RecursiveCoroutine<bool>
 isPrimitiveImpl(const model::QualifiedType &QT,
                 model::PrimitiveTypeKind::Values V) {
