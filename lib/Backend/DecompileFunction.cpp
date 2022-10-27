@@ -771,14 +771,12 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
 
           if (auto *Struct = dyn_cast<model::StructType>(UnqualType)) {
             const model::StructField &Field = Struct->Fields.at(FieldIdx);
-            auto FieldRefTag = ptml::getLocationReferenceTag(*Struct, Field);
-            CurExpr += FieldRefTag.serialize();
+            CurExpr += ptml::getLocationReference(*Struct, Field);
             CurType = Struct->Fields.at(FieldIdx).Type;
 
           } else if (auto *Union = dyn_cast<model::UnionType>(UnqualType)) {
             const model::UnionField &Field = Union->Fields.at(FieldIdx);
-            auto FieldRefTag = ptml::getLocationReferenceTag(*Union, Field);
-            CurExpr += FieldRefTag.serialize();
+            CurExpr += ptml::getLocationReference(*Union, Field);
             CurType = Union->Fields.at(FieldIdx).Type;
 
           } else {
@@ -889,7 +887,7 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
     model::Segment Segment = Model.Segments.at({ StartAddress, VirtualSize });
     auto Name = Segment.name();
 
-    Expression = ptml::getLocationReferenceTag(Segment).serialize();
+    Expression = ptml::getLocationReference(Segment);
 
   } else if (FunctionTags::Assign.isTagOf(CalledFunc)) {
     const llvm::Value *StoredVal = Call->getArgOperand(0);

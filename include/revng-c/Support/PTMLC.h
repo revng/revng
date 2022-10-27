@@ -277,26 +277,41 @@ inline std::string serializeLocation(const model::Type &T) {
 }
 
 inline Tag getNameTag(const model::Type &T) {
-  return ptml::tokenTag(T.name(), ptml::c::tokens::Type);
+  constexpr const char *const FunctionTypedefPrefix = "function_type_";
+  model::Identifier Name;
+
+  // Prefix for function types
+  if (llvm::isa<model::RawFunctionType>(T)
+      or llvm::isa<model::CABIFunctionType>(T))
+    Name.append(FunctionTypedefPrefix);
+
+  // Primitive types have reserved names, using model::Identifier adds an
+  // unwanted prefix
+  if (llvm::isa<model::PrimitiveType>(T))
+    Name.append(T.name());
+  else
+    Name.append(model::Identifier::fromString(T.name()));
+
+  return ptml::tokenTag(Name.str().str(), ptml::c::tokens::Type);
 }
 
 template<bool IsDefinition>
-inline Tag getLocationTag(const model::Type &T) {
+inline std::string getLocation(const model::Type &T) {
   auto Result = getNameTag(T).addAttribute(locationAttribute(IsDefinition),
                                            serializeLocation(T));
   // non-primitive types are editable
   if (not llvm::isa<model::PrimitiveType>(&T))
     Result.addAttribute(attributes::ModelEditPath,
                         modelEditPath::getCustomNamePath(T));
-  return Result;
+  return Result.serialize();
 }
 
-inline Tag getLocationDefinitionTag(const model::Type &T) {
-  return getLocationTag<true>(T);
+inline std::string getLocationDefinition(const model::Type &T) {
+  return getLocation<true>(T);
 }
 
-inline Tag getLocationReferenceTag(const model::Type &T) {
-  return getLocationTag<false>(T);
+inline std::string getLocationReference(const model::Type &T) {
+  return getLocation<false>(T);
 }
 
 inline std::string serializeLocation(const model::Segment &T) {
@@ -308,19 +323,20 @@ inline Tag getNameTag(const model::Segment &S) {
 }
 
 template<bool IsDefinition>
-inline Tag getLocationTag(const model::Segment &S) {
+inline std::string getLocation(const model::Segment &S) {
   return getNameTag(S)
     .addAttribute(locationAttribute(IsDefinition), serializeLocation(S))
     .addAttribute(attributes::ModelEditPath,
-                  modelEditPath::getCustomNamePath(S));
+                  modelEditPath::getCustomNamePath(S))
+    .serialize();
 }
 
-inline Tag getLocationDefinitionTag(const model::Segment &S) {
-  return getLocationTag<true>(S);
+inline std::string getLocationDefinition(const model::Segment &S) {
+  return getLocation<true>(S);
 }
 
-inline Tag getLocationReferenceTag(const model::Segment &S) {
-  return getLocationTag<false>(S);
+inline std::string getLocationReference(const model::Segment &S) {
+  return getLocation<false>(S);
 }
 
 inline std::string
@@ -352,13 +368,14 @@ getNameTag(const model::EnumType &Enum, const model::EnumEntry &Entry) {
 }
 
 template<bool IsDefinition>
-inline Tag
-getLocationTag(const model::EnumType &Enum, const model::EnumEntry &Entry) {
+inline std::string
+getLocation(const model::EnumType &Enum, const model::EnumEntry &Entry) {
   return getNameTag(Enum, Entry)
     .addAttribute(locationAttribute(IsDefinition),
                   serializeLocation(Enum, Entry))
     .addAttribute(attributes::ModelEditPath,
-                  modelEditPath::getCustomNamePath(Enum, Entry));
+                  modelEditPath::getCustomNamePath(Enum, Entry))
+    .serialize();
 }
 
 // clang-format off
@@ -382,11 +399,12 @@ concept ModelStructOrUnionWithField =
 
 template<bool IsDefinition, typename Aggregate, typename Field>
 requires ModelStructOrUnionWithField<Aggregate, Field>
-inline Tag getLocationTag(const Aggregate &A, const Field &F) {
+inline std::string getLocation(const Aggregate &A, const Field &F) {
   return getNameTag(F)
     .addAttribute(locationAttribute(IsDefinition), serializeLocation(A, F))
     .addAttribute(attributes::ModelEditPath,
-                  modelEditPath::getCustomNamePath(A, F));
+                  modelEditPath::getCustomNamePath(A, F))
+    .serialize();
 }
 
 // clang-format off
@@ -399,14 +417,14 @@ concept ModelAggregateWithField =
 
 template<typename Aggregate, typename Field>
 requires ModelAggregateWithField<Aggregate, Field>
-inline Tag getLocationDefinitionTag(const Aggregate &A, const Field &F) {
-  return getLocationTag<true>(A, F);
+inline std::string getLocationDefinition(const Aggregate &A, const Field &F) {
+  return getLocation<true>(A, F);
 }
 
 template<typename Aggregate, typename Field>
 requires ModelAggregateWithField<Aggregate, Field>
-inline Tag getLocationReferenceTag(const Aggregate &A, const Field &F) {
-  return getLocationTag<false>(A, F);
+inline std::string getLocationReference(const Aggregate &A, const Field &F) {
+  return getLocation<false>(A, F);
 }
 
 } // namespace ptml

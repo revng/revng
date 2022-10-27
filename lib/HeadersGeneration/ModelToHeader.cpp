@@ -73,7 +73,7 @@ class PrintTypedefDeclaration {
 
   void printNameTypedef(const model::Type &T) {
     Out << getTypeKeyword(T) << " " << helpers::Packed
-        << " " + ptml::getLocationReferenceTag(T) + ";\n";
+        << " " + ptml::getLocationReference(T) + ";\n";
   }
 
 public:
@@ -88,7 +88,7 @@ public:
       if (P.Size == 16)
         Out << keywords::Typedef << " "
             << ptml::tokenTag("__uint128_t", tokens::Type) << " "
-            << ptml::getLocationDefinitionTag(P) << ";\n";
+            << ptml::getLocationDefinition(P) << ";\n";
       else if (Log.isEnabled())
         Out << helpers::lineComment("not necessary, already in stdint.h");
 
@@ -98,7 +98,7 @@ public:
       if (P.Size == 16)
         Out << keywords::Typedef << " "
             << ptml::tokenTag("__int128_t", tokens::Type) << " "
-            << ptml::getLocationDefinitionTag(P) << ";\n";
+            << ptml::getLocationDefinition(P) << ";\n";
       else if (Log.isEnabled())
         Out << helpers::lineComment("not necessary, already in stdint.h");
 
@@ -136,7 +136,7 @@ public:
       ();
       if (!IntType.empty())
         Out << keywords::Typedef << " " << ptml::tokenTag(IntType, tokens::Type)
-            << " " << ptml::getLocationDefinitionTag(P) << ";\n";
+            << " " << ptml::getLocationDefinition(P) << ";\n";
     } break;
 
     default:
@@ -159,10 +159,10 @@ public:
 
 static void printForwardDeclaration(const model::Type &T,
                                     ptml::PTMLIndentedOstream &Header) {
-  auto TypeNameReferenceTag = ptml::getLocationReferenceTag(T);
+  auto TypeNameReference = ptml::getLocationReference(T);
   Header << keywords::Typedef << " " << getTypeKeyword(T) << " "
-         << helpers::Packed << " " << TypeNameReferenceTag << " "
-         << TypeNameReferenceTag << ";\n";
+         << helpers::Packed << " " << TypeNameReference << " "
+         << TypeNameReference << ";\n";
 }
 
 static void
@@ -183,7 +183,7 @@ printDeclaration(const model::EnumType &E, ptml::PTMLIndentedOstream &Header) {
 
     for (const auto &Entry : E.Entries) {
       revng_assert(not Entry.CustomName.empty());
-      Header << ptml::getLocationDefinitionTag(E, Entry) << " "
+      Header << ptml::getLocationDefinition(E, Entry) << " "
              << operators::Assign << " " << constants::hex(Entry.Value)
              << ",\n";
     }
@@ -195,13 +195,13 @@ printDeclaration(const model::EnumType &E, ptml::PTMLIndentedOstream &Header) {
            << constants::hex(MaxBitPatternInEnum) << ",\n";
   }
 
-  Header << " " << ptml::getLocationDefinitionTag(E) << ";\n";
+  Header << " " << ptml::getLocationDefinition(E) << ";\n";
 }
 
 static void
 printDefinition(const model::StructType &S, ptml::PTMLIndentedOstream &Header) {
   Header << keywords::Struct << " " << helpers::Packed << " ";
-  Header << ptml::getLocationDefinitionTag(S) << " ";
+  Header << ptml::getLocationDefinition(S) << " ";
   {
     Scope Scope(Header, scopeTags::Struct);
 
@@ -214,8 +214,8 @@ printDefinition(const model::StructType &S, ptml::PTMLIndentedOstream &Header) {
                                  tokens::Field)
                << "[" << constants::number(Field.Offset - NextOffset) << "];\n";
 
-      Tag FieldTag = ptml::getLocationDefinitionTag(S, Field);
-      Header << getNamedCInstance(Field.Type, FieldTag.serialize()) << ";\n";
+      auto F = ptml::getLocationDefinition(S, Field);
+      Header << getNamedCInstance(Field.Type, F) << ";\n";
 
       NextOffset = Field.Offset + Field.Type.size().value();
     }
@@ -233,13 +233,13 @@ printDefinition(const model::StructType &S, ptml::PTMLIndentedOstream &Header) {
 static void
 printDefinition(const model::UnionType &U, ptml::PTMLIndentedOstream &Header) {
   Header << keywords::Union << " " << helpers::Packed << " ";
-  Header << ptml::getLocationDefinitionTag(U) << " ";
+  Header << ptml::getLocationDefinition(U) << " ";
 
   {
     Scope Scope(Header, scopeTags::Union);
     for (const auto &Field : U.Fields) {
-      Tag FieldTag = ptml::getLocationDefinitionTag(U, Field);
-      Header << getNamedCInstance(Field.Type, FieldTag.serialize()) << ";\n";
+      auto F = ptml::getLocationDefinition(U, Field);
+      Header << getNamedCInstance(Field.Type, F) << ";\n";
     }
   }
 
@@ -248,15 +248,15 @@ printDefinition(const model::UnionType &U, ptml::PTMLIndentedOstream &Header) {
 
 static void printDeclaration(const model::TypedefType &TD,
                              ptml::PTMLIndentedOstream &Header) {
-  Tag NewType = ptml::getLocationDefinitionTag(TD);
+  auto Type = ptml::getLocationDefinition(TD);
   Header << keywords::Typedef << " "
-         << getNamedCInstance(TD.UnderlyingType, NewType.serialize()) << ";\n";
+         << getNamedCInstance(TD.UnderlyingType, Type) << ";\n";
 }
 
 static void printSegmentsTypes(const model::Segment &Segment,
                                ptml::PTMLIndentedOstream &Header) {
-  auto SegmentTag = ptml::getLocationDefinitionTag(Segment);
-  Header << getNamedCInstance(Segment.Type, SegmentTag.serialize()) << ";\n";
+  auto S = ptml::getLocationDefinition(Segment);
+  Header << getNamedCInstance(Segment.Type, S) << ";\n";
 }
 
 /// Generate the definition of a new struct type that wraps all the
@@ -307,7 +307,10 @@ static void printDeclaration(const model::RawFunctionType &F,
   Header << keywords::Typedef << " ";
   // In this case, we are defining a type for the function, not the function
   // itself, so the token right before the parenthesis is the name of the type.
-  printFunctionPrototype(F, getTypeName(F), Header, Model, true);
+  printFunctionTypeDeclaration(F,
+                               ptml::getLocationDefinition(F),
+                               Header,
+                               Model);
   Header << ";\n";
 }
 
@@ -360,7 +363,10 @@ static void printDeclaration(const model::CABIFunctionType &F,
   Header << keywords::Typedef << " ";
   // In this case, we are defining a type for the function, not the function
   // itself, so the token right before the parenthesis is the name of the type.
-  printFunctionPrototype(F, getTypeName(F), Header, Model, true);
+  printFunctionTypeDeclaration(F,
+                               ptml::getLocationDefinition(F),
+                               Header,
+                               Model);
   Header << ";\n";
 }
 

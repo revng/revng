@@ -50,27 +50,6 @@ TypeString getReturnField(const model::RawFunctionType &F, size_t Index) {
   return TypeString((Twine(RetFieldPrefix) + Twine(Index)).str());
 }
 
-TypeString getTypeName(const model::Type &T) {
-  Tag Result;
-
-  if (isa<model::RawFunctionType>(&T) or isa<model::CABIFunctionType>(&T)) {
-    TypeString Name;
-    Name.append(ArtificialTypes::FunctionTypedefPrefix);
-    Name.append(model::Identifier::fromString(T.name()));
-    Result = Tag(tags::Span, Name.str())
-               .addAttribute(attributes::ModelEditPath, getCustomNamePath(T));
-  } else if (isa<model::PrimitiveType>(&T)) {
-    Result = Tag(tags::Span, T.name().str());
-  } else {
-    Result = Tag(tags::Span, T.name().str())
-               .addAttribute(attributes::ModelEditPath, getCustomNamePath(T));
-  }
-  Result.addAttribute(attributes::Token, tokens::Type)
-    .addAttribute(attributes::LocationReferences,
-                  serializedLocation(ranks::Type, T.key()));
-  return TypeString(Result.serialize());
-}
-
 TypeString
 getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
 
@@ -187,8 +166,9 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
     QIt = QPointerIt;
   } while (QIt != QEnd);
 
-  TypeString UnqualifiedName = getTypeName(*QT.UnqualifiedType.getConst());
-  Result = (Twine(UnqualifiedName) + Twine(" ") + Twine(Result)).str();
+  const model::Type &Unqualified = *QT.UnqualifiedType.getConst();
+  std::string TypeName = ptml::getLocationReference(Unqualified);
+  Result = (Twine(TypeName) + Twine(" ") + Twine(Result)).str();
 
   return Result;
 }
@@ -449,28 +429,27 @@ void printFunctionPrototype(const model::Type &FT,
   }
 }
 
-void printFunctionPrototype(const model::Type &FT,
-                            const llvm::StringRef &FunctionName,
-                            llvm::raw_ostream &Header,
-                            const model::Binary &Model,
-                            bool Declaration) {
+void printFunctionTypeDeclaration(const model::Type &FT,
+                                  llvm::StringRef TypeName,
+                                  llvm::raw_ostream &Header,
+                                  const model::Binary &Model) {
   if (auto *RF = dyn_cast<model::RawFunctionType>(&FT)) {
     auto ArgumentPrinter = [&](const NamedTypedRegister &Reg) { return ""; };
     printFunctionPrototypeImpl(*RF,
-                               FunctionName,
+                               TypeName,
                                ArgumentPrinter,
                                "stack_args",
                                Header,
                                Model,
-                               Declaration);
+                               true);
   } else if (auto *CF = dyn_cast<model::CABIFunctionType>(&FT)) {
     auto ArgumentPrinter = [&](const Argument &Arg) { return ""; };
     printFunctionPrototypeImpl(*CF,
-                               FunctionName,
+                               TypeName,
                                ArgumentPrinter,
                                Header,
                                Model,
-                               Declaration);
+                               true);
   } else {
     revng_abort();
   }

@@ -13,7 +13,6 @@
 namespace ArtificialTypes {
 constexpr const char *const RetStructPrefix = "artificial_struct_";
 constexpr const char *const ArrayWrapperPrefix = "artificial_wrapper_";
-constexpr const char *const FunctionTypedefPrefix = "function_type_";
 
 constexpr const char *const RetFieldPrefix = "field_";
 constexpr const char *const ArrayWrapperFieldName = "the_array";
@@ -23,11 +22,6 @@ constexpr const char *const ArrayWrapperFieldName = "the_array";
 /// (possibly empty) \a InstanceName .
 extern tokenDefinition::types::TypeString
 getNamedCInstance(const model::QualifiedType &QT, llvm::StringRef InstanceName);
-
-/// Return an escaped name for the type
-/// \note If T is a function type, the appropriate function typename will be
-/// returned
-extern tokenDefinition::types::TypeString getTypeName(const model::Type &T);
 
 inline tokenDefinition::types::TypeString
 getTypeName(const model::QualifiedType &QT) {
@@ -74,8 +68,7 @@ extern void printFunctionPrototype(const model::Type &FT,
                                    llvm::raw_ostream &Header,
                                    const model::Binary &Model,
                                    bool Definition);
-extern void printFunctionPrototype(const model::Type &FT,
-                                   const llvm::StringRef &Function,
-                                   llvm::raw_ostream &Header,
-                                   const model::Binary &Model,
-                                   bool Definition);
+extern void printFunctionTypeDeclaration(const model::Type &FT,
+                                         llvm::StringRef TypeName,
+                                         llvm::raw_ostream &Header,
+                                         const model::Binary &Model);
