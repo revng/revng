@@ -35,7 +35,11 @@ std::string getCurrentRoot() {
   Maps.split(MapsLines, "\n");
 
   for (const auto &Line : MapsLines) {
-    llvm::StringRef File = std::get<1>(Line.rsplit(" "));
+    llvm::SmallVector<llvm::StringRef> Parts;
+    Line.split(Parts, ' ', 5);
+    revng_assert(Parts.size() == 6, "Malformed /proc/self/maps");
+
+    llvm::StringRef File = Parts[5].ltrim();
 
     if (File.endswith("librevngSupport.so")) {
       llvm::SmallString<128> FullPath;
