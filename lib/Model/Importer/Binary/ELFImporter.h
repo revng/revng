@@ -6,10 +6,10 @@
 
 #include "llvm/Object/ELFObjectFile.h"
 
+#include "revng/Model/Importer/Binary/BinaryImporterHelper.h"
 #include "revng/Model/RawBinaryView.h"
 #include "revng/Support/MetaAddress.h"
 
-#include "BinaryImporterHelper.h"
 #include "DwarfReader.h"
 
 extern Logger<> ELFImporterLog;

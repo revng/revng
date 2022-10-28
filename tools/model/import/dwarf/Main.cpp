@@ -9,6 +9,7 @@
 
 #include "llvm/Support/CommandLine.h"
 
+#include "revng/Model/Importer/Binary/BinaryImporterOptions.h"
 #include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
 #include "revng/Model/ToolHelpers.h"
 #include "revng/Support/InitRevng.h"
@@ -47,7 +48,7 @@ int main(int Argc, char *Argv[]) {
 
   // Import
   TupleTree<model::Binary> Model;
-  DwarfImporter Importer(Model);
+  DwarfImporter Importer(Model, BaseAddress);
   Importer.import(InputFilename);
 
   // Serialize

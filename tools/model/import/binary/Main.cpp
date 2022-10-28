@@ -53,7 +53,7 @@ int main(int Argc, char *Argv[]) {
   ExitOnError(importBinary(Model, InputFilename, BaseAddress));
 
   if (ImportDebugInfo.size() > 0) {
-    DwarfImporter Importer(Model);
+    DwarfImporter Importer(Model, BaseAddress);
     for (const std::string &Path : ImportDebugInfo)
       Importer.import(Path);
   }

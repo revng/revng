@@ -29,7 +29,7 @@ llvm::Error ImportBinaryAnalysis::run(pipeline::Context &Context,
     return Error;
 
   if (ImportDebugInfo.size() > 0) {
-    DwarfImporter Importer(Model);
+    DwarfImporter Importer(Model, BaseAddress);
     for (const std::string &Path : ImportDebugInfo)
       Importer.import(Path);
   }
