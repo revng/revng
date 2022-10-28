@@ -16,11 +16,11 @@
 #include "revng/ABI/DefaultFunctionPrototype.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
+#include "revng/Model/Importer/Binary/BinaryImporterHelper.h"
 #include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
 #include "revng/Model/RawBinaryView.h"
 #include "revng/Support/Debug.h"
 
-#include "BinaryImporterHelper.h"
 #include "DwarfReader.h"
 #include "ELFImporter.h"
 #include "Importers.h"
@@ -169,8 +169,9 @@ Error ELFImporter<T, HasAddend>::import() {
 
   // BaseAddress makes sense only for shared (relocatable, PIC) objects
   auto Type = TheELF.getHeader().e_type;
-  if (Type == ELF::ET_DYN)
-    BaseAddress = PreferredBaseAddress;
+  if (Type != ELF::ET_DYN)
+    PreferredBaseAddress = 0;
+  BaseAddress = PreferredBaseAddress;
 
   if (not(Type == ELF::ET_DYN or Type == ELF::ET_EXEC))
     return createError("Only ELF executables and ELF dynamic libraries are "
@@ -323,7 +324,7 @@ Error ELFImporter<T, HasAddend>::import() {
   Model->DefaultPrototype = abi::registerDefaultFunctionPrototype(*Model.get());
 
   // Import Dwarf
-  DwarfImporter Importer(Model);
+  DwarfImporter Importer(Model, PreferredBaseAddress);
   Importer.import(TheBinary, "");
 
   return Error::success();
