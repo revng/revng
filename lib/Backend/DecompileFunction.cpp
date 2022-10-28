@@ -292,10 +292,9 @@ public:
     Out(Out, 4),
     SwitchStateVars() {
     // TODO: don't use a global loop state variable
-    std::string
-      LoopStateVarLocation = serializedLocation(ranks::SpecialVariable,
-                                                ModelFunction.key(),
-                                                "loop_state_var");
+    std::string LoopStateVarLocation = serializedLocation(ranks::LocalVariable,
+                                                          ModelFunction.key(),
+                                                          "loop_state_var");
     LoopStateVar = Tag(tags::Span, "loop_state_var")
                      .addAttribute(attributes::Token, tokens::Variable)
                      .addAttribute(attributes::LocationReferences,
@@ -384,7 +383,7 @@ private:
     if (auto *I = dyn_cast<Instruction>(V)) {
 
       if (isCallTo(I, "revng_stack_frame")) {
-        auto Location = serializedLocation(ranks::SpecialVariable,
+        auto Location = serializedLocation(ranks::LocalVariable,
                                            ModelFunction.key(),
                                            StackFrameVarName);
         return { Tag(tags::Span, StackFrameVarName)
@@ -397,7 +396,7 @@ private:
 
       if (isCallTo(I, "revng_call_stack_argument")) {
         StringToken VarName = NameGenerator.nextStackArgsVar();
-        auto Location = serializedLocation(ranks::SpecialVariable,
+        auto Location = serializedLocation(ranks::LocalVariable,
                                            ModelFunction.key(),
                                            VarName.str().str());
         return { Tag(tags::Span, VarName)
@@ -1448,7 +1447,7 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     if (Switch->needsStateVariable()) {
       revng_assert(Switch->needsLoopBreakDispatcher());
       StringToken NewVarName = NameGenerator.nextSwitchStateVar();
-      std::string Location = serializedLocation(ranks::SpecialVariable,
+      std::string Location = serializedLocation(ranks::LocalVariable,
                                                 ModelFunction.key(),
                                                 NewVarName.str().str());
       Tag SwitchStateTag = ptml::tokenTag(NewVarName, tokens::Variable)
@@ -1605,16 +1604,18 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
     // Associate each LLVM argument with its name
     for (const auto &[ModelArg, LLVMArg] :
          llvm::zip_first(ModelArgs, LLVMArgs)) {
-      using ranks::RawFunctionArgument;
       revng_log(Log, "Adding token for: " << dumpToString(LLVMArg));
+      std::string ArgIdentifier = model::Identifier::fromString(ModelArg.name())
+                                    .str()
+                                    .str();
       TokenMap
         [&LLVMArg] = Tag(tags::Span, ModelArg.name())
                        .addAttribute(attributes::Token,
                                      tokens::FunctionParameter)
                        .addAttribute(attributes::LocationReferences,
-                                     serializedLocation(RawFunctionArgument,
+                                     serializedLocation(ranks::LocalVariable,
                                                         ModelFunction.key(),
-                                                        ModelArg.key()))
+                                                        ArgIdentifier))
                        .serialize();
     }
 
@@ -1626,13 +1627,12 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
         [LLVMArg] = Tag(tags::Span, "stack_args")
                       .addAttribute(attributes::Token, tokens::Variable)
                       .addAttribute(attributes::LocationReferences,
-                                    serializedLocation(ranks::SpecialVariable,
+                                    serializedLocation(ranks::LocalVariable,
                                                        ModelFunction.key(),
                                                        "stack_args"))
                       .serialize();
     }
   } else if (auto *CPrototype = dyn_cast<CABIFunctionType>(&ParentPrototype)) {
-    using ranks::CABIFunctionArgument;
 
     const auto &ModelArgs = CPrototype->Arguments;
     const auto &LLVMArgs = LLVMFunction.args();
@@ -1642,14 +1642,17 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
     // Associate each LLVM argument with its name
     for (const auto &[ModelArg, LLVMArg] : llvm::zip(ModelArgs, LLVMArgs)) {
       revng_log(Log, "Adding token for: " << dumpToString(LLVMArg));
+      std::string ArgIdentifier = model::Identifier::fromString(ModelArg.name())
+                                    .str()
+                                    .str();
       TokenMap
         [&LLVMArg] = Tag(tags::Span, ModelArg.name())
                        .addAttribute(attributes::Token,
                                      tokens::FunctionParameter)
                        .addAttribute(attributes::LocationReferences,
-                                     serializedLocation(CABIFunctionArgument,
+                                     serializedLocation(ranks::LocalVariable,
                                                         ModelFunction.key(),
-                                                        ModelArg.key()))
+                                                        ArgIdentifier))
                        .serialize();
     }
   } else {

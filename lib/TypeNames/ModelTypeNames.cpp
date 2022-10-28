@@ -345,18 +345,20 @@ void printFunctionPrototype(const model::Type &FT,
                                                        Function.key()));
   if (auto *RF = dyn_cast<model::RawFunctionType>(&FT)) {
     auto ArgumentPrinter = [&](const NamedTypedRegister &Reg) {
-      return ptml::tokenTag(Reg.name().str(), tokens::FunctionParameter)
+      std::string
+        ArgIdentifier = model::Identifier::fromString(Reg.name()).str().str();
+      return ptml::tokenTag(ArgIdentifier, tokens::FunctionParameter)
         .addAttribute(attributes::LocationDefinition,
-                      serializedLocation(ranks::RawFunctionArgument,
+                      serializedLocation(ranks::LocalVariable,
                                          Function.key(),
-                                         Reg.key()))
+                                         ArgIdentifier))
         .serialize();
     };
 
     std::string
       StackName = ptml::tokenTag("stack_args", tokens::FunctionParameter)
                     .addAttribute(attributes::LocationDefinition,
-                                  serializedLocation(ranks::SpecialVariable,
+                                  serializedLocation(ranks::LocalVariable,
                                                      Function.key(),
                                                      "stack_args"))
                     .serialize();
@@ -369,13 +371,16 @@ void printFunctionPrototype(const model::Type &FT,
                                Model,
                                Declaration);
   } else if (auto *CF = dyn_cast<model::CABIFunctionType>(&FT)) {
-    auto ArgumentPrinter = [&](const Argument &Arg) {
-      return ptml::tokenTag(Arg.name().str(), tokens::FunctionParameter)
-        .addAttribute(attributes::LocationDefinition,
-                      serializedLocation(ranks::CABIFunctionArgument,
-                                         Function.key(),
-                                         Arg.key()))
-        .serialize();
+    auto ArgumentPrinter = [&](const Argument &Arg) -> std::string {
+      std::string
+        ArgIdentifier = model::Identifier::fromString(Arg.name()).str().str();
+      return " "
+             + ptml::tokenTag(ArgIdentifier, tokens::FunctionParameter)
+                 .addAttribute(attributes::LocationDefinition,
+                               serializedLocation(ranks::LocalVariable,
+                                                  Function.key(),
+                                                  ArgIdentifier))
+                 .serialize();
     };
 
     printFunctionPrototypeImpl(*CF,
@@ -404,11 +409,13 @@ void printFunctionPrototype(const model::Type &FT,
                                                        Function.key()));
   if (auto *RF = dyn_cast<model::RawFunctionType>(&FT)) {
     auto ArgumentPrinter = [&](const NamedTypedRegister &Reg) {
-      return ptml::tokenTag(Reg.name().str(), tokens::FunctionParameter)
+      std::string
+        ArgIdentifier = model::Identifier::fromString(Reg.name()).str().str();
+      return ptml::tokenTag(ArgIdentifier, tokens::FunctionParameter)
         .addAttribute(attributes::LocationDefinition,
-                      serializedLocation(ranks::RawDynFunctionArgument,
+                      serializedLocation(ranks::DynamicFunctionArgument,
                                          Function.key(),
-                                         Reg.key()))
+                                         ArgIdentifier))
         .serialize();
     };
 
@@ -421,11 +428,13 @@ void printFunctionPrototype(const model::Type &FT,
                                Declaration);
   } else if (auto *CF = dyn_cast<model::CABIFunctionType>(&FT)) {
     auto ArgumentPrinter = [&](const Argument &Arg) {
-      return ptml::tokenTag(Arg.name().str(), tokens::FunctionParameter)
+      std::string
+        ArgIdentifier = model::Identifier::fromString(Arg.name()).str().str();
+      return ptml::tokenTag(ArgIdentifier, tokens::FunctionParameter)
         .addAttribute(attributes::LocationDefinition,
-                      serializedLocation(ranks::CABIDynFunctionArgument,
+                      serializedLocation(ranks::DynamicFunctionArgument,
                                          Function.key(),
-                                         Arg.key()))
+                                         ArgIdentifier))
         .serialize();
     };
 

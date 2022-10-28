@@ -105,7 +105,7 @@ static std::string getReturnedStructIdentifier(const llvm::Function *F) {
 }
 
 static std::string serializeHelperStructLocation(const std::string &Name) {
-  return pipeline::serializedLocation(revng::ranks::HelperStruct, Name);
+  return pipeline::serializedLocation(revng::ranks::HelperStructType, Name);
 }
 
 template<bool IsDefinition>
