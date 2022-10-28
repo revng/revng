@@ -1607,13 +1607,6 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
          llvm::zip_first(ModelArgs, LLVMArgs)) {
       using ranks::RawFunctionArgument;
       revng_log(Log, "Adding token for: " << dumpToString(LLVMArg));
-      Tag(tags::Span, ModelArg.name())
-        .addAttribute(attributes::Token, tokens::FunctionParameter)
-        .addAttribute(attributes::LocationDefinition,
-                      serializedLocation(RawFunctionArgument,
-                                         ModelFunction.key(),
-                                         ModelArg.key()))
-        .serialize();
       TokenMap
         [&LLVMArg] = Tag(tags::Span, ModelArg.name())
                        .addAttribute(attributes::Token,
@@ -1629,21 +1622,13 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
     if (StackArgType.isValid()) {
       const auto *LLVMArg = LLVMFunction.getArg(LLVMArgsNum - 1);
       revng_log(Log, "Adding token for: " << dumpToString(LLVMArg));
-      std::string SA("stack_args");
-      Tag(tags::Span, "stack_args")
-        .addAttribute(attributes::Token, tokens::Variable)
-        .addAttribute(attributes::LocationDefinition,
-                      serializedLocation(ranks::SpecialVariable,
-                                         ModelFunction.key(),
-                                         SA))
-        .serialize();
       TokenMap
         [LLVMArg] = Tag(tags::Span, "stack_args")
                       .addAttribute(attributes::Token, tokens::Variable)
                       .addAttribute(attributes::LocationReferences,
                                     serializedLocation(ranks::SpecialVariable,
                                                        ModelFunction.key(),
-                                                       SA))
+                                                       "stack_args"))
                       .serialize();
     }
   } else if (auto *CPrototype = dyn_cast<CABIFunctionType>(&ParentPrototype)) {
@@ -1657,13 +1642,6 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
     // Associate each LLVM argument with its name
     for (const auto &[ModelArg, LLVMArg] : llvm::zip(ModelArgs, LLVMArgs)) {
       revng_log(Log, "Adding token for: " << dumpToString(LLVMArg));
-      Tag(tags::Span, ModelArg.name())
-        .addAttribute(attributes::Token, tokens::FunctionParameter)
-        .addAttribute(attributes::LocationDefinition,
-                      serializedLocation(CABIFunctionArgument,
-                                         ModelFunction.key(),
-                                         ModelArg.key()))
-        .serialize();
       TokenMap
         [&LLVMArg] = Tag(tags::Span, ModelArg.name())
                        .addAttribute(attributes::Token,
