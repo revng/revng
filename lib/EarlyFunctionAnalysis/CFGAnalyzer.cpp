@@ -152,12 +152,14 @@ OutlinedFunction CFGAnalyzer::outline(llvm::BasicBlock *Entry) {
   auto IsJumpTarget = [](llvm::CallBase *Call) {
     return getLimitedValue(&*Call->getArgOperand(2)) == 1;
   };
+
   for (llvm::CallBase *Call : callers(M.getFunction("newpc")))
     if (IsJumpTarget(Call) and not IsFirst(Call))
       Call->getParent()->splitBasicBlock(Call);
 
   return Result;
 }
+
 llvm::FunctionType *CFGAnalyzer::createCallMarkerType(llvm::Module &M) {
   auto &Context = M.getContext();
   Type *MetaAddressStruct = MetaAddress::getStruct(&M);

@@ -164,6 +164,18 @@ public:
     return DynamicFunctions.at(Name.str());
   }
 
+  void dump() const debug_function { dump(dbg); }
+
+  template<typename T>
+  void dump(T &Output) const {
+    for (const auto &[Address, Summary] : LocalFunctions) {
+      Output << Address.toString() << ":" << "\n";
+      Summary.dump(Output);
+    }
+    
+    // WIP: not just local functions
+  }
+
 private:
   std::pair<const FunctionSummary *, bool>
   getCallSiteImpl(MetaAddress Function, MetaAddress CallSite) const {
