@@ -13,8 +13,8 @@
 #include "revng/Model/RawBinaryView.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/OverflowSafeInt.h"
+#include "revng/Model/Importer/Binary/BinaryImporterHelper.h"
 
-#include "BinaryImporterHelper.h"
 #include "Importers.h"
 
 using namespace llvm::MachO;

@@ -9,12 +9,12 @@
 #include "llvm/Object/ObjectFile.h"
 
 #include "revng/ABI/DefaultFunctionPrototype.h"
+#include "revng/Model/Importer/Binary/BinaryImporterHelper.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/Importer/DebugInfo/PDBImporter.h"
 #include "revng/Support/Debug.h"
 
-#include "BinaryImporterHelper.h"
 #include "Importers.h"
 
 using namespace llvm;

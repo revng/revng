@@ -21,6 +21,7 @@
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/Model/Importer/Binary/BinaryImporterHelper.h"
 #include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
 #include "revng/Model/Pass/AllPasses.h"
 #include "revng/Model/Processing.h"
@@ -95,6 +96,24 @@ getUnsignedOrSigned(const DWARFDie &Die, dwarf::Attribute Attribute) {
     return getUnsignedOrSigned(*Value);
 }
 
+static std::optional<uint64_t>
+getAddress(const DWARFFormValue &Value) {
+  auto MaybeResult = Value.getAsAddress();
+  if (MaybeResult)
+    return *MaybeResult;
+  else
+    return {};
+}
+
+static std::optional<uint64_t>
+getAddress(const DWARFDie &Die, dwarf::Attribute Attribute) {
+  auto Value = Die.find(Attribute);
+  if (not Value)
+    return {};
+  else
+    return getAddress(*Value);
+}
+
 static bool isTrue(const DWARFFormValue &Value) {
   return getUnsignedOrSigned(Value) != 0;
 }
@@ -121,7 +140,7 @@ static void reportIgnoredDie(const DWARFDie &Die, const Twine &Reason) {
   commentDie(Die, "Ignoring DWARF die: " + Reason);
 }
 
-class DwarfToModelConverter {
+class DwarfToModelConverter : public BinaryImporterHelper {
 private:
   DwarfImporter &Importer;
   TupleTree<model::Binary> &Model;
@@ -137,12 +156,16 @@ public:
   DwarfToModelConverter(DwarfImporter &Importer,
                         DWARFContext &DICtx,
                         size_t Index,
-                        size_t AltIndex) :
+                        size_t AltIndex,
+                        uint64_t PreferredBaseAddress) :
     Importer(Importer),
     Model(Importer.getModel()),
     Index(Index),
     AltIndex(AltIndex),
     DICtx(DICtx) {
+
+    Architecture = Model->Architecture;
+    BaseAddress = PreferredBaseAddress;
 
     // Ensure the architecture is consistent.
     auto Arch = model::Architecture::fromLLVMArchitecture(DICtx.getArch());
@@ -739,7 +762,6 @@ private:
     // Create function type
     UpcastableType NewType = makeType<CABIFunctionType>();
     auto *FunctionType = cast<model::CABIFunctionType>(NewType.get());
-    FunctionType->OriginalName = getName(Die);
 
     // Detect ABI
     CallingConvention CC = DW_CC_normal;
@@ -779,7 +801,7 @@ private:
     return Model->recordNewType(std::move(NewType));
   }
 
-  void createDynamicFunctions() {
+  void createFunctions() {
     for (const auto &CU : DICtx.compile_units()) {
       for (const auto &Entry : CU->dies()) {
         DWARFDie Die = { CU.get(), &Entry };
@@ -788,26 +810,40 @@ private:
           continue;
 
         auto MaybePath = getSubprogramPrototype(Die);
-        if (not MaybePath) {
-          reportIgnoredDie(Die, "Couldn't build subprogram prototype");
-          continue;
-        }
-
         std::string SymbolName = getName(Die);
-        if (SymbolName.empty()) {
-          reportIgnoredDie(Die, "Ignoring unnamed subprogram");
-          continue;
+        auto MaybeLowPC = getAddress(Die, DW_AT_low_pc);
+        if (MaybeLowPC) {
+          // Get/create the local function
+          MetaAddress LowPC = relocate(fromPC(*MaybeLowPC));
+          auto &Function = Model->Functions[LowPC];
+
+          if (not Function.Prototype.isValid())
+            Function.Prototype = *MaybePath;
+
+          if (SymbolName.size() != 0 and Function.OriginalName.size() == 0)
+            Function.OriginalName = SymbolName;
+
+        } else if (not SymbolName.empty()
+                   and Model->ImportedDynamicFunctions.count(SymbolName) != 0) {
+          // It's a dynamic function
+
+          if (not MaybePath) {
+            reportIgnoredDie(Die, "Couldn't build subprogram prototype");
+            continue;
+          }
+
+          // Get/create dynamic function
+          auto &DynamicFunction = Model->ImportedDynamicFunctions[SymbolName];
+
+          // If a function already has a valid prototype, don't override it
+          if (DynamicFunction.Prototype.isValid())
+            continue;
+          DynamicFunction.Prototype = *MaybePath;
+
+        } else {
+          reportIgnoredDie(Die, "Ignoring subprogram");
         }
 
-        // Get/create dynamic function
-        auto &Function = Model->ImportedDynamicFunctions[SymbolName];
-
-        // If a function already has a valid prototype, don't override it
-        if (Function.Prototype.isValid())
-          continue;
-
-        auto *FunctionType = cast<model::CABIFunctionType>(MaybePath->get());
-        Function.Prototype = *MaybePath;
       }
     }
   }
@@ -863,7 +899,7 @@ public:
   void run() {
     materializeTypesWithIdentity();
     resolveAllTypes();
-    createDynamicFunctions();
+    createFunctions();
     cleanupTypeSystem();
     deduplicateEquivalentTypes(Model);
     promoteOriginalName(Model);
@@ -1103,7 +1139,8 @@ void DwarfImporter::import(const llvm::object::Binary &TheBinary,
     DwarfToModelConverter Converter(*this,
                                     *TheDWARFContext,
                                     LoadedFiles.size(),
-                                    AltIndex);
+                                    AltIndex,
+                                    PreferredBaseAddress);
     Converter.run();
 
     detectAliases(*ELF, Model);
