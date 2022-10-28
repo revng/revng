@@ -307,10 +307,6 @@ static CommandList linkingArgs(const model::Binary &Model,
   llvm::copy(defineProgramHeadersSymbols(BinaryView, Buffer),
              std::back_inserter(Linker.Arguments));
 
-  for (const auto &Argument : Linker.Arguments)
-    dbg << Argument << "\n";
-  dbg << "\n";
-
   Result.enqueueCommand(std::move(Linker));
 
   std::string MainExecutablePath = *revng::ResourceFinder.findFile("bin/revng");
