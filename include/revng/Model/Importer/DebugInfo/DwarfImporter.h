@@ -14,9 +14,12 @@ private:
   std::vector<std::string> LoadedFiles;
   using DwarfID = std::pair<size_t, size_t>;
   std::map<DwarfID, model::QualifiedType> DwarfToModel;
+  uint64_t PreferredBaseAddress;
 
 public:
-  DwarfImporter(TupleTree<model::Binary> &Model) : Model(Model) {}
+  DwarfImporter(TupleTree<model::Binary> &Model,
+                uint64_t PreferredBaseAddress) :
+    Model(Model), PreferredBaseAddress(PreferredBaseAddress) {}
 
 public:
   model::QualifiedType *findType(DwarfID ID) {
