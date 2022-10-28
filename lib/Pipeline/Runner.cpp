@@ -61,13 +61,15 @@ static void explainPipeline(const ContainerToTargetsMap &Targets,
 
   ExplanationLogger << "OBJECTIVES requested\n";
   indent(ExplanationLogger, 1);
-  ExplanationLogger << Requirements.back().ToExecute->getName() << ":\n";
-  prettyPrintStatus(Targets, ExplanationLogger, 2);
 
   if (Requirements.size() <= 1) {
     ExplanationLogger << "Already satisfied\n";
     return;
   }
+
+  ExplanationLogger << Requirements.back().ToExecute->getName() << ":\n";
+  prettyPrintStatus(Targets, ExplanationLogger, 2);
+
   ExplanationLogger << DoLog;
   ExplanationLogger << "DEDUCED steps content to be produced: \n";
 
