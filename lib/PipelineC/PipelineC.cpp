@@ -9,6 +9,7 @@
 #include <iterator>
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "llvm/ADT/STLExtras.h"
@@ -30,6 +31,35 @@
 
 using namespace pipeline;
 using namespace ::revng::pipes;
+
+template<typename T>
+concept default_constructible = std::is_default_constructible<T>::value;
+
+template<default_constructible T>
+class ExistingOrNew {
+private:
+  T *Pointer;
+  std::optional<T> Default;
+
+public:
+  ExistingOrNew(T *Pointer) {
+    if (Pointer != nullptr) {
+      this->Pointer = Pointer;
+    } else {
+      Default.emplace();
+      this->Pointer = &*Default;
+    }
+  }
+
+  ExistingOrNew(ExistingOrNew &&) = delete;
+  ExistingOrNew(const ExistingOrNew &) = delete;
+  ExistingOrNew &operator=(ExistingOrNew &&) = delete;
+  ExistingOrNew &operator=(const ExistingOrNew &) = delete;
+  ~ExistingOrNew() = default;
+
+  T &operator*() { return *Pointer; }
+  T *operator->() { return Pointer; }
+};
 
 /// Used when we want to return a stack allocated string. Copies the string onto
 /// the heap and gives ownership of to the caller
@@ -175,13 +205,6 @@ rp_manager *rp_manager_create(uint64_t pipelines_count,
                                 execution_directory);
 }
 
-rp_manager *rp_manager_create_memory_only(const char *pipeline_path,
-                                          uint64_t flags_count,
-                                          const char *flags[]) {
-  const char *paths[1] = { pipeline_path };
-  return rp_manager_create(1, paths, flags_count, flags, "");
-}
-
 bool rp_manager_save(rp_manager *manager, const char *path) {
   revng_check(manager != nullptr);
 
@@ -323,12 +346,16 @@ rp_diff_map *rp_manager_run_analysis(rp_manager *manager,
                                      const char *step_name,
                                      const char *analysis_name,
                                      rp_container *container,
-                                     const rp_string_map *map) {
+                                     rp_invalidations *invalidations,
+                                     const rp_string_map *options) {
   revng_check(manager != nullptr);
   revng_check(targets_count != 0);
   revng_check(targets != nullptr);
   revng_check(analysis_name != nullptr);
   revng_check(container != nullptr);
+
+  ExistingOrNew<rp_invalidations> Invalidations(invalidations);
+  ExistingOrNew<const rp_string_map> Options(options);
 
   ContainerToTargetsMap Targets;
   for (size_t I = 0; I < targets_count; I++)
@@ -337,8 +364,9 @@ rp_diff_map *rp_manager_run_analysis(rp_manager *manager,
   auto MaybeDiffs = manager->runAnalysis(analysis_name,
                                          step_name,
                                          Targets,
-                                         *map);
-  if (not MaybeDiffs) {
+                                         *Invalidations,
+                                         *Options);
+  if (!MaybeDiffs) {
     llvm::consumeError(MaybeDiffs.takeError());
     return nullptr;
   }
@@ -593,26 +621,39 @@ template<bool commit>
 inline bool rp_manager_set_global_impl(rp_manager *manager,
                                        const char *serialized,
                                        const char *global_name,
+                                       rp_invalidations *invalidations,
                                        rp_error_list *error_list) {
   revng_check(manager != nullptr);
   revng_check(serialized != nullptr);
   revng_check(global_name != nullptr);
-  ErrorListWrapper EL(error_list);
-  revng_check(EL->empty());
+  ExistingOrNew<ErrorList> ErrorList(error_list);
+  revng_check(ErrorList->empty());
 
   auto &GlobalsMap = manager->context().getGlobals();
   auto Buffer = llvm::MemoryBuffer::getMemBuffer(serialized);
 
+  auto MaybeGlobal = GlobalsMap.get(global_name);
+  if (!MaybeGlobal)
+    return ErrorList->fail(MaybeGlobal.takeError(), false);
+
   auto MaybeNewGlobal = GlobalsMap.createNew(global_name, *Buffer);
   if (!MaybeNewGlobal)
-    return EL->fail(MaybeNewGlobal.takeError(), false);
+    return ErrorList->fail(MaybeNewGlobal.takeError(), false);
 
-  if (MaybeNewGlobal->get()->verify(*EL); *EL)
+  if (MaybeNewGlobal->get()->verify(*ErrorList); *ErrorList)
     return false;
 
   if constexpr (commit) {
     auto &NewGlobal = MaybeNewGlobal.get();
-    return EL->failIf(GlobalsMap.replace(global_name, std::move(NewGlobal)));
+    auto Diff = MaybeGlobal.get()->diff(*NewGlobal);
+    *MaybeGlobal.get() = *NewGlobal;
+
+    auto MaybeInvalidations = manager->invalidateFromDiff(global_name, Diff);
+    if (!MaybeInvalidations)
+      return ErrorList->fail(MaybeInvalidations.takeError(), false);
+
+    ExistingOrNew<rp_invalidations> Invalidations(invalidations);
+    *Invalidations = MaybeInvalidations.get();
   }
 
   return true;
@@ -621,10 +662,12 @@ inline bool rp_manager_set_global_impl(rp_manager *manager,
 bool rp_manager_set_global(rp_manager *manager,
                            const char *serialized,
                            const char *global_name,
+                           rp_invalidations *invalidations,
                            rp_error_list *error_list) {
   return rp_manager_set_global_impl<true>(manager,
                                           serialized,
                                           global_name,
+                                          invalidations,
                                           error_list);
 }
 
@@ -635,6 +678,7 @@ bool rp_manager_verify_global(rp_manager *manager,
   return rp_manager_set_global_impl<false>(manager,
                                            serialized,
                                            global_name,
+                                           nullptr,
                                            error_list);
 }
 
@@ -642,30 +686,45 @@ template<bool commit>
 inline bool rp_manager_apply_diff_impl(rp_manager *manager,
                                        const char *diff,
                                        const char *global_name,
+                                       rp_invalidations *invalidations,
                                        rp_error_list *error_list) {
   revng_check(manager != nullptr);
   revng_check(diff != nullptr);
   revng_check(global_name != nullptr);
-  ErrorListWrapper EL(error_list);
-  revng_check(EL->empty());
+  ExistingOrNew<ErrorList> ErrorList(error_list);
+  revng_check(ErrorList->empty());
 
   auto &GlobalsMap = manager->context().getGlobals();
   auto Buffer = llvm::MemoryBuffer::getMemBuffer(diff);
 
-  auto GlobalCloneOrError = GlobalsMap.clone(global_name);
-  if (!GlobalCloneOrError)
-    return EL->fail(GlobalCloneOrError.takeError(), false);
+  auto GlobalOrError = GlobalsMap.get(global_name);
+  if (!GlobalOrError)
+    return ErrorList->fail(GlobalOrError.takeError(), false);
 
-  auto &GlobalClone = GlobalCloneOrError.get();
+  auto &Global = GlobalOrError.get();
+  auto MaybeDiff = Global->deserializeDiff(*Buffer);
+  if (!MaybeDiff)
+    return ErrorList->fail(MaybeDiff.takeError(), false);
 
-  if (auto DiffError = GlobalClone->applyDiff(*Buffer); DiffError)
-    return EL->fail(std::move(DiffError), false);
-
-  if (GlobalClone->verify(*EL); *EL)
+  auto &Diff = MaybeDiff.get();
+  auto GlobalClone = Global->clone();
+  GlobalClone->applyDiff(Diff, *ErrorList);
+  if (*ErrorList)
     return false;
 
-  if constexpr (commit)
-    return EL->failIf(GlobalsMap.replace(global_name, std::move(GlobalClone)));
+  GlobalClone->verify(*ErrorList);
+  if (*ErrorList)
+    return false;
+
+  if constexpr (commit) {
+    *Global = *GlobalClone;
+    auto MaybeInvalidations = manager->invalidateFromDiff(global_name, Diff);
+    if (!MaybeInvalidations)
+      return ErrorList->fail(MaybeInvalidations.takeError(), false);
+
+    ExistingOrNew<rp_invalidations> Invalidations(invalidations);
+    *Invalidations = MaybeInvalidations.get();
+  }
 
   return true;
 }
@@ -673,10 +732,12 @@ inline bool rp_manager_apply_diff_impl(rp_manager *manager,
 bool rp_manager_apply_diff(rp_manager *manager,
                            const char *diff,
                            const char *global_name,
+                           rp_invalidations *invalidations,
                            rp_error_list *error_list) {
   return rp_manager_apply_diff_impl<true>(manager,
                                           diff,
                                           global_name,
+                                          invalidations,
                                           error_list);
 }
 
@@ -687,6 +748,7 @@ bool rp_manager_verify_diff(rp_manager *manager,
   return rp_manager_apply_diff_impl<false>(manager,
                                            diff,
                                            global_name,
+                                           nullptr,
                                            error_list);
 }
 
@@ -784,10 +846,16 @@ const rp_kind *rp_analysis_get_argument_acceptable_kind(rp_analysis *analysis,
   return Accepted[kind_index];
 }
 
-rp_diff_map *
-rp_manager_run_all_analyses(rp_manager *manager, const rp_string_map *map) {
-  auto MaybeDiffs = manager->runAllAnalyses(*map);
-  if (not MaybeDiffs) {
+rp_diff_map *rp_manager_run_all_analyses(rp_manager *manager,
+                                         rp_invalidations *invalidations,
+                                         const rp_string_map *options) {
+  revng_check(manager != nullptr);
+
+  ExistingOrNew<rp_invalidations> Invalidations(invalidations);
+  ExistingOrNew<const rp_string_map> Options(options);
+
+  auto MaybeDiffs = manager->runAllAnalyses(*Invalidations, *Options);
+  if (!MaybeDiffs) {
     llvm::consumeError(MaybeDiffs.takeError());
     return nullptr;
   }
@@ -871,4 +939,30 @@ void rp_string_map_insert(rp_string_map *map,
                           const char *value) {
   auto Result = map->insert_or_assign(key, value);
   revng_assert(Result.second);
+}
+
+rp_invalidations *rp_invalidations_create() {
+  return new rp_invalidations();
+}
+
+void rp_invalidations_destroy(rp_invalidations *invalidations) {
+  delete invalidations;
+}
+
+const char *rp_invalidations_serialize(const rp_invalidations *invalidations) {
+  std::string Out;
+
+  for (auto &StepPair : *invalidations) {
+    for (auto &ContainerPair : StepPair.second) {
+      for (auto Target : ContainerPair.second) {
+        Out += llvm::join_items('/',
+                                StepPair.first(),
+                                ContainerPair.first(),
+                                Target.serialize())
+               + '\n';
+      }
+    }
+  }
+
+  return copyString(Out);
 }

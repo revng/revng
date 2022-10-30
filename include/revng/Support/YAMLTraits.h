@@ -239,13 +239,14 @@ std::string serializeToString(const T &ToDump) {
 
 namespace revng::detail {
 template<typename T>
-llvm::Expected<T> deserializeImpl(llvm::StringRef YAMLString) {
+llvm::Expected<T>
+deserializeImpl(llvm::StringRef YAMLString, void *Context = nullptr) {
   if constexpr (llvm::yaml::has_ScalarTraits<T>::value) {
     return getValueFromYAMLScalar<T>(YAMLString);
   } else {
     T Result;
 
-    llvm::yaml::Input YAMLInput(YAMLString);
+    llvm::yaml::Input YAMLInput(YAMLString, Context);
     YAMLInput >> Result;
 
     std::error_code EC = YAMLInput.error();
@@ -258,19 +259,20 @@ llvm::Expected<T> deserializeImpl(llvm::StringRef YAMLString) {
 
 } // namespace revng::detail
 
-// clang-format off
-template<typename T> requires (not TupleTreeCompatible<T>)
-llvm::Expected<T> deserialize(llvm::StringRef YAMLString) {
-  return revng::detail::deserializeImpl<T>(YAMLString);
+template<NotTupleTreeCompatible T>
+llvm::Expected<T>
+deserialize(llvm::StringRef YAMLString, void *Context = nullptr) {
+  return revng::detail::deserializeImpl<T>(YAMLString, Context);
 }
 
-template<typename T> requires (not TupleTreeCompatible<T>)
-llvm::Expected<T> deserializeFileOrSTDIN(const llvm::StringRef &Path) {
+template<NotTupleTreeCompatible T>
+llvm::Expected<T>
+deserializeFileOrSTDIN(const llvm::StringRef &Path, void *Context = nullptr) {
   auto MaybeBuffer = llvm::MemoryBuffer::getFileOrSTDIN(Path);
   if (not MaybeBuffer)
     return llvm::errorCodeToError(MaybeBuffer.getError());
 
-  return deserialize<T>((*MaybeBuffer)->getBuffer());
+  return deserialize<T>((*MaybeBuffer)->getBuffer(), Context);
 }
 // clang-format on
 

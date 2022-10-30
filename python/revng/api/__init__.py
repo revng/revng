@@ -1,7 +1,6 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-# flake8: noqa: F401
 
 import atexit
 from typing import Optional
@@ -11,6 +10,8 @@ from revng.support import AnyPath
 from ._capi import initialize, shutdown
 from .manager import Manager
 from .rank import Rank
+
+__all__ = ["Manager", "Rank", "initialize", "shutdown"]
 
 _initialized = False
 

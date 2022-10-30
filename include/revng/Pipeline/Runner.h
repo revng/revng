@@ -66,9 +66,10 @@ public:
 
   const KindsRegistry &getKindsRegistry() const;
 
-  llvm::Error apply(const GlobalTupleTreeDiff &Diff);
+  llvm::Error
+  apply(const GlobalTupleTreeDiff &Diff, pipeline::InvalidationMap &Map);
   void getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
-                            InvalidationMap &Out) const;
+                            pipeline::InvalidationMap &Out) const;
 
 public:
   Step &operator[](llvm::StringRef Name) { return getStep(Name); }
@@ -97,12 +98,12 @@ public:
   /// Given a target, all occurrences of that target from every container in
   /// every step will be registered in the returned invalidation map. The
   /// propagations will not be calculated.
-  llvm::Error
-  getInvalidations(const Target &Target, InvalidationMap &Invalidations) const;
+  llvm::Error getInvalidations(const Target &Target,
+                               pipeline::InvalidationMap &Invalidations) const;
 
   /// Deduces and register in the invalidation map all the targets that have
   /// been produced starting from targets already presents in the map.
-  llvm::Error getInvalidations(InvalidationMap &Invalidated) const;
+  llvm::Error getInvalidations(pipeline::InvalidationMap &Invalidated) const;
 
 public:
   template<typename... PipeWrappers>
@@ -138,11 +139,13 @@ public:
   runAnalysis(llvm::StringRef AnalysisName,
               llvm::StringRef StepName,
               const ContainerToTargetsMap &Targets,
+              pipeline::InvalidationMap &InvalidationsMap,
               const llvm::StringMap<std::string> &Options = {});
 
   /// Run all analysis in reverse post order (that is: parents first),
   llvm::Expected<DiffMap>
-  runAllAnalyses(const llvm::StringMap<std::string> &Options = {});
+  runAllAnalyses(pipeline::InvalidationMap &InvalidationsMap,
+                 const llvm::StringMap<std::string> &Options = {});
 
   void addContainerFactory(llvm::StringRef Name, ContainerFactory Entry) {
     ContainerFactoriesRegistry.registerContainerFactory(Name, std::move(Entry));
@@ -166,7 +169,7 @@ public:
   /// Remove the provided target from all containers in all the steps, as well
   /// as all all their transitive dependencies
   llvm::Error invalidate(const Target &Target);
-  llvm::Error invalidate(const InvalidationMap &Invalidations);
+  llvm::Error invalidate(const pipeline::InvalidationMap &Invalidations);
 
 public:
   llvm::Error storeToDisk(llvm::StringRef DirPath) const;

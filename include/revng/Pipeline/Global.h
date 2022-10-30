@@ -24,23 +24,34 @@ private:
 
 public:
   Global(const char *ID) : ID(ID) {}
-
   virtual ~Global() {}
+  virtual Global &operator=(const Global &NewGlobal) = 0;
+
+public:
+  Global(const Global &) = default;
+  Global(Global &&) = default;
+  Global &operator=(Global &&) = default;
 
 public:
   const char *getID() const { return ID; }
 
 public:
   virtual GlobalTupleTreeDiff diff(const Global &Other) const = 0;
+  virtual void applyDiff(const llvm::MemoryBuffer &Diff, ErrorList &EL) = 0;
+  virtual void applyDiff(const GlobalTupleTreeDiff &Diff, ErrorList &EL) = 0;
 
-  virtual llvm::Error applyDiff(const llvm::MemoryBuffer &Diff) = 0;
   virtual llvm::Error serialize(llvm::raw_ostream &OS) const = 0;
   virtual llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) = 0;
+  virtual llvm::Expected<GlobalTupleTreeDiff>
+  deserializeDiff(const llvm::MemoryBuffer &Diff) = 0;
+
   virtual void verify(ErrorList &EL) const = 0;
   virtual void clear() = 0;
+
   virtual llvm::Expected<std::unique_ptr<Global>>
   createNew(const llvm::MemoryBuffer &Buffer) const = 0;
   virtual std::unique_ptr<Global> clone() const = 0;
+
   virtual llvm::Error storeToDisk(llvm::StringRef Path) const;
   virtual llvm::Error loadFromDisk(llvm::StringRef Path);
 };
@@ -101,6 +112,11 @@ public:
     return llvm::Error::success();
   }
 
+  llvm::Expected<GlobalTupleTreeDiff>
+  deserializeDiff(const llvm::MemoryBuffer &Buffer) override {
+    return ::deserialize<TupleTreeDiff<Object>>(Buffer.getBuffer());
+  }
+
   void verify(ErrorList &EL) const override { Value->verify(EL); }
 
   GlobalTupleTreeDiff diff(const Global &Other) const override {
@@ -109,12 +125,23 @@ public:
     return GlobalTupleTreeDiff(std::move(Diff));
   }
 
-  llvm::Error applyDiff(const llvm::MemoryBuffer &Diff) override {
-    auto MaybeDiff = ::deserialize<TupleTreeDiff<Object>>(Diff.getBuffer());
-    if (not MaybeDiff)
-      return MaybeDiff.takeError();
-    MaybeDiff->apply(Value);
-    return llvm::Error::success();
+  void applyDiff(const llvm::MemoryBuffer &Diff, ErrorList &EL) override {
+    auto MaybeDiff = TupleTreeDiff<Object>::deserialize(Diff.getBuffer(), EL);
+    if (not MaybeDiff) {
+      EL.push_back(MaybeDiff.takeError());
+      return;
+    }
+    MaybeDiff->apply(Value, EL);
+  }
+
+  void applyDiff(const GlobalTupleTreeDiff &Diff, ErrorList &EL) override {
+    Diff.getAs<Object>()->apply(Value, EL);
+  }
+
+  Global &operator=(const Global &Other) override {
+    const TupleTreeGlobal &Casted = llvm::cast<TupleTreeGlobal>(Other);
+    Value = Casted.Value;
+    return *this;
   }
 
   const TupleTree<Object> &get() const { return Value; }

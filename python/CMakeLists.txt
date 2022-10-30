@@ -121,6 +121,7 @@ set(REVNG_API_MODULE_FILES
     revng/api/container.py
     revng/api/error_list.py
     revng/api/exceptions.py
+    revng/api/invalidations.py
     revng/api/kind.py
     revng/api/listenable_manager.py
     revng/api/manager.py
@@ -150,6 +151,7 @@ set(REVNG_DAEMON_MODULE_FILES
     revng/daemon/__init__.py
     revng/daemon/demo_webpage.py
     revng/daemon/manager.py
+    revng/daemon/multiqueue.py
     revng/daemon/schema_generator.py
     revng/daemon/schema.graphql.tpl
     revng/daemon/static_handlers.py

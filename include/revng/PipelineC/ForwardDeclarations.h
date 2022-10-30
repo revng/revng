@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/Pipeline/Target.h"
 #include "revng/Pipes/PipelineManager.h"
 #include "revng/Support/ErrorList.h"
 
@@ -19,3 +20,4 @@ typedef const pipeline::Step::AnalysisValueType rp_analysis;
 typedef const pipeline::DiffMap rp_diff_map;
 typedef ErrorList rp_error_list;
 typedef llvm::StringMap<std::string> rp_string_map;
+typedef pipeline::InvalidationMap rp_invalidations;

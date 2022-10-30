@@ -7,29 +7,54 @@
 #include "PipelineC.h"
 
 /**
- * Every pointer returned by this library is owned by the library and must not
- * be deleted, except for pointers returned by functions containing the word
- * "create". Objects returned by functions named "create" are owned by the
- * caller and must be destroyed invoking the appropriate function called
- * rp_TYPE_destroy, or, in the case of strings, rp_string_destroy.
+ * TODO: move to mkdocs
  *
- * Unless otherwise noted, no pointer arguments can be NULL.
- */
-
-/**
- * Some functions can report detailed errors, these accept a rp_error_list as
+ * \page pipelineC_convention PipelineC API conventions
+ *
+ * \section pipelineC_owning_pointers Owning Pointers
+ *
+ * Every pointer returned by this library is owned by the library and must not
+ * be deleted, except for pointers returned by functions with the \c 'owning'
+ * comment in the return type, these are owned by caller and must be destroyed
+ * invoking the appropriate function called \a rp_TYPE_destroy, or, in the case
+ * of strings, rp_string_destroy().
+ *
+ * Unless otherwise noted, no pointer arguments can be \c NULL .
+ *
+ *
+ * \section pipelineC_passing_arrays Passing Arrays
+ *
+ * Sometimes an array needs to be passed to a method, in this case there will be
+ * two arguments one with the name \a $ARGUMENT which is an array of pointers to
+ * the elements and one with the name \a $ARGUMENT_count that indicates how many
+ * elements the array has.
+ *
+ *
+ * \section pipelineC_invalidations Invalidations
+ *
+ * If a user of the pipeline wishes to cache the output of
+ * rp_manager_produce_targets() it can do so, however some modifications can
+ * lead to a produced output to be invalid. To help with this there is
+ * ::rp_invalidations , which if provided to the methods that have it in their
+ * argument, will fill in all the targets that have been invalidated by the
+ * operation. If the user is not interested in having invalidation information
+ * the parameter can be set to \c NULL .
+ *
+ *
+ * \section pipelineC_error_reporting Error Reporting
+ *
+ * Some functions can report detailed errors, these accept a ::rp_error_list as
  * their last parameter, which will contain a list of errors in case the return
- * value of the method is false or nullptr. The rp_error_list_* methods can then
- * be used to inspect the errors provided. In case errors are not of interest, a
- * nullptr can be passed instead and errors will be silently ignored.
+ * value of the method is false or \c NULL . The \a rp_error_list_* methods can
+ * then be used to inspect the errors provided. In case errors are not of
+ * interest, a \c NULL can be passed instead and errors will be silently
+ * ignored.
  */
 
 /**
  * Must be invoked before any other rp_* function is used, must be invoked
- * exactly once. This will take care of initializing all llvm related stuff
- * needed by the revng pipeline to operate.
- *
- * Do not initialize all stuff on your own.
+ * exactly once. This will take care of initializing shared libraries and all of
+ * the llvm related stuff needed by the revng pipeline to operate.
  *
  * \return true if the initialization was successful.
  */
@@ -49,7 +74,7 @@ bool rp_initialize(int argc,
 bool rp_shutdown();
 
 /**
- * Free a string return by a rp_*_create_* method.
+ * Free a string that was returned as an owning pointer.
  */
 void rp_string_destroy(char *string);
 
@@ -62,17 +87,13 @@ void rp_string_destroy(char *string);
  * Load and setup everything needed to run the pipeline, operating on the
  * provided directory and created from the provided pipelines_path.
  *
- * \param pipelines_count size of \p pipelines_path.
- * \param pipeline_flags_count size of \p pipeline_flags.
- * \param execution_directory can be empty (but not NULL), if it is empty then
- * the content of the pipeline will not be loaded and saved on disk before and
- * after the execution. pipeline_flags can be empty, pipeline_flags_count must
- * be the size of the pipeline_flags array.
+ * \param pipelines_path path to the pipeline yamls to load.
+ * \param pipeline_flags flags to pass to the pipelines.
+ * \param execution_directory where the manager will save the state of the
+ * pipeline to preserve it across restarts. If set to the empty string the
+ * pipeline will be ephemeral and all changes will be lost at shutdown.
  *
  * \return the created rp_manager if no error happened, NULL otherwise.
- *
- * This function can be called only once, since it will take take of the
- * initialization of all dynamically loaded libraries.
  */
 rp_manager * /*owning*/ rp_manager_create(uint64_t pipelines_count,
                                           const char *pipelines_path[],
@@ -81,8 +102,9 @@ rp_manager * /*owning*/ rp_manager_create(uint64_t pipelines_count,
                                           const char *execution_directory);
 
 /**
- * Same as like rp_manager_create but, instead of the path to a pipeline YAML
- * file, accepts the strings containing the pipeline directly.
+ * Takes the same arguments as \related rp_manager_create but, instead of the
+ * path to a pipeline YAML file, accepts the strings containing the pipeline
+ * directly.
  */
 rp_manager * /*owning*/
 rp_manager_create_from_string(uint64_t pipelines_count,
@@ -90,15 +112,6 @@ rp_manager_create_from_string(uint64_t pipelines_count,
                               uint64_t pipeline_flags_count,
                               const char *pipeline_flags[],
                               const char *execution_directory);
-
-/**
- * Exactly like rp_manager_create, except that it is run without loading and
- * saving the state of the pipeline before and after the execution, and that no
- * flags are provided.
- */
-rp_manager * /*owning*/ rp_manager_create_memory_only(const char *pipeline_path,
-                                                      uint64_t flags_count,
-                                                      const char *flags[]);
 
 /**
  * Delete the manager object and destroy all the resourced acquired by it.
@@ -122,13 +135,13 @@ rp_manager_get_container_identifier(rp_manager *manager, uint64_t index);
  *  Trigger the serialization of the pipeline on disk.
  *  If path is not nullptr, serialize to the specified path otherwise serialize
  *  in the manager's execution directory
- *  \return 0 if a error happened, 1 otherwise.
+ *  \return false if there was an error while saving, true otherwise
  */
 bool rp_manager_save(rp_manager *manager, const char *path);
 
 /**
  * Serialize the pipeline context to the specified directory
- *  \return 0 if a error happened, 1 otherwise.
+ *  \return false if there was an error while saving, true otherwise
  */
 bool rp_manager_save_context(rp_manager *manager, const char *path);
 
@@ -151,6 +164,7 @@ uint64_t rp_manager_step_name_to_index(rp_manager *manager, const char *name);
 rp_step *rp_manager_get_step(rp_manager *manager, uint64_t index);
 
 /**
+ * \param global_name the name of the global
  * \return the serialized string rappresenting a global object
  */
 const char * /*owning*/
@@ -160,17 +174,21 @@ rp_manager_create_global_copy(rp_manager *manager, const char *global_name);
  * Sets the contents of the specified global
  * \param serialied a c-string representing the serialized new global
  * \param global_name the name of the global
+ * \param invalidations see \ref pipelineC_invalidations
+ * \param error_list see \ref pipelineC_error_reporting
  * \return true on success, false otherwise
  */
 bool rp_manager_set_global(rp_manager *manager,
                            const char *serialized,
                            const char *global_name,
+                           rp_invalidations *invalidations,
                            rp_error_list *error_list);
 
 /**
  * Checks that the serialized global would be correct if set as global_name
  * \param serialied a c-string representing the serialized new global
  * \param global_name the name of the global
+ * \param error_list see \ref pipelineC_error_reporting
  * \return true on success, false otherwise
  */
 bool rp_manager_verify_global(rp_manager *manager,
@@ -180,19 +198,24 @@ bool rp_manager_verify_global(rp_manager *manager,
 
 /**
  * Apply the specified diff to the global
- * \param diff a c-string representing the serialized diff
+ * \param diff a string representing the serialized diff
  * \param global_name the name of the global
+ * \param invalidations see \ref pipelineC_invalidations
+ * \param error_list see \ref pipelineC_error_reporting
+ *
  * \return true on success, false otherwise
  */
 bool rp_manager_apply_diff(rp_manager *manager,
                            const char *diff,
                            const char *global_name,
+                           rp_invalidations *invalidations,
                            rp_error_list *error_list);
 
 /**
  * Checks that the specified diff would apply correctly to the global
  * \param diff a c-string representing the serialized diff
  * \param global_name the name of the global
+ * \param error_list see \ref pipelineC_error_reporting
  * \return true on success, false otherwise
  */
 bool rp_manager_verify_diff(rp_manager *manager,
@@ -245,27 +268,40 @@ const char * /*owning*/ rp_manager_produce_targets(rp_manager *manager,
 /**
  * Request to run the required analysis
  *
- * \param tagets_count must be equal to the size of targets.
+ * \param targets the targets which the analysis will be run on
+ * \param step_name the name of the step
+ * \param analysis_name the name of the analysis in that step
+ * \param container the container to operate on
+ * \param invalidations see \ref pipelineC_invalidations
+ * \param options key-value associative array of options to pass to the analysis
+ * This option accepts nullptr in case there are no options to pass
  *
- * \return 0 if an error was encountered, the owning diff map of affected global
- * objects
+ * \return nullptr if an error was encountered, the owning diff map of affected
+ * global objects otherwise
  */
-rp_diff_map * /*owning*/ rp_manager_run_analysis(rp_manager *manager,
-                                                 uint64_t targets_count,
-                                                 rp_target *targets[],
-                                                 const char *step_name,
-                                                 const char *analysis_name,
-                                                 rp_container *container,
-                                                 const rp_string_map *options);
+rp_diff_map * /*owning*/
+rp_manager_run_analysis(rp_manager *manager,
+                        uint64_t targets_count,
+                        rp_target *targets[],
+                        const char *step_name,
+                        const char *analysis_name,
+                        rp_container *container,
+                        rp_invalidations *invalidations,
+                        const rp_string_map *options);
 
 /**
  * Request to run all analyses on all targets
+ * \param invalidations see \ref pipelineC_invalidations
+ * \param options key-value associative array of options to pass to the analysis
+ * This option accepts nullptr in case there are no options to pass
  *
- * \return 0 if an error was encountered, the owning diff map of affected global
- * objects
+ * \return nullptr if an error was encountered, the owning diff map of affected
+ * global objects otherwise
  */
 rp_diff_map * /*owning*/
-rp_manager_run_all_analyses(rp_manager *manager, const rp_string_map *options);
+rp_manager_run_all_analyses(rp_manager *manager,
+                            rp_invalidations *invalidations,
+                            const rp_string_map *options);
 
 /**
  * \return the container status associated to the provided \p container
@@ -275,10 +311,10 @@ rp_targets_list *rp_manager_get_container_targets_list(rp_manager *manager,
                                                        rp_container *container);
 
 /**
- * \return the path of the provided container at the provided step.
- *
- * \note The returned string is owned by the caller. Destroy with
- *       rp_string_destroy.
+ * \param step_name the name of the step
+ * \param container_name the name of the container
+ * \return the path where the container will be serialized on rp_manager_save if
+ * no path parameter is supplied
  */
 char * /*owning*/ rp_manager_create_container_path(rp_manager *manager,
                                                    const char *step_name,
@@ -296,7 +332,6 @@ char * /*owning*/ rp_manager_create_container_path(rp_manager *manager,
  */
 uint64_t rp_targets_list_targets_count(rp_targets_list *targets_list);
 
-// HERE
 /**
  * \return the n-th target inside the provided \p targets_list or NULL if it's
  *         out of bounds.
@@ -442,14 +477,17 @@ bool rp_step_save(rp_step *step, const char *path);
 /**
  * Create a target from the provided info.
  *
- * \param path_components_count must be equal to the rank depth of the
- *                              kind.
+ * \param kind the kind of the target
+ * \param is_exact if true only the kind specified is considedered, whereas if
+ * false the kind and all its children are considered \param path_components a
+ * list of strings containing the component of the target
  *
  * \return 0 if a error was encountered, 1 otherwise.
  */
 rp_target * /*owning*/ rp_target_create(rp_kind *kind,
                                         uint64_t path_components_count,
                                         const char *path_components[]);
+
 /**
  * Deserialize a target from a string, arguments cannot be NULL.
  *
@@ -460,9 +498,6 @@ rp_target_create_from_string(rp_manager *manager, const char *string);
 
 /**
  * Delete the provided target.
- *
- * \note Call this method *only* on rp_target instance created by
- *       rp_create_target.
  */
 void rp_target_destroy(rp_target *target);
 
@@ -473,9 +508,6 @@ rp_kind *rp_target_get_kind(rp_target *target);
 
 /**
  * Serializes target into a string.
- *
- * \note The return string is owned by the caller. Destroy with
- *       rp_string_destroy.
  */
 char * /*owning*/ rp_target_create_serialized_string(rp_target *target);
 
@@ -506,10 +538,7 @@ bool rp_target_is_ready(rp_target *target, rp_container *container);
  */
 
 /**
- *
  * \return the name of \p kind.
- *
- * \note The returned string must not be freed by the caller.
  */
 const char *rp_kind_get_name(rp_kind *kind);
 
@@ -532,14 +561,11 @@ rp_rank *rp_kind_get_rank(rp_kind *kind);
 
 /**
  * \return the name of \p container.
- *
- * \note The returned string must not be freed by the caller.
  */
 const char *rp_container_get_name(rp_container *container);
 
 /**
  * \return the mime type of \p container
- * \note The returned string must not be freed by the caller.
  */
 const char *rp_container_get_mime(rp_container *container);
 
@@ -551,9 +577,13 @@ const char *rp_container_get_mime(rp_container *container);
 bool rp_container_store(rp_container *container, const char *path);
 
 /**
- * Load the provided container from the provided path.
+ * Load the provided container given a buffer
+ * \param step the step where the container resides
+ * \param container_name the name of the container
+ * \param content pointer to a byte buffer
+ * \param size number of bytes contained in the buffer
  *
- * \return 0 if a error was encountered 1 otherwise
+ * \return false if a error was encountered, true otherwise
  */
 bool rp_manager_container_deserialize(rp_manager *manager,
                                       rp_step *step,
@@ -566,7 +596,6 @@ bool rp_manager_container_deserialize(rp_manager *manager,
  * target,
  *
  * \note Target must be already present in container
- *
  */
 const char * /*owning*/
 rp_container_extract_one(rp_container *container, rp_target *target);
@@ -585,8 +614,9 @@ rp_container_extract_one(rp_container *container, rp_target *target);
 void rp_diff_map_destroy(rp_diff_map *to_free);
 
 /**
- * \return nullptr if global_name did not named a global variable in the
- * diff_map else return the serialized diff of the indicated global
+ * \param global_name the name of the global variable
+ * \return nullptr if the global is not present in the diff_map, otherwise a
+ * string of serialized version of the changes applied to the global
  */
 const char * /*owning*/
 rp_diff_map_get_diff(rp_diff_map *map, const char *global_name);
@@ -689,5 +719,29 @@ void rp_string_map_destroy(rp_string_map *map);
 void rp_string_map_insert(rp_string_map *map,
                           const char *key,
                           const char *value);
+
+/** \} */
+
+/**
+ * \defgroup rp_invalidations rp_invalidations methods
+ * \{
+ */
+
+/**
+ * Create a new rp_invalidations object
+ * \return owning pointer to the newly created object
+ */
+rp_invalidations * /*owning*/ rp_invalidations_create();
+
+/**
+ * Free a rp_invalidations
+ */
+void rp_invalidations_destroy(rp_invalidations *invalidations);
+
+/**
+ * \return a string where each line is a target that has been invalidated
+ */
+const char * /* owning */
+rp_invalidations_serialize(const rp_invalidations *invalidations);
 
 /** \} */

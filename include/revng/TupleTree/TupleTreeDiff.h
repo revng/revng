@@ -20,6 +20,7 @@
 #include "revng/ADT/STLExtras.h"
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/ErrorList.h"
 #include "revng/TupleTree/TupleLikeTraits.h"
 #include "revng/TupleTree/TupleTree.h"
 #include "revng/TupleTree/TupleTreePath.h"
@@ -153,6 +154,11 @@ public:
 
 template<TupleTreeRootLike T>
 struct TupleTreeDiff {
+public:
+  static llvm::Expected<TupleTreeDiff<T>>
+  deserialize(llvm::StringRef Input, ErrorList &EL) {
+    return ::deserialize<TupleTreeDiff<T>>(Input, &EL);
+  }
 
 public:
   using Change = Change<T>;
@@ -193,7 +199,7 @@ public:
     dump(OutputStream);
   }
 
-  void apply(TupleTree<T> &M) const;
+  void apply(TupleTree<T> &M, ErrorList &EL) const;
 };
 
 /// TODO: use non-strict specialization after it's available.
@@ -291,8 +297,14 @@ struct llvm::yaml::MappingTraits<T> {
       std::string SerializedPath;
       IO.mapRequired("Path", SerializedPath);
       auto MaybePath = stringAsPath<Model>(SerializedPath);
-      revng_assert(MaybePath.has_value());
-      Info.Path = std::move(*MaybePath);
+      if (!MaybePath.has_value()) {
+        ::ErrorList *EL = static_cast<::ErrorList *>(IO.getContext());
+        std::string ErrorMessage = "Path " + SerializedPath + " is invalid";
+        EL->push_back(llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                              ErrorMessage));
+      } else {
+        Info.Path = std::move(*MaybePath);
+      }
     }
 
     mapSingleEntry(IO, Info, "Add", Info.New);
@@ -368,10 +380,8 @@ private:
     }
   }
 
-  // clang-format off
-  template<typename T> requires (not TupleTreeCompatible<T>)
+  template<NotTupleTreeCompatible T>
   void diffImpl(const T &LHS, const T &RHS) {
-    // clang-format on
     if (LHS != RHS)
       Result.change(Stack, LHS, RHS);
   }
@@ -398,15 +408,29 @@ inline void TupleTreeDiff<T>::dump(llvm::raw_ostream &OutputStream) const {
 //
 namespace tupletreediff::detail {
 
-// clang-format off
-
-// clang-format on
-
 template<TupleTreeRootLike T>
 struct ApplyDiffVisitor {
+public:
   using Change = typename TupleTreeDiff<T>::Change;
   const Change *C;
+  ErrorList *EL;
 
+private:
+  void generateError() { generateError(""); }
+
+  void generateError(const llvm::StringRef Reason) {
+    std::string Description = "Error in applying diff";
+    if (!Reason.empty())
+      Description += ": " + Reason.str();
+    std::optional<std::string> StringPath = pathAsString<T>(C->Path);
+    if (StringPath != std::nullopt)
+      Description += " on Path " + *StringPath;
+    auto Error = llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                         Description);
+    EL->push_back(std::move(Error));
+  }
+
+public:
   template<typename TupleT, size_t I, typename K>
   void visitTupleElement(K &Element) {
     visit(Element);
@@ -419,7 +443,16 @@ struct ApplyDiffVisitor {
 
   template<revng::detail::SetOrKOC S>
   void visit(S &M) {
-    revng_assert((C->Old == std::nullopt) != (C->New == std::nullopt));
+    // This visitor handles subtree additions/deletions. Here we either have a
+    // New or Old key to add/remove.
+    if (C->Old == std::nullopt && C->New == std::nullopt) {
+      generateError("both 'Remove' and 'Add' are not present");
+      return;
+    }
+    if (C->Old != std::nullopt && C->New != std::nullopt) {
+      generateError("both 'Remove' and 'Add' are not present");
+      return;
+    }
 
     using value_type = typename S::value_type;
     using KOT = KeyedObjectTraits<value_type>;
@@ -432,22 +465,39 @@ struct ApplyDiffVisitor {
       auto CompareKeys = [Key](value_type &V) { return KOT::key(V) == Key; };
       auto FirstToDelete = std::remove_if(M.begin(), End, CompareKeys);
       M.erase(FirstToDelete, End);
-      revng_assert(OldSize == M.size() + 1);
+      if (OldSize - 1 != M.size())
+        generateError("subtree removal failed");
     } else if (C->New != std::nullopt) {
       // TODO: assert not there already
       addToContainer(M, std::get<value_type>(*C->New));
-      revng_assert(OldSize == M.size() - 1);
+      if (OldSize + 1 != M.size())
+        generateError("subtree addition failed");
     } else {
-      revng_abort();
+      generateError("arrived at an impossible branch");
     }
   }
 
   template<typename S>
   void visit(S &M) {
-    revng_assert(C->Old != std::nullopt and C->New != std::nullopt);
+    // This visitor handles key changes, so both Old and New are present. This
+    // will check that the tree contains Old and then replace its contents with
+    // New
+    if (C->Old == std::nullopt || C->New == std::nullopt) {
+      if (C->Old == std::nullopt)
+        generateError("missing 'Remove' key");
+      if (C->New == std::nullopt)
+        generateError("missing 'Add' key");
+      return;
+    }
+
     auto &Old = std::get<S>(*C->Old);
     auto &New = std::get<S>(*C->New);
-    revng_check(Old == M);
+
+    if (Old != M) {
+      generateError("'Remove' does not match the contents of the Tuple Tree");
+      return;
+    }
+
     M = New;
   }
 };
@@ -455,11 +505,14 @@ struct ApplyDiffVisitor {
 } // namespace tupletreediff::detail
 
 template<TupleTreeRootLike T>
-inline void TupleTreeDiff<T>::apply(TupleTree<T> &M) const {
-  TupleTreePath LastPath;
+inline void TupleTreeDiff<T>::apply(TupleTree<T> &M, ErrorList &EL) const {
   for (const Change &C : Changes) {
-    tupletreediff::detail::ApplyDiffVisitor<T> ADV{ &C };
-    callByPath(ADV, C.Path, *M);
+    if (C.Path.size() == 0) {
+      // Change failed to deserialize, skip it
+      continue;
+    }
+    tupletreediff::detail::ApplyDiffVisitor<T> ADV{ &C, &EL };
+    callByPath(ADV, C.Path, *M, EL, *pathAsString<T>(C.Path));
   }
   M.initializeReferences();
 }

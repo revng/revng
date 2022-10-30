@@ -17,7 +17,8 @@ from revng.api.manager import Manager
 from revng.api.rank import Rank
 from revng.api.step import Step
 
-from .static_handlers import DEFAULT_BINDABLES, analysis_mutations, run_in_executor
+from .static_handlers import DEFAULT_BINDABLES, analysis_mutations, invalidation_queue
+from .static_handlers import run_in_executor
 
 
 class SchemaGenerator:
@@ -170,7 +171,8 @@ class DynamicBindableGenerator:
             result = await run_in_executor(
                 lambda: manager.run_analysis(step.name, analysis.name, target_mapping)
             )
-            return json.dumps(result)
+            await invalidation_queue.send(str(result.invalidations))
+            return json.dumps(result.result)
 
         return step_analysis_handle
 
