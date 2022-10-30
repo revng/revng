@@ -82,7 +82,10 @@ public:
     return std::unique_ptr<Global>(Ptr);
   }
 
-  void clear() override { *Value = Object(); }
+  void clear() override {
+    Value.evictCachedReferences();
+    *Value = Object();
+  }
 
   llvm::Error serialize(llvm::raw_ostream &OS) const override {
     Value.serialize(OS);

@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <compare>
+
 #include "llvm/ADT/Twine.h"
 
 #include "revng/ADT/STLExtras.h"
@@ -49,9 +51,9 @@ public:
     return true;
   }
 
-  virtual bool operator<(const TupleTreeKeyWrapper &) const {
+  virtual std::strong_ordering operator<=>(const TupleTreeKeyWrapper &) const {
     revng_assert(Pointer == nullptr);
-    return false;
+    return std::strong_ordering::greater;
   }
 
   virtual char *id() const {
@@ -112,13 +114,19 @@ public:
     }
   }
 
-  bool operator<(const TupleTreeKeyWrapper &Other) const override {
+  std::strong_ordering
+  operator<=>(const TupleTreeKeyWrapper &Other) const override {
     if (id() == Other.id()) {
       using ThisType = const ConcreteTupleTreeKeyWrapper &;
-      auto *OtherPointer = static_cast<ThisType>(Other).get();
-      return *get() < *OtherPointer;
+      const auto &OtherKey = *static_cast<ThisType>(Other).get();
+      const auto &ThisKey = *get();
+      if (ThisKey < OtherKey)
+        return std::strong_ordering::less;
+      if (OtherKey < ThisKey)
+        return std::strong_ordering::greater;
+      return std::strong_ordering::equal;
     } else {
-      return id() < Other.id();
+      return id() <=> Other.id();
     }
   }
 
@@ -178,8 +186,12 @@ public:
     return Storage[Index];
   }
   bool operator==(const TupleTreePath &Other) const = default;
-  bool operator<(const TupleTreePath &Other) const {
-    return Storage < Other.Storage;
+  std::strong_ordering operator<=>(const TupleTreePath &Other) const {
+    if (Storage < Other.Storage)
+      return std::strong_ordering::less;
+    if (Other.Storage < Storage)
+      return std::strong_ordering::greater;
+    return std::strong_ordering::equal;
   }
 
   // TODO: should return ArrayRef<const TupleTreeKeyWrapper>

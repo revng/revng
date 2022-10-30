@@ -33,9 +33,10 @@ template<TupleTreeCompatible T>
 class TupleTree {
 private:
   std::unique_ptr<T> Root;
+  bool AllReferencesAreCached = false;
 
 public:
-  TupleTree() : Root(new T) {}
+  TupleTree() : Root(new T), AllReferencesAreCached(false) {}
 
   // Allow expensive copy
   TupleTree(const TupleTree &Other) : Root(std::make_unique<T>()) {
@@ -44,19 +45,40 @@ public:
   TupleTree &operator=(const TupleTree &Other) {
     if (Other.get() == nullptr) {
       Root = nullptr;
+      AllReferencesAreCached = false;
       return *this;
     }
 
     if (this != &Other) {
       *Root = *Other.Root;
-      initializeReferences();
+      AllReferencesAreCached = false;
+      initializeUncachedReferences();
     }
     return *this;
   }
 
   // Moving is fine
-  TupleTree(TupleTree &&Other) = default;
-  TupleTree &operator=(TupleTree &&Other) = default;
+  TupleTree(TupleTree &&Other) { *this = std::move(Other); }
+  TupleTree &operator=(TupleTree &&Other) {
+    if (Other.get() == nullptr) {
+      Root = nullptr;
+      AllReferencesAreCached = false;
+
+      Other.Root.reset();
+      Other.AllReferencesAreCached = false;
+
+      return *this;
+    }
+
+    if (this != &Other) {
+      Root = std::move(Other.Root);
+      AllReferencesAreCached = Other.AllReferencesAreCached;
+
+      Other.Root.reset();
+      Other.AllReferencesAreCached = false;
+    }
+    return *this;
+  }
 
   template<StrictSpecializationOf<TupleTreeReference> TTR>
   void replaceReferences(const std::map<TTR, TTR> &Map) {
@@ -66,13 +88,13 @@ public:
         Reference = It->second;
     };
     visitReferences(Visitor);
+    evictCachedReferences();
   }
 
 public:
   static llvm::ErrorOr<TupleTree> deserialize(llvm::StringRef YAMLString) {
-    TupleTree Result;
+    TupleTree Result{};
 
-    Result.Root = std::make_unique<T>();
     llvm::yaml::Input YAMLInput(YAMLString);
 
     auto MaybeRoot = revng::detail::deserializeImpl<T>(YAMLString);
@@ -113,37 +135,79 @@ public:
   }
 
 public:
-  T *get() noexcept { return Root.get(); }
   const T *get() const noexcept { return Root.get(); }
-  T &operator*() { return *Root; }
+  T *get() noexcept {
+    revng_assert(not AllReferencesAreCached);
+    return Root.get();
+  }
+
   const T &operator*() const { return *Root; }
-  T *operator->() noexcept { return Root.operator->(); }
+  T &operator*() {
+    revng_assert(not AllReferencesAreCached);
+    return *Root;
+  }
+
   const T *operator->() const noexcept { return Root.operator->(); }
+  T *operator->() noexcept {
+    revng_assert(not AllReferencesAreCached);
+    return Root.operator->();
+  }
 
 public:
   bool verify() const debug_function { return verifyReferences(); }
 
+private:
+  void initializeUncachedReferences() {
+    visitReferences([this](auto &Element) {
+      Element.Root = Root.get();
+      Element.evictCachedTarget();
+    });
+    AllReferencesAreCached = false;
+  }
+
+public:
   void initializeReferences() {
+    revng_assert(not AllReferencesAreCached);
     visitReferences([this](auto &Element) { Element.Root = Root.get(); });
   }
 
+  void cacheReferences() {
+    if (not AllReferencesAreCached)
+      visitReferencesInternal([](auto &Element) { Element.cacheTarget(); });
+    AllReferencesAreCached = true;
+  }
+
+  void evictCachedReferences() {
+    if (AllReferencesAreCached)
+      visitReferencesInternal([](auto &E) { E.evictCachedTarget(); });
+    AllReferencesAreCached = false;
+  }
+
+private:
   template<typename L>
-  void visitReferences(const L &InnerVisitor) {
+  void visitReferencesInternal(L &&InnerVisitor) {
     auto Visitor = [&InnerVisitor](auto &Element) {
       using type = std::remove_cvref_t<decltype(Element)>;
       if constexpr (StrictSpecializationOf<type, TupleTreeReference>)
-        InnerVisitor(Element);
+        std::invoke(std::forward<L>(InnerVisitor), Element);
     };
 
     visitTupleTree(*Root, Visitor, [](auto &) {});
   }
 
+public:
   template<typename L>
-  void visitReferences(const L &InnerVisitor) const {
+  void visitReferences(L &&InnerVisitor) {
+    revng_assert(not AllReferencesAreCached);
+    visitReferencesInternal(std::forward<L>(InnerVisitor));
+  }
+
+  template<typename L>
+  void visitReferences(L &&InnerVisitor) const {
     auto Visitor = [&InnerVisitor](const auto &Element) {
       using type = std::remove_cvref_t<decltype(Element)>;
       if constexpr (StrictSpecializationOf<type, TupleTreeReference>)
-        InnerVisitor(Element);
+        std::invoke(std::forward<L>(InnerVisitor), Element);
     };
 
     visitTupleTree(*Root, Visitor, [](auto) {});
@@ -153,14 +217,10 @@ private:
   bool verifyReferences() const {
     bool Result = true;
 
-    visitReferences([&Result, this](const auto &Element) {
-      const auto SameRoot = [&]() {
-        const auto GetPtrToConstRoot =
-          [](const auto &RootPointer) -> const T * { return RootPointer; };
-
-        return std::visit(GetPtrToConstRoot, Element.Root) == Root.get();
-      };
-      Result = Result and SameRoot();
+    visitReferences([&Result, RootPointer = Root.get()](const auto &Element) {
+      Result = Result and Element.getRoot() == RootPointer
+               and not Element.isConst()
+               and (Element.empty() or Element.isValid());
     });
 
     return Result;

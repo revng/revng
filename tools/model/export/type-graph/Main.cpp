@@ -43,7 +43,7 @@ int main(int Argc, char *Argv[]) {
     revng_abort(EC.message().c_str());
 
   TypeSystemPrinter TSPrinter(Out);
-  TSPrinter.print(*MaybeModel->getModel());
+  TSPrinter.print(MaybeModel->getReadOnlyModel());
 
   return EXIT_SUCCESS;
 }

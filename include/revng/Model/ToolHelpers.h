@@ -213,8 +213,15 @@ public:
     return *Module;
   }
 
-  TupleTree<model::Binary> &getModel() { return Model; }
-  const TupleTree<model::Binary> &getModel() const { return Model; }
+  TupleTree<model::Binary> &getWriteableModel() {
+    Model.evictCachedReferences();
+    return Model;
+  }
+
+  const model::Binary &getReadOnlyModel() {
+    Model.cacheReferences();
+    return *std::as_const(Model);
+  }
 
 public:
   llvm::Error save(const llvm::Twine &Path, ModelOutputType::Values Type) {

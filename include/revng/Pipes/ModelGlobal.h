@@ -26,6 +26,7 @@ inline const TupleTree<model::Binary> &
 getModelFromContext(const pipeline::Context &Ctx) {
   using Wrapper = ModelGlobal;
   const auto &Model = llvm::cantFail(Ctx.getGlobal<Wrapper>(ModelGlobalName));
+  Model->get().cacheReferences();
   return Model->get();
 }
 
@@ -33,6 +34,7 @@ inline TupleTree<model::Binary> &
 getWritableModelFromContext(pipeline::Context &Ctx) {
   using Wrapper = ModelGlobal;
   const auto &Model = llvm::cantFail(Ctx.getGlobal<Wrapper>(ModelGlobalName));
+  Model->get().evictCachedReferences();
   return Model->get();
 }
 
