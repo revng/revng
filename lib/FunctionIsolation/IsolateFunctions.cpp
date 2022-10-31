@@ -484,15 +484,15 @@ private:
 public:
   FunctionOutliner(llvm::Module &M,
                    const model::Binary &Binary,
-                   GeneratedCodeBasicInfo &GCBI,
-                   efa::CallHandler *TheCallHandler) :
-    GCBI(GCBI), Outliner(M, GCBI, Oracle, TheCallHandler) {
+                   GeneratedCodeBasicInfo &GCBI) :
+    GCBI(GCBI), Outliner(M, GCBI, Oracle) {
     importModel(M, GCBI, Binary, Oracle);
   }
 
 public:
-  efa::OutlinedFunction outline(MetaAddress Entry) {
-    return Outliner.outline(GCBI.getBlockAt(Entry));
+  efa::OutlinedFunction
+  outline(MetaAddress Entry, efa::CallHandler *TheCallHandler) {
+    return Outliner.outline(GCBI.getBlockAt(Entry), TheCallHandler);
   }
 };
 
@@ -584,14 +584,14 @@ void IsolateFunctionsImpl::run() {
   using namespace efa;
   using llvm::BasicBlock;
 
+  FunctionOutliner Outliner(*TheModule, Binary, GCBI);
   for (auto &[Entry, F] : IsolatedFunctionsMap) {
     BasicBlock *OriginalEntryBlock = GCBI.getBlockAt(Entry);
     efa::FunctionMetadata FM = *extractFunctionMetadata(OriginalEntryBlock)
                                   .get();
 
     CallIsolatedFunction CallHandler(*this, FM);
-    FunctionOutliner Outliner(*TheModule, Binary, GCBI, &CallHandler);
-    OutlinedFunction Outlined = Outliner.outline(Entry);
+    OutlinedFunction Outlined = Outliner.outline(Entry, &CallHandler);
 
     //
     // Handle UnexpectedPCCloned
