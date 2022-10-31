@@ -113,14 +113,16 @@ bool OutlinedFunctionsMap::banRecursiveFunctions() {
   return Result;
 }
 
-void Outliner::integrateFunctionCallee(MetaAddress CallerFunction,
+void Outliner::integrateFunctionCallee(CallHandler *TheCallHandler,
+                                       MetaAddress CallerFunction,
                                        llvm::CallInst *FunctionCall,
                                        llvm::CallInst *JumpToSymbol,
                                        MetaAddress Callee,
                                        OutlinedFunctionsMap &FunctionsMap) {
   llvm::LLVMContext &Context = M.getContext();
 
-  auto [Summary, IsTailCall] = getCallSiteInfo(CallerFunction,
+  auto [Summary, IsTailCall] = getCallSiteInfo(TheCallHandler,
+                                               CallerFunction,
                                                FunctionCall,
                                                JumpToSymbol,
                                                Callee);
@@ -208,7 +210,8 @@ void Outliner::integrateFunctionCallee(MetaAddress CallerFunction,
 }
 
 OutlinedFunction
-Outliner::outlineFunctionInternal(llvm::BasicBlock *Entry,
+Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
+                                  llvm::BasicBlock *Entry,
                                   OutlinedFunctionsMap &FunctionsToInline) {
   using namespace llvm;
   using llvm::BasicBlock;
@@ -243,7 +246,8 @@ Outliner::outlineFunctionInternal(llvm::BasicBlock *Entry,
         PCCallee = getBasicBlockPC(Next);
 
       CallInst *JumpToSymbol = getMarker(Current, "jump_to_symbol");
-      auto [Summary, IsTailCall] = getCallSiteInfo(FunctionAddress,
+      auto [Summary, IsTailCall] = getCallSiteInfo(TheCallHandler,
+                                                   FunctionAddress,
                                                    FunctionCall,
                                                    JumpToSymbol,
                                                    PCCallee);
@@ -301,7 +305,8 @@ Outliner::outlineFunctionInternal(llvm::BasicBlock *Entry,
       using namespace model::FunctionAttribute;
 
       CallInst *JumpToSymbol = getMarker(BB, "jump_to_symbol");
-      auto [CalleeSummary, IsTailCall] = getCallSiteInfo(FunctionAddress,
+      auto [CalleeSummary, IsTailCall] = getCallSiteInfo(TheCallHandler,
+                                                         FunctionAddress,
                                                          FunctionCall,
                                                          JumpToSymbol,
                                                          PCCallee);
@@ -345,7 +350,6 @@ Outliner::outlineFunctionInternal(llvm::BasicBlock *Entry,
   }
 
   // Extract outlined function
-  CodeExtractorAnalysisCache CEAC(*M.getFunction("root"));
   llvm::Function *F = CodeExtractor(BlocksToExtract).extractCodeRegion(CEAC);
   F->addFnAttr(Attribute::NullPointerIsValid);
   OutlinedFunction.Function = UniqueValuePtr<llvm::Function>(F);
@@ -369,7 +373,8 @@ Outliner::outlineFunctionInternal(llvm::BasicBlock *Entry,
     // TODO: we don't integrate the call if it's a tail call (JumpToSymbol but
     //       no FunctionCall). Is this OK?
     if (FunctionCall != nullptr) {
-      integrateFunctionCallee(FunctionAddress,
+      integrateFunctionCallee(TheCallHandler,
+                              FunctionAddress,
                               FunctionCall,
                               JumpToSymbol,
                               Callee,
@@ -380,7 +385,8 @@ Outliner::outlineFunctionInternal(llvm::BasicBlock *Entry,
   return OutlinedFunction;
 }
 
-void Outliner::createAnyPCHooks(OutlinedFunction *OutlinedFunction) {
+void Outliner::createAnyPCHooks(CallHandler *TheCallHandler,
+                                OutlinedFunction *OutlinedFunction) {
   using namespace llvm;
   LLVMContext &Context = M.getContext();
 
@@ -425,7 +431,8 @@ void Outliner::createAnyPCHooks(OutlinedFunction *OutlinedFunction) {
   }
 }
 
-OutlinedFunction Outliner::outline(llvm::BasicBlock *Entry) {
+OutlinedFunction
+Outliner::outline(llvm::BasicBlock *Entry, CallHandler *Handler) {
   using namespace llvm;
 
   OutlinedFunction Result;
@@ -440,7 +447,7 @@ OutlinedFunction Outliner::outline(llvm::BasicBlock *Entry) {
     FunctionsToInline.clear();
 
     // Outline functions but do not perform inlining
-    Result = outlineFunctionInternal(Entry, FunctionsToInline);
+    Result = outlineFunctionInternal(Handler, Entry, FunctionsToInline);
 
     //
     // Fixed point creation of function that needs to be inlined
@@ -450,7 +457,8 @@ OutlinedFunction Outliner::outline(llvm::BasicBlock *Entry) {
       SomethingNew = false;
       for (const auto &[Address, F] : FunctionsToInline) {
         if (F->isDeclaration()) {
-          Function *ToInline = createFunctionToInline(GCBI.getBlockAt(Address),
+          Function *ToInline = createFunctionToInline(Handler,
+                                                      GCBI.getBlockAt(Address),
                                                       FunctionsToInline);
           F->replaceAllUsesWith(ToInline);
           FunctionsToInline.set(Address, ToInline);
@@ -493,19 +501,22 @@ OutlinedFunction Outliner::outline(llvm::BasicBlock *Entry) {
     }
   }
 
-  createAnyPCHooks(&Result);
+  createAnyPCHooks(Handler, &Result);
 
   return Result;
 }
 
 llvm::Function *
-Outliner::createFunctionToInline(llvm::BasicBlock *Entry,
+Outliner::createFunctionToInline(CallHandler *TheCallHandler,
+                                 llvm::BasicBlock *Entry,
                                  OutlinedFunctionsMap &FunctionsToInline) {
   using namespace llvm;
   LLVMContext &Context = M.getContext();
 
   // Recreate outlined function
-  OutlinedFunction OF = outlineFunctionInternal(Entry, FunctionsToInline);
+  OutlinedFunction OF = outlineFunctionInternal(TheCallHandler,
+                                                Entry,
+                                                FunctionsToInline);
 
   // Adjust `anypc` and `unexpectedpc` BBs of the function to inline
   revng_assert(OF.AnyPCCloned != nullptr);
@@ -528,7 +539,8 @@ Outliner::createFunctionToInline(llvm::BasicBlock *Entry,
 }
 
 std::pair<const FunctionSummary *, bool>
-Outliner::getCallSiteInfo(MetaAddress CallerFunction,
+Outliner::getCallSiteInfo(CallHandler *TheCallHandler,
+                          MetaAddress CallerFunction,
                           llvm::CallInst *FunctionCall,
                           llvm::CallInst *JumpToSymbol,
                           MetaAddress Callee) {
