@@ -669,8 +669,6 @@ private:
     return Result;
   }
 
-  static constexpr auto UnlimitedRegisters = std::numeric_limits<size_t>::max();
-
   template<size_t RegisterCount>
   static std::pair<DistributedArgument, size_t>
   considerRegisters(size_t Size,
@@ -727,8 +725,8 @@ private:
   distributeNonPositionBasedArguments(const ArgumentContainer &Arguments,
                                       std::size_t SkippedRegisters = 0) {
     DistributedArguments Result;
-    size_t UsedGeneralPurposeRegisterCounter = SkippedRegisters;
-    size_t UsedVectorRegisterCounter = 0;
+    size_t UsedGeneralPurposeRegisterCount = SkippedRegisters;
+    size_t UsedVectorRegisterCount = 0;
 
     for (const model::Argument &Argument : Arguments) {
       auto MaybeSize = Argument.Type.size();
@@ -736,22 +734,37 @@ private:
 
       constexpr bool CanSplit = AT::ArgumentsCanBeSplitBetweenRegistersAndStack;
       if (Argument.Type.isFloat()) {
-        static constexpr auto &Registers = AT::VectorArgumentRegisters;
-        size_t &Counter = UsedVectorRegisterCounter;
-        const size_t Limit = 1;
+        // The conventional non-position based approach is not applicable for
+        // vector registers since it's rare for multiple registers to be used
+        // to pass a single argument.
+        //
+        // For now, just return the next free register.
+        //
+        // TODO: handle this properly.
 
-        auto [Distributed, NextIndex] = considerRegisters(*MaybeSize,
-                                                          Limit,
-                                                          Counter,
-                                                          Registers,
-                                                          CanSplit);
-        if (Result.size() <= Argument.Index)
-          Result.resize(Argument.Index + 1);
-        Result[Argument.Index] = Distributed;
-        Counter = NextIndex;
+        static constexpr auto &Registers = AT::VectorArgumentRegisters;
+        if (UsedVectorRegisterCount < Registers.size()) {
+          // There is a free register to put the argument in.
+          if (Result.size() <= Argument.Index)
+            Result.resize(Argument.Index + 1);
+
+          auto Register = Registers[UsedVectorRegisterCount];
+          Result[Argument.Index].Registers.emplace_back(Register);
+          Result[Argument.Index].Size = *MaybeSize;
+          Result[Argument.Index].SizeOnStack = 0;
+
+          UsedVectorRegisterCount++;
+        } else {
+          // There are no more free registers left,
+          // pass the argument on the stack.
+          if (Result.size() <= Argument.Index)
+            Result.resize(Argument.Index + 1);
+          Result[Argument.Index].Size = *MaybeSize;
+          Result[Argument.Index].SizeOnStack = paddedSizeOnStack(*MaybeSize);
+        }
       } else {
         static constexpr auto &Registers = AT::GeneralPurposeArgumentRegisters;
-        size_t &Counter = UsedGeneralPurposeRegisterCounter;
+        size_t &Counter = UsedGeneralPurposeRegisterCount;
         if (Argument.Type.isScalar()) {
           const size_t Limit = AT::MaximumGPRsPerScalarArgument;
 
@@ -816,10 +829,22 @@ public:
 
     if (ReturnValueType.isFloat()) {
       const auto &Registers = AT::VectorReturnValueRegisters;
-      // TODO: replace `UnlimitedRegisters` with the actual value to be defined
-      //       by the trait.
-      const size_t L = UnlimitedRegisters;
-      return considerRegisters(*MaybeSize, L, 0, Registers, false).first;
+
+      // As a temporary measure always just return the first vector return value
+      // register, if it's available.
+      //
+      // TODO: handle the situation properly.
+      if constexpr (!AT::VectorReturnValueRegisters.empty()) {
+        DistributedArgument Result;
+        Result.Size = *MaybeSize;
+        Result.Registers.emplace_back(Registers.front());
+        Result.SizeOnStack = 0;
+        return Result;
+      } else {
+        // If there are no vector registers, dedicated to be used for passing
+        // arguments in the current ABI, use stack instead.
+        return considerRegisters(*MaybeSize, 0, 0, Registers, false).first;
+      }
     } else {
       const size_t L = ReturnValueType.isScalar() ?
                          AT::MaximumGPRsPerScalarReturnValue :
