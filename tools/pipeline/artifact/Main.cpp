@@ -134,7 +134,10 @@ int main(int argc, const char *argv[]) {
 
   AbortOnError(Manager.storeToDisk());
 
-  auto Produced = Container.second->cloneFiltered(Map.at(ContainerName));
+  const TargetsList &Targets = Map.contains(ContainerName) ?
+                                 Map.at(ContainerName) :
+                                 TargetsList();
+  auto Produced = Container.second->cloneFiltered(Targets);
   AbortOnError(Produced->storeToDisk(Output));
 
   if (not SaveModel.empty()) {
