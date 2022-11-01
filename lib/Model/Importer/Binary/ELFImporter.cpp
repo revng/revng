@@ -16,10 +16,10 @@
 #include "revng/ABI/DefaultFunctionPrototype.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
+#include "revng/Model/Importer/Binary/BinaryImporterHelper.h"
 #include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
 #include "revng/Model/RawBinaryView.h"
 #include "revng/Support/Debug.h"
-#include "revng/Model/Importer/Binary/BinaryImporterHelper.h"
 
 #include "DwarfReader.h"
 #include "ELFImporter.h"

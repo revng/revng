@@ -18,9 +18,8 @@ private:
 
 public:
   DwarfImporter(TupleTree<model::Binary> &Model,
-                uint64_t PreferredBaseAddress)
-    : Model(Model),
-      PreferredBaseAddress(PreferredBaseAddress) {}
+                uint64_t PreferredBaseAddress) :
+    Model(Model), PreferredBaseAddress(PreferredBaseAddress) {}
 
 public:
   model::QualifiedType *findType(DwarfID ID) {

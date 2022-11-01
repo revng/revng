@@ -52,9 +52,12 @@ template<typename T>
 concept UpcastablePointerLike = Dereferenceable<T> and Upcastable<pointee<T>>;
 
 // clang-format off
-template<typename ReturnT, typename L, UpcastablePointerLike P, size_t I = 0>
+template<typename ReturnT, typename L, UpcastablePointerLike P, std::size_t... I>
   requires(not std::is_void_v<ReturnT>)
-ReturnT upcast(P &&Upcastable, const L &Callable, const ReturnT &IfNull) {
+ReturnT upcastImpl(P &&Upcastable,
+                   const L &Callable,
+                   const ReturnT &IfNull,
+                   std::index_sequence<I...>) {
   // clang-format on
   using pointee = std::remove_reference_t<decltype(*Upcastable)>;
   using concrete_types = concrete_types_traits_t<pointee>;
@@ -62,16 +65,28 @@ ReturnT upcast(P &&Upcastable, const L &Callable, const ReturnT &IfNull) {
   if (Pointer == nullptr)
     return IfNull;
 
-  if constexpr (I < std::tuple_size_v<concrete_types>) {
-    using type = std::tuple_element_t<I, concrete_types>;
-    if (auto *Upcasted = llvm::dyn_cast<type>(Pointer)) {
-      return Callable(*Upcasted);
-    } else {
-      return upcast<ReturnT, L, P, I + 1>(Upcastable, Callable, IfNull);
-    }
-  } else {
-    revng_abort();
-  }
+  std::optional<ReturnT> Result;
+
+  ((Result = llvm::isa<std::tuple_element_t<I, concrete_types>>(Pointer) ?
+               Callable(*llvm::cast<std::tuple_element_t<I, concrete_types>>(
+                 Pointer)) :
+               Result),
+   ...);
+
+  revng_assert(Result);
+  return *Result;
+}
+
+// clang-format off
+template<typename ReturnT, typename L, UpcastablePointerLike P>
+  requires(not std::is_void_v<ReturnT>)
+ReturnT upcast(P &&Upcastable, const L &Callable, const ReturnT &IfNull) {
+  using pointee = std::remove_reference_t<decltype(*Upcastable)>;
+  using concrete_types = concrete_types_traits_t<pointee>;
+  return upcastImpl(Upcastable,
+                    Callable,
+                    IfNull,
+                    std::make_index_sequence<std::tuple_size_v<concrete_types>>());
 }
 
 template<typename L, UpcastablePointerLike P>

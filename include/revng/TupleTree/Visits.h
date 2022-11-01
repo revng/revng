@@ -19,15 +19,14 @@
 
 namespace tupletree::detail {
 
-template<size_t I = 0, typename Visitor, typename T>
-void visitTuple(Visitor &V, T &Obj) {
-  if constexpr (I < std::tuple_size_v<T>) {
-    // Visit the field
-    visitTupleTree(V, get<I>(Obj));
+template<typename Visitor, typename T, std::size_t... I>
+void visitTupleImpl(Visitor &V, T &Obj, std::index_sequence<I...>) {
+  (visitTupleTree(V, get<I>(Obj)), ...);
+}
 
-    // Visit next element in tuple
-    visitTuple<I + 1>(V, Obj);
-  }
+template<typename Visitor, typename T>
+void visitTuple(Visitor &V, T &Obj) {
+  visitTupleImpl(V, Obj, std::make_index_sequence<std::tuple_size_v<T>>());
 }
 
 } // namespace tupletree::detail
@@ -80,17 +79,19 @@ void visitTupleTree(T &Element,
 //
 // tupleIndexByName
 //
-template<TraitedTupleLike T, size_t I = 0>
+template<TraitedTupleLike T, std::size_t... I>
+size_t tupleIndexByNameImpl(llvm::StringRef Name, std::index_sequence<I...>) {
+  size_t Result = -1;
+
+  ((Result = Name == TupleLikeTraits<T>::FieldNames[I] ? I : Result), ...);
+
+  return Result;
+}
+
+template<TraitedTupleLike T>
 size_t tupleIndexByName(llvm::StringRef Name) {
-  if constexpr (I < std::tuple_size_v<T>) {
-    llvm::StringRef ThisName = TupleLikeTraits<T>::FieldNames[I];
-    if (Name == ThisName)
-      return I;
-    else
-      return tupleIndexByName<T, I + 1>(Name);
-  } else {
-    return -1;
-  }
+  return tupleIndexByNameImpl(Name,
+                              std::make_index_sequence<std::tuple_size_v<T>>());
 }
 
 //
@@ -98,19 +99,19 @@ size_t tupleIndexByName(llvm::StringRef Name) {
 //
 namespace tupletree::detail {
 
+template<typename ResultT, typename RootT, typename KeyT, std::size_t... I>
+ResultT *getByKeyTupleImpl(RootT &M, KeyT Key, std::index_sequence<I...>) {
+  ResultT *Result = nullptr;
+  ((Result = I == Key ? reinterpret_cast<ResultT *>(&get<I>(M)) : Result), ...);
+  return Result;
+}
+
 template<typename ResultT, size_t I = 0, typename RootT, typename KeyT>
 ResultT *getByKeyTuple(RootT &M, KeyT Key) {
-  if constexpr (I < std::tuple_size_v<RootT>) {
-    if (I == Key) {
-      using tuple_element = typename std::tuple_element<I, RootT>::type;
-      revng_assert((std::is_same_v<tuple_element, ResultT>) );
-      return reinterpret_cast<ResultT *>(&get<I>(M));
-    } else {
-      return getByKeyTuple<ResultT, I + 1>(M, Key);
-    }
-  } else {
-    return nullptr;
-  }
+  return getByKeyTupleImpl(M,
+                           Key,
+                           std::make_index_sequence<
+                             std::tuple_size_v<RootT>>());
 }
 
 } // namespace tupletree::detail
@@ -184,25 +185,31 @@ bool callOnPathSteps(Visitor &V, llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
 
 namespace tupletree::detail {
 
-template<typename RootT, size_t I = 0, typename Visitor>
+template<typename RootT, typename Visitor, std::size_t... I>
+bool callOnPathStepsTupleImpl(Visitor &V,
+                              llvm::ArrayRef<TupleTreeKeyWrapper> Path,
+                              std::index_sequence<I...>) {
+  if (Path.size() == 0)
+    return true;
+
+  bool Result = true;
+
+  ((Result = Path[0].get<size_t>() == I ?
+               (V.template visitTupleElement<RootT, I>(),
+                Path.size() > 1 ?
+                  callOnPathStepsImpl<std::tuple_element_t<I, RootT>>(V, Path) :
+                  Result) :
+               Result),
+   ...);
+
+  return Result;
+}
+
+template<typename RootT, typename Visitor>
 bool callOnPathStepsTuple(Visitor &V,
                           llvm::ArrayRef<TupleTreeKeyWrapper> Path) {
-  if constexpr (I < std::tuple_size_v<RootT>) {
-    if (Path.size() == 0)
-      return true;
-
-    if (Path[0].get<size_t>() == I) {
-      using next_type = typename std::tuple_element<I, RootT>::type;
-      V.template visitTupleElement<RootT, I>();
-      if (Path.size() > 1) {
-        return callOnPathStepsImpl<next_type>(V, Path);
-      }
-    } else {
-      return callOnPathStepsTuple<RootT, I + 1>(V, Path);
-    }
-  }
-
-  return true;
+  auto Indexes = std::make_index_sequence<std::tuple_size_v<RootT>>();
+  return callOnPathStepsTupleImpl<RootT>(V, Path, Indexes);
 }
 
 } // namespace tupletree::detail
@@ -225,24 +232,29 @@ bool callOnPathSteps(Visitor &, llvm::ArrayRef<TupleTreeKeyWrapper>, T &) {
   return false;
 }
 
-template<size_t I = 0, typename RootT, typename Visitor>
+template<typename RootT, typename Visitor, std::size_t... I>
+bool callOnPathStepsTupleImpl(Visitor &V,
+                              llvm::ArrayRef<TupleTreeKeyWrapper> Path,
+                              RootT &M,
+                              std::index_sequence<I...>) {
+  bool Result = true;
+
+  ((Result = Path[0].get<size_t>() == I ?
+               (V.template visitTupleElement<RootT, I>(get<I>(M)),
+                Path.size() > 1 ? callOnPathSteps(V, Path.slice(1), get<I>(M)) :
+                                  Result) :
+               Result),
+   ...);
+
+  return Result;
+}
+
+template<typename RootT, typename Visitor>
 bool callOnPathStepsTuple(Visitor &V,
                           llvm::ArrayRef<TupleTreeKeyWrapper> Path,
                           RootT &M) {
-  if constexpr (I < std::tuple_size_v<RootT>) {
-    if (Path[0].get<size_t>() == I) {
-      using next_type = typename std::tuple_element<I, RootT>::type;
-      next_type &Element = get<I>(M);
-      V.template visitTupleElement<RootT, I>(Element);
-      if (Path.size() > 1) {
-        return callOnPathSteps(V, Path.slice(1), Element);
-      }
-    } else {
-      return callOnPathStepsTuple<I + 1>(V, Path, M);
-    }
-  }
-
-  return true;
+  auto Indices = std::make_index_sequence<std::tuple_size_v<RootT>>();
+  return callOnPathStepsTupleImpl<RootT>(V, Path, M, Indices);
 }
 
 } // namespace tupletree::detail
@@ -525,20 +537,37 @@ private:
     applyImpl<I + 1, Ts...>(Result, Args...);
   }
 
+  template<typename T, std::size_t... I>
+  void extractKeysImpl(const TupleTreePath &Search,
+                       T &Tuple,
+                       std::index_sequence<I...>) const {
+    ((std::get<I>(Tuple) = Search[Free[I]].get<std::tuple_element_t<I, T>>()),
+     ...);
+  }
+
   template<typename T, size_t I = 0>
   void extractKeys(const TupleTreePath &Search, T &Tuple) const {
-    if constexpr (I < std::tuple_size_v<T>) {
-      using element = std::tuple_element_t<I, T>;
-      std::get<I>(Tuple) = Search[Free[I]].get<element>();
-      extractKeys<T, I + 1>(Search, Tuple);
-    }
+    return extractKeysImpl(Search,
+                           Tuple,
+                           std::make_index_sequence<std::tuple_size_v<T>>());
   }
 
 private:
-  template<TraitedTupleLike T, size_t I = 0>
+  template<TraitedTupleLike T, std::size_t... I>
+  static bool visitTupleImpl(llvm::StringRef Current,
+                             llvm::StringRef Rest,
+                             PathMatcher &Matcher,
+                             std::index_sequence<I...>);
+
+  template<TraitedTupleLike T>
   static bool visitTuple(llvm::StringRef Current,
                          llvm::StringRef Rest,
-                         PathMatcher &Result);
+                         PathMatcher &Matcher) {
+    return visitTupleImpl<T>(Current,
+                             Rest,
+                             Matcher,
+                             std::make_index_sequence<std::tuple_size_v<T>>());
+  }
 
   template<UpcastablePointerLike T>
   static bool
@@ -632,22 +661,21 @@ bool PathMatcher::visitTupleTreeNode(llvm::StringRef Path,
   return Path.size() == 0;
 }
 
-template<TraitedTupleLike T, size_t I>
-bool PathMatcher::visitTuple(llvm::StringRef Current,
-                             llvm::StringRef Rest,
-                             PathMatcher &Result) {
-  if constexpr (I < std::tuple_size_v<T>) {
-    if (TupleLikeTraits<T>::FieldNames[I] == Current) {
-      Result.Path.push_back(size_t(I));
-      using element = typename std::tuple_element_t<I, T>;
-      return PathMatcher::visitTupleTreeNode<element>(Rest, Result);
-    } else {
-      return visitTuple<T, I + 1>(Current, Rest, Result);
-    }
-  } else {
-    // Not found
-    return false;
-  }
+template<TraitedTupleLike T, std::size_t... I>
+bool PathMatcher::visitTupleImpl(llvm::StringRef Current,
+                                 llvm::StringRef Rest,
+                                 PathMatcher &Matcher,
+                                 std::index_sequence<I...>) {
+  bool Result = false;
+
+  ((Result = TupleLikeTraits<T>::FieldNames[I] == Current ?
+               (Matcher.Path.push_back(I),
+                PathMatcher::visitTupleTreeNode<
+                  typename std::tuple_element_t<I, T>>(Rest, Matcher)) :
+               Result),
+   ...);
+
+  return Result;
 }
 
 template<typename T>
@@ -674,7 +702,7 @@ ResultT *getByPath(llvm::StringRef Path, RootT &M) {
 //
 // validateTupleTree
 //
-template<TupleSizeCompatible T, typename L, size_t I = 0>
+template<TupleSizeCompatible T, typename L>
 constexpr bool validateTupleTree(L);
 
 template<typename T, typename L>
@@ -703,16 +731,24 @@ constexpr bool validateTupleTree(L Check) {
   return Check((std::remove_const_t<T> *) nullptr);
 }
 
-template<TupleSizeCompatible T, typename L, size_t I>
-constexpr bool validateTupleTree(L Check) {
-  if constexpr (I == 0 and not Check((T *) nullptr))
+template<TupleSizeCompatible T, typename L, std::size_t... I>
+constexpr bool validateTupleTreeImpl(L Check, std::index_sequence<I...>) {
+  if (not Check((T *) nullptr))
     return false;
 
-  if constexpr (I < std::tuple_size_v<T>) {
-    if constexpr (not validateTupleTree<std::tuple_element_t<I, T>>(Check))
-      return false;
-    return validateTupleTree<T, L, I + 1>(Check);
-  }
+  bool Result = true;
 
-  return true;
+  ((Result = (Result
+              and not validateTupleTree<std::tuple_element_t<I, T>>(Check)) ?
+               false :
+               Result),
+   ...);
+
+  return Result;
+}
+
+template<TupleSizeCompatible T, typename L>
+constexpr bool validateTupleTree(L Check) {
+  return validateTupleTreeImpl<
+    T>(Check, std::make_index_sequence<std::tuple_size_v<T>>());
 }

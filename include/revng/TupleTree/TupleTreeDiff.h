@@ -316,37 +316,27 @@ struct Diff {
   }
 
 private:
-  template<size_t I = 0, typename T>
-  void diffTuple(const T &LHS, const T &RHS) {
-    if constexpr (I < std::tuple_size_v<T>) {
-
-      Stack.push_back(size_t(I));
-      diffImpl(get<I>(LHS), get<I>(RHS));
-      Stack.pop_back();
-
-      // Recur
-      diffTuple<I + 1>(LHS, RHS);
-    }
+  template<typename T, std::size_t... I>
+  void diffTuple(const T &LHS, const T &RHS, std::index_sequence<I...>) {
+    ((Stack.push_back(I), diffImpl(get<I>(LHS), get<I>(RHS)), Stack.pop_back()),
+     ...);
   }
 
   template<StrictSpecializationOf<UpcastablePointer> T>
   void diffImpl(const T &LHS, const T &RHS) {
     LHS.upcast([&](auto &LHSUpcasted) {
-      RHS.upcast([&](auto &RHSUpcasted) {
-        using LHSType = std::remove_cvref_t<decltype(LHSUpcasted)>;
-        using RHSType = std::remove_cvref_t<decltype(RHSUpcasted)>;
-        if constexpr (std::is_same_v<LHSType, RHSType>) {
-          diffImpl(LHSUpcasted, RHSUpcasted);
-        } else {
-          Result.change(Stack, LHS, RHS);
-        }
-      });
+      using LeftType = std::remove_reference_t<decltype(LHSUpcasted)>;
+      if (auto *RHSUpcasted = llvm::dyn_cast<LeftType>(RHS.get())) {
+        diffImpl(LHSUpcasted, *RHSUpcasted);
+      } else {
+        Result.change(Stack, LHS, RHS);
+      }
     });
   }
 
   template<TupleSizeCompatible T>
   void diffImpl(const T &LHS, const T &RHS) {
-    diffTuple(LHS, RHS);
+    diffTuple(LHS, RHS, std::make_index_sequence<std::tuple_size_v<T>>());
   }
 
   template<revng::detail::SetOrKOC T>

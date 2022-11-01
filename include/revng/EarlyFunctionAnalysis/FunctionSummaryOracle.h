@@ -169,10 +169,11 @@ public:
   template<typename T>
   void dump(T &Output) const {
     for (const auto &[Address, Summary] : LocalFunctions) {
-      Output << Address.toString() << ":" << "\n";
+      Output << Address.toString() << ":"
+             << "\n";
       Summary.dump(Output);
     }
-    
+
     // WIP: not just local functions
   }
 

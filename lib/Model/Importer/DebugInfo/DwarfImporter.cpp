@@ -96,8 +96,7 @@ getUnsignedOrSigned(const DWARFDie &Die, dwarf::Attribute Attribute) {
     return getUnsignedOrSigned(*Value);
 }
 
-static std::optional<uint64_t>
-getAddress(const DWARFFormValue &Value) {
+static std::optional<uint64_t> getAddress(const DWARFFormValue &Value) {
   auto MaybeResult = Value.getAsAddress();
   if (MaybeResult)
     return *MaybeResult;
@@ -843,7 +842,6 @@ private:
         } else {
           reportIgnoredDie(Die, "Ignoring subprogram");
         }
-
       }
     }
   }
