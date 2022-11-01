@@ -17,6 +17,7 @@ bool init_unit_test();
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/Introspection.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
+#include "revng/TupleTree/VisitsImpl.h"
 #include "revng/UnitTestHelpers/UnitTestHelpers.h"
 
 using namespace model;

@@ -9,6 +9,7 @@ bool init_unit_test();
 
 #include "llvm/Support/YAMLTraits.h"
 
+#include "revng/TupleTree/VisitsImpl.h"
 #include "revng/UnitTestHelpers/UnitTestHelpers.h"
 
 #include "TestClass.h"
