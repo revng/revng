@@ -146,30 +146,25 @@ class CppHeadersGenerator:
         return definitions
 
     def _emit_impl(self):
-        definitions = {}
+        definition = ""
         for type_to_emit in self.schema.definitions.values():
-            filename = f"Impl/{type_to_emit.name}.cpp"
-            assert filename not in definitions
-
             if isinstance(type_to_emit, StructDefinition):
                 upcastable_types = self.schema.get_upcastable_types(type_to_emit)
-                definition = self.struct_impl_template.render(
-                    struct=type_to_emit,
-                    upcastable=upcastable_types,
-                    generator=self,
-                    schema=self.schema,
+                definition += (
+                    self.struct_impl_template.render(
+                        struct=type_to_emit,
+                        upcastable=upcastable_types,
+                        generator=self,
+                        schema=self.schema,
+                    )
+                    + "\n"
                 )
-            elif isinstance(type_to_emit, EnumDefinition):
-                definition = ""
-            elif isinstance(type_to_emit, ScalarDefinition):
-                definition = None
+            elif isinstance(type_to_emit, (EnumDefinition, ScalarDefinition)):
+                pass
             else:
                 raise ValueError()
 
-            if definition is not None:
-                definitions[filename] = definition
-
-        return definitions
+        return {"Impl.cpp": definition}
 
     def _emit_forward_decls(self):
         generated_ns_to_names = defaultdict(set)
