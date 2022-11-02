@@ -1122,6 +1122,13 @@ void DwarfImporter::import(const llvm::object::Binary &TheBinary,
   using namespace llvm::object;
 
   if (auto *ELF = dyn_cast<ObjectFile>(&TheBinary)) {
+
+    {
+      using namespace model::Architecture;
+      if (Model->Architecture == Invalid)
+        Model->Architecture = fromLLVMArchitecture(ELF->getArch());
+    }
+
     // Check if we already loaded the alt debug info file
     size_t AltIndex = -1;
     StringRef AltDebugLinkFileName = getAltDebugLinkFileName(ELF);
