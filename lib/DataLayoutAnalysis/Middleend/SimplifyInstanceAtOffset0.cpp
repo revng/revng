@@ -37,27 +37,49 @@ static bool canBeCollapsed(const LayoutTypeSystemNode *Node,
   if (Child->Size or hasOutgoingPointer(Child))
     return false;
 
-  // Initialize the children of Child. These will be used as "barriers" to stop
-  // the DFS.
-  llvm::df_iterator_default_set<const LayoutTypeSystemNode *> ChildrenOfChild;
+  llvm::SmallPtrSet<const LayoutTypeSystemNode *, 8> ChildrenOfChild;
   for (const auto *C : llvm::children<CInstanceT>(Child))
     ChildrenOfChild.insert(C);
 
   // If we find a successor of Node (different from Child at offset 0) such that
   // it can reach Child, then the instance-0 from Node to Child cannot be
   // collapsed, because that would introduce a loop.
+
+  // First check the cheapest thing, i.e. if there is another edge to Child that
+  // is not at offset 0. That is cheap to check and would already mean that we
+  // cannot collapse, because collapsing the instance-0 edge would turn the
+  // other edge to Child into a self-loop.
   for (const auto &Link : llvm::children_edges<CInstanceT>(Node)) {
-    const auto &[InstanceChild, EdgeTag] = Link;
+    const auto &[OtherChild, EdgeTag] = Link;
+    if (Child == OtherChild and not isInstanceOff0(Link))
+      return false;
+  }
+
+  for (const auto &Link : llvm::children_edges<CInstanceT>(Node)) {
+    const auto &[OtherChild, EdgeTag] = Link;
+
+    revng_assert(OtherChild != Child or isInstanceOff0(Link));
 
     // Ignore the edge that would be collapsed.
-    if ((Child == InstanceChild) and isInstanceOff0(Link))
+    if (OtherChild == Child and isInstanceOff0(Link))
       continue;
 
-    auto Visited = ChildrenOfChild;
-    for (const auto *N :
-         llvm::depth_first_ext(CInstanceT(InstanceChild), Visited))
+    auto DFIt = llvm::df_begin(CInstanceT(OtherChild));
+    auto DFEnd = llvm::df_end(CInstanceT(OtherChild));
+    while (DFIt != DFEnd) {
+      const auto *N = *DFIt;
+      // Skip this DFS path early if we've reached a children of Child without
+      // passing from Child.
+      if (ChildrenOfChild.contains(N)) {
+        DFIt.skipChildren();
+        continue;
+      }
+
       if (N == Child)
         return false;
+
+      ++DFIt;
+    }
   }
 
   // In all the other cases we can collapse.
