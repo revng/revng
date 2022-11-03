@@ -104,7 +104,7 @@ bool Binary::verify(bool Assert) const {
   return verify(VH);
 }
 
-void Binary::verify(::ErrorList &EL) const {
+void Binary::verify(revng::ErrorList &EL) const {
   VerifyHelper VH(false);
   bool Result = verify(VH);
   if (not Result)
