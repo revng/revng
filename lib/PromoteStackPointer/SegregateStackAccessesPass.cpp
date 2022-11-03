@@ -648,6 +648,8 @@ private:
     StackAccessRedirector Redirector(-MaybeStackSize.value_or(0)
                                      + CallInstructionPushSize);
 
+    bool MessageEmitted = false;
+
     for (auto [LLVMType, ModelArgument] :
          llvm::zip(CalleeType->params(), Layout.Arguments)) {
       model::QualifiedType ArgumentType = ModelArgument.Type;
@@ -675,14 +677,20 @@ private:
           OffsetInNewArgument += OldSize;
         }
 
-        if (ModelArgument.Stack) {
+        if (ModelArgument.Stack and not MaybeStackSize) {
+          if (not MessageEmitted) {
+            MessageEmitted = true;
+            emitMessage(OldCall,
+                        "Ignoring stack arguments for this call site: stack "
+                        "size at call site unknown");
+          }
+        } else if (ModelArgument.Stack) {
           revng_assert(ModelArgument.Stack->Size <= 128 / 8);
           unsigned OldSize = ModelArgument.Stack->Size;
           Type *LoadTy = Builder.getIntNTy(OldSize * 8);
           Type *LoadPointerTy = LoadTy->getPointerTo();
           revng_assert(StackPointer != nullptr);
 
-          // TODO: we should not fail here
           revng_assert(MaybeStackSize);
           auto ArgumentStackOffset = (-*MaybeStackSize + CallInstructionPushSize
                                       + ModelArgument.Stack->Offset);
