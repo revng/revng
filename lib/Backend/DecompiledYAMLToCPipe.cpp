@@ -23,19 +23,12 @@ void DecompiledYAMLToC::run(const pipeline::Context &Ctx,
                             const Container &DecompiledFunctions,
                             DecompiledFileContainer &OutCFile) {
 
-  std::error_code EC;
-  llvm::raw_fd_ostream Out(OutCFile.getOrCreatePath(), EC);
-  if (EC)
-    revng_abort(EC.message().c_str());
+  auto Out = OutCFile.asStream();
 
   // Make a single C file with an empty set of targets, which means all the
   // functions in DecompiledFunctions
   printSingleCFile(Out, DecompiledFunctions, {} /* Targets */);
-
   Out.flush();
-  EC = Out.error();
-  if (EC)
-    revng_abort(EC.message().c_str());
 }
 
 void DecompiledYAMLToC::print(const pipeline::Context &Ctx,

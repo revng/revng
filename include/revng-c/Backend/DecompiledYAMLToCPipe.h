@@ -12,9 +12,9 @@
 
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Contract.h"
-#include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/FunctionStringMap.h"
 #include "revng/Pipes/Kinds.h"
+#include "revng/Pipes/StringBufferContainer.h"
 
 #include "revng-c/Pipes/Kinds.h"
 
@@ -23,10 +23,10 @@ namespace revng::pipes {
 inline constexpr char DecompiledMIMEType[] = "text/x.c+ptml";
 inline constexpr char DecompiledSuffix[] = ".c";
 inline constexpr char DecompiledName[] = "DecompiledCCode";
-using DecompiledFileContainer = FileContainer<&kinds::DecompiledToC,
-                                              DecompiledName,
-                                              DecompiledMIMEType,
-                                              DecompiledSuffix>;
+using DecompiledFileContainer = StringBufferContainer<&kinds::DecompiledToC,
+                                                      DecompiledName,
+                                                      DecompiledMIMEType,
+                                                      DecompiledSuffix>;
 
 class DecompiledYAMLToC {
 public:
