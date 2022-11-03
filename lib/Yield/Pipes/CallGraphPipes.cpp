@@ -78,17 +78,8 @@ void YieldCallGraph::run(pipeline::Context &Context,
   // Convert the graph to SVG.
   auto Result = yield::svg::callGraph(Relations, *Model);
 
-  // Open the output file.
-  std::error_code ErrorCode;
-  llvm::raw_fd_ostream Stream(Output.getOrCreatePath(), ErrorCode);
-  if (ErrorCode)
-    revng_abort(ErrorCode.message().c_str());
-
   // Print the result.
-  Stream << Result;
-  Stream.flush();
-  if ((ErrorCode = Stream.error()))
-    revng_abort(ErrorCode.message().c_str());
+  Output.setContent(std::move(Result));
 }
 
 void YieldCallGraph::print(const pipeline::Context &,

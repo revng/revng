@@ -252,7 +252,7 @@ public:
 
 public:
   llvm::Error loadFromDisk(Runner &LoadInto) const;
-  llvm::Error storeToDisk(const Runner &LoadInto) const;
+  llvm::Error storeToDisk(Runner &LoadInto) const;
 };
 
 } // namespace pipeline

@@ -49,6 +49,8 @@ def handle_file(
         return func_one(raw)
     else:
         parsed_yaml = yaml_load(raw)
+        if parsed_yaml is None:
+            return 0
         if isinstance(filters, str):
             if filters in parsed_yaml:
                 return func_one(parsed_yaml[filters])
