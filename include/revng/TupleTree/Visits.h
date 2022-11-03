@@ -223,7 +223,7 @@ template<NotTupleTreeCompatible T, typename Visitor>
 bool callOnPathSteps(Visitor &,
                      llvm::ArrayRef<TupleTreeKeyWrapper>,
                      T &,
-                     ErrorList &,
+                     revng::ErrorList &,
                      const llvm::StringRef) {
   return false;
 }
@@ -232,7 +232,7 @@ template<size_t I = 0, typename RootT, typename Visitor>
 bool callOnPathStepsTuple(Visitor &V,
                           llvm::ArrayRef<TupleTreeKeyWrapper> Path,
                           RootT &M,
-                          ErrorList &EL,
+                          revng::ErrorList &EL,
                           const llvm::StringRef FullPath) {
   if constexpr (I < std::tuple_size_v<RootT>) {
     if (Path[0].get<size_t>() == I) {
@@ -256,7 +256,7 @@ template<UpcastablePointerLike RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V,
                      llvm::ArrayRef<TupleTreeKeyWrapper> Path,
                      RootT &M,
-                     ErrorList &EL,
+                     revng::ErrorList &EL,
                      const llvm::StringRef FullPath) {
   auto Dispatcher = [&](auto &Upcasted) {
     return callOnPathStepsTuple(V, Path, Upcasted, EL, FullPath);
@@ -269,7 +269,7 @@ template<TupleSizeCompatible RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V,
                      llvm::ArrayRef<TupleTreeKeyWrapper> Path,
                      RootT &M,
-                     ErrorList &EL,
+                     revng::ErrorList &EL,
                      const llvm::StringRef FullPath) {
   return tupletree::detail::callOnPathStepsTuple(V, Path, M, EL, FullPath);
 }
@@ -278,7 +278,7 @@ template<KeyedObjectContainer RootT, typename Visitor>
 bool callOnPathSteps(Visitor &V,
                      llvm::ArrayRef<TupleTreeKeyWrapper> Path,
                      RootT &M,
-                     ErrorList &EL,
+                     revng::ErrorList &EL,
                      const llvm::StringRef FullPath) {
   using value_type = typename RootT::value_type;
   using KOT = KeyedObjectTraits<value_type>;
@@ -391,7 +391,7 @@ template<typename RootT, typename Visitor>
 bool callByPath(Visitor &V,
                 const TupleTreePath &Path,
                 RootT &M,
-                ErrorList &EL) {
+                revng::ErrorList &EL) {
   return callByPath(V, Path, M, EL, "");
 }
 
@@ -399,7 +399,7 @@ template<typename RootT, typename Visitor>
 bool callByPath(Visitor &V,
                 const TupleTreePath &Path,
                 RootT &M,
-                ErrorList &EL,
+                revng::ErrorList &EL,
                 const llvm::StringRef OriginalPath) {
   using namespace tupletree::detail;
   CallByPathVisitorWithInstance<Visitor> CBPV{ Path.size(), V };
@@ -623,13 +623,16 @@ bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
 
       // Get the kind type for the abstract type
       // TODO: add using for model::Type's Kind
-      using Kind = decltype(std::declval<typename Value::element_type>().Kind);
+      using Kind = typename Value::element_type::KindType;
 
       // Extract Kind from "Kind-*" and deserialize it
-      auto MatcherKind = getValueFromYAMLScalar<Kind>(PreDash);
+      Kind MatcherKind = getValueFromYAMLScalar<Kind>(PreDash);
+      static_assert(std::is_enum_v<std::decay_t<Kind>>);
 
       // Push in Path a Key initializing only the first field (the kind)
       Key Component;
+      using ComponentType = decltype(std::get<0>(Component));
+      static_assert(std::is_enum_v<std::decay_t<ComponentType>>);
       std::get<0>(Component) = MatcherKind;
       Result.Path.emplace_back<Key, true>(Component);
     } else {
