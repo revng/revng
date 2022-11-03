@@ -15,6 +15,7 @@
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/FunctionStringMap.h"
 #include "revng/Pipes/Kinds.h"
+#include "revng/Pipes/StringBufferContainer.h"
 
 namespace revng::pipes {
 
@@ -32,10 +33,10 @@ inline constexpr char CallGraphSVGMIMEType[] = "image/svg";
 inline constexpr char CallGraphSVGSuffix[] = ".svg";
 inline constexpr char CallGraphSVGName[] = "CallGraphSVG";
 
-using CallGraphSVGFileContainer = FileContainer<&kinds::CallGraphSVG,
-                                                CallGraphSVGName,
-                                                CallGraphSVGMIMEType,
-                                                CallGraphSVGSuffix>;
+using CallGraphSVGFileContainer = StringBufferContainer<&kinds::CallGraphSVG,
+                                                        CallGraphSVGName,
+                                                        CallGraphSVGMIMEType,
+                                                        CallGraphSVGSuffix>;
 
 inline constexpr char CallGraphSliceMIMEType[] = "image/svg";
 inline constexpr char CallGraphSliceName[] = "CallGraphSliceSVG";

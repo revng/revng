@@ -171,7 +171,7 @@ Error PipelineFileMapping::loadFromDisk(Runner &LoadInto) const {
   return LoadInto[Step].containers()[Container].loadFromDisk(InputFile);
 }
 
-Error PipelineFileMapping::storeToDisk(const Runner &LoadInto) const {
+Error PipelineFileMapping::storeToDisk(Runner &LoadInto) const {
   if (not LoadInto.containsStep(Step))
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "No known step " + Step);
@@ -180,7 +180,7 @@ Error PipelineFileMapping::storeToDisk(const Runner &LoadInto) const {
     return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                    "No known container " + Container);
 
-  return LoadInto[Step].containers().at(Container).storeToDisk(InputFile);
+  return LoadInto[Step].containers()[Container].storeToDisk(InputFile);
 }
 
 Error Runner::storeToDisk(llvm::StringRef DirPath) const {
