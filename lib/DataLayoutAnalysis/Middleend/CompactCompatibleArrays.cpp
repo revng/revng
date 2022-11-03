@@ -103,17 +103,18 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
         if (not isStridedInstance(ArrayEdge))
           continue;
 
-        // Here we're starting from Array, which is an array that has not been
-        // grouped with other yet.
+        // Here we're starting from ArrayEdge, which represents an array that
+        // has not been grouped with others yet.
 
-        // Now we want to look around Array, and see if there are other
-        // conflicting siblings that may need to be compacted with Array itself,
-        // possibly changing the trip count or the actual start of the array.
+        // Now we want to look around ArrayEdge, and see if there are other
+        // conflicting siblings that may need to be compacted with ArrayEdge
+        // itself, possibly changing the trip count or the actual start of the
+        // array.
 
         // Let's compute the running variables that we'll use to track where the
         // compacted array starts and ends.
         // These will be updated in flight until we finish the group and decide
-        // all the siblings that need to be compacted with Array.
+        // all the siblings that need to be compacted with ArrayEdge.
 
         const auto &[InitialChild, OE] = ArrayEdge;
         const auto &[InitialOffset,
@@ -146,12 +147,17 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
                                   + InitialChild->Size;
 
         // The initial slack inside an array element.
+        // It represents how much we can move the boundaries of the array
+        // element back, if we need to align it.
         // It represents the number of empty trailing bytes at the end of an
-        // array element.
+        // array element, but we can never move something more backwards than
+        // the start of Parent, so we have to take ArrayStartOffset in
+        // consideration.
         revng_assert(Stride >= InitialChild->Size);
-        uint64_t AvailableSlack = Stride - InitialChild->Size;
+        uint64_t AvailableSlack = std::min(ArrayStartOffset,
+                                           Stride - InitialChild->Size);
 
-        // Ok, now we start looking at other array siblings of Array.
+        // Ok, now we start looking at other array siblings of ArrayEdge.
         // If we find an ArraySibling that strongly overlaps with the array
         // we're tracking we compact them and update our running variables
         // (ArrayStartOffset, ArrayEndOffset, AvailableSlack).
@@ -283,7 +289,7 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
           if (RequiredSlack or SiblingEndOffset > ArrayEndOffset)
             SiblingEdgeNext = GT::child_edge_begin(Parent);
 
-          // Move the start of the array back, if we need some slack
+          revng_assert(ArrayStartOffset >= RequiredSlack);
           ArrayStartOffset -= RequiredSlack;
 
           // Update the available slack.
@@ -304,8 +310,10 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
           // extra element to allow space for the trailing stuff.
           // There's no need to check the remainder to see if it's not fully
           // divisible. It's enough to check the AvailableSlack.
-          TripCount = (ArrayEndOffset - ArrayStartOffset) / Stride;
-          if (AvailableSlack)
+          auto AccessedArraySize = ArrayEndOffset - ArrayStartOffset;
+          auto DivRem = std::lldiv(AccessedArraySize, Stride);
+          TripCount = DivRem.quot;
+          if (DivRem.rem)
             ++TripCount;
         }
 
