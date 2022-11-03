@@ -705,7 +705,10 @@ private:
           Value *Loaded = Builder.CreateLoad(Pointer);
 
           // Extend, shift and or in Accumulator
-          Value *Extended = Builder.CreateZExt(Loaded, LLVMType);
+          // Note: here we might truncate too, since certain architectures
+          //       report a stack span of 8 bytes but the associated type is
+          //       actually 32 bits
+          Value *Extended = Builder.CreateZExtOrTrunc(Loaded, LLVMType);
 
           unsigned ShiftAmount = shiftAmount(OffsetInNewArgument,
                                              NewSize,
