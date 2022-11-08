@@ -103,6 +103,14 @@ llvmIntToModelType(const llvm::Type *LLVMType, const model::Binary &Model) {
       ModelType.UnqualifiedType = Model.getPrimitiveType(Generic, 8);
       break;
 
+    case 80:
+      ModelType.UnqualifiedType = Model.getPrimitiveType(Generic, 10);
+      break;
+
+    case 96:
+      ModelType.UnqualifiedType = Model.getPrimitiveType(Generic, 12);
+      break;
+
     case 128:
       ModelType.UnqualifiedType = Model.getPrimitiveType(Generic, 16);
       break;
