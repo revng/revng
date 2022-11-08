@@ -44,6 +44,8 @@ const std::set<llvm::StringRef> ReservedKeywords = {
   "generic16_t",
   "generic32_t",
   "generic64_t",
+  "generic80_t",
+  "generic96_t",
   "generic128_t",
   "int8_t",
   "int16_t",
@@ -82,6 +84,8 @@ const std::set<llvm::StringRef> ReservedKeywords = {
   "float16_t",
   "float32_t",
   "float64_t",
+  "float80_t",
+  "float96_t",
   "float128_t",
   // Integer macros from stdint.h, reserved to prevent clashes.
   "INT8_WIDTH",
@@ -401,7 +405,12 @@ isValidPrimitiveSize(PrimitiveTypeKind::Values PrimKind, uint8_t BS) {
   case PrimitiveTypeKind::Void:
     return BS == 0;
 
+  // The ByteSizes allowed for Generic must be a superset of all the other
+  // ByteSizes allowed for all other primitive types (except void)
   case PrimitiveTypeKind::Generic:
+    return BS == 1 or BS == 2 or BS == 4 or BS == 8 or BS == 10 or BS == 12
+           or BS == 16;
+
   case PrimitiveTypeKind::PointerOrNumber:
   case PrimitiveTypeKind::Number:
   case PrimitiveTypeKind::Unsigned:

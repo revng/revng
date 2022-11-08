@@ -13,17 +13,26 @@ static RegisterModelPass R(model::AddPrimitiveTypesFlag,
 void model::addPrimitiveTypes(TupleTree<model::Binary> &Model) {
   // For each of these types, we want to have in the model a corresponding
   // PrimitiveType for each possible dimension.
-  // TODO: for now we don't support floats.
   using namespace model::PrimitiveTypeKind;
-  static constexpr const Values PrimitiveTypes[] = {
-    Generic, PointerOrNumber, Number, Unsigned, Signed
+  static constexpr const Values PointerOrNumberPrimitiveTypes[] = {
+    PointerOrNumber, Number, Unsigned, Signed
   };
-  static constexpr const uint8_t Sizes[] = { 1, 2, 4, 8, 16 };
+  static constexpr const uint8_t PointerOrNumberSizes[] = { 1, 2, 4, 8, 16 };
+  static constexpr const uint8_t FloatSizes[] = { 2, 4, 8, 10, 12, 16 };
+  // Generic sizes must be the union of all other non-zero primitive type sizes
+  static constexpr const uint8_t GenericSizes[] = { 1, 2, 4, 8, 10, 12, 16 };
 
   // getPrimitiveType() creates the type if it does not exist
-  for (auto &Type : PrimitiveTypes)
-    for (auto &Size : Sizes)
+  // Create pointer or number types
+  for (auto &Type : PointerOrNumberPrimitiveTypes)
+    for (auto &Size : PointerOrNumberSizes)
       Model->getPrimitiveType(Type, Size);
+  // Create float types
+  for (auto &Size : FloatSizes)
+    Model->getPrimitiveType(Float, Size);
+  // Create generic types
+  for (auto &Size : GenericSizes)
+    Model->getPrimitiveType(Generic, Size);
 
   // Finally, add void.
   Model->getPrimitiveType(Void, 0);
