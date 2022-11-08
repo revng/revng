@@ -59,41 +59,74 @@ BOOST_AUTO_TEST_CASE(PrimitiveTypes) {
   revng_check(PrimitiveType(PrimitiveTypeKind::Float, 4).verify(true));
   revng_check(PrimitiveType(PrimitiveTypeKind::Float, 8).verify(true));
   revng_check(PrimitiveType(PrimitiveTypeKind::Float, 10).verify(true));
+  revng_check(PrimitiveType(PrimitiveTypeKind::Float, 12).verify(true));
   revng_check(PrimitiveType(PrimitiveTypeKind::Float, 16).verify(true));
+  revng_check(PrimitiveType(PrimitiveTypeKind::Generic, 1).verify(true));
+  revng_check(PrimitiveType(PrimitiveTypeKind::Generic, 2).verify(true));
+  revng_check(PrimitiveType(PrimitiveTypeKind::Generic, 4).verify(true));
+  revng_check(PrimitiveType(PrimitiveTypeKind::Generic, 8).verify(true));
+  revng_check(PrimitiveType(PrimitiveTypeKind::Generic, 10).verify(true));
+  revng_check(PrimitiveType(PrimitiveTypeKind::Generic, 12).verify(true));
+  revng_check(PrimitiveType(PrimitiveTypeKind::Generic, 16).verify(true));
+  revng_check(PrimitiveType(PrimitiveTypeKind::Number, 1).verify(true));
+  revng_check(PrimitiveType(PrimitiveTypeKind::Number, 2).verify(true));
+  revng_check(PrimitiveType(PrimitiveTypeKind::Number, 4).verify(true));
+  revng_check(PrimitiveType(PrimitiveTypeKind::Number, 8).verify(true));
+  revng_check(PrimitiveType(PrimitiveTypeKind::Number, 16).verify(true));
+  auto PointerOrNumberKind = PrimitiveTypeKind::PointerOrNumber;
+  revng_check(PrimitiveType(PointerOrNumberKind, 1).verify(true));
+  revng_check(PrimitiveType(PointerOrNumberKind, 2).verify(true));
+  revng_check(PrimitiveType(PointerOrNumberKind, 4).verify(true));
+  revng_check(PrimitiveType(PointerOrNumberKind, 8).verify(true));
+  revng_check(PrimitiveType(PointerOrNumberKind, 16).verify(true));
 
-  auto Unsigned = PrimitiveType(PrimitiveTypeKind::Unsigned, 1);
-  auto Signed = PrimitiveType(PrimitiveTypeKind::Signed, 1);
   for (uint8_t ByteSize = 0; ByteSize < 20; ++ByteSize) {
 
     using namespace std::string_literals;
 
-    Unsigned = PrimitiveType(PrimitiveTypeKind::Unsigned, ByteSize);
-    Signed = PrimitiveType(PrimitiveTypeKind::Signed, ByteSize);
+    auto Unsigned = PrimitiveType(PrimitiveTypeKind::Unsigned, ByteSize);
+    auto Signed = PrimitiveType(PrimitiveTypeKind::Signed, ByteSize);
+    auto Number = PrimitiveType(PrimitiveTypeKind::Number, ByteSize);
+    auto PointerOrNumber = PrimitiveType(PointerOrNumberKind, ByteSize);
 
     if (std::has_single_bit(ByteSize)) {
       revng_check(Signed.verify(true));
       revng_check(Unsigned.verify(true));
+      revng_check(Number.verify(true));
+      revng_check(PointerOrNumber.verify(true));
       auto ExpectedName = ("uint" + Twine(8 * ByteSize) + "_t").str();
       revng_check(Unsigned.name() == ExpectedName);
       ExpectedName = ("int" + Twine(8 * ByteSize) + "_t").str();
       revng_check(Signed.name() == ExpectedName);
+      ExpectedName = ("number" + Twine(8 * ByteSize) + "_t").str();
+      revng_check(Number.name() == ExpectedName);
+      ExpectedName = ("pointer_or_number" + Twine(8 * ByteSize) + "_t").str();
+      revng_check(PointerOrNumber.name() == ExpectedName);
     } else {
       revng_check(not Signed.verify(false));
       revng_check(not Unsigned.verify(false));
+      revng_check(not Number.verify(false));
+      revng_check(not PointerOrNumber.verify(false));
     }
   }
 
-  auto Float = PrimitiveType(PrimitiveTypeKind::Float, 2);
   for (uint8_t ByteSize = 0; ByteSize < 20; ++ByteSize) {
     using namespace std::string_literals;
 
-    Float = PrimitiveType(PrimitiveTypeKind::Float, ByteSize);
+    auto Float = PrimitiveType(PrimitiveTypeKind::Float, ByteSize);
+    auto G = PrimitiveType(PrimitiveTypeKind::Generic, ByteSize);
     if (ByteSize == 2 or ByteSize == 4 or ByteSize == 8 or ByteSize == 10
         or ByteSize == 12 or ByteSize == 16) {
       revng_check(Float.verify(true));
       revng_check(Float.name() == ("float" + Twine(8 * ByteSize) + "_t").str());
+      revng_check(G.verify(true));
+      revng_check(G.name() == ("generic" + Twine(8 * ByteSize) + "_t").str());
     } else {
       revng_check(not Float.verify(false));
+      if (ByteSize == 1)
+        revng_check(G.verify(true));
+      else
+        revng_check(not G.verify(false));
     }
   }
 }
