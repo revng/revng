@@ -985,7 +985,8 @@ inline RecursiveCoroutine<bool> isScalarImpl(const QualifiedType &QT) {
 
   const Type *Unqualified = QT.UnqualifiedType.get();
   revng_assert(Unqualified != nullptr);
-  if (llvm::isa<model::PrimitiveType>(Unqualified)) {
+  if (llvm::isa<model::PrimitiveType>(Unqualified)
+      or llvm::isa<model::EnumType>(Unqualified)) {
     rc_return true;
   }
 
