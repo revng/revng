@@ -807,6 +807,13 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
           //   have read/written a given value. This is used later to add
           //   equality links between things that have pointer edges towards the
           //   same PointeeNode.
+
+          // All this being said, if the AccessSize is different from the
+          // pointer size in the model, we already know for sure that the
+          // pointee is not going to be a pointer, and we can bail out early.
+          if (AccessSize != getPointerSize(Model.Architecture))
+            continue;
+
           PointeeNode->InterferingInfo = Unknown;
           TS.addPointerLink(AccessNode, PointeeNode);
 
@@ -817,6 +824,7 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
           using InversePointerGraph = llvm::Inverse<PointerGraph>;
           for (LayoutTypeSystemNode *PointerToPointee :
                llvm::children<InversePointerGraph>(PointeeNode)) {
+            revng_assert(AccessSize == getPointerSize(Model.Architecture));
             revng_assert(AccessSize == PointerToPointee->Size);
             if (PointerToPointee != AccessNode)
               TS.addEqualityLink(PointerToPointee, AccessNode);
