@@ -2009,6 +2009,13 @@ static UseGEPInfoMap makeGEPReplacements(llvm::Function &F,
         // the GEPSum, or get them from the caches if we've already computed
         // them.
         const model::QualifiedType &BaseTy = GEPSum.BaseAddress.Type;
+
+        // If the base type is a funcion type we have nothing to do, because
+        // function types cannot be "traversed" with ModelGEP.
+        if (BaseTy.is(model::TypeKind::RawFunctionType)
+            or BaseTy.is(model::TypeKind::CABIFunctionType))
+          continue;
+
         const auto &TAPToChildIds = TAPCache.getTAP(BaseTy, Ctxt, VH);
 
         // If the set of typed access patterns from BaseTy is empty we can skip
