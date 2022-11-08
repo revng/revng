@@ -516,5 +516,6 @@ TupleTreeDiff<T>::apply(TupleTree<T> &M, revng::ErrorList &EL) const {
     tupletreediff::detail::ApplyDiffVisitor<T> ADV{ &C, &EL };
     callByPath(ADV, C.Path, *M, EL, *pathAsString<T>(C.Path));
   }
+  M.evictCachedReferences();
   M.initializeReferences();
 }
