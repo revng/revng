@@ -19,14 +19,7 @@ class Use;
 
 /// Strip off all the possible layers of constness and typedefs from QT
 extern model::QualifiedType
-peelConstAndTypedefs(const model::QualifiedType &QT, model::VerifyHelper &VH);
-
-/// Strip off all the possible layers of constness and typedefs from QT
-inline model::QualifiedType
-peelConstAndTypedefs(const model::QualifiedType &QT) {
-  model::VerifyHelper VH;
-  return peelConstAndTypedefs(QT, VH);
-}
+peelConstAndTypedefs(const model::QualifiedType &QT);
 
 /// Convert an LLVM integer type (i1, i8, i16, ...) to the corresponding
 /// primitive type (uint8_t, uint16_t, ...).

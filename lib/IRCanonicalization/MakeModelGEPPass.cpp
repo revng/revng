@@ -758,7 +758,7 @@ differenceScore(const model::QualifiedType &BaseType,
 
   size_t Depth = 0;
   for (auto &ChildID : ResultIndices) {
-    model::QualifiedType Normalized = peelConstAndTypedefs(NestedType, VH);
+    model::QualifiedType Normalized = peelConstAndTypedefs(NestedType);
 
     // Should not be a pointer, because pointers don't have children on the
     // type system, which means that we shouldn't have a ChildId at this
@@ -1009,7 +1009,7 @@ getType(ModelGEPArgs &GEPArgs, model::VerifyHelper &VH) {
 
     case AggregateKind::Struct: {
 
-      CurrType = peelConstAndTypedefs(CurrType.value(), VH);
+      CurrType = peelConstAndTypedefs(CurrType.value());
       auto *S = cast<model::StructType>(CurrType->UnqualifiedType.getConst());
       size_t FieldOffset = cast<ConstantInt>(Index)->getZExtValue();
       CurrType = S->Fields.at(FieldOffset).Type;
@@ -1018,7 +1018,7 @@ getType(ModelGEPArgs &GEPArgs, model::VerifyHelper &VH) {
 
     case AggregateKind::Union: {
 
-      CurrType = peelConstAndTypedefs(CurrType.value(), VH);
+      CurrType = peelConstAndTypedefs(CurrType.value());
       auto *U = cast<model::UnionType>(CurrType->UnqualifiedType.getConst());
       size_t FieldID = cast<ConstantInt>(Index)->getZExtValue();
       CurrType = U->Fields.at(FieldID).Type;
@@ -1030,7 +1030,7 @@ getType(ModelGEPArgs &GEPArgs, model::VerifyHelper &VH) {
       auto It = CurrType->Qualifiers.begin();
 
       do {
-        CurrType = peelConstAndTypedefs(CurrType.value(), VH);
+        CurrType = peelConstAndTypedefs(CurrType.value());
 
         It = llvm::find_if(CurrType->Qualifiers, model::Qualifier::isArray);
 
@@ -1117,7 +1117,7 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
       revng_assert(Back.Type == AggregateKind::Array);
       revng_assert(CurrentType.isArray());
 
-      model::QualifiedType Array = peelConstAndTypedefs(CurrentType, VH);
+      model::QualifiedType Array = peelConstAndTypedefs(CurrentType);
       auto ArrayQualIt = Array.Qualifiers.begin();
       auto QEnd = Array.Qualifiers.end();
 

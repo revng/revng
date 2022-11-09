@@ -39,30 +39,33 @@ using model::TypedefType;
 
 constexpr const size_t ModelGEPBaseArgIndex = 1;
 
-model::QualifiedType
-peelConstAndTypedefs(const model::QualifiedType &QT, model::VerifyHelper &VH) {
-  model::QualifiedType Result = QT;
+static RecursiveCoroutine<model::QualifiedType>
+peelConstAndTypedefsImpl(const model::QualifiedType &QT) {
+  // First look for non-const qualifiers
+  const auto &NonConst = std::not_fn(model::Qualifier::isConst);
+  auto QIt = llvm::find_if(QT.Qualifiers, NonConst);
+  auto QEnd = QT.Qualifiers.end();
 
-  while (true) {
+  // If we find a non-const qualifier we're done unwrapping
+  if (QIt != QEnd)
+    rc_return model::QualifiedType(QT.UnqualifiedType, { QIt, QEnd });
 
-    const auto &NonConst = std::not_fn(model::Qualifier::isConst);
-    auto QIt = llvm::find_if(Result.Qualifiers, NonConst);
-    auto QEnd = Result.Qualifiers.end();
+  // Here we have only const qualifiers
 
-    if (QIt != QEnd)
-      return model::QualifiedType(QT.UnqualifiedType, { QIt, QEnd });
+  auto *TD = dyn_cast<TypedefType>(QT.UnqualifiedType.getConst());
 
-    // If we reach this point, Result has no pointer nor array qualifiers.
-    // Let's look at the Unqualified type and unwrap it if it's a typedef.
-    if (auto *TD = dyn_cast<TypedefType>(Result.UnqualifiedType.getConst())) {
-      Result = model::QualifiedType(Result.UnqualifiedType, {});
-    } else {
-      // If Result is not a typedef we can bail out
-      break;
-    }
-  }
-  revng_assert(Result.verify(VH));
-  return Result;
+  // If it's not a typedef, we're done. Just throw away the remaining const
+  // qualifiers.
+  if (not TD)
+    rc_return model::QualifiedType(QT.UnqualifiedType, {});
+
+  // If it's a typedef, unwrap it and recur.
+  // Also in this case we can ignore
+  rc_return rc_recur peelConstAndTypedefsImpl(TD->UnderlyingType);
+}
+
+model::QualifiedType peelConstAndTypedefs(const model::QualifiedType &QT) {
+  return peelConstAndTypedefsImpl(QT);
 }
 
 const model::QualifiedType
@@ -194,36 +197,16 @@ getFieldType(const QualifiedType &Parent, uint64_t Idx) {
     revng_abort("Cannot traverse a pointer");
 
   // If it's an array, we want to discard any const qualifier we have before the
-  // first array qualifier, and the first array qualifier itself
+  // first array qualifier, and traverse all typedefs.
   if (Parent.isArray()) {
-    for (auto It = Parent.Qualifiers.begin(); It != Parent.Qualifiers.end();
-         ++It) {
-
-      switch (It->Kind) {
-      case model::QualifierKind::Const:
-        continue;
-        break;
-
-      case model::QualifierKind::Pointer:
-        revng_abort("This is not an array");
-        break;
-
-      case model::QualifierKind::Array: {
-        revng_assert(Idx < It->Size);
-        auto ReturnedType = model::QualifiedType(Parent.UnqualifiedType, {});
-        std::copy(std::next(It),
-                  Parent.Qualifiers.end(),
-                  ReturnedType.Qualifiers.begin());
-        rc_return ReturnedType;
-      }
-
-      default:
-        revng_abort("Unhandled Qualifier");
-      }
-    }
-
-    revng_unreachable("If it's an array, we should have visited an array "
-                      "qualifier");
+    QualifiedType Peeled = peelConstAndTypedefs(Parent);
+    revng_assert(not Peeled.Qualifiers.empty());
+    revng_assert(model::Qualifier::isArray(*Peeled.Qualifiers.begin()));
+    // Then we also throw away the first array qualifier to build a
+    // QualifiedType that represents the type of field of the array.
+    rc_return model::QualifiedType(Peeled.UnqualifiedType,
+                                   { std::next(Peeled.Qualifiers.begin()),
+                                     Peeled.Qualifiers.end() });
   }
 
   // If we arrived here, there should be only const qualifiers left
