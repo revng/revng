@@ -267,11 +267,6 @@ public:
               if (auto *Call = dyn_cast<CallInst>(RetVal)) {
                 const Function *Callee = getCallee(Call);
 
-                // TODO: the other casewill need to be handled properly to be
-                // able to infer types from calls to dynamic functions.
-                // Calls to dynamic functions at the moment don't have a callee,
-                // because the callees are generated with a bunch of pointer
-                // arithmetic from integer constants.
                 if (Callee) {
 
                   auto CTags = FunctionTags::TagsSet::from(Callee);
@@ -468,7 +463,7 @@ public:
           revng_assert(not Callee or not Callee->isVarArg());
 
           // Add entry in SCEVToLayoutType map for return values of CallInst
-          if (C->getNumUses()) {
+          if (not C->getType()->isVoidTy()) {
             // Return values
             revng_assert(isa<StructType>(C->getType())
                          or isa<IntegerType>(C->getType())
@@ -790,9 +785,9 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
           }
 
           // Create pointer edge between the access node and the pointee node.
-          const auto &[PointeeNode, Changed] = getOrCreateLayoutType(Val);
+          const auto &[PointeeNode, HasChanged] = getOrCreateLayoutType(Val);
           revng_assert(PointeeNode);
-          revng_assert(not Changed or not isa<LoadInst>(I));
+          revng_assert(not HasChanged or not isa<LoadInst>(I));
 
           // Add a pointer link from the AccessNode to the PointeeNode. Note
           // that at this stage we don't know yet if PointeeNode is going to be
