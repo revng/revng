@@ -202,10 +202,10 @@ private:
     makeLinkageWeak(*Module, Internals, Externals);
 
     // Make a global array of all global objects so that they don't get dropped
-    std::string GlobalArray1 = "REVNGAllSymbolsArrayLeft";
+    std::string GlobalArray1 = "revng.AllSymbolsArrayLeft";
     makeGlobalObjectsArray(*Module, GlobalArray1);
 
-    std::string GlobalArray2 = "REVNGAllSymbolsArrayRight";
+    std::string GlobalArray2 = "revng.AllSymbolsArrayRight";
     makeGlobalObjectsArray(*Other.Module, GlobalArray2);
 
     // We require inputs to be valid
