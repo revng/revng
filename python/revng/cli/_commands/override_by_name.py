@@ -18,8 +18,12 @@ class ModelOverrideByName(Command):
         super().__init__(("model", "override-by-name"), "Override parts of the model")
 
     def register_arguments(self, parser):
-        parser.add_argument("input_model_path", default="", help="Input model (can be IR)")
-        parser.add_argument("override_model_path", default="", help="Override model")
+        parser.add_argument(
+            "input_model_path", metavar="INPUT_MODEL", default="", help="Input model (can be IR)"
+        )
+        parser.add_argument(
+            "override_model_path", metavar="OVERRIDE_MODEL", default="", help="Override model"
+        )
         parser.add_argument(
             "-o",
             metavar="OUTPUT",
