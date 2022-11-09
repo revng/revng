@@ -1557,12 +1557,13 @@ class GEPSummationCache {
       // we initialize the result as if it was an offset
       Result = makeOffsetGEPSummation(Arg);
 
-    } else if (isa<GlobalVariable>(AddressArith)) {
+    } else if (isa<GlobalVariable>(AddressArith)
+               or isa<llvm::UndefValue>(AddressArith)
+               or isa<llvm::PoisonValue>(AddressArith)) {
 
       Result = ModelGEPSummation::invalid();
 
     } else {
-
       // We don't expect other stuff. This abort is mainly intended to be a
       // safety net during development. It can eventually be dropped.
       AddressArith->dump();
@@ -1993,7 +1994,7 @@ static UseGEPInfoMap makeGEPReplacements(llvm::Function &F,
         // addresses
         // TODO: if we ever need to support memory mapped at address 0 we can
         // probably work around this, but this is not top priority for now.
-        if (isa<llvm::UndefValue>(U.get())
+        if (isa<llvm::UndefValue>(U.get()) or isa<llvm::PoisonValue>(U.get())
             or isa<llvm::ConstantPointerNull>(U.get())) {
           revng_log(ModelGEPLog, "Skipping null pointer address");
           continue;
