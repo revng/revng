@@ -571,6 +571,18 @@ CCodeGenerator::addOperandToken(const llvm::Value *Operand) {
     rc_return true;
   }
 
+  if (auto *Poison = dyn_cast<llvm::UndefValue>(Operand)) {
+    revng_assert(Poison->getType()->isIntOrPtrTy());
+    TokenMap[Operand] = constants::Zero.serialize();
+
+    // Unfortunately, since the InlineLogger prints out values inside "/*"
+    // comments, printing this if we're using such logger would break the C
+    // code, since it would introduce unterminated "/*" comments.
+    if (not InlineLog.isEnabled())
+      TokenMap[Operand] += " " + helpers::blockComment("poison", false);
+    rc_return true;
+  }
+
   if (auto *Null = dyn_cast<llvm::ConstantPointerNull>(Operand)) {
     TokenMap[Operand] = constants::Null.serialize();
     rc_return true;
