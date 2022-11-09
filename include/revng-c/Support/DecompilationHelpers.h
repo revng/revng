@@ -43,6 +43,10 @@ inline bool areMemOpCompatible(const model::QualifiedType &ModelType,
   if (not ModelType.isPointer() and not ModelType.isScalar())
     return false;
 
+  // loads/stores from/to void pointers are not allowed
+  if (ModelType.isVoid())
+    return false;
+
   auto ModelSize = ModelType.size().value();
 
   // For LLVM pointers, we want to check that the model type has the correct
