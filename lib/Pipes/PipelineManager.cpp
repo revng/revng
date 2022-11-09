@@ -386,8 +386,10 @@ PipelineManager::runAnalysis(llvm::StringRef AnalysisName,
                                     Targets,
                                     Map,
                                     Options);
-  if (Result)
-    recalculateAllPossibleTargets();
+  if (not Result)
+    return Result.takeError();
+
+  recalculateAllPossibleTargets();
 
   // TODO: to remove once invalidations are working
   if (auto Invalidations = invalidateAllPossibleTargets(); !!Invalidations)
@@ -402,8 +404,10 @@ llvm::Expected<DiffMap>
 PipelineManager::runAllAnalyses(InvalidationMap &Map,
                                 const llvm::StringMap<std::string> &Options) {
   auto Result = Runner->runAllAnalyses(Map, Options);
-  if (Result)
-    recalculateAllPossibleTargets();
+  if (not Result)
+    return Result.takeError();
+
+  recalculateAllPossibleTargets();
 
   // TODO: to remove once invalidations are working
   if (auto Invalidations = invalidateAllPossibleTargets(); !!Invalidations)
