@@ -3,13 +3,9 @@
 #
 
 ---
-- Entry: "1"
-  FunctionMetadata:
-    Entry: "1"
+- FunctionMetadata:
     ControlFlowGraph:
-      - Start: "1"
-        End: "2"
-        Successors:
+      - Successors:
           - Destination: ":Invalid"
             Type: FunctionCall
             DynamicFunction: strlen
@@ -17,24 +13,14 @@
 - OriginalName: use_plt
   FunctionMetadata:
     ControlFlowGraph:
-      - Start: "5"
-        End: "6"
-        Successors:
-          - Destination: "8"
-            Type: FunctionCall
-      - Start: "6"
-        End: "7"
-        Successors:
-          - Destination: "1"
-            Type: FunctionCall
-      - Start: "7"
-        End: "8"
-        Successors:
+      - Successors:
+          - Type: FunctionCall
+      - Successors:
+          - Type: FunctionCall
+      - Successors:
           - Type: Return
 - OriginalName: __x86.get_pc_thunk.bx
   FunctionMetadata:
     ControlFlowGraph:
-      - Start: "8"
-        End: "9"
-        Successors:
+      - Successors:
           - Type: Return

@@ -3,41 +3,24 @@
 #
 
 ---
-- Entry: "1"
-  FunctionMetadata:
-    Entry: "1"
+- FunctionMetadata:
     ControlFlowGraph:
-      - Start: "1"
-        End: "2"
-        Successors:
+      - Successors:
           - Destination: ":Invalid"
             Type: FunctionCall
             DynamicFunction: strlen
             IsTailCall: true
 - OriginalName: _start
   FunctionMetadata:
-    Entry: "2"
     ControlFlowGraph:
-      - Start: "2"
-        End: "3"
-        Successors:
-          - Destination: "4"
-            Type: FunctionCall
-      - Start: "3"
-        End: "4"
-        Successors:
+      - Successors:
+          - Type: FunctionCall
+      - Successors:
           - Type: Return
-- Entry: "4"
-  OriginalName: use_plt
+- OriginalName: use_plt
   FunctionMetadata:
-    Entry: "4"
     ControlFlowGraph:
-      - Start: "4"
-        End: "5"
-        Successors:
-          - Destination: "1"
-            Type: FunctionCall
-      - Start: "5"
-        End: "6"
-        Successors:
+      - Successors:
+          - Type: FunctionCall
+      - Successors:
           - Type: Return

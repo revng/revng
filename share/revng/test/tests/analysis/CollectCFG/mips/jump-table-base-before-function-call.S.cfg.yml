@@ -7,50 +7,31 @@
   Attributes: []
   FunctionMetadata:
     ControlFlowGraph:
-      - Start: "1"
-        End: "2"
-        Successors:
-          - Destination: "2"
+      - Successors:
+          - Type: DirectBranch
+          - Type: DirectBranch
+      - Successors:
+          - Type: FunctionCall
+      - Successors:
+          - Kind: FunctionEdge
             Type: DirectBranch
-          - Destination: "5"
-            Type: DirectBranch
-      - Start: "2"
-        End: "3"
-        Successors:
-          - Destination: "8"
-            Type: FunctionCall
-      - Start: "3"
-        End: "4"
-        Successors:
-          - Destination: "4"
-            Kind: FunctionEdge
-            Type: DirectBranch
-          - Destination: "6"
-            Type: DirectBranch
-      - Start: "4"
-        End: "5"
-        Successors:
+          - Type: DirectBranch
+      - Successors:
           # TODO: we don't recognize this since we cannot track the jump table since
           #       we cannot prove the value of the register containing it is
           #       preserved across the function call
           - Destination: :Invalid
             Type: LongJmp
-      - Start: "5"
-        End: "6"
-        Successors:
+      - Successors:
           - Destination: :Invalid
             Type: Return
-      - Start: "6"
-        End: "7"
-        Successors:
+      - Successors:
           - Destination: :Invalid
             Type: LongJmp
 - OriginalName: function
   Attributes: []
   FunctionMetadata:
     ControlFlowGraph:
-      - Start: "8"
-        End: "9"
-        Successors:
+      - Successors:
           - Destination: :Invalid
             Type: Return
