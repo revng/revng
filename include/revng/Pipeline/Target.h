@@ -224,6 +224,17 @@ public:
     return Contained.erase(std::forward<Args>(A)...);
   }
 
+  TargetsList intersect(const TargetsList &Other) const {
+    TargetsList ToReturn;
+    std::set_intersection(begin(),
+                          end(),
+                          Other.begin(),
+                          Other.end(),
+                          std::back_inserter(ToReturn.Contained));
+    llvm::sort(ToReturn.Contained);
+    return ToReturn;
+  }
+
 private:
   struct Comp {
     bool operator()(const Target &T, const Kind &K) const {
