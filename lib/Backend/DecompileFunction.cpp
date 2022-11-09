@@ -117,21 +117,6 @@ static void debug_function dumpToString(llvm::Value *Value) {
   llvm::dbgs() << "Value: " << dumpToString(*Value) << "\n";
 }
 
-/// Traverse all nested typedefs inside \a QT, if any, and merge them into the
-/// top type.
-static void flattenTypedefs(QualifiedType &QT) {
-  while (auto *TD = dyn_cast<TypedefType>(QT.UnqualifiedType.getConst())) {
-    llvm::copy(TD->UnderlyingType.Qualifiers, QT.Qualifiers.begin());
-    QT.UnqualifiedType = TD->UnderlyingType.UnqualifiedType;
-  }
-}
-
-static void keepOnlyPtrAndArrayQualifiers(QualifiedType &QT) {
-  llvm::erase_if(QT.Qualifiers, [](model::Qualifier &Q) {
-    return not(model::Qualifier::isPointer(Q) or model::Qualifier::isArray(Q));
-  });
-}
-
 /// Return the string that represents the given binary operator in C
 static const std::string getBinOpString(const llvm::BinaryOperator *BinOp) {
   const Tag *Op = [&BinOp]() constexpr {
@@ -671,6 +656,20 @@ CCodeGenerator::addOperandToken(const llvm::Value *Operand) {
   rc_return false;
 }
 
+/// Traverse all nested typedefs inside \a QT, skipping const Qualifiers, and
+/// returns a QualifiedType that represents the full traversal.
+static RecursiveCoroutine<QualifiedType>
+flattenTypedefsIgnoringConst(const QualifiedType &QT) {
+  QualifiedType Result = peelConstAndTypedefs(QT);
+  if (auto *TD = dyn_cast<TypedefType>(QT.UnqualifiedType.getConst())) {
+    auto &Underlying = TD->UnderlyingType;
+    QualifiedType Nested = rc_recur flattenTypedefsIgnoringConst(Underlying);
+    Result.UnqualifiedType = Nested.UnqualifiedType;
+    llvm::move(Nested.Qualifiers, std::back_inserter(Result.Qualifiers));
+  }
+  rc_return Result;
+}
+
 StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
 
   auto *CalledFunc = Call->getCalledFunction();
@@ -724,8 +723,7 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
 
       // Traverse the model to decide whether to emit "." or "[]"
       for (; CurArg != Call->arg_end(); ++CurArg) {
-        flattenTypedefs(CurType);
-        keepOnlyPtrAndArrayQualifiers(CurType);
+        CurType = flattenTypedefsIgnoringConst(CurType);
 
         model::Qualifier *MainQualifier = nullptr;
         if (CurType.Qualifiers.size() > 0)
