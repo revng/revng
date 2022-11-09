@@ -6,6 +6,7 @@ commands:
   - type: revng.lifted
     from:
       - type: revng-qa.compiled
+        filter: one-per-architecture
     suffix: .bc
     command: revng lift "$INPUT" "$OUTPUT"
   - type: revng.abi-enforced-for-decompilation
