@@ -212,6 +212,12 @@ private:
     revng_assert(llvm::verifyModule(ToMerge.getModule(), &llvm::dbgs()) == 0);
     revng_assert(llvm::verifyModule(*Module, &llvm::dbgs()) == 0);
 
+    if (ToMerge.Module->getDataLayout().isDefault())
+      ToMerge.Module->setDataLayout(Module->getDataLayout());
+
+    if (Module->getDataLayout().isDefault())
+      Module->setDataLayout(ToMerge.Module->getDataLayout());
+
     llvm::Linker TheLinker(*ToMerge.Module);
 
     // Actually link
