@@ -347,9 +347,12 @@ public:
       // reach this stage.
       revng_assert(not isa<PHINode>(I));
 
-      // Instructions that only allocate a local variable do not need an
-      // assignment.
-      if (isCallToTagged(&I, FunctionTags::AllocatesLocalVariable)) {
+      // Instructions only allocating  a local variable and integer print
+      // decorators that do not need an assignment.
+      if (isCallToTagged(&I, FunctionTags::AllocatesLocalVariable)
+          || isCallToTagged(&I, FunctionTags::HexInteger)
+          || isCallToTagged(&I, FunctionTags::CharInteger)
+          || isCallToTagged(&I, FunctionTags::BoolInteger)) {
         // The OperandTaintSet is discarded here. This is not a problem, because
         // it should always be empty.
         revng_assert(not hasSideEffects(I));

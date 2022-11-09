@@ -26,6 +26,9 @@ extern Tag ModelGEPRef;
 extern Tag AssignmentMarker;
 extern Tag OpaqueExtractValue;
 extern Tag Parentheses;
+extern Tag HexInteger;
+extern Tag CharInteger;
+extern Tag BoolInteger;
 extern Tag LocalVariable;
 extern Tag Assign;
 extern Tag Copy;
@@ -103,6 +106,15 @@ void initAddressOfPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M);
 
 /// Initializes a pool of Parentheses functions
 void initParenthesesPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+
+/// Initializes a pool of hex literals printing functions
+void initHexPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+
+/// Initializes a pool of char literals printing functions
+void initCharPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+
+/// Initializes a pool of bool literals printing functions
+void initBoolPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
 
 /// ModelGEP functions are used to replace pointer arithmetics with a navigation
 /// of the Model.

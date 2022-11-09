@@ -29,6 +29,9 @@ Tag ModelGEPRef("ModelGEPRef");
 Tag AssignmentMarker(MarkerName);
 Tag OpaqueExtractValue("OpaqueExtractvalue");
 Tag Parentheses("Parentheses");
+Tag HexInteger("HexInteger");
+Tag CharInteger("CharInteger");
+Tag BoolInteger("BoolInteger");
 Tag LocalVariable("LocalVariable");
 Tag Assign("Assign");
 Tag Copy("Copy");
@@ -129,6 +132,39 @@ void initParenthesesPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.setTags({ &FunctionTags::Parentheses, &FunctionTags::Marker });
   // Initialize the pool from its internal llvm::Module if possible.
   Pool.initializeFromReturnType(FunctionTags::Parentheses);
+}
+
+void initHexPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
+  // Set attributes
+  Pool.addFnAttribute(llvm::Attribute::NoUnwind);
+  Pool.addFnAttribute(llvm::Attribute::WillReturn);
+  Pool.addFnAttribute(llvm::Attribute::ReadNone);
+  // Set revng tags
+  Pool.setTags({ &FunctionTags::HexInteger });
+  // Initialize the pool from its internal llvm::Module if possible.
+  Pool.initializeFromReturnType(FunctionTags::HexInteger);
+}
+
+void initCharPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
+  // Set attributes
+  Pool.addFnAttribute(llvm::Attribute::NoUnwind);
+  Pool.addFnAttribute(llvm::Attribute::WillReturn);
+  Pool.addFnAttribute(llvm::Attribute::ReadNone);
+  // Set revng tags
+  Pool.setTags({ &FunctionTags::CharInteger });
+  // Initialize the pool from its internal llvm::Module if possible.
+  Pool.initializeFromReturnType(FunctionTags::CharInteger);
+}
+
+void initBoolPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
+  // Set attributes
+  Pool.addFnAttribute(llvm::Attribute::NoUnwind);
+  Pool.addFnAttribute(llvm::Attribute::WillReturn);
+  Pool.addFnAttribute(llvm::Attribute::ReadNone);
+  // Set revng tags
+  Pool.setTags({ &FunctionTags::BoolInteger });
+  // Initialize the pool from its internal llvm::Module if possible.
+  Pool.initializeFromReturnType(FunctionTags::BoolInteger);
 }
 
 void initSegmentRefPool(OpaqueFunctionsPool<SegmentRefPoolKey> &Pool,

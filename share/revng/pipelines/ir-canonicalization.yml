@@ -27,3 +27,4 @@ Branches:
               - add-assignment-markers
               - make-model-cast
               - operatorprecedence-resolution
+              - pretty-int-formatting

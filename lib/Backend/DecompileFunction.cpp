@@ -3,6 +3,7 @@
 //
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/IR/Argument.h"
@@ -17,6 +18,7 @@
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -116,6 +118,34 @@ static void debug_function dumpTokenMap(const TokenMapT &TokenMap) {
 
 static void debug_function dumpToString(llvm::Value *Value) {
   llvm::dbgs() << "Value: " << dumpToString(*Value) << "\n";
+}
+
+static StringToken hexLiteral(const llvm::ConstantInt *Int) {
+  return StringToken(llvm::formatv("{0:x}", Int));
+}
+
+static StringToken charLiteral(const llvm::ConstantInt *Int) {
+  revng_assert(Int->getValue().getBitWidth() == 8);
+  const auto LimitedValue = Int->getValue().getLimitedValue(0xffu);
+  const auto CharValue = static_cast<char>(LimitedValue);
+
+  std::string EscapedC;
+  llvm::raw_string_ostream EscapeCStream(EscapedC);
+  EscapeCStream.write_escaped(std::string(&CharValue, 1));
+
+  std::string EscapedHTML;
+  llvm::raw_string_ostream EscapeHTMLStream(EscapedHTML);
+  llvm::printHTMLEscaped(EscapedC, EscapeHTMLStream);
+
+  return StringToken(llvm::formatv("'{0}'", EscapeHTMLStream.str()));
+}
+
+static StringToken boolLiteral(const llvm::ConstantInt *Int) {
+  if (Int->isZero()) {
+    return StringToken("false");
+  } else {
+    return StringToken("true");
+  }
 }
 
 /// Return the string that represents the given binary operator in C
@@ -926,6 +956,18 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
       Out << " " << operators::Assign << " " << Expression << ";\n";
       Expression = VarNames.Use;
     }
+  } else if (FunctionTags::HexInteger.isTagOf(CalledFunc)) {
+    const auto Operand = Call->getArgOperand(0);
+    const auto *Value = cast<llvm::ConstantInt>(Operand);
+    Expression = constants::constant(hexLiteral(Value)).serialize();
+  } else if (FunctionTags::CharInteger.isTagOf(CalledFunc)) {
+    const auto Operand = Call->getArgOperand(0);
+    const auto *Value = cast<llvm::ConstantInt>(Operand);
+    Expression = constants::constant(charLiteral(Value)).serialize();
+  } else if (FunctionTags::BoolInteger.isTagOf(CalledFunc)) {
+    const auto Operand = Call->getArgOperand(0);
+    const auto *Value = cast<llvm::ConstantInt>(Operand);
+    Expression = constants::constant(boolLiteral(Value)).serialize();
   } else {
     revng_abort("Unknown non-isolated function");
   }

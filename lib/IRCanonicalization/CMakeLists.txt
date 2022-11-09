@@ -19,7 +19,8 @@ revng_add_analyses_library(
   RemoveLoadStore.cpp
   RemovePointerCasts.cpp
   TwosComplementArithmeticNormalizationPass.cpp
-  OperatorPrecedenceResolutionPass.cpp)
+  OperatorPrecedenceResolutionPass.cpp
+  PrettyIntFormattingPass.cpp)
 
 target_link_libraries(
   revngcIRCanonicalization
