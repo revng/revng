@@ -10,6 +10,8 @@ Branches:
           - Type: LLVMPipe
             UsedContainers: [module.ll]
             Passes:
+              - remove-llvmassume-calls
+              - dce
               - remove-pointer-casts
               - make-model-gep
               - dce
