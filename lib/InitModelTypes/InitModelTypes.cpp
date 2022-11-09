@@ -215,18 +215,36 @@ static void handleCallInstruction(const llvm::CallInst *Call,
   if (ReturnedQualTypes.size() == 0)
     return;
 
+  llvm::Type *CallType = Call->getType();
   if (ReturnedQualTypes.size() == 1) {
     // If the function returns just one value, associate the computed
     // QualifiedType to the Call Instruction
-    revng_assert(Call->getType()->isSingleValueType());
+    revng_assert(CallType->isSingleValueType());
 
     // Skip if it's not a pointer and we are only interested in pointers
     if (not PointersOnly or ReturnedQualTypes[0].isPointer()) {
       TypeMap.insert({ Call, ReturnedQualTypes[0] });
     }
 
+  } else if (not CallType->isAggregateType()) {
+    // If we reach this point, we have many types in ReturnedQualTypes, but the
+    // Call on LLVM IR returns an integer.
+    revng_assert(CallType->isIntegerTy());
+    // In this case we cannot attach a rich type to the integer on LLVM IR, we
+    // just have to fall back to a Generic PrimitiveType
+    if (not PointersOnly) {
+      const auto GenericKind = model::PrimitiveTypeKind::Generic;
+      auto BitWidth = CallType->getIntegerBitWidth();
+      revng_assert(BitWidth > 0 and not(BitWidth % 8));
+      auto Generic = QualifiedType(Model.getPrimitiveType(GenericKind,
+                                                          BitWidth / 8),
+                                   {});
+      TypeMap.insert({ Call, std::move(Generic) });
+    }
+
   } else {
-    revng_assert(Call->getType()->isAggregateType());
+    // If we reach this point, we have many types in ReturnedQualTypes, and
+    // the Call also returns a struct on LLVM IR
 
     // Functions that return aggregate types have more than one return type.
     // In this case, we cannot assign all the returned types to the returned
