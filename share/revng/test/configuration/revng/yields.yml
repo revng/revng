@@ -11,8 +11,7 @@ commands:
         filter: one-per-architecture
     suffix: .yml.yml
     command: |-
-      MODEL="$$(mktemp --tmpdir tmp.revng.assembly-internal.XXXXXXXXXX)";
-      trap 'rm -f -- "$$MODEL"' EXIT;
+      MODEL="$$(temp)";
       revng model dump "$INPUT2" > "$$MODEL";
       revng pipeline
         -m "$$MODEL"
@@ -29,8 +28,7 @@ commands:
         filter: one-per-architecture
     suffix: .ptml.yml
     command: |-
-      MODEL="$$(mktemp --tmpdir tmp.revng.assembly-ptml.XXXXXXXXXX)";
-      trap 'rm -f -- "$$MODEL"' EXIT;
+      MODEL="$$(temp)";
       revng model dump "$INPUT2" > "$$MODEL";
       revng pipeline
         -m "$$MODEL"
@@ -46,8 +44,7 @@ commands:
         filter: one-per-architecture
     suffix: .svg.yml
     command: |-
-      MODEL="$$(mktemp --tmpdir tmp.revng.cfg-svg.XXXXXXXXXX)";
-      trap 'rm -f -- "$$MODEL"' EXIT;
+      MODEL="$$(temp)";
       revng model dump "$INPUT2" > "$$MODEL";
       revng pipeline
         -m "$$MODEL"
@@ -63,8 +60,7 @@ commands:
         filter: one-per-architecture
     suffix: .yml
     command: |-
-      MODEL="$$(mktemp --tmpdir tmp.revng.cross-relations.XXXXXXXXXX)";
-      trap 'rm -f -- "$$MODEL"' EXIT;
+      MODEL="$$(temp)";
       revng model dump "$INPUT2" > "$$MODEL";
       revng pipeline
         -m "$$MODEL"
@@ -81,8 +77,7 @@ commands:
         filter: one-per-architecture
     suffix: .svg.yml
     command: |-
-      MODEL="$$(mktemp --tmpdir tmp.revng.call-graph-svg.XXXXXXXXXX)";
-      trap 'rm -f -- "$$MODEL"' EXIT;
+      MODEL="$$(temp)";
       revng model dump "$INPUT2" > "$$MODEL";
       revng pipeline
         -m "$$MODEL"
@@ -100,8 +95,7 @@ commands:
         filter: one-per-architecture
     suffix: .svg.yml
     command: |-
-      MODEL="$$(mktemp --tmpdir tmp.revng.call-graph-slice-svg.XXXXXXXXXX)";
-      trap 'rm -f -- "$$MODEL"' EXIT;
+      MODEL="$$(temp)";
       revng model dump "$INPUT2" > "$$MODEL";
       revng pipeline
         -m "$$MODEL"
