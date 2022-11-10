@@ -120,7 +120,7 @@ CFGAnalyzer::CFGAnalyzer(llvm::Module &M,
              PostCallHook.get(),
              RetHook.get(),
              GCBI.spReg()),
-  Outliner(M, GCBI, Oracle, &Summarizer),
+  Outliner(M, GCBI, Oracle),
   OpaqueBranchConditionsPool(&M, false),
   OutputAAWriter(streamFromOption(AAWriterPath)),
   OutputIBI(streamFromOption(IndirectBranchInfoSummaryPath)) {
@@ -138,7 +138,7 @@ CFGAnalyzer::CFGAnalyzer(llvm::Module &M,
 }
 
 OutlinedFunction CFGAnalyzer::outline(llvm::BasicBlock *Entry) {
-  OutlinedFunction Result = Outliner.outline(Entry);
+  OutlinedFunction Result = Outliner.outline(Entry, &Summarizer);
 
   // Make sure we start a new block before a PreCallHook
   auto IsFirst = [](llvm::Instruction *I) {

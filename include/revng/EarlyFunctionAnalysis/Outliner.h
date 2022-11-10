@@ -5,6 +5,7 @@
 //
 
 #include "llvm/IR/Module.h"
+#include "llvm/Transforms/Utils/CodeExtractor.h"
 
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 #include "revng/EarlyFunctionAnalysis/TemporaryOpaqueFunction.h"
@@ -73,26 +74,26 @@ private:
   llvm::Module &M;
   GeneratedCodeBasicInfo &GCBI;
   const FunctionSummaryOracle &Oracle;
-  CallHandler *TheCallHandler;
 
   /// UnexpectedPCMarker is used to indicate that `unexpectedpc` basic
   /// block of a function to inline need to be adjusted to jump to
   /// `unexpectedpc` of their caller.
   TemporaryOpaqueFunction UnexpectedPCMarker;
 
+  llvm::CodeExtractorAnalysisCache CEAC;
+
 public:
   Outliner(llvm::Module &M,
            GeneratedCodeBasicInfo &GCBI,
-           const FunctionSummaryOracle &Oracle,
-           CallHandler *TheCallHandler) :
+           const FunctionSummaryOracle &Oracle) :
     M(M),
     GCBI(GCBI),
     Oracle(Oracle),
-    TheCallHandler(TheCallHandler),
-    UnexpectedPCMarker(initializeUnexpectedPCMarker(M)) {}
+    UnexpectedPCMarker(initializeUnexpectedPCMarker(M)),
+    CEAC(*M.getFunction("root")) {}
 
 public:
-  OutlinedFunction outline(llvm::BasicBlock *BB);
+  OutlinedFunction outline(llvm::BasicBlock *BB, CallHandler *TheCallHandler);
 
 private:
   static TemporaryOpaqueFunction initializeUnexpectedPCMarker(llvm::Module &M) {
@@ -104,28 +105,32 @@ private:
 
 private:
   OutlinedFunction
-  outlineFunctionInternal(llvm::BasicBlock *BB,
+  outlineFunctionInternal(CallHandler *TheCallHandler,
+                          llvm::BasicBlock *BB,
                           OutlinedFunctionsMap &FunctionsToInline);
 
   /// \return a description of the call and boolean indicating whether the call
   ///         site is a tail call or not.
   std::pair<const FunctionSummary *, bool>
-  getCallSiteInfo(MetaAddress CallerFunction,
+  getCallSiteInfo(CallHandler *TheCallHandler,
+                  MetaAddress CallerFunction,
                   llvm::CallInst *FunctionCall,
                   llvm::CallInst *JumpToSymbol,
                   MetaAddress Callee);
 
-  void integrateFunctionCallee(MetaAddress Caller,
+  void integrateFunctionCallee(CallHandler *TheCallHandler,
+                               MetaAddress Caller,
                                llvm::CallInst *FunctionCall,
                                llvm::CallInst *JumpToSymbol,
                                MetaAddress Callee,
                                OutlinedFunctionsMap &FunctionsToInline);
 
   llvm::Function *
-  createFunctionToInline(llvm::BasicBlock *BB,
+  createFunctionToInline(CallHandler *TheCallHandler,
+                         llvm::BasicBlock *BB,
                          OutlinedFunctionsMap &FunctionsToInline);
 
-  void createAnyPCHooks(OutlinedFunction *F);
+  void createAnyPCHooks(CallHandler *TheCallHandler, OutlinedFunction *F);
 };
 
 } // namespace efa
