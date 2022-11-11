@@ -13,28 +13,44 @@ namespace revng::kinds {
 
 inline TaggedFunctionKind
   LiftingArtifactsRemoved("LiftingArtifactsRemoved",
-                          &ranks::Function,
+                          ranks::Function,
                           FunctionTags::LiftingArtifactsRemoved);
 
 inline TaggedFunctionKind
   StackPointerPromoted("StackPointerPromoted",
-                       &ranks::Function,
+                       ranks::Function,
                        FunctionTags::StackPointerPromoted);
 
 inline TaggedFunctionKind
   StackAccessesSegregated("StackAccessesSegregated",
-                          &ranks::Function,
+                          ranks::Function,
                           FunctionTags::StackAccessesSegregated);
 
-inline FunctionKind DecompiledToYAML("DecompiledToYAML", &ranks::Function);
+extern FunctionKind DecompiledToYAML;
+inline pipeline::SingleElementKind ModelHeader("ModelHeader",
+                                               Binary,
+                                               ranks::Binary,
+                                               fat(ranks::Type,
+                                                   ranks::StructField,
+                                                   ranks::UnionField,
+                                                   ranks::EnumEntry,
+                                                   ranks::DynamicFunction,
+                                                   ranks::Segment),
+                                               { &DecompiledToYAML });
+
+inline FunctionKind DecompiledToYAML("DecompiledToYAML",
+                                     ModelHeader,
+                                     ranks::Function,
+                                     fat(ranks::Function),
+                                     { &ModelHeader });
 
 inline pipeline::SingleElementKind
-  ModelHeader("ModelHeader", Binary, &ranks::Binary);
+  HelpersHeader("HelpersHeader", Binary, ranks::Binary, {}, {});
 
-inline pipeline::SingleElementKind
-  HelpersHeader("HelpersHeader", Binary, &ranks::Binary);
-
-inline pipeline::SingleElementKind
-  DecompiledToC("DecompiledToC", Binary, &ranks::Binary);
+inline pipeline::SingleElementKind DecompiledToC("DecompiledToC",
+                                                 Binary,
+                                                 ranks::Binary,
+                                                 fat(ranks::Function),
+                                                 { &ModelHeader });
 
 } // namespace revng::kinds
