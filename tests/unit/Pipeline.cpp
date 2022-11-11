@@ -59,11 +59,11 @@ using namespace pipeline;
 using namespace std;
 using namespace llvm;
 
-static Rank Root("Root");
-static Rank FunctionRank("Function", Root);
+static auto Root = defineRootRank<"Root">();
+static auto FunctionRank = defineRank<"Function", std::string>(Root);
 class RootKindType : public LLVMKind {
 public:
-  RootKindType() : LLVMKind("RootKind", &Root) { revng_assert(depth() == 0); };
+  RootKindType() : LLVMKind("RootKind", Root) { revng_assert(depth() == 0); };
 
   std::optional<Target>
   symbolToTarget(const llvm::Function &Symbol) const override {
@@ -81,8 +81,9 @@ public:
 };
 
 static RootKindType RootKind;
-static SingleElementKind RootKind2("RootKind2", RootKind, &Root);
-static SingleElementKind RootKind3("RootKind3", &Root);
+static SingleElementKind RootKind2("RootKind2", RootKind, Root, {}, {});
+static SingleElementKind RootKind3("RootKind3", Root, {}, {});
+
 class SingleFunctionKind : public LLVMKind {
 public:
   using LLVMKind::LLVMKind;
@@ -104,7 +105,7 @@ public:
 
   ~SingleFunctionKind() override {}
 };
-static SingleFunctionKind FunctionKind("FunctionKind", &FunctionRank);
+static SingleFunctionKind FunctionKind("FunctionKind", FunctionRank);
 
 static std::string CName = "ContainerName";
 
@@ -1177,8 +1178,8 @@ public:
   }
 };
 
-static LLVMInspectorExample ExampleLLVMInspector("dc", &FunctionRank);
-static LLVMRootInspectorExample ExampleLLVMRootInspector("dc2", &Root);
+static LLVMInspectorExample ExampleLLVMInspector("dc", FunctionRank);
+static LLVMRootInspectorExample ExampleLLVMRootInspector("dc2", Root);
 
 BOOST_AUTO_TEST_CASE(LLVMKindTest) {
   llvm::LLVMContext C;
@@ -1217,7 +1218,7 @@ class InspectorKindExample
 public:
   InspectorKindExample() :
     LLVMGlobalKindBase<ExampleLLVMInspectalbeContainer>("ExampleName",
-                                                        &FunctionRank) {}
+                                                        FunctionRank) {}
 
   std::optional<Target>
   symbolToTarget(const llvm::Function &Symbol) const final {
@@ -1331,7 +1332,7 @@ BOOST_AUTO_TEST_CASE(PipeOptions) {
   Set.add("container_name", Factory);
   Set["container_name"];
   if (auto Error = W.run(Ctx, Set, {}); Error)
-    BOOST_FAIL("unrechable");
+    BOOST_FAIL("unreachable");
 }
 
 BOOST_AUTO_TEST_SUITE_END()

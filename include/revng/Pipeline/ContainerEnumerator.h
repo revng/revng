@@ -135,16 +135,14 @@ public:
 template<typename Container>
 class KindForContainer : public Kind, public ContainerEnumerator<Container> {
 public:
-  KindForContainer(llvm::StringRef Name, Rank *Rank) :
-    Kind(Name, Rank),
+  template<RankSpecialization BaseRank>
+  KindForContainer(llvm::StringRef Name, const BaseRank &Rank) :
+    Kind(Name, Rank, {}, {}),
     ContainerEnumerator<Container>(*static_cast<Kind *>(this)) {}
 
-  KindForContainer(llvm::StringRef Name, Kind &Parent) :
-    Kind(Name, Parent, &Parent.rank()),
-    ContainerEnumerator<Container>(*static_cast<Kind *>(this)) {}
-
-  KindForContainer(llvm::StringRef Name, Kind &Parent, Rank *Rank) :
-    Kind(Name, Parent, Rank),
+  template<RankSpecialization BaseRank>
+  KindForContainer(llvm::StringRef Name, Kind &Parent, const BaseRank &Rank) :
+    Kind(Name, Parent, Rank, {}, {}),
     ContainerEnumerator<Container>(*static_cast<Kind *>(this)) {}
 
 public:
