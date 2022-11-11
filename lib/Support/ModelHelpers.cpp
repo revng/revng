@@ -434,6 +434,7 @@ getExpectedModelType(FunctionMetadataCache &Cache,
       auto FTags = FunctionTags::TagsSet::from(CalledFunc);
 
       if (FTags.contains(FunctionTags::AddressOf)
+          or FTags.contains(FunctionTags::ModelGEP)
           or FTags.contains(FunctionTags::ModelGEPRef)) {
         // We have model type information only for the base value
         if (ArgOperandIdx != ModelGEPBaseArgIndex)
@@ -441,17 +442,8 @@ getExpectedModelType(FunctionMetadataCache &Cache,
 
         // The type of the base value is contained in the first operand
         auto Base = deserializeFromLLVMString(Call->getArgOperand(0), Model);
-        return { Base };
-
-      } else if (FTags.contains(FunctionTags::ModelGEP)) {
-        // We have model type information only for the base value
-        if (ArgOperandIdx != ModelGEPBaseArgIndex)
-          return {};
-
-        // The pointed type is contained in the first operand
-        QualifiedType Base = deserializeFromLLVMString(Call->getArgOperand(0),
-                                                       Model);
-        Base = Base.getPointerTo(Model.Architecture);
+        if (FTags.contains(FunctionTags::ModelGEP))
+          Base = Base.getPointerTo(Model.Architecture);
         return { std::move(Base) };
 
       } else if (FTags.contains(FunctionTags::StructInitializer)) {
