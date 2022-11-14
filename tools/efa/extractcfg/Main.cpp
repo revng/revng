@@ -9,7 +9,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MemoryBuffer.h"
 
-#include "revng/EarlyFunctionAnalysis/IRHelpers.h"
+#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/ToolHelpers.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/InitRevng.h"
@@ -54,6 +54,7 @@ int main(int argc, const char **argv) {
   auto *RootFunction = Module->getFunction("root");
   revng_assert(RootFunction != nullptr);
 
+  FunctionMetadataCache Cache;
   if (not RootFunction->isDeclaration()) {
     for (BasicBlock &BB : *Module->getFunction("root")) {
       llvm::Instruction *Term = BB.getTerminator();
@@ -61,7 +62,7 @@ int main(int argc, const char **argv) {
       if (not FMMDNode)
         continue;
 
-      efa::FunctionMetadata FM = *extractFunctionMetadata(&BB).get();
+      const efa::FunctionMetadata &FM = Cache.getFunctionMetadata(&BB);
       auto &Function = Model->Functions.at(FM.Entry);
       revng::DecoratedFunction NewFunction(FM.Entry,
                                            Function.OriginalName,
@@ -73,7 +74,7 @@ int main(int argc, const char **argv) {
 
   for (Function &F : FunctionTags::Isolated.functions(Module.get())) {
     auto *FMMDNode = F.getMetadata(FunctionMetadataMDName);
-    efa::FunctionMetadata FM = *extractFunctionMetadata(&F).get();
+    const efa::FunctionMetadata &FM = Cache.getFunctionMetadata(&F);
     if (not FMMDNode or DecoratedFunctions.count(FM.Entry) != 0)
       continue;
 
