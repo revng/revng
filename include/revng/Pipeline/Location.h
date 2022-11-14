@@ -151,18 +151,14 @@ public:
 template<RankSpecialization Rank, typename ...Args>
   requires std::is_convertible_v<std::tuple<Args...>, typename Rank::Tuple>
 inline constexpr Location<Rank> location(const Rank &, Args &&...As) {
-  // clang-format on
   return Location<Rank>(As...);
 }
-
-// clang-format off
 
 /// Constructs a new location from arbitrary arguments and instantly serializes
 /// it into its string representation.
 template<RankSpecialization Rank, typename ...Args>
   requires std::is_convertible_v<std::tuple<Args...>, typename Rank::Tuple>
 inline std::string serializedLocation(const Rank &R, Args &&...As) {
-  // clang-format on
   return location(R, std::forward<Args>(As)...).toString();
 }
 
@@ -175,6 +171,18 @@ inline constexpr std::optional<Location<Rank>>
 locationFromString(const Rank &, std::string_view String) {
   return Location<Rank>::fromString(String);
 }
+
+/// A helper interface for location conversion.
+///
+/// It discloses the static `convert` member in an easier-to-access fashion.
+template<typename ResultRank, typename InputRank>
+  requires(RankConvertibleTo<ResultRank, InputRank>)
+inline constexpr Location<ResultRank>
+convertLocation(const ResultRank &Result, const Location<InputRank> &Input) {
+  return Location<ResultRank>::convert(Input);
+}
+
+// clang-format on
 
 namespace detail {
 
