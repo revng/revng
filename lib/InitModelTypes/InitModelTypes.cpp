@@ -111,8 +111,7 @@ static RecursiveCoroutine<bool> addOperandType(const llvm::Value *Operand,
       }
     }
   } else if (isa<llvm::ConstantInt>(Operand)
-             or isa<llvm::GlobalVariable>(Operand)
-             or isa<llvm::UndefValue>(Operand)) {
+             or isa<llvm::GlobalVariable>(Operand)) {
 
     // For constants and globals, fallback to the LLVM type
     revng_assert(Operand->getType()->isIntOrPtrTy());
@@ -121,6 +120,25 @@ static RecursiveCoroutine<bool> addOperandType(const llvm::Value *Operand,
     if (not PointersOnly or ConstType.isPointer()) {
       TypeMap.insert({ Operand, ConstType });
     }
+    rc_return true;
+
+  } else if (isa<llvm::PoisonValue>(Operand)
+             or isa<llvm::UndefValue>(Operand)) {
+    // poison and undef are always integers
+    llvm::Type *OperandType = Operand->getType();
+    revng_assert(OperandType->isIntOrPtrTy());
+    auto *IntType = dyn_cast<llvm::IntegerType>(OperandType);
+    if (not IntType) { // It's a pointer
+      auto ByteSize = model::Architecture::getPointerSize(Model.Architecture);
+      auto BitWidth = 8 * ByteSize;
+      IntType = llvm::IntegerType::getIntNTy(Operand->getContext(), BitWidth);
+    }
+    auto ConstType = llvmIntToModelType(IntType, Model);
+    revng_assert(not ConstType.isPointer());
+
+    // Skip if it's not a pointer and we are only interested in pointers
+    if (not PointersOnly)
+      TypeMap.insert({ Operand, ConstType });
     rc_return true;
 
   } else if (auto *NullPtr = dyn_cast<llvm::ConstantPointerNull>(Operand)) {
