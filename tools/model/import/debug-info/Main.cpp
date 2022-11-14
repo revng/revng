@@ -66,7 +66,7 @@ int main(int Argc, char *Argv[]) {
   TupleTree<model::Binary> Model;
   if (isa<llvm::object::ELFObjectFileBase>(&ObjectFile)) {
     DwarfImporter Importer(Model, BaseAddress);
-    Importer.import(InputFilename);
+    Importer.import(InputFilename, FetchDebugInfoWithLevel);
   } else if (auto *TheBinary = dyn_cast<object::COFFObjectFile>(&ObjectFile)) {
     MetaAddress ImageBase = MetaAddress::invalid();
     auto LLVMArchitecture = ObjectFile.makeTriple().getArch();
@@ -93,7 +93,7 @@ int main(int Argc, char *Argv[]) {
                                       PE32PlusHeader->ImageBase);
     }
     PDBImporter Importer(Model, ImageBase);
-    Importer.import(*TheBinary);
+    Importer.import(*TheBinary, FetchDebugInfoWithLevel);
   }
 
   // Serialize the model.

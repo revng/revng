@@ -39,14 +39,24 @@ ProgramRunner::ProgramRunner() {
     Paths.push_back(BasePath.str());
 }
 
-int ProgramRunner::run(llvm::StringRef ProgramName,
-                       ArrayRef<std::string> Args) {
-  using namespace llvm::sys;
+bool ProgramRunner::isProgramAvailable(llvm::StringRef ProgramName) {
   llvm::SmallVector<llvm::StringRef, 64> PathsRef;
   for (const std::string &Path : Paths)
     PathsRef.push_back(llvm::StringRef(Path));
 
-  auto MaybeProgramPath = findProgramByName(ProgramName, PathsRef);
+  auto MaybeProgramPath = llvm::sys::findProgramByName(ProgramName, PathsRef);
+  if (!MaybeProgramPath)
+    return false;
+  return true;
+}
+
+int ProgramRunner::run(llvm::StringRef ProgramName,
+                       ArrayRef<std::string> Args) {
+  llvm::SmallVector<llvm::StringRef, 64> PathsRef;
+  for (const std::string &Path : Paths)
+    PathsRef.push_back(llvm::StringRef(Path));
+
+  auto MaybeProgramPath = llvm::sys::findProgramByName(ProgramName, PathsRef);
   revng_assert(not Paths.empty());
   revng_assert(MaybeProgramPath,
                (ProgramName + " was not found in " + getenv("PATH"))
@@ -58,7 +68,7 @@ int ProgramRunner::run(llvm::StringRef ProgramName,
   for (const std::string &Arg : Args)
     StringRefs.push_back(Arg);
 
-  int ExitCode = ExecuteAndWait(StringRefs[0], StringRefs);
+  int ExitCode = llvm::sys::ExecuteAndWait(StringRefs[0], StringRefs);
 
   return ExitCode;
 }
