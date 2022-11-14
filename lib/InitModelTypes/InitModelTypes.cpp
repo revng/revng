@@ -13,7 +13,7 @@
 #include "llvm/Support/Casting.h"
 
 #include "revng/ABI/FunctionType.h"
-#include "revng/EarlyFunctionAnalysis/IRHelpers.h"
+#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/CABIFunctionType.h"
@@ -141,7 +141,8 @@ static RecursiveCoroutine<bool> addOperandType(const llvm::Value *Operand,
 /// Reconstruct the return type(s) of a Call instruction from its
 /// prototype, if it's an isolated function. For non-isolated functions,
 /// special rules apply to recover the returned type.
-static TypeVector getReturnTypes(const llvm::CallInst *Call,
+static TypeVector getReturnTypes(FunctionMetadataCache &Cache,
+                                 const llvm::CallInst *Call,
                                  const model::Function *ParentFunc,
                                  const Binary &Model,
                                  ModelTypesMap &TypeMap) {
@@ -151,7 +152,7 @@ static TypeVector getReturnTypes(const llvm::CallInst *Call,
     return {};
 
   // Check if we already have strong model information for this call
-  ReturnTypes = getStrongModelInfo(Call, Model);
+  ReturnTypes = getStrongModelInfo(Cache, Call, Model);
 
   if (not ReturnTypes.empty())
     return ReturnTypes;
@@ -201,13 +202,15 @@ static TypeVector getReturnTypes(const llvm::CallInst *Call,
 /// Given a call instruction, to either an isolated or a non-isolated
 /// function, assign to it its return type. If the call returns more than
 /// one type, infect the uses of the returned value with those types.
-static void handleCallInstruction(const llvm::CallInst *Call,
+static void handleCallInstruction(FunctionMetadataCache &Cache,
+                                  const llvm::CallInst *Call,
                                   const model::Function *ParentFunc,
                                   const Binary &Model,
                                   ModelTypesMap &TypeMap,
                                   bool PointersOnly) {
 
-  TypeVector ReturnedQualTypes = getReturnTypes(Call,
+  TypeVector ReturnedQualTypes = getReturnTypes(Cache,
+                                                Call,
                                                 ParentFunc,
                                                 Model,
                                                 TypeMap);
@@ -267,7 +270,8 @@ static void handleCallInstruction(const llvm::CallInst *Call,
   }
 }
 
-ModelTypesMap initModelTypes(const llvm::Function &F,
+ModelTypesMap initModelTypes(FunctionMetadataCache &Cache,
+                             const llvm::Function &F,
                              const model::Function *ModelF,
                              const Binary &Model,
                              bool PointersOnly) {
@@ -297,7 +301,12 @@ ModelTypesMap initModelTypes(const llvm::Function &F,
       // the binary or to special intrinsics used by the backend, so they need
       // to be handled separately
       if (auto *Call = dyn_cast<llvm::CallInst>(&I)) {
-        handleCallInstruction(Call, ModelF, Model, TypeMap, PointersOnly);
+        handleCallInstruction(Cache,
+                              Call,
+                              ModelF,
+                              Model,
+                              TypeMap,
+                              PointersOnly);
         continue;
       }
 
@@ -443,7 +452,7 @@ ModelTypesMap initModelTypes(const llvm::Function &F,
   VMA.setUpdater(std::make_unique<TypeMapUpdater>(TypeMap, &Model));
   VMA.disableSolver();
 
-  VMA.run(&F);
+  VMA.run(Cache, &F);
 
   return TypeMap;
 }

@@ -5,6 +5,7 @@
 
 #include "llvm/ADT/SmallVector.h"
 
+#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/QualifiedType.h"
 
@@ -119,5 +120,5 @@ public:
   bool isSolverEnabled() { return UseSolver; }
 
 public:
-  void run(const llvm::Function *F);
+  void run(FunctionMetadataCache &Cache, const llvm::Function *F);
 };

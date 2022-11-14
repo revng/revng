@@ -12,6 +12,7 @@
 
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/ADT/GenericGraph.h"
+#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 
 #include "revng-c/ValueManipulationAnalysis/TypeColors.h"
 
@@ -32,7 +33,8 @@ struct TypeFlowGraph : public GenericGraph<TypeFlowNode> {
   TypeFlowGraph &operator=(const TypeFlowGraph &N) = default;
   TypeFlowGraph &operator=(TypeFlowGraph &&N) = default;
 
-  TypeFlowNode *addNodeContaining(const UseOrValue &);
+  TypeFlowNode *
+  addNodeContaining(FunctionMetadataCache &Cache, const UseOrValue &);
   TypeFlowNode *getNodeContaining(const UseOrValue &) const;
 
   /// Print the graph on a `.dot` file
@@ -55,7 +57,8 @@ struct TypeFlowGraph : public GenericGraph<TypeFlowNode> {
 // --------------- TypeFlowGraph manipulation
 
 /// Add to \a TG the `llvm::Use`s and `llvm::Value`s inside \a F
-TypeFlowGraph makeTypeFlowGraphFromFunction(const llvm::Function *F,
+TypeFlowGraph makeTypeFlowGraphFromFunction(FunctionMetadataCache &Cache,
+                                            const llvm::Function *F,
                                             const model::Binary *Model);
 
 /// Propagate colors from colored nodes trough colored edges

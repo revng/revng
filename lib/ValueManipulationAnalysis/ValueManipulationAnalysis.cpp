@@ -50,6 +50,7 @@ public:
 // LLVM Pass
 void VMA::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<LoadModelWrapperPass>();
+  AU.addRequired<FunctionMetadataCachePass>();
   AU.setPreservesAll();
 }
 
@@ -71,7 +72,7 @@ bool VMA::runOnFunction(Function &F) {
   VMA.setUpdater(std::make_unique<ColorMapUpdater>(ColorMap));
   VMA.enableSolver();
 
-  VMA.run(&F);
+  VMA.run(getAnalysis<FunctionMetadataCachePass>().get(), &F);
 
   return false;
 }

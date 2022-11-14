@@ -22,7 +22,7 @@
 #include "llvm/Support/Casting.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
-#include "revng/EarlyFunctionAnalysis/IRHelpers.h"
+#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Pipeline/RegisterLLVMPass.h"
 #include "revng/Support/Assert.h"
@@ -37,7 +37,8 @@ using namespace llvm;
 
 static Logger<> Log("promote-stack-pointer");
 
-static bool adjustStackAfterCalls(const model::Binary &Binary,
+static bool adjustStackAfterCalls(FunctionMetadataCache &Cache,
+                                  const model::Binary &Binary,
                                   Function &F,
                                   GlobalVariable *GlobalSP) {
   bool Changed = false;
@@ -56,9 +57,10 @@ static bool adjustStackAfterCalls(const model::Binary &Binary,
         revng_assert(MD != nullptr);
 
         // TODO: handle CABIFunctionType
-        auto *Proto = getCallSitePrototype(Binary,
-                                           cast<CallInst>(&I),
-                                           &ModelFunction)
+        auto *Proto = Cache
+                        .getCallSitePrototype(Binary,
+                                              cast<CallInst>(&I),
+                                              &ModelFunction)
                         .get();
         if (auto *RawPrototype = dyn_cast<model::RawFunctionType>(Proto)) {
           auto *FSO = ConstantInt::get(SPType, RawPrototype->FinalStackOffset);
@@ -96,7 +98,12 @@ bool PromoteStackPointerPass::runOnFunction(Function &F) {
   auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
   const model::Binary &Binary = *ModelWrapper.getReadOnlyModel();
 
-  Changed = adjustStackAfterCalls(Binary, F, GlobalSP) or Changed;
+  Changed = adjustStackAfterCalls(getAnalysis<FunctionMetadataCachePass>()
+                                    .get(),
+                                  Binary,
+                                  F,
+                                  GlobalSP)
+            or Changed;
 
   std::vector<Instruction *> SPUsers;
   for (User *U : GlobalSP->users()) {
@@ -179,6 +186,7 @@ bool PromoteStackPointerPass::runOnFunction(Function &F) {
 void PromoteStackPointerPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<LoadModelWrapperPass>();
   AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
+  AU.addRequired<FunctionMetadataCachePass>();
   AU.setPreservesCFG();
 }
 

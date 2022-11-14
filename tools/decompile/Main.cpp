@@ -128,7 +128,8 @@ int main(int Argc, const char *Argv[]) {
   revng::pipes::DecompiledCCodeInYAMLStringMap DecompiledFunctions("" /*Name*/,
                                                                    &Model);
 
-  decompile(*Module, *Model, DecompiledFunctions);
+  FunctionMetadataCache Cache;
+  decompile(Cache, *Module, *Model, DecompiledFunctions);
 
   llvm::cantFail(DecompiledFunctions.serialize(DecompiledOutFile));
 

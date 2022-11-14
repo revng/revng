@@ -10,7 +10,7 @@
 
 #include "revng/ABI/FunctionType.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
-#include "revng/EarlyFunctionAnalysis/IRHelpers.h"
+#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/MFP/MFP.h"
 #include "revng/MFP/SetLattices.h"
 #include "revng/Model/IRHelpers.h"
@@ -258,9 +258,11 @@ private:
 
   llvm::Type *PtrSizedInteger;
   OpaqueFunctionsPool<TypePair> AddressOfPool;
+  FunctionMetadataCache *Cache;
 
 public:
-  SegregateStackAccesses(const model::Binary &Binary,
+  SegregateStackAccesses(FunctionMetadataCache &Cache,
+                         const model::Binary &Binary,
                          Module &M,
                          Value *StackPointer) :
     Binary(Binary),
@@ -271,7 +273,8 @@ public:
     CallInstructionPushSize(getCallPushSize(Binary)),
     SPType(StackPointer->getType()->getPointerElementType()),
     PtrSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
-    AddressOfPool(&M, false) {
+    AddressOfPool(&M, false),
+    Cache(&Cache) {
 
     revng_assert(SSACS != nullptr);
 
@@ -304,7 +307,7 @@ public:
     upgradeLocalFunctions();
 
     for (Function &F : FunctionTags::StackPointerPromoted.functions(&M)) {
-      segregateStackAccesses(F);
+      segregateStackAccesses(*Cache, F);
       FunctionTags::StackAccessesSegregated.addTo(&F);
     }
 
@@ -493,7 +496,7 @@ private:
     }
   }
 
-  void segregateStackAccesses(Function &F) {
+  void segregateStackAccesses(FunctionMetadataCache &Cache, Function &F) {
     if (F.isDeclaration())
       return;
 
@@ -549,7 +552,7 @@ private:
           //
           // Handle a call to an isolated function
           //
-          handleCallSite(ModelFunction, AnalysisResult, SSACSCall);
+          handleCallSite(Cache, ModelFunction, AnalysisResult, SSACSCall);
         } else if ((isa<LoadInst>(&I) or isa<StoreInst>(&I))
                    and Redirector != nullptr) {
           //
@@ -581,7 +584,8 @@ private:
     }
   }
 
-  void handleCallSite(const model::Function &ModelFunction,
+  void handleCallSite(FunctionMetadataCache &Cache,
+                      const model::Function &ModelFunction,
                       MFIResult &AnalysisResult,
                       CallInst *SSACSCall) {
     revng_log(Log, "Handling call site " << getName(SSACSCall));
@@ -599,7 +603,9 @@ private:
     // Obtain RawFunctionType
     auto *MD = SSACSCall->getMetadata("revng.callerblock.start");
     revng_assert(MD != nullptr);
-    auto Prototype = getCallSitePrototype(Binary, SSACSCall, &ModelFunction);
+    auto Prototype = Cache.getCallSitePrototype(Binary,
+                                                SSACSCall,
+                                                &ModelFunction);
     using namespace abi::FunctionType;
     abi::FunctionType::Layout Layout = Layout::make(*Prototype.get());
 
@@ -999,7 +1005,10 @@ bool SegregateStackAccessesPass::runOnModule(Module &M) {
   // Get the stack pointer type
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
 
-  SegregateStackAccesses SSA(Binary, M, GCBI.spReg());
+  SegregateStackAccesses SSA(getAnalysis<FunctionMetadataCachePass>().get(),
+                             Binary,
+                             M,
+                             GCBI.spReg());
   return SSA.run();
 }
 
@@ -1007,6 +1016,7 @@ void SegregateStackAccessesPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesCFG();
   AU.addRequired<LoadModelWrapperPass>();
   AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
+  AU.addRequired<FunctionMetadataCachePass>();
 }
 
 char SegregateStackAccessesPass::ID = 0;

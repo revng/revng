@@ -12,7 +12,7 @@
 
 #include "revng/ABI/FunctionType.h"
 #include "revng/ADT/RecursiveCoroutine.h"
-#include "revng/EarlyFunctionAnalysis/IRHelpers.h"
+#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/QualifiedType.h"
@@ -265,7 +265,9 @@ traverseModelGEP(const model::Binary &Model, const llvm::CallInst *Call) {
 }
 
 RecursiveCoroutine<llvm::SmallVector<QualifiedType>>
-getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
+getStrongModelInfo(FunctionMetadataCache &Cache,
+                   const llvm::Instruction *Inst,
+                   const model::Binary &Model) {
   llvm::SmallVector<QualifiedType> ReturnTypes;
 
   auto ParentFunc = [&Model, &Inst]() {
@@ -276,7 +278,7 @@ getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
 
     if (FunctionTags::CallToLifted.isTagOf(Call)) {
       // Isolated functions have their prototype in the model
-      auto Prototype = getCallSitePrototype(Model, Call);
+      auto Prototype = Cache.getCallSitePrototype(Model, Call);
       revng_assert(Prototype.isValid());
       auto PrototypePath = Prototype.get();
 
@@ -364,7 +366,7 @@ getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
       } else if (FuncName.startswith("revng_call_stack_arguments")) {
         // The prototype attached to this callsite represents the prototype of
         // the function that needs the stack arguments returned by this call
-        auto Prototype = getCallSitePrototype(Model, Call, ParentFunc());
+        auto Prototype = Cache.getCallSitePrototype(Model, Call, ParentFunc());
         revng_assert(Prototype.isValid());
 
         // Only RawFunctionTypes have explicit stack arguments
@@ -383,14 +385,16 @@ getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
       AggregateOp = Call->getArgOperand(0);
 
     if (auto *OriginalInst = llvm::dyn_cast<llvm::Instruction>(AggregateOp))
-      rc_return rc_recur getStrongModelInfo(OriginalInst, Model);
+      rc_return rc_recur getStrongModelInfo(Cache, OriginalInst, Model);
   }
 
   rc_return ReturnTypes;
 }
 
 llvm::SmallVector<QualifiedType>
-getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
+getExpectedModelType(FunctionMetadataCache &Cache,
+                     const llvm::Use *U,
+                     const model::Binary &Model) {
   llvm::Instruction *User = dyn_cast<llvm::Instruction>(U->getUser());
 
   if (not User)
@@ -403,7 +407,7 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
   if (auto *Call = dyn_cast<llvm::CallInst>(User)) {
     if (FunctionTags::CallToLifted.isTagOf(Call)) {
       // Isolated functions have their prototype in the model
-      auto Prototype = getCallSitePrototype(Model, Call);
+      auto Prototype = Cache.getCallSitePrototype(Model, Call);
       revng_assert(Prototype.isValid());
       auto PrototypePath = Prototype.get();
 

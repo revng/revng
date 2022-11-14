@@ -6,6 +6,7 @@
 
 #include "llvm/IR/Module.h"
 
+#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Binary.h"
 #include "revng/Pipes/FunctionStringMap.h"
 
@@ -15,6 +16,7 @@ namespace detail {
 using Container = revng::pipes::DecompiledCCodeInYAMLStringMap;
 }
 
-void decompile(llvm::Module &M,
+void decompile(FunctionMetadataCache &Cache,
+               llvm::Module &M,
                const model::Binary &Model,
                detail::Container &DecompiledFunctions);

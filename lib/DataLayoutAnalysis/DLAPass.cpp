@@ -28,16 +28,18 @@ void DLAPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<LoadModelWrapperPass>();
   AU.addRequired<llvm::LoopInfoWrapperPass>();
   AU.addRequired<llvm::ScalarEvolutionWrapperPass>();
+  AU.addRequired<FunctionMetadataCachePass>();
 
   AU.setPreservesAll();
 }
 
 bool DLAPass::runOnModule(llvm::Module &M) {
   auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
+  auto &Cache = getAnalysis<FunctionMetadataCachePass>().get();
 
   // Front-end: Create the LayoutTypeSystem graph from an LLVM module
   dla::LayoutTypeSystem TS;
-  dla::DLATypeSystemLLVMBuilder Builder{ TS };
+  dla::DLATypeSystemLLVMBuilder Builder{ TS, Cache };
   const model::Binary &Model = *ModelWrapper.getReadOnlyModel();
   Builder.buildFromLLVMModule(M, this, Model);
 
@@ -91,7 +93,7 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   auto ValueToTypeMap = dla::makeModelTypes(TS, Values, WritableModel);
   bool Changed = false;
 
-  Changed |= dla::updateFuncSignatures(M, WritableModel, ValueToTypeMap);
+  Changed |= dla::updateFuncSignatures(M, WritableModel, ValueToTypeMap, Cache);
   Changed |= dla::updateSegmentsTypes(M, WritableModel, ValueToTypeMap);
 
   return Changed;

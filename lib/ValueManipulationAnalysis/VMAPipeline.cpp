@@ -295,9 +295,9 @@ void VMAPipeline::runSolver() {
     minCut(*TFG);
 }
 
-void VMAPipeline::run(const llvm::Function *F) {
+void VMAPipeline::run(FunctionMetadataCache &Cache, const llvm::Function *F) {
   // Nodes and edges initialization
-  auto TypeGraph = vma::makeTypeFlowGraphFromFunction(F, &Model);
+  auto TypeGraph = vma::makeTypeFlowGraphFromFunction(Cache, F, &Model);
   TFG = &TypeGraph;
 
   // Color initialization

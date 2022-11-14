@@ -19,7 +19,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
-#include "revng/EarlyFunctionAnalysis/IRHelpers.h"
+#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
@@ -50,7 +50,8 @@ static int64_t getSCEVConstantSExtVal(const SCEV *S) {
 
 class DLATypeSystemLLVMBuilder::InstanceLinkAdder {
 public:
-  InstanceLinkAdder(const model::Binary &M) : Model(M) {}
+  InstanceLinkAdder(const model::Binary &M, FunctionMetadataCache &Cache) :
+    Model(M), Cache(&Cache) {}
 
 private:
   const model::Binary &Model;
@@ -60,6 +61,7 @@ private:
   llvm::PostDominatorTree PDT;
 
   SCEVTypeMap SCEVToLayoutType;
+  FunctionMetadataCache *Cache;
 
 protected:
   bool addInstanceLink(DLATypeSystemLLVMBuilder &Builder,
@@ -452,7 +454,7 @@ public:
           if (not isCallToIsolatedFunction(C))
             continue;
 
-          const auto PrototypeRef = getCallSitePrototype(Model, C);
+          const auto PrototypeRef = Cache->getCallSitePrototype(Model, C);
           if (not PrototypeRef.isValid())
             continue;
 
@@ -635,7 +637,7 @@ bool Builder::connectToFuncsWithSamePrototype(const llvm::CallInst *Call,
   revng_assert(Call->isIndirectCall());
   bool Changed = false;
 
-  auto Prototype = getCallSitePrototype(Model, Call);
+  auto Prototype = Cache->getCallSitePrototype(Model, Call);
   if (not Prototype.isValid())
     return false;
 
@@ -691,7 +693,7 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
                                          llvm::ModulePass *MP,
                                          const model::Binary &Model) {
   bool Changed = false;
-  InstanceLinkAdder ILA{ Model };
+  InstanceLinkAdder ILA(Model, *Cache);
 
   raw_fd_ostream *OutFile = nullptr;
 

@@ -24,7 +24,7 @@
 
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
-#include "revng/EarlyFunctionAnalysis/IRHelpers.h"
+#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/LoadModelPass.h"
@@ -87,6 +87,7 @@ public:
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesCFG();
     AU.addRequired<LoadModelWrapperPass>();
+    AU.addRequired<FunctionMetadataCachePass>();
   }
 };
 
@@ -160,7 +161,8 @@ struct ModelGEPSummation {
     return ModelGEPSummation{
       // The base address is unknown
       .BaseAddress = TypedBaseAddress{ .Type = {}, .Address = nullptr },
-      // The summation has only one element, which is not valid, because it does
+      // The summation has only one element, which is not valid, because it
+      // does
       // not have a valid Index nor a valid Coefficient.
       .Summation = { ModelGEPSummationElement{ .Coefficient = nullptr,
                                                .Index = nullptr } }
@@ -209,7 +211,8 @@ struct IRAccessPattern {
 using UseTypeMap = std::map<llvm::Use *, model::QualifiedType>;
 
 static IRAccessPattern
-computeAccessPattern(const Use &U,
+computeAccessPattern(FunctionMetadataCache &Cache,
+                     const Use &U,
                      const ModelGEPSummation &GEPSum,
                      const model::Binary &Model,
                      const ModelTypesMap &PointerTypes,
@@ -445,7 +448,7 @@ computeAccessPattern(const Use &U,
         }
 
       } else if (FunctionTags::CallToLifted.isTagOf(Call)) {
-        auto Proto = getCallSitePrototype(Model, Call);
+        auto Proto = Cache.getCallSitePrototype(Model, Call);
         revng_assert(Proto.isValid());
 
         if (const auto *RFT = dyn_cast<RawFunctionType>(Proto.get())) {
@@ -1339,8 +1342,8 @@ class GEPSummationCache {
       Result = ModelGEPSummation{
         .BaseAddress = TypedBaseAddress{ .Type = dropPointer(Type),
                                          .Address = AddressArith },
-        // The summation is empty since AddressArith has exactly the type
-        // we're looking at here.
+        // The summation is empty since AddressArith
+        // has exactly the type we're looking at here.
         .Summation = {}
       };
 
@@ -1917,7 +1920,8 @@ using UseGEPInfoMap = std::map<Use *, ModelGEPArgs>;
 
 static UseGEPInfoMap makeGEPReplacements(llvm::Function &F,
                                          const model::Binary &Model,
-                                         model::VerifyHelper &VH) {
+                                         model::VerifyHelper &VH,
+                                         FunctionMetadataCache &Cache) {
 
   UseGEPInfoMap Result;
 
@@ -1927,7 +1931,8 @@ static UseGEPInfoMap makeGEPReplacements(llvm::Function &F,
   // First, try to initialize a map for the known model types of llvm::Values
   // that are reachable from F. If this fails, we just bail out because we
   // cannot infer any modelGEP in F, if we have no type information to rely on.
-  ModelTypesMap PointerTypes = initModelTypes(F,
+  ModelTypesMap PointerTypes = initModelTypes(Cache,
+                                              F,
                                               ModelF,
                                               Model,
                                               /*PointersOnly=*/true);
@@ -2025,7 +2030,8 @@ static UseGEPInfoMap makeGEPReplacements(llvm::Function &F,
           continue;
 
         // Now we extract an IRAccessPattern from the ModelGEPSummation
-        IRAccessPattern IRPattern = computeAccessPattern(U,
+        IRAccessPattern IRPattern = computeAccessPattern(Cache,
+                                                         U,
                                                          GEPSum,
                                                          Model,
                                                          PointerTypes,
@@ -2127,8 +2133,9 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
 
   auto &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
 
+  auto &Cache = getAnalysis<FunctionMetadataCachePass>().get();
   model::VerifyHelper VH;
-  UseGEPInfoMap GEPReplacementMap = makeGEPReplacements(F, *Model, VH);
+  UseGEPInfoMap GEPReplacementMap = makeGEPReplacements(F, *Model, VH, Cache);
 
   llvm::Module &M = *F.getParent();
   LLVMContext &Ctxt = M.getContext();

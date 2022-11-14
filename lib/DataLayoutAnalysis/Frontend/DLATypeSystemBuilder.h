@@ -6,6 +6,7 @@
 
 #include "llvm/Pass.h"
 
+#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Binary.h"
 
 #include "revng-c/DataLayoutAnalysis/DLALayouts.h"
@@ -69,6 +70,9 @@ private:
   /// first `llvm::CallInst` found with that prototype,
   PrototypesMapT VisitedPrototypes;
 
+  /// Metadata cache to store deserialized revng metadata
+  FunctionMetadataCache *Cache;
+
 private:
   LayoutTypeSystemNode *getLayoutType(const llvm::Value *V, unsigned Id);
 
@@ -109,7 +113,8 @@ public:
   void debug_function dumpValuesMapping(const llvm::StringRef Name) const;
 
 public:
-  DLATypeSystemLLVMBuilder(LayoutTypeSystem &TS) : TS(TS){};
+  DLATypeSystemLLVMBuilder(LayoutTypeSystem &TS, FunctionMetadataCache &Cache) :
+    TS(TS), Cache(&Cache){};
 
   /// Create a DLATypeSystem graph for a given LLVM module
   ///

@@ -154,6 +154,7 @@ static void checkInit(const char *Body,
                       const ExpectedShape ExpectedInit,
                       const ExpectedShape ExpectedAfterProp,
                       const ExpectedShape ExpectedFinal) {
+  FunctionMetadataCache Cache;
   // Read the LLVM IR
   LLVMContext C;
   std::unique_ptr<llvm::Module> M = loadModule(C, Body);
@@ -162,7 +163,7 @@ static void checkInit(const char *Body,
   Function *F = M->getFunction("main");
 
   // Build the TG
-  TypeFlowGraph TG = makeTypeFlowGraphFromFunction(F, /*Model=*/nullptr);
+  TypeFlowGraph TG = makeTypeFlowGraphFromFunction(Cache, F, /*Model=*/nullptr);
   LLVMInitializer Init;
   Init.initializeColors(&TG);
 

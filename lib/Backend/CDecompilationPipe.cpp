@@ -22,7 +22,8 @@ void CDecompilation::run(const pipeline::Context &Ctx,
 
   llvm::Module &Module = IRContainer.getModule();
   const model::Binary &Model = *getModelFromContext(Ctx);
-  decompile(Module, Model, DecompiledFunctions);
+  FunctionMetadataCache Cache;
+  decompile(Cache, Module, Model, DecompiledFunctions);
 }
 
 void CDecompilation::print(const pipeline::Context &Ctx,

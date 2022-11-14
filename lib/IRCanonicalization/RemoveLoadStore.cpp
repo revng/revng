@@ -32,6 +32,7 @@ public:
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.addRequired<LoadModelWrapperPass>();
+    AU.addRequired<FunctionMetadataCachePass>();
     AU.setPreservesCFG();
   }
 };
@@ -75,7 +76,8 @@ bool RemoveLoadStore::runOnFunction(llvm::Function &F) {
     &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel().get();
 
   // Collect model types
-  auto TypeMap = initModelTypes(F,
+  auto TypeMap = initModelTypes(getAnalysis<FunctionMetadataCachePass>().get(),
+                                F,
                                 llvmToModelFunction(*Model, F),
                                 *Model,
                                 /*PointersOnly=*/false);

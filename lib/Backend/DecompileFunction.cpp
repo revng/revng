@@ -20,7 +20,7 @@
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "revng/EarlyFunctionAnalysis/IRHelpers.h"
+#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/PrimitiveTypeKind.h"
@@ -88,9 +88,9 @@ using ValueSet = llvm::SmallPtrSet<const llvm::Instruction *, 32>;
 
 static constexpr const char *StackFrameVarName = "stack";
 
-static Logger<> Log{ "c-backend" };
-static Logger<> VisitLog{ "c-backend-visit-order" };
-static Logger<> InlineLog{ "c-backend-inline" };
+static Logger<> Log{"c-backend"};
+static Logger<> VisitLog{"c-backend-visit-order"};
+static Logger<> InlineLog{"c-backend-inline"};
 
 /// Helper function that also writes the logged string as a comment in the C
 /// file if the corresponding logger is enabled
@@ -147,8 +147,7 @@ static const std::string getBinOpString(const llvm::BinaryOperator *BinOp) {
     default:
       revng_abort("Unknown const Binary operation");
     }
-  }
-  ();
+  }();
   return " " + *Op + " ";
 }
 
@@ -176,8 +175,7 @@ static const std::string getCmpOpString(const llvm::CmpInst::Predicate &Pred) {
     default:
       revng_abort("Unknown comparison operator");
     }
-  }
-  ();
+  }();
   return " " + *Op + " ";
 }
 
@@ -238,6 +236,8 @@ private:
   /// switches
   std::vector<std::string> SwitchStateVars;
 
+  FunctionMetadataCache &Cache;
+
 private:
   /// Stateful generator for variable names
   VarNameGenerator NameGenerator;
@@ -274,28 +274,21 @@ private:
   bool IsOperatorPrecedenceResolutionPassEnabled = false;
 
 public:
-  CCodeGenerator(const Binary &Model,
-                 const llvm::Function &LLVMFunction,
-                 const ASTTree &GHAST,
-                 const ValueSet &TopScopeVariables,
-                 raw_ostream &Out) :
-    Model(Model),
-    LLVMFunction(LLVMFunction),
-    ModelFunction(*llvmToModelFunction(Model, LLVMFunction)),
-    ParentPrototype(*ModelFunction.Prototype.getConst()),
-    GHAST(GHAST),
-    TopScopeVariables(TopScopeVariables),
-    TypeMap(initModelTypes(LLVMFunction,
-                           &ModelFunction,
-                           Model,
-                           /*PointersOnly=*/false)),
-    Out(Out, 4),
-    SwitchStateVars() {
+  CCodeGenerator(FunctionMetadataCache &Cache, const Binary &Model,
+                 const llvm::Function &LLVMFunction, const ASTTree &GHAST,
+                 const ValueSet &TopScopeVariables, raw_ostream &Out)
+      : Model(Model), LLVMFunction(LLVMFunction),
+        ModelFunction(*llvmToModelFunction(Model, LLVMFunction)),
+        ParentPrototype(*ModelFunction.Prototype.getConst()), GHAST(GHAST),
+        TopScopeVariables(TopScopeVariables),
+        TypeMap(initModelTypes(Cache, LLVMFunction, &ModelFunction, Model,
+                               /*PointersOnly=*/false)),
+        Out(Out, 4), SwitchStateVars(), Cache(Cache) {
     // TODO: don't use a global loop state variable
-    LoopStateVar = getVariableLocationReference("loop_state_var",
-                                                ModelFunction);
-    LoopStateVarDeclaration = getVariableLocationDefinition("loop_state_var",
-                                                            ModelFunction);
+    LoopStateVar =
+        getVariableLocationReference("loop_state_var", ModelFunction);
+    LoopStateVarDeclaration =
+        getVariableLocationDefinition("loop_state_var", ModelFunction);
 
     if (LLVMFunction.getMetadata(ExplicitParenthesesMDName))
       IsOperatorPrecedenceResolutionPassEnabled = true;
@@ -378,8 +371,8 @@ private:
     } else {
       VarName = NameGenerator.nextVarName();
     }
-    return { getVariableLocationDefinition(VarName.str(), ModelFunction),
-             getVariableLocationReference(VarName.str(), ModelFunction) };
+    return {getVariableLocationDefinition(VarName.str(), ModelFunction),
+            getVariableLocationReference(VarName.str(), ModelFunction)};
   }
 
   /// Returns a variable name and a boolean indicating if the variable is new
@@ -387,7 +380,7 @@ private:
   VariableTokens getOrCreateVarName(const llvm::Value *V) {
     if (const auto *I = dyn_cast<Instruction>(V);
         I && TopScopeVariables.contains(I))
-      return { TokenMap.at(I) };
+      return {TokenMap.at(I)};
 
     VariableTokens NewVar = createVarName(V);
     TokenMap[V] = NewVar.Use.str().str();
@@ -397,8 +390,8 @@ private:
 private:
   /// Declare a local variable representing the given `Alloca` and return a
   /// token that represents is address.
-  VariableTokens
-  declareAllocaVariable(const llvm::AllocaInst *Alloca, VariableTokens Var) {
+  VariableTokens declareAllocaVariable(const llvm::AllocaInst *Alloca,
+                                       VariableTokens Var) {
     // In LLVM IR, an alloca instruction returns a pointer, so the model type
     // associated to this value is actually a pointer to the model type of
     // the variable being allocated. Hence, to get the actual type of the
@@ -411,7 +404,7 @@ private:
     Out << getNamedCInstance(AllocatedType, Var.Declaration) << ";\n";
 
     // Use the address of this variable as the token associated to the alloca
-    return { Var.Declaration, operators::AddressOf + Var.Use };
+    return {Var.Declaration, operators::AddressOf + Var.Use};
   }
 };
 
@@ -438,15 +431,15 @@ CCodeGenerator::buildCastExpr(StringRef ExprToCast,
                               const model::QualifiedType &SrcType,
                               const model::QualifiedType &DestType) {
   StringToken Result = ExprToCast;
-  if (SrcType == DestType or not SrcType.UnqualifiedType.isValid()
-      or not DestType.UnqualifiedType.isValid())
+  if (SrcType == DestType or not SrcType.UnqualifiedType.isValid() or
+      not DestType.UnqualifiedType.isValid())
     return Result;
 
-  revng_assert((SrcType.isScalar() or SrcType.isPointer())
-               and (DestType.isScalar() or DestType.isPointer()));
+  revng_assert((SrcType.isScalar() or SrcType.isPointer()) and
+               (DestType.isScalar() or DestType.isPointer()));
 
   Result.assign(addAlwaysParentheses(getTypeName(DestType)));
-  Result.append({ " ", addParentheses(ExprToCast) });
+  Result.append({" ", addParentheses(ExprToCast)});
 
   return Result;
 }
@@ -563,8 +556,8 @@ CCodeGenerator::addOperandToken(const llvm::Value *Operand) {
     llvm::APInt Value = Const->getValue();
     if (Value.isIntN(64)) {
       // TODO: Decide how to print constants
-      TokenMap[Operand] = constants::number(Value.getLimitedValue())
-                            .serialize();
+      TokenMap[Operand] =
+          constants::number(Value.getLimitedValue()).serialize();
     } else {
       // In C, even if you can have 128-bit variables, you cannot have 128-bit
       // literals, so we need this hack to assign a big constant value to a
@@ -584,11 +577,11 @@ CCodeGenerator::addOperandToken(const llvm::Value *Operand) {
                         /*signed=*/false,
                         /*formatAsCLiteral=*/true);
 
-      auto HighConstant = constants::constant(HighBitsString) + " "
-                          + operators::LShift + " " + constants::number(64);
-      auto CompositeConstant = addParentheses(HighConstant).str().str() + " "
-                               + operators::Or + " "
-                               + constants::constant(LowBitsString);
+      auto HighConstant = constants::constant(HighBitsString) + " " +
+                          operators::LShift + " " + constants::number(64);
+      auto CompositeConstant = addParentheses(HighConstant).str().str() + " " +
+                               operators::Or + " " +
+                               constants::constant(LowBitsString);
       TokenMap[Operand] = addAlwaysParentheses(CompositeConstant).str();
     }
 
@@ -613,11 +606,10 @@ CCodeGenerator::addOperandToken(const llvm::Value *Operand) {
       if (SrcType.isPointer())
         TokenMap[ConstExpr] = TokenMap.at(ConstExprOperand);
       else
-        TokenMap[ConstExpr] = buildCastExpr(TokenMap.at(ConstExprOperand),
-                                            SrcType,
-                                            DstType)
-                                .str()
-                                .str();
+        TokenMap[ConstExpr] =
+            buildCastExpr(TokenMap.at(ConstExprOperand), SrcType, DstType)
+                .str()
+                .str();
     } break;
 
     default:
@@ -652,8 +644,8 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
 
   StringToken Expression;
 
-  if (FunctionTags::ModelGEP.isTagOf(CalledFunc)
-      or FunctionTags::ModelGEPRef.isTagOf(CalledFunc)) {
+  if (FunctionTags::ModelGEP.isTagOf(CalledFunc) or
+      FunctionTags::ModelGEPRef.isTagOf(CalledFunc)) {
     revng_assert(Call->getNumArgOperands() >= 2);
 
     bool IsRef = FunctionTags::ModelGEPRef.isTagOf(CalledFunc);
@@ -764,15 +756,14 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
     llvm::Value *BaseValue = CurArg->get();
 
     // Emit the parenthesized cast expr, and we are done
-    StringToken CastExpr = buildCastExpr(TokenMap.at(BaseValue),
-                                         TypeMap.at(BaseValue),
-                                         CurType);
+    StringToken CastExpr =
+        buildCastExpr(TokenMap.at(BaseValue), TypeMap.at(BaseValue), CurType);
     Expression = CastExpr;
   } else if (FunctionTags::AddressOf.isTagOf(CalledFunc)) {
     // First operand is the type of the value being addressed (should not
     // introduce casts)
-    QualifiedType ArgType = deserializeFromLLVMString(Call->getArgOperand(0),
-                                                      Model);
+    QualifiedType ArgType =
+        deserializeFromLLVMString(Call->getArgOperand(0), Model);
 
     // Second argument is the value being addressed
     llvm::Value *Arg = Call->getArgOperand(1);
@@ -832,9 +823,9 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
     // Use the name of the assigned variable when referencing this value
     Expression = VarNames.Use;
 
-  } else if (FunctionTags::LocalVariable.isTagOf(CalledFunc)
-             or FuncName.startswith("revng_stack_frame")
-             or FuncName.startswith("revng_call_stack_arguments")) {
+  } else if (FunctionTags::LocalVariable.isTagOf(CalledFunc) or
+             FuncName.startswith("revng_stack_frame") or
+             FuncName.startswith("revng_call_stack_arguments")) {
     const auto VarNames = getOrCreateVarName(Call);
 
     // Declare a new local variable if it hasn't already been declared
@@ -844,9 +835,9 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
 
     Expression = VarNames.Use;
   } else if (FunctionTags::SegmentRef.isTagOf(CalledFunc)) {
-    const auto &[StartAddress,
-                 VirtualSize] = extractSegmentKeyFromMetadata(*CalledFunc);
-    model::Segment Segment = Model.Segments.at({ StartAddress, VirtualSize });
+    const auto &[StartAddress, VirtualSize] =
+        extractSegmentKeyFromMetadata(*CalledFunc);
+    model::Segment Segment = Model.Segments.at({StartAddress, VirtualSize});
     auto Name = Segment.name();
 
     Expression = ptml::getLocationReference(Segment);
@@ -856,18 +847,17 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
     const llvm::Value *PointerVal = Call->getArgOperand(1);
     const QualifiedType PointedType = TypeMap.at(PointerVal);
 
-    Expression = buildAssignmentExpr(PointedType,
-                                     { TokenMap.at(PointerVal) },
+    Expression = buildAssignmentExpr(PointedType, {TokenMap.at(PointerVal)},
                                      TokenMap.at(StoredVal));
 
   } else if (FunctionTags::Copy.isTagOf(CalledFunc)) {
     // Forward expression
     Expression = TokenMap.at(Call->getArgOperand(0));
 
-  } else if (FunctionTags::QEMU.isTagOf(CalledFunc)
-             or FunctionTags::Helper.isTagOf(CalledFunc)
-             or FunctionTags::OpaqueCSVValue.isTagOf(CalledFunc)
-             or CalledFunc->isIntrinsic()) {
+  } else if (FunctionTags::QEMU.isTagOf(CalledFunc) or
+             FunctionTags::Helper.isTagOf(CalledFunc) or
+             FunctionTags::OpaqueCSVValue.isTagOf(CalledFunc) or
+             CalledFunc->isIntrinsic()) {
 
     std::string HelperRef = getHelperFunctionLocationReference(CalledFunc);
     Expression = buildFuncCallExpr(Call, HelperRef, /*prototype=*/nullptr);
@@ -917,9 +907,9 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
       revng_log(Log, "Emitting call to isolated function");
 
       // Retrieve the CallEdge
-      const auto &[CallEdge, _] = getCallEdge(Model, Call);
+      const auto &[CallEdge, _] = Cache.getCallEdge(Model, Call);
       revng_assert(CallEdge);
-      const auto &PrototypePath = getCallSitePrototype(Model, Call);
+      const auto &PrototypePath = Cache.getCallSitePrototype(Model, Call);
 
       // Construct the callee token (can be a function name or a function
       // pointer)
@@ -939,31 +929,31 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
           // Dynamic Function
           auto &DynFuncID = CallEdge->DynamicFunction;
           auto &DynamicFunc = Model.ImportedDynamicFunctions.at(DynFuncID);
-          std::string Location = serializedLocation(ranks::DynamicFunction,
-                                                    DynamicFunc.key());
-          CalleeToken = Tag(tags::Span, DynamicFunc.name().str())
-                          .addAttribute(attributes::Token, tokens::Function)
-                          .addAttribute(attributes::ModelEditPath,
-                                        getCustomNamePath(DynamicFunc))
-                          .addAttribute(attributes::LocationReferences,
-                                        Location)
-                          .serialize();
+          std::string Location =
+              serializedLocation(ranks::DynamicFunction, DynamicFunc.key());
+          CalleeToken =
+              Tag(tags::Span, DynamicFunc.name().str())
+                  .addAttribute(attributes::Token, tokens::Function)
+                  .addAttribute(attributes::ModelEditPath,
+                                getCustomNamePath(DynamicFunc))
+                  .addAttribute(attributes::LocationReferences, Location)
+                  .serialize();
         } else {
           // Isolated function
           llvm::Function *CalledFunc = Call->getCalledFunction();
           revng_assert(CalledFunc);
-          const model::Function *ModelFunc = llvmToModelFunction(Model,
-                                                                 *CalledFunc);
+          const model::Function *ModelFunc =
+              llvmToModelFunction(Model, *CalledFunc);
           revng_assert(ModelFunc);
           CalleeToken = ModelFunc->name();
           CalleeToken = Tag(tags::Span, ModelFunc->name().str())
-                          .addAttribute(attributes::Token, tokens::Function)
-                          .addAttribute(attributes::ModelEditPath,
-                                        getCustomNamePath(*ModelFunc))
-                          .addAttribute(attributes::LocationReferences,
-                                        serializedLocation(ranks::Function,
-                                                           ModelFunc->key()))
-                          .serialize();
+                            .addAttribute(attributes::Token, tokens::Function)
+                            .addAttribute(attributes::ModelEditPath,
+                                          getCustomNamePath(*ModelFunc))
+                            .addAttribute(attributes::LocationReferences,
+                                          serializedLocation(ranks::Function,
+                                                             ModelFunc->key()))
+                            .serialize();
         }
       }
 
@@ -1025,10 +1015,10 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
     // have a mismatch. In this case, we want to cast the pointer operand to
     // correct type pointer before dereferencing it.
     QualifiedType ResultPtrType = Model.getPointerTo(TypeMap.at(Load));
-    Expression = (buildDerefExpr(buildCastExpr(TokenMap.at(LoadedArg),
-                                               TypeMap.at(LoadedArg),
-                                               ResultPtrType)))
-                   .str();
+    Expression =
+        (buildDerefExpr(buildCastExpr(TokenMap.at(LoadedArg),
+                                      TypeMap.at(LoadedArg), ResultPtrType)))
+            .str();
 
   } else if (auto *Store = dyn_cast<llvm::StoreInst>(&I)) {
 
@@ -1038,9 +1028,8 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
 
     StringToken PointerOperandExpr = StringToken(TokenMap.at(PointerOp));
 
-    Expression = buildAssignmentExpr(StoredType,
-                                     { buildDerefExpr(PointerOperandExpr) },
-                                     TokenMap.at(ValueOp));
+    Expression = buildAssignmentExpr(
+        StoredType, {buildDerefExpr(PointerOperandExpr)}, TokenMap.at(ValueOp));
 
   } else if (auto *Select = dyn_cast<llvm::SelectInst>(&I)) {
 
@@ -1048,24 +1037,21 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
     const llvm::Value *Op1 = Select->getOperand(1);
     const llvm::Value *Op2 = Select->getOperand(2);
 
-    StringToken Op1Token = buildCastExpr(TokenMap.at(Op1),
-                                         TypeMap.at(Op1),
-                                         TypeMap.at(Select));
-    StringToken Op2Token = buildCastExpr(TokenMap.at(Op2),
-                                         TypeMap.at(Op2),
-                                         TypeMap.at(Select));
+    StringToken Op1Token =
+        buildCastExpr(TokenMap.at(Op1), TypeMap.at(Op1), TypeMap.at(Select));
+    StringToken Op2Token =
+        buildCastExpr(TokenMap.at(Op2), TypeMap.at(Op2), TypeMap.at(Select));
 
-    Expression = (addParentheses(Condition) + " ? " + addParentheses(Op1Token)
-                  + " : " + addParentheses(Op2Token))
-                   .str();
+    Expression = (addParentheses(Condition) + " ? " + addParentheses(Op1Token) +
+                  " : " + addParentheses(Op2Token))
+                     .str();
 
   } else if (auto *Alloca = dyn_cast<llvm::AllocaInst>(&I)) {
     auto [VarName, VarDeclaration] = getOrCreateVarName(Alloca);
     if (!VarDeclaration.empty()) {
       // Declare a local variable
-      auto AllocaDeclaration = declareAllocaVariable(Alloca,
-                                                     { VarName,
-                                                       VarDeclaration });
+      auto AllocaDeclaration =
+          declareAllocaVariable(Alloca, {VarName, VarDeclaration});
       Expression = AllocaDeclaration.Use;
     } else {
       // If it's a top-scope variable it has already been declared, so we have
@@ -1096,41 +1082,37 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
     const llvm::Value *Op2 = Bin->getOperand(1);
     const QualifiedType &ResultType = TypeMap.at(Bin);
 
-    const auto &Op1Token = buildCastExpr(TokenMap.at(Op1),
-                                         TypeMap.at(Op1),
-                                         ResultType);
-    const auto &Op2Token = buildCastExpr(TokenMap.at(Op2),
-                                         TypeMap.at(Op2),
-                                         ResultType);
+    const auto &Op1Token =
+        buildCastExpr(TokenMap.at(Op1), TypeMap.at(Op1), ResultType);
+    const auto &Op2Token =
+        buildCastExpr(TokenMap.at(Op2), TypeMap.at(Op2), ResultType);
 
     // TODO: Integer promotion
-    Expression = (addParentheses(Op1Token) + getBinOpString(Bin)
-                  + addParentheses(Op2Token))
-                   .str();
+    Expression = (addParentheses(Op1Token) + getBinOpString(Bin) +
+                  addParentheses(Op2Token))
+                     .str();
 
   } else if (auto *Cmp = dyn_cast<llvm::CmpInst>(&I)) {
     const llvm::Value *Op1 = Cmp->getOperand(0);
     const llvm::Value *Op2 = Cmp->getOperand(1);
     const QualifiedType &ResultType = llvmIntToModelType(Op1->getType(), Model);
 
-    const auto &Op1Token = buildCastExpr(TokenMap.at(Op1),
-                                         TypeMap.at(Op1),
-                                         ResultType);
-    const auto &Op2Token = buildCastExpr(TokenMap.at(Op2),
-                                         TypeMap.at(Op2),
-                                         ResultType);
+    const auto &Op1Token =
+        buildCastExpr(TokenMap.at(Op1), TypeMap.at(Op1), ResultType);
+    const auto &Op2Token =
+        buildCastExpr(TokenMap.at(Op2), TypeMap.at(Op2), ResultType);
 
     // TODO: Integer promotion
-    Expression = (addParentheses(Op1Token) + getCmpOpString(Cmp->getPredicate())
-                  + addParentheses(Op2Token))
-                   .str();
+    Expression =
+        (addParentheses(Op1Token) + getCmpOpString(Cmp->getPredicate()) +
+         addParentheses(Op2Token))
+            .str();
 
   } else if (auto *Cast = dyn_cast<llvm::CastInst>(&I)) {
 
     const llvm::Value *Op = Cast->getOperand(0);
-    Expression = buildCastExpr(TokenMap.at(Op),
-                               TypeMap.at(Op),
-                               TypeMap.at(Cast));
+    Expression =
+        buildCastExpr(TokenMap.at(Op), TypeMap.at(Op), TypeMap.at(Cast));
 
   } else if (auto *ExtractVal = dyn_cast<llvm::ExtractValueInst>(&I)) {
 
@@ -1148,11 +1130,12 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
       const llvm::Value *FirstArg = CallReturnsStruct->getArgOperand(0);
       CallReturnsStruct = llvm::cast<llvm::CallInst>(FirstArg);
       Callee = CallReturnsStruct->getCalledFunction();
-      revng_assert(not Callee
-                   or not FunctionTags::AssignmentMarker.isTagOf(Callee));
+      revng_assert(not Callee or
+                   not FunctionTags::AssignmentMarker.isTagOf(Callee));
     }
 
-    const auto CalleePrototype = getCallSitePrototype(Model, CallReturnsStruct);
+    const auto CalleePrototype =
+        Cache.getCallSitePrototype(Model, CallReturnsStruct);
 
     std::string StructFieldRef;
     if (not CalleePrototype.isValid()) {
@@ -1179,9 +1162,9 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
 }
 
 void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB) {
-  LoggerIndent Indent{ VisitLog };
+  LoggerIndent Indent{VisitLog};
   revng_log(VisitLog, "|__ Visiting BB " << BB->getName());
-  LoggerIndent MoreIndent{ VisitLog };
+  LoggerIndent MoreIndent{VisitLog};
   revng_log(Log, "--------- BB " << BB->getName());
 
   for (const Instruction &I : *BB) {
@@ -1211,9 +1194,9 @@ void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB) {
 
 RecursiveCoroutine<StringToken>
 CCodeGenerator::buildGHASTCondition(const ExprNode *E) {
-  LoggerIndent Indent{ VisitLog };
+  LoggerIndent Indent{VisitLog};
   revng_log(VisitLog, "|__ Visiting Condition " << E);
-  LoggerIndent MoreIndent{ VisitLog };
+  LoggerIndent MoreIndent{VisitLog};
 
   using NodeKind = ExprNode::NodeKind;
   switch (E->getKind()) {
@@ -1247,8 +1230,8 @@ CCodeGenerator::buildGHASTCondition(const ExprNode *E) {
     ExprNode *Negated = N->getNegatedNode();
 
     StringToken Expression;
-    Expression = operators::BoolNot
-                 + addAlwaysParentheses(rc_recur buildGHASTCondition(Negated));
+    Expression = operators::BoolNot +
+                 addAlwaysParentheses(rc_recur buildGHASTCondition(Negated));
     rc_return Expression;
   } break;
 
@@ -1261,8 +1244,8 @@ CCodeGenerator::buildGHASTCondition(const ExprNode *E) {
     const auto &[Child1, Child2] = Binary->getInternalNodes();
     const auto Child1Token = rc_recur buildGHASTCondition(Child1);
     const auto Child2Token = rc_recur buildGHASTCondition(Child2);
-    const Tag &OpToken = E->getKind() == NodeKind::NK_And ? operators::BoolAnd :
-                                                            operators::BoolOr;
+    const Tag &OpToken = E->getKind() == NodeKind::NK_And ? operators::BoolAnd
+                                                          : operators::BoolOr;
     StringToken Expression = addAlwaysParentheses(Child1Token);
     Expression += " " + OpToken + " ";
     Expression += addAlwaysParentheses(Child2Token);
@@ -1279,7 +1262,7 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     rc_return;
 
   revng_log(VisitLog, "|__ GHAST Node " << N->getID());
-  LoggerIndent Indent{ VisitLog };
+  LoggerIndent Indent{VisitLog};
 
   auto Kind = N->getKind();
   switch (Kind) {
@@ -1289,8 +1272,8 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
 
     const BreakNode *Break = llvm::cast<BreakNode>(N);
     if (Break->breaksFromWithinSwitch()) {
-      revng_assert(not SwitchStateVars.empty()
-                   and not SwitchStateVars.back().empty());
+      revng_assert(not SwitchStateVars.empty() and
+                   not SwitchStateVars.back().empty());
       Out << SwitchStateVars.back()
           << " " + operators::Assign + " " + constants::True + ";\n";
     }
@@ -1410,8 +1393,8 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     if (Switch->needsStateVariable()) {
       revng_assert(Switch->needsLoopBreakDispatcher());
       StringToken NewVarName = NameGenerator.nextSwitchStateVar();
-      std::string SwitchStateVar = getVariableLocationReference(NewVarName,
-                                                                ModelFunction);
+      std::string SwitchStateVar =
+          getVariableLocationReference(NewVarName, ModelFunction);
       SwitchStateVars.push_back(std::move(SwitchStateVar));
       Out << ptml::tokenTag("bool", tokens::Type) << " "
           << getVariableLocationDefinition(NewVarName, ModelFunction)
@@ -1502,8 +1485,8 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     // If the switch needs a loop break dispatcher, reset the associated
     // state variable before emitting the switch statement.
     if (Switch->needsLoopBreakDispatcher()) {
-      revng_assert(not SwitchStateVars.empty()
-                   and not SwitchStateVars.back().empty());
+      revng_assert(not SwitchStateVars.empty() and
+                   not SwitchStateVars.back().empty());
       Out << keywords::If + " (" + SwitchStateVars.back() + ")";
       {
         auto Scope = scopeTags::Scope.scope(Out, true);
@@ -1545,7 +1528,7 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
 void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
   revng_log(Log, "========= Emitting Function " << LLVMFunction.getName());
   revng_log(VisitLog, "========= Function " << LLVMFunction.getName());
-  LoggerIndent Indent{ VisitLog };
+  LoggerIndent Indent{VisitLog};
 
   // Create a token for each of the function's arguments
   if (auto *RawPrototype = dyn_cast<model::RawFunctionType>(&ParentPrototype)) {
@@ -1556,26 +1539,25 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
 
     const auto &StackArgType = RawPrototype->StackArgumentsType.UnqualifiedType;
     const auto ArgSize = ModelArgs.size();
-    revng_assert(LLVMArgsNum == ArgSize
-                 or (LLVMArgsNum == ArgSize + 1 and StackArgType.isValid()));
+    revng_assert(LLVMArgsNum == ArgSize or
+                 (LLVMArgsNum == ArgSize + 1 and StackArgType.isValid()));
 
     // Associate each LLVM argument with its name
     for (const auto &[ModelArg, LLVMArg] :
          llvm::zip_first(ModelArgs, LLVMArgs)) {
       revng_log(Log, "Adding token for: " << dumpToString(LLVMArg));
-      std::string ArgIdentifier = model::Identifier::fromString(ModelArg.name())
-                                    .str()
-                                    .str();
-      TokenMap[&LLVMArg] = getArgumentLocationReference(ArgIdentifier,
-                                                        ModelFunction);
+      std::string ArgIdentifier =
+          model::Identifier::fromString(ModelArg.name()).str().str();
+      TokenMap[&LLVMArg] =
+          getArgumentLocationReference(ArgIdentifier, ModelFunction);
     }
 
     // Add a token for the stack arguments
     if (StackArgType.isValid()) {
       const auto *LLVMArg = LLVMFunction.getArg(LLVMArgsNum - 1);
       revng_log(Log, "Adding token for: " << dumpToString(LLVMArg));
-      TokenMap[LLVMArg] = getArgumentLocationReference("stack_args",
-                                                       ModelFunction);
+      TokenMap[LLVMArg] =
+          getArgumentLocationReference("stack_args", ModelFunction);
     }
   } else if (auto *CPrototype = dyn_cast<CABIFunctionType>(&ParentPrototype)) {
 
@@ -1587,11 +1569,10 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
     // Associate each LLVM argument with its name
     for (const auto &[ModelArg, LLVMArg] : llvm::zip(ModelArgs, LLVMArgs)) {
       revng_log(Log, "Adding token for: " << dumpToString(LLVMArg));
-      std::string ArgIdentifier = model::Identifier::fromString(ModelArg.name())
-                                    .str()
-                                    .str();
-      TokenMap[&LLVMArg] = getArgumentLocationReference(ArgIdentifier,
-                                                        ModelFunction);
+      std::string ArgIdentifier =
+          model::Identifier::fromString(ModelArg.name()).str().str();
+      TokenMap[&LLVMArg] =
+          getArgumentLocationReference(ArgIdentifier, ModelFunction);
     }
   } else {
     revng_abort("Functions can only have RawFunctionType or "
@@ -1642,8 +1623,8 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
           revng_assert(CalledFunction);
 
           if (FunctionTags::Isolated.isTagOf(CalledFunction)) {
-            const auto &Prototype = getCallSitePrototype(Model, Call)
-                                      .getConst();
+            const auto &Prototype =
+                Cache.getCallSitePrototype(Model, Call).getConst();
             auto *RawPrototype = llvm::cast<RawFunctionType>(Prototype);
             Out << getReturnTypeName(*RawPrototype) << " "
                 << VarName.Declaration << ";\n";
@@ -1670,15 +1651,15 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
   Out << "\n";
 }
 
-static std::string decompileFunction(const llvm::Function &LLVMFunc,
-                                     const ASTTree &CombedAST,
-                                     const Binary &Model,
-                                     const ValueSet &TopScopeVariables,
-                                     bool NeedsLocalStateVar) {
+static std::string
+decompileFunction(FunctionMetadataCache &Cache, const llvm::Function &LLVMFunc,
+                  const ASTTree &CombedAST, const Binary &Model,
+                  const ValueSet &TopScopeVariables, bool NeedsLocalStateVar) {
   std::string Result;
 
   llvm::raw_string_ostream Out(Result);
-  CCodeGenerator Backend(Model, LLVMFunc, CombedAST, TopScopeVariables, Out);
+  CCodeGenerator Backend(Cache, Model, LLVMFunc, CombedAST, TopScopeVariables,
+                         Out);
   Backend.emitFunction(NeedsLocalStateVar);
   Out.flush();
 
@@ -1686,9 +1667,8 @@ static std::string decompileFunction(const llvm::Function &LLVMFunc,
 }
 
 using Container = revng::pipes::DecompiledCCodeInYAMLStringMap;
-void decompile(llvm::Module &Module,
-               const model::Binary &Model,
-               Container &DecompiledFunctions) {
+void decompile(FunctionMetadataCache &Cache, llvm::Module &Module,
+               const model::Binary &Model, Container &DecompiledFunctions) {
 
   if (Log.isEnabled())
     writeToFile(Model.toString(), "model-during-c-codegen.yaml");
@@ -1711,19 +1691,16 @@ void decompile(llvm::Module &Module,
     }
 
     if (Log.isEnabled()) {
-      const llvm::Twine &ASTFileName = F.getName()
-                                       + "GHAST-during-c-codegen.dot";
+      const llvm::Twine &ASTFileName =
+          F.getName() + "GHAST-during-c-codegen.dot";
       GHAST.dumpASTOnFile(ASTFileName.str());
     }
 
     // Generated C code for F
     auto TopScopeVariables = collectTopScopeVariables(F);
     auto NeedsLoopStateVar = hasLoopDispatchers(GHAST);
-    std::string CCode = decompileFunction(F,
-                                          GHAST,
-                                          Model,
-                                          TopScopeVariables,
-                                          NeedsLoopStateVar);
+    std::string CCode = decompileFunction(Cache, F, GHAST, Model,
+                                          TopScopeVariables, NeedsLoopStateVar);
 
     // Push the C code into
     MetaAddress Key = getMetaAddressMetadata(&F, "revng.function.entry");

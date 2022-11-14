@@ -6,7 +6,7 @@
 
 #include "llvm/IR/Constants.h"
 
-#include "revng/EarlyFunctionAnalysis/IRHelpers.h"
+#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/VerifyHelper.h"
@@ -107,10 +107,10 @@ public:
     CallInstructionPushSize(Architecture::getCallPushSize(B->Architecture)) {}
 
 public:
-  void run(Module &M) {
+  void run(FunctionMetadataCache &Cache, Module &M) {
     // Collect information about the stack of each function
     for (llvm::Function &F : FunctionTags::Isolated.functions(&M))
-      collectStackBounds(F);
+      collectStackBounds(Cache, F);
 
     // At this point we have populated two data structures:
     //
@@ -128,14 +128,15 @@ public:
   }
 
 private:
-  void collectStackBounds(Function &F);
+  void collectStackBounds(FunctionMetadataCache &Cache, Function &F);
   void electStackArgumentsSize(RawFunctionType *Prototype,
                                const UpperBoundCollector &Bound) const;
   void electFunctionStackFrameSize(FunctionStackInfo &FSI);
   std::optional<uint64_t> handleCallSite(const CallSite &CallSite);
 };
 
-void DetectStackSize::collectStackBounds(Function &F) {
+void DetectStackSize::collectStackBounds(FunctionMetadataCache &Cache,
+                                         Function &F) {
 
   // Obtain model::Function corresponding to this llvm::Function
   MetaAddress Entry = getMetaAddressMetadata(&F, "revng.function.entry");
@@ -187,9 +188,10 @@ void DetectStackSize::collectStackBounds(Function &F) {
               NewCallSite.StackSize = Offset->getLimitedValue();
 
             // Get the prototype
-            auto *Proto = getCallSitePrototype(*Binary.get(),
-                                               Call,
-                                               &ModelFunction)
+            auto *Proto = Cache
+                            .getCallSitePrototype(*Binary.get(),
+                                                  Call,
+                                                  &ModelFunction)
                             .get();
 
             NewCallSite.Prototype = nullptr;
@@ -337,13 +339,14 @@ bool DetectStackSizePass::runOnModule(Module &M) {
   TupleTree<model::Binary> &Binary = ModelWrapper.getWriteableModel();
 
   DetectStackSize StackSizeDetector(Binary);
-  StackSizeDetector.run(M);
+  StackSizeDetector.run(getAnalysis<FunctionMetadataCachePass>().get(), M);
 
   return false;
 }
 
 void DetectStackSizePass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<LoadModelWrapperPass>();
+  AU.addRequired<FunctionMetadataCachePass>();
   AU.setPreservesCFG();
 }
 

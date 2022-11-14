@@ -36,8 +36,9 @@ static Logger<> TGLog("vma-tg");
 
 /// Returns a ColorSet with the types that can be assigned to a given use or
 /// value.
-static ColorSet
-getAcceptedColors(const UseOrValue &Content, const model::Binary *Model) {
+static ColorSet getAcceptedColors(FunctionMetadataCache &Cache,
+                                  const UseOrValue &Content,
+                                  const model::Binary *Model) {
 
   // Instructions and operand uses should be the only thing remaining
   bool IsContentInst = isInst(Content);
@@ -59,8 +60,10 @@ getAcceptedColors(const UseOrValue &Content, const model::Binary *Model) {
       // Deduce type for the use or for the value, depending on which type of
       // node we are looking at
       auto DeducedTypes = IsContentInst ?
-                            getStrongModelInfo(ContentInst, *Model) :
-                            getExpectedModelType(getUse(Content), *Model);
+                            getStrongModelInfo(Cache, ContentInst, *Model) :
+                            getExpectedModelType(Cache,
+                                                 getUse(Content),
+                                                 *Model);
 
       // If we weren't able to deduce anything, fallthrough to the default
       // handling when there is no model.
@@ -216,10 +219,12 @@ getAcceptedColors(const UseOrValue &Content, const model::Binary *Model) {
   return ~NUMBERNESS;
 }
 
-TypeFlowNode *TypeFlowGraph::addNodeContaining(const UseOrValue &NC) {
+TypeFlowNode *TypeFlowGraph::addNodeContaining(FunctionMetadataCache &Cache,
+                                               const UseOrValue &NC) {
   revng_assert(not ContentToNodeMap.count(NC));
 
-  NodeColorProperty InitialColors = { NO_COLOR, getAcceptedColors(NC, Model) };
+  NodeColorProperty InitialColors = { NO_COLOR,
+                                      getAcceptedColors(Cache, NC, Model) };
   auto *N = this->addNode(NC, InitialColors);
   ContentToNodeMap[NC] = N;
 
@@ -418,7 +423,8 @@ static bool connect(TypeFlowNode *N1, TypeFlowNode *N2) {
   return false;
 }
 
-TypeFlowGraph vma::makeTypeFlowGraphFromFunction(const llvm::Function *F,
+TypeFlowGraph vma::makeTypeFlowGraphFromFunction(FunctionMetadataCache &Cache,
+                                                 const llvm::Function *F,
                                                  const model::Binary *Model) {
   TypeFlowGraph TG;
   TG.Func = F;
@@ -455,7 +461,7 @@ TypeFlowGraph vma::makeTypeFlowGraphFromFunction(const llvm::Function *F,
         revng_assert(any_of(I.users(), IsPhiInstr));
         InstNode = TG.ContentToNodeMap[&I];
       } else if (ShouldValueBeAdded(&I)) {
-        InstNode = TG.addNodeContaining(&I);
+        InstNode = TG.addNodeContaining(Cache, &I);
       } else {
         // Skip values that should not be added to the TypeFlowGraph
         continue;
@@ -469,7 +475,7 @@ TypeFlowGraph vma::makeTypeFlowGraphFromFunction(const llvm::Function *F,
         if (not ShouldUseBeAdded(&Op))
           continue;
 
-        TypeFlowNode *UseNode = TG.addNodeContaining(&Op);
+        TypeFlowNode *UseNode = TG.addNodeContaining(Cache, &Op);
         connect(UseNode, InstNode);
         revng_log(TGLog, "USE: " << UseNode);
 
@@ -485,7 +491,7 @@ TypeFlowGraph vma::makeTypeFlowGraphFromFunction(const llvm::Function *F,
         if (not TG.ContentToNodeMap.count(Op.get())) {
           revng_assert(I.getOpcode() == Instruction::PHI
                        or not isa<Instruction>(Op.get()));
-          TG.addNodeContaining(Op.get());
+          TG.addNodeContaining(Cache, Op.get());
         }
 
         auto *OpValNode = TG.ContentToNodeMap[Op.get()];
