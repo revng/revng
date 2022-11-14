@@ -36,7 +36,7 @@ public:
   CrossRelations(const SortedVector<efa::FunctionMetadata> &Metadata,
                  const model::Binary &Binary);
 
-  GenericGraph<Node, 16, true> toGenericGraph() const;
+  GenericGraph<Node, 16, true> toCallGraph() const;
   yield::Graph toYieldGraph() const;
 };
 
