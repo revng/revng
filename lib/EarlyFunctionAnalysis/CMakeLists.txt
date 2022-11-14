@@ -16,7 +16,7 @@ revng_add_analyses_library_internal(
   FunctionMetadata.cpp
   FunctionSummaryOracle.cpp
   IndirectBranchInfoPrinterPass.cpp
-  LoadFunctionMetadataPass.cpp
+  FunctionMetadataCache.cpp
   Outliner.cpp
   PromoteGlobalToLocalVars.cpp
   SegregateDirectStackAccesses.cpp

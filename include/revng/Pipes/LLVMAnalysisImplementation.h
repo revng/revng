@@ -6,6 +6,7 @@
 
 #include "llvm/IR/LegacyPassManager.h"
 
+#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/LLVMContainer.h"
@@ -44,6 +45,7 @@ public:
                       llvm::legacy::PassManager &Manager) const {
     auto Global = llvm::cantFail(Ctx.getGlobal<ModelGlobal>(ModelGlobalName));
     Manager.add(new LoadModelWrapperPass(ModelWrapper(Global->get())));
+    Manager.add(new FunctionMetadataCachePass());
     (Manager.add(new Passes()), ...);
   };
 };

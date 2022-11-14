@@ -35,7 +35,7 @@
 #include "revng/EarlyFunctionAnalysis/FunctionEdgeBase.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 #include "revng/EarlyFunctionAnalysis/Generated/ForwardDecls.h"
-#include "revng/EarlyFunctionAnalysis/IRHelpers.h"
+#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/EarlyFunctionAnalysis/Outliner.h"
 #include "revng/FunctionIsolation/IsolateFunctions.h"
 #include "revng/Model/Binary.h"
@@ -180,16 +180,20 @@ private:
   GlobalVariable *ExceptionSourcePC;
   GlobalVariable *ExceptionDestinationPC;
 
+  FunctionMetadataCache *Cache;
+
 public:
   IsolateFunctionsImpl(Function *RootFunction,
                        GeneratedCodeBasicInfo &GCBI,
-                       const model::Binary &Binary) :
+                       const model::Binary &Binary,
+                       FunctionMetadataCache &Cache) :
     RootFunction(RootFunction),
     TheModule(RootFunction->getParent()),
     Context(TheModule->getContext()),
     GCBI(GCBI),
     Binary(Binary),
-    Strings(TheModule) {}
+    Strings(TheModule),
+    Cache(&Cache) {}
 
 public:
   Function *getLocalFunction(MetaAddress Entry) const {
@@ -587,8 +591,7 @@ void IsolateFunctionsImpl::run() {
   FunctionOutliner Outliner(*TheModule, Binary, GCBI);
   for (auto &[Entry, F] : IsolatedFunctionsMap) {
     BasicBlock *OriginalEntryBlock = GCBI.getBlockAt(Entry);
-    efa::FunctionMetadata FM = *extractFunctionMetadata(OriginalEntryBlock)
-                                  .get();
+    const auto &FM = Cache->getFunctionMetadata(OriginalEntryBlock);
 
     CallIsolatedFunction CallHandler(*this, FM);
     OutlinedFunction Outlined = Outliner.outline(Entry, &CallHandler);
@@ -712,8 +715,18 @@ bool IF::runOnModule(Module &TheModule) {
   const model::Binary &Binary = *ModelWrapper.getReadOnlyModel();
 
   // Create an object of type IsolateFunctionsImpl and run the pass
-  IFI Impl(TheModule.getFunction("root"), GCBI, Binary);
+  IFI Impl(TheModule.getFunction("root"),
+           GCBI,
+           Binary,
+           getAnalysis<FunctionMetadataCachePass>().get());
   Impl.run();
 
   return false;
+}
+
+void IsolateFunctions::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+  AU.setPreservesAll();
+  AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
+  AU.addRequired<LoadModelWrapperPass>();
+  AU.addRequired<FunctionMetadataCachePass>();
 }

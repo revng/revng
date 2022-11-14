@@ -3,7 +3,7 @@
 //
 
 #include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
-#include "revng/EarlyFunctionAnalysis/IRHelpers.h"
+#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Binary.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipeline/Pipe.h"
@@ -32,7 +32,7 @@ void ProcessCallGraph::run(pipeline::Context &Context,
   // Gather function metadata
   SortedVector<efa::FunctionMetadata> Metadata;
   for (const auto &LLVMFunction : FunctionTags::Isolated.functions(&Module))
-    Metadata.insert(*extractFunctionMetadata(&LLVMFunction));
+    Metadata.insert(*::detail::extractFunctionMetadata(&LLVMFunction));
   revng_assert(Metadata.size() == Model->Functions.size());
 
   // Gather the relations
@@ -117,14 +117,15 @@ void YieldCallGraphSlice::run(pipeline::Context &Context,
 
   // Access the llvm module
   const llvm::Module &Module = TargetList.getModule();
+  FunctionMetadataCache Cache;
   for (const auto &LLVMFunction : FunctionTags::Isolated.functions(&Module)) {
-    auto Metadata = extractFunctionMetadata(&LLVMFunction);
-    auto ModelFunctionIterator = Model->Functions.find(Metadata->Entry);
+    auto &Metadata = Cache.getFunctionMetadata(&LLVMFunction);
+    auto ModelFunctionIterator = Model->Functions.find(Metadata.Entry);
     revng_assert(ModelFunctionIterator != Model->Functions.end());
 
     // Slice the graph for the current function and convert it to SVG
-    Output.insert_or_assign(Metadata->Entry,
-                            yield::svg::callGraphSlice(Metadata->Entry,
+    Output.insert_or_assign(Metadata.Entry,
+                            yield::svg::callGraphSlice(Metadata.Entry,
                                                        Relations,
                                                        *Model));
   }

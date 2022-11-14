@@ -23,7 +23,7 @@
 #include "revng/ADT/LazySmallBitVector.h"
 #include "revng/ADT/SmallMap.h"
 #include "revng/EarlyFunctionAnalysis/CallEdge.h"
-#include "revng/EarlyFunctionAnalysis/IRHelpers.h"
+#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/FunctionIsolation/EnforceABI.h"
 #include "revng/FunctionIsolation/StructInitializers.h"
 #include "revng/Model/Register.h"
@@ -70,14 +70,16 @@ class EnforceABIImpl {
 public:
   EnforceABIImpl(Module &M,
                  GeneratedCodeBasicInfo &GCBI,
-                 const model::Binary &Binary) :
+                 const model::Binary &Binary,
+                 FunctionMetadataCache &Cache) :
     M(M),
     GCBI(GCBI),
     FunctionDispatcher(M.getFunction("function_dispatcher")),
     Context(M.getContext()),
     Initializers(&M),
     Binary(Binary),
-    MetaAddressStruct(MetaAddress::getStruct(&M)) {}
+    MetaAddressStruct(MetaAddress::getStruct(&M)),
+    Cache(&Cache) {}
 
   void run();
 
@@ -105,6 +107,7 @@ private:
   StructInitializers Initializers;
   const model::Binary &Binary;
   StructType *MetaAddressStruct;
+  FunctionMetadataCache *Cache;
 };
 
 bool EnforceABI::runOnModule(Module &M) {
@@ -114,7 +117,10 @@ bool EnforceABI::runOnModule(Module &M) {
   //       const
   const model::Binary &Binary = *ModelWrapper.getReadOnlyModel().get();
 
-  EnforceABIImpl Impl(M, GCBI, Binary);
+  EnforceABIImpl Impl(M,
+                      GCBI,
+                      Binary,
+                      getAnalysis<FunctionMetadataCachePass>().get());
   Impl.run();
   return false;
 }
@@ -327,7 +333,7 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
     Callee = OldToNew.at(Callee);
 
   // Identify the corresponding call site in the model
-  efa::FunctionMetadata FM = *extractFunctionMetadata(CallerFunction).get();
+  const efa::FunctionMetadata &FM = Cache->getFunctionMetadata(CallerFunction);
 
   const efa::BasicBlock *CallerBlock = FM.findBlock(GCBI, Call->getParent());
   revng_assert(CallerBlock != nullptr);
@@ -451,4 +457,11 @@ CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   }
 
   return Result;
+}
+
+void EnforceABI::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+  AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
+  AU.addRequired<LoadModelWrapperPass>();
+  AU.addRequired<FunctionMetadataCachePass>();
+  AU.setPreservesAll();
 }

@@ -3,7 +3,7 @@
 //
 
 #include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
-#include "revng/EarlyFunctionAnalysis/IRHelpers.h"
+#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Lift/LoadBinaryPass.h"
 #include "revng/Model/Binary.h"
 #include "revng/Pipeline/AllRegistries.h"
@@ -42,13 +42,14 @@ void ProcessAssembly::run(pipeline::Context &Context,
   // This allows it to only be created once.
   DissassemblyHelper Helper;
 
+  FunctionMetadataCache Cache;
   for (const auto &LLVMFunction : FunctionTags::Isolated.functions(&Module)) {
-    auto Metadata = extractFunctionMetadata(&LLVMFunction);
-    auto ModelFunctionIterator = Model->Functions.find(Metadata->Entry);
+    const auto &Metadata = Cache.getFunctionMetadata(&LLVMFunction);
+    auto ModelFunctionIterator = Model->Functions.find(Metadata.Entry);
     revng_assert(ModelFunctionIterator != Model->Functions.end());
 
     const auto &Func = *ModelFunctionIterator;
-    auto Disassembled = Helper.disassemble(Func, *Metadata, BinaryView, *Model);
+    auto Disassembled = Helper.disassemble(Func, Metadata, BinaryView, *Model);
     Output.insert_or_assign(Func.Entry, serializeToString(Disassembled));
   }
 }
