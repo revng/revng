@@ -12,6 +12,30 @@
 
 namespace abi::FunctionType {
 
+namespace ArgumentKind {
+
+enum Values {
+  Scalar = 0,
+  ReferenceToAggregate,
+  ShadowPointerToAggregateReturnValue,
+  Invalid,
+};
+
+inline const char *getName(Values Kind) {
+  switch (Kind) {
+  case Scalar:
+    return "Scalar";
+  case ReferenceToAggregate:
+    return "ReferenceToAggregate";
+  case ShadowPointerToAggregateReturnValue:
+    return "ShadowPointerToAggregateReturnValue";
+  default:;
+  }
+  return "Invalid";
+}
+
+} // end namespace ArgumentKind
+
 /// Best effort `CABIFunctionType` to `RawFunctionType` conversion.
 ///
 /// If `ABI` is not specified, `TheBinary.DefaultABI`
@@ -49,6 +73,7 @@ public:
 
   public:
     std::optional<StackSpan> Stack;
+    ArgumentKind::Values Kind;
   };
 
 public:
@@ -88,6 +113,12 @@ public:
   llvm::SmallVector<model::Register::Values, 8> argumentRegisters() const;
   llvm::SmallVector<model::Register::Values, 8> returnValueRegisters() const;
 
+  bool returnsAggregateType() const {
+    using namespace abi::FunctionType::ArgumentKind;
+    auto SPTAR = ShadowPointerToAggregateReturnValue;
+    return (Arguments.size() >= 1 and Arguments[0].Kind == SPTAR);
+  }
+
 public:
   void dump() const debug_function {
     // TODO: accept an arbitrary stream
@@ -111,6 +142,7 @@ public:
       } else {
         dbg << "no";
       }
+      dbg << "    Kind: " << getName(A.Kind);
       dbg << "\n";
     }
 
