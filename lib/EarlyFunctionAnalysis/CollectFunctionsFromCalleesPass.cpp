@@ -8,6 +8,7 @@
 #include "llvm/IR/Module.h"
 
 #include "revng/EarlyFunctionAnalysis/CollectFunctionsFromCalleesPass.h"
+#include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 
 using namespace llvm;
 
@@ -20,6 +21,14 @@ static Register Y("collect-functions-from-callees",
                   true);
 
 static Logger<> Log("functions-from-callees-collection");
+
+using CFFCWP = CollectFunctionsFromCalleesWrapperPass;
+void CFFCWP::getAnalysisUsage(AnalysisUsage &AU) const {
+  AU.setPreservesAll();
+  AU.addRequired<LoadModelWrapperPass>();
+  AU.addRequired<FunctionMetadataCachePass>();
+  AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
+}
 
 static void collectFunctionsFromCallees(Module &M,
                                         GeneratedCodeBasicInfo &GCBI,

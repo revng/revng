@@ -19,9 +19,5 @@ public:
 
   bool runOnModule(llvm::Module &M) override;
 
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
-    AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
-    AU.addRequired<LoadModelWrapperPass>();
-    AU.setPreservesAll();
-  }
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 };
