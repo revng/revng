@@ -13,14 +13,18 @@
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/Importer/Binary/BinaryImporterHelper.h"
 #include "revng/Model/Importer/DebugInfo/PDBImporter.h"
+#include "revng/Model/Pass/AllPasses.h"
 #include "revng/Support/Debug.h"
 
+#include "CrossModelFindTypeHelper.h"
 #include "Importers.h"
 
 using namespace llvm;
 using namespace llvm::object;
 
 static Logger<> Log("pecoff-importer");
+
+using PELDDTree = std::map<std::string, std::vector<std::string>>;
 
 class PECOFFImporter : public BinaryImporterHelper {
 private:
@@ -33,7 +37,7 @@ public:
                  const object::COFFObjectFile &TheBinary) :
     Model(Model), TheBinary(TheBinary) {}
 
-  Error import();
+  Error import(unsigned FetchDebugInfoWithLevel);
 
 private:
   Error parseSectionsHeaders();
@@ -47,6 +51,12 @@ private:
                                uint32_t ImportAddressTableEntry);
   /// Parse delay dynamic symbols from the file.
   void parseDelayImportedSymbols();
+
+  /// Resolve dependent DLLs.
+  void getDependencies(PELDDTree Dependencies, unsigned Level);
+  /// Try to find prototypes in the Models of dynamic libraries.
+  void findMissingTypes(unsigned FetchDebugInfoWithLevel);
+
   using DelayDirectoryRef = const DelayImportDirectoryEntryRef;
   void
   recordDelayImportedFunctions(DelayDirectoryRef &I, ImportedSymbolRange Range);
@@ -313,7 +323,157 @@ void PECOFFImporter::parseDelayImportedSymbols() {
   }
 }
 
-Error PECOFFImporter::import() {
+/// \note For the PE/COFF, we are assuming that the libraries are in the current
+/// directory.
+static RecursiveCoroutine<void> getDependenciesHelper(StringRef FileName,
+                                                      PELDDTree Dependencies,
+                                                      unsigned CurrentLevel,
+                                                      unsigned Level) {
+  auto BinaryOrErr = object::createBinary(FileName);
+  if (not BinaryOrErr) {
+    revng_log(Log,
+              "Can't create object for " << FileName << " due to "
+                                         << toString(BinaryOrErr.takeError()));
+    llvm::consumeError(BinaryOrErr.takeError());
+    rc_return;
+  }
+
+  auto Object = cast<object::ObjectFile>(BinaryOrErr->getBinary());
+  auto COFFObject = cast<COFFObjectFile>(Object);
+  for (const ImportDirectoryEntryRef &I : COFFObject->import_directories()) {
+    StringRef LibraryName;
+    if (Error E = I.getName(LibraryName)) {
+      revng_log(Log, "Found an imported symbol without a name.");
+      continue;
+    }
+
+    uint32_t ImportLookupTableEntry;
+    if (Error E = I.getImportLookupTableRVA(ImportLookupTableEntry)) {
+      revng_log(Log, "No ImportLookupTableRVA found for an import");
+      continue;
+    }
+
+    uint32_t ImportAddressTableEntry;
+    if (Error E = I.getImportAddressTableRVA(ImportAddressTableEntry)) {
+      revng_log(Log, "No ImportAddressTableRVA found for an import");
+      continue;
+    }
+
+    /// \note DLL names can be all upper-cased in the Import Tables, so we want
+    /// to lower it.
+    auto LibraryNameAsString = LibraryName.str();
+    transform(LibraryNameAsString.begin(),
+              LibraryNameAsString.end(),
+              LibraryNameAsString.begin(),
+              ::tolower);
+    Dependencies[FileName.str()].push_back(LibraryNameAsString);
+  }
+
+  if (CurrentLevel == Level)
+    rc_return;
+
+  ++CurrentLevel;
+  for (auto &Library : Dependencies) {
+    revng_log(Log, "Dependencies for " << Library.first << ":\n");
+    for (auto &DependingLibrary : Library.second)
+      if (!Dependencies.count(DependingLibrary))
+        rc_recur getDependenciesHelper(DependingLibrary,
+                                       Dependencies,
+                                       CurrentLevel,
+                                       Level);
+  }
+}
+
+void PECOFFImporter::getDependencies(PELDDTree Dependencies, unsigned Level) {
+  if (Level > 1)
+    getDependenciesHelper(TheBinary.getFileName(), Dependencies, 1, Level);
+}
+
+void PECOFFImporter::findMissingTypes(unsigned FetchDebugInfoWithLevel) {
+  using namespace std;
+
+  PELDDTree Dependencies;
+  getDependencies(Dependencies, FetchDebugInfoWithLevel);
+
+  ModelMap ModelsOfLibraries;
+  TypeCopierMap TypeCopiers;
+
+  for (auto &Library : Dependencies) {
+    revng_log(Log,
+              "Importing Models for dependencies of " << Library.first << ":");
+    for (auto &DependencyLibrary : Library.second) {
+      if (ModelsOfLibraries.count(DependencyLibrary))
+        continue;
+      revng_log(Log, " Importing Model for: " << DependencyLibrary);
+      auto BinaryOrErr = llvm::object::createBinary(DependencyLibrary);
+      if (not BinaryOrErr) {
+        revng_log(Log,
+                  "Can't create object for "
+                    << DependencyLibrary << " due to "
+                    << toString(BinaryOrErr.takeError()));
+        llvm::consumeError(BinaryOrErr.takeError());
+        continue;
+      }
+
+      auto &File = *cast<llvm::object::ObjectFile>(BinaryOrErr->getBinary());
+      auto *TheBinary = dyn_cast<COFFObjectFile>(&File);
+      if (!TheBinary)
+        continue;
+
+      using Binary = model::Binary;
+      ModelsOfLibraries[DependencyLibrary] = TupleTree<Binary>();
+      auto &DepModel = ModelsOfLibraries[DependencyLibrary];
+      DepModel->Architecture() = Model->Architecture();
+
+      if (auto E = importPECOFF(DepModel,
+                                *TheBinary,
+                                BaseAddress,
+                                1 /*FetchDebugInfoWithLevel*/)) {
+        revng_log(Log,
+                  "Can't import model for " << DependencyLibrary << " due to "
+                                            << E);
+        llvm::consumeError(std::move(E));
+        ModelsOfLibraries.erase(DependencyLibrary);
+        continue;
+      }
+    }
+  }
+
+  for (auto &ModelOfDep : ModelsOfLibraries) {
+    auto &TheModel = ModelOfDep.second;
+    TypeCopiers[ModelOfDep.first] = std::make_unique<TypeCopier>(TheModel);
+  }
+
+  for (auto &Fn : Model->ImportedDynamicFunctions()) {
+    if (Fn.Prototype().isValid() or Fn.OriginalName().size() == 0)
+      continue;
+
+    revng_log(Log, "Searching for prototype for " << Fn.OriginalName());
+    auto TypeLocation = findPrototype(Fn.OriginalName(), ModelsOfLibraries);
+    if (TypeLocation) {
+      revng_log(Log, "Found type for " << Fn.OriginalName());
+      auto &TheTypeCopier = TypeCopiers[(*TypeLocation).second];
+      auto Type = TheTypeCopier->copyPrototypeInto((*TypeLocation).first,
+                                                   Model);
+      if (!Type) {
+        revng_log(Log,
+                  "Failed to copy prototype " << Fn.OriginalName() << " from "
+                                              << (*TypeLocation).second);
+        continue;
+      }
+      Fn.Prototype() = *Type;
+    }
+  }
+
+  // Purge cached references and update the reference to Root.
+  Model.evictCachedReferences();
+  Model.initializeReferences();
+
+  deduplicateEquivalentTypes(Model);
+  promoteOriginalName(Model);
+}
+
+Error PECOFFImporter::import(unsigned FetchDebugInfoWithLevel) {
   if (Error E = parseSectionsHeaders())
     return E;
 
@@ -336,17 +496,22 @@ Error PECOFFImporter::import() {
   Model->DefaultPrototype() = abi::registerDefaultFunctionPrototype(*Model);
 
   PDBImporter PDBI(Model, ImageBase);
-  PDBI.import(TheBinary);
+  PDBI.import(TheBinary, FetchDebugInfoWithLevel);
+
+  // Now we try to find missing types in the dependencies.
+  if (FetchDebugInfoWithLevel > 1)
+    findMissingTypes(FetchDebugInfoWithLevel);
 
   return Error::success();
 }
 
 Error importPECOFF(TupleTree<model::Binary> &Model,
                    const object::COFFObjectFile &TheBinary,
-                   uint64_t PreferredBaseAddress) {
+                   uint64_t PreferredBaseAddress,
+                   unsigned FetchDebugInfoWithLevel) {
   // TODO: use PreferredBaseAddress if PIC
   (void) PreferredBaseAddress;
 
   PECOFFImporter Importer(Model, TheBinary);
-  return Importer.import();
+  return Importer.import(FetchDebugInfoWithLevel);
 }

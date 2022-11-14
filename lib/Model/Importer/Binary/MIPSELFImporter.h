@@ -124,8 +124,12 @@ public:
                                 *this->DynstrPortion.get());
   }
 
-  llvm::Error import() override {
-    if (llvm::Error E = ELFImporter<T, HasAddend>::import())
+  llvm::Error import(unsigned FetchDebugInfoWithLevel) override {
+    // TODO: Remove this when we remove `Parenthesis at the end of line:` from
+    // `check-convention`.
+    unsigned DebugInfoLevel = FetchDebugInfoWithLevel;
+
+    if (llvm::Error E = ELFImporter<T, HasAddend>::import(DebugInfoLevel))
       return E;
     registerMIPSRelocations();
     return llvm::Error::success();

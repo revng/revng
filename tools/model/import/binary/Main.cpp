@@ -50,12 +50,16 @@ int main(int Argc, char *Argv[]) {
   // Import
   TupleTree<model::Binary> Model;
 
-  ExitOnError(importBinary(Model, InputFilename, BaseAddress));
+  // TODO: Remove this when we remove `Parenthesis at the end of line:` from
+  // `check-convention`.
+  unsigned DebugInfoLevel = FetchDebugInfoWithLevel;
+
+  ExitOnError(importBinary(Model, InputFilename, BaseAddress, DebugInfoLevel));
 
   if (ImportDebugInfo.size() > 0) {
     DwarfImporter Importer(Model, BaseAddress);
     for (const std::string &Path : ImportDebugInfo)
-      Importer.import(Path);
+      Importer.import(Path, FetchDebugInfoWithLevel);
   }
 
   // Serialize

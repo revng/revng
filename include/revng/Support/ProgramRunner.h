@@ -17,6 +17,9 @@ private:
 public:
   ProgramRunner();
 
+  /// Returns true if the program could be found.
+  bool isProgramAvailable(llvm::StringRef ProgramName);
+
   /// returns the exit code of the program.
   [[nodiscard]] int
   run(llvm::StringRef ProgramName, llvm::ArrayRef<std::string> Args);
