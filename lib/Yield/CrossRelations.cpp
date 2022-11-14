@@ -83,11 +83,8 @@ static void conversionHelper(const yield::CrossRelations &Input,
     for (const auto &[RelationKind, TargetString] : Related) {
       switch (RelationKind) {
       case yield::RelationType::IsCalledFrom:
-        AddEdge(LocationString, TargetString, RelationKind);
-        break;
-
-      // TODO: handle dynamic function calls properly
       case yield::RelationType::IsDynamicallyCalledFrom:
+        AddEdge(LocationString, TargetString, RelationKind);
         break;
 
       case yield::RelationType::Invalid:
@@ -100,7 +97,7 @@ static void conversionHelper(const yield::CrossRelations &Input,
 }
 
 GenericGraph<yield::CrossRelations::Node, 16, true>
-yield::CrossRelations::toGenericGraph() const {
+yield::CrossRelations::toCallGraph() const {
   GenericGraph<yield::CrossRelations::Node, 16, true> Result;
 
   using NodeView = decltype(Result)::Node *;
@@ -110,11 +107,26 @@ yield::CrossRelations::toGenericGraph() const {
     auto [Iterator, Success] = LookupHelper.try_emplace(Location, Node);
     revng_assert(Success);
   };
-  auto AddEdge = [&LookupHelper](std::string_view From,
-                                 std::string_view To,
+  auto AddEdge = [&LookupHelper](std::string_view Callee,
+                                 std::string_view Caller,
                                  yield::RelationType::Values Kind) {
-    using EL = yield::CrossRelations::EdgeLabel;
-    LookupHelper.at(From)->addSuccessor(LookupHelper.at(To), EL{ Kind });
+    if (Kind == yield::RelationType::IsCalledFrom
+        || Kind == yield::RelationType::IsDynamicallyCalledFrom) {
+      // This assumes all the call sites are represented as basic block
+      // locations for all the relations covered by these two kinds.
+      using namespace pipeline;
+      namespace ranks = revng::ranks;
+      auto CallerLocation = *locationFromString(ranks::BasicBlock, Caller);
+      auto CallerFunction = convertLocation(ranks::Function, CallerLocation);
+      auto *CallerNode = LookupHelper.at(CallerFunction.toString());
+      auto *CalleeNode = LookupHelper.at(Callee);
+
+      using EL = yield::CrossRelations::EdgeLabel;
+      if (!llvm::is_contained(CallerNode->successors(), CalleeNode))
+        CallerNode->addSuccessor(CalleeNode, EL{ Kind });
+    } else {
+      revng_abort("Unsupported relation type.");
+    }
   };
   conversionHelper(*this, AddNode, AddEdge);
 
@@ -143,19 +155,23 @@ yield::Graph yield::CrossRelations::toYieldGraph() const {
   };
   auto AddEdge = [&LookupHelper](std::string_view FromLocation,
                                  std::string_view ToLocation,
-                                 yield::RelationType::Values) {
-    auto FromKey = p::genericLocationFromString<0>(FromLocation,
+                                 yield::RelationType::Values Kind) {
+    if (Kind == yield::RelationType::IsCalledFrom) {
+      auto FromKey = p::genericLocationFromString<0>(FromLocation,
+                                                     ranks::Function,
+                                                     ranks::BasicBlock,
+                                                     ranks::Instruction);
+      auto ToKey = p::genericLocationFromString<0>(ToLocation,
                                                    ranks::Function,
                                                    ranks::BasicBlock,
                                                    ranks::Instruction);
-    auto ToKey = p::genericLocationFromString<0>(ToLocation,
-                                                 ranks::Function,
-                                                 ranks::BasicBlock,
-                                                 ranks::Instruction);
-    revng_assert(FromKey.has_value() && ToKey.has_value());
+      revng_assert(FromKey.has_value() && ToKey.has_value());
 
-    auto *FromNode = LookupHelper.at(std::get<0>(FromKey.value()));
-    FromNode->addSuccessor(LookupHelper.at(std::get<0>(ToKey.value())));
+      auto *FromNode = LookupHelper.at(std::get<0>(FromKey.value()));
+      auto *ToNode = LookupHelper.at(std::get<0>(ToKey.value()));
+      if (!llvm::is_contained(FromNode->successors(), ToNode))
+        FromNode->addSuccessor(ToNode);
+    }
   };
   conversionHelper(*this, AddNode, AddEdge);
 
