@@ -573,6 +573,8 @@ private:
     Function *LastFunction = nullptr;
     DominatorTree DT;
     for (Instruction *I : ToPushALAP) {
+      if (not I->getNumUses())
+        continue;
       Function *F = I->getParent()->getParent();
       if (F != LastFunction) {
         LastFunction = F;
@@ -732,8 +734,8 @@ private:
         StackArgsCall->setMetadata("revng.callerblock.start", MD);
 
         // Record for pushing ALAP
-        ToPushALAP.push_back(AddrOfCall);
         ToPushALAP.push_back(StackArgsCall);
+        ToPushALAP.push_back(AddrOfCall);
 
         unsigned OffsetInNewArgument = 0;
         for (auto &Register : ModelArgument.Registers) {
@@ -756,7 +758,7 @@ private:
         if (ModelArgument.Stack)
           Redirector.recordSpan(*ModelArgument.Stack, AddrOfCall);
 
-        Arguments.push_back(AddrOfCall);
+        Arguments.push_back(StackArgsCall);
       }
     }
 
