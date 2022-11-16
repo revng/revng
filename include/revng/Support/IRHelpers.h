@@ -831,15 +831,25 @@ inline llvm::Function *getCallee(llvm::Instruction *I) {
     return nullptr;
 }
 
-inline bool isCallTo(const llvm::Instruction *I, llvm::StringRef Name) {
+inline bool isCallTo(const llvm::Value *I, llvm::StringRef Name) {
   revng_assert(I != nullptr);
-  const llvm::Function *Callee = getCallee(I);
+
+  auto *Call = llvm::dyn_cast<llvm::Instruction>(I);
+  if (not Call)
+    return false;
+
+  const llvm::Function *Callee = getCallee(Call);
   return Callee != nullptr && Callee->getName() == Name;
 }
 
-inline bool isCallTo(const llvm::Instruction *I, llvm::Function *F) {
+inline bool isCallTo(const llvm::Value *I, llvm::Function *F) {
   revng_assert(I != nullptr);
-  const llvm::Function *Callee = getCallee(I);
+
+  auto *Call = llvm::dyn_cast<llvm::Instruction>(I);
+  if (not Call)
+    return false;
+
+  const llvm::Function *Callee = getCallee(Call);
   return Callee != nullptr && Callee == F;
 }
 
