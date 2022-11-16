@@ -45,6 +45,65 @@ namespace ranks = revng::ranks;
 
 using namespace ArtificialTypes;
 
+static std::string serializeVariableLocation(llvm::StringRef VariableName,
+                                             const model::Function &F) {
+  return pipeline::serializedLocation(ranks::LocalVariable,
+                                      F.key(),
+                                      VariableName.str());
+}
+
+template<bool IsDefinition>
+static std::string
+getArgumentLocation(llvm::StringRef ArgumentName, const model::Function &F) {
+  return Tag(tags::Span, ArgumentName)
+    .addAttribute(attributes::Token, tokens::FunctionParameter)
+    .addAttribute(ptml::locationAttribute(IsDefinition),
+                  serializeVariableLocation(ArgumentName, F))
+    .serialize();
+}
+
+std::string getArgumentLocationDefinition(llvm::StringRef ArgumentName,
+                                          const model::Function &F) {
+  return getArgumentLocation<true>(ArgumentName, F);
+}
+
+std::string getArgumentLocationReference(llvm::StringRef ArgumentName,
+                                         const model::Function &F) {
+  return getArgumentLocation<false>(ArgumentName, F);
+}
+
+static std::string
+getDynamicFunctionArgumentLocationDefinition(llvm::StringRef ArgumentName,
+                                             const model::DynamicFunction &F) {
+  return Tag(tags::Span, ArgumentName)
+    .addAttribute(attributes::Token, tokens::FunctionParameter)
+    .addAttribute(ptml::locationAttribute(/* IsDefinition */ true),
+                  pipeline::serializedLocation(ranks::DynamicFunctionArgument,
+                                               F.key(),
+                                               ArgumentName.str()))
+    .serialize();
+}
+
+template<bool IsDefinition>
+static std::string
+getVariableLocation(llvm::StringRef VariableName, const model::Function &F) {
+  return Tag(tags::Span, VariableName)
+    .addAttribute(attributes::Token, tokens::Variable)
+    .addAttribute(ptml::locationAttribute(IsDefinition),
+                  serializeVariableLocation(VariableName, F))
+    .serialize();
+}
+
+std::string getVariableLocationDefinition(llvm::StringRef VariableName,
+                                          const model::Function &F) {
+  return getVariableLocation<true>(VariableName, F);
+}
+
+std::string getVariableLocationReference(llvm::StringRef VariableName,
+                                         const model::Function &F) {
+  return getVariableLocation<false>(VariableName, F);
+}
+
 TypeString getReturnField(const model::RawFunctionType &F, size_t Index) {
   revng_assert(F.ReturnValues.size() > 1);
   return TypeString((Twine(RetFieldPrefix) + Twine(Index)).str());
@@ -347,21 +406,11 @@ void printFunctionPrototype(const model::Type &FT,
     auto ArgumentPrinter = [&](const NamedTypedRegister &Reg) {
       std::string
         ArgIdentifier = model::Identifier::fromString(Reg.name()).str().str();
-      return ptml::tokenTag(ArgIdentifier, tokens::FunctionParameter)
-        .addAttribute(attributes::LocationDefinition,
-                      serializedLocation(ranks::LocalVariable,
-                                         Function.key(),
-                                         ArgIdentifier))
-        .serialize();
+      return getArgumentLocationDefinition(ArgIdentifier, Function);
     };
 
-    std::string
-      StackName = ptml::tokenTag("stack_args", tokens::FunctionParameter)
-                    .addAttribute(attributes::LocationDefinition,
-                                  serializedLocation(ranks::LocalVariable,
-                                                     Function.key(),
-                                                     "stack_args"))
-                    .serialize();
+    std::string StackName = getArgumentLocationDefinition("stack_args",
+                                                          Function);
 
     printFunctionPrototypeImpl(*RF,
                                FunctionTag.serialize(),
@@ -374,13 +423,7 @@ void printFunctionPrototype(const model::Type &FT,
     auto ArgumentPrinter = [&](const Argument &Arg) -> std::string {
       std::string
         ArgIdentifier = model::Identifier::fromString(Arg.name()).str().str();
-      return " "
-             + ptml::tokenTag(ArgIdentifier, tokens::FunctionParameter)
-                 .addAttribute(attributes::LocationDefinition,
-                               serializedLocation(ranks::LocalVariable,
-                                                  Function.key(),
-                                                  ArgIdentifier))
-                 .serialize();
+      return getArgumentLocationDefinition(ArgIdentifier, Function);
     };
 
     printFunctionPrototypeImpl(*CF,
@@ -411,12 +454,8 @@ void printFunctionPrototype(const model::Type &FT,
     auto ArgumentPrinter = [&](const NamedTypedRegister &Reg) {
       std::string
         ArgIdentifier = model::Identifier::fromString(Reg.name()).str().str();
-      return ptml::tokenTag(ArgIdentifier, tokens::FunctionParameter)
-        .addAttribute(attributes::LocationDefinition,
-                      serializedLocation(ranks::DynamicFunctionArgument,
-                                         Function.key(),
-                                         ArgIdentifier))
-        .serialize();
+      return getDynamicFunctionArgumentLocationDefinition(ArgIdentifier,
+                                                          Function);
     };
 
     printFunctionPrototypeImpl(*RF,
@@ -430,12 +469,8 @@ void printFunctionPrototype(const model::Type &FT,
     auto ArgumentPrinter = [&](const Argument &Arg) {
       std::string
         ArgIdentifier = model::Identifier::fromString(Arg.name()).str().str();
-      return ptml::tokenTag(ArgIdentifier, tokens::FunctionParameter)
-        .addAttribute(attributes::LocationDefinition,
-                      serializedLocation(ranks::DynamicFunctionArgument,
-                                         Function.key(),
-                                         ArgIdentifier))
-        .serialize();
+      return getDynamicFunctionArgumentLocationDefinition(ArgIdentifier,
+                                                          Function);
     };
 
     printFunctionPrototypeImpl(*CF,

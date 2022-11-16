@@ -72,3 +72,12 @@ extern void printFunctionTypeDeclaration(const model::Type &FT,
                                          llvm::StringRef TypeName,
                                          llvm::raw_ostream &Header,
                                          const model::Binary &Model);
+
+extern std::string getArgumentLocationDefinition(llvm::StringRef ArgumentName,
+                                                 const model::Function &F);
+extern std::string getArgumentLocationReference(llvm::StringRef ArgumentName,
+                                                const model::Function &F);
+extern std::string getVariableLocationDefinition(llvm::StringRef VariableName,
+                                                 const model::Function &F);
+extern std::string getVariableLocationReference(llvm::StringRef VariableName,
+                                                const model::Function &F);
