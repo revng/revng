@@ -608,6 +608,39 @@ CCodeGenerator::addOperandToken(const llvm::Value *Operand) {
       rc_recur addOperandToken(Op);
 
     switch (ConstExpr->getOpcode()) {
+    case Instruction::GetElementPtr: {
+      using namespace llvm;
+      auto *ResultType = ConstExpr->getType();
+      auto *BasePointer = dyn_cast<GlobalVariable>(ConstExpr->getOperand(0));
+
+      auto IsZero = [](llvm::Value *V) {
+        if (auto *CI = dyn_cast<ConstantInt>(V))
+          return CI->isZero();
+        return false;
+      };
+
+      if (ResultType->isPointerTy()
+          and ResultType->getPointerElementType()->isIntegerTy(8)
+          and BasePointer != nullptr and BasePointer->isConstant()
+          and BasePointer->hasInitializer() and ConstExpr->getNumOperands() == 3
+          and IsZero(ConstExpr->getOperand(1))
+          and IsZero(ConstExpr->getOperand(2))) {
+        // Check if initializer is a CString
+        auto *Initializer = BasePointer->getInitializer();
+        auto *InitData = dyn_cast<ConstantDataSequential>(Initializer);
+        if (InitData != nullptr and InitData->isCString()) {
+          std::string Escaped;
+          {
+            raw_string_ostream Stream(Escaped);
+            Stream << "\"";
+            Stream.write_escaped(InitData->getAsString().drop_back());
+            Stream << "\"";
+          }
+          TokenMap[ConstExpr] = std::move(Escaped);
+          rc_return true;
+        }
+      }
+    } break;
     case Instruction::IntToPtr: {
       const llvm::Value *ConstExprOperand = ConstExpr->getOperand(0);
       revng_assert(ConstExprOperand);
@@ -624,13 +657,9 @@ CCodeGenerator::addOperandToken(const llvm::Value *Operand) {
                                             DstType)
                                 .str()
                                 .str();
+      rc_return true;
     } break;
-
-    default:
-      rc_return false;
     }
-
-    rc_return true;
   }
 
   rc_return false;
