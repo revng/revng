@@ -41,6 +41,8 @@ using FunctionControlFlowStringMap = FunctionStringMap<
 class YieldControlFlow {
 public:
   static constexpr const auto Name = "YieldCFG";
+  // WIP
+  static constexpr const auto Doc = "";
 
 public:
   inline std::array<pipeline::ContractGroup, 1> getContract() const {

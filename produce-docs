@@ -1,0 +1,17 @@
+#!/bin/bash
+
+orc shell -c revng ./bin/revng dump-docs > "$PWD/docs.yml"
+
+for TEMPLATE in python/revng/cli/_commands/*.tpl; do
+    orc shell -c revng ./bin/revng docs-process-yaml "$PWD/$TEMPLATE" < "$PWD/docs.yml" > "$PWD/docs/references/$(basename "$TEMPLATE" .tpl).md"
+done
+
+
+orc shell -c revng "$PWD/scripts/tuple_tree_generator/tuple-tree-generate-docs.py" \
+    --namespace model \
+    --root-type Binary \
+    --string-type Identifier \
+    --scalar-type 'Identifier' \
+    --scalar-type 'MetaAddress' \
+    model-schema.yml \
+    > "$PWD/docs/references/model.md"

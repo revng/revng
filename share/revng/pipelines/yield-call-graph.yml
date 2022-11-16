@@ -19,20 +19,24 @@ Branches:
           - Type: ProcessCallGraph
             UsedContainers: [module.ll, cross-relations.yml]
       - Name: YieldCallGraph
+        Doc: "WIP"
         Pipes:
           - Type: YieldCallGraph
             UsedContainers: [cross-relations.yml, call-graph-svg.yml]
         Artifacts:
           Container: call-graph-svg.yml
+          Doc: "WIP"
           Kind: CallGraphSVG
           SingleTargetFilename: call-graph.svg
   - From: ProcessCallGraph
     Steps:
       - Name: YieldCallGraphSlice
+        Doc: "WIP"
         Pipes:
           - Type: YieldCallGraphSlice
             UsedContainers: [module.ll, cross-relations.yml, call-graph-slice-svg.yml]
         Artifacts:
+          Doc: "WIP"
           Container: call-graph-slice-svg.yml
           Kind: CallGraphSliceSVG
           SingleTargetFilename: call-graph-slice.svg

@@ -62,9 +62,9 @@ inline auto Type = defineRank<"type", model::Type::Key>("A type, identified by "
                                                         "identifier.",
                                                         Binary);
 // WIP: docs
-inline auto StructField = defineRank<"struct-field", detail::SFK>(Type, "");
-inline auto UnionField = defineRank<"union-field", detail::UFK>(Type, "");
-inline auto EnumEntry = defineRank<"enum-entry", model::EnumEntry::Key>(Type, "");
+inline auto StructField = defineRank<"struct-field", detail::SFK>("", Type);
+inline auto UnionField = defineRank<"union-field", detail::UFK>("", Type);
+inline auto EnumEntry = defineRank<"enum-entry", model::EnumEntry::Key>("", Type);
 
 inline auto RawByte = defineRank<"raw-byte", MetaAddress>("A pointer to raw "
                                                           "data in the binary, "

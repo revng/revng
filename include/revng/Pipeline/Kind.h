@@ -136,7 +136,7 @@ class DeadKind : public Kind {
 
 public:
   template<RankSpecialization BaseRank>
-  DeadKind(const BaseRank &R) : Kind("Dead", ("Terminating kind for rank " + R->name()).str(), R, {}, {}) {}
+  DeadKind(const BaseRank &R) : Kind("Dead", ("Terminating kind for rank " + R.name()).str(), R, {}, {}) {}
 
   void appendAllTargets(const Context &Ctx, TargetsList &Out) const override {
     revng_abort();

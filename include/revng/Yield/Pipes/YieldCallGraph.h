@@ -19,6 +19,8 @@ namespace revng::pipes {
 class YieldCallGraph {
 public:
   static constexpr const auto Name = "YieldCallGraph";
+  // WIP
+  static constexpr const auto Doc = "";
 
 public:
   inline std::array<pipeline::ContractGroup, 1> getContract() const {

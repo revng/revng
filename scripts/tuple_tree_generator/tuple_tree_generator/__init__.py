@@ -1,8 +1,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 
 from .generators import CppHeadersGenerator, JSONSchemaGenerator, PythonGenerator
-from .generators import TypeScriptGenerator
-    DocsGenerator,
+from .generators import TypeScriptGenerator, DocsGenerator
 from .schema import Schema
 
 

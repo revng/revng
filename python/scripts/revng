@@ -7,7 +7,7 @@ import os
 import sys
 from pathlib import Path
 
-python_libs_dir = str(Path(__file__).parent.parent / "lib" / "python")
+python_libs_dir = str(Path(__file__).parent.parent / "${PYTHON_INSTALL_PATH}")
 sys.path.insert(0, python_libs_dir)
 
 prev_pythonpath = os.environ.get("PYTHONPATH")

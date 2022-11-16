@@ -6,10 +6,7 @@ import black
 import jinja2
 
 from ..schema import Definition, EnumDefinition, ReferenceDefinition, ScalarDefinition, Schema
-from ..schema import SequenceDefinition, StructDefinition, StructField, UpcastableDefinition
-    ReferenceStructField,
-    SequenceStructField,
-    SimpleStructField,
+from ..schema import SequenceDefinition, StructDefinition, StructField, UpcastableDefinition, ReferenceStructField,    SequenceStructField,    SimpleStructField
 from .jinja_utils import loader
 
 python_environment = jinja2.Environment(
