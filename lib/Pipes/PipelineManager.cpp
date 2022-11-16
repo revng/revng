@@ -315,7 +315,7 @@ PipelineManager::invalidateAllPossibleTargets() {
   recalculateAllPossibleTargets();
 
   for (const auto &Step : CurrentState) {
-    if (Step.first() == "begin")
+    if (Step.first() == Runner->begin()->getName())
       continue;
 
     for (const auto &Container : Step.second) {
