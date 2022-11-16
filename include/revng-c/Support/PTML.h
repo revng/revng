@@ -13,7 +13,6 @@ namespace tokens {
 inline constexpr auto Function = "c.function";
 inline constexpr auto Type = "c.type";
 inline constexpr auto Operator = "c.operator";
-inline constexpr auto Comparison = "c.comparison";
 inline constexpr auto FunctionParameter = "c.function_parameter";
 inline constexpr auto Variable = "c.variable";
 inline constexpr auto Field = "c.field";
