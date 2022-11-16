@@ -97,9 +97,9 @@ int main(int argc, const char *argv[]) {
 
   if (not Manager.getRunner().containsStep(Arguments[0])) {
     AbortOnError(createStringError(inconvertibleErrorCode(),
-                                   "no known artifact named %s, invoke this "
-                                   "command without arguments to see the list "
-                                   "of available artifacts",
+                                   "No known artifact named %s.\n Use `revng "
+                                   "artifact` with no arguments to list "
+                                   "available artifacts",
                                    Arguments[0].c_str()));
   }
   auto &Step = Manager.getRunner().getStep(Arguments[0]);
