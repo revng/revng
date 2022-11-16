@@ -10,16 +10,16 @@ namespace ptml::c {
 
 namespace tokens {
 
-inline constexpr auto Function = "c.function";
-inline constexpr auto Type = "c.type";
-inline constexpr auto Operator = "c.operator";
-inline constexpr auto FunctionParameter = "c.function_parameter";
-inline constexpr auto Variable = "c.variable";
-inline constexpr auto Field = "c.field";
 inline constexpr auto Constant = "c.constant";
-inline constexpr auto StringLiteral = "c.string_literal";
-inline constexpr auto Keyword = "c.keyword";
 inline constexpr auto Directive = "c.directive";
+inline constexpr auto Field = "c.field";
+inline constexpr auto Function = "c.function";
+inline constexpr auto FunctionParameter = "c.function_parameter";
+inline constexpr auto Keyword = "c.keyword";
+inline constexpr auto Operator = "c.operator";
+inline constexpr auto StringLiteral = "c.string_literal";
+inline constexpr auto Type = "c.type";
+inline constexpr auto Variable = "c.variable";
 
 } // namespace tokens
 
