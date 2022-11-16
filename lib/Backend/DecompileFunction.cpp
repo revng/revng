@@ -688,6 +688,8 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
                    "propagated type.");
     }
 
+    // Arguments from the third represent indices for accessing
+    // struct/unions/arrays
     ++CurArg;
     if (CurArg == Call->arg_end()) {
       if (not IsRef) {
@@ -707,7 +709,7 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
 
         model::Qualifier *MainQualifier = nullptr;
         if (CurType.Qualifiers.size() > 0)
-          MainQualifier = &CurType.Qualifiers.back();
+          MainQualifier = &CurType.Qualifiers.front();
 
         if (MainQualifier and model::Qualifier::isArray(*MainQualifier)) {
           // If it's an array, add "[]"
@@ -721,7 +723,9 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
 
           CurExpr += ("[" + IndexExpr + "]");
           // Remove the qualifier we just analysed
-          CurType.Qualifiers.pop_back();
+          auto RemainingQualifiers = llvm::drop_begin(CurType.Qualifiers, 1);
+          CurType.Qualifiers = { RemainingQualifiers.begin(),
+                                 RemainingQualifiers.end() };
         } else {
           // We shouldn't be going past pointers in a single ModelGEP
           revng_assert(not MainQualifier);
