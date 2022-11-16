@@ -68,95 +68,6 @@ static ptml::Tag getTypeKeyword(const model::Type &T) {
   return TypeKeyword;
 }
 
-class PrintTypedefDeclaration {
-  ptml::PTMLIndentedOstream &Out;
-
-  void printNameTypedef(const model::Type &T) {
-    Out << getTypeKeyword(T) << " " << helpers::Packed
-        << " " + ptml::getLocationReference(T) + ";\n";
-  }
-
-public:
-  PrintTypedefDeclaration(ptml::PTMLIndentedOstream &OS) : Out(OS) {}
-
-  void operator()(const model::PrimitiveType &P) {
-    switch (P.PrimitiveKind) {
-
-    case model::PrimitiveTypeKind::Unsigned: {
-      // If it's 16 byte wide we need a typedef, since uint128_t is not defined
-      // by the language
-      if (P.Size == 16)
-        Out << keywords::Typedef << " "
-            << ptml::tokenTag("__uint128_t", tokens::Type) << " "
-            << ptml::getLocationDefinition(P) << ";\n";
-      else if (Log.isEnabled())
-        Out << helpers::lineComment("not necessary, already in stdint.h");
-
-    } break;
-
-    case model::PrimitiveTypeKind::Signed: {
-      if (P.Size == 16)
-        Out << keywords::Typedef << " "
-            << ptml::tokenTag("__int128_t", tokens::Type) << " "
-            << ptml::getLocationDefinition(P) << ";\n";
-      else if (Log.isEnabled())
-        Out << helpers::lineComment("not necessary, already in stdint.h");
-
-    } break;
-
-    case model::PrimitiveTypeKind::Void: {
-      if (Log.isEnabled())
-        Out << helpers::lineComment("not necessary, already in stdint.h");
-    } break;
-
-    case model::PrimitiveTypeKind::Float: {
-      if (Log.isEnabled())
-        Out << helpers::lineComment("not necessary, already in revngfloat.h");
-    } break;
-
-    case model::PrimitiveTypeKind::Number:
-    case model::PrimitiveTypeKind::PointerOrNumber:
-    case model::PrimitiveTypeKind::Generic: {
-      std::string IntType = [&P]() constexpr {
-        switch (P.Size) {
-        case 1:
-          return "uint8_t";
-        case 2:
-          return "uint16_t";
-        case 4:
-          return "uint32_t";
-        case 8:
-          return "uint64_t";
-        case 16:
-          return "__uint128_t";
-        default:
-          return "";
-        }
-      }
-      ();
-      if (!IntType.empty())
-        Out << keywords::Typedef << " " << ptml::tokenTag(IntType, tokens::Type)
-            << " " << ptml::getLocationDefinition(P) << ";\n";
-    } break;
-
-    default:
-      if (Log.isEnabled())
-        Out << helpers::lineComment("invalid primitive type");
-      revng_abort("Invalid primitive type");
-    }
-  }
-
-  void operator()(const model::EnumType &E) { printNameTypedef(E); }
-
-  void operator()(const model::StructType &S) { printNameTypedef(S); }
-
-  void operator()(const model::UnionType &U) { printNameTypedef(U); }
-
-  void operator()(auto &) {
-    revng_abort("Printing typedef declaration of unexpected type kind");
-  }
-};
-
 static void printForwardDeclaration(const model::Type &T,
                                     ptml::PTMLIndentedOstream &Header) {
   auto TypeNameReference = ptml::getLocationReference(T);
@@ -383,7 +294,8 @@ static void printDeclaration(const model::Type &T,
   } break;
 
   case model::TypeKind::PrimitiveType: {
-    PrintTypedefDeclaration{ Header }(cast<model::PrimitiveType>(T));
+    // Do nothing. Primitive type declarations are all present in
+    // revng-primitive-types.h
   } break;
 
   case model::TypeKind::EnumType: {
@@ -521,7 +433,7 @@ bool dumpModelToHeader(const model::Binary &Model, llvm::raw_ostream &Out) {
     Header << helpers::pragmaOnce();
     Header << helpers::includeAngle("stdint.h");
     Header << helpers::includeAngle("stdbool.h");
-    Header << helpers::includeQuote("revngfloat.h");
+    Header << helpers::includeQuote("revng-primitive-types.h");
     Header << "\n";
 
     Header << directives::IfNotDef << " " << constants::Null << "\n"
