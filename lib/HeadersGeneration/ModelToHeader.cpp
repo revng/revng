@@ -307,10 +307,7 @@ static void printDeclaration(const model::RawFunctionType &F,
   Header << keywords::Typedef << " ";
   // In this case, we are defining a type for the function, not the function
   // itself, so the token right before the parenthesis is the name of the type.
-  printFunctionTypeDeclaration(F,
-                               ptml::getLocationDefinition(F),
-                               Header,
-                               Model);
+  printFunctionTypeDeclaration(F, Header, Model);
   Header << ";\n";
 }
 
@@ -363,10 +360,7 @@ static void printDeclaration(const model::CABIFunctionType &F,
   Header << keywords::Typedef << " ";
   // In this case, we are defining a type for the function, not the function
   // itself, so the token right before the parenthesis is the name of the type.
-  printFunctionTypeDeclaration(F,
-                               ptml::getLocationDefinition(F),
-                               Header,
-                               Model);
+  printFunctionTypeDeclaration(F, Header, Model);
   Header << ";\n";
 }
 
