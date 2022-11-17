@@ -5,6 +5,7 @@
 #include <optional>
 #include <set>
 
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 
@@ -17,6 +18,7 @@
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Pipeline/RegisterLLVMPass.h"
+#include "revng/Support/IRHelpers.h"
 #include "revng/Support/OverflowSafeInt.h"
 
 #include "revng-c/Pipes/Kinds.h"
@@ -249,7 +251,7 @@ private:
   IRBuilder<> SABuilder;
   model::VerifyHelper VH;
   const size_t CallInstructionPushSize = 0;
-  Type *SPType = nullptr;
+  Type *StackPointerType = nullptr;
   std::map<Function *, Function *> OldToNew;
   std::set<Function *> FunctionsWithStackArguments;
   std::map<Function *, StackAccessRedirector> StackArgumentsRedirectors;
@@ -270,7 +272,7 @@ public:
     InitLocalSP(M.getFunction("revng_init_local_sp")),
     SABuilder(M.getContext()),
     CallInstructionPushSize(getCallPushSize(Binary)),
-    SPType(StackPointer->getType()->getPointerElementType()),
+    StackPointerType(StackPointer->getType()->getPointerElementType()),
     PtrSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
     AddressOfPool(&M, false),
     Cache(&Cache) {
@@ -279,9 +281,8 @@ public:
 
     initAddressOfPool(AddressOfPool, &M);
 
-    auto StackAllocatorType = FunctionType::get(SPType, { SPType }, false);
-    auto Create = [&StackAllocatorType, &M](StringRef Name) {
-      auto *Result = Function::Create(StackAllocatorType,
+    auto Create = [&M](StringRef Name, llvm::FunctionType *FType) {
+      auto *Result = Function::Create(FType,
                                       GlobalValue::ExternalLinkage,
                                       Name,
                                       &M);
@@ -296,8 +297,16 @@ public:
       return Result;
     };
 
-    StackFrameAllocator = Create("revng_stack_frame");
-    CallStackArgumentsAllocator = Create("revng_call_stack_arguments");
+    StackFrameAllocator = Create("revng_stack_frame",
+                                 FunctionType::get(StackPointerType,
+                                                   { StackPointerType },
+                                                   false));
+    llvm::Type *StringPtrType = getStringPtrType(M.getContext());
+    CallStackArgumentsAllocator = Create("revng_call_stack_arguments",
+                                         FunctionType::get(StackPointerType,
+                                                           { StringPtrType,
+                                                             StackPointerType },
+                                                           false));
   }
 
 public:
@@ -681,6 +690,7 @@ private:
       uint64_t NewSize = *ArgumentType.size();
 
       switch (ModelArgument.Kind) {
+
       case ArgumentKind::Scalar: {
         revng_assert(ArgumentType.isScalar());
         Value *Accumulator = ConstantInt::get(LLVMType, 0);
@@ -749,12 +759,18 @@ private:
 
         Arguments.push_back(Accumulator);
       } break;
+
       case ArgumentKind::ReferenceToAggregate: {
         // Allocate memory for stack arguments
+        std::string SerializedArgType = serializeToString(ModelArgument.Type);
+        llvm::Constant *ArgumentType = buildStringPtr(&M,
+                                                      SerializedArgType,
+                                                      "");
         auto [StackArgsCall,
               AddrOfCall] = createCallWithAddressOf(SABuilder,
                                                     ModelArgument.Type,
                                                     CallStackArgumentsAllocator,
+                                                    ArgumentType,
                                                     NewSize);
 
         StackArgsCall->setMetadata("revng.callerblock.start", MD);
@@ -786,9 +802,11 @@ private:
 
         Arguments.push_back(StackArgsCall);
       } break;
+
       case ArgumentKind::ShadowPointerToAggregateReturnValue: {
 
       } break;
+
       default:
         revng_abort();
       }
@@ -954,7 +972,7 @@ private:
   }
 
   Constant *getSPConstant(uint64_t Value) const {
-    return ConstantInt::get(SPType, Value);
+    return ConstantInt::get(StackPointerType, Value);
   }
 
   Value *computeAddress(IRBuilder<> &B,

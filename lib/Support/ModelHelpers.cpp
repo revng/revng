@@ -2,6 +2,8 @@
 // Copyright rev.ng Labs Srl. See LICENSE.md for details.
 //
 
+#include <utility>
+
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -15,6 +17,7 @@
 #include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
+#include "revng/Model/PrimitiveTypeKind.h"
 #include "revng/Model/QualifiedType.h"
 #include "revng/Model/Qualifier.h"
 #include "revng/Model/RawFunctionType.h"
@@ -378,38 +381,13 @@ getStrongModelInfo(FunctionMetadataCache &Cache,
         ReturnTypes.push_back(QualifiedType{ StackType, {} });
 
       } else if (FuncName.startswith("revng_call_stack_arguments")) {
-        // Helper lambda to check that the first arguments of two call
-        // instructions are the same
-        const auto SameArg0 = [](const llvm::CallInst *C1,
-                                 const llvm::CallInst *C2) {
-          return C1->getArgOperand(0) == C2->getArgOperand(0);
-        };
 
-        // Look among users for a call to a strongly typed opcode.
-        const llvm::CallInst *TypedOpcodeCall = nullptr;
-        for (const llvm::User *U : Call->users()) {
-          if (auto *AO = isCallToTagged(U, FunctionTags::AddressOf)) {
-            revng_assert(not TypedOpcodeCall or SameArg0(AO, TypedOpcodeCall));
-            TypedOpcodeCall = AO;
-          } else if (auto *MGEP = isCallToTagged(U, FunctionTags::ModelGEP)) {
-            revng_assert(not TypedOpcodeCall
-                         or SameArg0(MGEP, TypedOpcodeCall));
-            TypedOpcodeCall = MGEP;
-          } else if (auto *
-                       MGEPRef = isCallToTagged(U, FunctionTags::ModelGEPRef)) {
-            revng_assert(not TypedOpcodeCall
-                         or SameArg0(MGEPRef, TypedOpcodeCall));
-            TypedOpcodeCall = MGEPRef;
-          }
-        }
-        // If we don't find a strongly typed user there's something wrong.
-        revng_assert(TypedOpcodeCall);
+        auto *Arg0Operand = Call->getArgOperand(0);
+        QualifiedType
+          CallStackArgumentType = deserializeFromLLVMString(Arg0Operand, Model);
+        revng_assert(not CallStackArgumentType.isVoid());
 
-        // Then we just use the type of the the strongly typed users, which is
-        // encoded in the first argument.
-        auto Type = deserializeFromLLVMString(TypedOpcodeCall->getArgOperand(0),
-                                              Model);
-        ReturnTypes.push_back(Type);
+        ReturnTypes.push_back(std::move(CallStackArgumentType));
       }
     }
   } else if (auto *EV = llvm::dyn_cast<llvm::ExtractValueInst>(Inst)) {
