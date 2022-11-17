@@ -2087,14 +2087,8 @@ public:
     if (It != GlobalModelGEPTypeArgs.end())
       return It->second;
 
-    std::string SerializedQT;
-    {
-      llvm::raw_string_ostream StringStream(SerializedQT);
-      llvm::yaml::Output YAMLOutput(StringStream);
-      YAMLOutput << QT;
-    }
     It = GlobalModelGEPTypeArgs
-           .insert({ QT, buildStringPtr(&M, SerializedQT, "") })
+           .insert({ QT, buildStringPtr(&M, serializeToString(QT), "") })
            .first;
     return It->second;
   }
