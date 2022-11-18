@@ -52,13 +52,23 @@ void RootKind::getInvalidations(const Context &Ctx,
   if (not Diff)
     return;
 
-  const TupleTreePath ToCheck = *stringAsPath<model::Binary>("/ExtraCodeAddre"
-                                                             "ss"
-                                                             "es");
+  static constexpr std::array Matchers = { "/Architecture",
+                                           "/Entrypoint",
+                                           "/Segments/*/StartOffset",
+                                           "/Segments/*/FileSize",
+                                           "/Segments/*/IsExecutable",
+                                           "/Segments/*/Relocations",
+                                           "/ExtraCodeAddresses",
+                                           "/Functions",
+                                           "/ImportedDynamicFunctions" };
 
-  bool RootChanged = llvm::any_of(Diff->Changes, [&ToCheck](const auto &Entry) {
-    const auto &[Path, Old, New] = Entry;
-    return ToCheck.isPrefixOf(Path);
+  bool RootChanged = llvm::any_of(Diff->Changes, [](const auto &E) {
+    const auto &[Path, Old, New] = E;
+    for (const auto &Matcher : Matchers) {
+      if (stringAsPath<model::Binary>(Matcher)->isPrefixOf(Path))
+        return true;
+    }
+    return false;
   });
 
   if (RootChanged)
