@@ -247,7 +247,6 @@ private:
   std::set<Instruction *> ToPurge;
   /// Builder for StackArgumentsAllocator calls
   IRBuilder<> SABuilder;
-  // MFIResult Result;
   model::VerifyHelper VH;
   const size_t CallInstructionPushSize = 0;
   Type *SPType = nullptr;
