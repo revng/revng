@@ -594,12 +594,12 @@ private:
 };
 
 template<UpcastablePointerLike P, typename L>
-void invokeBySerializedKey(llvm::StringRef SerializedKey, const L &Callable) {
+void invokeBySerializedKey(llvm::StringRef SerializedKey, L &&Callable) {
   using element_type = std::remove_reference_t<decltype(*std::declval<P>())>;
   using KOT = KeyedObjectTraits<element_type>;
   using KeyT = decltype(KOT::key(std::declval<element_type>()));
   auto Key = getValueFromYAMLScalar<KeyT>(SerializedKey);
-  invokeByKey<P, KeyT, L>(Key, Callable);
+  invokeByKey<P, KeyT, L>(Key, std::forward<L>(Callable));
 }
 
 template<UpcastablePointerLike T>

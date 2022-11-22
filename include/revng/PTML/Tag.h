@@ -11,6 +11,7 @@
 #include "llvm/ADT/StringMap.h"
 
 #include "revng/ADT/Concepts.h"
+#include "revng/PTML/Constants.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/YAMLTraits.h"
@@ -82,6 +83,11 @@ public:
 
   bool verify() const debug_function { return !TheTag.empty(); }
 };
+
+inline Tag scopeTag(const llvm::StringRef AttributeName) {
+  return Tag(ptml::tags::Div)
+    .addAttribute(ptml::attributes::Scope, AttributeName);
+}
 
 inline std::string operator+(const Tag &LHS, const llvm::StringRef RHS) {
   return LHS.serialize() + RHS.str();

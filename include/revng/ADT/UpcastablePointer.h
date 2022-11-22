@@ -57,7 +57,7 @@ concept NotUpcastablePointerLike = not UpcastablePointerLike<T>;
 // clang-format off
 template<typename ReturnT, typename L, UpcastablePointerLike P, size_t I = 0>
   requires(not std::is_void_v<ReturnT>)
-ReturnT upcast(P &&Upcastable, const L &Callable, const ReturnT &IfNull) {
+ReturnT upcast(P &&Upcastable, L &&Callable, const ReturnT &IfNull) {
   // clang-format on
   using pointee = std::remove_reference_t<decltype(*Upcastable)>;
   using concrete_types = concrete_types_traits_t<pointee>;
@@ -70,7 +70,9 @@ ReturnT upcast(P &&Upcastable, const L &Callable, const ReturnT &IfNull) {
     if (auto *Upcasted = llvm::dyn_cast<type>(Pointer)) {
       return Callable(*Upcasted);
     } else {
-      return upcast<ReturnT, L, P, I + 1>(Upcastable, Callable, IfNull);
+      return upcast<ReturnT, L, P, I + 1>(Upcastable,
+                                          std::forward<L>(Callable),
+                                          IfNull);
     }
   } else {
     revng_abort();
@@ -78,7 +80,7 @@ ReturnT upcast(P &&Upcastable, const L &Callable, const ReturnT &IfNull) {
 }
 
 template<typename L, UpcastablePointerLike P>
-void upcast(P &&Upcastable, const L &Callable) {
+void upcast(P &&Upcastable, L &&Callable) {
   auto Wrapper = [&](auto &Upcasted) {
     Callable(Upcasted);
     return true;
@@ -87,7 +89,7 @@ void upcast(P &&Upcastable, const L &Callable) {
 }
 
 template<UpcastablePointerLike P, typename KeyT, typename L>
-void invokeByKey(const KeyT &Key, const L &Callable) {
+void invokeByKey(const KeyT &Key, L &&Callable) {
   auto Upcastable = KeyedObjectTraits<P>::fromKey(Key);
 
   upcast(Upcastable, [&Callable]<typename UpcastedT>(const UpcastedT &C) {
@@ -96,7 +98,7 @@ void invokeByKey(const KeyT &Key, const L &Callable) {
 }
 
 template<UpcastablePointerLike P, typename KeyT, typename L, typename ReturnT>
-ReturnT invokeByKey(const KeyT &Key, const L &Callable, const ReturnT &IfNull) {
+ReturnT invokeByKey(const KeyT &Key, L &&Callable, const ReturnT &IfNull) {
   auto Upcastable = KeyedObjectTraits<P>::fromKey(Key);
 
   auto ToCall = [&Callable]<typename UpcastedT>(const UpcastedT &C) {
@@ -125,13 +127,13 @@ private:
 
 public:
   template<typename L>
-  void upcast(const L &Callable) {
-    ::upcast(Pointer, Callable);
+  void upcast(L &&Callable) {
+    ::upcast(Pointer, std::forward<L>(Callable));
   }
 
   template<typename L>
-  void upcast(const L &Callable) const {
-    ::upcast(Pointer, Callable);
+  void upcast(L &&Callable) const {
+    ::upcast(Pointer, std::forward<L>(Callable));
   }
 
 private:

@@ -55,6 +55,8 @@ public:
   bool isArray() const;
   /// Checks if is a pointer type, unwrapping typedefs
   bool isPointer() const;
+  /// Checks if is a const type, unwrapping typedefs
+  bool isConst() const;
   /// Checks if is of a given TypeKind, unwrapping typedefs
   bool is(model::TypeKind::Values K) const;
 
