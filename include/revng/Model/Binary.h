@@ -129,10 +129,9 @@ public:
   bool verifyTypes(VerifyHelper &VH) const;
 
 public:
-  bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   bool verify(VerifyHelper &VH) const;
-  void verify(revng::ErrorList &EL) const;
+  bool verify() const;
   void dump() const debug_function;
   void dumpTypeGraph(const char *Path) const debug_function;
   std::string toString() const debug_function;
