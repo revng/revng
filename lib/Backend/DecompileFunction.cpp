@@ -75,10 +75,10 @@ using modelEditPath::getCustomNamePath;
 using pipeline::serializedLocation;
 using ptml::str;
 using ptml::Tag;
-namespace tags = ptml::tags;
-namespace attributes = ptml::attributes;
-namespace tokens = ptml::c::tokenTypes;
 namespace ranks = revng::ranks;
+namespace attributes = ptml::attributes;
+namespace tokens = ptml::c::tokens;
+namespace tags = ptml::tags;
 
 using tokenDefinition::types::StringToken;
 using tokenDefinition::types::TypeString;
@@ -266,8 +266,8 @@ private:
 
 private:
   /// Name of the local variable used to break out from loops
-  StringToken LoopStateVar;
-  StringToken LoopStateVarDeclaration;
+  std::string LoopStateVar;
+  std::string LoopStateVarDeclaration;
 
 private:
   /// Emission of parentheses may change whether the OPRP is enabled or not
@@ -292,21 +292,10 @@ public:
     Out(Out, 4),
     SwitchStateVars() {
     // TODO: don't use a global loop state variable
-    std::string
-      LoopStateVarLocation = serializedLocation(ranks::SpecialVariable,
-                                                ModelFunction.key(),
-                                                "loop_state_var");
-    LoopStateVar = Tag(tags::Span, "loop_state_var")
-                     .addAttribute(attributes::Token, tokens::Variable)
-                     .addAttribute(attributes::LocationReferences,
-                                   LoopStateVarLocation)
-                     .serialize();
-    LoopStateVarDeclaration = Tag(tags::Span, "loop_state_var")
-                                .addAttribute(attributes::Token,
-                                              tokens::Variable)
-                                .addAttribute(attributes::LocationDefinition,
-                                              LoopStateVarLocation)
-                                .serialize();
+    LoopStateVar = getVariableLocationReference("loop_state_var",
+                                                ModelFunction);
+    LoopStateVarDeclaration = getVariableLocationDefinition("loop_state_var",
+                                                            ModelFunction);
 
     if (LLVMFunction.getMetadata(ExplicitParenthesesMDName))
       IsOperatorPrecedenceResolutionPassEnabled = true;
@@ -381,44 +370,16 @@ private:
   /// Implements special naming policies for special variables (e.g. stack
   /// frame)
   VariableTokens createVarName(const llvm::Value *V) {
-    if (auto *I = dyn_cast<Instruction>(V)) {
-
-      if (isCallTo(I, "revng_stack_frame")) {
-        auto Location = serializedLocation(ranks::SpecialVariable,
-                                           ModelFunction.key(),
-                                           StackFrameVarName);
-        return { Tag(tags::Span, StackFrameVarName)
-                   .addAttribute(attributes::Token, tokens::Variable)
-                   .addAttribute(attributes::LocationDefinition, Location),
-                 Tag(tags::Span, StackFrameVarName)
-                   .addAttribute(attributes::Token, tokens::Variable)
-                   .addAttribute(attributes::LocationReferences, Location) };
-      }
-
-      if (isCallTo(I, "revng_call_stack_argument")) {
-        StringToken VarName = NameGenerator.nextStackArgsVar();
-        auto Location = serializedLocation(ranks::SpecialVariable,
-                                           ModelFunction.key(),
-                                           VarName.str().str());
-        return { Tag(tags::Span, VarName)
-                   .addAttribute(attributes::Token, tokens::Variable)
-                   .addAttribute(attributes::LocationDefinition, Location),
-                 Tag(tags::Span, VarName)
-                   .addAttribute(attributes::Token, tokens::Variable)
-                   .addAttribute(attributes::LocationReferences, Location) };
-      }
+    StringToken VarName;
+    if (isCallTo(V, "revng_stack_frame")) {
+      VarName = StackFrameVarName;
+    } else if (isCallTo(V, "revng_call_stack_argument")) {
+      VarName = NameGenerator.nextStackArgsVar();
+    } else {
+      VarName = NameGenerator.nextVarName();
     }
-
-    StringToken Name = NameGenerator.nextVarName();
-    Tag DeclareVarTag = Tag(tags::Span, Name.str())
-                          .addAttribute(attributes::Token, tokens::Variable);
-    Tag UseVarTag = Tag(DeclareVarTag);
-    std::string Location = serializedLocation(ranks::LocalVariable,
-                                              ModelFunction.key(),
-                                              Name.str().str());
-    DeclareVarTag.addAttribute(attributes::LocationDefinition, Location);
-    UseVarTag.addAttribute(attributes::LocationReferences, Location);
-    return { DeclareVarTag, UseVarTag };
+    return { getVariableLocationDefinition(VarName.str(), ModelFunction),
+             getVariableLocationReference(VarName.str(), ModelFunction) };
   }
 
   /// Returns a variable name and a boolean indicating if the variable is new
@@ -542,8 +503,8 @@ CCodeGenerator::addOperandToken(const llvm::Value *Operand) {
     revng_assert(isa<llvm::Instruction>(Operand),
                  "The only aggregate operands should be generated by "
                  "special-cased instructions");
-    // 2. aggregates returned by special-cased call functions, which should have
-    // already added a token for this operand at this point
+    // 2. aggregates returned by special-cased call functions, which should
+    // have already added a token for this operand at this point
     revng_assert(TokenMap.contains(Operand),
                  "Tokens for aggregate operands should have already be "
                  "inserted when visiting the instruction tha returns such "
@@ -635,7 +596,8 @@ CCodeGenerator::addOperandToken(const llvm::Value *Operand) {
   }
 
   if (auto *ConstExpr = dyn_cast<llvm::ConstantExpr>(Operand)) {
-    // A constant expression might have its own uninitialized constant operands
+    // A constant expression might have its own uninitialized constant
+    // operands
     for (const llvm::Value *Op : ConstExpr->operand_values())
       rc_recur addOperandToken(Op);
 
@@ -723,8 +685,8 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
     ++CurArg;
     if (CurArg == Call->arg_end()) {
       if (not IsRef) {
-        // If there are no further arguments, we are just dereferencing the base
-        // value
+        // If there are no further arguments, we are just dereferencing the
+        // base value
         Expression = buildDerefExpr(Expression);
       } else {
         // Dereferencing a reference does not produce any code
@@ -770,26 +732,13 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
           const auto *UnqualType = CurType.UnqualifiedType.getConst();
 
           if (auto *Struct = dyn_cast<model::StructType>(UnqualType)) {
-            CurExpr += Tag(tags::Span, Struct->Fields.at(FieldIdx).name().str())
-                         .addAttribute(attributes::Token, tokens::Field)
-                         .addAttribute(attributes::LocationReferences,
-                                       serializedLocation(ranks::StructField,
-                                                          Struct->key(),
-                                                          FieldIdx))
-                         .addAttribute(attributes::ModelEditPath,
-                                       getCustomNamePath(*Struct, FieldIdx))
-                         .serialize();
+            const model::StructField &Field = Struct->Fields.at(FieldIdx);
+            CurExpr += ptml::getLocationReference(*Struct, Field);
             CurType = Struct->Fields.at(FieldIdx).Type;
+
           } else if (auto *Union = dyn_cast<model::UnionType>(UnqualType)) {
-            CurExpr += Tag(tags::Span, Union->Fields.at(FieldIdx).name().str())
-                         .addAttribute(attributes::Token, tokens::Field)
-                         .addAttribute(attributes::LocationReferences,
-                                       serializedLocation(ranks::UnionField,
-                                                          Union->key(),
-                                                          FieldIdx))
-                         .addAttribute(attributes::ModelEditPath,
-                                       getCustomNamePath(*Union, FieldIdx))
-                         .serialize();
+            const model::UnionField &Field = Union->Fields.at(FieldIdx);
+            CurExpr += ptml::getLocationReference(*Union, Field);
             CurType = Union->Fields.at(FieldIdx).Type;
 
           } else {
@@ -849,8 +798,8 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
 
   } else if (FunctionTags::StructInitializer.isTagOf(CalledFunc)) {
     // Struct initializers should be used only to pack together return values
-    // of RawFunctionTypes that return multiple values, therefore they must have
-    // the same type as the function's return type
+    // of RawFunctionTypes that return multiple values, therefore they must
+    // have the same type as the function's return type
     llvm::StructType *StructTy = cast<llvm::StructType>(Call->getType());
     revng_assert(Call->getFunction()->getReturnType() == StructTy);
 
@@ -900,14 +849,7 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
     model::Segment Segment = Model.Segments.at({ StartAddress, VirtualSize });
     auto Name = Segment.name();
 
-    Expression = Tag(tags::Span, Segment.name().str())
-                   .addAttribute(attributes::Token, tokens::Variable)
-                   .addAttribute(attributes::ModelEditPath,
-                                 getCustomNamePath(Segment))
-                   .addAttribute(attributes::LocationReferences,
-                                 serializedLocation(ranks::Segment,
-                                                    Segment.key()))
-                   .serialize();
+    Expression = ptml::getLocationReference(Segment);
 
   } else if (FunctionTags::Assign.isTagOf(CalledFunc)) {
     const llvm::Value *StoredVal = Call->getArgOperand(0);
@@ -924,18 +866,11 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
 
   } else if (FunctionTags::QEMU.isTagOf(CalledFunc)
              or FunctionTags::Helper.isTagOf(CalledFunc)
-             or CalledFunc->isIntrinsic()
-             or FunctionTags::OpaqueCSVValue.isTagOf(CalledFunc)) {
+             or FunctionTags::OpaqueCSVValue.isTagOf(CalledFunc)
+             or CalledFunc->isIntrinsic()) {
 
-    std::string
-      FunctionName = model::Identifier::fromString(FuncName).str().str();
-    Tag FunctionTag = tokenTag(FunctionName, tokens::Function)
-                        .addAttribute(attributes::LocationReferences,
-                                      serializedLocation(ranks::Helpers,
-                                                         FunctionName));
-    Expression = buildFuncCallExpr(Call,
-                                   FunctionTag.serialize(),
-                                   /*prototype=*/nullptr);
+    std::string HelperRef = getHelperFunctionLocationReference(CalledFunc);
+    Expression = buildFuncCallExpr(Call, HelperRef, /*prototype=*/nullptr);
 
     // If this call returns an aggregate type, we have to serialize the call
     // immediately and declare a local variable for it on-the-fly. This is
@@ -948,7 +883,7 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
 
       // Declare a new local variable if it hasn't already been declared
       if (VarNames.hasDeclaration())
-        Out << getReturnType(Call->getCalledFunction()).Use << " "
+        Out << getReturnTypeLocationReference(Call->getCalledFunction()) << " "
             << VarNames.Declaration;
       else
         Out << VarNames.Use;
@@ -1059,8 +994,8 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
           Expression = VarNames.Use;
         }
       } else if (auto *CPrototype = dyn_cast<CABIFunctionType>(Prototype)) {
-        // CABIFunctionTypes are allowed to return arrays, which get enclosed in
-        // a wrapper whose type name is derive by the callee. If we were to
+        // CABIFunctionTypes are allowed to return arrays, which get enclosed
+        // in a wrapper whose type name is derive by the callee. If we were to
         // postpone the emission to the next `AssignmentMarker`, we would
         // loose information on the name of the return struct.
         if (CPrototype->ReturnType.isArray()) {
@@ -1086,9 +1021,9 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
 
   } else if (auto *Load = dyn_cast<llvm::LoadInst>(&I)) {
     const llvm::Value *LoadedArg = Load->getPointerOperand();
-    // The pointer operand's type and the actual loaded value's type might have
-    // a mismatch. In this case, we want to cast the pointer operand to correct
-    // type pointer before dereferencing it.
+    // The pointer operand's type and the actual loaded value's type might
+    // have a mismatch. In this case, we want to cast the pointer operand to
+    // correct type pointer before dereferencing it.
     QualifiedType ResultPtrType = Model.getPointerTo(TypeMap.at(Load));
     Expression = (buildDerefExpr(buildCastExpr(TokenMap.at(LoadedArg),
                                                TypeMap.at(LoadedArg),
@@ -1151,8 +1086,8 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
     // This is never emitted directly in the BB: it is used when emitting
     // control-flow statements during the GHAST visit
   } else if (isa<llvm::IntToPtrInst>(&I) or isa<llvm::PtrToIntInst>(&I)) {
-    // Pointer <-> Integer casts are transparent, since the distinction between
-    // integers and pointers is left to the model to decide
+    // Pointer <-> Integer casts are transparent, since the distinction
+    // between integers and pointers is left to the model to decide
     const llvm::Value *Operand = I.getOperand(0);
     Expression = TokenMap.at(Operand);
 
@@ -1202,16 +1137,36 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
     // Note: ExtractValues at this point should have been already
     // handled when visiting the instruction that generated their
     // struct operand
-    // revng_assert(TokenMap.contains(&I));
     revng_assert(ExtractVal->getNumIndices() == 1);
-
     const auto &Idx = ExtractVal->getIndices().back();
     const llvm::Value *AggregateOp = ExtractVal->getAggregateOperand();
-    const auto *AggregateType = cast<llvm::StructType>(AggregateOp->getType());
 
-    Expression = (TokenMap.at(AggregateOp) + "."
-                  + getFieldInfo(AggregateType, Idx).FieldName)
-                   .str();
+    const auto *CallReturnsStruct = llvm::cast<llvm::CallInst>(AggregateOp);
+    const llvm::Function *Callee = CallReturnsStruct->getCalledFunction();
+    // Unwrap potential calls to assignment marker
+    if (Callee and FunctionTags::AssignmentMarker.isTagOf(Callee)) {
+      const llvm::Value *FirstArg = CallReturnsStruct->getArgOperand(0);
+      CallReturnsStruct = llvm::cast<llvm::CallInst>(FirstArg);
+      Callee = CallReturnsStruct->getCalledFunction();
+      revng_assert(not Callee
+                   or not FunctionTags::AssignmentMarker.isTagOf(Callee));
+    }
+
+    const auto CalleePrototype = getCallSitePrototype(Model, CallReturnsStruct);
+
+    std::string StructFieldRef;
+    if (not CalleePrototype.isValid()) {
+      // The call returning a struct is a call to a helper function.
+      // It must be a direct call.
+      revng_assert(Callee);
+      StructFieldRef = getReturnStructFieldLocationReference(Callee, Idx);
+    } else {
+      const model::Type *CalleeType = CalleePrototype.getConst();
+      const auto *RFT = llvm::cast<model::RawFunctionType>(CalleeType);
+      StructFieldRef = getReturnField(*RFT, Idx).str().str();
+    }
+
+    Expression.assign(TokenMap.at(AggregateOp) + "." + StructFieldRef);
 
   } else if (auto *Unreach = dyn_cast<llvm::UnreachableInst>(&I)) {
     Expression = "__builtin_unreachable()";
@@ -1455,16 +1410,11 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     if (Switch->needsStateVariable()) {
       revng_assert(Switch->needsLoopBreakDispatcher());
       StringToken NewVarName = NameGenerator.nextSwitchStateVar();
-      std::string Location = serializedLocation(ranks::SpecialVariable,
-                                                ModelFunction.key(),
-                                                NewVarName.str().str());
-      Tag SwitchStateTag = tokenTag(NewVarName, tokens::Variable)
-                             .addAttribute(attributes::LocationReferences,
-                                           Location);
-      SwitchStateVars.push_back(SwitchStateTag.serialize());
-      Out << tokenTag("bool", tokens::Type) << " "
-          << tokenTag(NewVarName, tokens::Variable)
-               .addAttribute(attributes::LocationDefinition, Location)
+      std::string SwitchStateVar = getVariableLocationReference(NewVarName,
+                                                                ModelFunction);
+      SwitchStateVars.push_back(std::move(SwitchStateVar));
+      Out << ptml::tokenTag("bool", tokens::Type) << " "
+          << getVariableLocationDefinition(NewVarName, ModelFunction)
           << " " + operators::Assign + " " + constants::False + ";\n";
     }
 
@@ -1563,8 +1513,8 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
       Out << "\n";
     }
 
-    // If we're done with a switch that generates a state variable to break out
-    // of loops, pop it from the stack.
+    // If we're done with a switch that generates a state variable to break
+    // out of loops, pop it from the stack.
     if (Switch->needsStateVariable()) {
       revng_assert(Switch->needsLoopBreakDispatcher());
       SwitchStateVars.pop_back();
@@ -1612,49 +1562,22 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
     // Associate each LLVM argument with its name
     for (const auto &[ModelArg, LLVMArg] :
          llvm::zip_first(ModelArgs, LLVMArgs)) {
-      using ranks::RawFunctionArgument;
       revng_log(Log, "Adding token for: " << dumpToString(LLVMArg));
-      Tag(tags::Span, ModelArg.name())
-        .addAttribute(attributes::Token, tokens::FunctionParameter)
-        .addAttribute(attributes::LocationDefinition,
-                      serializedLocation(RawFunctionArgument,
-                                         ModelFunction.key(),
-                                         ModelArg.key()))
-        .serialize();
-      TokenMap
-        [&LLVMArg] = Tag(tags::Span, ModelArg.name())
-                       .addAttribute(attributes::Token,
-                                     tokens::FunctionParameter)
-                       .addAttribute(attributes::LocationReferences,
-                                     serializedLocation(RawFunctionArgument,
-                                                        ModelFunction.key(),
-                                                        ModelArg.key()))
-                       .serialize();
+      std::string ArgIdentifier = model::Identifier::fromString(ModelArg.name())
+                                    .str()
+                                    .str();
+      TokenMap[&LLVMArg] = getArgumentLocationReference(ArgIdentifier,
+                                                        ModelFunction);
     }
 
     // Add a token for the stack arguments
     if (StackArgType.isValid()) {
       const auto *LLVMArg = LLVMFunction.getArg(LLVMArgsNum - 1);
       revng_log(Log, "Adding token for: " << dumpToString(LLVMArg));
-      std::string SA("stack_args");
-      Tag(tags::Span, "stack_args")
-        .addAttribute(attributes::Token, tokens::Variable)
-        .addAttribute(attributes::LocationDefinition,
-                      serializedLocation(ranks::SpecialVariable,
-                                         ModelFunction.key(),
-                                         SA))
-        .serialize();
-      TokenMap
-        [LLVMArg] = Tag(tags::Span, "stack_args")
-                      .addAttribute(attributes::Token, tokens::Variable)
-                      .addAttribute(attributes::LocationReferences,
-                                    serializedLocation(ranks::SpecialVariable,
-                                                       ModelFunction.key(),
-                                                       SA))
-                      .serialize();
+      TokenMap[LLVMArg] = getArgumentLocationReference("stack_args",
+                                                       ModelFunction);
     }
   } else if (auto *CPrototype = dyn_cast<CABIFunctionType>(&ParentPrototype)) {
-    using ranks::CABIFunctionArgument;
 
     const auto &ModelArgs = CPrototype->Arguments;
     const auto &LLVMArgs = LLVMFunction.args();
@@ -1664,22 +1587,11 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
     // Associate each LLVM argument with its name
     for (const auto &[ModelArg, LLVMArg] : llvm::zip(ModelArgs, LLVMArgs)) {
       revng_log(Log, "Adding token for: " << dumpToString(LLVMArg));
-      Tag(tags::Span, ModelArg.name())
-        .addAttribute(attributes::Token, tokens::FunctionParameter)
-        .addAttribute(attributes::LocationDefinition,
-                      serializedLocation(CABIFunctionArgument,
-                                         ModelFunction.key(),
-                                         ModelArg.key()))
-        .serialize();
-      TokenMap
-        [&LLVMArg] = Tag(tags::Span, ModelArg.name())
-                       .addAttribute(attributes::Token,
-                                     tokens::FunctionParameter)
-                       .addAttribute(attributes::LocationReferences,
-                                     serializedLocation(CABIFunctionArgument,
-                                                        ModelFunction.key(),
-                                                        ModelArg.key()))
-                       .serialize();
+      std::string ArgIdentifier = model::Identifier::fromString(ModelArg.name())
+                                    .str()
+                                    .str();
+      TokenMap[&LLVMArg] = getArgumentLocationReference(ArgIdentifier,
+                                                        ModelFunction);
     }
   } else {
     revng_abort("Functions can only have RawFunctionType or "
@@ -1698,7 +1610,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
       // redirect control flow inside loops (e.g. if we want to jump in the
       // middle of a loop during a certain iteration)
       if (NeedsLocalStateVar)
-        Out << tokenTag("uint64_t", tokens::Type) << " "
+        Out << ptml::tokenTag("uint64_t", tokens::Type) << " "
             << LoopStateVarDeclaration << ";\n";
 
       // Declare all variables that have the entire function as a scope
@@ -1723,8 +1635,8 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
           }
 
         } else {
-          // The only types that are allowed to be missing from the TypeMap are
-          // LLVM aggregates returned by RawFunctionTypes or by helpers
+          // The only types that are allowed to be missing from the TypeMap
+          // are LLVM aggregates returned by RawFunctionTypes or by helpers
           auto *Call = llvm::cast<CallInst>(VarToDeclare);
           auto *CalledFunction = Call->getCalledFunction();
           revng_assert(CalledFunction);
@@ -1736,7 +1648,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
             Out << getReturnTypeName(*RawPrototype) << " "
                 << VarName.Declaration << ";\n";
           } else {
-            Out << getReturnType(CalledFunction).Use << " "
+            Out << getReturnTypeLocationReference(CalledFunction) << " "
                 << VarName.Declaration << ";\n";
           }
         }
@@ -1745,8 +1657,8 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
       }
 
       if (not TopScopeVariables.empty()) {
-        // Emit a blank line between top scope declarations and the rest of the
-        // body
+        // Emit a blank line between top scope declarations and the rest of
+        // the body
         Out << "\n";
         decompilerLog(Out, "End of Top-Scope Declarations");
       }

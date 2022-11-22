@@ -40,35 +40,80 @@ using ptml::str;
 using ptml::Tag;
 namespace tags = ptml::tags;
 namespace attributes = ptml::attributes;
-namespace tokens = ptml::c::tokenTypes;
+namespace tokens = ptml::c::tokens;
 namespace ranks = revng::ranks;
 
 using namespace ArtificialTypes;
 
+template<typename FT>
+// clang-format off
+concept ModelFunction = std::same_as<FT, model::Function>
+                        or std::same_as<FT, model::DynamicFunction>;
+// clang-format on
+
+static std::string serializeVariableLocation(llvm::StringRef VariableName,
+                                             const model::DynamicFunction &F) {
+  return pipeline::serializedLocation(ranks::DynamicFunctionArgument,
+                                      F.key(),
+                                      VariableName.str());
+}
+
+static std::string serializeVariableLocation(llvm::StringRef VariableName,
+                                             const model::Function &F) {
+  return pipeline::serializedLocation(ranks::LocalVariable,
+                                      F.key(),
+                                      VariableName.str());
+}
+
+template<bool IsDefinition, ModelFunction FunctionType>
+static std::string
+getArgumentLocation(llvm::StringRef ArgumentName, const FunctionType &F) {
+  return Tag(tags::Span, ArgumentName)
+    .addAttribute(attributes::Token, tokens::FunctionParameter)
+    .addAttribute(ptml::locationAttribute(IsDefinition),
+                  serializeVariableLocation(ArgumentName, F))
+    .serialize();
+}
+
+static std::string
+getArgumentLocationDefinition(llvm::StringRef ArgumentName,
+                              const model::DynamicFunction &F) {
+  return getArgumentLocation<true>(ArgumentName, F);
+}
+
+static std::string getArgumentLocationDefinition(llvm::StringRef ArgumentName,
+                                                 const model::Function &F) {
+  return getArgumentLocation<true>(ArgumentName, F);
+}
+
+std::string getArgumentLocationReference(llvm::StringRef ArgumentName,
+                                         const model::Function &F) {
+  return getArgumentLocation<false>(ArgumentName, F);
+}
+
+template<bool IsDefinition>
+static std::string
+getVariableLocation(llvm::StringRef VariableName, const model::Function &F) {
+  return Tag(tags::Span, VariableName)
+    .addAttribute(attributes::Token, tokens::Variable)
+    .addAttribute(ptml::locationAttribute(IsDefinition),
+                  serializeVariableLocation(VariableName, F))
+    .serialize();
+}
+
+std::string getVariableLocationDefinition(llvm::StringRef VariableName,
+                                          const model::Function &F) {
+  return getVariableLocation<true>(VariableName, F);
+}
+
+std::string getVariableLocationReference(llvm::StringRef VariableName,
+                                         const model::Function &F) {
+  return getVariableLocation<false>(VariableName, F);
+}
+
 TypeString getReturnField(const model::RawFunctionType &F, size_t Index) {
   revng_assert(F.ReturnValues.size() > 1);
   return TypeString((Twine(RetFieldPrefix) + Twine(Index)).str());
-}
-
-TypeString getTypeName(const model::Type &T) {
-  Tag Result;
-
-  if (isa<model::RawFunctionType>(&T) or isa<model::CABIFunctionType>(&T)) {
-    TypeString Name;
-    Name.append(ArtificialTypes::FunctionTypedefPrefix);
-    Name.append(model::Identifier::fromString(T.name()));
-    Result = Tag(tags::Span, Name.str())
-               .addAttribute(attributes::ModelEditPath, getCustomNamePath(T));
-  } else if (isa<model::PrimitiveType>(&T)) {
-    Result = Tag(tags::Span, T.name().str());
-  } else {
-    Result = Tag(tags::Span, T.name().str())
-               .addAttribute(attributes::ModelEditPath, getCustomNamePath(T));
-  }
-  Result.addAttribute(attributes::Token, tokens::Type)
-    .addAttribute(attributes::LocationReferences,
-                  serializedLocation(ranks::Type, T.key()));
-  return TypeString(Result.serialize());
 }
 
 TypeString
@@ -111,9 +156,7 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
         switch (Q.Kind) {
 
         case model::QualifierKind::Const:
-          Result.append(Tag(tags::Span, "const")
-                          .addAttribute(attributes::Token, tokens::Operator)
-                          .serialize());
+          Result.append(keywords::Const.serialize());
           PrevPointer = false;
           break;
         case model::QualifierKind::Pointer:
@@ -173,10 +216,8 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
         // there's no need to do that, because we're still gonna print the
         // const-qualifier for the element.
         if (not ElementIsConstQualified) {
-          const auto &Const = Tag(tags::Span, "const")
-                                .addAttribute(attributes::Token,
-                                              tokens::Operator)
-                                .serialize();
+
+          const auto &Const = keywords::Const.serialize();
           Result = (Twine(" ") + Twine(Const) + Twine(" ") + Twine(Result))
                      .str();
         }
@@ -191,8 +232,9 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
     QIt = QPointerIt;
   } while (QIt != QEnd);
 
-  TypeString UnqualifiedName = getTypeName(*QT.UnqualifiedType.getConst());
-  Result = (Twine(UnqualifiedName) + Twine(" ") + Twine(Result)).str();
+  const model::Type &Unqualified = *QT.UnqualifiedType.getConst();
+  std::string TypeName = ptml::getLocationReference(Unqualified);
+  Result = (Twine(TypeName) + Twine(" ") + Twine(Result)).str();
 
   return Result;
 }
@@ -244,10 +286,10 @@ TypeString getReturnTypeName(const model::RawFunctionType &F) {
   } else {
     // RawFunctionTypes can return multiple values, which need to be wrapped
     // in a struct
-    Result = tokenTag((Twine(RetStructPrefix) + "returned_by_"
-                       + model::Identifier::fromString(F.name()))
-                        .str(),
-                      tokens::Type)
+    Result = ptml::tokenTag((Twine(RetStructPrefix) + "returned_by_"
+                             + model::Identifier::fromString(F.name()))
+                              .str(),
+                            tokens::Type)
                .serialize();
   }
 
@@ -270,73 +312,91 @@ TypeString getReturnTypeName(const model::CABIFunctionType &F) {
   return Result;
 }
 
-using model::NamedTypedRegister;
-using std::function;
-using RawArgumentPrinter = function<std::string(const NamedTypedRegister &)>;
-static void printFunctionPrototypeImpl(const model::RawFunctionType &RF,
+template<ModelFunction FunctionType>
+static void printFunctionPrototypeImpl(const FunctionType *Function,
+                                       const model::RawFunctionType &RF,
                                        const llvm::StringRef &FunctionName,
-                                       RawArgumentPrinter ArgumentPrinter,
-                                       const llvm::StringRef StackVarsName,
                                        llvm::raw_ostream &Header,
                                        const model::Binary &Model,
                                        bool Declaration) {
-  Header << getReturnTypeName(RF) << " " << FunctionName;
+  Header << getReturnTypeName(RF);
+  if (RF.ReturnValues.size() == 1) {
+    const model::QualifiedType &ReturnType = RF.ReturnValues.begin()->Type;
+    if (not ReturnType.isPointer() or ReturnType.isConst())
+      Header << " ";
+  } else {
+    Header << " ";
+  }
+  Header << FunctionName;
 
   revng_assert(RF.StackArgumentsType.Qualifiers.empty());
   if (RF.Arguments.empty()
       and not RF.StackArgumentsType.UnqualifiedType.isValid()) {
-    Header << "(" << tokenTag("void", tokens::Type) << ")";
+    Header << "(" << ptml::tokenTag("void", tokens::Type) << ")";
   } else {
     const StringRef Open = "(";
     const StringRef Comma = ", ";
     StringRef Separator = Open;
     for (const auto &Arg : RF.Arguments) {
-      std::string ArgumentName = ArgumentPrinter(Arg);
-      Header << Separator << getNamedCInstance(Arg.Type, ArgumentName);
+      auto ArgName = model::Identifier::fromString(Arg.name()).str().str();
+      std::string ArgString = Function ?
+                                getArgumentLocationDefinition(ArgName,
+                                                              *Function) :
+                                "";
+      Header << Separator << getNamedCInstance(Arg.Type, ArgString);
       Separator = Comma;
     }
 
     revng_assert(RF.StackArgumentsType.Qualifiers.empty());
     if (RF.StackArgumentsType.UnqualifiedType.isValid()) {
       // Add last argument representing a pointer to the stack arguments
+      auto StackArgName = Function ? getArgumentLocationDefinition("stack_args",
+                                                                   *Function) :
+                                     "";
       Header << Separator
              << getNamedCInstance(Model.getPointerTo(RF.StackArgumentsType),
-                                  StackVarsName);
+                                  StackArgName);
     }
     Header << ")";
   }
 }
 
-using model::Argument;
-using CABIArgumentPrinter = std::function<std::string(const Argument &)>;
-static void printFunctionPrototypeImpl(const model::CABIFunctionType &CF,
+template<ModelFunction FunctionType>
+static void printFunctionPrototypeImpl(const FunctionType *Function,
+                                       const model::CABIFunctionType &CF,
                                        const llvm::StringRef &FunctionName,
-                                       CABIArgumentPrinter ArgumentPrinter,
                                        llvm::raw_ostream &Header,
                                        const model::Binary &Model,
                                        bool Declaration) {
-  Header << getReturnTypeName(CF) << " " << FunctionName;
+  Header << getReturnTypeName(CF);
+  if (not CF.ReturnType.isPointer() or CF.ReturnType.isConst())
+    Header << " ";
+  Header << FunctionName;
 
   if (CF.Arguments.empty()) {
-    Header << "(" << tokenTag("void", tokens::Type) << ")";
+    Header << "(" << ptml::tokenTag("void", tokens::Type) << ")";
   } else {
     const StringRef Open = "(";
     const StringRef Comma = ", ";
     StringRef Separator = Open;
 
     for (const auto &Arg : CF.Arguments) {
-      TypeString ArgTypeName;
-      std::string ArgumentName = ArgumentPrinter(Arg);
+      auto ArgName = model::Identifier::fromString(Arg.name()).str().str();
+      std::string ArgString = Function ?
+                                getArgumentLocationDefinition(ArgName,
+                                                              *Function) :
+                                "";
+      TypeString ArgDeclaration;
       if (Arg.Type.isArray()) {
-        ArgTypeName = getArrayWrapper(Arg.Type);
-        if (not ArgumentName.empty()) {
-          ArgTypeName.append(" ");
-          ArgTypeName.append(ArgumentName);
+        ArgDeclaration = getArrayWrapper(Arg.Type);
+        if (not ArgString.empty()) {
+          ArgDeclaration.append(" ");
+          ArgDeclaration.append(ArgString);
         }
       } else {
-        ArgTypeName = getNamedCInstance(Arg.Type, ArgumentName);
+        ArgDeclaration = getNamedCInstance(Arg.Type, ArgString);
       }
-      Header << Separator << ArgTypeName;
+      Header << Separator << ArgDeclaration;
       Separator = Comma;
     }
     Header << ")";
@@ -348,52 +408,26 @@ void printFunctionPrototype(const model::Type &FT,
                             llvm::raw_ostream &Header,
                             const model::Binary &Model,
                             bool Declaration) {
-  Tag FunctionTag = tokenTag(Function.name(), tokens::Function)
+
+  Tag FunctionTag = ptml::tokenTag(Function.name(), tokens::Function)
                       .addAttribute(attributes::ModelEditPath,
                                     getCustomNamePath(Function))
-                      .addAttribute(Declaration ?
-                                      attributes::LocationDefinition :
-                                      attributes::LocationReferences,
+                      .addAttribute(ptml::locationAttribute(Declaration),
                                     serializedLocation(ranks::Function,
                                                        Function.key()));
   if (auto *RF = dyn_cast<model::RawFunctionType>(&FT)) {
-    auto ArgumentPrinter = [&](const NamedTypedRegister &Reg) {
-      return tokenTag(Reg.name().str(), tokens::FunctionParameter)
-        .addAttribute(attributes::LocationDefinition,
-                      serializedLocation(ranks::RawFunctionArgument,
-                                         Function.key(),
-                                         Reg.key()))
-        .serialize();
-    };
 
-    std::string
-      StackName = tokenTag("stack_args", tokens::FunctionParameter)
-                    .addAttribute(attributes::LocationDefinition,
-                                  serializedLocation(ranks::SpecialVariable,
-                                                     Function.key(),
-                                                     "stack_args"))
-                    .serialize();
-
-    printFunctionPrototypeImpl(*RF,
+    printFunctionPrototypeImpl(&Function,
+                               *RF,
                                FunctionTag.serialize(),
-                               ArgumentPrinter,
-                               StackName,
                                Header,
                                Model,
                                Declaration);
   } else if (auto *CF = dyn_cast<model::CABIFunctionType>(&FT)) {
-    auto ArgumentPrinter = [&](const Argument &Arg) {
-      return tokenTag(Arg.name().str(), tokens::FunctionParameter)
-        .addAttribute(attributes::LocationDefinition,
-                      serializedLocation(ranks::CABIFunctionArgument,
-                                         Function.key(),
-                                         Arg.key()))
-        .serialize();
-    };
 
-    printFunctionPrototypeImpl(*CF,
+    printFunctionPrototypeImpl(&Function,
+                               *CF,
                                FunctionTag.serialize(),
-                               ArgumentPrinter,
                                Header,
                                Model,
                                Declaration);
@@ -407,44 +441,23 @@ void printFunctionPrototype(const model::Type &FT,
                             llvm::raw_ostream &Header,
                             const model::Binary &Model,
                             bool Declaration) {
-  Tag FunctionTag = tokenTag(Function.name(), tokens::Function)
+  Tag FunctionTag = ptml::tokenTag(Function.name(), tokens::Function)
                       .addAttribute(attributes::ModelEditPath,
                                     getCustomNamePath(Function))
-                      .addAttribute(Declaration ?
-                                      attributes::LocationDefinition :
-                                      attributes::LocationReferences,
+                      .addAttribute(ptml::locationAttribute(Declaration),
                                     serializedLocation(ranks::DynamicFunction,
                                                        Function.key()));
   if (auto *RF = dyn_cast<model::RawFunctionType>(&FT)) {
-    auto ArgumentPrinter = [&](const NamedTypedRegister &Reg) {
-      return tokenTag(Reg.name().str(), tokens::FunctionParameter)
-        .addAttribute(attributes::LocationDefinition,
-                      serializedLocation(ranks::RawDynFunctionArgument,
-                                         Function.key(),
-                                         Reg.key()))
-        .serialize();
-    };
-
-    printFunctionPrototypeImpl(*RF,
+    printFunctionPrototypeImpl(&Function,
+                               *RF,
                                FunctionTag.serialize(),
-                               ArgumentPrinter,
-                               "stack_args",
                                Header,
                                Model,
                                Declaration);
   } else if (auto *CF = dyn_cast<model::CABIFunctionType>(&FT)) {
-    auto ArgumentPrinter = [&](const Argument &Arg) {
-      return tokenTag(Arg.name().str(), tokens::FunctionParameter)
-        .addAttribute(attributes::LocationDefinition,
-                      serializedLocation(ranks::CABIDynFunctionArgument,
-                                         Function.key(),
-                                         Arg.key()))
-        .serialize();
-    };
-
-    printFunctionPrototypeImpl(*CF,
+    printFunctionPrototypeImpl(&Function,
+                               *CF,
                                FunctionTag.serialize(),
-                               ArgumentPrinter,
                                Header,
                                Model,
                                Declaration);
@@ -453,28 +466,25 @@ void printFunctionPrototype(const model::Type &FT,
   }
 }
 
-void printFunctionPrototype(const model::Type &FT,
-                            const llvm::StringRef &FunctionName,
-                            llvm::raw_ostream &Header,
-                            const model::Binary &Model,
-                            bool Declaration) {
+void printFunctionTypeDeclaration(const model::Type &FT,
+                                  llvm::raw_ostream &Header,
+                                  const model::Binary &Model) {
+
+  auto TypeName = ptml::getLocationDefinition(FT);
   if (auto *RF = dyn_cast<model::RawFunctionType>(&FT)) {
-    auto ArgumentPrinter = [&](const NamedTypedRegister &Reg) { return ""; };
-    printFunctionPrototypeImpl(*RF,
-                               FunctionName,
-                               ArgumentPrinter,
-                               "stack_args",
-                               Header,
-                               Model,
-                               Declaration);
+    printFunctionPrototypeImpl<model::Function>(nullptr,
+                                                *RF,
+                                                TypeName,
+                                                Header,
+                                                Model,
+                                                true);
   } else if (auto *CF = dyn_cast<model::CABIFunctionType>(&FT)) {
-    auto ArgumentPrinter = [&](const Argument &Arg) { return ""; };
-    printFunctionPrototypeImpl(*CF,
-                               FunctionName,
-                               ArgumentPrinter,
-                               Header,
-                               Model,
-                               Declaration);
+    printFunctionPrototypeImpl<model::Function>(nullptr,
+                                                *CF,
+                                                TypeName,
+                                                Header,
+                                                Model,
+                                                true);
   } else {
     revng_abort();
   }

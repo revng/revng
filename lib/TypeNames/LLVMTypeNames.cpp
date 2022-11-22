@@ -21,56 +21,59 @@
 #include "revng-c/TypeNames/LLVMTypeNames.h"
 
 using llvm::Twine;
-using tokenDefinition::types::TypeString;
-using namespace ArtificialTypes;
 
-namespace tokens = ptml::c::tokenTypes;
+constexpr const char *const StructWrapperPrefix = "artificial_struct_returned_"
+                                                  "by_";
+constexpr const char *const StructFieldPrefix = "field_";
+
+namespace tokens = ptml::c::tokens;
 namespace ranks = revng::ranks;
+namespace tags = ptml::tags;
+namespace attributes = ptml::attributes;
 
-TypeString
-getScalarCType(const llvm::Type *LLVMType, llvm::StringRef BaseType) {
+std::string getScalarCType(const llvm::Type *LLVMType) {
   switch (LLVMType->getTypeID()) {
   case llvm::Type::HalfTyID:
   case llvm::Type::BFloatTyID:
-    return TypeString("float16_t");
+    return ptml::tokenTag("float16_t", tokens::Type).serialize();
     break;
   case llvm::Type::FloatTyID:
-    return TypeString("float32_t");
+    return ptml::tokenTag("float32_t", tokens::Type).serialize();
     break;
   case llvm::Type::DoubleTyID:
-    return TypeString("float64_t");
+    return ptml::tokenTag("float64_t", tokens::Type).serialize();
     break;
   case llvm::Type::X86_FP80TyID:
     // TODO: 80-bit float have 96 bit storage, how should we call them?
-    return TypeString("float96_t");
+    return ptml::tokenTag("float96_t", tokens::Type).serialize();
     break;
   case llvm::Type::FP128TyID:
   case llvm::Type::PPC_FP128TyID:
-    return TypeString("float128_t");
+    return ptml::tokenTag("float128_t", tokens::Type).serialize();
     break;
 
   case llvm::Type::VoidTyID: {
-    return TypeString("void");
+    return ptml::tokenTag("void", tokens::Type).serialize();
     break;
 
   case llvm::Type::IntegerTyID: {
     auto *IntType = cast<llvm::IntegerType>(LLVMType);
     switch (IntType->getIntegerBitWidth()) {
     case 1:
-      return TypeString("bool");
+      return ptml::tokenTag("bool", tokens::Type).serialize();
     case 8:
-      return TypeString("uint8_t");
+      return ptml::tokenTag("uint8_t", tokens::Type).serialize();
     case 16:
-      return TypeString("uint16_t");
+      return ptml::tokenTag("uint16_t", tokens::Type).serialize();
       break;
     case 32:
-      return TypeString("uint32_t");
+      return ptml::tokenTag("uint32_t", tokens::Type).serialize();
       break;
     case 64:
-      return TypeString("uint64_t");
+      return ptml::tokenTag("uint64_t", tokens::Type).serialize();
       break;
     case 128:
-      return TypeString("uint128_t");
+      return ptml::tokenTag("uint128_t", tokens::Type).serialize();
       break;
     default:
       revng_abort("Found an LLVM integer with a size that is not a power of "
@@ -79,9 +82,8 @@ getScalarCType(const llvm::Type *LLVMType, llvm::StringRef BaseType) {
   } break;
 
   case llvm::Type::PointerTyID: {
-    if (BaseType.empty())
-      return TypeString("void *");
-    return TypeString((BaseType + " *").str());
+    return ptml::tokenTag("void", tokens::Type) + " "
+           + operators::PointerDereference;
   } break;
 
   default:
@@ -90,34 +92,104 @@ getScalarCType(const llvm::Type *LLVMType, llvm::StringRef BaseType) {
   }
 }
 
-VariableTokensWithName getReturnType(const llvm::Function *Func) {
-  auto *RetType = Func->getReturnType();
+static std::string getHelperFunctionIdentifier(const llvm::Function *F) {
+  revng_assert(not FunctionTags::Isolated.isTagOf(F));
+  return model::Identifier::fromString(F->getName()).str().str();
+}
+
+static std::string getReturnedStructIdentifier(const llvm::Function *F) {
+  revng_assert(not FunctionTags::Isolated.isTagOf(F));
+  revng_assert(llvm::isa<llvm::StructType>(F->getReturnType()));
+  return (Twine(StructWrapperPrefix) + Twine(getHelperFunctionIdentifier(F)))
+    .str();
+}
+
+static std::string serializeHelperStructLocation(const std::string &Name) {
+  return pipeline::serializedLocation(revng::ranks::HelperStructType, Name);
+}
+
+template<bool IsDefinition>
+static std::string getReturnTypeLocation(const llvm::Function *F) {
+  auto *RetType = F->getReturnType();
   // Isolated functions' return types must be converted using model types
-  revng_assert(not FunctionTags::Isolated.isTagOf(Func));
+  revng_assert(not FunctionTags::Isolated.isTagOf(F));
 
   if (RetType->isStructTy()) {
-    const auto &FuncName = model::Identifier::fromString(Func->getName());
-    const std::string StructName = (StructWrapperPrefix + FuncName).str();
-    return {
-      StructName,
-      tokenTag(StructName, tokens::Type)
-        .addAttribute(ptml::attributes::LocationDefinition,
-                      pipeline::serializedLocation(ranks::Helpers, StructName)),
-      tokenTag(StructName, tokens::Type)
-        .addAttribute(ptml::attributes::LocationReferences,
-                      pipeline::serializedLocation(ranks::Helpers, StructName))
-    };
+    std::string StructName = getReturnedStructIdentifier(F);
+    return ptml::tokenTag(StructName, tokens::Type)
+      .addAttribute(ptml::locationAttribute(IsDefinition),
+                    serializeHelperStructLocation(StructName))
+      .serialize();
   } else {
-    auto CType = getScalarCType(RetType).str();
-    return { CType,
-             tokenTag(CType, tokens::Type),
-             tokenTag(CType, tokens::Type) };
+    return getScalarCType(RetType);
   }
 }
 
-FieldInfo getFieldInfo(const llvm::StructType *StructTy, size_t Index) {
-  FieldInfo FieldInfo;
-  FieldInfo.FieldName = TypeString((StructFieldPrefix + Twine(Index)).str());
-  FieldInfo.FieldTypeName = getScalarCType(StructTy->getTypeAtIndex(Index));
-  return FieldInfo;
+std::string getReturnTypeLocationDefinition(const llvm::Function *F) {
+  return getReturnTypeLocation<false>(F);
+}
+
+std::string getReturnTypeLocationReference(const llvm::Function *F) {
+  return getReturnTypeLocation<true>(F);
+}
+
+std::string getReturnStructFieldType(const llvm::Function *F, size_t Index) {
+  revng_assert(not FunctionTags::Isolated.isTagOf(F));
+  auto *StructTy = llvm::cast<llvm::StructType>(F->getReturnType());
+  return getScalarCType(StructTy->getTypeAtIndex(Index));
+}
+
+static std::string
+serializeHelperStructFieldLocation(const std::string &StructName,
+                                   const std::string &FieldName) {
+  revng_assert(not StructName.empty() and not FieldName.empty());
+  return pipeline::serializedLocation(revng::ranks::HelperStructField,
+                                      StructName,
+                                      FieldName);
+}
+
+template<bool IsDefinition>
+static std::string
+getReturnStructFieldLocation(const llvm::Function *F, size_t Index) {
+  revng_assert(not FunctionTags::Isolated.isTagOf(F));
+  revng_assert(F->getReturnType()->isStructTy());
+
+  std::string StructName = getReturnedStructIdentifier(F);
+  std::string FieldName = (Twine(StructFieldPrefix) + Twine(Index)).str();
+  return ptml::Tag(tags::Span, FieldName)
+    .addAttribute(attributes::Token, tokens::Field)
+    .addAttribute(ptml::locationAttribute(IsDefinition),
+                  serializeHelperStructFieldLocation(StructName, FieldName))
+    .serialize();
+}
+
+std::string
+getReturnStructFieldLocationDefinition(const llvm::Function *F, size_t Index) {
+  return getReturnStructFieldLocation<true>(F, Index);
+}
+
+std::string
+getReturnStructFieldLocationReference(const llvm::Function *F, size_t Index) {
+  return getReturnStructFieldLocation<false>(F, Index);
+}
+
+static std::string serializeHelperFunctionLocation(const llvm::Function *F) {
+  return pipeline::serializedLocation(revng::ranks::HelperFunction,
+                                      F->getName().str());
+}
+
+template<bool IsDefinition>
+static std::string getHelperFunctionLocation(const llvm::Function *F) {
+  return ptml::tokenTag(getHelperFunctionIdentifier(F), tokens::Function)
+    .addAttribute(ptml::locationAttribute(IsDefinition),
+                  serializeHelperFunctionLocation(F))
+    .serialize();
+}
+
+std::string getHelperFunctionLocationDefinition(const llvm::Function *F) {
+  return getHelperFunctionLocation<true>(F);
+}
+
+std::string getHelperFunctionLocationReference(const llvm::Function *F) {
+  return getHelperFunctionLocation<false>(F);
 }
