@@ -19,6 +19,6 @@ struct ApplyDiffAnalysis {
 
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {};
 
-  ErrorList run(pipeline::Context &Ctx, std::string DiffLocation);
+  llvm::Error run(pipeline::Context &Ctx, std::string DiffLocation);
 };
 } // namespace revng::pipes

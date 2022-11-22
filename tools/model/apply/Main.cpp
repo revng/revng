@@ -47,17 +47,10 @@ int main(int Argc, char *Argv[]) {
   if (not Model)
     ExitOnError(Model.takeError());
 
-  revng::ErrorList EL;
-  auto Diff = deserializeFileOrSTDIN<TupleTreeDiff<model::Binary>>(DiffPath,
-                                                                   &EL);
-  if (not Diff)
-    ExitOnError(Diff.takeError());
+  using Type = TupleTreeDiff<model::Binary>;
+  auto Diff = ExitOnError(deserializeFileOrSTDIN<Type>(DiffPath));
 
-  Diff->apply(Model->getWriteableModel(), EL);
-  if (EL) {
-    dbg << EL;
-    return 1;
-  }
+  ExitOnError(Diff.apply(Model->getWriteableModel()));
 
   auto DesiredOutput = Options.getDesiredOutput(Model->hasModule());
   ExitOnError(Model->save(Options.getPath(), DesiredOutput));

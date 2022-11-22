@@ -95,21 +95,14 @@ std::string Binary::toString() const {
   return S;
 }
 
-bool Binary::verify() const {
-  return verify(false);
-}
-
 bool Binary::verify(bool Assert) const {
   VerifyHelper VH(Assert);
   return verify(VH);
 }
 
-void Binary::verify(revng::ErrorList &EL) const {
+bool Binary::verify() const {
   VerifyHelper VH(false);
-  bool Result = verify(VH);
-  if (not Result)
-    EL.push_back(llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                         "Binary verify failed"));
+  return verify(VH);
 }
 
 bool Binary::verify(VerifyHelper &VH) const {
