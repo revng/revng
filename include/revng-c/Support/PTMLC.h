@@ -52,6 +52,8 @@ inline const Tag BoolAnd = operatorTag("&amp;&amp;");
 inline const Tag BoolOr = operatorTag("||");
 inline const Tag BoolNot = operatorTag("!");
 inline const Tag Assign = operatorTag("=");
+inline const Tag BinaryNot = operatorTag("~");
+inline const Tag UnaryMinus = operatorTag("-");
 
 } // namespace operators
 

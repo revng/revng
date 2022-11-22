@@ -389,7 +389,7 @@ public:
       revng_assert(not isa<PHINode>(I));
 
       // Instructions only allocating a local variable and integer print
-      // decorators that do not need an assignment.
+      // decorators never need an assignment.
       if (isCallToTagged(&I, FunctionTags::AllocatesLocalVariable)
           || isCallToTagged(&I, FunctionTags::HexInteger)
           || isCallToTagged(&I, FunctionTags::CharInteger)

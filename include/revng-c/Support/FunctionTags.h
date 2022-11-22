@@ -34,6 +34,8 @@ extern Tag Copy;
 extern Tag ReadsMemory;
 extern Tag WritesMemory;
 extern Tag SegmentRef;
+extern Tag UnaryMinus;
+extern Tag BinaryNot;
 
 inline Tag LiftingArtifactsRemoved("LiftingArtifactsRemoved", Isolated);
 
@@ -114,6 +116,12 @@ void initCharPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
 
 /// Initializes a pool of bool literals printing functions
 void initBoolPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+
+/// Initializes a pool of unary_minus functions
+void initUnaryMinusPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+
+/// Initializes a pool of binary_not functions
+void initBinaryNotPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
 
 /// ModelGEP functions are used to replace pointer arithmetics with a navigation
 /// of the Model.

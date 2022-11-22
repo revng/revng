@@ -69,4 +69,24 @@ define i32 @parenthesize_exp3(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4) !revng.tag
   ret i32 %11
 }
 
+define i32 @parenthesize_unary_minus(i32 %0) !revng.tags !0 {
+  %2 = call i32 @unary_minus(i32 1)
+  ; CHECK: %3 = call @parentheses.1(i32 %2)
+  ; CHECK-NEXT: %4 = add i32 %0, %3
+  %3 = add i32 %0, %2
+  ret i32 %3
+}
+
+define i32 @parenthesize_binary_not(i32 %0) !revng.tags !0 {
+  %2 = call i32 @binary_not(i32 1)
+  ; CHECK: %3 = call @parentheses.1(i32 %2)
+  ; CHECK-NEXT: %4 = add i32 %0, %3
+  %3 = add i32 %0, %2
+  ret i32 %3
+}
+
+declare i32 @unary_minus(i32 %0)
+
+declare i32 @binary_not(i32 %0)
+
 !0 = !{!"Isolated"}

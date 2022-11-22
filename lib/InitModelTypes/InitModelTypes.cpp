@@ -182,7 +182,9 @@ static TypeVector getReturnTypes(FunctionMetadataCache &Cache,
   revng_assert(CalledFunc);
 
   if (FunctionTags::Parentheses.isTagOf(CalledFunc)
-      || FunctionTags::Copy.isTagOf(CalledFunc)) {
+      || FunctionTags::Copy.isTagOf(CalledFunc)
+      || FunctionTags::UnaryMinus.isTagOf(CalledFunc)
+      || FunctionTags::BinaryNot.isTagOf(CalledFunc)) {
     const llvm::Value *Arg = Call->getArgOperand(0);
 
     // Forward the type
@@ -211,7 +213,6 @@ static TypeVector getReturnTypes(FunctionMetadataCache &Cache,
     } else {
       revng_abort("Unknown value returned by non-isolated function");
     }
-
   } else if (FunctionTags::HexInteger.isTagOf(CalledFunc)
              || FunctionTags::CharInteger.isTagOf(CalledFunc)
              || FunctionTags::BoolInteger.isTagOf(CalledFunc)) {

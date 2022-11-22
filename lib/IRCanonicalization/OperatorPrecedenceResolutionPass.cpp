@@ -45,7 +45,9 @@ enum CustomInstruction : unsigned {
   MemberAccess = getInstructionLLVMOpcodeCount() + 5,
   LocalVariable = getInstructionLLVMOpcodeCount() + 6,
   Transparent = getInstructionLLVMOpcodeCount() + 7,
-  SegmentRef = getInstructionLLVMOpcodeCount() + 8
+  SegmentRef = getInstructionLLVMOpcodeCount() + 8,
+  UnaryMinus = getInstructionLLVMOpcodeCount() + 9,
+  BinaryNot = getInstructionLLVMOpcodeCount() + 10
 };
 
 struct InstToOpPrec {
@@ -62,7 +64,7 @@ struct InstToOpPrec {
 };
 
 // Table that maps LLVM opcodes to the equivalent C operator precedence priority
-static constexpr std::array<const InstToOpPrec, 34>
+static constexpr std::array<const InstToOpPrec, 36>
   LLVMOpcodeToCOpPrecedenceArray{
     { { InstToOpPrec(CustomInstruction::Assignment, 0, RIGHT_TO_LEFT) },
       { InstToOpPrec(CustomInstruction::LocalVariable, 10, LEFT_TO_RIGHT) },
@@ -97,10 +99,12 @@ static constexpr std::array<const InstToOpPrec, 34>
       { InstToOpPrec(CustomInstruction::AddressOf, 9, RIGHT_TO_LEFT) },
       { InstToOpPrec(CustomInstruction::Indirection, 9, RIGHT_TO_LEFT) },
       { InstToOpPrec(CustomInstruction::Cast, 9, RIGHT_TO_LEFT) },
-      { InstToOpPrec(CustomInstruction::MemberAccess, 10, LEFT_TO_RIGHT) } }
+      { InstToOpPrec(CustomInstruction::MemberAccess, 10, LEFT_TO_RIGHT) },
+      { InstToOpPrec(CustomInstruction::UnaryMinus, 2, RIGHT_TO_LEFT) },
+      { InstToOpPrec(CustomInstruction::BinaryNot, 2, RIGHT_TO_LEFT) } },
   };
 
-static constexpr std::array<const InstToOpPrec, 34>
+static constexpr std::array<const InstToOpPrec, 36>
   LLVMOpcodeToNopOpPrecedenceArray{
     { { InstToOpPrec(CustomInstruction::Assignment, 0, RIGHT_TO_LEFT) },
       { InstToOpPrec(CustomInstruction::LocalVariable, 0, LEFT_TO_RIGHT) },
@@ -135,11 +139,13 @@ static constexpr std::array<const InstToOpPrec, 34>
       { InstToOpPrec(CustomInstruction::AddressOf, 0, RIGHT_TO_LEFT) },
       { InstToOpPrec(CustomInstruction::Indirection, 0, RIGHT_TO_LEFT) },
       { InstToOpPrec(CustomInstruction::Cast, 0, RIGHT_TO_LEFT) },
-      { InstToOpPrec(CustomInstruction::MemberAccess, 0, LEFT_TO_RIGHT) } }
+      { InstToOpPrec(CustomInstruction::MemberAccess, 0, LEFT_TO_RIGHT) },
+      { InstToOpPrec(CustomInstruction::UnaryMinus, 2, RIGHT_TO_LEFT) },
+      { InstToOpPrec(CustomInstruction::BinaryNot, 2, RIGHT_TO_LEFT) } },
   };
 
 static auto
-findOpcode(const std::array<const InstToOpPrec, 34> *Table, unsigned Opcode) {
+findOpcode(const std::array<const InstToOpPrec, 36> *Table, unsigned Opcode) {
   return find_if(*Table, [&](const auto &Elem) {
     return Elem.InstructionOpcode == Opcode;
   });
@@ -157,7 +163,9 @@ static bool isCustomOpcode(Instruction *I) {
       || FunctionTags::Copy.isTagOf(CalledFunc)
       || FunctionTags::ModelGEPRef.isTagOf(CalledFunc)
       || FunctionTags::AllocatesLocalVariable.isTagOf(CalledFunc)
-      || FunctionTags::SegmentRef.isTagOf(CalledFunc))
+      || FunctionTags::SegmentRef.isTagOf(CalledFunc)
+      || FunctionTags::UnaryMinus.isTagOf(CalledFunc)
+      || FunctionTags::BinaryNot.isTagOf(CalledFunc))
     return true;
 
   return false;
@@ -186,6 +194,10 @@ static unsigned getCustomOpcode(Instruction *I) {
     return CustomInstruction::Transparent;
   } else if (FunctionTags::SegmentRef.isTagOf(CalledFunc)) {
     return CustomInstruction::SegmentRef;
+  } else if (FunctionTags::UnaryMinus.isTagOf(CalledFunc)) {
+    return CustomInstruction::UnaryMinus;
+  } else if (FunctionTags::BinaryNot.isTagOf(CalledFunc)) {
+    return CustomInstruction::BinaryNot;
   }
 
   revng_abort();
@@ -223,7 +235,7 @@ static llvm::Value *traverseTransparentOpcode(llvm::Value *V) {
 
 struct OperatorPrecedenceResolutionPass : public llvm::FunctionPass {
 private:
-  const std::array<const InstToOpPrec, 34>
+  const std::array<const InstToOpPrec, 36>
     *LLVMOpcodeToLangOpPrecedenceArray = nullptr;
 
 public:
@@ -287,6 +299,10 @@ bool OPRP::needsParentheses(Instruction *I, Use &U) {
     case CustomInstruction::MemberAccess:
     case CustomInstruction::Cast:
       VerifyParentheses = (U.getOperandNo() == 1);
+      break;
+    case CustomInstruction::BinaryNot:
+    case CustomInstruction::UnaryMinus:
+      VerifyParentheses = true;
       break;
     case CustomInstruction::Assignment:
     case CustomInstruction::LocalVariable:

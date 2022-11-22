@@ -36,6 +36,8 @@ Tag Copy("Copy");
 Tag WritesMemory("WritesMemory");
 Tag ReadsMemory("ReadsMemory");
 Tag SegmentRef("SegmentRef");
+Tag UnaryMinus("UnaryMinus");
+Tag BinaryNot("BinaryNot");
 } // namespace FunctionTags
 
 static std::string makeTypeName(const llvm::Type *Ty) {
@@ -133,8 +135,10 @@ void initHexPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
   Pool.addFnAttribute(llvm::Attribute::ReadNone);
+
   // Set revng tags
   Pool.setTags({ &FunctionTags::HexInteger });
+
   // Initialize the pool from its internal llvm::Module if possible.
   Pool.initializeFromReturnType(FunctionTags::HexInteger);
 }
@@ -144,8 +148,10 @@ void initCharPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
   Pool.addFnAttribute(llvm::Attribute::ReadNone);
+
   // Set revng tags
   Pool.setTags({ &FunctionTags::CharInteger });
+
   // Initialize the pool from its internal llvm::Module if possible.
   Pool.initializeFromReturnType(FunctionTags::CharInteger);
 }
@@ -155,10 +161,38 @@ void initBoolPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
   Pool.addFnAttribute(llvm::Attribute::ReadNone);
+
   // Set revng tags
   Pool.setTags({ &FunctionTags::BoolInteger });
+
   // Initialize the pool from its internal llvm::Module if possible.
   Pool.initializeFromReturnType(FunctionTags::BoolInteger);
+}
+
+void initUnaryMinusPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
+  // Set attributes
+  Pool.addFnAttribute(llvm::Attribute::NoUnwind);
+  Pool.addFnAttribute(llvm::Attribute::WillReturn);
+  Pool.addFnAttribute(llvm::Attribute::ReadNone);
+
+  // Set revng tags
+  Pool.setTags({ &FunctionTags::UnaryMinus });
+
+  // Initialize the pool from its internal llvm::Module if possible.
+  Pool.initializeFromReturnType(FunctionTags::UnaryMinus);
+}
+
+void initBinaryNotPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
+  // Set attributes
+  Pool.addFnAttribute(llvm::Attribute::NoUnwind);
+  Pool.addFnAttribute(llvm::Attribute::WillReturn);
+  Pool.addFnAttribute(llvm::Attribute::ReadNone);
+
+  // Set revng tags
+  Pool.setTags({ &FunctionTags::BinaryNot });
+
+  // Initialize the pool from its internal llvm::Module if possible.
+  Pool.initializeFromReturnType(FunctionTags::BinaryNot);
 }
 
 void initSegmentRefPool(OpaqueFunctionsPool<SegmentRefPoolKey> &Pool,
