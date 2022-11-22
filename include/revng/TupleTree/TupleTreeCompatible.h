@@ -5,7 +5,6 @@
 //
 
 #include "revng/ADT/KeyedObjectContainer.h"
-#include "revng/Support/ErrorList.h"
 #include "revng/TupleTree/TupleLikeTraits.h"
 
 // clang-format off
@@ -19,8 +18,7 @@ concept NotTupleTreeCompatible = not TupleTreeCompatible<T>;
 // clang-format on
 
 template<typename T>
-concept Verifiable = requires(const T &TT, revng::ErrorList &EL) {
-  { TT.verify(EL) };
+concept Verifiable = requires(const T &TT) {
   { TT.verify() } -> std::same_as<bool>;
 };
 

@@ -705,10 +705,30 @@ bool rp_error_list_is_empty(rp_error_list *error);
 uint64_t rp_error_list_size(rp_error_list *error);
 
 /**
+ * \return the indexth error's type
+ */
+const char * /*owning*/
+rp_error_list_get_error_type(rp_error_list *error, uint64_t index);
+
+/**
+ * \return the indexth error's location type
+ */
+const char * /*owning*/
+rp_error_list_get_error_location_type(rp_error_list *error, uint64_t index);
+
+/**
  * \return the error's message at the specified index if present or nullptr
+ * otherwise
  */
 const char * /*owning*/
 rp_error_list_get_error_message(rp_error_list *error, uint64_t index);
+
+/**
+ * \return the error's location at the specified index if present or nullptr
+ * otherwise
+ */
+const char * /*owning*/
+rp_error_list_get_error_location(rp_error_list *error, uint64_t index);
 
 /**
  * Frees the provided error_error_list

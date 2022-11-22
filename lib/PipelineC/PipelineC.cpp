@@ -616,6 +616,26 @@ const char *rp_manager_get_global_name(rp_manager *manager, int index) {
   return nullptr;
 }
 
+static void errorToStrings(llvm::Error Error, std::vector<rp_error> &Strings) {
+  // clang-format off
+  llvm::handleAllErrors(std::move(Error),
+    [&](const revng::DocumentErrorBase &Error) {
+      for (size_t I = 0; I < Error.size(); I++)
+        Strings.emplace_back(rp_error(Error.getMessage(I),
+                                      Error.getLocation(I),
+                                      Error.getTypeName(),
+                                      Error.getLocationTypeName()));
+    },
+    [&](const llvm::ErrorInfoBase &OtherErrors) {
+      std::string Reason;
+      llvm::raw_string_ostream OS(Reason);
+      OtherErrors.log(OS);
+      OS.flush();
+      Strings.emplace_back(Reason, "", "", "");
+    });
+  // clang-format on
+}
+
 template<bool commit>
 inline bool rp_manager_set_global_impl(rp_manager *manager,
                                        const char *serialized,
@@ -625,22 +645,31 @@ inline bool rp_manager_set_global_impl(rp_manager *manager,
   revng_check(manager != nullptr);
   revng_check(serialized != nullptr);
   revng_check(global_name != nullptr);
-  ExistingOrNew<revng::ErrorList> ErrorList(error_list);
+  ExistingOrNew<rp_error_list> ErrorList(error_list);
   revng_check(ErrorList->empty());
 
   auto &GlobalsMap = manager->context().getGlobals();
   auto Buffer = llvm::MemoryBuffer::getMemBuffer(serialized);
 
   auto MaybeGlobal = GlobalsMap.get(global_name);
-  if (!MaybeGlobal)
-    return ErrorList->fail(MaybeGlobal.takeError(), false);
+  if (!MaybeGlobal) {
+    errorToStrings(MaybeGlobal.takeError(), *error_list);
+    return false;
+  }
 
   auto MaybeNewGlobal = GlobalsMap.createNew(global_name, *Buffer);
-  if (!MaybeNewGlobal)
-    return ErrorList->fail(MaybeNewGlobal.takeError(), false);
-
-  if (MaybeNewGlobal->get()->verify(*ErrorList); *ErrorList)
+  if (!MaybeNewGlobal) {
+    errorToStrings(MaybeNewGlobal.takeError(), *error_list);
     return false;
+  }
+
+  if (auto Error = MaybeNewGlobal->get()->verify(); Error) {
+    error_list->emplace_back(std::string("could not verify ") + global_name,
+                             "",
+                             "",
+                             "");
+    return false;
+  }
 
   if constexpr (commit) {
     auto &NewGlobal = MaybeNewGlobal.get();
@@ -648,8 +677,10 @@ inline bool rp_manager_set_global_impl(rp_manager *manager,
     *MaybeGlobal.get() = *NewGlobal;
 
     auto MaybeInvalidations = manager->invalidateFromDiff(global_name, Diff);
-    if (!MaybeInvalidations)
-      return ErrorList->fail(MaybeInvalidations.takeError(), false);
+    if (!MaybeInvalidations) {
+      errorToStrings(MaybeInvalidations.takeError(), *error_list);
+      return false;
+    }
 
     ExistingOrNew<rp_invalidations> Invalidations(invalidations);
     *Invalidations = MaybeInvalidations.get();
@@ -690,36 +721,48 @@ inline bool rp_manager_apply_diff_impl(rp_manager *manager,
   revng_check(manager != nullptr);
   revng_check(diff != nullptr);
   revng_check(global_name != nullptr);
-  ExistingOrNew<revng::ErrorList> ErrorList(error_list);
+  ExistingOrNew<rp_error_list> ErrorList(error_list);
   revng_check(ErrorList->empty());
 
   auto &GlobalsMap = manager->context().getGlobals();
   auto Buffer = llvm::MemoryBuffer::getMemBuffer(diff);
 
   auto GlobalOrError = GlobalsMap.get(global_name);
-  if (!GlobalOrError)
-    return ErrorList->fail(GlobalOrError.takeError(), false);
+  if (!GlobalOrError) {
+    errorToStrings(GlobalOrError.takeError(), *error_list);
+    return false;
+  }
 
   auto &Global = GlobalOrError.get();
   auto MaybeDiff = Global->deserializeDiff(*Buffer);
-  if (!MaybeDiff)
-    return ErrorList->fail(MaybeDiff.takeError(), false);
+  if (!MaybeDiff) {
+    errorToStrings(MaybeDiff.takeError(), *error_list);
+    return false;
+  }
 
   auto &Diff = MaybeDiff.get();
   auto GlobalClone = Global->clone();
-  GlobalClone->applyDiff(Diff, *ErrorList);
-  if (*ErrorList)
+  auto Error = GlobalClone->applyDiff(Diff);
+  if (Error) {
+    errorToStrings(std::move(Error), *error_list);
     return false;
+  }
 
-  GlobalClone->verify(*ErrorList);
-  if (*ErrorList)
+  if (auto Error = GlobalClone->verify(); Error) {
+    error_list->emplace_back(std::string("could not verify ") + global_name,
+                             "",
+                             "",
+                             "");
     return false;
+  }
 
   if constexpr (commit) {
     *Global = *GlobalClone;
     auto MaybeInvalidations = manager->invalidateFromDiff(global_name, Diff);
-    if (!MaybeInvalidations)
-      return ErrorList->fail(MaybeInvalidations.takeError(), false);
+    if (!MaybeInvalidations) {
+      errorToStrings(MaybeInvalidations.takeError(), *error_list);
+      return false;
+    }
 
     ExistingOrNew<rp_invalidations> Invalidations(invalidations);
     *Invalidations = MaybeInvalidations.get();
@@ -873,7 +916,7 @@ bool rp_diff_map_is_empty(rp_diff_map *map) {
 }
 
 rp_error_list *rp_make_error_list() {
-  return new revng::ErrorList();
+  return new rp_error_list();
 }
 
 bool rp_error_list_is_empty(rp_error_list *error_list) {
@@ -887,14 +930,27 @@ uint64_t rp_error_list_size(rp_error_list *error_list) {
 }
 
 const char *
+rp_error_list_get_error_type(rp_error_list *error_list, uint64_t index) {
+  revng_check(error_list != nullptr);
+  return copyString(error_list->at(index).ErrorType);
+}
+
+const char *rp_error_list_get_error_location_type(rp_error_list *error_list,
+                                                  uint64_t index) {
+  revng_check(error_list != nullptr);
+  return copyString(error_list->at(index).LocationType);
+}
+
+const char *
 rp_error_list_get_error_message(rp_error_list *error_list, uint64_t index) {
   revng_check(error_list != nullptr);
-  std::string Out;
-  llvm::raw_string_ostream Serialized(Out);
-  Serialized << *error_list->get(index);
-  Serialized.flush();
+  return copyString(error_list->at(index).Message);
+}
 
-  return copyString(Out);
+const char *
+rp_error_list_get_error_location(rp_error_list *error_list, uint64_t index) {
+  revng_check(error_list != nullptr);
+  return copyString(error_list->at(index).Location);
 }
 
 void rp_error_list_destroy(rp_error_list *error_list) {

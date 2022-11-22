@@ -6,7 +6,23 @@
 
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/PipelineManager.h"
-#include "revng/Support/ErrorList.h"
+
+struct rp_error {
+public:
+  std::string Message;
+  std::string Location;
+  std::string LocationType;
+  std::string ErrorType;
+
+  rp_error(std::string Message,
+           std::string Location,
+           std::string ErrorType,
+           std::string LocationType) :
+    Message(std::move(Message)),
+    Location(std::move(Location)),
+    LocationType(std::move(LocationType)),
+    ErrorType(std::move(ErrorType)) {}
+};
 
 typedef revng::pipes::PipelineManager rp_manager;
 typedef const pipeline::Kind rp_kind;
@@ -18,7 +34,7 @@ typedef const pipeline::Target rp_target;
 typedef const pipeline::TargetsList rp_targets_list;
 typedef const pipeline::Step::AnalysisValueType rp_analysis;
 typedef const pipeline::DiffMap rp_diff_map;
-typedef revng::ErrorList rp_error_list;
+typedef std::vector<rp_error> rp_error_list;
 typedef llvm::StringMap<std::string> rp_string_map;
 typedef pipeline::InvalidationMap rp_invalidations;
 typedef llvm::SmallVector<char, 0> rp_buffer;
