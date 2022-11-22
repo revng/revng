@@ -57,7 +57,30 @@ concept NotUpcastablePointerLike = not UpcastablePointerLike<T>;
 // clang-format off
 template<typename ReturnT, typename L, UpcastablePointerLike P, size_t I = 0>
   requires(not std::is_void_v<ReturnT>)
-ReturnT upcast(P &&Upcastable, L &&Callable, const ReturnT &IfNull) {
+ReturnT upcast(P &&Upcastable, const L &Callable, ReturnT &&IfNull) {
+  // clang-format on
+  using pointee = std::remove_reference_t<decltype(*Upcastable)>;
+  using concrete_types = concrete_types_traits_t<pointee>;
+  auto *Pointer = &*Upcastable;
+  if (Pointer == nullptr)
+    return std::forward<ReturnT>(IfNull);
+
+  if constexpr (I < std::tuple_size_v<concrete_types>) {
+    using type = std::tuple_element_t<I, concrete_types>;
+    if (auto *Upcasted = llvm::dyn_cast<type>(Pointer)) {
+      return Callable(*Upcasted);
+    } else {
+      return upcast<ReturnT, L, P, I + 1>(Upcastable,
+                                          Callable,
+                                          std::forward<ReturnT>(IfNull));
+    }
+  } else {
+    revng_abort();
+  }
+}
+
+template<typename L, UpcastablePointerLike P, size_t I = 0>
+llvm::Error upcast(P &&Upcastable, const L &Callable, llvm::Error IfNull) {
   // clang-format on
   using pointee = std::remove_reference_t<decltype(*Upcastable)>;
   using concrete_types = concrete_types_traits_t<pointee>;
@@ -68,11 +91,10 @@ ReturnT upcast(P &&Upcastable, L &&Callable, const ReturnT &IfNull) {
   if constexpr (I < std::tuple_size_v<concrete_types>) {
     using type = std::tuple_element_t<I, concrete_types>;
     if (auto *Upcasted = llvm::dyn_cast<type>(Pointer)) {
+      llvm::consumeError(std::move(IfNull));
       return Callable(*Upcasted);
     } else {
-      return upcast<ReturnT, L, P, I + 1>(Upcastable,
-                                          std::forward<L>(Callable),
-                                          IfNull);
+      return upcast<L, P, I + 1>(Upcastable, Callable, std::move(IfNull));
     }
   } else {
     revng_abort();
