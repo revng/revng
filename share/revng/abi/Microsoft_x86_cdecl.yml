@@ -1,0 +1,40 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+ABI: Microsoft_x86_cdecl
+
+ArgumentsArePositionBased: false
+OnlyStartDoubleArgumentsFromAnEvenRegister: false
+ArgumentsCanBeSplitBetweenRegistersAndStack: false
+UsePointerToCopyForStackArguments: false
+CalleeIsResponsibleForStackCleanup: false
+
+StackAlignment: 4
+
+MaximumGPRsPerAggregateArgument: 0
+MaximumGPRsPerAggregateReturnValue: 0
+MaximumGPRsPerScalarArgument: 0
+MaximumGPRsPerScalarReturnValue: 2
+
+GeneralPurposeReturnValueRegisters:
+  - eax_x86
+  - edx_x86
+CalleeSavedRegisters:
+  - ebx_x86
+  - ebp_x86
+  - esp_x86
+  - edi_x86
+  - esi_x86
+
+ReturnValueLocationOnStack: true
+
+ScalarTypes:
+  - Size: 1
+  - Size: 2
+  - Size: 4
+  - Size: 8
+
+FloatingPointScalarTypes:
+  - Size: 4
+  - Size: 8
