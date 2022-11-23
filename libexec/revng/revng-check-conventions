@@ -543,7 +543,7 @@ def git_diff_wrapper(*args: str) -> List[str]:
     split_file_list = [c for c in file_list.split("\x00") if c != ""]
     result = []
     while len(split_file_list) > 0:
-        op = split_file_list.pop(0)
+        op = split_file_list.pop(0)[0]
         if op in ["A", "M"]:
             result.append(split_file_list.pop(0))
         elif op in ["R", "C"]:
