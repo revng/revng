@@ -440,7 +440,11 @@ private:
         Type *NewArgumentType = NewArgument.getType();
         unsigned NewArgumentSize = NewArgumentType->getIntegerBitWidth() / 8;
 
-        if (ModelArgument.Type.isScalar()) {
+        llvm::Value *ToRecordSpan = nullptr;
+
+        using namespace abi::FunctionType::ArgumentKind;
+        if (ModelArgument.Kind == Scalar) {
+          revng_assert(ModelArgument.Type.isScalar());
           // Handle scalar argument
           for (model::Register::Values Register : ModelArgument.Registers) {
             Argument *OldArgument = ArgumentToRegister.at(Register);
@@ -466,8 +470,25 @@ private:
             // Consume size
             OffsetInNewArgument += OldArgumentSize;
           }
-        } else {
+
+          if (ModelArgument.Stack)
+            ToRecordSpan = &NewArgument;
+
+        } else if (ModelArgument.Kind == ReferenceToAggregate) {
+
           // Handle non-scalar argument (passed by pointer)
+          llvm::Constant
+            *ModelTypeString = serializeToLLVMString(ModelArgument.Type, M);
+          auto *AddressOfFunctionType = getAddressOfType(PtrSizedInteger,
+                                                         NewArgumentType);
+          auto *AddressOfFunction = AddressOfPool.get({ PtrSizedInteger,
+                                                        NewArgumentType },
+                                                      AddressOfFunctionType,
+                                                      "AddressOf");
+          auto *AddressOfNewArgument = Builder.CreateCall(AddressOfFunction,
+                                                          { ModelTypeString,
+                                                            &NewArgument });
+
           for (model::Register::Values Register : ModelArgument.Registers) {
             Argument *OldArgument = ArgumentToRegister.at(Register);
             Type *OldArgumentPtrType = OldArgument->getType()->getPointerTo();
@@ -475,7 +496,7 @@ private:
             // Load value
             Value *ArgumentPointer = computeAddress(Builder,
                                                     OldArgumentPtrType,
-                                                    &NewArgument,
+                                                    AddressOfNewArgument,
                                                     OffsetInNewArgument);
             Value *ArgumentValue = Builder.CreateLoad(ArgumentPointer);
 
@@ -485,12 +506,14 @@ private:
             // Consume size
             OffsetInNewArgument += model::Register::getSize(Register);
           }
+
+          if (ModelArgument.Stack)
+            ToRecordSpan = AddressOfNewArgument;
         }
 
-        if (ModelArgument.Stack) {
+        if (ToRecordSpan)
           Redirector->recordSpan(*ModelArgument.Stack + CallInstructionPushSize,
-                                 &NewArgument);
-        }
+                                 ToRecordSpan);
       }
     }
   }
@@ -657,7 +680,9 @@ private:
       model::QualifiedType ArgumentType = ModelArgument.Type;
       uint64_t NewSize = *ArgumentType.size();
 
-      if (ArgumentType.isScalar()) {
+      switch (ModelArgument.Kind) {
+      case ArgumentKind::Scalar: {
+        revng_assert(ArgumentType.isScalar());
         Value *Accumulator = ConstantInt::get(LLVMType, 0);
         unsigned OffsetInNewArgument = 0;
         for (auto &Register : ModelArgument.Registers) {
@@ -723,7 +748,8 @@ private:
         }
 
         Arguments.push_back(Accumulator);
-      } else {
+      } break;
+      case ArgumentKind::ReferenceToAggregate: {
         // Allocate memory for stack arguments
         auto [StackArgsCall,
               AddrOfCall] = createCallWithAddressOf(SABuilder,
@@ -759,6 +785,12 @@ private:
           Redirector.recordSpan(*ModelArgument.Stack, AddrOfCall);
 
         Arguments.push_back(StackArgsCall);
+      } break;
+      case ArgumentKind::ShadowPointerToAggregateReturnValue: {
+
+      } break;
+      default:
+        revng_abort();
       }
     }
 

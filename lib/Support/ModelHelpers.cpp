@@ -452,7 +452,20 @@ getExpectedModelType(FunctionMetadataCache &Cache,
 
       if (Call->isArgOperand(U)) {
         const auto Layout = abi::FunctionType::Layout::make(Prototype);
-        return { Layout.Arguments[Call->getArgOperandNo(U)].Type };
+        auto ArgNo = Call->getArgOperandNo(U);
+
+        const auto IsNonShadow =
+          [](const abi::FunctionType::Layout::Argument &A) {
+            using namespace abi::FunctionType::ArgumentKind;
+            return A.Kind != ShadowPointerToAggregateReturnValue;
+          };
+        auto NonShadowArgs = llvm::make_filter_range(Layout.Arguments,
+                                                     IsNonShadow);
+
+        for (const auto &ArgType : llvm::enumerate(NonShadowArgs))
+          if (ArgType.index() == ArgNo)
+            return { ArgType.value().Type };
+        revng_abort();
       }
     } else {
       // Non-isolated functions do not have a Prototype in the model, but they
@@ -476,6 +489,13 @@ getExpectedModelType(FunctionMetadataCache &Cache,
           Base = Base.getPointerTo(Model.Architecture);
         return { std::move(Base) };
 
+      } else if (isCallTo(Call, "revng_call_stack_arguments")) {
+        auto *Arg0Operand = Call->getArgOperand(0);
+        QualifiedType
+          CallStackArgumentType = deserializeFromLLVMString(Arg0Operand, Model);
+        revng_assert(not CallStackArgumentType.isVoid());
+
+        return { std::move(CallStackArgumentType) };
       } else if (FTags.contains(FunctionTags::StructInitializer)) {
         // Struct initializers are only used to pack together return values of
         // RawFunctionTypes that return multiple values, therefore they have

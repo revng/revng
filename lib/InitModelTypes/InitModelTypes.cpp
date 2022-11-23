@@ -62,20 +62,23 @@ static void addArgumentsTypes(const llvm::Function &LLVMFunc,
                               bool PointersOnly) {
 
   const auto Layout = abi::FunctionType::Layout::make(*Prototype);
-  revng_assert(Layout.Arguments.size() == LLVMFunc.arg_size());
-  const auto &
-    ArgModelTypes = llvm::map_range(Layout.Arguments,
-                                    [](const abi::FunctionType::Layout::Argument
-                                         &A) { return A.Type; });
+
+  const auto IsNonShadow = [](const abi::FunctionType::Layout::Argument &A) {
+    using namespace abi::FunctionType::ArgumentKind;
+    return A.Kind != ShadowPointerToAggregateReturnValue;
+  };
+
+  auto NumArgs = LLVMFunc.arg_size();
+  size_t NumNonShadowArgs = llvm::count_if(Layout.Arguments, IsNonShadow);
+  revng_assert(NumNonShadowArgs == NumArgs);
+  auto NonShadowArgs = llvm::make_filter_range(Layout.Arguments, IsNonShadow);
+
   for (const auto &[ArgModelType, LLVMArg] :
-       llvm::zip_first(ArgModelTypes, LLVMFunc.args())) {
-    if (ArgModelType.isScalar()) {
-      if (not PointersOnly or ArgModelType.isPointer())
-        TypeMap.insert({ &LLVMArg, ArgModelType });
-    } else {
-      QualifiedType ArgType = ArgModelType.getPointerTo(Model.Architecture);
-      TypeMap.insert({ &LLVMArg, std::move(ArgType) });
-    }
+       llvm::zip_first(NonShadowArgs, LLVMFunc.args())) {
+
+    QualifiedType ArgQualifiedType = ArgModelType.Type;
+    if (not PointersOnly or ArgQualifiedType.isPointer())
+      TypeMap.insert({ &LLVMArg, std::move(ArgQualifiedType) });
   }
 }
 
@@ -302,11 +305,16 @@ ModelTypesMap initModelTypes(FunctionMetadataCache &Cache,
 
   for (const BasicBlock *BB : RPOT<const llvm::Function *>(&F)) {
     for (const Instruction &I : *BB) {
+
       const auto *InstType = I.getType();
 
       // Visit operands, in case they are constants, globals or constexprs
-      for (const llvm::Value *Op : I.operand_values())
+      for (const llvm::Value *Op : I.operand_values()) {
+        // Ignore operands of some custom opcodes
+        if (isCallTo(&I, "revng_call_stack_arguments"))
+          continue;
         addOperandType(Op, Model, TypeMap, PointersOnly);
+      }
 
       // Insert void types for consistency
       if (InstType->isVoidTy()) {

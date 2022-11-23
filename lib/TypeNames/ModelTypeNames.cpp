@@ -347,10 +347,8 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
       auto StackArgName = Function ? getArgumentLocationDefinition("stack_args",
                                                                    *Function) :
                                      "";
-      const auto &Arch = Model.Architecture;
       Header << Separator
-             << getNamedCInstance(RF.StackArgumentsType.getPointerTo(Arch),
-                                  StackArgName);
+             << getNamedCInstance(RF.StackArgumentsType, StackArgName);
     }
     Header << ")";
   }
