@@ -112,10 +112,14 @@ std::string getVariableLocationReference(llvm::StringRef VariableName,
   return getVariableLocation<false>(VariableName, F);
 }
 
-TypeString getReturnField(const model::Type &Function, size_t Index) {
+TypeString getReturnField(const model::Type &Function,
+                          size_t Index,
+                          const model::Binary &Model) {
   const auto Layout = abi::FunctionType::Layout::make(Function);
-  revng_assert(Layout.ReturnValues.size() > Index, "Index out of bounds");
-  revng_assert(Layout.ReturnValues.size() > 1,
+  llvm::SmallVector<model::QualifiedType>
+    ReturnValues = flattenReturnTypes(Layout, Model);
+  revng_assert(ReturnValues.size() > Index, "Index out of bounds");
+  revng_assert(ReturnValues.size() > 1,
                "This function should only ever be called for return values "
                "that require a struct to be created");
   return TypeString((Twine(RetFieldPrefix) + Twine(Index)).str());

@@ -174,7 +174,8 @@ static void printSegmentsTypes(const model::Segment &Segment,
 ///        return values of \a F. The name of the struct type is provided by the
 ///        caller.
 static void generateReturnValueWrapper(const model::RawFunctionType &F,
-                                       ptml::PTMLIndentedOstream &Header) {
+                                       ptml::PTMLIndentedOstream &Header,
+                                       const model::Binary &Model) {
   revng_assert(F.ReturnValues.size() > 1);
   if (Log.isEnabled())
     Header << helpers::lineComment("definition the of return type needed");
@@ -186,7 +187,7 @@ static void generateReturnValueWrapper(const model::RawFunctionType &F,
     Scope Scope(Header, scopeTags::Struct);
     for (auto &Group : llvm::enumerate(F.ReturnValues)) {
       const model::QualifiedType &RetTy = Group.value().Type;
-      const auto &FieldName = getReturnField(F, Group.index());
+      const auto &FieldName = getReturnField(F, Group.index(), Model);
       Header << getNamedCInstance(RetTy,
                                   ptml::tokenTag(FieldName, tokens::Field)
                                     .serialize())
@@ -200,9 +201,10 @@ static void generateReturnValueWrapper(const model::RawFunctionType &F,
 /// If the function has more than one return value, generate a wrapper
 ///        struct that contains them.
 static void printRawFunctionWrappers(const model::RawFunctionType *F,
-                                     ptml::PTMLIndentedOstream &Header) {
+                                     ptml::PTMLIndentedOstream &Header,
+                                     const model::Binary &Model) {
   if (F->ReturnValues.size() > 1)
-    generateReturnValueWrapper(*F, Header);
+    generateReturnValueWrapper(*F, Header, Model);
 
   for (auto &Arg : F->Arguments)
     revng_assert(Arg.Type.isScalar());
@@ -213,7 +215,7 @@ static void printRawFunctionWrappers(const model::RawFunctionType *F,
 static void printDeclaration(const model::RawFunctionType &F,
                              ptml::PTMLIndentedOstream &Header,
                              const model::Binary &Model) {
-  printRawFunctionWrappers(&F, Header);
+  printRawFunctionWrappers(&F, Header, Model);
 
   Header << keywords::Typedef << " ";
   // In this case, we are defining a type for the function, not the function

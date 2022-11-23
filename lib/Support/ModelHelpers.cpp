@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Instruction.h"
@@ -275,10 +276,11 @@ traverseModelGEP(const model::Binary &Model, const llvm::CallInst *Call) {
   return CurType;
 }
 
-static void handleReturnValue(const model::TypePath &Prototype,
-                              const model::Binary &Model,
-                              llvm::SmallVector<QualifiedType> &ReturnTypes) {
-  const auto Layout = abi::FunctionType::Layout::make(Prototype);
+llvm::SmallVector<QualifiedType>
+flattenReturnTypes(const abi::FunctionType::Layout &Layout,
+                   const model::Binary &Model) {
+
+  llvm::SmallVector<QualifiedType> ReturnTypes;
 
   auto PointerS = model::Architecture::getPointerSize(Model.Architecture);
   using RV = abi::FunctionType::Layout::ReturnValue;
@@ -314,6 +316,15 @@ static void handleReturnValue(const model::TypePath &Prototype,
       }
     }
   }
+
+  return ReturnTypes;
+}
+
+static llvm::SmallVector<QualifiedType>
+handleReturnValue(const model::TypePath &Prototype,
+                  const model::Binary &Model) {
+  const auto Layout = abi::FunctionType::Layout::make(Prototype);
+  return flattenReturnTypes(Layout, Model);
 }
 
 RecursiveCoroutine<llvm::SmallVector<QualifiedType>>
@@ -333,7 +344,7 @@ getStrongModelInfo(FunctionMetadataCache &Cache,
       auto Prototype = Cache.getCallSitePrototype(Model, Call);
       revng_assert(Prototype.isValid());
 
-      handleReturnValue(Prototype, Model, ReturnTypes);
+      ReturnTypes = handleReturnValue(Prototype, Model);
 
     } else {
       // Non-isolated functions do not have a Prototype in the model, but we can
@@ -365,7 +376,7 @@ getStrongModelInfo(FunctionMetadataCache &Cache,
         // RawFunctionTypes that return multiple values, therefore they have
         // the same type as the parent function's return type
         revng_assert(Call->getFunction()->getReturnType() == Call->getType());
-        handleReturnValue(ParentFunc()->Prototype, Model, ReturnTypes);
+        ReturnTypes = handleReturnValue(ParentFunc()->Prototype, Model);
 
       } else if (FTags.contains(FunctionTags::SegmentRef)) {
         const auto &[StartAddress,
@@ -481,14 +492,12 @@ getExpectedModelType(FunctionMetadataCache &Cache,
         revng_assert(Call->getFunction()->getReturnType() == Call->getType());
 
         llvm::SmallVector<QualifiedType> ReturnTypes;
-        handleReturnValue(ParentFunc()->Prototype, Model, ReturnTypes);
+        ReturnTypes = handleReturnValue(ParentFunc()->Prototype, Model);
         return { ReturnTypes[ArgOperandIdx] };
       }
     }
   } else if (auto *Ret = dyn_cast<llvm::ReturnInst>(User)) {
-    llvm::SmallVector<QualifiedType> ReturnTypes;
-    handleReturnValue(ParentFunc()->Prototype, Model, ReturnTypes);
-    return ReturnTypes;
+    return handleReturnValue(ParentFunc()->Prototype, Model);
   }
 
   return {};

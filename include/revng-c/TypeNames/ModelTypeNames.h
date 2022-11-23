@@ -7,6 +7,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/Casting.h"
 
+#include "revng/Model/Binary.h"
 #include "revng/Model/ForwardDecls.h"
 
 #include "revng-c/Support/TokenDefinitions.h"
@@ -45,7 +46,9 @@ getReturnTypeName(const model::Type &FunctionType);
 /// \note FunctionType must be returning more than one value, otherwise
 /// there is no wrapping struct.
 extern tokenDefinition::types::TypeString
-getReturnField(const model::Type &FunctionType, size_t Index);
+getReturnField(const model::Type &FunctionType,
+               size_t Index,
+               const model::Binary &Model);
 
 /// Print the function prototype (without any trailing ';') of \a FT
 ///        using \a FunctionName as the function's name. If the return value

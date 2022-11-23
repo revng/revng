@@ -1201,8 +1201,7 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
       StructFieldRef = getReturnStructFieldLocationReference(Callee, Idx);
     } else {
       const model::Type *CalleeType = CalleePrototype.getConst();
-      const auto *RFT = llvm::cast<model::RawFunctionType>(CalleeType);
-      StructFieldRef = getReturnField(*RFT, Idx).str().str();
+      StructFieldRef = getReturnField(*CalleeType, Idx, Model).str().str();
     }
 
     Expression.assign(TokenMap.at(AggregateOp) + "." + StructFieldRef);
