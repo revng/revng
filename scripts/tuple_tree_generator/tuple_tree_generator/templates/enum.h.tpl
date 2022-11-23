@@ -71,6 +71,8 @@ struct ScalarEnumerationTraits</*= enum | fullname =*/>
 };
 } // namespace llvm::yaml
 
+LLVM_YAML_IS_SEQUENCE_VECTOR(/*= enum | fullname =*/)
+
 /*# length + 1 to account for the implicit Invalid member -#*/
 template<>
 inline constexpr size_t EnumElementsCount</*= enum | fullname =*/> = /*= enum.members|length + 1 =*/;
