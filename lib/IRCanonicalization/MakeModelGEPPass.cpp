@@ -347,29 +347,38 @@ computeAccessPattern(FunctionMetadataCache &Cache,
 
       const auto Layout = abi::FunctionType::Layout::make(MF->Prototype);
 
+      bool HasNoReturnValues = (Layout.ReturnValues.empty()
+                                and not Layout.returnsAggregateType());
+      const model::QualifiedType *SingleReturnType = nullptr;
+
+      if (Layout.ReturnValues.size() == 1) {
+        SingleReturnType = &Layout.ReturnValues[0].Type;
+      } else if (Layout.returnsAggregateType()) {
+        SingleReturnType = &Layout.Arguments[0].Type;
+      }
+
       // If the callee function does not return anything, skip to the next
       // instruction.
-      if (Layout.ReturnValues.empty()) {
+      if (HasNoReturnValues) {
         revng_log(ModelGEPLog, "Does not return values in the model. Skip ...");
         revng_assert(not Ret->getReturnValue());
-      } else if (Layout.ReturnValues.size() == 1) {
+      } else if (SingleReturnType != nullptr) {
         revng_log(ModelGEPLog, "Has a single return value.");
 
         revng_assert(Ret->getReturnValue()->getType()->isVoidTy()
                      or Ret->getReturnValue()->getType()->isIntOrPtrTy());
 
-        const model::QualifiedType &ModT = Layout.ReturnValues.front().Type;
         // If the returned type is a pointer, we unwrap it and set the pointee
         // type of IRPattern to the pointee of the return type.
         // Otherwise the Function is not returning a pointer, and we can skip
         // it.
-        if (ModT.isPointer()) {
+        if (SingleReturnType->isPointer()) {
           auto _ = LoggerIndent(ModelGEPLog);
           revng_log(ModelGEPLog, "llvm::ReturnInst: " << dumpToString(Ret));
           revng_log(ModelGEPLog,
                     "Pointee: model::QualifiedType: "
-                      << serializeToString(ModT));
-          IRPattern.PointeeType = dropPointer(ModT);
+                      << serializeToString(*SingleReturnType));
+          IRPattern.PointeeType = dropPointer(*SingleReturnType);
         }
 
       } else {
