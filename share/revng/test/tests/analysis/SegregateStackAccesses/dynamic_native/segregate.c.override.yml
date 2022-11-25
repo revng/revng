@@ -19,6 +19,8 @@ Functions:
     Prototype: "/Types/CABIFunctionType-100007"
   - OriginalName: cabi_aggregate_on_stack_and_registers
     Prototype: "/Types/CABIFunctionType-100008"
+  - OriginalName: cabi_return_big_aggregate
+    Prototype: "/Types/CABIFunctionType-100010"
 Types:
   - Kind: PrimitiveType
     ID: 256
@@ -229,3 +231,37 @@ Types:
       - Index: 5
         Type:
           UnqualifiedType: "/Types/StructType-100003"
+  - Kind: StructType
+    ID: 100009
+    Fields:
+      - Offset: 0
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+      - Offset: 8
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+      - Offset: 16
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+      - Offset: 24
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+      - Offset: 32
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+      - Offset: 40
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+      - Offset: 48
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+      - Offset: 56
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+    Size: 64
+  - Kind: CABIFunctionType
+    ID: 100010
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/StructType-100009"
+    Arguments: []
