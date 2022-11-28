@@ -195,7 +195,7 @@ static void generateReturnValueWrapper(const model::RawFunctionType &F,
     }
   }
 
-  Header << " " << getReturnTypeName(F) << ";\n";
+  Header << " " << getReturnTypeName(F, false) << ";\n";
 }
 
 /// If the function has more than one return value, generate a wrapper

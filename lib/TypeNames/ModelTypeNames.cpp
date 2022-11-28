@@ -127,9 +127,18 @@ TypeString getReturnField(const model::Type &Function,
 
 TypeString
 getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
+  constexpr auto &isConst = model::Qualifier::isConst;
+  constexpr auto &isPointer = model::Qualifier::isPointer;
 
-  const auto &isConst = model::Qualifier::isConst;
-  const auto &isPointer = model::Qualifier::isPointer;
+  bool IsUnqualified = QT.Qualifiers.empty();
+  bool FirstQualifierIsPointer = IsUnqualified
+                                 or isPointer(QT.Qualifiers.front());
+  bool PrependWhitespaceToInstanceName = not InstanceName.empty()
+                                         and (IsUnqualified
+                                              or not FirstQualifierIsPointer);
+
+  const model::Type &Unqualified = *QT.UnqualifiedType.getConst();
+  std::string UnqualifiedTypeName = ptml::getLocationReference(Unqualified);
 
   TypeString Result;
 
@@ -181,12 +190,9 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
       }
     }
 
-    bool IsPointer = QArrayIt != QIt
-                     and isPointer(*std::make_reverse_iterator(QArrayIt));
-
     // Print the actual instance name.
-    if (QIt == QT.Qualifiers.begin() and not InstanceName.empty()) {
-      if (not IsPointer)
+    if (QIt == QT.Qualifiers.begin()) {
+      if (PrependWhitespaceToInstanceName)
         Result.append(" ");
       Result.append(InstanceName.str());
     }
@@ -207,7 +213,9 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
     if (QArrayIt != QPointerIt) {
       // If QT is s a pointer to an array we have to add parentheses for the
       // clockwise spiral rule
-      if (IsPointer)
+      auto ReverseQArrayIt = std::make_reverse_iterator(QArrayIt);
+      bool LastWasPointer = QArrayIt != QIt and isPointer(*ReverseQArrayIt);
+      if (LastWasPointer)
         Result = (Twine("(") + Twine(Result) + Twine(")")).str();
 
       const auto &ArrayOrConstRange = llvm::make_range(QArrayIt, QPointerIt);
@@ -241,9 +249,7 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
     QIt = QPointerIt;
   } while (QIt != QEnd);
 
-  const model::Type &Unqualified = *QT.UnqualifiedType.getConst();
-  std::string TypeName = ptml::getLocationReference(Unqualified);
-  Result = (Twine(TypeName) + Twine(" ") + Twine(Result)).str();
+  Result = (Twine(UnqualifiedTypeName) + Twine(Result)).str();
 
   return Result;
 }
@@ -280,7 +286,8 @@ TypeString getArrayWrapper(const model::QualifiedType &QT) {
   return TypeString(ResultTag.serialize());
 }
 
-TypeString getReturnTypeName(const model::Type &Function) {
+TypeString
+getReturnTypeName(const model::Type &Function, bool AppendWhitespace) {
   TypeString Result;
 
   const auto Layout = abi::FunctionType::Layout::make(Function);
@@ -318,6 +325,9 @@ TypeString getReturnTypeName(const model::Type &Function) {
   }
 
   revng_assert(not Result.empty());
+
+  if (AppendWhitespace)
+    Result.append(" ");
   return Result;
 }
 
@@ -328,17 +338,10 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
                                        llvm::raw_ostream &Header,
                                        const model::Binary &Model,
                                        bool Declaration) {
-  Header << getReturnTypeName(RF);
   auto Layout = abi::FunctionType::Layout::make(RF);
   revng_assert(not Layout.returnsAggregateType());
-  if (RF.ReturnValues.size() == 1) {
-    const model::QualifiedType &ReturnType = RF.ReturnValues.begin()->Type;
-    if (not ReturnType.isPointer() or ReturnType.isConst())
-      Header << " ";
-  } else {
-    Header << " ";
-  }
-  Header << FunctionName;
+
+  Header << getReturnTypeName(RF) << FunctionName;
 
   revng_assert(RF.StackArgumentsType.Qualifiers.empty());
   if (RF.Arguments.empty()
@@ -378,10 +381,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
                                        llvm::raw_ostream &Header,
                                        const model::Binary &Model,
                                        bool Declaration) {
-  Header << getReturnTypeName(CF);
-  if (not CF.ReturnType.isPointer() or CF.ReturnType.isConst())
-    Header << " ";
-  Header << FunctionName;
+  Header << getReturnTypeName(CF) << FunctionName;
 
   if (CF.Arguments.empty()) {
     Header << "(" << ptml::tokenTag("void", tokens::Type) << ")";
@@ -426,7 +426,6 @@ void printFunctionPrototype(const model::Type &FT,
                                     serializedLocation(ranks::Function,
                                                        Function.key()));
   if (auto *RF = dyn_cast<model::RawFunctionType>(&FT)) {
-
     printFunctionPrototypeImpl(&Function,
                                *RF,
                                FunctionTag.serialize(),
@@ -434,7 +433,6 @@ void printFunctionPrototype(const model::Type &FT,
                                Model,
                                Declaration);
   } else if (auto *CF = dyn_cast<model::CABIFunctionType>(&FT)) {
-
     printFunctionPrototypeImpl(&Function,
                                *CF,
                                FunctionTag.serialize(),

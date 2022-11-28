@@ -39,7 +39,8 @@ getArrayWrapper(const model::QualifiedType &QT);
 /// \note If F returns more than one value, the name of the wrapping struct
 /// will be returned.
 extern tokenDefinition::types::TypeString
-getReturnTypeName(const model::Type &FunctionType);
+getReturnTypeName(const model::Type &FunctionType,
+                  bool AppendWhitespace = true);
 
 /// Return the name of the \a Index -th field of the struct returned
 /// by the \a FunctionType.
