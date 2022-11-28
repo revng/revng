@@ -284,26 +284,37 @@ TypeString getReturnTypeName(const model::Type &Function) {
   TypeString Result;
 
   const auto Layout = abi::FunctionType::Layout::make(Function);
-  if (Layout.ReturnValues.size() == 0) {
-    Result = Tag(tags::Span, "void")
-               .addAttribute(attributes::Token, tokens::Type)
-               .serialize();
-  } else if (Layout.ReturnValues.size() == 1) {
-    auto RetTy = Layout.ReturnValues.front().Type;
-    // When returning arrays, they need to be wrapped into an artificial struct
-    if (RetTy.isArray())
-      Result = getArrayWrapper(RetTy);
-    else
-      Result = getNamedCInstance(RetTy, "");
+  if (Layout.returnsAggregateType()) {
+    revng_assert(not Layout.Arguments.empty());
+    auto &ShadowArgument = Layout.Arguments[0];
+    using namespace abi::FunctionType::ArgumentKind;
+    revng_assert(ShadowArgument.Kind == ShadowPointerToAggregateReturnValue);
+    revng_assert(ShadowArgument.Registers.size() == 1);
+    revng_assert(not ShadowArgument.Stack);
+    Result = getNamedCInstance(stripPointer(ShadowArgument.Type), "");
   } else {
-    // RawFunctionTypes can return multiple values, which need to be wrapped
-    // in a struct
-    revng_assert(llvm::isa<model::RawFunctionType>(Function));
-    Result = ptml::tokenTag((Twine(RetStructPrefix) + "returned_by_"
-                             + model::Identifier::fromString(Function.name()))
-                              .str(),
-                            tokens::Type)
-               .serialize();
+    if (Layout.ReturnValues.size() == 0) {
+      Result = Tag(tags::Span, "void")
+                 .addAttribute(attributes::Token, tokens::Type)
+                 .serialize();
+    } else if (Layout.ReturnValues.size() == 1) {
+      auto RetTy = Layout.ReturnValues.front().Type;
+      // When returning arrays, they need to be wrapped into an artificial
+      // struct
+      if (RetTy.isArray())
+        Result = getArrayWrapper(RetTy);
+      else
+        Result = getNamedCInstance(RetTy, "");
+    } else {
+      // RawFunctionTypes can return multiple values, which need to be wrapped
+      // in a struct
+      revng_assert(llvm::isa<model::RawFunctionType>(Function));
+      Result = ptml::tokenTag((Twine(RetStructPrefix) + "returned_by_"
+                               + model::Identifier::fromString(Function.name()))
+                                .str(),
+                              tokens::Type)
+                 .serialize();
+    }
   }
 
   revng_assert(not Result.empty());
@@ -318,6 +329,8 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
                                        const model::Binary &Model,
                                        bool Declaration) {
   Header << getReturnTypeName(RF);
+  auto Layout = abi::FunctionType::Layout::make(RF);
+  revng_assert(not Layout.returnsAggregateType());
   if (RF.ReturnValues.size() == 1) {
     const model::QualifiedType &ReturnType = RF.ReturnValues.begin()->Type;
     if (not ReturnType.isPointer() or ReturnType.isConst())
