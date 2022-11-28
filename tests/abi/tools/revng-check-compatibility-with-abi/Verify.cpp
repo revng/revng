@@ -7,8 +7,8 @@
 
 #include <algorithm>
 
+#include "revng/ABI/Definition.h"
 #include "revng/ABI/FunctionType/Layout.h"
-#include "revng/ABI/RegisterOrder.h"
 
 #include "ABIArtifactParser.h"
 #include "Verify.h"
@@ -46,7 +46,7 @@ public:
 
 public:
   const model::Architecture::Values Architecture;
-  const model::ABI::Values ABI;
+  const abi::Definition &ABI;
   const bool IsLittleEndian;
 
 public:
@@ -82,7 +82,7 @@ llvm::Error VH::verify(const abi::FunctionType::Layout &FunctionLayout,
 
     // Sort the argument registers
     auto ARegisters = FunctionLayout.argumentRegisters();
-    auto OrderedRegisterList = abi::orderArguments(std::move(ARegisters), ABI);
+    auto OrderedRegisterList = ABI.sortArguments(std::move(ARegisters));
 
     // Compute the relevant stack slice.
     abi::FunctionType::Layout::Argument::StackSpan StackSpan{ 0, 0 };
@@ -167,7 +167,7 @@ llvm::Error VH::verify(const abi::FunctionType::Layout &FunctionLayout,
 
     // Check the return value.
     auto RVR = FunctionLayout.returnValueRegisters();
-    auto ReturnValueRegisterList = abi::orderReturnValues(std::move(RVR), ABI);
+    auto ReturnValueRegisterList = ABI.sortReturnValues(std::move(RVR));
     if (!Helper.Iteration.ReturnValue.Bytes.empty()) {
       if (ReturnValueRegisterList.size() == 0)
         return ERROR(ExitCode::FoundUnexpectedReturnValue,
@@ -220,7 +220,9 @@ llvm::Error verifyABI(const TupleTree<model::Binary> &Binary,
 
   llvm::StringRef ArchitectureName = model::Architecture::getName(Architecture);
   revng_assert(ArchitectureName == ParsedArtifact.Architecture);
-  VerificationHelper Helper{ Architecture, ABI, ParsedArtifact.IsLittleEndian };
+
+  const abi::Definition &Def = abi::Definition::get(ABI);
+  VerificationHelper Helper{ Architecture, Def, ParsedArtifact.IsLittleEndian };
 
   for (auto &Type : Binary->Types()) {
     revng_assert(Type.get() != nullptr);

@@ -348,6 +348,50 @@ public:
 
   abi::RegisterState::Map
   enforceRegisterState(const abi::RegisterState::Map &State) const;
+
+  template<ranges::sized_range Container>
+  llvm::SmallVector<model::Register::Values, 8>
+  sortArguments(const Container &Registers) const {
+    SortedVector<model::Register::Values> Lookup;
+    {
+      auto Inserter = Lookup.batch_insert();
+      for (auto &&Register : Registers)
+        Inserter.insert(Register);
+    }
+
+    llvm::SmallVector<model::Register::Values, 8> Result;
+    for (auto Register : GeneralPurposeArgumentRegisters())
+      if (Lookup.count(Register) != 0)
+        Result.emplace_back(Register);
+    for (auto Register : VectorArgumentRegisters())
+      if (Lookup.count(Register) != 0)
+        Result.emplace_back(Register);
+
+    revng_assert(Result.size() == std::size(Registers));
+    return Result;
+  }
+
+  template<ranges::sized_range Container>
+  llvm::SmallVector<model::Register::Values, 8>
+  sortReturnValues(const Container &Registers) const {
+    SortedVector<model::Register::Values> Lookup;
+    {
+      auto Inserter = Lookup.batch_insert();
+      for (auto &&Register : Registers)
+        Inserter.insert(Register);
+    }
+
+    llvm::SmallVector<model::Register::Values, 8> Result;
+    for (auto Register : GeneralPurposeReturnValueRegisters())
+      if (Lookup.count(Register) != 0)
+        Result.emplace_back(Register);
+    for (auto Register : VectorReturnValueRegisters())
+      if (Lookup.count(Register) != 0)
+        Result.emplace_back(Register);
+
+    revng_assert(Result.size() == std::size(Registers));
+    return Result;
+  }
 };
 
 } // namespace abi
