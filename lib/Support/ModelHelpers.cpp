@@ -282,6 +282,9 @@ flattenReturnTypes(const abi::FunctionType::Layout &Layout,
 
   llvm::SmallVector<QualifiedType> ReturnTypes;
 
+  if (Layout.returnsAggregateType())
+    return { Layout.Arguments[0].Type };
+
   auto PointerS = model::Architecture::getPointerSize(Model.Architecture);
   using RV = abi::FunctionType::Layout::ReturnValue;
   for (const RV &ReturnValue : Layout.ReturnValues) {
@@ -324,7 +327,17 @@ static llvm::SmallVector<QualifiedType>
 handleReturnValue(const model::TypePath &Prototype,
                   const model::Binary &Model) {
   const auto Layout = abi::FunctionType::Layout::make(Prototype);
-  return flattenReturnTypes(Layout, Model);
+  if (Layout.returnsAggregateType()) {
+    revng_assert(not Layout.Arguments.empty());
+    auto &Argument = Layout.Arguments[0];
+    using namespace abi::FunctionType::ArgumentKind;
+    revng_assert(Argument.Kind == ShadowPointerToAggregateReturnValue);
+    revng_assert(Argument.Registers.size() == 1);
+    revng_assert(not Argument.Stack);
+    return { stripPointer(Argument.Type) };
+  } else {
+    return flattenReturnTypes(Layout, Model);
+  }
 }
 
 RecursiveCoroutine<llvm::SmallVector<QualifiedType>>
@@ -343,7 +356,6 @@ getStrongModelInfo(FunctionMetadataCache &Cache,
       // Isolated functions have their prototype in the model
       auto Prototype = Cache.getCallSitePrototype(Model, Call);
       revng_assert(Prototype.isValid());
-
       ReturnTypes = handleReturnValue(Prototype, Model);
 
     } else {
