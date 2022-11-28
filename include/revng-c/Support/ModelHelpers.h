@@ -113,3 +113,11 @@ getExpectedModelType(FunctionMetadataCache &Cache,
 extern llvm::SmallVector<model::QualifiedType>
 flattenReturnTypes(const abi::FunctionType::Layout &Layout,
                    const model::Binary &Model);
+
+inline model::QualifiedType stripPointer(const model::QualifiedType &Type) {
+  model::QualifiedType Result = Type;
+  revng_assert(not Result.Qualifiers.empty()
+               and model::Qualifier::isPointer(Result.Qualifiers.front()));
+  Result.Qualifiers.erase(Result.Qualifiers.begin());
+  return Result;
+}
