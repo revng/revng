@@ -6,6 +6,7 @@
 
 #include <vector>
 
+#include "revng/ABI/RegisterState.h"
 #include "revng/ABI/ScalarType.h"
 #include "revng/ADT/SortedVector.h"
 #include "revng/Model/ABI.h"
@@ -340,6 +341,13 @@ public:
 
     return Offset;
   }
+
+public:
+  std::optional<abi::RegisterState::Map>
+  tryDeducingRegisterState(const abi::RegisterState::Map &State) const;
+
+  abi::RegisterState::Map
+  enforceRegisterState(const abi::RegisterState::Map &State) const;
 };
 
 } // namespace abi

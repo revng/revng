@@ -9,7 +9,6 @@
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ABI/RegisterOrder.h"
-#include "revng/ABI/RuntimeTraitAccessors.h"
 
 #include "ABIArtifactParser.h"
 #include "Verify.h"
