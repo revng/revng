@@ -845,10 +845,9 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
     const auto VarNames = getOrCreateVarName(Call);
 
     if (VarNames.hasDeclaration()) {
-      // If needed, declare a new variable that contains the struct
-      StringToken StructTyName = getReturnTypeName(ParentPrototype);
       // Emit LHS as a definition
-      Out << StructTyName << " " << VarNames.Declaration;
+      Out << getReturnTypeName(*ModelFunction.Prototype.get()) << " "
+          << VarNames.Declaration;
     } else {
       // Emit LHS as a reference
       Out << VarNames.Use;
@@ -1021,7 +1020,7 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
 
         // Declare a new local variable if it hasn't already been declared
         if (VarNames.hasDeclaration())
-          Out << getReturnTypeName(*Prototype) << " " << VarNames.Declaration;
+          Out << getNamedInstanceOfReturnType(*Prototype, VarNames.Declaration);
         else
           Out << VarNames.Use;
 
@@ -1039,7 +1038,8 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
 
           // Declare a new local variable if it hasn't already been declared
           if (VarNames.hasDeclaration())
-            Out << getReturnTypeName(*Prototype) << " " << VarNames.Declaration;
+            Out << getNamedInstanceOfReturnType(*Prototype,
+                                                VarNames.Declaration);
           else
             Out << VarNames.Use;
 
@@ -1682,7 +1682,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
           if (FunctionTags::Isolated.isTagOf(CalledFunction)) {
             const auto *Prototype = Cache.getCallSitePrototype(Model, Call)
                                       .getConst();
-            Out << getReturnTypeName(*Prototype) << " " << VarName.Declaration
+            Out << getNamedInstanceOfReturnType(*Prototype, VarName.Declaration)
                 << ";\n";
           } else {
             Out << getReturnTypeLocationReference(CalledFunction) << " "

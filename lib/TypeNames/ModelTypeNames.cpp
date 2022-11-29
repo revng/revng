@@ -286,8 +286,8 @@ TypeString getArrayWrapper(const model::QualifiedType &QT) {
   return TypeString(ResultTag.serialize());
 }
 
-TypeString
-getReturnTypeName(const model::Type &Function, bool AppendWhitespace) {
+TypeString getNamedInstanceOfReturnType(const model::Type &Function,
+                                        llvm::StringRef InstanceName) {
   TypeString Result;
 
   const auto Layout = abi::FunctionType::Layout::make(Function);
@@ -298,20 +298,25 @@ getReturnTypeName(const model::Type &Function, bool AppendWhitespace) {
     revng_assert(ShadowArgument.Kind == ShadowPointerToAggregateReturnValue);
     revng_assert(ShadowArgument.Registers.size() == 1);
     revng_assert(not ShadowArgument.Stack);
-    Result = getNamedCInstance(stripPointer(ShadowArgument.Type), "");
+    Result = getNamedCInstance(stripPointer(ShadowArgument.Type), InstanceName);
   } else {
     if (Layout.ReturnValues.size() == 0) {
       Result = Tag(tags::Span, "void")
                  .addAttribute(attributes::Token, tokens::Type)
                  .serialize();
+      if (not InstanceName.empty())
+        Result.append((Twine(" ") + Twine(InstanceName)).str());
     } else if (Layout.ReturnValues.size() == 1) {
       auto RetTy = Layout.ReturnValues.front().Type;
       // When returning arrays, they need to be wrapped into an artificial
       // struct
-      if (RetTy.isArray())
+      if (RetTy.isArray()) {
         Result = getArrayWrapper(RetTy);
-      else
-        Result = getNamedCInstance(RetTy, "");
+        if (not InstanceName.empty())
+          Result.append((Twine(" ") + Twine(InstanceName)).str());
+      } else {
+        Result = getNamedCInstance(RetTy, InstanceName);
+      }
     } else {
       // RawFunctionTypes can return multiple values, which need to be wrapped
       // in a struct
@@ -321,13 +326,12 @@ getReturnTypeName(const model::Type &Function, bool AppendWhitespace) {
                                 .str(),
                               tokens::Type)
                  .serialize();
+      if (not InstanceName.empty())
+        Result.append((Twine(" ") + Twine(InstanceName)).str());
     }
   }
 
-  revng_assert(not Result.empty());
-
-  if (AppendWhitespace)
-    Result.append(" ");
+  revng_assert(not llvm::StringRef(Result).trim().empty());
   return Result;
 }
 
@@ -341,7 +345,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
   auto Layout = abi::FunctionType::Layout::make(RF);
   revng_assert(not Layout.returnsAggregateType());
 
-  Header << getReturnTypeName(RF) << FunctionName;
+  Header << getNamedInstanceOfReturnType(RF, FunctionName);
 
   revng_assert(RF.StackArgumentsType.Qualifiers.empty());
   if (RF.Arguments.empty()
@@ -381,7 +385,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
                                        llvm::raw_ostream &Header,
                                        const model::Binary &Model,
                                        bool Declaration) {
-  Header << getReturnTypeName(CF) << FunctionName;
+  Header << getNamedInstanceOfReturnType(CF, FunctionName);
 
   if (CF.Arguments.empty()) {
     Header << "(" << ptml::tokenTag("void", tokens::Type) << ")";
