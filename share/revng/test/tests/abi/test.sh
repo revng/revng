@@ -14,9 +14,8 @@ test -n "$ABI_NAME"
 test -n "$RUNTIME_ABI_ANALYSIS_RESULT"
 test -n "$BINARY"
 
-TEMPORARY_FILES="$PWD/model"
-if [ -d "${TEMPORARY_FILES}" ]; then rm -rf "${TEMPORARY_FILES}"; fi
-mkdir -p "${TEMPORARY_FILES}"
+TEMPORARY_DIR="$(mktemp --tmpdir tmp.cabi-test.XXXXXXXXXX -d)"
+trap "rm -rf $TEMPORARY_DIR" EXIT
 
 # Import DWARF information
 revng \
@@ -24,7 +23,7 @@ revng \
     import \
     dwarf \
     "$BINARY" \
-    > "${TEMPORARY_FILES}/reference_binary.yml"
+    > "${TEMPORARY_DIR}/reference_binary.yml"
 
 # Convert CABIFunctionType to RawFunctionType
 revng \
@@ -32,8 +31,8 @@ revng \
     opt \
     --convert-all-cabi-functions-to-raw \
     --abi="${ABI_NAME}" \
-    "${TEMPORARY_FILES}/reference_binary.yml" \
-    > "${TEMPORARY_FILES}/downgraded_reference_binary.yml"
+    "${TEMPORARY_DIR}/reference_binary.yml" \
+    > "${TEMPORARY_DIR}/downgraded_reference_binary.yml"
 
 # Convert RawFunctionType back to CABIFunctionType
 revng \
@@ -41,8 +40,8 @@ revng \
     opt \
     --convert-all-raw-functions-to-cabi \
     --abi="${ABI_NAME}" \
-    "${TEMPORARY_FILES}/downgraded_reference_binary.yml" \
-    > "${TEMPORARY_FILES}/upgraded_downgraded_reference_binary.yml"
+    "${TEMPORARY_DIR}/downgraded_reference_binary.yml" \
+    > "${TEMPORARY_DIR}/upgraded_downgraded_reference_binary.yml"
 
 # Back to RawFunctionType again
 revng \
@@ -50,36 +49,36 @@ revng \
     opt \
     --convert-all-cabi-functions-to-raw \
     --abi="${ABI_NAME}" \
-    "${TEMPORARY_FILES}/upgraded_downgraded_reference_binary.yml" \
-    > "${TEMPORARY_FILES}/downgraded_upgraded_downgraded_reference_binary.yml"
+    "${TEMPORARY_DIR}/upgraded_downgraded_reference_binary.yml" \
+    > "${TEMPORARY_DIR}/downgraded_upgraded_downgraded_reference_binary.yml"
 
 # Check there are no differences
 revng \
     ensure-rft-equivalence \
-    "${TEMPORARY_FILES}/downgraded_reference_binary.yml" \
-    "${TEMPORARY_FILES}/downgraded_upgraded_downgraded_reference_binary.yml"
+    "${TEMPORARY_DIR}/downgraded_reference_binary.yml" \
+    "${TEMPORARY_DIR}/downgraded_upgraded_downgraded_reference_binary.yml"
 
 # Verify that no step contradicts the actual state.
 revng \
     abi-verify \
     -abi="${ABI_NAME}" \
-    "${TEMPORARY_FILES}/reference_binary.yml" \
+    "${TEMPORARY_DIR}/reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}"
 
 revng \
     abi-verify \
     -abi="${ABI_NAME}" \
-    "${TEMPORARY_FILES}/downgraded_reference_binary.yml" \
+    "${TEMPORARY_DIR}/downgraded_reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}"
 
 revng \
     abi-verify \
     -abi="${ABI_NAME}" \
-    "${TEMPORARY_FILES}/upgraded_downgraded_reference_binary.yml" \
+    "${TEMPORARY_DIR}/upgraded_downgraded_reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}"
 
 revng \
     abi-verify \
     -abi="${ABI_NAME}" \
-    "${TEMPORARY_FILES}/downgraded_upgraded_downgraded_reference_binary.yml" \
+    "${TEMPORARY_DIR}/downgraded_upgraded_downgraded_reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}"
