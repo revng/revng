@@ -70,16 +70,6 @@ commands:
         cat "$$TMP";
         exit 1;
       fi;
-  - type: revng.test-daemon-self-test
-    from:
-      - type: revng-qa.compiled
-        filter: example-executable-1
-    command: |-
-      TMP="$$(temp)";
-      if ! revng daemon-self-test "$INPUT" >& "$$TMP"; then
-        cat "$$TMP";
-        exit 1;
-      fi;
   - type: test-model-diff
     from:
       - type: revng-qa.compiled
