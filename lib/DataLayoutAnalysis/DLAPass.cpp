@@ -95,6 +95,7 @@ bool DLAPass::runOnModule(llvm::Module &M) {
 
   Changed |= dla::updateFuncSignatures(M, WritableModel, ValueToTypeMap, Cache);
   Changed |= dla::updateSegmentsTypes(M, WritableModel, ValueToTypeMap);
+  revng_assert(WritableModel->verify(true));
 
   return Changed;
 }
