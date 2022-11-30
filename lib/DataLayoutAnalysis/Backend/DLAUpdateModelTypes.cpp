@@ -188,9 +188,11 @@ static void fillStructWithRecoveredDLAType(model::Binary &Model,
       or isa<model::EnumType>(RecoveredUnqualType)) {
     revng_assert(RecoveredStructSize <= OriginalStructSize);
 
-    // OriginalStructType is an empty struct, just add the new stack type
-    // as the first field.
-    OriginalStructType->Fields[0].Type = RecoveredType;
+    // If OriginalStructType is an empty struct, just add the new stack type
+    // as the first field, otherwise leave it alone.
+    if (OriginalStructType->Fields.find(0) == OriginalStructType->Fields.end())
+      OriginalStructType->Fields[0].Type = RecoveredType;
+
   } else if (auto *NewS = dyn_cast<model::StructType>(RecoveredUnqualType)) {
     // If DLA recoverd a struct, whose size is too large, we have to shrink
     // it. For now the shrinking does not look deeply inside the types, only
@@ -248,14 +250,19 @@ static void fillStructWithRecoveredDLAType(model::Binary &Model,
       OriginalStructType->Fields.insert(*NewField);
 
   } else if (auto *NewU = dyn_cast<model::UnionType>(RecoveredUnqualType)) {
-    // If DLA recoverd an union kind, whose size that is too large, we have to
-    // shrink it, likewise we did with a struct kind.
+    // If OriginalStructType is an not an empty struct, just leave it alone.
+    if (not OriginalStructType->Fields.empty())
+      return;
+
+    // If DLA recoverd an union kind, whose size is too large, we have to
+    // shrink it, like we did with a struct kind.
     auto FieldsRemaining = NewU->Fields.size();
     if (RecoveredStructSize > OriginalStructSize) {
 
-      const auto IsTooLarge = [OriginalStructSize](const auto &Field) {
-        return *Field.Type.size() > OriginalStructSize;
-      };
+      const auto IsTooLarge =
+        [OriginalStructSize](const model::UnionField &Field) {
+          return *Field.Type.size() > OriginalStructSize;
+        };
 
       // First, detect the fields that are too large.
       llvm::SmallSet<size_t, 8> FieldsToDrop;
@@ -292,8 +299,8 @@ static void fillStructWithRecoveredDLAType(model::Binary &Model,
       }
     }
 
-    // If there are fields left in the union, then inject them in the struct
-    // as fields.
+    // If there are fields left in the union, then inject the union in the
+    // struct as field at offset 0.
     if (FieldsRemaining) {
       OriginalStructType->Fields[0]
         .Type = model::QualifiedType(Model.getTypePath(NewU), {});
