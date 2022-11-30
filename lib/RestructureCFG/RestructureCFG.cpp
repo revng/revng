@@ -2,9 +2,11 @@
 // Copyright rev.ng Labs Srl. See LICENSE.md for details.
 //
 
+#include <iterator>
 #include <limits>
 #include <sstream>
 
+#include "llvm/ADT/BreadthFirstIterator.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/BasicBlock.h"
@@ -30,7 +32,6 @@
 using namespace llvm;
 using namespace llvm::cl;
 
-using std::make_pair;
 using std::pair;
 using std::string;
 using std::to_string;
@@ -53,61 +54,67 @@ using MetaRegionBBVect = std::vector<MetaRegionBB>;
 using MetaRegionBBPtrVect = std::vector<MetaRegionBB *>;
 using BackedgeMetaRegionMap = std::map<EdgeDescriptor, MetaRegionBB *>;
 
-static std::set<EdgeDescriptor> getBackedges(RegionCFG<BasicBlock *> &Graph) {
-
-  // Some helper data structures.
-  int Time = 0;
-  std::map<BasicBlockNodeBB *, int> StartTime;
-  std::map<BasicBlockNodeBB *, int> FinishTime;
-  std::vector<std::pair<BasicBlockNodeBB *, size_t>> Stack;
+static std::set<EdgeDescriptor>
+getBackedges(BasicBlockNodeBB *Entry,
+             std::function<bool(BasicBlockNodeBB *)> IsValid) {
 
   // Set of backedges.
   std::set<EdgeDescriptor> Backedges;
 
+  // Some helper data structures.
+  llvm::SmallPtrSet<const BasicBlockNodeBB *, 8> Done;
+  llvm::SmallPtrSet<const BasicBlockNodeBB *, 8> OnStack;
+  llvm::SmallVector<std::pair<BasicBlockNodeBB *, size_t>> Stack;
+
   // Push the entry node in the exploration stack.
-  BasicBlockNodeBB &EntryNode = Graph.getEntryNode();
-  Stack.push_back(make_pair(&EntryNode, 0));
+  Stack.push_back(std::make_pair(Entry, 0));
+  OnStack.insert(Entry);
 
   // Go through the exploration stack.
-  while (!Stack.empty()) {
-    auto StackElem = Stack.back();
-    Stack.pop_back();
-    BasicBlockNodeBB *Vertex = StackElem.first;
-    Time++;
+  while (not Stack.empty()) {
+    auto &StackElem = Stack.back();
+    auto &[Vertex, NextSuccessorToVisit] = StackElem;
+    revng_assert(IsValid(Vertex));
 
-    // Check if we are inspecting a vertex for the first time, and in case mark
-    // the start time of the visit.
-    if (StartTime.count(Vertex) == 0) {
-      StartTime[Vertex] = Time;
-    }
+    if (NextSuccessorToVisit < Vertex->successor_size()) {
+      // We haven't finished visiting the children of Vertex yet.
+      // Look at the next Successor
+      BasicBlockNodeBB *Successor = Vertex->getSuccessorI(NextSuccessorToVisit);
 
-    // Successor exploraition
-    size_t Index = StackElem.second;
+      // Increment the successor count, so at next iteration we see the next
+      // pending successor of Vertex.
+      ++NextSuccessorToVisit;
 
-    // If we are still successors to explore.
-    if (Index < StackElem.first->successor_size()) {
-      BasicBlockNodeBB *Successor = Vertex->getSuccessorI(Index);
-      Index++;
-      Stack.push_back(make_pair(Vertex, Index));
+      // If the current Successor is not valid, or it's alredy done, skip it.
+      if (not IsValid(Successor) or Done.contains(Successor))
+        continue;
 
-      // We are in presence of a backedge.
-      if (StartTime.count(Successor) != 0
-          and FinishTime.count(Successor) == 0) {
-        Backedges.insert(make_pair(Vertex, Successor));
-      }
-
-      // Enqueue the successor for the visit.
-      if (StartTime.count(Successor) == 0) {
-        Stack.push_back(make_pair(Successor, 0));
+      // Here the Successor is valid. Try to push it on the stack.
+      if (bool New = OnStack.insert(Successor).second) {
+        // If the Successor wasn't already on the stack, we can push it.
+        Stack.push_back(std::make_pair(Successor, 0));
+      } else {
+        // Otherwise, the Successor was already on the stack, and we detect a
+        // backedge.
+        Backedges.insert(std::make_pair(Vertex, Successor));
       }
     } else {
-
-      // Mark the finish of the visit of a vertex.
-      FinishTime[Vertex] = Time;
+      // We've finished looking at Vertex's children. We can pop Vertex from the
+      // stack.
+      bool Erased = OnStack.erase(Vertex);
+      revng_assert(Erased);
+      bool New = Done.insert(Vertex).second;
+      revng_assert(New);
+      Stack.pop_back();
     }
   }
 
   return Backedges;
+}
+
+static std::set<EdgeDescriptor> getBackedges(RegionCFG<BasicBlock *> &Graph) {
+  return getBackedges(&Graph.getEntryNode(),
+                      [](const BasicBlockNodeBB *) { return true; });
 }
 
 static bool mergeSCSStep(MetaRegionBBVect &MetaRegions) {
@@ -446,6 +453,15 @@ static void LogMetaRegions(const MetaRegionBBVect &MetaRegions,
   }
 }
 
+static std::map<BasicBlockNodeBB *, size_t>
+getCandidateEntries(MetaRegionBB *Meta) {
+  std::map<BasicBlockNodeBB *, size_t> Result;
+  std::set<EdgeDescriptor> InEdges = Meta->getInEdges();
+  for (const auto &[Src, Tgt] : InEdges)
+    ++Result[Tgt];
+  return Result;
+}
+
 bool restructureCFG(Function &F, ASTTree &AST) {
   revng_log(FezLogger, "restructuring Function: " << F.getName());
   revng_log(FezLogger, "Num basic blocks: " << F.size());
@@ -494,9 +510,8 @@ bool restructureCFG(Function &F, ASTTree &AST) {
   Backedges = getBackedges(RootCFG);
 
   // Check that the source node of each retreating edge is a dummy node.
-  for (EdgeDescriptor Backedge : Backedges) {
+  for (EdgeDescriptor Backedge : Backedges)
     revng_assert(Backedge.first->isEmpty());
-  }
 
   // Create meta regions
   MetaRegionBBVect MetaRegions = createMetaRegions(Backedges);
@@ -533,22 +548,38 @@ bool restructureCFG(Function &F, ASTTree &AST) {
   // Print metaregions after ordering.
   LogMetaRegions(OrderedMetaRegions, "Metaregions after partial ordering:");
 
-  ReversePostOrderTraversal<BasicBlockNodeBB *> ORPOT(&RootCFG.getEntryNode());
-
-  // Create a std::vector from the reverse post order (we will later need
-  // the removal operation)
+  // Create a std::vector from the reverse post order. We cannot just use the
+  // regular ReversePostOrderTraversal because later we'll need the removal
+  // operation.
   std::vector<BasicBlockNodeBB *> RPOT;
-  for (BasicBlockNodeBB *BN : ORPOT) {
-    RPOT.push_back(BN);
-  }
+  using RPOTraversal = ReversePostOrderTraversal<BasicBlockNodeBB *>;
+  llvm::copy(RPOTraversal{ &RootCFG.getEntryNode() }, std::back_inserter(RPOT));
 
   if (CombLogger.isEnabled()) {
     CombLogger << "\n";
     CombLogger << "Reverse post order is:\n";
-    for (BasicBlockNodeBB *BN : RPOT) {
+    for (const BasicBlockNodeBB *BN : RPOT)
       CombLogger << BN->getNameStr() << "\n";
-    }
     CombLogger << "Reverse post order end\n";
+  }
+
+  // Compute shortest path to reach all nodes from Entry.
+  // Uset later for picking the entry point of each region.
+  std::map<BasicBlockNodeBB *, size_t> ShortestPathFromEntry;
+  {
+    auto BFSIt = llvm::bf_begin(&RootCFG.getEntryNode());
+    auto BFSEnd = llvm::bf_end(&RootCFG.getEntryNode());
+    for (; BFSIt != BFSEnd; ++BFSIt) {
+      BasicBlockNodeBB *Node = *BFSIt;
+      size_t Depth = BFSIt.getLevel();
+      auto ShortestIt = ShortestPathFromEntry.lower_bound(Node);
+      if (ShortestIt == ShortestPathFromEntry.end()
+          or Node < ShortestIt->first) {
+        ShortestPathFromEntry.insert(ShortestIt, { Node, Depth });
+      } else {
+        revng_assert(ShortestIt->second <= Depth);
+      }
+    }
   }
 
   DominatorTreeBase<BasicBlockNodeBB, false> DT;
@@ -576,58 +607,87 @@ bool restructureCFG(Function &F, ASTTree &AST) {
     }
 
     // Identify all the abnormal retreating edges in a SCS.
-    std::set<EdgeDescriptor> Retreatings;
-    std::set<BasicBlockNodeBB *> RetreatingTargets;
-    for (EdgeDescriptor Backedge : Backedges) {
+    for (EdgeDescriptor Backedge : llvm::make_early_inc_range(Backedges)) {
       if (Meta->containsNode(Backedge.first)) {
-
-        // Check that the target of the retreating edge falls inside the current
-        // SCS.
+        // Check that the target of the backedge falls inside the current SCS.
         revng_assert(Meta->containsNode(Backedge.second));
-
-        Retreatings.insert(Backedge);
-        RetreatingTargets.insert(Backedge.second);
-      }
-    }
-    if (CombLogger.isEnabled()) {
-      CombLogger << "Retreatings found:\n";
-      for (EdgeDescriptor Retreating : Retreatings) {
-        CombLogger << Retreating.first->getNameStr() << " -> ";
-        CombLogger << Retreating.second->getNameStr() << "\n";
+        // We need to update the backedges list removing the edges which have
+        // been considered as retreatings of the SCS under analysis.
+        bool Erased = Backedges.erase(Backedge);
+        revng_assert(Erased);
       }
     }
 
-    // We need to update the backedges list removing the edges which have been
-    // considered as retreatings of the SCS under analysis.
-    for (EdgeDescriptor Retreating : Retreatings) {
-      revng_assert(Backedges.count(Retreating) == 1);
-      Backedges.erase(Retreating);
-    }
+    // A map of candidate entries. The key is a entry candidate, i.e. a node
+    // that has an incoming edge from the outer region. The mapped value is the
+    // number of edges incoming on the key from an outer region.
+    std::map<BasicBlockNodeBB *, size_t> Entries = getCandidateEntries(Meta);
+    revng_assert(not Entries.empty());
 
-    // Always take the fist node in RPOT which is a retreating target as entry,
-    // candidate.
-    BasicBlockNodeBB *FirstCandidate = nullptr;
-    for (BasicBlockNodeBB *BN : RPOT) {
-      if (Meta->containsNode(BN) and RetreatingTargets.count(BN)) {
-        FirstCandidate = BN;
-        break;
+    // Elect the Entry as the the candidate entry with the largest number of
+    // incoming edges from outside the region.
+    // If there's a tie, i.e. there are 2 or more candidate entries with the
+    // same number of incoming edges from an outer region, we select the entry
+    // with the minimal shortest path from entry.
+    // It it's still a tie, i.e. there are 2 or more candidate entries with the
+    // same number of incoming edges from an outer region and the same minimal
+    // shortest path from entry, then we disambiguate by picking the entry that
+    // comes first in RPOT.
+    BasicBlockNodeBB *Entry = Entries.begin()->first;
+    {
+      size_t MaxNEntries = Entries.begin()->second;
+      size_t ShortestPath = ShortestPathFromEntry.at(Entry);
+
+      auto EntriesEnd = Entries.end();
+      for (BasicBlockNodeBB *Node : RPOT) {
+
+        auto EntriesIt = Entries.find(Node);
+        if (EntriesIt != EntriesEnd) {
+
+          const auto &[EntryCandidate, NumEntries] = *EntriesIt;
+          if (NumEntries > MaxNEntries) {
+            Entry = EntryCandidate;
+            ShortestPath = ShortestPathFromEntry.at(EntryCandidate);
+
+          } else if (NumEntries == MaxNEntries) {
+
+            size_t SP = ShortestPathFromEntry.at(EntryCandidate);
+            if (SP < ShortestPath) {
+              Entry = EntryCandidate;
+              ShortestPath = SP;
+            }
+          }
+        }
       }
     }
 
-    revng_assert(FirstCandidate != nullptr);
+    revng_assert(Entry != nullptr);
 
-    // Print out the name of the node that has been selected as head of the
-    // region
-    if (CombLogger.isEnabled()) {
-      CombLogger << "Elected head is: " << FirstCandidate->getNameStr() << "\n";
+    // Print the name of the node that has been selected as head of the region
+    revng_log(CombLogger, "Elected head is: " << Entry->getNameStr());
+
+    // Compute the retreating edges and their targets inside the region,
+    // starting from the new Entry.
+    std::set<EdgeDescriptor>
+      Retreatings = getBackedges(Entry, [Meta](BasicBlockNodeBB *Node) {
+        return Meta->containsNode(Node);
+      });
+    std::set<BasicBlockNodeBB *> RetreatingTargets;
+    for (const EdgeDescriptor &Retreating : Retreatings) {
+      revng_log(CombLogger,
+                "Retreatings found: " << Retreating.first->getNameStr()
+                                      << " -> "
+                                      << Retreating.second->getNameStr());
+
+      revng_assert(Meta->containsNode(Retreating.first));
+      revng_assert(Meta->containsNode(Retreating.second));
+      RetreatingTargets.insert(Retreating.second);
     }
 
     bool NewHeadNeeded = RetreatingTargets.size() > 1;
-    if (CombLogger.isEnabled()) {
-      CombLogger << "New head needed: " << NewHeadNeeded << "\n";
-    }
+    revng_log(CombLogger, "New head needed: " << NewHeadNeeded);
 
-    BasicBlockNodeBB *Head = FirstCandidate;
+    BasicBlockNodeBB *Head = Entry;
     if (NewHeadNeeded) {
       // Create the dispatcher.
       Head = RootCFG.addEntryDispatcher();
@@ -672,12 +732,12 @@ bool restructureCFG(Function &F, ASTTree &AST) {
 
       // Move the incoming edge from the old head to new one.
       std::vector<BasicBlockNodeBB *> Predecessors;
-      for (BasicBlockNodeBB *Predecessor : FirstCandidate->predecessors())
+      for (BasicBlockNodeBB *Predecessor : Entry->predecessors())
         Predecessors.push_back(Predecessor);
 
       for (BasicBlockNodeBB *Predecessor : Predecessors)
         if (not Meta->containsNode(Predecessor))
-          moveEdgeTarget(EdgeDescriptor(Predecessor, FirstCandidate), Head);
+          moveEdgeTarget(EdgeDescriptor(Predecessor, Entry), Head);
     }
 
     revng_assert(Head != nullptr);
@@ -709,7 +769,7 @@ bool restructureCFG(Function &F, ASTTree &AST) {
                                                                "dummy");
         BasicBlockNodeBB *OldSource = Edge.first;
         BasicBlockNodeBB *OldTarget = Edge.second;
-        EdgeExtremal[Frontier] = make_pair(OldSource, OldTarget);
+        EdgeExtremal[Frontier] = std::make_pair(OldSource, OldTarget);
         moveEdgeTarget(Edge, Frontier);
         addPlainEdge(EdgeDescriptor(Frontier, OldTarget));
         Meta->insertNode(Frontier);
@@ -881,9 +941,7 @@ bool restructureCFG(Function &F, ASTTree &AST) {
     }
 
     bool NewExitNeeded = DeduplicatedRegionSuccessors.size() > 1;
-    if (CombLogger.isEnabled()) {
-      CombLogger << "New exit needed: " << NewExitNeeded << "\n";
-    }
+    revng_log(CombLogger, "New exit needed: " << NewExitNeeded);
 
     std::vector<BasicBlockNodeBB *> ExitDispatcherNodes;
     BasicBlockNodeBB *Exit = nullptr;
