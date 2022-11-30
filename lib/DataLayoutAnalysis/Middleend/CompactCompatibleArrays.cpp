@@ -243,10 +243,10 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
             // If there is still some OffsetDifference after adjusting the
             // slack, we have to add a whole bunch of new elements before
             // ArrayStartOffset.
-            if (OffsetDifference) {
+            uint64_t NumPrecedingElements = OffsetDifference / Stride;
+            if (NumPrecedingElements) {
               // Count how many elements we have to add before the array we're
               // tracking.
-              uint64_t NumPrecedingElements = OffsetDifference / Stride;
 
               // Effectively change the start of the range we're tracking as if
               // we added the proper amount of elements before the beginning. We
@@ -254,6 +254,14 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
               // division above had non-zero remainder.
               ArrayStartOffset -= Stride * NumPrecedingElements;
             }
+
+            // Also, we're moving the ArrayStartOffset backward, so the the size
+            // of the range we're tracking is going to increase, we have to
+            // restart looking at array siblings because, given that the range
+            // increases, there could be new siblings that have overlapping
+            // bytes, and we have to take them into consideration too.
+            if (RequiredSlack or NumPrecedingElements)
+              SiblingEdgeNext = GT::child_edge_begin(Parent);
 
             revng_assert(ArrayStartOffset == SiblingOffset);
           }
@@ -268,7 +276,7 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
           // to the left, consuming slack. RequiredSlack tells us how much of
           // the AvailableSlack we would consume doing that.
           uint64_t RequiredSlack = 0ULL;
-          if (OffsetOfSiblingInArray)
+          if (OffsetOfSiblingInArray + Sibling->Size > Stride)
             RequiredSlack = Stride - OffsetOfSiblingInArray;
 
           // If we need slack but we don't have it, the Sibling will not be
@@ -285,7 +293,9 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
           // range increases, there could be new siblings that have
           // overlapping bytes, and we have to take them into consideration
           // too.
-          // This may happen in 2 scenarios
+          // This may happen in 2 scenarios: there's some required slack, so
+          // we're moving the start backwards; or the new end offset is larger
+          // than the older, so we're moving the end forwards.
           if (RequiredSlack or SiblingEndOffset > ArrayEndOffset)
             SiblingEdgeNext = GT::child_edge_begin(Parent);
 
@@ -297,7 +307,9 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
           // SiblingSize is large, because the compacted sibling will consume
           // more of the bytes in the Stride, effectively leaving less stride.
           AvailableSlack = std::min(AvailableSlack - RequiredSlack,
-                                    Stride - Sibling->Size);
+                                    Stride
+                                      - (OffsetOfSiblingInArray
+                                         + Sibling->Size));
 
           // Update the ArrayEndOffset, given that the ArraySibling could end
           // at a higher offset.
