@@ -1230,20 +1230,9 @@ inline bool RegionCFG<NodeT>::isDAG() {
   for (llvm::scc_iterator<RegionCFG<NodeT> *> I = llvm::scc_begin(this),
                                               IE = llvm::scc_end(this);
        I != IE;
-       ++I) {
-    const std::vector<BasicBlockNode<NodeT> *> &SCC = *I;
-    if (SCC.size() != 1) {
+       ++I)
+    if (I.hasCycle())
       return false;
-    } else {
-      BasicBlockNode<NodeT> *Node = SCC[0];
-      for (BasicBlockNode<NodeT> *Successor : Node->successors()) {
-        if (Successor == Node) {
-          return false;
-        }
-      }
-    }
-  }
-
   return true;
 }
 
