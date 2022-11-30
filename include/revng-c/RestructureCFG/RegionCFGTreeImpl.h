@@ -539,28 +539,14 @@ inline void RegionCFG<NodeT>::untangle() {
       const auto DominatedByElse = [DT = &DT, ElseChild](auto *Node) {
         return DT->dominates(ElseChild, Node);
       };
-      // TODO: substitute the following loop with std::set::erase_if when it
-      // becomes available.
-      for (auto I = ElseNodes.begin(), E = ElseNodes.end(); I != E;) {
-        if (DominatedByElse(*I))
-          I = ElseNodes.erase(I);
-        else
-          ++I;
-      }
+      std::erase_if(ElseNodes, DominatedByElse);
     }
 
     if (EdgeDominates({ Conditional, ThenChild }, ThenChild)) {
       const auto DominatedByThen = [DT = &DT, ThenChild](auto *Node) {
         return DT->dominates(ThenChild, Node);
       };
-      // TODO: substitute the following loop with std::set::erase_if when it
-      // becomes available.
-      for (auto I = ThenNodes.begin(), E = ThenNodes.end(); I != E;) {
-        if (DominatedByThen(*I))
-          I = ThenNodes.erase(I);
-        else
-          ++I;
-      }
+      std::erase_if(ThenNodes, DominatedByThen);
     }
 
     // Compute the weight of the `then` and `else` branches.
@@ -715,7 +701,6 @@ inline void RegionCFG<NodeT>::inflate() {
   revng_assert(isDAG());
 
   // Apply the comb to a RegionCFG object.
-  // TODO: handle all the collapsed regions.
   RegionCFG<NodeT> &Graph = *this;
 
   BasicBlockNode<NodeT> *Entry = &Graph.getEntryNode();
