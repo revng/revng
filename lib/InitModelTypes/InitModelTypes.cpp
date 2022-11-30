@@ -62,20 +62,23 @@ static void addArgumentsTypes(const llvm::Function &LLVMFunc,
                               bool PointersOnly) {
 
   const auto Layout = abi::FunctionType::Layout::make(*Prototype);
-  revng_assert(Layout.Arguments.size() == LLVMFunc.arg_size());
-  const auto &
-    ArgModelTypes = llvm::map_range(Layout.Arguments,
-                                    [](const abi::FunctionType::Layout::Argument
-                                         &A) { return A.Type; });
+
+  const auto IsNonShadow = [](const abi::FunctionType::Layout::Argument &A) {
+    using namespace abi::FunctionType::ArgumentKind;
+    return A.Kind != ShadowPointerToAggregateReturnValue;
+  };
+
+  auto NumArgs = LLVMFunc.arg_size();
+  size_t NumNonShadowArgs = llvm::count_if(Layout.Arguments, IsNonShadow);
+  revng_assert(NumNonShadowArgs == NumArgs);
+  auto NonShadowArgs = llvm::make_filter_range(Layout.Arguments, IsNonShadow);
+
   for (const auto &[ArgModelType, LLVMArg] :
-       llvm::zip_first(ArgModelTypes, LLVMFunc.args())) {
-    if (ArgModelType.isScalar()) {
-      if (not PointersOnly or ArgModelType.isPointer())
-        TypeMap.insert({ &LLVMArg, ArgModelType });
-    } else {
-      QualifiedType ArgType = Model.getPointerTo(ArgModelType);
-      TypeMap.insert({ &LLVMArg, std::move(ArgType) });
-    }
+       llvm::zip_first(NonShadowArgs, LLVMFunc.args())) {
+
+    QualifiedType ArgQualifiedType = ArgModelType.Type;
+    if (not PointersOnly or ArgQualifiedType.isPointer())
+      TypeMap.insert({ &LLVMArg, std::move(ArgQualifiedType) });
   }
 }
 
@@ -111,8 +114,7 @@ static RecursiveCoroutine<bool> addOperandType(const llvm::Value *Operand,
       }
     }
   } else if (isa<llvm::ConstantInt>(Operand)
-             or isa<llvm::GlobalVariable>(Operand)
-             or isa<llvm::UndefValue>(Operand)) {
+             or isa<llvm::GlobalVariable>(Operand)) {
 
     // For constants and globals, fallback to the LLVM type
     revng_assert(Operand->getType()->isIntOrPtrTy());
@@ -121,6 +123,25 @@ static RecursiveCoroutine<bool> addOperandType(const llvm::Value *Operand,
     if (not PointersOnly or ConstType.isPointer()) {
       TypeMap.insert({ Operand, ConstType });
     }
+    rc_return true;
+
+  } else if (isa<llvm::PoisonValue>(Operand)
+             or isa<llvm::UndefValue>(Operand)) {
+    // poison and undef are always integers
+    llvm::Type *OperandType = Operand->getType();
+    revng_assert(OperandType->isIntOrPtrTy());
+    auto *IntType = dyn_cast<llvm::IntegerType>(OperandType);
+    if (not IntType) { // It's a pointer
+      auto ByteSize = model::Architecture::getPointerSize(Model.Architecture);
+      auto BitWidth = 8 * ByteSize;
+      IntType = llvm::IntegerType::getIntNTy(Operand->getContext(), BitWidth);
+    }
+    auto ConstType = llvmIntToModelType(IntType, Model);
+    revng_assert(not ConstType.isPointer());
+
+    // Skip if it's not a pointer and we are only interested in pointers
+    if (not PointersOnly)
+      TypeMap.insert({ Operand, ConstType });
     rc_return true;
 
   } else if (auto *NullPtr = dyn_cast<llvm::ConstantPointerNull>(Operand)) {
@@ -284,11 +305,16 @@ ModelTypesMap initModelTypes(FunctionMetadataCache &Cache,
 
   for (const BasicBlock *BB : RPOT<const llvm::Function *>(&F)) {
     for (const Instruction &I : *BB) {
+
       const auto *InstType = I.getType();
 
       // Visit operands, in case they are constants, globals or constexprs
-      for (const llvm::Value *Op : I.operand_values())
+      for (const llvm::Value *Op : I.operand_values()) {
+        // Ignore operands of some custom opcodes
+        if (isCallTo(&I, "revng_call_stack_arguments"))
+          continue;
         addOperandType(Op, Model, TypeMap, PointersOnly);
+      }
 
       // Insert void types for consistency
       if (InstType->isVoidTy()) {
@@ -360,7 +386,8 @@ ModelTypesMap initModelTypes(FunctionMetadataCache &Cache,
         llvm::PointerType *PtrType = llvm::cast<llvm::PointerType>(I.getType());
         llvm::Type *BaseType = PtrType->getElementType();
         revng_assert(BaseType->isSingleValueType());
-        Type = Model.getPointerTo(llvmIntToModelType(BaseType, Model));
+        const model::Architecture::Values &Architecture = Model.Architecture;
+        Type = llvmIntToModelType(BaseType, Model).getPointerTo(Architecture);
       } break;
 
       case Instruction::Select: {

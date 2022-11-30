@@ -10,6 +10,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Type.h"
 
+#include "revng/ABI/FunctionType.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/CABIFunctionType.h"
 #include "revng/Model/Identifier.h"
@@ -111,16 +112,33 @@ std::string getVariableLocationReference(llvm::StringRef VariableName,
   return getVariableLocation<false>(VariableName, F);
 }
 
-TypeString getReturnField(const model::RawFunctionType &F, size_t Index) {
-  revng_assert(F.ReturnValues.size() > 1);
+TypeString getReturnField(const model::Type &Function,
+                          size_t Index,
+                          const model::Binary &Model) {
+  const auto Layout = abi::FunctionType::Layout::make(Function);
+  llvm::SmallVector<model::QualifiedType>
+    ReturnValues = flattenReturnTypes(Layout, Model);
+  revng_assert(ReturnValues.size() > Index, "Index out of bounds");
+  revng_assert(ReturnValues.size() > 1,
+               "This function should only ever be called for return values "
+               "that require a struct to be created");
   return TypeString((Twine(RetFieldPrefix) + Twine(Index)).str());
 }
 
 TypeString
 getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
+  constexpr auto &isConst = model::Qualifier::isConst;
+  constexpr auto &isPointer = model::Qualifier::isPointer;
 
-  const auto &isConst = model::Qualifier::isConst;
-  const auto &isPointer = model::Qualifier::isPointer;
+  bool IsUnqualified = QT.Qualifiers.empty();
+  bool FirstQualifierIsPointer = IsUnqualified
+                                 or isPointer(QT.Qualifiers.front());
+  bool PrependWhitespaceToInstanceName = not InstanceName.empty()
+                                         and (IsUnqualified
+                                              or not FirstQualifierIsPointer);
+
+  const model::Type &Unqualified = *QT.UnqualifiedType.getConst();
+  std::string UnqualifiedTypeName = ptml::getLocationReference(Unqualified);
 
   TypeString Result;
 
@@ -172,12 +190,9 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
       }
     }
 
-    bool IsPointer = QArrayIt != QIt
-                     and isPointer(*std::make_reverse_iterator(QArrayIt));
-
     // Print the actual instance name.
-    if (QIt == QT.Qualifiers.begin() and not InstanceName.empty()) {
-      if (not IsPointer)
+    if (QIt == QT.Qualifiers.begin()) {
+      if (PrependWhitespaceToInstanceName)
         Result.append(" ");
       Result.append(InstanceName.str());
     }
@@ -198,7 +213,9 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
     if (QArrayIt != QPointerIt) {
       // If QT is s a pointer to an array we have to add parentheses for the
       // clockwise spiral rule
-      if (IsPointer)
+      auto ReverseQArrayIt = std::make_reverse_iterator(QArrayIt);
+      bool LastWasPointer = QArrayIt != QIt and isPointer(*ReverseQArrayIt);
+      if (LastWasPointer)
         Result = (Twine("(") + Twine(Result) + Twine(")")).str();
 
       const auto &ArrayOrConstRange = llvm::make_range(QArrayIt, QPointerIt);
@@ -232,9 +249,7 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
     QIt = QPointerIt;
   } while (QIt != QEnd);
 
-  const model::Type &Unqualified = *QT.UnqualifiedType.getConst();
-  std::string TypeName = ptml::getLocationReference(Unqualified);
-  Result = (Twine(TypeName) + Twine(" ") + Twine(Result)).str();
+  Result = (Twine(UnqualifiedTypeName) + Twine(Result)).str();
 
   return Result;
 }
@@ -271,44 +286,52 @@ TypeString getArrayWrapper(const model::QualifiedType &QT) {
   return TypeString(ResultTag.serialize());
 }
 
-TypeString getReturnTypeName(const model::RawFunctionType &F) {
+TypeString getNamedInstanceOfReturnType(const model::Type &Function,
+                                        llvm::StringRef InstanceName) {
   TypeString Result;
 
-  if (F.ReturnValues.size() == 0) {
-    Result = Tag(tags::Span, "void")
-               .addAttribute(attributes::Token, tokens::Type)
-               .serialize();
-  } else if (F.ReturnValues.size() == 1) {
-    auto RetTy = F.ReturnValues.begin()->Type;
-    // RawFunctionTypes should never be returning an array
-    revng_assert(not RetTy.isArray());
-    Result = getNamedCInstance(RetTy, "");
+  const auto Layout = abi::FunctionType::Layout::make(Function);
+  if (Layout.returnsAggregateType()) {
+    revng_assert(not Layout.Arguments.empty());
+    auto &ShadowArgument = Layout.Arguments[0];
+    using namespace abi::FunctionType::ArgumentKind;
+    revng_assert(ShadowArgument.Kind == ShadowPointerToAggregateReturnValue);
+    revng_assert(ShadowArgument.Registers.size() == 1);
+    revng_assert(not ShadowArgument.Stack);
+    Result = getNamedCInstance(stripPointer(ShadowArgument.Type), InstanceName);
   } else {
-    // RawFunctionTypes can return multiple values, which need to be wrapped
-    // in a struct
-    Result = ptml::tokenTag((Twine(RetStructPrefix) + "returned_by_"
-                             + model::Identifier::fromString(F.name()))
-                              .str(),
-                            tokens::Type)
-               .serialize();
+    if (Layout.ReturnValues.size() == 0) {
+      Result = Tag(tags::Span, "void")
+                 .addAttribute(attributes::Token, tokens::Type)
+                 .serialize();
+      if (not InstanceName.empty())
+        Result.append((Twine(" ") + Twine(InstanceName)).str());
+    } else if (Layout.ReturnValues.size() == 1) {
+      auto RetTy = Layout.ReturnValues.front().Type;
+      // When returning arrays, they need to be wrapped into an artificial
+      // struct
+      if (RetTy.isArray()) {
+        Result = getArrayWrapper(RetTy);
+        if (not InstanceName.empty())
+          Result.append((Twine(" ") + Twine(InstanceName)).str());
+      } else {
+        Result = getNamedCInstance(RetTy, InstanceName);
+      }
+    } else {
+      // RawFunctionTypes can return multiple values, which need to be wrapped
+      // in a struct
+      revng_assert(llvm::isa<model::RawFunctionType>(Function));
+      Result = ptml::tokenTag((Twine(RetStructPrefix) + "returned_by_"
+                               + model::Identifier::fromString(Function.name()))
+                                .str(),
+                              tokens::Type)
+                 .serialize();
+      if (not InstanceName.empty())
+        Result.append((Twine(" ") + Twine(InstanceName)).str());
+    }
   }
 
-  revng_assert(not Result.empty());
-  return Result;
-}
-
-TypeString getReturnTypeName(const model::CABIFunctionType &F) {
-  TypeString Result;
-  const auto &RetTy = F.ReturnType;
-
-  if (RetTy.isArray()) {
-    // Returned arrays get wrapped in an artificial struct
-    Result = getArrayWrapper(RetTy);
-  } else {
-    Result = getNamedCInstance(RetTy, "");
-  }
-
-  revng_assert(not Result.empty());
+  revng_assert(not llvm::StringRef(Result).trim().empty());
   return Result;
 }
 
@@ -319,15 +342,10 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
                                        llvm::raw_ostream &Header,
                                        const model::Binary &Model,
                                        bool Declaration) {
-  Header << getReturnTypeName(RF);
-  if (RF.ReturnValues.size() == 1) {
-    const model::QualifiedType &ReturnType = RF.ReturnValues.begin()->Type;
-    if (not ReturnType.isPointer() or ReturnType.isConst())
-      Header << " ";
-  } else {
-    Header << " ";
-  }
-  Header << FunctionName;
+  auto Layout = abi::FunctionType::Layout::make(RF);
+  revng_assert(not Layout.returnsAggregateType());
+
+  Header << getNamedInstanceOfReturnType(RF, FunctionName);
 
   revng_assert(RF.StackArgumentsType.Qualifiers.empty());
   if (RF.Arguments.empty()
@@ -354,8 +372,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
                                                                    *Function) :
                                      "";
       Header << Separator
-             << getNamedCInstance(Model.getPointerTo(RF.StackArgumentsType),
-                                  StackArgName);
+             << getNamedCInstance(RF.StackArgumentsType, StackArgName);
     }
     Header << ")";
   }
@@ -368,10 +385,7 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
                                        llvm::raw_ostream &Header,
                                        const model::Binary &Model,
                                        bool Declaration) {
-  Header << getReturnTypeName(CF);
-  if (not CF.ReturnType.isPointer() or CF.ReturnType.isConst())
-    Header << " ";
-  Header << FunctionName;
+  Header << getNamedInstanceOfReturnType(CF, FunctionName);
 
   if (CF.Arguments.empty()) {
     Header << "(" << ptml::tokenTag("void", tokens::Type) << ")";
@@ -416,7 +430,6 @@ void printFunctionPrototype(const model::Type &FT,
                                     serializedLocation(ranks::Function,
                                                        Function.key()));
   if (auto *RF = dyn_cast<model::RawFunctionType>(&FT)) {
-
     printFunctionPrototypeImpl(&Function,
                                *RF,
                                FunctionTag.serialize(),
@@ -424,7 +437,6 @@ void printFunctionPrototype(const model::Type &FT,
                                Model,
                                Declaration);
   } else if (auto *CF = dyn_cast<model::CABIFunctionType>(&FT)) {
-
     printFunctionPrototypeImpl(&Function,
                                *CF,
                                FunctionTag.serialize(),

@@ -7,6 +7,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/Type.h"
 
+#include "revng/ABI/FunctionType.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/QualifiedType.h"
@@ -108,3 +109,15 @@ extern llvm::SmallVector<model::QualifiedType>
 getExpectedModelType(FunctionMetadataCache &Cache,
                      const llvm::Use *U,
                      const model::Binary &Model);
+
+extern llvm::SmallVector<model::QualifiedType>
+flattenReturnTypes(const abi::FunctionType::Layout &Layout,
+                   const model::Binary &Model);
+
+inline model::QualifiedType stripPointer(const model::QualifiedType &Type) {
+  model::QualifiedType Result = Type;
+  revng_assert(not Result.Qualifiers.empty()
+               and model::Qualifier::isPointer(Result.Qualifiers.front()));
+  Result.Qualifiers.erase(Result.Qualifiers.begin());
+  return Result;
+}

@@ -22,5 +22,10 @@ revng_add_analyses_library(
   OperatorPrecedenceResolutionPass.cpp)
 
 target_link_libraries(
-  revngcIRCanonicalization revngcInitModelTypes revngcSupport revng::revngModel
-  revng::revngSupport ${LLVM_LIBRARIES})
+  revngcIRCanonicalization
+  revngcInitModelTypes
+  revngcSupport
+  revng::revngABI
+  revng::revngModel
+  revng::revngSupport
+  ${LLVM_LIBRARIES})

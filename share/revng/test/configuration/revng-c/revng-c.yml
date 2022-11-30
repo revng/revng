@@ -6,7 +6,6 @@ commands:
   - type: revng-c.lifting-artifacts-removed
     from:
       - type: revng.abi-enforced-for-decompilation
-        filter: (for-runtime and one-per-architecture) or !for-runtime
     suffix: .bc
     command: |-
       revng llvm pipeline
@@ -119,18 +118,30 @@ commands:
       revng check-decompiled-c "$$TMP/decompiled.c" -I"$$TMP"
   - type: revng-c.test-segregate-stack-accesses
     from:
-      - type: revng.lifted
+      - type: revng-qa.compiled-with-debug-info
         filter: for-segregate-stack-accesses
     command: |-
-      revng model override-by-name $INPUT ${SOURCE}.override.yml
-        | revng llvm pipeline - - Lift Lift --analysis DetectABI :Root
-        | revng llvm pipeline - - Lift DetectStackSize *:LiftingArtifactsRemoved --analysis detect-stack-size
-        | revng llvm pipeline - - DetectStackSize MakeSegmentRefs *:StackAccessesSegregated
-        | revng opt -S
-        | FileCheck ${SOURCE}.filecheck.ll
+      RESUME=$$(temp -d);
+      revng analyze --resume "$$RESUME" AddPrimitiveTypes "$INPUT" -o /dev/null;
+      revng analyze --resume "$$RESUME" ImportBinary "$INPUT" -o /dev/null;
+
+      revng model override-by-name
+        "$$RESUME/context/model.yml"
+        ${SOURCE}.override.yml
+        > "$$RESUME/context/model-tmp.yml";
+      mv "$$RESUME/context/model-tmp.yml" "$$RESUME/context/model.yml";
+
+      revng analyze --resume "$$RESUME" DetectABI "$INPUT" -o /dev/null;
+      revng analyze --resume "$$RESUME" detect-stack-size "$INPUT" -o /dev/null;
+      revng artifact --resume "$$RESUME" MakeSegmentRefs "$INPUT" | FileCheck ${SOURCE}.filecheck.ll;
+      revng artifact --resume "$$RESUME" DecompileToCInYAML "$INPUT" -o /dev/null
   - type: revng-c.test-detect-stack-size
     from:
-      - type: revng-c.analyzed
+      - type: revng-qa.compiled-with-debug-info
         filter: for-detect-stack-size
     command: |-
-      revng model dump "$INPUT" | revng model compare "${SOURCE}.model.yml" -
+      RESUME=$$(temp -d);
+      revng analyze --resume "$$RESUME" AddPrimitiveTypes "$INPUT" -o /dev/null;
+      revng analyze --resume "$$RESUME" ImportBinary "$INPUT" -o /dev/null;
+      revng analyze --resume "$$RESUME" DetectABI "$INPUT" -o /dev/null;
+      revng analyze --resume "$$RESUME" detect-stack-size "$INPUT" | revng model compare "${SOURCE}.model.yml" -

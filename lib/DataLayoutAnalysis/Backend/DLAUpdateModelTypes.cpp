@@ -48,15 +48,17 @@ static Logger<> ModelLog("dla-dump-model-with-funcs");
 using model::PrimitiveTypeKind::Generic;
 using model::PrimitiveTypeKind::PointerOrNumber;
 
-// TODO: implement a better way to merge qualified types
-/// Check if a type can be narrowed down to finer types.
-static bool canBeNarrowedDown(QualifiedType T) {
+/// Returns true if \a T can be upgraded by DLA
+// TODO: implement a better way to merge qualified types, based on the lattice
+// of primitive types.
+static bool canBeUpgraded(QualifiedType T) {
   return T.isPrimitive(PointerOrNumber) or T.isPrimitive(Generic);
 }
 
 static const llvm::Value *toLLVMValue(const llvm::Argument &A) {
   return static_cast<const llvm::Value *>(&A);
 }
+
 static const llvm::Value *toLLVMValue(const llvm::Use &A) {
   return A.get();
 }
@@ -64,19 +66,23 @@ static const llvm::Value *toLLVMValue(const llvm::Use &A) {
 /// If the DLA recovered a more precise type than the already existing one
 /// for any of the arguments of a RawFunctionType, update the model accordingly.
 template<typename T>
-static bool updateRawFuncArgs(model::Binary &Model,
-                              RawFunctionType *ModelPrototype,
-                              const T &CallOrFunction,
-                              const TypeMapT &DLATypes) {
+// clang-format off
+requires std::same_as<std::remove_const_t<T>, llvm::CallInst> or
+         std::same_as<std::remove_const_t<T>, llvm::Function>
+// clang-format on
+static bool updateArgumentTypes(model::Binary &Model,
+                                RawFunctionType *ModelPrototype,
+                                const T *CallOrFunction,
+                                const TypeMapT &DLATypes) {
   bool Updated = false;
   auto &ModelArgs = ModelPrototype->Arguments;
   auto LLVMArgs = getArgs(CallOrFunction);
 
-  // Ensure the LLVM function has the expected number of arguments
   uint64_t EffectiveLLVMArgSize = arg_size(CallOrFunction);
 
   // In case of presence of stack arguments, there's an extra argument
-  if (ModelPrototype->StackArgumentsType.UnqualifiedType.isValid()) {
+  if (not ModelPrototype->StackArgumentsType.UnqualifiedType.empty()) {
+    revng_log(Log, "Updating stack argument");
     auto *ModelStackArg = ModelPrototype->StackArgumentsType.UnqualifiedType
                             .get();
     revng_assert(ModelPrototype->StackArgumentsType.Qualifiers.empty());
@@ -132,15 +138,17 @@ static bool updateRawFuncArgs(model::Binary &Model,
     EffectiveLLVMArgSize -= 1;
   }
 
-  revng_assert(ModelArgs.size() == EffectiveLLVMArgSize);
+  revng_assert(ModelArgs.size() == EffectiveLLVMArgSize
+               or (ModelArgs.size() == 1 and ModelArgs.begin()->Type.isVoid()
+                   and EffectiveLLVMArgSize == 0));
 
-  revng_log(Log, "Updating args");
+  revng_log(Log, "Updating register arguments");
 
   for (const auto &[ModelArg, LLVMArg] : llvm::zip_first(ModelArgs, LLVMArgs)) {
     revng_assert(ModelArg.Type.isScalar());
 
     const llvm::Value *LLVMVal = toLLVMValue(LLVMArg);
-    revng_log(Log, "Updating arg " << LLVMVal->getNameOrAsOperand());
+    revng_log(Log, "Updating argument " << LLVMVal->getNameOrAsOperand());
 
     // Don't update if the type is already fine-grained or if the DLA has
     // nothing to say.
@@ -148,24 +156,273 @@ static bool updateRawFuncArgs(model::Binary &Model,
     // no accesses in the TypeSystem graph. These nodes are pruned away in the
     // middle-end, therefore there is no Type associated to them at this
     // stage.
-    if (canBeNarrowedDown(ModelArg.Type)) {
+    if (canBeUpgraded(ModelArg.Type)) {
       LayoutTypePtr Key{ LLVMVal, LayoutTypePtr::fieldNumNone };
       if (auto NewTypeIt = DLATypes.find(Key); NewTypeIt != DLATypes.end()) {
-
         auto OldSize = *ModelArg.Type.size();
-        ModelArg.Type.UnqualifiedType = NewTypeIt->second.UnqualifiedType;
         // The type is associated to a LayoutTypeSystemPtr, hence we have to add
         // the pointer qualifier
-        using model::Architecture::getPointerSize;
-        size_t PointerBytes = getPointerSize(Model.Architecture);
-        auto PointerQual = model::Qualifier::createPointer(PointerBytes);
-        ModelArg.Type.Qualifiers.push_back(PointerQual);
+        ModelArg.Type = NewTypeIt->second.getPointerTo(Model.Architecture);
         revng_assert(*ModelArg.Type.size() == OldSize);
-        Updated = true;
         revng_log(Log,
                   "Updated to " << ModelArg.Type.UnqualifiedType.get()->ID);
+        Updated = true;
       }
     }
+  }
+
+  return Updated;
+}
+
+/// If the DLA recovered a more precise type than the already existing one
+/// for the return type of a RawFunctionType, update the model accordingly.
+static bool updateReturnType(model::Binary &Model,
+                             RawFunctionType *ModelPrototype,
+                             const llvm::Value *LLVMRetVal,
+                             const llvm::Type *LLVMRetType,
+                             const TypeMapT &TypeMap) {
+  bool Updated = false;
+  auto &ModelRetVals = ModelPrototype->ReturnValues;
+  revng_log(Log, "Updating return values");
+
+  if (LLVMRetType->isIntOrPtrTy()) {
+    revng_assert(ModelRetVals.size() == 1);
+  } else if (LLVMRetType->isVoidTy()) {
+    revng_assert(ModelRetVals.size() == 0);
+  } else {
+    const auto *RetValStruct = llvm::cast<llvm::StructType>(LLVMRetType);
+    const auto &SubTypes = RetValStruct->subtypes();
+    revng_assert(SubTypes.size() == ModelRetVals.size());
+
+    const auto IsScalar = [](const llvm::Type *T) { return T->isIntOrPtrTy(); };
+    revng_assert(llvm::all_of(SubTypes, IsScalar));
+  }
+
+  const bool IsScalar = ModelRetVals.size() == 1;
+  for (auto &ModelRet : llvm::enumerate(ModelRetVals)) {
+
+    unsigned int Index = IsScalar ? LayoutTypePtr::fieldNumNone :
+                                    ModelRet.index();
+    revng_log(Log,
+              "Updating elem " << Index << " of "
+                               << LLVMRetVal->getNameOrAsOperand());
+
+    // Don't update if the type is already fine-grained or if the DLA has
+    // nothing to say.
+    // The latter situation can happen e.g. with unused variables, that have
+    // no accesses in the TypeSystem graph. These nodes are pruned away in the
+    // middle-end, therefore there is no Type associated to them at this
+    // stage.
+    auto &ModelReturnType = ModelRet.value().Type;
+    if (canBeUpgraded(ModelReturnType)) {
+      LayoutTypePtr Key{ LLVMRetVal, Index };
+      if (auto NewTypeIt = TypeMap.find(Key); NewTypeIt != TypeMap.end()) {
+        auto OldSize = ModelReturnType.size();
+        // The type is associated to a LayoutTypeSystemPtr, hence we have to
+        // add the pointer qualifier
+        ModelReturnType = NewTypeIt->second.getPointerTo(Model.Architecture);
+        revng_assert(ModelReturnType.size() == OldSize);
+        revng_log(Log,
+                  "Updated to " << ModelReturnType.UnqualifiedType.get()->ID);
+        Updated = true;
+      }
+    }
+  }
+
+  return Updated;
+}
+
+/// If the DLA recovered a more precise type than the already existing one
+/// for any of the arguments of a CABIFunctionType, update the model
+/// accordingly.
+template<typename T>
+// clang-format off
+requires std::same_as<std::remove_const_t<T>, llvm::CallInst> or
+         std::same_as<std::remove_const_t<T>, llvm::Function>
+// clang-format on
+static bool updateArgumentTypes(model::Binary &Model,
+                                CABIFunctionType *ModelPrototype,
+                                const T *CallOrFunction,
+                                const TypeMapT &DLATypes) {
+  bool Updated = false;
+  auto &ModelArgs = ModelPrototype->Arguments;
+  auto LLVMArgs = getArgs(CallOrFunction);
+
+  uint64_t EffectiveLLVMArgSize = arg_size(CallOrFunction);
+  revng_assert(ModelArgs.size() == EffectiveLLVMArgSize
+               or (ModelArgs.size() == 1 and ModelArgs.begin()->Type.isVoid()
+                   and EffectiveLLVMArgSize == 0));
+
+  revng_log(Log, "Updating arguments");
+
+  for (const auto &[LLVMArg, ModelArg] : llvm::zip_first(LLVMArgs, ModelArgs)) {
+    const llvm::Value *LLVMVal = toLLVMValue(LLVMArg);
+    revng_log(Log, "Updating argument " << LLVMVal->getNameOrAsOperand());
+
+    // Don't update if the type is already fine-grained or if the DLA has
+    // nothing to say.
+    // The latter situation can happen e.g. with unused variables, that have
+    // no accesses in the TypeSystem graph. These nodes are pruned away in the
+    // middle-end, therefore there is no Type associated to them at this
+    // stage.
+    if (canBeUpgraded(ModelArg.Type)) {
+      LayoutTypePtr Key{ LLVMVal, LayoutTypePtr::fieldNumNone };
+      if (auto NewTypeIt = DLATypes.find(Key); NewTypeIt != DLATypes.end()) {
+        auto OldSize = *ModelArg.Type.size();
+        // The type is associated to a LayoutTypeSystemPtr, hence we have to add
+        // the pointer qualifier
+        ModelArg.Type = NewTypeIt->second.getPointerTo(Model.Architecture);
+        revng_assert(*ModelArg.Type.size() == OldSize);
+        revng_log(Log,
+                  "Updated to " << ModelArg.Type.UnqualifiedType.get()->ID);
+        Updated = true;
+      }
+    }
+  }
+
+  return Updated;
+}
+
+/// If the DLA recovered a more precise type than the already existing one
+/// for the return type of a CABIFunctionType, update the model accordingly.
+static bool updateReturnType(model::Binary &Model,
+                             CABIFunctionType *ModelPrototype,
+                             const llvm::Value *LLVMRetVal,
+                             const llvm::Type *LLVMRetType,
+                             const TypeMapT &TypeMap) {
+  auto &ModelReturnType = ModelPrototype->ReturnType;
+  revng_log(Log, "Updating return value");
+
+  // If the return type is void there's nothing to do.
+  if (LLVMRetType->isVoidTy()) {
+    revng_log(Log, "Is void");
+    revng_assert(not ModelReturnType.UnqualifiedType.empty()
+                 or ModelReturnType.isVoid());
+    return false;
+  }
+
+  if (LLVMRetType->isIntOrPtrTy()) {
+    revng_log(Log, "Is scalar: " << LLVMRetVal->getNameOrAsOperand());
+    revng_assert(ModelReturnType.isScalar());
+
+    // Don't update if the type is already fine-grained or if the DLA has
+    // nothing to say.
+    // The latter situation can happen e.g. with unused variables, that have
+    // no accesses in the TypeSystem graph. These nodes are pruned away in the
+    // middle-end, therefore there is no Type associated to them at this
+    // stage.
+    if (canBeUpgraded(ModelReturnType)) {
+      LayoutTypePtr Key{ LLVMRetVal, LayoutTypePtr::fieldNumNone };
+      if (auto NewTypeIt = TypeMap.find(Key); NewTypeIt != TypeMap.end()) {
+        auto OldSize = *ModelReturnType.size();
+        // The type is associated to a LayoutTypeSystemPtr, hence we have to
+        // add the pointer qualifier
+        ModelReturnType = NewTypeIt->second.getPointerTo(Model.Architecture);
+        revng_assert(ModelReturnType.size() == OldSize);
+        revng_log(Log,
+                  "Updated to " << ModelReturnType.UnqualifiedType.get()->ID);
+        return true;
+      }
+    }
+    return false;
+  } else if (ModelReturnType.isScalar()) {
+    revng_log(Log,
+              "WARNING: model::CABIFunctionType returns a scalar type, the "
+              "associated llvm::Function should return an integer or a "
+              "pointer: "
+                << LLVMRetVal->getNameOrAsOperand());
+    // If this happens we have an aggregate on LLVMIR and a scalar on
+    // CABIFunction type. This should only happen in corner cases and we don't
+    // have a general way to solve it properly right now, so we bail out and
+    // never update that.
+    return false;
+  }
+
+  bool Updated = false;
+
+  revng_assert(ModelReturnType.is(model::TypeKind::StructType));
+  auto QualifiedModelReturnType = peelConstAndTypedefs(ModelReturnType);
+  revng_assert(QualifiedModelReturnType.Qualifiers.empty());
+  auto *UnqualifiedModelReturnType = QualifiedModelReturnType.UnqualifiedType
+                                       .get();
+  auto *ModelStruct = llvm::cast<model::StructType>(UnqualifiedModelReturnType);
+  const auto *IRStruct = llvm::cast<llvm::StructType>(LLVMRetType);
+  const auto &SubTypes = IRStruct->subtypes();
+  revng_assert(SubTypes.size() == ModelStruct->Fields.size());
+
+  const auto IsScalar = [](const llvm::Type *T) { return T->isIntOrPtrTy(); };
+  revng_assert(llvm::all_of(SubTypes, IsScalar));
+
+  const auto FieldQualifiedType =
+    [](model::StructField &F) -> model::QualifiedType & { return F.Type; };
+
+  unsigned Index = 0;
+  for (auto &FieldType :
+       llvm::map_range(ModelStruct->Fields, FieldQualifiedType)) {
+
+    // Don't update if the type is already fine-grained or if the DLA has
+    // nothing to say.
+    // The latter situation can happen e.g. with unused variables, that have
+    // no accesses in the TypeSystem graph. These nodes are pruned away in the
+    // middle-end, therefore there is no Type associated to them at this
+    // stage.
+    if (canBeUpgraded(FieldType)) {
+      LayoutTypePtr Key{ LLVMRetVal, Index };
+      if (auto NewTypeIt = TypeMap.find(Key); NewTypeIt != TypeMap.end()) {
+        auto OldSize = *FieldType.size();
+        // The type is associated to a LayoutTypeSystemPtr, hence we have to
+        // add the pointer qualifier
+        FieldType = NewTypeIt->second.getPointerTo(Model.Architecture);
+        revng_log(Log, "Updated to " << FieldType.UnqualifiedType.get()->ID);
+        revng_assert(FieldType.size() == OldSize);
+        Updated = true;
+      }
+    }
+    ++Index;
+  }
+
+  return Updated;
+}
+
+/// Update the prototype of a model::Function or of a call siet with the types
+/// recovered by DLA.
+template<typename T>
+// clang-format off
+requires std::same_as<std::remove_const_t<T>, llvm::CallInst> or
+         std::same_as<std::remove_const_t<T>, llvm::Function>
+// clang-format on
+static bool updatePrototype(model::Binary &Model,
+                            model::Type *Prototype,
+                            const T *CallOrFunction,
+                            const TypeMapT &TypeMap) {
+
+  revng_assert(Prototype);
+  bool Updated = false;
+
+  revng_log(Log, "Updating func prototype");
+
+  if (auto *RawPrototype = dyn_cast<RawFunctionType>(Prototype)) {
+    Updated |= updateArgumentTypes(Model,
+                                   RawPrototype,
+                                   CallOrFunction,
+                                   TypeMap);
+    Updated |= updateReturnType(Model,
+                                RawPrototype,
+                                CallOrFunction,
+                                getRetType(CallOrFunction),
+                                TypeMap);
+  } else if (auto *CABIPrototype = dyn_cast<CABIFunctionType>(Prototype)) {
+    Updated |= updateArgumentTypes(Model,
+                                   CABIPrototype,
+                                   CallOrFunction,
+                                   TypeMap);
+    Updated |= updateReturnType(Model,
+                                CABIPrototype,
+                                CallOrFunction,
+                                getRetType(CallOrFunction),
+                                TypeMap);
+  } else {
+    revng_abort("Unsupported function type");
   }
 
   return Updated;
@@ -310,13 +567,13 @@ static void fillStructWithRecoveredDLAType(model::Binary &Model,
   }
 }
 
-static bool updateFuncStackFrame(model::Function &ModelFunc,
+static bool updateStackFrameType(model::Function &ModelFunc,
                                  const llvm::Function &LLVMFunc,
                                  const TypeMapT &DLATypes,
                                  model::Binary &Model) {
   bool Updated = false;
 
-  if (not ModelFunc.StackFrameType.isValid())
+  if (ModelFunc.StackFrameType.empty())
     return Updated;
 
   auto *OldModelStackFrameType = ModelFunc.StackFrameType.get();
@@ -373,91 +630,6 @@ static bool updateFuncStackFrame(model::Function &ModelFunc,
   return Updated;
 }
 
-/// If the DLA recovered a more precise type than the already existing one
-/// for the return type of a RawFunctionType, update the model accordingly.
-static bool updateRawFuncRetValue(model::Binary &Model,
-                                  RawFunctionType *ModelPrototype,
-                                  const llvm::Value *LLVMRetVal,
-                                  const llvm::Type *LLVMRetType,
-                                  const TypeMapT &TypeMap) {
-  bool Updated = false;
-  auto &ModelRetVals = ModelPrototype->ReturnValues;
-  revng_log(Log, "Updating return values");
-
-  if (LLVMRetType->isIntOrPtrTy()) {
-    revng_assert(ModelRetVals.size() == 1);
-  } else if (LLVMRetType->isVoidTy()) {
-    revng_assert(ModelRetVals.size() == 0);
-  } else {
-    const auto *RetValStruct = llvm::cast<llvm::StructType>(LLVMRetType);
-    const auto &SubTypes = RetValStruct->subtypes();
-    revng_assert(SubTypes.size() == ModelRetVals.size());
-
-    auto IsScalar = [](const llvm::Type *E) { return E->isSingleValueType(); };
-    revng_assert(llvm::all_of(SubTypes, IsScalar));
-  }
-
-  const bool IsScalar = ModelRetVals.size() == 1;
-  for (auto &ModelRet : llvm::enumerate(ModelRetVals)) {
-
-    unsigned int Index = IsScalar ? LayoutTypePtr::fieldNumNone :
-                                    ModelRet.index();
-    revng_log(Log,
-              "Updating elem " << Index << " of "
-                               << LLVMRetVal->getNameOrAsOperand());
-
-    // Don't update if the type is already fine-grained or if the DLA has
-    // nothing to say.
-    // The latter situation can happen e.g. with unused variables, that have
-    // no accesses in the TypeSystem graph. These nodes are pruned away in the
-    // middle-end, therefore there is no Type associated to them at this
-    // stage.
-    auto &ModelRetVal = ModelRet.value();
-    if (canBeNarrowedDown(ModelRetVal.Type)) {
-      LayoutTypePtr Key{ LLVMRetVal, Index };
-      if (auto NewTypeIt = TypeMap.find(Key); NewTypeIt != TypeMap.end()) {
-        ModelRetVal.Type.UnqualifiedType = NewTypeIt->second.UnqualifiedType;
-        // The type is associated to a LayoutTypeSystemPtr, hence we have to
-        // add the pointer qualifier
-        using model::Architecture::getPointerSize;
-        size_t PointerBytes = getPointerSize(Model.Architecture);
-        auto PtrQualifier = model::Qualifier::createPointer(PointerBytes);
-        ModelRetVal.Type.Qualifiers.push_back(PtrQualifier);
-        Updated = true;
-        revng_log(Log,
-                  "Updated to " << ModelRetVal.Type.UnqualifiedType.get()->ID);
-      }
-    }
-  }
-
-  return Updated;
-}
-
-/// Update the prototype of a function with the types recovered by DLA.
-template<typename T>
-static bool updateFuncPrototype(model::Binary &Model,
-                                model::Type *Prototype,
-                                const T &CallOrFunction,
-                                const TypeMapT &TypeMap) {
-  revng_assert(Prototype);
-  bool Updated = false;
-
-  revng_log(Log, "Updating func prototype");
-
-  if (auto *RawPrototype = dyn_cast<RawFunctionType>(Prototype)) {
-    Updated |= updateRawFuncArgs(Model, RawPrototype, CallOrFunction, TypeMap);
-    Updated |= updateRawFuncRetValue(Model,
-                                     RawPrototype,
-                                     CallOrFunction,
-                                     getRetType(CallOrFunction),
-                                     TypeMap);
-  } else {
-    revng_abort("CABIFunctionTypes not yet supported");
-  }
-
-  return Updated;
-}
-
 bool dla::updateFuncSignatures(const llvm::Module &M,
                                TupleTree<model::Binary> &Model,
                                const TypeMapT &TypeMap,
@@ -479,18 +651,18 @@ bool dla::updateFuncSignatures(const llvm::Module &M,
     revng_log(Log,
               "Updating prototype of function "
                 << LLVMFunc.getNameOrAsOperand());
-    Updated |= updateFuncPrototype(*Model, ModelPrototype, &LLVMFunc, TypeMap);
-    Updated |= updateFuncStackFrame(*ModelFunc, LLVMFunc, TypeMap, *Model);
+    Updated |= updatePrototype(*Model, ModelPrototype, &LLVMFunc, TypeMap);
+    Updated |= updateStackFrameType(*ModelFunc, LLVMFunc, TypeMap, *Model);
 
     // Update prototypes associated to indirect calls, if any are found
     for (const auto &Inst : LLVMFunc)
       if (const auto *I = llvm::dyn_cast<llvm::CallInst>(&Inst)) {
         auto Prototype = Cache.getCallSitePrototype(*Model.get(), I, ModelFunc);
-        if (Prototype.isValid()) {
+        if (not Prototype.empty()) {
           revng_log(Log,
                     "Updating prototype of indirect call "
                       << I->getNameOrAsOperand());
-          Updated |= updateFuncPrototype(*Model, Prototype.get(), I, TypeMap);
+          Updated |= updatePrototype(*Model, Prototype.get(), I, TypeMap);
         }
       }
   }

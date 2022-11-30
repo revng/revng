@@ -5,6 +5,7 @@
 #include <optional>
 #include <set>
 
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 
@@ -17,6 +18,7 @@
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Pipeline/RegisterLLVMPass.h"
+#include "revng/Support/IRHelpers.h"
 #include "revng/Support/OverflowSafeInt.h"
 
 #include "revng-c/Pipes/Kinds.h"
@@ -247,10 +249,9 @@ private:
   std::set<Instruction *> ToPurge;
   /// Builder for StackArgumentsAllocator calls
   IRBuilder<> SABuilder;
-  // MFIResult Result;
   model::VerifyHelper VH;
   const size_t CallInstructionPushSize = 0;
-  Type *SPType = nullptr;
+  Type *StackPointerType = nullptr;
   std::map<Function *, Function *> OldToNew;
   std::set<Function *> FunctionsWithStackArguments;
   std::map<Function *, StackAccessRedirector> StackArgumentsRedirectors;
@@ -258,6 +259,8 @@ private:
 
   llvm::Type *PtrSizedInteger;
   OpaqueFunctionsPool<TypePair> AddressOfPool;
+  OpaqueFunctionsPool<llvm::Type *> AssignPool;
+  OpaqueFunctionsPool<llvm::Type *> LocalVarPool;
   FunctionMetadataCache *Cache;
 
 public:
@@ -271,18 +274,21 @@ public:
     InitLocalSP(M.getFunction("revng_init_local_sp")),
     SABuilder(M.getContext()),
     CallInstructionPushSize(getCallPushSize(Binary)),
-    SPType(StackPointer->getType()->getPointerElementType()),
+    StackPointerType(StackPointer->getType()->getPointerElementType()),
     PtrSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
     AddressOfPool(&M, false),
+    AssignPool(&M, false),
+    LocalVarPool(&M, false),
     Cache(&Cache) {
 
     revng_assert(SSACS != nullptr);
 
     initAddressOfPool(AddressOfPool, &M);
+    initAssignPool(AssignPool);
+    initLocalVarPool(LocalVarPool);
 
-    auto StackAllocatorType = FunctionType::get(SPType, { SPType }, false);
-    auto Create = [&StackAllocatorType, &M](StringRef Name) {
-      auto *Result = Function::Create(StackAllocatorType,
+    auto Create = [&M](StringRef Name, llvm::FunctionType *FType) {
+      auto *Result = Function::Create(FType,
                                       GlobalValue::ExternalLinkage,
                                       Name,
                                       &M);
@@ -297,8 +303,16 @@ public:
       return Result;
     };
 
-    StackFrameAllocator = Create("revng_stack_frame");
-    CallStackArgumentsAllocator = Create("revng_call_stack_arguments");
+    StackFrameAllocator = Create("revng_stack_frame",
+                                 FunctionType::get(StackPointerType,
+                                                   { StackPointerType },
+                                                   false));
+    llvm::Type *StringPtrType = getStringPtrType(M.getContext());
+    CallStackArgumentsAllocator = Create("revng_call_stack_arguments",
+                                         FunctionType::get(StackPointerType,
+                                                           { StringPtrType,
+                                                             StackPointerType },
+                                                           false));
   }
 
 public:
@@ -330,6 +344,10 @@ public:
   }
 
 private:
+  auto getPointerTo(const model::QualifiedType &T) const {
+    return T.getPointerTo(Binary.Architecture);
+  }
+
   template<typename... Types>
   std::pair<CallInst *, CallInst *>
   createCallWithAddressOf(IRBuilder<> &B,
@@ -432,16 +450,63 @@ private:
         Redirector = &It->second;
       }
 
+      auto ModelArguments = llvm::make_range(Layout.Arguments.begin(),
+                                             Layout.Arguments.end());
+
+      bool ReturnsAggregate = Layout.returnsAggregateType();
+      Value *ReturnValuePointer = nullptr;
+      Value *ReturnValueReference = nullptr;
+      if (ReturnsAggregate) {
+        // Identify the SPTAR and make some sanity checks
+        auto &ModelArgument = Layout.Arguments[0];
+        revng_assert(not ModelArgument.Stack);
+        revng_assert(ModelArgument.Registers.size() == 1);
+
+        // Get call to local variable
+        auto *LocalVarFunctionType = getLocalVarType(PtrSizedInteger);
+        auto *LocalVarFunction = LocalVarPool.get(PtrSizedInteger,
+                                                  LocalVarFunctionType,
+                                                  "LocalVariable");
+
+        // Allocate variable for return value
+        model::QualifiedType Pointee = stripPointer(ModelArgument.Type);
+        llvm::Constant *ReferenceString = serializeToLLVMString(Pointee, M);
+        ReturnValueReference = Builder.CreateCall(LocalVarFunction,
+                                                  { ReferenceString });
+
+        // Take the address
+        auto *T = ReturnValueReference->getType();
+        auto *AddressOfFunctionType = getAddressOfType(T, T);
+        auto *AddressOfFunction = AddressOfPool.get({ T, T },
+                                                    AddressOfFunctionType,
+                                                    "AddressOf");
+        ReturnValuePointer = Builder.CreateCall(AddressOfFunction,
+                                                { ReferenceString,
+                                                  ReturnValueReference });
+
+        // Handle the argument pointing to the return value
+        Argument *OldArgument = nullptr;
+        OldArgument = ArgumentToRegister.at(ModelArgument.Registers[0]);
+        OldArgument->replaceAllUsesWith(ReturnValuePointer);
+
+        // Exclude this argument from the list to process
+        ModelArguments = llvm::drop_begin(ModelArguments);
+      }
+
       // Handle arguments
       for (auto [ModelArgument, NewArgument] :
-           zip(Layout.Arguments, NewFunction->args())) {
+           zip(ModelArguments, NewFunction->args())) {
 
         // Extract from the new argument the old arguments
         unsigned OffsetInNewArgument = 0;
         Type *NewArgumentType = NewArgument.getType();
         unsigned NewArgumentSize = NewArgumentType->getIntegerBitWidth() / 8;
 
-        if (ModelArgument.Type.isScalar()) {
+        llvm::Value *ToRecordSpan = nullptr;
+
+        using namespace abi::FunctionType::ArgumentKind;
+        if (ModelArgument.Kind == Scalar) {
+          revng_assert(ModelArgument.Type.isScalar());
           // Handle scalar argument
           for (model::Register::Values Register : ModelArgument.Registers) {
             Argument *OldArgument = ArgumentToRegister.at(Register);
@@ -467,8 +532,25 @@ private:
             // Consume size
             OffsetInNewArgument += OldArgumentSize;
           }
-        } else {
+
+          if (ModelArgument.Stack)
+            ToRecordSpan = &NewArgument;
+
+        } else if (ModelArgument.Kind == ReferenceToAggregate) {
+
           // Handle non-scalar argument (passed by pointer)
+          llvm::Constant
+            *ModelTypeString = serializeToLLVMString(ModelArgument.Type, M);
+          auto *AddressOfFunctionType = getAddressOfType(PtrSizedInteger,
+                                                         NewArgumentType);
+          auto *AddressOfFunction = AddressOfPool.get({ PtrSizedInteger,
+                                                        NewArgumentType },
+                                                      AddressOfFunctionType,
+                                                      "AddressOf");
+          auto *AddressOfNewArgument = Builder.CreateCall(AddressOfFunction,
+                                                          { ModelTypeString,
+                                                            &NewArgument });
+
           for (model::Register::Values Register : ModelArgument.Registers) {
             Argument *OldArgument = ArgumentToRegister.at(Register);
             Type *OldArgumentPtrType = OldArgument->getType()->getPointerTo();
@@ -476,7 +558,7 @@ private:
             // Load value
             Value *ArgumentPointer = computeAddress(Builder,
                                                     OldArgumentPtrType,
-                                                    &NewArgument,
+                                                    AddressOfNewArgument,
                                                     OffsetInNewArgument);
             Value *ArgumentValue = Builder.CreateLoad(ArgumentPointer);
 
@@ -486,11 +568,23 @@ private:
             // Consume size
             OffsetInNewArgument += model::Register::getSize(Register);
           }
+
+          if (ModelArgument.Stack)
+            ToRecordSpan = AddressOfNewArgument;
         }
 
-        if (ModelArgument.Stack) {
+        if (ToRecordSpan)
           Redirector->recordSpan(*ModelArgument.Stack + CallInstructionPushSize,
-                                 &NewArgument);
+                                 ToRecordSpan);
+      }
+
+      if (ReturnsAggregate) {
+        // Replace return instructions with returning ReturnValueReference
+        for (BasicBlock &BB : *NewFunction) {
+          if (auto *Ret = dyn_cast<ReturnInst>(BB.getTerminator())) {
+            ReturnInst::Create(M.getContext(), ReturnValueReference, Ret);
+            Ret->eraseFromParent();
+          }
         }
       }
     }
@@ -574,6 +668,8 @@ private:
     Function *LastFunction = nullptr;
     DominatorTree DT;
     for (Instruction *I : ToPushALAP) {
+      if (not I->getNumUses())
+        continue;
       Function *F = I->getParent()->getParent();
       if (F != LastFunction) {
         LastFunction = F;
@@ -649,12 +745,23 @@ private:
     StackAccessRedirector Redirector(-MaybeStackSize.value_or(0)
                                      + CallInstructionPushSize);
 
+    auto ModelArguments = llvm::make_range(Layout.Arguments.begin(),
+                                           Layout.Arguments.end());
+
+    bool ReturnsAggregate = Layout.returnsAggregateType();
+    if (ReturnsAggregate)
+      ModelArguments = llvm::drop_begin(ModelArguments);
+
+    bool MessageEmitted = false;
     for (auto [LLVMType, ModelArgument] :
-         llvm::zip(CalleeType->params(), Layout.Arguments)) {
+         llvm::zip(CalleeType->params(), ModelArguments)) {
       model::QualifiedType ArgumentType = ModelArgument.Type;
       uint64_t NewSize = *ArgumentType.size();
 
-      if (ArgumentType.isScalar()) {
+      switch (ModelArgument.Kind) {
+
+      case ArgumentKind::Scalar: {
+        revng_assert(ArgumentType.isScalar());
         Value *Accumulator = ConstantInt::get(LLVMType, 0);
         unsigned OffsetInNewArgument = 0;
         for (auto &Register : ModelArgument.Registers) {
@@ -676,14 +783,20 @@ private:
           OffsetInNewArgument += OldSize;
         }
 
-        if (ModelArgument.Stack) {
+        if (ModelArgument.Stack and not MaybeStackSize) {
+          if (not MessageEmitted) {
+            MessageEmitted = true;
+            emitMessage(OldCall,
+                        "Ignoring stack arguments for this call site: stack "
+                        "size at call site unknown");
+          }
+        } else if (ModelArgument.Stack) {
           revng_assert(ModelArgument.Stack->Size <= 128 / 8);
           unsigned OldSize = ModelArgument.Stack->Size;
           Type *LoadTy = Builder.getIntNTy(OldSize * 8);
           Type *LoadPointerTy = LoadTy->getPointerTo();
           revng_assert(StackPointer != nullptr);
 
-          // TODO: we should not fail here
           revng_assert(MaybeStackSize);
           auto ArgumentStackOffset = (-*MaybeStackSize + CallInstructionPushSize
                                       + ModelArgument.Stack->Offset);
@@ -698,7 +811,10 @@ private:
           Value *Loaded = Builder.CreateLoad(Pointer);
 
           // Extend, shift and or in Accumulator
-          Value *Extended = Builder.CreateZExt(Loaded, LLVMType);
+          // Note: here we might truncate too, since certain architectures
+          //       report a stack span of 8 bytes but the associated type is
+          //       actually 32 bits
+          Value *Extended = Builder.CreateZExtOrTrunc(Loaded, LLVMType);
 
           unsigned ShiftAmount = shiftAmount(OffsetInNewArgument,
                                              NewSize,
@@ -711,19 +827,26 @@ private:
         }
 
         Arguments.push_back(Accumulator);
-      } else {
+      } break;
+
+      case ArgumentKind::ReferenceToAggregate: {
         // Allocate memory for stack arguments
+        std::string SerializedArgType = serializeToString(ModelArgument.Type);
+        llvm::Constant *ArgumentType = buildStringPtr(&M,
+                                                      SerializedArgType,
+                                                      "");
         auto [StackArgsCall,
               AddrOfCall] = createCallWithAddressOf(SABuilder,
                                                     ModelArgument.Type,
                                                     CallStackArgumentsAllocator,
+                                                    ArgumentType,
                                                     NewSize);
 
         StackArgsCall->setMetadata("revng.callerblock.start", MD);
 
         // Record for pushing ALAP
-        ToPushALAP.push_back(AddrOfCall);
         ToPushALAP.push_back(StackArgsCall);
+        ToPushALAP.push_back(AddrOfCall);
 
         unsigned OffsetInNewArgument = 0;
         for (auto &Register : ModelArgument.Registers) {
@@ -746,7 +869,11 @@ private:
         if (ModelArgument.Stack)
           Redirector.recordSpan(*ModelArgument.Stack, AddrOfCall);
 
-        Arguments.push_back(AddrOfCall);
+        Arguments.push_back(StackArgsCall);
+      } break;
+
+      default:
+        revng_abort();
       }
     }
 
@@ -761,7 +888,41 @@ private:
 
     // Actually create the new call and replace the old one
     auto *NewCall = Builder.CreateCall(CalleeType, CalledValue, Arguments);
-    OldCall->replaceAllUsesWith(NewCall);
+
+    if (not ReturnsAggregate) {
+      OldCall->replaceAllUsesWith(NewCall);
+    } else {
+      // Perform a couple of safety checks
+      revng_assert(Layout.Arguments.size() > 0);
+      auto &Argument = Layout.Arguments[0];
+      using namespace abi::FunctionType::ArgumentKind;
+      revng_assert(Argument.Kind == ShadowPointerToAggregateReturnValue);
+      revng_assert(Argument.Registers.size() == 1);
+      revng_assert(not Argument.Stack);
+
+      // Obtain the SPTAR value
+      Value *ReturnValuePointer = ArgumentToRegister.at(Argument.Registers[0]);
+
+      // Extract return type by stripping the pointer qualifier from SPTAR
+      model::QualifiedType ReturnType = stripPointer(Argument.Type);
+
+      // Make reference out of ReturnValuePointer
+      Type *T = ReturnValuePointer->getType();
+      Function *GetModelGEPFunction = getModelGEP(M, T, T);
+      auto *BaseTypeConstantStrPtr = serializeToLLVMString(ReturnType, M);
+      Value *ReturnValueReference = Builder.CreateCall(GetModelGEPFunction,
+                                                       { BaseTypeConstantStrPtr,
+                                                         ReturnValuePointer });
+
+      auto *ReturnValueType = ReturnValueReference->getType();
+      auto *AssignFnType = getAssignFunctionType(NewCall->getType(),
+                                                 ReturnValueType);
+      Function *AssignFunction = AssignPool.get(NewCall->getType(),
+                                                AssignFnType,
+                                                "Assign");
+      Builder.CreateCall(AssignFunction, { NewCall, ReturnValueReference });
+    }
+
     NewCall->copyMetadata(*OldCall);
     eraseFromParent(OldCall);
     revng_assert(CalleeType->getPointerTo() == CalledValue->getType());
@@ -910,7 +1071,7 @@ private:
   }
 
   Constant *getSPConstant(uint64_t Value) const {
-    return ConstantInt::get(SPType, Value);
+    return ConstantInt::get(StackPointerType, Value);
   }
 
   Value *computeAddress(IRBuilder<> &B,
@@ -947,7 +1108,16 @@ private:
                                  const model::TypePath &Prototype) {
     auto Layout = abi::FunctionType::Layout::make(Prototype);
 
-    Type *ReturnType = OldFunction->getReturnType();
+    Type *ReturnType = nullptr;
+
+    bool ReturnsAggregate = Layout.returnsAggregateType();
+    if (ReturnsAggregate) {
+      revng_assert(OldFunction->getReturnType()->isVoidTy());
+      ReturnType = StackPointerType;
+    } else {
+      ReturnType = OldFunction->getReturnType();
+    }
+
     FunctionType &NewType = layoutToLLVMFunctionType(Layout, ReturnType);
 
     //
@@ -970,11 +1140,22 @@ private:
     using namespace abi::FunctionType;
     SmallVector<Type *> FunctionArguments;
     for (const Layout::Argument &Argument : Layout.Arguments) {
-      model::QualifiedType ArgumentType;
-      if (Argument.Type.isScalar())
-        ArgumentType = Argument.Type;
-      else
-        ArgumentType = Binary.getPointerTo(Argument.Type);
+      model::QualifiedType ArgumentType = Argument.Type;
+      using namespace abi::FunctionType::ArgumentKind;
+
+      switch (Argument.Kind) {
+      case ShadowPointerToAggregateReturnValue:
+        continue;
+        break;
+      case ReferenceToAggregate:
+        ArgumentType = getPointerTo(ArgumentType);
+        break;
+      case Scalar:
+        // Do nothing
+        break;
+      default:
+        revng_abort();
+      }
 
       auto *LLVMType = getLLVMTypeForScalar(M.getContext(), ArgumentType);
       FunctionArguments.push_back(LLVMType);

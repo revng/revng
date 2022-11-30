@@ -19,6 +19,13 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 
+namespace llvm {
+class ConstantFolder;
+class IRBuilderDefaultInserter;
+template<typename T, typename Inserter>
+class IRBuilder;
+} // namespace llvm
+
 inline void
 pushInstructionALAP(llvm::DominatorTree &DT, llvm::Instruction *ToMove) {
   using namespace llvm;
@@ -107,3 +114,8 @@ void setSegmentKeyMetadata(llvm::Function *SegmentRefFunction,
 /// Extract the key of a model::Segment stored as a metadata.
 extern std::pair<MetaAddress, uint64_t>
 extractSegmentKeyFromMetadata(const llvm::Function &F);
+
+void emitMessage(llvm::Instruction *EmitBefore, const llvm::Twine &Message);
+void emitMessage(llvm::IRBuilder<llvm::ConstantFolder,
+                                 llvm::IRBuilderDefaultInserter> &Builder,
+                 const llvm::Twine &Message);

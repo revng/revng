@@ -22,6 +22,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/ABI/FunctionType.h"
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
@@ -344,66 +345,52 @@ computeAccessPattern(FunctionMetadataCache &Cache,
       const model::Function *MF = llvmToModelFunction(Model, *ReturningF);
       revng_assert(MF);
 
-      const model::Type *FType = MF->Prototype.get();
-      revng_assert(FType);
+      const auto Layout = abi::FunctionType::Layout::make(MF->Prototype);
 
-      if (const auto *RFT = dyn_cast<model::RawFunctionType>(FType)) {
-        revng_log(ModelGEPLog, "Has RawFunctionType prototype.");
+      bool HasNoReturnValues = (Layout.ReturnValues.empty()
+                                and not Layout.returnsAggregateType());
+      const model::QualifiedType *SingleReturnType = nullptr;
 
-        // If the callee function does not return anything, skip to the next
-        // instruction.
-        if (RFT->ReturnValues.empty()) {
-          revng_log(ModelGEPLog, "Does not return values on model. Skip ...");
-          revng_assert(not Ret->getReturnValue());
-        } else if (RFT->ReturnValues.size() == 1) {
-          revng_log(ModelGEPLog, "Has single return type.");
+      if (Layout.ReturnValues.size() == 1) {
+        SingleReturnType = &Layout.ReturnValues[0].Type;
+      } else if (Layout.returnsAggregateType()) {
+        SingleReturnType = &Layout.Arguments[0].Type;
+      }
 
-          revng_assert(Ret->getReturnValue()->getType()->isVoidTy()
-                       or Ret->getReturnValue()->getType()->isIntOrPtrTy());
+      // If the callee function does not return anything, skip to the next
+      // instruction.
+      if (HasNoReturnValues) {
+        revng_log(ModelGEPLog, "Does not return values in the model. Skip ...");
+        revng_assert(not Ret->getReturnValue());
+      } else if (SingleReturnType != nullptr) {
+        revng_log(ModelGEPLog, "Has a single return value.");
 
-          const model::QualifiedType &ModT = RFT->ReturnValues.begin()->Type;
-          // If the returned type is a pointer, we unwrap it and set the pointee
-          // type of IRPattern to the pointee of the return type.
-          // Otherwise the Function is not returning a pointer, and we can skip
-          // it.
-          if (ModT.isPointer()) {
-            auto _ = LoggerIndent(ModelGEPLog);
-            revng_log(ModelGEPLog, "llvm::ReturnInst: " << dumpToString(Ret));
-            revng_log(ModelGEPLog,
-                      "Pointee: model::QualifiedType: "
-                        << serializeToString(ModT));
-            IRPattern.PointeeType = dropPointer(ModT);
-          }
+        revng_assert(Ret->getReturnValue()->getType()->isVoidTy()
+                     or Ret->getReturnValue()->getType()->isIntOrPtrTy());
 
-        } else {
-          auto *RetVal = Ret->getReturnValue();
-          auto *StructTy = cast<llvm::StructType>(RetVal->getType());
-          revng_log(ModelGEPLog, "Has many return types.");
-          revng_assert(StructTy->getNumElements() == RFT->ReturnValues.size());
-
-          // Assert that we're returning a proper struct, initialized with
-          // struct initializers, but don't do anything here.
-          const auto *Returned = cast<CallInst>(RetVal)->getCalledFunction();
-          revng_assert(FunctionTags::StructInitializer.isTagOf(Returned));
-        }
-
-      } else if (const auto *CFT = dyn_cast<model::CABIFunctionType>(FType)) {
-        revng_log(ModelGEPLog, "Has CABIFunctionType prototype.");
-
-        // If the callee function does not return anything, skip to the next
-        // instruction.
-        if (CFT->ReturnType.isVoid()) {
-          revng_log(ModelGEPLog, "Returns void. Skip ...");
-          revng_assert(not Ret->getReturnValue());
-        } else {
-
-          // TODO: we haven't handled return values of CABIFunctions yet
-          revng_abort();
+        // If the returned type is a pointer, we unwrap it and set the pointee
+        // type of IRPattern to the pointee of the return type.
+        // Otherwise the Function is not returning a pointer, and we can skip
+        // it.
+        if (SingleReturnType->isPointer()) {
+          auto _ = LoggerIndent(ModelGEPLog);
+          revng_log(ModelGEPLog, "llvm::ReturnInst: " << dumpToString(Ret));
+          revng_log(ModelGEPLog,
+                    "Pointee: model::QualifiedType: "
+                      << serializeToString(*SingleReturnType));
+          IRPattern.PointeeType = dropPointer(*SingleReturnType);
         }
 
       } else {
-        revng_abort("Function should have RawFunctionType or "
-                    "CABIFunctionType");
+        auto *RetVal = Ret->getReturnValue();
+        auto *StructTy = cast<llvm::StructType>(RetVal->getType());
+        revng_log(ModelGEPLog, "Has many return types.");
+        revng_assert(StructTy->getNumElements() == Layout.ReturnValues.size());
+
+        // Assert that we're returning a proper struct, initialized with
+        // struct initializers, but don't do anything here.
+        const auto *Returned = cast<CallInst>(RetVal)->getCalledFunction();
+        revng_assert(FunctionTags::StructInitializer.isTagOf(Returned));
       }
 
     } else if (auto *Call = dyn_cast<CallInst>(UserInstr)) {
@@ -2050,7 +2037,8 @@ static UseGEPInfoMap makeGEPReplacements(llvm::Function &F,
           continue;
 
         ModelGEPArgs &GEPArgs = BestGEPArgsOrNone.value();
-        auto PointerToGEPArgs = Model.getPointerTo(GEPArgs.PointeeType);
+        const model::Architecture::Values &Architecture = Model.Architecture;
+        auto PointerToGEPArgs = GEPArgs.PointeeType.getPointerTo(Architecture);
         GEPifiedUsedTypes.insert({ &U, PointerToGEPArgs });
 
         revng_log(ModelGEPLog, "Best GEPArgs: " << GEPArgs);
@@ -2108,14 +2096,8 @@ public:
     if (It != GlobalModelGEPTypeArgs.end())
       return It->second;
 
-    std::string SerializedQT;
-    {
-      llvm::raw_string_ostream StringStream(SerializedQT);
-      llvm::yaml::Output YAMLOutput(StringStream);
-      YAMLOutput << QT;
-    }
     It = GlobalModelGEPTypeArgs
-           .insert({ QT, buildStringPtr(&M, SerializedQT, "") })
+           .insert({ QT, buildStringPtr(&M, serializeToString(QT), "") })
            .first;
     return It->second;
   }

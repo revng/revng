@@ -6,4 +6,4 @@ revng_add_analyses_library(revngcSupport revngc FunctionTags.cpp IRHelpers.cpp
                            ModelHelpers.cpp)
 
 target_link_libraries(revngcSupport revng::revngEarlyFunctionAnalysis
-                      revng::revngModel revng::revngSupport)
+                      revng::revngABI revng::revngModel revng::revngSupport)

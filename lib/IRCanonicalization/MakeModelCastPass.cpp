@@ -88,7 +88,9 @@ MMCP::serializeTypesForModelCast(FunctionMetadataCache &Cache,
         QualifiedType ExpectedType = ModelTypes.back();
         revng_assert(ExpectedType.UnqualifiedType.isValid());
 
-        if (ExpectedType != TypeMap.at(Op.get())) {
+        const QualifiedType &OperandType = TypeMap.at(Op.get());
+        if (ExpectedType != OperandType) {
+          revng_assert(ExpectedType.isScalar() and OperandType.isScalar());
           // Create a cast only if the expected type is different from the
           // actual type propagated until here
           auto Type = SerializedType(serializeToLLVMString(ExpectedType, *M),
@@ -118,8 +120,8 @@ MMCP::serializeTypesForModelCast(FunctionMetadataCache &Cache,
       SerializeTypeFor(Call->getArgOperandUse(1));
 
     } else if (FunctionTags::StructInitializer.isTagOf(Callee)) {
-      // StructInitializers are used to pack together a returned struct, so we
-      // know the types of each element by looking at the Prototype
+      // StructInitializers are used to pack together a returned struct, so
+      // we know the types of each element by looking at the Prototype
       for (llvm::Use &Op : Call->arg_operands())
         SerializeTypeFor(Op);
     }
@@ -132,7 +134,8 @@ MMCP::serializeTypesForModelCast(FunctionMetadataCache &Cache,
     auto &PtrOperandPtrType = TypeMap.at(SI->getPointerOperand());
     auto &ValOperandType = TypeMap.at(SI->getValueOperand());
 
-    QualifiedType ValOperandPtrType = Model.getPointerTo(ValOperandType);
+    const model::Architecture::Values &Arch = Model.Architecture;
+    QualifiedType ValOperandPtrType = ValOperandType.getPointerTo(Arch);
     if (PtrOperandPtrType != ValOperandPtrType) {
       bool IsPtrOperandOfAggregateType = false;
       QualifiedType PtrOperandType;
@@ -155,7 +158,8 @@ MMCP::serializeTypesForModelCast(FunctionMetadataCache &Cache,
         // Value operand needs to be casted to the drop'd ptr of the
         // model::QualifiedType of the pointer type.
         revng_assert(PtrOperandPtrType.isPointer());
-        auto Type = SerializedType(serializeToLLVMString(PtrOperandType, *M));
+        auto *LLVMString = serializeToLLVMString(PtrOperandType, *M);
+        auto Type = SerializedType(LLVMString);
         Result.emplace_back(std::move(Type));
       }
     }
@@ -173,11 +177,11 @@ void MMCP::createAndInjectModelCast(Instruction *Ins,
   Constant *StringType = ST.StringType;
   Type *BaseAddressTy = Ins->getOperand(OperandId)->getType();
 
+  llvm::Type *StringPtrType = getStringPtrType(Ins->getContext());
   auto *ModelCastType = FunctionType::get(BaseAddressTy,
-                                          { getStringPtrType(Ins->getContext()),
-                                            BaseAddressTy },
+                                          { StringPtrType, BaseAddressTy },
                                           false);
-  auto *ModelCastFunction = Pool.get(BaseAddressTy, ModelCastType, "modelCast");
+  auto *ModelCastFunction = Pool.get(BaseAddressTy, ModelCastType, "ModelCast");
 
   Value *Call = Builder.CreateCall(ModelCastFunction,
                                    { StringType, Ins->getOperand(OperandId) });
@@ -203,12 +207,13 @@ bool MMCP::runOnFunction(Function &F) {
     for (Instruction &I : BB) {
       auto SerializedTypes = serializeTypesForModelCast(Cache, &I, *Model);
 
-      if (!SerializedTypes.empty()) {
-        Changed = true;
+      if (SerializedTypes.empty())
+        continue;
 
-        for (unsigned Idx = 0; Idx < SerializedTypes.size(); ++Idx)
-          createAndInjectModelCast(&I, SerializedTypes[Idx], ModelCastPool);
-      }
+      Changed = true;
+
+      for (unsigned Idx = 0; Idx < SerializedTypes.size(); ++Idx)
+        createAndInjectModelCast(&I, SerializedTypes[Idx], ModelCastPool);
     }
   }
 

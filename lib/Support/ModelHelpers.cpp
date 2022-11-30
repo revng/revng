@@ -2,7 +2,10 @@
 // Copyright rev.ng Labs Srl. See LICENSE.md for details.
 //
 
+#include <utility>
+
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Instruction.h"
@@ -15,6 +18,7 @@
 #include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
+#include "revng/Model/PrimitiveTypeKind.h"
 #include "revng/Model/QualifiedType.h"
 #include "revng/Model/Qualifier.h"
 #include "revng/Model/RawFunctionType.h"
@@ -103,6 +107,14 @@ llvmIntToModelType(const llvm::Type *LLVMType, const model::Binary &Model) {
       ModelType.UnqualifiedType = Model.getPrimitiveType(Generic, 8);
       break;
 
+    case 80:
+      ModelType.UnqualifiedType = Model.getPrimitiveType(Generic, 10);
+      break;
+
+    case 96:
+      ModelType.UnqualifiedType = Model.getPrimitiveType(Generic, 12);
+      break;
+
     case 128:
       ModelType.UnqualifiedType = Model.getPrimitiveType(Generic, 16);
       break;
@@ -113,7 +125,7 @@ llvmIntToModelType(const llvm::Type *LLVMType, const model::Binary &Model) {
     }
     // Add qualifiers
     for (size_t I = 0; I < NPtrQualifiers; ++I)
-      ModelType = Model.getPointerTo(ModelType);
+      ModelType = ModelType.getPointerTo(Model.Architecture);
 
   } else if (NPtrQualifiers > 0) {
     // If it's a pointer to a non-integer type, return an integer type of the
@@ -264,6 +276,70 @@ traverseModelGEP(const model::Binary &Model, const llvm::CallInst *Call) {
   return CurType;
 }
 
+llvm::SmallVector<QualifiedType>
+flattenReturnTypes(const abi::FunctionType::Layout &Layout,
+                   const model::Binary &Model) {
+
+  llvm::SmallVector<QualifiedType> ReturnTypes;
+
+  if (Layout.returnsAggregateType())
+    return { Layout.Arguments[0].Type };
+
+  auto PointerS = model::Architecture::getPointerSize(Model.Architecture);
+  using RV = abi::FunctionType::Layout::ReturnValue;
+  for (const RV &ReturnValue : Layout.ReturnValues) {
+    if (ReturnValue.Type.isScalar()) {
+      if (ReturnValue.Registers.size() > 1) {
+        model::QualifiedType PointerSizedInt{
+          Model.getPrimitiveType(model::PrimitiveTypeKind::Generic, PointerS),
+          {}
+        };
+
+        for (const model::Register::Values &Register : ReturnValue.Registers) {
+          revng_assert(model::Register::getSize(Register) == PointerS);
+          ReturnTypes.push_back(PointerSizedInt);
+        }
+      } else {
+        ReturnTypes.push_back(ReturnValue.Type);
+      }
+    } else {
+      model::QualifiedType Underlying = peelConstAndTypedefs(ReturnValue.Type);
+      revng_assert(Underlying.is(model::TypeKind::StructType));
+      revng_assert(Underlying.Qualifiers.empty());
+
+      auto *ModelReturnType = Underlying.UnqualifiedType.get();
+      auto *StructReturnType = cast<model::StructType>(ModelReturnType);
+      for (model::QualifiedType FieldType :
+           llvm::map_range(StructReturnType->Fields,
+                           [](const model::StructField &F) {
+                             return F.Type;
+                           })) {
+        revng_assert(FieldType.isScalar());
+        ReturnTypes.push_back(std::move(FieldType));
+      }
+    }
+  }
+
+  return ReturnTypes;
+}
+
+static llvm::SmallVector<QualifiedType>
+handleReturnValue(const model::TypePath &Prototype,
+                  const model::Binary &Model) {
+  const auto Layout = abi::FunctionType::Layout::make(Prototype);
+  if (Layout.returnsAggregateType()) {
+    revng_assert(not Layout.Arguments.empty());
+    auto &Argument = Layout.Arguments[0];
+    using namespace abi::FunctionType::ArgumentKind;
+    revng_assert(Argument.Kind == ShadowPointerToAggregateReturnValue);
+    revng_assert(Argument.Registers.size() == 1);
+    revng_assert(not Argument.Stack);
+    return { stripPointer(Argument.Type) };
+  } else {
+    return flattenReturnTypes(Layout, Model);
+  }
+}
+
 RecursiveCoroutine<llvm::SmallVector<QualifiedType>>
 getStrongModelInfo(FunctionMetadataCache &Cache,
                    const llvm::Instruction *Inst,
@@ -280,44 +356,11 @@ getStrongModelInfo(FunctionMetadataCache &Cache,
       // Isolated functions have their prototype in the model
       auto Prototype = Cache.getCallSitePrototype(Model, Call);
       revng_assert(Prototype.isValid());
-      auto PrototypePath = Prototype.get();
+      ReturnTypes = handleReturnValue(Prototype, Model);
 
-      if (auto *RawPrototype = dyn_cast<RawFT>(PrototypePath)) {
-        for (model::QualifiedType RetVal :
-             llvm::map_range(RawPrototype->ReturnValues,
-                             [](const model::TypedRegister &TR) {
-                               return TR.Type;
-                             }))
-          ReturnTypes.push_back(std::move(RetVal));
-      } else if (auto *CABIPrototype = dyn_cast<CABIFT>(PrototypePath)) {
-        const auto Layout = abi::FunctionType::Layout::make(*CABIPrototype);
-        // Layout has an invalid ReturnValue.Type if PrototypePath returns void.
-        model::QualifiedType ReturnType = Layout.ReturnValue.Type;
-        if (ReturnType.UnqualifiedType.isValid()) {
-          if (ReturnType.isScalar()) {
-            ReturnTypes.push_back(std::move(ReturnType));
-          } else {
-            ReturnType = peelConstAndTypedefs(ReturnType);
-            revng_assert(ReturnType.is(model::TypeKind::StructType));
-            revng_assert(ReturnType.Qualifiers.empty());
-            auto *ModelReturnType = ReturnType.UnqualifiedType.get();
-            auto *StructReturnType = cast<model::StructType>(ModelReturnType);
-            for (model::QualifiedType FieldType :
-                 llvm::map_range(StructReturnType->Fields,
-                                 [](const model::StructField &F) {
-                                   return F.Type;
-                                 })) {
-              revng_assert(FieldType.isScalar());
-              ReturnTypes.push_back(std::move(FieldType));
-            }
-          }
-        }
-      } else {
-        revng_abort("Unknown prototype kind.");
-      }
     } else {
-      // Non-isolated functions do not have a Prototype in the model, but we
-      // can infer their returned type(s) in other ways
+      // Non-isolated functions do not have a Prototype in the model, but we can
+      // infer their returned type(s) in other ways
       auto *CalledFunc = Call->getCalledFunction();
       const auto &FuncName = CalledFunc->getName();
       auto FTags = FunctionTags::TagsSet::from(CalledFunc);
@@ -330,7 +373,7 @@ getStrongModelInfo(FunctionMetadataCache &Cache,
       } else if (FTags.contains(FunctionTags::AddressOf)) {
         // The first argument is the base type (not the pointer's type)
         auto Base = deserializeFromLLVMString(Call->getArgOperand(0), Model);
-        Base = Model.getPointerTo(Base);
+        Base = Base.getPointerTo(Model.Architecture);
 
         ReturnTypes.push_back(Base);
 
@@ -345,10 +388,7 @@ getStrongModelInfo(FunctionMetadataCache &Cache,
         // RawFunctionTypes that return multiple values, therefore they have
         // the same type as the parent function's return type
         revng_assert(Call->getFunction()->getReturnType() == Call->getType());
-        auto *RawPrototype = cast<RawFT>(ParentFunc()->Prototype.get());
-
-        for (const auto &RetVal : RawPrototype->ReturnValues)
-          ReturnTypes.push_back(RetVal.Type);
+        ReturnTypes = handleReturnValue(ParentFunc()->Prototype, Model);
 
       } else if (FTags.contains(FunctionTags::SegmentRef)) {
         const auto &[StartAddress,
@@ -364,16 +404,13 @@ getStrongModelInfo(FunctionMetadataCache &Cache,
         ReturnTypes.push_back(QualifiedType{ StackType, {} });
 
       } else if (FuncName.startswith("revng_call_stack_arguments")) {
-        // The prototype attached to this callsite represents the prototype of
-        // the function that needs the stack arguments returned by this call
-        auto Prototype = Cache.getCallSitePrototype(Model, Call, ParentFunc());
-        revng_assert(Prototype.isValid());
 
-        // Only RawFunctionTypes have explicit stack arguments
-        auto *RawPrototype = cast<RawFT>(Prototype.get());
-        QualifiedType StackArgsType = RawPrototype->StackArgumentsType;
+        auto *Arg0Operand = Call->getArgOperand(0);
+        QualifiedType
+          CallStackArgumentType = deserializeFromLLVMString(Arg0Operand, Model);
+        revng_assert(not CallStackArgumentType.isVoid());
 
-        ReturnTypes.push_back(StackArgsType);
+        ReturnTypes.push_back(std::move(CallStackArgumentType));
       }
     }
   } else if (auto *EV = llvm::dyn_cast<llvm::ExtractValueInst>(Inst)) {
@@ -409,36 +446,27 @@ getExpectedModelType(FunctionMetadataCache &Cache,
       // Isolated functions have their prototype in the model
       auto Prototype = Cache.getCallSitePrototype(Model, Call);
       revng_assert(Prototype.isValid());
-      auto PrototypePath = Prototype.get();
 
       // If we are inspecting the callee return the prototype
       if (Call->isCallee(U))
         return { createPointerTo(Prototype, Model) };
 
       if (Call->isArgOperand(U)) {
-        unsigned int ArgOperandIdx = Call->getArgOperandNo(U);
+        const auto Layout = abi::FunctionType::Layout::make(Prototype);
+        auto ArgNo = Call->getArgOperandNo(U);
 
-        if (auto *CPrototype = dyn_cast<CABIFT>(PrototypePath)) {
-          return { CPrototype->Arguments.at(ArgOperandIdx).Type };
+        const auto IsNonShadow =
+          [](const abi::FunctionType::Layout::Argument &A) {
+            using namespace abi::FunctionType::ArgumentKind;
+            return A.Kind != ShadowPointerToAggregateReturnValue;
+          };
+        auto NonShadowArgs = llvm::make_filter_range(Layout.Arguments,
+                                                     IsNonShadow);
 
-        } else if (auto *RawPrototype = dyn_cast<RawFT>(PrototypePath)) {
-          if (ArgOperandIdx < RawPrototype->Arguments.size()) {
-            auto ArgIt = RawPrototype->Arguments.begin() + ArgOperandIdx;
-            return { ArgIt->Type };
-
-          } else {
-            // If the LLVM argument is past the last model argument, we are
-            // inspecting the StackArgument of the call
-            revng_assert(ArgOperandIdx == RawPrototype->Arguments.size());
-
-            const auto &StackArgsType = RawPrototype->StackArgumentsType;
-            auto StackArgs = Model.getPointerTo(StackArgsType);
-            revng_assert(StackArgs.UnqualifiedType.isValid());
-            return { StackArgs };
-          }
-        } else {
-          revng_abort("Unknown Function Type");
-        }
+        for (const auto &ArgType : llvm::enumerate(NonShadowArgs))
+          if (ArgType.index() == ArgNo)
+            return { ArgType.value().Type };
+        revng_abort();
       }
     } else {
       // Non-isolated functions do not have a Prototype in the model, but they
@@ -450,6 +478,7 @@ getExpectedModelType(FunctionMetadataCache &Cache,
       auto FTags = FunctionTags::TagsSet::from(CalledFunc);
 
       if (FTags.contains(FunctionTags::AddressOf)
+          or FTags.contains(FunctionTags::ModelGEP)
           or FTags.contains(FunctionTags::ModelGEPRef)) {
         // We have model type information only for the base value
         if (ArgOperandIdx != ModelGEPBaseArgIndex)
@@ -457,47 +486,30 @@ getExpectedModelType(FunctionMetadataCache &Cache,
 
         // The type of the base value is contained in the first operand
         auto Base = deserializeFromLLVMString(Call->getArgOperand(0), Model);
-        return { Base };
-
-      } else if (FTags.contains(FunctionTags::ModelGEP)) {
-        // We have model type information only for the base value
-        if (ArgOperandIdx != ModelGEPBaseArgIndex)
-          return {};
-
-        // The pointed type is contained in the first operand
-        QualifiedType Base = deserializeFromLLVMString(Call->getArgOperand(0),
-                                                       Model);
-        Base = Model.getPointerTo(Base);
+        if (FTags.contains(FunctionTags::ModelGEP))
+          Base = Base.getPointerTo(Model.Architecture);
         return { std::move(Base) };
 
+      } else if (isCallTo(Call, "revng_call_stack_arguments")) {
+        auto *Arg0Operand = Call->getArgOperand(0);
+        QualifiedType
+          CallStackArgumentType = deserializeFromLLVMString(Arg0Operand, Model);
+        revng_assert(not CallStackArgumentType.isVoid());
+
+        return { std::move(CallStackArgumentType) };
       } else if (FTags.contains(FunctionTags::StructInitializer)) {
         // Struct initializers are only used to pack together return values of
         // RawFunctionTypes that return multiple values, therefore they have
         // the same type as the parent function's return type
         revng_assert(Call->getFunction()->getReturnType() == Call->getType());
-        auto *RawPrototype = cast<RawFT>(ParentFunc()->Prototype.get());
 
-        auto ArgIt = RawPrototype->ReturnValues.begin() + ArgOperandIdx;
-        return { ArgIt->Type };
+        llvm::SmallVector<QualifiedType> ReturnTypes;
+        ReturnTypes = handleReturnValue(ParentFunc()->Prototype, Model);
+        return { ReturnTypes[ArgOperandIdx] };
       }
     }
   } else if (auto *Ret = dyn_cast<llvm::ReturnInst>(User)) {
-    auto ParentPrototype = ParentFunc()->Prototype.getConst();
-
-    if (auto *RawProto = dyn_cast<RawFT>(ParentPrototype)) {
-      llvm::SmallVector<QualifiedType> ReturnTypes;
-
-      for (auto RetVal : RawProto->ReturnValues)
-        ReturnTypes.push_back(RetVal.Type);
-
-      return ReturnTypes;
-
-    } else if (auto *CABIProto = dyn_cast<CABIFT>(ParentPrototype)) {
-      return { CABIProto->ReturnType };
-
-    } else {
-      revng_abort("Unknown prototype type");
-    }
+    return handleReturnValue(ParentFunc()->Prototype, Model);
   }
 
   return {};

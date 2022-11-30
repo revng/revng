@@ -9,6 +9,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 
@@ -246,4 +247,26 @@ extractSegmentKeyFromMetadata(const llvm::Function &F) {
   uint64_t VirtualSize = cast<ConstantInt>(VSMD)->getZExtValue();
 
   return { StartAddress, VirtualSize };
+}
+
+void emitMessage(llvm::Instruction *EmitBefore, const llvm::Twine &Message) {
+  llvm::IRBuilder<> Builder(EmitBefore);
+  emitMessage(Builder, Message);
+}
+
+void emitMessage(llvm::IRBuilder<> &Builder, const llvm::Twine &Message) {
+  using namespace llvm;
+
+  Module *M = getModule(Builder.GetInsertBlock());
+  auto *FT = createFunctionType<void, const uint8_t *>(M->getContext());
+  // TODO: use reserved prefix
+  llvm::StringRef MessageFunctionName("revng_message");
+  FunctionCallee Callee = M->getOrInsertFunction(MessageFunctionName, FT);
+
+  Function *F = cast<Function>(Callee.getCallee());
+  if (not FunctionTags::Helper.isTagOf(F))
+    FunctionTags::Helper.addTo(F);
+
+  Builder.CreateCall(Callee,
+                     getUniqueString(M, "emitMessage", Message.str(), ""));
 }

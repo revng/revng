@@ -27,6 +27,7 @@ target_link_libraries(
   revngcSupport
   revngcTypeNames
   revngcVariableScopeAnalysis
+  revng::revngABI
   revng::revngModel
   revng::revngPipes
   revng::revngSupport

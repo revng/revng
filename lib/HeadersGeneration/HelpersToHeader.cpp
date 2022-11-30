@@ -84,7 +84,7 @@ bool dumpHelpersToHeader(const llvm::Module &M, llvm::raw_ostream &Out) {
     Header << helpers::pragmaOnce();
     Header << helpers::includeAngle("stdint.h");
     Header << helpers::includeAngle("stdbool.h");
-    Header << helpers::includeQuote("revngfloat.h");
+    Header << helpers::includeQuote("revng-primitive-types.h");
     Header << "\n";
 
     for (const llvm::Function &F : M.functions()) {
