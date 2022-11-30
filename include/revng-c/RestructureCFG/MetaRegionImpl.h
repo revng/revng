@@ -138,15 +138,3 @@ bool MetaRegion<NodeT>::nodesEquality(MetaRegion<NodeT> &Other) const {
   BasicBlockNodeTSet &OtherNodes = Other.getNodes();
   return Nodes == OtherNodes;
 }
-
-template<class NodeT>
-BasicBlockNode<NodeT> *
-MetaRegion<NodeT>::getProbableEntry(BasicBlockNodeRPOT &RPOT) const {
-  for (BasicBlockNodeT *Node : RPOT) {
-    if (containsNode(Node)) {
-      return Node;
-    }
-  }
-
-  revng_abort("No candidate entry node found");
-}
