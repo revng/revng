@@ -44,6 +44,8 @@ const std::set<llvm::StringRef> ReservedKeywords = {
   "generic16_t",
   "generic32_t",
   "generic64_t",
+  "generic80_t",
+  "generic96_t",
   "generic128_t",
   "int8_t",
   "int16_t",
@@ -82,6 +84,8 @@ const std::set<llvm::StringRef> ReservedKeywords = {
   "float16_t",
   "float32_t",
   "float64_t",
+  "float80_t",
+  "float96_t",
   "float128_t",
   // Integer macros from stdint.h, reserved to prevent clashes.
   "INT8_WIDTH",
@@ -401,7 +405,12 @@ isValidPrimitiveSize(PrimitiveTypeKind::Values PrimKind, uint8_t BS) {
   case PrimitiveTypeKind::Void:
     return BS == 0;
 
+  // The ByteSizes allowed for Generic must be a superset of all the other
+  // ByteSizes allowed for all other primitive types (except void)
   case PrimitiveTypeKind::Generic:
+    return BS == 1 or BS == 2 or BS == 4 or BS == 8 or BS == 10 or BS == 12
+           or BS == 16;
+
   case PrimitiveTypeKind::PointerOrNumber:
   case PrimitiveTypeKind::Number:
   case PrimitiveTypeKind::Unsigned:
@@ -747,19 +756,23 @@ bool QualifiedType::isConst() const {
 
 static RecursiveCoroutine<bool>
 isPrimitiveImpl(const model::QualifiedType &QT,
-                model::PrimitiveTypeKind::Values V) {
+                std::optional<model::PrimitiveTypeKind::Values> V) {
   if (QT.Qualifiers.size() != 0
       and not llvm::all_of(QT.Qualifiers, Qualifier::isConst))
     rc_return false;
 
   const model::Type *UnqualifiedType = QT.UnqualifiedType.get();
   if (auto *Primitive = llvm::dyn_cast<PrimitiveType>(UnqualifiedType))
-    rc_return Primitive->PrimitiveKind == V;
+    rc_return !V.has_value() || Primitive->PrimitiveKind == *V;
 
   if (auto *Typedef = llvm::dyn_cast<TypedefType>(UnqualifiedType))
     rc_return rc_recur isPrimitiveImpl(Typedef->UnderlyingType, V);
 
   rc_return false;
+}
+
+bool QualifiedType::isPrimitive() const {
+  return isPrimitiveImpl(*this, std::nullopt);
 }
 
 bool QualifiedType::isPrimitive(PrimitiveTypeKind::Values V) const {
@@ -999,7 +1012,8 @@ inline RecursiveCoroutine<bool> isScalarImpl(const QualifiedType &QT) {
 
   const Type *Unqualified = QT.UnqualifiedType.get();
   revng_assert(Unqualified != nullptr);
-  if (llvm::isa<model::PrimitiveType>(Unqualified)) {
+  if (llvm::isa<model::PrimitiveType>(Unqualified)
+      or llvm::isa<model::EnumType>(Unqualified)) {
     rc_return true;
   }
 

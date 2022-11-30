@@ -55,7 +55,6 @@ struct Trait<model::ABI::SystemV_x86> {
 
   static constexpr bool CalleeIsResponsibleForStackCleanup = false;
   static constexpr size_t StackAlignment = 16;
-  static constexpr size_t MinimumStackArgumentSize = 4;
 };
 
 } // namespace abi

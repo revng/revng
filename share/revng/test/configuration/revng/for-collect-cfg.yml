@@ -5,14 +5,16 @@
 commands:
   - type: revng.test-collect-cfg
     from:
-      - type: revng.lifted
+      - type: revng-qa.compiled-with-debug-info
         filter: for-collect-cfg
     command: |-
-      revng opt
-        --collect-functions-from-callees
-        --detect-abi
-        --collect-cfg
-        "$INPUT" |
+      RESUME=$$(temp -d);
+      MODEL=$$(temp);
+      revng analyze --resume "$$RESUME" AddPrimitiveTypes "$INPUT" -o /dev/null;
+      revng analyze --resume "$$RESUME" ImportBinary "$INPUT" -o /dev/null;
+      revng analyze --resume "$$RESUME" DetectABI "$INPUT" -o "$$MODEL";
+      revng artifact --resume "$$RESUME" EnforceABI "$INPUT" |
+        revng model inject "$$MODEL" |
         revng efa-extractcfg |
         revng model to-json --remap |
         revng model compare "${SOURCE}.cfg.yml"

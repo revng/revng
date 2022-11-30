@@ -18,8 +18,12 @@ class ModelOverrideByName(Command):
         super().__init__(("model", "override-by-name"), "Override parts of the model")
 
     def register_arguments(self, parser):
-        parser.add_argument("input_model_path", default="", help="Input model (can be IR)")
-        parser.add_argument("override_model_path", default="", help="Override model")
+        parser.add_argument(
+            "input_model_path", metavar="INPUT_MODEL", default="", help="Input model (can be IR)"
+        )
+        parser.add_argument(
+            "override_model_path", metavar="OVERRIDE_MODEL", default="", help="Override model"
+        )
         parser.add_argument(
             "-o",
             metavar="OUTPUT",
@@ -68,7 +72,7 @@ class ModelOverrideByName(Command):
 
             # Check if it's YAML
             saved_file.seek(0)
-            input_is_yaml = saved_file.read(3) == "---"
+            input_is_yaml = saved_file.read(3) == b"---"
 
             # Extract model, if necessary
             result = run_revng_command(

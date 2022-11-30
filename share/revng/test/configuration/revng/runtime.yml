@@ -5,7 +5,7 @@
 commands:
   - type: revng.qemu-run
     from:
-      - type: revng-qa.compiled
+      - type: revng-qa.compiled-with-debug-info
         filter: for-runtime and cross-compiler
     suffix: /
     command: |-
@@ -14,7 +14,7 @@ commands:
       done
   - type: revng.translated
     from:
-      - type: revng-qa.compiled
+      - type: revng-qa.compiled-with-debug-info
         filter: for-runtime and for-comparison
     command: revng translate -i "$INPUT" -o "$OUTPUT"
   - type: revng.translated-run

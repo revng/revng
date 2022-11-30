@@ -8,11 +8,9 @@ commands:
       - type: revng-qa.compiled
         filter: one-per-architecture
       - type: revng.abi-enforced-for-decompilation
-        filter: one-per-architecture
     suffix: .yml.yml
     command: |-
-      MODEL="$$(mktemp --tmpdir tmp.revng.assembly-internal.XXXXXXXXXX)";
-      trap 'rm -f -- "$$MODEL"' EXIT;
+      MODEL="$$(temp)";
       revng model dump "$INPUT2" > "$$MODEL";
       revng pipeline
         -m "$$MODEL"
@@ -24,13 +22,10 @@ commands:
   - type: revng.assembly-ptml
     from:
       - type: revng.assembly-internal
-        filter: one-per-architecture
       - type: revng.abi-enforced-for-decompilation
-        filter: one-per-architecture
     suffix: .ptml.yml
     command: |-
-      MODEL="$$(mktemp --tmpdir tmp.revng.assembly-ptml.XXXXXXXXXX)";
-      trap 'rm -f -- "$$MODEL"' EXIT;
+      MODEL="$$(temp)";
       revng model dump "$INPUT2" > "$$MODEL";
       revng pipeline
         -m "$$MODEL"
@@ -41,13 +36,10 @@ commands:
   - type: revng.cfg-svg
     from:
       - type: revng.assembly-internal
-        filter: one-per-architecture
       - type: revng.abi-enforced-for-decompilation
-        filter: one-per-architecture
     suffix: .svg.yml
     command: |-
-      MODEL="$$(mktemp --tmpdir tmp.revng.cfg-svg.XXXXXXXXXX)";
-      trap 'rm -f -- "$$MODEL"' EXIT;
+      MODEL="$$(temp)";
       revng model dump "$INPUT2" > "$$MODEL";
       revng pipeline
         -m "$$MODEL"
@@ -60,11 +52,9 @@ commands:
       - type: revng-qa.compiled
         filter: one-per-architecture
       - type: revng.abi-enforced-for-decompilation
-        filter: one-per-architecture
     suffix: .yml
     command: |-
-      MODEL="$$(mktemp --tmpdir tmp.revng.cross-relations.XXXXXXXXXX)";
-      trap 'rm -f -- "$$MODEL"' EXIT;
+      MODEL="$$(temp)";
       revng model dump "$INPUT2" > "$$MODEL";
       revng pipeline
         -m "$$MODEL"
@@ -76,13 +66,10 @@ commands:
   - type: revng.call-graph-svg
     from:
       - type: revng.cross-relations
-        filter: one-per-architecture
       - type: revng.abi-enforced-for-decompilation
-        filter: one-per-architecture
     suffix: .svg.yml
     command: |-
-      MODEL="$$(mktemp --tmpdir tmp.revng.call-graph-svg.XXXXXXXXXX)";
-      trap 'rm -f -- "$$MODEL"' EXIT;
+      MODEL="$$(temp)";
       revng model dump "$INPUT2" > "$$MODEL";
       revng pipeline
         -m "$$MODEL"
@@ -93,15 +80,11 @@ commands:
   - type: revng.call-graph-slice-svg
     from:
       - type: revng.cross-relations
-        filter: one-per-architecture
       - type: revng.abi-enforced-for-decompilation
-        filter: one-per-architecture
       - type: revng-qa.compiled
-        filter: one-per-architecture
     suffix: .svg.yml
     command: |-
-      MODEL="$$(mktemp --tmpdir tmp.revng.call-graph-slice-svg.XXXXXXXXXX)";
-      trap 'rm -f -- "$$MODEL"' EXIT;
+      MODEL="$$(temp)";
       revng model dump "$INPUT2" > "$$MODEL";
       revng pipeline
         -m "$$MODEL"

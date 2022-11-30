@@ -384,7 +384,7 @@ const KindsRegistry &Runner::getKindsRegistry() const {
 
 void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
                                   InvalidationMap &Map) const {
-  for (const auto &Step : *this) {
+  for (const auto &Step : llvm::drop_begin(*this)) {
     auto &StepInvalidations = Map[Step.getName()];
     for (const auto &Cotainer : Step.containers()) {
       if (not Cotainer.second)
@@ -393,6 +393,8 @@ void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
       auto &ContainerInvalidations = StepInvalidations[Cotainer.first()];
       for (const Kind &Rule : getKindsRegistry())
         Rule.getInvalidations(getContext(), ContainerInvalidations, Diff);
+      auto Enumeration = Cotainer.second->enumerate();
+      ContainerInvalidations = ContainerInvalidations.intersect(Enumeration);
     }
   }
 }

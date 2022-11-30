@@ -761,8 +761,10 @@ void DetectABI::runInterproceduralAnalysis() {
           if (IsInline)
             InlineFunctionWorklist.insert(Caller);
 
-          revng_log(Log, CallerPC.toString());
-          EntrypointsQueue.insert(Caller);
+          if (not Binary->Functions.at(CallerPC).Prototype.isValid()) {
+            revng_log(Log, CallerPC.toString());
+            EntrypointsQueue.insert(Caller);
+          }
         }
       }
     }

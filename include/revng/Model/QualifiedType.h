@@ -46,6 +46,8 @@ public:
   /// Checks if is a scalar type, unwrapping typedefs
   bool isScalar() const;
   /// Checks if is a primitive type, unwrapping typedefs
+  bool isPrimitive() const;
+  /// Checks if is a primitive type of a specific kind, unwrapping typedefs
   bool isPrimitive(model::PrimitiveTypeKind::Values V) const;
   /// Checks if is float, unwrapping typedefs
   bool isFloat() const { return isPrimitive(model::PrimitiveTypeKind::Float); }
@@ -59,6 +61,14 @@ public:
   bool isConst() const;
   /// Checks if is of a given TypeKind, unwrapping typedefs
   bool is(model::TypeKind::Values K) const;
+
+public:
+  model::QualifiedType getPointerTo(model::Architecture::Values Arch) const {
+    QualifiedType Result = *this;
+    Result.Qualifiers.insert(Result.Qualifiers.begin(),
+                             model::Qualifier::createPointer(Arch));
+    return Result;
+  }
 
 public:
   bool verify() const debug_function;
