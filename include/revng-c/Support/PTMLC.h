@@ -17,6 +17,7 @@
 #include "revng/PTML/Tag.h"
 #include "revng/Pipeline/Location.h"
 
+#include "revng-c/Pipes/Ranks.h"
 #include "revng-c/Support/PTML.h"
 #include "revng-c/Support/TokenDefinitions.h"
 

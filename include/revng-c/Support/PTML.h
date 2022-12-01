@@ -5,6 +5,7 @@
 //
 
 #include "revng/PTML/Constants.h"
+#include "revng/PTML/Tag.h"
 
 namespace ptml::c {
 
