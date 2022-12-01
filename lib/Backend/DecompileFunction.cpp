@@ -35,6 +35,7 @@
 #include "revng/Model/Segment.h"
 #include "revng/Model/StructType.h"
 #include "revng/Model/Type.h"
+#include "revng/PTML/Constants.h"
 #include "revng/PTML/IndentedOstream.h"
 #include "revng/PTML/ModelHelpers.h"
 #include "revng/Pipeline/Location.h"
@@ -1100,8 +1101,20 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
   return Expression;
 }
 
-StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
+static bool shouldGenerateDebugInfoAsPTML(const llvm::Instruction &I) {
+  if (!I.getDebugLoc() || !I.getDebugLoc()->getScope())
+    return false;
 
+  // If the next instruciton in the BB has different DebugLoc, generate the
+  // PTML location now.
+  auto NextInstr = std::next(I.getIterator());
+  if (NextInstr == I.getParent()->end() || !NextInstr->getDebugLoc()
+      || NextInstr->getDebugLoc() != I.getDebugLoc())
+    return true;
+  return false;
+}
+
+StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
   // Constants, ConstExprs and Globals might not have an associated token yet
   for (const llvm::Value *Operand : I.operand_values()) {
     if (not TokenMap.contains(Operand)) {
@@ -1110,6 +1123,18 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
         decompilerLog(Out, "Added token: " + TokenMap.at(Operand));
       }
     }
+  }
+
+  StringToken FinalExpression;
+
+  // Emit PTML debug locations, trying to avoid duplications
+  ptml::Tag TheDebugInfoTag(ptml::tags::Span);
+  bool ShouldGenerateDbgInfoPTML = shouldGenerateDebugInfoAsPTML(I);
+  if (ShouldGenerateDbgInfoPTML) {
+    TheDebugInfoTag.addAttribute(ptml::attributes::LocationReferences,
+                                 I.getDebugLoc()->getScope()->getName());
+    // Open the tag for debug location.
+    FinalExpression += TheDebugInfoTag.open();
   }
 
   StringToken Expression;
@@ -1403,7 +1428,13 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
     }
   }
 
-  return Expression;
+  FinalExpression += Expression;
+
+  // Close the tag for debug location.
+  if (ShouldGenerateDbgInfoPTML)
+    FinalExpression += TheDebugInfoTag.close();
+
+  return FinalExpression;
 }
 
 void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB) {
