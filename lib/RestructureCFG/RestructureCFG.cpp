@@ -382,20 +382,6 @@ createMetaRegions(const std::set<EdgeDescriptor> &Backedges) {
   return MetaRegions;
 }
 
-static void
-removeFromRPOT(std::vector<BasicBlockNodeBB *> &RPOT, BasicBlockNodeBB *Node) {
-
-  RPOT.erase(std::remove_if(RPOT.begin(),
-                            RPOT.end(),
-                            [Node](BasicBlockNodeBB *N) {
-                              if (N == Node) {
-                                return true;
-                              }
-                              return false;
-                            }),
-             RPOT.end());
-}
-
 static cl::opt<std::string> MetricsOutputPath("restructure-metrics-output-dir",
                                               desc("Restructure metrics dir"),
                                               value_desc("restructure-dir"),
@@ -1064,7 +1050,7 @@ bool restructureCFG(Function &F, ASTTree &AST) {
                    << "\n";
       }
       RootCFG.removeNode(Node);
-      removeFromRPOT(RPOT, Node);
+      llvm::erase_value(RPOT, Node);
     }
 
     // Substitute in the other SCSs the nodes of the current SCS with the
