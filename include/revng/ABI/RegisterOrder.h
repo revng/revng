@@ -8,6 +8,7 @@
 
 #include "revng/ABI/Trait.h"
 #include "revng/ADT/STLExtras.h"
+#include "revng/ADT/SortedVector.h"
 #include "revng/Model/ABI.h"
 #include "revng/Model/Register.h"
 

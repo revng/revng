@@ -4,7 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "PipelineC.h"
+#include "revng/PipelineC/PipelineC.h"
 
 /**
  * TODO: move to mkdocs

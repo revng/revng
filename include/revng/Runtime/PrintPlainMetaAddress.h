@@ -9,7 +9,7 @@
 
 #include "revng/Runtime/PlainMetaAddress.h"
 
-static int fprint_metaaddress(FILE *stream, PlainMetaAddress *address) {
+inline int fprint_metaaddress(FILE *stream, PlainMetaAddress *address) {
   return fprintf(stream,
                  "{ 0x%" PRIx32 ", 0x%" PRIx16 ", 0x%" PRIx16 ", 0x%" PRIx64
                  " }\n",

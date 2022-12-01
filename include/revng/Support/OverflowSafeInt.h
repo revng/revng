@@ -6,6 +6,8 @@
 
 #include <optional>
 
+#include "llvm/Support/MathExtras.h"
+
 #include "revng/ADT/Concepts.h"
 
 template<integral T>

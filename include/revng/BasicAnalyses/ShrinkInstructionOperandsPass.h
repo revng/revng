@@ -4,6 +4,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/PassManager.h"
+
 #include "revng/Support/IRHelpers.h"
 
 enum Signedness { DontCare, Signed, Unsigned };
