@@ -164,7 +164,7 @@ public:
     if (not PCH) {
       llvm::Module *M = RootFunction->getParent();
       using namespace model::Architecture;
-      auto Architecture = toLLVMArchitecture(Binary->Architecture);
+      auto Architecture = toLLVMArchitecture(Binary->Architecture());
       PCH = ProgramCounterHandler::fromModule(Architecture, M);
     }
 
@@ -316,7 +316,7 @@ public:
 
   MetaAddress fromPC(uint64_t PC) const {
     using namespace model::Architecture;
-    auto Architecture = toLLVMArchitecture(Binary->Architecture);
+    auto Architecture = toLLVMArchitecture(Binary->Architecture());
     return MetaAddress::fromPC(Architecture, PC);
   }
 

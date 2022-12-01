@@ -32,21 +32,21 @@ TypePath defaultPrototype(Binary &TheBinary) {
 
   for (const auto &Reg : abi::Trait<ABI>::GeneralPurposeArgumentRegisters) {
     NamedTypedRegister Argument(Reg);
-    Argument.Type = buildType(Reg, TheBinary);
-    Prototype.Arguments.insert(Argument);
+    Argument.Type() = buildType(Reg, TheBinary);
+    Prototype.Arguments().insert(Argument);
   }
 
   for (const auto &Rg : abi::Trait<ABI>::GeneralPurposeReturnValueRegisters) {
     TypedRegister ReturnValue(Rg);
-    ReturnValue.Type = buildType(Rg, TheBinary);
-    Prototype.ReturnValues.insert(ReturnValue);
+    ReturnValue.Type() = buildType(Rg, TheBinary);
+    Prototype.ReturnValues().insert(ReturnValue);
   }
 
   for (const auto &Register : abi::Trait<ABI>::CalleeSavedRegisters)
-    Prototype.PreservedRegisters.insert(Register);
+    Prototype.PreservedRegisters().insert(Register);
 
   using namespace Architecture;
-  Prototype.FinalStackOffset = getCallPushSize(TheBinary.Architecture);
+  Prototype.FinalStackOffset() = getCallPushSize(TheBinary.Architecture());
 
   return TypePath;
 }
@@ -55,7 +55,7 @@ model::TypePath
 abi::registerDefaultFunctionPrototype(Binary &Binary,
                                       std::optional<ABI::Values> MaybeABI) {
   if (!MaybeABI.has_value())
-    MaybeABI = Binary.DefaultABI;
+    MaybeABI = Binary.DefaultABI();
   revng_assert(*MaybeABI != ABI::Invalid);
   return skippingEnumSwitch<1>(*MaybeABI, [&]<ABI::Values A>() {
     return defaultPrototype<A>(Binary);

@@ -141,10 +141,10 @@ public:
 inline model::TypePath
 getPrototype(const model::Binary &Binary,
              const model::DynamicFunction &DynamicFunction) {
-  if (DynamicFunction.Prototype.isValid())
-    return DynamicFunction.Prototype;
+  if (DynamicFunction.Prototype().isValid())
+    return DynamicFunction.Prototype();
   else
-    return Binary.DefaultPrototype;
+    return Binary.DefaultPrototype();
 }
 
 #include "revng/Model/Generated/Late/Binary.h"

@@ -26,7 +26,7 @@ Key KeyedObjectTraits<UpcastablePointer</*= struct | user_fullname =*/>>::key(
 
   return {
     /**- for key_field in struct.key_fields **/
-    Obj->/*= key_field.name =*//** if not loop.last **/, /** endif **/
+    Obj->/*= key_field.name =*/()/** if not loop.last **/, /** endif **/
     /**- endfor **/
   };
 }
@@ -84,19 +84,19 @@ bool /*= struct | fullname =*/::localCompare(const /*= struct | user_fullname =*
   /**- if field.__class__.__name__ == "SimpleStructField" **/
 
   /**- if schema.get_definition_for(field.type).__class__.__name__ == "StructDefinition" -**/
-  if (not this->/*= field.name =*/.localCompare(Other./*= field.name =*/))
+  if (not this->/*= field.name =*/().localCompare(Other./*= field.name =*/()))
     return false;
   /**- else -**/
-  if (this->/*= field.name =*/ != Other./*= field.name =*/)
+  if (this->/*= field.name =*/() != Other./*= field.name =*/())
     return false;
   /**- endif -**/
 
   /**- elif field.__class__.__name__ == "SequenceStructField" -**/
-  if (this->/*= field.name =*/.size() != Other./*= field.name =*/.size())
+  if (this->/*= field.name =*/().size() != Other./*= field.name =*/().size())
     return false;
 
   /**- if schema.get_definition_for(field.element_type).__class__.__name__ == "StructDefinition" -**/
-  for (const auto &[L, R] : llvm::zip(this->/*= field.name =*/, Other./*= field.name =*/)) {
+  for (const auto &[L, R] : llvm::zip(this->/*= field.name =*/(), Other./*= field.name =*/())) {
     /** if field.upcastable **/
     if (not L->localCompare(*R))
       return false;
@@ -107,7 +107,7 @@ bool /*= struct | fullname =*/::localCompare(const /*= struct | user_fullname =*
   }
 
   /**- else -**/
-  if (this->/*= field.name =*/ != Other./*= field.name =*/)
+  if (this->/*= field.name =*/() != Other./*= field.name =*/())
     return false;
   /**- endif -**/
 

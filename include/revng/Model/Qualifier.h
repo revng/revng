@@ -55,22 +55,24 @@ public:
 public:
   static bool isConst(const Qualifier &Q) {
     revng_assert(Q.verify(true));
-    return Q.Kind == QualifierKind::Const;
+    return Q.Kind() == QualifierKind::Const;
   }
 
   static bool isArray(const Qualifier &Q) {
     revng_assert(Q.verify(true));
-    return Q.Kind == QualifierKind::Array;
+    return Q.Kind() == QualifierKind::Array;
   }
 
   static bool isPointer(const Qualifier &Q) {
     revng_assert(Q.verify(true));
-    return Q.Kind == QualifierKind::Pointer;
+    return Q.Kind() == QualifierKind::Pointer;
   }
 
 public:
   auto operator<(const Qualifier &Other) const {
-    return std::tie(this->Kind, this->Size) < std::tie(Other.Kind, Other.Size);
+    auto Me = std::tie(this->Kind(), this->Size());
+    auto It = std::tie(Other.Kind(), Other.Size());
+    return Me < It;
   }
 };
 

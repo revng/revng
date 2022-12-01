@@ -78,32 +78,32 @@ static FieldList collectFields(const model::Type *T) {
   FieldList Fields;
 
   if (auto *Struct = llvm::dyn_cast<model::StructType>(T)) {
-    for (auto &Field : Struct->Fields)
-      Fields.push_back(Field.Type);
+    for (auto &Field : Struct->Fields())
+      Fields.push_back(Field.Type());
 
   } else if (auto *Union = llvm::dyn_cast<model::UnionType>(T)) {
-    for (auto &Field : Union->Fields)
-      Fields.push_back(Field.Type);
+    for (auto &Field : Union->Fields())
+      Fields.push_back(Field.Type());
 
   } else if (auto *CABIFunc = llvm::dyn_cast<model::CABIFunctionType>(T)) {
-    Fields.push_back(CABIFunc->ReturnType);
-    for (auto &Field : CABIFunc->Arguments)
-      Fields.push_back(Field.Type);
+    Fields.push_back(CABIFunc->ReturnType());
+    for (auto &Field : CABIFunc->Arguments())
+      Fields.push_back(Field.Type());
 
   } else if (auto *RawFunc = llvm::dyn_cast<model::RawFunctionType>(T)) {
-    for (auto &Field : RawFunc->ReturnValues)
-      Fields.push_back(Field.Type);
+    for (auto &Field : RawFunc->ReturnValues())
+      Fields.push_back(Field.Type());
 
     if (Fields.empty())
       Fields.push_back({});
 
-    for (auto &Field : RawFunc->Arguments)
-      Fields.push_back(Field.Type);
+    for (auto &Field : RawFunc->Arguments())
+      Fields.push_back(Field.Type());
 
-    if (RawFunc->StackArgumentsType.UnqualifiedType.isValid())
-      Fields.push_back(RawFunc->StackArgumentsType);
+    if (RawFunc->StackArgumentsType().UnqualifiedType().isValid())
+      Fields.push_back(RawFunc->StackArgumentsType());
   } else if (auto *Typedef = llvm::dyn_cast<model::TypedefType>(T)) {
-    Fields.push_back(Typedef->UnderlyingType);
+    Fields.push_back(Typedef->UnderlyingType());
   }
 
   return Fields;
@@ -130,20 +130,20 @@ static llvm::SmallString<32>
 buildFieldName(const model::QualifiedType &FieldQT) {
   llvm::SmallString<32> FieldName;
 
-  if (FieldQT.UnqualifiedType.isValid()) {
-    FieldName += FieldQT.UnqualifiedType.get()->name();
+  if (FieldQT.UnqualifiedType().isValid()) {
+    FieldName += FieldQT.UnqualifiedType().get()->name();
     FieldName += " ";
   } else {
     FieldName += "void ";
   }
 
-  for (auto &Q : FieldQT.Qualifiers) {
-    switch (Q.Kind) {
+  for (auto &Q : FieldQT.Qualifiers()) {
+    switch (Q.Kind()) {
     case model::QualifierKind::Pointer:
       FieldName += "*";
       break;
     case model::QualifierKind::Array:
-      FieldName += "[" + to_string(Q.Size) + "]";
+      FieldName += "[" + to_string(Q.Size()) + "]";
       break;
     default:
       break;
@@ -169,7 +169,7 @@ static void addStructField(llvm::raw_ostream &Out,
 /// Generate the inner table of a struct type
 static void
 dumpStructFields(llvm::raw_ostream &Out, const model::StructType *T) {
-  if (T->Fields.size() == 0) {
+  if (T->Fields().size() == 0) {
     Out << "<TR><TD></TD></TR>";
     return;
   }
@@ -184,17 +184,17 @@ dumpStructFields(llvm::raw_ostream &Out, const model::StructType *T) {
 
   // Struct fields are stacked vertically
   uint64_t LastOffset = 0;
-  for (auto FieldEnum : llvm::enumerate(T->Fields)) {
+  for (auto FieldEnum : llvm::enumerate(T->Fields())) {
     const auto &Field = FieldEnum.value();
-    const auto &FieldQT = Field.Type;
-    const auto FieldOffset = Field.Offset;
+    const auto &FieldQT = Field.Type();
+    const auto FieldOffset = Field.Offset();
 
     // Check if there's padding to be added before this field
     if (FieldOffset > LastOffset)
       addStructField(Out, LastOffset, FieldOffset - LastOffset, "padding");
 
     addStructField(Out,
-                   Field.Offset,
+                   Field.Offset(),
                    FieldQT.size().value_or(0),
                    buildFieldName(FieldQT),
                    FieldEnum.index());
@@ -210,7 +210,7 @@ dumpStructFields(llvm::raw_ostream &Out, const model::StructType *T) {
 
 /// Generate the inner table of a union type
 static void dumpUnionFields(llvm::raw_ostream &Out, const model::UnionType *T) {
-  if (T->Fields.size() == 0) {
+  if (T->Fields().size() == 0) {
     Out << "<TR><TD></TD></TR>";
     return;
   }
@@ -218,9 +218,9 @@ static void dumpUnionFields(llvm::raw_ostream &Out, const model::UnionType *T) {
   Out << "<TR>";
 
   // Union fields are disposed horizontally
-  for (auto FieldEnum : llvm::enumerate(T->Fields)) {
+  for (auto FieldEnum : llvm::enumerate(T->Fields())) {
     const auto &Field = FieldEnum.value();
-    const auto &FieldQT = Field.Type;
+    const auto &FieldQT = Field.Type();
     const auto FieldSize = FieldQT.size().value_or(0);
 
     paddedCell(Out,
@@ -239,27 +239,27 @@ static void dumpFunctionType(llvm::raw_ostream &Out, const model::Type *T) {
 
   // Collect arguments and return types
   if (auto *RawFunc = dyn_cast<RawFunctionType>(T)) {
-    for (auto &RetTy : RawFunc->ReturnValues)
-      ReturnTypes.push_back(RetTy.Type);
+    for (auto &RetTy : RawFunc->ReturnValues())
+      ReturnTypes.push_back(RetTy.Type());
 
-    for (auto &ArgTy : RawFunc->Arguments)
-      Arguments.push_back(ArgTy.Type);
+    for (auto &ArgTy : RawFunc->Arguments())
+      Arguments.push_back(ArgTy.Type());
 
-    if (RawFunc->StackArgumentsType.UnqualifiedType.isValid())
-      Arguments.push_back(RawFunc->StackArgumentsType);
+    if (RawFunc->StackArgumentsType().UnqualifiedType().isValid())
+      Arguments.push_back(RawFunc->StackArgumentsType());
 
   } else if (auto *CABIFunc = dyn_cast<CABIFunctionType>(T)) {
-    ReturnTypes.push_back(CABIFunc->ReturnType);
+    ReturnTypes.push_back(CABIFunc->ReturnType());
 
-    for (auto &ArgTy : CABIFunc->Arguments)
-      Arguments.push_back(ArgTy.Type);
+    for (auto &ArgTy : CABIFunc->Arguments())
+      Arguments.push_back(ArgTy.Type());
   }
 
   // Inner table that divides return types and arguments
   Out << "<TR><TD><TABLE " << TableOpts << ">";
 
   // Header
-  auto Color = getColor(T->Kind);
+  auto Color = getColor(T->Kind());
   Out << "<TR>";
   headerCell(Out, Color, "Return Types");
   headerCell(Out, Color, "Arguments");
@@ -302,7 +302,7 @@ static void dumpFunctionType(llvm::raw_ostream &Out, const model::Type *T) {
 static void
 dumpTypedefUnderlying(llvm::raw_ostream &Out, const model::TypedefType *T) {
   Out << "<TR>";
-  paddedCell(Out, buildFieldName(T->UnderlyingType), 0);
+  paddedCell(Out, buildFieldName(T->UnderlyingType()), 0);
   Out << "</TR>";
 }
 
@@ -311,7 +311,7 @@ void TypeSystemPrinter::dumpTypeNode(const model::Type *T, int NodeID) {
   Out << "node_" << to_string(NodeID) << "[";
 
   // Choose the node's border color
-  auto Color = getColor(T->Kind);
+  auto Color = getColor(T->Kind());
   Out << "color=" << Color << ", ";
 
   // Start of HTML-style label
@@ -360,15 +360,15 @@ void TypeSystemPrinter::addFieldEdge(const model::QualifiedType &QT,
   Out << "[label=\"";
 
   const char *Prefix = "";
-  for (auto &Qual : QT.Qualifiers) {
+  for (auto &Qual : QT.Qualifiers()) {
     Out << Prefix;
     Prefix = ",\\n";
-    switch (Qual.Kind) {
+    switch (Qual.Kind()) {
     case model::QualifierKind::Array:
-      Out << "Array[" << Qual.Size << "]";
+      Out << "Array[" << Qual.Size() << "]";
       break;
     case model::QualifierKind::Pointer:
-      Out << "Pointer (size " << Qual.Size << ")";
+      Out << "Pointer (size " << Qual.Size() << ")";
       break;
     default:
       break;
@@ -414,13 +414,13 @@ void TypeSystemPrinter::print(const model::Type &T) {
 
       const model::Type *FieldUnqualType = nullptr;
 
-      if (FieldQT.UnqualifiedType.isValid())
-        FieldUnqualType = FieldQT.UnqualifiedType.getConst();
+      if (FieldQT.UnqualifiedType().isValid())
+        FieldUnqualType = FieldQT.UnqualifiedType().getConst();
 
       // Don't add edges for primitive types, as they would pollute the graph
       // and add no information regarding the type system structure
       if (not FieldUnqualType
-          or FieldUnqualType->Kind == model::TypeKind::PrimitiveType)
+          or FieldUnqualType->Kind() == model::TypeKind::PrimitiveType)
         continue;
 
       uint64_t SuccID;
@@ -452,8 +452,8 @@ void TypeSystemPrinter::print(const model::Type &T) {
 }
 
 void TypeSystemPrinter::dumpFunctionNode(const model::Function &F, int NodeID) {
-  const model::Type *PrototypeT = F.Prototype.getConst();
-  const model::Type *StackT = F.StackFrameType.getConst();
+  const model::Type *PrototypeT = F.Prototype().getConst();
+  const model::Type *StackT = F.StackFrameType().getConst();
 
   // Print the name of the node
   Out << "node_" << to_string(NodeID) << "[";
@@ -480,7 +480,7 @@ void TypeSystemPrinter::dumpFunctionNode(const model::Function &F, int NodeID) {
   // Second row of the inner table (actual types)
   Out << "<TR>";
   paddedCell(Out, PrototypeT->name(), /*port=*/0);
-  if (F.StackFrameType.isValid())
+  if (F.StackFrameType().isValid())
     paddedCell(Out, StackT->name(), /*port=*/1);
   else
     Out << "<TD></TD>";
@@ -500,9 +500,9 @@ void TypeSystemPrinter::print(const model::Function &F) {
   NextID++;
 
   // Nodes of the subtypes if they do not already exist
-  const model::Type *PrototypeT = F.Prototype.getConst();
-  const model::Type *StackT = F.StackFrameType.getConst();
-  bool HasStackFrame = F.StackFrameType.isValid();
+  const model::Type *PrototypeT = F.Prototype().getConst();
+  const model::Type *StackT = F.StackFrameType().getConst();
+  bool HasStackFrame = F.StackFrameType().isValid();
 
   print(*PrototypeT);
   if (HasStackFrame)
@@ -519,16 +519,16 @@ void TypeSystemPrinter::print(const model::Function &F) {
 
 void TypeSystemPrinter::print(const model::Binary &Model) {
   // Print all functions and related types
-  for (auto &F : Model.Functions)
+  for (auto &F : Model.Functions())
     print(F);
 
   // Print remaining types, if any
-  for (auto &T : Model.Types) {
+  for (auto &T : Model.Types()) {
     if (NodesMap.contains(T.get()))
       continue;
 
     // Avoid polluting the graph with uninformative nodes
-    if (T->Kind != model::TypeKind::PrimitiveType and not T->edges().empty())
+    if (T->Kind() != model::TypeKind::PrimitiveType and not T->edges().empty())
       print(*T);
   }
 }

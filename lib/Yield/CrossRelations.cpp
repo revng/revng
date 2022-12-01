@@ -16,13 +16,13 @@
 using CR = yield::CrossRelations;
 CR::CrossRelations(const SortedVector<efa::FunctionMetadata> &Metadata,
                    const model::Binary &Binary) {
-  revng_assert(Metadata.size() == Binary.Functions.size());
+  revng_assert(Metadata.size() == Binary.Functions().size());
 
   namespace ranks = revng::ranks;
 
-  for (auto Inserter = Relations.batch_insert();
-       const auto &Function : Binary.Functions) {
-    const auto Location = pipeline::location(ranks::Function, Function.Entry);
+  for (auto Inserter = Relations().batch_insert();
+       const auto &Function : Binary.Functions()) {
+    const auto Location = pipeline::location(ranks::Function, Function.Entry());
     Inserter.insert(yield::RelationDescription(Location.toString(), {}));
   }
 
@@ -33,17 +33,17 @@ CR::CrossRelations(const SortedVector<efa::FunctionMetadata> &Metadata,
                                            MetaAddress::invalid());
 
     for (const auto &BasicBlock : ControlFlowGraph) {
-      for (const auto &Edge : BasicBlock.Successors) {
-        if (efa::FunctionEdgeType::isCall(Edge->Type)) {
-          if (const auto &Callee = Edge->Destination; Callee.isValid()) {
+      for (const auto &Edge : BasicBlock.Successors()) {
+        if (efa::FunctionEdgeType::isCall(Edge->Type())) {
+          if (const auto &Callee = Edge->Destination(); Callee.isValid()) {
             // TODO: embed information about the call instruction into
             //       `CallLocation` after efa starts providing it.
 
             auto L = pipeline::location(ranks::Function, Callee).toString();
-            if (auto It = Relations.find(L); It != Relations.end()) {
+            if (auto It = Relations().find(L); It != Relations().end()) {
               yield::RelationTarget T(yield::RelationType::IsCalledFrom,
                                       CallLocation.toString());
-              It->Related.insert(std::move(T));
+              It->Related().insert(std::move(T));
             }
           }
         }
@@ -56,10 +56,10 @@ template<typename AddNodeCallable, typename AddEdgeCallable>
 static void conversionHelper(const yield::CrossRelations &Input,
                              const AddNodeCallable &AddNode,
                              const AddEdgeCallable &AddEdge) {
-  for (const auto &[LocationString, Related] : Input.Relations)
+  for (const auto &[LocationString, Related] : Input.Relations())
     AddNode(LocationString);
 
-  for (const auto &[LocationString, Related] : Input.Relations) {
+  for (const auto &[LocationString, Related] : Input.Relations()) {
     for (const auto &[RelationKind, TargetString] : Related) {
       switch (RelationKind) {
       case yield::RelationType::IsCalledFrom:

@@ -161,11 +161,11 @@ Error ELFImporter<T, HasAddend>::import() {
     return TheELFOrErr.takeError();
   object::ELFFile<T> &TheELF = *TheELFOrErr;
 
-  revng_assert(Model->Architecture != model::Architecture::Invalid);
-  Architecture = Model->Architecture;
+  revng_assert(Model->Architecture() != model::Architecture::Invalid);
+  Architecture = Model->Architecture();
 
   // Set default ABI
-  Model->DefaultABI = model::ABI::getDefault(Model->Architecture);
+  Model->DefaultABI() = model::ABI::getDefault(Model->Architecture());
 
   // BaseAddress makes sense only for shared (relocatable, PIC) objects
   auto Type = TheELF.getHeader().e_type;
@@ -216,7 +216,7 @@ Error ELFImporter<T, HasAddend>::import() {
   parseSymbols(TheELF, SymtabShdr);
 
   const auto &ElfHeader = TheELF.getHeader();
-  Model->EntryPoint = relocate(fromPC(ElfHeader.e_entry));
+  Model->EntryPoint() = relocate(fromPC(ElfHeader.e_entry));
 
   parseProgramHeaders(TheELF);
 
@@ -251,7 +251,7 @@ Error ELFImporter<T, HasAddend>::import() {
     ReldynPortion = std::make_unique<FilePortion>(File);
     RelpltPortion = std::make_unique<FilePortion>(File);
     GotPortion = std::make_unique<FilePortion>(File);
-    bool IsX86 = Model->Architecture == model::Architecture::x86;
+    bool IsX86 = Model->Architecture() == model::Architecture::x86;
 
     using Elf_Dyn = const typename object::ELFFile<T>::Elf_Dyn;
     for (Elf_Dyn &DynamicTag : *DynamicEntries) {
@@ -265,7 +265,7 @@ Error ELFImporter<T, HasAddend>::import() {
 
     if (DynstrPortion->isAvailable()) {
       Dynstr = DynstrPortion->extractString();
-      auto Inserter = Model->ImportedLibraries.batch_insert();
+      auto Inserter = Model->ImportedLibraries().batch_insert();
       for (auto Offset : NeededLibraryNameOffsets) {
         StringRef LibraryName = extractNullTerminatedStringAt(Dynstr, Offset);
         revng_assert(not endsWith(LibraryName, '\0'));
@@ -299,9 +299,9 @@ Error ELFImporter<T, HasAddend>::import() {
       }
       auto SetCanonicalValue = [this](model::Register::Values Register,
                                       uint64_t Value) {
-        for (model::Segment &Segment : Model->Segments)
-          if (Segment.IsExecutable)
-            Segment.CanonicalRegisterValues[Register].Value = Value;
+        for (model::Segment &Segment : Model->Segments())
+          if (Segment.IsExecutable())
+            Segment.CanonicalRegisterValues()[Register].Value() = Value;
       };
 
       if (IsX86 and GotPortion->isAvailable()) {
@@ -321,7 +321,9 @@ Error ELFImporter<T, HasAddend>::import() {
   }
 
   // Create a default prototype
-  Model->DefaultPrototype = abi::registerDefaultFunctionPrototype(*Model.get());
+
+  auto &Ptr = *Model.get();
+  Model->DefaultPrototype() = abi::registerDefaultFunctionPrototype(Ptr);
 
   // Import Dwarf
   DwarfImporter Importer(Model, PreferredBaseAddress);
@@ -436,11 +438,11 @@ void ELFImporter<T, HasAddend>::parseSymbols(object::ELFFile<T> &TheELF,
 
     MetaAddress Address = MetaAddress::invalid();
     Address = relocate(fromPC(Symbol.st_value));
-    auto It = Model->Functions.find(Address);
-    if (It == Model->Functions.end()) {
-      model::Function &Function = Model->Functions[Address];
+    auto It = Model->Functions().find(Address);
+    if (It == Model->Functions().end()) {
+      model::Function &Function = Model->Functions()[Address];
       if (MaybeName)
-        Function.OriginalName = *MaybeName;
+        Function.OriginalName() = *MaybeName;
     }
   }
 }
@@ -491,7 +493,7 @@ void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
 
       model::Segment NewSegment({ Start, ProgramHeader.p_memsz });
 
-      NewSegment.StartOffset = ProgramHeader.p_offset;
+      NewSegment.StartOffset() = ProgramHeader.p_offset;
 
       auto MaybeEndOffset = (OverflowSafeInt(u64(ProgramHeader.p_offset))
                              + u64(ProgramHeader.p_filesz));
@@ -500,15 +502,15 @@ void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
                   "Invalid segment found: overflow in computing end offset");
         continue;
       }
-      NewSegment.FileSize = ProgramHeader.p_filesz;
+      NewSegment.FileSize() = ProgramHeader.p_filesz;
 
-      NewSegment.IsReadable = hasFlag(ProgramHeader.p_flags, ELF::PF_R);
-      NewSegment.IsWriteable = hasFlag(ProgramHeader.p_flags, ELF::PF_W);
-      NewSegment.IsExecutable = hasFlag(ProgramHeader.p_flags, ELF::PF_X);
+      NewSegment.IsReadable() = hasFlag(ProgramHeader.p_flags, ELF::PF_R);
+      NewSegment.IsWriteable() = hasFlag(ProgramHeader.p_flags, ELF::PF_W);
+      NewSegment.IsExecutable() = hasFlag(ProgramHeader.p_flags, ELF::PF_X);
 
       model::TypePath StructPath = createEmptyStruct(*Model,
-                                                     NewSegment.VirtualSize);
-      NewSegment.Type = model::QualifiedType(std::move(StructPath), {});
+                                                     NewSegment.VirtualSize());
+      NewSegment.Type() = model::QualifiedType(std::move(StructPath), {});
 
       // If it's an executable segment, and we've been asked so, register
       // which sections actually contain code
@@ -517,13 +519,13 @@ void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
         logAllUnhandledErrors(std::move(Sections.takeError()), errs(), "");
       } else {
         using Elf_Shdr = const typename object::ELFFile<T>::Elf_Shdr;
-        auto Inserter = NewSegment.Sections.batch_insert();
+        auto Inserter = NewSegment.Sections().batch_insert();
         for (Elf_Shdr &SectionHeader : *Sections) {
 
           if (not hasFlag(SectionHeader.sh_flags, ELF::SHF_ALLOC))
             continue;
 
-          bool ContainsCode = (NewSegment.IsExecutable
+          bool ContainsCode = (NewSegment.IsExecutable()
                                and hasFlag(SectionHeader.sh_flags,
                                            ELF::SHF_EXECINSTR));
           auto SectionStart = relocate(fromGeneric(SectionHeader.sh_addr));
@@ -536,8 +538,8 @@ void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
             model::Section NewSection(SectionStart, SectionHeader.sh_size);
             if (auto SectionName = TheELF.getSectionName(SectionHeader);
                 SectionName)
-              NewSection.Name = SectionName->str();
-            NewSection.ContainsCode = ContainsCode;
+              NewSection.Name() = SectionName->str();
+            NewSection.ContainsCode() = ContainsCode;
             NewSection.verify(true);
             Inserter.insert(std::move(NewSection));
           }
@@ -546,7 +548,7 @@ void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
 
       NewSegment.verify(true);
 
-      Model->Segments.insert(std::move(NewSegment));
+      Model->Segments().insert(std::move(NewSegment));
 
     } break;
 
@@ -613,7 +615,7 @@ void ELFImporter<T, HasAddend>::parseDynamicSymbol(Elf_Sym_Impl<T> &Symbol,
   if (Symbol.st_shndx == ELF::SHN_UNDEF) {
     if (IsCode) {
       // Create dynamic function symbol
-      Model->ImportedDynamicFunctions[Name.str()];
+      Model->ImportedDynamicFunctions()[Name.str()];
     } else {
       // TODO: create dynamic global variable
     }
@@ -623,10 +625,10 @@ void ELFImporter<T, HasAddend>::parseDynamicSymbol(Elf_Sym_Impl<T> &Symbol,
     if (IsCode) {
       Address = relocate(fromPC(Symbol.st_value));
       // TODO: record model::Function::IsDynamic = true
-      auto It = Model->Functions.find(Address);
-      if (It == Model->Functions.end()) {
-        model::Function &Function = Model->Functions[Address];
-        Function.OriginalName = Name;
+      auto It = Model->Functions().find(Address);
+      if (It == Model->Functions().end()) {
+        model::Function &Function = Model->Functions()[Address];
+        Function.OriginalName() = Name;
       }
     } else {
       Address = relocate(fromGeneric(Symbol.st_value));
@@ -698,7 +700,7 @@ void ELFImporter<T, HasAddend>::parseEHFrame(MetaAddress EHFrameAddress,
   llvm::ArrayRef<uint8_t> EHFrame = *MaybeEHFrame;
 
   using namespace model::Architecture;
-  auto Architecture = toLLVMArchitecture(Model->Architecture);
+  auto Architecture = toLLVMArchitecture(Model->Architecture());
 
   DwarfReader<T> EHFrameReader(Architecture, EHFrame, EHFrameAddress);
 
@@ -812,7 +814,7 @@ void ELFImporter<T, HasAddend>::parseEHFrame(MetaAddress EHFrameAddress,
                        PersonalityPtr);
 
             // Register in the model for exploration
-            Model->ExtraCodeAddresses.insert(PersonalityPtr);
+            Model->ExtraCodeAddresses().insert(PersonalityPtr);
             break;
           }
           case 'R':
@@ -894,7 +896,7 @@ void ELFImporter<T, HasAddend>::parseLSDA(MetaAddress FDEStart,
   llvm::ArrayRef<uint8_t> LSDA = *MaybeLSDA;
 
   using namespace model::Architecture;
-  auto Architecture = toLLVMArchitecture(Model->Architecture);
+  auto Architecture = toLLVMArchitecture(Model->Architecture());
   DwarfReader<T> LSDAReader(Architecture, LSDA, LSDAAddress);
 
   uint32_t LandingPadBaseEncoding = LSDAReader.readNextU8();
@@ -932,7 +934,7 @@ void ELFImporter<T, HasAddend>::parseLSDA(MetaAddress FDEStart,
     LSDAReader.readULEB128();
 
     if (LandingPad.isValid()) {
-      auto &ExtraCodeAddresses = Model->ExtraCodeAddresses;
+      auto &ExtraCodeAddresses = Model->ExtraCodeAddresses();
       if (ExtraCodeAddresses.count(LandingPad) == 0)
         logAddress(ELFImporterLog, "New landing pad found: ", LandingPad);
 
@@ -967,7 +969,7 @@ void ELFImporter<T, HasAddend>::registerRelocations(Elf_Rel_Array Relocations,
   using Elf_Sym = Elf_Sym_Impl<T>;
 
   model::Segment *LowestSegment = nullptr;
-  if (auto It = Model->Segments.begin(); It != Model->Segments.end())
+  if (auto It = Model->Segments().begin(); It != Model->Segments().end())
     LowestSegment = &*It;
 
   ArrayRef<Elf_Sym> Symbols;
@@ -999,7 +1001,7 @@ void ELFImporter<T, HasAddend>::registerRelocations(Elf_Rel_Array Relocations,
     }
 
     using namespace model::RelocationType;
-    auto RelocationType = fromELFRelocation(Model->Architecture, Type);
+    auto RelocationType = fromELFRelocation(Model->Architecture(), Type);
 
     auto RelocationName = getELFRelocationTypeName(TheBinary.getEMachine(),
                                                    Type);
@@ -1027,9 +1029,9 @@ void ELFImporter<T, HasAddend>::registerRelocations(Elf_Rel_Array Relocations,
     } else if (HasName) {
       // Symbol-relative relcation
       if (SymbolType == ELF::STT_FUNC) {
-        auto It = Model->ImportedDynamicFunctions.find(SymbolName.str());
-        if (It != Model->ImportedDynamicFunctions.end()) {
-          auto &Relocations = It->Relocations;
+        auto It = Model->ImportedDynamicFunctions().find(SymbolName.str());
+        if (It != Model->ImportedDynamicFunctions().end()) {
+          auto &Relocations = It->Relocations();
           NewRelocation.verify(true);
           Relocations.insert(NewRelocation);
         }
@@ -1040,7 +1042,7 @@ void ELFImporter<T, HasAddend>::registerRelocations(Elf_Rel_Array Relocations,
       // Base-relative relocation
       if (LowestSegment != nullptr) {
         NewRelocation.verify(true);
-        LowestSegment->Relocations.insert(NewRelocation);
+        LowestSegment->Relocations().insert(NewRelocation);
       } else {
         revng_log(ELFImporterLog,
                   "Found a base-relative relocation, but no segment is "
@@ -1060,8 +1062,8 @@ createELFImporter(TupleTree<model::Binary> &M,
   // In the case of MIPS architecture, we handle some specific import
   // as a part of a separate derived (from ELFImporter) class.
   // TODO: Investigate other architectures as well.
-  bool IsMIPS = (M->Architecture == model::Architecture::mips
-                 or M->Architecture == model::Architecture::mipsel);
+  bool IsMIPS = (M->Architecture() == model::Architecture::mips
+                 or M->Architecture() == model::Architecture::mipsel);
   if (PointerSize == 4) {
     if (IsLittleEndian && HasRelocationAddend && !IsMIPS) {
       return make_unique<ELFImporter<ELF32LE, true>>(M,
@@ -1141,13 +1143,13 @@ Error importELF(TupleTree<model::Binary> &Model,
   // In the case of MIPS architecture, we handle some specific import
   // as a part of a separate derived (from ELFImporter) class.
   // TODO: Investigate other architectures as well.
-  bool IsMIPS = (Model->Architecture == model::Architecture::mips
-                 or Model->Architecture == model::Architecture::mipsel);
+  bool IsMIPS = (Model->Architecture() == model::Architecture::mips
+                 or Model->Architecture() == model::Architecture::mipsel);
 
   using namespace model::Architecture;
-  bool IsLittleEndian = isLittleEndian(Model->Architecture);
-  size_t PointerSize = getPointerSize(Model->Architecture);
-  bool HasRelocationAddend = hasELFRelocationAddend(Model->Architecture);
+  bool IsLittleEndian = isLittleEndian(Model->Architecture());
+  size_t PointerSize = getPointerSize(Model->Architecture());
+  bool HasRelocationAddend = hasELFRelocationAddend(Model->Architecture());
 
   auto Importer = createELFImporter(Model,
                                     TheBinary,

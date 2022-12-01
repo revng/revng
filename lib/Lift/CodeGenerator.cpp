@@ -191,17 +191,17 @@ CodeGenerator::CodeGenerator(const RawBinaryView &RawBinary,
 
   for (auto &[Segment, Data] : RawBinary.segments()) {
     // If it's executable register it as a valid code area
-    if (Segment.IsExecutable) {
+    if (Segment.IsExecutable()) {
       // We ignore possible p_filesz-p_memsz mismatches, zeros wouldn't be
       // useful code anyway
-      size_t Size = Segment.FileSize;
-      bool Success = ptc.mmap(Segment.StartAddress.address(),
+      size_t Size = Segment.FileSize();
+      bool Success = ptc.mmap(Segment.StartAddress().address(),
                               static_cast<const void *>(Data.data()),
                               Size);
       if (not Success) {
         revng_log(Log,
                   "Couldn't mmap segment starting at "
-                    << Segment.StartAddress.toString() << " with size 0x"
+                    << Segment.StartAddress().toString() << " with size 0x"
                     << Size);
         continue;
       }
@@ -209,8 +209,8 @@ CodeGenerator::CodeGenerator(const RawBinaryView &RawBinary,
       bool Found = false;
       MetaAddress End = Segment.pagesRange().second;
       revng_assert(End.isValid() and End.address() % 4096 == 0);
-      for (const model::Segment &Segment : Model->Segments) {
-        if (Segment.IsExecutable and Segment.contains(End)) {
+      for (const model::Segment &Segment : Model->Segments()) {
+        if (Segment.IsExecutable() and Segment.contains(End)) {
           Found = true;
           break;
         }
@@ -221,7 +221,7 @@ CodeGenerator::CodeGenerator(const RawBinaryView &RawBinary,
         revng_check(Segment.endAddress().address() != 0);
         NoMoreCodeBoundaries.insert(Segment.endAddress());
         using namespace model::Architecture;
-        auto Architecture = Model->Architecture;
+        auto Architecture = Model->Architecture();
         auto BasicBlockEndingPattern = getBasicBlockEndingPattern(Architecture);
         ptc.mmap(End.address(),
                  BasicBlockEndingPattern.data(),
@@ -725,7 +725,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   //
   // Create well-known CSVs
   //
-  auto SP = model::Architecture::getStackPointer(Model->Architecture);
+  auto SP = model::Architecture::getStackPointer(Model->Architecture());
   std::string SPName = model::Register::getCSVName(SP).str();
   GlobalVariable *SPReg = Variables.getByEnvOffset(ptc.sp, SPName).first;
 
@@ -750,7 +750,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
     return Variables.getByEnvOffset(Offset, Name.str()).first;
   };
 
-  auto Architecture = toLLVMArchitecture(Model->Architecture);
+  auto Architecture = toLLVMArchitecture(Model->Architecture());
   PCHOwner PCH = ProgramCounterHandler::create(Architecture,
                                                TheModule,
                                                Factory);
@@ -804,7 +804,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
     VirtualAddress = JumpTargets.fromPC(*RawVirtualAddress);
   } else {
     JumpTargets.harvestGlobalData();
-    VirtualAddress = Model->EntryPoint;
+    VirtualAddress = Model->EntryPoint();
     revng_assert(VirtualAddress.isCode());
   }
 
@@ -831,7 +831,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   bool EndianessMismatch;
   {
     using namespace model::Architecture;
-    bool SourceIsLittleEndian = isLittleEndian(Model->Architecture);
+    bool SourceIsLittleEndian = isLittleEndian(Model->Architecture());
     EndianessMismatch = TargetIsLittleEndian != SourceIsLittleEndian;
   }
 

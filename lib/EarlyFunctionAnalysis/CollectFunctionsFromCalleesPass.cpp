@@ -42,7 +42,7 @@ static void collectFunctionsFromCallees(Module &M,
       continue;
 
     MetaAddress Entry = GCBI.getJumpTarget(&BB);
-    if (Binary.Functions.find(Entry) != Binary.Functions.end())
+    if (Binary.Functions().find(Entry) != Binary.Functions().end())
       continue;
 
     uint32_t Reasons = GCBI.getJTReasons(&BB);
@@ -50,7 +50,7 @@ static void collectFunctionsFromCallees(Module &M,
 
     if (IsCallee) {
       // Create the function
-      Binary.Functions[Entry];
+      Binary.Functions()[Entry];
       revng_log(Log, "Found function from callee: " << BB.getName().str());
     }
   }

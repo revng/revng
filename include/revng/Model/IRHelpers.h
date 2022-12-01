@@ -22,8 +22,8 @@ llvmToModelFunction(model::Binary &Binary, const llvm::Function &F) {
   auto MaybeMetaAddress = getMetaAddressMetadata(&F, FunctionEntryMDNName);
   if (MaybeMetaAddress == MetaAddress::invalid())
     return nullptr;
-  if (auto It = Binary.Functions.find(MaybeMetaAddress);
-      It != Binary.Functions.end())
+  if (auto It = Binary.Functions().find(MaybeMetaAddress);
+      It != Binary.Functions().end())
     return &(*It);
 
   return nullptr;
@@ -34,8 +34,8 @@ llvmToModelFunction(const model::Binary &Binary, const llvm::Function &F) {
   auto MaybeMetaAddress = getMetaAddressMetadata(&F, FunctionEntryMDNName);
   if (MaybeMetaAddress == MetaAddress::invalid())
     return nullptr;
-  if (auto It = Binary.Functions.find(MaybeMetaAddress);
-      It != Binary.Functions.end())
+  if (auto It = Binary.Functions().find(MaybeMetaAddress);
+      It != Binary.Functions().end())
     return &*It;
 
   return nullptr;
@@ -55,6 +55,6 @@ inline model::TypePath createEmptyStruct(model::Binary &Binary, uint64_t Size) {
   revng_assert(Size > 0 and Size < std::numeric_limits<int64_t>::max());
   TypePath Path = Binary.recordNewType(makeType<model::StructType>());
   model::StructType *NewStruct = llvm::cast<model::StructType>(Path.get());
-  NewStruct->Size = Size;
+  NewStruct->Size() = Size;
   return Path;
 }

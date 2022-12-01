@@ -32,7 +32,7 @@ BOOST_AUTO_TEST_CASE(TestIntrospection) {
   Function TheFunction(MetaAddress::invalid());
 
   // Use get
-  TheFunction.CustomName = "FunctionName";
+  TheFunction.CustomName() = "FunctionName";
   revng_check(get<1>(TheFunction) == "FunctionName");
 
   // Test std::tuple_size
@@ -41,8 +41,8 @@ BOOST_AUTO_TEST_CASE(TestIntrospection) {
   // Test TupleLikeTraits
   static_assert(TraitedTupleLike<Function>);
   using TLT = TupleLikeTraits<Function>;
-  static_assert(std::is_same_v<std::tuple_element_t<1, Function>,
-                               decltype(TheFunction.CustomName)>);
+  static_assert(std::is_same_v<std::tuple_element_t<1, Function> &,
+                               decltype(TheFunction.CustomName())>);
   revng_check(StringRef(TLT::Name) == "Function");
   revng_check(StringRef(TLT::FullName) == "model::Function");
   revng_check(StringRef(TLT::FieldNames[1]) == "CustomName");
@@ -50,14 +50,14 @@ BOOST_AUTO_TEST_CASE(TestIntrospection) {
 
 BOOST_AUTO_TEST_CASE(TestPathAccess) {
   Binary TheBinary;
-  using FunctionsType = decltype(TheBinary.Functions);
+  using FunctionsType = std::decay_t<decltype(TheBinary.Functions())>;
   TupleTreePath Zero;
   Zero.push_back(size_t(0));
   auto *FirstField = getByPath<FunctionsType>(Zero, TheBinary);
-  revng_check(FirstField == &TheBinary.Functions);
+  revng_check(FirstField == &TheBinary.Functions());
 
   auto *FunctionsField = getByPath<FunctionsType>("/Functions", TheBinary);
-  revng_check(FunctionsField == &TheBinary.Functions);
+  revng_check(FunctionsField == &TheBinary.Functions());
 
   // Test non existing field
   revng_check(getByPath<FunctionsType>("/Function", TheBinary) == nullptr);
@@ -66,7 +66,7 @@ BOOST_AUTO_TEST_CASE(TestPathAccess) {
   revng_check(getByPath<Function>("/Functions/:Invalid", TheBinary) == nullptr);
 
   // Test existing entry in container
-  Function &F = TheBinary.Functions[MetaAddress::invalid()];
+  Function &F = TheBinary.Functions()[MetaAddress::invalid()];
   revng_check(getByPath<Function>("/Functions/:Invalid", TheBinary) == &F);
 }
 
@@ -135,9 +135,9 @@ static T *createType(model::Binary &Model) {
 BOOST_AUTO_TEST_CASE(TestModelDeduplication) {
   TupleTree<model::Binary> Model;
   auto Dedup = [&Model]() {
-    int64_t OldTypesCount = Model->Types.size();
+    int64_t OldTypesCount = Model->Types().size();
     deduplicateEquivalentTypes(Model);
-    int64_t NewTypesCount = Model->Types.size();
+    int64_t NewTypesCount = Model->Types().size();
     return OldTypesCount - NewTypesCount;
   };
 
@@ -147,15 +147,15 @@ BOOST_AUTO_TEST_CASE(TestModelDeduplication) {
   // Two typedefs
   {
     auto *Typedef1 = createType<TypedefType>(*Model);
-    Typedef1->UnderlyingType = { UInt8, {} };
+    Typedef1->UnderlyingType() = { UInt8, {} };
 
     auto *Typedef2 = createType<TypedefType>(*Model);
-    Typedef2->UnderlyingType = { UInt8, {} };
+    Typedef2->UnderlyingType() = { UInt8, {} };
 
     revng_check(Dedup() == 0);
 
-    Typedef1->OriginalName = "MyUInt8";
-    Typedef2->OriginalName = "MyUInt8";
+    Typedef1->OriginalName() = "MyUInt8";
+    Typedef2->OriginalName() = "MyUInt8";
 
     revng_check(Dedup() == 1);
   }
@@ -163,18 +163,18 @@ BOOST_AUTO_TEST_CASE(TestModelDeduplication) {
   // Two structs
   {
     auto *Struct1 = createType<StructType>(*Model);
-    Struct1->Fields[0].CustomName = "FirstField";
-    Struct1->Fields[0].Type = { UInt8, {} };
-    Struct1->OriginalName = "MyStruct";
+    Struct1->Fields()[0].CustomName() = "FirstField";
+    Struct1->Fields()[0].Type() = { UInt8, {} };
+    Struct1->OriginalName() = "MyStruct";
 
     auto *Struct2 = createType<StructType>(*Model);
-    Struct2->Fields[0].CustomName = "DifferentName";
-    Struct2->Fields[0].Type = { UInt8, {} };
-    Struct2->OriginalName = "MyStruct";
+    Struct2->Fields()[0].CustomName() = "DifferentName";
+    Struct2->Fields()[0].Type() = { UInt8, {} };
+    Struct2->OriginalName() = "MyStruct";
 
     revng_check(Dedup() == 0);
 
-    Struct1->Fields[0].CustomName = Struct2->Fields[0].CustomName;
+    Struct1->Fields()[0].CustomName() = Struct2->Fields()[0].CustomName();
 
     revng_check(Dedup() == 1);
   }
@@ -186,27 +186,29 @@ BOOST_AUTO_TEST_CASE(TestModelDeduplication) {
     auto *Left1 = createType<StructType>(*Model);
     auto *Left2 = createType<StructType>(*Model);
 
-    Left1->Fields[0].Type = { Model->getTypePath(Left2), { PointerQualifier } };
-    Left2->Fields[0].Type = { Model->getTypePath(Left1), { PointerQualifier } };
+    Left1->Fields()[0].Type() = { Model->getTypePath(Left2),
+                                  { PointerQualifier } };
+    Left2->Fields()[0].Type() = { Model->getTypePath(Left1),
+                                  { PointerQualifier } };
 
-    Left1->OriginalName = "LoopingStructs1";
-    Left2->OriginalName = "LoopingStructs2";
+    Left1->OriginalName() = "LoopingStructs1";
+    Left2->OriginalName() = "LoopingStructs2";
 
     auto *Right1 = createType<StructType>(*Model);
     auto *Right2 = createType<StructType>(*Model);
 
-    Right1->Fields[0].Type = { Model->getTypePath(Right2),
-                               { PointerQualifier } };
-    Right2->Fields[0].Type = { Model->getTypePath(Right1),
-                               { PointerQualifier, PointerQualifier } };
+    Right1->Fields()[0].Type() = { Model->getTypePath(Right2),
+                                   { PointerQualifier } };
+    Right2->Fields()[0].Type() = { Model->getTypePath(Right1),
+                                   { PointerQualifier, PointerQualifier } };
 
-    Right1->OriginalName = "LoopingStructs1";
-    Right2->OriginalName = "LoopingStructs2";
+    Right1->OriginalName() = "LoopingStructs1";
+    Right2->OriginalName() = "LoopingStructs2";
 
     revng_check(Dedup() == 0);
 
-    Right2->Fields[0].Type = { Model->getTypePath(Right1),
-                               { PointerQualifier } };
+    Right2->Fields()[0].Type() = { Model->getTypePath(Right1),
+                                   { PointerQualifier } };
 
     revng_check(Dedup() == 2);
   }
@@ -233,7 +235,7 @@ BOOST_AUTO_TEST_CASE(TestTupleTreeDiffDeserialization) {
   model::Binary New;
 
   MetaAddress Address(0x1000, MetaAddressType::Code_aarch64);
-  New.ExtraCodeAddresses.insert(Address);
+  New.ExtraCodeAddresses().insert(Address);
 
   auto Diff = diff(Empty, New);
 

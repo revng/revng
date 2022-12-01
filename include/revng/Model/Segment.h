@@ -73,8 +73,9 @@ public:
 
 public:
   bool contains(MetaAddress Address) const {
-    auto EndAddress = StartAddress + VirtualSize;
-    return (Address.isValid() and StartAddress.addressLowerThanOrEqual(Address)
+    auto EndAddress = StartAddress() + VirtualSize();
+    return (Address.isValid()
+            and StartAddress().addressLowerThanOrEqual(Address)
             and Address.addressLowerThan(EndAddress));
   }
 
@@ -83,13 +84,13 @@ public:
   }
 
   /// \return the end offset (guaranteed to be greater than StartOffset).
-  auto endOffset() const { return StartOffset + FileSize; }
+  auto endOffset() const { return StartOffset() + FileSize(); }
 
   /// \return a valid MetaAddress.
-  auto endAddress() const { return StartAddress + VirtualSize; }
+  auto endAddress() const { return StartAddress() + VirtualSize(); }
 
   std::pair<MetaAddress, MetaAddress> pagesRange() const {
-    MetaAddress Start = StartAddress;
+    MetaAddress Start = StartAddress();
     Start = Start - (Start.address() % 4096);
 
     MetaAddress End = endAddress();
