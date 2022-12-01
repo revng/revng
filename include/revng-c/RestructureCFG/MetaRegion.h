@@ -103,6 +103,4 @@ public:
   void insertNode(BasicBlockNodeT *NewNode) { Nodes.insert(NewNode); }
 
   void removeNode(BasicBlockNodeT *Node) { Nodes.erase(Node); }
-
-  BasicBlockNode<NodeT> *getProbableEntry(BasicBlockNodeRPOT &R) const;
 };

@@ -9,18 +9,23 @@
 #include <memory>
 #include <set>
 
+#include "revng/MFP/MFP.h"
+#include "revng/MFP/SetLattices.h"
+
 #include "revng-c/RestructureCFG/ASTNode.h"
 #include "revng-c/RestructureCFG/BasicBlockNodeBB.h"
 
 // TODO: move the definition of this object in an unique place, to avoid using
 // an extern declaration
 extern Logger<> CombLogger;
+extern Logger<> FezLogger;
 
 template<class NodeT>
-using Edge = typename BasicBlockNode<NodeT>::EdgeDescriptor;
+using RegionCFGEdge = typename BasicBlockNode<NodeT>::EdgeDescriptor;
 
 template<class NodeT>
-inline void moveEdgeTarget(Edge<NodeT> Edge, BasicBlockNode<NodeT> *NewTarget) {
+inline void
+moveEdgeTarget(RegionCFGEdge<NodeT> Edge, BasicBlockNode<NodeT> *NewTarget) {
   auto &SuccEdgeWithLabels = Edge.first->getSuccessorEdge(Edge.second);
   SuccEdgeWithLabels.first = NewTarget;
 
@@ -29,7 +34,8 @@ inline void moveEdgeTarget(Edge<NodeT> Edge, BasicBlockNode<NodeT> *NewTarget) {
 }
 
 template<class NodeT>
-inline void moveEdgeSource(Edge<NodeT> Edge, BasicBlockNode<NodeT> *NewSource) {
+inline void
+moveEdgeSource(RegionCFGEdge<NodeT> Edge, BasicBlockNode<NodeT> *NewSource) {
   auto SuccEdgeWithLabels = Edge.first->extractSuccessorEdge(Edge.second);
   NewSource->addLabeledSuccessor(SuccEdgeWithLabels);
 
@@ -158,7 +164,7 @@ findReachableNodes(BasicBlockNode<NodeT> *Source,
   Stack.push_back(std::make_pair(Source, 0));
 
   // Visited nodes to avoid entering in a loop.
-  std::set<Edge<NodeT>> VisitedEdges;
+  std::set<RegionCFGEdge<NodeT>> VisitedEdges;
 
   // Additional data structure to keep nodes that need to be added only if a
   // certain node will be added to the set of reachable nodes.

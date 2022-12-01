@@ -24,6 +24,7 @@
 #include "llvm/Support/raw_os_ostream.h"
 
 #include "revng/ADT/ReversePostOrderTraversal.h"
+#include "revng/MFP/MFP.h"
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/RestructureCFG/ASTTree.h"
@@ -538,28 +539,14 @@ inline void RegionCFG<NodeT>::untangle() {
       const auto DominatedByElse = [DT = &DT, ElseChild](auto *Node) {
         return DT->dominates(ElseChild, Node);
       };
-      // TODO: substitute the following loop with std::set::erase_if when it
-      // becomes available.
-      for (auto I = ElseNodes.begin(), E = ElseNodes.end(); I != E;) {
-        if (DominatedByElse(*I))
-          I = ElseNodes.erase(I);
-        else
-          ++I;
-      }
+      std::erase_if(ElseNodes, DominatedByElse);
     }
 
     if (EdgeDominates({ Conditional, ThenChild }, ThenChild)) {
       const auto DominatedByThen = [DT = &DT, ThenChild](auto *Node) {
         return DT->dominates(ThenChild, Node);
       };
-      // TODO: substitute the following loop with std::set::erase_if when it
-      // becomes available.
-      for (auto I = ThenNodes.begin(), E = ThenNodes.end(); I != E;) {
-        if (DominatedByThen(*I))
-          I = ThenNodes.erase(I);
-        else
-          ++I;
-      }
+      std::erase_if(ThenNodes, DominatedByThen);
     }
 
     // Compute the weight of the `then` and `else` branches.
@@ -682,6 +669,30 @@ inline void RegionCFG<NodeT>::untangle() {
 }
 
 template<class NodeT>
+struct ReachableExitsAnalysis
+  : public SetUnionLattice<std::set<BasicBlockNode<NodeT> *>> {
+
+  using Label = BasicBlockNode<NodeT> *;
+
+  using GraphType = RegionCFG<NodeT> *;
+
+  using LatticeElement = typename SetUnionLattice<
+    std::set<BasicBlockNode<NodeT> *>>::LatticeElement;
+
+  static LatticeElement
+  applyTransferFunction(const Label &L, const LatticeElement E) {
+
+    const auto IsInlined = [](const auto &NodeLabelPair) {
+      return NodeLabelPair.second.Inlined;
+    };
+
+    if (bool IsExit = llvm::all_of(L->labeled_successors(), IsInlined); IsExit)
+      return { L };
+    return E;
+  }
+};
+
+template<class NodeT>
 inline void RegionCFG<NodeT>::inflate() {
 
   // Call the untangle preprocessing.
@@ -690,39 +701,34 @@ inline void RegionCFG<NodeT>::inflate() {
   revng_assert(isDAG());
 
   // Apply the comb to a RegionCFG object.
-  // TODO: handle all the collapsed regions.
   RegionCFG<NodeT> &Graph = *this;
 
   BasicBlockNode<NodeT> *Entry = &Graph.getEntryNode();
 
-  if (CombLogger.isEnabled()) {
+  if (FezLogger.isEnabled()) {
     revng_log(CombLogger, "Entry node is: " << Entry->getNameStr());
     Graph.dumpCFGOnFile(FunctionName,
                         "inflates",
                         "Region-" + RegionName + "-before-combing");
   }
 
-  // Add a new virtual sink node to which all the reachable exit nodes are
-  // connected. Also collect the sets of reachable exits from each node that is
-  // a successor of a node that induces duplication.
-  std::map<BasicBlockNode<NodeT> *, BasicBlockNodeTSet> ReachableExits;
-  for (auto *Exit : Graph) {
+  // Collect the sets of reachable exits from each node that is a successor of a
+  // node that induces duplication.
+  std::vector<BasicBlockNode<NodeT> *> Exits;
+  for (auto *Exit : Graph)
+    if (llvm::all_of(Exit->labeled_successors(),
+                     [](const auto &Pair) { return Pair.second.Inlined; }))
+      Exits.push_back(Exit);
 
-    bool HasOnlyInlinedSuccessor = true;
-    for (auto &Succ : Exit->labeled_successors())
-      if (not Succ.second.Inlined)
-        HasOnlyInlinedSuccessor = false;
+  revng_log(FezLogger, "Num exits: " << Exits.size());
+  revng_log(FezLogger, "Region Size: " << Graph.size());
 
-    if (HasOnlyInlinedSuccessor) {
-      revng_log(CombLogger, "From exit node: " << Exit->getNameStr());
-      revng_log(CombLogger, "We can reach:");
-      for (BasicBlockNode<NodeT> *Node :
-           llvm::inverse_depth_first(EFGT<BBNodeT *>(Exit))) {
-        revng_log(CombLogger, Node->getNameStr());
-        ReachableExits[Node].insert(Exit);
-      }
-    }
-  }
+  using REA = ReachableExitsAnalysis<NodeT>;
+  using Inverse = llvm::Inverse<typename REA::GraphType>;
+  auto ReachableExits = MFP::getMaximalFixedPoint<
+    REA,
+    llvm::GraphTraits<Inverse>,
+    llvm::Inverse<BasicBlockNode<NodeT> *>>({}, &Graph, {}, {}, {}, Exits);
 
   // Refresh information of dominator and postdominator trees.
   DT.recalculate(Graph);
@@ -750,8 +756,10 @@ inline void RegionCFG<NodeT>::inflate() {
       break;
 
     case 2: {
-      BasicBlockNodeTSet ThenExits = ReachableExits.at(Node->getSuccessorI(0));
-      BasicBlockNodeTSet ElseExits = ReachableExits.at(Node->getSuccessorI(1));
+      BasicBlockNodeTSet ThenExits = ReachableExits.at(Node->getSuccessorI(0))
+                                       .OutValue;
+      BasicBlockNodeTSet ElseExits = ReachableExits.at(Node->getSuccessorI(1))
+                                       .OutValue;
 
       // Add the conditional node to the set of nodes processed by the inflate.
       ConditionalNodesSet.insert(Node);
@@ -1165,11 +1173,13 @@ inline void RegionCFG<NodeT>::inflate() {
   // Purge extra dummy nodes introduced.
   purgeTrivialDummies();
 
-  if (CombLogger.isEnabled()) {
+  if (FezLogger.isEnabled()) {
     Graph.dumpCFGOnFile(FunctionName,
                         "inflates",
                         "Region-" + RegionName + "-after-combing");
   }
+
+  revng_log(FezLogger, "Region Final Size: " << Graph.size());
 }
 
 template<class NodeT>
@@ -1220,20 +1230,9 @@ inline bool RegionCFG<NodeT>::isDAG() {
   for (llvm::scc_iterator<RegionCFG<NodeT> *> I = llvm::scc_begin(this),
                                               IE = llvm::scc_end(this);
        I != IE;
-       ++I) {
-    const std::vector<BasicBlockNode<NodeT> *> &SCC = *I;
-    if (SCC.size() != 1) {
+       ++I)
+    if (I.hasCycle())
       return false;
-    } else {
-      BasicBlockNode<NodeT> *Node = SCC[0];
-      for (BasicBlockNode<NodeT> *Successor : Node->successors()) {
-        if (Successor == Node) {
-          return false;
-        }
-      }
-    }
-  }
-
   return true;
 }
 
