@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/PassManager.h"
 
 class IndirectBranchInfoPrinterPass

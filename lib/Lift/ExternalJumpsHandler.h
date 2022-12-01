@@ -11,6 +11,7 @@
 #include "llvm/Pass.h"
 
 #include "revng/Model/Binary.h"
+#include "revng/Support/IRHelpers.h"
 
 class ProgramCounterHandler;
 

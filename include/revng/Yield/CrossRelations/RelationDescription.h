@@ -5,6 +5,7 @@
 //
 
 #include "revng/Yield/CrossRelations/RelationTarget.h"
+#include "revng/ADT/SortedVector.h"
 
 /* TUPLE-TREE-YAML
 
