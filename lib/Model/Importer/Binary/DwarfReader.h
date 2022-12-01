@@ -9,8 +9,12 @@
 #include <type_traits>
 
 #include "llvm/BinaryFormat/Dwarf.h"
+#include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/LEB128.h"
+
+#include "revng/Support/Assert.h"
+#include "revng/Support/MetaAddress.h"
 
 //
 // What follows is a set of functions we use to read an integer of a specified
