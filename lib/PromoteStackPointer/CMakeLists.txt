@@ -11,6 +11,7 @@ revng_add_analyses_library(
   InstrumentStackAccessesPass.cpp
   InjectStackSizeProbesAtCallSitesPass.cpp
   PromoteStackPointerPass.cpp
+  RemoveStackAlignmentPass.cpp
   SegregateStackAccessesPass.cpp)
 
 target_link_libraries(
