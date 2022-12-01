@@ -65,8 +65,8 @@ public:
 public:
   model::QualifiedType getPointerTo(model::Architecture::Values Arch) const {
     QualifiedType Result = *this;
-    Result.Qualifiers.insert(Result.Qualifiers.begin(),
-                             model::Qualifier::createPointer(Arch));
+    Result.Qualifiers().insert(Result.Qualifiers().begin(),
+                               model::Qualifier::createPointer(Arch));
     return Result;
   }
 
@@ -78,13 +78,13 @@ public:
 
   bool operator==(const QualifiedType &) const = default;
   std::strong_ordering operator<=>(const QualifiedType &Other) const {
-    if (Qualifiers < Other.Qualifiers)
+    if (Qualifiers() < Other.Qualifiers())
       return std::strong_ordering::less;
 
-    if (Qualifiers > Other.Qualifiers)
+    if (Qualifiers() > Other.Qualifiers())
       return std::strong_ordering::greater;
 
-    return UnqualifiedType <=> Other.UnqualifiedType;
+    return UnqualifiedType() <=> Other.UnqualifiedType();
   }
 };
 

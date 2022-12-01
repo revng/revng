@@ -46,7 +46,7 @@ private:
     AssociatedType = FunctionEdgeType::FunctionCall;
 
 public:
-  CallEdge() : efa::generated::CallEdge() { Type = AssociatedType; }
+  CallEdge() : efa::generated::CallEdge() { Type() = AssociatedType; }
 
   CallEdge(MetaAddress Destination, FunctionEdgeType::Values Type) :
     efa::generated::CallEdge(Destination, Type) {}
@@ -62,7 +62,7 @@ public:
                     model::FunctionAttribute::Values Attribute) const {
     using namespace model;
 
-    if (Attributes.count(Attribute) != 0)
+    if (Attributes().count(Attribute) != 0)
       return true;
 
     if (const auto *CalleeAttributes = calleeAttributes(Binary))
@@ -75,7 +75,7 @@ public:
   attributes(const model::Binary &Binary) const {
     MutableSet<model::FunctionAttribute::Values> Result;
     auto Inserter = Result.batch_insert();
-    for (auto &Attribute : Attributes)
+    for (auto &Attribute : Attributes())
       Inserter.insert(Attribute);
 
     if (const auto *CalleeAttributes = calleeAttributes(Binary))
@@ -94,11 +94,11 @@ public:
 private:
   const MutableSet<model::FunctionAttribute::Values> *
   calleeAttributes(const model::Binary &Binary) const {
-    if (not DynamicFunction.empty()) {
-      const auto &F = Binary.ImportedDynamicFunctions.at(DynamicFunction);
-      return &F.Attributes;
-    } else if (Destination.isValid()) {
-      return &Binary.Functions.at(Destination).Attributes;
+    if (not DynamicFunction().empty()) {
+      const auto &F = Binary.ImportedDynamicFunctions().at(DynamicFunction());
+      return &F.Attributes();
+    } else if (Destination().isValid()) {
+      return &Binary.Functions().at(Destination()).Attributes();
     } else {
       return nullptr;
     }
@@ -111,24 +111,27 @@ inline model::TypePath getPrototype(const model::Binary &Binary,
                                     const efa::CallEdge &Edge) {
   model::TypePath Result;
 
-  auto It = Binary.Functions.at(CallerFunctionAddress)
-              .CallSitePrototypes.find(CallerBlockAddress);
-  if (It != Binary.Functions.at(CallerFunctionAddress).CallSitePrototypes.end())
-    Result = It->Prototype;
+  auto &CallSitePrototypes = Binary.Functions()
+                               .at(CallerFunctionAddress)
+                               .CallSitePrototypes();
+  auto It = CallSitePrototypes.find(CallerBlockAddress);
+  if (It != CallSitePrototypes.end())
+    Result = It->Prototype();
 
-  if (Edge.Type == efa::FunctionEdgeType::FunctionCall) {
-    if (not Edge.DynamicFunction.empty()) {
+  if (Edge.Type() == efa::FunctionEdgeType::FunctionCall) {
+    if (not Edge.DynamicFunction().empty()) {
       // Get the dynamic function prototype
-      Result = Binary.ImportedDynamicFunctions.at(Edge.DynamicFunction)
-                 .Prototype;
-    } else if (Edge.Destination.isValid()) {
+      Result = Binary.ImportedDynamicFunctions()
+                 .at(Edge.DynamicFunction())
+                 .Prototype();
+    } else if (Edge.Destination().isValid()) {
       // Get the function prototype
-      Result = Binary.Functions.at(Edge.Destination).Prototype;
+      Result = Binary.Functions().at(Edge.Destination()).Prototype();
     }
   }
 
   if (not Result.isValid())
-    Result = Binary.DefaultPrototype;
+    Result = Binary.DefaultPrototype();
 
   return Result;
 }

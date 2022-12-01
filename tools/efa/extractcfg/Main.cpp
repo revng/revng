@@ -63,11 +63,11 @@ int main(int argc, const char **argv) {
         continue;
 
       const efa::FunctionMetadata &FM = Cache.getFunctionMetadata(&BB);
-      auto &Function = Model->Functions.at(FM.Entry);
-      revng::DecoratedFunction NewFunction(FM.Entry,
-                                           Function.OriginalName,
+      auto &Function = Model->Functions().at(FM.Entry());
+      revng::DecoratedFunction NewFunction(FM.Entry(),
+                                           Function.OriginalName(),
                                            FM,
-                                           Function.Attributes);
+                                           Function.Attributes());
       DecoratedFunctions.insert(std::move(NewFunction));
     }
   }
@@ -75,14 +75,14 @@ int main(int argc, const char **argv) {
   for (Function &F : FunctionTags::Isolated.functions(Module.get())) {
     auto *FMMDNode = F.getMetadata(FunctionMetadataMDName);
     const efa::FunctionMetadata &FM = Cache.getFunctionMetadata(&F);
-    if (not FMMDNode or DecoratedFunctions.count(FM.Entry) != 0)
+    if (not FMMDNode or DecoratedFunctions.count(FM.Entry()) != 0)
       continue;
 
-    auto &Function = Model->Functions.at(FM.Entry);
-    revng::DecoratedFunction NewFunction(FM.Entry,
-                                         Function.OriginalName,
+    auto &Function = Model->Functions().at(FM.Entry());
+    revng::DecoratedFunction NewFunction(FM.Entry(),
+                                         Function.OriginalName(),
                                          FM,
-                                         Function.Attributes);
+                                         Function.Attributes());
     DecoratedFunctions.insert(std::move(NewFunction));
   }
 

@@ -37,7 +37,7 @@ void GeneratedCodeBasicInfo::run(Module &M) {
   revng_log(PassesLog, "Starting GeneratedCodeBasicInfo");
 
   using namespace model::Architecture;
-  auto Architecture = Binary->Architecture;
+  auto Architecture = Binary->Architecture();
   PC = M.getGlobalVariable(getPCCSVName(Architecture), true);
   SP = M.getGlobalVariable(getCSVName(getStackPointer(Architecture)), true);
   auto ReturnAddressRegister = getReturnAddressRegister(Architecture);

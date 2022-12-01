@@ -50,12 +50,12 @@ public:
   const llvm::SmallVector<model::QualifiedType, 4> edges() const {
     llvm::SmallVector<model::QualifiedType, 4> Result;
 
-    for (auto &Argument : Arguments)
-      Result.push_back(Argument.Type);
-    for (auto &RV : ReturnValues)
-      Result.push_back(RV.Type);
-    if (StackArgumentsType.UnqualifiedType.isValid())
-      Result.push_back(StackArgumentsType);
+    for (auto &Argument : Arguments())
+      Result.push_back(Argument.Type());
+    for (auto &RV : ReturnValues())
+      Result.push_back(RV.Type());
+    if (StackArgumentsType().UnqualifiedType().isValid())
+      Result.push_back(StackArgumentsType());
 
     return Result;
   }

@@ -33,7 +33,7 @@ public:
 
 public:
   const llvm::SmallVector<model::QualifiedType, 4> edges() const {
-    return { UnderlyingType };
+    return { UnderlyingType() };
   }
 
 public:

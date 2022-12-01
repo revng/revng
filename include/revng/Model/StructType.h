@@ -42,8 +42,8 @@ public:
   const llvm::SmallVector<model::QualifiedType, 4> edges() const {
     llvm::SmallVector<model::QualifiedType, 4> Result;
 
-    for (auto &Field : Fields)
-      Result.push_back(Field.Type);
+    for (auto &Field : Fields())
+      Result.push_back(Field.Type());
 
     return Result;
   }

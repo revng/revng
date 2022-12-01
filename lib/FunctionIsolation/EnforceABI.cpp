@@ -132,9 +132,9 @@ void EnforceABIImpl::run() {
 
   // Recreate dynamic functions with arguments
   for (const model::DynamicFunction &FunctionModel :
-       Binary.ImportedDynamicFunctions) {
+       Binary.ImportedDynamicFunctions()) {
     // TODO: have an API to go from model to llvm::Function
-    auto OldFunctionName = (Twine("dynamic_") + FunctionModel.OriginalName)
+    auto OldFunctionName = (Twine("dynamic_") + FunctionModel.OriginalName())
                              .str();
     Function *OldFunction = M.getFunction(OldFunctionName);
     if (not OldFunction or OldFunction->isDeclaration())
@@ -157,7 +157,7 @@ void EnforceABIImpl::run() {
   }
 
   // Recreate isolated functions with arguments
-  for (const model::Function &FunctionModel : Binary.Functions) {
+  for (const model::Function &FunctionModel : Binary.Functions()) {
     revng_assert(not FunctionModel.name().empty());
     auto OldFunctionName = (Twine("local_") + FunctionModel.name()).str();
     Function *OldFunction = M.getFunction(OldFunctionName);
@@ -338,7 +338,7 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
 
   // Find the CallEdge
   const efa::CallEdge *CallSite = nullptr;
-  for (const auto &Edge : CallerBlock->Successors) {
+  for (const auto &Edge : CallerBlock->Successors()) {
     using namespace efa::FunctionEdgeType;
     CallSite = dyn_cast<efa::CallEdge>(Edge.get());
     if (CallSite != nullptr)
@@ -369,14 +369,14 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
   // Generate the call
   IRBuilder<> Builder(Call);
   CallInst *NewCall = generateCall(Builder,
-                                   FunctionModel.Entry,
+                                   FunctionModel.Entry(),
                                    Callee,
                                    *CallerBlock,
                                    *CallSite);
   NewCall->copyMetadata(*Call);
 
   // Set PC to the expected value
-  GCBI.programCounterHandler()->setPC(Builder, CallerBlock->Start);
+  GCBI.programCounterHandler()->setPC(Builder, CallerBlock->Start());
 
   // Drop the original call
   eraseFromParent(Call);
@@ -407,7 +407,7 @@ CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
 
   model::TypePath PrototypePath = getPrototype(Binary,
                                                Entry,
-                                               CallSiteBlock.Start,
+                                               CallSiteBlock.Start(),
                                                CallSite);
   auto Prototype = abi::FunctionType::Layout::make(PrototypePath);
   revng_assert(Prototype.verify());
@@ -442,7 +442,7 @@ CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   auto *Result = Builder.CreateCall(Callee, Arguments);
   GCBI.setMetaAddressMetadata(Result,
                               CallerBlockStartMDName,
-                              CallSiteBlock.Start);
+                              CallSiteBlock.Start());
   if (ReturnCSVs.size() != 1) {
     unsigned I = 0;
     for (Constant *ReturnCSV : ReturnCSVs) {

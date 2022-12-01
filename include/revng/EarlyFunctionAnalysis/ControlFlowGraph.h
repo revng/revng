@@ -19,9 +19,9 @@ using SuccessorContainer = SortedVector<UpcastablePointer<FunctionEdgeBase>>;
 }
 
 template<typename T>
-concept SpecializationOfBasicBlock = requires {
-  { T::Start } -> convertible_to<MetaAddress>;
-  { T::End } -> convertible_to<MetaAddress>;
+concept SpecializationOfBasicBlock = requires(T Instance) {
+  { Instance.Start() } -> convertible_to<MetaAddress>;
+  { Instance.End() } -> convertible_to<MetaAddress>;
 };
 
 struct ParsedSuccessor {
@@ -33,14 +33,14 @@ template<typename T>
 inline ParsedSuccessor parseSuccessor(const T &Edge,
                                       const MetaAddress &FallthroughAddress,
                                       const model::Binary &Binary) {
-  using FunctionEdgeType = decltype(Edge.Type);
-  switch (Edge.Type) {
+  using FunctionEdgeType = typename T::TypeType;
+  switch (Edge.Type()) {
   case FunctionEdgeType::DirectBranch:
   case FunctionEdgeType::Return:
   case FunctionEdgeType::BrokenReturn:
   case FunctionEdgeType::LongJmp:
   case FunctionEdgeType::Unreachable:
-    return ParsedSuccessor{ .NextInstructionAddress = Edge.Destination,
+    return ParsedSuccessor{ .NextInstructionAddress = Edge.Destination(),
                             .OptionalCallAddress = MetaAddress::invalid() };
 
   case FunctionEdgeType::FunctionCall: {
@@ -52,11 +52,11 @@ inline ParsedSuccessor parseSuccessor(const T &Edge,
 
     MetaAddress NextInstructionAddress = MetaAddress::invalid();
     if (not CE->hasAttribute(Binary, model::FunctionAttribute::NoReturn)
-        and not CE->IsTailCall) {
+        and not CE->IsTailCall()) {
       NextInstructionAddress = FallthroughAddress;
     }
     return ParsedSuccessor{ .NextInstructionAddress = NextInstructionAddress,
-                            .OptionalCallAddress = Edge.Destination };
+                            .OptionalCallAddress = Edge.Destination() };
   }
   case FunctionEdgeType::Killer:
     return ParsedSuccessor{ .NextInstructionAddress = MetaAddress::invalid(),
@@ -104,20 +104,20 @@ requires std::is_constructible_v<typename GraphType::Node, const MetaAddress &>
 
   auto &[Graph, AddressToNodeMap] = Res;
   for (const BasicBlockType &Block : BB) {
-    revng_assert(Block.Start.isValid());
-    auto *NewNode = Graph.addNode(Node{ Block.Start });
-    auto [_, Success] = AddressToNodeMap.try_emplace(Block.Start, NewNode);
+    revng_assert(Block.Start().isValid());
+    auto *NewNode = Graph.addNode(Node{ Block.Start() });
+    auto [_, Success] = AddressToNodeMap.try_emplace(Block.Start(), NewNode);
     revng_assert(Success != false,
                  "Different basic blocks with the same `Start` address");
   }
 
   Node *ExitNode = nullptr;
   for (const BasicBlockType &Block : BB) {
-    auto FromNodeIterator = AddressToNodeMap.find(Block.Start);
+    auto FromNodeIterator = AddressToNodeMap.find(Block.Start());
     revng_assert(FromNodeIterator != AddressToNodeMap.end());
 
-    for (const auto &Edge : Block.Successors) {
-      auto [NextInstruction, _] = parseSuccessor(*Edge, Block.End, Binary);
+    for (const auto &Edge : Block.Successors()) {
+      auto [NextInstruction, _] = parseSuccessor(*Edge, Block.End(), Binary);
       if (NextInstruction.isValid()) {
         auto ToNodeIterator = AddressToNodeMap.find(NextInstruction);
         revng_assert(ToNodeIterator != AddressToNodeMap.end());

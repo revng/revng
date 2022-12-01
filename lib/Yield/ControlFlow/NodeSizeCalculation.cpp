@@ -93,13 +93,13 @@ linkSize(const MetaAddress &Address,
   if (Address.isInvalid())
     return Indicator + textSize("an unknown location");
 
-  if (auto Iterator = Binary.Functions.find(Address);
-      Iterator != Binary.Functions.end()) {
+  if (auto Iterator = Binary.Functions().find(Address);
+      Iterator != Binary.Functions().end()) {
     return Indicator + textSize(Iterator->name().str().str());
   } else if (NextAddress == Address) {
     return Indicator + textSize("the next instruction");
-  } else if (auto Iterator = Function.ControlFlowGraph.find(Address);
-             Iterator != Function.ControlFlowGraph.end()) {
+  } else if (auto Iterator = Function.ControlFlowGraph().find(Address);
+             Iterator != Function.ControlFlowGraph().end()) {
     return Indicator + textSize("basic_block_at_" + Address.toString());
   } else {
     return Indicator + textSize("instruction_at_" + Address.toString());
@@ -121,14 +121,14 @@ instructionSize(const yield::Instruction &Instruction,
                 size_t CommentIndicatorSize,
                 bool IsInDelayedSlot = false) {
   // Instruction body.
-  yield::Graph::Size Result = fontSize(textSize(Instruction.Disassembled),
+  yield::Graph::Size Result = fontSize(textSize(Instruction.Disassembled()),
                                        Configuration.InstructionFontSize,
                                        Configuration);
 
   // Comment and delayed slot notice.
   yield::Graph::Size CommentSize;
-  if (!Instruction.Comment.empty()) {
-    CommentSize = textSize(Instruction.Comment);
+  if (!Instruction.Comment().empty()) {
+    CommentSize = textSize(Instruction.Comment());
     revng_assert(CommentSize.H == 1, "Multi line comments are not supported.");
     CommentSize.W += CommentIndicatorSize + 1;
   }
@@ -143,7 +143,7 @@ instructionSize(const yield::Instruction &Instruction,
                                    Configuration.InstructionFontSize,
                                    Configuration);
   if (CommentSize.H > 1) {
-    Result.W = std::max(firstLineSize(Instruction.Comment) + Result.W
+    Result.W = std::max(firstLineSize(Instruction.Comment()) + Result.W
                           + CommentIndicatorSize + 1,
                         CommentBlockSize.W);
     auto OneLine = fontSize(yield::Graph::Size(1, 1),
@@ -156,19 +156,19 @@ instructionSize(const yield::Instruction &Instruction,
   }
 
   // Error.
-  if (!Instruction.Error.empty())
+  if (!Instruction.Error().empty())
     appendSize(Result,
-               fontSize(textSize(Instruction.Error)
+               fontSize(textSize(Instruction.Error())
                           + yield::Graph::Size(CommentIndicatorSize + 1, 0),
                         Configuration.CommentFontSize,
                         Configuration));
 
   // Annotation.
   yield::Graph::Size RawBytesLengthWithOffsets{ 0, 0 };
-  RawBytesLengthWithOffsets.W += Instruction.RawBytes.size() * 3;
+  RawBytesLengthWithOffsets.W += Instruction.RawBytes().size() * 3;
   RawBytesLengthWithOffsets.W += CommentIndicatorSize + 5;
   appendSize(Result,
-             fontSize(textSize(Instruction.Address.toString())
+             fontSize(textSize(Instruction.Address().toString())
                         + RawBytesLengthWithOffsets,
                       Configuration.AnnotationFontSize,
                       Configuration));
@@ -187,8 +187,8 @@ basicBlockSize(const yield::BasicBlock &BasicBlock,
                const yield::cfg::Configuration &Configuration) {
   // Account for the size of the label
   namespace A = model::Architecture;
-  auto LabelIndicator = A::getAssemblyLabelIndicator(Binary.Architecture);
-  yield::Graph::Size Result = fontSize(linkSize(BasicBlock.Start,
+  auto LabelIndicator = A::getAssemblyLabelIndicator(Binary.Architecture());
+  yield::Graph::Size Result = fontSize(linkSize(BasicBlock.Start(),
                                                 Function,
                                                 Binary,
                                                 LabelIndicator.size()),
@@ -196,11 +196,11 @@ basicBlockSize(const yield::BasicBlock &BasicBlock,
                                        Configuration);
 
   namespace A = model::Architecture;
-  auto CommentIndicator = A::getAssemblyCommentIndicator(Binary.Architecture);
+  auto CommentIndicator = A::getAssemblyCommentIndicator(Binary.Architecture());
 
   // Account for the sizes of each instruction.
-  auto FromIterator = BasicBlock.Instructions.begin();
-  auto ToIterator = std::prev(BasicBlock.Instructions.end());
+  auto FromIterator = BasicBlock.Instructions().begin();
+  auto ToIterator = std::prev(BasicBlock.Instructions().end());
   for (auto Iterator = FromIterator; Iterator != ToIterator; ++Iterator) {
     appendSize(Result,
                instructionSize(*Iterator,
@@ -211,8 +211,8 @@ basicBlockSize(const yield::BasicBlock &BasicBlock,
              instructionSize(*ToIterator++,
                              Configuration,
                              CommentIndicator.size(),
-                             BasicBlock.HasDelaySlot));
-  revng_assert(ToIterator == BasicBlock.Instructions.end());
+                             BasicBlock.HasDelaySlot()));
+  revng_assert(ToIterator == BasicBlock.Instructions().end());
 
   return Result;
 }
@@ -226,11 +226,11 @@ void yield::cfg::calculateNodeSizes(Graph &Graph,
 
     if (Node->Address.isValid()) {
       // A normal node.
-      if (auto Iterator = Function.ControlFlowGraph.find(Node->Address);
-          Iterator != Function.ControlFlowGraph.end()) {
+      if (auto Iterator = Function.ControlFlowGraph().find(Node->Address);
+          Iterator != Function.ControlFlowGraph().end()) {
         Node->Size = basicBlockSize(*Iterator, Function, Binary, Configuration);
-      } else if (auto Iterator = Binary.Functions.find(Node->Address);
-                 Iterator != Binary.Functions.end()) {
+      } else if (auto Iterator = Binary.Functions().find(Node->Address);
+                 Iterator != Binary.Functions().end()) {
         Node->Size = singleLineSize(Iterator->name().str(),
                                     Configuration.InstructionFontSize,
                                     Configuration);

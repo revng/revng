@@ -26,7 +26,7 @@ BOOST_AUTO_TEST_CASE(RootInvalidationTest) {
 
   Context Ctx;
   MetaAddress Address(0x1000, MetaAddressType::Code_aarch64);
-  New.ExtraCodeAddresses.insert(Address);
+  New.ExtraCodeAddresses().insert(Address);
 
   TargetsList ToRemove;
   GlobalTupleTreeDiff Event(diff(Empty, New));

@@ -163,17 +163,17 @@ public:
     AltIndex(AltIndex),
     DICtx(DICtx) {
 
-    Architecture = Model->Architecture;
+    Architecture = Model->Architecture();
     BaseAddress = PreferredBaseAddress;
 
     // Ensure the architecture is consistent.
     auto Arch = model::Architecture::fromLLVMArchitecture(DICtx.getArch());
-    if (Model->Architecture == model::Architecture::Invalid)
-      Model->Architecture = Arch;
+    if (Model->Architecture() == model::Architecture::Invalid)
+      Model->Architecture() = Arch;
 
     // Detect default ABI from the architecture.
-    if (Model->DefaultABI == model::ABI::Invalid)
-      Model->DefaultABI = model::ABI::getDefault(Model->Architecture);
+    if (Model->DefaultABI() == model::ABI::Invalid)
+      Model->DefaultABI() = model::ABI::getDefault(Model->Architecture());
   }
 
 private:
@@ -181,7 +181,7 @@ private:
     if (CC != DW_CC_normal)
       return model::ABI::Invalid;
 
-    return Model->DefaultABI;
+    return Model->DefaultABI();
   }
 
   const model::QualifiedType &record(const DWARFDie &Die,
@@ -194,10 +194,10 @@ private:
                                      const model::QualifiedType &QT,
                                      bool IsNotPlaceholder) {
     size_t Offset = Die.getOffset();
-    revng_assert(QT.UnqualifiedType.isValid());
+    revng_assert(QT.UnqualifiedType().isValid());
     if (not IsNotPlaceholder) {
-      revng_assert(QT.Qualifiers.size() == 0);
-      Placeholders[Offset] = QT.UnqualifiedType.get();
+      revng_assert(QT.Qualifiers().size() == 0);
+      Placeholders[Offset] = QT.UnqualifiedType().get();
     }
 
     return Importer.recordType({ Index, Die.getOffset() }, QT);
@@ -419,8 +419,8 @@ private:
     auto Tag = Die.getTag();
 
     revng_assert(Placeholders.count(Offset) != 0);
-    revng_assert(TypePath->Qualifiers.empty());
-    model::Type *T = TypePath->UnqualifiedType.get();
+    revng_assert(TypePath->Qualifiers().empty());
+    model::Type *T = TypePath->UnqualifiedType().get();
 
     std::string Name = getName(Die);
 
@@ -430,16 +430,16 @@ private:
     switch (Tag) {
     case llvm::dwarf::DW_TAG_subroutine_type: {
       auto *FunctionType = cast<model::CABIFunctionType>(T);
-      FunctionType->OriginalName = Name;
-      FunctionType->ABI = getABI();
+      FunctionType->OriginalName() = Name;
+      FunctionType->ABI() = getABI();
 
-      if (FunctionType->ABI == model::ABI::Invalid) {
+      if (FunctionType->ABI() == model::ABI::Invalid) {
         reportIgnoredDie(Die, "Unknown calling convention");
         rc_return nullptr;
       }
 
-      FunctionType->ReturnType = rc_recur getTypeOrVoid(Die);
-      revng_assert(FunctionType->ReturnType.UnqualifiedType.isValid());
+      FunctionType->ReturnType() = rc_recur getTypeOrVoid(Die);
+      revng_assert(FunctionType->ReturnType().UnqualifiedType().isValid());
 
       uint64_t Index = 0;
       for (const DWARFDie &ChildDie : Die.children()) {
@@ -454,8 +454,8 @@ private:
             rc_return nullptr;
           }
 
-          model::Argument &NewArgument = FunctionType->Arguments[Index];
-          NewArgument.Type = *ArgumentType;
+          model::Argument &NewArgument = FunctionType->Arguments()[Index];
+          NewArgument.Type() = *ArgumentType;
           Index += 1;
         }
       }
@@ -467,9 +467,9 @@ private:
     case llvm::dwarf::DW_TAG_volatile_type: {
       model::QualifiedType TargetType = rc_recur getTypeOrVoid(Die);
       auto *Typedef = cast<model::TypedefType>(T);
-      Typedef->OriginalName = Name;
-      Typedef->UnderlyingType = TargetType;
-      revng_assert(Typedef->UnderlyingType.UnqualifiedType.isValid());
+      Typedef->OriginalName() = Name;
+      Typedef->UnderlyingType() = TargetType;
+      revng_assert(Typedef->UnderlyingType().UnqualifiedType().isValid());
 
     } break;
 
@@ -482,8 +482,8 @@ private:
       }
 
       auto *Struct = cast<model::StructType>(T);
-      Struct->OriginalName = Name;
-      Struct->Size = *MaybeSize->getAsUnsignedConstant();
+      Struct->OriginalName() = Name;
+      Struct->Size() = *MaybeSize->getAsUnsignedConstant();
 
       uint64_t Index = 0;
       for (const DWARFDie &ChildDie : Die.children()) {
@@ -514,9 +514,9 @@ private:
           }
 
           // Create new field
-          auto &Field = Struct->Fields[Offset];
-          Field.OriginalName = getName(ChildDie);
-          Field.Type = *MemberType;
+          auto &Field = Struct->Fields()[Offset];
+          Field.OriginalName() = getName(ChildDie);
+          Field.Type() = *MemberType;
 
           ++Index;
         }
@@ -531,7 +531,7 @@ private:
 
     case llvm::dwarf::DW_TAG_union_type: {
       auto *Union = cast<model::UnionType>(T);
-      Union->OriginalName = Name;
+      Union->OriginalName() = Name;
 
       uint64_t Index = 0;
       for (const DWARFDie &ChildDie : Die.children()) {
@@ -545,9 +545,9 @@ private:
           }
 
           // Create new field
-          auto &Field = Union->Fields[Index];
-          Field.OriginalName = getName(ChildDie);
-          Field.Type = *MemberType;
+          auto &Field = Union->Fields()[Index];
+          Field.OriginalName() = getName(ChildDie);
+          Field.Type() = *MemberType;
 
           // Increment union index
           Index += 1;
@@ -563,7 +563,7 @@ private:
 
     case llvm::dwarf::DW_TAG_enumeration_type: {
       auto *Enum = cast<model::EnumType>(T);
-      Enum->OriginalName = Name;
+      Enum->OriginalName() = Name;
 
       const QualifiedType *QualifiedUnderlyingType = rc_recur getType(Die);
       if (QualifiedUnderlyingType == nullptr) {
@@ -571,8 +571,8 @@ private:
         rc_return nullptr;
       }
 
-      revng_assert(QualifiedUnderlyingType->Qualifiers.empty());
-      Enum->UnderlyingType = *QualifiedUnderlyingType;
+      revng_assert(QualifiedUnderlyingType->Qualifiers().empty());
+      Enum->UnderlyingType() = *QualifiedUnderlyingType;
 
       uint64_t Index = 0;
       for (const DWARFDie &ChildDie : Die.children()) {
@@ -592,10 +592,10 @@ private:
           std::string EntryName = getName(ChildDie);
 
           // If it's the first time, set OriginalName
-          auto It = Enum->Entries.find(Value);
-          if (It == Enum->Entries.end()) {
-            auto &Entry = Enum->Entries[Value];
-            Entry.OriginalName = EntryName;
+          auto It = Enum->Entries().find(Value);
+          if (It == Enum->Entries().end()) {
+            auto &Entry = Enum->Entries()[Value];
+            Entry.OriginalName() = EntryName;
           } else {
             // Ignore aliases
           }
@@ -646,8 +646,8 @@ private:
 
       case llvm::dwarf::DW_TAG_const_type: {
         model::Qualifier NewQualifier;
-        NewQualifier.Kind = model::QualifierKind::Const;
-        Type.Qualifiers.insert(Type.Qualifiers.begin(), NewQualifier);
+        NewQualifier.Kind() = model::QualifierKind::Const;
+        Type.Qualifiers().insert(Type.Qualifiers().begin(), NewQualifier);
       } break;
 
       case llvm::dwarf::DW_TAG_array_type: {
@@ -660,8 +660,8 @@ private:
         for (const DWARFDie &ChildDie : Die.children()) {
           if (ChildDie.getTag() == llvm::dwarf::DW_TAG_subrange_type) {
             model::Qualifier NewQualifier;
-            NewQualifier.Kind = model::QualifierKind::Array;
-            NewQualifier.Size = 0;
+            NewQualifier.Kind() = model::QualifierKind::Array;
+            NewQualifier.Size() = 0;
 
             auto MaybeUpperBound = getUnsignedOrSigned(ChildDie,
                                                        DW_AT_upper_bound);
@@ -674,19 +674,19 @@ private:
             }
 
             if (MaybeUpperBound) {
-              NewQualifier.Size = *MaybeUpperBound + 1;
+              NewQualifier.Size() = *MaybeUpperBound + 1;
             } else if (MaybeCount) {
-              NewQualifier.Size = *MaybeCount;
+              NewQualifier.Size() = *MaybeCount;
             }
 
-            if (NewQualifier.Size == 0) {
+            if (NewQualifier.Size() == 0) {
               reportIgnoredDie(Die,
                                "Array upper bound/elements count missing or "
                                "invalid");
               rc_return nullptr;
             }
 
-            Type.Qualifiers.insert(Type.Qualifiers.begin(), NewQualifier);
+            Type.Qualifiers().insert(Type.Qualifiers().begin(), NewQualifier);
           }
         }
       } break;
@@ -701,9 +701,9 @@ private:
           rc_return nullptr;
         }
 
-        NewQualifier.Kind = model::QualifierKind::Pointer;
-        NewQualifier.Size = *MaybeByteSize->getAsUnsignedConstant();
-        Type.Qualifiers.insert(Type.Qualifiers.begin(), NewQualifier);
+        NewQualifier.Kind() = model::QualifierKind::Pointer;
+        NewQualifier.Size() = *MaybeByteSize->getAsUnsignedConstant();
+        Type.Qualifiers().insert(Type.Qualifiers().begin(), NewQualifier);
       } break;
 
       default:
@@ -767,9 +767,9 @@ private:
     auto MaybeCC = getUnsignedOrSigned(Die, DW_AT_calling_convention);
     if (MaybeCC)
       CC = static_cast<CallingConvention>(*MaybeCC);
-    FunctionType->ABI = getABI(CC);
+    FunctionType->ABI() = getABI(CC);
 
-    if (FunctionType->ABI == model::ABI::Invalid) {
+    if (FunctionType->ABI() == model::ABI::Invalid) {
       reportIgnoredDie(Die, "Unknown calling convention");
       return std::nullopt;
     }
@@ -786,16 +786,16 @@ private:
           return std::nullopt;
         }
 
-        model::Argument &NewArgument = FunctionType->Arguments[Index];
-        NewArgument.OriginalName = getName(ChildDie);
-        NewArgument.Type = *ArgumenType;
+        model::Argument &NewArgument = FunctionType->Arguments()[Index];
+        NewArgument.OriginalName() = getName(ChildDie);
+        NewArgument.Type() = *ArgumenType;
         Index += 1;
       }
     }
 
     // Return type
-    FunctionType->ReturnType = getTypeOrVoid(Die);
-    revng_assert(FunctionType->ReturnType.UnqualifiedType.isValid());
+    FunctionType->ReturnType() = getTypeOrVoid(Die);
+    revng_assert(FunctionType->ReturnType().UnqualifiedType().isValid());
 
     return Model->recordNewType(std::move(NewType));
   }
@@ -814,16 +814,17 @@ private:
         if (MaybeLowPC) {
           // Get/create the local function
           MetaAddress LowPC = relocate(fromPC(*MaybeLowPC));
-          auto &Function = Model->Functions[LowPC];
+          auto &Function = Model->Functions()[LowPC];
 
-          if (not Function.Prototype.isValid())
-            Function.Prototype = *MaybePath;
+          if (not Function.Prototype().isValid())
+            Function.Prototype() = *MaybePath;
 
-          if (SymbolName.size() != 0 and Function.OriginalName.size() == 0)
-            Function.OriginalName = SymbolName;
+          if (SymbolName.size() != 0 and Function.OriginalName().size() == 0)
+            Function.OriginalName() = SymbolName;
 
-        } else if (not SymbolName.empty()
-                   and Model->ImportedDynamicFunctions.count(SymbolName) != 0) {
+        } else if (auto &Functions = Model->ImportedDynamicFunctions();
+                   not SymbolName.empty()
+                   and Functions.count(SymbolName) != 0) {
           // It's a dynamic function
 
           if (not MaybePath) {
@@ -832,12 +833,12 @@ private:
           }
 
           // Get/create dynamic function
-          auto &DynamicFunction = Model->ImportedDynamicFunctions[SymbolName];
+          auto &DynamicFunction = Model->ImportedDynamicFunctions()[SymbolName];
 
           // If a function already has a valid prototype, don't override it
-          if (DynamicFunction.Prototype.isValid())
+          if (DynamicFunction.Prototype().isValid())
             continue;
-          DynamicFunction.Prototype = *MaybePath;
+          DynamicFunction.Prototype() = *MaybePath;
 
         } else {
           reportIgnoredDie(Die, "Ignoring subprogram");
@@ -849,17 +850,17 @@ private:
   void cleanupTypeSystem() {
     std::set<const model::Type *> ToDrop;
 
-    for (auto &Type : Model->Types) {
+    for (auto &Type : Model->Types()) {
       //
       // Drop zero-sized struct/union fields
       //
       if (auto *Struct = dyn_cast<model::StructType>(Type.get())) {
-        llvm::erase_if(Struct->Fields, [](model::StructField &Field) {
-          return not Field.Type.size();
+        llvm::erase_if(Struct->Fields(), [](model::StructField &Field) {
+          return not Field.Type().size();
         });
       } else if (auto *Union = dyn_cast<model::UnionType>(Type.get())) {
-        llvm::erase_if(Union->Fields, [](model::UnionField &Field) {
-          return not Field.Type.size();
+        llvm::erase_if(Union->Fields(), [](model::UnionField &Field) {
+          return not Field.Type().size();
         });
       }
 
@@ -868,10 +869,10 @@ private:
       //
       for (const model::QualifiedType &QT : Type->edges()) {
         auto IsArray = [](const model::Qualifier &Q) {
-          return Q.Kind == model::QualifierKind::Array;
+          return Q.Kind() == model::QualifierKind::Array;
         };
-        if (llvm::any_of(QT.Qualifiers, IsArray)
-            and not QT.UnqualifiedType.get()->size()) {
+        if (llvm::any_of(QT.Qualifiers(), IsArray)
+            and not QT.UnqualifiedType().get()->size()) {
           ToDrop.insert(Type.get());
         }
       }
@@ -1079,7 +1080,7 @@ computeEquivalentSymbols(const llvm::object::ObjectFile &ELF) {
 inline void detectAliases(const llvm::object::ObjectFile &ELF,
                           TupleTree<model::Binary> &Model) {
   EquivalenceClasses<StringRef> Aliases = computeEquivalentSymbols(ELF);
-  auto &ImportedDynamicFunctions = Model->ImportedDynamicFunctions;
+  auto &ImportedDynamicFunctions = Model->ImportedDynamicFunctions();
 
   for (auto AliasesIt = Aliases.begin(), E = Aliases.end(); AliasesIt != E;
        ++AliasesIt) {
@@ -1098,8 +1099,8 @@ inline void detectAliases(const llvm::object::ObjectFile &ELF,
         // If DynamicFunction doesn't have a prototype, register it for copying
         // it from the leader.
         // Otherwise, record the type as the leader.
-        if (Found and It->Prototype.isValid()) {
-          Prototype = It->Prototype;
+        if (Found and It->Prototype().isValid()) {
+          Prototype = It->Prototype();
         } else {
           UnprototypedFunctionsNames.push_back(Name);
         }
@@ -1110,7 +1111,7 @@ inline void detectAliases(const llvm::object::ObjectFile &ELF,
           auto It = ImportedDynamicFunctions.find(Name);
           if (It == ImportedDynamicFunctions.end())
             It = ImportedDynamicFunctions.insert({ Name }).first;
-          It->Prototype = Prototype;
+          It->Prototype() = Prototype;
         }
       }
     }
@@ -1125,8 +1126,8 @@ void DwarfImporter::import(const llvm::object::Binary &TheBinary,
 
     {
       using namespace model::Architecture;
-      if (Model->Architecture == Invalid)
-        Model->Architecture = fromLLVMArchitecture(ELF->getArch());
+      if (Model->Architecture() == Invalid)
+        Model->Architecture() = fromLLVMArchitecture(ELF->getArch());
     }
 
     // Check if we already loaded the alt debug info file

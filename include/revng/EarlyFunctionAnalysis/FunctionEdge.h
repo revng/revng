@@ -23,7 +23,7 @@ private:
     AssociatedType = FunctionEdgeType::DirectBranch;
 
 public:
-  FunctionEdge() : efa::generated::FunctionEdge() { Type = AssociatedType; }
+  FunctionEdge() : efa::generated::FunctionEdge() { Type() = AssociatedType; }
   FunctionEdge(MetaAddress Destination, FunctionEdgeType::Values Type) :
     efa::generated::FunctionEdge(Destination, Type) {}
 

@@ -21,9 +21,9 @@ Error importBinary(TupleTree<model::Binary> &Model,
                    uint64_t PreferredBaseAddress) {
   using namespace llvm::object;
   using namespace model::Architecture;
-  Model->Architecture = fromLLVMArchitecture(ObjectFile.getArch());
+  Model->Architecture() = fromLLVMArchitecture(ObjectFile.getArch());
 
-  if (Model->Architecture == model::Architecture::Invalid)
+  if (Model->Architecture() == model::Architecture::Invalid)
     return createError("Invalid architecture");
 
   if (auto *TheBinary = dyn_cast<ELFObjectFileBase>(&ObjectFile)) {

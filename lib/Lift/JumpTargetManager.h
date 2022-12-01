@@ -417,7 +417,7 @@ public:
     translateIndirectJumps();
 
     using namespace model::Architecture;
-    unsigned ReadSize = getPointerSize(Model->Architecture);
+    unsigned ReadSize = getPointerSize(Model->Architecture());
     for (MetaAddress MemoryAddress : UnusedCodePointers) {
       // Read using the original endianess, we want the correct address
       auto MaybeRawPC = BinaryView.readInteger(MemoryAddress, ReadSize);
@@ -442,13 +442,13 @@ public:
 
   MetaAddress fromPC(uint64_t PC) const {
     using namespace model::Architecture;
-    auto Architecture = toLLVMArchitecture(Model->Architecture);
+    auto Architecture = toLLVMArchitecture(Model->Architecture());
     return MetaAddress::fromPC(Architecture, PC);
   }
 
   MetaAddress fromGeneric(uint64_t Address) const {
     using namespace model::Architecture;
-    auto Architecture = toLLVMArchitecture(Model->Architecture);
+    auto Architecture = toLLVMArchitecture(Model->Architecture());
     return MetaAddress::fromGeneric(Architecture, Address);
   }
 

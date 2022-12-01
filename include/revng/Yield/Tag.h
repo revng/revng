@@ -40,12 +40,12 @@ public:
     generated::Tag(Type, From, To) {}
 
   std::strong_ordering operator<=>(const Tag &Another) const {
-    if (From != Another.From)
-      return From <=> Another.From;
-    else if (To != Another.To)
-      return Another.To <=> To; // reversed order
+    if (From() != Another.From())
+      return From() <=> Another.From();
+    else if (To() != Another.To())
+      return Another.To() <=> To(); // reversed order
     else
-      return Type <=> Another.Type;
+      return Type() <=> Another.Type();
   }
 
 public:

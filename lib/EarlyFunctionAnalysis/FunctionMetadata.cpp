@@ -39,8 +39,8 @@ public:
   FunctionCFGVerificationHelper(const efa::FunctionMetadata &Metadata,
                                 const model::Binary &Binary) {
     using G = FunctionCFG;
-    std::tie(Graph, Map) = buildControlFlowGraph<G>(Metadata.ControlFlowGraph,
-                                                    Metadata.Entry,
+    std::tie(Graph, Map) = buildControlFlowGraph<G>(Metadata.ControlFlowGraph(),
+                                                    Metadata.Entry(),
                                                     Binary);
   }
 
@@ -83,9 +83,9 @@ const efa::BasicBlock *FunctionMetadata::findBlock(GeneratedCodeBasicInfo &GCBI,
 
   MetaAddress CallerBlockAddress = GCBI.getPCFromNewPC(JumpTargetBB);
   revng_assert(CallerBlockAddress.isValid());
-  auto It = ControlFlowGraph.find(CallerBlockAddress);
+  auto It = ControlFlowGraph().find(CallerBlockAddress);
 
-  while (It == ControlFlowGraph.end()) {
+  while (It == ControlFlowGraph().end()) {
 
     llvm::BasicBlock *PredecessorJumpTargetBB = nullptr;
     for (llvm::BasicBlock *Predecessor : predecessors(JumpTargetBB)) {
@@ -104,7 +104,7 @@ const efa::BasicBlock *FunctionMetadata::findBlock(GeneratedCodeBasicInfo &GCBI,
     revng_assert(JumpTargetBB != nullptr);
     CallerBlockAddress = GCBI.getPCFromNewPC(JumpTargetBB);
     revng_assert(CallerBlockAddress.isValid());
-    It = ControlFlowGraph.find(CallerBlockAddress);
+    It = ControlFlowGraph().find(CallerBlockAddress);
   }
 
   return &*It;
@@ -116,16 +116,16 @@ void FunctionMetadata::simplify(const model::Binary &Binary) {
 
   // Create quick map of predecessors
   std::map<MetaAddress, SmallVector<MetaAddress, 2>> Predecessors;
-  for (efa::BasicBlock &Block : ControlFlowGraph) {
-    for (auto &Successor : Block.Successors) {
-      if (Successor->Type == efa::FunctionEdgeType::DirectBranch
-          and Successor->Destination.isValid()) {
-        Predecessors[Successor->Destination].push_back(Block.Start);
+  for (efa::BasicBlock &Block : ControlFlowGraph()) {
+    for (auto &Successor : Block.Successors()) {
+      if (Successor->Type() == efa::FunctionEdgeType::DirectBranch
+          and Successor->Destination().isValid()) {
+        Predecessors[Successor->Destination()].push_back(Block.Start());
       } else if (auto *Call = dyn_cast<efa::CallEdge>(Successor.get())) {
-        if (not Call->IsTailCall
+        if (not Call->IsTailCall()
             and not Call->hasAttribute(Binary,
                                        model::FunctionAttribute::NoReturn)) {
-          Predecessors[Block.End].push_back(Block.Start);
+          Predecessors[Block.End()].push_back(Block.Start());
         }
       }
     }
@@ -133,47 +133,47 @@ void FunctionMetadata::simplify(const model::Binary &Binary) {
 
   // Identify blocks that need to be merged in their predecessor
   SmallVector<std::pair<MetaAddress, MetaAddress>, 4> ToMerge;
-  for (efa::BasicBlock &Block : ControlFlowGraph) {
+  for (efa::BasicBlock &Block : ControlFlowGraph()) {
     // Ignore entry block entirely
-    if (Block.End == Entry)
+    if (Block.End() == Entry())
       continue;
 
     // Do we have only one successor?
-    if (Block.Successors.size() != 1)
+    if (Block.Successors().size() != 1)
       continue;
 
     // Is the successor a direct branch to the end of the block?
-    auto &OnlySuccessor = *Block.Successors.begin();
-    if (not(OnlySuccessor->Type == efa::FunctionEdgeType::DirectBranch
-            and OnlySuccessor->Destination == Block.End))
+    auto &OnlySuccessor = *Block.Successors().begin();
+    if (not(OnlySuccessor->Type() == efa::FunctionEdgeType::DirectBranch
+            and OnlySuccessor->Destination() == Block.End()))
       continue;
 
     // Does the only successor has only one predeccessor?
-    auto PredecessorsAddress = Predecessors.at(Block.End);
+    auto PredecessorsAddress = Predecessors.at(Block.End());
     if (PredecessorsAddress.size() != 1)
       continue;
 
     // Are we the only predecessor?
-    if (*PredecessorsAddress.begin() != Block.Start)
+    if (*PredecessorsAddress.begin() != Block.Start())
       continue;
 
-    ToMerge.emplace_back(Block.Start, Block.End);
+    ToMerge.emplace_back(Block.Start(), Block.End());
   }
 
   for (auto [PredecessorAddress, BlockAddress] : llvm::reverse(ToMerge)) {
-    efa::BasicBlock &Predecessor = ControlFlowGraph.at(PredecessorAddress);
-    efa::BasicBlock &Block = ControlFlowGraph.at(BlockAddress);
+    efa::BasicBlock &Predecessor = ControlFlowGraph().at(PredecessorAddress);
+    efa::BasicBlock &Block = ControlFlowGraph().at(BlockAddress);
 
     // Safety checks
-    revng_assert(Predecessor.Successors.size() == 1);
-    revng_assert(Predecessor.End == Block.Start);
+    revng_assert(Predecessor.Successors().size() == 1);
+    revng_assert(Predecessor.End() == Block.Start());
 
     // Merge Block into Predecessor
-    Predecessor.End = Block.End;
-    Predecessor.Successors = std::move(Block.Successors);
+    Predecessor.End() = Block.End();
+    Predecessor.Successors() = std::move(Block.Successors());
 
     // Drop Block
-    ControlFlowGraph.erase(BlockAddress);
+    ControlFlowGraph().erase(BlockAddress);
   }
 }
 
@@ -188,9 +188,9 @@ bool FunctionMetadata::verify(const model::Binary &Binary, bool Assert) const {
 
 bool FunctionMetadata::verify(const model::Binary &Binary,
                               model::VerifyHelper &VH) const {
-  const auto &Function = Binary.Functions.at(Entry);
+  const auto &Function = Binary.Functions().at(Entry());
 
-  if (ControlFlowGraph.size() == 0)
+  if (ControlFlowGraph().size() == 0)
     return VH.fail("The function has no CFG");
 
   // Populate graph
@@ -205,20 +205,20 @@ bool FunctionMetadata::verify(const model::Binary &Binary,
     return VH.fail();
 
   // Verify blocks
-  if (ControlFlowGraph.size() > 0) {
+  if (ControlFlowGraph().size() > 0) {
     bool HasEntry = false;
-    for (const BasicBlock &Block : ControlFlowGraph) {
+    for (const BasicBlock &Block : ControlFlowGraph()) {
 
-      if (Block.Start == Entry) {
+      if (Block.Start() == Entry()) {
         if (HasEntry)
           return VH.fail("Multiple entry point blocks found");
         HasEntry = true;
       }
 
-      if (Block.Successors.size() == 0)
+      if (Block.Successors().size() == 0)
         return VH.fail("A block has no successors", Block);
 
-      for (const auto &Edge : Block.Successors)
+      for (const auto &Edge : Block.Successors())
         if (not Edge->verify(VH))
           return VH.fail();
     }
@@ -231,26 +231,27 @@ bool FunctionMetadata::verify(const model::Binary &Binary,
   }
 
   // Check function calls
-  for (const auto &Block : ControlFlowGraph) {
-    for (const auto &Edge : Block.Successors) {
-      if (Edge->Type == efa::FunctionEdgeType::FunctionCall) {
+  for (const auto &Block : ControlFlowGraph()) {
+    for (const auto &Edge : Block.Successors()) {
+      if (Edge->Type() == efa::FunctionEdgeType::FunctionCall) {
         // We're in a direct call, get the callee
         const auto *Call = dyn_cast<CallEdge>(Edge.get());
 
-        if (not Call->DynamicFunction.empty()) {
+        if (not Call->DynamicFunction().empty()) {
           // It's a dynamic call
-          auto It = Binary.ImportedDynamicFunctions.find(Call->DynamicFunction);
+          auto &Function = Call->DynamicFunction();
+          auto It = Binary.ImportedDynamicFunctions().find(Function);
 
           // If missing, fail
-          if (It == Binary.ImportedDynamicFunctions.end())
-            return VH.fail("Can't find callee \"" + Call->DynamicFunction
+          if (It == Binary.ImportedDynamicFunctions().end())
+            return VH.fail("Can't find callee \"" + Call->DynamicFunction()
                            + "\"");
         } else if (Call->isDirect()) {
           // Regular call
-          auto It = Binary.Functions.find(Call->Destination);
+          auto It = Binary.Functions().find(Call->Destination());
 
           // If missing, fail
-          if (It == Binary.Functions.end())
+          if (It == Binary.Functions().end())
             return VH.fail("Can't find callee");
         }
       }
@@ -265,8 +266,8 @@ void FunctionMetadata::dump() const {
 }
 
 void FunctionMetadata::dumpCFG(const model::Binary &Binary) const {
-  auto [Graph, _] = buildControlFlowGraph<FunctionCFG>(ControlFlowGraph,
-                                                       Entry,
+  auto [Graph, _] = buildControlFlowGraph<FunctionCFG>(ControlFlowGraph(),
+                                                       Entry(),
                                                        Binary);
   raw_os_ostream Stream(dbg);
   WriteGraph(Stream, &Graph);
@@ -284,18 +285,18 @@ bool FunctionEdgeBase::verify(bool Assert) const {
 bool FunctionEdgeBase::verify(model::VerifyHelper &VH) const {
   using namespace efa::FunctionEdgeType;
 
-  switch (Type) {
+  switch (Type()) {
   case Invalid:
   case Count:
     return VH.fail();
 
   case DirectBranch:
-    if (Destination.isInvalid())
+    if (Destination().isInvalid())
       return VH.fail();
     break;
   case FunctionCall: {
     const auto &Call = cast<const CallEdge>(*this);
-    if (Destination.isValid() and not Call.DynamicFunction.empty())
+    if (Destination().isValid() and not Call.DynamicFunction().empty())
       return VH.fail("Dynamic function has destination address");
   } break;
 
@@ -304,7 +305,7 @@ bool FunctionEdgeBase::verify(model::VerifyHelper &VH) const {
   case LongJmp:
   case Killer:
   case Unreachable:
-    if (Destination.isValid())
+    if (Destination().isValid())
       return VH.fail();
     break;
   }
@@ -322,7 +323,7 @@ void CallEdge::dump() const {
 
 model::Identifier BasicBlock::name() const {
   using llvm::Twine;
-  return model::Identifier(std::string("bb_") + Start.toString());
+  return model::Identifier(std::string("bb_") + Start().toString());
 }
 
 void BasicBlock::dump() const {
@@ -339,10 +340,10 @@ bool BasicBlock::verify(bool Assert) const {
 }
 
 bool BasicBlock::verify(model::VerifyHelper &VH) const {
-  if (Start.isInvalid() or End.isInvalid())
+  if (Start().isInvalid() or End().isInvalid())
     return VH.fail();
 
-  for (auto &Edge : Successors)
+  for (auto &Edge : Successors())
     if (not Edge->verify(VH))
       return VH.fail();
 

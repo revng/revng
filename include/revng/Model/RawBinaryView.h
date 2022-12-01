@@ -81,7 +81,7 @@ public:
 
   std::optional<uint64_t>
   readInteger(MetaAddress Address, uint64_t Size) const {
-    auto Architecture = Binary.Architecture;
+    auto Architecture = Binary.Architecture();
     bool IsLittleEndian = model::Architecture::isLittleEndian(Architecture);
     return readInteger(Address, Size, IsLittleEndian);
   }
@@ -92,7 +92,8 @@ public:
     if (Segment == nullptr)
       return std::nullopt;
 
-    auto StartOffset = OverflowSafeInt(Segment->StartOffset) + OffsetInSegment;
+    auto StartOffset = OverflowSafeInt(Segment->StartOffset())
+                       + OffsetInSegment;
     auto Size = OverflowSafeInt(Segment->endOffset()) - StartOffset;
     if (not Size or not StartOffset)
       return std::nullopt;
@@ -108,7 +109,7 @@ public:
     if (Segment == nullptr) {
       return std::nullopt;
     } else {
-      auto Offset = OverflowSafeInt(Segment->StartOffset) + OffsetInSegment;
+      auto Offset = OverflowSafeInt(Segment->StartOffset()) + OffsetInSegment;
       if (not Offset)
         return std::nullopt;
 
@@ -122,8 +123,8 @@ public:
     using namespace model;
 
     const Segment *Match = nullptr;
-    for (const Segment &Segment : Binary.Segments) {
-      if (Segment.StartOffset <= Offset and Offset < Segment.endOffset()) {
+    for (const Segment &Segment : Binary.Segments()) {
+      if (Segment.StartOffset() <= Offset and Offset < Segment.endOffset()) {
         if (Match != nullptr) {
           // We have more than one match!
           Match = nullptr;
@@ -135,9 +136,9 @@ public:
     }
 
     if (Match != nullptr) {
-      auto OffsetInSegment = OverflowSafeInt(Offset) - Match->StartOffset;
+      auto OffsetInSegment = OverflowSafeInt(Offset) - Match->StartOffset();
       if (OffsetInSegment) {
-        return Match->StartAddress + *OffsetInSegment;
+        return Match->StartAddress() + *OffsetInSegment;
       }
     }
 
@@ -147,8 +148,8 @@ public:
   using SegmentDataPair = std::pair<const model::Segment &,
                                     llvm::ArrayRef<uint8_t>>;
   cppcoro::generator<SegmentDataPair> segments() const {
-    for (const model::Segment &Segment : Binary.Segments) {
-      auto MaybeData = getByOffset(Segment.StartOffset, Segment.FileSize);
+    for (const model::Segment &Segment : Binary.Segments()) {
+      auto MaybeData = getByOffset(Segment.StartOffset(), Segment.FileSize());
       if (MaybeData)
         co_yield SegmentDataPair(Segment, *MaybeData);
     }
@@ -158,7 +159,7 @@ private:
   std::pair<const model::Segment *, uint64_t>
   findOffsetInSegment(MetaAddress Address, uint64_t Size) const {
     const model::Segment *Match = nullptr;
-    for (const model::Segment &Segment : Binary.Segments) {
+    for (const model::Segment &Segment : Binary.Segments()) {
       if (Segment.contains(Address, Size)) {
 
         if (Match != nullptr) {
@@ -173,7 +174,7 @@ private:
 
     if (Match != nullptr) {
       auto Offset = OverflowSafeInt(Address.address())
-                    - Match->StartAddress.address();
+                    - Match->StartAddress().address();
       if (Offset)
         return { Match, *Offset };
     }

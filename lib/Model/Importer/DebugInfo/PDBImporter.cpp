@@ -383,7 +383,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
     QualifiedType TheUnderlyingType(*ReferencedTypeFromModel, Qualifiers);
 
     auto TheTypeTypeDef = cast<TypedefType>(TypeTypedef.get());
-    TheTypeTypeDef->UnderlyingType = TheUnderlyingType;
+    TheTypeTypeDef->UnderlyingType() = TheUnderlyingType;
 
     auto TypePath = Model->recordNewType(std::move(TypeTypedef));
     ProcessedTypes[CurrentTypeIndex] = TypePath;
@@ -416,7 +416,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
     QualifiedType TheUnderlyingType(*ElementTypeFromModel, Qualifiers);
 
     auto TheTypeTypeDef = cast<TypedefType>(TypeTypedef.get());
-    TheTypeTypeDef->UnderlyingType = TheUnderlyingType;
+    TheTypeTypeDef->UnderlyingType() = TheUnderlyingType;
 
     auto TypePath = Model->recordNewType(std::move(TypeTypedef));
     ProcessedTypes[CurrentTypeIndex] = TypePath;
@@ -447,7 +447,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
                                              Qualifiers);
 
       auto TheTypeTypeDef = cast<model::TypedefType>(TypeTypedef.get());
-      TheTypeTypeDef->UnderlyingType = TheUnderlyingType;
+      TheTypeTypeDef->UnderlyingType() = TheUnderlyingType;
 
       auto TypePath = Model->recordNewType(std::move(TypeTypedef));
       ProcessedTypes[CurrentTypeIndex] = TypePath;
@@ -494,13 +494,13 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
   // 0-sized structs are typedefed to void.
   if (not Class.getSize()) {
     auto TypeTypedef = makeType<TypedefType>();
-    TypeTypedef->OriginalName = Class.getName();
+    TypeTypedef->OriginalName() = Class.getName();
 
     using Values = model::PrimitiveTypeKind::Values;
     QualifiedType TheUnderlyingType(Model->getPrimitiveType(Values::Void, 0),
                                     {});
     auto TheTypeTypeDef = cast<TypedefType>(TypeTypedef.get());
-    TheTypeTypeDef->UnderlyingType = TheUnderlyingType;
+    TheTypeTypeDef->UnderlyingType() = TheUnderlyingType;
 
     auto TypePath = Model->recordNewType(std::move(TypeTypedef));
     ProcessedTypes[CurrentTypeIndex] = TypePath;
@@ -511,10 +511,10 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
   TypeIndex FieldsTypeIndex = Class.getFieldList();
   if (InProgressMemberTypes.count(FieldsTypeIndex)) {
     auto NewType = makeType<model::StructType>();
-    NewType->OriginalName = Class.getName();
+    NewType->OriginalName() = Class.getName();
     auto Struct = cast<model::StructType>(NewType.get());
 
-    Struct->Size = Class.getSize();
+    Struct->Size() = Class.getSize();
     auto &TheFields = InProgressMemberTypes[FieldsTypeIndex];
     uint64_t MaxOffset = 0;
 
@@ -552,16 +552,16 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
         // TODO: How is this posible?
         // Trigers:
         // `Last field ends outside the struct`.
-        if (CurrFieldOffset > Struct->Size) {
+        if (CurrFieldOffset > Struct->Size()) {
           revng_log(DILogger,
                     "Skipping struct field that is outside the struct.");
           continue;
         }
 
-        auto &FieldType = Struct->Fields[Offset];
-        FieldType.OriginalName = Field.getName().str();
+        auto &FieldType = Struct->Fields()[Offset];
+        FieldType.OriginalName() = Field.getName().str();
         QualifiedType TheUnderlyingType(*FiledTypeFromModel, {});
-        FieldType.Type = TheUnderlyingType;
+        FieldType.Type() = TheUnderlyingType;
       }
     }
     auto TypePath = Model->recordNewType(std::move(NewType));
@@ -589,10 +589,10 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
 
       auto NewType = makeType<CABIFunctionType>();
       auto TypeFunction = cast<CABIFunctionType>(NewType.get());
-      TypeFunction->ABI = Model->DefaultABI;
+      TypeFunction->ABI() = Model->DefaultABI();
 
       QualifiedType TheReturnType(*ReferencedTypeFromModel, {});
-      TypeFunction->ReturnType = TheReturnType;
+      TypeFunction->ReturnType() = TheReturnType;
 
       TypeIndex ArgListTyIndex = MemberFunction.getArgumentList();
       revng_assert(InProgressArgumentsTypes.count(ArgListTyIndex));
@@ -609,11 +609,11 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
           and ProcessedTypes.count(CurrentTypeIndex)) {
         auto MaybeSize = ProcessedTypes[CurrentTypeIndex].get()->size();
         if (MaybeSize and *MaybeSize != 0) {
-          Argument &NewArgument = TypeFunction->Arguments[Index];
-          auto PointerSize = getPointerSize(Model->Architecture);
+          Argument &NewArgument = TypeFunction->Arguments()[Index];
+          auto PointerSize = getPointerSize(Model->Architecture());
           QualifiedType TheType(ProcessedTypes[CurrentTypeIndex],
                                 { Qualifier::createPointer(PointerSize) });
-          NewArgument.Type = TheType;
+          NewArgument.Type() = TheType;
           ++Index;
         } else {
           revng_log(DILogger, "Skipping 0-sized argument.");
@@ -636,10 +636,10 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
             continue;
           }
 
-          Argument &NewArgument = TypeFunction->Arguments[Index];
+          Argument &NewArgument = TypeFunction->Arguments()[Index];
 
           QualifiedType TheUnderlyingType(*ArgumentTypeFromModel, {});
-          NewArgument.Type = TheUnderlyingType;
+          NewArgument.Type() = TheUnderlyingType;
           ++Index;
         }
       }
@@ -657,7 +657,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
                                                EnumRecord &Enum) {
   TypeIndex FieldsTypeIndex = Enum.getFieldList();
   auto NewType = model::makeType<model::EnumType>();
-  NewType->OriginalName = Enum.getName();
+  NewType->OriginalName() = Enum.getName();
 
   TypeIndex UnderlyingTypeIndex = Enum.getUnderlyingType();
   auto UnderlynigTypeFromModel = getModelTypeForIndex(UnderlyingTypeIndex);
@@ -670,15 +670,15 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
 
   model::QualifiedType TheUnderlyingType(*UnderlynigTypeFromModel, {});
   auto TypeEnum = cast<model::EnumType>(NewType.get());
-  TypeEnum->UnderlyingType = TheUnderlyingType;
+  TypeEnum->UnderlyingType() = TheUnderlyingType;
 
   auto &TheFields = InProgressEnumeratorTypes[FieldsTypeIndex];
   if (TheFields.empty())
     return Error::success();
 
   for (const auto &Entry : TheFields) {
-    auto &EnumEntry = TypeEnum->Entries[Entry.getValue().getExtValue()];
-    EnumEntry.OriginalName = Entry.getName().str();
+    auto &EnumEntry = TypeEnum->Entries()[Entry.getValue().getExtValue()];
+    EnumEntry.OriginalName() = Entry.getName().str();
   }
 
   auto TypePath = Model->recordNewType(std::move(NewType));
@@ -753,11 +753,11 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
   } else {
     auto NewType = model::makeType<model::CABIFunctionType>();
     auto TypeFunction = cast<model::CABIFunctionType>(NewType.get());
-    TypeFunction->ABI = getMicrosoftABI(Proc.getCallConv(),
-                                        Model->Architecture);
+    TypeFunction->ABI() = getMicrosoftABI(Proc.getCallConv(),
+                                          Model->Architecture());
 
     model::QualifiedType TheReturnType(*ReturnTypeFromModel, {});
-    TypeFunction->ReturnType = TheReturnType;
+    TypeFunction->ReturnType() = TheReturnType;
 
     TypeIndex ArgListTyIndex = Proc.getArgumentList();
     auto ArgumentList = InProgressArgumentsTypes[ArgListTyIndex];
@@ -781,10 +781,10 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
           continue;
         }
 
-        model::Argument &NewArgument = TypeFunction->Arguments[Index];
+        model::Argument &NewArgument = TypeFunction->Arguments()[Index];
         model::QualifiedType TheArgumentType(*ArgumentTypeFromModel, {});
 
-        NewArgument.Type = TheArgumentType;
+        NewArgument.Type() = TheArgumentType;
         ++Index;
       }
     }
@@ -801,7 +801,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
                                                UnionRecord &Union) {
   TypeIndex FieldsTypeIndex = Union.getFieldList();
   auto NewType = model::makeType<model::UnionType>();
-  NewType->OriginalName = Union.getName().str();
+  NewType->OriginalName() = Union.getName().str();
 
   uint64_t Index = 0;
   auto &TheFields = InProgressMemberTypes[FieldsTypeIndex];
@@ -810,13 +810,13 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
   // Typedef it to void.
   if (TheFields.size() == 0) {
     auto TypeTypedef = model::makeType<model::TypedefType>();
-    TypeTypedef->OriginalName = Union.getName().str();
+    TypeTypedef->OriginalName() = Union.getName().str();
 
     auto TheTypeTypeDef = cast<model::TypedefType>(TypeTypedef.get());
     using Values = model::PrimitiveTypeKind::Values;
     auto ThePrimitiveType = Model->getPrimitiveType(Values::Void, 0);
     model::QualifiedType TheUnderlyingType(ThePrimitiveType, {});
-    TheTypeTypeDef->UnderlyingType = TheUnderlyingType;
+    TheTypeTypeDef->UnderlyingType() = TheUnderlyingType;
 
     auto TypePath = Model->recordNewType(std::move(TypeTypedef));
     ProcessedTypes[CurrentTypeIndex] = TypePath;
@@ -843,10 +843,10 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
 
       GeneratedOneFieldAtleast = true;
       auto TypeUnion = cast<model::UnionType>(NewType.get());
-      auto &FieldType = TypeUnion->Fields[Index];
-      FieldType.OriginalName = Field.getName().str();
+      auto &FieldType = TypeUnion->Fields()[Index];
+      FieldType.OriginalName() = Field.getName().str();
       model::QualifiedType TheFieldType(*FiledTypeFromModel, {});
-      FieldType.Type = TheFieldType;
+      FieldType.Type() = TheFieldType;
 
       Index++;
     }
@@ -1066,7 +1066,7 @@ void PDBImporterTypeVisitor::createPrimitiveType(TypeIndex SimpleType) {
     auto TypeTypedef = makeType<TypedefType>();
     auto TheTypeTypeDef = cast<TypedefType>(TypeTypedef.get());
     QualifiedType TheUnderlyingType(VoidModelType, {});
-    TheTypeTypeDef->UnderlyingType = TheUnderlyingType;
+    TheTypeTypeDef->UnderlyingType() = TheUnderlyingType;
     ProcessedTypes[SimpleType] = VoidModelType;
   } else {
 
@@ -1095,7 +1095,7 @@ void PDBImporterTypeVisitor::createPrimitiveType(TypeIndex SimpleType) {
       Qualifiers.push_back({ Qualifier::createPointer(*PointerSize) });
 
       QualifiedType TheUnderlyingType(PrimitiveModelType, Qualifiers);
-      TheTypeTypeDef->UnderlyingType = TheUnderlyingType;
+      TheTypeTypeDef->UnderlyingType() = TheUnderlyingType;
 
       auto TypePath = Model->recordNewType(std::move(TypeTypedef));
       ProcessedTypes[SimpleType] = TypePath;
@@ -1132,29 +1132,29 @@ Error PDBImporterSymbolVisitor::visitSymbolBegin(CVSymbol &Record,
 Error PDBImporterSymbolVisitor::visitKnownRecord(CVSymbol &Record,
                                                  ProcSym &Proc) {
   // If it is not in the .idata already, we assume it is a static symbol.
-  if (not Model->ImportedDynamicFunctions.count(Proc.Name.str())) {
+  if (not Model->ImportedDynamicFunctions().count(Proc.Name.str())) {
     uint64_t FunctionVirtualAddress = Session
                                         .getRVAFromSectOffset(Proc.Segment,
                                                               Proc.CodeOffset);
     // Relocate the symbol.
     MetaAddress FunctionAddress = ImageBase + FunctionVirtualAddress;
 
-    if (not Model->Functions.count(FunctionAddress)) {
-      model::Function &Function = Model->Functions[FunctionAddress];
-      Function.OriginalName = Proc.Name;
+    if (not Model->Functions().count(FunctionAddress)) {
+      model::Function &Function = Model->Functions()[FunctionAddress];
+      Function.OriginalName() = Proc.Name;
       TypeIndex FunctionTypeIndex = Proc.FunctionType;
       if (ProcessedTypes.count(FunctionTypeIndex)) {
         model::QualifiedType ThePrototype(ProcessedTypes[FunctionTypeIndex],
                                           {});
-        Function.Prototype = ThePrototype.UnqualifiedType;
+        Function.Prototype() = ThePrototype.UnqualifiedType();
       }
     } else {
-      auto It = Model->Functions.find(FunctionAddress);
+      auto It = Model->Functions().find(FunctionAddress);
       TypeIndex FunctionTypeIndex = Proc.FunctionType;
       if (ProcessedTypes.count(FunctionTypeIndex)) {
         model::QualifiedType ThePrototype(ProcessedTypes[FunctionTypeIndex],
                                           {});
-        It->Prototype = ThePrototype.UnqualifiedType;
+        It->Prototype() = ThePrototype.UnqualifiedType();
       }
     }
   }

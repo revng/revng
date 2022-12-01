@@ -140,8 +140,8 @@ public:
     // traversal (leafs first).
     runInterproceduralAnalysis();
 
-    for (model::Function &Function : Binary->Functions)
-      analyzeABI(GCBI.getBlockAt(Function.Entry));
+    for (model::Function &Function : Binary->Functions())
+      analyzeABI(GCBI.getBlockAt(Function.Entry()));
 
     // Propagate results between call-sites and functions
     interproceduralPropagation();
@@ -193,8 +193,8 @@ void DetectABI::initializeInterproceduralQueue() {
 
     // The intraprocedural analysis will be scheduled only for those functions
     // which have `Invalid` as type.
-    auto &Function = Binary->Functions.at(Node->Address);
-    if (not Function.Prototype.isValid())
+    auto &Function = Binary->Functions().at(Node->Address);
+    if (not Function.Prototype().isValid())
       EntrypointsQueue.insert(Node);
   }
 }
@@ -209,16 +209,16 @@ void DetectABI::computeApproximateCallGraph() {
   llvm::SmallVector<BasicBlock *, 8> Worklist;
 
   // Create an over-approximated call graph
-  for (const auto &Function : Binary->Functions) {
-    auto *Entry = GCBI.getBlockAt(Function.Entry);
-    BasicBlockNode Node{ Function.Entry };
+  for (const auto &Function : Binary->Functions()) {
+    auto *Entry = GCBI.getBlockAt(Function.Entry());
+    BasicBlockNode Node{ Function.Entry() };
     BasicBlockNode *GraphNode = ApproximateCallGraph.addNode(Node);
     BasicBlockNodeMap[Entry] = GraphNode;
   }
 
-  for (const auto &Function : Binary->Functions) {
+  for (const auto &Function : Binary->Functions()) {
     llvm::SmallSet<BasicBlock *, 8> Visited;
-    auto *Entry = GCBI.getBlockAt(Function.Entry);
+    auto *Entry = GCBI.getBlockAt(Function.Entry());
     BasicBlockNode *StartNode = BasicBlockNodeMap[Entry];
     revng_assert(StartNode != nullptr);
     Worklist.emplace_back(Entry);
@@ -278,12 +278,12 @@ DetectABI::buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
   auto NewType = makeType<RawFunctionType>();
   auto &CallType = *llvm::cast<RawFunctionType>(NewType.get());
   {
-    auto ArgumentsInserter = CallType.Arguments.batch_insert();
-    auto ReturnValuesInserter = CallType.ReturnValues.batch_insert();
+    auto ArgumentsInserter = CallType.Arguments().batch_insert();
+    auto ReturnValuesInserter = CallType.ReturnValues().batch_insert();
 
     bool Found = false;
     for (const auto &[PC, CallSites] : CallerSummary.ABIResults.CallSites) {
-      if (PC != CallerBlock.Start)
+      if (PC != CallerBlock.Start())
         continue;
 
       revng_assert(!Found);
@@ -298,7 +298,7 @@ DetectABI::buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
         RegisterState RSRV = RV == nullptr ? RegisterState::Maybe : RV->second;
 
         auto RegisterID = model::Register::fromCSVName(CSV->getName(),
-                                                       Binary->Architecture);
+                                                       Binary->Architecture());
         if (RegisterID == Register::Invalid || CSV == GCBI.spReg())
           continue;
 
@@ -310,13 +310,13 @@ DetectABI::buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
 
         if (abi::RegisterState::shouldEmit(RSArg)) {
           NamedTypedRegister TR(RegisterID);
-          TR.Type = { GenericType, {} };
+          TR.Type() = { GenericType, {} };
           ArgumentsInserter.insert(TR);
         }
 
         if (abi::RegisterState::shouldEmit(RSRV)) {
           TypedRegister TR(RegisterID);
-          TR.Type = { GenericType, {} };
+          TR.Type() = { GenericType, {} };
           ReturnValuesInserter.insert(TR);
         }
       }
@@ -326,10 +326,10 @@ DetectABI::buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
     // Import FinalStackOffset and CalleeSavedRegisters from the default
     // prototype
     const FunctionSummary &DefaultSummary = Oracle.getDefault();
-    const auto &ClobberedRegisters = DefaultSummary.ClobberedRegisters;
-    CallType.PreservedRegisters = computePreservedRegisters(ClobberedRegisters);
+    const auto &Clobbered = DefaultSummary.ClobberedRegisters;
+    CallType.PreservedRegisters() = computePreservedRegisters(Clobbered);
 
-    CallType.FinalStackOffset = DefaultSummary.ElectedFSO.value_or(0);
+    CallType.FinalStackOffset() = DefaultSummary.ElectedFSO.value_or(0);
   }
 
   return NewType;
@@ -342,23 +342,23 @@ void DetectABI::finalizeModel() {
 
   // Fill up the model and build its prototype for each function
   std::set<model::Function *> Functions;
-  for (model::Function &Function : Binary->Functions) {
+  for (model::Function &Function : Binary->Functions()) {
     // Ignore if we already have a prototype
-    if (Function.Prototype.isValid())
+    if (Function.Prototype().isValid())
       continue;
 
-    MetaAddress EntryPC = Function.Entry;
+    MetaAddress EntryPC = Function.Entry();
     revng_assert(EntryPC.isValid());
     auto &Summary = Oracle.getLocalFunction(EntryPC);
 
     // Replace function attributes
-    Function.Attributes = Summary.Attributes;
+    Function.Attributes() = Summary.Attributes;
 
     auto NewType = makeType<RawFunctionType>();
     auto &FunctionType = *llvm::cast<RawFunctionType>(NewType.get());
     {
-      auto ArgumentsInserter = FunctionType.Arguments.batch_insert();
-      auto ReturnValuesInserter = FunctionType.ReturnValues.batch_insert();
+      auto ArgumentsInserter = FunctionType.Arguments().batch_insert();
+      auto ReturnValuesInserter = FunctionType.ReturnValues().batch_insert();
 
       // Argument and return values
       for (const auto &[Arg, RV] :
@@ -370,7 +370,7 @@ void DetectABI::finalizeModel() {
         RegisterState RSRV = RV == nullptr ? RegisterState::Maybe : RV->second;
 
         auto RegisterID = model::Register::fromCSVName(CSV->getName(),
-                                                       Binary->Architecture);
+                                                       Binary->Architecture());
         if (RegisterID == Register::Invalid || CSV == GCBI.spReg())
           continue;
 
@@ -379,7 +379,7 @@ void DetectABI::finalizeModel() {
 
         if (abi::RegisterState::shouldEmit(RSArg)) {
           NamedTypedRegister TR(RegisterID);
-          TR.Type = {
+          TR.Type() = {
             Binary->getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
           };
           ArgumentsInserter.insert(TR);
@@ -387,7 +387,7 @@ void DetectABI::finalizeModel() {
 
         if (abi::RegisterState::shouldEmit(RSRV)) {
           TypedRegister TR(RegisterID);
-          TR.Type = {
+          TR.Type() = {
             Binary->getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
           };
           ReturnValuesInserter.insert(TR);
@@ -397,26 +397,26 @@ void DetectABI::finalizeModel() {
       // Preserved registers
       const auto &ClobberedRegisters = Summary.ClobberedRegisters;
       auto PreservedRegisters = computePreservedRegisters(ClobberedRegisters);
-      FunctionType.PreservedRegisters = std::move(PreservedRegisters);
+      FunctionType.PreservedRegisters() = std::move(PreservedRegisters);
 
       // Final stack offset
-      FunctionType.FinalStackOffset = Summary.ElectedFSO.value_or(0);
+      FunctionType.FinalStackOffset() = Summary.ElectedFSO.value_or(0);
     }
 
-    Function.Prototype = Binary->recordNewType(std::move(NewType));
+    Function.Prototype() = Binary->recordNewType(std::move(NewType));
     Functions.insert(&Function);
   }
 
   // Build prototype for indirect function calls
   for (auto &Function : Functions) {
-    auto &Summary = Oracle.getLocalFunction(Function->Entry);
+    auto &Summary = Oracle.getLocalFunction(Function->Entry());
     for (auto &Block : Summary.CFG) {
-      for (auto &Edge : Block.Successors) {
+      for (auto &Edge : Block.Successors()) {
         if (auto *CE = llvm::dyn_cast<efa::CallEdge>(Edge.get())) {
-          auto &CallSitePrototypes = Function->CallSitePrototypes;
-          bool IsDirect = CE->Destination.isValid();
-          bool IsDynamic = not CE->DynamicFunction.empty();
-          bool HasInfoOnEdge = CallSitePrototypes.count(Block.Start) != 0;
+          auto &CallSitePrototypes = Function->CallSitePrototypes();
+          bool IsDirect = CE->Destination().isValid();
+          bool IsDynamic = not CE->DynamicFunction().empty();
+          bool HasInfoOnEdge = CallSitePrototypes.count(Block.Start()) != 0;
           if (not IsDynamic and not IsDirect and not HasInfoOnEdge) {
             // It's an indirect call for which we have now call site information
             auto Prototype = buildPrototypeForIndirectCall(Summary, Block);
@@ -428,17 +428,17 @@ void DetectABI::finalizeModel() {
             AttributesSet Attributes = {};
 
             // Register new prototype
-            model::CallSitePrototype ThePrototype(Block.Start,
+            model::CallSitePrototype ThePrototype(Block.Start(),
                                                   Path,
                                                   IsTailCall,
                                                   Attributes);
-            Function->CallSitePrototypes.insert(std::move(ThePrototype));
+            Function->CallSitePrototypes().insert(std::move(ThePrototype));
           }
         }
       }
     }
 
-    efa::FunctionMetadata FM(Function->Entry, Summary.CFG);
+    efa::FunctionMetadata FM(Function->Entry(), Summary.CFG);
     FM.verify(*Binary, true);
   }
 
@@ -461,10 +461,10 @@ static void combineCrossCallSites(auto &CallSite, auto &Callee) {
 
 /// Perform cross-call site propagation
 void DetectABI::interproceduralPropagation() {
-  for (const model::Function &Function : Binary->Functions) {
-    auto &Summary = Oracle.getLocalFunction(Function.Entry);
+  for (const model::Function &Function : Binary->Functions()) {
+    auto &Summary = Oracle.getLocalFunction(Function.Entry());
     for (auto &[PC, CallSite] : Summary.ABIResults.CallSites) {
-      if (PC == Function.Entry)
+      if (PC == Function.Entry())
         combineCrossCallSites(CallSite, Summary.ABIResults);
     }
   }
@@ -492,8 +492,8 @@ DetectABI::tryGetRegisterState(model::Register::Values RegisterValue,
 
 void DetectABI::initializeMapForDeductions(FunctionSummary &Summary,
                                            abi::RegisterState::Map &Map) {
-  auto Arch = model::ABI::getArchitecture(Binary->DefaultABI);
-  revng_assert(Arch == Binary->Architecture);
+  auto Arch = model::ABI::getArchitecture(Binary->DefaultABI());
+  revng_assert(Arch == Binary->Architecture());
 
   for (const auto &Reg : model::Architecture::registers(Arch)) {
     const auto &ArgRegisters = Summary.ABIResults.ArgumentsRegisters;
@@ -513,19 +513,21 @@ void DetectABI::applyABIDeductions() {
   if (ABIEnforcement == NoABIEnforcement)
     return;
 
-  for (const model::Function &Function : Binary->Functions) {
-    auto &Summary = Oracle.getLocalFunction(Function.Entry);
+  for (const model::Function &Function : Binary->Functions()) {
+    auto &Summary = Oracle.getLocalFunction(Function.Entry());
 
-    RegisterState::Map StateMap(Binary->Architecture);
+    RegisterState::Map StateMap(Binary->Architecture());
     initializeMapForDeductions(Summary, StateMap);
 
     bool EnforceABIConformance = ABIEnforcement == FullABIEnforcement;
     std::optional<abi::RegisterState::Map> ResultMap;
 
     if (EnforceABIConformance) {
-      ResultMap = enforceRegisterStateDeductions(StateMap, Binary->DefaultABI);
+      ResultMap = enforceRegisterStateDeductions(StateMap,
+                                                 Binary->DefaultABI());
     } else {
-      ResultMap = tryApplyRegisterStateDeductions(StateMap, Binary->DefaultABI);
+      ResultMap = tryApplyRegisterStateDeductions(StateMap,
+                                                  Binary->DefaultABI());
     }
 
     if (!ResultMap.has_value())
@@ -546,10 +548,10 @@ void DetectABI::applyABIDeductions() {
 
         // ABI-refined results per indirect call-site
         for (auto &Block : Summary.CFG) {
-          for (auto &Edge : Block.Successors) {
-            if (efa::FunctionEdgeType::isCall(Edge->Type)
-                && Edge->Type != efa::FunctionEdgeType::FunctionCall) {
-              auto &CSSummary = Summary.ABIResults.CallSites.at(Block.Start);
+          for (auto &Edge : Block.Successors()) {
+            if (efa::FunctionEdgeType::isCall(Edge->Type())
+                && Edge->Type() != efa::FunctionEdgeType::FunctionCall) {
+              auto &CSSummary = Summary.ABIResults.CallSites.at(Block.Start());
 
               if (CSSummary.ArgumentsRegisters.count(CSV) != 0)
                 CSSummary.ArgumentsRegisters[CSV] = MaybeArg;
@@ -563,7 +565,7 @@ void DetectABI::applyABIDeductions() {
     }
 
     if (Log.isEnabled()) {
-      Log << "Summary for " << Function.OriginalName << ":\n";
+      Log << "Summary for " << Function.OriginalName() << ":\n";
       Summary.dump(Log);
       Log << DoLog;
     }
@@ -612,7 +614,7 @@ DetectABI::computePreservedRegisters(const CSVSet &ClobberedRegisters) const {
   auto PreservedRegistersInserter = Result.batch_insert();
   for (auto *CSV : PreservedRegisters) {
     auto RegisterID = model::Register::fromCSVName(CSV->getName(),
-                                                   Binary->Architecture);
+                                                   Binary->Architecture());
     if (RegisterID == Register::Invalid)
       continue;
 
@@ -761,7 +763,7 @@ void DetectABI::runInterproceduralAnalysis() {
           if (IsInline)
             InlineFunctionWorklist.insert(Caller);
 
-          if (not Binary->Functions.at(CallerPC).Prototype.isValid()) {
+          if (not Binary->Functions().at(CallerPC).Prototype().isValid()) {
             revng_log(Log, CallerPC.toString());
             EntrypointsQueue.insert(Caller);
           }

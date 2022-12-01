@@ -51,9 +51,9 @@ BOOST_AUTO_TEST_CASE(MetaAddressAsTheKey) {
 
 static model::TypePath makeFunction(model::Binary &Model) {
   model::CABIFunctionType Function;
-  Function.CustomName = "my_cool_func";
-  Function.OriginalName = "Function_at_0x40012f:Code_x86_64";
-  Function.ABI = model::ABI::SystemV_x86_64;
+  Function.CustomName() = "my_cool_func";
+  Function.OriginalName() = "Function_at_0x40012f:Code_x86_64";
+  Function.ABI() = model::ABI::SystemV_x86_64;
 
   using UT = model::UpcastableType;
   auto Ptr = UT::make<model::CABIFunctionType>(std::move(Function));

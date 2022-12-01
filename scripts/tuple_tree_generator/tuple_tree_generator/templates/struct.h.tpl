@@ -31,8 +31,21 @@ struct /*= struct | fullname =*/
   /**- for field in struct.fields **/
   /*= field.doc | docstring =*/
   /**- if field.const **/const /** endif -**/
-  /*= field | field_type =*/ /*= field.name =*/ = /*= field | field_type =*/{};
+private:
+  /*= field | field_type =*/ The/*= field.name =*/ = /*= field | field_type =*/{};
   static_assert(Yamlizable</*= field | field_type =*/>);
+
+public:
+  using /*= field.name =*/Type = /*= field | field_type =*/;
+
+public:
+  const /*= field | field_type =*/ & /*= field.name =*/() const {
+    return The/*= field.name =*/;
+  }
+
+  /*= field | field_type =*/ & /*= field.name =*/() {
+    return The/*= field.name =*/;
+  }
   /**- endfor **/
 
   /*# --- Default constructor --- #*/
@@ -40,10 +53,10 @@ struct /*= struct | fullname =*/
   /*= struct.name =*/() :
     /**- if struct.inherits **//*= struct.inherits.name =*/()/** endif **/
     /**- for field in struct.fields **/
-    /**- if not loop.first or struct.inherits **/, /** endif **//*= field.name =*/()
+    /**- if not loop.first or struct.inherits **/, /** endif **/The/*= field.name =*/()
     /**- endfor **/ {
       /**- if struct.inherits -**/
-      Kind = AssociatedKind;
+      Kind() = AssociatedKind;
       /**- endif -**/
     }
 
@@ -63,11 +76,11 @@ struct /*= struct | fullname =*/
     )
     /**- else **/
     /**- for field in struct.key_fields **/
-    /*=- field.name =*/(/*= field.name =*/)/** if not loop.last **/, /** endif **/
+    The/*=- field.name =*/(/*= field.name =*/)/** if not loop.last **/, /** endif **/
     /**- endfor **/
     /**- endif **/ {
       /**- if struct.inherits and not 'Kind' in struct.key_fields | map(attribute='name') -**/
-      Kind = AssociatedKind;
+      Kind() = AssociatedKind;
       /**- endif -**/
     }
   /** endif **/
@@ -99,7 +112,7 @@ struct /*= struct | fullname =*/
 
     /*#- Initialize own fields #*/
     /**- for field in struct.fields **/
-    /*=- field.name =*/(/*= field.name =*/)/** if not loop.last **/, /** endif **/
+    The/*=- field.name =*/(/*= field.name =*/)/** if not loop.last **/, /** endif **/
     /**- endfor **/ {}
   /** endif **/
 
@@ -120,7 +133,7 @@ struct /*= struct | fullname =*/
   Key key() const {
     return Key {
       /**- for key_field in struct.key_fields -**/
-      /*= key_field.name =*//** if not loop.last **/, /** endif **/
+      /*= key_field.name =*/()/** if not loop.last **/, /** endif **/
       /**- endfor -**/
     };
   }

@@ -33,7 +33,7 @@ public:
   using generated::Section::Section;
 
 public:
-  MetaAddress endAddress() const { return StartAddress + Size; }
+  MetaAddress endAddress() const { return StartAddress() + Size(); }
 
 public:
   bool verify() const debug_function;
