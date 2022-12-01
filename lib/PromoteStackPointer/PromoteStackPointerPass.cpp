@@ -21,6 +21,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 
+#include "revng/ABI/FunctionType.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/LoadModelPass.h"
@@ -62,15 +63,16 @@ static bool adjustStackAfterCalls(FunctionMetadataCache &Cache,
                                               cast<CallInst>(&I),
                                               &ModelFunction)
                         .get();
-        if (auto *RawPrototype = dyn_cast<model::RawFunctionType>(Proto)) {
-          auto *FSO = ConstantInt::get(SPType, RawPrototype->FinalStackOffset);
 
-          // We found a function call
-          Changed = true;
+        using Layout = abi::FunctionType::Layout;
+        auto TheLayout = Layout::make(*Proto);
+        auto *FSO = ConstantInt::get(SPType, TheLayout.FinalStackOffset);
 
-          B.SetInsertPoint(I.getNextNode());
-          B.CreateStore(B.CreateAdd(B.CreateLoad(GlobalSP), FSO), GlobalSP);
-        }
+        // We found a function call
+        Changed = true;
+
+        B.SetInsertPoint(I.getNextNode());
+        B.CreateStore(B.CreateAdd(B.CreateLoad(GlobalSP), FSO), GlobalSP);
       }
     }
   }
