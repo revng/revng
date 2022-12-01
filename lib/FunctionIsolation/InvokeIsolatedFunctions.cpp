@@ -63,12 +63,12 @@ public:
     Context(M->getContext()),
     GCBI(GCBI) {
 
-    for (const model::Function &Function : Binary.Functions) {
+    for (const model::Function &Function : Binary.Functions()) {
       // TODO: this temporary
       auto Name = (Twine("local_") + Function.name()).str();
       llvm::Function *F = M->getFunction(Name);
       revng_assert(F != nullptr);
-      Map[Function.Entry] = { &Function, nullptr, F };
+      Map[Function.Entry()] = { &Function, nullptr, F };
     }
 
     for (BasicBlock &BB : *RootFunction) {
@@ -154,7 +154,7 @@ public:
     RootFunction->setPersonalityFn(PersonalityFunction);
 
     for (auto [_, T] : Map) {
-      auto [ModelFunction, BB, F] = T;
+      auto [ModelF, BB, F] = T;
 
       // Create a new trampoline entry block and substitute it to the old entry
       // block
@@ -167,7 +167,7 @@ public:
       // In case the isolated functions has arguments, provide them
       SmallVector<Value *, 4> Arguments;
       if (F->getFunctionType()->getNumParams() > 0) {
-        auto Layout = abi::FunctionType::Layout::make(ModelFunction->Prototype);
+        auto Layout = abi::FunctionType::Layout::make(ModelF->Prototype());
         for (const auto &ArgumentLayout : Layout.Arguments) {
           for (model::Register::Values Register : ArgumentLayout.Registers) {
             auto Name = model::Register::getCSVName(Register);

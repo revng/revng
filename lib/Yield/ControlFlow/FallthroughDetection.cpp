@@ -17,12 +17,13 @@ yield::cfg::detectFallthrough(const yield::BasicBlock &BasicBlock,
                               const model::Binary &Binary) {
   const yield::BasicBlock *Result = nullptr;
 
-  for (const auto &Edge : BasicBlock.Successors) {
-    auto [NextAddress, _] = efa::parseSuccessor(*Edge, BasicBlock.End, Binary);
-    if (NextAddress.isValid() && NextAddress == BasicBlock.End) {
-      if (auto Iterator = Function.ControlFlowGraph.find(NextAddress);
-          Iterator != Function.ControlFlowGraph.end()) {
-        if (Iterator->IsLabelAlwaysRequired == false) {
+  for (const auto &Edge : BasicBlock.Successors()) {
+    auto [NextAddress,
+          _] = efa::parseSuccessor(*Edge, BasicBlock.End(), Binary);
+    if (NextAddress.isValid() && NextAddress == BasicBlock.End()) {
+      if (auto Iterator = Function.ControlFlowGraph().find(NextAddress);
+          Iterator != Function.ControlFlowGraph().end()) {
+        if (Iterator->IsLabelAlwaysRequired() == false) {
           revng_assert(Result == nullptr,
                        "Multiple targets with the same address");
           Result = &*Iterator;
@@ -39,7 +40,7 @@ yield::cfg::labeledBlock(const yield::BasicBlock &BasicBlock,
                          const yield::Function &Function,
                          const model::Binary &Binary) {
   // Blocks that are a part of another labeled block cannot start a new one.
-  if (BasicBlock.IsLabelAlwaysRequired == false)
+  if (BasicBlock.IsLabelAlwaysRequired() == false)
     return {};
 
   llvm::SmallVector<const yield::BasicBlock *, 8> Result = { &BasicBlock };

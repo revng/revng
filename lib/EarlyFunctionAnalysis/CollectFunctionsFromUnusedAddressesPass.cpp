@@ -35,8 +35,8 @@ public:
 
 private:
   void loadAllCFGs(FunctionMetadataCache &MDCache) {
-    for (auto &Function : Binary.Functions) {
-      llvm::BasicBlock *Entry = GCBI.getBlockAt(Function.Entry);
+    for (auto &Function : Binary.Functions()) {
+      llvm::BasicBlock *Entry = GCBI.getBlockAt(Function.Entry());
       llvm::Instruction *Term = Entry->getTerminator();
       auto *FMMDNode = Term->getMetadata(FunctionMetadataMDName);
       // CFG not serialized for this function? Skip it
@@ -44,8 +44,8 @@ private:
         continue;
 
       const efa::FunctionMetadata &FM = MDCache.getFunctionMetadata(Entry);
-      for (const efa::BasicBlock &Block : FM.ControlFlowGraph)
-        VisitedBlocks.insert(Block.Start);
+      for (const efa::BasicBlock &Block : FM.ControlFlowGraph())
+        VisitedBlocks.insert(Block.Start());
     }
   }
 
@@ -58,7 +58,7 @@ private:
         continue;
 
       MetaAddress Entry = GCBI.getJumpTarget(&BB);
-      if (Binary.Functions.find(Entry) != Binary.Functions.end())
+      if (Binary.Functions().find(Entry) != Binary.Functions().end())
         continue;
 
       uint32_t Reasons = GCBI.getJTReasons(&BB);
@@ -79,7 +79,7 @@ private:
         // Consider addresses found in global data that have not been used or
         // addresses that are not return addresses and do not end up in the PC
         // directly.
-        Binary.Functions[Entry];
+        Binary.Functions()[Entry];
         revng_log(Log,
                   "Found function from unused addresses: "
                     << BB.getName().str());

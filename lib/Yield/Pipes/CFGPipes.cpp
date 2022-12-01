@@ -23,9 +23,9 @@ void YieldControlFlow::run(pipeline::Context &Context,
   for (auto [Address, S] : Input) {
     auto MaybeFunction = TupleTree<yield::Function>::deserialize(S);
     revng_assert(MaybeFunction && MaybeFunction->verify());
-    revng_assert((*MaybeFunction)->Entry == Address);
+    revng_assert((*MaybeFunction)->Entry() == Address);
 
-    Output.insert_or_assign((*MaybeFunction)->Entry,
+    Output.insert_or_assign((*MaybeFunction)->Entry(),
                             yield::svg::controlFlowGraph(**MaybeFunction,
                                                          *Model));
   }

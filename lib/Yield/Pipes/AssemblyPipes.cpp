@@ -45,12 +45,12 @@ void ProcessAssembly::run(pipeline::Context &Context,
   FunctionMetadataCache Cache;
   for (const auto &LLVMFunction : FunctionTags::Isolated.functions(&Module)) {
     const auto &Metadata = Cache.getFunctionMetadata(&LLVMFunction);
-    auto ModelFunctionIterator = Model->Functions.find(Metadata.Entry);
-    revng_assert(ModelFunctionIterator != Model->Functions.end());
+    auto ModelFunctionIterator = Model->Functions().find(Metadata.Entry());
+    revng_assert(ModelFunctionIterator != Model->Functions().end());
 
     const auto &Func = *ModelFunctionIterator;
     auto Disassembled = Helper.disassemble(Func, Metadata, BinaryView, *Model);
-    Output.insert_or_assign(Func.Entry, serializeToString(Disassembled));
+    Output.insert_or_assign(Func.Entry(), serializeToString(Disassembled));
   }
 }
 
@@ -69,9 +69,9 @@ void YieldAssembly::run(pipeline::Context &Context,
   for (auto [Address, S] : Input) {
     auto MaybeFunction = TupleTree<yield::Function>::deserialize(S);
     revng_assert(MaybeFunction && MaybeFunction->verify());
-    revng_assert((*MaybeFunction)->Entry == Address);
+    revng_assert((*MaybeFunction)->Entry() == Address);
 
-    Output.insert_or_assign((*MaybeFunction)->Entry,
+    Output.insert_or_assign((*MaybeFunction)->Entry(),
                             yield::ptml::functionAssembly(**MaybeFunction,
                                                           *Model));
   }

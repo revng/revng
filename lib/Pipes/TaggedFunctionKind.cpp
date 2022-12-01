@@ -61,7 +61,7 @@ void TaggedFK::getInvalidations(const Context &Ctx,
 void TaggedFunctionKind::appendAllTargets(const pipeline::Context &Ctx,
                                           pipeline::TargetsList &Out) const {
   const auto &Model = getModelFromContext(Ctx);
-  for (const auto &Function : Model->Functions) {
-    Out.push_back(Target(Function.Entry.toString(), *this));
+  for (const auto &Function : Model->Functions()) {
+    Out.push_back(Target(Function.Entry().toString(), *this));
   }
 }

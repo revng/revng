@@ -116,7 +116,7 @@ bool LiftPass::runOnModule(llvm::Module &M) {
   const auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
   const TupleTree<model::Binary> &Model = ModelWrapper.getReadOnlyModel();
 
-  findFiles(Model->Architecture);
+  findFiles(Model->Architecture());
 
   // Load the appropriate libtyncode version
   LibraryPointer PTCLibrary;

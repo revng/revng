@@ -20,7 +20,7 @@ void convertAllFunctionsToCABI(TupleTree<model::Binary> &Model,
 ///
 /// Internally uses `model::convertToCABIFunctionType`.
 inline void convertAllFunctionsToCABI(TupleTree<model::Binary> &Model) {
-  convertAllFunctionsToCABI(Model, Model->DefaultABI);
+  convertAllFunctionsToCABI(Model, Model->DefaultABI());
 }
 
 /// Tries to convert all the `model::CABIFunctionType`s within the input `Model`

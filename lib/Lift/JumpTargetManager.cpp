@@ -434,25 +434,25 @@ JumpTargetManager::readFromPointer(Constant *Pointer, bool IsLittleEndian) {
 
   // Check dynamic functions-related relocations
   for (const model::DynamicFunction &Function :
-       Model->ImportedDynamicFunctions) {
-    for (const model::Relocation &Relocation : Function.Relocations) {
-      uint64_t Addend = Relocation.Addend;
-      auto RelocationSize = model::RelocationType::getSize(Relocation.Type);
-      if (LoadAddress == Relocation.Address and LoadSize == RelocationSize) {
+       Model->ImportedDynamicFunctions()) {
+    for (const model::Relocation &Relocation : Function.Relocations()) {
+      uint64_t Addend = Relocation.Addend();
+      auto RelocationSize = model::RelocationType::getSize(Relocation.Type());
+      if (LoadAddress == Relocation.Address() and LoadSize == RelocationSize) {
         revng_assert(not StringRef(Function.name()).contains('\0'));
-        Result = { Function.OriginalName, NewAPInt(Addend) };
+        Result = { Function.OriginalName(), NewAPInt(Addend) };
         ++MatchCount;
       }
     }
   }
 
   // Check segment-related relocations
-  for (const model::Segment &Segment : Model->Segments) {
-    for (const model::Relocation &Relocation : Segment.Relocations) {
-      uint64_t Addend = Relocation.Addend;
-      auto RelocationSize = model::RelocationType::getSize(Relocation.Type);
-      if (LoadAddress == Relocation.Address and LoadSize == RelocationSize) {
-        MetaAddress Address = Segment.StartAddress + Addend;
+  for (const model::Segment &Segment : Model->Segments()) {
+    for (const model::Relocation &Relocation : Segment.Relocations()) {
+      uint64_t Addend = Relocation.Addend();
+      auto RelocationSize = model::RelocationType::getSize(Relocation.Type());
+      if (LoadAddress == Relocation.Address() and LoadSize == RelocationSize) {
+        MetaAddress Address = Segment.StartAddress() + Addend;
         if (Address.isValid()) {
           Result = { NewAPInt(Address.address()) };
           ++MatchCount;
@@ -511,17 +511,17 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   //
   // Collect executable ranges from the model
   //
-  for (const model::Segment &Segment : Model->Segments) {
-    if (Segment.IsExecutable) {
-      if (Segment.Sections.size() > 0) {
-        for (const model::Section &Section : Segment.Sections) {
-          if (Section.ContainsCode) {
-            ExecutableRanges.emplace_back(Section.StartAddress,
+  for (const model::Segment &Segment : Model->Segments()) {
+    if (Segment.IsExecutable()) {
+      if (Segment.Sections().size() > 0) {
+        for (const model::Section &Section : Segment.Sections()) {
+          if (Section.ContainsCode()) {
+            ExecutableRanges.emplace_back(Section.StartAddress(),
                                           Section.endAddress());
           }
         }
       } else {
-        ExecutableRanges.emplace_back(Segment.StartAddress,
+        ExecutableRanges.emplace_back(Segment.StartAddress(),
                                       Segment.endAddress());
       }
     }
@@ -537,21 +537,21 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
 
 void JumpTargetManager::harvestGlobalData() {
   // Register symbols
-  for (const model::Function &Function : Model->Functions)
-    registerJT(Function.Entry, JTReason::FunctionSymbol);
+  for (const model::Function &Function : Model->Functions())
+    registerJT(Function.Entry(), JTReason::FunctionSymbol);
 
   // Register ExtraCodeAddresses
-  for (MetaAddress Address : Model->ExtraCodeAddresses)
+  for (MetaAddress Address : Model->ExtraCodeAddresses())
     registerJT(Address, JTReason::GlobalData);
 
   for (auto &[Segment, Data] : BinaryView.segments()) {
-    MetaAddress StartVirtualAddress = Segment.StartAddress;
+    MetaAddress StartVirtualAddress = Segment.StartAddress();
     const unsigned char *DataStart = Data.begin();
     const unsigned char *DataEnd = Data.end();
 
     using namespace model::Architecture;
-    bool IsLittleEndian = isLittleEndian(Model->Architecture);
-    auto PointerSize = getPointerSize(Model->Architecture);
+    bool IsLittleEndian = isLittleEndian(Model->Architecture());
+    auto PointerSize = getPointerSize(Model->Architecture());
     using endianness = support::endianness;
     if (PointerSize == 8) {
       if (IsLittleEndian)
@@ -1507,13 +1507,14 @@ void JumpTargetManager::harvestWithAVI() {
       revng_assert(BB->getTerminator() != nullptr);
       Builder.SetInsertPoint(BB->getFirstNonPHI());
 
-      for (const model::Segment &Segment : Model->Segments) {
+      for (const model::Segment &Segment : Model->Segments()) {
         if (Segment.contains(getBasicBlockPC(BB))) {
-          for (const auto &CanonicalValue : Segment.CanonicalRegisterValues) {
-            auto Name = model::Register::getCSVName(CanonicalValue.Register);
+          for (const auto &CanonicalValue : Segment.CanonicalRegisterValues()) {
+            auto Name = model::Register::getCSVName(CanonicalValue.Register());
             if (auto *CSV = M->getGlobalVariable(Name)) {
               auto *Type = getCSVType(CSV);
-              Builder.CreateStore(ConstantInt::get(Type, CanonicalValue.Value),
+              Builder.CreateStore(ConstantInt::get(Type,
+                                                   CanonicalValue.Value()),
                                   CSV);
             }
           }
@@ -1701,9 +1702,9 @@ void JumpTargetManager::harvestWithAVI() {
 
   using namespace model::Architecture;
   using namespace model::Register;
-  StringRef SyscallHelperName = getSyscallHelper(Model->Architecture);
+  StringRef SyscallHelperName = getSyscallHelper(Model->Architecture());
   Function *SyscallHelper = M->getFunction(SyscallHelperName);
-  auto SyscallIDRegister = getSyscallNumberRegister(Model->Architecture);
+  auto SyscallIDRegister = getSyscallNumberRegister(Model->Architecture());
   StringRef SyscallIDCSVName = getName(SyscallIDRegister);
   GlobalVariable *SyscallIDCSV = M->getGlobalVariable(SyscallIDCSVName);
 

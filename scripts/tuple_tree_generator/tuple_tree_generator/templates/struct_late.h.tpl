@@ -29,7 +29,7 @@ template <> struct TupleLikeTraits</*=- struct | user_fullname =*/> {
   static constexpr const llvm::StringRef FullName = "/*=- struct | user_fullname =*/";
   using tuple = std::tuple<
     /**- for field in struct.all_fields -**/
-    decltype(/*=- struct | user_fullname =*/::/*=- field.name =*/)/** if not loop.last **/, /** endif -**/
+    /*=- struct | user_fullname =*/::/*=- field.name =*/Type/** if not loop.last **/, /** endif -**/
     /**- endfor **/>;
 
   static constexpr std::array<llvm::StringRef, std::tuple_size_v<tuple>> FieldNames = {
@@ -51,7 +51,7 @@ template <int I> auto &get(/*= struct.name =*/ &&x) {
     return __null;
   /**- for field in struct.all_fields **/
   else if constexpr (I == /*= loop.index0 =*/)
-    return x./*= field.name =*/;
+    return x./*= field.name =*/();
   /**- endfor **/
 }
 
@@ -60,7 +60,7 @@ template <int I> const auto &get(const /*= struct.name =*/ &x) {
     return __null;
   /**- for field in struct.all_fields **/
   else if constexpr (I == /*= loop.index0 =*/)
-    return x./*= field.name =*/;
+    return x./*= field.name =*/();
   /**- endfor **/
 }
 
@@ -69,7 +69,7 @@ template <int I> auto &get(/*= struct.name =*/ &x) {
     return __null;
   /**- for field in struct.all_fields **/
   else if constexpr (I == /*= loop.index0 =*/)
-    return x./*= field.name =*/;
+    return x./*= field.name =*/();
   /**- endfor **/
 }
 }
@@ -94,7 +94,7 @@ struct llvm::yaml::ScalarTraits</*= struct | user_fullname =*/::Key>
 /** if struct.keytype == "simple" **/
 template<>
 struct KeyedObjectTraits</*= struct | user_fullname =*/> {
-  static /*= struct.key_fields[0] | field_type =*/ key(const /*= struct | user_fullname =*/ &Obj) { return Obj./*= struct.key_fields[0].name =*/; }
+  static /*= struct.key_fields[0] | field_type =*/ key(const /*= struct | user_fullname =*/ &Obj) { return Obj./*= struct.key_fields[0].name =*/(); }
   static /*= struct | user_fullname =*/ fromKey(const /*= struct.key_fields[0] | field_type =*/ &Key) {
     return /*= struct | user_fullname =*/(Key);
   }
@@ -106,7 +106,7 @@ struct KeyedObjectTraits</*= struct | user_fullname =*/> {
   static Key key(const /*= struct | user_fullname =*/ &Obj) {
     return {
       /** for key_field in struct.key_fields -**/
-      Obj./*= key_field.name =*/
+      Obj./*= key_field.name =*/()
       /**- if not loop.last **/,
       /** endif **/
       /**- endfor **/

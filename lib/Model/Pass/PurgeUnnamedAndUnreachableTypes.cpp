@@ -76,19 +76,19 @@ void model::purgeTypesImpl(TupleTree<model::Binary> &Model) {
 
   // Remember those types we want to preserve.
   if constexpr (PruneAllUnusedTypes) {
-    for (const auto &Function : Model->Functions) {
-      if (Function.Prototype.isValid()) {
-        ToKeep.insert(const_cast<Type *>(Function.Prototype.get()));
+    for (const auto &Function : Model->Functions()) {
+      if (Function.Prototype().isValid()) {
+        ToKeep.insert(const_cast<Type *>(Function.Prototype().get()));
       }
     }
 
-    for (UpcastablePointer<model::Type> &T : Model->Types) {
+    for (UpcastablePointer<model::Type> &T : Model->Types()) {
       TypeToNode[T.get()] = TypeGraph.addNode(NodeData{ T.get() });
     }
   } else {
-    for (UpcastablePointer<model::Type> &T : Model->Types) {
+    for (UpcastablePointer<model::Type> &T : Model->Types()) {
 
-      if (not T->CustomName.empty() or not T->OriginalName.empty())
+      if (not T->CustomName().empty() or not T->OriginalName().empty())
         ToKeep.insert(T.get());
 
       TypeToNode[T.get()] = TypeGraph.addNode(NodeData{ T.get() });
@@ -96,9 +96,9 @@ void model::purgeTypesImpl(TupleTree<model::Binary> &Model) {
   }
 
   // Create type system edges
-  for (UpcastablePointer<model::Type> &T : Model->Types) {
+  for (UpcastablePointer<model::Type> &T : Model->Types()) {
     for (const model::QualifiedType &QT : T->edges()) {
-      auto *DependantType = QT.UnqualifiedType.get();
+      auto *DependantType = QT.UnqualifiedType().get();
       TypeToNode.at(T.get())->addSuccessor(TypeToNode.at(DependantType));
     }
   }
@@ -114,12 +114,12 @@ void model::purgeTypesImpl(TupleTree<model::Binary> &Model) {
       };
       visitTupleTree(Field, Visitor, [](auto) {});
     };
-    visitTupleExcept(VisitBinary, *Model, &Model->Types);
+    visitTupleExcept(VisitBinary, *Model, &Model->Types());
   }
 
   // Visit all the nodes reachable from ToKeep
   df_iterator_default_set<Node *> Visited;
-  for (const UpcastablePointer<Type> &T : Model->Types)
+  for (const UpcastablePointer<Type> &T : Model->Types())
     if (isa<model::PrimitiveType>(T.get()))
       Visited.insert(TypeToNode.at(T.get()));
 
@@ -128,7 +128,7 @@ void model::purgeTypesImpl(TupleTree<model::Binary> &Model) {
       ;
 
   // Purge the non-visited
-  llvm::erase_if(Model->Types, [&](UpcastablePointer<model::Type> &P) {
+  llvm::erase_if(Model->Types(), [&](UpcastablePointer<model::Type> &P) {
     return not Visited.contains(TypeToNode.at(P.get()));
   });
 }

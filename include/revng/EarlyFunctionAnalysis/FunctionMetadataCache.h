@@ -86,11 +86,11 @@ public:
 
     auto *ParentFunction = Call->getParent()->getParent();
     const efa::FunctionMetadata &FM = getFunctionMetadata(ParentFunction);
-    const efa::BasicBlock &Block = FM.ControlFlowGraph.at(BlockAddress);
+    const efa::BasicBlock &Block = FM.ControlFlowGraph().at(BlockAddress);
 
     // Find the call edge
     efa::CallEdge *ModelCall = nullptr;
-    for (auto &Edge : Block.Successors) {
+    for (auto &Edge : Block.Successors()) {
       if (auto *CE = dyn_cast<efa::CallEdge>(Edge.get())) {
         revng_assert(ModelCall == nullptr);
         ModelCall = CE;
@@ -98,7 +98,7 @@ public:
     }
     revng_assert(ModelCall != nullptr);
 
-    return { *ModelCall, Block.Start };
+    return { *ModelCall, Block.Start() };
   }
 
   /// \return the prototype associated to a CallInst.
@@ -124,7 +124,7 @@ public:
     if (not Edge)
       return {};
 
-    return getPrototype(Binary, ParentFunction->Entry, BlockAddress, *Edge);
+    return getPrototype(Binary, ParentFunction->Entry(), BlockAddress, *Edge);
   }
 };
 

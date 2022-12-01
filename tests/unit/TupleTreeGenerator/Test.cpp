@@ -19,16 +19,16 @@ bool init_unit_test();
 BOOST_AUTO_TEST_CASE(YAMLSerializationRoundTripTest) {
   using namespace ttgtest;
   TestClass ReferenceInstance;
-  ReferenceInstance.RequiredField = 1;
-  ReferenceInstance.OptionalField = 2;
-  ReferenceInstance.EnumField = ttgtest::TestEnum::MemberOne;
-  ReferenceInstance.SequenceField = { 1, 2, 3, 4, 5 };
+  ReferenceInstance.RequiredField() = 1;
+  ReferenceInstance.OptionalField() = 2;
+  ReferenceInstance.EnumField() = ttgtest::TestEnum::MemberOne;
+  ReferenceInstance.SequenceField() = { 1, 2, 3, 4, 5 };
   using RefType = TupleTreeReference<uint64_t, TestClass>;
-  ReferenceInstance.ReferenceField = RefType::fromString(&ReferenceInstance,
-                                                         "/SequenceField/1");
+  ReferenceInstance.ReferenceField() = RefType::fromString(&ReferenceInstance,
+                                                           "/SequenceField/1");
 
-  revng_assert(ReferenceInstance.ReferenceField.isValid());
-  revng_assert(ReferenceInstance.ReferenceField.get());
+  revng_assert(ReferenceInstance.ReferenceField().isValid());
+  revng_assert(ReferenceInstance.ReferenceField().get());
 
   std::string Buffer;
   llvm::raw_string_ostream OutputStream(Buffer);

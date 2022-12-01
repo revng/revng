@@ -223,7 +223,7 @@ llvm::Error verifyABI(const TupleTree<model::Binary> &Binary,
   revng_assert(ArchitectureName == ParsedArtifact.Architecture);
   VerificationHelper Helper{ Architecture, ABI, ParsedArtifact.IsLittleEndian };
 
-  for (auto &Type : Binary->Types) {
+  for (auto &Type : Binary->Types()) {
     revng_assert(Type.get() != nullptr);
 
     auto CurrentFunction = ParsedArtifact.Functions.find(Type->name());

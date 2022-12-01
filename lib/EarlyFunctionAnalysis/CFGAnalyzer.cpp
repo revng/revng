@@ -193,7 +193,7 @@ CFGAnalyzer::handleCall(llvm::CallInst *PreCallHookCall) {
   bool IsDirectCall = false;
   if (isa<ConstantStruct>(CalleePC)) {
     auto Address = MetaAddress::fromConstant(CalleePC);
-    IsDirectCall = Binary->Functions.count(Address) != 0;
+    IsDirectCall = Binary->Functions().count(Address) != 0;
     if (IsDirectCall)
       CalleeAddress = Address;
   }
@@ -221,9 +221,9 @@ CFGAnalyzer::handleCall(llvm::CallInst *PreCallHookCall) {
   UpcastablePointer<efa::FunctionEdgeBase> Edge = makeCall(CalleeAddress);
 
   auto *CE = cast<efa::CallEdge>(Edge.get());
-  CE->IsTailCall = IsTailCall;
+  CE->IsTailCall() = IsTailCall;
   if (IsDynamicCall)
-    CE->DynamicFunction = SymbolName.str();
+    CE->DynamicFunction() = SymbolName.str();
 
   return Edge;
 }
@@ -247,12 +247,12 @@ CFGAnalyzer::collectDirectCFG(OutlinedFunction *OF) {
       bool ReachesUnexpectedPC = false;
 
       // Initialize the end address of the basic block, we'll extend it later on
-      Block.End = getFinalAddressOfBasicBlock(&BB);
-      revng_assert(Block.End.isValid());
+      Block.End() = getFinalAddressOfBasicBlock(&BB);
+      revng_assert(Block.End().isValid());
       revng_log(Log,
                 "Creating block starting at " << Start.toString()
                                               << " (preliminary ending is "
-                                              << Block.End.toString() << ")");
+                                              << Block.End().toString() << ")");
       LoggerIndent<> Indent(Log);
 
       OnceQueue<BasicBlock *> Queue;
@@ -266,10 +266,10 @@ CFGAnalyzer::collectDirectCFG(OutlinedFunction *OF) {
 
         // If this block belongs to a single `newpc`, record its address
         MetaAddress CurrentBlockEnd = getFinalAddressOfBasicBlock(Current);
-        if (CurrentBlockEnd.isValid() and CurrentBlockEnd > Block.End) {
+        if (CurrentBlockEnd.isValid() and CurrentBlockEnd > Block.End()) {
           revng_log(Log,
                     "Extending block end to " << CurrentBlockEnd.toString());
-          Block.End = CurrentBlockEnd;
+          Block.End() = CurrentBlockEnd;
         }
 
         if (isa<UnreachableInst>(Current->getTerminator())) {
@@ -293,7 +293,7 @@ CFGAnalyzer::collectDirectCFG(OutlinedFunction *OF) {
             // Handle edge for regular function calls
             if (auto MaybeEdge = handleCall(Call); MaybeEdge) {
               revng_log(Log, "It's a direct call, emitting a CallEdge");
-              Block.Successors.insert(*MaybeEdge);
+              Block.Successors().insert(*MaybeEdge);
             }
           } else if (GeneratedCodeBasicInfo::isJumpTarget(Succ)) {
             // TODO: handle situation in which it's a *direct* tail call.
@@ -305,7 +305,7 @@ CFGAnalyzer::collectDirectCFG(OutlinedFunction *OF) {
                         << Destination.toString());
             auto Edge = makeEdge(Destination,
                                  efa::FunctionEdgeType::DirectBranch);
-            Block.Successors.insert(Edge);
+            Block.Successors().insert(Edge);
           } else if (Succ == OF->UnexpectedPCCloned) {
             revng_log(Log, "Reaches UnexpectedPC");
             ReachesUnexpectedPC = true;
@@ -318,16 +318,16 @@ CFGAnalyzer::collectDirectCFG(OutlinedFunction *OF) {
         }
       }
 
-      bool HasNoSuccessor = Block.Successors.size() == 0;
+      bool HasNoSuccessor = Block.Successors().size() == 0;
       if (HasNoSuccessor) {
         if (ReachesUnreachable) {
           // If we reach any unreachable instruction, add a single unreachable
           // edge
           revng_log(Log, "Reaches unreachable, add to successors");
-          revng_assert(Block.Successors.empty());
+          revng_assert(Block.Successors().empty());
           using namespace efa::FunctionEdgeType;
           auto NewEdge = makeEdge(MetaAddress::invalid(), Unreachable);
-          Block.Successors.insert(NewEdge);
+          Block.Successors().insert(NewEdge);
         } else if (ReachesUnexpectedPC) {
           // successor of the current basic block.
           revng_log(Log,
@@ -335,7 +335,7 @@ CFGAnalyzer::collectDirectCFG(OutlinedFunction *OF) {
                     "LongJmp");
           auto Edge = makeEdge(MetaAddress::invalid(),
                                efa::FunctionEdgeType::LongJmp);
-          Block.Successors.insert(Edge);
+          Block.Successors().insert(Edge);
         }
       }
 
@@ -365,7 +365,7 @@ CFGAnalyzer::State CFGAnalyzer::loadState(llvm::IRBuilder<> &Builder) const {
   }
 
   // Load the PC
-  auto LLVMArchitecture = toLLVMArchitecture(Binary->Architecture);
+  auto LLVMArchitecture = toLLVMArchitecture(Binary->Architecture());
   auto DissectedPC = PCH->dissectJumpablePC(Builder,
                                             ReturnAddress,
                                             LLVMArchitecture);
@@ -677,7 +677,7 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
   using namespace llvm;
   using namespace efa::FunctionEdgeType;
   using namespace model::Architecture;
-  int64_t CallPushSize = getCallPushSize(Binary->Architecture);
+  int64_t CallPushSize = getCallPushSize(Binary->Architecture());
 
   using EdgeType = UpcastablePointer<efa::FunctionEdgeBase>;
   SmallVector<std::pair<CallBase *, EdgeType>, 4> IBIResult;
@@ -789,10 +789,10 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
         auto *Argument = CI->getArgOperand(CallerBlockAddressIndex);
         auto BlockAddress = MetaAddress::fromConstant(Argument);
         efa::BasicBlock &Block = CFG.at(BlockAddress);
-        revng_assert(Block.Successors.size() == 1);
-        auto OldEdge = cast<efa::CallEdge>(Block.Successors.begin()->get());
-        revng_assert(OldEdge->IsTailCall);
-        Block.Successors = { makeIndirectEdge(LongJmp) };
+        revng_assert(Block.Successors().size() == 1);
+        auto OldEdge = cast<efa::CallEdge>(Block.Successors().begin()->get());
+        revng_assert(OldEdge->IsTailCall());
+        Block.Successors() = { makeIndirectEdge(LongJmp) };
       }
     }
 
@@ -842,9 +842,9 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
     if (MaybeWinFSO.has_value() && FSO == *MaybeWinFSO) {
       auto NewEdge = makeCall(MetaAddress::invalid());
       auto *Call = cast<efa::CallEdge>(NewEdge.get());
-      Call->IsTailCall = true;
+      Call->IsTailCall() = true;
       auto *Argument = CI->getArgOperand(CalledSymbolIndex);
-      Call->DynamicFunction = extractFromConstantStringPtr(Argument);
+      Call->DynamicFunction() = extractFromConstantStringPtr(Argument);
       IBIResult.emplace_back(CI, std::move(NewEdge));
       ClobberedRegisters.recordClobberedRegisters(CI);
       ClobberedRegisters.add(Summary->ClobberedRegisters);
@@ -860,7 +860,7 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
     auto *Argument = CI->getArgOperand(CallerBlockAddressIndex);
     auto PC = MetaAddress::fromConstant(Argument);
     efa::BasicBlock &Block = CFG.at(PC);
-    Block.Successors.insert(std::move(Edge));
+    Block.Successors().insert(std::move(Edge));
   }
 
   // Collect summary for information
@@ -870,12 +870,12 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
   int BrokenReturnCount = 0;
   int NoReturnCount = 0;
   for (const auto &[CI, Edge] : IBIResult) {
-    if (Edge->Type == Return) {
+    if (Edge->Type() == Return) {
       FoundReturn = true;
-    } else if (Edge->Type == FunctionCall
-               and cast<CallEdge>(Edge.get())->IsTailCall) {
+    } else if (Edge->Type() == FunctionCall
+               and cast<CallEdge>(Edge.get())->IsTailCall()) {
       FoundReturn = true;
-    } else if (Edge->Type == BrokenReturn) {
+    } else if (Edge->Type() == BrokenReturn) {
       FoundBrokenReturn = true;
       BrokenReturnCount++;
     } else {
@@ -896,7 +896,7 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
 
   revng_assert(CFG.size() > 0);
   for (efa::BasicBlock &Block : CFG)
-    revng_assert(Block.Successors.size() > 0);
+    revng_assert(Block.Successors().size() > 0);
 
   return FunctionSummary(Attributes,
                          ClobberedRegisters.getClobberedRegisters(),

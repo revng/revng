@@ -19,8 +19,8 @@ public:
                         pipeline::TargetsList &Out) const override {
     using namespace pipeline;
     const auto &Model = getModelFromContext(Ctx);
-    for (const auto &Function : Model->Functions) {
-      Out.push_back(Target(Function.Entry.toString(), *this));
+    for (const auto &Function : Model->Functions()) {
+      Out.push_back(Target(Function.Entry().toString(), *this));
     }
   }
 };

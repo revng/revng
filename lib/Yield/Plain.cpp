@@ -29,12 +29,12 @@ static std::string linkAddress(const MetaAddress &Address) {
 static std::string deduceName(const MetaAddress &Target,
                               const yield::Function &Function,
                               const model::Binary &Binary) {
-  if (auto Iterator = Binary.Functions.find(Target);
-      Iterator != Binary.Functions.end()) {
+  if (auto Iterator = Binary.Functions().find(Target);
+      Iterator != Binary.Functions().end()) {
     // The target is a function
     return Iterator->name().str().str();
-  } else if (auto Iterator = Function.ControlFlowGraph.find(Target);
-             Iterator != Function.ControlFlowGraph.end()) {
+  } else if (auto Iterator = Function.ControlFlowGraph().find(Target);
+             Iterator != Function.ControlFlowGraph().end()) {
     // The target is a basic block
 
     // TODO: maybe there's something better than the address to put here.
@@ -51,31 +51,31 @@ static std::string deduceName(const MetaAddress &Target,
 static std::string label(const yield::BasicBlock &BasicBlock,
                          const yield::Function &Function,
                          const model::Binary &Binary) {
-  std::string Result = deduceName(BasicBlock.Start, Function, Binary);
+  std::string Result = deduceName(BasicBlock.Start(), Function, Binary);
 
   namespace Arch = model::Architecture;
-  auto LabelIndicator = Arch::getAssemblyLabelIndicator(Binary.Architecture);
+  auto LabelIndicator = Arch::getAssemblyLabelIndicator(Binary.Architecture());
   return (Result += LabelIndicator) += "\n";
 }
 
 static std::string instruction(const yield::Instruction &Instruction,
                                const yield::BasicBlock &BasicBlock,
                                const model::Binary &Binary) {
-  std::string Result = Instruction.Disassembled;
+  std::string Result = Instruction.Disassembled();
 
   namespace A = model::Architecture;
-  auto CommentIndicator = A::getAssemblyCommentIndicator(Binary.Architecture);
+  auto CommentIndicator = A::getAssemblyCommentIndicator(Binary.Architecture());
 
-  if (!Instruction.Error.empty()) {
+  if (!Instruction.Error().empty()) {
     Result += ' ';
     Result += CommentIndicator;
     Result += " Error: ";
-    Result += Instruction.Error;
-  } else if (!Instruction.Comment.empty()) {
+    Result += Instruction.Error();
+  } else if (!Instruction.Comment().empty()) {
     Result += ' ';
     Result += CommentIndicator;
     Result += ' ';
-    Result += Instruction.Comment;
+    Result += Instruction.Comment();
   }
 
   return Result;
@@ -86,7 +86,7 @@ static std::string basicBlock(const yield::BasicBlock &BasicBlock,
                               const model::Binary &Binary) {
   std::string Result;
 
-  for (const auto &Instruction : BasicBlock.Instructions)
+  for (const auto &Instruction : BasicBlock.Instructions())
     Result += instruction(Instruction, BasicBlock, Binary);
 
   return Result;
@@ -117,7 +117,7 @@ std::string yield::plain::functionAssembly(const yield::Function &Function,
                                            const model::Binary &Binary) {
   std::string Result;
 
-  for (const auto &BasicBlock : Function.ControlFlowGraph)
+  for (const auto &BasicBlock : Function.ControlFlowGraph())
     Result += labeledBlock<true>(BasicBlock, Function, Binary);
 
   return Result;
@@ -126,8 +126,8 @@ std::string yield::plain::functionAssembly(const yield::Function &Function,
 std::string yield::plain::controlFlowNode(const MetaAddress &Address,
                                           const yield::Function &Function,
                                           const model::Binary &Binary) {
-  auto Iterator = Function.ControlFlowGraph.find(Address);
-  revng_assert(Iterator != Function.ControlFlowGraph.end());
+  auto Iterator = Function.ControlFlowGraph().find(Address);
+  revng_assert(Iterator != Function.ControlFlowGraph().end());
 
   auto Result = labeledBlock<false>(*Iterator, Function, Binary);
   revng_assert(!Result.empty());

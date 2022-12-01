@@ -46,7 +46,7 @@ public:
   static bool classof(const Key &K) { return true; }
 
 public:
-  bool isDirect() const { return Destination.isValid(); }
+  bool isDirect() const { return Destination().isValid(); }
   bool isIndirect() const { return not isDirect(); }
 
 public:

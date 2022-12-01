@@ -79,13 +79,13 @@ int main(int Argc, char *Argv[]) {
     model::RawFunctionType *Left;
     model::RawFunctionType *Right;
   };
-  std::map<decltype(model::Type::ID), FunctionPair> Functions;
-  for (model::UpcastableType &LeftType : LeftModel->Model->Types)
+  std::map<model::Type::IDType, FunctionPair> Functions;
+  for (model::UpcastableType &LeftType : LeftModel->Model->Types())
     if (auto *Left = llvm::dyn_cast<model::RawFunctionType>(LeftType.get()))
-      Functions[Left->ID].Left = Left;
-  for (model::UpcastableType &RightType : RightModel->Model->Types)
+      Functions[Left->ID()].Left = Left;
+  for (model::UpcastableType &RightType : RightModel->Model->Types())
     if (auto *Right = llvm::dyn_cast<model::RawFunctionType>(RightType.get()))
-      Functions[Right->ID].Right = Right;
+      Functions[Right->ID()].Right = Right;
 
   // Ensure their stack arguments have the same ID.
   //
@@ -96,12 +96,12 @@ int main(int Argc, char *Argv[]) {
     auto [Left, Right] = Pair;
 
     // Try and access the argument struct.
-    revng_check(Left->StackArgumentsType.Qualifiers.empty());
-    revng_check(Right->StackArgumentsType.Qualifiers.empty());
-    model::Type *LeftStackArguments = Left->StackArgumentsType.UnqualifiedType
-                                        .get();
-    model::Type *RightStackArguments = Right->StackArgumentsType.UnqualifiedType
-                                         .get();
+    revng_check(Left->StackArgumentsType().Qualifiers().empty());
+    revng_check(Right->StackArgumentsType().Qualifiers().empty());
+    model::Type
+      *LeftStackArguments = Left->StackArgumentsType().UnqualifiedType().get();
+    model::Type *
+      RightStackArguments = Right->StackArgumentsType().UnqualifiedType().get();
 
     // XOR the `bool`eans - make sure that either both functions have stack
     // argument or neither one does.
@@ -112,14 +112,14 @@ int main(int Argc, char *Argv[]) {
       continue;
 
     // If IDs differ - replace the ID.
-    if (LeftStackArguments->ID != RightStackArguments->ID) {
-      model::TypePath FromPath = Right->StackArgumentsType.UnqualifiedType;
+    if (LeftStackArguments->ID() != RightStackArguments->ID()) {
+      model::TypePath FromPath = Right->StackArgumentsType().UnqualifiedType();
 
-      RightModel->Model->Types.erase(LeftStackArguments->key());
+      RightModel->Model->Types().erase(LeftStackArguments->key());
       auto *Struct = llvm::dyn_cast<model::StructType>(RightStackArguments);
       revng_check(Struct != nullptr);
       auto Copy = model::UpcastableType::make<model::StructType>(*Struct);
-      Copy->ID = LeftStackArguments->ID;
+      Copy->ID() = LeftStackArguments->ID();
       auto ToPath = RightModel->Model->recordNewType(std::move(Copy));
 
       Replacements.emplace(FromPath, ToPath);

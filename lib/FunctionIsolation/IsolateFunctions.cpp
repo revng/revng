@@ -433,7 +433,7 @@ private:
       else
         return dyn_cast<efa::CallEdge>(Result->get());
     };
-    const auto *CallEdge = ZeroOrOneCallEdge(Caller->Successors, IsCallEdge);
+    const auto *CallEdge = ZeroOrOneCallEdge(Caller->Successors(), IsCallEdge);
 
     if (CallEdge == nullptr) {
       // There's no CallEdge, this is likely a LongJmp
@@ -441,8 +441,8 @@ private:
     }
 
     StringRef SymbolName = extractFromConstantStringPtr(SymbolNamePointer);
-    revng_assert(SymbolName == CallEdge->DynamicFunction);
-    revng_assert(Callee == CallEdge->Destination);
+    revng_assert(SymbolName == CallEdge->DynamicFunction());
+    revng_assert(Callee == CallEdge->Destination());
 
     // Identify callee
     Function *CalledFunction = nullptr;
@@ -466,7 +466,7 @@ private:
     FunctionTags::CallToLifted.addTo(NewCall);
     IFI.gcbi().setMetaAddressMetadata(NewCall,
                                       CallerBlockStartMDName,
-                                      Caller->Start);
+                                      Caller->Start());
   }
 };
 
@@ -532,11 +532,11 @@ void IsolateFunctionsImpl::run() {
   // Create the dynamic functions
   //
   for (const model::DynamicFunction &Function :
-       Binary.ImportedDynamicFunctions) {
-    StringRef Name = Function.OriginalName;
+       Binary.ImportedDynamicFunctions()) {
+    StringRef Name = Function.OriginalName();
     auto *NewFunction = Function::Create(IsolatedFunctionType,
                                          GlobalValue::ExternalLinkage,
-                                         "dynamic_" + Function.OriginalName,
+                                         "dynamic_" + Function.OriginalName(),
                                          TheModule);
     FunctionTags::DynamicFunction.addTo(NewFunction);
 
@@ -567,21 +567,21 @@ void IsolateFunctionsImpl::run() {
   //
   // Precreate the isolated functions
   //
-  for (const model::Function &Function : Binary.Functions) {
+  for (const model::Function &Function : Binary.Functions()) {
     auto *NewFunction = Function::Create(IsolatedFunctionType,
                                          GlobalValue::ExternalLinkage,
                                          "local_" + Function.name(),
                                          TheModule);
     NewFunction->addFnAttr(Attribute::NullPointerIsValid);
-    IsolatedFunctionsMap[Function.Entry] = NewFunction;
+    IsolatedFunctionsMap[Function.Entry()] = NewFunction;
     FunctionTags::Isolated.addTo(NewFunction);
     revng_assert(NewFunction != nullptr);
     GCBI.setMetaAddressMetadata(NewFunction,
                                 FunctionEntryMDNName,
-                                Function.Entry);
+                                Function.Entry());
 
-    auto *OriginalEntryTerm = GCBI.getBlockAt(Function.Entry)->getTerminator();
-    auto *MDNode = OriginalEntryTerm->getMetadata(FunctionMetadataMDName);
+    auto *OriginalEntry = GCBI.getBlockAt(Function.Entry())->getTerminator();
+    auto *MDNode = OriginalEntry->getMetadata(FunctionMetadataMDName);
     NewFunction->setMetadata(FunctionMetadataMDName, MDNode);
   }
 
@@ -626,14 +626,14 @@ void IsolateFunctionsImpl::run() {
         }
 
         bool AtLeastAMatch = false;
-        for (auto &Edge : Block->Successors) {
-          if (Edge->Type == efa::FunctionEdgeType::DirectBranch)
+        for (auto &Edge : Block->Successors()) {
+          if (Edge->Type() == efa::FunctionEdgeType::DirectBranch)
             continue;
 
           revng_assert(not AtLeastAMatch);
           AtLeastAMatch = true;
 
-          switch (Edge->Type) {
+          switch (Edge->Type()) {
           case efa::FunctionEdgeType::Return:
             Builder.CreateRetVoid();
             break;
@@ -658,7 +658,7 @@ void IsolateFunctionsImpl::run() {
             break;
           case efa::FunctionEdgeType::FunctionCall: {
             auto *Call = cast<efa::CallEdge>(Edge.get());
-            revng_assert(Call->IsTailCall);
+            revng_assert(Call->IsTailCall());
             Builder.CreateRetVoid();
           } break;
           case efa::FunctionEdgeType::Invalid:
