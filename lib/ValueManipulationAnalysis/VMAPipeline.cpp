@@ -231,22 +231,22 @@ upgradePrimitiveType(const model::QualifiedType &OldQT,
   // only const qualifiers, if any. Now we need to check if there's actually at
   // least one or not.
   model::QualifiedType ActualQT = OldQT;
-  revng_assert(llvm::all_of(ActualQT.Qualifiers, Qualifier::isConst));
+  revng_assert(llvm::all_of(ActualQT.Qualifiers(), Qualifier::isConst));
 
   bool IsConstant = false;
 
-  auto *UnqualT = ActualQT.UnqualifiedType.getConst();
+  auto *UnqualT = ActualQT.UnqualifiedType().getConst();
   while (auto *TypedefT = llvm::dyn_cast<model::TypedefType>(UnqualT)) {
-    ActualQT = TypedefT->UnderlyingType;
+    ActualQT = TypedefT->UnderlyingType();
 
-    if (not ActualQT.Qualifiers.empty()) {
-      revng_assert(llvm::all_of(ActualQT.Qualifiers, Qualifier::isConst));
+    if (not ActualQT.Qualifiers().empty()) {
+      revng_assert(llvm::all_of(ActualQT.Qualifiers(), Qualifier::isConst));
       IsConstant = true;
     }
-    UnqualT = ActualQT.UnqualifiedType.getConst();
+    UnqualT = ActualQT.UnqualifiedType().getConst();
   }
 
-  revng_assert(UnqualT->Kind == model::TypeKind::PrimitiveType);
+  revng_assert(UnqualT->Kind() == model::TypeKind::PrimitiveType);
 
   // Transform original kind into a canonical color
   ColorSet OldColor = QTToColor(ActualQT);
@@ -260,7 +260,7 @@ upgradePrimitiveType(const model::QualifiedType &OldQT,
     QualifiedType FinalQT(Model->getPrimitiveType(FinalKind, OriginalSize), {});
 
     if (IsConstant)
-      FinalQT.Qualifiers.push_back(model::Qualifier::createConst());
+      FinalQT.Qualifiers().push_back(model::Qualifier::createConst());
   }
 
   return OldQT;

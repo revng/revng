@@ -76,23 +76,24 @@ static bool updateArgumentTypes(model::Binary &Model,
                                 const T *CallOrFunction,
                                 const TypeMapT &DLATypes) {
   bool Updated = false;
-  auto &ModelArgs = ModelPrototype->Arguments;
+  auto &ModelArgs = ModelPrototype->Arguments();
   auto LLVMArgs = getArgs(CallOrFunction);
 
   uint64_t EffectiveLLVMArgSize = arg_size(CallOrFunction);
 
   // In case of presence of stack arguments, there's an extra argument
-  if (not ModelPrototype->StackArgumentsType.UnqualifiedType.empty()) {
+  if (not ModelPrototype->StackArgumentsType().UnqualifiedType().empty()) {
     revng_log(Log, "Updating stack argument");
-    auto *ModelStackArg = ModelPrototype->StackArgumentsType.UnqualifiedType
+    auto *ModelStackArg = ModelPrototype->StackArgumentsType()
+                            .UnqualifiedType()
                             .get();
-    revng_assert(ModelPrototype->StackArgumentsType.Qualifiers.empty());
+    revng_assert(ModelPrototype->StackArgumentsType().Qualifiers().empty());
     revng_assert(not LLVMArgs.empty());
 
     // If the ModelStackArgs is an empty struct we have to fill it up, otherwise
     // it's already known and we don't have to mess it up.
     auto *ModelStackStruct = cast<model::StructType>(ModelStackArg);
-    if (ModelStackStruct->Fields.empty()) {
+    if (ModelStackStruct->Fields().empty()) {
       revng_assert(ModelStackStruct->size());
       auto ModelStackSize = *ModelStackStruct->size();
 
@@ -109,23 +110,23 @@ static bool updateArgumentTypes(model::Binary &Model,
         revng_assert(DLAStackType.size());
         auto DLAStackSize = *DLAStackType.size();
 
-        Type *UnqualifiedType = DLAStackType.UnqualifiedType.get();
+        Type *UnqualifiedType = DLAStackType.UnqualifiedType().get();
         auto *DLAStackStruct = dyn_cast<StructType>(UnqualifiedType);
-        if (DLAStackType.Qualifiers.empty() and DLAStackStruct != nullptr) {
+        if (DLAStackType.Qualifiers().empty() and DLAStackStruct != nullptr) {
           // Import all the fields of the DLA struct that fit in
-          for (auto &Field : DLAStackStruct->Fields) {
-            revng_assert(Field.Type.size());
-            if (Field.Offset + *Field.Type.size() > ModelStackSize)
+          for (auto &Field : DLAStackStruct->Fields()) {
+            revng_assert(Field.Type().size());
+            if (Field.Offset() + *Field.Type().size() > ModelStackSize)
               break;
-            ModelStackStruct->Fields.insert(Field);
+            ModelStackStruct->Fields().insert(Field);
           }
           revng_log(Log, "Updated fields");
         } else if (DLAStackSize <= ModelStackSize) {
           // Insert a field of the type recovered by DLA at offset 0
-          ModelStackStruct->Fields[0].Type = DLAStackType;
+          ModelStackStruct->Fields()[0].Type() = DLAStackType;
           revng_log(Log,
                     "Updated: inserted fields at offest 0 with ID: "
-                      << UnqualifiedType->ID);
+                      << UnqualifiedType->ID());
         } else {
           revng_log(Log, "Couldn't import the type into the model");
         }
@@ -140,13 +141,13 @@ static bool updateArgumentTypes(model::Binary &Model,
   }
 
   revng_assert(ModelArgs.size() == EffectiveLLVMArgSize
-               or (ModelArgs.size() == 1 and ModelArgs.begin()->Type.isVoid()
+               or (ModelArgs.size() == 1 and ModelArgs.begin()->Type().isVoid()
                    and EffectiveLLVMArgSize == 0));
 
   revng_log(Log, "Updating register arguments");
 
   for (const auto &[ModelArg, LLVMArg] : llvm::zip_first(ModelArgs, LLVMArgs)) {
-    revng_assert(ModelArg.Type.isScalar());
+    revng_assert(ModelArg.Type().isScalar());
 
     const llvm::Value *LLVMVal = toLLVMValue(LLVMArg);
     revng_log(Log, "Updating argument " << LLVMVal->getNameOrAsOperand());
@@ -157,16 +158,17 @@ static bool updateArgumentTypes(model::Binary &Model,
     // no accesses in the TypeSystem graph. These nodes are pruned away in the
     // middle-end, therefore there is no Type associated to them at this
     // stage.
-    if (canBeUpgraded(ModelArg.Type)) {
+    if (canBeUpgraded(ModelArg.Type())) {
       LayoutTypePtr Key{ LLVMVal, LayoutTypePtr::fieldNumNone };
       if (auto NewTypeIt = DLATypes.find(Key); NewTypeIt != DLATypes.end()) {
-        auto OldSize = *ModelArg.Type.size();
+        auto OldSize = *ModelArg.Type().size();
         // The type is associated to a LayoutTypeSystemPtr, hence we have to add
         // the pointer qualifier
-        ModelArg.Type = NewTypeIt->second.getPointerTo(Model.Architecture);
-        revng_assert(*ModelArg.Type.size() == OldSize);
+        ModelArg.Type() = NewTypeIt->second.getPointerTo(Model.Architecture());
+        revng_assert(*ModelArg.Type().size() == OldSize);
         revng_log(Log,
-                  "Updated to " << ModelArg.Type.UnqualifiedType.get()->ID);
+                  "Updated to "
+                    << ModelArg.Type().UnqualifiedType().get()->ID());
         Updated = true;
       }
     }
@@ -183,7 +185,7 @@ static bool updateReturnType(model::Binary &Model,
                              const llvm::Type *LLVMRetType,
                              const TypeMapT &TypeMap) {
   bool Updated = false;
-  auto &ModelRetVals = ModelPrototype->ReturnValues;
+  auto &ModelRetVals = ModelPrototype->ReturnValues();
   revng_log(Log, "Updating return values");
 
   if (LLVMRetType->isIntOrPtrTy()) {
@@ -214,17 +216,18 @@ static bool updateReturnType(model::Binary &Model,
     // no accesses in the TypeSystem graph. These nodes are pruned away in the
     // middle-end, therefore there is no Type associated to them at this
     // stage.
-    auto &ModelReturnType = ModelRet.value().Type;
+    auto &ModelReturnType = ModelRet.value().Type();
     if (canBeUpgraded(ModelReturnType)) {
       LayoutTypePtr Key{ LLVMRetVal, Index };
       if (auto NewTypeIt = TypeMap.find(Key); NewTypeIt != TypeMap.end()) {
         auto OldSize = ModelReturnType.size();
         // The type is associated to a LayoutTypeSystemPtr, hence we have to
         // add the pointer qualifier
-        ModelReturnType = NewTypeIt->second.getPointerTo(Model.Architecture);
+        ModelReturnType = NewTypeIt->second.getPointerTo(Model.Architecture());
         revng_assert(ModelReturnType.size() == OldSize);
         revng_log(Log,
-                  "Updated to " << ModelReturnType.UnqualifiedType.get()->ID);
+                  "Updated to "
+                    << ModelReturnType.UnqualifiedType().get()->ID());
         Updated = true;
       }
     }
@@ -246,12 +249,12 @@ static bool updateArgumentTypes(model::Binary &Model,
                                 const T *CallOrFunction,
                                 const TypeMapT &DLATypes) {
   bool Updated = false;
-  auto &ModelArgs = ModelPrototype->Arguments;
+  auto &ModelArgs = ModelPrototype->Arguments();
   auto LLVMArgs = getArgs(CallOrFunction);
 
   uint64_t EffectiveLLVMArgSize = arg_size(CallOrFunction);
   revng_assert(ModelArgs.size() == EffectiveLLVMArgSize
-               or (ModelArgs.size() == 1 and ModelArgs.begin()->Type.isVoid()
+               or (ModelArgs.size() == 1 and ModelArgs.begin()->Type().isVoid()
                    and EffectiveLLVMArgSize == 0));
 
   revng_log(Log, "Updating arguments");
@@ -266,16 +269,17 @@ static bool updateArgumentTypes(model::Binary &Model,
     // no accesses in the TypeSystem graph. These nodes are pruned away in the
     // middle-end, therefore there is no Type associated to them at this
     // stage.
-    if (canBeUpgraded(ModelArg.Type)) {
+    if (canBeUpgraded(ModelArg.Type())) {
       LayoutTypePtr Key{ LLVMVal, LayoutTypePtr::fieldNumNone };
       if (auto NewTypeIt = DLATypes.find(Key); NewTypeIt != DLATypes.end()) {
-        auto OldSize = *ModelArg.Type.size();
+        auto OldSize = *ModelArg.Type().size();
         // The type is associated to a LayoutTypeSystemPtr, hence we have to add
         // the pointer qualifier
-        ModelArg.Type = NewTypeIt->second.getPointerTo(Model.Architecture);
-        revng_assert(*ModelArg.Type.size() == OldSize);
+        ModelArg.Type() = NewTypeIt->second.getPointerTo(Model.Architecture());
+        revng_assert(*ModelArg.Type().size() == OldSize);
         revng_log(Log,
-                  "Updated to " << ModelArg.Type.UnqualifiedType.get()->ID);
+                  "Updated to "
+                    << ModelArg.Type().UnqualifiedType().get()->ID());
         Updated = true;
       }
     }
@@ -291,13 +295,13 @@ static bool updateReturnType(model::Binary &Model,
                              const llvm::Value *LLVMRetVal,
                              const llvm::Type *LLVMRetType,
                              const TypeMapT &TypeMap) {
-  auto &ModelReturnType = ModelPrototype->ReturnType;
+  auto &ModelReturnType = ModelPrototype->ReturnType();
   revng_log(Log, "Updating return value");
 
   // If the return type is void there's nothing to do.
   if (LLVMRetType->isVoidTy()) {
     revng_log(Log, "Is void");
-    revng_assert(not ModelReturnType.UnqualifiedType.empty()
+    revng_assert(not ModelReturnType.UnqualifiedType().empty()
                  or ModelReturnType.isVoid());
     return false;
   }
@@ -318,10 +322,11 @@ static bool updateReturnType(model::Binary &Model,
         auto OldSize = *ModelReturnType.size();
         // The type is associated to a LayoutTypeSystemPtr, hence we have to
         // add the pointer qualifier
-        ModelReturnType = NewTypeIt->second.getPointerTo(Model.Architecture);
+        ModelReturnType = NewTypeIt->second.getPointerTo(Model.Architecture());
         revng_assert(ModelReturnType.size() == OldSize);
         revng_log(Log,
-                  "Updated to " << ModelReturnType.UnqualifiedType.get()->ID);
+                  "Updated to "
+                    << ModelReturnType.UnqualifiedType().get()->ID());
         return true;
       }
     }
@@ -343,23 +348,23 @@ static bool updateReturnType(model::Binary &Model,
 
   revng_assert(ModelReturnType.is(model::TypeKind::StructType));
   auto QualifiedModelReturnType = peelConstAndTypedefs(ModelReturnType);
-  revng_assert(QualifiedModelReturnType.Qualifiers.empty());
-  auto *UnqualifiedModelReturnType = QualifiedModelReturnType.UnqualifiedType
+  revng_assert(QualifiedModelReturnType.Qualifiers().empty());
+  auto *UnqualifiedModelReturnType = QualifiedModelReturnType.UnqualifiedType()
                                        .get();
   auto *ModelStruct = llvm::cast<model::StructType>(UnqualifiedModelReturnType);
   const auto *IRStruct = llvm::cast<llvm::StructType>(LLVMRetType);
   const auto &SubTypes = IRStruct->subtypes();
-  revng_assert(SubTypes.size() == ModelStruct->Fields.size());
+  revng_assert(SubTypes.size() == ModelStruct->Fields().size());
 
   const auto IsScalar = [](const llvm::Type *T) { return T->isIntOrPtrTy(); };
   revng_assert(llvm::all_of(SubTypes, IsScalar));
 
   const auto FieldQualifiedType =
-    [](model::StructField &F) -> model::QualifiedType & { return F.Type; };
+    [](model::StructField &F) -> model::QualifiedType & { return F.Type(); };
 
   unsigned Index = 0;
   for (auto &FieldType :
-       llvm::map_range(ModelStruct->Fields, FieldQualifiedType)) {
+       llvm::map_range(ModelStruct->Fields(), FieldQualifiedType)) {
 
     // Don't update if the type is already fine-grained or if the DLA has
     // nothing to say.
@@ -373,8 +378,9 @@ static bool updateReturnType(model::Binary &Model,
         auto OldSize = *FieldType.size();
         // The type is associated to a LayoutTypeSystemPtr, hence we have to
         // add the pointer qualifier
-        FieldType = NewTypeIt->second.getPointerTo(Model.Architecture);
-        revng_log(Log, "Updated to " << FieldType.UnqualifiedType.get()->ID);
+        FieldType = NewTypeIt->second.getPointerTo(Model.Architecture());
+        revng_log(Log,
+                  "Updated to " << FieldType.UnqualifiedType().get()->ID());
         revng_assert(FieldType.size() == OldSize);
         Updated = true;
       }
@@ -440,7 +446,7 @@ static void fillStructWithRecoveredDLAType(model::Binary &Model,
 
   auto *OriginalStructType = cast<model::StructType>(OriginalType);
   bool IsPointerOrArray = RecoveredType.isArray() || RecoveredType.isPointer();
-  auto *RecoveredUnqualType = RecoveredType.UnqualifiedType.get();
+  auto *RecoveredUnqualType = RecoveredType.UnqualifiedType().get();
 
   if (IsPointerOrArray or isa<model::PrimitiveType>(RecoveredUnqualType)
       or isa<model::EnumType>(RecoveredUnqualType)) {
@@ -448,21 +454,21 @@ static void fillStructWithRecoveredDLAType(model::Binary &Model,
 
     // If OriginalStructType is an empty struct, just add the new stack type
     // as the first field, otherwise leave it alone.
-    if (OriginalStructType->Fields.empty()) {
-      OriginalStructType->Fields[0].Type = RecoveredType;
+    if (OriginalStructType->Fields().empty()) {
+      OriginalStructType->Fields()[0].Type() = RecoveredType;
       return;
     }
 
-    auto FirstFieldIt = OriginalStructType->Fields.begin();
+    auto FirstFieldIt = OriginalStructType->Fields().begin();
     model::StructField &First = *FirstFieldIt;
     // If there is already a field at offset 0, bail out
-    if (First.Offset == 0)
+    if (First.Offset() == 0)
       return;
 
     // If the first original field is at an offset larger than 0, and the
     // RecoveredType fits, inject it as field at offset 0
-    if (First.Offset >= RecoveredStructSize)
-      OriginalStructType->Fields[0].Type = RecoveredType;
+    if (First.Offset() >= RecoveredStructSize)
+      OriginalStructType->Fields()[0].Type() = RecoveredType;
 
     return;
 
@@ -473,23 +479,22 @@ static void fillStructWithRecoveredDLAType(model::Binary &Model,
     // that go over the OriginalStructSize.
     if (RecoveredStructSize > OriginalStructSize) {
       const auto IsTooLarge = [OriginalStructSize](const auto &Field) {
-        return (Field.Offset + *Field.Type.size()) > OriginalStructSize;
+        return (Field.Offset() + *Field.Type().size()) > OriginalStructSize;
       };
-
-      auto It = llvm::find_if(NewS->Fields, IsTooLarge);
-      auto End = NewS->Fields.end();
-      NewS->Fields.erase(It, End);
-      NewS->Size = OriginalStructSize;
+      auto It = llvm::find_if(NewS->Fields(), IsTooLarge);
+      auto End = NewS->Fields().end();
+      NewS->Fields().erase(It, End);
+      NewS->Size() = OriginalStructSize;
     }
 
     // Best case scenario, the recovered type struct size is less or equal than
     // the size of the original struct. In this case, just make sure we are not
     // introducing new overlapping fields with the original ones, if they exist.
     std::set<model::StructField *> CompatibleFields;
-    auto OriginalFieldsIt = OriginalStructType->Fields.begin();
-    auto OriginalFieldsEnd = OriginalStructType->Fields.end();
-    auto NewFieldsIt = NewS->Fields.begin();
-    auto NewFieldsEnd = NewS->Fields.end();
+    auto OriginalFieldsIt = OriginalStructType->Fields().begin();
+    auto OriginalFieldsEnd = OriginalStructType->Fields().end();
+    auto NewFieldsIt = NewS->Fields().begin();
+    auto NewFieldsEnd = NewS->Fields().end();
 
     while (NewFieldsIt != NewFieldsEnd) {
       // If we've reached the end of the original fields, all the remaining new
@@ -504,12 +509,12 @@ static void fillStructWithRecoveredDLAType(model::Binary &Model,
         break;
       }
 
-      uint64_t OriginalStart = OriginalFieldsIt->Offset;
-      uint64_t OriginalEnd = OriginalFieldsIt->Offset
-                             + *OriginalFieldsIt->Type.size();
+      uint64_t OriginalStart = OriginalFieldsIt->Offset();
+      uint64_t OriginalEnd = OriginalFieldsIt->Offset()
+                             + *OriginalFieldsIt->Type().size();
 
-      uint64_t NewStart = NewFieldsIt->Offset;
-      uint64_t NewEnd = NewFieldsIt->Offset + *NewFieldsIt->Type.size();
+      uint64_t NewStart = NewFieldsIt->Offset();
+      uint64_t NewEnd = NewFieldsIt->Offset() + *NewFieldsIt->Type().size();
 
       if (NewEnd <= OriginalStart) {
         CompatibleFields.insert(&*NewFieldsIt);
@@ -529,59 +534,59 @@ static void fillStructWithRecoveredDLAType(model::Binary &Model,
 
     // If all the fields are compatible, and the RecoveredType fits, try to
     // inject it as a single field of the OldStructType.
-    bool AllNewAreCompatible = CompatibleFields.size() == NewS->Fields.size();
+    bool AllNewAreCompatible = CompatibleFields.size() == NewS->Fields().size();
     if (AllNewAreCompatible) {
 
       // If the original struct was empty, the new one always fits.
-      if (OriginalStructType->Fields.empty()) {
-        OriginalStructType->Fields[0].Type = RecoveredType;
+      if (OriginalStructType->Fields().empty()) {
+        OriginalStructType->Fields()[0].Type() = RecoveredType;
         return;
       }
 
-      auto FirstFieldIt = OriginalStructType->Fields.begin();
+      auto FirstFieldIt = OriginalStructType->Fields().begin();
       model::StructField &First = *FirstFieldIt;
       // If the first field of the original struct started after the new
       // recovered struct should end, we can always inject it.
-      if (First.Offset >= RecoveredStructSize) {
-        OriginalStructType->Fields[0].Type = RecoveredType;
+      if (First.Offset() >= RecoveredStructSize) {
+        OriginalStructType->Fields()[0].Type() = RecoveredType;
         return;
       }
     }
 
     for (model::StructField *NewField : CompatibleFields)
-      OriginalStructType->Fields.insert(*NewField);
+      OriginalStructType->Fields().insert(*NewField);
 
   } else if (auto *NewU = dyn_cast<model::UnionType>(RecoveredUnqualType)) {
     // If OriginalStructType is an not an empty struct, just leave it alone.
-    if (not OriginalStructType->Fields.empty())
+    if (not OriginalStructType->Fields().empty())
       return;
 
     // If DLA recoverd an union kind, whose size is too large, we have to
     // shrink it, like we did with a struct kind.
-    auto FieldsRemaining = NewU->Fields.size();
+    auto FieldsRemaining = NewU->Fields().size();
     if (RecoveredStructSize > OriginalStructSize) {
 
       const auto IsTooLarge =
         [OriginalStructSize](const model::UnionField &Field) {
-          return *Field.Type.size() > OriginalStructSize;
+          return *Field.Type().size() > OriginalStructSize;
         };
 
       // First, detect the fields that are too large.
       llvm::SmallSet<size_t, 8> FieldsToDrop;
-      auto It = NewU->Fields.begin();
-      auto End = NewU->Fields.end();
+      auto It = NewU->Fields().begin();
+      auto End = NewU->Fields().end();
       for (; It != End; ++It) {
         revng_assert(It->verify());
-        revng_assert(It->Type.verify());
+        revng_assert(It->Type().verify());
         if (IsTooLarge(*It))
-          FieldsToDrop.insert(It->Index);
+          FieldsToDrop.insert(It->Index());
       }
 
       revng_assert(not FieldsToDrop.empty());
 
       // Count the fields that are left in the union if we remove those
       // selected to be dropped.
-      FieldsRemaining = NewU->Fields.size() - FieldsToDrop.size();
+      FieldsRemaining = NewU->Fields().size() - FieldsToDrop.size();
 
       // If we need to drop at least one field but not all of them, we have
       // to renumber the remaining fields, otherwise the union will not
@@ -590,13 +595,13 @@ static void fillStructWithRecoveredDLAType(model::Binary &Model,
 
         // Drop the large fields
         for (auto &FieldNum : FieldsToDrop)
-          NewU->Fields.erase(FieldNum);
+          NewU->Fields().erase(FieldNum);
 
         // Re-enumerate the remaining fields
-        for (auto &Group : llvm::enumerate(NewU->Fields))
-          Group.value().Index = Group.index();
+        for (auto &Group : llvm::enumerate(NewU->Fields()))
+          Group.value().Index() = Group.index();
 
-        revng_assert(NewU->Fields.size() == FieldsRemaining);
+        revng_assert(NewU->Fields().size() == FieldsRemaining);
         revng_assert(NewU->verify());
       }
     }
@@ -604,8 +609,8 @@ static void fillStructWithRecoveredDLAType(model::Binary &Model,
     // If there are fields left in the union, then inject the union in the
     // struct as field at offset 0.
     if (FieldsRemaining) {
-      OriginalStructType->Fields[0]
-        .Type = model::QualifiedType(Model.getTypePath(NewU), {});
+      OriginalStructType->Fields()[0]
+        .Type() = model::QualifiedType(Model.getTypePath(NewU), {});
     }
   } else {
     revng_abort();
@@ -618,13 +623,13 @@ static bool updateStackFrameType(model::Function &ModelFunc,
                                  model::Binary &Model) {
   bool Updated = false;
 
-  if (not ModelFunc.StackFrameType.isValid()
-      or ModelFunc.StackFrameType.empty())
+  if (not ModelFunc.StackFrameType().isValid()
+      or ModelFunc.StackFrameType().empty())
     return Updated;
 
-  auto *OldModelStackFrameType = ModelFunc.StackFrameType.get();
+  auto *OldModelStackFrameType = ModelFunc.StackFrameType().get();
   auto *OldStackFrameStruct = cast<model::StructType>(OldModelStackFrameType);
-  if (not OldStackFrameStruct->Fields.empty())
+  if (not OldStackFrameStruct->Fields().empty())
     return Updated;
 
   bool Found = false;
@@ -643,7 +648,7 @@ static bool updateStackFrameType(model::Function &ModelFunc,
 
     revng_log(Log, "Updating stack for " << LLVMFunc.getName());
     LoggerIndent Indent{ Log };
-    revng_log(Log, "Was " << OldModelStackFrameType->ID);
+    revng_log(Log, "Was " << OldModelStackFrameType->ID());
 
     LayoutTypePtr Key{ Call, LayoutTypePtr::fieldNumNone };
 
@@ -660,11 +665,11 @@ static bool updateStackFrameType(model::Function &ModelFunc,
                                      OldStackSize,
                                      NewStackSize);
 
-      revng_log(Log, "Updated to " << ModelFunc.StackFrameType.get()->ID);
+      revng_log(Log, "Updated to " << ModelFunc.StackFrameType().get()->ID());
 
-      revng_assert(isa<model::StructType>(ModelFunc.StackFrameType.get()));
-      revng_assert(*ModelFunc.StackFrameType.get()->size() == OldStackSize);
-      revng_assert(ModelFunc.StackFrameType.get()->verify());
+      revng_assert(isa<model::StructType>(ModelFunc.StackFrameType().get()));
+      revng_assert(*ModelFunc.StackFrameType().get()->size() == OldStackSize);
+      revng_assert(ModelFunc.StackFrameType().get()->verify());
 
       Updated = true;
     }
@@ -690,7 +695,7 @@ bool dla::updateFuncSignatures(const llvm::Module &M,
     if (not ModelFunc)
       continue;
 
-    Type *ModelPrototype = ModelFunc->Prototype.get();
+    Type *ModelPrototype = ModelFunc->Prototype().get();
     revng_log(Log,
               "Updating prototype of function "
                 << LLVMFunc.getNameOrAsOperand());
@@ -725,11 +730,11 @@ bool dla::updateSegmentsTypes(const llvm::Module &M,
 
   for (const auto &F : FunctionTags::SegmentRef.functions(&M)) {
     const auto &[StartAddress, VirtualSize] = extractSegmentKeyFromMetadata(F);
-    model::Segment Segment = Model->Segments.at({ StartAddress, VirtualSize });
+    auto Segment = Model->Segments().at({ StartAddress, VirtualSize });
 
     // We know that the Segment's type is of StructType.
     // It's empty, we'll fill it up.
-    auto *UnqualSegment = Segment.Type.UnqualifiedType.get();
+    auto *UnqualSegment = Segment.Type().UnqualifiedType().get();
     revng_assert(isa<model::StructType>(UnqualSegment));
     auto *SegmentStruct = cast<model::StructType>(UnqualSegment);
     auto SegmentStructSize = *SegmentStruct->size();
@@ -746,8 +751,8 @@ bool dla::updateSegmentsTypes(const llvm::Module &M,
                                      SegmentStructSize,
                                      RecoveredSegmentTypeSize);
 
-      auto *NewUnqualType = Segment.Type.UnqualifiedType.get();
-      revng_log(Log, "Updated to " << NewUnqualType->ID);
+      auto *NewUnqualType = Segment.Type().UnqualifiedType().get();
+      revng_log(Log, "Updated to " << NewUnqualType->ID());
       revng_assert(isa<model::StructType>(NewUnqualType));
       revng_assert(*NewUnqualType->size() == SegmentStructSize);
       revng_assert(NewUnqualType->verify());

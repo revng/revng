@@ -130,14 +130,14 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
   constexpr auto &isConst = model::Qualifier::isConst;
   constexpr auto &isPointer = model::Qualifier::isPointer;
 
-  bool IsUnqualified = QT.Qualifiers.empty();
+  bool IsUnqualified = QT.Qualifiers().empty();
   bool FirstQualifierIsPointer = IsUnqualified
-                                 or isPointer(QT.Qualifiers.front());
+                                 or isPointer(QT.Qualifiers().front());
   bool PrependWhitespaceToInstanceName = not InstanceName.empty()
                                          and (IsUnqualified
                                               or not FirstQualifierIsPointer);
 
-  const model::Type &Unqualified = *QT.UnqualifiedType.getConst();
+  const model::Type &Unqualified = *QT.UnqualifiedType().getConst();
   std::string UnqualifiedTypeName = ptml::getLocationReference(Unqualified);
 
   TypeString Result;
@@ -147,8 +147,8 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
   // spiral rule. Luckily all our function types have names, so at least this
   // cannot become too nasty.
 
-  auto QIt = QT.Qualifiers.begin();
-  auto QEnd = QT.Qualifiers.end();
+  auto QIt = QT.Qualifiers().begin();
+  auto QEnd = QT.Qualifiers().end();
   do {
     // Find the first qualifer that is an array.
     auto QArrayIt = std::find_if(QIt, QEnd, model::Qualifier::isArray);
@@ -171,7 +171,7 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
         if (not PrevPointer)
           Result.append(" ");
 
-        switch (Q.Kind) {
+        switch (Q.Kind()) {
 
         case model::QualifierKind::Const:
           Result.append(keywords::Const.serialize());
@@ -191,7 +191,7 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
     }
 
     // Print the actual instance name.
-    if (QIt == QT.Qualifiers.begin()) {
+    if (QIt == QT.Qualifiers().begin()) {
       if (PrependWhitespaceToInstanceName)
         Result.append(" ");
       Result.append(InstanceName.str());
@@ -243,7 +243,7 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
       for (const model::Qualifier &ArrayQ :
            llvm::reverse(llvm::make_filter_range(ArrayOrConstRange,
                                                  model::Qualifier::isArray)))
-        Result.append((Twine("[") + Twine(ArrayQ.Size) + Twine("]")).str());
+        Result.append((Twine("[") + Twine(ArrayQ.Size()) + Twine("]")).str());
     }
 
     QIt = QPointerIt;
@@ -259,9 +259,9 @@ TypeString getArrayWrapper(const model::QualifiedType &QT) {
   TypeString Result;
   Result.append(ArrayWrapperPrefix);
 
-  for (const auto &Qualifier : QT.Qualifiers) {
+  for (const auto &Qualifier : QT.Qualifiers()) {
 
-    switch (Qualifier.Kind) {
+    switch (Qualifier.Kind()) {
 
     case model::QualifierKind::Const: {
       Result.append("const_");
@@ -272,7 +272,7 @@ TypeString getArrayWrapper(const model::QualifiedType &QT) {
     } break;
 
     case model::QualifierKind::Array: {
-      auto NElem = Qualifier.Size;
+      auto NElem = Qualifier.Size();
       Result.append(("array_" + Twine(NElem) + "_of_").str());
     } break;
 
@@ -281,7 +281,7 @@ TypeString getArrayWrapper(const model::QualifiedType &QT) {
     }
   }
 
-  Result.append(QT.UnqualifiedType.get()->name());
+  Result.append(QT.UnqualifiedType().get()->name());
   Tag ResultTag = Tag(tags::Span, Result.str());
   return TypeString(ResultTag.serialize());
 }
@@ -347,32 +347,32 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
 
   Header << getNamedInstanceOfReturnType(RF, FunctionName);
 
-  revng_assert(RF.StackArgumentsType.Qualifiers.empty());
-  if (RF.Arguments.empty()
-      and not RF.StackArgumentsType.UnqualifiedType.isValid()) {
+  revng_assert(RF.StackArgumentsType().Qualifiers().empty());
+  if (RF.Arguments().empty()
+      and not RF.StackArgumentsType().UnqualifiedType().isValid()) {
     Header << "(" << ptml::tokenTag("void", tokens::Type) << ")";
   } else {
     const StringRef Open = "(";
     const StringRef Comma = ", ";
     StringRef Separator = Open;
-    for (const auto &Arg : RF.Arguments) {
+    for (const auto &Arg : RF.Arguments()) {
       auto ArgName = model::Identifier::fromString(Arg.name()).str().str();
       std::string ArgString = Function ?
                                 getArgumentLocationDefinition(ArgName,
                                                               *Function) :
                                 "";
-      Header << Separator << getNamedCInstance(Arg.Type, ArgString);
+      Header << Separator << getNamedCInstance(Arg.Type(), ArgString);
       Separator = Comma;
     }
 
-    revng_assert(RF.StackArgumentsType.Qualifiers.empty());
-    if (RF.StackArgumentsType.UnqualifiedType.isValid()) {
+    revng_assert(RF.StackArgumentsType().Qualifiers().empty());
+    if (RF.StackArgumentsType().UnqualifiedType().isValid()) {
       // Add last argument representing a pointer to the stack arguments
       auto StackArgName = Function ? getArgumentLocationDefinition("stack_args",
                                                                    *Function) :
                                      "";
       Header << Separator
-             << getNamedCInstance(RF.StackArgumentsType, StackArgName);
+             << getNamedCInstance(RF.StackArgumentsType(), StackArgName);
     }
     Header << ")";
   }
@@ -387,28 +387,28 @@ static void printFunctionPrototypeImpl(const FunctionType *Function,
                                        bool Declaration) {
   Header << getNamedInstanceOfReturnType(CF, FunctionName);
 
-  if (CF.Arguments.empty()) {
+  if (CF.Arguments().empty()) {
     Header << "(" << ptml::tokenTag("void", tokens::Type) << ")";
   } else {
     const StringRef Open = "(";
     const StringRef Comma = ", ";
     StringRef Separator = Open;
 
-    for (const auto &Arg : CF.Arguments) {
+    for (const auto &Arg : CF.Arguments()) {
       auto ArgName = model::Identifier::fromString(Arg.name()).str().str();
       std::string ArgString = Function ?
                                 getArgumentLocationDefinition(ArgName,
                                                               *Function) :
                                 "";
       TypeString ArgDeclaration;
-      if (Arg.Type.isArray()) {
-        ArgDeclaration = getArrayWrapper(Arg.Type);
+      if (Arg.Type().isArray()) {
+        ArgDeclaration = getArrayWrapper(Arg.Type());
         if (not ArgString.empty()) {
           ArgDeclaration.append(" ");
           ArgDeclaration.append(ArgString);
         }
       } else {
-        ArgDeclaration = getNamedCInstance(Arg.Type, ArgString);
+        ArgDeclaration = getNamedCInstance(Arg.Type(), ArgString);
       }
       Header << Separator << ArgDeclaration;
       Separator = Comma;

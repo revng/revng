@@ -223,8 +223,8 @@ computeAccessPattern(FunctionMetadataCache &Cache,
 
   // First, prepare the BaseOffset and the Indices for the IRAccessPattern.
   GEPSummationVector IRPatternIndices;
-  size_t PointerBytes = model::Architecture::getPointerSize(Model.Architecture);
-  APInt BaseOff = APInt(/*NumBits*/ 8 * PointerBytes, /*Value*/ 0);
+  size_t Size = model::Architecture::getPointerSize(Model.Architecture());
+  APInt BaseOff = APInt(/*NumBits*/ 8 * Size, /*Value*/ 0);
 
   // Accumulate all the constant SumElements into BaseOff, and all the others in
   // IRPatternIndices.
@@ -345,7 +345,7 @@ computeAccessPattern(FunctionMetadataCache &Cache,
       const model::Function *MF = llvmToModelFunction(Model, *ReturningF);
       revng_assert(MF);
 
-      const auto Layout = abi::FunctionType::Layout::make(MF->Prototype);
+      const auto Layout = abi::FunctionType::Layout::make(MF->Prototype());
 
       bool HasNoReturnValues = (Layout.ReturnValues.empty()
                                 and not Layout.returnsAggregateType());
@@ -385,7 +385,8 @@ computeAccessPattern(FunctionMetadataCache &Cache,
         auto *RetVal = Ret->getReturnValue();
         auto *StructTy = cast<llvm::StructType>(RetVal->getType());
         revng_log(ModelGEPLog, "Has many return types.");
-        revng_assert(StructTy->getNumElements() == Layout.ReturnValues.size());
+        auto ReturnValuesCount = Layout.ReturnValues.size();
+        revng_assert(StructTy->getNumElements() == ReturnValuesCount);
 
         // Assert that we're returning a proper struct, initialized with
         // struct initializers, but don't do anything here.
@@ -408,18 +409,20 @@ computeAccessPattern(FunctionMetadataCache &Cache,
 
         const model::Function *CalledFType = llvmToModelFunction(Model,
                                                                  *CalledF);
-        const model::Type *CalledPrototype = CalledFType->Prototype.getConst();
+        const model::Type *CalledPrototype = CalledFType->Prototype()
+                                               .getConst();
 
         if (auto *RFT = dyn_cast<RawFunctionType>(CalledPrototype)) {
           revng_log(ModelGEPLog, "Has RawFunctionType prototype.");
-          revng_assert(RFT->ReturnValues.size() > 1);
+          revng_assert(RFT->ReturnValues().size() > 1);
 
           auto *StructTy = cast<llvm::StructType>(CalledF->getReturnType());
           revng_log(ModelGEPLog, "Has many return types.");
-          revng_assert(StructTy->getNumElements() == RFT->ReturnValues.size());
+          auto ValuesCount = RFT->ReturnValues().size();
+          revng_assert(StructTy->getNumElements() == ValuesCount);
 
           model::QualifiedType
-            RetTy = std::next(RFT->ReturnValues.begin(), ArgNum)->Type;
+            RetTy = std::next(RFT->ReturnValues().begin(), ArgNum)->Type();
           if (RetTy.isPointer()) {
             model::QualifiedType Pointee = dropPointer(RetTy);
             revng_log(ModelGEPLog, "Pointee: " << serializeToString(Pointee));
@@ -441,10 +444,10 @@ computeAccessPattern(FunctionMetadataCache &Cache,
         if (const auto *RFT = dyn_cast<RawFunctionType>(Proto.get())) {
 
           auto MoreIndent = LoggerIndent(ModelGEPLog);
-          auto ModelArgSize = RFT->Arguments.size();
-          revng_assert(RFT->StackArgumentsType.Qualifiers.empty());
-          revng_assert((ModelArgSize == Call->arg_size() - 1
-                        and RFT->StackArgumentsType.UnqualifiedType.isValid())
+          auto ModelArgSize = RFT->Arguments().size();
+          revng_assert(RFT->StackArgumentsType().Qualifiers().empty());
+          auto &Type = RFT->StackArgumentsType().UnqualifiedType();
+          revng_assert((ModelArgSize == Call->arg_size() - 1 and Type.isValid())
                        or ModelArgSize == Call->arg_size());
           revng_log(ModelGEPLog, "model::RawFunctionType");
 
@@ -463,11 +466,11 @@ computeAccessPattern(FunctionMetadataCache &Cache,
               // function, but they do not have a corresponding argument in the
               // model. In this case, we have to retrieve the StackArgumentsType
               // from the function prototype.
-              ArgTy = RFT->StackArgumentsType;
-              revng_assert(ArgTy.UnqualifiedType.isValid());
+              ArgTy = RFT->StackArgumentsType();
+              revng_assert(ArgTy.UnqualifiedType().isValid());
             } else {
-              auto ArgIt = std::next(RFT->Arguments.begin(), ArgOpNum);
-              ArgTy = ArgIt->Type;
+              auto ArgIt = std::next(RFT->Arguments().begin(), ArgOpNum);
+              ArgTy = ArgIt->Type();
             }
 
             revng_log(ModelGEPLog,
@@ -484,7 +487,7 @@ computeAccessPattern(FunctionMetadataCache &Cache,
         } else if (const auto *CFT = dyn_cast<CABIFunctionType>(Proto.get())) {
 
           auto MoreIndent = LoggerIndent(ModelGEPLog);
-          revng_assert(CFT->Arguments.size() == Call->arg_size());
+          revng_assert(CFT->Arguments().size() == Call->arg_size());
           revng_log(ModelGEPLog, "model::CABIFunctionType");
 
           auto _ = LoggerIndent(ModelGEPLog);
@@ -492,7 +495,7 @@ computeAccessPattern(FunctionMetadataCache &Cache,
             unsigned ArgOpNum = Call->getArgOperandNo(&U);
             revng_log(ModelGEPLog, "ArgOpNum: " << ArgOpNum);
             revng_log(ModelGEPLog, "ArgOperand: " << U.get());
-            model::QualifiedType ArgTy = CFT->Arguments.at(ArgOpNum).Type;
+            model::QualifiedType ArgTy = CFT->Arguments().at(ArgOpNum).Type();
             revng_log(ModelGEPLog,
                       "model::QualifiedType: " << serializeToString(ArgTy));
             if (ArgTy.isPointer()) {
@@ -760,7 +763,8 @@ differenceScore(const model::QualifiedType &BaseType,
     case Struct: {
       revng_assert(not Normalized.isArray());
 
-      auto *S = cast<model::StructType>(Normalized.UnqualifiedType.getConst());
+      auto *Const = Normalized.UnqualifiedType().getConst();
+      auto *S = cast<model::StructType>(Const);
       size_t FieldOffset = cast<ConstantInt>(ChildID.Index)->getZExtValue();
 
       // If the RestOff is less than the field offset, it means that the IRAP
@@ -772,22 +776,22 @@ differenceScore(const model::QualifiedType &BaseType,
 
       RestOff -= FieldOffset;
 
-      NestedType = S->Fields.at(FieldOffset).Type;
+      NestedType = S->Fields().at(FieldOffset).Type();
     } break;
 
     case Union: {
       revng_assert(not Normalized.isArray());
-      auto *U = cast<model::UnionType>(Normalized.UnqualifiedType.get());
+      auto *U = cast<model::UnionType>(Normalized.UnqualifiedType().get());
       size_t FieldID = cast<ConstantInt>(ChildID.Index)->getZExtValue();
-      NestedType = U->Fields.at(FieldID).Type;
+      NestedType = U->Fields().at(FieldID).Type();
     } break;
 
     case Array: {
       revng_assert(Normalized.isArray());
       revng_assert(ArrayInfoIt != ArrayInfoEnd);
 
-      const auto ArrayQualEnd = Normalized.Qualifiers.end();
-      const auto ArrayQualIt = llvm::find_if(Normalized.Qualifiers,
+      const auto ArrayQualEnd = Normalized.Qualifiers().end();
+      const auto ArrayQualIt = llvm::find_if(Normalized.Qualifiers(),
                                              model::Qualifier::isArray);
       revng_assert(ArrayQualIt != ArrayQualEnd);
 
@@ -865,7 +869,7 @@ differenceScore(const model::QualifiedType &BaseType,
         ++IRAPIndicesIt;
       }
 
-      NestedType = model::QualifiedType(Normalized.UnqualifiedType,
+      NestedType = model::QualifiedType(Normalized.UnqualifiedType(),
                                         { std::next(ArrayQualIt),
                                           ArrayQualEnd });
 
@@ -1000,44 +1004,44 @@ getType(ModelGEPArgs &GEPArgs, model::VerifyHelper &VH) {
     case AggregateKind::Struct: {
 
       CurrType = peelConstAndTypedefs(CurrType.value());
-      auto *S = cast<model::StructType>(CurrType->UnqualifiedType.getConst());
+      auto *S = cast<model::StructType>(CurrType->UnqualifiedType().getConst());
       size_t FieldOffset = cast<ConstantInt>(Index)->getZExtValue();
-      CurrType = S->Fields.at(FieldOffset).Type;
+      CurrType = S->Fields().at(FieldOffset).Type();
 
     } break;
 
     case AggregateKind::Union: {
 
       CurrType = peelConstAndTypedefs(CurrType.value());
-      auto *U = cast<model::UnionType>(CurrType->UnqualifiedType.getConst());
+      auto *U = cast<model::UnionType>(CurrType->UnqualifiedType().getConst());
       size_t FieldID = cast<ConstantInt>(Index)->getZExtValue();
-      CurrType = U->Fields.at(FieldID).Type;
+      CurrType = U->Fields().at(FieldID).Type();
 
     } break;
 
     case AggregateKind::Array: {
 
-      auto It = CurrType->Qualifiers.begin();
+      auto It = CurrType->Qualifiers().begin();
 
       do {
         CurrType = peelConstAndTypedefs(CurrType.value());
 
-        It = llvm::find_if(CurrType->Qualifiers, model::Qualifier::isArray);
+        It = llvm::find_if(CurrType->Qualifiers(), model::Qualifier::isArray);
 
         // Assert that we're not skipping any pointer qualifier.
         // That would mean that the GEPArgs.IndexVector is broken w.r.t. the
         // GEPArgs.BaseAddress.
-        revng_assert(not std::any_of(CurrType->Qualifiers.begin(),
+        revng_assert(not std::any_of(CurrType->Qualifiers().begin(),
                                      It,
                                      model::Qualifier::isPointer));
 
-      } while (It == CurrType->Qualifiers.end());
+      } while (It == CurrType->Qualifiers().end());
 
       // For arrays we don't need to look at the value of the index, we just
       // unwrap the array and go on.
-      CurrType = model::QualifiedType(CurrType->UnqualifiedType,
+      CurrType = model::QualifiedType(CurrType->UnqualifiedType(),
                                       { std::next(It),
-                                        CurrType->Qualifiers.end() });
+                                        CurrType->Qualifiers().end() });
 
     } break;
 
@@ -1108,13 +1112,13 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
       revng_assert(CurrentType.isArray());
 
       model::QualifiedType Array = peelConstAndTypedefs(CurrentType);
-      auto ArrayQualIt = Array.Qualifiers.begin();
-      auto QEnd = Array.Qualifiers.end();
+      auto ArrayQualIt = Array.Qualifiers().begin();
+      auto QEnd = Array.Qualifiers().end();
 
       revng_assert(ArrayQualIt != QEnd);
       revng_assert(model::Qualifier::isArray(*ArrayQualIt));
 
-      auto *Unqualified = Array.UnqualifiedType.get();
+      auto *Unqualified = Array.UnqualifiedType().get();
 
       model::QualifiedType
         ElementType = model::QualifiedType(Model.getTypePath(Unqualified),
@@ -1197,18 +1201,18 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
       while (not Struct) {
         // Skip over all the qualifiers. We only expect const qualifiers here.
         // And we can basically ignore them.
-        for (const auto &Q : CurrentType.Qualifiers)
+        for (const auto &Q : CurrentType.Qualifiers())
           revng_assert(not model::Qualifier::isPointer(Q)
                        and not model::Qualifier::isArray(Q));
 
-        auto *Unqualified = CurrentType.UnqualifiedType.getConst();
+        auto *Unqualified = CurrentType.UnqualifiedType().getConst();
         Struct = dyn_cast<model::StructType>(Unqualified);
         // If this is Unqualified was not a struct, the only valid thing for
         // it is to be a Typedef, in which case we unwrap it and keep looking
         // for a struct
         if (not Struct) {
           auto *TD = cast<model::TypedefType>(Unqualified);
-          CurrentType = TD->UnderlyingType;
+          CurrentType = TD->UnderlyingType();
         }
       }
 
@@ -1222,7 +1226,7 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
         return Result;
 
       APInt OffsetInField = RestOff - FieldOff;
-      auto &FieldType = Struct->Fields.at(FieldOff).Type;
+      auto &FieldType = Struct->Fields().at(FieldOff).Type();
       if (OffsetInField.uge(*FieldType.size(VH))) {
         Result = ModelGEPArgs{ .BaseAddress = TBA,
                                .IndexVector = std::move(Indices),
@@ -1242,18 +1246,18 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
       while (not Union) {
         // Skip over all the qualifiers. We only expect const qualifiers here.
         // And we can basically ignore them.
-        for (const auto &Q : CurrentType.Qualifiers)
+        for (const auto &Q : CurrentType.Qualifiers())
           revng_assert(not model::Qualifier::isPointer(Q)
                        and not model::Qualifier::isArray(Q));
 
-        auto *Unqualified = CurrentType.UnqualifiedType.getConst();
+        auto *Unqualified = CurrentType.UnqualifiedType().getConst();
         Union = dyn_cast<model::UnionType>(Unqualified);
         // If this is Unqualified was not a union, the only valid thing for
         // it is to be a Typedef, in which case we unwrap it and keep looking
         // for a union
         if (not Union) {
           auto *TD = cast<model::TypedefType>(Unqualified);
-          CurrentType = TD->UnderlyingType;
+          CurrentType = TD->UnderlyingType();
         }
       }
 
@@ -1261,7 +1265,7 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
       // affect the RestOff, since traversing union fields does not increase
       // the offset.
       uint64_t FieldId = cast<ConstantInt>(Back.Index)->getZExtValue();
-      auto &FieldType = Union->Fields.at(FieldId).Type;
+      auto &FieldType = Union->Fields().at(FieldId).Type();
       if (RestOff.uge(*FieldType.size(VH))) {
         Result = ModelGEPArgs{ .BaseAddress = TBA,
                                .IndexVector = std::move(Indices),
@@ -1578,7 +1582,7 @@ class GEPSummationCache {
     }
 
     using model::Architecture::getPointerSize;
-    size_t PointerBytes = getPointerSize(Model.Architecture);
+    size_t PointerBytes = getPointerSize(Model.Architecture());
     APInt TheOne = APInt(/*NumBits*/ 8 * PointerBytes, /*Value*/ 1);
     auto *One = ConstantInt::get(V->getContext(), TheOne);
     return ModelGEPSummation{
@@ -1645,12 +1649,12 @@ class TypedAccessCache {
       // child of the BaseType, but the type itself
       Result[NewTAP] = {};
 
-      if (BaseType.Qualifiers.empty()) {
+      if (BaseType.Qualifiers().empty()) {
         revng_log(ModelGEPLog, "No qualifiers!");
         auto EvenMoreIndent = LoggerIndent{ ModelGEPLog };
-        const model::Type *BaseT = BaseType.UnqualifiedType.get();
+        const model::Type *BaseT = BaseType.UnqualifiedType().get();
 
-        switch (BaseT->Kind) {
+        switch (BaseT->Kind()) {
 
           // If we've reached a primitive type or an enum type we're done. The
           // NewTAP added above to Results is enough and we don't need to
@@ -1666,12 +1670,12 @@ class TypedAccessCache {
           revng_log(ModelGEPLog, "Struct, look at fields");
           const auto *S = cast<model::StructType>(BaseT);
           auto StructIndent = LoggerIndent{ ModelGEPLog };
-          for (const model::StructField &Field : S->Fields) {
-            revng_log(ModelGEPLog, "Field at offset: " << Field.Offset);
+          for (const model::StructField &Field : S->Fields()) {
+            revng_log(ModelGEPLog, "Field at offset: " << Field.Offset());
             auto FieldIndent = LoggerIndent{ ModelGEPLog };
 
             // First, traverse each child's type to get the TAPs from it
-            TAPToChildIdsMap FieldResult = rc_recur getTAPImpl(Field.Type,
+            TAPToChildIdsMap FieldResult = rc_recur getTAPImpl(Field.Type(),
                                                                Ctxt,
                                                                VH);
 
@@ -1683,7 +1687,7 @@ class TypedAccessCache {
             ChildInfo CI{
               .Index = ConstantInt::get(llvm::IntegerType::get(Ctxt,
                                                                64 /*NumBits*/),
-                                        Field.Offset /*Value*/),
+                                        Field.Offset() /*Value*/),
               .Type = AggregateKind::Struct
             };
 
@@ -1704,7 +1708,7 @@ class TypedAccessCache {
 
               // Add the Field.Offset to the Base offset
               auto &BaseOffset = TAPWithIdsHandle.key().BaseOffset;
-              BaseOffset += Field.Offset;
+              BaseOffset += Field.Offset();
 
               // Prepend the info on this struct to the child ids in the inner
               // result.
@@ -1723,12 +1727,12 @@ class TypedAccessCache {
           revng_log(ModelGEPLog, "Union, look at fields");
           const auto *U = cast<model::UnionType>(BaseT);
           auto UnionIndent = LoggerIndent{ ModelGEPLog };
-          for (const model::UnionField &Field : U->Fields) {
-            revng_log(ModelGEPLog, "Field ID: " << Field.Index);
+          for (const model::UnionField &Field : U->Fields()) {
+            revng_log(ModelGEPLog, "Field ID: " << Field.Index());
             auto FieldIndent = LoggerIndent{ ModelGEPLog };
 
             // First, traverse each child's type to get the TAPs from it
-            TAPToChildIdsMap FieldResult = rc_recur getTAPImpl(Field.Type,
+            TAPToChildIdsMap FieldResult = rc_recur getTAPImpl(Field.Type(),
                                                                Ctxt,
                                                                VH);
 
@@ -1741,7 +1745,7 @@ class TypedAccessCache {
             ChildInfo CI{
               .Index = ConstantInt::get(llvm::IntegerType::get(Ctxt,
                                                                64 /*NumBits*/),
-                                        Field.Index /*Value*/),
+                                        Field.Index() /*Value*/),
               .Type = AggregateKind::Union
             };
 
@@ -1778,9 +1782,8 @@ class TypedAccessCache {
           // For typedefs, we need to unwrap the underlying type and try to
           // traverse it.
           const auto *TD = cast<model::TypedefType>(BaseT);
-          TAPToChildIdsMap InnerResult = rc_recur getTAPImpl(TD->UnderlyingType,
-                                                             Ctxt,
-                                                             VH);
+          TAPToChildIdsMap InnerResult = rc_recur
+            getTAPImpl(TD->UnderlyingType(), Ctxt, VH);
           // The InnerResult can just be merged into the Result, because
           // typedefs are shallow names that don't really add ids to the
           // traversal of the typesystem.
@@ -1797,9 +1800,9 @@ class TypedAccessCache {
         }
       } else {
         revng_log(ModelGEPLog,
-                  "Has qualifiers: " << BaseType.Qualifiers.size());
+                  "Has qualifiers: " << BaseType.Qualifiers().size());
         auto EvenMoreIndent = LoggerIndent{ ModelGEPLog };
-        const model::Qualifier &FirstQualifier = *BaseType.Qualifiers.begin();
+        const model::Qualifier &FirstQualifier = *BaseType.Qualifiers().begin();
 
         // If the first qualifier is a pointer qualifier, we're done
         // descending, because the pointee does not reside into the BaseType,
@@ -1809,9 +1812,9 @@ class TypedAccessCache {
         if (not model::Qualifier::isPointer(FirstQualifier)) {
           revng_log(ModelGEPLog, "FirstQualifier is not ConstQualifier");
 
-          auto QIt = std::next(BaseType.Qualifiers.begin());
-          auto QEnd = BaseType.Qualifiers.end();
-          auto InnerType = model::QualifiedType(BaseType.UnqualifiedType,
+          auto QIt = std::next(BaseType.Qualifiers().begin());
+          auto QEnd = BaseType.Qualifiers().end();
+          auto InnerType = model::QualifiedType(BaseType.UnqualifiedType(),
                                                 { QIt, QEnd });
 
           // First, compute the InnerResult, which represents all the TAPs
@@ -1832,7 +1835,7 @@ class TypedAccessCache {
 
             // First, build the array info associated to the array we're
             // handling.
-            uint64_t NElems = FirstQualifier.Size;
+            uint64_t NElems = FirstQualifier.Size();
             std::optional<uint64_t> MaybeInnerTypeSize = InnerType.size(VH);
             revng_assert(MaybeInnerTypeSize.has_value()
                          and MaybeInnerTypeSize.value());
@@ -2028,7 +2031,7 @@ static UseGEPInfoMap makeGEPReplacements(llvm::Function &F,
           continue;
 
         ModelGEPArgs &GEPArgs = BestGEPArgsOrNone.value();
-        const model::Architecture::Values &Architecture = Model.Architecture;
+        const model::Architecture::Values &Architecture = Model.Architecture();
         auto PointerToGEPArgs = GEPArgs.PointeeType.getPointerTo(Architecture);
         GEPifiedUsedTypes.insert({ &U, PointerToGEPArgs });
 

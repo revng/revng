@@ -58,22 +58,22 @@ static QualifiedType createStructWrapper(const LTSN *N,
 
   // Create and insert field in struct
   StructField Field{ Offset, {}, {}, T };
-  const auto &[FieldIt, Inserted] = Struct->Fields.insert(Field);
+  const auto &[FieldIt, Inserted] = Struct->Fields().insert(Field);
   revng_assert(Inserted);
 
   // If the field has pointer type, save the corresponding qualified type for
   // updating it later
   if (T.isPointer()) {
-    bool New = PointerFieldsToUpdate[N].insert(&FieldIt->Type).second;
+    bool New = PointerFieldsToUpdate[N].insert(&FieldIt->Type()).second;
     revng_assert(New);
     revng_log(Log,
               "Wrapped pointer node "
                 << N->ID << " inside wrapper struct with Model ID: "
-                << Struct->ID << " at address " << &FieldIt->Type);
+                << Struct->ID() << " at address " << &FieldIt->Type());
     if (Log.isEnabled()) {
       std::string S;
       llvm::raw_string_ostream OS{ S };
-      serialize(OS, FieldIt->Type);
+      serialize(OS, FieldIt->Type());
       OS.flush();
       revng_log(Log, "Pointer: " << S);
     }
@@ -82,10 +82,10 @@ static QualifiedType createStructWrapper(const LTSN *N,
   // If WrapperSize == 0ULL we use the size of T to set the size of the
   // generated wrapper struct, otherwise we take WrapperSize, but in that case
   // it must be larger or equal than T.size() + Offset;
-  Struct->Size = WrapperSize ? WrapperSize : (Offset + *T.size());
+  Struct->Size() = WrapperSize ? WrapperSize : (Offset + *T.size());
 
-  revng_assert(Struct->Size and T.size().has_value()
-               and Struct->Size >= (T.size().value() + Offset));
+  revng_assert(Struct->Size() and T.size().has_value()
+               and Struct->Size() >= (T.size().value() + Offset));
   return QualifiedType{ StructPath, {} };
 }
 
@@ -146,8 +146,8 @@ makeInstanceQualifiedType(const LTSN *N,
                                                       /*offset*/ 0,
                                                       /*size*/ UStride);
       // Now make this an array.
-      revng_assert(ElemWrapper.Qualifiers.empty());
-      ElemWrapper.Qualifiers.push_back({ Array, (NumElems - 1) });
+      revng_assert(ElemWrapper.Qualifiers().empty());
+      ElemWrapper.Qualifiers().push_back({ Array, (NumElems - 1) });
 
       const uint64_t LastElemOffset = UStride * (NumElems - 1);
       const uint64_t ArrayWrapperSize = LastElemOffset + InnerSize;
@@ -163,20 +163,20 @@ makeInstanceQualifiedType(const LTSN *N,
                                            /*size*/ ArrayWrapperSize);
 
       // Insert the last element
-      revng_assert(ArrayWrapper.Qualifiers.empty());
-      auto *UnqualifiedWrapper = ArrayWrapper.UnqualifiedType.get();
+      revng_assert(ArrayWrapper.Qualifiers().empty());
+      auto *UnqualifiedWrapper = ArrayWrapper.UnqualifiedType().get();
       auto *WrapperStruct = llvm::cast<model::StructType>(UnqualifiedWrapper);
 
       // Insert the rest of the array
       StructField TrailingElem = StructField{ LastElemOffset, {}, {}, Result };
-      WrapperStruct->Fields.insert(TrailingElem);
-      WrapperStruct->Size = ArrayWrapperSize;
+      WrapperStruct->Fields().insert(TrailingElem);
+      WrapperStruct->Size() = ArrayWrapperSize;
 
       Result = ArrayWrapper;
     } else {
       revng_log(Log, "Adding array qualifier with no wrappers");
 
-      Result.Qualifiers.push_back({ Array, NumElems });
+      Result.Qualifiers().push_back({ Array, NumElems });
     }
   }
 
@@ -195,7 +195,7 @@ static QualifiedType makeStructFromNode(const LTSN *N,
   LoggerIndent StructIndent{ Log };
   TypePath StructPath = Model->recordNewType(makeType<model::StructType>());
   auto *Struct = llvm::cast<model::StructType>(StructPath.get());
-  Struct->Size = N->Size;
+  Struct->Size() = N->Size;
 
   // This holds the struct fields in the same order as in the model, so we can
   // later insert them in the model already in order, without invalidating
@@ -226,24 +226,25 @@ static QualifiedType makeStructFromNode(const LTSN *N,
 
   // Reserve the fields, since we're passing around pointers to them, we don't
   // want them to be reallocated on insert.
-  Struct->Fields.reserve(N->Successors.size());
+  Struct->Fields().reserve(N->Successors.size());
 
   for (auto &[Field, SuccNode] : Fields) {
-    const auto &[FieldIt, Inserted] = Struct->Fields.insert(std::move(Field));
+    const auto &[FieldIt, Inserted] = Struct->Fields().insert(std::move(Field));
     revng_assert(Inserted);
 
     // If the field is a pointer, save the corresponding qualified type
-    if (FieldIt->Type.isPointer()) {
-      bool New = PointerFieldsToUpdate[SuccNode].insert(&FieldIt->Type).second;
+    if (FieldIt->Type().isPointer()) {
+      bool
+        New = PointerFieldsToUpdate[SuccNode].insert(&FieldIt->Type()).second;
       revng_assert(New);
       revng_log(Log,
                 "Pointer node "
                   << SuccNode->ID << " inside struct with Model ID: "
-                  << Struct->ID << " at address " << &FieldIt->Type);
+                  << Struct->ID() << " at address " << &FieldIt->Type());
       if (Log.isEnabled()) {
         std::string S;
         llvm::raw_string_ostream OS{ S };
-        serialize(OS, FieldIt->Type);
+        serialize(OS, FieldIt->Type());
         OS.flush();
         revng_log(Log, "Pointer: " << S);
       }
@@ -303,25 +304,26 @@ static QualifiedType makeUnionFromNode(const LTSN *N,
 
   // Reserve the fields, since we're passing around pointers to them, we don't
   // want them to be reallocated on insert.
-  Union->Fields.reserve(N->Successors.size());
+  Union->Fields().reserve(N->Successors.size());
 
   for (auto &[Field, SuccNode] : Fields) {
     // Insert field in union
-    const auto &[FieldIt, Inserted] = Union->Fields.insert(std::move(Field));
+    const auto &[FieldIt, Inserted] = Union->Fields().insert(std::move(Field));
     revng_assert(Inserted);
 
     // If the field is a pointer, save the corresponding qualified type
-    if (FieldIt->Type.isPointer()) {
-      bool New = PointerFieldsToUpdate[SuccNode].insert(&FieldIt->Type).second;
+    if (FieldIt->Type().isPointer()) {
+      bool
+        New = PointerFieldsToUpdate[SuccNode].insert(&FieldIt->Type()).second;
       revng_assert(New);
       revng_log(Log,
-                "Pointer node " << SuccNode->ID
-                                << " inside union with Model ID: " << Union->ID
-                                << " at address " << &FieldIt->Type);
+                "Pointer node "
+                  << SuccNode->ID << " inside union with Model ID: "
+                  << Union->ID() << " at address " << &FieldIt->Type());
       if (Log.isEnabled()) {
         std::string S;
         llvm::raw_string_ostream OS{ S };
-        serialize(OS, FieldIt->Type);
+        serialize(OS, FieldIt->Type());
         OS.flush();
         revng_log(Log, "Pointer: " << S);
       }
@@ -350,7 +352,7 @@ static QualifiedType &createNodeType(TupleTree<model::Binary> &Model,
     // pointee have been visited when we're looking at the pointer.
     MaybeResult = QualifiedType{
       Model->getPrimitiveType(model::PrimitiveTypeKind::Void, 0),
-      { Qualifier::createPointer(Model->Architecture) }
+      { Qualifier::createPointer(Model->Architecture()) }
     };
 
     if (MaybeResult.value().isPointer()) {
@@ -528,7 +530,7 @@ TypeMapT dla::makeModelTypes(const LayoutTypeSystem &TS,
     revng_log(Log, "NumPointers: " << NumPointers);
 
     auto FinalPointeeType = getNodeType(Model, PointeeNode, Types, EqClasses);
-    revng_assert(FinalPointeeType.Qualifiers.empty());
+    revng_assert(FinalPointeeType.Qualifiers().empty());
 
     if (Log.isEnabled()) {
       std::string S;
@@ -553,14 +555,14 @@ TypeMapT dla::makeModelTypes(const LayoutTypeSystem &TS,
       }
 
       // Fixup the pointee type
-      QTypeToUpdate->UnqualifiedType = FinalPointeeType.UnqualifiedType;
+      QTypeToUpdate->UnqualifiedType() = FinalPointeeType.UnqualifiedType();
 
       // If it's a pointer to pointer, add the missing pointer qualifiers.
-      revng_assert(Qualifier::isPointer(QTypeToUpdate->Qualifiers.front()));
-      auto PtrQual = Qualifier::createPointer(Model->Architecture);
-      QTypeToUpdate->Qualifiers.insert(QTypeToUpdate->Qualifiers.begin(),
-                                       NumPointers - 1,
-                                       PtrQual);
+      revng_assert(Qualifier::isPointer(QTypeToUpdate->Qualifiers().front()));
+      auto PtrQual = Qualifier::createPointer(Model->Architecture());
+      QTypeToUpdate->Qualifiers().insert(QTypeToUpdate->Qualifiers().begin(),
+                                         NumPointers - 1,
+                                         PtrQual);
       if (Log.isEnabled()) {
         std::string S;
         llvm::raw_string_ostream OS{ S };

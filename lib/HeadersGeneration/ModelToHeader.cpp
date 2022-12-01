@@ -48,7 +48,7 @@ static bool declarationIsDefinition(const model::Type *T) {
 static ptml::Tag getTypeKeyword(const model::Type &T) {
 
   ptml::Tag TypeKeyword;
-  switch (T.Kind) {
+  switch (T.Kind()) {
 
   case model::TypeKind::EnumType: {
     TypeKeyword = keywords::Enum;
@@ -92,10 +92,10 @@ printDeclaration(const model::EnumType &E, ptml::PTMLIndentedOstream &Header) {
   {
     Scope Scope(Header);
 
-    for (const auto &Entry : E.Entries) {
-      revng_assert(not Entry.CustomName.empty());
+    for (const auto &Entry : E.Entries()) {
+      revng_assert(not Entry.CustomName().empty());
       Header << ptml::getLocationDefinition(E, Entry) << " "
-             << operators::Assign << " " << constants::hex(Entry.Value)
+             << operators::Assign << " " << constants::hex(Entry.Value())
              << ",\n";
     }
 
@@ -117,26 +117,27 @@ printDefinition(const model::StructType &S, ptml::PTMLIndentedOstream &Header) {
     Scope Scope(Header, scopeTags::Struct);
 
     size_t NextOffset = 0ULL;
-    for (const auto &Field : S.Fields) {
-      if (NextOffset < Field.Offset)
+    for (const auto &Field : S.Fields()) {
+      if (NextOffset < Field.Offset())
         Header << ptml::tokenTag("uint8_t", tokens::Type) << " "
                << ptml::tokenTag("padding_at_offset_"
                                    + std::to_string(NextOffset),
                                  tokens::Field)
-               << "[" << constants::number(Field.Offset - NextOffset) << "];\n";
+               << "[" << constants::number(Field.Offset() - NextOffset)
+               << "];\n";
 
       auto F = ptml::getLocationDefinition(S, Field);
-      Header << getNamedCInstance(Field.Type, F) << ";\n";
+      Header << getNamedCInstance(Field.Type(), F) << ";\n";
 
-      NextOffset = Field.Offset + Field.Type.size().value();
+      NextOffset = Field.Offset() + Field.Type().size().value();
     }
 
-    if (NextOffset < S.Size)
+    if (NextOffset < S.Size())
       Header << ptml::tokenTag("uint8_t", tokens::Type) << " "
              << ptml::tokenTag("padding_at_offset_"
                                  + std::to_string(NextOffset),
                                tokens::Field)
-             << "[" << constants::number(S.Size - NextOffset) << "];\n";
+             << "[" << constants::number(S.Size() - NextOffset) << "];\n";
   }
   Header << ";\n";
 }
@@ -148,9 +149,9 @@ printDefinition(const model::UnionType &U, ptml::PTMLIndentedOstream &Header) {
 
   {
     Scope Scope(Header, scopeTags::Union);
-    for (const auto &Field : U.Fields) {
+    for (const auto &Field : U.Fields()) {
       auto F = ptml::getLocationDefinition(U, Field);
-      Header << getNamedCInstance(Field.Type, F) << ";\n";
+      Header << getNamedCInstance(Field.Type(), F) << ";\n";
     }
   }
 
@@ -161,13 +162,13 @@ static void printDeclaration(const model::TypedefType &TD,
                              ptml::PTMLIndentedOstream &Header) {
   auto Type = ptml::getLocationDefinition(TD);
   Header << keywords::Typedef << " "
-         << getNamedCInstance(TD.UnderlyingType, Type) << ";\n";
+         << getNamedCInstance(TD.UnderlyingType(), Type) << ";\n";
 }
 
 static void printSegmentsTypes(const model::Segment &Segment,
                                ptml::PTMLIndentedOstream &Header) {
   auto S = ptml::getLocationDefinition(Segment);
-  Header << getNamedCInstance(Segment.Type, S) << ";\n";
+  Header << getNamedCInstance(Segment.Type(), S) << ";\n";
 }
 
 /// Generate the definition of a new struct type that wraps all the
@@ -176,7 +177,7 @@ static void printSegmentsTypes(const model::Segment &Segment,
 static void generateReturnValueWrapper(const model::RawFunctionType &F,
                                        ptml::PTMLIndentedOstream &Header,
                                        const model::Binary &Model) {
-  revng_assert(F.ReturnValues.size() > 1);
+  revng_assert(F.ReturnValues().size() > 1);
   if (Log.isEnabled())
     Header << helpers::lineComment("definition the of return type needed");
 
@@ -185,8 +186,8 @@ static void generateReturnValueWrapper(const model::RawFunctionType &F,
 
   {
     Scope Scope(Header, scopeTags::Struct);
-    for (auto &Group : llvm::enumerate(F.ReturnValues)) {
-      const model::QualifiedType &RetTy = Group.value().Type;
+    for (auto &Group : llvm::enumerate(F.ReturnValues())) {
+      const model::QualifiedType &RetTy = Group.value().Type();
       const auto &FieldName = getReturnField(F, Group.index(), Model);
       Header << getNamedCInstance(RetTy,
                                   ptml::tokenTag(FieldName, tokens::Field)
@@ -203,11 +204,11 @@ static void generateReturnValueWrapper(const model::RawFunctionType &F,
 static void printRawFunctionWrappers(const model::RawFunctionType *F,
                                      ptml::PTMLIndentedOstream &Header,
                                      const model::Binary &Model) {
-  if (F->ReturnValues.size() > 1)
+  if (F->ReturnValues().size() > 1)
     generateReturnValueWrapper(*F, Header, Model);
 
-  for (auto &Arg : F->Arguments)
-    revng_assert(Arg.Type.isScalar());
+  for (auto &Arg : F->Arguments())
+    revng_assert(Arg.Type().isScalar());
 }
 
 /// Print a typedef for a RawFunctionType, that can be used when you have
@@ -254,12 +255,12 @@ static void generateArrayWrapper(const model::QualifiedType &ArrayType,
 static void printCABIFunctionWrappers(const model::CABIFunctionType *F,
                                       ptml::PTMLIndentedOstream &Header,
                                       QualifiedTypeNameMap &NamesCache) {
-  if (F->ReturnType.isArray())
-    generateArrayWrapper(F->ReturnType, Header, NamesCache);
+  if (F->ReturnType().isArray())
+    generateArrayWrapper(F->ReturnType(), Header, NamesCache);
 
-  for (auto &Arg : F->Arguments)
-    if (Arg.Type.isArray())
-      generateArrayWrapper(Arg.Type, Header, NamesCache);
+  for (auto &Arg : F->Arguments())
+    if (Arg.Type().isArray())
+      generateArrayWrapper(Arg.Type(), Header, NamesCache);
 }
 
 /// Print a typedef for a CABIFunctionType, that can be used when you
@@ -288,7 +289,7 @@ static void printDeclaration(const model::Type &T,
 
   revng_log(Log, "Declaring " << getNameFromYAMLScalar(T.key()));
 
-  switch (T.Kind) {
+  switch (T.Kind()) {
 
   case model::TypeKind::Invalid: {
     if (Log.isEnabled())
@@ -344,7 +345,7 @@ static void printDefinition(const model::Type &T,
   if (declarationIsDefinition(&T)) {
     printDeclaration(T, Header, AdditionalTypeNames, Model);
   } else {
-    switch (T.Kind) {
+    switch (T.Kind()) {
 
     case model::TypeKind::Invalid: {
       if (Log.isEnabled())
@@ -370,7 +371,7 @@ static void printTypeDefinitions(const model::Binary &Model,
                                  ptml::PTMLIndentedOstream &Header,
                                  QualifiedTypeNameMap &AdditionalTypeNames) {
 
-  DependencyGraph Dependencies = buildDependencyGraph(Model.Types);
+  DependencyGraph Dependencies = buildDependencyGraph(Model.Types());
   const auto &TypeNodes = Dependencies.TypeNodes();
 
   std::set<const TypeDependencyNode *> Defined;
@@ -443,7 +444,7 @@ bool dumpModelToHeader(const model::Binary &Model, llvm::raw_ostream &Out) {
            << constants::Zero << ")\n"
            << directives::EndIf << "\n";
 
-    if (not Model.Types.empty()) {
+    if (not Model.Types().empty()) {
       auto Foldable = scopeTags::TypeDeclarations.scope(Out,
                                                         /* Newline */ true);
       Header << helpers::lineComment("===============");
@@ -454,15 +455,15 @@ bool dumpModelToHeader(const model::Binary &Model, llvm::raw_ostream &Out) {
       printTypeDefinitions(Model, Header, AdditionalTypeNames);
     }
 
-    if (not Model.Functions.empty()) {
+    if (not Model.Functions().empty()) {
       auto Foldable = scopeTags::FunctionDeclarations.scope(Out,
                                                             /* Newline */ true);
       Header << helpers::lineComment("===================");
       Header << helpers::lineComment("==== Functions ====");
       Header << helpers::lineComment("===================");
       Header << '\n';
-      for (const model::Function &MF : Model.Functions) {
-        const model::Type *FT = MF.Prototype.get();
+      for (const model::Function &MF : Model.Functions()) {
+        const model::Type *FT = MF.Prototype().get();
         auto FName = model::Identifier::fromString(MF.name());
 
         if (Log.isEnabled()) {
@@ -478,14 +479,15 @@ bool dumpModelToHeader(const model::Binary &Model, llvm::raw_ostream &Out) {
       }
     }
 
-    if (not Model.ImportedDynamicFunctions.empty()) {
+    if (not Model.ImportedDynamicFunctions().empty()) {
       auto Foldable = scopeTags::DynamicFunctionDeclarations
                         .scope(Out, /* Newline */ true);
       Header << helpers::lineComment("==================================");
       Header << helpers::lineComment("==== ImportedDynamicFunctions ====");
       Header << helpers::lineComment("==================================");
       Header << '\n';
-      for (const model::DynamicFunction &MF : Model.ImportedDynamicFunctions) {
+      for (const model::DynamicFunction &MF :
+           Model.ImportedDynamicFunctions()) {
         const model::Type *FT = MF.prototype(Model).get();
         revng_assert(FT != nullptr);
         auto FName = model::Identifier::fromString(MF.name());
@@ -502,14 +504,14 @@ bool dumpModelToHeader(const model::Binary &Model, llvm::raw_ostream &Out) {
       }
     }
 
-    if (not Model.Segments.empty()) {
+    if (not Model.Segments().empty()) {
       auto Foldable = scopeTags::SegmentDeclarations.scope(Out,
                                                            /* Newline */ true);
       Header << helpers::lineComment("==================");
       Header << helpers::lineComment("==== Segments ====");
       Header << helpers::lineComment("==================");
       Header << '\n';
-      for (const model::Segment &Segment : Model.Segments)
+      for (const model::Segment &Segment : Model.Segments())
         printSegmentsTypes(Segment, Header);
       Header << '\n';
     }

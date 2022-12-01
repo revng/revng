@@ -48,7 +48,7 @@ bool DLAPass::runOnModule(llvm::Module &M) {
 
   // Middle-end Steps: manipulate nodes and edges of the DLATypeSystem graph
   dla::StepManager SM;
-  size_t PtrSize = getPointerSize(Model.Architecture);
+  size_t PtrSize = getPointerSize(Model.Architecture());
   revng_check(SM.addStep<dla::RemoveInvalidPointers>(PtrSize));
   revng_check(SM.addStep<dla::CollapseEqualitySCC>());
   revng_check(SM.addStep<dla::CollapseInstanceAtOffset0SCC>());

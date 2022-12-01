@@ -86,7 +86,7 @@ MMCP::serializeTypesForModelCast(FunctionMetadataCache &Cache,
       // with casts, since we don't have a model::Type to cast them to.
       if (ModelTypes.size() == 1) {
         QualifiedType ExpectedType = ModelTypes.back();
-        revng_assert(ExpectedType.UnqualifiedType.isValid());
+        revng_assert(ExpectedType.UnqualifiedType().isValid());
 
         const QualifiedType &OperandType = TypeMap.at(Op.get());
         if (ExpectedType != OperandType) {
@@ -134,7 +134,7 @@ MMCP::serializeTypesForModelCast(FunctionMetadataCache &Cache,
     auto &PtrOperandPtrType = TypeMap.at(SI->getPointerOperand());
     auto &ValOperandType = TypeMap.at(SI->getValueOperand());
 
-    const model::Architecture::Values &Arch = Model.Architecture;
+    const model::Architecture::Values &Arch = Model.Architecture();
     QualifiedType ValOperandPtrType = ValOperandType.getPointerTo(Arch);
     if (PtrOperandPtrType != ValOperandPtrType) {
       bool IsPtrOperandOfAggregateType = false;
@@ -142,7 +142,7 @@ MMCP::serializeTypesForModelCast(FunctionMetadataCache &Cache,
 
       if (PtrOperandPtrType.isPointer()) {
         PtrOperandType = dropPointer(PtrOperandPtrType);
-        const auto *Unqualified = PtrOperandType.UnqualifiedType.getConst();
+        const auto *Unqualified = PtrOperandType.UnqualifiedType().getConst();
         IsPtrOperandOfAggregateType = isa<model::StructType>(Unqualified)
                                       || isa<model::UnionType>(Unqualified);
       }

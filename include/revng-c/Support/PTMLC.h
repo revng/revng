@@ -364,7 +364,7 @@ inline std::string serializeLocation(const model::UnionType &Union,
 inline Tag
 getNameTag(const model::EnumType &Enum, const model::EnumEntry &Entry) {
   return ptml::tokenTag(Enum.name().str().str() + "_"
-                          + Entry.CustomName.str().str(),
+                          + Entry.CustomName().str().str(),
                         c::tokens::Field);
 }
 

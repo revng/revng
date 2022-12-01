@@ -52,8 +52,8 @@ inline bool areMemOpCompatible(const model::QualifiedType &ModelType,
   // For LLVM pointers, we want to check that the model type has the correct
   // size with respect to the current architecture
   if (LLVMType.isPointerTy()) {
-    auto PointerSize = model::Architecture::getPointerSize(Model.Architecture);
-    return PointerSize == ModelSize;
+    auto Size = model::Architecture::getPointerSize(Model.Architecture());
+    return Size == ModelSize;
   }
 
   auto LLVMSize = LLVMType.getScalarSizeInBits();

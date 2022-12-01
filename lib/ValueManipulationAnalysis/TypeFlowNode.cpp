@@ -32,17 +32,17 @@ RecursiveCoroutine<ColorSet> vma::QTToColor(const model::QualifiedType &QT) {
     rc_return POINTERNESS;
 
   if (QT.is(model::TypeKind::TypedefType)) {
-    auto *UnqualT = QT.UnqualifiedType.getConst();
+    auto *UnqualT = QT.UnqualifiedType().getConst();
     auto *TypedefT = llvm::cast<model::TypedefType>(UnqualT);
 
-    rc_return rc_recur QTToColor(TypedefT->UnderlyingType);
+    rc_return rc_recur QTToColor(TypedefT->UnderlyingType());
   }
 
   if (QT.is(model::TypeKind::PrimitiveType)) {
-    auto *UnqualT = QT.UnqualifiedType.getConst();
+    auto *UnqualT = QT.UnqualifiedType().getConst();
     auto *PrimitiveT = llvm::cast<model::PrimitiveType>(UnqualT);
 
-    switch (PrimitiveT->PrimitiveKind) {
+    switch (PrimitiveT->PrimitiveKind()) {
 
     case model::PrimitiveTypeKind::Void:
       rc_return NO_COLOR;
