@@ -120,13 +120,45 @@ static void debug_function dumpToString(llvm::Value *Value) {
   llvm::dbgs() << "Value: " << dumpToString(*Value) << "\n";
 }
 
+static StringToken addAlwaysParentheses(const llvm::Twine &Expr) {
+  return StringToken(("(" + Expr + ")").str());
+}
+
+static StringToken get128BitIntegerHexConstant(llvm::APInt Value) {
+  revng_assert(Value.getBitWidth() > 64);
+  // In C, even if you can have 128-bit variables, you cannot have 128-bit
+  // literals, so we need this hack to assign a big constant value to a
+  // 128-bit variable.
+  llvm::APInt LowBits = Value.getLoBits(64);
+  llvm::APInt HighBits = Value.getHiBits(Value.getBitWidth() - 64);
+
+  StringToken LowBitsString;
+  LowBits.toString(LowBitsString,
+                   /*radix=*/16,
+                   /*signed=*/false,
+                   /*formatAsCLiteral=*/true);
+  StringToken HighBitsString;
+  HighBits.toString(HighBitsString,
+                    /*radix=*/16,
+                    /*signed=*/false,
+                    /*formatAsCLiteral=*/true);
+
+  auto HighConstant = constants::constant(HighBitsString) + " "
+                      + operators::LShift + " " + constants::number(64);
+  auto CompositeConstant = HighConstant + " " + operators::Or + " "
+                           + constants::constant(LowBitsString);
+  return addAlwaysParentheses(CompositeConstant).str();
+}
+
 static StringToken hexLiteral(const llvm::ConstantInt *Int) {
-  return StringToken(llvm::formatv("{0:x}", Int));
+  if (Int->getBitWidth() <= 64)
+    return StringToken(llvm::formatv("{0:x}", Int->getZExtValue()));
+  return get128BitIntegerHexConstant(Int->getValue());
 }
 
 static StringToken charLiteral(const llvm::ConstantInt *Int) {
   revng_assert(Int->getValue().getBitWidth() == 8);
-  const auto LimitedValue = Int->getValue().getLimitedValue(0xffu);
+  const auto LimitedValue = Int->getLimitedValue(0xffu);
   const auto CharValue = static_cast<char>(LimitedValue);
 
   std::string EscapedC;
@@ -377,8 +409,6 @@ private:
   StringToken handleSpecialFunction(const llvm::CallInst *Call);
 
 private:
-  StringToken addAlwaysParentheses(const llvm::Twine &Expr);
-
   StringToken addParentheses(const llvm::Twine &Expr);
 
   StringToken buildDerefExpr(const llvm::Twine &Expr);
@@ -450,10 +480,6 @@ private:
     return { Var.Declaration, operators::AddressOf + Var.Use };
   }
 };
-
-StringToken CCodeGenerator::addAlwaysParentheses(const llvm::Twine &Expr) {
-  return StringToken(("(" + Expr + ")").str());
-}
 
 StringToken CCodeGenerator::addParentheses(const llvm::Twine &Expr) {
   if (IsOperatorPrecedenceResolutionPassEnabled)
@@ -602,30 +628,7 @@ CCodeGenerator::addOperandToken(const llvm::Value *Operand) {
       TokenMap[Operand] = constants::number(Value.getLimitedValue())
                             .serialize();
     } else {
-      // In C, even if you can have 128-bit variables, you cannot have 128-bit
-      // literals, so we need this hack to assign a big constant value to a
-      // 128-bit variable.
-      llvm::APInt LowBits = Value.getLoBits(64);
-      llvm::APInt HighBits = Value.getHiBits(Value.getBitWidth() - 64);
-
-      // TODO: Decide how to print constants
-      StringToken LowBitsString;
-      LowBits.toString(LowBitsString,
-                       /*radix=*/16,
-                       /*signed=*/false,
-                       /*formatAsCLiteral=*/true);
-      StringToken HighBitsString;
-      HighBits.toString(HighBitsString,
-                        /*radix=*/16,
-                        /*signed=*/false,
-                        /*formatAsCLiteral=*/true);
-
-      auto HighConstant = constants::constant(HighBitsString) + " "
-                          + operators::LShift + " " + constants::number(64);
-      auto CompositeConstant = addParentheses(HighConstant).str().str() + " "
-                               + operators::Or + " "
-                               + constants::constant(LowBitsString);
-      TokenMap[Operand] = addAlwaysParentheses(CompositeConstant).str();
+      TokenMap[Operand] = get128BitIntegerHexConstant(Value).str().str();
     }
 
     rc_return true;
