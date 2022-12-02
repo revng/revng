@@ -8,8 +8,10 @@
 #include <vector>
 
 #include "llvm/IR/Attributes.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
+#include "llvm/IR/Instruction.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/Pass.h"
@@ -30,7 +32,6 @@ enum class IntFormatting : uint32_t {
 
 struct FormatInt {
   IntFormatting Formatting;
-  llvm::Instruction *Instruction;
   llvm::Use *Use;
 };
 
@@ -71,11 +72,9 @@ bool PrettyIntFormatting::runOnFunction(llvm::Function &F) {
   }
 
   llvm::IRBuilder<> Builder(F.getContext());
-  for (const auto &[Format, Instruction, Operand] : IntsToBeFormatted) {
-    llvm::Value *Val = Operand->get();
-
-    auto *OpVal = Instruction->getOperand(Operand->getOperandNo());
-    llvm::Type *IntType = OpVal->getType();
+  for (const auto &[Format, Operand] : IntsToBeFormatted) {
+    auto *Val = llvm::cast<llvm::ConstantInt>(Operand->get());
+    llvm::Type *IntType = Val->getType();
 
     auto PrettyFunction = [&, Format = Format]() -> llvm::Function * {
       switch (Format) {
@@ -93,9 +92,9 @@ bool PrettyIntFormatting::runOnFunction(llvm::Function &F) {
     }();
 
     if (PrettyFunction) {
-      Builder.SetInsertPoint(Instruction);
+      Builder.SetInsertPoint(llvm::cast<llvm::Instruction>(Operand->getUser()));
       llvm::Value *Call = Builder.CreateCall(PrettyFunction, { Val });
-      Instruction->setOperand(Operand->getOperandNo(), Call);
+      Operand->set(Call);
     }
   }
 
@@ -132,20 +131,20 @@ std::optional<FormatInt> getIntFormat(llvm::Instruction &I, llvm::Use &U) {
         || I.getOpcode() == llvm::Instruction::AShr
         || I.getOpcode() == llvm::Instruction::LShr) {
       if (U.getOperandNo() == 0) {
-        return FormatInt{ IntFormatting::HEX, &I, &U };
+        return FormatInt{ IntFormatting::HEX, &U };
       }
     } else if (I.getOpcode() == llvm::Instruction::And
                || I.getOpcode() == llvm::Instruction::Or
                || I.getOpcode() == llvm::Instruction::Xor) {
-      return FormatInt{ IntFormatting::HEX, &I, &U };
+      return FormatInt{ IntFormatting::HEX, &U };
     }
 
     if (U->getType() == llvm::IntegerType::getInt8Ty(Context)) {
-      return FormatInt{ IntFormatting::CHAR, &I, &U };
+      return FormatInt{ IntFormatting::CHAR, &U };
     }
 
     if (U->getType() == llvm::IntegerType::getInt1Ty(Context)) {
-      return FormatInt{ IntFormatting::BOOL, &I, &U };
+      return FormatInt{ IntFormatting::BOOL, &U };
     }
   }
 
