@@ -1397,11 +1397,10 @@ class GEPSummationCache {
         auto *Op0Const = dyn_cast<ConstantInt>(Op0);
         auto *Op1 = AddrArithmeticInst->getOperand(1);
         auto *Op1Const = dyn_cast<ConstantInt>(Op1);
+        auto *ConstOp = Op1Const ? Op1Const : Op0Const;
+        auto *OtherOp = Op1Const ? Op0 : Op1;
 
-        if ((nullptr != Op0Const) xor (nullptr != Op1Const)) {
-          auto *ConstOp = Op1Const ? Op1Const : Op0Const;
-          auto *OtherOp = Op1Const ? Op0Const : Op1Const;
-
+        if (ConstOp and ConstOp->getValue().isNonNegative()) {
           // The constant operand is the coefficient, while the other is the
           // index.
           Result = ModelGEPSummation{
@@ -1963,14 +1962,6 @@ static UseGEPInfoMap makeGEPReplacements(llvm::Function &F,
               revng_log(ModelGEPLog, "Skipping callee operand in CallInst");
               continue;
             }
-          }
-        }
-
-        // Skip all but the pointer operands of load instructions
-        if (auto *Load = dyn_cast<LoadInst>(U.getUser())) {
-          if (U.getOperandNo() != Load->getPointerOperandIndex()) {
-            revng_log(ModelGEPLog, "Skipping non-pointer operand in LoadInst");
-            continue;
           }
         }
 
