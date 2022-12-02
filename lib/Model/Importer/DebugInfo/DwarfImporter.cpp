@@ -390,6 +390,27 @@ private:
     return {};
   }
 
+  static bool isNoReturn(DWARFUnit &CU, const DWARFDie &Die) {
+    auto Tag = Die.getTag();
+    revng_assert(Tag == DW_TAG_subprogram);
+
+    if (Die.find(DW_AT_noreturn))
+      return true;
+
+    // Check if the specification of this subprogram defines it.
+    auto SpecificationAttribute = Die.find(DW_AT_specification);
+    if (SpecificationAttribute) {
+      if (SpecificationAttribute->getAsReference()) {
+        auto DieOffset = *(SpecificationAttribute->getAsReference());
+        DWARFDie SpecificationDie = CU.getDIEForOffset(DieOffset);
+        if (SpecificationDie.find(DW_AT_noreturn))
+          return true;
+      }
+    }
+
+    return false;
+  }
+
   RecursiveCoroutine<const model::QualifiedType *>
   getType(const DWARFDie &Die) {
     auto MaybeType = Die.find(DW_AT_type);
@@ -830,11 +851,12 @@ private:
           if (SymbolName.size() != 0 and Function.OriginalName().size() == 0)
             Function.OriginalName() = SymbolName;
 
+          if (isNoReturn(*CU.get(), Die))
+            Function.Attributes().insert(model::FunctionAttribute::NoReturn);
         } else if (auto &Functions = Model->ImportedDynamicFunctions();
                    not SymbolName.empty()
                    and Functions.count(SymbolName) != 0) {
           // It's a dynamic function
-
           if (not MaybePath) {
             reportIgnoredDie(Die, "Couldn't build subprogram prototype");
             continue;
@@ -848,6 +870,10 @@ private:
             continue;
           DynamicFunction.Prototype() = *MaybePath;
 
+          if (isNoReturn(*CU.get(), Die)) {
+            using namespace model;
+            DynamicFunction.Attributes().insert(FunctionAttribute::NoReturn);
+          }
         } else {
           reportIgnoredDie(Die, "Ignoring subprogram");
         }
