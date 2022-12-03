@@ -4,7 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/Yield/RelationType.h"
+#include "revng/Yield/CrossRelations/RelationType.h"
 
 /* TUPLE-TREE-YAML
 
@@ -21,7 +21,7 @@ key:
 
 TUPLE-TREE-YAML */
 
-#include "revng/Yield/Generated/Early/RelationTarget.h"
+#include "revng/Yield/CrossRelations/Generated/Early/RelationTarget.h"
 
 namespace yield {
 
@@ -32,4 +32,4 @@ public:
 
 } // namespace yield
 
-#include "revng/Yield/Generated/Late/RelationTarget.h"
+#include "revng/Yield/CrossRelations/Generated/Late/RelationTarget.h"

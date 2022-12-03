@@ -11,7 +11,7 @@
 #include "revng/Model/Binary.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
-#include "revng/Yield/CrossRelations.h"
+#include "revng/Yield/CrossRelations/CrossRelations.h"
 
 using CR = yield::CrossRelations;
 CR::CrossRelations(const SortedVector<efa::FunctionMetadata> &Metadata,

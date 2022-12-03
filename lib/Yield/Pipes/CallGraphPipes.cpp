@@ -12,7 +12,7 @@
 #include "revng/Pipes/FunctionStringMap.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
-#include "revng/Yield/CrossRelations.h"
+#include "revng/Yield/CrossRelations/CrossRelations.h"
 #include "revng/Yield/Pipes/ProcessCallGraph.h"
 #include "revng/Yield/Pipes/YieldCallGraph.h"
 #include "revng/Yield/Pipes/YieldCallGraphSlice.h"
