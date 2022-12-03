@@ -14,5 +14,5 @@ members:
 
 TUPLE-TREE-YAML */
 
-#include "revng/Yield/Generated/Early/RelationType.h"
-#include "revng/Yield/Generated/Late/RelationType.h"
+#include "revng/Yield/CrossRelations/Generated/Early/RelationType.h"
+#include "revng/Yield/CrossRelations/Generated/Late/RelationType.h"
