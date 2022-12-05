@@ -1738,12 +1738,8 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
         TokenMap[VarToDeclare] = VarName.Use.str().str();
       }
 
-      if (not TopScopeVariables.empty()) {
-        // Emit a blank line between top scope declarations and the rest of
-        // the body
-        Out << "\n";
+      if (not TopScopeVariables.empty())
         decompilerLog(Out, "End of Top-Scope Declarations");
-      }
 
       // Recursively print the body of this function
       emitGHASTNode(GHAST.getRoot());
