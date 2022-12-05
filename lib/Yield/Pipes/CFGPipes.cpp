@@ -34,7 +34,7 @@ void YieldControlFlow::run(pipeline::Context &Context,
 void YieldControlFlow::print(const pipeline::Context &,
                              llvm::raw_ostream &OS,
                              llvm::ArrayRef<std::string> Files) const {
-  OS << *revng::ResourceFinder.findFile("bin/revng") << " magic ^_^\n";
+  OS << "[this is a pure pipe, no command exists for its invocation]\n";
 }
 
 } // end namespace revng::pipes
