@@ -10,6 +10,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/iterator_range.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
@@ -430,7 +431,7 @@ static bool updatePrototype(model::Binary &Model,
 
 static void fillStructWithRecoveredDLAType(model::Binary &Model,
                                            model::Type *OriginalType,
-                                           model::QualifiedType &RecoveredType,
+                                           model::QualifiedType RecoveredType,
                                            uint64_t OriginalStructSize,
                                            uint64_t RecoveredStructSize) {
   revng_assert(isa<model::StructType>(OriginalType));
@@ -447,8 +448,23 @@ static void fillStructWithRecoveredDLAType(model::Binary &Model,
 
     // If OriginalStructType is an empty struct, just add the new stack type
     // as the first field, otherwise leave it alone.
-    if (OriginalStructType->Fields.find(0) == OriginalStructType->Fields.end())
+    if (OriginalStructType->Fields.empty()) {
       OriginalStructType->Fields[0].Type = RecoveredType;
+      return;
+    }
+
+    auto FirstFieldIt = OriginalStructType->Fields.begin();
+    model::StructField &First = *FirstFieldIt;
+    // If there is already a field at offset 0, bail out
+    if (First.Offset == 0)
+      return;
+
+    // If the first original field is at an offset larger than 0, and the
+    // RecoveredType fits, inject it as field at offset 0
+    if (First.Offset >= RecoveredStructSize)
+      OriginalStructType->Fields[0].Type = RecoveredType;
+
+    return;
 
   } else if (auto *NewS = dyn_cast<model::StructType>(RecoveredUnqualType)) {
     // If DLA recoverd a struct, whose size is too large, we have to shrink
@@ -463,6 +479,7 @@ static void fillStructWithRecoveredDLAType(model::Binary &Model,
       auto It = llvm::find_if(NewS->Fields, IsTooLarge);
       auto End = NewS->Fields.end();
       NewS->Fields.erase(It, End);
+      NewS->Size = OriginalStructSize;
     }
 
     // Best case scenario, the recovered type struct size is less or equal than
@@ -470,10 +487,22 @@ static void fillStructWithRecoveredDLAType(model::Binary &Model,
     // introducing new overlapping fields with the original ones, if they exist.
     std::set<model::StructField *> CompatibleFields;
     auto OriginalFieldsIt = OriginalStructType->Fields.begin();
+    auto OriginalFieldsEnd = OriginalStructType->Fields.end();
     auto NewFieldsIt = NewS->Fields.begin();
+    auto NewFieldsEnd = NewS->Fields.end();
 
-    while (OriginalFieldsIt != OriginalStructType->Fields.end()
-           and NewFieldsIt != NewS->Fields.end()) {
+    while (NewFieldsIt != NewFieldsEnd) {
+      // If we've reached the end of the original fields, all the remaining new
+      // fields are compatible, because we've already filtered out all the
+      // fields that start or end past the end of the original.
+      if (OriginalFieldsIt == OriginalFieldsEnd) {
+        for (model::StructField &Field :
+             llvm::make_range(NewFieldsIt, NewFieldsEnd))
+          CompatibleFields.insert(&Field);
+        // Then we're done, because we've marked all the remaining new fields as
+        // compatible.
+        break;
+      }
 
       uint64_t OriginalStart = OriginalFieldsIt->Offset;
       uint64_t OriginalEnd = OriginalFieldsIt->Offset
@@ -493,13 +522,29 @@ static void fillStructWithRecoveredDLAType(model::Binary &Model,
         continue;
       }
 
-      if (NewStart > OriginalStart)
-        ++OriginalFieldsIt;
-      else if (NewStart < OriginalStart)
-        ++NewFieldsIt;
-      else if (NewStart == OriginalStart) {
-        ++OriginalFieldsIt;
-        ++NewFieldsIt;
+      // If we reach this point, the new field is definitely overlapping, so we
+      // have to skip to the next.
+      ++NewFieldsIt;
+    }
+
+    // If all the fields are compatible, and the RecoveredType fits, try to
+    // inject it as a single field of the OldStructType.
+    bool AllNewAreCompatible = CompatibleFields.size() == NewS->Fields.size();
+    if (AllNewAreCompatible) {
+
+      // If the original struct was empty, the new one always fits.
+      if (OriginalStructType->Fields.empty()) {
+        OriginalStructType->Fields[0].Type = RecoveredType;
+        return;
+      }
+
+      auto FirstFieldIt = OriginalStructType->Fields.begin();
+      model::StructField &First = *FirstFieldIt;
+      // If the first field of the original struct started after the new
+      // recovered struct should end, we can always inject it.
+      if (First.Offset >= RecoveredStructSize) {
+        OriginalStructType->Fields[0].Type = RecoveredType;
+        return;
       }
     }
 
@@ -573,13 +618,11 @@ static bool updateStackFrameType(model::Function &ModelFunc,
                                  model::Binary &Model) {
   bool Updated = false;
 
-  if (ModelFunc.StackFrameType.empty())
+  if (not ModelFunc.StackFrameType.isValid()
+      or ModelFunc.StackFrameType.empty())
     return Updated;
 
   auto *OldModelStackFrameType = ModelFunc.StackFrameType.get();
-  if (not OldModelStackFrameType)
-    return Updated;
-
   auto *OldStackFrameStruct = cast<model::StructType>(OldModelStackFrameType);
   if (not OldStackFrameStruct->Fields.empty())
     return Updated;
