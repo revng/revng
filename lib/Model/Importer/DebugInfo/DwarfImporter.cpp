@@ -845,7 +845,7 @@ private:
           MetaAddress LowPC = relocate(fromPC(*MaybeLowPC));
           auto &Function = Model->Functions()[LowPC];
 
-          if (not Function.Prototype().isValid())
+          if (MaybePath && not Function.Prototype().isValid())
             Function.Prototype() = *MaybePath;
 
           if (SymbolName.size() != 0 and Function.OriginalName().size() == 0)
