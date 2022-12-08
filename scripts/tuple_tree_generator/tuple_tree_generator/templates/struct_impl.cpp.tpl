@@ -7,6 +7,8 @@ The notice below applies to the generated files.
 //
 
 #include "revng/Model/Binary.h"
+#include "revng/TupleTree/VisitsImpl.h"
+#include "revng/TupleTree/TupleTreeImpl.h"
 
 /**- for child_type in upcastable **/
 #include "/*= generator.user_include_path =*//*= child_type.name =*/.h"
@@ -117,3 +119,14 @@ bool /*= struct | fullname =*/::localCompare(const /*= struct | user_fullname =*
   /**- endif -**/
 }
 
+/** if struct.name == root_type **/
+
+template void
+TupleTree</*= base_namespace =*/::/*= root_type =*/>::visitImpl(typename TupleTreeVisitor</*= base_namespace =*/::/*= root_type =*/>::ConstVisitorBase &Pre,
+                                    typename TupleTreeVisitor</*= base_namespace =*/::/*= root_type =*/>::ConstVisitorBase &Post) const;
+
+template
+void TupleTree</*= base_namespace =*/::/*= root_type =*/>::visitImpl(typename TupleTreeVisitor</*= base_namespace =*/::/*= root_type =*/>::VisitorBase &Pre,
+                                         typename TupleTreeVisitor</*= base_namespace =*/::/*= root_type =*/>::VisitorBase &Post);
+
+/** endif **/
