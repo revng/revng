@@ -8,10 +8,12 @@
 #include <string>
 
 #include "revng/ADT/SortedVector.h"
-#include "revng/EarlyFunctionAnalysis/BasicBlock.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
+#include "revng/Yield/CallEdge.h"
+#include "revng/Yield/FunctionEdge.h"
+#include "revng/Yield/FunctionEdgeBase.h"
 #include "revng/Yield/Instruction.h"
 
 /* TUPLE-TREE-YAML
@@ -34,7 +36,7 @@ fields:
     sequence:
       type: SortedVector
       upcastable: true
-      elementType: efa::FunctionEdgeBase
+      elementType: FunctionEdgeBase
 
   - name: Instructions
     sequence:

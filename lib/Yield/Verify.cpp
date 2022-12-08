@@ -6,6 +6,7 @@
 //
 
 #include "revng/Yield/BasicBlock.h"
+#include "revng/Yield/CallEdge.h"
 #include "revng/Yield/Function.h"
 #include "revng/Yield/Instruction.h"
 #include "revng/Yield/Tag.h"
