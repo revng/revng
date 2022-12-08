@@ -22,6 +22,10 @@ fields:
     type: uint64_t
   - name: To
     type: uint64_t
+key:
+  - Type
+  - From
+  - To
 
 TUPLE-TREE-YAML */
 
@@ -59,9 +63,5 @@ public:
 };
 
 } // namespace yield
-
-template<>
-struct KeyedObjectTraits<yield::Tag>
-  : public IdentityKeyedObjectTraits<yield::Tag> {};
 
 #include "revng/Yield/Generated/Late/Tag.h"
