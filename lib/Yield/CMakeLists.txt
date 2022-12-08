@@ -67,6 +67,8 @@ target_tuple_tree_generator(
   "Yield"
   NAMESPACE
   "yield"
+  ROOT_TYPE
+  Function
   SCHEMA_PATH
   "${CMAKE_BINARY_DIR}/yield-internal-schema.yml"
   SEPARATE_STRING_TYPES
