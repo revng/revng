@@ -245,6 +245,9 @@ extern template
 void llvm::yaml::yamlize(llvm::yaml::IO &io, TupleTreeDiff</*= base_namespace =*/::/*= root_type =*/> &Val, bool, llvm::yaml::EmptyContext &Ctx);
 
 extern template
+TupleTreeDiff</*= base_namespace =*/::/*= root_type =*/> diff(const /*= base_namespace =*/::/*= root_type =*/ &LHS, const /*= base_namespace =*/::/*= root_type =*/ &RHS);
+
+extern template
 std::optional<TupleTreePath> stringAsPath</*= base_namespace =*/::/*= root_type =*/>(llvm::StringRef Path);
 
 /** endif **/
