@@ -12,6 +12,7 @@ revng_add_analyses_library_internal(
   ControlFlow/FallthroughDetection.cpp
   ControlFlow/NodeSizeCalculation.cpp
   ControlFlow/SVG.cpp
+  ControlFlow/ConvertFromEFA.cpp
   Pipes/AssemblyPipes.cpp
   Pipes/CallGraphPipes.cpp
   Pipes/CFGPipes.cpp
@@ -75,9 +76,13 @@ target_tuple_tree_generator(
   "MetaAddress"
   SCALAR_TYPES
   "MetaAddress"
-  "efa::FunctionEdgeBase"
   "yield::ByteContainer"
+  "model::FunctionAttribute::Values"
   HEADERS
+  "${INTERNAL_ASSEMBLY_HEADERS}/CallEdge.h"
+  "${INTERNAL_ASSEMBLY_HEADERS}/FunctionEdge.h"
+  "${INTERNAL_ASSEMBLY_HEADERS}/FunctionEdgeBase.h"
+  "${INTERNAL_ASSEMBLY_HEADERS}/FunctionEdgeType.h"
   "${INTERNAL_ASSEMBLY_HEADERS}/BasicBlock.h"
   "${INTERNAL_ASSEMBLY_HEADERS}/Function.h"
   "${INTERNAL_ASSEMBLY_HEADERS}/Instruction.h"

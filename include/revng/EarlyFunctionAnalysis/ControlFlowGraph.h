@@ -22,7 +22,6 @@ template<typename T>
 concept SpecializationOfBasicBlock = requires {
   { T::Start } -> convertible_to<MetaAddress>;
   { T::End } -> convertible_to<MetaAddress>;
-  { T::Successors } -> convertible_to<detail::SuccessorContainer>;
 };
 
 struct ParsedSuccessor {
@@ -30,9 +29,11 @@ struct ParsedSuccessor {
   MetaAddress OptionalCallAddress;
 };
 
-inline ParsedSuccessor parseSuccessor(const efa::FunctionEdgeBase &Edge,
+template<typename T>
+inline ParsedSuccessor parseSuccessor(const T &Edge,
                                       const MetaAddress &FallthroughAddress,
                                       const model::Binary &Binary) {
+  using FunctionEdgeType = decltype(Edge.Type);
   switch (Edge.Type) {
   case FunctionEdgeType::DirectBranch:
   case FunctionEdgeType::Return:
@@ -43,7 +44,11 @@ inline ParsedSuccessor parseSuccessor(const efa::FunctionEdgeBase &Edge,
                             .OptionalCallAddress = MetaAddress::invalid() };
 
   case FunctionEdgeType::FunctionCall: {
-    auto *CE = llvm::cast<efa::CallEdge>(&Edge);
+    // Note: we assume that the first contrete type is the CallEdge. All of this
+    //       hacks are necessary to handle identical data structures under
+    //       different namespaces.
+    using CallEdge = std::tuple_element_t<0, concrete_types_traits_t<T>>;
+    auto *CE = llvm::cast<CallEdge>(&Edge);
 
     MetaAddress NextInstructionAddress = MetaAddress::invalid();
     if (not CE->hasAttribute(Binary, model::FunctionAttribute::NoReturn)
