@@ -272,6 +272,8 @@ target_tuple_tree_generator(
   "${HEADERS}"
   NAMESPACE
   ttgtest
+  ROOT_TYPE
+  TestClass
   SCHEMA_PATH
   "${OUTPUT_DIR}/schema.yml"
   HEADERS_PATH
