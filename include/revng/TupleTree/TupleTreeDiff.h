@@ -276,7 +276,8 @@ struct llvm::yaml::MappingTraits<T> {
     if (llvm::find(Keys, Name) == Keys.end())
       return;
 
-    Entry = false;
+    Entry.emplace();
+    revng_assert(Entry.has_value());
     ::detail::MapDiffVisitor<Model> Visitor{ &IO, &*Entry, Name };
     callByPath<Model>(Visitor, Info.Path);
   }
