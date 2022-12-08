@@ -15,7 +15,7 @@ test -n "$RUNTIME_ABI_ANALYSIS_RESULT"
 test -n "$BINARY"
 
 TEMPORARY_DIR="$(mktemp --tmpdir tmp.cabi-test.XXXXXXXXXX -d)"
-trap "rm -rf $TEMPORARY_DIR" EXIT
+trap 'rm -rf "$TEMPORARY_DIR"' EXIT
 
 # Import DWARF information
 revng \
