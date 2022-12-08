@@ -31,7 +31,6 @@ class CppHeadersGenerator:
         self.struct_impl_template = environment.get_template("struct_impl.cpp.tpl")
         self.struct_forward_decls_template = environment.get_template("struct_forward_decls.h.tpl")
         self.class_forward_decls_template = environment.get_template("class_forward_decls.h.tpl")
-        self.all_types_variant_template = environment.get_template("all_types_variant_decls.h.tpl")
 
         # Path where user-provided headers are assumed to be located
         # Prepended to include statements (e.g. #include "<user_include_path>/Class.h")
@@ -43,7 +42,6 @@ class CppHeadersGenerator:
     def emit(self) -> Dict[str, str]:
         sources = {
             "ForwardDecls.h": self._emit_forward_decls(),
-            "AllTypesVariant.h": self._emit_all_types_variant_decl(),
         }
 
         early_definitions = self._emit_early_type_definitions()
@@ -121,6 +119,15 @@ class CppHeadersGenerator:
         return definitions
 
     def _emit_late_type_definitions(self):
+        all_known_types = set()
+
+        for struct in self.schema.struct_definitions():
+            all_known_types.add(self.user_fullname(struct))
+            for field in struct.fields:
+                all_known_types.add(self._cpp_type(field.resolved_type))
+                if isinstance(field, SequenceStructField):
+                    all_known_types.add(self._cpp_type(field.resolved_element_type))
+
         definitions = {}
         for type_to_emit in self.schema.definitions.values():
             filename = f"Late/{type_to_emit.name}.h"
@@ -133,6 +140,8 @@ class CppHeadersGenerator:
                     upcastable=upcastable_types,
                     root_type=self.root_type,
                     namespace=self.schema.generated_namespace,
+                    all_types=all_known_types,
+                    base_namespace=self.schema.base_namespace,
                 )
             elif isinstance(type_to_emit, EnumDefinition):
                 definition = ""
@@ -156,6 +165,8 @@ class CppHeadersGenerator:
                         upcastable=upcastable_types,
                         generator=self,
                         schema=self.schema,
+                        root_type=self.root_type,
+                        base_namespace=self.schema.base_namespace,
                     )
                     + "\n"
                 )
@@ -236,17 +247,3 @@ class CppHeadersGenerator:
             return f"{resolved_type.namespace}::{resolved_type.name}::Values"
         else:
             raise ValueError(resolved_type)
-
-    def _emit_all_types_variant_decl(self):
-        all_known_types = set()
-
-        for struct in self.schema.struct_definitions():
-            all_known_types.add(self.user_fullname(struct))
-            for field in struct.fields:
-                all_known_types.add(self._cpp_type(field.resolved_type))
-                if isinstance(field, SequenceStructField):
-                    all_known_types.add(self._cpp_type(field.resolved_element_type))
-
-        return self.all_types_variant_template.render(
-            namespace=self.schema.generated_namespace, all_types=all_known_types
-        )

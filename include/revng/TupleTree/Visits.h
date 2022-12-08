@@ -15,6 +15,9 @@
 #include "revng/TupleTree/TupleTreeCompatible.h"
 #include "revng/TupleTree/TupleTreePath.h"
 
+template<typename RootT>
+struct TupleTreeVisitor;
+
 //
 // visitTupleTree implementation
 //
