@@ -18,6 +18,3 @@ getByPath<model::Type, const model::Binary>(const TupleTreePath &Path,
 template model::Type *
 getByPath<model::Type, model::Binary>(const TupleTreePath &Path,
                                       model::Binary &M);
-
-template std::optional<TupleTreePath>
-stringAsPath<model::Binary>(llvm::StringRef Path);
