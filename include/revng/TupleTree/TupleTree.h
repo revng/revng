@@ -95,8 +95,6 @@ public:
   static llvm::ErrorOr<TupleTree> deserialize(llvm::StringRef YAMLString) {
     TupleTree Result{};
 
-    llvm::yaml::Input YAMLInput(YAMLString);
-
     auto MaybeRoot = revng::detail::deserializeImpl<T>(YAMLString);
     if (not MaybeRoot)
       return llvm::errorToErrorCode(MaybeRoot.takeError());
