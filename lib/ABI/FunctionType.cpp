@@ -61,25 +61,22 @@ selectTypeKind(model::Register::Values) {
   return model::PrimitiveTypeKind::PointerOrNumber;
 }
 
-static model::QualifiedType
-buildType(model::Register::Values Register, model::Binary &TheBinary) {
+static model::QualifiedType buildType(model::Register::Values Register) {
   model::PrimitiveTypeKind::Values Kind = selectTypeKind(Register);
   size_t Size = model::Register::getSize(Register);
-  return model::QualifiedType(TheBinary.getPrimitiveType(Kind, Size), {});
+  return model::QualifiedType::getPrimitiveType(Kind, Size);
 }
 
-static model::QualifiedType
-buildGenericType(model::Register::Values Register, model::Binary &TheBinary) {
+static model::QualifiedType buildGenericType(model::Register::Values Register) {
   constexpr auto Kind = model::PrimitiveTypeKind::Generic;
   size_t Size = model::Register::getSize(Register);
-  return model::QualifiedType(TheBinary.getPrimitiveType(Kind, Size), {});
+  return model::QualifiedType::getPrimitiveType(Kind, Size);
 }
 
 static std::optional<model::QualifiedType>
 buildDoubleType(model::Register::Values UpperRegister,
                 model::Register::Values LowerRegister,
-                model::PrimitiveTypeKind::Values CustomKind,
-                model::Binary &TheBinary) {
+                model::PrimitiveTypeKind::Values CustomKind) {
   model::PrimitiveTypeKind::Values UpperKind = selectTypeKind(UpperRegister);
   model::PrimitiveTypeKind::Values LowerKind = selectTypeKind(LowerRegister);
   if (UpperKind != LowerKind)
@@ -87,18 +84,16 @@ buildDoubleType(model::Register::Values UpperRegister,
 
   size_t UpperSize = model::Register::getSize(UpperRegister);
   size_t LowerSize = model::Register::getSize(LowerRegister);
-  return model::QualifiedType(TheBinary.getPrimitiveType(CustomKind,
-                                                         UpperSize + LowerSize),
-                              {});
+  return model::QualifiedType::getPrimitiveType(CustomKind,
+                                                UpperSize + LowerSize);
 }
 
 static model::QualifiedType getTypeOrDefault(const model::QualifiedType &Type,
-                                             model::Register::Values Register,
-                                             model::Binary &Binary) {
+                                             model::Register::Values Register) {
   if (Type.UnqualifiedType().get() != nullptr)
     return Type;
   else
-    return buildType(Register, Binary);
+    return buildType(Register);
 }
 
 static void replaceReferences(const model::Type::Key &OldKey,
@@ -279,8 +274,7 @@ public:
           model::NamedTypedRegister Argument(Register);
           Argument.Type() = chooseArgumentType(ArgumentType,
                                                Register,
-                                               ArgumentStorage.Registers,
-                                               *TheBinary);
+                                               ArgumentStorage.Registers);
 
           // TODO: see what can be done to preserve names better
           if (llvm::StringRef{ ArgumentName.str() }.take_front(8) != "unnamed_")
@@ -315,8 +309,8 @@ public:
 
       using namespace model;
       auto Type = UpcastableType::make<StructType>(std::move(StackArguments));
-      Result.StackArgumentsType() = { TheBinary->recordNewType(std::move(Type)),
-                                      {} };
+      auto NewType = TheBinary->recordNewType(std::move(Type));
+      Result.StackArgumentsType() = model::QualifiedType::getLel(NewType);
     }
 
     Result.FinalStackOffset() = finalStackOffset(Arguments);
@@ -328,10 +322,10 @@ public:
         for (model::Register::Values Register : ReturnValue.Registers) {
           model::TypedRegister ReturnValueRegister;
           ReturnValueRegister.Location() = Register;
-          ReturnValueRegister.Type() = chooseArgumentType(Function.ReturnType(),
-                                                          Register,
-                                                          ReturnValue.Registers,
-                                                          *TheBinary);
+          ReturnValueRegister
+            .Type() = chooseArgumentType(Function.ReturnType(),
+                                         Register,
+                                         ReturnValue.Registers);
 
           Result.ReturnValues().insert(std::move(ReturnValueRegister));
         }
@@ -475,8 +469,7 @@ private:
         model::Argument Temporary;
         if constexpr (!DryRun)
           Temporary.Type() = getTypeOrDefault(UsedRegisters.at(Register).Type(),
-                                              Register,
-                                              TheBinary);
+                                              Register);
         Temporary.CustomName() = UsedRegisters.at(Register).CustomName();
         Result.emplace_back(Temporary);
       } else if (MustUseTheNextOne) {
@@ -495,8 +488,7 @@ private:
           if constexpr (!DryRun) {
             auto NewType = buildDoubleType(AllowedRegisters.at(Index - 2),
                                            AllowedRegisters.at(Index - 1),
-                                           model::PrimitiveTypeKind::Generic,
-                                           TheBinary);
+                                           model::PrimitiveTypeKind::Generic);
             if (NewType == std::nullopt)
               return std::nullopt;
 
@@ -550,8 +542,7 @@ private:
                      const model::Register::Values PointerToCopyLocation,
                      model::Binary &TheBinary) {
     if (UsedRegisters.size() == 0) {
-      auto Void = TheBinary.getPrimitiveType(model::PrimitiveTypeKind::Void, 0);
-      return model::QualifiedType{ Void, {} };
+      return model::QualifiedType::getVoidType();
     }
 
     if (UsedRegisters.size() == 1) {
@@ -560,8 +551,7 @@ private:
           return model::QualifiedType{};
         else
           return getTypeOrDefault(UsedRegisters.begin()->Type(),
-                                  PointerToCopyLocation,
-                                  TheBinary);
+                                  PointerToCopyLocation);
       } else {
         if constexpr (RegisterCount == 0)
           return std::nullopt;
@@ -570,8 +560,7 @@ private:
             return model::QualifiedType{};
           else
             return getTypeOrDefault(UsedRegisters.begin()->Type(),
-                                    UsedRegisters.begin()->Location(),
-                                    TheBinary);
+                                    UsedRegisters.begin()->Location());
         } else {
           return std::nullopt;
         }
@@ -593,8 +582,7 @@ private:
           CurrentField.Offset() = ReturnStruct->Size();
           if constexpr (!DryRun)
             CurrentField.Type() = getTypeOrDefault(UsedIterator->Type(),
-                                                   UsedIterator->Location(),
-                                                   TheBinary);
+                                                   UsedIterator->Location());
           ReturnStruct->Fields().insert(std::move(CurrentField));
 
           ReturnStruct->Size() += model::Register::getSize(Register);
@@ -615,7 +603,7 @@ private:
       if constexpr (!DryRun) {
         auto ReturnStructTypePath = TheBinary.recordNewType(std::move(Result));
         revng_assert(ReturnStructTypePath.isValid());
-        return model::QualifiedType{ ReturnStructTypePath, {} };
+        return model::QualifiedType::getLel(ReturnStructTypePath);
       } else {
         return model::QualifiedType{};
       }
@@ -864,22 +852,21 @@ private:
   static model::QualifiedType
   chooseArgumentType(const model::QualifiedType &ArgumentType,
                      model::Register::Values Register,
-                     const RegisterList &RegisterList,
-                     model::Binary &TheBinary) {
+                     const RegisterList &RegisterList) {
     if (RegisterList.size() > 1) {
-      return buildGenericType(Register, TheBinary);
+      return buildGenericType(Register);
     } else {
       auto ResultType = ArgumentType;
       auto MaybeSize = ArgumentType.size();
       auto TargetSize = model::Register::getSize(Register);
 
       if (!MaybeSize.has_value()) {
-        return buildType(Register, TheBinary);
+        return buildType(Register);
       } else if (*MaybeSize > TargetSize) {
         auto Qualifier = model::Qualifier::createPointer(TargetSize);
         ResultType.Qualifiers().emplace_back(Qualifier);
       } else if (!ResultType.isScalar()) {
-        return buildGenericType(Register, TheBinary);
+        return buildGenericType(Register);
       }
 
       return ResultType;

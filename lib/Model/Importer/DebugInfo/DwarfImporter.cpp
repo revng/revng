@@ -192,7 +192,7 @@ private:
   const model::QualifiedType &record(const DWARFDie &Die,
                                      const model::TypePath &Path,
                                      bool IsNotPlaceholder) {
-    return record(Die, model::QualifiedType(Path, {}), IsNotPlaceholder);
+    return record(Die, model::QualifiedType::getLel(Path), IsNotPlaceholder);
   }
 
   const model::QualifiedType &record(const DWARFDie &Die,
@@ -317,7 +317,7 @@ private:
         return;
       }
 
-      record(Die, Model->getPrimitiveType(Kind, Size), true);
+      record(Die, model::QualifiedType::getPrimitiveType(Kind, Size), true);
     } break;
 
     case llvm::dwarf::DW_TAG_subroutine_type:
@@ -350,9 +350,7 @@ private:
     if ((Tag == llvm::dwarf::DW_TAG_structure_type
          or Tag == llvm::dwarf::DW_TAG_union_type
          or Tag == llvm::dwarf::DW_TAG_enumeration_type)) {
-      record(Die,
-             Model->getPrimitiveType(model::PrimitiveTypeKind::Void, 0),
-             true);
+      record(Die, model::QualifiedType::getVoidType(), true);
     } else {
       reportIgnoredDie(Die,
                        "Unexpected declaration for tag "
@@ -428,12 +426,11 @@ private:
 
   RecursiveCoroutine<model::QualifiedType> getTypeOrVoid(const DWARFDie &Die) {
     using namespace model;
-    using PTK = model::PrimitiveTypeKind::Values;
     const model::QualifiedType *Result = rc_recur getType(Die);
     if (Result != nullptr) {
       rc_return *Result;
     } else {
-      rc_return QualifiedType(Model->getPrimitiveType(PTK::Void, 0), {});
+      rc_return QualifiedType::getVoidType();
     }
   }
 

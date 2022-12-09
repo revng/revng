@@ -10,7 +10,6 @@ commands:
     command: |-
       RESUME=$$(temp -d);
       MODEL=$$(temp);
-      revng analyze --resume "$$RESUME" AddPrimitiveTypes "$INPUT" -o /dev/null;
       revng analyze --resume "$$RESUME" ImportBinary "$INPUT" -o /dev/null;
       revng analyze --resume "$$RESUME" DetectABI "$INPUT" -o "$$MODEL";
       revng artifact --resume "$$RESUME" EnforceABI "$INPUT" |

@@ -50,7 +50,6 @@ class TranslateCommand(Command):
         ]
 
         command.append("--analyze=Import/ImportBinary/input/:Binary")
-        command.append("--analyze=Import/AddPrimitiveTypes/input/:Binary")
         command.append("--analyze=Lift/DetectABI/module.ll/:Root")
 
         command = command + [

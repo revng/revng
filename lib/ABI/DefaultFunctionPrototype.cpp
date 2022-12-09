@@ -18,10 +18,10 @@ constexpr static PrimitiveTypeKind::Values selectTypeKind(Register::Values) {
   return PrimitiveTypeKind::PointerOrNumber;
 }
 
-static QualifiedType buildType(Register::Values Register, Binary &TheBinary) {
+static QualifiedType buildType(Register::Values Register) {
   PrimitiveTypeKind::Values Kind = selectTypeKind(Register);
   size_t Size = Register::getSize(Register);
-  return QualifiedType(TheBinary.getPrimitiveType(Kind, Size), {});
+  return QualifiedType::getPrimitiveType(Kind, Size);
 }
 
 template<ABI::Values ABI>
@@ -32,13 +32,14 @@ TypePath defaultPrototype(Binary &TheBinary) {
 
   for (const auto &Reg : abi::Trait<ABI>::GeneralPurposeArgumentRegisters) {
     NamedTypedRegister Argument(Reg);
-    Argument.Type() = buildType(Reg, TheBinary);
+    Argument.Type() = buildType(Reg);
     Prototype.Arguments().insert(Argument);
   }
 
-  for (const auto &Rg : abi::Trait<ABI>::GeneralPurposeReturnValueRegisters) {
-    TypedRegister ReturnValue(Rg);
-    ReturnValue.Type() = buildType(Rg, TheBinary);
+  for (const auto &Register :
+       abi::Trait<ABI>::GeneralPurposeReturnValueRegisters) {
+    TypedRegister ReturnValue(Register);
+    ReturnValue.Type() = buildType(Register);
     Prototype.ReturnValues().insert(ReturnValue);
   }
 

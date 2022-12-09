@@ -128,7 +128,7 @@ Error PECOFFImporter::parseSectionsHeaders() {
 
     model::TypePath StructPath = createEmptyStruct(*Model,
                                                    Segment.VirtualSize());
-    Segment.Type() = model::QualifiedType(std::move(StructPath), {});
+    Segment.Type() = model::QualifiedType::getLel(std::move(StructPath));
 
     // NOTE: Unlike ELF, PE/COFF does not have segments. Instead, it has
     // sections only. All the raw data in a section must be loaded

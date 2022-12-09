@@ -306,17 +306,18 @@ DetectABI::buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
         auto CSVSize = CSVType->getIntegerBitWidth() / 8;
 
         using namespace PrimitiveTypeKind;
-        TypePath GenericType = Binary->getPrimitiveType(Generic, CSVSize);
+        auto GenericType = model::QualifiedType::getPrimitiveType(Generic,
+                                                                  CSVSize);
 
         if (abi::RegisterState::shouldEmit(RSArg)) {
           NamedTypedRegister TR(RegisterID);
-          TR.Type() = { GenericType, {} };
+          TR.Type() = GenericType;
           ArgumentsInserter.insert(TR);
         }
 
         if (abi::RegisterState::shouldEmit(RSRV)) {
           TypedRegister TR(RegisterID);
-          TR.Type() = { GenericType, {} };
+          TR.Type() = GenericType;
           ReturnValuesInserter.insert(TR);
         }
       }
@@ -377,19 +378,16 @@ void DetectABI::finalizeModel() {
         auto *CSVType = CSV->getType()->getPointerElementType();
         auto CSVSize = CSVType->getIntegerBitWidth() / 8;
 
+        auto GetPrimitiveType = model::QualifiedType ::getPrimitiveType;
         if (abi::RegisterState::shouldEmit(RSArg)) {
           NamedTypedRegister TR(RegisterID);
-          TR.Type() = {
-            Binary->getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
-          };
+          TR.Type() = GetPrimitiveType(PrimitiveTypeKind::Generic, CSVSize);
           ArgumentsInserter.insert(TR);
         }
 
         if (abi::RegisterState::shouldEmit(RSRV)) {
           TypedRegister TR(RegisterID);
-          TR.Type() = {
-            Binary->getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
-          };
+          TR.Type() = GetPrimitiveType(PrimitiveTypeKind::Generic, CSVSize);
           ReturnValuesInserter.insert(TR);
         }
       }

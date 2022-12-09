@@ -410,6 +410,7 @@ void TypeSystemPrinter::print(const model::Type &T) {
     // Collect all the successors
     FieldList Fields = collectFields(CurType);
     for (auto Field : llvm::enumerate(Fields)) {
+      // WIP: NEXT rename this and other QT
       auto &FieldQT = Field.value();
 
       const model::Type *FieldUnqualType = nullptr;
@@ -419,8 +420,7 @@ void TypeSystemPrinter::print(const model::Type &T) {
 
       // Don't add edges for primitive types, as they would pollute the graph
       // and add no information regarding the type system structure
-      if (not FieldUnqualType
-          or FieldUnqualType->Kind() == model::TypeKind::PrimitiveType)
+      if (FieldQT.isPrimitive2())
         continue;
 
       uint64_t SuccID;
@@ -528,7 +528,7 @@ void TypeSystemPrinter::print(const model::Binary &Model) {
       continue;
 
     // Avoid polluting the graph with uninformative nodes
-    if (T->Kind() != model::TypeKind::PrimitiveType and not T->edges().empty())
+    if (not T->edges().empty())
       print(*T);
   }
 }

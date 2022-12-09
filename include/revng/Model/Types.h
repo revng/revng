@@ -15,7 +15,6 @@
 #include "revng/ADT/UpcastablePointer/YAMLTraits.h"
 #include "revng/Model/CABIFunctionType.h"
 #include "revng/Model/EnumType.h"
-#include "revng/Model/PrimitiveType.h"
 #include "revng/Model/RawFunctionType.h"
 #include "revng/Model/StructType.h"
 #include "revng/Model/Type.h"

@@ -602,7 +602,7 @@ void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
 
       model::TypePath StructPath = createEmptyStruct(*Model,
                                                      NewSegment.VirtualSize());
-      NewSegment.Type() = model::QualifiedType(std::move(StructPath), {});
+      NewSegment.Type() = model::QualifiedType::getLel(std::move(StructPath));
 
       // If it's an executable segment, and we've been asked so, register
       // which sections actually contain code

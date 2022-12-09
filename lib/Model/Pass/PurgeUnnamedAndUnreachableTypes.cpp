@@ -119,9 +119,6 @@ void model::purgeTypesImpl(TupleTree<model::Binary> &Model) {
 
   // Visit all the nodes reachable from ToKeep
   df_iterator_default_set<Node *> Visited;
-  for (const UpcastablePointer<Type> &T : Model->Types())
-    if (isa<model::PrimitiveType>(T.get()))
-      Visited.insert(TypeToNode.at(T.get()));
 
   for (Type *T : ToKeep)
     for (Node *N : depth_first_ext(TypeToNode.at(T), Visited))

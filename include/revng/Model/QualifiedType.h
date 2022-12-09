@@ -13,6 +13,7 @@
 #include "revng/Model/TypeKind.h"
 #include "revng/Model/VerifyHelper.h"
 
+// WIP: NEXT fix names
 /* TUPLE-TREE-YAML
 name: QualifiedType
 doc: A qualified version of a model::Type. Can have many nested qualifiers
@@ -22,6 +23,11 @@ fields:
     reference:
       pointeeType: Type
       rootType: Binary
+  - name: PrimitiveKind
+    type: PrimitiveTypeKind
+  - name: Size
+    doc: Size in bytes
+    type: uint8_t
   - name: Qualifiers
     sequence:
       type: "std::vector"
@@ -62,11 +68,42 @@ public:
   /// Checks if is of a given TypeKind, unwrapping typedefs
   bool is(model::TypeKind::Values K) const;
 
+  // WIP: NEXT
+  bool isPrimitive2() const {
+    return PrimitiveKind() != PrimitiveTypeKind::Invalid;
+  }
+
 public:
   model::QualifiedType getPointerTo(model::Architecture::Values Arch) const {
     QualifiedType Result = *this;
     Result.Qualifiers().insert(Result.Qualifiers().begin(),
                                model::Qualifier::createPointer(Arch));
+    return Result;
+  }
+
+  model::QualifiedType addQualifier(const model::Qualifier &Q) const {
+    model::QualifiedType Result;
+    // WIP: NEXT reverse order
+    Result.Qualifiers().insert(Result.Qualifiers().begin(), Q);
+    return Result;
+  }
+
+public:
+  static model::QualifiedType
+  getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize) {
+    model::QualifiedType Result;
+    Result.PrimitiveKind() = V;
+    Result.Size() = ByteSize;
+    return Result;
+  }
+
+  static model::QualifiedType getVoidType() {
+    return getPrimitiveType(PrimitiveTypeKind::Void, 0);
+  }
+
+  static model::QualifiedType getLel(const model::TypePath &P) {
+    model::QualifiedType Result;
+    Result.UnqualifiedType() = P;
     return Result;
   }
 

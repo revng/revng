@@ -433,45 +433,6 @@ isValidPrimitiveSize(PrimitiveTypeKind::Values PrimKind, uint8_t BS) {
   revng_abort();
 }
 
-Identifier model::PrimitiveType::name() const {
-  Identifier Result;
-
-  switch (PrimitiveKind()) {
-  case PrimitiveTypeKind::Void:
-    Result = "void";
-    break;
-
-  case PrimitiveTypeKind::Unsigned:
-    (Twine("uint") + Twine(Size() * 8) + Twine("_t")).toVector(Result);
-    break;
-
-  case PrimitiveTypeKind::Number:
-    (Twine("number") + Twine(Size() * 8) + Twine("_t")).toVector(Result);
-    break;
-
-  case PrimitiveTypeKind::PointerOrNumber:
-    ("pointer_or_number" + Twine(Size() * 8) + "_t").toVector(Result);
-    break;
-
-  case PrimitiveTypeKind::Generic:
-    (Twine("generic") + Twine(Size() * 8) + Twine("_t")).toVector(Result);
-    break;
-
-  case PrimitiveTypeKind::Signed:
-    (Twine("int") + Twine(Size() * 8) + Twine("_t")).toVector(Result);
-    break;
-
-  case PrimitiveTypeKind::Float:
-    (Twine("float") + Twine(Size() * 8) + Twine("_t")).toVector(Result);
-    break;
-
-  default:
-    revng_abort();
-  }
-
-  return Result;
-}
-
 template<typename T>
 Identifier customNameOrAutomatic(T *This) {
   if (not This->CustomName().empty())
@@ -511,38 +472,6 @@ Identifier model::RawFunctionType::name() const {
 
 Identifier model::CABIFunctionType::name() const {
   return customNameOrAutomatic(this);
-}
-
-static uint64_t
-makePrimitiveID(PrimitiveTypeKind::Values PrimitiveKind, uint8_t Size) {
-  return (static_cast<uint8_t>(PrimitiveKind) << 8) | Size;
-}
-
-static PrimitiveTypeKind::Values getPrimitiveKind(uint64_t ID) {
-  return static_cast<PrimitiveTypeKind::Values>(ID >> 8);
-}
-
-static uint8_t getPrimitiveSize(uint64_t ID) {
-  return ID & ((1 << 8) - 1);
-}
-
-PrimitiveType::PrimitiveType(PrimitiveTypeKind::Values PrimitiveKind,
-                             uint8_t Size) :
-  PrimitiveType(AssociatedKind,
-                makePrimitiveID(PrimitiveKind, Size),
-                {},
-                "",
-                PrimitiveKind,
-                Size) {
-}
-
-PrimitiveType::PrimitiveType(uint64_t ID) :
-  PrimitiveType(AssociatedKind,
-                ID,
-                {},
-                "",
-                getPrimitiveKind(ID),
-                getPrimitiveSize(ID)) {
 }
 
 static bool beginsWithReservedPrefix(llvm::StringRef Name) {
@@ -610,8 +539,10 @@ QualifiedType::trySize(VerifyHelper &VH) const {
     case QualifierKind::Array: {
       // The size is equal to (number of elements of the array) * (size of a
       // single element).
-      const QualifiedType ArrayElem{ UnqualifiedType(),
-                                     { std::next(QIt), QEnd } };
+      auto ArrayElem = QualifiedType::getLel(UnqualifiedType());
+      std::copy(std::next(QIt),
+                QEnd,
+                std::back_inserter(ArrayElem.Qualifiers()));
       auto MaybeSize = rc_recur ArrayElem.trySize(VH);
       if (not MaybeSize)
         rc_return std::nullopt;
@@ -631,7 +562,15 @@ QualifiedType::trySize(VerifyHelper &VH) const {
   if (!UnqualifiedType().isValid())
     rc_return std::nullopt;
 
-  rc_return rc_recur UnqualifiedType().get()->trySize(VH);
+  if (isPrimitive2()) {
+    if (PrimitiveKind() == model::PrimitiveTypeKind::Void) {
+      rc_return std::nullopt;
+    } else {
+      rc_return Size();
+    }
+  } else {
+    rc_return rc_recur UnqualifiedType().get()->trySize(VH);
+  }
 }
 
 static RecursiveCoroutine<bool> isArrayImpl(const model::QualifiedType &QT) {
@@ -706,8 +645,8 @@ isPrimitiveImpl(const model::QualifiedType &QT,
     rc_return false;
 
   const model::Type *UnqualifiedType = QT.UnqualifiedType().get();
-  if (auto *Primitive = llvm::dyn_cast<PrimitiveType>(UnqualifiedType))
-    rc_return !V.has_value() || Primitive->PrimitiveKind() == *V;
+  if (QT.isPrimitive2())
+    rc_return !V.has_value() || QT.PrimitiveKind() == *V;
 
   if (auto *Typedef = llvm::dyn_cast<TypedefType>(UnqualifiedType))
     rc_return rc_recur isPrimitiveImpl(Typedef->UnderlyingType(), V);
@@ -782,26 +721,9 @@ Type::trySize(VerifyHelper &VH) const {
     Size = 0;
     break;
 
-  case TypeKind::PrimitiveType: {
-    auto *P = cast<PrimitiveType>(this);
-
-    if (P->PrimitiveKind() == model::PrimitiveTypeKind::Void) {
-      // Void types have no size
-
-      if (P->Size() != 0) {
-        // Not valid
-        rc_return std::nullopt;
-      }
-
-      Size = 0;
-    } else {
-      Size = P->Size();
-    }
-  } break;
-
   case TypeKind::EnumType: {
     auto *U = llvm::cast<EnumType>(this);
-    auto MaybeSize = rc_recur U->UnderlyingType().trySize(VH);
+    auto MaybeSize = rc_recur U->trySize(VH);
     if (not MaybeSize)
       rc_return std::nullopt;
 
@@ -811,7 +733,7 @@ Type::trySize(VerifyHelper &VH) const {
   case TypeKind::TypedefType: {
     auto *Typedef = llvm::cast<TypedefType>(this);
 
-    auto MaybeSize = rc_recur Typedef->UnderlyingType().trySize(VH);
+    auto MaybeSize = rc_recur Typedef->trySize(VH);
     if (not MaybeSize)
       rc_return std::nullopt;
 
@@ -845,27 +767,6 @@ Type::trySize(VerifyHelper &VH) const {
 
   rc_return Size;
 };
-
-static RecursiveCoroutine<bool>
-verifyImpl(VerifyHelper &VH, const PrimitiveType *T) {
-  revng_assert(T->Kind() == TypeKind::PrimitiveType);
-
-  if (not T->CustomName().empty() or not T->OriginalName().empty())
-    rc_return VH.fail("PrimitiveTypes cannot have OriginalName or CustomName",
-                      *T);
-
-  auto ExpectedID = makePrimitiveID(T->PrimitiveKind(), T->Size());
-  if (T->ID() != ExpectedID)
-    rc_return VH.fail(Twine("Wrong ID for PrimitiveType. Got: ")
-                        + Twine(T->ID()) + ". Expected: " + Twine(ExpectedID)
-                        + ".",
-                      *T);
-
-  if (not isValidPrimitiveSize(T->PrimitiveKind(), T->Size()))
-    rc_return VH.fail("Invalid PrimitiveType size: " + Twine(T->Size()), *T);
-
-  rc_return true;
-}
 
 bool Identifier::verify() const {
   return verify(false);
@@ -955,10 +856,12 @@ inline RecursiveCoroutine<bool> isScalarImpl(const QualifiedType &QT) {
     }
   }
 
+  if (QT.isPrimitive2())
+    rc_return true;
+
   const Type *Unqualified = QT.UnqualifiedType().get();
   revng_assert(Unqualified != nullptr);
-  if (llvm::isa<model::PrimitiveType>(Unqualified)
-      or llvm::isa<model::EnumType>(Unqualified)) {
+  if (llvm::isa<model::EnumType>(Unqualified)) {
     rc_return true;
   }
 
@@ -1008,8 +911,8 @@ verifyImpl(VerifyHelper &VH, const StructType *T) {
     auto FieldEndOffset = Field.Offset() + *MaybeSize;
     auto NextFieldIt = std::next(FieldIt);
     if (NextFieldIt != FieldEnd) {
-      // If this field is not the last, check that it does not overlap with the
-      // following field.
+      // If this field is not the last, check that it does not overlap with
+      // the following field.
       if (FieldEndOffset > NextFieldIt->Offset()) {
         rc_return VH.fail("Field " + Twine(Index + 1)
                             + " overlaps with the next one",
@@ -1178,10 +1081,6 @@ RecursiveCoroutine<bool> Type::verify(VerifyHelper &VH) const {
 
   // We could use upcast() but we'd need to workaround coroutines.
   switch (Kind()) {
-  case TypeKind::PrimitiveType:
-    Result = rc_recur verifyImpl(VH, cast<PrimitiveType>(this));
-    break;
-
   case TypeKind::EnumType:
     Result = rc_recur verifyImpl(VH, cast<EnumType>(this));
     break;
@@ -1232,8 +1131,20 @@ bool QualifiedType::verify(bool Assert) const {
 }
 
 RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
-  if (not UnqualifiedType().isValid())
-    rc_return VH.fail("Underlying type is invalid", *this);
+  bool HasUnderlyingType = UnqualifiedType().isValid();
+  bool IsPrimitive = isPrimitive2();
+
+  if (HasUnderlyingType == IsPrimitive) {
+    rc_return VH.fail("A QualifiedType has to be either a primitive or have "
+                      "an"
+                      " underlying type");
+  }
+
+  if (HasUnderlyingType and not rc_recur UnqualifiedType().get()->verify(VH))
+    rc_return VH.fail();
+
+  if (IsPrimitive and not isValidPrimitiveSize(PrimitiveKind(), Size()))
+    rc_return VH.fail("Invalid PrimitiveType size: " + Twine(Size()), *this);
 
   // Verify the qualifiers are valid
   for (const auto &Q : Qualifiers())
@@ -1255,11 +1166,11 @@ RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
     if (Qualifier::isPointer(Q)) {
       // Don't proceed the verification, just make sure the pointer is either
       // 32- or 64-bit
-      rc_return VH.maybeFail(Q.Size() == 4 or Q.Size() == 8,
-                             "Only 32-bit and 64-bit pointers "
-                             "are currently "
-                             "supported",
-                             *this);
+      if (not(Q.Size() == 4 or Q.Size() == 8))
+        rc_return VH.fail("Only 32-bit and 64-bit pointers "
+                          "are currently "
+                          "supported",
+                          *this);
 
     } else if (Qualifier::isArray(Q)) {
       // Ensure there's at least one element
@@ -1267,15 +1178,15 @@ RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
         rc_return VH.fail("Arrays need to have at least an element", *this);
 
       // Verify element type
-      QualifiedType ElementType{ UnqualifiedType(), { NextQIt, QEnd } };
+      auto ElementType = QualifiedType::getLel(UnqualifiedType());
+      std::copy(NextQIt, QEnd, std::back_inserter(ElementType.Qualifiers()));
       if (not rc_recur ElementType.verify(VH))
         rc_return VH.fail("Array element invalid", ElementType);
 
       // Ensure the element type has a size and stop
       auto MaybeSize = rc_recur ElementType.size(VH);
-      rc_return VH.maybeFail(MaybeSize.has_value(),
-                             "Cannot compute array size",
-                             ElementType);
+      if (not MaybeSize.has_value())
+        rc_return VH.fail("Cannot compute array size", ElementType);
     } else if (Qualifier::isConst(Q)) {
       // const qualifiers must have zero size
       if (Q.Size() != 0)
@@ -1286,9 +1197,7 @@ RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
     }
   }
 
-  // If we get here, we either have no qualifiers or just const qualifiers:
-  // recur on the underlying type
-  rc_return VH.maybeFail(rc_recur UnqualifiedType().get()->verify(VH));
+  rc_return true;
 }
 
 template<typename T>

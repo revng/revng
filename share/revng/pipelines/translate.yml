@@ -18,9 +18,6 @@ Branches:
           - Name: ImportBinary
             Type: ImportBinary
             UsedContainers: [input]
-          - Name: AddPrimitiveTypes
-            Type: AddPrimitiveTypes
-            UsedContainers: [input]
       - Name: Lift
         Pipes:
           - Type: Lift

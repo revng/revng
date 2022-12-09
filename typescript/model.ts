@@ -65,12 +65,6 @@ export class MetaAddress {
     }
 }
 
-export function genPrimitiveTypeGuid(rawObject: IType): bigint {
-    const realObject = rawObject as IPrimitiveType;
-    const index = PrimitiveTypeKindValues.findIndex((e) => e === realObject.PrimitiveKind);
-    return BigInt(BigInt(index << 8) | realObject.Size);
-}
-
 const genEnumTypeGuid = genGuid;
 const genTypedefTypeGuid = genGuid;
 const genStructTypeGuid = genGuid;

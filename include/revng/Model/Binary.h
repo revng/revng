@@ -118,12 +118,6 @@ public:
 
   model::TypePath recordNewType(UpcastablePointer<Type> &&T);
 
-  model::TypePath
-  getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize);
-
-  model::TypePath
-  getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize) const;
-
   bool verifyTypes() const debug_function;
   bool verifyTypes(bool Assert) const debug_function;
   bool verifyTypes(VerifyHelper &VH) const;

@@ -31,13 +31,6 @@ void model::fixModel(TupleTree<model::Binary> &Model) {
       }
     }
 
-    // Filter out invalid PrimitiveTypes.
-    auto *ThePrimitiveType = dyn_cast<PrimitiveType>(T.get());
-    if (ThePrimitiveType) {
-      if (ThePrimitiveType->PrimitiveKind() == PrimitiveTypeKind::Invalid)
-        ToDrop.insert(T.get());
-    }
-
     // Filter out invalid functions.
     auto *FunctionType = dyn_cast<CABIFunctionType>(T.get());
     if (FunctionType) {

@@ -21,28 +21,6 @@ using namespace llvm;
 
 namespace model {
 
-model::TypePath
-Binary::getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize) {
-  PrimitiveType Temporary(V, ByteSize);
-  Type::Key PrimitiveKey{ TypeKind::PrimitiveType, Temporary.ID() };
-  auto It = Types().find(PrimitiveKey);
-
-  // If we couldn't find it, create it
-  if (It == Types().end()) {
-    auto *NewPrimitiveType = new PrimitiveType(V, ByteSize);
-    It = Types().insert(UpcastablePointer<model::Type>(NewPrimitiveType)).first;
-  }
-
-  return getTypePath(It->get());
-}
-
-model::TypePath
-Binary::getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize) const {
-  PrimitiveType Temporary(V, ByteSize);
-  Type::Key PrimitiveKey{ TypeKind::PrimitiveType, Temporary.ID() };
-  return getTypePath(Types().at(PrimitiveKey).get());
-}
-
 TypePath Binary::recordNewType(UpcastablePointer<Type> &&T) {
   auto It = Types().insert(T).first;
   return getTypePath(It->get());

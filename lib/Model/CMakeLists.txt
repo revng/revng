@@ -62,7 +62,6 @@ target_tuple_tree_generator(
   "${MODEL_HEADERS_DIR}/Function.h"
   "${MODEL_HEADERS_DIR}/FunctionAttribute.h"
   "${MODEL_HEADERS_DIR}/NamedTypedRegister.h"
-  "${MODEL_HEADERS_DIR}/PrimitiveType.h"
   "${MODEL_HEADERS_DIR}/PrimitiveTypeKind.h"
   "${MODEL_HEADERS_DIR}/QualifiedType.h"
   "${MODEL_HEADERS_DIR}/Qualifier.h"

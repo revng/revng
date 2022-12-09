@@ -298,7 +298,7 @@ void MachOImporter::parseMachOSegment(ArrayRef<uint8_t> RawDataRef,
   Segment.IsExecutable() = SegmentCommand.initprot & VM_PROT_EXECUTE;
 
   model::TypePath StructPath = createEmptyStruct(*Model, Segment.VirtualSize());
-  Segment.Type() = model::QualifiedType(std::move(StructPath), {});
+  Segment.Type() = model::QualifiedType::getLel(std::move(StructPath));
 
   Segment.verify(true);
 
