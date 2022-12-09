@@ -7,8 +7,8 @@
 #include "revng/ADT/GenericGraph.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
 #include "revng/Model/Binary.h"
+#include "revng/Yield/CrossRelations/RelationDescription.h"
 #include "revng/Yield/Graph.h"
-#include "revng/Yield/RelationDescription.h"
 
 /* TUPLE-TREE-YAML
 name: CrossRelations
@@ -20,7 +20,7 @@ fields:
       elementType: RelationDescription
 TUPLE-TREE-YAML */
 
-#include "revng/Yield/Generated/Early/CrossRelations.h"
+#include "revng/Yield/CrossRelations/Generated/Early/CrossRelations.h"
 
 namespace yield {
 
@@ -42,4 +42,4 @@ public:
 
 } // namespace yield
 
-#include "revng/Yield/Generated/Late/CrossRelations.h"
+#include "revng/Yield/CrossRelations/Generated/Late/CrossRelations.h"

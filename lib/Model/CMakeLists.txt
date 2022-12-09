@@ -10,7 +10,8 @@ revng_add_analyses_library_internal(
   TypeSystemPrinter.cpp
   Processing.cpp
   SerializeModelPass.cpp
-  Type.cpp)
+  Type.cpp
+  Visits.cpp)
 
 target_link_libraries(revngModel revngSupport)
 

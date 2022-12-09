@@ -84,10 +84,43 @@ void Logger<X>::flush(const LogTerminator &LineInfo) {
   }
 }
 
+enum PlaceholderEnum {};
+struct DebugLogOptionList : public llvm::cl::list<PlaceholderEnum> {
+  using list = llvm::cl::list<PlaceholderEnum>;
+  DebugLogOptionList() :
+    list("debug-log",
+         llvm::cl::desc("enable verbose logging"),
+         llvm::cl::cat(MainCategory)) {}
+
+  virtual bool addOccurrence(unsigned Pos,
+                             llvm::StringRef ArgName,
+                             llvm::StringRef Value,
+                             bool MultiArg = false) override {
+    Loggers->enable(Value);
+    return list::addOccurrence(Pos, ArgName, Value, MultiArg);
+  }
+};
+
+struct DebugLogOptionWrapper {
+  DebugLogOptionList TheOption;
+};
+
 static std::unique_ptr<cl::list<PlaceholderEnum>> DebugLogging;
 static std::unique_ptr<cl::alias> DebugLoggingAlias;
 
 llvm::ManagedStatic<DebugLogOptionWrapper> DebugLogOption;
+
+template<>
+void Logger<true>::init() {
+  Loggers->add(this);
+  DebugLogOption->TheOption.getParser().addLiteralOption(Name.data(),
+                                                         Loggers->size(),
+                                                         description().data());
+}
+
+template<>
+void Logger<false>::init() {
+}
 
 template<bool X>
 unsigned Logger<X>::IndentLevel;

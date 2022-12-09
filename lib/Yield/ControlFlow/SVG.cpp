@@ -17,7 +17,7 @@
 #include "revng/Yield/ControlFlow/Configuration.h"
 #include "revng/Yield/ControlFlow/Extraction.h"
 #include "revng/Yield/ControlFlow/NodeSizeCalculation.h"
-#include "revng/Yield/CrossRelations.h"
+#include "revng/Yield/CrossRelations/CrossRelations.h"
 #include "revng/Yield/Graph.h"
 #include "revng/Yield/PTML.h"
 #include "revng/Yield/SVG.h"

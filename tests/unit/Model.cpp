@@ -17,6 +17,7 @@ bool init_unit_test();
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/Introspection.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
+#include "revng/TupleTree/VisitsImpl.h"
 #include "revng/UnitTestHelpers/UnitTestHelpers.h"
 
 using namespace model;
@@ -123,51 +124,6 @@ BOOST_AUTO_TEST_CASE(TestPathMatcher) {
     revng_check(MaybeMatch);
     revng_check(std::get<0>(*MaybeMatch) == ARM1000);
   }
-}
-
-namespace TestTupleTree {
-class Element;
-class Root;
-} // namespace TestTupleTree
-
-class TestTupleTree::Element {
-public:
-  int Key;
-  TupleTreeReference<TestTupleTree::Element, TestTupleTree::Root> Self;
-};
-INTROSPECTION_NS(TestTupleTree, Element, Key, Self)
-
-template<>
-struct KeyedObjectTraits<TestTupleTree::Element> {
-  static int key(const TestTupleTree::Element &Obj) { return Obj.Key; }
-
-  static TestTupleTree::Element fromKey(const int &Key) {
-    return TestTupleTree::Element{ Key, {} };
-  }
-};
-
-class TestTupleTree::Root {
-public:
-  SortedVector<TestTupleTree::Element> Elements;
-};
-
-INTROSPECTION_NS(TestTupleTree, Root, Elements)
-
-static_assert(TupleLike<TestTupleTree::Root>);
-
-BOOST_AUTO_TEST_CASE(TestTupleTreeReference) {
-  using namespace TestTupleTree;
-
-  using Reference = TupleTreeReference<TestTupleTree::Element,
-                                       TestTupleTree::Root>;
-
-  TupleTree<Root> TheRoot;
-  Element &AnElement = TheRoot->Elements[3];
-  AnElement.Self = Reference::fromString(TheRoot.get(), "/Elements/3");
-
-  TheRoot.initializeReferences();
-
-  revng_check(AnElement.Self.get() == &AnElement);
 }
 
 template<typename T>
@@ -307,9 +263,3 @@ BOOST_AUTO_TEST_CASE(CABIFunctionTypeArgumentsPathShouldParse) {
   auto MaybeParsed = stringAsPath<model::Binary>(Path);
   BOOST_TEST(MaybeParsed.has_value());
 }
-
-static_assert(std::is_default_constructible_v<TupleTree<TestTupleTree::Root>>);
-static_assert(std::is_copy_assignable_v<TupleTree<TestTupleTree::Root>>);
-static_assert(std::is_copy_constructible_v<TupleTree<TestTupleTree::Root>>);
-static_assert(std::is_move_assignable_v<TupleTree<TestTupleTree::Root>>);
-static_assert(std::is_move_constructible_v<TupleTree<TestTupleTree::Root>>);

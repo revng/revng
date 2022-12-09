@@ -1468,3 +1468,11 @@ RecursiveCoroutine<bool> Argument::verify(VerifyHelper &VH) const {
 }
 
 } // namespace model
+
+template model::TypePath
+model::TypePath::fromString<model::Binary>(model::Binary *Root,
+                                           llvm::StringRef Path);
+
+template model::TypePath
+model::TypePath::fromString<const model::Binary>(const model::Binary *Root,
+                                                 llvm::StringRef Path);

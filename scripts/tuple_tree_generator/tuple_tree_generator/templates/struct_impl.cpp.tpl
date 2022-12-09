@@ -7,6 +7,8 @@ The notice below applies to the generated files.
 //
 
 #include "revng/Model/Binary.h"
+#include "revng/TupleTree/VisitsImpl.h"
+#include "revng/TupleTree/TupleTreeImpl.h"
 
 /**- for child_type in upcastable **/
 #include "/*= generator.user_include_path =*//*= child_type.name =*/.h"
@@ -117,3 +119,26 @@ bool /*= struct | fullname =*/::localCompare(const /*= struct | user_fullname =*
   /**- endif -**/
 }
 
+/** if struct.name == root_type **/
+
+template void
+TupleTree</*= base_namespace =*/::/*= root_type =*/>::visitImpl(typename TupleTreeVisitor</*= base_namespace =*/::/*= root_type =*/>::ConstVisitorBase &Pre,
+                                    typename TupleTreeVisitor</*= base_namespace =*/::/*= root_type =*/>::ConstVisitorBase &Post) const;
+
+template
+void TupleTree</*= base_namespace =*/::/*= root_type =*/>::visitImpl(typename TupleTreeVisitor</*= base_namespace =*/::/*= root_type =*/>::VisitorBase &Pre,
+                                         typename TupleTreeVisitor</*= base_namespace =*/::/*= root_type =*/>::VisitorBase &Post);
+
+template
+void llvm::yaml::yamlize(llvm::yaml::IO &io, /*= base_namespace =*/::/*= root_type =*/ &Val, bool, llvm::yaml::EmptyContext &Ctx);
+
+template
+void llvm::yaml::yamlize(llvm::yaml::IO &io, TupleTreeDiff</*= base_namespace =*/::/*= root_type =*/> &Val, bool, llvm::yaml::EmptyContext &Ctx);
+
+template
+TupleTreeDiff</*= base_namespace =*/::/*= root_type =*/> diff(const /*= base_namespace =*/::/*= root_type =*/ &LHS, const /*= base_namespace =*/::/*= root_type =*/ &RHS);
+
+template
+std::optional<TupleTreePath> stringAsPath</*= base_namespace =*/::/*= root_type =*/>(llvm::StringRef Path);
+
+/** endif **/

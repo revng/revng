@@ -316,7 +316,7 @@ yield::Instruction DI::parse(const llvm::MCInst &Instruction,
 
   // Investigate the llvm-provided tags.
   constexpr llvm::StringRef TagBoundaries = "<>";
-  llvm::SmallVector<size_t, 8> OpenTagStack;
+  llvm::SmallVector<yield::Tag, 8> OpenTagStack;
   for (size_t Position = 0; Position < Markup.size(); ++Position) {
     // Mark the whitespaces so that the client can easily remove them if needed.
     size_t WhitespaceCount = getConsecutiveCount(Markup,
@@ -335,20 +335,16 @@ yield::Instruction DI::parse(const llvm::MCInst &Instruction,
       // Opens a new markup tag.
       llvm::StringRef Tag = Markup.slice(Position + 1, Position + 5);
       yield::TagType::Values TagType = parseMarkupTag(Tag);
-      OpenTagStack.emplace_back(Result.Tags.size());
-      Result.Tags.insert({ TagType, Result.Disassembled.size() });
+      OpenTagStack.emplace_back(TagType, Result.Disassembled.size(), 0);
       Position += 4;
     } else if (Markup[Position] == '>') {
-      // Closes the current markup tag.
-      if (OpenTagStack.empty() || OpenTagStack.back() >= Result.Tags.size()) {
-        Result.Error = "Tag stack got corrupted, impossible to provide markup.";
-        Result.Tags.clear();
-        break;
-      }
+      // Closes the current markup tag
+      revng_assert(not OpenTagStack.empty());
 
-      auto &CurrentTag = *std::next(Result.Tags.begin(), OpenTagStack.back());
+      yield::Tag CurrentTag = OpenTagStack.back();
       CurrentTag.To = Result.Disassembled.size();
       OpenTagStack.pop_back();
+      Result.Tags.insert(CurrentTag);
     } else if (Mnemonic.has_value() && Position == Mnemonic->FullPosition) {
       // Mnemonic
       if (!OpenTagStack.empty()) {

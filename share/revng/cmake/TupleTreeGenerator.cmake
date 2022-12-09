@@ -158,11 +158,13 @@ function(tuple_tree_generator_compute_generated_cpp_files SOURCE_HEADERS
     get_filename_component(HEADER_FILENAME_WE "${HEADER}" NAME_WE)
     set(EARLY_OUTPUT "${HEADERS_DIR}/Early/${HEADER_FILENAME}")
     set(LATE_OUTPUT "${HEADERS_DIR}/Late/${HEADER_FILENAME}")
-    set(IMPL_OUTPUT "${HEADERS_DIR}/Impl/${HEADER_FILENAME_WE}.cpp")
     list(APPEND LOCAL_GENERATED_HEADERS_VARIABLE "${EARLY_OUTPUT}")
     list(APPEND LOCAL_GENERATED_HEADERS_VARIABLE "${LATE_OUTPUT}")
-    list(APPEND LOCAL_GENERATED_IMPLS_VARIABLE "${IMPL_OUTPUT}")
   endforeach()
+
+  set(IMPL_OUTPUT "${HEADERS_DIR}/Impl.cpp")
+  list(APPEND LOCAL_GENERATED_IMPLS_VARIABLE "${IMPL_OUTPUT}")
+
   set("${GENERATED_HEADERS_VARIABLE}"
       ${LOCAL_GENERATED_HEADERS_VARIABLE}
       PARENT_SCOPE)
@@ -442,9 +444,17 @@ function(target_tuple_tree_generator TARGET_ID)
         "${CMAKE_BINARY_DIR}/include/revng/${GEN_HEADER_DIRECTORY}/Generated")
   endif()
 
+  # Choose a target name that's available
+  set(INDEX 1)
+  set(GENERATOR_TARGET_NAME generate-${TARGET_ID}-tuple-tree-code)
+  if(TARGET "${GENERATOR_TARGET_NAME}")
+    math(EXPR INDEX "${INDEX}+1")
+    set(GENERATOR_TARGET_NAME generate-${TARGET_ID}-tuple-tree-code-${INDEX})
+  endif()
+
   tuple_tree_generator_impl(
     TARGET_NAME
-    generate-${TARGET_ID}-tuple-tree-code
+    "${GENERATOR_TARGET_NAME}"
     HEADERS
     "${GEN_HEADERS}"
     NAMESPACE
@@ -484,5 +494,5 @@ function(target_tuple_tree_generator TARGET_ID)
 
   target_sources(${TARGET_ID} PRIVATE ${GENERATED_IMPLS})
 
-  add_dependencies(${TARGET_ID} generate-${TARGET_ID}-tuple-tree-code)
+  add_dependencies(${TARGET_ID} "${GENERATOR_TARGET_NAME}")
 endfunction()

@@ -95,8 +95,6 @@ public:
   static llvm::ErrorOr<TupleTree> deserialize(llvm::StringRef YAMLString) {
     TupleTree Result{};
 
-    llvm::yaml::Input YAMLInput(YAMLString);
-
     auto MaybeRoot = revng::detail::deserializeImpl<T>(YAMLString);
     if (not MaybeRoot)
       return llvm::errorToErrorCode(MaybeRoot.takeError());
@@ -183,7 +181,32 @@ public:
     AllReferencesAreCached = false;
   }
 
+  template<typename Pre, typename Post>
+  void visit(Pre PreCallable, Post PostCallable) const {
+    using PreVisitor = typename TupleTreeVisitor<T>::template ConstVisitor<Pre>;
+    PreVisitor PreInstance(PreCallable);
+    using PostVisitor = typename TupleTreeVisitor<T>::template ConstVisitor<
+      Post>;
+    PostVisitor PostInstance(PostCallable);
+    visitImpl(PreInstance, PostInstance);
+  }
+
+  template<typename Pre, typename Post>
+  void visit(Pre PreCallable, Post PostCallable) {
+    using PreVisitor = typename TupleTreeVisitor<T>::template Visitor<Pre>;
+    PreVisitor PreInstance(PreCallable);
+    using PostVisitor = typename TupleTreeVisitor<T>::template Visitor<Post>;
+    PostVisitor PostInstance(PostCallable);
+    visitImpl(PreInstance, PostInstance);
+  }
+
 private:
+  void visitImpl(typename TupleTreeVisitor<T>::ConstVisitorBase &Pre,
+                 typename TupleTreeVisitor<T>::ConstVisitorBase &Post) const;
+
+  void visitImpl(typename TupleTreeVisitor<T>::VisitorBase &Pre,
+                 typename TupleTreeVisitor<T>::VisitorBase &Post);
+
   template<typename L>
   void visitReferencesInternal(L &&InnerVisitor) {
     auto Visitor = [&InnerVisitor](auto &Element) {
@@ -192,7 +215,7 @@ private:
         std::invoke(std::forward<L>(InnerVisitor), Element);
     };
 
-    visitTupleTree(*Root, Visitor, [](auto &) {});
+    visit(Visitor, [](auto &) {});
   }
 
 public:
@@ -210,7 +233,7 @@ public:
         std::invoke(std::forward<L>(InnerVisitor), Element);
     };
 
-    visitTupleTree(*Root, Visitor, [](auto) {});
+    visit(Visitor, [](auto) {});
   }
 
 private:

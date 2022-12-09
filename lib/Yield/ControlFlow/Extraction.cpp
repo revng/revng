@@ -59,7 +59,7 @@ yield::cfg::extractFromInternal(const yield::Function &Function,
         }
       } else if (CurrentNode.successorCount() == 1) {
         for (const auto &Successor : BasicBlock.Successors)
-          if (efa::FunctionEdgeType::isCall(Successor->Type))
+          if (FunctionEdgeType::isCall(Successor->Type))
             continue;
 
         auto Edge = *CurrentNode.successor_edges_begin();

@@ -103,4 +103,12 @@ inline UpcastableType makeType(Args &&...A) {
 
 } // end namespace model
 
+extern template model::TypePath
+model::TypePath::fromString<model::Binary>(model::Binary *Root,
+                                           llvm::StringRef Path);
+
+extern template model::TypePath
+model::TypePath::fromString<const model::Binary>(const model::Binary *Root,
+                                                 llvm::StringRef Path);
+
 #include "revng/Model/Generated/Late/Type.h"

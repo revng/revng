@@ -40,30 +40,9 @@ public:
   }
 
 public:
-  const TupleTree<model::Binary> &getReadOnlyModel() const {
-    auto Result = [](auto &Model) -> const TupleTree<model::Binary> & {
-      using TupleTreeT = std::remove_pointer_t<std::decay_t<decltype(Model)>>;
-      if constexpr (not std::is_const_v<TupleTreeT>)
-        Model->cacheReferences();
-      return *std::as_const(Model);
-    };
-    return std::visit(Result, TheBinary);
-  }
+  const TupleTree<model::Binary> &getReadOnlyModel() const;
 
-  TupleTree<model::Binary> &getWriteableModel() {
-    HasChanged = true;
-    auto Result = [](auto &Model) -> TupleTree<model::Binary> & {
-      using TupleTreeT = std::remove_pointer_t<std::decay_t<decltype(Model)>>;
-      if constexpr (std::is_const_v<TupleTreeT>) {
-        revng_abort("A writeable model has been requested, but the wrapper has "
-                    "a reference to a const model");
-      } else {
-        Model->evictCachedReferences();
-        return *Model;
-      }
-    };
-    return std::visit(Result, TheBinary);
-  }
+  TupleTree<model::Binary> &getWriteableModel();
 
   bool hasChanged() const { return HasChanged; }
 

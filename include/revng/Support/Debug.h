@@ -215,40 +215,6 @@ private:
 
 extern llvm::ManagedStatic<LoggersRegistry> Loggers;
 
-enum PlaceholderEnum {};
-struct DebugLogOptionList : public llvm::cl::list<PlaceholderEnum> {
-  using list = llvm::cl::list<PlaceholderEnum>;
-  DebugLogOptionList() :
-    list("debug-log",
-         llvm::cl::desc("enable verbose logging"),
-         llvm::cl::cat(MainCategory)) {}
-
-  virtual bool addOccurrence(unsigned Pos,
-                             llvm::StringRef ArgName,
-                             llvm::StringRef Value,
-                             bool MultiArg = false) override {
-    Loggers->enable(Value);
-    return list::addOccurrence(Pos, ArgName, Value, MultiArg);
-  }
-};
-
-struct DebugLogOptionWrapper {
-  DebugLogOptionList TheOption;
-};
-extern llvm::ManagedStatic<DebugLogOptionWrapper> DebugLogOption;
-
-template<>
-inline void Logger<true>::init() {
-  Loggers->add(this);
-  DebugLogOption->TheOption.getParser().addLiteralOption(Name.data(),
-                                                         Loggers->size(),
-                                                         description().data());
-}
-
-template<>
-inline void Logger<false>::init() {
-}
-
 class StreamWrapperBase {
 public:
   virtual void flush(std::stringstream &Buffer) = 0;

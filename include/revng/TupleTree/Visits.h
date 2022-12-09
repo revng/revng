@@ -15,6 +15,9 @@
 #include "revng/TupleTree/TupleTreeCompatible.h"
 #include "revng/TupleTree/TupleTreePath.h"
 
+template<typename RootT>
+struct TupleTreeVisitor;
+
 //
 // visitTupleTree implementation
 //
@@ -406,45 +409,8 @@ bool callByPath(Visitor &V,
 //
 // getByPath
 //
-namespace tupletree::detail {
-
-template<typename ResultT>
-struct GetByPathVisitor {
-  ResultT *Result = nullptr;
-
-  template<typename T, typename K, typename KeyT>
-  void visitContainerElement(KeyT, K &) {
-    Result = nullptr;
-  }
-
-  template<typename T, typename KeyT>
-  void visitContainerElement(KeyT, ResultT &Element) {
-    Result = &Element;
-  }
-
-  template<typename, size_t, typename K>
-  void visitTupleElement(K &) {
-    Result = nullptr;
-  }
-
-  template<typename, size_t>
-  void visitTupleElement(ResultT &Element) {
-    Result = &Element;
-  }
-};
-
-} // namespace tupletree::detail
-
 template<typename ResultT, typename RootT>
-ResultT *getByPath(const TupleTreePath &Path, RootT &M) {
-  using namespace tupletree::detail;
-  ErrorList EL;
-  GetByPathVisitor<ResultT> GBPV;
-  if (not callByPath(GBPV, Path, M, EL))
-    return nullptr;
-  else
-    return GBPV.Result;
-}
+ResultT *getByPath(const TupleTreePath &Path, RootT &M);
 
 //
 // pathAsString
@@ -493,14 +459,7 @@ private:
 
 public:
   template<typename T>
-  static std::optional<PathMatcher> create(llvm::StringRef Path) {
-    revng_assert(Path.startswith("/"));
-    PathMatcher Result;
-    if (visitTupleTreeNode<T>(Path.substr(1), Result))
-      return Result;
-    else
-      return {};
-  }
+  static std::optional<PathMatcher> create(llvm::StringRef Path);
 
 public:
   const TupleTreePath &path() const { return Path; }
@@ -683,16 +642,7 @@ bool PathMatcher::visitTuple(llvm::StringRef Current,
 }
 
 template<typename T>
-std::optional<TupleTreePath> stringAsPath(llvm::StringRef Path) {
-  if (Path.empty())
-    return std::nullopt;
-
-  auto Result = PathMatcher::create<T>(Path);
-  if (Result)
-    return Result->path();
-  else
-    return std::nullopt;
-}
+std::optional<TupleTreePath> stringAsPath(llvm::StringRef Path);
 
 template<typename ResultT, typename RootT>
 ResultT *getByPath(llvm::StringRef Path, RootT &M) {

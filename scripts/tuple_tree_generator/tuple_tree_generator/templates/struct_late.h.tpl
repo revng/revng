@@ -150,11 +150,105 @@ static_assert(Yamlizable<std::vector</*= struct | user_fullname =*/>>,
               "/*= struct | user_fullname =*/ must be YAMLizable");
 
 /** if root_type == struct.name **/
-#include "revng/Model/Generated/AllTypesVariant.h"
+namespace /*= namespace =*/ {
+
+using AllTypes = std::variant<
+/** for name in all_types|sort **/
+/*= name =*//** if not loop.last **/,/** endif **/
+/**- endfor **/
+>;
+
+class ConstVisitorBase {
+public:
+  virtual ~ConstVisitorBase() = default;
+
+/** for name in all_types|sort **/
+  virtual void operator()(const /*= name =*/ &Argument) const = 0;
+/**- endfor **/
+};
+
+template<typename L>
+class ConstVisitor : public ConstVisitorBase {
+private:
+  L *Callable;
+
+public:
+  ConstVisitor(L &Callable) : Callable(&Callable) {}
+  ~ConstVisitor() override = default;
+
+public:
+/** for name in all_types|sort **/
+  void operator()(const /*= name =*/ &Argument) const override {
+    (*Callable)(Argument);
+  }
+/**- endfor **/
+};
+
+class VisitorBase {
+public:
+  virtual ~VisitorBase() = default;
+
+/** for name in all_types|sort **/
+  virtual void operator()(/*= name =*/ &Argument) const = 0;
+/**- endfor **/
+};
+
+template<typename L>
+class Visitor : public VisitorBase {
+private:
+  L *Callable;
+
+public:
+  Visitor(L &Callable) : Callable(&Callable) {}
+  ~Visitor() override = default;
+
+public:
+/** for name in all_types|sort **/
+  void operator()(/*= name =*/ &Argument) const override {
+    (*Callable)(Argument);
+  }
+/**- endfor **/
+};
+
+} // namespace /*= ns =*/
+
+template<>
+struct TupleTreeVisitor</*= base_namespace =*/::/*= root_type =*/> {
+  using ConstVisitorBase = /*= namespace =*/::ConstVisitorBase;
+
+  template<typename L>
+  using ConstVisitor = /*= namespace =*/::ConstVisitor<L>;
+
+  using VisitorBase = /*= namespace =*/::VisitorBase;
+
+  template<typename L>
+  using Visitor = /*= namespace =*/::Visitor<L>;
+};
 
 template<>
 struct TupleTreeEntries</*= struct | user_fullname =*/> {
   using Types = /*= namespace =*/::AllTypes;
 };
+
+extern template void
+TupleTree</*= base_namespace =*/::/*= root_type =*/>::visitImpl(typename TupleTreeVisitor</*= base_namespace =*/::/*= root_type =*/>::ConstVisitorBase &Pre,
+                                    typename TupleTreeVisitor</*= base_namespace =*/::/*= root_type =*/>::ConstVisitorBase &Post) const;
+
+extern template
+void TupleTree</*= base_namespace =*/::/*= root_type =*/>::visitImpl(typename TupleTreeVisitor</*= base_namespace =*/::/*= root_type =*/>::VisitorBase &Pre,
+                                         typename TupleTreeVisitor</*= base_namespace =*/::/*= root_type =*/>::VisitorBase &Post);
+
+extern template
+void llvm::yaml::yamlize(llvm::yaml::IO &io, /*= base_namespace =*/::/*= root_type =*/ &Val, bool, llvm::yaml::EmptyContext &Ctx);
+
+extern template
+void llvm::yaml::yamlize(llvm::yaml::IO &io, TupleTreeDiff</*= base_namespace =*/::/*= root_type =*/> &Val, bool, llvm::yaml::EmptyContext &Ctx);
+
+extern template
+TupleTreeDiff</*= base_namespace =*/::/*= root_type =*/> diff(const /*= base_namespace =*/::/*= root_type =*/ &LHS, const /*= base_namespace =*/::/*= root_type =*/ &RHS);
+
+extern template
+std::optional<TupleTreePath> stringAsPath</*= base_namespace =*/::/*= root_type =*/>(llvm::StringRef Path);
+
 /** endif **/
 

@@ -28,6 +28,23 @@ DH::DissassemblyHelper() :
 DH::~DissassemblyHelper() {
 }
 
+static UpcastablePointer<yield::FunctionEdgeBase>
+convert(const UpcastablePointer<efa::FunctionEdgeBase> &Source) {
+  auto Converter =
+    [](auto &Upcasted) -> UpcastablePointer<yield::FunctionEdgeBase> {
+    using Result = UpcastablePointer<yield::FunctionEdgeBase>;
+    if constexpr (std::is_same_v<std::decay_t<decltype(Upcasted)>,
+                                 efa::CallEdge>) {
+      return Result::make<yield::CallEdge>(yield::CallEdge(Upcasted));
+    } else {
+      return Result::make<yield::FunctionEdge>(yield::FunctionEdge(Upcasted));
+    }
+  };
+  return upcast(Source,
+                Converter,
+                UpcastablePointer<yield::FunctionEdgeBase>(nullptr));
+}
+
 static void analyzeBasicBlocks(yield::Function &Function,
                                const efa::FunctionMetadata &Metadata,
                                const model::Binary &Binary) {
@@ -48,7 +65,9 @@ static void analyzeBasicBlocks(yield::Function &Function,
 
   for (const efa::BasicBlock &BasicBlock : Metadata.ControlFlowGraph) {
     for (const auto &Edge : BasicBlock.Successors) {
-      auto [NextBlock, _] = efa::parseSuccessor(*Edge, BasicBlock.End, Binary);
+      auto [NextBlock, _] = efa::parseSuccessor(*convert(Edge).get(),
+                                                BasicBlock.End,
+                                                Binary);
       if (NextBlock.isInvalid()) {
         // Ignore edges with unknown destinations (like indirect jumps).
         continue;
@@ -98,7 +117,8 @@ yield::Function DH::disassemble(const model::Function &Function,
     yield::BasicBlock ResultBasicBlock;
     ResultBasicBlock.Start = BasicBlock.Start;
     ResultBasicBlock.End = BasicBlock.End;
-    ResultBasicBlock.Successors = BasicBlock.Successors;
+    for (const auto &Successor : BasicBlock.Successors)
+      ResultBasicBlock.Successors.insert(convert(Successor));
     ResultBasicBlock.IsLabelAlwaysRequired = true;
 
     namespace Arch = model::Architecture;
