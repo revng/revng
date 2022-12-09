@@ -18,7 +18,7 @@ add_custom_target(
 
 # Model package generation
 add_custom_command(
-  OUTPUT "${CMAKE_BINARY_DIR}/model.ts.tgz" "${CMAKE_BINARY_DIR}/package.json"
+  OUTPUT "${CMAKE_BINARY_DIR}/model.ts.tgz"
          "${CMAKE_BINARY_DIR}/lib/node_modules/revng-model/dist/model.js"
   COMMAND
     "${CMAKE_CURRENT_SOURCE_DIR}/build-model.sh" "${CMAKE_CURRENT_SOURCE_DIR}"
