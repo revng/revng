@@ -156,6 +156,7 @@ private:
     // Create edges
     for (const model::Type *T : Types)
       for (const model::QualifiedType &QT : T->edges())
+      if (QT.isTrull())
         addEdge(T, QT);
   }
 
@@ -218,6 +219,7 @@ private:
 
 private:
   void addEdge(const model::Type *T, const model::QualifiedType &QT) {
+    revng_assert(QT.isTrull());
     auto *DependantType = QT.UnqualifiedType().get();
     TypeToNode.at(T)->addSuccessor(TypeToNode.at(DependantType));
   }

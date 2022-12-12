@@ -199,6 +199,7 @@ private:
                                      const model::QualifiedType &QT,
                                      bool IsNotPlaceholder) {
     size_t Offset = Die.getOffset();
+    // WIP
     revng_assert(QT.UnqualifiedType().isValid());
     if (not IsNotPlaceholder) {
       revng_assert(QT.Qualifiers().size() == 0);
@@ -462,6 +463,7 @@ private:
       }
 
       FunctionType->ReturnType() = rc_recur getTypeOrVoid(Die);
+      // WIP: isEmpty?
       revng_assert(FunctionType->ReturnType().UnqualifiedType().isValid());
 
       uint64_t Index = 0;
@@ -492,6 +494,7 @@ private:
       auto *Typedef = cast<model::TypedefType>(T);
       Typedef->OriginalName() = Name;
       Typedef->UnderlyingType() = TargetType;
+      // WIP: isEmpty
       revng_assert(Typedef->UnderlyingType().UnqualifiedType().isValid());
 
     } break;
@@ -821,6 +824,7 @@ private:
 
     // Return type
     FunctionType->ReturnType() = getTypeOrVoid(Die);
+      // WIP: isEmpty
     revng_assert(FunctionType->ReturnType().UnqualifiedType().isValid());
 
     return Model->recordNewType(std::move(NewType));
@@ -912,6 +916,7 @@ private:
         auto IsArray = [](const model::Qualifier &Q) {
           return Q.Kind() == model::QualifierKind::Array;
         };
+        // WIP: just "not QT.size()"?
         if (llvm::any_of(QT.Qualifiers(), IsArray)
             and not QT.UnqualifiedType().get()->size()) {
           ToDrop.insert(Type.get());

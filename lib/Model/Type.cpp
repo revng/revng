@@ -674,7 +674,7 @@ isImpl(const model::QualifiedType &QT, model::TypeKind::Values K) {
       and not llvm::all_of(QT.Qualifiers(), Qualifier::isConst))
     rc_return false;
 
-  if (QT.isPrimitive2())
+  if (not QT.isTrull())
     rc_return false;
 
   const model::Type *UnqualifiedType = QT.UnqualifiedType().get();

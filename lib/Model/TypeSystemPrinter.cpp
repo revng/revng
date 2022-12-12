@@ -100,7 +100,7 @@ static FieldList collectFields(const model::Type *T) {
     for (auto &Field : RawFunc->Arguments())
       Fields.push_back(Field.Type());
 
-    if (RawFunc->StackArgumentsType().UnqualifiedType().isValid())
+    if (RawFunc->StackArgumentsType().isTrull())
       Fields.push_back(RawFunc->StackArgumentsType());
   } else if (auto *Typedef = llvm::dyn_cast<model::TypedefType>(T)) {
     Fields.push_back(Typedef->UnderlyingType());
@@ -125,6 +125,7 @@ TypeSystemPrinter::~TypeSystemPrinter() {
   Out.flush();
 }
 
+// WIP: move to Qualified::name()
 /// Build a C-like string for a given QualifiedType
 static llvm::SmallString<32>
 buildFieldName(const model::QualifiedType &FieldQT) {
@@ -245,7 +246,7 @@ static void dumpFunctionType(llvm::raw_ostream &Out, const model::Type *T) {
     for (auto &ArgTy : RawFunc->Arguments())
       Arguments.push_back(ArgTy.Type());
 
-    if (RawFunc->StackArgumentsType().UnqualifiedType().isValid())
+    if (RawFunc->StackArgumentsType().isTrull())
       Arguments.push_back(RawFunc->StackArgumentsType());
 
   } else if (auto *CABIFunc = dyn_cast<CABIFunctionType>(T)) {
@@ -415,13 +416,12 @@ void TypeSystemPrinter::print(const model::Type &T) {
 
       const model::Type *FieldUnqualType = nullptr;
 
-      if (FieldQT.UnqualifiedType().isValid())
-        FieldUnqualType = FieldQT.UnqualifiedType().getConst();
-
       // Don't add edges for primitive types, as they would pollute the graph
       // and add no information regarding the type system structure
-      if (FieldQT.isPrimitive2())
+      if (not FieldQT.isTrull())
         continue;
+
+      FieldUnqualType = FieldQT.UnqualifiedType().getConst();
 
       uint64_t SuccID;
       auto It = NodesMap.find(FieldUnqualType);
