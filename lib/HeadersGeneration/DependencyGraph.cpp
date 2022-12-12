@@ -57,12 +57,12 @@ std::string llvm::DOTGraphTraits<DepGraph *>::getNodeLabel(const DepNode *N,
 static TypeDependencyNode *
 getDependencyForTypeName(const model::QualifiedType &QT,
                          const TypeToDependencyNodeMap &TypeToNode) {
-  const auto *Unqualified = QT.UnqualifiedType.get();
+  const auto *Unqualified = QT.UnqualifiedType().get();
 
   // If we find at least a pointer qualifier, then we only need the name of
   // the unqualified type, not its full definition.
   bool ArrayFound = false;
-  for (const auto &Qualifier : QT.Qualifiers) {
+  for (const auto &Qualifier : QT.Qualifiers()) {
     if (model::Qualifier::isPointer(Qualifier))
       return TypeToNode.at({ Unqualified, TypeNode::Kind::TypeName });
     if (model::Qualifier::isArray(Qualifier))
@@ -84,11 +84,11 @@ getDependencyForTypeName(const model::QualifiedType &QT,
 static TypeDependencyNode *
 getDependencyForFullType(const model::QualifiedType &QT,
                          const TypeToDependencyNodeMap &TypeToNode) {
-  const auto *Unqualified = QT.UnqualifiedType.get();
+  const auto *Unqualified = QT.UnqualifiedType().get();
 
   // If we find at least a pointer qualifier, then we only need the name of
   // the unqualified type, not its full definition.
-  for (const auto &Qualifier : QT.Qualifiers)
+  for (const auto &Qualifier : QT.Qualifiers())
     if (model::Qualifier::isPointer(Qualifier))
       return TypeToNode.at({ Unqualified, TypeNode::TypeName });
 
@@ -104,7 +104,7 @@ static void registerDependencies(const model::Type *T,
   using Edge = std::pair<TypeDependencyNode *, TypeDependencyNode *>;
   llvm::SmallVector<Edge, 2> Deps;
 
-  switch (T->Kind) {
+  switch (T->Kind()) {
 
   case model::TypeKind::Invalid: {
     revng_abort("Primitive or Invalid type should never depend on others");
@@ -130,11 +130,11 @@ static void registerDependencies(const model::Type *T,
     // thin air, so we're always sure that this does not generates infinite
     // loops.
     const auto *E = cast<model::EnumType>(T);
-    const model::QualifiedType &UnderlyingQT = E->UnderlyingType;
+    const model::QualifiedType &UnderlyingQT = E->UnderlyingType();
     revng_assert(T->edges().size() == 1 and UnderlyingQT == *T->edges().begin()
-                 and UnderlyingQT.Qualifiers.empty());
+                 and UnderlyingQT.Qualifiers().empty());
 
-    auto *U = cast<model::PrimitiveType>(UnderlyingQT.UnqualifiedType.get());
+    auto *U = cast<model::PrimitiveType>(UnderlyingQT.UnqualifiedType().get());
     auto *EnumName = TypeToNode.at({ E, TypeNode::Kind::TypeName });
     auto *EnumFull = TypeToNode.at({ E, TypeNode::Kind::FullType });
     auto *UnderFull = TypeToNode.at({ U, TypeNode::Kind::FullType });
@@ -164,7 +164,7 @@ static void registerDependencies(const model::Type *T,
   case model::TypeKind::TypedefType: {
     // Typedefs are nasty.
     auto *TD = cast<model::TypedefType>(T);
-    const model::QualifiedType &Underlying = TD->UnderlyingType;
+    const model::QualifiedType &Underlying = TD->UnderlyingType();
 
     auto *TDName = TypeToNode.at({ TD, TypeNode::Kind::TypeName });
     TypeDependencyNode *NameDep = getDependencyForTypeName(Underlying,

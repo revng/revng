@@ -43,7 +43,7 @@ serializeToLLVMString(model::QualifiedType &QT, llvm::Module &M);
 /// architecture.
 inline llvm::IntegerType *
 getPointerSizedInteger(llvm::LLVMContext &C, const model::Binary &Binary) {
-  const size_t PtrSize = getPointerSize(Binary.Architecture);
+  const size_t PtrSize = getPointerSize(Binary.Architecture());
   return llvm::Type::getIntNTy(C, PtrSize * 8);
 }
 
@@ -53,7 +53,7 @@ createPointerTo(const model::TypePath &BaseT, const model::Binary &Binary) {
   using Qualifier = model::Qualifier;
 
   return model::QualifiedType{
-    BaseT, { Qualifier::createPointer(Binary.Architecture) }
+    BaseT, { Qualifier::createPointer(Binary.Architecture()) }
   };
 }
 
@@ -116,8 +116,8 @@ flattenReturnTypes(const abi::FunctionType::Layout &Layout,
 
 inline model::QualifiedType stripPointer(const model::QualifiedType &Type) {
   model::QualifiedType Result = Type;
-  revng_assert(not Result.Qualifiers.empty()
-               and model::Qualifier::isPointer(Result.Qualifiers.front()));
-  Result.Qualifiers.erase(Result.Qualifiers.begin());
+  revng_assert(not Result.Qualifiers().empty()
+               and model::Qualifier::isPointer(Result.Qualifiers().front()));
+  Result.Qualifiers().erase(Result.Qualifiers().begin());
   return Result;
 }

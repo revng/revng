@@ -38,7 +38,7 @@ static StringRef stripPrefix(StringRef Prefix, StringRef String) {
 }
 
 static unsigned getCallPushSize(const model::Binary &Binary) {
-  return model::Architecture::getCallPushSize(Binary.Architecture);
+  return model::Architecture::getCallPushSize(Binary.Architecture());
 }
 
 static MetaAddress getCallerBlockAddress(Instruction *I) {
@@ -345,7 +345,7 @@ public:
 
 private:
   auto getPointerTo(const model::QualifiedType &T) const {
-    return T.getPointerTo(Binary.Architecture);
+    return T.getPointerTo(Binary.Architecture());
   }
 
   template<typename... Types>
@@ -398,7 +398,7 @@ private:
     for (Function *OldFunction : Functions) {
       // TODO: this is not very nice
       auto SymbolName = stripPrefix("dynamic_", OldFunction->getName()).str();
-      auto &ImportedFunction = Binary.ImportedDynamicFunctions.at(SymbolName);
+      auto &ImportedFunction = Binary.ImportedDynamicFunctions().at(SymbolName);
       model::TypePath Prototype = ImportedFunction.prototype(Binary);
       auto [NewFunction, Layout] = recreateApplyingModelPrototype(OldFunction,
                                                                   Prototype);
@@ -416,7 +416,7 @@ private:
     for (Function *OldFunction : IsolatedFunctions) {
       MetaAddress Entry = getMetaAddressMetadata(OldFunction,
                                                  "revng.function.entry");
-      const model::Function &ModelFunction = Binary.Functions.at(Entry);
+      const model::Function &ModelFunction = Binary.Functions().at(Entry);
 
       //
       // Create new FunctionType
@@ -600,7 +600,7 @@ private:
 
     // Get model::Function
     MetaAddress Entry = getMetaAddressMetadata(&F, "revng.function.entry");
-    const model::Function &ModelFunction = Binary.Functions.at(Entry);
+    const model::Function &ModelFunction = Binary.Functions().at(Entry);
 
     revng_log(Log, "Segregating " << ModelFunction.name().str());
     LoggerIndent<> Indent(Log);
@@ -1015,14 +1015,14 @@ private:
     // Find call to revng_init_local_sp
     //
     CallInst *Call = findCallTo(&F, InitLocalSP);
-    if (Call == nullptr or not ModelFunction.StackFrameType.isValid())
+    if (Call == nullptr or not ModelFunction.StackFrameType().isValid())
       return;
 
     //
     // Get stack frame size
     //
     std::optional<uint64_t> MaybeStackFrameSize;
-    if (const model::Type *T = ModelFunction.StackFrameType.get())
+    if (const model::Type *T = ModelFunction.StackFrameType().get())
       MaybeStackFrameSize = T->size(VH);
 
     uint64_t StackFrameSize = MaybeStackFrameSize.value_or(0);
@@ -1032,7 +1032,7 @@ private:
     //
     if (StackFrameSize != 0) {
       IRBuilder<> Builder(Call);
-      model::QualifiedType StackFrameType(ModelFunction.StackFrameType, {});
+      model::QualifiedType StackFrameType(ModelFunction.StackFrameType(), {});
       auto [_, StackFrameCall] = createCallWithAddressOf(Builder,
                                                          StackFrameType,
                                                          StackFrameAllocator,
@@ -1168,7 +1168,7 @@ private:
   shiftAmount(unsigned Offset, unsigned NewSize, unsigned OldSize) const {
     if (NewSize >= OldSize)
       return 0;
-    if (model::Architecture::isLittleEndian(Binary.Architecture)) {
+    if (model::Architecture::isLittleEndian(Binary.Architecture())) {
       return Offset * 8;
     } else {
       return (NewSize - Offset - OldSize) * 8;

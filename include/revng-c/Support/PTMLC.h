@@ -17,6 +17,7 @@
 #include "revng/PTML/Tag.h"
 #include "revng/Pipeline/Location.h"
 
+#include "revng-c/Pipes/Ranks.h"
 #include "revng-c/Support/PTML.h"
 #include "revng-c/Support/TokenDefinitions.h"
 
@@ -363,7 +364,7 @@ inline std::string serializeLocation(const model::UnionType &Union,
 inline Tag
 getNameTag(const model::EnumType &Enum, const model::EnumEntry &Entry) {
   return ptml::tokenTag(Enum.name().str().str() + "_"
-                          + Entry.CustomName.str().str(),
+                          + Entry.CustomName().str().str(),
                         c::tokens::Field);
 }
 

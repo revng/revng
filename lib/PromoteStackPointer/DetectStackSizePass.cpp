@@ -104,7 +104,7 @@ private:
 public:
   DetectStackSize(TupleTree<model::Binary> &B) :
     Binary(B),
-    CallInstructionPushSize(Architecture::getCallPushSize(B->Architecture)) {}
+    CallInstructionPushSize(Architecture::getCallPushSize(B->Architecture())) {}
 
 public:
   void run(FunctionMetadataCache &Cache, Module &M) {
@@ -140,19 +140,20 @@ void DetectStackSize::collectStackBounds(FunctionMetadataCache &Cache,
 
   // Obtain model::Function corresponding to this llvm::Function
   MetaAddress Entry = getMetaAddressMetadata(&F, "revng.function.entry");
-  model::Function &ModelFunction = Binary->Functions.at(Entry);
+  model::Function &ModelFunction = Binary->Functions().at(Entry);
   revng_log(Log, "Collecting stack bounds for " << ModelFunction.name().str());
   LoggerIndent<> Indent(Log);
 
   // Check if this function already has information about stack
   // frame/arguments
-  bool NeedsStackFrame = not ModelFunction.StackFrameType.isValid();
+  bool NeedsStackFrame = not ModelFunction.StackFrameType().isValid();
   bool NeedsStackArguments = false;
-  model::Type *Prototype = ModelFunction.Prototype.get();
+  model::Type *Prototype = ModelFunction.Prototype().get();
   RawFunctionType *RawPrototype = nullptr;
   if ((RawPrototype = dyn_cast<RawFunctionType>(Prototype))) {
-    revng_assert(RawPrototype->StackArgumentsType.Qualifiers.empty());
-    NeedsStackArguments = not RawPrototype->StackArgumentsType.UnqualifiedType
+    revng_assert(RawPrototype->StackArgumentsType().Qualifiers().empty());
+    NeedsStackArguments = not RawPrototype->StackArgumentsType()
+                                .UnqualifiedType()
                                 .isValid();
   }
 
@@ -224,8 +225,8 @@ void DetectStackSize::collectStackBounds(FunctionMetadataCache &Cache,
 using DSSI = DetectStackSize;
 void DSSI::electStackArgumentsSize(RawFunctionType *Prototype,
                                    const UpperBoundCollector &Bound) const {
-  revng_assert(Prototype->StackArgumentsType.Qualifiers.empty());
-  revng_assert(not Prototype->StackArgumentsType.UnqualifiedType.isValid());
+  revng_assert(Prototype->StackArgumentsType().Qualifiers().empty());
+  revng_assert(not Prototype->StackArgumentsType().UnqualifiedType().isValid());
   revng_assert(Bound.hasValue());
 
   APInt Value = Bound.value();
@@ -239,16 +240,18 @@ void DSSI::electStackArgumentsSize(RawFunctionType *Prototype,
   auto Size = Value.getLimitedValue();
   if (Value.sgt(0) and isValidStackSize(Size)) {
     revng_log(Log,
-              "electStackArgumentsSize for " << Prototype->ID << ": " << Size);
-    Prototype->StackArgumentsType = { createEmptyStruct(*Binary.get(), Size),
-                                      {} };
+              "electStackArgumentsSize for " << Prototype->ID() << ": "
+                                             << Size);
+    Prototype->StackArgumentsType() = { createEmptyStruct(*Binary.get(), Size),
+                                        {} };
   }
 }
 
 void DetectStackSize::electFunctionStackFrameSize(FunctionStackInfo &FSI) {
   model::Function &ModelFunction = FSI.Function;
   revng_log(Log,
-            "electFunctionStackFrameSize: " << ModelFunction.Entry.toString());
+            "electFunctionStackFrameSize: "
+              << ModelFunction.Entry().toString());
   LoggerIndent<> Indent(Log);
 
   if (FSI.MaxStackSize)
@@ -277,7 +280,8 @@ void DetectStackSize::electFunctionStackFrameSize(FunctionStackInfo &FSI) {
 
   if (StackSize and isValidStackSize(*StackSize)) {
     revng_log(Log, "Final StackSize: " << *StackSize);
-    ModelFunction.StackFrameType = createEmptyStruct(*Binary.get(), *StackSize);
+    ModelFunction.StackFrameType() = createEmptyStruct(*Binary.get(),
+                                                       *StackSize);
   }
 }
 
@@ -288,7 +292,7 @@ DetectStackSize::handleCallSite(const CallSite &CallSite) {
   if (Log.isEnabled()) {
     if (CallSite.StackSize)
       Log << "StackSize: " << *CallSite.StackSize << DoLog;
-    Log << "ID: " << CallSite.Prototype->ID << DoLog;
+    Log << "ID: " << CallSite.Prototype->ID() << DoLog;
   }
 
   if (not CallSite.StackSize)
@@ -301,9 +305,9 @@ DetectStackSize::handleCallSite(const CallSite &CallSite) {
 
   uint64_t StackArgumentsSize = 0;
 
-  const model::QualifiedType &StackArguments = Prototype->StackArgumentsType;
-  revng_assert(StackArguments.Qualifiers.empty());
-  if (StackArguments.UnqualifiedType.isValid()) {
+  const model::QualifiedType &StackArguments = Prototype->StackArgumentsType();
+  revng_assert(StackArguments.Qualifiers().empty());
+  if (StackArguments.UnqualifiedType().isValid()) {
     using std::optional;
     optional<uint64_t> MaybeStackArgumentsSize = StackArguments.size(VH);
     revng_assert(MaybeStackArgumentsSize);

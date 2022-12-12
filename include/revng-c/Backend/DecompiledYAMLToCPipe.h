@@ -16,6 +16,7 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/StringBufferContainer.h"
 
+#include "revng-c/Backend/CDecompilationPipe.h"
 #include "revng-c/Pipes/Kinds.h"
 
 namespace revng::pipes {

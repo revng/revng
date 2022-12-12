@@ -132,7 +132,7 @@ static RecursiveCoroutine<bool> addOperandType(const llvm::Value *Operand,
     revng_assert(OperandType->isIntOrPtrTy());
     auto *IntType = dyn_cast<llvm::IntegerType>(OperandType);
     if (not IntType) { // It's a pointer
-      auto ByteSize = model::Architecture::getPointerSize(Model.Architecture);
+      auto ByteSize = model::Architecture::getPointerSize(Model.Architecture());
       auto BitWidth = 8 * ByteSize;
       IntType = llvm::IntegerType::getIntNTy(Operand->getContext(), BitWidth);
     }
@@ -146,7 +146,7 @@ static RecursiveCoroutine<bool> addOperandType(const llvm::Value *Operand,
 
   } else if (auto *NullPtr = dyn_cast<llvm::ConstantPointerNull>(Operand)) {
     if (not PointersOnly) {
-      auto PtrSize = model::Architecture::getPointerSize(Model.Architecture);
+      auto PtrSize = model::Architecture::getPointerSize(Model.Architecture());
       auto NullPointerType = model::QualifiedType{
         Model.getPrimitiveType(model::PrimitiveTypeKind::Generic, PtrSize),
         /*Qualifiers*/ {}
@@ -303,7 +303,7 @@ ModelTypesMap initModelTypes(FunctionMetadataCache &Cache,
                              bool PointersOnly) {
   ModelTypesMap TypeMap;
 
-  const model::Type *Prototype = ModelF->Prototype.getConst();
+  const model::Type *Prototype = ModelF->Prototype().getConst();
   revng_assert(Prototype);
 
   addArgumentsTypes(F, Prototype, Model, TypeMap, PointersOnly);
@@ -391,7 +391,7 @@ ModelTypesMap initModelTypes(FunctionMetadataCache &Cache,
         llvm::PointerType *PtrType = llvm::cast<llvm::PointerType>(I.getType());
         llvm::Type *BaseType = PtrType->getElementType();
         revng_assert(BaseType->isSingleValueType());
-        const model::Architecture::Values &Architecture = Model.Architecture;
+        const model::Architecture::Values &Architecture = Model.Architecture();
         Type = llvmIntToModelType(BaseType, Model).getPointerTo(Architecture);
       } break;
 

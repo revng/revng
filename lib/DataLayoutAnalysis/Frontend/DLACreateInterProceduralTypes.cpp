@@ -47,12 +47,12 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
     const model::Type *Prototype = nullptr;
     if (FunctionTags::Isolated.isTagOf(&F)) {
       const model::Function *ModelFunc = llvmToModelFunction(Model, F);
-      Prototype = ModelFunc->Prototype.getConst();
+      Prototype = ModelFunc->Prototype().getConst();
     } else {
       llvm::StringRef SymbolName = F.getName().drop_front(strlen("dynamic_"));
 
-      auto It = Model.ImportedDynamicFunctions.find(SymbolName.str());
-      revng_assert(It != Model.ImportedDynamicFunctions.end());
+      auto It = Model.ImportedDynamicFunctions().find(SymbolName.str());
+      revng_assert(It != Model.ImportedDynamicFunctions().end());
       const model::DynamicFunction &DF = *It;
       const auto &TTR = getPrototype(Model, DF);
       revng_assert(TTR.isValid());
@@ -130,7 +130,7 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
                                  FormalTypes[FieldId].first,
                                  OffsetExpression{});
               auto *Placeholder = TS.createArtificialLayoutType();
-              Placeholder->Size = getPointerSize(Model.Architecture);
+              Placeholder->Size = getPointerSize(Model.Architecture());
               TS.addPointerLink(Placeholder, ActualTypes[FieldId].first);
             }
             ++ArgNo;
@@ -169,7 +169,7 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
                                    FRetTypes[FieldId].first,
                                    OffsetExpression{});
                 auto *Placeholder = TS.createArtificialLayoutType();
-                Placeholder->Size = getPointerSize(Model.Architecture);
+                Placeholder->Size = getPointerSize(Model.Architecture());
                 TS.addPointerLink(Placeholder, RetTypes[FieldId].first);
               }
             }
@@ -183,7 +183,7 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
   std::map<model::Segment *, LayoutTypeSystemNode *> SegmentNodeMap;
   for (Function &F : FunctionTags::SegmentRef.functions(&M)) {
     const auto &[StartAddress, VirtualSize] = extractSegmentKeyFromMetadata(F);
-    model::Segment Segment = Model.Segments.at({ StartAddress, VirtualSize });
+    model::Segment Segment = Model.Segments().at({ StartAddress, VirtualSize });
     auto [SegmentTypeNode, _] = getOrCreateLayoutType(&F);
     auto [It, Success] = SegmentNodeMap.insert({ &Segment, SegmentTypeNode });
 
@@ -194,7 +194,7 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
       TS.addEqualityLink(SegmentTypeNode, It->second);
     } else {
       auto *Placeholder = TS.createArtificialLayoutType();
-      Placeholder->Size = getPointerSize(Model.Architecture);
+      Placeholder->Size = getPointerSize(Model.Architecture());
       TS.addPointerLink(Placeholder, SegmentTypeNode);
     }
 

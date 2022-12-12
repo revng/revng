@@ -348,7 +348,7 @@ public:
     Model(Model),
     LLVMFunction(LLVMFunction),
     ModelFunction(*llvmToModelFunction(Model, LLVMFunction)),
-    ParentPrototype(*ModelFunction.Prototype.getConst()),
+    ParentPrototype(*ModelFunction.Prototype().getConst()),
     GHAST(GHAST),
     TopScopeVariables(TopScopeVariables),
     TypeMap(initModelTypes(Cache,
@@ -500,8 +500,8 @@ CCodeGenerator::buildCastExpr(StringRef ExprToCast,
                               const model::QualifiedType &SrcType,
                               const model::QualifiedType &DestType) {
   StringToken Result = ExprToCast;
-  if (SrcType == DestType or not SrcType.UnqualifiedType.isValid()
-      or not DestType.UnqualifiedType.isValid())
+  if (SrcType == DestType or not SrcType.UnqualifiedType().isValid()
+      or not DestType.UnqualifiedType().isValid())
     return Result;
 
   revng_assert((SrcType.isScalar() or SrcType.isPointer())
@@ -703,11 +703,11 @@ CCodeGenerator::addOperandToken(const llvm::Value *Operand) {
 static RecursiveCoroutine<QualifiedType>
 flattenTypedefsIgnoringConst(const QualifiedType &QT) {
   QualifiedType Result = peelConstAndTypedefs(QT);
-  if (auto *TD = dyn_cast<TypedefType>(QT.UnqualifiedType.getConst())) {
-    auto &Underlying = TD->UnderlyingType;
+  if (auto *TD = dyn_cast<TypedefType>(QT.UnqualifiedType().getConst())) {
+    auto &Underlying = TD->UnderlyingType();
     QualifiedType Nested = rc_recur flattenTypedefsIgnoringConst(Underlying);
-    Result.UnqualifiedType = Nested.UnqualifiedType;
-    llvm::move(Nested.Qualifiers, std::back_inserter(Result.Qualifiers));
+    Result.UnqualifiedType() = Nested.UnqualifiedType();
+    llvm::move(Nested.Qualifiers(), std::back_inserter(Result.Qualifiers()));
   }
   rc_return Result;
 }
@@ -744,7 +744,7 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
     } else {
       // In ModelGEPs, the base value is a pointer, and the base type is the
       // type pointed by the base value
-      QualifiedType PointerQt = CurType.getPointerTo(Model.Architecture);
+      QualifiedType PointerQt = CurType.getPointerTo(Model.Architecture());
       revng_assert(TypeMap.at(BaseValue) == PointerQt,
                    "The ModelGEP base type is not coherent with the "
                    "propagated type.");
@@ -770,8 +770,8 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
         CurType = flattenTypedefsIgnoringConst(CurType);
 
         model::Qualifier *MainQualifier = nullptr;
-        if (CurType.Qualifiers.size() > 0)
-          MainQualifier = &CurType.Qualifiers.front();
+        if (CurType.Qualifiers().size() > 0)
+          MainQualifier = &CurType.Qualifiers().front();
 
         if (MainQualifier and model::Qualifier::isArray(*MainQualifier)) {
           // If it's an array, add "[]"
@@ -785,9 +785,9 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
 
           CurExpr += ("[" + IndexExpr + "]");
           // Remove the qualifier we just analysed
-          auto RemainingQualifiers = llvm::drop_begin(CurType.Qualifiers, 1);
-          CurType.Qualifiers = { RemainingQualifiers.begin(),
-                                 RemainingQualifiers.end() };
+          auto RemainingQualifiers = llvm::drop_begin(CurType.Qualifiers(), 1);
+          CurType.Qualifiers() = { RemainingQualifiers.begin(),
+                                   RemainingQualifiers.end() };
         } else {
           // We shouldn't be going past pointers in a single ModelGEP
           revng_assert(not MainQualifier);
@@ -801,17 +801,17 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
           CurExpr += DerefSymbol.serialize();
 
           // Find the field name
-          const auto *UnqualType = CurType.UnqualifiedType.getConst();
+          const auto *UnqualType = CurType.UnqualifiedType().getConst();
 
           if (auto *Struct = dyn_cast<model::StructType>(UnqualType)) {
-            const model::StructField &Field = Struct->Fields.at(FieldIdx);
+            const model::StructField &Field = Struct->Fields().at(FieldIdx);
             CurExpr += ptml::getLocationReference(*Struct, Field);
-            CurType = Struct->Fields.at(FieldIdx).Type;
+            CurType = Struct->Fields().at(FieldIdx).Type();
 
           } else if (auto *Union = dyn_cast<model::UnionType>(UnqualType)) {
-            const model::UnionField &Field = Union->Fields.at(FieldIdx);
+            const model::UnionField &Field = Union->Fields().at(FieldIdx);
             CurExpr += ptml::getLocationReference(*Union, Field);
-            CurType = Union->Fields.at(FieldIdx).Type;
+            CurType = Union->Fields().at(FieldIdx).Type();
 
           } else {
             revng_abort("Unexpected ModelGEP type found: ");
@@ -879,7 +879,7 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
 
     if (VarNames.hasDeclaration()) {
       // Emit LHS as a definition
-      Out << getReturnTypeName(*ModelFunction.Prototype.get()) << " "
+      Out << getReturnTypeName(*ModelFunction.Prototype().get()) << " "
           << VarNames.Declaration;
     } else {
       // Emit LHS as a reference
@@ -914,7 +914,7 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
   } else if (FunctionTags::SegmentRef.isTagOf(CalledFunc)) {
     const auto &[StartAddress,
                  VirtualSize] = extractSegmentKeyFromMetadata(*CalledFunc);
-    model::Segment Segment = Model.Segments.at({ StartAddress, VirtualSize });
+    model::Segment Segment = Model.Segments().at({ StartAddress, VirtualSize });
     auto Name = Segment.name();
 
     Expression = ptml::getLocationReference(Segment);
@@ -1015,10 +1015,10 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
         CalleeToken = addParentheses(VarName);
 
       } else {
-        if (not CallEdge->DynamicFunction.empty()) {
+        if (not CallEdge->DynamicFunction().empty()) {
           // Dynamic Function
-          auto &DynFuncID = CallEdge->DynamicFunction;
-          auto &DynamicFunc = Model.ImportedDynamicFunctions.at(DynFuncID);
+          auto &DynFuncID = CallEdge->DynamicFunction();
+          auto &DynamicFunc = Model.ImportedDynamicFunctions().at(DynFuncID);
           std::string Location = serializedLocation(ranks::DynamicFunction,
                                                     DynamicFunc.key());
           CalleeToken = Tag(tags::Span, DynamicFunc.name().str())
@@ -1102,7 +1102,7 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
     // The pointer operand's type and the actual loaded value's type might have
     // a mismatch. In this case, we want to cast the pointer operand to correct
     // type pointer before dereferencing it.
-    const model::Architecture::Values &Architecture = Model.Architecture;
+    const model::Architecture::Values &Architecture = Model.Architecture();
     QualifiedType ResultPtrType = TypeMap.at(Load).getPointerTo(Architecture);
     Expression = (buildDerefExpr(buildCastExpr(TokenMap.at(Pointer),
                                                TypeMap.at(Pointer),
@@ -1115,7 +1115,7 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
     const llvm::Value *ValueOp = Store->getValueOperand();
     const QualifiedType &StoredType = TypeMap.at(ValueOp);
 
-    const model::Architecture::Values &Architecture = Model.Architecture;
+    const model::Architecture::Values &Architecture = Model.Architecture();
     const auto PointerToStoredType = StoredType.getPointerTo(Architecture);
     StringToken PointerCast = buildCastExpr(TokenMap.at(PointerOp),
                                             TypeMap.at(PointerOp),
@@ -1524,7 +1524,7 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
 
       // TODO: finer decision on the type of the loop state variable
       using model::PrimitiveTypeKind::Unsigned;
-      SwitchVarType.UnqualifiedType = Model.getPrimitiveType(Unsigned, 8);
+      SwitchVarType.UnqualifiedType() = Model.getPrimitiveType(Unsigned, 8);
     }
     revng_assert(not SwitchVarToken.empty());
 
@@ -1532,7 +1532,7 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
       model::QualifiedType BoolTy;
       // TODO: finer decision on how to cast structs used in a switch
       using model::PrimitiveTypeKind::Unsigned;
-      BoolTy.UnqualifiedType = Model.getPrimitiveType(Unsigned, 8);
+      BoolTy.UnqualifiedType() = Model.getPrimitiveType(Unsigned, 8);
 
       SwitchVarToken = buildCastExpr(SwitchVarToken, SwitchVarType, BoolTy);
     }
@@ -1633,11 +1633,12 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
   // Create a token for each of the function's arguments
   if (auto *RawPrototype = dyn_cast<model::RawFunctionType>(&ParentPrototype)) {
 
-    const auto &ModelArgs = RawPrototype->Arguments;
+    const auto &ModelArgs = RawPrototype->Arguments();
     const auto &LLVMArgs = LLVMFunction.args();
     const auto LLVMArgsNum = LLVMFunction.arg_size();
 
-    const auto &StackArgType = RawPrototype->StackArgumentsType.UnqualifiedType;
+    const auto &StackArgType = RawPrototype->StackArgumentsType()
+                                 .UnqualifiedType();
     const auto ArgSize = ModelArgs.size();
     revng_assert(LLVMArgsNum == ArgSize
                  or (LLVMArgsNum == ArgSize + 1 and StackArgType.isValid()));
@@ -1662,7 +1663,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
     }
   } else if (auto *CPrototype = dyn_cast<CABIFunctionType>(&ParentPrototype)) {
 
-    const auto &ModelArgs = CPrototype->Arguments;
+    const auto &ModelArgs = CPrototype->Arguments();
     const auto &LLVMArgs = LLVMFunction.args();
 
     revng_assert(LLVMFunction.arg_size() == ModelArgs.size());

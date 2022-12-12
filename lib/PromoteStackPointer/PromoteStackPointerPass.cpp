@@ -49,7 +49,7 @@ static bool adjustStackAfterCalls(FunctionMetadataCache &Cache,
   Type *SPType = GlobalSP->getType()->getPointerElementType();
 
   MetaAddress Entry = getMetaAddressMetadata(&F, "revng.function.entry");
-  auto &ModelFunction = Binary.Functions.at(Entry);
+  auto &ModelFunction = Binary.Functions().at(Entry);
 
   for (BasicBlock &BB : F) {
     for (Instruction &I : BB) {

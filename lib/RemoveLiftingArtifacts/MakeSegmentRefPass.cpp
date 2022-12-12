@@ -35,12 +35,12 @@ public:
 static std::optional<std::pair<MetaAddress, uint64_t>>
 findLiteralInSegments(const model::Binary &Binary, uint64_t Literal) {
   std::optional<std::pair<MetaAddress, uint64_t>> Result = std::nullopt;
-  auto Arch = toLLVMArchitecture(Binary.Architecture);
+  auto Arch = toLLVMArchitecture(Binary.Architecture());
 
-  for (const auto &Segment : Binary.Segments) {
+  for (const auto &Segment : Binary.Segments()) {
     if (Segment.contains(MetaAddress::fromGeneric(Arch, Literal))) {
       revng_assert(not Result.has_value());
-      Result = { { Segment.StartAddress, Segment.VirtualSize } };
+      Result = { { Segment.StartAddress(), Segment.VirtualSize() } };
     }
   }
 
@@ -113,8 +113,9 @@ bool MakeSegmentRefPass::runOnFunction(Function &F) {
                                                         SegmentRefType },
                                                       AddressOfFunctionType,
                                                       "AddressOf");
-          auto SegmentType = Model->Segments.at({ StartAddress, VirtualSize })
-                               .Type;
+          auto SegmentType = Model->Segments()
+                               .at({ StartAddress, VirtualSize })
+                               .Type();
           Constant *ModelTypeString = serializeToLLVMString(SegmentType, *M);
           Value *AddressOfCall = IRB.CreateCall(AddressOfFunction,
                                                 { ModelTypeString,

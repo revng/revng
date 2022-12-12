@@ -47,25 +47,25 @@ static RecursiveCoroutine<model::QualifiedType>
 peelConstAndTypedefsImpl(const model::QualifiedType &QT) {
   // First look for non-const qualifiers
   const auto &NonConst = std::not_fn(model::Qualifier::isConst);
-  auto QIt = llvm::find_if(QT.Qualifiers, NonConst);
-  auto QEnd = QT.Qualifiers.end();
+  auto QIt = llvm::find_if(QT.Qualifiers(), NonConst);
+  auto QEnd = QT.Qualifiers().end();
 
   // If we find a non-const qualifier we're done unwrapping
   if (QIt != QEnd)
-    rc_return model::QualifiedType(QT.UnqualifiedType, { QIt, QEnd });
+    rc_return model::QualifiedType(QT.UnqualifiedType(), { QIt, QEnd });
 
   // Here we have only const qualifiers
 
-  auto *TD = dyn_cast<TypedefType>(QT.UnqualifiedType.getConst());
+  auto *TD = dyn_cast<TypedefType>(QT.UnqualifiedType().getConst());
 
   // If it's not a typedef, we're done. Just throw away the remaining const
   // qualifiers.
   if (not TD)
-    rc_return model::QualifiedType(QT.UnqualifiedType, {});
+    rc_return model::QualifiedType(QT.UnqualifiedType(), {});
 
   // If it's a typedef, unwrap it and recur.
   // Also in this case we can ignore
-  rc_return rc_recur peelConstAndTypedefsImpl(TD->UnderlyingType);
+  rc_return rc_recur peelConstAndTypedefsImpl(TD->UnderlyingType());
 }
 
 model::QualifiedType peelConstAndTypedefs(const model::QualifiedType &QT) {
@@ -92,31 +92,31 @@ llvmIntToModelType(const llvm::Type *LLVMType, const model::Binary &Model) {
     switch (IntType->getIntegerBitWidth()) {
     case 1:
     case 8:
-      ModelType.UnqualifiedType = Model.getPrimitiveType(Generic, 1);
+      ModelType.UnqualifiedType() = Model.getPrimitiveType(Generic, 1);
       break;
 
     case 16:
-      ModelType.UnqualifiedType = Model.getPrimitiveType(Generic, 2);
+      ModelType.UnqualifiedType() = Model.getPrimitiveType(Generic, 2);
       break;
 
     case 32:
-      ModelType.UnqualifiedType = Model.getPrimitiveType(Generic, 4);
+      ModelType.UnqualifiedType() = Model.getPrimitiveType(Generic, 4);
       break;
 
     case 64:
-      ModelType.UnqualifiedType = Model.getPrimitiveType(Generic, 8);
+      ModelType.UnqualifiedType() = Model.getPrimitiveType(Generic, 8);
       break;
 
     case 80:
-      ModelType.UnqualifiedType = Model.getPrimitiveType(Generic, 10);
+      ModelType.UnqualifiedType() = Model.getPrimitiveType(Generic, 10);
       break;
 
     case 96:
-      ModelType.UnqualifiedType = Model.getPrimitiveType(Generic, 12);
+      ModelType.UnqualifiedType() = Model.getPrimitiveType(Generic, 12);
       break;
 
     case 128:
-      ModelType.UnqualifiedType = Model.getPrimitiveType(Generic, 16);
+      ModelType.UnqualifiedType() = Model.getPrimitiveType(Generic, 16);
       break;
 
     default:
@@ -125,13 +125,13 @@ llvmIntToModelType(const llvm::Type *LLVMType, const model::Binary &Model) {
     }
     // Add qualifiers
     for (size_t I = 0; I < NPtrQualifiers; ++I)
-      ModelType = ModelType.getPointerTo(Model.Architecture);
+      ModelType = ModelType.getPointerTo(Model.Architecture());
 
   } else if (NPtrQualifiers > 0) {
     // If it's a pointer to a non-integer type, return an integer type of the
     // length of a pointer
-    auto PtrSize = getPointerSize(Model.Architecture);
-    ModelType.UnqualifiedType = Model.getPrimitiveType(Generic, PtrSize);
+    auto PtrSize = getPointerSize(Model.Architecture());
+    ModelType.UnqualifiedType() = Model.getPrimitiveType(Generic, PtrSize);
   } else {
     revng_abort("Only integer and pointer types can be directly converted "
                 "from LLVM types to C types.");
@@ -154,8 +154,8 @@ deserializeFromLLVMString(llvm::Value *V, const model::Binary &Model) {
     if (EC)
       revng_abort("Could not deserialize the ModelGEP base type");
   }
-  ParsedType.UnqualifiedType.setRoot(&Model);
-  revng_assert(ParsedType.UnqualifiedType.isValid());
+  ParsedType.UnqualifiedType().setRoot(&Model);
+  revng_assert(ParsedType.UnqualifiedType().isValid());
 
   return ParsedType;
 }
@@ -178,14 +178,14 @@ RecursiveCoroutine<model::QualifiedType>
 dropPointer(const model::QualifiedType &QT) {
   revng_assert(QT.isPointer());
 
-  auto QEnd = QT.Qualifiers.end();
-  for (auto QIt = QT.Qualifiers.begin(); QIt != QEnd; ++QIt) {
+  auto QEnd = QT.Qualifiers().end();
+  for (auto QIt = QT.Qualifiers().begin(); QIt != QEnd; ++QIt) {
 
     if (model::Qualifier::isConst(*QIt))
       continue;
 
     if (model::Qualifier::isPointer(*QIt)) {
-      rc_return model::QualifiedType(QT.UnqualifiedType,
+      rc_return model::QualifiedType(QT.UnqualifiedType(),
                                      { std::next(QIt), QEnd });
     } else {
       revng_abort("Error: this is not a pointer");
@@ -195,8 +195,8 @@ dropPointer(const model::QualifiedType &QT) {
   }
 
   // Recur if it has no pointer qualifier but it is a Typedef
-  if (auto *TD = dyn_cast<model::TypedefType>(QT.UnqualifiedType.get()))
-    rc_return rc_recur dropPointer(TD->UnderlyingType);
+  if (auto *TD = dyn_cast<model::TypedefType>(QT.UnqualifiedType().get()))
+    rc_return rc_recur dropPointer(TD->UnderlyingType());
 
   revng_abort("Cannot dropPointer, QT does not have pointer qualifiers");
 
@@ -212,26 +212,26 @@ getFieldType(const QualifiedType &Parent, uint64_t Idx) {
   // first array qualifier, and traverse all typedefs.
   if (Parent.isArray()) {
     QualifiedType Peeled = peelConstAndTypedefs(Parent);
-    revng_assert(not Peeled.Qualifiers.empty());
-    revng_assert(model::Qualifier::isArray(*Peeled.Qualifiers.begin()));
+    revng_assert(not Peeled.Qualifiers().empty());
+    revng_assert(model::Qualifier::isArray(*Peeled.Qualifiers().begin()));
     // Then we also throw away the first array qualifier to build a
     // QualifiedType that represents the type of field of the array.
-    rc_return model::QualifiedType(Peeled.UnqualifiedType,
-                                   { std::next(Peeled.Qualifiers.begin()),
-                                     Peeled.Qualifiers.end() });
+    rc_return model::QualifiedType(Peeled.UnqualifiedType(),
+                                   { std::next(Peeled.Qualifiers().begin()),
+                                     Peeled.Qualifiers().end() });
   }
 
   // If we arrived here, there should be only const qualifiers left
-  revng_assert(llvm::all_of(Parent.Qualifiers, Qualifier::isConst));
-  auto *UnqualType = Parent.UnqualifiedType.getConst();
+  revng_assert(llvm::all_of(Parent.Qualifiers(), Qualifier::isConst));
+  auto *UnqualType = Parent.UnqualifiedType().getConst();
 
   // Traverse the UnqualifiedType
   if (auto *Struct = dyn_cast<model::StructType>(UnqualType)) {
-    rc_return Struct->Fields.at(Idx).Type;
+    rc_return Struct->Fields().at(Idx).Type();
   } else if (auto *Union = dyn_cast<model::UnionType>(UnqualType)) {
-    rc_return Union->Fields.at(Idx).Type;
+    rc_return Union->Fields().at(Idx).Type();
   } else if (auto *Typedef = dyn_cast<model::TypedefType>(UnqualType)) {
-    rc_return rc_recur getFieldType(Typedef->UnderlyingType, Idx);
+    rc_return rc_recur getFieldType(Typedef->UnderlyingType(), Idx);
   }
 
   revng_abort("Type does not contain fields");
@@ -285,7 +285,7 @@ flattenReturnTypes(const abi::FunctionType::Layout &Layout,
   if (Layout.returnsAggregateType())
     return { Layout.Arguments[0].Type };
 
-  auto PointerS = model::Architecture::getPointerSize(Model.Architecture);
+  auto PointerS = model::Architecture::getPointerSize(Model.Architecture());
   using RV = abi::FunctionType::Layout::ReturnValue;
   for (const RV &ReturnValue : Layout.ReturnValues) {
     if (ReturnValue.Type.isScalar()) {
@@ -305,14 +305,14 @@ flattenReturnTypes(const abi::FunctionType::Layout &Layout,
     } else {
       model::QualifiedType Underlying = peelConstAndTypedefs(ReturnValue.Type);
       revng_assert(Underlying.is(model::TypeKind::StructType));
-      revng_assert(Underlying.Qualifiers.empty());
+      revng_assert(Underlying.Qualifiers().empty());
 
-      auto *ModelReturnType = Underlying.UnqualifiedType.get();
+      auto *ModelReturnType = Underlying.UnqualifiedType().get();
       auto *StructReturnType = cast<model::StructType>(ModelReturnType);
       for (model::QualifiedType FieldType :
-           llvm::map_range(StructReturnType->Fields,
+           llvm::map_range(StructReturnType->Fields(),
                            [](const model::StructField &F) {
-                             return F.Type;
+                             return F.Type();
                            })) {
         revng_assert(FieldType.isScalar());
         ReturnTypes.push_back(std::move(FieldType));
@@ -373,7 +373,7 @@ getStrongModelInfo(FunctionMetadataCache &Cache,
       } else if (FTags.contains(FunctionTags::AddressOf)) {
         // The first argument is the base type (not the pointer's type)
         auto Base = deserializeFromLLVMString(Call->getArgOperand(0), Model);
-        Base = Base.getPointerTo(Model.Architecture);
+        Base = Base.getPointerTo(Model.Architecture());
 
         ReturnTypes.push_back(Base);
 
@@ -388,17 +388,17 @@ getStrongModelInfo(FunctionMetadataCache &Cache,
         // RawFunctionTypes that return multiple values, therefore they have
         // the same type as the parent function's return type
         revng_assert(Call->getFunction()->getReturnType() == Call->getType());
-        ReturnTypes = handleReturnValue(ParentFunc()->Prototype, Model);
+        ReturnTypes = handleReturnValue(ParentFunc()->Prototype(), Model);
 
       } else if (FTags.contains(FunctionTags::SegmentRef)) {
         const auto &[StartAddress,
                      VirtualSize] = extractSegmentKeyFromMetadata(*CalledFunc);
-        auto Segment = Model.Segments.at({ StartAddress, VirtualSize });
+        auto Segment = Model.Segments().at({ StartAddress, VirtualSize });
 
-        ReturnTypes.push_back(Segment.Type);
+        ReturnTypes.push_back(Segment.Type());
       } else if (FuncName.startswith("revng_stack_frame")) {
         // Retrieve the stack frame type
-        auto &StackType = ParentFunc()->StackFrameType;
+        auto &StackType = ParentFunc()->StackFrameType();
         revng_assert(StackType.get());
 
         ReturnTypes.push_back(QualifiedType{ StackType, {} });
@@ -487,7 +487,7 @@ getExpectedModelType(FunctionMetadataCache &Cache,
         // The type of the base value is contained in the first operand
         auto Base = deserializeFromLLVMString(Call->getArgOperand(0), Model);
         if (FTags.contains(FunctionTags::ModelGEP))
-          Base = Base.getPointerTo(Model.Architecture);
+          Base = Base.getPointerTo(Model.Architecture());
         return { std::move(Base) };
 
       } else if (isCallTo(Call, "revng_call_stack_arguments")) {
@@ -504,12 +504,12 @@ getExpectedModelType(FunctionMetadataCache &Cache,
         revng_assert(Call->getFunction()->getReturnType() == Call->getType());
 
         llvm::SmallVector<QualifiedType> ReturnTypes;
-        ReturnTypes = handleReturnValue(ParentFunc()->Prototype, Model);
+        ReturnTypes = handleReturnValue(ParentFunc()->Prototype(), Model);
         return { ReturnTypes[ArgOperandIdx] };
       }
     }
   } else if (auto *Ret = dyn_cast<llvm::ReturnInst>(User)) {
-    return handleReturnValue(ParentFunc()->Prototype, Model);
+    return handleReturnValue(ParentFunc()->Prototype(), Model);
   }
 
   return {};

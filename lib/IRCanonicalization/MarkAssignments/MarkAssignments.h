@@ -3,6 +3,7 @@
 //
 // Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 //
+#include <map>
 
 #include "revng/Support/Debug.h"
 
