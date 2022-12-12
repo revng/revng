@@ -28,16 +28,18 @@ commands:
   - type: revng-c.analyzed
     from:
       - type: revng-c.stack-pointer-promoted
+      - type: revng-qa.compiled
     suffix: .bc
     command: |-
       revng llvm pipeline
-        "$INPUT"
+        "$INPUT1"
         "$OUTPUT"
         PromoteStackPointer
         DetectStackSize
         "*:StackPointerPromoted"
         --analysis detect-stack-size;
       revng llvm pipeline
+        --binary "$INPUT2"
         "$OUTPUT"
         "$OUTPUT"
         DetectStackSize
@@ -51,10 +53,12 @@ commands:
   - type: revng-c.canonicalized
     from:
       - type: revng-c.analyzed
+      - type: revng-qa.compiled
     suffix: .bc
     command: |-
       revng llvm pipeline
-        "$INPUT"
+        --binary "$INPUT2"
+        "$INPUT1"
         "$OUTPUT"
         MakeSegmentRefs
         IRCanonicalization
