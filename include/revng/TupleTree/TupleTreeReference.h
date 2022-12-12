@@ -133,7 +133,6 @@ private:
 
 public:
   const T *get() const {
-    static_assert(TupleTreeCompatible<RootType>);
     revng_assert(canGet());
 
     if (isCached())
@@ -150,7 +149,6 @@ public:
   }
 
   T *get() {
-    static_assert(TupleTreeCompatible<RootType>);
     revng_assert(canGet());
 
     if (isCached())
@@ -169,7 +167,6 @@ public:
   }
 
   const T *getConst() const {
-    static_assert(TupleTreeCompatible<RootType>);
     revng_assert(canGet());
 
     if (isCached())

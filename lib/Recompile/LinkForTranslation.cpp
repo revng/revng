@@ -187,9 +187,9 @@ static CommandList linkingArgs(const model::Binary &Model,
   // Output file
   appendTo({ "-o", LinkerOutput.path().str() }, Linker.Arguments);
 
-  revng_assert(Model.Segments.size() > 0);
-  uint64_t Min = Model.Segments.begin()->StartAddress.address();
-  uint64_t Max = Model.Segments.begin()->endAddress().address();
+  revng_assert(Model.Segments().size() > 0);
+  uint64_t Min = Model.Segments().begin()->StartAddress().address();
+  uint64_t Max = Model.Segments().begin()->endAddress().address();
 
   // Link opening crt files
   appendTo({ "-l:crt1.o", "-l:crti.o", "-l:crtbegin.o" }, Linker.Arguments);
@@ -201,7 +201,7 @@ static CommandList linkingArgs(const model::Binary &Model,
     std::string SectionName;
     {
       llvm::raw_string_ostream NameStream(SectionName);
-      NameStream << "segment-" << Segment.StartAddress.toString() << "-"
+      NameStream << "segment-" << Segment.StartAddress().toString() << "-"
                  << Segment.endAddress().toString();
     }
 
@@ -212,14 +212,14 @@ static CommandList linkingArgs(const model::Binary &Model,
     Command DD("dd");
     DD.Arguments = { { "status=none",
                        "bs=1",
-                       ("skip=" + Twine(Segment.StartOffset)).str(),
+                       ("skip=" + Twine(Segment.StartOffset())).str(),
                        ("if=" + InputBinary).str(),
-                       ("count=" + Twine(Segment.FileSize)).str(),
+                       ("count=" + Twine(Segment.FileSize())).str(),
                        ("of=" + RawSegment.path()).str() } };
     Result.enqueueCommand(std::move(DD));
 
     Command Truncate("truncate");
-    Truncate.Arguments = { { ("--size=" + Twine(Segment.VirtualSize)).str(),
+    Truncate.Arguments = { { ("--size=" + Twine(Segment.VirtualSize())).str(),
                              RawSegment.path().str() } };
     Result.enqueueCommand(std::move(Truncate));
 
@@ -231,7 +231,7 @@ static CommandList linkingArgs(const model::Binary &Model,
                                                        "o");
 
     std::string SectionFlags = "alloc";
-    if (not Segment.IsWriteable)
+    if (not Segment.IsWriteable())
       SectionFlags += ",readonly";
 
     ObjCopy.Arguments = { "-Ibinary",
@@ -245,14 +245,14 @@ static CommandList linkingArgs(const model::Binary &Model,
     // Register the objcopy invocation
     Result.enqueueCommand(ObjCopy);
 
-    Min = std::min(Min, Segment.StartAddress.address());
+    Min = std::min(Min, Segment.StartAddress().address());
     Max = std::max(Max, Segment.endAddress().address());
 
     // Add to linker command line
     Linker.Arguments.push_back(SegmentELF.path().str());
 
     // Force section address at link-time
-    const auto &StartAddr = Segment.StartAddress.address();
+    const auto &StartAddr = Segment.StartAddress().address();
     Linker.Arguments.push_back((Twine("--section-start=.") + SectionName
                                 + Twine("=0x") + UToHexStr(StartAddr))
                                  .str());
@@ -285,7 +285,7 @@ static CommandList linkingArgs(const model::Binary &Model,
 
   // Link required dynamic libraries
   Linker.Arguments.push_back("--no-as-needed");
-  for (const std::string &ImportedLibrary : Model.ImportedLibraries)
+  for (const std::string &ImportedLibrary : Model.ImportedLibraries())
     Linker.Arguments.push_back(linkFunctionArgument(ImportedLibrary));
   Linker.Arguments.push_back("--as-needed");
 

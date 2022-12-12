@@ -13,16 +13,16 @@
 #include "revng/Yield/FunctionEdgeBase.h"
 
 yield::CallEdge::CallEdge(const efa::CallEdge &Source) {
-  Kind = yield::FunctionEdgeBaseKind::CallEdge;
-  Destination = Source.Destination;
-  Type = yield::FunctionEdgeType::from(Source.Type);
-  DynamicFunction = Source.DynamicFunction;
-  IsTailCall = Source.IsTailCall;
-  Attributes = Source.Attributes;
+  Kind() = yield::FunctionEdgeBaseKind::CallEdge;
+  Destination() = Source.Destination();
+  Type() = yield::FunctionEdgeType::from(Source.Type());
+  DynamicFunction() = Source.DynamicFunction();
+  IsTailCall() = Source.IsTailCall();
+  Attributes() = Source.Attributes();
 }
 
 yield::FunctionEdge::FunctionEdge(const efa::FunctionEdge &Source) {
-  Kind = yield::FunctionEdgeBaseKind::FunctionEdge;
-  Destination = Source.Destination;
-  Type = yield::FunctionEdgeType::from(Source.Type);
+  Kind() = yield::FunctionEdgeBaseKind::FunctionEdge;
+  Destination() = Source.Destination();
+  Type() = yield::FunctionEdgeType::from(Source.Type());
 }

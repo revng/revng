@@ -33,7 +33,7 @@ void ProcessCallGraph::run(pipeline::Context &Context,
   SortedVector<efa::FunctionMetadata> Metadata;
   for (const auto &LLVMFunction : FunctionTags::Isolated.functions(&Module))
     Metadata.insert(*::detail::extractFunctionMetadata(&LLVMFunction));
-  revng_assert(Metadata.size() == Model->Functions.size());
+  revng_assert(Metadata.size() == Model->Functions().size());
 
   // Gather the relations
   yield::CrossRelations Relations(Metadata, *Model);
@@ -111,12 +111,12 @@ void YieldCallGraphSlice::run(pipeline::Context &Context,
   FunctionMetadataCache Cache;
   for (const auto &LLVMFunction : FunctionTags::Isolated.functions(&Module)) {
     auto &Metadata = Cache.getFunctionMetadata(&LLVMFunction);
-    auto ModelFunctionIterator = Model->Functions.find(Metadata.Entry);
-    revng_assert(ModelFunctionIterator != Model->Functions.end());
+    auto ModelFunctionIterator = Model->Functions().find(Metadata.Entry());
+    revng_assert(ModelFunctionIterator != Model->Functions().end());
 
     // Slice the graph for the current function and convert it to SVG
-    Output.insert_or_assign(Metadata.Entry,
-                            yield::svg::callGraphSlice(Metadata.Entry,
+    Output.insert_or_assign(Metadata.Entry(),
+                            yield::svg::callGraphSlice(Metadata.Entry(),
                                                        Relations,
                                                        *Model));
   }

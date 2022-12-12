@@ -55,8 +55,8 @@ private:
 Error PECOFFImporter::parseSectionsHeaders() {
   using namespace model;
 
-  revng_assert(Model->Architecture != Architecture::Invalid);
-  Architecture = Model->Architecture;
+  revng_assert(Model->Architecture() != Architecture::Invalid);
+  Architecture = Model->Architecture();
 
   auto PointerSize = Architecture::getPointerSize(Architecture);
   bool IsLittleEndian = Architecture::isLittleEndian(Architecture);
@@ -70,7 +70,7 @@ Error PECOFFImporter::parseSectionsHeaders() {
     // TODO: ImageBase should aligned to 4kb pages, should we check that?
     ImageBase = fromPC(PE32Header->ImageBase);
 
-    Model->EntryPoint = ImageBase + u64(PE32Header->AddressOfEntryPoint);
+    Model->EntryPoint() = ImageBase + u64(PE32Header->AddressOfEntryPoint);
   } else {
     const object::pe32plus_header *PE32PlusHeader = TheBinary
                                                       .getPE32PlusHeader();
@@ -79,7 +79,7 @@ Error PECOFFImporter::parseSectionsHeaders() {
 
     // PE32+ Header
     ImageBase = fromPC(PE32PlusHeader->ImageBase);
-    Model->EntryPoint = ImageBase + u64(PE32PlusHeader->AddressOfEntryPoint);
+    Model->EntryPoint() = ImageBase + u64(PE32PlusHeader->AddressOfEntryPoint);
   }
 
   // Read sections
@@ -97,26 +97,28 @@ Error PECOFFImporter::parseSectionsHeaders() {
     MetaAddress Start = ImageBase + u64(CoffRef->VirtualAddress);
     Segment Segment({ Start, u64(CoffRef->VirtualSize) });
 
-    Segment.StartOffset = CoffRef->PointerToRawData;
+    Segment.StartOffset() = CoffRef->PointerToRawData;
 
     // VirtualSize might be larger than SizeOfRawData (extra data at the end of
     // the section) or viceversa (data mapped in memory but not present in
     // memory, e.g., .bss)
-    Segment.FileSize = CoffRef->SizeOfRawData;
+    Segment.FileSize() = CoffRef->SizeOfRawData;
 
     // Since it is possible that the file size is greater than VirtualSize
     // because SizeOfRawData is rounded, but VirtualSize is not, we work it
     // around here by using maximum of these two values for the VirtSize.
-    if (Segment.FileSize > Segment.VirtualSize)
-      Segment.VirtualSize = Segment.FileSize;
+    if (Segment.FileSize() > Segment.VirtualSize())
+      Segment.VirtualSize() = Segment.FileSize();
 
-    Segment.IsReadable = CoffRef->Characteristics & COFF::IMAGE_SCN_MEM_READ;
-    Segment.IsWriteable = CoffRef->Characteristics & COFF::IMAGE_SCN_MEM_WRITE;
-    Segment.IsExecutable = CoffRef->Characteristics
-                           & COFF::IMAGE_SCN_MEM_EXECUTE;
+    Segment.IsReadable() = CoffRef->Characteristics & COFF::IMAGE_SCN_MEM_READ;
+    Segment.IsWriteable() = CoffRef->Characteristics
+                            & COFF::IMAGE_SCN_MEM_WRITE;
+    Segment.IsExecutable() = CoffRef->Characteristics
+                             & COFF::IMAGE_SCN_MEM_EXECUTE;
 
-    model::TypePath StructPath = createEmptyStruct(*Model, Segment.VirtualSize);
-    Segment.Type = model::QualifiedType(std::move(StructPath), {});
+    model::TypePath StructPath = createEmptyStruct(*Model,
+                                                   Segment.VirtualSize());
+    Segment.Type() = model::QualifiedType(std::move(StructPath), {});
 
     // NOTE: Unlike ELF, PE/COFF does not have segments. Instead, it has
     // sections only. All the raw data in a section must be loaded
@@ -130,16 +132,16 @@ Error PECOFFImporter::parseSectionsHeaders() {
         and SectionStart.addressLowerThan(SectionEnd)) {
       model::Section NewSection(SectionStart, Size);
       if (auto SectionName = TheBinary.getSectionName(CoffRef))
-        NewSection.Name = SectionName->str();
-      NewSection.ContainsCode = Segment.IsExecutable;
+        NewSection.Name() = SectionName->str();
+      NewSection.ContainsCode() = Segment.IsExecutable();
       revng_assert(NewSection.verify(true));
-      Segment.Sections.insert(std::move(NewSection));
+      Segment.Sections().insert(std::move(NewSection));
     } else {
       revng_log(Log, "Found an invalid section");
     }
 
     Segment.verify(true);
-    Model->Segments.insert(std::move(Segment));
+    Model->Segments().insert(std::move(Segment));
   }
 
   return Error::success();
@@ -160,11 +162,11 @@ void PECOFFImporter::parseSymbols() {
 
     // Relocate the symbol.
     MetaAddress Address = ImageBase + Symbol.getValue();
-    if (Model->Functions.count(Address))
+    if (Model->Functions().count(Address))
       continue;
 
-    model::Function &Function = Model->Functions[Address];
-    Function.OriginalName = *NameOrErr;
+    model::Function &Function = Model->Functions()[Address];
+    Function.OriginalName() = *NameOrErr;
   }
 }
 
@@ -190,24 +192,24 @@ void PECOFFImporter::recordImportedFunctions(ImportedSymbolRange Range,
 
     // Dynamic functions must have a name, so skip those without it.
     // TODO: handle imports by ordinal
-    if (Sym.empty() or Model->ImportedDynamicFunctions.count(Sym.str()))
+    if (Sym.empty() or Model->ImportedDynamicFunctions().count(Sym.str()))
       continue;
 
     // NOTE: This address will occur in the .text section as a target of a jump.
     // Once we have the address of the entry within .idata, we can access
     // the information about symbol.
-    auto PointerSize = getPointerSize(Model->Architecture);
+    auto PointerSize = getPointerSize(Model->Architecture());
     MetaAddress AddressOfImportEntry = ImageBase + u64(ImportAddressTableEntry)
                                        + u64(Index * PointerSize);
 
     // Lets make a Relocation.
     using namespace model::RelocationType;
-    auto RelocationType = formCOFFRelocation(Model->Architecture);
+    auto RelocationType = formCOFFRelocation(Model->Architecture());
     model::Relocation NewRelocation(AddressOfImportEntry, RelocationType);
 
-    auto It = Model->ImportedDynamicFunctions.insert(Sym.str()).first;
+    auto It = Model->ImportedDynamicFunctions().insert(Sym.str()).first;
     revng_assert(NewRelocation.verify(true));
-    It->Relocations.insert(NewRelocation);
+    It->Relocations().insert(NewRelocation);
     ++Index;
   }
 }
@@ -234,7 +236,7 @@ void PECOFFImporter::parseImportedSymbols() {
       continue;
     }
 
-    if (not Model->ImportedLibraries.insert(Name.str()).second)
+    if (not Model->ImportedLibraries().insert(Name.str()).second)
       continue;
 
     // The import lookup table can be missing with certain older linkers, so
@@ -275,18 +277,18 @@ void PECOFFImporter::recordDelayImportedFunctions(DelayDirectoryRef &I,
 
     // Dynamic functions must have a name, so skip those without it.
     // TODO: handle imports by ordinal
-    if (Sym.empty() or Model->ImportedDynamicFunctions.count(Sym.str()))
+    if (Sym.empty() or Model->ImportedDynamicFunctions().count(Sym.str()))
       continue;
 
     MetaAddress AddressOfDelayImportEntry = ImageBase + u64(Addr);
 
     // Lets make Relocation.
     using namespace model::RelocationType;
-    auto RelocationType = formCOFFRelocation(Model->Architecture);
+    auto RelocationType = formCOFFRelocation(Model->Architecture());
     model::Relocation NewRelocation(AddressOfDelayImportEntry, RelocationType);
-    auto NewIt = Model->ImportedDynamicFunctions.insert(Sym.str()).first;
+    auto NewIt = Model->ImportedDynamicFunctions().insert(Sym.str()).first;
     revng_assert(NewRelocation.verify(true));
-    NewIt->Relocations.insert(NewRelocation);
+    NewIt->Relocations().insert(NewRelocation);
   }
 }
 
@@ -304,7 +306,7 @@ void PECOFFImporter::parseDelayImportedSymbols() {
       continue;
     }
 
-    if (not Model->ImportedLibraries.insert(Name.str()).second)
+    if (not Model->ImportedLibraries().insert(Name.str()).second)
       continue;
 
     recordDelayImportedFunctions(I, I.imported_symbols());
@@ -325,11 +327,13 @@ Error PECOFFImporter::import() {
   // linking).
   parseDelayImportedSymbols();
 
-  if (Model->DefaultABI == model::ABI::Invalid)
-    Model->DefaultABI = model::ABI::getDefaultMicrosoftABI(Model->Architecture);
+  if (Model->DefaultABI() == model::ABI::Invalid) {
+    auto &Architecture = Model->Architecture();
+    Model->DefaultABI() = model::ABI::getDefaultMicrosoftABI(Architecture);
+  }
 
   // Create a default prototype.
-  Model->DefaultPrototype = abi::registerDefaultFunctionPrototype(*Model);
+  Model->DefaultPrototype() = abi::registerDefaultFunctionPrototype(*Model);
 
   PDBImporter PDBI(Model, ImageBase);
   PDBI.import(TheBinary);

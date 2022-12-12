@@ -347,8 +347,8 @@ struct LabelNodeHelper {
     for (auto *Node : Graph.nodes()) {
       if (Node->Address.isValid()) {
         // A normal node
-        auto FunctionIterator = Binary.Functions.find(Node->Address);
-        revng_assert(FunctionIterator != Binary.Functions.end());
+        auto FunctionIterator = Binary.Functions().find(Node->Address);
+        revng_assert(FunctionIterator != Binary.Functions().end());
 
         size_t NameLength = FunctionIterator->name().size();
         revng_assert(NameLength != 0);

@@ -154,45 +154,45 @@ void importModel(Module &M,
       ABICSVs.emplace_back(CSV);
 
   // Import the default prototype
-  revng_assert(Binary.DefaultPrototype.isValid());
-  Oracle.setDefault(importPrototype(M, ABICSVs, {}, Binary.DefaultPrototype));
+  revng_assert(Binary.DefaultPrototype().isValid());
+  Oracle.setDefault(importPrototype(M, ABICSVs, {}, Binary.DefaultPrototype()));
 
   std::map<llvm::BasicBlock *, MetaAddress> InlineFunctions;
 
   // Import existing functions from model
-  for (const model::Function &Function : Binary.Functions) {
+  for (const model::Function &Function : Binary.Functions()) {
     // Import call-site specific information
     for (const model::CallSitePrototype &CallSite :
-         Function.CallSitePrototypes) {
+         Function.CallSitePrototypes()) {
 
-      Oracle.registerCallSite(Function.Entry,
-                              CallSite.CallerBlockAddress,
+      Oracle.registerCallSite(Function.Entry(),
+                              CallSite.CallerBlockAddress(),
                               importPrototype(M,
                                               ABICSVs,
-                                              CallSite.Attributes,
-                                              CallSite.Prototype),
-                              CallSite.IsTailCall);
+                                              CallSite.Attributes(),
+                                              CallSite.Prototype()),
+                              CallSite.IsTailCall());
     }
 
     auto Summary = importPrototype(M,
                                    ABICSVs,
-                                   Function.Attributes,
+                                   Function.Attributes(),
                                    Function.prototype(Binary));
 
     // Create function to inline, if necessary
     if (Summary.Attributes.count(model::FunctionAttribute::Inline))
-      InlineFunctions[GCBI.getBlockAt(Function.Entry)] = Function.Entry;
+      InlineFunctions[GCBI.getBlockAt(Function.Entry())] = Function.Entry();
 
-    Oracle.registerLocalFunction(Function.Entry, std::move(Summary));
+    Oracle.registerLocalFunction(Function.Entry(), std::move(Summary));
   }
 
   // Register all dynamic symbols
-  for (const auto &DynamicFunction : Binary.ImportedDynamicFunctions) {
+  for (const auto &DynamicFunction : Binary.ImportedDynamicFunctions()) {
     const auto &Prototype = getPrototype(Binary, DynamicFunction);
-    Oracle.registerDynamicFunction(DynamicFunction.OriginalName,
+    Oracle.registerDynamicFunction(DynamicFunction.OriginalName(),
                                    importPrototype(M,
                                                    ABICSVs,
-                                                   DynamicFunction.Attributes,
+                                                   DynamicFunction.Attributes(),
                                                    Prototype));
   }
 }

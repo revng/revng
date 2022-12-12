@@ -58,7 +58,7 @@ private:
 
 private:
   TypeSystemDeduplicator(TupleTree<model::Binary> &Model) {
-    for (auto &T : Model->Types)
+    for (auto &T : Model->Types())
       Types.push_back(&*T);
   }
 
@@ -79,7 +79,7 @@ private:
     LoggerIndent Indent(Log);
 
     auto ComputeKey = [](model::Type *T) {
-      return std::pair{ T->OriginalName, T->Kind };
+      return std::pair{ T->OriginalName(), T->Kind() };
     };
 
     // Sort types by the key (the name)
@@ -112,8 +112,8 @@ private:
                        and not WeakEquivalence.isEquivalent(Left, Right));
           if (Left->localCompare(*Right)) {
             revng_log(Log,
-                      Left->ID << " and " << Right->ID
-                               << " are weakly equivalent");
+                      Left->ID()
+                        << " and " << Right->ID() << " are weakly equivalent");
 
             // Record as weakly equivalent
             WeakEquivalence.unionSets(Left, Right);
@@ -186,10 +186,10 @@ private:
     LoggerIndent Indent(Log);
 
     for (model::Type *Leader : VisitOrder) {
-      revng_log(Log, "Considering " << Leader->OriginalName);
+      revng_log(Log, "Considering " << Leader->OriginalName());
       LoggerIndent Indent2(Log);
 
-      revng_assert(not Leader->OriginalName.empty());
+      revng_assert(not Leader->OriginalName().empty());
       auto LeaderIt = WeakEquivalence.findValue(Leader);
       revng_assert(LeaderIt->isLeader());
 
@@ -202,7 +202,7 @@ private:
         if (Left == Right or StrongEquivalence.isEquivalent(Left, Right))
           return true;
 
-        revng_log(Log, "Comparing " << Left->ID << " and " << Right->ID);
+        revng_log(Log, "Comparing " << Left->ID() << " and " << Right->ID());
         LoggerIndent Indent(Log);
 
         bool Result = deepCompare(Left, Right);
@@ -218,7 +218,7 @@ private:
 
 private:
   void addEdge(const model::Type *T, const model::QualifiedType &QT) {
-    auto *DependantType = QT.UnqualifiedType.get();
+    auto *DependantType = QT.UnqualifiedType().get();
     TypeToNode.at(T)->addSuccessor(TypeToNode.at(DependantType));
   }
 
@@ -240,7 +240,7 @@ private:
     df_iterator_default_set<Node *> Visited;
 
     for (Node *LeftNode : depth_first_ext(Left, Visited)) {
-      revng_log(Log, "Visiting " << LeftNode->T->ID);
+      revng_log(Log, "Visiting " << LeftNode->T->ID());
       LoggerIndent Indent2(Log);
 
       auto RightIt = LeftToRight.find(LeftNode);
@@ -253,7 +253,7 @@ private:
       // Zip out edges of the node pair: consider the destinations.
       for (auto [LeftSuccessor, RightSuccessor] :
            zip(LeftNode->successors(), RightNode->successors())) {
-        revng_log(Log, "Visiting successor " << LeftSuccessor->T->ID);
+        revng_log(Log, "Visiting successor " << LeftSuccessor->T->ID());
         if (not compareSuccessor(LeftToRight,
                                  RightToLeft,
                                  Visited,
@@ -282,8 +282,8 @@ private:
     if (LeftToRightIt != LeftToRight.end()) {
       if (LeftToRightIt->second != Right) {
         revng_log(Log,
-                  "We were expecting " << LeftToRightIt->second->T->ID
-                                       << " but we got " << Right->T->ID);
+                  "We were expecting " << LeftToRightIt->second->T->ID()
+                                       << " but we got " << Right->T->ID());
         return false;
       } else {
         revng_assert(RightToLeft.at(Right) == Left);
@@ -295,8 +295,8 @@ private:
     if (RightToLeftIt != RightToLeft.end()) {
       if (RightToLeftIt->second != Left) {
         revng_log(Log,
-                  "We were expecting " << RightToLeftIt->second->T->ID
-                                       << " but we got " << Left->T->ID);
+                  "We were expecting " << RightToLeftIt->second->T->ID()
+                                       << " but we got " << Left->T->ID());
         return false;
       } else {
         revng_assert(LeftToRight.at(Left) == Right);
@@ -316,8 +316,8 @@ private:
       Visited.insert(Left);
       return true;
     } else if (WeakEquivalence.isEquivalent(Right->T, Left->T)
-               or (Left->T->OriginalName.empty()
-                   and Right->T->OriginalName.empty()
+               or (Left->T->OriginalName().empty()
+                   and Right->T->OriginalName().empty()
                    and Left->T->localCompare(*Right->T))) {
       // Weak equivalence
       return true;
@@ -325,8 +325,8 @@ private:
       // Otherwise, the nodes are not equivalent
       revng_assert(not Left->T->localCompare(*Right->T));
       revng_log(Log,
-                Left->T->ID << " and " << Right->T->ID
-                            << " are locally different");
+                Left->T->ID()
+                  << " and " << Right->T->ID() << " are locally different");
       return false;
     }
   }
@@ -364,7 +364,7 @@ void model::deduplicateEquivalentTypes(TupleTree<model::Binary> &Model) {
   Model.replaceReferences(Replacements);
 
   // Actually drop the types
-  llvm::erase_if(Model->Types, [&ToErase](UpcastablePointer<model::Type> &P) {
+  llvm::erase_if(Model->Types(), [&ToErase](UpcastablePointer<model::Type> &P) {
     return ToErase.count(P.get()) != 0;
   });
 }

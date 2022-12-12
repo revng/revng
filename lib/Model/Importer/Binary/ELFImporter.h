@@ -106,7 +106,7 @@ private:
 
   MetaAddress getCodePointer(Pointer Ptr) const {
     using namespace model::Architecture;
-    auto Architecture = Model->Architecture;
+    auto Architecture = Model->Architecture();
     return this->getGenericPointer(Ptr).toPC(toLLVMArchitecture(Architecture));
   }
 

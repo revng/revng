@@ -62,7 +62,7 @@ static std::string getSupportPath(const Context &Ctx) {
   const auto &Model = getModelFromContext(Ctx);
   const char *SupportConfig = Tracing ? "trace" : "normal";
 
-  auto ArchName = getSupportName(Model->Architecture).str();
+  auto ArchName = getSupportName(Model->Architecture()).str();
   std::string SupportSearchPath = ("/share/revng/support-" + ArchName + "-"
                                    + SupportConfig + ".ll");
 

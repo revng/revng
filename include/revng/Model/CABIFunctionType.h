@@ -46,9 +46,9 @@ public:
   const llvm::SmallVector<model::QualifiedType, 4> edges() const {
     llvm::SmallVector<model::QualifiedType, 4> Result;
 
-    for (const model::Argument &Argument : Arguments)
-      Result.push_back(Argument.Type);
-    Result.push_back(ReturnType);
+    for (const model::Argument &Argument : Arguments())
+      Result.push_back(Argument.Type());
+    Result.push_back(ReturnType());
 
     return Result;
   }

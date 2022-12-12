@@ -24,13 +24,13 @@ namespace model {
 model::TypePath
 Binary::getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize) {
   PrimitiveType Temporary(V, ByteSize);
-  Type::Key PrimitiveKey{ TypeKind::PrimitiveType, Temporary.ID };
-  auto It = Types.find(PrimitiveKey);
+  Type::Key PrimitiveKey{ TypeKind::PrimitiveType, Temporary.ID() };
+  auto It = Types().find(PrimitiveKey);
 
   // If we couldn't find it, create it
-  if (It == Types.end()) {
+  if (It == Types().end()) {
     auto *NewPrimitiveType = new PrimitiveType(V, ByteSize);
-    It = Types.insert(UpcastablePointer<model::Type>(NewPrimitiveType)).first;
+    It = Types().insert(UpcastablePointer<model::Type>(NewPrimitiveType)).first;
   }
 
   return getTypePath(It->get());
@@ -39,12 +39,12 @@ Binary::getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize) {
 model::TypePath
 Binary::getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize) const {
   PrimitiveType Temporary(V, ByteSize);
-  Type::Key PrimitiveKey{ TypeKind::PrimitiveType, Temporary.ID };
-  return getTypePath(Types.at(PrimitiveKey).get());
+  Type::Key PrimitiveKey{ TypeKind::PrimitiveType, Temporary.ID() };
+  return getTypePath(Types().at(PrimitiveKey).get());
 }
 
 TypePath Binary::recordNewType(UpcastablePointer<Type> &&T) {
-  auto It = Types.insert(T).first;
+  auto It = Types().insert(T).first;
   return getTypePath(It->get());
 }
 
@@ -60,7 +60,7 @@ bool Binary::verifyTypes(bool Assert) const {
 bool Binary::verifyTypes(VerifyHelper &VH) const {
   // All types on their own should verify
   std::set<Identifier> Names;
-  for (auto &Type : Types) {
+  for (auto &Type : Types()) {
     // Verify the type
     if (not Type.get()->verify(VH))
       return VH.fail();
@@ -125,40 +125,40 @@ bool Binary::verify(VerifyHelper &VH) const {
                         *this);
   };
 
-  for (const Function &F : Functions) {
+  for (const Function &F : Functions()) {
     // Verify individual functions
     if (not F.verify(VH))
       return VH.fail();
 
-    if (not CheckCustomName(F.CustomName))
+    if (not CheckCustomName(F.CustomName()))
       return VH.fail("Duplicate name", F);
   }
 
   // Verify DynamicFunctions
-  for (const DynamicFunction &DF : ImportedDynamicFunctions) {
+  for (const DynamicFunction &DF : ImportedDynamicFunctions()) {
     if (not DF.verify(VH))
       return VH.fail();
 
-    if (not CheckCustomName(DF.CustomName))
+    if (not CheckCustomName(DF.CustomName()))
       return VH.fail();
   }
 
-  for (auto &Type : Types) {
-    if (not CheckCustomName(Type->CustomName))
+  for (auto &Type : Types()) {
+    if (not CheckCustomName(Type->CustomName()))
       return VH.fail();
 
     if (auto *Enum = dyn_cast<EnumType>(Type.get()))
-      for (auto &Entry : Enum->Entries)
-        if (not CheckCustomName(Entry.CustomName))
+      for (auto &Entry : Enum->Entries())
+        if (not CheckCustomName(Entry.CustomName()))
           return VH.fail();
   }
 
   // Verify Segments
-  for (const Segment &S : Segments) {
+  for (const Segment &S : Segments()) {
     if (not S.verify(VH))
       return VH.fail();
 
-    if (not CheckCustomName(S.CustomName))
+    if (not CheckCustomName(S.CustomName()))
       return VH.fail();
   }
 
@@ -170,10 +170,10 @@ bool Binary::verify(VerifyHelper &VH) const {
 
 Identifier Function::name() const {
   using llvm::Twine;
-  if (not CustomName.empty()) {
-    return CustomName;
+  if (not CustomName().empty()) {
+    return CustomName();
   } else {
-    auto AutomaticName = (Twine("function_") + Entry.toString()).str();
+    auto AutomaticName = (Twine("function_") + Entry().toString()).str();
     return Identifier::fromString(AutomaticName);
   }
 }
@@ -188,22 +188,22 @@ prototypeOr(const model::TypePath &Prototype, const model::TypePath &Default) {
 }
 
 const model::TypePath &Function::prototype(const model::Binary &Root) const {
-  return prototypeOr(Prototype, Root.DefaultPrototype);
+  return prototypeOr(Prototype(), Root.DefaultPrototype());
 }
 
 Identifier DynamicFunction::name() const {
   using llvm::Twine;
-  if (not CustomName.empty()) {
-    return CustomName;
+  if (not CustomName().empty()) {
+    return CustomName();
   } else {
-    auto AutomaticName = (Twine("dynamic_function_") + OriginalName).str();
+    auto AutomaticName = (Twine("dynamic_function_") + OriginalName()).str();
     return Identifier::fromString(AutomaticName);
   }
 }
 
 const model::TypePath &
 DynamicFunction::prototype(const model::Binary &Root) const {
-  return prototypeOr(Prototype, Root.DefaultPrototype);
+  return prototypeOr(Prototype(), Root.DefaultPrototype());
 }
 
 bool Relocation::verify() const {
@@ -216,7 +216,7 @@ bool Relocation::verify(bool Assert) const {
 }
 
 bool Relocation::verify(VerifyHelper &VH) const {
-  if (Type == model::RelocationType::Invalid)
+  if (Type() == model::RelocationType::Invalid)
     return VH.fail("Invalid relocation", *this);
 
   return true;
@@ -232,7 +232,7 @@ bool Section::verify(bool Assert) const {
 }
 
 bool Section::verify(VerifyHelper &VH) const {
-  auto EndAddress = StartAddress + Size;
+  auto EndAddress = StartAddress() + Size();
   if (not EndAddress.isValid())
     return VH.fail("Computing the end address leads to overflow");
 
@@ -241,11 +241,11 @@ bool Section::verify(VerifyHelper &VH) const {
 
 Identifier Segment::name() const {
   using llvm::Twine;
-  if (not CustomName.empty()) {
-    return CustomName;
+  if (not CustomName().empty()) {
+    return CustomName();
   } else {
-    auto AutomaticName = (Twine("segment_") + StartAddress.toString() + "_"
-                          + Twine(VirtualSize))
+    auto AutomaticName = (Twine("segment_") + StartAddress().toString() + "_"
+                          + Twine(VirtualSize()))
                            .str();
     return Identifier::fromString(AutomaticName);
   }
@@ -263,35 +263,35 @@ bool Segment::verify(bool Assert) const {
 bool Segment::verify(VerifyHelper &VH) const {
   using OverflowSafeInt = OverflowSafeInt<uint64_t>;
 
-  if (FileSize > VirtualSize)
+  if (FileSize() > VirtualSize())
     return VH.fail("FileSize cannot be larger thatn VirtualSize", *this);
 
-  auto EndOffset = OverflowSafeInt(StartOffset) + FileSize;
+  auto EndOffset = OverflowSafeInt(StartOffset()) + FileSize();
   if (not EndOffset)
     return VH.fail("Computing the segment end offset leads to overflow", *this);
 
-  auto EndAddress = StartAddress + VirtualSize;
+  auto EndAddress = StartAddress() + VirtualSize();
   if (not EndAddress.isValid())
     return VH.fail("Computing the end address leads to overflow", *this);
 
-  for (const model::Section &Section : Sections) {
+  for (const model::Section &Section : Sections()) {
     if (not Section.verify(VH))
       return VH.fail("Invalid section", Section);
 
-    if (not contains(Section.StartAddress)
-        or (VirtualSize > 0 and not contains(Section.endAddress() - 1))) {
+    if (not contains(Section.StartAddress())
+        or (VirtualSize() > 0 and not contains(Section.endAddress() - 1))) {
       return VH.fail("The segment contains a section out of its boundaries",
                      Section);
     }
 
-    if (Section.ContainsCode and not IsExecutable) {
+    if (Section.ContainsCode() and not IsExecutable()) {
       return VH.fail("A Section is marked as containing code but the "
                      "containing segment is not executable",
                      *this);
     }
   }
 
-  for (const model::Relocation &Relocation : Relocations) {
+  for (const model::Relocation &Relocation : Relocations()) {
     if (not Relocation.verify(VH))
       return VH.fail("Invalid relocation", Relocation);
   }
@@ -323,12 +323,12 @@ bool Function::verify(bool Assert) const {
 }
 
 bool Function::verify(VerifyHelper &VH) const {
-  if (Prototype.isValid()) {
+  if (Prototype().isValid()) {
     // The function has a prototype
-    if (not Prototype.get()->verify(VH))
+    if (not Prototype().get()->verify(VH))
       return VH.fail("Function prototype does not verify", *this);
 
-    const model::Type *FunctionType = Prototype.get();
+    const model::Type *FunctionType = Prototype().get();
     if (not(isa<RawFunctionType>(FunctionType)
             or isa<CABIFunctionType>(FunctionType))) {
       return VH.fail("Function prototype is not a RawFunctionType or "
@@ -337,7 +337,7 @@ bool Function::verify(VerifyHelper &VH) const {
     }
   }
 
-  for (auto &CallSitePrototype : CallSitePrototypes)
+  for (auto &CallSitePrototype : CallSitePrototypes())
     if (not CallSitePrototype.verify(VH))
       return VH.fail();
 
@@ -359,15 +359,15 @@ bool DynamicFunction::verify(bool Assert) const {
 
 bool DynamicFunction::verify(VerifyHelper &VH) const {
   // Ensure we have a name
-  if (OriginalName.size() == 0)
+  if (OriginalName().size() == 0)
     return VH.fail("Dynamic functions must have a OriginalName", *this);
 
   // Prototype is valid
-  if (Prototype.isValid()) {
-    if (not Prototype.get()->verify(VH))
+  if (Prototype().isValid()) {
+    if (not Prototype().get()->verify(VH))
       return VH.fail();
 
-    const model::Type *FunctionType = Prototype.get();
+    const model::Type *FunctionType = Prototype().get();
     if (not(isa<RawFunctionType>(FunctionType)
             or isa<CABIFunctionType>(FunctionType))) {
       return VH.fail("The prototype is neither a RawFunctionType nor a "
@@ -394,11 +394,11 @@ bool CallSitePrototype::verify(bool Assert) const {
 
 bool CallSitePrototype::verify(VerifyHelper &VH) const {
   // Prototype is present
-  if (not Prototype.isValid())
+  if (not Prototype().isValid())
     return VH.fail("Invalid prototype", *this);
 
   // Prototype is valid
-  if (not Prototype.get()->verify(VH))
+  if (not Prototype().get()->verify(VH))
     return VH.fail();
 
   return true;

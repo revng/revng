@@ -50,7 +50,7 @@ void CollectCFG::serializeFunctionMetadata(const CFGVector &CFGs) {
 
   for (const efa::FunctionMetadata &FM : CFGs) {
     FM.verify(*Binary, true);
-    BasicBlock *BB = GCBI.getBlockAt(FM.Entry);
+    BasicBlock *BB = GCBI.getBlockAt(FM.Entry());
     std::string Buffer;
     {
       raw_string_ostream Stream(Buffer);
@@ -65,21 +65,21 @@ void CollectCFG::serializeFunctionMetadata(const CFGVector &CFGs) {
 
 std::vector<efa::FunctionMetadata> CollectCFG::recoverCFGs() {
   std::vector<efa::FunctionMetadata> Result;
-  for (const auto &Function : Binary->Functions) {
-    auto *Entry = GCBI.getBlockAt(Function.Entry);
+  for (const auto &Function : Binary->Functions()) {
+    auto *Entry = GCBI.getBlockAt(Function.Entry());
     revng_assert(Entry != nullptr);
 
     // Recover the control-flow graph of the function
     efa::FunctionMetadata New;
-    New.Entry = Function.Entry;
-    New.ControlFlowGraph = std::move(Analyzer.analyze(Entry).CFG);
+    New.Entry() = Function.Entry();
+    New.ControlFlowGraph() = std::move(Analyzer.analyze(Entry).CFG);
 
-    revng_assert(New.ControlFlowGraph.count(New.Entry) != 0);
+    revng_assert(New.ControlFlowGraph().count(New.Entry()) != 0);
 
     // Run final steps on the CFG
     New.simplify(*Binary);
 
-    revng_assert(New.ControlFlowGraph.count(New.Entry) != 0);
+    revng_assert(New.ControlFlowGraph().count(New.Entry()) != 0);
 
     Result.emplace_back(std::move(New));
   }
