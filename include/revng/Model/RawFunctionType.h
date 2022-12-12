@@ -54,7 +54,7 @@ public:
       Result.push_back(Argument.Type());
     for (auto &RV : ReturnValues())
       Result.push_back(RV.Type());
-    if (StackArgumentsType().UnqualifiedType().isValid())
+    if (StackArgumentsType().isValid())
       Result.push_back(StackArgumentsType());
 
     return Result;

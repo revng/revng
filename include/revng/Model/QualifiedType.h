@@ -19,15 +19,15 @@ name: QualifiedType
 doc: A qualified version of a model::Type. Can have many nested qualifiers
 type: struct
 fields:
-  - name: UnqualifiedType
-    reference:
-      pointeeType: Type
-      rootType: Binary
   - name: PrimitiveKind
     type: PrimitiveTypeKind
   - name: Size
     doc: Size in bytes
     type: uint8_t
+  - name: UnqualifiedType
+    reference:
+      pointeeType: Type
+      rootType: Binary
   - name: Qualifiers
     sequence:
       type: "std::vector"
@@ -73,6 +73,16 @@ public:
     return PrimitiveKind() != PrimitiveTypeKind::Invalid;
   }
 
+  bool isTrull() const {
+    revng_assert(not isPrimitive2());
+    return UnqualifiedType().isValid();
+  }
+
+  bool isValid() const {
+    return not(PrimitiveKind() == PrimitiveTypeKind::Invalid
+               and not UnqualifiedType().isValid());
+  }
+
 public:
   model::QualifiedType getPointerTo(model::Architecture::Values Arch) const {
     QualifiedType Result = *this;
@@ -101,6 +111,7 @@ public:
     return getPrimitiveType(PrimitiveTypeKind::Void, 0);
   }
 
+  // WIP: NEXT rename
   static model::QualifiedType getLel(const model::TypePath &P) {
     model::QualifiedType Result;
     Result.UnqualifiedType() = P;
@@ -115,10 +126,19 @@ public:
 
   bool operator==(const QualifiedType &) const = default;
   std::strong_ordering operator<=>(const QualifiedType &Other) const {
+    if (PrimitiveKind() < Other.PrimitiveKind())
+      return std::strong_ordering::less;
+    else if (PrimitiveKind() > Other.PrimitiveKind())
+      return std::strong_ordering::greater;
+
+    if (Size() < Other.Size())
+      return std::strong_ordering::less;
+    else if (Size() > Other.Size())
+      return std::strong_ordering::greater;
+
     if (Qualifiers() < Other.Qualifiers())
       return std::strong_ordering::less;
-
-    if (Qualifiers() > Other.Qualifiers())
+    else if (Qualifiers() > Other.Qualifiers())
       return std::strong_ordering::greater;
 
     return UnqualifiedType() <=> Other.UnqualifiedType();

@@ -585,8 +585,9 @@ static RecursiveCoroutine<bool> isArrayImpl(const model::QualifiedType &QT) {
     rc_return false;
   }
 
-  if (auto *TD = dyn_cast<model::TypedefType>(QT.UnqualifiedType().get()))
-    rc_return rc_recur isArrayImpl(TD->UnderlyingType());
+  if (QT.isTrull())
+    if (auto *TD = dyn_cast<model::TypedefType>(QT.UnqualifiedType().get()))
+      rc_return rc_recur isArrayImpl(TD->UnderlyingType());
 
   // If there are no non-const qualifiers, it's not an array
   rc_return false;
@@ -608,8 +609,9 @@ static RecursiveCoroutine<bool> isPointerImpl(const model::QualifiedType &QT) {
     rc_return false;
   }
 
-  if (auto *TD = dyn_cast<model::TypedefType>(QT.UnqualifiedType().get()))
-    rc_return rc_recur isPointerImpl(TD->UnderlyingType());
+  if (QT.isTrull())
+    if (auto *TD = dyn_cast<model::TypedefType>(QT.UnqualifiedType().get()))
+      rc_return rc_recur isPointerImpl(TD->UnderlyingType());
 
   // If there are no non-const qualifiers, it's not a pointer
   rc_return false;
@@ -620,13 +622,16 @@ bool QualifiedType::isPointer() const {
 }
 
 static RecursiveCoroutine<bool> isConstImpl(const model::QualifiedType &QT) {
-  auto *TD = dyn_cast<model::TypedefType>(QT.UnqualifiedType().get());
   if (not QT.Qualifiers().empty()) {
     // If there are qualifiers, just look at the first
     rc_return Qualifier::isConst(QT.Qualifiers().front());
-  } else if (TD != nullptr) {
-    // If there are no qualifiers, but it's a typedef, traverse it
-    rc_return rc_recur isConstImpl(TD->UnderlyingType());
+  }
+
+  if (QT.isTrull()) {
+    if (auto *TD = dyn_cast<model::TypedefType>(QT.UnqualifiedType().get())) {
+      // If there are no qualifiers, but it's a typedef, traverse it
+      rc_return rc_recur isConstImpl(TD->UnderlyingType());
+    }
   }
 
   // If there are no qualifiers, and it's not a typedef, it's not const.
@@ -644,12 +649,13 @@ isPrimitiveImpl(const model::QualifiedType &QT,
       and not llvm::all_of(QT.Qualifiers(), Qualifier::isConst))
     rc_return false;
 
-  const model::Type *UnqualifiedType = QT.UnqualifiedType().get();
-  if (QT.isPrimitive2())
-    rc_return !V.has_value() || QT.PrimitiveKind() == *V;
-
-  if (auto *Typedef = llvm::dyn_cast<TypedefType>(UnqualifiedType))
-    rc_return rc_recur isPrimitiveImpl(Typedef->UnderlyingType(), V);
+  if (QT.isPrimitive2()) {
+    rc_return not V.has_value() or QT.PrimitiveKind() == *V;
+  } else if (QT.isTrull()) {
+    if (const model::Type *UnqualifiedType = QT.UnqualifiedType().get())
+      if (auto *Typedef = llvm::dyn_cast<TypedefType>(UnqualifiedType))
+        rc_return rc_recur isPrimitiveImpl(Typedef->UnderlyingType(), V);
+  }
 
   rc_return false;
 }
@@ -666,6 +672,9 @@ static RecursiveCoroutine<bool>
 isImpl(const model::QualifiedType &QT, model::TypeKind::Values K) {
   if (QT.Qualifiers().size() != 0
       and not llvm::all_of(QT.Qualifiers(), Qualifier::isConst))
+    rc_return false;
+
+  if (QT.isPrimitive2())
     rc_return false;
 
   const model::Type *UnqualifiedType = QT.UnqualifiedType().get();
@@ -856,17 +865,17 @@ inline RecursiveCoroutine<bool> isScalarImpl(const QualifiedType &QT) {
     }
   }
 
-  if (QT.isPrimitive2())
+  if (QT.isPrimitive2()) {
     rc_return true;
+  } else if (QT.isTrull()) {
+    const Type *Unqualified = QT.UnqualifiedType().get();
+    revng_assert(Unqualified != nullptr);
+    if (llvm::isa<model::EnumType>(Unqualified))
+      rc_return true;
 
-  const Type *Unqualified = QT.UnqualifiedType().get();
-  revng_assert(Unqualified != nullptr);
-  if (llvm::isa<model::EnumType>(Unqualified)) {
-    rc_return true;
+    if (auto *Typedef = llvm::dyn_cast<model::TypedefType>(Unqualified))
+      rc_return rc_recur isScalarImpl(Typedef->UnderlyingType());
   }
-
-  if (auto *Typedef = llvm::dyn_cast<model::TypedefType>(Unqualified))
-    rc_return rc_recur isScalarImpl(Typedef->UnderlyingType());
 
   rc_return false;
 }
@@ -1032,8 +1041,8 @@ verifyImpl(VerifyHelper &VH, const RawFunctionType *T) {
 
   if (not T->StackArgumentsType().Qualifiers().empty())
     rc_return VH.fail();
-  if (auto &Type = T->StackArgumentsType().UnqualifiedType();
-      Type.isValid() and not rc_recur Type.get()->verify(VH))
+
+  if (not rc_recur T->StackArgumentsType().verify(VH))
     rc_return VH.fail();
 
   rc_return VH.maybeFail(T->CustomName().verify(VH));
@@ -1134,7 +1143,7 @@ RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
   bool HasUnderlyingType = UnqualifiedType().isValid();
   bool IsPrimitive = isPrimitive2();
 
-  if (HasUnderlyingType == IsPrimitive) {
+  if (HasUnderlyingType and IsPrimitive) {
     rc_return VH.fail("A QualifiedType has to be either a primitive or have "
                       "an"
                       " underlying type");

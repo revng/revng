@@ -40,8 +40,10 @@ unsigned dropTypesDependingOnTypes(TupleTree<model::Binary> &Model,
       continue;
 
     for (const model::QualifiedType &QT : T->edges()) {
-      auto *DependantType = QT.UnqualifiedType().get();
-      TypeToNode.at(DependantType)->addSuccessor(TypeToNode.at(T.get()));
+      if (QT.isTrull()) {
+        auto *DependantType = QT.UnqualifiedType().get();
+        TypeToNode.at(DependantType)->addSuccessor(TypeToNode.at(T.get()));
+      }
     }
   }
 

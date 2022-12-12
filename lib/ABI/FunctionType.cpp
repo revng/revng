@@ -90,7 +90,7 @@ buildDoubleType(model::Register::Values UpperRegister,
 
 static model::QualifiedType getTypeOrDefault(const model::QualifiedType &Type,
                                              model::Register::Values Register) {
-  if (Type.UnqualifiedType().get() != nullptr)
+  if (Type.isValid())
     return Type;
   else
     return buildType(Register);
@@ -331,7 +331,8 @@ public:
         }
 
         // Try and recover types from the struct if possible
-        if (Function.ReturnType().Qualifiers().empty()) {
+        if (Function.ReturnType().Qualifiers().empty()
+            and Function.ReturnType().isTrull()) {
           const model::Type
             *Type = Function.ReturnType().UnqualifiedType().get();
           revng_assert(Type != nullptr);
@@ -514,9 +515,9 @@ private:
   convertStackArguments(model::QualifiedType StackArgumentTypes,
                         size_t IndexOffset) {
     revng_assert(StackArgumentTypes.Qualifiers().empty());
-    auto *Unqualified = StackArgumentTypes.UnqualifiedType().get();
-    if (not Unqualified)
+    if (not StackArgumentTypes.isTrull())
       return {};
+    auto *Unqualified = StackArgumentTypes.UnqualifiedType().get();
 
     auto *Pointer = llvm::dyn_cast<model::StructType>(Unqualified);
     revng_assert(Pointer != nullptr,
@@ -972,15 +973,14 @@ Layout::Layout(const model::RawFunctionType &Function) {
   }
 
   // Lay stack arguments out.
-  if (Function.StackArgumentsType().UnqualifiedType().isValid()) {
-    const model::QualifiedType &StackArgType = Function.StackArgumentsType();
+  const model::QualifiedType &StackArgType = Function.StackArgumentsType();
+  if (StackArgType.isTrull()) {
     // The stack argument, if present, should always be a struct.
     revng_assert(StackArgType.Qualifiers().empty());
     revng_assert(StackArgType.is(model::TypeKind::StructType));
 
     auto &Argument = Arguments.emplace_back();
 
-    const auto &Arch = StackArgType.UnqualifiedType().getRoot()->Architecture();
     // Stack argument is always passed by pointer for RawFunctionType
     Argument.Type = StackArgType;
     Argument.Kind = ArgumentKind::ReferenceToAggregate;
