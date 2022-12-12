@@ -109,7 +109,7 @@ void initAddressOfPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M) {
   }
 }
 
-void initStringLiteralPool(OpaqueFunctionsPool<llvm::Type *> &Pool,
+void initStringLiteralPool(OpaqueFunctionsPool<StringLiteralPoolKey> &Pool,
                            llvm::Module *M) {
   // Set attributes
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
@@ -117,8 +117,17 @@ void initStringLiteralPool(OpaqueFunctionsPool<llvm::Type *> &Pool,
   Pool.addFnAttribute(llvm::Attribute::ReadNone);
   // Set revng tags
   Pool.setTags({ &FunctionTags::StringLiteral });
-  // Initialize the pool from its internal llvm::Module if possible.
-  Pool.initializeFromReturnType(FunctionTags::StringLiteral);
+
+  // Initialize the pool
+  for (llvm::Function &F : FunctionTags::StringLiteral.functions(M)) {
+    const auto &[StartAddress,
+                 VirtualSize,
+                 Offset,
+                 StrLen] = extractStringLiteralFromMetadata(F);
+    auto Type = F.getFunctionType()->getReturnType();
+    StringLiteralPoolKey Key = { StartAddress, VirtualSize, Offset, Type };
+    Pool.record(Key, &F);
+  }
 }
 
 void initModelCastPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {

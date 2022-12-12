@@ -4,6 +4,7 @@
 // Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 //
 
+#include <compare>
 namespace llvm {
 class Function;
 class LLVMContext;
@@ -109,8 +110,18 @@ llvm::FunctionType *getAddressOfType(llvm::Type *RetType, llvm::Type *BaseType);
 /// Module
 void initAddressOfPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M);
 
+struct StringLiteralPoolKey {
+  MetaAddress Address;
+  uint64_t VirtualSize;
+  uint64_t OffsetInSegment;
+  llvm::Type *Type;
+
+  std::strong_ordering
+  operator<=>(const StringLiteralPoolKey &) const = default;
+};
+
 /// Initializes a pool of StringLiteral functions.
-void initStringLiteralPool(OpaqueFunctionsPool<llvm::Type *> &Pool,
+void initStringLiteralPool(OpaqueFunctionsPool<StringLiteralPoolKey> &Pool,
                            llvm::Module *M);
 
 /// Initializes a pool of Parentheses functions
