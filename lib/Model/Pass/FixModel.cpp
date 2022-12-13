@@ -8,6 +8,8 @@
 #include "revng/Model/Pass/FixModel.h"
 #include "revng/Model/Pass/RegisterModelPass.h"
 #include "revng/Model/Processing.h"
+#include "revng/Model/Type.h"
+#include "revng/Model/VerifyTypeHelper.h"
 
 using namespace llvm;
 
@@ -15,6 +17,7 @@ static RegisterModelPass
   R("fix", "Remove all invalid types from the model.", model::fixModel);
 
 static Logger<> ModelFixLogger("model-fix");
+using namespace model;
 
 void model::fixModel(TupleTree<model::Binary> &Model) {
   std::set<const model::Type *> ToDrop;
@@ -41,9 +44,20 @@ void model::fixModel(TupleTree<model::Binary> &Model) {
       // Remove functions with more than one `void` argument.
       for (auto &Group : llvm::enumerate(FunctionType->Arguments())) {
         auto &Argument = Group.value();
-        if (*Argument.Type().size() == 0
-            and FunctionType->Arguments().size() > 1)
-          ToDrop.insert(T.get());
+        VoidConstResult VoidConst = isVoidConst(&Argument.Type());
+        if (VoidConst.IsVoid) {
+          if (FunctionType->Arguments().size() > 1) {
+            // More than 1 void argument.
+            ToDrop.insert(T.get());
+            break;
+          }
+
+          if (VoidConst.IsConst) {
+            // Cannot have const void argument.
+            ToDrop.insert(T.get());
+            break;
+          }
+        }
       }
     }
   }

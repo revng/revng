@@ -13,6 +13,7 @@ revng_add_library_internal(
   ExampleAnalysis.cpp
   FunctionTags.cpp
   IRHelpers.cpp
+  LDDTree.cpp
   MetaAddress.cpp
   OriginalAssemblyAnnotationWriter.cpp
   PathList.cpp
@@ -21,7 +22,7 @@ revng_add_library_internal(
   SelfReferencingDbgAnnotationWriter.cpp
   Statistics.cpp)
 
-llvm_map_components_to_libnames(LLVM_LIBRARIES Support Core)
+llvm_map_components_to_libnames(LLVM_LIBRARIES Support Core Object)
 
 target_link_libraries(revngSupport ${LLVM_LIBRARIES})
 

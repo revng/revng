@@ -18,6 +18,7 @@
 #include "revng/Model/Register.h"
 #include "revng/Model/TypeSystemPrinter.h"
 #include "revng/Model/VerifyHelper.h"
+#include "revng/Model/VerifyTypeHelper.h"
 
 using llvm::cast;
 using llvm::dyn_cast;
@@ -568,68 +569,6 @@ bool EnumEntry::verify(VerifyHelper &VH) const {
   return VH.maybeFail(CustomName().verify(VH));
 }
 
-static bool isOnlyConstQualified(const QualifiedType &QT) {
-  if (QT.Qualifiers().empty() or QT.Qualifiers().size() > 1)
-    return false;
-
-  return Qualifier::isConst(QT.Qualifiers()[0]);
-}
-
-struct VoidConstResult {
-  bool IsVoid;
-  bool IsConst;
-};
-
-static VoidConstResult isVoidConst(const QualifiedType *QualType) {
-  VoidConstResult Result{ /* IsVoid */ false, /* IsConst */ false };
-
-  bool Done = false;
-  while (not Done) {
-
-    // If the argument type is qualified try to get the unqualified version.
-    // Warning: we only skip const-qualifiers here, cause the other qualifiers
-    // actually produce a different type.
-    const Type *UnqualType = nullptr;
-    if (not QualType->Qualifiers().empty()) {
-
-      // If it has a non-const qualifier, it can never be void because it's a
-      // pointer or array, so we can break out.
-      if (not isOnlyConstQualified(*QualType)) {
-        Done = true;
-        continue;
-      }
-
-      // We know that it's const-qualified here, and it only has one
-      // qualifier, hence we can skip the const-qualifier.
-      Result.IsConst = true;
-      return Result;
-    }
-
-    UnqualType = QualType->UnqualifiedType().get();
-
-    switch (UnqualType->Kind()) {
-
-    // If we still have a typedef in our way, unwrap it and keep looking.
-    case TypeKind::TypedefType: {
-      QualType = &cast<TypedefType>(UnqualType)->UnderlyingType();
-    } break;
-
-    // If we have a primitive type, check the name, and we're done.
-    case TypeKind::PrimitiveType: {
-      auto *P = cast<PrimitiveType>(UnqualType);
-      Result.IsVoid = P->PrimitiveKind() == PrimitiveTypeKind::Void;
-      Done = true;
-    } break;
-
-    // In all the other cases it's not void, break from the while.
-    default: {
-      Done = true;
-    } break;
-    }
-  }
-  return Result;
-}
-
 std::optional<uint64_t> QualifiedType::size() const {
   VerifyHelper VH;
   return size(VH);
@@ -688,6 +627,9 @@ QualifiedType::trySize(VerifyHelper &VH) const {
       revng_abort();
     }
   }
+
+  if (!UnqualifiedType().isValid())
+    rc_return std::nullopt;
 
   rc_return rc_recur UnqualifiedType().get()->trySize(VH);
 }

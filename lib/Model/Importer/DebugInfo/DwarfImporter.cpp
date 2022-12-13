@@ -18,6 +18,7 @@
 #include "llvm/DebugInfo/DWARF/DWARFFormValue.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/Process.h"
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -29,11 +30,15 @@
 #include "revng/Model/Type.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/ProgramRunner.h"
+
+#include "ImportDebugInfoHelper.h"
 
 using namespace llvm;
 using namespace llvm::dwarf;
 
 static Logger<> DILogger("dwarf-importer");
+static const std::string GlobalDebugDirectory = "/usr/lib/debug/";
 
 template<typename M>
 class ScopedSetElement {
@@ -385,6 +390,27 @@ private:
     return {};
   }
 
+  static bool isNoReturn(DWARFUnit &CU, const DWARFDie &Die) {
+    auto Tag = Die.getTag();
+    revng_assert(Tag == DW_TAG_subprogram);
+
+    if (Die.find(DW_AT_noreturn))
+      return true;
+
+    // Check if the specification of this subprogram defines it.
+    auto SpecificationAttribute = Die.find(DW_AT_specification);
+    if (SpecificationAttribute) {
+      if (SpecificationAttribute->getAsReference()) {
+        auto DieOffset = *(SpecificationAttribute->getAsReference());
+        DWARFDie SpecificationDie = CU.getDIEForOffset(DieOffset);
+        if (SpecificationDie.find(DW_AT_noreturn))
+          return true;
+      }
+    }
+
+    return false;
+  }
+
   RecursiveCoroutine<const model::QualifiedType *>
   getType(const DWARFDie &Die) {
     auto MaybeType = Die.find(DW_AT_type);
@@ -637,7 +663,10 @@ private:
       // in the model) should have been materialized.
       // Therefore, here we only deal with DWARF types the model represents as
       // qualifiers.
-      revng_assert(not hasModelIdentity(Tag));
+
+      /// \note There could be some TAGs we do not handle/recognize as types.
+      if (isType(Tag))
+        revng_assert(not hasModelIdentity(Tag));
 
       bool HasType = Die.find(DW_AT_type).hasValue();
       model::QualifiedType Type = rc_recur getTypeOrVoid(Die);
@@ -816,17 +845,18 @@ private:
           MetaAddress LowPC = relocate(fromPC(*MaybeLowPC));
           auto &Function = Model->Functions()[LowPC];
 
-          if (not Function.Prototype().isValid())
+          if (MaybePath && not Function.Prototype().isValid())
             Function.Prototype() = *MaybePath;
 
           if (SymbolName.size() != 0 and Function.OriginalName().size() == 0)
             Function.OriginalName() = SymbolName;
 
+          if (isNoReturn(*CU.get(), Die))
+            Function.Attributes().insert(model::FunctionAttribute::NoReturn);
         } else if (auto &Functions = Model->ImportedDynamicFunctions();
                    not SymbolName.empty()
                    and Functions.count(SymbolName) != 0) {
           // It's a dynamic function
-
           if (not MaybePath) {
             reportIgnoredDie(Die, "Couldn't build subprogram prototype");
             continue;
@@ -840,6 +870,10 @@ private:
             continue;
           DynamicFunction.Prototype() = *MaybePath;
 
+          if (isNoReturn(*CU.get(), Die)) {
+            using namespace model;
+            DynamicFunction.Attributes().insert(FunctionAttribute::NoReturn);
+          }
         } else {
           reportIgnoredDie(Die, "Ignoring subprogram");
         }
@@ -856,12 +890,22 @@ private:
       //
       if (auto *Struct = dyn_cast<model::StructType>(Type.get())) {
         llvm::erase_if(Struct->Fields(), [](model::StructField &Field) {
-          return not Field.Type().size();
+          auto MaybeSize = Field.Type().trySize();
+          return !MaybeSize || not *MaybeSize;
         });
       } else if (auto *Union = dyn_cast<model::UnionType>(Type.get())) {
         llvm::erase_if(Union->Fields(), [](model::UnionField &Field) {
-          return not Field.Type().size();
+          auto MaybeSize = Field.Type().trySize();
+          return !MaybeSize || not *MaybeSize;
         });
+      }
+
+      //
+      // Drop an empty enum.
+      //
+      if (auto *Enum = dyn_cast<model::EnumType>(Type.get())) {
+        if (!Enum->Entries().size())
+          ToDrop.insert(Type.get());
       }
 
       //
@@ -900,6 +944,7 @@ public:
     resolveAllTypes();
     createFunctions();
     cleanupTypeSystem();
+    fixModel(Model);
     deduplicateEquivalentTypes(Model);
     promoteOriginalName(Model);
     purgeUnnamedAndUnreachableTypes(Model);
@@ -916,27 +961,69 @@ ArrayRef<uint8_t> getSectionsContents(StringRef Name, T &ELF) {
 
   for (const auto &Section : *MaybeSections) {
     auto MaybeName = ELF.getSectionName(Section);
-    if (MaybeName) {
-      if (MaybeName and *MaybeName == Name) {
-        auto MaybeContents = ELF.getSectionContents(Section);
-        if (MaybeContents)
-          return *MaybeContents;
-      }
+    if (MaybeName and *MaybeName == Name) {
+      auto MaybeContents = ELF.getSectionContents(Section);
+      if (MaybeContents)
+        return *MaybeContents;
     }
   }
 
   return {};
 }
 
-static StringRef getAltDebugLinkFileName(const object::Binary *B) {
+static std::string getBuildID(const object::Binary *B) {
   using namespace llvm::object;
+
+  auto Handler = [&](auto *ELFObject) -> std::string {
+    const auto &ELF = ELFObject->getELFFile();
+    ArrayRef<uint8_t> Contents = getSectionsContents(".note.gnu.build-id", ELF);
+    if (Contents.size() == 0)
+      return {};
+
+    std::string StringForBytes;
+    raw_string_ostream OutputStream(StringForBytes);
+    for (uint8_t Byte : Contents)
+      OutputStream << format_hex_no_prefix(Byte, 2);
+
+    // Build ID uses SHA1, so it is 20 bytes long.
+    constexpr unsigned SHA1Size = 40;
+    return OutputStream.str().substr(OutputStream.str().size() - SHA1Size);
+  };
+
+  std::string BuildID;
+  if (auto *ELF = dyn_cast<ELF32BEObjectFile>(B)) {
+    BuildID = Handler(ELF);
+  } else if (auto *ELF = dyn_cast<ELF64BEObjectFile>(B)) {
+    BuildID = Handler(ELF);
+  } else if (auto *ELF = dyn_cast<ELF32LEObjectFile>(B)) {
+    BuildID = Handler(ELF);
+  } else if (auto *ELF = dyn_cast<ELF64LEObjectFile>(B)) {
+    BuildID = Handler(ELF);
+  } else {
+    revng_abort();
+  }
+
+  return BuildID;
+}
+
+static StringRef getDebugFileName(const object::Binary *B) {
+  using namespace llvm::object;
+
+  // TODO: Handle Split DWARF/DW_AT_GNU_dwo_name. Part of DWARF 5.
 
   auto Handler = [&](auto *ELFObject) -> StringRef {
     const auto &ELF = ELFObject->getELFFile();
-    ArrayRef<uint8_t> Contents = getSectionsContents(".gnu_debugaltlink", ELF);
+    ArrayRef<uint8_t> Contents = getSectionsContents(".gnu_debuglink", ELF);
+    if (Contents.size() == 0) {
+      // If there is no ".gnu_debuglink", try ".gnu_debugaltlink".
+      Contents = getSectionsContents(".gnu_debugaltlink", ELF);
+    }
 
-    if (Contents.size() == 0)
+    if (Contents.size() == 0) {
+      // TODO: Handle .debug_sup, which is DWARF 5 implementation of GNU
+      // extension .gnu_debuglink sections.
       return {};
+    }
 
     // TODO: improve accuracy
     // Extract path name and ignore everything after \0
@@ -967,32 +1054,197 @@ static void error(StringRef Prefix, std::error_code EC) {
   revng_abort(Str.c_str());
 }
 
-void DwarfImporter::import(StringRef FileName) {
+static std::optional<std::string>
+findDebugInfoFileByName(StringRef FileName,
+                        StringRef DebugFileName,
+                        llvm::object::ObjectFile *ELF) {
+  // Let's find it in canonical places, where debug info was fetched.
+  //  1) Look for a .gnu_debuglink/.gnu_debugaltlink/.debug_sup section.
+  //  The .debug file should be in canonical places.
+  //  E.g., if the executable is `/usr/bin/ls`, we look for:
+  //     - /usr/bin/ls.debug (current dir of exe)
+  //     - /usr/bin/.debug/ls.debug
+  //     - /usr/lib/debug/usr/bin/ls.debug
+  llvm::SmallString<128> ResultPath;
+  if (llvm::sys::path::has_parent_path(FileName)) {
+    llvm::sys::path::append(ResultPath,
+                            llvm::sys::path::parent_path(FileName),
+                            DebugFileName);
+  } else {
+    llvm::sys::path::append(ResultPath, DebugFileName);
+  }
+
+  if (sys::fs::exists(ResultPath.str())) {
+    return std::string(ResultPath.str());
+  } else {
+    // Try in .debug/ directory.
+    ResultPath.clear();
+    llvm::sys::path::append(ResultPath,
+                            llvm::sys::path::parent_path(FileName),
+                            ".debug/",
+                            DebugFileName);
+
+    if (sys::fs::exists(ResultPath.str())) {
+      return std::string(ResultPath.str());
+    } else {
+      // Try `/usr/lib/debug/usr/bin/ls.debug`-like path.
+      ResultPath.clear();
+      if (sys::path::is_absolute(FileName)) {
+        llvm::sys::path::append(ResultPath,
+                                GlobalDebugDirectory,
+                                llvm::sys::path::parent_path(FileName),
+                                DebugFileName);
+      } else {
+        // Relative path.
+        llvm::SmallString<64> CurrentDirectory;
+        auto ErrorCode = llvm::sys::fs::current_path(CurrentDirectory);
+        if (!ErrorCode) {
+          llvm::sys::path::append(ResultPath,
+                                  GlobalDebugDirectory,
+                                  CurrentDirectory,
+                                  llvm::sys::path::parent_path(FileName),
+                                  DebugFileName);
+        } else {
+          revng_log(DILogger, "Can't get current working path.");
+        }
+      }
+
+      if (sys::fs::exists(ResultPath.str())) {
+        return std::string(ResultPath.str());
+      } else {
+        // Try If build-id is `abcdef1234`, we look for:
+        // - /usr/lib/debug/.build-id/ab/cdef1234.debug
+        ResultPath.clear();
+        auto BuildID = getBuildID(ELF);
+        if (BuildID.size()) {
+          // First two chars of build-id forms the debug info file directory.
+          auto DebugDir = BuildID.substr(0, 2);
+          // The rest of build-id forms the debug info file name.
+          auto DebugFile = BuildID.substr(BuildID.size() - 38);
+          auto DebugFileWithExtension = DebugFile.append(".debug");
+          llvm::sys::path::append(ResultPath,
+                                  GlobalDebugDirectory,
+                                  ".build-id/",
+                                  DebugDir,
+                                  DebugFileWithExtension);
+
+          if (sys::fs::exists(ResultPath.str())) {
+            return std::string(ResultPath.str());
+          } else {
+            // Try in XDG_CACHE_HOME at the end.
+            ResultPath.clear();
+            auto XDGCacheHome = llvm::sys::Process::GetEnv("XDG_CACHE_HOME");
+            SmallString<64> PathHome;
+            sys::path::home_directory(PathHome);
+            // Default debug directory.
+            if (!XDGCacheHome) {
+              llvm::sys::path::append(ResultPath,
+                                      PathHome,
+                                      ".local/share/revng/debug-symbols/elf/",
+                                      BuildID,
+                                      "debug");
+            } else {
+              llvm::sys::path::append(ResultPath,
+                                      *XDGCacheHome,
+                                      "revng/debug-symbols/elf/",
+                                      BuildID,
+                                      "debug");
+            }
+
+            if (sys::fs::exists(ResultPath.str())) {
+              return std::string(ResultPath.str());
+            } else {
+              revng_log(DILogger, "Can't find " << DebugFileName);
+            }
+          }
+        } else {
+          revng_log(DILogger, "Can't parse build-id.");
+        }
+      }
+    }
+  }
+
+  // We have not found the debug info file on the device.
+  return std::nullopt;
+}
+
+void DwarfImporter::import(StringRef FileName,
+                           unsigned FetchDebugInfoWithLevel) {
   using namespace llvm::object;
-
-  // TODO: recursively load dependant DWARFs:
-  //
-  // 1. Load any available DWARF in the binary itself
-  // 2. Parse .note.gnu.build-id, .gnu_debugaltlink and .gnu_debuglink
-  // 3. Load from the following paths:
-  //    * /usr/lib/debug/.build-id/ab/cdef1234.debug
-  //    * /usr/bin/ls.debug
-  //    * /usr/bin/.debug/ls.debug
-  //    * /usr/lib/debug/usr/bin/ls.debug
-  //    In turn, parse .gnu_debugaltlink (and .gnu_debuglink?)
-  // 2. Parse DT_NEEDED
-  // 3. Look for each library in ld.so.conf directories
-  // 4. Go to 1
-  //
-  // Source:
-  // https://sourceware.org/gdb/onlinedocs/gdb/Separate-Debug-Files.html
-
   ErrorOr<std::unique_ptr<MemoryBuffer>>
     BuffOrErr = MemoryBuffer::getFileOrSTDIN(FileName);
   error(FileName, BuffOrErr.getError());
   std::unique_ptr<MemoryBuffer> Buffer = std::move(BuffOrErr.get());
   Expected<std::unique_ptr<Binary>> BinOrErr = object::createBinary(*Buffer);
   error(FileName, errorToErrorCode(BinOrErr.takeError()));
+
+  // Find Debugging Information.
+  // If the file has debug info sections within itself, no need for finding
+  // it on the device.
+  // TODO: When we add support for Split DWARF, this will need additional
+  // improvement.
+  auto HasDebugInfo = [](ObjectFile *Object) {
+    for (const SectionRef &Section : Object->sections()) {
+      StringRef SectionName;
+      if (Expected<StringRef> NameOrErr = Section.getName()) {
+        SectionName = *NameOrErr;
+      } else {
+        llvm::consumeError(NameOrErr.takeError());
+        continue;
+      }
+
+      // TODO: When adding support for Split dwarf, there will be
+      // .debug_info.dwo section, so we need to handle it.
+      if (SectionName == ".debug_info")
+        return true;
+    }
+    return false;
+  };
+
+  auto PerfromImport = [this](StringRef FilePath, StringRef TheDebugFile) {
+    auto ExpectedBinary = object::createBinary(FilePath);
+    if (!ExpectedBinary) {
+      revng_log(DILogger, "Can't create binary for " << FilePath);
+      llvm::consumeError(ExpectedBinary.takeError());
+    } else {
+      import(*ExpectedBinary->getBinary(), TheDebugFile);
+    }
+  };
+
+  if (auto *ELF = dyn_cast<ObjectFile>(BinOrErr->get())) {
+    if (FetchDebugInfoWithLevel && !HasDebugInfo(ELF)) {
+      // There are no .debug_* sections in the file itself, let's try to find it
+      // on the device, otherwise find it on web by using the `fetch-debuginfo`
+      // tool.
+      auto DebugFile = getDebugFileName(BinOrErr->get());
+      if (!DebugFile.size()) {
+        revng_log(DILogger, "Can't find file name of the debug file.");
+        return;
+      }
+      auto DebugFilePath = findDebugInfoFileByName(FileName, DebugFile, ELF);
+      if (!DebugFilePath) {
+        if (!::Runner.isProgramAvailable("revng")) {
+          revng_log(DILogger,
+                    "Can't find `revng` binary to run `fetch-debuginfo`.");
+          return;
+        }
+
+        int ExitCode = runFetchDebugInfoWithLevel(FileName);
+        if (ExitCode != 0) {
+          revng_log(DILogger,
+                    "Failed to find debug info with `revng model "
+                    "fetch-debuginfo`.");
+        } else {
+          DebugFilePath = findDebugInfoFileByName(FileName, DebugFile, ELF);
+          if (DebugFilePath)
+            PerfromImport(*DebugFilePath, DebugFile);
+        }
+      } else {
+        PerfromImport(*DebugFilePath, DebugFile);
+      }
+    }
+  }
+
   import(*BinOrErr->get(), FileName);
 }
 
@@ -1132,15 +1384,15 @@ void DwarfImporter::import(const llvm::object::Binary &TheBinary,
 
     // Check if we already loaded the alt debug info file
     size_t AltIndex = -1;
-    StringRef AltDebugLinkFileName = getAltDebugLinkFileName(ELF);
-    if (AltDebugLinkFileName.size() > 0) {
+    // Check if we already loaded the alt debug info file.
+    StringRef SeparateDebugFileName = getDebugFileName(ELF);
+    if (SeparateDebugFileName.size() > 0) {
       auto Begin = LoadedFiles.begin();
       auto End = LoadedFiles.end();
-      auto It = std::find(Begin, End, AltDebugLinkFileName);
+      auto It = std::find(Begin, End, SeparateDebugFileName);
       if (It != End)
         AltIndex = It - Begin;
     }
-
     auto TheDWARFContext = DWARFContext::create(*ELF);
     DwarfToModelConverter Converter(*this,
                                     *TheDWARFContext,

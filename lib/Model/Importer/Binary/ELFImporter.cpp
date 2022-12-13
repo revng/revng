@@ -18,9 +18,12 @@
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/Importer/Binary/BinaryImporterHelper.h"
 #include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
+#include "revng/Model/Pass/AllPasses.h"
 #include "revng/Model/RawBinaryView.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/LDDTree.h"
 
+#include "CrossModelFindTypeHelper.h"
 #include "DwarfReader.h"
 #include "ELFImporter.h"
 #include "Importers.h"
@@ -154,7 +157,7 @@ uint64_t symbolsCount(const FilePortion &Relocations) {
 }
 
 template<typename T, bool HasAddend>
-Error ELFImporter<T, HasAddend>::import() {
+Error ELFImporter<T, HasAddend>::import(unsigned FetchDebugInfoWithLevel) {
   // Parse the ELF file
   auto TheELFOrErr = object::ELFFile<T>::create(TheBinary.getData());
   if (not TheELFOrErr)
@@ -327,9 +330,98 @@ Error ELFImporter<T, HasAddend>::import() {
 
   // Import Dwarf
   DwarfImporter Importer(Model, PreferredBaseAddress);
-  Importer.import(TheBinary, "");
+  Importer.import(TheBinary.getFileName(), FetchDebugInfoWithLevel);
+
+  // Now we try to find missing types in the dependencies.
+  if (FetchDebugInfoWithLevel > 1)
+    findMissingTypes(TheELF, FetchDebugInfoWithLevel);
 
   return Error::success();
+}
+
+template<typename T, bool HasAddend>
+void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
+                                                 unsigned DebugInfoLevel) {
+  ModelMap ModelsOfLibraries;
+  TypeCopierMap TypeCopiers;
+
+  LDDTree Dependencies;
+  lddtree(Dependencies, TheBinary.getFileName().str(), DebugInfoLevel);
+  for (auto &Library : Dependencies) {
+    revng_log(ELFImporterLog,
+              "Importing Models for dependencies of " << Library.first << ":");
+    for (auto &DependencyLibrary : Library.second) {
+      if (ModelsOfLibraries.count(DependencyLibrary))
+        continue;
+      revng_log(ELFImporterLog, " Importing Model for: " << DependencyLibrary);
+      auto BinaryOrErr = llvm::object::createBinary(DependencyLibrary);
+      if (not BinaryOrErr) {
+        revng_log(ELFImporterLog,
+                  "Can't create object for "
+                    << DependencyLibrary << " due to "
+                    << toString(BinaryOrErr.takeError()));
+        llvm::consumeError(BinaryOrErr.takeError());
+        continue;
+      }
+
+      auto &Object = *cast<llvm::object::ObjectFile>(BinaryOrErr->getBinary());
+      auto *TheBinary = dyn_cast<ELFObjectFileBase>(&Object);
+      if (!TheBinary)
+        continue;
+
+      using model::Binary;
+      using std::make_unique;
+      ModelsOfLibraries[DependencyLibrary] = TupleTree<Binary>();
+      TupleTree<model::Binary> &DepModel = ModelsOfLibraries[DependencyLibrary];
+      DepModel->Architecture() = Model->Architecture();
+      if (auto E = importELF(DepModel,
+                             *TheBinary,
+                             BaseAddress,
+                             1 /*FetchDebugInfoWithLevel*/)) {
+        revng_log(ELFImporterLog,
+                  "Can't import model for " << DependencyLibrary << " due to "
+                                            << E);
+        llvm::consumeError(std::move(E));
+        ModelsOfLibraries.erase(DependencyLibrary);
+        continue;
+      }
+    }
+  }
+
+  for (auto &ModelOfDep : ModelsOfLibraries) {
+    auto &TheModel = ModelOfDep.second;
+    TypeCopiers[ModelOfDep.first] = std::make_unique<TypeCopier>(TheModel);
+  }
+
+  for (auto &Fn : Model->ImportedDynamicFunctions()) {
+    if (Fn.Prototype().isValid() or Fn.OriginalName().size() == 0) {
+      continue;
+    }
+
+    revng_log(ELFImporterLog,
+              "Searching for prototype for " << Fn.OriginalName());
+    auto TypeLocation = findPrototype(Fn.OriginalName(), ModelsOfLibraries);
+    if (TypeLocation) {
+      revng_log(ELFImporterLog, "Found type for " << Fn.OriginalName());
+      auto &TheTypeCopier = TypeCopiers[(*TypeLocation).second];
+      auto Type = TheTypeCopier->copyPrototypeInto((*TypeLocation).first,
+                                                   Model);
+      if (!Type) {
+        revng_log(ELFImporterLog,
+                  "Failed to copy prototype " << Fn.OriginalName() << " from "
+                                              << (*TypeLocation).second);
+        continue;
+      }
+      Fn.Prototype() = *Type;
+    }
+  }
+
+  // Purge cached references and update the reference to Root.
+  Model.evictCachedReferences();
+  Model.initializeReferences();
+
+  deduplicateEquivalentTypes(Model);
+  promoteOriginalName(Model);
 }
 
 using Libs = SmallVectorImpl<uint64_t>;
@@ -455,9 +547,9 @@ static bool hasFlag(A Flag, B Value) {
 template<typename T, bool HasAddend>
 void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
   // Loop over the program headers looking for PT_LOAD segments, read them out
-  // and create a global variable for each one of them (writable or read-only),
-  // assign them a section and output information about them in the linking info
-  // CSV
+  // and create a global variable for each one of them (writable or
+  // read-only), assign them a section and output information about them in
+  // the linking info CSV
   using Elf_Phdr = const typename object::ELFFile<T>::Elf_Phdr;
 
   Elf_Phdr *DynamicPhdr = nullptr;
@@ -521,7 +613,6 @@ void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
         using Elf_Shdr = const typename object::ELFFile<T>::Elf_Shdr;
         auto Inserter = NewSegment.Sections().batch_insert();
         for (Elf_Shdr &SectionHeader : *Sections) {
-
           if (not hasFlag(SectionHeader.sh_flags, ELF::SHF_ALLOC))
             continue;
 
@@ -720,7 +811,6 @@ void ELFImporter<T, HasAddend>::parseEHFrame(MetaAddress EHFrameAddress,
   while (!EHFrameReader.eof()
          && ((FDEsCount && FDEIndex < *FDEsCount)
              || (EHFrameSize && EHFrameReader.offset() < *EHFrameSize))) {
-
     uint64_t StartOffset = EHFrameReader.offset();
 
     // Read the length of the entry
@@ -791,8 +881,8 @@ void ELFImporter<T, HasAddend>::parseEHFrame(MetaAddress EHFrameAddress,
             }
             break;
           case 'L':
-            // This is the only information we really care about, all the rest
-            // is processed just so we can get here
+            // This is the only information we really care about, all the
+            // rest is processed just so we can get here
             if (not LSDAPointerEncoding)
               LSDAPointerEncoding = EHFrameReader.readNextU8();
             else
@@ -1139,7 +1229,8 @@ createELFImporter(TupleTree<model::Binary> &M,
 
 Error importELF(TupleTree<model::Binary> &Model,
                 const object::ELFObjectFileBase &TheBinary,
-                uint64_t PreferredBaseAddress) {
+                uint64_t PreferredBaseAddress,
+                unsigned FetchDebugInfoWithLevel) {
   // In the case of MIPS architecture, we handle some specific import
   // as a part of a separate derived (from ELFImporter) class.
   // TODO: Investigate other architectures as well.
@@ -1157,5 +1248,5 @@ Error importELF(TupleTree<model::Binary> &Model,
                                     IsLittleEndian,
                                     PointerSize,
                                     HasRelocationAddend);
-  return Importer->import();
+  return Importer->import(FetchDebugInfoWithLevel);
 }

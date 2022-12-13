@@ -13,6 +13,7 @@
 namespace model {
 
 extern const std::set<llvm::StringRef> ReservedKeywords;
+extern const std::set<llvm::StringRef> ReservedPrefixes;
 
 /// \note Zero-sized identifiers are valid
 class Identifier : public llvm::SmallString<16> {
@@ -35,12 +36,22 @@ public:
       return Result;
     }
 
+    auto StartsWithReservedPrefix = [](llvm::StringRef Name) {
+      for (const auto &Prefix : ReservedPrefixes) {
+        if (Name.startswith(Prefix)) {
+          return true;
+        }
+      }
+      return false;
+    };
+
     const auto BecomesUnderscore = [](const char C) {
       return not std::isalnum(C) or C == '_';
     };
 
     // For invalid C identifiers prepend the our reserved prefix.
-    if (std::isdigit(Name[0]) or BecomesUnderscore(Name[0]))
+    if (std::isdigit(Name[0]) or BecomesUnderscore(Name[0])
+        or StartsWithReservedPrefix(Name))
       Result += "prefix_";
 
     // Append the rest of the name

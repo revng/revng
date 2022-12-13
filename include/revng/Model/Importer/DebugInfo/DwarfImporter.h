@@ -36,6 +36,8 @@ public:
   TupleTree<model::Binary> &getModel() { return Model; }
 
 public:
-  void import(llvm::StringRef FileName);
+  void import(llvm::StringRef FileName, unsigned FetchDebugInfoWithLevel);
+
+private:
   void import(const llvm::object::Binary &TheBinary, llvm::StringRef FileName);
 };

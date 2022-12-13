@@ -21,7 +21,7 @@ trap 'rm -rf "$TEMPORARY_DIR"' EXIT
 revng \
     model \
     import \
-    dwarf \
+    debug-info \
     "$BINARY" \
     > "${TEMPORARY_DIR}/reference_binary.yml"
 
