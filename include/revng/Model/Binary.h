@@ -6,6 +6,7 @@
 
 #include "llvm/ADT/SmallString.h"
 
+#include "revng/ADT/Concepts.h"
 #include "revng/ADT/MutableSet.h"
 #include "revng/ADT/SortedVector.h"
 #include "revng/ADT/UpcastablePointer.h"
@@ -117,6 +118,15 @@ public:
   }
 
   model::TypePath recordNewType(UpcastablePointer<Type> &&T);
+
+  template<derived_from<model::Type> NewType, typename... ArgumentTypes>
+  [[nodiscard]] std::pair<NewType &, model::TypePath>
+  makeType(ArgumentTypes &&...Arguments) {
+    using UT = model::UpcastableType;
+    UT Result = UT::make<NewType>(std::forward<ArgumentTypes>(Arguments)...);
+    model::TypePath ResultPath = recordNewType(std::move(Result));
+    return { *llvm::cast<NewType>(ResultPath.get()), ResultPath };
+  }
 
   model::TypePath
   getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize);
