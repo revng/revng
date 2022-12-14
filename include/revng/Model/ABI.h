@@ -208,6 +208,11 @@ getRegisterArchitecture(model::ABI::Values V) {
     return getArchitecture(V);
 }
 
+/// \return the size of the pointer under the specified ABI.
+inline constexpr uint64_t getPointerSize(model::ABI::Values V) {
+  return model::Architecture::getPointerSize(getArchitecture(V));
+}
+
 inline constexpr model::ABI::Values getDefault(model::Architecture::Values V) {
   switch (V) {
   case model::Architecture::x86:
