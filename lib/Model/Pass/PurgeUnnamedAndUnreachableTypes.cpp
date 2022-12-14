@@ -99,8 +99,8 @@ void model::purgeTypesImpl(TupleTree<model::Binary> &Model) {
   for (UpcastablePointer<model::Type> &T : Model->Types()) {
     for (const model::QualifiedType &QT : T->edges()) {
       if (QT.isTrull()) {
-      auto *DependantType = QT.UnqualifiedType().get();
-      TypeToNode.at(T.get())->addSuccessor(TypeToNode.at(DependantType));
+        auto *DependantType = QT.UnqualifiedType().get();
+        TypeToNode.at(T.get())->addSuccessor(TypeToNode.at(DependantType));
       }
     }
   }

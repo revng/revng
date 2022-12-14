@@ -4,6 +4,8 @@
 
 #include <bit>
 
+#pragma clang optimize off
+
 #define BOOST_TEST_MODULE ModelType
 bool init_unit_test();
 #include "boost/test/unit_test.hpp"
@@ -44,50 +46,57 @@ static bool checkSerialization(const TupleTree<model::Binary> &T) {
 }
 
 BOOST_AUTO_TEST_CASE(PrimitiveTypes) {
-  revng_check(PrimitiveType(PrimitiveTypeKind::Void, 0).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Unsigned, 1).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Unsigned, 2).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Unsigned, 4).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Unsigned, 8).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Unsigned, 16).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Signed, 1).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Signed, 2).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Signed, 4).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Signed, 8).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Signed, 16).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Float, 2).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Float, 4).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Float, 8).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Float, 10).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Float, 12).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Float, 16).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Generic, 1).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Generic, 2).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Generic, 4).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Generic, 8).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Generic, 10).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Generic, 12).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Generic, 16).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Number, 1).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Number, 2).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Number, 4).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Number, 8).verify(true));
-  revng_check(PrimitiveType(PrimitiveTypeKind::Number, 16).verify(true));
-  auto PointerOrNumberKind = PrimitiveTypeKind::PointerOrNumber;
-  revng_check(PrimitiveType(PointerOrNumberKind, 1).verify(true));
-  revng_check(PrimitiveType(PointerOrNumberKind, 2).verify(true));
-  revng_check(PrimitiveType(PointerOrNumberKind, 4).verify(true));
-  revng_check(PrimitiveType(PointerOrNumberKind, 8).verify(true));
-  revng_check(PrimitiveType(PointerOrNumberKind, 16).verify(true));
+  auto GetPrimitiveType = QualifiedType::getPrimitiveType;
+  std::vector<std::pair<PrimitiveTypeKind::Values, unsigned>> ValidPrimitives;
+  ValidPrimitives = {
+    { PrimitiveTypeKind::Void, 0 },
+    { PrimitiveTypeKind::Unsigned, 1 },
+    { PrimitiveTypeKind::Unsigned, 2 },
+    { PrimitiveTypeKind::Unsigned, 4 },
+    { PrimitiveTypeKind::Unsigned, 8 },
+    { PrimitiveTypeKind::Unsigned, 16 },
+    { PrimitiveTypeKind::Signed, 1 },
+    { PrimitiveTypeKind::Signed, 2 },
+    { PrimitiveTypeKind::Signed, 4 },
+    { PrimitiveTypeKind::Signed, 8 },
+    { PrimitiveTypeKind::Signed, 16 },
+    { PrimitiveTypeKind::Float, 2 },
+    { PrimitiveTypeKind::Float, 4 },
+    { PrimitiveTypeKind::Float, 8 },
+    { PrimitiveTypeKind::Float, 10 },
+    { PrimitiveTypeKind::Float, 12 },
+    { PrimitiveTypeKind::Float, 16 },
+    { PrimitiveTypeKind::Generic, 1 },
+    { PrimitiveTypeKind::Generic, 2 },
+    { PrimitiveTypeKind::Generic, 4 },
+    { PrimitiveTypeKind::Generic, 8 },
+    { PrimitiveTypeKind::Generic, 10 },
+    { PrimitiveTypeKind::Generic, 12 },
+    { PrimitiveTypeKind::Generic, 16 },
+    { PrimitiveTypeKind::Number, 1 },
+    { PrimitiveTypeKind::Number, 2 },
+    { PrimitiveTypeKind::Number, 4 },
+    { PrimitiveTypeKind::Number, 8 },
+    { PrimitiveTypeKind::Number, 16 },
+    { PrimitiveTypeKind::PointerOrNumber, 1 },
+    { PrimitiveTypeKind::PointerOrNumber, 2 },
+    { PrimitiveTypeKind::PointerOrNumber, 4 },
+    { PrimitiveTypeKind::PointerOrNumber, 8 },
+    { PrimitiveTypeKind::PointerOrNumber, 16 },
+  };
+
+  for (auto [Kind, Size] : ValidPrimitives)
+    revng_check(GetPrimitiveType(Kind, Size).verify(true));
 
   for (uint8_t ByteSize = 0; ByteSize < 20; ++ByteSize) {
 
     using namespace std::string_literals;
 
-    auto Unsigned = PrimitiveType(PrimitiveTypeKind::Unsigned, ByteSize);
-    auto Signed = PrimitiveType(PrimitiveTypeKind::Signed, ByteSize);
-    auto Number = PrimitiveType(PrimitiveTypeKind::Number, ByteSize);
-    auto PointerOrNumber = PrimitiveType(PointerOrNumberKind, ByteSize);
+    auto Unsigned = GetPrimitiveType(PrimitiveTypeKind::Unsigned, ByteSize);
+    auto Signed = GetPrimitiveType(PrimitiveTypeKind::Signed, ByteSize);
+    auto Number = GetPrimitiveType(PrimitiveTypeKind::Number, ByteSize);
+    auto PointerOrNumber = GetPrimitiveType(PrimitiveTypeKind::PointerOrNumber,
+                                            ByteSize);
 
     if (std::has_single_bit(ByteSize)) {
       revng_check(Signed.verify(true));
@@ -95,13 +104,13 @@ BOOST_AUTO_TEST_CASE(PrimitiveTypes) {
       revng_check(Number.verify(true));
       revng_check(PointerOrNumber.verify(true));
       auto ExpectedName = ("uint" + Twine(8 * ByteSize) + "_t").str();
-      revng_check(Unsigned.name() == ExpectedName);
+      revng_check(Unsigned.primitiveName() == ExpectedName);
       ExpectedName = ("int" + Twine(8 * ByteSize) + "_t").str();
-      revng_check(Signed.name() == ExpectedName);
+      revng_check(Signed.primitiveName() == ExpectedName);
       ExpectedName = ("number" + Twine(8 * ByteSize) + "_t").str();
-      revng_check(Number.name() == ExpectedName);
+      revng_check(Number.primitiveName() == ExpectedName);
       ExpectedName = ("pointer_or_number" + Twine(8 * ByteSize) + "_t").str();
-      revng_check(PointerOrNumber.name() == ExpectedName);
+      revng_check(PointerOrNumber.primitiveName() == ExpectedName);
     } else {
       revng_check(not Signed.verify(false));
       revng_check(not Unsigned.verify(false));
@@ -113,14 +122,16 @@ BOOST_AUTO_TEST_CASE(PrimitiveTypes) {
   for (uint8_t ByteSize = 0; ByteSize < 20; ++ByteSize) {
     using namespace std::string_literals;
 
-    auto Float = PrimitiveType(PrimitiveTypeKind::Float, ByteSize);
-    auto G = PrimitiveType(PrimitiveTypeKind::Generic, ByteSize);
+    auto Float = GetPrimitiveType(PrimitiveTypeKind::Float, ByteSize);
+    auto G = GetPrimitiveType(PrimitiveTypeKind::Generic, ByteSize);
     if (ByteSize == 2 or ByteSize == 4 or ByteSize == 8 or ByteSize == 10
         or ByteSize == 12 or ByteSize == 16) {
       revng_check(Float.verify(true));
-      revng_check(Float.name() == ("float" + Twine(8 * ByteSize) + "_t").str());
+      revng_check(Float.primitiveName()
+                  == ("float" + Twine(8 * ByteSize) + "_t").str());
       revng_check(G.verify(true));
-      revng_check(G.name() == ("generic" + Twine(8 * ByteSize) + "_t").str());
+      revng_check(G.primitiveName()
+                  == ("generic" + Twine(8 * ByteSize) + "_t").str());
     } else {
       revng_check(not Float.verify(false));
       if (ByteSize == 1)
@@ -136,15 +147,14 @@ BOOST_AUTO_TEST_CASE(EnumTypes) {
 
   TupleTree<model::Binary> T;
 
-  auto Int32 = T->getPrimitiveType(Signed, 4);
+  auto Int32QT = QualifiedType::getPrimitiveType(Signed, 4);
 
   TypePath EnumPath = T->recordNewType(makeType<EnumType>());
   auto *Enum = cast<EnumType>(EnumPath.get());
-  revng_check(T->Types().size() == 2);
+  revng_check(T->Types().size() == 1);
 
   // The enum does not verify if we don't define a valid underlying type and
   // at least one enum entry
-  auto Int32QT = model::QualifiedType(Int32, {});
   Enum->UnderlyingType() = Int32QT;
   revng_check(not Enum->verify(false));
   revng_check(not T->verify(false));
@@ -201,14 +211,14 @@ BOOST_AUTO_TEST_CASE(EnumTypes) {
   // But if we break the underlying, making it point to a type that does not
   // exist, we're not good anymore
   auto BrokenPath = TypePath::fromString(T.get(), "/Types/TypedefType-42");
-  Enum->UnderlyingType() = { BrokenPath, {} };
+  Enum->UnderlyingType() = QualifiedType::getLel(BrokenPath);
   revng_check(not Enum->verify(false));
   revng_check(not T->verify(false));
 
   // Also we set the underlying type to a valid type, but that is not a
   // primitive integer type, we are not good
   auto PathToNonInt = T->getTypePath(Enum);
-  Enum->UnderlyingType() = { PathToNonInt, {} };
+  Enum->UnderlyingType() = QualifiedType::getLel(PathToNonInt);
   revng_check(not Enum->verify(false));
   revng_check(not T->verify(false));
 
@@ -227,16 +237,16 @@ BOOST_AUTO_TEST_CASE(EnumTypes) {
 BOOST_AUTO_TEST_CASE(TypedefTypes) {
   TupleTree<model::Binary> T;
 
-  auto Int32 = T->getPrimitiveType(Signed, 4);
+  auto Int32 = QualifiedType::getPrimitiveType(Signed, 4);
 
   // Insert the typedef
 
   TypePath TypedefPath = T->recordNewType(makeType<TypedefType>());
   auto *Typedef = cast<TypedefType>(TypedefPath.get());
-  revng_check(T->Types().size() == 2);
+  revng_check(T->Types().size() == 1);
 
   // The pid_t typedef refers to the int32_t
-  Typedef->UnderlyingType() = { Int32, {} };
+  Typedef->UnderlyingType() = Int32;
   revng_check(Typedef->verify(true));
   revng_check(T->verify(true));
   revng_check(checkSerialization(T));
@@ -270,20 +280,20 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
 
   TupleTree<model::Binary> T;
 
-  auto Int32 = T->getPrimitiveType(Signed, 4);
-  auto VoidT = T->getPrimitiveType(Void, 0);
+  auto Int32 = QualifiedType::getPrimitiveType(Signed, 4);
+  auto VoidT = QualifiedType::getPrimitiveType(Void, 0);
 
   // Insert the struct
   TypePath StructPath = T->recordNewType(makeType<StructType>());
   auto *Struct = cast<StructType>(StructPath.get());
-  revng_check(T->Types().size() == 3);
+  revng_check(T->Types().size() == 1);
 
   // Let's make it large, so that we can play around with fields.
   Struct->Size() = 1024;
 
   // Insert field in the struct
   StructField Field0 = StructField{ 0 };
-  Field0.Type() = { Int32, {} };
+  Field0.Type() = Int32;
   revng_check(Struct->Fields().insert(Field0).second);
   revng_check(Struct->verify(true));
   revng_check(T->verify(true));
@@ -291,7 +301,7 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
 
   // Adding a new field is valid
   StructField Field1 = StructField{ 4 };
-  Field1.Type() = { Int32, {} };
+  Field1.Type() = Int32;
   revng_check(Struct->Fields().insert(Field1).second);
   revng_check(Struct->verify(true));
   revng_check(T->verify(true));
@@ -299,7 +309,7 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
 
   // Inserting fails if the index is already present
   StructField Field1Bis = StructField{ 4 };
-  Field1Bis.Type() = { Int32, {} };
+  Field1Bis.Type() = Int32;
   revng_check(not Struct->Fields().insert(Field1Bis).second);
   revng_check(Struct->verify(true));
   revng_check(T->verify(true));
@@ -307,7 +317,7 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
 
   // Assigning succeeds if even if an index is already present
   StructField Field1Ter = StructField{ 4 };
-  Field1Ter.Type() = { Int32, {} };
+  Field1Ter.Type() = Int32;
   Field1Ter.CustomName() = "fld1ter";
   revng_check(not Struct->Fields().insert_or_assign(Field1Ter).second);
   revng_check(Struct->verify(true));
@@ -318,7 +328,7 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
   // Adding a new field whose position is not consecutive to others builds a
   // struct that is valid
   StructField AnotherField = StructField{ 128 };
-  AnotherField.Type() = { Int32, {} };
+  AnotherField.Type() = Int32;
   revng_check(Struct->Fields().insert(AnotherField).second);
   revng_check(Struct->verify(true));
   revng_check(T->verify(true));
@@ -326,7 +336,7 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
 
   // Adding a new field that overlaps with another is not valid
   StructField Overlap = StructField{ 129 };
-  Overlap.Type() = { Int32, {} };
+  Overlap.Type() = Int32;
   revng_check(Struct->Fields().insert(Overlap).second);
   revng_check(not Struct->verify(false));
   revng_check(not T->verify(false));
@@ -378,7 +388,7 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
   // Struct x cannot have a field with type x
   Struct->Fields().clear();
   StructField Same = StructField{ 0 };
-  Same.Type() = { T->getTypePath(Struct), {} };
+  Same.Type() = QualifiedType::getLel(T->getTypePath(Struct));
   revng_check(Struct->Fields().insert(Same).second);
   revng_check(not Struct->verify(false));
   revng_check(not T->verify(false));
@@ -386,7 +396,7 @@ BOOST_AUTO_TEST_CASE(StructTypes) {
   // Adding a void field is not valid
   Struct->Fields().clear();
   StructField VoidField = StructField{ 0 };
-  VoidField.Type() = { VoidT, {} };
+  VoidField.Type() = VoidT;
   revng_check(Struct->Fields().insert(VoidField).second);
   revng_check(not Struct->verify(false));
   revng_check(not T->verify(false));
@@ -397,18 +407,18 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
 
   TupleTree<model::Binary> T;
 
-  auto Int32 = T->getPrimitiveType(Signed, 4);
-  auto Int64 = T->getPrimitiveType(Signed, 8);
-  auto VoidT = T->getPrimitiveType(Void, 0);
+  auto Int32 = QualifiedType::getPrimitiveType(Signed, 4);
+  auto Int64 = QualifiedType::getPrimitiveType(Signed, 8);
+  auto VoidT = QualifiedType::getPrimitiveType(Void, 0);
 
   // Insert the union
   TypePath UnionPath = T->recordNewType(makeType<UnionType>());
   auto *Union = cast<UnionType>(UnionPath.get());
-  revng_check(T->Types().size() == 4);
+  revng_check(T->Types().size() == 1);
 
   // Insert field in the struct
   UnionField Field0(0);
-  Field0.Type() = { Int32, {} };
+  Field0.Type() = Int32;
   revng_check(Union->Fields().insert(Field0).second);
   revng_check(Union->verify(true));
   revng_check(T->verify(true));
@@ -417,7 +427,7 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
   // Adding a new field is valid
   {
     UnionField Field1(1);
-    Field1.Type() = { Int64, {} };
+    Field1.Type() = Int64;
     Field1.CustomName() = "fld1";
     const auto [It, New] = Union->Fields().insert(std::move(Field1));
     revng_check(New);
@@ -430,7 +440,7 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
     // Assigning another field in a different position with a duplicated name
     // succeeds, but verification fails.
     UnionField Field1(2);
-    Field1.Type() = { Int32, {} };
+    Field1.Type() = Int32;
     Field1.CustomName() = "fld1";
     const auto [It, New] = Union->Fields().insert(std::move(Field1));
     revng_check(New);
@@ -453,7 +463,7 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
   // Union x cannot have a field with type x
   Union->Fields().clear();
   UnionField Same;
-  Same.Type() = { T->getTypePath(Union), {} };
+  Same.Type() = QualifiedType::getLel(T->getTypePath(Union));
   revng_check(Union->Fields().insert(Same).second);
   revng_check(not Union->verify(false));
   revng_check(not T->verify(false));
@@ -461,7 +471,7 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
   // Adding a void field is not valid
   Union->Fields().clear();
   UnionField VoidField;
-  VoidField.Type() = { VoidT, {} };
+  VoidField.Type() = VoidT;
   revng_check(Union->Fields().insert(VoidField).second);
   revng_check(not Union->verify(false));
   revng_check(not T->verify(false));
@@ -470,20 +480,20 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
 BOOST_AUTO_TEST_CASE(CABIFunctionTypes) {
   TupleTree<model::Binary> T;
 
-  auto Int32 = T->getPrimitiveType(Signed, 4);
-  auto VoidT = T->getPrimitiveType(Void, 0);
+  auto Int32 = QualifiedType::getPrimitiveType(Signed, 4);
+  auto VoidT = QualifiedType::getPrimitiveType(Void, 0);
 
   // Create a C-like function type
   TypePath FunctionPath = T->recordNewType(makeType<CABIFunctionType>());
   auto *FunctionType = cast<CABIFunctionType>(FunctionPath.get());
   FunctionType->ABI() = model::ABI::SystemV_x86_64;
-  revng_check(T->Types().size() == 3);
+  revng_check(T->Types().size() == 1);
 
   revng_check(not FunctionType->size().has_value());
 
   // Insert argument in the function type
   Argument Arg0{ 0 };
-  Arg0.Type() = { Int32, {} };
+  Arg0.Type() = Int32;
   const auto &[InsertedArgIt, New] = FunctionType->Arguments().insert(Arg0);
   revng_check(InsertedArgIt != FunctionType->Arguments().end());
   revng_check(New);
@@ -492,8 +502,7 @@ BOOST_AUTO_TEST_CASE(CABIFunctionTypes) {
   revng_check(not FunctionType->verify(false));
   revng_check(not T->verify(false));
 
-  QualifiedType RetTy{ Int32, {} };
-  FunctionType->ReturnType() = RetTy;
+  FunctionType->ReturnType() = Int32;
   revng_check(FunctionType->verify(true));
   revng_check(T->verify(true));
   revng_check(checkSerialization(T));
@@ -501,14 +510,14 @@ BOOST_AUTO_TEST_CASE(CABIFunctionTypes) {
   // Adding a new field is valid, and we can have a function type with an
   // argument of the same type of itself.
   Argument Arg1{ 1 };
-  Arg1.Type() = { Int32, {} };
+  Arg1.Type() = Int32;
   revng_check(FunctionType->Arguments().insert(Arg1).second);
   revng_check(FunctionType->verify(true));
   revng_check(checkSerialization(T));
 
   // Inserting an ArgumentType in a position that is already taken fails
   Argument Arg1Bis{ 1 };
-  Arg1Bis.Type() = { Int32, {} };
+  Arg1Bis.Type() = Int32;
   revng_check(not FunctionType->Arguments().insert(Arg1Bis).second);
   revng_check(FunctionType->verify(true));
   revng_check(T->verify(true));
@@ -518,7 +527,7 @@ BOOST_AUTO_TEST_CASE(CABIFunctionTypes) {
   revng_check(not FunctionType->Arguments().insert_or_assign(Arg1Bis).second);
   revng_check(FunctionType->verify(true));
   auto &ArgT = FunctionType->Arguments().at(1);
-  revng_check(ArgT.Type().UnqualifiedType() == Int32);
+  revng_check(ArgT.Type() == Int32);
   revng_check(T->verify(true));
   revng_check(checkSerialization(T));
 
@@ -532,8 +541,8 @@ BOOST_AUTO_TEST_CASE(CABIFunctionTypes) {
 BOOST_AUTO_TEST_CASE(RawFunctionTypes) {
   TupleTree<model::Binary> T;
 
-  auto Primitive64 = T->getPrimitiveType(model::PrimitiveTypeKind::Generic, 4);
-  QualifiedType Generic64 = { Primitive64, {} };
+  auto Generic64 = QualifiedType::
+    getPrimitiveType(model::PrimitiveTypeKind::Generic, 4);
 
   auto RAFPointer = makeType<model::RawFunctionType>();
   auto *RAF = cast<model::RawFunctionType>(RAFPointer.get());
@@ -545,7 +554,7 @@ BOOST_AUTO_TEST_CASE(RawFunctionTypes) {
   //
   {
     model::TypedRegister RAXArgument(model::Register::rax_x86_64);
-    RAXArgument.Type() = { Primitive64, { { QualifierKind::Array, 10 } } };
+    RAXArgument.Type() = Generic64.addQualifier({ QualifierKind::Array, 10 });
     revng_check(not RAXArgument.verify(false));
   }
 
@@ -579,53 +588,54 @@ BOOST_AUTO_TEST_CASE(RawFunctionTypes) {
 
 BOOST_AUTO_TEST_CASE(QualifiedTypes) {
   TupleTree<model::Binary> T;
-  auto Void = T->getPrimitiveType(model::PrimitiveTypeKind::Void, 0);
-  auto Generic64 = T->getPrimitiveType(model::PrimitiveTypeKind::Generic, 8);
+  auto Void = QualifiedType::getPrimitiveType(PrimitiveTypeKind::Void, 0);
+  auto Generic64 = QualifiedType::getPrimitiveType(PrimitiveTypeKind::Generic,
+                                                   8);
 
-  revng_check(Void.get()->verify(true));
-  revng_check(not Void.get()->size().has_value());
+  revng_check(Void.verify(true));
+  revng_check(not Void.size().has_value());
 
-  revng_check(Generic64.get()->verify(true));
-  revng_check(*Generic64.get()->size() == 8);
+  revng_check(Generic64.verify(true));
+  revng_check(*Generic64.size() == 8);
 
-  QualifiedType VoidPointer = { Void,
-                                { { model::QualifierKind::Pointer, 4 } } };
+  QualifiedType VoidPointer = Void.addQualifier(
+    { model::QualifierKind::Pointer, 4 });
   revng_check(VoidPointer.verify(true));
 
   model::Qualifier Pointer64Qualifier{ model::QualifierKind::Pointer, 8 };
-  QualifiedType Generic64Pointer = { Void, { Pointer64Qualifier } };
+  QualifiedType Generic64Pointer = Void.addQualifier(Pointer64Qualifier);
   revng_check(Generic64Pointer.verify(true));
 
-  QualifiedType DoublePointer = { Void,
-                                  { Pointer64Qualifier, Pointer64Qualifier } };
+  QualifiedType DoublePointer = Void.addQualifier(Pointer64Qualifier)
+                                  .addQualifier(Pointer64Qualifier);
   revng_check(DoublePointer.verify(true));
 
-  QualifiedType WeirdSizedPointer = {
-    Void, { { model::QualifierKind::Pointer, 7 } }
-  };
+  QualifiedType WeirdSizedPointer = Void.addQualifier(
+    { model::QualifierKind::Pointer, 7 });
   revng_check(not WeirdSizedPointer.verify(false));
 
   model::Qualifier ConstQualifier{ model::QualifierKind::Const, 0 };
-  QualifiedType ConstVoid = { Void, { ConstQualifier } };
+  QualifiedType ConstVoid = Void.addQualifier(ConstQualifier);
   revng_check(ConstVoid.verify(true));
 
-  QualifiedType ConstConstVoid = { Void, { ConstQualifier, ConstQualifier } };
+  QualifiedType ConstConstVoid = Void.addQualifier(ConstQualifier)
+                                   .addQualifier(ConstQualifier);
   revng_check(not ConstConstVoid.verify(false));
 
-  QualifiedType ConstPointerConstVoid = {
-    Void, { ConstQualifier, Pointer64Qualifier, ConstQualifier }
-  };
+  QualifiedType ConstPointerConstVoid = Void.addQualifier(ConstQualifier)
+                                          .addQualifier(Pointer64Qualifier)
+                                          .addQualifier(ConstQualifier);
   revng_check(ConstPointerConstVoid.verify(true));
 
   model::Qualifier TenElementsArray{ model::QualifierKind::Array, 10 };
-  QualifiedType VoidArray = { Void, { TenElementsArray } };
+  QualifiedType VoidArray = Void.addQualifier(TenElementsArray);
   revng_check(not VoidArray.verify(false));
 
-  QualifiedType VoidPointerArray = { Void,
-                                     { TenElementsArray, Pointer64Qualifier } };
+  QualifiedType VoidPointerArray = Void.addQualifier(Pointer64Qualifier)
+                                     .addQualifier(TenElementsArray);
   revng_check(VoidPointerArray.verify(true));
 
   model::Qualifier ZeroElementsArray{ model::QualifierKind::Array, 0 };
-  QualifiedType ZeroSizedVoidArray = { Void, { ZeroElementsArray } };
+  QualifiedType ZeroSizedVoidArray = Void.addQualifier(ZeroElementsArray);
   revng_check(not ZeroSizedVoidArray.verify(false));
 }

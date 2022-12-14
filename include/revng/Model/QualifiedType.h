@@ -13,7 +13,7 @@
 #include "revng/Model/TypeKind.h"
 #include "revng/Model/VerifyHelper.h"
 
-// WIP: NEXT fix names
+// WIP: NEXT fix names. specifically rename Size, very misleading
 /* TUPLE-TREE-YAML
 name: QualifiedType
 doc: A qualified version of a model::Type. Can have many nested qualifiers
@@ -49,6 +49,10 @@ public:
   RecursiveCoroutine<std::optional<uint64_t>> trySize(VerifyHelper &VH) const;
 
 public:
+  // WIP
+  Identifier primitiveName() const;
+
+public:
   /// Checks if is a scalar type, unwrapping typedefs
   bool isScalar() const;
   /// Checks if is a primitive type, unwrapping typedefs
@@ -68,14 +72,15 @@ public:
   /// Checks if is of a given TypeKind, unwrapping typedefs
   bool is(model::TypeKind::Values K) const;
 
+  bool empty() const { return not isPrimitive2() and not isTrull(); }
+
   // WIP: NEXT
   bool isPrimitive2() const {
     return PrimitiveKind() != PrimitiveTypeKind::Invalid;
   }
 
   bool isTrull() const {
-    revng_assert(not isPrimitive2());
-    return UnqualifiedType().isValid();
+    return not isPrimitive2() and UnqualifiedType().isValid();
   }
 
   bool isValid() const {
@@ -85,16 +90,19 @@ public:
 
 public:
   model::QualifiedType getPointerTo(model::Architecture::Values Arch) const {
-    QualifiedType Result = *this;
-    Result.Qualifiers().insert(Result.Qualifiers().begin(),
-                               model::Qualifier::createPointer(Arch));
-    return Result;
+    return addQualifier(model::Qualifier::createPointer(Arch));
   }
 
   model::QualifiedType addQualifier(const model::Qualifier &Q) const {
-    model::QualifiedType Result;
+    model::QualifiedType Result = *this;
     // WIP: NEXT reverse order
     Result.Qualifiers().insert(Result.Qualifiers().begin(), Q);
+    return Result;
+  }
+
+  model::QualifiedType popQualifier() const {
+    model::QualifiedType Result = *this;
+    Result.Qualifiers().erase(Result.Qualifiers().begin());
     return Result;
   }
 
@@ -126,15 +134,11 @@ public:
 
   bool operator==(const QualifiedType &) const = default;
   std::strong_ordering operator<=>(const QualifiedType &Other) const {
-    if (PrimitiveKind() < Other.PrimitiveKind())
-      return std::strong_ordering::less;
-    else if (PrimitiveKind() > Other.PrimitiveKind())
-      return std::strong_ordering::greater;
+    if (PrimitiveKind() != Other.PrimitiveKind())
+      return PrimitiveKind() <=> Other.PrimitiveKind();
 
-    if (Size() < Other.Size())
-      return std::strong_ordering::less;
-    else if (Size() > Other.Size())
-      return std::strong_ordering::greater;
+    if (Size() != Other.Size())
+      return Size() <=> Other.Size();
 
     if (Qualifiers() < Other.Qualifiers())
       return std::strong_ordering::less;

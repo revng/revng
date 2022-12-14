@@ -188,6 +188,8 @@ public:
 
   bool empty() const debug_function { return Path.empty(); }
 
+  // WIP: NEXT replace usages of isValid with empty and make this function *not*
+  //      fail if Path.empty()
   bool isValid() const debug_function {
     if (not canGet() or Path.empty())
       return false;

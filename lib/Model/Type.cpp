@@ -2,6 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#pragma clang optimize off
+
 #include <bit>
 #include <cctype>
 #include <cstddef>
@@ -433,6 +435,45 @@ isValidPrimitiveSize(PrimitiveTypeKind::Values PrimKind, uint8_t BS) {
   revng_abort();
 }
 
+Identifier QualifiedType::primitiveName() const {
+  revng_assert(isPrimitive2());
+  Identifier Result;
+  switch (PrimitiveKind()) {
+  case PrimitiveTypeKind::Void:
+    Result = "void";
+    break;
+
+  case PrimitiveTypeKind::Unsigned:
+    (Twine("uint") + Twine(Size() * 8) + Twine("_t")).toVector(Result);
+    break;
+
+  case PrimitiveTypeKind::Number:
+    (Twine("number") + Twine(Size() * 8) + Twine("_t")).toVector(Result);
+    break;
+
+  case PrimitiveTypeKind::PointerOrNumber:
+    ("pointer_or_number" + Twine(Size() * 8) + "_t").toVector(Result);
+    break;
+
+  case PrimitiveTypeKind::Generic:
+    (Twine("generic") + Twine(Size() * 8) + Twine("_t")).toVector(Result);
+    break;
+
+  case PrimitiveTypeKind::Signed:
+    (Twine("int") + Twine(Size() * 8) + Twine("_t")).toVector(Result);
+    break;
+
+  case PrimitiveTypeKind::Float:
+    (Twine("float") + Twine(Size() * 8) + Twine("_t")).toVector(Result);
+    break;
+
+  default:
+    revng_abort();
+  }
+
+  return Result;
+}
+
 template<typename T>
 Identifier customNameOrAutomatic(T *This) {
   if (not This->CustomName().empty())
@@ -511,11 +552,9 @@ std::optional<uint64_t> QualifiedType::trySize() const {
 RecursiveCoroutine<std::optional<uint64_t>>
 QualifiedType::size(VerifyHelper &VH) const {
   std::optional<uint64_t> MaybeSize = rc_recur trySize(VH);
-  revng_check(MaybeSize);
-  if (*MaybeSize == 0)
-    rc_return std::nullopt;
-  else
-    rc_return MaybeSize;
+  revng_check(MaybeSize || *MaybeSize != 0);
+  // WIP: what's the point of all of this?
+  return MaybeSize;
 }
 
 RecursiveCoroutine<std::optional<uint64_t>>
@@ -539,10 +578,7 @@ QualifiedType::trySize(VerifyHelper &VH) const {
     case QualifierKind::Array: {
       // The size is equal to (number of elements of the array) * (size of a
       // single element).
-      auto ArrayElem = QualifiedType::getLel(UnqualifiedType());
-      std::copy(std::next(QIt),
-                QEnd,
-                std::back_inserter(ArrayElem.Qualifiers()));
+      auto ArrayElem = popQualifier();
       auto MaybeSize = rc_recur ArrayElem.trySize(VH);
       if (not MaybeSize)
         rc_return std::nullopt;
@@ -814,16 +850,16 @@ verifyImpl(VerifyHelper &VH, const EnumType *T) {
     rc_return VH.fail();
 
   // The underlying type has to be an unqualified primitive type
-  if (not rc_recur T->UnderlyingType().verify(VH)
-      or not T->UnderlyingType().Qualifiers().empty())
+  if (not rc_recur T->UnderlyingType().verify(VH))
     rc_return VH.fail();
 
+  if (not T->UnderlyingType().isPrimitive2()
+      or not T->UnderlyingType().Qualifiers().empty())
+    rc_return VH.fail("UnderlyingType must be a unqualified primitive");
+
   // We only allow signed/unsigned as underlying type
-  if (not T->UnderlyingType().isPrimitive(PrimitiveTypeKind::Signed)
-      and not T->UnderlyingType().isPrimitive(PrimitiveTypeKind::Unsigned))
-    rc_return VH.fail("UnderlyingType of a EnumType can only be Signed or "
-                      "Unsigned",
-                      *T);
+  if (T->UnderlyingType().PrimitiveKind() == PrimitiveTypeKind::Float)
+    rc_return VH.fail("UnderlyingType of a EnumType cannot be Float", *T);
 
   llvm::SmallSet<llvm::StringRef, 8> Names;
   for (auto &Entry : T->Entries()) {
@@ -844,9 +880,14 @@ verifyImpl(VerifyHelper &VH, const EnumType *T) {
 
 static RecursiveCoroutine<bool>
 verifyImpl(VerifyHelper &VH, const TypedefType *T) {
-  rc_return VH.maybeFail(T->CustomName().verify(VH)
-                         and T->Kind() == TypeKind::TypedefType
-                         and rc_recur T->UnderlyingType().verify(VH));
+  if (not T->CustomName().verify(VH) or T->Kind() != TypeKind::TypedefType
+      or not rc_recur T->UnderlyingType().verify(VH))
+    rc_return VH.fail();
+
+  if (T->UnderlyingType().empty())
+    rc_return VH.fail("Underlying type cannot be empty", *T);
+
+  rc_return true;
 }
 
 inline RecursiveCoroutine<bool> isScalarImpl(const QualifiedType &QT) {
@@ -992,6 +1033,9 @@ verifyImpl(VerifyHelper &VH, const CABIFunctionType *T) {
       or not rc_recur T->ReturnType().verify(VH))
     rc_return VH.fail();
 
+  if (T->ReturnType().empty())
+    rc_return VH.fail("No return type specified", *T);
+
   if (T->ABI() == model::ABI::Invalid)
     rc_return VH.fail("An invalid ABI", *T);
 
@@ -1042,6 +1086,7 @@ verifyImpl(VerifyHelper &VH, const RawFunctionType *T) {
   if (not T->StackArgumentsType().Qualifiers().empty())
     rc_return VH.fail();
 
+  // Note: an empty StackArgumentsType is fine
   if (not rc_recur T->StackArgumentsType().verify(VH))
     rc_return VH.fail();
 
@@ -1145,8 +1190,7 @@ RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
 
   if (HasUnderlyingType and IsPrimitive) {
     rc_return VH.fail("A QualifiedType has to be either a primitive or have "
-                      "an"
-                      " underlying type");
+                      "an underlying type");
   }
 
   if (HasUnderlyingType and not rc_recur UnqualifiedType().get()->verify(VH))
@@ -1187,10 +1231,10 @@ RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
         rc_return VH.fail("Arrays need to have at least an element", *this);
 
       // Verify element type
-      auto ElementType = QualifiedType::getLel(UnqualifiedType());
-      std::copy(NextQIt, QEnd, std::back_inserter(ElementType.Qualifiers()));
+      auto ElementType = popQualifier();
       if (not rc_recur ElementType.verify(VH))
-        rc_return VH.fail("Array element invalid", ElementType);
+        rc_return VH.fail("The element type of the array is invalid",
+                          ElementType);
 
       // Ensure the element type has a size and stop
       auto MaybeSize = rc_recur ElementType.size(VH);
@@ -1281,13 +1325,13 @@ bool StructField::verify(bool Assert) const {
 }
 
 RecursiveCoroutine<bool> StructField::verify(VerifyHelper &VH) const {
-  if (not rc_recur Type().verify(VH))
-    rc_return VH.fail("Aggregate field type is not valid");
+  if (not rc_recur Type().verify(VH) or Type().empty())
+    rc_return VH.fail("Struct field type is not valid");
 
   // Aggregated fields cannot be zero-sized fields
   auto MaybeSize = rc_recur Type().size(VH);
   if (not MaybeSize)
-    rc_return VH.fail("Aggregate field is zero-sized");
+    rc_return VH.fail("Struct field is zero-sized");
 
   rc_return VH.maybeFail(CustomName().verify(VH));
 }
@@ -1302,13 +1346,13 @@ bool UnionField::verify(bool Assert) const {
 }
 
 RecursiveCoroutine<bool> UnionField::verify(VerifyHelper &VH) const {
-  if (not rc_recur Type().verify(VH))
-    rc_return VH.fail("Aggregate field type is not valid");
+  if (not rc_recur Type().verify(VH) or Type().empty())
+    rc_return VH.fail("Invalid field in union", *this);
 
   // Aggregated fields cannot be zero-sized fields
   auto MaybeSize = rc_recur Type().size(VH);
   if (not MaybeSize)
-    rc_return VH.fail("Aggregate field is zero-sized", Type());
+    rc_return VH.fail("A field is zero-sized", Type());
 
   rc_return VH.maybeFail(CustomName().verify(VH));
 }
@@ -1327,8 +1371,13 @@ bool Argument::verify(bool Assert) const {
 }
 
 RecursiveCoroutine<bool> Argument::verify(VerifyHelper &VH) const {
-  rc_return VH.maybeFail(CustomName().verify(VH)
-                         and rc_recur Type().verify(VH));
+  if (not CustomName().verify(VH) or not rc_recur Type().verify(VH))
+    rc_return VH.fail();
+
+  if (Type().empty())
+    rc_return VH.fail("Invalid type for arugment", *this);
+
+  rc_return true;
 }
 
 } // namespace model

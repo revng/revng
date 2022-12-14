@@ -133,7 +133,8 @@ static T *createType(model::Binary &Model) {
 }
 
 BOOST_AUTO_TEST_CASE(TestModelDeduplication) {
-  TupleTree<model::Binary> Model;
+  using namespace model;
+  TupleTree<Binary> Model;
   auto Dedup = [&Model]() {
     int64_t OldTypesCount = Model->Types().size();
     deduplicateEquivalentTypes(Model);
@@ -141,16 +142,15 @@ BOOST_AUTO_TEST_CASE(TestModelDeduplication) {
     return OldTypesCount - NewTypesCount;
   };
 
-  model::TypePath UInt8 = Model->getPrimitiveType(PrimitiveTypeKind::Generic,
-                                                  4);
+  auto UInt8 = QualifiedType::getPrimitiveType(PrimitiveTypeKind::Generic, 4);
 
   // Two typedefs
   {
     auto *Typedef1 = createType<TypedefType>(*Model);
-    Typedef1->UnderlyingType() = { UInt8, {} };
+    Typedef1->UnderlyingType() = UInt8;
 
     auto *Typedef2 = createType<TypedefType>(*Model);
-    Typedef2->UnderlyingType() = { UInt8, {} };
+    Typedef2->UnderlyingType() = UInt8;
 
     revng_check(Dedup() == 0);
 
@@ -164,12 +164,12 @@ BOOST_AUTO_TEST_CASE(TestModelDeduplication) {
   {
     auto *Struct1 = createType<StructType>(*Model);
     Struct1->Fields()[0].CustomName() = "FirstField";
-    Struct1->Fields()[0].Type() = { UInt8, {} };
+    Struct1->Fields()[0].Type() = UInt8;
     Struct1->OriginalName() = "MyStruct";
 
     auto *Struct2 = createType<StructType>(*Model);
     Struct2->Fields()[0].CustomName() = "DifferentName";
-    Struct2->Fields()[0].Type() = { UInt8, {} };
+    Struct2->Fields()[0].Type() = UInt8;
     Struct2->OriginalName() = "MyStruct";
 
     revng_check(Dedup() == 0);
@@ -186,10 +186,10 @@ BOOST_AUTO_TEST_CASE(TestModelDeduplication) {
     auto *Left1 = createType<StructType>(*Model);
     auto *Left2 = createType<StructType>(*Model);
 
-    Left1->Fields()[0].Type() = { Model->getTypePath(Left2),
-                                  { PointerQualifier } };
-    Left2->Fields()[0].Type() = { Model->getTypePath(Left1),
-                                  { PointerQualifier } };
+    Left1->Fields()[0].Type() = QualifiedType::getLel(Model->getTypePath(Left2))
+                                  .addQualifier({ PointerQualifier });
+    Left2->Fields()[0].Type() = QualifiedType::getLel(Model->getTypePath(Left1))
+                                  .addQualifier({ PointerQualifier });
 
     Left1->OriginalName() = "LoopingStructs1";
     Left2->OriginalName() = "LoopingStructs2";
@@ -197,18 +197,22 @@ BOOST_AUTO_TEST_CASE(TestModelDeduplication) {
     auto *Right1 = createType<StructType>(*Model);
     auto *Right2 = createType<StructType>(*Model);
 
-    Right1->Fields()[0].Type() = { Model->getTypePath(Right2),
-                                   { PointerQualifier } };
-    Right2->Fields()[0].Type() = { Model->getTypePath(Right1),
-                                   { PointerQualifier, PointerQualifier } };
+    Right1->Fields()[0].Type() = QualifiedType::getLel(
+                                   Model->getTypePath(Right2))
+                                   .addQualifier({ PointerQualifier });
+    Right2->Fields()[0].Type() = QualifiedType::getLel(
+                                   Model->getTypePath(Right1))
+                                   .addQualifier({ PointerQualifier })
+                                   .addQualifier({ PointerQualifier });
 
     Right1->OriginalName() = "LoopingStructs1";
     Right2->OriginalName() = "LoopingStructs2";
 
     revng_check(Dedup() == 0);
 
-    Right2->Fields()[0].Type() = { Model->getTypePath(Right1),
-                                   { PointerQualifier } };
+    Right2->Fields()[0].Type() = QualifiedType::getLel(
+                                   Model->getTypePath(Right1))
+                                   .addQualifier({ PointerQualifier });
 
     revng_check(Dedup() == 2);
   }

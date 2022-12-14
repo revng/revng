@@ -176,13 +176,19 @@ set_tests_properties(test_keyedobjectscontainers PROPERTIES LABELS "unit")
 # test_model
 #
 
-# revng_add_test_executable(test_model "${SRC}/Model.cpp")
-# target_compile_definitions(test_model PRIVATE "BOOST_TEST_DYN_LINK=1")
-# target_include_directories(test_model PRIVATE "${CMAKE_SOURCE_DIR}")
-# target_link_libraries( test_model revngSupport revngUnitTestHelpers revngModel
-# revngModelPasses Boost::unit_test_framework ${LLVM_LIBRARIES}) add_test(NAME
-# test_model COMMAND test_model) set_tests_properties(test_model PROPERTIES
-# LABELS "unit")
+revng_add_test_executable(test_model "${SRC}/Model.cpp")
+target_compile_definitions(test_model PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(test_model PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(
+  test_model
+  revngSupport
+  revngUnitTestHelpers
+  revngModel
+  revngModelPasses
+  Boost::unit_test_framework
+  ${LLVM_LIBRARIES})
+add_test(NAME test_model COMMAND test_model)
+set_tests_properties(test_model PROPERTIES LABELS "unit")
 
 #
 # test_instantiatepasses
@@ -237,13 +243,13 @@ target_compile_definitions(test_recursive_coroutines_iterative
 # test_model_type
 #
 
-# revng_add_test_executable(test_model_type "${SRC}/ModelType.cpp")
-# target_compile_definitions(test_model_type PRIVATE "BOOST_TEST_DYN_LINK=1")
-# target_include_directories(test_model_type PRIVATE "${CMAKE_SOURCE_DIR}")
-# target_link_libraries(test_model_type revngSupport revngUnitTestHelpers
-# revngModel Boost::unit_test_framework ${LLVM_LIBRARIES}) add_test(NAME
-# test_model_type COMMAND test_model_type) set_tests_properties(test_model_type
-# PROPERTIES LABELS "unit")
+revng_add_test_executable(test_model_type "${SRC}/ModelType.cpp")
+target_compile_definitions(test_model_type PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(test_model_type PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(test_model_type revngSupport revngUnitTestHelpers
+                      revngModel Boost::unit_test_framework ${LLVM_LIBRARIES})
+add_test(NAME test_model_type COMMAND test_model_type)
+set_tests_properties(test_model_type PROPERTIES LABELS "unit")
 
 #
 # test_tuple_tree_generator
@@ -349,6 +355,8 @@ add_test(NAME test_register_state_deductions
          COMMAND test_register_state_deductions)
 set_tests_properties(test_register_state_deductions PROPERTIES LABELS
                                                                "unit;abi")
+
+# WIP: drop _infrastructure suffix
 
 #
 # test_location_infrastructure

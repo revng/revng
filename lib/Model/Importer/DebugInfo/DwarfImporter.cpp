@@ -824,7 +824,7 @@ private:
 
     // Return type
     FunctionType->ReturnType() = getTypeOrVoid(Die);
-      // WIP: isEmpty
+    // WIP: isEmpty
     revng_assert(FunctionType->ReturnType().UnqualifiedType().isValid());
 
     return Model->recordNewType(std::move(NewType));

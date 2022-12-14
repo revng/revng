@@ -84,7 +84,7 @@ BOOST_AUTO_TEST_CASE(Serialization) {
     // clang-format off
     "/binary",
     "/instruction/0x12:Generic64/0x34:Generic64/0x56:Generic64",
-    "/type/PrimitiveType-1026",
+    "/type/StructType-1026",
     "/raw-byte-range/0x78:Generic64/0x90:Generic64"
     // clang-format on
   };

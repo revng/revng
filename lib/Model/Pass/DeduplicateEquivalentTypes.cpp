@@ -156,8 +156,8 @@ private:
     // Create edges
     for (const model::Type *T : Types)
       for (const model::QualifiedType &QT : T->edges())
-      if (QT.isTrull())
-        addEdge(T, QT);
+        if (QT.isTrull())
+          addEdge(T, QT);
   }
 
   /// Compute a visit order: post order in the leaders of WeakEquivalence
