@@ -60,25 +60,25 @@ revng \
 
 # Verify that no step contradicts the actual state.
 revng \
-    abi-verify \
+    check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
     "${TEMPORARY_DIR}/reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}"
 
 revng \
-    abi-verify \
+    check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
     "${TEMPORARY_DIR}/downgraded_reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}"
 
 revng \
-    abi-verify \
+    check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
     "${TEMPORARY_DIR}/upgraded_downgraded_reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}"
 
 revng \
-    abi-verify \
+    check-compatibility-with-abi \
     -abi="${ABI_NAME}" \
     "${TEMPORARY_DIR}/downgraded_upgraded_downgraded_reference_binary.yml" \
     "${RUNTIME_ABI_ANALYSIS_RESULT}"
