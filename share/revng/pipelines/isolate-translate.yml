@@ -9,7 +9,7 @@ Branches:
         Pipes:
           - Type: LLVMPipe
             UsedContainers: [module.ll]
-            Passes: [collect-cfg, isolate, invoke-isolated-functions]
+            Passes: [collect-cfg, isolate, invoke-isolated-functions, attach-debug-info]
         Artifacts:
           Container: module.ll
           Kind: Isolated
