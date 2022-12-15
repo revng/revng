@@ -8,6 +8,7 @@ add_subdirectory(ABIAnalyses)
 revng_add_analyses_library_internal(
   revngEarlyFunctionAnalysis
   AAWriterPass.cpp
+  AttachDebugInfo.cpp
   CFGAnalyzer.cpp
   CollectCFG.cpp
   CollectFunctionsFromCalleesPass.cpp
