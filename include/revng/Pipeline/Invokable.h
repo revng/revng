@@ -178,6 +178,10 @@ auto *concatMultiple(const First *, const Rest *...Others) {
   }
 }
 
+inline std::tuple<> *concatMultiple() {
+  return nullptr;
+}
+
 template<typename T>
 using Decay = std::decay_t<T>;
 

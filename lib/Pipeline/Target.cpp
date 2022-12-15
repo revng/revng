@@ -139,6 +139,9 @@ llvm::Error pipeline::parseTarget(const Context &Ctx,
                                   ContainerToTargetsMap &CurrentStatus,
                                   llvm::StringRef AsString,
                                   const KindsRegistry &Dict) {
+  if (AsString.empty())
+    return llvm::Error::success();
+
   llvm::SmallVector<llvm::StringRef, 2> Parts;
   AsString.split(Parts, '/', 1);
 
