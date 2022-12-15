@@ -22,8 +22,9 @@ extractFunctionMetadata(llvm::MDNode *MD) {
   using namespace llvm;
 
   efa::FunctionMetadata FM;
+  revng_assert(MD != nullptr);
   const MDOperand &Op = MD->getOperand(0);
-  revng_assert(MD != nullptr && isa<MDString>(Op));
+  revng_assert(isa<MDString>(Op));
 
   StringRef YAMLString = cast<MDString>(Op)->getString();
   auto MaybeParsed = TupleTree<efa::FunctionMetadata>::deserialize(YAMLString);
