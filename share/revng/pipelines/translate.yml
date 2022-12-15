@@ -20,7 +20,7 @@ Branches:
             UsedContainers: [input]
           - Name: AddPrimitiveTypes
             Type: AddPrimitiveTypes
-            UsedContainers: [input]
+            UsedContainers: []
           - Name: Apply
             Type: Apply
             UsedContainers: []
