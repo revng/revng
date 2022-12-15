@@ -99,7 +99,7 @@ int main(int argc, const char *argv[]) {
 
   int ErrorCode = EXIT_SUCCESS;
   auto StringErrorHandler = [&ErrorCode](const llvm::StringError &Error) {
-    dbg << "\nrevng-abi-verify error: " << Error.getMessage() << '\n';
+    dbg << "\nABI compatibility error: " << Error.getMessage() << '\n';
     ErrorCode = Error.convertToErrorCode().value();
   };
   llvm::handleAllErrors(impl(), StringErrorHandler);
