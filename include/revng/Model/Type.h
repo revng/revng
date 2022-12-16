@@ -72,7 +72,7 @@ public:
 
 public:
   std::optional<uint64_t> size() const debug_function;
-  RecursiveCoroutine<std::optional<uint64_t>> size(VerifyHelper &VH) const;
+  std::optional<uint64_t> size(VerifyHelper &VH) const;
 
   std::optional<uint64_t> trySize() const debug_function;
   RecursiveCoroutine<std::optional<uint64_t>> trySize(VerifyHelper &VH) const;

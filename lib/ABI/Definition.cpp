@@ -246,23 +246,21 @@ naturalAlignment(const abi::Definition &ABI,
   if (MaybeAlignment)
     rc_return MaybeAlignment;
 
-  std::uint64_t Alignment;
+  std::uint64_t Alignment = 0;
 
   // This code assumes that the type `Type` is well formed.
   switch (Type.Kind()) {
   case model::TypeKind::RawFunctionType:
   case model::TypeKind::CABIFunctionType:
     // Function prototypes have no size - hence no alignment.
-    Alignment = 0;
-    break;
+    rc_return std::nullopt;
 
   case model::TypeKind::PrimitiveType: {
     // The alignment of primitives is simple to figure out based on the abi
     const auto *P = llvm::cast<model::PrimitiveType>(&Type);
     if (P->PrimitiveKind() == model::PrimitiveTypeKind::Void) {
       // `void` has no size either - hence no alignment.
-      if (P->Size() != 0)
-        rc_return std::nullopt;
+      revng_assert(P->Size() == 0);
 
       Alignment = 0;
     } else if (P->PrimitiveKind() == model::PrimitiveTypeKind::Float) {
@@ -318,7 +316,7 @@ naturalAlignment(const abi::Definition &ABI,
   case model::TypeKind::Invalid:
   case model::TypeKind::Count:
   default:
-    rc_return std::nullopt;
+    revng_abort();
   }
 
   VH.setAlignment(&Type, Alignment);
