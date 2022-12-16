@@ -56,6 +56,9 @@ fields:
   - name: Type
     type: QualifiedType
     optional: true
+  - name: Lifetime
+    type: uint64_t
+    optional: true
 
 key:
   - StartAddress
