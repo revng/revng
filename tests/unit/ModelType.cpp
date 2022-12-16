@@ -479,7 +479,7 @@ BOOST_AUTO_TEST_CASE(CABIFunctionTypes) {
   FunctionType->ABI() = model::ABI::SystemV_x86_64;
   revng_check(T->Types().size() == 3);
 
-  revng_check(not FunctionType->size().has_value());
+  revng_check(not FunctionType->trySize().has_value());
 
   // Insert argument in the function type
   Argument Arg0{ 0 };

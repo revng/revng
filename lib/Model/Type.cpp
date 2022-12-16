@@ -753,13 +753,13 @@ std::optional<uint64_t> Type::trySize() const {
   return trySize(VH);
 }
 
-RecursiveCoroutine<std::optional<uint64_t>> Type::size(VerifyHelper &VH) const {
-  std::optional<uint64_t> MaybeSize = rc_recur trySize(VH);
+std::optional<uint64_t> Type::size(VerifyHelper &VH) const {
+  std::optional<uint64_t> MaybeSize = trySize(VH);
   revng_check(MaybeSize);
   if (*MaybeSize == 0)
-    rc_return std::nullopt;
+    return std::nullopt;
   else
-    rc_return MaybeSize;
+    return MaybeSize;
 }
 
 RecursiveCoroutine<std::optional<uint64_t>>
@@ -769,28 +769,20 @@ Type::trySize(VerifyHelper &VH) const {
     rc_return MaybeSize;
 
   // This code assumes that the type T is well formed.
-  uint64_t Size;
+  uint64_t Size = 0;
 
   switch (Kind()) {
-  case TypeKind::Invalid:
-    rc_return std::nullopt;
-
   case TypeKind::RawFunctionType:
   case TypeKind::CABIFunctionType:
     // Function prototypes have no size
-    Size = 0;
-    break;
+    rc_return std::nullopt;
 
   case TypeKind::PrimitiveType: {
     auto *P = cast<PrimitiveType>(this);
 
     if (P->PrimitiveKind() == model::PrimitiveTypeKind::Void) {
       // Void types have no size
-
-      if (P->Size() != 0) {
-        // Not valid
-        rc_return std::nullopt;
-      }
+      revng_assert(P->Size() == 0);
 
       Size = 0;
     } else {
@@ -836,6 +828,8 @@ Type::trySize(VerifyHelper &VH) const {
     Size = Max;
   } break;
 
+  case TypeKind::Invalid:
+  case TypeKind::Count:
   default:
     revng_abort();
   }
