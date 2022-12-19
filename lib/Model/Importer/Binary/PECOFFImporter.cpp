@@ -385,7 +385,7 @@ static RecursiveCoroutine<void> getDependenciesHelper(StringRef FileName,
 }
 
 void PECOFFImporter::getDependencies(PELDDTree Dependencies, unsigned Level) {
-  if (Level > 1)
+  if (Level > 0)
     getDependenciesHelper(TheBinary.getFileName(), Dependencies, 1, Level);
 }
 
@@ -393,7 +393,7 @@ void PECOFFImporter::findMissingTypes(unsigned FetchDebugInfoWithLevel) {
   using namespace std;
 
   PELDDTree Dependencies;
-  getDependencies(Dependencies, FetchDebugInfoWithLevel);
+  getDependencies(Dependencies, FetchDebugInfoWithLevel - 1);
 
   ModelMap ModelsOfLibraries;
   TypeCopierMap TypeCopiers;
