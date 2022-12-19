@@ -346,7 +346,7 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
   TypeCopierMap TypeCopiers;
 
   LDDTree Dependencies;
-  lddtree(Dependencies, TheBinary.getFileName().str(), DebugInfoLevel);
+  lddtree(Dependencies, TheBinary.getFileName().str(), DebugInfoLevel - 1);
   for (auto &Library : Dependencies) {
     revng_log(ELFImporterLog,
               "Importing Models for dependencies of " << Library.first << ":");
