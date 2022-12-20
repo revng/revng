@@ -7,12 +7,14 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Pass.h"
 
 #include "revng/Support/Assert.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 #include "revng-c/Support/FunctionTags.h"
@@ -149,7 +151,6 @@ static bool isCustomOpcode(Instruction *I) {
     return false;
 
   if (FunctionTags::AddressOf.isTagOf(CalledFunc)
-      || FunctionTags::AssignmentMarker.isTagOf(CalledFunc)
       || FunctionTags::Assign.isTagOf(CalledFunc)
       || FunctionTags::ModelCast.isTagOf(CalledFunc)
       || FunctionTags::ModelGEP.isTagOf(CalledFunc)
@@ -167,8 +168,7 @@ static unsigned getCustomOpcode(Instruction *I) {
 
   if (FunctionTags::AddressOf.isTagOf(CalledFunc))
     return CustomInstruction::AddressOf;
-  else if (FunctionTags::AssignmentMarker.isTagOf(CalledFunc)
-           or FunctionTags::Assign.isTagOf(CalledFunc))
+  else if (FunctionTags::Assign.isTagOf(CalledFunc))
     return CustomInstruction::Assignment;
   else if (FunctionTags::AllocatesLocalVariable.isTagOf(CalledFunc))
     return CustomInstruction::LocalVariable;
@@ -285,6 +285,7 @@ bool OPRP::needsParentheses(Instruction *I, Use &U) {
     case CustomInstruction::AddressOf:
     case CustomInstruction::Indirection:
     case CustomInstruction::MemberAccess:
+    case CustomInstruction::Cast:
       VerifyParentheses = (U.getOperandNo() == 1);
       break;
     case CustomInstruction::Assignment:
@@ -292,6 +293,8 @@ bool OPRP::needsParentheses(Instruction *I, Use &U) {
     case CustomInstruction::Transparent:
     case CustomInstruction::SegmentRef:
       return false;
+    default:
+      revng_abort("unhandled opcode");
     }
   }
 

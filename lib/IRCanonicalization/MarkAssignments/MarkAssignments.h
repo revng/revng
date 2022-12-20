@@ -38,14 +38,6 @@ enum Values {
   // This is useful for debug purposes, because it makes dead Instructions show
   // up in decompiled code.
   AlwaysAssign = 1 << 2,
-  // The Instruction has many uses, so we assign it to a variable, so that all
-  // uses can reference the variable instead of embedding the whole expression
-  // that represents the computation.
-  HasManyUses = 1 << 3,
-  // If an instruction has uses outside its basic block, we might want to
-  // declare a local variable for it outside its scope.
-  // TODO: Further refine this when the variable scoping reasoning gets refined
-  HasUsesOutsideBB = 1 << 4
 };
 
 } // end namespace Reasons

@@ -139,7 +139,7 @@ BOOST_AUTO_TEST_CASE(ManyUses) {
 
   ExpectedFlagsType ExpectedFlags{
     BBAssignmentFlags{ "initial_block",
-                       { HasManyUses, AlwaysAssign, AlwaysAssign, None } },
+                       { AlwaysAssign, AlwaysAssign, AlwaysAssign, None } },
   };
 
   runTestOnFunctionWithExpected(Body, ExpectedFlags);
@@ -174,7 +174,7 @@ BOOST_AUTO_TEST_CASE(Interfering) {
 
   ExpectedFlagsType ExpectedFlags{
     BBAssignmentFlags{ "initial_block",
-                       { HasManyUses,
+                       { AlwaysAssign,
                          HasInterferingSideEffects,
                          HasSideEffects,
                          HasSideEffects,
@@ -195,7 +195,7 @@ BOOST_AUTO_TEST_CASE(NonInterfering) {
 
   ExpectedFlagsType ExpectedFlags{
     BBAssignmentFlags{ "initial_block",
-                       { HasManyUses, None, HasSideEffects, None } },
+                       { AlwaysAssign, None, HasSideEffects, None } },
   };
 
   runTestOnFunctionWithExpected(Body, ExpectedFlags);
@@ -214,7 +214,7 @@ BOOST_AUTO_TEST_CASE(ComplexNonInterfering) {
 
   ExpectedFlagsType ExpectedFlags{
     BBAssignmentFlags{ /*.BBName =*/"initial_block",
-                       /*.InstrFlags =*/{ HasManyUses,
+                       /*.InstrFlags =*/{ AlwaysAssign,
                                           None,
                                           None,
                                           None,
@@ -297,7 +297,7 @@ BOOST_AUTO_TEST_CASE(ConditionalIsNotAssigned1) {
     BBAssignmentFlags{ /*.BBName =*/"initial_block",
                        /*.InstrFlags =*/
                        {
-                         HasManyUses,
+                         AlwaysAssign,
                          None,
                          None,
                          None,
@@ -343,7 +343,7 @@ BOOST_AUTO_TEST_CASE(ConditionalIsNotAssigned2) {
     BBAssignmentFlags{ /*.BBName =*/"initial_block",
                        /*.InstrFlags =*/
                        {
-                         HasManyUses,
+                         AlwaysAssign,
                          None,
                          None,
                          None,
@@ -484,14 +484,14 @@ BOOST_AUTO_TEST_CASE(Loop) {
     BBAssignmentFlags{ /*.BBName =*/"initial_block",
                        /*.InstrFlags =*/
                        {
-                         HasManyUses,
+                         AlwaysAssign,
                          None,
                          None,
                          HasSideEffects,
                          None,
                        } },
     BBAssignmentFlags{ /*.BBName =*/"head",
-                       /*.InstrFlags =*/{ HasUsesOutsideBB, None } },
+                       /*.InstrFlags =*/{ AlwaysAssign, None } },
     BBAssignmentFlags{
       /*.BBName =*/"tail",
       /*.InstrFlags =*/{ None, None, None, HasSideEffects, None } },

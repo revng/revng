@@ -37,7 +37,7 @@ deserializeFromLLVMString(llvm::Value *V, const model::Binary &Model);
 /// Create a global string in the given LLVM module that contains a
 /// serialization of \a QT.
 llvm::Constant *
-serializeToLLVMString(model::QualifiedType &QT, llvm::Module &M);
+serializeToLLVMString(const model::QualifiedType &QT, llvm::Module &M);
 
 /// Return an LLVM IntegerType that has the size of a pointer in the given
 /// architecture.

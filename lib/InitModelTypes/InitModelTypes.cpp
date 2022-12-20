@@ -181,8 +181,7 @@ static TypeVector getReturnTypes(FunctionMetadataCache &Cache,
   auto *CalledFunc = Call->getCalledFunction();
   revng_assert(CalledFunc);
 
-  if (FunctionTags::AssignmentMarker.isTagOf(CalledFunc)
-      || FunctionTags::Parentheses.isTagOf(CalledFunc)
+  if (FunctionTags::Parentheses.isTagOf(CalledFunc)
       || FunctionTags::Copy.isTagOf(CalledFunc)) {
     const llvm::Value *Arg = Call->getArgOperand(0);
 
@@ -344,8 +343,8 @@ ModelTypesMap initModelTypes(FunctionMetadataCache &Cache,
       // Only Call instructions can return aggregates
       revng_assert(not InstType->isAggregateType());
 
-      // All InsertValues and ExtractValues should have been assigned when
-      // handling Call instructions that return an aggregate
+      // All ExtractValues should have been assigned when handling Call
+      // instructions that return an aggregate
       if (isa<llvm::ExtractValueInst>(&I)) {
         if (not PointersOnly)
           revng_assert(TypeMap.contains(&I));

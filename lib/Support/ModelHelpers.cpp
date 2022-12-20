@@ -161,13 +161,13 @@ deserializeFromLLVMString(llvm::Value *V, const model::Binary &Model) {
 }
 
 llvm::Constant *
-serializeToLLVMString(model::QualifiedType &QT, llvm::Module &M) {
+serializeToLLVMString(const model::QualifiedType &QT, llvm::Module &M) {
   // Create a string containing a serialization of the model type
   std::string SerializedQT;
   {
     llvm::raw_string_ostream StringStream(SerializedQT);
     llvm::yaml::Output YAMLOutput(StringStream);
-    YAMLOutput << QT;
+    YAMLOutput << const_cast<model::QualifiedType &>(QT);
   }
 
   // Build a constant global string containing the serialized type
@@ -352,11 +352,23 @@ getStrongModelInfo(FunctionMetadataCache &Cache,
 
   if (auto *Call = dyn_cast<llvm::CallInst>(Inst)) {
 
-    if (FunctionTags::CallToLifted.isTagOf(Call)) {
-      // Isolated functions have their prototype in the model
-      auto Prototype = Cache.getCallSitePrototype(Model, Call);
-      revng_assert(Prototype.isValid());
-      ReturnTypes = handleReturnValue(Prototype, Model);
+    auto Prototype = Cache.getCallSitePrototype(Model, Call);
+    if (Prototype.isValid() and not Prototype.empty()) {
+
+      auto *CalledFunc = Call->getCalledFunction();
+      if (CalledFunc
+          and CalledFunc->getName().startswith("revng_call_stack_arguments")) {
+        auto *Arg0Operand = Call->getArgOperand(0);
+        QualifiedType
+          CallStackArgumentType = deserializeFromLLVMString(Arg0Operand, Model);
+        revng_assert(not CallStackArgumentType.isVoid());
+
+        ReturnTypes.push_back(std::move(CallStackArgumentType));
+      } else {
+        // Isolated functions and dynamic functions have their prototype in the
+        // model
+        ReturnTypes = handleReturnValue(Prototype, Model);
+      }
 
     } else {
       // Non-isolated functions do not have a Prototype in the model, but we can
@@ -403,14 +415,8 @@ getStrongModelInfo(FunctionMetadataCache &Cache,
 
         ReturnTypes.push_back(QualifiedType{ StackType, {} });
 
-      } else if (FuncName.startswith("revng_call_stack_arguments")) {
-
-        auto *Arg0Operand = Call->getArgOperand(0);
-        QualifiedType
-          CallStackArgumentType = deserializeFromLLVMString(Arg0Operand, Model);
-        revng_assert(not CallStackArgumentType.isVoid());
-
-        ReturnTypes.push_back(std::move(CallStackArgumentType));
+      } else {
+        revng_assert(not FuncName.startswith("revng_call_stack_arguments"));
       }
     }
   } else if (auto *EV = llvm::dyn_cast<llvm::ExtractValueInst>(Inst)) {
