@@ -221,6 +221,7 @@ Error ELFImporter<T, HasAddend>::import(unsigned FetchDebugInfoWithLevel) {
   const auto &ElfHeader = TheELF.getHeader();
   Model->EntryPoint() = relocate(fromPC(ElfHeader.e_entry));
 
+  // Parse segments
   parseProgramHeaders(TheELF);
 
   Optional<uint64_t> FDEsCount;
@@ -322,6 +323,13 @@ Error ELFImporter<T, HasAddend>::import(unsigned FetchDebugInfoWithLevel) {
       }
     }
   }
+
+  // Dynamic symbols harvested too, segment type creation can be finalized.
+  // Do not replace it, if `Type` is valid (may be added by the user); note that
+  // `isValid` checks also for being empty.
+  for (auto &Segment : Model->Segments())
+    if (not Segment.Type().UnqualifiedType().isValid())
+      Segment.Type() = populateSegmentTypeStruct(*Model, Segment, DataSymbols);
 
   // Create a default prototype
 
@@ -526,20 +534,33 @@ void ELFImporter<T, HasAddend>::parseSymbols(object::ELFFile<T> &TheELF,
         or (Symbol.st_shndx == ELF::SHN_UNDEF))
       continue;
 
-    bool IsCode = Symbol.getType() == ELF::STT_FUNC;
-    if (!IsCode)
-      continue;
-
     MetaAddress Address = MetaAddress::invalid();
-    Address = relocate(fromPC(Symbol.st_value));
-    auto It = Model->Functions().find(Address);
-    if (It == Model->Functions().end()) {
-      model::Function &Function = Model->Functions()[Address];
-      if (MaybeName) {
-        Function.OriginalName() = *MaybeName;
-        // Insert Original name into exported ones, since it is by default true.
-        Function.ExportedNames().insert((*MaybeName).str());
+    bool IsCode = Symbol.getType() == ELF::STT_FUNC;
+    bool IsDataObject = Symbol.getType() == ELF::STT_OBJECT;
+    uint64_t Size = Symbol.st_size;
+
+    if (IsCode)
+      Address = relocate(fromPC(Symbol.st_value));
+    else
+      Address = relocate(fromGeneric(Symbol.st_value));
+
+    if (IsCode) {
+      auto It = Model->Functions().find(Address);
+      if (It == Model->Functions().end()) {
+        model::Function &Function = Model->Functions()[Address];
+        if (MaybeName) {
+          Function.OriginalName() = *MaybeName;
+          // Insert Original name into exported ones, since it is by default
+          // true.
+          Function.ExportedNames().insert((*MaybeName).str());
+        }
       }
+    } else if (IsDataObject and Size > 0) {
+      auto IsSameAddress = [Address](const auto &E) {
+        return Address == E.Address;
+      };
+      if (llvm::count_if(DataSymbols, IsSameAddress) == 0)
+        DataSymbols.emplace_back(Address, Size, *MaybeName);
     }
   }
 }
@@ -604,10 +625,6 @@ void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
       NewSegment.IsReadable() = hasFlag(ProgramHeader.p_flags, ELF::PF_R);
       NewSegment.IsWriteable() = hasFlag(ProgramHeader.p_flags, ELF::PF_W);
       NewSegment.IsExecutable() = hasFlag(ProgramHeader.p_flags, ELF::PF_X);
-
-      model::TypePath StructPath = createEmptyStruct(*Model,
-                                                     NewSegment.VirtualSize());
-      NewSegment.Type() = model::QualifiedType(std::move(StructPath), {});
 
       // If it's an executable segment, and we've been asked so, register
       // which sections actually contain code
@@ -704,6 +721,7 @@ void ELFImporter<T, HasAddend>::parseDynamicSymbol(Elf_Sym_Impl<T> &Symbol,
   }
 
   bool IsCode = Symbol.getType() == ELF::STT_FUNC;
+  bool IsDataObject = Symbol.getType() == ELF::STT_OBJECT;
 
   if (shouldIgnoreSymbol(Name))
     return;
@@ -717,6 +735,7 @@ void ELFImporter<T, HasAddend>::parseDynamicSymbol(Elf_Sym_Impl<T> &Symbol,
     }
   } else {
     MetaAddress Address = MetaAddress::invalid();
+    uint64_t Size = Symbol.st_size;
 
     if (IsCode) {
       Address = relocate(fromPC(Symbol.st_value));
@@ -728,7 +747,10 @@ void ELFImporter<T, HasAddend>::parseDynamicSymbol(Elf_Sym_Impl<T> &Symbol,
       }
     } else {
       Address = relocate(fromGeneric(Symbol.st_value));
-      // TODO: create field in segment struct
+      if (not llvm::is_contained(DataSymbols,
+                                 DataSymbol{ Address, Size, Name }))
+        if (IsDataObject and Size > 0)
+          DataSymbols.emplace_back(Address, Size, Name);
     }
   }
 }

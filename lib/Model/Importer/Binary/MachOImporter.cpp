@@ -297,6 +297,8 @@ void MachOImporter::parseMachOSegment(ArrayRef<uint8_t> RawDataRef,
   Segment.IsWriteable() = SegmentCommand.initprot & VM_PROT_WRITE;
   Segment.IsExecutable() = SegmentCommand.initprot & VM_PROT_EXECUTE;
 
+  // TODO: replace the following with `populateSegmentTypeStruct`, when
+  // LC_SYMTAB and LC_DYSYMTAB parsing is available
   model::TypePath StructPath = createEmptyStruct(*Model, Segment.VirtualSize());
   Segment.Type() = model::QualifiedType(std::move(StructPath), {});
 
