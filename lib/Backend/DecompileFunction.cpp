@@ -87,7 +87,7 @@ using tokenDefinition::types::StringToken;
 using tokenDefinition::types::TypeString;
 using TokenMapT = std::map<const llvm::Value *, std::string>;
 using ModelTypesMap = std::map<const llvm::Value *, const model::QualifiedType>;
-using ValueSet = llvm::SmallPtrSet<const llvm::Instruction *, 32>;
+using InstrSetVec = llvm::SmallSetVector<const llvm::Instruction *, 8>;
 
 static constexpr const char *StackFrameVarName = "stack";
 
@@ -290,7 +290,7 @@ private:
 
   /// Set of values that have a corresponding local variable which should be
   /// declared at the start of the function
-  const ValueSet &TopScopeVariables;
+  const InstrSetVec &TopScopeVariables;
   /// A map containing a model type for each LLVM value in the function
   const ModelTypesMap TypeMap;
 
@@ -343,7 +343,7 @@ public:
                  const Binary &Model,
                  const llvm::Function &LLVMFunction,
                  const ASTTree &GHAST,
-                 const ValueSet &TopScopeVariables,
+                 const InstrSetVec &TopScopeVariables,
                  raw_ostream &Out) :
     Model(Model),
     LLVMFunction(LLVMFunction),
@@ -1690,13 +1690,6 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
     {
       Scope BraceScope(Out, scopeTags::FunctionBody);
 
-      // Emit a declaration for the loop state variable, which is used to
-      // redirect control flow inside loops (e.g. if we want to jump in the
-      // middle of a loop during a certain iteration)
-      if (NeedsLocalStateVar)
-        Out << ptml::tokenTag("uint64_t", tokens::Type) << " "
-            << LoopStateVarDeclaration << ";\n";
-
       // Declare all variables that have the entire function as a scope
       decompilerLog(Out, "Top-Scope Declarations");
       for (const llvm::Instruction *VarToDeclare : TopScopeVariables) {
@@ -1742,6 +1735,13 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
       if (not TopScopeVariables.empty())
         decompilerLog(Out, "End of Top-Scope Declarations");
 
+      // Emit a declaration for the loop state variable, which is used to
+      // redirect control flow inside loops (e.g. if we want to jump in the
+      // middle of a loop during a certain iteration)
+      if (NeedsLocalStateVar)
+        Out << ptml::tokenTag("uint64_t", tokens::Type) << " "
+            << LoopStateVarDeclaration << ";\n";
+
       // Recursively print the body of this function
       emitGHASTNode(GHAST.getRoot());
     }
@@ -1753,7 +1753,7 @@ static std::string decompileFunction(FunctionMetadataCache &Cache,
                                      const llvm::Function &LLVMFunc,
                                      const ASTTree &CombedAST,
                                      const Binary &Model,
-                                     const ValueSet &TopScopeVariables,
+                                     const InstrSetVec &TopScopeVariables,
                                      bool NeedsLocalStateVar) {
   std::string Result;
 

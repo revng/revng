@@ -4,6 +4,7 @@
 // Copyright rev.ng Labs Srl. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/SetVector.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
 
@@ -47,5 +48,5 @@ inline bool needsTopScopeDeclaration(const llvm::Instruction &I) {
 
 /// Returns a set of all the llvm::Values for which we need a top-level
 /// variable declaration.
-llvm::SmallPtrSet<const llvm::Instruction *, 32>
+llvm::SmallSetVector<const llvm::Instruction *, 8>
 collectTopScopeVariables(const llvm::Function &F);

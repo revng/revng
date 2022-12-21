@@ -4,6 +4,7 @@
 
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
@@ -19,7 +20,7 @@
 #include "revng-c/RestructureCFG/ASTTree.h"
 #include "revng-c/Support/FunctionTags.h"
 
-using ValuePtrSet = llvm::SmallPtrSet<const llvm::Instruction *, 32>;
+using InstrSetVec = llvm::SmallSetVector<const llvm::Instruction *, 8>;
 
 using llvm::BasicBlock;
 using llvm::CallInst;
@@ -103,19 +104,29 @@ bool hasLoopDispatchers(const ASTTree &GHAST) {
   return needsLoopVar(GHAST.getRoot());
 }
 
-ValuePtrSet collectTopScopeVariables(const Function &F) {
-  ValuePtrSet TopScopeVars;
+InstrSetVec collectTopScopeVariables(const Function &F) {
+  InstrSetVec TopScopeVars;
 
-  for (const BasicBlock &BB : F) {
-    for (const Instruction &I : BB) {
-
-      // We always want to put the stack frame among the top-scope variables,
-      // since it is is logical for it to appear at the top of the function even
-      // if it is used only in a later scope.
-      if (isCallTo(&I, "revng_stack_frame") or needsTopScopeDeclaration(I))
-        TopScopeVars.insert(&I);
+  // We always want to put the stack frame among the top-scope variables,
+  // since it is is logical for it to appear at the top of the function even
+  // if it is used only in a later scope.
+  {
+    bool Found = false;
+    for (const BasicBlock &BB : F) {
+      for (const Instruction &I : BB) {
+        if (isCallTo(&I, "revng_stack_frame")) {
+          revng_assert(not Found);
+          TopScopeVars.insert(&I);
+          Found = true;
+        }
+      }
     }
   }
+
+  for (const BasicBlock &BB : F)
+    for (const Instruction &I : BB)
+      if (needsTopScopeDeclaration(I) and not isCallTo(&I, "revng_stack_frame"))
+        TopScopeVars.insert(&I);
 
   return TopScopeVars;
 }
