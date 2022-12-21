@@ -57,7 +57,7 @@ std::string getCurrentRoot() {
 }
 
 static std::optional<std::string>
-findFileInPaths(const std::string &FileName,
+findFileInPaths(llvm::StringRef FileName,
                 const std::vector<std::string> &SearchPaths) {
 
   std::optional<std::string> FoundFileName;
@@ -86,10 +86,12 @@ findFileInPaths(const std::string &FileName,
     }
   }
 
+  revng_assert(FoundFileName,
+               ("failed to find '" + FileName + "'.").str().c_str());
+
   return FoundFileName;
 }
 
-std::optional<std::string>
-PathList::findFile(const std::string &FileName) const {
+std::optional<std::string> PathList::findFile(llvm::StringRef FileName) const {
   return findFileInPaths(FileName, SearchPaths);
 }
