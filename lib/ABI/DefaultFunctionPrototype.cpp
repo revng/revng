@@ -24,8 +24,7 @@ static QualifiedType buildType(Register::Values Register, Binary &TheBinary) {
   return QualifiedType(TheBinary.getPrimitiveType(Kind, Size), {});
 }
 
-template<ABI::Values ABI>
-TypePath defaultPrototype(Binary &TheBinary) {
+static TypePath defaultPrototype(Binary &TheBinary, model::ABI::Values ABI) {
   UpcastableType NewType = makeType<RawFunctionType>();
   TypePath TypePath = TheBinary.recordNewType(std::move(NewType));
   auto &Prototype = *llvm::cast<RawFunctionType>(TypePath.get());
@@ -58,7 +57,5 @@ abi::registerDefaultFunctionPrototype(Binary &Binary,
   if (!MaybeABI.has_value())
     MaybeABI = Binary.DefaultABI();
   revng_assert(*MaybeABI != ABI::Invalid);
-  return skippingEnumSwitch<1>(*MaybeABI, [&]<ABI::Values A>() {
-    return defaultPrototype<A>(Binary);
-  });
+  return defaultPrototype(Binary, MaybeABI.value());
 }
