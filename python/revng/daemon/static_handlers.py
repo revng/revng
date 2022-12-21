@@ -19,7 +19,7 @@ from revng.api.target import Target
 
 from .event_manager import EventType, emit_event
 from .multiqueue import MultiQueue
-from .util import clean_step_list, target_dict_to_graphql
+from .util import clean_step_list, produce_serializer, target_dict_to_graphql
 
 executor = ThreadPoolExecutor(1)
 invalidation_queue: MultiQueue[str] = MultiQueue()
@@ -62,7 +62,7 @@ async def resolve_produce(
     result = await run_in_executor(
         lambda: manager.produce_target(step, targets, container, onlyIfReady)
     )
-    return json.dumps(result)
+    return produce_serializer(result)
 
 
 @query.field("produceArtifacts")
@@ -74,7 +74,7 @@ async def resolve_produce_artifacts(
     result = await run_in_executor(
         lambda: manager.produce_target(step, target_paths, only_if_ready=onlyIfReady)
     )
-    return json.dumps(result)
+    return produce_serializer(result)
 
 
 @query.field("step")

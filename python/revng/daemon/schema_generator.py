@@ -20,6 +20,7 @@ from revng.api.step import Step
 from .event_manager import EventType, emit_event
 from .static_handlers import DEFAULT_BINDABLES, analysis_mutations, invalidation_queue
 from .static_handlers import run_in_executor
+from .util import produce_serializer
 
 
 class SchemaGenerator:
@@ -157,7 +158,7 @@ class DynamicBindableGenerator:
             result = await run_in_executor(
                 lambda: manager.produce_target(step.name, obj["_target"], only_if_ready=onlyIfReady)
             )
-            return json.dumps(result)
+            return produce_serializer(result)
 
         return rank_step_handle
 

@@ -40,3 +40,14 @@ def save_file(path: Path, content: Union[bytes, str]):
     else:
         with open(path.resolve(), "wb") as bytes_f:
             bytes_f.write(content)
+
+
+def convert_buffer(ptr: ffi.CData, size: int, mime: str) -> str | bytes:
+    if ptr == ffi.NULL:
+        return b""
+
+    data = ffi.unpack(ptr, size)
+    if mime.startswith("text/") or mime == "image/svg":
+        return data.decode("utf-8")
+    else:
+        return data
