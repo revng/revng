@@ -71,10 +71,16 @@ struct BranchDeclaration {
   std::vector<StepDeclaration> Steps;
 };
 
+struct AnalysesListDeclaration {
+  std::string Name;
+  std::vector<std::string> UsedAnalysesNames;
+};
+
 struct PipelineDeclaration {
   std::vector<ContainerDeclaration> Containers;
   std::vector<BranchDeclaration> Branches;
   std::vector<AnalysisDeclaration> Analyses = {};
+  std::vector<AnalysesListDeclaration> AnalysesLists = {};
 };
 
 class PipelineContext;
@@ -222,6 +228,15 @@ struct llvm::yaml::MappingTraits<pipeline::ContainerDeclaration> {
   }
 };
 
+INTROSPECTION_NS(pipeline, AnalysesListDeclaration, Name, UsedAnalysesNames);
+template<>
+struct llvm::yaml::MappingTraits<pipeline::AnalysesListDeclaration> {
+  static void mapping(IO &TheIO, pipeline::AnalysesListDeclaration &Info) {
+    TheIO.mapRequired("Name", Info.Name);
+    TheIO.mapOptional("Analyses", Info.UsedAnalysesNames);
+  }
+};
+
 LLVM_YAML_IS_SEQUENCE_VECTOR(pipeline::ContainerDeclaration)
 
 template<>
@@ -251,13 +266,15 @@ struct llvm::yaml::MappingTraits<pipeline::StepDeclaration> {
 LLVM_YAML_IS_SEQUENCE_VECTOR(pipeline::StepDeclaration)
 LLVM_YAML_IS_SEQUENCE_VECTOR(pipeline::AnalysisDeclaration)
 LLVM_YAML_IS_SEQUENCE_VECTOR(pipeline::BranchDeclaration)
+LLVM_YAML_IS_SEQUENCE_VECTOR(pipeline::AnalysesListDeclaration)
 
 template<>
 struct llvm::yaml::MappingTraits<pipeline::PipelineDeclaration> {
   static void mapping(IO &TheIO, pipeline::PipelineDeclaration &Info) {
     TheIO.mapOptional("Containers", Info.Containers);
-    TheIO.mapRequired("Branches", Info.Branches);
+    TheIO.mapOptional("Branches", Info.Branches);
     TheIO.mapOptional("Analyses", Info.Analyses);
+    TheIO.mapOptional("AnalysesLists", Info.AnalysesLists);
   }
 };
 

@@ -55,3 +55,4 @@ typedef llvm::StringMap<std::string> rp_string_map;
 typedef pipeline::InvalidationMap rp_invalidations;
 typedef llvm::SmallVector<char, 0> rp_buffer;
 typedef pipeline::ContainerToTargetsMap rp_container_targets_map;
+typedef const pipeline::AnalysesList rp_analyses_list;

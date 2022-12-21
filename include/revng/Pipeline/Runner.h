@@ -13,6 +13,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/Pipeline/AnalysesList.h"
 #include "revng/Pipeline/ContainerFactorySet.h"
 #include "revng/Pipeline/GlobalTupleTreeDiff.h"
 #include "revng/Pipeline/KindsRegistry.h"
@@ -38,6 +39,7 @@ private:
 
   Map Steps;
   Vector ReversePostOrderIndexes;
+  llvm::StringMap<AnalysesList> AnalysesLists;
 
 public:
   template<typename T>
@@ -95,6 +97,26 @@ public:
   }
 
 public:
+  bool hasAnalysesList(llvm::StringRef Name) const {
+    return AnalysesLists.count(Name);
+  }
+
+  size_t getAnalysesListCount() const { return AnalysesLists.size(); }
+  const AnalysesList &getAnalysesList(size_t Index) const {
+    return std::next(AnalysesLists.begin(), Index)->second;
+  }
+
+  const AnalysesList &getAnalysesList(llvm::StringRef Name) const {
+    return AnalysesLists.find(Name)->second;
+  }
+
+  void addAnalysesList(llvm::StringRef Name,
+                       llvm::ArrayRef<AnalysisReference> Analyses) {
+    revng_assert(not hasAnalysesList(Name));
+    AnalysesLists.try_emplace(Name, pipeline::AnalysesList(Name, Analyses));
+  }
+
+public:
   /// Given a target, all occurrences of that target from every container in
   /// every step will be registered in the returned invalidation map. The
   /// propagations will not be calculated.
@@ -135,10 +157,24 @@ public:
     return llvm::Error::success();
   }
 
+  AnalysisWrapper *findAnalysis(llvm::StringRef AnalysisName) {
+    for (auto &Step : Steps) {
+      if (Step.second.hasAnalysis(AnalysisName))
+        return &Step.second.getAnalysis(AnalysisName);
+    }
+
+    return nullptr;
+  }
+
   llvm::Expected<DiffMap>
   runAnalysis(llvm::StringRef AnalysisName,
               llvm::StringRef StepName,
               const ContainerToTargetsMap &Targets,
+              pipeline::InvalidationMap &InvalidationsMap,
+              const llvm::StringMap<std::string> &Options = {});
+
+  llvm::Expected<DiffMap>
+  runAnalyses(const AnalysesList &List,
               pipeline::InvalidationMap &InvalidationsMap,
               const llvm::StringMap<std::string> &Options = {});
 

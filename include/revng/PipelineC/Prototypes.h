@@ -291,6 +291,51 @@ rp_manager_run_analysis(rp_manager *manager,
                         const rp_string_map *options);
 
 /**
+ * \return the number of analyses lists loaded in the pipeline
+ */
+uint64_t rp_manager_get_analyses_list_count(rp_manager *manager);
+
+/**
+ * \return the name of a given analyses list
+ */
+const char *rp_analyses_list_get_name(rp_analyses_list *list);
+
+/**
+ * \return the lenght of the given analyses list
+ */
+uint64_t rp_analyses_list_count(rp_analyses_list *list);
+
+/**
+ * \param index must be less than rp_analyses_list_count(list)
+ * \return the analysis at the index poisition in the given list.
+ */
+rp_analysis *rp_manager_get_analysis(rp_manager *manager,
+                                     rp_analyses_list *list,
+                                     uint64_t index);
+
+/**
+ * \param  index < rp_manager_get_analyses_list_count(manager)
+ * \return the number the pointer to the index-nth analysis list.
+ */
+rp_analyses_list *
+rp_manager_get_analyses_list(rp_manager *manager, uint64_t index);
+
+/**
+ * Request to run all analyses of the given list on all targets
+ * \param invalidations see \ref pipelineC_invalidations
+ * \param options key-value associative array of options to pass to the analysis
+ * This option accepts nullptr in case there are no options to pass
+ *
+ * \return nullptr if an error was encountered, the owning diff map of affected
+ * global objects otherwise
+ */
+rp_diff_map * /*owning*/
+rp_manager_run_analyses_list(rp_manager *manager,
+                             rp_analyses_list *list,
+                             rp_invalidations *invalidations,
+                             const rp_string_map *options);
+
+/**
  * Request to run all analyses on all targets
  * \param invalidations see \ref pipelineC_invalidations
  * \param options key-value associative array of options to pass to the analysis

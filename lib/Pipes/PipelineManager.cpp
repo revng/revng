@@ -374,6 +374,37 @@ llvm::Error PipelineManager::produceAllPossibleTargets(bool ExpandTargets) {
   return llvm::Error::success();
 }
 
+const pipeline::Step::AnalysisValueType &
+PipelineManager::getAnalysis(const AnalysisReference &Reference) const {
+  auto &Step = getRunner().getStep(Reference.getStepName());
+
+  auto Predicate = [&](const Step::AnalysisValueType &Analysis) -> bool {
+    return Analysis.first() == Reference.getAnalysisName();
+  };
+  auto Analysis = llvm::find_if(Step.analyses(), Predicate);
+  return *Analysis;
+}
+
+llvm::Expected<DiffMap>
+PipelineManager::runAnalyses(const pipeline::AnalysesList &List,
+                             InvalidationMap &Map,
+                             const llvm::StringMap<std::string> &Options,
+                             llvm::raw_ostream *DiagnosticLog) {
+  auto Result = Runner->runAnalyses(List, Map, Options);
+  if (not Result)
+    return Result.takeError();
+
+  recalculateAllPossibleTargets();
+
+  // TODO: to remove once invalidations are working
+  if (auto Invalidations = invalidateAllPossibleTargets(); !!Invalidations)
+    Map = Invalidations.get();
+  else
+    return Invalidations.takeError();
+
+  return Result;
+}
+
 llvm::Expected<DiffMap>
 PipelineManager::runAnalysis(llvm::StringRef AnalysisName,
                              llvm::StringRef StepName,
