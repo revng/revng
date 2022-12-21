@@ -188,7 +188,7 @@ constexpr inline auto IsYamlizable = [](auto *K) {
 template<typename S, Yamlizable T>
 void serialize(S &Stream, T &Element) {
   if constexpr (std::is_base_of_v<llvm::raw_ostream, S>) {
-    if constexpr (llvm::yaml::has_ScalarTraits<T>::value) {
+    if constexpr (HasScalarOrEnumTraits<T>) {
       Stream << llvm::StringRef(getNameFromYAMLScalar(Element));
     } else {
       llvm::yaml::Output YAMLOutput(Stream);
@@ -196,7 +196,7 @@ void serialize(S &Stream, T &Element) {
     }
   } else {
     std::string Buffer;
-    if constexpr (llvm::yaml::has_ScalarTraits<T>::value) {
+    if constexpr (HasScalarOrEnumTraits<T>) {
       Buffer = getNameFromYAMLScalar(Element);
     } else {
       llvm::raw_string_ostream StringStream(Buffer);
@@ -241,7 +241,7 @@ namespace revng::detail {
 template<typename T>
 llvm::Expected<T>
 deserializeImpl(llvm::StringRef YAMLString, void *Context = nullptr) {
-  if constexpr (llvm::yaml::has_ScalarTraits<T>::value) {
+  if constexpr (HasScalarOrEnumTraits<T>) {
     return getValueFromYAMLScalar<T>(YAMLString);
   } else {
     T Result;
