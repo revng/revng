@@ -15,7 +15,7 @@ class PathList {
 public:
   PathList(const std::vector<std::string> &Paths) : SearchPaths(Paths) {}
 
-  std::optional<std::string> findFile(const std::string &FileName) const;
+  std::optional<std::string> findFile(llvm::StringRef FileName) const;
 
 private:
   std::vector<std::string> SearchPaths;
