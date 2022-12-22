@@ -49,11 +49,11 @@ void model::calculateVisibility(TupleTree<model::Binary> &Model) {
 
   for (const model::Segment &Segment : Model->Segments) {
 
-    Span* Entry = new Span();
+    Span* Entry;
 
-    Entry->Segment = &Segment;
-    Entry->StartEpoch = Segment.StartAddress.epoch();
-    Entry->EndEpoch = Segment.Lifetime;
+    Entry.Segment = &Segment;
+    Entry.StartEpoch = Segment.StartAddress.epoch();
+    Entry.EndEpoch = Segment.Lifetime;
 
     SegmentsSpans.push_back(*Entry);
   }
@@ -121,6 +121,7 @@ void model::calculateVisibility(TupleTree<model::Binary> &Model) {
 
     // Make this segment visible from the active ones
     for (auto Active: ActiveSet) {
+      // auto TmpNode = Active.
       TmpNode.addSuccessor(NewNode);
     }
 
