@@ -39,6 +39,16 @@ bool compareByEpoch(const Span &A, const Span &B)
     return A.StartEpoch < B.StartEpoch;
 }
 
+bool allEpochsArePresent(vector<Span> Vec)
+{
+  // We want to scan from the second element onwards
+  for (int i = 1; i < Vec.size(); i++) {
+    if (Vec[i].StartEpoch > Vec[i-1].StartEpoch + 1)
+      return false;
+  }
+  return true;
+}
+
 void model::calculateVisibility(TupleTree<model::Binary> &Model) {
 
   /* Vector of Lifetimes
@@ -72,6 +82,12 @@ void model::calculateVisibility(TupleTree<model::Binary> &Model) {
    * that we are forced to reorder it, according to the StartEpoch.
    */
   std::sort(SegmentsSpans.begin(), SegmentsSpans.end(), compareByEpoch);
+
+  /* Epoch check
+   *
+   * Assert that all Epoch's values are present
+   */
+  assert(allEpochsArePresent(SegmentsSpans));
 
   for (const Span &Entry : SegmentsSpans)
     std::cout << Entry.StartEpoch << ' ';
