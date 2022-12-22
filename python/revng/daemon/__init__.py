@@ -14,6 +14,7 @@ from starlette.config import Config
 from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse
 
@@ -124,6 +125,7 @@ def get_middlewares() -> List[Middleware]:
             allow_methods=["*"],
             allow_headers=["*"],
         ),
+        Middleware(GZipMiddleware, minimum_size=1024),
         *extra_middlewares_late,
     ]
 
