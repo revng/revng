@@ -34,16 +34,16 @@ struct Span {
   unsigned long EndEpoch;
 };
 
-bool compareByEpoch(const Span &A, const Span &B)
+static bool compareByEpoch(const Span &A, const Span &B)
 {
     return A.StartEpoch < B.StartEpoch;
 }
 
-bool allEpochsArePresent(vector<Span> Vec)
+static bool allEpochsArePresent(vector<Span> Vec)
 {
   // We want to scan from the second element onwards
-  for (int i = 1; i < Vec.size(); i++) {
-    if (Vec[i].StartEpoch > Vec[i-1].StartEpoch + 1)
+  for (unsigned long I = 1; I < Vec.size(); I++) {
+    if (Vec[I].StartEpoch > Vec[I-1].StartEpoch + 1)
       return false;
   }
   return true;
@@ -67,13 +67,13 @@ void model::calculateVisibility(TupleTree<model::Binary> &Model) {
    * Populate the vector as we scan the Model
    */
   for (const model::Segment &Segment : Model->Segments) {
-    Span* Entry;
+    Span Entry;
 
     Entry.Segment = &Segment;
     Entry.StartEpoch = Segment.StartAddress.epoch();
     Entry.EndEpoch = Segment.Lifetime;
 
-    SegmentsSpans.push_back(*Entry);
+    SegmentsSpans.push_back(Entry);
   }
 
   /* Sort the Vector
@@ -83,7 +83,7 @@ void model::calculateVisibility(TupleTree<model::Binary> &Model) {
    */
   std::sort(SegmentsSpans.begin(), SegmentsSpans.end(), compareByEpoch);
 
-  /* Epoch check
+  /* Epochs check
    *
    * Assert that all Epoch's values are present
    */
@@ -111,11 +111,6 @@ void model::calculateVisibility(TupleTree<model::Binary> &Model) {
   using NodeType = ForwardNode<VisibilityNode>;
   using VisibilityMap = GenericGraph<NodeType>;
   VisibilityMap VM;
-
-  /*
-   * Create all the Visibility Nodes
-   */
-  // TODO
 
   /* Active Set
    *
@@ -156,14 +151,11 @@ void model::calculateVisibility(TupleTree<model::Binary> &Model) {
     auto *NewNode = VM.addNode(Entry);
 
     // Make this segment visible from the active ones
-    for (auto Active: ActiveSet) {
-      // auto TmpNode = Active.
-      TmpNode.addSuccessor(NewNode);
-    }
-
     // Make all the active segments visible from this segment
     for (auto Active: ActiveSet) {
-      NewNode.addSuccessor(TmpNode);
+      auto TmpNode = Active;
+      TmpNode->addSuccessor(NewNode);
+      NewNode->addSuccessor(TmpNode);
     }
 
     // Add this segment to active set
