@@ -47,8 +47,10 @@ void model::calculateVisibility(TupleTree<model::Binary> &Model) {
    */
   vector<Span> SegmentsSpans;
 
+  /*
+   * Populate the vector as we scan the Model
+   */
   for (const model::Segment &Segment : Model->Segments) {
-
     Span* Entry;
 
     Entry.Segment = &Segment;
@@ -57,6 +59,13 @@ void model::calculateVisibility(TupleTree<model::Binary> &Model) {
 
     SegmentsSpans.push_back(*Entry);
   }
+
+  /* Sort the Vector
+   *
+   * We have no explicit order of insertion guaranteed in the Model, so
+   * that we are forced to reorder it, according to the StartEpoch.
+   */
+  // TODO
 
   for (const Span &Entry : SegmentsSpans)
     std::cout << Entry.StartEpoch << ' ';
@@ -80,6 +89,11 @@ void model::calculateVisibility(TupleTree<model::Binary> &Model) {
   using NodeType = ForwardNode<VisibilityNode>;
   using VisibilityMap = GenericGraph<NodeType>;
   VisibilityMap VM;
+
+  /*
+   * Create all the Visibility Nodes
+   */
+  // TODO
 
   /* Active Set
    *
