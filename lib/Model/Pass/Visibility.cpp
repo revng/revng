@@ -8,6 +8,7 @@
 #include <set>
 #include <string>
 #include <iostream>
+#include <algorithm>
 
 #include "revng/Model/Pass/RegisterModelPass.h"
 #include "revng/Model/Pass/Visibility.h"
@@ -32,6 +33,11 @@ struct Span {
   // Ending epoch
   unsigned long EndEpoch;
 };
+
+bool compareByEpoch(const Span &A, const Span &B)
+{
+    return A.StartEpoch < B.StartEpoch;
+}
 
 void model::calculateVisibility(TupleTree<model::Binary> &Model) {
 
@@ -65,7 +71,7 @@ void model::calculateVisibility(TupleTree<model::Binary> &Model) {
    * We have no explicit order of insertion guaranteed in the Model, so
    * that we are forced to reorder it, according to the StartEpoch.
    */
-  // TODO
+  std::sort(SegmentsSpans.begin(), SegmentsSpans.end(), compareByEpoch);
 
   for (const Span &Entry : SegmentsSpans)
     std::cout << Entry.StartEpoch << ' ';
