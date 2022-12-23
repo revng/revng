@@ -109,13 +109,26 @@ static std::optional<uint64_t> getAddress(const DWARFFormValue &Value) {
     return {};
 }
 
-static std::optional<uint64_t>
-getAddress(const DWARFDie &Die, dwarf::Attribute Attribute) {
-  auto Value = Die.find(Attribute);
-  if (not Value)
-    return {};
-  else
+static std::optional<uint64_t> getAddress(const DWARFDie &Die) {
+  // TODO: Add support for DW_AT_pc, which is DWARF 5 Standard version of the
+  // attribute.
+  auto Value = Die.find(DW_AT_low_pc);
+  if (not Value) {
+    auto Ranges = Die.find(DW_AT_ranges);
+    if (not Ranges)
+      return {};
+
+    auto Offset = *Ranges->getAsSectionOffset();
+    auto Range = Die.getDwarfUnit()->findRnglistFromOffset(Offset);
+    if (!Range)
+      return {};
+
+    // TODO: This is a vector, so we may want to return LowPC from every range
+    // we found.
+    return Range->begin()->LowPC;
+  } else {
     return getAddress(*Value);
+  }
 }
 
 static bool isTrue(const DWARFFormValue &Value) {
@@ -839,7 +852,7 @@ private:
 
         auto MaybePath = getSubprogramPrototype(Die);
         std::string SymbolName = getName(Die);
-        auto MaybeLowPC = getAddress(Die, DW_AT_low_pc);
+        auto MaybeLowPC = getAddress(Die);
         if (MaybeLowPC) {
           // Get/create the local function
           MetaAddress LowPC = relocate(fromPC(*MaybeLowPC));
