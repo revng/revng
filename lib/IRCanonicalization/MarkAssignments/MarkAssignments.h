@@ -92,12 +92,6 @@ public:
 
   bool isSet(Reasons::Values Flag) const { return TheFlags & Flag; }
 
-  bool hasMarkedSideEffects() const {
-    // Either HasSideEffects or HasInterferingSideEffects imply side effects.
-    return isSet(Reasons::HasSideEffects)
-           or isSet(Reasons::HasInterferingSideEffects);
-  }
-
   Reasons::Values value() const { return TheFlags; }
 
   explicit operator bool() const { return TheFlags != Reasons::None; }
