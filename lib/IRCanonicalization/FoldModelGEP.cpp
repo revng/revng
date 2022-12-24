@@ -16,7 +16,6 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/YAMLTraits.h"
 
-#include "revng-c/Backend/VariableScopeAnalysis.h"
 #include "revng-c/Support/DecompilationHelpers.h"
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/ModelHelpers.h"

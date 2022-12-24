@@ -114,7 +114,7 @@ static std::string getReturnTypeLocation(const llvm::Function *F) {
   // Isolated functions' return types must be converted using model types
   revng_assert(not FunctionTags::Isolated.isTagOf(F));
 
-  if (RetType->isStructTy()) {
+  if (RetType->isAggregateType()) {
     std::string StructName = getReturnedStructIdentifier(F);
     return ptml::tokenTag(StructName, tokens::Type)
       .addAttribute(ptml::locationAttribute(IsDefinition),

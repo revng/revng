@@ -6,11 +6,13 @@
 /// a variable assignment when decompiling to C, and wraps them in special
 /// marker calls.
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Casting.h"
 
@@ -19,8 +21,11 @@
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
+#include "revng-c/InitModelTypes/InitModelTypes.h"
+#include "revng-c/Support/DecompilationHelpers.h"
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/Mangling.h"
+#include "revng-c/Support/ModelHelpers.h"
 
 #include "MarkAssignments.h"
 
@@ -32,6 +37,8 @@ public:
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
     AU.setPreservesCFG();
+    AU.addRequired<LoadModelWrapperPass>();
+    AU.addRequired<FunctionMetadataCachePass>();
   }
 
   bool runOnFunction(llvm::Function &F) override;
@@ -47,9 +54,35 @@ bool AddAssignmentMarkersPass::runOnFunction(llvm::Function &F) {
   MarkAssignments::AssignmentMap
     Assignments = MarkAssignments::selectAssignments(F);
 
+  if (Assignments.empty())
+    return false;
+
+  auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
+  const TupleTree<model::Binary> &Model = ModelWrapper.getReadOnlyModel();
+
+  auto ModelFunction = llvmToModelFunction(*Model, F);
+  revng_assert(ModelFunction != nullptr);
+  auto &Cache = getAnalysis<FunctionMetadataCachePass>().get();
+
+  auto TypeMap = initModelTypes(Cache,
+                                F,
+                                ModelFunction,
+                                *Model,
+                                /*PointerOnly*/ false);
+
   llvm::Module *M = F.getParent();
   llvm::IRBuilder<> Builder(M->getContext());
   bool Changed = false;
+
+  OpaqueFunctionsPool<llvm::Type *> LocalVarPool(M, false);
+  initLocalVarPool(LocalVarPool);
+  OpaqueFunctionsPool<llvm::Type *> AssignPool(M, false);
+  initAssignPool(AssignPool);
+  OpaqueFunctionsPool<llvm::Type *> CopyPool(M, false);
+  initCopyPool(CopyPool);
+
+  std::map<llvm::CallInst *, llvm::CallInst *> StructCallToLocalVarType;
+
   for (auto &[I, Flag] : Assignments) {
     auto *IType = I->getType();
 
@@ -58,36 +91,73 @@ bool AddAssignmentMarkersPass::runOnFunction(llvm::Function &F) {
     if (IType->isVoidTy())
       continue;
 
+    if (IType->isAggregateType()) {
+      // This is a call to an function that return a struct on llvm
+      // type system. We cannot handle it like the others, because its return
+      // type is not on the model (only individual fields are), so we cannot
+      // serialize its QualifiedType in the LocalVariable.
+      //
+      // We'll have to deal with it later in the decompiler backend.
+      revng_assert(not TypeMap.contains(I));
+      continue;
+    }
+
+    if (isCallToTagged(I, FunctionTags::QEMU)
+        or isCallToTagged(I, FunctionTags::Helper)
+        or isa<llvm::IntrinsicInst>(I))
+      continue;
+
     if (bool(Flag)) {
 
-      // We should never be adding an assignment marker for a reference, since
+      // We should never be creating a LocalVariable for a reference, since
       // we cannot express them in C.
       revng_assert(not isCallToTagged(I, FunctionTags::IsRef));
 
-      auto *MarkerF = getAssignmentMarker(*M, IType);
+      // First, we have to declare the LocalVariable, in the correct place, i.e.
+      // either the entry block or just before I.
+      if (needsTopScopeDeclaration(*I))
+        Builder.SetInsertPoint(&F.getEntryBlock().front());
+      else
+        Builder.SetInsertPoint(I);
 
-      // Insert a call to the SCEV barrier right after I. For now the call to
-      // barrier has an undef argument, that will be fixed later.
+      auto *LocalVarFunctionType = getLocalVarType(IType);
+      auto *LocalVarFunction = LocalVarPool.get(IType,
+                                                LocalVarFunctionType,
+                                                "LocalVariable");
+
+      // Compute the model type returned from the call.
+      llvm::Constant *ModelTypeString = serializeToLLVMString(TypeMap.at(I),
+                                                              *M);
+
+      // Inject call to LocalVariable
+      auto *LocalVarCall = Builder.CreateCall(LocalVarFunction,
+                                              { ModelTypeString });
+
+      // Then, we have to replace all the uses of I so that they make a Copy
+      // from the new LocalVariable
+      for (llvm::Use &U : llvm::make_early_inc_range(I->uses())) {
+        revng_assert(isa<llvm::Instruction>(U.getUser()));
+        Builder.SetInsertPoint(cast<llvm::Instruction>(U.getUser()));
+
+        // Create a Copy to dereference the LocalVariable
+        auto *CopyFnType = getCopyType(LocalVarCall->getType());
+        auto *CopyFunction = CopyPool.get(LocalVarCall->getType(),
+                                          CopyFnType,
+                                          "Copy");
+        auto *CopyCall = Builder.CreateCall(CopyFunction, { LocalVarCall });
+        U.set(CopyCall);
+      }
+
+      // Finally, we have to assign the result of I to the local variable, right
+      // after I itself.
       Builder.SetInsertPoint(I->getParent(), std::next(I->getIterator()));
 
-      // The first argument for the call for now is undef. We'll fix it up
-      // later on.
-      auto *Undef = llvm::UndefValue::get(IType);
+      // Inject Assign() function
+      auto *AssignFnType = getAssignFunctionType(IType,
+                                                 LocalVarCall->getType());
+      auto *AssignFunction = AssignPool.get(IType, AssignFnType, "Assign");
 
-      // The second arg operand needs to be true if the assignment is
-      // required because of side effects.
-      auto *BoolType = MarkerF->getArg(1)->getType();
-      auto *MarkSideEffects = Flag.hasMarkedSideEffects() ?
-                                llvm::ConstantInt::getAllOnesValue(BoolType) :
-                                llvm::ConstantInt::getNullValue(BoolType);
-
-      auto *Call = Builder.CreateCall(MarkerF, { Undef, MarkSideEffects });
-
-      // Replace all uses of I with the new call.
-      I->replaceAllUsesWith(Call);
-
-      // Now Fix the call to use I as argument.
-      Call->setArgOperand(0, I);
+      Builder.CreateCall(AssignFunction, { I, LocalVarCall });
 
       Changed = true;
     }

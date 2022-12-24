@@ -413,7 +413,6 @@ static bool connect(TypeFlowNode *N1, TypeFlowNode *N2) {
 
         // These opcodes are transparent
         if (FunctionTags::Parentheses.isTagOf(Callee)
-            or FunctionTags::AssignmentMarker.isTagOf(Callee)
             or FunctionTags::Copy.isTagOf(Callee))
           return AddBidirectionalEdge(UseNode, ValNode, ALL_COLORS);
       }

@@ -844,9 +844,10 @@ private:
 
         StackArgsCall->setMetadata("revng.callerblock.start", MD);
 
-        // Record for pushing ALAP
-        ToPushALAP.push_back(StackArgsCall);
+        // Record for pushing ALAP. AddrOfCall should be pushed ALAP first to
+        // leave slack to StackArgsCall
         ToPushALAP.push_back(AddrOfCall);
+        ToPushALAP.push_back(StackArgsCall);
 
         unsigned OffsetInNewArgument = 0;
         for (auto &Register : ModelArgument.Registers) {

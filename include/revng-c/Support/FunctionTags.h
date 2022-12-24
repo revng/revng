@@ -23,7 +23,6 @@ extern Tag AddressOf;
 extern Tag ModelGEP;
 extern Tag ModelCast;
 extern Tag ModelGEPRef;
-extern Tag AssignmentMarker;
 extern Tag OpaqueExtractValue;
 extern Tag Parentheses;
 extern Tag HexInteger;
@@ -139,8 +138,6 @@ using SegmentRefPoolKey = std::pair<std::pair<MetaAddress, uint64_t>,
 /// Initializes a pool of SegmentRef functions
 void initSegmentRefPool(OpaqueFunctionsPool<SegmentRefPoolKey> &Pool,
                         llvm::Module *M);
-
-llvm::Function *getAssignmentMarker(llvm::Module &M, llvm::Type *T);
 
 /// Derive the function type of the corresponding OpaqueExtractValue() function
 /// from an ExtractValue instruction. OpaqueExtractValues wrap an

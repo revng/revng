@@ -110,12 +110,6 @@ std::optional<FormatInt> getIntFormat(llvm::Instruction &I, llvm::Use &U) {
     return std::nullopt;
   }
 
-  // We skip AssignmentMarkers as we require constant bool as a second argument.
-  // Replacing that constant with something make some assertions failing.
-  if (isCallToTagged(&I, FunctionTags::AssignmentMarker)) {
-    return std::nullopt;
-  }
-
   // Some intrinsic calls require ConstantInt as an argument so we are not able
   // to pass there any decorated value.
   if (auto *Intrinsic = llvm::dyn_cast<llvm::IntrinsicInst>(&I)) {

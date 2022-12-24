@@ -3,6 +3,7 @@
 //
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
@@ -15,6 +16,7 @@
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
@@ -42,7 +44,6 @@
 #include "revng/Support/YAMLTraits.h"
 
 #include "revng-c/Backend/DecompileFunction.h"
-#include "revng-c/Backend/VariableScopeAnalysis.h"
 #include "revng-c/InitModelTypes/InitModelTypes.h"
 #include "revng-c/Pipes/Ranks.h"
 #include "revng-c/RestructureCFG/ASTNode.h"
@@ -87,13 +88,122 @@ using tokenDefinition::types::StringToken;
 using tokenDefinition::types::TypeString;
 using TokenMapT = std::map<const llvm::Value *, std::string>;
 using ModelTypesMap = std::map<const llvm::Value *, const model::QualifiedType>;
-using ValueSet = llvm::SmallPtrSet<const llvm::Instruction *, 32>;
+using InstrSetVec = llvm::SmallSetVector<const llvm::Instruction *, 8>;
 
 static constexpr const char *StackFrameVarName = "stack";
 
 static Logger<> Log{ "c-backend" };
 static Logger<> VisitLog{ "c-backend-visit-order" };
 static Logger<> InlineLog{ "c-backend-inline" };
+
+/// Visit the node and all its children recursively, checking if a loop
+/// variable is needed.
+// TODO: This could be precomputed and attached to the SCS node in the GHAST.
+static RecursiveCoroutine<bool> needsLoopVar(ASTNode *N) {
+  if (N == nullptr)
+    rc_return false;
+
+  auto Kind = N->getKind();
+  switch (Kind) {
+
+  case ASTNode::NodeKind::NK_Break:
+  case ASTNode::NodeKind::NK_SwitchBreak:
+  case ASTNode::NodeKind::NK_Continue:
+  case ASTNode::NodeKind::NK_Code:
+    rc_return false;
+    break;
+
+  case ASTNode::NodeKind::NK_If: {
+    IfNode *If = cast<IfNode>(N);
+
+    if (nullptr != If->getThen())
+      if (rc_recur needsLoopVar(If->getThen()))
+        rc_return true;
+
+    if (If->hasElse())
+      if (rc_recur needsLoopVar(If->getElse()))
+        rc_return true;
+
+    rc_return false;
+  } break;
+
+  case ASTNode::NodeKind::NK_Scs: {
+    ScsNode *LoopBody = cast<ScsNode>(N);
+    rc_return rc_recur needsLoopVar(LoopBody->getBody());
+  } break;
+
+  case ASTNode::NodeKind::NK_List: {
+    SequenceNode *Seq = cast<SequenceNode>(N);
+    for (ASTNode *Child : Seq->nodes())
+      if (rc_recur needsLoopVar(Child))
+        rc_return true;
+
+    rc_return false;
+  } break;
+
+  case ASTNode::NodeKind::NK_Switch: {
+    SwitchNode *Switch = cast<SwitchNode>(N);
+    llvm::Value *SwitchVar = Switch->getCondition();
+
+    if (not SwitchVar)
+      rc_return true;
+
+    for (const auto &[Labels, CaseNode] : Switch->cases())
+      if (rc_recur needsLoopVar(CaseNode))
+        rc_return true;
+
+    if (auto *Default = Switch->getDefault())
+      if (rc_recur needsLoopVar(Default))
+        rc_return true;
+
+    rc_return false;
+  } break;
+
+  case ASTNode::NodeKind::NK_Set: {
+    rc_return true;
+  } break;
+  }
+}
+
+static bool hasLoopDispatchers(const ASTTree &GHAST) {
+  return needsLoopVar(GHAST.getRoot());
+}
+
+static InstrSetVec collectTopScopeVariables(const llvm::Function &F) {
+  InstrSetVec TopScopeVars;
+
+  // We always want to put the stack frame among the top-scope variables,
+  // since it is is logical for it to appear at the top of the function even
+  // if it is used only in a later scope.
+  {
+    bool Found = false;
+    for (const BasicBlock &BB : F) {
+      for (const Instruction &I : BB) {
+        if (isCallTo(&I, "revng_stack_frame")) {
+          revng_assert(not Found);
+          TopScopeVars.insert(&I);
+          Found = true;
+        }
+      }
+    }
+  }
+
+  for (const BasicBlock &BB : F) {
+    for (const Instruction &I : BB) {
+      // All the others have already been promoted to LocalVariable Copy and
+      // Assign.
+      if (isCallToTagged(&I, FunctionTags::QEMU)
+          or isCallToTagged(&I, FunctionTags::Helper)
+          or llvm::isa<llvm::IntrinsicInst>(I)) {
+
+        if (needsTopScopeDeclaration(I))
+          TopScopeVars.insert(&I);
+      }
+    }
+  }
+
+  return TopScopeVars;
+}
 
 /// Helper function that also writes the logged string as a comment in the C
 /// file if the corresponding logger is enabled
@@ -290,7 +400,7 @@ private:
 
   /// Set of values that have a corresponding local variable which should be
   /// declared at the start of the function
-  const ValueSet &TopScopeVariables;
+  const InstrSetVec &TopScopeVariables;
   /// A map containing a model type for each LLVM value in the function
   const ModelTypesMap TypeMap;
 
@@ -343,7 +453,7 @@ public:
                  const Binary &Model,
                  const llvm::Function &LLVMFunction,
                  const ASTTree &GHAST,
-                 const ValueSet &TopScopeVariables,
+                 const InstrSetVec &TopScopeVariables,
                  raw_ostream &Out) :
     Model(Model),
     LLVMFunction(LLVMFunction),
@@ -577,7 +687,16 @@ CCodeGenerator::addOperandToken(const llvm::Value *Operand) {
   // Instructions must be visited in reverse-postorder when filling the
   // TokenMap
   if (isa<llvm::Instruction>(Operand) or isa<llvm::Argument>(Operand)) {
-    revng_assert(TokenMap.contains(Operand));
+    if (auto *CallToCopy = isCallToTagged(Operand, FunctionTags::Copy)) {
+      if (auto *LocalVar = isCallToTagged(CallToCopy->getArgOperand(0),
+                                          FunctionTags::LocalVariable)) {
+        revng_assert(TokenMap.contains(LocalVar),
+                     dumpToString(LocalVar).c_str());
+        TokenMap[Operand] = TokenMap.at(LocalVar);
+        rc_return true;
+      }
+    }
+    revng_assert(TokenMap.contains(Operand), dumpToString(Operand).c_str());
     rc_return false;
   }
 
@@ -856,53 +975,38 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
   } else if (FunctionTags::Parentheses.isTagOf(CalledFunc)) {
     Expression = addAlwaysParentheses(TokenMap.at(Call->getArgOperand(0)));
 
-  } else if (FunctionTags::AssignmentMarker.isTagOf(CalledFunc)) {
-    const llvm::Value *Arg = Call->getArgOperand(0);
-
-    if (not Call->getType()->isAggregateType()) {
-      const auto VarNames = getOrCreateVarName(Call);
-      Out << buildAssignmentExpr(TypeMap.at(Call), VarNames, TokenMap.at(Arg))
-          << ";\n";
-      Expression = VarNames.Use;
-    } else {
-      Expression = TokenMap.at(Arg);
-    }
-
   } else if (FunctionTags::StructInitializer.isTagOf(CalledFunc)) {
-    // Struct initializers should be used only to pack together return values
-    // of RawFunctionTypes that return multiple values, therefore they must
-    // have the same type as the function's return type
-    llvm::StructType *StructTy = cast<llvm::StructType>(Call->getType());
+    // Struct initializers should be used only to pack together return
+    // values of RawFunctionTypes that return multiple values, therefore
+    // they must have the same type as the function's return type
+    auto *StructTy = cast<llvm::StructType>(Call->getType());
     revng_assert(Call->getFunction()->getReturnType() == StructTy);
-
-    const auto VarNames = getOrCreateVarName(Call);
-
-    if (VarNames.hasDeclaration()) {
-      // Emit LHS as a definition
-      Out << getReturnTypeName(*ModelFunction.Prototype().get()) << " "
-          << VarNames.Declaration;
-    } else {
-      // Emit LHS as a reference
-      Out << VarNames.Use;
-    }
-
-    // Emit Assignment
-    Out << " " << operators::Assign << " ";
+    revng_assert(LLVMFunction.getReturnType() == StructTy);
+    auto StrucTypeName = getNamedInstanceOfReturnType(ParentPrototype, "");
+    StringToken StructInit = addAlwaysParentheses(StrucTypeName);
 
     // Emit RHS
-    char Separator = '{';
+    llvm::StringRef Separator = "{";
     for (const auto &Arg : Call->args()) {
-      Out << Separator << " " << TokenMap.at(Arg);
-      Separator = ',';
+      StructInit.append(Separator);
+      StructInit.append(" ");
+      StructInit.append(TokenMap.at(Arg));
+      Separator = ",";
     }
-    Out << "};\n";
+    StructInit.append("}\n");
 
-    // Use the name of the assigned variable when referencing this value
-    Expression = VarNames.Use;
+    Expression = StructInit;
 
   } else if (FunctionTags::LocalVariable.isTagOf(CalledFunc)
-             or FuncName.startswith("revng_stack_frame")
              or FuncName.startswith("revng_call_stack_arguments")) {
+    const auto VarNames = createVarName(Call);
+
+    // Declare a new local variable if it hasn't already been declared
+    revng_assert(VarNames.hasDeclaration());
+    Out << getNamedCInstance(TypeMap.at(Call), VarNames.Declaration) << ";\n";
+    Expression = VarNames.Use;
+
+  } else if (FuncName.startswith("revng_stack_frame")) {
     const auto VarNames = getOrCreateVarName(Call);
 
     // Declare a new local variable if it hasn't already been declared
@@ -932,33 +1036,29 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
     // Forward expression
     Expression = TokenMap.at(Call->getArgOperand(0));
 
-  } else if (FunctionTags::QEMU.isTagOf(CalledFunc)
-             or FunctionTags::Helper.isTagOf(CalledFunc)
-             or FunctionTags::OpaqueCSVValue.isTagOf(CalledFunc)
-             or CalledFunc->isIntrinsic()) {
-
+  } else if (FunctionTags::OpaqueCSVValue.isTagOf(CalledFunc)) {
     std::string HelperRef = getHelperFunctionLocationReference(CalledFunc);
     Expression = buildFuncCallExpr(Call, HelperRef, /*prototype=*/nullptr);
 
-    // If this call returns an aggregate type, we have to serialize the call
-    // immediately and declare a local variable for it on-the-fly. This is
-    // needed because the name of the type returned by this function is not in
-    // the model: its name is derived from the called function. If we wait for
-    // `AssignmentMarker` to emit a declaration for it, we will loose
-    // information on which is the type of the returned struct.
-    if (Call->getType()->isAggregateType()) {
-      const auto VarNames = getOrCreateVarName(Call);
+  } else if (FunctionTags::QEMU.isTagOf(CalledFunc)
+             or FunctionTags::Helper.isTagOf(CalledFunc)
+             or CalledFunc->isIntrinsic()) {
 
-      // Declare a new local variable if it hasn't already been declared
-      if (VarNames.hasDeclaration())
-        Out << getReturnTypeLocationReference(Call->getCalledFunction()) << " "
-            << VarNames.Declaration;
+    if (not Call->getType()->isVoidTy()) {
+      const auto VarName = getOrCreateVarName(Call);
+      if (VarName.hasDeclaration())
+        Out << getReturnTypeLocationReference(CalledFunc) << " "
+            << VarName.Declaration;
       else
-        Out << VarNames.Use;
-
-      Out << " " << operators::Assign << " " << Expression << ";\n";
-      Expression = VarNames.Use;
+        Out << VarName.Use;
+      Out << " " << operators::Assign << " ";
+      Expression = VarName.Use;
     }
+
+    std::string HelperRef = getHelperFunctionLocationReference(CalledFunc);
+    auto CallExpr = buildFuncCallExpr(Call, HelperRef, /*prototype=*/nullptr);
+    Out << CallExpr << ";\n";
+
   } else if (FunctionTags::HexInteger.isTagOf(CalledFunc)) {
     const auto Operand = Call->getArgOperand(0);
     const auto *Value = cast<llvm::ConstantInt>(Operand);
@@ -1061,7 +1161,7 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
         // The name of such a struct should be derived immediately as postponing
         // the emission to the next `AssignmentMarker` would result in the loss
         // of the name of this struct.
-        const auto VarNames = getOrCreateVarName(Call);
+        const auto VarNames = createVarName(Call);
 
         // Declare a new local variable if it hasn't already been declared
         if (VarNames.hasDeclaration())
@@ -1079,7 +1179,7 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
                        "Array return values are only supported when "
                        "the function has `CABIFunctionType`.");
 
-          const auto VarNames = getOrCreateVarName(Call);
+          const auto VarNames = createVarName(Call);
 
           // Declare a new local variable if it hasn't already been declared
           if (VarNames.hasDeclaration())
@@ -1143,7 +1243,7 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
                    .str();
 
   } else if (auto *Alloca = dyn_cast<llvm::AllocaInst>(&I)) {
-    auto [VarName, VarDeclaration] = getOrCreateVarName(Alloca);
+    auto [VarName, VarDeclaration] = createVarName(Alloca);
     if (!VarDeclaration.empty()) {
       // Declare a local variable
       auto AllocaDeclaration = declareAllocaVariable(Alloca,
@@ -1226,15 +1326,6 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
 
     const auto *CallReturnsStruct = llvm::cast<llvm::CallInst>(AggregateOp);
     const llvm::Function *Callee = CallReturnsStruct->getCalledFunction();
-    // Unwrap potential calls to assignment marker
-    if (Callee and FunctionTags::AssignmentMarker.isTagOf(Callee)) {
-      const llvm::Value *FirstArg = CallReturnsStruct->getArgOperand(0);
-      CallReturnsStruct = llvm::cast<llvm::CallInst>(FirstArg);
-      Callee = CallReturnsStruct->getCalledFunction();
-      revng_assert(not Callee
-                   or not FunctionTags::AssignmentMarker.isTagOf(Callee));
-    }
-
     const auto CalleePrototype = Cache.getCallSitePrototype(Model,
                                                             CallReturnsStruct);
 
@@ -1256,6 +1347,38 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
 
   } else {
     revng_abort("Unexpected instruction found when decompiling");
+  }
+
+  if (Expression.empty())
+    return Expression;
+
+  // Clear the TokenMap for operands that only have one use in the same
+  // BasicBlock, and such that I is the last user in the block.
+  // They will be never used before, and we don't want those strings to hang
+  // around, since they can grow quite big.
+  for (const llvm::Value *Operand : I.operand_values()) {
+    if (auto *InstructionOp = dyn_cast<llvm::Instruction>(Operand)) {
+      bool UserInDifferentBlock = false;
+      for (auto *User : InstructionOp->users())
+        if (auto *UserInst = cast<llvm::Instruction>(User))
+          if (UserInst->getParent() != InstructionOp->getParent())
+            UserInDifferentBlock = true;
+
+      if (not UserInDifferentBlock) {
+        llvm::SmallPtrSet<const llvm::Instruction *, 8> UserInstructions;
+        for (const auto *User : Operand->users())
+          UserInstructions.insert(cast<llvm::Instruction>(User));
+
+        bool FoundOtherUser = false;
+        for (const auto &I :
+             llvm::make_range(std::next(I.getIterator()), I.getParent()->end()))
+          if (UserInstructions.contains(&I))
+            FoundOtherUser = true;
+
+        if (not FoundOtherUser)
+          TokenMap.erase(Operand);
+      }
+    }
   }
 
   return Expression;
@@ -1690,57 +1813,57 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
     {
       Scope BraceScope(Out, scopeTags::FunctionBody);
 
+      if (not TopScopeVariables.empty()) {
+        // Declare all variables that have the entire function as a scope
+        decompilerLog(Out, "Top-Scope Declarations");
+        for (const llvm::Instruction *VarToDeclare : TopScopeVariables) {
+          if (Log.isEnabled() or InlineLog.isEnabled()) {
+            decompilerLog(Out, "VarToDeclare: " + dumpToString(VarToDeclare));
+          }
+
+          VariableTokens VarName = createVarName(VarToDeclare);
+
+          auto VarTypeIt = TypeMap.find(VarToDeclare);
+          if (VarTypeIt != TypeMap.end()) {
+            if (auto *Alloca = llvm::dyn_cast<llvm::AllocaInst>(VarToDeclare)) {
+              // Allocas are special, since the expression associated to them is
+              // `&var` while the variable allocated is `var`
+              VarName = declareAllocaVariable(Alloca, VarName);
+            } else {
+              Out << getNamedCInstance(TypeMap.at(VarToDeclare),
+                                       VarName.Declaration)
+                  << ";\n";
+            }
+
+          } else {
+            // The only types that are allowed to be missing from the TypeMap
+            // are LLVM aggregates returned by RawFunctionTypes or by helpers
+            auto *Call = llvm::cast<CallInst>(VarToDeclare);
+            if (const auto &Prototype = Cache.getCallSitePrototype(Model, Call);
+                Prototype.isValid() and not Prototype.empty()) {
+              const auto *FunctionType = Prototype.getConst();
+              Out << getNamedInstanceOfReturnType(*FunctionType,
+                                                  VarName.Declaration)
+                  << ";\n";
+            } else {
+              auto *CalledFunction = Call->getCalledFunction();
+              revng_assert(CalledFunction);
+              Out << getReturnTypeLocationReference(CalledFunction) << " "
+                  << VarName.Declaration << ";\n";
+            }
+          }
+
+          TokenMap[VarToDeclare] = VarName.Use.str().str();
+        }
+        decompilerLog(Out, "End of Top-Scope Declarations");
+      }
+
       // Emit a declaration for the loop state variable, which is used to
       // redirect control flow inside loops (e.g. if we want to jump in the
       // middle of a loop during a certain iteration)
       if (NeedsLocalStateVar)
         Out << ptml::tokenTag("uint64_t", tokens::Type) << " "
             << LoopStateVarDeclaration << ";\n";
-
-      // Declare all variables that have the entire function as a scope
-      decompilerLog(Out, "Top-Scope Declarations");
-      for (const llvm::Instruction *VarToDeclare : TopScopeVariables) {
-        if (Log.isEnabled() or InlineLog.isEnabled()) {
-          decompilerLog(Out, "VarToDeclare: " + dumpToString(VarToDeclare));
-        }
-
-        VariableTokens VarName = createVarName(VarToDeclare);
-
-        auto VarTypeIt = TypeMap.find(VarToDeclare);
-        if (VarTypeIt != TypeMap.end()) {
-          if (auto *Alloca = llvm::dyn_cast<llvm::AllocaInst>(VarToDeclare)) {
-            // Allocas are special, since the expression associated to them is
-            // `&var` while the variable allocated is `var`
-            VarName = declareAllocaVariable(Alloca, VarName);
-          } else {
-            Out << getNamedCInstance(TypeMap.at(VarToDeclare),
-                                     VarName.Declaration)
-                << ";\n";
-          }
-
-        } else {
-          // The only types that are allowed to be missing from the TypeMap
-          // are LLVM aggregates returned by RawFunctionTypes or by helpers
-          auto *Call = llvm::cast<CallInst>(VarToDeclare);
-          auto *CalledFunction = Call->getCalledFunction();
-          revng_assert(CalledFunction);
-
-          if (FunctionTags::Isolated.isTagOf(CalledFunction)) {
-            const auto *Prototype = Cache.getCallSitePrototype(Model, Call)
-                                      .getConst();
-            Out << getNamedInstanceOfReturnType(*Prototype, VarName.Declaration)
-                << ";\n";
-          } else {
-            Out << getReturnTypeLocationReference(CalledFunction) << " "
-                << VarName.Declaration << ";\n";
-          }
-        }
-
-        TokenMap[VarToDeclare] = VarName.Use.str().str();
-      }
-
-      if (not TopScopeVariables.empty())
-        decompilerLog(Out, "End of Top-Scope Declarations");
 
       // Recursively print the body of this function
       emitGHASTNode(GHAST.getRoot());
@@ -1753,7 +1876,7 @@ static std::string decompileFunction(FunctionMetadataCache &Cache,
                                      const llvm::Function &LLVMFunc,
                                      const ASTTree &CombedAST,
                                      const Binary &Model,
-                                     const ValueSet &TopScopeVariables,
+                                     const InstrSetVec &TopScopeVariables,
                                      bool NeedsLocalStateVar) {
   std::string Result;
 

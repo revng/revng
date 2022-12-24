@@ -16,7 +16,6 @@
 #include "revng-c/Support/Mangling.h"
 
 static constexpr const char *const ModelGEPName = "ModelGEP";
-static constexpr const char *const MarkerName = "AssignmentMarker";
 
 namespace FunctionTags {
 Tag AllocatesLocalVariable("AllocatesLocalVariable");
@@ -26,7 +25,6 @@ Tag AddressOf("AddressOf");
 Tag ModelCast("ModelCast");
 Tag ModelGEP(ModelGEPName);
 Tag ModelGEPRef("ModelGEPRef");
-Tag AssignmentMarker(MarkerName);
 Tag OpaqueExtractValue("OpaqueExtractvalue");
 Tag Parentheses("Parentheses");
 Tag HexInteger("HexInteger");
@@ -77,10 +75,6 @@ static std::string makeModelGEPName(const llvm::Type *RetTy,
   return (Prefix + Twine("_ret_") + Twine(makeTypeName(RetTy))
           + Twine("_baseptr_") + Twine(makeTypeName(BaseAddressTy)))
     .str();
-}
-
-static std::string makeMarkerName(const llvm::Type *Ty) {
-  return MarkerName + makeTypeName(Ty);
 }
 
 llvm::FunctionType *
@@ -249,29 +243,6 @@ getModelGEPRef(llvm::Module &M, llvm::Type *ReturnType, llvm::Type *BaseType) {
   FunctionTags::IsRef.addTo(ModelGEPFunction);
 
   return ModelGEPFunction;
-}
-
-llvm::Function *getAssignmentMarker(llvm::Module &M, llvm::Type *T) {
-
-  using namespace llvm;
-  // Create a function, with T as return type, and 2 arguments.
-  // The first argument has type T, the second argument is a boolean.
-  // If the second argument is 'true', it means the marked instructions has
-  // side effects that need to be taken in consideration for serialization.
-  auto MarkerCallee = M.getOrInsertFunction(makeMarkerName(T),
-                                            T,
-                                            T,
-                                            IntegerType::get(M.getContext(),
-                                                             1));
-
-  auto *MarkerF = cast<Function>(MarkerCallee.getCallee());
-  MarkerF->addFnAttr(llvm::Attribute::NoUnwind);
-  MarkerF->addFnAttr(llvm::Attribute::WillReturn);
-  MarkerF->addFnAttr(llvm::Attribute::ReadNone);
-  FunctionTags::AssignmentMarker.addTo(MarkerF);
-  FunctionTags::Marker.addTo(MarkerF);
-
-  return MarkerF;
 }
 
 llvm::FunctionType *getLocalVarType(llvm::Type *ReturnedType) {

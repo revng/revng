@@ -15,7 +15,6 @@
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MonotoneFramework.h"
 
-#include "revng-c/Backend/VariableScopeAnalysis.h"
 #include "revng-c/Support/DecompilationHelpers.h"
 #include "revng-c/Support/FunctionTags.h"
 
@@ -36,27 +35,69 @@ namespace MarkAssignments {
 
 using TaintSetT = std::set<const llvm::Instruction *>;
 
-static bool
-haveInterferingSideEffects(const llvm::Instruction *InstrWithSideEffects,
-                           const llvm::Instruction &Other,
-                           const TaintSetT &TaintSet) {
+static bool haveInterferingSideEffects(const llvm::Instruction *SideEffectful,
+                                       const llvm::Instruction &Other,
+                                       const TaintSetT &TaintSet) {
   // Branch instructions never have side effects, so no Other could possibly
   // interfere with them.
-  if (isa<llvm::BranchInst>(InstrWithSideEffects)
-      or isa<llvm::SwitchInst>(InstrWithSideEffects))
+  if (isa<llvm::BranchInst>(SideEffectful)
+      or isa<llvm::SwitchInst>(SideEffectful))
     return false;
 
-  const auto MightInterfere = [](const llvm::Instruction *I) {
+  const auto MightInterfere = [SideEffectful](const llvm::Instruction *I) {
+    // AddressOf never has side effects.
+    if (auto *CallToAddressOf = isCallToTagged(I, FunctionTags::AddressOf)) {
+      return false;
+    }
+
+    // Copies from local variables never alias anyone else, except other
+    // instructions that copy or assign the same local variable
+    llvm::CallInst *LocalVar = nullptr;
+    bool IsWrite = false;
+    if (auto *CallToCopy = isCallToTagged(I, FunctionTags::Copy)) {
+      LocalVar = isCallToTagged(CallToCopy->getArgOperand(0),
+                                FunctionTags::LocalVariable);
+    } else if (auto *CallToAssign = isCallToTagged(I, FunctionTags::Assign)) {
+      LocalVar = isCallToTagged(CallToAssign->getArgOperand(1),
+                                FunctionTags::LocalVariable);
+      IsWrite = true;
+    }
+
+    llvm::CallInst *OtherLocalVar = nullptr;
+    if (auto *OtherCallToCopy = isCallToTagged(SideEffectful,
+                                               FunctionTags::Copy)) {
+      OtherLocalVar = isCallToTagged(OtherCallToCopy->getArgOperand(0),
+                                     FunctionTags::LocalVariable);
+    } else if (auto *OtherCallToAssign = isCallToTagged(SideEffectful,
+                                                        FunctionTags::Assign)) {
+      OtherLocalVar = isCallToTagged(OtherCallToAssign->getArgOperand(1),
+                                     FunctionTags::LocalVariable);
+      IsWrite = true;
+    }
+
+    // If either of the instruction is an access to a local variable, we know
+    // that only other accesses to the same local variable can have interfering
+    // side effects
+    if (LocalVar or OtherLocalVar) {
+      // If only one accesses a local variable, then the other does not have
+      // interfering side effect for sure.
+      if (not LocalVar or not OtherLocalVar)
+        return false;
+      // If both access the same local variable and at least one is writing,
+      // they have interfering side effects
+      return IsWrite and (LocalVar == OtherLocalVar);
+    }
+
     if (hasSideEffects(*I))
       return true;
 
-    // TODO: we could check for aliasing between InstrWithSideEffects and Other
+    // TODO: we could check for aliasing between SideEffectful and I
     // here, but it's costly and complicated. We should do that only if
     // necessary.
     if (isa<llvm::LoadInst>(I))
       return true;
 
-    // TODO: we could check for aliasing between InstrWithSideEffects and Other
+    // TODO: we could check for aliasing between SideEffectful and I
     // here, but it's costly and complicated. We should do that only if
     // necessary.
     if (isCallToTagged(I, FunctionTags::ReadsMemory))
@@ -312,8 +353,8 @@ public:
       {
         // Look at the operands of I.
         // If some of them is still pending, we want to remove them from
-        // pending, because at the end of this function we will either mark I
-        // as assigned, or insert I in pending.
+        // pending, because at the end of this function we will either mark
+        // I as assigned, or insert I in pending.
 
         revng_log(MarkLog, "Remove operands from pending.");
         LoggerIndent MoreIndent(MarkLog);
@@ -343,18 +384,18 @@ public:
         }
       }
 
-      // After the new redesign of IRCanonicalization PHINodes shouldn't even
-      // reach this stage.
+      // After the new redesign of IRCanonicalization PHINodes shouldn't
+      // even reach this stage.
       revng_assert(not isa<PHINode>(I));
 
-      // Instructions only allocating  a local variable and integer print
+      // Instructions only allocating a local variable and integer print
       // decorators that do not need an assignment.
       if (isCallToTagged(&I, FunctionTags::AllocatesLocalVariable)
           || isCallToTagged(&I, FunctionTags::HexInteger)
           || isCallToTagged(&I, FunctionTags::CharInteger)
           || isCallToTagged(&I, FunctionTags::BoolInteger)) {
-        // The OperandTaintSet is discarded here. This is not a problem, because
-        // it should always be empty.
+        // The OperandTaintSet is discarded here. This is not a problem,
+        // because it should always be empty.
         revng_assert(not hasSideEffects(I));
         revng_assert(OperandTaintSet.empty());
         continue;
@@ -366,44 +407,27 @@ public:
         revng_log(MarkLog, "Instr HasSideEffects");
       }
 
-      switch (I.getNumUses()) {
-
-      case 1: {
-        // Instructions with a single use do not necessarily need to generate
-        // an assignment.
-      } break;
-
-      case 0: {
+      // In principle the condition on the multiple uses can be dropped, but
+      // removing it causes the backend to allocate a lot of memory because it
+      // accumulates a lot of strings, and we need to investigate how to fix
+      // that.
+      if (I.getNumUses() > 1 or not I.getNumUses()
+          or needsTopScopeDeclaration(I)) {
         // Force unused instructions to be assigned. This is done to ease
         // debugging, and could potentially be dropped in the future.
         if (not I.getType()->isVoidTy()) {
           Assignments[&I].set(Reasons::AlwaysAssign);
           revng_log(MarkLog, "Instr AlwaysAssign");
         }
-      } break;
-
-      default: {
-        // Instructions with more than one use are always assigned, so all the
-        // users can re-use the assigned variable.
-        Assignments[&I].set(Reasons::HasManyUses);
-        revng_log(MarkLog, "Instr HasManyUses: " << I.getNumUses());
-      } break;
       }
 
-      // If an instruction is used outside of the scope in which it appears in
-      // the LLVM IR, we need to create a local variable for it.
-      if (needsTopScopeDeclaration(I)) {
-        Assignments[&I].set(Reasons::HasUsesOutsideBB);
-        revng_log(MarkLog,
-                  "Instr has uses outside its basic block: " << I.getNumUses());
-      }
-
-      // If we've decided to assign I, we need to consider if it might interfere
-      // with other instructions that are still pending.
       if (Assignments.contains(&I) or I.getType()->isVoidTy()) {
+
+        // If we've decided to assign I, we need to consider if it might
+        // interfere with other instructions that are still pending.
         revng_log(MarkLog, "Assign Pending");
-        // We also have to assign all the instructions that are still pending
-        // and have interfering side effects.
+        // We also have to assign all the instructions that are still
+        // pending and have interfering side effects.
         for (auto PendingIt = Pending.begin(); PendingIt != Pending.end();) {
           const auto [PendingInstr, TaintSet] = *PendingIt;
           revng_log(MarkLog,
@@ -412,15 +436,14 @@ public:
           if (haveInterferingSideEffects(&I, *PendingInstr, TaintSet)) {
             Assignments[PendingInstr].set(Reasons::HasInterferingSideEffects);
             revng_log(MarkLog, "HasInterferingSideEffects");
-
             PendingIt = Pending.erase(PendingIt);
           } else {
             ++PendingIt;
           }
         }
       } else {
-        // I is not assigned and it's not void (which are always emitted), so
-        // we have to track that it's pending.
+        // I is not assigned and it's not void (which are always emitted),
+        // so we have to track that it's pending.
         if (not I.getType()->isVoidTy()) {
           Pending.insertWithTaint(&I, std::move(OperandTaintSet));
           revng_log(MarkLog,
@@ -428,13 +451,16 @@ public:
         } else {
           // The OperandTaintSet is discarded here. This is not a problem,
           // because one of the two following cases is always true.
-          // - The instructions in the taint set were only ever affecting the
-          //   current I. Discarding them means loosing track of them, but given
-          //   that the void instructions are always serialized in C, this does
-          //   not constitute a problem for side effects.
-          // - The instruction in the taint set were also in the taint set of
-          //   some other instruction J. That could cause J to be assigned later
-          //   for interfering side effects. This would still be correct.
+          // - The instructions in the taint set were only ever affecting
+          // the
+          //   current I. Discarding them means loosing track of them, but
+          //   given that the void instructions are always serialized in C,
+          //   this does not constitute a problem for side effects.
+          // - The instruction in the taint set were also in the taint set
+          // of
+          //   some other instruction J. That could cause J to be assigned
+          //   later for interfering side effects. This would still be
+          //   correct.
           revng_log(MarkLog,
                     "void instruction without side effects: '"
                       << &I << "': " << dumpToString(&I));
@@ -452,5 +478,4 @@ AssignmentMap selectAssignments(llvm::Function &F) {
   Mark.run();
   return Mark.takeAssignments();
 }
-
 } // end namespace MarkAssignments

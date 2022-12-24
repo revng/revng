@@ -6,5 +6,5 @@ revng_add_analyses_library(
   revngcMarkAssignments revngc AddAssignmentMarkerPass.cpp LivenessAnalysis.cpp
   MarkAssignments.cpp)
 
-target_link_libraries(revngcMarkAssignments revngcSupport revng::revngModel
-                      revng::revngSupport ${LLVM_LIBRARIES})
+target_link_libraries(revngcMarkAssignments revngcInitModelTypes revngcSupport
+                      revng::revngModel revng::revngSupport ${LLVM_LIBRARIES})
