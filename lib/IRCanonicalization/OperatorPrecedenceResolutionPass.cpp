@@ -302,6 +302,13 @@ bool OPRP::needsParentheses(Instruction *I, Use &U) {
   while (isTransparentOpCode(Op))
     Op = traverseTransparentOpcode(Op);
 
+  // If the operand is a call to qemu helpers or intrinsic we know that we
+  // always emit a local variable for it, so we don't have to emit parentheses
+  if (isCallToTagged(Op, FunctionTags::QEMU)
+      or isCallToTagged(Op, FunctionTags::Helper)
+      or llvm::isa<llvm::IntrinsicInst>(Op))
+    return false;
+
   // If the traversed operand is not an instruction (i.e. constant, argument
   // etc.), don't emit parenthesis
   llvm::Instruction *Ins = dyn_cast<Instruction>(Op);
