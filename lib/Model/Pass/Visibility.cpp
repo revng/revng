@@ -134,6 +134,8 @@ void model::calculateVisibility(TupleTree<model::Binary> &Model) {
 
       // Remove from ActiveSet all the entries that are no more visible,
       // a.k.a. "dead"
+      //
+      // TODO: Compact with `erase_if`
       for (auto It = ActiveSet.begin(); It != ActiveSet.end(); ) {
           if ((*It)->Node.EndEpoch == CurrentEpoch) {
               It = ActiveSet.erase(It);
