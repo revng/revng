@@ -93,7 +93,7 @@ target_tuple_tree_generator(
   HEADER_DIRECTORY
   "Yield/CrossRelations"
   NAMESPACE
-  "yield"
+  "yield::crossrelations"
   ROOT_TYPE
   CrossRelations
   SCHEMA_PATH

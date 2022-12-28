@@ -29,7 +29,7 @@ inline constexpr char CrossRelationsFileSuffix[] = "";
 inline constexpr char CrossRelationsName[] = "BinaryCrossRelations";
 
 using CrossRelationsFileContainer = pipes::TupleTreeContainer<
-  yield::CrossRelations,
+  yield::crossrelations::CrossRelations,
   &kinds::BinaryCrossRelations,
   CrossRelationsName,
   CrossRelationsFileMIMEType>;

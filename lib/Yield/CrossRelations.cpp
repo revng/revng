@@ -11,11 +11,14 @@
 #include "revng/Model/Binary.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
+#include "revng/Yield/CallEdge.h"
 #include "revng/Yield/CrossRelations/CrossRelations.h"
 
-using CR = yield::CrossRelations;
-CR::CrossRelations(const SortedVector<efa::FunctionMetadata> &Metadata,
-                   const model::Binary &Binary) {
+namespace CR = yield::crossrelations;
+
+using MetadataContainer = SortedVector<efa::FunctionMetadata>;
+CR::CrossRelations::CrossRelations(const MetadataContainer &Metadata,
+                                   const model::Binary &Binary) {
   revng_assert(Metadata.size() == Binary.Functions().size());
 
   namespace ranks = revng::ranks;
@@ -24,21 +27,25 @@ CR::CrossRelations(const SortedVector<efa::FunctionMetadata> &Metadata,
   for (auto Inserter = Relations().batch_insert();
        const auto &Function : Binary.Functions()) {
     const auto Location = pipeline::location(ranks::Function, Function.Entry());
-    Inserter.insert(yield::RelationDescription(Location.toString(), {}));
+    Inserter.insert(CR::RelationDescription(Location.toString(), {}));
   }
 
-  // Make sure all the dynamic functions are present
-  for (auto Inserter = Relations.batch_insert();
+  // Make sure all the dynamic functions are also present
+  for (auto Inserter = Relations().batch_insert();
        const auto &Function : Binary.ImportedDynamicFunctions()) {
     const auto Location = pipeline::location(ranks::DynamicFunction,
                                              Function.OriginalName());
-    Inserter.insert(yield::RelationDescription(Location.toString(), {}));
+    Inserter.insert(CR::RelationDescription(Location.toString(), {}));
   }
 
   for (const auto &[EntryAddress, ControlFlowGraph] : Metadata) {
     for (const auto &BasicBlock : ControlFlowGraph) {
+      auto CallLocation = pipeline::location(ranks::BasicBlock,
+                                             EntryAddress,
+                                             BasicBlock.Start());
+
       for (const auto &Edge : BasicBlock.Successors()) {
-        if (auto *CallEdge = llvm::dyn_cast<yield::CallEdge>(Edge.get())) {
+        if (auto *CallEdge = llvm::dyn_cast<efa::CallEdge>(Edge.get())) {
           if (efa::FunctionEdgeType::isCall(Edge->Type())) {
             if (const auto &Callee = Edge->Destination(); Callee.isValid()) {
               // TODO: embed information about the call instruction into
@@ -46,18 +53,17 @@ CR::CrossRelations(const SortedVector<efa::FunctionMetadata> &Metadata,
 
               auto L = pipeline::location(ranks::Function, Callee).toString();
               if (auto It = Relations().find(L); It != Relations().end()) {
-                yield::RelationTarget T(yield::RelationType::IsCalledFrom,
-                                        CallLocation.toString());
+                CR::RelationTarget T(CR::RelationType::IsCalledFrom,
+                                     CallLocation.toString());
                 It->Related().insert(std::move(T));
               }
-            } else if (!CallEdge->DynamicFunction.empty()) {
+            } else if (!CallEdge->DynamicFunction().empty()) {
               auto L = pipeline::location(ranks::DynamicFunction,
-                                          CallEdge->DynamicFunction)
+                                          CallEdge->DynamicFunction())
                          .toString();
               if (auto It = Relations().find(L); It != Relations().end()) {
-                using namespace yield::RelationType;
-                yield::RelationTarget T(IsDynamicallyCalledFrom,
-                                        CallLocation.toString());
+                CR::RelationTarget T(CR::RelationType::IsDynamicallyCalledFrom,
+                                     CallLocation.toString());
                 It->Related().insert(std::move(T));
               }
             } else {
@@ -73,7 +79,7 @@ CR::CrossRelations(const SortedVector<efa::FunctionMetadata> &Metadata,
 }
 
 template<typename AddNodeCallable, typename AddEdgeCallable>
-static void conversionHelper(const yield::CrossRelations &Input,
+static void conversionHelper(const CR::CrossRelations &Input,
                              const AddNodeCallable &AddNode,
                              const AddEdgeCallable &AddEdge) {
   for (const auto &[LocationString, Related] : Input.Relations())
@@ -82,13 +88,13 @@ static void conversionHelper(const yield::CrossRelations &Input,
   for (const auto &[LocationString, Related] : Input.Relations()) {
     for (const auto &[RelationKind, TargetString] : Related) {
       switch (RelationKind) {
-      case yield::RelationType::IsCalledFrom:
-      case yield::RelationType::IsDynamicallyCalledFrom:
+      case CR::RelationType::IsCalledFrom:
+      case CR::RelationType::IsDynamicallyCalledFrom:
         AddEdge(LocationString, TargetString, RelationKind);
         break;
 
-      case yield::RelationType::Invalid:
-      case yield::RelationType::Count:
+      case CR::RelationType::Invalid:
+      case CR::RelationType::Count:
       default:
         revng_abort("Unknown enum value");
       }
@@ -96,9 +102,9 @@ static void conversionHelper(const yield::CrossRelations &Input,
   }
 }
 
-GenericGraph<yield::CrossRelations::Node, 16, true>
-yield::CrossRelations::toCallGraph() const {
-  GenericGraph<yield::CrossRelations::Node, 16, true> Result;
+GenericGraph<CR::CrossRelations::Node, 16, true>
+CR::CrossRelations::toCallGraph() const {
+  GenericGraph<CR::CrossRelations::Node, 16, true> Result;
 
   using NodeView = decltype(Result)::Node *;
   std::unordered_map<std::string_view, NodeView> LookupHelper;
@@ -109,9 +115,9 @@ yield::CrossRelations::toCallGraph() const {
   };
   auto AddEdge = [&LookupHelper](std::string_view Callee,
                                  std::string_view Caller,
-                                 yield::RelationType::Values Kind) {
-    if (Kind == yield::RelationType::IsCalledFrom
-        || Kind == yield::RelationType::IsDynamicallyCalledFrom) {
+                                 RelationType::Values Kind) {
+    if (Kind == CR::RelationType::IsCalledFrom
+        || Kind == CR::RelationType::IsDynamicallyCalledFrom) {
       // This assumes all the call sites are represented as basic block
       // locations for all the relations covered by these two kinds.
       using namespace pipeline;
@@ -121,9 +127,9 @@ yield::CrossRelations::toCallGraph() const {
       auto *CallerNode = LookupHelper.at(CallerFunction.toString());
       auto *CalleeNode = LookupHelper.at(Callee);
 
-      using EL = yield::CrossRelations::EdgeLabel;
+      using EdgeLabel = CR::CrossRelations::EdgeLabel;
       if (!llvm::is_contained(CallerNode->successors(), CalleeNode))
-        CallerNode->addSuccessor(CalleeNode, EL{ Kind });
+        CallerNode->addSuccessor(CalleeNode, EdgeLabel{ Kind });
     } else {
       revng_abort("Unsupported relation type.");
     }
@@ -133,7 +139,7 @@ yield::CrossRelations::toCallGraph() const {
   return Result;
 }
 
-yield::Graph yield::CrossRelations::toYieldGraph() const {
+yield::Graph CR::CrossRelations::toYieldGraph() const {
   yield::Graph Result;
 
   std::map<MetaAddress, yield::Graph::Node *> LookupHelper;
@@ -155,8 +161,8 @@ yield::Graph yield::CrossRelations::toYieldGraph() const {
   };
   auto AddEdge = [&LookupHelper](std::string_view FromLocation,
                                  std::string_view ToLocation,
-                                 yield::RelationType::Values Kind) {
-    if (Kind == yield::RelationType::IsCalledFrom) {
+                                 CR::RelationType::Values Kind) {
+    if (Kind == CR::RelationType::IsCalledFrom) {
       auto FromKey = p::genericLocationFromString<0>(FromLocation,
                                                      ranks::Function,
                                                      ranks::BasicBlock,
