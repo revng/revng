@@ -83,15 +83,27 @@ private:
 };
 
 using TypeCopierMap = std::map<std::string, std::unique_ptr<TypeCopier>>;
-
 template<typename T>
 std::optional<model::TypePath>
-findPrototypeHelper(T &Functions, llvm::StringRef FunctionName) {
+findPrototypeInLocalFunctions(T &Functions, llvm::StringRef FunctionName) {
   for (auto &Function : Functions) {
-    // TODO: Introduce a new type of name `ExportedName` by marking the
-    // `Function` as exported, explicitly.
-    if (Function.OriginalName() != FunctionName)
-      continue;
+    if (Function.ExportedNames().size()) {
+      bool FoundAlias = false;
+      for (auto &Name : Function.ExportedNames()) {
+        if (Name == FunctionName) {
+          FoundAlias = true;
+        }
+        if (FoundAlias)
+          break;
+        continue;
+      }
+      if (!FoundAlias)
+        continue;
+    } else {
+      // Rely on OriginalName only.
+      if (Function.OriginalName() != FunctionName)
+        continue;
+    }
 
     if (!Function.Prototype().isValid())
       continue;
@@ -102,18 +114,36 @@ findPrototypeHelper(T &Functions, llvm::StringRef FunctionName) {
   return std::nullopt;
 }
 
+template<typename T>
+std::optional<model::TypePath>
+findPrototypeInDynamicFunctions(T &Functions, llvm::StringRef FunctionName) {
+  for (auto &DynamicFunction : Functions) {
+    // Rely on OriginalName only.
+    if (DynamicFunction.OriginalName() != FunctionName)
+      continue;
+
+    if (!DynamicFunction.Prototype().isValid())
+      continue;
+
+    return DynamicFunction.Prototype();
+  }
+
+  return std::nullopt;
+}
+
 std::optional<std::pair<model::TypePath, std::string>>
 findPrototype(llvm::StringRef FunctionName,
               ModelMap &ModelsOfDynamicLibraries) {
   for (auto &ModelOfDep : ModelsOfDynamicLibraries) {
-    auto Prototype = findPrototypeHelper(ModelOfDep.second->Functions(),
-                                         FunctionName);
+    auto Prototype = findPrototypeInLocalFunctions(ModelOfDep.second
+                                                     ->Functions(),
+                                                   FunctionName);
     if (Prototype)
       return std::make_pair(*Prototype, ModelOfDep.first);
 
-    Prototype = findPrototypeHelper(ModelOfDep.second
-                                      ->ImportedDynamicFunctions(),
-                                    FunctionName);
+    Prototype = findPrototypeInDynamicFunctions(ModelOfDep.second
+                                                  ->ImportedDynamicFunctions(),
+                                                FunctionName);
     if (Prototype)
       return std::make_pair(*Prototype, ModelOfDep.first);
   }
