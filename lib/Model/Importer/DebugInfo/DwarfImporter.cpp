@@ -9,7 +9,6 @@
 #include <optional>
 
 #include "llvm/ADT/DepthFirstIterator.h"
-#include "llvm/ADT/EquivalenceClasses.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/Dwarf.h"
@@ -861,8 +860,10 @@ private:
           if (MaybePath && not Function.Prototype().isValid())
             Function.Prototype() = *MaybePath;
 
-          if (SymbolName.size() != 0 and Function.OriginalName().size() == 0)
+          if (SymbolName.size() != 0 and Function.OriginalName().size() == 0) {
             Function.OriginalName() = SymbolName;
+            Function.ExportedNames().insert(SymbolName);
+          }
 
           if (isNoReturn(*CU.get(), Die))
             Function.Attributes().insert(model::FunctionAttribute::NoReturn);
@@ -1249,138 +1250,19 @@ void DwarfImporter::import(StringRef FileName,
                     "fetch-debuginfo`.");
         } else {
           DebugFilePath = findDebugInfoFileByName(FileName, DebugFile, ELF);
-          if (DebugFilePath)
+          if (DebugFilePath) {
+            SeparateFile = DebugFilePath;
             PerfromImport(*DebugFilePath, DebugFile);
+          }
         }
       } else {
+        SeparateFile = DebugFilePath;
         PerfromImport(*DebugFilePath, DebugFile);
       }
     }
   }
 
   import(*BinOrErr->get(), FileName);
-}
-
-auto zipPairs(auto &&R) {
-  auto BeginIt = R.begin();
-  auto EndIt = R.end();
-
-  if (BeginIt == EndIt)
-    return zip(make_range(EndIt, EndIt), make_range(EndIt, EndIt));
-
-  auto First = BeginIt;
-  auto Second = ++BeginIt;
-
-  if (Second == EndIt)
-    return zip(make_range(EndIt, EndIt), make_range(EndIt, EndIt));
-
-  auto End = EndIt;
-  auto Last = --EndIt;
-
-  return zip(make_range(First, Last), make_range(Second, End));
-}
-
-/// This function considers all symbols with name of type STT_FUNC and clusters
-/// them by address/type
-static EquivalenceClasses<StringRef>
-computeEquivalentSymbols(const llvm::object::ObjectFile &ELF) {
-  using namespace llvm::object;
-
-  EquivalenceClasses<StringRef> Result;
-
-  struct SymbolDescriptor {
-    uint64_t Address = 0;
-    // TODO: one day we will want to consider STT_OBJECT too
-    SymbolRef::Type Type = SymbolRef::ST_Unknown;
-    /// \note we ignore this field for comparison purposes
-    StringRef Name;
-
-    auto key() const { return std::tie(Address, Type); }
-
-    bool operator<(const SymbolDescriptor &Other) const {
-      return key() < Other.key();
-    }
-
-    bool operator==(const SymbolDescriptor &Other) const {
-      return key() == Other.key();
-    }
-  };
-
-  std::vector<SymbolDescriptor> Symbols;
-  for (const object::SymbolRef &Symbol : ELF.symbols()) {
-    SymbolDescriptor NewSymbol;
-
-    auto MaybeType = Symbol.getType();
-    auto MaybeAddress = Symbol.getAddress();
-    auto MaybeName = Symbol.getName();
-    auto MaybeFlags = Symbol.getFlags();
-    if (not MaybeType or not MaybeAddress or not MaybeName or not MaybeFlags)
-      continue;
-
-    // Ignore unnamed and nullptr symbols
-    if (MaybeName->size() == 0 or *MaybeAddress == 0)
-      continue;
-
-    // Consider only STT_FUNC symbols
-    if (*MaybeType != SymbolRef::ST_Function)
-      continue;
-
-    // Consider only global symbols
-    if (!((*MaybeFlags) & SymbolRef::SF_Global))
-      continue;
-
-    Symbols.push_back({ *MaybeAddress, *MaybeType, *MaybeName });
-  }
-
-  llvm::sort(Symbols);
-
-  for (const auto &[Previous, Current] : zipPairs(Symbols))
-    if (Previous == Current)
-      Result.unionSets(Previous.Name, Current.Name);
-
-  return Result;
-}
-
-// TODO: it wuold be beneficial to do this even at other levels
-inline void detectAliases(const llvm::object::ObjectFile &ELF,
-                          TupleTree<model::Binary> &Model) {
-  EquivalenceClasses<StringRef> Aliases = computeEquivalentSymbols(ELF);
-  auto &ImportedDynamicFunctions = Model->ImportedDynamicFunctions();
-
-  for (auto AliasesIt = Aliases.begin(), E = Aliases.end(); AliasesIt != E;
-       ++AliasesIt) {
-    if (AliasesIt->isLeader()) {
-      SmallVector<std::string, 4> UnprototypedFunctionsNames;
-      model::TypePath Prototype;
-      for (auto AliasSetIt = Aliases.member_begin(AliasesIt);
-           AliasSetIt != Aliases.member_end();
-           ++AliasSetIt) {
-        std::string Name = AliasSetIt->str();
-
-        // Create DynamicFunction, it doesn't exist already
-        auto It = ImportedDynamicFunctions.find(Name);
-        bool Found = It != ImportedDynamicFunctions.end();
-
-        // If DynamicFunction doesn't have a prototype, register it for copying
-        // it from the leader.
-        // Otherwise, record the type as the leader.
-        if (Found and It->Prototype().isValid()) {
-          Prototype = It->Prototype();
-        } else {
-          UnprototypedFunctionsNames.push_back(Name);
-        }
-      }
-
-      if (Prototype.isValid()) {
-        for (const std::string &Name : UnprototypedFunctionsNames) {
-          auto It = ImportedDynamicFunctions.find(Name);
-          if (It == ImportedDynamicFunctions.end())
-            It = ImportedDynamicFunctions.insert({ Name }).first;
-          It->Prototype() = Prototype;
-        }
-      }
-    }
-  }
 }
 
 void DwarfImporter::import(const llvm::object::Binary &TheBinary,
@@ -1413,8 +1295,6 @@ void DwarfImporter::import(const llvm::object::Binary &TheBinary,
                                     AltIndex,
                                     PreferredBaseAddress);
     Converter.run();
-
-    detectAliases(*ELF, Model);
   }
 
   LoadedFiles.push_back(sys::path::filename(FileName).str());

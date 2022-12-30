@@ -171,8 +171,13 @@ void lddtreeResolve(LDDTree &Dependencies,
   }
 
   auto DynamicEntries = TheELF.dynamicEntries();
-  if (!DynamicEntries)
+  if (!DynamicEntries) {
+    revng_log(Log,
+              "Can't find dynamic entries: "
+                << toString(DynamicEntries.takeError()));
+    llvm::consumeError(DynamicEntries.takeError());
     return;
+  }
 
   std::optional<StringRef> RunPath;
 

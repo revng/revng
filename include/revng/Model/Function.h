@@ -57,6 +57,11 @@ fields:
       type: SortedVector
       elementType: CallSitePrototype
     optional: true
+  - name: ExportedNames
+    sequence:
+      type: SortedVector
+      elementType: string
+    optional: true
 key:
   - Entry
 TUPLE-TREE-YAML */

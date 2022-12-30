@@ -9,6 +9,7 @@
 #include <optional>
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/EquivalenceClasses.h"
 #include "llvm/Object/ELF.h"
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Object/ObjectFile.h"
@@ -154,6 +155,133 @@ uint64_t symbolsCount(const FilePortion &Relocations) {
     SymbolsCount = std::max(SymbolsCount, Relocation.getSymbol(false) + 1);
 
   return SymbolsCount;
+}
+
+static auto zipPairs(auto &&R) {
+  auto BeginIt = R.begin();
+  auto EndIt = R.end();
+
+  if (BeginIt == EndIt)
+    return zip(make_range(EndIt, EndIt), make_range(EndIt, EndIt));
+
+  auto First = BeginIt;
+  auto Second = ++BeginIt;
+
+  if (Second == EndIt)
+    return zip(make_range(EndIt, EndIt), make_range(EndIt, EndIt));
+
+  auto End = EndIt;
+  auto Last = --EndIt;
+
+  return zip(make_range(First, Last), make_range(Second, End));
+}
+
+/// This function considers all symbols with name of type STT_FUNC and clusters
+/// them by address/type
+static EquivalenceClasses<std::pair<StringRef, uint64_t>>
+computeEquivalentSymbols(const llvm::object::ObjectFile &ELF) {
+  using namespace llvm::object;
+
+  // A symbol is represented as a pair of symbol name and address.
+  EquivalenceClasses<std::pair<StringRef, uint64_t>> Result;
+
+  struct SymbolDescriptor {
+    uint64_t Address = 0;
+    // TODO: one day we will want to consider STT_OBJECT too
+    SymbolRef::Type Type = SymbolRef::ST_Unknown;
+    /// \note we ignore this field for comparison purposes
+    StringRef Name;
+
+    auto key() const { return std::tie(Address, Type); }
+
+    bool operator<(const SymbolDescriptor &Other) const {
+      return key() < Other.key();
+    }
+
+    bool operator==(const SymbolDescriptor &Other) const {
+      return key() == Other.key();
+    }
+  };
+
+  std::vector<SymbolDescriptor> Symbols;
+  for (const object::SymbolRef &Symbol : ELF.symbols()) {
+    SymbolDescriptor NewSymbol;
+
+    auto MaybeType = Symbol.getType();
+    auto MaybeAddress = Symbol.getAddress();
+    auto MaybeName = Symbol.getName();
+    auto MaybeFlags = Symbol.getFlags();
+    if (not MaybeType or not MaybeAddress or not MaybeName or not MaybeFlags)
+      continue;
+
+    // Ignore unnamed and nullptr symbols
+    if (MaybeName->size() == 0 or *MaybeAddress == 0)
+      continue;
+
+    // Consider only STT_FUNC symbols
+    if (*MaybeType != SymbolRef::ST_Function)
+      continue;
+
+    // Consider only global symbols
+    if (!((*MaybeFlags) & SymbolRef::SF_Global))
+      continue;
+
+    Symbols.push_back({ *MaybeAddress, *MaybeType, *MaybeName });
+  }
+
+  llvm::sort(Symbols);
+
+  for (const auto &[Previous, Current] : zipPairs(Symbols))
+    if (Previous == Current)
+      Result.unionSets({ Previous.Name, Previous.Address },
+                       { Current.Name, Current.Address });
+
+  return Result;
+}
+
+// TODO: it wuold be beneficial to do this even at other levels
+template<typename T, bool HasAddend>
+void ELFImporter<T, HasAddend>::detectAliases(const ObjectFile &ELF,
+                                              TupleTree<model::Binary> &Model,
+                                              uint64_t PreferredBaseAddress) {
+  auto Aliases = computeEquivalentSymbols(ELF);
+  auto &Functions = Model->Functions();
+
+  for (auto AliasesIt = Aliases.begin(), E = Aliases.end(); AliasesIt != E;
+       ++AliasesIt) {
+    if (AliasesIt->isLeader()) {
+      SmallVector<std::string, 4> CurrentAliases;
+      model::TypePath Prototype;
+      MetaAddress RelocatedAddress = MetaAddress::invalid();
+
+      for (auto AliasSetIt = Aliases.member_begin(AliasesIt);
+           AliasSetIt != Aliases.member_end();
+           ++AliasSetIt) {
+        std::string Name = AliasSetIt->first.str();
+        uint64_t Address = AliasSetIt->second;
+        CurrentAliases.push_back(Name);
+
+        // TODO: This is due to the fact that we relocate symbols with a
+        // predefined base address (default is 0x400000).
+        uint64_t AdjustedAddress = PreferredBaseAddress + Address;
+        auto Architecture = toLLVMArchitecture(Model->Architecture());
+        RelocatedAddress = MetaAddress::fromPC(Architecture, AdjustedAddress);
+        auto It = Functions.find(RelocatedAddress);
+        if (It != Functions.end() and It->Prototype().isValid())
+          Prototype = It->Prototype();
+      }
+
+      // If we found a local function, remember the exported names.
+      if (Prototype.isValid()) {
+        for (const std::string &Name : CurrentAliases) {
+          auto It = Functions.find(RelocatedAddress);
+          revng_assert(It != Functions.end());
+          if (DynamicSymbols.count(Name))
+            It->ExportedNames().insert(Name);
+        }
+      }
+    }
+  }
 }
 
 template<typename T, bool HasAddend>
@@ -321,6 +449,11 @@ Error ELFImporter<T, HasAddend>::import(unsigned FetchDebugInfoWithLevel) {
                             *DynstrPortion.get());
       }
     }
+  } else {
+    revng_log(ELFImporterLog,
+              "Can't find dynamic entries: "
+                << toString(DynamicEntries.takeError()));
+    llvm::consumeError(DynamicEntries.takeError());
   }
 
   // Create a default prototype
@@ -335,6 +468,25 @@ Error ELFImporter<T, HasAddend>::import(unsigned FetchDebugInfoWithLevel) {
   // Now we try to find missing types in the dependencies.
   if (FetchDebugInfoWithLevel > 1)
     findMissingTypes(TheELF, FetchDebugInfoWithLevel);
+
+  if (auto SeparateFile = Importer.getSeparateFile()) {
+    // The symbols were stripped into a separate file.
+    auto ExpectedBinary = object::createBinary(*SeparateFile);
+    if (!ExpectedBinary) {
+      revng_log(ELFImporterLog,
+                "Can't create binary for separate symbol file: "
+                  << *SeparateFile);
+      llvm::consumeError(ExpectedBinary.takeError());
+    } else {
+      if (auto *ELF = dyn_cast<ObjectFile>(&*ExpectedBinary->getBinary()))
+        detectAliases(*ELF, Model, PreferredBaseAddress);
+      else
+        revng_log(ELFImporterLog,
+                  "Separate symbol file is not ELF: " << *SeparateFile);
+    }
+  } else {
+    detectAliases(TheBinary, Model, PreferredBaseAddress);
+  }
 
   return Error::success();
 }
@@ -402,7 +554,9 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
               "Searching for prototype for " << Fn.OriginalName());
     auto TypeLocation = findPrototype(Fn.OriginalName(), ModelsOfLibraries);
     if (TypeLocation) {
-      revng_log(ELFImporterLog, "Found type for " << Fn.OriginalName());
+      revng_log(ELFImporterLog,
+                "Found type for " << Fn.OriginalName() << " in "
+                                  << (*TypeLocation).second);
       auto &TheTypeCopier = TypeCopiers[(*TypeLocation).second];
       auto Type = TheTypeCopier->copyPrototypeInto((*TypeLocation).first,
                                                    Model);
@@ -702,6 +856,11 @@ void ELFImporter<T, HasAddend>::parseDynamicSymbol(Elf_Sym_Impl<T> &Symbol,
 
   if (shouldIgnoreSymbol(Name))
     return;
+
+  if (IsCode) {
+    // Collect dynamic symbol, so we can use it later for `ExportedNames`.
+    DynamicSymbols.insert(Name.str());
+  }
 
   if (Symbol.st_shndx == ELF::SHN_UNDEF) {
     if (IsCode) {

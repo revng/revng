@@ -15,6 +15,8 @@ private:
   using DwarfID = std::pair<size_t, size_t>;
   std::map<DwarfID, model::QualifiedType> DwarfToModel;
   uint64_t PreferredBaseAddress;
+  // Path of the detached file that contains symbols and debug info.
+  std::optional<std::string> SeparateFile;
 
 public:
   DwarfImporter(TupleTree<model::Binary> &Model,
@@ -34,6 +36,8 @@ public:
   }
 
   TupleTree<model::Binary> &getModel() { return Model; }
+
+  std::optional<std::string> &getSeparateFile() { return SeparateFile; }
 
 public:
   void import(llvm::StringRef FileName, unsigned FetchDebugInfoWithLevel);

@@ -64,6 +64,8 @@ private:
   const llvm::object::ELFObjectFileBase &TheBinary;
   uint64_t PreferredBaseAddress;
 
+  std::set<std::string> DynamicSymbols;
+
   std::optional<MetaAddress> EHFrameHdrAddress;
   std::optional<MetaAddress> DynamicAddress;
 
@@ -146,6 +148,10 @@ private:
 
   void
   findMissingTypes(llvm::object::ELFFile<T> &TheELF, unsigned DebugInfoLevel);
+
+  void detectAliases(const llvm::object::ObjectFile &ELF,
+                     TupleTree<model::Binary> &Model,
+                     uint64_t PreferredBaseAddress);
 
 protected:
   template<typename Q>
