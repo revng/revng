@@ -402,7 +402,9 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
               "Searching for prototype for " << Fn.OriginalName());
     auto TypeLocation = findPrototype(Fn.OriginalName(), ModelsOfLibraries);
     if (TypeLocation) {
-      revng_log(ELFImporterLog, "Found type for " << Fn.OriginalName());
+      revng_log(ELFImporterLog,
+                "Found type for " << Fn.OriginalName() << " in "
+                                  << (*TypeLocation).second);
       auto &TheTypeCopier = TypeCopiers[(*TypeLocation).second];
       auto Type = TheTypeCopier->copyPrototypeInto((*TypeLocation).first,
                                                    Model);
@@ -533,8 +535,11 @@ void ELFImporter<T, HasAddend>::parseSymbols(object::ELFFile<T> &TheELF,
     auto It = Model->Functions().find(Address);
     if (It == Model->Functions().end()) {
       model::Function &Function = Model->Functions()[Address];
-      if (MaybeName)
+      if (MaybeName) {
         Function.OriginalName() = *MaybeName;
+        // Insert Original name into exported ones, since it is by default true.
+        Function.ExportedNames().insert((*MaybeName).str());
+      }
     }
   }
 }
