@@ -522,7 +522,7 @@ private:
 
   Optional<BlockType::Values> SetBlockType;
 
-  SmallVectorImpl<BasicBlock *> *NewBlocksRegistry;
+  SmallVectorImpl<BasicBlock *> *NewBlocksRegistry = nullptr;
 
 public:
   SwitchManager(BasicBlock *Default,
