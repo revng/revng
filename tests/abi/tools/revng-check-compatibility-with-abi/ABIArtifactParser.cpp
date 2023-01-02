@@ -74,6 +74,7 @@ struct llvm::yaml::MappingTraits<State::Argument> {
   static void mapping(IO &IO, State::Argument &N) {
     IO.mapRequired("Type", N.Type);
     IO.mapRequired("Bytes", N.Bytes);
+    IO.mapOptional("Pointer", N.MaybePointer);
   }
 };
 
@@ -179,7 +180,7 @@ static State::Iteration toIteration(const State::SingleRun &SingleRun,
                            SingleRun.Stack,
                            SingleRun.Arguments,
                            SingleRun.ReturnValue.empty() ?
-                             State::Argument{ "void", {} } :
+                             State::Argument{ "void", {}, {} } :
                              SingleRun.ReturnValue[0] };
 }
 
@@ -192,7 +193,14 @@ State::Parsed abi::artifact::parse(llvm::StringRef RuntimeArtifact,
   revng_assert(!Reader.error());
 
   llvm::StringRef ArchitectureName = model::Architecture::getName(Architecture);
-  revng_assert(ArchitectureName == Deserialized.TargetArchitecture);
+  if (ArchitectureName != Deserialized.TargetArchitecture) {
+    std::string Error = "Target architecture ('"
+                        + Deserialized.TargetArchitecture.str()
+                        + "') does not match the expected one: '"
+                        + ArchitectureName.str() + "'\n";
+    revng_abort(Error.c_str());
+  }
+
   verify(Deserialized, true);
 
   State::Parsed Result;

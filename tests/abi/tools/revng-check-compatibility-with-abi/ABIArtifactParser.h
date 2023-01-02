@@ -23,6 +23,7 @@ using Stack = llvm::SmallVector<std::byte, 32 * 8>;
 struct Argument {
   llvm::StringRef Type;
   std::vector<std::byte> Bytes;
+  uint64_t MaybePointer;
 };
 using Arguments = llvm::SmallVector<Argument, 32>;
 
