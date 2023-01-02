@@ -259,7 +259,7 @@ static CommandList linkingArgs(const model::Binary &Model,
   }
 
   // Link C standard library
-  appendTo({ "/lib64/ld-linux-x86-64.so.2", "-lc", "-lm", "-lrt", "-lpthread" },
+  appendTo({ "-l:ld-linux-x86-64.so.2", "-lc", "-lm", "-lrt", "-lpthread" },
            Linker.Arguments);
 
   // Link additional libraries needed by helpers
