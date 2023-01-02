@@ -431,11 +431,15 @@ public:
     indent(OS, Indentation);
     OS << getName() << "\n";
     indent(OS, Indentation + 1);
-    OS << "Containers\n";
-    for (const auto &Name : getRunningContainersNames()) {
-      indent(OS, Indentation + 2);
-      OS << Name;
-      OS << "\n";
+    if (const auto &Names = getRunningContainersNames(); !Names.empty()) {
+      OS << "Containers:\n";
+      for (const auto &Name : Names) {
+        indent(OS, Indentation + 2);
+        OS << Name;
+        OS << "\n";
+      }
+    } else {
+      OS << "No containers.\n";
     }
     if constexpr (Dumpable<InvokableType>)
       ActualPipe.dump(OS, Indentation);
