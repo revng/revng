@@ -7,7 +7,6 @@ revng_add_library_internal(
   SHARED
   AddPrimitiveTypes.cpp
   AddPrimitiveTypesAnalysis.cpp
-  ConvertFunctionTypes.cpp
   DeduplicateEquivalentTypes.cpp
   FixModel.cpp
   OptionCategory.cpp
