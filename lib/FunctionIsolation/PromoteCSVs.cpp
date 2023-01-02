@@ -83,9 +83,12 @@ private:
   OpaqueFunctionsPool<StringRef> CSVInitializers;
   std::map<WrapperKey, Function *> Wrappers;
   std::set<GlobalVariable *> CSVs;
+  const model::Binary &Binary;
 
 public:
-  PromoteCSVs(Module *M, GeneratedCodeBasicInfo &GCBI);
+  PromoteCSVs(Module *M,
+              GeneratedCodeBasicInfo &GCBI,
+              const model::Binary &Binary);
 
 public:
   void run();
@@ -100,8 +103,10 @@ private:
   void wrapCallsToHelpers(Function *F);
 };
 
-PromoteCSVs::PromoteCSVs(Module *M, GeneratedCodeBasicInfo &GCBI) :
-  M(M), Initializers(M), CSVInitializers(M, false) {
+PromoteCSVs::PromoteCSVs(Module *M,
+                         GeneratedCodeBasicInfo &GCBI,
+                         const model::Binary &Binary) :
+  M(M), Initializers(M), CSVInitializers(M, false), Binary(Binary) {
 
   CSVInitializers.addFnAttribute(Attribute::ReadOnly);
   CSVInitializers.addFnAttribute(Attribute::NoUnwind);
@@ -289,6 +294,7 @@ void PromoteCSVs::promoteCSVs(Function *F) {
   // Create an alloca for each CSV and replace all uses of CSVs with the
   // corresponding allocas
   BasicBlock &Entry = F->getEntryBlock();
+  QuickMetadata QMD(F->getParent()->getContext());
 
   // Get/create initializers
   std::map<Function *, GlobalVariable *> CSVForInitializer;
@@ -296,10 +302,21 @@ void PromoteCSVs::promoteCSVs(Function *F) {
   for (GlobalVariable *CSV : CSVs) {
     // Initialize all allocas with opaque, CSV-specific values
     Type *CSVType = CSV->getType()->getPointerElementType();
-    auto *Initializer = CSVInitializers.get(CSV->getName(),
+    llvm::StringRef CSVName = CSV->getName();
+    auto *Initializer = CSVInitializers.get(CSVName,
                                             CSVType,
                                             {},
-                                            Twine("init_") + CSV->getName());
+                                            Twine("init_") + CSVName);
+
+    if (not Initializer->hasMetadata("revng.register")) {
+      model::Register::Values
+        Register = model::Register::fromCSVName(CSVName, Binary.Architecture());
+      if (Register != model::Register::Invalid) {
+        Initializer->setMetadata("revng.register",
+                                 QMD.tuple(model::Register::getName(Register)));
+      }
+    }
+
     CSVForInitializer[Initializer] = CSV;
     InitializerForCSV[CSV] = Initializer;
   }
@@ -570,7 +587,9 @@ void PromoteCSVs::run() {
 
 bool PromoteCSVsPass::runOnModule(Module &M) {
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
-  PromoteCSVs HW(&M, GCBI);
+  auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
+  const model::Binary &Binary = *ModelWrapper.getReadOnlyModel();
+  PromoteCSVs HW(&M, GCBI, Binary);
   HW.run();
   return true;
 }
