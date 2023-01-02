@@ -125,7 +125,7 @@ TypeSystemPrinter::~TypeSystemPrinter() {
   Out.flush();
 }
 
-// WIP: move to Qualified::name()
+// WIP: NEXT review
 /// Build a C-like string for a given QualifiedType
 static llvm::SmallString<32>
 buildFieldName(const model::QualifiedType &FieldQT) {

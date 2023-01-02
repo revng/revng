@@ -199,9 +199,9 @@ private:
                                      const model::QualifiedType &QT,
                                      bool IsNotPlaceholder) {
     size_t Offset = Die.getOffset();
-    // WIP
-    revng_assert(QT.UnqualifiedType().isValid());
-    if (not IsNotPlaceholder) {
+    revng_assert(not QT.empty());
+    bool IsPlaceholder = not IsNotPlaceholder;
+    if (QT.isTrull() and IsPlaceholder) {
       revng_assert(QT.Qualifiers().size() == 0);
       Placeholders[Offset] = QT.UnqualifiedType().get();
     }
@@ -463,8 +463,7 @@ private:
       }
 
       FunctionType->ReturnType() = rc_recur getTypeOrVoid(Die);
-      // WIP: isEmpty?
-      revng_assert(FunctionType->ReturnType().UnqualifiedType().isValid());
+      revng_assert(not FunctionType->ReturnType().empty());
 
       uint64_t Index = 0;
       for (const DWARFDie &ChildDie : Die.children()) {
@@ -494,8 +493,7 @@ private:
       auto *Typedef = cast<model::TypedefType>(T);
       Typedef->OriginalName() = Name;
       Typedef->UnderlyingType() = TargetType;
-      // WIP: isEmpty
-      revng_assert(Typedef->UnderlyingType().UnqualifiedType().isValid());
+      revng_assert(not Typedef->UnderlyingType().empty());
 
     } break;
 
@@ -824,8 +822,7 @@ private:
 
     // Return type
     FunctionType->ReturnType() = getTypeOrVoid(Die);
-    // WIP: isEmpty
-    revng_assert(FunctionType->ReturnType().UnqualifiedType().isValid());
+    revng_assert(not FunctionType->ReturnType().empty());
 
     return Model->recordNewType(std::move(NewType));
   }
@@ -916,10 +913,17 @@ private:
         auto IsArray = [](const model::Qualifier &Q) {
           return Q.Kind() == model::QualifierKind::Array;
         };
-        // WIP: just "not QT.size()"?
-        if (llvm::any_of(QT.Qualifiers(), IsArray)
-            and not QT.UnqualifiedType().get()->size()) {
-          ToDrop.insert(Type.get());
+
+        // Check if we have an array with an element type without a valid size
+        model::QualifiedType Onion = QT;
+        while (Onion.Qualifiers().size() > 0) {
+          if (Onion.Qualifiers()[0].Kind() == model::QualifierKind::Array
+              and not Onion.popQualifier().size()) {
+            ToDrop.insert(Type.get());
+            break;
+          }
+
+          Onion = Onion.popQualifier();
         }
       }
     }

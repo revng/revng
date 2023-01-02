@@ -1243,21 +1243,27 @@ Error PDBImporterSymbolVisitor::visitKnownRecord(CVSymbol &Record,
     // Relocate the symbol.
     MetaAddress FunctionAddress = ImageBase + FunctionVirtualAddress;
 
+    model::TypePath *FunctionType = nullptr;
+    TypeIndex FunctionTypeIndex = Proc.FunctionType;
     if (not Model->Functions().count(FunctionAddress)) {
       model::Function &Function = Model->Functions()[FunctionAddress];
       Function.OriginalName() = Proc.Name;
-      TypeIndex FunctionTypeIndex = Proc.FunctionType;
-      if (ProcessedTypes.count(FunctionTypeIndex)) {
-        // WIP: model::Function::Prototype has to become a QualifiedType
-        // Function.Prototype() = ProcessedTypes[FunctionTypeIndex];
-      }
+      if (ProcessedTypes.count(FunctionTypeIndex))
+        FunctionType = &Function.Prototype();
     } else {
       auto It = Model->Functions().find(FunctionAddress);
-      TypeIndex FunctionTypeIndex = Proc.FunctionType;
-      if (ProcessedTypes.count(FunctionTypeIndex)) {
-        // WIP: model::Function::Prototype has to become a QualifiedType
-        // It->Prototype() = ProcessedTypes[FunctionTypeIndex];
-      }
+      if (ProcessedTypes.count(FunctionTypeIndex))
+        FunctionType = &It->Prototype();
+    }
+
+    if (FunctionType != nullptr) {
+      // WIP: model::Function::Prototype has to become a QualifiedType
+      QualifiedType NewType = ProcessedTypes[FunctionTypeIndex];
+      using namespace model::TypeKind;
+      revng_assert(NewType.isTrull());
+      auto Kind = NewType.UnqualifiedType().get()->Kind();
+      revng_assert(Kind == CABIFunctionType or Kind == RawFunctionType);
+      *FunctionType = NewType.UnqualifiedType();
     }
   }
 

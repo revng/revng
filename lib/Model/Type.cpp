@@ -539,6 +539,8 @@ bool EnumEntry::verify(VerifyHelper &VH) const {
   return VH.maybeFail(CustomName().verify(VH));
 }
 
+
+  revng_abort();
 std::optional<uint64_t> QualifiedType::size() const {
   VerifyHelper VH;
   return size(VH);
@@ -768,7 +770,7 @@ Type::trySize(VerifyHelper &VH) const {
 
   case TypeKind::EnumType: {
     auto *U = llvm::cast<EnumType>(this);
-    auto MaybeSize = rc_recur U->trySize(VH);
+    auto MaybeSize = rc_recur U->UnderlyingType().trySize(VH);
     if (not MaybeSize)
       rc_return std::nullopt;
 
@@ -778,7 +780,7 @@ Type::trySize(VerifyHelper &VH) const {
   case TypeKind::TypedefType: {
     auto *Typedef = llvm::cast<TypedefType>(this);
 
-    auto MaybeSize = rc_recur Typedef->trySize(VH);
+    auto MaybeSize = rc_recur Typedef->UnderlyingType().trySize(VH);
     if (not MaybeSize)
       rc_return std::nullopt;
 
@@ -1040,8 +1042,8 @@ verifyImpl(VerifyHelper &VH, const CABIFunctionType *T) {
     rc_return VH.fail("An invalid ABI", *T);
 
   for (auto &Group : llvm::enumerate(T->Arguments())) {
-    auto &Argument = Group.value();
     uint64_t ArgPos = Group.index();
+    auto &Argument = Group.value();
 
     if (not Argument.CustomName().verify(VH))
       rc_return VH.fail("An argument has invalid CustomName", *T);
@@ -1193,16 +1195,23 @@ RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
                       "an underlying type");
   }
 
-  if (HasUnderlyingType and not rc_recur UnqualifiedType().get()->verify(VH))
-    rc_return VH.fail();
-
   if (IsPrimitive and not isValidPrimitiveSize(PrimitiveKind(), Size()))
     rc_return VH.fail("Invalid PrimitiveType size: " + Twine(Size()), *this);
 
   // Verify the qualifiers are valid
-  for (const auto &Q : Qualifiers())
-    if (not Q.verify(VH))
+  bool IsPointer = false;
+  for (const auto &Q : Qualifiers()) {
+    if (not Q.verify(VH)) {
       rc_return VH.fail("Invalid qualifier", Q);
+    }
+
+    if (Q.Kind()==QualifierKind::Pointer)
+IsPointer = true;
+
+  }
+
+  if (not IsPointer and HasUnderlyingType and not rc_recur UnqualifiedType().get()->verify(VH))
+    rc_return VH.fail();
 
   auto QIt = Qualifiers().begin();
   auto QEnd = Qualifiers().end();

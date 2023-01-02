@@ -21,7 +21,6 @@ from revng.model.metaaddress import MetaAddressType
 RevngTypes = Union[
     m.UnionType,
     m.StructType,
-    m.PrimitiveType,
     m.EnumType,
     m.TypedefType,
     m.RawFunctionType,
@@ -539,12 +538,7 @@ class IDBConverter:
         return qualified_type
 
     def _get_primitive_type(self, kind: m.PrimitiveTypeKind, size: int) -> m.QualifiedType:
-        """Gets a primitive type, taking care to register it"""
-        revng_type = m.PrimitiveType(PrimitiveKind=kind, Size=size)
-        if revng_type.ID not in self.revng_types_by_id:
-            self.revng_types_by_id[revng_type.ID] = revng_type
-
-        return m.QualifiedType(UnqualifiedType=m.Reference.create(m.Binary, revng_type))
+        return m.QualifiedType(PrimitiveKind=kind, Size=size)
 
     def get_model(self) -> m.Binary:
         return m.Binary(

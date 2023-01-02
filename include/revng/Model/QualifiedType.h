@@ -49,7 +49,7 @@ public:
   RecursiveCoroutine<std::optional<uint64_t>> trySize(VerifyHelper &VH) const;
 
 public:
-  // WIP
+  /// If isPrimitive2 is true, returns that name of the primitive type
   Identifier primitiveName() const;
 
 public:

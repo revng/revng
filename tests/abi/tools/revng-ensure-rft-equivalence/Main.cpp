@@ -98,6 +98,7 @@ int main(int Argc, char *Argv[]) {
     // Try and access the argument struct.
     revng_check(Left->StackArgumentsType().Qualifiers().empty());
     revng_check(Right->StackArgumentsType().Qualifiers().empty());
+    Left->dump();
     revng_check(Left->StackArgumentsType().isTrull());
     revng_check(Right->StackArgumentsType().isTrull());
     model::Type
