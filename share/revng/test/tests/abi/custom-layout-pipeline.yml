@@ -1,0 +1,11 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+Branches:
+  - Steps:
+      - Name: ConvertToRawFunctionType
+        Analyses:
+          - Name: ConvertToRawFunctionType
+            Type: ConvertToRawFunctionType
+            UsedContainers: []
