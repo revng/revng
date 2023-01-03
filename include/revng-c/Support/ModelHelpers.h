@@ -7,7 +7,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/Type.h"
 
-#include "revng/ABI/FunctionType.h"
+#include "revng/ABI/FunctionType/Layout.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/QualifiedType.h"

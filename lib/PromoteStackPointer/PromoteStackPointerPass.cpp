@@ -21,7 +21,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 
-#include "revng/ABI/FunctionType.h"
+#include "revng/ABI/FunctionType/Layout.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/LoadModelPass.h"

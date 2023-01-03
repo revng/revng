@@ -10,7 +10,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Type.h"
 
-#include "revng/ABI/FunctionType.h"
+#include "revng/ABI/FunctionType/Layout.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/CABIFunctionType.h"
 #include "revng/Model/Identifier.h"

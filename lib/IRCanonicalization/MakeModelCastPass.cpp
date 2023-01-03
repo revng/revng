@@ -9,7 +9,7 @@
 #include "llvm/IR/Use.h"
 #include "llvm/Pass.h"
 
-#include "revng/ABI/FunctionType.h"
+#include "revng/ABI/FunctionType/Layout.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
