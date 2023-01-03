@@ -12,3 +12,7 @@ Analyses:
     Type: dla
     UsedContainers: [module.ll]
     Step: MakeSegmentRefs
+  - Name: ConvertToCABIFunctionType
+    Type: ConvertToCABIFunctionType
+    UsedContainers: []
+    Step: MakeSegmentRefs
