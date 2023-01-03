@@ -525,9 +525,11 @@ void IT::finalizeNewPCMarkers() {
 
       auto *NewCall = CallInst::Create(NewPCMarker, Args, "", Call);
       NewCall->setCallingConv(Call->getCallingConv());
-      NewCall->setAttributes(Call->getAttributes());
       NewCall->setDebugLoc(Call->getDebugLoc());
       NewCall->copyMetadata(*Call);
+      // Note: we intentionally do not copy attributes. We do not expect to have
+      //       any and removing those on extra arguments leads to a mysterious
+      //       failure in verify "Attribute after last parameter".
 
       revng_assert(Call->use_empty());
       CallsToRemove.push_back(Call);
