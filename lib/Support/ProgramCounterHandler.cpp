@@ -217,9 +217,10 @@ protected:
 };
 
 static void eraseIfNoUse(const WeakVH &V) {
-  if (Instruction *I = dyn_cast_or_null<Instruction>(&*V))
-    if (I->use_begin() == I->use_end())
-      eraseFromParent(I);
+  if (V != nullptr)
+    if (Instruction *I = dyn_cast_or_null<Instruction>(&*V))
+      if (I->use_begin() == I->use_end())
+        eraseFromParent(I);
 }
 
 static SwitchInst *getNextSwitch(SwitchInst::CaseHandle Case) {
