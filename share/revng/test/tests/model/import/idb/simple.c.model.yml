@@ -3,30 +3,25 @@
 #
 
 Types:
-  - ID: 1028
-    Kind: PrimitiveType
-    PrimitiveKind: Number
-    Size: 4
-  - ID: 1025
-    Kind: PrimitiveType
-    PrimitiveKind: Number
-    Size: 1
   - Kind: CABIFunctionType
     ID: 9061286636309425384
     CustomName: "main"
     OriginalName: main
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-1028"
+      PrimitiveKind: Number
+      Size: 4
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1028"
+          PrimitiveKind: Number
+          Size: 4
         CustomName: "argc"
         OriginalName: argc
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1025"
+          PrimitiveKind:   Number
+          Size:            1
           Qualifiers:
             - Kind: Pointer
               Size: 8
@@ -37,7 +32,8 @@ Types:
         OriginalName: argv
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1025"
+          PrimitiveKind:   Number
+          Size:            1
           Qualifiers:
             - Kind: Pointer
               Size: 8

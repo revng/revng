@@ -76,7 +76,9 @@ private:
   bool isCached() const { return getCachedConst() != nullptr; }
 
   bool cacheTarget() {
-    if (isValid()) {
+    if (empty()) {
+      CachedTarget = static_cast<T *>(nullptr);
+    } else {
       if (std::holds_alternative<const RootT *>(Root)) {
         CachedTarget = getConst();
       } else if (std::holds_alternative<RootT *>(Root)) {
@@ -85,6 +87,7 @@ private:
         revng_abort("Invalid root variant!");
       }
     }
+
     return isCached();
   }
 
@@ -188,16 +191,30 @@ public:
 
   bool empty() const debug_function { return Path.empty(); }
 
-  // WIP: NEXT replace usages of isValid with empty and make this function *not*
-  //      fail if Path.empty()
   bool isValid() const debug_function {
-    if (not canGet() or Path.empty())
-      return false;
-    const T *TargetPointer = getConst();
     const T *CachedPointer = getCachedConst();
-    if (not CachedPointer)
-      return TargetPointer;
-    return TargetPointer and TargetPointer == CachedPointer;
+
+    if (empty()) {
+      // We're empty, ensure we don't something invalid in the cache
+      if (CachedPointer != nullptr)
+          return false;
+    } else {
+      // Ensure it's feasible to get the target
+      if (not canGet())
+        return false;
+
+      // Actually get the target and make sure it exists
+      const T *TargetPointer = getConst();
+      if (TargetPointer == nullptr)
+        return false;
+
+      // If the target is cached, ensure coherence
+      if (CachedPointer != nullptr)
+        if (TargetPointer != CachedPointer)
+          return false;
+    }
+
+    return true;
   }
 };
 

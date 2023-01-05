@@ -24,7 +24,7 @@ void model::fixModel(TupleTree<model::Binary> &Model) {
 
   for (UpcastablePointer<model::Type> &T : Model->Types()) {
     // Filter out empty structs and unions.
-    if (!T->size()) {
+    if (not T->trySize()) {
       if (isa<StructType>(T.get()) or isa<UnionType>(T.get())) {
         ToDrop.insert(T.get());
         continue;

@@ -74,25 +74,14 @@ void model::purgeTypesImpl(TupleTree<model::Binary> &Model) {
 
   llvm::SmallPtrSet<Type *, 16> ToKeep;
 
-  // Remember those types we want to preserve.
-  if constexpr (PruneAllUnusedTypes) {
-    for (const auto &Function : Model->Functions()) {
-      if (Function.Prototype().isValid()) {
-        ToKeep.insert(const_cast<Type *>(Function.Prototype().get()));
-      }
-    }
-
-    for (UpcastablePointer<model::Type> &T : Model->Types()) {
-      TypeToNode[T.get()] = TypeGraph.addNode(NodeData{ T.get() });
-    }
-  } else {
-    for (UpcastablePointer<model::Type> &T : Model->Types()) {
-
+  // Create nodes of the graph
+  for (UpcastablePointer<model::Type> &T : Model->Types()) {
+    // If not PruneAllUnusedTypes, save also all those with a name
+    if constexpr (not PruneAllUnusedTypes)
       if (not T->CustomName().empty() or not T->OriginalName().empty())
         ToKeep.insert(T.get());
 
-      TypeToNode[T.get()] = TypeGraph.addNode(NodeData{ T.get() });
-    }
+    TypeToNode[T.get()] = TypeGraph.addNode(NodeData{ T.get() });
   }
 
   // Create type system edges
@@ -106,18 +95,16 @@ void model::purgeTypesImpl(TupleTree<model::Binary> &Model) {
   }
 
   // Record references to types *outside* of Model->Types
-  if constexpr (!PruneAllUnusedTypes) {
-    auto VisitBinary = [&](auto &Field) {
-      auto Visitor = [&](auto &Element) {
-        using type = std::decay_t<decltype(Element)>;
-        if constexpr (std::is_same_v<type, TypePath>)
-          if (Element.isValid())
-            ToKeep.insert(Element.get());
-      };
-      visitTupleTree(Field, Visitor, [](auto) {});
+  auto VisitBinary = [&](auto &Field) {
+    auto Visitor = [&](auto &Element) {
+      using type = std::decay_t<decltype(Element)>;
+      if constexpr (std::is_same_v<type, TypePath>)
+        if (not Element.empty())
+          ToKeep.insert(Element.get());
     };
-    visitTupleExcept(VisitBinary, *Model, &Model->Types());
-  }
+    visitTupleTree(Field, Visitor, [](auto) {});
+  };
+  visitTupleExcept(VisitBinary, *Model, &Model->Types());
 
   // Visit all the nodes reachable from ToKeep
   df_iterator_default_set<Node *> Visited;

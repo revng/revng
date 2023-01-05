@@ -27,7 +27,7 @@ BOOST_AUTO_TEST_CASE(YAMLSerializationRoundTripTest) {
   ReferenceInstance.ReferenceField() = RefType::fromString(&ReferenceInstance,
                                                            "/SequenceField/1");
 
-  revng_assert(ReferenceInstance.ReferenceField().isValid());
+  revng_assert(not ReferenceInstance.ReferenceField().empty());
   revng_assert(ReferenceInstance.ReferenceField().get());
 
   std::string Buffer;

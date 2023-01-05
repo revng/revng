@@ -17,14 +17,6 @@ Functions:
     OriginalName: "Foo::dummy"
     Prototype: "/Types/CABIFunctionType-11972987020417764497"
 Types:
-  - Kind: PrimitiveType
-    ID: 256
-    PrimitiveKind: Void
-    Size: 0
-  - Kind: PrimitiveType
-    ID: 1540
-    PrimitiveKind: Signed
-    Size: 4
   - Kind: StructType
     ID: 987067897056915724
     CustomName: "Foo"
@@ -34,17 +26,19 @@ Types:
         CustomName: "x"
         OriginalName: x
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1540"
+          PrimitiveKind: Signed
+          Size: 4
       - Offset: 4
         CustomName: "y"
         OriginalName: "y"
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1540"
+          PrimitiveKind: Signed
+          Size: 4
   - Kind: CABIFunctionType
     ID: 16558654860526908435
     ABI: Microsoft_x86_cdecl
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-256"
+      PrimitiveKind: Void
     Arguments:
       - Index: 0
         Type:
@@ -54,15 +48,18 @@ Types:
               Size: 4
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1540"
+          PrimitiveKind: Signed
+          Size: 4
       - Index: 2
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1540"
+          PrimitiveKind: Signed
+          Size: 4
   - Kind: CABIFunctionType
     ID: 17990064059287856019
     ABI: Microsoft_x86_cdecl
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-1540"
+      PrimitiveKind: Signed
+      Size: 4
     Arguments:
       - Index: 0
         Type:
@@ -74,7 +71,8 @@ Types:
     ID: 8800211852340388695
     ABI: Microsoft_x86_cdecl
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-1540"
+      PrimitiveKind: Signed
+      Size: 4
     Arguments:
       - Index: 0
         Type:
@@ -86,8 +84,9 @@ Types:
     ID: 11972987020417764497
     ABI: Microsoft_x86_cdecl
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-256"
+      PrimitiveKind: Void
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1540"
+          PrimitiveKind: Signed
+          Size: 4

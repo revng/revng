@@ -12,12 +12,14 @@ Types:
         CustomName: "x"
         OriginalName: x
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1028"
+          PrimitiveKind:   Number
+          Size:            4
       - Offset: 4
         CustomName: "y"
         OriginalName: "y"
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1028"
+          PrimitiveKind:   Number
+          Size:            4
       - Offset: 8
         CustomName: "z"
         OriginalName: z
@@ -42,10 +44,12 @@ Types:
         CustomName: "a"
         OriginalName: a
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1028"
+          PrimitiveKind:   Number
+          Size:            4
       - Offset: 4
         CustomName: "b"
         OriginalName: b
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1028"
+          PrimitiveKind:   Number
+          Size:            4
     Size: 8

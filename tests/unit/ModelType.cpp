@@ -638,4 +638,8 @@ BOOST_AUTO_TEST_CASE(QualifiedTypes) {
   model::Qualifier ZeroElementsArray{ model::QualifierKind::Array, 0 };
   QualifiedType ZeroSizedVoidArray = Void.addQualifier(ZeroElementsArray);
   revng_check(not ZeroSizedVoidArray.verify(false));
+
+  QualifiedType Array = Generic64.addQualifier(ConstQualifier).addQualifier(TenElementsArray).addQualifier(ConstQualifier);
+  revng_check(Array.verify(true));
+  revng_check(Array.size() == 10 * 8);
 }

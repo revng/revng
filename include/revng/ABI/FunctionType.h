@@ -92,7 +92,7 @@ public:
   /// Extracts the information about argument and return value location layout
   /// from the \param Function.
   static Layout make(const model::TypePath &Function) {
-    revng_assert(Function.isValid());
+    revng_assert(Function.isValid() and not Function.empty());
     return make(*Function.get());
   }
 

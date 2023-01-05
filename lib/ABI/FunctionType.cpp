@@ -100,7 +100,7 @@ static void replaceReferences(const model::Type::Key &OldKey,
                               const model::TypePath &NewTypePath,
                               TupleTree<model::Binary> &Model) {
   auto Visitor = [&](model::TypePath &Visited) {
-    if (!Visited.isValid())
+    if (Visited.empty())
       return; // Ignore empty references
 
     model::Type *Current = Visited.get();
@@ -603,7 +603,7 @@ private:
 
       if constexpr (!DryRun) {
         auto ReturnStructTypePath = TheBinary.recordNewType(std::move(Result));
-        revng_assert(ReturnStructTypePath.isValid());
+        revng_assert(not ReturnStructTypePath.empty());
         return model::QualifiedType::getLel(ReturnStructTypePath);
       } else {
         return model::QualifiedType{};

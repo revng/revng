@@ -194,7 +194,7 @@ void DetectABI::initializeInterproceduralQueue() {
     // The intraprocedural analysis will be scheduled only for those functions
     // which have `Invalid` as type.
     auto &Function = Binary->Functions().at(Node->Address);
-    if (not Function.Prototype().isValid())
+    if (Function.Prototype().empty())
       EntrypointsQueue.insert(Node);
   }
 }
@@ -345,7 +345,7 @@ void DetectABI::finalizeModel() {
   std::set<model::Function *> Functions;
   for (model::Function &Function : Binary->Functions()) {
     // Ignore if we already have a prototype
-    if (Function.Prototype().isValid())
+    if (not Function.Prototype().empty())
       continue;
 
     MetaAddress EntryPC = Function.Entry();
@@ -761,7 +761,7 @@ void DetectABI::runInterproceduralAnalysis() {
           if (IsInline)
             InlineFunctionWorklist.insert(Caller);
 
-          if (not Binary->Functions().at(CallerPC).Prototype().isValid()) {
+          if (Binary->Functions().at(CallerPC).Prototype().empty()) {
             revng_log(Log, CallerPC.toString());
             EntrypointsQueue.insert(Caller);
           }

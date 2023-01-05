@@ -21,13 +21,16 @@ type: struct
 fields:
   - name: PrimitiveKind
     type: PrimitiveTypeKind
+    optional: true
   - name: Size
     doc: Size in bytes
     type: uint8_t
+    optional: true
   - name: UnqualifiedType
     reference:
       pointeeType: Type
       rootType: Binary
+    optional: true
   - name: Qualifiers
     sequence:
       type: "std::vector"
@@ -80,7 +83,7 @@ public:
   }
 
   bool isTrull() const {
-    return not isPrimitive2() and UnqualifiedType().isValid();
+    return not isPrimitive2() and not UnqualifiedType().empty();
   }
 
   bool isValid() const {
@@ -89,20 +92,28 @@ public:
   }
 
 public:
-  model::QualifiedType getPointerTo(model::Architecture::Values Arch) const {
+  [[nodiscard]] model::QualifiedType getPointerTo(model::Architecture::Values Arch) const {
     return addQualifier(model::Qualifier::createPointer(Arch));
   }
 
-  model::QualifiedType addQualifier(const model::Qualifier &Q) const {
+  [[nodiscard]] model::QualifiedType addQualifier(const model::Qualifier &Q) const {
     model::QualifiedType Result = *this;
     // WIP: NEXT reverse order
     Result.Qualifiers().insert(Result.Qualifiers().begin(), Q);
     return Result;
   }
 
-  model::QualifiedType popQualifier() const {
+  [[nodiscard]] model::QualifiedType popQualifier() const {
     model::QualifiedType Result = *this;
     Result.Qualifiers().erase(Result.Qualifiers().begin());
+    return Result;
+  }
+
+  [[nodiscard]] model::QualifiedType replaceQualifiers(
+  const std::vector<model::Qualifier> &NewQualifiers) const {
+    revng_assert(not empty());
+    model::QualifiedType Result = *this;
+    Result.Qualifiers() = NewQualifiers;
     return Result;
   }
 
@@ -130,6 +141,14 @@ public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
   RecursiveCoroutine<bool> verify(VerifyHelper &VH) const;
+
+  /// Returns a pseudo C representation of the type
+  ///
+  /// \note This is for debug purposes only. It's not a valid C type.
+  std::string pseudoC() const debug_function;
+
+  std::string getPrimitiveName() const;
+
   void dump() const debug_function;
 
   bool operator==(const QualifiedType &) const = default;

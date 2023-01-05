@@ -3,10 +3,6 @@
 #
 
 Types:
-  - Kind: PrimitiveType
-    ID: 1025
-    PrimitiveKind: Number
-    Size: 1
   - Kind: CABIFunctionType
     ID: 13950133128659256343
     CustomName: "fn"
@@ -25,4 +21,5 @@ Types:
     CustomName: "prefix_uint32_t"
     OriginalName: uint32_t
     UnderlyingType:
-      UnqualifiedType: "/Types/PrimitiveType-1025"
+      PrimitiveKind:   Number
+      Size:            1

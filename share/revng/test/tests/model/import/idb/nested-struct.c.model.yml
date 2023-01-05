@@ -17,12 +17,14 @@ Types:
         CustomName: "x"
         OriginalName: x
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1028"
+          PrimitiveKind:   Number
+          Size:            4
       - Offset: 12
         CustomName: "y"
         OriginalName: "y"
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1028"
+          PrimitiveKind:   Number
+          Size:            4
     Size: 16
   - Kind: TypedefType
     ID: 3436967820219683210
@@ -39,10 +41,12 @@ Types:
         CustomName: "a"
         OriginalName: a
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1028"
+          PrimitiveKind:   Number
+          Size:            4
       - Offset: 4
         CustomName: "b"
         OriginalName: b
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-1028"
+          PrimitiveKind:   Number
+          Size:            4
     Size: 8

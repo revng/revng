@@ -136,7 +136,7 @@ inline model::TypePath getPrototype(const model::Binary &Binary,
     }
   }
 
-  if (not Result.isValid())
+  if (Result.empty())
     Result = Binary.DefaultPrototype();
 
   return Result;

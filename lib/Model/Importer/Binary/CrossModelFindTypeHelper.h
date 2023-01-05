@@ -36,7 +36,7 @@ public:
                     TupleTree<model::Binary> &DestinationModel) {
     ensureGraph();
 
-    revng_assert(Prototype.isValid());
+    revng_assert(not Prototype.empty());
     revng_assert(Prototype.get()->Kind() == model::TypeKind::CABIFunctionType);
 
     std::optional<model::TypePath> Result = std::nullopt;

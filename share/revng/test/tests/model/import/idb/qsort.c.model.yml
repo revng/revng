@@ -13,11 +13,11 @@ Types:
     OriginalName: qsort
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-256"
+      PrimitiveKind:   Void
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-256"
+          PrimitiveKind:   Void
           Qualifiers:
             - Kind: Pointer
               Size: 8
@@ -43,7 +43,8 @@ Types:
     CustomName: "size_t"
     OriginalName: size_t
     UnderlyingType:
-      UnqualifiedType: "/Types/PrimitiveType-1288"
+      PrimitiveKind:   Unsigned
+      Size:            8
   - Kind: TypedefType
     ID: 7339777181910699325
     CustomName: "prefix___compar_fn_t"
@@ -57,18 +58,19 @@ Types:
     ID: 5090678720539169893
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-1028"
+      PrimitiveKind:   Number
+      Size:            4
     Arguments:
       - Index: 0
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-256"
+          PrimitiveKind:   Void
           Qualifiers:
             - Kind: Pointer
               Size: 8
             - Kind: Const
       - Index: 1
         Type:
-          UnqualifiedType: "/Types/PrimitiveType-256"
+          PrimitiveKind:   Void
           Qualifiers:
             - Kind: Pointer
               Size: 8

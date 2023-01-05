@@ -91,6 +91,10 @@ void Binary::verify(::ErrorList &EL) const {
 }
 
 bool Binary::verify(VerifyHelper &VH) const {
+  // Check DefaultPrototype
+  if (not DefaultPrototype().isValid())
+    return VH.fail("Invalid DefaultPrototype", DefaultPrototype());
+
   // Prepare for checking symbol names. We will populate and check this against
   // functions, dynamic functions, segments, types and enum entries
   std::set<Identifier> Symbols;
@@ -158,10 +162,10 @@ Identifier Function::name() const {
 
 static const model::TypePath &
 prototypeOr(const model::TypePath &Prototype, const model::TypePath &Default) {
-  if (Prototype.isValid())
+  if (not Prototype.empty())
     return Prototype;
 
-  revng_assert(Default.isValid());
+  revng_assert(not Default.empty());
   return Default;
 }
 
@@ -301,7 +305,10 @@ bool Function::verify(bool Assert) const {
 }
 
 bool Function::verify(VerifyHelper &VH) const {
-  if (Prototype().isValid()) {
+  if (not Prototype().isValid())
+    return VH.fail("Invalid Prototype", Prototype());
+
+  if (not Prototype().empty()) {
     // The function has a prototype
     if (not Prototype().get()->verify(VH))
       return VH.fail("Function prototype does not verify", *this);
@@ -341,7 +348,10 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
     return VH.fail("Dynamic functions must have a OriginalName", *this);
 
   // Prototype is valid
-  if (Prototype().isValid()) {
+  if (not Prototype().isValid())
+    return VH.fail("Invalid Prototype", Prototype());
+
+  if (not Prototype().empty()) {
     if (not Prototype().get()->verify(VH))
       return VH.fail();
 
@@ -371,9 +381,9 @@ bool CallSitePrototype::verify(bool Assert) const {
 }
 
 bool CallSitePrototype::verify(VerifyHelper &VH) const {
-  // Prototype is present
-  if (not Prototype().isValid())
-    return VH.fail("Invalid prototype", *this);
+  // Prototype reference is valid and non-empty
+  if (not Prototype().isValid() or Prototype().empty())
+    return VH.fail("Invalid prototype", Prototype());
 
   // Prototype is valid
   if (not Prototype().get()->verify(VH))

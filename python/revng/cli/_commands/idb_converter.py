@@ -237,9 +237,9 @@ class IDBConverter:
         while self._ordinal_types_to_fixup:
             quialified_type, idb_ordinal_type = self._ordinal_types_to_fixup.pop()
             assert idb_ordinal_type in self.idb_types_to_revng_types
-            real_quialified_type = self.idb_types_to_revng_types[idb_ordinal_type]
+            real_qualified_type = self.idb_types_to_revng_types[idb_ordinal_type]
 
-            the_revng_type = self.unwrap_qualified(real_quialified_type)
+            the_revng_type = self.unwrap_qualified(real_qualified_type)
             revng_type_to_fix = self.unwrap_qualified(quialified_type)
             # TODO: For now, we found out that structs can be affected by this only.
             assert isinstance(the_revng_type, m.StructType) and isinstance(
@@ -331,6 +331,24 @@ class IDBConverter:
         type_name = type.get_name()
         revng_type_qualifiers: List[m.Qualifier] = []
 
+        qualified_type = None
+
+        def register_type(new_type: RevngTypes, qualifiers=[]):
+            existing_revng_type = self.revng_types_by_id.get(new_type.ID)
+            if existing_revng_type:
+                # A type with this ID was already emitted, ensure we are returning the same instance.
+                assert new_type is existing_revng_type
+            else:
+                self.revng_types_by_id[new_type.ID] = new_type
+
+            return m.QualifiedType(
+                UnqualifiedType=m.Reference.create(m.Binary, new_type),
+                Qualifiers=qualifiers,
+            )
+
+        # WIP: outline in a function
+        # WIP: assert only one of the following holds
+        # WIP: can we move is_decl_const in this cascade of `if`s?
         if type.is_decl_typedef():
             aliased_type = type.get_final_tinfo()
 
@@ -344,11 +362,11 @@ class IDBConverter:
                 if aliased_tiltypeinfo:
                     aliased_type_ordinal = aliased_tiltypeinfo.ordinal
 
-            qualified_type = self._convert_idb_type_to_revng_type(
+            unnamed_type = self._convert_idb_type_to_revng_type(
                 aliased_type, ordinal=aliased_type_ordinal
             )
 
-            revng_type = m.TypedefType(OriginalName=type_name, UnderlyingType=qualified_type)
+            qualified_type = register_type(m.TypedefType(OriginalName=type_name, UnderlyingType=unnamed_type))
 
         elif type.is_decl_enum():
             revng_underlying_type = self._get_primitive_type(
@@ -383,6 +401,8 @@ class IDBConverter:
                     UnderlyingType=revng_underlying_type,
                 )
 
+            qualified_type = register_type(revng_type)
+
         elif type.is_decl_struct():
             if type.type_details.ref is not None and type.type_details.ref.type_details.is_ordref:
                 if type.type_details.ref.type_details.ordinal not in self.idb_types_to_revng_types:
@@ -411,45 +431,46 @@ class IDBConverter:
                     # Struct members and size will be computed later.
                     self._structs_to_fixup.add((revng_type, type))
 
+                qualified_type = register_type(revng_type)
+
         elif type.is_decl_union():
             # Union members will be computed later.
             revng_type = m.UnionType(OriginalName=type_name, Fields=[])
             self._unions_to_fixup.add((revng_type, type))
+            qualified_type = register_type(revng_type)
 
         elif type.is_decl_ptr():
-            underlying_type = self._convert_idb_type_to_revng_type(type.type_details.obj_type)
-            revng_type = self.resolve_typeref(underlying_type.UnqualifiedType)
-            revng_type_qualifiers = list(underlying_type.Qualifiers)
+            qualified_type = self._convert_idb_type_to_revng_type(type.type_details.obj_type)
+            qualified_type.Qualifiers.insert(0, m.Qualifier(Kind=m.QualifierKind.Pointer, Size=type.get_size()))
 
         elif type.is_decl_array():
-            underlying_type = self._convert_idb_type_to_revng_type(type.type_details.elem_type)
-            revng_type = self.resolve_typeref(underlying_type.UnqualifiedType)
-            revng_type_qualifiers = list(underlying_type.Qualifiers)
+            qualified_type = self._convert_idb_type_to_revng_type(type.type_details.elem_type)
+            n_elements = type.type_details.n_elems
+            if n_elements == 0:
+                self.log(f"warning: Array {type_name} has invalid zero size.")
+            qualified_type.Qualifiers.insert(
+                0, m.Qualifier(Kind=m.QualifierKind.Array, Size=n_elements)
+            )
 
         elif type.is_decl_bool():
             size = type.get_size()
-            revng_type = self.unwrap_qualified(
-                self._get_primitive_type(m.PrimitiveTypeKind.Unsigned, size)
-            )
+            qualified_type = self._get_primitive_type(m.PrimitiveTypeKind.Unsigned, size)
 
         elif type.is_decl_int() or type.is_decl_floating():
             size = type.get_size()
             primitive_kind = get_primitive_kind(type)
-            revng_type = self.unwrap_qualified(self._get_primitive_type(primitive_kind, size))
+            qualified_type = self._get_primitive_type(primitive_kind, size)
 
         elif type.is_decl_void():
             primitive_kind = m.PrimitiveTypeKind.Void
             size = 0
+            qualified_type = self._get_primitive_type(primitive_kind, size)
             if type.get_name() != "":
                 # Treat this case as `typedef void someothername`.
-                revng_void_type = self._get_primitive_type(primitive_kind, size)
-                revng_type = m.TypedefType(OriginalName=type_name, UnderlyingType=revng_void_type)
-            else:
-                revng_type = self.unwrap_qualified(self._get_primitive_type(primitive_kind, size))
+                qualified_type = register_type(m.TypedefType(OriginalName=type_name, UnderlyingType=revng_void_type))
 
         elif type.is_decl_func():
-            # TODO: handle non C-ABI functions.
-            # We cannot handle stack arguments at the moment.
+            # TODO: handle stack arguments
             assert type.type_details.stkargs is None
 
             idb_return_type = type.get_rettype()
@@ -465,12 +486,12 @@ class IDBConverter:
                 )
                 arguments.append(revng_argument)
 
-            revng_type = m.CABIFunctionType(
+            qualified_type = register_type(m.CABIFunctionType(
                 ABI=revng_arch_to_abi[self.arch],
                 ReturnType=revng_return_type,
                 Arguments=arguments,
                 OriginalName=type_name,
-            )
+            ))
 
         elif type.is_decl_partial():
             # Represents an unknown or void type with a known size.
@@ -485,55 +506,28 @@ class IDBConverter:
                 or type.get_size() == 10
                 or type.get_size() == 16
             )
-            revng_type = self.unwrap_qualified(
-                self._get_primitive_type(
-                    m.PrimitiveTypeKind.Generic,
-                    type.get_size(),
-                )
+            qualified_type = self._get_primitive_type(
+                m.PrimitiveTypeKind.Generic,
+                type.get_size(),
             )
 
         else:
+            # WIP: try to assert False
             # IDA does not know anything about this type.
             # TODO: In some cases we should emit a void type (when the type is always used as a
             # pointer).
             size = type.get_size()
             if size == 0:
-                revng_type = self.unwrap_qualified(
-                    self._get_primitive_type(m.PrimitiveTypeKind.Void, 0)
-                )
+                qualified_type = self._get_primitive_type(m.PrimitiveTypeKind.Void, 0)
             else:
-                kind = m.PrimitiveTypeKind.PointerOrNumber
-                revng_type = self.unwrap_qualified(self._get_primitive_type(kind, size))
-
-        existing_revng_type = self.revng_types_by_id.get(revng_type.ID)
-        if existing_revng_type:
-            # A type with this ID was already emitted, ensure we are returning the same instance.
-            assert revng_type is existing_revng_type
-
-        qualified_type = m.QualifiedType(
-            UnqualifiedType=m.Reference.create(m.Binary, revng_type),
-            Qualifiers=revng_type_qualifiers,
-        )
-
-        if type.is_decl_ptr():
-            qualified_type.Qualifiers.insert(
-                0, m.Qualifier(Kind=m.QualifierKind.Pointer, Size=type.get_size())
-            )
-
-        if type.is_decl_array():
-            n_elements = type.type_details.n_elems
-            if n_elements == 0:
-                self.log(f"warning: Array {type_name} has invalid zero size.")
-            qualified_type.Qualifiers.insert(
-                0, m.Qualifier(Kind=m.QualifierKind.Array, Size=n_elements)
-            )
+                kind = m.PrimitiveTypeKind.Generic
+                qualified_type = self._get_primitive_type(kind, size)
 
         if type.is_decl_const():
             qualified_type.Qualifiers.insert(0, CONST_QUALIFIER)
 
         if ordinal is not None:
             self.idb_types_to_revng_types[ordinal] = qualified_type
-        self.revng_types_by_id[revng_type.ID] = revng_type
 
         return qualified_type
 
@@ -553,20 +547,20 @@ class IDBConverter:
             ImportedLibraries=self.imported_libraries,
         )
 
-    def resolve_typeref(self, typeref: m.Reference) -> Optional[RevngTypes]:
-        return self.revng_types_by_id.get(typeref.id)
-
     def get_revng_type_by_name(self, name):
         for revng_type in self.revng_types_by_id.values():
             if revng_type.OriginalName == name:
                 return revng_type
         return None
 
-    def unwrap_qualified(self, qt: m.QualifiedType):
+    def unwrap_qualified(self, qt: m.QualifiedType) -> RevngTypes:
         if qt.Qualifiers:
-            raise ValueError("Trying to unwrap qualified type with non empty qualifiers list!")
+            raise ValueError("Trying to unwrap a qualified type with non empty qualifiers list!")
 
-        return self.resolve_typeref(qt.UnqualifiedType)
+        if not qt.UnqualifiedType:
+            raise ValueError("Trying to unwrap a qualified type without an UnqualifiedType")
+
+        return self.revng_types_by_id.get(qt.UnqualifiedType.id)
 
 
 def get_primitive_kind(idb_type: idb.typeinf.TInfo) -> m.PrimitiveTypeKind:

@@ -58,7 +58,7 @@ unsigned dropTypesDependingOnTypes(TupleTree<model::Binary> &Model,
   // Purge dynamic functions depending on Types
   auto Begin = Model->ImportedDynamicFunctions().begin();
   for (auto It = Begin; It != Model->ImportedDynamicFunctions().end(); /**/) {
-    if (not It->Prototype().isValid()
+    if (It->Prototype().empty()
         or ToDelete.count(It->Prototype().get()) == 0) {
       ++It;
     } else {

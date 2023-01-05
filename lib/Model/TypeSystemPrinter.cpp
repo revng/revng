@@ -131,7 +131,7 @@ static llvm::SmallString<32>
 buildFieldName(const model::QualifiedType &FieldQT) {
   llvm::SmallString<32> FieldName;
 
-  if (FieldQT.UnqualifiedType().isValid()) {
+  if (not FieldQT.UnqualifiedType().empty()) {
     FieldName += FieldQT.UnqualifiedType().get()->name();
     FieldName += " ";
   } else {
@@ -480,7 +480,7 @@ void TypeSystemPrinter::dumpFunctionNode(const model::Function &F, int NodeID) {
   // Second row of the inner table (actual types)
   Out << "<TR>";
   paddedCell(Out, PrototypeT->name(), /*port=*/0);
-  if (F.StackFrameType().isValid())
+  if (not F.StackFrameType().empty())
     paddedCell(Out, StackT->name(), /*port=*/1);
   else
     Out << "<TD></TD>";
@@ -502,7 +502,7 @@ void TypeSystemPrinter::print(const model::Function &F) {
   // Nodes of the subtypes if they do not already exist
   const model::Type *PrototypeT = F.Prototype().getConst();
   const model::Type *StackT = F.StackFrameType().getConst();
-  bool HasStackFrame = F.StackFrameType().isValid();
+  bool HasStackFrame = not F.StackFrameType().empty();
 
   print(*PrototypeT);
   if (HasStackFrame)

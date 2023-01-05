@@ -539,8 +539,6 @@ bool EnumEntry::verify(VerifyHelper &VH) const {
   return VH.maybeFail(CustomName().verify(VH));
 }
 
-
-  revng_abort();
 std::optional<uint64_t> QualifiedType::size() const {
   VerifyHelper VH;
   return size(VH);
@@ -562,30 +560,27 @@ QualifiedType::size(VerifyHelper &VH) const {
 RecursiveCoroutine<std::optional<uint64_t>>
 QualifiedType::trySize(VerifyHelper &VH) const {
   // This code assumes that the QualifiedType QT is well formed.
-  auto QIt = Qualifiers().begin();
-  auto QEnd = Qualifiers().end();
 
-  for (; QIt != QEnd; ++QIt) {
-
-    auto &Q = *QIt;
-    switch (Q.Kind()) {
-
+  QualifiedType Current = *this;
+  while (Current.Qualifiers().size() > 0) {
+    auto FirstQualifier = *Current.Qualifiers().begin();
+    switch (FirstQualifier.Kind()) {
     case QualifierKind::Invalid:
       rc_return std::nullopt;
 
     case QualifierKind::Pointer:
       // If we find a pointer, we're done
-      rc_return Q.Size();
+      rc_return FirstQualifier.Size();
 
     case QualifierKind::Array: {
       // The size is equal to (number of elements of the array) * (size of a
       // single element).
-      auto ArrayElem = popQualifier();
+      auto ArrayElem = Current.popQualifier();
       auto MaybeSize = rc_recur ArrayElem.trySize(VH);
       if (not MaybeSize)
         rc_return std::nullopt;
       else
-        rc_return *MaybeSize *Q.Size();
+        rc_return *MaybeSize *FirstQualifier.Size();
     }
 
     case QualifierKind::Const:
@@ -595,10 +590,9 @@ QualifiedType::trySize(VerifyHelper &VH) const {
     default:
       revng_abort();
     }
-  }
 
-  if (!UnqualifiedType().isValid())
-    rc_return std::nullopt;
+    Current = Current.popQualifier();
+  }
 
   if (isPrimitive2()) {
     if (PrimitiveKind() == model::PrimitiveTypeKind::Void) {
@@ -606,8 +600,10 @@ QualifiedType::trySize(VerifyHelper &VH) const {
     } else {
       rc_return Size();
     }
-  } else {
+  } else if (isTrull()) {
     rc_return rc_recur UnqualifiedType().get()->trySize(VH);
+  } else {
+    rc_return std::nullopt;
   }
 }
 
@@ -886,9 +882,6 @@ verifyImpl(VerifyHelper &VH, const TypedefType *T) {
       or not rc_recur T->UnderlyingType().verify(VH))
     rc_return VH.fail();
 
-  if (T->UnderlyingType().empty())
-    rc_return VH.fail("Underlying type cannot be empty", *T);
-
   rc_return true;
 }
 
@@ -966,8 +959,11 @@ verifyImpl(VerifyHelper &VH, const StructType *T) {
       // If this field is not the last, check that it does not overlap with
       // the following field.
       if (FieldEndOffset > NextFieldIt->Offset()) {
-        rc_return VH.fail("Field " + Twine(Index + 1)
-                            + " overlaps with the next one",
+        rc_return VH.fail("Field " + Twine(Index + 1) + " (starting at "
+                            + Twine(Field.Offset()) + " with size "
+                            + Twine(*MaybeSize) + ")"
+                            + " overlaps with the next one (starting at "
+                            + Twine(NextFieldIt->Offset()) + ")",
                           *T);
       }
     } else if (FieldEndOffset > T->Size()) {
@@ -1173,6 +1169,52 @@ RecursiveCoroutine<bool> Type::verify(VerifyHelper &VH) const {
   rc_return VH.maybeFail(Result);
 }
 
+std::string QualifiedType::getPrimitiveName() const {
+  revng_assert(isPrimitive2());
+  // WIP
+  return "";
+}
+
+std::string QualifiedType::pseudoC() const {
+  if (empty())
+    return "(none)";
+
+  std::string Result;
+  {
+    llvm::raw_string_ostream Stream(Result);
+    // Dump base type
+    if (isPrimitive2()) {
+      Stream << getPrimitiveName();
+    } else {
+      revng_assert(isTrull());
+      Stream << UnqualifiedType().get()->name();
+    }
+
+    // Dump qualifiers
+    for (const model::Qualifier &Qualifier : llvm::reverse(Qualifiers())) {
+      using namespace model::QualifierKind;
+      switch (Qualifier.Kind()) {
+      case Pointer:
+        // TODO: we do not report pointer size
+        Stream << " *";
+        break;
+      case Array:
+        Stream << " [" << Qualifier.Size() << "]";
+        break;
+      case Const:
+        Stream << " const";
+        break;
+      case Count:
+      case Invalid:
+        revng_abort();
+      }
+    }
+
+  }
+
+  return Result;
+}
+
 void QualifiedType::dump() const {
   serialize(dbg, *this);
 }
@@ -1187,7 +1229,11 @@ bool QualifiedType::verify(bool Assert) const {
 }
 
 RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
-  bool HasUnderlyingType = UnqualifiedType().isValid();
+  // Verify that integrity of the reference to the UnderlyingType
+  if (not UnqualifiedType().isValid())
+    rc_return VH.fail("Invalid UnqualifiedType", UnqualifiedType());
+
+  bool HasUnderlyingType = not UnqualifiedType().empty();
   bool IsPrimitive = isPrimitive2();
 
   if (HasUnderlyingType and IsPrimitive) {
@@ -1205,12 +1251,12 @@ RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
       rc_return VH.fail("Invalid qualifier", Q);
     }
 
-    if (Q.Kind()==QualifierKind::Pointer)
-IsPointer = true;
-
+    if (Q.Kind() == QualifierKind::Pointer)
+      IsPointer = true;
   }
 
-  if (not IsPointer and HasUnderlyingType and not rc_recur UnqualifiedType().get()->verify(VH))
+  if (not IsPointer and HasUnderlyingType
+      and not rc_recur UnqualifiedType().get()->verify(VH))
     rc_return VH.fail();
 
   auto QIt = Qualifiers().begin();

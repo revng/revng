@@ -154,7 +154,7 @@ void importModel(Module &M,
       ABICSVs.emplace_back(CSV);
 
   // Import the default prototype
-  revng_assert(Binary.DefaultPrototype().isValid());
+  revng_assert(not Binary.DefaultPrototype().empty());
   Oracle.setDefault(importPrototype(M, ABICSVs, {}, Binary.DefaultPrototype()));
 
   std::map<llvm::BasicBlock *, MetaAddress> InlineFunctions;

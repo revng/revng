@@ -71,7 +71,7 @@ void model::convertAllFunctionsToRaw(TupleTree<model::Binary> &Model) {
   auto ToConvert = chooseTypes<model::CABIFunctionType>(Model->Types());
   for (model::CABIFunctionType *Old : ToConvert) {
     auto New = abi::FunctionType::convertToRaw(*Old, Model);
-    revng_assert(New.isValid());
+    revng_assert(not New.empty());
   }
 
   if (!Model.verify() || !Model->verify())
@@ -92,7 +92,7 @@ void model::convertAllFunctionsToCABI(TupleTree<model::Binary> &Model,
   auto ToConvert = chooseTypes<model::RawFunctionType>(Model->Types());
   for (model::RawFunctionType *Old : ToConvert)
     if (auto New = abi::FunctionType::tryConvertToCABI(*Old, Model, ABI))
-      revng_assert(New->isValid());
+      revng_assert(not New->empty());
 
   if (!Model.verify() || !Model->verify())
     revng_log(Log,

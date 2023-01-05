@@ -98,21 +98,24 @@ int main(int Argc, char *Argv[]) {
     // Try and access the argument struct.
     revng_check(Left->StackArgumentsType().Qualifiers().empty());
     revng_check(Right->StackArgumentsType().Qualifiers().empty());
-    Left->dump();
-    revng_check(Left->StackArgumentsType().isTrull());
-    revng_check(Right->StackArgumentsType().isTrull());
+    revng_check(not Left->StackArgumentsType().isPrimitive2());
+    revng_check(not Right->StackArgumentsType().isPrimitive2());
+
+    bool LeftHasStackArguments = Left->StackArgumentsType().isTrull();
+    bool RightHasStackArguments = Right->StackArgumentsType().isTrull();
+
+    // XOR the `bool`eans - make sure that either both functions have stack
+    // argument or neither one does.
+    revng_check(LeftHasStackArguments == RightHasStackArguments);
+
+    // Ignore function pairs without stack arguments.
+    if (not LeftHasStackArguments)
+      continue;
+
     model::Type
       *LeftStackArguments = Left->StackArgumentsType().UnqualifiedType().get();
     model::Type *
       RightStackArguments = Right->StackArgumentsType().UnqualifiedType().get();
-
-    // XOR the `bool`eans - make sure that either both functions have stack
-    // argument or neither one does.
-    revng_check(!LeftStackArguments == !RightStackArguments);
-
-    // Ignore function pairs without stack arguments.
-    if (LeftStackArguments == nullptr)
-      continue;
 
     // If IDs differ - replace the ID.
     if (LeftStackArguments->ID() != RightStackArguments->ID()) {

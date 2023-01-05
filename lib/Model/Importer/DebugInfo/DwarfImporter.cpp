@@ -843,7 +843,7 @@ private:
           MetaAddress LowPC = relocate(fromPC(*MaybeLowPC));
           auto &Function = Model->Functions()[LowPC];
 
-          if (MaybePath && not Function.Prototype().isValid())
+          if (MaybePath and Function.Prototype().empty())
             Function.Prototype() = *MaybePath;
 
           if (SymbolName.size() != 0 and Function.OriginalName().size() == 0)
@@ -864,7 +864,7 @@ private:
           auto &DynamicFunction = Model->ImportedDynamicFunctions()[SymbolName];
 
           // If a function already has a valid prototype, don't override it
-          if (DynamicFunction.Prototype().isValid())
+          if (not DynamicFunction.Prototype().empty())
             continue;
           DynamicFunction.Prototype() = *MaybePath;
 
@@ -1357,14 +1357,14 @@ inline void detectAliases(const llvm::object::ObjectFile &ELF,
         // If DynamicFunction doesn't have a prototype, register it for copying
         // it from the leader.
         // Otherwise, record the type as the leader.
-        if (Found and It->Prototype().isValid()) {
+        if (Found and not It->Prototype().empty()) {
           Prototype = It->Prototype();
         } else {
           UnprototypedFunctionsNames.push_back(Name);
         }
       }
 
-      if (Prototype.isValid()) {
+      if (not Prototype.empty()) {
         for (const std::string &Name : UnprototypedFunctionsNames) {
           auto It = ImportedDynamicFunctions.find(Name);
           if (It == ImportedDynamicFunctions.end())

@@ -3,16 +3,13 @@
 #
 
 Types:
-  - ID: 1284
-    Kind: PrimitiveType
-    PrimitiveKind: Unsigned
-    Size: 4
   - Kind: EnumType
     ID: 8119090305649570066
     CustomName: "A"
     OriginalName: A
     UnderlyingType:
-      UnqualifiedType: "/Types/PrimitiveType-1284"
+      PrimitiveKind: Unsigned
+      Size: 4
     Entries:
       - Value: 0
         CustomName: "x"
@@ -20,10 +17,6 @@ Types:
       - Value: 1
         CustomName: "y"
         OriginalName: "y"
-  - ID: 256
-    Kind: PrimitiveType
-    PrimitiveKind: Void
-    Size: 0
   - Kind: TypedefType
     ID: 1687222338895130802
     CustomName: "A_"
@@ -36,7 +29,7 @@ Types:
     OriginalName: fn
     ABI: SystemV_x86_64
     ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-256"
+      PrimitiveKind: Void
     Arguments:
       - Index: 0
         Type:

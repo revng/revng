@@ -394,7 +394,7 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
   }
 
   for (auto &Fn : Model->ImportedDynamicFunctions()) {
-    if (Fn.Prototype().isValid() or Fn.OriginalName().size() == 0) {
+    if (not Fn.Prototype().empty() or Fn.OriginalName().size() == 0) {
       continue;
     }
 
