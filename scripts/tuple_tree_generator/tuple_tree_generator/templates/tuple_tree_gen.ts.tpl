@@ -5,8 +5,8 @@
 
 import * as yaml from "yaml"
 import { yamlParseOptions, yamlOutParseOptions, yamlToStringOptions } from "./tuple_tree"
-import { _getElementByPath, _getTypeInfo, _makeDiff, _validateDiff, _applyDiff, BigIntBuilder, DiffSet, TypeInfo, IReference, Reference, TupleTreeType } from "./tuple_tree"
-export { DiffSet, IReference, Reference}
+import { _getElementByPath, _setElementByPath, _getTypeInfo, _makeDiff, _validateDiff, _applyDiff, BigIntBuilder, DiffSet, TypeInfo, IReference, Reference, TupleTreeType } from "./tuple_tree"
+export { DiffSet, IReference, Reference }
 
 {% for file_name in external_files %}
 {{ file_name | read_file }}
@@ -172,6 +172,10 @@ export function applyDiff(obj: {{ global_name }}, diffs: DiffSet): [false] | [tr
 
 export function getElementByPath<T>(path: string, tree: {{ global_name }}): T | undefined {
   return _getElementByPath(path, tree);
+}
+
+export function setElementByPath<T>(path: string, tree: {{ global_name }}, value: T): boolean {
+  return _setElementByPath(path, tree, value);
 }
 
 export type I{{ global_name }} = I{{ metadata.root }};

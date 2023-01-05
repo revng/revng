@@ -57,7 +57,7 @@ export class Reference<T, M> {
     }
 
     resolve(root: M): T {
-        return _getElementByPath<T>(this.reference, root);
+        return _getElementByPath<T>(this.reference, root)!;
     }
 
     static parse<T, M>(ref?: string): Reference<T, M> | undefined {
@@ -112,13 +112,9 @@ function getElementByPathArray<T>(path: string[], obj: any): T | undefined {
     const component = path[0];
     if (obj instanceof Array) {
         for (const elem of obj) {
-            if (
-                "key" in (elem as any) &&
-                typeof elem["key"] == "function" &&
-                elem["key"]() == component
-            ) {
+            if (keyableObject(elem) && elem.key() == component) {
                 if (path.length == 1) {
-                    return elem as T;
+                    return elem as unknown as T;
                 } else {
                     return getElementByPathArray(path.slice(1), elem);
                 }
@@ -138,12 +134,58 @@ function getElementByPathArray<T>(path: string[], obj: any): T | undefined {
     }
 }
 
+function setElementByPathArray<T>(path: string[], obj: any, value: T): boolean {
+    const component = path[0];
+    if (obj instanceof Array) {
+        const index = obj.findIndex((elem) => keyableObject(elem) && elem.key() === component);
+
+        if (index >= 0) {
+            if (path.length === 1) {
+                obj[index] = value;
+                return true;
+            } else {
+                return setElementByPathArray(path.slice(1), obj[index], value);
+            }
+        } else if (
+            index === -1 &&
+            path.length === 1 &&
+            keyableObject(value) &&
+            value.key() === component
+        ) {
+            // We're appending a value to an array
+            obj.push(value);
+            return true;
+        } else {
+            return false;
+        }
+    } else {
+        if (component in obj) {
+            if (path.length == 1) {
+                obj[component] = value;
+                return true;
+            } else {
+                return setElementByPathArray(path.slice(1), obj[component], value);
+            }
+        }
+        return false;
+    }
+}
+
 /**
  * Given a Tuple Tree path and a root object, resolve the object or return
  * undefined if the path is not present in the tuple tree
  */
 export function _getElementByPath<T>(path: string, obj: any): T | undefined {
     return getElementByPathArray(path.split("/").slice(1), obj);
+}
+
+/**
+ * Given a Tuple Tree path, a root object and a value, set the path with the
+ * value provided and return true. If the path does not resolve, this returns
+ * false
+ */
+export function _setElementByPath<T>(path: string, obj: any, value: T): boolean {
+    return setElementByPathArray(path.split("/").slice(1), obj, value);
 }
 
 // Tree Diffing
@@ -294,16 +336,18 @@ function isNativeType(obj: any): obj is string | bigint | boolean {
     return ["string", "bigint", "boolean", "number"].includes(typeof obj);
 }
 
+function keyableObject(obj: any): obj is { key: () => string } {
+    return (
+        obj !== null &&
+        typeof obj === "object" &&
+        "key" in obj &&
+        typeof obj.key === "function" &&
+        typeof obj.key() === "string"
+    );
+}
+
 function keyableArray(obj: Array<any>): obj is { key: () => string }[] {
-    return obj
-        .map(
-            (e) =>
-                typeof e === "object" &&
-                "key" in e &&
-                typeof e.key === "function" &&
-                typeof e.key() === "string"
-        )
-        .every((e) => e);
+    return obj.map((e) => keyableObject(e)).every((e) => e);
 }
 
 function keyabaleArrayToMap(array: { key: () => string }[]): Map<string, any> {
@@ -525,14 +569,14 @@ export function _applyDiff<T>(
                 if (target === undefined) {
                     const parentPath = diff.Path.split("/").slice(1);
                     const element = parentPath.pop();
-                    const parent = _getElementByPath(parentPath.join("/"), new_obj);
-                    parent[element] = [];
-                    target = parent[element];
+                    const parent = _getElementByPath(parentPath.join("/"), new_obj)!;
+                    parent[element!] = [];
+                    target = parent[element!];
                 }
                 (target as any).push(constructType(info, diff.Add));
             }
         } else {
-            const parent = getParentElementByPath(diff.Path, new_obj);
+            const parent = getParentElementByPath(diff.Path, new_obj)!;
             const element = diff.Path.split("/").reverse()[0];
             true;
             if (diff.Remove !== undefined) {
