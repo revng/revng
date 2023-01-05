@@ -1518,12 +1518,12 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     if (Continue->hasComputation()) {
       IfNode *ComputationIfNode = Continue->getComputationIfNode();
       buildGHASTCondition(ComputationIfNode->getCondExpr());
-
-      // Actually print the continue statement only if the continue is not
-      // implicit (i.e. it is not the last statement of the loop).
-      if (not Continue->isImplicit())
-        Out << keywords::Continue << ";\n";
     }
+
+    // Actually print the continue statement only if the continue is not
+    // implicit (i.e. it is not the last statement of the loop).
+    if (not Continue->isImplicit())
+      Out << keywords::Continue << ";\n";
   } break;
 
   case ASTNode::NodeKind::NK_Code: {
