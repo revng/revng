@@ -22,6 +22,7 @@ class IRPipelineCommand(Command):
         parser.add_argument("to", type=str)
         parser.add_argument("target", type=str)
         parser.add_argument("--analysis", type=str, default="")
+        parser.add_argument("--binary", type=str, default="")
 
     def run(self, options: Options):
         if options.remaining_args:
@@ -54,6 +55,11 @@ class IRPipelineCommand(Command):
             if args.analysis:
                 target = f"--analyze={args.to}/{args.analysis}/module.ll/{args.target}"
 
+            load_binary = []
+            if args.binary != "":
+                from_step = args.__dict__["from"]
+                load_binary = ["-i", f"{args.binary}:{from_step}/input"]
+
             run_revng_command(
                 [
                     "pipeline",
@@ -66,6 +72,7 @@ class IRPipelineCommand(Command):
                     "--save-model",
                     model.name,
                     target,
+                    *load_binary,
                 ],
                 options,
             )
