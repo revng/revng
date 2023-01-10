@@ -22,6 +22,12 @@ static RegisterModelPass R("visibility",
                            "output",
                            model::calculateVisibility);
 
+/* Time Span
+ *
+ * Struct to model the whole lifetime of a memory dump, ranging from its
+ * starting epoch to the ending epoch. Also, a pointer to the model::Segment
+ * it's saved.
+ */
 struct Span {
 
   // Reference to Model Segment
@@ -33,6 +39,21 @@ struct Span {
   // Ending epoch
   unsigned long EndEpoch;
 };
+
+/* Graph Node
+ *
+ * We build a graph where each node is a Span, and its outgoing edges represent
+ * its forward visibility
+ */
+struct VisibilityNode {
+  VisibilityNode(Span Node) {
+    this->Node = Node;
+  }
+  Span Node;
+};
+
+using NodeType = ForwardNode<VisibilityNode>;
+using VisibilityMap = GenericGraph<NodeType>;
 
 static bool compareByEpoch(const Span &A, const Span &B)
 {
@@ -48,6 +69,27 @@ static bool allEpochsArePresent(vector<Span> Vec)
   }
   return true;
 }
+
+template<>
+struct llvm::DOTGraphTraits<VisibilityMap *>
+: public llvm::DefaultDOTGraphTraits {
+  using EdgeIterator = llvm::GraphTraits<VisibilityMap *>::ChildIteratorType;
+  DOTGraphTraits(bool IsSimple = false) : DefaultDOTGraphTraits(IsSimple) {}
+
+  static std::string
+  getNodeLabel(const NodeType *Node, const VisibilityMap *Graph) {
+    std::stringstream Stream;
+    Stream << "0x"
+         << std::hex << Node->data().Node.Segment->StartAddress.address();
+    return Stream.str();
+  }
+
+  static std::string getEdgeAttributes(const NodeType *Node,
+                                       const EdgeIterator EI,
+                                       const VisibilityMap *Graph) {
+    return "color=black,style=dashed";
+  }
+};
 
 void model::calculateVisibility(TupleTree<model::Binary> &Model) {
 
@@ -89,9 +131,6 @@ void model::calculateVisibility(TupleTree<model::Binary> &Model) {
    */
   assert(allEpochsArePresent(SegmentsSpans));
 
-  for (const Span &Entry : SegmentsSpans)
-    std::cout << Entry.StartEpoch << ' ';
-
   /* Map of Visibility
    *
    * Scan the vector and for each element (segment) compute all the
@@ -103,13 +142,6 @@ void model::calculateVisibility(TupleTree<model::Binary> &Model) {
    * reciprocal.
    *
    */
-  struct VisibilityNode {
-    VisibilityNode(Span) {}
-    Span Node;
-
-  };
-  using NodeType = ForwardNode<VisibilityNode>;
-  using VisibilityMap = GenericGraph<NodeType>;
   VisibilityMap VM;
 
   /* Active Set
@@ -150,7 +182,7 @@ void model::calculateVisibility(TupleTree<model::Binary> &Model) {
     }
 
     // Add node to the Visibility Map
-    auto *NewNode = VM.addNode(Entry);
+    auto *NewNode = VM.addNode(VisibilityNode{Entry});
 
     // Make this segment visible from the active ones
     // Make all the active segments visible from this segment
