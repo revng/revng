@@ -16,6 +16,20 @@ using namespace llvm;
 
 namespace model {
 
+template<typename T>
+void purgeFunctions(T &Functions,
+                    const std::set<const model::Type *> &ToDelete) {
+  auto Begin = Functions.begin();
+  for (auto It = Begin; It != Functions.end(); /**/) {
+    if (not It->Prototype().isValid()
+        or ToDelete.count(It->Prototype().get()) == 0) {
+      ++It;
+    } else {
+      It = Functions.erase(It);
+    }
+  }
+}
+
 unsigned dropTypesDependingOnTypes(TupleTree<model::Binary> &Model,
                                    const std::set<const model::Type *> &Types) {
   // TODO: in case we reach a StructField or UnionField, we should drop the
@@ -53,16 +67,9 @@ unsigned dropTypesDependingOnTypes(TupleTree<model::Binary> &Model,
     }
   }
 
-  // Purge dynamic functions depending on Types
-  auto Begin = Model->ImportedDynamicFunctions().begin();
-  for (auto It = Begin; It != Model->ImportedDynamicFunctions().end(); /**/) {
-    if (not It->Prototype().isValid()
-        or ToDelete.count(It->Prototype().get()) == 0) {
-      ++It;
-    } else {
-      It = Model->ImportedDynamicFunctions().erase(It);
-    }
-  }
+  // Purge both dynamic and local functions depending on Types
+  purgeFunctions(Model->ImportedDynamicFunctions(), ToDelete);
+  purgeFunctions(Model->Functions(), ToDelete);
 
   // Purge types depending on unresolved Types
   for (auto It = Model->Types().begin(); It != Model->Types().end();) {
