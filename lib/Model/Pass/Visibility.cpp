@@ -164,6 +164,9 @@ void model::calculateVisibility(TupleTree<model::Binary> &Model) {
 
     if (Entry.StartEpoch != CurrentEpoch) {
 
+      // Update Current Epoch
+      CurrentEpoch++;
+
       // Remove from ActiveSet all the entries that are no more visible,
       // a.k.a. "dead"
       //
@@ -176,9 +179,6 @@ void model::calculateVisibility(TupleTree<model::Binary> &Model) {
               ++It;
           }
       }
-
-      // Update Current Epoch
-      CurrentEpoch++;
     }
 
     // Add node to the Visibility Map
