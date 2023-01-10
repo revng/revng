@@ -14,6 +14,8 @@
 #include "revng/Model/Pass/Visibility.h"
 #include "revng/ADT/GenericGraph.h"
 
+#include "llvm/Support/GraphWriter.h"
+
 using namespace llvm;
 using namespace model;
 
@@ -195,6 +197,11 @@ void model::calculateVisibility(TupleTree<model::Binary> &Model) {
     // Add this segment to active set
     ActiveSet.insert(NewNode);
   }
+
+  llvm::raw_os_ostream Stream(dbg);
+  llvm::WriteGraph(Stream, &VM, "debug");
+
+  llvm::ViewGraph(&VM, "dot_graph");
 
   return;
 }
