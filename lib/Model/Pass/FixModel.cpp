@@ -31,6 +31,21 @@ void model::fixModel(TupleTree<model::Binary> &Model) {
       }
     }
 
+    // Filter out empty arrays.
+    bool FoundEmptyArray = false;
+    for (const model::QualifiedType &QT : T->edges()) {
+      auto IsEmptyArray = [](const model::Qualifier &Q) {
+        return Q.Kind() == model::QualifierKind::Array && Q.Size() == 0;
+      };
+      auto Iterator = llvm::find_if(QT.Qualifiers(), IsEmptyArray);
+      if (Iterator != QT.Qualifiers().end()) {
+        ToDrop.insert(T.get());
+        FoundEmptyArray = true;
+      }
+    }
+    if (FoundEmptyArray)
+      continue;
+
     // Filter out invalid PrimitiveTypes.
     auto *ThePrimitiveType = dyn_cast<PrimitiveType>(T.get());
     if (ThePrimitiveType) {
