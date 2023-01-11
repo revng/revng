@@ -20,6 +20,7 @@ extern Tag AllocatesLocalVariable;
 extern Tag MallocLike;
 extern Tag IsRef;
 extern Tag AddressOf;
+extern Tag StringLiteral;
 extern Tag ModelGEP;
 extern Tag ModelCast;
 extern Tag ModelGEPRef;
@@ -107,6 +108,10 @@ llvm::FunctionType *getAddressOfType(llvm::Type *RetType, llvm::Type *BaseType);
 /// Initializes a pool of AddressOf functions, initializing it its internal
 /// Module
 void initAddressOfPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M);
+
+/// Initializes a pool of StringLiteral functions.
+void initStringLiteralPool(OpaqueFunctionsPool<llvm::Type *> &Pool,
+                           llvm::Module *M);
 
 /// Initializes a pool of Parentheses functions
 void initParenthesesPool(OpaqueFunctionsPool<llvm::Type *> &Pool);

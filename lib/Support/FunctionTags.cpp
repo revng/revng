@@ -22,6 +22,7 @@ Tag AllocatesLocalVariable("AllocatesLocalVariable");
 Tag MallocLike("MallocLike");
 Tag IsRef("IsRef");
 Tag AddressOf("AddressOf");
+Tag StringLiteral("StringLiteral");
 Tag ModelCast("ModelCast");
 Tag ModelGEP(ModelGEPName);
 Tag ModelGEPRef("ModelGEPRef");
@@ -106,6 +107,18 @@ void initAddressOfPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M) {
     auto *RetType = F.getFunctionType()->getReturnType();
     Pool.record({ RetType, ArgType }, &F);
   }
+}
+
+void initStringLiteralPool(OpaqueFunctionsPool<llvm::Type *> &Pool,
+                           llvm::Module *M) {
+  // Set attributes
+  Pool.addFnAttribute(llvm::Attribute::NoUnwind);
+  Pool.addFnAttribute(llvm::Attribute::WillReturn);
+  Pool.addFnAttribute(llvm::Attribute::ReadNone);
+  // Set revng tags
+  Pool.setTags({ &FunctionTags::StringLiteral });
+  // Initialize the pool from its internal llvm::Module if possible.
+  Pool.initializeFromReturnType(FunctionTags::StringLiteral);
 }
 
 void initModelCastPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
