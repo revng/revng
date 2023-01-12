@@ -22,6 +22,7 @@
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/ADT/STLExtras.h"
 #include "revng/Model/Importer/Binary/BinaryImporterHelper.h"
 #include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
 #include "revng/Model/Pass/AllPasses.h"
@@ -899,18 +900,19 @@ private:
   void cleanupTypeSystem() {
     std::set<const model::Type *> ToDrop;
 
+    model::VerifyHelper VH;
     for (auto &Type : Model->Types()) {
       //
       // Drop zero-sized struct/union fields
       //
       if (auto *Struct = dyn_cast<model::StructType>(Type.get())) {
-        llvm::erase_if(Struct->Fields(), [](model::StructField &Field) {
-          auto MaybeSize = Field.Type().trySize();
+        llvm::erase_if(Struct->Fields(), [&VH](model::StructField &Field) {
+          std::optional<std::uint64_t> MaybeSize = Field.Type().trySize(VH);
           return !MaybeSize || not *MaybeSize;
         });
       } else if (auto *Union = dyn_cast<model::UnionType>(Type.get())) {
-        llvm::erase_if(Union->Fields(), [](model::UnionField &Field) {
-          auto MaybeSize = Field.Type().trySize();
+        llvm::erase_if(Union->Fields(), [&VH](model::UnionField &Field) {
+          std::optional<std::uint64_t> MaybeSize = Field.Type().trySize(VH);
           return !MaybeSize || not *MaybeSize;
         });
       }
@@ -927,13 +929,19 @@ private:
       // Collect array whose elements are zero-sized
       //
       for (const model::QualifiedType &QT : Type->edges()) {
-        auto IsArray = [](const model::Qualifier &Q) {
-          return Q.Kind() == model::QualifierKind::Array;
-        };
-        if (llvm::any_of(QT.Qualifiers(), IsArray)
-            and not QT.UnqualifiedType().get()->size()) {
-          ToDrop.insert(Type.get());
+        model::TypePath Unqualified = QT.UnqualifiedType();
+        if (Unqualified.isValid()) {
+          std::optional<std::uint64_t> Size = Unqualified.get()->trySize(VH);
+          if (Size.has_value())
+            continue;
         }
+
+        // At this point only invalid types and types with no size remain.
+        auto Iterator = revng::find_last_if_not(QT.Qualifiers(),
+                                                model::Qualifier::isConst);
+        if (Iterator != QT.Qualifiers().rend())
+          if (Iterator->Kind() == model::QualifierKind::Array)
+            ToDrop.insert(Type.get());
       }
     }
 
