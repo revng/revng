@@ -19,16 +19,39 @@ static RegisterModelPass
 static Logger<> ModelFixLogger("model-fix");
 using namespace model;
 
+template<typename T>
+bool filterZeroSizedElements(std::set<const model::Type *> &ToDrop,
+                             T *AggregateType) {
+  // Filter out aggregates with zero-sized members.
+  auto FieldIt = AggregateType->Fields().begin();
+  auto FieldEnd = AggregateType->Fields().end();
+  for (; FieldIt != FieldEnd; ++FieldIt) {
+    auto &Field = *FieldIt;
+    auto MaybeSize = Field.Type().trySize();
+    if (!MaybeSize || *MaybeSize == 0) {
+      ToDrop.insert(AggregateType);
+      return true;
+    }
+  }
+  return false;
+}
+
 void model::fixModel(TupleTree<model::Binary> &Model) {
   std::set<const model::Type *> ToDrop;
 
   for (UpcastablePointer<model::Type> &T : Model->Types()) {
     // Filter out empty structs and unions.
-    if (!T->size()) {
-      if (isa<StructType>(T.get()) or isa<UnionType>(T.get())) {
+    if (isa<StructType>(T.get()) or isa<UnionType>(T.get())) {
+      if (!T->size()) {
         ToDrop.insert(T.get());
         continue;
       }
+      if (auto *Struct = dyn_cast<StructType>(T.get()))
+        if (filterZeroSizedElements(ToDrop, Struct))
+          continue;
+      if (auto *Union = dyn_cast<UnionType>(T.get()))
+        if (filterZeroSizedElements(ToDrop, Union))
+          continue;
     }
 
     // Filter out empty arrays.
