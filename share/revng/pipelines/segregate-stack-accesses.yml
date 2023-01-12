@@ -32,6 +32,7 @@ Branches:
               - sroa
               - simplifycfg
               - loop-rewrite-with-canonical-induction-variable
+              - simplifycfg
               - instcombine
               - early-cse
               - dce
