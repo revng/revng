@@ -450,13 +450,63 @@ namespace revng {
 /// \note use `llvm::find` instead after it's made `constexpr`.
 template<typename R, typename T>
 constexpr decltype(auto) find(R &&Range, const T &Value) {
-  return std::find(std::begin(Range), std::end(Range), Value);
+  return std::find(std::begin(std::forward<R>(Range)),
+                   std::end(std::forward<R>(Range)),
+                   Value);
+}
+
+/// \note use `llvm::find_if` instead after it's made `constexpr`.
+template<typename R, typename CallableType> // NOLINTNEXTLINE
+constexpr decltype(auto) find_if(R &&Range, CallableType &&Callable) {
+  return std::find_if(std::begin(std::forward<R>(Range)),
+                      std::end(std::forward<R>(Range)),
+                      std::forward<CallableType>(Callable));
+}
+
+/// \note use `llvm::find_if_not` instead after it's made `constexpr`.
+template<typename R, typename CallableType> // NOLINTNEXTLINE
+constexpr decltype(auto) find_if_not(R &&Range, CallableType &&Callable) {
+  return std::find_if_not(std::begin(std::forward<R>(Range)),
+                          std::end(std::forward<R>(Range)),
+                          std::forward<CallableType>(Callable));
+}
+
+/// \note `std::find_last` is introduced in c++23,
+///       replace with the llvm version when it's available.
+template<typename R, typename T> // NOLINTNEXTLINE
+constexpr decltype(auto) find_last(R &&Range, const T &Value) {
+  return std::find(std::rbegin(std::forward<R>(Range)),
+                   std::rend(std::forward<R>(Range)),
+                   Value);
+}
+
+/// \note `std::find_last_if` is introduced in c++23,
+///       replace with the llvm version when it's available.
+template<typename R, typename CallableType> // NOLINTNEXTLINE
+constexpr decltype(auto) find_last_if(R &&Range, CallableType &&Callable) {
+  return std::find_if(std::rbegin(std::forward<R>(Range)),
+                      std::rend(std::forward<R>(Range)),
+                      std::forward<CallableType>(Callable));
+}
+
+/// \note `std::find_last_if_not` is introduced in c++23,
+///       replace with the llvm version when it's available.
+template<typename R, typename CallableType> // NOLINTNEXTLINE
+constexpr decltype(auto) find_last_if_not(R &&Range, CallableType &&Callable) {
+  return std::find_if_not(std::rbegin(std::forward<R>(Range)),
+                          std::rend(std::forward<R>(Range)),
+                          std::forward<CallableType>(Callable));
 }
 
 /// \note use `llvm::is_contained` instead after it's made `constexpr`.
 template<typename R, typename T> // NOLINTNEXTLINE
 constexpr bool is_contained(R &&Range, const T &Value) {
-  return revng::find(Range, Value) != std::end(Range);
+  return revng::find(std::forward<R>(Range), Value) != std::end(Range);
+}
+
+template<typename Range, typename C> // NOLINTNEXTLINE
+constexpr bool is_contained_if(Range &&R, C &&L) {
+  return find_if(std::forward<Range>(R), std::forward<C>(L)) != std::end(R);
 }
 
 static_assert(is_contained(std::array{ 1, 2, 3 }, 2) == true);
