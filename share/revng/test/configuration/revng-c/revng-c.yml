@@ -90,8 +90,7 @@ commands:
       - type: revng-c.canonicalized
     suffix: .ptml.c
     command: |-
-      MODEL="$$(mktemp tmp.revng-c.canonicalized.XXXXXXXXXX)";
-      trap 'rm -f -- "$$MODEL"' EXIT;
+      MODEL=$$(temp);
       revng model dump "$INPUT" > "$$MODEL";
       revng pipeline
         -m "$$MODEL"
@@ -110,8 +109,7 @@ commands:
       - type: revng-c.model-to-header
       - type: revng-c.helpers-to-header
     command: |-
-      TMP="$$(mktemp -d tmp.revng-c.check-decompiled-c.XXXXXXXXXX)";
-      trap 'rm -rf -- "$$TMP"' EXIT;
+      TMP=$$(temp -d);
       cp -a "$INPUT1" "$$TMP/decompiled.c";
       cp -a "$INPUT2" "$$TMP/revng-model-declarations.h";
       cp -a "$INPUT3" "$$TMP/revng-qemu-helpers-declarations.h";
