@@ -298,7 +298,10 @@ yield::Instruction DI::parse(const llvm::MCInst &Instruction,
 
   // Some special considerations might be needed for the second operand.
   // See the `MCInstPrinter::printInst()` docs.
-  Printer.printInst(&Instruction, Address.asPC(), "", SI, MarkupStream);
+  // TODO: Using 0 as second argument makes the jump relative to PC (otherwise
+  // the addresses are wrong). In future implementations we should consider
+  // using labels instead.
+  Printer.printInst(&Instruction, 0, "", SI, MarkupStream);
 
   if (MarkupStorage.empty())
     return Result;
