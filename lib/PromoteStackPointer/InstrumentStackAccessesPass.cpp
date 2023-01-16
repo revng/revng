@@ -10,10 +10,9 @@
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 #include "revng-c/PromoteStackPointer/InstrumentStackAccessesPass.h"
+#include "revng-c/Support/FunctionTags.h"
 
 using namespace llvm;
-
-FunctionTags::Tag StackOffsetMarker("StackOffsetMarker");
 
 static Logger<> Log("instrument-stack-accesses");
 
@@ -28,7 +27,7 @@ public:
     StackOffsetPool.addFnAttribute(Attribute::NoUnwind);
     StackOffsetPool.addFnAttribute(Attribute::WillReturn);
     StackOffsetPool.addFnAttribute(Attribute::InaccessibleMemOnly);
-    StackOffsetPool.setTags({ &StackOffsetMarker });
+    StackOffsetPool.setTags({ &FunctionTags::StackOffsetMarker });
   }
 
 public:

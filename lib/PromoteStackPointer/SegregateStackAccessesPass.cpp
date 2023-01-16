@@ -61,7 +61,7 @@ static std::optional<int64_t> getStackOffset(Value *Pointer) {
 
   if (auto *Call = dyn_cast<CallInst>(PointerInstruction)) {
     if (auto *Callee = getCallee(Call)) {
-      if (StackOffsetMarker.isTagOf(Callee)) {
+      if (FunctionTags::StackOffsetMarker.isTagOf(Callee)) {
         // Check if this is a stack access, i.e., targets an exact range
         unsigned AccessSize = getPointeeSize(Pointer);
         auto MaybeStart = getSignedConstantArg(Call, 1);

@@ -8,8 +8,6 @@
 
 #include "revng/Support/FunctionTags.h"
 
-extern FunctionTags::Tag StackOffsetMarker;
-
 /// Wrap stack accesses into StackOffsetMarker-tagged calls
 ///
 /// stack_offset is an identity-like function with a second argument

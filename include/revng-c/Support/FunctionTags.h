@@ -46,6 +46,9 @@ inline Tag
   StackAccessesSegregated("StackAccessesSegregated", StackPointerPromoted);
 
 inline Tag DecompiledToYAML("DecompiledToYAML", StackPointerPromoted);
+
+inline Tag StackOffsetMarker("StackOffsetMarker");
+
 } // namespace FunctionTags
 
 inline const llvm::CallInst *

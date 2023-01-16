@@ -20,6 +20,7 @@
 #include "revng-c/Pipes/Kinds.h"
 #include "revng-c/PromoteStackPointer/DetectStackSizePass.h"
 #include "revng-c/PromoteStackPointer/InstrumentStackAccessesPass.h"
+#include "revng-c/Support/FunctionTags.h"
 
 using namespace llvm;
 using model::RawFunctionType;
@@ -173,7 +174,7 @@ void DetectStackSize::collectStackBounds(FunctionMetadataCache &Cache,
       if (auto *Call = dyn_cast<CallInst>(&I)) {
         auto *CalledValue = skipCasts(Call->getCalledOperand());
         if (auto *CalledFunction = dyn_cast<llvm::Function>(CalledValue)) {
-          if (StackOffsetMarker.isTagOf(CalledFunction)) {
+          if (FunctionTags::StackOffsetMarker.isTagOf(CalledFunction)) {
             revng_log(Log, "Considering stack offset marker " << getName(Call));
             // This is a call to a stack_offset function, let's record the
             // offset

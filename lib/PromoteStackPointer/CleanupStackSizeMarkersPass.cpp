@@ -8,6 +8,7 @@
 
 #include "revng-c/PromoteStackPointer/CleanupStackSizeMarkersPass.h"
 #include "revng-c/PromoteStackPointer/InstrumentStackAccessesPass.h"
+#include "revng-c/Support/FunctionTags.h"
 
 using namespace llvm;
 
@@ -15,7 +16,7 @@ bool CleanupStackSizeMarkersPass::runOnModule(Module &M) {
   SmallVector<CallInst *, 16> CallsToDelete;
   SmallVector<Function *, 16> FunctionsToDelete;
 
-  for (Function &F : StackOffsetMarker.functions(&M)) {
+  for (Function &F : FunctionTags::StackOffsetMarker.functions(&M)) {
     for (User *U : F.users()) {
       auto *Call = cast<CallInst>(U);
       Call->replaceAllUsesWith(Call->getArgOperand(0));

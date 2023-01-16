@@ -10,11 +10,13 @@
 
 #include "revng-c/PromoteStackPointer/ComputeStackAccessesBoundsPass.h"
 #include "revng-c/PromoteStackPointer/InstrumentStackAccessesPass.h"
+#include "revng-c/Support/FunctionTags.h"
 
 using namespace llvm;
 
 bool ComputeStackAccessesBoundsPass::runOnModule(Module &M) {
-  for (Function &StackOffsetFunction : StackOffsetMarker.functions(&M)) {
+  for (Function &StackOffsetFunction :
+       FunctionTags::StackOffsetMarker.functions(&M)) {
     auto *FunctionType = StackOffsetFunction.getFunctionType();
     auto *DifferenceType = cast<IntegerType>(FunctionType->getParamType(1));
     for (CallBase *Call : callers(&StackOffsetFunction)) {
