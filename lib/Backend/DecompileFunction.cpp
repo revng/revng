@@ -194,6 +194,7 @@ static InstrSetVec collectTopScopeVariables(const llvm::Function &F) {
       // Assign.
       if (isCallToTagged(&I, FunctionTags::QEMU)
           or isCallToTagged(&I, FunctionTags::Helper)
+          or isCallToTagged(&I, FunctionTags::Exceptional)
           or llvm::isa<llvm::IntrinsicInst>(I)) {
 
         if (needsTopScopeDeclaration(I))
@@ -1042,6 +1043,7 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
 
   } else if (FunctionTags::QEMU.isTagOf(CalledFunc)
              or FunctionTags::Helper.isTagOf(CalledFunc)
+             or FunctionTags::Exceptional.isTagOf(CalledFunc)
              or CalledFunc->isIntrinsic()) {
 
     if (not Call->getType()->isVoidTy()) {

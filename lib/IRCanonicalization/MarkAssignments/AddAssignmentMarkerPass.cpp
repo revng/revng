@@ -104,6 +104,7 @@ bool AddAssignmentMarkersPass::runOnFunction(llvm::Function &F) {
 
     if (isCallToTagged(I, FunctionTags::QEMU)
         or isCallToTagged(I, FunctionTags::Helper)
+        or isCallToTagged(I, FunctionTags::Exceptional)
         or isa<llvm::IntrinsicInst>(I))
       continue;
 

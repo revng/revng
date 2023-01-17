@@ -194,6 +194,7 @@ static TypeVector getReturnTypes(FunctionMetadataCache &Cache,
 
   } else if (FunctionTags::QEMU.isTagOf(CalledFunc)
              or FunctionTags::Helper.isTagOf(CalledFunc)
+             or FunctionTags::Exceptional.isTagOf(CalledFunc)
              or CalledFunc->isIntrinsic()
              or FunctionTags::OpaqueCSVValue.isTagOf(CalledFunc)) {
 

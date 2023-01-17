@@ -11,6 +11,7 @@
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Type.h"
+#include "revng/Support/FunctionTags.h"
 
 #include "revng-c/Support/FunctionTags.h"
 
@@ -26,7 +27,9 @@ inline bool hasSideEffects(const llvm::Instruction &I) {
     if (not CalledFunc or CalledFunc->isIntrinsic()
         or FunctionTags::Isolated.isTagOf(CalledFunc)
         or FunctionTags::WritesMemory.isTagOf(CalledFunc)
-        or FunctionTags::QEMU.isTagOf(CalledFunc))
+        or FunctionTags::Helper.isTagOf(CalledFunc)
+        or FunctionTags::QEMU.isTagOf(CalledFunc)
+        or FunctionTags::Exceptional.isTagOf(CalledFunc))
       return true;
   }
 

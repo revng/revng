@@ -89,7 +89,8 @@ bool dumpHelpersToHeader(const llvm::Module &M, llvm::raw_ostream &Out) {
 
     for (const llvm::Function &F : M.functions()) {
       if (FunctionTags::QEMU.isTagOf(&F) or FunctionTags::Helper.isTagOf(&F)
-          or FunctionTags::OpaqueCSVValue.isTagOf(&F) or F.isIntrinsic()) {
+          or FunctionTags::OpaqueCSVValue.isTagOf(&F)
+          or FunctionTags::Exceptional.isTagOf(&F) or F.isIntrinsic()) {
 
         if (Log.isEnabled()) {
           auto LineCommentScope = helpers::LineComment(Header);

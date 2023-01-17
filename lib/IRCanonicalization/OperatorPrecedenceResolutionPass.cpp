@@ -322,6 +322,7 @@ bool OPRP::needsParentheses(Instruction *I, Use &U) {
   // always emit a local variable for it, so we don't have to emit parentheses
   if (isCallToTagged(Op, FunctionTags::QEMU)
       or isCallToTagged(Op, FunctionTags::Helper)
+      or isCallToTagged(Op, FunctionTags::Exceptional)
       or llvm::isa<llvm::IntrinsicInst>(Op))
     return false;
 
