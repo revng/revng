@@ -343,27 +343,29 @@ absorbVolatileChildren(LayoutTypeSystem &TS, LayoutTypeSystemNode *Parent) {
   return Absorbed;
 }
 
+static void absorbVolatileChildren(LayoutTypeSystem &TS) {
+  std::set<const dla::LayoutTypeSystemNode *> Visited;
+  for (LayoutTypeSystemNode *Root : llvm::nodes(&TS)) {
+
+    if (Visited.contains(Root))
+      continue;
+
+    if (not isRoot(Root))
+      continue;
+
+    for (LayoutTypeSystemNode *Node :
+         llvm::post_order_ext(NonPointerFilterT(Root), Visited))
+      absorbVolatileChildren(TS, Node);
+  }
+}
+
 bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
   if (VerifyLog.isEnabled())
     revng_assert(TS.verifyDAG());
 
   bool Changed = false;
 
-  {
-    std::set<const dla::LayoutTypeSystemNode *> Visited;
-    for (LayoutTypeSystemNode *Root : llvm::nodes(&TS)) {
-
-      if (Visited.contains(Root))
-        continue;
-
-      if (not isRoot(Root))
-        continue;
-
-      for (LayoutTypeSystemNode *Node :
-           llvm::post_order_ext(NonPointerFilterT(Root), Visited))
-        absorbVolatileChildren(TS, Node);
-    }
-  }
+  absorbVolatileChildren(TS);
 
   // This dla::Step will heavily mutate the graph while iterating on it.
   // Despite thinking hard about it, we couldn't come up with a sane visit order
@@ -374,30 +376,30 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
   // Then we go fixed-point until we don't have anything left to recompute, but
   // we always follow this order because it's still better than iterating
   // randomly, or with some other ordering that is not stable.
-  std::vector<LayoutTypeSystemNode *> Queue;
-  std::set<const LayoutTypeSystemNode *> ToAnalyze;
-  {
 
-    std::set<const dla::LayoutTypeSystemNode *> Visited;
-    for (LayoutTypeSystemNode *Root : llvm::nodes(&TS)) {
-      revng_assert(Root != nullptr);
-      if (not isRoot(Root))
-        continue;
+  // Add a fake root to be able to compute a RPOT from that. What's important
+  // here is not that it's strictly a RPOT, but that it is a topological
+  // traversal.
+  auto *FakeRoot = TS.createArtificialLayoutType();
+  for (LayoutTypeSystemNode *Root : llvm::nodes(&TS)) {
+    revng_assert(Root != nullptr);
+    if (not isRoot(Root))
+      continue;
 
-      for (LayoutTypeSystemNode *N :
-           llvm::post_order_ext(NonPointerFilterT(Root), Visited)) {
-        revng_assert(N->Size);
-        Queue.push_back(N);
-        ToAnalyze.insert(N);
-      }
-    }
-
-    // Reverse the whole thing so it's more RPOT like, which is a topological
-    // ordering of all the nodes in the graph.
-    // The edges will change during the algorithm, but there's nothing we can do
-    // about it.
-    std::reverse(Queue.begin(), Queue.end());
+    TS.addInstanceLink(FakeRoot, Root, OffsetExpression{});
   }
+
+  // Compute the RPOT
+  auto Queue = llvm::ReversePostOrderTraversal(NonPointerFilterT(FakeRoot));
+
+  // Compute the node to analyze.
+  std::set<const LayoutTypeSystemNode *> ToAnalyze;
+  for (const auto *Node : Queue)
+    ToAnalyze.insert(Node);
+
+  // The fake root is never to analyze and can already be removed.
+  ToAnalyze.erase(FakeRoot);
+  TS.removeNode(FakeRoot);
 
   while (not ToAnalyze.empty()) {
 
@@ -412,6 +414,7 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
         continue;
 
       revng_log(Log, "Analyzing parent: " << Parent->ID);
+      revng_assert(Parent != FakeRoot);
 
       // If we reach this point we have to analyze Parent, to see if some of its
       // Instance children can be pushed down some other of its Instance chilren
@@ -424,7 +427,6 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
       // volatile when pushing them down.
       // For instance if we had A->B, A->C, B->C, and C was pushed down B, then
       // C becomes volatile inside B.
-      //
       {
         auto Absorbed = absorbVolatileChildren(TS, Parent);
         for (auto *A : Absorbed)
