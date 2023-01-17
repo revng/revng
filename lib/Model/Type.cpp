@@ -1169,12 +1169,6 @@ RecursiveCoroutine<bool> Type::verify(VerifyHelper &VH) const {
   rc_return VH.maybeFail(Result);
 }
 
-std::string QualifiedType::getPrimitiveName() const {
-  revng_assert(isPrimitive2());
-  // WIP
-  return "";
-}
-
 std::string QualifiedType::pseudoC() const {
   if (empty())
     return "(none)";
@@ -1184,7 +1178,7 @@ std::string QualifiedType::pseudoC() const {
     llvm::raw_string_ostream Stream(Result);
     // Dump base type
     if (isPrimitive2()) {
-      Stream << getPrimitiveName();
+      Stream << primitiveName();
     } else {
       revng_assert(isTrull());
       Stream << UnqualifiedType().get()->name();
@@ -1238,7 +1232,7 @@ RecursiveCoroutine<bool> QualifiedType::verify(VerifyHelper &VH) const {
 
   if (HasUnderlyingType and IsPrimitive) {
     rc_return VH.fail("A QualifiedType has to be either a primitive or have "
-                      "an underlying type");
+                      "an underlying type", *this);
   }
 
   if (IsPrimitive and not isValidPrimitiveSize(PrimitiveKind(), Size()))

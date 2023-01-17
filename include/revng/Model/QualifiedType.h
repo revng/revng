@@ -147,8 +147,6 @@ public:
   /// \note This is for debug purposes only. It's not a valid C type.
   std::string pseudoC() const debug_function;
 
-  std::string getPrimitiveName() const;
-
   void dump() const debug_function;
 
   bool operator==(const QualifiedType &) const = default;
