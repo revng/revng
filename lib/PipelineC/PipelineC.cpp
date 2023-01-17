@@ -807,7 +807,9 @@ const char *rp_container_get_mime(rp_container *container) {
 
 const char *
 rp_container_extract_one(rp_container *container, rp_target *target) {
-  revng_check(container->second->enumerate().contains(*target));
+  if (!container->second->enumerate().contains(*target)) {
+    return nullptr;
+  }
 
   std::string Out;
   llvm::raw_string_ostream Serialized(Out);

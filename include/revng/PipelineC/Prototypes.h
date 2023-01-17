@@ -613,9 +613,7 @@ bool rp_manager_container_deserialize(rp_manager *manager,
 
 /**
  * \return the serialized content of the element associated to the provided
- * target,
- *
- * \note Target must be already present in container
+ * target, or nullptr if the content hasn't been produced yet
  */
 const char * /*owning*/
 rp_container_extract_one(rp_container *container, rp_target *target);
