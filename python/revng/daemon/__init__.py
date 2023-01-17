@@ -107,6 +107,7 @@ app = Starlette(
             if "REVNG_ORIGINS" in os.environ
             else [],
             allow_methods=["*"],
+            allow_headers=["*"],
         ),
     ],
     on_startup=[startup],
