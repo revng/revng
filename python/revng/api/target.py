@@ -27,9 +27,9 @@ class Target:
         return Target(_target, container) if _target != ffi.NULL else None
 
     @property
-    def kind(self) -> Optional[Kind]:
+    def kind(self) -> Kind:
         _kind = _api.rp_target_get_kind(self._target)
-        return Kind(_kind) if _kind != ffi.NULL else None
+        return Kind(_kind)
 
     @property
     def is_ready(self) -> bool:
