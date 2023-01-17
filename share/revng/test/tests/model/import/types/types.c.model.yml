@@ -1,0 +1,40 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+---
+Segments:
+  - Type:
+      UnqualifiedType: "/Types/StructType-12084688553483582712"
+Types:
+  - Kind: PrimitiveType
+    ID: 513
+    PrimitiveKind: Generic
+    Size: 1
+  - Kind: PrimitiveType
+    ID: 516
+    PrimitiveKind: Generic
+    Size: 4
+  - Kind: PrimitiveType
+    ID: 520
+    PrimitiveKind: Generic
+    Size: 8
+  - Kind: StructType
+    ID: 12084688553483582712
+    Size: 92
+    Fields:
+      - Offset: 0
+        OriginalName: char_80_global
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-513"
+          Qualifiers:
+            - Kind: Array
+              Size: 80
+      - Offset: 80
+        OriginalName: uint64_global
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+      - Offset: 88
+        OriginalName: uint32_global
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-516"
