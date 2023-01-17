@@ -54,7 +54,7 @@ def project_workdir() -> Optional[Path]:
         return Path(data_dir)
     elif project_id != "":
         real_data_dir = Path(data_dir) if data_dir != "" else xdg_data_home() / "revng"
-        if re.match(r"^[\w_-]$", project_id, re.ASCII):
+        if re.match(r"^[\w_-]*$", project_id, re.ASCII):
             return real_data_dir / project_id
         else:
             raise ValueError("Invalid Project ID")
