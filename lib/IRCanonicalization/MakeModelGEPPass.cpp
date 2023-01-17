@@ -1968,9 +1968,11 @@ static UseGEPInfoMap makeGEPReplacements(llvm::Function &F,
           }
         }
 
-        // Skip booleans, since they cannot be addresses
+        // Skip non-pointer-sized integers, since they cannot be addresses
         if (auto *IntTy = dyn_cast<llvm::IntegerType>(U.get()->getType())) {
-          if (IntTy->getIntegerBitWidth() == 1) {
+          using model::Architecture::getPointerSize;
+          auto PtrBitSize = getPointerSize(Model.Architecture()) * 8;
+          if (IntTy->getIntegerBitWidth() != PtrBitSize) {
             revng_log(ModelGEPLog, "Skipping i1 value");
             continue;
           }
