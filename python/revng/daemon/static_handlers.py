@@ -275,7 +275,7 @@ async def resolve_step_artifacts(step_obj, info):
 
     return {
         "kind": artifacts_kind.as_dict(),
-        "container": artifacts_container,
+        "container": artifacts_container.as_dict(),
         "singleTargetFilename": artifacts_single_target_filename,
     }
 
