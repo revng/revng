@@ -150,6 +150,9 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
   auto QIt = QT.Qualifiers().begin();
   auto QEnd = QT.Qualifiers().end();
   do {
+    // Accumulate the result that are outside the array.
+    TypeString Partial;
+
     // Find the first qualifer that is an array.
     auto QArrayIt = std::find_if(QIt, QEnd, model::Qualifier::isArray);
     {
@@ -169,18 +172,18 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
       for (const model::Qualifier &Q :
            llvm::reverse(llvm::make_range(QIt, QArrayIt))) {
         if (not PrevPointer)
-          Result.append(" ");
+          Partial.append(" ");
 
         switch (Q.Kind()) {
 
         case model::QualifierKind::Const:
-          Result.append(keywords::Const.serialize());
+          Partial.append(keywords::Const.serialize());
           PrevPointer = false;
           break;
         case model::QualifierKind::Pointer:
-          Result.append(Tag(tags::Span, "*")
-                          .addAttribute(attributes::Token, tokens::Operator)
-                          .serialize());
+          Partial.append(Tag(tags::Span, "*")
+                           .addAttribute(attributes::Token, tokens::Operator)
+                           .serialize());
           PrevPointer = true;
           break;
 
@@ -193,9 +196,18 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
     // Print the actual instance name.
     if (QIt == QT.Qualifiers().begin()) {
       if (PrependWhitespaceToInstanceName)
-        Result.append(" ");
+        Partial.append(" ");
       Result.append(InstanceName.str());
     }
+
+    // Now we can prepend the qualifiers that are outside the array to the
+    // Result string. This always work because at this point Result holds
+    // whatever is left from previous iteration, so it's either empty, or it
+    // starts with '(' because we're using the clockwise spiral rule.
+    Result = (Twine(Partial) + Twine(Result)).str();
+
+    // After this point we'll only be emitting parenthesis for the clockwise
+    // spiral rule, or append square brackets at the end of Result for arrays.
 
     // Find the next non-array qualifier. Skip over const-qualifiers, because in
     // C there are no const-arrays, so we'll have to deal with const-arrays
@@ -210,6 +222,7 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
           and isConst(*std::make_reverse_iterator(QPointerIt)))
         QPointerIt = std::prev(QPointerIt);
     }
+
     if (QArrayIt != QPointerIt) {
       // If QT is s a pointer to an array we have to add parentheses for the
       // clockwise spiral rule
