@@ -49,7 +49,15 @@ REVNG_DATA_DIR and REVNG_PROJECT_ID set: use '$REVNG_DATA_DIR/$REVNG_PROJECT_ID'
             action="store_true",
             help="Start server in production mode, this runs the server on all interfaces",
         )
-        parser.add_argument("-b", "--bind", type=str, help="Manually bind to the specified address")
+        parser.add_argument(
+            "-b",
+            "--bind",
+            type=str,
+            help=(
+                "Manually bind to the specified address. "
+                "format: 'tcp:<ip>:port'/'unix:<path>' or 'none' to disable binding"
+            ),
+        )
 
     def run(self, options: Options):
         _, dependencies = collect_libraries(options.search_prefixes)
@@ -68,6 +76,8 @@ REVNG_DATA_DIR and REVNG_PROJECT_ID set: use '$REVNG_DATA_DIR/$REVNG_PROJECT_ID'
             elif bind.startswith("unix:"):
                 _, path = bind.split(":", 1)
                 args.extend(["--uds", path])
+            elif bind == "none":
+                pass
             else:
                 raise ValueError(f"Unknown bind address: {bind}")
         else:
