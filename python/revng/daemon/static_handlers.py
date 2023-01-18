@@ -187,15 +187,6 @@ async def resolve_run_analyses_list(_, info, *, name: str, options: str | None =
     return json.dumps(result.result)
 
 
-@mutation.field("runAllAnalyses")
-@emit_event(EventType.CONTEXT)
-async def resolve_run_all_analyses(_, info):
-    manager: Manager = info.context["manager"]
-    result = await run_in_executor(manager.run_all_analyses)
-    await invalidation_queue.send(str(result.invalidations))
-    return json.dumps(result.result)
-
-
 @mutation.field("analyses")
 async def mutation_analyses(_, info):
     return {}

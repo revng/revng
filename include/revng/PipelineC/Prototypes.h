@@ -336,20 +336,6 @@ rp_manager_run_analyses_list(rp_manager *manager,
                              const rp_string_map *options);
 
 /**
- * Request to run all analyses on all targets
- * \param invalidations see \ref pipelineC_invalidations
- * \param options key-value associative array of options to pass to the analysis
- * This option accepts nullptr in case there are no options to pass
- *
- * \return nullptr if an error was encountered, the owning diff map of affected
- * global objects otherwise
- */
-rp_diff_map * /*owning*/
-rp_manager_run_all_analyses(rp_manager *manager,
-                            rp_invalidations *invalidations,
-                            const rp_string_map *options);
-
-/**
  * \return the container status associated to the provided \p container
  *         or NULL if no status is associated to the provided container.
  */

@@ -20,7 +20,6 @@ type Mutation {
     uploadFile(file: Upload, container: String!): Boolean!
     runAnalysis(step: String!, analysis: String!, containerToTargets: String, options: String): String!
     runAnalysesList(name: String!, options: String): String!
-    runAllAnalyses: String!
     analyses: AnalysisMutations!
     analysesLists: AnalysesListsMutations!
     setGlobal(name: String!, content: String!, verify: Boolean): Boolean!

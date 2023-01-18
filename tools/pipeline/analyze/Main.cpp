@@ -104,7 +104,6 @@ int main(int argc, const char *argv[]) {
   auto OriginalModel = *AbortOnError(Ctx.getGlobal<BinaryRef>(ModelGlobalName));
 
   if (Arguments.size() == 0) {
-    dbg << "all\n";
     for (size_t I = 0; I < Manager.getRunner().getAnalysesListCount(); I++) {
       AnalysesList AL = Manager.getRunner().getAnalysesList(I);
       dbg << "list-" << AL.getName().str() << "\n";
@@ -125,10 +124,7 @@ int main(int argc, const char *argv[]) {
   AbortOnError(InputContainer.loadFromDisk(Arguments[1]));
 
   InvalidationMap InvMap;
-
-  if (Arguments[0] == "all") {
-    AbortOnError(Manager.runAllAnalyses(InvMap));
-  } else if (Arguments[0].starts_with("list-")) {
+  if (Arguments[0].starts_with("list-")) {
     std::string AnalysesListName = Arguments[0].substr(5);
     if (!Manager.getRunner().hasAnalysesList(AnalysesListName)) {
       AbortOnError(createStringError(inconvertibleErrorCode(),

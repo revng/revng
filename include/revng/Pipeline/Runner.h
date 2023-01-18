@@ -178,11 +178,6 @@ public:
               pipeline::InvalidationMap &InvalidationsMap,
               const llvm::StringMap<std::string> &Options = {});
 
-  /// Run all analysis in reverse post order (that is: parents first),
-  llvm::Expected<DiffMap>
-  runAllAnalyses(pipeline::InvalidationMap &InvalidationsMap,
-                 const llvm::StringMap<std::string> &Options = {});
-
   void addContainerFactory(llvm::StringRef Name, ContainerFactory Entry) {
     ContainerFactoriesRegistry.registerContainerFactory(Name, std::move(Entry));
   }

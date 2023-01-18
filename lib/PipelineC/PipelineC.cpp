@@ -936,23 +936,6 @@ rp_diff_map *rp_manager_run_analyses_list(rp_manager *manager,
   return new rp_diff_map(std::move(*MaybeDiffs));
 }
 
-rp_diff_map *rp_manager_run_all_analyses(rp_manager *manager,
-                                         rp_invalidations *invalidations,
-                                         const rp_string_map *options) {
-  revng_check(manager != nullptr);
-
-  ExistingOrNew<rp_invalidations> Invalidations(invalidations);
-  ExistingOrNew<const rp_string_map> Options(options);
-
-  auto MaybeDiffs = manager->runAllAnalyses(*Invalidations, *Options);
-  if (!MaybeDiffs) {
-    llvm::consumeError(MaybeDiffs.takeError());
-    return nullptr;
-  }
-
-  return new rp_diff_map(std::move(*MaybeDiffs));
-}
-
 bool rp_diff_map_is_empty(rp_diff_map *map) {
   for (auto &Entry : *map) {
     if (!Entry.second.isEmpty()) {

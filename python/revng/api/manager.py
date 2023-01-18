@@ -426,20 +426,6 @@ class Manager:
             self.save()
         return ResultWithInvalidations(self.parse_diff_map(result), invalidations)
 
-    def run_all_analyses(
-        self, options: Dict[str, str] = {}
-    ) -> ResultWithInvalidations[Optional[Dict[str, str]]]:
-        options_map = StringMap(options)
-        invalidations = Invalidations()
-        result = _api.rp_manager_run_all_analyses(
-            self._manager, invalidations._invalidations, options_map._string_map
-        )
-        if result != ffi.NULL and not _api.rp_diff_map_is_empty(result):
-            self.save()
-        return ResultWithInvalidations(
-            self.parse_diff_map(result) if result != ffi.NULL else None, invalidations
-        )
-
     def parse_diff_map(self, diff_map) -> Dict[str, str]:
         result = {}
         for global_name in self.globals_list():

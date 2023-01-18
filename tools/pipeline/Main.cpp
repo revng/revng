@@ -68,12 +68,6 @@ static opt<bool> ProduceAllPossibleTargetsSingle("produce-all-single",
                                                  cat(MainCategory),
                                                  init(false));
 
-static opt<bool> AnalyzeAll("analyze-all",
-                            desc("Try analyzing all possible "
-                                 "targets"),
-                            cat(MainCategory),
-                            init(false));
-
 static cl::list<string> AnalysesLists("analyses-list",
                                       desc("Analyses list to run"),
                                       cat(MainCategory));
@@ -191,10 +185,6 @@ int main(int argc, const char *argv[]) {
   }
 
   InvalidationMap InvMap;
-
-  if (AnalyzeAll)
-    AbortOnError(Manager.runAllAnalyses(InvMap));
-
   for (auto &AnalysesListName : AnalysesLists) {
     if (!Manager.getRunner().hasAnalysesList(AnalysesListName)) {
       AbortOnError(createStringError(inconvertibleErrorCode(),

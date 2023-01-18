@@ -166,11 +166,6 @@ public:
               const llvm::StringMap<std::string> &Options = {},
               llvm::raw_ostream *DiagnosticLog = nullptr);
 
-  /// Run all analysis in reverse post order (that is: parents first),
-  llvm::Expected<pipeline::DiffMap>
-  runAllAnalyses(pipeline::InvalidationMap &Map,
-                 const llvm::StringMap<std::string> &Options = {});
-
   /// recalculates all possible targets and keeps overship of the computed info
   void recalculateAllPossibleTargets(bool ExpandTargets = true);
 

@@ -431,24 +431,6 @@ PipelineManager::runAnalysis(llvm::StringRef AnalysisName,
   return Result;
 }
 
-llvm::Expected<DiffMap>
-PipelineManager::runAllAnalyses(InvalidationMap &Map,
-                                const llvm::StringMap<std::string> &Options) {
-  auto Result = Runner->runAllAnalyses(Map, Options);
-  if (not Result)
-    return Result.takeError();
-
-  recalculateAllPossibleTargets();
-
-  // TODO: to remove once invalidations are working
-  if (auto Invalidations = invalidateAllPossibleTargets(); !!Invalidations)
-    Map = Invalidations.get();
-  else
-    return Invalidations.takeError();
-
-  return Result;
-}
-
 llvm::Expected<InvalidationMap>
 PipelineManager::invalidateFromDiff(const llvm::StringRef Name,
                                     const pipeline::GlobalTupleTreeDiff &Diff) {
