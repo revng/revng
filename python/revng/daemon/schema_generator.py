@@ -12,7 +12,7 @@ from ariadne import ObjectType, QueryType, make_executable_schema
 from graphql.type.schema import GraphQLSchema
 from jinja2 import Environment, FileSystemLoader
 
-from revng.api.analysis import Analysis
+from revng.api.analysis import AnalysesList, Analysis
 from revng.api.manager import Manager
 from revng.api.rank import Rank
 from revng.api.step import Step
@@ -52,7 +52,9 @@ class SchemaGenerator:
                 rank_to_artifact_steps[step_kind.rank].append(step)
 
         return template.render(
-            rank_to_artifact_steps=rank_to_artifact_steps, steps=list(manager.steps())
+            rank_to_artifact_steps=rank_to_artifact_steps,
+            steps=list(manager.steps()),
+            analyses_lists=list(manager.analyses_lists()),
         )
 
     @staticmethod
@@ -85,6 +87,7 @@ class DynamicBindableGenerator:
     def get_bindables(self) -> List[ObjectType]:
         return [
             self.get_query_bindable(),
+            self.get_analyses_list_bindables(),
             *self.get_rank_bindables(),
             *self.get_analysis_bindables(),
         ]
@@ -130,6 +133,15 @@ class DynamicBindableGenerator:
                 step_analysis_obj.set_field(normalize(analysis.name), handle)
 
         return bindables
+
+    def get_analyses_list_bindables(self) -> ObjectType:
+        analyses_list_mutation = ObjectType("AnalysesListsMutations")
+        for analyses_list in self.manager.analyses_lists():
+            analyses_list_mutation.set_field(
+                normalize(analyses_list.name), self.gen_analyses_list_handle(analyses_list)
+            )
+
+        return analyses_list_mutation
 
     @staticmethod
     def rank_handle(_, info, **params):
@@ -186,6 +198,18 @@ class DynamicBindableGenerator:
             return json.dumps(result.result)
 
         return step_analysis_handle
+
+    @staticmethod
+    def gen_analyses_list_handle(analyses_list: AnalysesList):
+        async def analyses_list_handle(_, info, *, options: str | None = None):
+            manager: Manager = info.context["manager"]
+            parsed_options = json.loads(options) if options is not None else {}
+
+            result = await run_in_executor(manager.run_analyses_list, analyses_list, parsed_options)
+            await invalidation_queue.send(str(result.invalidations))
+            return json.dumps(result.result)
+
+        return analyses_list_handle
 
 
 def normalize(string: str) -> str:

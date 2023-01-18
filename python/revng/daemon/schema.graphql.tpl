@@ -19,8 +19,10 @@ type Mutation {
     uploadB64(input: String!, container: String!): Boolean!
     uploadFile(file: Upload, container: String!): Boolean!
     runAnalysis(step: String!, analysis: String!, containerToTargets: String, options: String): String!
+    runAnalysesList(name: String!, options: String): String!
     runAllAnalyses: String!
     analyses: AnalysisMutations!
+    analysesLists: AnalysesListsMutations!
     setGlobal(name: String!, content: String!, verify: Boolean): Boolean!
     applyDiff(globalName: String!, content: String!, verify: Boolean): Boolean!
 }
@@ -41,6 +43,7 @@ type Info {
     kinds: [Kind!]!
     ranks: [Rank!]!
     steps: [Step!]!
+    analysesLists: [AnalysesList!]!
     globals: [Global!]!
     global(name: String!): String!
     verifyGlobal(name: String!, content: String!): Boolean!
@@ -86,6 +89,11 @@ type Analysis {
     arguments: [AnalysisArgument!]!
 }
 
+type AnalysesList {
+    name: ID
+    analyses: [Analysis!]!
+}
+
 type AnalysisArgument {
     name: ID
     acceptableKinds: [Kind!]!
@@ -123,5 +131,10 @@ type {{ step.name }}Analyses {
 {%- endif %}
 {%- endfor %}
 
+type AnalysesListsMutations {
+    {%- for item in analyses_lists %}
+    {{ item.name | normalize }}(options: String): String!
+    {%- endfor %}
+}
 
 scalar Upload

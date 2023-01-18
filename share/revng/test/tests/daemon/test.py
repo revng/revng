@@ -458,3 +458,28 @@ async def test_analysis_kind_check(client):
     """
         )
     )
+
+
+async def test_analyses_list(client):
+    q = gql(
+        """
+    {
+        info {
+            analysesLists {
+                name
+                analyses {
+                    name
+                }
+            }
+        }
+    }
+    """
+    )
+    result = await client.execute(q)
+
+    auto_analysis_found = False
+    for alist in result["info"]["analysesLists"]:
+        if alist["name"] == "revng-initial-auto-analysis":
+            auto_analysis_found = True
+        assert len(alist["analyses"]) > 0, f"Analyses list {alist['name']} has 0 analyses"
+    assert auto_analysis_found, "revng-initial-auto-analysis not found in analyses lists"
