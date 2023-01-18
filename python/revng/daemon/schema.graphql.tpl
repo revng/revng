@@ -18,7 +18,7 @@ type Query {
 type Mutation {
     uploadB64(input: String!, container: String!): Boolean!
     uploadFile(file: Upload, container: String!): Boolean!
-    runAnalysis(step: String!, analysis: String!, containerToTargets: String): String!
+    runAnalysis(step: String!, analysis: String!, containerToTargets: String, options: String): String!
     runAllAnalyses: String!
     analyses: AnalysisMutations!
     setGlobal(name: String!, content: String!, verify: Boolean): Boolean!
@@ -117,7 +117,7 @@ type {{ rank.name | capitalize }} {
 {%- if step.analyses_count() > 0 %}
 type {{ step.name }}Analyses {
     {%- for analysis in step.analyses() %}
-    {{ analysis.name | normalize }}{{ analysis | generate_analysis_parameters }}: String!
+    {{ analysis.name | normalize }}({{ analysis | generate_analysis_parameters }}options: String): String!
     {%- endfor %}
 }
 {%- endif %}

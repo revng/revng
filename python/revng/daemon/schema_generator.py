@@ -59,10 +59,8 @@ class SchemaGenerator:
     def _generate_analysis_parameters(analysis: Analysis) -> str:
         if len(list(analysis.arguments())) == 0:
             return ""
-        return (
-            "("
-            + ", ".join(f"{normalize(argument.name)}: String!" for argument in analysis.arguments())
-            + ")"
+        return "".join(
+            f"{normalize(argument.name)}: String!, " for argument in analysis.arguments()
         )
 
     @staticmethod
@@ -170,13 +168,19 @@ class DynamicBindableGenerator:
         async def step_analysis_handle(_, info, **kwargs):
             manager: Manager = info.context["manager"]
             target_mapping = {}
+
+            if raw_options := kwargs.pop("options", None) is not None:
+                options = json.loads(raw_options)
+            else:
+                options = {}
+
             for container_name, targets in kwargs.items():
                 if container_name not in argument_mapping.keys():
                     raise ValueError("Passed non-existant container name")
                 target_mapping[argument_mapping[container_name]] = targets.split(",")
 
             result = await run_in_executor(
-                lambda: manager.run_analysis(step.name, analysis.name, target_mapping)
+                lambda: manager.run_analysis(step.name, analysis.name, target_mapping, options)
             )
             await invalidation_queue.send(str(result.invalidations))
             return json.dumps(result.result)

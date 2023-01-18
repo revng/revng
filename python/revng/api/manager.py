@@ -333,7 +333,7 @@ class Manager:
         step_name: str,
         analysis_name: str,
         target_mapping: Dict[str, List[str]],
-        options: Dict[str, str] = {},
+        options: Dict[str, str] | None = None,
     ) -> ResultWithInvalidations[Dict[str, str]]:
         step = self.get_step(step_name)
         if step is None:

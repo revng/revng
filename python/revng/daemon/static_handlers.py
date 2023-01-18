@@ -165,10 +165,14 @@ async def resolve_run_analysis(
     step: str,
     analysis: str,
     containerToTargets: str | None = None,  # noqa: N803
+    options: str | None = None,
 ):
     manager: Manager = info.context["manager"]
     target_map = json.loads(containerToTargets) if containerToTargets is not None else {}
-    result = await run_in_executor(lambda: manager.run_analysis(step, analysis, target_map))
+    parse_options = json.loads(options) if options is not None else {}
+    result = await run_in_executor(
+        lambda: manager.run_analysis(step, analysis, target_map, parse_options)
+    )
     await invalidation_queue.send(str(result.invalidations))
     return json.dumps(result.result)
 
