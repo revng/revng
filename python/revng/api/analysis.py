@@ -55,5 +55,5 @@ class AnalysisArgument:
     def as_dict(self):
         return {
             "name": self.name,
-            "acceptable_kinds": [k.as_dict() for k in self.acceptable_kinds()],
+            "acceptableKinds": [k.as_dict() for k in self.acceptable_kinds()],
         }

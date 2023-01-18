@@ -19,7 +19,7 @@ from revng.api.target import Target
 
 from .event_manager import EventType, emit_event
 from .multiqueue import MultiQueue
-from .util import clean_step_list, produce_serializer, target_dict_to_graphql
+from .util import clean_step_list, produce_serializer
 
 executor = ThreadPoolExecutor(1)
 invalidation_queue: MultiQueue[str] = MultiQueue()
@@ -115,11 +115,7 @@ async def resolve_targets(_, info, *, pathspec: str):
             "containers": [
                 {
                     "name": k2,
-                    "targets": [
-                        target_dict_to_graphql(t.as_dict())
-                        for t in v2
-                        if t.joined_path() == pathspec
-                    ],
+                    "targets": [t.as_dict() for t in v2 if t.joined_path() == pathspec],
                 }
                 for k2, v2 in v.items()
             ],
@@ -303,7 +299,7 @@ async def resolve_container_targets(container_obj, info):
     targets = await run_in_executor(
         lambda: manager.get_targets(container_obj["_step"], container_obj["name"])
     )
-    return await run_in_executor(lambda: [target_dict_to_graphql(t.as_dict()) for t in targets])
+    return await run_in_executor(lambda: [t.as_dict() for t in targets])
 
 
 @info.field("verifyGlobal")

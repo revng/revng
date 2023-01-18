@@ -63,7 +63,7 @@ class Target:
     def as_dict(self):
         return {
             "serialized": self.serialize(),
-            "path_components": list(self.path_components()),
+            "pathComponents": list(self.path_components()),
             "kind": self.kind.name if self.kind is not None else None,
             "ready": self.is_ready,
         }

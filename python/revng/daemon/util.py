@@ -64,10 +64,6 @@ def project_workdir() -> Optional[Path]:
         return None
 
 
-def target_dict_to_graphql(target_dict: Dict[str, str]):
-    return {"pathComponents": target_dict["path_components"], **target_dict}
-
-
 def produce_serializer(input_: Dict[str, str | bytes]) -> str:
     return json.dumps(
         {
