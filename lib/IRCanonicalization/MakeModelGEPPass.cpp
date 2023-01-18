@@ -2,6 +2,8 @@
 // Copyright rev.ng Labs Srl. See LICENSE.md for details.
 //
 
+#include <limits>
+
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
@@ -29,6 +31,7 @@
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Model/Qualifier.h"
 #include "revng/Model/Type.h"
 #include "revng/Model/TypeKind.h"
 #include "revng/Model/VerifyHelper.h"
@@ -212,12 +215,12 @@ struct IRAccessPattern {
 using UseTypeMap = std::map<llvm::Use *, model::QualifiedType>;
 
 static IRAccessPattern
-computeAccessPattern(FunctionMetadataCache &Cache,
-                     const Use &U,
-                     const ModelGEPSummation &GEPSum,
-                     const model::Binary &Model,
-                     const ModelTypesMap &PointerTypes,
-                     const UseTypeMap &GEPifiedUseTypes) {
+computeIRAccessPattern(FunctionMetadataCache &Cache,
+                       const Use &U,
+                       const ModelGEPSummation &GEPSum,
+                       const model::Binary &Model,
+                       const ModelTypesMap &PointerTypes,
+                       const UseTypeMap &GEPifiedUseTypes) {
   using namespace model;
   revng_assert(GEPSum.isAddress());
 
@@ -583,7 +586,7 @@ struct TypedAccessPattern {
   void dump() const debug_function { dump(llvm::dbgs()); }
 };
 
-enum AggregateKind { Struct, Union, Array };
+enum AggregateKind { Invalid, Struct, Union, Array };
 
 static std::string toString(AggregateKind K) {
   switch (K) {
@@ -593,21 +596,19 @@ static std::string toString(AggregateKind K) {
     return "Union";
   case Array:
     return "Array";
+  default:
+    return "Invalid";
   }
-  return "Invalid";
 }
 
 struct ChildInfo {
-  Value *Index;
-  AggregateKind Type;
+  size_t ConstantIndex = 0ULL;
+  llvm::Value *InductionVariable = nullptr;
+  AggregateKind Type = AggregateKind::Invalid;
 
   void dump(llvm::raw_ostream &OS) const debug_function {
-    OS << "ChildInfo{\nIndex:\n";
-    if (Index)
-      Index->print(OS);
-    else
-      OS << "nullptr";
-    OS << "\nType: " << toString(Type) << "\n}";
+    OS << "ChildInfo{\nConstantIndex: " << ConstantIndex
+       << "\nType: " << toString(Type) << "\n}";
   }
 
   void dump() const debug_function { dump(llvm::dbgs()); }
@@ -615,19 +616,13 @@ struct ChildInfo {
 
 using ChildIndexVector = SmallVector<ChildInfo, 4>;
 
-using TAPToChildIdsMap = std::map<TypedAccessPattern, ChildIndexVector>;
-
-// clang-format off
-using QualifiedTypeToTAPChildIdsMap = std::map<const model::QualifiedType,
-                                               TAPToChildIdsMap>;
-// clang-format on
-
-using TAPToChildIdsMapRef = std::reference_wrapper<TAPToChildIdsMap>;
-
-struct DifferenceScore {
+class DifferenceScore {
   // Among two DifferenceScore, the one with PerfectTypeMatch set to true is
   // always the lowest.
   bool PerfectTypeMatch = false;
+
+  // Boolean to mark out-of-range accesses
+  bool InRange = false;
 
   // Higher Difference are for stuff that is farther apart from a perfect match
   // from the beginning of the type.
@@ -641,10 +636,9 @@ struct DifferenceScore {
   // difference) because it means that the type system was traversed deeply.
   size_t Depth = std::numeric_limits<size_t>::min();
 
-  // Boolean to mark out-of-range accesses
-  bool InRange = false;
-
-  std::strong_ordering operator<=>(const DifferenceScore &Other) const {
+public:
+  constexpr std::strong_ordering
+  operator<=>(const DifferenceScore &Other) const {
 
     // If only one of the two is a perfect match, the difference is always
     // lower.
@@ -680,6 +674,8 @@ struct DifferenceScore {
     return Other.Depth <=> Depth;
   }
 
+  constexpr bool operator==(const DifferenceScore &Other) const = default;
+
   void dump(llvm::raw_ostream &OS) const debug_function {
     OS << "DifferenceScore { .PerfectTypeMatch = "
        << (PerfectTypeMatch ? "true" : "false")
@@ -690,21 +686,82 @@ struct DifferenceScore {
   }
 
   void dump() const debug_function { dump(llvm::dbgs()); }
+
+  static constexpr DifferenceScore max() { return DifferenceScore{}; }
+
+  static constexpr DifferenceScore min() {
+    DifferenceScore Result;
+    Result.PerfectTypeMatch = true;
+    Result.InRange = true;
+    Result.Difference = std::numeric_limits<size_t>::min();
+    Result.ExactSize = true;
+    Result.Depth = std::numeric_limits<size_t>::max();
+    return Result;
+  }
+
+  static constexpr DifferenceScore
+  nestedOutOfBound(size_t DiffScore, size_t Depth) {
+    DifferenceScore Result;
+    Result.PerfectTypeMatch = false;
+    Result.InRange = false;
+    Result.Difference = DiffScore;
+    Result.ExactSize = false;
+    Result.Depth = Depth;
+    return Result;
+  }
+
+  static constexpr DifferenceScore outOfBound(size_t DiffScore) {
+    return nestedOutOfBound(DiffScore, std::numeric_limits<size_t>::min());
+  }
+
+  static constexpr DifferenceScore
+  inRange(bool PerfectMatch, uint64_t DiffScore, bool SameSize, size_t Depth) {
+    DifferenceScore Result;
+    Result.PerfectTypeMatch = PerfectMatch;
+    Result.InRange = true;
+    Result.Difference = DiffScore;
+    Result.ExactSize = SameSize;
+    Result.Depth = Depth;
+    return Result;
+  }
 };
+
+static constexpr auto nestedOutOfBound = &DifferenceScore::nestedOutOfBound;
+static constexpr auto outOfBound = &DifferenceScore::outOfBound;
+
+// Some static asserts about ordering of DifferenceScore
+//
+// Basically we have:
+// 1) outOfBound(x) == nestedOutOfBound(x, 0)
+// 2) min < nestedOutOfBound(x, y) <= max
+// 3) at the previous point, the <= with max is == when:
+// 3.1) y == 0 and
+// 3.2) x == std::numeric_limits<size_t>::max()
+
+static_assert(DifferenceScore::max() == nestedOutOfBound(SIZE_MAX, 0));
+static_assert(DifferenceScore::max() == outOfBound(SIZE_MAX));
+
+static_assert(DifferenceScore::min() < DifferenceScore::max());
+
+static_assert(outOfBound(0) == nestedOutOfBound(0, 0));
+static_assert(outOfBound(1) == nestedOutOfBound(1, 0));
+static_assert(outOfBound(1) > nestedOutOfBound(1, 2));
+static_assert(outOfBound(5) > nestedOutOfBound(1, 2));
+static_assert(outOfBound(0) < nestedOutOfBound(1, 2));
+
+static_assert(DifferenceScore::min() < nestedOutOfBound(1, 1));
+static_assert(DifferenceScore::max() > nestedOutOfBound(1, 1));
+
+static_assert(DifferenceScore::min() < outOfBound(0));
+static_assert(DifferenceScore::max() > outOfBound(0));
 
 struct ScoredIndices {
   // The score is optional, nullopt means that the difference score is infinity
-  std::optional<DifferenceScore> Score = std::nullopt;
+  DifferenceScore Score = DifferenceScore::max();
   ChildIndexVector Indices = {};
 
-  static ScoredIndices invalid() { return ScoredIndices{}; }
-
   static ScoredIndices outOfBound(size_t DiffScore) {
-    return ScoredIndices{ .Score = DifferenceScore{ .PerfectTypeMatch = false,
-                                                    .Difference = DiffScore,
-                                                    .ExactSize = false,
-                                                    .Depth = 0,
-                                                    .InRange = false },
+    return ScoredIndices{ .Score = DifferenceScore::outOfBound(DiffScore),
                           .Indices{} };
   }
 
@@ -713,33 +770,30 @@ struct ScoredIndices {
     revng_assert(Depth <= Indices.size());
     if (Depth < Indices.size())
       Indices.resize(Depth);
-    auto Score = DifferenceScore{ .PerfectTypeMatch = false,
-                                  .Difference = DiffScore,
-                                  .ExactSize = false,
-                                  .Depth = Depth,
-                                  .InRange = false };
-    return ScoredIndices{ .Score = std::move(Score),
+    return ScoredIndices{ .Score = DifferenceScore::nestedOutOfBound(DiffScore,
+                                                                     Depth),
                           .Indices = std::move(Indices) };
   }
 };
 
-static ScoredIndices
-differenceScore(const model::QualifiedType &BaseType,
-                const TAPToChildIdsMap::value_type &TAPWithIndices,
-                const IRAccessPattern &IRAP,
-                model::VerifyHelper &VH) {
+using TAPIndicesPair = std::pair<TypedAccessPattern, ChildIndexVector>;
+
+static ScoredIndices differenceScore(const model::QualifiedType &BaseType,
+                                     const TAPIndicesPair &TAPWithIndices,
+                                     const IRAccessPattern &IRAP,
+                                     model::VerifyHelper &VH) {
 
   const auto &[TAP, ChildIndices] = TAPWithIndices;
   ChildIndexVector ResultIndices = ChildIndices;
 
+  APInt RestOff = IRAP.BaseOffset;
+
   size_t BaseSize = *BaseType.size(VH);
   if (IRAP.BaseOffset.uge(BaseSize))
-    return ScoredIndices::outOfBound(IRAP.BaseOffset.getZExtValue());
+    return ScoredIndices::outOfBound(RestOff.getZExtValue());
 
   revng_assert(TAP.BaseOffset.ult(BaseSize));
   revng_assert((TAP.BaseOffset + *TAP.AccessedType.size(VH)).ule(BaseSize));
-
-  APInt RestOff = IRAP.BaseOffset;
 
   auto ArrayInfoIt = TAP.Arrays.begin();
   auto ArrayInfoEnd = TAP.Arrays.end();
@@ -762,27 +816,26 @@ differenceScore(const model::QualifiedType &BaseType,
 
     case Struct: {
       revng_assert(not Normalized.isArray());
-
       auto *Const = Normalized.UnqualifiedType().getConst();
       auto *S = cast<model::StructType>(Const);
-      size_t FieldOffset = cast<ConstantInt>(ChildID.Index)->getZExtValue();
+      revng_assert(not ChildID.InductionVariable);
+      size_t FieldOffset = ChildID.ConstantIndex;
 
       // If the RestOff is less than the field offset, it means that the IRAP
       // does not have enough offset to reach the field of the struct that is
       // required from the TAPWithIndices.
-      // So we just bail out.
-      if (RestOff.ult(FieldOffset))
-        return ScoredIndices::invalid();
-
+      // This should never happen.
+      revng_assert(RestOff.uge(FieldOffset));
       RestOff -= FieldOffset;
-
       NestedType = S->Fields().at(FieldOffset).Type();
     } break;
 
     case Union: {
       revng_assert(not Normalized.isArray());
-      auto *U = cast<model::UnionType>(Normalized.UnqualifiedType().get());
-      size_t FieldID = cast<ConstantInt>(ChildID.Index)->getZExtValue();
+      auto *Const = Normalized.UnqualifiedType().getConst();
+      auto *U = cast<model::UnionType>(Const);
+      revng_assert(not ChildID.InductionVariable);
+      size_t FieldID = ChildID.ConstantIndex;
       NestedType = U->Fields().at(FieldID).Type();
     } break;
 
@@ -795,79 +848,63 @@ differenceScore(const model::QualifiedType &BaseType,
                                              model::Qualifier::isArray);
       revng_assert(ArrayQualIt != ArrayQualEnd);
 
-      // TODO: in principle we have noguarantee here that
-      //
-      //   ArrayQualIt->Size == ArrayInfoIt->NumElems
-      //
-      // In fact:
-      // - ArrayQualIt->Size is the size of the array type that we reach
-      //   traversing the IR
-      // - ArrayInfoIt->NumElems is the size of the array type corresponding to
-      //   this TAP (hence coming from the pure type system, without looking at
-      //   the IR)
-      //
-      // This two are not necessarily the same.
-      // When ArrayQualIt->Size - ArrayInfoIt->NumElems is:
-      // - 0 the IR and the type system agree on the number of elements of
-      //   the array.
-      // - > 0 the IR thinks there are less elements than the type system so the
-      //   TAP might not be perfect but we know for sure that if we pick this as
-      //   best we're not emitting C code that accesses elements out of bound
-      //   (because C code is emitted according to the IR).
-      // - < 0 the IR thinks there are more elements than the type system, so
-      //   the TAP is worse then the >0 case, because if we emit the C code
-      //   according to the IR we could access an element that is out of bound
-      //   for the TAP (even if only with an dynamic index, the static index is
-      //   taken into account already and scored very poorly).
-      //
-      // At the moment this information is not used for scoring the difference,
-      // so whichever is evalutated first wins.
-      // We also don't have evidence of situations where this skews the
-      // selection of the best TAP to a suboptimal choice, so we haven't
-      // dedicated effort to iron this out.
-      //
-      // In the future we might need to take this into account.
+      revng_assert(ArrayQualIt->Size() == ArrayInfoIt->NumElems);
 
-      revng_assert(not ChildID.Index);
+      // Compute the index of the accessed element of the array.
+      APInt ElemIndex;
+      APInt OffInElem;
+      auto ArrayStride = ArrayInfoIt->Stride;
+      auto MaxBitWidth = std::max(RestOff.getBitWidth(),
+                                  ArrayStride.getBitWidth());
+      APInt::udivrem(RestOff.zextOrTrunc(MaxBitWidth),
+                     ArrayStride.zextOrTrunc(MaxBitWidth),
+                     ElemIndex,
+                     OffInElem);
+
+      if (ElemIndex.uge(ArrayInfoIt->NumElems)) {
+        // If IRAP is trying to access an element that is larger than the
+        // array size, we have to bail out, marking this as out of bound.
+        return ScoredIndices::nestedOutOfBound(RestOff.getZExtValue(),
+                                               Depth,
+                                               std::move(ResultIndices));
+      }
+
       if (IRAPIndicesIt == IRAPIndicesEnd) {
-        // This means that the IRAP does not have strided accesses anymore.
-        // Hence for performing this array access it's using a constant offset
-        // that needs to be translated into an index into the array.
-
-        APInt ElemIndex;
-        APInt OffInElem;
-        auto MaxBitWidth = std::max(RestOff.getBitWidth(),
-                                    ArrayInfoIt->Stride.getBitWidth());
-        APInt::udivrem(RestOff.zextOrTrunc(MaxBitWidth),
-                       ArrayInfoIt->Stride.zextOrTrunc(MaxBitWidth),
-                       ElemIndex,
-                       OffInElem);
-
-        if (ElemIndex.uge(ArrayInfoIt->NumElems)) {
-          // If IRAP is trying to access an element that is larger than the
-          // array size, we have to bail out, marking this as out of bound.
-          return ScoredIndices::nestedOutOfBound(RestOff.getZExtValue(),
-                                                 Depth,
-                                                 std::move(ResultIndices));
-        }
-
-        RestOff = OffInElem;
+        // If the IRAP does not have strided accesses anymore, we have to
+        // perform the access at a constant offset.
+        // Assert that there's no Induction Variable.
+        revng_assert(not ChildID.InductionVariable);
 
       } else {
-        revng_assert(not isa<ConstantInt>(IRAPIndicesIt->Index));
+        // Here we still hav some IRAPIndices, so we're modeling a strided
+        // access and we must have a variable Index.
+        const auto &[IRCoefficient, IRIndex] = *IRAPIndicesIt;
+        revng_assert(IRIndex, "IRAPIndex not present");
+        revng_assert(not llvm::isa<Constant>(IRIndex),
+                     "IRAPIndex does not represent a strided access");
 
-        // If the IRAccessPattern has a coefficient that is different from the
-        // Stride of ArrayInfo, it means that IRAPIndicesIt->Index is not the
-        // index of an element in the array, so we bail out.
-        if (IRAPIndicesIt->Coefficient->getZExtValue() != ArrayInfoIt->Stride) {
-          // TODO: in principle we could score this guy for similarity anyway.
-          // But we need to return an llvm::Value or something that represents
-          // what's left to add to the modelGEP if we select this.
-          return ScoredIndices::invalid();
+        // The IRAccessPattern should always have a Coefficient that is lower
+        // than or equal than the array stride, otherwise we'de be modeling a
+        // traversal that breakes type safety, which is what we're trying to
+        // avoid.
+        revng_assert(IRCoefficient->getValue().ule(ArrayStride));
+
+        if (IRCoefficient->getValue() == ArrayStride) {
+          // If we're traversing an array with the same stride on the IR and on
+          // the model, then the induction variable must be the same.
+          revng_assert(IRIndex == ChildID.InductionVariable);
+        } else {
+          // If we're traversing an array with a smaller stride on the IR,
+          // than the model, then the InductionVariable on the IR should be
+          // ignored, and we should be accessing the model array at a fixed
+          // index, without an induction variable on the model.
+          revng_assert(not ChildID.InductionVariable);
         }
 
         ++IRAPIndicesIt;
       }
+
+      RestOff = OffInElem;
 
       NestedType = model::QualifiedType(Normalized.UnqualifiedType(),
                                         { std::next(ArrayQualIt),
@@ -893,78 +930,12 @@ differenceScore(const model::QualifiedType &BaseType,
     SameSize = *TAP.AccessedType.size(VH) == *IRAP.PointeeType.value().size(VH);
 
   return ScoredIndices{
-    .Score = DifferenceScore{ .PerfectTypeMatch = PerfectMatch,
-                              .Difference = RestOff.getZExtValue(),
-                              .ExactSize = SameSize,
-                              .Depth = Depth,
-                              .InRange = true },
+    .Score = DifferenceScore::inRange(PerfectMatch,
+                                      RestOff.getZExtValue(),
+                                      SameSize,
+                                      Depth),
     .Indices = std::move(ResultIndices),
   };
-}
-
-static std::pair<TypedAccessPattern, ChildIndexVector>
-pickBestTAP(const model::QualifiedType &BaseType,
-            const IRAccessPattern &IRPattern,
-            const TAPToChildIdsMap &TAPIndices,
-            model::VerifyHelper &VH) {
-  revng_log(ModelGEPLog, "Picking Best TAP for IRAP: " << IRPattern);
-  auto Indent = LoggerIndent{ ModelGEPLog };
-  revng_log(ModelGEPLog, "TAPIndices.size() = " << TAPIndices.size());
-
-  std::map<TypedAccessPattern, ChildIndexVector> BestTAPsWithIndices;
-
-  DifferenceScore BestDifferenceScore;
-  revng_log(ModelGEPLog, "BestDifferenceScore = " << BestDifferenceScore);
-  auto MoreIndent = LoggerIndent{ ModelGEPLog };
-
-  for (const auto &TAPWithIndices : TAPIndices) {
-
-    if (ModelGEPLog.isEnabled()) {
-      revng_log(ModelGEPLog, "TAP = " << TAPWithIndices.first);
-      revng_log(ModelGEPLog, "Indices = {");
-      for (const auto &I : TAPWithIndices.second) {
-        auto InternalIndent = LoggerIndent{ ModelGEPLog };
-        revng_log(ModelGEPLog, I);
-      }
-      revng_log(ModelGEPLog, "}");
-    }
-    auto EvenMoreIndent = LoggerIndent{ ModelGEPLog };
-
-    ScoredIndices ScoredIdx = differenceScore(BaseType,
-                                              TAPWithIndices,
-                                              IRPattern,
-                                              VH);
-    if (not ScoredIdx.Score.has_value()) {
-      revng_log(ModelGEPLog, "differenceScore = std::nullopt");
-      continue;
-    }
-
-    DifferenceScore Difference = ScoredIdx.Score.value();
-
-    revng_log(ModelGEPLog, "differenceScore = " << Difference);
-    if (Difference > BestDifferenceScore) {
-      revng_log(ModelGEPLog, "Worse than BestDifferenceScore");
-      continue;
-    }
-
-    if (Difference < BestDifferenceScore) {
-      BestTAPsWithIndices.clear();
-      BestDifferenceScore = Difference;
-      revng_log(ModelGEPLog,
-                "Update BestDifferenceScore = " << BestDifferenceScore);
-    }
-
-    revng_log(ModelGEPLog, "NEW Best Indices");
-
-    BestTAPsWithIndices[TAPWithIndices.first] = std::move(ScoredIdx.Indices);
-  }
-
-  // TODO: here we always pick the first among those with the best similarity
-  // score. In the future we can try to figure out if there is a better policy.
-  // But in principle we should be able to integrate the policy into the
-  // similarity score, more than adding another layer of decision making here.
-  revng_assert(not BestTAPsWithIndices.empty());
-  return std::move(*BestTAPsWithIndices.begin());
 }
 
 struct ModelGEPArgs {
@@ -990,14 +961,18 @@ struct ModelGEPArgs {
 };
 
 static std::optional<model::QualifiedType>
-getType(ModelGEPArgs &GEPArgs, model::VerifyHelper &VH) {
+getType(const model::QualifiedType &BaseType,
+        const ChildIndexVector &IndexVector,
+        APInt RestOff,
+        model::VerifyHelper &VH) {
   std::optional<model::QualifiedType> CurrType = std::nullopt;
 
-  if (GEPArgs.RestOff.ugt(0))
+  if (RestOff.ugt(0))
     return CurrType;
 
-  CurrType = GEPArgs.BaseAddress.Type;
-  for (const auto &[Index, AggregateType] : GEPArgs.IndexVector) {
+  CurrType = BaseType;
+  for (const auto &[FixedIndex, InductionVariable, AggregateType] :
+       IndexVector) {
 
     switch (AggregateType) {
 
@@ -1005,8 +980,8 @@ getType(ModelGEPArgs &GEPArgs, model::VerifyHelper &VH) {
 
       CurrType = peelConstAndTypedefs(CurrType.value());
       auto *S = cast<model::StructType>(CurrType->UnqualifiedType().getConst());
-      size_t FieldOffset = cast<ConstantInt>(Index)->getZExtValue();
-      CurrType = S->Fields().at(FieldOffset).Type();
+      revng_assert(not InductionVariable);
+      CurrType = S->Fields().at(FixedIndex).Type();
 
     } break;
 
@@ -1014,33 +989,35 @@ getType(ModelGEPArgs &GEPArgs, model::VerifyHelper &VH) {
 
       CurrType = peelConstAndTypedefs(CurrType.value());
       auto *U = cast<model::UnionType>(CurrType->UnqualifiedType().getConst());
-      size_t FieldID = cast<ConstantInt>(Index)->getZExtValue();
-      CurrType = U->Fields().at(FieldID).Type();
+      revng_assert(not InductionVariable);
+      CurrType = U->Fields().at(FixedIndex).Type();
 
     } break;
 
     case AggregateKind::Array: {
 
-      auto It = CurrType->Qualifiers().begin();
+      auto ArrayQualIt = CurrType->Qualifiers().begin();
 
       do {
         CurrType = peelConstAndTypedefs(CurrType.value());
 
-        It = llvm::find_if(CurrType->Qualifiers(), model::Qualifier::isArray);
+        ArrayQualIt = llvm::find_if(CurrType->Qualifiers(),
+                                    model::Qualifier::isArray);
 
         // Assert that we're not skipping any pointer qualifier.
         // That would mean that the GEPArgs.IndexVector is broken w.r.t. the
         // GEPArgs.BaseAddress.
         revng_assert(not std::any_of(CurrType->Qualifiers().begin(),
-                                     It,
+                                     ArrayQualIt,
                                      model::Qualifier::isPointer));
 
-      } while (It == CurrType->Qualifiers().end());
+      } while (ArrayQualIt == CurrType->Qualifiers().end());
 
+      revng_assert(ArrayQualIt->Size() > FixedIndex);
       // For arrays we don't need to look at the value of the index, we just
       // unwrap the array and go on.
       CurrType = model::QualifiedType(CurrType->UnqualifiedType(),
-                                      { std::next(It),
+                                      { std::next(ArrayQualIt),
                                         CurrType->Qualifiers().end() });
 
     } break;
@@ -1053,21 +1030,382 @@ getType(ModelGEPArgs &GEPArgs, model::VerifyHelper &VH) {
   return CurrType;
 }
 
-static std::optional<ModelGEPArgs>
-makeBestGEPArgs(const TypedBaseAddress &TBA,
-                const IRAccessPattern &IRPattern,
-                const TAPToChildIdsMap &TAPIndices,
-                const model::Binary &Model,
-                model::VerifyHelper &VH) {
-  std::optional<ModelGEPArgs> Result = std::nullopt;
+static DifferenceScore lowerBound(const model::QualifiedType &BaseType,
+                                  const IRAccessPattern &IRPattern,
+                                  model::VerifyHelper &VH) {
+
+  auto BaseSizeOrNone = static_cast<std::optional<size_t>>(BaseType.size(VH));
+  revng_assert(BaseSizeOrNone.has_value());
+  size_t BaseSize = BaseSizeOrNone.value();
+  revng_assert(BaseSize);
+
+  bool IRHasPointee = IRPattern.PointeeType.has_value();
+
+  size_t PointeeSize = IRHasPointee ? *IRPattern.PointeeType->size(VH) : 0ULL;
+
+  if ((IRPattern.BaseOffset + PointeeSize).uge(BaseSize))
+    return DifferenceScore::outOfBound(IRPattern.BaseOffset.getZExtValue());
+
+  // Assume we can find a perfect match with the same size unless we find strong
+  // evidence of the opposite.
+  bool PerfectMatch = true;
+  bool SameSize = true;
+
+  // If the IRPattern has not pointee information, we'll never reach a situation
+  // where SameSize nor PerfectMatch is true
+  if (not IRHasPointee) {
+    PerfectMatch = false;
+    SameSize = false;
+  }
+
+  return DifferenceScore::inRange(PerfectMatch,
+                                  /*DiffScore*/ 0,
+                                  SameSize,
+                                  /*Depth*/ std::numeric_limits<size_t>::max());
+}
+
+static RecursiveCoroutine<TAPIndicesPair>
+computeBestTAP(model::QualifiedType BaseType,
+               const IRAccessPattern &IRPattern,
+               llvm::LLVMContext &Ctxt,
+               model::VerifyHelper &VH) {
+  revng_log(ModelGEPLog, "Computing Best TAP for IRAP: " << IRPattern);
+  revng_assert(not BaseType.is(model::TypeKind::RawFunctionType)
+               and not BaseType.is(model::TypeKind::CABIFunctionType));
+
+  TypedAccessPattern BaseTAP = {
+    // The BaseOffset is 0, since this TAP represents an access to the
+    // entire BaseType starting from BaseType itself.
+    .BaseOffset = APInt(/*NumBits*/ 64, /*Value*/ 0),
+    // We have no arrays info, since this TAP represents an access to the
+    // entire BaseType starting from BaseType itself.
+    .Arrays = {},
+    // The pointee is just the BaseType
+    .AccessedType = BaseType,
+  };
+
+  // Baseline TAP with empty ChildIndexVector, representing the access to the
+  // BaseType.
+  auto Result = std::make_pair(BaseTAP, ChildIndexVector{});
+
+  // Running variable to hold the best score. It will guide the branch-and-bound
+  // algorithm for computing the best TypedAccessPattern with indices.
+  // Compute the BaseScore e.g. the score of the traversal that ends at
+  // BaseType (which is basically a non-traversal). This is the baseline to
+  // compare with the scores of the children.
+  auto BestScore = DifferenceScore::max();
+  const auto &[BaseScore,
+               BaseIndices] = differenceScore(BaseType, Result, IRPattern, VH);
+  BestScore = std::move(BaseScore);
+  Result.second = std::move(BaseIndices);
+
+  // If we've reached a primitive type or an enum type we're done. The
+  // BaseScore computed above is enough and we don't need to traverse
+  // anything.
+  // The same holds if we've reached a pointer, because the pointee does not
+  // reside into the BaseType, it's only referenced by it.
+  if (BaseType.isPrimitive() or BaseType.isPointer()
+      or BaseType.is(model::TypeKind::EnumType))
+    rc_return Result;
+
+  // Here BaseType is either an array, a struct, a union, or a typedef.
+  // Unwrap const and typedefs, because ModelGEPs just see through them.
+  // Unwrapping const and typedefs can potentially lose information, but it's
+  // fine to do it here, because after traversing stuff we only ever use either
+  // the root type or the leaf type, and both are the same.
+  BaseType = peelConstAndTypedefs(BaseType);
+
+  // In all the other cases (arrays and const) we need to unwrap the first layer
+  // (qualifier) and keep looking for other TAPs that might be generated.
+  auto QBeg = BaseType.Qualifiers().begin();
+  auto QEnd = BaseType.Qualifiers().end();
+  if (QBeg != QEnd) {
+    revng_log(ModelGEPLog, "Array, look at elements");
+    auto ArrayIndent = LoggerIndent{ ModelGEPLog };
+
+    auto &ArrayQualifier = *QBeg;
+    revng_assert(model::Qualifier::isArray(ArrayQualifier));
+
+    auto ElementType = model::QualifiedType(BaseType.UnqualifiedType(),
+                                            { std::next(QBeg), QEnd });
+
+    uint64_t NElems = ArrayQualifier.Size();
+    std::optional<uint64_t> MaybeElementTypeSize = ElementType.size(VH);
+    revng_assert(MaybeElementTypeSize.has_value()
+                 and MaybeElementTypeSize.value());
+    uint64_t ElementSize = MaybeElementTypeSize.value();
+
+    uint64_t ArraySize = ElementSize * NElems;
+    if (IRPattern.BaseOffset.uge(ArraySize))
+      rc_return Result;
+
+    // Set up the IRPattern we need for computing scores in the inner array
+    // element. We initialize it to the IRPattern but we'll have to adjust it to
+    // peel away the array access.
+    IRAccessPattern ElemIRPattern = IRPattern;
+
+    // Set up the auxiliary variables that will later be used for updating the
+    // result if the array traversal turns out to be the new best TAP.
+    // We compute them here, while also updating ElemIRPattern, because the two
+    // computations are related and we want to avoid redoing the work later on.
+    APInt FixedElementIndex;
+    llvm::Value *InductionVariable = nullptr;
+
+    if (not ElemIRPattern.Indices.empty()) {
+      // Unwrap the top layer of array indices, since we're traversing the
+      // array, but only do it if the current layer of array accesses we're
+      // peeling has a Coefficient that matches the element size of the array.
+      // If we unwrap an array traversal with non-constant index, that's
+      // the induction variable, and we have to track it.
+      const auto &[Coefficient, Index] = ElemIRPattern.Indices.front();
+      revng_assert(not isa<ConstantInt>(Index));
+      revng_assert(Coefficient->getZExtValue() <= ElementSize);
+      if (Coefficient->getZExtValue() == ElementSize) {
+        InductionVariable = Index;
+        ElemIRPattern.Indices.erase(ElemIRPattern.Indices.begin());
+      }
+    }
+
+    APInt APElementSize = APInt(/*bitwidth*/ IRPattern.BaseOffset.getBitWidth(),
+                                /*value*/ ElementSize);
+    // Update ElemIRPattern.BaseOffset while also computing FixedElemIndex if
+    // necessary.
+    APInt::udivrem(IRPattern.BaseOffset,
+                   APElementSize,
+                   FixedElementIndex,
+                   ElemIRPattern.BaseOffset);
+
+    DifferenceScore LowerBound = lowerBound(ElementType, ElemIRPattern, VH);
+    revng_log(ModelGEPLog, "lowerBound: " << LowerBound);
+
+    if (bool CanImprove = LowerBound <= BestScore; CanImprove) {
+
+      // We have estimated that accessing the element of the array might
+      // yield a better score.
+      // Let's compute the best TAP with indices, for accessing an element.
+      TAPIndicesPair ElementResult = rc_recur computeBestTAP(ElementType,
+                                                             ElemIRPattern,
+                                                             Ctxt,
+                                                             VH);
+
+      // Now let's see if the best TAP of on the array element is actually
+      // better than the current best.
+      const auto &[ElementScore,
+                   ElementIndices] = differenceScore(ElementType,
+                                                     ElementResult,
+                                                     ElemIRPattern,
+                                                     VH);
+      revng_assert(ElementScore >= LowerBound);
+      // If it's better or equal, udpate the running best.
+      // The "or equal" is important, because we score better the traversals
+      // that go deeper in the type system.
+      if (auto ElementCmp = ElementScore <=> BestScore; ElementCmp <= 0) {
+        if (ElementCmp < 0) {
+          revng_log(ModelGEPLog, "New BestScore: " << ElementScore);
+          BestScore = ElementScore;
+        }
+
+        // Set Result to ElementResult. Then we'll have to update it with the
+        // information about the array we've just traversed.
+        Result = ElementResult;
+
+        // Build the ArrayInfo associated to the array we're handling, and
+        // prepend it to the Arrays of the Result, to represent the traversal
+        // of this array.
+        Result.first.Arrays.insert(Result.first.Arrays.begin(),
+                                   ArrayInfo{
+                                     .Stride = APInt(/*NumBits*/ 64,
+                                                     /*Value*/ ElementSize),
+                                     .NumElems = APInt(/*NumBits*/ 64,
+                                                       /*Value*/ NElems) });
+
+        // Build the child info associated to the array we're
+        // handling, and prepend it to the child ids in the Result.
+        Result.second
+          .insert(Result.second.begin(),
+                  ChildInfo{ .ConstantIndex = FixedElementIndex.getZExtValue(),
+                             .InductionVariable = InductionVariable,
+                             .Type = AggregateKind::Array });
+      }
+    }
+
+    rc_return Result;
+  }
+
+  // We have no qualifiers here, just match struct and unions
+  const model::Type *BaseT = BaseType.UnqualifiedType().getConst();
+  switch (BaseT->Kind()) {
+
+  case model::TypeKind::StructType: {
+
+    revng_log(ModelGEPLog, "Struct, look at fields");
+    auto StructIndent = LoggerIndent{ ModelGEPLog };
+
+    const auto *S = cast<model::StructType>(BaseT);
+
+    auto FieldBegin = S->Fields().begin();
+    // Let's detect the leftmost field that starts later than the maximum offset
+    // reachable by the IRPattern. This is the first element that we don't want
+    // to compare, because it's not a valid traversal for the given IR pattern.
+    auto FieldIt = S->Fields().upper_bound(IRPattern.BaseOffset.getZExtValue());
+
+    enum {
+      InitiallyImproving,
+      StartedDegrading,
+    } Status = InitiallyImproving;
+
+    for (const model::StructField &Field :
+         llvm::reverse(llvm::make_range(FieldBegin, FieldIt))) {
+
+      revng_log(ModelGEPLog, "Field at offset: " << Field.Offset());
+      auto FieldIndent = LoggerIndent{ ModelGEPLog };
+
+      auto &FieldType = Field.Type();
+      const auto FieldOffset = Field.Offset();
+      revng_assert(IRPattern.BaseOffset.uge(FieldOffset));
+
+      IRAccessPattern FieldAccessPattern = IRPattern;
+      FieldAccessPattern.BaseOffset -= FieldOffset;
+
+      DifferenceScore LowerBound = lowerBound(FieldType,
+                                              FieldAccessPattern,
+                                              VH);
+      revng_log(ModelGEPLog, "lowerBound: " << LowerBound);
+      bool CanImprove = LowerBound <= BestScore;
+
+      // TODO: if this assertion never trigger, we could inject an early exit
+      // from this loop on struct fields, so that when we start degrading we
+      // just exit.
+      // Even better would be to actually verify that this cannot happen by
+      // design, and just remove the assertion and add the early exit.
+      revng_assert(not CanImprove or Status == InitiallyImproving);
+      if (not CanImprove)
+        Status = StartedDegrading;
+
+      if (CanImprove) {
+        // We have estimated that accessing the struct field may yield a better
+        // score. Let's compute the best TAP with indices, for accessing the
+        // field.
+        TAPIndicesPair FieldResult = rc_recur computeBestTAP(FieldType,
+                                                             FieldAccessPattern,
+                                                             Ctxt,
+                                                             VH);
+
+        // Now let's see if the best TAP of the field is actually better than
+        // the current best.
+        const auto &[FieldScore,
+                     FieldIndices] = differenceScore(FieldType,
+                                                     FieldResult,
+                                                     FieldAccessPattern,
+                                                     VH);
+        revng_assert(FieldScore >= LowerBound);
+
+        // If it's better or equal, udpate the running best.
+        // The "or equal" is important, because we score better the traversals
+        // that go deeper in the type system.
+        if (auto FieldCmp = FieldScore <=> BestScore; FieldCmp <= 0) {
+          if (FieldCmp < 0) {
+            revng_log(ModelGEPLog, "New BestScore: " << FieldScore);
+            BestScore = FieldScore;
+          }
+
+          // Set Result to FieldResult. Then we'll have to update it with the
+          // information about the struct we've just traversed.
+          Result = FieldResult;
+
+          // Fixup the base offset
+          Result.first.BaseOffset += FieldOffset;
+
+          // Build the child info associated to the array we're
+          // handling, and prepend it to the child ids in the Result.
+          Result.second.insert(Result.second.begin(),
+                               ChildInfo{ .ConstantIndex = Field.Offset(),
+                                          .Type = AggregateKind::Struct });
+        }
+      }
+    }
+  } break;
+
+  case model::TypeKind::UnionType: {
+
+    revng_log(ModelGEPLog, "Union, look at fields");
+    auto UnionIndent = LoggerIndent{ ModelGEPLog };
+
+    const auto *U = cast<model::UnionType>(BaseT);
+
+    for (const model::UnionField &Field : U->Fields()) {
+
+      revng_log(ModelGEPLog, "Field ID: " << Field.Index());
+      auto FieldIndent = LoggerIndent{ ModelGEPLog };
+
+      auto &FieldType = Field.Type();
+
+      DifferenceScore LowerBound = lowerBound(FieldType, IRPattern, VH);
+      revng_log(ModelGEPLog, "lowerBound: " << LowerBound);
+
+      if (bool CanImprove = LowerBound <= BestScore; CanImprove) {
+
+        // We have estimated that accessing the union field may yield a better
+        // score. Let's compute the best TAP with indices, for accessing the
+        // field.
+        TAPIndicesPair FieldResult = rc_recur computeBestTAP(FieldType,
+                                                             IRPattern,
+                                                             Ctxt,
+                                                             VH);
+
+        // Now let's see if the best TAP of the field is actually better than
+        // the current best.
+        const auto &[FieldScore, FieldIndices] = differenceScore(FieldType,
+                                                                 FieldResult,
+                                                                 IRPattern,
+                                                                 VH);
+        revng_assert(FieldScore >= LowerBound);
+
+        // If it's better or equal, udpate the running best.
+        // The "or equal" is important, because we score better the traversals
+        // that go deeper in the type system.
+        if (auto FieldCmp = FieldScore <=> BestScore; FieldCmp <= 0) {
+          if (FieldCmp < 0) {
+            revng_log(ModelGEPLog, "New BestScore: " << FieldScore);
+            BestScore = FieldScore;
+          }
+
+          // Set Result to FieldResult. Then we'll have to update it with the
+          // information about the union we've just traversed.
+          Result = FieldResult;
+
+          // Build the child info associated to the array we're
+          // handling, and prepend it to the child ids in the Result.
+          Result.second.insert(Result.second.begin(),
+                               ChildInfo{ .ConstantIndex = Field.Index(),
+                                          .Type = AggregateKind::Union });
+        }
+      }
+    }
+  } break;
+
+  default:
+    revng_abort();
+  }
+
+  rc_return Result;
+}
+
+static ModelGEPArgs makeBestGEPArgs(const TypedBaseAddress &TBA,
+                                    const IRAccessPattern &IRPattern,
+                                    const model::Binary &Model,
+                                    model::VerifyHelper &VH) {
   LLVMContext &Ctxt = TBA.Address->getContext();
 
   revng_log(ModelGEPLog, "===============================");
   revng_log(ModelGEPLog, "makeBestGEPArgs for TBA: " << TBA);
   auto MakeBestGEPArgsIndent = LoggerIndent(ModelGEPLog);
 
-  const auto &[BestTAP,
-               BestIndices] = pickBestTAP(TBA.Type, IRPattern, TAPIndices, VH);
+  const TAPIndicesPair BestTAPsWithIndices = computeBestTAP(TBA.Type,
+                                                            IRPattern,
+                                                            Ctxt,
+                                                            VH);
+  const auto &[BestTAP, BestIndices] = BestTAPsWithIndices;
 
   // Setup a vector of indices to fill up. Most of them will be copies
   // straight from BestIndices, except for those representing array accesses,
@@ -1085,10 +1423,6 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
   // traversal of IRAccessPattern
   APInt RestOff = IRPattern.BaseOffset;
 
-  const GEPSummationVector &IRPatternIndices = IRPattern.Indices;
-  auto IRIndicesIt = IRPatternIndices.begin();
-  auto IRIndicesEnd = IRPatternIndices.end();
-
   auto TAPArrayIt = BestTAP.Arrays.begin();
   auto TAPArrayEnd = BestTAP.Arrays.end();
 
@@ -1104,10 +1438,6 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
     switch (Id.Type) {
 
     case AggregateKind::Array: {
-      // For arrays we have to fill up info about the index of the array
-      // access. It can be a constant or an llvm::Value, but it should never
-      // be already initialized.
-      revng_assert(not Id.Index);
       revng_assert(Back.Type == AggregateKind::Array);
       revng_assert(CurrentType.isArray());
 
@@ -1142,44 +1472,16 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
       uint64_t ElementSize = *ElementType.size(VH);
       revng_assert(TAPArrayIt->Stride == ElementSize);
 
-      using llvm::IntegerType;
+      // If the remaining offset is larger than or equal to an element size,
+      // we have to compute the exact index of the element that is being
+      // accessed
+      APInt ElementIndex;
       auto MaxBitWidth = std::max(RestOff.getBitWidth(), 64U);
-      if (RestOff.uge(ElementSize)) {
-        // If the remaining offset is larger than or equal to an element size,
-        // we have to compute the exact index of the element that is being
-        // accessed
-        APInt ElementIndex;
-        APInt::udivrem(RestOff.zextOrTrunc(MaxBitWidth),
-                       APInt(/*bitwidth*/ MaxBitWidth, /*value*/ ElementSize),
-                       ElementIndex,
-                       RestOff);
-
-        Back.Index = ConstantInt::get(IntegerType::get(Ctxt,
-                                                       MaxBitWidth /*NumBits*/),
-                                      ElementIndex);
-
-      } else {
-        // Here the remaining offset is smaller than an element size.
-        // So we have to look for a non-constant index.
-
-        if (IRIndicesIt != IRIndicesEnd) {
-          const auto &[Coefficient, Index] = *IRIndicesIt;
-
-          // This should never happen because of how IRAccessPattern is built
-          revng_assert(not isa<ConstantInt>(Index));
-
-          // Coefficient should always have the same value of the element, so
-          // that the Index is actually the index in the array.
-          revng_assert(Coefficient->getValue() == ElementSize);
-
-          Back.Index = Index;
-
-          // The current IR indices have been handled, increase the iterator.
-          ++IRIndicesIt;
-        } else {
-          Back.Index = ConstantInt::get(IntegerType::get(Ctxt, MaxBitWidth), 0);
-        }
-      }
+      APInt::udivrem(RestOff.zextOrTrunc(MaxBitWidth),
+                     APInt(/*bitwidth*/ MaxBitWidth, /*value*/ ElementSize),
+                     ElementIndex,
+                     RestOff);
+      revng_assert(Back.ConstantIndex == ElementIndex.getZExtValue());
 
       // After we're done with an array, we update CurrentType and continue to
       // the next iteration of the for loop on BestIndices, because we could
@@ -1196,43 +1498,27 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
     } break;
 
     case AggregateKind::Struct: {
-      const model::StructType *Struct = nullptr;
-
-      while (not Struct) {
-        // Skip over all the qualifiers. We only expect const qualifiers here.
-        // And we can basically ignore them.
-        for (const auto &Q : CurrentType.Qualifiers())
-          revng_assert(not model::Qualifier::isPointer(Q)
-                       and not model::Qualifier::isArray(Q));
-
-        auto *Unqualified = CurrentType.UnqualifiedType().getConst();
-        Struct = dyn_cast<model::StructType>(Unqualified);
-        // If this is Unqualified was not a struct, the only valid thing for
-        // it is to be a Typedef, in which case we unwrap it and keep looking
-        // for a struct
-        if (not Struct) {
-          auto *TD = cast<model::TypedefType>(Unqualified);
-          CurrentType = TD->UnderlyingType();
-        }
-      }
+      revng_assert(CurrentType.is(model::TypeKind::StructType));
+      auto QualifiedStruct = peelConstAndTypedefs(CurrentType);
+      const auto *Unqualified = QualifiedStruct.UnqualifiedType().getConst();
+      const auto *Struct = llvm::cast<model::StructType>(Unqualified);
 
       // Index represents the offset of a field in the struct
-      uint64_t FieldOff = cast<ConstantInt>(Back.Index)->getZExtValue();
+      revng_assert(not Back.InductionVariable);
+      uint64_t FieldOff = Back.ConstantIndex;
 
       // The offset of the field should be smaller or equal to the remaining
-      // offset. If it's not it means that the IRAP has not sufficient offset to
-      // reach the pattern described by TAP, and we have to bail out.
-      if (RestOff.ult(FieldOff))
-        return Result;
+      // offset. If it's not it means that the IRAP has not sufficient offset
+      // to reach the pattern described by TAP. This should never happen.
+      revng_assert(RestOff.uge(FieldOff));
 
       APInt OffsetInField = RestOff - FieldOff;
       auto &FieldType = Struct->Fields().at(FieldOff).Type();
       if (OffsetInField.uge(*FieldType.size(VH))) {
-        Result = ModelGEPArgs{ .BaseAddress = TBA,
-                               .IndexVector = std::move(Indices),
-                               .RestOff = RestOff,
-                               .PointeeType = FieldType };
-        return Result;
+        return ModelGEPArgs{ .BaseAddress = TBA,
+                             .IndexVector = std::move(Indices),
+                             .RestOff = RestOff,
+                             .PointeeType = FieldType };
       }
 
       // Then we subtract the field offset from the remaining offset
@@ -1241,37 +1527,22 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
     } break;
 
     case AggregateKind::Union: {
-      const model::UnionType *Union = nullptr;
-
-      while (not Union) {
-        // Skip over all the qualifiers. We only expect const qualifiers here.
-        // And we can basically ignore them.
-        for (const auto &Q : CurrentType.Qualifiers())
-          revng_assert(not model::Qualifier::isPointer(Q)
-                       and not model::Qualifier::isArray(Q));
-
-        auto *Unqualified = CurrentType.UnqualifiedType().getConst();
-        Union = dyn_cast<model::UnionType>(Unqualified);
-        // If this is Unqualified was not a union, the only valid thing for
-        // it is to be a Typedef, in which case we unwrap it and keep looking
-        // for a union
-        if (not Union) {
-          auto *TD = cast<model::TypedefType>(Unqualified);
-          CurrentType = TD->UnderlyingType();
-        }
-      }
+      revng_assert(CurrentType.is(model::TypeKind::UnionType));
+      auto QualifiedUnion = peelConstAndTypedefs(CurrentType);
+      const auto *Unqualified = QualifiedUnion.UnqualifiedType().getConst();
+      const auto *Union = llvm::cast<model::UnionType>(Unqualified);
 
       // Index represents the number of the field in the union, this does not
       // affect the RestOff, since traversing union fields does not increase
       // the offset.
-      uint64_t FieldId = cast<ConstantInt>(Back.Index)->getZExtValue();
+      revng_assert(not Back.InductionVariable);
+      uint64_t FieldId = Back.ConstantIndex;
       auto &FieldType = Union->Fields().at(FieldId).Type();
       if (RestOff.uge(*FieldType.size(VH))) {
-        Result = ModelGEPArgs{ .BaseAddress = TBA,
-                               .IndexVector = std::move(Indices),
-                               .RestOff = RestOff,
-                               .PointeeType = FieldType };
-        return Result;
+        return ModelGEPArgs{ .BaseAddress = TBA,
+                             .IndexVector = std::move(Indices),
+                             .RestOff = RestOff,
+                             .PointeeType = FieldType };
       }
 
       CurrentType = FieldType;
@@ -1284,12 +1555,10 @@ makeBestGEPArgs(const TypedBaseAddress &TBA,
   }
 
   revng_assert(RestOff.isNonNegative());
-  Result = ModelGEPArgs{ .BaseAddress = TBA,
-                         .IndexVector = std::move(Indices),
-                         .RestOff = RestOff,
-                         .PointeeType = CurrentType };
-
-  return Result;
+  return ModelGEPArgs{ .BaseAddress = TBA,
+                       .IndexVector = std::move(Indices),
+                       .RestOff = RestOff,
+                       .PointeeType = CurrentType };
 }
 
 class GEPSummationCache {
@@ -1309,8 +1578,8 @@ class GEPSummationCache {
 
     ModelGEPSummation Result = {};
 
-    // If it's already been handled, we already know if it can be modelGEPified
-    // or not, so we stick to that decision.
+    // If it's already been handled, we already know if it can be
+    // modelGEPified or not, so we stick to that decision.
     auto GEPItHint = UseGEPSummations.lower_bound(&AddressUse);
     if (GEPItHint != UseGEPSummations.end()
         and not(&AddressUse < GEPItHint->first)) {
@@ -1320,8 +1589,8 @@ class GEPSummationCache {
     revng_log(ModelGEPLog, "Not found. Compute one!");
 
     Value *AddressArith = AddressUse.get();
-    // If the used value and we know it has a pointer type, we already know both
-    // the base address and the pointer type.
+    // If the used value and we know it has a pointer type, we already know
+    // both the base address and the pointer type.
     if (auto TypeIt = PointerTypes.find(AddressArith);
         TypeIt != PointerTypes.end()) {
 
@@ -1368,9 +1637,9 @@ class GEPSummationCache {
         // If we do, at the moment we don't have a better policy than to bail
         // out, and in principle this is totally safe, even if we give up a
         // chance to emit good model geps for this case.
-        // In any case, we might want to devise smarter policies to discriminate
-        // between different base addresses.
-        // Anyway it's not clear if we can ever do something better than this.
+        // In any case, we might want to devise smarter policies to
+        // discriminate between different base addresses. Anyway it's not
+        // clear if we can ever do something better than this.
         if (LHSIsAddress and RHSIsAddress) {
           Result = ModelGEPSummation::invalid();
         } else {
@@ -1410,14 +1679,14 @@ class GEPSummationCache {
           Result = ModelGEPSummation{
             // The base address is unknown
             .BaseAddress = TypedBaseAddress{ .Type = {}, .Address = nullptr },
-            // The summation has only one element, with a coefficient of 1,
+            // The summation has only one element, with a constant coefficient,
             // and the index is the current instructions.
             .Summation = { ModelGEPSummationElement{ .Coefficient = ConstOp,
                                                      .Index = OtherOp } }
           };
         } else {
-          // In all the other cases, fall back to treating this as a non-address
-          // and non-strided instruction, just like e.g. division.
+          // In all the other cases, fall back to treating this as a
+          // non-address and non-strided instruction, just like e.g. division.
 
           Result = makeOffsetGEPSummation(AddrArithmeticInst);
         }
@@ -1467,12 +1736,13 @@ class GEPSummationCache {
         revng_abort("TODO: gep is not supported by make-model-gep yet");
       } break;
 
-      case Instruction::Trunc:
       case Instruction::Load:
       case Instruction::Call:
       case Instruction::PHI:
-      case Instruction::Select:
       case Instruction::ExtractValue:
+
+      case Instruction::Trunc:
+      case Instruction::Select:
       case Instruction::SExt:
       case Instruction::Sub:
       case Instruction::LShr:
@@ -1486,8 +1756,8 @@ class GEPSummationCache {
       case Instruction::URem:
       case Instruction::SRem: {
         // If we reach one of these instructions, it definitely cannot be an
-        // address, but it's just considered as regular offset arithmetic of an
-        // unknown offset.
+        // address, but it's just considered as regular offset arithmetic of
+        // an unknown offset.
         Result = makeOffsetGEPSummation(AddrArithmeticInst);
       } break;
 
@@ -1539,8 +1809,8 @@ class GEPSummationCache {
 
     } else if (auto *Const = dyn_cast<ConstantInt>(AddressArith)) {
 
-      // If we reach this point the constant int does not represent a pointer so
-      // we initialize the result as if it was an offset
+      // If we reach this point the constant int does not represent a pointer
+      // so we initialize the result as if it was an offset
       if (Const->getValue().isNonNegative())
         Result = makeOffsetGEPSummation(Const);
 
@@ -1607,304 +1877,6 @@ public:
   }
 };
 
-class TypedAccessCache {
-  QualifiedTypeToTAPChildIdsMap TAPCache;
-
-  // Builds a map of all the possible TypedAccessPattern starting from
-  // BaseType, mapping them to the vector of child indices that need to be
-  // traversed on the type system to access types represented by that TAP.
-  RecursiveCoroutine<TAPToChildIdsMapRef>
-  getTAPImpl(const model::QualifiedType &BaseType,
-             LLVMContext &Ctxt,
-             model::VerifyHelper &VH) {
-
-    revng_log(ModelGEPLog,
-              "getTAPImpl for BaseType: " << serializeToString(BaseType));
-    auto Indent = LoggerIndent{ ModelGEPLog };
-
-    auto It = TAPCache.lower_bound(BaseType);
-    // If we cannot find it we have to build it
-    if (It == TAPCache.end() or TAPCache.key_comp()(BaseType, It->first)) {
-      revng_log(ModelGEPLog, "Not found. Build it!");
-      auto MoreIndent = LoggerIndent{ ModelGEPLog };
-
-      // Initialize a new map, that we need to fill with the results for
-      // BaseType.
-      TAPToChildIdsMap Result;
-
-      // First, we need to build a new TAP representing the access pattern to
-      // BaseType itself
-      TypedAccessPattern NewTAP = {
-        // The BaseOffset is 0, since this TAP represents an access to the
-        // entire BaseType starting from BaseType itself.
-        .BaseOffset = APInt(/*NumBits*/ 64, /*Value*/ 0),
-        // We have no arrays info, since this TAP represents an access to the
-        // entire BaseType starting from BaseType itself.
-        .Arrays = {},
-        // The pointee is just the BaseType
-        .AccessedType = std::move(BaseType),
-      };
-
-      // The new TAP has no associated child ids, since its not accessing any
-      // child of the BaseType, but the type itself
-      Result[NewTAP] = {};
-
-      if (BaseType.Qualifiers().empty()) {
-        revng_log(ModelGEPLog, "No qualifiers!");
-        auto EvenMoreIndent = LoggerIndent{ ModelGEPLog };
-        const model::Type *BaseT = BaseType.UnqualifiedType().get();
-
-        switch (BaseT->Kind()) {
-
-          // If we've reached a primitive type or an enum type we're done. The
-          // NewTAP added above to Results is enough and we don't need to
-          // traverse anything.
-        case model::TypeKind::PrimitiveType: {
-          revng_log(ModelGEPLog, "Primitive. Done!");
-        } break;
-        case model::TypeKind::EnumType: {
-          revng_log(ModelGEPLog, "Enum. Done!");
-        } break;
-
-        case model::TypeKind::StructType: {
-          revng_log(ModelGEPLog, "Struct, look at fields");
-          const auto *S = cast<model::StructType>(BaseT);
-          auto StructIndent = LoggerIndent{ ModelGEPLog };
-          for (const model::StructField &Field : S->Fields()) {
-            revng_log(ModelGEPLog, "Field at offset: " << Field.Offset());
-            auto FieldIndent = LoggerIndent{ ModelGEPLog };
-
-            // First, traverse each child's type to get the TAPs from it
-            TAPToChildIdsMap FieldResult = rc_recur getTAPImpl(Field.Type(),
-                                                               Ctxt,
-                                                               VH);
-
-            revng_log(ModelGEPLog,
-                      "Number of types inside field: " << FieldResult.size());
-            // Then, create a ChildInfo representing the traversal of the
-            // children. In particular, this has a known index, that
-            // represents the offset of the field in the struct.
-            ChildInfo CI{
-              .Index = ConstantInt::get(llvm::IntegerType::get(Ctxt,
-                                                               64 /*NumBits*/),
-                                        Field.Offset() /*Value*/),
-              .Type = AggregateKind::Struct
-            };
-
-            // Now iterate on data in InnerResult, and massage them to add the
-            // field offset to the TAP, as well as the child info to the child
-            // ids, before actually merging them into Result.
-            auto InnerTAPIt = FieldResult.begin();
-            auto InnerTAPEnd = FieldResult.end();
-            while (InnerTAPIt != InnerTAPEnd) {
-              // Save the next valid value of the iterator, because we're
-              // going to extract the pointee of InnerTAPIt and mess with it
-              // before inserting into Result, and that would make it
-              // impossible to properly continue the iteration on InnerResult
-              // otherwise.
-              auto InnerTAPNext = std::next(InnerTAPIt);
-
-              auto TAPWithIdsHandle = FieldResult.extract(InnerTAPIt);
-
-              // Add the Field.Offset to the Base offset
-              auto &BaseOffset = TAPWithIdsHandle.key().BaseOffset;
-              BaseOffset += Field.Offset();
-
-              // Prepend the info on this struct to the child ids in the inner
-              // result.
-              auto &ChildIds = TAPWithIdsHandle.mapped();
-              ChildIds.insert(ChildIds.begin(), CI);
-
-              Result.insert(std::move(TAPWithIdsHandle));
-
-              // Increment the iterator.
-              InnerTAPIt = InnerTAPNext;
-            }
-          }
-        } break;
-
-        case model::TypeKind::UnionType: {
-          revng_log(ModelGEPLog, "Union, look at fields");
-          const auto *U = cast<model::UnionType>(BaseT);
-          auto UnionIndent = LoggerIndent{ ModelGEPLog };
-          for (const model::UnionField &Field : U->Fields()) {
-            revng_log(ModelGEPLog, "Field ID: " << Field.Index());
-            auto FieldIndent = LoggerIndent{ ModelGEPLog };
-
-            // First, traverse each child's type to get the TAPs from it
-            TAPToChildIdsMap FieldResult = rc_recur getTAPImpl(Field.Type(),
-                                                               Ctxt,
-                                                               VH);
-
-            revng_log(ModelGEPLog,
-                      "Number of types inside field: " << FieldResult.size());
-            // Then, create a ChildInfo representing the traversal of the
-            // children. In particular, this has a known index, that
-            // represents the number of the field in the struct (not its
-            // offset in this case)
-            ChildInfo CI{
-              .Index = ConstantInt::get(llvm::IntegerType::get(Ctxt,
-                                                               64 /*NumBits*/),
-                                        Field.Index() /*Value*/),
-              .Type = AggregateKind::Union
-            };
-
-            // Now iterate on data in InnerResult, and massage them to add the
-            // field offset to the TAP, as well as the child info to the child
-            // ids, before actually merging them into Result.
-            auto InnerTAPIt = FieldResult.begin();
-            auto InnerTAPEnd = FieldResult.end();
-            while (InnerTAPIt != InnerTAPEnd) {
-              // Save the next valid value of the iterator, because we're
-              // going to extract the pointee of InnerTAPIt and mess with it
-              // before inserting into Result, and that would make it
-              // impossible to properly continue the iteration on InnerResult
-              // otherwise.
-              auto InnerTAPNext = std::next(InnerTAPIt);
-
-              auto TAPWithIdsHandle = FieldResult.extract(InnerTAPIt);
-
-              // Prepend the info on this struct to the child ids in the inner
-              // result.
-              auto &ChildIds = TAPWithIdsHandle.mapped();
-              ChildIds.insert(ChildIds.begin(), CI);
-
-              Result.insert(std::move(TAPWithIdsHandle));
-
-              // Increment the iterator.
-              InnerTAPIt = InnerTAPNext;
-            }
-          }
-        } break;
-
-        case model::TypeKind::TypedefType: {
-          revng_log(ModelGEPLog, "Typedef, unwrap");
-          // For typedefs, we need to unwrap the underlying type and try to
-          // traverse it.
-          const auto *TD = cast<model::TypedefType>(BaseT);
-          TAPToChildIdsMap InnerResult = rc_recur
-            getTAPImpl(TD->UnderlyingType(), Ctxt, VH);
-          // The InnerResult can just be merged into the Result, because
-          // typedefs are shallow names that don't really add ids to the
-          // traversal of the typesystem.
-          Result.merge(std::move(InnerResult));
-        } break;
-
-        case model::TypeKind::RawFunctionType:
-        case model::TypeKind::CABIFunctionType: {
-          revng_abort();
-        } break;
-
-        default:
-          revng_abort();
-        }
-      } else {
-        revng_log(ModelGEPLog,
-                  "Has qualifiers: " << BaseType.Qualifiers().size());
-        auto EvenMoreIndent = LoggerIndent{ ModelGEPLog };
-        const model::Qualifier &FirstQualifier = *BaseType.Qualifiers().begin();
-
-        // If the first qualifier is a pointer qualifier, we're done
-        // descending, because the pointee does not reside into the BaseType,
-        // it's only referenced by it. In all the other cases (arrays and
-        // const) we need to unwrap the first layer (qualifier) and keep
-        // looking for other TAPs that might be generated.
-        if (not model::Qualifier::isPointer(FirstQualifier)) {
-          revng_log(ModelGEPLog, "FirstQualifier is not ConstQualifier");
-
-          auto QIt = std::next(BaseType.Qualifiers().begin());
-          auto QEnd = BaseType.Qualifiers().end();
-          auto InnerType = model::QualifiedType(BaseType.UnqualifiedType(),
-                                                { QIt, QEnd });
-
-          // First, compute the InnerResult, which represents all the TAPs
-          // from the InnerType going downward. At this point we do make a
-          // copy of it, because we'll need to change it with information on
-          // BaseType
-          TAPToChildIdsMap InnerResult = rc_recur getTAPImpl(InnerType,
-                                                             Ctxt,
-                                                             VH);
-
-          if (not model::Qualifier::isConst(FirstQualifier)) {
-            // If the first qualifier is const, we can just use the
-            // InnerResult for BaseType as well.
-            // Otherwise, the first qualifier is an array, and we need to
-            // handle that.
-            revng_assert(model::Qualifier::isArray(FirstQualifier));
-            revng_log(ModelGEPLog, "FirstQualifier is not ConstQualifier");
-
-            // First, build the array info associated to the array we're
-            // handling.
-            uint64_t NElems = FirstQualifier.Size();
-            std::optional<uint64_t> MaybeInnerTypeSize = InnerType.size(VH);
-            revng_assert(MaybeInnerTypeSize.has_value()
-                         and MaybeInnerTypeSize.value());
-            uint64_t Stride = MaybeInnerTypeSize.value();
-            ArrayInfo AI{ .Stride = APInt(/*NumBits*/ 64, /*Value*/ Stride),
-                          .NumElems = APInt(/*NumBits*/ 64,
-                                            /*Value*/ NElems) };
-
-            // Second, build the child info associated to the array we're
-            // handling. In this case we initialize the Index to nullptr,
-            // because at this point we don't really know the index used for
-            // accessing the array. This will be fixed up later, whenever we
-            // have elected the best TypedAccessPattern or the given
-            // IRAccessPattern. At that point the Index will be expanded with
-            // an actual llvm::Value.
-            ChildInfo CI{ .Index = nullptr, .Type = AggregateKind::Array };
-
-            // Now iterate on data in InnerResult, and massage them to add
-            // array info before actually merging them into Result.
-            auto InnerTAPIt = InnerResult.begin();
-            auto InnerTAPEnd = InnerResult.end();
-            while (InnerTAPIt != InnerTAPEnd) {
-              // Save the next valid value of the iterator, because we're
-              // going to extract the pointee of InnerTAPIt and mess with it
-              // before inserting into Result, and that would make it
-              // impossible to properly continue the iteration on InnerResult
-              // otherwise.
-              auto InnerTAPNext = std::next(InnerTAPIt);
-
-              auto TAPWithIdsHandle = InnerResult.extract(InnerTAPIt);
-
-              // Prepend the info on this array to the Arrays info in the
-              // inner result.
-              auto &Arrays = TAPWithIdsHandle.key().Arrays;
-              Arrays.insert(Arrays.begin(), AI);
-
-              // Prepend the info on this array to the child ids in the inner
-              // result.
-              auto &ChildIds = TAPWithIdsHandle.mapped();
-              ChildIds.insert(ChildIds.begin(), CI);
-
-              Result.insert(std::move(TAPWithIdsHandle));
-
-              // Increment the iterator.
-              InnerTAPIt = InnerTAPNext;
-            }
-          }
-        }
-      }
-      revng_log(ModelGEPLog, "Result.size() = " << Result.size());
-      It = TAPCache.insert(It, { BaseType, std::move(Result) });
-    } else {
-      revng_log(ModelGEPLog, "Found!");
-    }
-
-    rc_return It->second;
-  }
-
-public:
-  const TAPToChildIdsMap &getTAP(const model::QualifiedType &BaseType,
-                                 LLVMContext &Ctxt,
-                                 model::VerifyHelper &VH) {
-    return static_cast<TAPToChildIdsMapRef>(getTAPImpl(BaseType, Ctxt, VH))
-      .get();
-  }
-
-  void clear() { TAPCache.clear(); }
-};
-
 using UseGEPInfoMap = std::map<Use *, ModelGEPArgs>;
 
 static UseGEPInfoMap makeGEPReplacements(llvm::Function &F,
@@ -1919,7 +1891,8 @@ static UseGEPInfoMap makeGEPReplacements(llvm::Function &F,
 
   // First, try to initialize a map for the known model types of llvm::Values
   // that are reachable from F. If this fails, we just bail out because we
-  // cannot infer any modelGEP in F, if we have no type information to rely on.
+  // cannot infer any modelGEP in F, if we have no type information to rely
+  // on.
   ModelTypesMap PointerTypes = initModelTypes(Cache,
                                               F,
                                               ModelF,
@@ -1931,11 +1904,11 @@ static UseGEPInfoMap makeGEPReplacements(llvm::Function &F,
   }
 
   GEPSummationCache GEPSumCache{ Model };
-  TypedAccessCache TAPCache;
+  // TypedAccessCache TAPCache;
 
   UseTypeMap GEPifiedUsedTypes;
 
-  LLVMContext &Ctxt = F.getContext();
+  // LLVMContext &Ctxt = F.getContext();
   auto RPOT = ReversePostOrderTraversal(&F.getEntryBlock());
   for (auto *BB : RPOT) {
     for (auto &I : *BB) {
@@ -2005,34 +1978,21 @@ static UseGEPInfoMap makeGEPReplacements(llvm::Function &F,
             or BaseTy.is(model::TypeKind::CABIFunctionType))
           continue;
 
-        const auto &TAPToChildIds = TAPCache.getTAP(BaseTy, Ctxt, VH);
-
-        // If the set of typed access patterns from BaseTy is empty we can skip
-        // to the next instruction
-        if (TAPToChildIds.empty())
-          continue;
-
         // Now we extract an IRAccessPattern from the ModelGEPSummation
-        IRAccessPattern IRPattern = computeAccessPattern(Cache,
-                                                         U,
-                                                         GEPSum,
-                                                         Model,
-                                                         PointerTypes,
-                                                         GEPifiedUsedTypes);
+        IRAccessPattern IRPattern = computeIRAccessPattern(Cache,
+                                                           U,
+                                                           GEPSum,
+                                                           Model,
+                                                           PointerTypes,
+                                                           GEPifiedUsedTypes);
 
         // Select among the computed TAPIndices the one which best fits the
         // IRPattern
-        auto BestGEPArgsOrNone = makeBestGEPArgs(GEPSum.BaseAddress,
-                                                 IRPattern,
-                                                 TAPToChildIds,
-                                                 Model,
-                                                 VH);
+        ModelGEPArgs GEPArgs = makeBestGEPArgs(GEPSum.BaseAddress,
+                                               IRPattern,
+                                               Model,
+                                               VH);
 
-        // If the selection failed, we bail out.
-        if (not BestGEPArgsOrNone.has_value())
-          continue;
-
-        ModelGEPArgs &GEPArgs = BestGEPArgsOrNone.value();
         const model::Architecture::Values &Architecture = Model.Architecture();
         auto PointerToGEPArgs = GEPArgs.PointeeType.getPointerTo(Architecture);
         GEPifiedUsedTypes.insert({ &U, PointerToGEPArgs });
@@ -2066,8 +2026,11 @@ static UseGEPInfoMap makeGEPReplacements(llvm::Function &F,
         // - if I is a select instruction we can do something like the PHI
         // - if I is an alloca, I'm not sure what we can do
         if (auto *Load = dyn_cast<LoadInst>(&I)) {
-          std::optional<model::QualifiedType> GEPTypeOrNone = getType(GEPArgs,
-                                                                      VH);
+          std::optional<model::QualifiedType>
+            GEPTypeOrNone = getType(GEPArgs.BaseAddress.Type,
+                                    GEPArgs.IndexVector,
+                                    GEPArgs.RestOff,
+                                    VH);
           if (GEPTypeOrNone.has_value()) {
             model::QualifiedType &GEPType = GEPTypeOrNone.value();
             if (GEPType.isPointer())
@@ -2105,6 +2068,9 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
   // Skip non-isolated functions
   if (not FunctionTags::Isolated.isTagOf(&F))
     return Changed;
+
+  if (F.getName().startswith("local_print_addrinfo"))
+    revng_log(ModelGEPLog, "AAAA: " << F.getName());
 
   revng_log(ModelGEPLog, "Make ModelGEP for " << F.getName());
   auto Indent = LoggerIndent(ModelGEPLog);
@@ -2146,8 +2112,8 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
 
     // Calculate the size of the GEPPed field
     if (GEPArgs.RestOff.isStrictlyPositive()) {
-      // If there is a remaining offset, we are returning something more similar
-      // to a pointer than the actual value
+      // If there is a remaining offset, we are returning something more
+      // similar to a pointer than the actual value
       ModelGEPReturnedType = PtrSizedInteger;
     } else {
       std::optional<uint64_t> PointeeSize = GEPArgs.PointeeType.size(VH);
@@ -2174,15 +2140,6 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
     // The second argument is the base address
     Args.push_back(GEPArgs.BaseAddress.Address);
 
-    // The other arguments are the indices in IndexVector
-    for (auto [ChildId, AggregateTy] : GEPArgs.IndexVector) {
-      revng_assert(isa<ConstantInt>(ChildId)
-                   or AggregateTy == AggregateKind::Array);
-      Args.push_back(ChildId);
-    }
-
-    // Insert a call to ModelGEP right before the use, special casing the
-    // uses that are incoming for PHI nodes.
     auto *UserInstr = cast<Instruction>(TheUseToGEPify->getUser());
     if (auto *PHIUser = dyn_cast<PHINode>(UserInstr)) {
       auto *IncomingB = PHIUser->getIncomingBlock(*TheUseToGEPify);
@@ -2191,12 +2148,33 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
       Builder.SetInsertPoint(UserInstr);
     }
 
+    // The other arguments are the indices in IndexVector
+    for (auto [ConstantIndex, InductionVariable, AggregateTy] :
+         GEPArgs.IndexVector) {
+
+      if (InductionVariable) {
+        revng_assert(AggregateTy == AggregateKind::Array);
+        if (ConstantIndex) {
+          auto *FixedId = llvm::ConstantInt::get(InductionVariable->getType(),
+                                                 ConstantIndex);
+          Args.push_back(Builder.CreateAdd(InductionVariable, FixedId));
+        } else {
+          Args.push_back(InductionVariable);
+        }
+
+      } else {
+        auto *Int64Type = llvm::IntegerType::get(Ctxt, 64 /*NumBits*/);
+        auto *FixedId = llvm::ConstantInt::get(Int64Type, ConstantIndex);
+        Args.push_back(FixedId);
+      }
+    }
+
     Value *ModelGEPRef = Builder.CreateCall(ModelGEPFunction, Args);
 
     auto AddrOfReturnedType = UseType;
     if (GEPArgs.RestOff.isStrictlyPositive()) {
-      // If there is a remaining offset, we are returning something more similar
-      // to a pointer than the actual value
+      // If there is a remaining offset, we are returning something more
+      // similar to a pointer than the actual value
       AddrOfReturnedType = PtrSizedInteger;
     }
 
