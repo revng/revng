@@ -8,6 +8,7 @@
 #include "llvm/Support/MathExtras.h"
 
 #include "revng/Support/Debug.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
 #include "revng-c/PromoteStackPointer/RemoveStackAlignmentPass.h"
@@ -24,11 +25,14 @@ static bool isMask(Value *V, unsigned MaxMaskedBits) {
   return false;
 }
 
-bool RemoveStackAlignmentPass::runOnModule(Module &M) {
-  bool Result;
-  auto *InitFunction = M.getFunction("revng_init_local_sp");
+bool RemoveStackAlignmentPass::runOnModule(Module &Module) {
+  if (FunctionTags::Isolated.functions(&Module).empty())
+    return false;
+
+  auto *InitFunction = Module.getFunction("revng_init_local_sp");
   revng_assert(InitFunction != nullptr);
 
+  bool Result = false;
   for (CallBase *Call : callers(InitFunction)) {
     for (User *U : Call->users()) {
       if (auto *I = dyn_cast<BinaryOperator>(U)) {
