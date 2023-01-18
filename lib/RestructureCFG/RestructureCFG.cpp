@@ -39,7 +39,6 @@ using std::to_string;
 // TODO: Move the initialization of the logger here from "Utils.h"
 // Debug logger.
 Logger<> CombLogger("restructure");
-Logger<> FezLogger("fez");
 
 // EdgeDescriptor is a handy way to create and manipulate edges on the
 // RegionCFG.
@@ -449,8 +448,8 @@ getCandidateEntries(MetaRegionBB *Meta) {
 }
 
 bool restructureCFG(Function &F, ASTTree &AST) {
-  revng_log(FezLogger, "restructuring Function: " << F.getName());
-  revng_log(FezLogger, "Num basic blocks: " << F.size());
+  revng_log(CombLogger, "restructuring Function: " << F.getName());
+  revng_log(CombLogger, "Num basic blocks: " << F.size());
 
   DuplicationCounter = 0;
   UntangleTentativeCounter = 0;

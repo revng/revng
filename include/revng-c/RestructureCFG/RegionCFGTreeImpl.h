@@ -705,7 +705,7 @@ inline void RegionCFG<NodeT>::inflate() {
 
   BasicBlockNode<NodeT> *Entry = &Graph.getEntryNode();
 
-  if (FezLogger.isEnabled()) {
+  if (CombLogger.isEnabled()) {
     revng_log(CombLogger, "Entry node is: " << Entry->getNameStr());
     Graph.dumpCFGOnFile(FunctionName,
                         "inflates",
@@ -720,8 +720,8 @@ inline void RegionCFG<NodeT>::inflate() {
                      [](const auto &Pair) { return Pair.second.Inlined; }))
       Exits.push_back(Exit);
 
-  revng_log(FezLogger, "Num exits: " << Exits.size());
-  revng_log(FezLogger, "Region Size: " << Graph.size());
+  revng_log(CombLogger, "Num exits: " << Exits.size());
+  revng_log(CombLogger, "Region Size: " << Graph.size());
 
   using REA = ReachableExitsAnalysis<NodeT>;
   using Inverse = llvm::Inverse<typename REA::GraphType>;
@@ -1173,13 +1173,13 @@ inline void RegionCFG<NodeT>::inflate() {
   // Purge extra dummy nodes introduced.
   purgeTrivialDummies();
 
-  if (FezLogger.isEnabled()) {
+  if (CombLogger.isEnabled()) {
     Graph.dumpCFGOnFile(FunctionName,
                         "inflates",
                         "Region-" + RegionName + "-after-combing");
   }
 
-  revng_log(FezLogger, "Region Final Size: " << Graph.size());
+  revng_log(CombLogger, "Region Final Size: " << Graph.size());
 }
 
 template<class NodeT>
