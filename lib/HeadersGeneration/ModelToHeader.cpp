@@ -2,6 +2,9 @@
 // Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 //
 
+#include <unordered_map>
+
+#include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
@@ -23,6 +26,7 @@
 #include "revng-c/Pipes/Ranks.h"
 #include "revng-c/Support/ModelHelpers.h"
 #include "revng-c/Support/PTMLC.h"
+#include "revng-c/TypeNames/ModelToPTMLTypeHelpers.h"
 #include "revng-c/TypeNames/ModelTypeNames.h"
 
 #include "DependencyGraph.h"
@@ -35,135 +39,12 @@ using llvm::Twine;
 
 using ptml::str;
 using ptml::Tag;
-namespace attributes = ptml::attributes;
-namespace tokens = ptml::c::tokens;
-namespace ranks = revng::ranks;
+
+using QualifiedTypeNameMap = std::map<model::QualifiedType, std::string>;
+using TypeToNumOfRefsMap = std::unordered_map<const model::Type *, unsigned>;
+using GraphInfo = TypeInlineHelper::GraphInfo;
 
 static Logger<> Log{ "model-to-header" };
-
-static bool declarationIsDefinition(const model::Type *T) {
-  return not isa<model::StructType>(T) and not isa<model::UnionType>(T);
-}
-
-static ptml::Tag getTypeKeyword(const model::Type &T) {
-
-  ptml::Tag TypeKeyword;
-  switch (T.Kind()) {
-
-  case model::TypeKind::EnumType: {
-    TypeKeyword = keywords::Enum;
-  } break;
-
-  case model::TypeKind::StructType: {
-    TypeKeyword = keywords::Struct;
-  } break;
-
-  case model::TypeKind::UnionType: {
-    TypeKeyword = keywords::Union;
-  } break;
-
-  default:
-    revng_abort("unexpected type kind");
-  }
-  return TypeKeyword;
-}
-
-static void printForwardDeclaration(const model::Type &T,
-                                    ptml::PTMLIndentedOstream &Header) {
-  auto TypeNameReference = ptml::getLocationReference(T);
-  Header << keywords::Typedef << " " << getTypeKeyword(T) << " "
-         << helpers::Packed << " " << TypeNameReference << " "
-         << TypeNameReference << ";\n";
-}
-
-static void
-printDeclaration(const model::EnumType &E, ptml::PTMLIndentedOstream &Header) {
-  // We have to make the enum of the correct size of the underlying type
-  auto ByteSize = *E.size();
-  revng_assert(ByteSize <= 8);
-  size_t FullMask = std::numeric_limits<size_t>::max();
-  size_t MaxBitPatternInEnum = (ByteSize == 8) ?
-                                 FullMask :
-                                 ((FullMask) xor (FullMask << (8 * ByteSize)));
-
-  Header << keywords::Typedef << " " << keywords::Enum << " " << helpers::Packed
-         << " ";
-
-  {
-    Scope Scope(Header);
-
-    for (const auto &Entry : E.Entries()) {
-      revng_assert(not Entry.CustomName().empty());
-      Header << ptml::getLocationDefinition(E, Entry) << " "
-             << operators::Assign << " " << constants::hex(Entry.Value())
-             << ",\n";
-    }
-
-    // This ensures the enum is large exactly like the Underlying type
-    Header << ptml::tokenTag((E.name() + "_max_held_value").str(),
-                             tokens::Field)
-           << " " + operators::Assign + " "
-           << constants::hex(MaxBitPatternInEnum) << ",\n";
-  }
-
-  Header << " " << ptml::getLocationDefinition(E) << ";\n";
-}
-
-static void
-printDefinition(const model::StructType &S, ptml::PTMLIndentedOstream &Header) {
-  Header << keywords::Struct << " " << helpers::Packed << " ";
-  Header << ptml::getLocationDefinition(S) << " ";
-  {
-    Scope Scope(Header, scopeTags::Struct);
-
-    size_t NextOffset = 0ULL;
-    for (const auto &Field : S.Fields()) {
-      if (NextOffset < Field.Offset())
-        Header << ptml::tokenTag("uint8_t", tokens::Type) << " "
-               << ptml::tokenTag("padding_at_offset_"
-                                   + std::to_string(NextOffset),
-                                 tokens::Field)
-               << "[" << constants::number(Field.Offset() - NextOffset)
-               << "];\n";
-
-      auto F = ptml::getLocationDefinition(S, Field);
-      Header << getNamedCInstance(Field.Type(), F) << ";\n";
-
-      NextOffset = Field.Offset() + Field.Type().size().value();
-    }
-
-    if (NextOffset < S.Size())
-      Header << ptml::tokenTag("uint8_t", tokens::Type) << " "
-             << ptml::tokenTag("padding_at_offset_"
-                                 + std::to_string(NextOffset),
-                               tokens::Field)
-             << "[" << constants::number(S.Size() - NextOffset) << "];\n";
-  }
-  Header << ";\n";
-}
-
-static void
-printDefinition(const model::UnionType &U, ptml::PTMLIndentedOstream &Header) {
-  Header << keywords::Union << " " << helpers::Packed << " ";
-  Header << ptml::getLocationDefinition(U) << " ";
-
-  {
-    Scope Scope(Header, scopeTags::Union);
-    for (const auto &Field : U.Fields()) {
-      auto F = ptml::getLocationDefinition(U, Field);
-      Header << getNamedCInstance(Field.Type(), F) << ";\n";
-    }
-  }
-
-  Header << ";\n";
-}
-
-static void printDeclaration(const model::TypedefType &TD,
-                             ptml::PTMLIndentedOstream &Header) {
-  auto Type = ptml::getLocationDefinition(TD);
-  Header << keywords::Typedef << " "
-         << getNamedCInstance(TD.UnderlyingType(), Type) << ";\n";
-}
 
 static void printSegmentsTypes(const model::Segment &Segment,
                                ptml::PTMLIndentedOstream &Header) {
@@ -171,209 +52,15 @@ static void printSegmentsTypes(const model::Segment &Segment,
   Header << getNamedCInstance(Segment.Type(), S) << ";\n";
 }
 
-/// Generate the definition of a new struct type that wraps all the
-///        return values of \a F. The name of the struct type is provided by the
-///        caller.
-static void generateReturnValueWrapper(const model::RawFunctionType &F,
-                                       ptml::PTMLIndentedOstream &Header,
-                                       const model::Binary &Model) {
-  revng_assert(F.ReturnValues().size() > 1);
-  if (Log.isEnabled())
-    Header << helpers::lineComment("definition the of return type needed");
-
-  Header << keywords::Typedef << " " << keywords::Struct << " "
-         << helpers::Packed << " ";
-
-  {
-    Scope Scope(Header, scopeTags::Struct);
-    for (auto &Group : llvm::enumerate(F.ReturnValues())) {
-      const model::QualifiedType &RetTy = Group.value().Type();
-      const auto &FieldName = getReturnField(F, Group.index(), Model);
-      Header << getNamedCInstance(RetTy,
-                                  ptml::tokenTag(FieldName, tokens::Field)
-                                    .serialize())
-             << ";\n";
-    }
-  }
-
-  Header << " " << getReturnTypeName(F) << ";\n";
-}
-
-/// If the function has more than one return value, generate a wrapper
-///        struct that contains them.
-static void printRawFunctionWrappers(const model::RawFunctionType *F,
-                                     ptml::PTMLIndentedOstream &Header,
-                                     const model::Binary &Model) {
-  if (F->ReturnValues().size() > 1)
-    generateReturnValueWrapper(*F, Header, Model);
-
-  for (auto &Arg : F->Arguments())
-    revng_assert(Arg.Type().isScalar());
-}
-
-/// Print a typedef for a RawFunctionType, that can be used when you have
-///        a variable that is a pointer to a function.
-static void printDeclaration(const model::RawFunctionType &F,
-                             ptml::PTMLIndentedOstream &Header,
-                             const model::Binary &Model) {
-  printRawFunctionWrappers(&F, Header, Model);
-
-  Header << keywords::Typedef << " ";
-  // In this case, we are defining a type for the function, not the function
-  // itself, so the token right before the parenthesis is the name of the type.
-  printFunctionTypeDeclaration(F, Header, Model);
-  Header << ";\n";
-}
-
-using QualifiedTypeNameMap = std::map<model::QualifiedType, std::string>;
-
-/// Generate the definition of a new struct type that wraps \a ArrayType.
-///        This is used to wrap array arguments or array return values of
-///        CABIFunctionTypes.
-static void generateArrayWrapper(const model::QualifiedType &ArrayType,
-                                 ptml::PTMLIndentedOstream &Header,
-                                 QualifiedTypeNameMap &NamesCache) {
-  revng_assert(ArrayType.isArray());
-  auto WrapperName = getArrayWrapper(ArrayType);
-
-  // Check if the wrapper was already added
-  bool IsNew = NamesCache.emplace(ArrayType, WrapperName).second;
-  if (not IsNew)
-    return;
-
-  Header << keywords::Typedef << " " << keywords::Struct << " "
-         << helpers::Packed << " ";
-  {
-    Scope Scope(Header, scopeTags::Struct);
-    Header << getNamedCInstance(ArrayType, ArrayWrapperFieldName) << ";\n";
-  }
-  Header << " " << ptml::tokenTag(WrapperName, tokens::Type) << ";\n";
-}
-
-/// If the return value or any of the arguments is an array, generate
-///        a wrapper struct for each of them, if it's not already in the cache.
-static void printCABIFunctionWrappers(const model::CABIFunctionType *F,
-                                      ptml::PTMLIndentedOstream &Header,
-                                      QualifiedTypeNameMap &NamesCache) {
-  if (F->ReturnType().isArray())
-    generateArrayWrapper(F->ReturnType(), Header, NamesCache);
-
-  for (auto &Arg : F->Arguments())
-    if (Arg.Type().isArray())
-      generateArrayWrapper(Arg.Type(), Header, NamesCache);
-}
-
-/// Print a typedef for a CABIFunctionType, that can be used when you
-///        have a variable that is a pointer to a function.
-static void printDeclaration(const model::CABIFunctionType &F,
-                             ptml::PTMLIndentedOstream &Header,
-                             QualifiedTypeNameMap &NamesCache,
-                             const model::Binary &Model) {
-  printCABIFunctionWrappers(&F, Header, NamesCache);
-
-  Header << keywords::Typedef << " ";
-  // In this case, we are defining a type for the function, not the function
-  // itself, so the token right before the parenthesis is the name of the type.
-  printFunctionTypeDeclaration(F, Header, Model);
-  Header << ";\n";
-}
-
-static void printDeclaration(const model::Type &T,
-                             ptml::PTMLIndentedOstream &Header,
-                             QualifiedTypeNameMap &AdditionalTypeNames,
-                             const model::Binary &Model) {
-  if (Log.isEnabled()) {
-    auto Scope = helpers::LineComment(Header);
-    Header << "Declaration of " << getNameFromYAMLScalar(T.key());
-  }
-
-  revng_log(Log, "Declaring " << getNameFromYAMLScalar(T.key()));
-
-  switch (T.Kind()) {
-
-  case model::TypeKind::Invalid: {
-    if (Log.isEnabled())
-      Header << helpers::lineComment("invalid");
-  } break;
-
-  case model::TypeKind::PrimitiveType: {
-    // Do nothing. Primitive type declarations are all present in
-    // revng-primitive-types.h
-  } break;
-
-  case model::TypeKind::EnumType: {
-    printDeclaration(cast<model::EnumType>(T), Header);
-  } break;
-
-  case model::TypeKind::StructType: {
-    printForwardDeclaration(cast<model::StructType>(T), Header);
-  } break;
-
-  case model::TypeKind::UnionType: {
-    printForwardDeclaration(cast<model::UnionType>(T), Header);
-  } break;
-
-  case model::TypeKind::TypedefType: {
-    printDeclaration(cast<model::TypedefType>(T), Header);
-  } break;
-
-  case model::TypeKind::RawFunctionType: {
-    printDeclaration(cast<model::RawFunctionType>(T), Header, Model);
-  } break;
-
-  case model::TypeKind::CABIFunctionType: {
-    printDeclaration(cast<model::CABIFunctionType>(T),
-                     Header,
-                     AdditionalTypeNames,
-                     Model);
-  } break;
-  default:
-    revng_abort();
-  }
-}
-
-static void printDefinition(const model::Type &T,
-                            ptml::PTMLIndentedOstream &Header,
-                            QualifiedTypeNameMap &AdditionalTypeNames,
-                            const model::Binary &Model) {
-  if (Log.isEnabled())
-    Header << helpers::lineComment("Definition of "
-                                   + getNameFromYAMLScalar(T.key()));
-
-  revng_log(Log, "Defining " << getNameFromYAMLScalar(T.key()));
-
-  if (declarationIsDefinition(&T)) {
-    printDeclaration(T, Header, AdditionalTypeNames, Model);
-  } else {
-    switch (T.Kind()) {
-
-    case model::TypeKind::Invalid: {
-      if (Log.isEnabled())
-        Header << helpers::lineComment("invalid");
-    } break;
-
-    case model::TypeKind::StructType: {
-      printDefinition(cast<model::StructType>(T), Header);
-    } break;
-
-    case model::TypeKind::UnionType: {
-      printDefinition(cast<model::UnionType>(T), Header);
-    } break;
-
-    default:
-      revng_abort();
-    }
-  }
-}
-
 /// Print all type definitions for the types in the model
 static void printTypeDefinitions(const model::Binary &Model,
+                                 const TypeInlineHelper &TheTypeInlineHelper,
                                  ptml::PTMLIndentedOstream &Header,
                                  QualifiedTypeNameMap &AdditionalTypeNames) {
-
+  auto StackTypes = TheTypeInlineHelper.collectStackTypes(Model);
   DependencyGraph Dependencies = buildDependencyGraph(Model.Types());
   const auto &TypeNodes = Dependencies.TypeNodes();
-
+  auto &ToInline = TheTypeInlineHelper.getTypesToInline();
   std::set<const TypeDependencyNode *> Defined;
 
   for (const auto *Root : Dependencies.nodes()) {
@@ -390,6 +77,11 @@ static void printTypeDefinitions(const model::Binary &Model,
           revng_log(Log, "      NOT DEFINED");
       }
 
+      if (StackTypes.contains(Node->T)) {
+        revng_log(Log, "      IGNORED STACK TYPE");
+        continue;
+      }
+
       const model::Type *NodeT = Node->T;
       const auto DeclKind = Node->K;
       constexpr auto TypeName = TypeNode::Kind::TypeName;
@@ -398,25 +90,63 @@ static void printTypeDefinitions(const model::Binary &Model,
 
         // When emitting a full definition we also want to emit a forward
         // declaration first, if it wasn't already emitted somewhere else.
-        if (Defined.insert(TypeNodes.at({ NodeT, TypeName })).second)
-          printDeclaration(*NodeT, Header, AdditionalTypeNames, Model);
+        if (Defined.insert(TypeNodes.at({ NodeT, TypeName })).second
+            and not ToInline.contains(NodeT)) {
+          printDeclaration(Log,
+                           *NodeT,
+                           Header,
+                           AdditionalTypeNames,
+                           Model,
+                           ToInline);
+        }
 
-        if (not declarationIsDefinition(NodeT))
-          printDefinition(*NodeT, Header, AdditionalTypeNames, Model);
+        if (not declarationIsDefinition(NodeT)
+            and not ToInline.contains(NodeT)) {
+          // For all inlinable types that we have seen them yet produce forward
+          // declaration.
+          if ((isa<model::UnionType>(NodeT) or isa<model::StructType>(NodeT))
+              and not ToInline.contains(NodeT)) {
+            auto TypesToInline = TheTypeInlineHelper
+                                   .getTypesToInlineInTypeTy(Model, NodeT);
+            for (auto *Type : TypesToInline) {
+              revng_assert(isCandidateForInline(Type));
+              printDeclaration(Log,
+                               *Type,
+                               Header,
+                               AdditionalTypeNames,
+                               Model,
+                               ToInline);
+            }
+          }
+
+          printDefinition(Log,
+                          *NodeT,
+                          Header,
+                          AdditionalTypeNames,
+                          Model,
+                          ToInline);
+        }
 
         // This is always a full type definition
         Defined.insert(TypeNodes.at({ NodeT, FullType }));
       } else {
-        printDeclaration(*NodeT, Header, AdditionalTypeNames, Model);
-        Defined.insert(TypeNodes.at({ NodeT, TypeNode::Kind::TypeName }));
+        if (not ToInline.contains(NodeT)) {
+          printDeclaration(Log,
+                           *NodeT,
+                           Header,
+                           AdditionalTypeNames,
+                           Model,
+                           ToInline);
+          Defined.insert(TypeNodes.at({ NodeT, TypeName }));
+        }
 
-        // For primitive types and enums the forward declaration we emit is
-        // also a full definition, so we need to keep track of this.
-        if (isa<model::PrimitiveType>(NodeT) or isa<model::EnumType>(NodeT))
-          Defined.insert(TypeNodes.at({ NodeT, TypeNode::Kind::FullType }));
+        // For primitive types the forward declaration we emit is also a full
+        // definition, so we need to keep track of this.
+        if (isa<model::PrimitiveType>(NodeT))
+          Defined.insert(TypeNodes.at({ NodeT, FullType }));
 
-        // For struct and unions the forward declaration is just a forward
-        // declaration, without body.
+        // For struct, enums and unions the forward declaration is just a
+        // forward declaration, without body.
 
         // TypedefType, RawFunctionType and CABIFunctionType are emitted in C
         // as typedefs, so they don't represent fully defined types, but just
@@ -452,7 +182,11 @@ bool dumpModelToHeader(const model::Binary &Model, llvm::raw_ostream &Out) {
       Header << helpers::lineComment("===============");
       Header << '\n';
       QualifiedTypeNameMap AdditionalTypeNames;
-      printTypeDefinitions(Model, Header, AdditionalTypeNames);
+      TypeInlineHelper TheTypeInlineHelper(Model);
+      printTypeDefinitions(Model,
+                           TheTypeInlineHelper,
+                           Header,
+                           AdditionalTypeNames);
     }
 
     if (not Model.Functions().empty()) {
