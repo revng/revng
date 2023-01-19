@@ -119,7 +119,8 @@ CFGAnalyzer::CFGAnalyzer(llvm::Module &M,
              PreCallHook.get(),
              PostCallHook.get(),
              RetHook.get(),
-             GCBI.spReg()),
+             GCBI.spReg(),
+             Oracle),
   Outliner(M, GCBI, Oracle),
   OpaqueBranchConditionsPool(&M, false),
   OutputAAWriter(streamFromOption(AAWriterPath)),
@@ -964,12 +965,14 @@ CallSummarizer::CallSummarizer(llvm::Module *M,
                                Function *PreCallHook,
                                Function *PostCallHook,
                                llvm::Function *RetHook,
-                               GlobalVariable *SPCSV) :
+                               GlobalVariable *SPCSV,
+                               const FunctionSummaryOracle &Oracle) :
   M(M),
   PreCallHook(PreCallHook),
   PostCallHook(PostCallHook),
   RetHook(RetHook),
   SPCSV(SPCSV),
+  Oracle(Oracle),
   RegistersClobberedPool(M, false) {
   RegistersClobberedPool.addFnAttribute(llvm::Attribute::ReadOnly);
   RegistersClobberedPool.addFnAttribute(llvm::Attribute::NoUnwind);
@@ -988,6 +991,7 @@ void CallSummarizer::handleCall(MetaAddress CallerBlock,
                                 llvm::Value *SymbolNamePointer) {
   using namespace llvm;
   LLVMContext &Context = getContext(M);
+  (void)(Oracle);
 
   // Mark end of basic block with a pre-hook call
   StructType *MetaAddressTy = MetaAddress::getStruct(M);

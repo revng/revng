@@ -31,6 +31,7 @@ private:
   llvm::Function *PostCallHook = nullptr;
   llvm::Function *RetHook = nullptr;
   llvm::GlobalVariable *SPCSV = nullptr;
+  const FunctionSummaryOracle &Oracle;
   OpaqueFunctionsPool<llvm::StringRef> RegistersClobberedPool;
 
 public:
@@ -38,7 +39,8 @@ public:
                  llvm::Function *PreCallHook,
                  llvm::Function *PostCallHook,
                  llvm::Function *RetHook,
-                 llvm::GlobalVariable *SPCSV);
+                 llvm::GlobalVariable *SPCSV,
+                 const FunctionSummaryOracle &Oracle);
 
 public:
   void handleCall(MetaAddress CallerBlock,
