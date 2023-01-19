@@ -194,32 +194,44 @@ public:
     return TheVector.capacity();
   }
 
-  std::pair<iterator, bool> insert(const T &Value) {
+  std::pair<iterator, bool> insert(const T &Value) { return emplace(Value); }
+
+  template<typename... Types>
+  std::pair<iterator, bool> emplace(Types &&...Values) {
     revng_assert(not BatchInsertInProgress);
+
+    T Value{ std::forward<Types>(Values)... };
     auto Key = KeyedObjectTraits<T>::key(Value);
     auto It = lower_bound(Key);
     if (It == end()) {
-      TheVector.push_back(Value);
+      TheVector.emplace_back(std::move(Value));
       return { --end(), true };
     } else if (keysEqual(KeyedObjectTraits<T>::key(*It), Key)) {
       return { It, false };
     } else {
-      return { TheVector.insert(It, Value), true };
+      return { TheVector.emplace(It, std::move(Value)), true };
     }
   }
 
   std::pair<iterator, bool> insert_or_assign(const T &Value) {
+    return emplace_or_assign(Value);
+  }
+
+  template<typename... Types> // NOLINTNEXTLINE
+  std::pair<iterator, bool> emplace_or_assign(Types &&...Values) {
     revng_assert(not BatchInsertInProgress);
+
+    T Value{ std::forward<Types>(Values)... };
     auto Key = KeyedObjectTraits<T>::key(Value);
     auto It = lower_bound(Key);
     if (It == end()) {
-      TheVector.push_back(Value);
+      TheVector.emplace_back(std::move(Value));
       return { --end(), true };
     } else if (keysEqual(KeyedObjectTraits<T>::key(*It), Key)) {
-      *It = Value;
+      *It = std::move(Value);
       return { It, false };
     } else {
-      return { TheVector.insert(It, Value), true };
+      return { TheVector.emplace(It, std::move(Value)), true };
     }
   }
 
@@ -292,7 +304,7 @@ public:
   }
 
 public:
-  template<bool KeepFirst>
+  template<bool EnsureUnique = false>
   class BatchInserterBase {
   private:
     SortedVector *SV;
@@ -321,14 +333,15 @@ public:
     void commit() {
       if (SV != nullptr && SV->BatchInsertInProgress) {
         SV->BatchInsertInProgress = false;
-        SV->sort<KeepFirst>();
+        SV->sort<EnsureUnique>();
       }
     }
 
   protected:
-    T &insertImpl(const T &Value) {
+    template<typename... Types>
+    T &emplaceImpl(Types &&...Values) {
       revng_assert(SV->BatchInsertInProgress);
-      SV->TheVector.push_back(Value);
+      SV->TheVector.emplace_back(std::forward<Types>(Values)...);
       return SV->TheVector.back();
     }
   };
@@ -338,7 +351,11 @@ public:
     BatchInserter(SortedVector &SV) : BatchInserterBase<true>(SV) {}
 
   public:
-    T &insert(const T &Value) { return this->insertImpl(Value); }
+    template<typename... Types>
+    T &emplace(Types &&...Values) {
+      return this->emplaceImpl(std::forward<Types>(Values)...);
+    }
+    T &insert(const T &Value) { return emplace(Value); }
   };
 
   BatchInserter batch_insert() {
@@ -351,7 +368,11 @@ public:
     BatchInsertOrAssigner(SortedVector &SV) : BatchInserterBase<false>(SV) {}
 
   public:
-    T &insert_or_assign(const T &Value) { return this->insertImpl(Value); }
+    template<typename... Types> // NOLINTNEXTLINE
+    T &emplace_or_assign(Types &&...Values) {
+      return this->emplaceImpl(std::forward<Types>(Values)...);
+    }
+    T &insert_or_assign(const T &Value) { return emplace_or_assign(Value); }
   };
 
   BatchInsertOrAssigner batch_insert_or_assign() {
@@ -396,19 +417,17 @@ private:
     return not compareKeys(LHS, RHS) and not compareKeys(RHS, LHS);
   }
 
-  template<bool KeepFirst>
+  template<bool EnsureUnique>
   void sort() {
-    // Sort
-    std::stable_sort(begin(), end(), compareElements);
-
-    // Remove duplicates keeping the last instance of each element
-    auto NewEnd = end();
-    if (KeepFirst) {
-      NewEnd = std::unique(begin(), end(), elementsEqual);
+    if constexpr (EnsureUnique) {
+      std::sort(begin(), end(), compareElements);
+      revng_check(std::adjacent_find(begin(), end(), elementsEqual) == end(),
+                  "Multiples of the same element in a `SortedVector`.");
     } else {
-      NewEnd = unique_last(begin(), end(), elementsEqual);
+      std::stable_sort(begin(), end(), compareElements);
+      auto NewEnd = unique_last(begin(), end(), elementsEqual);
+      TheVector.erase(NewEnd, end());
     }
-    TheVector.erase(NewEnd, end());
   }
 };
 
