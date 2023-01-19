@@ -13,6 +13,7 @@
 
 #include "revng/ABI/RegisterStateDeductions.h"
 #include "revng/ADT/Queue.h"
+#include "revng/ADT/GenericGraph.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/CFGAnalyzer.h"
 #include "revng/EarlyFunctionAnalysis/CallGraph.h"
@@ -140,8 +141,10 @@ public:
     // traversal (leafs first).
     runInterproceduralAnalysis();
 
-    for (model::Function &Function : Binary->Functions())
-      analyzeABI(GCBI.getBlockAt(Function.Entry()));
+    for (const auto &Node :
+         llvm::ReversePostOrderTraversal(ApproximateCallGraph.getEntryNode())) {
+        analyzeABI(GCBI.getBlockAt(Node->Address));
+    }
 
     // Propagate results between call-sites and functions
     interproceduralPropagation();
