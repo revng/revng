@@ -3,14 +3,18 @@
 //
 
 #include <algorithm>
+#include <iterator>
+#include <unordered_map>
 #include <utility>
 
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/iterator_range.h"
 
 #include "revng/ADT/GenericGraph.h"
 #include "revng/Support/Debug.h"
@@ -126,9 +130,9 @@ struct PushThroughComparisonResult {
   OffsetExpression OEAfterPush;
 };
 
-static PushThroughComparisonResult
-makePushThroughComparisonResult(NeighborIterator ToBePushed,
-                                NeighborIterator ToBePushedThrough) {
+static OffsetExpression
+computeOffsetAfterPush(NeighborIterator ToBePushed,
+                       NeighborIterator ToBePushedThrough) {
   OffsetExpression Final;
 
   revng_assert(isInstanceEdge(*ToBePushed));
@@ -168,9 +172,7 @@ makePushThroughComparisonResult(NeighborIterator ToBePushed,
   auto PushedFieldSize = getFieldSize(ToBePushed->first, ToBePushed->second);
   revng_assert(ThroughElemSize >= PushedFieldSize + Final.Offset);
 
-  return PushThroughComparisonResult{ .ToPush = ToBePushed,
-                                      .Through = ToBePushedThrough,
-                                      .OEAfterPush = std::move(Final) };
+  return Final;
 }
 
 // Compare the edges *AIt and *BIt to check if any of them can be pushed through
@@ -263,7 +265,11 @@ canPushThrough(const NeighborIterator &AIt, const NeighborIterator &BIt) {
   if (EndByteInElem > Outer->Size)
     return std::nullopt;
 
-  return makePushThroughComparisonResult(InnerIt, OuterIt);
+  return PushThroughComparisonResult{
+    .ToPush = InnerIt,
+    .Through = OuterIt,
+    .OEAfterPush = computeOffsetAfterPush(InnerIt, OuterIt)
+  };
 }
 
 // Helper ordering for NeighborIterators. We need it here because we need to use
@@ -433,101 +439,134 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
           ToAnalyze.erase(A);
       }
 
-      // We now define a custom graph.
-      // Each node of this custom graph represents an instange edge of the
-      // original LayoutTypeSystem, whose predecessor is Parent.
-      // Edges of this custom graph represent a relationship between the custom
-      // nodes (representing edges).
-      // If a EdgeNode A has an edge towards an EdgeNode B it means that the
-      // edge represented by A can be pushed through the edge represented by B.
-      // Whenever the graph is build, we also attach to each edge of the custom
-      // graph an OffsetExpression, that represents the computed final offset
-      // after the push down.
-      using EdgeNode = BidirectionalNode<NeighborIterator, OffsetExpression>;
-      using EdgeInclusionGraph = GenericGraph<EdgeNode>;
-      EdgeInclusionGraph EdgeInclusion;
+      // Represents an edge iterator pointing to an instance edge, along with an
+      // OffsetExpression that is not the one currently attached to the instance
+      // edge, but that it is used to move the edge around.
+      struct EdgeWithOffset {
+        NeighborIterator Edge;
+        OffsetExpression FinalOE;
+      };
+
+      // A map whose key is an edge iterator representing an instance edge, and
+      // the mapped type is a vector of other edges that can be pushed through
+      // the key, along the updated offsets that they will have after pushing
+      // them through it.
+      // In particular, we only keep in this map the neighbor iterator that are
+      // the roots of the hierarchy of instance edges, i.e. the instance edges
+      // that cannot be pushed through any other edge.
+      std::map<NeighborIterator, llvm::SmallVector<EdgeWithOffset>>
+        ChildrenHierarchy;
 
       using GT = llvm::GraphTraits<LayoutTypeSystemNode *>;
-      auto AIt = GT::child_edge_begin(Parent);
-      auto ChildEnd = GT::child_edge_end(Parent);
 
-      // Build an EdgeNode for each instance edge outgoing from Parent.
-      std::map<NeighborIterator, EdgeNode *> ItEdgeNodes;
-      for (; AIt != ChildEnd; ++AIt) {
+      // Initialize the ChildrenHierarchy.
+      // At the beginning, all children edges are roots, and none of them has
+      // other edges that can be pushed through them.
+      for (auto AIt = GT::child_edge_begin(Parent),
+                ChildEnd = GT::child_edge_end(Parent);
+           AIt != ChildEnd;
+           ++AIt) {
         if (isInstanceEdge(*AIt))
-          ItEdgeNodes[AIt] = EdgeInclusion.addNode(AIt);
+          ChildrenHierarchy[AIt];
       }
 
-      // Compute the relationships that tell us if an edge can be pushed through
-      // another.
-      AIt = GT::child_edge_begin(Parent);
-      for (; AIt != ChildEnd; ++AIt) {
-        if (not isInstanceEdge(*AIt))
-          continue;
+      // Now compare each root only with other roots
+      auto ARootIt = ChildrenHierarchy.begin();
+      auto ARootNext = ARootIt;
+      auto HierarchyEnd = ChildrenHierarchy.begin();
+      for (; ARootIt != HierarchyEnd; ARootIt = ARootNext) {
+        ARootNext = std::next(ARootIt);
 
-        // If for some reason we find a non-fixed child it means that we
-        // probably need to re-think this DLAStep in a fixed-point fashion
-        // across the first part and the second push-down part.
-        revng_assert(isFixedChild(Parent, AIt->first));
+        auto &[AEdgeIt, PushedInsideA] = *ARootIt;
 
-        for (auto BIt = std::next(AIt); BIt != ChildEnd; ++BIt) {
+        // A vector of instance edges that are contained in AEdgeIt and that
+        // should be pushed through it, along with the new offsets they will
+        // have after the push through.
+        llvm::SmallVector<EdgeWithOffset> ContainedInA;
 
-          auto MaybePushThrough = canPushThrough(AIt, BIt);
+        // A vector of instance edges that contain AEdgeIt. AEdgeIt will have to
+        // be pushed through all of them. The FinalOE in EdgeWithOffset here
+        // represents the new offset that AEdgeIt will have after being pushed
+        // through them.
+        llvm::SmallVector<EdgeWithOffset> ContainA;
+
+        for (auto BRootIt = std::next(ARootIt); BRootIt != HierarchyEnd;
+             ++BRootIt) {
+
+          auto &[BEdgeIt, ContainedInB] = *BRootIt;
+
+          auto MaybePushThrough = canPushThrough(AEdgeIt, BEdgeIt);
           if (not MaybePushThrough.has_value())
             continue;
 
           auto &[ToPush, Through, OEAfterPush] = MaybePushThrough.value();
+          revng_assert(ToPush == AEdgeIt or ToPush == BEdgeIt);
+          revng_assert(Through == AEdgeIt or Through == BEdgeIt);
+          if (ToPush == AEdgeIt) {
+            revng_assert(Through == BEdgeIt);
+            // AEdgeIt can be pushed inside BEdgeIt
+            auto BWithNewAOffset = EdgeWithOffset{ BEdgeIt,
+                                                   std::move(OEAfterPush) };
+            ContainA.push_back(std::move(BWithNewAOffset));
+          } else {
+            revng_assert(ToPush == BEdgeIt and Through == AEdgeIt);
+            // BEdgeIt can be pushed inside AEdgeIt
+            auto BWithNewBOffset = EdgeWithOffset{ BEdgeIt,
+                                                   std::move(OEAfterPush) };
+            ContainedInA.push_back(std::move(BWithNewBOffset));
+          }
+        }
 
-          ItEdgeNodes.at(Through)->addPredecessor(ItEdgeNodes.at(ToPush),
-                                                  OEAfterPush);
+        // Now, push all the roots contained in A into A, and remove them from
+        // ChildrenHierarchy, since they're not roots anymore.
+        PushedInsideA.reserve(PushedInsideA.size() + ContainedInA.size());
+        PushedInsideA.append(ContainedInA);
+        for (const auto &[PushedInA, Unused] : ContainedInA)
+          ChildrenHierarchy.erase(PushedInA);
 
-          revng_log(Log, "======================================");
-          revng_log(Log, "Through: " << Through->first->ID);
-          revng_log(Log,
-                    "Through Off: " << Through->second->getOffsetExpr().Offset);
-          if (not Through->second->getOffsetExpr().Strides.empty())
-            revng_log(Log,
-                      "Through Stride: "
-                        << Through->second->getOffsetExpr().Strides.front());
-          revng_log(Log, "-----");
-          revng_log(Log, "ToPush: " << ToPush->first->ID);
-          revng_log(Log,
-                    "ToPush Off: " << ToPush->second->getOffsetExpr().Offset);
-          if (not ToPush->second->getOffsetExpr().Strides.empty())
-            revng_log(Log,
-                      "ToPush Stride: "
-                        << ToPush->second->getOffsetExpr().Strides.front());
-          revng_log(Log, "-----");
-          revng_log(Log, "Final Off: " << OEAfterPush.Offset);
-          if (not OEAfterPush.Strides.empty())
-            revng_log(Log, "Final Stride: " << OEAfterPush.Strides.front());
+        // Then, for all the other edges that contain A, A can be pushed through
+        // them, along with all the nodes that have already been pushed through
+        // A itself (that transitively can be pushed through the others too).
+        // After we've pushed A through all edges in ContainA, we can remove A
+        // itelf from ChildrenHierarchy, since it's not a root anymore.
+        if (not ContainA.empty()) {
+          for (const auto &[LargerThanA, FinalOE] : ContainA) {
+
+            // If A needs to be pushed through LargerThanA, and all things that
+            // were previously pushed pushed through A can now be pushed through
+            // LargerThanA.
+            auto &PushedThroughLargerThanA = ChildrenHierarchy.at(LargerThanA);
+            PushedThroughLargerThanA.reserve(PushedThroughLargerThanA.size()
+                                             + PushedInsideA.size() + 1);
+            for (auto &[EdgeToPush, OEAfterPush] : PushedInsideA) {
+              // We have to recompute the offset of EdgeToPush here, after being
+              // pushed through LargerThanA, because this value was never
+              // computed before, given that these two edges have never been
+              // compared before.
+              PushedThroughLargerThanA.push_back(EdgeWithOffset{
+                EdgeToPush, computeOffsetAfterPush(EdgeToPush, LargerThanA) });
+            }
+            // Then also AEdgeIt can be pushed through LargerThanA. The final
+            // offset of AEdgeIt after being pushed through has already been
+            // computed in advance, so we just use that.
+            PushedThroughLargerThanA.push_back({ AEdgeIt, std::move(FinalOE) });
+          }
+          // Now AEdgeIt is not a root anymore, so we have to erase it and
+          // update ARootNext.
+          ARootNext = ChildrenHierarchy.erase(ARootIt);
         }
       }
 
       llvm::SmallSet<NeighborIterator, 4> EdgesToErase;
-      for (auto *EdgeNodeToPushThrough : EdgeInclusion.nodes()) {
+      for (auto &[EdgeToPushThrough, EdgesToPush] : ChildrenHierarchy) {
 
-        // If EdgeNodeToPushThrough has some successors, it means that there
-        // are other edges across which it should be pushed through. At this
-        // point we don't want to push the others down EdgeNodeToPushThrough,
-        // because that operation could change the overall result on the graph.
-        // So we back off. The other edges that could be pushed down through
-        // EdgeNodeToPushThrough will be resolved at a later time.
-        if (not EdgeNodeToPushThrough->successors().empty())
+        if (EdgesToPush.empty())
           continue;
 
-        // If EdgeNodeToPushThrough has no predecessors, there is no other edge
-        // to push through it, so we just skip it.
-        if (EdgeNodeToPushThrough->predecessors().empty())
-          continue;
-
-        auto &ToPushThroughEdgeIt = EdgeNodeToPushThrough->data();
-        auto *ToPushThrough = ToPushThroughEdgeIt->first;
+        auto *ToPushThrough = EdgeToPushThrough->first;
         ToAnalyze.insert(ToPushThrough);
 
-        for (auto &Edge : EdgeNodeToPushThrough->predecessor_edges()) {
-          auto &[EdgeNodeToPushDown, FinalOE] = Edge;
-          auto &PushedEdgeIt = EdgeNodeToPushDown->data();
+        for (auto &[PushedEdgeIt, FinalOE] : EdgesToPush) {
           EdgesToErase.insert(PushedEdgeIt);
           auto *ToPushDown = PushedEdgeIt->first;
 
