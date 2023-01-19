@@ -242,39 +242,84 @@ TCC::tryConvertingStackArguments(model::QualifiedType StackArgumentTypes,
   // Qualifiers here are not allowed since this must point to a simple struct.
   revng_assert(StackArgumentTypes.Qualifiers().empty());
   auto *Unqualified = StackArgumentTypes.UnqualifiedType().get();
+  model::StructType &Stack = *llvm::cast<model::StructType>(Unqualified);
 
-  // If the struct is empty, it indicates that there are no stack arguments.
-  const model::StructType &Types = *llvm::cast<model::StructType>(Unqualified);
-  if (Types.Fields().empty()) {
-    revng_assert(Types.size() == 0);
-    return llvm::SmallVector<model::Argument, 8>{};
-  }
-
-  LoggerIndent Indentation(Log);
-
-  // Compute the alignment of the first argument.
-  auto CurrentAlignment = *ABI.alignment(Types.Fields().begin()->Type());
-  if (!llvm::isPowerOf2_64(CurrentAlignment)) {
+  // Compute the full alignment.
+  std::uint64_t FullAlignment = *ABI.alignment(StackArgumentTypes);
+  if (!llvm::isPowerOf2_64(FullAlignment)) {
     revng_log(Log,
               "The natural alignment of a type is not a power of two:\n"
-                << serializeToString(Types.Fields().begin()->Type()));
+                << serializeToString(Stack));
     return std::nullopt;
   }
 
-  // Process each of the fields (except for the very last one),
-  // converting them into arguments separately.
+  // If the struct is empty, it indicates that there are no stack arguments.
+  if (Stack.size() == 0) {
+    revng_assert(Stack.Fields().empty());
+    return llvm::SmallVector<model::Argument, 8>{};
+  }
+
+  // Compute the alignment of the first argument.
+  std::uint64_t FirstAlignment = *ABI.alignment(Stack.Fields().begin()->Type());
+  if (!llvm::isPowerOf2_64(FirstAlignment)) {
+    revng_log(Log,
+              "The natural alignment of a type is not a power of two:\n"
+                << serializeToString(Stack.Fields().begin()->Type()));
+    return std::nullopt;
+  }
+
+  // Define a helper used for finding padding holes.
+  const std::uint64_t PointerSize = model::ABI::getPointerSize(ABI.ABI());
+  auto VerifyAlignment = [this](uint64_t CurrentOffset,
+                                uint64_t CurrentSize,
+                                uint64_t NextOffset,
+                                uint64_t NextAlignment) -> bool {
+    std::uint64_t PaddedSize = ABI.paddedSizeOnStack(CurrentSize);
+
+    OverflowSafeInt Offset = CurrentOffset;
+    Offset += PaddedSize;
+    if (!Offset) {
+      // Abandon if offset overflows.
+      revng_log(Log, "Error: Integer overflow when calculating field offsets.");
+      return false;
+    }
+
+    if (*Offset == NextOffset) {
+      // Offsets are the same, the next field makes sense.
+      return true;
+    } else if (*Offset < NextOffset) {
+      std::uint64_t AlignmentDelta = NextAlignment - *Offset % NextAlignment;
+      if (*Offset + AlignmentDelta == NextOffset) {
+        // Accounting for the next field's alignment solves it,
+        // the next field makes sense.
+        return true;
+      } else {
+        revng_log(Log,
+                  "The natural alignment of a type would make it impossible "
+                  "to represent as CABI: there would have to be a hole between "
+                  "two arguments. Abandon the conversion.");
+        // TODO: we probably want to preprocess such functions and manually
+        //       "fill" the holes in before attempting the conversion.
+        return false;
+      }
+    } else {
+      revng_log(Log,
+                "The natural alignment of a type would make it impossible "
+                "to represent as CABI: the arguments (including the padding) "
+                "would have to overlap. Abandon the conversion.");
+      return false;
+    }
+  };
+
   llvm::SmallVector<model::Argument, 8> Result;
-  for (auto Iterator = Types.Fields().begin();
-       Iterator != std::prev(Types.Fields().end());
-       ++Iterator) {
-    const model::StructField &CurrentArgument = *Iterator;
+
+  // Look at all the fields pair-wise, converting them into arguments.
+  const auto &Range = llvm::zip(skip_back(Stack.Fields()),
+                                skip_front(Stack.Fields()));
+  for (const auto &[CurrentArgument, NextArgument] : Range) {
     std::optional<std::uint64_t> MaybeSize = CurrentArgument.Type().size();
     revng_assert(MaybeSize.has_value() && MaybeSize.value() != 0);
 
-    const std::uint64_t RegisterSize = model::ABI::getPointerSize(ABI.ABI());
-    uint64_t CurrentSize = paddedSizeOnStack(MaybeSize.value(), RegisterSize);
-
-    const model::StructField &NextArgument = *std::next(Iterator);
     std::uint64_t NextAlignment = *ABI.alignment(NextArgument.Type());
     if (!llvm::isPowerOf2_64(NextAlignment)) {
       revng_log(Log,
@@ -283,20 +328,10 @@ TCC::tryConvertingStackArguments(model::QualifiedType StackArgumentTypes,
       return std::nullopt;
     }
 
-    OverflowSafeInt Offset = CurrentArgument.Offset();
-    Offset += CurrentSize;
-    if (!Offset) {
-      // Abandon if offset overflows.
-      revng_log(Log, "Integer overflow when calculating field offsets.");
-      return std::nullopt;
-    }
-
-    if (*Offset != NextArgument.Offset() || *Offset % NextAlignment != 0) {
-      revng_log(Log,
-                "The natural alignment of a type would make it impossible "
-                "to represent as CABI, abandon the conversion.\nTODO: we "
-                "might want to preprocess such functions and manually "
-                "\"fill\" the holes in before attempting the conversion.");
+    if (!VerifyAlignment(CurrentArgument.Offset(),
+                         MaybeSize.value(),
+                         NextArgument.Offset(),
+                         NextAlignment)) {
       return std::nullopt;
     }
 
@@ -307,12 +342,10 @@ TCC::tryConvertingStackArguments(model::QualifiedType StackArgumentTypes,
 
     // TODO: ensure that the type is in fact naturally aligned
     New.Type() = CurrentArgument.Type();
-
-    CurrentAlignment = NextAlignment;
   }
 
-  // And don't forget the very last field.
-  const model::StructField &LastArgument = *std::prev(Types.Fields().end());
+  // And don't forget to convert the very last field.
+  const model::StructField &LastArgument = *std::prev(Stack.Fields().end());
   model::Argument &New = Result.emplace_back();
   model::copyMetadata(New, LastArgument);
   New.Index() = IndexOffset++;
@@ -320,12 +353,16 @@ TCC::tryConvertingStackArguments(model::QualifiedType StackArgumentTypes,
   // TODO: ensure that the type is in fact naturally aligned
   New.Type() = LastArgument.Type();
 
-  // Make sure the size does not contradict the final alignment.
-  std::uint64_t FullAlignment = *ABI.alignment(StackArgumentTypes);
-  if (!llvm::isPowerOf2_64(FullAlignment)) {
+  // Leave a warning in the cases when there's a hole after the very last field.
+  std::optional<std::uint64_t> LastSize = LastArgument.Type().size();
+  revng_assert(LastSize.has_value() && LastSize.value() != 0);
+  if (!VerifyAlignment(LastArgument.Offset(),
+                       LastSize.value(),
+                       Stack.Size(),
+                       FullAlignment)) {
     revng_log(Log,
               "The natural alignment of a type is not a power of two:\n"
-                << serializeToString(Types));
+                << serializeToString(Stack));
     return std::nullopt;
   }
 
