@@ -127,7 +127,7 @@ void testSet() {
   // Test batch_insert
   {
     auto Inserter = Set.batch_insert();
-    Inserter.insert({ 0x1000, 0x2222 });
+    Inserter.insert({ 0x1100, 0x2222 });
     Inserter.insert({ 0x900, 0x1111 });
   }
   revng_check(Set[0x1000].value() == 0xDEADDEAD);
@@ -137,10 +137,11 @@ void testSet() {
   {
     auto Inserter = Set.batch_insert_or_assign();
     Inserter.insert_or_assign({ 0x1000, 0x2222 });
-    Inserter.insert_or_assign({ 0x900, 0x1111 });
+    Inserter.insert_or_assign({ 0x900, 0x3333 });
   }
   revng_check(Set[0x1000].value() == 0x2222);
-  revng_check(Set[0x900].value() == 0x1111);
+  revng_check(Set[0x1100].value() == 0x2222);
+  revng_check(Set[0x900].value() == 0x3333);
 
   // Test clear
   Set.clear();
