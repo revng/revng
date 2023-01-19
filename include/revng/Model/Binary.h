@@ -119,6 +119,36 @@ public:
 
   model::TypePath recordNewType(UpcastablePointer<Type> &&T);
 
+  /// Uses `SortedVector::batch_insert()` to emplace all the elements from
+  /// \ref NewTypes range into the `Types()` set.
+  ///
+  /// This inserts all the elements at the end of the underlying vector, and
+  /// then triggers sorting, instead of conventional searching for the position
+  /// of each element on its insertion.
+  ///
+  /// \note It takes advantage of `std::move_iterator` to ensure all
+  ///       the elements are accessed strictly as r-values, so the original
+  ///       container, \ref NewTypes range points to, is left in an unspecified
+  ///       state after the invocation, as all of its elements are moved out of.
+  ///
+  /// \note Since it uses strict version of `batch-insert`'er, it will assert
+  ///       if this causes multiple elements with the same key (\ref Type::Key)
+  ///       to be present in the vector after the new elements are moved in.
+  ///
+  /// \tparam Range constrained input range type.
+  /// \param  NewTypes the input range.
+  template<ranges::range_with_value_type<UpcastablePointer<Type>> Range>
+  void recordNewTypes(Range &&NewTypes) {
+    auto Inserter = Types().batch_insert();
+
+    static_assert(std::is_rvalue_reference_v<decltype(NewTypes)>);
+    auto Movable = ranges::views::as_rvalue(std::move(NewTypes));
+    for (UpcastablePointer<Type> &&NewType : Movable) {
+      static_assert(std::is_rvalue_reference_v<decltype(NewType)>);
+      Inserter.emplace(std::move(NewType));
+    }
+  }
+
   template<derived_from<model::Type> NewType, typename... ArgumentTypes>
   [[nodiscard]] std::pair<NewType &, model::TypePath>
   makeType(ArgumentTypes &&...Arguments) {
