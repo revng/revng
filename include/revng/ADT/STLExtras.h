@@ -5,6 +5,7 @@
 //
 
 #include <array>
+#include <iterator>
 #include <optional>
 #include <set>
 #include <string_view>
@@ -151,13 +152,113 @@ using MapToValueIteratorType = decltype(mapToValueIterator(std::declval<T>()));
 
 } // namespace revng
 
-template<typename C>
-inline auto skip(unsigned ToSkip, C &&Container)
-  -> llvm::iterator_range<decltype(Container.begin())> {
-  auto Begin = std::begin(Container);
-  while (ToSkip-- > 0)
-    Begin++;
-  return llvm::make_range(Begin, std::end(Container));
+//
+// skip
+//
+
+namespace revng::detail {
+
+// Remove these incomplete iterator testers after we update to libc++-13+
+// with standard library concept support.
+// NOTE: they are VERY basic, don't rely on them too much.
+
+template<typename Iterator>
+using Category = typename std::iterator_traits<Iterator>::iterator_category;
+
+template<typename Iterator>
+concept InputOnly = std::is_same_v<Category<Iterator>, std::input_iterator_tag>;
+template<typename Iterator>
+concept OutputOnly = std::is_same_v<Category<Iterator>,
+                                    std::output_iterator_tag>;
+template<typename Iterator>
+concept ForwardOnly = std::is_same_v<Category<Iterator>,
+                                     std::forward_iterator_tag>;
+template<typename Iterator>
+concept BidirectionalOnly = std::is_same_v<Category<Iterator>,
+                                           std::bidirectional_iterator_tag>;
+template<typename Iterator>
+concept RandomAccessOnly = std::is_same_v<Category<Iterator>,
+                                          std::random_access_iterator_tag>;
+template<typename Iterator>
+concept ContiguousOnly = std::is_same_v<Category<Iterator>,
+                                        std::contiguous_iterator_tag>;
+
+// clang-format off
+template<typename Iterator>
+concept contiguous_iterator = ContiguousOnly<Iterator>;
+template<typename Iterator>
+concept random_access_iterator = contiguous_iterator<Iterator>
+                                 || RandomAccessOnly<Iterator>;
+template<typename Iterator>
+concept bidirectional_iterator = random_access_iterator<Iterator>
+                                 || BidirectionalOnly<Iterator>;
+template<typename Iterator>
+concept forward_iterator = bidirectional_iterator<Iterator>
+                           || ForwardOnly<Iterator>;
+template<typename Iterator>
+concept input_iterator = forward_iterator<Iterator> || InputOnly<Iterator>;
+template<typename Iterator>
+concept input_or_output_iterator = input_iterator<Iterator>
+                                   || OutputOnly<Iterator>;
+// clang-format on
+
+template<typename IteratorType>
+inline auto
+skipImpl(IteratorType &&From,
+         IteratorType &&To,
+         std::size_t Front = 0,
+         std::size_t Back = 0) -> llvm::iterator_range<IteratorType> {
+
+  std::ptrdiff_t TotalSkippedCount = Front + Back;
+  if constexpr (forward_iterator<IteratorType>) {
+    // We cannot compute the assert on the input iterators because it's
+    // going to consume them.
+    revng_assert(std::distance(From, To) >= TotalSkippedCount);
+  }
+
+  std::decay_t<IteratorType> Begin{ From };
+  std::advance(Begin, Front);
+
+  std::decay_t<IteratorType> End{ To };
+  std::advance(End, -(std::ptrdiff_t) Back);
+
+  return llvm::make_range(std::move(Begin), std::move(End));
+}
+
+template<bidirectional_iterator T>
+inline decltype(auto)
+skip(T &&From, T &&To, std::size_t Front = 0, std::size_t Back = 0) {
+  return skipImpl(std::forward<T>(From), std::forward<T>(To), Front, Back);
+}
+
+template<input_iterator T>
+inline decltype(auto) // NOLINTNEXTLINE
+skip_front(T &&From, T &&To, std::size_t SkippedCount = 1) {
+  return skipImpl(std::forward<T>(From), std::forward<T>(To), SkippedCount, 0);
+}
+
+template<bidirectional_iterator T>
+inline decltype(auto) // NOLINTNEXTLINE
+skip_back(T &&From, T &&To, std::size_t SkippedCount = 1) {
+  return skipImpl(std::forward<T>(From), std::forward<T>(To), 0, SkippedCount);
+}
+
+} // namespace revng::detail
+
+template<ranges::range T>
+inline decltype(auto)
+skip(T &&Range, std::size_t Front = 0, std::size_t Back = 0) {
+  return revng::detail::skip(Range.begin(), Range.end(), Front, Back);
+}
+
+template<ranges::range T> // NOLINTNEXTLINE
+inline decltype(auto) skip_front(T &&Range, std::size_t SkippedCount = 1) {
+  return revng::detail::skip_front(Range.begin(), Range.end(), SkippedCount);
+}
+
+template<ranges::range T> // NOLINTNEXTLINE
+inline decltype(auto) skip_back(T &&Range, std::size_t SkippedCount = 1) {
+  return revng::detail::skip_back(Range.begin(), Range.end(), SkippedCount);
 }
 
 //
