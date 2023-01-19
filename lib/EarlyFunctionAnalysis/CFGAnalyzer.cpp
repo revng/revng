@@ -991,7 +991,6 @@ void CallSummarizer::handleCall(MetaAddress CallerBlock,
                                 llvm::Value *SymbolNamePointer) {
   using namespace llvm;
   LLVMContext &Context = getContext(M);
-  (void)(Oracle);
 
   // Mark end of basic block with a pre-hook call
   StructType *MetaAddressTy = MetaAddress::getStruct(M);
@@ -1005,7 +1004,19 @@ void CallSummarizer::handleCall(MetaAddress CallerBlock,
 
   Builder.CreateCall(PreCallHook, Args);
 
+  const auto &CalleeSummary = Oracle.getLocalFunction(Callee);
+  const auto ABIResults = CalleeSummary.ABIResults;
+
+  for (const auto &[Variable, Values] : ABIResults.ArgumentsRegisters) {
+    // inject artificial write (weak_write)
+  }
+
   clobberCSVs(Builder, ClobberedRegisters);
+
+  for (const auto &[Variable, Values] : ABIResults.ReturnValuesRegisters) {
+    // inject artificial read (weak_read)
+  }
+
 
   // Adjust back the stack pointer
   if (not IsTailCall) {

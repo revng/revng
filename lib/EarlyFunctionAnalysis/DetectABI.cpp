@@ -143,7 +143,10 @@ public:
 
     for (const auto &Node :
          llvm::ReversePostOrderTraversal(ApproximateCallGraph.getEntryNode())) {
-        analyzeABI(GCBI.getBlockAt(Node->Address));
+        const auto &Addr = Node->Address;
+        if (Addr.isValid()) {
+            analyzeABI(GCBI.getBlockAt(Addr));
+        }
     }
 
     // Propagate results between call-sites and functions
