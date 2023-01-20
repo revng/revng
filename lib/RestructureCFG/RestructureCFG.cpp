@@ -1107,6 +1107,11 @@ bool restructureCFG(Function &F, ASTTree &AST) {
     revng_assert(CollapsedGraph.isDAG());
   }
 
+  // After the restructuring of all the metaregions, we need to ensure that all
+  // the backedges contained in the `Backedges` global set have been taken care
+  // of.
+  revng_assert(Backedges.empty());
+
   // Serialize the newly collapsed SCS region.
   if (CombLogger.isEnabled()) {
     CombLogger << "Dumping main graph before final purge\n";
