@@ -903,7 +903,7 @@ bool restructureCFG(Function &F, ASTTree &AST) {
     {
       std::map<BasicBlockNodeBB *, BasicBlockNodeBB *> BackedgeToSucc;
       for (BasicBlockNodeBB *Succ : Successors) {
-        if (Succ->isEmpty() and Succ->successor_size()) {
+        if (Succ->isEmpty()) {
           revng_assert(Succ->successor_size() == 1);
           BasicBlockNodeBB *BackedgeTgt = *Succ->successors().begin();
           // Lookup if wa have already found this backedge target from another
@@ -917,6 +917,13 @@ bool restructureCFG(Function &F, ASTTree &AST) {
             // If we have, map thie successor to the old successor we've found
             // with the same backedge target.
             DeduplicationMap[Succ] = It->second;
+
+            // If we are following this way of collapsing the successors edges,
+            // it means tha we are collapsing two different retreatings edges
+            // on a single retreating, so a backedge entry will remain in the
+            // global `Backedges` set as a ghost entry, and we need to take
+            // care of removing it now.
+            Backedges.erase({ Succ, BackedgeTgt });
           }
         } else {
           DeduplicatedRegionSuccessors.insert(Succ);
