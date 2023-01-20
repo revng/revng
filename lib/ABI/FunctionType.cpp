@@ -8,6 +8,7 @@
 #include <unordered_set>
 
 #include "revng/ABI/FunctionType.h"
+#include "revng/ABI/FunctionType/Support.h"
 #include "revng/ABI/RegisterOrder.h"
 #include "revng/ABI/RegisterStateDeductions.h"
 #include "revng/ABI/Trait.h"
@@ -54,21 +55,6 @@ bool verify(const SortedVector<RegisterType> &UsedRegisters,
   return true;
 }
 
-constexpr static model::PrimitiveTypeKind::Values
-selectTypeKind(model::Register::Values) {
-  // TODO: implement a way to determine the register type. At the very least
-  // we should be able to differentiate GPRs from the vector registers.
-
-  return model::PrimitiveTypeKind::PointerOrNumber;
-}
-
-static model::QualifiedType
-buildType(model::Register::Values Register, model::Binary &Binary) {
-  model::PrimitiveTypeKind::Values Kind = selectTypeKind(Register);
-  size_t Size = model::Register::getSize(Register);
-  return model::QualifiedType(Binary.getPrimitiveType(Kind, Size), {});
-}
-
 static model::QualifiedType
 buildGenericType(model::Register::Values Register, model::Binary &Binary) {
   constexpr auto Kind = model::PrimitiveTypeKind::Generic;
@@ -100,23 +86,6 @@ static model::QualifiedType getTypeOrDefault(const model::QualifiedType &Type,
     return Type;
   else
     return buildType(Register, Binary);
-}
-
-static void replaceReferences(const model::Type::Key &OldKey,
-                              const model::TypePath &NewTypePath,
-                              TupleTree<model::Binary> &Model) {
-  auto Visitor = [&](model::TypePath &Visited) {
-    if (!Visited.isValid())
-      return; // Ignore empty references
-
-    model::Type *Current = Visited.get();
-    revng_assert(Current != nullptr);
-
-    if (Current->key() == OldKey)
-      Visited = NewTypePath;
-  };
-  Model.visitReferences(Visitor);
-  Model->Types().erase(OldKey);
 }
 
 /// A helper used to differentiate vector registers.
@@ -307,7 +276,8 @@ public:
         // Compute the full size of the argument (including padding if needed).
         auto MaybeSize = Argument.Type().size();
         revng_assert(MaybeSize.has_value() && MaybeSize.value() != 0);
-        CombinedStackArgumentSize += paddedSizeOnStack(MaybeSize.value());
+        CombinedStackArgumentSize += paddedSizeOnStack(MaybeSize.value(),
+                                                       RegisterSize);
       }
     }
 
@@ -439,26 +409,6 @@ public:
   }
 
 private:
-  /// Takes care of extending (padding) the size of a stack argument.
-  ///
-  /// \note This only accounts for the post-padding (extension).
-  ///       Pre-padding (offset) needs to be taken care of separately.
-  ///
-  /// \param RealSize The size of the argument without the padding.
-  ///
-  /// \return The size of the argument with the padding.
-  static uint64_t paddedSizeOnStack(uint64_t RealSize) {
-    if (RealSize <= RegisterSize) {
-      RealSize = RegisterSize;
-    } else {
-      static_assert((RegisterSize & (RegisterSize - 1)) == 0);
-      RealSize += RegisterSize - 1;
-      RealSize &= ~(RegisterSize - 1);
-    }
-
-    return RealSize;
-  }
-
   template<typename RegisterType, size_t RegisterCount, bool DryRun = false>
   static std::optional<llvm::SmallVector<model::Argument, 8>>
   convertArguments(const SortedVector<RegisterType> &UsedRegisters,
@@ -661,14 +611,16 @@ private:
           auto Register = AT::VectorArgumentRegisters[RegisterIndex];
           Distributed.Registers.emplace_back(Register);
         } else {
-          Distributed.SizeOnStack = paddedSizeOnStack(Distributed.Size);
+          Distributed.SizeOnStack = paddedSizeOnStack(Distributed.Size,
+                                                      RegisterSize);
         }
       } else {
         if (RegisterIndex < AT::GeneralPurposeArgumentRegisters.size()) {
           auto Reg = AT::GeneralPurposeArgumentRegisters[RegisterIndex];
           Distributed.Registers.emplace_back(Reg);
         } else {
-          Distributed.SizeOnStack = paddedSizeOnStack(Distributed.Size);
+          Distributed.SizeOnStack = paddedSizeOnStack(Distributed.Size,
+                                                      RegisterSize);
         }
       }
     }
@@ -723,7 +675,7 @@ private:
     }
 
     if (DA.SizeOnStack != 0)
-      DA.SizeOnStack = paddedSizeOnStack(DA.SizeOnStack);
+      DA.SizeOnStack = paddedSizeOnStack(DA.SizeOnStack, RegisterSize);
 
     return { DA, ConsideredRegisterCounter };
   }
@@ -767,7 +719,9 @@ private:
           if (Result.size() <= Argument.Index())
             Result.resize(Argument.Index() + 1);
           Result[Argument.Index()].Size = *MaybeSize;
-          Result[Argument.Index()].SizeOnStack = paddedSizeOnStack(*MaybeSize);
+          static constexpr std::size_t RS = RegisterSize;
+          Result[Argument.Index()].SizeOnStack = paddedSizeOnStack(*MaybeSize,
+                                                                   RS);
         }
       } else {
         static constexpr auto &Registers = AT::GeneralPurposeArgumentRegisters;
