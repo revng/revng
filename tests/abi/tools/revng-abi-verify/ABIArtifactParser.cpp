@@ -7,7 +7,7 @@
 
 #include <algorithm>
 
-#include "revng/ABI/FunctionType.h"
+#include "revng/ABI/FunctionType/Layout.h"
 #include "revng/Model/Binary.h"
 
 #include "ABIArtifactParser.h"

@@ -19,7 +19,7 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 #include "revng/ABI/DefaultFunctionPrototype.h"
-#include "revng/ABI/FunctionType.h"
+#include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ADT/LazySmallBitVector.h"
 #include "revng/ADT/SmallMap.h"
 #include "revng/EarlyFunctionAnalysis/CallEdge.h"
