@@ -7,7 +7,8 @@
 
 #include "llvm/Support/CommandLine.h"
 
-#include "revng/ABI/FunctionType.h"
+#include "revng/ABI/FunctionType/Conversion.h"
+#include "revng/ABI/FunctionType/Layout.h"
 #include "revng/Model/Pass/ConvertFunctionTypes.h"
 #include "revng/Model/Pass/RegisterModelPass.h"
 

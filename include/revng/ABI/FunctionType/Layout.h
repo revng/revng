@@ -5,12 +5,15 @@
 //
 
 #include "revng/Model/Binary.h"
-#include "revng/Model/QualifiedType.h"
-#include "revng/Model/Type.h"
-#include "revng/Model/Types.h"
-#include "revng/Support/Generator.h"
 
 namespace abi::FunctionType {
+
+/// Best effort `CABIFunctionType` to `RawFunctionType` conversion.
+///
+/// \note: this conversion is lossy since there's no way to represent some types
+///        in `RawFunctionType` in a reversible manner.
+model::TypePath convertToRaw(const model::CABIFunctionType &Function,
+                             TupleTree<model::Binary> &TheBinary);
 
 namespace ArgumentKind {
 
@@ -35,21 +38,6 @@ inline const char *getName(Values Kind) {
 }
 
 } // end namespace ArgumentKind
-
-/// Best effort `CABIFunctionType` to `RawFunctionType` conversion.
-///
-/// If `ABI` is not specified, `TheBinary.DefaultABI` is used instead.
-std::optional<model::TypePath>
-tryConvertToCABI(const model::RawFunctionType &Function,
-                 TupleTree<model::Binary> &TheBinary,
-                 std::optional<model::ABI::Values> ABI = std::nullopt);
-
-/// Best effort `RawFunctionType` to `CABIFunctionType` conversion.
-///
-/// \note: this conversion is lossy since there's no way to represent some types
-///        in `RawFunctionType` in a reversible manner.
-model::TypePath convertToRaw(const model::CABIFunctionType &Function,
-                             TupleTree<model::Binary> &TheBinary);
 
 /// Indicates the layout of arguments and return values of a function.
 struct Layout {
