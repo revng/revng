@@ -797,6 +797,13 @@ bool restructureCFG(Function &F, ASTTree &AST) {
     for (BasicBlockNodeBB *Node : Meta->nodes()) {
       if (Node != Head) {
         BasicBlockNodeBB *Clone = RootCFG.cloneNode(*Node);
+
+        // In case we are cloning nodes that may become entry candidates of
+        // regions, we need to assing to them a value in the
+        // `ShortestPathFromEntry` map.
+        if (Node->isCollapsed() or Node->isCode()) {
+          ShortestPathFromEntry[Clone] = ShortestPathFromEntry.at(Node);
+        }
         Clone->setName(Node->getName().str() + " outlined");
         ClonedMap[Node] = Clone;
 
@@ -986,6 +993,10 @@ bool restructureCFG(Function &F, ASTTree &AST) {
 
     // Create the collapsed node in the outer region.
     BasicBlockNodeBB *Collapsed = RootCFG.createCollapsedNode(&CollapsedGraph);
+
+    // A collapsed node may become a candidate entry for an outer cyclic region
+    // so we need to assign to it a value in the `ShortestPathFromEntry` map.
+    ShortestPathFromEntry[Collapsed] = ShortestPathFromEntry[Head];
 
     {
       // Update the backedges set, checking that if a backedge of an outer
