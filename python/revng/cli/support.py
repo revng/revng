@@ -47,7 +47,11 @@ def wrap(args: List[str], command_prefix: List[str]):
 
 
 def relative(path: str) -> str:
-    return os.path.relpath(path, os.getcwd())
+    relative_path = os.path.relpath(path, os.getcwd())
+    if len(relative_path) < len(path):
+        return relative_path
+    else:
+        return path
 
 
 def try_run(
