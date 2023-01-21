@@ -121,6 +121,7 @@ def handle_asan(dependencies: Iterable[str], search_prefixes: Iterable[str]) -> 
     else:
         asan_options = {}
     asan_options["abort_on_error"] = "1"
+    asan_options["detect_leaks"] = "0"
     new_asan_options = ":".join(["=".join(option) for option in asan_options.items()])
 
     # Use `sh` instead of `env` since `env` sometimes is not a real executable
