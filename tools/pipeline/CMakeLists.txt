@@ -4,8 +4,7 @@
 
 revng_add_executable(revng-pipeline Main.cpp)
 
-target_link_libraries(revng-pipeline revngPipeline revngPipes revngRecompile
-                      revngEarlyFunctionAnalysis)
+target_link_libraries(revng-pipeline revngPipeline revngPipes)
 
 add_subdirectory(invalidate)
 add_subdirectory(artifact)
