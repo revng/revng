@@ -298,7 +298,12 @@ class MyPyPass(SingleCommandPass):
                 script_files.append(filepath)
             else:
                 normal_files.append(filepath)
-        runs = [await super().process({f: "" for f in normal_files}, args)]
+
+        runs = []
+
+        if normal_files:
+            runs.append(await super().process({f: "" for f in normal_files}, args))
+
         for script in script_files:
             runs.append(await super().process({script: ""}, args))
         return PassResult.combine(*runs)
