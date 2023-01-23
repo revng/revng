@@ -17,7 +17,7 @@
 //
 
 // clang-format off
-template<class Derived, class Base>
+template<typename Derived, typename Base>
 concept derived_from = std::is_base_of_v<Base, Derived>
                        && std::is_convertible_v<const volatile Derived *,
                                                 const volatile Base *>;
@@ -29,10 +29,24 @@ concept convertible_to = std::is_convertible_v<T, U>;
 template<typename T>
 concept integral = std::is_integral_v<T>;
 
-template<class T>
+template<typename T>
 concept equality_comparable = requires(T &&LHS, T &&RHS) {
   { LHS == RHS } -> convertible_to<bool>;
 };
+
+// clang-format off
+template<typename F, typename... Args>
+concept invocable = requires(F&& Function, Args &&...Arguments) {
+  std::invoke(std::forward<F>(Function), std::forward<Args>(Arguments)...);
+};
+
+// NOTE: this is supposed to use `std::regular_invocable`, but the difference
+//       is not major in most cases, so use `invocable` until we update libc++.
+template<typename F, typename... Args>
+concept predicate = invocable<F, Args...>
+                    && std::is_convertible_v<std::invoke_result_t<F, Args...>,
+                                             bool>;
+// clang-format on
 
 /// TODO: Remove after updating to clang-format with concept support.
 struct ClangFormatPleaseDoNotBreakMyCode;
