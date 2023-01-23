@@ -973,10 +973,15 @@ CallSummarizer::CallSummarizer(llvm::Module *M,
   RetHook(RetHook),
   SPCSV(SPCSV),
   Oracle(Oracle),
-  RegistersClobberedPool(M, false) {
+  RegistersClobberedPool(M, false),
+  WeakReadWritePools(M, false) {
   RegistersClobberedPool.addFnAttribute(llvm::Attribute::ReadOnly);
   RegistersClobberedPool.addFnAttribute(llvm::Attribute::NoUnwind);
   RegistersClobberedPool.addFnAttribute(llvm::Attribute::WillReturn);
+
+  WeakReadWritePools.addFnAttribute(llvm::Attribute::ReadOnly);
+  WeakReadWritePools.addFnAttribute(llvm::Attribute::NoUnwind);
+  WeakReadWritePools.addFnAttribute(llvm::Attribute::WillReturn);
 }
 
 using CSVSet = std::set<llvm::GlobalVariable *>;
@@ -1004,17 +1009,31 @@ void CallSummarizer::handleCall(MetaAddress CallerBlock,
 
   Builder.CreateCall(PreCallHook, Args);
 
-  const auto &CalleeSummary = Oracle.getLocalFunction(Callee);
-  const auto ABIResults = CalleeSummary.ABIResults;
+  const FunctionSummary &CalleeSummary = Oracle.getLocalFunction(Callee);
+  const auto &ABIResults = CalleeSummary.ABIResults;
 
-  for (const auto &[Variable, Values] : ABIResults.ArgumentsRegisters) {
-    // inject artificial write (weak_write)
+
+  for (auto &[Variable, Values] : ABIResults.ArgumentsRegisters) {
+    if (Values == abi::RegisterState::Yes) {
+      // inject artificial write (weak_write)
+      auto Ty = llvm::FunctionType::get(llvm::Type::getVoidTy(Context), { Variable->getType() }, false);
+      auto F = WeakReadWritePools.get(Variable->getType(), Ty, "weak_write");
+      FunctionCallee FC(F->getFunctionType(), F);
+      auto Register = M->getNamedGlobal(Variable->getName());
+      Builder.CreateCall(FC, { Register });
+    }
   }
 
   clobberCSVs(Builder, ClobberedRegisters);
 
-  for (const auto &[Variable, Values] : ABIResults.ReturnValuesRegisters) {
-    // inject artificial read (weak_read)
+  for (const auto &[Variable, Values] : ABIResults.FinalReturnValuesRegisters) {
+    if (Values == abi::RegisterState::Yes) {
+      auto Ty = llvm::FunctionType::get(llvm::Type::getVoidTy(Context), { Variable->getType() }, false);
+      auto F = WeakReadWritePools.get(Variable->getType(), Ty, "weak_read");
+      FunctionCallee FC(F->getFunctionType(), F);
+      auto Register = M->getNamedGlobal(Variable->getName());
+      Builder.CreateCall(FC, { Register });
+    }
   }
 
 

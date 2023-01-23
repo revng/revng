@@ -33,6 +33,7 @@ private:
   llvm::GlobalVariable *SPCSV = nullptr;
   const FunctionSummaryOracle &Oracle;
   OpaqueFunctionsPool<llvm::StringRef> RegistersClobberedPool;
+  OpaqueFunctionsPool<llvm::Type *> WeakReadWritePools;
 
 public:
   CallSummarizer(llvm::Module *M,

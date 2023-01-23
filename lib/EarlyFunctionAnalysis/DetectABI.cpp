@@ -141,10 +141,9 @@ public:
     // traversal (leafs first).
     runInterproceduralAnalysis();
 
-    for (const auto &Node :
-         llvm::ReversePostOrderTraversal(ApproximateCallGraph.getEntryNode())) {
+    for (const auto &Node : post_order(ApproximateCallGraph.getEntryNode())) {
         const auto &Addr = Node->Address;
-        if (Addr.isValid()) {
+        if (Node != ApproximateCallGraph.getEntryNode()) {
             analyzeABI(GCBI.getBlockAt(Addr));
         }
     }
