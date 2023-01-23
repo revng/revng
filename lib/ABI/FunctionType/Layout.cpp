@@ -248,8 +248,12 @@ public:
     auto Ptr = UT::make<model::RawFunctionType>(std::move(Result));
     auto NewTypePath = Binary->recordNewType(std::move(Ptr));
 
-    // Replace all references to the old type with references to the new one.
-    replaceReferences(Function.key(), NewTypePath, Binary);
+    // To finish up the conversion, remove all the references to the old type by
+    // carefully replacing them with references to the new one.
+    replaceAllUsesWith(Function.key(), NewTypePath, Binary);
+
+    // And don't forget to remove the old type.
+    Binary->Types().erase(Function.key());
 
     return NewTypePath;
   }

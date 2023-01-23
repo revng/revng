@@ -25,9 +25,17 @@ buildType(model::Register::Values Register, model::Binary &Binary) {
   return model::QualifiedType(Binary.getPrimitiveType(Kind, Size), {});
 }
 
-void replaceReferences(const model::Type::Key &OldKey,
-                       const model::TypePath &NewTypePath,
-                       TupleTree<model::Binary> &Model);
+/// Replace all the references to `OldKey` with the references to
+/// the newly added `NewType`. It also erases the old type.
+///
+/// \param OldKey The type references of which should be replaced.
+/// \param NewTypePath The reference to a type references should be replaced to.
+/// \param Model The tuple tree where replacement should take place in.
+///
+/// \return The new path to the added type.
+const model::TypePath &replaceAllUsesWith(const model::Type::Key &OldKey,
+                                          const model::TypePath &NewTypePath,
+                                          TupleTree<model::Binary> &Model);
 
 /// Takes care of extending (padding) the size of a stack argument.
 ///
