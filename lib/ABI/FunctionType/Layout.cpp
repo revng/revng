@@ -91,7 +91,7 @@ class ConversionHelper {
   };
   using DistributedArguments = llvm::SmallVector<DistributedArgument, 4>;
 
-  using ArgumentContainer = SortedVector<model::Argument>;
+  using ArgumentSet = SortedVector<model::Argument>;
 
 public:
   static model::TypePath toRaw(const model::CABIFunctionType &Function,
@@ -280,7 +280,7 @@ public:
 
 private:
   static DistributedArguments
-  distributePositionBasedArguments(const ArgumentContainer &Arguments,
+  distributePositionBasedArguments(const ArgumentSet &Arguments,
                                    std::size_t SkippedRegisters = 0) {
     DistributedArguments Result;
 
@@ -369,7 +369,7 @@ private:
   }
 
   static DistributedArguments
-  distributeNonPositionBasedArguments(const ArgumentContainer &Arguments,
+  distributeNonPositionBasedArguments(const ArgumentSet &Arguments,
                                       std::size_t SkippedRegisters = 0) {
     DistributedArguments Result;
     size_t UsedGeneralPurposeRegisterCount = SkippedRegisters;
@@ -447,7 +447,7 @@ private:
 
 public:
   static DistributedArguments
-  distributeArguments(const ArgumentContainer &Arguments,
+  distributeArguments(const ArgumentSet &Arguments,
                       bool PassesReturnValueLocationAsAnArgument) {
     bool SkippedRegisters = 0;
     if (PassesReturnValueLocationAsAnArgument == true) {
