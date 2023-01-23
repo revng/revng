@@ -4,8 +4,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <concepts>
+
 #include "llvm/Support/MathExtras.h"
 
+#include "revng/ADT/Concepts.h"
+#include "revng/ADT/STLExtras.h"
 #include "revng/Model/Binary.h"
 
 namespace abi::FunctionType {
@@ -42,6 +46,21 @@ paddedSizeOnStack(uint64_t RealSize, uint64_t RegisterSize) {
   RealSize &= ~(RegisterSize - 1);
 
   return RealSize;
+}
+
+/// Filters a list of upcastable types.
+///
+/// \tparam DerivedType The desired type to filter based on
+/// \param Types The list of types to filter
+/// \return filtered list
+template<derived_from<model::Type> DerivedType>
+std::vector<DerivedType *>
+filterTypes(SortedVector<UpcastablePointer<model::Type>> &Types) {
+  std::vector<DerivedType *> Result;
+  for (model::UpcastableType &Type : Types)
+    if (auto *Upscaled = llvm::dyn_cast<DerivedType>(Type.get()))
+      Result.emplace_back(Upscaled);
+  return Result;
 }
 
 } // namespace abi::FunctionType
