@@ -6,24 +6,22 @@
 //
 
 #include "revng/ABI/FunctionType/Support.h"
+#include "revng/TupleTree/TupleTree.h"
 
 namespace abi::FunctionType {
 
-void replaceReferences(const model::Type::Key &OldKey,
-                       const model::TypePath &NewTypePath,
-                       TupleTree<model::Binary> &Model) {
-  auto Visitor = [&](model::TypePath &Visited) {
-    if (!Visited.isValid())
-      return; // Ignore empty references
+const model::TypePath &replaceAllUsesWith(const model::Type::Key &OldKey,
+                                          const model::TypePath &NewTypePath,
+                                          TupleTree<model::Binary> &Model) {
+  auto CheckTheKey = [&OldKey](const model::TypePath &Reference) -> bool {
+    if (!Reference.isValid())
+      return false;
 
-    model::Type *Current = Visited.get();
-    revng_assert(Current != nullptr);
-
-    if (Current->key() == OldKey)
-      Visited = NewTypePath;
+    return OldKey == Reference.getConst()->key();
   };
-  Model.visitReferences(Visitor);
-  Model->Types().erase(OldKey);
+  Model.replaceReferencesIf(NewTypePath, CheckTheKey);
+
+  return NewTypePath;
 }
 
 } // namespace abi::FunctionType
