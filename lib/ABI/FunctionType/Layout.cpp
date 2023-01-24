@@ -14,6 +14,9 @@
 #include "revng/ADT/SmallMap.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Helpers.h"
+#include "revng/Support/Debug.h"
+
+static Logger Log("function-type-conversion-to-raw");
 
 namespace abi::FunctionType {
 
@@ -135,6 +138,9 @@ static model::QualifiedType chooseType(const model::QualifiedType &ArgumentType,
 model::TypePath
 ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
                         TupleTree<model::Binary> &Binary) const {
+  revng_log(Log, "Converting a `CABIFunctionType` to `RawFunctionType`.");
+  revng_log(Log, "Original type:\n" << serializeToString(FunctionType));
+  LoggerIndent Indentation(Log);
   auto PointerQualifier = model::Qualifier::createPointer(ABI.getPointerSize());
 
   // Since this conversion cannot fail, nothing prevents us from creating
@@ -158,6 +164,10 @@ ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
                            genericRegisterType(Register, *Binary) :
                            chooseType(ReturnType, Register, *Binary);
 
+      revng_log(Log,
+                "Adding a return value register:\n"
+                  << serializeToString(Register));
+
       NewType.ReturnValues().emplace(Converted);
     }
   } else if (ReturnValue.Size != 0) {
@@ -175,8 +185,13 @@ ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
     model::TypedRegister ReturnPointer(FirstRegister);
     ReturnPointer.Type() = std::move(ReturnType);
     NewType.ReturnValues().insert(std::move(ReturnPointer));
+
+    revng_log(Log,
+              "Return value is returned through a shadow-argument-pointer:\n"
+                << serializeToString(ReturnType));
   } else {
     // The function returns `void`: no need to do anything special.
+    revng_log(Log, "Return value is `void`\n");
   }
 
   // Now that return value is figured out, the arguments are next.
@@ -194,10 +209,17 @@ ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
       for (auto Register : ArgumentStorage.Registers) {
         model::NamedTypedRegister Argument(Register);
 
-        if (ArgumentStorage.Registers.size() > 1)
+        if (ArgumentStorage.Registers.size() > 1) {
           Argument.Type() = genericRegisterType(Register, *Binary);
-        else
+          revng_log(Log,
+                    "Adding a register as a part of a bigger argument:\n"
+                      << serializeToString(Register));
+        } else {
           Argument.Type() = chooseType(ArgumentType, Register, *Binary);
+          revng_log(Log,
+                    "Adding a register argument:\n"
+                      << serializeToString(Register));
+        }
 
         NewType.Arguments().emplace(Argument);
       }
@@ -220,6 +242,8 @@ ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
       Field.Offset() = CombinedStackArgumentSize;
       Field.Type() = Argument.Type();
       StackArguments.Fields().emplace(std::move(Field));
+
+      revng_log(Log, "Adding a stack argument:\n" << serializeToString(Field));
 
       // Compute the full size of the argument (including padding if needed),
       // so that the next argument is not placed into this occupied space.
@@ -246,6 +270,8 @@ ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
   for (auto Inserter = NewType.PreservedRegisters().batch_insert();
        model::Register::Values Register : ABI.CalleeSavedRegisters())
     Inserter.insert(Register);
+
+  revng_log(Log, "Conversion successful:\n" << serializeToString(NewType));
 
   // To finish up the conversion, remove all the references to the old type by
   // carefully replacing them with references to the new one.
