@@ -5,18 +5,16 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <span>
 #include <unordered_set>
 
+#include "revng/ABI/Definition.h"
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ABI/FunctionType/Support.h"
-#include "revng/ABI/Trait.h"
 #include "revng/ADT/SmallMap.h"
 #include "revng/Model/Binary.h"
 
 namespace abi::FunctionType {
-
-template<size_t Size>
-using RegisterArray = std::array<model::Register::Values, Size>;
 
 static model::QualifiedType
 buildGenericType(model::Register::Values Register, model::Binary &Binary) {
@@ -25,58 +23,6 @@ buildGenericType(model::Register::Values Register, model::Binary &Binary) {
   return model::QualifiedType(Binary.getPrimitiveType(Kind, Size), {});
 }
 
-/// A helper used to differentiate vector registers.
-///
-/// \param Register Any CPU register the model is aware of.
-///
-/// \return `true` if `Register` is a vector register, `false` otherwise.
-constexpr bool isVectorRegister(model::Register::Values Register) {
-  namespace PrimitiveTypeKind = model::PrimitiveTypeKind;
-  return model::Register::primitiveKind(Register) == PrimitiveTypeKind::Float;
-}
-
-/// Helps detecting unsupported ABI trait definition with respect to
-/// the way they return the return values.
-///
-/// This is an important piece of abi trait verification. For more information
-/// see the `static_assert` that invokes it in \ref distributeArguments
-///
-/// \note Make this function `consteval` after clang-14 is available.
-///
-/// \tparam ABI the ABI, `abi::Trait` of which is to be checked.
-///
-/// \return `true` if the ABI is valid, `false` otherwise.
-template<model::ABI::Values ABI>
-constexpr bool verifyReturnValueLocationRegister() {
-  using AT = abi::Trait<ABI>;
-  constexpr auto &LocationRegister = AT::ReturnValueLocationRegister;
-
-  // Skip ABIs that do not allow returning big values.
-  // They do not benefit from this check.
-  if constexpr (LocationRegister != model::Register::Invalid) {
-    if constexpr (isVectorRegister(LocationRegister)) {
-      // Vector register used as the return value locations are not supported.
-      return false;
-    } else if constexpr (revng::is_contained(AT::CalleeSavedRegisters,
-                                             LocationRegister)) {
-      // Using callee saved register as a return value location doesn't make
-      // much sense: filter those out.
-      return false;
-    } else {
-      // The return value location register can optionally also be the first
-      // GPRs, but only the first one.
-      constexpr auto &GPRs = AT::GeneralPurposeArgumentRegisters;
-      constexpr auto Iterator = revng::find(GPRs, LocationRegister);
-      if constexpr (Iterator != GPRs.end() && Iterator != GPRs.begin())
-        return false;
-    }
-  }
-
-  return true;
-}
-
-namespace ModelArch = model::Architecture;
-using IndexType = decay_t<model::Argument::IndexType>;
 using RegisterVector = llvm::SmallVector<model::Register::Values, 1>;
 struct DistributedArgument {
   RegisterVector Registers = {};
@@ -84,13 +30,17 @@ struct DistributedArgument {
 };
 using DistributedArguments = llvm::SmallVector<DistributedArgument, 4>;
 
+using RegisterSpan = std::span<const model::Register::Values>;
 using ArgumentSet = SortedVector<model::Argument>;
 
-template<model::ABI::Values ABI>
 class ToRawConverter {
-  using AT = abi::Trait<ABI>;
-  static constexpr auto Architecture = model::ABI::getArchitecture(ABI);
-  static constexpr auto RegisterSize = ModelArch::getPointerSize(Architecture);
+private:
+  const abi::Definition &ABI;
+
+public:
+  explicit ToRawConverter(const abi::Definition &ABI) : ABI(ABI) {
+    revng_assert(ABI.verify());
+  }
 
 public:
   /// Entry point for the `toRaw` conversion.
@@ -126,12 +76,11 @@ private:
   distributeNonPositionBasedArguments(const ArgumentSet &Arguments,
                                       std::size_t SkippedCount = 0) const;
 
-  template<size_t RegisterCount>
   std::pair<DistributedArgument, size_t>
   considerRegisters(size_t Size,
                     size_t AllowedRegisterLimit,
                     size_t OccupiedRegisterCount,
-                    const RegisterArray<RegisterCount> &AllowedRegisters,
+                    RegisterSpan Registers,
                     bool AllowPuttingPartOfAnArgumentOnStack) const;
 
 public:
@@ -163,10 +112,9 @@ chooseArgumentType(const model::QualifiedType &ArgumentType,
   }
 }
 
-template<model::ABI::Values ABI>
 model::TypePath
-ToRawConverter<ABI>::convert(const model::CABIFunctionType &Function,
-                             TupleTree<model::Binary> &Binary) const {
+ToRawConverter::convert(const model::CABIFunctionType &Function,
+                        TupleTree<model::Binary> &Binary) const {
   // TODO: fix the return value distribution.
   auto Arguments = distributeArguments(Function.Arguments(), 0);
 
@@ -213,8 +161,7 @@ ToRawConverter<ABI>::convert(const model::CABIFunctionType &Function,
       // Compute the full size of the argument (including padding if needed).
       auto MaybeSize = Argument.Type().size();
       revng_assert(MaybeSize.has_value() && MaybeSize.value() != 0);
-      CombinedStackArgumentSize += paddedSizeOnStack(MaybeSize.value(),
-                                                     RegisterSize);
+      CombinedStackArgumentSize += ABI.paddedSizeOnStack(MaybeSize.value());
     }
   }
 
@@ -254,9 +201,9 @@ ToRawConverter<ABI>::convert(const model::CABIFunctionType &Function,
           SmallMap<RegisterEnum, model::QualifiedType, 4> RecoveredTypes;
           size_t StructOffset = 0;
           for (size_t Index = 0; Index < Struct->Fields().size(); ++Index) {
-            if (Index >= AT::GeneralPurposeReturnValueRegisters.size())
+            if (Index >= ABI.GeneralPurposeReturnValueRegisters().size())
               break;
-            auto Register = AT::GeneralPurposeReturnValueRegisters[Index];
+            auto Register = ABI.GeneralPurposeReturnValueRegisters()[Index];
 
             auto TypedRegisterIterator = Result.ReturnValues().find(Register);
             if (TypedRegisterIterator == Result.ReturnValues().end())
@@ -287,8 +234,8 @@ ToRawConverter<ABI>::convert(const model::CABIFunctionType &Function,
       }
     } else {
       // Handle a pointer-based return value.
-      revng_assert(!AT::GeneralPurposeReturnValueRegisters.empty());
-      auto Register = AT::GeneralPurposeReturnValueRegisters[0];
+      revng_assert(!ABI.GeneralPurposeReturnValueRegisters().empty());
+      auto Register = ABI.GeneralPurposeReturnValueRegisters()[0];
       auto RegisterSize = model::Register::getSize(Register);
       auto PointerQualifier = model::Qualifier::createPointer(RegisterSize);
 
@@ -306,7 +253,7 @@ ToRawConverter<ABI>::convert(const model::CABIFunctionType &Function,
   }
 
   // Populate the list of preserved registers
-  for (model::Register::Values Register : AT::CalleeSavedRegisters)
+  for (model::Register::Values Register : ABI.CalleeSavedRegisters())
     Result.PreservedRegisters().insert(Register);
 
   // Steal the ID
@@ -327,16 +274,12 @@ ToRawConverter<ABI>::convert(const model::CABIFunctionType &Function,
   return NewTypePath;
 }
 
-template<model::ABI::Values ABI>
-using TRC = ToRawConverter<ABI>;
-
-template<model::ABI::Values ABI>
 uint64_t
-TRC<ABI>::finalStackOffset(const DistributedArguments &Arguments) const {
-  constexpr auto Architecture = model::ABI::getArchitecture(ABI);
+ToRawConverter::finalStackOffset(const DistributedArguments &Arguments) const {
+  const auto Architecture = model::ABI::getArchitecture(ABI.ABI());
   uint64_t Result = model::Architecture::getCallPushSize(Architecture);
 
-  if constexpr (AT::CalleeIsResponsibleForStackCleanup) {
+  if (ABI.CalleeIsResponsibleForStackCleanup()) {
     for (auto &Argument : Arguments)
       Result += Argument.SizeOnStack;
 
@@ -344,18 +287,17 @@ TRC<ABI>::finalStackOffset(const DistributedArguments &Arguments) const {
 
     // TODO: take shadow space into the account if relevant.
 
-    static_assert((AT::StackAlignment & (AT::StackAlignment - 1)) == 0);
-    Result += AT::StackAlignment - 1;
-    Result &= ~(AT::StackAlignment - 1);
+    revng_assert(llvm::isPowerOf2_64(ABI.StackAlignment()));
+    Result += ABI.StackAlignment() - 1;
+    Result &= ~(ABI.StackAlignment() - 1);
   }
 
   return Result;
 }
 
-template<model::ABI::Values ABI>
 DistributedArguments
-TRC<ABI>::distributePositionBasedArguments(const ArgumentSet &Arguments,
-                                           size_t SkippedCount) const {
+ToRawConverter::distributePositionBasedArguments(const ArgumentSet &Arguments,
+                                                 size_t SkippedCount) const {
   DistributedArguments Result;
 
   for (const model::Argument &Argument : Arguments) {
@@ -369,20 +311,18 @@ TRC<ABI>::distributePositionBasedArguments(const ArgumentSet &Arguments,
     Distributed.Size = *MaybeSize;
 
     if (Argument.Type().isFloat()) {
-      if (RegisterIndex < AT::VectorArgumentRegisters.size()) {
-        auto Register = AT::VectorArgumentRegisters[RegisterIndex];
+      if (RegisterIndex < ABI.VectorArgumentRegisters().size()) {
+        auto Register = ABI.VectorArgumentRegisters()[RegisterIndex];
         Distributed.Registers.emplace_back(Register);
       } else {
-        Distributed.SizeOnStack = paddedSizeOnStack(Distributed.Size,
-                                                    RegisterSize);
+        Distributed.SizeOnStack = ABI.paddedSizeOnStack(Distributed.Size);
       }
     } else {
-      if (RegisterIndex < AT::GeneralPurposeArgumentRegisters.size()) {
-        auto Reg = AT::GeneralPurposeArgumentRegisters[RegisterIndex];
+      if (RegisterIndex < ABI.GeneralPurposeArgumentRegisters().size()) {
+        auto Reg = ABI.GeneralPurposeArgumentRegisters()[RegisterIndex];
         Distributed.Registers.emplace_back(Reg);
       } else {
-        Distributed.SizeOnStack = paddedSizeOnStack(Distributed.Size,
-                                                    RegisterSize);
+        Distributed.SizeOnStack = ABI.paddedSizeOnStack(Distributed.Size);
       }
     }
   }
@@ -390,14 +330,12 @@ TRC<ABI>::distributePositionBasedArguments(const ArgumentSet &Arguments,
   return Result;
 }
 
-template<model::ABI::Values ABI>
-template<std::size_t RegisterCount>
 std::pair<DistributedArgument, std::size_t>
-TRC<ABI>::considerRegisters(size_t Size,
-                            size_t AllowedRegisterLimit,
-                            size_t OccupiedRegisterCount,
-                            const RegisterArray<RegisterCount> &Registers,
-                            bool AllowPuttingPartOfAnArgumentOnStack) const {
+ToRawConverter::considerRegisters(std::size_t Size,
+                                  std::size_t AllowedRegisterLimit,
+                                  std::size_t OccupiedRegisterCount,
+                                  RegisterSpan Registers,
+                                  bool AllowPartOfAnArgumentOnTheStack) const {
   size_t RegisterLimit = OccupiedRegisterCount + AllowedRegisterLimit;
   size_t ConsideredRegisterCounter = OccupiedRegisterCount;
 
@@ -415,7 +353,7 @@ TRC<ABI>::considerRegisters(size_t Size,
   DistributedArgument DA;
   DA.Size = Size;
 
-  if constexpr (AT::OnlyStartDoubleArgumentsFromAnEvenRegister) {
+  if (ABI.OnlyStartDoubleArgumentsFromAnEvenRegister()) {
     if (ConsideredRegisterCounter - OccupiedRegisterCount == 2) {
       if ((OccupiedRegisterCount & 1) != 0) {
         ++OccupiedRegisterCount;
@@ -428,7 +366,7 @@ TRC<ABI>::considerRegisters(size_t Size,
     for (size_t I = OccupiedRegisterCount; I < ConsideredRegisterCounter; ++I)
       DA.Registers.emplace_back(Registers[I]);
     DA.SizeOnStack = 0;
-  } else if (AllowPuttingPartOfAnArgumentOnStack) {
+  } else if (AllowPartOfAnArgumentOnTheStack) {
     for (size_t I = OccupiedRegisterCount; I < ConsideredRegisterCounter; ++I)
       DA.Registers.emplace_back(Registers[I]);
     DA.SizeOnStack = DA.Size - SizeCounter;
@@ -438,24 +376,24 @@ TRC<ABI>::considerRegisters(size_t Size,
   }
 
   if (DA.SizeOnStack != 0)
-    DA.SizeOnStack = paddedSizeOnStack(DA.SizeOnStack, RegisterSize);
+    DA.SizeOnStack = ABI.paddedSizeOnStack(DA.SizeOnStack);
 
   return { DA, ConsideredRegisterCounter };
 }
 
-template<model::ABI::Values ABI>
+using ASet = ArgumentSet;
 DistributedArguments
-TRC<ABI>::distributeNonPositionBasedArguments(const ArgumentSet &Arguments,
-                                              std::size_t SkippedCount) const {
+ToRawConverter::distributeNonPositionBasedArguments(const ASet &Arguments,
+                                                    size_t SkippedCount) const {
   DistributedArguments Result;
   size_t UsedGeneralPurposeRegisterCount = SkippedCount;
   size_t UsedVectorRegisterCount = 0;
 
   for (const model::Argument &Argument : Arguments) {
-    auto MaybeSize = Argument.Type().size();
-    revng_assert(MaybeSize.has_value());
+    auto Size = Argument.Type().size();
+    revng_assert(Size.has_value());
 
-    constexpr bool CanSplit = AT::ArgumentsCanBeSplitBetweenRegistersAndStack;
+    const bool CanSplit = ABI.ArgumentsCanBeSplitBetweenRegistersAndStack();
     if (Argument.Type().isFloat()) {
       // The conventional non-position based approach is not applicable for
       // vector registers since it's rare for multiple registers to be used
@@ -465,7 +403,7 @@ TRC<ABI>::distributeNonPositionBasedArguments(const ArgumentSet &Arguments,
       //
       // TODO: handle this properly.
 
-      static constexpr auto &Registers = AT::VectorArgumentRegisters;
+      const auto &Registers = ABI.VectorArgumentRegisters();
       if (UsedVectorRegisterCount < Registers.size()) {
         // There is a free register to put the argument in.
         if (Result.size() <= Argument.Index())
@@ -473,7 +411,7 @@ TRC<ABI>::distributeNonPositionBasedArguments(const ArgumentSet &Arguments,
 
         auto Register = Registers[UsedVectorRegisterCount];
         Result[Argument.Index()].Registers.emplace_back(Register);
-        Result[Argument.Index()].Size = *MaybeSize;
+        Result[Argument.Index()].Size = *Size;
         Result[Argument.Index()].SizeOnStack = 0;
 
         UsedVectorRegisterCount++;
@@ -482,18 +420,16 @@ TRC<ABI>::distributeNonPositionBasedArguments(const ArgumentSet &Arguments,
         // pass the argument on the stack.
         if (Result.size() <= Argument.Index())
           Result.resize(Argument.Index() + 1);
-        Result[Argument.Index()].Size = *MaybeSize;
-        static constexpr std::size_t RS = RegisterSize;
-        Result[Argument.Index()].SizeOnStack = paddedSizeOnStack(*MaybeSize,
-                                                                 RS);
+        Result[Argument.Index()].Size = *Size;
+        Result[Argument.Index()].SizeOnStack = ABI.paddedSizeOnStack(*Size);
       }
     } else {
-      static constexpr auto &Registers = AT::GeneralPurposeArgumentRegisters;
+      const auto &Registers = ABI.GeneralPurposeArgumentRegisters();
       size_t &Counter = UsedGeneralPurposeRegisterCount;
       if (Argument.Type().isScalar()) {
-        const size_t Limit = AT::MaximumGPRsPerScalarArgument;
+        const size_t Limit = ABI.MaximumGPRsPerScalarArgument();
 
-        auto [Distributed, NextIndex] = considerRegisters(*MaybeSize,
+        auto [Distributed, NextIndex] = considerRegisters(*Size,
                                                           Limit,
                                                           Counter,
                                                           Registers,
@@ -503,9 +439,9 @@ TRC<ABI>::distributeNonPositionBasedArguments(const ArgumentSet &Arguments,
         Result[Argument.Index()] = Distributed;
         Counter = NextIndex;
       } else {
-        const size_t Limit = AT::MaximumGPRsPerAggregateArgument;
+        const size_t Limit = ABI.MaximumGPRsPerAggregateArgument();
 
-        auto [Distributed, NextIndex] = considerRegisters(*MaybeSize,
+        auto [Distributed, NextIndex] = considerRegisters(*Size,
                                                           Limit,
                                                           Counter,
                                                           Registers,
@@ -521,47 +457,38 @@ TRC<ABI>::distributeNonPositionBasedArguments(const ArgumentSet &Arguments,
   return Result;
 }
 
-template<model::ABI::Values ABI>
 DistributedArguments
-TRC<ABI>::distributeArguments(const ArgumentSet &Arguments,
-                              bool HasReturnValueLocationArgument) const {
+ToRawConverter::distributeArguments(const ArgumentSet &Arguments,
+                                    bool HasReturnValueLocationArgument) const {
   bool SkippedRegisters = 0;
-  if (HasReturnValueLocationArgument == true) {
-    static_assert(verifyReturnValueLocationRegister<ABI>(),
-                  "ABIs where non-first argument GPR is used for passing the "
-                  "address of the space allocated for big return values are "
-                  "not currently supported.");
-
-    static constexpr auto &GPRs = AT::GeneralPurposeArgumentRegisters;
-    if constexpr (!GPRs.empty())
-      if (AT::ReturnValueLocationRegister == GPRs[0])
+  if (HasReturnValueLocationArgument == true)
+    if (const auto &GPRs = ABI.GeneralPurposeArgumentRegisters(); !GPRs.empty())
+      if (ABI.ReturnValueLocationRegister() == GPRs[0])
         SkippedRegisters = 1;
-  }
 
-  if constexpr (AT::ArgumentsArePositionBased)
+  if (ABI.ArgumentsArePositionBased())
     return distributePositionBasedArguments(Arguments, SkippedRegisters);
   else
     return distributeNonPositionBasedArguments(Arguments, SkippedRegisters);
 }
 
 using model::QualifiedType;
-template<model::ABI::Values ABI>
 DistributedArgument
-TRC<ABI>::distributeReturnValue(const QualifiedType &ReturnValueType) const {
-  if (ReturnValueType.isVoid())
+ToRawConverter::distributeReturnValue(const QualifiedType &ReturnValue) const {
+  if (ReturnValue.isVoid())
     return DistributedArgument{};
 
-  auto MaybeSize = ReturnValueType.size();
+  auto MaybeSize = ReturnValue.size();
   revng_assert(MaybeSize.has_value());
 
-  if (ReturnValueType.isFloat()) {
-    const auto &Registers = AT::VectorReturnValueRegisters;
+  if (ReturnValue.isFloat()) {
+    const auto &Registers = ABI.VectorReturnValueRegisters();
 
     // As a temporary measure always just return the first vector return value
     // register, if it's available.
     //
     // TODO: handle the situation properly.
-    if constexpr (!AT::VectorReturnValueRegisters.empty()) {
+    if (!ABI.VectorReturnValueRegisters().empty()) {
       DistributedArgument Result;
       Result.Size = *MaybeSize;
       Result.Registers.emplace_back(Registers.front());
@@ -573,81 +500,73 @@ TRC<ABI>::distributeReturnValue(const QualifiedType &ReturnValueType) const {
       return considerRegisters(*MaybeSize, 0, 0, Registers, false).first;
     }
   } else {
-    const size_t L = ReturnValueType.isScalar() ?
-                       AT::MaximumGPRsPerScalarReturnValue :
-                       AT::MaximumGPRsPerAggregateReturnValue;
-    constexpr auto &Registers = AT::GeneralPurposeReturnValueRegisters;
+    const size_t L = ReturnValue.isScalar() ?
+                       ABI.MaximumGPRsPerScalarReturnValue() :
+                       ABI.MaximumGPRsPerAggregateReturnValue();
+    const auto &Registers = ABI.GeneralPurposeReturnValueRegisters();
     return considerRegisters(*MaybeSize, L, 0, Registers, false).first;
   }
 }
 
 model::TypePath convertToRaw(const model::CABIFunctionType &Function,
                              TupleTree<model::Binary> &Binary) {
-  revng_assert(Function.ABI() != model::ABI::Invalid);
-  return skippingEnumSwitch<1>(Function.ABI(), [&]<model::ABI::Values A>() {
-    return ToRawConverter<A>().convert(Function, Binary);
-  });
+  ToRawConverter ToRaw(abi::Definition::get(Function.ABI()));
+  return ToRaw.convert(Function, Binary);
 }
 
-Layout::Layout(const model::CABIFunctionType &Function) :
-  Layout(skippingEnumSwitch<1>(Function.ABI(), [&]<model::ABI::Values A>() {
-    Layout Result;
+Layout::Layout(const model::CABIFunctionType &Function) {
+  const abi::Definition &ABI = abi::Definition::get(Function.ABI());
+  ToRawConverter Converter(ABI);
 
-    ToRawConverter<A> Converter;
+  const auto Architecture = model::ABI::getArchitecture(Function.ABI());
+  auto RV = Converter.distributeReturnValue(Function.ReturnType());
+  if (RV.SizeOnStack == 0) {
+    // Nothing on the stack, the return value fits into the registers.
+    auto &ReturnValue = ReturnValues.emplace_back();
+    ReturnValue.Type = Function.ReturnType();
+    ReturnValue.Registers = std::move(RV.Registers);
+  } else {
+    revng_assert(RV.Registers.empty(),
+                 "Register and stack return values should never be present "
+                 "at the same time.");
+    revng_assert(ABI.ReturnValueLocationRegister() != model::Register::Invalid,
+                 "Big return values are not supported by the current ABI");
+    auto &RVLocationArg = Arguments.emplace_back();
+    RVLocationArg.Registers.emplace_back(ABI.ReturnValueLocationRegister());
+    RVLocationArg.Type = Function.ReturnType().getPointerTo(Architecture);
+    RVLocationArg.Kind = ArgumentKind::ShadowPointerToAggregateReturnValue;
+  }
 
-    using AT = abi::Trait<A>;
-    static constexpr auto Arch = model::ABI::getArchitecture(A);
-    auto RV = Converter.distributeReturnValue(Function.ReturnType());
-    if (RV.SizeOnStack == 0) {
-      // Nothing on the stack, the return value fits into the registers.
-      auto &ReturnValue = Result.ReturnValues.emplace_back();
-      ReturnValue.Type = Function.ReturnType();
-      ReturnValue.Registers = std::move(RV.Registers);
-    } else {
-      revng_assert(RV.Registers.empty(),
-                   "Register and stack return values should never be present "
-                   "at the same time.");
-      revng_assert(AT::ReturnValueLocationRegister != model::Register::Invalid,
-                   "Big return values are not supported by the current ABI");
-      auto &RVLocationArg = Result.Arguments.emplace_back();
-      RVLocationArg.Registers.emplace_back(AT::ReturnValueLocationRegister);
-      RVLocationArg.Type = Function.ReturnType().getPointerTo(Arch);
-      RVLocationArg.Kind = ArgumentKind::ShadowPointerToAggregateReturnValue;
+  size_t CurrentOffset = 0;
+  auto Args = Converter.distributeArguments(Function.Arguments(),
+                                            RV.SizeOnStack != 0);
+  revng_assert(Args.size() == Function.Arguments().size());
+  for (size_t Index = 0; Index < Args.size(); ++Index) {
+    auto &Current = Arguments.emplace_back();
+    const model::QualifiedType
+      &ArgumentType = Function.Arguments().at(Index).Type();
+
+    // Disambiguate scalar and aggregate arguments.
+    // Scalars are passed by value, aggregates - by pointer.
+    Current.Type = ArgumentType;
+    if (ArgumentType.isScalar())
+      Current.Kind = ArgumentKind::Scalar;
+    else
+      Current.Kind = ArgumentKind::ReferenceToAggregate;
+
+    Current.Registers = std::move(Args[Index].Registers);
+    if (Args[Index].SizeOnStack != 0) {
+      // TODO: further alignment considerations are needed here.
+      Current.Stack = typename Layout::Argument::StackSpan{
+        CurrentOffset, Args[Index].SizeOnStack
+      };
+      CurrentOffset += Args[Index].SizeOnStack;
     }
+  }
+  CalleeSavedRegisters.resize(ABI.CalleeSavedRegisters().size());
+  llvm::copy(ABI.CalleeSavedRegisters(), CalleeSavedRegisters.begin());
 
-    size_t CurrentOffset = 0;
-    auto Args = Converter.distributeArguments(Function.Arguments(),
-                                              RV.SizeOnStack != 0);
-    revng_assert(Args.size() == Function.Arguments().size());
-    for (size_t Index = 0; Index < Args.size(); ++Index) {
-      auto &Current = Result.Arguments.emplace_back();
-      const model::QualifiedType
-        &ArgumentType = Function.Arguments().at(Index).Type();
-
-      // Disambiguate scalar and aggregate arguments.
-      // Scalars are passed by value, aggregates - by pointer.
-      Current.Type = ArgumentType;
-      if (ArgumentType.isScalar())
-        Current.Kind = ArgumentKind::Scalar;
-      else
-        Current.Kind = ArgumentKind::ReferenceToAggregate;
-
-      Current.Registers = std::move(Args[Index].Registers);
-      if (Args[Index].SizeOnStack != 0) {
-        // TODO: further alignment considerations are needed here.
-        Current.Stack = typename Layout::Argument::StackSpan{
-          CurrentOffset, Args[Index].SizeOnStack
-        };
-        CurrentOffset += Args[Index].SizeOnStack;
-      }
-    }
-    Result.CalleeSavedRegisters.resize(AT::CalleeSavedRegisters.size());
-    llvm::copy(AT::CalleeSavedRegisters, Result.CalleeSavedRegisters.begin());
-
-    Result.FinalStackOffset = Converter.finalStackOffset(Args);
-
-    return Result;
-  })) {
+  FinalStackOffset = Converter.finalStackOffset(Args);
 }
 
 Layout::Layout(const model::RawFunctionType &Function) {
