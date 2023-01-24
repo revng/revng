@@ -13,15 +13,9 @@
 #include "revng/ABI/FunctionType/Support.h"
 #include "revng/ADT/SmallMap.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/Helpers.h"
 
 namespace abi::FunctionType {
-
-static model::QualifiedType
-buildGenericType(model::Register::Values Register, model::Binary &Binary) {
-  constexpr auto Kind = model::PrimitiveTypeKind::Generic;
-  size_t Size = model::Register::getSize(Register);
-  return model::QualifiedType(Binary.getPrimitiveType(Kind, Size), {});
-}
 
 using RegisterVector = llvm::SmallVector<model::Register::Values, 1>;
 struct DistributedArgument {
@@ -44,7 +38,7 @@ public:
 
 public:
   /// Entry point for the `toRaw` conversion.
-  model::TypePath convert(const model::CABIFunctionType &Function,
+  model::TypePath convert(const model::CABIFunctionType &FunctionType,
                           TupleTree<model::Binary> &Binary) const;
 
   /// Helper used for deciding how an arbitrary return type should be
@@ -87,189 +81,224 @@ public:
   uint64_t finalStackOffset(const DistributedArguments &Arguments) const;
 };
 
+/// Helper for choosing a "generic" register type, mainly used for filling
+/// typeless argument registers in.
+///
+/// @param Register The register for which the type is created.
+/// @param Binary The binary containing the type.
 static model::QualifiedType
-chooseArgumentType(const model::QualifiedType &ArgumentType,
-                   model::Register::Values Register,
-                   const RegisterVector &Registers,
-                   model::Binary &Binary) {
-  if (Registers.size() > 1) {
-    return buildGenericType(Register, Binary);
-  } else {
-    auto ResultType = ArgumentType;
-    auto MaybeSize = ArgumentType.size();
-    auto TargetSize = model::Register::getSize(Register);
+genericRegisterType(model::Register::Values Register, model::Binary &Binary) {
+  return model::QualifiedType{
+    Binary.getPrimitiveType(model::PrimitiveTypeKind::Generic,
+                            model::Register::getSize(Register)),
+    {}
+  };
+}
 
-    if (!MaybeSize.has_value()) {
-      return buildType(Register, Binary);
-    } else if (*MaybeSize > TargetSize) {
-      auto Qualifier = model::Qualifier::createPointer(TargetSize);
-      ResultType.Qualifiers().emplace_back(Qualifier);
-    } else if (!ResultType.isScalar()) {
-      return buildGenericType(Register, Binary);
-    }
+/// Helper for choosing the "Raw" type of a specific argument or return
+/// value based on its "C" type and the register it is to be placed in.
+///
+/// \param ArgumentType The original "C" type.
+/// \param Register Register this value is placed in.
+/// \param Binary The binary object containing the type information.
+///
+/// \return The resulting "Raw" type for the current entity.
+static model::QualifiedType chooseType(const model::QualifiedType &ArgumentType,
+                                       const model::Register::Values Register,
+                                       model::Binary &Binary) {
+  std::optional<std::uint64_t> MaybeSize = ArgumentType.size();
+  std::uint64_t TargetSize = model::Register::getSize(Register);
 
-    return ResultType;
+  if (!MaybeSize.has_value()) {
+    return model::QualifiedType{
+      Binary.getPrimitiveType(model::Register::primitiveKind(Register),
+                              model::Register::getSize(Register)),
+      {}
+    };
+  } else if (*MaybeSize > TargetSize) {
+    // TODO: additional considerations should be made here
+    //       for better position-based ABI support.
+    return ArgumentType.getPointerTo(Binary.Architecture());
+  } else if (!ArgumentType.isScalar()) {
+    // TODO: this can be considerably improved, we can preserve more
+    //       information here over just returning the default type.
+    return model::QualifiedType{
+      Binary.getPrimitiveType(model::Register::primitiveKind(Register),
+                              model::Register::getSize(Register)),
+      {}
+    };
   }
+
+  return ArgumentType;
 }
 
 model::TypePath
-ToRawConverter::convert(const model::CABIFunctionType &Function,
+ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
                         TupleTree<model::Binary> &Binary) const {
-  // TODO: fix the return value distribution.
-  auto Arguments = distributeArguments(Function.Arguments(), 0);
+  auto PointerQualifier = model::Qualifier::createPointer(ABI.getPointerSize());
 
-  model::RawFunctionType Result;
-  Result.CustomName() = Function.CustomName();
-  Result.OriginalName() = Function.OriginalName();
+  // Since this conversion cannot fail, nothing prevents us from creating
+  // the result type right away.
+  auto [NewType, NewTypePath] = Binary->makeType<model::RawFunctionType>();
+  model::copyMetadata(NewType, FunctionType);
+
+  // Since shadow arguments are a concern, we need to deal with the return
+  // value first.
+  auto ReturnValue = distributeReturnValue(FunctionType.ReturnType());
+  if (!ReturnValue.Registers.empty()) {
+    revng_assert(ReturnValue.SizeOnStack == 0);
+
+    // The return value uses registers: pass them through to the new type.
+    for (model::Register::Values Register : ReturnValue.Registers) {
+      model::TypedRegister Converted;
+      Converted.Location() = Register;
+
+      const model::QualifiedType &ReturnType = FunctionType.ReturnType();
+      Converted.Type() = ReturnValue.Registers.size() > 1 ?
+                           genericRegisterType(Register, *Binary) :
+                           chooseType(ReturnType, Register, *Binary);
+
+      NewType.ReturnValues().emplace(Converted);
+    }
+
+    // If function returns a struct, make an effort to preserve the field
+    // types.
+    if (FunctionType.ReturnType().Qualifiers().empty()) {
+      const auto *Type = FunctionType.ReturnType().UnqualifiedType().get();
+      revng_assert(Type != nullptr);
+      const auto *Struct = llvm::dyn_cast<model::StructType>(Type);
+      if (Struct && Struct->Fields().size() == NewType.ReturnValues().size()) {
+        using ModelRegister = model::Register::Values;
+        SmallMap<ModelRegister, model::QualifiedType, 4> RecoveredTypes;
+        size_t StructOffset = 0;
+        for (size_t Index = 0; Index < Struct->Fields().size(); ++Index) {
+          if (Index >= ABI.GeneralPurposeReturnValueRegisters().size())
+            break;
+
+          auto Register = ABI.GeneralPurposeReturnValueRegisters()[Index];
+          auto TypedRegisterIterator = NewType.ReturnValues().find(Register);
+          if (TypedRegisterIterator == NewType.ReturnValues().end())
+            continue;
+
+          const model::StructField &Field = Struct->Fields().at(StructOffset);
+
+          auto MaybeFieldSize = Field.Type().size();
+          revng_assert(MaybeFieldSize != std::nullopt);
+
+          auto MaybeRegisterSize = TypedRegisterIterator->Type().size();
+          revng_assert(MaybeRegisterSize != std::nullopt);
+
+          if (MaybeFieldSize.value() != MaybeRegisterSize.value())
+            break;
+
+          auto Tie = std::tie(Register, Field.Type());
+          auto [Iterator, Success] = RecoveredTypes.insert(std::move(Tie));
+          revng_assert(Success);
+
+          StructOffset += MaybeFieldSize.value();
+        }
+
+        // Only preserve types if there's one for each of the registers.
+        // The worst thing we could do is to inject incompatible information
+        // in.
+        if (RecoveredTypes.size() == NewType.ReturnValues().size())
+          for (auto [Register, Type] : RecoveredTypes)
+            NewType.ReturnValues().at(Register).Type() = Type;
+      }
+    }
+  } else if (ReturnValue.Size != 0) {
+    // The return value uses a pointer-to-a-location: add it as an argument.
+
+    auto MaybeReturnValueSize = FunctionType.ReturnType().size();
+    revng_assert(MaybeReturnValueSize != std::nullopt);
+    revng_assert(ReturnValue.Size == *MaybeReturnValueSize);
+
+    model::QualifiedType ReturnType = FunctionType.ReturnType();
+    ReturnType.Qualifiers().emplace_back(PointerQualifier);
+
+    revng_assert(!ABI.GeneralPurposeReturnValueRegisters().empty());
+    auto FirstRegister = ABI.GeneralPurposeReturnValueRegisters()[0];
+    model::TypedRegister ReturnPointer(FirstRegister);
+    ReturnPointer.Type() = std::move(ReturnType);
+    NewType.ReturnValues().insert(std::move(ReturnPointer));
+  } else {
+    // The function returns `void`: no need to do anything special.
+  }
+
+  // Now that return value is figured out, the arguments are next.
+  auto Arguments = distributeArguments(FunctionType.Arguments(),
+                                       ReturnValue.SizeOnStack != 0);
 
   model::StructType StackArguments;
   uint64_t CombinedStackArgumentSize = 0;
   for (size_t ArgIndex = 0; ArgIndex < Arguments.size(); ++ArgIndex) {
     auto &ArgumentStorage = Arguments[ArgIndex];
-    const auto &ArgumentType = Function.Arguments().at(ArgIndex).Type();
+    const auto &ArgumentType = FunctionType.Arguments().at(ArgIndex).Type();
+
+    // Transfer the register arguments first.
     if (!ArgumentStorage.Registers.empty()) {
-      // Handle the registers
-      auto ArgumentName = Function.Arguments().at(ArgIndex).name();
-      for (size_t Index = 0; auto Register : ArgumentStorage.Registers) {
+      for (auto Register : ArgumentStorage.Registers) {
         model::NamedTypedRegister Argument(Register);
-        Argument.Type() = chooseArgumentType(ArgumentType,
-                                             Register,
-                                             ArgumentStorage.Registers,
-                                             *Binary);
 
-        // TODO: see what can be done to preserve names better
-        if (llvm::StringRef{ ArgumentName.str() }.take_front(8) != "unnamed_")
-          Argument.CustomName() = ArgumentName;
+        if (ArgumentStorage.Registers.size() > 1)
+          Argument.Type() = genericRegisterType(Register, *Binary);
+        else
+          Argument.Type() = chooseType(ArgumentType, Register, *Binary);
 
-        Result.Arguments().insert(Argument);
+        NewType.Arguments().emplace(Argument);
       }
     }
 
+    // Then stack arguments.
     if (ArgumentStorage.SizeOnStack != 0) {
-      // Handle the stack
-      auto ArgumentIterator = Function.Arguments().find(ArgIndex);
-      revng_assert(ArgumentIterator != Function.Arguments().end());
+      auto ArgumentIterator = FunctionType.Arguments().find(ArgIndex);
+      revng_assert(ArgumentIterator != FunctionType.Arguments().end());
       const model::Argument &Argument = *ArgumentIterator;
 
-      model::StructField Field;
-      Field.Offset() = CombinedStackArgumentSize;
-      Field.CustomName() = Argument.CustomName();
-      Field.OriginalName() = Argument.OriginalName();
-      Field.Type() = Argument.Type();
-      StackArguments.Fields().insert(std::move(Field));
+      // Round the next offset based on the natural alignment.
+      uint64_t Alignment = *ABI.alignment(Argument.Type());
+      CombinedStackArgumentSize += (Alignment
+                                    - CombinedStackArgumentSize % Alignment);
 
-      // Compute the full size of the argument (including padding if needed).
+      // Each argument gets converted into a struct field.
+      model::StructField Field;
+      model::copyMetadata(Field, Argument);
+      Field.Offset() = CombinedStackArgumentSize;
+      Field.Type() = Argument.Type();
+      StackArguments.Fields().emplace(std::move(Field));
+
+      // Compute the full size of the argument (including padding if needed),
+      // so that the next argument is not placed into this occupied space.
       auto MaybeSize = Argument.Type().size();
       revng_assert(MaybeSize.has_value() && MaybeSize.value() != 0);
       CombinedStackArgumentSize += ABI.paddedSizeOnStack(MaybeSize.value());
     }
   }
 
+  // If the stack argument struct is not empty, record it into the model.
   if (CombinedStackArgumentSize != 0) {
     StackArguments.Size() = CombinedStackArgumentSize;
 
     using namespace model;
     auto Type = UpcastableType::make<StructType>(std::move(StackArguments));
-    Result.StackArgumentsType() = { Binary->recordNewType(std::move(Type)),
-                                    {} };
+    NewType.StackArgumentsType() = { Binary->recordNewType(std::move(Type)),
+                                     {} };
   }
 
-  Result.FinalStackOffset() = finalStackOffset(Arguments);
-
-  if (!Function.ReturnType().isVoid()) {
-    auto ReturnValue = distributeReturnValue(Function.ReturnType());
-    if (!ReturnValue.Registers.empty()) {
-      // Handle a register-based return value.
-      for (model::Register::Values Register : ReturnValue.Registers) {
-        model::TypedRegister ReturnValueRegister;
-        ReturnValueRegister.Location() = Register;
-        ReturnValueRegister.Type() = chooseArgumentType(Function.ReturnType(),
-                                                        Register,
-                                                        ReturnValue.Registers,
-                                                        *Binary);
-
-        Result.ReturnValues().insert(std::move(ReturnValueRegister));
-      }
-
-      // Try and recover types from the struct if possible
-      if (Function.ReturnType().Qualifiers().empty()) {
-        const model::Type *Type = Function.ReturnType().UnqualifiedType().get();
-        revng_assert(Type != nullptr);
-        const auto *Struct = llvm::dyn_cast<model::StructType>(Type);
-        if (Struct && Struct->Fields().size() == Result.ReturnValues().size()) {
-          using RegisterEnum = model::Register::Values;
-          SmallMap<RegisterEnum, model::QualifiedType, 4> RecoveredTypes;
-          size_t StructOffset = 0;
-          for (size_t Index = 0; Index < Struct->Fields().size(); ++Index) {
-            if (Index >= ABI.GeneralPurposeReturnValueRegisters().size())
-              break;
-            auto Register = ABI.GeneralPurposeReturnValueRegisters()[Index];
-
-            auto TypedRegisterIterator = Result.ReturnValues().find(Register);
-            if (TypedRegisterIterator == Result.ReturnValues().end())
-              break;
-
-            const auto &Field = Struct->Fields().at(StructOffset);
-
-            auto MaybeFieldSize = Field.Type().size();
-            revng_assert(MaybeFieldSize != std::nullopt);
-
-            auto MaybeRegisterSize = TypedRegisterIterator->Type().size();
-            revng_assert(MaybeRegisterSize != std::nullopt);
-
-            if (MaybeFieldSize.value() != MaybeRegisterSize.value())
-              break;
-
-            auto Tie = std::tie(Register, Field.Type());
-            auto [Iterator, Success] = RecoveredTypes.insert(std::move(Tie));
-            revng_assert(Success);
-
-            StructOffset += MaybeFieldSize.value();
-          }
-
-          if (RecoveredTypes.size() == Result.ReturnValues().size())
-            for (auto [Register, Type] : RecoveredTypes)
-              Result.ReturnValues().at(Register).Type() = Type;
-        }
-      }
-    } else {
-      // Handle a pointer-based return value.
-      revng_assert(!ABI.GeneralPurposeReturnValueRegisters().empty());
-      auto Register = ABI.GeneralPurposeReturnValueRegisters()[0];
-      auto RegisterSize = model::Register::getSize(Register);
-      auto PointerQualifier = model::Qualifier::createPointer(RegisterSize);
-
-      auto MaybeReturnValueSize = Function.ReturnType().size();
-      revng_assert(MaybeReturnValueSize != std::nullopt);
-      revng_assert(ReturnValue.Size == *MaybeReturnValueSize);
-
-      model::QualifiedType ReturnType = Function.ReturnType();
-      ReturnType.Qualifiers().emplace_back(PointerQualifier);
-
-      model::TypedRegister ReturnPointer(Register);
-      ReturnPointer.Type() = std::move(ReturnType);
-      Result.ReturnValues().insert(std::move(ReturnPointer));
-    }
-  }
+  // Set the final stack offset
+  NewType.FinalStackOffset() = finalStackOffset(Arguments);
 
   // Populate the list of preserved registers
-  for (model::Register::Values Register : ABI.CalleeSavedRegisters())
-    Result.PreservedRegisters().insert(Register);
-
-  // Steal the ID
-  Result.ID() = Function.ID();
-
-  // Add converted type to the model.
-  using UT = model::UpcastableType;
-  auto Ptr = UT::make<model::RawFunctionType>(std::move(Result));
-  auto NewTypePath = Binary->recordNewType(std::move(Ptr));
+  for (auto Inserter = NewType.PreservedRegisters().batch_insert();
+       model::Register::Values Register : ABI.CalleeSavedRegisters())
+    Inserter.insert(Register);
 
   // To finish up the conversion, remove all the references to the old type by
   // carefully replacing them with references to the new one.
-  replaceAllUsesWith(Function.key(), NewTypePath, Binary);
+  replaceAllUsesWith(FunctionType.key(), NewTypePath, Binary);
 
   // And don't forget to remove the old type.
-  Binary->Types().erase(Function.key());
+  Binary->Types().erase(FunctionType.key());
 
   return NewTypePath;
 }
@@ -508,10 +537,10 @@ ToRawConverter::distributeReturnValue(const QualifiedType &ReturnValue) const {
   }
 }
 
-model::TypePath convertToRaw(const model::CABIFunctionType &Function,
+model::TypePath convertToRaw(const model::CABIFunctionType &FunctionType,
                              TupleTree<model::Binary> &Binary) {
-  ToRawConverter ToRaw(abi::Definition::get(Function.ABI()));
-  return ToRaw.convert(Function, Binary);
+  ToRawConverter ToRaw(abi::Definition::get(FunctionType.ABI()));
+  return ToRaw.convert(FunctionType, Binary);
 }
 
 Layout::Layout(const model::CABIFunctionType &Function) {
