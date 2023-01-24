@@ -1012,11 +1012,12 @@ void CallSummarizer::handleCall(MetaAddress CallerBlock,
   const FunctionSummary &CalleeSummary = Oracle.getLocalFunction(Callee);
   const auto &ABIResults = CalleeSummary.ABIResults;
 
-
   for (auto &[Variable, Values] : ABIResults.ArgumentsRegisters) {
     if (Values == abi::RegisterState::Yes) {
       // inject artificial write (weak_write)
-      auto Ty = llvm::FunctionType::get(llvm::Type::getVoidTy(Context), { Variable->getType() }, false);
+      auto Ty = llvm::FunctionType::get(llvm::Type::getVoidTy(Context),
+                                        { Variable->getType() },
+                                        false);
       auto F = WeakReadWritePools.get(Variable->getType(), Ty, "weak_write");
       FunctionCallee FC(F->getFunctionType(), F);
       auto Register = M->getNamedGlobal(Variable->getName());
@@ -1028,14 +1029,15 @@ void CallSummarizer::handleCall(MetaAddress CallerBlock,
 
   for (const auto &[Variable, Values] : ABIResults.FinalReturnValuesRegisters) {
     if (Values == abi::RegisterState::Yes) {
-      auto Ty = llvm::FunctionType::get(llvm::Type::getVoidTy(Context), { Variable->getType() }, false);
+      auto Ty = llvm::FunctionType::get(llvm::Type::getVoidTy(Context),
+                                        { Variable->getType() },
+                                        false);
       auto F = WeakReadWritePools.get(Variable->getType(), Ty, "weak_read");
       FunctionCallee FC(F->getFunctionType(), F);
       auto Register = M->getNamedGlobal(Variable->getName());
       Builder.CreateCall(FC, { Register });
     }
   }
-
 
   // Adjust back the stack pointer
   if (not IsTailCall) {

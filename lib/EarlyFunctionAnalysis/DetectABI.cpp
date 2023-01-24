@@ -12,8 +12,8 @@
 #include "llvm/Support/GraphWriter.h"
 
 #include "revng/ABI/RegisterStateDeductions.h"
-#include "revng/ADT/Queue.h"
 #include "revng/ADT/GenericGraph.h"
+#include "revng/ADT/Queue.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/CFGAnalyzer.h"
 #include "revng/EarlyFunctionAnalysis/CallGraph.h"
@@ -142,10 +142,10 @@ public:
     runInterproceduralAnalysis();
 
     for (const auto &Node : post_order(ApproximateCallGraph.getEntryNode())) {
-        const auto &Addr = Node->Address;
-        if (Node != ApproximateCallGraph.getEntryNode()) {
-            analyzeABI(GCBI.getBlockAt(Addr));
-        }
+      const auto &Addr = Node->Address;
+      if (Node != ApproximateCallGraph.getEntryNode()) {
+        analyzeABI(GCBI.getBlockAt(Addr));
+      }
     }
 
     // Propagate results between call-sites and functions
