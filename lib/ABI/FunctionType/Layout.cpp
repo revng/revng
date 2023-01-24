@@ -496,6 +496,7 @@ Layout::Layout(const model::CABIFunctionType &Function) {
   const abi::Definition &ABI = abi::Definition::get(Function.ABI());
   ToRawConverter Converter(ABI);
 
+  std::size_t CurrentStackOffset = 0;
   const auto Architecture = model::ABI::getArchitecture(Function.ABI());
   auto RV = Converter.distributeReturnValue(Function.ReturnType());
   if (RV.SizeOnStack == 0) {
@@ -507,22 +508,48 @@ Layout::Layout(const model::CABIFunctionType &Function) {
     revng_assert(RV.Registers.empty(),
                  "Register and stack return values should never be present "
                  "at the same time.");
-    revng_assert(ABI.ReturnValueLocationRegister() != model::Register::Invalid,
-                 "Big return values are not supported by the current ABI");
-    auto &RVLocationArg = Arguments.emplace_back();
-    RVLocationArg.Registers.emplace_back(ABI.ReturnValueLocationRegister());
-    RVLocationArg.Type = Function.ReturnType().getPointerTo(Architecture);
-    RVLocationArg.Kind = ArgumentKind::ShadowPointerToAggregateReturnValue;
+
+    // Add an argument to represent the pointer to the return value location.
+    Argument &RVLocationIn = Arguments.emplace_back();
+    RVLocationIn.Type = Function.ReturnType().getPointerTo(Architecture);
+    RVLocationIn.Kind = ArgumentKind::ShadowPointerToAggregateReturnValue;
+
+    if (ABI.ReturnValueLocationRegister() != model::Register::Invalid) {
+      // Return value is passed using the stack (with a pointer to the location
+      // in the dedicated register).
+      RVLocationIn.Registers.emplace_back(ABI.ReturnValueLocationRegister());
+    } else if (ABI.ReturnValueLocationOnStack()) {
+      // The location, where return value should be put in, is also communicated
+      // using the stack.
+      CurrentStackOffset += model::ABI::getPointerSize(ABI.ABI());
+      RVLocationIn.Stack = { 0, CurrentStackOffset };
+    } else {
+      revng_abort("Big return values are not supported by the current ABI");
+    }
+
+    // Also return the same pointer using normal means.
+    //
+    // NOTE: maybe some architectures do not require this.
+    // TODO: investigate.
+    ReturnValue &RVLocationOut = ReturnValues.emplace_back();
+    RVLocationOut.Type = RVLocationIn.Type;
+    revng_assert(RVLocationOut.Type.UnqualifiedType().isValid());
+
+    // To simplify selecting the register for it, use the full distribution
+    // routine again, but with the pointer instead of the original type.
+    auto RVOut = Converter.distributeReturnValue(RVLocationOut.Type);
+    revng_assert(RVOut.Size == model::ABI::getPointerSize(ABI.ABI()));
+    revng_assert(RVOut.Registers.size() == 1);
+    revng_assert(RVOut.SizeOnStack == 0);
+    RVLocationOut.Registers = std::move(RVOut.Registers);
   }
 
-  size_t CurrentOffset = 0;
   auto Args = Converter.distributeArguments(Function.Arguments(),
                                             RV.SizeOnStack != 0);
   revng_assert(Args.size() == Function.Arguments().size());
   for (size_t Index = 0; Index < Args.size(); ++Index) {
-    auto &Current = Arguments.emplace_back();
-    const model::QualifiedType
-      &ArgumentType = Function.Arguments().at(Index).Type();
+    Argument &Current = Arguments.emplace_back();
+    const auto &ArgumentType = Function.Arguments().at(Index).Type();
 
     // Disambiguate scalar and aggregate arguments.
     // Scalars are passed by value, aggregates - by pointer.
@@ -536,11 +563,12 @@ Layout::Layout(const model::CABIFunctionType &Function) {
     if (Args[Index].SizeOnStack != 0) {
       // TODO: further alignment considerations are needed here.
       Current.Stack = typename Layout::Argument::StackSpan{
-        CurrentOffset, Args[Index].SizeOnStack
+        CurrentStackOffset, Args[Index].SizeOnStack
       };
-      CurrentOffset += Args[Index].SizeOnStack;
+      CurrentStackOffset += Args[Index].SizeOnStack;
     }
   }
+
   CalleeSavedRegisters.resize(ABI.CalleeSavedRegisters().size());
   llvm::copy(ABI.CalleeSavedRegisters(), CalleeSavedRegisters.begin());
 
@@ -621,26 +649,48 @@ bool Layout::verify() const {
     if (!VerificationHelper(Register))
       return false;
 
+  // Verify callee saved registers
+  LookupHelper.clear();
+  for (model::Register::Values Register : CalleeSavedRegisters)
+    if (!VerificationHelper(Register))
+      return false;
+
   using namespace abi::FunctionType::ArgumentKind;
   auto SPTAR = ShadowPointerToAggregateReturnValue;
   bool SPTARFound = false;
-  unsigned Index = 0;
+  bool IsFirst = true;
   for (const auto &Argument : Arguments) {
     if (Argument.Kind == SPTAR) {
       // SPTAR must be the first argument
-      if (Index != 0)
+      if (!IsFirst)
         return false;
 
       // There can be only one SPTAR
       if (SPTARFound)
         return false;
 
-      // SPTAR needs to be associated to a single register
-      if (Argument.Stack or Argument.Registers.size() != 1)
-        return false;
+      if (Argument.Stack.has_value()) {
+        // SPTAR can be on the stack if ABI allows that.
+        //
+        // TODO: we should probably verify that, but such a verification would
+        //       require access to the ABI in question.
+
+        revng_assert(ExpectedA != model::Architecture::Invalid,
+                     "Unable to figure out the architecture.");
+        auto PointerSize = model::Architecture::getPointerSize(ExpectedA);
+
+        // The space SPTAR occupies on stack has to be that of a single pointer.
+        // It also has to be the first argument (with offset equal to zero).
+        if (Argument.Stack->Size != PointerSize || Argument.Stack->Offset != 0)
+          return false;
+      } else {
+        // SPTAR is not on the stack, so it has to be a single register
+        if (Argument.Registers.size() != 1)
+          return false;
+      }
     }
 
-    ++Index;
+    IsFirst = false;
   }
 
   return true;
