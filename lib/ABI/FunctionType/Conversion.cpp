@@ -5,45 +5,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/ABI/Definition.h"
 #include "revng/ABI/FunctionType/Conversion.h"
 #include "revng/ABI/FunctionType/Support.h"
-#include "revng/ABI/Trait.h"
 #include "revng/Model/Binary.h"
 
 namespace abi::FunctionType {
-
-template<std::size_t Size>
-using RegisterArray = std::array<model::Register::Values, Size>;
-
-template<model::Architecture::Values Architecture,
-         typename RegisterType,
-         size_t RegisterCount>
-bool verify(const SortedVector<RegisterType> &UsedRegisters,
-            const RegisterArray<RegisterCount> &AllowedRegisters) {
-  for (const model::Register::Values &Register : AllowedRegisters) {
-    // Verify the architecture of allowed registers.
-    if (model::Register::getReferenceArchitecture(Register) != Architecture)
-      revng_abort();
-
-    // Verify that there are no duplicate allowed registers.
-    if (llvm::count(AllowedRegisters, Register) != 1)
-      revng_abort();
-  }
-
-  for (const RegisterType &Register : UsedRegisters) {
-    // Verify the architecture of used registers.
-    constexpr model::Architecture::Values A = Architecture;
-    if (model::Register::getReferenceArchitecture(Register.Location()) != A)
-      revng_abort();
-  }
-
-  // Verify that every used register is also allowed.
-  for (const RegisterType &Register : UsedRegisters)
-    if (llvm::count(AllowedRegisters, Register.Location()) != 1)
-      return false;
-
-  return true;
-}
 
 static std::optional<model::QualifiedType>
 buildDoubleType(model::Register::Values UpperRegister,
@@ -71,13 +38,18 @@ static model::QualifiedType getTypeOrDefault(const model::QualifiedType &Type,
     return buildType(Register, Binary);
 }
 
-namespace ModelArch = model::Architecture;
-
-template<model::ABI::Values ABI>
 class ToCABIConverter {
-  using AT = abi::Trait<ABI>;
-  static constexpr auto Architecture = model::ABI::getArchitecture(ABI);
-  static constexpr auto RegisterSize = ModelArch::getPointerSize(Architecture);
+private:
+  using ArgumentRegisters = SortedVector<model::NamedTypedRegister>;
+  using ReturnValueRegisters = SortedVector<model::TypedRegister>;
+
+private:
+  const abi::Definition &ABI;
+
+public:
+  explicit ToCABIConverter(const abi::Definition &ABI) : ABI(ABI) {
+    ABI.verify();
+  }
 
 public:
   /// Entry point for the `toCABI` conversion.
@@ -86,80 +58,46 @@ public:
              TupleTree<model::Binary> &Binary) const;
 
 private:
-  template<typename RegisterType, size_t RegisterCount, bool DryRun = false>
+  template<bool DryRun = false>
   std::optional<llvm::SmallVector<model::Argument, 8>>
-  convertArguments(const SortedVector<RegisterType> &UsedRegisters,
-                   const RegisterArray<RegisterCount> &AllowedRegisters,
-                   model::Binary &Binary) const;
+  convertRegisterArguments(const ArgumentRegisters &Registers,
+                           model::Binary &Binary) const;
 
   llvm::SmallVector<model::Argument, 8>
   convertStackArguments(model::QualifiedType StackArgumentTypes,
                         size_t IndexOffset) const;
 
-  template<typename RegisterType, size_t RegCount, bool DryRun = false>
+  template<bool DryRun = false>
   std::optional<model::QualifiedType>
-  convertReturnValue(const SortedVector<RegisterType> &UsedRegisters,
-                     const RegisterArray<RegCount> &AllowedRegisters,
-                     model::Register::Values PointerToCopyLocation,
+  convertReturnValue(const ReturnValueRegisters &Registers,
                      model::Binary &Binary) const;
 
-  template<typename RType, size_t RCount>
-  bool verifyArgumentsToBeConvertible(const SortedVector<RType> &UR,
-                                      const RegisterArray<RCount> &AR,
-                                      model::Binary &B) const {
-    return convertArguments<RType, RCount, true>(UR, AR, B).has_value();
+  bool verifyArgumentsToBeConvertible(const ArgumentRegisters &Registers,
+                                      model::Binary &Binary) const {
+    return convertRegisterArguments<true>(Registers, Binary).has_value();
   }
 
-  template<typename RType, size_t RCount>
-  bool verifyReturnValueToBeConvertible(const SortedVector<RType> &UR,
-                                        const RegisterArray<RCount> &AR,
-                                        const model::Register::Values PtC,
-                                        model::Binary &B) const {
-    return convertReturnValue<RType, RCount, true>(UR, AR, PtC, B).has_value();
+  bool verifyReturnValueToBeConvertible(const ReturnValueRegisters &Registers,
+                                        model::Binary &Binary) const {
+    return convertReturnValue<true>(Registers, Binary).has_value();
   }
 };
 
-template<model::ABI::Values ABI>
 std::optional<model::TypePath>
-ToCABIConverter<ABI>::tryConvert(const model::RawFunctionType &Function,
-                                 TupleTree<model::Binary> &Binary) const {
-  if (!verify<Architecture>(Function.Arguments(),
-                            AT::GeneralPurposeArgumentRegisters))
-    return std::nullopt;
-  if (!verify<Architecture>(Function.ReturnValues(),
-                            AT::GeneralPurposeReturnValueRegisters))
-    return std::nullopt;
-
-  // Verify the architecture of return value location register if present.
-  constexpr model::Register::Values L = AT::ReturnValueLocationRegister;
-  if (L != model::Register::Invalid)
-    revng_assert(model::Register::getReferenceArchitecture(L) == Architecture);
-
-  // Verify the architecture of callee saved registers.
-  for (auto &R : AT::CalleeSavedRegisters) {
-    revng_assert(model::Register::getReferenceArchitecture(R) == Architecture);
-  }
-
+ToCABIConverter::tryConvert(const model::RawFunctionType &Function,
+                            TupleTree<model::Binary> &Binary) const {
   model::CABIFunctionType Result;
   Result.CustomName() = Function.CustomName();
   Result.OriginalName() = Function.OriginalName();
-  Result.ABI() = ABI;
+  Result.ABI() = ABI.ABI();
 
-  if (!verifyArgumentsToBeConvertible(Function.Arguments(),
-                                      AT::GeneralPurposeArgumentRegisters,
-                                      *Binary))
+  if (!verifyArgumentsToBeConvertible(Function.Arguments(), *Binary))
     return std::nullopt;
 
-  using C = AT;
-  if (!verifyReturnValueToBeConvertible(Function.ReturnValues(),
-                                        C::GeneralPurposeReturnValueRegisters,
-                                        C::ReturnValueLocationRegister,
-                                        *Binary))
+  if (!verifyReturnValueToBeConvertible(Function.ReturnValues(), *Binary))
     return std::nullopt;
 
-  auto ArgumentList = convertArguments(Function.Arguments(),
-                                       AT::GeneralPurposeArgumentRegisters,
-                                       *Binary);
+  auto ArgumentList = convertRegisterArguments(Function.Arguments(), *Binary);
   revng_assert(ArgumentList != std::nullopt);
   for (auto &Argument : *ArgumentList)
     Result.Arguments().insert(Argument);
@@ -169,10 +107,7 @@ ToCABIConverter<ABI>::tryConvert(const model::RawFunctionType &Function,
   for (auto &Argument : StackArgumentList)
     Result.Arguments().insert(Argument);
 
-  auto ReturnValue = convertReturnValue(Function.ReturnValues(),
-                                        C::GeneralPurposeReturnValueRegisters,
-                                        C::ReturnValueLocationRegister,
-                                        *Binary);
+  auto ReturnValue = convertReturnValue(Function.ReturnValues(), *Binary);
   revng_assert(ReturnValue != std::nullopt);
   Result.ReturnType() = *ReturnValue;
 
@@ -194,33 +129,30 @@ ToCABIConverter<ABI>::tryConvert(const model::RawFunctionType &Function,
   return NewTypePath;
 }
 
-template<model::ABI::Values ABI>
-using TCC = ToCABIConverter<ABI>;
-
-template<model::ABI::Values ABI>
-template<typename RegisterType, size_t RegisterCount, bool DryRun>
+template<bool DryRun>
 std::optional<llvm::SmallVector<model::Argument, 8>>
-TCC<ABI>::convertArguments(const SortedVector<RegisterType> &UsedRegisters,
-                           const RegisterArray<RegisterCount> &AllowedRegisters,
-                           model::Binary &Binary) const {
+ToCABIConverter::convertRegisterArguments(const ArgumentRegisters &Registers,
+                                          model::Binary &Binary) const {
   llvm::SmallVector<model::Argument, 8> Result;
+
+  const auto &AllowedRegisters = ABI.GeneralPurposeArgumentRegisters();
 
   bool MustUseTheNextOne = false;
   auto AllowedRange = llvm::enumerate(llvm::reverse(AllowedRegisters));
   for (auto Pair : AllowedRange) {
     size_t Index = AllowedRegisters.size() - Pair.index() - 1;
     model::Register::Values Register = Pair.value();
-    bool IsUsed = UsedRegisters.find(Register) != UsedRegisters.end();
+    bool IsUsed = Registers.find(Register) != Registers.end();
     if (IsUsed) {
       model::Argument Temporary;
       if constexpr (!DryRun)
-        Temporary.Type() = getTypeOrDefault(UsedRegisters.at(Register).Type(),
+        Temporary.Type() = getTypeOrDefault(Registers.at(Register).Type(),
                                             Register,
                                             Binary);
-      Temporary.CustomName() = UsedRegisters.at(Register).CustomName();
+      Temporary.CustomName() = Registers.at(Register).CustomName();
       Result.emplace_back(Temporary);
     } else if (MustUseTheNextOne) {
-      if constexpr (!AT::OnlyStartDoubleArgumentsFromAnEvenRegister) {
+      if (!ABI.OnlyStartDoubleArgumentsFromAnEvenRegister()) {
         return std::nullopt;
       } else if ((Index & 1) == 0) {
         return std::nullopt;
@@ -258,10 +190,9 @@ TCC<ABI>::convertArguments(const SortedVector<RegisterType> &UsedRegisters,
   return Result;
 }
 
-template<model::ABI::Values ABI>
 llvm::SmallVector<model::Argument, 8>
-TCC<ABI>::convertStackArguments(model::QualifiedType StackArgumentTypes,
-                                size_t IndexOffset) const {
+ToCABIConverter::convertStackArguments(model::QualifiedType StackArgumentTypes,
+                                       size_t IndexOffset) const {
   revng_assert(StackArgumentTypes.Qualifiers().empty());
   auto *Unqualified = StackArgumentTypes.UnqualifiedType().get();
   if (not Unqualified)
@@ -284,35 +215,35 @@ TCC<ABI>::convertStackArguments(model::QualifiedType StackArgumentTypes,
   return Result;
 }
 
-template<model::ABI::Values ABI>
-template<typename RegisterType, size_t RegCount, bool DryRun>
+template<bool DryRun>
 std::optional<model::QualifiedType>
-TCC<ABI>::convertReturnValue(const SortedVector<RegisterType> &UsedRegisters,
-                             const RegisterArray<RegCount> &AllowedRegisters,
-                             model::Register::Values PointerToCopyLocation,
-                             model::Binary &Binary) const {
-  if (UsedRegisters.size() == 0) {
+ToCABIConverter::convertReturnValue(const ReturnValueRegisters &Registers,
+                                    model::Binary &Binary) const {
+  const auto &AllowedRegisters = ABI.GeneralPurposeReturnValueRegisters();
+  const auto &ReturnValueLocationRegister = ABI.ReturnValueLocationRegister();
+
+  if (Registers.size() == 0) {
     auto Void = Binary.getPrimitiveType(model::PrimitiveTypeKind::Void, 0);
     return model::QualifiedType{ Void, {} };
   }
 
-  if (UsedRegisters.size() == 1) {
-    if (UsedRegisters.begin()->Location() == PointerToCopyLocation) {
+  if (Registers.size() == 1) {
+    if (Registers.begin()->Location() == ReturnValueLocationRegister) {
       if constexpr (DryRun)
         return model::QualifiedType{};
       else
-        return getTypeOrDefault(UsedRegisters.begin()->Type(),
-                                PointerToCopyLocation,
+        return getTypeOrDefault(Registers.begin()->Type(),
+                                ReturnValueLocationRegister,
                                 Binary);
     } else {
-      if constexpr (RegCount == 0)
+      if (AllowedRegisters.size() == 0)
         return std::nullopt;
-      if (AllowedRegisters.front() == UsedRegisters.begin()->Location()) {
+      if (AllowedRegisters.front() == Registers.begin()->Location()) {
         if constexpr (DryRun)
           return model::QualifiedType{};
         else
-          return getTypeOrDefault(UsedRegisters.begin()->Type(),
-                                  UsedRegisters.begin()->Location(),
+          return getTypeOrDefault(Registers.begin()->Type(),
+                                  Registers.begin()->Location(),
                                   Binary);
       } else {
         return std::nullopt;
@@ -327,9 +258,9 @@ TCC<ABI>::convertReturnValue(const SortedVector<RegisterType> &UsedRegisters,
     for (auto Pair : AllowedRange) {
       size_t Index = AllowedRegisters.size() - Pair.index() - 1;
       model::Register::Values Register = Pair.value();
-      auto UsedIterator = UsedRegisters.find(Register);
+      auto UsedIterator = Registers.find(Register);
 
-      bool IsCurrentRegisterUsed = UsedIterator != UsedRegisters.end();
+      bool IsCurrentRegisterUsed = UsedIterator != Registers.end();
       if (IsCurrentRegisterUsed) {
         model::StructField CurrentField;
         CurrentField.Offset() = ReturnStruct->Size();
@@ -341,7 +272,7 @@ TCC<ABI>::convertReturnValue(const SortedVector<RegisterType> &UsedRegisters,
 
         ReturnStruct->Size() += model::Register::getSize(Register);
       } else if (MustUseTheNextOne) {
-        if constexpr (!AT::OnlyStartDoubleArgumentsFromAnEvenRegister)
+        if (!ABI.OnlyStartDoubleArgumentsFromAnEvenRegister())
           return std::nullopt;
         else if ((Index & 1) == 0 || ReturnStruct->Fields().size() <= 1
                  || Index <= 1)
@@ -371,10 +302,9 @@ tryConvertToCABI(const model::RawFunctionType &Function,
                  std::optional<model::ABI::Values> MaybeABI) {
   if (!MaybeABI.has_value())
     MaybeABI = Binary->DefaultABI();
-  revng_assert(*MaybeABI != model::ABI::Invalid);
-  return skippingEnumSwitch<1>(*MaybeABI, [&]<model::ABI::Values A>() {
-    return ToCABIConverter<A>().tryConvert(Function, Binary);
-  });
+
+  ToCABIConverter ToCABI(abi::Definition::get(*MaybeABI));
+  return ToCABI.tryConvert(Function, Binary);
 }
 
 } // namespace abi::FunctionType
