@@ -141,7 +141,7 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
         // The end offset of the final compacted array.
         // Initially it's just the last byte that is guaranteed to be accessed
         // by InitialChild. This will never decrease, but it could become
-        // bigger, if we find strong evidence in other siblngs that the
+        // bigger, if we find strong evidence in other siblings that the
         // compacted array should actually be larger.
         uint64_t ArrayEndOffset = InitialOffset + (Stride * (TripCount - 1ULL))
                                   + InitialChild->Size;
@@ -153,9 +153,18 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
         // array element, but we can never move something more backwards than
         // the start of Parent, so we have to take ArrayStartOffset in
         // consideration.
+        // The value of AvailableSlack always decreases during the iterations.
         revng_assert(Stride >= InitialChild->Size);
         uint64_t AvailableSlack = std::min(ArrayStartOffset,
                                            Stride - InitialChild->Size);
+
+        // The offset of the first byte in the array element that we're not sure
+        // that will be accessed.
+        // It is always <= Stride - AvailableSlack;
+        // Given that AvailableSlack only decreases and Stride is fixed,
+        // AccessedElemSize only increases, possibly reaching Stride, but never
+        // growing larger than that.
+        uint64_t AccessedElemSize = InitialChild->Size;
 
         // Ok, now we start looking at other array siblings of ArrayEdge.
         // If we find an ArraySibling that strongly overlaps with the array
@@ -234,11 +243,19 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
 
             // If we reach this point, we have the guarantee that we will not
             // bail out, and that ArraySibling will be compacted, so we can
-            // change the AvailableSlack and ArrayStartOffset
+            // update the running values we're tracking.
 
             AvailableSlack -= RequiredSlack;
             ArrayStartOffset -= RequiredSlack;
             OffsetDifference -= RequiredSlack;
+
+            // If we're moving the array start to the left we have to update the
+            // size of the accessed element in the array.
+            // It is always at least as large as the Sibling, and also at least
+            // as large as the previous AccessedElemSize adjusted by the
+            // RequiredSlack.
+            AccessedElemSize = std::max(Sibling->Size,
+                                        AccessedElemSize + RequiredSlack);
 
             // If there is still some OffsetDifference after adjusting the
             // slack, we have to add a whole bunch of new elements before
@@ -253,6 +270,9 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
               // might need to subtract Stride once more (see below) if the
               // division above had non-zero remainder.
               ArrayStartOffset -= Stride * NumPrecedingElements;
+
+              // Update the TripCount
+              TripCount += NumPrecedingElements;
             }
 
             // Also, we're moving the ArrayStartOffset backward, so the the size
@@ -292,13 +312,10 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
           // have to restart looking at array siblings because, given that the
           // range increases, there could be new siblings that have
           // overlapping bytes, and we have to take them into consideration
-          // too.
-          // This may happen in 2 scenarios: there's some required slack, so
-          // we're moving the start backwards; or the new end offset is larger
-          // than the older, so we're moving the end forwards.
-          if (RequiredSlack or SiblingEndOffset > ArrayEndOffset)
+          // too. If RequiredSlack is not zero, we're moving the
+          // ArrayStartOffset to the left, so we have to restart.
+          if (RequiredSlack)
             SiblingEdgeNext = GT::child_edge_begin(Parent);
-
           revng_assert(ArrayStartOffset >= RequiredSlack);
           ArrayStartOffset -= RequiredSlack;
 
@@ -311,22 +328,46 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
                                       - (OffsetOfSiblingInArray
                                          + Sibling->Size));
 
-          // Update the ArrayEndOffset, given that the ArraySibling could end
-          // at a higher offset.
-          ArrayEndOffset = std::max(ArrayEndOffset, SiblingEndOffset);
+          // Update the AccessedElemSize.
+          // If we had a RequiredSlack it means that the array is being shifted
+          // to the left, so the new AccessedElemSize is at least large like the
+          // new Sibling, and at least large as the previous iteration adjusted
+          // for the RequiredSlack.
+          // If we didn't have a RequiredSlack, AccessedElemeSize stays the same
+          // or at most it accesses the upper byte of the Sibling.
+          if (RequiredSlack) {
+            AccessedElemSize = std::max(Sibling->Size,
+                                        AccessedElemSize + RequiredSlack);
+          } else {
+            AccessedElemSize = std::max(AccessedElemSize,
+                                        OffsetOfSiblingInArray + Sibling->Size);
+          }
 
           // Update the TripCount.
-          // The new TripCount is computed by counting how many times the
-          // Stride fits into the new [ArrayStartOffset, ArrayEndOffset)
-          // range. If the range is not fully divisible by Stride, count an
-          // extra element to allow space for the trailing stuff.
-          // There's no need to check the remainder to see if it's not fully
-          // divisible. It's enough to check the AvailableSlack.
-          auto AccessedArraySize = ArrayEndOffset - ArrayStartOffset;
-          auto DivRem = std::lldiv(AccessedArraySize, Stride);
-          TripCount = DivRem.quot;
-          if (DivRem.rem)
-            ++TripCount;
+          // This is a little convoluted because we might have moved a little
+          // bit the array start to the left and at the same time the sibling
+          // array could end much later than the last access performed to the
+          // array up until now.
+          // So, basically starting from the new update ArrayStartOffset (that
+          // takes into account the occasional shift to the left) we compute how
+          // many trips we need to cover all the accesses that we know of,
+          // namely represented by ArrayEndOffset and SiblingEndOffset (these
+          // have not been updated yet, so they're still valid).
+          // Then we take the largest of the two trip counts.
+          auto OldDivRem = std::lldiv(ArrayEndOffset - ArrayStartOffset,
+                                      Stride);
+          auto NewDivRem = std::lldiv(SiblingEndOffset - ArrayStartOffset,
+                                      Stride);
+          uint64_t OldTripCount = OldDivRem.quot
+                                  + (OldDivRem.rem ? 1ULL : 0ULL);
+          uint64_t NewTripCount = NewDivRem.quot
+                                  + (NewDivRem.rem ? 1ULL : 0ULL);
+          TripCount = std::max(OldTripCount, NewTripCount);
+
+          // Update the ArrayEndOffset, using the updated ArrayStartOffset, the
+          // new updated TripCount and the newly updated AccessedElemSize.
+          ArrayEndOffset = ArrayStartOffset + (Stride * (TripCount - 1ULL))
+                           + AccessedElemSize;
         }
 
         // TODO: we should think if it's beneficial to incorporate single
@@ -338,7 +379,7 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
 
           // New artificial node representing an element of the compacted array
           auto *New = TS.createArtificialLayoutType();
-          New->Size = Stride - AvailableSlack;
+          New->Size = AccessedElemSize;
 
           // Helper lambda to compact the various components into the compacted
           // array.
