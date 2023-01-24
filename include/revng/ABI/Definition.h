@@ -6,6 +6,7 @@
 
 #include <vector>
 
+#include "revng/ABI/FunctionType/Support.h"
 #include "revng/ABI/RegisterState.h"
 #include "revng/ABI/ScalarType.h"
 #include "revng/ADT/SortedVector.h"
@@ -287,6 +288,9 @@ public:
 
 public:
   std::string_view getName() const { return model::ABI::getName(ABI()); }
+  std::size_t getPointerSize() const {
+    return model::ABI::getPointerSize(ABI());
+  }
 
   /// Make sure current definition is valid.
   bool verify() const debug_function;
@@ -391,6 +395,18 @@ public:
 
     revng_assert(Result.size() == std::size(Registers));
     return Result;
+  }
+
+  /// Takes care of extending (padding) the size of a stack argument.
+  ///
+  /// \note This only accounts for the post-padding (extension).
+  ///       Pre-padding (offset) needs to be taken care of separately.
+  ///
+  /// \param Size The size of the argument without the padding.
+  ///
+  /// \return The size of the argument with the padding.
+  uint64_t paddedSizeOnStack(uint64_t Size) const {
+    return FunctionType::paddedSizeOnStack(Size, getPointerSize());
   }
 };
 
