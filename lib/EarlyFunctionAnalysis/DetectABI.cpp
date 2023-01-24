@@ -532,6 +532,10 @@ void DetectABI::applyABIDeductions() {
     bool EnforceABIConformance = ABIEnforcement == FullABIEnforcement;
     std::optional<abi::RegisterState::Map> ResultMap;
 
+    // TODO: drop this.
+    // Since function type conversion is capable of handling the holes
+    // internally, there's not much reason to push such invasive changes
+    // this early in the pipeline.
     auto ABI = abi::Definition::get(Binary->DefaultABI());
     if (EnforceABIConformance)
       ResultMap = ABI.enforceRegisterState(StateMap);
