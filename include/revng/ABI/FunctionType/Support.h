@@ -10,21 +10,6 @@
 
 namespace abi::FunctionType {
 
-constexpr inline model::PrimitiveTypeKind::Values
-selectTypeKind(model::Register::Values) {
-  // TODO: implement a way to determine the register type. At the very least
-  // we should be able to differentiate GPRs from the vector registers.
-
-  return model::PrimitiveTypeKind::PointerOrNumber;
-}
-
-inline model::QualifiedType
-buildType(model::Register::Values Register, model::Binary &Binary) {
-  model::PrimitiveTypeKind::Values Kind = selectTypeKind(Register);
-  size_t Size = model::Register::getSize(Register);
-  return model::QualifiedType(Binary.getPrimitiveType(Kind, Size), {});
-}
-
 /// Replace all the references to `OldKey` with the references to
 /// the newly added `NewType`. It also erases the old type.
 ///
