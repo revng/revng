@@ -282,12 +282,12 @@ DistributedArguments
 ToRawConverter::distributePositionBasedArguments(const ArgumentSet &Arguments,
                                                  size_t SkippedCount) const {
   DistributedArguments Result;
+  Result.resize(Arguments.size());
 
   for (const model::Argument &Argument : Arguments) {
     std::size_t RegisterIndex = Argument.Index() + SkippedCount;
-    if (Result.size() <= RegisterIndex)
-      Result.resize(RegisterIndex + 1);
-    auto &Distributed = Result[RegisterIndex];
+    revng_assert(Argument.Index() < Result.size());
+    auto &Distributed = Result[Argument.Index()];
 
     auto MaybeSize = Argument.Type().size();
     revng_assert(MaybeSize.has_value());
@@ -298,14 +298,14 @@ ToRawConverter::distributePositionBasedArguments(const ArgumentSet &Arguments,
         auto Register = ABI.VectorArgumentRegisters()[RegisterIndex];
         Distributed.Registers.emplace_back(Register);
       } else {
-        Distributed.SizeOnStack = ABI.paddedSizeOnStack(Distributed.Size);
+        Distributed.SizeOnStack = Distributed.Size;
       }
     } else {
       if (RegisterIndex < ABI.GeneralPurposeArgumentRegisters().size()) {
         auto Reg = ABI.GeneralPurposeArgumentRegisters()[RegisterIndex];
         Distributed.Registers.emplace_back(Reg);
       } else {
-        Distributed.SizeOnStack = ABI.paddedSizeOnStack(Distributed.Size);
+        Distributed.SizeOnStack = Distributed.Size;
       }
     }
   }
