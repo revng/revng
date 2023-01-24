@@ -77,9 +77,9 @@ constexpr bool verifyReturnValueLocationRegister() {
 
 namespace ModelArch = model::Architecture;
 using IndexType = decay_t<model::Argument::IndexType>;
-using RegisterList = llvm::SmallVector<model::Register::Values, 1>;
+using RegisterVector = llvm::SmallVector<model::Register::Values, 1>;
 struct DistributedArgument {
-  RegisterList Registers = {};
+  RegisterVector Registers = {};
   size_t Size = 0, SizeOnStack = 0;
 };
 using DistributedArguments = llvm::SmallVector<DistributedArgument, 4>;
@@ -141,9 +141,9 @@ public:
 static model::QualifiedType
 chooseArgumentType(const model::QualifiedType &ArgumentType,
                    model::Register::Values Register,
-                   const RegisterList &RegisterList,
+                   const RegisterVector &Registers,
                    model::Binary &Binary) {
-  if (RegisterList.size() > 1) {
+  if (Registers.size() > 1) {
     return buildGenericType(Register, Binary);
   } else {
     auto ResultType = ArgumentType;
