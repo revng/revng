@@ -369,8 +369,8 @@ DistributedArguments
 ToRawConverter::distributeNonPositionBasedArguments(const ASet &Arguments,
                                                     size_t SkippedCount) const {
   DistributedArguments Result;
-  size_t UsedGeneralPurposeRegisterCount = SkippedCount;
-  size_t UsedVectorRegisterCount = 0;
+  size_t UsedGeneralPurposeRegisterCounter = SkippedCount;
+  size_t UsedVectorRegisterCounter = 0;
 
   for (const model::Argument &Argument : Arguments) {
     auto Size = Argument.Type().size();
@@ -382,33 +382,29 @@ ToRawConverter::distributeNonPositionBasedArguments(const ASet &Arguments,
       // vector registers since it's rare for multiple registers to be used
       // to pass a single argument.
       //
-      // For now, just return the next free register.
+      // For now, provide at most a single vector register for such a value,
+      // if there's a free one.
       //
-      // TODO: handle this properly.
+      // TODO: find reproducers and handle the cases where multiple vector
+      //       registers are used together.
+      std::size_t Limit = 1;
 
+      size_t &Counter = UsedVectorRegisterCounter;
       const auto &Registers = ABI.VectorArgumentRegisters();
-      if (UsedVectorRegisterCount < Registers.size()) {
-        // There is a free register to put the argument in.
-        if (Result.size() <= Argument.Index())
-          Result.resize(Argument.Index() + 1);
+      auto [Distributed, NextIndex] = considerRegisters(*Size,
+                                                        Limit,
+                                                        Counter,
+                                                        Registers,
+                                                        false);
+      revng_assert(NextIndex == Counter || NextIndex == Counter + 1);
+      Counter = NextIndex;
 
-        auto Register = Registers[UsedVectorRegisterCount];
-        Result[Argument.Index()].Registers.emplace_back(Register);
-        Result[Argument.Index()].Size = *Size;
-        Result[Argument.Index()].SizeOnStack = 0;
-
-        UsedVectorRegisterCount++;
-      } else {
-        // There are no more free registers left,
-        // pass the argument on the stack.
-        if (Result.size() <= Argument.Index())
-          Result.resize(Argument.Index() + 1);
-        Result[Argument.Index()].Size = *Size;
-        Result[Argument.Index()].SizeOnStack = ABI.paddedSizeOnStack(*Size);
-      }
+      if (Result.size() <= Argument.Index())
+        Result.resize(Argument.Index() + 1);
+      Result[Argument.Index()] = Distributed;
     } else {
       const auto &Registers = ABI.GeneralPurposeArgumentRegisters();
-      size_t &Counter = UsedGeneralPurposeRegisterCount;
+      size_t &Counter = UsedGeneralPurposeRegisterCounter;
       if (Argument.Type().isScalar()) {
         const size_t Limit = ABI.MaximumGPRsPerScalarArgument();
 
@@ -443,17 +439,20 @@ ToRawConverter::distributeNonPositionBasedArguments(const ASet &Arguments,
 DistributedArguments
 ToRawConverter::distributeArguments(const ArgumentSet &Arguments,
                                     bool HasReturnValueLocationArgument) const {
-  bool SkippedRegisters = 0;
+  bool SkippedRegisterCount = 0;
+
   if (HasReturnValueLocationArgument == true)
     if (const auto &GPRs = ABI.GeneralPurposeArgumentRegisters(); !GPRs.empty())
       if (ABI.ReturnValueLocationRegister() == GPRs[0])
-        SkippedRegisters = 1;
+        SkippedRegisterCount = 1;
 
   if (ABI.ArgumentsArePositionBased())
-    return distributePositionBasedArguments(Arguments, SkippedRegisters);
+    return distributePositionBasedArguments(Arguments, SkippedRegisterCount);
   else
-    return distributeNonPositionBasedArguments(Arguments, SkippedRegisters);
+    return distributeNonPositionBasedArguments(Arguments, SkippedRegisterCount);
 }
+
+static constexpr auto UnlimitedRegisters = std::numeric_limits<size_t>::max();
 
 using model::QualifiedType;
 DistributedArgument
@@ -467,27 +466,23 @@ ToRawConverter::distributeReturnValue(const QualifiedType &ReturnValue) const {
   if (ReturnValue.isFloat()) {
     const auto &Registers = ABI.VectorReturnValueRegisters();
 
-    // As a temporary measure always just return the first vector return value
-    // register, if it's available.
-    //
-    // TODO: handle the situation properly.
-    if (!ABI.VectorReturnValueRegisters().empty()) {
-      DistributedArgument Result;
-      Result.Size = *MaybeSize;
-      Result.Registers.emplace_back(Registers.front());
-      Result.SizeOnStack = 0;
-      return Result;
-    } else {
-      // If there are no vector registers, dedicated to be used for passing
-      // arguments in the current ABI, use stack instead.
-      return considerRegisters(*MaybeSize, 0, 0, Registers, false).first;
-    }
+    // For now replace unsupported floating point return values with `void`
+    // The main offenders are the values returned in `st0`.
+    // TODO: handle this properly.
+    if (Registers.empty())
+      return DistributedArgument{};
+
+    // TODO: replace this the explicit single register limit with an abi-defined
+    // value. For more information see the relevant comment in
+    // `distributeRegisterArguments`.
+    std::size_t Limit = 1;
+    return considerRegisters(*MaybeSize, Limit, 0, Registers, false).first;
   } else {
-    const size_t L = ReturnValue.isScalar() ?
-                       ABI.MaximumGPRsPerScalarReturnValue() :
-                       ABI.MaximumGPRsPerAggregateReturnValue();
+    const size_t Limit = ReturnValue.isScalar() ?
+                           ABI.MaximumGPRsPerScalarReturnValue() :
+                           ABI.MaximumGPRsPerAggregateReturnValue();
     const auto &Registers = ABI.GeneralPurposeReturnValueRegisters();
-    return considerRegisters(*MaybeSize, L, 0, Registers, false).first;
+    return considerRegisters(*MaybeSize, Limit, 0, Registers, false).first;
   }
 }
 
