@@ -1014,14 +1014,13 @@ void CallSummarizer::handleCall(MetaAddress CallerBlock,
 
   for (auto &[Variable, Values] : ABIResults.ArgumentsRegisters) {
     if (Values == abi::RegisterState::Yes) {
-      // inject artificial write (weak_write)
-      auto Ty = llvm::FunctionType::get(llvm::Type::getVoidTy(Context),
-                                        { Variable->getType() },
-                                        false);
-      auto F = WeakReadWritePools.get(Variable->getType(), Ty, "weak_write");
-      FunctionCallee FC(F->getFunctionType(), F);
+      auto Name = ("write_" + Variable->getName());
+      auto F = RegistersClobberedPool.get(Variable->getName(),
+                                          Variable->getType(),
+                                          {},
+                                          Name);
       auto Register = M->getNamedGlobal(Variable->getName());
-      Builder.CreateCall(FC, { Register });
+      Builder.CreateStore(Builder.CreateCall(F), Register);
     }
   }
 
@@ -1029,13 +1028,8 @@ void CallSummarizer::handleCall(MetaAddress CallerBlock,
 
   for (const auto &[Variable, Values] : ABIResults.FinalReturnValuesRegisters) {
     if (Values == abi::RegisterState::Yes) {
-      auto Ty = llvm::FunctionType::get(llvm::Type::getVoidTy(Context),
-                                        { Variable->getType() },
-                                        false);
-      auto F = WeakReadWritePools.get(Variable->getType(), Ty, "weak_read");
-      FunctionCallee FC(F->getFunctionType(), F);
       auto Register = M->getNamedGlobal(Variable->getName());
-      Builder.CreateCall(FC, { Register });
+      Builder.CreateLoad(Register);
     }
   }
 
