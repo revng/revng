@@ -143,7 +143,7 @@ public:
 
     for (const auto &Node : post_order(ApproximateCallGraph.getEntryNode())) {
       const auto &Addr = Node->Address;
-      if (Node != ApproximateCallGraph.getEntryNode()) {
+      if (Addr != MetaAddress{}) {
         analyzeABI(GCBI.getBlockAt(Addr));
       }
     }
