@@ -3,6 +3,7 @@
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
+// #pragma clang optimize off
 
 #include <fstream>
 
@@ -12,6 +13,7 @@
 #include "llvm/CodeGen/UnreachableBlockElim.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar/EarlyCSE.h"
 #include "llvm/Transforms/Scalar/GVN.h"
@@ -1020,7 +1022,7 @@ void CallSummarizer::handleCall(MetaAddress Caller,
 
   for (auto &[Variable, Values] : ABIResults.ArgumentsRegisters) {
     if (Values == abi::RegisterState::Yes) {
-      auto Name = ("write_" + Variable->getName());
+      auto Name = llvm::formatv("write_{0}", Variable->getName());
       auto Register = M->getNamedGlobal(Variable->getName());
       auto F = WeakReadWritePools.get(Register->getName(),
                                       Register->getValueType(),
@@ -1081,7 +1083,7 @@ void CallSummarizer::clobberCSVs(llvm::IRBuilder<> &Builder,
   // the an opaque value into clobbered registers
   for (GlobalVariable *Register : ClobberedRegisters) {
     auto *CSVTy = Register->getType()->getPointerElementType();
-    auto Name = ("registers_clobbered_" + Twine(Register->getName())).str();
+    auto Name = llvm::formatv("registers_clobbered_{0}", Register->getName());
     auto *ClobberFunction = RegistersClobberedPool.get(Register->getName(),
                                                        CSVTy,
                                                        {},
