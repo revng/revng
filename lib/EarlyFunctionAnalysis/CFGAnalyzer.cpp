@@ -1010,17 +1010,22 @@ void CallSummarizer::handleCall(MetaAddress Caller,
 
   Builder.CreateCall(PreCallHook, Args);
 
-  const FunctionSummary &CalleeSummary = Oracle.getLocalFunction(Callee);
-  const auto &ABIResults = CalleeSummary.ABIResults;
+  const auto SymbolName = extractFromConstantStringPtr(SymbolNamePointer);
+  const auto &[CalleeSummary, IsTail] = Oracle.getCallSite(Caller,
+                                                           CallerBlock,
+                                                           Callee,
+                                                           SymbolName);
+  // const FunctionSummary &CalleeSummary = Oracle.getLocalFunction(Callee
+  const auto &ABIResults = CalleeSummary->ABIResults;
 
   for (auto &[Variable, Values] : ABIResults.ArgumentsRegisters) {
     if (Values == abi::RegisterState::Yes) {
       auto Name = ("write_" + Variable->getName());
-      auto F = RegistersClobberedPool.get(Variable->getName(),
-                                          Variable->getType(),
-                                          {},
-                                          Name);
       auto Register = M->getNamedGlobal(Variable->getName());
+      auto F = WeakReadWritePools.get(Register->getName(),
+                                      Register->getValueType(),
+                                      {},
+                                      Name);
       Builder.CreateStore(Builder.CreateCall(F), Register);
     }
   }
