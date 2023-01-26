@@ -18,7 +18,8 @@ public:
 
   /// \note Implementors should not emit a terminator
   virtual void
-  handleCall(MetaAddress CallerBlock,
+  handleCall(MetaAddress Caller,
+             MetaAddress CallerBlock,
              llvm::IRBuilder<> &Builder,
              MetaAddress Callee,
              const std::set<llvm::GlobalVariable *> &ClobberedRegisters,

@@ -986,7 +986,8 @@ CallSummarizer::CallSummarizer(llvm::Module *M,
 
 using CSVSet = std::set<llvm::GlobalVariable *>;
 
-void CallSummarizer::handleCall(MetaAddress CallerBlock,
+void CallSummarizer::handleCall(MetaAddress Caller,
+                                MetaAddress CallerBlock,
                                 llvm::IRBuilder<> &Builder,
                                 MetaAddress Callee,
                                 const CSVSet &ClobberedRegisters,

@@ -44,7 +44,8 @@ public:
                  const FunctionSummaryOracle &Oracle);
 
 public:
-  void handleCall(MetaAddress CallerBlock,
+  void handleCall(MetaAddress Caller,
+                  MetaAddress CallerBlock,
                   llvm::IRBuilder<> &Builder,
                   MetaAddress Callee,
                   const std::set<llvm::GlobalVariable *> &ClobberedRegisters,

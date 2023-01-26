@@ -185,7 +185,8 @@ void Outliner::integrateFunctionCallee(CallHandler *TheCallHandler,
   } else {
     Instruction *Term = BB->getTerminator();
     IRBuilder<> Builder(Term);
-    TheCallHandler->handleCall(CallerBlock,
+    TheCallHandler->handleCall(CallerFunction,
+                               CallerBlock,
                                Builder,
                                Callee,
                                Summary->ClobberedRegisters,
