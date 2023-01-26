@@ -15,6 +15,8 @@
 #include "revng/Model/Helpers.h"
 #include "revng/Support/OverflowSafeInt.h"
 
+static Logger Log("function-type-conversion-to-cabi");
+
 namespace abi::FunctionType {
 
 class ToCABIConverter {
@@ -47,6 +49,7 @@ public:
     // Register arguments first.
     auto Arguments = tryConvertingRegisterArguments(FunctionType.Arguments());
     if (!Arguments.has_value()) {
+      revng_log(Log, "Unable to convert register arguments.");
       Bucket.drop();
       return std::nullopt;
     }
@@ -55,6 +58,7 @@ public:
     auto Stack = tryConvertingStackArguments(FunctionType.StackArgumentsType(),
                                              Arguments->size());
     if (!Stack.has_value()) {
+      revng_log(Log, "Unable to convert stack arguments.");
       Bucket.drop();
       return std::nullopt;
     }
@@ -62,6 +66,7 @@ public:
     // And the return value.
     auto ReturnType = tryConvertingReturnValue(FunctionType.ReturnValues());
     if (!ReturnType.has_value()) {
+      revng_log(Log, "Unable to convert return value.");
       Bucket.drop();
       return std::nullopt;
     }
@@ -120,9 +125,18 @@ tryConvertToCABI(const model::RawFunctionType &FunctionType,
   if (!MaybeABI.has_value())
     MaybeABI = Binary->DefaultABI();
 
+  revng_log(Log, "Converting a `RawFunctionType` to `CABIFunctionType`.");
+  revng_log(Log, "ABI: " << model::ABI::getName(MaybeABI.value()).str());
+  revng_log(Log, "Original Type:\n" << serializeToString(FunctionType));
+  LoggerIndent Indentation(Log);
+
   const abi::Definition &ABI = abi::Definition::get(*MaybeABI);
-  if (ABI.isIncompatibleWith(FunctionType))
+  if (ABI.isIncompatibleWith(FunctionType)) {
+    revng_log(Log,
+              "FAIL: the function is not compatible with `"
+                << model::ABI::getName(ABI.ABI()) << "`.");
     return std::nullopt;
+  }
 
   ToCABIConverter Converter(ABI, *Binary, UseSoftRegisterStateDeductions);
   std::optional Converted = Converter.tryConvert(FunctionType);
@@ -140,6 +154,8 @@ tryConvertToCABI(const model::RawFunctionType &FunctionType,
   for (auto &Argument : Arguments)
     NewType.Arguments().insert(std::move(Argument));
   NewType.ReturnType() = Converted->ReturnValueType;
+
+  revng_log(Log, "Conversion successful:\n" << serializeToString(NewType));
 
   // To finish up the conversion, remove all the references to the old type by
   // carefully replacing them with references to the new one.
@@ -234,10 +250,16 @@ TCC::tryConvertingStackArguments(model::QualifiedType StackArgumentTypes,
     return llvm::SmallVector<model::Argument, 8>{};
   }
 
+  LoggerIndent Indentation(Log);
+
   // Compute the alignment of the first argument.
   auto CurrentAlignment = *ABI.alignment(Types.Fields().begin()->Type());
-  if (!llvm::isPowerOf2_64(CurrentAlignment))
+  if (!llvm::isPowerOf2_64(CurrentAlignment)) {
+    revng_log(Log,
+              "The natural alignment of a type is not a power of two:\n"
+                << serializeToString(Types.Fields().begin()->Type()));
     return std::nullopt;
+  }
 
   // Process each of the fields (except for the very last one),
   // converting them into arguments separately.
@@ -254,18 +276,29 @@ TCC::tryConvertingStackArguments(model::QualifiedType StackArgumentTypes,
 
     const model::StructField &NextArgument = *std::next(Iterator);
     std::uint64_t NextAlignment = *ABI.alignment(NextArgument.Type());
-    if (!llvm::isPowerOf2_64(NextAlignment))
+    if (!llvm::isPowerOf2_64(NextAlignment)) {
+      revng_log(Log,
+                "The natural alignment of a type is not a power of two:\n"
+                  << serializeToString(NextArgument.Type()));
       return std::nullopt;
+    }
 
     OverflowSafeInt Offset = CurrentArgument.Offset();
     Offset += CurrentSize;
     if (!Offset) {
       // Abandon if offset overflows.
+      revng_log(Log, "Integer overflow when calculating field offsets.");
       return std::nullopt;
     }
 
-    if (*Offset != NextArgument.Offset() || *Offset % NextAlignment != 0)
+    if (*Offset != NextArgument.Offset() || *Offset % NextAlignment != 0) {
+      revng_log(Log,
+                "The natural alignment of a type would make it impossible "
+                "to represent as CABI, abandon the conversion.\nTODO: we "
+                "might want to preprocess such functions and manually "
+                "\"fill\" the holes in before attempting the conversion.");
       return std::nullopt;
+    }
 
     // Create the argument from this field.
     model::Argument &New = Result.emplace_back();
@@ -289,8 +322,12 @@ TCC::tryConvertingStackArguments(model::QualifiedType StackArgumentTypes,
 
   // Make sure the size does not contradict the final alignment.
   std::uint64_t FullAlignment = *ABI.alignment(StackArgumentTypes);
-  if (!llvm::isPowerOf2_64(FullAlignment))
+  if (!llvm::isPowerOf2_64(FullAlignment)) {
+    revng_log(Log,
+              "The natural alignment of a type is not a power of two:\n"
+                << serializeToString(Types));
     return std::nullopt;
+  }
 
   return Result;
 }
