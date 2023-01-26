@@ -489,6 +489,22 @@ getReferenceArchitecture(Values V) {
   }
 }
 
+constexpr inline bool
+isUsedInArchitecture(model::Register::Values Register,
+                     model::Architecture::Values Architecture) {
+  auto ReferenceArchitecture = getReferenceArchitecture(Register);
+  revng_assert(Architecture != model::Architecture::Invalid);
+  if (Architecture == ReferenceArchitecture)
+    return true;
+
+  // `mipsel` uses `mips` registers.
+  if (Architecture == model::Architecture::mipsel)
+    if (ReferenceArchitecture == model::Architecture::mips)
+      return true;
+
+  return false;
+}
+
 inline llvm::StringRef getRegisterName(Values V) {
   llvm::StringRef FullName = getName(V);
   auto Architecture = getReferenceArchitecture(V);
