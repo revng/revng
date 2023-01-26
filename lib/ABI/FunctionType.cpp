@@ -31,7 +31,7 @@ bool verify(const SortedVector<RegisterType> &UsedRegisters,
             const RegisterArray<RegisterCount> &AllowedRegisters) {
   for (const model::Register::Values &Register : AllowedRegisters) {
     // Verify the architecture of allowed registers.
-    if (model::Register::getArchitecture(Register) != Architecture)
+    if (model::Register::getReferenceArchitecture(Register) != Architecture)
       revng_abort();
 
     // Verify that there are no duplicate allowed registers.
@@ -41,7 +41,8 @@ bool verify(const SortedVector<RegisterType> &UsedRegisters,
 
   for (const RegisterType &Register : UsedRegisters) {
     // Verify the architecture of used registers.
-    if (model::Register::getArchitecture(Register.Location()) != Architecture)
+    constexpr model::Architecture::Values A = Architecture;
+    if (model::Register::getReferenceArchitecture(Register.Location()) != A)
       revng_abort();
   }
 
@@ -201,11 +202,11 @@ public:
     // Verify the architecture of return value location register if present.
     constexpr model::Register::Values PTCRR = AT::ReturnValueLocationRegister;
     if (PTCRR != model::Register::Invalid)
-      revng_assert(model::Register::getArchitecture(PTCRR) == Arch);
+      revng_assert(model::Register::getReferenceArchitecture(PTCRR) == Arch);
 
     // Verify the architecture of callee saved registers.
-    for (auto &SavedRegister : AT::CalleeSavedRegisters)
-      revng_assert(model::Register::getArchitecture(SavedRegister) == Arch);
+    for (auto &Register : AT::CalleeSavedRegisters)
+      revng_assert(model::Register::getReferenceArchitecture(Register) == Arch);
 
     model::CABIFunctionType Result;
     Result.CustomName() = Function.CustomName();
@@ -1012,7 +1013,7 @@ Layout::Layout(const model::RawFunctionType &Function) {
 }
 
 bool Layout::verify() const {
-  model::Architecture::Values ExpectedArch = model::Architecture::Invalid;
+  model::Architecture::Values ExpectedA = model::Architecture::Invalid;
   std::unordered_set<model::Register::Values> LookupHelper;
   auto VerificationHelper = [&](model::Register::Values Register) -> bool {
     // Ensure each register is present only once
@@ -1020,9 +1021,9 @@ bool Layout::verify() const {
       return false;
 
     // Ensure all the registers belong to the same architecture
-    if (ExpectedArch == model::Architecture::Invalid)
-      ExpectedArch = model::Register::getArchitecture(Register);
-    else if (ExpectedArch != model::Register::getArchitecture(Register))
+    if (ExpectedA == model::Architecture::Invalid)
+      ExpectedA = model::Register::getReferenceArchitecture(Register);
+    else if (ExpectedA != model::Register::getReferenceArchitecture(Register))
       return false;
 
     return true;
