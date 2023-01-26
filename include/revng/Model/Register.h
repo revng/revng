@@ -500,6 +500,7 @@ inline llvm::StringRef getRegisterName(Values V) {
 inline size_t getSize(Values V) {
   model::Architecture::Values Architecture = getArchitecture(V);
 
+  // TODO: this does not account for vector registers, but it should eventually.
   switch (Architecture) {
   case model::Architecture::x86:
   case model::Architecture::arm:
