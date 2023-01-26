@@ -140,7 +140,12 @@ public:
     return LocalFunctions.at(PC);
   }
 
-  /// \return a description of the call and boolean indicating whether the call
+  /// \param Function caller function address
+  /// \param CallerBlockAddress caller basic block address
+  /// \param CalledLocalFunction callee function address
+  /// \param CalledSymbol name of dynamic symbol we are calling (can be
+  /// extracted from llvm::Value with extractFromConstantStringPtr) \return a
+  /// description of the call and boolean indicating whether the call
   ///         site is a tail call or not.
   std::pair<const FunctionSummary *, bool>
   getCallSite(MetaAddress Function,
