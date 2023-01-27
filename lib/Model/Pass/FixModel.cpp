@@ -19,47 +19,82 @@ static RegisterModelPass
 static Logger<> ModelFixLogger("model-fix");
 using namespace model;
 
+template<typename T>
+bool filterZeroSizedElements(T *AggregateType) {
+  // Filter out aggregates with zero-sized members.
+  auto FieldIt = AggregateType->Fields().begin();
+  auto FieldEnd = AggregateType->Fields().end();
+  for (; FieldIt != FieldEnd; ++FieldIt) {
+    auto &Field = *FieldIt;
+    auto MaybeSize = Field.Type().trySize();
+    if (!MaybeSize || *MaybeSize == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool shouldDrop(UpcastablePointer<model::Type> &T) {
+  // Filter out empty structs and unions.
+  if (isa<model::StructType>(T.get()) or isa<model::UnionType>(T.get())) {
+    if (!T->size())
+      return true;
+
+    if (auto *Struct = dyn_cast<model::StructType>(T.get()))
+      if (filterZeroSizedElements(Struct))
+        return true;
+    if (auto *Union = dyn_cast<UnionType>(T.get()))
+      if (filterZeroSizedElements(Union))
+        return true;
+  }
+
+  // Filter out empty arrays.
+  for (const model::QualifiedType &QT : T->edges()) {
+    auto IsEmptyArray = [](const model::Qualifier &Q) {
+      return Q.Kind() == model::QualifierKind::Array && Q.Size() == 0;
+    };
+    auto Iterator = llvm::find_if(QT.Qualifiers(), IsEmptyArray);
+    if (Iterator != QT.Qualifiers().end())
+      return true;
+  }
+
+  // Filter out invalid PrimitiveTypes.
+  auto *ThePrimitiveType = dyn_cast<PrimitiveType>(T.get());
+  if (ThePrimitiveType) {
+    if (ThePrimitiveType->PrimitiveKind() == PrimitiveTypeKind::Invalid)
+      return true;
+  }
+
+  // Filter out invalid functions.
+  auto *FunctionType = dyn_cast<CABIFunctionType>(T.get());
+  if (FunctionType) {
+    // Remove functions with more than one `void` argument.
+    for (auto &Group : llvm::enumerate(FunctionType->Arguments())) {
+      auto &Argument = Group.value();
+      VoidConstResult VoidConst = isVoidConst(&Argument.Type());
+      if (VoidConst.IsVoid) {
+        if (FunctionType->Arguments().size() > 1) {
+          // More than 1 void argument.
+          return true;
+        }
+
+        if (VoidConst.IsConst) {
+          // Cannot have const void argument.
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
 void model::fixModel(TupleTree<model::Binary> &Model) {
   std::set<const model::Type *> ToDrop;
 
   for (UpcastablePointer<model::Type> &T : Model->Types()) {
-    // Filter out empty structs and unions.
-    if (!T->size()) {
-      if (isa<StructType>(T.get()) or isa<UnionType>(T.get())) {
-        ToDrop.insert(T.get());
-        continue;
-      }
-    }
-
-    // Filter out invalid PrimitiveTypes.
-    auto *ThePrimitiveType = dyn_cast<PrimitiveType>(T.get());
-    if (ThePrimitiveType) {
-      if (ThePrimitiveType->PrimitiveKind() == PrimitiveTypeKind::Invalid)
-        ToDrop.insert(T.get());
-    }
-
-    // Filter out invalid functions.
-    auto *FunctionType = dyn_cast<CABIFunctionType>(T.get());
-    if (FunctionType) {
-      // Remove functions with more than one `void` argument.
-      for (auto &Group : llvm::enumerate(FunctionType->Arguments())) {
-        auto &Argument = Group.value();
-        VoidConstResult VoidConst = isVoidConst(&Argument.Type());
-        if (VoidConst.IsVoid) {
-          if (FunctionType->Arguments().size() > 1) {
-            // More than 1 void argument.
-            ToDrop.insert(T.get());
-            break;
-          }
-
-          if (VoidConst.IsConst) {
-            // Cannot have const void argument.
-            ToDrop.insert(T.get());
-            break;
-          }
-        }
-      }
-    }
+    if (shouldDrop(T))
+      ToDrop.insert(T.get());
   }
 
   unsigned DroppedTypes = dropTypesDependingOnTypes(Model, ToDrop);

@@ -72,6 +72,16 @@ revng_arch_to_abiname = {
 CONST_QUALIFIER = m.Qualifier(Kind=m.QualifierKind.Const)
 
 
+def get_pointer_size(architecture):
+    match architecture:  # noqa: R503
+        case m.Architecture.x86 | m.Architecture.arm | m.Architecture.mips | m.Architecture.mipsel:
+            return 4
+        case m.Architecture.x86_64 | m.Architecture.aarch64 | m.Architecture.systemz:
+            return 8
+        case default:  # noqa: F841
+            return None
+
+
 class IDBConverter:
     def __init__(self, input_idb: idb.fileformat.IDB, base_addr, verbose):
         self.idb: idb.fileformat.IDB = input_idb
@@ -401,22 +411,69 @@ class IDBConverter:
                 else:
                     return self.idb_types_to_revng_types[type.type_details.ref.type_details.ordinal]
             else:
-                revng_type = m.StructType(OriginalName=type_name, Size=0, Fields=[])
                 # Empty structs will be considered as invalid types.
                 if len(type.type_details.members) == 0:
-                    self.log(
-                        f"warning: Found invalid empty struct {type_name}, replacing with a "
-                        "void* typedef."
+                    self.log(f"warning: Ignoring empty struct {type_name}, typedef it to void*")
+                    revng_void_type = self.unwrap_qualified(
+                        self._get_primitive_type(m.PrimitiveTypeKind.Void, 0)
                     )
+                    qualified_type = m.QualifiedType(
+                        UnqualifiedType=m.Reference.create(m.Binary, revng_void_type),
+                        Qualifiers={
+                            m.Qualifier(
+                                Kind=m.QualifierKind.Pointer, Size=get_pointer_size(self.arch)
+                            )
+                        },
+                    )
+                    revng_type = m.TypedefType(
+                        OriginalName=type_name, UnderlyingType=qualified_type
+                    )
+                    self.revng_types_by_id[revng_type.ID] = revng_type
+                    return qualified_type
                 else:
                     # Struct members and size will be computed later.
+                    revng_type = m.StructType(OriginalName=type_name, Size=0, Fields=[])
                     self._structs_to_fixup.add((revng_type, type))
 
         elif type.is_decl_union():
-            # Union members will be computed later.
-            revng_type = m.UnionType(OriginalName=type_name, Fields=[])
-            self._unions_to_fixup.add((revng_type, type))
-
+            if type.type_details.ref is not None and type.type_details.ref.type_details.is_ordref:
+                if type.type_details.ref.type_details.ordinal not in self.idb_types_to_revng_types:
+                    # Make a placeholder for this, since we did not observe the type yet.
+                    revng_type = m.UnionType(OriginalName="", Size=0, Fields=[])
+                    qualified_type = m.QualifiedType(
+                        UnqualifiedType=m.Reference.create(m.Binary, revng_type),
+                        Qualifiers=revng_type_qualifiers,
+                    )
+                    self.revng_types_by_id[revng_type.ID] = revng_type
+                    self._ordinal_types_to_fixup.add(
+                        (qualified_type, type.type_details.ref.type_details.ordinal)
+                    )
+                    return qualified_type
+                else:
+                    return self.idb_types_to_revng_types[type.type_details.ref.type_details.ordinal]
+            else:
+                revng_type = m.UnionType(OriginalName=type_name, Fields=[])
+                if len(type.type_details.members) == 0:
+                    self.log(f"warning: Ignoring empty union {type_name}, typedef it to void*")
+                    revng_void_type = self.unwrap_qualified(
+                        self._get_primitive_type(m.PrimitiveTypeKind.Void, 0)
+                    )
+                    qualified_type = m.QualifiedType(
+                        UnqualifiedType=m.Reference.create(m.Binary, revng_void_type),
+                        Qualifiers={
+                            m.Qualifier(
+                                Kind=m.QualifierKind.Pointer, Size=get_pointer_size(self.arch)
+                            )
+                        },
+                    )
+                    revng_type = m.TypedefType(
+                        OriginalName=type_name, UnderlyingType=qualified_type
+                    )
+                    self.revng_types_by_id[revng_type.ID] = revng_type
+                    return qualified_type
+                else:
+                    # Union members will be computed later.
+                    self._unions_to_fixup.add((revng_type, type))
         elif type.is_decl_ptr():
             underlying_type = self._convert_idb_type_to_revng_type(type.type_details.obj_type)
             revng_type = self.resolve_typeref(underlying_type.UnqualifiedType)
