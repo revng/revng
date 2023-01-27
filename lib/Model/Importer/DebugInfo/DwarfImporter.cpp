@@ -109,13 +109,26 @@ static std::optional<uint64_t> getAddress(const DWARFFormValue &Value) {
     return {};
 }
 
-static std::optional<uint64_t>
-getAddress(const DWARFDie &Die, dwarf::Attribute Attribute) {
-  auto Value = Die.find(Attribute);
-  if (not Value)
-    return {};
-  else
+static std::optional<uint64_t> getAddress(const DWARFDie &Die) {
+  // TODO: Add support for DW_AT_pc, which is DWARF 5 Standard version of the
+  // attribute.
+  auto Value = Die.find(DW_AT_low_pc);
+  if (not Value) {
+    auto Ranges = Die.find(DW_AT_ranges);
+    if (not Ranges)
+      return {};
+
+    auto Offset = *Ranges->getAsSectionOffset();
+    auto Range = Die.getDwarfUnit()->findRnglistFromOffset(Offset);
+    if (!Range)
+      return {};
+
+    // TODO: This is a vector, so we may want to return LowPC from every range
+    // we found.
+    return Range->begin()->LowPC;
+  } else {
     return getAddress(*Value);
+  }
 }
 
 static bool isTrue(const DWARFFormValue &Value) {
@@ -839,7 +852,7 @@ private:
 
         auto MaybePath = getSubprogramPrototype(Die);
         std::string SymbolName = getName(Die);
-        auto MaybeLowPC = getAddress(Die, DW_AT_low_pc);
+        auto MaybeLowPC = getAddress(Die);
         if (MaybeLowPC) {
           // Get/create the local function
           MetaAddress LowPC = relocate(fromPC(*MaybeLowPC));
@@ -848,8 +861,10 @@ private:
           if (MaybePath && not Function.Prototype().isValid())
             Function.Prototype() = *MaybePath;
 
-          if (SymbolName.size() != 0 and Function.OriginalName().size() == 0)
+          if (SymbolName.size() != 0 and Function.OriginalName().size() == 0) {
             Function.OriginalName() = SymbolName;
+            Function.ExportedNames().insert(SymbolName);
+          }
 
           if (isNoReturn(*CU.get(), Die))
             Function.Attributes().insert(model::FunctionAttribute::NoReturn);
@@ -1333,9 +1348,19 @@ inline void detectAliases(const llvm::object::ObjectFile &ELF,
                           TupleTree<model::Binary> &Model) {
   EquivalenceClasses<StringRef> Aliases = computeEquivalentSymbols(ELF);
   auto &ImportedDynamicFunctions = Model->ImportedDynamicFunctions();
+  auto &Functions = Model->Functions();
+
+  std::unordered_map<std::string, model::Function *> FunctionsByName;
+  // Map functions by names, so we have faster lookup bellow.
+  for (auto &Function : Functions) {
+    if (Function.OriginalName().size()) {
+      FunctionsByName[Function.OriginalName()] = &Function;
+    }
+  }
 
   for (auto AliasesIt = Aliases.begin(), E = Aliases.end(); AliasesIt != E;
        ++AliasesIt) {
+    llvm::SmallVector<std::string, 4> CurrentAliases;
     if (AliasesIt->isLeader()) {
       SmallVector<std::string, 4> UnprototypedFunctionsNames;
       model::TypePath Prototype;
@@ -1343,6 +1368,7 @@ inline void detectAliases(const llvm::object::ObjectFile &ELF,
            AliasSetIt != Aliases.member_end();
            ++AliasSetIt) {
         std::string Name = AliasSetIt->str();
+        CurrentAliases.push_back(Name);
 
         // Create DynamicFunction, it doesn't exist already
         auto It = ImportedDynamicFunctions.find(Name);
@@ -1358,11 +1384,35 @@ inline void detectAliases(const llvm::object::ObjectFile &ELF,
         }
       }
 
+      // Check if we should add an ExportedName for local Functions.
+      llvm::SmallVector<std::string, 4> PotentialExportedNamesToBeAdded;
+      bool IsLocalFunction = false;
+      model::Function *TheFunction = nullptr;
+      for (auto &Name : CurrentAliases) {
+        auto It = FunctionsByName.find(Name);
+        PotentialExportedNamesToBeAdded.push_back(Name);
+        if (It != FunctionsByName.end()) {
+          // We found a local function.
+          // TODO: In some situations OriginalName is not in the ExportedNames?
+          // For example in the case of importing `__libc_calloc` from
+          // libc.so.6.
+          TheFunction = It->second;
+        }
+      }
+      // It is a local function. Populate the ExportedNames.
+      if (TheFunction) {
+        for (auto &Name : PotentialExportedNamesToBeAdded)
+          TheFunction->ExportedNames().insert(Name);
+        continue;
+      }
+
+      // Consider it as a Dynamic function.
       if (Prototype.isValid()) {
         for (const std::string &Name : UnprototypedFunctionsNames) {
           auto It = ImportedDynamicFunctions.find(Name);
           if (It == ImportedDynamicFunctions.end())
             It = ImportedDynamicFunctions.insert({ Name }).first;
+
           It->Prototype() = Prototype;
         }
       }

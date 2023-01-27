@@ -247,6 +247,6 @@ static RecursiveCoroutine<void> lddtreeHelper(LDDTree &Dependencies,
 void lddtree(LDDTree &Dependencies,
              const std::string &Path,
              unsigned DepthLevel) {
-  if (DepthLevel > 1)
+  if (DepthLevel > 0)
     lddtreeHelper(Dependencies, Path, 1, DepthLevel);
 }
