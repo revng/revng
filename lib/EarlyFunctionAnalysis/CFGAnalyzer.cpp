@@ -1020,8 +1020,17 @@ void CallSummarizer::handleCall(MetaAddress Caller,
   // const FunctionSummary &CalleeSummary = Oracle.getLocalFunction(Callee
   const auto &ABIResults = CalleeSummary->ABIResults;
 
-  for (auto &[Variable, Values] : ABIResults.ArgumentsRegisters) {
+  for (const auto &[Variable, Values] : ABIResults.ArgumentsRegisters) {
     if (Values == abi::RegisterState::Yes) {
+      auto Register = M->getNamedGlobal(Variable->getName());
+      Builder.CreateLoad(Register);
+    }
+  }
+
+  clobberCSVs(Builder, ClobberedRegisters);
+
+  for (auto &[Variable, Values] : ABIResults.FinalReturnValuesRegisters) {
+    if (Values == abi::RegisterState::YesOrDead) {
       auto Name = llvm::formatv("write_{0}", Variable->getName());
       auto Register = M->getNamedGlobal(Variable->getName());
       auto F = WeakReadWritePools.get(Register->getName(),
@@ -1029,15 +1038,6 @@ void CallSummarizer::handleCall(MetaAddress Caller,
                                       {},
                                       Name);
       Builder.CreateStore(Builder.CreateCall(F), Register);
-    }
-  }
-
-  clobberCSVs(Builder, ClobberedRegisters);
-
-  for (const auto &[Variable, Values] : ABIResults.FinalReturnValuesRegisters) {
-    if (Values == abi::RegisterState::Yes) {
-      auto Register = M->getNamedGlobal(Variable->getName());
-      Builder.CreateLoad(Register);
     }
   }
 
