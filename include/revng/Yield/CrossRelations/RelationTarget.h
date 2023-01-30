@@ -23,13 +23,13 @@ TUPLE-TREE-YAML */
 
 #include "revng/Yield/CrossRelations/Generated/Early/RelationTarget.h"
 
-namespace yield {
+namespace yield::crossrelations {
 
 class RelationTarget : public generated::RelationTarget {
 public:
   using generated::RelationTarget::RelationTarget;
 };
 
-} // namespace yield
+} // namespace yield::crossrelations
 
 #include "revng/Yield/CrossRelations/Generated/Late/RelationTarget.h"

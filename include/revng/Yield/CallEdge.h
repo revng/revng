@@ -50,17 +50,13 @@ private:
     AssociatedType = FunctionEdgeType::FunctionCall;
 
 public:
-  CallEdge() : yield::generated::CallEdge() { Type() = AssociatedType; }
-
-  CallEdge(MetaAddress Destination, FunctionEdgeType::Values Type) :
-    yield::generated::CallEdge(Destination, Type) {}
-
+  using yield::generated::CallEdge::CallEdge;
   explicit CallEdge(const efa::CallEdge &Source);
 
 public:
   static bool classof(const FunctionEdgeBase *A) { return classof(A->key()); }
   static bool classof(const Key &K) {
-    return FunctionEdgeType::isCall(std::get<1>(K));
+    return std::get<0>(K) == FunctionEdgeBaseKind::CallEdge;
   }
 
 public:
