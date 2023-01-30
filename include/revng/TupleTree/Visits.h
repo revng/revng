@@ -495,6 +495,13 @@ public:
     }
 
     //
+    // Check variable parts match
+    //
+    for (auto I : Free)
+      if (not Path[I].matches(Search[I]))
+        return {};
+
+    //
     // Compute result
     //
     std::tuple<Args...> Result;
@@ -604,17 +611,45 @@ bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
   using Key = std::remove_cv_t<typename T::key_type>;
   using Value = typename T::value_type;
 
-  if (Before == "*") {
-    Result.Free.push_back(Result.Path.size());
-    Result.Path.emplace_back<Key>();
-  } else {
-    Result.Path.push_back(getValueFromYAMLScalar<Key>(Before));
-  }
+  if constexpr (StrictSpecializationOf<Value, UpcastablePointer>) {
+    auto [PreDash, PostDash] = Before.split("-");
+    if (PostDash == "*") {
+      // Mark as free
+      Result.Free.push_back(Result.Path.size());
 
-  if constexpr (StrictSpecializationOf<Value, UpcastablePointer>)
+      //
+      // Extract the Kind of the abstract type in the UpcastableType
+      //
+
+      // Get the kind type for the abstract type
+      // TODO: add using for model::Type's Kind
+      using Kind = typename Value::element_type::KindType;
+
+      // Extract Kind from "Kind-*" and deserialize it
+      Kind MatcherKind = getValueFromYAMLScalar<Kind>(PreDash);
+      static_assert(std::is_enum_v<std::decay_t<Kind>>);
+
+      // Push in Path a Key initializing only the first field (the kind)
+      Key Component;
+      using KindType = decltype(std::get<0>(Component));
+      static_assert(std::is_enum_v<std::decay_t<KindType>>);
+      std::get<0>(Component) = MatcherKind;
+      Result.Path.emplace_back<Key, true>(Component);
+    } else {
+      Result.Path.push_back(getValueFromYAMLScalar<Key>(Before));
+    }
+
     return dispatchToConcreteType<Value>(String, Result);
-  else
+  } else {
+    if (Before == "*") {
+      Result.Free.push_back(Result.Path.size());
+      Result.Path.emplace_back<Key>();
+    } else {
+      Result.Path.push_back(getValueFromYAMLScalar<Key>(Before));
+    }
+
     return visitTupleTreeNode<Value>(After, Result);
+  }
 }
 
 template<NotTupleTreeCompatible T>

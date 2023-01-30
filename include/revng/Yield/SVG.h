@@ -14,16 +14,27 @@ class Binary;
 namespace yield {
 
 class Function;
+
+namespace crossrelations {
+
 class CrossRelations;
+
+} // namespace crossrelations
 
 namespace svg {
 
+namespace detail {
+
+using CrossRelations = yield::crossrelations::CrossRelations;
+
+} // namespace detail
+
 std::string controlFlowGraph(const yield::Function &InternalFunction,
                              const model::Binary &Binary);
-std::string callGraph(const yield::CrossRelations &CrossRelationTree,
+std::string callGraph(const detail::CrossRelations &CrossRelationTree,
                       const model::Binary &Binary);
 std::string callGraphSlice(const MetaAddress &SlicePoint,
-                           const yield::CrossRelations &CrossRelationTree,
+                           const detail::CrossRelations &CrossRelationTree,
                            const model::Binary &Binary);
 
 } // namespace svg
