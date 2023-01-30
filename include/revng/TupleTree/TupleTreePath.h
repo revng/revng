@@ -56,6 +56,11 @@ public:
     return std::strong_ordering::greater;
   }
 
+  virtual bool matches(const TupleTreeKeyWrapper &) const {
+    revng_assert(Pointer == nullptr);
+    return true;
+  }
+
   virtual char *id() const {
     revng_assert(Pointer == nullptr);
     return nullptr;
@@ -88,7 +93,7 @@ public:
 };
 
 // TODO: optimize integral types
-template<typename T>
+template<typename T, bool FirstFieldIsKind = false>
 class ConcreteTupleTreeKeyWrapper : public TupleTreeKeyWrapper {
 private:
   static char ID;
@@ -130,6 +135,21 @@ public:
     }
   }
 
+  bool matches(const TupleTreeKeyWrapper &Other) const override {
+    if (id() != Other.id())
+      return false;
+
+    if constexpr (FirstFieldIsKind) {
+      // Compare kinds
+      using ThisType = const ConcreteTupleTreeKeyWrapper &;
+      const auto *OtherPointer = static_cast<ThisType>(Other).get();
+      return std::get<0>(*get()) == std::get<0>(*OtherPointer);
+    } else {
+      revng_assert(*get() == T());
+      return true;
+    }
+  }
+
   char *id() const override { return typeID<T>(); }
 
   void clone(TupleTreeKeyWrapper *Target) const override {
@@ -164,9 +184,9 @@ public:
   TupleTreePath(const TupleTreePath &Other) { *this = Other; }
 
 public:
-  template<typename T, typename... Args>
+  template<typename T, bool FirstIsKind = false, typename... Args>
   void emplace_back(Args... A) {
-    using ConcreteWrapper = ConcreteTupleTreeKeyWrapper<T>;
+    using ConcreteWrapper = ConcreteTupleTreeKeyWrapper<T, FirstIsKind>;
     static_assert(sizeof(ConcreteWrapper) == sizeof(TupleTreeKeyWrapper));
     Storage.resize(Storage.size() + 1);
     new (&Storage.back()) ConcreteWrapper(A...);

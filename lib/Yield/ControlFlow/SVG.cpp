@@ -382,7 +382,8 @@ struct LabelNodeHelper {
   }
 };
 
-std::string yield::svg::callGraph(const yield::CrossRelations &Relations,
+using CrossRelations = yield::crossrelations::CrossRelations;
+std::string yield::svg::callGraph(const CrossRelations &Relations,
                                   const model::Binary &Binary) {
   // TODO: make configuration accessible from outside.
   auto Configuration = cfg::Configuration::getDefault();
@@ -494,7 +495,7 @@ static yield::Graph combineHalvesHelper(const MetaAddress &SlicePoint,
 }
 
 std::string yield::svg::callGraphSlice(const MetaAddress &SlicePoint,
-                                       const yield::CrossRelations &Relations,
+                                       const CrossRelations &Relations,
                                        const model::Binary &Binary) {
   // TODO: make configuration accessible from outside.
   auto Configuration = cfg::Configuration::getDefault();
