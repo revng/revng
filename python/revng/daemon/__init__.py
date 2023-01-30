@@ -56,7 +56,21 @@ async def status(request):
 
 def startup():
     global manager, startup_done
-    capi_initialize(signals_to_preserve=(signal.SIGINT, signal.SIGTERM))
+    capi_initialize(
+        signals_to_preserve=(
+            # Common terminal signals
+            signal.SIGINT,
+            signal.SIGTERM,
+            signal.SIGHUP,
+            signal.SIGCHLD,
+            # Issued by writing in closed sockets
+            signal.SIGPIPE,
+            # Used by uvicorn workers
+            signal.SIGUSR1,
+            signal.SIGUSR2,
+            signal.SIGQUIT,
+        )
+    )
     manager = make_manager(project_workdir())
     app.mount(
         "/graphql",
