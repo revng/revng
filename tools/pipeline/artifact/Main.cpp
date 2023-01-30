@@ -60,6 +60,10 @@ static opt<bool> AnalyzeAll("analyze-all",
                             cat(MainCategory),
                             init(false));
 
+static cl::list<string> AnalysesLists("analyses-list",
+                                      desc("Analyses list to run"),
+                                      cat(MainCategory));
+
 static ToolCLOptions BaseOptions(MainCategory);
 
 static ExitOnError AbortOnError;
@@ -90,9 +94,18 @@ int main(int argc, const char *argv[]) {
   auto &InputContainer = Manager.getRunner().begin()->containers()["input"];
   AbortOnError(InputContainer.loadFromDisk(Arguments[1]));
 
-  if (AnalyzeAll) {
-    InvalidationMap Map;
-    AbortOnError(Manager.runAllAnalyses(Map));
+  InvalidationMap InvMap;
+
+  if (AnalyzeAll)
+    AbortOnError(Manager.runAllAnalyses(InvMap));
+
+  for (auto &AnalysesListName : AnalysesLists) {
+    if (!Manager.getRunner().hasAnalysesList(AnalysesListName)) {
+      return EXIT_FAILURE;
+    }
+
+    AnalysesList AL = Manager.getRunner().getAnalysesList(AnalysesListName);
+    AbortOnError(Manager.runAnalyses(AL, InvMap));
   }
 
   if (not Manager.getRunner().containsStep(Arguments[0])) {

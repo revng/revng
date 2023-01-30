@@ -74,6 +74,10 @@ static opt<bool> AnalyzeAll("analyze-all",
                             cat(MainCategory),
                             init(false));
 
+static cl::list<string> AnalysesLists("analyses-list",
+                                      desc("Analyses list to run"),
+                                      cat(MainCategory));
+
 static opt<bool> InvalidateAll("invalidate-all",
                                desc("Try invalidating all possible "
                                     "targets after producing them. Used for "
@@ -186,9 +190,22 @@ int main(int argc, const char *argv[]) {
     AbortOnError(Runner.apply(GlobalTupleTreeDiff(std::move(Diff)), Map));
   }
 
-  if (AnalyzeAll) {
-    InvalidationMap Map;
-    AbortOnError(Manager.runAllAnalyses(Map));
+  InvalidationMap InvMap;
+
+  if (AnalyzeAll)
+    AbortOnError(Manager.runAllAnalyses(InvMap));
+
+  for (auto &AnalysesListName : AnalysesLists) {
+    if (!Manager.getRunner().hasAnalysesList(AnalysesListName)) {
+      AbortOnError(createStringError(inconvertibleErrorCode(),
+                                     "no known analyses list named %s, invoke "
+                                     "this command without arguments to see "
+                                     "the list of available analysis",
+                                     AnalysesListName.c_str()));
+    }
+
+    AnalysesList AL = Manager.getRunner().getAnalysesList(AnalysesListName);
+    AbortOnError(Manager.runAnalyses(AL, InvMap));
   }
 
   runPipeline(Manager.getRunner());
