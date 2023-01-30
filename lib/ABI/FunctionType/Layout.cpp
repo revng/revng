@@ -587,11 +587,21 @@ Layout::Layout(const model::CABIFunctionType &Function) {
 
     Current.Registers = std::move(Args[Index].Registers);
     if (Args[Index].SizeOnStack != 0) {
-      // TODO: further alignment considerations are needed here.
-      Current.Stack = typename Layout::Argument::StackSpan{
-        CurrentStackOffset, Args[Index].SizeOnStack
-      };
-      CurrentStackOffset += Args[Index].SizeOnStack;
+      // The argument has a part (or is placed entirely) on the stack.
+      Current.Stack = Layout::Argument::StackSpan{};
+
+      // Round the offset based on the natural alignment.
+      std::uint64_t Alignment = *ABI.alignment(ArgumentType);
+      if (CurrentStackOffset % Alignment != 0)
+        CurrentStackOffset += (Alignment - CurrentStackOffset % Alignment);
+      Current.Stack->Offset = CurrentStackOffset;
+
+      // Compute the full size of the argument (including padding if needed),
+      // so that the next argument is not placed into this occupied space.
+      std::optional<std::uint64_t> MaybeSize = ArgumentType.size();
+      revng_assert(MaybeSize.has_value() && MaybeSize.value() != 0);
+      Current.Stack->Size = ABI.paddedSizeOnStack(MaybeSize.value());
+      CurrentStackOffset += Current.Stack->Size;
     }
   }
 
