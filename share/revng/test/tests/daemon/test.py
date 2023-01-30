@@ -8,6 +8,7 @@ import asyncio
 import io
 import os
 import sys
+from signal import SIGINT
 from subprocess import PIPE, STDOUT, Popen
 from tempfile import TemporaryDirectory
 from typing import Any, AsyncGenerator
@@ -19,7 +20,7 @@ from aiohttp.tracing import TraceRequestHeadersSentParams
 from gql import Client, gql
 from gql.client import AsyncClientSession
 from gql.transport.aiohttp import AIOHTTPTransport
-from pytest import Config, mark
+from pytest import Config, ExceptionInfo, TestReport, mark
 from pytest_asyncio import fixture
 
 pytestmark = mark.asyncio
@@ -75,7 +76,6 @@ async def response_trace(session, trace_config_ctx, params: TraceRequestEndParam
 
 @fixture
 async def client(pytestconfig: Config, request) -> AsyncGenerator[AsyncClientSession, None]:
-
     temp_dir = TemporaryDirectory()
     socket_path = f"{temp_dir.name}/daemon.sock"
     new_env = {k: v for k, v in os.environ.items() if k not in FILTER_ENV}
@@ -94,14 +94,22 @@ async def client(pytestconfig: Config, request) -> AsyncGenerator[AsyncClientSes
         env=new_env,
     )
 
+    def error_handler(e: BaseException):
+        # If the daemon hasn't stopped, do so gracefully
+        if process.poll() is None:
+            process.terminate()
+        log("\n\n########## BEGIN DAEMON LOG ##########\n\n")
+        log(process.communicate()[0])
+        log("\n\n########## END DAEMON LOG ##########\n\n")
+        log(f"The daemon exited with code {process.returncode}\n")
+        raise e
+
     connector = UnixConnector(socket_path, force_close=True)
 
     try:
         await check_server_up(connector)
     except ValueError as e:
-        log(process.communicate()[0])
-        log(process.poll())
-        raise e
+        error_handler(e)
 
     binary = pytestconfig.getoption("binary")
     tracing = TraceConfig()
@@ -134,20 +142,22 @@ async def client(pytestconfig: Config, request) -> AsyncGenerator[AsyncClientSes
                 )
             yield session
     except Exception as e:
-        log(process.communicate()[0])
-        log(process.poll())
-        raise e
+        error_handler(e)
 
-    process.terminate()
+    test_report: TestReport = request.node.rep_call
+    if test_report.failed:
+        if isinstance(test_report.longrepr, ExceptionInfo):
+            error_handler(test_report.longrepr.value)
+        else:
+            error_handler(ValueError(test_report.longreprtext))
+
+    # Terminate the daemon gracefully
+    process.send_signal(SIGINT)
     return_code = process.wait()
 
-    if request.node.rep_call.failed or return_code != 0:
-        log(process.communicate()[0])
-        log(process.poll())
-        log(process.returncode)
-
-    # Assert that the daemon exited cleanly
-    assert return_code == 0, f"Daemon exited with non-zero return code: {return_code}"
+    # Check that the daemon exited cleanly
+    if return_code != 0:
+        error_handler(ValueError(f"Daemon exited with non-zero return code: {return_code}"))
 
 
 async def test_info(client):
