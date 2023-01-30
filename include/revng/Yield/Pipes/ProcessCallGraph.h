@@ -16,6 +16,9 @@
 #include "revng/Pipes/FunctionStringMap.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/StringBufferContainer.h"
+#include "revng/Pipes/TupleTreeContainer.h"
+#include "revng/Yield/CrossRelations/CrossRelations.h"
+#include "revng/Yield/Generated/ForwardDecls.h"
 
 namespace revng::pipes {
 
@@ -24,10 +27,11 @@ inline constexpr char CrossRelationsFileMIMEType[] = "application/"
 inline constexpr char CrossRelationsFileSuffix[] = "";
 inline constexpr char CrossRelationsName[] = "BinaryCrossRelations";
 
-using CrossRelationsFileContainer = FileContainer<&kinds::BinaryCrossRelations,
-                                                  CrossRelationsName,
-                                                  CrossRelationsFileMIMEType,
-                                                  CrossRelationsFileSuffix>;
+using CrossRelationsFileContainer = pipes::TupleTreeContainer<
+  yield::crossrelations::CrossRelations,
+  &kinds::BinaryCrossRelations,
+  CrossRelationsName,
+  CrossRelationsFileMIMEType>;
 
 inline constexpr char CallGraphSVGMIMEType[] = "image/svg";
 inline constexpr char CallGraphSVGSuffix[] = ".svg";

@@ -25,13 +25,13 @@ TUPLE-TREE-YAML */
 
 #include "revng/Yield/CrossRelations/Generated/Early/RelationDescription.h"
 
-namespace yield {
+namespace yield::crossrelations {
 
 class RelationDescription : public generated::RelationDescription {
 public:
   using generated::RelationDescription::RelationDescription;
 };
 
-} // namespace yield
+} // namespace yield::crossrelations
 
 #include "revng/Yield/CrossRelations/Generated/Late/RelationDescription.h"
