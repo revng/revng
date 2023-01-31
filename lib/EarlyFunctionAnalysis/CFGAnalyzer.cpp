@@ -1017,7 +1017,6 @@ void CallSummarizer::handleCall(MetaAddress Caller,
                                                            CallerBlock,
                                                            Callee,
                                                            SymbolName);
-  // const FunctionSummary &CalleeSummary = Oracle.getLocalFunction(Callee
   const auto &ABIResults = CalleeSummary->ABIResults;
 
   for (const auto &[Variable, Values] : ABIResults.ArgumentsRegisters) {
