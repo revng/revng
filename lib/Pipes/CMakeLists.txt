@@ -32,5 +32,5 @@ llvm_map_components_to_libnames(
   X86Desc
   X86Info)
 
-target_link_libraries(revngPipes revngPipeline revngModel revngSupport revngABIAnalyses
+target_link_libraries(revngPipes revngPipeline revngModel revngSupport
                       ${LLVM_LIBRARIES})
