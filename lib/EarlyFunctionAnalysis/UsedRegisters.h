@@ -1,12 +1,14 @@
 #pragma once
 
-#include <set>
 #include <map>
+#include <set>
 
+#include "revng/EarlyFunctionAnalysis/Common.h"
 #include "revng/MFP/SetLattices.h"
 #include "revng/Model/Register.h"
 #include "revng/Support/MetaAddress.h"
-#include "revng/EarlyFunctionAnalysis/Common.h"
+
+#include "DetectABI.h"
 
 struct FunctionABI {
   using SetOfRegisters = std::set<model::Register::Values>;
@@ -22,9 +24,10 @@ struct UsedRegistersMFI {
 
   DetectABI &DA;
 
-  explicit UsedRegistersMFI(DetectABI &DA) : DA{DA} {}
+  explicit UsedRegistersMFI(DetectABI &DA) : DA{ DA } {}
 
-  [[nodiscard]] LatticeElement combine(const LatticeElement &E1, const LatticeElement &E2) {
+  [[nodiscard]] LatticeElement
+  combine(const LatticeElement &E1, const LatticeElement &E2) {
     LatticeElement Out;
     for (const auto &[Address, E1Abi] : E1) {
       if (E2.count(Address)) {
@@ -68,7 +71,8 @@ struct UsedRegistersMFI {
   }
 
   [[nodiscard]] LatticeElement
-  applyTransferFunction(Label L, const LatticeElement &E2) { // TODO: Set label type
+  applyTransferFunction(Label L,
+                        const LatticeElement &E2) { // TODO: Set label type
     for (const auto &[Address, ABI] : E2) {
       analyzeABI(GCBI.getBlockAt(Address));
       // TODO: get registers from result and put into output LatticeElement
@@ -77,7 +81,5 @@ struct UsedRegistersMFI {
     return LatticeElement{};
   }
 
-  void analyzeABI(llvm::BasicBlock *Entry) {
-    (void)(Entry);
-  }
+  void analyzeABI(llvm::BasicBlock *Entry) { (void) (Entry); }
 };
