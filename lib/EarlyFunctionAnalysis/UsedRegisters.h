@@ -10,6 +10,8 @@
 
 #include "DetectABI.h"
 
+namespace efa {
+
 struct FunctionABI {
   using SetOfRegisters = std::set<model::Register::Values>;
   using SUL = SetUnionLattice<SetOfRegisters>;
@@ -83,3 +85,5 @@ struct UsedRegistersMFI {
 
   void analyzeABI(llvm::BasicBlock *Entry) { (void) (Entry); }
 };
+
+}  // namespace efa
