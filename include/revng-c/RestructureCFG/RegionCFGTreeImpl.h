@@ -226,7 +226,10 @@ RegionCFG<NodeT>::streamNode(StreamT &S, const BasicBlockNodeT *BB) const {
   unsigned NodeID = BB->getID();
   S << "\"" << NodeID << "\"";
   S << " ["
-    << "label=\"ID: " << NodeID << " Name: " << BB->getNameStr() << "\"";
+    << "label=\"ID: " << NodeID << " Name: " << BB->getNameStr();
+  if (BB->isCollapsed())
+    S << " Idx: " << BB->getCollapsedRegionName();
+  S << "\"";
   if (BB == EntryNode)
     S << ",fillcolor=green,style=filled";
   S << "];\n";
