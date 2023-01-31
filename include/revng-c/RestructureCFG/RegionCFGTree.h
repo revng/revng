@@ -92,6 +92,9 @@ public:
   using FDomTree = llvm::DominatorTreeOnView<BasicBlockNodeT, false, EFGT>;
   using FPostDomTree = llvm::DominatorTreeOnView<BasicBlockNodeT, true, EFGT>;
 
+  static constexpr size_t
+    WeightNotComputed = std::numeric_limits<size_t>::max();
+
 private:
   /// Storage for basic block nodes, associated to their original counterpart
   links_container BlockNodes;
@@ -129,6 +132,7 @@ private:
   std::string FunctionName;
   std::string RegionName;
   bool ToInflate = true;
+  size_t UntangleWeight = WeightNotComputed;
   llvm::DominatorTreeBase<BasicBlockNodeT, false> DT;
   llvm::DominatorTreeBase<BasicBlockNodeT, true> PDT;
 
@@ -371,6 +375,23 @@ public:
   void weave();
 
   void markUnreachableAsInlined();
+
+  void computeUntangleWeight() {
+    if (UntangleWeight == WeightNotComputed) {
+      UntangleWeight = 0;
+      for (BasicBlockNode<NodeT> *Node : nodes()) {
+        UntangleWeight += Node->getWeight();
+      }
+    }
+  }
+
+  size_t getUntangleWeight() {
+    if (UntangleWeight == WeightNotComputed) {
+      computeUntangleWeight();
+    }
+    revng_assert(UntangleWeight != 0);
+    return UntangleWeight;
+  }
 
 protected:
   template<typename StreamT>

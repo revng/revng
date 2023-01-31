@@ -256,11 +256,7 @@ inline size_t BasicBlockNode<NodeT>::getWeight() const {
 
   case Type::Collapsed: {
     revng_assert(CollapsedRegion != nullptr);
-    size_t WeightAccumulator = 0;
-    for (BasicBlockNode<NodeT> *CollapsedNode : CollapsedRegion->nodes()) {
-      WeightAccumulator += CollapsedNode->getWeight();
-    }
-    return WeightAccumulator;
+    return CollapsedRegion->getUntangleWeight();
   } break;
 
   case Type::Tile: {

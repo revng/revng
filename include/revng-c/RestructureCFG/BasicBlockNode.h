@@ -318,11 +318,14 @@ public:
   void setName(llvm::StringRef N) { Name = N; }
 
   bool isCollapsed() const { return NodeType == Type::Collapsed; }
-  RegionCFGT *getCollapsedCFG() const { return CollapsedRegion; }
+  RegionCFGT *getCollapsedCFG() const {
+    revng_assert(isCollapsed());
+    return CollapsedRegion;
+  }
   std::string getCollapsedRegionName() const {
+    revng_assert(isCollapsed());
     return CollapsedRegion->getRegionName();
   }
-
 
   bool isEquivalentTo(BasicBlockNode *) const;
 

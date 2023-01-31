@@ -411,6 +411,13 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
     Region.dumpCFGOnFile(FunctionName, "dots", "Postcomb-" + RegionName);
   }
 
+  // After we are done with the combing, we need to pre-compute the weight of
+  // the current RegionCFG, so that during the untangle phase the weight of
+  // collapsed node is ready to consume. Indeed, after the tiling phase, the
+  // `RegionCFG` is destroyed, so the last place where we can compute it is
+  // here.
+  Region.computeUntangleWeight();
+
   // TODO: factorize out the AST generation phase.
   llvm::DominatorTreeBase<BasicBlockNode<NodeT>, false> ASTDT;
   ASTDT.recalculate(Region);
