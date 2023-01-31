@@ -22,6 +22,7 @@
 #include "revng/EarlyFunctionAnalysis/DetectABI.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
+#include "revng/MFP/SetLattices.h"
 #include "revng/Model/Binary.h"
 #include "revng/Pipeline/Pipe.h"
 #include "revng/Pipeline/RegisterAnalysis.h"
