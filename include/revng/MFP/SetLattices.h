@@ -10,7 +10,7 @@ template<typename LE>
 struct SetUnionLattice {
   using LatticeElement = LE;
 
-  static LatticeElement
+  [[nodiscard]] static LatticeElement
   combineValues(const LatticeElement &Left, const LatticeElement &Right) {
     LatticeElement Result;
     std::set_union(Left.begin(),
@@ -21,7 +21,7 @@ struct SetUnionLattice {
     return Result;
   }
 
-  static bool
+  [[nodiscard]] static bool
   isLessOrEqual(const LatticeElement &Left, const LatticeElement &Right) {
     if (Left.size() > Right.size())
       return false;
