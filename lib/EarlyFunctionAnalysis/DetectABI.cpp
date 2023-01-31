@@ -100,93 +100,6 @@ static pipeline::RegisterAnalysis<DetectABIAnalysis> A1;
 
 namespace efa {
 
-using BasicBlockQueue = UniquedQueue<const BasicBlockNode *>;
-
-class DetectABI {
-private:
-  using CSVSet = std::set<llvm::GlobalVariable *>;
-
-private:
-  llvm::Module &M;
-  llvm::LLVMContext &Context;
-  GeneratedCodeBasicInfo &GCBI;
-  TupleTree<model::Binary> &Binary;
-  FunctionSummaryOracle &Oracle;
-  CFGAnalyzer &Analyzer;
-
-  BasicBlockQueue EntrypointsQueue;
-
-  CallGraph ApproximateCallGraph;
-
-public:
-  DetectABI(llvm::Module &M,
-            GeneratedCodeBasicInfo &GCBI,
-            TupleTree<model::Binary> &Binary,
-            FunctionSummaryOracle &Oracle,
-            CFGAnalyzer &Analyzer) :
-    M(M),
-    Context(M.getContext()),
-    GCBI(GCBI),
-    Binary(Binary),
-    Oracle(Oracle),
-    Analyzer(Analyzer) {}
-
-public:
-  void run() {
-    computeApproximateCallGraph();
-
-    initializeInterproceduralQueue();
-
-    // Interprocedural analysis over the collected functions in post-order
-    // traversal (leafs first).
-    runInterproceduralAnalysis();
-
-    for (const auto &Node : post_order(ApproximateCallGraph.getEntryNode())) {
-      const auto &Addr = Node->Address;
-      if (Addr != MetaAddress{}) {
-        analyzeABI(GCBI.getBlockAt(Addr));
-      }
-    }
-
-    // Propagate results between call-sites and functions
-    interproceduralPropagation();
-
-    // Refine results with ABI-specific information
-    applyABIDeductions();
-
-    // Commit the results onto the model. A non-const model is taken as
-    // argument to be written.
-    finalizeModel();
-  }
-
-private:
-  void computeApproximateCallGraph();
-  void initializeInterproceduralQueue();
-  void runInterproceduralAnalysis();
-  void interproceduralPropagation();
-  void finalizeModel();
-  void applyABIDeductions();
-
-private:
-  CSVSet computePreservedCSVs(const CSVSet &ClobberedRegisters) const;
-
-  SortedVector<model::Register::Values>
-  computePreservedRegisters(const CSVSet &ClobberedRegisters) const;
-  void analyzeABI(llvm::BasicBlock *Entry);
-
-  CSVSet findWrittenRegisters(llvm::Function *F);
-
-  UpcastablePointer<model::Type>
-  buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
-                                const efa::BasicBlock &CallerBlock);
-
-  std::optional<abi::RegisterState::Values>
-  tryGetRegisterState(model::Register::Values,
-                      const ABIAnalyses::RegisterStateMap &);
-
-  void initializeMapForDeductions(FunctionSummary &, abi::RegisterState::Map &);
-};
-
 void DetectABI::initializeInterproceduralQueue() {
 
   // Create an over-approximated call graph of the program. A queue of all the
@@ -202,6 +115,33 @@ void DetectABI::initializeInterproceduralQueue() {
     if (not Function.Prototype().isValid())
       EntrypointsQueue.insert(Node);
   }
+}
+
+void DetectABI::run() {
+  computeApproximateCallGraph();
+
+  initializeInterproceduralQueue();
+
+  // Interprocedural analysis over the collected functions in post-order
+  // traversal (leafs first).
+  runInterproceduralAnalysis();
+
+  for (const auto &Node : post_order(ApproximateCallGraph.getEntryNode())) {
+    const auto &Addr = Node->Address;
+    if (Addr != MetaAddress{}) {
+      analyzeABI(GCBI.getBlockAt(Addr));
+    }
+  }
+
+  // Propagate results between call-sites and functions
+  interproceduralPropagation();
+
+  // Refine results with ABI-specific information
+  applyABIDeductions();
+
+  // Commit the results onto the model. A non-const model is taken as
+  // argument to be written.
+  finalizeModel();
 }
 
 void DetectABI::computeApproximateCallGraph() {
