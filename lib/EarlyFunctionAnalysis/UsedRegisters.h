@@ -1,8 +1,13 @@
 #pragma once
 
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
 #include <map>
 #include <set>
 
+#include "revng/EarlyFunctionAnalysis/CallGraph.h"
 #include "revng/EarlyFunctionAnalysis/Common.h"
 #include "revng/MFP/SetLattices.h"
 #include "revng/Model/Register.h"
@@ -19,25 +24,66 @@ struct FunctionABI {
   SetOfRegisters ReturnRegisters;
 };
 
-using LatticeElement = std::map<MetaAddress, FunctionABI>;
+// using LatticeElement = std::map<MetaAddress, FunctionABI>;
+
+struct LatticeElement : std::map<MetaAddress, FunctionABI> {
+  virtual ~LatticeElement() = default;
+
+  [[nodiscard]] virtual bool
+  hasRetReg(MetaAddress Addr, model::Register::Values V) const {
+    if (count(Addr)) {
+      return at(Addr).ReturnRegisters.count(V);
+    }
+
+    return false;
+  }
+
+  [[nodiscard]] virtual bool
+  hasArgReg(MetaAddress Addr, model::Register::Values V) const {
+    if (count(Addr)) {
+      return at(Addr).ArgumentRegisters.count(V);
+    }
+
+    return false;
+  }
+};
+
+struct ExtremalLatticeElement : LatticeElement {
+  [[nodiscard]] bool
+  hasRetReg(MetaAddress Addr, model::Register::Values V) const {
+    return true;
+  }
+
+  [[nodiscard]] bool
+  hasArgReg(MetaAddress Addr, model::Register::Values V) const {
+    return true;
+  }
+};
 
 struct UsedRegistersMFI {
-  using Label = int;
+  using Label = BasicBlockNode *;
+  using GraphType = llvm::Inverse<BasicBlockNode *>;
+  using LatticeElement = LatticeElement;
+  using ExtremalLatticeElement = ExtremalLatticeElement;
 
   DetectABI &DA;
 
   explicit UsedRegistersMFI(DetectABI &DA) : DA{ DA } {}
 
   [[nodiscard]] LatticeElement
-  combine(const LatticeElement &E1, const LatticeElement &E2) {
+  combineValues(const LatticeElement &E1, const LatticeElement &E2) const {
     LatticeElement Out;
     for (const auto &[Address, E1Abi] : E1) {
       if (E2.count(Address)) {
         const auto &E2Abi = E2.at(Address);
-        Out[Address].ArgumentRegisters = FunctionABI::SUL::
-          combineValues(E1Abi.ArgumentRegisters, E2Abi.ArgumentRegisters);
-        Out[Address].ReturnRegisters = FunctionABI::SUL::
-          combineValues(E1Abi.ReturnRegisters, E2Abi.ReturnRegisters);
+        const auto &E1Args = E1Abi.ArgumentRegisters;
+        const auto &E1Ret = E1Abi.ReturnRegisters;
+        const auto &E2Args = E2Abi.ArgumentRegisters;
+        const auto &E2Ret = E2Abi.ReturnRegisters;
+        Out[Address]
+          .ArgumentRegisters = FunctionABI::SUL::combineValues(E1Args, E2Args);
+        Out[Address].ReturnRegisters = FunctionABI::SUL::combineValues(E1Ret,
+                                                                       E2Ret);
       } else {
         Out[Address] = E1Abi;
       }
@@ -53,7 +99,7 @@ struct UsedRegistersMFI {
   }
 
   [[nodiscard]] bool
-  isLessOrEqual(const LatticeElement &Left, const LatticeElement &Right) {
+  isLessOrEqual(const LatticeElement &Left, const LatticeElement &Right) const {
     for (const auto &[Address, LeftAbi] : Left) {
       if (Right.count(Address)) {
         const auto &RightAbi = Right.at(Address);
@@ -73,17 +119,27 @@ struct UsedRegistersMFI {
   }
 
   [[nodiscard]] LatticeElement
-  applyTransferFunction(Label L,
-                        const LatticeElement &E2) { // TODO: Set label type
+  applyTransferFunction(Label L, const LatticeElement &E2) const {
+    LatticeElement Result = E2;
+    auto Reg = [this](const llvm::GlobalVariable *V) {
+      return model::Register::fromCSVName(V->getName(),
+                                          DA.getBinary()->Architecture());
+    };
     for (const auto &[Address, ABI] : E2) {
-      analyzeABI(GCBI.getBlockAt(Address));
-      // TODO: get registers from result and put into output LatticeElement
+      auto Results = DA.analyzeABI(Address);
+      for (auto &[CSV, State] : Results.ArgumentsRegisters) {
+        Result[Address].ArgumentRegisters.insert(Reg(CSV));
+      }
+
+      for (auto &[CSV, State] : Results.FinalReturnValuesRegisters) {
+        Result[Address].ReturnRegisters.insert(Reg(CSV));
+      }
     }
 
-    return LatticeElement{};
+    return Result;
   }
 
-  void analyzeABI(llvm::BasicBlock *Entry) { (void) (Entry); }
+  static ExtremalLatticeElement ExtremalLattice;
 };
 
-}  // namespace efa
+} // namespace efa
