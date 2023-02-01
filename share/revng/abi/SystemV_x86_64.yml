@@ -43,7 +43,6 @@ VectorReturnValueRegisters:
 CalleeSavedRegisters:
   - rbx_x86_64
   - rbp_x86_64
-  - rsp_x86_64
   - r12_x86_64
   - r13_x86_64
   - r14_x86_64

@@ -61,7 +61,6 @@ CalleeSavedRegisters:
   - f11_systemz
   - f12_systemz
   - f13_systemz
-  - f15_systemz
 
 ReturnValueLocationRegister: r2_systemz
 

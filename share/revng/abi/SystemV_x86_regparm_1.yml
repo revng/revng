@@ -29,7 +29,6 @@ VectorArgumentRegisters:
 CalleeSavedRegisters:
   - ebx_x86
   - ebp_x86
-  - esp_x86
   - edi_x86
   - esi_x86
 
