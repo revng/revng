@@ -8,6 +8,7 @@
 
 #include "revng/ADT/Queue.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/EarlyFunctionAnalysis/ABIAnalysis.h"
 #include "revng/EarlyFunctionAnalysis/CFGAnalyzer.h"
 #include "revng/EarlyFunctionAnalysis/CallGraph.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
@@ -47,6 +48,13 @@ public:
 
 public:
   void run();
+  ABIAnalyses::ABIAnalysesResults analyzeABI(llvm::BasicBlock *Entry);
+  ABIAnalyses::ABIAnalysesResults
+  analyzeABI(MetaAddress Addr) { // TODO: Tidy this
+    return analyzeABI(GCBI.getBlockAt(Addr));
+  }
+
+  TupleTree<model::Binary> &getBinary() { return Binary; }
 
 private:
   void computeApproximateCallGraph();
@@ -61,7 +69,6 @@ private:
 
   SortedVector<model::Register::Values>
   computePreservedRegisters(const CSVSet &ClobberedRegisters) const;
-  void analyzeABI(llvm::BasicBlock *Entry);
 
   CSVSet findWrittenRegisters(llvm::Function *F);
 
@@ -75,7 +82,6 @@ private:
 
   void initializeMapForDeductions(FunctionSummary &, abi::RegisterState::Map &);
 };
-
 
 class DetectABIPass : public llvm::ModulePass {
 public:

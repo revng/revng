@@ -3,6 +3,7 @@
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
+#pragma clang optimize off
 
 #include <fstream>
 
@@ -21,6 +22,7 @@
 #include "revng/EarlyFunctionAnalysis/CollectFunctionsFromUnusedAddressesPass.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
+#include "revng/MFP/MFP.h"
 #include "revng/MFP/SetLattices.h"
 #include "revng/Model/Binary.h"
 #include "revng/Pipeline/Pipe.h"
@@ -29,6 +31,7 @@
 #include "revng/Pipes/LLVMAnalysisImplementation.h"
 
 #include "DetectABI.h"
+#include "UsedRegisters.h"
 
 using namespace llvm;
 using namespace llvm::cl;
@@ -102,6 +105,9 @@ static pipeline::RegisterAnalysis<DetectABIAnalysis> A1;
 
 namespace efa {
 
+UsedRegistersMFI::ExtremalLatticeElement
+  UsedRegistersMFI::ExtremalLattice = ExtremalLatticeElement{};
+
 void DetectABI::initializeInterproceduralQueue() {
 
   // Create an over-approximated call graph of the program. A queue of all the
@@ -128,12 +134,15 @@ void DetectABI::run() {
   // traversal (leafs first).
   runInterproceduralAnalysis();
 
-  for (const auto &Node : post_order(ApproximateCallGraph.getEntryNode())) {
-    const auto &Addr = Node->Address;
-    if (Addr != MetaAddress{}) {
-      analyzeABI(GCBI.getBlockAt(Addr));
-    }
-  }
+  using MFP::getMaximalFixedPoint;
+  UsedRegistersMFI MFI{ *this };
+  auto Results = getMaximalFixedPoint(MFI,
+                                      ApproximateCallGraph.getEntryNode(),
+                                      UsedRegistersMFI::LatticeElement{},
+                                      UsedRegistersMFI::ExtremalLattice,
+                                      {},
+                                      {});
+  (void)(Results);
 
   // Propagate results between call-sites and functions
   interproceduralPropagation();
@@ -604,7 +613,7 @@ suppressCSAndSPRegisters(ABIAnalyses::ABIAnalysesResults &ABIResults,
   }
 }
 
-void DetectABI::analyzeABI(llvm::BasicBlock *Entry) {
+ABIAnalyses::ABIAnalysesResults DetectABI::analyzeABI(llvm::BasicBlock *Entry) {
   using namespace llvm;
   using llvm::BasicBlock;
   using namespace ABIAnalyses;
@@ -646,6 +655,8 @@ void DetectABI::analyzeABI(llvm::BasicBlock *Entry) {
 
   // Commit ABI analysis results to the oracle
   Oracle.getLocalFunction(EntryAddress).ABIResults = ABIResults;
+
+  return ABIResults;
 }
 
 void DetectABI::runInterproceduralAnalysis() {
