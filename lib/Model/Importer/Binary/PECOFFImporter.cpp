@@ -454,16 +454,22 @@ void PECOFFImporter::findMissingTypes(unsigned FetchDebugInfoWithLevel) {
     auto TypeLocation = findPrototype(Fn.OriginalName(), ModelsOfLibraries);
     if (TypeLocation) {
       revng_log(Log, "Found type for " << Fn.OriginalName());
-      auto &TheTypeCopier = TypeCopiers[(*TypeLocation).second];
-      auto Type = TheTypeCopier->copyPrototypeInto((*TypeLocation).first,
-                                                   Model);
+      auto &TheTypeCopier = TypeCopiers[(*TypeLocation).ModuleName];
+      auto Type = TheTypeCopier->copyPrototypeInto((*TypeLocation).Type, Model);
       if (!Type) {
         revng_log(Log,
                   "Failed to copy prototype " << Fn.OriginalName() << " from "
-                                              << (*TypeLocation).second);
+                                              << (*TypeLocation).ModuleName);
         continue;
       }
       Fn.Prototype() = *Type;
+
+      // Copy the Attributes (all but the `Inline`).
+      auto &Attributes = (*TypeLocation).Attributes;
+      for (auto &Attribute : Attributes) {
+        if (Attribute != model::FunctionAttribute::Inline)
+          Fn.Attributes().insert(Attribute);
+      }
     }
   }
 

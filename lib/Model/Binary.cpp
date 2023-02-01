@@ -369,6 +369,12 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
     }
   }
 
+  for (auto &Attribute : Attributes()) {
+    if (Attribute == model::FunctionAttribute::Inline) {
+      return VH.fail("Dynamic function cannot have Inline attribute", *this);
+    }
+  }
+
   return true;
 }
 

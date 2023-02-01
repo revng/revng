@@ -412,17 +412,23 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
     if (TypeLocation) {
       revng_log(ELFImporterLog,
                 "Found type for " << Fn.OriginalName() << " in "
-                                  << (*TypeLocation).second);
-      auto &TheTypeCopier = TypeCopiers[(*TypeLocation).second];
-      auto Type = TheTypeCopier->copyPrototypeInto((*TypeLocation).first,
-                                                   Model);
+                                  << (*TypeLocation).ModuleName);
+      auto &TheTypeCopier = TypeCopiers[(*TypeLocation).ModuleName];
+      auto Type = TheTypeCopier->copyPrototypeInto((*TypeLocation).Type, Model);
       if (!Type) {
         revng_log(ELFImporterLog,
                   "Failed to copy prototype " << Fn.OriginalName() << " from "
-                                              << (*TypeLocation).second);
+                                              << (*TypeLocation).ModuleName);
         continue;
       }
       Fn.Prototype() = *Type;
+
+      // Copy the Attributes (all but the `Inline`).
+      auto &Attributes = (*TypeLocation).Attributes;
+      for (auto &Attribute : Attributes) {
+        if (Attribute != model::FunctionAttribute::Inline)
+          Fn.Attributes().insert(Attribute);
+      }
     }
   }
 
