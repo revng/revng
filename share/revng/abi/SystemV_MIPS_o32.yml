@@ -45,7 +45,6 @@ CalleeSavedRegisters:
   - s6_mips
   - s7_mips
   - gp_mips
-  - sp_mips
   - fp_mips
   - f20_mips
   - f21_mips

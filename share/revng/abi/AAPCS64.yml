@@ -68,7 +68,6 @@ CalleeSavedRegisters:
   - x27_aarch64
   - x28_aarch64
   - x29_aarch64
-  - sp_aarch64
   - v8_aarch64
   - v9_aarch64
   - v10_aarch64
