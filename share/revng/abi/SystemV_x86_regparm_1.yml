@@ -13,7 +13,7 @@ CalleeIsResponsibleForStackCleanup: false
 
 StackAlignment: 16
 
-MaximumGPRsPerAggregateArgument: 0
+MaximumGPRsPerAggregateArgument: 1
 MaximumGPRsPerAggregateReturnValue: 0
 MaximumGPRsPerScalarArgument: 1
 MaximumGPRsPerScalarReturnValue: 2
@@ -33,7 +33,7 @@ CalleeSavedRegisters:
   - edi_x86
   - esi_x86
 
-ReturnValueLocationOnStack: true
+ReturnValueLocationRegister: eax_x86
 
 ScalarTypes:
   - Size: 1
