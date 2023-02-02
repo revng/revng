@@ -43,22 +43,21 @@ concept IsContainer = derived_from<std::decay_t<T>, ContainerBase>;
 template<typename T>
 concept IsNotContainer = not IsContainer<T>;
 
-template<typename InvokableType, typename... Args>
-constexpr bool
-invokableTypeReturnsErrorImpl(void (InvokableType::*F)(Args...)) {
-  return false;
+template<typename InvokableType, typename ReturnType, typename... Args>
+constexpr ReturnType
+invokableReturnTypeImpl(ReturnType (InvokableType::*F)(Args...)) {
+  return ReturnType();
 }
 
-template<typename InvokableType, typename... Args>
-constexpr bool
-invokableTypeReturnsErrorImpl(llvm::Error (InvokableType::*F)(Args...)) {
-  return true;
-}
+template<typename InvokableType>
+using invokableReturnType =
+    decltype(invokableReturnTypeImpl(&InvokableType::run));
 
 template<typename Invokable>
 constexpr bool invokableTypeReturnsError() {
-  return invokableTypeReturnsErrorImpl(&Invokable::run);
+  return std::is_same_v<invokableReturnType<Invokable>, llvm::Error>;
 }
+
 
 template<typename Invokable>
 concept ReturnsError = invokableTypeReturnsError<Invokable>();
@@ -101,8 +100,8 @@ template<typename T, size_t I>
 OptionType<T, I> deserializeImpl(llvm::StringRef Value) {
   using ReturnType = OptionType<T, I>;
 
-  if constexpr (std::is_same_v<const char *, ReturnType>)
-    return Value.data();
+  if constexpr (std::is_same_v<std::string, ReturnType>)
+    return Value.str();
   else
     return llvm::cantFail(deserialize<ReturnType>(Value));
 }

@@ -1,0 +1,12 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# `new_function` has been added to the module, all the targets are invalidated.
+
+plt_puts
+called_twice
+caller_1
+caller_2
+use_puts
+main

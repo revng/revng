@@ -6,4 +6,5 @@ revng_add_analyses_library_internal(
   revngRecompile LinkForTranslationPipe.cpp LinkForTranslation.cpp
   CompileModulePipe.cpp)
 
-target_link_libraries(revngRecompile revngSupport revngPipes ${LLVM_LIBRARIES})
+target_link_libraries(revngRecompile revngFunctionIsolation revngSupport
+                      revngPipes ${LLVM_LIBRARIES})

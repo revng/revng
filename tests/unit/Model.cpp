@@ -15,6 +15,7 @@ bool init_unit_test();
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/Support/YAMLTraits.h"
+#include "revng/TupleTree/DiffError.h"
 #include "revng/TupleTree/Introspection.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
 #include "revng/TupleTree/VisitsImpl.h"
@@ -68,6 +69,19 @@ BOOST_AUTO_TEST_CASE(TestPathAccess) {
   // Test existing entry in container
   Function &F = TheBinary.Functions()[MetaAddress::invalid()];
   revng_check(getByPath<Function>("/Functions/:Invalid", TheBinary) == &F);
+
+  // Test UpcastablePointer
+  auto UInt8Path = TheBinary.getPrimitiveType(PrimitiveTypeKind::Unsigned, 8);
+  model::Type *UInt8 = UInt8Path.get();
+  using llvm::Twine;
+  std::string TypePath = (Twine("/Types/PrimitiveType-") + Twine(UInt8->ID())
+                          + "/OriginalName")
+                           .str();
+  auto *OriginalNamePointer = getByPath<std::string>(TypePath, TheBinary);
+  revng_check(OriginalNamePointer == &UInt8->OriginalName());
+
+  TypePath = (Twine("/Types/PrimitiveType-") + Twine(UInt8->ID())).str();
+  revng_check(getByPath<model::Type>(TypePath, TheBinary) == UInt8);
 }
 
 BOOST_AUTO_TEST_CASE(TestCompositeScalar) {
@@ -110,7 +124,7 @@ BOOST_AUTO_TEST_CASE(TestStringPathConversion) {
 
 BOOST_AUTO_TEST_CASE(TestPathMatcher) {
   //
-  // Single matcher
+  // Test regular matcher
   //
   {
     auto Matcher = PathMatcher::create<Binary>("/Functions/*/Entry").value();
@@ -123,6 +137,29 @@ BOOST_AUTO_TEST_CASE(TestPathMatcher) {
     auto MaybeMatch = Matcher.match<MetaAddress>(MaybeToMatch.value());
     revng_check(MaybeMatch);
     revng_check(std::get<0>(*MaybeMatch) == ARM1000);
+  }
+
+  //
+  // Test matching through an UpcastablePointer
+  //
+  {
+    auto Matcher = PathMatcher::create<Binary>("/Types/RawFunctionType-*/"
+                                               "FinalStackOffset")
+                     .value();
+
+    model::Type::Key Key{ model::TypeKind::RawFunctionType, 1000 };
+    auto Path1000 = pathAsString<Binary>(Matcher.apply(Key));
+    revng_check(Path1000 == "/Types/RawFunctionType-1000/FinalStackOffset");
+
+    auto MaybeToMatch = stringAsPath<Binary>(*Path1000);
+    revng_check(MaybeToMatch);
+    auto MaybeMatch = Matcher.match<model::Type::Key>(MaybeToMatch.value());
+    revng_check(MaybeMatch);
+    revng_check(std::get<0>(*MaybeMatch) == Key);
+
+    MaybeToMatch = stringAsPath<Binary>("/Types/CABIFunctionType-1000/ID");
+    MaybeMatch = Matcher.match<model::Type::Key>(MaybeToMatch.value());
+    revng_check(not MaybeMatch);
   }
 }
 
@@ -243,6 +280,7 @@ BOOST_AUTO_TEST_CASE(TestTupleTreeDiffDeserialization) {
   llvm::raw_string_ostream Stream(S);
   serialize(Stream, Diff);
   Stream.flush();
+  llvm::outs() << S << "\n";
 
   auto Diff2 = llvm::cantFail(deserialize<TupleTreeDiff<model::Binary>>(S));
 
@@ -264,4 +302,36 @@ BOOST_AUTO_TEST_CASE(CABIFunctionTypeArgumentsPathShouldParse) {
   const char *Path = "/Types/CABIFunctionType-10000/Arguments";
   auto MaybeParsed = stringAsPath<model::Binary>(Path);
   BOOST_TEST(MaybeParsed.has_value());
+}
+
+class LocationExample : public revng::LocationBase {
+public:
+  std::string toString() const final { return "don't care"; };
+  ~LocationExample() override = default;
+  static std::string getTypeName() { return "LocationExample"; }
+};
+
+class DocumentErrorExample
+  : public revng::DocumentError<DocumentErrorExample, LocationExample> {
+public:
+  using DocumentError<DocumentErrorExample, LocationExample>::DocumentError;
+  inline static char ID = '0';
+  std::string getTypeName() const override { return "Example1"; }
+};
+
+class DocumentErrorExample2
+  : public revng::DocumentError<DocumentErrorExample2, LocationExample> {
+public:
+  using DocumentError<DocumentErrorExample2, LocationExample>::DocumentError;
+  inline static char ID = '0';
+  std::string getTypeName() const override { return "Example2"; }
+};
+
+BOOST_AUTO_TEST_CASE(ModelErrors) {
+  llvm::Error Error = llvm::make_error<DocumentErrorExample>("something",
+                                                             LocationExample());
+  BOOST_TEST(Error.isA<DocumentErrorExample>());
+  BOOST_TEST(not Error.isA<DocumentErrorExample2>());
+  BOOST_TEST(Error.isA<revng::DocumentErrorBase>());
+  llvm::consumeError(std::move(Error));
 }

@@ -83,13 +83,15 @@ public:
     return MaybeGlobal.get()->deserialize(Buffer);
   }
 
-  ErrorList verify(llvm::StringRef GlobalName) const {
-    ErrorList EL;
+  llvm::Error verify(llvm::StringRef GlobalName) const {
     auto MaybeGlobal = get(GlobalName);
     if (!MaybeGlobal)
       return MaybeGlobal.takeError();
-    MaybeGlobal.get()->verify(EL);
-    return EL;
+    if (not MaybeGlobal.get()->verify()) {
+      return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                     "could not verify " + GlobalName);
+    }
+    return llvm::Error::success();
   }
 
   llvm::Expected<std::unique_ptr<Global>>

@@ -30,8 +30,8 @@ fields:
     doc: Type of the CFG edge
     type: FunctionEdgeType
 key:
+  - Kind
   - Destination
-  - Type
 abstract: true
 TUPLE-TREE-YAML */
 

@@ -12,7 +12,9 @@
 #include "revng/Pipes/FunctionStringMap.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
+#include "revng/Pipes/TupleTreeContainer.h"
 #include "revng/Yield/CrossRelations/CrossRelations.h"
+#include "revng/Yield/Generated/ForwardDecls.h"
 #include "revng/Yield/Pipes/ProcessCallGraph.h"
 #include "revng/Yield/Pipes/YieldCallGraph.h"
 #include "revng/Yield/Pipes/YieldCallGraphSlice.h"
@@ -33,23 +35,12 @@ void ProcessCallGraph::run(pipeline::Context &Context,
   SortedVector<efa::FunctionMetadata> Metadata;
   for (const auto &LLVMFunction : FunctionTags::Isolated.functions(&Module))
     Metadata.insert(*::detail::extractFunctionMetadata(&LLVMFunction));
-  revng_assert(Metadata.size() == Model->Functions().size());
 
-  // Gather the relations
-  yield::CrossRelations Relations(Metadata, *Model);
+  // If some functions are missing, do not output anything
+  if (Metadata.size() != Model->Functions().size())
+    return;
 
-  // Serialize the output
-  std::error_code ErrorCode;
-  llvm::raw_fd_ostream Stream(OutputFile.getOrCreatePath(), ErrorCode);
-  if (ErrorCode)
-    revng_abort(ErrorCode.message().c_str());
-
-  llvm::yaml::Output YamlStream(Stream);
-  YamlStream << Relations;
-
-  Stream.flush();
-  if ((ErrorCode = Stream.error()))
-    revng_abort(ErrorCode.message().c_str());
+  OutputFile.emplace(Metadata, *Model);
 }
 
 void ProcessCallGraph::print(const pipeline::Context &,
@@ -59,24 +50,13 @@ void ProcessCallGraph::print(const pipeline::Context &,
 }
 
 void YieldCallGraph::run(pipeline::Context &Context,
-                         const CrossRelationsFileContainer &Input,
+                         const CrossRelationsFileContainer &Relations,
                          CallGraphSVGFileContainer &Output) {
   // Access the model
   const auto &Model = revng::getModelFromContext(Context);
 
-  // Open the input file.
-  auto MaybeInputPath = Input.path();
-  revng_assert(MaybeInputPath.has_value());
-  auto MaybeBuffer = llvm::MemoryBuffer::getFile(MaybeInputPath.value());
-  revng_assert(MaybeBuffer);
-  llvm::yaml::Input YAMLInput(**MaybeBuffer);
-
-  // Deserialize the graph data.
-  yield::CrossRelations Relations;
-  YAMLInput >> Relations;
-
   // Convert the graph to SVG.
-  auto Result = yield::svg::callGraph(Relations, *Model);
+  auto Result = yield::svg::callGraph(*Relations.get(), *Model);
 
   // Print the result.
   Output.setContent(std::move(Result));
@@ -90,21 +70,10 @@ void YieldCallGraph::print(const pipeline::Context &,
 
 void YieldCallGraphSlice::run(pipeline::Context &Context,
                               const pipeline::LLVMContainer &TargetList,
-                              const CrossRelationsFileContainer &Input,
+                              const CrossRelationsFileContainer &Relations,
                               CallGraphSliceSVGStringMap &Output) {
   // Access the model
   const auto &Model = revng::getModelFromContext(Context);
-
-  // Open the input file.
-  auto MaybeInputPath = Input.path();
-  revng_assert(MaybeInputPath.has_value());
-  auto MaybeBuffer = llvm::MemoryBuffer::getFile(MaybeInputPath.value());
-  revng_assert(MaybeBuffer);
-  llvm::yaml::Input YAMLInput(**MaybeBuffer);
-
-  // Deserialize the graph data.
-  yield::CrossRelations Relations;
-  YAMLInput >> Relations;
 
   // Access the llvm module
   const llvm::Module &Module = TargetList.getModule();
@@ -117,7 +86,7 @@ void YieldCallGraphSlice::run(pipeline::Context &Context,
     // Slice the graph for the current function and convert it to SVG
     Output.insert_or_assign(Metadata.Entry(),
                             yield::svg::callGraphSlice(Metadata.Entry(),
-                                                       Relations,
+                                                       *Relations.get(),
                                                        *Model));
   }
 }

@@ -1,0 +1,11 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# Ensure that addition of new function `new_function` invalidates all the targets.
+
+---
+Functions:
+  - Entry: "0x400900:Code_x86_64"
+    CustomName: "new_function"
+    OriginalName: new_function

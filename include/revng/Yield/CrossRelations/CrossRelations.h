@@ -22,12 +22,12 @@ TUPLE-TREE-YAML */
 
 #include "revng/Yield/CrossRelations/Generated/Early/CrossRelations.h"
 
-namespace yield {
+namespace yield::crossrelations {
 
 class CrossRelations : public generated::CrossRelations {
 private:
   struct EdgeLabel {
-    yield::RelationType::Values Type;
+    yield::crossrelations::RelationType::Values Type;
   };
   using Node = BidirectionalNode<std::string, EdgeLabel>;
 
@@ -36,10 +36,10 @@ public:
   CrossRelations(const SortedVector<efa::FunctionMetadata> &Metadata,
                  const model::Binary &Binary);
 
-  GenericGraph<Node, 16, true> toGenericGraph() const;
+  GenericGraph<Node, 16, true> toCallGraph() const;
   yield::Graph toYieldGraph() const;
 };
 
-} // namespace yield
+} // namespace yield::crossrelations
 
 #include "revng/Yield/CrossRelations/Generated/Late/CrossRelations.h"

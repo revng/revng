@@ -131,6 +131,8 @@ public:
   llvm::Expected<pipeline::InvalidationMap> invalidateAllPossibleTargets();
   llvm::Expected<pipeline::InvalidationMap>
   invalidateFromDiff(const llvm::StringRef Name,
+                     const pipeline::Global &Before,
+                     const pipeline::Global &After,
                      const pipeline::GlobalTupleTreeDiff &Diff);
 
   /// returns the cached list of targets that are known to be available to be

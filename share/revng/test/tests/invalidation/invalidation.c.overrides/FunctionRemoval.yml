@@ -1,0 +1,10 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# Ensure that removal of function `caller_2` invalidates its callers.
+
+---
+Functions:
+  - CustomName: "-caller_2"
+    OriginalName: caller_2

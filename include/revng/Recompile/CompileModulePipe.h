@@ -8,6 +8,7 @@
 
 #include "llvm/ADT/ArrayRef.h"
 
+#include "revng/FunctionIsolation/IsolationFunctionKind.h"
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Contract.h"

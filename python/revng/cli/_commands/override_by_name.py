@@ -32,6 +32,11 @@ class ModelOverrideByName(Command):
             default="/dev/stdout",
             help="Output path",
         )
+        parser.add_argument(
+            "--remove-others",
+            action="store_true",
+            help="Remove functions that are not in the override model",
+        )
 
     def log(self, message):
         if self.verbose:
@@ -64,7 +69,7 @@ class ModelOverrideByName(Command):
             suffix=".yml.diff"
         ) as patch_file, temporary_file(
             suffix=".yml"
-        ) as patched_model_file:
+        ) as patch_for_removal:
 
             # Copy so we can work with stdin too
             copyfileobj(input_file, saved_file)
@@ -72,7 +77,7 @@ class ModelOverrideByName(Command):
 
             # Check if it's YAML
             saved_file.seek(0)
-            input_is_yaml = saved_file.read(3) == b"---"
+            input_is_yaml = saved_file.read(4) != b"BC\xc0\xde"
 
             # Extract model, if necessary
             result = run_revng_command(
@@ -97,7 +102,6 @@ class ModelOverrideByName(Command):
                 for base_function in base_model["Functions"]:
                     if base_function["OriginalName"] == function_name:
                         function_to_override["Entry"] = base_function["Entry"]
-                        function_to_override["CustomName"] = base_function["CustomName"]
 
             self.log("Saving patched override file")
             patched_file.write("---\n")
@@ -131,24 +135,58 @@ class ModelOverrideByName(Command):
 
             self.log("Applying the patched patch to the base model")
 
-            if input_is_yaml:
-                patched_model_path = args.output
-            else:
-                patched_model_path = patched_model_file.name
-
             result = run_revng_command(
-                ["model", "apply", model_file.name, patch_file.name, "-o", patched_model_path],
+                ["model", "apply", model_file.name, patch_file.name, "-o", patch_for_removal.name],
                 options,
             )
+
+            if args.remove_others:
+                self.log(
+                    "Removing functions and dynamic functions not appearing in the override file"
+                )
+
+                with open(patch_for_removal.name) as patched_file:
+                    base_patch = yaml.load(stream=patched_file, Loader=yaml.SafeLoader)
+
+                override_model_function_names = [
+                    function["OriginalName"] for function in override_model["Functions"]
+                ]
+
+                override_model_dynamicfunctions_names = [
+                    function["OriginalName"]
+                    for function in override_model["ImportedDynamicFunctions"]
+                ]
+
+                base_patch["Functions"] = [
+                    item
+                    for item in base_patch["Functions"]
+                    if item["OriginalName"] in override_model_function_names
+                ]
+
+                base_patch["ImportedDynamicFunctions"] = [
+                    item
+                    for item in base_patch["ImportedDynamicFunctions"]
+                    if item["OriginalName"] in override_model_dynamicfunctions_names
+                ]
+
+                with open(patch_for_removal.name, "w") as saved_patch_file:
+                    saved_patch_file.write("---\n")
+                    yaml.dump(base_patch, stream=saved_patch_file)
+                    saved_patch_file.write("...\n")
 
             if result != 0:
                 return result
 
             if not input_is_yaml:
                 result = run_revng_command(
-                    ["model", "inject", patched_model_path, saved_file.name, "-o", args.output],
+                    ["model", "inject", patch_for_removal.name, saved_file.name, "-o", args.output],
                     options,
                 )
+            else:
+                with open(patch_for_removal.name, "rb") as input_f, open(
+                    args.output, "wb"
+                ) as output_f:
+                    copyfileobj(input_f, output_f)
 
             return result
 

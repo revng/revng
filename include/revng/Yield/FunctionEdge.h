@@ -27,16 +27,13 @@ private:
     AssociatedType = FunctionEdgeType::DirectBranch;
 
 public:
-  FunctionEdge() : yield::generated::FunctionEdge() { Type() = AssociatedType; }
-  FunctionEdge(MetaAddress Destination, FunctionEdgeType::Values Type) :
-    yield::generated::FunctionEdge(Destination, Type) {}
-
+  using yield::generated::FunctionEdge::FunctionEdge;
   explicit FunctionEdge(const efa::FunctionEdge &Source);
 
 public:
   static bool classof(const FunctionEdgeBase *A) { return classof(A->key()); }
   static bool classof(const Key &K) {
-    return not FunctionEdgeType::isCall(std::get<1>(K));
+    return std::get<0>(K) == FunctionEdgeBaseKind::FunctionEdge;
   }
 
   bool verify() const debug_function;

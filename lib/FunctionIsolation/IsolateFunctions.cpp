@@ -31,6 +31,7 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/BasicBlock.h"
 #include "revng/EarlyFunctionAnalysis/CallHandler.h"
+#include "revng/EarlyFunctionAnalysis/CollectCFG.h"
 #include "revng/EarlyFunctionAnalysis/FunctionEdge.h"
 #include "revng/EarlyFunctionAnalysis/FunctionEdgeBase.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
@@ -38,12 +39,11 @@
 #include "revng/EarlyFunctionAnalysis/Generated/ForwardDecls.h"
 #include "revng/EarlyFunctionAnalysis/Outliner.h"
 #include "revng/FunctionIsolation/IsolateFunctions.h"
+#include "revng/FunctionIsolation/IsolationFunctionKind.h"
 #include "revng/Model/Binary.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Contract.h"
-#include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/RootKind.h"
-#include "revng/Pipes/TaggedFunctionKind.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
@@ -79,6 +79,7 @@ struct IsolatePipe {
   }
 
   void registerPasses(llvm::legacy::PassManager &Manager) {
+    Manager.add(new efa::CollectCFGPass());
     Manager.add(new IsolateFunctions());
   }
 };
