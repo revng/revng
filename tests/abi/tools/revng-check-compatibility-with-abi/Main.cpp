@@ -24,10 +24,14 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Signals.h"
 
+#include "revng/Model/Binary.h"
 #include "revng/Support/InitRevng.h"
 
 #include "ABIArtifactParser.h"
-#include "Verify.h"
+
+void verifyABI(const TupleTree<model::Binary> &Binary,
+               llvm::StringRef RuntimeArtifact,
+               model::ABI::Values ABI);
 
 namespace Options {
 
@@ -63,45 +67,43 @@ static opt<std::string> Artifact(Positional,
 
 } // namespace Options
 
-static llvm::Error impl() {
-  auto InputOrError = llvm::MemoryBuffer::getFileOrSTDIN(Options::Filename);
-  if (!InputOrError)
-    return ERROR(ExitCode::FailedOpeningTheInputFile,
-                 "Unable to open an input file: '" + Options::Filename
-                   + "'.\n");
-  llvm::StringRef InputText = (*InputOrError)->getBuffer();
-
-  auto ArtifactOrError = llvm::MemoryBuffer::getFileOrSTDIN(Options::Artifact);
-  if (!ArtifactOrError)
-    return ERROR(ExitCode::FailedOpeningTheArtifactFile,
-                 "Unable to open the artifact file: '" + Options::Artifact
-                   + "'.\n");
-  llvm::StringRef Artifact = (*ArtifactOrError)->getBuffer();
-
-  auto Deserialized = TupleTree<model::Binary>::deserialize(InputText);
-  if (!Deserialized)
-    return ERROR(ExitCode::FailedDeserializingTheModel,
-                 "Unable to deserialize the model: '" + Options::Filename
-                   + "'.\n");
-  if (!Deserialized->verify() || !(*Deserialized)->verify())
-    return ERROR(ExitCode::FailedVerifyingTheModel,
-                 "Unable to verify the model: '" + Options::Filename + "'.\n");
-
-  auto &Model = *Deserialized;
-  return verifyABI(Model, Artifact, Options::TargetABI);
-}
-
 int main(int argc, const char *argv[]) {
   revng::InitRevng X(argc, argv);
 
   llvm::cl::HideUnrelatedOptions(Options::ThisToolCategory);
   llvm::cl::ParseCommandLineOptions(argc, argv);
 
-  int ErrorCode = EXIT_SUCCESS;
-  auto StringErrorHandler = [&ErrorCode](const llvm::StringError &Error) {
-    dbg << "\nABI compatibility error: " << Error.getMessage() << '\n';
-    ErrorCode = Error.convertToErrorCode().value();
-  };
-  llvm::handleAllErrors(impl(), StringErrorHandler);
-  return ErrorCode;
+  auto InputOrError = llvm::MemoryBuffer::getFileOrSTDIN(Options::Filename);
+  if (!InputOrError) {
+    std::string Error = "Unable to open an input file: '" + Options::Filename
+                        + "'.";
+    revng_abort(Error.c_str());
+  }
+  llvm::StringRef InputText = (*InputOrError)->getBuffer();
+
+  auto ArtifactOrError = llvm::MemoryBuffer::getFileOrSTDIN(Options::Artifact);
+  if (!ArtifactOrError) {
+    std::string Error = "Unable to open the artifact file: '"
+                        + Options::Artifact + "'.";
+    revng_abort(Error.c_str());
+  }
+  llvm::StringRef Artifact = (*ArtifactOrError)->getBuffer();
+  if (Artifact.empty()) {
+    std::string Error = "The artifact is empty: '" + Options::Artifact + "'.";
+    revng_abort(Error.c_str());
+  }
+
+  auto Deserialized = TupleTree<model::Binary>::deserialize(InputText);
+  if (!Deserialized) {
+    std::string Error = "Unable to deserialize the model: '" + Options::Filename
+                        + "'.";
+    revng_abort(Error.c_str());
+  }
+  if (!Deserialized->verify() || !(*Deserialized)->verify()) {
+    std::string Error = "Unable to verify the model: '" + Options::Filename
+                        + "'.";
+    revng_abort(Error.c_str());
+  }
+
+  verifyABI(*Deserialized, Artifact, Options::TargetABI);
 }

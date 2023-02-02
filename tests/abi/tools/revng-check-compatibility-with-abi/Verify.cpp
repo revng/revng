@@ -9,40 +9,18 @@
 
 #include "revng/ABI/Definition.h"
 #include "revng/ABI/FunctionType/Layout.h"
+#include "revng/Model/Binary.h"
 
 #include "ABIArtifactParser.h"
-#include "Verify.h"
 
-struct ABIVerificationToolErrorCategory : public std::error_category {
-  virtual const char *name() const noexcept {
-    return "ABIVerificationToolErrorCategory";
-  }
-  virtual std::error_condition
-  default_error_condition(int Code) const noexcept {
-    return std::error_condition(Code, *this);
-  }
-
-  virtual bool
-  equivalent(int Code, const std::error_condition &Condition) const noexcept {
-    return default_error_condition(Code) == Condition;
-  }
-
-  virtual bool
-  equivalent(const std::error_code &Code, int Condition) const noexcept {
-    return *this == Code.category() && Code.value() == Condition;
-  }
-  virtual std::string message(int) const { return ""; }
-};
-
-const std::error_category &thisToolError() {
-  static ABIVerificationToolErrorCategory Instance;
-  return Instance;
-}
+void verifyABI(const TupleTree<model::Binary> &Binary,
+               llvm::StringRef RuntimeArtifact,
+               model::ABI::Values ABI);
 
 struct VerificationHelper {
 public:
-  llvm::Error verify(const abi::FunctionType::Layout &FunctionLayout,
-                     const abi::artifact::FunctionArtifact &Artifact) const;
+  void verify(const abi::FunctionType::Layout &FunctionLayout,
+              const abi::artifact::FunctionArtifact &Artifact) const;
 
 public:
   const model::Architecture::Values Architecture;
@@ -71,13 +49,13 @@ public:
 
 public:
   const abi::artifact::Iteration &Iteration;
-  const size_t RegisterSize;
+  const std::size_t RegisterSize;
 };
 
 using VH = VerificationHelper;
-llvm::Error VH::verify(const abi::FunctionType::Layout &FunctionLayout,
-                       const abi::artifact::FunctionArtifact &Artifact) const {
-  for (size_t Index = 0; Index < Artifact.Iterations.size(); ++Index) {
+void VH::verify(const abi::FunctionType::Layout &FunctionLayout,
+                const abi::artifact::FunctionArtifact &Artifact) const {
+  for (std::size_t Index = 0; Index < Artifact.Iterations.size(); ++Index) {
     IterationAccessHelper Helper(Artifact.Iterations[Index], Architecture);
 
     // Sort the argument registers
@@ -93,8 +71,7 @@ llvm::Error VH::verify(const abi::FunctionType::Layout &FunctionLayout,
           StackSpan = *Argument.Stack;
         } else {
           if (Argument.Stack->Offset != StackSpan.Offset + StackSpan.Size)
-            return ERROR(ExitCode::OnlyContinuousStackArgumentsAreSupported,
-                         "Only continuous stack arguments are supported.\n");
+            revng_abort("Only continuous stack arguments are supported.");
 
           StackSpan.Size += Argument.Stack->Size;
         }
@@ -102,31 +79,35 @@ llvm::Error VH::verify(const abi::FunctionType::Layout &FunctionLayout,
     }
     llvm::ArrayRef<std::byte> StackBytes = Helper.Iteration.Stack;
     StackBytes = StackBytes.slice(StackSpan.Offset, StackSpan.Size);
-    if (StackBytes.size() != StackSpan.Size)
-      return ERROR(ExitCode::InsufficientStackSize,
-                   "The piece of stack provided by the artifact is "
-                   "insufficient to hold all the arguments.\n");
+    revng_check(StackBytes.size() == StackSpan.Size,
+                "The piece of stack provided by the artifact is "
+                "insufficient to hold all the arguments.");
 
     // Check the arguments.
-    size_t CurrentRegisterIndex = 0;
-    for (const auto &Argument : Helper.Iteration.Arguments) {
+    std::uint64_t ArgumentIndex = 0;
+    std::size_t CurrentRegisterIndex = 0;
+    for (const abi::artifact::Argument &Argument : Helper.Iteration.Arguments) {
       llvm::ArrayRef<std::byte> ArgumentBytes = Argument.Bytes;
-      if (ArgumentBytes.empty())
-        return ERROR(ExitCode::NoArgumentBytesProvided,
-                     "The `Bytes` field of the artifact is empty for one of "
-                     "the arguments of '"
-                       + FunctionName + "' function.\n");
+      if (ArgumentBytes.empty()) {
+        std::string Error = "The `Bytes` field of the artifact is empty for "
+                            "the argument #"
+                            + std::to_string(ArgumentIndex) + " of '"
+                            + FunctionName.str() + "' function.";
+        revng_abort(Error.c_str());
+      }
 
       do {
         if (CurrentRegisterIndex < OrderedRegisterList.size()) {
-          auto CurrentRegister = OrderedRegisterList[CurrentRegisterIndex];
-          auto RegValue = Helper.registerValue(CurrentRegister);
-          if (!RegValue.has_value())
-            return ERROR(ExitCode::UnknownArgumentRegister,
-                         "Verification of '"
-                           + model::Register::getName(CurrentRegister)
-                           + "' register failed. It's not specified by the "
-                             "artifact.\n");
+          auto Current = OrderedRegisterList[CurrentRegisterIndex];
+          auto RegValue = Helper.registerValue(Current);
+          if (!RegValue.has_value()) {
+            std::string Error = "Verification of '"
+                                + model::Register::getName(Current).str()
+                                + "' register failed: it's not specified by "
+                                  "the artifact for '"
+                                + FunctionName.str() + "'.";
+            revng_abort(Error.c_str());
+          }
 
           if (ArgumentBytes.take_front(RegValue->size()).equals(*RegValue)) {
             ++CurrentRegisterIndex;
@@ -144,45 +125,57 @@ llvm::Error VH::verify(const abi::FunctionType::Layout &FunctionLayout,
         }
 
         if (!StackBytes.take_front(ArgumentBytes.size()).equals(ArgumentBytes))
-          return ERROR(ExitCode::ArgumentCanNotBeLocated,
-                       "An argument cannot be found, it uses neither the "
-                       "expected stack part nor the expected registers.\n");
+          revng_abort("An argument cannot be found, it uses neither the "
+                      "expected stack part nor the expected registers.");
 
         // Stack matches.
         auto Min = model::Architecture::getPointerSize(Architecture);
         StackBytes = StackBytes.drop_front(std::max(ArgumentBytes.size(), Min));
         ArgumentBytes = {};
       } while (!ArgumentBytes.empty());
+
+      ++ArgumentIndex;
     }
 
-    if (CurrentRegisterIndex != OrderedRegisterList.size())
-      return ERROR(ExitCode::LeftoverArgumentRegistersDetected,
-                   "Function signature indicates the need for more register "
-                   "to pass an argument than the actual count.\n");
+    if (CurrentRegisterIndex != OrderedRegisterList.size()) {
+      std::string Error = "'" + FunctionName.str()
+                          + "' signature indicates the need for more registers "
+                            "to pass an argument than the maximum allowed "
+                            "count.";
+      revng_abort(Error.c_str());
+    }
 
-    if (!StackBytes.empty())
-      return ERROR(ExitCode::CombinedStackArgumentsSizeIsWrong,
-                   "Combined stack argument size is different from what was "
-                   "expected.\n");
+    if (!StackBytes.empty()) {
+      std::string Error = "The combined stack argument size of '"
+                          + FunctionName.str()
+                          + "' is different from what was "
+                            "expected.";
+      revng_abort(Error.c_str());
+    }
 
     // Check the return value.
     auto RVR = FunctionLayout.returnValueRegisters();
     auto ReturnValueRegisterList = ABI.sortReturnValues(std::move(RVR));
     if (!Helper.Iteration.ReturnValue.Bytes.empty()) {
-      if (ReturnValueRegisterList.size() == 0)
-        return ERROR(ExitCode::FoundUnexpectedReturnValue,
-                     "Found a return value that should not be there.\n");
+      if (ReturnValueRegisterList.size() == 0) {
+        std::string Error = "Verification of the return value of '"
+                            + FunctionName.str()
+                            + "' failed: found a return value that should not "
+                              "be there";
+        revng_abort(Error.c_str());
+      }
 
-      size_t UsedRegisterCounter = 0;
+      std::size_t UsedRegisterCounter = 0;
       llvm::ArrayRef ReturnValueBytes = Helper.Iteration.ReturnValue.Bytes;
       for (auto &CurrentRegister : ReturnValueRegisterList) {
         auto RegValue = Helper.registerValue(CurrentRegister);
-        if (!RegValue.has_value())
-          return ERROR(ExitCode::UnknownReturnValueRegister,
-                       "Verification of '"
-                         + model::Register::getName(CurrentRegister)
-                         + "' register failed. It's not specified by the "
-                           "artifact.\n");
+        if (!RegValue.has_value()) {
+          std::string Error = "Verification of '"
+                              + model::Register::getName(CurrentRegister).str()
+                              + "' register failed: it's not specified by the "
+                                "artifact.";
+          revng_abort(Error.c_str());
+        }
 
         if (ReturnValueBytes.take_front(RegValue->size()).equals(*RegValue)) {
           ReturnValueBytes = ReturnValueBytes.drop_front(RegValue->size());
@@ -192,29 +185,33 @@ llvm::Error VH::verify(const abi::FunctionType::Layout &FunctionLayout,
           ReturnValueBytes = {};
           ++UsedRegisterCounter;
         } else {
-          return ERROR(ExitCode::ReturnValueCanNotBeLocated,
-                       "Fail to locate where the return value is passed.\n");
+          std::string Error = "Verification of the return value of '"
+                              + FunctionName.str()
+                              + "' failed: unable to locate it.";
+          revng_abort(Error.c_str());
         }
       }
 
-      if (UsedRegisterCounter != ReturnValueRegisterList.size())
-        return ERROR(ExitCode::LeftoverReturnValueRegistersDetected,
-                     "Function signature indicates the need for more register "
-                     "to return a value than the actual count.\n");
-
+      if (UsedRegisterCounter != ReturnValueRegisterList.size()) {
+        std::string Error = "'" + FunctionName.str()
+                            + "' signature indicates the need for more "
+                              "registers "
+                              "to return a value than the maximum allowed "
+                              "count.";
+        revng_abort(Error.c_str());
+      }
     } else if (ReturnValueRegisterList.size() != 0) {
-      return ERROR(ExitCode::ExpectedReturnValueNotFound,
-                   "A return value is expected but function signature doesn't "
-                   "mention it.\n");
+      std::string Error = "'" + FunctionName.str()
+                          + "' signature does not mention a return value even "
+                            "though it's expected.";
+      revng_abort(Error.c_str());
     }
   }
-
-  return llvm::Error::success();
 }
 
-llvm::Error verifyABI(const TupleTree<model::Binary> &Binary,
-                      llvm::StringRef RuntimeArtifact,
-                      model::ABI::Values ABI) {
+void verifyABI(const TupleTree<model::Binary> &Binary,
+               llvm::StringRef RuntimeArtifact,
+               model::ABI::Values ABI) {
   model::Architecture::Values Architecture = model::ABI::getArchitecture(ABI);
   auto ParsedArtifact = abi::artifact::parse(RuntimeArtifact, Architecture);
 
@@ -237,15 +234,11 @@ llvm::Error verifyABI(const TupleTree<model::Binary> &Binary,
 
     using Layout = abi::FunctionType::Layout;
     if (auto *CABI = llvm::dyn_cast<model::CABIFunctionType>(Type.get())) {
-      if (auto Error = Helper.verify(Layout(*CABI), *CurrentFunction))
-        return Error;
+      Helper.verify(Layout(*CABI), *CurrentFunction);
     } else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(Type.get())) {
-      if (auto Error = Helper.verify(Layout(*Raw), *CurrentFunction))
-        return Error;
+      Helper.verify(Layout(*Raw), *CurrentFunction);
     } else {
       // Ignore non-function types.
     }
   }
-
-  return llvm::Error::success();
 }
