@@ -27,11 +27,45 @@ constexpr const char *const StructWrapperPrefix = "artificial_struct_returned_"
 constexpr const char *const StructFieldPrefix = "field_";
 
 namespace tokens = ptml::c::tokens;
-namespace ranks = revng::ranks;
 namespace tags = ptml::tags;
 namespace attributes = ptml::attributes;
 
+bool isScalarCType(const llvm::Type *LLVMType) {
+  switch (LLVMType->getTypeID()) {
+  case llvm::Type::HalfTyID:
+  case llvm::Type::BFloatTyID:
+  case llvm::Type::FloatTyID:
+  case llvm::Type::DoubleTyID:
+  case llvm::Type::X86_FP80TyID:
+  case llvm::Type::FP128TyID:
+  case llvm::Type::PPC_FP128TyID:
+  case llvm::Type::VoidTyID:
+  case llvm::Type::PointerTyID:
+    return true;
+
+  case llvm::Type::IntegerTyID: {
+    auto *IntType = cast<llvm::IntegerType>(LLVMType);
+    switch (IntType->getIntegerBitWidth()) {
+    case 1:
+    case 8:
+    case 16:
+    case 32:
+    case 64:
+    case 128:
+      return true;
+    default:
+      return false;
+    }
+  } break;
+
+  default:
+    return false;
+  }
+  return false;
+}
+
 std::string getScalarCType(const llvm::Type *LLVMType) {
+  revng_assert(isScalarCType(LLVMType));
   switch (LLVMType->getTypeID()) {
   case llvm::Type::HalfTyID:
   case llvm::Type::BFloatTyID:

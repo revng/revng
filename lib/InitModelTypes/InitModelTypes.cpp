@@ -198,6 +198,8 @@ static TypeVector getReturnTypes(FunctionMetadataCache &Cache,
              or CalledFunc->isIntrinsic()
              or FunctionTags::OpaqueCSVValue.isTagOf(CalledFunc)) {
 
+    revng_assert(not CalledFunc->isTargetIntrinsic());
+
     llvm::Type *ReturnedType = Call->getType();
 
     if (ReturnedType->isSingleValueType()) {

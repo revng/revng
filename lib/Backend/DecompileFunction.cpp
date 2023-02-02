@@ -197,6 +197,9 @@ static InstrSetVec collectTopScopeVariables(const llvm::Function &F) {
           or isCallToTagged(&I, FunctionTags::Exceptional)
           or llvm::isa<llvm::IntrinsicInst>(I)) {
 
+        const auto *Called = llvm::cast<CallInst>(&I)->getCalledFunction();
+        revng_assert(not Called->isTargetIntrinsic());
+
         if (needsTopScopeDeclaration(I))
           TopScopeVars.insert(&I);
       }
@@ -1045,6 +1048,8 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
              or FunctionTags::Helper.isTagOf(CalledFunc)
              or FunctionTags::Exceptional.isTagOf(CalledFunc)
              or CalledFunc->isIntrinsic()) {
+
+    revng_assert(not CalledFunc->isTargetIntrinsic());
 
     if (not Call->getType()->isVoidTy()) {
       const auto VarName = getOrCreateVarName(Call);

@@ -11,6 +11,9 @@
 
 #include "revng-c/Support/TokenDefinitions.h"
 
+/// Returns true if the LLVMTYpe is a scalar type whose name can be emitted in C
+extern bool isScalarCType(const llvm::Type *LLVMType);
+
 /// Get the C name of an LLVM Scalar type, in PTML.
 extern std::string getScalarCType(const llvm::Type *LLVMType);
 
