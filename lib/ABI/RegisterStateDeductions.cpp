@@ -457,7 +457,7 @@ private:
         return abi::RegisterState::No;
       } else {
         using namespace abi::RegisterState;
-        if (Result != Maybe && Result != No) {
+        if (Result != Maybe && Result != No && Result != NoOrDead) {
           revng_log(Log,
                     "Aborting, `model::Register::"
                       << model::Register::getName(Register).data()
