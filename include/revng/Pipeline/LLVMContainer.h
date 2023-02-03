@@ -127,15 +127,19 @@ public:
       Other->clearMetadata();
       llvm::SmallVector<std::pair<unsigned, llvm::MDNode *>, 2> MDs;
       Function.getAllMetadata(MDs);
-      for (auto &MD : MDs) {
-        // The !dbg attachment from the function defintion cannot be attached to
-        // its declaration.
-        if (Other->isDeclaration() && isa<llvm::DISubprogram>(MD.second))
+      for (auto &[MDKindID, MetaData] : MDs) {
+        // CloneModule clone already clones debug metadata, and clearMetadata
+        // does not clear debug metadata from functions.
+        // We don't want to duplicate debug metadata because that causes the
+        // model to not verify.
+        if (llvm::isa<llvm::DINode>(MetaData))
           continue;
 
-        Other->addMetadata(MD.first, *llvm::MapMetadata(MD.second, Map));
+        Other->addMetadata(MDKindID, *llvm::MapMetadata(MetaData, Map));
       }
     }
+
+    revng_assert(llvm::verifyModule(*Cloned, &llvm::dbgs()) == 0);
 
     return std::make_unique<ThisType>(this->name(),
                                       this->Ctx,
