@@ -22,24 +22,6 @@ public:
   virtual ~LocationBase() = default;
 };
 
-template<typename RootType>
-class TupleTreeLocation : public LocationBase {
-private:
-  TupleTreePath Path;
-
-public:
-  TupleTreeLocation(TupleTreePath Path) : Path(Path) {}
-
-  std::string toString() const override {
-    auto AsString = pathAsString<RootType>(Path);
-    revng_assert(AsString.has_value());
-    return *AsString;
-  }
-
-  ~TupleTreeLocation() override = default;
-  static std::string getTypeName() { return "TupleTreeLocation"; }
-};
-
 class DocumentErrorBase : public llvm::ErrorInfo<DocumentErrorBase> {
 public:
   inline static char ID = '0';
