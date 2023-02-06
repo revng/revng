@@ -305,8 +305,7 @@ struct llvm::yaml::MappingTraits<T> {
       auto MaybePath = stringAsPath<Model>(SerializedPath);
       if (!MaybePath.has_value()) {
         auto *EL = static_cast<revng::DiffError *>(IO.getContext());
-        std::string ErrorMessage = "Path " + SerializedPath + " is invalid";
-        EL->addReason(ErrorMessage, revng::DiffError::LocationType(*MaybePath));
+        Info.Path = TupleTreePath();
       } else {
         Info.Path = std::move(*MaybePath);
       }
@@ -419,12 +418,14 @@ struct ApplyDiffVisitor {
 public:
   using Change = typename TupleTreeDiff<T>::Change;
   const Change *C;
+  size_t ChangeIndex;
   revng::DiffError *EL;
 
 private:
   void generateError() { generateError(""); }
 
-  void generateError(const llvm::StringRef Reason) {
+  void generateError(const llvm::StringRef Reason,
+                     revng::DiffLocation::KindType Kind) {
     std::string Description = "Error in applying diff";
     if (!Reason.empty())
       Description += ": " + Reason.str();
@@ -432,7 +433,7 @@ private:
     if (StringPath != std::nullopt)
       Description += " on Path " + *StringPath;
     EL->addReason(std::move(Description),
-                  revng::DiffError::LocationType(C->Path));
+                  revng::DiffLocation(ChangeIndex, Kind));
   }
 
 public:
@@ -451,11 +452,13 @@ public:
     // This visitor handles subtree additions/deletions. Here we either have a
     // New or Old key to add/remove.
     if (C->Old == std::nullopt && C->New == std::nullopt) {
-      generateError("both 'Remove' and 'Add' are not present");
+      generateError("both 'Remove' and 'Add' are not present",
+                    revng::DiffLocation::KindType::All);
       return;
     }
     if (C->Old != std::nullopt && C->New != std::nullopt) {
-      generateError("both 'Remove' and 'Add' are not present");
+      generateError("both 'Remove' and 'Add' are not present",
+                    revng::DiffLocation::KindType::All);
       return;
     }
 
@@ -471,14 +474,17 @@ public:
       auto FirstToDelete = std::remove_if(M.begin(), End, CompareKeys);
       M.erase(FirstToDelete, End);
       if (OldSize - 1 != M.size())
-        generateError("subtree removal failed");
+        generateError("subtree removal failed",
+                      revng::DiffLocation::KindType::Old);
     } else if (C->New != std::nullopt) {
       // TODO: assert not there already
       addToContainer(M, std::get<value_type>(*C->New));
       if (OldSize + 1 != M.size())
-        generateError("subtree addition failed");
+        generateError("subtree addition failed",
+                      revng::DiffLocation::KindType::New);
     } else {
-      generateError("arrived at an impossible branch");
+      generateError("arrived at an impossible branch",
+                    revng::DiffLocation::KindType::Path);
     }
   }
 
@@ -489,9 +495,10 @@ public:
     // New
     if (C->Old == std::nullopt || C->New == std::nullopt) {
       if (C->Old == std::nullopt)
-        generateError("missing 'Remove' key");
+        generateError("missing 'Remove' key",
+                      revng::DiffLocation::KindType::Old);
       if (C->New == std::nullopt)
-        generateError("missing 'Add' key");
+        generateError("missing 'Add' key", revng::DiffLocation::KindType::New);
       return;
     }
 
@@ -499,7 +506,8 @@ public:
     auto &New = std::get<S>(*C->New);
 
     if (Old != M) {
-      generateError("'Remove' does not match the contents of the Tuple Tree");
+      generateError("'Remove' does not match the contents of the Tuple Tree",
+                    revng::DiffLocation::KindType::Old);
       return;
     }
 
@@ -512,19 +520,24 @@ public:
 template<TupleTreeRootLike T>
 inline llvm::Error TupleTreeDiff<T>::apply(TupleTree<T> &M) const {
   auto Error = std::make_unique<revng::DiffError>();
+  size_t Index = 0;
   for (const Change &C : Changes) {
+
     if (C.Path.size() == 0) {
-      // Change failed to deserialize, skip it
+      Error
+        ->addReason("could not deserialize path",
+                    revng::DiffLocation(Index,
+                                        revng::DiffLocation::KindType::Path));
       continue;
     }
-    tupletreediff::detail::ApplyDiffVisitor<T> ADV{ &C, Error.get() };
+    tupletreediff::detail::ApplyDiffVisitor<T> ADV{ &C, Index, Error.get() };
 
-    // it is not true that it can't fail, but rather errors are registered
-    // directly into the variable Error by the visitor, and the following
-    // callByPath will always return success.
     if (not callByPath(ADV, C.Path, *M, *pathAsString<T>(C.Path)))
-      Error->addReason("path not present",
-                       revng::TupleTreeLocation<model::Binary>(C.Path));
+      Error
+        ->addReason("path not present",
+                    revng::DiffLocation(Index,
+                                        revng::DiffLocation::KindType::Path));
+    Index++;
   }
 
   M.evictCachedReferences();
