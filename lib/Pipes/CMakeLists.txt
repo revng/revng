@@ -2,8 +2,14 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-revng_add_library_internal(revngPipes SHARED PipelineManager.cpp Pipes.cpp
-                           RootKind.cpp TaggedFunctionKind.cpp)
+revng_add_library_internal(
+  revngPipes
+  SHARED
+  PipelineManager.cpp
+  Pipes.cpp
+  RootKind.cpp
+  TaggedFunctionKind.cpp
+  ApplyDiffAnalysis.cpp)
 
 llvm_map_components_to_libnames(
   LLVM_LIBRARIES

@@ -58,6 +58,8 @@ static Error getObjectives(Runner &Runner,
 
 static void explainPipeline(const ContainerToTargetsMap &Targets,
                             ArrayRef<PipelineExecutionEntry> Requirements) {
+  if (Requirements.empty())
+    return;
 
   ExplanationLogger << "OBJECTIVES requested\n";
   indent(ExplanationLogger, 1);
@@ -261,7 +263,7 @@ Runner::runAnalysis(llvm::StringRef AnalysisName,
                                                  Targets,
                                                  Options);
       Error)
-    return std::move(Error);
+    return Error.asLLVMError();
 
   auto &After = getContext().getGlobals();
   auto Map = Before.diff(After);
@@ -384,17 +386,27 @@ const KindsRegistry &Runner::getKindsRegistry() const {
 
 void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
                                   InvalidationMap &Map) const {
+  // the custom writte invalidation rules do not know what is the current
+  // content of each container, so first we overestimate the targets to be
+  // invalidated, and then we do the intersection between the overestimated one
+  // and those that do exists.
+  TargetsList OverestimatedTargets;
+  for (const Kind &Kind : getKindsRegistry())
+    Kind.getInvalidations(getContext(), OverestimatedTargets, Diff);
+
   for (const auto &Step : llvm::drop_begin(*this)) {
     auto &StepInvalidations = Map[Step.getName()];
-    for (const auto &Cotainer : Step.containers()) {
-      if (not Cotainer.second)
+    for (const auto &Container : Step.containers()) {
+      if (not Container.second)
         continue;
 
-      auto &ContainerInvalidations = StepInvalidations[Cotainer.first()];
-      for (const Kind &Rule : getKindsRegistry())
-        Rule.getInvalidations(getContext(), ContainerInvalidations, Diff);
-      auto Enumeration = Cotainer.second->enumerate();
-      ContainerInvalidations = ContainerInvalidations.intersect(Enumeration);
+      const TargetsList &ExisitingTargets = Container.second->enumerate();
+      TargetsList NewTargets;
+      for (const auto &Target : OverestimatedTargets)
+        if (ExisitingTargets.contains(Target))
+          NewTargets.emplace_back(Target);
+
+      StepInvalidations[Container.first()] = NewTargets;
     }
   }
 }

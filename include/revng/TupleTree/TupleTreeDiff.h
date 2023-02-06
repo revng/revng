@@ -156,7 +156,7 @@ template<TupleTreeRootLike T>
 struct TupleTreeDiff {
 public:
   static llvm::Expected<TupleTreeDiff<T>>
-  deserialize(llvm::StringRef Input, ErrorList &EL) {
+  deserialize(llvm::StringRef Input, revng::ErrorList &EL) {
     return ::deserialize<TupleTreeDiff<T>>(Input, &EL);
   }
 
@@ -199,7 +199,7 @@ public:
     dump(OutputStream);
   }
 
-  void apply(TupleTree<T> &M, ErrorList &EL) const;
+  void apply(TupleTree<T> &M, revng::ErrorList &EL) const;
 };
 
 /// TODO: use non-strict specialization after it's available.
@@ -299,7 +299,7 @@ struct llvm::yaml::MappingTraits<T> {
       IO.mapRequired("Path", SerializedPath);
       auto MaybePath = stringAsPath<Model>(SerializedPath);
       if (!MaybePath.has_value()) {
-        ::ErrorList *EL = static_cast<::ErrorList *>(IO.getContext());
+        revng::ErrorList *EL = static_cast<revng::ErrorList *>(IO.getContext());
         std::string ErrorMessage = "Path " + SerializedPath + " is invalid";
         EL->push_back(llvm::createStringError(llvm::inconvertibleErrorCode(),
                                               ErrorMessage));
@@ -414,7 +414,7 @@ struct ApplyDiffVisitor {
 public:
   using Change = typename TupleTreeDiff<T>::Change;
   const Change *C;
-  ErrorList *EL;
+  revng::ErrorList *EL;
 
 private:
   void generateError() { generateError(""); }
@@ -506,7 +506,8 @@ public:
 } // namespace tupletreediff::detail
 
 template<TupleTreeRootLike T>
-inline void TupleTreeDiff<T>::apply(TupleTree<T> &M, ErrorList &EL) const {
+inline void
+TupleTreeDiff<T>::apply(TupleTree<T> &M, revng::ErrorList &EL) const {
   for (const Change &C : Changes) {
     if (C.Path.size() == 0) {
       // Change failed to deserialize, skip it
@@ -515,5 +516,6 @@ inline void TupleTreeDiff<T>::apply(TupleTree<T> &M, ErrorList &EL) const {
     tupletreediff::detail::ApplyDiffVisitor<T> ADV{ &C, &EL };
     callByPath(ADV, C.Path, *M, EL, *pathAsString<T>(C.Path));
   }
+  M.evictCachedReferences();
   M.initializeReferences();
 }

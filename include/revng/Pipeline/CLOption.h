@@ -19,7 +19,7 @@ public:
   }
   virtual ~CLOptionBase() = default;
   virtual bool isSet() const = 0;
-  virtual llvm::StringRef get() const = 0;
+  virtual std::string get() const = 0;
   virtual llvm::StringRef name() const = 0;
 
   static const CLOptionBase &getOption(llvm::StringRef Name) {
@@ -73,8 +73,14 @@ public:
     FullName((InvokableType + "-" + Name).str()),
     Option(llvm::StringRef(FullName), std::forward<Args>(Arguments)...) {}
 
-  bool isSet() const override { return not Option.isDefaultOption(); }
-  llvm::StringRef get() const override { return Option.ValueStr; }
+  bool isSet() const override { return Option.getNumOccurrences() != 0; }
+  std::string get() const override {
+    std::string ToReturn;
+    llvm::raw_string_ostream SO(ToReturn);
+    SO << Option.getValue();
+    SO.flush();
+    return ToReturn;
+  }
   llvm::StringRef name() const override { return Option.ArgStr; }
 
 private:

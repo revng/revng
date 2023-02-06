@@ -42,7 +42,7 @@ struct GetByPathVisitor {
 template<typename ResultT, typename RootT>
 ResultT *getByPath(const TupleTreePath &Path, RootT &M) {
   using namespace tupletree::detail;
-  ErrorList EL;
+  revng::ErrorList EL;
   GetByPathVisitor<ResultT> GBPV;
   if (not callByPath(GBPV, Path, M, EL))
     return nullptr;

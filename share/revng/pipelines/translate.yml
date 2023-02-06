@@ -21,6 +21,9 @@ Branches:
           - Name: AddPrimitiveTypes
             Type: AddPrimitiveTypes
             UsedContainers: [input]
+          - Name: Apply
+            Type: Apply
+            UsedContainers: []
       - Name: Lift
         Pipes:
           - Type: Lift
