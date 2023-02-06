@@ -126,6 +126,8 @@ Error PECOFFImporter::parseSectionsHeaders() {
     Segment.IsExecutable() = CoffRef->Characteristics
                              & COFF::IMAGE_SCN_MEM_EXECUTE;
 
+    // TODO: replace the following with `populateSegmentTypeStruct`, when
+    // symbol table and dynamic symbol table parsing is finalized
     model::TypePath StructPath = createEmptyStruct(*Model,
                                                    Segment.VirtualSize());
     Segment.Type() = model::QualifiedType(std::move(StructPath), {});

@@ -11,6 +11,7 @@
 #include "revng/Support/MetaAddress.h"
 
 #include "DwarfReader.h"
+#include "SegmentImportHelpers.h"
 
 extern Logger<> ELFImporterLog;
 
@@ -66,6 +67,9 @@ private:
 
   std::optional<MetaAddress> EHFrameHdrAddress;
   std::optional<MetaAddress> DynamicAddress;
+
+private:
+  llvm::SmallVector<DataSymbol, 32> DataSymbols;
 
 protected:
   std::optional<uint64_t> SymbolsCount;
