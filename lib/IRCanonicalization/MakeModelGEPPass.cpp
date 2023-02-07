@@ -226,8 +226,7 @@ computeIRAccessPattern(FunctionMetadataCache &Cache,
 
   // First, prepare the BaseOffset and the Indices for the IRAccessPattern.
   GEPSummationVector IRPatternIndices;
-  size_t Size = model::Architecture::getPointerSize(Model.Architecture());
-  APInt BaseOff = APInt(/*NumBits*/ 8 * Size, /*Value*/ 0);
+  APInt BaseOff = APInt(/*NumBits*/ 64, /*Value*/ 0);
 
   // Accumulate all the constant SumElements into BaseOff, and all the others in
   // IRPatternIndices.
@@ -257,7 +256,7 @@ computeIRAccessPattern(FunctionMetadataCache &Cache,
   llvm::sort(IRPatternIndices, HasLargerStride);
 
   // Now we're ready to initialize the IRAccessPattern
-  IRAccessPattern IRPattern{ .BaseOffset = BaseOff,
+  IRAccessPattern IRPattern{ .BaseOffset = BaseOff.zextOrSelf(64),
                              .Indices = IRPatternIndices,
                              // Intially PointeeType is set to None, then we
                              // fill it if in some special cases where we have
@@ -851,11 +850,11 @@ static ScoredIndices differenceScore(const model::QualifiedType &BaseType,
       revng_assert(ArrayQualIt->Size() == ArrayInfoIt->NumElems);
 
       // Compute the index of the accessed element of the array.
-      APInt ElemIndex;
-      APInt OffInElem;
       auto ArrayStride = ArrayInfoIt->Stride;
       auto MaxBitWidth = std::max(RestOff.getBitWidth(),
                                   ArrayStride.getBitWidth());
+      APInt ElemIndex = APInt(MaxBitWidth, 0);
+      APInt OffInElem = APInt(MaxBitWidth, 0);
       APInt::udivrem(RestOff.zextOrTrunc(MaxBitWidth),
                      ArrayStride.zextOrTrunc(MaxBitWidth),
                      ElemIndex,
@@ -887,9 +886,12 @@ static ScoredIndices differenceScore(const model::QualifiedType &BaseType,
         // than or equal than the array stride, otherwise we'de be modeling a
         // traversal that breakes type safety, which is what we're trying to
         // avoid.
-        revng_assert(IRCoefficient->getValue().ule(ArrayStride));
+        auto &IRCoefficientVal = IRCoefficient->getValue();
+        auto IRCoefficientResized = IRCoefficientVal.zextOrTrunc(MaxBitWidth);
+        auto ArrayStrideResized = ArrayStride.zextOrTrunc(MaxBitWidth);
+        revng_assert(IRCoefficientResized.ule(ArrayStrideResized));
 
-        if (IRCoefficient->getValue() == ArrayStride) {
+        if (IRCoefficientResized == ArrayStrideResized) {
           // If we're traversing an array with the same stride on the IR and on
           // the model, then the induction variable must be the same.
           revng_assert(IRIndex == ChildID.InductionVariable);
@@ -1142,13 +1144,16 @@ computeBestTAP(model::QualifiedType BaseType,
     // Set up the IRPattern we need for computing scores in the inner array
     // element. We initialize it to the IRPattern but we'll have to adjust it to
     // peel away the array access.
+    revng_assert(IRPattern.BaseOffset.getBitWidth() == 64);
     IRAccessPattern ElemIRPattern = IRPattern;
+
+    APInt APElementSize = APInt(/*NumBits*/ 64, /*value*/ ElementSize);
 
     // Set up the auxiliary variables that will later be used for updating the
     // result if the array traversal turns out to be the new best TAP.
     // We compute them here, while also updating ElemIRPattern, because the two
     // computations are related and we want to avoid redoing the work later on.
-    APInt FixedElementIndex;
+    APInt FixedElementIndex = APInt(/*NumBits*/ 64, /*value*/ ElementSize);
     llvm::Value *InductionVariable = nullptr;
 
     if (not ElemIRPattern.Indices.empty()) {
@@ -1158,16 +1163,45 @@ computeBestTAP(model::QualifiedType BaseType,
       // If we unwrap an array traversal with non-constant index, that's
       // the induction variable, and we have to track it.
       const auto &[Coefficient, Index] = ElemIRPattern.Indices.front();
-      revng_assert(not isa<ConstantInt>(Index));
-      revng_assert(Coefficient->getZExtValue() <= ElementSize);
-      if (Coefficient->getZExtValue() == ElementSize) {
-        InductionVariable = Index;
-        ElemIRPattern.Indices.erase(ElemIRPattern.Indices.begin());
+
+      // Coefficient represents the stride of the pointer arithemtic pattern on
+      // the IR. If it's larger than ElementSize on the model it means that
+      // we're not accessing the array with an induction variable that
+      // increments one by one.
+      // This can happen in two scenarios:
+      // - wild access, that we want to discard
+      // - every n element, instead of every element, that we want to handle.
+      if (Coefficient->getValue().ugt(ElementSize)) {
+        revng_assert(Index);
+
+        APInt NumMultipleElements = APInt(/*NumBits*/ 64, /*value*/ 0);
+        APInt Remainder = APInt(/*NumBits*/ 64, /*value*/ 0);
+
+        APInt::udivrem(Coefficient->getValue().zextOrSelf(64),
+                       APElementSize,
+                       NumMultipleElements,
+                       Remainder);
+        if (Remainder.getBoolValue()) {
+          // This is not accessing an exact size of elements at each stride.
+          // Just skip this.
+          rc_return Result;
+        } else {
+          // TDOO: in principle we'd like to be able to save the
+          // NumMultipleElement in the Result, so that we can emit array
+          // accesses in the form: array[constant + induction_var * multiplier].
+          rc_return Result;
+        }
+
+      } else {
+        revng_assert(not isa<ConstantInt>(Index));
+
+        if (Coefficient->getValue() == ElementSize) {
+          InductionVariable = Index;
+          ElemIRPattern.Indices.erase(ElemIRPattern.Indices.begin());
+        }
       }
     }
 
-    APInt APElementSize = APInt(/*bitwidth*/ IRPattern.BaseOffset.getBitWidth(),
-                                /*value*/ ElementSize);
     // Update ElemIRPattern.BaseOffset while also computing FixedElemIndex if
     // necessary.
     APInt::udivrem(IRPattern.BaseOffset,
@@ -1475,8 +1509,8 @@ static ModelGEPArgs makeBestGEPArgs(const TypedBaseAddress &TBA,
       // If the remaining offset is larger than or equal to an element size,
       // we have to compute the exact index of the element that is being
       // accessed
-      APInt ElementIndex;
       auto MaxBitWidth = std::max(RestOff.getBitWidth(), 64U);
+      APInt ElementIndex = APInt(MaxBitWidth, 0);
       APInt::udivrem(RestOff.zextOrTrunc(MaxBitWidth),
                      APInt(/*bitwidth*/ MaxBitWidth, /*value*/ ElementSize),
                      ElementIndex,
