@@ -36,7 +36,7 @@ public:
     case KindType::Path:
       return "Path";
     }
-    revng_unreachable("unrechable");
+    revng_unreachable("Unrechable");
     return "";
   }
 

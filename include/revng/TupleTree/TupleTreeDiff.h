@@ -115,7 +115,7 @@ namespace detail {
     revng_assert(Result == true);
     if (not Checker.IsCorrect)
       return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     "type check has failed");
+                                     "Type check has failed");
     return llvm::Error::success();
   }
 
@@ -452,12 +452,12 @@ public:
     // This visitor handles subtree additions/deletions. Here we either have a
     // New or Old key to add/remove.
     if (C->Old == std::nullopt && C->New == std::nullopt) {
-      generateError("both 'Remove' and 'Add' are not present",
+      generateError("Both 'Remove' and 'Add' are not present",
                     revng::DiffLocation::KindType::All);
       return;
     }
     if (C->Old != std::nullopt && C->New != std::nullopt) {
-      generateError("both 'Remove' and 'Add' are not present",
+      generateError("Both 'Remove' and 'Add' are not present",
                     revng::DiffLocation::KindType::All);
       return;
     }
@@ -474,16 +474,16 @@ public:
       auto FirstToDelete = std::remove_if(M.begin(), End, CompareKeys);
       M.erase(FirstToDelete, End);
       if (OldSize - 1 != M.size())
-        generateError("subtree removal failed",
+        generateError("Subtree removal failed",
                       revng::DiffLocation::KindType::Old);
     } else if (C->New != std::nullopt) {
       // TODO: assert not there already
       addToContainer(M, std::get<value_type>(*C->New));
       if (OldSize + 1 != M.size())
-        generateError("subtree addition failed",
+        generateError("Subtree addition failed",
                       revng::DiffLocation::KindType::New);
     } else {
-      generateError("arrived at an impossible branch",
+      generateError("Arrived at an impossible branch",
                     revng::DiffLocation::KindType::Path);
     }
   }
@@ -495,10 +495,10 @@ public:
     // New
     if (C->Old == std::nullopt || C->New == std::nullopt) {
       if (C->Old == std::nullopt)
-        generateError("missing 'Remove' key",
+        generateError("Missing 'Remove' key",
                       revng::DiffLocation::KindType::Old);
       if (C->New == std::nullopt)
-        generateError("missing 'Add' key", revng::DiffLocation::KindType::New);
+        generateError("Missing 'Add' key", revng::DiffLocation::KindType::New);
       return;
     }
 
@@ -525,7 +525,7 @@ inline llvm::Error TupleTreeDiff<T>::apply(TupleTree<T> &M) const {
 
     if (C.Path.size() == 0) {
       Error
-        ->addReason("could not deserialize path",
+        ->addReason("Could not deserialize path",
                     revng::DiffLocation(Index,
                                         revng::DiffLocation::KindType::Path));
       continue;
@@ -534,7 +534,7 @@ inline llvm::Error TupleTreeDiff<T>::apply(TupleTree<T> &M) const {
 
     if (not callByPath(ADV, C.Path, *M, *pathAsString<T>(C.Path)))
       Error
-        ->addReason("path not present",
+        ->addReason("Path not present",
                     revng::DiffLocation(Index,
                                         revng::DiffLocation::KindType::Path));
     Index++;

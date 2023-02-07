@@ -89,7 +89,7 @@ public:
       return MaybeGlobal.takeError();
     if (not MaybeGlobal.get()->verify()) {
       return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     "could not verify " + GlobalName);
+                                     "Could not verify " + GlobalName);
     }
     return llvm::Error::success();
   }
