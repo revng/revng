@@ -184,30 +184,6 @@ Types:
         Type:
           UnqualifiedType: "/Types/StructType-100003"
   - Kind: CABIFunctionType
-    ID: 100007
-    ABI: SystemV_x86_64
-    ReturnType:
-      UnqualifiedType: "/Types/PrimitiveType-520"
-    Arguments:
-      - Index: 0
-        Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
-      - Index: 1
-        Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
-      - Index: 2
-        Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
-      - Index: 3
-        Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
-      - Index: 4
-        Type:
-          UnqualifiedType: "/Types/PrimitiveType-520"
-      - Index: 5
-        Type:
-          UnqualifiedType: "/Types/StructType-100003"
-  - Kind: CABIFunctionType
     ID: 100008
     ABI: SystemV_x86_64
     ReturnType:

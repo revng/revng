@@ -120,8 +120,8 @@ commands:
         filter: for-segregate-stack-accesses
     command: |-
       RESUME=$$(temp -d);
-      revng analyze --resume "$$RESUME" AddPrimitiveTypes "$INPUT" -o /dev/null;
       revng analyze --resume "$$RESUME" ImportBinary "$INPUT" -o /dev/null;
+      revng analyze --resume "$$RESUME" AddPrimitiveTypes "$INPUT" -o /dev/null;
 
       revng model override-by-name
         "$$RESUME/context/model.yml"
@@ -139,7 +139,7 @@ commands:
         filter: for-detect-stack-size
     command: |-
       RESUME=$$(temp -d);
-      revng analyze --resume "$$RESUME" AddPrimitiveTypes "$INPUT" -o /dev/null;
       revng analyze --resume "$$RESUME" ImportBinary "$INPUT" -o /dev/null;
+      revng analyze --resume "$$RESUME" AddPrimitiveTypes "$INPUT" -o /dev/null;
       revng analyze --resume "$$RESUME" DetectABI "$INPUT" -o /dev/null;
       revng analyze --resume "$$RESUME" detect-stack-size "$INPUT" | revng model compare "${SOURCE}.model.yml" -
