@@ -4,5 +4,5 @@
 
 revng_add_executable(revng-model-import-debug-info Main.cpp)
 
-target_link_libraries(revng-model-import-debug-info revngModel
+target_link_libraries(revng-model-import-debug-info revngABI revngModel
                       revngModelImporterDebugInfo)
