@@ -214,13 +214,16 @@ bool deleteOnlyBody(llvm::Function &F) {
   return Result;
 }
 
-void setSegmentKeyMetadata(llvm::Function *SegmentRefFunction,
+void setSegmentKeyMetadata(llvm::Function &SegmentRefFunction,
                            MetaAddress StartAddress,
                            uint64_t VirtualSize) {
   using namespace llvm;
 
-  auto *M = SegmentRefFunction->getParent();
-  auto &Ctx = SegmentRefFunction->getContext();
+  auto *M = SegmentRefFunction.getParent();
+  auto &Ctx = SegmentRefFunction.getContext();
+
+  QuickMetadata QMD(M->getContext());
+  auto SegmentRefMDKind = Ctx.getMDKindID(SegmentRefMDName);
 
   StructType *MetaAddressTy = MetaAddress::getStruct(M);
   Constant *SAConstant = StartAddress.toConstant(MetaAddressTy);
@@ -229,16 +232,24 @@ void setSegmentKeyMetadata(llvm::Function *SegmentRefFunction,
   auto *VSConstant = ConstantInt::get(Type::getInt64Ty(Ctx), VirtualSize);
   auto *VSMD = ConstantAsMetadata::get(VSConstant);
 
-  auto *Node = MDNode::get(Ctx, { SAMD, VSMD });
-  SegmentRefFunction->setMetadata(SegmentRefMDName, Node);
+  SegmentRefFunction.setMetadata(SegmentRefMDKind, QMD.tuple({ SAMD, VSMD }));
+}
+
+bool hasSegmentKeyMetadata(const llvm::Function &F) {
+  auto &Ctx = F.getContext();
+  auto SegmentRefMDKind = Ctx.getMDKindID(SegmentRefMDName);
+  return nullptr != F.getMetadata(SegmentRefMDKind);
 }
 
 std::pair<MetaAddress, uint64_t>
 extractSegmentKeyFromMetadata(const llvm::Function &F) {
   using namespace llvm;
+  revng_assert(hasSegmentKeyMetadata(F));
 
-  auto *Node = F.getMetadata(SegmentRefMDName);
-  revng_assert(Node != nullptr);
+  auto &Ctx = F.getContext();
+
+  auto SegmentRefMDKind = Ctx.getMDKindID(SegmentRefMDName);
+  auto *Node = F.getMetadata(SegmentRefMDKind);
 
   auto *SAMD = cast<ConstantAsMetadata>(Node->getOperand(0))->getValue();
   auto *SAConstant = cast<Constant>(SAMD);

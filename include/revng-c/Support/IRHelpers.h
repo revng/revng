@@ -107,13 +107,17 @@ getExtractedValuesFromInstruction(const llvm::Instruction *);
 /// Returns true if the body was cleared, false if it was already empty.
 extern bool deleteOnlyBody(llvm::Function &F);
 
-void setSegmentKeyMetadata(llvm::Function *SegmentRefFunction,
-                           MetaAddress StartAddress,
-                           uint64_t VirtualSize);
+/// Set the key of a model::Segment stored as a metadata.
+extern void setSegmentKeyMetadata(llvm::Function &SegmentRefFunction,
+                                  MetaAddress StartAddress,
+                                  uint64_t VirtualSize);
 
 /// Extract the key of a model::Segment stored as a metadata.
 extern std::pair<MetaAddress, uint64_t>
 extractSegmentKeyFromMetadata(const llvm::Function &F);
+
+/// Returns true if \F has an attached metadata representing a segment key.
+extern bool hasSegmentKeyMetadata(const llvm::Function &F);
 
 void emitMessage(llvm::Instruction *EmitBefore, const llvm::Twine &Message);
 void emitMessage(llvm::IRBuilder<llvm::ConstantFolder,

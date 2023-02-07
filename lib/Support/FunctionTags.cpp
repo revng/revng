@@ -209,7 +209,7 @@ void initSegmentRefPool(OpaqueFunctionsPool<SegmentRefPoolKey> &Pool,
     const auto &[StartAddress, VirtualSize] = extractSegmentKeyFromMetadata(F);
     auto *RetType = F.getFunctionType()->getReturnType();
 
-    SegmentRefPoolKey Key = { { StartAddress, VirtualSize }, RetType };
+    SegmentRefPoolKey Key = { StartAddress, VirtualSize, RetType };
     Pool.record(Key, &F);
   }
 }

@@ -90,17 +90,17 @@ bool MakeSegmentRefPass::runOnFunction(Function &F) {
           }
 
           IntegerType *OperandType = ConstOp->getType();
-          SegmentRefPoolKey Key = { { StartAddress, VirtualSize },
-                                    OperandType };
+          SegmentRefPoolKey Key = { StartAddress, VirtualSize, OperandType };
           auto *SegmentRefFunction = SegmentRefPool.get(Key,
                                                         OperandType,
                                                         {},
                                                         "segmentRef");
 
-          if (SegmentRefFunction->getMetadata(SegmentRefMDName) == nullptr)
-            setSegmentKeyMetadata(SegmentRefFunction,
+          if (not hasSegmentKeyMetadata(*SegmentRefFunction)) {
+            setSegmentKeyMetadata(*SegmentRefFunction,
                                   StartAddress,
                                   VirtualSize);
+          }
 
           // Inject call to SegmentRef
           auto *SegmentRefCall = IRB.CreateCall(SegmentRefFunction);
@@ -120,14 +120,12 @@ bool MakeSegmentRefPass::runOnFunction(Function &F) {
           Value *AddressOfCall = IRB.CreateCall(AddressOfFunction,
                                                 { ModelTypeString,
                                                   SegmentRefCall });
-
           AddressOfCall = IRB.CreateZExtOrTrunc(AddressOfCall, OperandType);
 
           // Inject LLVM add
           auto Delta = Literal - StartAddress.address();
           if (Delta > 0) {
-            auto *Offset = CI::get(OperandType,
-                                   Literal - StartAddress.address());
+            auto *Offset = ConstantInt::get(OperandType, Delta);
             AddressOfCall = IRB.CreateAdd(AddressOfCall, Offset);
           }
 
