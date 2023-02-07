@@ -78,6 +78,7 @@ static std::string mangleName(StringRef String) {
 }
 
 Constant *getUniqueString(Module *M, StringRef String, StringRef Namespace) {
+  revng_assert(not Namespace.empty());
   LLVMContext &Context = M->getContext();
   std::string GlobalName = (Twine(Namespace) + mangleName(String)).str();
   auto *Global = M->getGlobalVariable(GlobalName);
