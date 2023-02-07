@@ -103,6 +103,21 @@ fields:
       (if `ArgumentsArePositionBased` is `false`).
     type: bool
 
+  - name: NoRegisterArgumentsCanComeAfterStackOnes
+    doc: |
+      States whether ABI allows a stack argument (mainly one too big
+      to be placed in the registers) to precede other register arguments.
+
+      For example, if there is a `Big` struct that has to use the stack, and
+      a function like
+      ```
+      void function(Big, uint32_t);
+      ```
+      if this value is set to true, both argument will be passed on stack,
+      otherwise, only the struct will.
+    type: bool
+    optional: true
+
   - name: UsePointerToCopyForStackArguments
     doc:
       States how the stack arguments are passed.
