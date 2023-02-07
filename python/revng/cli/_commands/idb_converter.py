@@ -1,8 +1,7 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-# type: ignore[attr-defined]
-# type: ignore[name-defined]
+# mypy: disable-error-code="attr-defined,name-defined"
 
 import sys
 from typing import Dict, List, Optional, Set, Tuple, Union

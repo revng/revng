@@ -44,7 +44,7 @@ class IRPipelineCommand(Command):
             mode="wb",
         ) as saved_input_file:
             # Copy so we can work with stdin too
-            copyfileobj(input_file, saved_input_file)
+            copyfileobj(input_file, saved_input_file)  # type: ignore
             saved_input_file.flush()
 
             # Extract model
