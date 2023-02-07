@@ -4,6 +4,7 @@
 
 revng_add_analyses_library_internal(
   revngABI
+  Analyses/ConvertToCABIFunctionType.cpp
   Analyses/ConvertToRawFunctionType.cpp
   DefaultFunctionPrototype.cpp
   Definition.cpp
