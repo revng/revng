@@ -116,7 +116,7 @@ read_passes:
         - name: Use revng_{assert,check,abort,unreachable}
           matcher:
             type: regexes_matcher
-            regexes: ['\babort\(', r'\bassert\(', 'assert\(false', "llvm_unreachable"]
+            regexes: ['\babort\(', '\bassert\(', 'assert\(false', "llvm_unreachable"]
       cpp: []
       cpp_object:
         - name: Found snippets that shouldn't be at the end of a line
