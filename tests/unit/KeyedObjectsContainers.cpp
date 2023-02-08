@@ -11,6 +11,7 @@ bool init_unit_test();
 
 #include "revng/ADT/MutableSet.h"
 #include "revng/ADT/SortedVector.h"
+#include "revng/ADT/TrackingContainer.h"
 #include "revng/Support/Assert.h"
 
 #include "TestKeyedObject.h"
@@ -200,4 +201,132 @@ BOOST_AUTO_TEST_CASE(TestUniqueLast) {
 
   Vector Expected = { { 1, 3 }, { 2, 3 } };
   revng_check(TheVector == Expected);
+}
+
+template<template<typename...> class T>
+static void testAt() {
+  revng::TrackingContainer<T<int>> Vector;
+  int One(1);
+  Vector.insert(One);
+  Vector.resetTracking();
+  const auto &Reference = Vector;
+  Reference.at(One);
+
+  auto TrackingResult = Reference.getTrackingResult();
+  revng_check(TrackingResult.InspectedKeys.size() == 1);
+  revng_check(TrackingResult.InspectedKeys.contains(1));
+}
+
+BOOST_AUTO_TEST_CASE(TrackingContainerVectorAt) {
+  testAt<SortedVector>();
+  testAt<MutableSet>();
+}
+
+template<template<typename...> class T>
+static void testVectorCount() {
+  revng::TrackingContainer<T<int>> Vector;
+  Vector.insert(1);
+  Vector.resetTracking();
+  const auto &Reference = Vector;
+  Reference.count(2);
+
+  auto TrackingResult = Reference.getTrackingResult();
+  revng_check(TrackingResult.InspectedKeys.size() == 1);
+  revng_check(not TrackingResult.Exact);
+  revng_check(TrackingResult.InspectedKeys.contains(2));
+}
+
+BOOST_AUTO_TEST_CASE(TrackingContainerVectorCount) {
+  testVectorCount<SortedVector>();
+  testVectorCount<MutableSet>();
+}
+
+template<template<typename...> class T>
+static void testTryGet() {
+  revng::TrackingContainer<T<int>> Vector;
+  Vector.insert(1);
+  Vector.resetTracking();
+  const auto &Reference = Vector;
+  const int *Result = nullptr;
+  Result = Reference.tryGet(2);
+  revng_check(Result == nullptr);
+  Result = Reference.tryGet(1);
+  revng_check(Result != nullptr && *Result == 1);
+
+  auto TrackingResult = Reference.getTrackingResult();
+  revng_check(TrackingResult.InspectedKeys == std::set<int>({ 1, 2 }));
+  revng_check(not TrackingResult.Exact);
+}
+
+BOOST_AUTO_TEST_CASE(TrackingContainerVectorTryGet) {
+  testTryGet<SortedVector>();
+  testTryGet<MutableSet>();
+}
+
+template<template<typename...> class T>
+static void testBeginEnd() {
+  revng::TrackingContainer<SortedVector<int>> Vector;
+  Vector.insert(1);
+  Vector.resetTracking();
+  const auto &Reference = Vector;
+  llvm::find(Reference, 1);
+
+  auto TrackingResult = Reference.getTrackingResult();
+  revng_check(TrackingResult.InspectedKeys.empty());
+  revng_check(TrackingResult.Exact);
+}
+
+BOOST_AUTO_TEST_CASE(TrackingContainerVectorBeginEnd) {
+  testBeginEnd<SortedVector>();
+  testBeginEnd<MutableSet>();
+}
+
+template<template<typename...> class T>
+static void testSetCount() {
+  revng::TrackingContainer<SortedVector<int>> Vector;
+  Vector.insert(1);
+  Vector.resetTracking();
+  const auto &Reference = Vector;
+  Reference.count(1);
+
+  auto TrackingResult = Reference.getTrackingResult();
+  revng_check(TrackingResult.InspectedKeys == std::set<int>({ 1 }));
+  revng_check(not TrackingResult.Exact);
+}
+
+BOOST_AUTO_TEST_CASE(TrackingContainerSetCount) {
+  testSetCount<SortedVector>();
+  testSetCount<MutableSet>();
+}
+
+template<template<typename...> class T>
+static void testPush() {
+  revng::TrackingContainer<SortedVector<int>> Vector;
+  Vector.insert(1);
+  Vector.resetTracking();
+  const auto &Reference = Vector;
+  Reference.count(1);
+
+  Reference.trackingPush();
+
+  auto TrackingResult = Reference.getTrackingResult();
+  revng_check(TrackingResult.InspectedKeys == std::set<int>({ 1 }));
+  revng_check(not TrackingResult.Exact);
+
+  Reference.trackingPop();
+
+  TrackingResult = Reference.getTrackingResult();
+  revng_check(TrackingResult.InspectedKeys == std::set<int>({ 1 }));
+  revng_check(not TrackingResult.Exact);
+
+  Reference.trackingPop();
+
+  TrackingResult = Reference.getTrackingResult();
+  revng_check(TrackingResult.InspectedKeys.empty());
+  revng_check(not TrackingResult.Exact);
+}
+
+BOOST_AUTO_TEST_CASE(TrackingContainerPush) {
+  testPush<SortedVector>();
+  testPush<MutableSet>();
 }
