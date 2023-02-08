@@ -59,29 +59,55 @@ void VH::verify(const abi::FunctionType::Layout &FunctionLayout,
     IterationAccessHelper Helper(Artifact.Iterations[Index], Architecture);
 
     // Sort the argument registers
-    auto ARegisters = FunctionLayout.argumentRegisters();
-    auto OrderedRegisterList = ABI.sortArguments(std::move(ARegisters));
+    auto ArgumentRegisters = FunctionLayout.argumentRegisters();
+    auto OrderedRegisterList = ABI.sortArguments(std::move(ArgumentRegisters));
 
-    // Compute the relevant stack slice.
-    abi::FunctionType::Layout::Argument::StackSpan StackSpan{ 0, 0 };
+    // Compute the relevant piece of the stack leaving padding behind.
+    abi::artifact::Stack ExtractedStackBytes;
+    std::size_t PreviousArgumentEndsAt = 0;
+    std::size_t CombinedArgumentSize = 0;
     for (const auto &Argument : FunctionLayout.Arguments) {
       if (Argument.Stack.has_value()) {
         revng_assert(Argument.Stack->Size != 0);
-        if (StackSpan.Size == 0) {
-          StackSpan = *Argument.Stack;
-        } else {
-          if (Argument.Stack->Offset != StackSpan.Offset + StackSpan.Size)
-            revng_abort("Only continuous stack arguments are supported.");
-
-          StackSpan.Size += Argument.Stack->Size;
+        if (Argument.Stack->Offset < PreviousArgumentEndsAt) {
+          std::string Error = "Layout of '" + FunctionName.str()
+                              + "' is not valid: stack arguments must not "
+                                "overlap.";
+          revng_abort(Error.c_str());
         }
+
+        auto PaddingSize = Argument.Stack->Offset - PreviousArgumentEndsAt;
+        if (PaddingSize > ABI.getPointerSize()) {
+          // TODO: this check can be improved quite a bit by taking
+          // `ABI::Types()` into the account.
+          std::string Error = "Layout of '" + FunctionName.str()
+                              + "' is not valid: padding exceeds the register "
+                                "size.\n";
+          Error += "The current argument is expected at offset "
+                   + std::to_string(Argument.Stack->Offset)
+                   + " while the previous one ends at "
+                   + std::to_string(PreviousArgumentEndsAt) + "\n";
+          revng_abort(Error.c_str());
+        }
+
+        std::size_t CurrentSize = ExtractedStackBytes.size();
+        ExtractedStackBytes.resize(CurrentSize + Argument.Stack->Size);
+
+        llvm::ArrayRef<std::byte> Bytes = Helper.Iteration.Stack;
+        Bytes = Bytes.slice(Argument.Stack->Offset, Argument.Stack->Size);
+        llvm::copy(Bytes, std::next(ExtractedStackBytes.begin(), CurrentSize));
+        PreviousArgumentEndsAt = Argument.Stack->Offset + Argument.Stack->Size;
+        CombinedArgumentSize += (Argument.Stack->Size);
       }
     }
-    llvm::ArrayRef<std::byte> StackBytes = Helper.Iteration.Stack;
-    StackBytes = StackBytes.slice(StackSpan.Offset, StackSpan.Size);
-    revng_check(StackBytes.size() == StackSpan.Size,
-                "The piece of stack provided by the artifact is "
-                "insufficient to hold all the arguments.");
+    llvm::ArrayRef<std::byte> StackBytes = ExtractedStackBytes;
+    if (StackBytes.size() != CombinedArgumentSize) {
+      std::string Error = "Verification of '" + FunctionName.str()
+                          + "' failed: the piece of stack provided by the "
+                            "artifact has a different size from what the "
+                            "layout expects.";
+      revng_abort(Error.c_str());
+    }
 
     // Check the arguments.
     std::uint64_t ArgumentIndex = 0;
