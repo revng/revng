@@ -182,7 +182,7 @@ std::array<T, Size> slice(const std::array<T, OldSize> &Old) {
   return Result;
 }
 
-/// \brief Simple helper function asserting a pointer is not a `nullptr`
+/// Simple helper function asserting a pointer is not a `nullptr`
 template<typename T>
 inline T *notNull(T *Pointer) {
   revng_assert(Pointer != nullptr);

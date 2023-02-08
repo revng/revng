@@ -14,7 +14,7 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Support/IRHelpers.h"
 
-/// \brief Identify function call instructions
+/// Identify function call instructions
 ///
 /// This pass parses the generated IR looking for terminator instructions which
 /// look like function calls, i.e., they store the next program counter (the

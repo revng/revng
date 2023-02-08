@@ -58,7 +58,7 @@ inline void replaceAndResizeOperand(llvm::Instruction *I,
   I->setOperand(Index, NewOperand);
 }
 
-/// \brief Transformation to shrink operand sizes where possible
+/// Transformation to shrink operand sizes where possible
 ///
 /// This pass shrinks the operand of binary operators and comparison
 /// instructions if they are zero/sign-extended immediately before and after the

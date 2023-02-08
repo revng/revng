@@ -14,8 +14,7 @@
 
 using CSVToAllocaMap = std::map<llvm::GlobalVariable *, llvm::AllocaInst *>;
 
-/// \brief Helper class to generate calls that summarize pieces of codes
-///        accessing CSVs
+/// Helper class to generate calls that summarize pieces of codes accessing CSVs
 class SummaryCallsBuilder {
 private:
   const CSVToAllocaMap &CSVMap;
@@ -89,7 +88,7 @@ private:
   }
 };
 
-/// \brief Replace calls to helper functions with read/writes to CSVs they use
+/// Replace calls to helper functions with read/writes to CSVs they use
 ///
 /// This pass removes all the calls to helper functions replacing them with a
 /// function call to `generic_helper` whose arguments (all variadic) are as

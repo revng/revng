@@ -31,7 +31,7 @@ class VariableManager;
 // TODO: rename
 extern llvm::cl::opt<bool> External;
 
-/// \brief Maintain the list of variables required by PTC
+/// Maintain the list of variables required by PTC
 ///
 /// It can be queried for a variable, which, if not already existing, will be
 /// created on the fly.
@@ -59,7 +59,7 @@ public:
     return Builder.CreateLoad(V);
   }
 
-  /// \brief Get or create the LLVM value associated to a PTC temporary
+  /// Get or create the LLVM value associated to a PTC temporary
   ///
   /// Given a PTC temporary identifier, checks if it already exists in the
   /// generated LLVM IR, and, if not, it creates it.
@@ -71,8 +71,7 @@ public:
     return getOrCreate(TemporaryId, false).second;
   }
 
-  /// \brief Return the global variable corresponding to \p Offset in the CPU
-  ///        state.
+  /// Return the global variable corresponding to \p Offset in the CPU state.
   ///
   /// \param Offset the offset in the CPU state (the `env` PTC variable).
   /// \param Name an optional name to force for the associate global variable.
@@ -85,8 +84,7 @@ public:
     return getByCPUStateOffsetInternal(EnvOffset + Offset, Name);
   }
 
-  /// \brief Notify VariableManager to reset all the "function"-specific
-  ///        information
+  /// Notify VariableManager to reset all the "function"-specific information
   ///
   /// Informs the VariableManager that a new function has begun, so it can
   /// discard function- and basic block-level variables.
@@ -139,12 +137,12 @@ public:
                          unsigned Offset,
                          bool EnvIsSrc);
 
-  /// \brief Perform finalization steps on variables
+  /// Perform finalization steps on variables
   void finalize();
 
   void rebuildCSVList();
 
-  /// \brief Gets the CPUStateType
+  /// Gets the CPUStateType
   llvm::StructType *getCPUStateType() const { return CPUStateType; }
 
   bool hasEnv() const { return Env != nullptr; }

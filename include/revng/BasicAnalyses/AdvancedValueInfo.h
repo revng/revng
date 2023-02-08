@@ -155,7 +155,7 @@ struct CFGEdge {
   }
 };
 
-/// \brief Monotone framework to collect ConstantRangeSets from LazyValueInfo
+/// Monotone framework to collect ConstantRangeSets from LazyValueInfo
 namespace DisjointRanges {
 
 class Element {
@@ -390,7 +390,7 @@ inline bool isMemory(llvm::Value *V) {
   return not(isa<GlobalVariable>(V) or isa<AllocaInst>(V));
 }
 
-/// \brief An operation producing a result and having a single free operand
+/// An operation producing a result and having a single free operand
 struct Operation {
   static const unsigned UseSCEV = std::numeric_limits<unsigned>::max();
 
@@ -447,7 +447,7 @@ struct Operation {
   }
 };
 
-/// \brief Class representing an expression on the IR
+/// Class representing an expression on the IR
 class Expression {
 private:
   const llvm::DataLayout &DL;
@@ -701,7 +701,7 @@ public:
     return Result;
   }
 
-  /// \brief Materialize all the values in this expression
+  /// Materialize all the values in this expression
   template<typename MemoryOracle>
   MaterializedValues materialize(MemoryOracle &MO) {
     using namespace llvm;
@@ -926,7 +926,7 @@ public:
   }
 };
 
-/// \brief Context for processing a phi node
+/// Context for processing a phi node
 class PhiProcess {
 public:
   /// The considered Phi
@@ -988,8 +988,7 @@ public:
   }
 };
 
-/// \brief Analyis to associate to each value a ConstantRangeSet using
-///        LazyValueInfo
+/// Analysis to associate to each value a ConstantRangeSet using LazyValueInfo
 ///
 /// \tparam MemoryOracle the type of the class used to produce obtain the result
 ///         of memory accesses from constant addresses.

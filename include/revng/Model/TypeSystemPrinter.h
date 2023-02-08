@@ -25,17 +25,17 @@ public:
   ~TypeSystemPrinter();
 
 private:
-  /// \brief Print the part of a node's label that represents a single field.
+  /// Print the part of a node's label that represents a single field.
   void dumpField(const model::QualifiedType &FieldQT,
                  const model::Type *Parent,
                  uint64_t Offset,
                  uint64_t FieldIdx);
 
-  /// \brief Print the given type as a node in a `.dot` graph. This includes the
+  /// Print the given type as a node in a `.dot` graph. This includes the
   /// name, size and all of the fields.
   void dumpTypeNode(const model::Type *T, int NodeID);
 
-  /// \brief Add an edge between a field (identified by NodeID+PortID)
+  /// Add an edge between a field (identified by NodeID+PortID)
   /// and its UnqualifiedType.
   void addFieldEdge(const model::QualifiedType &QT,
                     int SrcID,
@@ -43,10 +43,10 @@ private:
                     int DstID);
 
 private:
-  /// \brief Print the given function as a node in a `.dot` graph.
+  /// Print the given function as a node in a `.dot` graph.
   void dumpFunctionNode(const model::Function &F, int NodeID);
 
-  /// \brief Add an edge between node_SrcID:SrcPort and node_DstID
+  /// Add an edge between node_SrcID:SrcPort and node_DstID
   void addEdge(int SrcID, int SrcPort, int DstID);
 
 public:

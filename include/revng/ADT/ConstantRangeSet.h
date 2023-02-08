@@ -93,7 +93,7 @@ public:
   const llvm::APInt *operator->() const { return &**this; }
 };
 
-/// \brief A set of ranges
+/// A set of ranges
 ///
 /// This class is effectively an extension of llvm::ConstantRange aiming to
 /// represent multiple disjoint ranges.

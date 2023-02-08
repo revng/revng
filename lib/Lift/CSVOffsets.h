@@ -11,8 +11,8 @@
 template<bool StaticallyEnabled>
 class Logger;
 
-/// \brief Different types of accesses to the CPU State Variables (CSVs), with a
-///        set of possible offsets.
+/// Different types of accesses to the CPU State Variables (CSVs), with a set of
+/// possible offsets.
 class CSVOffsets {
 
 private:
