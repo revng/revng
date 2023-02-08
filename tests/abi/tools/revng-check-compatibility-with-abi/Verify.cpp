@@ -247,24 +247,45 @@ void verifyABI(const TupleTree<model::Binary> &Binary,
   const abi::Definition &Def = abi::Definition::get(ABI);
   VerificationHelper Helper{ Architecture, Def, ParsedArtifact.IsLittleEndian };
 
-  for (auto &Type : Binary->Types()) {
-    revng_assert(Type.get() != nullptr);
-
-    auto CurrentFunction = ParsedArtifact.Functions.find(Type->name());
+  std::size_t TestedCount = 0;
+  for (auto &Function : Binary->Functions()) {
+    const std::string &Name = Function.OriginalName();
+    auto CurrentFunction = ParsedArtifact.Functions.find(Name);
     if (CurrentFunction == ParsedArtifact.Functions.end()) {
       // Ignore types not present in the artifact.
       continue;
     }
 
-    Helper.FunctionName = Type->name();
+    ++TestedCount;
+    Helper.FunctionName = Name;
 
     using Layout = abi::FunctionType::Layout;
-    if (auto *CABI = llvm::dyn_cast<model::CABIFunctionType>(Type.get())) {
-      Helper.verify(Layout(*CABI), *CurrentFunction);
-    } else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(Type.get())) {
+    const model::Type *Prototype = Function.Prototype().getConst();
+    revng_assert(Prototype != nullptr);
+    if (auto *CABI = llvm::dyn_cast<model::CABIFunctionType>(Prototype)) {
+      // Copy the prototype since we might have to modify it before testing.
+      model::CABIFunctionType PrototypeCopy = *CABI;
+
+      if (ABI != PrototypeCopy.ABI()) {
+        // Workaround for dwarf sometimes misdetecting a very specific ABI,
+        // for example, it labels `SystemV_x86_regparam_N` as just `SystemV_x86`
+        // despite them being incompatible.
+        std::array AllowedABIs = { model::ABI::SystemV_x86_regparm_3,
+                                   model::ABI::SystemV_x86_regparm_2,
+                                   model::ABI::SystemV_x86_regparm_1 };
+        revng_assert(llvm::is_contained(AllowedABIs, ABI));
+        PrototypeCopy.ABI() = ABI;
+      }
+
+      Helper.verify(Layout(PrototypeCopy), *CurrentFunction);
+    } else if (auto *Raw = llvm::dyn_cast<model::RawFunctionType>(Prototype)) {
       Helper.verify(Layout(*Raw), *CurrentFunction);
     } else {
       // Ignore non-function types.
     }
   }
+
+  revng_check(TestedCount == ParsedArtifact.Functions.size(),
+              "Not every function from the artifact was found in the binary. "
+              "Does the binary match the artifact?");
 }
