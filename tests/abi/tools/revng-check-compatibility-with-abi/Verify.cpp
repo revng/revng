@@ -109,9 +109,36 @@ void VH::verify(const abi::FunctionType::Layout &FunctionLayout,
       revng_abort(Error.c_str());
     }
 
+    std::size_t CurrentRegisterIndex = 0;
+    if (FunctionLayout.returnsAggregateType()) {
+      // Account for the shadow pointer to the return value.
+      revng_assert(not FunctionLayout.Arguments.empty());
+      auto &ShadowArgument = FunctionLayout.Arguments[0];
+      using namespace abi::FunctionType::ArgumentKind;
+      revng_assert(ShadowArgument.Kind == ShadowPointerToAggregateReturnValue);
+      if (ShadowArgument.Registers.size() == 1) {
+        // It's in a register, drop one if needed.
+        model::Register::Values Register = *ShadowArgument.Registers.begin();
+        revng_assert(Register == ABI.ReturnValueLocationRegister());
+        if (!OrderedRegisterList.empty())
+          if (*OrderedRegisterList.begin() == ABI.ReturnValueLocationRegister())
+            ++CurrentRegisterIndex;
+
+      } else if (ShadowArgument.Stack.has_value()) {
+        // It's on the stack, drop enough bytes for a pointer from the front.
+        revng_assert(ShadowArgument.Stack->Offset == 0);
+        revng_assert(ShadowArgument.Stack->Size == ABI.getPointerSize());
+        StackBytes = StackBytes.drop_front(ABI.getPointerSize());
+      } else {
+        std::string Error = "Verification of the return value of '"
+                            + FunctionName.str()
+                            + "' failed: layout is not valid, did it verify?";
+        revng_abort(Error.c_str());
+      }
+    }
+
     // Check the arguments.
     std::uint64_t ArgumentIndex = 0;
-    std::size_t CurrentRegisterIndex = 0;
     for (const abi::artifact::Argument &Argument : Helper.Iteration.Arguments) {
       llvm::ArrayRef<std::byte> ArgumentBytes = Argument.Bytes;
       if (ArgumentBytes.empty()) {
