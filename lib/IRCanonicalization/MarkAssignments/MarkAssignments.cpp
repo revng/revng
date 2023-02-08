@@ -407,17 +407,34 @@ public:
         revng_log(MarkLog, "Instr HasSideEffects");
       }
 
-      // In principle the condition on the multiple uses can be dropped, but
-      // removing it causes the backend to allocate a lot of memory because it
-      // accumulates a lot of strings, and we need to investigate how to fix
-      // that.
-      if (I.getNumUses() > 1 or not I.getNumUses()
-          or needsTopScopeDeclaration(I)) {
-        // Force unused instructions to be assigned. This is done to ease
-        // debugging, and could potentially be dropped in the future.
-        if (not I.getType()->isVoidTy()) {
-          Assignments[&I].set(Reasons::AlwaysAssign);
-          revng_log(MarkLog, "Instr AlwaysAssign");
+      // For custom opcodes that don't have reference semantics there are cases
+      // where we always want so serialize the instruction for aesthetic
+      // reasons.
+      if (not isCallToTagged(&I, FunctionTags::IsRef)) {
+        // There are 3 reasons why we'd like to force serialization
+        // - the instruction has zero uses and no side effects: we want to do it
+        //   for debug purposes so that it shows up in the decompiled code even
+        //   if it's dead
+        // - the instruction has more than 1 use, so we use a dedicated variable
+        //   to store it results, and users use the variable name in C
+        // - the variable needs a top scope declaration. this is actually a
+        //   workaround we've put in place because of the limitation of the LLVM
+        //   IR, whose dominance relationships does not reflect the scoping we
+        //   have in C. This can be dropped whenever we switch to a MLIR based
+        //   on nested scopes
+
+        // TODO: In principle the condition on the multiple uses can be dropped,
+        // but removing it causes the backend to allocate a lot of memory
+        // because it accumulates a lot of strings, and we need to investigate
+        // how to fix that.
+        if (I.getNumUses() > 1 or not I.getNumUses()
+            or needsTopScopeDeclaration(I)) {
+          // Force unused instructions to be assigned. This is done to ease
+          // debugging, and could potentially be dropped in the future.
+          if (not I.getType()->isVoidTy()) {
+            Assignments[&I].set(Reasons::AlwaysAssign);
+            revng_log(MarkLog, "Instr AlwaysAssign");
+          }
         }
       }
 

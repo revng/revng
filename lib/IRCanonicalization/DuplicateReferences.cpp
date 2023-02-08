@@ -2,6 +2,9 @@
 // Copyright rev.ng Labs Srl. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
@@ -40,9 +43,6 @@ public:
   }
 };
 
-using llvm::CallInst;
-using llvm::dyn_cast;
-
 bool DuplicateReferences::runOnFunction(llvm::Function &F) {
 
   // Skip non-isolated functions
@@ -51,46 +51,36 @@ bool DuplicateReferences::runOnFunction(llvm::Function &F) {
     return false;
 
   // Initialize the IR builder to inject functions
-  llvm::LLVMContext &LLVMCtx = F.getContext();
-  llvm::IRBuilder<> Builder(LLVMCtx);
+  llvm::IRBuilder<> Builder(F.getContext());
   bool Modified = false;
 
-  for (auto &BB : F) {
-    auto CurInst = BB.begin();
-    while (CurInst != BB.end()) {
-      llvm::Instruction &I = *CurInst;
-      auto NextInst = std::next(CurInst);
+  for (llvm::BasicBlock *BB : llvm::post_order(&F)) {
+    for (llvm::Instruction &I : llvm::reverse(*BB)) {
+
+      // Skip all instructions with less than 2 uses because there's nothing to
+      // duplicate.
+      if (not I.hasNUsesOrMore(2))
+        continue;
 
       if (isCallToTagged(&I, FunctionTags::ModelGEP)
           or isCallToTagged(&I, FunctionTags::ModelGEPRef)
           or isCallToTagged(&I, FunctionTags::SegmentRef)) {
-        auto *Call = llvm::cast<CallInst>(&I);
 
-        llvm::SmallVector<llvm::Instruction *> Users;
-        for (auto *Usr : I.users())
-          Users.push_back(cast<llvm::Instruction>(Usr));
+        auto *Call = llvm::cast<llvm::CallInst>(&I);
+        auto *CalledFunction = Call->getCalledFunction();
 
-        for (auto &Usr : Users) {
-          Builder.SetInsertPoint(Usr);
+        // Insert the duplicated calls right after the original call.
+        Builder.SetInsertPoint(Call->getNextNode());
 
-          // Create a new call
-          llvm::SmallVector<llvm::Value *, 16> Args;
-          for (auto &Op : Call->arg_operands())
-            Args.push_back(Op);
-
-          llvm::Value *NewCall = Builder.CreateCall(Call->getCalledFunction(),
-                                                    Args);
-
-          // Substitute the new call
-          I.replaceUsesWithIf(NewCall, [&Usr](llvm::Use &U) {
-            return U.getUser() == Usr;
-          });
+        // Insert a duplicated call for each use except the first, that can keep
+        // using the old one, and update the use to use the duplicate.
+        for (llvm::Use &U :
+             llvm::make_early_inc_range(llvm::drop_begin(I.uses()))) {
+          auto Args = llvm::SmallVector<llvm::Value *>{ Call->arg_operands() };
+          U.set(Builder.CreateCall(CalledFunction, Args));
+          Modified = true;
         }
-
-        Modified = true;
       }
-
-      CurInst = NextInst;
     }
   }
 
