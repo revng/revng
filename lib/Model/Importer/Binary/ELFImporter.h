@@ -114,15 +114,15 @@ private:
     return this->getGenericPointer(Ptr).toPC(toLLVMArchitecture(Architecture));
   }
 
-  /// \brief Parse the .eh_frame_hdr section to obtain the address and the
-  ///        number of FDEs in .eh_frame
+  /// Parse the .eh_frame_hdr section to obtain the address and the number of
+  /// FDEs in .eh_frame
   ///
   /// \return a pair containing a (possibly invalid) pointer to the .eh_frame
   ///         section and the count of FDEs in the .eh_frame_hdr section (which
   ///         should match the number of FDEs in .eh_frame)
   std::pair<MetaAddress, uint64_t> ehFrameFromEhFrameHdr();
 
-  /// \brief Parse the .eh_frame section to collect all the landing pads
+  /// Parse the .eh_frame section to collect all the landing pads
   ///
   /// \param EHFrameAddress the address of the .eh_frame section
   /// \param FDEsCount the count of FDEs in the .eh_frame section
@@ -133,7 +133,7 @@ private:
                     llvm::Optional<uint64_t> FDEsCount,
                     llvm::Optional<uint64_t> EHFrameSize);
 
-  /// \brief Parse an LSDA to collect its landing pads
+  /// Parse an LSDA to collect its landing pads
   ///
   /// \param FDEStart the start address of the FDE to which this LSDA is
   ///        associated
@@ -155,7 +155,7 @@ protected:
   template<typename Q>
   using SmallVectorImpl = llvm::SmallVectorImpl<Q>;
 
-  /// \brief Register a label for each input relocation
+  /// Register a label for each input relocation
   void registerRelocations(Elf_Rel_Array Relocations,
                            const FilePortion &Dynsym,
                            const FilePortion &Dynstr);
@@ -165,7 +165,7 @@ protected:
                        SmallVectorImpl<uint64_t> &NeededLibraryNameOffsets,
                        uint64_t Val);
 
-  /// \brief Parse architecture dynamic tags.
+  /// Parse architecture dynamic tags.
   virtual void
   parseTargetDynamicTags(uint64_t Tag,
                          MetaAddress Relocated,

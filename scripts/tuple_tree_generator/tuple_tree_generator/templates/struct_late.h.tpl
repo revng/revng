@@ -129,7 +129,7 @@ struct KeyedObjectTraits</*= struct | user_fullname =*/> {
 
 /*# --- UpcastablePointer stuff --- #*/
 /** if upcastable **/
-/// \brief Make UpcastablePointer yaml-serializable polymorphically
+/// Make UpcastablePointer yaml-serializable polymorphically
 template<>
 struct llvm::yaml::MappingTraits<UpcastablePointer</*= struct | user_fullname =*/>>
   : public PolymorphicMappingTraits<UpcastablePointer</*= struct | user_fullname =*/>> {};

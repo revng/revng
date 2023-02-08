@@ -38,19 +38,19 @@ using InstrPtrSet = llvm::SetVector<Instruction *>;
 using CallPtrSet = std::set<CallInst *>;
 using ConstValuePtrSet = std::set<const Value *>;
 
-/// \brief Logger for forwardTaintAnalysis
+/// Logger for forwardTaintAnalysis
 static auto TaintLog = Logger<>("cpustate-taint-analysis");
-/// \brief Logger for the creation of WorkItem
+/// Logger for the creation of WorkItem
 static auto CSVAccessLog = Logger<>("cpustate-access-analysis");
-/// \brief Logger for fixing the accesses to CPUState
+/// Logger for fixing the accesses to CPUState
 static auto FixAccessLog = Logger<>("cpustate-fix-access");
 
 static uint64_t NumUnknown = 0;
 static std::map<std::string, uint64_t> FunToNumUnknown;
 static std::map<std::string, std::set<std::string>> FunToUnknowns;
 
-/// \brief Computes the set of Functions reachable from a given Function through
-///        direct calls.
+/// Computes the set of Functions reachable from a given Function through direct
+/// calls.
 ///
 /// \param RootFunction is a pointer to the Function from which is the
 ///        starting point for computing reachability.
@@ -178,7 +178,7 @@ struct TaintResults {
   }
 };
 
-/// \brief Interprocedural forward taint analysis.
+/// Interprocedural forward taint analysis.
 //
 /// \param CPUStatePtr is a pointer to the CPU State Variable, which is a global
 ///        variable. This variable is the Value that taints all the others.
@@ -870,8 +870,8 @@ public:
   }
 };
 
-/// \brief Gets a valid pointer to `CallInst` if the current source of `Item` is
-///         a call from `Root`
+/// Gets a valid pointer to `CallInst` if the current source of `Item` is a call
+/// from `Root`
 ///
 /// This function returns `nullptr` if the current source of `Item` is not a
 /// call from `Root`
@@ -894,8 +894,8 @@ getCurSourceRootCall(const WorkItem &Item, const Function *Root) {
   return RootCall;
 }
 
-/// \brief Gets a valid pointer to `CallInst` if the next source of `Item` is
-///         a call from `Root`
+/// Gets a valid pointer to `CallInst` if the next source of `Item` is a call
+/// from `Root`
 ///
 /// This function return `nullptr` if the next source of `Item` is not a call
 /// from `Root`
@@ -921,7 +921,7 @@ getNextSourceRootCall(const WorkItem &Item, const Function *Root) {
   return RootCall;
 }
 
-/// \brief Gets the `Shift`-th bit of `Input`
+/// Gets the `Shift`-th bit of `Input`
 static int getBit(uint64_t Input, int Shift) {
   return (Input >> Shift) & 1;
 };
@@ -930,7 +930,7 @@ using CallSiteOffsetMap = std::map<CallInst *, CSVOffsets>;
 using ValueCallSiteOffsetMap = std::map<Value *, CallSiteOffsetMap>;
 using OptCSVOffsets = llvm::Optional<CSVOffsets>;
 
-/// \brief This class is used to fold constant offsets on different instructions
+/// This class is used to fold constant offsets on different instructions
 template<class T>
 class CRTPOffsetFolder {
 
@@ -968,7 +968,7 @@ public:
   }
 
 public:
-  /// \brief This method folds the offsets on the sources ot Item
+  /// This method folds the offsets on the sources to Item
   ///
   /// \param Item is the `WorkItem` whose sources must be folded
   /// \param [in, out] is the Map used to retrieve the values of the offsets of
@@ -1160,7 +1160,7 @@ private:
   }
 };
 
-/// \brief Specialization of CRTPOffsetFolder for sums and subtractions
+/// Specialization of CRTPOffsetFolder for sums and subtractions
 class AddSubOffsetFolder : public CRTPOffsetFolder<AddSubOffsetFolder> {
 
 public:
@@ -1229,7 +1229,7 @@ private:
   }
 };
 
-/// \brief Specialization of CRTPOffsetFolder for GEPs
+/// Specialization of CRTPOffsetFolder for GEPs
 class GEPOffsetFolder : public CRTPOffsetFolder<GEPOffsetFolder> {
 
 public:
@@ -1382,7 +1382,7 @@ private:
   }
 };
 
-/// \brief Specialization of CRTPOffsetFolder for non-address binary operations
+/// Specialization of CRTPOffsetFolder for non-address binary operations
 class NumericOffsetFolder : public CRTPOffsetFolder<NumericOffsetFolder> {
 
 public:
@@ -1540,18 +1540,21 @@ private:
     InExploration = {};
   }
 
-  /// \brief Analyzes the access to env performed by \p I, saving results
-  ///        according to \p IsLoad
+  /// Analyzes the access to env performed by \p I, saving results according to
+  /// \p IsLoad
+  ///
   /// \param I is the `Instruction` whose accesses are analyzed
-  /// \param IsLoad must be true if called when analyzing loads, false if
-  /// called when analyzing stores. This is important because it is used to
-  /// update the correct ValueCallSiteOffsetMap (either LoadCallSiteOffsets or
-  /// StoreCallSiteOffsets) if during the exploration the analysis ends because
-  /// all the immediate sources are already resolved.
+  /// \param IsLoad must be true if called when analyzing loads, false if called
+  ///        when analyzing stores. This is important because it is used to
+  ///        update the correct ValueCallSiteOffsetMap (either
+  ///        LoadCallSiteOffsets or StoreCallSiteOffsets) if during
+  ///        the exploration the analysis ends because all the immediate sources
+  ///        are already resolved.
   void analyzeAccess(Instruction *I, bool IsLoad);
 
-  /// \brief Explores the sources of `V` and pushes a `WorkItem` on `WorkList`
-  ///        if something new is found
+  /// Explores the sources of `V` and pushes a `WorkItem` on `WorkList`
+  /// if something new is found
+  ///
   /// \param V is the `Value` whose sources are analyzed
   /// \param IsLoad must be true if called when propagating loads, false if
   /// called when propagating stores. This is important because it is used to
@@ -1560,8 +1563,8 @@ private:
   /// all the immediate sources are already resolved.
   bool exploreImmediateSources(Value *V, bool IsLoad);
 
-  /// \brief Returns an emtpy Optional and fill W if there are unexplored
-  ///        sources, otherwise return the offsets
+  /// Returns an empty Optional and fill W if there are unexplored sources,
+  /// otherwise return the offsets
   ///
   /// \param V the `Value` whose sources must be explored.
   /// \param [out] W a `WorkItem` that will be initialized with the unexplored
@@ -1572,8 +1575,9 @@ private:
 
   void insertCallSiteOffset(Value *V, CSVOffsets &&Offset);
 
-  /// \brief Removes the root call site associated with `Item` (if any) from
-  ///        `CrossedCallSites`
+  /// Removes the root call site associated with `Item` (if any) from
+  /// `CrossedCallSites`
+  ///
   /// \return `true` if it was removed, `false` otherwise
   bool tryRemoveCurCrossedCallSite(const WorkItem &Item) {
     if (CallInst *RootCallSite = getCurSourceRootCall(Item, RootFunction))
@@ -1581,8 +1585,9 @@ private:
     return false;
   }
 
-  /// \brief Returns true if `V` is visited for the first time with the callsite
-  ///        `NewCallSite`
+  /// Returns true if `V` is visited for the first time with the callsite
+  /// `NewCallSite`
+  ///
   /// \param V is the `Value` that is being visited
   /// \param NewCallSite is the new call site from which we're exploring V and
   ///        we want to check if it's the first time we visit V with that
@@ -1669,8 +1674,8 @@ private:
     return false;
   }
 
-  /// \brief If it's a new visit, insert the call `RootCall` (associated with
-  ///        `U`) in `CrossedCallSites`
+  /// If it's a new visit, insert the call `RootCall` (associated with `U`)
+  /// in `CrossedCallSites`
   ///
   /// \param RootCall must be nullptr or a valid call instruction in root
   /// \param U if RootCall is not `nullptr` this is a `Use` whose `User` must be
@@ -1720,8 +1725,7 @@ private:
     return false;
   }
 
-  /// \brief Selects the next source of `Item`, if possible, returning true on
-  ///        success.
+  /// Selects the next source of `Item`, if possible, returning true on success.
   bool selectNextSource(WorkItem &Item) {
     if (Item.nextSourceUse()) {
       tryRemoveCurCrossedCallSite(Item);

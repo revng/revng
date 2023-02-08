@@ -20,7 +20,7 @@ class Instruction;
 
 class VariableManager;
 
-/// \brief LLVM pass to analyze the access patterns to the CPU State Variable
+/// LLVM pass to analyze the access patterns to the CPU State Variable
 class CPUStateAccessAnalysisPass : public llvm::ModulePass {
 public:
   using AccessOffsetMap = std::map<llvm::Instruction *, CSVOffsets>;

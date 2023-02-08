@@ -12,7 +12,7 @@
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/Support/Assert.h"
 
-/// \brief Type-safe wrapper for different iterators sharing value_type
+/// Type-safe wrapper for different iterators sharing value_type
 template<typename... Ts>
 class Iteratall {
 private:
@@ -155,7 +155,7 @@ private:
   boost::variant<Ts...> Iterator;
 };
 
-/// \brief map that usually contains less than N elements
+/// Map that usually contains less than N elements
 ///
 /// SmallMap keeps a std::array of pairs inline which are search linearly if
 /// size() < N.
@@ -216,7 +216,7 @@ public:
   using mapped_type = V;
 
 public:
-  /// \brief If necessary, sorts the inline vector.
+  /// If necessary, sorts the inline vector.
   ///
   /// Call this function in case you need to iterate over the container in order
   void sort() const {

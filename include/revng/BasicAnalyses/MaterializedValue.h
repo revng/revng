@@ -13,7 +13,7 @@
 
 #include "revng/Support/Debug.h"
 
-/// \brief Class representing either a constant value or an offset from a symbol
+/// Class representing either a constant value or an offset from a symbol
 class MaterializedValue {
 private:
   bool IsValid;

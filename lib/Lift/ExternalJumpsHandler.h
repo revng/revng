@@ -15,8 +15,8 @@
 
 class ProgramCounterHandler;
 
-/// \brief Inject code to support jumping in non-translated code and handling
-///        the comeback.
+/// Inject code to support jumping in non-translated code and handling
+/// the comeback.
 ///
 /// This pass changes the default case of the dispatcher by checking if you're
 /// trying to jump to an address that is not in one of the executable segments.
@@ -49,18 +49,18 @@ public:
                        ProgramCounterHandler *PCH);
 
 public:
-  /// \brief Creates the jump out and jump back in handling infrastructure.
+  /// Creates the jump out and jump back in handling infrastructure.
   void createExternalJumpsHandler();
 
 private:
-  /// \brief Create the basic blocks to handle jumping to external code.
+  /// Create the basic blocks to handle jumping to external code.
   ///
   /// Prepare serialize_and_jump_out, which writes in physical registers the
   /// values of all ABI-related CSVs and then blindly jumps to the content of
   /// the program counter CSV.
   llvm::BasicBlock *createSerializeAndJumpOut();
 
-  /// \brief Create the setjump basic block.
+  /// Create the setjump basic block.
   ///
   /// This basic block will perform a setjmp to save the context (the stack
   /// pointer in particular) and then go to serialize_and_jump_out.
@@ -69,12 +69,12 @@ private:
   llvm::BasicBlock *
   createSetjmp(llvm::BasicBlock *FirstReturn, llvm::BasicBlock *SecondReturn);
 
-  /// \brief Prepare a list of the executable segments that can be easily
-  ///        consumed by support.c.
+  /// Prepare a list of the executable segments that can be easily consumed
+  /// by support.c.
   ///
   /// This method creates three global variables:
   ///
-  /// * an unamed array of uint64_t large as twice the number of executable
+  /// * an unnamed array of uint64_t large as twice the number of executable
   ///   segments, where the even entries contain the start address of a segment
   ///   and odd ones the end address.
   /// * "segment_boundaries": a `uint64_t *` targeting the previous array.
@@ -82,8 +82,8 @@ private:
   ///   segments.
   void buildExecutableSegmentsList();
 
-  /// \brief Creates the basic block taking care of deserializing the CPU state
-  ///        to the CSVs.
+  /// Creates the basic block taking care of deserializing the CPU state to
+  /// the CSVs.
   ///
   /// The CPU state is restored from the mcontext_t field in the struct provided
   /// by the kernel to the signal handler.

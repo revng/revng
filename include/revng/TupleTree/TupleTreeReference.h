@@ -218,7 +218,7 @@ struct llvm::yaml::ScalarTraits<T> {
   }
 };
 
-/// \brief Specialization for the std::variant we have in TupleTreeReference
+/// Specialization for the std::variant we have in TupleTreeReference
 template<bool X, typename T>
 inline void writeToLog(Logger<X> &This,
                        const std::variant<T *, const T *> &Var,

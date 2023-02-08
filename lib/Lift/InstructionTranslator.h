@@ -30,7 +30,7 @@ class Module;
 class JumpTargetManager;
 class VariableManager;
 
-/// \brief Expands a PTC instruction to LLVM IR
+/// Expands a PTC instruction to LLVM IR
 class InstructionTranslator {
 public:
   using LabeledBlocksMap = std::map<std::string, llvm::BasicBlock *>;
@@ -55,14 +55,14 @@ public:
                                 uint64_t Size,
                                 llvm::Value *String) const;
 
-  /// \brief Result status of the translation of a PTC opcode
+  /// Result status of the translation of a PTC opcode
   enum TranslationResult {
     Abort, ///< An error occurred during translation, call abort and stop
     Stop, ///< Do not proceed with translation
     Success ///< The translation was successful
   };
 
-  /// \brief Handle a new instruction from the input code
+  /// Handle a new instruction from the input code
   ///
   /// \param Instr the newly met PTCInstruction;
   /// \param Next the PTCInstruction immediately following \p Instr,
@@ -88,7 +88,7 @@ public:
                  bool IsFirst,
                  MetaAddress AbortAt);
 
-  /// \brief Translate an ordinary instruction
+  /// Translate an ordinary instruction
   ///
   /// \param Instr the instruction to translate.
   /// \param PC the PC associated to \p Instr.
@@ -98,20 +98,20 @@ public:
   TranslationResult
   translate(PTCInstruction *Instr, MetaAddress PC, MetaAddress NextPC);
 
-  /// \brief Translate a call to an helper
+  /// Translate a call to an helper
   ///
   /// \param Instr the PTCInstruction of the call to the helper.
   ///
   /// \return see InstructionTranslator::TranslationResult.
   TranslationResult translateCall(PTCInstruction *Instr);
 
-  /// \brief Handle calls to `newPC` marker and emit coverage information
+  /// Handle calls to `newPC` marker and emit coverage information
   void finalizeNewPCMarkers();
 
-  /// \brief Notifies InstructionTranslator about a new PTC translation
+  /// Notifies InstructionTranslator about a new PTC translation
   void reset() { LabeledBasicBlocks.clear(); }
 
-  /// \brief Preprocess the translated instructions
+  /// Preprocess the translated instructions
   ///
   /// Check if the translated code contains a delay slot and return a blacklist
   /// of the PTC_INSTRUCTION_op_debug_insn_start instructions that have to be

@@ -41,7 +41,7 @@ public:
 
   ~CodeGenerator();
 
-  /// \brief Creates an LLVM function for the code in the specified memory area.
+  /// Creates an LLVM function for the code in the specified memory area.
   ///
   /// \param VirtualAddress the address from where the translation should start.
   void translate(llvm::Optional<uint64_t> RawVirtualAddress);

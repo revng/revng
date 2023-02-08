@@ -17,7 +17,7 @@
 // TODO: implement shrinking
 
 // TODO: implement using __builtin_clz if available
-/// \brief Returns the minimum amount of bits required to represent \p Value
+/// Returns the minimum amount of bits required to represent \p Value
 template<typename T>
 inline unsigned requiredBits(T Value) {
   unsigned Result = 0;
@@ -93,8 +93,8 @@ private:
   unsigned NextBitIndex;
 };
 
-/// \brief Infinite zero-initialized BitVector, automatically enlarging and
-///        in-place up to sizeof(uintptr_t) * CHAR_BIT - 1 bits
+/// Infinite zero-initialized BitVector, automatically enlarging and in-place
+/// up to sizeof(uintptr_t) * CHAR_BIT - 1 bits
 class LazySmallBitVector {
 public:
   using const_iterator = LazySmallBitVectorIterator<const LazySmallBitVector>;
@@ -248,7 +248,7 @@ public:
     }
   }
 
-  /// \brief The bits required to represent this bit vector
+  /// The bits required to represent this bit vector
   ///
   /// This is the index of the most significant set bit, plus 1. 0 means the bit
   /// vector is composed exclusively by zeros.
@@ -583,7 +583,7 @@ public:
     return *this;
   }
 
-  /// \brief Returns the 1-based index of the next set bit after \p StartIndex
+  /// Returns the 1-based index of the next set bit after \p StartIndex
   ///
   /// \return 0 if no bits are set after \p StartIndex, the 1-based index of the
   ///         next bit set otherwise

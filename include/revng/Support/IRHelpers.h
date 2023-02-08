@@ -164,7 +164,7 @@ inline bool findOperand(llvm::Value *Op, T &Result) {
   }
 }
 
-/// \brief Return a tuple of \p V's operands of the requested types
+/// Return a tuple of \p V's operands of the requested types
 /// \return a tuple with the operands of the specified type in the specified
 ///         order, or, if not possible, a nullptr tuple.
 template<typename... T>
@@ -180,7 +180,7 @@ inline std::tuple<T...> operandsByType(llvm::User *V) {
   return Result;
 }
 
-/// \brief Checks the instruction type and its operands
+/// Checks the instruction type and its operands
 /// \return the instruction casted to I, or nullptr if not possible.
 template<typename I, typename F, typename S>
 inline I *isa_with_op(llvm::Instruction *Inst) {
@@ -208,7 +208,7 @@ protected:
   C Obj;
 };
 
-/// \brief Trait to wrap an object of type C that can act as a blacklist for B
+/// Trait to wrap an object of type C that can act as a blacklist for B
 template<typename C, typename B>
 struct BlackListTrait : BlackListTraitBase<C> {};
 
@@ -245,8 +245,7 @@ make_blacklist(const std::set<B> &Obj) {
   return BlackListTrait<const std::set<B> &, B>(Obj);
 }
 
-/// \brief Possible way to continue (or stop) exploration in a breadth-first
-///        visit
+/// Possible way to continue (or stop) exploration in a breadth-first visit
 enum VisitAction {
   Continue, ///< Visit also the successor basic blocks
   NoSuccessors, ///< Do not visit the successors of this basic block
@@ -385,12 +384,12 @@ struct ForwardBFSVisitor
 
 inline std::string getName(const llvm::Value *V);
 
-/// \brief Return a string with the value of a given integer constant.
+/// Return a string with the value of a given integer constant.
 inline std::string getName(const llvm::ConstantInt *I) {
   return std::to_string(I->getValue().getZExtValue());
 }
 
-/// \brief Return a sensible name for the given basic block
+/// Return a sensible name for the given basic block
 /// \return the name of the basic block, if available, its pointer value
 ///         otherwise.
 inline std::string getName(const llvm::BasicBlock *BB) {
@@ -407,9 +406,9 @@ inline std::string getName(const llvm::BasicBlock *BB) {
   }
 }
 
-/// \brief Return a sensible name for the given instruction
+/// Return a sensible name for the given instruction
 /// \return the name of the instruction, if available, a
-///         [basic blockname]:[instruction index] string otherwise.
+///         [basic block name]:[instruction index] string otherwise.
 inline std::string getName(const llvm::Instruction *I) {
   llvm::StringRef Result = I->getName();
   if (!Result.empty()) {
@@ -425,7 +424,7 @@ inline std::string getName(const llvm::Instruction *I) {
   }
 }
 
-/// \brief Return a sensible name for the given function
+/// Return a sensible name for the given function
 /// \return the name of the function, if available, its pointer value otherwise.
 inline std::string getName(const llvm::Function *F) {
   if (F == nullptr)
@@ -439,7 +438,7 @@ inline std::string getName(const llvm::Function *F) {
   return SS.str();
 }
 
-/// \brief Return a sensible name for the given argument
+/// Return a sensible name for the given argument
 /// \return the name of the argument, if available, a
 ///         [function name]:[argument index] string otherwise.
 inline std::string getName(const llvm::Argument *A) {
@@ -455,7 +454,7 @@ inline std::string getName(const llvm::Argument *A) {
   }
 }
 
-/// \brief Return a sensible name for the given Value
+/// Return a sensible name for the given Value
 /// \return if \p V is an Instruction, call the appropriate getName function,
 ///         otherwise return a pointer to \p V.
 inline std::string getName(const llvm::Value *V) {
@@ -491,7 +490,7 @@ inline llvm::BasicBlock *blockByName(llvm::Function *F, const char *Name) {
   return nullptr;
 }
 
-/// \brief Specialization of writeToLog for llvm::Value-derived types
+/// Specialization of writeToLog for llvm::Value-derived types
 template<typename T>
 requires derived_from<llvm::Value, std::remove_const_t<T>>
 inline void writeToLog(Logger<true> &This, T *I, int) {
@@ -574,7 +573,7 @@ inline llvm::Module *getModule(llvm::Value *I) {
   return getModule(llvm::cast<llvm::Instruction>(I));
 }
 
-/// \brief Helper class to easily create and use LLVM metadata
+/// Helper class to easily create and use LLVM metadata
 class QuickMetadata {
 public:
   QuickMetadata(llvm::LLVMContext &Context) :
@@ -765,8 +764,7 @@ QuickMetadata::extract<llvm::MDString *>(llvm::Metadata *MD) {
   return llvm::cast<llvm::MDString>(MD);
 }
 
-/// \brief Return the instruction coming before \p I, or nullptr if it's the
-///        first.
+/// Return the instruction coming before \p I, or nullptr if it's the first.
 inline llvm::Instruction *getPrevious(llvm::Instruction *I) {
   llvm::BasicBlock::reverse_iterator It(++I->getReverseIterator());
   if (It == I->getParent()->rend())
@@ -775,8 +773,7 @@ inline llvm::Instruction *getPrevious(llvm::Instruction *I) {
   return &*It;
 }
 
-/// \brief Return the instruction coming after \p I, or nullptr if it's the
-///        last.
+/// Return the instruction coming after \p I, or nullptr if it's the last.
 inline llvm::Instruction *getNext(llvm::Instruction *I) {
   llvm::BasicBlock::iterator It(I);
   if (It == I->getParent()->end())
@@ -786,8 +783,7 @@ inline llvm::Instruction *getNext(llvm::Instruction *I) {
   return &*It;
 }
 
-/// \brief Check whether the instruction/basic block is the first in its
-///        container or not
+/// Check whether the instruction/basic block is the first in its container
 template<typename T>
 inline bool isFirst(T *I) {
   revng_assert(I != nullptr);
@@ -800,8 +796,8 @@ inline std::array<unsigned, 3> CastOpcodes = {
   llvm::Instruction::IntToPtr,
 };
 
-// \brief If \p V is a cast Instruction or a cast ConstantExpr, return its only
-//        operand (recursively)
+// If \p V is a cast Instruction or a cast ConstantExpr, return its only operand
+// (recursively)
 inline const llvm::Value *skipCasts(const llvm::Value *V) {
   using namespace llvm;
   while (isa<CastInst>(V) or isa<IntToPtrInst>(V) or isa<PtrToIntInst>(V)
@@ -811,8 +807,8 @@ inline const llvm::Value *skipCasts(const llvm::Value *V) {
   return V;
 }
 
-// \brief If \p V is a cast Instruction or a cast ConstantExpr, return its only
-//        operand (recursively)
+// If \p V is a cast Instruction or a cast ConstantExpr, return its only operand
+// (recursively)
 inline llvm::Value *skipCasts(llvm::Value *V) {
   using namespace llvm;
   while (isa<CastInst>(V) or isa<IntToPtrInst>(V) or isa<PtrToIntInst>(V)
@@ -886,7 +882,7 @@ inline llvm::CallInst *getCallToHelper(llvm::Instruction *I) {
     return nullptr;
 }
 
-/// \brief Is \p I a call to an helper function?
+/// Is \p I a call to an helper function?
 inline bool isCallToHelper(const llvm::Instruction *I) {
   return getCallToHelper(I) != nullptr;
 }
@@ -1142,17 +1138,17 @@ inline MetaAddress getBasicBlockAddress(const llvm::BasicBlock *BB) {
   return getBasicBlockID(BB).notInlinedAddress();
 }
 
-/// \brief Find the first call to newpc starting from \p TheInstruction
+/// Find the first call to NewPC starting from \p TheInstruction
 ///
 llvm::CallInst *getLastNewPC(llvm::Instruction *TheInstruction);
 
-/// \brief Find the PC which lead to generated \p TheInstruction
+/// Find the PC which lead to generated \p TheInstruction
 ///
 /// \return a pair of integers: the first element represents the PC and the
 ///         second the size of the instruction.
 std::pair<MetaAddress, uint64_t> getPC(llvm::Instruction *TheInstruction);
 
-/// \brief Replace all uses of \Old, with \New in \F.
+/// Replace all uses of \Old, with \New in \F.
 ///
 /// \return true if it changes something, false otherwise.
 inline bool replaceAllUsesInFunctionWith(llvm::Function *F,
@@ -1216,7 +1212,7 @@ inline bool replaceAllUsesInFunctionWith(llvm::Function *F,
   return Changed;
 }
 
-/// \brief Checks if \p I is a marker
+/// Checks if \p I is a marker
 ///
 /// A marker a function call to an empty function acting as meta-information,
 /// for example the `function_call` marker.
@@ -1282,7 +1278,7 @@ inline bool hasMarker(llvm::BasicBlock *BB, llvm::Function *Marker) {
   return getMarker(BB->getTerminator(), Marker);
 }
 
-/// \brief Return the callee basic block given a function_call marker.
+/// Return the callee basic block given a function_call marker.
 inline llvm::BasicBlock *getFunctionCallCallee(llvm::Instruction *T) {
   if (auto *Call = getMarker(T, "function_call")) {
     if (auto *Callee = llvm::dyn_cast<llvm::BlockAddress>(Call->getOperand(0)))
@@ -1296,7 +1292,7 @@ inline llvm::BasicBlock *getFunctionCallCallee(llvm::BasicBlock *BB) {
   return getFunctionCallCallee(BB->getTerminator());
 }
 
-/// \brief Return the fall-through basic block given a function_call marker.
+/// Return the fall-through basic block given a function_call marker.
 inline llvm::BasicBlock *getFallthrough(llvm::Instruction *T) {
   if (auto *Call = getMarker(T, "function_call")) {
     auto *Fallthrough = llvm::cast<llvm::BlockAddress>(Call->getOperand(1));
@@ -1310,7 +1306,7 @@ inline llvm::BasicBlock *getFallthrough(llvm::BasicBlock *BB) {
   return getFallthrough(BB->getTerminator());
 }
 
-/// \brief Return true if \p T is has a fallthrough basic block.
+/// Return true if \p T is has a fallthrough basic block.
 inline bool isFallthrough(llvm::Instruction *T) {
   return getFallthrough(T) != nullptr;
 }

@@ -7,7 +7,7 @@
 #include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/IR/LLVMContext.h"
 
-/// \brief Annotate all instructions with self-referencing debug information
+/// Annotate all instructions with self-referencing debug information
 class SelfReferencingDbgAnnotationWriter
   : public llvm::AssemblyAnnotationWriter {
 public:

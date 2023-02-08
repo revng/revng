@@ -122,7 +122,7 @@ public:
   DotGraph() {}
 
 public:
-  /// \brief Parse a particularly well-formed GraphViz from a file.
+  /// Parse a particularly well-formed GraphViz from a file.
   void
   parseDotFromFile(llvm::StringRef FileName, llvm::StringRef EntryName = "");
 
@@ -153,7 +153,7 @@ public:
   DotNode *getNodeByName(llvm::StringRef Name);
 
 private:
-  /// \brief Actual implementation of the parser.
+  /// Actual implementation of the parser.
   void parseDotImpl(std::ifstream &F, llvm::StringRef EntryName);
 };
 

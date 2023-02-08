@@ -7,7 +7,7 @@
 #include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/IR/LLVMContext.h"
 
-/// \brief AssemblyAnnotationWriter decorating the output original assembly/PTC
+/// AssemblyAnnotationWriter decorating the output original assembly/PTC
 class OriginalAssemblyAnnotationWriter : public llvm::AssemblyAnnotationWriter {
 public:
   OriginalAssemblyAnnotationWriter(llvm::LLVMContext &Context) :

@@ -11,7 +11,7 @@ inline const char *BlockTypeMDName = "revng.block.type";
 
 namespace BlockType {
 
-/// \brief Classification of the various basic blocks we are creating
+/// Classification of the various basic blocks we are creating
 enum Values {
   /// A basic block generated during translation representing a jump target
   JumpTargetBlock,
@@ -148,12 +148,12 @@ inline BlockType::Values getType(llvm::Instruction *T) {
   return BlockType::fromName(QMD.extract<llvm::StringRef>(BlockTypeMD, 0));
 }
 
-/// \brief Return the type of basic block, see BlockType.
+/// Return the type of basic block, see BlockType.
 inline BlockType::Values getType(llvm::BasicBlock *BB) {
   return getType(BB->getTerminator());
 }
 
-/// \brief Return the type of basic block, see BlockType.
+/// Return the type of basic block, see BlockType.
 inline bool isPartOfRootDispatcher(llvm::BasicBlock *BB) {
   auto Type = getType(BB->getTerminator());
   return (Type == BlockType::RootDispatcherBlock
