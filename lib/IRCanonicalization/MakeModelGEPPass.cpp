@@ -353,10 +353,10 @@ computeIRAccessPattern(FunctionMetadataCache &Cache,
                                 and not Layout.returnsAggregateType());
       const model::QualifiedType *SingleReturnType = nullptr;
 
-      if (Layout.ReturnValues.size() == 1) {
-        SingleReturnType = &Layout.ReturnValues[0].Type;
-      } else if (Layout.returnsAggregateType()) {
+      if (Layout.returnsAggregateType()) {
         SingleReturnType = &Layout.Arguments[0].Type;
+      } else if (Layout.ReturnValues.size() == 1) {
+        SingleReturnType = &Layout.ReturnValues[0].Type;
       }
 
       // If the callee function does not return anything, skip to the next
