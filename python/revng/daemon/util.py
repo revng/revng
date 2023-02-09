@@ -2,8 +2,10 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+import json
 import os
 import re
+from base64 import b64encode
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -54,7 +56,7 @@ def project_workdir() -> Optional[Path]:
         return Path(data_dir)
     elif project_id != "":
         real_data_dir = Path(data_dir) if data_dir != "" else xdg_data_home() / "revng"
-        if re.match(r"^[\w_-]$", project_id, re.ASCII):
+        if re.match(r"^[\w_-]*$", project_id, re.ASCII):
             return real_data_dir / project_id
         else:
             raise ValueError("Invalid Project ID")
@@ -64,3 +66,12 @@ def project_workdir() -> Optional[Path]:
 
 def target_dict_to_graphql(target_dict: Dict[str, str]):
     return {"pathComponents": target_dict["path_components"], **target_dict}
+
+
+def produce_serializer(input_: Dict[str, str | bytes]) -> str:
+    return json.dumps(
+        {
+            key: (value if isinstance(value, str) else b64encode(value).decode("utf-8"))
+            for key, value in input_.items()
+        }
+    )

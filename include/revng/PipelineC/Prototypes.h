@@ -259,11 +259,12 @@ rp_kind *rp_manager_get_kind(rp_manager *manager, uint64_t index);
  *
  * \return 0 if an error was encountered, the serialized container otherwise
  */
-const char * /*owning*/ rp_manager_produce_targets(rp_manager *manager,
-                                                   uint64_t targets_count,
-                                                   rp_target *targets[],
-                                                   rp_step *step,
-                                                   rp_container *container);
+const rp_buffer * /*owning*/
+rp_manager_produce_targets(rp_manager *manager,
+                           uint64_t targets_count,
+                           rp_target *targets[],
+                           rp_step *step,
+                           rp_container *container);
 
 /**
  * Request to run the required analysis
@@ -613,11 +614,9 @@ bool rp_manager_container_deserialize(rp_manager *manager,
 
 /**
  * \return the serialized content of the element associated to the provided
- * target,
- *
- * \note Target must be already present in container
+ * target, or nullptr if the content hasn't been produced yet
  */
-const char * /*owning*/
+const rp_buffer * /*owning*/
 rp_container_extract_one(rp_container *container, rp_target *target);
 
 /** \} */
@@ -763,5 +762,27 @@ void rp_invalidations_destroy(rp_invalidations *invalidations);
  */
 const char * /* owning */
 rp_invalidations_serialize(const rp_invalidations *invalidations);
+
+/** \} */
+
+/**
+ * \defgroup rp_buffer rp_buffer methods
+ * \{
+ */
+
+/**
+ * \return the length of the buffer
+ */
+uint64_t rp_buffer_size(const rp_buffer *buffer);
+
+/**
+ * \return the pointer at the start of the buffer
+ */
+const char *rp_buffer_data(const rp_buffer *buffer);
+
+/**
+ * Free a rp_buffer
+ */
+void rp_buffer_destroy(const rp_buffer *buffer);
 
 /** \} */

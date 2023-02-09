@@ -115,7 +115,7 @@ class Manager:
         step: Step,
         target: Union[Target, List[Target]],
         container: Container,
-    ) -> Dict[str, str]:
+    ) -> Dict[str, str | bytes]:
         if isinstance(target, Target):
             targets = [
                 target,
@@ -139,7 +139,7 @@ class Manager:
         target: Union[None, str, List[str]],
         container_name: Optional[str] = None,
         only_if_ready=False,
-    ) -> Dict[str, str]:
+    ) -> Dict[str, str | bytes]:
         step = self.get_step(step_name)
         if step is None:
             raise RevngException(f"Invalid step {step_name}")

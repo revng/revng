@@ -17,8 +17,9 @@ from revng.api.manager import Manager
 from revng.api.rank import Rank
 from revng.api.target import Target
 
+from .event_manager import EventType, emit_event
 from .multiqueue import MultiQueue
-from .util import clean_step_list, target_dict_to_graphql
+from .util import clean_step_list, produce_serializer, target_dict_to_graphql
 
 executor = ThreadPoolExecutor(1)
 invalidation_queue: MultiQueue[str] = MultiQueue()
@@ -61,7 +62,7 @@ async def resolve_produce(
     result = await run_in_executor(
         lambda: manager.produce_target(step, targets, container, onlyIfReady)
     )
-    return json.dumps(result)
+    return produce_serializer(result)
 
 
 @query.field("produceArtifacts")
@@ -73,7 +74,7 @@ async def resolve_produce_artifacts(
     result = await run_in_executor(
         lambda: manager.produce_target(step, target_paths, only_if_ready=onlyIfReady)
     )
-    return json.dumps(result)
+    return produce_serializer(result)
 
 
 @query.field("step")
@@ -139,6 +140,7 @@ async def resolve_target(_, info, *, step: str, container: str, target: str) -> 
 
 
 @mutation.field("uploadB64")
+@emit_event(EventType.BEGIN)
 async def resolve_upload_b64(_, info, *, input: str, container: str):  # noqa: A002
     manager: Manager = info.context["manager"]
     await run_in_executor(lambda: manager.set_input(container, b64decode(input)))
@@ -148,6 +150,7 @@ async def resolve_upload_b64(_, info, *, input: str, container: str):  # noqa: A
 
 
 @mutation.field("uploadFile")
+@emit_event(EventType.BEGIN)
 async def resolve_upload_file(_, info, *, file: UploadFile, container: str):
     manager: Manager = info.context["manager"]
     contents = await file.read()
@@ -158,6 +161,7 @@ async def resolve_upload_file(_, info, *, file: UploadFile, container: str):
 
 
 @mutation.field("runAnalysis")
+@emit_event(EventType.CONTEXT)
 async def resolve_run_analysis(_, info, *, step: str, analysis: str, container: str, targets: str):
     manager: Manager = info.context["manager"]
     result = await run_in_executor(
@@ -168,6 +172,7 @@ async def resolve_run_analysis(_, info, *, step: str, analysis: str, container: 
 
 
 @mutation.field("runAllAnalyses")
+@emit_event(EventType.CONTEXT)
 async def resolve_run_all_analyses(_, info):
     manager: Manager = info.context["manager"]
     result = await run_in_executor(manager.run_all_analyses)
@@ -181,6 +186,7 @@ async def mutation_analyses(_, info):
 
 
 @mutation.field("setGlobal")
+@emit_event(EventType.CONTEXT)
 async def mutation_set_global(_, info, *, name: str, content: str) -> bool:
     manager: Manager = info.context["manager"]
     result = await run_in_executor(lambda: manager.set_global(name, content))
@@ -189,6 +195,7 @@ async def mutation_set_global(_, info, *, name: str, content: str) -> bool:
 
 
 @mutation.field("applyDiff")
+@emit_event(EventType.CONTEXT)
 async def mutation_apply_diff(_, info, *, globalName: str, content: str) -> bool:  # noqa: N803
     manager: Manager = info.context["manager"]
     result = await run_in_executor(lambda: manager.apply_diff(globalName, content))
@@ -275,7 +282,7 @@ async def resolve_step_artifacts(step_obj, info):
 
     return {
         "kind": artifacts_kind.as_dict(),
-        "container": artifacts_container,
+        "container": artifacts_container.as_dict(),
         "singleTargetFilename": artifacts_single_target_filename,
     }
 

@@ -7,7 +7,7 @@ from typing import Generator, List, Optional
 from ._capi import _api, ffi
 from .container import Container
 from .kind import Kind
-from .utils import make_c_string, make_generator, make_python_string
+from .utils import convert_buffer, make_c_string, make_generator, make_python_string
 
 
 class Target:
@@ -27,9 +27,9 @@ class Target:
         return Target(_target, container) if _target != ffi.NULL else None
 
     @property
-    def kind(self) -> Optional[Kind]:
+    def kind(self) -> Kind:
         _kind = _api.rp_target_get_kind(self._target)
-        return Kind(_kind) if _kind != ffi.NULL else None
+        return Kind(_kind)
 
     @property
     def is_ready(self) -> bool:
@@ -54,9 +54,11 @@ class Target:
         _serialized = _api.rp_target_create_serialized_string(self._target)
         return make_python_string(_serialized)
 
-    def extract(self) -> str:
-        _element = _api.rp_container_extract_one(self._container._container, self._target)
-        return make_python_string(_element)
+    def extract(self) -> str | bytes:
+        _buffer = _api.rp_container_extract_one(self._container._container, self._target)
+        size = _api.rp_buffer_size(_buffer)
+        data = _api.rp_buffer_data(_buffer)
+        return convert_buffer(data, size, self._container.mime)
 
     def as_dict(self):
         return {

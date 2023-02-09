@@ -376,9 +376,9 @@ class WhitespaceCheckPass(Pass):
             lines = content.splitlines()
             for index, line in enumerate(lines):
                 if line.endswith(" "):
-                    trailing_whitespace[path].append(index)
+                    trailing_whitespace[path].append(index + 1)
                 if "\t" in line:
-                    tabs[path].append(index)
+                    tabs[path].append(index + 1)
             if content[-1] != "\n":
                 no_end_newline.append(path)
 

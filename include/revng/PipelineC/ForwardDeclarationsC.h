@@ -17,3 +17,4 @@ typedef struct rp_diff_map rp_diff_map;
 typedef struct rp_error_list rp_error_list;
 typedef struct rp_string_map rp_string_map;
 typedef struct rp_invalidations rp_invalidations;
+typedef struct rp_buffer rp_buffer;

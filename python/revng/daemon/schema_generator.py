@@ -17,8 +17,10 @@ from revng.api.manager import Manager
 from revng.api.rank import Rank
 from revng.api.step import Step
 
+from .event_manager import EventType, emit_event
 from .static_handlers import DEFAULT_BINDABLES, analysis_mutations, invalidation_queue
 from .static_handlers import run_in_executor
+from .util import produce_serializer
 
 
 class SchemaGenerator:
@@ -156,7 +158,7 @@ class DynamicBindableGenerator:
             result = await run_in_executor(
                 lambda: manager.produce_target(step.name, obj["_target"], only_if_ready=onlyIfReady)
             )
-            return json.dumps(result)
+            return produce_serializer(result)
 
         return rank_step_handle
 
@@ -164,6 +166,7 @@ class DynamicBindableGenerator:
     def gen_step_analysis_handle(step: Step, analysis: Analysis):
         argument_mapping = {normalize(a.name): a.name for a in analysis.arguments()}
 
+        @emit_event(EventType.CONTEXT)
         async def step_analysis_handle(_, info, **kwargs):
             manager: Manager = info.context["manager"]
             target_mapping = {}

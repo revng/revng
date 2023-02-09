@@ -9,7 +9,7 @@
     </div>
     <div>
         Welcome to revng!<br />
-        Working directory is {{ request.scope.manager.workdir }}
+        Working directory is {{ manager.workdir }}
     </div>
 
     <div>
@@ -54,7 +54,7 @@
         let target_path = `${pathComponents.join("/")}:${kind_name}`;
         let query = `
     {
-      produce(step: "${step_name}", container: "${container_name}", target_list: "${target_path}")
+      produce(step: "${step_name}", container: "${container_name}", targetList: "${target_path}")
     }
     `;
 

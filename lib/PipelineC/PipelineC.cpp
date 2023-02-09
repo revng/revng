@@ -390,11 +390,11 @@ const char *rp_diff_map_get_diff(rp_diff_map *map, const char *global_name) {
   return copyString(S);
 }
 
-const char *rp_manager_produce_targets(rp_manager *manager,
-                                       uint64_t targets_count,
-                                       rp_target *targets[],
-                                       rp_step *step,
-                                       rp_container *container) {
+const rp_buffer *rp_manager_produce_targets(rp_manager *manager,
+                                            uint64_t targets_count,
+                                            rp_target *targets[],
+                                            rp_step *step,
+                                            rp_container *container) {
   revng_check(manager != nullptr);
   revng_check(targets_count != 0);
   revng_check(targets != nullptr);
@@ -411,14 +411,13 @@ const char *rp_manager_produce_targets(rp_manager *manager,
     return nullptr;
   }
 
-  std::string Out;
-  llvm::raw_string_ostream Serialized(Out);
+  rp_buffer *Out = new rp_buffer();
+  llvm::raw_svector_ostream Serialized(*Out);
   const auto &ToFilter = Targets[container->second->name()];
   const auto &Cloned = container->second->cloneFiltered(ToFilter);
   llvm::cantFail(Cloned->serialize(Serialized));
-  Serialized.flush();
 
-  return copyString(Out);
+  return Out;
 }
 
 rp_target *rp_target_create(rp_kind *kind,
@@ -805,16 +804,17 @@ const char *rp_container_get_mime(rp_container *container) {
   return container->getValue()->mimeType().data();
 }
 
-const char *
+const rp_buffer *
 rp_container_extract_one(rp_container *container, rp_target *target) {
-  revng_check(container->second->enumerate().contains(*target));
+  if (!container->second->enumerate().contains(*target)) {
+    return nullptr;
+  }
 
-  std::string Out;
-  llvm::raw_string_ostream Serialized(Out);
+  rp_buffer *Out = new rp_buffer();
+  llvm::raw_svector_ostream Serialized(*Out);
   llvm::cantFail(container->second->extractOne(Serialized, *target));
-  Serialized.flush();
 
-  return copyString(Out);
+  return Out;
 }
 
 const char *rp_analysis_get_name(rp_analysis *analysis) {
@@ -993,4 +993,17 @@ const rp_kind *rp_kind_get_preferred_kind(rp_kind *kind, uint64_t index) {
     return PreferredKinds[index];
   else
     return nullptr;
+}
+
+uint64_t rp_buffer_size(const rp_buffer *buffer) {
+  // llvm::SmallString returns the size with the \0 at the end
+  return buffer->size() - 1;
+}
+
+const char *rp_buffer_data(const rp_buffer *buffer) {
+  return buffer->data();
+}
+
+void rp_buffer_destroy(const rp_buffer *buffer) {
+  delete buffer;
 }
