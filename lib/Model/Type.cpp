@@ -306,10 +306,9 @@ model::Type::Type(TypeKind::Values TK) :
 }
 
 const llvm::SmallVector<model::QualifiedType, 4> model::Type::edges() const {
-  llvm::SmallVector<model::QualifiedType, 4> Empty;
   const auto *This = this;
   auto GetEdges = [](const auto &Upcasted) { return Upcasted.edges(); };
-  return upcast(This, GetEdges, Empty);
+  return upcast(This, GetEdges, llvm::SmallVector<model::QualifiedType, 4>());
 }
 
 template<size_t I = 0>

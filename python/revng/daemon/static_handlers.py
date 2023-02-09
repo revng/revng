@@ -191,7 +191,7 @@ async def mutation_set_global(_, info, *, name: str, content: str) -> bool:
     manager: Manager = info.context["manager"]
     result = await run_in_executor(lambda: manager.set_global(name, content))
     await invalidation_queue.send(str(result.invalidations))
-    return result.result.check()
+    return result.result.unwrap()
 
 
 @mutation.field("applyDiff")
@@ -200,7 +200,7 @@ async def mutation_apply_diff(_, info, *, globalName: str, content: str) -> bool
     manager: Manager = info.context["manager"]
     result = await run_in_executor(lambda: manager.apply_diff(globalName, content))
     await invalidation_queue.send(str(result.invalidations))
-    return result.result.check()
+    return result.result.unwrap()
 
 
 @info.field("ranks")
@@ -304,14 +304,14 @@ async def resolve_container_targets(container_obj, info):
 async def info_verify_global(_, info, *, name: str, content: str) -> bool:
     manager: Manager = info.context["manager"]
     result = await run_in_executor(lambda: manager.verify_global(name, content))
-    return result.check()
+    return result.unwrap()
 
 
 @info.field("verifyDiff")
 async def info_verify_diff(_, info, *, globalName: str, content: str) -> bool:  # noqa: N803
     manager: Manager = info.context["manager"]
     result = await run_in_executor(lambda: manager.verify_diff(globalName, content))
-    return result.check()
+    return result.unwrap()
 
 
 @subscription.source("invalidations")

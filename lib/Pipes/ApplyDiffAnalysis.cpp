@@ -16,10 +16,10 @@
 
 namespace revng::pipes {
 
-ErrorList
+llvm::Error
 ApplyDiffAnalysis::run(pipeline::Context &Ctx, std::string DiffLocation) {
   if (DiffLocation == "")
-    return {};
+    return llvm::Error::success();
 
   auto &Model = getWritableModelFromContext(Ctx);
 
@@ -29,10 +29,7 @@ ApplyDiffAnalysis::run(pipeline::Context &Ctx, std::string DiffLocation) {
   if (!MaybeDiff)
     return MaybeDiff.takeError();
 
-  ErrorList EL;
-  MaybeDiff->apply(Model, EL);
-
-  return EL;
+  return MaybeDiff->apply(Model);
 }
 
 static pipeline::RegisterAnalysis<ApplyDiffAnalysis> X;

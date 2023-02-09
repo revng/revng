@@ -126,11 +126,14 @@ ffi = FFI()
 for header_path in header_paths:
     assert header_path is not None, "Missing header file"
     with open(header_path, encoding="utf-8") as header_file:
-        lines = []
+        lines = ""
         for line in header_file:
             if not line.startswith("#"):
-                lines.append(line)
-        ffi.cdef("\n".join(lines))
+                lines += line
+            else:
+                # Add newline to preserve line numbers
+                lines += "\n"
+        ffi.cdef(lines)
 
 
 LIBRARY_PATH = collect_one(ROOT, ["lib"], "librevngPipelineC.so")

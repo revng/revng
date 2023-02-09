@@ -15,6 +15,7 @@ bool init_unit_test();
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/Support/YAMLTraits.h"
+#include "revng/TupleTree/DiffError.h"
 #include "revng/TupleTree/Introspection.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
 #include "revng/TupleTree/VisitsImpl.h"
@@ -279,6 +280,7 @@ BOOST_AUTO_TEST_CASE(TestTupleTreeDiffDeserialization) {
   llvm::raw_string_ostream Stream(S);
   serialize(Stream, Diff);
   Stream.flush();
+  llvm::outs() << S << "\n";
 
   auto Diff2 = llvm::cantFail(deserialize<TupleTreeDiff<model::Binary>>(S));
 
@@ -300,4 +302,36 @@ BOOST_AUTO_TEST_CASE(CABIFunctionTypeArgumentsPathShouldParse) {
   const char *Path = "/Types/CABIFunctionType-10000/Arguments";
   auto MaybeParsed = stringAsPath<model::Binary>(Path);
   BOOST_TEST(MaybeParsed.has_value());
+}
+
+class LocationExample : public revng::LocationBase {
+public:
+  std::string toString() const final { return "don't care"; };
+  ~LocationExample() override = default;
+  static std::string getTypeName() { return "LocationExample"; }
+};
+
+class DocumentErrorExample
+  : public revng::DocumentError<DocumentErrorExample, LocationExample> {
+public:
+  using DocumentError<DocumentErrorExample, LocationExample>::DocumentError;
+  inline static char ID = '0';
+  std::string getTypeName() const override { return "Example1"; }
+};
+
+class DocumentErrorExample2
+  : public revng::DocumentError<DocumentErrorExample2, LocationExample> {
+public:
+  using DocumentError<DocumentErrorExample2, LocationExample>::DocumentError;
+  inline static char ID = '0';
+  std::string getTypeName() const override { return "Example2"; }
+};
+
+BOOST_AUTO_TEST_CASE(ModelErrors) {
+  llvm::Error Error = llvm::make_error<DocumentErrorExample>("something",
+                                                             LocationExample());
+  BOOST_TEST(Error.isA<DocumentErrorExample>());
+  BOOST_TEST(not Error.isA<DocumentErrorExample2>());
+  BOOST_TEST(Error.isA<revng::DocumentErrorBase>());
+  llvm::consumeError(std::move(Error));
 }

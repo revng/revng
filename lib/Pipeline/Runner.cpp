@@ -263,7 +263,7 @@ Runner::runAnalysis(llvm::StringRef AnalysisName,
                                                  Targets,
                                                  Options);
       Error)
-    return Error.asLLVMError();
+    return std::move(Error);
 
   auto &After = getContext().getGlobals();
   auto Map = Before.diff(After);
