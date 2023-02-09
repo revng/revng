@@ -466,8 +466,6 @@ private:
       if (ReturnsAggregate) {
         // Identify the SPTAR and make some sanity checks
         auto &ModelArgument = Layout.Arguments[0];
-        revng_assert(not ModelArgument.Stack);
-        revng_assert(ModelArgument.Registers.size() == 1);
 
         // Get call to local variable
         auto *LocalVarFunctionType = getLocalVarType(PtrSizedInteger);
@@ -492,9 +490,17 @@ private:
                                                   ReturnValueReference });
 
         // Handle the argument pointing to the return value
-        Argument *OldArgument = nullptr;
-        OldArgument = ArgumentToRegister.at(ModelArgument.Registers[0]);
-        OldArgument->replaceAllUsesWith(ReturnValuePointer);
+        if (ModelArgument.Stack) {
+          revng_assert(ModelArgument.Registers.size() == 0);
+          Redirector->recordSpan(*ModelArgument.Stack + CallInstructionPushSize,
+                                 ReturnValuePointer);
+        } else {
+          // It's in a register
+          revng_assert(ModelArgument.Registers.size() == 1);
+          Argument *OldArgument = nullptr;
+          OldArgument = ArgumentToRegister.at(ModelArgument.Registers[0]);
+          OldArgument->replaceAllUsesWith(ReturnValuePointer);
+        }
 
         // Exclude this argument from the list to process
         ModelArguments = llvm::drop_begin(ModelArguments);
@@ -895,9 +901,7 @@ private:
     // Actually create the new call and replace the old one
     auto *NewCall = Builder.CreateCall(CalleeType, CalledValue, Arguments);
 
-    if (not ReturnsAggregate) {
-      OldCall->replaceAllUsesWith(NewCall);
-    } else {
+    if (ReturnsAggregate) {
       // Perform a couple of safety checks
       revng_assert(Layout.Arguments.size() > 0);
       auto &Argument = Layout.Arguments[0];
@@ -930,6 +934,7 @@ private:
     }
 
     NewCall->copyMetadata(*OldCall);
+    OldCall->replaceAllUsesWith(NewCall);
     eraseFromParent(OldCall);
     revng_assert(CalleeType->getPointerTo() == CalledValue->getType());
 
