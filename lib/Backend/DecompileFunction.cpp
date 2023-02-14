@@ -1401,8 +1401,8 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
 
   // Clear the TokenMap for operands that only have one use in the same
   // BasicBlock, and such that I is the last user in the block.
-  // They will be never used before, and we don't want those strings to hang
-  // around, since they can grow quite big.
+  // They will be never used after that, and we don't want those strings to hang
+  // around, since we don't want the container to grow too big.
   for (const llvm::Value *Operand : I.operand_values()) {
     if (auto *InstructionOp = dyn_cast<llvm::Instruction>(Operand)) {
       bool UserInDifferentBlock = false;
