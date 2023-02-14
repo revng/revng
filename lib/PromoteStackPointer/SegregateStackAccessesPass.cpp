@@ -758,22 +758,25 @@ private:
     StackAccessRedirector Redirector(-MaybeStackSize.value_or(0)
                                      + CallInstructionPushSize);
 
-    auto ModelArguments = llvm::make_range(Layout.Arguments.begin(),
-                                           Layout.Arguments.end());
-
     bool ReturnsAggregate = Layout.returnsAggregateType();
-    if (ReturnsAggregate)
-      ModelArguments = llvm::drop_begin(ModelArguments);
+    SmallVector<llvm::Type *, 8> LLVMArgumentTypes;
+    if (ReturnsAggregate) {
+      revng_assert(Layout.Arguments.size() > 0);
+      uint64_t SPTARSize = *Layout.Arguments[0].Type.size();
+      LLVMArgumentTypes.push_back(Builder.getIntNTy(SPTARSize * 8));
+    }
+    copy(CalleeType->params(), std::back_inserter(LLVMArgumentTypes));
 
     bool MessageEmitted = false;
     for (auto [LLVMType, ModelArgument] :
-         llvm::zip(CalleeType->params(), ModelArguments)) {
+         llvm::zip(LLVMArgumentTypes, Layout.Arguments)) {
       model::QualifiedType ArgumentType = ModelArgument.Type;
       uint64_t NewSize = *ArgumentType.size();
 
       switch (ModelArgument.Kind) {
 
-      case ArgumentKind::Scalar: {
+      case ArgumentKind::Scalar:
+      case ArgumentKind::ShadowPointerToAggregateReturnValue: {
         revng_assert(ArgumentType.isScalar());
         Value *Accumulator = ConstantInt::get(LLVMType, 0);
         unsigned OffsetInNewArgument = 0;
@@ -898,6 +901,14 @@ private:
 
     revng_assert(Redirector.verify());
 
+    // Handle SPTAR by dropping the actual argument and saving it for later
+    Value *ReturnValuePointer = nullptr;
+    if (ReturnsAggregate) {
+      revng_assert(Arguments.size() > 0);
+      ReturnValuePointer = Arguments[0];
+      Arguments.erase(Arguments.begin());
+    }
+
     // Actually create the new call and replace the old one
     auto *NewCall = Builder.CreateCall(CalleeType, CalledValue, Arguments);
 
@@ -907,11 +918,9 @@ private:
       auto &Argument = Layout.Arguments[0];
       using namespace abi::FunctionType::ArgumentKind;
       revng_assert(Argument.Kind == ShadowPointerToAggregateReturnValue);
-      revng_assert(Argument.Registers.size() == 1);
-      revng_assert(not Argument.Stack);
 
       // Obtain the SPTAR value
-      Value *ReturnValuePointer = ArgumentToRegister.at(Argument.Registers[0]);
+      revng_assert(ReturnValuePointer != nullptr);
 
       // Extract return type by stripping the pointer qualifier from SPTAR
       model::QualifiedType ReturnType = stripPointer(Argument.Type);
@@ -1123,7 +1132,16 @@ private:
 
     bool ReturnsAggregate = Layout.returnsAggregateType();
     if (ReturnsAggregate) {
-      revng_assert(OldFunction->getReturnType()->isVoidTy());
+      // Ensure the return type is correct
+      auto ReturnValuesCount = Layout.returnValueRegisterCount();
+      if (ReturnValuesCount == 0) {
+        revng_assert(OldFunction->getReturnType()->isVoidTy());
+      } else if (ReturnValuesCount == 1) {
+        revng_assert(OldFunction->getReturnType() == StackPointerType);
+      } else {
+        revng_abort("Unexpected number of return values");
+      }
+
       ReturnType = StackPointerType;
     } else {
       ReturnType = OldFunction->getReturnType();

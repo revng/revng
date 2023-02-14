@@ -332,8 +332,6 @@ handleReturnValue(const model::TypePath &Prototype,
     auto &Argument = Layout.Arguments[0];
     using namespace abi::FunctionType::ArgumentKind;
     revng_assert(Argument.Kind == ShadowPointerToAggregateReturnValue);
-    revng_assert(Argument.Registers.size() == 1);
-    revng_assert(not Argument.Stack);
     return { stripPointer(Argument.Type) };
   } else {
     return flattenReturnTypes(Layout, Model);
