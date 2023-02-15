@@ -125,7 +125,7 @@ static std::string node(const yield::Node *Node,
                                -Node->Center.Y - HalfSize.H };
 
   Tag Body("body", std::move(Content));
-  Body.addAttribute("xmlns", R"("http://www.w3.org/1999/xhtml")");
+  Body.addAttribute("xmlns", R"(http://www.w3.org/1999/xhtml)");
 
   Tag Text("foreignObject", Body.serialize());
   Text.addAttribute("class", ::tags::NodeContents)
@@ -306,7 +306,7 @@ static std::string exportGraph(const yield::Graph &Graph,
 
   Tag ArrowHeads("defs", defaultArrowHeads(Configuration));
   return Tag("svg", ArrowHeads.serialize() + std::move(Result))
-    .addAttribute("xmlns", R"("http://www.w3.org/2000/svg")")
+    .addAttribute("xmlns", R"(http://www.w3.org/2000/svg)")
     .addAttribute("viewbox", std::move(SerializedBox))
     .addAttribute("width", std::to_string(Box.BottomRight.X - Box.TopLeft.X))
     .addAttribute("height", std::to_string(Box.BottomRight.Y - Box.TopLeft.Y))
