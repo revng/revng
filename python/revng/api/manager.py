@@ -243,8 +243,8 @@ class Manager:
                 return container
         return None
 
-    def deserialize_container(self, step: Step, container_name: str, content: Union[str, bytes]):
-        _content = make_c_string(content)
+    def deserialize_container(self, step: Step, container_name: str, content: bytes):
+        _content = ffi.from_buffer(content)
         return _api.rp_manager_container_deserialize(
             self._manager, step._step, make_c_string(container_name), _content, len(_content)
         )

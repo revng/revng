@@ -1085,8 +1085,7 @@ const rp_kind *rp_kind_get_preferred_kind(rp_kind *kind, uint64_t index) {
 }
 
 uint64_t rp_buffer_size(const rp_buffer *buffer) {
-  // llvm::SmallString returns the size with the \0 at the end
-  return buffer->size() - 1;
+  return buffer->size();
 }
 
 const char *rp_buffer_data(const rp_buffer *buffer) {
