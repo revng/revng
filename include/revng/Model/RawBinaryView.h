@@ -145,6 +145,18 @@ public:
     return MetaAddress::invalid();
   }
 
+  [[nodiscard]] bool isReadOnly(MetaAddress Address, uint64_t Size) const {
+    for (const model::Segment &Segment : Binary.Segments()) {
+      if (Segment.contains(Address, Size)) {
+        if (!Segment.IsWriteable()) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
   using SegmentDataPair = std::pair<const model::Segment &,
                                     llvm::ArrayRef<uint8_t>>;
   cppcoro::generator<SegmentDataPair> segments() const {
