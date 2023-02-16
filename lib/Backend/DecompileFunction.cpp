@@ -1951,10 +1951,6 @@ void decompile(FunctionMetadataCache &Cache,
                llvm::Module &Module,
                const model::Binary &Model,
                Container &DecompiledFunctions) {
-
-  if (Log.isEnabled())
-    writeToFile(Model.toString(), "model-during-c-codegen.yaml");
-
   for (llvm::Function &F : FunctionTags::Isolated.functions(&Module)) {
 
     if (F.empty())
