@@ -157,6 +157,18 @@ add_test(NAME test_genericgraph COMMAND test_genericgraph)
 set_tests_properties(test_genericgraph PROPERTIES LABELS "unit")
 
 #
+# test_graphtraitsutils
+#
+
+revng_add_test_executable(test_graphalgorithms "${SRC}/GraphAlgorithms.cpp")
+target_compile_definitions(test_graphalgorithms PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(test_graphalgorithms PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(test_graphalgorithms revngSupport
+                      Boost::unit_test_framework ${LLVM_LIBRARIES})
+add_test(NAME test_graphalgorithms COMMAND test_graphalgorithms)
+set_tests_properties(test_graphalgorithms PROPERTIES LABELS "unit")
+
+#
 # test_keyedobjectscontainers
 #
 
