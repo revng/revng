@@ -141,7 +141,6 @@ private:
   llvm::Function *NewPCMarker;
 
   MetaAddress LastPC;
-  llvm::Type *MetaAddressStruct;
 
   ProgramCounterHandler *PCH;
   llvm::SmallVector<llvm::BasicBlock *, 4> ExitBlocks;

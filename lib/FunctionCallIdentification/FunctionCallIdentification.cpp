@@ -36,7 +36,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
   auto *Int8NullPtr = ConstantPointerNull::get(Int8PtrTy);
   auto *PCPtrTy = cast<PointerType>(GCBI.pcReg()->getType());
   std::initializer_list<Type *> FunctionArgsTy = {
-    Int8PtrTy, Int8PtrTy, MetaAddress::getStruct(&M), PCPtrTy
+    Int8PtrTy, Int8PtrTy, Int8PtrTy, PCPtrTy
   };
   using FT = FunctionType;
   auto *Ty = FT::get(Type::getVoidTy(C), FunctionArgsTy, false);
@@ -64,7 +64,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
 
     if (Terminator != nullptr) {
       if (CallInst *Call = getMarker(Terminator, "function_call")) {
-        auto Address = MetaAddress::fromConstant(Call->getOperand(2));
+        auto Address = MetaAddress::fromValue(Call->getOperand(2));
         FallthroughAddresses.insert(Address);
         continue;
       }
@@ -187,7 +187,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
               revng_assert(NewPCLeft > 0);
 
               Value *PCOperand = Call->getOperand(0);
-              auto ProgramCounter = MetaAddress::fromConstant(PCOperand);
+              auto ProgramCounter = MetaAddress::fromValue(PCOperand);
               uint64_t InstructionSize = getLimitedValue(Call->getOperand(1));
 
               // Check that, w.r.t. to the last newpc, we're looking at the
@@ -254,7 +254,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
         // target
         bool Found = false;
         for (BasicBlock *Successor : successors(Terminator->getParent())) {
-          if (!GCBI.isJumpTarget(Successor)) {
+          if (not isJumpTarget(Successor)) {
             // There should be only one non-jump target successor (i.e., anypc
             // or unepxectedpc).
             revng_assert(!Found);
@@ -267,10 +267,10 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
         Callee = Int8NullPtr;
       }
 
-      const std::initializer_list<Value *> Args{ Callee,
-                                                 BlockAddress::get(ReturnBB),
-                                                 GCBI.toConstant(ReturnPC),
-                                                 V.LinkRegister };
+      Value *ReturnPCValue = ReturnPC.toValue(getModule(ReturnBB));
+      const std::initializer_list<Value *> Args{
+        Callee, BlockAddress::get(ReturnBB), ReturnPCValue, V.LinkRegister
+      };
 
       FallthroughAddresses.insert(ReturnPC);
 
@@ -327,7 +327,7 @@ void FunctionCallIdentification::buildFilteredCFG(llvm::Function &F) {
         if (Successor->empty() or not GCBI.isTranslated(Successor))
           continue;
 
-        MetaAddress Address = getBasicBlockPC(Successor);
+        MetaAddress Address = getBasicBlockAddress(Successor);
         AllZero = AllZero and (not Address.isInvalid());
         IsReturn = IsReturn and (Address.isInvalid() or isFallthrough(Address));
       }

@@ -42,7 +42,7 @@ CR::CrossRelations::CrossRelations(const MetadataContainer &Metadata,
     for (const auto &BasicBlock : ControlFlowGraph) {
       auto CallLocation = pipeline::location(ranks::BasicBlock,
                                              EntryAddress,
-                                             BasicBlock.Start());
+                                             BasicBlock.ID());
 
       for (const auto &Edge : BasicBlock.Successors()) {
         if (auto *CallEdge = llvm::dyn_cast<efa::CallEdge>(Edge.get())) {
@@ -51,7 +51,9 @@ CR::CrossRelations::CrossRelations(const MetadataContainer &Metadata,
               // TODO: embed information about the call instruction into
               //       `CallLocation` after yield starts providing it.
 
-              auto L = pipeline::location(ranks::Function, Callee).toString();
+              auto CalleeAddress = Callee.notInlinedAddress();
+              auto L = pipeline::location(ranks::Function, CalleeAddress)
+                         .toString();
               if (auto It = Relations().find(L); It != Relations().end()) {
                 CR::RelationTarget T(CR::RelationType::IsCalledFrom,
                                      CallLocation.toString());
@@ -142,18 +144,19 @@ CR::CrossRelations::toCallGraph() const {
 yield::Graph CR::CrossRelations::toYieldGraph() const {
   yield::Graph Result;
 
-  std::map<MetaAddress, yield::Graph::Node *> LookupHelper;
+  std::map<BasicBlockID, yield::Graph::Node *> LookupHelper;
 
   namespace ranks = revng::ranks;
-  namespace p = pipeline;
+  using namespace pipeline;
+
   auto AddNode = [&Result, &LookupHelper](std::string_view Location) {
-    auto MaybeKey = p::genericLocationFromString<0>(Location,
-                                                    ranks::Function,
-                                                    ranks::BasicBlock,
-                                                    ranks::Instruction);
+    auto MaybeKey = genericLocationFromString<0>(Location,
+                                                 ranks::Function,
+                                                 ranks::BasicBlock,
+                                                 ranks::Instruction);
     // TODO: extend to support dynamic functions
     if (MaybeKey.has_value()) {
-      auto Address = std::get<0>(MaybeKey.value());
+      auto Address = BasicBlockID(std::get<0>(MaybeKey.value()));
       auto [_, Success] = LookupHelper.try_emplace(Address,
                                                    Result.addNode(Address));
       revng_assert(Success);
@@ -163,18 +166,18 @@ yield::Graph CR::CrossRelations::toYieldGraph() const {
                                  std::string_view ToLocation,
                                  CR::RelationType::Values Kind) {
     if (Kind == CR::RelationType::IsCalledFrom) {
-      auto FromKey = p::genericLocationFromString<0>(FromLocation,
-                                                     ranks::Function,
-                                                     ranks::BasicBlock,
-                                                     ranks::Instruction);
-      auto ToKey = p::genericLocationFromString<0>(ToLocation,
-                                                   ranks::Function,
-                                                   ranks::BasicBlock,
-                                                   ranks::Instruction);
-      revng_assert(FromKey.has_value() && ToKey.has_value());
+      using namespace pipeline;
+      auto GetBlockID = [](llvm::StringRef Location) -> BasicBlockID {
+        auto MaybeAddress = genericLocationFromString<0>(Location,
+                                                         ranks::Function,
+                                                         ranks::BasicBlock,
+                                                         ranks::Instruction);
+        revng_assert(MaybeAddress);
+        return BasicBlockID(std::get<0>(*MaybeAddress));
+      };
 
-      auto *FromNode = LookupHelper.at(std::get<0>(FromKey.value()));
-      auto *ToNode = LookupHelper.at(std::get<0>(ToKey.value()));
+      auto *FromNode = LookupHelper.at(GetBlockID(FromLocation));
+      auto *ToNode = LookupHelper.at(GetBlockID(ToLocation));
       if (!llvm::is_contained(FromNode->successors(), ToNode))
         FromNode->addSuccessor(ToNode);
     }

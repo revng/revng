@@ -341,13 +341,14 @@ yield::svg::controlFlowGraph(const yield::Function &InternalFunction,
 struct LabelNodeHelper {
   const model::Binary &Binary;
   const yield::cfg::Configuration Configuration;
-  std::optional<MetaAddress> RootNodeLocation = std::nullopt;
+  std::optional<BasicBlockID> RootNodeLocation = std::nullopt;
 
   void computeSizes(yield::Graph &Graph) {
     for (auto *Node : Graph.nodes()) {
       if (Node->Address.isValid()) {
         // A normal node
-        auto FunctionIterator = Binary.Functions().find(Node->Address);
+        MetaAddress Address = Node->Address.notInlinedAddress();
+        auto FunctionIterator = Binary.Functions().find(Address);
         revng_assert(FunctionIterator != Binary.Functions().end());
 
         size_t NameLength = FunctionIterator->name().size();
@@ -372,13 +373,18 @@ struct LabelNodeHelper {
     revng_assert(Node.Address.isValid());
     if (Node.NextAddress.isValid()) {
       revng_assert(Node.Address == Node.NextAddress);
-      return yield::ptml::shallowFunctionLink(Node.NextAddress, Binary);
+      return yield::ptml::shallowFunctionLink(Node.NextAddress
+                                                .notInlinedAddress(),
+                                              Binary);
     }
 
     if (!RootNodeLocation.has_value() || *RootNodeLocation == Node.Address)
-      return yield::ptml::functionNameDefinition(Node.Address, Binary);
+      return yield::ptml::functionNameDefinition(Node.Address
+                                                   .notInlinedAddress(),
+                                                 Binary);
     else
-      return yield::ptml::functionLink(Node.Address, Binary);
+      return yield::ptml::functionLink(Node.Address.notInlinedAddress(),
+                                       Binary);
   }
 };
 
@@ -429,7 +435,7 @@ static auto convertPoint(yield::Graph::Point const &Point,
   return translatePoint(flipPoint(Point), Delta);
 }
 
-static yield::Graph combineHalvesHelper(const MetaAddress &SlicePoint,
+static yield::Graph combineHalvesHelper(const BasicBlockID &SlicePoint,
                                         yield::Graph &&ForwardsSlice,
                                         yield::Graph &&BackwardsSlice) {
   revng_assert(ForwardsSlice.size() != 0 && BackwardsSlice.size() != 0);
@@ -494,7 +500,7 @@ static yield::Graph combineHalvesHelper(const MetaAddress &SlicePoint,
   return std::move(ForwardsSlice);
 }
 
-std::string yield::svg::callGraphSlice(const MetaAddress &SlicePoint,
+std::string yield::svg::callGraphSlice(const BasicBlockID &SlicePoint,
                                        const CrossRelations &Relations,
                                        const model::Binary &Binary) {
   // TODO: make configuration accessible from outside.

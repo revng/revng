@@ -61,6 +61,7 @@ target_tuple_tree_generator(
   SEPARATE_STRING_TYPES
   "MetaAddress"
   SCALAR_TYPES
+  "BasicBlockID"
   "MetaAddress"
   "model::FunctionAttribute::Values"
   HEADERS

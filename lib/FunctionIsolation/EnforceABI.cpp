@@ -78,7 +78,6 @@ public:
     Context(M.getContext()),
     Initializers(&M),
     Binary(Binary),
-    MetaAddressStruct(MetaAddress::getStruct(&M)),
     Cache(&Cache) {}
 
   void run();
@@ -106,7 +105,6 @@ private:
   LLVMContext &Context;
   StructInitializers Initializers;
   const model::Binary &Binary;
-  StructType *MetaAddressStruct;
   FunctionMetadataCache *Cache;
 };
 
@@ -376,7 +374,7 @@ void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
   NewCall->copyMetadata(*Call);
 
   // Set PC to the expected value
-  GCBI.programCounterHandler()->setPC(Builder, CallerBlock->Start());
+  GCBI.programCounterHandler()->setPC(Builder, CallerBlock->ID().start());
 
   // Drop the original call
   eraseFromParent(Call);
@@ -407,7 +405,7 @@ CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
 
   model::TypePath PrototypePath = getPrototype(Binary,
                                                Entry,
-                                               CallSiteBlock.Start(),
+                                               CallSiteBlock.ID(),
                                                CallSite);
   auto Prototype = abi::FunctionType::Layout::make(PrototypePath);
   revng_assert(Prototype.verify());
@@ -440,9 +438,9 @@ CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   // Produce the call
   //
   auto *Result = Builder.CreateCall(Callee, Arguments);
-  GCBI.setMetaAddressMetadata(Result,
-                              CallerBlockStartMDName,
-                              CallSiteBlock.Start());
+  setStringMetadata(Result,
+                    CallerBlockStartMDName,
+                    CallSiteBlock.ID().toString());
   if (ReturnCSVs.size() != 1) {
     unsigned I = 0;
     for (Constant *ReturnCSV : ReturnCSVs) {

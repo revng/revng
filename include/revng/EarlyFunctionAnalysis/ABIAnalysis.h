@@ -31,10 +31,10 @@ struct ABIAnalysesResults {
     RegisterStateMap ArgumentsRegisters;
     RegisterStateMap ReturnValuesRegisters;
   };
-  std::map<MetaAddress, CallSiteResults> CallSites;
+  std::map<BasicBlockID, CallSiteResults> CallSites;
 
   // Per return analysis
-  std::map<MetaAddress, RegisterStateMap> ReturnValuesRegisters;
+  std::map<BasicBlockID, RegisterStateMap> ReturnValuesRegisters;
   RegisterStateMap FinalReturnValuesRegisters;
 
   // Debug methods

@@ -47,8 +47,10 @@ private:
 
 public:
   using generated::CallEdge::CallEdge;
+
   CallEdge() : efa::generated::CallEdge() { Type() = AssociatedType; }
-  CallEdge(MetaAddress Destination, efa::FunctionEdgeType::Values Type) :
+
+  CallEdge(BasicBlockID Destination, FunctionEdgeType::Values Type) :
     efa::generated::CallEdge() {
     this->Destination() = Destination;
     this->Type() = Type;
@@ -101,42 +103,11 @@ private:
       const auto &F = Binary.ImportedDynamicFunctions().at(DynamicFunction());
       return &F.Attributes();
     } else if (Destination().isValid()) {
-      return &Binary.Functions().at(Destination()).Attributes();
+      return &Binary.Functions().at(Destination().start()).Attributes();
     } else {
       return nullptr;
     }
   }
 };
-
-inline model::TypePath getPrototype(const model::Binary &Binary,
-                                    MetaAddress CallerFunctionAddress,
-                                    MetaAddress CallerBlockAddress,
-                                    const efa::CallEdge &Edge) {
-  model::TypePath Result;
-
-  auto &CallSitePrototypes = Binary.Functions()
-                               .at(CallerFunctionAddress)
-                               .CallSitePrototypes();
-  auto It = CallSitePrototypes.find(CallerBlockAddress);
-  if (It != CallSitePrototypes.end())
-    Result = It->Prototype();
-
-  if (Edge.Type() == efa::FunctionEdgeType::FunctionCall) {
-    if (not Edge.DynamicFunction().empty()) {
-      // Get the dynamic function prototype
-      Result = Binary.ImportedDynamicFunctions()
-                 .at(Edge.DynamicFunction())
-                 .Prototype();
-    } else if (Edge.Destination().isValid()) {
-      // Get the function prototype
-      Result = Binary.Functions().at(Edge.Destination()).Prototype();
-    }
-  }
-
-  if (not Result.isValid())
-    Result = Binary.DefaultPrototype();
-
-  return Result;
-}
 
 #include "revng/EarlyFunctionAnalysis/Generated/Late/CallEdge.h"

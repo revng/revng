@@ -246,10 +246,10 @@ void g_free(void *memory) {
     return free(memory);
 }
 
-void unknownPC(PlainMetaAddress *PC) {
+void unknownPC(PlainMetaAddress PC) {
   int arg;
   fprintf(stderr, "Unknown PC:");
-  fprint_metaaddress(stderr, PC);
+  fprint_metaaddress(stderr, &PC);
   fprintf(stderr, "\n");
 
   for (arg = 0; arg < saved_argc; arg++) {
@@ -263,7 +263,7 @@ void unknownPC(PlainMetaAddress *PC) {
 
 void jump_to_symbol(char *Symbol) {
   PlainMetaAddress Empty = { 0 };
-  raise_exception_helper(Symbol, &Empty, &Empty);
+  raise_exception_helper(Symbol, Empty, Empty);
 }
 
 #ifdef TRACE
@@ -462,15 +462,15 @@ int main(int argc, char *argv[]) {
 
 // Helper function used to raise an exception
 noreturn void raise_exception_helper(const char *reason,
-                                     PlainMetaAddress *source,
-                                     PlainMetaAddress *destination) {
+                                     PlainMetaAddress source,
+                                     PlainMetaAddress destination) {
 
   // Dump information about the exception
   fprintf(stderr, "Exception: %s", reason);
   fprintf(stderr, " (");
-  fprint_metaaddress(stderr, source);
+  fprint_metaaddress(stderr, &source);
   fprintf(stderr, " -> ");
-  fprint_metaaddress(stderr, source);
+  fprint_metaaddress(stderr, &destination);
   fprintf(stderr, ")\n");
 
   // Declare the exception object

@@ -475,21 +475,22 @@ IT::InstructionTranslator(IRBuilder<> &Builder,
   EndianessMismatch(EndianessMismatch),
   NewPCMarker(nullptr),
   LastPC(MetaAddress::invalid()),
-  MetaAddressStruct(MetaAddress::getStruct(&TheModule)),
   PCH(PCH) {
 
   auto &Context = TheModule.getContext();
   using FT = FunctionType;
   // The newpc function call takes the following parameters:
   //
-  // * address of the instruction
+  // * BasicBlockID of the instruction in string form
   // * instruction size
   // * isJT (-1: unknown, 0: no, 1: yes)
+  // * inlining index
   // * pointer to the disassembled instruction
   // * all the local variables used by this instruction
   auto *NewPCMarkerTy = FT::get(Type::getVoidTy(Context),
-                                { MetaAddressStruct,
+                                { Type::getInt8PtrTy(Context),
                                   Type::getInt64Ty(Context),
+                                  Type::getInt32Ty(Context),
                                   Type::getInt32Ty(Context),
                                   Type::getInt8PtrTy(Context),
                                   Type::getInt8PtrTy(Context) },
@@ -510,8 +511,9 @@ void IT::finalizeNewPCMarkers() {
     auto *Call = cast<CallInst>(U);
 
     // Report the instruction on the coverage CSV
-    auto PC = MetaAddress::fromConstant(Call->getArgOperand(0));
-    uint64_t Size = getLimitedValue(Call->getArgOperand(1));
+    using namespace NewPCArguments;
+    MetaAddress PC = addressFromNewPC(Call);
+    uint64_t Size = getLimitedValue(Call->getArgOperand(InstructionSize));
     bool IsJT = JumpTargets.isJumpTarget(PC);
 
     // We already finished discovering new code to translate, so we can remove
@@ -581,12 +583,12 @@ CallInst *IT::emitNewPCCall(IRBuilder<> &Builder,
                             MetaAddress PC,
                             uint64_t Size,
                             Value *String) const {
-  revng_assert(MetaAddressStruct != nullptr);
   PointerType *Int8PtrTy = getStringPtrType(TheModule.getContext());
   auto *Int8NullPtr = ConstantPointerNull::get(Int8PtrTy);
-  std::vector<Value *> Args = { PC.toConstant(MetaAddressStruct),
+  std::vector<Value *> Args = { BasicBlockID(PC).toValue(&TheModule),
                                 Builder.getInt64(Size),
                                 Builder.getInt32(-1),
+                                Builder.getInt32(0),
                                 String != nullptr ? String : Int8NullPtr,
                                 Int8NullPtr };
 
@@ -647,7 +649,7 @@ IT::newInstruction(PTCInstruction *Instr,
                             Twine("disam_") + AddressName);
 
     auto *MDOriginalString = ConstantAsMetadata::get(String);
-    auto *MDPC = ConstantAsMetadata::get(PC.toConstant(MetaAddressStruct));
+    auto *MDPC = ConstantAsMetadata::get(PC.toValue(&TheModule));
     MDOriginalInstr = MDNode::get(Context, { MDOriginalString, MDPC });
   } else {
     String = ConstantPointerNull::get(Int8PtrTy);

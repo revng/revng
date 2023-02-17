@@ -24,12 +24,23 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/ADT/Concepts.h"
+#include "revng/Support/BasicBlockID.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/Generator.h"
 #include "revng/Support/MetaAddress.h"
 
 extern void dumpUsers(llvm::Value *V) debug_function;
+
+namespace NewPCArguments {
+enum {
+  InstructionID,
+  InstructionSize,
+  IsJumpTarget,
+  DissassembledInstruction,
+  FirstLocalVariable
+};
+}
 
 /// Given \p V, checks if there are uses left and then calls eraseFromParent.
 /// In case of leftover uses, they are pretty printed.
@@ -965,19 +976,6 @@ inline CSVsUsage getCSVUsedByHelperCall(llvm::Instruction *Call) {
   return *getCSVUsedByHelperCallIfAvailable(Call);
 }
 
-inline MetaAddress getBasicBlockPC(llvm::BasicBlock *BB) {
-  using namespace llvm;
-
-  Instruction *I = BB->getFirstNonPHI();
-  if (I == nullptr)
-    return MetaAddress::invalid();
-
-  if (llvm::CallInst *Call = getCallTo(I, "newpc"))
-    return MetaAddress::fromConstant(Call->getOperand(0));
-
-  return MetaAddress::invalid();
-}
-
 inline MetaAddress getBasicBlockJumpTarget(llvm::BasicBlock *BB) {
   using namespace llvm;
 
@@ -987,7 +985,7 @@ inline MetaAddress getBasicBlockJumpTarget(llvm::BasicBlock *BB) {
 
   if (llvm::CallInst *Call = getCallTo(I, "newpc")) {
     if (getLimitedValue(Call->getOperand(2)) == 1) {
-      return MetaAddress::fromConstant(Call->getOperand(0));
+      return MetaAddress::fromValue(Call->getOperand(0));
     }
   }
 
@@ -1105,6 +1103,43 @@ inline llvm::User *getUniqueUser(llvm::Value *V) {
   }
 
   return Result;
+}
+
+llvm::BasicBlock *getJumpTargetBlock(llvm::BasicBlock *BB);
+
+inline BasicBlockID blockIDFromNewPC(const llvm::CallBase *Call) {
+  revng_assert(isCallTo(Call, "newpc"));
+  using namespace NewPCArguments;
+  auto *Argument = Call->getArgOperand(InstructionID);
+  return BasicBlockID::fromValue(Argument);
+}
+
+inline BasicBlockID blockIDFromNewPC(const llvm::Instruction *I) {
+  return blockIDFromNewPC(llvm::cast<llvm::CallBase>(I));
+}
+
+inline MetaAddress addressFromNewPC(const llvm::CallBase *Call) {
+  return blockIDFromNewPC(Call).notInlinedAddress();
+}
+inline MetaAddress addressFromNewPC(const llvm::Instruction *I) {
+  return addressFromNewPC(llvm::cast<llvm::CallBase>(I));
+}
+
+inline BasicBlockID getBasicBlockID(const llvm::BasicBlock *BB) {
+  using namespace llvm;
+
+  const Instruction *I = BB->getFirstNonPHI();
+  if (I == nullptr)
+    return BasicBlockID::invalid();
+
+  if (const llvm::CallInst *Call = getCallTo(I, "newpc"))
+    return blockIDFromNewPC(Call);
+
+  return BasicBlockID::invalid();
+}
+
+inline MetaAddress getBasicBlockAddress(const llvm::BasicBlock *BB) {
+  return getBasicBlockID(BB).notInlinedAddress();
 }
 
 /// \brief Find the first call to newpc starting from \p TheInstruction
@@ -1344,15 +1379,41 @@ static_assert(HasMetadata<llvm::Function>);
 static_assert(HasMetadata<llvm::GlobalVariable>);
 static_assert(not HasMetadata<llvm::Constant>);
 
+template<typename R, HasMetadata T>
+R fromStringMetadata(const T *U, llvm::StringRef Name) {
+  using namespace llvm;
+
+  if (auto *MD = dyn_cast_or_null<MDTuple>(U->getMetadata(Name)))
+    if (auto *String = dyn_cast<MDString>(MD->getOperand(0)))
+      return R::fromString(String->getString());
+
+  return R::invalid();
+}
+
+template<HasMetadata T>
+void setStringMetadata(T *U, llvm::StringRef Name, llvm::StringRef Value) {
+  llvm::LLVMContext &C = getContext(U);
+  U->setMetadata(Name,
+                 llvm::MDTuple::get(C, { llvm::MDString::get(C, Value) }));
+}
+
 template<HasMetadata T>
 MetaAddress getMetaAddressMetadata(const T *U, llvm::StringRef Name) {
   using namespace llvm;
 
   if (auto *MD = dyn_cast_or_null<MDTuple>(U->getMetadata(Name)))
     if (auto *VAM = dyn_cast<ValueAsMetadata>(MD->getOperand(0)))
-      return MetaAddress::fromConstant(VAM->getValue());
+      return MetaAddress::fromValue(VAM->getValue());
 
   return MetaAddress::invalid();
+}
+
+template<HasMetadata T>
+void setMetaAddressMetadata(T *U, llvm::StringRef Name, const MetaAddress &MA) {
+  using namespace llvm;
+  auto *VAM = ValueAsMetadata::get(MA.toValue(getModule(U)));
+  auto *MD = MDTuple::get(getContext(U), VAM);
+  U->setMetadata(Name, MD);
 }
 
 template<typename T>
@@ -1426,3 +1487,20 @@ moveToNewFunctionType(llvm::Function &OldFunction, llvm::FunctionType &NewType);
 llvm::Function *changeFunctionType(llvm::Function &OldFunction,
                                    llvm::Type *NewReturnType,
                                    llvm::ArrayRef<llvm::Type *> NewArguments);
+
+template<typename T, typename Inserter>
+llvm::SmallVector<llvm::Value *, 4>
+unpack(llvm::IRBuilder<T, Inserter> &Builder, llvm::Value *V) {
+  using namespace llvm;
+  Type *Type = V->getType();
+  if (isa<IntegerType>(Type)) {
+    return { V };
+  } else if (auto *StructType = dyn_cast<llvm::StructType>(Type)) {
+    llvm::SmallVector<llvm::Value *, 4> Result;
+    for (unsigned I = 0; I < StructType->getNumElements(); ++I)
+      Result.push_back(Builder.CreateExtractValue(V, { I }));
+    return Result;
+  } else {
+    revng_abort("Cannot unpack the given type");
+  }
+}

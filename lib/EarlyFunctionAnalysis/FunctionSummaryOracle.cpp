@@ -65,7 +65,7 @@ importPrototype(Module &M,
 
 std::pair<const FunctionSummary *, bool>
 FunctionSummaryOracle::getCallSite(MetaAddress Function,
-                                   MetaAddress CallerBlockAddress,
+                                   BasicBlockID CallerBlockAddress,
                                    MetaAddress CalledLocalFunction,
                                    llvm::StringRef CalledSymbol) const {
   auto [Summary, IsTailCall] = getCallSiteImpl(Function, CallerBlockAddress);
@@ -82,12 +82,12 @@ FunctionSummaryOracle::getCallSite(MetaAddress Function,
 }
 
 bool FunctionSummaryOracle::registerCallSite(MetaAddress Function,
-                                             MetaAddress CallSite,
+                                             BasicBlockID CallSite,
                                              FunctionSummary &&New,
                                              bool IsTailCall) {
   revng_assert(Function.isValid());
   revng_assert(CallSite.isValid());
-  std::pair<MetaAddress, MetaAddress> Key = { Function, CallSite };
+  std::pair<MetaAddress, BasicBlockID> Key = { Function, CallSite };
   auto It = CallSites.find(Key);
   if (It != CallSites.end()) {
     auto &Recorded = It->second.first;
@@ -166,7 +166,7 @@ void importModel(Module &M,
          Function.CallSitePrototypes()) {
 
       Oracle.registerCallSite(Function.Entry(),
-                              CallSite.CallerBlockAddress(),
+                              BasicBlockID(CallSite.CallerBlockAddress()),
                               importPrototype(M,
                                               ABICSVs,
                                               CallSite.Attributes(),

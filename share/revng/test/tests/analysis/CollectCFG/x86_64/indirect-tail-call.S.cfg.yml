@@ -6,7 +6,7 @@
 - FunctionMetadata:
     ControlFlowGraph:
       - End: "2"
-        Start: "1"
+        ID: "1"
         Successors:
           - Destination: "3"
             Type: FunctionCall
@@ -14,7 +14,7 @@
 - FunctionMetadata:
     ControlFlowGraph:
       - End: "4"
-        Start: "3"
+        ID: "3"
         Successors:
           - Destination: ":Invalid"
             Type: FunctionCall
