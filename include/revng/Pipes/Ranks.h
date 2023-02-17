@@ -9,6 +9,7 @@
 #include "revng/Model/Segment.h"
 #include "revng/Model/Type.h"
 #include "revng/Pipeline/Rank.h"
+#include "revng/Support/BasicBlockID/YAMLTraits.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/YAMLTraits.h"
 
@@ -21,11 +22,14 @@ using UFK = model::UnionField::Key;
 
 } // namespace detail
 
+static_assert(HasScalarOrEnumTraits<MetaAddress>);
+static_assert(HasScalarOrEnumTraits<BasicBlockID>);
+
 inline auto Binary = pipeline::defineRootRank<"binary">();
 
 using pipeline::defineRank;
 inline auto Function = defineRank<"function", model::Function::Key>(Binary);
-inline auto BasicBlock = defineRank<"basic-block", MetaAddress>(Function);
+inline auto BasicBlock = defineRank<"basic-block", BasicBlockID>(Function);
 inline auto Instruction = defineRank<"instruction", MetaAddress>(BasicBlock);
 
 inline auto Type = defineRank<"type", model::Type::Key>(Binary);

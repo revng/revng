@@ -83,19 +83,18 @@ singleLineSize(std::string_view Text,
 }
 
 static yield::Graph::Size
-linkSize(const MetaAddress &Address,
+linkSize(const BasicBlockID &Address,
          const yield::Function &Function,
          const model::Binary &Binary,
          size_t IndicatorSize = 0,
-         const MetaAddress &NextAddress = MetaAddress::invalid()) {
+         const BasicBlockID &NextAddress = BasicBlockID::invalid()) {
   yield::Graph::Size Indicator(IndicatorSize, 0);
 
-  if (Address.isInvalid())
+  if (not Address.isValid())
     return Indicator + textSize("an unknown location");
 
-  if (auto Iterator = Binary.Functions().find(Address);
-      Iterator != Binary.Functions().end()) {
-    return Indicator + textSize(Iterator->name().str().str());
+  if (const auto *F = yield::tryGetFunction(Binary, Address)) {
+    return Indicator + textSize(F->name().str().str());
   } else if (NextAddress == Address) {
     return Indicator + textSize("the next instruction");
   } else if (auto Iterator = Function.ControlFlowGraph().find(Address);
@@ -188,7 +187,7 @@ basicBlockSize(const yield::BasicBlock &BasicBlock,
   // Account for the size of the label
   namespace A = model::Architecture;
   auto LabelIndicator = A::getAssemblyLabelIndicator(Binary.Architecture());
-  yield::Graph::Size Result = fontSize(linkSize(BasicBlock.Start(),
+  yield::Graph::Size Result = fontSize(linkSize(BasicBlock.ID(),
                                                 Function,
                                                 Binary,
                                                 LabelIndicator.size()),
@@ -221,7 +220,7 @@ void yield::cfg::calculateNodeSizes(Graph &Graph,
                                     const yield::Function &Function,
                                     const model::Binary &Binary,
                                     const Configuration &Configuration) {
-  for (auto *Node : Graph.nodes()) {
+  for (yield::Node *Node : Graph.nodes()) {
     revng_assert(Node != nullptr);
 
     if (Node->Address.isValid()) {
@@ -229,9 +228,8 @@ void yield::cfg::calculateNodeSizes(Graph &Graph,
       if (auto Iterator = Function.ControlFlowGraph().find(Node->Address);
           Iterator != Function.ControlFlowGraph().end()) {
         Node->Size = basicBlockSize(*Iterator, Function, Binary, Configuration);
-      } else if (auto Iterator = Binary.Functions().find(Node->Address);
-                 Iterator != Binary.Functions().end()) {
-        Node->Size = singleLineSize(Iterator->name().str(),
+      } else if (const auto *F = tryGetFunction(Binary, Node->Address)) {
+        Node->Size = singleLineSize(F->name().str(),
                                     Configuration.InstructionFontSize,
                                     Configuration);
       } else {

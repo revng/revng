@@ -43,7 +43,7 @@ public:
   }
 
   bool isFallthrough(llvm::BasicBlock *BB) const {
-    return isFallthrough(getBasicBlockPC(BB));
+    return isFallthrough(getBasicBlockID(BB).start());
   }
 
   bool isFallthrough(llvm::Instruction *I) const {

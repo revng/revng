@@ -54,12 +54,12 @@ static MetaAddress getFinalAddressOfBasicBlock(llvm::BasicBlock *BB) {
 static UpcastablePointer<efa::FunctionEdgeBase>
 makeCall(MetaAddress Destination) {
   using ReturnType = UpcastablePointer<efa::FunctionEdgeBase>;
-  return ReturnType::make<efa::CallEdge>(Destination,
+  return ReturnType::make<efa::CallEdge>(BasicBlockID(Destination),
                                          efa::FunctionEdgeType::FunctionCall);
 };
 
 static UpcastablePointer<efa::FunctionEdgeBase>
-makeEdge(MetaAddress Destination, efa::FunctionEdgeType::Values Type) {
+makeEdge(BasicBlockID Destination, efa::FunctionEdgeType::Values Type) {
   revng_assert(Type != efa::FunctionEdgeType::FunctionCall);
   efa::FunctionEdge *Result = nullptr;
   using ReturnType = UpcastablePointer<efa::FunctionEdgeBase>;
@@ -68,20 +68,26 @@ makeEdge(MetaAddress Destination, efa::FunctionEdgeType::Values Type) {
 
 static UpcastablePointer<efa::FunctionEdgeBase>
 makeIndirectEdge(efa::FunctionEdgeType::Values Type) {
-  return makeEdge(MetaAddress::invalid(), Type);
+  return makeEdge(BasicBlockID::invalid(), Type);
 };
 
 namespace efa {
 
 /// Indexes for arguments of indirect_branch_info
 enum {
-  CallerBlockAddressIndex,
+  CallerBlockIDIndex,
   CalledSymbolIndex,
   JumpsToReturnAddressIndex,
   StackPointerOffsetIndex,
   ReturnValuePreservedIndex,
   PreservedRegistersIndex
 };
+
+static efa::BasicBlock &
+blockFromIndirectBranchInfo(CallBase *CI, SortedVector<efa::BasicBlock> &CFG) {
+  auto *BlockIDArgument = CI->getArgOperand(CallerBlockIDIndex);
+  return CFG.at(BasicBlockID::fromValue(BlockIDArgument));
+}
 
 static std::unique_ptr<llvm::raw_ostream>
 streamFromOption(const opt<std::string> &Option) {
@@ -150,7 +156,8 @@ OutlinedFunction CFGAnalyzer::outline(llvm::BasicBlock *Entry) {
 
   // Make sure we start a new block for each jump target
   auto IsJumpTarget = [](llvm::CallBase *Call) {
-    return getLimitedValue(&*Call->getArgOperand(2)) == 1;
+    auto IsJumpTarget = NewPCArguments::IsJumpTarget;
+    return getLimitedValue(&*Call->getArgOperand(IsJumpTarget)) == 1;
   };
   for (llvm::CallBase *Call : callers(M.getFunction("newpc")))
     if (IsJumpTarget(Call) and not IsFirst(Call))
@@ -158,25 +165,22 @@ OutlinedFunction CFGAnalyzer::outline(llvm::BasicBlock *Entry) {
 
   return Result;
 }
+
 llvm::FunctionType *CFGAnalyzer::createCallMarkerType(llvm::Module &M) {
   auto &Context = M.getContext();
-  Type *MetaAddressStruct = MetaAddress::getStruct(&M);
   Type *I8Ptr = Type::getInt8PtrTy(Context);
   Type *BoolType = Type::getInt1Ty(Context);
   Type *Void = Type::getVoidTy(Context);
   return llvm::FunctionType::get(Void,
-                                 { MetaAddressStruct,
-                                   MetaAddressStruct,
-                                   I8Ptr,
-                                   BoolType },
+                                 { I8Ptr, I8Ptr, I8Ptr, BoolType },
                                  false);
 }
 
 llvm::FunctionType *CFGAnalyzer::createRetMarkerType(llvm::Module &M) {
   auto &Context = M.getContext();
   Type *Void = Type::getVoidTy(Context);
-  Type *MetaAddressStruct = MetaAddress::getStruct(&M);
-  return llvm::FunctionType::get(Void, { MetaAddressStruct }, false);
+  Type *I8Ptr = Type::getInt8PtrTy(Context);
+  return llvm::FunctionType::get(Void, { I8Ptr }, false);
 }
 
 std::optional<UpcastablePointer<efa::FunctionEdgeBase>>
@@ -191,8 +195,8 @@ CFGAnalyzer::handleCall(llvm::CallInst *PreCallHookCall) {
   Value *CalleePC = PreCallHookCall->getArgOperand(1);
   MetaAddress CalleeAddress = MetaAddress::invalid();
   bool IsDirectCall = false;
-  if (isa<ConstantStruct>(CalleePC)) {
-    auto Address = MetaAddress::fromConstant(CalleePC);
+  auto Address = BasicBlockID::fromValue(CalleePC).notInlinedAddress();
+  if (Address.isValid()) {
     IsDirectCall = Binary->Functions().count(Address) != 0;
     if (IsDirectCall)
       CalleeAddress = Address;
@@ -239,18 +243,20 @@ CFGAnalyzer::collectDirectCFG(OutlinedFunction *OF) {
   SortedVector<efa::BasicBlock> CFG;
 
   for (BasicBlock &BB : *OF->Function) {
-    if (GeneratedCodeBasicInfo::isJumpTarget(&BB)) {
+    if (isJumpTarget(&BB)) {
       // Create a efa::BasicBlock for each jump target
-      MetaAddress Start = getBasicBlockPC(&BB);
+      BasicBlockID ID = getBasicBlockID(&BB);
+      MetaAddress End = getFinalAddressOfBasicBlock(&BB);
+      revng_assert(End.isValid());
 
-      efa::BasicBlock Block{ Start };
+      efa::BasicBlock Block{ ID };
+      Block.End() = End;
+      Block.InlinedFrom() = OF->InlinedFunctionsByIndex.at(ID.inliningIndex());
       bool ReachesUnexpectedPC = false;
 
       // Initialize the end address of the basic block, we'll extend it later on
-      Block.End() = getFinalAddressOfBasicBlock(&BB);
-      revng_assert(Block.End().isValid());
       revng_log(Log,
-                "Creating block starting at " << Start.toString()
+                "Creating block starting at " << ID.toString()
                                               << " (preliminary ending is "
                                               << Block.End().toString() << ")");
       LoggerIndent<> Indent(Log);
@@ -295,11 +301,11 @@ CFGAnalyzer::collectDirectCFG(OutlinedFunction *OF) {
               revng_log(Log, "It's a direct call, emitting a CallEdge");
               Block.Successors().insert(*MaybeEdge);
             }
-          } else if (GeneratedCodeBasicInfo::isJumpTarget(Succ)) {
+          } else if (isJumpTarget(Succ)) {
             // TODO: handle situation in which it's a *direct* tail call.
             //       We might need an IBI here to know if the stack position is
             //       compatible with a tail call.
-            MetaAddress Destination = getBasicBlockPC(Succ);
+            BasicBlockID Destination = getBasicBlockID(Succ);
             revng_log(Log,
                       "It's a jump target: emitting a DirectBranch to "
                         << Destination.toString());
@@ -326,14 +332,14 @@ CFGAnalyzer::collectDirectCFG(OutlinedFunction *OF) {
           revng_log(Log, "Reaches unreachable, add to successors");
           revng_assert(Block.Successors().empty());
           using namespace efa::FunctionEdgeType;
-          auto NewEdge = makeEdge(MetaAddress::invalid(), Unreachable);
+          auto NewEdge = makeEdge(BasicBlockID::invalid(), Unreachable);
           Block.Successors().insert(NewEdge);
         } else if (ReachesUnexpectedPC) {
           // successor of the current basic block.
           revng_log(Log,
                     "No other successors other than UnexpectedPC, emitting "
                     "LongJmp");
-          auto Edge = makeEdge(MetaAddress::invalid(),
+          auto Edge = makeEdge(BasicBlockID::invalid(),
                                efa::FunctionEdgeType::LongJmp);
           Block.Successors().insert(Edge);
         }
@@ -402,8 +408,7 @@ void CFGAnalyzer::createIBIMarker(OutlinedFunction *OutlinedFunction) {
   Type *I8Ptr = Type::getInt8PtrTy(Context);
   SmallVector<Type *, 16> ArgTypes;
   ArgTypes.resize(PreservedRegistersIndex);
-  Type *MetaAddressTy = MetaAddress::getStruct(&M);
-  ArgTypes[CallerBlockAddressIndex] = MetaAddressTy;
+  ArgTypes[CallerBlockIDIndex] = I8Ptr;
   ArgTypes[CalledSymbolIndex] = I8Ptr;
   ArgTypes[JumpsToReturnAddressIndex] = Initial.ReturnPC->getType();
   ArgTypes[StackPointerOffsetIndex] = Initial.StackPointer->getType();
@@ -455,9 +460,9 @@ void CFGAnalyzer::createIBIMarker(OutlinedFunction *OutlinedFunction) {
     ArgValues.resize(PreservedRegistersIndex);
 
     // Record the MetaAddress of the caller
-    auto NewPCJT = GCBI.getJumpTarget(Term->getParent());
-    revng_assert(NewPCJT.isValid());
-    ArgValues[CallerBlockAddressIndex] = NewPCJT.toConstant(MetaAddressTy);
+    auto NewPCID = getBasicBlockID(getJumpTargetBlock(Term->getParent()));
+    revng_assert(NewPCID.isValid());
+    ArgValues[CallerBlockIDIndex] = NewPCID.toValue(getModule(Term));
 
     // Record the name of the symbol, if any
     using CPN = ConstantPointerNull;
@@ -541,7 +546,7 @@ void CFGAnalyzer::materializePCValues(llvm::Function *F,
   for (auto &BB : *F) {
     for (auto &I : BB) {
       if (auto *Call = getCallTo(&I, "newpc")) {
-        MetaAddress NewPC = GeneratedCodeBasicInfo::getPCFromNewPC(Call);
+        MetaAddress NewPC = blockIDFromNewPC(Call).start();
         IRB.SetInsertPoint(Call);
         PCH->setPC(IRB, NewPC);
       }
@@ -705,15 +710,14 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
         JumpsToReturnAddress = ConstantOffset->getSExtValue() == 0;
     }
 
-    Argument = CI->getArgOperand(CallerBlockAddressIndex);
-    auto BlockAddress = MetaAddress::fromConstant(Argument);
+    efa::BasicBlock Block = blockFromIndirectBranchInfo(CI, CFG);
 
     // Is this a tail call? If so, we are very interested in the FSO since
     // it's useful to determin the FSO of the caller
     auto *CalledSymbolArgument = CI->getArgOperand(CalledSymbolIndex);
     StringRef CalledSymbol = extractFromConstantStringPtr(CalledSymbolArgument);
     auto [Summary, IsTailCall] = Oracle.getCallSite(OutlinedFunction->Address,
-                                                    BlockAddress,
+                                                    Block.ID(),
                                                     MetaAddress::invalid(),
                                                     CalledSymbol);
     revng_assert(Summary->ElectedFSO.has_value());
@@ -786,9 +790,7 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
         // We found a tail call that leads to a FSO that's not coherent with
         // the elected one. Purge it turning it into a LongJmp.
         Different = true;
-        auto *Argument = CI->getArgOperand(CallerBlockAddressIndex);
-        auto BlockAddress = MetaAddress::fromConstant(Argument);
-        efa::BasicBlock &Block = CFG.at(BlockAddress);
+        efa::BasicBlock &Block = blockFromIndirectBranchInfo(CI, CFG);
         revng_assert(Block.Successors().size() == 1);
         auto OldEdge = cast<efa::CallEdge>(Block.Successors().begin()->get());
         revng_assert(OldEdge->IsTailCall());
@@ -857,9 +859,7 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
   // Commit  IBIResults to the CFG
   //
   for (const auto &[CI, Edge] : IBIResult) {
-    auto *Argument = CI->getArgOperand(CallerBlockAddressIndex);
-    auto PC = MetaAddress::fromConstant(Argument);
-    efa::BasicBlock &Block = CFG.at(PC);
+    efa::BasicBlock &Block = blockFromIndirectBranchInfo(CI, CFG);
     Block.Successors().insert(std::move(Edge));
   }
 
@@ -910,7 +910,7 @@ FunctionSummary CFGAnalyzer::analyze(llvm::BasicBlock *Entry) {
   using llvm::BasicBlock;
   using namespace ABIAnalyses;
 
-  MetaAddress EntryAddress = getBasicBlockPC(Entry);
+  BasicBlockID EntryID = getBasicBlockID(Entry);
 
   IRBuilder<> Builder(M.getContext());
   ABIAnalysesResults ABIResults;
@@ -990,12 +990,10 @@ void CallSummarizer::handleCall(MetaAddress CallerBlock,
   LLVMContext &Context = getContext(M);
 
   // Mark end of basic block with a pre-hook call
-  StructType *MetaAddressTy = MetaAddress::getStruct(M);
-
   Value *IsTailCallValue = ConstantInt::getBool(Context, IsTailCall);
 
-  SmallVector<Value *, 4> Args = { CallerBlock.toConstant(MetaAddressTy),
-                                   Callee.toConstant(MetaAddressTy),
+  SmallVector<Value *, 4> Args = { CallerBlock.toValue(M),
+                                   Callee.toValue(M),
                                    SymbolNamePointer,
                                    IsTailCallValue };
 
@@ -1027,14 +1025,13 @@ void CallSummarizer::handlePostNoReturn(llvm::IRBuilder<> &Builder) {
 void CallSummarizer::handleIndirectJump(llvm::IRBuilder<> &Builder,
                                         MetaAddress Block,
                                         llvm::Value *SymbolNamePointer) {
-  llvm::Type *MetaAddressTy = PreCallHook->getArg(0)->getType();
   Builder.CreateCall(PreCallHook,
-                     { Block.toConstant(MetaAddressTy),
-                       MetaAddress::invalid().toConstant(MetaAddressTy),
+                     { Block.toValue(M),
+                       MetaAddress::invalid().toValue(M),
                        SymbolNamePointer,
                        Builder.getTrue() });
 
-  Builder.CreateCall(RetHook, { Block.toConstant(MetaAddressTy) });
+  Builder.CreateCall(RetHook, { Block.toValue(M) });
 }
 
 void CallSummarizer::clobberCSVs(llvm::IRBuilder<> &Builder,

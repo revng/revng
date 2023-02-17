@@ -12,7 +12,7 @@
 #include "revng/Yield/Function.h"
 #include "revng/Yield/Plain.h"
 
-static std::string linkAddress(const MetaAddress &Address) {
+static std::string linkAddress(const BasicBlockID &Address) {
   std::string Result = Address.toString();
 
   constexpr std::array ForbiddenCharacters = { ' ', ':', '!', '#',  '?',
@@ -26,13 +26,12 @@ static std::string linkAddress(const MetaAddress &Address) {
   return Result;
 }
 
-static std::string deduceName(const MetaAddress &Target,
+static std::string deduceName(const BasicBlockID &Target,
                               const yield::Function &Function,
                               const model::Binary &Binary) {
-  if (auto Iterator = Binary.Functions().find(Target);
-      Iterator != Binary.Functions().end()) {
+  if (auto *F = yield::tryGetFunction(Binary, Target)) {
     // The target is a function
-    return Iterator->name().str().str();
+    return F->name().str().str();
   } else if (auto Iterator = Function.ControlFlowGraph().find(Target);
              Iterator != Function.ControlFlowGraph().end()) {
     // The target is a basic block
@@ -51,7 +50,7 @@ static std::string deduceName(const MetaAddress &Target,
 static std::string label(const yield::BasicBlock &BasicBlock,
                          const yield::Function &Function,
                          const model::Binary &Binary) {
-  std::string Result = deduceName(BasicBlock.Start(), Function, Binary);
+  std::string Result = deduceName(BasicBlock.ID(), Function, Binary);
 
   namespace Arch = model::Architecture;
   auto LabelIndicator = Arch::getAssemblyLabelIndicator(Binary.Architecture());
@@ -123,7 +122,7 @@ std::string yield::plain::functionAssembly(const yield::Function &Function,
   return Result;
 }
 
-std::string yield::plain::controlFlowNode(const MetaAddress &Address,
+std::string yield::plain::controlFlowNode(const BasicBlockID &Address,
                                           const yield::Function &Function,
                                           const model::Binary &Binary) {
   auto Iterator = Function.ControlFlowGraph().find(Address);

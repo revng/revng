@@ -297,7 +297,7 @@ public:
     if (BB->empty())
       return false;
 
-    MetaAddress PC = getPCFromNewPCCall(&*BB->begin());
+    MetaAddress PC = getBasicBlockAddress(BB);
     if (PC.isValid())
       return isJumpTarget(PC);
 
@@ -347,7 +347,7 @@ public:
   BlockMap::const_iterator end() const { return JumpTargets.end(); }
 
   void registerJT(llvm::BasicBlock *BB, JTReason::Values Reason) {
-    registerJT(getBasicBlockPC(notNull(BB)), Reason);
+    registerJT(getBasicBlockAddress(notNull(BB)), Reason);
   }
 
   // TODO: this is a likely approach is broken, it depends on the order
@@ -524,27 +524,11 @@ private:
   /// \brief Translate the non-constant jumps into jumps to the dispatcher
   void translateIndirectJumps();
 
-  /// \brief Helper function to check if an instruction is a call to `newpc`
-  ///
-  /// \return 0 if \p I is not a call to `newpc`, otherwise the PC address of
-  ///         associated to the call to `newpc`
-  MetaAddress getPCFromNewPCCall(const llvm::Instruction *I) {
-    if (auto *CallNewPC = llvm::dyn_cast<llvm::CallInst>(I)) {
-      if (CallNewPC->getCalledFunction() == nullptr
-          || CallNewPC->getCalledFunction()->getName() != "newpc")
-        return MetaAddress::invalid();
-
-      return MetaAddress::fromConstant(CallNewPC->getArgOperand(0));
-    }
-
-    return MetaAddress::invalid();
-  }
-
   /// \brief Erase \p I, and deregister it in case it's a call to `newpc`
   void eraseInstruction(llvm::Instruction *I) {
     revng_assert(I->use_empty());
 
-    MetaAddress PC = getPCFromNewPCCall(I);
+    MetaAddress PC = getBasicBlockAddress(I->getParent());
     if (PC.isValid())
       OriginalInstructionAddresses.erase(PC);
     eraseFromParent(I);

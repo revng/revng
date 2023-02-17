@@ -35,7 +35,7 @@ void IBIPP::serialize(CallBase *Call) {
     if (isa<ConstantInt>(Call->getArgOperand(I))) {
       OS << "," << cast<ConstantInt>(Call->getArgOperand(I))->getSExtValue();
     } else if (isa<StructType>(Call->getArgOperand(I)->getType())) {
-      auto PC = MetaAddress::fromConstant(Call->getArgOperand(I));
+      auto PC = MetaAddress::fromValue(Call->getArgOperand(I));
       OS << "," << PC.address();
     } else {
       OS << ",unknown";

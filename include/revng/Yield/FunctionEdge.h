@@ -28,6 +28,14 @@ private:
 
 public:
   using yield::generated::FunctionEdge::FunctionEdge;
+
+  FunctionEdge() : yield::generated::FunctionEdge() { Type() = AssociatedType; }
+  FunctionEdge(BasicBlockID Destination, FunctionEdgeType::Values Type) :
+    yield::generated::FunctionEdge() {
+    this->Destination() = Destination;
+    this->Type() = Type;
+  }
+
   explicit FunctionEdge(const efa::FunctionEdge &Source);
 
 public:

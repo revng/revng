@@ -21,15 +21,18 @@
 name: BasicBlock
 type: struct
 fields:
-  - name: Start
-    doc: Start address of the basic block
-    type: MetaAddress
+  - name: ID
+    type: BasicBlockID
 
   - name: End
     doc: |
       End address of the basic block, i.e., the address where the last
       instruction ends
     type: MetaAddress
+
+  - name: InlinedFrom
+    type: MetaAddress
+    doc: Address of the function this basic block has been inlined from
 
   - name: Successors
     doc: List of successor edges
@@ -62,7 +65,7 @@ fields:
     optional: true
 
 key:
-  - Start
+  - ID
 
 TUPLE-TREE-YAML */
 
@@ -73,6 +76,11 @@ namespace yield {
 class BasicBlock : public generated::BasicBlock {
 public:
   using generated::BasicBlock::BasicBlock;
+
+public:
+  BasicBlockID nextBlock() const {
+    return BasicBlockID(End(), ID().inliningIndex());
+  }
 
 public:
   bool verify(model::VerifyHelper &VH) const;

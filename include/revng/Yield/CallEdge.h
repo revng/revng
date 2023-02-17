@@ -51,6 +51,21 @@ private:
 
 public:
   using yield::generated::CallEdge::CallEdge;
+
+  CallEdge() : yield::generated::CallEdge() { Type() = AssociatedType; }
+
+  CallEdge(BasicBlockID Destination, FunctionEdgeType::Values Type) :
+    yield::generated::CallEdge() {
+    this->Destination() = Destination;
+    this->Type() = Type;
+  }
+
+  CallEdge(MetaAddress Destination, FunctionEdgeType::Values Type) :
+    yield::generated::CallEdge() {
+    this->Destination() = BasicBlockID(Destination);
+    this->Type() = Type;
+  }
+
   explicit CallEdge(const efa::CallEdge &Source);
 
 public:
@@ -100,7 +115,9 @@ private:
       const auto &F = Binary.ImportedDynamicFunctions().at(DynamicFunction());
       return &F.Attributes();
     } else if (Destination().isValid()) {
-      return &Binary.Functions().at(Destination()).Attributes();
+      return &Binary.Functions()
+                .at(Destination().notInlinedAddress())
+                .Attributes();
     } else {
       return nullptr;
     }
@@ -128,7 +145,9 @@ inline model::TypePath getPrototype(const model::Binary &Binary,
                  .Prototype();
     } else if (Edge.Destination().isValid()) {
       // Get the function prototype
-      Result = Binary.Functions().at(Edge.Destination()).Prototype();
+      Result = Binary.Functions()
+                 .at(Edge.Destination().notInlinedAddress())
+                 .Prototype();
     }
   }
 

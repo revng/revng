@@ -51,6 +51,19 @@ public:
   }
 };
 
+// TODO: move me somewhere more appropriate
+inline const model::Function *
+tryGetFunction(const model::Binary &Binary, const BasicBlockID &Target) {
+  const model::Function *F = nullptr;
+  if (not Target.isInlined()) {
+    auto It = Binary.Functions().find(Target.start());
+    if (It != Binary.Functions().end())
+      F = &*It;
+  }
+
+  return F;
+}
+
 } // namespace yield
 
 #include "revng/Yield/Generated/Late/Function.h"

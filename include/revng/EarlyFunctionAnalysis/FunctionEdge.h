@@ -24,8 +24,9 @@ private:
 
 public:
   using generated::FunctionEdge::FunctionEdge;
+
   FunctionEdge() : efa::generated::FunctionEdge() { Type() = AssociatedType; }
-  FunctionEdge(MetaAddress Destination, efa::FunctionEdgeType::Values Type) :
+  FunctionEdge(BasicBlockID Destination, FunctionEdgeType::Values Type) :
     efa::generated::FunctionEdge() {
     this->Destination() = Destination;
     this->Type() = Type;

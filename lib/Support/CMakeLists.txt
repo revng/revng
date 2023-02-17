@@ -7,6 +7,7 @@ revng_add_library_internal(
   SHARED
   ProgramRunner.cpp
   Assert.cpp
+  BasicBlockID.cpp
   CommandLine.cpp
   Debug.cpp
   IRAnnotators.cpp

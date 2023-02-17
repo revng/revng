@@ -31,8 +31,6 @@ static RegisterGCBI X("gcbi", "Generated Code Basic Info", true, true);
 void GeneratedCodeBasicInfo::run(Module &M) {
   RootFunction = M.getFunction("root");
   NewPC = M.getFunction("newpc");
-  if (NewPC != nullptr)
-    MetaAddressStruct = cast<StructType>(NewPC->arg_begin()->getType());
 
   revng_log(PassesLog, "Starting GeneratedCodeBasicInfo");
 
@@ -102,7 +100,7 @@ void GeneratedCodeBasicInfo::parseRoot() {
       case BlockType::JumpTargetBlock: {
         auto *Call = cast<CallInst>(&*BB.begin());
         revng_assert(Call->getCalledFunction() == NewPC);
-        JumpTargets[MetaAddress::fromConstant(Call->getArgOperand(0))] = &BB;
+        JumpTargets[addressFromNewPC(Call)] = &BB;
         break;
       }
       case BlockType::RootDispatcherHelperBlock:
@@ -115,45 +113,6 @@ void GeneratedCodeBasicInfo::parseRoot() {
       }
     }
   }
-}
-
-GeneratedCodeBasicInfo::SuccessorsList
-GeneratedCodeBasicInfo::getSuccessors(BasicBlock *BB) {
-  parseRoot();
-
-  bool IsRoot = BB->getParent() == RootFunction;
-
-  SuccessorsList Result;
-
-  df_iterator_default_set<BasicBlock *> Visited;
-
-  if (IsRoot) {
-    Visited.insert(AnyPC);
-    Visited.insert(UnexpectedPC);
-  }
-
-  for (BasicBlock *Block : depth_first_ext(BB, Visited)) {
-    for (BasicBlock *Successor : successors(Block)) {
-      revng_assert(Successor != Dispatcher);
-
-      MetaAddress Address = getBasicBlockPC(Successor);
-      const auto IBDHB = BlockType::IndirectBranchDispatcherHelperBlock;
-      if (Address.isValid()) {
-        Visited.insert(Successor);
-        Result.Addresses.insert(Address);
-      } else if (IsRoot and Successor == AnyPC) {
-        Result.AnyPC = true;
-      } else if (IsRoot and Successor == UnexpectedPC) {
-        Result.UnexpectedPC = true;
-      } else if (getType(Successor) == IBDHB) {
-        // Ignore
-      } else {
-        Result.Other = true;
-      }
-    }
-  }
-
-  return Result;
 }
 
 SmallVector<std::pair<BasicBlock *, bool>, 4>
@@ -176,11 +135,10 @@ GeneratedCodeBasicInfo::blocksByPCRange(MetaAddress Start, MetaAddress End) {
       for (BasicBlock *Successor : make_range(SuccBegin, SuccEnd)) {
 
         // Ignore unexpectedpc
-        using GCBI = GeneratedCodeBasicInfo;
         if (getType(Successor) == BlockType::UnexpectedPCBlock)
           continue;
 
-        auto SuccessorMA = GCBI::getPCFromNewPC(Successor);
+        auto SuccessorMA = getBasicBlockAddress(Successor);
         if (not isPartOfRootDispatcher(Successor)
             and (SuccessorMA.isInvalid()
                  or (SuccessorMA.address() >= Start.address()
@@ -200,35 +158,6 @@ GeneratedCodeBasicInfo::blocksByPCRange(MetaAddress Start, MetaAddress End) {
     Result.emplace_back(BB, IsBoundary == Yes);
   }
 
-  return Result;
-}
-
-static RecursiveCoroutine<void>
-findJumpTarget(llvm::BasicBlock *&Result,
-               llvm::BasicBlock *BB,
-               std::set<BasicBlock *> &Visited) {
-  Visited.insert(BB);
-
-  if (GeneratedCodeBasicInfo::isJumpTarget(BB)) {
-    revng_assert(Result == nullptr,
-                 "This block leads to multiple jump targets");
-    Result = BB;
-  } else {
-    for (BasicBlock *Predecessor : predecessors(BB)) {
-      if (Visited.count(Predecessor) == 0) {
-        rc_recur findJumpTarget(Result, Predecessor, Visited);
-      }
-    }
-  }
-
-  rc_return;
-}
-
-llvm::BasicBlock *
-GeneratedCodeBasicInfo::getJumpTargetBlock(llvm::BasicBlock *BB) {
-  BasicBlock *Result = nullptr;
-  std::set<BasicBlock *> Visited;
-  findJumpTarget(Result, BB, Visited);
   return Result;
 }
 

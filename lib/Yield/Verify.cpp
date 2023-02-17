@@ -45,7 +45,7 @@ bool yield::Instruction::verify(model::VerifyHelper &VH) const {
 }
 
 bool yield::BasicBlock::verify(model::VerifyHelper &VH) const {
-  if (Start().isInvalid())
+  if (not ID().isValid())
     return VH.fail("A basic block has to have a valid start address.");
   if (End().isInvalid())
     return VH.fail("A basic block has to have a valid end address.");

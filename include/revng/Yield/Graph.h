@@ -7,7 +7,7 @@
 #include <vector>
 
 #include "revng/ADT/GenericGraph.h"
-#include "revng/Support/MetaAddress.h"
+#include "revng/Support/BasicBlockID.h"
 
 namespace yield {
 
@@ -31,14 +31,14 @@ struct Size {
 };
 
 struct Node {
-  explicit Node(const MetaAddress &Address = MetaAddress::invalid(),
-                const MetaAddress &NextAddress = MetaAddress::invalid(),
+  explicit Node(const BasicBlockID &Address = BasicBlockID::invalid(),
+                const BasicBlockID &NextAddress = BasicBlockID::invalid(),
                 const Point &Center = { 0, 0 },
                 const Size &Size = { 0, 0 }) :
     Address(Address), NextAddress(NextAddress), Center(Center), Size(Size) {}
 
-  MetaAddress Address;
-  MetaAddress NextAddress;
+  BasicBlockID Address;
+  BasicBlockID NextAddress;
   Point Center;
   Size Size;
 };

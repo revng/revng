@@ -20,18 +20,18 @@ using SuccessorContainer = SortedVector<UpcastablePointer<FunctionEdgeBase>>;
 
 template<typename T>
 concept SpecializationOfBasicBlock = requires(T Instance) {
-  { Instance.Start() } -> convertible_to<MetaAddress>;
+  { Instance.ID() } -> convertible_to<BasicBlockID>;
   { Instance.End() } -> convertible_to<MetaAddress>;
 };
 
 struct ParsedSuccessor {
-  MetaAddress NextInstructionAddress;
+  BasicBlockID NextInstructionAddress;
   MetaAddress OptionalCallAddress;
 };
 
 template<typename T>
 inline ParsedSuccessor parseSuccessor(const T &Edge,
-                                      const MetaAddress &FallthroughAddress,
+                                      const BasicBlockID &FallthroughAddress,
                                       const model::Binary &Binary) {
   using FunctionEdgeType = std::decay_t<decltype(Edge.Type())>;
   switch (Edge.Type()) {
@@ -50,16 +50,16 @@ inline ParsedSuccessor parseSuccessor(const T &Edge,
     using CallEdge = std::tuple_element_t<0, concrete_types_traits_t<T>>;
     auto *CE = llvm::cast<CallEdge>(&Edge);
 
-    MetaAddress NextInstructionAddress = MetaAddress::invalid();
+    auto NextInstructionAddress = BasicBlockID::invalid();
     if (not CE->hasAttribute(Binary, model::FunctionAttribute::NoReturn)
         and not CE->IsTailCall()) {
       NextInstructionAddress = FallthroughAddress;
     }
     return ParsedSuccessor{ .NextInstructionAddress = NextInstructionAddress,
-                            .OptionalCallAddress = Edge.Destination() };
+                            .OptionalCallAddress = Edge.Destination().start() };
   }
   case FunctionEdgeType::Killer:
-    return ParsedSuccessor{ .NextInstructionAddress = MetaAddress::invalid(),
+    return ParsedSuccessor{ .NextInstructionAddress = BasicBlockID::invalid(),
                             .OptionalCallAddress = MetaAddress::invalid() };
 
   default:
@@ -94,39 +94,40 @@ template<SpecializationOfGenericGraph GraphType,
          template<typename...>
          typename Container>
 requires std::is_constructible_v<typename GraphType::Node, const MetaAddress &>
-  std::pair<GraphType, std::map<MetaAddress, typename GraphType::Node *>>
+  std::pair<GraphType, std::map<BasicBlockID, typename GraphType::Node *>>
   buildControlFlowGraph(const Container<BasicBlockType, OtherTs...> &BB,
                         const MetaAddress &EntryAddress,
                         const model::Binary &Binary) {
   // clang-format on
   using Node = typename GraphType::Node;
-  std::pair<GraphType, std::map<MetaAddress, Node *>> Res;
+  std::pair<GraphType, std::map<BasicBlockID, Node *>> Res;
 
   auto &[Graph, AddressToNodeMap] = Res;
   for (const BasicBlockType &Block : BB) {
-    revng_assert(Block.Start().isValid());
-    auto *NewNode = Graph.addNode(Node{ Block.Start() });
-    auto [_, Success] = AddressToNodeMap.try_emplace(Block.Start(), NewNode);
+    revng_assert(Block.ID().isValid());
+    auto *NewNode = Graph.addNode(Node{ Block.ID() });
+    auto [_, Success] = AddressToNodeMap.try_emplace(Block.ID(), NewNode);
     revng_assert(Success != false,
                  "Different basic blocks with the same `Start` address");
   }
 
   Node *ExitNode = nullptr;
   for (const BasicBlockType &Block : BB) {
-    auto FromNodeIterator = AddressToNodeMap.find(Block.Start());
+    auto FromNodeIterator = AddressToNodeMap.find(Block.ID());
     revng_assert(FromNodeIterator != AddressToNodeMap.end());
 
     for (const auto &Edge : Block.Successors()) {
-      auto [NextInstruction, _] = parseSuccessor(*Edge, Block.End(), Binary);
+      auto [NextInstruction,
+            _] = parseSuccessor(*Edge, Block.nextBlock(), Binary);
       if (NextInstruction.isValid()) {
         auto ToNodeIterator = AddressToNodeMap.find(NextInstruction);
         revng_assert(ToNodeIterator != AddressToNodeMap.end());
         FromNodeIterator->second->addSuccessor(ToNodeIterator->second);
       } else {
         if (ExitNode == nullptr) {
-          constexpr auto Invalid = MetaAddress::invalid();
+          constexpr auto Invalid = BasicBlockID::invalid();
           ExitNode = Graph.addNode(Node{ Invalid });
-          auto [_, Succ] = AddressToNodeMap.try_emplace(MetaAddress::invalid(),
+          auto [_, Succ] = AddressToNodeMap.try_emplace(BasicBlockID::invalid(),
                                                         ExitNode);
           revng_assert(Succ != false);
         }
@@ -136,7 +137,7 @@ requires std::is_constructible_v<typename GraphType::Node, const MetaAddress &>
   }
 
   revng_assert(EntryAddress.isValid());
-  auto EntryNodeIterator = AddressToNodeMap.find(EntryAddress);
+  auto EntryNodeIterator = AddressToNodeMap.find(BasicBlockID(EntryAddress));
   revng_assert(EntryNodeIterator != AddressToNodeMap.end());
   Graph.setEntryNode(EntryNodeIterator->second);
 

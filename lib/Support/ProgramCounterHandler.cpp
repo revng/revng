@@ -357,27 +357,46 @@ bool PCH::isPCAffectingHelper(Instruction *I) const {
   return false;
 }
 
-llvm::Value *ProgramCounterHandler::loadPC(llvm::IRBuilder<> &Builder) const {
+static llvm::Value *buildPlainMetaAddressImpl(llvm::IRBuilder<> &Builder,
+                                              Value *Epoch,
+                                              Value *AddressSpace,
+                                              Value *Type,
+                                              Value *Address) {
   using namespace llvm;
 
   BasicBlock *BB = Builder.GetInsertBlock();
   Module *M = BB->getParent()->getParent();
-  Value *V = UndefValue::get(MetaAddress::getStruct(M));
-  unsigned I = 0;
-  auto Insert = [&](llvm::GlobalVariable *CSV) {
-    using IV = InsertValueInst;
-    Value *ToInsert = Builder.CreateZExt(Builder.CreateLoad(CSV),
-                                         V->getType()->getStructElementType(I));
-    V = Builder.Insert(IV::Create(V, ToInsert, { I }));
-    ++I;
+
+  Function *MetaAddressConstuctor = M->getFunction("build_PlainMetaAddress");
+  auto *FT = MetaAddressConstuctor->getFunctionType();
+  return Builder
+    .CreateCall(MetaAddressConstuctor,
+                { Builder.CreateZExt(Epoch, FT->getParamType(0)),
+                  Builder.CreateZExt(AddressSpace, FT->getParamType(1)),
+                  Builder.CreateZExt(Type, FT->getParamType(2)),
+                  Builder.CreateZExt(Address, FT->getParamType(3)) });
+}
+
+Value *PCH::buildCurrentPCPlainMetaAddress(IRBuilder<> &Builder) const {
+  return buildPlainMetaAddressImpl(Builder,
+                                   Builder.CreateLoad(EpochCSV),
+                                   Builder.CreateLoad(AddressSpaceCSV),
+                                   Builder.CreateLoad(TypeCSV),
+                                   Builder.CreateLoad(AddressCSV));
+}
+
+llvm::Value *
+ProgramCounterHandler::buildPlainMetaAddress(llvm::IRBuilder<> &Builder,
+                                             const MetaAddress &Address) const {
+  auto CI = [](llvm::Value *Example, uint64_t Value) -> ConstantInt * {
+    auto *Type = Example->getType()->getPointerElementType();
+    return ConstantInt::get(cast<IntegerType>(Type), Value);
   };
-
-  Insert(EpochCSV);
-  Insert(AddressSpaceCSV);
-  Insert(TypeCSV);
-  Insert(AddressCSV);
-
-  return V;
+  return buildPlainMetaAddressImpl(Builder,
+                                   CI(EpochCSV, Address.Epoch),
+                                   CI(AddressSpaceCSV, Address.AddressSpace),
+                                   CI(TypeCSV, Address.Type),
+                                   CI(AddressCSV, Address.Address));
 }
 
 std::pair<NextJumpTarget::Values, MetaAddress>
@@ -444,8 +463,7 @@ PCH::getUniqueJumpTarget(BasicBlock *BB) {
         }
 
         // Obtain the current PC and fill in all the missing fields
-        Value *FirstArgument = NewPCCall->getArgOperand(0);
-        PMA.set(MetaAddress::fromConstant(FirstArgument));
+        PMA.set(addressFromNewPC(NewPCCall));
 
         // Compute the final MetaAddress on this path and ensure it's the same
         // as previous ones

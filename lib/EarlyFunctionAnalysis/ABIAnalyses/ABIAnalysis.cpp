@@ -39,12 +39,12 @@ struct PartialAnalysisResults {
   RegisterStateMap DRAOF;
 
   // Per call site analysis
-  std::map<std::pair<MetaAddress, BasicBlock *>, RegisterStateMap> URVOFC;
-  std::map<std::pair<MetaAddress, BasicBlock *>, RegisterStateMap> RAOFC;
-  std::map<std::pair<MetaAddress, BasicBlock *>, RegisterStateMap> DRVOFC;
+  std::map<std::pair<BasicBlockID, BasicBlock *>, RegisterStateMap> URVOFC;
+  std::map<std::pair<BasicBlockID, BasicBlock *>, RegisterStateMap> RAOFC;
+  std::map<std::pair<BasicBlockID, BasicBlock *>, RegisterStateMap> DRVOFC;
 
   // Per return analysis
-  std::map<std::pair<MetaAddress, BasicBlock *>, RegisterStateMap> URVOF;
+  std::map<std::pair<BasicBlockID, BasicBlock *>, RegisterStateMap> URVOF;
 
   // Debug methods
   void dump() const debug_function { dump(dbg, ""); }
@@ -247,10 +247,12 @@ ABIAnalysesResults analyzeOutlinedFunction(Function *F,
     BasicBlock *BB = I.getParent();
 
     if (auto *Call = dyn_cast<CallInst>(&I)) {
-      MetaAddress PC;
+      BasicBlockID PC;
       if (isCallTo(Call, PreCallSiteHook) || isCallTo(Call, PostCallSiteHook)
-          || isCallTo(Call, RetHook))
-        PC = MetaAddress::fromConstant(Call->getArgOperand(0));
+          || isCallTo(Call, RetHook)) {
+        PC = BasicBlockID::fromValue(Call->getArgOperand(0));
+        revng_assert(PC.isValid());
+      }
 
       if (isCallTo(Call, PreCallSiteHook)) {
         Results.RAOFC[{ PC, BB }] = RAOFC::analyze(BB, GCBI);
@@ -279,7 +281,8 @@ ABIAnalysesResults analyzeOutlinedFunction(Function *F,
 
   // Add RAOFC.
   for (auto &[Key, RSMap] : Results.RAOFC) {
-    auto PC = Key.first;
+    BasicBlockID PC = Key.first;
+    revng_assert(PC.isValid());
     FinalResults.CallSites[PC] = ABIAnalysesResults::CallSiteResults();
     for (auto &[CSV, RS] : RSMap)
       FinalResults.CallSites[PC].ArgumentsRegisters[CSV] = RS;

@@ -31,7 +31,7 @@ static void handleBasicBlock(DIBuilder &DIB,
                              GeneratedCodeBasicInfo &GCBI) {
   namespace ranks = revng::ranks;
 
-  if (!GCBI.isJumpTarget(&BB)) {
+  if (!isJumpTarget(&BB)) {
     revng_log(Log, " Not a jump target " << BB.getName());
     return;
   }
@@ -42,13 +42,13 @@ static void handleBasicBlock(DIBuilder &DIB,
     return;
   }
 
-  revng_log(Log, " " << BB.getName() << ": " << Block->Start().toString());
+  revng_log(Log, " " << BB.getName() << ": " << Block->ID().toString());
 
   llvm::Module &M = *BB.getParent()->getParent();
   DILocation *CurrentDebugLocation = nullptr;
   for (auto &I : BB) {
     if (auto *Call = getCallTo(&I, "newpc")) {
-      MetaAddress NewPC = GeneratedCodeBasicInfo::getPCFromNewPC(Call);
+      MetaAddress NewPC = blockIDFromNewPC(Call).start();
       // We cloned `line:` only, but we need full MetaAddress that we keep
       // as `DISubprogram`.
       auto SPFlags = DISubprogram::toSPFlags(false, /* isLocalToUnit */
@@ -58,7 +58,7 @@ static void handleBasicBlock(DIBuilder &DIB,
       // Let's make the debug location that points back to the binary.
       std::string NewDebugLocation = serializedLocation(ranks::Instruction,
                                                         FM.Entry(),
-                                                        Block->Start(),
+                                                        Block->ID(),
                                                         NewPC);
       auto Subprogram = DIB.createFunction(RootSubprogram->getFile(), // Scope
                                            NewDebugLocation, // Name

@@ -45,7 +45,7 @@ static constexpr auto Instruction = "asm.instruction";
 
 } // namespace scopes
 
-static std::string labelAddress(const MetaAddress &Address) {
+static std::string labelAddress(const BasicBlockID &Address) {
   std::string Result = Address.toString();
 
   constexpr std::array ForbiddenCharacters = { ' ', ':', '!', '#',  '?',
@@ -65,16 +65,15 @@ static std::string label(const yield::BasicBlock &BasicBlock,
   std::string LabelName;
   std::string FunctionPath;
   std::string Location;
-  if (auto Iterator = Binary.Functions().find(BasicBlock.Start());
-      Iterator != Binary.Functions().end()) {
-    LabelName = Iterator->name().str().str();
-    FunctionPath = "/Functions/" + str(Iterator->key()) + "/CustomName";
-    Location = serializedLocation(ranks::Function, Iterator->key());
+  if (auto *F = yield::tryGetFunction(Binary, BasicBlock.ID())) {
+    LabelName = F->name().str().str();
+    FunctionPath = "/Functions/" + str(F->key()) + "/CustomName";
+    Location = serializedLocation(ranks::Function, F->key());
   } else {
-    LabelName = "basic_block_at_" + labelAddress(BasicBlock.Start());
+    LabelName = "basic_block_at_" + labelAddress(BasicBlock.ID());
     Location = serializedLocation(ranks::BasicBlock,
                                   model::Function(Function.Entry()).key(),
-                                  BasicBlock.Start());
+                                  BasicBlock.ID());
   }
   using model::Architecture::getAssemblyLabelIndicator;
   auto LabelIndicator = getAssemblyLabelIndicator(Binary.Architecture());
@@ -96,27 +95,26 @@ static std::string indent() {
     .serialize();
 }
 
-static std::string targetPath(const MetaAddress &Target,
+static std::string targetPath(const BasicBlockID &Target,
                               const yield::Function &Function,
                               const model::Binary &Binary) {
-  if (auto Iterator = Binary.Functions().find(Target);
-      Iterator != Binary.Functions().end()) {
+  if (const auto *F = yield::tryGetFunction(Binary, Target)) {
     // The target is a function
-    return serializedLocation(ranks::Function, Iterator->Entry());
+    return serializedLocation(ranks::Function, F->Entry());
   } else if (auto Iterator = Function.ControlFlowGraph().find(Target);
              Iterator != Function.ControlFlowGraph().end()) {
     // The target is a basic block
     return serializedLocation(ranks::BasicBlock,
                               Function.Entry(),
-                              Iterator->Start());
+                              Iterator->ID());
   } else if (Target.isValid()) {
     for (const auto &Block : Function.ControlFlowGraph()) {
-      if (Block.Instructions().find(Target) != Block.Instructions().end()) {
+      if (Block.Instructions().count(Target.start()) != 0) {
         // The target is an instruction
         return serializedLocation(ranks::Instruction,
                                   Function.Entry(),
-                                  Block.Start(),
-                                  Target);
+                                  Block.ID(),
+                                  Target.start());
       }
     }
   }
@@ -130,13 +128,15 @@ static std::set<std::string> targets(const yield::BasicBlock &BasicBlock,
                                      const model::Binary &Binary) {
 
   static const efa::ParsedSuccessor UnknownTarget{
-    .NextInstructionAddress = MetaAddress::invalid(),
+    .NextInstructionAddress = BasicBlockID::invalid(),
     .OptionalCallAddress = MetaAddress::invalid()
   };
 
   std::set<std::string> Result;
   for (const auto &Edge : BasicBlock.Successors()) {
-    auto TargetPair = efa::parseSuccessor(*Edge, BasicBlock.End(), Binary);
+    auto TargetPair = efa::parseSuccessor(*Edge,
+                                          BasicBlock.nextBlock(),
+                                          Binary);
     if (TargetPair.NextInstructionAddress.isValid()) {
       std::string Path = targetPath(TargetPair.NextInstructionAddress,
                                     Function,
@@ -146,9 +146,8 @@ static std::set<std::string> targets(const yield::BasicBlock &BasicBlock,
       }
     }
     if (TargetPair.OptionalCallAddress.isValid()) {
-      std::string Path = targetPath(TargetPair.OptionalCallAddress,
-                                    Function,
-                                    Binary);
+      BasicBlockID ID = BasicBlockID(TargetPair.OptionalCallAddress);
+      std::string Path = targetPath(ID, Function, Binary);
       if (!Path.empty()) {
         Result.insert(Path);
       }
@@ -238,7 +237,7 @@ static std::string instruction(const yield::Instruction &Instruction,
                    .addAttribute(attributes::LocationDefinition,
                                  serializedLocation(ranks::Instruction,
                                                     Function.Entry(),
-                                                    BasicBlock.Start(),
+                                                    BasicBlock.ID(),
                                                     Instruction.Address()));
   Tag Out = Tag(tags::Div, std::move(Result))
               .addAttribute(attributes::Scope, scopes::Instruction);
@@ -279,7 +278,7 @@ static std::string basicBlock(const yield::BasicBlock &BasicBlock,
     std::string Location = serializedLocation(ranks::BasicBlock,
                                               model::Function(Function.Entry())
                                                 .key(),
-                                              BasicBlock.Start());
+                                              BasicBlock.ID());
     LabelString = Tag(tags::Span)
                     .addAttribute(attributes::LocationDefinition, Location)
                     .serialize();
@@ -330,7 +329,7 @@ std::string yield::ptml::functionAssembly(const yield::Function &Function,
     .serialize();
 }
 
-std::string yield::ptml::controlFlowNode(const MetaAddress &Address,
+std::string yield::ptml::controlFlowNode(const BasicBlockID &Address,
                                          const yield::Function &Function,
                                          const model::Binary &Binary) {
   auto Iterator = Function.ControlFlowGraph().find(Address);

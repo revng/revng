@@ -12,3 +12,9 @@ typedef struct {
   uint16_t Type;
   uint64_t Address;
 } PlainMetaAddress;
+
+// NOLINTNEXTLINE
+PlainMetaAddress build_PlainMetaAddress(uint32_t Epoch,
+                                        uint16_t AddressSpace,
+                                        uint16_t Type,
+                                        uint64_t Address);

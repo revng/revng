@@ -9,6 +9,7 @@
 
 #include "llvm/Support/raw_os_ostream.h"
 
+#include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Support/BlockType.h"
 #include "revng/Support/IRHelpers.h"
 
@@ -44,6 +45,7 @@ Constant *buildStringPtr(Module *M, StringRef String, const Twine &Name) {
 }
 
 StringRef extractFromConstantStringPtr(Value *V) {
+  revng_assert(V->getType()->isPointerTy());
   auto *ConstantGEP = dyn_cast<ConstantExpr>(V);
   if (ConstantGEP == nullptr)
     return {};
@@ -145,8 +147,9 @@ std::pair<MetaAddress, uint64_t> getPC(Instruction *TheInstruction) {
   if (NewPCCall == nullptr)
     return { MetaAddress::invalid(), 0 };
 
-  auto PC = MetaAddress::fromConstant(NewPCCall->getArgOperand(0));
-  uint64_t Size = getLimitedValue(NewPCCall->getArgOperand(1));
+  MetaAddress PC = blockIDFromNewPC(NewPCCall).start();
+  using namespace NewPCArguments;
+  uint64_t Size = getLimitedValue(NewPCCall->getArgOperand(InstructionSize));
   revng_assert(Size != 0);
   return { PC, Size };
 }
@@ -300,4 +303,32 @@ void dumpUsers(llvm::Value *V) {
     dbg << "    ";
     IU.I->dump();
   }
+}
+
+inline RecursiveCoroutine<void>
+findJumpTarget(llvm::BasicBlock *&Result,
+               llvm::BasicBlock *BB,
+               std::set<BasicBlock *> &Visited) {
+  Visited.insert(BB);
+
+  if (isJumpTarget(BB)) {
+    revng_assert(Result == nullptr,
+                 "This block leads to multiple jump targets");
+    Result = BB;
+  } else {
+    for (BasicBlock *Predecessor : predecessors(BB)) {
+      if (Visited.count(Predecessor) == 0) {
+        rc_recur findJumpTarget(Result, Predecessor, Visited);
+      }
+    }
+  }
+
+  rc_return;
+}
+
+llvm::BasicBlock *getJumpTargetBlock(llvm::BasicBlock *BB) {
+  BasicBlock *Result = nullptr;
+  std::set<BasicBlock *> Visited;
+  findJumpTarget(Result, BB, Visited);
+  return Result;
 }

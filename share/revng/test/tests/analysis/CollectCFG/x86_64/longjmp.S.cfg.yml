@@ -6,12 +6,12 @@
 - FunctionMetadata:
     ControlFlowGraph:
       - End: "2"
-        Start: "1"
+        ID: "1"
         Successors:
           - Destination: "3"
             Type: FunctionCall
       - End: "3"
-        Start: "2"
+        ID: "2"
         Successors:
           - Destination: ":Invalid"
             Type: Return
@@ -19,19 +19,19 @@
 - FunctionMetadata:
     ControlFlowGraph:
       - End: "4"
-        Start: "3"
+        ID: "3"
         Successors:
           - Destination: "4"
             Type: DirectBranch
           - Destination: "5"
             Type: DirectBranch
       - End: "5"
-        Start: "4"
+        ID: "4"
         Successors:
           - Destination: ":Invalid"
             Type: LongJmp
       - End: "6"
-        Start: "5"
+        ID: "5"
         Successors:
           - Destination: ":Invalid"
             Type: Return

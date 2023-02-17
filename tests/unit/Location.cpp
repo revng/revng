@@ -9,15 +9,16 @@ bool init_unit_test();
 #include "revng/Model/Binary.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
+#include "revng/Support/BasicBlockID.h"
 
 BOOST_AUTO_TEST_SUITE(RevngLocationInfrastructure);
 
 BOOST_AUTO_TEST_CASE(DefinitionStyles) {
   namespace ranks = revng::ranks;
 
-  const MetaAddress A0 = MetaAddress::fromString("0x1:Generic64");
-  const MetaAddress A1 = MetaAddress::fromString("0x2:Generic64");
-  const MetaAddress A2 = MetaAddress::fromString("0x3:Generic64");
+  const auto A0 = MetaAddress::fromString("0x1:Generic64");
+  const auto A1 = BasicBlockID::fromString("0x2:Generic64");
+  const auto A2 = MetaAddress::fromString("0x3:Generic64");
   auto Location = pipeline::location(ranks::Instruction, A0, A1, A2);
 
   constexpr auto S = "/instruction/0x1:Generic64/0x2:Generic64/0x3:Generic64";
@@ -31,20 +32,17 @@ BOOST_AUTO_TEST_CASE(DefinitionStyles) {
 BOOST_AUTO_TEST_CASE(MetaAddressAsTheKey) {
   namespace ranks = revng::ranks;
 
-  const MetaAddress A0 = MetaAddress::fromString("0x123:Generic64");
-  const MetaAddress A1 = MetaAddress::fromString("0x456:Generic64");
-  const MetaAddress A2 = MetaAddress::fromString("0x789:Generic64");
+  const auto A0 = MetaAddress::fromString("0x123:Generic64");
+  const auto A1 = BasicBlockID::fromString("0x456:Generic64");
+  const auto A2 = MetaAddress::fromString("0x789:Generic64");
   auto Location = pipeline::location(ranks::Instruction, A0, A1, A2);
 
   revng_check(std::get<0>(Location.at(ranks::Function)).address() == 0x123);
-  revng_check(Location.at(ranks::BasicBlock).address() == 0x456);
+  revng_check(Location.at(ranks::BasicBlock).start().address() == 0x456);
   revng_check(Location.at(ranks::Instruction).address() == 0x789);
 
-  Location.at(ranks::BasicBlock) += Location.at(ranks::Instruction).address();
-  revng_check(Location.at(ranks::BasicBlock).address() == 0xbdf);
-
   constexpr auto Expected = "/instruction/0x123:Generic64/"
-                            "0xbdf:Generic64/0x789:Generic64";
+                            "0x456:Generic64/0x789:Generic64";
   revng_check(Location.toString() == Expected);
   revng_check(Location.toString() == serializeToString(Location));
 }
@@ -109,7 +107,7 @@ BOOST_AUTO_TEST_CASE(Serialization) {
 
       auto FunctionMetaAddress = std::get<0>(Instruction->at(ranks::Function));
       revng_check(FunctionMetaAddress.address() == 0x12);
-      revng_check(Instruction->at(ranks::BasicBlock).address() == 0x34);
+      revng_check(Instruction->at(ranks::BasicBlock).start().address() == 0x34);
       revng_check(Instruction->at(ranks::Instruction).address() == 0x56);
 
       revng_check(TestCase == Instruction->toString());
