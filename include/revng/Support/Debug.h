@@ -9,6 +9,7 @@
 #include <ostream>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "llvm/ADT/StringRef.h"
@@ -76,8 +77,8 @@ public:
   void flush(const LogTerminator &LineInfo = LogTerminator{ "", 0 });
 
   template<typename T>
-  inline Logger &operator<<(const T &Other) {
-    writeToLog(*this, Other, static_cast<int>(0));
+  inline Logger &operator<<(T &&Other) {
+    writeToLog(*this, std::forward<T>(Other), static_cast<int>(0));
     return *this;
   }
 
@@ -161,15 +162,10 @@ inline void writeToLog(Logger<X> &This, const llvm::StringRef &S, int Ign) {
   writeToLog(This, S.str(), Ign);
 }
 
-/// \brief Specialization for llvm::StringRef
+/// \brief Specialization for llvm::Error
 template<bool X>
-inline void writeToLog(Logger<X> &This, const llvm::Error &Error, int Ign) {
-  std::string Message;
-  {
-    llvm::raw_string_ostream Stream(Message);
-    Stream << Error;
-  }
-  writeToLog(This, Message, Ign);
+inline void writeToLog(Logger<X> &This, llvm::Error Error, int Ign) {
+  logAllUnhandledErrors(std::move(Error), *This.getAsLLVMStream());
 }
 
 /// \brief A global registry for all the loggers

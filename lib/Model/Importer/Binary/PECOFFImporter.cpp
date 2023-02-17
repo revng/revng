@@ -433,8 +433,7 @@ void PECOFFImporter::findMissingTypes(unsigned FetchDebugInfoWithLevel) {
                                 1 /*FetchDebugInfoWithLevel*/)) {
         revng_log(Log,
                   "Can't import model for " << DependencyLibrary << " due to "
-                                            << E);
-        llvm::consumeError(std::move(E));
+                                            << std::move(E));
         ModelsOfLibraries.erase(DependencyLibrary);
         continue;
       }

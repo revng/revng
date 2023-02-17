@@ -187,11 +187,14 @@ Error ELFImporter<T, HasAddend>::import(unsigned FetchDebugInfoWithLevel) {
 
   auto Sections = TheELF.sections();
   if (not Sections) {
-    logAllUnhandledErrors(std::move(Sections.takeError()), errs(), "");
+    revng_log(ELFImporterLog, "Sections unavailable: " << Sections.takeError());
   } else {
     for (auto &Section : *Sections) {
       auto NameOrErr = TheELF.getSectionName(Section);
-      if (NameOrErr) {
+      if (not NameOrErr) {
+        revng_log(ELFImporterLog,
+                  "Section name unavailable: " << NameOrErr.takeError());
+      } else {
         auto &Name = *NameOrErr;
         if (Name == ".symtab") {
           // TODO: check dedicated field in section header
@@ -365,10 +368,9 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
       auto BinaryOrErr = llvm::object::createBinary(DependencyLibrary);
       if (not BinaryOrErr) {
         revng_log(ELFImporterLog,
-                  "Can't create object for "
-                    << DependencyLibrary << " due to "
-                    << toString(BinaryOrErr.takeError()));
-        llvm::consumeError(BinaryOrErr.takeError());
+                  "Can't create object for " << DependencyLibrary
+                                             << " due to the following error: "
+                                             << BinaryOrErr.takeError());
         continue;
       }
 
@@ -388,8 +390,7 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
                              1 /*FetchDebugInfoWithLevel*/)) {
         revng_log(ELFImporterLog,
                   "Can't import model for " << DependencyLibrary << " due to "
-                                            << E);
-        llvm::consumeError(std::move(E));
+                                            << std::move(E));
         ModelsOfLibraries.erase(DependencyLibrary);
         continue;
       }
@@ -636,7 +637,8 @@ void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
       // which sections actually contain code
       auto Sections = TheELF.sections();
       if (not Sections) {
-        logAllUnhandledErrors(std::move(Sections.takeError()), errs(), "");
+        revng_log(ELFImporterLog,
+                  "Sections unavailable: " << Sections.takeError());
       } else {
         using Elf_Shdr = const typename object::ELFFile<T>::Elf_Shdr;
         auto Inserter = NewSegment.Sections().batch_insert();
@@ -713,9 +715,8 @@ void ELFImporter<T, HasAddend>::parseDynamicSymbol(Elf_Sym_Impl<T> &Symbol,
                                                    StringRef Dynstr) {
   Expected<llvm::StringRef> MaybeName = Symbol.getName(Dynstr);
   if (not MaybeName) {
-    auto TheError = MaybeName.takeError();
-    revng_log(ELFImporterLog, "Cannot access symbol name: " << TheError);
-    consumeError(std::move(TheError));
+    revng_log(ELFImporterLog,
+              "Cannot access symbol name: " << MaybeName.takeError());
     return;
   }
 

@@ -259,18 +259,20 @@ Error MachOImporter::import() {
   for (const MachOBindEntry &U : MachO.bindTable(TheError))
     registerBindEntry(&U);
   if (TheError)
-    revng_log(Log, "Error while decoding bindTable: " << TheError);
+    revng_log(Log, "Error while decoding bindTable: " << std::move(TheError));
 
   for (const MachOBindEntry &U : MachO.lazyBindTable(TheError))
     registerBindEntry(&U);
   if (TheError)
-    revng_log(Log, "Error while decoding lazyBindTable: " << TheError);
+    revng_log(Log,
+              "Error while decoding lazyBindTable: " << std::move(TheError));
 
   // TODO: we should handle weak symbols
   for (const MachOBindEntry &U : MachO.weakBindTable(TheError))
     registerBindEntry(&U);
   if (TheError)
-    revng_log(Log, "Error while decoding weakBindTable: " << TheError);
+    revng_log(Log,
+              "Error while decoding weakBindTable: " << std::move(TheError));
 
   return Error::success();
 }

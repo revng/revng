@@ -158,7 +158,6 @@ void PDBImporterImpl::populateTypes() {
   auto InputFile = InputFile::open(Importer.getPDBFile()->getFilePath());
   if (not InputFile) {
     revng_log(DILogger, "Unable to open PDB file " << InputFile.takeError());
-    consumeError(InputFile.takeError());
     return;
   }
 
@@ -166,7 +165,6 @@ void PDBImporterImpl::populateTypes() {
   if (not StreamTpiOrErr) {
     revng_log(DILogger,
               "Unable to find TPI in PDB file: " << StreamTpiOrErr.takeError());
-    consumeError(StreamTpiOrErr.takeError());
     return;
   }
 
@@ -174,8 +172,7 @@ void PDBImporterImpl::populateTypes() {
                                      InputFile->types(),
                                      ProcessedTypes);
   if (auto Err = visitTypeStream(InputFile->types(), TypeVisitor)) {
-    revng_log(DILogger, "Error during visiting types: " << Err);
-    consumeError(std::move(Err));
+    revng_log(DILogger, "Error during visiting types: " << std::move(Err));
   }
 }
 
@@ -230,7 +227,6 @@ void PDBImporterImpl::populateSymbolsWithTypes(NativeSession &Session) {
   auto InputFile = InputFile::open(Importer.getPDBFile()->getFilePath());
   if (not InputFile) {
     revng_log(DILogger, "Unable to open PDB file: " << InputFile.takeError());
-    consumeError(InputFile.takeError());
     return;
   }
 
@@ -238,8 +234,7 @@ void PDBImporterImpl::populateSymbolsWithTypes(NativeSession &Session) {
   const PrintScope HeaderScope(Printer, /*IndentLevel=*/2);
   PDBSymbolHandler SymbolHandler(Importer, ProcessedTypes, Session, *InputFile);
   if (auto Err = iterateSymbolGroups(*InputFile, HeaderScope, SymbolHandler)) {
-    revng_log(DILogger, "Unable to parse symbols: " << Err);
-    consumeError(std::move(Err));
+    revng_log(DILogger, "Unable to parse symbols: " << std::move(Err));
     return;
   }
 }
@@ -266,8 +261,7 @@ void PDBImporter::loadDataFromPDB(std::string PDBFileName) {
 
     ThePDBFile = &TheNativeSession->getPDBFile();
   } else {
-    revng_log(DILogger, "Unable to read PDB file: " << Err);
-    consumeError(std::move(Err));
+    revng_log(DILogger, "Unable to read PDB file: " << std::move(Err));
   }
 }
 
@@ -437,10 +431,8 @@ void PDBImporter::import(const COFFObjectFile &TheBinary,
     }
   } else {
     revng_log(DILogger, "Unable to find PDB path in the binary.");
-    if (EC) {
-      revng_log(DILogger, "Unexpected debug directory: " << EC);
-      consumeError(std::move(EC));
-    }
+    if (EC)
+      revng_log(DILogger, "Unexpected debug directory: " << std::move(EC));
     return;
   }
 
