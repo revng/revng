@@ -10,6 +10,7 @@
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
+#include "revng/Model/Segment.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
@@ -180,28 +181,74 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
   }
 
   // Create types for segments
-  std::map<model::Segment *, LayoutTypeSystemNode *> SegmentNodeMap;
+
+  const auto &Segments = Model.Segments();
+
+  std::map<const model::Segment *, LayoutTypeSystemNode *> SegmentNodeMap;
+
+  for (const model::Segment &S : Segments) {
+    // Initialize a node for every segment
+    LayoutTypeSystemNode
+      *SegmentNode = SegmentNodeMap[&S] = TS.createArtificialLayoutType();
+    // With a placeholder node pointing to it so that it cannot be removed from
+    // the optimization steps of DLA's middle-end
+    auto *Placeholder = TS.createArtificialLayoutType();
+    Placeholder->Size = getPointerSize(Model.Architecture());
+    TS.addPointerLink(Placeholder, SegmentNode);
+  }
+
   for (Function &F : FunctionTags::SegmentRef.functions(&M)) {
     const auto &[StartAddress, VirtualSize] = extractSegmentKeyFromMetadata(F);
-    model::Segment Segment = Model.Segments().at({ StartAddress, VirtualSize });
-    auto [SegmentTypeNode, _] = getOrCreateLayoutType(&F);
-    auto [It, Success] = SegmentNodeMap.insert({ &Segment, SegmentTypeNode });
+    const model::Segment *Segment = &Segments.at({ StartAddress, VirtualSize });
+    LayoutTypeSystemNode *SegmentNode = SegmentNodeMap.at(Segment);
 
-    // Already inserted? Reference the Node of the current function to the
-    // found segment, otherwise emit a placeholder for a new node in order to
-    // prevent DLA's middle-end from doing certain optimizations.
-    if (Success == false) {
-      TS.addEqualityLink(SegmentTypeNode, It->second);
-    } else {
-      auto *Placeholder = TS.createArtificialLayoutType();
-      Placeholder->Size = getPointerSize(Model.Architecture());
-      TS.addPointerLink(Placeholder, SegmentTypeNode);
-    }
+    LayoutTypeSystemNode *SegmentRefNode = getOrCreateLayoutType(&F).first;
+
+    // The type of the segment and the type returned by segmentref are the same
+    TS.addEqualityLink(SegmentNode, SegmentRefNode);
 
     for (const Use &U : F.uses()) {
       auto *Call = cast<CallInst>(U.getUser());
-      auto [SegmentRefCallNode, _] = getOrCreateLayoutType(Call);
-      TS.addEqualityLink(SegmentTypeNode, SegmentRefCallNode);
+      LayoutTypeSystemNode *SegmentRefCallNode = getOrCreateLayoutType(Call)
+                                                   .first;
+      // The type of the segment is also the same as the type of all the calls
+      // to the SegmentRef function.
+      TS.addEqualityLink(SegmentNode, SegmentRefCallNode);
+    }
+  }
+
+  for (Function &F : FunctionTags::StringLiteral.functions(&M)) {
+    const auto &[StartAddress,
+                 VirtualSize,
+                 Offset,
+                 StrLen] = extractStringLiteralFromMetadata(F);
+
+    const model::Segment *Segment = &Segments.at({ StartAddress, VirtualSize });
+    LayoutTypeSystemNode *SegmentNode = SegmentNodeMap.at(Segment);
+
+    LayoutTypeSystemNode *LiteralNode = getOrCreateLayoutType(&F).first;
+
+    // We have an instance of the literal at Offset inside the type of the
+    // segment itself.
+    TS.addInstanceLink(SegmentNode, LiteralNode, dla::OffsetExpression(Offset));
+
+    LayoutTypeSystemNode *ByteType = TS.createArtificialLayoutType();
+    ByteType->Size = 1;
+    dla::OffsetExpression OE{};
+    OE.Offset = 0;
+    OE.Strides.push_back(ByteType->Size);
+    OE.TripCounts.push_back(1 + StrLen);
+    // The type of the literal contains, as offset zero a stride of Strlen+1
+    // instances of ByteType.
+    TS.addInstanceLink(LiteralNode, ByteType, std::move(OE));
+
+    for (const Use &U : F.uses()) {
+      auto *Call = cast<CallInst>(U.getUser());
+      LayoutTypeSystemNode *StringLiteralCall = getOrCreateLayoutType(Call)
+                                                  .first;
+      // The type of each call to the StringLiteral function is the same as the
+      // type of the string literal itself.
+      TS.addEqualityLink(LiteralNode, StringLiteralCall);
     }
   }
 
