@@ -510,6 +510,7 @@ Error PECOFFImporter::import(unsigned FetchDebugInfoWithLevel) {
   if (FetchDebugInfoWithLevel > 1)
     findMissingTypes(FetchDebugInfoWithLevel);
 
+  model::promoteOriginalName(Model);
   return Error::success();
 }
 

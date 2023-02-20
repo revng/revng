@@ -348,6 +348,7 @@ Error ELFImporter<T, HasAddend>::import(unsigned FetchDebugInfoWithLevel) {
   if (FetchDebugInfoWithLevel > 1)
     findMissingTypes(TheELF, FetchDebugInfoWithLevel);
 
+  model::promoteOriginalName(Model);
   return Error::success();
 }
 

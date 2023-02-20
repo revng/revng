@@ -11,6 +11,7 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/Importer/Binary/BinaryImporterHelper.h"
+#include "revng/Model/Pass/PromoteOriginalName.h"
 #include "revng/Model/RawBinaryView.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/OverflowSafeInt.h"
@@ -272,6 +273,7 @@ Error MachOImporter::import() {
   if (TheError)
     revng_log(Log, "Error while decoding weakBindTable: " << TheError);
 
+  promoteOriginalName(Model);
   return Error::success();
 }
 
