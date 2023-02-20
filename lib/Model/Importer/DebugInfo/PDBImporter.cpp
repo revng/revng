@@ -835,10 +835,12 @@ getMicrosoftABI(CallingConvention CallConv, model::Architecture::Values Arch) {
     case CallingConvention::NearStdCall:
     case CallingConvention::NearSysCall:
     case CallingConvention::ThisCall:
-    case CallingConvention::ClrCall:
     case CallingConvention::NearPascal:
-    case CallingConvention::NearVector:
       return model::ABI::Microsoft_x86_64;
+    case CallingConvention::NearVector:
+      return model::ABI::Microsoft_x86_64_vectorcall;
+    case CallingConvention::ClrCall:
+      return model::ABI::Microsoft_x86_64_clrcall;
     default:
       revng_abort();
     }
