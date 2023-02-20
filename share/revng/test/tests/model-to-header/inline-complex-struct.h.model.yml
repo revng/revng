@@ -1,0 +1,117 @@
+---
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+Types:
+  - Kind: StructType
+    ID: 1
+    CustomName: "X"
+    OriginalName: X
+    Fields:
+      - Offset: 0
+        CustomName: "the_struct_y"
+        OriginalName: the_struct_y
+        Type:
+          UnqualifiedType: "/Types/StructType-2"
+    Size: 56
+  - Kind: StructType
+    ID: 2
+    CustomName: "Y"
+    OriginalName: Y
+    Fields:
+      - Offset: 0
+        CustomName: "the_union_w"
+        OriginalName: the_union_w
+        Type:
+          UnqualifiedType: "/Types/UnionType-3"
+      - Offset: 4
+        CustomName: "the_union_z"
+        OriginalName: the_union_z
+        Type:
+          UnqualifiedType: "/Types/UnionType-4"
+      - Offset: 48
+        CustomName: "ptr_to_E"
+        OriginalName: ptr_to_E
+        Type:
+          UnqualifiedType: "/Types/EnumType-7"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
+    Size: 56
+  - Kind: UnionType
+    ID: 3
+    CustomName: "W"
+    OriginalName: W
+    Fields:
+      - Index: 0
+        CustomName: "field"
+        OriginalName: field
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1540"
+  - Kind: UnionType
+    ID: 4
+    CustomName: "Z"
+    OriginalName: Z
+    Fields:
+      - Index: 0
+        CustomName: "the_enum_e"
+        OriginalName: the_enum_e
+        Type:
+          UnqualifiedType: "/Types/EnumType-5"
+      - Index: 1
+        CustomName: "array_of_a"
+        OriginalName: array_of_a
+        Type:
+          UnqualifiedType: "/Types/StructType-6"
+          Qualifiers:
+            - Kind: Array
+              Size: 10
+  - Kind: EnumType
+    ID: 5
+    CustomName: "E"
+    OriginalName: E
+    UnderlyingType:
+      UnqualifiedType: "/Types/PrimitiveType-1284"
+    Entries:
+      - Value: 2
+        CustomName: "VALUE"
+        OriginalName: VALUE
+      - Value: 7
+        CustomName: "OTHER"
+        OriginalName: OTHER
+  - Kind: StructType
+    ID: 6
+    CustomName: "A"
+    OriginalName: A
+    Fields:
+      - Offset: 0
+        CustomName: "field"
+        OriginalName: field
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1540"
+    Size: 4
+  - Kind: EnumType
+    ID: 7
+    CustomName: "E2"
+    OriginalName: E2
+    UnderlyingType:
+      UnqualifiedType: "/Types/PrimitiveType-1284"
+    Entries:
+      - Value: 1
+        CustomName: "FIRST"
+        OriginalName: FIRST
+      - Value: 2
+        CustomName: "SECOND"
+        OriginalName: SECOND
+
+  - Kind: PrimitiveType
+    ID: 1540
+    PrimitiveKind: Signed
+    Size: 4
+  - Kind: PrimitiveType
+    ID: 1284
+    PrimitiveKind: Unsigned
+    Size: 4
+---
+

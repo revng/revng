@@ -1,0 +1,36 @@
+---
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+Types:
+  - Kind: StructType
+    ID: 1
+    CustomName: "B"
+    OriginalName: B
+    Fields:
+      - Offset: 0
+        CustomName: "the_a"
+        OriginalName: the_a
+        Type:
+          UnqualifiedType: "/Types/EnumType-2"
+    Size: 4
+  - Kind: EnumType
+    ID: 2
+    CustomName: "A"
+    OriginalName: A
+    UnderlyingType:
+      UnqualifiedType: "/Types/PrimitiveType-1284"
+    Entries:
+      - Value: 0
+        CustomName: "FIRST"
+        OriginalName: FIRST
+      - Value: 1
+        CustomName: "SECOND"
+        OriginalName: SECOND
+  - Kind: PrimitiveType
+    ID: 1284
+    PrimitiveKind: Unsigned
+    Size: 4
+---
+

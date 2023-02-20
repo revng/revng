@@ -1,0 +1,14 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+CHECK: typedef struct __attribute__((packed)) B B;
+CHECK: typedef union __attribute__((packed)) A A;
+CHECK: union __attribute__((packed)) A {
+CHECK:     uint32_t a;
+CHECK:     uint32_t b;
+CHECK: };
+CHECK: struct __attribute__((packed)) B {
+CHECK:     A a1;
+CHECK:     A a2;
+CHECK: };

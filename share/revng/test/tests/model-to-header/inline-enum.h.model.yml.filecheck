@@ -1,0 +1,13 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+CHECK: typedef struct __attribute__((packed)) B B;
+CHECK: typedef enum __attribute__((packed)) A A;
+CHECK: struct __attribute__((packed)) B {
+CHECK:     enum __attribute__((packed)) A {
+CHECK:         A_FIRST = 0x0U,
+CHECK:         A_SECOND = 0x1U,
+CHECK:         A_max_held_value = 0xffffffffU,
+CHECK:     } the_a;
+CHECK: };

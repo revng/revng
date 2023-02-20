@@ -1,0 +1,33 @@
+---
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+Types:
+  - Kind: StructType
+    ID: 1
+    CustomName: "B"
+    OriginalName: B
+    Fields:
+      - Offset: 0
+        CustomName: "a1"
+        OriginalName: a1
+        Type:
+          UnqualifiedType: "/Types/UnionType-2"
+    Size: 4
+  - Kind: UnionType
+    ID: 2
+    CustomName: "A"
+    OriginalName: A
+    Fields:
+      - Index: 0
+        CustomName: "x"
+        OriginalName: x
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1540"
+  - Kind: PrimitiveType
+    ID: 1540
+    PrimitiveKind: Signed
+    Size: 4
+---
+

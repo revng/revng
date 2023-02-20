@@ -1,0 +1,44 @@
+---
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+Functions:
+  - Entry: "0x401129:Code_x86_64"
+    CustomName: "fn"
+    OriginalName: fn
+    StackFrameType: "/Types/StructType-1"
+    Prototype: "/Types/CABIFunctionType-2"
+    ExportedNames:
+      - fn
+Types:
+  - Kind: CABIFunctionType
+    ID: 2
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-520"
+    Arguments: []
+  - Kind: StructType
+    ID: 1
+    Fields:
+      - Offset: 0
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+    Size: 16
+  - Kind: StructType
+    ID: 3
+    CustomName: "S"
+    OriginalName: S
+    Fields:
+      - Offset: 0
+        CustomName: "s1"
+        OriginalName: s1
+        Type:
+          UnqualifiedType: "/Types/StructType-1"
+    Size: 16
+  - Kind: PrimitiveType
+    ID: 520
+    PrimitiveKind: Generic
+    Size: 8
+---
+

@@ -1,0 +1,6 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+# Stack types will be generated inline in the decompiled functions.
+CHECK-NOT: struct_1

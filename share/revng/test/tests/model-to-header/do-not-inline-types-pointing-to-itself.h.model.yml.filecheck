@@ -1,0 +1,8 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+CHECK: typedef struct __attribute__((packed)) B B;
+CHECK: struct __attribute__((packed)) B {
+CHECK:     B *next;
+CHECK: };
