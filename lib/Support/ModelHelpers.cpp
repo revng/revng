@@ -472,6 +472,13 @@ getExpectedModelType(FunctionMetadataCache &Cache,
             return { ArgType.value().Type };
         revng_abort();
       }
+    } else if (FunctionTags::StringLiteral.isTagOf(User)) {
+      auto Primitive = Model.getPrimitiveType(model::PrimitiveTypeKind::Signed,
+                                              8u);
+      auto Type = QualifiedType(Primitive,
+                                { model::Qualifier::createPointer(8u),
+                                  model::Qualifier::createConst() });
+      return { Type };
     } else {
       // Non-isolated functions do not have a Prototype in the model, but they
       // can carry type information on their operands
