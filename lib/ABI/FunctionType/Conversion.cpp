@@ -101,7 +101,7 @@ private:
   /// \return An ordered list of arguments.
   std::optional<llvm::SmallVector<model::Argument, 8>>
   tryConvertingStackArguments(model::QualifiedType StackArgumentTypes,
-                              size_t IndexOffset);
+                              std::size_t IndexOffset);
 
   /// Helper used for converting return values to the c-style representation
   ///
@@ -231,7 +231,7 @@ TCC::tryConvertingRegisterArguments(const ArgumentRegisters &Registers) {
 
 std::optional<llvm::SmallVector<model::Argument, 8>>
 TCC::tryConvertingStackArguments(model::QualifiedType StackArgumentTypes,
-                                 size_t IndexOffset) {
+                                 std::size_t IndexOffset) {
   if (!StackArgumentTypes.UnqualifiedType().isValid()) {
     // If there is no type, it means that the importer responsible for this
     // function didn't detect any stack arguments and avoided creating
@@ -270,10 +270,10 @@ TCC::tryConvertingStackArguments(model::QualifiedType StackArgumentTypes,
 
   // Define a helper used for finding padding holes.
   const std::uint64_t PointerSize = model::ABI::getPointerSize(ABI.ABI());
-  auto VerifyAlignment = [this](uint64_t CurrentOffset,
-                                uint64_t CurrentSize,
-                                uint64_t NextOffset,
-                                uint64_t NextAlignment) -> bool {
+  auto VerifyAlignment = [this](std::uint64_t CurrentOffset,
+                                std::uint64_t CurrentSize,
+                                std::uint64_t NextOffset,
+                                std::uint64_t NextAlignment) -> bool {
     std::uint64_t PaddedSize = ABI.paddedSizeOnStack(CurrentSize);
 
     OverflowSafeInt Offset = CurrentOffset;
@@ -437,7 +437,7 @@ TCC::tryConvertingReturnValue(const ReturnValueRegisters &Registers) {
       //
       // TODO: sadly this discards type information from the registers, look
       //       into preserving it at least partially.
-      std::size_t PointerSize = model::ABI::getPointerSize(ABI.ABI());
+      std::uint64_t PointerSize = model::ABI::getPointerSize(ABI.ABI());
       return model::QualifiedType{
         Bucket.getPrimitiveType(model::PrimitiveTypeKind::Values::Generic,
                                 PointerSize * Ordered.size()),
