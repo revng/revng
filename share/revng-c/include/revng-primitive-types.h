@@ -4,10 +4,16 @@
 // Copyright rev.ng Labs Srl. See LICENSE.md for details.
 //
 
+#include "limits.h"
 #include "stdint.h"
 
 #define static_assert_size(TYPE, EXPECTED_SIZE) \
   typedef char static_assertion[sizeof(TYPE) == (EXPECTED_SIZE) ? 1 : -1]
+
+_Static_assert(CHAR_MIN == SCHAR_MIN, "CHAR_MIN != SCHAR_MIN");
+_Static_assert(CHAR_MAX == SCHAR_MAX, "CHAR_MAX != SCHAR_MAX");
+_Static_assert(CHAR_MIN == INT8_MIN, "CHAR_MIN != INT8_MIN");
+_Static_assert(CHAR_MAX == INT8_MAX, "CHAR_MAX != INT8_MAX");
 
 //
 // Generic
