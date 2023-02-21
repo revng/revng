@@ -158,7 +158,7 @@ bool PromoteStackPointerPass::runOnFunction(Function &F) {
   auto InitFunction = M->getOrInsertFunction("revng_init_local_sp", SPType);
   Function *InitLocalSP = cast<Function>(InitFunction.getCallee());
   InitLocalSP->addFnAttr(Attribute::NoUnwind);
-  InitLocalSP->addFnAttr(Attribute::ReadOnly);
+  InitLocalSP->addFnAttr(Attribute::InaccessibleMemOnly);
   InitLocalSP->addFnAttr(Attribute::WillReturn);
   FunctionTags::OpaqueCSVValue.addTo(InitLocalSP);
 
