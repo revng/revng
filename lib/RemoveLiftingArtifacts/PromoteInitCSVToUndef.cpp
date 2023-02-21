@@ -7,6 +7,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 
+#include "revng/ABI/FunctionType.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/FunctionTags.h"
 
@@ -15,8 +16,14 @@
 
 using namespace llvm;
 
-static bool makeInitRegsUndef(Function &F) {
+static bool
+undefPreservedRegistersInitialization(Function &F,
+                                      const model::Function &ModelFunction) {
   bool Changed = false;
+  QuickMetadata QMD(F.getParent()->getContext());
+
+  using abi::FunctionType::Layout;
+  auto Layout = Layout::make(*ModelFunction.Prototype().get());
 
   for (auto &BB : F) {
     auto It = BB.begin();
@@ -26,10 +33,17 @@ static bool makeInitRegsUndef(Function &F) {
 
       if (auto *Call = dyn_cast<CallInst>(&*It)) {
         auto *Callee = Call->getCalledFunction();
-        if (Callee and FunctionTags::OpaqueCSVValue.isTagOf(Callee)) {
-          Call->replaceAllUsesWith(llvm::UndefValue::get(Call->getType()));
-          Call->eraseFromParent();
-          Changed = true;
+        if (Callee and FunctionTags::OpaqueCSVValue.isTagOf(Callee)
+            and Callee->hasMetadata("revng.register")) {
+          auto *Tuple = cast<MDTuple>(Callee->getMetadata("revng.register"));
+          auto RegisterName = QMD.extract<StringRef>(Tuple, 0);
+          auto Register = model::Register::fromName(RegisterName);
+          revng_check(Register != model::Register::Invalid);
+          if (llvm::count(Layout.CalleeSavedRegisters, Register) != 0) {
+            Call->replaceAllUsesWith(llvm::UndefValue::get(Call->getType()));
+            Call->eraseFromParent();
+            Changed = true;
+          }
         }
       }
 
@@ -46,9 +60,19 @@ public:
 
   PromoteInitCSVToUndefPass() : FunctionPass(ID) {}
 
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.addRequired<LoadModelWrapperPass>();
+    AU.setPreservesCFG();
+  }
+
   bool runOnFunction(Function &F) override {
-    if (FunctionTags::Isolated.isTagOf(&F))
-      return makeInitRegsUndef(F);
+    if (FunctionTags::Isolated.isTagOf(&F)) {
+      auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
+      const model::Binary &Binary = *ModelWrapper.getReadOnlyModel();
+      MetaAddress Entry = getMetaAddressMetadata(&F, "revng.function.entry");
+      auto &ModelFunction = Binary.Functions().at(Entry);
+      return undefPreservedRegistersInitialization(F, ModelFunction);
+    }
 
     return false;
   }
