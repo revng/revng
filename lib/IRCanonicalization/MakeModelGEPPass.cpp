@@ -1710,6 +1710,7 @@ class GEPSummationCache {
         if (ConstOp and ConstOp->getValue().isNonNegative()) {
           // The constant operand is the coefficient, while the other is the
           // index.
+          revng_assert(not ConstOp->isNegative());
           Result = ModelGEPSummation{
             // The base address is unknown
             .BaseAddress = TypedBaseAddress{ .Type = {}, .Address = nullptr },
@@ -1738,20 +1739,22 @@ class GEPSummationCache {
             auto *ArithTy = cast<llvm::IntegerType>(AddrType);
             auto *Stride = ConstantInt::get(ArithTy,
                                             1ULL << ConstShift->getZExtValue());
+            if (not Stride->isNegative()) {
+              // The first operand of the shift is the index
+              auto *IndexForStridedAccess = AddrArithmeticInst->getOperand(0);
 
-            // The first operand of the shift is the index
-            auto *IndexForStridedAccess = AddrArithmeticInst->getOperand(0);
-
-            Result = ModelGEPSummation{
-              // The base address is unknown
-              .BaseAddress = TypedBaseAddress{ .Type = {}, .Address = nullptr },
-              // The summation has only one element, with a coefficient of 1,
-              // and the index is the current instructions.
-              .Summation = { ModelGEPSummationElement{
-                .Coefficient = Stride, .Index = IndexForStridedAccess } }
-            };
-            // Then we're done, break from the switch
-            break;
+              Result = ModelGEPSummation{
+                // The base address is unknown
+                .BaseAddress = TypedBaseAddress{ .Type = {},
+                                                 .Address = nullptr },
+                // The summation has only one element, with a coefficient of 1,
+                // and the index is the current instructions.
+                .Summation = { ModelGEPSummationElement{
+                  .Coefficient = Stride, .Index = IndexForStridedAccess } }
+              };
+              // Then we're done, break from the switch
+              break;
+            }
           }
         }
 
