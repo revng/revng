@@ -90,7 +90,7 @@ read_passes:
         - name: Found snippets that should not be present
           matcher:
             type: regexes_matcher
-            regexes: ['\(--> 0\)', ";;", '^\s*->.*;$', "Twine [^&]"]
+            regexes: ['\(--> 0\)', ";;", '^\s*->.*;$', "Twine [^&]", "#pragma clang optimize off"]
         - name: Found snippets that shouldn't be at the end of a line
           matcher:
             type: regexes_matcher
