@@ -40,20 +40,20 @@ analyze(const BasicBlock *CallSiteBlock, const GeneratedCodeBasicInfo &GCBI) {
                                                                 { Start },
                                                                 { Start });
 
-  DenseSet<const GlobalVariable *> RegUnknown{};
+  DenseSet<const GlobalVariable *> RegUnused{};
   std::map<const GlobalVariable *, State> RegYes{};
 
   for (auto &[BB, Result] : Results) {
     for (auto &[GV, RegState] : Result.OutValue) {
-      if (RegState == CoreLattice::Unknown) {
-        RegUnknown.insert(GV);
+      if (RegState == CoreLattice::Unused) {
+        RegUnused.insert(GV);
       }
     }
   }
 
   for (auto &[BB, Result] : Results) {
     for (auto &[GV, RegState] : Result.OutValue) {
-      if (RegState == CoreLattice::Yes && RegUnknown.count(GV) == 0) {
+      if (RegState == CoreLattice::Yes && RegUnused.count(GV) == 0) {
         RegYes[GV] = State::Yes;
       }
     }

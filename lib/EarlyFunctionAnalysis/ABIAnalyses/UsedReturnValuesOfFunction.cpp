@@ -36,20 +36,20 @@ analyze(const BasicBlock *ReturnBlock, const GeneratedCodeBasicInfo &GCBI) {
                                                                { ReturnBlock },
                                                                { ReturnBlock });
 
-  DenseSet<const GlobalVariable *> RegUnknown{};
+  DenseSet<const GlobalVariable *> RegUnused{};
   std::map<const GlobalVariable *, State> RegYesOrDead{};
 
   for (auto &[BB, Result] : Res) {
     for (auto &[GV, RegState] : Result.OutValue) {
-      if (RegState == CoreLattice::Unknown) {
-        RegUnknown.insert(GV);
+      if (RegState == CoreLattice::Unused) {
+        RegUnused.insert(GV);
       }
     }
   }
 
   for (auto &[BB, Result] : Res) {
     for (auto &[GV, RegState] : Result.OutValue) {
-      if (RegState == CoreLattice::YesOrDead && RegUnknown.count(GV) == 0) {
+      if (RegState == CoreLattice::YesOrDead && RegUnused.count(GV) == 0) {
         RegYesOrDead[GV] = State::YesOrDead;
       }
     }

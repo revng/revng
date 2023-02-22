@@ -5,18 +5,15 @@
 # This analysis works both for registers and stack slots
 
 digraph UsedArgumentsOfFunction {
-  Unknown;
-  Maybe [peripheries=2];
+  NoOrDead;
+  Unused [peripheries=2];
   Yes;
 
   # Lattice
-  Unknown->Maybe;
-  Maybe->Yes;
+  NoOrDead->Unused;
+  Unused->Yes;
 
   # Transfer functions
-  Maybe->Yes [label="Read"];
-  Maybe->Unknown [label="Write"];
-  Maybe->Unknown [label="WeakWrite"];
-
-  Maybe->Maybe [label="None"];
+  Unused->Yes [label="Read"];
+  Unused->NoOrDead [label="Write"];
 }
