@@ -308,11 +308,11 @@ void PromoteCSVs::promoteCSVs(Function *F) {
                                             {},
                                             Twine("init_") + CSVName);
 
-    if (not Initializer->hasMetadata("revng.register")) {
+    if (not Initializer->hasMetadata("revng.abi_register")) {
       model::Register::Values
         Register = model::Register::fromCSVName(CSVName, Binary.Architecture());
       if (Register != model::Register::Invalid) {
-        Initializer->setMetadata("revng.register",
+        Initializer->setMetadata("revng.abi_register",
                                  QMD.tuple(model::Register::getName(Register)));
       }
     }
