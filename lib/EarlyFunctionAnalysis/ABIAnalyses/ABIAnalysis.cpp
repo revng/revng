@@ -252,14 +252,6 @@ ABIAnalysesResults analyzeOutlinedFunction(Function *F,
     Results.dump();
   }
 
-  // Finalize results. Combine UAOF and DRAOF.
-  for (auto &[Left, Right] : zipmap_range(Results.UAOF, Results.DRAOF)) {
-    auto *CSV = Left == nullptr ? Right->first : Left->first;
-    RegisterState LV = Left == nullptr ? RegisterState::Maybe : Left->second;
-    RegisterState RV = Right == nullptr ? RegisterState::Maybe : Right->second;
-    FinalResults.ArgumentsRegisters[CSV] = combine(LV, RV);
-  }
-
   // Add RAOFC.
   for (auto &[Key, RSMap] : Results.RAOFC) {
     BasicBlockID PC = Key.first;
@@ -269,18 +261,6 @@ ABIAnalysesResults analyzeOutlinedFunction(Function *F,
       FinalResults.CallSites[PC].ArgumentsRegisters[CSV] = RS;
   }
 
-  // Combine URVOFC and DRVOFC.
-  for (auto &[Key, _] : Results.URVOFC) {
-    auto PC = Key.first;
-    for (auto &[Left, Right] :
-         zipmap_range(Results.URVOFC[Key], Results.DRVOFC[Key])) {
-      auto *CSV = Left == nullptr ? Right->first : Left->first;
-      RegisterState LV = Left == nullptr ? RegisterState::Maybe : Left->second;
-      RegisterState RV = Right == nullptr ? RegisterState::Maybe :
-                                            Right->second;
-      FinalResults.CallSites[PC].ReturnValuesRegisters[CSV] = combine(LV, RV);
-    }
-  }
 
   // Add URVOF.
   for (auto &[Key, RSMap] : Results.URVOF) {
