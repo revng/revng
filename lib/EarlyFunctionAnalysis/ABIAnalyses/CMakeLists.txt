@@ -4,13 +4,8 @@
 add_subdirectory(MFIGraphs)
 
 revng_add_analyses_library_internal(
-  revngABIAnalyses
-  ABIAnalysis.cpp
-  DeadRegisterArgumentsOfFunction.cpp
-  DeadReturnValuesOfFunctionCall.cpp
-  RegisterArgumentsOfFunctionCall.cpp
-  UsedArgumentsOfFunction.cpp
-  UsedReturnValuesOfFunction.cpp
+  revngABIAnalyses ABIAnalysis.cpp RegisterArgumentsOfFunctionCall.cpp
+  UsedArgumentsOfFunction.cpp UsedReturnValuesOfFunction.cpp
   UsedReturnValuesOfFunctionCall.cpp)
 
 target_link_libraries(revngABIAnalyses revngSupport revngBasicAnalyses

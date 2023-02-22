@@ -7,30 +7,12 @@
 #include "revng/ABI/RegisterState.h"
 #include "revng/Model/Binary.h"
 
-#include "MFIGraphs/DeadRegisterArgumentsOfFunction.h"
-#include "MFIGraphs/DeadReturnValuesOfFunctionCall.h"
 #include "MFIGraphs/RegisterArgumentsOfFunctionCall.h"
 #include "MFIGraphs/UsedArgumentsOfFunction.h"
 #include "MFIGraphs/UsedReturnValuesOfFunction.h"
 #include "MFIGraphs/UsedReturnValuesOfFunctionCall.h"
 
 namespace ABIAnalyses {
-
-namespace DeadRegisterArgumentsOfFunction {
-using namespace llvm;
-
-std::map<const GlobalVariable *, abi::RegisterState::Values>
-analyze(const BasicBlock *FunctionEntry, const GeneratedCodeBasicInfo &GCBI);
-
-} // namespace DeadRegisterArgumentsOfFunction
-
-namespace DeadReturnValuesOfFunctionCall {
-using namespace llvm;
-
-std::map<const GlobalVariable *, abi::RegisterState::Values>
-analyze(const BasicBlock *CallSiteBlock, const GeneratedCodeBasicInfo &GCBI);
-
-} // namespace DeadReturnValuesOfFunctionCall
 
 namespace RegisterArgumentsOfFunctionCall {
 using namespace llvm;
