@@ -27,9 +27,21 @@ namespace efa {
 class CallSummarizer : public CallHandler {
 private:
   llvm::Module *M = nullptr;
+
+  /* PreCallHook is a function returning void, taking four arguments:
+   *  - MetaAddress * - caller block
+   *  - MetaAddress * - callee pc
+   *  - int8 * - SymbolName
+   *  - bool - indicating if call is a tail call
+   */
   llvm::Function *PreCallHook = nullptr;
+
+  // PostCallHook prototype looks same as PreCallHook
   llvm::Function *PostCallHook = nullptr;
+
+  // RetHook is returning void and taking MetaAddress *
   llvm::Function *RetHook = nullptr;
+
   llvm::GlobalVariable *SPCSV = nullptr;
   OpaqueFunctionsPool<llvm::StringRef> RegistersClobberedPool;
 

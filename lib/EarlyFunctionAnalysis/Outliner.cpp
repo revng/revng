@@ -20,6 +20,12 @@ using namespace llvm;
 
 namespace efa {
 
+/* \brief Storage for outlined functions
+ *
+ * OutlinedFunctionsMap has two internal stores:
+ *  - a map of MetaAddress object to pointer to function (UniqueValuePtr<Function>) and
+ *  - a set of MetaAddress objects indicating banned functions
+ */
 class OutlinedFunctionsMap {
 private:
   Module *M = nullptr;
@@ -65,6 +71,15 @@ public:
   bool banRecursiveFunctions();
 };
 
+/* \brief Add recursive functions to Banned and informs if there are any
+ *
+ * Function uses llvm::scc_iterator to group all nodes in Strongly Connected
+ * Components. If component has cycle (it means that SCC has more than one node
+ * or has one node with edge to itself) than nodes of such SCC are added to
+ * Banned list.
+ *
+ * \return true if any function has been banned
+ */
 bool OutlinedFunctionsMap::banRecursiveFunctions() {
   using namespace llvm;
   bool Result = false;
