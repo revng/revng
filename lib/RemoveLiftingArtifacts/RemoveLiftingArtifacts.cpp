@@ -134,33 +134,10 @@ static bool makeEnvNull(Function &F) {
   return Changed;
 }
 
-static bool makeInitRegsUndef(Function &F) {
-  bool Changed = false;
-
-  for (auto &BB : F) {
-    for (auto &I : BB) {
-      auto *Call = dyn_cast<CallInst>(&I);
-      if (not Call)
-        continue;
-
-      auto *Callee = Call->getCalledFunction();
-      if (not Callee or not FunctionTags::OpaqueCSVValue.isTagOf(Callee))
-        continue;
-
-      Call->replaceAllUsesWith(llvm::UndefValue::get(Call->getType()));
-
-      Changed = true;
-    }
-  }
-
-  return Changed;
-}
-
 static bool removeLiftingArtifacts(Function &F) {
   bool Changed = removeCallsToArtifacts(F);
   Changed |= removeStoresToCPULoopExiting(F);
   Changed |= makeEnvNull(F);
-  Changed |= makeInitRegsUndef(F);
   return Changed;
 }
 
