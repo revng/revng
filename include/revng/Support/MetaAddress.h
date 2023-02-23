@@ -511,33 +511,11 @@ public:
   /// @}
 
 public:
-  /// \name llvm::ConstantStruct (de-)serialization methods
-  ///
-  /// @{
+  /// Deserialize a MetaAddress from an llvm::Constant
+  static MetaAddress fromValue(llvm::Value *V);
 
-  /// Create a global variable with MetaAddress type
-  static llvm::GlobalVariable *
-  createStructVariable(llvm::Module *M, llvm::StringRef Name) {
-    return createStructVariableInternal(M, Name, getStruct(M));
-  }
-
-  /// Get the type of the "invalid_address" global variable
-  static llvm::StructType *getStruct(llvm::Module *M);
-
-  /// Deserialize a MetaAddress from an llvm::ConstantStruct
-  static MetaAddress fromConstant(llvm::Value *V);
-
-  /// Serialize a MetaAddress to an llvm::StructType
-  llvm::Constant *toConstant(llvm::Type *Type) const;
-
-private:
-  /// Create a global variable with MetaAddress type
-  static llvm::GlobalVariable *
-  createStructVariableInternal(llvm::Module *M,
-                               llvm::StringRef Name,
-                               llvm::StructType *T);
-
-  /// @}
+  /// Serialize a MetaAddress to an llvm::Constant
+  llvm::Constant *toValue(llvm::Module *M) const;
 
 public:
   using IRBuilderType = llvm::IRBuilder<llvm::ConstantFolder,

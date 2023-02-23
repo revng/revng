@@ -186,8 +186,9 @@ Error ELFImporter<T, HasAddend>::import(unsigned FetchDebugInfoWithLevel) {
   Optional<uint64_t> EHFrameSize;
 
   auto Sections = TheELF.sections();
-  if (not Sections) {
-    logAllUnhandledErrors(std::move(Sections.takeError()), errs(), "");
+  if (auto Error = Sections.takeError()) {
+    revng_log(ELFImporterLog, "Sections unavailable: " << Error);
+    llvm::consumeError(std::move(Error));
   } else {
     for (auto &Section : *Sections) {
       auto NameOrErr = TheELF.getSectionName(Section);
@@ -246,7 +247,10 @@ Error ELFImporter<T, HasAddend>::import(unsigned FetchDebugInfoWithLevel) {
 
   // Parse the .dynamic table
   auto DynamicEntries = TheELF.dynamicEntries();
-  if (DynamicEntries) {
+  if (auto Error = DynamicEntries.takeError()) {
+    revng_log(ELFImporterLog, "Cannot access dynamic entries: " << Error);
+    consumeError(std::move(Error));
+  } else {
     SmallVector<uint64_t, 10> NeededLibraryNameOffsets;
 
     // TODO: use std::optional
@@ -363,12 +367,11 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
         continue;
       revng_log(ELFImporterLog, " Importing Model for: " << DependencyLibrary);
       auto BinaryOrErr = llvm::object::createBinary(DependencyLibrary);
-      if (not BinaryOrErr) {
+      if (auto Error = BinaryOrErr.takeError()) {
         revng_log(ELFImporterLog,
-                  "Can't create object for "
-                    << DependencyLibrary << " due to "
-                    << toString(BinaryOrErr.takeError()));
-        llvm::consumeError(BinaryOrErr.takeError());
+                  "Can't create object for " << DependencyLibrary << " due to "
+                                             << Error);
+        llvm::consumeError(std::move(Error));
         continue;
       }
 
@@ -511,15 +514,16 @@ void ELFImporter<T, HasAddend>::parseSymbols(object::ELFFile<T> &TheELF,
 
   // Obtain a reference to the string table
   auto Strtab = TheELF.getSection(SymtabShdr->sh_link);
-  if (not Strtab) {
-    revng_log(ELFImporterLog, "Cannot find .strtab: " << Strtab.takeError());
+  if (auto Error = Strtab.takeError()) {
+    revng_log(ELFImporterLog, "Cannot find .strtab: " << Error);
+    consumeError(std::move(Error));
     return;
   }
 
   auto StrtabArray = TheELF.getSectionContents(**Strtab);
-  if (not StrtabArray) {
-    revng_log(ELFImporterLog,
-              "Cannot access .strtab: " << StrtabArray.takeError());
+  if (auto Error = StrtabArray.takeError()) {
+    revng_log(ELFImporterLog, "Cannot access .strtab: " << Error);
+    consumeError(std::move(Error));
     return;
   }
 
@@ -528,8 +532,9 @@ void ELFImporter<T, HasAddend>::parseSymbols(object::ELFFile<T> &TheELF,
 
   // Collect symbol names
   auto ELFSymbols = TheELF.symbols(SymtabShdr);
-  if (not ELFSymbols) {
-    revng_log(ELFImporterLog, "Cannot get symbols: " << ELFSymbols.takeError());
+  if (auto Error = ELFSymbols.takeError()) {
+    revng_log(ELFImporterLog, "Cannot get symbols: " << Error);
+    consumeError(std::move(Error));
     return;
   }
 
@@ -587,9 +592,9 @@ void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
   Elf_Phdr *DynamicPhdr = nullptr;
 
   auto ProgHeaders = TheELF.program_headers();
-  if (not ProgHeaders) {
-    revng_log(ELFImporterLog,
-              "Cannot access program headers: " << ProgHeaders.takeError());
+  if (auto Error = ProgHeaders.takeError()) {
+    revng_log(ELFImporterLog, "Cannot access program headers: " << Error);
+    consumeError(std::move(Error));
     return;
   }
 
@@ -635,8 +640,9 @@ void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
       // If it's an executable segment, and we've been asked so, register
       // which sections actually contain code
       auto Sections = TheELF.sections();
-      if (not Sections) {
-        logAllUnhandledErrors(std::move(Sections.takeError()), errs(), "");
+      if (auto Error = Sections.takeError()) {
+        revng_log(ELFImporterLog, "Sections unavailable: " << Error);
+        llvm::consumeError(std::move(Error));
       } else {
         using Elf_Shdr = const typename object::ELFFile<T>::Elf_Shdr;
         auto Inserter = NewSegment.Sections().batch_insert();
@@ -712,8 +718,7 @@ template<typename T, bool HasAddend>
 void ELFImporter<T, HasAddend>::parseDynamicSymbol(Elf_Sym_Impl<T> &Symbol,
                                                    StringRef Dynstr) {
   Expected<llvm::StringRef> MaybeName = Symbol.getName(Dynstr);
-  if (not MaybeName) {
-    auto TheError = MaybeName.takeError();
+  if (auto TheError = MaybeName.takeError()) {
     revng_log(ELFImporterLog, "Cannot access symbol name: " << TheError);
     consumeError(std::move(TheError));
     return;

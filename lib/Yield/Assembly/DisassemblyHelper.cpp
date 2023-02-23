@@ -49,26 +49,26 @@ static void analyzeBasicBlocks(yield::Function &Function,
                                const efa::FunctionMetadata &Metadata,
                                const model::Binary &Binary) {
   // Gather all the basic blocks that only have a single predecessor.
-  std::map<MetaAddress, std::optional<MetaAddress>> Predecessors;
+  std::map<BasicBlockID, std::optional<BasicBlockID>> Predecessors;
 
   for (const efa::BasicBlock &BasicBlock : Metadata.ControlFlowGraph()) {
-    auto [It, Success] = Predecessors.try_emplace(BasicBlock.Start());
+    auto [It, Success] = Predecessors.try_emplace(BasicBlock.ID());
     revng_assert(Success,
                  "Duplicate basic blocks in a `SortedVector`? "
                  "Something is clearly very wrong.");
   }
 
   // Remove the entry block from the analysis - its label is always required.
-  size_t RemovedCount = Predecessors.erase(Function.Entry());
+  size_t RemovedCount = Predecessors.erase(BasicBlockID(Function.Entry()));
   revng_assert(RemovedCount == 1,
                "No basic block at the function entry address!");
 
   for (const efa::BasicBlock &BasicBlock : Metadata.ControlFlowGraph()) {
     for (const auto &Edge : BasicBlock.Successors()) {
       auto [NextBlock, _] = efa::parseSuccessor(*convert(Edge).get(),
-                                                BasicBlock.End(),
+                                                BasicBlock.nextBlock(),
                                                 Binary);
-      if (NextBlock.isInvalid()) {
+      if (not NextBlock.isValid()) {
         // Ignore edges with unknown destinations (like indirect jumps).
         continue;
       }
@@ -80,7 +80,7 @@ static void analyzeBasicBlocks(yield::Function &Function,
           Predecessors.erase(Iterator);
         } else {
           // First predecessor found - save it.
-          Iterator->second = BasicBlock.Start();
+          Iterator->second = BasicBlock.ID();
         }
       }
     }
@@ -98,7 +98,7 @@ static void analyzeBasicBlocks(yield::Function &Function,
       auto CurrentBlock = Function.ControlFlowGraph().find(CurrentAddress);
       revng_assert(CurrentBlock != Function.ControlFlowGraph().end());
 
-      if (Predecessor->End() == Current->Start())
+      if (Predecessor->nextBlock() == Current->ID())
         CurrentBlock->IsLabelAlwaysRequired() = false;
     }
   }
@@ -116,7 +116,7 @@ yield::Function DH::disassemble(const model::Function &Function,
          ResultFunction.ControlFlowGraph().batch_insert();
        const efa::BasicBlock &BasicBlock : Metadata.ControlFlowGraph()) {
     yield::BasicBlock ResultBasicBlock;
-    ResultBasicBlock.Start() = BasicBlock.Start();
+    ResultBasicBlock.ID() = BasicBlock.ID();
     ResultBasicBlock.End() = BasicBlock.End();
     for (const auto &Successor : BasicBlock.Successors())
       ResultBasicBlock.Successors().insert(convert(Successor));
@@ -128,17 +128,19 @@ yield::Function DH::disassemble(const model::Function &Function,
     auto Label = Arch::getAssemblyLabelIndicator(Binary.Architecture());
     revng_assert(Helper.getLabelSuffix() == llvm::StringRef{ Label });
 
-    auto MaybeBBSize = BasicBlock.End() - BasicBlock.Start();
+    auto MaybeBBSize = BasicBlock.End() - BasicBlock.ID().start();
     revng_assert(MaybeBBSize.has_value());
 
-    auto RawBytes = BinaryView.getByAddress(BasicBlock.Start(), *MaybeBBSize);
+    auto RawBytes = BinaryView.getByAddress(BasicBlock.ID().start(),
+                                            *MaybeBBSize);
     revng_assert(RawBytes.has_value());
 
-    MetaAddress CurrentAddress = BasicBlock.Start();
+    const MetaAddress StartAddress = BasicBlock.ID().start();
+    MetaAddress CurrentAddress = StartAddress;
     MetaAddress InstructionWithTheDelaySlot = MetaAddress::invalid();
     for (auto InstrInserter = ResultBasicBlock.Instructions().batch_insert();
          CurrentAddress < BasicBlock.End();) {
-      auto MaybeInstructionOffset = CurrentAddress - BasicBlock.Start();
+      auto MaybeInstructionOffset = CurrentAddress - StartAddress;
       revng_assert(MaybeInstructionOffset.has_value());
       auto InstructionBytes = RawBytes->drop_front(*MaybeInstructionOffset);
 

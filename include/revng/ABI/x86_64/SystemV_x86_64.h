@@ -52,7 +52,7 @@ struct Trait<model::ABI::SystemV_x86_64> {
     model::Register::rbx_x86_64, model::Register::rbp_x86_64,
     model::Register::rsp_x86_64, model::Register::r12_x86_64,
     model::Register::r13_x86_64, model::Register::r14_x86_64,
-    model::Register::r15_x86_64, model::Register::fs_x86_64
+    model::Register::r15_x86_64
   };
 
   static constexpr auto

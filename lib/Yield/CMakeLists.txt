@@ -71,6 +71,7 @@ target_tuple_tree_generator(
   SEPARATE_STRING_TYPES
   "MetaAddress"
   SCALAR_TYPES
+  "BasicBlockID"
   "MetaAddress"
   "yield::ByteContainer"
   "model::FunctionAttribute::Values"
@@ -101,6 +102,7 @@ target_tuple_tree_generator(
   SEPARATE_STRING_TYPES
   "MetaAddress"
   SCALAR_TYPES
+  "BasicBlockID"
   "MetaAddress"
   "yield::ByteContainer"
   HEADERS

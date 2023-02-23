@@ -178,6 +178,8 @@ CodeGenerator::CodeGenerator(const RawBinaryView &RawBinary,
   }
 
   EarlyLinkedModule = parseIR(EarlyLinked, Context);
+  for (llvm::Function &F : *EarlyLinkedModule)
+    FunctionTags::QEMU.addTo(&F);
 
   auto *Uint8Ty = Type::getInt8Ty(Context);
   auto *ElfHeaderHelper = new GlobalVariable(*TheModule,

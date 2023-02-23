@@ -95,7 +95,7 @@ void JumpTargetManager::assertNoUnreachable() const {
       for (BasicBlock *Predecessor : make_range(pred_begin(BB), pred_end(BB)))
         VerifyLog << " " << getName(Predecessor);
 
-      MetaAddress PC = getBasicBlockPC(BB);
+      MetaAddress PC = getBasicBlockAddress(BB);
       if (PC.isValid()) {
         auto It = JumpTargets.find(PC);
         if (It != JumpTargets.end()) {
@@ -726,8 +726,9 @@ JumpTargetManager::getPC(Instruction *TheInstruction) const {
   if (NewPCCall == nullptr)
     return { MetaAddress::invalid(), 0 };
 
-  auto PC = MetaAddress::fromConstant(NewPCCall->getArgOperand(0));
-  uint64_t Size = getLimitedValue(NewPCCall->getArgOperand(1));
+  using namespace NewPCArguments;
+  MetaAddress PC = addressFromNewPC(NewPCCall);
+  uint64_t Size = getLimitedValue(NewPCCall->getArgOperand(InstructionSize));
   revng_assert(Size != 0);
   return { PC, Size };
 }
@@ -774,13 +775,8 @@ public:
 private:
   MetaAddress getPC(BasicBlock *BB) {
     if (!BB->empty()) {
-      if (auto *Call = dyn_cast<CallInst>(&*BB->begin())) {
-        Function *Callee = Call->getCalledFunction();
-        // TODO: comparing with "newpc" string is sad
-        if (Callee != nullptr && Callee->getName() == "newpc") {
-          return MetaAddress::fromConstant(Call->getArgOperand(0));
-        }
-      }
+      if (auto *Call = getCallTo(&*BB->begin(), "newpc"))
+        return addressFromNewPC(Call);
     }
 
     return MetaAddress::invalid();
@@ -913,8 +909,7 @@ void JumpTargetManager::purgeTranslation(BasicBlock *Start) {
       Instruction *I = &*(--BB->end());
 
       if (CallInst *Call = getCallTo(I, "newpc")) {
-        auto *Address = Call->getArgOperand(0);
-        OriginalInstructionAddresses.erase(MetaAddress::fromConstant(Address));
+        OriginalInstructionAddresses.erase(addressFromNewPC(Call));
       }
       eraseInstruction(I);
     }
@@ -1029,17 +1024,15 @@ void JumpTargetManager::prepareDispatcher() {
                                       TheFunction);
   Builder.SetInsertPoint(DispatcherFail);
 
-  auto *UnknownPCTy = FunctionType::get(Type::getVoidTy(Context),
-                                        { MetaAddress::getStruct(&TheModule) },
-                                        false);
-  FunctionCallee UnknownPC = TheModule.getOrInsertFunction("unknownPC",
-                                                           UnknownPCTy);
+  FunctionCallee UnknownPC = TheModule.getFunction("unknownPC");
   {
     auto *UnknownPCFunction = cast<Function>(skipCasts(UnknownPC.getCallee()));
     FunctionTags::Exceptional.addTo(UnknownPCFunction);
   }
 
-  Builder.CreateCall(UnknownPC, PCH->loadPC(Builder));
+  Builder.CreateCall(UnknownPC,
+                     unpack(Builder,
+                            PCH->buildCurrentPCPlainMetaAddress(Builder)));
   auto *FailUnreachable = Builder.CreateUnreachable();
   setBlockType(FailUnreachable, BlockType::DispatcherFailureBlock);
 
@@ -1380,7 +1373,7 @@ public:
 CallInst *JumpTargetManager::getJumpTarget(BasicBlock *Target) {
   for (BasicBlock *BB : inverse_depth_first(Target)) {
     if (auto *Call = dyn_cast<CallInst>(&*BB->begin())) {
-      auto MA = getPCFromNewPCCall(Call);
+      auto MA = addressFromNewPC(Call);
       if (MA.isValid() and isJumpTarget(MA))
         return Call;
     }
@@ -1406,13 +1399,13 @@ JumpTargetManager::MetaAddressSet JumpTargetManager::inflateAVIWhitelist() {
   // TODO: OriginalInstructionAddresses is not reliable, we should drop it
   for (User *NewPCUser : TheModule.getFunction("newpc")->users()) {
     auto *I = cast<Instruction>(NewPCUser);
-    auto WhitelistedMA = getPCFromNewPCCall(I);
+    auto WhitelistedMA = addressFromNewPC(I);
     if (WhitelistedMA.isValid()) {
       if (AVIPCWhiteList.count(WhitelistedMA) != 0) {
         BasicBlock *BB = I->getParent();
         auto VisitRange = inverse_depth_first_ext(BB, VisitSet);
         for (const BasicBlock *Reachable : VisitRange) {
-          auto MA = getPCFromNewPCCall(&*Reachable->begin());
+          auto MA = getBasicBlockAddress(Reachable);
           if (MA.isValid() and isJumpTarget(MA)) {
             Result.insert(MA);
           }
@@ -1508,7 +1501,7 @@ void JumpTargetManager::harvestWithAVI() {
       Builder.SetInsertPoint(BB->getFirstNonPHI());
 
       for (const model::Segment &Segment : Model->Segments()) {
-        if (Segment.contains(getBasicBlockPC(BB))) {
+        if (Segment.contains(getBasicBlockAddress(BB))) {
           for (const auto &CanonicalValue : Segment.CanonicalRegisterValues()) {
             auto Name = model::Register::getCSVName(CanonicalValue.Register());
             if (auto *CSV = M->getGlobalVariable(Name)) {
@@ -1774,7 +1767,6 @@ void JumpTargetManager::harvestWithAVI() {
 
   // Iterate over all the AVI markers
   Function *AVIMarker = AR.aviMarker();
-  StructType *MetaAddressStruct = MetaAddress::getStruct(M);
   for (User *U : AVIMarker->users()) {
     auto *Call = dyn_cast<CallInst>(U);
     if (Call == nullptr or skipCasts(Call->getCalledOperand()) != AVIMarker)
@@ -1921,8 +1913,7 @@ void JumpTargetManager::harvest() {
         auto *Call = cast<CallInst>(U);
         if (Call->getParent() != nullptr) {
           // Report the instruction on the coverage CSV
-          auto PC = MetaAddress::fromConstant(Call->getArgOperand(0));
-
+          MetaAddress PC = addressFromNewPC(Call);
           bool IsJT = isJumpTarget(PC);
           Call->setArgOperand(2, Builder.getInt32(static_cast<uint32_t>(IsJT)));
         }

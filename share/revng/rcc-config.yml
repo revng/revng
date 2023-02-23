@@ -2,6 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+# These can be extended and used below (write_passes and read_passes)
 matchers:
   c:
     type: suffix_or_shebang
@@ -70,7 +71,8 @@ read_passes:
       - .clang-tidy
       - Doxyfile.in
   - type: BashPass
-  - type: CPPCheckPass
+  - # This is hardcoded to act on file tagged as "c"
+    type: CPPCheckPass
     support_files: ["share/revng/support.c", "lib/Support/Assert.cpp"]
     ignore_cpp:
       paths: ["include/revng/Runtime/", "include/revng/PipelineC/"]
@@ -79,6 +81,7 @@ read_passes:
         - include/revng/Support/Assert.h
         - include/revng/Support/ClassSentinel.h
     matchers:
+      # Runs on all files
       generic:
         - name: There are lines longer than 80 characters
           matcher:
@@ -87,7 +90,7 @@ read_passes:
         - name: Found snippets that should not be present
           matcher:
             type: regexes_matcher
-            regexes: ['\(--> 0\)', ";;", '^\s*->.*;$', "Twine [^&]"]
+            regexes: ['\(--> 0\)', ";;", '^\s*->.*;$', "Twine [^&]", "#pragma clang optimize off"]
         - name: Found snippets that shouldn't be at the end of a line
           matcher:
             type: regexes_matcher
@@ -112,17 +115,21 @@ read_passes:
               - "<="
               - '//\s*WIP'
               - '#if\s*[01]'
+      # Every file except "support_files" (see above)
       non_support:
         - name: Use revng_{assert,check,abort,unreachable}
           matcher:
             type: regexes_matcher
             regexes: ['\babort\(', '\bassert\(', 'assert\(false', "llvm_unreachable"]
+      # Every file except "ignore_cpp" (see above)
       cpp: []
+      # As "cpp" but only if they end with ".cpp" (i.e., ignore headers)
       cpp_object:
         - name: Found snippets that shouldn't be at the end of a line
           matcher:
             type: regexes_matcher
             regexes: ["<$"]
+      # As "cpp" but only if they end with ".h" (i.e., ".cpp" files)
       header:
         - name: Headers should not use static
           matcher:

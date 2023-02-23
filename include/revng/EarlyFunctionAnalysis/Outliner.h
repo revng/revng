@@ -35,6 +35,8 @@ public:
   llvm::BasicBlock *AnyPCCloned = nullptr;
   llvm::BasicBlock *UnexpectedPCCloned = nullptr;
 
+  std::vector<MetaAddress> InlinedFunctionsByIndex = { MetaAddress::invalid() };
+
 public:
   OutlinedFunction() = default;
 
@@ -50,6 +52,7 @@ public:
       IndirectBranchInfoMarker = std::move(Other.IndirectBranchInfoMarker);
       AnyPCCloned = Other.AnyPCCloned;
       UnexpectedPCCloned = Other.UnexpectedPCCloned;
+      InlinedFunctionsByIndex = Other.InlinedFunctionsByIndex;
 
       Other.Address = MetaAddress::invalid();
       Other.Function = nullptr;

@@ -45,7 +45,7 @@ private:
 
       const efa::FunctionMetadata &FM = MDCache.getFunctionMetadata(Entry);
       for (const efa::BasicBlock &Block : FM.ControlFlowGraph())
-        VisitedBlocks.insert(Block.Start());
+        VisitedBlocks.insert(Block.ID().start());
     }
   }
 
@@ -57,7 +57,7 @@ private:
       if (getType(&BB) != BlockType::JumpTargetBlock)
         continue;
 
-      MetaAddress Entry = GCBI.getJumpTarget(&BB);
+      MetaAddress Entry = getBasicBlockAddress(getJumpTargetBlock(&BB));
       if (Binary.Functions().find(Entry) != Binary.Functions().end())
         continue;
 

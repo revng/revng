@@ -41,7 +41,7 @@ static void collectFunctionsFromCallees(Module &M,
     if (getType(&BB) != BlockType::JumpTargetBlock)
       continue;
 
-    MetaAddress Entry = GCBI.getJumpTarget(&BB);
+    MetaAddress Entry = getBasicBlockAddress(getJumpTargetBlock(&BB));
     if (Binary.Functions().find(Entry) != Binary.Functions().end())
       continue;
 

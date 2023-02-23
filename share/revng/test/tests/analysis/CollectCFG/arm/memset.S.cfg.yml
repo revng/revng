@@ -6,66 +6,66 @@
 - FunctionMetadata:
     ControlFlowGraph:
       - End: "2"
-        Start: "1"
+        ID: "1"
         Successors:
           - Destination: "2"
             Type: DirectBranch
           - Destination: "9"
             Type: DirectBranch
       - End: "3"
-        Start: "2"
+        ID: "2"
         Successors:
           - Destination: "3"
             Type: DirectBranch
       - End: "4"
-        Start: "3"
+        ID: "3"
         Successors:
           - Destination: "3"
             Type: DirectBranch
           - Destination: "4"
             Type: DirectBranch
       - End: "5"
-        Start: "4"
+        ID: "4"
         Successors:
           - Destination: "5"
             Type: DirectBranch
       - End: "6"
-        Start: "5"
+        ID: "5"
         Successors:
           - Destination: "6"
             Type: DirectBranch
           - Destination: "9"
             Type: DirectBranch
       - End: "7"
-        Start: "6"
+        ID: "6"
         Successors:
           - Destination: "7"
             Type: DirectBranch
           - Destination: "9"
             Type: DirectBranch
       - End: "8"
-        Start: "7"
+        ID: "7"
         Successors:
           - Destination: "8"
             Type: DirectBranch
           - Destination: "9"
             Type: DirectBranch
       - End: "9"
-        Start: "8"
+        ID: "8"
         Successors:
           - Destination: "5"
             Type: DirectBranch
           - Destination: "9"
             Type: DirectBranch
       - End: "10"
-        Start: "9"
+        ID: "9"
         Successors:
           - Destination: ":Invalid"
             Type: Return
           - Destination: "10"
             Type: DirectBranch
       - End: "11"
-        Start: "10"
+        ID: "10"
         Successors:
           - Destination: "12"
             Type: DirectBranch
@@ -82,37 +82,37 @@
           - Destination: "18"
             Type: DirectBranch
       - End: "13"
-        Start: "12"
+        ID: "12"
         Successors:
           - Destination: "13"
             Type: DirectBranch
       - End: "14"
-        Start: "13"
+        ID: "13"
         Successors:
           - Destination: "14"
             Type: DirectBranch
       - End: "15"
-        Start: "14"
+        ID: "14"
         Successors:
           - Destination: "15"
             Type: DirectBranch
       - End: "16"
-        Start: "15"
+        ID: "15"
         Successors:
           - Destination: "16"
             Type: DirectBranch
       - End: "17"
-        Start: "16"
+        ID: "16"
         Successors:
           - Destination: "17"
             Type: DirectBranch
       - End: "18"
-        Start: "17"
+        ID: "17"
         Successors:
           - Destination: "18"
             Type: DirectBranch
       - End: "19"
-        Start: "18"
+        ID: "18"
         Successors:
           - Destination: ":Invalid"
             Type: Return

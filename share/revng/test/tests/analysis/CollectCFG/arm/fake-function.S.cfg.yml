@@ -7,22 +7,22 @@
   FunctionMetadata:
     ControlFlowGraph:
       - End: "2"
-        Start: "1"
+        ID: "1"
         Successors:
           - Destination: "3"
             Type: DirectBranch
       - End: "3"
-        Start: "2"
+        ID: "2"
         Successors:
           - Destination: "4"
             Type: DirectBranch
       - End: "4"
-        Start: "3"
+        ID: "3"
         Successors:
           - Destination: "2"
             Type: DirectBranch
       - End: "5"
-        Start: "4"
+        ID: "4"
         Successors:
           - Destination: ":Invalid"
             Type: Return
@@ -30,7 +30,7 @@
   Attributes: [Inline]
   FunctionMetadata:
     ControlFlowGraph:
-      - Start: "3"
+      - ID: "3"
         End: "4"
         Successors:
           - Destination: ":Invalid"
@@ -40,7 +40,7 @@
   FunctionMetadata:
     ControlFlowGraph:
       - End: "5"
-        Start: "4"
+        ID: "4"
         Successors:
           - Destination: ":Invalid"
             Type: LongJmp

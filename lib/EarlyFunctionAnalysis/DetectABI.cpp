@@ -283,7 +283,7 @@ DetectABI::buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
 
     bool Found = false;
     for (const auto &[PC, CallSites] : CallerSummary.ABIResults.CallSites) {
-      if (PC != CallerBlock.Start())
+      if (PC != CallerBlock.ID())
         continue;
 
       revng_assert(!Found);
@@ -411,12 +411,18 @@ void DetectABI::finalizeModel() {
   for (auto &Function : Functions) {
     auto &Summary = Oracle.getLocalFunction(Function->Entry());
     for (auto &Block : Summary.CFG) {
+
+      // TODO: we do not detect prototoypes for inlined call sites
+      if (Block.ID().isInlined())
+        continue;
+      MetaAddress BlockAddress = Block.ID().notInlinedAddress();
+
       for (auto &Edge : Block.Successors()) {
         if (auto *CE = llvm::dyn_cast<efa::CallEdge>(Edge.get())) {
           auto &CallSitePrototypes = Function->CallSitePrototypes();
           bool IsDirect = CE->Destination().isValid();
           bool IsDynamic = not CE->DynamicFunction().empty();
-          bool HasInfoOnEdge = CallSitePrototypes.count(Block.Start()) != 0;
+          bool HasInfoOnEdge = CallSitePrototypes.count(BlockAddress) != 0;
           if (not IsDynamic and not IsDirect and not HasInfoOnEdge) {
             // It's an indirect call for which we have now call site information
             auto Prototype = buildPrototypeForIndirectCall(Summary, Block);
@@ -428,7 +434,7 @@ void DetectABI::finalizeModel() {
             AttributesSet Attributes = {};
 
             // Register new prototype
-            model::CallSitePrototype ThePrototype(Block.Start(),
+            model::CallSitePrototype ThePrototype(BlockAddress,
                                                   Path,
                                                   IsTailCall,
                                                   Attributes);
@@ -464,7 +470,11 @@ void DetectABI::interproceduralPropagation() {
   for (const model::Function &Function : Binary->Functions()) {
     auto &Summary = Oracle.getLocalFunction(Function.Entry());
     for (auto &[PC, CallSite] : Summary.ABIResults.CallSites) {
-      if (PC == Function.Entry())
+
+      if (PC.isInlined())
+        continue;
+
+      if (PC.notInlinedAddress() == Function.Entry())
         combineCrossCallSites(CallSite, Summary.ABIResults);
     }
   }
@@ -551,7 +561,8 @@ void DetectABI::applyABIDeductions() {
           for (auto &Edge : Block.Successors()) {
             if (efa::FunctionEdgeType::isCall(Edge->Type())
                 && Edge->Type() != efa::FunctionEdgeType::FunctionCall) {
-              auto &CSSummary = Summary.ABIResults.CallSites.at(Block.Start());
+              revng_assert(Block.ID().isValid());
+              auto &CSSummary = Summary.ABIResults.CallSites.at(Block.ID());
 
               if (CSSummary.ArgumentsRegisters.count(CSV) != 0)
                 CSSummary.ArgumentsRegisters[CSV] = MaybeArg;
@@ -662,7 +673,7 @@ void DetectABI::analyzeABI(llvm::BasicBlock *Entry) {
   using llvm::BasicBlock;
   using namespace ABIAnalyses;
 
-  MetaAddress EntryAddress = getBasicBlockPC(Entry);
+  MetaAddress EntryAddress = getBasicBlockAddress(Entry);
 
   IRBuilder<> Builder(M.getContext());
   ABIAnalysesResults ABIResults;

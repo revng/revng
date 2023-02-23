@@ -84,8 +84,9 @@ void YieldCallGraphSlice::run(pipeline::Context &Context,
     revng_assert(ModelFunctionIterator != Model->Functions().end());
 
     // Slice the graph for the current function and convert it to SVG
+    BasicBlockID EntryID(Metadata.Entry());
     Output.insert_or_assign(Metadata.Entry(),
-                            yield::svg::callGraphSlice(Metadata.Entry(),
+                            yield::svg::callGraphSlice(EntryID,
                                                        *Relations.get(),
                                                        *Model));
   }

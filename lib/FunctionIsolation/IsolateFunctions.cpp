@@ -113,12 +113,10 @@ public:
   }
 };
 
-using SuccessorsList = GeneratedCodeBasicInfo::SuccessorsList;
 struct Boundary {
   BasicBlock *Block = nullptr;
   BasicBlock *CalleeBlock = nullptr;
   BasicBlock *ReturnBlock = nullptr;
-  SuccessorsList Successors;
 
   bool isCall() const { return ReturnBlock != nullptr; }
 
@@ -129,8 +127,6 @@ struct Boundary {
     Output << "Block: " << getName(Block) << "\n";
     Output << "CalleeBlock: " << getName(CalleeBlock) << "\n";
     Output << "ReturnBlock: " << getName(ReturnBlock) << "\n";
-    Output << "Successors: \n";
-    Successors.dump(Output);
   }
 };
 
@@ -179,8 +175,6 @@ private:
   std::map<MetaAddress, Function *> IsolatedFunctionsMap;
   std::map<StringRef, Function *> DynamicFunctionsMap;
   ConstantStringsPool Strings;
-  GlobalVariable *ExceptionSourcePC;
-  GlobalVariable *ExceptionDestinationPC;
 
   FunctionMetadataCache *Cache;
 
@@ -233,10 +227,11 @@ void IFI::throwException(IRBuilder<> &Builder,
                          const Twine &Reason,
                          const DebugLoc &DbgLocation) {
   revng_assert(RaiseException != nullptr);
-  // revng_assert(DbgLocation);
+
+  SmallVector<llvm::Value *, 4> Arguments;
 
   // Create the message string
-  Constant *ReasonString = Strings.get(Reason.str());
+  Arguments.push_back(Strings.get(Reason.str()));
 
   // Populate the source PC
   MetaAddress SourcePC = MetaAddress::invalid();
@@ -244,17 +239,15 @@ void IFI::throwException(IRBuilder<> &Builder,
   if (Instruction *T = Builder.GetInsertBlock()->getTerminator())
     SourcePC = getPC(T).first;
 
-  auto *Ty = ExceptionSourcePC->getType()->getPointerElementType();
-  Builder.CreateStore(SourcePC.toConstant(Ty), ExceptionSourcePC);
+  auto *PCH = GCBI.programCounterHandler();
 
-  // Populate the destination PC
-  Builder.CreateStore(GCBI.programCounterHandler()->loadPC(Builder),
-                      ExceptionDestinationPC);
+  auto AddArguments = [&Arguments, &Builder](llvm::Value *V) {
+    llvm::copy(unpack(Builder, V), std::back_inserter(Arguments));
+  };
+  AddArguments(PCH->buildPlainMetaAddress(Builder, SourcePC));
+  AddArguments(PCH->buildCurrentPCPlainMetaAddress(Builder));
 
-  auto *NewCall = Builder.CreateCall(RaiseException,
-                                     { ReasonString,
-                                       ExceptionSourcePC,
-                                       ExceptionDestinationPC });
+  auto *NewCall = Builder.CreateCall(RaiseException, Arguments);
   NewCall->setDebugLoc(DbgLocation);
   Builder.CreateUnreachable();
 
@@ -444,7 +437,7 @@ private:
 
     StringRef SymbolName = extractFromConstantStringPtr(SymbolNamePointer);
     revng_assert(SymbolName == CallEdge->DynamicFunction());
-    revng_assert(Callee == CallEdge->Destination());
+    revng_assert(Callee == CallEdge->Destination().notInlinedAddress());
 
     // Identify callee
     Function *CalledFunction = nullptr;
@@ -466,9 +459,7 @@ private:
     auto *NewCall = Builder.CreateCall(CalledFunction);
     NewCall->setDebugLoc(Old->getDebugLoc());
     FunctionTags::CallToLifted.addTo(NewCall);
-    IFI.gcbi().setMetaAddressMetadata(NewCall,
-                                      CallerBlockStartMDName,
-                                      Caller->Start());
+    setStringMetadata(NewCall, CallerBlockStartMDName, Caller->ID().toString());
   }
 };
 
@@ -503,23 +494,8 @@ public:
 };
 
 void IsolateFunctionsImpl::run() {
-  ExceptionSourcePC = MetaAddress::createStructVariable(TheModule,
-                                                        "exception_source_pc");
-  ExceptionDestinationPC = MetaAddress::createStructVariable(TheModule,
-                                                             "exception_"
-                                                             "destination_pc");
-
-  // Declare the raise_exception_helper function that we will use as a throw
-  std::vector<Type *> ArgsType{ Type::getInt8Ty(Context)->getPointerTo(),
-                                ExceptionSourcePC->getType(),
-                                ExceptionDestinationPC->getType() };
-  auto *RaiseExceptionTy = FunctionType::get(Type::getVoidTy(Context),
-                                             ArgsType,
-                                             false);
-  RaiseException = Function::Create(RaiseExceptionTy,
-                                    Function::ExternalLinkage,
-                                    "raise_exception_helper",
-                                    TheModule);
+  RaiseException = TheModule->getFunction("raise_exception_helper");
+  revng_assert(RaiseException != nullptr);
   FunctionTags::Exceptional.addTo(RaiseException);
 
   FunctionDispatcher = Function::Create(createFunctionType<void>(Context),
@@ -578,9 +554,7 @@ void IsolateFunctionsImpl::run() {
     IsolatedFunctionsMap[Function.Entry()] = NewFunction;
     FunctionTags::Isolated.addTo(NewFunction);
     revng_assert(NewFunction != nullptr);
-    GCBI.setMetaAddressMetadata(NewFunction,
-                                FunctionEntryMDNName,
-                                Function.Entry());
+    setMetaAddressMetadata(NewFunction, FunctionEntryMDNName, Function.Entry());
 
     auto *OriginalEntry = GCBI.getBlockAt(Function.Entry())->getTerminator();
     auto *MDNode = OriginalEntry->getMetadata(FunctionMetadataMDName);

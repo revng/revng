@@ -133,9 +133,11 @@ inline BlockType::Values getType(llvm::Instruction *T) {
 
   if (MD == nullptr) {
     Instruction *First = &*T->getParent()->begin();
-    if (CallInst *Call = getCallTo(First, "newpc"))
-      if (getLimitedValue(Call->getArgOperand(2)) == 1)
+    if (CallInst *Call = getCallTo(First, "newpc")) {
+      auto *Argument = Call->getArgOperand(NewPCArguments::IsJumpTarget);
+      if (getLimitedValue(Argument) == 1)
         return BlockType::JumpTargetBlock;
+    }
 
     return BlockType::TranslatedBlock;
   }
@@ -156,4 +158,9 @@ inline bool isPartOfRootDispatcher(llvm::BasicBlock *BB) {
   auto Type = getType(BB->getTerminator());
   return (Type == BlockType::RootDispatcherBlock
           or Type == BlockType::RootDispatcherHelperBlock);
+}
+
+/// \brief Return true if the basic block is a jump target
+inline bool isJumpTarget(llvm::BasicBlock *BB) {
+  return getType(BB->getTerminator()) == BlockType::JumpTargetBlock;
 }

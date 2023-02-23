@@ -14,6 +14,7 @@
 #include "revng/EarlyFunctionAnalysis/CallGraph.h"
 #include "revng/EarlyFunctionAnalysis/CallHandler.h"
 #include "revng/EarlyFunctionAnalysis/Outliner.h"
+#include "revng/Model/IRHelpers.h"
 
 using namespace llvm;
 
@@ -132,7 +133,7 @@ void Outliner::integrateFunctionCallee(CallHandler *TheCallHandler,
 
   BasicBlock *BB = FunctionCall != nullptr ? FunctionCall->getParent() :
                                              JumpToSymbol->getParent();
-  MetaAddress CallerBlock = GCBI.getJumpTarget(BB);
+  MetaAddress CallerBlock = getBasicBlockAddress(getJumpTargetBlock(BB));
   revng_assert(CallerBlock.isValid());
 
   bool TargetIsSymbol = JumpToSymbol != nullptr;
@@ -216,7 +217,7 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
   using namespace llvm;
   using llvm::BasicBlock;
 
-  MetaAddress FunctionAddress = getBasicBlockPC(Entry);
+  MetaAddress FunctionAddress = getBasicBlockAddress(Entry);
 
   Function *Root = Entry->getParent();
 
@@ -243,7 +244,7 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
       // Compute callee
       MetaAddress PCCallee = MetaAddress::invalid();
       if (auto *Next = getFunctionCallCallee(Current))
-        PCCallee = getBasicBlockPC(Next);
+        PCCallee = getBasicBlockAddress(Next);
 
       CallInst *JumpToSymbol = getMarker(Current, "jump_to_symbol");
       auto [Summary, IsTailCall] = getCallSiteInfo(TheCallHandler,
@@ -298,7 +299,7 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
       // If the function callee is null, we are dealing with an indirect call
       MetaAddress PCCallee = MetaAddress::invalid();
       if (BasicBlock *Next = getFunctionCallCallee(Term))
-        PCCallee = getBasicBlockPC(Next);
+        PCCallee = getBasicBlockAddress(Next);
 
       CallToCallee[FunctionCall] = PCCallee;
 
@@ -316,13 +317,12 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
         auto *BB = Term->getParent();
         Term->eraseFromParent();
         IRBuilder<> Builder(BB);
-        TheCallHandler->handlePostNoReturn(Builder);
+        Builder.CreateUnreachable();
 
         // Ensure markers are still close to the terminator
         if (JumpToSymbol != nullptr)
           JumpToSymbol->moveBefore(BB->getTerminator());
         FunctionCall->moveBefore(BB->getTerminator());
-
       } else if (IsTailCall) {
         revng_assert(not cast<BranchInst>(Term)->isConditional());
         auto *Br = BranchInst::Create(cast<BasicBlock>(VMap[AnyPCBB]));
@@ -390,7 +390,6 @@ void Outliner::createAnyPCHooks(CallHandler *TheCallHandler,
   using namespace llvm;
   LLVMContext &Context = M.getContext();
 
-  StructType *MetaAddressTy = MetaAddress::getStruct(&M);
   SmallVector<Instruction *, 4> IndirectBranchPredecessors;
   if (OutlinedFunction->AnyPCCloned) {
     for (auto *Pred : predecessors(OutlinedFunction->AnyPCCloned)) {
@@ -407,7 +406,8 @@ void Outliner::createAnyPCHooks(CallHandler *TheCallHandler,
   // out to be a proper return.
   for (auto *Term : IndirectBranchPredecessors) {
     auto *BB = Term->getParent();
-    MetaAddress IndirectRetBBAddress = GCBI.getJumpTarget(BB);
+    auto *JumpTargetBB = getJumpTargetBlock(BB);
+    MetaAddress IndirectRetBBAddress = getBasicBlockAddress(JumpTargetBB);
     revng_assert(IndirectRetBBAddress.isValid());
 
     auto *Split = BB->splitBasicBlock(Term, BB->getName() + Twine("_anypc"));
@@ -430,6 +430,50 @@ void Outliner::createAnyPCHooks(CallHandler *TheCallHandler,
                                        SymbolName);
   }
 }
+
+class FixFunctionPreInlining {
+private:
+  unsigned InliningIndex = 0;
+  std::set<std::pair<MetaAddress, llvm::Function *>> ToRestore;
+  std::vector<MetaAddress> &InlinedFunctionsByIndex;
+
+public:
+  FixFunctionPreInlining(std::vector<MetaAddress> &InlinedFunctionsByIndex) :
+    InlinedFunctionsByIndex(InlinedFunctionsByIndex) {}
+  ~FixFunctionPreInlining() { revng_assert(ToRestore.size() == 0); }
+
+public:
+  void fix(const MetaAddress &CalleeAddress, llvm::CallBase *Caller) {
+    Function *Callee = Caller->getCalledFunction();
+    revng_assert(Callee != nullptr);
+    setNewPCInlineIndex(CalleeAddress, Callee, ++InliningIndex);
+    InlinedFunctionsByIndex.push_back(CalleeAddress);
+    ToRestore.emplace(CalleeAddress, Callee);
+  }
+
+  void restore() {
+    for (const auto &[Address, F] : ToRestore)
+      setNewPCInlineIndex(Address, F, 0);
+    ToRestore.clear();
+  }
+
+private:
+  static void setNewPCInlineIndex(const MetaAddress &FunctionAddress,
+                                  llvm::Function *F,
+                                  unsigned InliningIndex) {
+    revng_assert(FunctionAddress.isValid());
+
+    for (llvm::Instruction &I : llvm::instructions(F)) {
+      if (auto *NewPCCall = getCallTo(&I, "newpc")) {
+        using namespace NewPCArguments;
+        Value *Argument = NewPCCall->getArgOperand(InstructionID);
+        auto OldID = BasicBlockID::fromValue(Argument);
+        BasicBlockID NewID(OldID.start(), InliningIndex);
+        NewPCCall->setArgOperand(InstructionID, NewID.toValue(F->getParent()));
+      }
+    }
+  }
+};
 
 OutlinedFunction
 Outliner::outline(llvm::BasicBlock *Entry, CallHandler *Handler) {
@@ -473,14 +517,16 @@ Outliner::outline(llvm::BasicBlock *Entry, CallHandler *Handler) {
   // Fixed point inlining
   //
   bool SomethingNew = true;
+  FixFunctionPreInlining FunctionFixer(Result.InlinedFunctionsByIndex);
   while (SomethingNew) {
     SomethingNew = false;
-    for (auto &[BB, F] : FunctionsToInline) {
+    for (auto &[Address, F] : FunctionsToInline) {
       SmallVector<CallBase *> ToInline;
       for (CallBase *Caller : callers(F.get()))
         ToInline.push_back(Caller);
 
       for (CallBase *Caller : ToInline) {
+        FunctionFixer.fix(Address, Caller);
         InlineFunctionInfo IFI;
         bool Success = InlineFunction(*Caller, IFI, nullptr, true).isSuccess();
         revng_assert(Success);
@@ -488,6 +534,8 @@ Outliner::outline(llvm::BasicBlock *Entry, CallHandler *Handler) {
       }
     }
   }
+
+  FunctionFixer.restore();
 
   // Fix `unexpectedpc` of the callees to inline
   for (auto &I : instructions(Result.Function.get())) {
@@ -552,7 +600,7 @@ Outliner::getCallSiteInfo(CallHandler *TheCallHandler,
   Instruction *Term = BB->getTerminator();
 
   // Extract MetaAddress of JT of the call-site
-  auto CallSiteAddress = GCBI.getJumpTarget(BB);
+  BasicBlockID CallSiteAddress = getBasicBlockID(getJumpTargetBlock(BB));
   revng_assert(CallSiteAddress.isValid());
 
   StringRef CalledSymbol;

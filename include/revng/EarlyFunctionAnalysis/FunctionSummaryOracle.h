@@ -118,7 +118,7 @@ private:
   /// Key is composed by <FunctionEntryPoint, CallSiteBasicBlockAddress>
   /// Value is composed by <FunctionSummary, IsTailCall>
   using CallSiteDescriptor = std::pair<FunctionSummary, bool>;
-  std::map<std::pair<MetaAddress, MetaAddress>, CallSiteDescriptor> CallSites;
+  std::map<std::pair<MetaAddress, BasicBlockID>, CallSiteDescriptor> CallSites;
 
   /// Local functions
   std::map<MetaAddress, FunctionSummary> LocalFunctions;
@@ -144,13 +144,13 @@ public:
   ///         site is a tail call or not.
   std::pair<const FunctionSummary *, bool>
   getCallSite(MetaAddress Function,
-              MetaAddress CallerBlockAddress,
+              BasicBlockID CallerBlockAddress,
               MetaAddress CalledLocalFunction,
               llvm::StringRef CalledSymbol) const;
 
 public:
   bool registerCallSite(MetaAddress Function,
-                        MetaAddress CallSite,
+                        BasicBlockID CallSite,
                         FunctionSummary &&New,
                         bool IsTailCall);
 
@@ -166,7 +166,7 @@ public:
 
 private:
   std::pair<const FunctionSummary *, bool>
-  getCallSiteImpl(MetaAddress Function, MetaAddress CallSite) const {
+  getCallSiteImpl(MetaAddress Function, BasicBlockID CallSite) const {
     auto It = CallSites.find({ Function, CallSite });
     if (It == CallSites.end())
       return { nullptr, false };

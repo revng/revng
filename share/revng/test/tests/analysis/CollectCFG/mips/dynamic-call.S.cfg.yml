@@ -7,13 +7,13 @@
   FunctionMetadata:
     Entry: "1"
     ControlFlowGraph:
-      - Start: "1"
+      - ID: "1"
         End: "2"
         Successors:
           - Destination: ":Invalid"
             Type: FunctionCall
             DynamicFunction: strlen
-      - Start: "2"
+      - ID: "2"
         End: "3"
         Successors:
           - Destination: ":Invalid"

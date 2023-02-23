@@ -37,13 +37,13 @@ namespace yield::calls {
 ///
 /// \note: this makes a copy of the graph, as such `Input` is not affected.
 Graph makeCalleeTree(const Graph &Input,
-                     const MetaAddress &SlicePoint = MetaAddress());
+                     const BasicBlockID &SlicePoint = BasicBlockID());
 
 /// Produces a backwards facing slice of the graph starting from a single node.
 ///
 /// It is exactly the same as \see makeCalleeTree except it works in
 /// the opposite direction (it makes sure all the predecessors are preserved).
 Graph makeCallerTree(const Graph &Input,
-                     const MetaAddress &SlicePoint = MetaAddress());
+                     const BasicBlockID &SlicePoint = BasicBlockID());
 
 } // namespace yield::calls

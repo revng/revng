@@ -5,6 +5,7 @@
 //
 
 #include "revng/Model/VerifyHelper.h"
+#include "revng/Support/BasicBlockID/YAMLTraits.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/Yield/FunctionEdgeType.h"
@@ -25,7 +26,7 @@ fields:
       If valid, it's either the address of the basic block in case of a direct
       branch, or, in case of a function call, the address of the callee.
       TODO: switch to TupleTreeReference
-    type: MetaAddress
+    type: BasicBlockID
   - name: Type
     doc: Type of the CFG edge
     type: FunctionEdgeType

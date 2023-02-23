@@ -24,7 +24,7 @@ copyNode(yield::Graph &Graph, const yield::Graph::Node *Source) {
 /// \tparam INV inverted location `NodeView` specialization
 template<typename NV, typename INV>
 yield::Graph
-makeTreeImpl(const yield::Graph &Input, const MetaAddress &SlicePoint) {
+makeTreeImpl(const yield::Graph &Input, const BasicBlockID &SlicePoint) {
   auto SlicePointPredicate = [&SlicePoint](NodeView Node) {
     return Node->Address == SlicePoint;
   };
@@ -112,12 +112,12 @@ makeTreeImpl(const yield::Graph &Input, const MetaAddress &SlicePoint) {
 }
 
 yield::Graph yield::calls::makeCalleeTree(const yield::Graph &Input,
-                                          const MetaAddress &SlicePoint) {
+                                          const BasicBlockID &SlicePoint) {
   // Forwards direction, makes sure no successor relation ever gets lost.
   return makeTreeImpl<NodeView, llvm::Inverse<NodeView>>(Input, SlicePoint);
 }
 yield::Graph yield::calls::makeCallerTree(const yield::Graph &Input,
-                                          const MetaAddress &SlicePoint) {
+                                          const BasicBlockID &SlicePoint) {
   // Backwards direction, makes sure no predecessor relation ever gets lost.
   return makeTreeImpl<llvm::Inverse<NodeView>, NodeView>(Input, SlicePoint);
 }

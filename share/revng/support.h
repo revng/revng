@@ -10,6 +10,8 @@
 #include <stdint.h>
 #include <stdnoreturn.h>
 
+#include "revng/Runtime/PlainMetaAddress.h"
+
 // Handle target specific information:
 //
 // * Register size
@@ -107,7 +109,8 @@ extern jmp_buf jmp_buffer;
 
 bool is_executable(uint64_t pc);
 void set_register(uint32_t register_id, uint64_t value);
+void unknownPC(PlainMetaAddress PC);
 
 noreturn void raise_exception_helper(const char *reason,
-                                     PlainMetaAddress *source,
-                                     PlainMetaAddress *destination);
+                                     PlainMetaAddress source,
+                                     PlainMetaAddress destination);

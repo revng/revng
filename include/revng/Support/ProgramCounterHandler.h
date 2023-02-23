@@ -112,12 +112,14 @@ public:
 
   void expandNewPC(llvm::CallInst *Call) const {
     revng_assert(isCallTo(Call, "newpc"));
-    auto MA = MetaAddress::fromConstant(Call->getArgOperand(0));
+    MetaAddress Address = addressFromNewPC(Call);
     llvm::IRBuilder<> Builder(Call);
-    setPC(Builder, MA);
+    setPC(Builder, Address);
   }
 
-  llvm::Value *loadPC(llvm::IRBuilder<> &Builder) const;
+  llvm::Value *buildCurrentPCPlainMetaAddress(llvm::IRBuilder<> &Builder) const;
+  llvm::Value *buildPlainMetaAddress(llvm::IRBuilder<> &Builder,
+                                     const MetaAddress &Address) const;
 
 protected:
   virtual void

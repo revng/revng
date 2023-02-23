@@ -24,36 +24,36 @@ yield::cfg::extractFromInternal(const yield::Function &Function,
                                                            Binary);
 
   if (!Configuration.AddExitNode) {
-    auto ExitNodeIterator = Table.find(MetaAddress::invalid());
+    auto ExitNodeIterator = Table.find(BasicBlockID::invalid());
     if (ExitNodeIterator != Table.end())
       Result.removeNode(ExitNodeIterator->second);
   }
 
   if (Configuration.AddEntryNode) {
-    auto EntryIterator = Table.find(Function.Entry());
+    auto EntryIterator = Table.find(BasicBlockID(Function.Entry()));
     revng_assert(EntryIterator != Table.end());
     auto *RootNode = Result.addNode();
-    RootNode->Address = MetaAddress::invalid();
+    RootNode->Address = BasicBlockID::invalid();
     RootNode->addSuccessor(EntryIterator->second);
     Result.setEntryNode(RootNode);
   }
 
   // Colour taken and refused edges.
   for (const auto &BasicBlock : Function.ControlFlowGraph()) {
-    auto NodeIterator = Table.find(BasicBlock.Start());
+    auto NodeIterator = Table.find(BasicBlock.ID());
     revng_assert(NodeIterator != Table.end());
     auto &CurrentNode = *NodeIterator->second;
-    CurrentNode.NextAddress = BasicBlock.End();
+    CurrentNode.NextAddress = BasicBlock.nextBlock();
 
     if (BasicBlock.Successors().size() == 2) {
       revng_assert(CurrentNode.successorCount() <= 2);
       if (CurrentNode.successorCount() == 2) {
         auto Front = *CurrentNode.successor_edges_begin();
         auto Back = *std::next(CurrentNode.successor_edges_begin());
-        if (Front.Neighbor->Address == BasicBlock.End()) {
+        if (Front.Neighbor->Address == BasicBlock.nextBlock()) {
           Front.Label->Type = yield::Graph::EdgeType::Refused;
           Back.Label->Type = yield::Graph::EdgeType::Taken;
-        } else if (Back.Neighbor->Address == BasicBlock.End()) {
+        } else if (Back.Neighbor->Address == BasicBlock.nextBlock()) {
           Front.Label->Type = yield::Graph::EdgeType::Taken;
           Back.Label->Type = yield::Graph::EdgeType::Refused;
         }
@@ -63,7 +63,7 @@ yield::cfg::extractFromInternal(const yield::Function &Function,
             continue;
 
         auto Edge = *CurrentNode.successor_edges_begin();
-        if (Edge.Neighbor->Address == BasicBlock.End())
+        if (Edge.Neighbor->Address == BasicBlock.nextBlock())
           Edge.Label->Type = yield::Graph::EdgeType::Refused;
       }
     }

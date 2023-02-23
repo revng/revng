@@ -6,6 +6,8 @@
 
 #include <string>
 
+#include "revng/Support/BasicBlockID.h"
+
 class MetaAddress;
 namespace model {
 class Binary;
@@ -18,7 +20,7 @@ namespace yield::ptml {
 
 std::string functionAssembly(const yield::Function &InternalFunction,
                              const model::Binary &Binary);
-std::string controlFlowNode(const MetaAddress &BasicBlockAddress,
+std::string controlFlowNode(const BasicBlockID &BasicBlockAddress,
                             const yield::Function &Function,
                             const model::Binary &Binary);
 
