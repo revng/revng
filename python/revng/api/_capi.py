@@ -128,7 +128,8 @@ for header_path in header_paths:
     with open(header_path, encoding="utf-8") as header_file:
         lines = ""
         for line in header_file:
-            if not line.startswith("#"):
+            # TODO: use a C preprocessor to remove #include-s and macros
+            if not (line.startswith("#") or line.startswith("LENGTH_HINT")):
                 lines += line
             else:
                 # Add newline to preserve line numbers

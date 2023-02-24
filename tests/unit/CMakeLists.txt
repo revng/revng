@@ -394,3 +394,19 @@ target_link_libraries(
   ${LLVM_LIBRARIES})
 add_test(NAME test_alignment COMMAND test_alignment)
 set_tests_properties(test_alignment PROPERTIES LABELS "unit;abi;alignment")
+
+#
+# test_PipelineCTracing
+#
+
+configure_file("${CMAKE_SOURCE_DIR}/tests/pipeline/CopyPipeTestPipeline.yml"
+               "${CMAKE_BINARY_DIR}/tests/pipeline/Tracing.yml" COPYONLY)
+
+revng_add_test_executable(test_PipelineCTracing "PipelineCTracing.cpp")
+target_compile_definitions(test_PipelineCTracing
+                           PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(test_PipelineCTracing PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(test_PipelineCTracing revngPipelineC revngSupport
+                      Boost::unit_test_framework ${LLVM_LIBRARIES})
+add_test(NAME test_PipelineCTracing COMMAND test_PipelineCTracing)
+set_tests_properties(test_PipelineCTracing PROPERTIES LABELS "unit")

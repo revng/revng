@@ -7,6 +7,8 @@
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/PipelineManager.h"
 
+// NOLINTBEGIN
+
 struct rp_error_reason {
 public:
   std::string Message;
@@ -56,3 +58,5 @@ typedef pipeline::InvalidationMap rp_invalidations;
 typedef llvm::SmallVector<char, 0> rp_buffer;
 typedef pipeline::ContainerToTargetsMap rp_container_targets_map;
 typedef const pipeline::AnalysesList rp_analyses_list;
+
+// NOLINTEND
