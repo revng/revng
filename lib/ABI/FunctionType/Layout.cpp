@@ -160,52 +160,6 @@ ToRawConverter::convert(const model::CABIFunctionType &FunctionType,
 
       NewType.ReturnValues().emplace(Converted);
     }
-
-    // If function returns a struct, make an effort to preserve the field
-    // types.
-    if (FunctionType.ReturnType().Qualifiers().empty()) {
-      const auto *Type = FunctionType.ReturnType().UnqualifiedType().get();
-      revng_assert(Type != nullptr);
-      const auto *Struct = llvm::dyn_cast<model::StructType>(Type);
-      if (Struct && Struct->Fields().size() == NewType.ReturnValues().size()) {
-        using ModelRegister = model::Register::Values;
-        SmallMap<ModelRegister, model::QualifiedType, 4> RecoveredTypes;
-        size_t StructOffset = 0;
-        for (size_t Index = 0; Index < Struct->Fields().size(); ++Index) {
-          if (Index >= ABI.GeneralPurposeReturnValueRegisters().size())
-            break;
-
-          auto Register = ABI.GeneralPurposeReturnValueRegisters()[Index];
-          auto TypedRegisterIterator = NewType.ReturnValues().find(Register);
-          if (TypedRegisterIterator == NewType.ReturnValues().end())
-            continue;
-
-          const model::StructField &Field = Struct->Fields().at(StructOffset);
-
-          auto MaybeFieldSize = Field.Type().size();
-          revng_assert(MaybeFieldSize != std::nullopt);
-
-          auto MaybeRegisterSize = TypedRegisterIterator->Type().size();
-          revng_assert(MaybeRegisterSize != std::nullopt);
-
-          if (MaybeFieldSize.value() != MaybeRegisterSize.value())
-            break;
-
-          auto Tie = std::tie(Register, Field.Type());
-          auto [Iterator, Success] = RecoveredTypes.insert(std::move(Tie));
-          revng_assert(Success);
-
-          StructOffset += MaybeFieldSize.value();
-        }
-
-        // Only preserve types if there's one for each of the registers.
-        // The worst thing we could do is to inject incompatible information
-        // in.
-        if (RecoveredTypes.size() == NewType.ReturnValues().size())
-          for (auto [Register, Type] : RecoveredTypes)
-            NewType.ReturnValues().at(Register).Type() = Type;
-      }
-    }
   } else if (ReturnValue.Size != 0) {
     // The return value uses a pointer-to-a-location: add it as an argument.
 
