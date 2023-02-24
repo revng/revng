@@ -33,6 +33,7 @@ REVNG_NOTIFY_FIFOS: list of fifo pipes to be notified of changes in the pipeline
   <fifo path 1>:<event type 1>,<fifo path 2>:<event type 2>,...
   Event types that are available: begin, context
 REVNG_ORIGINS: comma-separated list of allowed CORS origins
+REVNG_C_API_TRACE_PATH: path to file to use to save api tracing, useful for debugging
 
 Persistence:
 revng needs a directory to preserve progress across restarts, this is controlled

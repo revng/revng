@@ -6,5 +6,5 @@ add_subdirectory(efa)
 add_subdirectory(link-for-translation)
 add_subdirectory(model)
 add_subdirectory(pipeline)
-
 add_subdirectory(lddtree)
+add_subdirectory(trace)

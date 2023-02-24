@@ -5,6 +5,7 @@
 //
 
 #include "revng/PipelineC/PipelineC.h"
+#include "revng/PipelineC/Tracing/LengthHint.h"
 
 /**
  * TODO: move to mkdocs
@@ -68,6 +69,8 @@
  *         `const foo *`
  */
 
+// NOLINTBEGIN
+
 /**
  * Must be invoked before any other rp_* function is used, must be invoked
  * exactly once. This will take care of initializing shared libraries and all of
@@ -79,6 +82,9 @@ bool rp_initialize(int argc,
                    const char *argv[],
                    uint32_t signals_to_preserve_count,
                    int signals_to_preserve[]);
+LENGTH_HINT(rp_initialize, 1, 0)
+LENGTH_HINT(rp_initialize, 3, 2)
+LENGTH_HINT(rp_initialize, 5, 4)
 
 /**
  * Should be called on clean exit to clean up all LLVM-related stuff used by
@@ -113,6 +119,8 @@ void rp_string_destroy(char *string);
 rp_manager * /*owning*/ rp_manager_create(uint64_t pipeline_flags_count,
                                           const char *pipeline_flags[],
                                           const char *execution_directory);
+LENGTH_HINT(rp_manager_create, 1, 0)
+LENGTH_HINT(rp_manager_create, 3, 2)
 
 /**
  * Takes the same arguments as \related rp_manager_create but, instead of the
@@ -125,6 +133,8 @@ rp_manager_create_from_string(uint64_t pipelines_count,
                               uint64_t pipeline_flags_count,
                               const char *pipeline_flags[],
                               const char *execution_directory);
+LENGTH_HINT(rp_manager_create_from_string, 1, 0)
+LENGTH_HINT(rp_manager_create_from_string, 3, 2)
 
 /**
  * Delete the manager object and destroy all the resourced acquired by it.
@@ -280,6 +290,7 @@ rp_manager_produce_targets(rp_manager *manager,
                            const rp_target *targets[],
                            rp_step *step,
                            rp_container *container);
+LENGTH_HINT(rp_manager_produce_targets, 2, 1)
 
 /**
  * Request to run the required analysis
@@ -538,6 +549,7 @@ bool rp_step_save(rp_step *step, const char *path);
 rp_target * /*owning*/ rp_target_create(const rp_kind *kind,
                                         uint64_t path_components_count,
                                         const char *path_components[]);
+LENGTH_HINT(rp_target_create, 2, 1)
 
 /**
  * Deserialize a target from a string, arguments cannot be NULL.
@@ -663,6 +675,7 @@ bool rp_manager_container_deserialize(rp_manager *manager,
                                       const char *container_name,
                                       const char *content,
                                       uint64_t size);
+LENGTH_HINT(rp_manager_container_deserialize, 3, 4)
 
 /**
  * \return the serialized content of the element associated to the provided
@@ -921,3 +934,5 @@ void rp_container_targets_map_add(rp_container_targets_map *map,
                                   const rp_target *target);
 
 /** \} */
+
+// NOLINTEND

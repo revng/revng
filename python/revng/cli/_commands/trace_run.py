@@ -1,0 +1,32 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+from revng.cli.commands_registry import Command, CommandsRegistry, Options
+from revng.cli.support import collect_files, collect_libraries, get_command, handle_asan, run
+
+
+class TraceRunCommand(Command):
+    def __init__(self):
+        super().__init__(("trace", "run"), "revng-trace-run wrapper", False)
+
+    def register_arguments(self, parser):
+        pass
+
+    def run(self, options: Options):
+        cmd = get_command("revng-trace-run", options.search_prefixes)
+        libraries, dependencies = collect_libraries(options.search_prefixes)
+        asan_prefix = handle_asan(dependencies, options.search_prefixes)
+        pipelines = collect_files(options.search_prefixes, ["share", "revng", "pipelines"], "*.yml")
+
+        args_combined = [
+            *[f"-load={p}" for p in libraries],
+            *[f"-pipeline-path={p}" for p in pipelines],
+            *options.remaining_args,
+        ]
+
+        return run([*asan_prefix, cmd, *args_combined], options)
+
+
+def setup(commands_registry: CommandsRegistry):
+    commands_registry.register_command(TraceRunCommand())
