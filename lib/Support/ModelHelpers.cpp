@@ -512,6 +512,8 @@ getExpectedModelType(FunctionMetadataCache &Cache,
         llvm::SmallVector<QualifiedType> ReturnTypes;
         ReturnTypes = handleReturnValue(ParentFunc()->Prototype(), Model);
         return { ReturnTypes[ArgOperandIdx] };
+      } else if (FTags.contains(FunctionTags::BinaryNot)) {
+        return { llvmIntToModelType(Call->getType(), Model) };
       }
     }
   } else if (auto *Ret = dyn_cast<llvm::ReturnInst>(User)) {

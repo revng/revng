@@ -265,8 +265,14 @@ static StringToken get128BitIntegerHexConstant(llvm::APInt Value) {
 }
 
 static StringToken hexLiteral(const llvm::ConstantInt *Int) {
-  if (Int->getBitWidth() <= 64)
-    return StringToken(llvm::formatv("{0:x}", Int->getZExtValue()));
+  StringToken Formatted;
+  if (Int->getBitWidth() <= 64) {
+    Int->getValue().toString(Formatted,
+                             /*radix*/ 16,
+                             /*signed*/ false,
+                             /*formatAsCLiteral*/ true);
+    return Formatted;
+  }
   return get128BitIntegerHexConstant(Int->getValue());
 }
 
@@ -1079,17 +1085,14 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
     const auto *Value = cast<llvm::ConstantInt>(Operand);
     Expression = constants::constant(boolLiteral(Value)).serialize();
   } else if (FunctionTags::UnaryMinus.isTagOf(CalledFunc)) {
-    auto Operand = Call->getOperand(0);
-    auto *Value = dyn_cast<llvm::ConstantInt>(Operand);
-    StringToken Formatted = llvm::formatv("{0}", Value);
+    auto Operand = Call->getArgOperand(0);
     Expression = operators::UnaryMinus
-                 + constants::constant(Formatted).serialize();
+                 + constants::constant(TokenMap.at(Operand)).serialize();
   } else if (FunctionTags::BinaryNot.isTagOf(CalledFunc)) {
-    auto Operand = Call->getOperand(0);
-    auto *Value = dyn_cast<llvm::ConstantInt>(Operand);
-    StringToken Formatted = llvm::formatv("{0}", Value);
-    Expression = operators::BinaryNot
-                 + constants::constant(Formatted).serialize();
+    auto Operand = Call->getArgOperand(0);
+    Expression = (Operand->getType()->isIntegerTy(1) ? operators::BoolNot :
+                                                       operators::BinaryNot)
+                 + constants::constant(TokenMap.at(Operand)).serialize();
   } else {
     revng_abort("Unknown non-isolated function");
   }

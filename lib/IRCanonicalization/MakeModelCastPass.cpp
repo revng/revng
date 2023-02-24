@@ -118,7 +118,8 @@ MMCP::serializeTypesForModelCast(FunctionMetadataCache &Cache,
                or FunctionTags::AddressOf.isTagOf(Callee)) {
       // Check the type of the base operand
       SerializeTypeFor(Call->getArgOperandUse(1));
-
+    } else if (FunctionTags::BinaryNot.isTagOf(Callee)) {
+      SerializeTypeFor(Call->getArgOperandUse(0));
     } else if (FunctionTags::StructInitializer.isTagOf(Callee)) {
       // StructInitializers are used to pack together a returned struct, so
       // we know the types of each element by looking at the Prototype

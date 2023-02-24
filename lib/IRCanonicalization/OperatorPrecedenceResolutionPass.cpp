@@ -100,8 +100,8 @@ static constexpr std::array<const InstToOpPrec, 36>
       { InstToOpPrec(CustomInstruction::Indirection, 9, RIGHT_TO_LEFT) },
       { InstToOpPrec(CustomInstruction::Cast, 9, RIGHT_TO_LEFT) },
       { InstToOpPrec(CustomInstruction::MemberAccess, 10, LEFT_TO_RIGHT) },
-      { InstToOpPrec(CustomInstruction::UnaryMinus, 2, RIGHT_TO_LEFT) },
-      { InstToOpPrec(CustomInstruction::BinaryNot, 2, RIGHT_TO_LEFT) } },
+      { InstToOpPrec(CustomInstruction::UnaryMinus, 9, RIGHT_TO_LEFT) },
+      { InstToOpPrec(CustomInstruction::BinaryNot, 9, RIGHT_TO_LEFT) } },
   };
 
 static constexpr std::array<const InstToOpPrec, 36>
