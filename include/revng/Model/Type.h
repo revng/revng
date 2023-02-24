@@ -71,9 +71,24 @@ public:
   Identifier name() const;
 
 public:
+  /// Recursively computes size of the type.
+  ///
+  /// It asserts in cases where the size cannot be computed, for example, when
+  /// the type system loops and the type's size depends on the type itself.
+  ///
+  /// \returns * `std::nullopt` if the type does not have size (for example,
+  ///            it's a `void` primitive or a function type),
+  ///          * size in bytes otherwise.
   std::optional<uint64_t> size() const debug_function;
   std::optional<uint64_t> size(VerifyHelper &VH) const;
 
+  /// Tries to recursively compute the size of the type.
+  ///
+  /// \returns * `std::nullopt` if the size cannot be computed, for example,
+  ///            when the type system loops and the type's size depends on
+  ///            the type itself,
+  ///          * 0 for types without the size (e.g. `void`),
+  ///          * size in bytes in all other cases.
   std::optional<uint64_t> trySize() const debug_function;
   RecursiveCoroutine<std::optional<uint64_t>> trySize(VerifyHelper &VH) const;
 
