@@ -513,3 +513,19 @@ static_assert(is_contained(std::array{ 1, 2, 3 }, 2) == true);
 static_assert(is_contained(std::array{ 1, 2, 3 }, 4) == false);
 
 } // namespace revng
+
+//
+// Some views from the STL.
+// TODO: remove these after updating the libc++ version.
+//
+namespace ranges::views {
+
+template<typename RangeType> // NOLINTNEXTLINE
+auto as_rvalue(RangeType &&Range) {
+  return llvm::make_range(std::make_move_iterator(Range.begin()),
+                          std::make_move_iterator(Range.end()));
+}
+
+} // namespace ranges::views
+
+namespace views = ranges::views;
