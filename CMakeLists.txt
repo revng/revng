@@ -80,6 +80,7 @@ endif()
 find_package(LLVM REQUIRED CONFIG)
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
+link_directories(${LLVM_LIBRARY_DIRS})
 llvm_map_components_to_libnames(
   LLVM_LIBRARIES
   core
