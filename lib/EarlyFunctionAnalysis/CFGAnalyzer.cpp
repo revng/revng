@@ -582,7 +582,7 @@ void CFGAnalyzer::runOptimizationPipeline(llvm::Function *F) {
     FPM.addPass(RemoveHelperCallsPass());
     FPM.addPass(PromoteGlobalToLocalPass());
     FPM.addPass(SimplifyCFGPass());
-    FPM.addPass(SROA());
+    FPM.addPass(SROAPass(SROAOptions::ModifyCFG));
     FPM.addPass(EarlyCSEPass(true));
     FPM.addPass(JumpThreadingPass());
     FPM.addPass(UnreachableBlockElimPass());
@@ -590,7 +590,7 @@ void CFGAnalyzer::runOptimizationPipeline(llvm::Function *F) {
     FPM.addPass(EarlyCSEPass(true));
     FPM.addPass(SimplifyCFGPass());
     FPM.addPass(MergedLoadStoreMotionPass());
-    FPM.addPass(GVN());
+    FPM.addPass(GVNPass());
 
     // Second stage: add alias analysis info and canonicalize `i2p` + `add` into
     // `getelementptr` instructions. Since the IR may change remarkably, another
@@ -598,7 +598,7 @@ void CFGAnalyzer::runOptimizationPipeline(llvm::Function *F) {
     FPM.addPass(SegregateDirectStackAccessesPass());
     FPM.addPass(EarlyCSEPass(true));
     FPM.addPass(InstCombinePass(true));
-    FPM.addPass(GVN());
+    FPM.addPass(GVNPass());
 
     // Third stage: if enabled, serialize the results and dump the functions on
     // disk with the alias information included as comments.
