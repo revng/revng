@@ -6,6 +6,7 @@
 
 #include <cstdlib>
 
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/raw_os_ostream.h"
 
 #include "revng-c/RestructureCFG/ASTNode.h"

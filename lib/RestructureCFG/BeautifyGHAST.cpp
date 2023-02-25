@@ -8,6 +8,7 @@
 
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/Path.h"
 
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Support/Assert.h"
