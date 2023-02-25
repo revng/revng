@@ -158,8 +158,8 @@ bool PromoteStackPointerPass::runOnFunction(Function &F) {
   auto InitFunction = M->getOrInsertFunction("revng_init_local_sp", SPType);
   Function *InitLocalSP = cast<Function>(InitFunction.getCallee());
   InitLocalSP->addFnAttr(Attribute::NoUnwind);
-  InitLocalSP->addFnAttr(Attribute::InaccessibleMemOnly);
   InitLocalSP->addFnAttr(Attribute::WillReturn);
+  InitLocalSP->setOnlyAccessesInaccessibleMemory();
   FunctionTags::OpaqueCSVValue.addTo(InitLocalSP);
 
   // Create an alloca to represent the local value of the stack pointer.

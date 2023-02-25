@@ -26,7 +26,7 @@ public:
   InstrumentStackAccesses(Module &M) : StackOffsetPool(&M, false) {
     StackOffsetPool.addFnAttribute(Attribute::NoUnwind);
     StackOffsetPool.addFnAttribute(Attribute::WillReturn);
-    StackOffsetPool.addFnAttribute(Attribute::InaccessibleMemOnly);
+    StackOffsetPool.setMemoryEffects(MemoryEffects::inaccessibleMemOnly());
     StackOffsetPool.setTags({ &FunctionTags::StackOffsetMarker });
   }
 

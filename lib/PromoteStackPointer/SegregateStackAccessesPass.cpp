@@ -294,8 +294,8 @@ public:
                                       &M);
       Result->addFnAttr(Attribute::NoUnwind);
       Result->addFnAttr(Attribute::ReadOnly);
-      Result->addFnAttr(Attribute::InaccessibleMemOnly);
       Result->addFnAttr(Attribute::WillReturn);
+      Result->setOnlyAccessesInaccessibleMemory();
       FunctionTags::AllocatesLocalVariable.addTo(Result);
       FunctionTags::MallocLike.addTo(Result);
       FunctionTags::IsRef.addTo(Result);
