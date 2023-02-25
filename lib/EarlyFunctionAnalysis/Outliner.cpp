@@ -528,7 +528,7 @@ Outliner::outline(llvm::BasicBlock *Entry, CallHandler *Handler) {
       for (CallBase *Caller : ToInline) {
         FunctionFixer.fix(Address, Caller);
         InlineFunctionInfo IFI;
-        bool Success = InlineFunction(*Caller, IFI, nullptr, true).isSuccess();
+        bool Success = InlineFunction(*Caller, IFI).isSuccess();
         revng_assert(Success);
         SomethingNew = true;
       }
