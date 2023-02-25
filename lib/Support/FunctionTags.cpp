@@ -44,7 +44,7 @@ Tag BinaryNot("BinaryNot");
 static std::string makeTypeName(const llvm::Type *Ty) {
   std::string Name;
   if (auto *PtrTy = llvm::dyn_cast<llvm::PointerType>(Ty)) {
-    Name = "ptr_to_" + makeTypeName(PtrTy->getElementType());
+    Name = "ptr";
   } else if (auto *IntTy = llvm::dyn_cast<llvm::IntegerType>(Ty)) {
     Name = "i" + std::to_string(IntTy->getBitWidth());
   } else if (auto *StrucTy = llvm::dyn_cast<llvm::StructType>(Ty)) {

@@ -576,8 +576,8 @@ public:
             SCEVToLayoutType.insert(std::make_pair(LoadSCEV, LoadedTy));
           }
         } else if (auto *A = dyn_cast<AllocaInst>(&I)) {
-          revng_assert(isa<IntegerType>(A->getType()->getElementType())
-                       or isa<PointerType>(A->getType()->getElementType()));
+          revng_assert(isa<IntegerType>(A->getAllocatedType())
+                       or isa<PointerType>(A->getAllocatedType()));
           const auto &[LoadedTy, Created] = Builder.getOrCreateLayoutType(A);
           Changed |= Created;
           const SCEV *LoadSCEV = SE->getSCEV(A);
@@ -681,14 +681,6 @@ bool Builder::connectToFuncsWithSamePrototype(const llvm::CallInst *Call,
   return Changed;
 }
 
-static uint64_t getLoadStoreSizeFromPtrOp(const llvm::Module &M,
-                                          const llvm::Value *PtrOperand) {
-  auto *PtrTy = cast<llvm::PointerType>(PtrOperand->getType());
-  llvm::Type *AccessedT = PtrTy->getElementType();
-  const llvm::DataLayout &DL = M.getDataLayout();
-  return DL.getTypeAllocSize(AccessedT);
-};
-
 bool Builder::createIntraproceduralTypes(llvm::Module &M,
                                          llvm::ModulePass *MP,
                                          const model::Binary &Model) {
@@ -769,7 +761,7 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
           Changed |= ILA.createBaseAddrWithInstanceLink(*this, PointerVal, *B);
 
           // Create Access node
-          auto AccessSize = getLoadStoreSizeFromPtrOp(M, PointerVal);
+          auto AccessSize = Val->getType()->getScalarSizeInBits() / 8;
           auto *AccessNode = TS.createArtificialLayoutType();
           AccessNode->Size = AccessSize;
           AccessNode->InterferingInfo = AllChildrenAreNonInterfering;

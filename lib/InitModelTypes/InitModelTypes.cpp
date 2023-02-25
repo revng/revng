@@ -395,8 +395,7 @@ ModelTypesMap initModelTypes(FunctionMetadataCache &Cache,
       case Instruction::Alloca: {
         // TODO: eventually AllocaInst will be replaced by calls to
         // revng_local_variable with a type annotation
-        llvm::PointerType *PtrType = llvm::cast<llvm::PointerType>(I.getType());
-        llvm::Type *BaseType = PtrType->getElementType();
+        llvm::Type *BaseType = cast<llvm::AllocaInst>(&I)->getAllocatedType();
         revng_assert(BaseType->isSingleValueType());
         const model::Architecture::Values &Architecture = Model.Architecture();
         Type = llvmIntToModelType(BaseType, Model).getPointerTo(Architecture);

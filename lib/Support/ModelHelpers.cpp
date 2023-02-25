@@ -80,10 +80,7 @@ llvmIntToModelType(const llvm::Type *LLVMType, const model::Binary &Model) {
   size_t NPtrQualifiers = 0;
 
   // If it's a pointer, find the pointed type
-  while (auto *PtrType = dyn_cast<llvm::PointerType>(TypeToConvert)) {
-    TypeToConvert = PtrType->getElementType();
-    ++NPtrQualifiers;
-  }
+  revng_assert(not isa<llvm::PointerType>(TypeToConvert));
 
   model::QualifiedType ModelType;
 
