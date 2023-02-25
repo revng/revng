@@ -46,9 +46,7 @@ public:
 public:
   void addFnAttribute(llvm::Attribute::AttrKind Kind) {
     using namespace llvm;
-    AttributeSets = AttributeSets.addAttribute(M->getContext(),
-                                               AttributeList::FunctionIndex,
-                                               Kind);
+    AttributeSets = AttributeSets.addFnAttribute(M->getContext(), Kind);
   }
 
   void setTags(const FunctionTags::TagsSet &Tags) { this->Tags = Tags; }

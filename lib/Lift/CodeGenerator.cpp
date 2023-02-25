@@ -417,9 +417,7 @@ static void purgeNoReturn(Function *F) {
     if (auto *Call = dyn_cast<CallInst>(U))
       if (Call->hasFnAttr(Attribute::NoReturn)) {
         auto OldAttr = Call->getAttributes();
-        auto NewAttr = OldAttr.removeAttribute(Context,
-                                               AttributeList::FunctionIndex,
-                                               Attribute::NoReturn);
+        auto NewAttr = OldAttr.removeFnAttribute(Context, Attribute::NoReturn);
         Call->setAttributes(NewAttr);
       }
 }
