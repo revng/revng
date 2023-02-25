@@ -11,6 +11,7 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/Support/ModRef.h"
 
 #include "revng/ADT/Concepts.h"
 #include "revng/Support/Assert.h"
@@ -28,6 +29,7 @@ private:
   const bool PurgeOnDestruction;
   std::map<KeyT, llvm::Function *> Pool;
   llvm::AttributeList AttributeSets;
+  llvm::MemoryEffects MemoryEffects = llvm::MemoryEffects::none();
   FunctionTags::TagsSet Tags;
 
 public:
@@ -47,6 +49,10 @@ public:
   void addFnAttribute(llvm::Attribute::AttrKind Kind) {
     using namespace llvm;
     AttributeSets = AttributeSets.addFnAttribute(M->getContext(), Kind);
+  }
+
+  void setMemoryEffects(const llvm::MemoryEffects &NewMemoryEffects) {
+    MemoryEffects = NewMemoryEffects;
   }
 
   void setTags(const FunctionTags::TagsSet &Tags) { this->Tags = Tags; }
@@ -76,6 +82,7 @@ public:
     } else {
       F = Function::Create(FT, GlobalValue::ExternalLinkage, Name, M);
       F->setAttributes(AttributeSets);
+      F->setMemoryEffects(MemoryEffects);
       Tags.set(F);
       Pool.insert(It, { Key, F });
     }

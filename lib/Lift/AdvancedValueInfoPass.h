@@ -59,7 +59,7 @@ public:
     FT *Type = FT::get(FT::getVoidTy(C), {}, true);
     FunctionCallee Callee = M->getOrInsertFunction(MarkerName, Type);
     auto *Marker = cast<Function>(Callee.getCallee());
-    Marker->addFnAttr(llvm::Attribute::InaccessibleMemOnly);
+    Marker->setOnlyAccessesInaccessibleMemory();
     return Marker;
   }
 };
