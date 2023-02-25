@@ -651,8 +651,7 @@ public:
 public:
   void recordClobberedRegisters(llvm::CallBase *CI) {
     using namespace llvm;
-    for (unsigned I = PreservedRegistersIndex; I < CI->getNumArgOperands();
-         ++I) {
+    for (unsigned I = PreservedRegistersIndex; I < CI->arg_size(); ++I) {
       auto *Register = dyn_cast<ConstantInt>(CI->getArgOperand(I));
       if (Register == nullptr or Register->getZExtValue() != 0)
         ClobberedRegs.insert(ABICSVs[I - PreservedRegistersIndex]);

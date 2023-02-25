@@ -129,7 +129,7 @@ AdvancedValueInfoPass::run(llvm::Function &F,
         or Call->getParent()->getParent() != &F)
       continue;
 
-    revng_assert(Call->getNumArgOperands() >= 1);
+    revng_assert(Call->arg_size() >= 1);
     Value *ToTrack = Call->getArgOperand(0);
 
     AVIPassLogger << "Tracking " << ToTrack << ":";
