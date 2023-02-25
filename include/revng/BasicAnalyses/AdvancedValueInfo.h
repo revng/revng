@@ -825,7 +825,7 @@ public:
           } else if (auto *Load = dyn_cast<LoadInst>(Op.V)) {
             revng_assert(isMemory(skipCasts(Load->getPointerOperand())));
 
-            const MaterializedValue &Loaded = MO.load(Current);
+            const MaterializedValue &Loaded = MO.load(Load->getType(), Current);
 
             if (AVILogger.isEnabled()) {
               AVILogger << "  MemoryOracle says its ";

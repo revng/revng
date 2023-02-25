@@ -81,7 +81,7 @@ public:
     }
 
     // Ensure the function we're returning is as expected
-    revng_assert(F->getType()->getPointerElementType() == FT);
+    revng_assert(F->getFunctionType() == FT);
 
     return F;
   }

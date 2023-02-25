@@ -402,11 +402,11 @@ bool TDBP::runOnModule(Module &M) {
   return true;
 }
 
-MaterializedValue
-JumpTargetManager::readFromPointer(Constant *Pointer, bool IsLittleEndian) {
-  Type *LoadedType = Pointer->getType()->getPointerElementType();
+MaterializedValue JumpTargetManager::readFromPointer(Type *Type,
+                                                     Constant *Pointer,
+                                                     bool IsLittleEndian) {
   const DataLayout &DL = TheModule.getDataLayout();
-  unsigned LoadSize = DL.getTypeSizeInBits(LoadedType) / 8;
+  unsigned LoadSize = DL.getTypeSizeInBits(Type) / 8;
   auto NewAPInt = [LoadSize](uint64_t V) { return APInt(LoadSize * 8, V); };
 
   Value *RealPointer = skipCasts(Pointer);
@@ -1563,13 +1563,16 @@ void JumpTargetManager::harvestWithAVI() {
       auto AddressType = TIT::Invalid;
       Value *Pointer = nullptr;
       Instruction *StoredInstruction = nullptr;
+      Type *PointeeType = nullptr;
       if (auto *Load = dyn_cast<LoadInst>(&I)) {
         // It's a load: record the load address
         Pointer = Load->getPointerOperand();
+        PointeeType = Load->getType();
         AddressType = TIT::LoadTarget;
       } else if (auto *Store = dyn_cast<StoreInst>(&I)) {
         // It's a store: record the store address and the stored value
         Pointer = Store->getPointerOperand();
+        PointeeType = Store->getValueOperand()->getType();
         StoredInstruction = dyn_cast<Instruction>(Store->getValueOperand());
         AddressType = TIT::StoreTarget;
       }
@@ -1582,7 +1585,6 @@ void JumpTargetManager::harvestWithAVI() {
           AR.registerValue(Address, nullptr, PointerI, AddressType);
 
         // Register the stored value, if pc-sized
-        Type *PointeeType = Pointer->getType()->getPointerElementType();
         if (StoredInstruction != nullptr and PCH->isPCSizedType(PointeeType))
           AR.registerValue(Address,
                            nullptr,
@@ -1601,7 +1603,7 @@ void JumpTargetManager::harvestWithAVI() {
   std::map<GlobalVariable *, AllocaInst *> CSVMap;
 
   for (GlobalVariable *CSV : NonPCCSVs) {
-    Type *CSVType = CSV->getType()->getPointerElementType();
+    Type *CSVType = CSV->getValueType();
     auto *Alloca = AllocaBuilder.CreateAlloca(CSVType, nullptr, CSV->getName());
     CSVMap[CSV] = Alloca;
 

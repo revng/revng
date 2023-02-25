@@ -260,7 +260,7 @@ VariableManager::storeToCPUStateOffset(IRBuilder<> &Builder,
     ShiftAmount = Remaining;
   else {
     // >> (Size1 - Size2) - Remaining;
-    Type *PointeeTy = Target->getType()->getPointerElementType();
+    Type *PointeeTy = Target->getValueType();
     unsigned GlobalSize = cast<IntegerType>(PointeeTy)->getBitWidth() / 8;
     revng_assert(GlobalSize != 0);
     ShiftAmount = (GlobalSize - StoreSize) - Remaining;
@@ -275,7 +275,7 @@ VariableManager::storeToCPUStateOffset(IRBuilder<> &Builder,
   BitMask = ~BitMask;
 
   auto *InputStoreTy = cast<IntegerType>(Builder.getIntNTy(StoreSize * 8));
-  auto *FieldTy = cast<IntegerType>(Target->getType()->getPointerElementType());
+  auto *FieldTy = cast<IntegerType>(Target->getValueType());
   unsigned FieldSize = FieldTy->getBitWidth() / 8;
 
   // Are we trying to store more than it fits?
@@ -408,7 +408,7 @@ bool VariableManager::memcpyAtEnvOffset(llvm::IRBuilder<> &Builder,
                           EnvVar);
     }
 
-    Type *PointeeTy = EnvVar->getType()->getPointerElementType();
+    Type *PointeeTy = EnvVar->getValueType();
     Offset += ModuleLayout->getTypeAllocSize(PointeeTy);
   }
 
@@ -480,8 +480,7 @@ void VariableManager::finalize() {
                                       DefaultBB,
                                       CPUStateGlobals.size());
   for (auto &P : CPUStateGlobals) {
-    Type *CSVTy = P.second->getType();
-    auto *CSVIntTy = cast<IntegerType>(CSVTy->getPointerElementType());
+    auto *CSVIntTy = cast<IntegerType>(P.second->getValueType());
     if (CSVIntTy->getBitWidth() <= 64) {
       // Set the value of the CSV
       auto *SetRegisterBB = BasicBlock::Create(Context, "", SetRegister);
@@ -670,7 +669,7 @@ Value *VariableManager::computeEnvAddress(Type *TargetType,
                                           unsigned Offset) {
   auto *PointeeTy = Env->getValueType();
   auto *LoadEnv = new LoadInst(PointeeTy, Env, "", InsertBefore);
-  Type *EnvType = Env->getType()->getPointerElementType();
+  Type *EnvType = Env->getValueType();
   Value *Integer = LoadEnv;
   if (Offset != 0)
     Integer = BinaryOperator::Create(Instruction::Add,
@@ -682,16 +681,13 @@ Value *VariableManager::computeEnvAddress(Type *TargetType,
 }
 
 Value *VariableManager::cpuStateToEnv(Value *CPUState,
-                                      Type *TargetType,
                                       Instruction *InsertBefore) const {
   using CI = ConstantInt;
 
-  Type *InputType = CPUState->getType()->getPointerElementType();
-  revng_assert(InputType == CPUStateType
-               or InputType == CPUStateType->getTypeAtIndex(0U));
   IRBuilder<> Builder(InsertBefore);
-  Type *IntPtrTy = Builder.getIntPtrTy(*ModuleLayout);
+  auto *OpaquePointer = PointerType::get(TheModule.getContext(), 0);
+  auto *IntPtrTy = Builder.getIntPtrTy(TheModule.getDataLayout());
   Value *CPUIntPtr = Builder.CreatePtrToInt(CPUState, IntPtrTy);
   Value *EnvIntPtr = Builder.CreateAdd(CPUIntPtr, CI::get(IntPtrTy, EnvOffset));
-  return Builder.CreateIntToPtr(EnvIntPtr, TargetType);
+  return Builder.CreateIntToPtr(EnvIntPtr, OpaquePointer);
 }

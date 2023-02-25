@@ -390,8 +390,9 @@ public:
     return Pair.first + Pair.second;
   }
 
-  MaterializedValue
-  readFromPointer(llvm::Constant *Pointer, bool IsLittleEndian);
+  MaterializedValue readFromPointer(llvm::Type *Type,
+                                    llvm::Constant *Pointer,
+                                    bool IsLittleEndian);
 
   /// Increment the counter of emitted branches since the last reset
   void recordNewBranches(llvm::BasicBlock *Source, size_t Count) {

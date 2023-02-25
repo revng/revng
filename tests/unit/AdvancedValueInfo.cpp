@@ -32,9 +32,8 @@ public:
 
   const llvm::DataLayout &getDataLayout() const { return DL; }
 
-  MaterializedValue load(Constant *Address) {
-    auto *PointerTy = Address->getType()->getPointerElementType();
-    unsigned BitWidth = PointerTy->getScalarSizeInBits();
+  MaterializedValue load(Type *Type, Constant *Address) {
+    unsigned BitWidth = Type->getScalarSizeInBits();
     if (auto *CI = dyn_cast<ConstantInt>(skipCasts(Address)))
       if (getLimitedValue(CI) == 1000)
         return { "symbol", APInt(BitWidth, 0) };

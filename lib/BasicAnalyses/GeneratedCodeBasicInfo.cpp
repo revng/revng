@@ -48,7 +48,7 @@ void GeneratedCodeBasicInfo::run(Module &M) {
     ABIRegistersSet.insert(CSV);
   }
 
-  Type *PCType = PC->getType()->getPointerElementType();
+  Type *PCType = PC->getValueType();
   PCRegSize = M.getDataLayout().getTypeAllocSize(PCType);
 
   QuickMetadata QMD(M.getContext());

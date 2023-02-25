@@ -132,7 +132,7 @@ Function *PromoteCSVs::createWrapper(const WrapperKey &Key) {
   auto &[Helper, Read, Written] = Key;
 
   LLVMContext &Context = Helper->getParent()->getContext();
-  auto *PointeeTy = Helper->getType()->getPointerElementType();
+  auto *PointeeTy = Helper->getValueType();
   auto *HelperType = cast<FunctionType>(PointeeTy);
 
   //
@@ -147,7 +147,7 @@ Function *PromoteCSVs::createWrapper(const WrapperKey &Key) {
 
   // Add type of read registers
   for (GlobalVariable *CSV : Read)
-    NewArguments.push_back(CSV->getType()->getPointerElementType());
+    NewArguments.push_back(CSV->getValueType());
 
   // Add out arguments for written registers
   const unsigned FirstOutArgument = NewArguments.size();
@@ -243,7 +243,7 @@ void PromoteCSVs::wrap(CallInst *Call,
   if (HelperWrapper == nullptr)
     HelperWrapper = createWrapper(Key);
 
-  auto *PointeeTy = Helper->getType()->getPointerElementType();
+  auto *PointeeTy = Helper->getValueType();
   auto *HelperType = cast<FunctionType>(PointeeTy);
 
   //
@@ -264,7 +264,7 @@ void PromoteCSVs::wrap(CallInst *Call,
 
   SmallVector<AllocaInst *, 16> WrittenCSVAllocas;
   for (GlobalVariable *CSV : Written) {
-    Type *AllocaType = CSV->getType()->getPointerElementType();
+    Type *AllocaType = CSV->getValueType();
     auto *OutArgument = AllocaBuilder.CreateAlloca(AllocaType);
     WrittenCSVAllocas.push_back(OutArgument);
     NewArguments.push_back(OutArgument);
@@ -301,7 +301,7 @@ void PromoteCSVs::promoteCSVs(Function *F) {
   std::map<GlobalVariable *, Function *> InitializerForCSV;
   for (GlobalVariable *CSV : CSVs) {
     // Initialize all allocas with opaque, CSV-specific values
-    Type *CSVType = CSV->getType()->getPointerElementType();
+    Type *CSVType = CSV->getValueType();
     llvm::StringRef CSVName = CSV->getName();
     auto *Initializer = CSVInitializers.get(CSVName,
                                             CSVType,
@@ -351,7 +351,7 @@ void PromoteCSVs::promoteCSVs(Function *F) {
       Alloca = It->second;
     } else {
       // Create the alloca
-      Type *CSVType = CSV->getType()->getPointerElementType();
+      Type *CSVType = CSV->getValueType();
       Alloca = AllocaBuilder.CreateAlloca(CSVType, nullptr, CSV->getName());
 
       // Check if already have an initializer

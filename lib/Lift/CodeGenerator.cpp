@@ -465,7 +465,7 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
   Function *CpuLoop = M.getFunction("cpu_loop");
   IntegerType *BoolType = Type::getInt1Ty(Context);
   std::set<Function *> FixedCallers;
-  Constant *CpuLoopExitingVariable = nullptr;
+  GlobalVariable *CpuLoopExitingVariable = nullptr;
   CpuLoopExitingVariable = new GlobalVariable(M,
                                               BoolType,
                                               false,
@@ -486,7 +486,7 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
 
     // Call cpu_loop
     auto *FirstArgTy = CpuLoop->getFunctionType()->getParamType(0);
-    auto *EnvPtr = VM->cpuStateToEnv(Call->getArgOperand(0), FirstArgTy, Call);
+    auto *EnvPtr = VM->cpuStateToEnv(Call->getArgOperand(0), Call);
 
     auto *CallCpuLoop = CallInst::Create(CpuLoop, { EnvPtr }, "", Call);
 
@@ -551,8 +551,7 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
 
           // Check value of cpu_loop_exiting
           auto *Branch = cast<BranchInst>(&*++(RecCall->getIterator()));
-          auto *CPULoopExitVarPtrTy = CpuLoopExitingVariable->getType();
-          auto *PointeeTy = CPULoopExitVarPtrTy->getPointerElementType();
+          auto *PointeeTy = CpuLoopExitingVariable->getValueType();
           auto *Compare = new ICmpInst(Branch,
                                        CmpInst::ICMP_EQ,
                                        new LoadInst(PointeeTy,
@@ -716,7 +715,8 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
   }
 
   std::set<Function *> CpuLoopExitingUsers;
-  Value *CpuLoopExiting = TheModule->getGlobalVariable("cpu_loop_exiting");
+  GlobalVariable *CpuLoopExiting = TheModule->getGlobalVariable("cpu_loop_"
+                                                                "exiting");
   revng_assert(CpuLoopExiting != nullptr);
   for (User *U : CpuLoopExiting->users())
     if (auto *I = dyn_cast<Instruction>(U))
@@ -759,7 +759,7 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
 
   // Create main function
   auto *MainType = FT::get(Builder.getVoidTy(),
-                           { SPReg->getType()->getPointerElementType() },
+                           { SPReg->getValueType() },
                            false);
   auto *MainFunction = Function::Create(MainType,
                                         Function::ExternalLinkage,
@@ -1082,7 +1082,7 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
   // At this point we have all the code, add store false to cpu_loop_exiting in
   // root
   //
-  auto *BoolType = CpuLoopExiting->getType()->getPointerElementType();
+  auto *BoolType = CpuLoopExiting->getValueType();
   std::queue<User *> WorkList;
   for (Function *Helper : CpuLoopExitingUsers)
     for (User *U : Helper->users())

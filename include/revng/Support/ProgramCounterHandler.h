@@ -13,7 +13,7 @@
 
 inline llvm::IntegerType *getCSVType(llvm::GlobalVariable *CSV) {
   using namespace llvm;
-  return cast<IntegerType>(CSV->getType()->getPointerElementType());
+  return cast<IntegerType>(CSV->getValueType());
 }
 
 namespace NextJumpTarget {
@@ -188,7 +188,7 @@ public:
   }
 
   bool isPCSizedType(llvm::Type *T) const {
-    return T == AddressCSV->getType()->getPointerElementType();
+    return T == AddressCSV->getValueType();
   }
 
 public:
@@ -298,7 +298,7 @@ protected:
   static llvm::StoreInst *
   store(llvm::IRBuilder<> &Builder, llvm::GlobalVariable *GV, uint64_t Value) {
     using namespace llvm;
-    auto *Type = cast<IntegerType>(GV->getType()->getPointerElementType());
+    auto *Type = cast<IntegerType>(GV->getValueType());
     return Builder.CreateStore(ConstantInt::get(Type, Value), GV);
   }
 };

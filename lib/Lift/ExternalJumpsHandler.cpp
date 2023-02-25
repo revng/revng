@@ -189,7 +189,7 @@ llvm::BasicBlock *ExternalJumpsHandler::createSetjmp(BasicBlock *FirstReturn,
 
   // Call setjmp
   llvm::Function *SetjmpFunction = TheModule.getFunction("setjmp");
-  auto *SetJmpTy = SetjmpFunction->getType()->getPointerElementType();
+  auto *SetJmpTy = SetjmpFunction->getValueType();
   auto *JmpBuf = CE::getPointerCast(TheModule.getGlobalVariable("jmp_buffer"),
                                     SetJmpTy->getFunctionParamType(0));
   Value *SetjmpRes = Builder.CreateCall(SetjmpFunction, { JmpBuf });

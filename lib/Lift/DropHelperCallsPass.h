@@ -46,7 +46,7 @@ public:
 
     // Put a `store getRandom()` targeting each written CSV
     for (GlobalVariable *Written : WrittenCSVs) {
-      Type *PointeeTy = Written->getType()->getPointerElementType();
+      Type *PointeeTy = Written->getValueType();
       Value *Random = Builder.CreateCall(getRandom(M, PointeeTy));
       Builder.CreateStore(Random, csvToAlloca(Written));
     }

@@ -53,7 +53,7 @@ public:
       return nullptr;
 
     if (IsNew) {
-      auto *Undef = UndefValue::get(V->getType()->getPointerElementType());
+      auto *Undef = UndefValue::get(getVariableType(V));
       Builder.CreateStore(Undef, V);
     }
 
@@ -148,9 +148,8 @@ public:
 
   bool hasEnv() const { return Env != nullptr; }
 
-  llvm::Value *cpuStateToEnv(llvm::Value *CPUState,
-                             llvm::Type *TargetType,
-                             llvm::Instruction *InsertBefore) const;
+  llvm::Value *
+  cpuStateToEnv(llvm::Value *CPUState, llvm::Instruction *InsertBefore) const;
 
 private:
   std::pair<bool, llvm::Value *>

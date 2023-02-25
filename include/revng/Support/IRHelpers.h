@@ -1443,20 +1443,6 @@ inline llvm::Value *getPointer(llvm::User *U) {
     return nullptr;
 }
 
-inline unsigned getPointeeSize(llvm::Value *Pointer) {
-  using namespace llvm;
-
-  revng_assert(Pointer->getType()->isPointerTy());
-  Type *Pointee = Pointer->getType()->getPointerElementType();
-  unsigned Size = Pointee->getIntegerBitWidth();
-  revng_assert(Size % 8 == 0);
-  return Pointer->getType()->getPointerElementType()->getIntegerBitWidth() / 8;
-}
-
-inline unsigned getMemoryAccessSize(llvm::Instruction *I) {
-  return getPointeeSize(getPointer(I));
-}
-
 /// Steal the body of \p OldFunction and move it into \p NewFunction
 void moveBlocksInto(llvm::Function &OldFunction, llvm::Function &NewFunction);
 
@@ -1515,6 +1501,15 @@ llvm::Instruction *createLoadVariable(llvm::IRBuilder<T, Inserter> &Builder,
     return createLoad(Builder, Alloca);
   else if (auto *GV = llvm::dyn_cast<llvm::GlobalVariable>(Variable))
     return createLoad(Builder, GV);
+  else
+    revng_abort("Either GlobalVariable or AllocaInst expected");
+}
+
+inline llvm::Type *getVariableType(llvm::Value *Variable) {
+  if (auto *Alloca = llvm::dyn_cast<llvm::AllocaInst>(Variable))
+    return Alloca->getAllocatedType();
+  else if (auto *GV = llvm::dyn_cast<llvm::GlobalVariable>(Variable))
+    return GV->getValueType();
   else
     revng_abort("Either GlobalVariable or AllocaInst expected");
 }

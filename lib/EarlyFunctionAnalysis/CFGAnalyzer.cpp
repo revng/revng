@@ -415,7 +415,7 @@ void CFGAnalyzer::createIBIMarker(OutlinedFunction *OutlinedFunction) {
   ArgTypes[StackPointerOffsetIndex] = Initial.StackPointer->getType();
   ArgTypes[ReturnValuePreservedIndex] = Initial.ReturnPC->getType();
   for (auto *CSV : ABICSVs)
-    ArgTypes.emplace_back(CSV->getType()->getPointerElementType());
+    ArgTypes.emplace_back(CSV->getValueType());
 
   auto *FTy = llvm::FunctionType::get(IntTy, ArgTypes, false);
   auto *IBI = Function::Create(FTy,
@@ -1039,7 +1039,7 @@ void CallSummarizer::clobberCSVs(llvm::IRBuilder<> &Builder,
   // Prevent the store instructions from being optimized out by storing
   // the an opaque value into clobbered registers
   for (GlobalVariable *Register : ClobberedRegisters) {
-    auto *CSVTy = Register->getType()->getPointerElementType();
+    auto *CSVTy = Register->getValueType();
     auto Name = ("registers_clobbered_" + Twine(Register->getName())).str();
     auto *ClobberFunction = RegistersClobberedPool.get(Register->getName(),
                                                        CSVTy,

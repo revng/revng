@@ -714,7 +714,7 @@ IT::TranslationResult IT::translateCall(PTCInstruction *Instr) {
     ResultDestination = Variables.getOrCreate(TheCall.OutArguments[0]);
     if (ResultDestination == nullptr)
       return Abort;
-    ResultType = ResultDestination->getType()->getPointerElementType();
+    ResultType = getVariableType(ResultDestination);
   } else {
     ResultType = Builder.getVoidTy();
   }

@@ -302,7 +302,7 @@ DetectABI::buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
         if (RegisterID == Register::Invalid || CSV == GCBI.spReg())
           continue;
 
-        auto *CSVType = CSV->getType()->getPointerElementType();
+        auto *CSVType = CSV->getValueType();
         auto CSVSize = CSVType->getIntegerBitWidth() / 8;
 
         using namespace PrimitiveTypeKind;
@@ -374,7 +374,7 @@ void DetectABI::finalizeModel() {
         if (RegisterID == Register::Invalid || CSV == GCBI.spReg())
           continue;
 
-        auto *CSVType = CSV->getType()->getPointerElementType();
+        auto *CSVType = CSV->getValueType();
         auto CSVSize = CSVType->getIntegerBitWidth() / 8;
 
         if (abi::RegisterState::shouldEmit(RSArg)) {

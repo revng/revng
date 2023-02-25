@@ -173,7 +173,7 @@ private:
     constexpr uint32_t CPSRIndex = 19;
     constexpr unsigned IsThumbBitIndex = 5;
 
-    Type *IsThumbType = IsThumb->getType()->getPointerElementType();
+    Type *IsThumbType = IsThumb->getValueType();
 
     // Load the CPSR field
     IntegerType *RegisterType = IntegerType::get(AddressCSV->getContext(), 32);
@@ -394,8 +394,8 @@ Value *PCH::buildCurrentPCPlainMetaAddress(IRBuilder<> &Builder) const {
 llvm::Value *
 ProgramCounterHandler::buildPlainMetaAddress(llvm::IRBuilder<> &Builder,
                                              const MetaAddress &Address) const {
-  auto CI = [](llvm::Value *Example, uint64_t Value) -> ConstantInt * {
-    auto *Type = Example->getType()->getPointerElementType();
+  auto CI = [](llvm::GlobalVariable *Example, uint64_t Value) -> ConstantInt * {
+    auto *Type = Example->getValueType();
     return ConstantInt::get(cast<IntegerType>(Type), Value);
   };
   return buildPlainMetaAddressImpl(Builder,
