@@ -1005,9 +1005,7 @@ void CallSummarizer::handleCall(MetaAddress CallerBlock,
   if (not IsTailCall) {
     if (MaybeFSO.has_value()) {
       auto *StackPointer = createLoad(Builder, SPCSV);
-      Value *Offset = ConstantInt::get(StackPointer->getPointerOperandType()
-                                         ->getPointerElementType(),
-                                       *MaybeFSO);
+      Value *Offset = ConstantInt::get(StackPointer->getType(), *MaybeFSO);
       auto *AdjustedStackPointer = Builder.CreateAdd(StackPointer, Offset);
       Builder.CreateStore(AdjustedStackPointer, SPCSV);
     }
