@@ -1312,7 +1312,7 @@ IT::translateOpcode(PTCOpcode Opcode,
 
       // Move it to the bottom
       Fallthrough->removeFromParent();
-      TheFunction->getBasicBlockList().push_back(Fallthrough);
+      TheFunction->insert(TheFunction->end(), Fallthrough);
     }
 
     Builder.CreateBr(Fallthrough);

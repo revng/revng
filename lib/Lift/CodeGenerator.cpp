@@ -1062,21 +1062,20 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
       SortedBasicBlocks.push_back(BB);
     }
 
-    auto &BasicBlockList = MainFunction->getBasicBlockList();
     std::vector<BasicBlock *> Unreachable;
-    for (BasicBlock &BB : BasicBlockList) {
+    for (BasicBlock &BB : *MainFunction) {
       if (SortedBasicBlocksSet.count(&BB) == 0) {
         Unreachable.push_back(&BB);
       }
     }
 
-    auto Size = BasicBlockList.size();
+    auto Size = MainFunction->size();
     for (unsigned I = 0; I < Size; ++I)
-      BasicBlockList.begin()->removeFromParent();
+      MainFunction->begin()->removeFromParent();
     for (BasicBlock *BB : SortedBasicBlocks)
-      BasicBlockList.push_back(BB);
+      MainFunction->insert(MainFunction->end(), BB);
     for (BasicBlock *BB : Unreachable)
-      BasicBlockList.push_back(BB);
+      MainFunction->insert(MainFunction->end(), BB);
   }
 
   //

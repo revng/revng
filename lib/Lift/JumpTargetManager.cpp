@@ -1516,7 +1516,7 @@ void JumpTargetManager::harvestWithAVI() {
     }
 
     // Record the size of OptimizedFunction
-    size_t BlocksCount = OptimizedFunction->getBasicBlockList().size();
+    size_t BlocksCount = OptimizedFunction->size();
     BlocksAnalyzedByAVI.push(BlocksCount);
 
     // Reattach the unreachable basic blocks to the original root function

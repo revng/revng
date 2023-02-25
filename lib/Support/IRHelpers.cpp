@@ -221,11 +221,10 @@ void moveBlocksInto(Function &OldFunction, Function &NewFunction) {
   std::vector<BasicBlock *> Body;
   for (BasicBlock &BB : OldFunction)
     Body.push_back(&BB);
-  auto &NewBody = NewFunction.getBasicBlockList();
   for (BasicBlock *BB : Body) {
     BB->removeFromParent();
     revng_assert(BB->getParent() == nullptr);
-    NewBody.push_back(BB);
+    NewFunction.insert(NewFunction.end(), BB);
     revng_assert(BB->getParent() == &NewFunction);
   }
 }

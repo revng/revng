@@ -124,7 +124,7 @@ end:
   revng_check(not verifyModule(*M, &dbgs()));
 
   Function *F = M->getFunction("main");
-  BasicBlock *BackBB = &F->getBasicBlockList().back();
+  BasicBlock *BackBB = &F->back();
 
   // #### Depth first visits ####
 
