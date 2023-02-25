@@ -158,7 +158,8 @@ bool AddAssignmentMarkersPass::runOnFunction(llvm::Function &F) {
       Changed = true;
     }
   }
-  return true;
+
+  return Changed;
 }
 
 char AddAssignmentMarkersPass::ID = 0;
