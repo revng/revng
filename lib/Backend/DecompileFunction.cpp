@@ -1236,7 +1236,7 @@ CCodeGenerator::getCallToken(const llvm::CallInst *Call,
 
   } else {
     llvm::StringRef Separator = "(";
-    for (const auto &Arg : Call->arg_operands()) {
+    for (const auto &Arg : Call->args()) {
       Expression += Separator.str() + rc_recur getToken(Arg);
       Separator = ", ";
     }

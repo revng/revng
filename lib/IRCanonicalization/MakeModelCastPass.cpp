@@ -110,7 +110,7 @@ MMCP::serializeTypesForModelCast(FunctionMetadataCache &Cache,
         SerializeTypeFor(Call->getCalledOperandUse());
 
       // For all calls, check the formal arguments types
-      for (llvm::Use &Op : Call->arg_operands())
+      for (llvm::Use &Op : Call->args())
         SerializeTypeFor(Op);
 
     } else if (FunctionTags::ModelGEP.isTagOf(Callee)
@@ -123,7 +123,7 @@ MMCP::serializeTypesForModelCast(FunctionMetadataCache &Cache,
     } else if (FunctionTags::StructInitializer.isTagOf(Callee)) {
       // StructInitializers are used to pack together a returned struct, so
       // we know the types of each element by looking at the Prototype
-      for (llvm::Use &Op : Call->arg_operands())
+      for (llvm::Use &Op : Call->args())
         SerializeTypeFor(Op);
     }
   } else if (auto *Ret = dyn_cast<ReturnInst>(I)) {

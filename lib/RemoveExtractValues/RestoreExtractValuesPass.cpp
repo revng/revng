@@ -55,7 +55,7 @@ bool RestoreExtractValues::runOnFunction(llvm::Function &F) {
 
     // Collect the indices values
     SmallVector<unsigned int, 8> Indexes;
-    for (auto &Op : llvm::drop_begin(I->arg_operands())) {
+    for (auto &Op : llvm::drop_begin(I->args())) {
       uint64_t Idx = llvm::cast<ConstantInt>(&Op)->getValue().getLimitedValue();
       Indexes.push_back(Idx);
     }

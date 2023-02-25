@@ -153,7 +153,7 @@ bool FoldModelGEP::runOnFunction(llvm::Function &F) {
         if (FunctionTags::ModelGEP.isTagOf(CalledFunc)) {
 
           llvm::SmallVector<llvm::Value *, 8> Args;
-          for (auto &Arg : CallToFold->arg_operands())
+          for (auto &Arg : CallToFold->args())
             Args.push_back(Arg);
           Args[1] = ValueToSubstitute;
 

@@ -29,7 +29,7 @@ inline auto getArgs(const llvm::Function *F) {
   return F->args();
 }
 inline auto getArgs(const llvm::CallInst *C) {
-  return C->arg_operands();
+  return C->args();
 }
 
 inline unsigned long arg_size(const llvm::Function *F) {

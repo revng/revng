@@ -284,7 +284,7 @@ public:
                   revng_assert(StructTypeNodes.size() == Callee->arg_size());
 
                   for (const auto &[RetNodeNew, Arg] :
-                       llvm::zip_first(StructTypeNodes, Call->arg_operands())) {
+                       llvm::zip_first(StructTypeNodes, Call->args())) {
                     const auto &[ArgNode,
                                  New] = Builder.getOrCreateLayoutType(Arg);
                     Changed |= New;
@@ -428,7 +428,7 @@ public:
             revng_assert(StructTypeNodes.size() == Callee->arg_size());
 
             for (const auto &[RetTypeNodeNew, Arg] :
-                 llvm::zip_first(StructTypeNodes, C->arg_operands())) {
+                 llvm::zip_first(StructTypeNodes, C->args())) {
               const auto &[ArgTypeNode,
                            New] = Builder.getOrCreateLayoutType(Arg);
               Changed |= New;
@@ -513,7 +513,7 @@ public:
           }
 
           // Add entry in SCEVToLayoutType map for actual arguments of CallInst.
-          for (Use &ArgU : C->arg_operands()) {
+          for (Use &ArgU : C->args()) {
             revng_assert(isa<IntegerType>(ArgU->getType())
                          or isa<PointerType>(ArgU->getType()));
             const auto &[ArgTy, Created] = Builder.getOrCreateLayoutType(ArgU);
@@ -663,7 +663,7 @@ bool Builder::connectToFuncsWithSamePrototype(const llvm::CallInst *Call,
     }
 
     // Connect arguments
-    for (const auto &ArgIt : llvm::enumerate(Call->arg_operands())) {
+    for (const auto &ArgIt : llvm::enumerate(Call->args())) {
       // Arguments can only be integers and pointers
       const Value *Arg1 = ArgIt.value();
       const Value *Arg2 = OtherCall.getArg(ArgIt.index());
@@ -885,7 +885,7 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
           }
         } else if (auto *Call = dyn_cast<CallInst>(&I)) {
           // For calls we actually look at their parameters.
-          for (Value *PointerVal : Call->arg_operands())
+          for (Value *PointerVal : Call->args())
             Pointers.push_back(PointerVal);
 
         } else if (isa<PtrToIntInst>(&I) or isa<IntToPtrInst>(&I)
