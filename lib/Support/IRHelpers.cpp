@@ -43,12 +43,8 @@ GlobalVariable *buildString(Module *M, StringRef String, const Twine &Name) {
 
 StringRef extractFromConstantStringPtr(Value *V) {
   revng_assert(V->getType()->isPointerTy());
-  auto *ConstantGEP = dyn_cast<ConstantExpr>(V);
-  if (ConstantGEP == nullptr)
-    return {};
 
-  auto *NoCasts = ConstantGEP->stripPointerCasts();
-  auto *GV = dyn_cast_or_null<GlobalVariable>(NoCasts);
+  auto *GV = dyn_cast_or_null<GlobalVariable>(V);
   if (GV == nullptr)
     return {};
 
