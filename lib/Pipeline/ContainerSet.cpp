@@ -130,7 +130,7 @@ ContainerToTargetsMap ContainerSet::enumerate() const {
 
 llvm::Error ContainerBase::storeToDisk(llvm::StringRef Path) const {
   std::error_code EC;
-  llvm::raw_fd_ostream OS(Path, EC, llvm::sys::fs::F_None);
+  llvm::raw_fd_ostream OS(Path, EC, llvm::sys::fs::OF_None);
   if (EC)
     return llvm::createStringError(EC,
                                    "could not write file at %s",
