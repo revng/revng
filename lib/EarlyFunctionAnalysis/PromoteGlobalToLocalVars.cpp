@@ -45,7 +45,7 @@ PromoteGlobalToLocalPass::run(llvm::Function &F,
 
   // Load all the CSVs and store their value onto the local variables.
   for (const auto &[CSV, Alloca] : CSVMap)
-    Builder.CreateStore(Builder.CreateLoad(CSV), Alloca);
+    Builder.CreateStore(createLoad(Builder, CSV), Alloca);
 
   return PreservedAnalyses::none();
 }

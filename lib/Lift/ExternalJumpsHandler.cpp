@@ -44,18 +44,22 @@ BasicBlock *ExternalJumpsHandler::createReturnFromExternal() {
   IRBuilder<> Builder(ReturnFromExternal);
 
   // Identify the global variables to be serialized
-  Constant *SavedRegistersPtr = TheModule.getGlobalVariable("saved_registers");
-  LoadInst *SavedRegisters = Builder.CreateLoad(SavedRegistersPtr);
+  GlobalVariable *SavedRegistersPtr = TheModule.getGlobalVariable("saved_"
+                                                                  "registers");
+  Instruction *SavedRegisters = createLoad(Builder, SavedRegistersPtr);
 
   // TODO: if we do not support this architecture, here things will be
   // completely broken
   using namespace model::Architecture;
   using namespace model::Register;
-  unsigned PCMContextIndex = getPCMContextIndex(Model.Architecture())
-                               .value_or(0);
-  Value *GEP = Builder.CreateGEP(SavedRegisters,
+  auto Architecture = Model.Architecture();
+  unsigned PCMContextIndex = getPCMContextIndex(Architecture).value_or(0);
+  auto *RegisterType = IntegerType::get(Context,
+                                        8 * getPointerSize(Architecture));
+  Value *GEP = Builder.CreateGEP(RegisterType,
+                                 SavedRegisters,
                                  Builder.getInt32(PCMContextIndex));
-  LoadInst *PCAddress = Builder.CreateLoad(GEP);
+  Instruction *PCAddress = Builder.CreateLoad(RegisterType, GEP);
   PCH->deserializePCFromSignalContext(Builder, PCAddress, SavedRegisters);
 
   // Deserialize the ABI registers
@@ -70,8 +74,10 @@ BasicBlock *ExternalJumpsHandler::createReturnFromExternal() {
       if (MaybeMContextIndex) {
 
         Constant *RegisterIndex = Builder.getInt32(*MaybeMContextIndex);
-        Value *GEP = Builder.CreateGEP(SavedRegisters, RegisterIndex);
-        LoadInst *RegisterValue = Builder.CreateLoad(GEP);
+        Value *GEP = Builder.CreateGEP(RegisterType,
+                                       SavedRegisters,
+                                       RegisterIndex);
+        LoadInst *RegisterValue = Builder.CreateLoad(RegisterType, GEP);
         Builder.CreateStore(RegisterValue, CSV);
 
       } else {

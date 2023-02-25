@@ -358,16 +358,17 @@ CFGAnalyzer::State CFGAnalyzer::loadState(llvm::IRBuilder<> &Builder) const {
   LLVMContext &Context = M.getContext();
 
   // Load the stack pointer
-  auto *SP0 = Builder.CreateLoad(GCBI.spReg());
+  auto *SP0 = createLoad(Builder, GCBI.spReg());
 
   // Load the return address
   Value *ReturnAddress = nullptr;
-  if (Value *Register = GCBI.raReg()) {
-    ReturnAddress = Builder.CreateLoad(Register);
+  if (GlobalVariable *Register = GCBI.raReg()) {
+    ReturnAddress = createLoad(Builder, Register);
   } else {
-    auto *IntPtrTy = GCBI.spReg()->getType();
-    auto *StackPointerPointer = Builder.CreateIntToPtr(SP0, IntPtrTy);
-    ReturnAddress = Builder.CreateLoad(StackPointerPointer);
+    auto *OpaquePointer = PointerType::get(Context, 0);
+    auto *StackPointerPointer = Builder.CreateIntToPtr(SP0, OpaquePointer);
+    ReturnAddress = Builder.CreateLoad(GCBI.pcReg()->getValueType(),
+                                       StackPointerPointer);
   }
 
   // Load the PC
@@ -385,7 +386,7 @@ CFGAnalyzer::State CFGAnalyzer::loadState(llvm::IRBuilder<> &Builder) const {
   SmallVector<Value *, 16> CSVs;
   Type *IsRetTy = Type::getInt128Ty(Context);
   for (auto *CSR : ABICSVs) {
-    auto *V = Builder.CreateLoad(CSR);
+    auto *V = createLoad(Builder, CSR);
     CSVs.emplace_back(V);
   }
 
@@ -1004,7 +1005,7 @@ void CallSummarizer::handleCall(MetaAddress CallerBlock,
   // Adjust back the stack pointer
   if (not IsTailCall) {
     if (MaybeFSO.has_value()) {
-      auto *StackPointer = Builder.CreateLoad(SPCSV);
+      auto *StackPointer = createLoad(Builder, SPCSV);
       Value *Offset = ConstantInt::get(StackPointer->getPointerOperandType()
                                          ->getPointerElementType(),
                                        *MaybeFSO);

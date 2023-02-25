@@ -47,7 +47,7 @@ RemoveHelperCallsPass::run(llvm::Function &F,
 
     // Assumption: helpers do not leave the stack altered, thus we can save the
     // stack pointer and restore it back later.
-    auto *SP = Builder.CreateLoad(GCBI->spReg());
+    auto *SP = createLoad(Builder, GCBI->spReg());
 
     auto *RetTy = cast<CallInst>(I)->getFunctionType()->getReturnType();
     auto *OriginalHelperMarker = OFPOriginalHelper.get(RetTy,

@@ -268,16 +268,34 @@ Function *EnforceABIImpl::recreateFunction(Function &OldFunction,
   return NewFunction;
 }
 
-static Constant *getCSVOrUndef(Module *M, model::Register::Values Register) {
+static GlobalVariable *tryGetCSV(Module *M, model::Register::Values Register) {
   auto Name = model::Register::getCSVName(Register);
-  Constant *CSV = M->getGlobalVariable(Name, true);
+  return M->getGlobalVariable(Name, true);
+}
+
+static Value *loadCSVOrUndef(IRBuilder<> &Builder,
+                             Module *M,
+                             model::Register::Values Register) {
+  GlobalVariable *CSV = tryGetCSV(M, Register);
   if (CSV == nullptr) {
     auto Size = model::Register::getSize(Register);
-    auto *Type = IntegerType::get(M->getContext(), Size * 8)->getPointerTo();
-    CSV = UndefValue::get(Type);
+    auto *Type = IntegerType::get(M->getContext(), Size * 8);
+    return UndefValue::get(Type);
+  } else {
+    return createLoad(Builder, CSV);
   }
+}
 
-  return CSV;
+static std::pair<Type *, Constant *>
+getCSVOrUndef(Module *M, model::Register::Values Register) {
+  GlobalVariable *CSV = tryGetCSV(M, Register);
+  if (CSV == nullptr) {
+    auto Size = model::Register::getSize(Register);
+    auto *Type = IntegerType::get(M->getContext(), Size * 8);
+    return { Type, UndefValue::get(PointerType::get(M->getContext(), 0)) };
+  } else {
+    return { CSV->getValueType(), CSV };
+  }
 }
 
 void EnforceABIImpl::createPrologue(Function *NewFunction,
@@ -289,11 +307,11 @@ void EnforceABIImpl::createPrologue(Function *NewFunction,
   auto Prototype = FTLayout::make(FunctionModel.prototype(Binary));
 
   SmallVector<Constant *, 8> ArgumentCSVs;
-  SmallVector<Constant *, 8> ReturnCSVs;
+  SmallVector<std::pair<Type *, Constant *>, 8> ReturnCSVs;
 
   // We sort arguments by their CSV name
   for (model::Register::Values Register : Prototype.argumentRegisters())
-    ArgumentCSVs.push_back(getCSVOrUndef(&M, Register));
+    ArgumentCSVs.push_back(getCSVOrUndef(&M, Register).second);
 
   for (model::Register::Values Register : Prototype.returnValueRegisters())
     ReturnCSVs.push_back(getCSVOrUndef(&M, Register));
@@ -310,8 +328,8 @@ void EnforceABIImpl::createPrologue(Function *NewFunction,
       if (auto *Return = dyn_cast<ReturnInst>(BB.getTerminator())) {
         IRBuilder<> Builder(Return);
         std::vector<Value *> ReturnValues;
-        for (Constant *ReturnCSV : ReturnCSVs)
-          ReturnValues.push_back(Builder.CreateLoad(ReturnCSV));
+        for (auto [Type, ReturnCSV] : ReturnCSVs)
+          ReturnValues.push_back(Builder.CreateLoad(Type, ReturnCSV));
 
         if (ReturnValues.size() == 1)
           Builder.CreateRet(ReturnValues[0]);
@@ -436,10 +454,10 @@ CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   // Collect arguments and returns
   //
   for (model::Register::Values Register : Prototype.argumentRegisters())
-    Arguments.push_back(Builder.CreateLoad(getCSVOrUndef(&M, Register)));
+    Arguments.push_back(loadCSVOrUndef(Builder, &M, Register));
 
   for (model::Register::Values Register : Prototype.returnValueRegisters())
-    ReturnCSVs.push_back(getCSVOrUndef(&M, Register));
+    ReturnCSVs.push_back(getCSVOrUndef(&M, Register).second);
 
   //
   // Produce the call

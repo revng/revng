@@ -893,7 +893,9 @@ IT::translateOpcode(PTCOpcode Opcode,
 
       Pointer = Builder.CreateIntToPtr(InArguments[0],
                                        MemoryType->getPointerTo());
-      auto *Load = Builder.CreateAlignedLoad(Pointer, MaybeAlign(Alignment));
+      auto *Load = Builder.CreateAlignedLoad(MemoryType,
+                                             Pointer,
+                                             MaybeAlign(Alignment));
       Value *Loaded = Load;
 
       if (BSwapFunction != nullptr)

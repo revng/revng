@@ -53,7 +53,7 @@ protected:
   llvm::GlobalVariable *AddressSpaceCSV;
   llvm::GlobalVariable *TypeCSV;
 
-  std::set<llvm::Value *> CSVsAffectingPC;
+  std::set<llvm::GlobalVariable *> CSVsAffectingPC;
 
 public:
   using DispatcherTarget = std::pair<MetaAddress, llvm::BasicBlock *>;
@@ -153,8 +153,8 @@ public:
 
     // Load and re-store each CSV affecting the PC and then feed them to
     // handleStore
-    for (Value *CSVAffectingPC : CSVsAffectingPC) {
-      auto *FakeLoad = Builder.CreateLoad(CSVAffectingPC);
+    for (GlobalVariable *CSVAffectingPC : CSVsAffectingPC) {
+      auto *FakeLoad = createLoad(Builder, CSVAffectingPC);
       auto *FakeStore = Builder.CreateStore(FakeLoad, CSVAffectingPC);
       bool HasInjectedCode = handleStore(Builder, FakeStore);
       eraseFromParent(FakeStore);
@@ -181,10 +181,10 @@ public:
 
   llvm::Instruction *composeIntegerPC(llvm::IRBuilder<> &B) const {
     return MetaAddress::composeIntegerPC(B,
-                                         align(B, B.CreateLoad(AddressCSV)),
-                                         B.CreateLoad(EpochCSV),
-                                         B.CreateLoad(AddressSpaceCSV),
-                                         B.CreateLoad(TypeCSV));
+                                         align(B, createLoad(B, AddressCSV)),
+                                         createLoad(B, EpochCSV),
+                                         createLoad(B, AddressSpaceCSV),
+                                         createLoad(B, TypeCSV));
   }
 
   bool isPCSizedType(llvm::Type *T) const {

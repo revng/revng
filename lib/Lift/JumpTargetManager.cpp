@@ -1609,7 +1609,7 @@ void JumpTargetManager::harvestWithAVI() {
     replaceAllUsesInFunctionWith(OptimizedFunction, CSV, Alloca);
 
     // Initialize the alloca
-    InitializeBuilder.CreateStore(InitializeBuilder.CreateLoad(CSV), Alloca);
+    InitializeBuilder.CreateStore(createLoad(InitializeBuilder, CSV), Alloca);
   }
 
   //

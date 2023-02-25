@@ -1496,4 +1496,27 @@ unpack(llvm::IRBuilder<T, Inserter> &Builder, llvm::Value *V) {
   }
 }
 
+template<typename T, typename Inserter>
+llvm::Instruction *
+createLoad(llvm::IRBuilder<T, Inserter> &Builder, llvm::GlobalVariable *GV) {
+  return Builder.CreateLoad(GV->getValueType(), GV);
+}
+
+template<typename T, typename Inserter>
+llvm::Instruction *
+createLoad(llvm::IRBuilder<T, Inserter> &Builder, llvm::AllocaInst *Alloca) {
+  return Builder.CreateLoad(Alloca->getAllocatedType(), Alloca);
+}
+
+template<typename T, typename Inserter>
+llvm::Instruction *createLoadVariable(llvm::IRBuilder<T, Inserter> &Builder,
+                                      llvm::Value *Variable) {
+  if (auto *Alloca = llvm::dyn_cast<llvm::AllocaInst>(Variable))
+    return createLoad(Builder, Alloca);
+  else if (auto *GV = llvm::dyn_cast<llvm::GlobalVariable>(Variable))
+    return createLoad(Builder, GV);
+  else
+    revng_abort("Either GlobalVariable or AllocaInst expected");
+}
+
 void pruneDICompileUnits(llvm::Module &M);

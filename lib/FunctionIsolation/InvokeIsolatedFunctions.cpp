@@ -173,7 +173,7 @@ public:
             auto Name = model::Register::getCSVName(Register);
             GlobalVariable *CSV = M->getGlobalVariable(Name, true);
             revng_assert(CSV != nullptr);
-            Arguments.push_back(Builder.CreateLoad(CSV));
+            Arguments.push_back(createLoad(Builder, CSV));
           }
         }
       }

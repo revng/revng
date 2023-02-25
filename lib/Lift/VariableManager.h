@@ -12,6 +12,7 @@
 #include "llvm/Pass.h"
 
 #include "revng/Support/CommandLine.h"
+#include "revng/Support/IRHelpers.h"
 
 #include "CPUStateAccessAnalysisPass.h"
 #include "PTCDump.h"
@@ -56,7 +57,7 @@ public:
       Builder.CreateStore(Undef, V);
     }
 
-    return Builder.CreateLoad(V);
+    return createLoadVariable(Builder, V);
   }
 
   /// Get or create the LLVM value associated to a PTC temporary

@@ -248,7 +248,7 @@ VariableManager::storeToCPUStateOffset(IRBuilder<> &Builder,
                                        unsigned StoreSize,
                                        unsigned Offset,
                                        Value *ToStore) {
-  Value *Target;
+  GlobalVariable *Target = nullptr;
   unsigned Remaining;
   std::tie(Target, Remaining) = getByCPUStateOffsetInternal(Offset);
 
@@ -296,7 +296,7 @@ VariableManager::storeToCPUStateOffset(IRBuilder<> &Builder,
 
   if (BitMask != 0 and StoreSize != FieldSize) {
     // Load the value
-    auto *LoadEnvField = Builder.CreateLoad(Target);
+    auto *LoadEnvField = createLoad(Builder, Target);
 
     auto *Blanked = Builder.CreateAnd(LoadEnvField, BitMask);
 
@@ -313,7 +313,7 @@ VariableManager::storeToCPUStateOffset(IRBuilder<> &Builder,
 Value *VariableManager::loadFromCPUStateOffset(IRBuilder<> &Builder,
                                                unsigned LoadSize,
                                                unsigned Offset) {
-  Value *Target;
+  GlobalVariable *Target = nullptr;
   unsigned Remaining;
   std::tie(Target, Remaining) = getByCPUStateOffsetInternal(Offset);
 
@@ -321,7 +321,7 @@ Value *VariableManager::loadFromCPUStateOffset(IRBuilder<> &Builder,
     return nullptr;
 
   // Load the whole field
-  auto *LoadEnvField = Builder.CreateLoad(Target);
+  auto *LoadEnvField = createLoad(Builder, Target);
 
   // Extract the desired part
   // Shift right of the desired amount
@@ -401,9 +401,12 @@ bool VariableManager::memcpyAtEnvOffset(llvm::IRBuilder<> &Builder,
     Value *NewAddress = Builder.CreateAdd(OffsetInt, OtherBasePtr);
     Value *OtherPtr = Builder.CreateIntToPtr(NewAddress, EnvVar->getType());
 
-    Value *Dst = EnvIsSrc ? OtherPtr : EnvVar;
-    Value *Src = EnvIsSrc ? EnvVar : OtherPtr;
-    Builder.CreateStore(Builder.CreateLoad(Src), Dst);
+    if (EnvIsSrc) {
+      Builder.CreateStore(createLoad(Builder, EnvVar), OtherPtr);
+    } else {
+      Builder.CreateStore(Builder.CreateLoad(EnvVar->getType(), OtherPtr),
+                          EnvVar);
+    }
 
     Type *PointeeTy = EnvVar->getType()->getPointerElementType();
     Offset += ModuleLayout->getTypeAllocSize(PointeeTy);

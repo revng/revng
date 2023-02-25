@@ -40,7 +40,7 @@ public:
               std::back_inserter(Arguments));
 
     for (GlobalVariable *CSV : ReadCSVs)
-      Arguments.push_back(Builder.CreateLoad(csvToAlloca(CSV)));
+      Arguments.push_back(csvToAlloca(CSV));
 
     CallInst *Result = Builder.CreateCall(getRandom(M, ReturnType), Arguments);
 

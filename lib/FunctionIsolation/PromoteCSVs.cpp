@@ -205,7 +205,7 @@ Function *PromoteCSVs::createWrapper(const WrapperKey &Key) {
   // Update values of the out arguments
   unsigned OutArgument = FirstOutArgument;
   for (GlobalVariable *CSV : Written) {
-    Builder.CreateStore(Builder.CreateLoad(CSV),
+    Builder.CreateStore(createLoad(Builder, CSV),
                         HelperWrapper->getArg(OutArgument));
     ++OutArgument;
   }
@@ -260,7 +260,7 @@ void PromoteCSVs::wrap(CallInst *Call,
 
   // Add arguments read
   for (GlobalVariable *CSV : Read)
-    NewArguments.push_back(Builder.CreateLoad(CSV));
+    NewArguments.push_back(createLoad(Builder, CSV));
 
   SmallVector<AllocaInst *, 16> WrittenCSVAllocas;
   for (GlobalVariable *CSV : Written) {
@@ -277,7 +277,7 @@ void PromoteCSVs::wrap(CallInst *Call,
 
   // Restore into CSV the written registers
   for (const auto &[CSV, Alloca] : zip(Written, WrittenCSVAllocas))
-    Builder.CreateStore(Builder.CreateLoad(Alloca), CSV);
+    Builder.CreateStore(createLoad(Builder, Alloca), CSV);
 
   // Erase the old call
   eraseFromParent(Call);

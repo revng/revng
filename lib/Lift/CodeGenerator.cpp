@@ -372,7 +372,7 @@ bool CpuLoopFunctionPass::runOnModule(Module &M) {
   auto *Call = cast<CallInst>(CallUser);
   revng_assert(Call->getCalledFunction() == &CpuExec);
   Value *CPUState = Call->getArgOperand(0);
-  Type *TargetType = CpuExec.getReturnType()->getPointerTo();
+  Type *TargetType = CpuExec.getReturnType();
 
   IRBuilder<> Builder(Call);
   Type *IntPtrTy = Builder.getIntPtrTy(TheModule->getDataLayout());
@@ -381,8 +381,8 @@ bool CpuLoopFunctionPass::runOnModule(Module &M) {
   auto Offset = CI::get(IntPtrTy, ExceptionIndexOffset);
   Value *ExceptionIndexIntPtr = Builder.CreateAdd(CPUIntPtr, Offset);
   Value *ExceptionIndexPtr = Builder.CreateIntToPtr(ExceptionIndexIntPtr,
-                                                    TargetType);
-  Value *ExceptionIndex = Builder.CreateLoad(ExceptionIndexPtr);
+                                                    TargetType->getPointerTo());
+  Value *ExceptionIndex = Builder.CreateLoad(TargetType, ExceptionIndexPtr);
   Call->replaceAllUsesWith(ExceptionIndex);
   eraseFromParent(Call);
 
