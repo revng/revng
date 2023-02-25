@@ -94,7 +94,11 @@ BasicBlock *ExternalJumpsHandler::createReturnFromExternal() {
                                         ConstraintStringStream.str(),
                                         true,
                                         InlineAsm::AsmDialect::AD_ATT);
-        Builder.CreateCall(Asm, CSV);
+        CallInst *AsmCall = Builder.CreateCall(Asm, CSV);
+        AsmCall->addParamAttr(0,
+                              Attribute::get(Context,
+                                             Attribute::ElementType,
+                                             CSV->getValueType()));
       }
     }
   }
@@ -159,7 +163,11 @@ BasicBlock *ExternalJumpsHandler::createSerializeAndJumpOut() {
                                     ConstraintStringStream.str(),
                                     true,
                                     InlineAsm::AsmDialect::AD_ATT);
-    Builder.CreateCall(Asm, CSV);
+    CallInst *AsmCall = Builder.CreateCall(Asm, CSV);
+    AsmCall->addParamAttr(0,
+                          Attribute::get(Context,
+                                         Attribute::ElementType,
+                                         CSV->getValueType()));
   }
 
   // Branch to the Program Counter address
@@ -171,7 +179,11 @@ BasicBlock *ExternalJumpsHandler::createSerializeAndJumpOut() {
                                   "*m,~{dirflag},~{fpsr},~{flags}",
                                   true,
                                   InlineAsm::AsmDialect::AD_ATT);
-  Builder.CreateCall(Asm, JumpablePC);
+  CallInst *AsmCall = Builder.CreateCall(Asm, JumpablePC);
+  AsmCall->addParamAttr(0,
+                        Attribute::get(Context,
+                                       Attribute::ElementType,
+                                       JumpablePC->getValueType()));
 
   Instruction *T = Builder.CreateUnreachable();
   setBlockType(T, BlockType::ExternalJumpsHandlerBlock);
