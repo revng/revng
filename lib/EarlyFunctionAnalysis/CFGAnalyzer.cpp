@@ -405,7 +405,7 @@ void CFGAnalyzer::createIBIMarker(OutlinedFunction *OutlinedFunction) {
   // Create IBI for this function
   //
   LLVMContext &Context = M.getContext();
-  auto *IntTy = GCBI.spReg()->getType()->getElementType();
+  auto *IntTy = GCBI.spReg()->getValueType();
   Type *I8Ptr = Type::getInt8PtrTy(Context);
   SmallVector<Type *, 16> ArgTypes;
   ArgTypes.resize(PreservedRegistersIndex);

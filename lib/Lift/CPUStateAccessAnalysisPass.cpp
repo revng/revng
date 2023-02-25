@@ -1255,8 +1255,7 @@ private:
       return { false, GEPOp0Kind };
 
     auto *GEP = cast<GetElementPtrInst>(I);
-    auto *PtrTy = cast<PointerType>(GEP->getPointerOperandType());
-    Type *PointeeTy = PtrTy->getElementType();
+    Type *PointeeTy = GEP->getSourceElementType();
 
     if (GEP->hasIndices() and PointeeTy->isArrayTy()) {
 
@@ -2271,14 +2270,10 @@ void CPUSAOA::computeAggregatedOffsets() {
       AccessSize = SizeParam->getSExtValue();
     } else if (IsLoad) {
       auto *Load = cast<LoadInst>(Instr);
-      auto *PtrTy = cast<PointerType>(Load->getPointerOperand()->getType());
-      Type *LoadedType = PtrTy->getElementType();
-      AccessSize = DL.getTypeAllocSize(LoadedType);
+      AccessSize = DL.getTypeAllocSize(Load->getType());
     } else {
       auto Store = cast<StoreInst>(Instr);
-      auto *PtrTy = cast<PointerType>(Store->getPointerOperand()->getType());
-      Type *StoredType = PtrTy->getElementType();
-      AccessSize = DL.getTypeAllocSize(StoredType);
+      AccessSize = DL.getTypeAllocSize(Store->getValueOperand()->getType());
     }
     revng_assert(AccessSize != 0);
 
@@ -2508,8 +2503,7 @@ static Value *getLoadAddressValue(Instruction *I) {
 
 static Type *getLoadedType(Instruction *I) {
   if (auto Load = dyn_cast<LoadInst>(I)) {
-    auto *PtrTy = cast<PointerType>(Load->getPointerOperand()->getType());
-    return PtrTy->getElementType();
+    return Load->getType();
   }
   return nullptr;
 }
@@ -2537,9 +2531,8 @@ static Value *getStoreAddressValue(Instruction *I) {
 }
 
 static Type *getStoredType(Instruction *I) {
-  if (auto Store = dyn_cast<StoreInst>(I)) {
-    auto *PtrTy = cast<PointerType>(Store->getPointerOperand()->getType());
-    return PtrTy->getElementType();
+  if (auto *Store = dyn_cast<StoreInst>(I)) {
+    return Store->getValueOperand()->getType();
   }
   return nullptr;
 }
