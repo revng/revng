@@ -18,8 +18,8 @@
 #include "revng/Support/IRHelpers.h"
 
 template<typename T>
-concept PointerToLLVMTypeOrDerived = derived_from<std::remove_pointer_t<T>,
-                                                  llvm::Type>;
+concept PointerToLLVMTypeOrDerived = std::derived_from<std::remove_pointer_t<T>,
+                                                       llvm::Type>;
 
 template<typename KeyT>
 class OpaqueFunctionsPool {
@@ -104,7 +104,7 @@ public:
   /// Initialize the pool with all the functions in M that match the tag TheTag,
   /// using the return type as key.
   void initializeFromReturnType(const FunctionTags::Tag &TheTag)
-  requires derived_from<std::remove_pointer_t<KeyT>, llvm::Type> {
+  requires std::derived_from<std::remove_pointer_t<KeyT>, llvm::Type> {
     // clang-format on
     using TypeLike = std::remove_pointer_t<KeyT>;
     for (llvm::Function &F : TheTag.functions(M)) {
@@ -119,7 +119,7 @@ public:
   /// Initialize the pool with all the functions in M that match the tag TheTag,
   /// using the type of the ArgNo-th argument as key.
   void initializeFromNthArgType(const FunctionTags::Tag &TheTag, unsigned ArgNo)
-  requires derived_from<std::remove_pointer_t<KeyT>, llvm::Type> {
+  requires std::derived_from<std::remove_pointer_t<KeyT>, llvm::Type> {
     // clang-format on
     using TypeLike = std::remove_pointer_t<KeyT>;
     for (llvm::Function &F : TheTag.functions(M)) {

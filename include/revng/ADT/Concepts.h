@@ -16,22 +16,9 @@
 // TODO: remove these after updating the libc++ version.
 //
 
-// clang-format off
-template<typename Derived, typename Base>
-concept derived_from = std::is_base_of_v<Base, Derived>
-                       && std::is_convertible_v<const volatile Derived *,
-                                                const volatile Base *>;
-// clang-format on
-
-template<typename T, typename U>
-concept convertible_to = std::is_convertible_v<T, U>;
-
-template<typename T>
-concept integral = std::is_integral_v<T>;
-
 template<typename T>
 concept equality_comparable = requires(T &&LHS, T &&RHS) {
-  { LHS == RHS } -> convertible_to<bool>;
+  { LHS == RHS } -> std::convertible_to<bool>;
 };
 
 // clang-format off
@@ -53,19 +40,6 @@ struct ClangFormatPleaseDoNotBreakMyCode;
 // clang-format off
 // clang-format on
 
-namespace ranges {
-
-template<class T>
-concept range = requires(T &&R) {
-  std::begin(R);
-  std::end(R);
-};
-
-template<class T>
-concept sized_range = ranges::range<T> && requires(T &&R) { std::size(R); };
-
-} // namespace ranges
-
 //
 // Concepts to simplify working with tuples.
 //
@@ -73,7 +47,7 @@ concept sized_range = ranges::range<T> && requires(T &&R) { std::size(R); };
 template<class T>
 concept TupleSizeCompatible = requires {
   std::tuple_size<T>::value;
-  { std::tuple_size_v<T> } -> convertible_to<size_t>;
+  { std::tuple_size_v<T> } -> std::convertible_to<size_t>;
 };
 
 static_assert(TupleSizeCompatible<std::tuple<>>);
@@ -85,7 +59,7 @@ namespace revng::detail {
 template<class T, std::size_t N>
 concept TupleElementCompatibleHelper = requires(T Value) {
   typename std::tuple_element_t<N, std::remove_const_t<T>>;
-  { get<N>(Value) } -> convertible_to<std::tuple_element_t<N, T> &>;
+  { get<N>(Value) } -> std::convertible_to<std::tuple_element_t<N, T> &>;
 };
 
 template<typename T, size_t... N>
@@ -181,10 +155,8 @@ template<typename T, typename R>
 concept ConstOrNot = std::is_same_v<R, T> or std::is_same_v<const R, T>;
 
 // clang-format off
-namespace ranges {
 template<class Range, typename ValueType>
-concept range_with_value_type = ranges::range<Range> &&
+concept range_with_value_type = std::ranges::range<Range> &&
                 std::is_convertible_v<typename Range::value_type,
                                       ValueType>;
-} // namespace ranges
 // clang-format on

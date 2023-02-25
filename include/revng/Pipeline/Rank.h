@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <concepts>
+
 #include "revng/ADT/ConstexprString.h"
 #include "revng/ADT/STLExtras.h"
 #include "revng/Support/DynamicHierarchy.h"
@@ -49,8 +51,8 @@ template<typename RankType>
 concept RankSpecialization = requires(RankType &&Rank) {
   RankType::RankTag;
 
-  { RankType::RankName } -> convertible_to<std::string_view>;
-  { RankType::Depth } -> convertible_to<std::size_t>;
+  { RankType::RankName } -> std::convertible_to<std::string_view>;
+  { RankType::Depth } -> std::convertible_to<std::size_t>;
 
   typename RankType::Type;
   typename RankType::Parent;

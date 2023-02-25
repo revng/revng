@@ -93,7 +93,7 @@ public:
   }
 
   template<StrictSpecializationOf<TupleTreeReference> TTR,
-           predicate<const TTR &> PredicateType>
+           std::predicate<const TTR &> PredicateType>
   void replaceReferencesIf(const TTR &NewReference, PredicateType &&Predicate) {
     auto Visitor = [&Predicate, &NewReference](TTR &Reference) {
       if (Predicate(Reference))

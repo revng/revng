@@ -621,7 +621,7 @@ public:
   ///
   /// @{
 
-  template<integral T>
+  template<std::integral T>
   MetaAddress &operator+=(T Offset) {
     if (isInvalid())
       return *this;
@@ -650,7 +650,7 @@ public:
     return *this;
   }
 
-  template<integral T>
+  template<std::integral T>
   MetaAddress &operator-=(T Offset) {
     if (isInvalid())
       return *this;
@@ -679,14 +679,14 @@ public:
     return *this;
   }
 
-  template<integral T>
+  template<std::integral T>
   MetaAddress operator+(T Offset) const {
     MetaAddress Result = *this;
     Result += Offset;
     return Result;
   }
 
-  template<integral T>
+  template<std::integral T>
   MetaAddress operator-(T Offset) const {
     MetaAddress Result = *this;
     Result -= Offset;

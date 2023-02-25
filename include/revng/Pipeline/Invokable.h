@@ -38,7 +38,7 @@ concept HasName = requires() {
 
 // clang-format off
 template<typename T>
-concept IsContainer = derived_from<std::decay_t<T>, ContainerBase>;
+concept IsContainer = std::derived_from<std::decay_t<T>, ContainerBase>;
 
 template<typename T>
 concept IsNotContainer = not IsContainer<T>;

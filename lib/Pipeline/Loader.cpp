@@ -95,7 +95,7 @@ Loader::parseLLVMPass(const PipeInvocation &Invocation) const {
     ToInsert.addPass(std::move(*MaybePass));
   }
 
-  return PipeWrapper::make(move(ToInsert), Invocation.UsedContainers);
+  return PipeWrapper::make(std::move(ToInsert), Invocation.UsedContainers);
 }
 
 llvm::Expected<AnalysisWrapper>

@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <concepts>
 #include <optional>
 #include <set>
 
@@ -33,7 +34,7 @@ struct IdentityKeyedObjectTraits {
 };
 
 /// Trivial specializations
-template<integral T>
+template<std::integral T>
 struct KeyedObjectTraits<T> : public IdentityKeyedObjectTraits<T> {};
 
 template<>

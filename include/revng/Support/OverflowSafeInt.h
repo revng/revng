@@ -10,7 +10,7 @@
 
 #include "revng/ADT/Concepts.h"
 
-template<integral T>
+template<std::integral T>
 class OverflowSafeInt {
 private:
   std::optional<T> Value;

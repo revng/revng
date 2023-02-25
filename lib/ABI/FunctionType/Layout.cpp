@@ -618,7 +618,7 @@ ToRawConverter::distributeNonPositionBasedArguments(const ASet &Arguments,
     *RegisterCounter = NextRegisterIndex;
 
     // All good - insert the arguments.
-    for (DistributedArgument &&Argument : ranges::views::as_rvalue(Arguments))
+    for (DistributedArgument &&Argument : as_rvalue(Arguments))
       Result.emplace_back(std::move(Argument));
   }
 

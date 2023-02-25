@@ -245,18 +245,18 @@ skip_back(T &&From, T &&To, std::size_t SkippedCount = 1) {
 
 } // namespace revng::detail
 
-template<ranges::range T>
+template<std::ranges::range T>
 inline decltype(auto)
 skip(T &&Range, std::size_t Front = 0, std::size_t Back = 0) {
   return revng::detail::skip(Range.begin(), Range.end(), Front, Back);
 }
 
-template<ranges::range T> // NOLINTNEXTLINE
+template<std::ranges::range T> // NOLINTNEXTLINE
 inline decltype(auto) skip_front(T &&Range, std::size_t SkippedCount = 1) {
   return revng::detail::skip_front(Range.begin(), Range.end(), SkippedCount);
 }
 
-template<ranges::range T> // NOLINTNEXTLINE
+template<std::ranges::range T> // NOLINTNEXTLINE
 inline decltype(auto) skip_back(T &&Range, std::size_t SkippedCount = 1) {
   return revng::detail::skip_back(Range.begin(), Range.end(), SkippedCount);
 }
@@ -298,7 +298,7 @@ inline llvm::ArrayRef<uint8_t> toArrayRef(llvm::StringRef Data) {
 //
 // append
 //
-template<ranges::sized_range FromType, ranges::sized_range ToType>
+template<std::ranges::sized_range FromType, std::ranges::sized_range ToType>
 auto append(FromType &&From, ToType &To) {
   size_t ExistingElementCount = To.size();
   To.resize(ExistingElementCount + From.size());
@@ -518,14 +518,8 @@ static_assert(is_contained(std::array{ 1, 2, 3 }, 4) == false);
 // Some views from the STL.
 // TODO: remove these after updating the libc++ version.
 //
-namespace ranges::views {
-
 template<typename RangeType> // NOLINTNEXTLINE
 auto as_rvalue(RangeType &&Range) {
   return llvm::make_range(std::make_move_iterator(Range.begin()),
                           std::make_move_iterator(Range.end()));
 }
-
-} // namespace ranges::views
-
-namespace views = ranges::views;

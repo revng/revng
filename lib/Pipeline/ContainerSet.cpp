@@ -30,7 +30,7 @@ ContainerSet ContainerSet::cloneFiltered(const ContainerToTargetsMap &Targets) {
                     Container->cloneFiltered(ExtractedNames) :
                     nullptr;
 
-    ToReturn.add(ContainerName, *Factories[Pair.first()], move(Cloned));
+    ToReturn.add(ContainerName, *Factories[Pair.first()], std::move(Cloned));
   }
   revng_assert(ToReturn.Content.size() == Content.size());
   return ToReturn;

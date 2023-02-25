@@ -390,7 +390,7 @@ public:
     return Result;
   }
 
-  template<ranges::sized_range Container>
+  template<typename Container>
   llvm::SmallVector<model::Register::Values, 8>
   sortReturnValues(const Container &Registers) const {
     SortedVector<model::Register::Values> Lookup;

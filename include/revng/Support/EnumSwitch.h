@@ -15,7 +15,7 @@ namespace revng::detail {
 template<typename T>
 concept EnumWithCount = requires {
   requires std::is_enum<typename std::decay<T>::type>::value;
-  { std::decay_t<T>::Count } -> convertible_to<size_t>;
+  { std::decay_t<T>::Count } -> std::convertible_to<size_t>;
 };
 
 } // namespace revng::detail

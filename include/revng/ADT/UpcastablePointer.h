@@ -174,7 +174,7 @@ public:
   explicit UpcastablePointer(pointer P) noexcept : Pointer(P, Deleter) {}
 
 public:
-  template<derived_from<T> Q, typename... Args>
+  template<std::derived_from<T> Q, typename... Args>
   static UpcastablePointer<T> make(Args &&...TheArgs) {
     return UpcastablePointer<T>(new Q(std::forward<Args>(TheArgs)...));
   }

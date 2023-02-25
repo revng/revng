@@ -222,7 +222,7 @@ BOOST_AUTO_TEST_CASE(ContainerIsa) {
   std::map<Target, int> Map;
   Map[ExampleTarget] = 1;
 
-  auto Ptr = make_unique<MapContainer>(move(Map), "dont_care");
+  auto Ptr = make_unique<MapContainer>(std::move(Map), "dont_care");
   ContainerBase *BasePtr = Ptr.get();
   BOOST_TEST(llvm::isa<MapContainer>(BasePtr));
   BOOST_TEST(llvm::cast<MapContainer>(BasePtr) != nullptr);
@@ -465,7 +465,7 @@ BOOST_AUTO_TEST_CASE(StepCanCloneAndRun) {
   auto Factory = getMapFactoryContainer();
   Containers.add(CName, Factory, Factory("dont_care"));
   Step Step("first_step",
-            move(Containers),
+            std::move(Containers),
             PipeWrapper::bind<TestPipe>(CName, CName));
 
   ContainerToTargetsMap Targets;
@@ -514,7 +514,7 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineCanBeRunned) {
   auto &C1 = cast<MapContainer>(Content[CName]);
   C1.get(Target(RootKind)) = 1;
 
-  Step StepToAdd("first_step", move(Content));
+  Step StepToAdd("first_step", std::move(Content));
   Pip.addStep(std::move(StepToAdd));
   ContainerSet &BCI = Pip["first_step"].containers();
   BOOST_TEST(cast<MapContainer>(BCI.at(CName)).get(Target(RootKind)) == 1);
@@ -522,7 +522,7 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineCanBeRunned) {
   ContainerSet Containers2;
   Containers2.add(CName, Factory, make_unique<MapContainer>("dont_care"));
   Pip.addStep(Step("End",
-                   move(Containers2),
+                   std::move(Containers2),
                    Pip["first_step"],
                    PipeWrapper::bind<TestPipe>(CName, CName)));
 
@@ -552,11 +552,11 @@ public:
 
       auto PathComponents = Element.first.getPathComponents();
       PathComponents.emplace_back("f1");
-      Target.get({ move(PathComponents), FunctionKind }) = Element.second;
+      Target.get({ std::move(PathComponents), FunctionKind }) = Element.second;
 
       PathComponents = Element.first.getPathComponents();
       PathComponents.emplace_back("f2");
-      Target.get({ move(PathComponents), FunctionKind }) = Element.second;
+      Target.get({ std::move(PathComponents), FunctionKind }) = Element.second;
     }
   }
 };
@@ -860,9 +860,9 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineWithRemove) {
 BOOST_AUTO_TEST_CASE(LoaderTest) {
   StepDeclaration SDeclaration{ "FirstStep",
                                 { { "FineGranerPipe", { CName, CName } } } };
-  BranchDeclaration BDeclaration{ "", { move(SDeclaration) } };
+  BranchDeclaration BDeclaration{ "", { std::move(SDeclaration) } };
   PipelineDeclaration PDeclaration{ { { CName, "MapContainer" } },
-                                    { move(BDeclaration) } };
+                                    { std::move(BDeclaration) } };
 
   auto Ctx = Context::fromRegistry(Registry::registerAllKinds());
   Loader Loader(Ctx);
