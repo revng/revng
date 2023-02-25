@@ -670,10 +670,15 @@ ResultT *getByPath(llvm::StringRef Path, RootT &M) {
 //
 // validateTupleTree
 //
+template<typename T>
+concept TupleTreeScalar = not TupleSizeCompatible<T>
+                          and not KeyedObjectContainer<T>
+                          and not UpcastablePointerLike<T>;
+
 template<TupleSizeCompatible T, typename L, size_t I = 0>
 constexpr bool validateTupleTree(L);
 
-template<typename T, typename L>
+template<TupleTreeScalar T, typename L>
 constexpr bool validateTupleTree(L);
 
 template<KeyedObjectContainer T, typename L>
@@ -694,7 +699,7 @@ constexpr bool validateTupleTree(L Check) {
          and validateTupleTree<typename T::value_type>(Check);
 }
 
-template<typename T, typename L>
+template<TupleTreeScalar T, typename L>
 constexpr bool validateTupleTree(L Check) {
   return Check((std::remove_const_t<T> *) nullptr);
 }

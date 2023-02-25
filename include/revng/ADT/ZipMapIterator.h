@@ -36,10 +36,9 @@ concept MapLike = HasKeyType<T> and HasMappedType<T>
                      typename T::mapped_type>;
 
 template<typename T>
-concept SetLike = KeyedObjectContainer<T>
-                  or (HasKeyType<T> and not HasMappedType<T>
-                      and std::is_same_v<typename T::key_type,
-                                         typename T::value_type>);
+concept SetLike = HasKeyType<T> and not HasMappedType<T>
+                    and std::is_same_v<typename T::key_type,
+                                       typename T::value_type>;
 
 template<typename T>
 concept VectorOfPairs =

@@ -43,7 +43,10 @@ struct KeyContainer<T> {
   static void sort(T &) {}
 };
 
-template<SetLike T>
+template<typename T>
+concept SetOrKOC = SetLike<T> or KeyedObjectContainer<T>;
+
+template<SetOrKOC T>
 struct KeyContainer<T> {
   using key_type = const typename T::key_type;
 
