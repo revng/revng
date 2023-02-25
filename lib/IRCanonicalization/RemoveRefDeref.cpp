@@ -40,7 +40,7 @@ using llvm::dyn_cast;
 
 static llvm::CallInst *isRefDeref(llvm::Value *V) {
   if (auto *Call = isCallToTagged(V, FunctionTags::ModelGEPRef))
-    if (Call->getNumArgOperands() == 2)
+    if (Call->arg_size() == 2)
       return Call;
 
   return nullptr;

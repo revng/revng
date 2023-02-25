@@ -183,11 +183,11 @@ static unsigned getCustomOpcode(Instruction *I) {
   else if (FunctionTags::ModelCast.isTagOf(CalledFunc))
     return CustomInstruction::Cast;
   else if (FunctionTags::ModelGEP.isTagOf(CalledFunc)) {
-    if (cast<CallInst>(I)->getNumArgOperands() > 2)
+    if (cast<CallInst>(I)->arg_size() > 2)
       return CustomInstruction::MemberAccess;
     return CustomInstruction::Indirection;
   } else if (FunctionTags::ModelGEPRef.isTagOf(CalledFunc)) {
-    if (cast<CallInst>(I)->getNumArgOperands() > 2)
+    if (cast<CallInst>(I)->arg_size() > 2)
       return CustomInstruction::MemberAccess;
     return CustomInstruction::Transparent;
   } else if (FunctionTags::Copy.isTagOf(CalledFunc)) {

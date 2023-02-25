@@ -714,7 +714,7 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
   revng_assert(isCallToTagged(Call, FunctionTags::ModelGEP)
                or isCallToTagged(Call, FunctionTags::ModelGEPRef));
 
-  revng_assert(Call->getNumArgOperands() >= 2);
+  revng_assert(Call->arg_size() >= 2);
 
   bool IsRef = isCallToTagged(Call, FunctionTags::ModelGEPRef);
 
@@ -1231,7 +1231,7 @@ CCodeGenerator::getCallToken(const llvm::CallInst *Call,
                              const llvm::StringRef FuncName,
                              const model::Type *Prototype) const {
   std::string Expression = FuncName.str();
-  if (Call->getNumArgOperands() == 0) {
+  if (Call->arg_size() == 0) {
     Expression += "()";
 
   } else {
