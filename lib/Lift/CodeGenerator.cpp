@@ -113,7 +113,7 @@ public:
     if (It == Map.end()) {
       auto *FT = FunctionType::get(ResultType, { ResultType }, false);
       F = Function::Create(FT, GlobalValue::ExternalLinkage, "id", *M);
-      F->addFnAttr(Attribute::ReadOnly);
+      F->setOnlyReadsMemory();
       Map[ResultType] = F;
     } else {
       F = It->second;

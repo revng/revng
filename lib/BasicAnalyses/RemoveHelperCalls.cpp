@@ -33,11 +33,11 @@ RemoveHelperCallsPass::run(llvm::Function &F,
   OpaqueFunctionsPool<Type *> OFPOriginalHelper(F.getParent(), false);
   OpaqueFunctionsPool<Type *> OFPRegsClobberedHelper(F.getParent(), false);
 
-  OFPOriginalHelper.addFnAttribute(Attribute::ReadOnly);
+  OFPOriginalHelper.setMemoryEffects(MemoryEffects::readOnly());
   OFPOriginalHelper.addFnAttribute(Attribute::NoUnwind);
   OFPOriginalHelper.addFnAttribute(Attribute::WillReturn);
 
-  OFPRegsClobberedHelper.addFnAttribute(Attribute::ReadOnly);
+  OFPRegsClobberedHelper.setMemoryEffects(MemoryEffects::readOnly());
   OFPRegsClobberedHelper.addFnAttribute(Attribute::NoUnwind);
   OFPRegsClobberedHelper.addFnAttribute(Attribute::WillReturn);
 

@@ -108,7 +108,7 @@ PromoteCSVs::PromoteCSVs(Module *M,
                          const model::Binary &Binary) :
   M(M), Initializers(M), CSVInitializers(M, false), Binary(Binary) {
 
-  CSVInitializers.addFnAttribute(Attribute::ReadOnly);
+  CSVInitializers.setMemoryEffects(MemoryEffects::readOnly());
   CSVInitializers.addFnAttribute(Attribute::NoUnwind);
   CSVInitializers.addFnAttribute(Attribute::WillReturn);
   CSVInitializers.setTags({ &FunctionTags::OpaqueCSVValue });

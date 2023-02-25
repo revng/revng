@@ -21,7 +21,7 @@ public:
     F = Function::Create(FTy, llvm::GlobalValue::ExternalLinkage, Name, M);
 
     revng_assert(F != nullptr);
-    F->addFnAttr(llvm::Attribute::ReadOnly);
+    F->setOnlyReadsMemory();
     F->addFnAttr(llvm::Attribute::NoUnwind);
     F->addFnAttr(llvm::Attribute::WillReturn);
   }

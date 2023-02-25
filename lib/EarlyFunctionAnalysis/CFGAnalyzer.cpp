@@ -972,7 +972,7 @@ CallSummarizer::CallSummarizer(llvm::Module *M,
   RetHook(RetHook),
   SPCSV(SPCSV),
   RegistersClobberedPool(M, false) {
-  RegistersClobberedPool.addFnAttribute(llvm::Attribute::ReadOnly);
+  RegistersClobberedPool.setMemoryEffects(MemoryEffects::readOnly());
   RegistersClobberedPool.addFnAttribute(llvm::Attribute::NoUnwind);
   RegistersClobberedPool.addFnAttribute(llvm::Attribute::WillReturn);
 }
