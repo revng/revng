@@ -81,7 +81,9 @@ inline Tag number(const T &I) {
 
 inline Tag
 number(const llvm::APInt &I, unsigned int Radix = 10, bool Signed = false) {
-  return constant(I.toString(Radix, Signed));
+  llvm::SmallString<12> Result;
+  I.toString(Result, Radix, Signed);
+  return constant(Result);
 }
 
 inline Tag stringLiteral(const llvm::StringRef Str) {

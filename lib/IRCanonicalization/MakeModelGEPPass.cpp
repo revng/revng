@@ -79,6 +79,12 @@ using ModelTypesMap = std::map<const llvm::Value *, const model::QualifiedType>;
 
 static Logger<> ModelGEPLog{ "make-model-gep" };
 
+inline std::string toDecimal(const APInt &Number) {
+  llvm::SmallString<16> Result;
+  Number.toString(Result, 10, true);
+  return Result.str().str();
+}
+
 struct MakeModelGEPPass : public FunctionPass {
 public:
   static char ID;
@@ -110,7 +116,7 @@ struct ModelGEPSummationElement {
   void dump(llvm::raw_ostream &OS) const debug_function {
     OS << "ModelGEPSummationElement {\nCofficient:\n";
     if (Coefficient)
-      OS << Coefficient->getValue().toString(10, true);
+      OS << toDecimal(Coefficient->getValue());
     else
       OS << "nullptr";
     OS << "\nIndex:\n";
@@ -194,7 +200,7 @@ struct IRAccessPattern {
   std::optional<model::QualifiedType> PointeeType = std::nullopt;
 
   void dump(llvm::raw_ostream &OS) const debug_function {
-    OS << "IRAccessPattern {\nBaseOffset: " << BaseOffset.toString(10, true)
+    OS << "IRAccessPattern {\nBaseOffset: " << toDecimal(BaseOffset)
        << "\nIndices = {";
     for (const auto &I : Indices) {
       OS << "\n";
@@ -538,8 +544,8 @@ struct ArrayInfo {
   }
 
   void dump(llvm::raw_ostream &OS) const debug_function {
-    OS << "ArrayInfo { .Stride = " << Stride.toString(10, true)
-       << ", .NumElems = " << NumElems.toString(10, true) << "}";
+    OS << "ArrayInfo { .Stride = " << toDecimal(Stride)
+       << ", .NumElems = " << toDecimal(NumElems) << "}";
   }
 
   void dump() const debug_function { dump(llvm::dbgs()); }
@@ -569,8 +575,7 @@ struct TypedAccessPattern {
   }
 
   void dump(llvm::raw_ostream &OS) const debug_function {
-    OS << "TypedAccessPattern {\nBaseOffset: " << BaseOffset.toString(10, true)
-       << "\n";
+    OS << "TypedAccessPattern {\nBaseOffset: " << toDecimal(BaseOffset) << "\n";
     OS << "Arrays: {";
     for (const auto &AI : Arrays) {
       OS << "\n";
@@ -1466,10 +1471,10 @@ static ModelGEPArgs makeBestGEPArgs(const TypedBaseAddress &TBA,
   auto TAPArrayIt = BestTAP.Arrays.begin();
   auto TAPArrayEnd = BestTAP.Arrays.end();
 
-  revng_log(ModelGEPLog, "Initial RestOff: " << RestOff.toString(10, true));
+  revng_log(ModelGEPLog, "Initial RestOff: " << toDecimal(RestOff));
   revng_log(ModelGEPLog, "Num indices: " << BestIndices.size());
   for (const auto &Id : BestIndices) {
-    revng_log(ModelGEPLog, "RestOff: " << RestOff.toString(10, true));
+    revng_log(ModelGEPLog, "RestOff: " << toDecimal(RestOff));
     revng_log(ModelGEPLog, "Id: " << Id);
 
     Indices.push_back(Id);
