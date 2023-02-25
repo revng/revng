@@ -33,7 +33,7 @@ bool InjectStackSizeProbesAtCallSitesPass::runOnModule(llvm::Module &M) {
       continue;
     setInsertPointToFirstNonAlloca(B, F);
 
-    auto *SP0 = B.CreateLoad(SP);
+    auto *SP0 = createLoad(B, SP);
 
     for (BasicBlock &BB : F) {
       for (Instruction &I : BB) {
@@ -43,7 +43,7 @@ bool InjectStackSizeProbesAtCallSitesPass::runOnModule(llvm::Module &M) {
           B.SetInsertPoint(&I);
 
           // Inject a call to the marker. First argument is sp - sp0
-          auto *Call = B.CreateCall(SSACS, B.CreateSub(SP0, B.CreateLoad(SP)));
+          auto *Call = B.CreateCall(SSACS, B.CreateSub(SP0, createLoad(B, SP)));
           Call->setMetadata("revng.callerblock.start", MD);
         }
       }

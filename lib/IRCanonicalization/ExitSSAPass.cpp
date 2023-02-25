@@ -77,7 +77,7 @@ bool ExitSSAPass::runOnFunction(Function &F) {
 
   for (auto &[PHI, Alloca] : PHIToAlloca) {
     Builder.SetInsertPoint(PHI);
-    auto *Load = Builder.CreateLoad(Alloca);
+    auto *Load = createLoad(Builder, Alloca);
     PHI->replaceAllUsesWith(Load);
     PHI->eraseFromParent();
   }

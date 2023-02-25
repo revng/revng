@@ -72,7 +72,7 @@ static bool adjustStackAfterCalls(FunctionMetadataCache &Cache,
         Changed = true;
 
         B.SetInsertPoint(I.getNextNode());
-        B.CreateStore(B.CreateAdd(B.CreateLoad(GlobalSP), FSO), GlobalSP);
+        B.CreateStore(B.CreateAdd(createLoad(B, GlobalSP), FSO), GlobalSP);
       }
     }
   }

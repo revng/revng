@@ -573,7 +573,8 @@ private:
                                                     OldArgumentPtrType,
                                                     AddressOfNewArgument,
                                                     OffsetInNewArgument);
-            Value *ArgumentValue = Builder.CreateLoad(ArgumentPointer);
+            Value *ArgumentValue = Builder.CreateLoad(OldArgument->getType(),
+                                                      ArgumentPointer);
 
             // Replace
             OldArgument->replaceAllUsesWith(ArgumentValue);
@@ -824,7 +825,7 @@ private:
 
           // Load value
           Value *Pointer = Builder.CreateIntToPtr(Address, LoadPointerTy);
-          Value *Loaded = Builder.CreateLoad(Pointer);
+          Value *Loaded = Builder.CreateLoad(LoadTy, Pointer);
 
           // Extend, shift and or in Accumulator
           // Note: here we might truncate too, since certain architectures
@@ -1115,7 +1116,7 @@ private:
     if (auto *Store = dyn_cast<StoreInst>(I)) {
       NewInstruction = B.CreateStore(Store->getValueOperand(), NewAddress);
     } else if (auto *Load = dyn_cast<LoadInst>(I)) {
-      NewInstruction = B.CreateLoad(NewAddress);
+      NewInstruction = B.CreateLoad(I->getType(), NewAddress);
     }
 
     I->replaceAllUsesWith(NewInstruction);
