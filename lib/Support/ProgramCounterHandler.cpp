@@ -247,10 +247,10 @@ static void addCase(SwitchInst *Switch, uint64_t Value, BasicBlock *BB) {
 
 class PartialMetaAddress {
 private:
-  Optional<uint64_t> Address;
-  Optional<uint64_t> Epoch;
-  Optional<uint64_t> AddressSpace;
-  Optional<uint64_t> Type;
+  std::optional<uint64_t> Address;
+  std::optional<uint64_t> Epoch;
+  std::optional<uint64_t> AddressSpace;
+  std::optional<uint64_t> Type;
 
 public:
   bool isEmpty() const { return not(Address or Epoch or AddressSpace or Type); }
@@ -282,10 +282,10 @@ public:
       Type = V;
   }
 
-  bool hasAddress() { return Address.hasValue(); }
-  bool hasEpoch() { return Epoch.hasValue(); }
-  bool hasAddressSpace() { return AddressSpace.hasValue(); }
-  bool hasType() { return Type.hasValue(); }
+  bool hasAddress() { return Address.has_value(); }
+  bool hasEpoch() { return Epoch.has_value(); }
+  bool hasAddressSpace() { return AddressSpace.has_value(); }
+  bool hasType() { return Type.has_value(); }
 
   MetaAddress toMetaAddress() const {
     if (Type and Address and Epoch and AddressSpace) {
@@ -408,7 +408,7 @@ PCH::getUniqueJumpTarget(BasicBlock *BB) {
 
   enum ProcessResult { Proceed, DontProceed, BailOut };
 
-  Optional<MetaAddress> AgreedMA;
+  std::optional<MetaAddress> AgreedMA;
 
   bool ChangedByHelper = false;
 
@@ -461,7 +461,7 @@ PCH::getUniqueJumpTarget(BasicBlock *BB) {
 
         if (PMA.isEmpty()) {
           // We have found a path on which the PC doesn't change return an
-          // empty llvm::Optional
+          // empty std::optional
           revng_abort();
         }
 
@@ -542,7 +542,7 @@ private:
   Value *CurrentType;
   Value *CurrentAddress;
 
-  Optional<BlockType::Values> SetBlockType;
+  std::optional<BlockType::Values> SetBlockType;
 
   SmallVectorImpl<BasicBlock *> *NewBlocksRegistry = nullptr;
 
@@ -552,7 +552,7 @@ public:
                 Value *CurrentAddressSpace,
                 Value *CurrentType,
                 Value *CurrentAddress,
-                Optional<BlockType::Values> SetBlockType,
+                std::optional<BlockType::Values> SetBlockType,
                 SmallVectorImpl<BasicBlock *> *NewBlocksRegistry = nullptr) :
     Context(getContext(Default)),
     F(Default->getParent()),
@@ -569,7 +569,7 @@ public:
                 GlobalVariable *AddressSpaceCSV,
                 GlobalVariable *TypeCSV,
                 GlobalVariable *AddressCSV,
-                Optional<BlockType::Values> SetBlockType) :
+                std::optional<BlockType::Values> SetBlockType) :
     Context(getContext(Root)),
     F(Root->getParent()->getParent()),
     Default(Root->getDefaultDest()),
@@ -729,9 +729,11 @@ private:
   }
 };
 
+using std::optional;
+
 void PCH::addCaseToDispatcher(SwitchInst *Root,
                               const DispatcherTarget &NewTarget,
-                              Optional<BlockType::Values> SetBlockType) const {
+                              optional<BlockType::Values> SetBlockType) const {
   auto &[MA, BB] = NewTarget;
 
   SwitchManager SM(Root,
@@ -764,7 +766,7 @@ PCH::DispatcherInfo
 PCH::buildDispatcher(DispatcherTargets &Targets,
                      IRBuilder<> &Builder,
                      BasicBlock *Default,
-                     Optional<BlockType::Values> SetBlockType) const {
+                     std::optional<BlockType::Values> SetBlockType) const {
   DispatcherInfo Result;
 
   LLVMContext &Context = getContext(Default);

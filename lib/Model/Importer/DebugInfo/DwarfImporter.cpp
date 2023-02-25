@@ -10,7 +10,6 @@
 
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/EquivalenceClasses.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/DebugInfo/DWARF/DWARFContext.h"
@@ -689,7 +688,7 @@ private:
       if (isType(Tag))
         revng_assert(not hasModelIdentity(Tag));
 
-      bool HasType = Die.find(DW_AT_type).hasValue();
+      bool HasType = Die.find(DW_AT_type).has_value();
       model::QualifiedType Type = rc_recur getTypeOrVoid(Die);
 
       switch (Tag) {

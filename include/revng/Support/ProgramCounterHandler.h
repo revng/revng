@@ -141,7 +141,7 @@ public:
       return false;
   }
 
-  /// \return an empty Optional if the PC has not changed on at least one path,
+  /// \return an empty optional if the PC has not changed on at least one path,
   ///         an invalid MetaAddress in case there isn't a single next PC, or,
   ///         finally, a valid MetaAddress representing the only possible next
   ///         PC
@@ -203,22 +203,21 @@ public:
   buildDispatcher(DispatcherTargets &Targets,
                   llvm::IRBuilder<> &Builder,
                   llvm::BasicBlock *Default,
-                  llvm::Optional<BlockType::Values> SetBlockType) const;
+                  std::optional<BlockType::Values> SetBlockType) const;
 
   DispatcherInfo
   buildDispatcher(DispatcherTargets &Targets,
                   llvm::BasicBlock *CreateIn,
                   llvm::BasicBlock *Default,
-                  llvm::Optional<BlockType::Values> SetBlockType) const {
+                  std::optional<BlockType::Values> SetBlockType) const {
     llvm::IRBuilder<> Builder(CreateIn);
     return buildDispatcher(Targets, Builder, Default, SetBlockType);
   }
 
   /// \note \p Root must not already contain a case for \p NewTarget
-  void
-  addCaseToDispatcher(llvm::SwitchInst *Root,
-                      const DispatcherTarget &NewTarget,
-                      llvm::Optional<BlockType::Values> SetBlockType) const;
+  void addCaseToDispatcher(llvm::SwitchInst *Root,
+                           const DispatcherTarget &NewTarget,
+                           std::optional<BlockType::Values> SetBlockType) const;
 
   void destroyDispatcher(llvm::SwitchInst *Root) const;
 

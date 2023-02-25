@@ -11,7 +11,6 @@
 #include <vector>
 
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/iterator.h"
 
 #include "revng/ADT/KeyedObjectContainer.h"

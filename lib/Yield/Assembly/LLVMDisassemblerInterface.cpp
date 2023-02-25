@@ -46,7 +46,7 @@ DI::LLVMDisassemblerInterface(MetaAddressType::Values AddrType) {
   ensureDisassemblersWereInitializedOnce();
 
   auto LLVMArchitecture = MetaAddressType::arch(AddrType);
-  revng_assert(LLVMArchitecture.hasValue(),
+  revng_assert(LLVMArchitecture.has_value(),
                "Impossible to create a disassembler for a non-code section");
   auto Architecture = llvm::Triple::getArchTypeName(*LLVMArchitecture);
 

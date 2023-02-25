@@ -153,7 +153,7 @@ DropHelperCallsPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
         for (Value *Argument : CallArguments)
           BaseArguments.push_back(Argument);
 
-        Optional<uint32_t> SyscallIDArgumentIndex;
+        std::optional<uint32_t> SyscallIDArgumentIndex;
         for (GlobalVariable *CSV : CSVs.Read)
           if (Callee == SyscallHelper and CSV == SyscallIDCSV)
             SyscallIDArgumentIndex = BaseArguments.size();

@@ -127,8 +127,8 @@ private:
   ///
   /// \note Either \p FDEsCount or \p EHFrameSize have to be specified
   void parseEHFrame(MetaAddress EHFrameAddress,
-                    llvm::Optional<uint64_t> FDEsCount,
-                    llvm::Optional<uint64_t> EHFrameSize);
+                    std::optional<uint64_t> FDEsCount,
+                    std::optional<uint64_t> EHFrameSize);
 
   /// Parse an LSDA to collect its landing pads
   ///

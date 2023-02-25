@@ -336,7 +336,7 @@ static std::string formatPDBFileID(ArrayRef<uint8_t> Bytes, uint16_t Age) {
   std::string PDBGUID;
   raw_string_ostream StringPDBGUID(PDBGUID);
   StringPDBGUID << format_bytes(Bytes,
-                                /*FirstByteOffset*/ None,
+                                /*FirstByteOffset*/ {},
                                 /*NumPerLine*/ 16,
                                 /*ByteGroupSize*/ 16);
   StringPDBGUID.flush();

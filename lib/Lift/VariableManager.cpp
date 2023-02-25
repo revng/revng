@@ -243,7 +243,7 @@ VariableManager::VariableManager(Module &M, bool TargetIsLittleEndian) :
   }
 }
 
-Optional<StoreInst *>
+std::optional<StoreInst *>
 VariableManager::storeToCPUStateOffset(IRBuilder<> &Builder,
                                        unsigned StoreSize,
                                        unsigned Offset,

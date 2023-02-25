@@ -153,7 +153,7 @@ BOOST_AUTO_TEST_CASE(PruneDICompileUnits) {
     return DIFile::getDistinct(Context, FileName, "/path/to/dir");
   };
 
-  auto GetTuple = [&]() { return MDTuple::getDistinct(Context, None); };
+  auto GetTuple = [&]() { return MDTuple::getDistinct(Context, {}); };
 
   auto CreateDICU = [&](StringRef FileName) {
     const auto Default = DICompileUnit::DebugNameTableKind::Default;

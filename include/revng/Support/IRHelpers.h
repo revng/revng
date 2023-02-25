@@ -949,7 +949,7 @@ public:
   std::vector<llvm::GlobalVariable *> Written;
 };
 
-inline llvm::Optional<CSVsUsage>
+inline std::optional<CSVsUsage>
 getCSVUsedByHelperCallIfAvailable(llvm::Instruction *Call) {
   revng_assert(isCallToHelper(Call));
 

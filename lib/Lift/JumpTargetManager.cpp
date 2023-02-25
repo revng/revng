@@ -251,7 +251,7 @@ bool TDBP::pinAVIResults(Function &F) {
           //       violating some assumption somewhere
           CallInst::Create({ JumpToSymbolMarker },
                            { getUniqueString(M, SymbolName) },
-                           None,
+                           {},
                            "",
                            Call);
         }

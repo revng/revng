@@ -7,7 +7,6 @@
 #include <set>
 
 #include "llvm/ADT/APInt.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 
@@ -17,7 +16,7 @@
 class MaterializedValue {
 private:
   bool IsValid;
-  llvm::Optional<std::string> SymbolName;
+  std::optional<std::string> SymbolName;
   llvm::APInt Value;
 
 public:
@@ -54,7 +53,7 @@ public:
   }
 
   bool isValid() const { return IsValid; }
-  bool hasSymbol() const { return SymbolName.hasValue(); }
+  bool hasSymbol() const { return SymbolName.has_value(); }
   std::string symbolName() const {
     revng_assert(isValid());
     revng_assert(hasSymbol());

@@ -9,7 +9,6 @@
 #include <type_traits>
 #include <vector>
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SmallVector.h"
 
@@ -480,7 +479,7 @@ public:
   ///
   /// \return Empty optional value if \p Original is fine, a new LatticeElement
   ///         otherwise.
-  llvm::Optional<LatticeElement>
+  std::optional<LatticeElement>
   handleEdge(const LatticeElement &Original, Label Source, Label Destination) {
     return derived().handleEdge(Original, Source, Destination);
   }
@@ -585,10 +584,10 @@ public:
       // If it has successors, check if we have to re-enqueue them
       for (Label Successor : successors(ToAnalyze, Result)) {
 
-        Optional<LatticeElement> NewElement = handleEdge(NewLatticeElement,
-                                                         ToAnalyze,
-                                                         Successor);
-        bool GotNewElement = NewElement.hasValue();
+        std::optional<LatticeElement> NewElement = handleEdge(NewLatticeElement,
+                                                              ToAnalyze,
+                                                              Successor);
+        bool GotNewElement = NewElement.has_value();
         LatticeElement &ActualElement = GotNewElement ? *NewElement :
                                                         NewLatticeElement;
 

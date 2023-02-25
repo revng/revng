@@ -285,9 +285,9 @@ public:
     return DefaultInterrupt<Element>::createInterrupt(State[BB]);
   }
 
-  llvm::Optional<Element> handleEdge(const Element &Original,
-                                     llvm::BasicBlock *Source,
-                                     llvm::BasicBlock *Destination) {
+  std::optional<Element> handleEdge(const Element &Original,
+                                    llvm::BasicBlock *Source,
+                                    llvm::BasicBlock *Destination) {
     bool IsTargetEdge = TargetEdges.count({ Source, Destination }) != 0;
     return compute(Original, Source, Destination, IsTargetEdge);
   }
@@ -340,10 +340,10 @@ public:
   void dumpFinalState() const { revng_abort(); }
 
 private:
-  llvm::Optional<Element> compute(const Element &Original,
-                                  llvm::BasicBlock *Source,
-                                  llvm::BasicBlock *Destination,
-                                  bool IsTargetEdge) {
+  std::optional<Element> compute(const Element &Original,
+                                 llvm::BasicBlock *Source,
+                                 llvm::BasicBlock *Destination,
+                                 bool IsTargetEdge) {
     Element Result = Original;
     for (auto &P : InstructionRanges) {
       llvm::Instruction *I = P.first;
@@ -762,7 +762,7 @@ public:
         AVILogger << DoLog;
       }
 
-      llvm::Optional<std::string> SymbolName;
+      std::optional<std::string> SymbolName;
       Constant *Current = nullptr;
       {
         auto Value = Entry.value();

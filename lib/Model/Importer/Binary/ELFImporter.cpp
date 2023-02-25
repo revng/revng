@@ -186,8 +186,8 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
 
   // Look for static or dynamic symbols and relocations
   ConstElf_Shdr *SymtabShdr = nullptr;
-  Optional<MetaAddress> EHFrameAddress;
-  Optional<uint64_t> EHFrameSize;
+  std::optional<MetaAddress> EHFrameAddress;
+  std::optional<uint64_t> EHFrameSize;
 
   auto Sections = TheELF.sections();
   if (auto Error = Sections.takeError()) {
@@ -229,7 +229,7 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   // Parse segments
   parseProgramHeaders(TheELF);
 
-  Optional<uint64_t> FDEsCount;
+  std::optional<uint64_t> FDEsCount;
   if (EHFrameHdrAddress) {
     MetaAddress Address = MetaAddress::invalid();
 
@@ -834,8 +834,8 @@ ELFImporter<T, HasAddend>::ehFrameFromEhFrameHdr() {
 
 template<typename T, bool HasAddend>
 void ELFImporter<T, HasAddend>::parseEHFrame(MetaAddress EHFrameAddress,
-                                             Optional<uint64_t> FDEsCount,
-                                             Optional<uint64_t> EHFrameSize) {
+                                             optional<uint64_t> FDEsCount,
+                                             optional<uint64_t> EHFrameSize) {
   if (not FDEsCount and not EHFrameSize) {
     revng_log(ELFImporterLog, "Neither FDE count and .eh_frame size available");
     return;
@@ -857,8 +857,8 @@ void ELFImporter<T, HasAddend>::parseEHFrame(MetaAddress EHFrameAddress,
   // will cache those fields we need so that we don't have to decode it
   // repeatedly for each FDE that references it.
   struct DecodedCIE {
-    Optional<uint32_t> FDEPointerEncoding;
-    Optional<uint32_t> LSDAPointerEncoding;
+    std::optional<uint32_t> FDEPointerEncoding;
+    std::optional<uint32_t> LSDAPointerEncoding;
     bool HasAugmentationLength;
   };
 
@@ -921,10 +921,10 @@ void ELFImporter<T, HasAddend>::parseEHFrame(MetaAddress EHFrameAddress,
       // ReturnAddressRegister
       EHFrameReader.readNextU8();
 
-      Optional<uint64_t> AugmentationLength;
-      Optional<uint32_t> LSDAPointerEncoding;
-      Optional<uint32_t> PersonalityEncoding;
-      Optional<uint32_t> FDEPointerEncoding;
+      std::optional<uint64_t> AugmentationLength;
+      std::optional<uint32_t> LSDAPointerEncoding;
+      std::optional<uint32_t> PersonalityEncoding;
+      std::optional<uint32_t> FDEPointerEncoding;
       if (!AugmentationString.empty() && AugmentationString.front() == 'z') {
         AugmentationLength = EHFrameReader.readULEB128();
 
@@ -983,7 +983,7 @@ void ELFImporter<T, HasAddend>::parseEHFrame(MetaAddress EHFrameAddress,
       // Cache this entry
       CachedCIEs[StartOffset] = { FDEPointerEncoding,
                                   LSDAPointerEncoding,
-                                  AugmentationLength.hasValue() };
+                                  AugmentationLength.has_value() };
 
     } else {
       // This is an FDE

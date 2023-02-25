@@ -579,7 +579,7 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
   return true;
 }
 
-void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
+void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
   using FT = FunctionType;
 
   // Declare the abort function

@@ -146,23 +146,23 @@ inline constexpr Values fromString(llvm::StringRef String) {
   revng_abort();
 }
 
-inline constexpr const llvm::Optional<llvm::Triple::ArchType> arch(Values V) {
+inline constexpr const std::optional<llvm::Triple::ArchType> arch(Values V) {
   switch (V) {
   case Code_x86:
-    return llvm::Triple::x86;
+    return { llvm::Triple::x86 };
   case Code_x86_64:
-    return llvm::Triple::x86_64;
+    return { llvm::Triple::x86_64 };
   case Code_mips:
-    return llvm::Triple::mips;
+    return { llvm::Triple::mips };
   case Code_mipsel:
-    return llvm::Triple::mipsel;
+    return { llvm::Triple::mipsel };
   case Code_arm:
   case Code_arm_thumb:
-    return llvm::Triple::arm;
+    return { llvm::Triple::arm };
   case Code_aarch64:
-    return llvm::Triple::aarch64;
+    return { llvm::Triple::aarch64 };
   case Code_systemz:
-    return llvm::Triple::systemz;
+    return { llvm::Triple::systemz };
   case Invalid:
   case Generic32:
   case Generic64:
@@ -788,7 +788,7 @@ public:
     return MetaAddressType::alignment(type());
   }
 
-  llvm::Optional<llvm::Triple::ArchType> arch() {
+  std::optional<llvm::Triple::ArchType> arch() {
     return MetaAddressType::arch(type());
   }
 
