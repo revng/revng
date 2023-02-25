@@ -316,8 +316,8 @@ BOOST_AUTO_TEST_CASE(InputOutputContractMultiLine) {
                                          Targets,
                                          { "first", "second", "third" });
 
-  BOOST_TEST(Res["first"].size() == 1);
-  BOOST_TEST(Res["second"].size() == 1);
+  BOOST_TEST(Res["first"].size() == 1U);
+  BOOST_TEST(Res["second"].size() == 1U);
 }
 
 BOOST_AUTO_TEST_CASE(InputOutputContractDerivedPassForward) {
