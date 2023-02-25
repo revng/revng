@@ -54,8 +54,6 @@ BOOST_AUTO_TEST_CASE(TestCompile) {
       Node->addSuccessor(Node, {});
       Node->addPredecessor(Node);
       Node->addPredecessor(Node, {});
-      MyBidirectionalNode *Neighbor = *Node->successors().begin();
-      Neighbor = *Node->predecessors().begin();
       Node->removePredecessor(Node->predecessors().begin());
       Node->removePredecessorEdge(Node->predecessor_edges().begin());
     }
@@ -96,6 +94,7 @@ BOOST_AUTO_TEST_CASE(TestCompile) {
       Node->addPredecessor(Node);
       Node->addPredecessor(Node, { 99 });
       NodeType *Neighbor = *Node->successors().begin();
+      (void) Neighbor;
       Neighbor = *Node->predecessors().begin();
       Graph.removeNode(Graph.nodes().begin());
 

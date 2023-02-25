@@ -316,6 +316,7 @@ void MachOImporter::registerBindEntry(const object::MachOBindEntry *Entry) {
   MetaAddress Target = fromGeneric(Entry->address());
   uint64_t Addend = static_cast<uint64_t>(Entry->addend());
   RelocationType::Values Type = RelocationType::Invalid;
+  (void) Type;
   auto PointerSize = Architecture::getPointerSize(Model->Architecture());
 
   switch (Entry->type()) {

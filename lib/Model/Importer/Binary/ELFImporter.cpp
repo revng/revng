@@ -1130,7 +1130,6 @@ void ELFImporter<T, HasAddend>::registerRelocations(Elf_Rel_Array Relocations,
     MetaAddress Address = relocate(fromGeneric(Relocation.r_offset));
 
     StringRef SymbolName;
-    uint64_t SymbolSize = 0;
     unsigned char SymbolType = llvm::ELF::STT_NOTYPE;
     if (Dynsym.isAvailable() and Dynstr.isAvailable()) {
       uint32_t SymbolIndex = Relocation.getSymbol(false);
@@ -1144,7 +1143,6 @@ void ELFImporter<T, HasAddend>::registerRelocations(Elf_Rel_Array Relocations,
       auto MaybeName = Symbol.getName(Dynstr.extractString());
       if (MaybeName)
         SymbolName = *MaybeName;
-      SymbolSize = Symbol.st_size;
       SymbolType = Symbol.getType();
     }
 
