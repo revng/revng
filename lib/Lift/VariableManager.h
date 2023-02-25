@@ -38,7 +38,10 @@ extern llvm::cl::opt<bool> External;
 /// created on the fly.
 class VariableManager {
 public:
-  VariableManager(llvm::Module &M, bool TargetIsLittleEndian);
+  VariableManager(llvm::Module &M,
+                  bool TargetIsLittleEndian,
+                  llvm::StructType *CPUStruct,
+                  unsigned EnvOffset);
 
   void setAllocaInsertPoint(llvm::Instruction *I) {
     AllocaBuilder.SetInsertPoint(I);

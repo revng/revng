@@ -703,7 +703,18 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
     using namespace model::Architecture;
     TargetIsLittleEndian = isLittleEndian(TargetArchitecture);
   }
-  VariableManager Variables(*TheModule, TargetIsLittleEndian);
+
+  // TODO: this not very robust. We should have a function with a sensible name
+  //       taking as argument ${ARCH}CPU so that we can easily identify the
+  //       struct.
+  std::string CPUStructName = (Twine("struct.") + ptc.cpu_struct_name).str();
+  auto *CPUStruct = StructType::getTypeByName(TheModule->getContext(),
+                                              CPUStructName);
+  revng_assert(CPUStruct != nullptr);
+  VariableManager Variables(*TheModule,
+                            TargetIsLittleEndian,
+                            CPUStruct,
+                            ptc.env_offset);
   auto CreateCPUStateAccessAnalysisPass = [&Variables]() {
     return new CPUStateAccessAnalysisPass(&Variables, true);
   };

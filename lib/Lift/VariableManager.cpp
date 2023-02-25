@@ -151,12 +151,15 @@ getTypeAtOffset(const DataLayout *TheLayout, Type *VarType, intptr_t Offset) {
   }
 }
 
-VariableManager::VariableManager(Module &M, bool TargetIsLittleEndian) :
+VariableManager::VariableManager(Module &M,
+                                 bool TargetIsLittleEndian,
+                                 StructType *CPUStruct,
+                                 unsigned EnvOffset) :
   TheModule(M),
   AllocaBuilder(getContext(&M)),
-  CPUStateType(nullptr),
+  CPUStateType(CPUStruct),
   ModuleLayout(&TheModule.getDataLayout()),
-  EnvOffset(0),
+  EnvOffset(EnvOffset),
   Env(nullptr),
   TargetIsLittleEndian(TargetIsLittleEndian) {
 
@@ -165,82 +168,6 @@ VariableManager::VariableManager(Module &M, bool TargetIsLittleEndian) :
   IntegerType *IntPtrTy = AllocaBuilder.getIntPtrTy(*ModuleLayout);
   Env = cast<GlobalVariable>(TheModule.getOrInsertGlobal("env", IntPtrTy));
   Env->setInitializer(ConstantInt::getNullValue(IntPtrTy));
-
-  using ElectionMap = std::map<StructType *, unsigned>;
-  using ElectionMapElement = std::pair<StructType *const, unsigned>;
-  ElectionMap EnvElection;
-
-  std::set<StructType *> Structs;
-  for (Function &HelperFunction : TheModule) {
-    FunctionType *HelperType = HelperFunction.getFunctionType();
-    Type *ReturnType = HelperType->getReturnType();
-    if (ReturnType->isPointerTy())
-      Structs.insert(dyn_cast<StructType>(ReturnType->getPointerElementType()));
-
-    for (Type *Param : HelperType->params())
-      if (Param->isPointerTy())
-        Structs.insert(dyn_cast<StructType>(Param->getPointerElementType()));
-
-    if (FunctionTags::QEMU.isTagOf(&HelperFunction)
-        and HelperFunction.getName().startswith("helper_")
-        and HelperFunction.getFunctionType()->getNumParams() > 1) {
-
-      for (Type *Candidate : HelperType->params()) {
-        Structs.insert(dyn_cast<StructType>(Candidate));
-        if (Candidate->isPointerTy()) {
-          auto *PointeeType = Candidate->getPointerElementType();
-          auto *EnvType = dyn_cast<StructType>(PointeeType);
-          // Ensure it is a struct and not a union
-          if (EnvType != nullptr && EnvType->getNumElements() > 1) {
-
-            auto It = EnvElection.find(EnvType);
-            if (It != EnvElection.end())
-              EnvElection[EnvType]++;
-            else
-              EnvElection[EnvType] = 1;
-          }
-        }
-      }
-    }
-  }
-
-  Structs.erase(nullptr);
-
-  revng_assert(EnvElection.size() > 0);
-
-  auto Compare = [](ElectionMapElement &It1, ElectionMapElement &It2) {
-    return It1.second < It2.second;
-  };
-  auto Max = std::max_element(EnvElection.begin(), EnvElection.end(), Compare);
-  CPUStateType = Max->first;
-
-  // Look for structures containing CPUStateType as a member and promove them
-  // to CPUStateType. Basically this is a flexible way to keep track of the *CPU
-  // struct too (e.g. MIPSCPU).
-  std::set<StructType *> Visited;
-  bool Changed = true;
-  Visited.insert(CPUStateType);
-  while (Changed) {
-    Changed = false;
-    for (StructType *TheStruct : Structs) {
-      if (Visited.find(TheStruct) != Visited.end())
-        continue;
-
-      auto Begin = TheStruct->element_begin();
-      auto End = TheStruct->element_end();
-      auto Found = std::find(Begin, End, CPUStateType);
-      if (Found != End) {
-        unsigned Index = Found - Begin;
-        const StructLayout *Layout = nullptr;
-        Layout = ModuleLayout->getStructLayout(TheStruct);
-        EnvOffset += Layout->getElementOffset(Index);
-        CPUStateType = TheStruct;
-        Visited.insert(CPUStateType);
-        Changed = true;
-        break;
-      }
-    }
-  }
 }
 
 std::optional<StoreInst *>
