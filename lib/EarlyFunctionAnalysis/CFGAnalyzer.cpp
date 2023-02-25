@@ -293,7 +293,7 @@ CFGAnalyzer::collectDirectCFG(OutlinedFunction *OF) {
           if (isa<ReturnInst>(Succ->getTerminator())) {
             revng_log(Log, "It's a ret");
             // Did we meet the end of the cloned function? Do nothing
-            revng_assert(Succ->getInstList().size() == 1);
+            revng_assert(Succ->size() == 1);
           } else if (auto *Call = getCallTo(&*Succ->begin(),
                                             PreCallHook.get())) {
             // Handle edge for regular function calls

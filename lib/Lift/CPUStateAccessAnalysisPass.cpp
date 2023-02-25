@@ -2560,12 +2560,8 @@ CPUStateAccessFixer::setupOutEnvAccess(Instruction *AccessToFix) {
   revng_assert(std::next(InstrIt) != AccessToFixBB->end());
   // Create a new block NextBB and move there all the instructions after
   // the access
-  BasicBlock *NextBB = BasicBlock::Create(Context, "AfterAccess", F);
-  AccessToFixBB->replaceSuccessorsPhiUsesWith(NextBB);
-  NextBB->getInstList().splice(NextBB->end(),
-                               AccessToFixBB->getInstList(),
-                               std::next(InstrIt),
-                               AccessToFixBB->getInstList().end());
+  BasicBlock *NextBB = AccessToFixBB->splitBasicBlock(InstrIt);
+  AccessToFixBB->getTerminator()->eraseFromParent();
   revng_assert(not NextBB->empty());
 
   // Create a new block OutAccessBB only for accesses outside env, and
@@ -2935,12 +2931,8 @@ void CPUStateAccessFixer::fixAccess(const Pair &IOff) {
     auto InstrIt = AccessToFix->getIterator();
     revng_assert(InstrIt != AccessToFixBB->end());
     revng_assert(std::next(InstrIt) != AccessToFixBB->end());
-    BasicBlock *NextBB = BasicBlock::Create(Context, "AfterInAccess", F);
-    AccessToFixBB->replaceSuccessorsPhiUsesWith(NextBB);
-    NextBB->getInstList().splice(NextBB->end(),
-                                 AccessToFixBB->getInstList(),
-                                 std::next(InstrIt),
-                                 AccessToFixBB->getInstList().end());
+    BasicBlock *NextBB = AccessToFixBB->splitBasicBlock(std::next(InstrIt));
+    AccessToFixBB->getTerminator()->eraseFromParent();
     revng_assert(not NextBB->empty());
     revng_assert(std::next(InstrIt) == AccessToFixBB->end());
     // If we're processing loads, add a PHI in NextBB if necessary

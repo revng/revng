@@ -54,7 +54,7 @@ static void handleBasicBlock(DIBuilder &DIB,
       auto SPFlags = DISubprogram::toSPFlags(false, /* isLocalToUnit */
                                              true, /* isDefinition*/
                                              false /* isOptimized */);
-      auto Type = DIB.createSubroutineType(DIB.getOrCreateTypeArray(None));
+      auto Type = DIB.createSubroutineType(DIB.getOrCreateTypeArray({}));
       // Let's make the debug location that points back to the binary.
       std::string NewDebugLocation = serializedLocation(ranks::Instruction,
                                                         FM.Entry(),
@@ -112,7 +112,7 @@ bool AttachDebugInfo::runOnModule(llvm::Module &M) {
                                          true, // isDefinition
                                          false // isOptimized
   );
-  auto SPType = DIB.createSubroutineType(DIB.getOrCreateTypeArray(None));
+  auto SPType = DIB.createSubroutineType(DIB.getOrCreateTypeArray({}));
   DISubprogram
     *RootSubprogram = DIB.createFunction(CU->getFile(), // Scope
                                          "root", // Name

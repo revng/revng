@@ -576,7 +576,9 @@ void IsolateFunctionsImpl::run() {
     // Handle UnexpectedPCCloned
     //
     if (BasicBlock *UnexpectedPC = Outlined.UnexpectedPCCloned) {
-      UnexpectedPC->getInstList().clear();
+      for (auto It = UnexpectedPC->begin(); It != UnexpectedPC->end();
+           It = UnexpectedPC->begin())
+        It->eraseFromParent();
       revng_assert(UnexpectedPC->empty());
       const DebugLoc &Dbg = GCBI.unexpectedPC()->getTerminator()->getDebugLoc();
       throwException(UnexpectedPC, "unexpectedPC", Dbg);
