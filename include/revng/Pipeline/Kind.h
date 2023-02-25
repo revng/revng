@@ -58,11 +58,11 @@ private:
 
 public:
   template<RankSpecialization BaseRank, typename... T>
-  requires(RankConvertibleTo<BaseRank, T> and...)
-    Kind(llvm::StringRef Name,
-         const BaseRank &TheRank,
-         std::tuple<const T &...> Locations,
-         std::vector<const Kind *> PreferredKinds) :
+    requires(RankConvertibleTo<BaseRank, T> and ...)
+  Kind(llvm::StringRef Name,
+       const BaseRank &TheRank,
+       std::tuple<const T &...> Locations,
+       std::vector<const Kind *> PreferredKinds) :
     DynamicHierarchy<Kind>(Name),
     Register(*this),
     TheRank(&TheRank),
@@ -72,12 +72,12 @@ public:
   }
 
   template<RankSpecialization BaseRank, typename... T>
-  requires(RankConvertibleTo<BaseRank, T> and...)
-    Kind(llvm::StringRef Name,
-         Kind &Parent,
-         const BaseRank &TheRank,
-         std::tuple<const T &...> Locations,
-         std::vector<const Kind *> PreferredKinds) :
+    requires(RankConvertibleTo<BaseRank, T> and ...)
+  Kind(llvm::StringRef Name,
+       Kind &Parent,
+       const BaseRank &TheRank,
+       std::tuple<const T &...> Locations,
+       std::vector<const Kind *> PreferredKinds) :
     DynamicHierarchy<Kind>(Name, Parent),
     Register(*this),
     TheRank(&TheRank),

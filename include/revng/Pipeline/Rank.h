@@ -119,9 +119,8 @@ namespace detail {
 template<typename RankOrVoid, std::size_t ExpectedDepth>
 inline constexpr bool DepthCheck = false;
 
-template<RankSpecialization Rank, std::size_t ExpectedDepth>
-inline constexpr bool
-  DepthCheck<Rank, ExpectedDepth> = (Rank::Depth + 1 == ExpectedDepth);
+template<RankSpecialization Rank, std::size_t Expected>
+constexpr bool DepthCheck<Rank, Expected> = Rank::Depth + 1 == Expected;
 
 template<std::size_t ExpectedDepth>
 inline constexpr bool DepthCheck<void, ExpectedDepth> = (ExpectedDepth == 0);

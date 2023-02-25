@@ -18,11 +18,15 @@ public:
   /// a template parameter :{
   std::array<char, N - 1> String;
 
-  constexpr ConstexprString(const char (&Value)[N]) noexcept requires(N >= 2) {
+  constexpr ConstexprString(const char (&Value)[N]) noexcept
+    requires(N >= 2)
+  {
     std::copy(Value, Value + N - 1, String.data());
   }
 
-  constexpr ConstexprString() noexcept requires(N == 1) : String({}) {}
+  constexpr ConstexprString() noexcept
+    requires(N == 1)
+    : String({}) {}
 
   constexpr ConstexprString(const ConstexprString &) = default;
   constexpr ConstexprString(ConstexprString &&) = default;

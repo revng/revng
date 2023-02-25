@@ -26,9 +26,7 @@
 #include "revng/TupleTree/TupleTreePath.h"
 
 template<typename T>
-concept HasValueType = requires(T &&) {
-  typename T::value_type;
-};
+concept HasValueType = requires(T &&) { typename T::value_type; };
 
 // clang-format off
 
@@ -77,47 +75,47 @@ concept TupleTreeRootLike = StrictSpecializationOf<AllowedTupleTreeTypes<T>,
                                                    std::variant>;
 
 namespace detail {
-  template<TupleTreeRootLike Model>
-  struct CheckTypeIsCorrect {
-    const AllowedTupleTreeTypes<Model> *Alternatives;
-    bool IsCorrect = false;
+template<TupleTreeRootLike Model>
+struct CheckTypeIsCorrect {
+  const AllowedTupleTreeTypes<Model> *Alternatives;
+  bool IsCorrect = false;
 
-    template<typename T, int I>
-    void visitTupleElement() {
-      using tuple_element = typename std::tuple_element<I, T>::type;
-      visit<tuple_element>();
-    }
-
-    template<typename T, typename KeyT>
-    void visitContainerElement(KeyT Key) {}
-
-    template<revng::detail::SetOrKOC T>
-    void visit() {
-      check<typename T::value_type>();
-    }
-
-    template<typename T>
-    void visit() {
-      check<T>();
-    }
-
-    template<typename T>
-    void check() {
-      IsCorrect = std::holds_alternative<T>(*Alternatives);
-    }
-  };
-
-  template<TupleTreeRootLike Model>
-  llvm::Error checkTypeIsCorrect(const TupleTreePath &Path,
-                                 const AllowedTupleTreeTypes<Model> &Content) {
-    CheckTypeIsCorrect<Model> Checker{ &Content };
-    auto Result = callByPath<Model>(Checker, Path);
-    revng_assert(Result == true);
-    if (not Checker.IsCorrect)
-      return llvm::createStringError(llvm::inconvertibleErrorCode(),
-                                     "Type check has failed");
-    return llvm::Error::success();
+  template<typename T, int I>
+  void visitTupleElement() {
+    using tuple_element = typename std::tuple_element<I, T>::type;
+    visit<tuple_element>();
   }
+
+  template<typename T, typename KeyT>
+  void visitContainerElement(KeyT Key) {}
+
+  template<revng::detail::SetOrKOC T>
+  void visit() {
+    check<typename T::value_type>();
+  }
+
+  template<typename T>
+  void visit() {
+    check<T>();
+  }
+
+  template<typename T>
+  void check() {
+    IsCorrect = std::holds_alternative<T>(*Alternatives);
+  }
+};
+
+template<TupleTreeRootLike Model>
+llvm::Error checkTypeIsCorrect(const TupleTreePath &Path,
+                               const AllowedTupleTreeTypes<Model> &Content) {
+  CheckTypeIsCorrect<Model> Checker{ &Content };
+  auto Result = callByPath<Model>(Checker, Path);
+  revng_assert(Result == true);
+  if (not Checker.IsCorrect)
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "Type check has failed");
+  return llvm::Error::success();
+}
 
 } // namespace detail
 

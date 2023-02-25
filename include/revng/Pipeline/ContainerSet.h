@@ -95,7 +95,7 @@ public:
   ContainerBase &operator[](llvm::StringRef Name) {
     revng_assert(containsOrCanCreate(Name));
     if (Content[Name] == nullptr)
-      Content[Name] = (*Factories[Name]) (Name);
+      Content[Name] = (*Factories[Name])(Name);
     auto &Pointer = Content.find(Name)->second;
     revng_assert(Pointer != nullptr);
     return *Pointer;

@@ -62,9 +62,7 @@ concept range = requires(T &&R) {
 };
 
 template<class T>
-concept sized_range = ranges::range<T> && requires(T &&R) {
-  std::size(R);
-};
+concept sized_range = ranges::range<T> && requires(T &&R) { std::size(R); };
 
 } // namespace ranges
 

@@ -342,9 +342,11 @@ concept Dumpable = requires(T D) {
 
 template<typename InvokableType>
 concept Printable = requires(InvokableType Pipe) {
-  { Pipe.print(std::declval<const Context &>(),
+  {
+    Pipe.print(std::declval<const Context &>(),
                llvm::outs(),
-               std::declval<llvm::ArrayRef<std::string>>()) };
+               std::declval<llvm::ArrayRef<std::string>>())
+  };
 };
 
 class InvokableWrapperBase {

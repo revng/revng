@@ -51,7 +51,7 @@ public:
 
   std::unique_ptr<ContainerBase>
   operator()(llvm::StringRef Name) const override {
-    auto Creator = [Name]<typename... T>(T && ...Values) {
+    auto Creator = [Name]<typename... T>(T &&...Values) {
       return std::make_unique<ContainerT>(Name, std::forward<T>(Values)...);
     };
     return std::apply(Creator, GlobalValue);

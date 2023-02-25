@@ -23,5 +23,5 @@ concept Verifiable = requires(const T &TT) {
 };
 
 template<typename T>
-concept TupleTreeCompatibleAndVerifiable =
-  (TupleTreeCompatible<T> and Verifiable<T>);
+concept TupleTreeCompatibleAndVerifiable = (TupleTreeCompatible<T>
+                                            and Verifiable<T>);

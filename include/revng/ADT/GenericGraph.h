@@ -50,9 +50,7 @@
 ///  use multiple different graph architectures side by side.
 
 template<typename T>
-concept SpecializationOfForwardNode = requires {
-  T::is_forward_node;
-};
+concept SpecializationOfForwardNode = requires { T::is_forward_node; };
 
 template<typename T>
 concept StrictSpecializationOfBidirectionalNode = requires {
