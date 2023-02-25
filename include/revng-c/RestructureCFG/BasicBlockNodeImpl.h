@@ -33,7 +33,7 @@ struct WeightTraits<llvm::BasicBlock *> {
       if (Br->isUnconditional())
         --Weight;
     }
-    return BB->size() - 1;
+    return Weight;
   }
 };
 
