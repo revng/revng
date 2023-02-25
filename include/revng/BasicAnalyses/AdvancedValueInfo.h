@@ -76,6 +76,7 @@ getUniqueUnknown(llvm::ScalarEvolution &SE, const llvm::SCEV *SC) {
       case scUDivExpr:
       case scAddExpr:
       case scPtrToInt:
+      case scSequentialUMinExpr:
         break;
 
       case scUnknown:
