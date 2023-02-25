@@ -94,7 +94,8 @@ llvm_map_components_to_libnames(
   BitWriter
   InstCombine
   CodeGen
-  Passes)
+  Passes
+  TargetParser)
 
 #
 # share/revng
