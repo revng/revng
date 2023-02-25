@@ -16,6 +16,7 @@
 #include "llvm/DebugInfo/DWARF/DWARFDie.h"
 #include "llvm/DebugInfo/DWARF/DWARFFormValue.h"
 #include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/raw_os_ostream.h"

@@ -6,6 +6,7 @@
 //
 
 #include "llvm/DebugInfo/CodeView/CVSymbolVisitor.h"
+#include "llvm/DebugInfo/CodeView/CVTypeVisitor.h"
 #include "llvm/DebugInfo/CodeView/LazyRandomTypeCollection.h"
 #include "llvm/DebugInfo/CodeView/SymbolDeserializer.h"
 #include "llvm/DebugInfo/CodeView/SymbolRecord.h"
@@ -21,6 +22,7 @@
 #include "llvm/DebugInfo/PDB/Native/PDBFile.h"
 #include "llvm/DebugInfo/PDB/Native/SymbolStream.h"
 #include "llvm/DebugInfo/PDB/PDB.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Program.h"
 

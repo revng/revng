@@ -6,6 +6,7 @@
 
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/Pass.h"
 
 #include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
 #include "revng/Model/Binary.h"

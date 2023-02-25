@@ -2,7 +2,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Path.h"
 
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"

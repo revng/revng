@@ -8,6 +8,7 @@
 
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Path.h"
 
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Errors.h"
