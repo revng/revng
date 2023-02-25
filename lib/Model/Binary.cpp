@@ -245,6 +245,10 @@ Identifier Segment::name() const {
   }
 }
 
+void Segment::dump() const {
+  serialize(dbg, *this);
+}
+
 bool Segment::verify() const {
   return verify(false);
 }
