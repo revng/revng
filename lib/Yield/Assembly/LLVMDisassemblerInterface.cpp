@@ -79,13 +79,14 @@ DI::LLVMDisassemblerInterface(MetaAddressType::Values AddrType) {
                "yield information object creation failed.");
 
   ObjectFileInformation = std::make_unique<llvm::MCObjectFileInfo>();
-  Context = std::make_unique<llvm::MCContext>(AssemblyInformation.get(),
-                                              RegisterInformation.get(),
-                                              ObjectFileInformation.get());
-
   llvm::Triple Triple(Architecture);
+  Context = std::make_unique<llvm::MCContext>(Triple,
+                                              AssemblyInformation.get(),
+                                              RegisterInformation.get(),
+                                              SubtargetInformation.get());
+
   bool IsPIC = false;
-  ObjectFileInformation->InitMCObjectFileInfo(Triple, IsPIC, *Context);
+  ObjectFileInformation->initMCObjectFileInfo(*Context, IsPIC);
 
   auto &SI = *SubtargetInformation;
   Disassembler.reset(LLVMTarget->createMCDisassembler(SI, *Context));
