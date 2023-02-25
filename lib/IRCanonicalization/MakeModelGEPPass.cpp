@@ -62,7 +62,6 @@ using llvm::IRBuilder;
 using llvm::isa;
 using llvm::LLVMContext;
 using llvm::LoadInst;
-using llvm::None;
 using llvm::PHINode;
 using llvm::RegisterPass;
 using llvm::ReturnInst;

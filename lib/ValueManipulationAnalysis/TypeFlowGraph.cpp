@@ -624,7 +624,7 @@ unsigned vma::countCasts(const TypeFlowGraph &TG) {
 /// a color is such that it would remain the most popular color even if all the
 /// undecided nodes were to be assigned to any other color, then the color wind
 /// the majority voting.
-static llvm::Optional<ColorSet> majorityVote(const TypeFlowNode *Node) {
+static std::optional<ColorSet> majorityVote(const TypeFlowNode *Node) {
   // Don't try to assign a color to an already decided or uncolored node
   revng_assert(Node->isUndecided());
 

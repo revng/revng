@@ -359,7 +359,7 @@ ModelTypesMap initModelTypes(FunctionMetadataCache &Cache,
         continue;
       }
 
-      llvm::Optional<QualifiedType> Type;
+      std::optional<QualifiedType> Type;
 
       switch (I.getOpcode()) {
 

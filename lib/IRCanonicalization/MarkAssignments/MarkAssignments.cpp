@@ -300,14 +300,14 @@ public:
     return Result;
   }
 
-  llvm::Optional<LatticeElement>
+  std::optional<LatticeElement>
   handleEdge(const LatticeElement &Original,
              const llvm::BasicBlock * /*Source*/,
              const llvm::BasicBlock *Destination) const {
 
     auto LiveInIt = LiveIn.find(Destination);
     if (LiveInIt == LiveIn.end())
-      return llvm::None;
+      return std::nullopt;
 
     const auto &LiveInSet = LiveInIt->second;
 
