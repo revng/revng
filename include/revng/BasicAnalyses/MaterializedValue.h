@@ -31,8 +31,8 @@ public:
 public:
   bool operator==(const MaterializedValue &Other) const {
     auto MaxBitWidth = std::max(Value.getBitWidth(), Other.Value.getBitWidth());
-    auto ZExtValue = Value.zextOrSelf(MaxBitWidth);
-    auto ZExtOther = Other.Value.zextOrSelf(MaxBitWidth);
+    auto ZExtValue = Value.zext(MaxBitWidth);
+    auto ZExtOther = Other.Value.zext(MaxBitWidth);
     auto This = std::tie(IsValid, SymbolName, ZExtValue);
     auto That = std::tie(Other.IsValid, Other.SymbolName, ZExtOther);
     return This == That;
@@ -40,7 +40,7 @@ public:
 
   bool operator<(const MaterializedValue &Other) const {
     auto MaxBitWidth = std::max(Value.getBitWidth(), Other.Value.getBitWidth());
-    if (Value.zextOrSelf(MaxBitWidth).ult(Other.Value.zextOrSelf(MaxBitWidth)))
+    if (Value.zext(MaxBitWidth).ult(Other.Value.zext(MaxBitWidth)))
       return true;
     auto This = std::tie(IsValid, SymbolName);
     auto That = std::tie(Other.IsValid, Other.SymbolName);

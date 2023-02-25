@@ -2746,7 +2746,7 @@ void CPUStateAccessFixer::correctCPUStateAccesses() {
                                      << dumpToString(TmpBuffer));
 
         Builder.SetInsertPoint(Instr);
-        auto TmpAlign = MaybeAlign(TmpBuffer->getAlignment());
+        auto TmpAlign = MaybeAlign(TmpBuffer->getAlign());
         auto AlignOne = MaybeAlign(1);
         CallInst *MemcpyLoad = Builder.CreateMemCpy(TmpBuffer,
                                                     TmpAlign,
