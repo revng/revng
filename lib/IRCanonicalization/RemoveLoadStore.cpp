@@ -141,7 +141,7 @@ bool RemoveLoadStore::runOnFunction(llvm::Function &F) {
       } else if (auto *Store = dyn_cast<llvm::StoreInst>(&I)) {
         llvm::Value *ValueOp = Store->getValueOperand();
         llvm::Value *PointerOp = Store->getPointerOperand();
-        llvm::Type *PointedType = PointerOp->getType()->getPointerElementType();
+        llvm::Type *PointedType = ValueOp->getType();
 
         QualifiedType PointerOpQT = TypeMap.at(PointerOp);
         QualifiedType StoredQT;

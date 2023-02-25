@@ -18,7 +18,7 @@ bool InjectStackSizeProbesAtCallSitesPass::runOnModule(llvm::Module &M) {
   // Get the stack pointer CSV
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
   auto *SP = GCBI.spReg();
-  auto *SPType = SP->getType()->getPointerElementType();
+  auto *SPType = SP->getValueType();
 
   // Create marker for recording stack heigh at each call site
   auto *SSACSType = llvm::FunctionType::get(B.getVoidTy(), { SPType }, false);

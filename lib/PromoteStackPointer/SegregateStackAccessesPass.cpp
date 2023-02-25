@@ -267,14 +267,14 @@ public:
   SegregateStackAccesses(FunctionMetadataCache &Cache,
                          const model::Binary &Binary,
                          Module &M,
-                         Value *StackPointer) :
+                         GlobalValue *StackPointer) :
     Binary(Binary),
     M(M),
     SSACS(M.getFunction("stack_size_at_call_site")),
     InitLocalSP(M.getFunction("revng_init_local_sp")),
     SABuilder(M.getContext()),
     CallInstructionPushSize(getCallPushSize(Binary)),
-    StackPointerType(StackPointer->getType()->getPointerElementType()),
+    StackPointerType(StackPointer->getValueType()),
     PtrSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
     AddressOfPool(&M, false),
     AssignPool(&M, false),

@@ -46,7 +46,7 @@ static bool adjustStackAfterCalls(FunctionMetadataCache &Cache,
 
   IRBuilder<> B(F.getParent()->getContext());
 
-  Type *SPType = GlobalSP->getType()->getPointerElementType();
+  Type *SPType = GlobalSP->getValueType();
 
   MetaAddress Entry = getMetaAddressMetadata(&F, "revng.function.entry");
   auto &ModelFunction = Binary.Functions().at(Entry);
@@ -154,7 +154,7 @@ bool PromoteStackPointerPass::runOnFunction(Function &F) {
   // Create function for initializing local stack pointer.
   Module *M = F.getParent();
   LLVMContext &Ctx = F.getContext();
-  Type *SPType = GlobalSP->getType()->getPointerElementType();
+  Type *SPType = GlobalSP->getValueType();
   auto InitFunction = M->getOrInsertFunction("revng_init_local_sp", SPType);
   Function *InitLocalSP = cast<Function>(InitFunction.getCallee());
   InitLocalSP->addFnAttr(Attribute::NoUnwind);
