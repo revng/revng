@@ -762,6 +762,10 @@ std::optional<uint64_t> Type::size(VerifyHelper &VH) const {
     return MaybeSize;
 }
 
+// NOTE: there's a really similar function for computing alignment in
+//       `lib/ABI/Definition.cpp`. It's better if two are kept in sync, so
+//       when modifying this function, please apply corresponding modifications
+//       to its little brother as well.
 RecursiveCoroutine<std::optional<uint64_t>>
 Type::trySize(VerifyHelper &VH) const {
   auto MaybeSize = VH.size(this);
