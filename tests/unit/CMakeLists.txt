@@ -376,3 +376,21 @@ target_link_libraries(
 add_test(NAME test_location_infrastructure COMMAND test_location_infrastructure)
 set_tests_properties(test_location_infrastructure
                      PROPERTIES LABELS "unit;pipeline;location")
+
+#
+# test_alignment
+#
+
+revng_add_test_executable(test_alignment "${SRC}/Alignment.cpp")
+target_compile_definitions(test_alignment PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(test_alignment PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(
+  test_alignment
+  revngABI
+  revngModel
+  revngSupport
+  revngUnitTestHelpers
+  Boost::unit_test_framework
+  ${LLVM_LIBRARIES})
+add_test(NAME test_alignment COMMAND test_alignment)
+set_tests_properties(test_alignment PROPERTIES LABELS "unit;abi;alignment")
