@@ -247,6 +247,9 @@ public:
         revng_log(Log, "Function Conversion Failed.");
       }
     }
+
+    // Don't forget to clean up any possible remainders of removed types.
+    purgeUnnamedAndUnreachableTypes(Model);
   }
 };
 
