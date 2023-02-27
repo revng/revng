@@ -37,6 +37,9 @@ public:
       // and verifies.
       revng_assert(New.get()->verify(VH));
     }
+
+    // Don't forget to clean up any possible remainders of removed types.
+    purgeUnnamedAndUnreachableTypes(Model);
   }
 };
 
