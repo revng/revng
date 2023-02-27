@@ -261,7 +261,7 @@ computeIRAccessPattern(FunctionMetadataCache &Cache,
   llvm::sort(IRPatternIndices, HasLargerStride);
 
   // Now we're ready to initialize the IRAccessPattern
-  IRAccessPattern IRPattern{ .BaseOffset = BaseOff.zextOrSelf(64),
+  IRAccessPattern IRPattern{ .BaseOffset = BaseOff.zext(64),
                              .Indices = IRPatternIndices,
                              // Intially PointeeType is set to None, then we
                              // fill it if in some special cases where we have
@@ -1189,7 +1189,7 @@ computeBestTAP(model::QualifiedType BaseType,
         APInt NumMultipleElements = APInt(/*NumBits*/ 64, /*value*/ 0);
         APInt Remainder = APInt(/*NumBits*/ 64, /*value*/ 0);
 
-        APInt::udivrem(Coefficient->getValue().zextOrSelf(64),
+        APInt::udivrem(Coefficient->getValue().zext(64),
                        APElementSize,
                        NumMultipleElements,
                        Remainder);
