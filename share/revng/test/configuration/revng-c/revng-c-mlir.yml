@@ -1,0 +1,17 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+commands:
+  - type: revng-c.convert-llvm-to-mlir-llvm-dialect
+    from:
+      - type: revng-c.analyzed
+    suffix: .mlir
+    command: |-
+      MODEL=$$(temp);
+      revng model dump "$INPUT" > "$$MODEL";
+      revng pipeline
+        -m "$$MODEL"
+        -i "$INPUT:MakeSegmentRefs/module.ll"
+        -o "$OUTPUT:LLVMIRToMLIR/module.mlir"
+        --produce LLVMIRToMLIR/module.mlir/:MLIRLLVMModule

@@ -1,0 +1,23 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+Component: revng-c
+Containers:
+  - Name: module.mlir
+    Type: MLIRModule
+Branches:
+  - From: MakeSegmentRefs
+    Steps:
+      - Name: LLVMIRToMLIR
+        Pipes:
+          - Type: LLVMPipe
+            UsedContainers: [module.ll]
+            Passes:
+              - prepare-llvmir-for-mlir
+          - Type: ImportLLVMToMLIRPipe
+            UsedContainers: [module.ll, module.mlir]
+        Artifacts:
+          Container: module.mlir
+          Kind: MLIRLLVMModule
+          SingleTargetFilename: mlir-llvm-dialect.mlir
