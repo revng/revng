@@ -200,6 +200,12 @@ private:
     if (CC != DW_CC_normal)
       return model::ABI::Invalid;
 
+    // NOTE: static functions do not always follow the standard calling
+    //       convention which is a problem since `CABIFunctionTypes` we generate
+    //       for them do not correspond to the real functions, leading to
+    //       problems downstream.
+    // TODO: investigate.
+
     return Model->DefaultABI();
   }
 
