@@ -33,7 +33,7 @@ struct Fixture {
 public:
   Fixture() {
     std::string S = "fakeName";
-    char *Array[1] = { S.data() };
+    const char *Array[1] = { S.data() };
     const char *PipelineText[1] = { PipelineTextContent };
     const char *LibToLoad[] = {};
 
@@ -51,12 +51,12 @@ public:
 BOOST_AUTO_TEST_SUITE(PipelineCTestSuite, *boost::unit_test::fixture<Fixture>())
 
 BOOST_AUTO_TEST_CASE(CAPILoadTest) {
-  BOOST_TEST(rp_manager_steps_count(Runner) == 2);
+  BOOST_TEST(rp_manager_steps_count(Runner) == 2UL);
   auto *FirstStep = rp_manager_get_step(Runner, 0);
-  BOOST_TEST(rp_manager_containers_count(Runner) == 2);
+  BOOST_TEST(rp_manager_containers_count(Runner) == 2UL);
 
-  BOOST_TEST(rp_manager_step_name_to_index(Runner, "begin") == 0);
-  BOOST_TEST(rp_manager_step_name_to_index(Runner, "FirstStep") == 1);
+  BOOST_TEST(rp_manager_step_name_to_index(Runner, "begin") == 0UL);
+  BOOST_TEST(rp_manager_step_name_to_index(Runner, "FirstStep") == 1UL);
   BOOST_TEST(rp_manager_get_kind_from_name(Runner, "MISSING") == nullptr);
   BOOST_TEST(rp_manager_get_kind_from_name(Runner, "Root") != nullptr);
 }
