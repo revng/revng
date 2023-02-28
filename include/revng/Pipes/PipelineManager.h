@@ -24,6 +24,7 @@ namespace revng::pipes {
 /// in a usable state.
 class PipelineManager {
 private:
+  using Container = pipeline::ContainerSet::value_type;
   explicit PipelineManager() = default;
 
   std::string ExecutionDirectory;
@@ -139,8 +140,8 @@ public:
   /// returns the cached list of targets that are known to be available to be
   /// produced in a container
   const pipeline::TargetsList *
-  getTargetsAvailableFor(const pipeline::ContainerSet::value_type &Container) {
-    if (auto Iter = ContainerToEnumeration.find(&Container);
+  getTargetsAvailableFor(const Container &TheContainer) const {
+    if (auto Iter = ContainerToEnumeration.find(&TheContainer);
         Iter == ContainerToEnumeration.end())
       return nullptr;
     else
