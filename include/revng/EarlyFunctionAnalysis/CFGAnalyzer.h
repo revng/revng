@@ -36,6 +36,8 @@ private:
    */
   llvm::Function *PreCallHook = nullptr;
 
+  llvm::Function *EntryHook = nullptr;
+
   // PostCallHook prototype looks same as PreCallHook
   llvm::Function *PostCallHook = nullptr;
 
@@ -48,6 +50,7 @@ private:
 public:
   CallSummarizer(llvm::Module *M,
                  llvm::Function *PreCallHook,
+                 llvm::Function *EntryHook,
                  llvm::Function *PostCallHook,
                  llvm::Function *RetHook,
                  llvm::GlobalVariable *SPCSV);
@@ -91,6 +94,7 @@ private:
   /// function called. They take the MetaAddress of the callee and the
   /// call-site.
   TemporaryOpaqueFunction PreCallHook;
+  TemporaryOpaqueFunction EntryHook;
   TemporaryOpaqueFunction PostCallHook;
   TemporaryOpaqueFunction RetHook;
 
@@ -109,6 +113,7 @@ public:
 
 public:
   llvm::Function *preCallHook() const { return PreCallHook.get(); }
+  llvm::Function *entryHook() const { return EntryHook.get(); }
   llvm::Function *postCallHook() const { return PostCallHook.get(); }
   llvm::Function *retHook() const { return RetHook.get(); }
   const auto &abiCSVs() const { return ABICSVs; }

@@ -690,6 +690,7 @@ void DetectABI::analyzeABI(llvm::BasicBlock *Entry) {
                                        GCBI,
                                        Analyzer.preCallHook(),
                                        Analyzer.postCallHook(),
+                                       Analyzer.entryHook(),
                                        Analyzer.retHook());
 
   // We say that a register is callee-saved when, besides being preserved by

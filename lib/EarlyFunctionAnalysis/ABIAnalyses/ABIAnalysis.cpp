@@ -214,6 +214,7 @@ ABIAnalysesResults analyzeOutlinedFunction(Function *F,
                                            const GeneratedCodeBasicInfo &GCBI,
                                            Function *PreCallSiteHook,
                                            Function *PostCallSiteHook,
+                                           Function *EntryHook,
                                            Function *RetHook) {
   namespace UAOF = UsedArgumentsOfFunction;
   namespace RAOFC = RegisterArgumentsOfFunctionCall;
@@ -231,7 +232,7 @@ ABIAnalysesResults analyzeOutlinedFunction(Function *F,
     if (auto *Call = dyn_cast<CallInst>(&I)) {
       BasicBlockID PC;
       if (isCallTo(Call, PreCallSiteHook) || isCallTo(Call, PostCallSiteHook)
-          || isCallTo(Call, RetHook)) {
+          || isCallTo(Call, RetHook) | isCallTo(Call, EntryHook)) {
         PC = BasicBlockID::fromValue(Call->getArgOperand(0));
         revng_assert(PC.isValid());
       }
@@ -260,7 +261,6 @@ ABIAnalysesResults analyzeOutlinedFunction(Function *F,
     for (auto &[CSV, RS] : RSMap)
       FinalResults.CallSites[PC].ArgumentsRegisters[CSV] = RS;
   }
-
 
   // Add URVOF.
   for (auto &[Key, RSMap] : Results.URVOF) {
