@@ -15,11 +15,10 @@ class ObjectFile;
 }
 } // namespace llvm
 
+struct ImporterOptions;
 llvm::Error importBinary(TupleTree<model::Binary> &Model,
                          llvm::object::ObjectFile &BinaryHandle,
-                         uint64_t PreferredBaseAddress,
-                         unsigned FetchDebugInfoWithLevel);
+                         const ImporterOptions &Options);
 llvm::Error importBinary(TupleTree<model::Binary> &Model,
                          llvm::StringRef Path,
-                         uint64_t PreferredBaseAddress,
-                         unsigned FetchDebugInfoWithLevel);
+                         const ImporterOptions &Options);

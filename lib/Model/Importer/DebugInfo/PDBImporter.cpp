@@ -25,6 +25,7 @@
 #include "llvm/Support/Program.h"
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/Importer/Binary/Options.h"
 #include "revng/Model/Importer/DebugInfo/PDBImporter.h"
 #include "revng/Model/Pass/AllPasses.h"
 #include "revng/Model/Processing.h"
@@ -369,7 +370,7 @@ static std::string formatPDBFileID(ArrayRef<uint8_t> Bytes, uint16_t Age) {
 }
 
 void PDBImporter::import(const COFFObjectFile &TheBinary,
-                         unsigned FetchDebugInfoWithLevel) {
+                         const ImporterOptions &Options) {
   // Parse debug info and populate types to Model.
   const codeview::DebugInfo *DebugInfo;
   StringRef PDBFilePath;
@@ -383,7 +384,7 @@ void PDBImporter::import(const COFFObjectFile &TheBinary,
       // Use the path of the PDB file if it exists on the device.
       loadDataFromPDB(PDBFilePath.str());
     } else {
-      if (FetchDebugInfoWithLevel) {
+      if (Options.DebugInfo != DebugInfoLevel::No) {
         // Usually the PDB files will be generated on a different machine,
         // so the location read from the debug directory wont be up to date.
 

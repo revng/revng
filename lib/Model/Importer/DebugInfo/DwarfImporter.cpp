@@ -24,6 +24,7 @@
 
 #include "revng/ADT/STLExtras.h"
 #include "revng/Model/Importer/Binary/BinaryImporterHelper.h"
+#include "revng/Model/Importer/Binary/Options.h"
 #include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
 #include "revng/Model/Pass/AllPasses.h"
 #include "revng/Model/Processing.h"
@@ -1197,8 +1198,7 @@ findDebugInfoFileByName(StringRef FileName,
   return std::nullopt;
 }
 
-void DwarfImporter::import(StringRef FileName,
-                           unsigned FetchDebugInfoWithLevel) {
+void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
   using namespace llvm::object;
   ErrorOr<std::unique_ptr<MemoryBuffer>>
     BuffOrErr = MemoryBuffer::getFileOrSTDIN(FileName);
@@ -1230,18 +1230,19 @@ void DwarfImporter::import(StringRef FileName,
     return false;
   };
 
-  auto PerformImport = [this](StringRef FilePath, StringRef TheDebugFile) {
+  auto PerformImport = [this, &Options](StringRef FilePath,
+                                        StringRef TheDebugFile) {
     auto ExpectedBinary = object::createBinary(FilePath);
     if (!ExpectedBinary) {
       revng_log(DILogger, "Can't create binary for " << FilePath);
       llvm::consumeError(ExpectedBinary.takeError());
     } else {
-      import(*ExpectedBinary->getBinary(), TheDebugFile);
+      import(*ExpectedBinary->getBinary(), TheDebugFile, Options.BaseAddress);
     }
   };
 
   if (auto *ELF = dyn_cast<ObjectFile>(BinOrErr->get())) {
-    if (FetchDebugInfoWithLevel && !HasDebugInfo(ELF)) {
+    if (Options.DebugInfo != DebugInfoLevel::No && !HasDebugInfo(ELF)) {
       // There are no .debug_* sections in the file itself, let's try to find it
       // on the device, otherwise find it on web by using the `fetch-debuginfo`
       // tool.
@@ -1274,7 +1275,7 @@ void DwarfImporter::import(StringRef FileName,
     }
   }
 
-  import(*BinOrErr->get(), FileName);
+  import(*BinOrErr->get(), FileName, Options.BaseAddress);
 }
 
 auto zipPairs(auto &&R) {
@@ -1435,7 +1436,8 @@ inline void detectAliases(const llvm::object::ObjectFile &ELF,
 }
 
 void DwarfImporter::import(const llvm::object::Binary &TheBinary,
-                           StringRef FileName) {
+                           StringRef FileName,
+                           std::uint64_t PreferredBaseAddress) {
   using namespace llvm::object;
 
   if (auto *ELF = dyn_cast<ObjectFile>(&TheBinary)) {

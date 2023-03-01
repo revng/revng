@@ -18,9 +18,8 @@ private:
 
 public:
   MIPSELFImporter(TupleTree<model::Binary> &Model,
-                  const llvm::object::ELFObjectFileBase &TheBinary,
-                  uint64_t PreferredBaseAddress) :
-    ELFImporter<T, HasAddend>(Model, TheBinary, PreferredBaseAddress),
+                  const llvm::object::ELFObjectFileBase &TheBinary) :
+    ELFImporter<T, HasAddend>(Model, TheBinary),
     MIPSFirstGotSymbol(std::nullopt),
     MIPSLocalGotEntries(std::nullopt) {}
 
@@ -124,12 +123,8 @@ public:
                                 *this->DynstrPortion.get());
   }
 
-  llvm::Error import(unsigned FetchDebugInfoWithLevel) override {
-    // TODO: Remove this when we remove `Parenthesis at the end of line:` from
-    // `check-convention`.
-    unsigned DebugInfoLevel = FetchDebugInfoWithLevel;
-
-    if (llvm::Error E = ELFImporter<T, HasAddend>::import(DebugInfoLevel))
+  llvm::Error import(const ImporterOptions &Options) override {
+    if (llvm::Error E = ELFImporter<T, HasAddend>::import(Options))
       return E;
     registerMIPSRelocations();
     return llvm::Error::success();

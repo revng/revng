@@ -54,7 +54,7 @@ public:
 class ELFImporterBase {
 public:
   virtual ~ELFImporterBase() = default;
-  virtual llvm::Error import(unsigned FetchDebugInfoWithLevel) = 0;
+  virtual llvm::Error import(const ImporterOptions &Options) = 0;
 };
 
 template<typename T, bool HasAddend>
@@ -63,7 +63,6 @@ private:
   RawBinaryView File;
   TupleTree<model::Binary> &Model;
   const llvm::object::ELFObjectFileBase &TheBinary;
-  uint64_t PreferredBaseAddress;
 
   std::optional<MetaAddress> EHFrameHdrAddress;
   std::optional<MetaAddress> DynamicAddress;
@@ -81,12 +80,10 @@ protected:
 
 public:
   ELFImporter(TupleTree<model::Binary> &Model,
-              const llvm::object::ELFObjectFileBase &TheBinary,
-              uint64_t PreferredBaseAddress) :
+              const llvm::object::ELFObjectFileBase &TheBinary) :
     File(*Model, toArrayRef(TheBinary.getData())),
     Model(Model),
-    TheBinary(TheBinary),
-    PreferredBaseAddress(PreferredBaseAddress) {}
+    TheBinary(TheBinary) {}
 
 private:
   using Elf_Rel = llvm::object::Elf_Rel_Impl<T, HasAddend>;
@@ -94,7 +91,7 @@ private:
   using ConstElf_Shdr = const typename llvm::object::ELFFile<T>::Elf_Shdr;
 
 public:
-  llvm::Error import(unsigned FetchDebugInfoWithLevel) override;
+  llvm::Error import(const ImporterOptions &Options) override;
 
 private:
   MetaAddress getGenericPointer(Pointer Ptr) const {
@@ -148,8 +145,8 @@ private:
   void parseDynamicSymbol(llvm::object::Elf_Sym_Impl<T> &Symbol,
                           llvm::StringRef Dynstr);
 
-  void
-  findMissingTypes(llvm::object::ELFFile<T> &TheELF, unsigned DebugInfoLevel);
+  void findMissingTypes(llvm::object::ELFFile<T> &TheELF,
+                        const ImporterOptions &Options);
 
 protected:
   template<typename Q>

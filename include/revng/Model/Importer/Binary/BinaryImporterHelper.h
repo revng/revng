@@ -19,11 +19,7 @@ protected:
 
 public:
   MetaAddress relocate(MetaAddress Address) const {
-    if (BaseAddress) {
-      return Address + BaseAddress;
-    } else {
-      return Address;
-    }
+    return Address += BaseAddress;
   }
 
   MetaAddress relocate(uint64_t Address) const {
