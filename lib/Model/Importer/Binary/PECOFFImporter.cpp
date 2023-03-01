@@ -12,6 +12,7 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/Importer/Binary/BinaryImporterHelper.h"
+#include "revng/Model/Importer/Binary/Options.h"
 #include "revng/Model/Importer/DebugInfo/PDBImporter.h"
 #include "revng/Model/Pass/AllPasses.h"
 #include "revng/Support/Debug.h"
@@ -37,7 +38,7 @@ public:
                  const object::COFFObjectFile &TheBinary) :
     Model(Model), TheBinary(TheBinary) {}
 
-  Error import(unsigned FetchDebugInfoWithLevel);
+  Error import(const ImporterOptions &Options);
 
 private:
   Error parseSectionsHeaders();
@@ -55,7 +56,7 @@ private:
   /// Resolve dependent DLLs.
   void getDependencies(PELDDTree Dependencies, unsigned Level);
   /// Try to find prototypes in the Models of dynamic libraries.
-  void findMissingTypes(unsigned FetchDebugInfoWithLevel);
+  void findMissingTypes(const ImporterOptions &Options);
 
   using DelayDirectoryRef = const DelayImportDirectoryEntryRef;
   void
@@ -391,11 +392,16 @@ void PECOFFImporter::getDependencies(PELDDTree Dependencies, unsigned Level) {
     getDependenciesHelper(TheBinary.getFileName(), Dependencies, 1, Level);
 }
 
-void PECOFFImporter::findMissingTypes(unsigned FetchDebugInfoWithLevel) {
-  using namespace std;
+void PECOFFImporter::findMissingTypes(const ImporterOptions &Opts) {
+  if (Opts.DebugInfo != DebugInfoLevel::Yes)
+    return;
+
+  // TODO: disclose a way to modify this value with
+  //       the `ImporterOptions::DebugInfo`, if the need ever arises.
+  unsigned MaximumRecursionDepth = 1;
 
   PELDDTree Dependencies;
-  getDependencies(Dependencies, FetchDebugInfoWithLevel - 1);
+  getDependencies(Dependencies, MaximumRecursionDepth);
 
   ModelMap ModelsOfLibraries;
   TypeCopierMap TypeCopiers;
@@ -422,15 +428,17 @@ void PECOFFImporter::findMissingTypes(unsigned FetchDebugInfoWithLevel) {
       if (!TheBinary)
         continue;
 
-      using Binary = model::Binary;
-      ModelsOfLibraries[DependencyLibrary] = TupleTree<Binary>();
+      ModelsOfLibraries[DependencyLibrary] = TupleTree<model::Binary>();
       auto &DepModel = ModelsOfLibraries[DependencyLibrary];
       DepModel->Architecture() = Model->Architecture();
 
-      if (auto E = importPECOFF(DepModel,
-                                *TheBinary,
-                                BaseAddress,
-                                1 /*FetchDebugInfoWithLevel*/)) {
+      ImporterOptions AdjustedOptions{
+        .BaseAddress = Opts.BaseAddress,
+        .DebugInfo = DebugInfoLevel::IgnoreLibraries,
+        .EnableRemoteDebugInfo = Opts.EnableRemoteDebugInfo,
+        .AdditionalDebugInfoPaths = Opts.AdditionalDebugInfoPaths
+      };
+      if (auto E = importPECOFF(DepModel, *TheBinary, AdjustedOptions)) {
         revng_log(Log,
                   "Can't import model for " << DependencyLibrary << " due to "
                                             << E);
@@ -481,7 +489,7 @@ void PECOFFImporter::findMissingTypes(unsigned FetchDebugInfoWithLevel) {
   promoteOriginalName(Model);
 }
 
-Error PECOFFImporter::import(unsigned FetchDebugInfoWithLevel) {
+Error PECOFFImporter::import(const ImporterOptions &Options) {
   if (Error E = parseSectionsHeaders())
     return E;
 
@@ -503,12 +511,13 @@ Error PECOFFImporter::import(unsigned FetchDebugInfoWithLevel) {
   // Create a default prototype.
   Model->DefaultPrototype() = abi::registerDefaultFunctionPrototype(*Model);
 
-  PDBImporter PDBI(Model, ImageBase);
-  PDBI.import(TheBinary, FetchDebugInfoWithLevel);
+  if (Options.DebugInfo != DebugInfoLevel::No) {
+    PDBImporter PDBI(Model, ImageBase);
+    PDBI.import(TheBinary, Options);
 
-  // Now we try to find missing types in the dependencies.
-  if (FetchDebugInfoWithLevel > 1)
-    findMissingTypes(FetchDebugInfoWithLevel);
+    // Now we try to find missing types in the dependencies.
+    findMissingTypes(Options);
+  }
 
   model::promoteOriginalName(Model);
   return Error::success();
@@ -516,11 +525,10 @@ Error PECOFFImporter::import(unsigned FetchDebugInfoWithLevel) {
 
 Error importPECOFF(TupleTree<model::Binary> &Model,
                    const object::COFFObjectFile &TheBinary,
-                   uint64_t PreferredBaseAddress,
-                   unsigned FetchDebugInfoWithLevel) {
-  // TODO: use PreferredBaseAddress if PIC
-  (void) PreferredBaseAddress;
+                   const ImporterOptions &Options) {
+  // TODO: use Options.BaseAddress if PIC
+  (void) Options.BaseAddress;
 
   PECOFFImporter Importer(Model, TheBinary);
-  return Importer.import(FetchDebugInfoWithLevel);
+  return Importer.import(Options);
 }

@@ -7,8 +7,8 @@
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/Importer/Binary/BinaryImporter.h"
-#include "revng/Model/Importer/Binary/BinaryImporterOptions.h"
 #include "revng/Model/Importer/Binary/ImportBinaryAnalysis.h"
+#include "revng/Model/Importer/Binary/Options.h"
 #include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
 #include "revng/Pipeline/RegisterAnalysis.h"
 #include "revng/Pipes/ModelGlobal.h"
@@ -24,17 +24,14 @@ llvm::Error ImportBinaryAnalysis::run(pipeline::Context &Context,
 
   TupleTree<model::Binary> &Model = getWritableModelFromContext(Context);
 
-  if (auto Error = importBinary(Model,
-                                *SourceBinary.path(),
-                                BaseAddress,
-                                FetchDebugInfoWithLevel);
-      Error)
+  const ImporterOptions &Options = importerOptions();
+  if (llvm::Error Error = importBinary(Model, *SourceBinary.path(), Options))
     return Error;
 
-  if (ImportDebugInfo.size() > 0) {
-    DwarfImporter Importer(Model, BaseAddress);
-    for (const std::string &Path : ImportDebugInfo)
-      Importer.import(Path, FetchDebugInfoWithLevel);
+  if (!Options.AdditionalDebugInfoPaths.empty()) {
+    DwarfImporter Importer(Model);
+    for (const std::string &Path : Options.AdditionalDebugInfoPaths)
+      Importer.import(Path, Options);
   }
 
   return llvm::Error::success();

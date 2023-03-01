@@ -8,18 +8,17 @@
 
 #include "revng/Model/Binary.h"
 
+struct ImporterOptions;
+
 class DwarfImporter {
 private:
   TupleTree<model::Binary> &Model;
   std::vector<std::string> LoadedFiles;
   using DwarfID = std::pair<size_t, size_t>;
   std::map<DwarfID, model::QualifiedType> DwarfToModel;
-  uint64_t PreferredBaseAddress;
 
 public:
-  DwarfImporter(TupleTree<model::Binary> &Model,
-                uint64_t PreferredBaseAddress) :
-    Model(Model), PreferredBaseAddress(PreferredBaseAddress) {}
+  DwarfImporter(TupleTree<model::Binary> &Model) : Model(Model) {}
 
 public:
   model::QualifiedType *findType(DwarfID ID) {
@@ -36,8 +35,10 @@ public:
   TupleTree<model::Binary> &getModel() { return Model; }
 
 public:
-  void import(llvm::StringRef FileName, unsigned FetchDebugInfoWithLevel);
+  void import(llvm::StringRef FileName, const ImporterOptions &Options);
 
 private:
-  void import(const llvm::object::Binary &TheBinary, llvm::StringRef FileName);
+  void import(const llvm::object::Binary &TheBinary,
+              llvm::StringRef FileName,
+              std::uint64_t PreferredBaseAddress);
 };
