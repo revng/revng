@@ -25,7 +25,7 @@ std::map<const GlobalVariable *, State>
 analyze(const BasicBlock *ReturnBlock, const GeneratedCodeBasicInfo &GCBI) {
   using MFI = MFIAnalysis<false, CoreLattice>;
 
-  MFI Instance{ { GCBI } };
+  MFI Instance{ GCBI };
   MFI::LatticeElement InitialValue;
   MFI::LatticeElement ExtremalValue(CoreLattice::ExtremalLatticeElement);
 

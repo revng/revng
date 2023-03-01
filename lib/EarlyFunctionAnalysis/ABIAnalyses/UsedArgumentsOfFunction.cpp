@@ -24,7 +24,7 @@ using namespace ABIAnalyses;
 std::map<const GlobalVariable *, State>
 analyze(const BasicBlock *FunctionEntry, const GeneratedCodeBasicInfo &GCBI) {
   using MFI = MFIAnalysis<true, CoreLattice>;
-  MFI Instance{ { GCBI } };
+  MFI Instance{ GCBI };
   MFI::LatticeElement InitialValue;
   MFI::LatticeElement ExtremalValue(CoreLattice::ExtremalLatticeElement);
 
