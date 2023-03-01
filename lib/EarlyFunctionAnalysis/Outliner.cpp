@@ -23,8 +23,9 @@ namespace efa {
 /* \brief Storage for outlined functions
  *
  * OutlinedFunctionsMap has two internal stores:
- *  - a map of MetaAddress object to pointer to function (UniqueValuePtr<Function>) and
- *  - a set of MetaAddress objects indicating banned functions
+ *   - a map of MetaAddress object to pointer to function
+ *     (UniqueValuePtr<Function>) and
+ *   - a set of MetaAddress objects indicating banned functions
  */
 class OutlinedFunctionsMap {
 private:
@@ -235,6 +236,13 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
   MetaAddress FunctionAddress = getBasicBlockAddress(Entry);
 
   Function *Root = Entry->getParent();
+
+  {
+    auto InsertionPoint = Entry->getFirstInsertionPt();
+    llvm::IRBuilder<> IRB(Entry, InsertionPoint);
+
+    IRB.CreateCall(FunctionEntryHook.get());
+  }
 
   OutlinedFunction OutlinedFunction;
   OutlinedFunction.Address = FunctionAddress;
