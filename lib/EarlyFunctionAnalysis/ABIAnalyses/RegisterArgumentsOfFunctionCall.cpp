@@ -22,9 +22,18 @@ namespace ABIAnalyses::RegisterArgumentsOfFunctionCall {
 using namespace llvm;
 using namespace ABIAnalyses;
 
+struct RAOFCAnalysis : MFIAnalysis<true, CoreLattice> {
+  using MFIAnalysis<true, CoreLattice>::MFIAnalysis;
+
+  LatticeElement applyTransferFunction(Label L, const LatticeElement &E) const {
+    LatticeElement Result = E;
+    return Result;
+  }
+};
+
 std::map<const GlobalVariable *, State>
 analyze(const BasicBlock *CallSiteBlock, const GeneratedCodeBasicInfo &GCBI) {
-  using MFI = MFIAnalysis<false, CoreLattice>;
+  using MFI = RAOFCAnalysis;
 
   MFI Instance{getPostCallHook(CallSiteBlock), GCBI};
   MFI::LatticeElement InitialValue;
