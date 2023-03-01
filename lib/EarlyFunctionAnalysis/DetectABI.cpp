@@ -177,7 +177,7 @@ private:
 
   OutlinedFunction &getOutlinedFunction(MetaAddress Address);
 
-  // CSVSet findWrittenRegisters(llvm::Function *F);
+  CSVSet findWrittenRegisters(llvm::Function *F);
 
   UpcastablePointer<model::Type>
   buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
