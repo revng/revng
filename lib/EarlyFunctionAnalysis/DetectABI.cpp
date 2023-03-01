@@ -140,8 +140,7 @@ public:
     // traversal (leafs first).
     runInterproceduralAnalysis();
 
-    for (model::Function &Function : Binary->Functions())
-      analyzeABI(GCBI.getBlockAt(Function.Entry()));
+    runMonotoneAnalysis();
 
     // Propagate results between call-sites and functions
     interproceduralPropagation();
@@ -158,6 +157,7 @@ private:
   void computeApproximateCallGraph();
   void initializeInterproceduralQueue();
   void runInterproceduralAnalysis();
+  void runMonotoneAnalysis();
   void interproceduralPropagation();
   void finalizeModel();
   void applyABIDeductions();
@@ -478,6 +478,11 @@ void DetectABI::interproceduralPropagation() {
         combineCrossCallSites(CallSite, Summary.ABIResults);
     }
   }
+}
+
+void DetectABI::runMonotoneAnalysis() {
+  auto Start = ApproximateCallGraph.getEntryNode();
+  (void)(Start);
 }
 
 using MaybeRegisterState = std::optional<abi::RegisterState::Values>;
