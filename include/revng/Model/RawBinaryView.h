@@ -52,6 +52,15 @@ public:
     return getByOffset(*Offset, Size);
   }
 
+  std::optional<llvm::StringRef>
+  getStrByAddress(MetaAddress Address, uint64_t Size) const {
+    auto BytesOrNone = getByAddress(Address, Size);
+    if (not BytesOrNone.has_value())
+      return std::nullopt;
+    llvm::ArrayRef<uint8_t> Bytes = BytesOrNone.value();
+    return llvm::StringRef(reinterpret_cast<const char *>(Bytes.data()), Size);
+  }
+
   std::optional<uint64_t>
   readInteger(MetaAddress Address, uint64_t Size, bool IsLittleEndian) const {
     auto MaybeData = getByAddress(Address, Size);
