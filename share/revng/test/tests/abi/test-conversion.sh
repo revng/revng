@@ -30,12 +30,19 @@ revng \
     "$BINARY" \
     -o="${TEMPORARY_DIRECTORY}/imported_binary.yml"
 
+# Force-override the ABI because DWARF information is not always reliable
+python3 \
+    "${SCRIPT_DIRECTORY}/replace-abi.py" \
+    "$ABI_NAME" \
+    "${TEMPORARY_DIRECTORY}/imported_binary.yml" \
+    "${TEMPORARY_DIRECTORY}/corrected_binary.yml"
+
 # Make sure all the primitive types are available
 revng \
     analyze \
     AddPrimitiveTypes \
     "$BINARY" \
-    -m="${TEMPORARY_DIRECTORY}/imported_binary.yml" \
+    -m="${TEMPORARY_DIRECTORY}/corrected_binary.yml" \
     -o="${TEMPORARY_DIRECTORY}/reference_binary.yml"
 
 # Convert CABIFunctionType to RawFunctionType
@@ -44,7 +51,6 @@ revng \
     -P="${SCRIPT_DIRECTORY}/custom-conversion-pipeline.yml" \
     ConvertToRawFunctionType \
     "$BINARY" \
-    --ConvertToRawFunctionType-abi="${ABI_NAME}" \
     -m="${TEMPORARY_DIRECTORY}/reference_binary.yml" \
     -o="${TEMPORARY_DIRECTORY}/downgraded_reference_binary.yml"
 
@@ -64,7 +70,6 @@ revng \
     -P="${SCRIPT_DIRECTORY}/custom-conversion-pipeline.yml" \
     ConvertToRawFunctionType \
     "$BINARY" \
-    --ConvertToRawFunctionType-abi="${ABI_NAME}" \
     -m="${TEMPORARY_DIRECTORY}/upgraded_downgraded_reference_binary.yml" \
     -o="${TEMPORARY_DIRECTORY}/downgraded_upgraded_downgraded_reference_binary.yml"
 
