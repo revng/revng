@@ -13,6 +13,7 @@ Branches:
             Passes:
               - drop-root
               - enforce-abi
+              - strip-debug-info-from-helpers
               - inline-helpers
               - attach-debug-info
               - promote-csvs
