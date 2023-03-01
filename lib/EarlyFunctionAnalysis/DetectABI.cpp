@@ -117,6 +117,8 @@ private:
 
   CallGraph ApproximateCallGraph;
 
+  std::map<MetaAddress, OutlinedFunction> OutlinedFunctions;
+
 public:
   DetectABI(llvm::Module &M,
             GeneratedCodeBasicInfo &GCBI,
@@ -140,6 +142,8 @@ public:
     // traversal (leafs first).
     runInterproceduralAnalysis();
 
+    outlineFunctions();
+
     runMonotoneAnalysis();
 
     // Propagate results between call-sites and functions
@@ -157,6 +161,8 @@ private:
   void computeApproximateCallGraph();
   void initializeInterproceduralQueue();
   void runInterproceduralAnalysis();
+  void outlineFunction(MetaAddress Address);
+  void outlineFunctions();
   void runMonotoneAnalysis();
   void interproceduralPropagation();
   void finalizeModel();
@@ -169,7 +175,9 @@ private:
   computePreservedRegisters(const CSVSet &ClobberedRegisters) const;
   void analyzeABI(llvm::BasicBlock *Entry);
 
-  CSVSet findWrittenRegisters(llvm::Function *F);
+  OutlinedFunction &getOutlinedFunction(MetaAddress Address);
+
+  // CSVSet findWrittenRegisters(llvm::Function *F);
 
   UpcastablePointer<model::Type>
   buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
@@ -478,6 +486,17 @@ void DetectABI::interproceduralPropagation() {
         combineCrossCallSites(CallSite, Summary.ABIResults);
     }
   }
+}
+
+void DetectABI::outlineFunctions() {
+  for (auto F : Binary->Functions()) {
+    outlineFunction(F.Entry());
+  }
+}
+
+void DetectABI::outlineFunction(MetaAddress Address) {
+  auto BasicBlock = GCBI.getBlockAt(Address);
+  OutlinedFunctions.insert({Address, Analyzer.outline(BasicBlock)});
 }
 
 void DetectABI::runMonotoneAnalysis() {
