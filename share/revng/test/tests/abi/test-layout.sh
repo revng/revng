@@ -15,7 +15,7 @@ test -n "$RUNTIME_ABI_ANALYSIS_RESULT"
 test -n "$BINARY"
 
 SCRIPT_DIRECTORY="$( dirname -- "$( readlink -f -- "$0"; )"; )"
-TEMPORARY_DIRECTORY="$(mktemp --tmpdir tmp.abi-conversion-test.XXXXXXXXXX -d)"
+TEMPORARY_DIRECTORY="$(mktemp --tmpdir tmp.abi-layout-test.XXXXXXXXXX -d)"
 trap 'rm -rf "$TEMPORARY_DIRECTORY"' EXIT
 
 orc shell \
@@ -30,12 +30,19 @@ revng \
     "$BINARY" \
     -o="${TEMPORARY_DIRECTORY}/imported_binary.yml"
 
+# Force-override the ABI because DWARF information is not always reliable
+python3 \
+    "${SCRIPT_DIRECTORY}/replace-abi.py" \
+    "$ABI_NAME" \
+    "${TEMPORARY_DIRECTORY}/imported_binary.yml" \
+    "${TEMPORARY_DIRECTORY}/corrected_binary.yml"
+
 # Make sure all the primitive types are available
 revng \
     analyze \
     AddPrimitiveTypes \
     "$BINARY" \
-    -m="${TEMPORARY_DIRECTORY}/imported_binary.yml" \
+    -m="${TEMPORARY_DIRECTORY}/corrected_binary.yml" \
     -o="${TEMPORARY_DIRECTORY}/reference_binary.yml"
 
 # Convert CABIFunctionType to RawFunctionType
@@ -44,7 +51,6 @@ revng \
     -P="${SCRIPT_DIRECTORY}/custom-layout-pipeline.yml" \
     ConvertToRawFunctionType \
     "$BINARY" \
-    --ConvertToRawFunctionType-abi="${ABI_NAME}" \
     -m="${TEMPORARY_DIRECTORY}/reference_binary.yml" \
     -o="${TEMPORARY_DIRECTORY}/downgraded_reference_binary.yml"
 
