@@ -313,6 +313,28 @@ static std::string exportGraph(const yield::Graph &Graph,
     .serialize();
 }
 
+namespace yield::sugiyama {
+
+inline bool
+layout(Graph &Graph,
+       const cfg::Configuration &CFG,
+       LayoutOrientation Orientation = LayoutOrientation::TopToBottom,
+       RankingStrategy Ranking = RankingStrategy::DisjointDepthFirstSearch,
+       bool UseSimpleTreeOptimization = false) {
+  return layout(Graph,
+                Configuration{
+                  .Ranking = Ranking,
+                  .Orientation = Orientation,
+                  .UseOrthogonalBends = CFG.UseOrthogonalBends,
+                  .PreserveLinearSegments = CFG.PreserveLinearSegments,
+                  .UseSimpleTreeOptimization = UseSimpleTreeOptimization,
+                  .VirtualNodeWeight = CFG.VirtualNodeWeight,
+                  .NodeMarginSize = CFG.ExternalNodeMarginSize,
+                  .EdgeMarginSize = CFG.EdgeMarginSize });
+}
+
+} // namespace yield::sugiyama
+
 std::string
 yield::svg::controlFlowGraph(const yield::Function &InternalFunction,
                              const model::Binary &Binary) {
