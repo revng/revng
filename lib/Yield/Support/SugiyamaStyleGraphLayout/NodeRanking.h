@@ -16,7 +16,7 @@ RankContainer rankNodes(InternalGraph &Graph, int64_t DiamondBound);
 
 /// Updates node ranking after the graph was modified.
 ///
-/// Garanties ranking consistency i.e. that each node has
+/// Guarantees ranking consistency i.e. that each node has
 /// a rank greater than its predecessors.
 ///
 /// Be careful, rank order is NOT preserved.

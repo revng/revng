@@ -164,7 +164,7 @@ end:
     for (size_t I = 0; I < Results.size(); ++I)
       revng_check(Results[I]->getName() == ExpectedResultsNames[I]);
   }
-  { // Filter throwing away all the eges towards BB with name without 'a's
+  { // Filter throwing away all the edges towards BB with name without 'a's
     std::vector<llvm::StringRef> ExpectedResultsNames = {
       "initial_block",
       "starter",
@@ -179,7 +179,7 @@ end:
     for (size_t I = 0; I < Results.size(); ++I)
       revng_check(Results[I]->getName() == ExpectedResultsNames[I]);
   }
-  { // Filter throwing away all the eges towards BB with name without 'e's
+  { // Filter throwing away all the edges towards BB with name without 'e's
     // All but _xit should reached, in this order
     std::vector<llvm::StringRef> ExpectedResultsNames = {
       "initial_block",
@@ -233,7 +233,7 @@ end:
     for (size_t I = 0; I < Results.size(); ++I)
       revng_check(Results[I]->getName() == ExpectedResultsNames[I]);
   }
-  { // Filter throwing away all the eges towards BB with name without 'a's
+  { // Filter throwing away all the edges towards BB with name without 'a's
     std::vector<BasicBlock *> Results;
     using NPFG = NodePairFilteredGraph<Function *, hasLetterInName<'a'>>;
     for (auto &It : llvm::breadth_first(NPFG(F)))
@@ -248,7 +248,7 @@ end:
     for (size_t I = 0; I < Results.size(); ++I)
       revng_check(Results[I]->getName() == ExpectedResultsNames[I]);
   }
-  { // Filter throwing away all the eges towards BB with name without 'e's
+  { // Filter throwing away all the edges towards BB with name without 'e's
     std::vector<llvm::StringRef> ExpectedResultsNames = {
       "initial_block",
       "starter",
@@ -320,7 +320,7 @@ end:
     for (size_t I = 0; I < SecondResults.size(); ++I)
       revng_check(SecondResults[I]->getName() == ExpectedResultsNames[I]);
   }
-  { // Filter throwing away all the eges towards BB with name without 'a's
+  { // Filter throwing away all the edges towards BB with name without 'a's
     std::vector<llvm::StringRef> ExpectedResultsNames{
       "end",
     };
@@ -339,7 +339,7 @@ end:
     for (size_t I = 0; I < SecondResults.size(); ++I)
       revng_check(SecondResults[I]->getName() == ExpectedResultsNames[I]);
   }
-  { // Filter throwing away all the eges towards BB with name without 'e's
+  { // Filter throwing away all the edges towards BB with name without 'e's
     std::vector<llvm::StringRef> ExpectedResultsNames{
       "end",
       "false",
@@ -510,7 +510,7 @@ end:
     for (size_t I = 0; I < Results.size(); ++I)
       revng_check(Results[I] == ExpectedResultsNames[I]);
   }
-  { // Filter throwing away all the eges towards nodes with name without 'a's
+  { // Filter throwing away all the edges towards nodes with name without 'a's
     DotGraph Input;
     using namespace boost::unit_test::framework;
     revng_check(master_test_suite().argc == 2);
@@ -532,7 +532,7 @@ end:
     for (size_t I = 0; I < Results.size(); ++I)
       revng_check(Results[I] == ExpectedResultsNames[I]);
   }
-  { // Filter throwing away all the eges towards nodes with name without 'e's
+  { // Filter throwing away all the edges towards nodes with name without 'e's
     DotGraph Input;
     using namespace boost::unit_test::framework;
     revng_check(master_test_suite().argc == 2);
@@ -598,7 +598,7 @@ end:
     for (size_t I = 0; I < Results.size(); ++I)
       revng_check(Results[I] == ExpectedResultsNames[I]);
   }
-  { // Filter throwing away all the eges towards nodes with name without 'a's
+  { // Filter throwing away all the edges towards nodes with name without 'a's
     DotGraph Input;
     using namespace boost::unit_test::framework;
     revng_check(master_test_suite().argc == 2);
@@ -620,7 +620,7 @@ end:
     for (size_t I = 0; I < Results.size(); ++I)
       revng_check(Results[I] == ExpectedResultsNames[I]);
   }
-  { // Filter throwing away all the eges towards nodes with name without 'e's
+  { // Filter throwing away all the edges towards nodes with name without 'e's
     DotGraph Input;
     using namespace boost::unit_test::framework;
     revng_check(master_test_suite().argc == 2);
@@ -708,7 +708,7 @@ end:
     for (size_t I = 0; I < SecondResults.size(); ++I)
       revng_check(SecondResults[I] == ExpectedResultsNames[I]);
   }
-  { // Filter throwing away all the eges towards nodes with name without 'a's
+  { // Filter throwing away all the edges towards nodes with name without 'a's
     DotGraph Input;
     using namespace boost::unit_test::framework;
     revng_check(master_test_suite().argc == 2);
@@ -738,7 +738,8 @@ end:
     for (size_t I = 0; I < SecondResults.size(); ++I)
       revng_check(SecondResults[I] == ExpectedResultsNames[I]);
   }
-  { // Filter throwing away all the eges towards nodes BB with name without 'e's
+  { // Filter throwing away all the edges towards nodes BB with name without
+    // 'e's
     DotGraph Input;
     using namespace boost::unit_test::framework;
     revng_check(master_test_suite().argc == 2);

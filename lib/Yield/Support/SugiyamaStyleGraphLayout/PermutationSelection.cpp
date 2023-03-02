@@ -411,7 +411,7 @@ LayerContainer selectPermutation(InternalGraph &Graph,
 
   // Iteration counts are chosen arbitrarily. If the computation time was not
   // an issue, we could keep iterating until convergence, but since it's not
-  // the case, we have to choose a stoping point.
+  // the case, we have to choose a stopping point.
   //
   // The iteration count logarithmically depends on the layer number.
   size_t Iterations = std::log2(InitialLayers.size());

@@ -175,7 +175,7 @@ static RankDelta delta(NodeView LHS, NodeView RHS, const RankContainer &Ranks) {
   return std::abs(RankDelta(Ranks.at(LHS)) - RankDelta(Ranks.at(RHS)));
 }
 
-// Returns a list of edges that span accross more than a single layer.
+// Returns a list of edges that span across more than a single layer.
 static std::vector<EdgeView>
 pickLongEdges(InternalGraph &Graph, const RankContainer &Ranks) {
   std::vector<EdgeView> Result;
@@ -220,7 +220,7 @@ void partition(const std::vector<EdgeType> &Edges,
 }
 
 /// To simplify the ranking algorithms, if there's more than one entry point,
-/// an artifitial entry node is added. This new node has a single edge per
+/// an artificial entry node is added. This new node has a single edge per
 /// real entry point.
 static void
 ensureSingleEntry(InternalGraph &Graph, RankContainer *MaybeRanks = nullptr) {
@@ -280,9 +280,9 @@ RankContainer partitionLongEdges(InternalGraph &Graph,
   };
 
   // Because a long edge can also be a backwards edge, edges that are certainly
-  // long need to be removed first, so that DFS-based rankind algorithms don't
+  // long need to be removed first, so that DFS-based ranking algorithms don't
   // mistakenly take any undesired shortcuts. Simple BFS ranking used
-  // internally to differencite such "certainly long" edges.
+  // internally to differentiate such "certainly long" edges.
 
   // Rank nodes based on a BreadthFirstSearch pass-through.
   revng_assert(HasSingleEntryPoint(Graph));

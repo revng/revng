@@ -61,7 +61,7 @@ void setHorizontalCoordinates(const LayerContainer &Layers,
 void setStaticOffsetHorizontalCoordinates(const LayerContainer &Layers,
                                           float MarginSize);
 
-/// Distributes "touching" edges accross lanes to minimize the crossing count.
+/// Distributes "touching" edges across lanes to minimize the crossing count.
 LaneContainer assignLanes(InternalGraph &Graph,
                           const SegmentContainer &LinearSegments,
                           const LayoutContainer &Layout);

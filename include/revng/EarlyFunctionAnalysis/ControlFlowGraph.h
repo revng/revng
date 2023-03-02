@@ -44,7 +44,7 @@ inline ParsedSuccessor parseSuccessor(const T &Edge,
                             .OptionalCallAddress = MetaAddress::invalid() };
 
   case FunctionEdgeType::FunctionCall: {
-    // Note: we assume that the first contrete type is the CallEdge. All of this
+    // Note: we assume that the first concrete type is the CallEdge. All of this
     //       hacks are necessary to handle identical data structures under
     //       different namespaces.
     using CallEdge = std::tuple_element_t<0, concrete_types_traits_t<T>>;
@@ -69,6 +69,8 @@ inline ParsedSuccessor parseSuccessor(const T &Edge,
     break;
   }
 }
+
+// clang-format off
 
 /// A function for converting EFA's internal CFG representation into a generic
 /// graph.
