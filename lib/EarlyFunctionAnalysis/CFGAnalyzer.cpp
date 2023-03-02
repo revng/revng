@@ -714,7 +714,7 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
     efa::BasicBlock Block = blockFromIndirectBranchInfo(CI, CFG);
 
     // Is this a tail call? If so, we are very interested in the FSO since
-    // it's useful to determin the FSO of the caller
+    // it's useful to determine the FSO of the caller
     auto *CalledSymbolArgument = CI->getArgOperand(CalledSymbolIndex);
     StringRef CalledSymbol = extractFromConstantStringPtr(CalledSymbolArgument);
     auto [Summary, IsTailCall] = Oracle.getCallSite(OutlinedFunction->Address,
@@ -931,7 +931,7 @@ FunctionSummary CFGAnalyzer::analyze(llvm::BasicBlock *Entry) {
   // prologue / epilogue. When the subtraction between their entry and end
   // values is found to be zero (after running an LLVM optimization
   // pipeline), we may infer if the function returns correctly, the stack
-  // is left unanaltered, etc. Hence, upon every original indirect jump
+  // is left unaltered, etc. Hence, upon every original indirect jump
   // (candidate exit point), a marker of this kind is installed:
   //
   //                           jumps to RA,    SP,    rax,   rbx,   rbp

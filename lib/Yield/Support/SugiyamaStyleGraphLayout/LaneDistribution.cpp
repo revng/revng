@@ -26,7 +26,7 @@ static bool facesRight(const DirectedEdgeView &Edge) {
 /// that helps to minimize the number of crossings.
 /// When directions are the same, edges are sorted based on the horizontal
 /// coordinates of their ends (the edge that needs to go further is placed
-/// closer to the outside of the laning section).
+/// closer to the outside of the lane section).
 static bool compareHorizontalLanes(const DirectedEdgeView &LHS,
                                    const DirectedEdgeView &RHS) {
   bool LHSFacesRight = facesRight(LHS);

@@ -87,7 +87,7 @@ makeTreeImpl(const yield::Graph &Input, const BasicBlockID &SlicePoint) {
 
   // Manually adding `Entry` to the result graphs guarantees that it's never
   // empty. Since we only ever iterate on edges, this will guarantee that the
-  // produced graph is not emptry even in the cases where `Entry` has no edges.
+  // produced graph is not empty even in the cases where `Entry` has no edges.
   Result.setEntryNode(FindOrAddHelper(*Entry));
 
   // Fill in the `Result` graph.

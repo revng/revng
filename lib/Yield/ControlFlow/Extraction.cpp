@@ -38,7 +38,7 @@ yield::cfg::extractFromInternal(const yield::Function &Function,
     Result.setEntryNode(RootNode);
   }
 
-  // Colour taken and refused edges.
+  // Colour 'taken' and 'refused' edges.
   for (const auto &BasicBlock : Function.ControlFlowGraph()) {
     auto NodeIterator = Table.find(BasicBlock.ID());
     revng_assert(NodeIterator != Table.end());

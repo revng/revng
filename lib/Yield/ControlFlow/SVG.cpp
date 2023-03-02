@@ -208,7 +208,7 @@ static Viewbox calculateViewbox(const yield::Graph &Graph) {
 
 /// A really simple arrow head marker generator.
 ///
-/// \param Name: the id of the marker as refered to by the objects using it.
+/// \param Name: the id of the marker as referred to by the objects using it.
 /// \param Size: the size of the marker. It sets both width and height to force
 /// the marker to be square-shaped.
 /// \param Concave: the size of the concave at the rear side of the arrow.

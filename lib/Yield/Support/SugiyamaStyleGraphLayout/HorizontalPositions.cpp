@@ -65,7 +65,7 @@ void setHorizontalCoordinates(const LayerContainer &Layers,
   }
 
   // At this point, the layout is very left heavy.
-  // To conteract this, nodes are pushed to the right if their neighbours are
+  // To counteract this, nodes are pushed to the right if their neighbours are
   // very far away and the successors are also on the right.
   // The positions are weighted based on the successor positions.
   for (size_t Iteration = 0; Iteration < IterationCount; ++Iteration) {
