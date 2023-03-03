@@ -368,6 +368,9 @@ static llvm::Value *buildPlainMetaAddressImpl(llvm::IRBuilder<> &Builder,
   Module *M = BB->getParent()->getParent();
 
   Function *MetaAddressConstuctor = M->getFunction("build_PlainMetaAddress");
+  MetaAddressConstuctor->addFnAttr(Attribute::WillReturn);
+  MetaAddressConstuctor->addFnAttr(Attribute::NoUnwind);
+  MetaAddressConstuctor->addFnAttr(Attribute::ReadNone);
   auto *FT = MetaAddressConstuctor->getFunctionType();
   return Builder
     .CreateCall(MetaAddressConstuctor,
