@@ -586,7 +586,7 @@ void CFGAnalyzer::runOptimizationPipeline(llvm::Function *F) {
     FPM.addPass(EarlyCSEPass(true));
     FPM.addPass(JumpThreadingPass());
     FPM.addPass(UnreachableBlockElimPass());
-    FPM.addPass(InstCombinePass(true));
+    FPM.addPass(InstCombinePass());
     FPM.addPass(EarlyCSEPass(true));
     FPM.addPass(SimplifyCFGPass());
     FPM.addPass(MergedLoadStoreMotionPass());
@@ -597,7 +597,7 @@ void CFGAnalyzer::runOptimizationPipeline(llvm::Function *F) {
     // round of passes is necessary to take more optimization opportunities.
     FPM.addPass(SegregateDirectStackAccessesPass());
     FPM.addPass(EarlyCSEPass(true));
-    FPM.addPass(InstCombinePass(true));
+    FPM.addPass(InstCombinePass());
     FPM.addPass(GVNPass());
 
     // Third stage: if enabled, serialize the results and dump the functions on

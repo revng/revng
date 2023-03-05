@@ -1727,11 +1727,11 @@ void JumpTargetManager::harvestWithAVI() {
     FPM.addPass(DropHelperCallsPass(SyscallHelper, SyscallIDCSV, SCB));
     FPM.addPass(ShrinkInstructionOperandsPass());
     FPM.addPass(PromotePass());
-    FPM.addPass(InstCombinePass(true));
+    FPM.addPass(InstCombinePass());
     FPM.addPass(TypeShrinking::TypeShrinkingPass());
     FPM.addPass(JumpThreadingPass());
     FPM.addPass(UnreachableBlockElimPass());
-    FPM.addPass(InstCombinePass(true));
+    FPM.addPass(InstCombinePass());
     FPM.addPass(EarlyCSEPass(true));
     FPM.addPass(DropRangeMetadataPass());
     FPM.addPass(AdvancedValueInfoPass(this));
