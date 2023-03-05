@@ -1463,9 +1463,8 @@ void JumpTargetManager::harvestWithAVI() {
         BasicBlock *Target = Branch->getSuccessor(0);
         Use *U = &Branch->getOperandUse(0);
 
-        // We're after a function call: pretend we're jumping to the
-        // dispatcher
-        U->set(Dispatcher);
+        // We're after a function call: pretend we're jumping to anypc
+        U->set(AnyPC);
 
         // Record Use for later undoing
         Undo[U] = Target;
