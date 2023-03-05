@@ -39,7 +39,6 @@
 
 #include "revng/ADT/Queue.h"
 #include "revng/BasicAnalyses/AdvancedValueInfo.h"
-#include "revng/BasicAnalyses/CSVAliasAnalysis.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/BasicAnalyses/ShrinkInstructionOperandsPass.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
@@ -1667,26 +1666,6 @@ void JumpTargetManager::harvestWithAVI() {
 
   for (CallInst *Call : ToErase)
     eraseFromParent(Call);
-
-  //
-  // Update alias analysis
-  //
-  {
-    ModuleAnalysisManager MAM;
-    MAM.registerPass([&] {
-      using LMA = LoadModelAnalysis;
-      return LMA::fromModelWrapper(Model);
-    });
-    MAM.registerPass([&] { return GeneratedCodeBasicInfoAnalysis(); });
-
-    ModulePassManager MPM;
-    MPM.addPass(CSVAliasAnalysisPass());
-
-    PassBuilder PB;
-    PB.registerModuleAnalyses(MAM);
-
-    MPM.run(*M, MAM);
-  }
 
   //
   // Optimize the hell out of it and collect the possible values of indirect
