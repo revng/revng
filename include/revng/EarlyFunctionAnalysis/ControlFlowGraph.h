@@ -96,7 +96,7 @@ template<SpecializationOfGenericGraph GraphType,
          template<typename...>
          typename Container>
   requires std::is_constructible_v<typename GraphType::Node,
-                                   const MetaAddress &>
+                                   const BasicBlockType &>
 std::pair<GraphType, std::map<BasicBlockID, typename GraphType::Node *>>
 buildControlFlowGraph(const Container<BasicBlockType, OtherTs...> &BB,
                       const MetaAddress &EntryAddress,
