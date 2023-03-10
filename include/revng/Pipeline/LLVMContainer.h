@@ -112,6 +112,18 @@ public:
 
     llvm::ValueToValueMapTy Map;
     revng_assert(llvm::verifyModule(*Module, &llvm::dbgs()) == 0);
+
+    auto &MD = Map.MD();
+
+    llvm::NamedMDNode *CUNodes = Module->getNamedMetadata("llvm.dbg.cu");
+    if (CUNodes) {
+      for (unsigned I = 0; I < CUNodes->getNumOperands(); I++) {
+        auto TheMD = CUNodes->getOperand(I);
+        MD[TheMD].reset(TheMD);
+      }
+    }
+    // TODO: Map other metadata as well to avoid cloninig.
+
     auto Cloned = llvm::CloneModule(*Module, Map, Filter);
 
     for (auto &Function : Module->functions()) {
