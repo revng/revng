@@ -431,7 +431,8 @@ class CPPCheckPass(Pass):
         return [
             file
             for file, contents in cpp_files.items()
-            if re.search(r"int main\([^)]+\) {", contents) and "InitRevng" not in contents
+            if re.search(r"int main\([^)]+\) {", contents)
+            and ("// rcc-ignore: initrevng" not in contents and "InitRevng" not in contents)
         ]
 
     async def process(self, files: Dict[Path, str], args) -> PassResult:
