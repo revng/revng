@@ -46,3 +46,9 @@ that caused the violation.
 ### `set -euo pipefail`
 
 This check, that's part of the builtin `bash-check` can be suppressed with `# rcc-ignore: bash-set-flags`
+
+### `InitRevng`
+
+`Main.cpp` files (tools) must call `InitRevng` to initialize LLVM facilities properly. In case
+this is not possible (e.g. the tool calls a library that does `InitRevng`) then the check can
+be ignored with `// rcc-ignore: initrevng`
