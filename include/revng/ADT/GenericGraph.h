@@ -295,6 +295,11 @@ public:
 
   bool hasSuccessors() const { return Successors.size() != 0; }
   size_t successorCount() const { return Successors.size(); }
+  bool hasSuccessor(DerivedType const *S) const {
+    auto Iterator = llvm::find_if(Successors,
+                                  [S](auto &N) { return N.Neighbor == S; });
+    return Iterator != Successors.end();
+  }
 
 protected:
   static llvm::iterator_range<child_iterator>
@@ -431,6 +436,11 @@ public:
 
   bool hasPredecessors() const { return Predecessors.size() != 0; }
   size_t predecessorCount() const { return Predecessors.size(); }
+  bool hasPredecessor(BidirectionalNode const *P) const {
+    auto Iterator = llvm::find_if(Predecessors,
+                                  [P](auto &N) { return N.Neighbor == P; });
+    return Iterator != Predecessors.end();
+  }
 
 private:
   NeighborContainer Predecessors;
