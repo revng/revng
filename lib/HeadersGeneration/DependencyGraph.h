@@ -24,7 +24,7 @@ struct TypeNode {
 using TypeDependencyNode = BidirectionalNode<TypeNode>;
 using TypeKindPair = std::pair<const model::Type *, TypeNode::Kind>;
 using TypeToDependencyNodeMap = std::map<TypeKindPair, TypeDependencyNode *>;
-using TypeVector = SortedVector<UpcastablePointer<model::Type>>;
+using TypeVector = TrackingSortedVector<UpcastablePointer<model::Type>>;
 
 /// Represents the graph of dependencies among types
 struct DependencyGraph : public GenericGraph<TypeDependencyNode> {
