@@ -217,6 +217,16 @@ private:
     std::string GlobalArray2 = "revng.AllSymbolsArrayRight";
     makeGlobalObjectsArray(*Other.Module, GlobalArray2);
 
+    // Drop certain LLVM named metadata
+    auto DropNamedMetadata = [](llvm::Module *M, llvm::StringRef Name) {
+      if (auto *MD = M->getNamedMetadata(Name))
+        MD->eraseFromParent();
+    };
+
+    // TODO: check it's identical to the existing one, if present in both
+    DropNamedMetadata(&*Module, "llvm.ident");
+    DropNamedMetadata(&*Module, "llvm.module.flags");
+
     // We require inputs to be valid
     revng_assert(llvm::verifyModule(ToMerge.getModule(), &llvm::dbgs()) == 0);
     revng_assert(llvm::verifyModule(*Module, &llvm::dbgs()) == 0);
