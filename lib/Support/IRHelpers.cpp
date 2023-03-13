@@ -219,19 +219,17 @@ void setSegmentKeyMetadata(llvm::Function &SegmentRefFunction,
                            uint64_t VirtualSize) {
   using namespace llvm;
 
-  auto *M = SegmentRefFunction.getParent();
-  auto &Ctx = SegmentRefFunction.getContext();
+  auto &Context = SegmentRefFunction.getContext();
 
-  QuickMetadata QMD(M->getContext());
-  auto SegmentRefMDKind = Ctx.getMDKindID(SegmentRefMDName);
+  QuickMetadata QMD(Context);
 
-  Constant *SAConstant = StartAddress.toValue(M);
-  auto *SAMD = ConstantAsMetadata::get(SAConstant);
+  auto *SAMD = QMD.get(StartAddress.toString());
+  revng_assert(SAMD != nullptr);
 
-  auto *VSConstant = ConstantInt::get(Type::getInt64Ty(Ctx), VirtualSize);
+  auto *VSConstant = ConstantInt::get(Type::getInt64Ty(Context), VirtualSize);
   auto *VSMD = ConstantAsMetadata::get(VSConstant);
 
-  SegmentRefFunction.setMetadata(SegmentRefMDKind, QMD.tuple({ SAMD, VSMD }));
+  SegmentRefFunction.setMetadata(SegmentRefMDName, QMD.tuple({ SAMD, VSMD }));
 }
 
 bool hasSegmentKeyMetadata(const llvm::Function &F) {
@@ -250,9 +248,8 @@ extractSegmentKeyFromMetadata(const llvm::Function &F) {
   auto SegmentRefMDKind = Ctx.getMDKindID(SegmentRefMDName);
   auto *Node = F.getMetadata(SegmentRefMDKind);
 
-  auto *SAMD = cast<ConstantAsMetadata>(Node->getOperand(0))->getValue();
-  auto *SAConstant = cast<Constant>(SAMD);
-  MetaAddress StartAddress = MetaAddress::fromValue(SAConstant);
+  auto *SAMD = cast<MDString>(Node->getOperand(0));
+  MetaAddress StartAddress = MetaAddress::fromString(SAMD->getString());
   auto *VSMD = cast<ConstantAsMetadata>(Node->getOperand(1))->getValue();
   uint64_t VirtualSize = cast<ConstantInt>(VSMD)->getZExtValue();
 
