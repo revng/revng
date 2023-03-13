@@ -409,13 +409,15 @@ private:
   void upgradeLocalFunctions() {
     SmallVector<Function *, 8> IsolatedFunctions;
     for (Function &F : FunctionTags::StackPointerPromoted.functions(&M))
-      if (not F.isDeclaration())
-        IsolatedFunctions.push_back(&F);
+      IsolatedFunctions.push_back(&F);
 
     // Identify all functions that have stack arguments
     for (Function *OldFunction : IsolatedFunctions) {
+      bool IsDeclaration = OldFunction->isDeclaration();
       MetaAddress Entry = getMetaAddressMetadata(OldFunction,
                                                  "revng.function.entry");
+      revng_assert(Entry.isValid());
+
       const model::Function &ModelFunction = Binary.Functions().at(Entry);
 
       //
@@ -424,6 +426,11 @@ private:
       auto Prototype = ModelFunction.prototype(Binary);
       auto [NewFunction, Layout] = recreateApplyingModelPrototype(OldFunction,
                                                                   Prototype);
+
+      // The rest of this loop handles with the body of the function, ignore if
+      // just a declaration
+      if (IsDeclaration)
+        continue;
 
       //
       // Map llvm::Argument * to model::Register
