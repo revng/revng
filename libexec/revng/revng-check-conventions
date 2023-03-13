@@ -222,7 +222,7 @@ def any_startswith(string: str, prefixes: Iterable[str]) -> bool:
 
 
 def join_items(items: Iterable[str], join: str = "\n", indent_: str = "  ") -> str:
-    return indent(join.join(items), indent_)
+    return indent("".join(f"{i}{join}" for i in items), indent_)
 
 
 def generate_error_files(msg: str, files: FileResult) -> str:

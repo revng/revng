@@ -99,7 +99,7 @@ read_passes:
           matcher:
             type: regexes_matcher
             regexes: [r"^\s*#include <.*\.hpp>"]
-        - name: Found snippets that should never be at the beginning of a line:"
+        - name: Found snippets that should never be at the beginning of a line
           matcher:
             type: regexes_matcher_prefix
             prefix: '^\s*'
