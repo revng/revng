@@ -9,6 +9,8 @@
 bool init_unit_test();
 #include "boost/test/unit_test.hpp"
 
+#include "llvm/IR/DebugInfoMetadata.h"
+
 #include "revng/Support/IRHelpers.h"
 #include "revng/UnitTestHelpers/LLVMTestHelpers.h"
 #include "revng/UnitTestHelpers/UnitTestHelpers.h"
@@ -94,4 +96,65 @@ BOOST_AUTO_TEST_CASE(TestForwardBFSVisitor) {
     "center:3", "e", "second_if_true:2", "f", "second_if_false:2", "g", "end:2"
   };
   revng_check(V.VisitLog == GroundTruth);
+}
+
+BOOST_AUTO_TEST_CASE(PruneDICompileUnits) {
+  LLVMContext Context;
+  Module M("", Context);
+
+  auto GetFile = [&](StringRef FileName) {
+    return DIFile::getDistinct(Context, FileName, "/path/to/dir");
+  };
+
+  auto GetTuple = [&]() { return MDTuple::getDistinct(Context, None); };
+
+  auto CreateDICU = [&](StringRef FileName) {
+    const auto Default = DICompileUnit::DebugNameTableKind::Default;
+    return DICompileUnit::getDistinct(Context,
+                                      1,
+                                      GetFile(FileName),
+                                      "clang",
+                                      false,
+                                      "-g",
+                                      2,
+                                      "",
+                                      DICompileUnit::FullDebug,
+                                      GetTuple(),
+                                      GetTuple(),
+                                      GetTuple(),
+                                      GetTuple(),
+                                      GetTuple(),
+                                      0,
+                                      true,
+                                      false,
+                                      Default,
+                                      false,
+                                      "/",
+                                      "");
+  };
+
+  // Create two compile units
+  auto *UnusedDICU = CreateDICU("unused.c");
+  auto *ActiveDICU = CreateDICU("active.c");
+
+  // Record the compile units in llvm.dbg.cu
+  auto *NamedMDNode = M.getOrInsertNamedMetadata("llvm.dbg.cu");
+  NamedMDNode->addOperand(UnusedDICU);
+  NamedMDNode->addOperand(ActiveDICU);
+
+  // Create a function with a single instruction using active.c
+  Type *VoidTy = Type::getVoidTy(Context);
+  auto *FTy = FunctionType::get(VoidTy, false);
+  auto *F = Function::Create(FTy, GlobalValue::ExternalLinkage, 0, "", &M);
+  auto *BB = BasicBlock::Create(Context, "", F);
+  auto *I = ReturnInst::Create(Context, BB);
+  auto *Location = DILocation::get(Context, 0, 0, ActiveDICU);
+  I->setDebugLoc({ Location });
+
+  // Perform pruning and ensure it has been effective
+  revng_check(NamedMDNode->getNumOperands() == 2);
+
+  pruneDICompileUnits(M);
+
+  revng_check(NamedMDNode->getNumOperands() == 1);
 }

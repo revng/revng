@@ -7,8 +7,10 @@
 
 #include <fstream>
 
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/Support/raw_os_ostream.h"
 
+#include "revng/ADT/Queue.h"
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Support/BlockType.h"
 #include "revng/Support/IRHelpers.h"
@@ -332,4 +334,39 @@ llvm::BasicBlock *getJumpTargetBlock(llvm::BasicBlock *BB) {
   std::set<BasicBlock *> Visited;
   findJumpTarget(Result, BB, Visited);
   return Result;
+}
+
+void pruneDICompileUnits(Module &M) {
+  auto *CUs = M.getNamedMetadata("llvm.dbg.cu");
+  if (CUs == nullptr)
+    return;
+
+  OnceQueue<MDNode *> Queue;
+  for (Function &F : M)
+    for (BasicBlock &BB : F)
+      for (Instruction &I : BB)
+        if (MDNode *Location = I.getDebugLoc().get())
+          Queue.insert(Location);
+
+  std::set<DICompileUnit *> Reachable;
+  while (not Queue.empty()) {
+    MDNode *Entry = Queue.pop();
+
+    if (auto *CU = dyn_cast<DICompileUnit>(Entry))
+      Reachable.insert(CU);
+
+    // Add all the operands to the queue
+    for (const MDOperand &Operand : Entry->operands())
+      if (auto *Node = dyn_cast_or_null<MDNode>(Operand.get()))
+        Queue.insert(Node);
+  }
+
+  if (Reachable.size() == 0) {
+    CUs->eraseFromParent();
+  } else {
+    // Purge and recreate CUs list
+    CUs->clearOperands();
+    for (DICompileUnit *CU : Reachable)
+      CUs->addOperand(CU);
+  }
 }

@@ -268,6 +268,15 @@ private:
 
     if (auto *Global = Module->getGlobalVariable(GlobalArray2))
       Global->eraseFromParent();
+
+    // Prune llvm.dbg.cu so that they grow exponentially due to multiple cloning
+    // + linking.
+    // Note: an alternative approach would be to pre-populate the
+    //       ValueToValueMap used when we clone in a way that avoids cloning the
+    //       metadata altogether. However, this would lead two distinct modules
+    //       to share debug metadata, which are not always immutable.
+    auto *NamedMDNode = Module->getOrInsertNamedMetadata("llvm.dbg.cu");
+    pruneDICompileUnits(*Module);
   }
 };
 

@@ -1504,3 +1504,5 @@ unpack(llvm::IRBuilder<T, Inserter> &Builder, llvm::Value *V) {
     revng_abort("Cannot unpack the given type");
   }
 }
+
+void pruneDICompileUnits(llvm::Module &M);
