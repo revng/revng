@@ -161,8 +161,6 @@ void EnforceABIImpl::run() {
     revng_assert(not FunctionModel.name().empty());
     auto OldFunctionName = (Twine("local_") + FunctionModel.name()).str();
     Function *OldFunction = M.getFunction(OldFunctionName);
-    if (not OldFunction or OldFunction->isDeclaration())
-      continue;
     revng_assert(OldFunction != nullptr);
     OldFunctions.push_back(OldFunction);
 
@@ -193,7 +191,8 @@ void EnforceABIImpl::run() {
 
   // Quick and dirty DCE
   for (auto [F, _] : FunctionsMap)
-    EliminateUnreachableBlocks(*F, nullptr, false);
+    if (not F->isDeclaration())
+      EliminateUnreachableBlocks(*F, nullptr, false);
 
   if (VerifyLog.isEnabled()) {
     raw_os_ostream Stream(dbg);
@@ -238,11 +237,17 @@ getLLVMReturnTypeAndArguments(llvm::Module *M, const FTLayout &Prototype) {
 
 Function *EnforceABIImpl::handleFunction(Function &OldFunction,
                                          const model::Function &FunctionModel) {
+  bool IsDeclaration = OldFunction.isDeclaration();
+
   auto Prototype = FunctionModel.prototype(Binary);
   auto Layout = abi::FunctionType::Layout::make(Prototype);
   Function *NewFunction = recreateFunction(OldFunction, Layout);
+
   FunctionTags::ABIEnforced.addTo(NewFunction);
-  createPrologue(NewFunction, FunctionModel);
+
+  if (not IsDeclaration)
+    createPrologue(NewFunction, FunctionModel);
+
   return NewFunction;
 }
 

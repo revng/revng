@@ -214,7 +214,8 @@ Function &moveToNewFunctionType(Function &OldFunction, FunctionType &NewType) {
   NewFunction->copyMetadata(&OldFunction, 0);
 
   // Steal body
-  moveBlocksInto(OldFunction, *NewFunction);
+  if (not OldFunction.isDeclaration())
+    moveBlocksInto(OldFunction, *NewFunction);
 
   return *NewFunction;
 }
