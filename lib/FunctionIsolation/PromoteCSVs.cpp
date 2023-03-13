@@ -451,21 +451,25 @@ CSVsUsageMap PromoteCSVs::getUsedCSVs(ArrayRef<CallInst *> CallsRange) {
 
   // Inspect the calls we need to analyze
   //
-  // There are two type of calls: calls to helpers tagged by CSAA and calls to
-  // regular functions. For the former, we ask GCBI to extract the information
-  // from metadata. For the latter, we use a monotone framework to compute the
-  // set of read/written registers by the callee.  Note that the former is more
-  // accurate thanks to CSAA being call-site sensitive.
+  // There are three types of calls: calls to helpers tagged by CSAA, calls to
+  // isolated functions and other calls that do not touch CPU state. For the
+  // former, we ask GCBI to extract the information from metadata. For the
+  // latter, we use a monotone framework to compute the set of read/written
+  // registers by the callee.  Note that the former is more accurate thanks to
+  // CSAA being call-site sensitive.
   std::queue<Function *> Queue;
   for (CallInst *Call : CallsRange) {
     Function *Callee = getCallee(Call);
-    if (FunctionTags::Helper.isTagOf(Callee)) {
+    if (FunctionTags::Isolated.isTagOf(Callee)) {
+      Queue.push(Callee);
+    } else if (FunctionTags::Helper.isTagOf(Callee)) {
       CSVsUsage &Usage = Result.Calls[Call];
       auto UsedCSVs = getCSVUsedByHelperCall(Call);
       Usage.Read = UsedCSVs.Read;
       Usage.Written = UsedCSVs.Written;
     } else {
-      Queue.push(Callee);
+      // Just create the entry
+      Result.Calls[Call];
     }
   }
 
