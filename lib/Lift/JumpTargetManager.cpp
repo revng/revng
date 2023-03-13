@@ -667,6 +667,7 @@ void JumpTargetManager::registerInstruction(MetaAddress PC,
   // Never save twice a PC
   revng_assert(!OriginalInstructionAddresses.count(PC));
   OriginalInstructionAddresses[PC] = Instruction;
+  revng_assert(Instruction->getParent() != nullptr);
 }
 
 // TODO: this is a candidate for BFSVisit

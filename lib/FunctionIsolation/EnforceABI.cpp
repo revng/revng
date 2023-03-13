@@ -85,7 +85,9 @@ public:
 private:
   Function *
   handleFunction(Function &OldFunction, const model::Function &FunctionModel);
+
   Function *recreateFunction(Function &OldFunction, const FTLayout &Prototype);
+
   void
   createPrologue(Function *NewFunction, const model::Function &FunctionModel);
 
