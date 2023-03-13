@@ -60,112 +60,62 @@ static SelfLoopContainer extractSelfLoops(InternalGraph &Graph) {
   return Result;
 }
 
-/// Returns a list of backwards edges of the graph and the order
-/// they were visited in.
-/// \note: this function could use a rework.
-static std::pair<std::set<EdgeView>, std::vector<NodeView>>
-pickBackwardsEdges(InternalGraph &Graph) {
-  std::set<EdgeView> Result;
+/// To simplify the ranking algorithms, if there's more than one entry point,
+/// an artificial entry node is added. This new node has a single edge per
+/// real entry point.
+static void
+ensureSingleEntry(InternalGraph &Graph, RankContainer *MaybeRanks = nullptr) {
+  auto EntryNodes = entryPoints(&Graph);
+  revng_assert(!EntryNodes.empty());
 
-  std::unordered_set<NodeView> Visited, OnStack;
-  std::vector<NodeView> VisitOrder;
+  if (EntryNodes.size() == 1) {
+    // If there's only a single entry point, make sure it's set.
+    Graph.setEntryNode(EntryNodes.front());
+  } else {
+    // If there's more than one, add a new virtual node with all the real
+    // entry nodes as its direct successors.
 
-  for (auto *Node : Graph.nodes()) {
-    if (!Visited.contains(Node)) {
-      std::vector<std::pair<NodeView, Rank>> Stack{ { Node, 0 } };
-      while (!Stack.empty()) {
-        auto [Current, Rank] = Stack.back();
-        Stack.pop_back();
-
-        if (Rank == 0) {
-          VisitOrder.push_back(Current);
-          Visited.emplace(Current);
-          OnStack.emplace(Current);
-        }
-
-        bool Finished = true;
-        for (auto It = std::next(Current->successor_edges().begin(), Rank);
-             It != Current->successor_edges().end();
-             ++It) {
-          auto [Neighbor, Label] = *It;
-          if (!Visited.contains(Neighbor)) {
-            Stack.emplace_back(Current, Rank + 1);
-            Stack.emplace_back(Neighbor, 0);
-            Visited.emplace(Neighbor);
-            Finished = false;
-            break;
-          } else if (OnStack.contains(Neighbor))
-            Result.emplace(Current, Neighbor, Label);
-        }
-
-        if (Finished) {
-          revng_assert(OnStack.contains(Current));
-          OnStack.erase(Current);
-        }
+    // BUT if the currently set entry node is already virtual, remove it first:
+    // this prevents the possibility of chaining virtual entry nodes when this
+    // function is invoked on a slightly-modified graph multiple times.
+    if (Graph.getEntryNode() != nullptr) {
+      if (Graph.getEntryNode()->isVirtual()) {
+        Graph.removeNode(Graph.getEntryNode());
+        if (MaybeRanks != nullptr)
+          MaybeRanks->erase(Graph.getEntryNode());
       }
     }
+
+    auto EntryPoint = Graph.addNode(nullptr);
+    for (auto *Node : Graph.nodes())
+      if (!Node->hasPredecessors() && Node->Index != EntryPoint->Index)
+        EntryPoint->addSuccessor(Node, nullptr);
+    Graph.setEntryNode(EntryPoint);
   }
-
-  revng_assert(VisitOrder.size() == Graph.size());
-  return { Result, VisitOrder };
-}
-
-/// Reverses the edge (its `From` node becomes its `To` node and vice versa).
-static void invertEdge(EdgeView Edge) {
-  revng_assert(Edge.Label != nullptr);
-
-  Edge.Label->IsBackwards = !Edge.Label->IsBackwards;
-  Edge.To->addSuccessor(Edge.From, std::move(*Edge.Label));
-
-  auto Comparator = [&Edge](auto SuccessorEdge) {
-    return SuccessorEdge.Neighbor == Edge.To
-           && SuccessorEdge.Label == Edge.Label;
-  };
-  auto Iterator = llvm::find_if(Edge.From->successor_edges(), Comparator);
-  revng_assert(Iterator != Edge.From->successor_edges().end(),
-               "Unable to reverse an edge that doesn't exist");
-  Edge.From->removeSuccessor(Iterator);
 }
 
 /// Ensures an "internal" graph to be a DAG by "flipping" edges to prevent
 /// loops.
 static void convertToDAG(InternalGraph &Graph) {
-  if (auto Initial = pickBackwardsEdges(Graph).first; !Initial.empty()) {
-    // Iteratively reverse all the initial backedges.
-    for (auto &&Edge : Initial)
-      invertEdge(std::move(Edge));
+  ensureSingleEntry(Graph);
 
-    // There is a rare corner case where flipping an edge causes a change in
-    // the DFS order that results in new backedges. In that case we enforce
-    // acyclic orientation. But, it may be suboptimal: some of the forward
-    // edges are reversed as well.
-    if (auto [Edges, Order] = pickBackwardsEdges(Graph); !Edges.empty()) {
-      std::unordered_map<NodeView, Index> Lookup;
-      for (Index I = 0; I < Order.size(); ++I)
-        Lookup.emplace(Order.at(I), I);
+  for (auto [From, To] : getBackedges(&Graph)) {
+    for (auto Iterator = From->successor_edges_begin();
+         Iterator != From->successor_edges_end();) {
+      if (To == Iterator->Neighbor) {
+        revng_assert(Iterator->Label != nullptr);
 
-      std::vector<EdgeView> ToReverse;
-      for (auto *From : Graph.nodes())
-        for (auto [To, Label] : From->successor_edges())
-          if (From->hasPredecessors() && Lookup.at(From) > Lookup.at(To))
-            ToReverse.emplace_back(From, To, Label);
+        Iterator->Label->IsBackwards = !Iterator->Label->IsBackwards;
+        To->addSuccessor(From, std::move(*Iterator->Label));
 
-      for (auto &&Edge : ToReverse)
-        invertEdge(std::move(Edge));
-
-      if (!pickBackwardsEdges(Graph).first.empty()) {
-        for (auto *From : Graph.nodes())
-          for (auto Iterator = From->successors().begin();
-               Iterator != From->successors().end();)
-            if (From->Index == (*Iterator)->Index)
-              Iterator = From->removeSuccessor(Iterator);
-            else
-              ++Iterator;
+        Iterator = From->removeSuccessor(Iterator);
+      } else {
+        ++Iterator;
       }
-
-      revng_assert(pickBackwardsEdges(Graph).first.empty());
     }
   }
+
+  revng_assert(getBackedges(&Graph).empty());
 }
 
 // Calculates the absolute difference in rank between two nodes.
@@ -216,40 +166,6 @@ void partition(const std::vector<EdgeType> &Edges,
 
     if (Classifier.has_value())
       Classifier->addLongEdgePartition(Current, Edge.To);
-  }
-}
-
-/// To simplify the ranking algorithms, if there's more than one entry point,
-/// an artificial entry node is added. This new node has a single edge per
-/// real entry point.
-static void
-ensureSingleEntry(InternalGraph &Graph, RankContainer *MaybeRanks = nullptr) {
-  auto EntryNodes = entryPoints(&Graph);
-  revng_assert(!EntryNodes.empty());
-
-  if (EntryNodes.size() == 1) {
-    // If there's only a single entry point, make sure it's set.
-    Graph.setEntryNode(EntryNodes.front());
-  } else {
-    // If there's more than one, add a new virtual node with all the real
-    // entry nodes as its direct successors.
-
-    // BUT if the currently set entry node is already virtual, remove it first:
-    // this prevents the possibility of chaining virtual entry nodes when this
-    // function is invoked on a slightly-modified graph multiple times.
-    if (Graph.getEntryNode() != nullptr) {
-      if (Graph.getEntryNode()->isVirtual()) {
-        Graph.removeNode(Graph.getEntryNode());
-        if (MaybeRanks != nullptr)
-          MaybeRanks->erase(Graph.getEntryNode());
-      }
-    }
-
-    auto EntryPoint = Graph.addNode(nullptr);
-    for (auto *Node : Graph.nodes())
-      if (!Node->hasPredecessors() && Node->Index != EntryPoint->Index)
-        EntryPoint->addSuccessor(Node, nullptr);
-    Graph.setEntryNode(EntryPoint);
   }
 }
 
