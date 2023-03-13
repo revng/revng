@@ -8,6 +8,7 @@
 #include <fstream>
 
 #include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/Support/SHA1.h"
 #include "llvm/Support/raw_os_ostream.h"
 
 #include "revng/ADT/Queue.h"
@@ -40,12 +41,6 @@ GlobalVariable *buildString(Module *M, StringRef String, const Twine &Name) {
                             Name);
 }
 
-Constant *buildStringPtr(Module *M, StringRef String, const Twine &Name) {
-  LLVMContext &C = M->getContext();
-  GlobalVariable *NewVariable = buildString(M, String, Name);
-  return ConstantExpr::getBitCast(NewVariable, getStringPtrType(C));
-}
-
 StringRef extractFromConstantStringPtr(Value *V) {
   revng_assert(V->getType()->isPointerTy());
   auto *ConstantGEP = dyn_cast<ConstantExpr>(V);
@@ -64,33 +59,51 @@ StringRef extractFromConstantStringPtr(Value *V) {
   return Initializer->getAsCString();
 }
 
-Constant *getUniqueString(Module *M,
-                          StringRef Namespace,
-                          StringRef String,
-                          const Twine &Name) {
-  LLVMContext &C = M->getContext();
-  NamedMDNode *StringsList = M->getOrInsertNamedMetadata(Namespace);
-  auto *Int8PtrTy = getStringPtrType(C);
+static std::string mangleName(StringRef String) {
+  auto IsPrintable = [](StringRef String) { return all_of(String, isPrint); };
 
-  for (MDNode *Operand : StringsList->operands()) {
-    auto *T = cast<MDTuple>(Operand);
-    revng_assert(T->getNumOperands() == 1);
-    auto *CAM = cast<ConstantAsMetadata>(T->getOperand(0).get());
-    auto *GV = cast<GlobalVariable>(CAM->getValue());
-    revng_assert(GV->isConstant() and GV->hasInitializer());
+  auto ContainsSpaces = [](StringRef String) {
+    return any_of(String, isSpace);
+  };
 
-    const Constant *Initializer = GV->getInitializer();
-    StringRef Content = cast<ConstantDataArray>(Initializer)->getAsString();
+  constexpr auto SHA1HexLength = 40;
+  if (String.size() > SHA1HexLength or not IsPrintable(String)
+      or ContainsSpaces(String)) {
+    ArrayRef Data(reinterpret_cast<const uint8_t *>(String.data()),
+                  String.size());
+    return llvm::toHex(SHA1::hash(Data), true);
+  } else {
+    return String.str();
+  }
+}
 
-    // Ignore the terminator
-    if (Content.drop_back() == String)
-      return ConstantExpr::getBitCast(GV, Int8PtrTy);
+Constant *getUniqueString(Module *M, StringRef String, StringRef Namespace) {
+  LLVMContext &Context = M->getContext();
+  std::string GlobalName = (Twine(Namespace) + mangleName(String)).str();
+  auto *Global = M->getGlobalVariable(GlobalName);
+  ConstantDataSequential *Initializer = nullptr;
+
+  if (Global != nullptr) {
+    revng_assert(Global->hasInitializer());
+    Initializer = cast<ConstantDataSequential>(Global->getInitializer());
+  } else {
+    using CDA = ConstantDataArray;
+    Initializer = cast<CDA>(CDA::getString(Context,
+                                           String,
+                                           /* AddNull */ true));
+    Global = new GlobalVariable(*M,
+                                Initializer->getType(),
+                                /* isConstant */ true,
+                                GlobalValue::LinkOnceODRLinkage,
+                                Initializer,
+                                GlobalName);
   }
 
-  GlobalVariable *NewVariable = buildString(M, String, Name);
-  auto *CAM = ConstantAsMetadata::get(NewVariable);
-  StringsList->addOperand(MDTuple::get(C, { CAM }));
-  return ConstantExpr::getBitCast(NewVariable, Int8PtrTy);
+  revng_assert(Initializer->isCString());
+  revng_assert(Initializer->getAsCString() == String);
+
+  auto *Int8PtrTy = getStringPtrType(Context);
+  return ConstantExpr::getBitCast(Global, Int8PtrTy);
 }
 
 CallInst *getLastNewPC(Instruction *TheInstruction) {

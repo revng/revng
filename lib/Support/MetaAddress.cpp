@@ -16,10 +16,8 @@
 
 using namespace llvm;
 
-static const char *BlockIDUniqueStringID = "metaaddress";
-
 Constant *MetaAddress::toValue(llvm::Module *M) const {
-  return getUniqueString(M, BlockIDUniqueStringID, toString());
+  return getUniqueString(M, toString());
 }
 
 MetaAddress MetaAddress::fromValue(Value *V) {

@@ -13,8 +13,6 @@
 #include "revng/Support/BasicBlockID.h"
 #include "revng/Support/IRHelpers.h"
 
-static const char *BlockIDUniqueStringID = "block-id";
-
 BasicBlockID BasicBlockID::fromString(llvm::StringRef Text) {
   using namespace llvm;
   SmallVector<StringRef, 2> Splitted;
@@ -55,5 +53,5 @@ BasicBlockID BasicBlockID::fromValue(llvm::Value *V) {
 }
 
 llvm::Constant *BasicBlockID::toValue(llvm::Module *M) const {
-  return getUniqueString(M, BlockIDUniqueStringID, toString());
+  return getUniqueString(M, toString());
 }
