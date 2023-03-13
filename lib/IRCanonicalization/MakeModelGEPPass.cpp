@@ -2092,8 +2092,7 @@ public:
     if (It != GlobalModelGEPTypeArgs.end())
       return It->second;
 
-    It = GlobalModelGEPTypeArgs
-           .insert({ QT, buildStringPtr(&M, serializeToString(QT), "") })
+    It = GlobalModelGEPTypeArgs.insert({ QT, serializeToLLVMString(QT, M) })
            .first;
     return It->second;
   }

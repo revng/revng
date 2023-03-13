@@ -831,10 +831,8 @@ private:
 
       case ArgumentKind::ReferenceToAggregate: {
         // Allocate memory for stack arguments
-        std::string SerializedArgType = serializeToString(ModelArgument.Type);
-        llvm::Constant *ArgumentType = buildStringPtr(&M,
-                                                      SerializedArgType,
-                                                      "");
+        llvm::Constant *ArgumentType = serializeToLLVMString(ModelArgument.Type,
+                                                             M);
         auto [StackArgsCall,
               AddrOfCall] = createCallWithAddressOf(SABuilder,
                                                     ModelArgument.Type,
