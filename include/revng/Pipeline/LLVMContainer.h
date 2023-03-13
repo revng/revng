@@ -60,6 +60,10 @@ class GenericLLVMPipe;
 template<char *TypeID>
 class LLVMContainerBase
   : public EnumerableContainer<LLVMContainerBase<TypeID>> {
+private:
+  using LinkageRestoreMap = std::map<std::string,
+                                     llvm::GlobalValue::LinkageTypes>;
+
 public:
   static const char ID;
 
@@ -111,6 +115,7 @@ public:
     };
 
     llvm::ValueToValueMapTy Map;
+
     revng_assert(llvm::verifyModule(*Module, &llvm::dbgs()) == 0);
     auto Cloned = llvm::CloneModule(*Module, Map, Filter);
 
@@ -168,20 +173,19 @@ public:
   }
 
 private:
-  void makeLinkageWeak(llvm::Module &Module,
-                       std::set<std::string> &Internals,
-                       std::set<std::string> &Externals) {
+  void fixGlobals(llvm::Module &Module, LinkageRestoreMap &LinkageRestore) {
+    using namespace llvm;
+
     for (auto &Global : Module.global_objects()) {
-
-      if (Global.getLinkage() == llvm::GlobalValue::InternalLinkage) {
-        Internals.insert(Global.getName().str());
-        Global.setLinkage(llvm::GlobalValue::LinkOnceODRLinkage);
-      }
-
-      if (Global.getLinkage() == llvm::GlobalValue::ExternalLinkage
-          and not Global.isDeclaration()) {
-        Externals.insert(Global.getName().str());
-        Global.setLinkage(llvm::GlobalValue::LinkOnceODRLinkage);
+      // Turn globals with local linkage and external declarations into the
+      // equivalent of inline and record their original linking for it be
+      // restored later
+      if (Global.getLinkage() == GlobalValue::InternalLinkage
+          or Global.getLinkage() == GlobalValue::PrivateLinkage
+          or (Global.getLinkage() == GlobalValue::ExternalLinkage
+              and not Global.isDeclaration())) {
+        LinkageRestore[Global.getName().str()] = Global.getLinkage();
+        Global.setLinkage(GlobalValue::LinkOnceODRLinkage);
       }
     }
   }
@@ -198,14 +202,13 @@ private:
     ExpectedEnumeration.merge(OtherEnumeration);
 
     ThisType &ToMerge = Other;
-    std::set<std::string> Internals;
-    std::set<std::string> Externals;
+    LinkageRestoreMap LinkageRestore;
 
     // All symbols internal and external symbols myst be transformed into weak
     // symbols, so that when multiple with the same name exists, one is
     // dropped.
-    makeLinkageWeak(*Other.Module, Internals, Externals);
-    makeLinkageWeak(*Module, Internals, Externals);
+    fixGlobals(*Other.Module, LinkageRestore);
+    fixGlobals(*Module, LinkageRestore);
 
     // Make a global array of all global objects so that they don't get dropped
     std::string GlobalArray1 = "revng.AllSymbolsArrayLeft";
@@ -232,12 +235,11 @@ private:
     revng_assert(not Failure, "Linker failed");
     revng_assert(llvm::verifyModule(*ToMerge.Module, &llvm::dbgs()) == 0);
 
-    // Restores the initial linkage for all functions.
+    // Restores the initial linkage for local functions
     for (auto &Global : ToMerge.Module->global_objects()) {
-      if (Internals.contains(Global.getName().str()))
-        Global.setLinkage(llvm::GlobalValue::InternalLinkage);
-      if (Externals.contains(Global.getName().str()))
-        Global.setLinkage(llvm::GlobalValue::ExternalLinkage);
+      auto It = LinkageRestore.find(Global.getName().str());
+      if (It != LinkageRestore.end())
+        Global.setLinkage(It->second);
     }
 
     // We must ensure output is valid
