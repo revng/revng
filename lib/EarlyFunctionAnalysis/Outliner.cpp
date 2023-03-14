@@ -77,7 +77,8 @@ public:
  * Function uses llvm::scc_iterator to group all nodes in Strongly Connected
  * Components. If component has cycle (it means that SCC has more than one node
  * or has one node with edge to itself) than nodes of such SCC are added to
- * Banned list.
+ * Banned list. Cycle means there is some recursion which means it would be
+ * impossible to inline such function.
  *
  * \return true if any function has been banned
  */
