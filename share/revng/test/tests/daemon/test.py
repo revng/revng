@@ -83,8 +83,6 @@ async def client(pytestconfig: Config, request) -> AsyncGenerator[AsyncClientSes
         [
             "revng",
             "daemon",
-            "--uvicorn-args",
-            "--timeout-keep-alive 600",
             "-b",
             f"unix:{socket_path}",
         ],
