@@ -21,6 +21,7 @@
 #include "revng/EarlyFunctionAnalysis/DetectABI.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
+#include "revng/MFP/SetLattices.h"
 #include "revng/Model/Binary.h"
 #include "revng/Pipeline/Pipe.h"
 #include "revng/Pipeline/RegisterAnalysis.h"
@@ -142,9 +143,11 @@ public:
     // traversal (leafs first).
     runInterproceduralAnalysis();
 
-    outlineFunctions();
+    // outlineFunctions();
 
-    runMonotoneAnalysis();
+    // constructInterproceduralGraph();
+
+    // runMonotoneAnalysis();
 
     // Propagate results between call-sites and functions
     interproceduralPropagation();
@@ -163,6 +166,7 @@ private:
   void runInterproceduralAnalysis();
   void outlineFunction(MetaAddress Address);
   void outlineFunctions();
+  void constructInterproceduralGraph();
   void runMonotoneAnalysis();
   void interproceduralPropagation();
   void finalizeModel();
@@ -489,7 +493,7 @@ void DetectABI::interproceduralPropagation() {
 }
 
 void DetectABI::outlineFunctions() {
-  for (auto F : Binary->Functions()) {
+  for (model::Function &F : Binary->Functions()) {
     outlineFunction(F.Entry());
   }
 }
@@ -522,6 +526,117 @@ DetectABI::tryGetRegisterState(model::Register::Values RegisterValue,
   }
 
   return std::nullopt;
+}
+
+using RegistersSet = std::set<model::Register::Values>;
+using RegistersLattice = SetUnionLattice<RegistersSet>;
+
+struct LatticeElement {
+  RegistersLattice Arguments;
+  RegistersLattice Returns;
+};
+
+struct Node {
+  enum class AnalysisType {
+    UAOF,
+    RAOFC,
+    URVOF,
+    URVOFC,
+  };
+
+  enum class ResultType {
+    Arguments,
+    Returns
+  };
+
+  MetaAddress Entry;
+  std::variant<AnalysisType, ResultType> Type;
+
+  explicit Node(MetaAddress Entry, AnalysisType AT) : Entry{Entry}, Type{AT} {}
+  explicit Node(MetaAddress Entry, ResultType RT) : Entry{Entry}, Type{RT} {}
+};
+
+using NodeType = ForwardNode<Node>;
+
+struct FunctionNodeSet {
+  using Ptr = std::unique_ptr<NodeType>;
+  Ptr UAOF;
+  Ptr RAOFC;
+  Ptr URVOF;
+  Ptr URVOFC;
+
+  Ptr Args;
+  Ptr Rets;
+};
+
+void DetectABI::constructInterproceduralGraph() {
+  using InterproceduralNode = ForwardNode<Node>;
+  using GraphType = GenericGraph<InterproceduralNode>;
+
+  std::map<MetaAddress, FunctionNodeSet> M;
+
+  auto GetNode = [&M](MetaAddress Entry) -> FunctionNodeSet & {
+    auto It = M.find(Entry);
+    if (It != M.end()) {
+      return It->second;
+    }
+
+    FunctionNodeSet &Nodes = M[Entry];
+
+    Nodes
+      .Args = std::make_unique<ForwardNode<Node>>(Entry,
+                                                  Node::ResultType::Arguments);
+    Nodes.Rets = std::make_unique<ForwardNode<Node>>(Entry,
+        Node::ResultType::Returns);
+
+    Nodes.UAOF = std::make_unique<ForwardNode<Node>>(Entry,
+        Node::AnalysisType::UAOF);
+    Nodes.RAOFC = std::make_unique<ForwardNode<Node>>(Entry,
+        Node::AnalysisType::RAOFC);
+    Nodes.URVOF = std::make_unique<ForwardNode<Node>>(Entry,
+        Node::AnalysisType::URVOF);
+    Nodes.URVOFC = std::make_unique<ForwardNode<Node>>(Entry,
+        Node::AnalysisType::URVOFC);
+
+    Nodes.UAOF->addSuccessor(Nodes.Args.get());
+
+    return Nodes;
+  };
+
+  GraphType G;
+
+  for (auto F : Binary->Functions()) {
+    auto Entry = F.Entry();
+    auto &Nodes = GetNode(Entry);
+
+    G.addNode(std::move(Nodes.Args));
+    G.addNode(std::move(Nodes.Rets));
+    G.addNode(std::move(Nodes.UAOF));
+    G.addNode(std::move(Nodes.RAOFC));
+    G.addNode(std::move(Nodes.URVOF));
+    G.addNode(std::move(Nodes.URVOFC));
+  }
+
+  // for (auto F : Binary->Functions()) {
+  //   auto Function = GCBI.getBlockAt(F.Entry())->getParent();
+  //   for (auto &I : llvm::instructions(Function)) {
+  //     if (auto Call = dyn_cast<llvm::CallInst>(&I)) {
+  //       auto Function = Call->getCalledFunction();
+  //       auto Entry = &Function->getEntryBlock();
+  //       auto Address = getBasicBlockAddress(Entry);
+
+  //       auto &CallerNode = GetNode(F.Entry());
+  //       auto &CalleeNode = GetNode(Address);
+
+  //       CalleeNode.Args->addSuccessor(CallerNode.UAOF.get());
+  //     }
+  //   }
+  // }
+
+  std::error_code EC;
+  raw_fd_ostream OutputGraph("/tmp/graph.dot", EC);
+  revng_assert(!EC);
+  llvm::WriteGraph(OutputGraph, &G);
 }
 
 void DetectABI::initializeMapForDeductions(FunctionSummary &Summary,
