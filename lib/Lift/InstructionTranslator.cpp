@@ -644,9 +644,7 @@ IT::newInstruction(PTCInstruction *Instr,
     // We don't deduplicate this string since performing a lookup each time is
     // increasingly expensive and we should have relatively few collisions
     std::string AddressName = JumpTargets.nameForAddress(PC);
-    String = buildStringPtr(&TheModule,
-                            OriginalString,
-                            Twine("disam_") + AddressName);
+    String = getUniqueString(&TheModule, OriginalString);
 
     auto *MDOriginalString = ConstantAsMetadata::get(String);
     auto *MDPC = ConstantAsMetadata::get(PC.toValue(&TheModule));

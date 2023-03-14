@@ -1081,14 +1081,9 @@ llvm::PointerType *getStringPtrType(llvm::LLVMContext &C);
 llvm::GlobalVariable *
 buildString(llvm::Module *M, llvm::StringRef String, const llvm::Twine &Name);
 
-llvm::Constant *buildStringPtr(llvm::Module *M,
-                               llvm::StringRef String,
-                               const llvm::Twine &Name);
-
 llvm::Constant *getUniqueString(llvm::Module *M,
-                                llvm::StringRef Namespace,
                                 llvm::StringRef String,
-                                const llvm::Twine &Name = llvm::Twine());
+                                llvm::StringRef Namespace = "revng.const.");
 
 llvm::StringRef extractFromConstantStringPtr(llvm::Value *V);
 
@@ -1504,3 +1499,5 @@ unpack(llvm::IRBuilder<T, Inserter> &Builder, llvm::Value *V) {
     revng_abort("Cannot unpack the given type");
   }
 }
+
+void pruneDICompileUnits(llvm::Module &M);

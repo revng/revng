@@ -250,9 +250,7 @@ bool TDBP::pinAVIResults(Function &F) {
           // TODO: in theory we could insert this befor T, not Call, but it's
           //       violating some assumption somewhere
           CallInst::Create({ JumpToSymbolMarker },
-                           { buildStringPtr(M,
-                                            SymbolName,
-                                            Twine("symbol_") + SymbolName) },
+                           { getUniqueString(M, SymbolName) },
                            None,
                            "",
                            Call);
@@ -667,6 +665,7 @@ void JumpTargetManager::registerInstruction(MetaAddress PC,
   // Never save twice a PC
   revng_assert(!OriginalInstructionAddresses.count(PC));
   OriginalInstructionAddresses[PC] = Instruction;
+  revng_assert(Instruction->getParent() != nullptr);
 }
 
 // TODO: this is a candidate for BFSVisit

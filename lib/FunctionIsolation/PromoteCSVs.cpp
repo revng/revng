@@ -366,8 +366,6 @@ void PromoteCSVs::promoteCSVs(Function *F) {
     replaceAllUsesInFunctionWith(F, CSV, Alloca);
   }
 
-  FunctionTags::CSVsPromoted.addTo(F);
-
   // Drop separators
   eraseFromParent(Separator);
 
@@ -581,11 +579,16 @@ void PromoteCSVs::wrapCallsToHelpers(Function *F) {
 
 void PromoteCSVs::run() {
   for (Function &F : FunctionTags::ABIEnforced.functions(M)) {
-    // Wrap calls to wrappers
-    wrapCallsToHelpers(&F);
+    // Add tag
+    FunctionTags::CSVsPromoted.addTo(&F);
 
-    // (Re-)promote CSVs
-    promoteCSVs(&F);
+    if (not F.isDeclaration()) {
+      // Wrap calls to wrappers
+      wrapCallsToHelpers(&F);
+
+      // (Re-)promote CSVs
+      promoteCSVs(&F);
+    }
   }
 }
 
