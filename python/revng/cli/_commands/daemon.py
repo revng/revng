@@ -67,7 +67,7 @@ REVNG_DATA_DIR and REVNG_PROJECT_ID set: use '$REVNG_DATA_DIR/$REVNG_PROJECT_ID'
         prefix = handle_asan(dependencies, options.search_prefixes)
 
         env = {**os.environ}
-        args = ["--no-access-log", "--workers", "1"]
+        args = ["--no-access-log", "--workers", "1", "--timeout-keep-alive", "600"]
         extra_args = shlex.split(options.parsed_args.uvicorn_args)
 
         host = "127.0.0.1"
