@@ -551,14 +551,16 @@ static std::string instruction(const PTMLBuilder &ThePTMLBuilder,
                                   Binary);
   size_t Tail = Instruction.Disassembled().size() + 1;
 
+  std::string InstructionLocation = serializedLocation(ranks::Instruction,
+                                                       Function.Entry(),
+                                                       BasicBlock.ID(),
+                                                       Instruction.Address());
   Tag Location = ThePTMLBuilder.getTag(tags::Span)
                    .addAttribute(attributes::LocationDefinition,
-                                 serializedLocation(ranks::Instruction,
-                                                    Function.Entry(),
-                                                    BasicBlock.ID(),
-                                                    Instruction.Address()));
+                                 InstructionLocation);
   Tag Out = ThePTMLBuilder.getTag(tags::Div, std::move(Result))
-              .addAttribute(attributes::Scope, scopes::Instruction);
+              .addAttribute(attributes::Scope, scopes::Instruction)
+              .addAttribute(attributes::ScopeLocation, InstructionLocation);
 
   if (AddTargets) {
     auto Targets = targets(BasicBlock, Function, Binary);
@@ -665,8 +667,6 @@ std::string yield::ptml::functionAssembly(const PTMLBuilder &ThePTMLBuilder,
     Result += labeledBlock<true>(ThePTMLBuilder, BasicBlock, Function, Binary);
   }
 
-  using pipeline::serializedLocation;
-  namespace ranks = revng::ranks;
   return ThePTMLBuilder.getTag(tags::Div, Result)
     .addAttribute(attributes::Scope, scopes::Function)
     .serialize();
