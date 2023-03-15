@@ -6,7 +6,7 @@
 
 #include "revng/Yield/Graph.h"
 
-namespace yield::sugiyama {
+namespace yield::layout::sugiyama {
 
 /// Lists possible ranking strategies the layouter implements.
 enum class RankingStrategy {
@@ -17,12 +17,7 @@ enum class RankingStrategy {
 };
 
 /// List graph orientation options the layouter implements.
-enum class LayoutOrientation {
-  LeftToRight,
-  RightToLeft,
-  TopToBottom,
-  BottomToTop
-};
+enum class Orientation { LeftToRight, RightToLeft, TopToBottom, BottomToTop };
 
 struct Configuration {
 public:
@@ -32,7 +27,7 @@ public:
   /// Specifies the orientation of the layout, (e.g. left-to-right):
   /// The layers with lower ranks are closer to the first direction (e.g. left)
   /// while those with higher ranks - to the second one (e.g. right).
-  LayoutOrientation Orientation;
+  Orientation Orientation;
 
   /// Specifies whether orthogonal bending rules should be used, if not each
   /// edge is just two points: its start and end.
@@ -78,6 +73,6 @@ public:
 
 /// A custom graph layering algorithm designed for pre-calculating majority of
 /// the expensive stuff needed for graph rendering.
-bool layout(Graph &Graph, const Configuration &Configuration);
+bool compute(Graph &Graph, const Configuration &Configuration);
 
-} // namespace yield::sugiyama
+} // namespace yield::layout::sugiyama

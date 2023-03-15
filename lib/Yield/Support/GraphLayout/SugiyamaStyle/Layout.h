@@ -96,7 +96,7 @@ void routeWithStraightLines(const OrderedEdgeContainer &OrderedListOfEdges);
 /// Computes the layout given a graph and the configuration.
 ///
 /// \note: it only works with `MutableEdgeNode`s.
-template<yield::sugiyama::RankingStrategy RS>
+template<yield::layout::sugiyama::RankingStrategy RS>
 inline bool calculateSugiyamaLayout(ExternalGraph &Graph,
                                     const Configuration &Configuration) {
   static_assert(StrictSpecializationOfMutableEdgeNode<InternalNode>,
