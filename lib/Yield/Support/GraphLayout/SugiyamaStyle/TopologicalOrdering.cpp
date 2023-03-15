@@ -7,7 +7,7 @@
 
 #include "llvm/ADT/PostOrderIterator.h"
 
-#include "Layout.h"
+#include "InternalCompute.h"
 
 std::vector<NodeView>
 extractAugmentedTopologicalOrder(InternalGraph &Graph,

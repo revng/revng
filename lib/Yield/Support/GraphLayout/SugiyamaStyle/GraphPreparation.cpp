@@ -10,7 +10,7 @@
 
 #include "revng/Support/GraphAlgorithms.h"
 
-#include "Layout.h"
+#include "InternalCompute.h"
 #include "NodeRanking.h"
 
 // Converts an external graph into an internal one.

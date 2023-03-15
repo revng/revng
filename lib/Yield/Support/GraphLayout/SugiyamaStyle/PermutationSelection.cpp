@@ -9,7 +9,7 @@
 
 #include "llvm/ADT/PostOrderIterator.h"
 
-#include "Layout.h"
+#include "InternalCompute.h"
 
 /// Converts given rankings to a layer container and updates ranks to remove
 /// the layers that are not required for correct routing.

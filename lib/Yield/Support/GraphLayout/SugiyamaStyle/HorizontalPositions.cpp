@@ -7,7 +7,7 @@
 
 #include <map>
 
-#include "Layout.h"
+#include "InternalCompute.h"
 
 /// To determine the coordinates, we need to solve this equation system:
 /// X_n : X_n > X_p(n) + W_n / 2 + W_p(n) / 2 + margin X_n : X_n = X_s(n)
