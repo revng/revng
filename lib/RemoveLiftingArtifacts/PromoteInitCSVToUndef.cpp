@@ -33,9 +33,12 @@ undefPreservedRegistersInitialization(Function &F,
 
       if (auto *Call = dyn_cast<CallInst>(&*It)) {
         auto *Callee = Call->getCalledFunction();
+
+        const char *MDName = "revng.abi_register";
+
         if (Callee and FunctionTags::OpaqueCSVValue.isTagOf(Callee)
-            and Callee->hasMetadata("revng.register")) {
-          auto *Tuple = cast<MDTuple>(Callee->getMetadata("revng.register"));
+            and Callee->hasMetadata(MDName)) {
+          auto *Tuple = cast<MDTuple>(Callee->getMetadata(MDName));
           auto RegisterName = QMD.extract<StringRef>(Tuple, 0);
           auto Register = model::Register::fromName(RegisterName);
           revng_check(Register != model::Register::Invalid);

@@ -83,10 +83,12 @@ static bool adjustStackAfterCalls(FunctionMetadataCache &Cache,
 bool PromoteStackPointerPass::runOnFunction(Function &F) {
   bool Changed = false;
 
-  // Skip non-isolated functions
-  auto FTags = FunctionTags::TagsSet::from(&F);
-  if (not FTags.contains(FunctionTags::Isolated))
-    return Changed;
+  {
+    // A couple of preliminary assertions
+    using namespace FunctionTags;
+    revng_assert(TagsSet::from(&F).contains(Isolated));
+    revng_assert(not F.isDeclaration());
+  }
 
   // Get the global variable representing the stack pointer register.
   using GCBIPass = GeneratedCodeBasicInfoWrapperPass;
@@ -145,8 +147,6 @@ bool PromoteStackPointerPass::runOnFunction(Function &F) {
       revng_unreachable();
     }
   }
-
-  FunctionTags::StackPointerPromoted.addTo(&F);
 
   if (SPUsers.empty())
     return Changed;

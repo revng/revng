@@ -4,13 +4,16 @@
 // Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 //
 
-#include "llvm/Pass.h"
+#include "revng/Support/TaggedFunctionPass.h"
 
-struct PromoteStackPointerPass : public llvm::FunctionPass {
+struct PromoteStackPointerPass : public TaggedFunctionPass {
 public:
   static char ID;
 
-  PromoteStackPointerPass() : llvm::FunctionPass(ID) {}
+  PromoteStackPointerPass() :
+    TaggedFunctionPass(ID,
+                       &FunctionTags::Isolated,
+                       &FunctionTags::StackPointerPromoted) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 

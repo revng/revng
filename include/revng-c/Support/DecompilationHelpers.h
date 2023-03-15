@@ -43,7 +43,7 @@ inline bool areMemOpCompatible(const model::QualifiedType &ModelType,
                                const model::Binary &Model) {
 
   // We don't load or store entire structs in a single mem operation
-  if (not ModelType.isPointer() and not ModelType.isScalar())
+  if (not ModelType.isScalar())
     return false;
 
   // loads/stores from/to void pointers are not allowed

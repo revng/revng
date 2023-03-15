@@ -171,7 +171,7 @@ serializeToLLVMString(const model::QualifiedType &QT, llvm::Module &M) {
   }
 
   // Build a constant global string containing the serialized type
-  return buildStringPtr(&M, SerializedQT, "");
+  return getUniqueString(&M, SerializedQT);
 }
 
 RecursiveCoroutine<model::QualifiedType>
