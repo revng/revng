@@ -1053,6 +1053,8 @@ static std::string addDebugInfo(const llvm::Instruction *I,
     return ThePTMLCBuilder.getTag(ptml::tags::Span, Str)
       .addAttribute(ptml::attributes::LocationReferences,
                     I->getDebugLoc()->getScope()->getName())
+      .addAttribute(ptml::attributes::ScopeLocation,
+                    I->getDebugLoc()->getScope()->getName())
       .serialize();
   return Str;
 }
