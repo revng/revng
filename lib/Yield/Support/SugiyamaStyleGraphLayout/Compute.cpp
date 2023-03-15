@@ -1,13 +1,13 @@
-/// \file SugiyamaStyleGraphLayout.cpp
+/// \file Compute.cpp
 /// \brief
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/Yield/Support/SugiyamaStyleGraphLayout.h"
+#include "revng/Yield/Support/SugiyamaStyleGraphLayout/Compute.h"
 
-#include "SugiyamaStyleGraphLayout/Layout.h"
+#include "Layout.h"
 
 bool yield::sugiyama::layout(Graph &Graph, const Configuration &Configuration) {
   using RS = yield::sugiyama::RankingStrategy;

@@ -21,7 +21,7 @@
 #include "revng/Yield/Graph.h"
 #include "revng/Yield/PTML.h"
 #include "revng/Yield/SVG.h"
-#include "revng/Yield/Support/SugiyamaStyleGraphLayout.h"
+#include "revng/Yield/Support/SugiyamaStyleGraphLayout/Compute.h"
 
 using ptml::Tag;
 
