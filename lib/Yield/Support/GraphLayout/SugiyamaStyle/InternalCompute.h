@@ -4,7 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "InternalGraph.h"
+#include "Helpers.h"
 #include "NodeClassification.h"
 
 /// Prepares the graph for further processing.

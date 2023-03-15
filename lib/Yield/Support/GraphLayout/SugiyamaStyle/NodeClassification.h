@@ -7,7 +7,7 @@
 #include <optional>
 #include <unordered_set>
 
-#include "InternalGraph.h"
+#include "Helpers.h"
 
 namespace detail {
 // Contains helper classes for `NodeClassifier`.
