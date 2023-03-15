@@ -44,7 +44,8 @@ Binary::getPrimitiveType(PrimitiveTypeKind::Values V, uint8_t ByteSize) const {
 }
 
 TypePath Binary::recordNewType(UpcastablePointer<Type> &&T) {
-  auto It = Types().insert(T).first;
+  auto [It, Success] = Types().insert(T);
+  revng_assert(Success);
   return getTypePath(It->get());
 }
 

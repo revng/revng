@@ -46,7 +46,7 @@ void ProcessCallGraph::run(pipeline::Context &Context,
 void ProcessCallGraph::print(const pipeline::Context &,
                              llvm::raw_ostream &OS,
                              llvm::ArrayRef<std::string>) const {
-  OS << *revng::ResourceFinder.findFile("bin/revng") << " magic ^_^\n";
+  OS << "[this is a pure pipe, no command exists for its invocation]\n";
 }
 
 void YieldCallGraph::run(pipeline::Context &Context,
@@ -65,7 +65,7 @@ void YieldCallGraph::run(pipeline::Context &Context,
 void YieldCallGraph::print(const pipeline::Context &,
                            llvm::raw_ostream &OS,
                            llvm::ArrayRef<std::string>) const {
-  OS << *revng::ResourceFinder.findFile("bin/revng") << " magic ^_^\n";
+  OS << "[this is a pure pipe, no command exists for its invocation]\n";
 }
 
 void YieldCallGraphSlice::run(pipeline::Context &Context,
@@ -95,7 +95,7 @@ void YieldCallGraphSlice::run(pipeline::Context &Context,
 void YieldCallGraphSlice::print(const pipeline::Context &,
                                 llvm::raw_ostream &OS,
                                 llvm::ArrayRef<std::string>) const {
-  OS << *revng::ResourceFinder.findFile("bin/revng") << " magic ^_^\n";
+  OS << "[this is a pure pipe, no command exists for its invocation]\n";
 }
 using namespace pipeline;
 

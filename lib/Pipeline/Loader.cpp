@@ -102,8 +102,8 @@ llvm::Expected<AnalysisWrapper>
 Loader::parseAnalysis(const AnalysisDeclaration &Declaration) const {
   auto It = KnownAnalysisTypes.find(Declaration.Type);
   if (It == KnownAnalysisTypes.end()) {
-    auto *Message = "while parsing analysis : No known Anaylis with "
-                    "name %s\n ";
+    auto *Message = "while parsing analyses : No known Analysis with "
+                    "name '%s'\n ";
     return createStringError(inconvertibleErrorCode(),
                              Message,
                              Declaration.Type.c_str());

@@ -9,8 +9,7 @@
 
 #include "revng/Support/Assert.h"
 
-/// \brief Queue where an element cannot be re-inserted if it's already in the
-///        queue
+/// Queue where an element cannot be re-inserted if it's already in the queue
 template<typename T, bool Once>
 class QueueImpl {
 public:

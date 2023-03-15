@@ -13,7 +13,7 @@
 #include "llvm/Support/CommandLine.h"
 
 #include "revng/ABI/DefaultFunctionPrototype.h"
-#include "revng/Model/Importer/Binary/BinaryImporterOptions.h"
+#include "revng/Model/Importer/Binary/Options.h"
 #include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
 #include "revng/Model/Importer/DebugInfo/PDBImporter.h"
 #include "revng/Model/ToolHelpers.h"
@@ -62,11 +62,13 @@ int main(int Argc, char *Argv[]) {
   }
   auto &ObjectFile = *cast<llvm::object::ObjectFile>(BinaryOrErr->getBinary());
 
+  const ImporterOptions &Options = importerOptions();
+
   // Import debug info from both PE and ELF.
   TupleTree<model::Binary> Model;
   if (isa<llvm::object::ELFObjectFileBase>(&ObjectFile)) {
-    DwarfImporter Importer(Model, BaseAddress);
-    Importer.import(InputFilename, FetchDebugInfoWithLevel);
+    DwarfImporter Importer(Model);
+    Importer.import(InputFilename, Options);
   } else if (auto *TheBinary = dyn_cast<object::COFFObjectFile>(&ObjectFile)) {
     MetaAddress ImageBase = MetaAddress::invalid();
     auto LLVMArchitecture = ObjectFile.makeTriple().getArch();
@@ -93,7 +95,7 @@ int main(int Argc, char *Argv[]) {
                                       PE32PlusHeader->ImageBase);
     }
     PDBImporter Importer(Model, ImageBase);
-    Importer.import(*TheBinary, FetchDebugInfoWithLevel);
+    Importer.import(*TheBinary, Options);
   }
 
   // Serialize the model.

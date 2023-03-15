@@ -13,7 +13,7 @@ namespace llvm {
 class BasicBlock;
 }
 
-/// \brief Node of a CustomCFG
+/// Node of a CustomCFG
 ///
 /// A simple container for nodes and a set of successors and predecessors.
 class CustomCFGNode {
@@ -84,7 +84,7 @@ public:
   }
 };
 
-/// \brief A CFG representing a custom view on the actual CFG of a function
+/// A CFG representing a custom view on the actual CFG of a function
 ///
 /// This class implements `GraphTraits`.
 class CustomCFG {

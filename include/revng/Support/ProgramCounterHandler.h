@@ -84,7 +84,7 @@ public:
     return { EpochCSV, AddressSpaceCSV, TypeCSV, AddressCSV };
   }
 
-  /// \brief Hook for the emission of a store to a CSV
+  /// Hook for the emission of a store to a CSV
   ///
   /// \param Builder IRBuilder to employ in order to inject new instructions. It
   ///        is positioned after \p Store

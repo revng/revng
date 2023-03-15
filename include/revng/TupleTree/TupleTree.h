@@ -19,6 +19,7 @@
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/ADT/Concepts.h"
 #include "revng/ADT/KeyedObjectContainer.h"
 #include "revng/ADT/UpcastablePointer.h"
 #include "revng/Support/Assert.h"
@@ -86,6 +87,17 @@ public:
       auto It = Map.find(Reference);
       if (It != Map.end())
         Reference = It->second;
+    };
+    visitReferences(Visitor);
+    evictCachedReferences();
+  }
+
+  template<StrictSpecializationOf<TupleTreeReference> TTR,
+           predicate<const TTR &> PredicateType>
+  void replaceReferencesIf(const TTR &NewReference, PredicateType &&Predicate) {
+    auto Visitor = [&Predicate, &NewReference](TTR &Reference) {
+      if (Predicate(Reference))
+        Reference = NewReference;
     };
     visitReferences(Visitor);
     evictCachedReferences();

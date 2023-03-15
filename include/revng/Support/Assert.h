@@ -44,8 +44,8 @@ extern "C" {
 
 #endif
 
-/// \brief Same as __builtin_assume but (temporarily) suppresses warnings about
-///        ignored side-effects
+/// Same as __builtin_assume but (temporarily) suppresses warnings about ignored
+/// side-effects
 #define silent_assume(what)                    \
   do {                                         \
     SILENCE_ASSUME_HEADER                      \
@@ -86,7 +86,7 @@ noret void revng_do_abort(const char *Message, const char *File, unsigned Line);
 
 #undef noret
 
-/// \brief Aborts program execution with a message, in release mode too.
+/// Aborts program execution with a message, in release mode too.
 ///
 /// Use this macro to ensure program termination in case of an unexpected
 /// situation.
@@ -95,7 +95,7 @@ noret void revng_do_abort(const char *Message, const char *File, unsigned Line);
     revng_do_abort(message, __FILE__, __LINE__); \
   } while (0)
 
-/// \brief Asserts \a what or aborts with \a message, in release mode too.
+/// Asserts \a what or aborts with \a message, in release mode too.
 ///
 /// Use this macro to ensure program termination in case of an unexpected
 /// situation.
@@ -110,15 +110,14 @@ noret void revng_do_abort(const char *Message, const char *File, unsigned Line);
 
 #ifndef NDEBUG
 
-/// \brief Marks a program path as unreachable. In debug mode, aborts with \a
-///        message.
+/// Marks a program path as unreachable. In debug mode, aborts with \a message.
 ///
 /// Use this macro to catch bugs during development an tell the compiler that a
 /// certain situation will never happen at run-time, which might open up to new
 /// optimization opportunities.
 #define revng_unreachable_impl(message) revng_abort(message)
 
-/// \brief Asserts \a what or, in debug mode, aborts with \a message.
+/// Asserts \a what or, in debug mode, aborts with \a message.
 ///
 /// Use this macro to catch bugs during development an tell the compiler that a
 /// certain situation will never happen at run-time, which might open up to new
@@ -152,7 +151,7 @@ noret void revng_do_abort(const char *Message, const char *File, unsigned Line);
 #define CONCAT5(a, b, c, d, e) CONCAT2(CONCAT4(a, b, c, d), e)
 #define GET_10TH(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, ...) _10
 
-/// \brief Check if the argument list contains a comma
+/// Check if the argument list contains a comma
 #define HAS_COMMA(...) GET_10TH(__VA_ARGS__, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0)
 
 /// Check if the argument list is empty

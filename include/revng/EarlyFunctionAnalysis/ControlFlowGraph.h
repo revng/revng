@@ -70,8 +70,8 @@ inline ParsedSuccessor parseSuccessor(const T &Edge,
   }
 }
 
-/// \brief A function for converting EFA's internal CFG representation into
-/// a generic graph.
+/// A function for converting EFA's internal CFG representation into a generic
+/// graph.
 ///
 /// \p BB An arbitrary container of basic blocks that are verified
 /// using the `IsBasicBlock` concept. These blocks are required to have start

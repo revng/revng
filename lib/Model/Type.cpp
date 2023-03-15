@@ -753,15 +753,19 @@ std::optional<uint64_t> Type::trySize() const {
   return trySize(VH);
 }
 
-RecursiveCoroutine<std::optional<uint64_t>> Type::size(VerifyHelper &VH) const {
-  std::optional<uint64_t> MaybeSize = rc_recur trySize(VH);
+std::optional<uint64_t> Type::size(VerifyHelper &VH) const {
+  std::optional<uint64_t> MaybeSize = trySize(VH);
   revng_check(MaybeSize);
   if (*MaybeSize == 0)
-    rc_return std::nullopt;
+    return std::nullopt;
   else
-    rc_return MaybeSize;
+    return MaybeSize;
 }
 
+// NOTE: there's a really similar function for computing alignment in
+//       `lib/ABI/Definition.cpp`. It's better if two are kept in sync, so
+//       when modifying this function, please apply corresponding modifications
+//       to its little brother as well.
 RecursiveCoroutine<std::optional<uint64_t>>
 Type::trySize(VerifyHelper &VH) const {
   auto MaybeSize = VH.size(this);
@@ -769,28 +773,20 @@ Type::trySize(VerifyHelper &VH) const {
     rc_return MaybeSize;
 
   // This code assumes that the type T is well formed.
-  uint64_t Size;
+  uint64_t Size = 0;
 
   switch (Kind()) {
-  case TypeKind::Invalid:
-    rc_return std::nullopt;
-
   case TypeKind::RawFunctionType:
   case TypeKind::CABIFunctionType:
     // Function prototypes have no size
-    Size = 0;
-    break;
+    rc_return std::nullopt;
 
   case TypeKind::PrimitiveType: {
     auto *P = cast<PrimitiveType>(this);
 
     if (P->PrimitiveKind() == model::PrimitiveTypeKind::Void) {
       // Void types have no size
-
-      if (P->Size() != 0) {
-        // Not valid
-        rc_return std::nullopt;
-      }
+      revng_assert(P->Size() == 0);
 
       Size = 0;
     } else {
@@ -836,6 +832,8 @@ Type::trySize(VerifyHelper &VH) const {
     Size = Max;
   } break;
 
+  case TypeKind::Invalid:
+  case TypeKind::Count:
   default:
     revng_abort();
   }
@@ -991,14 +989,19 @@ verifyImpl(VerifyHelper &VH, const StructType *T) {
     auto &Field = *FieldIt;
 
     if (not rc_recur Field.verify(VH))
-      rc_return VH.fail("Can't verify type of field " + Twine(Index + 1), *T);
-
-    if (Field.Offset() >= T->Size())
-      rc_return VH.fail("Field " + Twine(Index + 1)
-                          + " out of struct boundaries (offset: "
-                          + Twine(Field.Offset())
-                          + ", size: " + Twine(T->Size()) + ")",
+      rc_return VH.fail("Can't verify type of field at offset "
+                          + Twine(Field.Offset()),
                         *T);
+
+    if (Field.Offset() >= T->Size()) {
+      std::uint64_t Size = *Field.Type().size();
+      rc_return VH.fail("Field at offset " + Twine(Field.Offset())
+                          + " is out of struct boundaries (field size: "
+                          + Twine(Size) + ", field offset + size: "
+                          + Twine(Field.Offset() + Size)
+                          + ", struct size: " + Twine(T->Size()) + ")",
+                        *T);
+    }
 
     auto MaybeSize = rc_recur Field.Type().size(VH);
     // This is verified AggregateField::verify
@@ -1010,8 +1013,11 @@ verifyImpl(VerifyHelper &VH, const StructType *T) {
       // If this field is not the last, check that it does not overlap with the
       // following field.
       if (FieldEndOffset > NextFieldIt->Offset()) {
-        rc_return VH.fail("Field " + Twine(Index + 1)
-                            + " overlaps with the next one",
+        rc_return VH.fail("Field at offset " + Twine(Field.Offset())
+                            + " (with size: " + Twine(*Field.Type().size())
+                            + ") overlaps with the field at offset "
+                            + Twine(NextFieldIt->Offset()) + " (with size: "
+                            + Twine(*NextFieldIt->Type().size()) + ")",
                           *T);
       }
     } else if (FieldEndOffset > T->Size()) {
@@ -1165,10 +1171,10 @@ RecursiveCoroutine<bool> Type::verify(VerifyHelper &VH) const {
     rc_return true;
 
   // Ensure we have not infinite recursion
-  if (VH.isVerificationInProgess(this))
+  if (VH.isVerificationInProgress(this))
     rc_return VH.fail();
 
-  VH.verificationInProgess(this);
+  VH.verificationInProgress(this);
 
   if (ID() == 0)
     rc_return VH.fail();

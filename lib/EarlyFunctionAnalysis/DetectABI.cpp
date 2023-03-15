@@ -11,7 +11,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/GraphWriter.h"
 
-#include "revng/ABI/RegisterStateDeductions.h"
+#include "revng/ABI/Definition.h"
 #include "revng/ADT/Queue.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/CFGAnalyzer.h"
@@ -532,13 +532,15 @@ void DetectABI::applyABIDeductions() {
     bool EnforceABIConformance = ABIEnforcement == FullABIEnforcement;
     std::optional<abi::RegisterState::Map> ResultMap;
 
-    if (EnforceABIConformance) {
-      ResultMap = enforceRegisterStateDeductions(StateMap,
-                                                 Binary->DefaultABI());
-    } else {
-      ResultMap = tryApplyRegisterStateDeductions(StateMap,
-                                                  Binary->DefaultABI());
-    }
+    // TODO: drop this.
+    // Since function type conversion is capable of handling the holes
+    // internally, there's not much reason to push such invasive changes
+    // this early in the pipeline.
+    auto ABI = abi::Definition::get(Binary->DefaultABI());
+    if (EnforceABIConformance)
+      ResultMap = ABI.enforceRegisterState(StateMap);
+    else
+      ResultMap = ABI.tryDeducingRegisterState(StateMap);
 
     if (!ResultMap.has_value())
       continue;

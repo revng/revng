@@ -341,29 +341,22 @@ rp_kind *rp_kind_get_parent(rp_kind *kind) {
 }
 
 rp_diff_map *rp_manager_run_analysis(rp_manager *manager,
-                                     uint64_t targets_count,
-                                     rp_target *targets[],
                                      const char *step_name,
                                      const char *analysis_name,
-                                     rp_container *container,
+                                     rp_container_targets_map *target_map,
                                      rp_invalidations *invalidations,
                                      const rp_string_map *options) {
   revng_check(manager != nullptr);
-  revng_check(targets_count != 0);
-  revng_check(targets != nullptr);
+  revng_check(step_name != nullptr);
   revng_check(analysis_name != nullptr);
-  revng_check(container != nullptr);
+  revng_check(target_map != nullptr);
 
   ExistingOrNew<rp_invalidations> Invalidations(invalidations);
   ExistingOrNew<const rp_string_map> Options(options);
 
-  ContainerToTargetsMap Targets;
-  for (size_t I = 0; I < targets_count; I++)
-    Targets[container->second->name()].push_back(*targets[I]);
-
   auto MaybeDiffs = manager->runAnalysis(analysis_name,
                                          step_name,
-                                         Targets,
+                                         *target_map,
                                          *Invalidations,
                                          *Options);
   if (!MaybeDiffs) {
@@ -1094,4 +1087,22 @@ const char *rp_buffer_data(const rp_buffer *buffer) {
 
 void rp_buffer_destroy(const rp_buffer *buffer) {
   delete buffer;
+}
+
+rp_container_targets_map *rp_container_targets_map_create() {
+  return new ContainerToTargetsMap();
+}
+
+void rp_container_targets_map_destroy(rp_container_targets_map *map) {
+  revng_check(map != nullptr);
+  delete map;
+}
+
+void rp_container_targets_map_add(rp_container_targets_map *map,
+                                  const rp_container *container,
+                                  const rp_target *target) {
+  revng_check(map != nullptr);
+  revng_check(container != nullptr);
+  revng_check(target != nullptr);
+  (*map)[container->second->name()].push_back(*target);
 }

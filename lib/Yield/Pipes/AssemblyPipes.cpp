@@ -57,7 +57,7 @@ void ProcessAssembly::run(pipeline::Context &Context,
 void ProcessAssembly::print(const pipeline::Context &,
                             llvm::raw_ostream &OS,
                             llvm::ArrayRef<std::string> Files) const {
-  OS << *revng::ResourceFinder.findFile("bin/revng") << " magic ^_^\n";
+  OS << "[this is a pure pipe, no command exists for its invocation]\n";
 }
 
 void YieldAssembly::run(pipeline::Context &Context,
@@ -80,7 +80,7 @@ void YieldAssembly::run(pipeline::Context &Context,
 void YieldAssembly::print(const pipeline::Context &,
                           llvm::raw_ostream &OS,
                           llvm::ArrayRef<std::string> Files) const {
-  OS << *revng::ResourceFinder.findFile("bin/revng") << " magic ^_^\n";
+  OS << "[this is a pure pipe, no command exists for its invocation]\n";
 }
 
 } // end namespace revng::pipes

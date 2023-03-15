@@ -13,7 +13,7 @@
 namespace JTReason {
 
 // TODO: move me to another header file
-/// \brief Reason for registering a jump target
+/// Reason for registering a jump target
 enum Values {
   /// PC after an helper (e.g., a syscall)
   PostHelper = 1,

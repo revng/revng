@@ -12,11 +12,11 @@ namespace pipeline {
 
 /// Instantiate a global object of this class for each analysis you wish to
 /// register
-template<typename AnalsysisType>
+template<typename AnalysisType>
 class RegisterAnalysis : Registry {
 private:
   llvm::StringRef Name;
-  AnalsysisType Pipe;
+  AnalysisType Pipe;
   std::vector<std::unique_ptr<CLOptionBase>> RegisteredOptions;
 
 public:
@@ -24,13 +24,13 @@ public:
   RegisterAnalysis(llvm::StringRef Name, Args &&...Arguments) :
     Name(Name),
     Pipe(std::forward<Args>(Arguments)...),
-    RegisteredOptions(createCLOptions<AnalsysisType>(&MainCategory)) {}
+    RegisteredOptions(createCLOptions<AnalysisType>(&MainCategory)) {}
 
   template<typename... Args>
-  RegisterAnalysis(Args &&...Arguments) requires HasName<AnalsysisType>
-    : Name(AnalsysisType::Name),
+  RegisterAnalysis(Args &&...Arguments) requires HasName<AnalysisType>
+    : Name(AnalysisType::Name),
       Pipe(std::forward<Args>(Arguments)...),
-      RegisteredOptions(createCLOptions<AnalsysisType>(&MainCategory)) {}
+      RegisteredOptions(createCLOptions<AnalysisType>(&MainCategory)) {}
 
   ~RegisterAnalysis() override = default;
 

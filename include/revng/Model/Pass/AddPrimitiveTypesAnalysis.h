@@ -22,12 +22,10 @@ public:
   static constexpr const auto Name = "AddPrimitiveTypes";
 
 public:
-  std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {
-    { &revng::kinds::Binary }
-  };
+  std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {};
 
 public:
-  void run(pipeline::Context &Context, const BinaryFileContainer &SourceBinary);
+  void run(pipeline::Context &Context);
 };
 
 } // namespace revng::pipes

@@ -252,7 +252,8 @@ TUPLE-TREE-YAML */
 
 namespace model::Register {
 
-constexpr inline model::Architecture::Values getArchitecture(Values V) {
+constexpr inline model::Architecture::Values
+getReferenceArchitecture(Values V) {
   switch (V) {
   case eax_x86:
   case ebx_x86:
@@ -488,9 +489,25 @@ constexpr inline model::Architecture::Values getArchitecture(Values V) {
   }
 }
 
+constexpr inline bool
+isUsedInArchitecture(model::Register::Values Register,
+                     model::Architecture::Values Architecture) {
+  auto ReferenceArchitecture = getReferenceArchitecture(Register);
+  revng_assert(Architecture != model::Architecture::Invalid);
+  if (Architecture == ReferenceArchitecture)
+    return true;
+
+  // `mipsel` uses `mips` registers.
+  if (Architecture == model::Architecture::mipsel)
+    if (ReferenceArchitecture == model::Architecture::mips)
+      return true;
+
+  return false;
+}
+
 inline llvm::StringRef getRegisterName(Values V) {
   llvm::StringRef FullName = getName(V);
-  auto Architecture = getArchitecture(V);
+  auto Architecture = getReferenceArchitecture(V);
   revng_assert(Architecture != model::Architecture::Invalid);
   auto ArchitectureNameSize = model::Architecture::getName(Architecture).size();
   return FullName.substr(0, FullName.size() - ArchitectureNameSize - 1);
@@ -498,8 +515,9 @@ inline llvm::StringRef getRegisterName(Values V) {
 
 /// Return the size of the register in bytes
 inline size_t getSize(Values V) {
-  model::Architecture::Values Architecture = getArchitecture(V);
+  model::Architecture::Values Architecture = getReferenceArchitecture(V);
 
+  // TODO: this does not account for vector registers, but it should eventually.
   switch (Architecture) {
   case model::Architecture::x86:
   case model::Architecture::arm:
@@ -628,7 +646,7 @@ inline std::optional<unsigned> getMContextIndex(Values V) {
     break;
   }
 
-  if (getArchitecture(V) == model::Architecture::x86_64)
+  if (getReferenceArchitecture(V) == model::Architecture::x86_64)
     return std::nullopt;
   else
     revng_abort("Not supported for this architecture");

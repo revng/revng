@@ -25,6 +25,7 @@ class VerifyHelper {
 private:
   std::set<const model::Type *> VerifiedCache;
   std::map<const model::Type *, uint64_t> SizeCache;
+  std::map<const model::Type *, uint64_t> AlignmentCache;
   std::set<const model::Type *> InProgress;
   bool AssertOnFail = false;
 
@@ -45,18 +46,18 @@ public:
   }
 
 public:
-  bool isVerificationInProgess(const model::Type *T) const {
+  bool isVerificationInProgress(const model::Type *T) const {
     return InProgress.count(T) != 0;
   }
 
-  void verificationInProgess(const model::Type *T) {
-    revng_assert(not isVerificationInProgess(T));
+  void verificationInProgress(const model::Type *T) {
+    revng_assert(not isVerificationInProgress(T));
     revng_assert(not isVerified(T));
     InProgress.insert(T);
   }
 
   void verificationCompleted(const model::Type *T) {
-    revng_assert(isVerificationInProgess(T));
+    revng_assert(isVerificationInProgress(T));
     InProgress.erase(T);
   }
 
@@ -71,7 +72,21 @@ public:
     if (It != SizeCache.end())
       return It->second;
     else
-      return {};
+      return std::nullopt;
+  }
+
+public:
+  void setAlignment(const model::Type *T, uint64_t NewValue) {
+    revng_assert(not alignment(T));
+    AlignmentCache[T] = NewValue;
+  }
+
+  std::optional<uint64_t> alignment(const model::Type *T) {
+    auto It = AlignmentCache.find(T);
+    if (It != AlignmentCache.end())
+      return It->second;
+    else
+      return std::nullopt;
   }
 
 public:

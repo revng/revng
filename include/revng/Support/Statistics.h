@@ -92,7 +92,7 @@ private:
   void init();
 };
 
-/// \brief Collect mean and variance about a certain event.
+/// Collect mean and variance about a certain event.
 ///
 /// To use this class, simply create a global variable, call push with the value
 /// you want to record, when you're done use the various methods to obtain mean
@@ -121,7 +121,7 @@ public:
   void clear() { N = 0; }
 
   // TODO: make a template
-  /// \brief Record a new value
+  /// Record a new value
   void push(double X) {
     N++;
     Sum += X;
@@ -185,8 +185,8 @@ class OnQuitRegistry {
 public:
   void install();
 
-  /// \brief Registers an object for having its onQuit method called upon
-  ///        program termination
+  /// Registers an object for having its onQuit method called upon program
+  /// termination
   void add(OnQuitInteraface *S) { Register.push_back(S); }
 
   void dump() {

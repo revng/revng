@@ -6,7 +6,7 @@
 //
 
 #include "revng/ABI/DefaultFunctionPrototype.h"
-#include "revng/ABI/Trait.h"
+#include "revng/ABI/Definition.h"
 #include "revng/Support/EnumSwitch.h"
 
 using namespace model;
@@ -24,25 +24,25 @@ static QualifiedType buildType(Register::Values Register, Binary &TheBinary) {
   return QualifiedType(TheBinary.getPrimitiveType(Kind, Size), {});
 }
 
-template<ABI::Values ABI>
-TypePath defaultPrototype(Binary &TheBinary) {
+static TypePath defaultPrototype(Binary &TheBinary, model::ABI::Values ABI) {
   UpcastableType NewType = makeType<RawFunctionType>();
   TypePath TypePath = TheBinary.recordNewType(std::move(NewType));
   auto &Prototype = *llvm::cast<RawFunctionType>(TypePath.get());
 
-  for (const auto &Reg : abi::Trait<ABI>::GeneralPurposeArgumentRegisters) {
-    NamedTypedRegister Argument(Reg);
-    Argument.Type() = buildType(Reg, TheBinary);
+  const abi::Definition &Defined = abi::Definition::get(ABI);
+  for (const auto &Register : Defined.GeneralPurposeArgumentRegisters()) {
+    NamedTypedRegister Argument(Register);
+    Argument.Type() = buildType(Register, TheBinary);
     Prototype.Arguments().insert(Argument);
   }
 
-  for (const auto &Rg : abi::Trait<ABI>::GeneralPurposeReturnValueRegisters) {
-    TypedRegister ReturnValue(Rg);
-    ReturnValue.Type() = buildType(Rg, TheBinary);
+  for (const auto &Register : Defined.GeneralPurposeReturnValueRegisters()) {
+    TypedRegister ReturnValue(Register);
+    ReturnValue.Type() = buildType(Register, TheBinary);
     Prototype.ReturnValues().insert(ReturnValue);
   }
 
-  for (const auto &Register : abi::Trait<ABI>::CalleeSavedRegisters)
+  for (const auto &Register : Defined.CalleeSavedRegisters())
     Prototype.PreservedRegisters().insert(Register);
 
   using namespace Architecture;
@@ -57,7 +57,5 @@ abi::registerDefaultFunctionPrototype(Binary &Binary,
   if (!MaybeABI.has_value())
     MaybeABI = Binary.DefaultABI();
   revng_assert(*MaybeABI != ABI::Invalid);
-  return skippingEnumSwitch<1>(*MaybeABI, [&]<ABI::Values A>() {
-    return defaultPrototype<A>(Binary);
-  });
+  return defaultPrototype(Binary, MaybeABI.value());
 }

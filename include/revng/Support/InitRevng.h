@@ -9,7 +9,7 @@
 
 namespace revng {
 
-/// \brief Performs initialization and shutdown steps for revng tools.
+/// Performs initialization and shutdown steps for revng tools.
 ///
 /// By default this performs the regular LLVM initialization steps.
 /// This is required in order to initialize the stack trace printers on signal.

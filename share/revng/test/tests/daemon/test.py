@@ -234,7 +234,7 @@ async def run_preliminary_analyses(client):
         analyses {
             Import {
                 ImportBinary(input: ":Binary"),
-                AddPrimitiveTypes(input: ":Binary")
+                AddPrimitiveTypes
             }
         }
     }"""

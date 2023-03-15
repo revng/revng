@@ -732,7 +732,7 @@ JumpTargetManager::getPC(Instruction *TheInstruction) const {
   return { PC, Size };
 }
 
-/// \brief Class to iterate over all the BBs associated to a translated PC
+/// Class to iterate over all the BBs associated to a translated PC
 class BasicBlockVisitor {
 public:
   BasicBlockVisitor(const SwitchInst *Dispatcher) :
@@ -872,7 +872,7 @@ BasicBlock *JumpTargetManager::getBlockAt(MetaAddress PC) {
   return TargetIt->second.head();
 }
 
-/// \brief Check if among \p BB's predecessors there's \p Target
+/// Check if among \p BB's predecessors there's \p Target
 inline bool hasRootDispatcherPredecessor(llvm::BasicBlock *BB) {
   for (llvm::BasicBlock *Predecessor : predecessors(BB))
     if (isPartOfRootDispatcher(Predecessor))
@@ -1218,7 +1218,7 @@ bool JumpTargetManager::hasPredecessors(BasicBlock *BB) const {
   return false;
 }
 
-/// \brief Simple pass to drop `range` metadata, which is sometimes detrimental
+/// Simple pass to drop `range` metadata, which is sometimes detrimental
 class DropRangeMetadataPass : public PassInfoMixin<DropRangeMetadataPass> {
 
 public:
@@ -1230,7 +1230,7 @@ public:
   }
 };
 
-/// \brief Drop all the call to marker functions
+/// Drop all the call to marker functions
 class DropMarkerCalls : public PassInfoMixin<DropMarkerCalls> {
 private:
   SmallVector<StringRef, 4> ToPreserve;

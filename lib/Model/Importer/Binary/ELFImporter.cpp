@@ -17,6 +17,7 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/Importer/Binary/BinaryImporterHelper.h"
+#include "revng/Model/Importer/Binary/Options.h"
 #include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
 #include "revng/Model/Pass/AllPasses.h"
 #include "revng/Model/RawBinaryView.h"
@@ -157,7 +158,7 @@ uint64_t symbolsCount(const FilePortion &Relocations) {
 }
 
 template<typename T, bool HasAddend>
-Error ELFImporter<T, HasAddend>::import(unsigned FetchDebugInfoWithLevel) {
+Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   // Parse the ELF file
   auto TheELFOrErr = object::ELFFile<T>::create(TheBinary.getData());
   if (not TheELFOrErr)
@@ -172,9 +173,12 @@ Error ELFImporter<T, HasAddend>::import(unsigned FetchDebugInfoWithLevel) {
 
   // BaseAddress makes sense only for shared (relocatable, PIC) objects
   auto Type = TheELF.getHeader().e_type;
-  if (Type != ELF::ET_DYN)
-    PreferredBaseAddress = 0;
-  BaseAddress = PreferredBaseAddress;
+  ImporterOptions AdjustedOptions = ImporterOptions{
+    .BaseAddress = (Type != ELF::ET_DYN ? 0 : Options.BaseAddress),
+    .DebugInfo = Options.DebugInfo,
+    .EnableRemoteDebugInfo = Options.EnableRemoteDebugInfo,
+    .AdditionalDebugInfoPaths = Options.AdditionalDebugInfoPaths
+  };
 
   if (not(Type == ELF::ET_DYN or Type == ELF::ET_EXEC))
     return createError("Only ELF executables and ELF dynamic libraries are "
@@ -340,25 +344,34 @@ Error ELFImporter<T, HasAddend>::import(unsigned FetchDebugInfoWithLevel) {
   auto &Ptr = *Model.get();
   Model->DefaultPrototype() = abi::registerDefaultFunctionPrototype(Ptr);
 
-  // Import Dwarf
-  DwarfImporter Importer(Model, PreferredBaseAddress);
-  Importer.import(TheBinary.getFileName(), FetchDebugInfoWithLevel);
+  if (AdjustedOptions.DebugInfo != DebugInfoLevel::No) {
+    // Import Dwarf
+    DwarfImporter Importer(Model);
+    Importer.import(TheBinary.getFileName(), AdjustedOptions);
 
-  // Now we try to find missing types in the dependencies.
-  if (FetchDebugInfoWithLevel > 1)
-    findMissingTypes(TheELF, FetchDebugInfoWithLevel);
+    // Now we try to find missing types in the dependencies.
+    findMissingTypes(TheELF, AdjustedOptions);
+  }
 
+  model::promoteOriginalName(Model);
   return Error::success();
 }
 
 template<typename T, bool HasAddend>
 void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
-                                                 unsigned DebugInfoLevel) {
+                                                 const ImporterOptions &Opts) {
+  if (Opts.DebugInfo != DebugInfoLevel::Yes)
+    return;
+
   ModelMap ModelsOfLibraries;
   TypeCopierMap TypeCopiers;
 
+  // TODO: disclose a way to modify this value with
+  //       the `ImporterOptions::DebugInfo`, if the need ever arises.
+  unsigned MaximumRecursionDepth = 1;
+
   LDDTree Dependencies;
-  lddtree(Dependencies, TheBinary.getFileName().str(), DebugInfoLevel - 1);
+  lddtree(Dependencies, TheBinary.getFileName().str(), MaximumRecursionDepth);
   for (auto &Library : Dependencies) {
     revng_log(ELFImporterLog,
               "Importing Models for dependencies of " << Library.first << ":");
@@ -385,10 +398,13 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
       ModelsOfLibraries[DependencyLibrary] = TupleTree<Binary>();
       TupleTree<model::Binary> &DepModel = ModelsOfLibraries[DependencyLibrary];
       DepModel->Architecture() = Model->Architecture();
-      if (auto E = importELF(DepModel,
-                             *TheBinary,
-                             BaseAddress,
-                             1 /*FetchDebugInfoWithLevel*/)) {
+      ImporterOptions AdjustedOptions{
+        .BaseAddress = Opts.BaseAddress,
+        .DebugInfo = DebugInfoLevel::IgnoreLibraries,
+        .EnableRemoteDebugInfo = Opts.EnableRemoteDebugInfo,
+        .AdditionalDebugInfoPaths = Opts.AdditionalDebugInfoPaths
+      };
+      if (auto E = importELF(DepModel, *TheBinary, AdjustedOptions)) {
         revng_log(ELFImporterLog,
                   "Can't import model for " << DependencyLibrary << " due to "
                                             << E);
@@ -1183,7 +1199,6 @@ void ELFImporter<T, HasAddend>::registerRelocations(Elf_Rel_Array Relocations,
 static std::unique_ptr<ELFImporterBase>
 createELFImporter(TupleTree<model::Binary> &M,
                   const object::ELFObjectFileBase &TheBinary,
-                  uint64_t PreferredBaseAddress,
                   bool IsLittleEndian,
                   size_t PointerSize,
                   bool HasRelocationAddend) {
@@ -1194,81 +1209,48 @@ createELFImporter(TupleTree<model::Binary> &M,
                  or M->Architecture() == model::Architecture::mipsel);
   if (PointerSize == 4) {
     if (IsLittleEndian && HasRelocationAddend && !IsMIPS) {
-      return make_unique<ELFImporter<ELF32LE, true>>(M,
-                                                     TheBinary,
-                                                     PreferredBaseAddress);
+      return make_unique<ELFImporter<ELF32LE, true>>(M, TheBinary);
     } else if (IsLittleEndian && HasRelocationAddend && IsMIPS) {
-      return make_unique<MIPSELFImporter<ELF32LE, true>>(M,
-                                                         TheBinary,
-                                                         PreferredBaseAddress);
+      return make_unique<MIPSELFImporter<ELF32LE, true>>(M, TheBinary);
     } else if (IsLittleEndian && !HasRelocationAddend && !IsMIPS) {
-      return make_unique<ELFImporter<ELF32LE, false>>(M,
-                                                      TheBinary,
-                                                      PreferredBaseAddress);
+      return make_unique<ELFImporter<ELF32LE, false>>(M, TheBinary);
     } else if (IsLittleEndian && !HasRelocationAddend && IsMIPS) {
-      return make_unique<MIPSELFImporter<ELF32LE, false>>(M,
-                                                          TheBinary,
-                                                          PreferredBaseAddress);
+      return make_unique<MIPSELFImporter<ELF32LE, false>>(M, TheBinary);
     } else if (!IsLittleEndian && HasRelocationAddend && !IsMIPS) {
-      return make_unique<ELFImporter<ELF32BE, true>>(M,
-                                                     TheBinary,
-                                                     PreferredBaseAddress);
+      return make_unique<ELFImporter<ELF32BE, true>>(M, TheBinary);
     } else if (!IsLittleEndian && HasRelocationAddend && IsMIPS) {
-      return make_unique<MIPSELFImporter<ELF32BE, true>>(M,
-                                                         TheBinary,
-                                                         PreferredBaseAddress);
+      return make_unique<MIPSELFImporter<ELF32BE, true>>(M, TheBinary);
     } else if (!IsLittleEndian && !HasRelocationAddend && !IsMIPS) {
-      return make_unique<ELFImporter<ELF32BE, false>>(M,
-                                                      TheBinary,
-                                                      PreferredBaseAddress);
+      return make_unique<ELFImporter<ELF32BE, false>>(M, TheBinary);
     } else if (!IsLittleEndian && !HasRelocationAddend && IsMIPS) {
-      return make_unique<MIPSELFImporter<ELF32BE, false>>(M,
-                                                          TheBinary,
-                                                          PreferredBaseAddress);
+      return make_unique<MIPSELFImporter<ELF32BE, false>>(M, TheBinary);
     }
   } else if (PointerSize == 8) {
     if (IsLittleEndian && HasRelocationAddend && !IsMIPS) {
-      return make_unique<ELFImporter<ELF64LE, true>>(M,
-                                                     TheBinary,
-                                                     PreferredBaseAddress);
+      return make_unique<ELFImporter<ELF64LE, true>>(M, TheBinary);
     } else if (IsLittleEndian && HasRelocationAddend && IsMIPS) {
-      return make_unique<MIPSELFImporter<ELF64LE, true>>(M,
-                                                         TheBinary,
-                                                         PreferredBaseAddress);
+      return make_unique<MIPSELFImporter<ELF64LE, true>>(M, TheBinary);
     } else if (IsLittleEndian && !HasRelocationAddend && !IsMIPS) {
-      return make_unique<ELFImporter<ELF64LE, false>>(M,
-                                                      TheBinary,
-                                                      PreferredBaseAddress);
+      return make_unique<ELFImporter<ELF64LE, false>>(M, TheBinary);
     } else if (IsLittleEndian && !HasRelocationAddend && IsMIPS) {
-      return make_unique<MIPSELFImporter<ELF64LE, false>>(M,
-                                                          TheBinary,
-                                                          PreferredBaseAddress);
+      return make_unique<MIPSELFImporter<ELF64LE, false>>(M, TheBinary);
     } else if (!IsLittleEndian && HasRelocationAddend && !IsMIPS) {
-      return make_unique<ELFImporter<ELF64BE, true>>(M,
-                                                     TheBinary,
-                                                     PreferredBaseAddress);
+      return make_unique<ELFImporter<ELF64BE, true>>(M, TheBinary);
     } else if (!IsLittleEndian && HasRelocationAddend && IsMIPS) {
-      return make_unique<MIPSELFImporter<ELF64BE, true>>(M,
-                                                         TheBinary,
-                                                         PreferredBaseAddress);
+      return make_unique<MIPSELFImporter<ELF64BE, true>>(M, TheBinary);
     } else if (!IsLittleEndian && !HasRelocationAddend && !IsMIPS) {
-      return make_unique<ELFImporter<ELF64BE, false>>(M,
-                                                      TheBinary,
-                                                      PreferredBaseAddress);
+      return make_unique<ELFImporter<ELF64BE, false>>(M, TheBinary);
     } else if (!IsLittleEndian && !HasRelocationAddend && IsMIPS) {
-      return make_unique<MIPSELFImporter<ELF64BE, false>>(M,
-                                                          TheBinary,
-                                                          PreferredBaseAddress);
+      return make_unique<MIPSELFImporter<ELF64BE, false>>(M, TheBinary);
     }
   }
 
-  revng_abort("Unexpect address size");
+  revng_abort("Unexpected address size");
 }
 
 Error importELF(TupleTree<model::Binary> &Model,
                 const object::ELFObjectFileBase &TheBinary,
-                uint64_t PreferredBaseAddress,
-                unsigned FetchDebugInfoWithLevel) {
+                const ImporterOptions &Options) {
   // In the case of MIPS architecture, we handle some specific import
   // as a part of a separate derived (from ELFImporter) class.
   // TODO: Investigate other architectures as well.
@@ -1282,9 +1264,8 @@ Error importELF(TupleTree<model::Binary> &Model,
 
   auto Importer = createELFImporter(Model,
                                     TheBinary,
-                                    PreferredBaseAddress,
                                     IsLittleEndian,
                                     PointerSize,
                                     HasRelocationAddend);
-  return Importer->import(FetchDebugInfoWithLevel);
+  return Importer->import(Options);
 }

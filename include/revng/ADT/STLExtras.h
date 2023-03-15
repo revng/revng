@@ -5,6 +5,7 @@
 //
 
 #include <array>
+#include <iterator>
 #include <optional>
 #include <set>
 #include <string_view>
@@ -151,13 +152,113 @@ using MapToValueIteratorType = decltype(mapToValueIterator(std::declval<T>()));
 
 } // namespace revng
 
-template<typename C>
-inline auto skip(unsigned ToSkip, C &&Container)
-  -> llvm::iterator_range<decltype(Container.begin())> {
-  auto Begin = std::begin(Container);
-  while (ToSkip-- > 0)
-    Begin++;
-  return llvm::make_range(Begin, std::end(Container));
+//
+// skip
+//
+
+namespace revng::detail {
+
+// Remove these incomplete iterator testers after we update to libc++-13+
+// with standard library concept support.
+// NOTE: they are VERY basic, don't rely on them too much.
+
+template<typename Iterator>
+using Category = typename std::iterator_traits<Iterator>::iterator_category;
+
+template<typename Iterator>
+concept InputOnly = std::is_same_v<Category<Iterator>, std::input_iterator_tag>;
+template<typename Iterator>
+concept OutputOnly = std::is_same_v<Category<Iterator>,
+                                    std::output_iterator_tag>;
+template<typename Iterator>
+concept ForwardOnly = std::is_same_v<Category<Iterator>,
+                                     std::forward_iterator_tag>;
+template<typename Iterator>
+concept BidirectionalOnly = std::is_same_v<Category<Iterator>,
+                                           std::bidirectional_iterator_tag>;
+template<typename Iterator>
+concept RandomAccessOnly = std::is_same_v<Category<Iterator>,
+                                          std::random_access_iterator_tag>;
+template<typename Iterator>
+concept ContiguousOnly = std::is_same_v<Category<Iterator>,
+                                        std::contiguous_iterator_tag>;
+
+// clang-format off
+template<typename Iterator>
+concept contiguous_iterator = ContiguousOnly<Iterator>;
+template<typename Iterator>
+concept random_access_iterator = contiguous_iterator<Iterator>
+                                 || RandomAccessOnly<Iterator>;
+template<typename Iterator>
+concept bidirectional_iterator = random_access_iterator<Iterator>
+                                 || BidirectionalOnly<Iterator>;
+template<typename Iterator>
+concept forward_iterator = bidirectional_iterator<Iterator>
+                           || ForwardOnly<Iterator>;
+template<typename Iterator>
+concept input_iterator = forward_iterator<Iterator> || InputOnly<Iterator>;
+template<typename Iterator>
+concept input_or_output_iterator = input_iterator<Iterator>
+                                   || OutputOnly<Iterator>;
+// clang-format on
+
+template<typename IteratorType>
+inline auto
+skipImpl(IteratorType &&From,
+         IteratorType &&To,
+         std::size_t Front = 0,
+         std::size_t Back = 0) -> llvm::iterator_range<IteratorType> {
+
+  std::ptrdiff_t TotalSkippedCount = Front + Back;
+  if constexpr (forward_iterator<IteratorType>) {
+    // We cannot compute the assert on the input iterators because it's
+    // going to consume them.
+    revng_assert(std::distance(From, To) >= TotalSkippedCount);
+  }
+
+  std::decay_t<IteratorType> Begin{ From };
+  std::advance(Begin, Front);
+
+  std::decay_t<IteratorType> End{ To };
+  std::advance(End, -(std::ptrdiff_t) Back);
+
+  return llvm::make_range(std::move(Begin), std::move(End));
+}
+
+template<bidirectional_iterator T>
+inline decltype(auto)
+skip(T &&From, T &&To, std::size_t Front = 0, std::size_t Back = 0) {
+  return skipImpl(std::forward<T>(From), std::forward<T>(To), Front, Back);
+}
+
+template<input_iterator T>
+inline decltype(auto) // NOLINTNEXTLINE
+skip_front(T &&From, T &&To, std::size_t SkippedCount = 1) {
+  return skipImpl(std::forward<T>(From), std::forward<T>(To), SkippedCount, 0);
+}
+
+template<bidirectional_iterator T>
+inline decltype(auto) // NOLINTNEXTLINE
+skip_back(T &&From, T &&To, std::size_t SkippedCount = 1) {
+  return skipImpl(std::forward<T>(From), std::forward<T>(To), 0, SkippedCount);
+}
+
+} // namespace revng::detail
+
+template<ranges::range T>
+inline decltype(auto)
+skip(T &&Range, std::size_t Front = 0, std::size_t Back = 0) {
+  return revng::detail::skip(Range.begin(), Range.end(), Front, Back);
+}
+
+template<ranges::range T> // NOLINTNEXTLINE
+inline decltype(auto) skip_front(T &&Range, std::size_t SkippedCount = 1) {
+  return revng::detail::skip_front(Range.begin(), Range.end(), SkippedCount);
+}
+
+template<ranges::range T> // NOLINTNEXTLINE
+inline decltype(auto) skip_back(T &&Range, std::size_t SkippedCount = 1) {
+  return revng::detail::skip_back(Range.begin(), Range.end(), SkippedCount);
 }
 
 //
@@ -182,7 +283,7 @@ std::array<T, Size> slice(const std::array<T, OldSize> &Old) {
   return Result;
 }
 
-/// \brief Simple helper function asserting a pointer is not a `nullptr`
+/// Simple helper function asserting a pointer is not a `nullptr`
 template<typename T>
 inline T *notNull(T *Pointer) {
   revng_assert(Pointer != nullptr);
@@ -349,16 +450,82 @@ namespace revng {
 /// \note use `llvm::find` instead after it's made `constexpr`.
 template<typename R, typename T>
 constexpr decltype(auto) find(R &&Range, const T &Value) {
-  return std::find(std::begin(Range), std::end(Range), Value);
+  return std::find(std::begin(std::forward<R>(Range)),
+                   std::end(std::forward<R>(Range)),
+                   Value);
+}
+
+/// \note use `llvm::find_if` instead after it's made `constexpr`.
+template<typename R, typename CallableType> // NOLINTNEXTLINE
+constexpr decltype(auto) find_if(R &&Range, CallableType &&Callable) {
+  return std::find_if(std::begin(std::forward<R>(Range)),
+                      std::end(std::forward<R>(Range)),
+                      std::forward<CallableType>(Callable));
+}
+
+/// \note use `llvm::find_if_not` instead after it's made `constexpr`.
+template<typename R, typename CallableType> // NOLINTNEXTLINE
+constexpr decltype(auto) find_if_not(R &&Range, CallableType &&Callable) {
+  return std::find_if_not(std::begin(std::forward<R>(Range)),
+                          std::end(std::forward<R>(Range)),
+                          std::forward<CallableType>(Callable));
+}
+
+/// \note `std::find_last` is introduced in c++23,
+///       replace with the llvm version when it's available.
+template<typename R, typename T> // NOLINTNEXTLINE
+constexpr decltype(auto) find_last(R &&Range, const T &Value) {
+  return std::find(std::rbegin(std::forward<R>(Range)),
+                   std::rend(std::forward<R>(Range)),
+                   Value);
+}
+
+/// \note `std::find_last_if` is introduced in c++23,
+///       replace with the llvm version when it's available.
+template<typename R, typename CallableType> // NOLINTNEXTLINE
+constexpr decltype(auto) find_last_if(R &&Range, CallableType &&Callable) {
+  return std::find_if(std::rbegin(std::forward<R>(Range)),
+                      std::rend(std::forward<R>(Range)),
+                      std::forward<CallableType>(Callable));
+}
+
+/// \note `std::find_last_if_not` is introduced in c++23,
+///       replace with the llvm version when it's available.
+template<typename R, typename CallableType> // NOLINTNEXTLINE
+constexpr decltype(auto) find_last_if_not(R &&Range, CallableType &&Callable) {
+  return std::find_if_not(std::rbegin(std::forward<R>(Range)),
+                          std::rend(std::forward<R>(Range)),
+                          std::forward<CallableType>(Callable));
 }
 
 /// \note use `llvm::is_contained` instead after it's made `constexpr`.
 template<typename R, typename T> // NOLINTNEXTLINE
 constexpr bool is_contained(R &&Range, const T &Value) {
-  return revng::find(Range, Value) != std::end(Range);
+  return revng::find(std::forward<R>(Range), Value) != std::end(Range);
+}
+
+template<typename Range, typename C> // NOLINTNEXTLINE
+constexpr bool is_contained_if(Range &&R, C &&L) {
+  return find_if(std::forward<Range>(R), std::forward<C>(L)) != std::end(R);
 }
 
 static_assert(is_contained(std::array{ 1, 2, 3 }, 2) == true);
 static_assert(is_contained(std::array{ 1, 2, 3 }, 4) == false);
 
 } // namespace revng
+
+//
+// Some views from the STL.
+// TODO: remove these after updating the libc++ version.
+//
+namespace ranges::views {
+
+template<typename RangeType> // NOLINTNEXTLINE
+auto as_rvalue(RangeType &&Range) {
+  return llvm::make_range(std::make_move_iterator(Range.begin()),
+                          std::make_move_iterator(Range.end()));
+}
+
+} // namespace ranges::views
+
+namespace views = ranges::views;

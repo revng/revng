@@ -2,16 +2,35 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-tags:
-  - name: x86-64-systemv-abi
-    variables:
-      ABI_NAME: SystemV_x86_64
 commands:
-  - type: revng.test-abi
+  - type: revng.test-layout
     from:
       - type: revng.qemu-run
         filter: abi-describe-functions
-      - type: revng-qa.compiled
+      - type: revng-qa.compiled-with-debug-info
         filter: abi-functions-library
+    repeat-for:
+      - [x86-64-systemv-abi]
+      - [i386-systemv-abi]
+      - [i386-regparm-3-systemv-abi]
+      - [i386-regparm-2-systemv-abi]
+      - [i386-regparm-1-systemv-abi]
+      - [arm-aapcs-abi]
     command: |-
-      "${SOURCES_ROOT}/tests/abi/test.sh" "${ABI_NAME}" "${INPUT1}/default.stdout" "${INPUT2}"
+      "${SOURCES_ROOT}/tests/abi/test-layout.sh" "${ABI_NAME}" "${INPUT1}/default.stdout" "${INPUT2}"
+
+  - type: revng.test-conversion
+    from:
+      - type: revng.qemu-run
+        filter: abi-describe-functions
+      - type: revng-qa.compiled-with-debug-info
+        filter: abi-functions-library
+    repeat-for:
+      - [x86-64-systemv-abi]
+      - [i386-systemv-abi]
+      - [i386-regparm-3-systemv-abi]
+      - [i386-regparm-2-systemv-abi]
+      - [i386-regparm-1-systemv-abi]
+      - [arm-aapcs-abi]
+    command: |-
+      "${SOURCES_ROOT}/tests/abi/test-conversion.sh" "${ABI_NAME}" "${INPUT1}/default.stdout" "${INPUT2}"

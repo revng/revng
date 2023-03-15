@@ -9,8 +9,7 @@
 
 #include "revng/ADT/Queue.h"
 
-/// \brief Data structure implementing a subgraph of an object providing
-///        GraphTraits
+/// Data structure implementing a subgraph of an object providing GraphTraits
 ///
 /// This class represents a "subgraph", i.e., given an object implementing
 /// GraphTraits, this class expose a portion of the graph (identified by a
@@ -19,7 +18,7 @@
 template<typename InnerNodeType>
 class SubGraph {
 public:
-  /// \brief A node of the subgraph
+  /// A node of the subgraph
   ///
   /// A node is simply a reference to the original node decorated with a vector
   /// of successor. In theory we could avoid storing the vector and explore the
@@ -30,7 +29,7 @@ public:
   public:
     Node(InnerNodeType Value) : Value(Value) {}
 
-    /// \brief Return the underlying node
+    /// Return the underlying node
     InnerNodeType get() const { return Value; }
 
   private:
@@ -90,8 +89,7 @@ private:
     }
   };
 
-  /// \brief Get the node with value \p Value, of, if absent, insert it in the
-  ///        graph
+  /// Get the node with value \p Value, of, if absent, insert it in the graph
   Node &findOrInsert(InnerNodeType Value) {
     // We can't use find, because it would use the equality comparison operator
     // instead of our CompareNodes. Plus we have to cast away constness, because
@@ -114,7 +112,7 @@ private:
 
 namespace llvm {
 
-/// \brief Specialization of GraphTraits for SubGraph
+/// Specialization of GraphTraits for SubGraph
 template<typename InnerNodeType>
 struct GraphTraits<SubGraph<InnerNodeType>> {
   using GraphType = SubGraph<InnerNodeType>;

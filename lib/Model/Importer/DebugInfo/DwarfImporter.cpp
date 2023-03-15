@@ -22,7 +22,9 @@
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/ADT/STLExtras.h"
 #include "revng/Model/Importer/Binary/BinaryImporterHelper.h"
+#include "revng/Model/Importer/Binary/Options.h"
 #include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
 #include "revng/Model/Pass/AllPasses.h"
 #include "revng/Model/Processing.h"
@@ -198,6 +200,12 @@ private:
   model::ABI::Values getABI(CallingConvention CC = DW_CC_normal) const {
     if (CC != DW_CC_normal)
       return model::ABI::Invalid;
+
+    // NOTE: static functions do not always follow the standard calling
+    //       convention which is a problem since `CABIFunctionTypes` we generate
+    //       for them do not correspond to the real functions, leading to
+    //       problems downstream.
+    // TODO: investigate.
 
     return Model->DefaultABI();
   }
@@ -899,18 +907,19 @@ private:
   void cleanupTypeSystem() {
     std::set<const model::Type *> ToDrop;
 
+    model::VerifyHelper VH;
     for (auto &Type : Model->Types()) {
       //
       // Drop zero-sized struct/union fields
       //
       if (auto *Struct = dyn_cast<model::StructType>(Type.get())) {
-        llvm::erase_if(Struct->Fields(), [](model::StructField &Field) {
-          auto MaybeSize = Field.Type().trySize();
+        llvm::erase_if(Struct->Fields(), [&VH](model::StructField &Field) {
+          std::optional<std::uint64_t> MaybeSize = Field.Type().trySize(VH);
           return !MaybeSize || not *MaybeSize;
         });
       } else if (auto *Union = dyn_cast<model::UnionType>(Type.get())) {
-        llvm::erase_if(Union->Fields(), [](model::UnionField &Field) {
-          auto MaybeSize = Field.Type().trySize();
+        llvm::erase_if(Union->Fields(), [&VH](model::UnionField &Field) {
+          std::optional<std::uint64_t> MaybeSize = Field.Type().trySize(VH);
           return !MaybeSize || not *MaybeSize;
         });
       }
@@ -927,13 +936,19 @@ private:
       // Collect array whose elements are zero-sized
       //
       for (const model::QualifiedType &QT : Type->edges()) {
-        auto IsArray = [](const model::Qualifier &Q) {
-          return Q.Kind() == model::QualifierKind::Array;
-        };
-        if (llvm::any_of(QT.Qualifiers(), IsArray)
-            and not QT.UnqualifiedType().get()->size()) {
-          ToDrop.insert(Type.get());
+        model::TypePath Unqualified = QT.UnqualifiedType();
+        if (Unqualified.isValid()) {
+          std::optional<std::uint64_t> Size = Unqualified.get()->trySize(VH);
+          if (Size.has_value())
+            continue;
         }
+
+        // At this point only invalid types and types with no size remain.
+        auto Iterator = revng::find_last_if_not(QT.Qualifiers(),
+                                                model::Qualifier::isConst);
+        if (Iterator != QT.Qualifiers().rend())
+          if (Iterator->Kind() == model::QualifierKind::Array)
+            ToDrop.insert(Type.get());
       }
     }
 
@@ -1183,8 +1198,7 @@ findDebugInfoFileByName(StringRef FileName,
   return std::nullopt;
 }
 
-void DwarfImporter::import(StringRef FileName,
-                           unsigned FetchDebugInfoWithLevel) {
+void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
   using namespace llvm::object;
   ErrorOr<std::unique_ptr<MemoryBuffer>>
     BuffOrErr = MemoryBuffer::getFileOrSTDIN(FileName);
@@ -1216,18 +1230,19 @@ void DwarfImporter::import(StringRef FileName,
     return false;
   };
 
-  auto PerfromImport = [this](StringRef FilePath, StringRef TheDebugFile) {
+  auto PerformImport = [this, &Options](StringRef FilePath,
+                                        StringRef TheDebugFile) {
     auto ExpectedBinary = object::createBinary(FilePath);
     if (!ExpectedBinary) {
       revng_log(DILogger, "Can't create binary for " << FilePath);
       llvm::consumeError(ExpectedBinary.takeError());
     } else {
-      import(*ExpectedBinary->getBinary(), TheDebugFile);
+      import(*ExpectedBinary->getBinary(), TheDebugFile, Options.BaseAddress);
     }
   };
 
   if (auto *ELF = dyn_cast<ObjectFile>(BinOrErr->get())) {
-    if (FetchDebugInfoWithLevel && !HasDebugInfo(ELF)) {
+    if (Options.DebugInfo != DebugInfoLevel::No && !HasDebugInfo(ELF)) {
       // There are no .debug_* sections in the file itself, let's try to find it
       // on the device, otherwise find it on web by using the `fetch-debuginfo`
       // tool.
@@ -1252,15 +1267,15 @@ void DwarfImporter::import(StringRef FileName,
         } else {
           DebugFilePath = findDebugInfoFileByName(FileName, DebugFile, ELF);
           if (DebugFilePath)
-            PerfromImport(*DebugFilePath, DebugFile);
+            PerformImport(*DebugFilePath, DebugFile);
         }
       } else {
-        PerfromImport(*DebugFilePath, DebugFile);
+        PerformImport(*DebugFilePath, DebugFile);
       }
     }
   }
 
-  import(*BinOrErr->get(), FileName);
+  import(*BinOrErr->get(), FileName, Options.BaseAddress);
 }
 
 auto zipPairs(auto &&R) {
@@ -1343,7 +1358,7 @@ computeEquivalentSymbols(const llvm::object::ObjectFile &ELF) {
   return Result;
 }
 
-// TODO: it wuold be beneficial to do this even at other levels
+// TODO: it would be beneficial to do this even at other levels
 inline void detectAliases(const llvm::object::ObjectFile &ELF,
                           TupleTree<model::Binary> &Model) {
   EquivalenceClasses<StringRef> Aliases = computeEquivalentSymbols(ELF);
@@ -1421,7 +1436,8 @@ inline void detectAliases(const llvm::object::ObjectFile &ELF,
 }
 
 void DwarfImporter::import(const llvm::object::Binary &TheBinary,
-                           StringRef FileName) {
+                           StringRef FileName,
+                           std::uint64_t PreferredBaseAddress) {
   using namespace llvm::object;
 
   if (auto *ELF = dyn_cast<ObjectFile>(&TheBinary)) {

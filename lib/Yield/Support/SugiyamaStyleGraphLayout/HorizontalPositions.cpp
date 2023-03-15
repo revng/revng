@@ -22,7 +22,7 @@ void setHorizontalCoordinates(const LayerContainer &Layers,
                               float MarginSize,
                               float VirtualNodeWeight) {
   // `IterationCount` can be tuned depending on the types of nodes and edges
-  // \note: BFS layouts have wider layers, so it might make sense to make
+  // NOTE: BFS layouts have wider layers, so it might make sense to make
   // `IterationCount` larger for them.
   size_t IterationCount = 10 + 5 * std::log2(Layers.size());
 
@@ -47,7 +47,7 @@ void setHorizontalCoordinates(const LayerContainer &Layers,
       else
         Child->center().X = Parent->center().X;
 
-    // \note: I feel like this loop can be A LOT simpler.
+    // NOTE: I feel like this loop can be A LOT simpler.
     std::map<Rank, double> MinimumX;
     for (auto Node : Order) {
       auto LayerIndex = Layout.at(Node).Layer;
@@ -215,7 +215,7 @@ void setStaticOffsetHorizontalCoordinates(const LayerContainer &Layers,
   // the logical space required to fit all the successors of the node as well
   // it's logical position in relation to its siblings.
   //
-  // \note: this only computes logical placement, so `ActualPosition` is left
+  // NOTE: this only computes logical placement, so `ActualPosition` is left
   // unset.
   std::unordered_map<NodeView, Subtree> LookupTable;
   for (auto LayerInd = Layers.size() - 1; LayerInd != size_t(-1); --LayerInd) {
@@ -278,7 +278,7 @@ void setStaticOffsetHorizontalCoordinates(const LayerContainer &Layers,
       // If this node has to predecessors, consider it's `PredecessorPosition`
       // to be the first available space to the right.
       //
-      // \note: this also sets the position of the first entry node to 0.
+      // NOTE: this also sets the position of the first entry node to 0.
       size_t PredecessorPosition = CurrentPosition;
       if (NodeView->hasPredecessors()) {
         auto *Predecessor = *NodeView->predecessors().begin();

@@ -167,22 +167,26 @@ using ConcatImpl = std::decay_t<decltype(*concatImpl(std::declval<T1 *>(),
                                                      std::declval<T2 *>()))>;
 
 template<typename First, typename... Rest>
-auto *concantMultiImp(const First *, const Rest *...Others) {
+auto *concatMultiple(const First *, const Rest *...Others) {
   if constexpr (sizeof...(Rest) == 0) {
     return static_cast<First *>(nullptr);
   } else {
-    auto *Recurred = concantMultiImp<Rest...>(Others...);
+    auto *Recurred = concatMultiple<Rest...>(Others...);
     using TupleType = std::decay_t<decltype(*Recurred)>;
     using Concatted = ConcatImpl<First, TupleType>;
     return static_cast<Concatted *>(nullptr);
   }
 }
 
+inline std::tuple<> *concatMultiple() {
+  return nullptr;
+}
+
 template<typename T>
 using Decay = std::decay_t<T>;
 
 template<typename... T>
-using TupleConcat = Decay<decltype(*concantMultiImp(std::declval<T *>()...))>;
+using TupleConcat = Decay<decltype(*concatMultiple(std::declval<T *>()...))>;
 
 template<typename... T>
 using FilterContainers = TupleConcat<ContainerToTuple<T>...>;
@@ -427,11 +431,15 @@ public:
     indent(OS, Indentation);
     OS << getName() << "\n";
     indent(OS, Indentation + 1);
-    OS << "Containers\n";
-    for (const auto &Name : getRunningContainersNames()) {
-      indent(OS, Indentation + 2);
-      OS << Name;
-      OS << "\n";
+    if (const auto &Names = getRunningContainersNames(); !Names.empty()) {
+      OS << "Containers:\n";
+      for (const auto &Name : Names) {
+        indent(OS, Indentation + 2);
+        OS << Name;
+        OS << "\n";
+      }
+    } else {
+      OS << "No containers.\n";
     }
     if constexpr (Dumpable<InvokableType>)
       ActualPipe.dump(OS, Indentation);

@@ -23,7 +23,7 @@
 
 template<typename T, typename EE>
 struct Endianess {
-  /// \brief Reads an integer of type T, using the endianess of the ELF type EE
+  /// Reads an integer of type T, using the endianess of the ELF type EE
   static uint64_t read(const uint8_t *Buf);
 };
 
@@ -59,7 +59,7 @@ struct Endianess<T, llvm::object::ELF64BE> {
   }
 };
 
-/// \brief Read a pointer-sized integer according to the given ELF type EE
+/// Read a pointer-sized integer according to the given ELF type EE
 template<typename EE>
 inline uint64_t readPointer(const uint8_t *Buf);
 
@@ -83,7 +83,7 @@ inline uint64_t readPointer<llvm::object::ELF64BE>(const uint8_t *Buf) {
   return Endianess<uint64_t, llvm::object::ELF64BE>::read(Buf);
 }
 
-/// \brief A pair on steroids to wrap a value or a pointer to a value
+/// A pair on steroids to wrap a value or a pointer to a value
 class Pointer {
 public:
   Pointer() : IsIndirect(false), Value(MetaAddress::invalid()) {}

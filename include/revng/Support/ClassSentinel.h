@@ -44,7 +44,7 @@ private:
 };
 #endif
 
-/// \brief Helper class to detect object used after being freed or moved
+/// Helper class to detect object used after being freed or moved
 ///
 /// To use the ClassSentinel Simply put an instance of the ClassSentinel in
 /// your class, it will be destroyed and moved with your parent object. Then

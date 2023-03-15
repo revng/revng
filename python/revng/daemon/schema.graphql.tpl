@@ -18,7 +18,7 @@ type Query {
 type Mutation {
     uploadB64(input: String!, container: String!): Boolean!
     uploadFile(file: Upload, container: String!): Boolean!
-    runAnalysis(step: String!, analysis: String!, container: String!, targets: String!): String!
+    runAnalysis(step: String!, analysis: String!, containerToTargets: String): String!
     runAllAnalyses: String!
     analyses: AnalysisMutations!
     setGlobal(name: String!, content: String!, verify: Boolean): Boolean!

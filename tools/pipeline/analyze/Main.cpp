@@ -75,7 +75,7 @@ getStepOfAnalysis(pipeline::Runner &Runner, llvm::StringRef AnalysisName) {
   const auto &StepHasAnalysis = [AnalysisName](const Step &Step) {
     return Step.hasAnalysis(AnalysisName);
   };
-  auto It = find_if(Runner, StepHasAnalysis);
+  auto It = llvm::find_if(Runner, StepHasAnalysis);
   if (It == Runner.end())
     return nullptr;
   return &*It;

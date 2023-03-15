@@ -25,6 +25,7 @@
 #include "llvm/Support/Program.h"
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/Importer/Binary/Options.h"
 #include "revng/Model/Importer/DebugInfo/PDBImporter.h"
 #include "revng/Model/Pass/AllPasses.h"
 #include "revng/Model/Processing.h"
@@ -369,7 +370,7 @@ static std::string formatPDBFileID(ArrayRef<uint8_t> Bytes, uint16_t Age) {
 }
 
 void PDBImporter::import(const COFFObjectFile &TheBinary,
-                         unsigned FetchDebugInfoWithLevel) {
+                         const ImporterOptions &Options) {
   // Parse debug info and populate types to Model.
   const codeview::DebugInfo *DebugInfo;
   StringRef PDBFilePath;
@@ -380,11 +381,11 @@ void PDBImporter::import(const COFFObjectFile &TheBinary,
       // Sometimes we may rename a PDB file, so we can force using that one.
       loadDataFromPDB(UsePDB);
     } else if (llvm::sys::fs::exists(PDBFilePath)) {
-      // Use the filepath of the PDB file if it exists on the device.
+      // Use the path of the PDB file if it exists on the device.
       loadDataFromPDB(PDBFilePath.str());
     } else {
-      if (FetchDebugInfoWithLevel) {
-        // Usualy the PDB files will be generated on a different machine,
+      if (Options.DebugInfo != DebugInfoLevel::No) {
+        // Usually the PDB files will be generated on a different machine,
         // so the location read from the debug directory wont be up to date.
 
         auto PositionOfLastDirectoryChar = PDBFilePath.rfind("\\");
@@ -835,10 +836,12 @@ getMicrosoftABI(CallingConvention CallConv, model::Architecture::Values Arch) {
     case CallingConvention::NearStdCall:
     case CallingConvention::NearSysCall:
     case CallingConvention::ThisCall:
-    case CallingConvention::ClrCall:
     case CallingConvention::NearPascal:
-    case CallingConvention::NearVector:
       return model::ABI::Microsoft_x86_64;
+    case CallingConvention::NearVector:
+      return model::ABI::Microsoft_x86_64_vectorcall;
+    case CallingConvention::ClrCall:
+      return model::ABI::Microsoft_x86_64_clrcall;
     default:
       revng_abort();
     }

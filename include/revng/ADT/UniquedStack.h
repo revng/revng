@@ -10,8 +10,7 @@
 
 #include "revng/Support/Assert.h"
 
-/// \brief Stack where an element cannot be re-inserted in it's already in the
-///        stack
+/// Stack where an element cannot be re-inserted in it's already in the stack
 template<typename T>
 class UniquedStack {
 public:
@@ -32,7 +31,7 @@ public:
     return Result;
   }
 
-  /// \brief Reverses the stack in its current status
+  /// Reverses the stack in its current status
   void reverse() { std::reverse(Queue.begin(), Queue.end()); }
 
   size_t size() const { return Queue.size(); }
