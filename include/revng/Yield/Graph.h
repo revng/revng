@@ -8,39 +8,23 @@
 
 #include "revng/ADT/GenericGraph.h"
 #include "revng/Support/BasicBlockID.h"
+#include "revng/Yield/Support/GraphLayout/Traits.h"
 
 namespace yield {
 
 namespace detail {
 
-using Coordinate = float;
-using Dimension = Coordinate;
-
-struct Point {
-  Coordinate X;
-  Coordinate Y;
-
-  constexpr Point(Coordinate X = 0, Coordinate Y = 0) : X(X), Y(Y) {}
-};
-
-struct Size {
-  Dimension W;
-  Dimension H;
-
-  constexpr Size(Dimension W = 0, Dimension H = 0) : W(W), H(H) {}
-};
-
 struct Node {
   explicit Node(const BasicBlockID &Address = BasicBlockID::invalid(),
                 const BasicBlockID &NextAddress = BasicBlockID::invalid(),
-                const Point &Center = { 0, 0 },
-                const Size &Size = { 0, 0 }) :
+                const layout::Point &Center = { 0, 0 },
+                const layout::Size &Size = { 0, 0 }) :
     Address(Address), NextAddress(NextAddress), Center(Center), Size(Size) {}
 
   BasicBlockID Address;
   BasicBlockID NextAddress;
-  Point Center;
-  Size Size;
+  layout::Point Center;
+  layout::Size Size;
 };
 
 enum class EdgeStatus { Unrouted, Routed, Hidden };
@@ -50,7 +34,7 @@ struct Edge {
   EdgeStatus Status = EdgeStatus::Unrouted;
   EdgeType Type = EdgeType::Unconditional;
 
-  std::vector<Point> Path = {};
+  std::vector<layout::Point> Path = {};
 };
 
 } // namespace detail
@@ -62,10 +46,6 @@ public:
   using GenericGraph<Node, 16, true>::GenericGraph;
 
 public:
-  using Coordinate = detail::Coordinate;
-  using Dimension = detail::Dimension;
-  using Point = detail::Point;
-  using Size = detail::Size;
   using EdgeStatus = detail::EdgeStatus;
   using EdgeType = detail::EdgeType;
 };
