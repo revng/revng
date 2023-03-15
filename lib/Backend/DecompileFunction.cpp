@@ -24,7 +24,7 @@
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "revng/ABI/FunctionType.h"
+#include "revng/ABI/FunctionType/Layout.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
@@ -1401,8 +1401,8 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
 
   // Clear the TokenMap for operands that only have one use in the same
   // BasicBlock, and such that I is the last user in the block.
-  // They will be never used before, and we don't want those strings to hang
-  // around, since they can grow quite big.
+  // They will be never used after that, and we don't want those strings to hang
+  // around, since we don't want the container to grow too big.
   for (const llvm::Value *Operand : I.operand_values()) {
     if (auto *InstructionOp = dyn_cast<llvm::Instruction>(Operand)) {
       bool UserInDifferentBlock = false;
@@ -1951,10 +1951,6 @@ void decompile(FunctionMetadataCache &Cache,
                llvm::Module &Module,
                const model::Binary &Model,
                Container &DecompiledFunctions) {
-
-  if (Log.isEnabled())
-    writeToFile(Model.toString(), "model-during-c-codegen.yaml");
-
   for (llvm::Function &F : FunctionTags::Isolated.functions(&Module)) {
 
     if (F.empty())

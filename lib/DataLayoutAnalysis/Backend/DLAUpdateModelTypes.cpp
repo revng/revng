@@ -306,7 +306,20 @@ static bool updateReturnType(model::Binary &Model,
     return false;
   }
 
-  if (LLVMRetType->isIntOrPtrTy()) {
+  if (ModelReturnType.isScalar()) {
+    if (!LLVMRetType->isIntOrPtrTy()) {
+      revng_log(Log,
+                "WARNING: model::CABIFunctionType returns a scalar type, the "
+                "associated llvm::Function should return an integer or a "
+                "pointer: "
+                  << LLVMRetVal->getNameOrAsOperand());
+      // If this happens we have an aggregate on LLVMIR and a scalar on
+      // CABIFunction type. This should only happen in corner cases and we don't
+      // have a general way to solve it properly right now, so we bail out and
+      // never update that.
+      return false;
+    }
+
     revng_log(Log, "Is scalar: " << LLVMRetVal->getNameOrAsOperand());
     revng_assert(ModelReturnType.isScalar());
 
@@ -331,64 +344,20 @@ static bool updateReturnType(model::Binary &Model,
       }
     }
     return false;
-  } else if (ModelReturnType.isScalar()) {
-    revng_log(Log,
-              "WARNING: model::CABIFunctionType returns a scalar type, the "
-              "associated llvm::Function should return an integer or a "
-              "pointer: "
-                << LLVMRetVal->getNameOrAsOperand());
-    // If this happens we have an aggregate on LLVMIR and a scalar on
-    // CABIFunction type. This should only happen in corner cases and we don't
-    // have a general way to solve it properly right now, so we bail out and
-    // never update that.
-    return false;
   }
 
-  bool Updated = false;
-
-  revng_assert(ModelReturnType.is(model::TypeKind::StructType));
-  auto QualifiedModelReturnType = peelConstAndTypedefs(ModelReturnType);
-  revng_assert(QualifiedModelReturnType.Qualifiers().empty());
-  auto *UnqualifiedModelReturnType = QualifiedModelReturnType.UnqualifiedType()
-                                       .get();
-  auto *ModelStruct = llvm::cast<model::StructType>(UnqualifiedModelReturnType);
-  const auto *IRStruct = llvm::cast<llvm::StructType>(LLVMRetType);
-  const auto &SubTypes = IRStruct->subtypes();
-  revng_assert(SubTypes.size() == ModelStruct->Fields().size());
-
-  const auto IsScalar = [](const llvm::Type *T) { return T->isIntOrPtrTy(); };
-  revng_assert(llvm::all_of(SubTypes, IsScalar));
-
-  const auto FieldQualifiedType =
-    [](model::StructField &F) -> model::QualifiedType & { return F.Type(); };
-
-  unsigned Index = 0;
-  for (auto &FieldType :
-       llvm::map_range(ModelStruct->Fields(), FieldQualifiedType)) {
-
-    // Don't update if the type is already fine-grained or if the DLA has
-    // nothing to say.
-    // The latter situation can happen e.g. with unused variables, that have
-    // no accesses in the TypeSystem graph. These nodes are pruned away in the
-    // middle-end, therefore there is no Type associated to them at this
-    // stage.
-    if (canBeUpgraded(FieldType)) {
-      LayoutTypePtr Key{ LLVMRetVal, Index };
-      if (auto NewTypeIt = TypeMap.find(Key); NewTypeIt != TypeMap.end()) {
-        auto OldSize = *FieldType.size();
-        // The type is associated to a LayoutTypeSystemPtr, hence we have to
-        // add the pointer qualifier
-        FieldType = NewTypeIt->second.getPointerTo(Model.Architecture());
-        revng_log(Log,
-                  "Updated to " << FieldType.UnqualifiedType().get()->ID());
-        revng_assert(FieldType.size() == OldSize);
-        Updated = true;
-      }
-    }
-    ++Index;
-  }
-
-  return Updated;
+  // The case where CABIFunctionType's return type is scalar (meaning that
+  // the corresponding IR also mentions a scalar) is handled above, as for
+  // the aggregate case, we decided to just not do anything.
+  //
+  // The main reason behind such approach is the fact that usually non-scalar
+  // return value types come from the places we should not override anyway,
+  // i.e. debug information in the binary or the user.
+  //
+  // Also note, that big aggregate return value types are usually handled with
+  // a shadow pointer argument, and so they are already scalars (pointers)
+  // in the case where we deduce them manually.
+  return false;
 }
 
 /// Update the prototype of a model::Function or of a call siet with the types

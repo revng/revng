@@ -7,7 +7,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 
-#include "revng/ABI/FunctionType.h"
+#include "revng/ABI/FunctionType/Layout.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/FunctionTags.h"
 

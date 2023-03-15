@@ -24,7 +24,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "revng/ABI/FunctionType.h"
+#include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
@@ -353,10 +353,10 @@ computeIRAccessPattern(FunctionMetadataCache &Cache,
                                 and not Layout.returnsAggregateType());
       const model::QualifiedType *SingleReturnType = nullptr;
 
-      if (Layout.ReturnValues.size() == 1) {
-        SingleReturnType = &Layout.ReturnValues[0].Type;
-      } else if (Layout.returnsAggregateType()) {
+      if (Layout.returnsAggregateType()) {
         SingleReturnType = &Layout.Arguments[0].Type;
+      } else if (Layout.ReturnValues.size() == 1) {
+        SingleReturnType = &Layout.ReturnValues[0].Type;
       }
 
       // If the callee function does not return anything, skip to the next
@@ -928,8 +928,11 @@ static ScoredIndices differenceScore(const model::QualifiedType &BaseType,
                       and IRAP.PointeeType.value() == TAP.AccessedType;
 
   bool SameSize = false;
-  if (IRAP.PointeeType.has_value())
-    SameSize = *TAP.AccessedType.size(VH) == *IRAP.PointeeType.value().size(VH);
+  if (IRAP.PointeeType.has_value()) {
+    std::optional<uint64_t> TAPSize = TAP.AccessedType.trySize(VH);
+    std::optional<uint64_t> IRAPSize = IRAP.PointeeType.value().trySize(VH);
+    SameSize = TAPSize.value_or(0ull) == IRAPSize.value_or(0ull);
+  }
 
   return ScoredIndices{
     .Score = DifferenceScore::inRange(PerfectMatch,
@@ -1043,7 +1046,7 @@ static DifferenceScore lowerBound(const model::QualifiedType &BaseType,
 
   bool IRHasPointee = IRPattern.PointeeType.has_value();
 
-  size_t PointeeSize = IRHasPointee ? *IRPattern.PointeeType->size(VH) : 0ULL;
+  auto PointeeSize = IRHasPointee ? *IRPattern.PointeeType->trySize(VH) : 0ULL;
 
   if ((IRPattern.BaseOffset + PointeeSize).uge(BaseSize))
     return DifferenceScore::outOfBound(IRPattern.BaseOffset.getZExtValue());

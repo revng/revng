@@ -69,7 +69,7 @@ static_assert_size(number128_t, 16);
 // Signed and Unsigned
 //
 
-// Smaller sizes are already present int stdint.h
+// Smaller sizes are already present in stdint.h
 typedef __int128_t int128_t;
 typedef __uint128_t uint128_t;
 

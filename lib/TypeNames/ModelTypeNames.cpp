@@ -10,7 +10,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Type.h"
 
-#include "revng/ABI/FunctionType.h"
+#include "revng/ABI/FunctionType/Layout.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/CABIFunctionType.h"
 #include "revng/Model/Identifier.h"
@@ -309,8 +309,6 @@ TypeString getNamedInstanceOfReturnType(const model::Type &Function,
     auto &ShadowArgument = Layout.Arguments[0];
     using namespace abi::FunctionType::ArgumentKind;
     revng_assert(ShadowArgument.Kind == ShadowPointerToAggregateReturnValue);
-    revng_assert(ShadowArgument.Registers.size() == 1);
-    revng_assert(not ShadowArgument.Stack);
     Result = getNamedCInstance(stripPointer(ShadowArgument.Type), InstanceName);
   } else {
     if (Layout.ReturnValues.size() == 0) {
