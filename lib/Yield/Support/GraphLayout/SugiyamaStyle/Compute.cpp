@@ -9,11 +9,13 @@
 
 #include "Layout.h"
 
-bool yield::sugiyama::layout(Graph &Graph, const Configuration &Configuration) {
-  using RS = yield::sugiyama::RankingStrategy;
+namespace sugiyama = yield::layout::sugiyama;
+bool sugiyama::compute(yield::Graph &Graph,
+                       const Configuration &Configuration) {
+  using RS = sugiyama::RankingStrategy;
 
-  if (Configuration.Orientation == LayoutOrientation::LeftToRight
-      || Configuration.Orientation == LayoutOrientation::RightToLeft) {
+  if (Configuration.Orientation == sugiyama::Orientation::LeftToRight
+      || Configuration.Orientation == sugiyama::Orientation::RightToLeft) {
     for (auto *Node : Graph.nodes())
       std::swap(Node->Size.W, Node->Size.H);
   }
@@ -40,8 +42,8 @@ bool yield::sugiyama::layout(Graph &Graph, const Configuration &Configuration) {
   if (Res == false)
     return Res;
 
-  if (Configuration.Orientation == LayoutOrientation::LeftToRight
-      || Configuration.Orientation == LayoutOrientation::RightToLeft) {
+  if (Configuration.Orientation == sugiyama::Orientation::LeftToRight
+      || Configuration.Orientation == sugiyama::Orientation::RightToLeft) {
     for (auto *Node : Graph.nodes()) {
       std::swap(Node->Size.W, Node->Size.H);
       std::swap(Node->Center.X, Node->Center.Y);
@@ -52,7 +54,7 @@ bool yield::sugiyama::layout(Graph &Graph, const Configuration &Configuration) {
     }
   }
 
-  if (Configuration.Orientation == LayoutOrientation::BottomToTop) {
+  if (Configuration.Orientation == sugiyama::Orientation::BottomToTop) {
     for (auto *Node : Graph.nodes()) {
       Node->Center.Y = -Node->Center.Y;
 
@@ -60,7 +62,7 @@ bool yield::sugiyama::layout(Graph &Graph, const Configuration &Configuration) {
         for (auto &[X, Y] : Edge->Path)
           Y = -Y;
     }
-  } else if (Configuration.Orientation == LayoutOrientation::LeftToRight) {
+  } else if (Configuration.Orientation == sugiyama::Orientation::LeftToRight) {
     for (auto *Node : Graph.nodes()) {
       Node->Center.X = -Node->Center.X;
 

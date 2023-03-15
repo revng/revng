@@ -11,8 +11,8 @@
 
 #include "revng/Yield/Support/GraphLayout/SugiyamaStyle/Compute.h"
 
-using RankingStrategy = yield::sugiyama::RankingStrategy;
-using Configuration = yield::sugiyama::Configuration;
+using RankingStrategy = yield::layout::sugiyama::RankingStrategy;
+using Configuration = yield::layout::sugiyama::Configuration;
 
 using ExternalGraph = yield::Graph;
 using ExternalNode = ExternalGraph::Node;
