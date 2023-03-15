@@ -13,12 +13,12 @@
 #include "revng/Yield/Function.h"
 #include "revng/Yield/Graph.h"
 
-static yield::Graph::Size
-operator+(const yield::Graph::Size &LHS, const yield::Graph::Size &RHS) {
-  return yield::Graph::Size(LHS.W + RHS.W, LHS.H + RHS.H);
+static yield::layout::Size
+operator+(const yield::layout::Size &LHS, const yield::layout::Size &RHS) {
+  return yield::layout::Size(LHS.W + RHS.W, LHS.H + RHS.H);
 }
 
-constexpr static yield::Graph::Size textSize(std::string_view Text) {
+constexpr static yield::layout::Size textSize(std::string_view Text) {
   size_t LineCount = 0;
   size_t MaximumLineLength = 0;
 
@@ -40,7 +40,7 @@ constexpr static yield::Graph::Size textSize(std::string_view Text) {
   if (LastLineLength != 0)
     ++LineCount;
 
-  return yield::Graph::Size(MaximumLineLength, LineCount);
+  return yield::layout::Size(MaximumLineLength, LineCount);
 }
 
 constexpr static size_t firstLineSize(std::string_view Text) {
@@ -51,30 +51,30 @@ constexpr static size_t firstLineSize(std::string_view Text) {
     return Text.size() - FirstLineEnd;
 }
 
-static yield::Graph::Size
-fontSize(yield::Graph::Size &&Input,
-         yield::Graph::Dimension FontSize,
+static yield::layout::Size
+fontSize(yield::layout::Size &&Input,
+         yield::layout::Dimension FontSize,
          const yield::cfg::Configuration &Configuration) {
   Input.W *= FontSize * Configuration.HorizontalFontFactor;
   Input.H *= FontSize * Configuration.VerticalFontFactor;
   return std::move(Input);
 }
 
-static yield::Graph::Size
-fontSize(yield::Graph::Size &&Input,
-         yield::Graph::Dimension HorizontalFontSize,
-         yield::Graph::Dimension VerticalFontSize,
+static yield::layout::Size
+fontSize(yield::layout::Size &&Input,
+         yield::layout::Dimension HorizontalFontSize,
+         yield::layout::Dimension VerticalFontSize,
          const yield::cfg::Configuration &Configuration) {
   Input.W *= HorizontalFontSize * Configuration.HorizontalFontFactor;
   Input.H *= VerticalFontSize * Configuration.VerticalFontFactor;
   return std::move(Input);
 }
 
-static yield::Graph::Size
+static yield::layout::Size
 singleLineSize(std::string_view Text,
-               float FontSize,
+               float Font,
                const yield::cfg::Configuration &Configuration) {
-  yield::Graph::Size Result = fontSize(textSize(Text), FontSize, Configuration);
+  yield::layout::Size Result = fontSize(textSize(Text), Font, Configuration);
 
   Result.W += Configuration.HorizontalInstructionMarginSize * 2;
   Result.H += Configuration.VerticalInstructionMarginSize * 2;
@@ -82,13 +82,13 @@ singleLineSize(std::string_view Text,
   return Result;
 }
 
-static yield::Graph::Size
+static yield::layout::Size
 linkSize(const BasicBlockID &Address,
          const yield::Function &Function,
          const model::Binary &Binary,
          size_t IndicatorSize = 0,
          const BasicBlockID &NextAddress = BasicBlockID::invalid()) {
-  yield::Graph::Size Indicator(IndicatorSize, 0);
+  yield::layout::Size Indicator(IndicatorSize, 0);
 
   if (not Address.isValid())
     return Indicator + textSize("an unknown location");
@@ -105,8 +105,8 @@ linkSize(const BasicBlockID &Address,
   }
 }
 
-static yield::Graph::Size &
-appendSize(yield::Graph::Size &Original, const yield::Graph::Size &AddOn) {
+static yield::layout::Size &
+appendSize(yield::layout::Size &Original, const yield::layout::Size &AddOn) {
   if (AddOn.W > Original.W)
     Original.W = AddOn.W;
   Original.H += AddOn.H;
@@ -114,18 +114,18 @@ appendSize(yield::Graph::Size &Original, const yield::Graph::Size &AddOn) {
   return Original;
 }
 
-static yield::Graph::Size
+static yield::layout::Size
 instructionSize(const yield::Instruction &Instruction,
                 const yield::cfg::Configuration &Configuration,
                 size_t CommentIndicatorSize,
                 bool IsInDelayedSlot = false) {
   // Instruction body.
-  yield::Graph::Size Result = fontSize(textSize(Instruction.Disassembled()),
-                                       Configuration.InstructionFontSize,
-                                       Configuration);
+  yield::layout::Size Result = fontSize(textSize(Instruction.Disassembled()),
+                                        Configuration.InstructionFontSize,
+                                        Configuration);
 
   // Comment and delayed slot notice.
-  yield::Graph::Size CommentSize;
+  yield::layout::Size CommentSize;
   if (!Instruction.Comment().empty()) {
     CommentSize = textSize(Instruction.Comment());
     revng_assert(CommentSize.H == 1, "Multi line comments are not supported.");
@@ -137,7 +137,7 @@ instructionSize(const yield::Instruction &Instruction,
     appendSize(CommentSize, DelayedSlotNoticeSize);
   }
 
-  auto CommentBlockSize = fontSize(yield::Graph::Size(CommentSize),
+  auto CommentBlockSize = fontSize(yield::layout::Size(CommentSize),
                                    Configuration.CommentFontSize,
                                    Configuration.InstructionFontSize,
                                    Configuration);
@@ -145,7 +145,7 @@ instructionSize(const yield::Instruction &Instruction,
     Result.W = std::max(firstLineSize(Instruction.Comment()) + Result.W
                           + CommentIndicatorSize + 1,
                         CommentBlockSize.W);
-    auto OneLine = fontSize(yield::Graph::Size(1, 1),
+    auto OneLine = fontSize(yield::layout::Size(1, 1),
                             Configuration.CommentFontSize,
                             Configuration.InstructionFontSize,
                             Configuration);
@@ -158,12 +158,12 @@ instructionSize(const yield::Instruction &Instruction,
   if (!Instruction.Error().empty())
     appendSize(Result,
                fontSize(textSize(Instruction.Error())
-                          + yield::Graph::Size(CommentIndicatorSize + 1, 0),
+                          + yield::layout::Size(CommentIndicatorSize + 1, 0),
                         Configuration.CommentFontSize,
                         Configuration));
 
   // Annotation.
-  yield::Graph::Size RawBytesLengthWithOffsets{ 0, 0 };
+  yield::layout::Size RawBytesLengthWithOffsets{ 0, 0 };
   RawBytesLengthWithOffsets.W += Instruction.RawBytes().size() * 3;
   RawBytesLengthWithOffsets.W += CommentIndicatorSize + 5;
   appendSize(Result,
@@ -179,7 +179,7 @@ instructionSize(const yield::Instruction &Instruction,
   return Result;
 }
 
-static yield::Graph::Size
+static yield::layout::Size
 basicBlockSize(const yield::BasicBlock &BasicBlock,
                const yield::Function &Function,
                const model::Binary &Binary,
@@ -187,12 +187,12 @@ basicBlockSize(const yield::BasicBlock &BasicBlock,
   // Account for the size of the label
   namespace A = model::Architecture;
   auto LabelIndicator = A::getAssemblyLabelIndicator(Binary.Architecture());
-  yield::Graph::Size Result = fontSize(linkSize(BasicBlock.ID(),
-                                                Function,
-                                                Binary,
-                                                LabelIndicator.size()),
-                                       Configuration.LabelFontSize,
-                                       Configuration);
+  yield::layout::Size Result = fontSize(linkSize(BasicBlock.ID(),
+                                                 Function,
+                                                 Binary,
+                                                 LabelIndicator.size()),
+                                        Configuration.LabelFontSize,
+                                        Configuration);
 
   namespace A = model::Architecture;
   auto CommentIndicator = A::getAssemblyCommentIndicator(Binary.Architecture());

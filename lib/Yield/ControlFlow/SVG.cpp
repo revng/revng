@@ -59,13 +59,13 @@ static std::string_view edgeTypeAsString(yield::Graph::EdgeType Type) {
 
 // clang-format off
 template <uintmax_t Numerator = 8, uintmax_t Denominator = 10>
-static std::string cubicBend(const yield::Graph::Point &From,
-                             const yield::Graph::Point &To,
+static std::string cubicBend(const yield::layout::Point &From,
+                             const yield::layout::Point &To,
                              bool VerticalCurves,
                              std::ratio<Numerator, Denominator> &&Bend = {}) {
   // clang-format on
 
-  using Coordinate = yield::Graph::Coordinate;
+  using Coordinate = yield::layout::Coordinate;
   constexpr Coordinate Factor = Coordinate(Numerator) / Denominator;
   Coordinate XModifier = Factor * (To.X - From.X);
   Coordinate YModifier = Factor * (To.Y - From.Y);
@@ -84,7 +84,7 @@ static std::string cubicBend(const yield::Graph::Point &From,
                        -To.Y);
 }
 
-static std::string edge(const std::vector<yield::Graph::Point> &Path,
+static std::string edge(const std::vector<yield::layout::Point> &Path,
                         const yield::Graph::EdgeType &Type,
                         bool UseOrthogonalBends = true,
                         bool UseVerticalCurves = false) {
@@ -120,9 +120,9 @@ static std::string edge(const std::vector<yield::Graph::Point> &Path,
 static std::string node(const yield::Node *Node,
                         std::string &&Content,
                         const yield::cfg::Configuration &Configuration) {
-  yield::Graph::Size HalfSize{ Node->Size.W / 2, Node->Size.H / 2 };
-  yield::Graph::Point TopLeft{ Node->Center.X - HalfSize.W,
-                               -Node->Center.Y - HalfSize.H };
+  yield::layout::Size HalfSize{ Node->Size.W / 2, Node->Size.H / 2 };
+  yield::layout::Point TopLeft{ Node->Center.X - HalfSize.W,
+                                -Node->Center.Y - HalfSize.H };
 
   Tag Body("body", std::move(Content));
   Body.addAttribute("xmlns", R"(http://www.w3.org/1999/xhtml)");
@@ -147,16 +147,16 @@ static std::string node(const yield::Node *Node,
 }
 
 struct Viewbox {
-  yield::Graph::Point TopLeft = { -1, -1 };
-  yield::Graph::Point BottomRight = { +1, +1 };
+  yield::layout::Point TopLeft = { -1, -1 };
+  yield::layout::Point BottomRight = { +1, +1 };
 };
 
 static Viewbox makeViewbox(const yield::Node *Node) {
-  yield::Graph::Size HalfSize{ Node->Size.W / 2, Node->Size.H / 2 };
-  yield::Graph::Point TopLeft{ Node->Center.X - HalfSize.W,
-                               -Node->Center.Y - HalfSize.H };
-  yield::Graph::Point BottomRight{ Node->Center.X + HalfSize.W,
-                                   -Node->Center.Y + HalfSize.H };
+  yield::layout::Size HalfSize{ Node->Size.W / 2, Node->Size.H / 2 };
+  yield::layout::Point TopLeft{ Node->Center.X - HalfSize.W,
+                                -Node->Center.Y - HalfSize.H };
+  yield::layout::Point BottomRight{ Node->Center.X + HalfSize.W,
+                                    -Node->Center.Y + HalfSize.H };
   return Viewbox{ .TopLeft = std::move(TopLeft),
                   .BottomRight = std::move(BottomRight) };
 }
@@ -172,7 +172,7 @@ static void expandViewbox(Viewbox &LHS, const Viewbox &RHS) {
     LHS.BottomRight.Y = RHS.BottomRight.Y;
 }
 
-static void expandViewbox(Viewbox &Box, const yield::Graph::Point &Point) {
+static void expandViewbox(Viewbox &Box, const yield::layout::Point &Point) {
   if (Box.TopLeft.X > Point.X)
     Box.TopLeft.X = Point.X;
   if (Box.TopLeft.Y > -Point.Y)
@@ -376,14 +376,14 @@ struct LabelNodeHelper {
         size_t NameLength = FunctionIterator->name().size();
         revng_assert(NameLength != 0);
 
-        Node->Size = yield::Graph::Size{
+        Node->Size = yield::layout::Size{
           NameLength * Configuration.LabelFontSize
             * Configuration.HorizontalFontFactor,
           1 * Configuration.LabelFontSize * Configuration.VerticalFontFactor
         };
       } else {
         // An entry node.
-        Node->Size = yield::Graph::Size{ 30, 30 };
+        Node->Size = yield::layout::Size{ 30, 30 };
       }
 
       Node->Size.W += Configuration.InternalNodeMarginSize * 2;
@@ -441,19 +441,19 @@ std::string yield::svg::callGraph(const CrossRelations &Relations,
   return exportGraph<false>(CalleeTree, Configuration, LeftToRight, Helper);
 }
 
-static auto flipPoint(yield::Graph::Point const &Point) {
-  return yield::Graph::Point{ -Point.X, -Point.Y };
+static auto flipPoint(yield::layout::Point const &Point) {
+  return yield::layout::Point{ -Point.X, -Point.Y };
 };
-static auto
-calculateDelta(yield::Graph::Point const &LHS, yield::Graph::Point const &RHS) {
-  return yield::Graph::Point{ RHS.X - LHS.X, RHS.Y - LHS.Y };
+static auto calculateDelta(yield::layout::Point const &LHS,
+                           yield::layout::Point const &RHS) {
+  return yield::layout::Point{ RHS.X - LHS.X, RHS.Y - LHS.Y };
 }
-static auto translatePoint(yield::Graph::Point const &Point,
-                           yield::Graph::Point const &Delta) {
-  return yield::Graph::Point{ Point.X + Delta.X, Point.Y + Delta.Y };
+static auto translatePoint(yield::layout::Point const &Point,
+                           yield::layout::Point const &Delta) {
+  return yield::layout::Point{ Point.X + Delta.X, Point.Y + Delta.Y };
 }
-static auto convertPoint(yield::Graph::Point const &Point,
-                         yield::Graph::Point const &Delta) {
+static auto convertPoint(yield::layout::Point const &Point,
+                         yield::layout::Point const &Delta) {
   return translatePoint(flipPoint(Point), Delta);
 }
 

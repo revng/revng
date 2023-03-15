@@ -35,7 +35,7 @@ struct Size {
 template<typename GraphType>
 concept HasLLVMGraphTraits = requires(const GraphType &Graph) {
   { llvm::GraphTraits<GraphType>::getEntryNode(Graph) } ->
-    convertible_to<typename llvm::GraphTraits<GraphType>::NodeRef>;
+  std::convertible_to<typename llvm::GraphTraits<GraphType>::NodeRef>;
 };
 
 template <HasLLVMGraphTraits GraphType>
@@ -59,7 +59,7 @@ template <typename GraphType>
 concept HasLayoutableInputGraphTraits = HasLLVMGraphTraits<GraphType>
   && requires(typename llvm::GraphTraits<GraphType>::NodeRef Node) {
     { LayoutableGraphTraits<GraphType>::getNodeSize(Node) } ->
-      convertible_to<Size>;
+      std::convertible_to<Size>;
   };
 
 template <typename GraphType>

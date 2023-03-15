@@ -18,8 +18,8 @@ using ExternalGraph = yield::Graph;
 using ExternalNode = ExternalGraph::Node;
 using ExternalLabel = ExternalNode::Edge;
 
-using Point = yield::Graph::Point;
-using Size = yield::Graph::Size;
+using Point = yield::layout::Point;
+using Size = yield::layout::Size;
 
 using Index = size_t;
 using Rank = size_t;
