@@ -13,6 +13,7 @@ revng_add_library_internal(
   ControlFlow/FallthroughDetection.cpp
   ControlFlow/NodeSizeCalculation.cpp
   ControlFlow/SVG.cpp
+  Support/SugiyamaStyleGraphLayout/Compute.cpp
   Support/SugiyamaStyleGraphLayout/EdgeRouting.cpp
   Support/SugiyamaStyleGraphLayout/GraphPreparation.cpp
   Support/SugiyamaStyleGraphLayout/HorizontalPositions.cpp
@@ -23,7 +24,6 @@ revng_add_library_internal(
   Support/SugiyamaStyleGraphLayout/PermutationSelection.cpp
   Support/SugiyamaStyleGraphLayout/TopologicalOrdering.cpp
   Support/SugiyamaStyleGraphLayout/VerticalPositions.cpp
-  Support/SugiyamaStyleGraphLayout.cpp
   CrossRelations.cpp
   Dump.cpp
   Plain.cpp
