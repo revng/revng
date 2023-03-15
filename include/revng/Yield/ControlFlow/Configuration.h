@@ -11,20 +11,20 @@ namespace yield::cfg {
 struct Configuration {
 public:
   /// Specifies the minimum possible distance between two edges.
-  Graph::Dimension EdgeMarginSize;
+  layout::Dimension EdgeMarginSize;
 
   /// Specifies the distance between the node margin and its contents.
-  Graph::Dimension InternalNodeMarginSize;
+  layout::Dimension InternalNodeMarginSize;
 
   /// Specifies the minimum possible distance between two nodes.
-  Graph::Dimension ExternalNodeMarginSize;
+  layout::Dimension ExternalNodeMarginSize;
 
   /// Specifies the minimum possible horizontal distance between
   /// an instruction element and the border of its node.
-  Graph::Dimension HorizontalInstructionMarginSize;
+  layout::Dimension HorizontalInstructionMarginSize;
 
   /// Specifies the minimum possible distance between two instructions.
-  Graph::Dimension VerticalInstructionMarginSize;
+  layout::Dimension VerticalInstructionMarginSize;
 
   /// Specifies the relation between the horizontal size of a single character
   /// to the size of the font.
@@ -38,7 +38,7 @@ public:
   /// let it report the final length of the said line.
   /// This factor is equal to the size of the line divided by the number of
   /// characters in it and the size of the font used.
-  Graph::Dimension HorizontalFontFactor;
+  layout::Dimension HorizontalFontFactor;
 
   /// Specifies the relation between the vertical size of a single character
   /// to the size of the font.
@@ -51,12 +51,12 @@ public:
   /// all cases) let it report the final size of that paragraph.
   /// This factor is equal to the height of the paragraph divided by the number
   /// of lines in it and the size of the font used.
-  Graph::Dimension VerticalFontFactor;
+  layout::Dimension VerticalFontFactor;
 
   /// Specifies the size of the font used for instruction rendering.
   ///
   /// It's used to approximate node sizes.
-  Graph::Dimension InstructionFontSize;
+  layout::Dimension InstructionFontSize;
 
   /// Specifies the size of the font used for instruction address and raw bytes
   /// rendering.
@@ -64,17 +64,17 @@ public:
   /// It's used to approximate node sizes.
   ///
   /// \note this value should be set to zero if no bytes are displayed.
-  Graph::Dimension AnnotationFontSize;
+  layout::Dimension AnnotationFontSize;
 
   /// Specifies the size of the font used for comment rendering.
   ///
   /// It's used to approximate node sizes.
-  Graph::Dimension CommentFontSize;
+  layout::Dimension CommentFontSize;
 
   /// Specifies the size of the font used for label rendering.
   ///
   /// It's used to approximate node sizes.
-  Graph::Dimension LabelFontSize;
+  layout::Dimension LabelFontSize;
 
   /// Specifies the degree to which node corners should be rounded.
   size_t NodeCornerRoundingFactor;

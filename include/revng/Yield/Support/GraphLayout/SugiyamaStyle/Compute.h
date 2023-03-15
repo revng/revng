@@ -65,10 +65,10 @@ public:
   float VirtualNodeWeight;
 
   /// Specifies the minimum possible distance between two nodes.
-  Graph::Dimension NodeMarginSize;
+  layout::Dimension NodeMarginSize;
 
   /// Specifies the minimum possible distance between two edges.
-  Graph::Dimension EdgeMarginSize;
+  layout::Dimension EdgeMarginSize;
 };
 
 /// A custom graph layering algorithm designed for pre-calculating majority of
