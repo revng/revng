@@ -7,7 +7,7 @@
 
 #include "llvm/ADT/DepthFirstIterator.h"
 
-#include "Layout.h"
+#include "InternalCompute.h"
 
 CornerContainer routeBackwardsCorners(InternalGraph &Graph,
                                       const RankContainer &Ranks,

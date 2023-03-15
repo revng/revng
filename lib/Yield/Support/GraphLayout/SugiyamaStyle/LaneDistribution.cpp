@@ -5,7 +5,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "Layout.h"
+#include "InternalCompute.h"
 
 /// Detects whether Edge faces left, right or neither.
 /// \note: Legacy function, could possibly be merged into its only user.

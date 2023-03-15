@@ -7,7 +7,7 @@
 
 #include "revng/Yield/Support/GraphLayout/SugiyamaStyle/Compute.h"
 
-#include "Layout.h"
+#include "InternalCompute.h"
 
 namespace sugiyama = yield::layout::sugiyama;
 bool sugiyama::compute(yield::Graph &Graph,
@@ -23,17 +23,16 @@ bool sugiyama::compute(yield::Graph &Graph,
   bool Res = false;
   switch (Configuration.Ranking) {
   case RS::BreadthFirstSearch:
-    Res = calculateSugiyamaLayout<RS::BreadthFirstSearch>(Graph, Configuration);
+    Res = computeInternal<RS::BreadthFirstSearch>(Graph, Configuration);
     break;
   case RS::DepthFirstSearch:
-    Res = calculateSugiyamaLayout<RS::DepthFirstSearch>(Graph, Configuration);
+    Res = computeInternal<RS::DepthFirstSearch>(Graph, Configuration);
     break;
   case RS::Topological:
-    Res = calculateSugiyamaLayout<RS::Topological>(Graph, Configuration);
+    Res = computeInternal<RS::Topological>(Graph, Configuration);
     break;
   case RS::DisjointDepthFirstSearch:
-    Res = calculateSugiyamaLayout<RS::DisjointDepthFirstSearch>(Graph,
-                                                                Configuration);
+    Res = computeInternal<RS::DisjointDepthFirstSearch>(Graph, Configuration);
     break;
   default:
     revng_abort("Unknown ranking strategy");

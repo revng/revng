@@ -5,7 +5,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "Layout.h"
+#include "InternalCompute.h"
 
 LayoutContainer convertToLayout(const LayerContainer &Layers) {
   LayoutContainer Result;

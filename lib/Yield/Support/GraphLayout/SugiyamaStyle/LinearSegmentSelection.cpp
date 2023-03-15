@@ -9,7 +9,7 @@
 
 #include "llvm/ADT/PostOrderIterator.h"
 
-#include "Layout.h"
+#include "InternalCompute.h"
 
 /// A helper used to simplify the parent lookup when deciding on the linear
 /// segments of the layout.
