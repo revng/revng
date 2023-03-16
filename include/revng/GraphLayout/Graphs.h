@@ -7,7 +7,7 @@
 #include <unordered_map>
 
 #include "revng/ADT/GenericGraph.h"
-#include "revng/Yield/Support/GraphLayout/Traits.h"
+#include "revng/GraphLayout/Traits.h"
 
 namespace yield::layout {
 
