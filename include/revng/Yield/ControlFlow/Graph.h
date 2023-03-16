@@ -4,8 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/GraphLayout/Graphs.h"
 #include "revng/Support/BasicBlockID.h"
-#include "revng/Yield/Support/GraphLayout/Graphs.h"
 
 namespace yield::cfg {
 

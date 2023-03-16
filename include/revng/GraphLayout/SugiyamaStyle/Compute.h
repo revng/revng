@@ -4,8 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/Yield/Support/GraphLayout/Graphs.h"
-#include "revng/Yield/Support/GraphLayout/SugiyamaStyle/InternalGraph.h"
+#include "revng/GraphLayout/Graphs.h"
+#include "revng/GraphLayout/SugiyamaStyle/InternalGraph.h"
 
 namespace yield::layout::sugiyama {
 
