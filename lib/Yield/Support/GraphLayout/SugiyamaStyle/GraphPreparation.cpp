@@ -243,9 +243,21 @@ RankContainer partitionLongEdges(InternalGraph &Graph,
   // Remove an artificial entry node if it was ever added.
   revng_assert(HasSingleEntryPoint(Graph));
   if (Graph.getEntryNode() != nullptr) {
-    if (Graph.getEntryNode()->IsVirtual) {
-      Ranks.erase(Graph.getEntryNode());
-      Graph.removeNode(Graph.getEntryNode());
+    if (InternalNode *Entry = Graph.getEntryNode(); Entry->IsVirtual) {
+      std::vector<NodeView> ToRemove;
+      llvm::df_iterator_default_set<InternalNode *> Visited;
+      for (InternalNode *Current : llvm::depth_first_ext(Entry, Visited)) {
+        ToRemove.emplace_back(Current);
+
+        for (InternalNode *Successor : Current->successors())
+          if (!Successor->IsVirtual)
+            Visited.insert(Successor);
+      }
+
+      for (NodeView Node : ToRemove) {
+        Ranks.erase(Node);
+        Graph.removeNode(Node);
+      }
     }
   }
 
