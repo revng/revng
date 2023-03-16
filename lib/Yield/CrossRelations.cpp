@@ -141,10 +141,10 @@ CR::CrossRelations::toCallGraph() const {
   return Result;
 }
 
-yield::Graph CR::CrossRelations::toYieldGraph() const {
-  yield::Graph Result;
+yield::calls::PreLayoutGraph CR::CrossRelations::toYieldGraph() const {
+  yield::calls::PreLayoutGraph Result;
 
-  std::map<BasicBlockID, yield::Graph::Node *> LookupHelper;
+  std::map<BasicBlockID, yield::calls::PreLayoutNode *> LookupHelper;
 
   namespace ranks = revng::ranks;
   using namespace pipeline;

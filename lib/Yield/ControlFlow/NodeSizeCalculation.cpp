@@ -11,7 +11,7 @@
 #include "revng/Yield/ControlFlow/FallthroughDetection.h"
 #include "revng/Yield/ControlFlow/NodeSizeCalculation.h"
 #include "revng/Yield/Function.h"
-#include "revng/Yield/Graph.h"
+#include "revng/Yield/Support/GraphLayout/Graphs.h"
 
 static yield::layout::Size
 operator+(const yield::layout::Size &LHS, const yield::layout::Size &RHS) {
@@ -216,11 +216,11 @@ basicBlockSize(const yield::BasicBlock &BasicBlock,
   return Result;
 }
 
-void yield::cfg::calculateNodeSizes(Graph &Graph,
+void yield::cfg::calculateNodeSizes(PreLayoutGraph &Graph,
                                     const yield::Function &Function,
                                     const model::Binary &Binary,
                                     const Configuration &Configuration) {
-  for (yield::Node *Node : Graph.nodes()) {
+  for (PreLayoutNode *Node : Graph.nodes()) {
     revng_assert(Node != nullptr);
 
     if (Node->Address.isValid()) {

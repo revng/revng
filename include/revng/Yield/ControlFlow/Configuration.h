@@ -4,7 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/Yield/Graph.h"
+#include "revng/Yield/Support/GraphLayout/Traits.h"
 
 namespace yield::cfg {
 
