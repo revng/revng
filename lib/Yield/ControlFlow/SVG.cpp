@@ -10,6 +10,7 @@
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/Support/FormatVariadic.h"
 
+#include "revng/GraphLayout/SugiyamaStyle/Compute.h"
 #include "revng/Model/Binary.h"
 #include "revng/PTML/Tag.h"
 #include "revng/Support/GraphAlgorithms.h"
@@ -20,7 +21,6 @@
 #include "revng/Yield/CrossRelations/CrossRelations.h"
 #include "revng/Yield/PTML.h"
 #include "revng/Yield/SVG.h"
-#include "revng/Yield/Support/GraphLayout/SugiyamaStyle/Compute.h"
 
 using ptml::Tag;
 

@@ -6,12 +6,12 @@
 //
 
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
+#include "revng/GraphLayout/Graphs.h"
 #include "revng/Model/Binary.h"
 #include "revng/Yield/ControlFlow/Configuration.h"
 #include "revng/Yield/ControlFlow/FallthroughDetection.h"
 #include "revng/Yield/ControlFlow/NodeSizeCalculation.h"
 #include "revng/Yield/Function.h"
-#include "revng/Yield/Support/GraphLayout/Graphs.h"
 
 static yield::layout::Size
 operator+(const yield::layout::Size &LHS, const yield::layout::Size &RHS) {
