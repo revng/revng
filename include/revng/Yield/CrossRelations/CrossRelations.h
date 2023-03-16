@@ -7,8 +7,8 @@
 #include "revng/ADT/GenericGraph.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
 #include "revng/Model/Binary.h"
+#include "revng/Yield/CallGraphs/Graph.h"
 #include "revng/Yield/CrossRelations/RelationDescription.h"
-#include "revng/Yield/Graph.h"
 
 /* TUPLE-TREE-YAML
 name: CrossRelations
@@ -37,7 +37,7 @@ public:
                  const model::Binary &Binary);
 
   GenericGraph<Node, 16, true> toCallGraph() const;
-  yield::Graph toYieldGraph() const;
+  yield::calls::PreLayoutGraph toYieldGraph() const;
 };
 
 } // namespace yield::crossrelations

@@ -12,20 +12,18 @@
 
 #include "revng/Yield/CallGraphs/CallGraphSlices.h"
 
-using NodeView = const yield::Graph::Node *;
+using Graph = yield::calls::PreLayoutGraph;
+using Node = yield::calls::PreLayoutNode;
 
-static yield::Graph::Node *
-copyNode(yield::Graph &Graph, const yield::Graph::Node *Source) {
-  auto New = std::make_unique<yield::Graph::Node>(Source->data());
-  return Graph.addNode(std::move(New));
+static Node *copyNode(yield::calls::PreLayoutGraph &Graph, const Node *Source) {
+  return Graph.addNode(std::make_unique<Node>(Source->data()));
 }
 
 /// \tparam NV local `NodeView` specialization
 /// \tparam INV inverted location `NodeView` specialization
 template<typename NV, typename INV>
-yield::Graph
-makeTreeImpl(const yield::Graph &Input, const BasicBlockID &SlicePoint) {
-  auto SlicePointPredicate = [&SlicePoint](NodeView Node) {
+Graph makeTreeImpl(const Graph &Input, const BasicBlockID &SlicePoint) {
+  auto SlicePointPredicate = [&SlicePoint](const Node *Node) {
     return Node->Address == SlicePoint;
   };
   auto Entry = llvm::find_if(Input.nodes(), SlicePointPredicate);
@@ -34,8 +32,8 @@ makeTreeImpl(const yield::Graph &Input, const BasicBlockID &SlicePoint) {
   // Find the rank of each node, such that for any node its rank is equal to
   // the highest rank among its children plus one.
   llvm::ReversePostOrderTraversal ReversePostOrder(NV{ *Entry });
-  std::unordered_map<const yield::Graph::Node *, size_t> Ranks;
-  for (NodeView CurrentNode : ReversePostOrder) {
+  std::unordered_map<const Node *, size_t> Ranks;
+  for (const Node *CurrentNode : ReversePostOrder) {
     uint64_t &CurrentRank = Ranks[CurrentNode];
 
     CurrentRank = 0;
@@ -48,16 +46,16 @@ makeTreeImpl(const yield::Graph &Input, const BasicBlockID &SlicePoint) {
   // The ranks calculated earlier are used to choose a specific one.
   //
   // TODO: We should consider a better selection algorithm.
-  std::unordered_map<NodeView, NodeView> RealEdges;
-  for (NodeView Node : ReversePostOrder) {
-    auto NodeIt = Ranks.find(Node);
+  std::unordered_map<const Node *, const Node *> RealEdges;
+  for (const Node *Current : ReversePostOrder) {
+    auto NodeIt = Ranks.find(Current);
     revng_assert(NodeIt != Ranks.end());
 
     // Select the neighbour with the highest possible rank that is still
     // lower than the current node's rank.
-    NodeView SelectedNeighbour = nullptr;
+    const Node *SelectedNeighbour = nullptr;
     size_t SelectedNeighbourRank = 0;
-    for (NodeView Neighbour : llvm::children<INV>(Node)) {
+    for (const Node *Neighbour : llvm::children<INV>(Current)) {
       if (auto Iterator = Ranks.find(Neighbour); Iterator != Ranks.end()) {
         // If an inverse neighbour is not present in the `Ranks` table, it's not
         // a part of the desired slice, as such we can safely ignore it.
@@ -69,16 +67,16 @@ makeTreeImpl(const yield::Graph &Input, const BasicBlockID &SlicePoint) {
       }
     }
 
-    auto [_, Success] = RealEdges.try_emplace(Node, SelectedNeighbour);
+    auto [_, Success] = RealEdges.try_emplace(Current, SelectedNeighbour);
     revng_assert(Success);
   }
 
-  yield::Graph Result;
-  std::unordered_map<NodeView, yield::Graph::Node *> Lookup;
+  Graph Result;
+  std::unordered_map<const Node *, Node *> Lookup;
 
   // Returns the version of the node from the new graph if it exists,
   // or adds a new one to if it does not.
-  auto FindOrAddHelper = [&Result, &Lookup](NodeView OldNode) {
+  auto FindOrAddHelper = [&Result, &Lookup](const Node *OldNode) {
     if (auto NewNode = Lookup.find(OldNode); NewNode != Lookup.end())
       return NewNode->second;
     else
@@ -91,7 +89,7 @@ makeTreeImpl(const yield::Graph &Input, const BasicBlockID &SlicePoint) {
   Result.setEntryNode(FindOrAddHelper(*Entry));
 
   // Fill in the `Result` graph.
-  for (NodeView Node : llvm::breadth_first(NV{ *Entry })) {
+  for (const Node *Node : llvm::breadth_first(NV{ *Entry })) {
     for (auto Neighbour : llvm::children<INV>(Node)) {
       if (Ranks.contains(Neighbour)) {
         auto *NewNeighbour = FindOrAddHelper(Neighbour);
@@ -111,13 +109,18 @@ makeTreeImpl(const yield::Graph &Input, const BasicBlockID &SlicePoint) {
   return Result;
 }
 
-yield::Graph yield::calls::makeCalleeTree(const yield::Graph &Input,
-                                          const BasicBlockID &SlicePoint) {
+yield::calls::PreLayoutGraph
+yield::calls::makeCalleeTree(const PreLayoutGraph &Input,
+                             const BasicBlockID &SlicePoint) {
   // Forwards direction, makes sure no successor relation ever gets lost.
-  return makeTreeImpl<NodeView, llvm::Inverse<NodeView>>(Input, SlicePoint);
+  return makeTreeImpl<const PreLayoutNode *,
+                      llvm::Inverse<const PreLayoutNode *>>(Input, SlicePoint);
 }
-yield::Graph yield::calls::makeCallerTree(const yield::Graph &Input,
-                                          const BasicBlockID &SlicePoint) {
+
+yield::calls::PreLayoutGraph
+yield::calls::makeCallerTree(const PreLayoutGraph &Input,
+                             const BasicBlockID &SlicePoint) {
   // Backwards direction, makes sure no predecessor relation ever gets lost.
-  return makeTreeImpl<llvm::Inverse<NodeView>, NodeView>(Input, SlicePoint);
+  return makeTreeImpl<llvm::Inverse<const PreLayoutNode *>,
+                      const PreLayoutNode *>(Input, SlicePoint);
 }
