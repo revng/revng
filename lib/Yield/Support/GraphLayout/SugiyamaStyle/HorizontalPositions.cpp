@@ -28,7 +28,7 @@ void setHorizontalCoordinates(const LayerContainer &Layers,
 
   // Clear the existing coordinates so they don't interfere
   for (auto Node : Order)
-    Node->center() = { 0, 0 };
+    Node->Center = { 0, 0 };
 
   // First, the minimal horizontal width for each layer is computed.
   //
@@ -38,14 +38,14 @@ void setHorizontalCoordinates(const LayerContainer &Layers,
   MinimalLayerWidths.resize(Layers.size());
   for (size_t Index = 0; Index < Layers.size(); ++Index)
     for (auto Node : Layers[Index])
-      MinimalLayerWidths[Index] += Node->size().W + MarginSize;
+      MinimalLayerWidths[Index] += Node->Size.W + MarginSize;
 
   for (size_t Iteration = 0; Iteration < IterationCount; ++Iteration) {
     for (auto [Child, Parent] : LinearSegments)
-      if (Child->center().X > Parent->center().X)
-        Parent->center().X = Child->center().X;
+      if (Child->Center.X > Parent->Center.X)
+        Parent->Center.X = Child->Center.X;
       else
-        Child->center().X = Parent->center().X;
+        Child->Center.X = Parent->Center.X;
 
     // NOTE: I feel like this loop can be A LOT simpler.
     std::map<Rank, double> MinimumX;
@@ -57,10 +57,10 @@ void setHorizontalCoordinates(const LayerContainer &Layers,
         Iterator = MinimumX.insert(Iterator, { LayerIndex, Offset });
       }
 
-      auto LeftX = Iterator->second + Node->size().W / 2 + MarginSize;
-      if (LeftX > Node->center().X)
-        Node->center().X = LeftX;
-      Iterator->second = Node->center().X + Node->size().W / 2 + MarginSize;
+      auto LeftX = Iterator->second + Node->Size.W / 2 + MarginSize;
+      if (LeftX > Node->Center.X)
+        Node->Center.X = LeftX;
+      Iterator->second = Node->Center.X + Node->Size.W / 2 + MarginSize;
     }
   }
 
@@ -85,7 +85,7 @@ void setHorizontalCoordinates(const LayerContainer &Layers,
         if (ChildLayerSize == ChildPosition.Index + 1) {
           auto Iterator = FreeSegments.lower_bound(Parent);
           if (Iterator == FreeSegments.end()
-              || Iterator->first->Index > Parent->Index)
+              || Iterator->first->index() > Parent->index())
             FreeSegments.insert(Iterator, { Parent, true });
         } else {
           FreeSegments[Parent] = false;
@@ -96,7 +96,7 @@ void setHorizontalCoordinates(const LayerContainer &Layers,
       for (size_t Index = 0; Index < Layers.size(); ++Index) {
         if (Layers[Index].size() != 0) {
           for (auto Node : Layers[Index])
-            Barycenters[Index] += Node->center().X;
+            Barycenters[Index] += Node->Center.X;
           Barycenters[Index] /= Layers[Index].size();
         }
       }
@@ -106,12 +106,12 @@ void setHorizontalCoordinates(const LayerContainer &Layers,
           for (size_t J = 0; J < Layers[Index].size() - 1; ++J) {
             auto Current = Layers[Index][J];
             auto Next = Layers[Index][J + 1];
-            double RightMargin = Next->center().X - Next->size().W / 2
-                                 - MarginSize * 2 - Current->size().W / 2;
+            double RightMargin = Next->Center.X - Next->Size.W / 2
+                                 - MarginSize * 2 - Current->Size.W / 2;
             auto Parent = LinearSegments.at(Current);
             auto Iterator = RightSegments.lower_bound(Parent);
             if (Iterator == RightSegments.end()
-                || Iterator->first->Index > Parent->Index)
+                || Iterator->first->index() > Parent->index())
               RightSegments.insert(Iterator, { Parent, RightMargin });
             else if (RightMargin < Iterator->second)
               Iterator->second = RightMargin;
@@ -122,7 +122,7 @@ void setHorizontalCoordinates(const LayerContainer &Layers,
           // Any coordinate is safe for the rightmost node, but the barycenters
           // of both layers should be taken into the account, so that
           // the layout does not become skewed
-          float RightMargin = Layers[Index].back()->center().X;
+          float RightMargin = Layers[Index].back()->Center.X;
           if (Index + 1 < Layers.size())
             if (auto Dlt = Barycenters[Index + 1] - Barycenters[Index]; Dlt > 0)
               RightMargin += Dlt;
@@ -130,7 +130,7 @@ void setHorizontalCoordinates(const LayerContainer &Layers,
           auto Parent = LinearSegments.at(Layers[Index].back());
           auto Iterator = RightSegments.lower_bound(Parent);
           if (Iterator == RightSegments.end()
-              || Iterator->first->Index > Parent->Index)
+              || Iterator->first->index() > Parent->index())
             RightSegments.insert(Iterator, { Parent, RightMargin });
           else if (FreeSegments.at(Parent)) {
             if (RightMargin > Iterator->second)
@@ -148,21 +148,21 @@ void setHorizontalCoordinates(const LayerContainer &Layers,
         continue;
 
       // First move the rightmost node.
-      if (auto Node = Layers[Index].back(); !Node->isVirtual()) {
+      if (auto Node = Layers[Index].back(); !Node->IsVirtual) {
         if (Node->successorCount() > 0) {
           double Barycenter = 0, TotalWeight = 0;
           for (auto *Next : Node->successors()) {
-            float Weight = Next->isVirtual() ? 1 : VirtualNodeWeight;
+            float Weight = Next->IsVirtual ? 1 : VirtualNodeWeight;
             // This weight as an arbitrary number used to help the algorithm
             // prioritize putting a node closer to its non-virtual successors.
 
-            Barycenter += Next->center().X / Weight;
+            Barycenter += Next->Center.X / Weight;
             TotalWeight += 1.f / Weight;
           }
           Barycenter /= TotalWeight;
 
-          if (Barycenter > Node->center().X)
-            Node->center().X = Barycenter;
+          if (Barycenter > Node->Center.X)
+            Node->Center.X = Barycenter;
         }
       }
 
@@ -175,11 +175,11 @@ void setHorizontalCoordinates(const LayerContainer &Layers,
           double Barycenter = 0;
           double TotalWeight = 0;
           for (auto *Next : Node->successors()) {
-            float Weight = Next->isVirtual() ? 1 : VirtualNodeWeight;
+            float Weight = Next->IsVirtual ? 1 : VirtualNodeWeight;
             // This weight as an arbitrary number used to help the algorithm
             // prioritize putting a node closer to its non-virtual successors.
 
-            Barycenter += Next->center().X / Weight;
+            Barycenter += Next->Center.X / Weight;
             TotalWeight += 1.f / Weight;
           }
           Barycenter /= TotalWeight;
@@ -188,8 +188,8 @@ void setHorizontalCoordinates(const LayerContainer &Layers,
             LayerMargin = Barycenter;
         }
 
-        if (LayerMargin > Node->center().X)
-          Node->center().X = LayerMargin;
+        if (LayerMargin > Node->Center.X)
+          Node->Center.X = LayerMargin;
       }
     }
   }
@@ -300,7 +300,7 @@ void setStaticOffsetHorizontalCoordinates(const LayerContainer &Layers,
       // coordinate.
       CurrentSubtree.ActualPosition = CurrentPosition;
       auto Width = CurrentSubtree.LogicalWidth;
-      NodeView->center().X = (Width / 2 + CurrentPosition) * MarginSize;
+      NodeView->Center.X = (Width / 2 + CurrentPosition) * MarginSize;
 
       // Update the current position, so that no sibling tree occupies the same
       // space.

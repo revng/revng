@@ -14,85 +14,16 @@
 using RankingStrategy = yield::layout::sugiyama::RankingStrategy;
 using Configuration = yield::layout::sugiyama::Configuration;
 
-using ExternalGraph = yield::Graph;
-using ExternalNode = ExternalGraph::Node;
-using ExternalLabel = ExternalNode::Edge;
-
 using Point = yield::layout::Point;
 using Size = yield::layout::Size;
 
-using Index = size_t;
-using Rank = size_t;
-using RankDelta = int64_t;
+using Index = std::size_t;
+using Rank = std::size_t;
+using RankDelta = std::ptrdiff_t;
 
-namespace detail {
-/// A simple class for keeping a count.
-class SimpleIndexCounter {
-public:
-  Index next() { return Count++; }
-
-private:
-  Index Count = 0;
-};
-} // namespace detail
-
-/// An internal node representation. Contains a pointer to an external node,
-/// an index and center/size helper members.
-struct InternalNodeBase {
-  using Indexer = detail::SimpleIndexCounter;
-
-  explicit InternalNodeBase(ExternalNode *Node, Indexer &IRef) :
-    Pointer(Node), Index(IRef.next()), LocalCenter{ 0, 0 }, LocalSize{ 0, 0 } {}
-
-  // NOLINTNEXTLINE(readability-identifier-naming)
-  auto operator<=>(const InternalNodeBase &Another) const {
-    return Index <=> Another.Index;
-  }
-
-  Point &center() { return Pointer ? Pointer->Center : LocalCenter; }
-  Point const &center() const {
-    return Pointer ? Pointer->Center : LocalCenter;
-  }
-  Size &size() { return Pointer ? Pointer->Size : LocalSize; }
-  Size const &size() const { return Pointer ? Pointer->Size : LocalSize; }
-
-  bool isVirtual() const { return Pointer == nullptr; }
-
-public:
-  ExternalNode *Pointer;
-  const Index Index;
-
-private:
-  Point LocalCenter; // Used to temporarily store positions of "fake" nodes.
-  Size LocalSize; // Used to temporarily store size of "fake" nodes.
-};
-
-/// An internal edge label representation. Contains two pointers to external
-/// labels: a forward-facing one and a backward-facing one.
-struct InternalLabelBase {
-public:
-  InternalLabelBase(ExternalLabel *Label, bool IsBackwards = false) :
-    Pointer(Label), IsBackwards(IsBackwards) {}
-
-public:
-  ExternalLabel *Pointer = nullptr;
-  bool IsBackwards = false;
-};
-
-using InternalNode = MutableEdgeNode<InternalNodeBase, InternalLabelBase>;
-using InternalLabel = InternalNode::Edge;
-class InternalGraph : public GenericGraph<InternalNode, 16, true> {
-  using Base = GenericGraph<InternalNode, 16, true>;
-
-public:
-  template<class... Args>
-  InternalNode *addNode(Args &&...A) {
-    return Base::addNode(A..., Indexer);
-  }
-
-private:
-  typename InternalNode::Indexer Indexer;
-};
+using InternalGraph = yield::layout::sugiyama::InternalGraph;
+using InternalNode = InternalGraph::Node;
+using InternalEdge = InternalNode::Edge;
 
 /// A wrapper around an `InternalNode` pointer used for comparison overloading.
 class NodeView {
@@ -115,7 +46,8 @@ public:
   // NOLINTNEXTLINE(readability-identifier-naming)
   auto operator<=>(const NodeView &Another) const {
     revng_assert(Pointer != nullptr);
-    return Pointer->Index <=> Another.Pointer->Index;
+    revng_assert(Another.Pointer != nullptr);
+    return Pointer->index() <=> Another.Pointer->index();
   }
 
 private:
@@ -131,59 +63,55 @@ struct hash<::NodeView> {
 };
 } // namespace std
 
-namespace detail {
+/// A view onto an edge as a extension of a known node.
+/// This is useful as a `second` value for a map where the `first` one
+/// is the `From` node.
+struct EdgeDestinationView {
+  NodeView To;
+  std::size_t EdgeIndex;
 
-/// A generic view onto an edge. It stores views onto the `From` and `To`
-/// nodes as well as free information about the edge label.
-template<typename LabelType>
-struct GenericEdgeView {
-protected:
-  static constexpr bool OwnsLabel = !std::is_pointer_v<std::decay_t<LabelType>>;
-  using ParamType = std::conditional_t<OwnsLabel,
-                                       std::decay_t<LabelType> &&,
-                                       std::decay_t<LabelType>>;
-
-public:
-  NodeView From, To;
-  LabelType Label;
-
-  GenericEdgeView(NodeView From, NodeView To, ParamType Label) :
-    From(From), To(To), Label(std::move(Label)) {}
+  EdgeDestinationView(NodeView To, const InternalEdge &Label) :
+    To(To), EdgeIndex(Label.index()) {}
 
   // NOLINTNEXTLINE(readability-identifier-naming)
-  auto operator<=>(const GenericEdgeView &) const = default;
-
-  std::remove_pointer_t<std::decay_t<LabelType>> &label() {
-    if constexpr (OwnsLabel)
-      return Label;
-    else
-      return *Label;
-  }
-  const std::remove_pointer_t<std::decay_t<LabelType>> &label() const {
-    if constexpr (OwnsLabel)
-      return Label;
-    else
-      return *Label;
-  }
+  auto operator<=>(const EdgeDestinationView &) const = default;
 };
 
-} // namespace detail
+/// A generic view onto an edge. It's the same as the `EdgeDestinationView`
+/// but stores the views onto both of the nodes.
+struct EdgeView : EdgeDestinationView {
+public:
+  NodeView From;
 
-/// A view onto an edge. It stores `From` and `To` node views as well as a
-/// label pointer.
-using EdgeView = detail::GenericEdgeView<InternalLabel *>;
+  EdgeView(NodeView From, NodeView To, const InternalEdge &Label) :
+    EdgeDestinationView(To, Label), From(From) {}
 
-/// A view onto one of the edge labels. It stores `From` and `To` node views
-/// as well as a pointer to an external label.
-using DirectionlessEdgeView = detail::GenericEdgeView<ExternalLabel *>;
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  auto operator<=>(const EdgeView &) const = default;
 
-/// A view onto an edge. It stores `From` and `To` node views, a pointer to
-/// an external label and a flag declaring the direction of the edge.
-struct DirectedEdgeView : public DirectionlessEdgeView {
-  bool IsBackwards = false;
+  InternalEdge &label() {
+    auto Lambda = [this](auto Edge) {
+      return Edge.Neighbor == To && Edge.Label->index() == EdgeIndex;
+    };
+    revng_assert(llvm::count_if(From->successor_edges(), Lambda) == 1);
 
-  DirectedEdgeView(NodeView From, NodeView To, ParamType L, bool IsBackwards) :
-    DirectionlessEdgeView(From, To, L), IsBackwards(IsBackwards) {}
+    auto Iterator = llvm::find_if(From->successor_edges(), Lambda);
+    revng_assert(Iterator != From->successor_edges().end());
+    revng_assert(Iterator->Label != nullptr);
+    return *Iterator->Label;
+  }
+
+  const InternalEdge &label() const {
+    auto Lambda = [this](auto Edge) {
+      return Edge.Neighbor == To && Edge.Label->index() == EdgeIndex;
+    };
+    revng_assert(llvm::count_if(From->successor_edges(), Lambda) == 1);
+
+    auto Iterator = llvm::find_if(From->successor_edges(), Lambda);
+    revng_assert(Iterator != From->successor_edges().end());
+    revng_assert(Iterator->Label != nullptr);
+    return *Iterator->Label;
+  }
 };
 
 /// An internal data structure used to pass node ranks around.
@@ -211,13 +139,13 @@ using LayoutContainer = std::unordered_map<NodeView, LogicalPosition>;
 /// used to route edges.
 struct LaneContainer {
   /// Stores edges that require a horizontal section grouped by layer.
-  std::vector<std::map<DirectedEdgeView, Rank>> Horizontal;
+  std::vector<std::map<EdgeView, Rank>> Horizontal;
 
   /// Stores edges entering a node groped by the node they enter.
-  std::unordered_map<NodeView, std::map<DirectedEdgeView, Rank>> Entries;
+  std::unordered_map<NodeView, std::map<EdgeDestinationView, Rank>> Entries;
 
   /// Stores edges leaving a node grouped by the node they leave.
-  std::unordered_map<NodeView, std::map<DirectedEdgeView, Rank>> Exits;
+  std::unordered_map<NodeView, std::map<EdgeDestinationView, Rank>> Exits;
 };
 
 /// An internal data structure used to represent a corner. It stores three
@@ -242,7 +170,7 @@ using CornerContainer = std::map<NodePair, Corner>;
 /// for an edge to be routed. This data is usable even after the internal graph
 /// was destroyed.
 struct RoutableEdge {
-  ExternalLabel *Label;
+  InternalEdge *Label;
   Point FromCenter, ToCenter;
   Size FromSize, ToSize;
   Rank LaneIndex, ExitCount, EntryCount;

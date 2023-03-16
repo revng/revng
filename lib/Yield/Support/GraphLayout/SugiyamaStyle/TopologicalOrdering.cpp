@@ -22,20 +22,20 @@ extractAugmentedTopologicalOrder(InternalGraph &Graph,
   std::unordered_map<size_t, AugmentedNode *> LookupTable;
   for (auto *Node : Graph.nodes()) {
     auto NewNode = Augmented.addNode(Node);
-    LookupTable.emplace(Node->Index, NewNode);
+    LookupTable.emplace(Node->index(), NewNode);
   }
 
   // Add original edges in.
   for (auto *From : Graph.nodes())
     for (auto *To : From->successors())
-      LookupTable.at(From->Index)->addSuccessor(LookupTable.at(To->Index));
+      LookupTable.at(From->index())->addSuccessor(LookupTable.at(To->index()));
 
   // Add extra edges.
   for (size_t Layer = 0; Layer < Layers.size(); ++Layer) {
     for (size_t From = 0; From < Layers[Layer].size(); ++From) {
       for (size_t To = From + 1; To < Layers[Layer].size(); ++To) {
-        auto *FromNode = LookupTable.at(Layers[Layer][From]->Index);
-        auto *ToNode = LookupTable.at(Layers[Layer][To]->Index);
+        auto *FromNode = LookupTable.at(Layers[Layer][From]->index());
+        auto *ToNode = LookupTable.at(Layers[Layer][To]->index());
         FromNode->addSuccessor(ToNode);
       }
     }
