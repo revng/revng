@@ -320,17 +320,17 @@ compute(Graph &Graph,
         const cfg::Configuration &CFG,
         Orientation LayoutOrientation = Orientation::TopToBottom,
         RankingStrategy Ranking = RankingStrategy::DisjointDepthFirstSearch,
-        bool UseSimpleTreeOptimization = false) {
-  return compute(Graph,
-                 Configuration{
-                   .Ranking = Ranking,
-                   .Orientation = LayoutOrientation,
-                   .UseOrthogonalBends = CFG.UseOrthogonalBends,
-                   .PreserveLinearSegments = CFG.PreserveLinearSegments,
-                   .UseSimpleTreeOptimization = UseSimpleTreeOptimization,
-                   .VirtualNodeWeight = CFG.VirtualNodeWeight,
-                   .NodeMarginSize = CFG.ExternalNodeMarginSize,
-                   .EdgeMarginSize = CFG.EdgeMarginSize });
+        bool SimpleTreeOptimization = false) {
+  return computeInPlace(&Graph,
+                        Configuration{
+                          .Ranking = Ranking,
+                          .Orientation = LayoutOrientation,
+                          .UseOrthogonalBends = CFG.UseOrthogonalBends,
+                          .PreserveLinearSegments = CFG.PreserveLinearSegments,
+                          .UseSimpleTreeOptimization = SimpleTreeOptimization,
+                          .VirtualNodeWeight = CFG.VirtualNodeWeight,
+                          .NodeMarginSize = CFG.ExternalNodeMarginSize,
+                          .EdgeMarginSize = CFG.EdgeMarginSize });
 }
 
 } // namespace yield::layout::sugiyama

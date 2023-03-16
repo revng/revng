@@ -50,4 +50,27 @@ public:
   using EdgeType = detail::EdgeType;
 };
 
+namespace layout {
+
+template<>
+struct LayoutableGraphTraits<Graph *> {
+  static_assert(SpecializationOfGenericGraph<Graph>);
+  using LLVMTrait = llvm::GraphTraits<Graph *>;
+
+  static const Size &getNodeSize(typename LLVMTrait::NodeRef Node) {
+    return Node->Size;
+  }
+
+  static void setNodePosition(typename LLVMTrait::NodeRef Node, Point &&Point) {
+    Node->Center = std::move(Point);
+  }
+  static void setEdgePath(typename LLVMTrait::EdgeRef Edge, Path &&Path) {
+    Edge.Label->Path.reserve(Path.size());
+    for (layout::Point &Point : Path)
+      Edge.Label->Path.emplace_back(std::move(Point));
+  }
+};
+
+} // namespace layout
+
 } // namespace yield

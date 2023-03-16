@@ -10,8 +10,8 @@
 #include "InternalCompute.h"
 
 namespace sugiyama = yield::layout::sugiyama;
-bool sugiyama::compute(yield::Graph &Graph,
-                       const Configuration &Configuration) {
+bool sugiyama::detail::computeImpl(InternalGraph &Graph,
+                                   const Configuration &Configuration) {
   using RS = sugiyama::RankingStrategy;
 
   if (Configuration.Orientation == sugiyama::Orientation::LeftToRight
@@ -48,8 +48,9 @@ bool sugiyama::compute(yield::Graph &Graph,
       std::swap(Node->Center.X, Node->Center.Y);
 
       for (auto [_, Edge] : Node->successor_edges())
-        for (auto &[X, Y] : Edge->Path)
-          std::swap(X, Y);
+        if (!Edge->isVirtual())
+          for (auto &[X, Y] : Edge->getPath())
+            std::swap(X, Y);
     }
   }
 
@@ -58,16 +59,18 @@ bool sugiyama::compute(yield::Graph &Graph,
       Node->Center.Y = -Node->Center.Y;
 
       for (auto [_, Edge] : Node->successor_edges())
-        for (auto &[X, Y] : Edge->Path)
-          Y = -Y;
+        if (!Edge->isVirtual())
+          for (auto &[X, Y] : Edge->getPath())
+            Y = -Y;
     }
   } else if (Configuration.Orientation == sugiyama::Orientation::LeftToRight) {
     for (auto *Node : Graph.nodes()) {
       Node->Center.X = -Node->Center.X;
 
       for (auto [_, Edge] : Node->successor_edges())
-        for (auto &[X, Y] : Edge->Path)
-          X = -X;
+        if (!Edge->isVirtual())
+          for (auto &[X, Y] : Edge->getPath())
+            X = -X;
     }
   }
 

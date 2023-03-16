@@ -189,7 +189,7 @@ RankContainer rankNodes<DDFS>(InternalGraph &Graph) {
 
 RankContainer &updateRanks(InternalGraph &Graph, RankContainer &Ranks) {
   Ranks.try_emplace(Graph.getEntryNode(),
-                    Graph.getEntryNode()->isVirtual() ? Rank(-1) : Rank(0));
+                    Graph.getEntryNode()->IsVirtual ? Rank(-1) : Rank(0));
 
   for (auto *Current : llvm::ReversePostOrderTraversal(Graph.getEntryNode())) {
     auto &CurrentRank = Ranks[Current];
