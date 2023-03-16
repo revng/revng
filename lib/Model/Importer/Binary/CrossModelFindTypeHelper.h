@@ -46,13 +46,19 @@ public:
       ;
 
     for (const auto &P : FromModel->Types()) {
-      if (VisitedFromThePrototype.contains(TypeToNode.at(P.get()))) {
+      if (VisitedFromThePrototype.contains(TypeToNode.at(P.get()))
+          and not(llvm::isa<model::PrimitiveType>(P.get())
+                  and DestinationModel->Types().count(P->key()) != 0)) {
         // Clone the pointer.
         UpcastablePointer<model::Type> NewType = P;
         NewType->OriginalName() = std::string(NewType->CustomName());
         NewType->CustomName() = "";
+
+        revng_assert(DestinationModel->Types().count(NewType->key()) == 0);
+
         // Record the type.
         auto TheType = DestinationModel->recordNewType(std::move(NewType));
+
         // The first type that was visited is the funciton type itself.
         if (!Result)
           Result = TheType;
