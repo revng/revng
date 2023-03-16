@@ -76,8 +76,14 @@ ensureSingleEntry(InternalGraph &Graph, RankContainer *MaybeRanks = nullptr) {
   }
 }
 
-/// Ensures an "internal" graph to be a DAG by "flipping" edges to prevent
-/// loops.
+/// Converts a graph into a DAG by flipping the backedges, which makes it
+/// loop-free.
+///
+/// \note the conversion is done in-place. Be aware of the \ref Graph being
+///       modified.
+///
+/// \note it's expected that the graph has no self-edges. Please extract those
+///       using \ref extractSelfEdges before passing the graph in.
 static void convertToDAG(InternalGraph &Graph) {
   ensureSingleEntry(Graph);
 
