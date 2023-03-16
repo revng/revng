@@ -228,10 +228,7 @@ private:
   CornerContainer &&Prerouted;
 };
 
-OrderedEdgeContainer orderEdges(InternalGraph &Graph,
-                                CornerContainer &&Prerouted,
-                                const RankContainer &Ranks,
-                                const LaneContainer &Lanes) {
+void restoreEdgeDirections(InternalGraph &Graph) {
   for (auto *From : Graph.nodes()) {
     for (auto Iterator = From->successor_edges().begin();
          Iterator != From->successor_edges().end();) {
@@ -244,7 +241,12 @@ OrderedEdgeContainer orderEdges(InternalGraph &Graph,
       }
     }
   }
+}
 
+OrderedEdgeContainer orderEdges(InternalGraph &Graph,
+                                CornerContainer &&Prerouted,
+                                const RankContainer &Ranks,
+                                const LaneContainer &Lanes) {
   OrderedEdgeContainer Result;
   RoutableEdgeMaker Maker(Ranks, Lanes, std::move(Prerouted));
   for (auto *From : Graph.nodes()) {

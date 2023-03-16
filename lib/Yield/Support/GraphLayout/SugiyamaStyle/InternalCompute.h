@@ -81,6 +81,10 @@ CornerContainer routeBackwardsCorners(InternalGraph &Graph,
                                       float MarginSize,
                                       float EdgeDistance);
 
+/// Restores the original edge direction by flipping all the edges marked with
+/// `IsBackwards == true`.
+void restoreEdgeDirections(InternalGraph &Graph);
+
 /// Produce the optimal routing order.
 OrderedEdgeContainer orderEdges(InternalGraph &Graph,
                                 CornerContainer &&Prerouted,
@@ -168,6 +172,10 @@ bool computeInternal(InternalGraph &Graph, const Configuration &Configuration) {
   CornerContainer Prerouted;
   if (Configuration.UseOrthogonalBends)
     Prerouted = routeBackwardsCorners(Graph, Ranks, Lanes, Margin, EdgeGap);
+
+  // Restore the original edge directions.
+  // The graph will no longer be a DAG.
+  restoreEdgeDirections(Graph);
 
   // To simplify routing, order the edges first. This consumes the prerouted
   // corners to build an ordered list of edges with all the information
