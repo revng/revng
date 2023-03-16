@@ -32,7 +32,7 @@ optimizeLayers(InternalGraph &Graph, RankContainer &Ranks) {
       //
       // Such nodes always have a single predecessor and a single successor.
       // Additionally, the ranks of those two neighbors have to be different.
-      if (!Node->isVirtual()) {
+      if (!Node->IsVirtual) {
         IsLayerRequired = true;
         break;
       }
@@ -305,7 +305,7 @@ public:
     if (int A = Cluster(LHS), B = Cluster(RHS); A == B) {
       auto BarycenterA = get(LHS), BarycenterB = get(RHS);
       if (std::isnan(BarycenterA) || std::isnan(BarycenterB))
-        return LHS->Index < RHS->Index;
+        return LHS->index() < RHS->index();
       else
         return BarycenterA < BarycenterB;
     } else {

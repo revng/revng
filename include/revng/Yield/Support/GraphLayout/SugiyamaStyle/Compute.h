@@ -4,7 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/Yield/Graph.h"
+#include "revng/Yield/Support/GraphLayout/Graphs.h"
+#include "revng/Yield/Support/GraphLayout/SugiyamaStyle/InternalGraph.h"
 
 namespace yield::layout::sugiyama {
 
@@ -71,8 +72,46 @@ public:
   layout::Dimension EdgeMarginSize;
 };
 
+namespace detail {
+
+bool computeImpl(InternalGraph &Internal, const Configuration &Configuration);
+
+} // namespace detail
+
+// TODO: rename into `compute` once it's possible to check whether
+//       `llvm::GraphTraits` is defined for a given type or not using a concept.
+template<layout::HasLayoutableGraphTraits GraphType>
+inline bool
+computeInPlace(GraphType &&Graph, const Configuration &Configuration) {
+  using IG = InternalGraph;
+  auto [Internal, InputNodeLookup] = IG::make(std::forward<GraphType>(Graph));
+  if (!detail::computeImpl(Internal, Configuration))
+    return false;
+
+  Internal.template exportInto<GraphType>(InputNodeLookup);
+  return true;
+}
+
 /// A custom graph layering algorithm designed for pre-calculating majority of
 /// the expensive stuff needed for graph rendering.
-bool compute(Graph &Graph, const Configuration &Configuration);
+///
+/// \tparam Node The type of the data attached to each graph node
+/// \tparam Edge The type of the data attached to each graph edge
+///
+/// \param Graph An input graph
+/// \param Configuration An object configuring the specifics of the layout
+///
+/// \return The laid out version of the graph corresponding to \ref Graph
+template<typename Node, typename Edge = Empty>
+inline std::optional<layout::OutputGraph<Node, Edge>>
+compute(const layout::InputGraph<Node, Edge> &Graph,
+        const Configuration &Configuration) {
+  using OutputGraph = layout::OutputGraph<Node, Edge>;
+  std::optional<OutputGraph> Result = layout::detail::convert(Graph);
+  if (!computeInPlace(&Result.value(), Configuration))
+    Result = std::nullopt;
+
+  return Result;
+}
 
 } // namespace yield::layout::sugiyama
