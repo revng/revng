@@ -53,8 +53,11 @@ optimizeLayers(InternalGraph &Graph, RankContainer &Ranks) {
       for (auto Node : *Iterator) {
         auto *Predecessor = *Node->predecessors().begin();
         auto *Successor = *Node->successors().begin();
-        auto Label = std::move(*Node->predecessor_edges().begin()->Label);
-        Predecessor->addSuccessor(Successor, std::move(Label));
+
+        // Be careful as to not discard any real edges.
+        revng_assert(Node->predecessor_edges().begin()->Label->isVirtual());
+        auto *Label = Node->successor_edges().begin()->Label;
+        Predecessor->addSuccessor(Successor, std::move(*Label));
         Ranks.erase(Node);
         Graph.removeNode(Node);
       }
