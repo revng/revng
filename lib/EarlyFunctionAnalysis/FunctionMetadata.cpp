@@ -21,7 +21,7 @@ using namespace llvm;
 namespace efa {
 
 struct FunctionCFGNodeData {
-  FunctionCFGNodeData(BasicBlockID ID) : ID(ID) {}
+  FunctionCFGNodeData(BasicBlockID ID, const MetaAddress &) : ID(ID) {}
   BasicBlockID ID;
 };
 

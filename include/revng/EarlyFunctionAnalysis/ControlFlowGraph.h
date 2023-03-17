@@ -90,7 +90,7 @@ inline ParsedSuccessor parseSuccessor(const T &Edge,
 ///
 /// \tparam GraphType The type of the graph this function will make.
 ///         The node must be constructible from the type of basic block in
-///         the \ref BB container.
+///         the \ref BB container as well as the entry address of the function.
 ///
 /// \return A pair of the generic graph object (type of which is specified by
 ///         the first template parameter) and a map of all the basic block start
@@ -101,7 +101,8 @@ template<SpecializationOfGenericGraph GraphType,
          template<typename...>
          typename Container>
   requires std::is_constructible_v<typename GraphType::Node,
-                                   const BasicBlockType &>
+                                   const BasicBlockType &,
+                                   const MetaAddress &>
 std::pair<GraphType, std::map<BasicBlockID, typename GraphType::Node *>>
 buildControlFlowGraph(const Container<BasicBlockType, OtherTs...> &BB,
                       const MetaAddress &EntryAddress,
@@ -113,7 +114,7 @@ buildControlFlowGraph(const Container<BasicBlockType, OtherTs...> &BB,
   auto &[Graph, NodeLookup] = Res;
   for (const BasicBlockType &Block : BB) {
     revng_assert(Block.ID().isValid());
-    auto *NewNode = Graph.addNode(Node{ Block.ID() });
+    auto *NewNode = Graph.addNode(Node{ Block.ID(), EntryAddress });
     auto [_, Success] = NodeLookup.try_emplace(Block.ID(), NewNode);
     revng_assert(Success != false,
                  "Different basic blocks with the same `Start` address");
@@ -134,7 +135,7 @@ buildControlFlowGraph(const Container<BasicBlockType, OtherTs...> &BB,
       } else {
         if (ExitNode == nullptr) {
           constexpr auto Invalid = BasicBlockID::invalid();
-          ExitNode = Graph.addNode(Node{ Invalid });
+          ExitNode = Graph.addNode(Node{ Invalid, EntryAddress });
           auto [_, Success] = NodeLookup.try_emplace(BasicBlockID::invalid(),
                                                      ExitNode);
           revng_assert(Success != false);
