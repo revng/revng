@@ -8,6 +8,8 @@
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
 #include "revng/GraphLayout/Graphs.h"
 #include "revng/Model/Binary.h"
+#include "revng/Pipeline/Location.h"
+#include "revng/Pipes/Ranks.h"
 #include "revng/Yield/ControlFlow/Configuration.h"
 #include "revng/Yield/ControlFlow/FallthroughDetection.h"
 #include "revng/Yield/ControlFlow/NodeSizeCalculation.h"
@@ -225,10 +227,11 @@ void yield::cfg::calculateNodeSizes(PreLayoutGraph &Graph,
 
     if (!Node->isEmpty()) {
       // A normal node.
-      if (auto Iterator = Function.ControlFlowGraph().find(Node->Address);
+      BasicBlockID BasicBlock = Node->getBasicBlock();
+      if (auto Iterator = Function.ControlFlowGraph().find(BasicBlock);
           Iterator != Function.ControlFlowGraph().end()) {
         Node->Size = basicBlockSize(*Iterator, Function, Binary, Configuration);
-      } else if (const auto *F = tryGetFunction(Binary, Node->Address)) {
+      } else if (const auto *F = tryGetFunction(Binary, BasicBlock)) {
         Node->Size = singleLineSize(F->name().str(),
                                     Configuration.InstructionFontSize,
                                     Configuration);
