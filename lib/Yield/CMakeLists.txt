@@ -12,11 +12,11 @@ revng_add_library_internal(
   ControlFlow/Extraction.cpp
   ControlFlow/FallthroughDetection.cpp
   ControlFlow/NodeSizeCalculation.cpp
-  ControlFlow/SVG.cpp
   CrossRelations.cpp
   Dump.cpp
   Plain.cpp
   PTML.cpp
+  SVG.cpp
   Verify.cpp)
 
 set(DISASSEMBLER_ARCHITECTURE_SUPPORT "")
