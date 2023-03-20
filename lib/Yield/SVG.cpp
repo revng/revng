@@ -387,19 +387,27 @@ yield::svg::controlFlowGraph(const yield::Function &InternalFunction,
 struct LabelNodeHelper {
   const model::Binary &Binary;
   const yield::cfg::Configuration Configuration;
-  std::optional<BasicBlockID> RootNodeLocation = std::nullopt;
+  std::optional<std::string_view> RootNodeLocation = std::nullopt;
 
   void computeSizes(yield::calls::PreLayoutGraph &Graph) {
     for (auto *Node : Graph.nodes()) {
       if (!Node->isEmpty()) {
         // A normal node
-        MetaAddress Address = Node->Address.notInlinedAddress();
-        auto FunctionIterator = Binary.Functions().find(Address);
-        revng_assert(FunctionIterator != Binary.Functions().end());
+        std::size_t NameLength = 0;
+        if (std::optional<model::Function::Key> Key = Node->getFunction()) {
+          auto Iterator = Binary.Functions().find(std::get<0>(*Key));
+          revng_assert(Iterator != Binary.Functions().end());
+          NameLength = Iterator->name().size();
+        } else if (auto DynamicFunctionKey = Node->getDynamicFunction()) {
+          const std::string &Key = std::get<0>(*DynamicFunctionKey);
+          auto Iterator = Binary.ImportedDynamicFunctions().find(Key);
+          revng_assert(Iterator != Binary.ImportedDynamicFunctions().end());
+          NameLength = Iterator->name().size();
+        } else {
+          revng_abort("Unsupported node type.");
+        }
 
-        size_t NameLength = FunctionIterator->name().size();
         revng_assert(NameLength != 0);
-
         Node->Size = yield::layout::Size{
           NameLength * Configuration.LabelFontSize
             * Configuration.HorizontalFontFactor,
@@ -419,20 +427,15 @@ struct LabelNodeHelper {
     if (Node.isEmpty())
       return "";
 
-    if (Node.NextAddress.isValid()) {
-      revng_assert(Node.Address == Node.NextAddress);
-      return yield::ptml::shallowFunctionLink(Node.NextAddress
-                                                .notInlinedAddress(),
-                                              Binary);
-    }
+    std::string_view Location = Node.getLocationString();
 
-    if (!RootNodeLocation.has_value() || *RootNodeLocation == Node.Address)
-      return yield::ptml::functionNameDefinition(Node.Address
-                                                   .notInlinedAddress(),
-                                                 Binary);
+    if (Node.IsShallow)
+      return yield::ptml::shallowFunctionLink(Location, Binary);
+
+    if (!RootNodeLocation.has_value() || *RootNodeLocation == Location)
+      return yield::ptml::functionNameDefinition(Location, Binary);
     else
-      return yield::ptml::functionLink(Node.Address.notInlinedAddress(),
-                                       Binary);
+      return yield::ptml::functionLink(Location, Binary);
   }
 };
 
@@ -487,13 +490,13 @@ static auto convertPoint(yield::layout::Point const &Point,
 }
 
 static yield::calls::PostLayoutGraph
-combineHalvesHelper(const BasicBlockID &SlicePoint,
+combineHalvesHelper(std::string_view SlicePoint,
                     yield::calls::PostLayoutGraph &&ForwardsSlice,
                     yield::calls::PostLayoutGraph &&BackwardsSlice) {
   revng_assert(ForwardsSlice.size() != 0 && BackwardsSlice.size() != 0);
 
   auto IsSlicePoint = [&SlicePoint](const auto *Node) {
-    return Node->Address == SlicePoint;
+    return Node->getLocationString() == SlicePoint;
   };
 
   auto ForwardsIterator = llvm::find_if(ForwardsSlice.nodes(), IsSlicePoint);
@@ -553,7 +556,7 @@ combineHalvesHelper(const BasicBlockID &SlicePoint,
   return std::move(ForwardsSlice);
 }
 
-std::string yield::svg::callGraphSlice(const BasicBlockID &SlicePoint,
+std::string yield::svg::callGraphSlice(std::string_view SlicePoint,
                                        const CrossRelations &Relations,
                                        const model::Binary &Binary) {
   // TODO: make configuration accessible from outside.

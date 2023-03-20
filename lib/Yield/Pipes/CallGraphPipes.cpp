@@ -80,13 +80,13 @@ void YieldCallGraphSlice::run(pipeline::Context &Context,
   FunctionMetadataCache Cache;
   for (const auto &LLVMFunction : FunctionTags::Isolated.functions(&Module)) {
     auto &Metadata = Cache.getFunctionMetadata(&LLVMFunction);
-    auto ModelFunctionIterator = Model->Functions().find(Metadata.Entry());
-    revng_assert(ModelFunctionIterator != Model->Functions().end());
+    revng_assert(llvm::is_contained(Model->Functions(), Metadata.Entry()));
 
     // Slice the graph for the current function and convert it to SVG
-    BasicBlockID EntryID(Metadata.Entry());
+    auto SlicePoint = pipeline::serializedLocation(revng::ranks::Function,
+                                                   Metadata.Entry());
     Output.insert_or_assign(Metadata.Entry(),
-                            yield::svg::callGraphSlice(EntryID,
+                            yield::svg::callGraphSlice(SlicePoint,
                                                        *Relations.get(),
                                                        *Model));
   }
