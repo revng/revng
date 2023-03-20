@@ -28,8 +28,7 @@ extractFunctionMetadata(llvm::MDNode *MD) {
 
   StringRef YAMLString = cast<MDString>(Op)->getString();
   auto MaybeParsed = TupleTree<efa::FunctionMetadata>::deserialize(YAMLString);
-  revng_assert(MaybeParsed);
-  MaybeParsed->verify();
+  revng_assert(MaybeParsed and MaybeParsed->verify());
   return std::move(MaybeParsed.get());
 }
 
