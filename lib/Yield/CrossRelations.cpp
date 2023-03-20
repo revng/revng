@@ -50,22 +50,15 @@ CR::CrossRelations::CrossRelations(const MetadataContainer &Metadata,
             if (const auto &Callee = Edge->Destination(); Callee.isValid()) {
               // TODO: embed information about the call instruction into
               //       `CallLocation` after metadata starts providing it.
-
-              auto CalleeAddress = Callee.notInlinedAddress();
-              const auto L = serializedLocation(ranks::Function, CalleeAddress);
-              if (auto It = Relations().find(L); It != Relations().end()) {
-                CR::RelationTarget T(CR::RelationType::IsCalledFrom,
-                                     std::move(CallLocation));
-                It->Related().insert(std::move(T));
-              }
+              const auto L = serializedLocation(ranks::Function,
+                                                Callee.notInlinedAddress());
+              if (auto It = Relations().find(L); It != Relations().end())
+                It->IsCalledFrom().emplace(std::move(CallLocation));
             } else if (!CallEdge->DynamicFunction().empty()) {
               const auto L = serializedLocation(ranks::DynamicFunction,
                                                 CallEdge->DynamicFunction());
-              if (auto It = Relations().find(L); It != Relations().end()) {
-                CR::RelationTarget T(CR::RelationType::IsCalledFrom,
-                                     std::move(CallLocation));
-                It->Related().insert(std::move(T));
-              }
+              if (auto It = Relations().find(L); It != Relations().end())
+                It->IsCalledFrom().emplace(std::move(CallLocation));
             } else {
               // Ignore indirect calls.
             }
@@ -85,20 +78,9 @@ static void conversionHelper(const CR::CrossRelations &Input,
   for (const auto &[LocationString, Related] : Input.Relations())
     AddNode(LocationString);
 
-  for (const auto &[LocationString, Related] : Input.Relations()) {
-    for (const auto &[RelationKind, TargetString] : Related) {
-      switch (RelationKind) {
-      case CR::RelationType::IsCalledFrom:
-        AddEdge(LocationString, TargetString, RelationKind);
-        break;
-
-      case CR::RelationType::Invalid:
-      case CR::RelationType::Count:
-      default:
-        revng_abort("Unknown enum value");
-      }
-    }
-  }
+  for (const CR::RelationDescription &Relation : Input.Relations())
+    for (std::string_view CallerLocation : Relation.IsCalledFrom())
+      AddEdge(Relation.Location(), CallerLocation);
 }
 
 GenericGraph<CR::CrossRelations::Node, 16, true>
@@ -113,24 +95,18 @@ CR::CrossRelations::toCallGraph() const {
     revng_assert(Success);
   };
   auto AddEdge = [&LookupHelper](std::string_view Callee,
-                                 std::string_view Caller,
-                                 RelationType::Values Kind) {
-    if (Kind == CR::RelationType::IsCalledFrom) {
-      // This assumes all the call sites are represented as basic block
-      // locations for all the relations covered by these two kinds.
-      using namespace pipeline;
-      namespace ranks = revng::ranks;
-      auto CallerLocation = *locationFromString(ranks::BasicBlock, Caller);
-      auto CallerFunction = convertLocation(ranks::Function, CallerLocation);
-      auto *CallerNode = LookupHelper.at(CallerFunction.toString());
-      auto *CalleeNode = LookupHelper.at(Callee);
+                                 std::string_view Caller) {
+    // This assumes all the call sites are represented as basic block
+    // locations for all the relations covered by these two kinds.
+    using namespace pipeline;
+    namespace ranks = revng::ranks;
+    auto CallerLocation = *locationFromString(ranks::BasicBlock, Caller);
+    auto CallerFunction = convertLocation(ranks::Function, CallerLocation);
+    auto *CallerNode = LookupHelper.at(CallerFunction.toString());
+    auto *CalleeNode = LookupHelper.at(Callee);
 
-      using EdgeLabel = CR::CrossRelations::EdgeLabel;
-      if (!llvm::is_contained(CallerNode->successors(), CalleeNode))
-        CallerNode->addSuccessor(CalleeNode, EdgeLabel{ Kind });
-    } else {
-      revng_abort("Unsupported relation type.");
-    }
+    if (!llvm::is_contained(CallerNode->successors(), CalleeNode))
+      CallerNode->addSuccessor(CalleeNode);
   };
   conversionHelper(*this, AddNode, AddEdge);
 
@@ -158,21 +134,16 @@ yield::calls::PreLayoutGraph CR::CrossRelations::toYieldGraph() const {
     revng_assert(Success);
   };
   auto AddEdge = [&LookupHelper](std::string_view Callee,
-                                 std::string_view Caller,
-                                 CR::RelationType::Values Kind) {
-    if (Kind == CR::RelationType::IsCalledFrom) {
-      // This assumes all the call sites are represented as basic block
-      // locations for all the relations covered by these two kinds.
-      auto CallerLocation = *locationFromString(ranks::BasicBlock, Caller);
-      auto CallerFunction = convertLocation(ranks::Function, CallerLocation);
-      auto *CallerNode = LookupHelper.at(CallerFunction.toString());
-      auto *CalleeNode = LookupHelper.at(Callee);
+                                 std::string_view Caller) {
+    // This assumes all the call sites are represented as basic block
+    // locations for all the relations covered by these two kinds.
+    auto CallerLocation = *locationFromString(ranks::BasicBlock, Caller);
+    auto CallerFunction = convertLocation(ranks::Function, CallerLocation);
+    auto *CallerNode = LookupHelper.at(CallerFunction.toString());
+    auto *CalleeNode = LookupHelper.at(Callee);
 
-      if (!llvm::is_contained(CallerNode->successors(), CalleeNode))
-        CallerNode->addSuccessor(CalleeNode);
-    } else {
-      revng_abort("Unsupported relation type.");
-    }
+    if (!llvm::is_contained(CallerNode->successors(), CalleeNode))
+      CallerNode->addSuccessor(CalleeNode);
   };
   conversionHelper(*this, AddNode, AddEdge);
 

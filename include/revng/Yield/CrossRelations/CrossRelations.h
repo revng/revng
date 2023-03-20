@@ -26,10 +26,7 @@ namespace yield::crossrelations {
 
 class CrossRelations : public generated::CrossRelations {
 private:
-  struct EdgeLabel {
-    yield::crossrelations::RelationType::Values Type;
-  };
-  using Node = BidirectionalNode<std::string, EdgeLabel>;
+  using Node = BidirectionalNode<std::string>;
 
 public:
   CrossRelations() = default;
