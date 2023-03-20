@@ -286,9 +286,9 @@ static std::string exportGraph(const PostLayoutGraph &Graph,
 
   // Export all the edges.
   for (const auto *From : Graph.nodes()) {
-    if (ShouldEmitEmptyNodes || From->Address.isValid()) {
+    if (ShouldEmitEmptyNodes || !From->isEmpty()) {
       for (const auto [To, Edge] : From->successor_edges()) {
-        if (ShouldEmitEmptyNodes || To->Address.isValid()) {
+        if (ShouldEmitEmptyNodes || !To->isEmpty()) {
           revng_assert(Edge != nullptr);
           Result += edge(Edge->Path,
                          edgeTypeAsString(*Edge),
@@ -301,7 +301,7 @@ static std::string exportGraph(const PostLayoutGraph &Graph,
 
   // Export all the nodes.
   for (const auto *Node : Graph.nodes())
-    if (ShouldEmitEmptyNodes || Node->Address.isValid())
+    if (ShouldEmitEmptyNodes || !Node->isEmpty())
       Result += node(Node, NodeContents(*Node), Configuration);
 
   Viewbox Box = calculateViewbox(Graph);
@@ -391,7 +391,7 @@ struct LabelNodeHelper {
 
   void computeSizes(yield::calls::PreLayoutGraph &Graph) {
     for (auto *Node : Graph.nodes()) {
-      if (Node->Address.isValid()) {
+      if (!Node->isEmpty()) {
         // A normal node
         MetaAddress Address = Node->Address.notInlinedAddress();
         auto FunctionIterator = Binary.Functions().find(Address);
@@ -416,7 +416,9 @@ struct LabelNodeHelper {
   }
 
   std::string operator()(const yield::calls::PostLayoutNode &Node) const {
-    revng_assert(Node.Address.isValid());
+    if (Node.isEmpty())
+      return "";
+
     if (Node.NextAddress.isValid()) {
       revng_assert(Node.Address == Node.NextAddress);
       return yield::ptml::shallowFunctionLink(Node.NextAddress

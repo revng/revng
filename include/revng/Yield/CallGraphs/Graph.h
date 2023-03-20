@@ -15,6 +15,8 @@ struct Node {
 
   explicit Node(BasicBlockID Address = BasicBlockID::invalid()) :
     Address(std::move(Address)) {}
+
+  bool isEmpty() const { return !Address.isValid(); }
 };
 
 struct Edge {

@@ -223,7 +223,7 @@ void yield::cfg::calculateNodeSizes(PreLayoutGraph &Graph,
   for (PreLayoutNode *Node : Graph.nodes()) {
     revng_assert(Node != nullptr);
 
-    if (Node->Address.isValid()) {
+    if (!Node->isEmpty()) {
       // A normal node.
       if (auto Iterator = Function.ControlFlowGraph().find(Node->Address);
           Iterator != Function.ControlFlowGraph().end()) {
@@ -236,7 +236,7 @@ void yield::cfg::calculateNodeSizes(PreLayoutGraph &Graph,
         revng_abort("The value of this node is not a known address");
       }
     } else {
-      // An entry node.
+      // A node without any content, most likely an entry/exit marker.
       Node->Size = { 30, 30 };
     }
 
