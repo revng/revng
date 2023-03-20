@@ -49,7 +49,7 @@ CR::CrossRelations::CrossRelations(const MetadataContainer &Metadata,
           if (efa::FunctionEdgeType::isCall(Edge->Type())) {
             if (const auto &Callee = Edge->Destination(); Callee.isValid()) {
               // TODO: embed information about the call instruction into
-              //       `CallLocation` after yield starts providing it.
+              //       `CallLocation` after metadata starts providing it.
 
               auto CalleeAddress = Callee.notInlinedAddress();
               auto L = pipeline::location(ranks::Function, CalleeAddress)

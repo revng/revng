@@ -32,7 +32,7 @@ namespace pipeline {
 /// are determined by the parents of the rank (see `Rank::Parent`).
 ///
 /// In deserialized form, the name gets lifted to a compilation time and can be
-/// accessed at `Rank::RankName`. The tuple of the keys is publically inherited
+/// accessed at `Rank::RankName`. The tuple of the keys is publicly inherited
 /// from, so it can either be accessed as normal tuple (for example, using
 /// `std::get<std::size_t>` after casting. There's a cast helper members
 /// (`tuple()`)) or using special accessors like `at()`.
@@ -211,14 +211,14 @@ using ConstP = std::add_pointer_t<std::add_const_t<std::decay_t<T>>>;
 /// A helper function used for deserializing any number of differently
 /// ranked locations at once.
 ///
-/// \arg Serialized is the string containing the serialized location.
-/// \arg Expected indicates the expected rank to be returned.
-/// \arg Supported lists all the other ranks that are supported, they must all
-/// be convertible to the \arg Expected rank.
+/// \param Serialized is the string containing the serialized location.
+/// \param Expected indicates the expected rank to be returned.
+/// \param Supported lists all the other ranks that are supported, they must all
+/// be convertible to the \ref Expected rank.
 ///
-/// \returns a valid location of \arg Expected rank if the \arg Serialized
+/// \returns a valid location of \ref Expected rank if the \ref Serialized
 /// string contains a valid serialized form of any location type within the
-/// \arg Supported list (including \arg Expected), `std::nullopt` otherwise.
+/// \ref Supported list (including \ref Expected), `std::nullopt` otherwise.
 template <typename ExpectedRank, typename ...SupportedRanks>
   requires (RankConvertibleTo<ExpectedRank, SupportedRanks> && ...)
 inline constexpr std::optional<Location<ExpectedRank>>
