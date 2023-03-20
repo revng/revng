@@ -42,7 +42,7 @@ private:
   std::optional<T> Default;
 
 public:
-  ExistingOrNew(T *Pointer) {
+  explicit ExistingOrNew(T *Pointer) {
     if (Pointer != nullptr) {
       this->Pointer = Pointer;
     } else {
@@ -609,10 +609,8 @@ const char *rp_manager_get_global_name(rp_manager *manager, int index) {
   return nullptr;
 }
 
-static bool llvmErrorToRpError(llvm::Error Error, rp_error *out) {
-  if (out == nullptr)
-    return !!Error;
-
+static bool
+llvmErrorToRpError(llvm::Error Error, ExistingOrNew<rp_error> &Out) {
   bool Success = true;
   // clang-format off
   llvm::handleAllErrors(std::move(Error),
@@ -625,7 +623,7 @@ static bool llvmErrorToRpError(llvm::Error Error, rp_error *out) {
         ErrorBody.Reasons.emplace_back(reason);
       }
 
-      **out = std::move(ErrorBody);
+      *Out = std::move(ErrorBody);
       Success = false;
     },
     [&](const llvm::ErrorInfoBase &OtherErrors) {
@@ -633,7 +631,7 @@ static bool llvmErrorToRpError(llvm::Error Error, rp_error *out) {
       llvm::raw_string_ostream OS(Reason);
       OtherErrors.log(OS);
       OS.flush();
-      **out = rp_simple_error(Reason, "");
+      *Out = rp_simple_error(Reason, "");
       Success = false;
     });
   // clang-format on
@@ -651,26 +649,25 @@ inline bool rp_manager_set_global_impl(rp_manager *manager,
   revng_check(serialized != nullptr);
   revng_check(global_name != nullptr);
 
+  ExistingOrNew<rp_error> Error(error);
   auto &GlobalsMap = manager->context().getGlobals();
   auto Buffer = llvm::MemoryBuffer::getMemBuffer(serialized);
 
   auto MaybeGlobal = GlobalsMap.get(global_name);
   if (!MaybeGlobal) {
-    llvmErrorToRpError(MaybeGlobal.takeError(), error);
+    llvmErrorToRpError(MaybeGlobal.takeError(), Error);
     return false;
   }
 
   auto MaybeNewGlobal = GlobalsMap.createNew(global_name, *Buffer);
   if (!MaybeNewGlobal) {
-    llvmErrorToRpError(MaybeNewGlobal.takeError(), error);
+    llvmErrorToRpError(MaybeNewGlobal.takeError(), Error);
     return false;
   }
 
-  if (auto Error = MaybeNewGlobal->get()->verify(); Error) {
-    if (error)
-
-      **error = rp_simple_error(std::string("could not verify ") + global_name,
-                                "");
+  if (auto VerifyError = MaybeNewGlobal->get()->verify(); VerifyError) {
+    *Error = rp_simple_error(std::string("could not verify ") + global_name,
+                             "");
     return false;
   }
 
@@ -681,7 +678,7 @@ inline bool rp_manager_set_global_impl(rp_manager *manager,
 
     auto MaybeInvalidations = manager->invalidateFromDiff(global_name, Diff);
     if (!MaybeInvalidations) {
-      llvmErrorToRpError(MaybeInvalidations.takeError(), error);
+      llvmErrorToRpError(MaybeInvalidations.takeError(), Error);
       return false;
     }
 
@@ -725,33 +722,34 @@ inline bool rp_manager_apply_diff_impl(rp_manager *manager,
   revng_check(diff != nullptr);
   revng_check(global_name != nullptr);
 
+  ExistingOrNew<rp_error> Error(error);
   auto &GlobalsMap = manager->context().getGlobals();
   auto Buffer = llvm::MemoryBuffer::getMemBuffer(diff);
 
   auto GlobalOrError = GlobalsMap.get(global_name);
   if (!GlobalOrError) {
-    llvmErrorToRpError(GlobalOrError.takeError(), error);
+    llvmErrorToRpError(GlobalOrError.takeError(), Error);
     return false;
   }
 
   auto &Global = GlobalOrError.get();
   auto MaybeDiff = Global->deserializeDiff(*Buffer);
   if (!MaybeDiff) {
-    llvmErrorToRpError(MaybeDiff.takeError(), error);
+    llvmErrorToRpError(MaybeDiff.takeError(), Error);
     return false;
   }
 
   auto &Diff = MaybeDiff.get();
   auto GlobalClone = Global->clone();
-  auto Error = GlobalClone->applyDiff(Diff);
-  if (Error) {
-    llvmErrorToRpError(std::move(Error), error);
+  auto ApplyError = GlobalClone->applyDiff(Diff);
+  if (ApplyError) {
+    llvmErrorToRpError(std::move(ApplyError), Error);
     return false;
   }
 
-  if (auto Error = GlobalClone->verify(); Error) {
-    **error = rp_simple_error(std::string("could not verify ") + global_name,
-                              "");
+  if (auto VerifyError = GlobalClone->verify(); VerifyError) {
+    *Error = rp_simple_error(std::string("could not verify ") + global_name,
+                             "");
     return false;
   }
 
@@ -759,7 +757,7 @@ inline bool rp_manager_apply_diff_impl(rp_manager *manager,
     *Global = *GlobalClone;
     auto MaybeInvalidations = manager->invalidateFromDiff(global_name, Diff);
     if (!MaybeInvalidations) {
-      llvmErrorToRpError(MaybeInvalidations.takeError(), error);
+      llvmErrorToRpError(MaybeInvalidations.takeError(), Error);
       return false;
     }
 
@@ -915,36 +913,38 @@ bool rp_diff_map_is_empty(rp_diff_map *map) {
 }
 
 rp_error *rp_error_create() {
-  return new rp_error(nullptr);
+  return new rp_error();
 }
 
 bool rp_error_is_success(rp_error *error) {
-  return error->get() == nullptr;
+  revng_check(error != nullptr);
+  return std::holds_alternative<std::monostate>(*error);
 }
 
 bool rp_error_is_document_error(rp_error *error) {
-  return std::holds_alternative<rp_document_error>(**error);
+  revng_check(error != nullptr);
+  return std::holds_alternative<rp_document_error>(*error);
 }
 
 rp_simple_error *rp_error_get_simple_error(rp_error *error) {
-  if (error->get() == nullptr
-      || not std::holds_alternative<rp_simple_error>(**error))
+  revng_check(error != nullptr);
+  if (not std::holds_alternative<rp_simple_error>(*error))
     return nullptr;
 
-  return &std::get<rp_simple_error>(**error);
+  return &std::get<rp_simple_error>(*error);
 }
 
 rp_document_error *rp_error_get_document_error(rp_error *error) {
-  if (error->get() == nullptr
-      || not std::holds_alternative<rp_document_error>(**error))
+  revng_check(error != nullptr);
+  if (not std::holds_alternative<rp_document_error>(*error))
     return nullptr;
 
-  return &std::get<rp_document_error>(**error);
+  return &std::get<rp_document_error>(*error);
 }
 
-void rp_error_destroy(rp_error *error_list) {
-  revng_check(error_list != nullptr);
-  delete error_list;
+void rp_error_destroy(rp_error *error) {
+  revng_check(error != nullptr);
+  delete error;
 }
 
 size_t rp_document_error_reasons_count(rp_document_error *error) {
@@ -957,9 +957,9 @@ const char *rp_document_error_get_error_type(rp_document_error *error) {
   return error->ErrorType.c_str();
 }
 
-const char *rp_document_error_get_location_type(rp_document_error *error_list) {
-  revng_check(error_list != nullptr);
-  return error_list->LocationType.c_str();
+const char *rp_document_error_get_location_type(rp_document_error *error) {
+  revng_check(error != nullptr);
+  return error->LocationType.c_str();
 }
 
 const char *
