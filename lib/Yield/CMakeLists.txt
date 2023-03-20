@@ -97,9 +97,7 @@ target_tuple_tree_generator(
   "yield::ByteContainer"
   HEADERS
   "${INTERNAL_ASSEMBLY_HEADERS}/CrossRelations.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/RelationDescription.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/RelationTarget.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/RelationType.h")
+  "${INTERNAL_ASSEMBLY_HEADERS}/RelationDescription.h")
 
 revng_add_analyses_library_internal(
   revngYieldPipes SHARED Pipes/AssemblyPipes.cpp Pipes/CallGraphPipes.cpp
