@@ -4,9 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/Pipeline/Location.h"
 #include "revng/Yield/CallGraphs/Graph.h"
-
-class MetaAddress;
 
 namespace yield::calls {
 
@@ -36,16 +35,14 @@ namespace yield::calls {
 ///   replaced by fake "reference" nodes).
 ///
 /// \note: this makes a copy of the graph, as such `Input` is not affected.
-calls::PreLayoutGraph
-makeCalleeTree(const calls::PreLayoutGraph &Input,
-               const BasicBlockID &SlicePoint = BasicBlockID::invalid());
+PreLayoutGraph makeCalleeTree(const PreLayoutGraph &Input,
+                              std::string_view SlicePointLocation = "");
 
 /// Produces a backwards facing slice of the graph starting from a single node.
 ///
 /// It is exactly the same as \see makeCalleeTree except it works in
 /// the opposite direction (it makes sure all the predecessors are preserved).
-calls::PreLayoutGraph
-makeCallerTree(const calls::PreLayoutGraph &Input,
-               const BasicBlockID &SlicePoint = BasicBlockID::invalid());
+PreLayoutGraph makeCallerTree(const PreLayoutGraph &Input,
+                              std::string_view SlicePointLocation = "");
 
 } // namespace yield::calls

@@ -22,9 +22,9 @@ static Node *copyNode(yield::calls::PreLayoutGraph &Graph, const Node *Source) {
 /// \tparam NV local `NodeView` specialization
 /// \tparam INV inverted location `NodeView` specialization
 template<typename NV, typename INV>
-Graph makeTreeImpl(const Graph &Input, const BasicBlockID &SlicePoint) {
-  auto SlicePointPredicate = [&SlicePoint](const Node *Node) {
-    return Node->Address == SlicePoint;
+Graph makeTreeImpl(const Graph &Input, std::string_view SlicePointLocation) {
+  auto SlicePointPredicate = [&SlicePointLocation](const Node *Node) {
+    return Node->getLocationString() == SlicePointLocation;
   };
   auto Entry = llvm::find_if(Input.nodes(), SlicePointPredicate);
   revng_assert(Entry != Input.nodes().end());
@@ -99,7 +99,7 @@ Graph makeTreeImpl(const Graph &Input, const BasicBlockID &SlicePoint) {
         } else {
           // Emit a fake node otherwise.
           auto NewNode = copyNode(Result, Node);
-          NewNode->NextAddress = NewNode->Address;
+          NewNode->IsShallow = true;
           NewNeighbour->addSuccessor(NewNode);
         }
       }
@@ -111,16 +111,16 @@ Graph makeTreeImpl(const Graph &Input, const BasicBlockID &SlicePoint) {
 
 yield::calls::PreLayoutGraph
 yield::calls::makeCalleeTree(const PreLayoutGraph &Input,
-                             const BasicBlockID &SlicePoint) {
+                             std::string_view SlicePoint) {
   // Forwards direction, makes sure no successor relation ever gets lost.
-  return makeTreeImpl<const PreLayoutNode *,
-                      llvm::Inverse<const PreLayoutNode *>>(Input, SlicePoint);
+  return makeTreeImpl<llvm::Inverse<const PreLayoutNode *>,
+                      const PreLayoutNode *>(Input, SlicePoint);
 }
 
 yield::calls::PreLayoutGraph
 yield::calls::makeCallerTree(const PreLayoutGraph &Input,
-                             const BasicBlockID &SlicePoint) {
+                             std::string_view SlicePoint) {
   // Backwards direction, makes sure no predecessor relation ever gets lost.
-  return makeTreeImpl<llvm::Inverse<const PreLayoutNode *>,
-                      const PreLayoutNode *>(Input, SlicePoint);
+  return makeTreeImpl<const PreLayoutNode *,
+                      llvm::Inverse<const PreLayoutNode *>>(Input, SlicePoint);
 }
