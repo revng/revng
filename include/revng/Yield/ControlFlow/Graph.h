@@ -5,18 +5,48 @@
 //
 
 #include "revng/GraphLayout/Graphs.h"
+#include "revng/Pipeline/Location.h"
+#include "revng/Pipes/Ranks.h"
 #include "revng/Support/BasicBlockID.h"
 
 namespace yield::cfg {
 
-struct Node {
-  BasicBlockID Address;
-  BasicBlockID NextAddress;
+class Node {
+private:
+  /// Stores a serialized `pipeline::Location` indicating what this node
+  /// represents contextually. As of now, it's only allowed to be set to
+  /// `revng::ranks::BasicBlock` but that's likely to be extended in the future.
+  std::string Location = {};
 
-  explicit Node(BasicBlockID Address = BasicBlockID::invalid()) :
-    Address(std::move(Address)) {}
+private:
+  using BasicBlockRank = decltype(revng::ranks::BasicBlock);
 
-  bool isEmpty() const { return !Address.isValid(); }
+public:
+  Node() = default;
+  Node(BasicBlockID Address,
+       const MetaAddress &Function = MetaAddress::invalid()) :
+    Location(pipeline::serializedLocation(revng::ranks::BasicBlock,
+                                          Function,
+                                          Address)) {}
+  explicit Node(const pipeline::Location<BasicBlockRank> &Location) :
+    Location(Location.toString()) {}
+  Node &operator=(const pipeline::Location<BasicBlockRank> &NewLocation) {
+    Location = NewLocation.toString();
+    return *this;
+  }
+
+public:
+  bool isEmpty() const { return Location.empty(); }
+
+  BasicBlockRank::Type getBasicBlock() const {
+    revng_assert(!isEmpty());
+
+    auto MaybeResult = pipeline::locationFromString(revng::ranks::BasicBlock,
+                                                    Location);
+    revng_assert(MaybeResult.has_value());
+
+    return MaybeResult->at(revng::ranks::BasicBlock);
+  }
 };
 
 enum class EdgeType { Unconditional, Call, Taken, Refused };

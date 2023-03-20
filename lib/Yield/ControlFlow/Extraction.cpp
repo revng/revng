@@ -34,7 +34,6 @@ yield::cfg::extractFromInternal(const yield::Function &Function,
     auto EntryIterator = Lookup.find(BasicBlockID(Function.Entry()));
     revng_assert(EntryIterator != Lookup.end());
     auto *RootNode = Result.addNode();
-    RootNode->Address = BasicBlockID::invalid();
     RootNode->addSuccessor(EntryIterator->second);
     Result.setEntryNode(RootNode);
   }
@@ -44,17 +43,16 @@ yield::cfg::extractFromInternal(const yield::Function &Function,
     auto NodeIterator = Lookup.find(BasicBlock.ID());
     revng_assert(NodeIterator != Lookup.end());
     auto &CurrentNode = *NodeIterator->second;
-    CurrentNode.NextAddress = BasicBlock.nextBlock();
 
     if (BasicBlock.Successors().size() == 2) {
       revng_assert(CurrentNode.successorCount() <= 2);
       if (CurrentNode.successorCount() == 2) {
         auto Front = *CurrentNode.successor_edges_begin();
         auto Back = *std::next(CurrentNode.successor_edges_begin());
-        if (Front.Neighbor->Address == BasicBlock.nextBlock()) {
+        if (Front.Neighbor->getBasicBlock() == BasicBlock.nextBlock()) {
           Front.Label->Type = yield::cfg::EdgeType::Refused;
           Back.Label->Type = yield::cfg::EdgeType::Taken;
-        } else if (Back.Neighbor->Address == BasicBlock.nextBlock()) {
+        } else if (Back.Neighbor->getBasicBlock() == BasicBlock.nextBlock()) {
           Front.Label->Type = yield::cfg::EdgeType::Taken;
           Back.Label->Type = yield::cfg::EdgeType::Refused;
         }
@@ -64,7 +62,7 @@ yield::cfg::extractFromInternal(const yield::Function &Function,
             continue;
 
         auto Edge = *CurrentNode.successor_edges_begin();
-        if (Edge.Neighbor->Address == BasicBlock.nextBlock())
+        if (Edge.Neighbor->getBasicBlock() == BasicBlock.nextBlock())
           Edge.Label->Type = yield::cfg::EdgeType::Refused;
       }
     }

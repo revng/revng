@@ -374,8 +374,8 @@ yield::svg::controlFlowGraph(const yield::Function &InternalFunction,
   revng_assert(Result.has_value());
 
   auto Content = [&](const yield::cfg::PostLayoutNode &Node) {
-    if (Node.Address.isValid())
-      return yield::ptml::controlFlowNode(Node.Address,
+    if (!Node.isEmpty())
+      return yield::ptml::controlFlowNode(Node.getBasicBlock(),
                                           InternalFunction,
                                           Binary);
     else

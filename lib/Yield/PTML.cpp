@@ -329,10 +329,10 @@ std::string yield::ptml::functionAssembly(const yield::Function &Function,
     .serialize();
 }
 
-std::string yield::ptml::controlFlowNode(const BasicBlockID &Address,
+std::string yield::ptml::controlFlowNode(const BasicBlockID &BasicBlock,
                                          const yield::Function &Function,
                                          const model::Binary &Binary) {
-  auto Iterator = Function.ControlFlowGraph().find(Address);
+  auto Iterator = Function.ControlFlowGraph().find(BasicBlock);
   revng_assert(Iterator != Function.ControlFlowGraph().end());
 
   auto Result = labeledBlock<false>(*Iterator, Function, Binary);
