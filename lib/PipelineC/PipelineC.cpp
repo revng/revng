@@ -665,8 +665,8 @@ inline bool rp_manager_set_global_impl(rp_manager *manager,
     return false;
   }
 
-  if (auto VerifyError = MaybeNewGlobal->get()->verify(); VerifyError) {
-    *Error = rp_simple_error(std::string("could not verify ") + global_name,
+  if (not MaybeNewGlobal->get()->verify()) {
+    *Error = rp_simple_error(std::string("Could not verify ") + global_name,
                              "");
     return false;
   }
@@ -747,7 +747,7 @@ inline bool rp_manager_apply_diff_impl(rp_manager *manager,
     return false;
   }
 
-  if (auto VerifyError = GlobalClone->verify(); VerifyError) {
+  if (not GlobalClone->verify()) {
     *Error = rp_simple_error(std::string("could not verify ") + global_name,
                              "");
     return false;
