@@ -6,6 +6,7 @@
 
 #include <string>
 
+#include "revng/Pipeline/Location.h"
 #include "revng/Support/BasicBlockID.h"
 
 class MetaAddress;
@@ -34,8 +35,8 @@ std::string controlFlowNode(const BasicBlockID &BasicBlockAddress,
 ///     $FUNCTION_NAME
 ///   </div>
 /// ```
-std::string functionNameDefinition(const MetaAddress &FunctionEntryPoint,
-                                   const model::Binary &Binary);
+std::string
+functionNameDefinition(std::string_view Location, const model::Binary &Binary);
 
 /// Emits a PTML containing a function name marked as a reference
 /// (it can be used to jump to any definition of the same function).
@@ -47,8 +48,8 @@ std::string functionNameDefinition(const MetaAddress &FunctionEntryPoint,
 ///     $FUNCTION_NAME
 ///   </div>
 /// ```
-std::string functionLink(const MetaAddress &FunctionEntryPoint,
-                         const model::Binary &Binary);
+std::string
+functionLink(std::string_view Location, const model::Binary &Binary);
 
 /// Emits a PTML containing a function name marked as a reference
 /// \see functionLink
@@ -63,7 +64,7 @@ std::string functionLink(const MetaAddress &FunctionEntryPoint,
 ///     $FUNCTION_NAME
 ///   </div>
 /// ```
-std::string shallowFunctionLink(const MetaAddress &FunctionEntryPoint,
-                                const model::Binary &Binary);
+std::string
+shallowFunctionLink(std::string_view Location, const model::Binary &Binary);
 
 } // namespace yield::ptml

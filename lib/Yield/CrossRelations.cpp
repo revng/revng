@@ -22,25 +22,25 @@ CR::CrossRelations::CrossRelations(const MetadataContainer &Metadata,
   revng_assert(Metadata.size() == Binary.Functions().size());
 
   namespace ranks = revng::ranks;
+  using pipeline::serializedLocation;
 
   // Make sure all the functions are present.
   for (auto Inserter = Relations().batch_insert();
        const auto &Function : Binary.Functions()) {
-    const auto Location = pipeline::location(ranks::Function, Function.Entry());
-    Inserter.insert(CR::RelationDescription(Location.toString(), {}));
+    auto Location = serializedLocation(ranks::Function, Function.key());
+    Inserter.insert(CR::RelationDescription(std::move(Location), {}));
   }
 
   // Make sure all the dynamic functions are also present
   for (auto Inserter = Relations().batch_insert();
        const auto &Function : Binary.ImportedDynamicFunctions()) {
-    const auto Location = pipeline::location(ranks::DynamicFunction,
-                                             Function.OriginalName());
-    Inserter.insert(CR::RelationDescription(Location.toString(), {}));
+    auto Location = serializedLocation(ranks::DynamicFunction, Function.key());
+    Inserter.insert(CR::RelationDescription(std::move(Location), {}));
   }
 
   for (const auto &[EntryAddress, ControlFlowGraph] : Metadata) {
     for (const auto &BasicBlock : ControlFlowGraph) {
-      auto CallLocation = pipeline::location(ranks::BasicBlock,
+      auto CallLocation = serializedLocation(ranks::BasicBlock,
                                              EntryAddress,
                                              BasicBlock.ID());
 
@@ -52,20 +52,18 @@ CR::CrossRelations::CrossRelations(const MetadataContainer &Metadata,
               //       `CallLocation` after metadata starts providing it.
 
               auto CalleeAddress = Callee.notInlinedAddress();
-              auto L = pipeline::location(ranks::Function, CalleeAddress)
-                         .toString();
+              const auto L = serializedLocation(ranks::Function, CalleeAddress);
               if (auto It = Relations().find(L); It != Relations().end()) {
                 CR::RelationTarget T(CR::RelationType::IsCalledFrom,
-                                     CallLocation.toString());
+                                     std::move(CallLocation));
                 It->Related().insert(std::move(T));
               }
             } else if (!CallEdge->DynamicFunction().empty()) {
-              auto L = pipeline::location(ranks::DynamicFunction,
-                                          CallEdge->DynamicFunction())
-                         .toString();
+              const auto L = serializedLocation(ranks::DynamicFunction,
+                                                CallEdge->DynamicFunction());
               if (auto It = Relations().find(L); It != Relations().end()) {
                 CR::RelationTarget T(CR::RelationType::IsDynamicallyCalledFrom,
-                                     CallLocation.toString());
+                                     std::move(CallLocation));
                 It->Related().insert(std::move(T));
               }
             } else {
@@ -144,42 +142,39 @@ CR::CrossRelations::toCallGraph() const {
 yield::calls::PreLayoutGraph CR::CrossRelations::toYieldGraph() const {
   yield::calls::PreLayoutGraph Result;
 
-  std::map<BasicBlockID, yield::calls::PreLayoutNode *> LookupHelper;
+  using GraphNode = yield::calls::PreLayoutGraph::Node;
+  std::unordered_map<std::string_view, GraphNode *> LookupHelper;
 
   namespace ranks = revng::ranks;
-  using namespace pipeline;
-
+  using pipeline::locationFromString;
   auto AddNode = [&Result, &LookupHelper](std::string_view Location) {
-    auto MaybeKey = genericLocationFromString<0>(Location,
-                                                 ranks::Function,
-                                                 ranks::BasicBlock,
-                                                 ranks::Instruction);
-    // TODO: extend to support dynamic functions
-    if (MaybeKey.has_value()) {
-      auto Address = BasicBlockID(std::get<0>(MaybeKey.value()));
-      auto [_, Success] = LookupHelper.try_emplace(Address,
-                                                   Result.addNode(Address));
-      revng_assert(Success);
-    }
-  };
-  auto AddEdge = [&LookupHelper](std::string_view FromLocation,
-                                 std::string_view ToLocation,
-                                 CR::RelationType::Values Kind) {
-    if (Kind == CR::RelationType::IsCalledFrom) {
-      using namespace pipeline;
-      auto GetBlockID = [](llvm::StringRef Location) -> BasicBlockID {
-        auto MaybeAddress = genericLocationFromString<0>(Location,
-                                                         ranks::Function,
-                                                         ranks::BasicBlock,
-                                                         ranks::Instruction);
-        revng_assert(MaybeAddress);
-        return BasicBlockID(std::get<0>(*MaybeAddress));
-      };
+    GraphNode *Node = nullptr;
+    if (auto Dynamic = locationFromString(ranks::DynamicFunction, Location))
+      Node = Result.addNode(*Dynamic);
+    else if (auto Function = locationFromString(ranks::Function, Location))
+      Node = Result.addNode(*Function);
+    else
+      revng_abort("Unsupported location found in cross relations.");
 
-      auto *FromNode = LookupHelper.at(GetBlockID(FromLocation));
-      auto *ToNode = LookupHelper.at(GetBlockID(ToLocation));
-      if (!llvm::is_contained(FromNode->successors(), ToNode))
-        FromNode->addSuccessor(ToNode);
+    auto [Iterator, Success] = LookupHelper.try_emplace(Location, Node);
+    revng_assert(Success);
+  };
+  auto AddEdge = [&LookupHelper](std::string_view Callee,
+                                 std::string_view Caller,
+                                 CR::RelationType::Values Kind) {
+    if (Kind == CR::RelationType::IsCalledFrom
+        || Kind == CR::RelationType::IsDynamicallyCalledFrom) {
+      // This assumes all the call sites are represented as basic block
+      // locations for all the relations covered by these two kinds.
+      auto CallerLocation = *locationFromString(ranks::BasicBlock, Caller);
+      auto CallerFunction = convertLocation(ranks::Function, CallerLocation);
+      auto *CallerNode = LookupHelper.at(CallerFunction.toString());
+      auto *CalleeNode = LookupHelper.at(Callee);
+
+      if (!llvm::is_contained(CallerNode->successors(), CalleeNode))
+        CallerNode->addSuccessor(CalleeNode);
+    } else {
+      revng_abort("Unsupported relation type.");
     }
   };
   conversionHelper(*this, AddNode, AddEdge);
