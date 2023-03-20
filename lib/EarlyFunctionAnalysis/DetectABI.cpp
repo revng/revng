@@ -420,7 +420,7 @@ void DetectABI::finalizeModel() {
     auto &Summary = Oracle.getLocalFunction(Function->Entry());
     for (auto &Block : Summary.CFG) {
 
-      // TODO: we do not detect prototoypes for inlined call sites
+      // TODO: we do not detect prototypes for inlined call sites
       if (Block.ID().isInlined())
         continue;
       MetaAddress BlockAddress = Block.ID().notInlinedAddress();
