@@ -187,9 +187,17 @@ public:
     if (Mode != "safe") {
       // TODO: extend this list.
       static constexpr std::array ABIsTheConversionIsEnabledFor = {
-        model::ABI::SystemV_x86_64,        model::ABI::SystemV_x86,
-        model::ABI::SystemV_x86_regparm_3, model::ABI::SystemV_x86_regparm_2,
-        model::ABI::SystemV_x86_regparm_1, model::ABI::AAPCS
+        model::ABI::SystemV_x86_64,
+        model::ABI::SystemV_x86,
+        model::ABI::SystemV_x86_regparm_3,
+        model::ABI::SystemV_x86_regparm_2,
+        model::ABI::SystemV_x86_regparm_1,
+        model::ABI::Microsoft_x86_cdecl,
+        model::ABI::Microsoft_x86_fastcall,
+        model::ABI::Microsoft_x86_stdcall,
+        model::ABI::Microsoft_x86_thiscall,
+        model::ABI::Microsoft_x86_vectorcall,
+        model::ABI::AAPCS
       };
       if (!llvm::is_contained(ABIsTheConversionIsEnabledFor, ABI)) {
         revng_log(Log,
