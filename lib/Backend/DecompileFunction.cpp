@@ -580,26 +580,6 @@ private:
     TokenMap[V] = NewVar.Use.str().str();
     return NewVar;
   }
-
-private:
-  /// Declare a local variable representing the given `Alloca` and return a
-  /// token that represents is address.
-  VariableTokens
-  declareAllocaVariable(const llvm::AllocaInst *Alloca, VariableTokens Var) {
-    // In LLVM IR, an alloca instruction returns a pointer, so the model type
-    // associated to this value is actually a pointer to the model type of
-    // the variable being allocated. Hence, to get the actual type of the
-    // allocated variable, we must drop the pointer qualifier.
-    const auto &AllocaType = TypeMap.at(Alloca);
-    revng_assert(AllocaType.isPointer());
-    QualifiedType AllocatedType = dropPointer(AllocaType);
-
-    // Declare the variable
-    Out << getNamedCInstance(AllocatedType, Var.Declaration) << ";\n";
-
-    // Use the address of this variable as the token associated to the alloca
-    return { Var.Declaration, operators::AddressOf + Var.Use };
-  }
 };
 
 StringToken CCodeGenerator::addParentheses(const llvm::Twine &Expr) {
@@ -1306,20 +1286,6 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
                   + " : " + addParentheses(Op2Token))
                    .str();
 
-  } else if (auto *Alloca = dyn_cast<llvm::AllocaInst>(&I)) {
-    auto [VarName, VarDeclaration] = createVarName(Alloca);
-    if (!VarDeclaration.empty()) {
-      // Declare a local variable
-      auto AllocaDeclaration = declareAllocaVariable(Alloca,
-                                                     { VarName,
-                                                       VarDeclaration });
-      Expression = AllocaDeclaration.Use;
-    } else {
-      // If it's a top-scope variable it has already been declared, so we have
-      // nothing left to do
-      Expression = VarName;
-    }
-
   } else if (auto *Ret = dyn_cast<llvm::ReturnInst>(&I)) {
     Expression = keywords::Return.serialize();
 
@@ -1895,16 +1861,9 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
 
           auto VarTypeIt = TypeMap.find(VarToDeclare);
           if (VarTypeIt != TypeMap.end()) {
-            if (auto *Alloca = llvm::dyn_cast<llvm::AllocaInst>(VarToDeclare)) {
-              // Allocas are special, since the expression associated to them is
-              // `&var` while the variable allocated is `var`
-              VarName = declareAllocaVariable(Alloca, VarName);
-            } else {
-              Out << getNamedCInstance(TypeMap.at(VarToDeclare),
-                                       VarName.Declaration)
-                  << ";\n";
-            }
-
+            Out << getNamedCInstance(TypeMap.at(VarToDeclare),
+                                     VarName.Declaration)
+                << ";\n";
           } else {
             // The only types that are allowed to be missing from the TypeMap
             // are LLVM aggregates returned by RawFunctionTypes or by helpers
