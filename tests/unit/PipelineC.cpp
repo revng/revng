@@ -37,7 +37,7 @@ public:
     const char *PipelineText[1] = { PipelineTextContent };
     const char *LibToLoad[] = {};
 
-    rp_initialize(1, Array, 0, LibToLoad, 0, {});
+    rp_initialize(1, Array, 0, {});
     Runner = rp_manager_create_from_string(1, PipelineText, 0, {}, "");
     revng_check(Runner != nullptr);
   }
