@@ -13,10 +13,11 @@
 #include <vector>
 
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/Support/DynamicLibrary.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/PluginLoader.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Pipeline/AllRegistries.h"
@@ -32,6 +33,7 @@
 
 using namespace pipeline;
 using namespace ::revng::pipes;
+namespace cl = llvm::cl;
 
 template<typename T>
 concept default_constructible = std::is_default_constructible<T>::value;
@@ -72,28 +74,16 @@ static char *copyString(llvm::StringRef str) {
 }
 
 static bool Initialized = false;
-
-static bool loadLibraryPermanently(const char *LibraryPath) {
-  revng_check(not Initialized);
-  revng_check(LibraryPath != nullptr);
-
-  std::string Msg;
-  return llvm::sys::DynamicLibrary::LoadLibraryPermanently(LibraryPath, &Msg);
-}
-
 static std::optional<revng::InitRevng> InitRevngInstance = std::nullopt;
+static cl::list<std::string> PipelinePaths("pipeline-path", cl::ZeroOrMore);
 typedef void (*sighandler_t)(int);
 
 bool rp_initialize(int argc,
                    const char *argv[],
-                   uint32_t libraries_count,
-                   const char *libraries_path[],
                    uint32_t signals_to_preserve_count,
                    int signals_to_preserve[]) {
   if (argc != 0)
     revng_check(argv != nullptr);
-  if (libraries_count != 0)
-    revng_check(libraries_path != nullptr);
 
   if (Initialized)
     return false;
@@ -119,19 +109,15 @@ bool rp_initialize(int argc,
   InitRevngInstance.emplace(argc, argv);
 
   llvm::cl::ParseCommandLineOptions(argc, argv);
-  for (uint32_t I = 0; I < libraries_count; I++)
-    if (loadLibraryPermanently(libraries_path[I]))
-      return false;
-
-  Initialized = true;
-
-  Registry::runAllInitializationRoutines();
 
   for (const auto &[SigNumber, Handler] : Signals) {
     // All of LLVM's initialization is complete, restore the original signals to
     // the respective signal number
     signal(SigNumber, Handler);
   }
+
+  Initialized = true;
+  Registry::runAllInitializationRoutines();
 
   return true;
 }
@@ -144,14 +130,12 @@ bool rp_shutdown() {
   return false;
 }
 
-static rp_manager *rp_manager_create_impl(uint64_t pipelines_count,
-                                          const char *pipelines_path[],
+static rp_manager *rp_manager_create_impl(llvm::ArrayRef<std::string> Pipelines,
                                           uint64_t pipeline_flags_count,
                                           const char *pipeline_flags[],
                                           const char *execution_directory,
                                           bool is_path = true) {
   revng_check(Initialized);
-  revng_check(pipelines_path != nullptr);
   if (pipeline_flags == nullptr)
     revng_check(pipeline_flags_count == 0);
   revng_check(execution_directory != nullptr);
@@ -160,9 +144,6 @@ static rp_manager *rp_manager_create_impl(uint64_t pipelines_count,
   for (size_t I = 0; I < pipeline_flags_count; I++)
     FlagsVector.push_back(pipeline_flags[I]);
 
-  std::vector<std::string> Pipelines;
-  for (size_t I = 0; I < pipelines_count; I++)
-    Pipelines.push_back(pipelines_path[I]);
   auto Pipeline = is_path ?
                     PipelineManager::create(Pipelines,
                                             FlagsVector,
@@ -186,24 +167,25 @@ rp_manager *rp_manager_create_from_string(uint64_t pipelines_count,
                                           uint64_t pipeline_flags_count,
                                           const char *pipeline_flags[],
                                           const char *execution_directory) {
-  return rp_manager_create_impl(pipelines_count,
-                                pipelines,
+  std::vector<std::string> Pipelines;
+  for (size_t I = 0; I < pipelines_count; I++)
+    Pipelines.push_back(pipelines[I]);
+
+  return rp_manager_create_impl(Pipelines,
                                 pipeline_flags_count,
                                 pipeline_flags,
                                 execution_directory,
                                 false);
 }
 
-rp_manager *rp_manager_create(uint64_t pipelines_count,
-                              const char *pipelines_path[],
-                              uint64_t pipeline_flags_count,
+rp_manager *rp_manager_create(uint64_t pipeline_flags_count,
                               const char *pipeline_flags[],
                               const char *execution_directory) {
-  return rp_manager_create_impl(pipelines_count,
-                                pipelines_path,
+  return rp_manager_create_impl(PipelinePaths,
                                 pipeline_flags_count,
                                 pipeline_flags,
-                                execution_directory);
+                                execution_directory,
+                                true);
 }
 
 bool rp_manager_save(rp_manager *manager, const char *path) {

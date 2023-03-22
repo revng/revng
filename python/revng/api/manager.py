@@ -6,10 +6,9 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Dict, Generator, Iterable, List, Mapping, Optional, Union
 
-from revng.support import AnyPath, AnyPaths, to_iterable
-from revng.support.collect import collect_files
+from revng.support import AnyPath
 
-from ._capi import ROOT, _api, ffi
+from ._capi import _api, ffi
 from .analysis import AnalysesList, Analysis
 from .container import Container, ContainerIdentifier
 from .errors import Error, Expected
@@ -28,18 +27,8 @@ class Manager:
     def __init__(
         self,
         workdir: Optional[AnyPath] = None,
-        pipeline_files: Optional[AnyPaths] = None,
         flags: Iterable[str] = (),
     ):
-        if pipeline_files is None:
-            pipeline_files = collect_files(ROOT, ["share", "revng", "pipelines"], "*.yml")
-        else:
-            pipeline_files = to_iterable(pipeline_files)
-
-        pipelines = [Path(f) for f in pipeline_files]
-        assert len(pipelines) > 0, "Pipelines must have len > 0"
-        assert all(x.is_file() for x in pipelines), "Pipeline files must exist"
-
         if workdir is None:
             self.temporary_workdir = TemporaryDirectory(prefix="revng-manager-workdir-")
             self.workdir = Path(self.temporary_workdir.name)
@@ -50,14 +39,11 @@ class Manager:
 
         _flags = [make_c_string(s) for s in flags]
         _workdir = make_c_string(str(self.workdir))
-        _pipelines_paths = [make_c_string(str(s.resolve())) for s in pipelines]
 
         # Ensures that the _manager property is always defined even if the API call fails
         self._manager = None
 
         self._manager = _api.rp_manager_create(
-            len(_pipelines_paths),
-            _pipelines_paths,
             len(_flags),
             _flags,
             _workdir,

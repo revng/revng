@@ -77,8 +77,6 @@
  */
 bool rp_initialize(int argc,
                    const char *argv[],
-                   uint32_t libraries_count,
-                   const char *libraries_path[],
                    uint32_t signals_to_preserve_count,
                    int signals_to_preserve[]);
 
@@ -112,9 +110,7 @@ void rp_string_destroy(char *string);
  *
  * \return the created rp_manager if no error happened, NULL otherwise.
  */
-rp_manager * /*owning*/ rp_manager_create(uint64_t pipelines_count,
-                                          const char *pipelines_path[],
-                                          uint64_t pipeline_flags_count,
+rp_manager * /*owning*/ rp_manager_create(uint64_t pipeline_flags_count,
                                           const char *pipeline_flags[],
                                           const char *execution_directory);
 
