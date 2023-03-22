@@ -264,6 +264,8 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
     RelpltPortion = std::make_unique<FilePortion>(File);
     GotPortion = std::make_unique<FilePortion>(File);
     bool IsX86 = Model->Architecture() == model::Architecture::x86;
+    bool IsMIPS = (Model->Architecture() == model::Architecture::mips
+                   or Model->Architecture() == model::Architecture::mipsel);
 
     using Elf_Dyn = const typename object::ELFFile<T>::Elf_Dyn;
     for (Elf_Dyn &DynamicTag : *DynamicEntries) {
@@ -316,13 +318,15 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
             Segment.CanonicalRegisterValues()[Register].Value() = Value;
       };
 
-      if (IsX86 and GotPortion->isAvailable()) {
-        SetCanonicalValue(model::Register::ebx_x86,
-                          GotPortion->address().address());
+      if (GotPortion->isAvailable()) {
+        if (IsX86) {
+          SetCanonicalValue(model::Register::ebx_x86,
+                            GotPortion->address().address());
+        } else if (IsMIPS) {
+          SetCanonicalValue(model::Register::gp_mips,
+                            GotPortion->address().address() + 0x7ff0);
+        }
       }
-
-      SetCanonicalValue(model::Register::gp_mips,
-                        GotPortion->address().address() + 0x7ff0);
 
       if (RelpltPortion->isAvailable()) {
         registerRelocations(RelpltPortion->extractAs<Elf_Rel>(),
