@@ -6,6 +6,7 @@
 
 #include <map>
 #include <memory>
+#include <set>
 
 #include "llvm/ADT/DepthFirstIterator.h"
 
@@ -19,6 +20,8 @@ using ModelMap = std::map<std::string, TupleTree<model::Binary>>;
 class TypeCopier {
 private:
   TupleTree<model::Binary> &FromModel;
+  // Track the types we copied to avoid copy them twice.
+  std::set<model::Type *> AlreadyCopied;
 
   struct NodeData {
     model::Type *T;
@@ -46,13 +49,15 @@ public:
       ;
 
     for (const auto &P : FromModel->Types()) {
-      if (VisitedFromThePrototype.contains(TypeToNode.at(P.get()))
+      if (not AlreadyCopied.contains(P.get())
+          and VisitedFromThePrototype.contains(TypeToNode.at(P.get()))
           and not(llvm::isa<model::PrimitiveType>(P.get())
                   and DestinationModel->Types().count(P->key()) != 0)) {
         // Clone the pointer.
         UpcastablePointer<model::Type> NewType = P;
         NewType->OriginalName() = std::string(NewType->CustomName());
         NewType->CustomName() = "";
+        AlreadyCopied.insert(P.get());
 
         revng_assert(DestinationModel->Types().count(NewType->key()) == 0);
 
