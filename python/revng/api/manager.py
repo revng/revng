@@ -4,13 +4,13 @@
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Dict, Generator, Iterable, List, Optional, Union
+from typing import Dict, Generator, Iterable, List, Mapping, Optional, Union
 
 from revng.support import AnyPath, AnyPaths, to_iterable
 from revng.support.collect import collect_files
 
 from ._capi import ROOT, _api, ffi
-from .analysis import Analysis
+from .analysis import AnalysesList, Analysis
 from .container import Container, ContainerIdentifier
 from .errors import Error, Expected
 from .exceptions import RevngException
@@ -333,7 +333,7 @@ class Manager:
         step_name: str,
         analysis_name: str,
         target_mapping: Dict[str, List[str]],
-        options: Dict[str, str] = {},
+        options: Dict[str, str] | None = None,
     ) -> ResultWithInvalidations[Dict[str, str]]:
         step = self.get_step(step_name)
         if step is None:
@@ -401,19 +401,30 @@ class Manager:
             self.parse_diff_map(result) if result != ffi.NULL else None, invalidations
         )
 
-    def run_all_analyses(
-        self, options: Dict[str, str] = {}
-    ) -> ResultWithInvalidations[Optional[Dict[str, str]]]:
+    def run_analyses_list(
+        self, analyses_list: AnalysesList | str, options: Mapping[str, str] | None = None
+    ) -> ResultWithInvalidations[Dict[str, str]]:
+        if isinstance(analyses_list, str):
+            name = analyses_list
+            found_al = next((al for al in self.analyses_lists() if al.name == name), None)
+            if found_al is not None:
+                real_analyses_list = found_al
+            else:
+                raise RevngException(f"Could not find analyses list {name}")
+        else:
+            real_analyses_list = analyses_list
+
         options_map = StringMap(options)
         invalidations = Invalidations()
-        result = _api.rp_manager_run_all_analyses(
-            self._manager, invalidations._invalidations, options_map._string_map
+        result = _api.rp_manager_run_analyses_list(
+            self._manager,
+            real_analyses_list._analyses_list,
+            invalidations._invalidations,
+            options_map._string_map,
         )
-        if result != ffi.NULL and not _api.rp_diff_map_is_empty(result):
+        if not _api.rp_diff_map_is_empty(result):
             self.save()
-        return ResultWithInvalidations(
-            self.parse_diff_map(result) if result != ffi.NULL else None, invalidations
-        )
+        return ResultWithInvalidations(self.parse_diff_map(result), invalidations)
 
     def parse_diff_map(self, diff_map) -> Dict[str, str]:
         result = {}
@@ -422,6 +433,16 @@ class Manager:
             if _diff_value != ffi.NULL:
                 result[global_name] = make_python_string(_diff_value)
         return result
+
+    def _analyses_list_count(self) -> int:
+        return _api.rp_manager_get_analyses_list_count(self._manager)
+
+    def _analyses_list_get(self, index: int) -> AnalysesList:
+        _analyses_list = _api.rp_manager_get_analyses_list(self._manager, index)
+        return AnalysesList(_analyses_list, self._manager)
+
+    def analyses_lists(self) -> Generator[AnalysesList, None, None]:
+        return make_generator(self._analyses_list_count(), self._analyses_list_get)
 
     # Global Handling & misc.
 

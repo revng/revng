@@ -374,18 +374,23 @@ llvm::Error PipelineManager::produceAllPossibleTargets(bool ExpandTargets) {
   return llvm::Error::success();
 }
 
+const pipeline::Step::AnalysisValueType &
+PipelineManager::getAnalysis(const AnalysisReference &Reference) const {
+  auto &Step = getRunner().getStep(Reference.getStepName());
+
+  auto Predicate = [&](const Step::AnalysisValueType &Analysis) -> bool {
+    return Analysis.first() == Reference.getAnalysisName();
+  };
+  auto Analysis = llvm::find_if(Step.analyses(), Predicate);
+  return *Analysis;
+}
+
 llvm::Expected<DiffMap>
-PipelineManager::runAnalysis(llvm::StringRef AnalysisName,
-                             llvm::StringRef StepName,
-                             const ContainerToTargetsMap &Targets,
+PipelineManager::runAnalyses(const pipeline::AnalysesList &List,
                              InvalidationMap &Map,
                              const llvm::StringMap<std::string> &Options,
                              llvm::raw_ostream *DiagnosticLog) {
-  auto Result = Runner->runAnalysis(AnalysisName,
-                                    StepName,
-                                    Targets,
-                                    Map,
-                                    Options);
+  auto Result = Runner->runAnalyses(List, Map, Options);
   if (not Result)
     return Result.takeError();
 
@@ -401,9 +406,17 @@ PipelineManager::runAnalysis(llvm::StringRef AnalysisName,
 }
 
 llvm::Expected<DiffMap>
-PipelineManager::runAllAnalyses(InvalidationMap &Map,
-                                const llvm::StringMap<std::string> &Options) {
-  auto Result = Runner->runAllAnalyses(Map, Options);
+PipelineManager::runAnalysis(llvm::StringRef AnalysisName,
+                             llvm::StringRef StepName,
+                             const ContainerToTargetsMap &Targets,
+                             InvalidationMap &Map,
+                             const llvm::StringMap<std::string> &Options,
+                             llvm::raw_ostream *DiagnosticLog) {
+  auto Result = Runner->runAnalysis(AnalysisName,
+                                    StepName,
+                                    Targets,
+                                    Map,
+                                    Options);
   if (not Result)
     return Result.takeError();
 

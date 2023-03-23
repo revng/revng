@@ -7,7 +7,8 @@ import json
 import logging
 from base64 import b64decode
 from concurrent.futures import ThreadPoolExecutor
-from typing import AsyncGenerator, Awaitable, Callable, Optional, TypeVar
+from functools import partial
+from typing import AsyncGenerator, Awaitable, Callable, Optional, ParamSpec, TypeVar
 
 from starlette.datastructures import UploadFile
 
@@ -19,12 +20,13 @@ from revng.api.target import Target
 
 from .event_manager import EventType, emit_event
 from .multiqueue import MultiQueue
-from .util import clean_step_list, produce_serializer, target_dict_to_graphql
+from .util import clean_step_list, produce_serializer
 
 executor = ThreadPoolExecutor(1)
 invalidation_queue: MultiQueue[str] = MultiQueue()
 
 T = TypeVar("T")
+P = ParamSpec("P")
 
 
 # Python runs all coroutines in the same event loop (which is handled by a single thread)
@@ -33,10 +35,9 @@ T = TypeVar("T")
 # This can work poorly if there are long-running sync function that are executed, since those block
 # the event loop. To remedy this we use a separate thread to run these functions so that the event
 # loop can run other coroutines in the meantime.
-# TODO: use ParamSpec and plain function when switching to python 3.10
-def run_in_executor(function: Callable[[], T]) -> Awaitable[T]:
+def run_in_executor(function: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> Awaitable[T]:
     loop = asyncio.get_event_loop()
-    return loop.run_in_executor(executor, function)
+    return loop.run_in_executor(executor, partial(function, *args, **kwargs))
 
 
 query = QueryType()
@@ -115,11 +116,7 @@ async def resolve_targets(_, info, *, pathspec: str):
             "containers": [
                 {
                     "name": k2,
-                    "targets": [
-                        target_dict_to_graphql(t.as_dict())
-                        for t in v2
-                        if t.joined_path() == pathspec
-                    ],
+                    "targets": [t.as_dict() for t in v2 if t.joined_path() == pathspec],
                 }
                 for k2, v2 in v.items()
             ],
@@ -169,25 +166,34 @@ async def resolve_run_analysis(
     step: str,
     analysis: str,
     containerToTargets: str | None = None,  # noqa: N803
+    options: str | None = None,
 ):
     manager: Manager = info.context["manager"]
     target_map = json.loads(containerToTargets) if containerToTargets is not None else {}
-    result = await run_in_executor(lambda: manager.run_analysis(step, analysis, target_map))
+    parse_options = json.loads(options) if options is not None else {}
+    result = await run_in_executor(
+        lambda: manager.run_analysis(step, analysis, target_map, parse_options)
+    )
     await invalidation_queue.send(str(result.invalidations))
     return json.dumps(result.result)
 
 
-@mutation.field("runAllAnalyses")
-@emit_event(EventType.CONTEXT)
-async def resolve_run_all_analyses(_, info):
+@mutation.field("runAnalysesList")
+async def resolve_run_analyses_list(_, info, *, name: str, options: str | None = None):
     manager: Manager = info.context["manager"]
-    result = await run_in_executor(manager.run_all_analyses)
+    parse_options = json.loads(options) if options is not None else {}
+    result = await run_in_executor(lambda: manager.run_analyses_list(name, parse_options))
     await invalidation_queue.send(str(result.invalidations))
     return json.dumps(result.result)
 
 
 @mutation.field("analyses")
 async def mutation_analyses(_, info):
+    return {}
+
+
+@mutation.field("analysesLists")
+async def mutation_analyses_list(_, info):
     return {}
 
 
@@ -218,6 +224,12 @@ async def resolve_ranks(_, info):
 async def resolve_root_kinds(_, info):
     manager: Manager = info.context["manager"]
     return await run_in_executor(lambda: [k.as_dict() for k in manager.kinds()])
+
+
+@info.field("analysesLists")
+async def resolve_info_analyses_lists(_, info):
+    manager: Manager = info.context["manager"]
+    return await run_in_executor(lambda: [al.as_dict() for al in manager.analyses_lists()])
 
 
 @info.field("globals")
@@ -303,7 +315,7 @@ async def resolve_container_targets(container_obj, info):
     targets = await run_in_executor(
         lambda: manager.get_targets(container_obj["_step"], container_obj["name"])
     )
-    return await run_in_executor(lambda: [target_dict_to_graphql(t.as_dict()) for t in targets])
+    return await run_in_executor(lambda: [t.as_dict() for t in targets])
 
 
 @info.field("verifyGlobal")

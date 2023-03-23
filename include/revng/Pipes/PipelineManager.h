@@ -94,6 +94,9 @@ public:
   llvm::Error storeStepToDisk(llvm::StringRef StepName,
                               llvm::StringRef DirPath = llvm::StringRef());
 
+  const pipeline::Step::AnalysisValueType &
+  getAnalysis(const pipeline::AnalysisReference &Reference) const;
+
   llvm::Error deserializeContainer(pipeline::Step &Step,
                                    llvm::StringRef ContainerName,
                                    const llvm::MemoryBuffer &Buffer);
@@ -150,17 +153,18 @@ public:
   pipeline::Runner &getRunner() { return *Runner; }
 
   llvm::Expected<pipeline::DiffMap>
+  runAnalyses(const pipeline::AnalysesList &List,
+              pipeline::InvalidationMap &Map,
+              const llvm::StringMap<std::string> &Options = {},
+              llvm::raw_ostream *DiagnosticLog = nullptr);
+
+  llvm::Expected<pipeline::DiffMap>
   runAnalysis(llvm::StringRef AnalysisName,
               llvm::StringRef StepName,
               const pipeline::ContainerToTargetsMap &Targets,
               pipeline::InvalidationMap &Map,
               const llvm::StringMap<std::string> &Options = {},
               llvm::raw_ostream *DiagnosticLog = nullptr);
-
-  /// Run all analysis in reverse post order (that is: parents first),
-  llvm::Expected<pipeline::DiffMap>
-  runAllAnalyses(pipeline::InvalidationMap &Map,
-                 const llvm::StringMap<std::string> &Options = {});
 
   /// recalculates all possible targets and keeps overship of the computed info
   void recalculateAllPossibleTargets(bool ExpandTargets = true);

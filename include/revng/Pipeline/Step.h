@@ -35,6 +35,8 @@ namespace pipeline {
 /// will contain the element used for perform the computations.
 class Step {
 public:
+  // notice we need iterator stability of analyses becase analyses list refers
+  // to them
   using AnalysisMapType = llvm::StringMap<AnalysisWrapper>;
   using AnalysisIterator = AnalysisMapType::iterator;
   using AnalysisValueType = AnalysisMapType::value_type;

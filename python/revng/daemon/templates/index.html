@@ -128,11 +128,20 @@
         let response = await gql(input_query);
 
         try {
-            let analysis_response = await gql(`
-        mutation {
-          runAllAnalyses
-        }
-      `);
+            const analyses_list = await gql(`{
+                info {
+                    analysesList {
+                        name
+                    }
+                }
+            }`);
+            const names = analyses_list.info.analysesList.map((e) => e.name);
+            if (names.includes("revng-initial-auto-analysis")) {
+                await gql(`mutation { runAnalysesList(name: "revng-initial-auto-analysis") }`);
+            }
+            if (names.includes("revng-c-initial-auto-analysis")) {
+                await gql(`mutation { runAnalysesList(name: "revng-c-initial-auto-analysis") }`);
+            }
         } catch (err) {
             window.alert("Failed to run autoanalyses");
         }

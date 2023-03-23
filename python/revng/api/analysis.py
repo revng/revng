@@ -2,7 +2,9 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-from typing import Any, Dict, Generator, Optional
+from collections.abc import Sequence
+from itertools import islice
+from typing import Any, Dict, Generator, Optional, overload
 
 from ._capi import _api, ffi
 from .kind import Kind
@@ -55,5 +57,43 @@ class AnalysisArgument:
     def as_dict(self):
         return {
             "name": self.name,
-            "acceptable_kinds": [k.as_dict() for k in self.acceptable_kinds()],
+            "acceptableKinds": [k.as_dict() for k in self.acceptable_kinds()],
         }
+
+
+class AnalysesList(Sequence[Analysis]):
+    def __init__(self, analyses_list, manager):
+        self._analyses_list = analyses_list
+        self._manager = manager
+
+    @property
+    def name(self):
+        _name = _api.rp_analyses_list_get_name(self._analyses_list)
+        return make_python_string(_name)
+
+    def __len__(self) -> int:
+        return _api.rp_analyses_list_count(self._analyses_list)
+
+    def _get_analysis(self, index: int) -> Analysis:
+        _analysis = _api.rp_manager_get_analysis(self._manager, self._analyses_list, index)
+        return Analysis(_analysis)
+
+    @overload
+    def __getitem__(self, idx: int) -> Analysis:
+        ...
+
+    @overload
+    def __getitem__(self, idx: slice) -> Sequence[Analysis]:
+        ...
+
+    def __getitem__(self, idx: int | slice):
+        if isinstance(idx, int):
+            if idx < len(self):
+                return self._get_analysis(idx)
+            else:
+                raise IndexError("list index out of range")
+        else:
+            return list(islice(self, idx.start, idx.stop, idx.step))
+
+    def as_dict(self):
+        return {"name": self.name, "analyses": [a.as_dict() for a in self]}

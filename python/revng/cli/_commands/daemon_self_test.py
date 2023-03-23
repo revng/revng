@@ -43,12 +43,18 @@ class DaemonSelfTestCommand(Command):
             help="Use the specified external address instead of using the local daemon",
         )
         parser.add_argument(
+            "--revng-c",
+            action="store_true",
+            help="Enable additional checks, which assume revng-c is installed",
+        )
+        parser.add_argument(
             "executable", metavar="EXECUTABLE", help="Executable to run the test with"
         )
 
     def run(self, options: Options):
-        if options.parsed_args.external is not None:
-            self.url = options.parsed_args.external
+        args = options.parsed_args
+        if args.external is not None:
+            self.url = args.external
             self.process = None
         else:
             temp_folder = TemporaryDirectory()
@@ -62,10 +68,10 @@ class DaemonSelfTestCommand(Command):
             )
 
         self.log(f"Starting daemon self-test, url: {self.url}")
-        executable_path = options.parsed_args.executable
-        assert os.path.isfile(executable_path)
+        executable_path = args.executable
+        assert os.path.isfile(executable_path), "Executable file not found"
         try:
-            asyncio.run(self.run_self_test(executable_path))
+            asyncio.run(self.run_self_test(executable_path, args.revng_c))
         except Exception as e:
             self.fail(e)
 
@@ -92,7 +98,7 @@ class DaemonSelfTestCommand(Command):
             return (aiohttp.UnixConnector(self.url.replace("unix:", "", 1)), "dummy")
         return (aiohttp.TCPConnector(), self.url)
 
-    async def run_self_test(self, executable_path: str):
+    async def run_self_test(self, executable_path: str, has_revng_c: bool):
         try:
             await self.check_server_up()
         except ValueError as e:
@@ -119,7 +125,28 @@ class DaemonSelfTestCommand(Command):
                 )
             self.log("Upload complete")
 
-            await client.execute(gql("mutation { runAllAnalyses }"))
+            q = gql("""{ info { analysesLists { name }}}""")
+            analyses_lists = await client.execute(q)
+            list_names = [al["name"] for al in analyses_lists["info"]["analysesLists"]]
+
+            assert (
+                "revng-initial-auto-analysis" in list_names
+            ), "Missing revng initial auto-analysis"
+
+            await client.execute(
+                gql("""mutation { runAnalysesList(name: "revng-initial-auto-analysis") }""")
+            )
+
+            if has_revng_c:
+                assert (
+                    "revng-c-initial-auto-analysis" in list_names
+                ), "Missing revng-c initial auto-analysis"
+
+            if "revng-c-initial-auto-analysis" in list_names:
+                await client.execute(
+                    gql("""mutation { runAnalysesList(name: "revng-c-initial-auto-analysis") }""")
+                )
+
             self.log("Autoanalysis complete")
 
             q = gql(

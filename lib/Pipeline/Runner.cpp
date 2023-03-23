@@ -276,29 +276,29 @@ Runner::runAnalysis(llvm::StringRef AnalysisName,
 
 /// Run all analysis in reverse post order (that is: parents first),
 llvm::Expected<DiffMap>
-Runner::runAllAnalyses(InvalidationMap &InvalidationsMap,
-                       const llvm::StringMap<std::string> &Options) {
+Runner::runAnalyses(const AnalysesList &List,
+                    InvalidationMap &InvalidationsMap,
+                    const llvm::StringMap<std::string> &Options) {
   auto Before = getContext().getGlobals();
 
-  for (const Step *Step : ReversePostOrderIndexes) {
-    for (const auto &Pair : Step->analyses()) {
-      const auto &Analysis = Pair.second;
-      ContainerToTargetsMap Map;
-      const auto &Containers = Analysis->getRunningContainersNames();
-      for (size_t I = 0; I < Containers.size(); I++) {
-        for (const Kind *K : Analysis->getAcceptedKinds(I)) {
-          Map.add(Containers[I], TargetsList::allTargets(getContext(), *K));
-        }
+  for (const AnalysisReference &Ref : List) {
+    const auto &Step = getStep(Ref.getStepName());
+    const auto &Analysis = Step.getAnalysis(Ref.getAnalysisName());
+    ContainerToTargetsMap Map;
+    const auto &Containers = Analysis->getRunningContainersNames();
+    for (size_t I = 0; I < Containers.size(); I++) {
+      for (const Kind *K : Analysis->getAcceptedKinds(I)) {
+        Map.add(Containers[I], TargetsList::allTargets(getContext(), *K));
       }
-
-      auto Result = runAnalysis(Pair.first(),
-                                Step->getName(),
-                                Map,
-                                InvalidationsMap,
-                                Options);
-      if (not Result)
-        return Result.takeError();
     }
+
+    auto Result = runAnalysis(Ref.getAnalysisName(),
+                              Step.getName(),
+                              Map,
+                              InvalidationsMap,
+                              Options);
+    if (not Result)
+      return Result.takeError();
   }
 
   auto &After = getContext().getGlobals();
