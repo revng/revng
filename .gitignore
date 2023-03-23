@@ -1,2 +1,3 @@
 .clang-format
 .mypy-cache
+__pycache__
