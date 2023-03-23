@@ -482,11 +482,7 @@ Outliner::outline(llvm::BasicBlock *Entry, CallHandler *Handler) {
   OutlinedFunction Result;
   OutlinedFunctionsMap FunctionsToInline(&M);
 
-  unsigned Attempts = 0;
   do {
-    ++Attempts;
-    revng_assert(Attempts < 3);
-
     // Restart isolating functions
     FunctionsToInline.clear();
 
