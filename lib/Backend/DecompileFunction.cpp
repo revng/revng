@@ -1241,34 +1241,6 @@ StringToken CCodeGenerator::buildExpression(const llvm::Instruction &I) {
       Expression = handleSpecialFunction(Call);
     }
 
-  } else if (auto *Load = dyn_cast<llvm::LoadInst>(&I)) {
-    const llvm::Value *Pointer = Load->getPointerOperand();
-    // The pointer operand's type and the actual loaded value's type might have
-    // a mismatch. In this case, we want to cast the pointer operand to correct
-    // type pointer before dereferencing it.
-    const model::Architecture::Values &Architecture = Model.Architecture();
-    QualifiedType ResultPtrType = TypeMap.at(Load).getPointerTo(Architecture);
-    Expression = (buildDerefExpr(buildCastExpr(TokenMap.at(Pointer),
-                                               TypeMap.at(Pointer),
-                                               ResultPtrType)))
-                   .str();
-
-  } else if (auto *Store = dyn_cast<llvm::StoreInst>(&I)) {
-
-    const llvm::Value *PointerOp = Store->getPointerOperand();
-    const llvm::Value *ValueOp = Store->getValueOperand();
-    const QualifiedType &StoredType = TypeMap.at(ValueOp);
-
-    const model::Architecture::Values &Architecture = Model.Architecture();
-    const auto PointerToStoredType = StoredType.getPointerTo(Architecture);
-    StringToken PointerCast = buildCastExpr(TokenMap.at(PointerOp),
-                                            TypeMap.at(PointerOp),
-                                            PointerToStoredType);
-
-    Expression = buildAssignmentExpr(StoredType,
-                                     { buildDerefExpr(PointerCast) },
-                                     TokenMap.at(ValueOp));
-
   } else if (auto *Select = dyn_cast<llvm::SelectInst>(&I)) {
 
     StringToken Condition = StringToken(TokenMap.at(Select->getCondition()));
