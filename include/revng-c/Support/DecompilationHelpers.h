@@ -4,6 +4,7 @@
 // Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 //
 
+#include "llvm/IR/Attributes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Type.h"
@@ -23,9 +24,16 @@ inline bool hasSideEffects(const llvm::Instruction &I) {
 
   if (auto *Call = llvm::dyn_cast<llvm::CallInst>(&I)) {
     auto *CalledFunc = Call->getCalledFunction();
+    if (not CalledFunc)
+      return true;
 
-    if (not CalledFunc or CalledFunc->isIntrinsic()
-        or FunctionTags::Isolated.isTagOf(CalledFunc)
+    if (CalledFunc->isIntrinsic()) {
+      bool IsReadOnly = CalledFunc->hasFnAttribute(llvm::Attribute::ReadOnly);
+      bool IsReadNone = CalledFunc->hasFnAttribute(llvm::Attribute::ReadNone);
+      return not IsReadOnly and not IsReadNone;
+    }
+
+    if (FunctionTags::Isolated.isTagOf(CalledFunc)
         or FunctionTags::WritesMemory.isTagOf(CalledFunc)
         or FunctionTags::Helper.isTagOf(CalledFunc)
         or FunctionTags::QEMU.isTagOf(CalledFunc)

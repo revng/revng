@@ -19,6 +19,8 @@ bool init_unit_test();
 #include "revng/Support/IRHelpers.h"
 #include "revng/UnitTestHelpers/LLVMTestHelpers.h"
 
+#include "revng-c/Support/FunctionTags.h"
+
 #include "lib/IRCanonicalization/MarkAssignments/MarkAssignments.h"
 
 using namespace MarkAssignments;
@@ -44,6 +46,10 @@ static void runTestOnFunctionWithExpected(const char *Body,
   llvm::Function *F = M->getFunction("main");
   revng_check(nullptr != F);
   revng_check(not F->empty());
+
+  llvm::Function *Opaque = M->getFunction("opaque");
+  revng_check(nullptr != Opaque);
+  FunctionTags::WritesMemory.addTo(Opaque);
 
   auto Results = selectAssignments(*F);
 
@@ -99,7 +105,7 @@ BOOST_AUTO_TEST_CASE(RetNone) {
   runTestOnFunctionWithExpected(Body, ExpectedFlags);
 }
 
-BOOST_AUTO_TEST_CASE(CallSideEffectsAndNoUses) {
+BOOST_AUTO_TEST_CASE(InstrinsicWithoutSideEffects) {
 
   const char *Body = R"LLVM(
   %bswapped = call i64 @llvm.bswap.i64(i64 1231231231)
@@ -107,8 +113,22 @@ BOOST_AUTO_TEST_CASE(CallSideEffectsAndNoUses) {
   )LLVM";
 
   ExpectedFlagsType ExpectedFlags{
+    BBAssignmentFlags{ "initial_block", { AlwaysAssign, None } },
+  };
+
+  runTestOnFunctionWithExpected(Body, ExpectedFlags);
+}
+
+BOOST_AUTO_TEST_CASE(CallSideEffectsAndNoUses) {
+
+  const char *Body = R"LLVM(
+  %opaqued = call i64 @opaque(i64 1231231231)
+  unreachable
+  )LLVM";
+
+  ExpectedFlagsType ExpectedFlags{
     BBAssignmentFlags{ "initial_block",
-                       { HasSideEffects | AlwaysAssign, None } },
+                       { AlwaysAssign | HasSideEffects, None } },
   };
 
   runTestOnFunctionWithExpected(Body, ExpectedFlags);
@@ -231,7 +251,7 @@ BOOST_AUTO_TEST_CASE(DoubleIndirectionWithoutSideEffects) {
   %ptrtoptr = inttoptr i64 4294967296 to i64**
   %ptr = load i64*, i64 **%ptrtoptr
   %value = load i64, i64 *%ptr
-  %call = call i64 @llvm.bswap.i64(i64 %value)
+  %call = call i64 @opaque(i64 %value)
   unreachable
   )LLVM";
 
@@ -252,9 +272,9 @@ BOOST_AUTO_TEST_CASE(DoubleIndirectionWithSideEffects) {
   const char *Body = R"LLVM(
   %ptrtoptr = inttoptr i64 4294967296 to i64**
   %ptr = load i64*, i64 **%ptrtoptr
-  %call = call i64 @llvm.bswap.i64(i64 1032143324)
+  %call = call i64 @opaque(i64 1032143324)
   %value = load i64, i64 *%ptr
-  %othercall = call i64 @llvm.bswap.i64(i64 %value)
+  %othercall = call i64 @opaque(i64 %value)
   unreachable
   )LLVM";
 
