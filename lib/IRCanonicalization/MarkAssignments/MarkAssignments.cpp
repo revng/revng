@@ -436,26 +436,32 @@ public:
             revng_log(MarkLog, "Instr AlwaysAssign");
           }
         }
+      } else {
+        revng_assert(not Assignments.contains(&I));
       }
 
       if (Assignments.contains(&I) or I.getType()->isVoidTy()) {
 
         // If we've decided to assign I, we need to consider if it might
         // interfere with other instructions that are still pending.
-        revng_log(MarkLog, "Assign Pending");
-        // We also have to assign all the instructions that are still
-        // pending and have interfering side effects.
-        for (auto PendingIt = Pending.begin(); PendingIt != Pending.end();) {
-          const auto [PendingInstr, TaintSet] = *PendingIt;
-          revng_log(MarkLog,
-                    "Pending: '" << PendingInstr
-                                 << "': " << dumpToString(PendingInstr));
-          if (haveInterferingSideEffects(&I, *PendingInstr, TaintSet)) {
-            Assignments[PendingInstr].set(Reasons::HasInterferingSideEffects);
-            revng_log(MarkLog, "HasInterferingSideEffects");
-            PendingIt = Pending.erase(PendingIt);
-          } else {
-            ++PendingIt;
+        if (Assignments[&I].isSet(Reasons::HasSideEffects)) {
+          // If the current instruction has side effects, we also have to assign
+          // all the instructions that are still pending and have interfering
+          // side effects.
+          revng_log(MarkLog, "Assign Pending");
+
+          for (auto PendingIt = Pending.begin(); PendingIt != Pending.end();) {
+            const auto [PendingInstr, TaintSet] = *PendingIt;
+            revng_log(MarkLog,
+                      "Pending: '" << PendingInstr
+                                   << "': " << dumpToString(PendingInstr));
+            if (haveInterferingSideEffects(&I, *PendingInstr, TaintSet)) {
+              Assignments[PendingInstr].set(Reasons::HasInterferingSideEffects);
+              revng_log(MarkLog, "HasInterferingSideEffects");
+              PendingIt = Pending.erase(PendingIt);
+            } else {
+              ++PendingIt;
+            }
           }
         }
       } else {
