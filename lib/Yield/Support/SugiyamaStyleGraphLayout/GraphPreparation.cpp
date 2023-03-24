@@ -60,6 +60,40 @@ static SelfLoopContainer extractSelfLoops(InternalGraph &Graph) {
   return Result;
 }
 
+/// To simplify the ranking algorithms, if there's more than one entry point,
+/// an artificial entry node is added. This new node has a single edge per
+/// real entry point.
+static void
+ensureSingleEntry(InternalGraph &Graph, RankContainer *MaybeRanks = nullptr) {
+  auto EntryNodes = entryPoints(&Graph);
+  revng_assert(!EntryNodes.empty());
+
+  if (EntryNodes.size() == 1) {
+    // If there's only a single entry point, make sure it's set.
+    Graph.setEntryNode(EntryNodes.front());
+  } else {
+    // If there's more than one, add a new virtual node with all the real
+    // entry nodes as its direct successors.
+
+    // BUT if the currently set entry node is already virtual, remove it first:
+    // this prevents the possibility of chaining virtual entry nodes when this
+    // function is invoked on a slightly-modified graph multiple times.
+    if (Graph.getEntryNode() != nullptr) {
+      if (Graph.getEntryNode()->isVirtual()) {
+        Graph.removeNode(Graph.getEntryNode());
+        if (MaybeRanks != nullptr)
+          MaybeRanks->erase(Graph.getEntryNode());
+      }
+    }
+
+    auto EntryPoint = Graph.addNode(nullptr);
+    for (auto *Node : Graph.nodes())
+      if (!Node->hasPredecessors() && Node->Index != EntryPoint->Index)
+        EntryPoint->addSuccessor(Node, nullptr);
+    Graph.setEntryNode(EntryPoint);
+  }
+}
+
 /// Returns a list of backwards edges of the graph and the order
 /// they were visited in.
 /// \note: this function could use a rework.
@@ -216,40 +250,6 @@ void partition(const std::vector<EdgeType> &Edges,
 
     if (Classifier.has_value())
       Classifier->addLongEdgePartition(Current, Edge.To);
-  }
-}
-
-/// To simplify the ranking algorithms, if there's more than one entry point,
-/// an artificial entry node is added. This new node has a single edge per
-/// real entry point.
-static void
-ensureSingleEntry(InternalGraph &Graph, RankContainer *MaybeRanks = nullptr) {
-  auto EntryNodes = entryPoints(&Graph);
-  revng_assert(!EntryNodes.empty());
-
-  if (EntryNodes.size() == 1) {
-    // If there's only a single entry point, make sure it's set.
-    Graph.setEntryNode(EntryNodes.front());
-  } else {
-    // If there's more than one, add a new virtual node with all the real
-    // entry nodes as its direct successors.
-
-    // BUT if the currently set entry node is already virtual, remove it first:
-    // this prevents the possibility of chaining virtual entry nodes when this
-    // function is invoked on a slightly-modified graph multiple times.
-    if (Graph.getEntryNode() != nullptr) {
-      if (Graph.getEntryNode()->isVirtual()) {
-        Graph.removeNode(Graph.getEntryNode());
-        if (MaybeRanks != nullptr)
-          MaybeRanks->erase(Graph.getEntryNode());
-      }
-    }
-
-    auto EntryPoint = Graph.addNode(nullptr);
-    for (auto *Node : Graph.nodes())
-      if (!Node->hasPredecessors() && Node->Index != EntryPoint->Index)
-        EntryPoint->addSuccessor(Node, nullptr);
-    Graph.setEntryNode(EntryPoint);
   }
 }
 
