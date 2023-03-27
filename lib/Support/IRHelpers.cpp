@@ -84,7 +84,7 @@ Constant *getUniqueString(Module *M, StringRef String, StringRef Namespace) {
   std::string GlobalName = (Twine(Namespace) + mangleName(String)).str();
   auto *Global = M->getGlobalVariable(GlobalName);
 
-  if (Global) {
+  if (Global != nullptr) {
     revng_assert(Global->hasInitializer());
     if (not String.empty()) {
       auto Initializer = cast<ConstantDataSequential>(Global->getInitializer());
