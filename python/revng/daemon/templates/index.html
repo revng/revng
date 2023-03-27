@@ -130,12 +130,12 @@
         try {
             const analyses_list = await gql(`{
                 info {
-                    analysesList {
+                    analysesLists {
                         name
                     }
                 }
             }`);
-            const names = analyses_list.info.analysesList.map((e) => e.name);
+            const names = analyses_list.data.info.analysesLists.map((e) => e.name);
             if (names.includes("revng-initial-auto-analysis")) {
                 await gql(`mutation { runAnalysesList(name: "revng-initial-auto-analysis") }`);
             }
