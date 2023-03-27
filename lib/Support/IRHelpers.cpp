@@ -100,12 +100,12 @@ Constant *getUniqueString(Module *M, StringRef String, StringRef Namespace) {
                                                          /* AddNull */ true);
     revng_assert(isa<ConstantDataArray>(Initializer)
                  or isa<ConstantAggregateZero>(Initializer));
-    if (not String.empty()) {
+    if (String.empty()) {
+      revng_assert(isa<ConstantAggregateZero>(Initializer));
+    } else {
       auto CDAInitializer = cast<ConstantDataArray>(Initializer);
       revng_assert(CDAInitializer->isCString());
       revng_assert(CDAInitializer->getAsCString() == String);
-    } else {
-      revng_assert(isa<ConstantAggregateZero>(Initializer));
     }
 
     Global = new GlobalVariable(*M,
