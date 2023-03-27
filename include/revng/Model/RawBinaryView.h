@@ -53,7 +53,7 @@ public:
   }
 
   std::optional<llvm::StringRef>
-  getStrByAddress(MetaAddress Address, uint64_t Size) const {
+  getStringByAddress(MetaAddress Address, uint64_t Size) const {
     auto BytesOrNone = getByAddress(Address, Size);
     if (not BytesOrNone.has_value())
       return std::nullopt;
