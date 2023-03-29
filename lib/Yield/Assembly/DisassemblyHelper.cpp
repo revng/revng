@@ -158,9 +158,8 @@ yield::Function DH::disassemble(const model::Function &Function,
 
       auto MaybeBytes = BinaryView.getByAddress(CurrentAddress, Size);
       revng_assert(MaybeBytes.has_value());
-      using ByteContainer = yield::ByteContainer;
-      Instruction.RawBytes() = ByteContainer(MaybeBytes->begin(),
-                                             MaybeBytes->end());
+      Instruction.RawBytes() = yield::ByteContainer(MaybeBytes->begin(),
+                                                    MaybeBytes->end());
 
       CurrentAddress += Size;
       revng_assert(CurrentAddress.isValid());
