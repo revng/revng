@@ -25,8 +25,6 @@ static bool UseIntelSyntax = true;
 enum class ImmediateStyles { Decimal, CHexadecimal, AsmHexadecimal };
 static ImmediateStyles ImmediateStyle = ImmediateStyles::CHexadecimal;
 
-static bool ShouldSymbolizeOperands = false;
-
 } // namespace options
 
 /// \note: this might cause multithreading problems.
@@ -120,7 +118,7 @@ DI::LLVMDisassemblerInterface(MetaAddressType::Values AddrType) {
     Printer->setPrintHexStyle(llvm::HexStyle::Asm);
 
   Printer->setPrintBranchImmAsAddress(false);
-  Printer->setSymbolizeOperands(ShouldSymbolizeOperands);
+  Printer->setSymbolizeOperands(false);
   Printer->setUseMarkup(true);
 }
 
