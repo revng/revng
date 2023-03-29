@@ -43,7 +43,7 @@ public:
     if (From() != Another.From())
       return From() <=> Another.From();
     else if (To() != Another.To())
-      return Another.To() <=> To(); // reversed order
+      return Another.To() <=> To(); // reverse order
     else
       return Type() <=> Another.Type();
   }

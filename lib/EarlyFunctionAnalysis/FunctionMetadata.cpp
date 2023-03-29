@@ -158,7 +158,7 @@ void FunctionMetadata::simplify(const model::Binary &Binary) {
             and OnlySuccessor->Destination() == Block.nextBlock()))
       continue;
 
-    // Does the only successor has only one predeccessor?
+    // Does the only successor has only one predecessor?
     auto PredecessorsAddress = Predecessors.at(Block.nextBlock());
     if (PredecessorsAddress.size() != 1)
       continue;

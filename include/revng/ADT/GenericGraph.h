@@ -327,9 +327,9 @@ namespace revng::detail {
 ///
 /// \note At this step BidirectionalEdge has not been declared yet, thus we
 ///       accept a template parameter that has the same signature as
-///       BidirectionalNode that will be declared later. This allows us to use
+///       BidirectionalEdge that will be declared later. This allows us to use
 ///       it as if it was declared, provided that only the real
-///       BidirectionalNode is used as this argument.
+///       BidirectionalEdge is used as this argument.
 template<typename Node,
          typename EdgeLabel,
          bool NeedsParent,

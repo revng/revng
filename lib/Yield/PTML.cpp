@@ -193,7 +193,7 @@ tokenTag(llvm::StringRef Buffer, const yield::TagType::Values &Tag) {
 
 static std::string taggedText(const yield::Instruction &Instruction) {
   revng_assert(!Instruction.Tags().empty(),
-               "Tagless instructions are not supported");
+               "Tag-less instructions are not supported");
   revng_assert(!Instruction.Disassembled().empty(),
                "Empty disassembled instructions are not supported");
 
