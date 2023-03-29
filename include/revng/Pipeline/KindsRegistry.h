@@ -26,11 +26,18 @@ private:
 
 public:
   KindsRegistry(llvm::SmallVector<Kind *, 4> Kinds = {}) :
-    Kinds(std::move(Kinds)) {}
+    Kinds(std::move(Kinds)) {
+    llvm::sort(Kinds, [](Kind *&LHS, Kind *&RHS) {
+      return LHS->name() < RHS->name();
+    });
+  }
 
   void registerKind(Kind &K) {
     revng_assert(not contains(K.name()));
     Kinds.push_back(&K);
+    llvm::sort(Kinds, [](Kind *&LHS, Kind *&RHS) {
+      return LHS->name() < RHS->name();
+    });
   }
 
 public:

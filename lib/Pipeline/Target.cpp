@@ -40,10 +40,12 @@ void ContainerToTargetsMap::merge(const ContainerToTargetsMap &Other) {
   }
 }
 
+// NOTE: this operator needs to be stable w.r.t. library load order and memory
+// layout
 int Target::operator<=>(const Target &Other) const {
-  if (K < Other.K)
+  if (K->id() < Other.K->id())
     return -1;
-  if (K > Other.K)
+  if (K->id() > Other.K->id())
     return 1;
 
   if (Components.size() != Other.Components.size()) {
