@@ -28,10 +28,10 @@ constexpr Rank RootNodeRankValue = 4;
 /// This is the general ranking induced by the graph.
 constexpr auto BFS = RankingStrategy::BreadthFirstSearch;
 template<>
-RankContainer rankNodes<BFS>(InternalGraph &Graph) {
+RankContainer rankNodes<BFS>(InternalNode *GraphEntryPoint) {
   RankContainer Ranks;
 
-  for (auto *Node : llvm::breadth_first(Graph.getEntryNode())) {
+  for (auto *Node : llvm::breadth_first(GraphEntryPoint)) {
     auto CurrentRank = Ranks.try_emplace(Node, RootNodeRankValue).first->second;
     for (auto *Successor : Node->successors())
       if (auto SuccessorIt = Ranks.find(Successor); SuccessorIt == Ranks.end())
@@ -40,7 +40,6 @@ RankContainer rankNodes<BFS>(InternalGraph &Graph) {
         SuccessorIt->second = CurrentRank + 1;
   }
 
-  revng_assert(Ranks.size() == Graph.size());
   return Ranks;
 }
 
@@ -48,14 +47,13 @@ RankContainer rankNodes<BFS>(InternalGraph &Graph) {
 /// Assigns ranks based on the DFS time.
 constexpr auto DFS = RankingStrategy::DepthFirstSearch;
 template<>
-RankContainer rankNodes<DFS>(InternalGraph &Graph) {
+RankContainer rankNodes<DFS>(InternalNode *GraphEntryPoint) {
   RankContainer Ranks;
 
   auto Counter = RootNodeRankValue;
-  for (auto *Node : llvm::depth_first(Graph.getEntryNode()))
+  for (auto *Node : llvm::depth_first(GraphEntryPoint))
     Ranks.try_emplace(Node, Counter++);
 
-  revng_assert(Ranks.size() == Graph.size());
   return Ranks;
 }
 
@@ -72,14 +70,13 @@ RankContainer rankNodes<DFS>(InternalGraph &Graph) {
 /// does without using a decompiler.
 constexpr auto TRS = RankingStrategy::Topological;
 template<>
-RankContainer rankNodes<TRS>(InternalGraph &Graph) {
+RankContainer rankNodes<TRS>(InternalNode *GraphEntryPoint) {
   RankContainer Ranks;
 
   auto Counter = RootNodeRankValue;
-  for (auto *Node : llvm::ReversePostOrderTraversal(Graph.getEntryNode()))
+  for (auto *Node : llvm::ReversePostOrderTraversal(GraphEntryPoint))
     Ranks.try_emplace(Node, Counter++);
 
-  revng_assert(Ranks.size() == Graph.size());
   return Ranks;
 }
 
@@ -133,71 +130,69 @@ static bool areDisjoint(NodeView A, NodeView B, size_t MaxDepth = -1) {
 /// rejoin again.
 constexpr auto DDFS = RankingStrategy::DisjointDepthFirstSearch;
 template<>
-RankContainer rankNodes<DDFS>(InternalGraph &Graph, int64_t DiamondBound) {
+RankContainer
+rankNodes<DDFS>(InternalNode *GraphEntryPoint, int64_t DiamondBound) {
   RankContainer Ranks;
 
-  std::vector<NodeView> Stack;
-  for (auto *Node : Graph.nodes()) {
-    if (!Node->hasPredecessors() && !Ranks.contains(Node)) {
-      Stack.emplace_back(Node);
+  revng_assert(!Ranks.contains(GraphEntryPoint));
+  revng_assert(!GraphEntryPoint->hasPredecessors());
 
-      size_t DFSTime = RootNodeRankValue;
-      while (!Stack.empty()) {
-        auto Current = Stack.back();
-        Stack.pop_back();
+  std::vector<NodeView> Stack{ GraphEntryPoint };
 
-        auto &CurrentRank = Ranks[Current];
-        if (CurrentRank == 0)
-          CurrentRank = DFSTime++;
+  size_t DFSTime = RootNodeRankValue;
+  while (!Stack.empty()) {
+    auto Current = Stack.back();
+    Stack.pop_back();
 
-        bool IsDisjoint = true;
-        bool IsDiamond = true;
-        if (Current->successorCount() > 1) {
-          auto *First = *Current->successors().begin();
-          for (auto NextIt = std::next(Current->successors().begin());
-               NextIt != Current->successors().end();
-               ++NextIt) {
-            auto &DB = DiamondBound;
-            IsDisjoint = IsDisjoint && areDisjoint(First, *NextIt);
-            IsDiamond = IsDiamond && !areDisjoint(First, *NextIt, DB);
-          }
-        } else {
-          IsDisjoint = IsDiamond = false;
-        }
+    auto &CurrentRank = Ranks[Current];
+    if (CurrentRank == 0)
+      CurrentRank = DFSTime++;
 
-        for (auto *Next : Current->successors()) {
-          if (!Ranks.contains(Next)) {
-            Stack.push_back(Next);
-            if (IsDisjoint || IsDiamond)
-              Ranks[Next] = CurrentRank + 1;
-            else
-              Ranks[Next] = 0;
-          }
-        }
+    bool IsDisjoint = true;
+    bool IsDiamond = true;
+    if (Current->successorCount() > 1) {
+      auto *First = *Current->successors().begin();
+      for (auto NextIt = std::next(Current->successors().begin());
+           NextIt != Current->successors().end();
+           ++NextIt) {
+        auto &DB = DiamondBound;
+        IsDisjoint = IsDisjoint && areDisjoint(First, *NextIt);
+        IsDiamond = IsDiamond && !areDisjoint(First, *NextIt, DB);
+      }
+    } else {
+      IsDisjoint = IsDiamond = false;
+    }
+
+    for (auto *Next : Current->successors()) {
+      if (!Ranks.contains(Next)) {
+        Stack.push_back(Next);
+        if (IsDisjoint || IsDiamond)
+          Ranks[Next] = CurrentRank + 1;
+        else
+          Ranks[Next] = 0;
       }
     }
   }
 
-  revng_assert(Ranks.size() == Graph.size());
   return Ranks;
 }
 
 template<>
-RankContainer rankNodes<DDFS>(InternalGraph &Graph) {
-  return rankNodes<DDFS>(Graph, 4u);
+RankContainer rankNodes<DDFS>(InternalNode *GraphEntryPoint) {
+  return rankNodes<DDFS>(GraphEntryPoint, 4u);
 }
 
-RankContainer &updateRanks(InternalGraph &Graph, RankContainer &Ranks) {
-  Ranks.try_emplace(Graph.getEntryNode(),
-                    Graph.getEntryNode()->IsVirtual ? Rank(-1) : Rank(0));
+RankContainer &
+updateRanks(InternalNode *GraphEntryPoint, RankContainer &Ranks) {
+  Ranks.try_emplace(GraphEntryPoint,
+                    GraphEntryPoint->IsVirtual ? Rank(-1) : Rank(0));
 
-  for (auto *Current : llvm::ReversePostOrderTraversal(Graph.getEntryNode())) {
+  for (auto *Current : llvm::ReversePostOrderTraversal(GraphEntryPoint)) {
     auto &CurrentRank = Ranks[Current];
     for (auto *Predecessor : Current->predecessors())
       if (auto Rank = Ranks[Predecessor]; Rank + 1 > CurrentRank)
         CurrentRank = Rank + 1;
   }
 
-  revng_assert(Ranks.size() == Graph.size());
   return Ranks;
 }

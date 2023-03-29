@@ -8,11 +8,11 @@
 
 /// Ranks the nodes using specified ranking strategy.
 template<RankingStrategy Strategy>
-RankContainer rankNodes(InternalGraph &Graph);
+RankContainer rankNodes(InternalNode *GraphEntryPoint);
 
 /// Ranks the nodes using specified ranking strategy.
 template<RankingStrategy Strategy>
-RankContainer rankNodes(InternalGraph &Graph, int64_t DiamondBound);
+RankContainer rankNodes(InternalNode *GraphEntryPoint, int64_t DiamondBound);
 
 /// Updates node ranking after the graph was modified.
 ///
@@ -22,4 +22,4 @@ RankContainer rankNodes(InternalGraph &Graph, int64_t DiamondBound);
 /// Be careful, rank order is NOT preserved.
 /// \note: There used to be an additional parameter for that, but it was never
 /// actually implemented, so I removed it.
-RankContainer &updateRanks(InternalGraph &Graph, RankContainer &Ranks);
+RankContainer &updateRanks(InternalNode *GraphEntryPoint, RankContainer &Ranks);

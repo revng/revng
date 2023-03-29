@@ -191,7 +191,9 @@ RankContainer partitionLongEdges(InternalGraph &Graph,
 
   // Rank nodes based on a BreadthFirstSearch pass-through.
   revng_assert(HasSingleEntryPoint(Graph));
-  auto Ranks = rankNodes<RankingStrategy::BreadthFirstSearch>(Graph);
+  auto Entry = Graph.getEntryNode();
+  auto Ranks = rankNodes<RankingStrategy::BreadthFirstSearch>(Entry);
+  revng_assert(Graph.size() == Ranks.size());
 
   // Temporary save them outside of the graph.
   struct SavedEdge : EdgeView {
@@ -220,7 +222,8 @@ RankContainer partitionLongEdges(InternalGraph &Graph,
   // Calculate real ranks for the remainder of the graph.
   ensureSingleEntry(Graph, &Ranks);
   revng_assert(HasSingleEntryPoint(Graph));
-  Ranks = rankNodes<Strategy>(Graph);
+  Ranks = rankNodes<Strategy>(Graph.getEntryNode());
+  revng_assert(Graph.size() == Ranks.size());
 
   // Pick new long edges based on the real ranks.
   auto NewLongEdges = pickLongEdges(Graph, Ranks);
@@ -238,7 +241,8 @@ RankContainer partitionLongEdges(InternalGraph &Graph,
   //
   // Eventually, this ranking score becomes a proper hierarchy.
   revng_assert(HasSingleEntryPoint(Graph));
-  updateRanks(Graph, Ranks);
+  updateRanks(Graph.getEntryNode(), Ranks);
+  revng_assert(Graph.size() == Ranks.size());
 
   // Make sure that new long edges are properly broken up.
   NewLongEdges = pickLongEdges(Graph, Ranks);
@@ -247,7 +251,8 @@ RankContainer partitionLongEdges(InternalGraph &Graph,
     Edge.From->removeSuccessors(Edge.To);
 
   revng_assert(HasSingleEntryPoint(Graph));
-  updateRanks(Graph, Ranks);
+  updateRanks(Graph.getEntryNode(), Ranks);
+  revng_assert(Graph.size() == Ranks.size());
 
   // Remove an artificial entry node if it was ever added.
   revng_assert(HasSingleEntryPoint(Graph));
