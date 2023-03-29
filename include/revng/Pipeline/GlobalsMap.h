@@ -9,7 +9,7 @@
 namespace pipeline {
 class GlobalsMap {
 private:
-  using MapType = llvm::StringMap<std::unique_ptr<Global>>;
+  using MapType = std::map<std::string, std::unique_ptr<Global>>;
   MapType Map;
 
 public:
@@ -17,10 +17,10 @@ public:
     DiffMap ToReturn;
 
     for (const auto &Pair : Map) {
-      const auto &OtherPair = *Other.Map.find(Pair.first());
+      const auto &OtherPair = *Other.Map.find(Pair.first);
 
       auto Diff = Pair.second->diff(*OtherPair.second);
-      ToReturn.try_emplace(Pair.first(), std::move(Diff));
+      ToReturn.try_emplace(Pair.first, std::move(Diff));
     }
 
     return ToReturn;
@@ -28,12 +28,13 @@ public:
 
   template<typename ToAdd, typename... T>
   void emplace(llvm::StringRef Name, T &&...Args) {
-    Map.try_emplace(Name, std::make_unique<ToAdd>(std::forward<T>(Args)...));
+    Map.try_emplace(Name.str(),
+                    std::make_unique<ToAdd>(std::forward<T>(Args)...));
   }
 
   template<typename T>
   llvm::Expected<T *> get(llvm::StringRef Name) const {
-    auto It = Map.find(Name);
+    auto It = Map.find(Name.str());
     if (It == Map.end()) {
       auto *Message = "Unknown Global %s";
       return llvm::createStringError(llvm::inconvertibleErrorCode(),
@@ -53,7 +54,7 @@ public:
   }
 
   llvm::Expected<pipeline::Global *> get(llvm::StringRef Name) const {
-    auto It = Map.find(Name);
+    auto It = Map.find(Name.str());
     if (It == Map.end()) {
       auto *Message = "Unknown Global %s";
       return llvm::createStringError(llvm::inconvertibleErrorCode(),
@@ -64,7 +65,7 @@ public:
   }
 
   llvm::StringRef getName(size_t Index) const {
-    return std::next(Map.begin(), Index)->first();
+    return std::next(Map.begin(), Index)->first;
   }
 
   llvm::Error
@@ -121,7 +122,7 @@ public:
   GlobalsMap(GlobalsMap &&Other) = default;
   GlobalsMap(const GlobalsMap &Other) {
     for (const auto &Entry : Other.Map)
-      Map.try_emplace(Entry.first(), Entry.second->clone());
+      Map.try_emplace(Entry.first, Entry.second->clone());
   }
 
   GlobalsMap &operator=(GlobalsMap &&Other) = default;
@@ -132,7 +133,7 @@ public:
     Map = MapType();
 
     for (const auto &Entry : Other.Map)
-      Map.try_emplace(Entry.first(), Entry.second->clone());
+      Map.try_emplace(Entry.first, Entry.second->clone());
 
     return *this;
   }
