@@ -63,7 +63,7 @@ void ContainerSet::intersect(ContainerToTargetsMap &ToIntersect) const {
 
     if (not contains(ContainerName)) {
       Names = {};
-      return;
+      continue;
     }
 
     const auto &Container = at(ContainerName);
