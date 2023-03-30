@@ -56,7 +56,6 @@ private:
               const llvm::MCDisassembler &Disassembler);
   yield::Instruction parse(const llvm::MCInst &Instruction,
                            const MetaAddress &Address,
-                           size_t InstructionSize,
                            llvm::MCInstPrinter &Printer,
                            const llvm::MCSubtargetInfo &SI);
 };
