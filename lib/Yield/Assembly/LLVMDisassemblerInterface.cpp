@@ -283,7 +283,6 @@ tryDetectMnemonic(llvm::StringRef Text, llvm::StringRef Mnemonic) {
 
 yield::Instruction DI::parse(const llvm::MCInst &Instruction,
                              const MetaAddress &Address,
-                             size_t InstructionSize,
                              llvm::MCInstPrinter &Printer,
                              const llvm::MCSubtargetInfo &SI) {
   yield::Instruction Result;
@@ -396,7 +395,7 @@ DI::instruction(const MetaAddress &Where, llvm::ArrayRef<uint8_t> RawBytes) {
   auto [Instruction, Size] = disassemble(Where, RawBytes, *Disassembler);
   if (Instruction.has_value()) {
     revng_assert(Size != 0);
-    auto P = parse(*Instruction, Where, Size, *Printer, *SubtargetInformation);
+    auto P = parse(*Instruction, Where, *Printer, *SubtargetInformation);
 
     const auto &Info = InstructionInformation->get(Instruction->getOpcode());
     return { std::move(P), Info.hasDelaySlot(), Size };
