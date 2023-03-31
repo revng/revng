@@ -403,7 +403,7 @@ class Manager:
 
     def run_analyses_list(
         self, analyses_list: AnalysesList | str, options: Mapping[str, str] | None = None
-    ) -> ResultWithInvalidations[Dict[str, str]]:
+    ) -> ResultWithInvalidations[Optional[Dict[str, str]]]:
         if isinstance(analyses_list, str):
             name = analyses_list
             found_al = next((al for al in self.analyses_lists() if al.name == name), None)
@@ -422,9 +422,11 @@ class Manager:
             invalidations._invalidations,
             options_map._string_map,
         )
-        if not _api.rp_diff_map_is_empty(result):
+        if result != ffi.NULL and not _api.rp_diff_map_is_empty(result):
             self.save()
-        return ResultWithInvalidations(self.parse_diff_map(result), invalidations)
+        return ResultWithInvalidations(
+            self.parse_diff_map(result) if result != ffi.NULL else None, invalidations
+        )
 
     def parse_diff_map(self, diff_map) -> Dict[str, str]:
         result = {}
