@@ -1309,18 +1309,22 @@ class ArgumentTestAnalysis {
 public:
   constexpr static const char *Name = "dont_care";
 
-  constexpr static std::tuple Options = { pipeline::Option("first", 10),
-                                          pipeline::Option("second",
-                                                           "something") };
+  constexpr static std::tuple Options = {
+    pipeline::Option("first", 10),
+    pipeline::Option("second", "something"),
+    pipeline::Option("third", static_cast<uint64_t>(32))
+  };
 
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = { { &RootKind } };
 
   void run(const Context &Ctx,
            const MapContainer &Cont,
            int First,
-           std::string Second) {
+           std::string Second,
+           uint64_t Third) {
     BOOST_TEST(First == 10);
     BOOST_TEST(Second == "something");
+    BOOST_TEST(Third == 32);
   }
 };
 
