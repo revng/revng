@@ -9,6 +9,7 @@
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/Error.h"
 
 #include "revng/ADT/STLExtras.h"
 #include "revng/Support/Assert.h"
