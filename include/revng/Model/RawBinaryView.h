@@ -52,6 +52,15 @@ public:
     return getByOffset(*Offset, Size);
   }
 
+  std::optional<llvm::StringRef>
+  getStringByAddress(MetaAddress Address, uint64_t Size) const {
+    auto BytesOrNone = getByAddress(Address, Size);
+    if (not BytesOrNone.has_value())
+      return std::nullopt;
+    llvm::ArrayRef<uint8_t> Bytes = BytesOrNone.value();
+    return llvm::StringRef(reinterpret_cast<const char *>(Bytes.data()), Size);
+  }
+
   std::optional<uint64_t>
   readInteger(MetaAddress Address, uint64_t Size, bool IsLittleEndian) const {
     auto MaybeData = getByAddress(Address, Size);
@@ -143,6 +152,18 @@ public:
     }
 
     return MetaAddress::invalid();
+  }
+
+  [[nodiscard]] bool isReadOnly(MetaAddress Address, uint64_t Size) const {
+    for (const model::Segment &Segment : Binary.Segments()) {
+      if (Segment.contains(Address, Size)) {
+        if (!Segment.IsWriteable()) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   using SegmentDataPair = std::pair<const model::Segment &,

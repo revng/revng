@@ -78,19 +78,36 @@ static std::string mangleName(StringRef String) {
 }
 
 Constant *getUniqueString(Module *M, StringRef String, StringRef Namespace) {
+  revng_assert(not Namespace.empty());
+
   LLVMContext &Context = M->getContext();
   std::string GlobalName = (Twine(Namespace) + mangleName(String)).str();
   auto *Global = M->getGlobalVariable(GlobalName);
-  ConstantDataSequential *Initializer = nullptr;
 
   if (Global != nullptr) {
     revng_assert(Global->hasInitializer());
-    Initializer = cast<ConstantDataSequential>(Global->getInitializer());
+    if (not String.empty()) {
+      auto Initializer = cast<ConstantDataSequential>(Global->getInitializer());
+      revng_assert(Initializer->isCString());
+      revng_assert(Initializer->getAsCString() == String);
+    } else {
+      revng_assert(isa<ConstantAggregateZero>(Global->getInitializer()));
+    }
   } else {
-    using CDA = ConstantDataArray;
-    Initializer = cast<CDA>(CDA::getString(Context,
-                                           String,
-                                           /* AddNull */ true));
+    // This may return a ConstantAggregateZero in case of empty String.
+    Constant *Initializer = ConstantDataArray::getString(Context,
+                                                         String,
+                                                         /* AddNull */ true);
+    revng_assert(isa<ConstantDataArray>(Initializer)
+                 or isa<ConstantAggregateZero>(Initializer));
+    if (String.empty()) {
+      revng_assert(isa<ConstantAggregateZero>(Initializer));
+    } else {
+      auto CDAInitializer = cast<ConstantDataArray>(Initializer);
+      revng_assert(CDAInitializer->isCString());
+      revng_assert(CDAInitializer->getAsCString() == String);
+    }
+
     Global = new GlobalVariable(*M,
                                 Initializer->getType(),
                                 /* isConstant */ true,
@@ -98,9 +115,6 @@ Constant *getUniqueString(Module *M, StringRef String, StringRef Namespace) {
                                 Initializer,
                                 GlobalName);
   }
-
-  revng_assert(Initializer->isCString());
-  revng_assert(Initializer->getAsCString() == String);
 
   auto *Int8PtrTy = getStringPtrType(Context);
   return ConstantExpr::getBitCast(Global, Int8PtrTy);
