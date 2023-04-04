@@ -790,18 +790,31 @@ CCodeGenerator::addOperandToken(const llvm::Value *Operand) {
           and IsZero(ConstExpr->getOperand(2))) {
         // Check if initializer is a CString
         auto *Initializer = BasePointer->getInitializer();
-        auto *InitData = dyn_cast<ConstantDataSequential>(Initializer);
-        if (InitData != nullptr and InitData->isCString()) {
-          std::string Escaped;
-          {
-            raw_string_ostream Stream(Escaped);
-            Stream << "\"";
-            Stream.write_escaped(InitData->getAsString().drop_back());
-            Stream << "\"";
-          }
-          TokenMap[ConstExpr] = std::move(Escaped);
-          rc_return true;
+
+        StringRef Content = "";
+        if (auto StringInit = dyn_cast<ConstantDataArray>(Initializer)) {
+          // If it's not a C string, bail out.
+          if (not StringInit->isCString())
+            break;
+
+          // If it's a C string, Drop the terminator.
+          Content = StringInit->getAsString().drop_back();
+        } else {
+          // Zero initializers are always valid c empty strings, in all the
+          // other cases, bail out
+          if (not isa<llvm::ConstantAggregateZero>(Initializer))
+            break;
         }
+
+        std::string Escaped;
+        {
+          raw_string_ostream Stream(Escaped);
+          Stream << "\"";
+          Stream.write_escaped(Content);
+          Stream << "\"";
+        }
+        TokenMap[ConstExpr] = std::move(Escaped);
+        rc_return true;
       }
     } break;
     case Instruction::IntToPtr: {
@@ -1094,6 +1107,10 @@ StringToken CCodeGenerator::handleSpecialFunction(const llvm::CallInst *Call) {
     Expression = (Operand->getType()->isIntegerTy(1) ? operators::BoolNot :
                                                        operators::BinaryNot)
                  + constants::constant(TokenMap.at(Operand)).serialize();
+  } else if (FunctionTags::StringLiteral.isTagOf(CalledFunc)) {
+    const auto Operand = Call->getArgOperand(0);
+    const auto Token = StringToken(TokenMap.at(Operand));
+    Expression = constants::stringLiteral(Token).serialize();
   } else {
     revng_abort("Unknown non-isolated function");
   }

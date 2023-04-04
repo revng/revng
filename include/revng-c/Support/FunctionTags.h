@@ -4,6 +4,7 @@
 // Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
 //
 
+#include <compare>
 namespace llvm {
 class Function;
 class LLVMContext;
@@ -20,6 +21,7 @@ extern Tag AllocatesLocalVariable;
 extern Tag MallocLike;
 extern Tag IsRef;
 extern Tag AddressOf;
+extern Tag StringLiteral;
 extern Tag ModelGEP;
 extern Tag ModelCast;
 extern Tag ModelGEPRef;
@@ -107,6 +109,20 @@ llvm::FunctionType *getAddressOfType(llvm::Type *RetType, llvm::Type *BaseType);
 /// Initializes a pool of AddressOf functions, initializing it its internal
 /// Module
 void initAddressOfPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M);
+
+struct StringLiteralPoolKey {
+  MetaAddress Address;
+  uint64_t VirtualSize;
+  uint64_t OffsetInSegment;
+  llvm::Type *Type;
+
+  std::strong_ordering
+  operator<=>(const StringLiteralPoolKey &) const = default;
+};
+
+/// Initializes a pool of StringLiteral functions.
+void initStringLiteralPool(OpaqueFunctionsPool<StringLiteralPoolKey> &Pool,
+                           llvm::Module *M);
 
 /// Initializes a pool of Parentheses functions
 void initParenthesesPool(OpaqueFunctionsPool<llvm::Type *> &Pool);

@@ -40,8 +40,8 @@ Branches:
               - strip-dead-prototypes
       - Name: MakeSegmentRefs
         Pipes:
-          - Type: LLVMPipe
-            UsedContainers: [module.ll]
+          - Type: MakeSegmentRefs
+            UsedContainers: [input, module.ll]
             Passes:
               - make-segment-ref
         Artifacts:

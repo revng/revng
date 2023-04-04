@@ -22,6 +22,7 @@ Tag AllocatesLocalVariable("AllocatesLocalVariable");
 Tag MallocLike("MallocLike");
 Tag IsRef("IsRef");
 Tag AddressOf("AddressOf");
+Tag StringLiteral("StringLiteral");
 Tag ModelCast("ModelCast");
 Tag ModelGEP(ModelGEPName);
 Tag ModelGEPRef("ModelGEPRef");
@@ -105,6 +106,27 @@ void initAddressOfPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M) {
     auto *ArgType = F.getFunctionType()->getParamType(1);
     auto *RetType = F.getFunctionType()->getReturnType();
     Pool.record({ RetType, ArgType }, &F);
+  }
+}
+
+void initStringLiteralPool(OpaqueFunctionsPool<StringLiteralPoolKey> &Pool,
+                           llvm::Module *M) {
+  // Set attributes
+  Pool.addFnAttribute(llvm::Attribute::NoUnwind);
+  Pool.addFnAttribute(llvm::Attribute::WillReturn);
+  Pool.addFnAttribute(llvm::Attribute::ReadNone);
+  // Set revng tags
+  Pool.setTags({ &FunctionTags::StringLiteral });
+
+  // Initialize the pool
+  for (llvm::Function &F : FunctionTags::StringLiteral.functions(M)) {
+    const auto &[StartAddress,
+                 VirtualSize,
+                 Offset,
+                 StrLen] = extractStringLiteralFromMetadata(F);
+    auto Type = F.getFunctionType()->getReturnType();
+    StringLiteralPoolKey Key = { StartAddress, VirtualSize, Offset, Type };
+    Pool.record(Key, &F);
   }
 }
 

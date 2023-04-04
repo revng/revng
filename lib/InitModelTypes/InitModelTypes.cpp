@@ -215,6 +215,9 @@ static TypeVector getReturnTypes(FunctionMetadataCache &Cache,
     } else {
       revng_abort("Unknown value returned by non-isolated function");
     }
+  } else if (FunctionTags::StringLiteral.isTagOf(CalledFunc)) {
+    const llvm::Value *Arg = Call->getArgOperand(0);
+    ReturnTypes.push_back(llvmIntToModelType(Arg->getType(), Model));
   } else if (FunctionTags::HexInteger.isTagOf(CalledFunc)
              || FunctionTags::CharInteger.isTagOf(CalledFunc)
              || FunctionTags::BoolInteger.isTagOf(CalledFunc)) {
