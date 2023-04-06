@@ -51,6 +51,16 @@ public:
     return BasicBlockID(End(), ID().inliningIndex());
   }
 
+  [[nodiscard]] bool contains(const BasicBlockID &Other) const {
+    if (Other.inliningIndex() != ID().inliningIndex())
+      return false;
+
+    MetaAddress Target = Other.start();
+    MetaAddress Start = ID().start();
+    MetaAddress End = this->End();
+    return Start <= Target and Target < End;
+  }
+
 public:
   bool verify() const debug_function;
   bool verify(bool Assert) const debug_function;
