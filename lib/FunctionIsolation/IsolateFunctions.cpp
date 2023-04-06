@@ -551,6 +551,7 @@ void IsolateFunctionsImpl::run() {
                                          "local_" + Function.name(),
                                          TheModule);
     NewFunction->addFnAttr(Attribute::NullPointerIsValid);
+    NewFunction->addFnAttr(Attribute::NoMerge);
     IsolatedFunctionsMap[Function.Entry()] = NewFunction;
     FunctionTags::Isolated.addTo(NewFunction);
     revng_assert(NewFunction != nullptr);
