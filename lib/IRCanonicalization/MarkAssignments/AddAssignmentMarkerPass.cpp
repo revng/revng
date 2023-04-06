@@ -92,7 +92,7 @@ bool AddAssignmentMarkersPass::runOnFunction(llvm::Function &F) {
       continue;
 
     if (IType->isAggregateType()) {
-      // This is a call to an function that return a struct on llvm
+      // This is a call to a function that return a struct on llvm
       // type system. We cannot handle it like the others, because its return
       // type is not on the model (only individual fields are), so we cannot
       // serialize its QualifiedType in the LocalVariable.
@@ -102,17 +102,12 @@ bool AddAssignmentMarkersPass::runOnFunction(llvm::Function &F) {
       continue;
     }
 
-    if (isCallToTagged(I, FunctionTags::QEMU)
-        or isCallToTagged(I, FunctionTags::Helper)
-        or isCallToTagged(I, FunctionTags::Exceptional)
-        or isa<llvm::IntrinsicInst>(I))
-      continue;
-
     if (bool(Flag)) {
 
       // We should never be creating a LocalVariable for a reference, since
       // we cannot express them in C.
-      revng_assert(not isCallToTagged(I, FunctionTags::IsRef));
+      revng_assert(not isCallToTagged(I, FunctionTags::IsRef),
+                   dumpToString(I).c_str());
 
       // First, we have to declare the LocalVariable, in the correct place, i.e.
       // either the entry block or just before I.
