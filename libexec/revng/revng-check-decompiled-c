@@ -19,6 +19,10 @@ if ! test -d "$SHARE"; then
   exit 1
 fi
 
+if grep "revng error: unexpected use of global variable" "$1"; then
+  exit 1
+fi
+
 clang \
   -c \
   -fsyntax-only \
