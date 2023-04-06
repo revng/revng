@@ -479,21 +479,20 @@ BOOST_AUTO_TEST_CASE(AssignPendingInElseBranch) {
 
 BOOST_AUTO_TEST_CASE(Loop) {
   const char *Body = R"LLVM(
-  %thealloca = alloca i64, align 8
   %initptr = inttoptr i64 4294967000 to i64*
   %initval = load i64, i64 *%initptr
-  store i64 %initval, i64 *%thealloca
+  store i64 %initval, i64 * inttoptr (i64 1000 to i64*)
   br label %head
 
   head:
-  %loopingvar = load i64, i64 *%thealloca
+  %loopingvar = load i64, i64 * inttoptr (i64 1000 to i64*)
   br label %tail
 
   tail:
   %loopptr = inttoptr i64 4294967200 to i64*
   %loopval = load i64, i64 *%loopptr
   %cmp = icmp ult i64 undef, %loopingvar
-  store i64 %loopval, i64* %thealloca
+  store i64 %loopval, i64 * inttoptr (i64 1000 to i64*)
   br i1 %cmp, label %head, label %end
 
   end:
@@ -504,7 +503,6 @@ BOOST_AUTO_TEST_CASE(Loop) {
     BBAssignmentFlags{ /*.BBName =*/"initial_block",
                        /*.InstrFlags =*/
                        {
-                         AlwaysAssign,
                          None,
                          None,
                          HasSideEffects,
