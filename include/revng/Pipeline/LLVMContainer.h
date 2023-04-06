@@ -253,7 +253,6 @@ private:
     }
 
     // We must ensure output is valid
-    revng_assert(llvm::verifyModule(*ToMerge.Module, nullptr) == 0);
     Module = std::move(ToMerge.Module);
 
     // Checks that module merging commutes w.r.t. enumeration, as specified in
@@ -277,6 +276,7 @@ private:
     //       to share debug metadata, which are not always immutable.
     auto *NamedMDNode = Module->getOrInsertNamedMetadata("llvm.dbg.cu");
     pruneDICompileUnits(*Module);
+    revng_assert(llvm::verifyModule(*Module, &llvm::dbgs()) == 0);
   }
 };
 
