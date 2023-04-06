@@ -7,6 +7,7 @@
 
 #include <fstream>
 
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/Support/SHA1.h"
 #include "llvm/Support/raw_os_ostream.h"
@@ -330,7 +331,7 @@ void dumpUsers(llvm::Value *V) {
   }
 }
 
-inline RecursiveCoroutine<void>
+static RecursiveCoroutine<void>
 findJumpTarget(llvm::BasicBlock *&Result,
                llvm::BasicBlock *BB,
                std::set<BasicBlock *> &Visited) {
@@ -391,4 +392,27 @@ void pruneDICompileUnits(Module &M) {
     for (DICompileUnit *CU : Reachable)
       CUs->addOperand(CU);
   }
+}
+
+using ValueSet = SmallSet<Value *, 2>;
+
+static RecursiveCoroutine<void>
+findPhiTreeLeavesImpl(ValueSet &Leaves, ValueSet &Visited, llvm::Value *V) {
+  if (auto *Phi = dyn_cast<PHINode>(V)) {
+    revng_assert(Visited.count(V) == 0);
+    Visited.insert(V);
+    for (Value *Operand : Phi->operands())
+      rc_recur findPhiTreeLeavesImpl(Leaves, Visited, Operand);
+  } else {
+    Leaves.insert(V);
+  }
+
+  rc_return;
+}
+
+ValueSet findPhiTreeLeaves(Value *Root) {
+  ValueSet Result;
+  ValueSet Visited;
+  findPhiTreeLeavesImpl(Result, Visited, Root);
+  return Result;
 }

@@ -9,6 +9,7 @@
 #include <sstream>
 #include <type_traits>
 
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Analysis/ConstantFolding.h"
@@ -1515,3 +1516,5 @@ inline llvm::Type *getVariableType(const llvm::Value *Variable) {
 }
 
 void pruneDICompileUnits(llvm::Module &M);
+
+llvm::SmallSet<llvm::Value *, 2> findPhiTreeLeaves(llvm::Value *Root);
