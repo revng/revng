@@ -107,24 +107,26 @@ bool LoopRewriteIV::run(Loop &L,
                                       << dumpToString(Op) << '\n'
                                       << "   into = " << dumpToString(NewVal));
 
-    // Inform ScalarEvolution that this value is changing. The change doesn't
-    // affect its value, but it does potentially affect which use lists the
-    // value will be on after the replacement, which affects ScalarEvolution's
-    // ability to walk use lists and drop dangling pointers when a value is
-    // deleted.
-    SE->forgetValue(User);
+    if (NewVal != Op) {
+      // Inform ScalarEvolution that this value is changing. The change doesn't
+      // affect its value, but it does potentially affect which use lists the
+      // value will be on after the replacement, which affects ScalarEvolution's
+      // ability to walk use lists and drop dangling pointers when a value is
+      // deleted.
+      SE->forgetValue(User);
 
-    // Patch the new value into place.
-    if (Op->hasName())
-      NewVal->takeName(Op);
-    if (Instruction *NewValI = dyn_cast<Instruction>(NewVal))
-      NewValI->setDebugLoc(User->getDebugLoc());
-    User->replaceUsesOfWith(Op, NewVal);
-    UI.setOperandValToReplace(NewVal);
+      // Patch the new value into place.
+      if (Op->hasName())
+        NewVal->takeName(Op);
+      if (Instruction *NewValI = dyn_cast<Instruction>(NewVal))
+        NewValI->setDebugLoc(User->getDebugLoc());
+      User->replaceUsesOfWith(Op, NewVal);
+      UI.setOperandValToReplace(NewVal);
 
-    Changed = true;
+      Changed = true;
 
-    // NOTE: The old IV is a dead value, so it will be deleted with `-dce`.
+      // NOTE: The old IV is a dead value, so it will be deleted with `-dce`.
+    }
   }
 
   return Changed;
