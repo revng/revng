@@ -89,22 +89,18 @@ bool LoopRewriteIV::run(Loop &L,
     // incoming blocks.
     Instruction *InsertPt = getInsertPointForUses(User, Op, DT, &LI);
 
-    if (!isSafeToExpandAt(AR, InsertPt, *SE)) {
-      revng_log(Log, "Not safe expression: " << dumpToString(AR));
-      continue;
-    }
-
     // Now expand it into actual Instructions and patch it into place.
     const DataLayout &DL = L.getHeader()->getModule()->getDataLayout();
     SCEVExpander Rewriter(*SE,
                           DL,
                           "loop-rewrite-with-canonical-induction-variable");
-    Value *NewVal = Rewriter.expandCodeFor(AR, UseTy, InsertPt);
 
-    if (!isValidRewrite(SE, Op, NewVal)) {
-      revng_log(Log, "The expression is not valid for rewrite");
+    if (!Rewriter.isSafeToExpandAt(AR, InsertPt)) {
+      revng_log(Log, "Not safe expression: " << dumpToString(AR));
       continue;
     }
+
+    Value *NewVal = Rewriter.expandCodeFor(AR, UseTy, InsertPt);
 
     revng_log(Log,
               "INDVARS: Rewrote IV '" << dumpToString(AR) << "' "
