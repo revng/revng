@@ -27,6 +27,7 @@ bool InjectStackSizeProbesAtCallSitesPass::runOnModule(llvm::Module &M) {
   auto *F = cast<Function>(SSACS.getCallee());
   F->addFnAttr(Attribute::NoUnwind);
   F->addFnAttr(Attribute::WillReturn);
+  F->addFnAttr(Attribute::NoMerge);
   F->setOnlyAccessesInaccessibleMemory();
 
   for (Function &F : FunctionTags::Isolated.functions(&M)) {
