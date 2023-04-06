@@ -26,7 +26,6 @@ static ::Register X("dla", "Data Layout Analysis Pass", false, false);
 
 void DLAPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.addRequired<LoadModelWrapperPass>();
-  AU.addRequired<llvm::LoopInfoWrapperPass>();
   AU.addRequired<llvm::ScalarEvolutionWrapperPass>();
   AU.addRequired<FunctionMetadataCachePass>();
 
