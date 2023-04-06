@@ -296,16 +296,6 @@ public:
                 }
               }
 
-              auto *InsertVal = cast<InsertValueInst>(RetVal);
-              auto RetOps = getInsertValueLeafOperands(InsertVal);
-              revng_assert(RetOps.size() == NRetTypes);
-              decltype(NRetTypes) N = 0ULL;
-              for (; N < NRetTypes; ++N) {
-                if (RetOps[N] == nullptr)
-                  continue;
-                const SCEV *S = SE->getSCEV(RetOps[N]);
-                SCEVToLayoutType.insert(std::make_pair(S, RetTys[N]));
-              }
             } else {
               LayoutTypeSystemNode *RetTy = Builder.getLayoutType(RetVal);
               const SCEV *S = SE->getSCEV(RetVal);
@@ -717,10 +707,10 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
         if (not I.getNumOperands())
           continue;
 
-        // InsertValue and ExtractValue are special because their operands have
-        // struct type, so we don't handle them explictly.
-        // Both will be analyzed only as operands of their respective uses.
-        if (isa<ExtractValueInst>(I) or isa<InsertValueInst>(I))
+        // ExtractValue is special since its operand has struct type, so we
+        // don't handle them explictly.  It will be analyzed only as operands of
+        // its uses.
+        if (isa<ExtractValueInst>(I))
           continue;
 
         // Load and Store are handled separately, because we look into their
@@ -864,7 +854,6 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
 
               Pointers.append(Call->arg_begin(), Call->arg_end());
             }
-
           } else {
             revng_assert(isa<IntegerType>(RetVal->getType())
                          or isa<PointerType>(RetVal->getType()));
