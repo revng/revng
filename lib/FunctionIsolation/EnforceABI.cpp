@@ -343,6 +343,7 @@ void EnforceABIImpl::createPrologue(Function *NewFunction,
 }
 
 void EnforceABIImpl::handleRegularFunctionCall(CallInst *Call) {
+  revng_assert(Call->getDebugLoc());
   Function *Caller = Call->getParent()->getParent();
   const model::Function &FunctionModel = *FunctionsMap.at(Caller);
 
@@ -463,9 +464,8 @@ CallInst *EnforceABIImpl::generateCall(IRBuilder<> &Builder,
   // Produce the call
   //
   auto *Result = Builder.CreateCall(Callee, Arguments);
-  setStringMetadata(Result,
-                    CallerBlockStartMDName,
-                    CallSiteBlock.ID().toString());
+  revng_assert(Result->getDebugLoc());
+
   if (ReturnCSVs.size() != 1) {
     unsigned I = 0;
     for (Constant *ReturnCSV : ReturnCSVs) {
