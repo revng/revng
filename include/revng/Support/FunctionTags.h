@@ -26,8 +26,7 @@ class Tag;
 
 // clang-format off
 template<typename T>
-concept Taggable = (std::is_base_of_v<llvm::Instruction, T>
-                    or std::is_same_v<llvm::GlobalVariable, T>
+concept Taggable = (std::is_same_v<llvm::GlobalVariable, T>
                     or std::is_same_v<llvm::Function, T>);
 // clang-format on
 
