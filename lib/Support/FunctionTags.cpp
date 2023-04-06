@@ -328,6 +328,7 @@ void initLocalVarPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   Pool.setTags({ &FunctionTags::LocalVariable,
                  &FunctionTags::IsRef,
                  &FunctionTags::AllocatesLocalVariable });
+
   // Initialize the pool from its internal llvm::Module if possible.
   // Use the stored type as a key.
   Pool.initializeFromReturnType(FunctionTags::LocalVariable);
@@ -337,10 +338,12 @@ llvm::FunctionType *getOpaqueEVFunctionType(llvm::ExtractValueInst *Extract) {
   using namespace llvm;
   // First argument is the struct we are extracting from
   std::vector ArgTypes = { Extract->getAggregateOperand()->getType() };
+
   // All other arguments are indices, which we decided to be of type i64
   auto &C = Extract->getContext();
   Type *I64Type = IntegerType::getInt64Ty(C);
   ArgTypes.insert(ArgTypes.end(), Extract->getNumIndices(), I64Type);
+
   // The return type is the type of the extracted field
   Type *ReturnType = Extract->getType();
 

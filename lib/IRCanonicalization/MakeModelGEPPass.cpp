@@ -2120,8 +2120,8 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
   auto Indent = LoggerIndent(ModelGEPLog);
 
   auto &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
-
   auto &Cache = getAnalysis<FunctionMetadataCachePass>().get();
+
   model::VerifyHelper VH;
   UseGEPInfoMap GEPReplacementMap = makeGEPReplacements(F, *Model, VH, Cache);
 
@@ -2257,6 +2257,7 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
     // Finally, replace the use to gepify with the call to the address of
     // modelGEP, plus the potential arithmetic we've just build.
     TheUseToGEPify->set(ModelGEPPtr);
+
     revng_log(ModelGEPLog,
               "    `-> replaced with: " << dumpToString(ModelGEPPtr));
 
