@@ -83,7 +83,7 @@ class CommandsRegistry:
         self.register_command(ExternalCommand(self._parse_command(command), path))
 
     def run(self, arguments, options: Options):
-        original_options = {k: v for k, v in options.__dict__.items()}
+        original_options = dict(options.__dict__.items())
         (args, rest) = self.root_parser.parse_known_args(arguments)
         command = []
         for name, value in args.__dict__.items():
