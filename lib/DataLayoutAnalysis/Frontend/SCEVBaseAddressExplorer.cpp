@@ -261,7 +261,8 @@ SCEVBaseAddressExplorer::checkAddressOrTraverse(llvm::ScalarEvolution *SE,
   case llvm::scSMaxExpr:
   case llvm::scUMaxExpr:
   case llvm::scSMinExpr:
-  case llvm::scUMinExpr: {
+  case llvm::scUMinExpr:
+  case llvm::scSequentialUMinExpr: {
   } break;
 
   default:
