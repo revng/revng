@@ -26,6 +26,8 @@ target triple = "x86_64-pc-linux-gnu"
 
 declare i64 @llvm.bswap.i64(i64)
 
+declare i64 @opaque(i64)
+
 define void @main() {
 initial_block:
 )LLVM";
