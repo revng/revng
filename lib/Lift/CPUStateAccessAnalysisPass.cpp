@@ -2319,7 +2319,7 @@ void CPUSAOA::computeAggregatedOffsets() {
                        InternalOffset) = Variables->getByEnvOffset(Refined);
               int64_t SizeAtOffset = 0;
               if (AccessedVar != nullptr) {
-                Type *AccessedTy = AccessedVar->getType();
+                Type *AccessedTy = AccessedVar->getValueType();
                 SizeAtOffset = DL.getTypeAllocSize(AccessedTy) - InternalOffset;
                 revng_assert(SizeAtOffset > 0);
                 FineGrainedOffsets.insert(Refined - InternalOffset);
