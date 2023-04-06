@@ -176,6 +176,7 @@ bool dumpModelToHeader(const model::Binary &Model,
     Header << ThePTMLCBuilder.getIncludeAngle("stdint.h");
     Header << ThePTMLCBuilder.getIncludeAngle("stdbool.h");
     Header << ThePTMLCBuilder.getIncludeQuote("revng-primitive-types.h");
+    Header << ThePTMLCBuilder.getIncludeQuote("revng-attributes.h");
     Header << "\n";
 
     Header << ThePTMLCBuilder.getDirective(PTMLCBuilder::Directive::IfNotDef)

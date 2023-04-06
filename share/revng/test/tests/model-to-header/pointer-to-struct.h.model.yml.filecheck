@@ -3,10 +3,10 @@
 #
 
 CHECK: typedef struct __attribute__((packed)) B B;
-CHECK: typedef void function_type_cabifunction_1(B *);
+CHECK: typedef ABI(SystemV_x86_64) void function_type_cabifunction_1(B *);
 CHECK: struct __attribute__((packed)) B {
 CHECK:     uint32_t a1;
 CHECK:     uint32_t a2;
 CHECK: };
 
-CHECK: void fn(B *b_array);
+CHECK: ABI(SystemV_x86_64) void fn(B *b_array);

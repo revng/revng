@@ -18,6 +18,7 @@ sources:
       - do-not-inline-used-stack-type.h.model.yml
       - inline-enum.h.model.yml
       - inline-union.h.model.yml
+      - annotate-attibutes.model.yml
 commands:
   - type: revng-c.model-to-header-unit-test
     from:

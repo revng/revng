@@ -1,0 +1,95 @@
+---
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+Functions:
+  - Entry: "0x400700:Code_x86_64"
+    CustomName: "fn"
+    OriginalName: fn
+    StackFrameType: "/Types/StructType-7"
+    Prototype: "/Types/CABIFunctionType-1"
+    ExportedNames:
+      - fn
+  - Entry: "0x400800:Code_x86_64"
+    CustomName: "fn2"
+    OriginalName: fn2
+    StackFrameType: "/Types/StructType-7"
+    Prototype: "/Types/RawFunctionType-8"
+    ExportedNames:
+      - fn2
+Types:
+  - Kind: CABIFunctionType
+    ID: 1
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-256"
+    Arguments:
+      - Index: 0
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1540"
+        CustomName: "b"
+        OriginalName: b
+      - Index: 1
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+        CustomName: "c"
+        OriginalName: c
+      - Index: 2
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1282"
+        CustomName: "d"
+        OriginalName: d
+  - Kind: PrimitiveType
+    ID: 256
+    PrimitiveKind: Void
+    Size: 0
+  - Kind: PrimitiveType
+    ID: 1540
+    PrimitiveKind: Signed
+    Size: 4
+  - Kind: PrimitiveType
+    ID: 520
+    PrimitiveKind: Generic
+    Size: 8
+  - Kind: PrimitiveType
+    ID: 1282
+    PrimitiveKind: Unsigned
+    Size: 2
+  - Kind: StructType
+    ID: 7
+    Fields:
+      - Offset: 0
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+    Size: 16
+  - Kind: RawFunctionType
+    ID: 8
+    Arguments:
+      - Location: rcx_x86_64
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+      - Location: rdx_x86_64
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+      - Location: rsi_x86_64
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+      - Location: rdi_x86_64
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+      - Location: r8_x86_64
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+      - Location: r9_x86_64
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+    ReturnValues: []
+    PreservedRegisters:
+      - rbx_x86_64
+      - rbp_x86_64
+      - r12_x86_64
+      - r13_x86_64
+      - r14_x86_64
+      - r15_x86_64
+    FinalStackOffset: 8
