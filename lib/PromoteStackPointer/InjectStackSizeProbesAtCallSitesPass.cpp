@@ -37,7 +37,7 @@ bool InjectStackSizeProbesAtCallSitesPass::runOnModule(llvm::Module &M) {
 
     for (BasicBlock &BB : F) {
       for (Instruction &I : BB) {
-        if (auto *MD = I.getMetadata("revng.callerblock.start")) {
+        if (isCallToIsolatedFunction(&I)) {
           // We found a function call
           Changed = true;
           B.SetInsertPoint(&I);

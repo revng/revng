@@ -403,7 +403,7 @@ static bool connect(TypeFlowNode *N1, TypeFlowNode *N2) {
     }
 
     if (auto *Call = llvm::dyn_cast<CallInst>(I)) {
-      if (FunctionTags::CallToLifted.isTagOf(Call)) {
+      if (isCallToIsolatedFunction(Call)) {
         // No type flows between arguments and return value
         return false;
 

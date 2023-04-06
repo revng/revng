@@ -443,7 +443,7 @@ getExpectedModelType(FunctionMetadataCache &Cache,
   };
 
   if (auto *Call = dyn_cast<llvm::CallInst>(User)) {
-    if (FunctionTags::CallToLifted.isTagOf(Call)) {
+    if (isCallToIsolatedFunction(Call)) {
       // Isolated functions have their prototype in the model
       auto Prototype = Cache.getCallSitePrototype(Model, Call);
       revng_assert(Prototype.isValid());

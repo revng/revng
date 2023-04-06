@@ -444,7 +444,7 @@ computeIRAccessPattern(FunctionMetadataCache &Cache,
                       "CABIFunctionType");
         }
 
-      } else if (FunctionTags::CallToLifted.isTagOf(Call)) {
+      } else if (isCallToIsolatedFunction(Call)) {
         auto Proto = Cache.getCallSitePrototype(Model, Call);
         revng_assert(Proto.isValid());
 
@@ -1964,7 +1964,7 @@ static UseGEPInfoMap makeGEPReplacements(llvm::Function &F,
       auto Indent = LoggerIndent{ ModelGEPLog };
 
       if (auto *CallI = dyn_cast<CallInst>(&I)) {
-        if (not FunctionTags::CallToLifted.isTagOf(CallI)) {
+        if (not isCallToIsolatedFunction(CallI)) {
           revng_log(ModelGEPLog, "Skipping call to non-isolated function");
           continue;
         }

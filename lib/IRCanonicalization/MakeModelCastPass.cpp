@@ -104,7 +104,7 @@ MMCP::serializeTypesForModelCast(FunctionMetadataCache &Cache,
     // Lifted functions have their prototype on the model
     auto *Callee = Call->getCalledFunction();
 
-    if (FunctionTags::CallToLifted.isTagOf(Call)) {
+    if (isCallToIsolatedFunction(Call)) {
       // For indirect calls, cast the callee to the right function type
       if (not Callee)
         SerializeTypeFor(Call->getCalledOperandUse());

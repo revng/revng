@@ -53,10 +53,7 @@ static bool adjustStackAfterCalls(FunctionMetadataCache &Cache,
 
   for (BasicBlock &BB : F) {
     for (Instruction &I : BB) {
-      if (FunctionTags::CallToLifted.isTagOf(&I)) {
-        auto *MD = I.getMetadata("revng.callerblock.start");
-        revng_assert(MD != nullptr);
-
+      if (isCallToIsolatedFunction(&I)) {
         // TODO: handle CABIFunctionType
         auto *Proto = Cache
                         .getCallSitePrototype(Binary,
