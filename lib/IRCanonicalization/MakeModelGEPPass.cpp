@@ -1702,7 +1702,8 @@ class GEPSummationCache {
       case Instruction::ZExt:
       case Instruction::IntToPtr:
       case Instruction::PtrToInt:
-      case Instruction::BitCast: {
+      case Instruction::BitCast:
+      case Instruction::Freeze: {
         // casts are traversed
         revng_log(ModelGEPLog, "Traverse cast!");
         Result = rc_recur getGEPSumImpl(AddrArithmeticInst->getOperandUse(0),

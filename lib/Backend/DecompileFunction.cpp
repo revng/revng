@@ -1055,7 +1055,7 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
                              + addParentheses(Op1Token));
   }
 
-  if (isa<llvm::CastInst>(I)) {
+  if (isa<llvm::CastInst>(I) or isa<llvm::FreezeInst>(I)) {
 
     const llvm::Value *Op = I->getOperand(0);
     std::string ToCast = rc_recur getToken(Op);
