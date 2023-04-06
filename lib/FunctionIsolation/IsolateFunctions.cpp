@@ -458,8 +458,6 @@ private:
                                &*InsertPoint;
     auto *NewCall = Builder.CreateCall(CalledFunction);
     NewCall->setDebugLoc(Old->getDebugLoc());
-    FunctionTags::CallToLifted.addTo(NewCall);
-    setStringMetadata(NewCall, CallerBlockStartMDName, Caller->ID().toString());
   }
 };
 
