@@ -1505,7 +1505,7 @@ llvm::Instruction *createLoadVariable(llvm::IRBuilder<T, Inserter> &Builder,
     revng_abort("Either GlobalVariable or AllocaInst expected");
 }
 
-inline llvm::Type *getVariableType(llvm::Value *Variable) {
+inline llvm::Type *getVariableType(const llvm::Value *Variable) {
   if (auto *Alloca = llvm::dyn_cast<llvm::AllocaInst>(Variable))
     return Alloca->getAllocatedType();
   else if (auto *GV = llvm::dyn_cast<llvm::GlobalVariable>(Variable))

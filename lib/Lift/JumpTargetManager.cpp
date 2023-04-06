@@ -1704,7 +1704,8 @@ void JumpTargetManager::harvestWithAVI() {
 
   SummaryCallsBuilder SCB(CSVMap);
 
-  // Remove PC initialization from entry block
+  // Remove PC initialization from entry block: this is required otherwise the
+  // dispatcher will be constant-propagated away
   {
     BasicBlock &Entry = OptimizedFunction->getEntryBlock();
     std::vector<Instruction *> ToDelete;

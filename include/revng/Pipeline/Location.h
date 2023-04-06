@@ -60,6 +60,7 @@ public:
   auto &at(const AnotherRank &) {
     return std::get<AnotherRank::Depth - 1>(tuple());
   }
+
   template<RankConvertibleTo<Rank> AnotherRank>
   const auto &at(const AnotherRank &) const {
     return std::get<AnotherRank::Depth - 1>(tuple());

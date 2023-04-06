@@ -28,11 +28,11 @@ public:
 
   template<typename... Args>
   RegisterAnalysis(Args &&...Arguments)
-    requires HasName<AnalsysisType>
+    requires HasName<AnalysisType>
     :
-    Name(AnalsysisType::Name),
+    Name(AnalysisType::Name),
     Pipe(std::forward<Args>(Arguments)...),
-    RegisteredOptions(createCLOptions<AnalsysisType>(&MainCategory)) {}
+    RegisteredOptions(createCLOptions<AnalysisType>(&MainCategory)) {}
 
   ~RegisterAnalysis() override = default;
 

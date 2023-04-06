@@ -328,11 +328,17 @@ bool VariableManager::memcpyAtEnvOffset(llvm::IRBuilder<> &Builder,
     Value *NewAddress = Builder.CreateAdd(OffsetInt, OtherBasePtr);
     Value *OtherPtr = Builder.CreateIntToPtr(NewAddress, EnvVar->getType());
 
+    StoreInst *New = nullptr;
     if (EnvIsSrc) {
-      Builder.CreateStore(createLoad(Builder, EnvVar), OtherPtr);
+      New = Builder.CreateStore(createLoad(Builder, EnvVar), OtherPtr);
     } else {
-      Builder.CreateStore(Builder.CreateLoad(EnvVar->getType(), OtherPtr),
-                          EnvVar);
+      New = Builder.CreateStore(Builder.CreateLoad(EnvVar->getValueType(),
+                                                   OtherPtr),
+                                EnvVar);
+    }
+
+    if (auto *GV = dyn_cast<GlobalVariable>(New->getPointerOperand())) {
+      revng_assert(New->getValueOperand()->getType() == GV->getValueType());
     }
 
     Type *PointeeTy = EnvVar->getValueType();

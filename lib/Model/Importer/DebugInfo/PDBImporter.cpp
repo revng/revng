@@ -1275,6 +1275,8 @@ Error PDBImporterSymbolVisitor::visitSymbolBegin(CVSymbol &Record,
 
 Error PDBImporterSymbolVisitor::visitKnownRecord(CVSymbol &Record,
                                                  ProcSym &Proc) {
+  revng_log(DILogger, "Importing " << Proc.Name);
+
   // If it is not in the .idata already, we assume it is a static symbol.
   if (not Model->ImportedDynamicFunctions().count(Proc.Name.str())) {
     uint64_t FunctionVirtualAddress = Session
