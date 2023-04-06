@@ -78,6 +78,10 @@ inline bool areMemOpCompatible(const model::QualifiedType &ModelType,
 
 /// Decide whether a single instruction needs a top-scope variable or not.
 inline bool needsTopScopeDeclaration(const llvm::Instruction &I) {
+
+  if (I.getType()->isVoidTy())
+    return false;
+
   const llvm::BasicBlock *CurBB = I.getParent();
   const llvm::BasicBlock &EntryBB = CurBB->getParent()->getEntryBlock();
 
