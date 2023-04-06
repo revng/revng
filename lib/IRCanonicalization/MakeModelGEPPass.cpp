@@ -2109,6 +2109,27 @@ public:
   }
 };
 
+static llvm::BasicBlock *getUniqueIncoming(Value *V, PHINode *Phi) {
+  llvm::BasicBlock *Result = nullptr;
+
+  for (auto [IncomingValue, IncomingBlock] :
+       zip(Phi->incoming_values(), Phi->blocks())) {
+    if (IncomingValue == V) {
+      if (Result == nullptr) {
+        // First matching incoming value, register incoming block
+        Result = IncomingBlock;
+      } else if (Result != IncomingBlock) {
+        // We different incoming blocks for the same value
+        return nullptr;
+      }
+    }
+  }
+
+  revng_assert(Result != nullptr, "V is not an incoming value of Phi");
+
+  return Result;
+}
+
 bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
   bool Changed = false;
 
@@ -2138,16 +2159,31 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
 
   llvm::IntegerType *PtrSizedInteger = getPointerSizedInteger(Ctxt, *Model);
 
+  std::map<std::pair<Instruction *, Value *>, Value *> PhiIncomingsMaps;
+
   for (auto &[TheUseToGEPify, GEPArgs] : GEPReplacementMap) {
 
     // Skip ModelGEPs that have no arguments
     if (GEPArgs.IndexVector.empty())
       continue;
 
-    revng_log(ModelGEPLog,
-              "GEPify use of: " << dumpToString(TheUseToGEPify->get()));
-    revng_log(ModelGEPLog,
-              "  `-> use in: " << dumpToString(TheUseToGEPify->getUser()));
+    auto *UserInstr = cast<Instruction>(TheUseToGEPify->getUser());
+    auto *V = TheUseToGEPify->get();
+
+    bool IsPhi = isa<PHINode>(UserInstr);
+    if (IsPhi) {
+      auto It = PhiIncomingsMaps.find({ UserInstr, V });
+      if (It != PhiIncomingsMaps.end()) {
+        TheUseToGEPify->set(It->second);
+        revng_log(ModelGEPLog,
+                  "    `-> replaced with: " << dumpToString(It->second));
+        Changed = true;
+        continue;
+      }
+    }
+
+    revng_log(ModelGEPLog, "GEPify use of: " << dumpToString(V));
+    revng_log(ModelGEPLog, "  `-> use in: " << dumpToString(UserInstr));
 
     llvm::Type *UseType = TheUseToGEPify->get()->getType();
     llvm::Type *BaseAddrType = GEPArgs.BaseAddress.Address->getType();
@@ -2184,10 +2220,19 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
     // The second argument is the base address
     Args.push_back(GEPArgs.BaseAddress.Address);
 
-    auto *UserInstr = cast<Instruction>(TheUseToGEPify->getUser());
     if (auto *PHIUser = dyn_cast<PHINode>(UserInstr)) {
-      auto *IncomingB = PHIUser->getIncomingBlock(*TheUseToGEPify);
-      Builder.SetInsertPoint(IncomingB->getTerminator());
+      if (isa<Argument>(TheUseToGEPify->get())) {
+        // Insert at the beginning of the function
+        Builder.SetInsertPoint(F.getEntryBlock().getFirstNonPHI());
+      } else if (llvm::BasicBlock *Incoming = getUniqueIncoming(V, PHIUser)) {
+        // Insert at the end of the incoming block
+        Builder.SetInsertPoint(Incoming->getTerminator());
+      } else {
+        // Insert at the end of the block of the user
+        auto *IncomingInstruction = cast<Instruction>(TheUseToGEPify->get());
+        auto *Terminator = IncomingInstruction->getParent()->getTerminator();
+        Builder.SetInsertPoint(Terminator);
+      }
     } else {
       Builder.SetInsertPoint(UserInstr);
     }
@@ -2260,6 +2305,9 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
 
     revng_log(ModelGEPLog,
               "    `-> replaced with: " << dumpToString(ModelGEPPtr));
+
+    if (IsPhi)
+      PhiIncomingsMaps[{ UserInstr, V }] = ModelGEPPtr;
 
     Changed = true;
   }
