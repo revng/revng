@@ -116,13 +116,10 @@ static RecursiveCoroutine<bool> addOperandType(const llvm::Value *Operand,
   } else if (isa<llvm::ConstantInt>(Operand)
              or isa<llvm::GlobalVariable>(Operand)) {
 
-    // For constants and globals, fallback to the LLVM type
-    revng_assert(Operand->getType()->isIntOrPtrTy());
-    auto ConstType = llvmIntToModelType(Operand->getType(), Model);
-    // Skip if it's not a pointer and we are only interested in pointers
-    if (not PointersOnly or ConstType.isPointer()) {
-      TypeMap.insert({ Operand, ConstType });
-    }
+    model::QualifiedType Type = modelType(Operand, Model);
+    if (not PointersOnly or Type.isPointer())
+      TypeMap.insert({ Operand, Type });
+
     rc_return true;
 
   } else if (isa<llvm::PoisonValue>(Operand)

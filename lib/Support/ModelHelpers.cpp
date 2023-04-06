@@ -73,16 +73,67 @@ model::QualifiedType peelConstAndTypedefs(const model::QualifiedType &QT) {
 }
 
 const model::QualifiedType
+modelType(const llvm::Value *V, const model::Binary &Model) {
+  using namespace llvm;
+
+  Type *T = V->getType();
+
+  // Perform preliminary checks
+  if (isa<AllocaInst>(V) or isa<GlobalVariable>(V)) {
+    Type *Pointee = getVariableType(V);
+    revng_assert(isa<IntegerType>(Pointee) or isa<ArrayType>(Pointee));
+  } else {
+    revng_assert(isa<IntegerType>(T));
+  }
+
+  bool AddPointer = false;
+
+  // Handle pointers
+  if (isa<PointerType>(T)) {
+    revng_assert(isa<AllocaInst>(V) or isa<GlobalVariable>(V));
+    AddPointer = true;
+    T = getVariableType(V);
+  }
+
+  model::QualifiedType Result;
+
+  // Actually build the core type
+  if (isa<IntegerType>(T)) {
+    Result = llvmIntToModelType(T, Model);
+  } else if (auto *Array = dyn_cast<ArrayType>(T)) {
+    revng_check(AddPointer);
+    Result = llvmIntToModelType(Array->getElementType(), Model);
+  }
+
+  revng_assert(Result.UnqualifiedType().isValid());
+
+  // If it was a pointer, add the pointer qualifier
+  if (AddPointer)
+    Result = Result.getPointerTo(Model.Architecture());
+
+  return Result;
+}
+
+const model::QualifiedType
 llvmIntToModelType(const llvm::Type *LLVMType, const model::Binary &Model) {
   using namespace model::PrimitiveTypeKind;
 
   const llvm::Type *TypeToConvert = LLVMType;
-  size_t NPtrQualifiers = 0;
-
-  // If it's a pointer, find the pointed type
-  revng_assert(not isa<llvm::PointerType>(TypeToConvert));
 
   model::QualifiedType ModelType;
+
+  // If it's a pointer, return intptr_t for the current architecture
+  //
+  // Note: this is suboptimal, in order to avoid this, please use modelType
+  // passing the Value instead of invoking llvmIntToModelType passing in just
+  // the type
+  if (isa<llvm::PointerType>(TypeToConvert)) {
+    using namespace model;
+    auto Generic = PrimitiveTypeKind::Generic;
+    auto PointerSize = Architecture::getPointerSize(Model.Architecture());
+    ModelType.UnqualifiedType() = Model.getPrimitiveType(Generic, PointerSize);
+    return ModelType;
+  }
 
   if (auto *IntType = dyn_cast<llvm::IntegerType>(TypeToConvert)) {
     // Convert the integer type
@@ -120,18 +171,9 @@ llvmIntToModelType(const llvm::Type *LLVMType, const model::Binary &Model) {
       revng_abort("Found an LLVM integer with a size that is not a power of "
                   "two");
     }
-    // Add qualifiers
-    for (size_t I = 0; I < NPtrQualifiers; ++I)
-      ModelType = ModelType.getPointerTo(Model.Architecture());
-
-  } else if (NPtrQualifiers > 0) {
-    // If it's a pointer to a non-integer type, return an integer type of the
-    // length of a pointer
-    auto PtrSize = getPointerSize(Model.Architecture());
-    ModelType.UnqualifiedType() = Model.getPrimitiveType(Generic, PtrSize);
   } else {
-    revng_abort("Only integer and pointer types can be directly converted "
-                "from LLVM types to C types.");
+    revng_abort("Only integer types can be directly converted from LLVM types "
+                "to C types.");
   }
 
   return ModelType;
