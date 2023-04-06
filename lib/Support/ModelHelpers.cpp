@@ -419,7 +419,7 @@ getStrongModelInfo(FunctionMetadataCache &Cache,
 
     // Transparently traverse markers backwards to find the original source of
     // the aggregate value
-    while (auto *Call = isCallToTagged(AggregateOp, FunctionTags::Marker))
+    while (auto *Call = getCallToTagged(AggregateOp, FunctionTags::Marker))
       AggregateOp = Call->getArgOperand(0);
 
     if (auto *OriginalInst = llvm::dyn_cast<llvm::Instruction>(AggregateOp))
@@ -469,7 +469,7 @@ getExpectedModelType(FunctionMetadataCache &Cache,
             return { ArgType.value().Type };
         revng_abort();
       }
-    } else if (FunctionTags::StringLiteral.isTagOf(User)) {
+    } else if (isCallToTagged(Call, FunctionTags::StringLiteral)) {
       auto Primitive = Model.getPrimitiveType(model::PrimitiveTypeKind::Signed,
                                               8u);
       auto Type = QualifiedType(Primitive,

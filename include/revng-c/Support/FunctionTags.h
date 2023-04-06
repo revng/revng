@@ -53,39 +53,6 @@ inline Tag StackOffsetMarker("StackOffsetMarker");
 
 } // namespace FunctionTags
 
-inline const llvm::CallInst *
-isCallToTagged(const llvm::Value *V, FunctionTags::Tag &T) {
-  if (auto *Call = llvm::dyn_cast_or_null<llvm::CallInst>(V))
-    if (auto *CalledFunc = Call->getCalledFunction())
-      if (T.isTagOf(CalledFunc))
-        return Call;
-
-  return nullptr;
-}
-
-inline llvm::CallInst *isCallToTagged(llvm::Value *V, FunctionTags::Tag &T) {
-  if (auto *Call = llvm::dyn_cast_or_null<llvm::CallInst>(V))
-    if (auto *CalledFunc = Call->getCalledFunction())
-      if (T.isTagOf(CalledFunc))
-        return Call;
-
-  return nullptr;
-}
-
-inline const llvm::CallInst *isCallToIsolatedFunction(const llvm::Value *V) {
-  if (auto *C = dyn_cast_or_null<llvm::CallInst>(V))
-    if (FunctionTags::CallToLifted.isTagOf(C))
-      return C;
-  return nullptr;
-}
-
-inline llvm::CallInst *isCallToIsolatedFunction(llvm::Value *V) {
-  if (auto *C = dyn_cast_or_null<llvm::CallInst>(V))
-    if (FunctionTags::CallToLifted.isTagOf(C))
-      return C;
-  return nullptr;
-}
-
 /// This struct can be used as a key of an OpaqueFunctionsPool where both
 /// the return type and one of the arguments are needed to identify a function
 /// in the pool.

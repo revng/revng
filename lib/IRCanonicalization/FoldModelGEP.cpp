@@ -79,8 +79,8 @@ getValueToSubstitute(llvm::Instruction &I, const model::Binary &Model) {
 
       // Skip if the second argument (after traversing casts) is not an
       // AddressOf call
-      llvm::CallInst *AddrOfCall = isCallToTagged(SecondArg,
-                                                  FunctionTags::AddressOf);
+      llvm::CallInst *AddrOfCall = getCallToTagged(SecondArg,
+                                                   FunctionTags::AddressOf);
       if (not AddrOfCall)
         return nullptr;
 

@@ -46,7 +46,7 @@ static bool haveInterferingSideEffects(const llvm::Instruction *SideEffectful,
 
   const auto MightInterfere = [SideEffectful](const llvm::Instruction *I) {
     // AddressOf never has side effects.
-    if (auto *CallToAddressOf = isCallToTagged(I, FunctionTags::AddressOf)) {
+    if (auto *CallToAddressOf = getCallToTagged(I, FunctionTags::AddressOf)) {
       return false;
     }
 
@@ -54,24 +54,25 @@ static bool haveInterferingSideEffects(const llvm::Instruction *SideEffectful,
     // instructions that copy or assign the same local variable
     llvm::CallInst *LocalVar = nullptr;
     bool IsWrite = false;
-    if (auto *CallToCopy = isCallToTagged(I, FunctionTags::Copy)) {
-      LocalVar = isCallToTagged(CallToCopy->getArgOperand(0),
-                                FunctionTags::LocalVariable);
-    } else if (auto *CallToAssign = isCallToTagged(I, FunctionTags::Assign)) {
-      LocalVar = isCallToTagged(CallToAssign->getArgOperand(1),
-                                FunctionTags::LocalVariable);
+    if (auto *CallToCopy = getCallToTagged(I, FunctionTags::Copy)) {
+      LocalVar = getCallToTagged(CallToCopy->getArgOperand(0),
+                                 FunctionTags::LocalVariable);
+    } else if (auto *CallToAssign = getCallToTagged(I, FunctionTags::Assign)) {
+      LocalVar = getCallToTagged(CallToAssign->getArgOperand(1),
+                                 FunctionTags::LocalVariable);
       IsWrite = true;
     }
 
     llvm::CallInst *OtherLocalVar = nullptr;
-    if (auto *OtherCallToCopy = isCallToTagged(SideEffectful,
-                                               FunctionTags::Copy)) {
-      OtherLocalVar = isCallToTagged(OtherCallToCopy->getArgOperand(0),
-                                     FunctionTags::LocalVariable);
-    } else if (auto *OtherCallToAssign = isCallToTagged(SideEffectful,
-                                                        FunctionTags::Assign)) {
-      OtherLocalVar = isCallToTagged(OtherCallToAssign->getArgOperand(1),
-                                     FunctionTags::LocalVariable);
+    if (auto *OtherCallToCopy = getCallToTagged(SideEffectful,
+                                                FunctionTags::Copy)) {
+      OtherLocalVar = getCallToTagged(OtherCallToCopy->getArgOperand(0),
+                                      FunctionTags::LocalVariable);
+    } else if (auto
+                 *OtherCallToAssign = getCallToTagged(SideEffectful,
+                                                      FunctionTags::Assign)) {
+      OtherLocalVar = getCallToTagged(OtherCallToAssign->getArgOperand(1),
+                                      FunctionTags::LocalVariable);
       IsWrite = true;
     }
 
