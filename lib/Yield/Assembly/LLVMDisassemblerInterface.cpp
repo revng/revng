@@ -109,19 +109,17 @@ DI::LLVMDisassemblerInterface(MetaAddressType::Values AddrType) {
   revng_assert(Printer != nullptr, "Printer object creation failed.");
 
   using namespace options;
-  if (ImmediateStyle == ImmediateStyles::Decimal) {
+  if (ImmediateStyle == ImmediateStyles::Decimal)
     Printer->setPrintImmHex(false);
-    Printer->setPrintBranchImmAsAddress(false);
-  } else {
+  else
     Printer->setPrintImmHex(true);
-    Printer->setPrintBranchImmAsAddress(true);
-  }
 
   if (ImmediateStyle == ImmediateStyles::CHexadecimal)
     Printer->setPrintHexStyle(llvm::HexStyle::C);
   else if (ImmediateStyle == ImmediateStyles::AsmHexadecimal)
     Printer->setPrintHexStyle(llvm::HexStyle::Asm);
 
+  Printer->setPrintBranchImmAsAddress(false);
   Printer->setSymbolizeOperands(ShouldSymbolizeOperands);
   Printer->setUseMarkup(true);
 }
@@ -296,11 +294,6 @@ yield::Instruction DI::parse(const llvm::MCInst &Instruction,
   std::string MarkupStorage;
   llvm::raw_string_ostream MarkupStream(MarkupStorage);
 
-  // Some special considerations might be needed for the second operand.
-  // See the `MCInstPrinter::printInst()` docs.
-  // TODO: Using 0 as second argument makes the jump relative to PC (otherwise
-  // the addresses are wrong). In future implementations we should consider
-  // using labels instead.
   Printer.printInst(&Instruction, 0, "", SI, MarkupStream);
 
   if (MarkupStorage.empty())
