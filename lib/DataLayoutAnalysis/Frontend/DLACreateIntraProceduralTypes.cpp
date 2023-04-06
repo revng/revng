@@ -254,22 +254,23 @@ public:
               auto NRetTypes = RetTys.size();
               revng_assert(NRetTypes > 1ULL);
 
-              // If RetVal is a ConstantAggregate we cannot infer anything about
-              // type layouts right now. We need to handle layout pointed to by
-              // constant addresses first. This might be useful to infer types
-              // in data sections of binaries be we don't handle it now. When we
-              // do, it will become necessary to handle this case.
-              if (isa<ConstantAggregate>(RetVal)
-                  or isa<ConstantAggregateZero>(RetVal))
-                continue;
+              for (Value *Leaf : findPhiTreeLeaves(RetVal)) {
+                // If Leaf is a ConstantAggregate we cannot infer anything
+                // about type layouts right now. We need to handle layout
+                // pointed to by constant addresses first. This might be useful
+                // to infer types in data sections of binaries be we don't
+                // handle it now. When we do, it will become necessary to handle
+                // this case.
+                if (isa<ConstantAggregate>(Leaf)
+                    or isa<ConstantAggregateZero>(Leaf))
+                  continue;
 
-              if (isa<UndefValue>(RetVal))
-                continue;
+                if (isa<UndefValue>(Leaf))
+                  continue;
 
-              if (auto *Call = dyn_cast<CallInst>(RetVal)) {
-                const Function *Callee = getCallee(Call);
-
-                if (Callee) {
+                if (auto *Call = dyn_cast<CallInst>(Leaf)) {
+                  const Function *Callee = getCallee(Call);
+                  revng_assert(Callee != nullptr);
 
                   auto CTags = FunctionTags::TagsSet::from(Callee);
                   revng_assert(CTags.contains(FunctionTags::StructInitializer));
@@ -292,8 +293,6 @@ public:
                     Changed |= NewNode;
                     Changed |= TS.addEqualityLink(RetNode, ArgNode).second;
                   }
-
-                  continue;
                 }
               }
 
@@ -839,19 +838,20 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
             continue;
 
           if (RetVal->getType()->isStructTy()) {
-            // If RetVal is a ConstantAggregate we cannot infer anything about
-            // type layouts right now. We need to handle layout pointed to by
-            // constant addresses first. This might be useful to infer types in
-            // data sections of binaries be we don't handle it now. When we do,
-            // it will become necessary to handle this case.
-            if (isa<ConstantAggregate>(RetVal)
-                or isa<ConstantAggregateZero>(RetVal))
-              continue;
+            for (Value *Leaf : findPhiTreeLeaves(RetVal)) {
+              // If Leaf is a ConstantAggregate we cannot infer anything about
+              // type layouts right now. We need to handle layout pointed to by
+              // constant addresses first. This might be useful to infer types
+              // in data sections of binaries be we don't handle it now. When we
+              // do, it will become necessary to handle this case.
+              if (isa<ConstantAggregate>(Leaf)
+                  or isa<ConstantAggregateZero>(Leaf))
+                continue;
 
-            if (isa<UndefValue>(RetVal))
-              continue;
+              if (isa<UndefValue>(Leaf))
+                continue;
 
-            if (auto *Call = dyn_cast<CallInst>(RetVal)) {
+              auto *Call = cast<CallInst>(Leaf);
 
               const Function *Callee = getCallee(Call);
               auto CTags = FunctionTags::TagsSet::from(Callee);
@@ -863,11 +863,6 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
               revng_assert(RetTy->getNumElements() == Callee->arg_size());
 
               Pointers.append(Call->arg_begin(), Call->arg_end());
-
-            } else {
-
-              auto *InsVal = cast<InsertValueInst>(RetVal);
-              Pointers = getInsertValueLeafOperands(InsVal);
             }
 
           } else {
