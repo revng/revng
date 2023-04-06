@@ -2108,9 +2108,6 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
   if (not FunctionTags::Isolated.isTagOf(&F))
     return Changed;
 
-  if (F.getName().startswith("local_print_addrinfo"))
-    revng_log(ModelGEPLog, "AAAA: " << F.getName());
-
   revng_log(ModelGEPLog, "Make ModelGEP for " << F.getName());
   auto Indent = LoggerIndent(ModelGEPLog);
 
