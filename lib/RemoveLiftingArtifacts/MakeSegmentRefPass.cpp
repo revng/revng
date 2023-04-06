@@ -110,6 +110,10 @@ bool MakeSegmentRefPass::runOnModule(Module &M) {
 
   for (Function &F : M) {
     for (Instruction &I : instructions(F)) {
+
+      if (isCallToTagged(&I, FunctionTags::AllocatesLocalVariable))
+        continue;
+
       for (Use &Op : I.operands()) {
         if (isa<SwitchInst>(&I) && (cast<SwitchInst>(&I)->getCondition() != Op))
           continue;
