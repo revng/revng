@@ -6,6 +6,7 @@
 //
 
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/Support/ModRef.h"
 
 #include "revng/Support/ProgramCounterHandler.h"
 
@@ -371,9 +372,9 @@ static llvm::Value *buildPlainMetaAddressImpl(llvm::IRBuilder<> &Builder,
   Module *M = BB->getParent()->getParent();
 
   Function *MetaAddressConstuctor = M->getFunction("build_PlainMetaAddress");
+  MetaAddressConstuctor->setMemoryEffects(MemoryEffects::none());
   MetaAddressConstuctor->addFnAttr(Attribute::WillReturn);
   MetaAddressConstuctor->addFnAttr(Attribute::NoUnwind);
-  MetaAddressConstuctor->addFnAttr(Attribute::ReadNone);
   auto *FT = MetaAddressConstuctor->getFunctionType();
   return Builder
     .CreateCall(MetaAddressConstuctor,
