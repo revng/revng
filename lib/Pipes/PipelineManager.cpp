@@ -320,10 +320,11 @@ PipelineManager::invalidateAllPossibleTargets() {
 
     for (const auto &Container : Step.second) {
       for (const auto &Target : Container.second) {
-        if (not getRunner()[Step.first()]
-                  .containers()[Container.first()]
-                  .enumerate()
-                  .contains(Target))
+        auto &Containers = getRunner()[Step.first()].containers();
+        if (not Containers.contains(Container.first()))
+          continue;
+
+        if (not Containers[Container.first()].enumerate().contains(Target))
           continue;
 
         *Stream << "Invalidating: ";

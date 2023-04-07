@@ -92,6 +92,10 @@ llvm::Error ContainerSet::loadFromDisk(StringRef Directory) {
   for (auto &Pair : Content) {
     llvm::SmallString<128> Filename;
     llvm::sys::path::append(Filename, Directory, Pair.first());
+    if (not llvm::sys::fs::exists(Filename)) {
+      Pair.second = nullptr;
+      continue;
+    }
 
     if (auto Error = (*this)[Pair.first()].loadFromDisk(Filename); !!Error)
       return Error;

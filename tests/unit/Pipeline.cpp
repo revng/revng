@@ -1015,7 +1015,8 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineStoreToDisk) {
   Container.get(Target({}, RootKind)) = 2;
   BOOST_TEST((Container.get(Target({}, RootKind)) == 2));
   BOOST_TEST((!Pipeline.loadFromDisk(getCurrentPath())));
-  BOOST_TEST(Pipeline[Name].containers().contains(CName));
+  BOOST_TEST(Pipeline[Name].containers().containsOrCanCreate(CName));
+  BOOST_TEST(not Pipeline[Name].containers().contains(CName));
 }
 
 BOOST_AUTO_TEST_CASE(SingleElementPipelineStoreToDiskWithOverrides) {
