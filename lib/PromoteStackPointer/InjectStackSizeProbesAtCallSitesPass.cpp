@@ -8,6 +8,7 @@
 #include "revng/Support/FunctionTags.h"
 
 #include "revng-c/PromoteStackPointer/InjectStackSizeProbesAtCallSitesPass.h"
+#include "revng-c/Support/FunctionTags.h"
 
 using namespace llvm;
 
@@ -44,7 +45,7 @@ bool InjectStackSizeProbesAtCallSitesPass::runOnModule(llvm::Module &M) {
 
           // Inject a call to the marker. First argument is sp - sp0
           auto *Call = B.CreateCall(SSACS, B.CreateSub(SP0, createLoad(B, SP)));
-          Call->setMetadata("revng.callerblock.start", MD);
+          Call->copyMetadata(I);
         }
       }
     }

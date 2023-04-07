@@ -22,6 +22,8 @@
 #include "revng-c/PromoteStackPointer/InstrumentStackAccessesPass.h"
 #include "revng-c/Support/FunctionTags.h"
 
+#include "Helpers.h"
+
 using namespace llvm;
 using model::RawFunctionType;
 
@@ -192,7 +194,7 @@ void DetectStackSize::collectStackBounds(FunctionMetadataCache &Cache,
             // Get the prototype
             auto *Proto = Cache
                             .getCallSitePrototype(*Binary.get(),
-                                                  Call,
+                                                  findAssociatedCall(Call),
                                                   &ModelFunction)
                             .get();
 

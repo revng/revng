@@ -28,6 +28,8 @@
 #include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
 
+#include "Helpers.h"
+
 using namespace llvm;
 
 static Logger<> Log("segregate-stack-accesses");
@@ -39,10 +41,6 @@ static StringRef stripPrefix(StringRef Prefix, StringRef String) {
 
 static unsigned getCallPushSize(const model::Binary &Binary) {
   return model::Architecture::getCallPushSize(Binary.Architecture());
-}
-
-static MetaAddress getCallerBlockAddress(Instruction *I) {
-  return getMetaAddressMetadata(I, "revng.callerblock.start");
 }
 
 static CallInst *findCallTo(Function *F, Function *ToSearch) {
@@ -710,8 +708,6 @@ private:
     auto MaybeStackSize = getSignedConstantArg(SSACSCall, 0);
 
     // Obtain RawFunctionType
-    auto *MD = SSACSCall->getMetadata("revng.callerblock.start");
-    revng_assert(MD != nullptr);
     auto Prototype = Cache.getCallSitePrototype(Binary,
                                                 SSACSCall,
                                                 &ModelFunction);
@@ -855,8 +851,7 @@ private:
                                                     CallStackArgumentsAllocator,
                                                     ArgumentType,
                                                     NewSize);
-
-        StackArgsCall->setMetadata("revng.callerblock.start", MD);
+        StackArgsCall->copyMetadata(*SSACSCall);
 
         // Record for pushing ALAP. AddrOfCall should be pushed ALAP first to
         // leave slack to StackArgsCall
@@ -1066,26 +1061,6 @@ private:
 private:
   /// \name Support functions
   /// \{
-
-  CallInst *findAssociatedCall(CallInst *SSACSCall) const {
-    // Look for the actual call in the same block or the next one
-    Instruction *I = SSACSCall->getNextNode();
-    while (I != SSACSCall) {
-      if (isCallToIsolatedFunction(I)) {
-        MetaAddress SSACSBlockAddress = getCallerBlockAddress(SSACSCall);
-        revng_assert(getCallerBlockAddress(I) == SSACSBlockAddress);
-        return cast<CallInst>(I);
-      } else if (I->isTerminator()) {
-        if (I->getNumSuccessors() != 1)
-          return nullptr;
-        I = I->getSuccessor(0)->getFirstNonPHI();
-      } else {
-        I = I->getNextNode();
-      }
-    }
-
-    return nullptr;
-  }
 
   Constant *getSPConstant(uint64_t Value) const {
     return ConstantInt::get(StackPointerType, Value);
