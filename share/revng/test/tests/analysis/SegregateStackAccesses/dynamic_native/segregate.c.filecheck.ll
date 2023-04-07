@@ -8,19 +8,19 @@ CHECK-DAG: add i64 [[IGN:.*]]%[[ARG2]]
 CHECK: }
 
 CHECK: define i64 @local_raw_pointers_on_registers(i64 %[[ARG1:.*]], i64 %[[ARG2:.*]]) [[IGN:.*]] {
-CHECK-DAG: %[[ARG1_PTR:.*]] = inttoptr i64 %[[ARG1]] to i64*
-CHECK-DAG: load i64, i64* %[[ARG1_PTR:.*]]
-CHECK-DAG: %[[ARG2_PTR:.*]] = inttoptr i64 %[[ARG2]] to i64*
-CHECK-DAG: load i64, i64* %[[ARG2_PTR]]
+CHECK-DAG: %[[ARG1_PTR:.*]] = inttoptr i64 %[[ARG1]] to ptr
+CHECK-DAG: load i64, ptr %[[ARG1_PTR:.*]]
+CHECK-DAG: %[[ARG2_PTR:.*]] = inttoptr i64 %[[ARG2]] to ptr
+CHECK-DAG: load i64, ptr %[[ARG2_PTR]]
 CHECK: }
 
 CHECK: define i64 @local_raw_primitives_on_stack(i64 %[[IGN:.*]], i64 %[[IGN:.*]], i64 %[[IGN:.*]], i64 %[[IGN:.*]], i64 %[[IGN:.*]], i64 %[[IGN:.*]], i64 %[[STACK_ARG:.*]]) [[IGN:.*]] {
 CHECK-DAG:   %[[STACK_ARG_AO:.*]] = call i64 @AddressOf([[IGN:.*]]i64 %[[STACK_ARG]])
 CHECK-DAG:   %[[STACK_ARG8:.*]] = add i64 %[[STACK_ARG_AO]], 8
-CHECK-DAG:   %[[STACK_ARG8_PTR:.*]] = inttoptr i64 %[[STACK_ARG8]] to i64*
-CHECK-DAG:   load i64, i64* %[[STACK_ARG8_PTR:.*]]
-CHECK-DAG:   %[[STACK_ARG_PTR:.*]] = inttoptr i64 %[[STACK_ARG_AO]] to i64*
-CHECK-DAG:   load i64, i64* %[[STACK_ARG_PTR]]
+CHECK-DAG:   %[[STACK_ARG8_PTR:.*]] = inttoptr i64 %[[STACK_ARG8]] to ptr
+CHECK-DAG:   load i64, ptr %[[STACK_ARG8_PTR:.*]]
+CHECK-DAG:   %[[STACK_ARG_PTR:.*]] = inttoptr i64 %[[STACK_ARG_AO]] to ptr
+CHECK-DAG:   load i64, ptr %[[STACK_ARG_PTR]]
 CHECK: }
 
 CHECK: define i64 @local_cabi_primitives_on_registers(i64 %[[ARG1:.*]], i64 %[[ARG2:.*]]) [[IGN:.*]] {
@@ -29,37 +29,37 @@ CHECK-DAG: add i64 [[IGN:.*]][[ARG2]]
 CHECK: }
 
 CHECK: define i64 @local_cabi_primitives_on_stack(i64 %[[IGN:.*]], i64 %[[IGN:.*]], i64 %[[IGN:.*]], i64 %[[IGN:.*]], i64 %[[IGN:.*]], i64 %[[IGN:.*]], i64 %[[STACK_ARG1:.*]], i64 %[[STACK_ARG2:.*]]) [[IGN:.*]] {
-CHECK-DAG:   %[[STACK_ARG1_PTR:.*]] = inttoptr i64 %[[STACK_ARG1]] to i64*
-CHECK-DAG:   load i64, i64* %[[STACK_ARG1_PTR]]
-CHECK-DAG:   %[[STACK_ARG2_PTR:.*]] = inttoptr i64 %[[STACK_ARG2]] to i64*
-CHECK-DAG:   load i64, i64* %[[STACK_ARG2_PTR]]
+CHECK-DAG:   %[[STACK_ARG1_PTR:.*]] = inttoptr i64 %[[STACK_ARG1]] to ptr
+CHECK-DAG:   load i64, ptr %[[STACK_ARG1_PTR]]
+CHECK-DAG:   %[[STACK_ARG2_PTR:.*]] = inttoptr i64 %[[STACK_ARG2]] to ptr
+CHECK-DAG:   load i64, ptr %[[STACK_ARG2_PTR]]
 CHECK: }
 
 CHECK: define i64 @local_cabi_aggregate_on_registers(i64 %[[ARG1:.*]]) [[IGN:.*]] {
 CHECK-DAG:   %[[ARG1_AO:.*]] = call i64 @AddressOf([[IGN:.*]]i64 %[[ARG1]])
-CHECK-DAG:   %[[FIELD1_PTR:.*]] = inttoptr i64 %[[ARG1_AO]] to i64*
-CHECK-DAG:   load i64, i64* %[[FIELD1_PTR]]
+CHECK-DAG:   %[[FIELD1_PTR:.*]] = inttoptr i64 %[[ARG1_AO]] to ptr
+CHECK-DAG:   load i64, ptr %[[FIELD1_PTR]]
 CHECK-DAG:   %[[FIELD2_ADDR:.*]] = add i64 %[[ARG1_AO]], 8
-CHECK-DAG:   %[[FIELD2_PTR:.*]] = inttoptr i64 %[[FIELD2_ADDR]] to i64*
-CHECK-DAG:   load i64, i64* %[[FIELD2_PTR]], align 8
+CHECK-DAG:   %[[FIELD2_PTR:.*]] = inttoptr i64 %[[FIELD2_ADDR]] to ptr
+CHECK-DAG:   load i64, ptr %[[FIELD2_PTR]], align 8
 CHECK: }
 
 CHECK: define i64 @local_cabi_aggregate_on_stack(i64 %[[IGN:.*]], i64 %[[IGN:.*]], i64 %[[IGN:.*]], i64 %[[IGN:.*]], i64 %[[IGN:.*]], i64 %[[IGN:.*]], i64 %[[STACK_ARG:.*]]) [[IGN:.*]] {
 CHECK-DAG:   %[[STACK_ARG_AO:.*]] = call i64 @AddressOf([[IGN:.*]]i64 %[[STACK_ARG]])
-CHECK-DAG:   %[[FIELD1_PTR:.*]] = inttoptr i64 %[[STACK_ARG_AO]] to i64*
-CHECK-DAG:   load i64, i64* %[[FIELD1_PTR]]
+CHECK-DAG:   %[[FIELD1_PTR:.*]] = inttoptr i64 %[[STACK_ARG_AO]] to ptr
+CHECK-DAG:   load i64, ptr %[[FIELD1_PTR]]
 CHECK-DAG:   %[[FIELD2_ADDR:.*]] = add i64 %[[STACK_ARG_AO]], 8
-CHECK-DAG:   %[[FIELD2_PTR:.*]] = inttoptr i64 %[[FIELD2_ADDR]] to i64*
-CHECK-DAG:   load i64, i64* %[[FIELD2_PTR]]
+CHECK-DAG:   %[[FIELD2_PTR:.*]] = inttoptr i64 %[[FIELD2_ADDR]] to ptr
+CHECK-DAG:   load i64, ptr %[[FIELD2_PTR]]
 CHECK: }
 
 CHECK: define i64 @local_cabi_aggregate_on_stack_and_registers(i64 %[[IGN:.*]], i64 %[[IGN:.*]], i64 %[[IGN:.*]], i64 %[[IGN:.*]], i64 %[[IGN:.*]], i64 %[[STACK_ARG:.*]]) [[IGN:.*]] {
 CHECK-DAG:   %[[STACK_ARG_AO:.*]] = call i64 @AddressOf([[IGN:.*]]i64 %[[STACK_ARG]])
-CHECK-DAG:   %[[FIELD1_PTR:.*]] = inttoptr i64 %[[STACK_ARG_AO]] to i64*
-CHECK-DAG:   load i64, i64* %[[FIELD1_PTR]]
+CHECK-DAG:   %[[FIELD1_PTR:.*]] = inttoptr i64 %[[STACK_ARG_AO]] to ptr
+CHECK-DAG:   load i64, ptr %[[FIELD1_PTR]]
 CHECK-DAG:   %[[FIELD2_ADDR:.*]] = add i64 %[[STACK_ARG_AO]], 8
-CHECK-DAG:   %[[FIELD2_PTR:.*]] = inttoptr i64 %[[FIELD2_ADDR]] to i64*
-CHECK-DAG:   load i64, i64* %[[FIELD2_PTR]]
+CHECK-DAG:   %[[FIELD2_PTR:.*]] = inttoptr i64 %[[FIELD2_ADDR]] to ptr
+CHECK-DAG:   load i64, ptr %[[FIELD2_PTR]]
 CHECK: }
 
 CHECK: define i64 @local_caller() [[IGN:.*]] {
