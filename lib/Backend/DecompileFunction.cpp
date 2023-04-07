@@ -619,54 +619,40 @@ CCodeGenerator::getConstantToken(const llvm::Constant *C) const {
       rc_return get128BitIntegerHexConstant(Value);
   }
 
+  if (auto *Global = dyn_cast<llvm::GlobalVariable>(C)) {
+    using namespace llvm;
+    // Check if initializer is a CString
+    auto *Initializer = Global->getInitializer();
+
+    StringRef Content = "";
+    if (auto StringInit = dyn_cast<ConstantDataArray>(Initializer)) {
+
+      // If it's not a C string, bail out
+      if (not StringInit->isCString())
+        revng_abort(dumpToString(Global).c_str());
+
+      // If it's a C string, Drop the terminator
+      Content = StringInit->getAsString().drop_back();
+    } else {
+      // Zero initializers are always valid c empty strings, in all the
+      // other cases, bail out
+      if (not isa<llvm::ConstantAggregateZero>(Initializer))
+        revng_abort(dumpToString(Global).c_str());
+    }
+
+    std::string Escaped;
+    {
+      raw_string_ostream Stream(Escaped);
+      Stream << "\"";
+      Stream.write_escaped(Content);
+      Stream << "\"";
+    }
+
+    rc_return Escaped;
+  }
+
   if (auto *ConstExpr = dyn_cast<llvm::ConstantExpr>(C)) {
     switch (ConstExpr->getOpcode()) {
-
-    case Instruction::GetElementPtr: {
-      using namespace llvm;
-      auto *ResultType = ConstExpr->getType();
-      auto *BasePointer = dyn_cast<GlobalVariable>(ConstExpr->getOperand(0));
-
-      auto IsZero = [](llvm::Value *C) {
-        if (auto *CI = dyn_cast<ConstantInt>(C))
-          return CI->isZero();
-        return false;
-      };
-
-      if (ResultType->isPointerTy()
-          and ResultType->getPointerElementType()->isIntegerTy(8)
-          and BasePointer != nullptr and BasePointer->isConstant()
-          and BasePointer->hasInitializer() and ConstExpr->getNumOperands() == 3
-          and IsZero(ConstExpr->getOperand(1))
-          and IsZero(ConstExpr->getOperand(2))) {
-        // Check if initializer is a CString
-        auto *Initializer = BasePointer->getInitializer();
-
-        StringRef Content = "";
-        if (auto StringInit = dyn_cast<ConstantDataArray>(Initializer)) {
-          // If it's not a C string, bail out.
-          if (not StringInit->isCString())
-            break;
-
-          // If it's a C string, Drop the terminator.
-          Content = StringInit->getAsString().drop_back();
-        } else {
-          // Zero initializers are always valid c empty strings, in all the
-          // other cases, bail out
-          if (not isa<llvm::ConstantAggregateZero>(Initializer))
-            break;
-        }
-
-        std::string Escaped;
-        {
-          raw_string_ostream Stream(Escaped);
-          Stream << "\"";
-          Stream.write_escaped(Content);
-          Stream << "\"";
-        }
-        rc_return Escaped;
-      }
-    } break;
 
     case Instruction::IntToPtr: {
       const auto *Operand = cast<llvm::Constant>(ConstExpr->getOperand(0));
@@ -1206,12 +1192,6 @@ CCodeGenerator::getToken(const llvm::Value *V) const {
   // We should always have names for stuff that is expected to have a name.
   revng_assert(not isa<llvm::Argument>(V) and not isStackFrameDecl(V)
                and not isCallStackArgumentDecl(V) and not isLocalVarDecl(V));
-
-  if (auto *Glob = dyn_cast<llvm::GlobalVariable>(V)) {
-    rc_return helpers::blockComment("revng error: unexpected use of "
-                                    "global variable",
-                                    false);
-  }
 
   if (auto *I = dyn_cast<llvm::Instruction>(V))
     rc_return rc_recur getInstructionToken(I);
