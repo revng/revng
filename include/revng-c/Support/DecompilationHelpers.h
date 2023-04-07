@@ -28,8 +28,8 @@ inline bool hasSideEffects(const llvm::Instruction &I) {
       return true;
 
     if (CalledFunc->isIntrinsic()) {
-      bool IsReadOnly = CalledFunc->hasFnAttribute(llvm::Attribute::ReadOnly);
-      bool IsReadNone = CalledFunc->hasFnAttribute(llvm::Attribute::ReadNone);
+      bool IsReadOnly = CalledFunc->onlyReadsMemory();
+      bool IsReadNone = CalledFunc->doesNotAccessMemory();
       return not IsReadOnly and not IsReadNone;
     }
 

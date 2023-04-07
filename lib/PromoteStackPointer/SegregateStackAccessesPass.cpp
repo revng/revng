@@ -293,8 +293,8 @@ public:
                                       Name,
                                       &M);
       Result->addFnAttr(Attribute::NoUnwind);
-      Result->addFnAttr(Attribute::ReadOnly);
       Result->addFnAttr(Attribute::WillReturn);
+      Result->setMemoryEffects(MemoryEffects::readOnly());
       Result->setOnlyAccessesInaccessibleMemory();
       FunctionTags::AllocatesLocalVariable.addTo(Result);
       FunctionTags::MallocLike.addTo(Result);
