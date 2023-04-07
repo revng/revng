@@ -10,6 +10,7 @@ Branches:
           - Type: LLVMPipe
             UsedContainers: [module.ll]
             Passes:
+              - hoist-struct-phis
               - remove-llvmassume-calls
               - dce
               - remove-pointer-casts
