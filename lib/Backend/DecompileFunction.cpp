@@ -352,8 +352,7 @@ static const std::string getBinOpString(const llvm::BinaryOperator *BinOp) {
     default:
       revng_abort("Unknown const Binary operation");
     }
-  }
-  ();
+  }();
   return " " + *Op + " ";
 }
 
@@ -381,8 +380,7 @@ static const std::string getCmpOpString(const llvm::CmpInst::Predicate &Pred) {
     default:
       revng_abort("Unknown comparison operator");
     }
-  }
-  ();
+  }();
   return " " + *Op + " ";
 }
 
