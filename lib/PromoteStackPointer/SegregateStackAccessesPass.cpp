@@ -316,12 +316,18 @@ public:
 
 public:
   bool run() {
+    SmallVector<Function *, 8> IsolatedFunctions;
+    for (Function &F : FunctionTags::StackPointerPromoted.functions(&M)) {
+      IsolatedFunctions.push_back(&F);
+    }
+
     upgradeDynamicFunctions();
     upgradeLocalFunctions();
 
-    for (Function &F : FunctionTags::StackPointerPromoted.functions(&M)) {
-      segregateStackAccesses(*Cache, F);
-      FunctionTags::StackAccessesSegregated.addTo(&F);
+    for (Function *Old : IsolatedFunctions) {
+      auto *F = OldToNew.at(Old);
+      segregateStackAccesses(*Cache, *F);
+      FunctionTags::StackAccessesSegregated.addTo(F);
     }
 
     pushALAP();
@@ -1120,9 +1126,6 @@ private:
 
     // Record the old-to-new mapping
     OldToNew[OldFunction] = &NewFunction;
-
-    // Drop all tags so we don't go over this again
-    OldFunction->clearMetadata();
 
     return { &NewFunction, Layout };
   }
