@@ -30,9 +30,9 @@ Branches:
               - sroa
               - instcombine
               - sroa
-              - simplifycfg
+              - simplify-cfg-with-hoist-and-sink
               - loop-rewrite-with-canonical-induction-variable
-              - simplifycfg
+              - simplify-cfg-with-hoist-and-sink
               - instcombine
               - early-cse
               - dce

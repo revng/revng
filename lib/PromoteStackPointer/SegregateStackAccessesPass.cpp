@@ -722,6 +722,7 @@ private:
 
     // Find old call instruction
     CallInst *OldCall = findAssociatedCall(SSACSCall);
+    revng_assert(OldCall != nullptr);
 
     if (not OldCall) {
       // We can't find the original call, it might have been DCE'd away
