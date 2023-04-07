@@ -54,7 +54,9 @@ static CallInst *findCallTo(Function *F, Function *ToSearch) {
   return nullptr;
 }
 
-static std::optional<int64_t> getStackOffset(Value *Pointer) {
+static std::optional<int64_t> getStackOffset(Instruction *I) {
+  auto *Pointer = getPointer(I);
+
   auto *PointerInstruction = dyn_cast<Instruction>(skipCasts(Pointer));
   if (PointerInstruction == nullptr)
     return {};
@@ -63,7 +65,7 @@ static std::optional<int64_t> getStackOffset(Value *Pointer) {
     if (auto *Callee = getCallee(Call)) {
       if (FunctionTags::StackOffsetMarker.isTagOf(Callee)) {
         // Check if this is a stack access, i.e., targets an exact range
-        unsigned AccessSize = getPointeeSize(Pointer);
+        unsigned AccessSize = getMemoryAccessSize(I);
         auto MaybeStart = getSignedConstantArg(Call, 1);
         auto MaybeEnd = getSignedConstantArg(Call, 2);
 
@@ -193,18 +195,15 @@ struct SegregateStackAccessesMFI : public SetUnionLattice<Lattice> {
         continue;
       }
 
-      // Get pointer
-      llvm::Value *Pointer = getPointer(&I);
-
       // If it's not a load/store, pointer is nullptr
-      if (Pointer == nullptr)
+      if (not isa<LoadInst>(&I) and not isa<StoreInst>(&I))
         continue;
 
       revng_log(Log, "Analzying instruction " << getName(&I));
       LoggerIndent<> Indent(Log);
 
       // Get stack offset, if available
-      auto MaybeStartStackOffset = getStackOffset(Pointer);
+      auto MaybeStartStackOffset = getStackOffset(&I);
       if (not MaybeStartStackOffset)
         continue;
 
@@ -1016,10 +1015,7 @@ private:
     revng_log(Log, "Handling memory access " << getName(I));
     LoggerIndent<> Indent(Log);
 
-    auto *Pointer = getPointer(I);
-    revng_assert(Pointer != nullptr);
-
-    auto MaybeStackOffset = getStackOffset(Pointer);
+    auto MaybeStackOffset = getStackOffset(I);
     if (not MaybeStackOffset)
       return;
     int64_t StackOffset = *MaybeStackOffset;

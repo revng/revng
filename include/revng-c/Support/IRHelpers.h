@@ -136,3 +136,17 @@ void emitMessage(llvm::Instruction *EmitBefore, const llvm::Twine &Message);
 void emitMessage(llvm::IRBuilder<llvm::ConstantFolder,
                                  llvm::IRBuilderDefaultInserter> &Builder,
                  const llvm::Twine &Message);
+
+inline unsigned getMemoryAccessSize(llvm::Instruction *I) {
+  using namespace llvm;
+  Type *T = nullptr;
+
+  if (auto *Load = dyn_cast<LoadInst>(I))
+    T = Load->getType();
+  else if (auto *Store = dyn_cast<StoreInst>(I))
+    T = Store->getValueOperand()->getType();
+  else
+    revng_abort();
+
+  return llvm::cast<llvm::IntegerType>(T)->getBitWidth() / 8;
+}

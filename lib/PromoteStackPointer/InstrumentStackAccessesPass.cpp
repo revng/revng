@@ -11,6 +11,7 @@
 
 #include "revng-c/PromoteStackPointer/InstrumentStackAccessesPass.h"
 #include "revng-c/Support/FunctionTags.h"
+#include "revng-c/Support/IRHelpers.h"
 
 using namespace llvm;
 
