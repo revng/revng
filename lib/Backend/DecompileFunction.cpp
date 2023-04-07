@@ -98,6 +98,14 @@ static constexpr const char *StackFrameVarName = "stack";
 static Logger<> Log{ "c-backend" };
 static Logger<> VisitLog{ "c-backend-visit-order" };
 
+static std::string buildInvalid(const llvm::Value *V, llvm::StringRef Comment) {
+  std::string Result;
+  revng_assert(V->getType()->isIntOrPtrTy());
+  Result = constants::Zero.serialize();
+  Result += " " + helpers::blockComment(Comment, false);
+  return Result;
+}
+
 static bool isAssignment(const llvm::Value *I) {
   return isCallToTagged(I, FunctionTags::Assign);
 }
@@ -594,19 +602,11 @@ CCodeGenerator::buildCastExpr(StringRef ExprToCast,
 RecursiveCoroutine<std::string>
 CCodeGenerator::getConstantToken(const llvm::Constant *C) const {
 
-  if (auto *Undef = dyn_cast<llvm::UndefValue>(C)) {
-    revng_assert(Undef->getType()->isIntOrPtrTy());
-    std::string Zero = constants::Zero.serialize();
-    Zero += " " + helpers::blockComment("undef", false);
-    rc_return Zero;
-  }
+  if (isa<llvm::UndefValue>(C))
+    rc_return buildInvalid(C, "undef");
 
-  if (auto *Poison = dyn_cast<llvm::PoisonValue>(C)) {
-    revng_assert(Poison->getType()->isIntOrPtrTy());
-    std::string Zero = constants::Zero.serialize();
-    Zero += " " + helpers::blockComment("poison", false);
-    rc_return Zero;
-  }
+  if (isa<llvm::PoisonValue>(C))
+    rc_return buildInvalid(C, "poison");
 
   if (auto *Null = dyn_cast<llvm::ConstantPointerNull>(C))
     rc_return constants::Null.serialize();
