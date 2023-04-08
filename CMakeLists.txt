@@ -97,11 +97,28 @@ llvm_map_components_to_libnames(
   Passes
   TargetParser)
 
+# Create share/revng/additional-bin-paths
+set(ADDITIONAL_BIN_PATHS "${CMAKE_BINARY_DIR}/share/revng/additional-bin-paths")
+file(WRITE "${ADDITIONAL_BIN_PATHS}" "libexec/revng\n")
+
+file(RELATIVE_PATH RELATIVE_LLVM_TOOLS_BINARY_DIR "${CMAKE_INSTALL_PREFIX}"
+     "${LLVM_TOOLS_BINARY_DIR}")
+file(APPEND "${ADDITIONAL_BIN_PATHS}" "${RELATIVE_LLVM_TOOLS_BINARY_DIR}\n")
+
+# Create additional-search-prefixes
+file(WRITE "${CMAKE_BINARY_DIR}/additional-search-prefixes"
+     "${CMAKE_INSTALL_PREFIX}\n")
+
+file(RELATIVE_PATH RELATIVE_LLVM_TOOLS_BINARY_DIR "${CMAKE_INSTALL_PREFIX}"
+     "${LLVM_TOOLS_BINARY_DIR}")
+file(APPEND "${ADDITIONAL_BIN_PATHS}" "${RELATIVE_LLVM_TOOLS_BINARY_DIR}\n")
+
 #
 # share/revng
 #
 add_custom_target(copy_share ALL COMMAND cp -Tar "${CMAKE_SOURCE_DIR}/share/"
                                          "${CMAKE_BINARY_DIR}/share/")
+
 install(
   DIRECTORY "${CMAKE_BINARY_DIR}/share/"
   DESTINATION share/

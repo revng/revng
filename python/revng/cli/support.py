@@ -7,20 +7,15 @@ import shlex
 import signal
 import subprocess
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from shutil import which
 from typing import Any, Dict, Iterable, List, NoReturn, Optional, Union
 
-from revng.support import get_root
+from revng.support import get_root, read_lines
 from revng.support.collect import collect_files, collect_libraries
 from revng.support.elf import is_executable
 
-try:
-    from shutil import which
-except ImportError:
-    from backports.shutil_which import which  # type: ignore
-
-script_path = os.path.dirname(os.path.realpath(__file__))
-root_path = str(get_root())
+additional_bin_paths = read_lines(get_root() / "share/revng/additional-bin-paths")
 
 
 @dataclass
@@ -31,7 +26,7 @@ class Options:
     verbose: bool
     dry_run: bool
     keep_temporaries: bool
-    search_prefixes: List[str] = field(default_factory=lambda: [root_path])
+    search_prefixes: List[str]
 
 
 def shlex_join(split_command: Iterable[str]) -> str:
@@ -91,11 +86,9 @@ def run(command, options: Options, environment: Optional[Dict[str, str]] = None,
 
 
 def get_command(command: str, search_prefixes: Iterable[str]) -> str:
-    if command.startswith("revng-"):
-        for executable in collect_files(search_prefixes, ["libexec", "revng"], command):
+    for additional_bin_path in additional_bin_paths:
+        for executable in collect_files(search_prefixes, [additional_bin_path], command):
             return executable
-        log_error(f'Couldn\'t find "{command}"')
-        assert False
 
     path = which(command)
     if not path:

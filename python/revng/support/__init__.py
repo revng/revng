@@ -4,7 +4,7 @@
 
 from collections.abc import Iterable as CIterable
 from pathlib import Path
-from typing import Iterable, TypeVar, Union
+from typing import Iterable, List, TypeVar, Union
 
 T = TypeVar("T")
 
@@ -22,3 +22,10 @@ def to_iterable(obj: SingleOrIterable[T]) -> Iterable[T]:
 # We assume this file is in <root>/lib/python$VERSION/site-packages/revng/support
 def get_root() -> Path:
     return (Path(__file__) / "../../../../../../").resolve()
+
+
+def read_lines(path: Path) -> List[str]:
+    if not path.exists():
+        return []
+    else:
+        return path.read_text().strip().split("\n")
