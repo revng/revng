@@ -404,8 +404,15 @@ getStrongModelInfo(FunctionMetadataCache &Cache,
       const auto &FuncName = CalledFunc->getName();
       auto FTags = FunctionTags::TagsSet::from(CalledFunc);
 
-      if (FTags.contains(FunctionTags::ModelGEP)
-          or FTags.contains(FunctionTags::ModelGEPRef)) {
+      if (FuncName.startswith("revng_call_stack_arguments")) {
+        auto *Arg0Operand = Call->getArgOperand(0);
+        QualifiedType
+          CallStackArgumentType = deserializeFromLLVMString(Arg0Operand, Model);
+        revng_assert(not CallStackArgumentType.isVoid());
+
+        ReturnTypes.push_back(std::move(CallStackArgumentType));
+      } else if (FTags.contains(FunctionTags::ModelGEP)
+                 or FTags.contains(FunctionTags::ModelGEPRef)) {
         auto GEPpedType = traverseModelGEP(Model, Call);
         ReturnTypes.push_back(GEPpedType);
 
