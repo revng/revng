@@ -389,23 +389,13 @@ getStrongModelInfo(FunctionMetadataCache &Cache,
 
   if (auto *Call = dyn_cast<llvm::CallInst>(Inst)) {
 
-    auto Prototype = Cache.getCallSitePrototype(Model, Call);
-    if (Prototype.isValid() and not Prototype.empty()) {
+    if (isCallToIsolatedFunction(Call)) {
+      auto Prototype = Cache.getCallSitePrototype(Model, Call);
+      revng_assert(Prototype.isValid() and not Prototype.empty());
 
-      auto *CalledFunc = Call->getCalledFunction();
-      if (CalledFunc
-          and CalledFunc->getName().startswith("revng_call_stack_arguments")) {
-        auto *Arg0Operand = Call->getArgOperand(0);
-        QualifiedType
-          CallStackArgumentType = deserializeFromLLVMString(Arg0Operand, Model);
-        revng_assert(not CallStackArgumentType.isVoid());
-
-        ReturnTypes.push_back(std::move(CallStackArgumentType));
-      } else {
-        // Isolated functions and dynamic functions have their prototype in the
-        // model
-        ReturnTypes = handleReturnValue(Prototype, Model);
-      }
+      // Isolated functions and dynamic functions have their prototype in the
+      // model
+      ReturnTypes = handleReturnValue(Prototype, Model);
 
     } else {
       // Non-isolated functions do not have a Prototype in the model, but we can
