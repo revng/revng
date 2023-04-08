@@ -9,7 +9,7 @@ from inspect import isfunction
 from pathlib import Path
 
 from .commands_registry import Options, commands_registry
-from .support import collect_files
+from .support import collect_files, get_root, read_lines
 
 
 def extend_list(paths, new_items):
@@ -17,7 +17,7 @@ def extend_list(paths, new_items):
 
 
 def revng_driver_init(arguments) -> Options:
-    options = Options(None, [], [], False, False, False)
+    options = Options(None, [], [], False, False, False, [])
     modules = []
     with os.scandir(Path(__file__).parent / "_commands") as scan:
         for entry in scan:
@@ -33,6 +33,14 @@ def revng_driver_init(arguments) -> Options:
         setup = getattr(module, "setup", None)
         if setup is not None and isfunction(setup):
             setup(commands_registry)
+
+    # Add forced search prefixes
+    options.search_prefixes = extend_list(
+        options.search_prefixes, read_lines(get_root() / "additional-search-prefixes")
+    )
+
+    # Add root as search prefix
+    options.search_prefixes = extend_list(options.search_prefixes, [str(get_root())])
 
     # Collect search prefixes
     prefixes = []
