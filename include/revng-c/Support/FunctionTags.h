@@ -51,6 +51,8 @@ inline Tag DecompiledToYAML("DecompiledToYAML", StackPointerPromoted);
 
 inline Tag StackOffsetMarker("StackOffsetMarker");
 
+inline Tag BinaryOperationOverflows("BinaryOperationOverflows");
+
 } // namespace FunctionTags
 
 /// This struct can be used as a key of an OpaqueFunctionsPool where both

@@ -38,6 +38,7 @@ Branches:
               - dce
               - restore-extractvalues
               - strip-dead-prototypes
+              - split-overflow-intrinsics
       - Name: MakeSegmentRefs
         Pipes:
           - Type: MakeSegmentRefs
