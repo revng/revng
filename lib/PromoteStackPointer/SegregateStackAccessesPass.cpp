@@ -254,7 +254,8 @@ private:
   std::map<Function *, StackAccessRedirector> StackArgumentsRedirectors;
   std::vector<Instruction *> ToPushALAP;
 
-  llvm::Type *PtrSizedInteger;
+  llvm::Type *PtrSizedInteger = nullptr;
+  llvm::Type *OpaquePointerType = nullptr;
   OpaqueFunctionsPool<TypePair> AddressOfPool;
   OpaqueFunctionsPool<llvm::Type *> AssignPool;
   OpaqueFunctionsPool<llvm::Type *> LocalVarPool;
@@ -273,6 +274,7 @@ public:
     CallInstructionPushSize(getCallPushSize(Binary)),
     StackPointerType(StackPointer->getValueType()),
     PtrSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
+    OpaquePointerType(PointerType::get(M.getContext(), 0)),
     AddressOfPool(&M, false),
     AssignPool(&M, false),
     LocalVarPool(&M, false),
@@ -563,11 +565,9 @@ private:
 
           for (model::Register::Values Register : ModelArgument.Registers) {
             Argument *OldArgument = ArgumentToRegister.at(Register);
-            Type *OldArgumentPtrType = OldArgument->getType()->getPointerTo();
 
             // Load value
             Value *ArgumentPointer = computeAddress(Builder,
-                                                    OldArgumentPtrType,
                                                     AddressOfNewArgument,
                                                     OffsetInNewArgument);
             Value *ArgumentValue = Builder.CreateLoad(OldArgument->getType(),
@@ -806,7 +806,6 @@ private:
           revng_assert(ModelArgument.Stack->Size <= 128 / 8);
           unsigned OldSize = ModelArgument.Stack->Size;
           Type *LoadTy = Builder.getIntNTy(OldSize * 8);
-          Type *LoadPointerTy = LoadTy->getPointerTo();
           revng_assert(StackPointer != nullptr);
 
           revng_assert(MaybeStackSize);
@@ -819,7 +818,7 @@ private:
           Value *Address = Builder.CreateAdd(StackPointer, Offset);
 
           // Load value
-          Value *Pointer = Builder.CreateIntToPtr(Address, LoadPointerTy);
+          Value *Pointer = Builder.CreateIntToPtr(Address, OpaquePointerType);
           Value *Loaded = Builder.CreateLoad(LoadTy, Pointer);
 
           // Extend, shift and or in Accumulator
@@ -868,8 +867,7 @@ private:
           Value *Address = Builder.CreateAdd(AddrOfCall, Offset);
 
           // Store value
-          Type *StorePointerTy = OldArgument->getType()->getPointerTo();
-          Value *Pointer = Builder.CreateIntToPtr(Address, StorePointerTy);
+          Value *Pointer = Builder.CreateIntToPtr(Address, OpaquePointerType);
           Builder.CreateStore(OldArgument, Pointer);
 
           // Consume size
@@ -1066,22 +1064,16 @@ private:
     return ConstantInt::get(StackPointerType, Value);
   }
 
-  Value *computeAddress(IRBuilder<> &B,
-                        Type *PointerType,
-                        Value *Base,
-                        int64_t Offset) const {
+  Value *computeAddress(IRBuilder<> &B, Value *Base, int64_t Offset) const {
     auto *NewOffset = ConstantInt::get(Base->getType(), Offset);
-    return B.CreateIntToPtr(B.CreateAdd(Base, NewOffset), PointerType);
+    return B.CreateIntToPtr(B.CreateAdd(Base, NewOffset), OpaquePointerType);
   }
 
   void replace(Instruction *I, Value *Base, int64_t Offset) {
     ToPurge.insert(I);
 
     IRBuilder<> B(I);
-    auto *NewAddress = computeAddress(B,
-                                      getPointer(I)->getType(),
-                                      Base,
-                                      Offset);
+    auto *NewAddress = computeAddress(B, Base, Offset);
 
     Instruction *NewInstruction = nullptr;
     if (auto *Store = dyn_cast<StoreInst>(I)) {
