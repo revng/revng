@@ -36,8 +36,6 @@ namespace yield {
 class Tag : public generated::Tag {
 public:
   using generated::Tag::Tag;
-  Tag(TagType::Values Type, uint64_t From, uint64_t To) :
-    generated::Tag(Type, From, To) {}
 
   std::strong_ordering operator<=>(const Tag &Another) const {
     if (From() != Another.From())
