@@ -1048,8 +1048,13 @@ static DifferenceScore lowerBound(const model::QualifiedType &BaseType,
 
   auto PointeeSize = IRHasPointee ? *IRPattern.PointeeType->trySize(VH) : 0ULL;
 
-  if ((IRPattern.BaseOffset + PointeeSize).uge(BaseSize))
+  if (IRPattern.BaseOffset.uge(BaseSize))
     return DifferenceScore::outOfBound(IRPattern.BaseOffset.getZExtValue());
+
+  if ((IRPattern.BaseOffset + PointeeSize).ugt(BaseSize)) {
+    llvm::APInt HowMuchOut = IRPattern.BaseOffset + PointeeSize - BaseSize;
+    return DifferenceScore::outOfBound(HowMuchOut.getZExtValue());
+  }
 
   // Assume we can find a perfect match with the same size unless we find strong
   // evidence of the opposite.
@@ -1316,10 +1321,9 @@ computeBestTAP(model::QualifiedType BaseType,
       // Even better would be to actually verify that this cannot happen by
       // design, and just remove the assertion and add the early exit.
       revng_assert(not CanImprove or Status == InitiallyImproving);
-      if (not CanImprove)
+      if (not CanImprove) {
         Status = StartedDegrading;
-
-      if (CanImprove) {
+      } else {
         // We have estimated that accessing the struct field may yield a better
         // score. Let's compute the best TAP with indices, for accessing the
         // field.
