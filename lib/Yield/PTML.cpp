@@ -59,37 +59,48 @@ static std::string labelAddress(const BasicBlockID &Address) {
   return Result;
 }
 
-static std::string label(const BasicBlockID &BasicBlock,
-                         const yield::Function &Function,
-                         const model::Binary &Binary) {
-  std::string LabelName;
-  std::string FunctionPath;
+struct LabelDescription {
+  std::string Name;
   std::string Location;
-
+  std::string Path = "";
+};
+static LabelDescription labelImpl(const BasicBlockID &BasicBlock,
+                                  const yield::Function &Function,
+                                  const model::Binary &Binary) {
   const auto &CFG = Function.ControlFlowGraph();
-  if (auto *F = yield::tryGetFunction(Binary, BasicBlock)) {
-    LabelName = F->name().str().str();
-    FunctionPath = "/Functions/" + str(F->key()) + "/CustomName";
-    Location = serializedLocation(ranks::Function, F->key());
+  if (auto *ModelFunction = yield::tryGetFunction(Binary, BasicBlock)) {
+    return LabelDescription{
+      .Name = ModelFunction->name().str().str(),
+      .Location = serializedLocation(ranks::Function, ModelFunction->key()),
+      .Path = "/Functions/" + str(ModelFunction->key()) + "/CustomName"
+    };
   } else if (CFG.find(BasicBlock) != CFG.end()) {
-    LabelName = "basic_block_at_" + labelAddress(BasicBlock);
-    Location = serializedLocation(ranks::BasicBlock,
-                                  model::Function(Function.Entry()).key(),
-                                  BasicBlock);
+    return LabelDescription{
+      .Name = "basic_block_at_" + labelAddress(BasicBlock),
+      .Location = serializedLocation(ranks::BasicBlock,
+                                     model::Function(Function.Entry()).key(),
+                                     BasicBlock)
+    };
   } else {
-    revng_abort("Unable to emit a label because it does not exist.");
+    revng_abort("Unable to emit a label for an object that does not exist.");
   }
+}
 
-  using model::Architecture::getAssemblyLabelIndicator;
-  auto LabelIndicator = getAssemblyLabelIndicator(Binary.Architecture());
-  Tag LabelTag(tags::Span, LabelName);
+static std::string labelDefinition(const BasicBlockID &BasicBlock,
+                                   const yield::Function &Function,
+                                   const model::Binary &Binary) {
+  auto [Name, Location, Path] = labelImpl(BasicBlock, Function, Binary);
+
+  Tag LabelTag(tags::Span, Name);
   LabelTag.addAttribute(attributes::Token, tokenTypes::Label)
     .addAttribute(attributes::LocationDefinition, Location);
-  if (!FunctionPath.empty())
-    LabelTag.addAttribute(attributes::ModelEditPath, FunctionPath);
+  if (!Path.empty())
+    LabelTag.addAttribute(attributes::ModelEditPath, Path);
 
+  using model::Architecture::getAssemblyLabelIndicator;
+  std::string Indicator(getAssemblyLabelIndicator(Binary.Architecture()));
   return LabelTag.serialize()
-         + Tag(tags::Span, LabelIndicator)
+         + Tag(tags::Span, Indicator)
              .addAttribute(attributes::Token, tokenTypes::LabelIndicator)
              .serialize();
 }
@@ -299,7 +310,7 @@ static std::string labeledBlock(const yield::BasicBlock &FirstBlock,
                                 const yield::Function &Function,
                                 const model::Binary &Binary) {
   std::string Result;
-  std::string Label = label(FirstBlock.ID(), Function, Binary);
+  std::string Label = labelDefinition(FirstBlock.ID(), Function, Binary);
 
   if constexpr (ShouldMergeFallthroughTargets == false) {
     Result = basicBlock(FirstBlock, Function, Binary, std::move(Label)) + "\n";
