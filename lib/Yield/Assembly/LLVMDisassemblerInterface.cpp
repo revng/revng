@@ -156,6 +156,12 @@ static yield::TagType::Values parseMarkupTag(llvm::StringRef Input) {
     return yield::TagType::Memory;
   else if (Input == "reg")
     return yield::TagType::Register;
+  else if (Input == "addr")
+    return yield::TagType::Address;
+  else if (Input == "pcrel")
+    return yield::TagType::PCRelativeAddress;
+  else if (Input == "absolute")
+    return yield::TagType::AbsoluteAddress;
   else
     revng_abort(("Unknown llvm markup tag: '" + Input.str() + "'").c_str());
 }

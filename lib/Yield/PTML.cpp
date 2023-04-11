@@ -26,6 +26,7 @@ namespace ranks = revng::ranks;
 
 namespace tokenTypes {
 
+static constexpr auto Helper = "asm.helper";
 static constexpr auto Label = "asm.label";
 static constexpr auto LabelIndicator = "asm.label-indicator";
 static constexpr auto Mnemonic = "asm.mnemonic";
@@ -175,6 +176,9 @@ static std::set<std::string> targets(const yield::BasicBlock &BasicBlock,
 
 static std::string tagTypeAsString(const yield::TagType::Values &Type) {
   switch (Type) {
+  case yield::TagType::Address:
+  case yield::TagType::PCRelativeAddress:
+  case yield::TagType::AbsoluteAddress:
   case yield::TagType::Immediate:
     return tokenTypes::ImmediateValue;
   case yield::TagType::Memory:
@@ -187,8 +191,10 @@ static std::string tagTypeAsString(const yield::TagType::Values &Type) {
     return tokenTypes::MnemonicSuffix;
   case yield::TagType::Register:
     return tokenTypes::Register;
+  case yield::TagType::Helper:
+    return tokenTypes::Helper;
   case yield::TagType::Whitespace:
-  case yield::TagType::Invalid:
+  case yield::TagType::Untagged:
     return "";
   default:
     revng_abort("Unknown tag type");
