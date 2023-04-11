@@ -20,6 +20,9 @@ argparser.add_argument("--namespace", required=True, help="Base namespace for ge
 argparser.add_argument("--root-type", required=True, help="Schema root type")
 argparser.add_argument("--scalar-type", action="append", default=[], help="Scalar type")
 argparser.add_argument("--include-path-prefix", required=True, help="Prefixed to include paths")
+argparser.add_argument(
+    "--tracking", action="store_true", help="Emits tracking sequences", default=False
+)
 
 
 def is_clang_format_available():
@@ -42,7 +45,7 @@ def main(args):
         raw_schema = yaml.safe_load(f)
 
     schema = Schema(raw_schema, args.namespace, args.scalar_type)
-    sources = generate_cpp_headers(schema, args.root_type, args.include_path_prefix)
+    sources = generate_cpp_headers(schema, args.root_type, args.include_path_prefix, args.tracking)
 
     if is_clang_format_available():
         sources = {name: reformat(source) for name, source in sources.items()}

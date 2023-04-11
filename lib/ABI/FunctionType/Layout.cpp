@@ -50,7 +50,7 @@ struct DistributedArgument {
 using DistributedArguments = llvm::SmallVector<DistributedArgument, 8>;
 
 using RegisterSpan = std::span<const model::Register::Values>;
-using ArgumentSet = SortedVector<model::Argument>;
+using ArgumentSet = TrackingSortedVector<model::Argument>;
 
 class ToRawConverter {
 private:

@@ -97,7 +97,7 @@ public:
   void dump() const debug_function;
 
 private:
-  const MutableSet<model::FunctionAttribute::Values> *
+  const TrackingMutableSet<model::FunctionAttribute::Values> *
   calleeAttributes(const model::Binary &Binary) const {
     if (not DynamicFunction().empty()) {
       const auto &F = Binary.ImportedDynamicFunctions().at(DynamicFunction());

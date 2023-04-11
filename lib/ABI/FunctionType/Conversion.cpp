@@ -21,8 +21,8 @@ namespace abi::FunctionType {
 
 class ToCABIConverter {
 private:
-  using ArgumentRegisters = SortedVector<model::NamedTypedRegister>;
-  using ReturnValueRegisters = SortedVector<model::TypedRegister>;
+  using ArgumentRegisters = TrackingSortedVector<model::NamedTypedRegister>;
+  using ReturnValueRegisters = TrackingSortedVector<model::TypedRegister>;
 
 public:
   struct Converted {
