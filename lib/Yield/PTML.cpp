@@ -65,16 +65,21 @@ static std::string label(const yield::BasicBlock &BasicBlock,
   std::string LabelName;
   std::string FunctionPath;
   std::string Location;
+
+  const auto &CFG = Function.ControlFlowGraph();
   if (auto *F = yield::tryGetFunction(Binary, BasicBlock.ID())) {
     LabelName = F->name().str().str();
     FunctionPath = "/Functions/" + str(F->key()) + "/CustomName";
     Location = serializedLocation(ranks::Function, F->key());
-  } else {
+  } else if (CFG.find(BasicBlock.ID()) != CFG.end()) {
     LabelName = "basic_block_at_" + labelAddress(BasicBlock.ID());
     Location = serializedLocation(ranks::BasicBlock,
                                   model::Function(Function.Entry()).key(),
                                   BasicBlock.ID());
+  } else {
+    revng_abort("Unable to emit a label because it does not exist.");
   }
+
   using model::Architecture::getAssemblyLabelIndicator;
   auto LabelIndicator = getAssemblyLabelIndicator(Binary.Architecture());
   Tag LabelTag(tags::Span, LabelName);
