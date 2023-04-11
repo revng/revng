@@ -23,10 +23,23 @@ The notice below applies to the generated files.
 #include "/*= generator.user_include_path =*//*= header =*/"
 /**- endfor **/
 
+
+/**- if emit_tracking **/
+namespace revng {
+struct Tracking;
+}
+
+struct ReadFields;
+/**- endif **/
+
 /*= struct.doc | docstring -=*/
 struct /*= struct | fullname =*/
   /**- if struct.inherits **/ : public /*= struct.inherits | user_fullname =*/ /** endif -**/
 {
+  /**- if emit_tracking **/
+  friend struct revng::Tracking;
+  /** endif -**/
+
   /**- if struct.inherits **/
   static constexpr const /*= struct.inherits.name =*/Kind::Values AssociatedKind = /*= struct.inherits.name =*/Kind::/*= struct.name =*/;
   /**- endif **/

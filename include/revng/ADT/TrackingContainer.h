@@ -15,6 +15,10 @@
 #include "revng/Support/AccessTracker.h"
 
 namespace revng {
+struct Tracking;
+} // namespace revng
+
+namespace revng {
 
 /// Wrapper around a KeyedObjectContainer tracking accessed elements
 ///
@@ -26,6 +30,8 @@ namespace revng {
 template<KeyedObjectContainer T>
 class TrackingContainer {
 public:
+  friend struct revng::Tracking;
+
   using key_type = typename T::key_type;
   using TrackingSet = std::set<std::remove_const_t<key_type>>;
   using size_type = typename T::size_type;
