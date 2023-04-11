@@ -17,6 +17,7 @@ bool init_unit_test();
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/DiffError.h"
 #include "revng/TupleTree/Introspection.h"
+#include "revng/TupleTree/Tracking.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
 #include "revng/TupleTree/VisitsImpl.h"
 #include "revng/UnitTestHelpers/UnitTestHelpers.h"
@@ -334,4 +335,108 @@ BOOST_AUTO_TEST_CASE(ModelErrors) {
   BOOST_TEST(not Error.isA<DocumentErrorExample2>());
   BOOST_TEST(Error.isA<revng::DocumentErrorBase>());
   llvm::consumeError(std::move(Error));
+}
+
+BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCompile) {
+  model::Binary Model;
+  revng::Tracking::collect(Model);
+}
+
+BOOST_AUTO_TEST_CASE(TrackingResetterShouldCompile) {
+  model::Binary Model;
+  revng::Tracking::clear(Model);
+}
+
+BOOST_AUTO_TEST_CASE(TrackingPushAndPopperShouldCompile) {
+  model::Binary Model;
+  revng::Tracking::push(Model);
+  revng::Tracking::pop(Model);
+}
+
+BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldBeEmptyAtFirst) {
+  model::Binary Model;
+  auto MetaAddress = MetaAddress::fromPC(llvm::Triple::ArchType::x86_64, 0);
+  Model.Segments().insert(Segment(MetaAddress, 1000));
+  revng::Tracking::clear(Model);
+
+  auto Collected = revng::Tracking::collect(Model);
+  BOOST_TEST(Collected.Read.size() == 0);
+}
+
+BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCollectSegments) {
+  model::Binary Model;
+  const auto MetaAddress = MetaAddress::fromPC(llvm::Triple::ArchType::x86_64,
+                                               0);
+  Model.Segments().insert(Segment(MetaAddress, 1000));
+  revng::Tracking::clear(Model);
+  const auto &ConstModel = Model;
+  ConstModel.Segments().at(Segment::Key(MetaAddress, 1000)).StartAddress();
+
+  auto Collected = revng::Tracking::collect(Model);
+  BOOST_TEST(Collected.Read.size() == 2);
+  std::vector StringPaths = {
+    "/Segments",
+    "/Segments/0x0:Code_x86_64-1000",
+  };
+
+  std::set<TupleTreePath> Paths;
+  for (const auto &Path : StringPaths) {
+    Paths.insert(*stringAsPath<model::Binary>(Path));
+  }
+  BOOST_TEST(Collected.Read == Paths);
+}
+
+BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCollectNotFoundSegments) {
+  model::Binary Model;
+  const auto MetaAddress = MetaAddress::fromPC(llvm::Triple::ArchType::x86_64,
+                                               0);
+  revng::Tracking::clear(Model);
+  const auto &ConstModel = Model;
+  ConstModel.Segments().tryGet(Segment::Key(MetaAddress, 1000));
+
+  auto Collected = revng::Tracking::collect(Model);
+  BOOST_TEST(Collected.Read.size() == 2);
+  std::set<TupleTreePath> Paths = {
+    *stringAsPath<model::Binary>("/Segments"),
+    *stringAsPath<model::Binary>("/Segments/0x0:Code_x86_64-1000"),
+  };
+  BOOST_TEST(Collected.Read == Paths);
+}
+
+BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCollectAllSegments) {
+  model::Binary Model;
+  const auto MetaAddress = MetaAddress::fromPC(llvm::Triple::ArchType::x86_64,
+                                               0);
+  Model.Segments().insert(Segment(MetaAddress, 1000));
+  revng::Tracking::clear(Model);
+  const auto &ConstModel = Model;
+  ConstModel.Segments().begin();
+
+  auto Collected = revng::Tracking::collect(Model);
+  BOOST_TEST(Collected.Read.size() == 1);
+  std::set<TupleTreePath> Paths = {
+    *stringAsPath<model::Binary>("/Segments"),
+  };
+  BOOST_TEST(Collected.Read == Paths);
+  BOOST_TEST(Collected.ExactVectors == Paths);
+}
+
+/// This test asserts that Tracking visits do no inspect inside a vector.
+/// We need to find a way to represent non sorted vector, using regular vectors
+/// breaks diffs, since they don't have a indexe to rapresent a child
+BOOST_AUTO_TEST_CASE(QualifiersInsideAVectorAreNotVisited) {
+  model::QualifiedType Type;
+  const auto MetaAddress = MetaAddress::fromPC(llvm::Triple::ArchType::x86_64,
+                                               0);
+  Type.Qualifiers().push_back(Qualifier());
+  revng::Tracking::clear(Type);
+  const auto &ConstType = Type;
+  ConstType.Qualifiers().at(0).Size();
+
+  auto Collected = revng::Tracking::collect(Type);
+  BOOST_TEST(Collected.Read.size() == 1);
+  std::set<TupleTreePath> Paths = {
+    *stringAsPath<model::QualifiedType>("/Qualifiers"),
+  };
+  BOOST_TEST(Collected.Read == Paths);
 }

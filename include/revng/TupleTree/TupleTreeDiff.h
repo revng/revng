@@ -56,14 +56,6 @@ void addToContainer(C &Container, const typename C::value_type &Value) {
   Container.insert_or_assign(Value);
 }
 
-namespace revng::detail {
-template<typename T>
-concept Set = StrictSpecializationOf<T, std::set>;
-
-template<typename T>
-concept SetOrKOC = Set<T> || KeyedObjectContainer<T>;
-} // namespace revng::detail
-
 template<typename T>
 struct TupleTreeEntries {};
 
@@ -89,7 +81,7 @@ struct CheckTypeIsCorrect {
   template<typename T, typename KeyT>
   void visitContainerElement(KeyT Key) {}
 
-  template<revng::detail::SetOrKOC T>
+  template<revng::SetOrKOC T>
   void visit() {
     check<typename T::value_type>();
   }
@@ -234,7 +226,7 @@ struct MapDiffVisitor {
   template<typename T, typename KeyT>
   void visitContainerElement(KeyT Key) {}
 
-  template<revng::detail::SetOrKOC T>
+  template<revng::SetOrKOC T>
   void visit() {
     dump<typename T::value_type>();
   }
@@ -363,7 +355,7 @@ private:
     diffTuple(LHS, RHS);
   }
 
-  template<revng::detail::SetOrKOC T>
+  template<revng::SetOrKOC T>
   void diffImpl(const T &LHS, const T &RHS) {
     for (auto [LHSElement, RHSElement] : zipmap_range(LHS, RHS)) {
       if (LHSElement == nullptr) {
@@ -445,7 +437,7 @@ public:
     visit(Element);
   }
 
-  template<revng::detail::SetOrKOC S>
+  template<revng::SetOrKOC S>
   void visit(S &M) {
     // This visitor handles subtree additions/deletions. Here we either have a
     // New or Old key to add/remove.
