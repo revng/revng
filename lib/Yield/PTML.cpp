@@ -136,39 +136,30 @@ static std::string targetPath(const BasicBlockID &Target,
     }
   }
 
-  // The target is not known
-  return "";
+  revng_abort(("Unknown target:\n" + serializeToString(Target)).c_str());
 }
 
 static std::set<std::string> targets(const yield::BasicBlock &BasicBlock,
                                      const yield::Function &Function,
                                      const model::Binary &Binary) {
-
-  static const efa::ParsedSuccessor UnknownTarget{
-    .NextInstructionAddress = BasicBlockID::invalid(),
-    .OptionalCallAddress = MetaAddress::invalid()
-  };
-
   std::set<std::string> Result;
   for (const auto &Edge : BasicBlock.Successors()) {
-    auto TargetPair = efa::parseSuccessor(*Edge,
-                                          BasicBlock.nextBlock(),
-                                          Binary);
-    if (TargetPair.NextInstructionAddress.isValid()) {
-      std::string Path = targetPath(TargetPair.NextInstructionAddress,
-                                    Function,
-                                    Binary);
-      if (!Path.empty()) {
-        Result.insert(Path);
-      }
-    }
-    if (TargetPair.OptionalCallAddress.isValid()) {
-      BasicBlockID ID = BasicBlockID(TargetPair.OptionalCallAddress);
-      std::string Path = targetPath(ID, Function, Binary);
-      if (!Path.empty()) {
-        Result.insert(Path);
-      }
-    }
+    auto [NextAddress, MaybeCall] = efa::parseSuccessor(*Edge,
+                                                        BasicBlock.nextBlock(),
+                                                        Binary);
+    if (NextAddress.isValid())
+      Result.emplace(targetPath(NextAddress, Function, Binary));
+
+    if (MaybeCall.isValid())
+      Result.emplace(targetPath(BasicBlockID(MaybeCall), Function, Binary));
+  }
+
+  // Explicitly remove the next target if there is only a single other target,
+  // i.e. it's a conditional jump, call, etc.
+  if (Result.size() == 2) {
+    auto NextBlock = targetPath(BasicBlock.nextBlock(), Function, Binary);
+    if (auto Iterator = llvm::find(Result, NextBlock); Iterator != Result.end())
+      Result.erase(Iterator);
   }
 
   return Result;
