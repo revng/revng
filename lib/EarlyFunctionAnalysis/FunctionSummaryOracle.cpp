@@ -165,18 +165,24 @@ void importModel(Module &M,
     for (const model::CallSitePrototype &CallSite :
          Function.CallSitePrototypes()) {
 
+      AttributesSet Attributes;
+      for (auto &ToCopy : CallSite.Attributes())
+        Attributes.insert(ToCopy);
       Oracle.registerCallSite(Function.Entry(),
                               BasicBlockID(CallSite.CallerBlockAddress()),
                               importPrototype(M,
                                               ABICSVs,
-                                              CallSite.Attributes(),
+                                              Attributes,
                                               CallSite.Prototype()),
                               CallSite.IsTailCall());
     }
 
+    AttributesSet Attributes;
+    for (auto &ToCopy : Function.Attributes())
+      Attributes.insert(ToCopy);
     auto Summary = importPrototype(M,
                                    ABICSVs,
-                                   Function.Attributes(),
+                                   Attributes,
                                    Function.prototype(Binary));
 
     // Create function to inline, if necessary
@@ -189,10 +195,13 @@ void importModel(Module &M,
   // Register all dynamic symbols
   for (const auto &DynamicFunction : Binary.ImportedDynamicFunctions()) {
     const auto &Prototype = getPrototype(Binary, DynamicFunction);
+    AttributesSet Attributes;
+    for (auto &ToCopy : DynamicFunction.Attributes())
+      Attributes.insert(ToCopy);
     Oracle.registerDynamicFunction(DynamicFunction.OriginalName(),
                                    importPrototype(M,
                                                    ABICSVs,
-                                                   DynamicFunction.Attributes(),
+                                                   Attributes,
                                                    Prototype));
   }
 }

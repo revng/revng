@@ -13,9 +13,16 @@ from .jinja_utils import environment
 
 
 class CppHeadersGenerator:
-    def __init__(self, schema: Schema, root_type: str, user_include_path: Optional[str] = None):
+    def __init__(
+        self,
+        schema: Schema,
+        root_type: str,
+        emit_tracking: bool,
+        user_include_path: Optional[str] = None,
+    ):
         self.schema = schema
         self.root_type = root_type
+        self.emit_tracking = emit_tracking
 
         if not user_include_path:
             user_include_path = ""
@@ -25,6 +32,8 @@ class CppHeadersGenerator:
         environment.filters["field_type"] = self.field_type
         environment.filters["fullname"] = self.fullname
         environment.filters["user_fullname"] = self.user_fullname
+        environment.filters["is_struct_field"] = self.is_struct_field
+        environment.filters["len"] = len
         self.enum_template = environment.get_template("enum.h.tpl")
         self.struct_template = environment.get_template("struct.h.tpl")
         self.struct_late_template = environment.get_template("struct_late.h.tpl")
@@ -105,6 +114,7 @@ class CppHeadersGenerator:
                     upcastable=upcastable_types,
                     generator=self,
                     includes=includes,
+                    emit_tracking=self.emit_tracking,
                 )
             elif isinstance(type_to_emit, EnumDefinition):
                 definition = self.enum_template.render(enum=type_to_emit)
@@ -142,6 +152,7 @@ class CppHeadersGenerator:
                     namespace=self.schema.generated_namespace,
                     all_types=all_known_types,
                     base_namespace=self.schema.base_namespace,
+                    emit_tracking=self.emit_tracking,
                 )
             elif isinstance(type_to_emit, EnumDefinition):
                 definition = ""
@@ -202,14 +213,16 @@ class CppHeadersGenerator:
             ]
         )
 
-    @staticmethod
-    def _cpp_type(definition: Definition):
+    def _cpp_type(self, definition: Definition):
         assert isinstance(definition, Definition)
-        _cpp_type = CppHeadersGenerator._cpp_type
         if isinstance(definition, StructDefinition):
             return f"{definition.namespace}::{definition.name}"
         elif isinstance(definition, SequenceDefinition):
-            return f"{definition.sequence_type}<{_cpp_type(definition.element_type)}>"
+            if definition.sequence_type == "SortedVector" and self.emit_tracking:
+                return f"TrackingSortedVector<{self._cpp_type(definition.element_type)}>"
+            if definition.sequence_type == "MutableSet" and self.emit_tracking:
+                return f"TrackingMutableSet<{self._cpp_type(definition.element_type)}>"
+            return f"{definition.sequence_type}<{self._cpp_type(definition.element_type)}>"
         elif isinstance(definition, EnumDefinition):
             return f"{definition.namespace}::{definition.name}::Values"
         elif isinstance(definition, ScalarDefinition):
@@ -217,18 +230,16 @@ class CppHeadersGenerator:
                 return "std::string"
             return definition.name
         elif isinstance(definition, ReferenceDefinition):
-            return (
-                f"TupleTreeReference<{_cpp_type(definition.pointee)}, {_cpp_type(definition.root)}>"
-            )
+            root_type = self._cpp_type(definition.root)
+            return f"TupleTreeReference<{self._cpp_type(definition.pointee)}, {root_type}>"
         elif isinstance(definition, UpcastableDefinition):
-            return f"UpcastablePointer<{_cpp_type(definition.base)}>"
+            return f"UpcastablePointer<{self._cpp_type(definition.base)}>"
         else:
             assert False
 
-    @classmethod
-    def field_type(cls, field: StructField):
+    def field_type(self, field: StructField):
         assert field.resolved_type is not None
-        return cls._cpp_type(field.resolved_type)
+        return self._cpp_type(field.resolved_type)
 
     @staticmethod
     def fullname(resolved_type: Definition):
@@ -247,3 +258,7 @@ class CppHeadersGenerator:
             return f"{resolved_type.namespace}::{resolved_type.name}::Values"
         else:
             raise ValueError(resolved_type)
+
+    @staticmethod
+    def is_struct_field(field: StructField):
+        return isinstance(field, StructField)

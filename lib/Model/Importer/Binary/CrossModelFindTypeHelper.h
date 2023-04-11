@@ -94,7 +94,8 @@ private:
 };
 
 using TypeCopierMap = std::map<std::string, std::unique_ptr<TypeCopier>>;
-using ModelFunctionAttributes = MutableSet<model::FunctionAttribute::Values>;
+using ModelFunctionAttributes = TrackingMutableSet<
+  model::FunctionAttribute::Values>;
 
 template<typename T>
 std::optional<std::pair<model::TypePath, ModelFunctionAttributes>>
