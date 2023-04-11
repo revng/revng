@@ -157,15 +157,12 @@ bool Binary::verify(VerifyHelper &VH) const {
   }
 
   // Make sure no segments overlap
-  if (!Segments().empty()) {
-    for (const auto &[LHS, RHS] :
-         llvm::zip(skip_back(Segments()), skip_front(Segments()))) {
-      revng_assert(LHS.StartAddress() <= RHS.StartAddress());
-      if (LHS.endAddress() > RHS.StartAddress()) {
-        std::string Error = "Overlapping segments:\n" + serializeToString(LHS)
-                            + "and\n" + serializeToString(RHS);
-        return VH.fail(Error);
-      }
+  for (const auto &[LHS, RHS] : zip_pairs(Segments())) {
+    revng_assert(LHS.StartAddress() <= RHS.StartAddress());
+    if (LHS.endAddress() > RHS.StartAddress()) {
+      std::string Error = "Overlapping segments:\n" + serializeToString(LHS)
+                          + "and\n" + serializeToString(RHS);
+      return VH.fail(Error);
     }
   }
 
