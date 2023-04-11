@@ -150,14 +150,14 @@ DI::disassemble(const MetaAddress &Address,
 }
 
 static yield::TagType::Values parseMarkupTag(llvm::StringRef Input) {
-  if (Input == "imm:")
+  if (Input == "imm")
     return yield::TagType::Immediate;
-  else if (Input == "mem:")
+  else if (Input == "mem")
     return yield::TagType::Memory;
-  else if (Input == "reg:")
+  else if (Input == "reg")
     return yield::TagType::Register;
   else
-    revng_abort("Unknown llvm markup tag.");
+    revng_abort(("Unknown llvm markup tag: '" + Input.str() + "'").c_str());
 }
 
 /// Counts the number of consecutive characters satisfying \p Lambda predicate
@@ -327,10 +327,11 @@ yield::Instruction DI::parse(const llvm::MCInst &Instruction,
 
     if (Markup[Position] == '<') {
       // Opens a new markup tag.
-      llvm::StringRef Tag = Markup.slice(Position + 1, Position + 5);
+      auto TagEndPosition = Markup.find(':', Position + 1);
+      llvm::StringRef Tag = Markup.slice(Position + 1, TagEndPosition);
       yield::TagType::Values TagType = parseMarkupTag(Tag);
       OpenTagStack.emplace_back(TagType, Result.Disassembled().size(), 0);
-      Position += 4;
+      Position = TagEndPosition;
     } else if (Markup[Position] == '>') {
       // Closes the current markup tag
       revng_assert(not OpenTagStack.empty());
