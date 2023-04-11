@@ -29,8 +29,8 @@ private:
 public:
   Tag() {}
   explicit Tag(llvm::StringRef Tag) : TheTag(Tag.str()) {}
-  explicit Tag(llvm::StringRef Tag, llvm::StringRef Content) :
-    TheTag(Tag.str()), Content(Content.str()) {}
+  explicit Tag(llvm::StringRef Tag, std::string &&Content) :
+    TheTag(Tag.str()), Content(std::move(Content)) {}
 
   ScopeTag scope(llvm::raw_ostream &OS, bool Newline = false) const;
 

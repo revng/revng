@@ -81,15 +81,15 @@ static std::string label(const yield::BasicBlock &BasicBlock,
   }
 
   using model::Architecture::getAssemblyLabelIndicator;
-  auto LabelIndicator = getAssemblyLabelIndicator(Binary.Architecture());
-  Tag LabelTag(tags::Span, LabelName);
+  std::string LabelIndicator(getAssemblyLabelIndicator(Binary.Architecture()));
+  Tag LabelTag(tags::Span, std::move(LabelName));
   LabelTag.addAttribute(attributes::Token, tokenTypes::Label)
     .addAttribute(attributes::LocationDefinition, Location);
   if (!FunctionPath.empty())
     LabelTag.addAttribute(attributes::ModelEditPath, FunctionPath);
 
   return LabelTag.serialize()
-         + Tag(tags::Span, LabelIndicator)
+         + Tag(tags::Span, std::move(LabelIndicator))
              .addAttribute(attributes::Token, tokenTypes::LabelIndicator)
              .serialize();
 }
@@ -185,14 +185,14 @@ static std::string tagTypeAsString(const yield::TagType::Values &Type) {
 }
 
 static std::string
-tokenTag(llvm::StringRef Buffer, const yield::TagType::Values &Tag) {
+tokenTag(std::string &&Buffer, const yield::TagType::Values &Tag) {
   std::string TagStr = tagTypeAsString(Tag);
   if (!TagStr.empty()) {
-    return ::Tag(tags::Span, Buffer)
+    return ::Tag(tags::Span, std::move(Buffer))
       .addAttribute(attributes::Token, TagStr)
       .serialize();
   } else {
-    return Buffer.str();
+    return std::move(Buffer);
   }
 }
 
@@ -217,13 +217,14 @@ static std::string taggedText(const yield::Instruction &Instruction) {
   yield::TagType::Values Tag = yield::TagType::Invalid;
   for (size_t Index = 0; Index < Instruction.Disassembled().size(); Index++) {
     if (Tag != TagMap[Index]) {
-      Result += tokenTag(Buffer, Tag);
-      Tag = TagMap[Index];
+      Result += tokenTag(std::move(Buffer), Tag);
       Buffer.clear();
+
+      Tag = TagMap[Index];
     }
     Buffer += Instruction.Disassembled()[Index];
   }
-  Result += tokenTag(Buffer, Tag);
+  Result += tokenTag(std::move(Buffer), Tag);
 
   return Result;
 }
@@ -329,7 +330,7 @@ std::string yield::ptml::functionAssembly(const yield::Function &Function,
 
   using pipeline::serializedLocation;
   namespace ranks = revng::ranks;
-  return ::Tag(tags::Div, Result)
+  return ::Tag(tags::Div, std::move(Result))
     .addAttribute(attributes::Scope, scopes::Function)
     .serialize();
 }
