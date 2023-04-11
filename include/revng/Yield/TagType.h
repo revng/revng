@@ -10,12 +10,17 @@ name: TagType
 doc: Enum for identifying different instruction markup tag types
 type: enum
 members:
-  - name: Immediate
+  - name: Untagged
+  - name: Helper
   - name: Memory
+  - name: Register
+  - name: Immediate
+  - name: Address
+  - name: AbsoluteAddress
+  - name: PCRelativeAddress
   - name: Mnemonic
   - name: MnemonicPrefix
   - name: MnemonicSuffix
-  - name: Register
   - name: Whitespace
 
 TUPLE-TREE-YAML */
