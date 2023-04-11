@@ -202,7 +202,7 @@ concept input_or_output_iterator = input_iterator<Iterator>
                                    || OutputOnly<Iterator>;
 // clang-format on
 
-template<typename IteratorType>
+template<bool SafeMode, typename IteratorType>
 inline auto
 skipImpl(IteratorType &&From,
          IteratorType &&To,
@@ -211,9 +211,18 @@ skipImpl(IteratorType &&From,
 
   std::ptrdiff_t TotalSkippedCount = Front + Back;
   if constexpr (forward_iterator<IteratorType>) {
-    // We cannot compute the assert on the input iterators because it's
-    // going to consume them.
-    revng_assert(std::distance(From, To) >= TotalSkippedCount);
+    // We cannot check on the input iterators because it's going to consume
+    // them.
+
+    if (std::distance(From, To) <= TotalSkippedCount) {
+      if constexpr (SafeMode) {
+        revng_abort("Input range has fewer elements than the intended skip.");
+      } else {
+        // Quietly return an empty range if there are more skips requested than
+        // the total number of elements the input range contains.
+        return llvm::make_range(To, To);
+      }
+    }
   }
 
   std::decay_t<IteratorType> Begin{ From };
@@ -228,19 +237,28 @@ skipImpl(IteratorType &&From,
 template<bidirectional_iterator T>
 inline decltype(auto)
 skip(T &&From, T &&To, std::size_t Front = 0, std::size_t Back = 0) {
-  return skipImpl(std::forward<T>(From), std::forward<T>(To), Front, Back);
+  return skipImpl<true>(std::forward<T>(From),
+                        std::forward<T>(To),
+                        Front,
+                        Back);
 }
 
 template<input_iterator T>
 inline decltype(auto) // NOLINTNEXTLINE
 skip_front(T &&From, T &&To, std::size_t SkippedCount = 1) {
-  return skipImpl(std::forward<T>(From), std::forward<T>(To), SkippedCount, 0);
+  return skipImpl<true>(std::forward<T>(From),
+                        std::forward<T>(To),
+                        SkippedCount,
+                        0);
 }
 
 template<bidirectional_iterator T>
 inline decltype(auto) // NOLINTNEXTLINE
 skip_back(T &&From, T &&To, std::size_t SkippedCount = 1) {
-  return skipImpl(std::forward<T>(From), std::forward<T>(To), 0, SkippedCount);
+  return skipImpl<true>(std::forward<T>(From),
+                        std::forward<T>(To),
+                        0,
+                        SkippedCount);
 }
 
 } // namespace revng::detail
@@ -259,6 +277,19 @@ inline decltype(auto) skip_front(T &&Range, std::size_t SkippedCount = 1) {
 template<std::ranges::range T> // NOLINTNEXTLINE
 inline decltype(auto) skip_back(T &&Range, std::size_t SkippedCount = 1) {
   return revng::detail::skip_back(Range.begin(), Range.end(), SkippedCount);
+}
+
+// TODO: reimplement in terms of `std::views::adjacent` once that's available.
+template<std::ranges::range T> // NOLINTNEXTLINE
+inline decltype(auto) zip_pairs(T &&Range) {
+  return llvm::zip(revng::detail::skipImpl<false>(Range.begin(),
+                                                  Range.end(),
+                                                  1,
+                                                  0),
+                   revng::detail::skipImpl<false>(Range.begin(),
+                                                  Range.end(),
+                                                  0,
+                                                  1));
 }
 
 //
