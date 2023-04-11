@@ -59,7 +59,7 @@ static std::string labelAddress(const BasicBlockID &Address) {
   return Result;
 }
 
-static std::string label(const yield::BasicBlock &BasicBlock,
+static std::string label(const BasicBlockID &BasicBlock,
                          const yield::Function &Function,
                          const model::Binary &Binary) {
   std::string LabelName;
@@ -67,15 +67,15 @@ static std::string label(const yield::BasicBlock &BasicBlock,
   std::string Location;
 
   const auto &CFG = Function.ControlFlowGraph();
-  if (auto *F = yield::tryGetFunction(Binary, BasicBlock.ID())) {
+  if (auto *F = yield::tryGetFunction(Binary, BasicBlock)) {
     LabelName = F->name().str().str();
     FunctionPath = "/Functions/" + str(F->key()) + "/CustomName";
     Location = serializedLocation(ranks::Function, F->key());
-  } else if (CFG.find(BasicBlock.ID()) != CFG.end()) {
-    LabelName = "basic_block_at_" + labelAddress(BasicBlock.ID());
+  } else if (CFG.find(BasicBlock) != CFG.end()) {
+    LabelName = "basic_block_at_" + labelAddress(BasicBlock);
     Location = serializedLocation(ranks::BasicBlock,
                                   model::Function(Function.Entry()).key(),
-                                  BasicBlock.ID());
+                                  BasicBlock);
   } else {
     revng_abort("Unable to emit a label because it does not exist.");
   }
@@ -299,7 +299,7 @@ static std::string labeledBlock(const yield::BasicBlock &FirstBlock,
                                 const yield::Function &Function,
                                 const model::Binary &Binary) {
   std::string Result;
-  std::string Label = label(FirstBlock, Function, Binary);
+  std::string Label = label(FirstBlock.ID(), Function, Binary);
 
   if constexpr (ShouldMergeFallthroughTargets == false) {
     Result = basicBlock(FirstBlock, Function, Binary, std::move(Label)) + "\n";
