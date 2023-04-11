@@ -10,6 +10,8 @@
 #include "llvm/ADT/BitVector.h"
 
 #include "revng/ADT/KeyedObjectContainer.h"
+#include "revng/ADT/MutableSet.h"
+#include "revng/ADT/SortedVector.h"
 #include "revng/Support/AccessTracker.h"
 
 namespace revng {
@@ -53,16 +55,20 @@ private:
   mutable std::vector<TrackingSet> NonExisting;
   mutable std::vector<llvm::BitVector> Existing;
 
+  mutable bool TrackingIsActive = false;
+
 public:
   /// \defgroup Methods related to tracking
   /// @{
 
-  void resetTracking() {
+  void stopTracking() { TrackingIsActive = false; }
+  void clearTracking() const {
     Exact.clear();
     NonExisting = {};
     NonExisting.push_back(TrackingSet());
     Existing = {};
     Existing.push_back(llvm::BitVector(Content.size()));
+    TrackingIsActive = true;
   }
 
   TrackingResult getTrackingResult() const {
@@ -109,6 +115,20 @@ public:
 
   TrackingContainer(std::initializer_list<T> List) : T(std::move(List)) {}
 
+  TrackingContainer(TrackingContainer &&) = default;
+  TrackingContainer(const TrackingContainer &) = default;
+  ~TrackingContainer() = default;
+  TrackingContainer &operator=(TrackingContainer &&) = default;
+  TrackingContainer &operator=(const TrackingContainer &) = default;
+  TrackingContainer &operator=(const T &Other) {
+    Content = Other;
+    return *this;
+  }
+  TrackingContainer &operator=(T &&Other) {
+    Content = std::move(Other);
+    return *this;
+  }
+
   void swap(TrackingContainer &Other) { Content.swap(Other.Content); }
 
   value_type &at(const key_type &Key) { return Content.at(Key); }
@@ -131,13 +151,18 @@ public:
     return Content.insert(Value);
   }
 
+  template<typename... Types>
+  std::pair<iterator, bool> emplace(Types &&...Values) {
+    return Content.emplace(std::forward<Types>(Values)...);
+  }
+
   std::pair<iterator, bool> insert_or_assign(const value_type &Value) {
     return Content.insert_or_assign(Value);
   }
 
   iterator erase(iterator Pos) { return Content.erase(Pos); }
 
-  iterator erase(const_iterator First, const_iterator Last) {
+  iterator erase(iterator First, iterator Last) {
     return Content.erase(First, Last);
   }
 
@@ -221,6 +246,10 @@ public:
 
   size_type count(const key_type &Key) const {
     auto Quantity = Content.count(Key);
+
+    if (not TrackingIsActive)
+      return Quantity;
+
     if (Quantity == 0) {
       NonExisting.back().insert(Key);
     } else {
@@ -232,7 +261,8 @@ public:
   const value_type *tryGet(const key_type &Key) const {
     auto Iter = Content.find(Key);
     if (Iter == Content.end()) {
-      NonExisting.back().insert(Key);
+      if (TrackingIsActive)
+        NonExisting.back().insert(Key);
       return nullptr;
     }
 
@@ -261,7 +291,7 @@ public:
 public:
   using BatchInserter = typename T::BatchInserter;
 
-  BatchInserter batch_insert() { return BatchInserter(*this); }
+  BatchInserter batch_insert() { return BatchInserter(Content); }
 
   using BatchInsertOrAssigner = typename T::BatchInsertOrAssigner;
 
@@ -274,6 +304,8 @@ public:
 
 private:
   void markExistingKey(const key_type &Key) const {
+    if (not TrackingIsActive)
+      return;
     auto Iter = Content.find(Key);
     revng_assert(Iter != Content.end());
 
@@ -292,9 +324,12 @@ private:
     TrackingSet Set;
     for (auto &BitVector : Existing) {
       revng_assert(Content.size() == BitVector.size());
-      for (size_t I = 0; I < Content.size(); I++)
-        if (BitVector[I])
-          Set.insert(*std::next(Content.begin(), I));
+      for (size_t I = 0; I < Content.size(); I++) {
+        if (not BitVector[I])
+          continue;
+        using KOT = KeyedObjectTraits<value_type>;
+        Set.insert(KOT::key(*std::next(Content.begin(), I)));
+      }
     }
 
     return Set;
@@ -302,3 +337,9 @@ private:
 };
 
 } // namespace revng
+
+template<typename T>
+using TrackingSortedVector = revng::TrackingContainer<SortedVector<T>>;
+
+template<typename T>
+using TrackingMutableSet = revng::TrackingContainer<MutableSet<T>>;
