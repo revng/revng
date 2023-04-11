@@ -717,3 +717,12 @@ constexpr bool validateTupleTree(L Check) {
 
   return true;
 }
+
+namespace revng {
+template<typename T>
+concept Set = StrictSpecializationOf<T, std::set>;
+
+template<typename T>
+concept SetOrKOC = Set<T> || KeyedObjectContainer<T>;
+
+} // namespace revng
