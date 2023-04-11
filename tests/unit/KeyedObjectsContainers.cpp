@@ -209,7 +209,7 @@ static void testAt() {
   revng::TrackingContainer<T<int>> Vector;
   int One(1);
   Vector.insert(One);
-  Vector.resetTracking();
+  Vector.clearTracking();
   const auto &Reference = Vector;
   Reference.at(One);
 
@@ -227,7 +227,7 @@ template<template<typename...> class T>
 static void testVectorCount() {
   revng::TrackingContainer<T<int>> Vector;
   Vector.insert(1);
-  Vector.resetTracking();
+  Vector.clearTracking();
   const auto &Reference = Vector;
   Reference.count(2);
 
@@ -246,7 +246,7 @@ template<template<typename...> class T>
 static void testTryGet() {
   revng::TrackingContainer<T<int>> Vector;
   Vector.insert(1);
-  Vector.resetTracking();
+  Vector.clearTracking();
   const auto &Reference = Vector;
   const int *Result = nullptr;
   Result = Reference.tryGet(2);
@@ -268,12 +268,12 @@ template<template<typename...> class T>
 static void testBeginEnd() {
   revng::TrackingContainer<SortedVector<int>> Vector;
   Vector.insert(1);
-  Vector.resetTracking();
+  Vector.clearTracking();
   const auto &Reference = Vector;
   llvm::find(Reference, 1);
 
   auto TrackingResult = Reference.getTrackingResult();
-  revng_check(TrackingResult.InspectedKeys.empty());
+  revng_check(TrackingResult.InspectedKeys.size() == 0);
   revng_check(TrackingResult.Exact);
 }
 
@@ -286,7 +286,7 @@ template<template<typename...> class T>
 static void testSetCount() {
   revng::TrackingContainer<SortedVector<int>> Vector;
   Vector.insert(1);
-  Vector.resetTracking();
+  Vector.clearTracking();
   const auto &Reference = Vector;
   Reference.count(1);
 
@@ -304,7 +304,7 @@ template<template<typename...> class T>
 static void testPush() {
   revng::TrackingContainer<SortedVector<int>> Vector;
   Vector.insert(1);
-  Vector.resetTracking();
+  Vector.clearTracking();
   const auto &Reference = Vector;
   Reference.count(1);
 
@@ -331,3 +331,6 @@ BOOST_AUTO_TEST_CASE(TrackingContainerPush) {
   testPush<SortedVector>();
   testPush<MutableSet>();
 }
+
+static_assert(KeyedObjectContainer<TrackingSortedVector<int>>);
+static_assert(KeyedObjectContainer<revng::TrackingContainer<MutableSet<int>>>);
