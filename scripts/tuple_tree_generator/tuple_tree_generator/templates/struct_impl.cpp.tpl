@@ -142,3 +142,9 @@ template
 std::optional<TupleTreePath> stringAsPath</*= base_namespace =*/::/*= root_type =*/>(llvm::StringRef Path);
 
 /** endif **/
+
+/**- for field in struct.fields **/
+/**- if struct | is_struct_field **/
+static_assert(not (TupleTreeCompatible</*= field | field_type =*/> and KeyedObjectContainerCompatible</*= field | field_type =*/>));
+/**- endif **/
+/**- endfor **/

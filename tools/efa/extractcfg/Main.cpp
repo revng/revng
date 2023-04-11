@@ -64,10 +64,13 @@ int main(int argc, const char **argv) {
 
       const efa::FunctionMetadata &FM = Cache.getFunctionMetadata(&BB);
       auto &Function = Model->Functions().at(FM.Entry());
+      MutableSet<model::FunctionAttribute::Values> Attributes;
+      for (auto &Entry : Function.Attributes())
+        Attributes.insert(Entry);
       revng::DecoratedFunction NewFunction(FM.Entry(),
                                            Function.OriginalName(),
                                            FM,
-                                           Function.Attributes());
+                                           Attributes);
       DecoratedFunctions.insert(std::move(NewFunction));
     }
   }
@@ -79,10 +82,13 @@ int main(int argc, const char **argv) {
       continue;
 
     auto &Function = Model->Functions().at(FM.Entry());
+    MutableSet<model::FunctionAttribute::Values> Attributes;
+    for (auto &Entry : Function.Attributes())
+      Attributes.insert(Entry);
     revng::DecoratedFunction NewFunction(FM.Entry(),
                                          Function.OriginalName(),
                                          FM,
-                                         Function.Attributes());
+                                         Attributes);
     DecoratedFunctions.insert(std::move(NewFunction));
   }
 

@@ -12,8 +12,12 @@ The notice below applies to the generated files.
 
 #include <compare>
 
+#include "revng/ADT/TrackingContainer.h"
 #include "revng/TupleTree/TupleTreeReference.h"
 #include "revng/Support/Assert.h"
+/**- if emit_tracking **/
+#include "revng/Support/AccessTracker.h"
+/**- endif **/
 
 /**- for header in includes **/
 #include "/*= generator.user_include_path =*//*= header =*/"
@@ -35,15 +39,28 @@ private:
   /*= field | field_type =*/ The/*= field.name =*/ = /*= field | field_type =*/{};
   static_assert(Yamlizable</*= field | field_type =*/>);
 
+  /**- if emit_tracking **/
+private:
+  mutable revng::AccessTracker /*= field.name =*/Tracker;
+  /** endif -**/
+
 public:
   using /*= field.name =*/Type = /*= field | field_type =*/;
 
 public:
   const /*= field | field_type =*/ & /*= field.name =*/() const {
+    /**- if emit_tracking **/
+    /** if not field in struct.key_fields **/
+    /*= field.name =*/Tracker.access();
+    /** endif **/
+    /** endif -**/
     return The/*= field.name =*/;
   }
 
   /*= field | field_type =*/ & /*= field.name =*/() {
+  /**- if emit_tracking **/
+    /*= field.name =*/Tracker.access();
+  /** endif -**/
     return The/*= field.name =*/;
   }
   /**- endfor **/
@@ -142,9 +159,54 @@ public:
   bool operator>(const /*= struct.name =*/ &Other) const { return key() > Other.key(); }
 
   /** else **/
-  bool operator==(const /*= struct.name =*/ &Other) const = default;
+  bool operator==(const /*= struct.name =*/ &Other) const {
+    /**- for field in struct.fields **/
+    if (/*= field.name =*/() != Other./*= field.name =*/())
+      return false;
+    /**- endfor **/
+    return true;
+  }
   /** endif **/
 
+  /**- if emit_tracking **/
+private:
+  template<size_t I>
+  revng::AccessTracker& getTracker() const {
+    /**- for field in struct.all_fields **/
+    if constexpr (I == /*= loop.index0 =*/)
+        return /*= field.name =*/Tracker;
+    /**- endfor -**/
+  }
+  /** if upcastable **/
+  /**- for child_type in upcastable|sort(attribute="user_fullname") **/
+  friend /*= child_type | fullname =*/;
+  /**- endfor **/
+  /** endif **/
+
+  template<size_t I>
+  const auto& untrackedGet() const {
+    if constexpr (false)
+      return 0;
+    /**- for field in struct.all_fields **/
+    else if constexpr (I == /*= loop.index0 =*/)
+      return The/*= field.name =*/;
+    /**- endfor -**/
+  }
+
+  /** if struct._key **/
+  Key untrackedKey() const {
+    return {
+      /** for key_field in struct.key_fields -**/
+      The/*= key_field.name =*/
+      /**- if not loop.last **/,
+      /** endif **/
+      /**- endfor **/
+    };
+  }
+  /** endif **/
+
+  /** endif -**/
+public:
   bool localCompare(const /*= struct | user_fullname =*/ &Other) const;
 };
 
