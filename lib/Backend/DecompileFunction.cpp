@@ -1103,10 +1103,6 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
   case llvm::Instruction::Unreachable:
     rc_return addDebugInfo(I, "__builtin_trap()");
 
-  case llvm::Instruction::IntToPtr:
-  case llvm::Instruction::PtrToInt:
-    rc_return addDebugInfo(I, rc_recur getToken(I->getOperand(0)));
-
   case llvm::Instruction::ExtractValue: {
 
     // Note: ExtractValues at this point should have been already
