@@ -262,7 +262,7 @@ bool Segment::verify(VerifyHelper &VH) const {
   using OverflowSafeInt = OverflowSafeInt<uint64_t>;
 
   if (FileSize() > VirtualSize())
-    return VH.fail("FileSize cannot be larger thatn VirtualSize", *this);
+    return VH.fail("FileSize cannot be larger than VirtualSize", *this);
 
   auto EndOffset = OverflowSafeInt(StartOffset()) + FileSize();
   if (not EndOffset)

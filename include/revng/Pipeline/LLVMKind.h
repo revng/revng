@@ -15,7 +15,7 @@ namespace pipeline {
 /// Kind that must be extended to be able to specify how a to deduce the target
 /// associated to a particular llvm global object.
 ///
-/// When extented two function must be provided, symbolToTarget must return the
+/// When extended two function must be provided, symbolToTarget must return the
 /// target associated to a function if there is any.
 ///
 /// compactTargets must collapse the targets into the * target if they are all

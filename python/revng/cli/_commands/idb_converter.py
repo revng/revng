@@ -123,7 +123,7 @@ class IDBConverter:
     def _import_functions(self):
         metaaddr_type = revng_arch_to_metaaddr_code_type[self.arch]
         if self.arch == m.Architecture.arm and self.api.idc.ItemSize(0x0) == 2:
-            # If the instrucitons are 16-bit long, it is a Thumb mode.
+            # If the instructions are 16-bit long, it is a Thumb mode.
             metaaddr_type = MetaAddressType.Code_arm_thumb
 
         for function_start_addr in self.api.idautils.Functions():
@@ -228,7 +228,7 @@ class IDBConverter:
             try:
                 mod_name = self.api.ida_nalt.get_import_module_name(mod_index)
             except KeyError as exception:
-                # TODO: Due to the bug mentioned bellow, we try sometimes to
+                # TODO: Due to the bug mentioned below, we try sometimes to
                 # find imported modules that do not exist.
                 if mod_index != 0:
                     # It would be very strange if the mod_index is not 0.
@@ -532,7 +532,7 @@ class IDBConverter:
             # Represents an unknown or void type with a known size.
             assert type.get_size() != 0
             # The type should be compatible with being a primitive type.
-            # NOTE: If we find a case where this is not satisifed, we can produce a char[].
+            # NOTE: If we find a case where this is not satisfied, we can produce a char[].
             assert (
                 type.get_size() == 1
                 or type.get_size() == 2

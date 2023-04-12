@@ -423,7 +423,7 @@ BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCollectAllSegments) {
 
 /// This test asserts that Tracking visits do no inspect inside a vector.
 /// We need to find a way to represent non sorted vector, using regular vectors
-/// breaks diffs, since they don't have a indexe to rapresent a child
+/// breaks diffs, since they don't have a index to represent a child
 BOOST_AUTO_TEST_CASE(QualifiersInsideAVectorAreNotVisited) {
   model::QualifiedType Type;
   const auto MetaAddress = MetaAddress::fromPC(llvm::Triple::ArchType::x86_64,

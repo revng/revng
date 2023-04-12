@@ -482,7 +482,7 @@ static std::unordered_map<NodeView, size_t> rankSubtrees(InternalGraph &Graph) {
 LayerContainer
 selectSimpleTreePermutation(InternalGraph &Graph, RankContainer &Ranks) {
   // Build a layer container based on a given ranking, then remove layers
-  // that can be discarded without losing any improtant information, for example
+  // that can be discarded without losing any important information, for example
   // layers only containing virtual nodes added when splitting long edges.
   // Update all the ranks so that the difference between the ranks of two layers
   // next to each other is always equal to one.

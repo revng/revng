@@ -224,7 +224,7 @@ bool TDBP::pinAVIResults(Function &F) {
 
           // Create the marker
           StringRef SymbolName = SymbolDestinations[0];
-          // TODO: in theory we could insert this befor T, not Call, but it's
+          // TODO: in theory we could insert this before T, not Call, but it's
           //       violating some assumption somewhere
           CallInst::Create({ JumpToSymbolMarker },
                            { getUniqueString(M, SymbolName) },
@@ -633,7 +633,7 @@ BasicBlock *JumpTargetManager::newPC(MetaAddress PC, bool &ShouldContinue) {
   // happens with variable-length instruction encodings.
   if (OriginalInstructionAddresses.count(PC) != 0) {
     ShouldContinue = false;
-    return registerJT(PC, JTReason::AmbigousInstruction);
+    return registerJT(PC, JTReason::AmbiguousInstruction);
   }
 
   // We don't know anything about this PC
@@ -970,7 +970,7 @@ JumpTargetManager::registerJT(MetaAddress PC, JTReason::Values Reason) {
   NewBlock->setName(Name.str());
 
   // Create a case for the address associated to the new block, if the
-  // dispatcher has alredy been emitted
+  // dispatcher has already been emitted
   if (DispatcherSwitch != nullptr) {
     PCH->addCaseToDispatcher(DispatcherSwitch,
                              { PC, NewBlock },

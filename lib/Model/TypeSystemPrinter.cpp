@@ -54,7 +54,7 @@ static llvm::StringRef getColor(model::TypeKind::Values K) {
   return White;
 }
 
-/// Cell with inner padding, a colored background and a wite border
+/// Cell with inner padding, a colored background and a white border
 static void headerCell(llvm::raw_ostream &Out,
                        llvm::StringRef Color,
                        llvm::StringRef Content) {

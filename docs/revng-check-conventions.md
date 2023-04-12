@@ -35,12 +35,12 @@ Currently it is not possible for a write_pass to operate on the tag `all`
 ### `read_passes`
 
 These passes are run last and will only read the files and check if there are any style violations.
-Thse will be run in parallel as there is a guarantee that no file will be modified by their execution.
+These will be run in parallel as there is a guarantee that no file will be modified by their execution.
 
 
 ## Bypassing checks
 
-In general to bypass checks it's sufficent to add the appropiate annotation of the tool (e.g. flake8)
+In general to bypass checks it's sufficient to add the appropriate annotation of the tool (e.g. flake8)
 that caused the violation.
 
 ### `set -euo pipefail`

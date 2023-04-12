@@ -15,7 +15,7 @@
 
 #include "revng/Support/Debug.h"
 
-/// A dynamic hierarcy is a tree that can be extended by downstream
+/// A dynamic hierarchy is a tree that can be extended by downstream
 /// libraries. By instantiating a node and providing a parent then the child
 /// will be visible from the parent as well.
 ///

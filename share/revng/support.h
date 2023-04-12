@@ -15,7 +15,7 @@
 // Handle target specific information:
 //
 // * Register size
-// * Macro to swap endianess from the host one
+// * Macro to swap endianness from the host one
 #if defined(TARGET_arm)
 
 typedef uint32_t target_reg;

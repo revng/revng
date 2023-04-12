@@ -146,10 +146,10 @@ Error Runner::invalidate(const Target &Target) {
 
 llvm::Expected<PipelineFileMapping>
 PipelineFileMapping::parse(StringRef ToParse) {
-  SmallVector<StringRef, 4> Splitted;
-  ToParse.split(Splitted, ':', 2);
+  SmallVector<StringRef, 4> Parts;
+  ToParse.split(Parts, ':', 2);
 
-  if (Splitted.size() != 2) {
+  if (Parts.size() != 2) {
     auto *Message = "could not parse %s into two parts "
                     "file_path:step/container";
     return createStringError(inconvertibleErrorCode(),
@@ -157,9 +157,9 @@ PipelineFileMapping::parse(StringRef ToParse) {
                              ToParse.str().c_str());
   }
 
-  auto [StepName, ContainerName] = Splitted.back().split('/');
+  auto [StepName, ContainerName] = Parts.back().split('/');
 
-  return PipelineFileMapping(StepName, ContainerName, Splitted[0]);
+  return PipelineFileMapping(StepName, ContainerName, Parts[0]);
 }
 
 Error PipelineFileMapping::loadFromDisk(Runner &LoadInto) const {
@@ -387,7 +387,7 @@ const KindsRegistry &Runner::getKindsRegistry() const {
 
 void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
                                   InvalidationMap &Map) const {
-  // the custom writte invalidation rules do not know what is the current
+  // the custom write invalidation rules do not know what is the current
   // content of each container, so first we overestimate the targets to be
   // invalidated, and then we do the intersection between the overestimated one
   // and those that do exists.

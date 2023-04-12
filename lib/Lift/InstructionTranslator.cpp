@@ -876,9 +876,9 @@ IT::translateOpcode(PTCOpcode Opcode,
       revng_unreachable("Unexpected load size");
     }
 
-    // If necessary, handle endianess mismatch
+    // If necessary, handle endianness mismatch
     // TODO: it might be a bit overkill, but it be nice to make this function
-    //       template-parametric w.r.t. endianess mismatch
+    //       template-parametric w.r.t. endianness mismatch
     Function *BSwapFunction = nullptr;
     if (MemoryType != Builder.getInt8Ty() and EndianessMismatch)
       BSwapFunction = Intrinsic::getDeclaration(&TheModule,

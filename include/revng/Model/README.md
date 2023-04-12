@@ -108,7 +108,7 @@ You can define a member composed of a sequence of items as follows
 ```yaml
 name: MyStruct
 type: struct
-fileds:
+fields:
   - name: MyArray
     sequence:
       type: std::vector
@@ -121,7 +121,7 @@ add `upcastable: true`
 ```yaml
 name: MyStruct
 type: struct
-fileds:
+fields:
   - name: MyArray
     sequence:
       type: std::vector
@@ -138,7 +138,7 @@ Members can also specify references like this:
 ```yaml
 name: MyStruct
 type: struct
-fileds:
+fields:
   - name: MyRef
     reference:
       pointeeType: model::Type

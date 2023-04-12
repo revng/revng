@@ -15,21 +15,21 @@
 
 BasicBlockID BasicBlockID::fromString(llvm::StringRef Text) {
   using namespace llvm;
-  SmallVector<StringRef, 2> Splitted;
-  Text.split(Splitted, "-");
+  SmallVector<StringRef, 2> Parts;
+  Text.split(Parts, "-");
 
-  if (not(Splitted.size() == 1 or Splitted.size() == 2))
+  if (not(Parts.size() == 1 or Parts.size() == 2))
     return BasicBlockID::invalid();
 
-  auto Start = MetaAddress::fromString(Splitted[0]);
+  auto Start = MetaAddress::fromString(Parts[0]);
   if (not Start.isValid())
     return BasicBlockID::invalid();
 
   uint64_t InliningIndex = 0;
 
-  if (Splitted.size() == 2) {
+  if (Parts.size() == 2) {
     APInt APIndex;
-    bool Failure = Splitted[1].getAsInteger(10, APIndex);
+    bool Failure = Parts[1].getAsInteger(10, APIndex);
     if (Failure or APIndex.getBitWidth() > 64)
       return BasicBlockID::invalid();
     InliningIndex = APIndex.getLimitedValue();

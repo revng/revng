@@ -23,7 +23,7 @@ export const yamlToStringOptions = {
 } as const;
 
 /**
- * Parses an int safely, returning undefined if the number cannot be repesented as a decimal
+ * Parses an int safely, returning undefined if the number cannot be represented as a decimal
  * string
  */
 export function safeParseInt(str?: string): number | undefined {

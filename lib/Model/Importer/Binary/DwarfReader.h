@@ -18,17 +18,17 @@
 
 //
 // What follows is a set of functions we use to read an integer of a specified
-// (or pointer) size using the appropriate endianess associated to an ELF type.
+// (or pointer) size using the appropriate endianness associated to an ELF type.
 //
 
 template<typename T, typename EE>
-struct Endianess {
-  /// Reads an integer of type T, using the endianess of the ELF type EE
+struct Endianness {
+  /// Reads an integer of type T, using the endianness of the ELF type EE
   static uint64_t read(const uint8_t *Buf);
 };
 
 template<typename T>
-struct Endianess<T, llvm::object::ELF32LE> {
+struct Endianness<T, llvm::object::ELF32LE> {
   static uint64_t read(const uint8_t *Buf) {
     using namespace llvm::support;
     return llvm::support::endian::read<T, little, unaligned>(Buf);
@@ -36,7 +36,7 @@ struct Endianess<T, llvm::object::ELF32LE> {
 };
 
 template<typename T>
-struct Endianess<T, llvm::object::ELF64LE> {
+struct Endianness<T, llvm::object::ELF64LE> {
   static uint64_t read(const uint8_t *Buf) {
     using namespace llvm::support;
     return llvm::support::endian::read<T, little, unaligned>(Buf);
@@ -44,7 +44,7 @@ struct Endianess<T, llvm::object::ELF64LE> {
 };
 
 template<typename T>
-struct Endianess<T, llvm::object::ELF32BE> {
+struct Endianness<T, llvm::object::ELF32BE> {
   static uint64_t read(const uint8_t *Buf) {
     using namespace llvm::support;
     return llvm::support::endian::read<T, big, unaligned>(Buf);
@@ -52,7 +52,7 @@ struct Endianess<T, llvm::object::ELF32BE> {
 };
 
 template<typename T>
-struct Endianess<T, llvm::object::ELF64BE> {
+struct Endianness<T, llvm::object::ELF64BE> {
   static uint64_t read(const uint8_t *Buf) {
     using namespace llvm::support;
     return llvm::support::endian::read<T, big, unaligned>(Buf);
@@ -65,22 +65,22 @@ inline uint64_t readPointer(const uint8_t *Buf);
 
 template<>
 inline uint64_t readPointer<llvm::object::ELF32LE>(const uint8_t *Buf) {
-  return Endianess<uint32_t, llvm::object::ELF32LE>::read(Buf);
+  return Endianness<uint32_t, llvm::object::ELF32LE>::read(Buf);
 }
 
 template<>
 inline uint64_t readPointer<llvm::object::ELF32BE>(const uint8_t *Buf) {
-  return Endianess<uint32_t, llvm::object::ELF32BE>::read(Buf);
+  return Endianness<uint32_t, llvm::object::ELF32BE>::read(Buf);
 }
 
 template<>
 inline uint64_t readPointer<llvm::object::ELF64LE>(const uint8_t *Buf) {
-  return Endianess<uint64_t, llvm::object::ELF64LE>::read(Buf);
+  return Endianness<uint64_t, llvm::object::ELF64LE>::read(Buf);
 }
 
 template<>
 inline uint64_t readPointer<llvm::object::ELF64BE>(const uint8_t *Buf) {
-  return Endianess<uint64_t, llvm::object::ELF64BE>::read(Buf);
+  return Endianness<uint64_t, llvm::object::ELF64BE>::read(Buf);
 }
 
 /// A pair on steroids to wrap a value or a pointer to a value
@@ -182,7 +182,7 @@ private:
     constexpr bool IsSigned = std::numeric_limits<T>::is_signed;
     using ReturnType = std::conditional_t<IsSigned, int64_t, uint64_t>;
     revng_assert(Cursor + sizeof(T) <= End);
-    auto Result = static_cast<T>(Endianess<T, E>::read(Cursor));
+    auto Result = static_cast<T>(Endianness<T, E>::read(Cursor));
     Cursor += sizeof(T);
     return static_cast<ReturnType>(Result);
   }

@@ -114,7 +114,7 @@ Error PECOFFImporter::parseSectionsHeaders() {
     Segment.StartOffset() = CoffRef->PointerToRawData;
 
     // VirtualSize might be larger than SizeOfRawData (extra data at the end of
-    // the section) or viceversa (data mapped in memory but not present in
+    // the section) or vice-versa (data mapped in memory but not present in
     // memory, e.g., .bss)
     Segment.FileSize() = CoffRef->SizeOfRawData;
 

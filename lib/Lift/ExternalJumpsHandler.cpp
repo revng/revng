@@ -275,7 +275,7 @@ void ExternalJumpsHandler::createExternalJumpsHandler() {
   BasicBlock *DispatcherFail = Switch->getDefaultDest();
 
   // Replace the default case of the dispatcher with the external jump handler.
-  // In practice, perfrom a blind jump, unless the target is within the
+  // In practice, it performs a blind jump, unless the target is within the
   // executable segment of the current module.
   BasicBlock *ExternalJumpHandler = BasicBlock::Create(Context,
                                                        "dispatcher.external",

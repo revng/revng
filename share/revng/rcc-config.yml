@@ -149,3 +149,11 @@ read_passes:
             type: regexes_matcher
             regexes: ['^static\s']
   - type: WhitespaceCheckPass
+  - type: SingleCommandPass
+    name: codespell
+    tag: all
+    command:
+      - codespell
+      - -c
+      - --ignore-regex
+      - '\b(ArchType|[Ii]nvokable|\w+I)\b'

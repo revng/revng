@@ -32,7 +32,7 @@ namespace pipeline {
 /// are determined by the parents of the rank (see `Rank::Parent`).
 ///
 /// In deserialized form, the name gets lifted to a compilation time and can be
-/// accessed at `Rank::RankName`. The tuple of the keys is publically inherited
+/// accessed at `Rank::RankName`. The tuple of the keys is publicly inherited
 /// from, so it can either be accessed as normal tuple (for example, using
 /// `std::get<std::size_t>` after casting. There's a cast helper members
 /// (`tuple()`)) or using special accessors like `at()`.

@@ -41,7 +41,7 @@ public:
 /// A helper function used for defining a root rank.
 ///
 /// Root rank doesn't have corresponding storage location and is only
-/// used to defining a single logical starting poing in the rank hierarhy.
+/// used to defining a single logical starting point in the rank hierarhy.
 template<ConstexprString Name>
 pipeline::RootRank<Name> defineRootRank() {
   return pipeline::RootRank<Name>();

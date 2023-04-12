@@ -85,7 +85,7 @@ LLVMContainer::cloneFiltered(const TargetsList &Targets) const {
     llvm::SmallVector<std::pair<unsigned, llvm::MDNode *>, 2> MDs;
     Function.getAllMetadata(MDs);
     for (auto &MD : MDs) {
-      // The !dbg attachment from the function defintion cannot be attached to
+      // The !dbg attachment from the function definition cannot be attached to
       // its declaration.
       if (Other->isDeclaration() && isa<llvm::DISubprogram>(MD.second))
         continue;

@@ -429,7 +429,7 @@ void CFGAnalyzer::createIBIMarker(OutlinedFunction *OutlinedFunction) {
   // When an indirect jump is encountered we load the state at that point and
   // compare it against the initial state
 
-  // Initalize markers for ABI analyses and set up the branches on which
+  // Initialize markers for ABI analyses and set up the branches on which
   // `indirect_branch_info` will be installed.
   SmallVector<Instruction *, 16> BranchesToAnyPC;
   if (OutlinedFunction->AnyPCCloned == nullptr)

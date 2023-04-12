@@ -10,7 +10,7 @@
 #include "llvm/ADT/StringRef.h"
 
 //
-// FOR_EACH macro implemenation
+// FOR_EACH macro implementation
 //
 #define GET_MACRO(_0,   \
                   _1,   \

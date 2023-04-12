@@ -158,11 +158,11 @@ computeDirectlyReachableFunctions(const Function *RootFunction,
 struct TaintResults {
 
   // A set of Instructions that access the CSV to load data. They can be
-  // LoadInst or CallInst to Instrinsic::memcpy for which the size is known.
+  // LoadInst or CallInst to Intrinsic::memcpy for which the size is known.
   InstrPtrSet TaintedLoads;
 
   // A set of Instructions that access the CSV to store data. They can be
-  // LoadInst or CallInst to Instrinsic::memcpy for which the size is known.
+  // LoadInst or CallInst to Intrinsic::memcpy for which the size is known.
   InstrPtrSet TaintedStores;
 
   // A set of Values that are tainted during the analysis.
@@ -438,7 +438,7 @@ forwardTaintAnalysis(const Module *M,
               Results.TaintedLoads.insert(TheUser);
             }
           } else {
-            TaintLog << "Illegal -- unknwon size memcpy" << DoLog;
+            TaintLog << "Illegal -- unknown size memcpy" << DoLog;
             Results.IllegalCalls.insert(TheCall);
           }
           break;
@@ -1340,16 +1340,16 @@ private:
         } else {
           // For now we don't handle cases when the first index of the GEP is
           // not zero, so in those case we fall back outside the if and we fold
-          // them as ususal.
+          // them as usual.
         }
       } else {
         // For now we don't handle cases when the first index of the GEP is
         // not constant, so in those case we fall back outside the if and we
-        // fold them as ususal.
+        // fold them as usual.
       }
     } else {
       // For now we don't handle cases when the GEP does not index an array, so
-      // in those case we fall back outside the if and we fold them as ususal.
+      // in those case we fall back outside the if and we fold them as usual.
     }
 
     for (size_t O = 1; O < NOperands; O++) {
@@ -1852,8 +1852,8 @@ void CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
       // store it in the proper map.
 
       revng_log(CSVAccessLog,
-                "MAP Instrinsic::memcpy: " << ItemVal << " : "
-                                           << dumpToString(ItemVal));
+                "MAP Intrinsic::memcpy: " << ItemVal << " : "
+                                          << dumpToString(ItemVal));
 
       revng_assert(isa<ConstantInt>(Call->getArgOperand(2)));
       ValueCallSiteOffsetMap &VCSOffsets = IsLoad ? LoadCallSiteOffsets :
@@ -2726,7 +2726,7 @@ void CPUStateAccessFixer::correctCPUStateAccesses() {
       revng_log(FixAccessLog, "Is memcpy");
       if (IsLoad) {
         revng_log(FixAccessLog, "Must be fixed NOW!");
-        // Decompose memcpy from env to env into two separate memcpy, the fisrt
+        // Decompose memcpy from env to env into two separate memcpy, the first
         // to do the load, the second to do the store
         auto *Call = cast<CallInst>(Instr);
         Function *Memcpy = getCallee(Call);

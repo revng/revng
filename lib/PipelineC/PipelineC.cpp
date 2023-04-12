@@ -592,7 +592,7 @@ _rp_target_is_ready(const rp_target *target, const rp_container *container) {
 }
 
 /// TODO Remove the redundant copy by writing a custom string stream that writes
-/// direclty to a buffer to return.
+/// directly to a buffer to return.
 static char *_rp_manager_create_global_copy(const rp_manager *manager,
                                             const char *global_name) {
   std::string Out;

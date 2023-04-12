@@ -188,7 +188,7 @@ class DynamicBindableGenerator:
 
             for container_name, targets in kwargs.items():
                 if container_name not in argument_mapping.keys():
-                    raise ValueError("Passed non-existant container name")
+                    raise ValueError("Passed non-existent container name")
                 target_mapping[argument_mapping[container_name]] = targets.split(",")
 
             result = await run_in_executor(

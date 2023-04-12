@@ -165,8 +165,7 @@ Error Loader::parseContainerDeclaration(Runner &Pipeline,
                                         StringsMap &ReadOnlyNames) const {
   if (not Dec.Role.empty() and KnownContainerRoles.count(Dec.Role) == 0) {
     auto *Message = "while parsing container declaration with Name %s has a "
-                    "unkown "
-                    "role %s.\n";
+                    "unknown role %s.\n";
     return createStringError(inconvertibleErrorCode(),
                              Message,
                              Dec.Name.c_str(),
@@ -291,8 +290,8 @@ Loader::load(llvm::ArrayRef<PipelineDeclaration> Pipelines) const {
 
   llvm::SmallVector<const BranchDeclaration *, 2> ToSort;
   for (const auto &Pipeline : Pipelines)
-    for (const auto &Declartion : Pipeline.Branches)
-      ToSort.push_back(&Declartion);
+    for (const auto &Declaration : Pipeline.Branches)
+      ToSort.push_back(&Declaration);
 
   if (auto Error = sortPipeline(ToSort); Error)
     return std::move(Error);

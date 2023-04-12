@@ -55,7 +55,7 @@ public:
         // Record the type.
         auto TheType = DestinationModel->recordNewType(std::move(NewType));
 
-        // The first type that was visited is the funciton type itself.
+        // The first type that was visited is the function type itself.
         if (!Result)
           Result = TheType;
       }

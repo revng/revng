@@ -332,7 +332,7 @@ struct InterruptCreator<D, LatticeElement, DefaultInterrupt<LatticeElement>> {
 /// the IR you're working on), a class representing an element of the lattice
 /// (LatticeElement, see ElementBase) and a class representing an Interrupt
 /// reason of the analysis. It is suggested to create a namespace for these
-/// classes and keep their names simple: Analysis for the class inherting from
+/// classes and keep their names simple: Analysis for the class inheriting from
 /// MonotoneFramework, Element for LatticeElement and Interrupt for Interrupt.
 ///
 /// \tparam Label the type identifying a "label" in the monotone framework,
@@ -531,7 +531,7 @@ public:
       Label ToAnalyze = WorkList.head();
 
       // If we've been asked to visit this basic block before the end, consider
-      // the requested satified
+      // the requested satisfied
       ToVisit.erase(ToAnalyze);
 
       // Run the transfer function

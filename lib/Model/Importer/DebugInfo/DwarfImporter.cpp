@@ -1370,7 +1370,7 @@ inline void detectAliases(const llvm::object::ObjectFile &ELF,
   auto &Functions = Model->Functions();
 
   std::unordered_map<std::string, model::Function *> FunctionsByName;
-  // Map functions by names, so we have faster lookup bellow.
+  // Map functions by names, so we have faster lookup below.
   for (auto &Function : Functions) {
     if (Function.OriginalName().size()) {
       FunctionsByName[Function.OriginalName()] = &Function;

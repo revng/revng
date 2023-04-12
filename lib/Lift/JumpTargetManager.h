@@ -424,7 +424,7 @@ public:
     using namespace model::Architecture;
     unsigned ReadSize = getPointerSize(Model->Architecture());
     for (MetaAddress MemoryAddress : UnusedCodePointers) {
-      // Read using the original endianess, we want the correct address
+      // Read using the original endianness, we want the correct address
       auto MaybeRawPC = BinaryView.readInteger(MemoryAddress, ReadSize);
       MetaAddress PC = MetaAddress::invalid();
       if (MaybeRawPC)

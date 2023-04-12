@@ -67,22 +67,22 @@ public:
     if (not MaybeData)
       return std::nullopt;
 
-    llvm::support::endianness Endianess;
+    llvm::support::endianness Endianness;
     if (IsLittleEndian) {
-      Endianess = llvm::support::little;
+      Endianness = llvm::support::little;
     } else {
-      Endianess = llvm::support::big;
+      Endianness = llvm::support::big;
     }
 
     switch (Size) {
     case 1:
       return (*MaybeData)[0];
     case 2:
-      return llvm::support::endian::read16(MaybeData->data(), Endianess);
+      return llvm::support::endian::read16(MaybeData->data(), Endianness);
     case 4:
-      return llvm::support::endian::read32(MaybeData->data(), Endianess);
+      return llvm::support::endian::read32(MaybeData->data(), Endianness);
     case 8:
-      return llvm::support::endian::read64(MaybeData->data(), Endianess);
+      return llvm::support::endian::read64(MaybeData->data(), Endianness);
     default:
       revng_abort("Unexpected read size");
     }

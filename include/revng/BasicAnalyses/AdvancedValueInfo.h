@@ -1019,8 +1019,8 @@ public:
       auto Ptr = std::make_unique<detail::GraphValue>();
       auto Res = SuccessorsCache.try_emplace(&BB, std::move(Ptr));
       auto &Vector = *(*Res.first).getSecond();
-      for (auto *Succesor : llvm::successors(&BB)) {
-        Vector.push_back(Succesor);
+      for (auto *Successor : llvm::successors(&BB)) {
+        Vector.push_back(Successor);
       }
 
       llvm::sort(Vector);

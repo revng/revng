@@ -73,7 +73,7 @@ private:
 /// the `Types:` field of the `Model` is being populated. Since each CodeView
 /// type in the PDB has unique `TypeIndex` that will be used when a symbol from
 /// PDB symbol stream uses a certain type, we also keep a map of such
-/// `TypeIndex` to corresponging type generated within the `Model` (it is done
+/// `TypeIndex` to corresponding type generated within the `Model` (it is done
 /// by using `ProcessedTypes`), so it can be used when connecting functions from
 /// `Model` with corresponding prototypes.
 class PDBImporterTypeVisitor : public TypeVisitorCallbacks {
@@ -88,7 +88,7 @@ private:
     InProgressEnumeratorTypes;
   std::map<TypeIndex, ArgListRecord> InProgressArgumentsTypes;
 
-  // Methods of a Class type. It references conrete MemberFunctionRecord.
+  // Methods of a Class type. It references concrete MemberFunctionRecord.
   std::map<TypeIndex, SmallVector<OneMethodRecord, 8>>
     InProgressFunctionMemberTypes;
   DenseMap<TypeIndex, MemberFunctionRecord>
@@ -389,7 +389,7 @@ void PDBImporter::import(const COFFObjectFile &TheBinary,
     } else {
       if (Options.DebugInfo != DebugInfoLevel::No) {
         // Usually the PDB files will be generated on a different machine,
-        // so the location read from the debug directory wont be up to date.
+        // so the location read from the debug directory won't be up to date.
 
         auto PositionOfLastDirectoryChar = PDBFilePath.rfind("\\");
         if (PositionOfLastDirectoryChar != llvm::StringRef::npos) {
@@ -692,8 +692,8 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
         else
           continue;
 
-        // TODO: How is this posible?
-        // Trigers:
+        // TODO: How is this possible?
+        // Triggers:
         // `Last field ends outside the struct`.
         if (CurrFieldOffset > Struct->Size()) {
           revng_log(DILogger,
@@ -1010,7 +1010,7 @@ Error PDBImporterTypeVisitor::visitKnownRecord(CVType &Record,
   return Error::success();
 }
 
-// TODO: This can go into LLVM, but thre is an ongoing review that should
+// TODO: This can go into LLVM, but there is an ongoing review that should
 // implement this.
 static std::optional<uint64_t> getSizeinBytes(TypeIndex TI) {
   if (not TI.isSimple())

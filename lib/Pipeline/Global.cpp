@@ -1,6 +1,6 @@
 /// \file Global.cpp
-/// \brief a savable object is a objecet that an be serialized and deserialized
-/// froms a string
+/// \brief a saveable object that an be serialized and deserialized from a
+/// string
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
