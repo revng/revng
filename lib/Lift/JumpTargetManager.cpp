@@ -1078,7 +1078,6 @@ void JumpTargetManager::setCFGForm(CFGForm::Values NewForm,
   revng_assert(CurrentCFGForm != NewForm);
   revng_assert(NewForm != CFGForm::UnknownForm);
 
-  std::set<BasicBlock *> Unreachable;
   static bool First = true;
   if (not First and VerifyLog.isEnabled()) {
     assertNoUnreachable();
