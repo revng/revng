@@ -280,11 +280,11 @@ bool OPRP::needsParentheses(Instruction *I, Use &U) {
   // Verify emission of parentheses for binary operators, load and cast
   // instructions. Always emit parentheses when encountering calls.
   if (isa<AllocaInst>(I) || isa<InsertElementInst>(I)
-      || isa<ExtractElementInst>(I) || isa<InsertValueInst>(I)
-      || isa<ExtractValueInst>(I) || isa<ShuffleVectorInst>(I)
-      || isa<StoreInst>(I) || isa<BranchInst>(I) || isa<CallBrInst>(I)
-      || isa<IndirectBrInst>(I) || isa<ReturnInst>(I) || isa<IntrinsicInst>(I)
-      || isa<IntToPtrInst>(I) || isa<PtrToIntInst>(I) || isa<ZExtInst>(I))
+      || isa<ExtractElementInst>(I) || isa<ExtractValueInst>(I)
+      || isa<ShuffleVectorInst>(I) || isa<StoreInst>(I) || isa<BranchInst>(I)
+      || isa<CallBrInst>(I) || isa<IndirectBrInst>(I) || isa<ReturnInst>(I)
+      || isa<IntrinsicInst>(I) || isa<IntToPtrInst>(I) || isa<PtrToIntInst>(I)
+      || isa<ZExtInst>(I))
     return false;
 
   else if (isa<BinaryOperator>(I) || isa<CmpInst>(I) || isa<ICmpInst>(I)

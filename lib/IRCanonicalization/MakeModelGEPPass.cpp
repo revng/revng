@@ -1812,7 +1812,6 @@ class GEPSummationCache {
 
       case Instruction::Unreachable:
       case Instruction::Store:
-      case Instruction::InsertValue:
       case Instruction::Invoke:
       case Instruction::Resume:
       case Instruction::CleanupRet:
