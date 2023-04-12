@@ -528,6 +528,12 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   StringMap<cl::Option *> &Options(cl::getRegisteredOptions());
   getOption<bool>(Options, "enable-load-pre")->setInitialValue(false);
   getOption<unsigned>(Options, "memdep-block-scan-limit")->setInitialValue(100);
+  // Increase the Cap of the clobbering calls (`getClobberingMemoryAccess()`) in
+  // EarlyCSE, so MemorySSA is still useful in the Pass. This is needed to avoid
+  // using of GVN Pass, which is very slow.
+  const char *EarlyCSEOption = "earlycse-mssa-optimization-cap";
+  getOption<unsigned>(Options, EarlyCSEOption)->setInitialValue(2000);
+
   // getOption<bool>(Options, "enable-pre")->setInitialValue(false);
   // getOption<uint32_t>(Options, "max-recurse-depth")->setInitialValue(10);
 }
@@ -1710,7 +1716,6 @@ void JumpTargetManager::harvestWithAVI() {
     FPM.addPass(TypeShrinking::TypeShrinkingPass());
     FPM.addPass(JumpThreadingPass());
     FPM.addPass(UnreachableBlockElimPass());
-    FPM.addPass(GVNPass());
     FPM.addPass(InstCombinePass());
     FPM.addPass(EarlyCSEPass(true));
     FPM.addPass(DropRangeMetadataPass());
