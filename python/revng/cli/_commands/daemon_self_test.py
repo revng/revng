@@ -98,10 +98,7 @@ class DaemonSelfTestCommand(Command):
         return (aiohttp.TCPConnector(), self.url)
 
     async def run_self_test(self, executable_path: str, has_revng_c: bool):
-        try:
-            await self.check_server_up()
-        except ValueError as e:
-            self.fail(e)
+        await self.check_server_up()
 
         connector, address = await self.get_connection()
         transport = AIOHTTPTransport(
