@@ -1424,145 +1424,106 @@ JumpTargetManager::MetaAddressSet JumpTargetManager::inflateAVIWhitelist() {
   return Result;
 }
 
-void JumpTargetManager::harvestWithAVI() {
-  Module *M = TheFunction->getParent();
-
-  //
-  // Update CPUStateAccessAnalysisPass
-  //
+// Update CPUStateAccessAnalysisPass
+void JumpTargetManager::updateCSAA() {
   legacy::PassManager PM;
   PM.add(new LoadModelWrapperPass(ModelWrapper::createConst(Model)));
   PM.add(CreateCSAA());
   PM.add(new FunctionCallIdentification);
   PM.run(TheModule);
+}
 
-  //
-  // Collect all the non-PC affecting CSVs
-  //
-  std::set<GlobalVariable *> NonPCCSVs;
-  QuickMetadata QMD(Context);
-  NamedMDNode *NamedMD = TheModule.getOrInsertNamedMetadata("revng.csv");
-  auto *Tuple = cast<MDTuple>(NamedMD->getOperand(0));
-  for (const MDOperand &Operand : Tuple->operands()) {
-    auto *CSV = cast<GlobalVariable>(QMD.extract<Constant *>(Operand.get()));
-    if (not PCH->affectsPC(CSV))
-      NonPCCSVs.insert(CSV);
-  }
-
-  //
-  // Clone the root function
-  //
+// Clone the root function.
+Function *JumpTargetManager::createTemporaryRoot(ValueToValueMapTy &OldToNew) {
   Function *OptimizedFunction = nullptr;
-  ValueToValueMapTy OldToNew;
-  {
-    // Break all the call edges. We want to ignore those for CFG recovery
-    // purposes.
-    std::set<BasicBlock *> Callees;
-    std::map<Use *, BasicBlock *> Undo;
-    auto *FunctionCall = TheModule.getFunction("function_call");
-    revng_assert(FunctionCall != nullptr);
-    for (CallBase *Call : callers(FunctionCall)) {
-      auto *T = Call->getParent()->getTerminator();
+  Module *M = TheFunction->getParent();
+  // Break all the call edges. We want to ignore those for CFG recovery
+  // purposes.
+  std::set<BasicBlock *> Callees;
+  std::map<Use *, BasicBlock *> Undo;
+  auto *FunctionCall = TheModule.getFunction("function_call");
+  revng_assert(FunctionCall != nullptr);
+  for (CallBase *Call : callers(FunctionCall)) {
+    auto *T = Call->getParent()->getTerminator();
 
-      Callees.insert(getFunctionCallCallee(Call->getParent()));
+    Callees.insert(getFunctionCallCallee(Call->getParent()));
 
-      if (auto *Branch = dyn_cast<BranchInst>(T)) {
-        revng_assert(Branch->isUnconditional());
-        BasicBlock *Target = Branch->getSuccessor(0);
-        Use *U = &Branch->getOperandUse(0);
+    if (auto *Branch = dyn_cast<BranchInst>(T)) {
+      revng_assert(Branch->isUnconditional());
+      BasicBlock *Target = Branch->getSuccessor(0);
+      Use *U = &Branch->getOperandUse(0);
 
-        // We're after a function call: pretend we're jumping to anypc
-        U->set(AnyPC);
+      // We're after a function call: pretend we're jumping to anypc
+      U->set(AnyPC);
 
-        // Record Use for later undoing
-        Undo[U] = Target;
-      }
+      // Record Use for later undoing
+      Undo[U] = Target;
     }
+  }
 
-    // Compute AVIJumpTargetWhitelist
-    auto AVIJumpTargetWhitelist = inflateAVIWhitelist();
+  // Compute AVIJumpTargetWhitelist
+  auto AVIJumpTargetWhitelist = inflateAVIWhitelist();
 
-    // Prune the dispatcher
-    setCFGForm(CFGForm::RecoveredOnly, &AVIJumpTargetWhitelist);
+  // Prune the dispatcher
+  setCFGForm(CFGForm::RecoveredOnly, &AVIJumpTargetWhitelist);
 
-    // Detach all the unreachable basic blocks, so they don't get copied
-    std::set<BasicBlock *> UnreachableBBs = computeUnreachable();
-    for (BasicBlock *UnreachableBB : UnreachableBBs)
-      UnreachableBB->removeFromParent();
+  // Detach all the unreachable basic blocks, so they don't get copied
+  std::set<BasicBlock *> UnreachableBBs = computeUnreachable();
+  for (BasicBlock *UnreachableBB : UnreachableBBs)
+    UnreachableBB->removeFromParent();
 
-    // Clone the function
-    OptimizedFunction = CloneFunction(TheFunction, OldToNew);
+  // Clone the function
+  OptimizedFunction = CloneFunction(TheFunction, OldToNew);
 
-    // Restore callees after function_call
-    for (auto [U, BB] : Undo)
-      U->set(BB);
+  // Restore callees after function_call
+  for (auto [U, BB] : Undo)
+    U->set(BB);
 
-    Callees.erase(nullptr);
-    llvm::IRBuilder<> Builder(Context);
-    for (BasicBlock *BB : Callees) {
-      if (OldToNew.count(BB) == 0)
-        continue;
-      BB = cast<BasicBlock>(OldToNew[BB]);
-      revng_assert(BB->getTerminator() != nullptr);
-      Builder.SetInsertPoint(BB->getFirstNonPHI());
+  Callees.erase(nullptr);
+  llvm::IRBuilder<> Builder(Context);
+  for (BasicBlock *BB : Callees) {
+    if (OldToNew.count(BB) == 0)
+      continue;
+    BB = cast<BasicBlock>(OldToNew[BB]);
+    revng_assert(BB->getTerminator() != nullptr);
+    Builder.SetInsertPoint(BB->getFirstNonPHI());
 
-      for (const model::Segment &Segment : Model->Segments()) {
-        if (Segment.contains(getBasicBlockAddress(BB))) {
-          for (const auto &CanonicalValue : Segment.CanonicalRegisterValues()) {
-            auto Name = model::Register::getCSVName(CanonicalValue.Register());
-            if (auto *CSV = M->getGlobalVariable(Name)) {
-              auto *Type = getCSVType(CSV);
-              Builder.CreateStore(ConstantInt::get(Type,
-                                                   CanonicalValue.Value()),
-                                  CSV);
-            }
+    for (const model::Segment &Segment : Model->Segments()) {
+      if (Segment.contains(getBasicBlockAddress(BB))) {
+        for (const auto &CanonicalValue : Segment.CanonicalRegisterValues()) {
+          auto Name = model::Register::getCSVName(CanonicalValue.Register());
+          if (auto *CSV = M->getGlobalVariable(Name)) {
+            auto *Type = getCSVType(CSV);
+            Builder.CreateStore(ConstantInt::get(Type, CanonicalValue.Value()),
+                                CSV);
           }
-          break;
         }
-      }
-    }
-
-    // Record the size of OptimizedFunction
-    size_t BlocksCount = OptimizedFunction->size();
-    BlocksAnalyzedByAVI.push(BlocksCount);
-
-    // Reattach the unreachable basic blocks to the original root function
-    for (BasicBlock *UnreachableBB : UnreachableBBs)
-      UnreachableBB->insertInto(TheFunction);
-
-    // Restore the dispatcher in the original function
-    setCFGForm(CFGForm::SemanticPreserving);
-    revng_assert(computeUnreachable().size() == 0);
-
-    // Clear the whitelist
-    AVIPCWhiteList.clear();
-  }
-
-  //
-  // Register for analysis the value written in the PC before each exit_tb call
-  //
-  AnalysisRegistry AR(M);
-  IRBuilder<> Builder(Context);
-  for (User *U : ExitTB->users()) {
-    if (auto *Call = dyn_cast<CallInst>(U)) {
-      BasicBlock *BB = Call->getParent();
-      if (BB->getParent() == TheFunction) {
-        auto It = OldToNew.find(Call);
-        if (It == OldToNew.end())
-          continue;
-        Builder.SetInsertPoint(cast<CallInst>(&*It->second));
-        Instruction *ComposedIntegerPC = PCH->composeIntegerPC(Builder);
-        AR.registerValue(getPC(Call).first,
-                         Call,
-                         ComposedIntegerPC,
-                         TrackedInstructionType::WrittenInPC);
+        break;
       }
     }
   }
 
-  //
-  // Register load/store addresses and PC-sized stored value
-  //
+  // Record the size of OptimizedFunction
+  size_t BlocksCount = OptimizedFunction->size();
+  BlocksAnalyzedByAVI.push(BlocksCount);
+
+  // Reattach the unreachable basic blocks to the original root function
+  for (BasicBlock *UnreachableBB : UnreachableBBs)
+    UnreachableBB->insertInto(TheFunction);
+
+  // Restore the dispatcher in the original function
+  setCFGForm(CFGForm::SemanticPreserving);
+  revng_assert(computeUnreachable().size() == 0);
+
+  // Clear the whitelist
+  AVIPCWhiteList.clear();
+
+  return OptimizedFunction;
+}
+
+// Register load/store addresses and PC-sized stored value.
+void JumpTargetManager::processLoadsAndStores(Function *OptimizedFunction,
+                                              AnalysisRegistry &AR) {
   for (BasicBlock &BB : *OptimizedFunction) {
     for (Instruction &I : BB) {
       namespace TIT = TrackedInstructionType;
@@ -1600,30 +1561,12 @@ void JumpTargetManager::harvestWithAVI() {
       }
     }
   }
+}
 
-  //
-  // Create and initialized an alloca per CSV (except for the PC-affecting ones)
-  //
-  BasicBlock *EntryBB = &OptimizedFunction->getEntryBlock();
-  IRBuilder<> AllocaBuilder(&*EntryBB->begin());
-  IRBuilder<> InitializeBuilder(EntryBB->getTerminator());
-  std::map<GlobalVariable *, AllocaInst *> CSVMap;
-
-  for (GlobalVariable *CSV : NonPCCSVs) {
-    Type *CSVType = CSV->getValueType();
-    auto *Alloca = AllocaBuilder.CreateAlloca(CSVType, nullptr, CSV->getName());
-    CSVMap[CSV] = Alloca;
-
-    // Replace all uses of the CSV within OptimizedFunction with the alloca
-    replaceAllUsesInFunctionWith(OptimizedFunction, CSV, Alloca);
-
-    // Initialize the alloca
-    InitializeBuilder.CreateStore(createLoad(InitializeBuilder, CSV), Alloca);
-  }
-
-  //
-  // Helper to intrinsic promotion
-  //
+// Helper to intrinsic promotion.
+void JumpTargetManager::promoteHelpersToIntrinsics(Module *M,
+                                                   Function *OptimizedFunction,
+                                                   IRBuilder<> &Builder) {
   using MapperFunction = std::function<Instruction *(CallInst *)>;
   std::pair<std::vector<StringRef>, MapperFunction> Mapping[] = {
     { { "helper_clz", "helper_clz32", "helper_clz64", "helper_dclz" },
@@ -1658,38 +1601,56 @@ void JumpTargetManager::harvestWithAVI() {
       }
     }
   }
+}
 
-  SmallVector<CallInst *, 16> ToErase;
-  for (User *U : M->getFunction("newpc")->users()) {
-    Instruction *I = dyn_cast<Instruction>(U);
-    if (I == nullptr or I->getParent()->getParent() != OptimizedFunction)
-      continue;
-
-    auto *Call = getCallTo(I, "newpc");
-    if (Call == nullptr)
-      continue;
-
-    PCH->expandNewPC(Call);
-    ToErase.push_back(Call);
+JumpTargetManager::GlobalToAllocaTy
+JumpTargetManager::promoteCSVsToAlloca(Function *OptimizedFunction) {
+  GlobalToAllocaTy CSVMap;
+  // Collect all the non-PC affecting CSVs.
+  std::set<GlobalVariable *> NonPCCSVs;
+  QuickMetadata QMD(Context);
+  NamedMDNode *NamedMD = TheModule.getOrInsertNamedMetadata("revng.csv");
+  auto *Tuple = cast<MDTuple>(NamedMD->getOperand(0));
+  for (const MDOperand &Operand : Tuple->operands()) {
+    auto *CSV = cast<GlobalVariable>(QMD.extract<Constant *>(Operand.get()));
+    if (not PCH->affectsPC(CSV))
+      NonPCCSVs.insert(CSV);
   }
 
-  for (CallInst *Call : ToErase)
-    eraseFromParent(Call);
+  // Create and initialized an alloca per CSV (except for the PC-affecting
+  // ones).
+  BasicBlock *EntryBB = &OptimizedFunction->getEntryBlock();
+  IRBuilder<> AllocaBuilder(&*EntryBB->begin());
+  IRBuilder<> InitializeBuilder(EntryBB->getTerminator());
 
-  //
-  // Optimize the hell out of it and collect the possible values of indirect
-  // branches
-  //
+  for (GlobalVariable *CSV : NonPCCSVs) {
+    Type *CSVType = CSV->getValueType();
+    auto *Alloca = AllocaBuilder.CreateAlloca(CSVType, nullptr, CSV->getName());
+    CSVMap[CSV] = Alloca;
 
+    // Replace all uses of the CSV within OptimizedFunction with the alloca
+    replaceAllUsesInFunctionWith(OptimizedFunction, CSV, Alloca);
+
+    // Initialize the alloca
+    InitializeBuilder.CreateStore(createLoad(InitializeBuilder, CSV), Alloca);
+  }
+
+  return CSVMap;
+}
+
+SummaryCallsBuilder
+JumpTargetManager::runAdvancedValueInfo(llvm::Function *OptimizedFunction) {
   using namespace model::Architecture;
   using namespace model::Register;
+
+  auto CSVMap = promoteCSVsToAlloca(OptimizedFunction);
+  SummaryCallsBuilder SCB(CSVMap);
+  auto M = OptimizedFunction->getParent();
   StringRef SyscallHelperName = getSyscallHelper(Model->Architecture());
   Function *SyscallHelper = M->getFunction(SyscallHelperName);
   auto SyscallIDRegister = getSyscallNumberRegister(Model->Architecture());
   StringRef SyscallIDCSVName = getName(SyscallIDRegister);
   GlobalVariable *SyscallIDCSV = M->getGlobalVariable(SyscallIDCSVName);
-
-  SummaryCallsBuilder SCB(CSVMap);
 
   // Remove PC initialization from entry block: this is required otherwise the
   // dispatcher will be constant-propagated away
@@ -1746,13 +1707,11 @@ void JumpTargetManager::harvestWithAVI() {
     FPM.run(*OptimizedFunction, FAM);
   }
 
-  if (VerifyLog.isEnabled())
-    revng_check(not verifyModule(*OptimizedFunction->getParent(), &dbgs()));
+  return SCB;
+}
 
-  //
-  // Collect the results
-  //
-
+void JumpTargetManager::collectAVIResults(llvm::Module *M,
+                                          AnalysisRegistry &AR) {
   // Iterate over all the AVI markers
   Function *AVIMarker = AR.aviMarker();
   for (User *U : AVIMarker->users()) {
@@ -1780,7 +1739,7 @@ void JumpTargetManager::harvestWithAVI() {
     bool AllPCs = true;
 
     SmallVector<MetaAddress, 16> Targets;
-    SmallVector<StringRef> SymbolNames;
+    QuickMetadata QMD(Context);
 
     // Iterate over all the generated values
     for (const MDOperand &Operand : cast<MDTuple>(T)->operands()) {
@@ -1852,12 +1811,70 @@ void JumpTargetManager::harvestWithAVI() {
                 OperandsCount << " targets from " << getName(Call));
     }
   }
-  //
-  // Drop the optimized function
-  //
+}
+
+void JumpTargetManager::harvestWithAVI() {
+  Module *M = TheFunction->getParent();
+
+  updateCSAA();
+
+  ValueToValueMapTy OldToNew;
+  auto OptimizedFunction = createTemporaryRoot(OldToNew);
+
+  // Register for analysis the value written in the PC before each exit_tb call.
+  AnalysisRegistry AR(M);
+  IRBuilder<> Builder(Context);
+  for (User *U : ExitTB->users()) {
+    if (auto *Call = dyn_cast<CallInst>(U)) {
+      BasicBlock *BB = Call->getParent();
+      if (BB->getParent() == TheFunction) {
+        auto It = OldToNew.find(Call);
+        if (It == OldToNew.end())
+          continue;
+        Builder.SetInsertPoint(cast<CallInst>(&*It->second));
+        Instruction *ComposedIntegerPC = PCH->composeIntegerPC(Builder);
+        AR.registerValue(getPC(Call).first,
+                         Call,
+                         ComposedIntegerPC,
+                         TrackedInstructionType::WrittenInPC);
+      }
+    }
+  }
+
+  processLoadsAndStores(OptimizedFunction, AR);
+  promoteHelpersToIntrinsics(M, OptimizedFunction, Builder);
+
+  SmallVector<CallInst *, 16> ToErase;
+  for (User *U : M->getFunction("newpc")->users()) {
+    Instruction *I = dyn_cast<Instruction>(U);
+    if (I == nullptr or I->getParent()->getParent() != OptimizedFunction)
+      continue;
+
+    auto *Call = getCallTo(I, "newpc");
+    if (Call == nullptr)
+      continue;
+
+    PCH->expandNewPC(Call);
+    ToErase.push_back(Call);
+  }
+
+  for (CallInst *Call : ToErase)
+    eraseFromParent(Call);
+
+  // Optimize the hell out of it and collect the possible values of indirect
+  // branches.
+  auto SCB = runAdvancedValueInfo(OptimizedFunction);
+
+  if (VerifyLog.isEnabled())
+    revng_check(not verifyModule(*OptimizedFunction->getParent(), &dbgs()));
+
+  // Collect the results.
+  collectAVIResults(M, AR);
+
+  // Drop the optimized function.
   eraseFromParent(OptimizedFunction);
 
-  // Drop temporary functions
+  // Drop temporary functions.
   SCB.cleanup();
 }
 
