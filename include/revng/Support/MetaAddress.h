@@ -788,7 +788,7 @@ public:
     return MetaAddressType::alignment(type());
   }
 
-  std::optional<llvm::Triple::ArchType> arch() {
+  std::optional<llvm::Triple::ArchType> arch() const {
     return MetaAddressType::arch(type());
   }
 
@@ -946,3 +946,16 @@ struct CompareAddress<MetaAddress> {
 template<>
 struct KeyedObjectTraits<MetaAddress>
   : public IdentityKeyedObjectTraits<MetaAddress> {};
+
+namespace std {
+template<>
+class hash<MetaAddress> {
+public:
+  std::uint64_t operator()(const MetaAddress &Address) const {
+    return hash_combine(Address.arch(),
+                        Address.address(),
+                        Address.epoch(),
+                        Address.addressSpace());
+  }
+};
+} // namespace std
