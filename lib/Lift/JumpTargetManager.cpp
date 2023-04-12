@@ -1719,7 +1719,6 @@ void JumpTargetManager::harvestWithAVI() {
     FPM.addPass(TypeShrinking::TypeShrinkingPass());
     FPM.addPass(JumpThreadingPass());
     FPM.addPass(UnreachableBlockElimPass());
-    FPM.addPass(InstCombinePass(InstCombineMaxIterations));
     FPM.addPass(EarlyCSEPass(true));
     FPM.addPass(DropRangeMetadataPass());
     FPM.addPass(AdvancedValueInfoPass(this));
