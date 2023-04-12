@@ -1919,7 +1919,6 @@ void JumpTargetManager::harvest() {
     legacy::FunctionPassManager OptimizingPM(&TheModule);
     OptimizingPM.add(createSROAPass());
     OptimizingPM.add(createInstSimplifyLegacyPass());
-    OptimizingPM.add(createInstructionCombiningPass());
     OptimizingPM.doInitialization();
     OptimizingPM.run(*TheFunction);
     OptimizingPM.doFinalization();
