@@ -101,7 +101,7 @@ runTypeShrinking(Function &F, const BitLivenessAnalysisResults &FixedPoints) {
                                          Rhs);
 
         // Emit ZExts, as late as possible
-        SmallVector<std::pair<Use *, Value *>, 4> Replacements;
+        SmallVector<std::pair<Use *, Value *>, 6> Replacements;
         for (Use &TheUse : Ins->uses()) {
           if (auto *U = cast<Instruction>(TheUse.getUser())) {
             IRBuilder<> B(U);

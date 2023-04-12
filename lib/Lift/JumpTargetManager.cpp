@@ -90,7 +90,7 @@ void TranslateDirectBranchesPass::getAnalysisUsage(AnalysisUsage &AU) const {
 }
 
 void JumpTargetManager::assertNoUnreachable() const {
-  std::set<BasicBlock *> Unreachable = computeUnreachable();
+  llvm::DenseSet<BasicBlock *> Unreachable = computeUnreachable();
   if (Unreachable.size() != 0) {
     VerifyLog << "The following basic blocks are unreachable:\n";
     for (BasicBlock *BB : Unreachable) {
@@ -681,7 +681,7 @@ void JumpTargetManager::registerInstruction(MetaAddress PC,
 std::pair<MetaAddress, uint64_t>
 JumpTargetManager::getPC(Instruction *TheInstruction) const {
   CallInst *NewPCCall = nullptr;
-  std::set<BasicBlock *> Visited;
+  llvm::DenseSet<BasicBlock *> Visited;
   std::queue<BasicBlock::reverse_iterator> WorkList;
   if (TheInstruction->getIterator() == TheInstruction->getParent()->begin())
     WorkList.push(--TheInstruction->getParent()->rend());
@@ -795,7 +795,7 @@ private:
   unsigned JumpTargetIndex;
   unsigned JumpTargetsCount;
   const DataLayout &DL;
-  std::set<BasicBlock *> Visited;
+  llvm::DenseSet<BasicBlock *> Visited;
   std::queue<BasicBlock *> SamePC;
   std::queue<std::pair<BasicBlock *, MetaAddress>> NewPC;
 };
@@ -1058,14 +1058,14 @@ static void purge(BasicBlock *BB) {
   revng_assert(BB->empty());
 }
 
-std::set<BasicBlock *> JumpTargetManager::computeUnreachable() const {
+llvm::DenseSet<BasicBlock *> JumpTargetManager::computeUnreachable() const {
   ReversePostOrderTraversal<BasicBlock *> RPOT(&TheFunction->getEntryBlock());
-  std::set<BasicBlock *> Reachable;
+  llvm::DenseSet<BasicBlock *> Reachable;
   for (BasicBlock *BB : RPOT)
     Reachable.insert(BB);
 
   // TODO: why is isTranslatedBB(&BB) necessary?
-  std::set<BasicBlock *> Unreachable;
+  llvm::DenseSet<BasicBlock *> Unreachable;
   for (BasicBlock &BB : *TheFunction)
     if (Reachable.count(&BB) == 0 and isTranslatedBB(&BB))
       Unreachable.insert(&BB);
@@ -1439,8 +1439,8 @@ Function *JumpTargetManager::createTemporaryRoot(ValueToValueMapTy &OldToNew) {
   Module *M = TheFunction->getParent();
   // Break all the call edges. We want to ignore those for CFG recovery
   // purposes.
-  std::set<BasicBlock *> Callees;
-  std::map<Use *, BasicBlock *> Undo;
+  llvm::DenseSet<BasicBlock *> Callees;
+  llvm::DenseMap<Use *, BasicBlock *> Undo;
   auto *FunctionCall = TheModule.getFunction("function_call");
   revng_assert(FunctionCall != nullptr);
   for (CallBase *Call : callers(FunctionCall)) {
@@ -1468,7 +1468,7 @@ Function *JumpTargetManager::createTemporaryRoot(ValueToValueMapTy &OldToNew) {
   setCFGForm(CFGForm::RecoveredOnly, &AVIJumpTargetWhitelist);
 
   // Detach all the unreachable basic blocks, so they don't get copied
-  std::set<BasicBlock *> UnreachableBBs = computeUnreachable();
+  llvm::DenseSet<BasicBlock *> UnreachableBBs = computeUnreachable();
   for (BasicBlock *UnreachableBB : UnreachableBBs)
     UnreachableBB->removeFromParent();
 
@@ -1607,7 +1607,7 @@ JumpTargetManager::GlobalToAllocaTy
 JumpTargetManager::promoteCSVsToAlloca(Function *OptimizedFunction) {
   GlobalToAllocaTy CSVMap;
   // Collect all the non-PC affecting CSVs.
-  std::set<GlobalVariable *> NonPCCSVs;
+  llvm::DenseSet<GlobalVariable *> NonPCCSVs;
   QuickMetadata QMD(Context);
   NamedMDNode *NamedMD = TheModule.getOrInsertNamedMetadata("revng.csv");
   auto *Tuple = cast<MDTuple>(NamedMD->getOperand(0));
@@ -1901,7 +1901,7 @@ void JumpTargetManager::harvest() {
     HarvestingStats.push("harvest 2: SROA + InstCombine + TBDP");
 
     // Safely erase all unreachable blocks
-    std::set<BasicBlock *> Unreachable = computeUnreachable();
+    llvm::DenseSet<BasicBlock *> Unreachable = computeUnreachable();
     for (BasicBlock *BB : Unreachable)
       BB->dropAllReferences();
     for (BasicBlock *BB : Unreachable)

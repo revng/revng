@@ -6,13 +6,15 @@
 
 #include <cstdint>
 #include <map>
-#include <set>
+#include <unordered_set>
 #include <vector>
 
 #include "boost/icl/interval_map.hpp"
 #include "boost/icl/interval_set.hpp"
 #include "boost/type_traits/is_same.hpp"
 
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/Analysis/MemorySSAUpdater.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
@@ -153,8 +155,9 @@ class JumpTargetManager {
 private:
   using interval_set = boost::icl::interval_set<MetaAddress, CompareAddress>;
   using interval = boost::icl::interval<MetaAddress, CompareAddress>;
-  using MetaAddressSet = std::set<MetaAddress>;
-  using GlobalToAllocaTy = std::map<llvm::GlobalVariable *, llvm::AllocaInst *>;
+  using MetaAddressSet = std::unordered_set<MetaAddress>;
+  using GlobalToAllocaTy = llvm::DenseMap<llvm::GlobalVariable *,
+                                          llvm::AllocaInst *>;
 
 public:
   using BlockWithAddress = std::pair<MetaAddress, llvm::BasicBlock *>;
@@ -518,7 +521,7 @@ public:
 private:
   void fixPostHelperPC();
 
-  std::set<llvm::BasicBlock *> computeUnreachable() const;
+  llvm::DenseSet<llvm::BasicBlock *> computeUnreachable() const;
 
   void assertNoUnreachable() const;
 
