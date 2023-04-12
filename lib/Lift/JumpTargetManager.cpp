@@ -67,6 +67,10 @@ Logger<> JTCountLog("jtcount");
 Logger<> NewEdgesLog("new-edges");
 Logger<> RegisterJTLog("registerjt");
 
+// NOTE: Setting this to 1 gives us performance improvement. We have tested and
+// realized that there is an impact on performance if setting it to 2.
+constexpr unsigned InstCombineMaxIterations = 1;
+
 CounterMap<std::string> HarvestingStats("harvesting");
 RunningStatistics BlocksAnalyzedByAVI("blocks-analyzed-by-avi");
 
@@ -1711,11 +1715,11 @@ void JumpTargetManager::harvestWithAVI() {
     FPM.addPass(DropHelperCallsPass(SyscallHelper, SyscallIDCSV, SCB));
     FPM.addPass(ShrinkInstructionOperandsPass());
     FPM.addPass(PromotePass());
-    FPM.addPass(InstCombinePass());
+    FPM.addPass(InstCombinePass(InstCombineMaxIterations));
     FPM.addPass(TypeShrinking::TypeShrinkingPass());
     FPM.addPass(JumpThreadingPass());
     FPM.addPass(UnreachableBlockElimPass());
-    FPM.addPass(InstCombinePass());
+    FPM.addPass(InstCombinePass(InstCombineMaxIterations));
     FPM.addPass(EarlyCSEPass(true));
     FPM.addPass(DropRangeMetadataPass());
     FPM.addPass(AdvancedValueInfoPass(this));
