@@ -78,7 +78,7 @@ commands:
       revng check-decompiled-c "$OUTPUT";
   - type: revng-c.ptml-helpers-to-header
     from:
-      - type: revng-c.analyzed
+      - type: revng-c.canonicalized
     suffix: .ptml.helpers.h
     command: |-
       revng helpers-to-header -i "$INPUT" -o "$OUTPUT";
