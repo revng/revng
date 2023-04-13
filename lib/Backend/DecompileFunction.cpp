@@ -333,6 +333,8 @@ static std::string boolLiteral(const llvm::ConstantInt *Int) {
 /// Return the string that represents the given binary operator in C
 static const std::string getBinOpString(const llvm::BinaryOperator *BinOp) {
   const Tag *Op = [&BinOp]() constexpr {
+    bool IsBool = BinOp->getType()->isIntegerTy(1);
+
     switch (BinOp->getOpcode()) {
     case Instruction::Add:
       return &operators::Add;
@@ -352,9 +354,9 @@ static const std::string getBinOpString(const llvm::BinaryOperator *BinOp) {
     case Instruction::Shl:
       return &operators::LShift;
     case Instruction::And:
-      return &operators::And;
+      return IsBool ? &operators::BoolAnd : &operators::And;
     case Instruction::Or:
-      return &operators::Or;
+      return IsBool ? &operators::BoolOr : &operators::Or;
     case Instruction::Xor:
       return &operators::Xor;
     default:
