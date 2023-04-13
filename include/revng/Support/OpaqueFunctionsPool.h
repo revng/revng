@@ -133,4 +133,14 @@ public:
         record(KeyType, &F);
     }
   }
+
+  /// Initialize the pool with all the functions in M that match the tag TheTag,
+  /// using the type of the ArgNo-th argument as key.
+  void initializeFromName(const FunctionTags::Tag &TheTag)
+    requires std::is_same_v<KeyT, std::string>
+  {
+    // clang-format on
+    for (llvm::Function &F : TheTag.functions(M))
+      record(F.getName().str(), &F);
+  }
 };
