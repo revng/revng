@@ -8,6 +8,7 @@
 #include <fstream>
 
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/Support/SHA1.h"
 #include "llvm/Support/raw_os_ostream.h"
@@ -364,31 +365,20 @@ void pruneDICompileUnits(Module &M) {
   if (CUs == nullptr)
     return;
 
-  OnceQueue<MDNode *> Queue;
-  for (Function &F : M)
-    for (BasicBlock &BB : F)
-      for (Instruction &I : BB)
-        if (MDNode *Location = I.getDebugLoc().get())
-          Queue.insert(Location);
+  // Purge CUs list
+  CUs->clearOperands();
 
   std::set<DICompileUnit *> Reachable;
-  while (not Queue.empty()) {
-    MDNode *Entry = Queue.pop();
+  DebugInfoFinder DIFinder;
+  DIFinder.processModule(M);
 
-    if (auto *CU = dyn_cast<DICompileUnit>(Entry))
-      Reachable.insert(CU);
-
-    // Add all the operands to the queue
-    for (const MDOperand &Operand : Entry->operands())
-      if (auto *Node = dyn_cast_or_null<MDNode>(Operand.get()))
-        Queue.insert(Node);
-  }
+  for (DICompileUnit *CU : DIFinder.compile_units())
+    Reachable.insert(CU);
 
   if (Reachable.size() == 0) {
     CUs->eraseFromParent();
   } else {
-    // Purge and recreate CUs list
-    CUs->clearOperands();
+    // Recreate CUs list
     for (DICompileUnit *CU : Reachable)
       CUs->addOperand(CU);
   }
