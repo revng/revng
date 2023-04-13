@@ -8,6 +8,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Value.h"
@@ -559,6 +560,81 @@ getExpectedModelType(FunctionMetadataCache &Cache,
     }
   } else if (auto *Ret = dyn_cast<llvm::ReturnInst>(User)) {
     return handleReturnValue(ParentFunc()->Prototype(), Model);
+  } else if (auto *BinaryOp = dyn_cast<llvm::BinaryOperator>(User)) {
+    using namespace model::PrimitiveTypeKind;
+    auto Opcode = BinaryOp->getOpcode();
+    switch (Opcode) {
+
+    case llvm::Instruction::SDiv:
+    case llvm::Instruction::SRem: {
+      model::QualifiedType Result;
+      auto BitWidth = U->get()->getType()->getIntegerBitWidth();
+      revng_assert(BitWidth >= 8 and std::has_single_bit(BitWidth));
+      auto Bytes = BitWidth / 8;
+      Result.UnqualifiedType() = Model.getPrimitiveType(Signed, Bytes);
+      return { Result };
+    } break;
+
+    case llvm::Instruction::UDiv:
+    case llvm::Instruction::URem: {
+      model::QualifiedType Result;
+      auto BitWidth = U->get()->getType()->getIntegerBitWidth();
+      revng_assert(BitWidth >= 8 and std::has_single_bit(BitWidth));
+      auto Bytes = BitWidth / 8;
+      Result.UnqualifiedType() = Model.getPrimitiveType(Unsigned, Bytes);
+      return { Result };
+    } break;
+
+    case llvm::Instruction::AShr:
+    case llvm::Instruction::LShr:
+    case llvm::Instruction::Shl: {
+      model::QualifiedType Result;
+      auto BitWidth = U->get()->getType()->getIntegerBitWidth();
+      revng_assert(BitWidth >= 8 and std::has_single_bit(BitWidth));
+      auto Bytes = BitWidth / 8;
+
+      if (U->getOperandNo() == 0) {
+        switch (Opcode) {
+        case llvm::Instruction::AShr:
+          Result.UnqualifiedType() = Model.getPrimitiveType(Signed, Bytes);
+          break;
+
+        case llvm::Instruction::LShr:
+          Result.UnqualifiedType() = Model.getPrimitiveType(Unsigned, Bytes);
+          break;
+
+        case llvm::Instruction::Shl:
+          Result.UnqualifiedType() = Model.getPrimitiveType(Number, Bytes);
+          break;
+
+        default:
+          revng_abort();
+        }
+      }
+
+      if (U->getOperandNo() == 1)
+        Result.UnqualifiedType() = Model.getPrimitiveType(Unsigned, Bytes);
+
+      return { Result };
+    } break;
+
+    case llvm::Instruction::Mul:
+    case llvm::Instruction::And:
+    case llvm::Instruction::Or:
+    case llvm::Instruction::Xor: {
+      model::QualifiedType Result;
+      auto BitWidth = U->get()->getType()->getIntegerBitWidth();
+      revng_assert(std::has_single_bit(BitWidth)
+                   and (BitWidth == 1 or BitWidth >= 8));
+      auto Bytes = (BitWidth == 1) ? 1 : BitWidth / 8;
+      Result.UnqualifiedType() = Model.getPrimitiveType(Number, Bytes);
+      return { Result };
+    } break;
+
+    default:
+      // no strict requirement for others
+      ;
+    }
   }
 
   return {};

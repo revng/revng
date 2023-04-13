@@ -126,12 +126,18 @@ static ColorSet getInitialCandidates(const UseOrValue &Content) {
 
   case Instruction::SDiv:
   case Instruction::SRem:
-    return SIGNEDNESS | NUMBERNESS;
+    if (IsContentInst)
+      return SIGNEDNESS | NUMBERNESS;
+    else
+      return SIGNEDNESS;
     break;
 
   case Instruction::UDiv:
   case Instruction::URem:
-    return UNSIGNEDNESS | NUMBERNESS;
+    if (IsContentInst)
+      return UNSIGNEDNESS | NUMBERNESS;
+    else
+      return UNSIGNEDNESS;
     break;
 
   case Instruction::Alloca:
@@ -154,32 +160,26 @@ static ColorSet getInitialCandidates(const UseOrValue &Content) {
     break;
 
   case Instruction::AShr:
-    if (IsContentInst or getOpNo(Content) == 0)
+    if (IsContentInst)
+      return SIGNEDNESS | NUMBERNESS;
+    if (getOpNo(Content) == 0)
       return SIGNEDNESS;
     if (getOpNo(Content) == 1)
       return UNSIGNEDNESS;
     break;
 
   case Instruction::LShr:
-    if (IsContentInst or getOpNo(Content) == 0)
-      // TODO: rule on first operand too strict?
-      return UNSIGNEDNESS;
-    if (getOpNo(Content) == 1)
+    if (IsContentInst)
+      return UNSIGNEDNESS | NUMBERNESS;
+    else
       return UNSIGNEDNESS;
     break;
 
   case Instruction::Shl:
-    if (IsContentInst)
-      return NO_COLOR;
-    if (getOpNo(Content) == 0)
-      // TODO: rule on first operand too strict?
+    if (IsContentInst or getOpNo(Content) == 0)
       return NO_COLOR;
     if (getOpNo(Content) == 1)
       return UNSIGNEDNESS;
-    break;
-
-  case Instruction::Mul:
-    return NUMBERNESS;
     break;
 
   case Instruction::Br:
@@ -195,11 +195,17 @@ static ColorSet getInitialCandidates(const UseOrValue &Content) {
     break;
 
   case Instruction::Trunc:
+    return NO_COLOR;
+    break;
+
   case Instruction::And:
   case Instruction::Or:
   case Instruction::Xor:
-    // TODO: Restrict more what can be accepted by bitwise operations?
-    return NO_COLOR;
+  case Instruction::Mul:
+    if (IsContentInst)
+      return NUMBERNESS;
+    else
+      return NO_COLOR;
     break;
 
   case Instruction::GetElementPtr:

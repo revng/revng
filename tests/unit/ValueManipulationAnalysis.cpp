@@ -85,7 +85,8 @@ static void checkShape(const TypeFlowGraph &TG, const ExpectedShape &Expected) {
   const TypeCounter ActualType = countTypes(TG);
   const ColorCounter ActualColor = countColors(TG);
 
-  dbgs() << " What    Expected  Actual\n";
+  dbgs() << "========================\n";
+  dbgs() << "What    Expected  Actual\n";
 
   // Check that there are the expected number of nodes of each type
   for (size_t I = 0; I < MAX_TYPES; I++) {
@@ -298,7 +299,7 @@ BOOST_AUTO_TEST_CASE(TestTGInit) {
                 /*bools=*/0,
                 /*signed=*/2,
                 /*floats=*/0,
-                /*numbers=*/2 },
+                /*numbers=*/1 },
               /*casts=*/2,
               /*undecided=*/0 },
             /*After propagation=*/
@@ -309,7 +310,7 @@ BOOST_AUTO_TEST_CASE(TestTGInit) {
                 /*bools=*/0,
                 /*signed=*/9,
                 /*floats=*/0,
-                /*numbers=*/2 },
+                /*numbers=*/1 },
               /*casts=*/0,
               /*undecided=*/5 },
             /*Final=*/
@@ -388,7 +389,7 @@ BOOST_AUTO_TEST_CASE(TestTGInit) {
                 /*bools=*/0,
                 /*signed=*/2,
                 /*floats=*/0,
-                /*numbers=*/4 },
+                /*numbers=*/2 },
               /*casts=*/2,
               /*undecided=*/0 },
             /*After propagation=*/
@@ -399,7 +400,7 @@ BOOST_AUTO_TEST_CASE(TestTGInit) {
                 /*bools=*/0,
                 /*signed=*/7,
                 /*floats=*/0,
-                /*numbers=*/4 },
+                /*numbers=*/2 },
               /*casts=*/0,
               /*undecided=*/5 },
             /*Final=*/
@@ -481,7 +482,7 @@ BOOST_AUTO_TEST_CASE(TestTGInit) {
                 /*bools=*/0,
                 /*signed=*/0,
                 /*floats=*/0,
-                /*numbers=*/3 },
+                /*numbers=*/1 },
               /*casts=*/1,
               /*undecided=*/0 },
             /*After propagation=*/
@@ -492,7 +493,7 @@ BOOST_AUTO_TEST_CASE(TestTGInit) {
                 /*bools=*/0,
                 /*signed=*/0,
                 /*floats=*/0,
-                /*numbers=*/3 },
+                /*numbers=*/1 },
               /*casts=*/2,
               /*undecided=*/0 },
             /*Final=*/
@@ -529,7 +530,7 @@ BOOST_AUTO_TEST_CASE(TestTGInit) {
                 /*bools=*/0,
                 /*signed=*/0,
                 /*floats=*/0,
-                /*numbers=*/3 },
+                /*numbers=*/1 },
               /*casts=*/1,
               /*undecided=*/0 },
             /*After propagation=*/
@@ -540,7 +541,7 @@ BOOST_AUTO_TEST_CASE(TestTGInit) {
                 /*bools=*/0,
                 /*signed=*/0,
                 /*floats=*/0,
-                /*numbers=*/3 },
+                /*numbers=*/1 },
               /*casts=*/1,
               /*undecided=*/0 },
             /*Final=*/
@@ -574,7 +575,7 @@ BOOST_AUTO_TEST_CASE(TestTGInit) {
                 /*bools=*/2,
                 /*signed=*/0,
                 /*floats=*/0,
-                /*numbers=*/0 },
+                /*numbers=*/1 },
               /*casts=*/2,
               /*undecided=*/0 },
             /*After propagation=*/
@@ -585,7 +586,7 @@ BOOST_AUTO_TEST_CASE(TestTGInit) {
                 /*bools=*/5,
                 /*signed=*/0,
                 /*floats=*/0,
-                /*numbers=*/0 },
+                /*numbers=*/1 },
               /*casts=*/0,
               /*undecided=*/0 },
             /*Final=*/
@@ -662,24 +663,24 @@ BOOST_AUTO_TEST_CASE(TestTGInit) {
                 /*bools=*/0,
                 /*signed=*/0,
                 /*floats=*/0,
-                /*numbers=*/0 },
+                /*numbers=*/1 },
               /*casts=*/1,
               /*undecided=*/0 },
             /*Final=*/
             { { /*values=*/6,
                 /*uses=*/4 },
-              { /*pointers=*/7,
+              { /*pointers=*/6,
                 /*unsigned=*/0,
                 /*bools=*/0,
                 /*signed=*/0,
                 /*floats=*/0,
-                /*numbers=*/0 },
+                /*numbers=*/1 },
               /*casts=*/1,
               /*undecided=*/0 },
             /*After propagation=*/
             { { /*values=*/6,
                 /*uses=*/4 },
-              { /*pointers=*/7,
+              { /*pointers=*/6,
                 /*unsigned=*/0,
                 /*bools=*/0,
                 /*signed=*/0,
