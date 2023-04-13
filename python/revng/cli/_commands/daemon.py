@@ -91,6 +91,7 @@ REVNG_DATA_DIR and REVNG_PROJECT_ID set: use '$REVNG_DATA_DIR/$REVNG_PROJECT_ID'
 
         if not options.parsed_args.production:
             env["STARLETTE_DEBUG"] = "1"
+            env["REVNG_ORIGINS"] = "*"
 
         run(
             prefix
