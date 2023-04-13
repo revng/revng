@@ -286,6 +286,10 @@ public:
     initAssignPool(AssignPool);
     initLocalVarPool(LocalVarPool);
 
+    // After segregate, we should not introduce new calls to
+    // `revng_init_local_sp`: enable to DCE it away
+    InitLocalSP->setOnlyReadsMemory();
+
     auto Create = [&M](StringRef Name, llvm::FunctionType *FType) {
       auto *Result = Function::Create(FType,
                                       GlobalValue::ExternalLinkage,
@@ -339,11 +343,6 @@ public:
     // Erase original functions
     for (auto [OldFunction, NewFunction] : OldToNew)
       eraseFromParent(OldFunction);
-
-    // Drop InitLocalSP if it's not used anymore
-    if (InitLocalSP != nullptr)
-      if (InitLocalSP->getNumUses() == 0)
-        eraseFromParent(InitLocalSP);
 
     return true;
   }
