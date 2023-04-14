@@ -734,7 +734,7 @@ private:
       ArgumentToRegister[Register] = OldArgument.get();
 
     // Check if it's a direct call
-    Function *Callee = OldCall->getCalledFunction();
+    auto *Callee = dyn_cast<Function>(OldCall->getCalledOperand());
     bool IsDirect = (Callee != nullptr);
 
     // Obtain or compute the function type for the call
@@ -901,6 +901,21 @@ private:
       revng_assert(Arguments.size() > 0);
       ReturnValuePointer = Arguments[0];
       Arguments.erase(Arguments.begin());
+    }
+
+    // If the old return type and the new one are identical, switch to the old
+    // one in the new call
+    auto *OldCallType = OldCall->getFunctionType();
+    auto *OldReturnType = OldCallType->getReturnType();
+    auto *NewReturnType = CalleeType->getReturnType();
+    if (auto *OldStructType = dyn_cast<StructType>(OldReturnType)) {
+      if (auto *NewStructType = dyn_cast<StructType>(NewReturnType)) {
+        if (NewStructType->isLayoutIdentical(OldStructType)) {
+          CalleeType = FunctionType::get(OldReturnType,
+                                         CalleeType->params(),
+                                         CalleeType->isVarArg());
+        }
+      }
     }
 
     // Actually create the new call and replace the old one
