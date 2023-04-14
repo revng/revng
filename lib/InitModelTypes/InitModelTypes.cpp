@@ -480,14 +480,16 @@ ModelTypesMap initModelTypes(FunctionMetadataCache &Cache,
     }
   }
 
-  // Run VMA
-  VMAPipeline VMA(Model);
-  VMA.addInitializer(std::make_unique<LLVMInitializer>());
-  VMA.addInitializer(std::make_unique<TypeMapInitializer>(TypeMap));
-  VMA.setUpdater(std::make_unique<TypeMapUpdater>(TypeMap, &Model));
-  VMA.disableSolver();
+  if (not PointersOnly) {
+    // Run VMA
+    VMAPipeline VMA(Model);
+    VMA.addInitializer(std::make_unique<LLVMInitializer>());
+    VMA.addInitializer(std::make_unique<TypeMapInitializer>(TypeMap));
+    VMA.setUpdater(std::make_unique<TypeMapUpdater>(TypeMap, &Model));
+    VMA.disableSolver();
 
-  VMA.run(Cache, &F);
+    VMA.run(Cache, &F);
+  }
 
   return TypeMap;
 }
