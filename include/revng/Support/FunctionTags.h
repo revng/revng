@@ -54,6 +54,10 @@ public:
   static TagsSet from(const llvm::MDNode *MD);
 
 public:
+  auto begin() const { return Tags.begin(); }
+  auto end() const { return Tags.end(); }
+
+public:
   bool containsExactly(const Tag &Target) const {
     return Tags.count(&Target) != 0;
   }

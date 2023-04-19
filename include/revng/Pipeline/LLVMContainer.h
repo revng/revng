@@ -44,6 +44,9 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/ModuleStatistics.h"
+
+inline Logger<> ModuleStatisticsLogger("module-statistics");
 
 namespace pipeline {
 
@@ -190,24 +193,33 @@ private:
     }
   }
 
-  void mergeBackImpl(ThisType &&Other) final {
+  void mergeBackImpl(ThisType &&OtherContainer) final {
+    llvm::Module *ToMerge = &OtherContainer.getModule();
+
+    // Collect statistics about modules
+    ModuleStatistics PreMergeStatistics;
+    ModuleStatistics ToMergeStatistics;
+    if (ModuleStatisticsLogger.isEnabled()) {
+      PreMergeStatistics = ModuleStatistics::analyze(*Module.get());
+      ToMergeStatistics = ModuleStatistics::analyze(*ToMerge);
+    }
+
     auto BeforeEnumeration = this->enumerate();
-    auto OtherEnumeration = Other.enumerate();
+    auto ToMergeEnumeration = OtherContainer.enumerate();
 
     // We must ensure that merge(Module1, Module2).enumerate() ==
     // merge(Module1.enumerate(), Module2.enumerate())
     //
     // So we enumerate now to have it later.
     auto ExpectedEnumeration = BeforeEnumeration;
-    ExpectedEnumeration.merge(OtherEnumeration);
+    ExpectedEnumeration.merge(ToMergeEnumeration);
 
-    ThisType &ToMerge = Other;
     LinkageRestoreMap LinkageRestore;
 
     // All symbols internal and external symbols myst be transformed into weak
     // symbols, so that when multiple with the same name exists, one is
     // dropped.
-    fixGlobals(*Other.Module, LinkageRestore);
+    fixGlobals(*ToMerge, LinkageRestore);
     fixGlobals(*Module, LinkageRestore);
 
     // Make a global array of all global objects so that they don't get dropped
@@ -215,7 +227,7 @@ private:
     makeGlobalObjectsArray(*Module, GlobalArray1);
 
     std::string GlobalArray2 = "revng.AllSymbolsArrayRight";
-    makeGlobalObjectsArray(*Other.Module, GlobalArray2);
+    makeGlobalObjectsArray(*ToMerge, GlobalArray2);
 
     // Drop certain LLVM named metadata
     auto DropNamedMetadata = [](llvm::Module *M, llvm::StringRef Name) {
@@ -228,33 +240,33 @@ private:
     DropNamedMetadata(&*Module, "llvm.module.flags");
 
     // We require inputs to be valid
-    revng::verify(&ToMerge.getModule());
+    revng::verify(ToMerge);
     revng::verify(Module.get());
 
-    if (ToMerge.Module->getDataLayout().isDefault())
-      ToMerge.Module->setDataLayout(Module->getDataLayout());
+    if (ToMerge->getDataLayout().isDefault())
+      ToMerge->setDataLayout(Module->getDataLayout());
 
     if (Module->getDataLayout().isDefault())
-      Module->setDataLayout(ToMerge.Module->getDataLayout());
+      Module->setDataLayout(ToMerge->getDataLayout());
 
-    llvm::Linker TheLinker(*ToMerge.Module);
+    llvm::Linker TheLinker(*ToMerge);
 
     // Actually link
     bool Failure = TheLinker.linkInModule(std::move(Module));
 
     revng_assert(not Failure, "Linker failed");
-    revng::verify(&ToMerge.getModule());
+    revng::verify(ToMerge);
 
     // Restores the initial linkage for local functions
-    for (auto &Global : ToMerge.Module->global_objects()) {
+    for (auto &Global : ToMerge->global_objects()) {
       auto It = LinkageRestore.find(Global.getName().str());
       if (It != LinkageRestore.end())
         Global.setLinkage(It->second);
     }
 
     // We must ensure output is valid
-    revng::verify(&ToMerge.getModule());
-    Module = std::move(ToMerge.Module);
+    revng::verify(ToMerge);
+    Module = std::move(OtherContainer.Module);
 
     // Checks that module merging commutes w.r.t. enumeration, as specified in
     // the first comment.
@@ -277,7 +289,22 @@ private:
     //       to share debug metadata, which are not always immutable.
     auto *NamedMDNode = Module->getOrInsertNamedMetadata("llvm.dbg.cu");
     pruneDICompileUnits(*Module);
-    revng_assert(llvm::verifyModule(*Module, &llvm::dbgs()) == 0);
+
+    if (ModuleStatisticsLogger.isEnabled()) {
+      auto PostMergeStatistics = ModuleStatistics::analyze(*Module.get());
+      {
+        auto Stream = ModuleStatisticsLogger.getAsLLVMStream();
+        *Stream << "PreMergeStatistics:\n";
+        PreMergeStatistics.dump(*Stream, 1);
+        *Stream << "ToMergeStatistics:\n";
+        ToMergeStatistics.dump(*Stream, 1);
+        *Stream << "PostMergeStatistics (vs PreMergeStatistics):\n";
+        PreMergeStatistics.dump(*Stream, 1, &PreMergeStatistics);
+        *Stream << "PostMergeStatistics (vs ToMergeStatistics):\n";
+        PreMergeStatistics.dump(*Stream, 1, &ToMergeStatistics);
+      }
+      ModuleStatisticsLogger << DoLog;
+    }
   }
 };
 
