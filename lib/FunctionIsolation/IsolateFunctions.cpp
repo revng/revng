@@ -663,7 +663,7 @@ void IsolateFunctionsImpl::run() {
     moveBlocksInto(*Outlined.Function, *F);
   }
 
-  revng_check(not verifyModule(*TheModule, &dbgs()));
+  revng::verify(TheModule);
 
   // Create the functions and basic blocks needed for the correct execution of
   // the exception handling mechanism
@@ -674,10 +674,8 @@ void IsolateFunctionsImpl::run() {
   // Cleanup root
   EliminateUnreachableBlocks(*RootFunction, nullptr, false);
 
-  // Before emitting it in output we check that the module in passes the
-  // verifyModule pass
-  if (VerifyLog.isEnabled())
-    revng_assert(not verifyModule(*TheModule, &dbgs()));
+  // Before emitting it in output, verify the module
+  revng::verify(TheModule);
 
   FunctionTags::IsolatedRoot.addTo(RootFunction);
 }

@@ -1865,8 +1865,7 @@ void JumpTargetManager::harvestWithAVI() {
   // branches.
   auto SCB = runAdvancedValueInfo(OptimizedFunction);
 
-  if (VerifyLog.isEnabled())
-    revng_check(not verifyModule(*OptimizedFunction->getParent(), &dbgs()));
+  revng::verify(OptimizedFunction->getParent());
 
   // Collect the results.
   collectAVIResults(M, AR);
@@ -1925,8 +1924,7 @@ void JumpTargetManager::harvest() {
       }
     }
 
-    if (VerifyLog.isEnabled())
-      revng_assert(not verifyModule(TheModule, &dbgs()));
+    revng::verify(&TheModule);
 
     revng_log(JTCountLog, "Preliminary harvesting");
 

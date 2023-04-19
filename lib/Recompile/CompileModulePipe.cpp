@@ -131,9 +131,9 @@ static void compileModuleRunImpl(const Context &Ctx,
                                          true,
                                          MMIWP);
   revng_assert(not Err);
-  revng_assert(llvm::verifyModule(*M, &llvm::dbgs()) == 0);
+  revng::verify(M);
   PM.run(*M);
-  revng_assert(llvm::verifyModule(*M, &llvm::dbgs()) == 0);
+  revng::verify(M);
 
   auto Path = TargetBinary.path();
 

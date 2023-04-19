@@ -10,6 +10,7 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/Verifier.h"
 #include "llvm/Support/SHA1.h"
 #include "llvm/Support/raw_os_ostream.h"
 
@@ -405,4 +406,21 @@ ValueSet findPhiTreeLeaves(Value *Root) {
   ValueSet Visited;
   findPhiTreeLeavesImpl(Result, Visited, Root);
   return Result;
+}
+void revng::verify(const llvm::Module *M) {
+  if (VerifyLog.isEnabled())
+    forceVerify(M);
+}
+
+void revng::verify(const llvm::Function *F) {
+  if (VerifyLog.isEnabled())
+    forceVerify(F);
+}
+
+void revng::forceVerify(const llvm::Module *M) {
+  revng_check(llvm::verifyModule(*M, &llvm::dbgs()) == 0);
+}
+
+void revng::forceVerify(const llvm::Function *F) {
+  revng_check(llvm::verifyFunction(*F, &llvm::dbgs()) == 0);
 }

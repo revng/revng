@@ -492,7 +492,7 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
 
     // In recent versions of LLVM you can no longer inject a CallInst in a
     // Function with debug location if the call itself has not a debug location
-    // as well, otherwise verifyModule() will fail.
+    // as well, otherwise module verification will fail
     CallCpuLoop->setDebugLoc(Call->getDebugLoc());
 
     // Set cpu_loop_exiting to true

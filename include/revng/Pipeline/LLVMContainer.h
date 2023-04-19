@@ -116,7 +116,7 @@ public:
 
     llvm::ValueToValueMapTy Map;
 
-    revng_assert(llvm::verifyModule(*Module, &llvm::dbgs()) == 0);
+    revng::verify(Module.get());
     auto Cloned = llvm::CloneModule(*Module, Map, Filter);
 
     for (auto &Function : Module->functions()) {
@@ -228,8 +228,8 @@ private:
     DropNamedMetadata(&*Module, "llvm.module.flags");
 
     // We require inputs to be valid
-    revng_assert(llvm::verifyModule(ToMerge.getModule(), &llvm::dbgs()) == 0);
-    revng_assert(llvm::verifyModule(*Module, &llvm::dbgs()) == 0);
+    revng::verify(&ToMerge.getModule());
+    revng::verify(Module.get());
 
     if (ToMerge.Module->getDataLayout().isDefault())
       ToMerge.Module->setDataLayout(Module->getDataLayout());
@@ -243,7 +243,7 @@ private:
     bool Failure = TheLinker.linkInModule(std::move(Module));
 
     revng_assert(not Failure, "Linker failed");
-    revng_assert(llvm::verifyModule(*ToMerge.Module, &llvm::dbgs()) == 0);
+    revng::verify(&ToMerge.getModule());
 
     // Restores the initial linkage for local functions
     for (auto &Global : ToMerge.Module->global_objects()) {
@@ -253,6 +253,7 @@ private:
     }
 
     // We must ensure output is valid
+    revng::verify(&ToMerge.getModule());
     Module = std::move(ToMerge.Module);
 
     // Checks that module merging commutes w.r.t. enumeration, as specified in
