@@ -162,6 +162,7 @@ static bool isCallToCustomOpcode(const llvm::Instruction *I) {
          or isCallToTagged(I, FunctionTags::SegmentRef)
          or isCallToTagged(I, FunctionTags::UnaryMinus)
          or isCallToTagged(I, FunctionTags::BinaryNot)
+         or isCallToTagged(I, FunctionTags::BooleanNot)
          or isCallToTagged(I, FunctionTags::StringLiteral);
 }
 
@@ -831,6 +832,12 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
                 ThePTMLCBuilder.getOperator(PTMLOperator::BoolNot) :
                 ThePTMLCBuilder.getOperator(PTMLOperator::BinaryNot))
       + ToNegate;
+  }
+
+  if (isCallToTagged(Call, FunctionTags::BooleanNot)) {
+    auto Operand = Call->getArgOperand(0);
+    std::string ToNegate = rc_recur getToken(Operand);
+    rc_return ThePTMLCBuilder.getOperator(PTMLOperator::BoolNot) + ToNegate;
   }
 
   if (isCallToTagged(Call, FunctionTags::StringLiteral)) {

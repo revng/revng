@@ -38,6 +38,7 @@ extern Tag WritesMemory;
 extern Tag SegmentRef;
 extern Tag UnaryMinus;
 extern Tag BinaryNot;
+extern Tag BooleanNot;
 
 inline Tag LiftingArtifactsRemoved("LiftingArtifactsRemoved", Isolated);
 
@@ -110,6 +111,9 @@ void initUnaryMinusPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
 
 /// Initializes a pool of binary_not functions
 void initBinaryNotPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+
+/// Initializes a pool of boolean_not functions
+void initBooleanNotPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
 
 /// ModelGEP functions are used to replace pointer arithmetic with a navigation
 /// of the Model.

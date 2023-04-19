@@ -47,7 +47,8 @@ enum CustomInstruction : unsigned {
   Transparent = getInstructionLLVMOpcodeCount() + 7,
   SegmentRef = getInstructionLLVMOpcodeCount() + 8,
   UnaryMinus = getInstructionLLVMOpcodeCount() + 9,
-  BinaryNot = getInstructionLLVMOpcodeCount() + 10
+  BinaryNot = getInstructionLLVMOpcodeCount() + 10,
+  BooleanNot = getInstructionLLVMOpcodeCount() + 11
 };
 
 struct InstToOpPrec {
@@ -64,7 +65,7 @@ struct InstToOpPrec {
 };
 
 // Table that maps LLVM opcodes to the equivalent C operator precedence priority
-static constexpr std::array<const InstToOpPrec, 36>
+static constexpr std::array<const InstToOpPrec, 37>
   LLVMOpcodeToCOpPrecedenceArray{
     { { InstToOpPrec(CustomInstruction::Assignment, 0, RIGHT_TO_LEFT) },
       { InstToOpPrec(CustomInstruction::LocalVariable, 10, LEFT_TO_RIGHT) },
@@ -101,10 +102,11 @@ static constexpr std::array<const InstToOpPrec, 36>
       { InstToOpPrec(CustomInstruction::Cast, 9, RIGHT_TO_LEFT) },
       { InstToOpPrec(CustomInstruction::MemberAccess, 10, LEFT_TO_RIGHT) },
       { InstToOpPrec(CustomInstruction::UnaryMinus, 9, RIGHT_TO_LEFT) },
-      { InstToOpPrec(CustomInstruction::BinaryNot, 9, RIGHT_TO_LEFT) } },
+      { InstToOpPrec(CustomInstruction::BinaryNot, 9, RIGHT_TO_LEFT) },
+      { InstToOpPrec(CustomInstruction::BooleanNot, 9, RIGHT_TO_LEFT) } },
   };
 
-static constexpr std::array<const InstToOpPrec, 36>
+static constexpr std::array<const InstToOpPrec, 37>
   LLVMOpcodeToNopOpPrecedenceArray{
     { { InstToOpPrec(CustomInstruction::Assignment, 0, RIGHT_TO_LEFT) },
       { InstToOpPrec(CustomInstruction::LocalVariable, 0, LEFT_TO_RIGHT) },
@@ -141,11 +143,12 @@ static constexpr std::array<const InstToOpPrec, 36>
       { InstToOpPrec(CustomInstruction::Cast, 0, RIGHT_TO_LEFT) },
       { InstToOpPrec(CustomInstruction::MemberAccess, 0, LEFT_TO_RIGHT) },
       { InstToOpPrec(CustomInstruction::UnaryMinus, 2, RIGHT_TO_LEFT) },
-      { InstToOpPrec(CustomInstruction::BinaryNot, 2, RIGHT_TO_LEFT) } },
+      { InstToOpPrec(CustomInstruction::BinaryNot, 2, RIGHT_TO_LEFT) },
+      { InstToOpPrec(CustomInstruction::BooleanNot, 2, RIGHT_TO_LEFT) } },
   };
 
 static auto
-findOpcode(const std::array<const InstToOpPrec, 36> *Table, unsigned Opcode) {
+findOpcode(const std::array<const InstToOpPrec, 37> *Table, unsigned Opcode) {
   return find_if(*Table, [&](const auto &Elem) {
     return Elem.InstructionOpcode == Opcode;
   });
@@ -165,7 +168,8 @@ static bool isCustomOpcode(Instruction *I) {
       || FunctionTags::AllocatesLocalVariable.isTagOf(CalledFunc)
       || FunctionTags::SegmentRef.isTagOf(CalledFunc)
       || FunctionTags::UnaryMinus.isTagOf(CalledFunc)
-      || FunctionTags::BinaryNot.isTagOf(CalledFunc))
+      || FunctionTags::BinaryNot.isTagOf(CalledFunc)
+      || FunctionTags::BooleanNot.isTagOf(CalledFunc))
     return true;
 
   return false;
@@ -198,6 +202,8 @@ static unsigned getCustomOpcode(Instruction *I) {
     return CustomInstruction::UnaryMinus;
   } else if (FunctionTags::BinaryNot.isTagOf(CalledFunc)) {
     return CustomInstruction::BinaryNot;
+  } else if (FunctionTags::BooleanNot.isTagOf(CalledFunc)) {
+    return CustomInstruction::BooleanNot;
   }
 
   revng_abort();
@@ -235,7 +241,7 @@ static llvm::Value *traverseTransparentOpcode(llvm::Value *V) {
 
 struct OperatorPrecedenceResolutionPass : public llvm::FunctionPass {
 private:
-  const std::array<const InstToOpPrec, 36>
+  const std::array<const InstToOpPrec, 37>
     *LLVMOpcodeToLangOpPrecedenceArray = nullptr;
 
 public:
@@ -306,6 +312,7 @@ bool OPRP::needsParentheses(Instruction *I, Use &U) {
       VerifyParentheses = (U.getOperandNo() == 1);
       break;
     case CustomInstruction::BinaryNot:
+    case CustomInstruction::BooleanNot:
     case CustomInstruction::UnaryMinus:
       VerifyParentheses = true;
       break;

@@ -236,6 +236,9 @@ static TypeVector getReturnTypes(FunctionMetadataCache &Cache,
     ReturnTypes.push_back(llvmIntToModelType(Arg->getType(), Model));
   } else if (FunctionTags::BinaryNot.isTagOf(CalledFunc)) {
     ReturnTypes.push_back(llvmIntToModelType(Call->getType(), Model));
+  } else if (FunctionTags::BooleanNot.isTagOf(CalledFunc)) {
+    auto IntType = llvm::IntegerType::getInt1Ty(CalledFunc->getContext());
+    ReturnTypes.push_back(llvmIntToModelType(IntType, Model));
   } else {
     revng_abort("Unknown non-isolated function");
   }
