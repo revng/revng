@@ -179,7 +179,7 @@ bool MakeSegmentRefPass::runOnModule(Module &M) {
               Value *Call = IRB.CreateCall(LiteralFunction, { ConstExpr });
               I.setOperand(Op.getOperandNo(), Call);
 
-              revng_assert(llvm::verifyModule(M, &llvm::dbgs()) == 0);
+              revng::verify(&M);
             } else {
               SegmentRefPoolKey Key = { StartAddress,
                                         VirtualSize,
