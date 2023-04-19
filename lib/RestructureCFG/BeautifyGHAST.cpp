@@ -482,7 +482,8 @@ static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
     // Recursive scs nesting handling
     matchDoWhile(Body, AST);
 
-    if (Scs->isStandard())
+    // We don't want to trasform a do-while in a while
+    if (Scs->isWhile())
       return;
 
     ASTNode *LastNode = Body;
@@ -590,7 +591,9 @@ static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
 
     // Recursive scs nesting handling
     matchWhile(Body, AST);
-    if (Scs->isStandard())
+
+    // We don't want to trasform a while in a do-while
+    if (Scs->isDoWhile())
       return;
 
     ASTNode *FirstNode = Body;
