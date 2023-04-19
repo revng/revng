@@ -36,14 +36,14 @@ struct InstanceEdge {
   InstanceEdge() = default;
 
   template<typename OffsetExpressionT>
-  requires std::is_same_v<std::remove_cvref_t<OffsetExpressionT>,
-                          OffsetExpression>
+    requires std::is_same_v<std::remove_cvref_t<OffsetExpressionT>,
+                            OffsetExpression>
   InstanceEdge(OffsetExpressionT &&O, LayoutTypeSystemNode *N) :
     OE(std::forward<OffsetExpressionT>(O)), Target(N) {}
 
   template<typename OffsetExpressionT>
-  requires std::is_same_v<std::remove_cvref_t<OffsetExpressionT>,
-                          OffsetExpression>
+    requires std::is_same_v<std::remove_cvref_t<OffsetExpressionT>,
+                            OffsetExpression>
   InstanceEdge(OffsetExpressionT &&O) :
     InstanceEdge(std::forward<OffsetExpressionT>(O), nullptr) {}
 

@@ -69,8 +69,14 @@ static ColorSet getAcceptedColors(FunctionMetadataCache &Cache,
       // handling when there is no model.
       if (not DeducedTypes.empty()) {
 
-        if (DeducedTypes.size() == 1)
-          return QTToColor(DeducedTypes.back());
+        if (DeducedTypes.size() == 1) {
+          ColorSet Result = QTToColor(DeducedTypes.back());
+          if (isUse(Content)
+              and getUse(Content)->get()->getType()->isIntegerTy(1))
+            Result.addColor(BOOLNESS);
+
+          return Result;
+        }
 
         // There are cases in which we can associate to an LLVM value (typically
         // an aggregate) more than one model type, e.g. for values returned by
@@ -164,27 +170,20 @@ static ColorSet getAcceptedColors(FunctionMetadataCache &Cache,
 
   case Instruction::AShr:
     if (IsContentInst or getOpNo(Content) == 0)
-      return SIGNEDNESS;
+      return SIGNEDNESS | NUMBERNESS;
     if (getOpNo(Content) == 1)
       return ~(FLOATNESS | POINTERNESS);
     break;
 
   case Instruction::LShr:
     if (IsContentInst or getOpNo(Content) == 0)
-      // TODO: rule on first operand too strict?
-      return UNSIGNEDNESS;
+      return UNSIGNEDNESS | NUMBERNESS;
     if (getOpNo(Content) == 1)
       return ~(FLOATNESS | POINTERNESS);
     break;
 
   case Instruction::Shl:
-    if (IsContentInst)
-      return ~(FLOATNESS | POINTERNESS);
-    if (getOpNo(Content) == 0)
-      // TODO: rule on first operand too strict?
-      return (SIGNEDNESS | UNSIGNEDNESS | BOOLNESS);
-    if (getOpNo(Content) == 1)
-      return ~(FLOATNESS | POINTERNESS);
+    return (SIGNEDNESS | UNSIGNEDNESS | BOOLNESS | NUMBERNESS);
     break;
 
   case Instruction::Mul:
@@ -203,12 +202,10 @@ static ColorSet getAcceptedColors(FunctionMetadataCache &Cache,
       return BOOLNESS;
     break;
 
-  case Instruction::Trunc:
   case Instruction::And:
   case Instruction::Or:
   case Instruction::Xor:
-    // TODO: Restrict more what can be accepted by bitwise operations?
-    return ~NUMBERNESS;
+    return NUMBERNESS | UNSIGNEDNESS | SIGNEDNESS | BOOLNESS;
     break;
 
   case Instruction::GetElementPtr:
@@ -372,7 +369,6 @@ static bool connect(TypeFlowNode *N1, TypeFlowNode *N2) {
       break;
     }
 
-    case Instruction::Mul:
     case Instruction::Sub:
       return AddBidirectionalEdge(UseNode,
                                   ValNode,
@@ -393,17 +389,23 @@ static bool connect(TypeFlowNode *N1, TypeFlowNode *N2) {
       return AddBidirectionalEdge(UseNode, ValNode, ~NUMBERNESS);
       break;
 
+    case Instruction::Mul:
     case Instruction::And:
     case Instruction::Or:
-    case Instruction::Xor:
-      return AddBidirectionalEdge(UseNode,
-                                  ValNode,
-                                  ~(FLOATNESS | POINTERNESS | NUMBERNESS));
-      break;
+    case Instruction::Xor: {
+      auto Colors = ~(FLOATNESS | POINTERNESS | NUMBERNESS);
+      if (not I->getType()->isIntegerTy(1))
+        Colors &= ~BOOLNESS;
+      return AddBidirectionalEdge(UseNode, ValNode, Colors);
+    } break;
+
+    // Freeze is transparent
+    case Instruction::Freeze:
+      return AddBidirectionalEdge(UseNode, ValNode, ALL_COLORS);
     }
 
     if (auto *Call = llvm::dyn_cast<CallInst>(I)) {
-      if (FunctionTags::CallToLifted.isTagOf(Call)) {
+      if (isCallToIsolatedFunction(Call)) {
         // No type flows between arguments and return value
         return false;
 
@@ -624,7 +626,7 @@ unsigned vma::countCasts(const TypeFlowGraph &TG) {
 /// a color is such that it would remain the most popular color even if all the
 /// undecided nodes were to be assigned to any other color, then the color wind
 /// the majority voting.
-static llvm::Optional<ColorSet> majorityVote(const TypeFlowNode *Node) {
+static std::optional<ColorSet> majorityVote(const TypeFlowNode *Node) {
   // Don't try to assign a color to an already decided or uncolored node
   revng_assert(Node->isUndecided());
 

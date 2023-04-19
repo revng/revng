@@ -110,7 +110,9 @@ static void assertGetLayoutTypePreConditions(const Value &V) {
 SmallVector<LayoutTypeSystemNode *, 2>
 DLATypeSystemLLVMBuilder::getLayoutTypes(const Value &V) {
   assertGetLayoutTypePreConditions(V);
+
   SmallVector<LayoutTypeSystemNode *, 2> Results;
+
   const Type *VTy = V.getType();
   if (const auto *F = dyn_cast<Function>(&V)) {
     auto *RetTy = F->getReturnType();
@@ -197,15 +199,7 @@ DLATypeSystemLLVMBuilder::getLayoutTypes(const Value &V) {
       }
 
     } else {
-
-      SmallVector<const Value *, 2> LeafVals;
-      if (auto *Ins = dyn_cast<InsertValueInst>(&V))
-        LeafVals = getInsertValueLeafOperands(Ins);
-      else
-        LeafVals.resize(StructTy->getNumElements(), nullptr);
-
-      for (const Value *LeafVal : LeafVals)
-        Results.push_back(getLayoutType(LeafVal));
+      Results.resize(StructTy->getNumElements(), nullptr);
     }
   } else {
     // For non-struct and non-function types we only add a
@@ -219,7 +213,9 @@ SmallVector<std::pair<LayoutTypeSystemNode *, bool>, 2>
 DLATypeSystemLLVMBuilder::getOrCreateLayoutTypes(const Value &V) {
   assertGetLayoutTypePreConditions(V);
   using GetOrCreateResult = std::pair<LayoutTypeSystemNode *, bool>;
+
   SmallVector<GetOrCreateResult, 2> Results;
+
   const Type *VTy = V.getType();
   if (const auto *F = dyn_cast<Function>(&V)) {
     auto *RetTy = F->getReturnType();
@@ -312,15 +308,7 @@ DLATypeSystemLLVMBuilder::getOrCreateLayoutTypes(const Value &V) {
       }
 
     } else {
-
-      SmallVector<const Value *, 2> LeafVals;
-      if (auto *Ins = dyn_cast<InsertValueInst>(&V))
-        LeafVals = getInsertValueLeafOperands(Ins);
-      else
-        LeafVals.resize(StructTy->getNumElements(), nullptr);
-
-      for (const Value *LeafVal : LeafVals)
-        Results.push_back(getOrCreateLayoutType(LeafVal));
+      Results.resize(StructTy->getNumElements(), { nullptr, false });
     }
   } else {
     // For non-struct and non-function types we only add a

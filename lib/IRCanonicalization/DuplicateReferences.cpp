@@ -76,7 +76,7 @@ bool DuplicateReferences::runOnFunction(llvm::Function &F) {
         // using the old one, and update the use to use the duplicate.
         for (llvm::Use &U :
              llvm::make_early_inc_range(llvm::drop_begin(I.uses()))) {
-          auto Args = llvm::SmallVector<llvm::Value *>{ Call->arg_operands() };
+          auto Args = llvm::SmallVector<llvm::Value *>{ Call->args() };
           U.set(Builder.CreateCall(CalledFunction, Args));
           Modified = true;
         }

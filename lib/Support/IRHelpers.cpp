@@ -29,77 +29,8 @@ using PossiblyConstValueT = conditional_t<std::is_const_v<ConstnessT>,
                                           std::add_const_t<ResultT>,
                                           std::remove_const_t<ResultT>>;
 
-template<typename T>
-concept PossiblyConstInsertValue = std::is_same_v<std::remove_const_t<T>,
-                                                  llvm::InsertValueInst>;
-
 template<DerivedValue T>
 using ValueT = PossiblyConstValueT<T, llvm::Value>;
-
-template<PossiblyConstInsertValue T>
-llvm::SmallVector<ValueT<T> *, 2>
-
-getConstQualifiedInsertValueLeafOperands(T *Ins) {
-  using ValT = ValueT<T>;
-
-  llvm::SmallVector<ValT *, 2> Results;
-  llvm::SmallSet<unsigned, 2> FoundIds;
-
-  auto *StructTy = llvm::cast<llvm::StructType>(Ins->getType());
-  unsigned NumFields = StructTy->getNumElements();
-  Results.resize(NumFields, nullptr);
-
-  // InsertValues should be present in the IR only when we are returning an
-  // LLVM struct from a function. In particular, there should be a chain of
-  // InsertValues inserting to the same aggregate, followed by a ret of the
-  // aggregate value.
-  auto IsRet = [](const llvm::Value *V) { return isa<llvm::ReturnInst>(V); };
-  auto FirstUserIsInsertVal = [&Ins]() {
-    return isa<llvm::InsertValueInst>(Ins->use_begin()->getUser());
-  };
-  revng_assert((Ins->getNumUses() == 1 and FirstUserIsInsertVal())
-               or llvm::all_of(Ins->users(), IsRet));
-
-  while (1) {
-    revng_assert(Ins->getNumIndices() == 1);
-
-    // It must be the first time that we insert a value at this index of the
-    // aggregate
-    unsigned FieldId = Ins->getIndices()[0];
-    revng_assert(FieldId < NumFields);
-    revng_assert(FoundIds.count(FieldId) == 0);
-    FoundIds.insert(FieldId);
-
-    // Save the inserted value
-    ValT *Op = Ins->getInsertedValueOperand();
-    revng_assert(isa<llvm::IntegerType>(Op->getType())
-                 or isa<llvm::PointerType>(Op->getType()));
-    revng_assert(Results[FieldId] == nullptr);
-    Results[FieldId] = Op;
-
-    // Go back in the insertValue chain ...
-    ValT *Tmp = Ins->getAggregateOperand();
-    Ins = llvm::dyn_cast<llvm::InsertValueInst>(Tmp);
-    if (not Ins) {
-      // ... until you find an undef or constant aggregate (i.e. you have
-      // reached the first insertValue of the chain)
-      revng_assert(llvm::isa<llvm::UndefValue>(Tmp)
-                   or llvm::isa<llvm::ConstantAggregate>(Tmp));
-      break;
-    }
-  }
-  return Results;
-};
-
-llvm::SmallVector<llvm::Value *, 2>
-getInsertValueLeafOperands(llvm::InsertValueInst *Ins) {
-  return getConstQualifiedInsertValueLeafOperands(Ins);
-}
-
-llvm::SmallVector<const llvm::Value *, 2>
-getInsertValueLeafOperands(const llvm::InsertValueInst *Ins) {
-  return getConstQualifiedInsertValueLeafOperands(Ins);
-}
 
 template<DerivedValue T>
 using ExtractValueT = PossiblyConstValueT<T, llvm::ExtractValueInst>;
@@ -124,7 +55,7 @@ getConstQualifiedExtractedValuesFromInstruction(T *I) {
       ExtractValues.insert(ExtractV);
     } else {
       if (auto *Call = dyn_cast<llvm::CallInst>(TheUser)) {
-        if (not FunctionTags::Marker.isTagOf(Call->getCalledFunction()))
+        if (not isCallToTagged(Call, FunctionTags::Marker))
           continue;
       }
 
@@ -143,7 +74,7 @@ getConstQualifiedExtractedValuesFromInstruction(T *I) {
             if (auto *ExtractV = llvm::dyn_cast<llvm::ExtractValueInst>(User)) {
               ExtractValues.insert(ExtractV);
             } else if (auto *IdentUser = llvm::dyn_cast<llvm::CallInst>(User)) {
-              if (FunctionTags::Marker.isTagOf(IdentUser))
+              if (FunctionTags::Marker.isTagOf(IdentUser->getCalledFunction()))
                 NextToVisit.insert(IdentUser);
             } else if (auto *PHIUser = llvm::dyn_cast<llvm::PHINode>(User)) {
               if (not Visited.count(PHIUser))

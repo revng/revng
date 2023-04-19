@@ -10,6 +10,7 @@ revng_add_analyses_library(
   DuplicateReferences.cpp
   ExitSSAPass.cpp
   FoldModelGEP.cpp
+  HoistStructPhis.cpp
   LoopRewriteWithCanonicalIV.cpp
   MakeLocalVariables.cpp
   MakeModelCastPass.cpp
@@ -18,6 +19,7 @@ revng_add_analyses_library(
   RemoveLLVMAssumeCallsPass.cpp
   RemoveLoadStore.cpp
   RemovePointerCasts.cpp
+  SplitOverflowIntrinsicsPass.cpp
   TwosComplementArithmeticNormalizationPass.cpp
   OperatorPrecedenceResolutionPass.cpp
   PrettyIntFormattingPass.cpp)

@@ -8,6 +8,7 @@
 
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/Path.h"
 
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Support/Assert.h"
@@ -129,7 +130,7 @@ static RecursiveCoroutine<bool> hasSideEffects(ExprNode *Expr) {
       } else {
         // For Instruction with non-void type, the side effects are marked by
         // the MarkAssignment pass, so we take that in consideration.
-        if (auto *Call = isCallToTagged(&I, FunctionTags::Assign)) {
+        if (auto *Call = getCallToTagged(&I, FunctionTags::Assign)) {
           // If it's a call to an @Assign, look at the second argument.
           auto *Arg0 = Call->getArgOperand(0);
           if (hasSideEffects(llvm::cast<Instruction>(*Arg0)))

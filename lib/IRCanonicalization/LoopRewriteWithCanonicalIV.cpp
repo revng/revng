@@ -89,46 +89,44 @@ bool LoopRewriteIV::run(Loop &L,
     // incoming blocks.
     Instruction *InsertPt = getInsertPointForUses(User, Op, DT, &LI);
 
-    if (!isSafeToExpandAt(AR, InsertPt, *SE)) {
-      revng_log(Log, "Not safe expression: " << dumpToString(AR));
-      continue;
-    }
-
     // Now expand it into actual Instructions and patch it into place.
     const DataLayout &DL = L.getHeader()->getModule()->getDataLayout();
     SCEVExpander Rewriter(*SE,
                           DL,
                           "loop-rewrite-with-canonical-induction-variable");
-    Value *NewVal = Rewriter.expandCodeFor(AR, UseTy, InsertPt);
 
-    if (!isValidRewrite(SE, Op, NewVal)) {
-      revng_log(Log, "The expression is not valid for rewrite");
+    if (!Rewriter.isSafeToExpandAt(AR, InsertPt)) {
+      revng_log(Log, "Not safe expression: " << dumpToString(AR));
       continue;
     }
+
+    Value *NewVal = Rewriter.expandCodeFor(AR, UseTy, InsertPt);
 
     revng_log(Log,
               "INDVARS: Rewrote IV '" << dumpToString(AR) << "' "
                                       << dumpToString(Op) << '\n'
                                       << "   into = " << dumpToString(NewVal));
 
-    // Inform ScalarEvolution that this value is changing. The change doesn't
-    // affect its value, but it does potentially affect which use lists the
-    // value will be on after the replacement, which affects ScalarEvolution's
-    // ability to walk use lists and drop dangling pointers when a value is
-    // deleted.
-    SE->forgetValue(User);
+    if (NewVal != Op) {
+      // Inform ScalarEvolution that this value is changing. The change doesn't
+      // affect its value, but it does potentially affect which use lists the
+      // value will be on after the replacement, which affects ScalarEvolution's
+      // ability to walk use lists and drop dangling pointers when a value is
+      // deleted.
+      SE->forgetValue(User);
 
-    // Patch the new value into place.
-    if (Op->hasName())
-      NewVal->takeName(Op);
-    if (Instruction *NewValI = dyn_cast<Instruction>(NewVal))
-      NewValI->setDebugLoc(User->getDebugLoc());
-    User->replaceUsesOfWith(Op, NewVal);
-    UI.setOperandValToReplace(NewVal);
+      // Patch the new value into place.
+      if (Op->hasName())
+        NewVal->takeName(Op);
+      if (Instruction *NewValI = dyn_cast<Instruction>(NewVal))
+        NewValI->setDebugLoc(User->getDebugLoc());
+      User->replaceUsesOfWith(Op, NewVal);
+      UI.setOperandValToReplace(NewVal);
 
-    Changed = true;
+      Changed = true;
 
-    // NOTE: The old IV is a dead value, so it will be deleted with `-dce`.
+      // NOTE: The old IV is a dead value, so it will be deleted with `-dce`.
+    }
   }
 
   return Changed;

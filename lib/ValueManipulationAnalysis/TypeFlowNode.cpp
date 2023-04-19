@@ -32,6 +32,10 @@ RecursiveCoroutine<ColorSet> vma::QTToColor(const model::QualifiedType &QT) {
     rc_return POINTERNESS;
 
   if (QT.is(model::TypeKind::TypedefType)) {
+
+    if (not QT.isScalar())
+      rc_return NO_COLOR;
+
     auto *UnqualT = QT.UnqualifiedType().getConst();
     auto *TypedefT = llvm::cast<model::TypedefType>(UnqualT);
 

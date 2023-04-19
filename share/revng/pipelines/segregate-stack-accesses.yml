@@ -30,14 +30,15 @@ Branches:
               - sroa
               - instcombine
               - sroa
-              - simplifycfg
+              - simplify-cfg-with-hoist-and-sink
               - loop-rewrite-with-canonical-induction-variable
-              - simplifycfg
+              - simplify-cfg-with-hoist-and-sink
               - instcombine
               - early-cse
               - dce
               - restore-extractvalues
               - strip-dead-prototypes
+              - split-overflow-intrinsics
       - Name: MakeSegmentRefs
         Pipes:
           - Type: MakeSegmentRefs

@@ -11,6 +11,7 @@
 
 #include "revng-c/PromoteStackPointer/InstrumentStackAccessesPass.h"
 #include "revng-c/Support/FunctionTags.h"
+#include "revng-c/Support/IRHelpers.h"
 
 using namespace llvm;
 
@@ -26,7 +27,7 @@ public:
   InstrumentStackAccesses(Module &M) : StackOffsetPool(&M, false) {
     StackOffsetPool.addFnAttribute(Attribute::NoUnwind);
     StackOffsetPool.addFnAttribute(Attribute::WillReturn);
-    StackOffsetPool.addFnAttribute(Attribute::InaccessibleMemOnly);
+    StackOffsetPool.setMemoryEffects(MemoryEffects::inaccessibleMemOnly());
     StackOffsetPool.setTags({ &FunctionTags::StackOffsetMarker });
   }
 

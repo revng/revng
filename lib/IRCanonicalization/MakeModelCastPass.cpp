@@ -104,13 +104,13 @@ MMCP::serializeTypesForModelCast(FunctionMetadataCache &Cache,
     // Lifted functions have their prototype on the model
     auto *Callee = Call->getCalledFunction();
 
-    if (FunctionTags::CallToLifted.isTagOf(Call)) {
+    if (isCallToIsolatedFunction(Call)) {
       // For indirect calls, cast the callee to the right function type
       if (not Callee)
         SerializeTypeFor(Call->getCalledOperandUse());
 
       // For all calls, check the formal arguments types
-      for (llvm::Use &Op : Call->arg_operands())
+      for (llvm::Use &Op : Call->args())
         SerializeTypeFor(Op);
 
     } else if (FunctionTags::ModelGEP.isTagOf(Callee)
@@ -123,7 +123,7 @@ MMCP::serializeTypesForModelCast(FunctionMetadataCache &Cache,
     } else if (FunctionTags::StructInitializer.isTagOf(Callee)) {
       // StructInitializers are used to pack together a returned struct, so
       // we know the types of each element by looking at the Prototype
-      for (llvm::Use &Op : Call->arg_operands())
+      for (llvm::Use &Op : Call->args())
         SerializeTypeFor(Op);
     }
   } else if (auto *Ret = dyn_cast<ReturnInst>(I)) {

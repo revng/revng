@@ -29,14 +29,14 @@ inline auto getArgs(const llvm::Function *F) {
   return F->args();
 }
 inline auto getArgs(const llvm::CallInst *C) {
-  return C->arg_operands();
+  return C->args();
 }
 
 inline unsigned long arg_size(const llvm::Function *F) {
   return F->arg_size();
 }
 inline unsigned long arg_size(const llvm::CallInst *C) {
-  return llvm::size(C->arg_operands());
+  return C->arg_size();
 }
 
 /// Wrapper around a variant between Function and CallInst

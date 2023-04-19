@@ -28,6 +28,8 @@
 #include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
 
+#include "Helpers.h"
+
 using namespace llvm;
 
 static Logger<> Log("segregate-stack-accesses");
@@ -41,10 +43,6 @@ static unsigned getCallPushSize(const model::Binary &Binary) {
   return model::Architecture::getCallPushSize(Binary.Architecture());
 }
 
-static MetaAddress getCallerBlockAddress(Instruction *I) {
-  return getMetaAddressMetadata(I, "revng.callerblock.start");
-}
-
 static CallInst *findCallTo(Function *F, Function *ToSearch) {
   CallInst *Call = nullptr;
   for (BasicBlock &BB : *F)
@@ -54,7 +52,9 @@ static CallInst *findCallTo(Function *F, Function *ToSearch) {
   return nullptr;
 }
 
-static std::optional<int64_t> getStackOffset(Value *Pointer) {
+static std::optional<int64_t> getStackOffset(Instruction *I) {
+  auto *Pointer = getPointer(I);
+
   auto *PointerInstruction = dyn_cast<Instruction>(skipCasts(Pointer));
   if (PointerInstruction == nullptr)
     return {};
@@ -63,7 +63,7 @@ static std::optional<int64_t> getStackOffset(Value *Pointer) {
     if (auto *Callee = getCallee(Call)) {
       if (FunctionTags::StackOffsetMarker.isTagOf(Callee)) {
         // Check if this is a stack access, i.e., targets an exact range
-        unsigned AccessSize = getPointeeSize(Pointer);
+        unsigned AccessSize = getMemoryAccessSize(I);
         auto MaybeStart = getSignedConstantArg(Call, 1);
         auto MaybeEnd = getSignedConstantArg(Call, 2);
 
@@ -193,18 +193,15 @@ struct SegregateStackAccessesMFI : public SetUnionLattice<Lattice> {
         continue;
       }
 
-      // Get pointer
-      llvm::Value *Pointer = getPointer(&I);
-
       // If it's not a load/store, pointer is nullptr
-      if (Pointer == nullptr)
+      if (not isa<LoadInst>(&I) and not isa<StoreInst>(&I))
         continue;
 
       revng_log(Log, "Analzying instruction " << getName(&I));
       LoggerIndent<> Indent(Log);
 
       // Get stack offset, if available
-      auto MaybeStartStackOffset = getStackOffset(Pointer);
+      auto MaybeStartStackOffset = getStackOffset(&I);
       if (not MaybeStartStackOffset)
         continue;
 
@@ -257,7 +254,8 @@ private:
   std::map<Function *, StackAccessRedirector> StackArgumentsRedirectors;
   std::vector<Instruction *> ToPushALAP;
 
-  llvm::Type *PtrSizedInteger;
+  llvm::Type *PtrSizedInteger = nullptr;
+  llvm::Type *OpaquePointerType = nullptr;
   OpaqueFunctionsPool<TypePair> AddressOfPool;
   OpaqueFunctionsPool<llvm::Type *> AssignPool;
   OpaqueFunctionsPool<llvm::Type *> LocalVarPool;
@@ -267,15 +265,16 @@ public:
   SegregateStackAccesses(FunctionMetadataCache &Cache,
                          const model::Binary &Binary,
                          Module &M,
-                         Value *StackPointer) :
+                         GlobalValue *StackPointer) :
     Binary(Binary),
     M(M),
     SSACS(M.getFunction("stack_size_at_call_site")),
     InitLocalSP(M.getFunction("revng_init_local_sp")),
     SABuilder(M.getContext()),
     CallInstructionPushSize(getCallPushSize(Binary)),
-    StackPointerType(StackPointer->getType()->getPointerElementType()),
+    StackPointerType(StackPointer->getValueType()),
     PtrSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
+    OpaquePointerType(PointerType::get(M.getContext(), 0)),
     AddressOfPool(&M, false),
     AssignPool(&M, false),
     LocalVarPool(&M, false),
@@ -287,15 +286,19 @@ public:
     initAssignPool(AssignPool);
     initLocalVarPool(LocalVarPool);
 
+    // After segregate, we should not introduce new calls to
+    // `revng_init_local_sp`: enable to DCE it away
+    InitLocalSP->setOnlyReadsMemory();
+
     auto Create = [&M](StringRef Name, llvm::FunctionType *FType) {
       auto *Result = Function::Create(FType,
                                       GlobalValue::ExternalLinkage,
                                       Name,
                                       &M);
       Result->addFnAttr(Attribute::NoUnwind);
-      Result->addFnAttr(Attribute::ReadOnly);
-      Result->addFnAttr(Attribute::InaccessibleMemOnly);
       Result->addFnAttr(Attribute::WillReturn);
+      Result->setMemoryEffects(MemoryEffects::readOnly());
+      Result->setOnlyAccessesInaccessibleMemory();
       FunctionTags::AllocatesLocalVariable.addTo(Result);
       FunctionTags::MallocLike.addTo(Result);
       FunctionTags::IsRef.addTo(Result);
@@ -317,12 +320,18 @@ public:
 
 public:
   bool run() {
+    SmallVector<Function *, 8> IsolatedFunctions;
+    for (Function &F : FunctionTags::StackPointerPromoted.functions(&M)) {
+      IsolatedFunctions.push_back(&F);
+    }
+
     upgradeDynamicFunctions();
     upgradeLocalFunctions();
 
-    for (Function &F : FunctionTags::StackPointerPromoted.functions(&M)) {
-      segregateStackAccesses(*Cache, F);
-      FunctionTags::StackAccessesSegregated.addTo(&F);
+    for (Function *Old : IsolatedFunctions) {
+      auto *F = OldToNew.at(Old);
+      segregateStackAccesses(*Cache, *F);
+      FunctionTags::StackAccessesSegregated.addTo(F);
     }
 
     pushALAP();
@@ -334,11 +343,6 @@ public:
     // Erase original functions
     for (auto [OldFunction, NewFunction] : OldToNew)
       eraseFromParent(OldFunction);
-
-    // Drop InitLocalSP if it's not used anymore
-    if (InitLocalSP != nullptr)
-      if (InitLocalSP->getNumUses() == 0)
-        eraseFromParent(InitLocalSP);
 
     return true;
   }
@@ -566,14 +570,13 @@ private:
 
           for (model::Register::Values Register : ModelArgument.Registers) {
             Argument *OldArgument = ArgumentToRegister.at(Register);
-            Type *OldArgumentPtrType = OldArgument->getType()->getPointerTo();
 
             // Load value
             Value *ArgumentPointer = computeAddress(Builder,
-                                                    OldArgumentPtrType,
                                                     AddressOfNewArgument,
                                                     OffsetInNewArgument);
-            Value *ArgumentValue = Builder.CreateLoad(ArgumentPointer);
+            Value *ArgumentValue = Builder.CreateLoad(OldArgument->getType(),
+                                                      ArgumentPointer);
 
             // Replace
             OldArgument->replaceAllUsesWith(ArgumentValue);
@@ -710,8 +713,6 @@ private:
     auto MaybeStackSize = getSignedConstantArg(SSACSCall, 0);
 
     // Obtain RawFunctionType
-    auto *MD = SSACSCall->getMetadata("revng.callerblock.start");
-    revng_assert(MD != nullptr);
     auto Prototype = Cache.getCallSitePrototype(Binary,
                                                 SSACSCall,
                                                 &ModelFunction);
@@ -720,11 +721,7 @@ private:
 
     // Find old call instruction
     CallInst *OldCall = findAssociatedCall(SSACSCall);
-
-    if (not OldCall) {
-      // We can't find the original call, it might have been DCE'd away
-      return;
-    }
+    revng_assert(OldCall != nullptr);
 
     IRBuilder<> Builder(OldCall);
 
@@ -737,7 +734,7 @@ private:
       ArgumentToRegister[Register] = OldArgument.get();
 
     // Check if it's a direct call
-    Function *Callee = OldCall->getCalledFunction();
+    auto *Callee = dyn_cast<Function>(OldCall->getCalledOperand());
     bool IsDirect = (Callee != nullptr);
 
     // Obtain or compute the function type for the call
@@ -810,7 +807,6 @@ private:
           revng_assert(ModelArgument.Stack->Size <= 128 / 8);
           unsigned OldSize = ModelArgument.Stack->Size;
           Type *LoadTy = Builder.getIntNTy(OldSize * 8);
-          Type *LoadPointerTy = LoadTy->getPointerTo();
           revng_assert(StackPointer != nullptr);
 
           revng_assert(MaybeStackSize);
@@ -823,8 +819,8 @@ private:
           Value *Address = Builder.CreateAdd(StackPointer, Offset);
 
           // Load value
-          Value *Pointer = Builder.CreateIntToPtr(Address, LoadPointerTy);
-          Value *Loaded = Builder.CreateLoad(Pointer);
+          Value *Pointer = Builder.CreateIntToPtr(Address, OpaquePointerType);
+          Value *Loaded = Builder.CreateLoad(LoadTy, Pointer);
 
           // Extend, shift and or in Accumulator
           // Note: here we might truncate too, since certain architectures
@@ -855,8 +851,7 @@ private:
                                                     CallStackArgumentsAllocator,
                                                     ArgumentType,
                                                     NewSize);
-
-        StackArgsCall->setMetadata("revng.callerblock.start", MD);
+        StackArgsCall->copyMetadata(*SSACSCall);
 
         // Record for pushing ALAP. AddrOfCall should be pushed ALAP first to
         // leave slack to StackArgsCall
@@ -873,8 +868,7 @@ private:
           Value *Address = Builder.CreateAdd(AddrOfCall, Offset);
 
           // Store value
-          Type *StorePointerTy = OldArgument->getType()->getPointerTo();
-          Value *Pointer = Builder.CreateIntToPtr(Address, StorePointerTy);
+          Value *Pointer = Builder.CreateIntToPtr(Address, OpaquePointerType);
           Builder.CreateStore(OldArgument, Pointer);
 
           // Consume size
@@ -907,6 +901,21 @@ private:
       revng_assert(Arguments.size() > 0);
       ReturnValuePointer = Arguments[0];
       Arguments.erase(Arguments.begin());
+    }
+
+    // If the old return type and the new one are identical, switch to the old
+    // one in the new call
+    auto *OldCallType = OldCall->getFunctionType();
+    auto *OldReturnType = OldCallType->getReturnType();
+    auto *NewReturnType = CalleeType->getReturnType();
+    if (auto *OldStructType = dyn_cast<StructType>(OldReturnType)) {
+      if (auto *NewStructType = dyn_cast<StructType>(NewReturnType)) {
+        if (NewStructType->isLayoutIdentical(OldStructType)) {
+          CalleeType = FunctionType::get(OldReturnType,
+                                         CalleeType->params(),
+                                         CalleeType->isVarArg());
+        }
+      }
     }
 
     // Actually create the new call and replace the old one
@@ -1015,10 +1024,7 @@ private:
     revng_log(Log, "Handling memory access " << getName(I));
     LoggerIndent<> Indent(Log);
 
-    auto *Pointer = getPointer(I);
-    revng_assert(Pointer != nullptr);
-
-    auto MaybeStackOffset = getStackOffset(Pointer);
+    auto MaybeStackOffset = getStackOffset(I);
     if (not MaybeStackOffset)
       return;
     int64_t StackOffset = *MaybeStackOffset;
@@ -1070,52 +1076,26 @@ private:
   /// \name Support functions
   /// \{
 
-  CallInst *findAssociatedCall(CallInst *SSACSCall) const {
-    // Look for the actual call in the same block or the next one
-    Instruction *I = SSACSCall->getNextNode();
-    while (I != SSACSCall) {
-      if (isCallToIsolatedFunction(I)) {
-        MetaAddress SSACSBlockAddress = getCallerBlockAddress(SSACSCall);
-        revng_assert(getCallerBlockAddress(I) == SSACSBlockAddress);
-        return cast<CallInst>(I);
-      } else if (I->isTerminator()) {
-        if (I->getNumSuccessors() != 1)
-          return nullptr;
-        I = I->getSuccessor(0)->getFirstNonPHI();
-      } else {
-        I = I->getNextNode();
-      }
-    }
-
-    return nullptr;
-  }
-
   Constant *getSPConstant(uint64_t Value) const {
     return ConstantInt::get(StackPointerType, Value);
   }
 
-  Value *computeAddress(IRBuilder<> &B,
-                        Type *PointerType,
-                        Value *Base,
-                        int64_t Offset) const {
+  Value *computeAddress(IRBuilder<> &B, Value *Base, int64_t Offset) const {
     auto *NewOffset = ConstantInt::get(Base->getType(), Offset);
-    return B.CreateIntToPtr(B.CreateAdd(Base, NewOffset), PointerType);
+    return B.CreateIntToPtr(B.CreateAdd(Base, NewOffset), OpaquePointerType);
   }
 
   void replace(Instruction *I, Value *Base, int64_t Offset) {
     ToPurge.insert(I);
 
     IRBuilder<> B(I);
-    auto *NewAddress = computeAddress(B,
-                                      getPointer(I)->getType(),
-                                      Base,
-                                      Offset);
+    auto *NewAddress = computeAddress(B, Base, Offset);
 
     Instruction *NewInstruction = nullptr;
     if (auto *Store = dyn_cast<StoreInst>(I)) {
       NewInstruction = B.CreateStore(Store->getValueOperand(), NewAddress);
     } else if (auto *Load = dyn_cast<LoadInst>(I)) {
-      NewInstruction = B.CreateLoad(NewAddress);
+      NewInstruction = B.CreateLoad(I->getType(), NewAddress);
     }
 
     I->replaceAllUsesWith(NewInstruction);
@@ -1156,9 +1136,6 @@ private:
 
     // Record the old-to-new mapping
     OldToNew[OldFunction] = &NewFunction;
-
-    // Drop all tags so we don't go over this again
-    OldFunction->clearMetadata();
 
     return { &NewFunction, Layout };
   }

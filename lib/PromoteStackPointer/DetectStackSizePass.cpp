@@ -22,6 +22,8 @@
 #include "revng-c/PromoteStackPointer/InstrumentStackAccessesPass.h"
 #include "revng-c/Support/FunctionTags.h"
 
+#include "Helpers.h"
+
 using namespace llvm;
 using model::RawFunctionType;
 
@@ -192,7 +194,7 @@ void DetectStackSize::collectStackBounds(FunctionMetadataCache &Cache,
             // Get the prototype
             auto *Proto = Cache
                             .getCallSitePrototype(*Binary.get(),
-                                                  Call,
+                                                  findAssociatedCall(Call),
                                                   &ModelFunction)
                             .get();
 
@@ -360,7 +362,7 @@ char DetectStackSizePass::ID = 0;
 using RegisterDSS = RegisterPass<DetectStackSizePass>;
 static RegisterDSS R("detect-stack-size", "Detect Stack Size Pass");
 
-class DSSAnalysis {
+class DetectStackSizeAnalysis {
 public:
   static constexpr auto Name = "detect-stack-size";
 
@@ -368,15 +370,25 @@ public:
     { &revng::kinds::LiftingArtifactsRemoved }
   };
 
-  void run(pipeline::Context &Ctx, pipeline::LLVMContainer &Module) {
+  llvm::Error run(pipeline::Context &Ctx, pipeline::LLVMContainer &Module) {
     using namespace revng;
 
     llvm::legacy::PassManager Manager;
     auto Global = llvm::cantFail(Ctx.getGlobal<ModelGlobal>(ModelGlobalName));
+
+    const TupleTree<model::Binary> &Model = Global->get();
+    if (Model->Architecture() == model::Architecture::Invalid) {
+      return createStringError(inconvertibleErrorCode(),
+                               "DetectStackSize analysis require a valid"
+                               " Architecture");
+    }
+
     Manager.add(new LoadModelWrapperPass(ModelWrapper(Global->get())));
     Manager.add(new DetectStackSizePass());
     Manager.run(Module.getModule());
+
+    return Error::success();
   }
 };
 
-static pipeline::RegisterAnalysis<DSSAnalysis> RegisterAnalysis;
+static pipeline::RegisterAnalysis<DetectStackSizeAnalysis> RegisterAnalysis;

@@ -116,13 +116,10 @@ static RecursiveCoroutine<bool> addOperandType(const llvm::Value *Operand,
   } else if (isa<llvm::ConstantInt>(Operand)
              or isa<llvm::GlobalVariable>(Operand)) {
 
-    // For constants and globals, fallback to the LLVM type
-    revng_assert(Operand->getType()->isIntOrPtrTy());
-    auto ConstType = llvmIntToModelType(Operand->getType(), Model);
-    // Skip if it's not a pointer and we are only interested in pointers
-    if (not PointersOnly or ConstType.isPointer()) {
-      TypeMap.insert({ Operand, ConstType });
-    }
+    model::QualifiedType Type = modelType(Operand, Model);
+    if (not PointersOnly or Type.isPointer())
+      TypeMap.insert({ Operand, Type });
+
     rc_return true;
 
   } else if (isa<llvm::PoisonValue>(Operand)
@@ -216,8 +213,9 @@ static TypeVector getReturnTypes(FunctionMetadataCache &Cache,
       revng_abort("Unknown value returned by non-isolated function");
     }
   } else if (FunctionTags::StringLiteral.isTagOf(CalledFunc)) {
-    const llvm::Value *Arg = Call->getArgOperand(0);
-    ReturnTypes.push_back(llvmIntToModelType(Arg->getType(), Model));
+    using model::PrimitiveTypeKind::Values::Unsigned;
+    QualifiedType CharTy(Model.getPrimitiveType(Unsigned, 1), {});
+    ReturnTypes.push_back(CharTy.getPointerTo(Model.Architecture()));
   } else if (FunctionTags::HexInteger.isTagOf(CalledFunc)
              || FunctionTags::CharInteger.isTagOf(CalledFunc)
              || FunctionTags::BoolInteger.isTagOf(CalledFunc)) {
@@ -359,7 +357,7 @@ ModelTypesMap initModelTypes(FunctionMetadataCache &Cache,
         continue;
       }
 
-      llvm::Optional<QualifiedType> Type;
+      std::optional<QualifiedType> Type;
 
       switch (I.getOpcode()) {
 
@@ -395,8 +393,7 @@ ModelTypesMap initModelTypes(FunctionMetadataCache &Cache,
       case Instruction::Alloca: {
         // TODO: eventually AllocaInst will be replaced by calls to
         // revng_local_variable with a type annotation
-        llvm::PointerType *PtrType = llvm::cast<llvm::PointerType>(I.getType());
-        llvm::Type *BaseType = PtrType->getElementType();
+        llvm::Type *BaseType = cast<llvm::AllocaInst>(&I)->getAllocatedType();
         revng_assert(BaseType->isSingleValueType());
         const model::Architecture::Values &Architecture = Model.Architecture();
         Type = llvmIntToModelType(BaseType, Model).getPointerTo(Architecture);
@@ -484,14 +481,16 @@ ModelTypesMap initModelTypes(FunctionMetadataCache &Cache,
     }
   }
 
-  // Run VMA
-  VMAPipeline VMA(Model);
-  VMA.addInitializer(std::make_unique<LLVMInitializer>());
-  VMA.addInitializer(std::make_unique<TypeMapInitializer>(TypeMap));
-  VMA.setUpdater(std::make_unique<TypeMapUpdater>(TypeMap, &Model));
-  VMA.disableSolver();
+  if (not PointersOnly) {
+    // Run VMA
+    VMAPipeline VMA(Model);
+    VMA.addInitializer(std::make_unique<LLVMInitializer>());
+    VMA.addInitializer(std::make_unique<TypeMapInitializer>(TypeMap));
+    VMA.setUpdater(std::make_unique<TypeMapUpdater>(TypeMap, &Model));
+    VMA.disableSolver();
 
-  VMA.run(Cache, &F);
+    VMA.run(Cache, &F);
+  }
 
   return TypeMap;
 }

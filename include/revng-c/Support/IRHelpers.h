@@ -83,18 +83,11 @@ inline const char *StringLiteralMDName = "revng.cstring_literal";
 
 namespace llvm {
 
-class InsertValueInst;
 class Instruction;
 class ExtractValueInst;
 class Value;
 
 } // end namespace llvm
-
-extern llvm::SmallVector<llvm::Value *, 2>
-getInsertValueLeafOperands(llvm::InsertValueInst *);
-
-extern llvm::SmallVector<const llvm::Value *, 2>
-getInsertValueLeafOperands(const llvm::InsertValueInst *);
 
 extern llvm::SmallVector<llvm::SmallPtrSet<llvm::ExtractValueInst *, 2>, 2>
 getExtractedValuesFromInstruction(llvm::Instruction *);
@@ -136,3 +129,17 @@ void emitMessage(llvm::Instruction *EmitBefore, const llvm::Twine &Message);
 void emitMessage(llvm::IRBuilder<llvm::ConstantFolder,
                                  llvm::IRBuilderDefaultInserter> &Builder,
                  const llvm::Twine &Message);
+
+inline unsigned getMemoryAccessSize(llvm::Instruction *I) {
+  using namespace llvm;
+  Type *T = nullptr;
+
+  if (auto *Load = dyn_cast<LoadInst>(I))
+    T = Load->getType();
+  else if (auto *Store = dyn_cast<StoreInst>(I))
+    T = Store->getValueOperand()->getType();
+  else
+    revng_abort();
+
+  return llvm::cast<llvm::IntegerType>(T)->getBitWidth() / 8;
+}

@@ -96,16 +96,16 @@ public:
 
   InterruptType transfer(const llvm::BasicBlock *BB);
 
-  llvm::Optional<LiveSet> handleEdge(const LiveSet &Original,
-                                     const llvm::BasicBlock *Source,
-                                     const llvm::BasicBlock *Destination) const;
+  std::optional<LiveSet> handleEdge(const LiveSet &Original,
+                                    const llvm::BasicBlock *Source,
+                                    const llvm::BasicBlock *Destination) const;
 };
 
-llvm::Optional<LiveSet>
+std::optional<LiveSet>
 Analysis::handleEdge(const LiveSet &Original,
                      const llvm::BasicBlock *Source,
                      const llvm::BasicBlock *Destination) const {
-  llvm::Optional<LiveSet> Result;
+  std::optional<LiveSet> Result;
 
   auto UseIt = PHIEdges.find(std::make_pair(Source, Destination));
   if (UseIt == PHIEdges.end())
@@ -119,7 +119,7 @@ Analysis::handleEdge(const LiveSet &Original,
       if (auto *VInstr = dyn_cast<Instruction>(V)) {
         if (VInstr != LiveI) {
           // lazily copy the Original only if necessary
-          if (not Result.hasValue())
+          if (not Result.has_value())
             Result = Original.copy();
           Result->erase(VInstr);
         }

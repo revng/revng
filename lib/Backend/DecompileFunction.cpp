@@ -98,6 +98,14 @@ static constexpr const char *StackFrameVarName = "stack";
 static Logger<> Log{ "c-backend" };
 static Logger<> VisitLog{ "c-backend-visit-order" };
 
+static std::string buildInvalid(const llvm::Value *V, llvm::StringRef Comment) {
+  std::string Result;
+  revng_assert(V->getType()->isIntOrPtrTy());
+  Result = constants::Zero.serialize();
+  Result += " " + helpers::blockComment(Comment, false);
+  return Result;
+}
+
 static bool isAssignment(const llvm::Value *I) {
   return isCallToTagged(I, FunctionTags::Assign);
 }
@@ -325,6 +333,8 @@ static std::string boolLiteral(const llvm::ConstantInt *Int) {
 /// Return the string that represents the given binary operator in C
 static const std::string getBinOpString(const llvm::BinaryOperator *BinOp) {
   const Tag *Op = [&BinOp]() constexpr {
+    bool IsBool = BinOp->getType()->isIntegerTy(1);
+
     switch (BinOp->getOpcode()) {
     case Instruction::Add:
       return &operators::Add;
@@ -344,16 +354,15 @@ static const std::string getBinOpString(const llvm::BinaryOperator *BinOp) {
     case Instruction::Shl:
       return &operators::LShift;
     case Instruction::And:
-      return &operators::And;
+      return IsBool ? &operators::BoolAnd : &operators::And;
     case Instruction::Or:
-      return &operators::Or;
+      return IsBool ? &operators::BoolOr : &operators::Or;
     case Instruction::Xor:
       return &operators::Xor;
     default:
       revng_abort("Unknown const Binary operation");
     }
-  }
-  ();
+  }();
   return " " + *Op + " ";
 }
 
@@ -381,8 +390,7 @@ static const std::string getCmpOpString(const llvm::CmpInst::Predicate &Pred) {
     default:
       revng_abort("Unknown comparison operator");
     }
-  }
-  ();
+  }();
   return " " + *Op + " ";
 }
 
@@ -596,19 +604,11 @@ CCodeGenerator::buildCastExpr(StringRef ExprToCast,
 RecursiveCoroutine<std::string>
 CCodeGenerator::getConstantToken(const llvm::Constant *C) const {
 
-  if (auto *Undef = dyn_cast<llvm::UndefValue>(C)) {
-    revng_assert(Undef->getType()->isIntOrPtrTy());
-    std::string Zero = constants::Zero.serialize();
-    Zero += " " + helpers::blockComment("undef", false);
-    rc_return Zero;
-  }
+  if (isa<llvm::UndefValue>(C))
+    rc_return buildInvalid(C, "undef");
 
-  if (auto *Poison = dyn_cast<llvm::PoisonValue>(C)) {
-    revng_assert(Poison->getType()->isIntOrPtrTy());
-    std::string Zero = constants::Zero.serialize();
-    Zero += " " + helpers::blockComment("poison", false);
-    rc_return Zero;
-  }
+  if (isa<llvm::PoisonValue>(C))
+    rc_return buildInvalid(C, "poison");
 
   if (auto *Null = dyn_cast<llvm::ConstantPointerNull>(C))
     rc_return constants::Null.serialize();
@@ -621,54 +621,40 @@ CCodeGenerator::getConstantToken(const llvm::Constant *C) const {
       rc_return get128BitIntegerHexConstant(Value);
   }
 
+  if (auto *Global = dyn_cast<llvm::GlobalVariable>(C)) {
+    using namespace llvm;
+    // Check if initializer is a CString
+    auto *Initializer = Global->getInitializer();
+
+    StringRef Content = "";
+    if (auto StringInit = dyn_cast<ConstantDataArray>(Initializer)) {
+
+      // If it's not a C string, bail out
+      if (not StringInit->isCString())
+        revng_abort(dumpToString(Global).c_str());
+
+      // If it's a C string, Drop the terminator
+      Content = StringInit->getAsString().drop_back();
+    } else {
+      // Zero initializers are always valid c empty strings, in all the
+      // other cases, bail out
+      if (not isa<llvm::ConstantAggregateZero>(Initializer))
+        revng_abort(dumpToString(Global).c_str());
+    }
+
+    std::string Escaped;
+    {
+      raw_string_ostream Stream(Escaped);
+      Stream << "\"";
+      Stream.write_escaped(Content);
+      Stream << "\"";
+    }
+
+    rc_return Escaped;
+  }
+
   if (auto *ConstExpr = dyn_cast<llvm::ConstantExpr>(C)) {
     switch (ConstExpr->getOpcode()) {
-
-    case Instruction::GetElementPtr: {
-      using namespace llvm;
-      auto *ResultType = ConstExpr->getType();
-      auto *BasePointer = dyn_cast<GlobalVariable>(ConstExpr->getOperand(0));
-
-      auto IsZero = [](llvm::Value *C) {
-        if (auto *CI = dyn_cast<ConstantInt>(C))
-          return CI->isZero();
-        return false;
-      };
-
-      if (ResultType->isPointerTy()
-          and ResultType->getPointerElementType()->isIntegerTy(8)
-          and BasePointer != nullptr and BasePointer->isConstant()
-          and BasePointer->hasInitializer() and ConstExpr->getNumOperands() == 3
-          and IsZero(ConstExpr->getOperand(1))
-          and IsZero(ConstExpr->getOperand(2))) {
-        // Check if initializer is a CString
-        auto *Initializer = BasePointer->getInitializer();
-
-        StringRef Content = "";
-        if (auto StringInit = dyn_cast<ConstantDataArray>(Initializer)) {
-          // If it's not a C string, bail out.
-          if (not StringInit->isCString())
-            break;
-
-          // If it's a C string, Drop the terminator.
-          Content = StringInit->getAsString().drop_back();
-        } else {
-          // Zero initializers are always valid c empty strings, in all the
-          // other cases, bail out
-          if (not isa<llvm::ConstantAggregateZero>(Initializer))
-            break;
-        }
-
-        std::string Escaped;
-        {
-          raw_string_ostream Stream(Escaped);
-          Stream << "\"";
-          Stream.write_escaped(Content);
-          Stream << "\"";
-        }
-        rc_return Escaped;
-      }
-    } break;
 
     case Instruction::IntToPtr: {
       const auto *Operand = cast<llvm::Constant>(ConstExpr->getOperand(0));
@@ -716,7 +702,7 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
   revng_assert(isCallToTagged(Call, FunctionTags::ModelGEP)
                or isCallToTagged(Call, FunctionTags::ModelGEPRef));
 
-  revng_assert(Call->getNumArgOperands() >= 2);
+  revng_assert(Call->arg_size() >= 2);
 
   bool IsRef = isCallToTagged(Call, FunctionTags::ModelGEPRef);
 
@@ -1071,7 +1057,7 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
                              + addParentheses(Op1Token));
   }
 
-  if (isa<llvm::CastInst>(I)) {
+  if (isa<llvm::CastInst>(I) or isa<llvm::FreezeInst>(I)) {
 
     const llvm::Value *Op = I->getOperand(0);
     std::string ToCast = rc_recur getToken(Op);
@@ -1118,10 +1104,6 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
 
   case llvm::Instruction::Unreachable:
     rc_return addDebugInfo(I, "__builtin_trap()");
-
-  case llvm::Instruction::IntToPtr:
-  case llvm::Instruction::PtrToInt:
-    rc_return addDebugInfo(I, rc_recur getToken(I->getOperand(0)));
 
   case llvm::Instruction::ExtractValue: {
 
@@ -1209,12 +1191,6 @@ CCodeGenerator::getToken(const llvm::Value *V) const {
   revng_assert(not isa<llvm::Argument>(V) and not isStackFrameDecl(V)
                and not isCallStackArgumentDecl(V) and not isLocalVarDecl(V));
 
-  if (auto *Glob = dyn_cast<llvm::GlobalVariable>(V)) {
-    rc_return helpers::blockComment("revng error: unexpected use of "
-                                    "global variable",
-                                    false);
-  }
-
   if (auto *I = dyn_cast<llvm::Instruction>(V))
     rc_return rc_recur getInstructionToken(I);
 
@@ -1233,12 +1209,12 @@ CCodeGenerator::getCallToken(const llvm::CallInst *Call,
                              const llvm::StringRef FuncName,
                              const model::Type *Prototype) const {
   std::string Expression = FuncName.str();
-  if (Call->getNumArgOperands() == 0) {
+  if (Call->arg_size() == 0) {
     Expression += "()";
 
   } else {
     llvm::StringRef Separator = "(";
-    for (const auto &Arg : Call->arg_operands()) {
+    for (const auto &Arg : Call->args()) {
       Expression += Separator.str() + rc_recur getToken(Arg);
       Separator = ", ";
     }

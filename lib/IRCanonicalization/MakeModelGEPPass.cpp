@@ -62,7 +62,6 @@ using llvm::IRBuilder;
 using llvm::isa;
 using llvm::LLVMContext;
 using llvm::LoadInst;
-using llvm::None;
 using llvm::PHINode;
 using llvm::RegisterPass;
 using llvm::ReturnInst;
@@ -79,6 +78,12 @@ using model::RawFunctionType;
 using ModelTypesMap = std::map<const llvm::Value *, const model::QualifiedType>;
 
 static Logger<> ModelGEPLog{ "make-model-gep" };
+
+inline std::string toDecimal(const APInt &Number) {
+  llvm::SmallString<16> Result;
+  Number.toString(Result, 10, true);
+  return Result.str().str();
+}
 
 struct MakeModelGEPPass : public FunctionPass {
 public:
@@ -111,7 +116,7 @@ struct ModelGEPSummationElement {
   void dump(llvm::raw_ostream &OS) const debug_function {
     OS << "ModelGEPSummationElement {\nCofficient:\n";
     if (Coefficient)
-      OS << Coefficient->getValue().toString(10, true);
+      OS << toDecimal(Coefficient->getValue());
     else
       OS << "nullptr";
     OS << "\nIndex:\n";
@@ -195,7 +200,7 @@ struct IRAccessPattern {
   std::optional<model::QualifiedType> PointeeType = std::nullopt;
 
   void dump(llvm::raw_ostream &OS) const debug_function {
-    OS << "IRAccessPattern {\nBaseOffset: " << BaseOffset.toString(10, true)
+    OS << "IRAccessPattern {\nBaseOffset: " << toDecimal(BaseOffset)
        << "\nIndices = {";
     for (const auto &I : Indices) {
       OS << "\n";
@@ -256,7 +261,7 @@ computeIRAccessPattern(FunctionMetadataCache &Cache,
   llvm::sort(IRPatternIndices, HasLargerStride);
 
   // Now we're ready to initialize the IRAccessPattern
-  IRAccessPattern IRPattern{ .BaseOffset = BaseOff.zextOrSelf(64),
+  IRAccessPattern IRPattern{ .BaseOffset = BaseOff.zext(64),
                              .Indices = IRPatternIndices,
                              // Intially PointeeType is set to None, then we
                              // fill it if in some special cases where we have
@@ -439,7 +444,7 @@ computeIRAccessPattern(FunctionMetadataCache &Cache,
                       "CABIFunctionType");
         }
 
-      } else if (FunctionTags::CallToLifted.isTagOf(Call)) {
+      } else if (isCallToIsolatedFunction(Call)) {
         auto Proto = Cache.getCallSitePrototype(Model, Call);
         revng_assert(Proto.isValid());
 
@@ -539,8 +544,8 @@ struct ArrayInfo {
   }
 
   void dump(llvm::raw_ostream &OS) const debug_function {
-    OS << "ArrayInfo { .Stride = " << Stride.toString(10, true)
-       << ", .NumElems = " << NumElems.toString(10, true) << "}";
+    OS << "ArrayInfo { .Stride = " << toDecimal(Stride)
+       << ", .NumElems = " << toDecimal(NumElems) << "}";
   }
 
   void dump() const debug_function { dump(llvm::dbgs()); }
@@ -570,8 +575,7 @@ struct TypedAccessPattern {
   }
 
   void dump(llvm::raw_ostream &OS) const debug_function {
-    OS << "TypedAccessPattern {\nBaseOffset: " << BaseOffset.toString(10, true)
-       << "\n";
+    OS << "TypedAccessPattern {\nBaseOffset: " << toDecimal(BaseOffset) << "\n";
     OS << "Arrays: {";
     for (const auto &AI : Arrays) {
       OS << "\n";
@@ -1185,7 +1189,7 @@ computeBestTAP(model::QualifiedType BaseType,
         APInt NumMultipleElements = APInt(/*NumBits*/ 64, /*value*/ 0);
         APInt Remainder = APInt(/*NumBits*/ 64, /*value*/ 0);
 
-        APInt::udivrem(Coefficient->getValue().zextOrSelf(64),
+        APInt::udivrem(Coefficient->getValue().zext(64),
                        APElementSize,
                        NumMultipleElements,
                        Remainder);
@@ -1467,10 +1471,10 @@ static ModelGEPArgs makeBestGEPArgs(const TypedBaseAddress &TBA,
   auto TAPArrayIt = BestTAP.Arrays.begin();
   auto TAPArrayEnd = BestTAP.Arrays.end();
 
-  revng_log(ModelGEPLog, "Initial RestOff: " << RestOff.toString(10, true));
+  revng_log(ModelGEPLog, "Initial RestOff: " << toDecimal(RestOff));
   revng_log(ModelGEPLog, "Num indices: " << BestIndices.size());
   for (const auto &Id : BestIndices) {
-    revng_log(ModelGEPLog, "RestOff: " << RestOff.toString(10, true));
+    revng_log(ModelGEPLog, "RestOff: " << toDecimal(RestOff));
     revng_log(ModelGEPLog, "Id: " << Id);
 
     Indices.push_back(Id);
@@ -1698,7 +1702,8 @@ class GEPSummationCache {
       case Instruction::ZExt:
       case Instruction::IntToPtr:
       case Instruction::PtrToInt:
-      case Instruction::BitCast: {
+      case Instruction::BitCast:
+      case Instruction::Freeze: {
         // casts are traversed
         revng_log(ModelGEPLog, "Traverse cast!");
         Result = rc_recur getGEPSumImpl(AddrArithmeticInst->getOperandUse(0),
@@ -1807,7 +1812,6 @@ class GEPSummationCache {
 
       case Instruction::Unreachable:
       case Instruction::Store:
-      case Instruction::InsertValue:
       case Instruction::Invoke:
       case Instruction::Resume:
       case Instruction::CleanupRet:
@@ -1960,7 +1964,7 @@ static UseGEPInfoMap makeGEPReplacements(llvm::Function &F,
       auto Indent = LoggerIndent{ ModelGEPLog };
 
       if (auto *CallI = dyn_cast<CallInst>(&I)) {
-        if (not FunctionTags::CallToLifted.isTagOf(CallI)) {
+        if (not isCallToIsolatedFunction(CallI)) {
           revng_log(ModelGEPLog, "Skipping call to non-isolated function");
           continue;
         }
@@ -2105,6 +2109,27 @@ public:
   }
 };
 
+static llvm::BasicBlock *getUniqueIncoming(Value *V, PHINode *Phi) {
+  llvm::BasicBlock *Result = nullptr;
+
+  for (auto [IncomingValue, IncomingBlock] :
+       zip(Phi->incoming_values(), Phi->blocks())) {
+    if (IncomingValue == V) {
+      if (Result == nullptr) {
+        // First matching incoming value, register incoming block
+        Result = IncomingBlock;
+      } else if (Result != IncomingBlock) {
+        // We different incoming blocks for the same value
+        return nullptr;
+      }
+    }
+  }
+
+  revng_assert(Result != nullptr, "V is not an incoming value of Phi");
+
+  return Result;
+}
+
 bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
   bool Changed = false;
 
@@ -2116,8 +2141,8 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
   auto Indent = LoggerIndent(ModelGEPLog);
 
   auto &Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
-
   auto &Cache = getAnalysis<FunctionMetadataCachePass>().get();
+
   model::VerifyHelper VH;
   UseGEPInfoMap GEPReplacementMap = makeGEPReplacements(F, *Model, VH, Cache);
 
@@ -2134,16 +2159,31 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
 
   llvm::IntegerType *PtrSizedInteger = getPointerSizedInteger(Ctxt, *Model);
 
+  std::map<std::pair<Instruction *, Value *>, Value *> PhiIncomingsMaps;
+
   for (auto &[TheUseToGEPify, GEPArgs] : GEPReplacementMap) {
 
     // Skip ModelGEPs that have no arguments
     if (GEPArgs.IndexVector.empty())
       continue;
 
-    revng_log(ModelGEPLog,
-              "GEPify use of: " << dumpToString(TheUseToGEPify->get()));
-    revng_log(ModelGEPLog,
-              "  `-> use in: " << dumpToString(TheUseToGEPify->getUser()));
+    auto *UserInstr = cast<Instruction>(TheUseToGEPify->getUser());
+    auto *V = TheUseToGEPify->get();
+
+    bool IsPhi = isa<PHINode>(UserInstr);
+    if (IsPhi) {
+      auto It = PhiIncomingsMaps.find({ UserInstr, V });
+      if (It != PhiIncomingsMaps.end()) {
+        TheUseToGEPify->set(It->second);
+        revng_log(ModelGEPLog,
+                  "    `-> replaced with: " << dumpToString(It->second));
+        Changed = true;
+        continue;
+      }
+    }
+
+    revng_log(ModelGEPLog, "GEPify use of: " << dumpToString(V));
+    revng_log(ModelGEPLog, "  `-> use in: " << dumpToString(UserInstr));
 
     llvm::Type *UseType = TheUseToGEPify->get()->getType();
     llvm::Type *BaseAddrType = GEPArgs.BaseAddress.Address->getType();
@@ -2180,10 +2220,19 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
     // The second argument is the base address
     Args.push_back(GEPArgs.BaseAddress.Address);
 
-    auto *UserInstr = cast<Instruction>(TheUseToGEPify->getUser());
     if (auto *PHIUser = dyn_cast<PHINode>(UserInstr)) {
-      auto *IncomingB = PHIUser->getIncomingBlock(*TheUseToGEPify);
-      Builder.SetInsertPoint(IncomingB->getTerminator());
+      if (isa<Argument>(TheUseToGEPify->get())) {
+        // Insert at the beginning of the function
+        Builder.SetInsertPoint(F.getEntryBlock().getFirstNonPHI());
+      } else if (llvm::BasicBlock *Incoming = getUniqueIncoming(V, PHIUser)) {
+        // Insert at the end of the incoming block
+        Builder.SetInsertPoint(Incoming->getTerminator());
+      } else {
+        // Insert at the end of the block of the user
+        auto *IncomingInstruction = cast<Instruction>(TheUseToGEPify->get());
+        auto *Terminator = IncomingInstruction->getParent()->getTerminator();
+        Builder.SetInsertPoint(Terminator);
+      }
     } else {
       Builder.SetInsertPoint(UserInstr);
     }
@@ -2253,8 +2302,12 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
     // Finally, replace the use to gepify with the call to the address of
     // modelGEP, plus the potential arithmetic we've just build.
     TheUseToGEPify->set(ModelGEPPtr);
+
     revng_log(ModelGEPLog,
               "    `-> replaced with: " << dumpToString(ModelGEPPtr));
+
+    if (IsPhi)
+      PhiIncomingsMaps[{ UserInstr, V }] = ModelGEPPtr;
 
     Changed = true;
   }

@@ -183,11 +183,11 @@ static unsigned getCustomOpcode(Instruction *I) {
   else if (FunctionTags::ModelCast.isTagOf(CalledFunc))
     return CustomInstruction::Cast;
   else if (FunctionTags::ModelGEP.isTagOf(CalledFunc)) {
-    if (cast<CallInst>(I)->getNumArgOperands() > 2)
+    if (cast<CallInst>(I)->arg_size() > 2)
       return CustomInstruction::MemberAccess;
     return CustomInstruction::Indirection;
   } else if (FunctionTags::ModelGEPRef.isTagOf(CalledFunc)) {
-    if (cast<CallInst>(I)->getNumArgOperands() > 2)
+    if (cast<CallInst>(I)->arg_size() > 2)
       return CustomInstruction::MemberAccess;
     return CustomInstruction::Transparent;
   } else if (FunctionTags::Copy.isTagOf(CalledFunc)) {
@@ -280,11 +280,11 @@ bool OPRP::needsParentheses(Instruction *I, Use &U) {
   // Verify emission of parentheses for binary operators, load and cast
   // instructions. Always emit parentheses when encountering calls.
   if (isa<AllocaInst>(I) || isa<InsertElementInst>(I)
-      || isa<ExtractElementInst>(I) || isa<InsertValueInst>(I)
-      || isa<ExtractValueInst>(I) || isa<ShuffleVectorInst>(I)
-      || isa<StoreInst>(I) || isa<BranchInst>(I) || isa<CallBrInst>(I)
-      || isa<IndirectBrInst>(I) || isa<ReturnInst>(I) || isa<IntrinsicInst>(I)
-      || isa<IntToPtrInst>(I) || isa<PtrToIntInst>(I) || isa<ZExtInst>(I))
+      || isa<ExtractElementInst>(I) || isa<ExtractValueInst>(I)
+      || isa<ShuffleVectorInst>(I) || isa<StoreInst>(I) || isa<BranchInst>(I)
+      || isa<CallBrInst>(I) || isa<IndirectBrInst>(I) || isa<ReturnInst>(I)
+      || isa<IntrinsicInst>(I) || isa<IntToPtrInst>(I) || isa<PtrToIntInst>(I)
+      || isa<ZExtInst>(I))
     return false;
 
   else if (isa<BinaryOperator>(I) || isa<CmpInst>(I) || isa<ICmpInst>(I)

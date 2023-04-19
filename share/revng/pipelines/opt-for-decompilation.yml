@@ -12,7 +12,7 @@ Branches:
             Passes:
               - remove-extractvalues
               - dce
-              - simplifycfg
+              - simplify-cfg-with-hoist-and-sink
               - dse
               - instcombine
               - sroa
@@ -22,7 +22,7 @@ Branches:
               - unreachableblockelim
               - instcombine
               - early-cse
-              - simplifycfg
+              - simplify-cfg-with-hoist-and-sink
               - type-shrinking
               - early-cse
               - instsimplify

@@ -79,8 +79,8 @@ getValueToSubstitute(llvm::Instruction &I, const model::Binary &Model) {
 
       // Skip if the second argument (after traversing casts) is not an
       // AddressOf call
-      llvm::CallInst *AddrOfCall = isCallToTagged(SecondArg,
-                                                  FunctionTags::AddressOf);
+      llvm::CallInst *AddrOfCall = getCallToTagged(SecondArg,
+                                                   FunctionTags::AddressOf);
       if (not AddrOfCall)
         return nullptr;
 
@@ -153,7 +153,7 @@ bool FoldModelGEP::runOnFunction(llvm::Function &F) {
         if (FunctionTags::ModelGEP.isTagOf(CalledFunc)) {
 
           llvm::SmallVector<llvm::Value *, 8> Args;
-          for (auto &Arg : CallToFold->arg_operands())
+          for (auto &Arg : CallToFold->args())
             Args.push_back(Arg);
           Args[1] = ValueToSubstitute;
 

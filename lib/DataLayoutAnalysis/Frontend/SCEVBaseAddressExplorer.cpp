@@ -141,10 +141,10 @@ SCEVBaseAddressExplorer::checkAddressOrTraverse(llvm::ScalarEvolution *SE,
   case llvm::scUnknown: {
     // Unknowns are always considered addresses
     llvm::Value *UVal = cast<llvm::SCEVUnknown>(S)->getValue();
-    revng_assert(isa<llvm::UndefValue>(UVal) or isa<llvm::Argument>(UVal)
-                 or isa<llvm::Instruction>(UVal)
-                 or isa<llvm::GlobalVariable>(UVal)
-                 or isa<llvm::ConstantExpr>(UVal));
+    using namespace llvm;
+    revng_assert(isa<UndefValue>(UVal) or isa<Argument>(UVal)
+                 or isa<Instruction>(UVal) or isa<GlobalVariable>(UVal)
+                 or isa<ConstantExpr>(UVal) or isa<ConstantPointerNull>(UVal));
   } break;
 
   case llvm::scZeroExtend: {
@@ -261,7 +261,8 @@ SCEVBaseAddressExplorer::checkAddressOrTraverse(llvm::ScalarEvolution *SE,
   case llvm::scSMaxExpr:
   case llvm::scUMaxExpr:
   case llvm::scSMinExpr:
-  case llvm::scUMinExpr: {
+  case llvm::scUMinExpr:
+  case llvm::scSequentialUMinExpr: {
   } break;
 
   default:

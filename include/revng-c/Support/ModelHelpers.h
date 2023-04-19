@@ -23,6 +23,15 @@ class Use;
 extern model::QualifiedType
 peelConstAndTypedefs(const model::QualifiedType &QT);
 
+/// Get the model type of an llvm::Value
+///
+/// \p V must be of IntegerType or an AllocaInst/GlobalVariable of IntegerType
+/// or ArrayType.
+///
+/// \return a valid QualifiedType
+extern const model::QualifiedType
+modelType(const llvm::Value *V, const model::Binary &Model);
+
 /// Convert an LLVM integer type (i1, i8, i16, ...) to the corresponding
 /// primitive type (uint8_t, uint16_t, ...).
 extern const model::QualifiedType

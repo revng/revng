@@ -103,7 +103,7 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
 
     for (const BasicBlock &B : F) {
       for (const Instruction &I : B) {
-        if (auto *Call = isCallToIsolatedFunction(&I)) {
+        if (auto *Call = getCallToIsolatedFunction(&I)) {
 
           const Function *Callee = getCallee(Call);
           if (not Callee)

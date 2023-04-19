@@ -254,22 +254,23 @@ public:
               auto NRetTypes = RetTys.size();
               revng_assert(NRetTypes > 1ULL);
 
-              // If RetVal is a ConstantAggregate we cannot infer anything about
-              // type layouts right now. We need to handle layout pointed to by
-              // constant addresses first. This might be useful to infer types
-              // in data sections of binaries be we don't handle it now. When we
-              // do, it will become necessary to handle this case.
-              if (isa<ConstantAggregate>(RetVal)
-                  or isa<ConstantAggregateZero>(RetVal))
-                continue;
+              for (Value *Leaf : findPhiTreeLeaves(RetVal)) {
+                // If Leaf is a ConstantAggregate we cannot infer anything
+                // about type layouts right now. We need to handle layout
+                // pointed to by constant addresses first. This might be useful
+                // to infer types in data sections of binaries be we don't
+                // handle it now. When we do, it will become necessary to handle
+                // this case.
+                if (isa<ConstantAggregate>(Leaf)
+                    or isa<ConstantAggregateZero>(Leaf))
+                  continue;
 
-              if (isa<UndefValue>(RetVal))
-                continue;
+                if (isa<UndefValue>(Leaf))
+                  continue;
 
-              if (auto *Call = dyn_cast<CallInst>(RetVal)) {
-                const Function *Callee = getCallee(Call);
-
-                if (Callee) {
+                if (auto *Call = dyn_cast<CallInst>(Leaf)) {
+                  const Function *Callee = getCallee(Call);
+                  revng_assert(Callee != nullptr);
 
                   auto CTags = FunctionTags::TagsSet::from(Callee);
                   revng_assert(CTags.contains(FunctionTags::StructInitializer));
@@ -284,7 +285,7 @@ public:
                   revng_assert(StructTypeNodes.size() == Callee->arg_size());
 
                   for (const auto &[RetNodeNew, Arg] :
-                       llvm::zip_first(StructTypeNodes, Call->arg_operands())) {
+                       llvm::zip_first(StructTypeNodes, Call->args())) {
                     const auto &[ArgNode,
                                  New] = Builder.getOrCreateLayoutType(Arg);
                     Changed |= New;
@@ -292,21 +293,9 @@ public:
                     Changed |= NewNode;
                     Changed |= TS.addEqualityLink(RetNode, ArgNode).second;
                   }
-
-                  continue;
                 }
               }
 
-              auto *InsertVal = cast<InsertValueInst>(RetVal);
-              auto RetOps = getInsertValueLeafOperands(InsertVal);
-              revng_assert(RetOps.size() == NRetTypes);
-              decltype(NRetTypes) N = 0ULL;
-              for (; N < NRetTypes; ++N) {
-                if (RetOps[N] == nullptr)
-                  continue;
-                const SCEV *S = SE->getSCEV(RetOps[N]);
-                SCEVToLayoutType.insert(std::make_pair(S, RetTys[N]));
-              }
             } else {
               LayoutTypeSystemNode *RetTy = Builder.getLayoutType(RetVal);
               const SCEV *S = SE->getSCEV(RetVal);
@@ -428,7 +417,7 @@ public:
             revng_assert(StructTypeNodes.size() == Callee->arg_size());
 
             for (const auto &[RetTypeNodeNew, Arg] :
-                 llvm::zip_first(StructTypeNodes, C->arg_operands())) {
+                 llvm::zip_first(StructTypeNodes, C->args())) {
               const auto &[ArgTypeNode,
                            New] = Builder.getOrCreateLayoutType(Arg);
               Changed |= New;
@@ -513,7 +502,7 @@ public:
           }
 
           // Add entry in SCEVToLayoutType map for actual arguments of CallInst.
-          for (Use &ArgU : C->arg_operands()) {
+          for (Use &ArgU : C->args()) {
             revng_assert(isa<IntegerType>(ArgU->getType())
                          or isa<PointerType>(ArgU->getType()));
             const auto &[ArgTy, Created] = Builder.getOrCreateLayoutType(ArgU);
@@ -576,8 +565,8 @@ public:
             SCEVToLayoutType.insert(std::make_pair(LoadSCEV, LoadedTy));
           }
         } else if (auto *A = dyn_cast<AllocaInst>(&I)) {
-          revng_assert(isa<IntegerType>(A->getType()->getElementType())
-                       or isa<PointerType>(A->getType()->getElementType()));
+          revng_assert(isa<IntegerType>(A->getAllocatedType())
+                       or isa<PointerType>(A->getAllocatedType()));
           const auto &[LoadedTy, Created] = Builder.getOrCreateLayoutType(A);
           Changed |= Created;
           const SCEV *LoadSCEV = SE->getSCEV(A);
@@ -663,7 +652,7 @@ bool Builder::connectToFuncsWithSamePrototype(const llvm::CallInst *Call,
     }
 
     // Connect arguments
-    for (const auto &ArgIt : llvm::enumerate(Call->arg_operands())) {
+    for (const auto &ArgIt : llvm::enumerate(Call->args())) {
       // Arguments can only be integers and pointers
       const Value *Arg1 = ArgIt.value();
       const Value *Arg2 = OtherCall.getArg(ArgIt.index());
@@ -680,14 +669,6 @@ bool Builder::connectToFuncsWithSamePrototype(const llvm::CallInst *Call,
 
   return Changed;
 }
-
-static uint64_t getLoadStoreSizeFromPtrOp(const llvm::Module &M,
-                                          const llvm::Value *PtrOperand) {
-  auto *PtrTy = cast<llvm::PointerType>(PtrOperand->getType());
-  llvm::Type *AccessedT = PtrTy->getElementType();
-  const llvm::DataLayout &DL = M.getDataLayout();
-  return DL.getTypeAllocSize(AccessedT);
-};
 
 bool Builder::createIntraproceduralTypes(llvm::Module &M,
                                          llvm::ModulePass *MP,
@@ -726,10 +707,10 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
         if (not I.getNumOperands())
           continue;
 
-        // InsertValue and ExtractValue are special because their operands have
-        // struct type, so we don't handle them explictly.
-        // Both will be analyzed only as operands of their respective uses.
-        if (isa<ExtractValueInst>(I) or isa<InsertValueInst>(I))
+        // ExtractValue is special since its operand has struct type, so we
+        // don't handle them explictly.  It will be analyzed only as operands of
+        // its uses.
+        if (isa<ExtractValueInst>(I))
           continue;
 
         // Load and Store are handled separately, because we look into their
@@ -769,7 +750,7 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
           Changed |= ILA.createBaseAddrWithInstanceLink(*this, PointerVal, *B);
 
           // Create Access node
-          auto AccessSize = getLoadStoreSizeFromPtrOp(M, PointerVal);
+          auto AccessSize = Val->getType()->getScalarSizeInBits() / 8;
           auto *AccessNode = TS.createArtificialLayoutType();
           AccessNode->Size = AccessSize;
           AccessNode->InterferingInfo = AllChildrenAreNonInterfering;
@@ -847,19 +828,20 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
             continue;
 
           if (RetVal->getType()->isStructTy()) {
-            // If RetVal is a ConstantAggregate we cannot infer anything about
-            // type layouts right now. We need to handle layout pointed to by
-            // constant addresses first. This might be useful to infer types in
-            // data sections of binaries be we don't handle it now. When we do,
-            // it will become necessary to handle this case.
-            if (isa<ConstantAggregate>(RetVal)
-                or isa<ConstantAggregateZero>(RetVal))
-              continue;
+            for (Value *Leaf : findPhiTreeLeaves(RetVal)) {
+              // If Leaf is a ConstantAggregate we cannot infer anything about
+              // type layouts right now. We need to handle layout pointed to by
+              // constant addresses first. This might be useful to infer types
+              // in data sections of binaries be we don't handle it now. When we
+              // do, it will become necessary to handle this case.
+              if (isa<ConstantAggregate>(Leaf)
+                  or isa<ConstantAggregateZero>(Leaf))
+                continue;
 
-            if (isa<UndefValue>(RetVal))
-              continue;
+              if (isa<UndefValue>(Leaf))
+                continue;
 
-            if (auto *Call = dyn_cast<CallInst>(RetVal)) {
+              auto *Call = cast<CallInst>(Leaf);
 
               const Function *Callee = getCallee(Call);
               auto CTags = FunctionTags::TagsSet::from(Callee);
@@ -871,13 +853,7 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
               revng_assert(RetTy->getNumElements() == Callee->arg_size());
 
               Pointers.append(Call->arg_begin(), Call->arg_end());
-
-            } else {
-
-              auto *InsVal = cast<InsertValueInst>(RetVal);
-              Pointers = getInsertValueLeafOperands(InsVal);
             }
-
           } else {
             revng_assert(isa<IntegerType>(RetVal->getType())
                          or isa<PointerType>(RetVal->getType()));
@@ -885,7 +861,7 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
           }
         } else if (auto *Call = dyn_cast<CallInst>(&I)) {
           // For calls we actually look at their parameters.
-          for (Value *PointerVal : Call->arg_operands())
+          for (Value *PointerVal : Call->args())
             Pointers.push_back(PointerVal);
 
         } else if (isa<PtrToIntInst>(&I) or isa<IntToPtrInst>(&I)

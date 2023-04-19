@@ -46,17 +46,14 @@ static bool adjustStackAfterCalls(FunctionMetadataCache &Cache,
 
   IRBuilder<> B(F.getParent()->getContext());
 
-  Type *SPType = GlobalSP->getType()->getPointerElementType();
+  Type *SPType = GlobalSP->getValueType();
 
   MetaAddress Entry = getMetaAddressMetadata(&F, "revng.function.entry");
   auto &ModelFunction = Binary.Functions().at(Entry);
 
   for (BasicBlock &BB : F) {
     for (Instruction &I : BB) {
-      if (FunctionTags::CallToLifted.isTagOf(&I)) {
-        auto *MD = I.getMetadata("revng.callerblock.start");
-        revng_assert(MD != nullptr);
-
+      if (isCallToIsolatedFunction(&I)) {
         // TODO: handle CABIFunctionType
         auto *Proto = Cache
                         .getCallSitePrototype(Binary,
@@ -72,7 +69,7 @@ static bool adjustStackAfterCalls(FunctionMetadataCache &Cache,
         Changed = true;
 
         B.SetInsertPoint(I.getNextNode());
-        B.CreateStore(B.CreateAdd(B.CreateLoad(GlobalSP), FSO), GlobalSP);
+        B.CreateStore(B.CreateAdd(createLoad(B, GlobalSP), FSO), GlobalSP);
       }
     }
   }
@@ -154,12 +151,12 @@ bool PromoteStackPointerPass::runOnFunction(Function &F) {
   // Create function for initializing local stack pointer.
   Module *M = F.getParent();
   LLVMContext &Ctx = F.getContext();
-  Type *SPType = GlobalSP->getType()->getPointerElementType();
+  Type *SPType = GlobalSP->getValueType();
   auto InitFunction = M->getOrInsertFunction("revng_init_local_sp", SPType);
   Function *InitLocalSP = cast<Function>(InitFunction.getCallee());
   InitLocalSP->addFnAttr(Attribute::NoUnwind);
-  InitLocalSP->addFnAttr(Attribute::InaccessibleMemOnly);
   InitLocalSP->addFnAttr(Attribute::WillReturn);
+  InitLocalSP->setOnlyAccessesInaccessibleMemory();
   FunctionTags::OpaqueCSVValue.addTo(InitLocalSP);
 
   // Create an alloca to represent the local value of the stack pointer.

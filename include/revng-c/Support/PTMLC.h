@@ -81,7 +81,9 @@ inline Tag number(const T &I) {
 
 inline Tag
 number(const llvm::APInt &I, unsigned int Radix = 10, bool Signed = false) {
-  return constant(I.toString(Radix, Signed));
+  llvm::SmallString<12> Result;
+  I.toString(Result, Radix, Signed);
+  return constant(Result);
 }
 
 inline Tag stringLiteral(const llvm::StringRef Str) {
@@ -394,14 +396,17 @@ inline Tag getNameTag(const Field &F) {
 }
 
 template<typename Aggregate, typename Field>
-concept ModelStructOrUnionWithField =
-  (std::same_as<model::StructType,
-                Aggregate> and std::same_as<model::StructField, Field>)
-  or (std::same_as<model::UnionType,
-                   Aggregate> and std::same_as<model::UnionField, Field>);
+concept ModelStructOrUnionWithField = (std::same_as<model::StructType,
+                                                    Aggregate>
+                                       and std::same_as<model::StructField,
+                                                        Field>)
+                                      or (std::same_as<model::UnionType,
+                                                       Aggregate>
+                                          and std::same_as<model::UnionField,
+                                                           Field>);
 
 template<bool IsDefinition, typename Aggregate, typename Field>
-requires ModelStructOrUnionWithField<Aggregate, Field>
+  requires ModelStructOrUnionWithField<Aggregate, Field>
 inline std::string getLocation(const Aggregate &A, const Field &F) {
   return getNameTag(F)
     .addAttribute(locationAttribute(IsDefinition), serializeLocation(A, F))
@@ -419,13 +424,13 @@ concept ModelAggregateWithField =
 // clang-format on
 
 template<typename Aggregate, typename Field>
-requires ModelAggregateWithField<Aggregate, Field>
+  requires ModelAggregateWithField<Aggregate, Field>
 inline std::string getLocationDefinition(const Aggregate &A, const Field &F) {
   return getLocation<true>(A, F);
 }
 
 template<typename Aggregate, typename Field>
-requires ModelAggregateWithField<Aggregate, Field>
+  requires ModelAggregateWithField<Aggregate, Field>
 inline std::string getLocationReference(const Aggregate &A, const Field &F) {
   return getLocation<false>(A, F);
 }

@@ -44,7 +44,7 @@ Tag BinaryNot("BinaryNot");
 static std::string makeTypeName(const llvm::Type *Ty) {
   std::string Name;
   if (auto *PtrTy = llvm::dyn_cast<llvm::PointerType>(Ty)) {
-    Name = "ptr_to_" + makeTypeName(PtrTy->getElementType());
+    Name = "ptr";
   } else if (auto *IntTy = llvm::dyn_cast<llvm::IntegerType>(Ty)) {
     Name = "i" + std::to_string(IntTy->getBitWidth());
   } else if (auto *StrucTy = llvm::dyn_cast<llvm::StructType>(Ty)) {
@@ -96,7 +96,8 @@ void initAddressOfPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M) {
   // Set attributes
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
-  Pool.addFnAttribute(llvm::Attribute::ReadNone);
+  Pool.setMemoryEffects(llvm::MemoryEffects::none());
+
   // Set revng tags
   Pool.setTags({ &FunctionTags::AddressOf });
 
@@ -114,7 +115,8 @@ void initStringLiteralPool(OpaqueFunctionsPool<StringLiteralPoolKey> &Pool,
   // Set attributes
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
-  Pool.addFnAttribute(llvm::Attribute::ReadNone);
+  Pool.setMemoryEffects(llvm::MemoryEffects::none());
+
   // Set revng tags
   Pool.setTags({ &FunctionTags::StringLiteral });
 
@@ -134,9 +136,11 @@ void initModelCastPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   // Set attributes
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
-  Pool.addFnAttribute(llvm::Attribute::ReadNone);
+  Pool.setMemoryEffects(llvm::MemoryEffects::none());
+
   // Set revng tags
   Pool.setTags({ &FunctionTags::ModelCast });
+
   // Initialize the pool from its internal llvm::Module if possible.
   Pool.initializeFromReturnType(FunctionTags::ModelCast);
 }
@@ -145,9 +149,11 @@ void initParenthesesPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   // Set attributes
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
-  Pool.addFnAttribute(llvm::Attribute::ReadNone);
+  Pool.setMemoryEffects(llvm::MemoryEffects::none());
+
   // Set revng tags
   Pool.setTags({ &FunctionTags::Parentheses, &FunctionTags::Marker });
+
   // Initialize the pool from its internal llvm::Module if possible.
   Pool.initializeFromReturnType(FunctionTags::Parentheses);
 }
@@ -156,7 +162,7 @@ void initHexPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   // Set attributes
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
-  Pool.addFnAttribute(llvm::Attribute::ReadNone);
+  Pool.setMemoryEffects(llvm::MemoryEffects::none());
 
   // Set revng tags
   Pool.setTags({ &FunctionTags::HexInteger });
@@ -169,7 +175,7 @@ void initCharPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   // Set attributes
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
-  Pool.addFnAttribute(llvm::Attribute::ReadNone);
+  Pool.setMemoryEffects(llvm::MemoryEffects::none());
 
   // Set revng tags
   Pool.setTags({ &FunctionTags::CharInteger });
@@ -182,7 +188,7 @@ void initBoolPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   // Set attributes
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
-  Pool.addFnAttribute(llvm::Attribute::ReadNone);
+  Pool.setMemoryEffects(llvm::MemoryEffects::none());
 
   // Set revng tags
   Pool.setTags({ &FunctionTags::BoolInteger });
@@ -195,7 +201,7 @@ void initUnaryMinusPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   // Set attributes
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
-  Pool.addFnAttribute(llvm::Attribute::ReadNone);
+  Pool.setMemoryEffects(llvm::MemoryEffects::none());
 
   // Set revng tags
   Pool.setTags({ &FunctionTags::UnaryMinus });
@@ -208,7 +214,7 @@ void initBinaryNotPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   // Set attributes
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
-  Pool.addFnAttribute(llvm::Attribute::ReadNone);
+  Pool.setMemoryEffects(llvm::MemoryEffects::none());
 
   // Set revng tags
   Pool.setTags({ &FunctionTags::BinaryNot });
@@ -222,7 +228,8 @@ void initSegmentRefPool(OpaqueFunctionsPool<SegmentRefPoolKey> &Pool,
   // Set attributes
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
-  Pool.addFnAttribute(llvm::Attribute::ReadNone);
+  Pool.setMemoryEffects(llvm::MemoryEffects::none());
+
   // Set revng tags
   Pool.setTags({ &FunctionTags::SegmentRef, &FunctionTags::IsRef });
 
@@ -262,7 +269,7 @@ getModelGEP(llvm::Module &M, llvm::Type *RetType, llvm::Type *BaseType) {
   auto *ModelGEPFunction = cast<Function>(MGEPCallee.getCallee());
   ModelGEPFunction->addFnAttr(llvm::Attribute::NoUnwind);
   ModelGEPFunction->addFnAttr(llvm::Attribute::WillReturn);
-  ModelGEPFunction->addFnAttr(llvm::Attribute::ReadNone);
+  ModelGEPFunction->setMemoryEffects(llvm::MemoryEffects::none());
   FunctionTags::ModelGEP.addTo(ModelGEPFunction);
   FunctionTags::IsRef.addTo(ModelGEPFunction);
 
@@ -294,7 +301,7 @@ getModelGEPRef(llvm::Module &M, llvm::Type *ReturnType, llvm::Type *BaseType) {
   auto *ModelGEPFunction = cast<Function>(MGEPCallee.getCallee());
   ModelGEPFunction->addFnAttr(llvm::Attribute::NoUnwind);
   ModelGEPFunction->addFnAttr(llvm::Attribute::WillReturn);
-  ModelGEPFunction->addFnAttr(llvm::Attribute::ReadNone);
+  ModelGEPFunction->setMemoryEffects(llvm::MemoryEffects::none());
   FunctionTags::ModelGEPRef.addTo(ModelGEPFunction);
   FunctionTags::IsRef.addTo(ModelGEPFunction);
 
@@ -315,11 +322,13 @@ void initLocalVarPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   // Set attributes
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
-  Pool.addFnAttribute(llvm::Attribute::ReadNone);
+  Pool.setMemoryEffects(llvm::MemoryEffects::none());
+
   // Set revng tags
   Pool.setTags({ &FunctionTags::LocalVariable,
                  &FunctionTags::IsRef,
                  &FunctionTags::AllocatesLocalVariable });
+
   // Initialize the pool from its internal llvm::Module if possible.
   // Use the stored type as a key.
   Pool.initializeFromReturnType(FunctionTags::LocalVariable);
@@ -329,10 +338,12 @@ llvm::FunctionType *getOpaqueEVFunctionType(llvm::ExtractValueInst *Extract) {
   using namespace llvm;
   // First argument is the struct we are extracting from
   std::vector ArgTypes = { Extract->getAggregateOperand()->getType() };
+
   // All other arguments are indices, which we decided to be of type i64
   auto &C = Extract->getContext();
   Type *I64Type = IntegerType::getInt64Ty(C);
   ArgTypes.insert(ArgTypes.end(), Extract->getNumIndices(), I64Type);
+
   // The return type is the type of the extracted field
   Type *ReturnType = Extract->getType();
 
@@ -368,9 +379,11 @@ void initAssignPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   // Set attributes
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
-  Pool.addFnAttribute(llvm::Attribute::WriteOnly);
+  Pool.setMemoryEffects(llvm::MemoryEffects::writeOnly());
+
   // Set revng tags
   Pool.setTags({ &FunctionTags::Assign, &FunctionTags::WritesMemory });
+
   // Initialize the pool from its internal llvm::Module if possible.
   // Use the stored type as a key.
   Pool.initializeFromNthArgType(FunctionTags::Assign, 0);
@@ -388,9 +401,11 @@ void initCopyPool(OpaqueFunctionsPool<llvm::Type *> &Pool) {
   // Set attributes
   Pool.addFnAttribute(llvm::Attribute::NoUnwind);
   Pool.addFnAttribute(llvm::Attribute::WillReturn);
-  Pool.addFnAttribute(llvm::Attribute::ReadOnly);
+  Pool.setMemoryEffects(llvm::MemoryEffects::readOnly());
+
   // Set revng tags
   Pool.setTags({ &FunctionTags::Copy, &FunctionTags::ReadsMemory });
+
   // Initialize the pool from its internal llvm::Module if possible.
   // Use the stored type as a key.
   Pool.initializeFromReturnType(FunctionTags::Copy);

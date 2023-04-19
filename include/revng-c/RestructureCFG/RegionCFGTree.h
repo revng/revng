@@ -8,6 +8,7 @@
 #include <set>
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/FileSystem.h"
@@ -168,7 +169,7 @@ private:
 
       SmallMap<llvm::BasicBlock *, EdgeInfo, 16> LabeledEdges;
 
-      for (llvm::SwitchInst::CaseHandle &Case : Switch->cases()) {
+      for (const llvm::SwitchInst::CaseHandle &Case : Switch->cases()) {
         llvm::BasicBlock *CaseBB = Case.getCaseSuccessor();
         llvm::ConstantInt *CaseValue = Case.getCaseValue();
         uint64_t LabelValue = CaseValue->getZExtValue();
