@@ -185,6 +185,7 @@ private:
       // restored later
       if (Global.getLinkage() == GlobalValue::InternalLinkage
           or Global.getLinkage() == GlobalValue::PrivateLinkage
+          or Global.getLinkage() == GlobalValue::AppendingLinkage
           or (Global.getLinkage() == GlobalValue::ExternalLinkage
               and not Global.isDeclaration())) {
         LinkageRestore[Global.getName().str()] = Global.getLinkage();
