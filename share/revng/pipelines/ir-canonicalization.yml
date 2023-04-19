@@ -23,8 +23,6 @@ Branches:
               - fold-model-gep
               - remove-ref-deref
               - dce
-              - duplicate-references
-              - dce
               - add-assignment-markers
               - make-model-cast
               - operatorprecedence-resolution
