@@ -7,8 +7,8 @@
 // This files has been from the cppcoro project by Lewis Baker, which is
 // licensed under MIT license.
 
+#include <coroutine>
 #include <exception>
-#include <experimental/coroutine>
 #include <functional>
 #include <iterator>
 #include <type_traits>
@@ -30,22 +30,18 @@ public:
 
   generator<T> get_return_object() noexcept;
 
-  constexpr std::experimental::suspend_always initial_suspend() const noexcept {
-    return {};
-  }
-  constexpr std::experimental::suspend_always final_suspend() const noexcept {
-    return {};
-  }
+  constexpr std::suspend_always initial_suspend() const noexcept { return {}; }
+  constexpr std::suspend_always final_suspend() const noexcept { return {}; }
 
   template<typename U = T,
            std::enable_if_t<!std::is_rvalue_reference<U>::value, int> = 0>
-  std::experimental::suspend_always
+  std::suspend_always
   yield_value(std::remove_reference_t<T> &ValueToYield) noexcept {
     Value = std::addressof(ValueToYield);
     return {};
   }
 
-  std::experimental::suspend_always
+  std::suspend_always
   yield_value(std::remove_reference_t<T> &&ValueToYieldValue) noexcept {
     Value = std::addressof(ValueToYieldValue);
     return {};
@@ -61,7 +57,7 @@ public:
 
   // Don't allow any use of 'co_await' inside the generator coroutine.
   template<typename U>
-  std::experimental::suspend_never await_transform(U &&) = delete;
+  std::suspend_never await_transform(U &&) = delete;
 
   void rethrow_if_exception() {
     if (Exception) {
@@ -77,7 +73,7 @@ private:
 template<typename T>
 class GeneratorIterator {
   using promise = GeneratorPromise<T>;
-  using coroutine_handle = std::experimental::coroutine_handle<promise>;
+  using coroutine_handle = std::coroutine_handle<promise>;
 
 public:
   using iterator_category = std::input_iterator_tag;
@@ -172,12 +168,12 @@ public:
 private:
   friend class detail::GeneratorPromise<T>;
 
-  using coroutine_handle = std::experimental::coroutine_handle<promise_type>;
+  using coroutine_handle = std::coroutine_handle<promise_type>;
 
   explicit generator(coroutine_handle Coroutine) noexcept :
     Coroutine(Coroutine) {}
 
-  std::experimental::coroutine_handle<promise_type> Coroutine;
+  std::coroutine_handle<promise_type> Coroutine;
 };
 
 template<typename T>
@@ -189,7 +185,7 @@ namespace detail {
 template<typename T>
 generator<T> GeneratorPromise<T>::get_return_object() noexcept {
   using promise = GeneratorPromise<T>;
-  using coroutine_handle = std::experimental::coroutine_handle<promise>;
+  using coroutine_handle = std::coroutine_handle<promise>;
   return generator<T>{ coroutine_handle::from_promise(*this) };
 }
 } // namespace detail

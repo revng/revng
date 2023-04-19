@@ -137,12 +137,12 @@ public:
   ///
   /// \tparam Range constrained input range type.
   /// \param  NewTypes the input range.
-  template<ranges::range_with_value_type<UpcastablePointer<Type>> Range>
+  template<range_with_value_type<UpcastablePointer<Type>> Range>
   void recordNewTypes(Range &&NewTypes) {
     auto Inserter = Types().batch_insert();
 
     static_assert(std::is_rvalue_reference_v<decltype(NewTypes)>);
-    auto Movable = ranges::views::as_rvalue(std::move(NewTypes));
+    auto Movable = as_rvalue(std::move(NewTypes));
     for (UpcastablePointer<Type> &&NewType : Movable) {
       static_assert(std::is_rvalue_reference_v<decltype(NewType)>);
       Inserter.emplace(std::move(NewType));

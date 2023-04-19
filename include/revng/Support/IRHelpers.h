@@ -9,6 +9,7 @@
 #include <sstream>
 #include <type_traits>
 
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Analysis/ConstantFolding.h"
@@ -70,7 +71,6 @@ inline void eraseFromParent(llvm::Value *V) {
 }
 
 constexpr const char *FunctionEntryMDNName = "revng.function.entry";
-constexpr const char *CallerBlockStartMDName = "revng.callerblock.start";
 constexpr const char *JTReasonMDName = "revng.jt.reasons";
 constexpr const char *FunctionMetadataMDName = "revng.function.metadata";
 
@@ -492,7 +492,7 @@ inline llvm::BasicBlock *blockByName(llvm::Function *F, const char *Name) {
 
 /// Specialization of writeToLog for llvm::Value-derived types
 template<typename T>
-requires derived_from<llvm::Value, std::remove_const_t<T>>
+  requires std::derived_from<llvm::Value, std::remove_const_t<T>>
 inline void writeToLog(Logger<true> &This, T *I, int) {
   if (I != nullptr)
     This << getName(I);
@@ -949,7 +949,7 @@ public:
   std::vector<llvm::GlobalVariable *> Written;
 };
 
-inline llvm::Optional<CSVsUsage>
+inline std::optional<CSVsUsage>
 getCSVUsedByHelperCallIfAvailable(llvm::Instruction *Call) {
   revng_assert(isCallToHelper(Call));
 
@@ -1063,7 +1063,7 @@ inline void writeToLog(Logger<B> &L, const Dumpable &P, int /* Ignore */) {
 }
 
 template<typename T>
-requires std::is_pointer_v<T>
+  requires std::is_pointer_v<T>
 inline std::string dumpToString(T TheT) {
   if (TheT == nullptr)
     return "nullptr";
@@ -1443,20 +1443,6 @@ inline llvm::Value *getPointer(llvm::User *U) {
     return nullptr;
 }
 
-inline unsigned getPointeeSize(llvm::Value *Pointer) {
-  using namespace llvm;
-
-  revng_assert(Pointer->getType()->isPointerTy());
-  Type *Pointee = Pointer->getType()->getPointerElementType();
-  unsigned Size = Pointee->getIntegerBitWidth();
-  revng_assert(Size % 8 == 0);
-  return Pointer->getType()->getPointerElementType()->getIntegerBitWidth() / 8;
-}
-
-inline unsigned getMemoryAccessSize(llvm::Instruction *I) {
-  return getPointeeSize(getPointer(I));
-}
-
 /// Steal the body of \p OldFunction and move it into \p NewFunction
 void moveBlocksInto(llvm::Function &OldFunction, llvm::Function &NewFunction);
 
@@ -1496,4 +1482,38 @@ unpack(llvm::IRBuilder<T, Inserter> &Builder, llvm::Value *V) {
   }
 }
 
+template<typename T, typename Inserter>
+llvm::Instruction *
+createLoad(llvm::IRBuilder<T, Inserter> &Builder, llvm::GlobalVariable *GV) {
+  return Builder.CreateLoad(GV->getValueType(), GV);
+}
+
+template<typename T, typename Inserter>
+llvm::Instruction *
+createLoad(llvm::IRBuilder<T, Inserter> &Builder, llvm::AllocaInst *Alloca) {
+  return Builder.CreateLoad(Alloca->getAllocatedType(), Alloca);
+}
+
+template<typename T, typename Inserter>
+llvm::Instruction *createLoadVariable(llvm::IRBuilder<T, Inserter> &Builder,
+                                      llvm::Value *Variable) {
+  if (auto *Alloca = llvm::dyn_cast<llvm::AllocaInst>(Variable))
+    return createLoad(Builder, Alloca);
+  else if (auto *GV = llvm::dyn_cast<llvm::GlobalVariable>(Variable))
+    return createLoad(Builder, GV);
+  else
+    revng_abort("Either GlobalVariable or AllocaInst expected");
+}
+
+inline llvm::Type *getVariableType(const llvm::Value *Variable) {
+  if (auto *Alloca = llvm::dyn_cast<llvm::AllocaInst>(Variable))
+    return Alloca->getAllocatedType();
+  else if (auto *GV = llvm::dyn_cast<llvm::GlobalVariable>(Variable))
+    return GV->getValueType();
+  else
+    revng_abort("Either GlobalVariable or AllocaInst expected");
+}
+
 void pruneDICompileUnits(llvm::Module &M);
+
+llvm::SmallSet<llvm::Value *, 2> findPhiTreeLeaves(llvm::Value *Root);

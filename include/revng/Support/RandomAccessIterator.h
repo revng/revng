@@ -9,23 +9,20 @@
 #include "revng/Support/Assert.h"
 
 template<typename TypeT, typename Derived, bool Reference = true>
-class RandomAccessIterator
-  : public std::iterator<std::random_access_iterator_tag, TypeT> {
+class RandomAccessIterator {
 
 private:
-  using iterator = typename std::iterator<std::random_access_iterator_tag,
-                                          TypeT>;
   using type = RandomAccessIterator<TypeT, Derived, Reference>;
-  using it_ref = typename iterator::reference;
   template<bool C, typename A, typename B>
   using conditional = std::conditional<C, A, B>;
 
 public:
   using iterator_category = std::random_access_iterator_tag;
-  using value_type = typename iterator::value_type;
-  using difference_type = typename iterator::difference_type;
-  using reference = typename conditional<Reference, it_ref, value_type>::type;
-  using pointer = typename iterator::pointer;
+  using value_type = TypeT;
+  using difference_type = std::ptrdiff_t;
+  using reference = typename conditional<Reference, TypeT &, value_type>::type;
+  using const_reference = TypeT &;
+  using pointer = TypeT *;
 
 private:
   const Derived &constThisDerived() const {

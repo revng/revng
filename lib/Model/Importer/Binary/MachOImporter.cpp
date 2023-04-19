@@ -78,7 +78,7 @@ getInitialPC(Architecture::Values Arch, bool Swap, ArrayRef<uint8_t> Command) {
   ArrayRefReader<uint8_t> Reader(Command, Swap);
   uint32_t Flavor = Reader.read<uint32_t>();
   uint32_t Count = Reader.read<uint32_t>();
-  Optional<uint64_t> PC;
+  std::optional<uint64_t> PC;
 
   switch (Arch) {
   case Architecture::x86: {
@@ -196,7 +196,7 @@ Error MachOImporter::import() {
   bool MustSwap = IsLittleEndian != sys::IsLittleEndianHost;
 
   bool EntryPointFound = false;
-  Optional<uint64_t> EntryPointOffset;
+  std::optional<uint64_t> EntryPointOffset;
   for (const LoadCommandInfo &LCI : MachO.load_commands()) {
     switch (LCI.C.cmd) {
 
@@ -316,6 +316,7 @@ void MachOImporter::registerBindEntry(const object::MachOBindEntry *Entry) {
   MetaAddress Target = fromGeneric(Entry->address());
   uint64_t Addend = static_cast<uint64_t>(Entry->addend());
   RelocationType::Values Type = RelocationType::Invalid;
+  (void) Type;
   auto PointerSize = Architecture::getPointerSize(Model->Architecture());
 
   switch (Entry->type()) {

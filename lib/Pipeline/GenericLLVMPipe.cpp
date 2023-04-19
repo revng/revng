@@ -20,7 +20,7 @@ void O2Pipe::registerPasses(llvm::legacy::PassManager &Manager) {
   getOption<bool>(Options, "disable-machine-licm")->setInitialValue(true);
 
   PassBuilder Builder;
-  Builder.buildPerModuleDefaultPipeline(PassBuilder::OptimizationLevel::O2);
+  Builder.buildPerModuleDefaultPipeline(OptimizationLevel::O2);
 }
 
 std::unique_ptr<LLVMPassWrapperBase> PureLLVMPassWrapper::clone() const {

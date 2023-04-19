@@ -29,7 +29,8 @@ inline std::string getCustomNamePath(const model::Type &Type) {
 }
 
 template<typename T>
-requires std::same_as<model::UnionType, T> or std::same_as<model::StructType, T>
+  requires std::same_as<model::UnionType, T>
+           or std::same_as<model::StructType, T>
 inline std::string getCustomNamePath(const T &Obj, uint64_t FieldIdx) {
   return "/Types/" + str(Obj.key()) + "/Fields/" + std::to_string(FieldIdx)
          + "/CustomName";

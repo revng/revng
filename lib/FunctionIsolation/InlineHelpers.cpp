@@ -45,7 +45,7 @@ static CallInst *getCallToInline(Instruction *I) {
 
 static void doInline(CallInst *Call) {
   InlineFunctionInfo IFI;
-  auto Result = InlineFunction(*Call, IFI, nullptr, false);
+  auto Result = InlineFunction(*Call, IFI, false, nullptr, false);
   revng_assert(Result.isSuccess(), Result.getFailureReason());
 }
 
@@ -77,10 +77,27 @@ private:
   void wrapCallsToHelpers(Function *F);
 };
 
+static void dropDebugOrPseudoInst(Function *F) {
+  SmallVector<Instruction *, 16> ToErase;
+  for (BasicBlock &BB : *F) {
+    for (Instruction &I : BB) {
+      if (I.isDebugOrPseudoInst()) {
+        ToErase.push_back(&I);
+      }
+    }
+  }
+
+  for (Instruction *I : ToErase) {
+    I->eraseFromParent();
+  }
+}
+
 void InlineHelpers::run(Function *F) {
   // Fixed-point inlining
   while (doInline(F))
     ;
+
+  dropDebugOrPseudoInst(F);
 }
 
 bool InlineHelpersPass::runOnFunction(Function &F) {

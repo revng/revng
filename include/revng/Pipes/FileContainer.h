@@ -161,7 +161,7 @@ public:
 
   llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) override {
     std::error_code EC;
-    llvm::raw_fd_ostream OS(getOrCreatePath(), EC, llvm::sys::fs::F_None);
+    llvm::raw_fd_ostream OS(getOrCreatePath(), EC, llvm::sys::fs::OF_None);
     if (EC)
       return llvm::createStringError(EC,
                                      "could not write file at %s",

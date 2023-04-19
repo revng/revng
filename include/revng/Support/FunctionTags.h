@@ -26,8 +26,7 @@ class Tag;
 
 // clang-format off
 template<typename T>
-concept Taggable = (std::is_base_of_v<llvm::Instruction, T>
-                    or std::is_same_v<llvm::GlobalVariable, T>
+concept Taggable = (std::is_same_v<llvm::GlobalVariable, T>
                     or std::is_same_v<llvm::Function, T>);
 // clang-format on
 
@@ -177,7 +176,6 @@ inline Tag Isolated("Isolated");
 inline Tag ABIEnforced("ABIEnforced", Isolated);
 inline Tag CSVsPromoted("CSVsPromoted", ABIEnforced);
 
-inline Tag CallToLifted("CallToLifted");
 inline Tag Exceptional("Exceptional");
 inline Tag StructInitializer("StructInitializer");
 inline Tag OpaqueCSVValue("OpaqueCSVValue");
@@ -194,4 +192,27 @@ inline bool isRootOrLifted(const llvm::Function *F) {
   auto Tags = FunctionTags::TagsSet::from(F);
   return Tags.contains(FunctionTags::Root)
          or Tags.contains(FunctionTags::Isolated);
+}
+
+//
+// {is,get}CallToTagged
+//
+const llvm::CallInst *
+getCallToTagged(const llvm::Value *V, const FunctionTags::Tag &T);
+
+llvm::CallInst *getCallToTagged(llvm::Value *V, const FunctionTags::Tag &T);
+
+inline bool isCallToTagged(const llvm::Value *V, const FunctionTags::Tag &T) {
+  return getCallToTagged(V, T) != nullptr;
+}
+
+//
+// {is,get}CallToIsolatedFunction
+//
+const llvm::CallInst *getCallToIsolatedFunction(const llvm::Value *V);
+
+llvm::CallInst *getCallToIsolatedFunction(llvm::Value *V);
+
+inline bool isCallToIsolatedFunction(const llvm::Value *V) {
+  return getCallToIsolatedFunction(V) != nullptr;
 }

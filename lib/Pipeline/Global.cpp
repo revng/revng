@@ -20,7 +20,7 @@ using namespace llvm;
 
 Error Global::storeToDisk(StringRef Path) const {
   std::error_code EC;
-  raw_fd_ostream OS(Path, EC, llvm::sys::fs::F_None);
+  raw_fd_ostream OS(Path, EC, llvm::sys::fs::OF_None);
   if (EC)
     return createStringError(EC,
                              "could not write file at %s",

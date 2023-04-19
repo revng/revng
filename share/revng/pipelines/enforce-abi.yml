@@ -13,8 +13,10 @@ Branches:
               - drop-root
               - enforce-abi
               - inline-helpers
+              - attach-debug-info
               - promote-csvs
               - remove-exceptional-functions
+
         Artifacts:
           Container: module.ll
           Kind: CSVsPromoted

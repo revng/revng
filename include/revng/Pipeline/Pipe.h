@@ -36,8 +36,8 @@ concept HasContract = requires(T P) {
 };
 
 template<typename T, typename FirstRunArg, typename... Args>
-concept Pipe = Invokable<T, FirstRunArg, Args...> and(IsContainer<Args> and...)
-               and HasContract<T>;
+concept Pipe = Invokable<T, FirstRunArg, Args...>
+               and (IsContainer<Args> and ...) and HasContract<T>;
 
 template<typename T>
 concept HasPrecondition = requires(const T &P) {
@@ -45,8 +45,9 @@ concept HasPrecondition = requires(const T &P) {
 };
 
 template<typename C, typename First, typename... Rest>
-constexpr bool
-checkPipe(auto (C::*)(First, Rest...)) requires Pipe<C, First, Rest...> {
+constexpr bool checkPipe(auto (C::*)(First, Rest...))
+  requires Pipe<C, First, Rest...>
+{
   return true;
 }
 

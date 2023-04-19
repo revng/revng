@@ -6,6 +6,7 @@
 //
 
 #include "llvm/DebugInfo/CodeView/CVSymbolVisitor.h"
+#include "llvm/DebugInfo/CodeView/CVTypeVisitor.h"
 #include "llvm/DebugInfo/CodeView/LazyRandomTypeCollection.h"
 #include "llvm/DebugInfo/CodeView/SymbolDeserializer.h"
 #include "llvm/DebugInfo/CodeView/SymbolRecord.h"
@@ -21,6 +22,7 @@
 #include "llvm/DebugInfo/PDB/Native/PDBFile.h"
 #include "llvm/DebugInfo/PDB/Native/SymbolStream.h"
 #include "llvm/DebugInfo/PDB/PDB.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Program.h"
 
@@ -235,6 +237,7 @@ void PDBImporterImpl::populateSymbolsWithTypes(NativeSession &Session) {
     return;
   }
 
+  FilterOptions Filters;
   LinePrinter Printer(/*Indent=*/2, false, nulls(), Filters);
   const PrintScope HeaderScope(Printer, /*IndentLevel=*/2);
   PDBSymbolHandler SymbolHandler(Importer, ProcessedTypes, Session, *InputFile);
@@ -336,7 +339,7 @@ static std::string formatPDBFileID(ArrayRef<uint8_t> Bytes, uint16_t Age) {
   std::string PDBGUID;
   raw_string_ostream StringPDBGUID(PDBGUID);
   StringPDBGUID << format_bytes(Bytes,
-                                /*FirstByteOffset*/ None,
+                                /*FirstByteOffset*/ {},
                                 /*NumPerLine*/ 16,
                                 /*ByteGroupSize*/ 16);
   StringPDBGUID.flush();
@@ -1272,6 +1275,8 @@ Error PDBImporterSymbolVisitor::visitSymbolBegin(CVSymbol &Record,
 
 Error PDBImporterSymbolVisitor::visitKnownRecord(CVSymbol &Record,
                                                  ProcSym &Proc) {
+  revng_log(DILogger, "Importing " << Proc.Name);
+
   // If it is not in the .idata already, we assume it is a static symbol.
   if (not Model->ImportedDynamicFunctions().count(Proc.Name.str())) {
     uint64_t FunctionVirtualAddress = Session

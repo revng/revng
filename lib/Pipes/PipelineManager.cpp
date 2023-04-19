@@ -131,7 +131,7 @@ PipelineManager::create(llvm::ArrayRef<std::string> Pipelines,
                                          LoadedPipelines,
                                          ExecutionDirectory);
       MaybePipeline)
-    Manager.Runner = make_unique<pipeline::Runner>(move(*MaybePipeline));
+    Manager.Runner = make_unique<pipeline::Runner>(std::move(*MaybePipeline));
   else
     return MaybePipeline.takeError();
 
@@ -146,10 +146,10 @@ PipelineManager::createContexts(llvm::ArrayRef<std::string> EnablingFlags,
   Manager.ExecutionDirectory = ExecutionDirectory.str();
   Manager.Context = std::make_unique<llvm::LLVMContext>();
   auto Ctx = setUpContext(*Manager.Context);
-  Manager.PipelineContext = make_unique<pipeline::Context>(move(Ctx));
+  Manager.PipelineContext = make_unique<pipeline::Context>(std::move(Ctx));
 
   auto Loader = setupLoader(*Manager.PipelineContext, EnablingFlags);
-  Manager.Loader = make_unique<pipeline::Loader>(move(Loader));
+  Manager.Loader = make_unique<pipeline::Loader>(std::move(Loader));
   return Manager;
 }
 
@@ -167,7 +167,7 @@ PipelineManager::createFromMemory(llvm::ArrayRef<std::string> PipelineContent,
                                          PipelineContent,
                                          ExecutionDirectory);
       MaybePipeline)
-    Manager.Runner = make_unique<pipeline::Runner>(move(*MaybePipeline));
+    Manager.Runner = make_unique<pipeline::Runner>(std::move(*MaybePipeline));
   else
     return MaybePipeline.takeError();
 

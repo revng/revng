@@ -108,7 +108,7 @@ PromoteCSVs::PromoteCSVs(Module *M,
                          const model::Binary &Binary) :
   M(M), Initializers(M), CSVInitializers(M, false), Binary(Binary) {
 
-  CSVInitializers.addFnAttribute(Attribute::ReadOnly);
+  CSVInitializers.setMemoryEffects(MemoryEffects::readOnly());
   CSVInitializers.addFnAttribute(Attribute::NoUnwind);
   CSVInitializers.addFnAttribute(Attribute::WillReturn);
   CSVInitializers.setTags({ &FunctionTags::OpaqueCSVValue });
@@ -132,7 +132,7 @@ Function *PromoteCSVs::createWrapper(const WrapperKey &Key) {
   auto &[Helper, Read, Written] = Key;
 
   LLVMContext &Context = Helper->getParent()->getContext();
-  auto *PointeeTy = Helper->getType()->getPointerElementType();
+  auto *PointeeTy = Helper->getValueType();
   auto *HelperType = cast<FunctionType>(PointeeTy);
 
   //
@@ -147,7 +147,7 @@ Function *PromoteCSVs::createWrapper(const WrapperKey &Key) {
 
   // Add type of read registers
   for (GlobalVariable *CSV : Read)
-    NewArguments.push_back(CSV->getType()->getPointerElementType());
+    NewArguments.push_back(CSV->getValueType());
 
   // Add out arguments for written registers
   const unsigned FirstOutArgument = NewArguments.size();
@@ -205,7 +205,7 @@ Function *PromoteCSVs::createWrapper(const WrapperKey &Key) {
   // Update values of the out arguments
   unsigned OutArgument = FirstOutArgument;
   for (GlobalVariable *CSV : Written) {
-    Builder.CreateStore(Builder.CreateLoad(CSV),
+    Builder.CreateStore(createLoad(Builder, CSV),
                         HelperWrapper->getArg(OutArgument));
     ++OutArgument;
   }
@@ -243,7 +243,7 @@ void PromoteCSVs::wrap(CallInst *Call,
   if (HelperWrapper == nullptr)
     HelperWrapper = createWrapper(Key);
 
-  auto *PointeeTy = Helper->getType()->getPointerElementType();
+  auto *PointeeTy = Helper->getValueType();
   auto *HelperType = cast<FunctionType>(PointeeTy);
 
   //
@@ -260,11 +260,11 @@ void PromoteCSVs::wrap(CallInst *Call,
 
   // Add arguments read
   for (GlobalVariable *CSV : Read)
-    NewArguments.push_back(Builder.CreateLoad(CSV));
+    NewArguments.push_back(createLoad(Builder, CSV));
 
   SmallVector<AllocaInst *, 16> WrittenCSVAllocas;
   for (GlobalVariable *CSV : Written) {
-    Type *AllocaType = CSV->getType()->getPointerElementType();
+    Type *AllocaType = CSV->getValueType();
     auto *OutArgument = AllocaBuilder.CreateAlloca(AllocaType);
     WrittenCSVAllocas.push_back(OutArgument);
     NewArguments.push_back(OutArgument);
@@ -277,7 +277,7 @@ void PromoteCSVs::wrap(CallInst *Call,
 
   // Restore into CSV the written registers
   for (const auto &[CSV, Alloca] : zip(Written, WrittenCSVAllocas))
-    Builder.CreateStore(Builder.CreateLoad(Alloca), CSV);
+    Builder.CreateStore(createLoad(Builder, Alloca), CSV);
 
   // Erase the old call
   eraseFromParent(Call);
@@ -301,7 +301,7 @@ void PromoteCSVs::promoteCSVs(Function *F) {
   std::map<GlobalVariable *, Function *> InitializerForCSV;
   for (GlobalVariable *CSV : CSVs) {
     // Initialize all allocas with opaque, CSV-specific values
-    Type *CSVType = CSV->getType()->getPointerElementType();
+    Type *CSVType = CSV->getValueType();
     llvm::StringRef CSVName = CSV->getName();
     auto *Initializer = CSVInitializers.get(CSVName,
                                             CSVType,
@@ -351,7 +351,7 @@ void PromoteCSVs::promoteCSVs(Function *F) {
       Alloca = It->second;
     } else {
       // Create the alloca
-      Type *CSVType = CSV->getType()->getPointerElementType();
+      Type *CSVType = CSV->getValueType();
       Alloca = AllocaBuilder.CreateAlloca(CSVType, nullptr, CSV->getName());
 
       // Check if already have an initializer

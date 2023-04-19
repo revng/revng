@@ -293,7 +293,7 @@ CFGAnalyzer::collectDirectCFG(OutlinedFunction *OF) {
           if (isa<ReturnInst>(Succ->getTerminator())) {
             revng_log(Log, "It's a ret");
             // Did we meet the end of the cloned function? Do nothing
-            revng_assert(Succ->getInstList().size() == 1);
+            revng_assert(Succ->size() == 1);
           } else if (auto *Call = getCallTo(&*Succ->begin(),
                                             PreCallHook.get())) {
             // Handle edge for regular function calls
@@ -358,16 +358,17 @@ CFGAnalyzer::State CFGAnalyzer::loadState(llvm::IRBuilder<> &Builder) const {
   LLVMContext &Context = M.getContext();
 
   // Load the stack pointer
-  auto *SP0 = Builder.CreateLoad(GCBI.spReg());
+  auto *SP0 = createLoad(Builder, GCBI.spReg());
 
   // Load the return address
   Value *ReturnAddress = nullptr;
-  if (Value *Register = GCBI.raReg()) {
-    ReturnAddress = Builder.CreateLoad(Register);
+  if (GlobalVariable *Register = GCBI.raReg()) {
+    ReturnAddress = createLoad(Builder, Register);
   } else {
-    auto *IntPtrTy = GCBI.spReg()->getType();
-    auto *StackPointerPointer = Builder.CreateIntToPtr(SP0, IntPtrTy);
-    ReturnAddress = Builder.CreateLoad(StackPointerPointer);
+    auto *OpaquePointer = PointerType::get(Context, 0);
+    auto *StackPointerPointer = Builder.CreateIntToPtr(SP0, OpaquePointer);
+    ReturnAddress = Builder.CreateLoad(GCBI.pcReg()->getValueType(),
+                                       StackPointerPointer);
   }
 
   // Load the PC
@@ -385,7 +386,7 @@ CFGAnalyzer::State CFGAnalyzer::loadState(llvm::IRBuilder<> &Builder) const {
   SmallVector<Value *, 16> CSVs;
   Type *IsRetTy = Type::getInt128Ty(Context);
   for (auto *CSR : ABICSVs) {
-    auto *V = Builder.CreateLoad(CSR);
+    auto *V = createLoad(Builder, CSR);
     CSVs.emplace_back(V);
   }
 
@@ -404,7 +405,7 @@ void CFGAnalyzer::createIBIMarker(OutlinedFunction *OutlinedFunction) {
   // Create IBI for this function
   //
   LLVMContext &Context = M.getContext();
-  auto *IntTy = GCBI.spReg()->getType()->getElementType();
+  auto *IntTy = GCBI.spReg()->getValueType();
   Type *I8Ptr = Type::getInt8PtrTy(Context);
   SmallVector<Type *, 16> ArgTypes;
   ArgTypes.resize(PreservedRegistersIndex);
@@ -414,7 +415,7 @@ void CFGAnalyzer::createIBIMarker(OutlinedFunction *OutlinedFunction) {
   ArgTypes[StackPointerOffsetIndex] = Initial.StackPointer->getType();
   ArgTypes[ReturnValuePreservedIndex] = Initial.ReturnPC->getType();
   for (auto *CSV : ABICSVs)
-    ArgTypes.emplace_back(CSV->getType()->getPointerElementType());
+    ArgTypes.emplace_back(CSV->getValueType());
 
   auto *FTy = llvm::FunctionType::get(IntTy, ArgTypes, false);
   auto *IBI = Function::Create(FTy,
@@ -517,7 +518,8 @@ void CFGAnalyzer::opaqueBranchConditions(llvm::Function *F,
                            cast<SwitchInst>(Term)->getCondition();
 
       OpaqueBranchConditionsPool.addFnAttribute(Attribute::NoUnwind);
-      OpaqueBranchConditionsPool.addFnAttribute(Attribute::InaccessibleMemOnly);
+      auto MemoryEffects = MemoryEffects::inaccessibleMemOnly();
+      OpaqueBranchConditionsPool.setMemoryEffects(MemoryEffects);
       OpaqueBranchConditionsPool.addFnAttribute(Attribute::WillReturn);
 
       auto *FTy = llvm::FunctionType::get(Condition->getType(),
@@ -580,23 +582,23 @@ void CFGAnalyzer::runOptimizationPipeline(llvm::Function *F) {
     FPM.addPass(RemoveHelperCallsPass());
     FPM.addPass(PromoteGlobalToLocalPass());
     FPM.addPass(SimplifyCFGPass());
-    FPM.addPass(SROA());
+    FPM.addPass(SROAPass(SROAOptions::ModifyCFG));
     FPM.addPass(EarlyCSEPass(true));
     FPM.addPass(JumpThreadingPass());
     FPM.addPass(UnreachableBlockElimPass());
-    FPM.addPass(InstCombinePass(true));
+    FPM.addPass(InstCombinePass());
     FPM.addPass(EarlyCSEPass(true));
     FPM.addPass(SimplifyCFGPass());
     FPM.addPass(MergedLoadStoreMotionPass());
-    FPM.addPass(GVN());
+    FPM.addPass(GVNPass());
 
     // Second stage: add alias analysis info and canonicalize `i2p` + `add` into
     // `getelementptr` instructions. Since the IR may change remarkably, another
     // round of passes is necessary to take more optimization opportunities.
     FPM.addPass(SegregateDirectStackAccessesPass());
     FPM.addPass(EarlyCSEPass(true));
-    FPM.addPass(InstCombinePass(true));
-    FPM.addPass(GVN());
+    FPM.addPass(InstCombinePass());
+    FPM.addPass(GVNPass());
 
     // Third stage: if enabled, serialize the results and dump the functions on
     // disk with the alias information included as comments.
@@ -650,8 +652,7 @@ public:
 public:
   void recordClobberedRegisters(llvm::CallBase *CI) {
     using namespace llvm;
-    for (unsigned I = PreservedRegistersIndex; I < CI->getNumArgOperands();
-         ++I) {
+    for (unsigned I = PreservedRegistersIndex; I < CI->arg_size(); ++I) {
       auto *Register = dyn_cast<ConstantInt>(CI->getArgOperand(I));
       if (Register == nullptr or Register->getZExtValue() != 0)
         ClobberedRegs.insert(ABICSVs[I - PreservedRegistersIndex]);
@@ -971,7 +972,7 @@ CallSummarizer::CallSummarizer(llvm::Module *M,
   RetHook(RetHook),
   SPCSV(SPCSV),
   RegistersClobberedPool(M, false) {
-  RegistersClobberedPool.addFnAttribute(llvm::Attribute::ReadOnly);
+  RegistersClobberedPool.setMemoryEffects(MemoryEffects::readOnly());
   RegistersClobberedPool.addFnAttribute(llvm::Attribute::NoUnwind);
   RegistersClobberedPool.addFnAttribute(llvm::Attribute::WillReturn);
 }
@@ -1004,10 +1005,8 @@ void CallSummarizer::handleCall(MetaAddress CallerBlock,
   // Adjust back the stack pointer
   if (not IsTailCall) {
     if (MaybeFSO.has_value()) {
-      auto *StackPointer = Builder.CreateLoad(SPCSV);
-      Value *Offset = ConstantInt::get(StackPointer->getPointerOperandType()
-                                         ->getPointerElementType(),
-                                       *MaybeFSO);
+      auto *StackPointer = createLoad(Builder, SPCSV);
+      Value *Offset = ConstantInt::get(StackPointer->getType(), *MaybeFSO);
       auto *AdjustedStackPointer = Builder.CreateAdd(StackPointer, Offset);
       Builder.CreateStore(AdjustedStackPointer, SPCSV);
     }
@@ -1041,7 +1040,7 @@ void CallSummarizer::clobberCSVs(llvm::IRBuilder<> &Builder,
   // Prevent the store instructions from being optimized out by storing
   // the an opaque value into clobbered registers
   for (GlobalVariable *Register : ClobberedRegisters) {
-    auto *CSVTy = Register->getType()->getPointerElementType();
+    auto *CSVTy = Register->getValueType();
     auto Name = ("registers_clobbered_" + Twine(Register->getName())).str();
     auto *ClobberFunction = RegistersClobberedPool.get(Register->getName(),
                                                        CSVTy,

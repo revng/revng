@@ -9,6 +9,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/Path.h"
 
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Errors.h"

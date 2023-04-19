@@ -14,9 +14,9 @@ const char *StructInitializerPrefix = "struct_initializer";
 
 StructInitializers::StructInitializers(llvm::Module *M) :
   Pool(M, false), Context(M->getContext()) {
+  Pool.setMemoryEffects(MemoryEffects::none());
   Pool.addFnAttribute(Attribute::NoUnwind);
   Pool.addFnAttribute(Attribute::WillReturn);
-  Pool.addFnAttribute(Attribute::ReadOnly);
   Pool.setTags({ &FunctionTags::StructInitializer });
 
   // Record existing initializers

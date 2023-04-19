@@ -93,11 +93,12 @@ template<SpecializationOfGenericGraph GraphType,
          typename... OtherTs,
          template<typename...>
          typename Container>
-requires std::is_constructible_v<typename GraphType::Node, const MetaAddress &>
-  std::pair<GraphType, std::map<BasicBlockID, typename GraphType::Node *>>
-  buildControlFlowGraph(const Container<BasicBlockType, OtherTs...> &BB,
-                        const MetaAddress &EntryAddress,
-                        const model::Binary &Binary) {
+  requires std::is_constructible_v<typename GraphType::Node,
+                                   const MetaAddress &>
+std::pair<GraphType, std::map<BasicBlockID, typename GraphType::Node *>>
+buildControlFlowGraph(const Container<BasicBlockType, OtherTs...> &BB,
+                      const MetaAddress &EntryAddress,
+                      const model::Binary &Binary) {
   // clang-format on
   using Node = typename GraphType::Node;
   std::pair<GraphType, std::map<BasicBlockID, Node *>> Res;

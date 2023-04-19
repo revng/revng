@@ -6,10 +6,12 @@
 
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/Pass.h"
 
 #include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
+#include "revng/Pipes/IRHelpers.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
@@ -78,11 +80,12 @@ public:
   getCallEdge(const model::Binary &Binary, const llvm::CallInst *Call) {
     using namespace llvm;
 
-    auto
-      BlockAddress = fromStringMetadata<BasicBlockID>(Call,
-                                                      CallerBlockStartMDName);
-    if (not BlockAddress.isValid())
-      return { std::nullopt, BlockAddress };
+    auto MaybeLocation = getLocation(Call);
+
+    if (not MaybeLocation)
+      return { std::nullopt, BasicBlockID::invalid() };
+
+    auto BlockAddress = MaybeLocation->parent().back();
 
     auto *ParentFunction = Call->getParent()->getParent();
     const efa::FunctionMetadata &FM = getFunctionMetadata(ParentFunction);

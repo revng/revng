@@ -28,7 +28,7 @@ void pipeline::makeGlobalObjectsArray(llvm::Module &Module,
                                       llvm::StringRef GlobalArrayName) {
   auto *IntegerTy = llvm::IntegerType::get(Module.getContext(),
                                            Module.getDataLayout()
-                                             .getMaxPointerSizeInBits());
+                                             .getPointerSizeInBits());
 
   llvm::SmallVector<llvm::Constant *, 10> Globals;
 

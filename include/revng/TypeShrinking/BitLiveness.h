@@ -4,9 +4,11 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <map>
 #include <optional>
 
 #include "llvm/IR/PassManager.h"
+#include "llvm/Pass.h"
 
 namespace TypeShrinking {
 

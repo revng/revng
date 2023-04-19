@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <concepts>
+
 #include "revng/ADT/ConstexprString.h"
 #include "revng/ADT/STLExtras.h"
 #include "revng/Support/DynamicHierarchy.h"
@@ -49,8 +51,8 @@ template<typename RankType>
 concept RankSpecialization = requires(RankType &&Rank) {
   RankType::RankTag;
 
-  { RankType::RankName } -> convertible_to<std::string_view>;
-  { RankType::Depth } -> convertible_to<std::size_t>;
+  { RankType::RankName } -> std::convertible_to<std::string_view>;
+  { RankType::Depth } -> std::convertible_to<std::size_t>;
 
   typename RankType::Type;
   typename RankType::Parent;
@@ -119,9 +121,8 @@ namespace detail {
 template<typename RankOrVoid, std::size_t ExpectedDepth>
 inline constexpr bool DepthCheck = false;
 
-template<RankSpecialization Rank, std::size_t ExpectedDepth>
-inline constexpr bool
-  DepthCheck<Rank, ExpectedDepth> = (Rank::Depth + 1 == ExpectedDepth);
+template<RankSpecialization Rank, std::size_t Expected>
+constexpr bool DepthCheck<Rank, Expected> = Rank::Depth + 1 == Expected;
 
 template<std::size_t ExpectedDepth>
 inline constexpr bool DepthCheck<void, ExpectedDepth> = (ExpectedDepth == 0);

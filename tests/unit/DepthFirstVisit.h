@@ -201,11 +201,9 @@ inline RecursiveCoroutine<> findMaxDepth(std::vector<Node *> &RCS) {
 
   MaxDepth = std::max(MaxDepth, RCS.size());
 
-  size_t ChildIndex = 0;
   for (Node *Child : Current->children()) {
     RCS.emplace_back(Child);
     rc_recur findMaxDepth(RCS);
-    ++ChildIndex;
   }
 
   RCS.pop_back();

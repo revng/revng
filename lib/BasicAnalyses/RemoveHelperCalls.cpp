@@ -33,11 +33,11 @@ RemoveHelperCallsPass::run(llvm::Function &F,
   OpaqueFunctionsPool<Type *> OFPOriginalHelper(F.getParent(), false);
   OpaqueFunctionsPool<Type *> OFPRegsClobberedHelper(F.getParent(), false);
 
-  OFPOriginalHelper.addFnAttribute(Attribute::ReadOnly);
+  OFPOriginalHelper.setMemoryEffects(MemoryEffects::readOnly());
   OFPOriginalHelper.addFnAttribute(Attribute::NoUnwind);
   OFPOriginalHelper.addFnAttribute(Attribute::WillReturn);
 
-  OFPRegsClobberedHelper.addFnAttribute(Attribute::ReadOnly);
+  OFPRegsClobberedHelper.setMemoryEffects(MemoryEffects::readOnly());
   OFPRegsClobberedHelper.addFnAttribute(Attribute::NoUnwind);
   OFPRegsClobberedHelper.addFnAttribute(Attribute::WillReturn);
 
@@ -47,7 +47,7 @@ RemoveHelperCallsPass::run(llvm::Function &F,
 
     // Assumption: helpers do not leave the stack altered, thus we can save the
     // stack pointer and restore it back later.
-    auto *SP = Builder.CreateLoad(GCBI->spReg());
+    auto *SP = createLoad(Builder, GCBI->spReg());
 
     auto *RetTy = cast<CallInst>(I)->getFunctionType()->getReturnType();
     auto *OriginalHelperMarker = OFPOriginalHelper.get(RetTy,
@@ -60,7 +60,7 @@ RemoveHelperCallsPass::run(llvm::Function &F,
     CallInst *NewHelper = Builder.CreateCall(OriginalHelperMarker);
 
     for (auto *CSV : getCSVUsedByHelperCall(I).Written) {
-      auto *CSVTy = CSV->getType()->getPointerElementType();
+      auto *CSVTy = CSV->getValueType();
       auto *RegisterClobberedMarker = OFPRegsClobberedHelper.get(CSVTy,
                                                                  CSVTy,
                                                                  {},

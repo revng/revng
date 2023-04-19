@@ -133,7 +133,7 @@ bool LiftPass::runOnModule(llvm::Module &M) {
                           EarlyLinkedPath,
                           model::Architecture::x86_64);
 
-  llvm::Optional<uint64_t> EntryPointAddressOptional;
+  std::optional<uint64_t> EntryPointAddressOptional;
   if (EntryPointAddress.getNumOccurrences() != 0)
     EntryPointAddressOptional = EntryPointAddress;
   Generator.translate(EntryPointAddressOptional);

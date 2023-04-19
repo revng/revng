@@ -11,6 +11,7 @@ template<typename Iterator>
 class Range {
 private:
   using reference = typename Iterator::reference;
+  using const_reference = typename Iterator::const_reference;
   using difference_type = typename Iterator::difference_type;
 
 public:

@@ -33,6 +33,8 @@ class DataLayout;
 
 using namespace llvm;
 
+using std::optional;
+
 using ConstFunctionPtrSet = std::set<const Function *>;
 using InstrPtrSet = llvm::SetVector<Instruction *>;
 using CallPtrSet = std::set<CallInst *>;
@@ -928,7 +930,7 @@ static int getBit(uint64_t Input, int Shift) {
 
 using CallSiteOffsetMap = std::map<CallInst *, CSVOffsets>;
 using ValueCallSiteOffsetMap = std::map<Value *, CallSiteOffsetMap>;
-using OptCSVOffsets = llvm::Optional<CSVOffsets>;
+using OptCSVOffsets = std::optional<CSVOffsets>;
 
 /// This class is used to fold constant offsets on different instructions
 template<class T>
@@ -1093,8 +1095,8 @@ public:
 
         bool Valid;
         CSVOffsets::Kind ResKind;
-        SmallVector<Optional<CSVOffsets>, 4> UpdatedOffsetTuple(NumSrcs);
-        revng_assert(not UpdatedOffsetTuple[0].hasValue());
+        SmallVector<optional<CSVOffsets>, 4> UpdatedOffsetTuple(NumSrcs);
+        revng_assert(not UpdatedOffsetTuple[0].has_value());
         std::tie(Valid,
                  ResKind) = T::checkOffsetTupleIsValid(OffsetTuple,
                                                        I,
@@ -1114,8 +1116,8 @@ public:
         WorkItem::size_type CartesianSize = 1;
         for (WorkItem::size_type SI = 0; SI < NumSrcs; ++SI) {
           OptCSVOffsets &UpdatedOffsets = UpdatedOffsetTuple[SI];
-          bool WasUpdated = UpdatedOffsets.hasValue();
-          const CSVOffsets *Tuple = WasUpdated ? UpdatedOffsets.getPointer() :
+          bool WasUpdated = UpdatedOffsets.has_value();
+          const CSVOffsets *Tuple = WasUpdated ? &*UpdatedOffsets :
                                                  OffsetTuple[SI];
           OffsetsRanges.push_back(make_range(Tuple->begin(), Tuple->end()));
           OffsetsIt.push_back(Tuple->begin());
@@ -1253,8 +1255,7 @@ private:
       return { false, GEPOp0Kind };
 
     auto *GEP = cast<GetElementPtrInst>(I);
-    auto *PtrTy = cast<PointerType>(GEP->getPointerOperandType());
-    Type *PointeeTy = PtrTy->getElementType();
+    Type *PointeeTy = GEP->getSourceElementType();
 
     if (GEP->hasIndices() and PointeeTy->isArrayTy()) {
 
@@ -1563,7 +1564,7 @@ private:
   /// all the immediate sources are already resolved.
   bool exploreImmediateSources(Value *V, bool IsLoad);
 
-  /// Returns an empty Optional and fill W if there are unexplored sources,
+  /// Returns an emptyoOptional and fill W if there are unexplored sources,
   /// otherwise return the offsets
   ///
   /// \param V the `Value` whose sources must be explored.
@@ -1869,14 +1870,14 @@ void CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
       // combines all of the `CSVOffsets` to compute the new `CSVOffsets` of the
       // node that we're popping.
       for (const auto &CallSrc : CallSiteSrcIds) {
-        Optional<CSVOffsets> New;
+        std::optional<CSVOffsets> New;
         CallInst *TheCall = CallSrc.first;
         for (const auto I : CallSrc.second) {
           revng_log(CSVAccessLog,
                     "AT: " << TheCall << " : " << dumpToString(TheCall));
           const CSVOffsets &SrcOffset = SrcCallSiteOffsets[I]->at(TheCall);
           if (New) {
-            New.getValue().combine(SrcOffset);
+            New->combine(SrcOffset);
           } else {
             revng_log(CSVAccessLog, "NEW");
             New = SrcOffset;
@@ -1886,10 +1887,10 @@ void CPUSAOA::computeOffsetsFromSources(const WorkItem &Item, bool IsLoad) {
         }
         revng_log(CSVAccessLog,
                   "MAP JOIN: " << ItemVal << " : " << dumpToString(ItemVal)
-                               << "\n    " << New.getValue());
+                               << "\n    " << *New);
 
         // Insert the `New` in the `ValueCallSiteOffsets`
-        ValueCallSiteOffsets[ItemVal][TheCall] = std::move(New.getValue());
+        ValueCallSiteOffsets[ItemVal][TheCall] = std::move(*New);
         revng_log(CSVAccessLog,
                   "CallSite: " << TheCall << " : " << dumpToString(TheCall)
                                << "\n    "
@@ -2073,13 +2074,13 @@ bool CPUSAOA::exploreImmediateSources(Value *V, bool IsLoad) {
   WorkItem NewItem;
   {
     auto ConstKnownOffsets = getOffsetsOrExploreSrc(V, NewItem, IsLoad);
-    if (ConstKnownOffsets.hasValue()) {
+    if (ConstKnownOffsets.has_value()) {
       revng_log(CSVAccessLog, "ConstantOffset");
 
       // If we reach this point, V only has a constant know CSVOffsets and does
       // not really have sources that must be explored. In this case we can just
       // insert the ConstKnownOffsets in the map and we're done.
-      insertCallSiteOffset(V, std::move(ConstKnownOffsets.getValue()));
+      insertCallSiteOffset(V, std::move(*ConstKnownOffsets));
       return false;
     }
   }
@@ -2269,14 +2270,10 @@ void CPUSAOA::computeAggregatedOffsets() {
       AccessSize = SizeParam->getSExtValue();
     } else if (IsLoad) {
       auto *Load = cast<LoadInst>(Instr);
-      auto *PtrTy = cast<PointerType>(Load->getPointerOperand()->getType());
-      Type *LoadedType = PtrTy->getElementType();
-      AccessSize = DL.getTypeAllocSize(LoadedType);
+      AccessSize = DL.getTypeAllocSize(Load->getType());
     } else {
       auto Store = cast<StoreInst>(Instr);
-      auto *PtrTy = cast<PointerType>(Store->getPointerOperand()->getType());
-      Type *StoredType = PtrTy->getElementType();
-      AccessSize = DL.getTypeAllocSize(StoredType);
+      AccessSize = DL.getTypeAllocSize(Store->getValueOperand()->getType());
     }
     revng_assert(AccessSize != 0);
 
@@ -2322,7 +2319,7 @@ void CPUSAOA::computeAggregatedOffsets() {
                        InternalOffset) = Variables->getByEnvOffset(Refined);
               int64_t SizeAtOffset = 0;
               if (AccessedVar != nullptr) {
-                Type *AccessedTy = AccessedVar->getType();
+                Type *AccessedTy = AccessedVar->getValueType();
                 SizeAtOffset = DL.getTypeAllocSize(AccessedTy) - InternalOffset;
                 revng_assert(SizeAtOffset > 0);
                 FineGrainedOffsets.insert(Refined - InternalOffset);
@@ -2341,9 +2338,9 @@ void CPUSAOA::computeAggregatedOffsets() {
         // Finally insert them or combine them
         CallSiteOffsetMap::iterator CallOffsetIt;
         std::tie(CallOffsetIt,
-                 Inserted) = CallSiteOffsets.insert({ Call, New.getValue() });
+                 Inserted) = CallSiteOffsets.insert({ Call, *New });
         if (not Inserted)
-          CallOffsetIt->second.combine(New.getValue());
+          CallOffsetIt->second.combine(*New);
       }
     }
   }
@@ -2506,8 +2503,7 @@ static Value *getLoadAddressValue(Instruction *I) {
 
 static Type *getLoadedType(Instruction *I) {
   if (auto Load = dyn_cast<LoadInst>(I)) {
-    auto *PtrTy = cast<PointerType>(Load->getPointerOperand()->getType());
-    return PtrTy->getElementType();
+    return Load->getType();
   }
   return nullptr;
 }
@@ -2535,9 +2531,8 @@ static Value *getStoreAddressValue(Instruction *I) {
 }
 
 static Type *getStoredType(Instruction *I) {
-  if (auto Store = dyn_cast<StoreInst>(I)) {
-    auto *PtrTy = cast<PointerType>(Store->getPointerOperand()->getType());
-    return PtrTy->getElementType();
+  if (auto *Store = dyn_cast<StoreInst>(I)) {
+    return Store->getValueOperand()->getType();
   }
   return nullptr;
 }
@@ -2558,12 +2553,8 @@ CPUStateAccessFixer::setupOutEnvAccess(Instruction *AccessToFix) {
   revng_assert(std::next(InstrIt) != AccessToFixBB->end());
   // Create a new block NextBB and move there all the instructions after
   // the access
-  BasicBlock *NextBB = BasicBlock::Create(Context, "AfterAccess", F);
-  AccessToFixBB->replaceSuccessorsPhiUsesWith(NextBB);
-  NextBB->getInstList().splice(NextBB->end(),
-                               AccessToFixBB->getInstList(),
-                               std::next(InstrIt),
-                               AccessToFixBB->getInstList().end());
+  BasicBlock *NextBB = AccessToFixBB->splitBasicBlock(InstrIt);
+  AccessToFixBB->getTerminator()->eraseFromParent();
   revng_assert(not NextBB->empty());
 
   // Create a new block OutAccessBB only for accesses outside env, and
@@ -2697,7 +2688,7 @@ void CPUStateAccessFixer::setupStoreInEnv(Instruction *StoreToFix,
     auto *V = Store->getValueOperand();
     unsigned Size = DL.getTypeAllocSize(V->getType());
     revng_assert(Size != 0);
-    Ok = Variables->storeToEnvOffset(Builder, Size, EnvOffset, V).hasValue();
+    Ok = Variables->storeToEnvOffset(Builder, Size, EnvOffset, V).has_value();
   } break;
 
   case Instruction::Call: {
@@ -2755,7 +2746,7 @@ void CPUStateAccessFixer::correctCPUStateAccesses() {
                                      << dumpToString(TmpBuffer));
 
         Builder.SetInsertPoint(Instr);
-        auto TmpAlign = MaybeAlign(TmpBuffer->getAlignment());
+        auto TmpAlign = MaybeAlign(TmpBuffer->getAlign());
         auto AlignOne = MaybeAlign(1);
         CallInst *MemcpyLoad = Builder.CreateMemCpy(TmpBuffer,
                                                     TmpAlign,
@@ -2898,7 +2889,8 @@ void CPUStateAccessFixer::fixAccess(const Pair &IOff) {
           auto *V = Store->getValueOperand();
           unsigned Size = DL.getTypeAllocSize(V->getType());
           revng_assert(Size != 0);
-          Ok = Variables->storeToEnvOffset(Builder, Size, Offset, V).hasValue();
+          Ok = Variables->storeToEnvOffset(Builder, Size, Offset, V)
+                 .has_value();
         } else {
           revng_abort();
         }
@@ -2932,12 +2924,8 @@ void CPUStateAccessFixer::fixAccess(const Pair &IOff) {
     auto InstrIt = AccessToFix->getIterator();
     revng_assert(InstrIt != AccessToFixBB->end());
     revng_assert(std::next(InstrIt) != AccessToFixBB->end());
-    BasicBlock *NextBB = BasicBlock::Create(Context, "AfterInAccess", F);
-    AccessToFixBB->replaceSuccessorsPhiUsesWith(NextBB);
-    NextBB->getInstList().splice(NextBB->end(),
-                                 AccessToFixBB->getInstList(),
-                                 std::next(InstrIt),
-                                 AccessToFixBB->getInstList().end());
+    BasicBlock *NextBB = AccessToFixBB->splitBasicBlock(std::next(InstrIt));
+    AccessToFixBB->getTerminator()->eraseFromParent();
     revng_assert(not NextBB->empty());
     revng_assert(std::next(InstrIt) == AccessToFixBB->end());
     // If we're processing loads, add a PHI in NextBB if necessary

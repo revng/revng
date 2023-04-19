@@ -31,7 +31,7 @@ PreservedAnalyses IBIPP::run(Function &F, FunctionAnalysisManager &FAM) {
 
 void IBIPP::serialize(CallBase *Call) {
   OS << Call->getParent()->getParent()->getName();
-  for (unsigned I = 0; I < Call->getNumArgOperands(); ++I) {
+  for (unsigned I = 0; I < Call->arg_size(); ++I) {
     if (isa<ConstantInt>(Call->getArgOperand(I))) {
       OS << "," << cast<ConstantInt>(Call->getArgOperand(I))->getSExtValue();
     } else if (isa<StructType>(Call->getArgOperand(I)->getType())) {

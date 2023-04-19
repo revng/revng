@@ -11,7 +11,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCTargetOptions.h"
-#include "llvm/Support/TargetRegistry.h"
+#include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 
 #include "revng/Support/Debug.h"
@@ -46,7 +46,7 @@ DI::LLVMDisassemblerInterface(MetaAddressType::Values AddrType) {
   ensureDisassemblersWereInitializedOnce();
 
   auto LLVMArchitecture = MetaAddressType::arch(AddrType);
-  revng_assert(LLVMArchitecture.hasValue(),
+  revng_assert(LLVMArchitecture.has_value(),
                "Impossible to create a disassembler for a non-code section");
   auto Architecture = llvm::Triple::getArchTypeName(*LLVMArchitecture);
 
@@ -79,13 +79,14 @@ DI::LLVMDisassemblerInterface(MetaAddressType::Values AddrType) {
                "yield information object creation failed.");
 
   ObjectFileInformation = std::make_unique<llvm::MCObjectFileInfo>();
-  Context = std::make_unique<llvm::MCContext>(AssemblyInformation.get(),
-                                              RegisterInformation.get(),
-                                              ObjectFileInformation.get());
-
   llvm::Triple Triple(Architecture);
+  Context = std::make_unique<llvm::MCContext>(Triple,
+                                              AssemblyInformation.get(),
+                                              RegisterInformation.get(),
+                                              SubtargetInformation.get());
+
   bool IsPIC = false;
-  ObjectFileInformation->InitMCObjectFileInfo(Triple, IsPIC, *Context);
+  ObjectFileInformation->initMCObjectFileInfo(*Context, IsPIC);
 
   auto &SI = *SubtargetInformation;
   Disassembler.reset(LLVMTarget->createMCDisassembler(SI, *Context));

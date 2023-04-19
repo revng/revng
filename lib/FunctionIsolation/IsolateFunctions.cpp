@@ -458,8 +458,6 @@ private:
                                &*InsertPoint;
     auto *NewCall = Builder.CreateCall(CalledFunction);
     NewCall->setDebugLoc(Old->getDebugLoc());
-    FunctionTags::CallToLifted.addTo(NewCall);
-    setStringMetadata(NewCall, CallerBlockStartMDName, Caller->ID().toString());
   }
 };
 
@@ -551,6 +549,7 @@ void IsolateFunctionsImpl::run() {
                                          "local_" + Function.name(),
                                          TheModule);
     NewFunction->addFnAttr(Attribute::NullPointerIsValid);
+    NewFunction->addFnAttr(Attribute::NoMerge);
     IsolatedFunctionsMap[Function.Entry()] = NewFunction;
     FunctionTags::Isolated.addTo(NewFunction);
     revng_assert(NewFunction != nullptr);
@@ -576,7 +575,9 @@ void IsolateFunctionsImpl::run() {
     // Handle UnexpectedPCCloned
     //
     if (BasicBlock *UnexpectedPC = Outlined.UnexpectedPCCloned) {
-      UnexpectedPC->getInstList().clear();
+      for (auto It = UnexpectedPC->begin(); It != UnexpectedPC->end();
+           It = UnexpectedPC->begin())
+        It->eraseFromParent();
       revng_assert(UnexpectedPC->empty());
       const DebugLoc &Dbg = GCBI.unexpectedPC()->getTerminator()->getDebugLoc();
       throwException(UnexpectedPC, "unexpectedPC", Dbg);

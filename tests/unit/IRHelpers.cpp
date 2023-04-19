@@ -153,13 +153,13 @@ BOOST_AUTO_TEST_CASE(PruneDICompileUnits) {
     return DIFile::getDistinct(Context, FileName, "/path/to/dir");
   };
 
-  auto GetTuple = [&]() { return MDTuple::getDistinct(Context, None); };
+  auto GetTuple = [&]() { return MDTuple::getDistinct(Context, {}); };
 
-  auto CreateDICU = [&](StringRef FileName) {
+  auto CreateDICU = [&](DIFile *File) {
     const auto Default = DICompileUnit::DebugNameTableKind::Default;
     return DICompileUnit::getDistinct(Context,
                                       1,
-                                      GetFile(FileName),
+                                      File,
                                       "clang",
                                       false,
                                       "-g",
@@ -181,8 +181,9 @@ BOOST_AUTO_TEST_CASE(PruneDICompileUnits) {
   };
 
   // Create two compile units
-  auto *UnusedDICU = CreateDICU("unused.c");
-  auto *ActiveDICU = CreateDICU("active.c");
+  auto *UnusedDICU = CreateDICU(GetFile("unused.c"));
+  auto *ActiveFile = GetFile("active.c");
+  auto *ActiveDICU = CreateDICU(ActiveFile);
 
   // Record the compile units in llvm.dbg.cu
   auto *NamedMDNode = M.getOrInsertNamedMetadata("llvm.dbg.cu");
@@ -195,7 +196,26 @@ BOOST_AUTO_TEST_CASE(PruneDICompileUnits) {
   auto *F = Function::Create(FTy, GlobalValue::ExternalLinkage, 0, "", &M);
   auto *BB = BasicBlock::Create(Context, "", F);
   auto *I = ReturnInst::Create(Context, BB);
-  auto *Location = DILocation::get(Context, 0, 0, ActiveDICU);
+  auto *Subprogram = DISubprogram::get(Context,
+                                       ActiveDICU,
+                                       "",
+                                       "",
+                                       ActiveFile,
+                                       0,
+                                       nullptr,
+                                       0,
+                                       0,
+                                       0,
+                                       0,
+                                       static_cast<DINode::DIFlags>(0),
+                                       static_cast<DISubprogram::DISPFlags>(0),
+                                       ActiveDICU,
+                                       {},
+                                       nullptr,
+                                       {},
+                                       {},
+                                       {});
+  auto *Location = DILocation::get(Context, 0, 0, Subprogram);
   I->setDebugLoc({ Location });
 
   // Perform pruning and ensure it has been effective

@@ -34,19 +34,19 @@ template<typename T, typename A, typename B>
 concept is_either = std::is_same_v<T, A> or std::is_same_v<T, B>;
 
 template<typename IntT>
-requires is_either<IntT, unsigned, int>
+  requires is_either<IntT, unsigned, int>
 inline unsigned findFirstBit(IntT Value) {
   return ffs(Value);
 }
 
 template<typename LongT>
-requires is_either<LongT, unsigned long, long>
+  requires is_either<LongT, unsigned long, long>
 inline unsigned findFirstBit(LongT Value) {
   return ffsl(Value);
 }
 
 template<typename LongLongT>
-requires is_either<LongLongT, unsigned long long, long long>
+  requires is_either<LongLongT, unsigned long long, long long>
 inline unsigned findFirstBit(LongLongT Value) {
   return ffsll(Value);
 }

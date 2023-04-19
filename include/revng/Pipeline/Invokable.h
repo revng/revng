@@ -38,7 +38,7 @@ concept HasName = requires() {
 
 // clang-format off
 template<typename T>
-concept IsContainer = derived_from<std::decay_t<T>, ContainerBase>;
+concept IsContainer = std::derived_from<std::decay_t<T>, ContainerBase>;
 
 template<typename T>
 concept IsNotContainer = not IsContainer<T>;
@@ -342,9 +342,11 @@ concept Dumpable = requires(T D) {
 
 template<typename InvokableType>
 concept Printable = requires(InvokableType Pipe) {
-  { Pipe.print(std::declval<const Context &>(),
+  {
+    Pipe.print(std::declval<const Context &>(),
                llvm::outs(),
-               std::declval<llvm::ArrayRef<std::string>>()) };
+               std::declval<llvm::ArrayRef<std::string>>())
+  };
 };
 
 class InvokableWrapperBase {

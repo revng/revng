@@ -11,6 +11,7 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/Support/ModRef.h"
 
 #include "revng/ADT/Concepts.h"
 #include "revng/Support/Assert.h"
@@ -18,8 +19,8 @@
 #include "revng/Support/IRHelpers.h"
 
 template<typename T>
-concept PointerToLLVMTypeOrDerived = derived_from<std::remove_pointer_t<T>,
-                                                  llvm::Type>;
+concept PointerToLLVMTypeOrDerived = std::derived_from<std::remove_pointer_t<T>,
+                                                       llvm::Type>;
 
 template<typename KeyT>
 class OpaqueFunctionsPool {
@@ -28,6 +29,7 @@ private:
   const bool PurgeOnDestruction;
   std::map<KeyT, llvm::Function *> Pool;
   llvm::AttributeList AttributeSets;
+  llvm::MemoryEffects MemoryEffects = llvm::MemoryEffects::none();
   FunctionTags::TagsSet Tags;
 
 public:
@@ -46,9 +48,11 @@ public:
 public:
   void addFnAttribute(llvm::Attribute::AttrKind Kind) {
     using namespace llvm;
-    AttributeSets = AttributeSets.addAttribute(M->getContext(),
-                                               AttributeList::FunctionIndex,
-                                               Kind);
+    AttributeSets = AttributeSets.addFnAttribute(M->getContext(), Kind);
+  }
+
+  void setMemoryEffects(const llvm::MemoryEffects &NewMemoryEffects) {
+    MemoryEffects = NewMemoryEffects;
   }
 
   void setTags(const FunctionTags::TagsSet &Tags) { this->Tags = Tags; }
@@ -78,12 +82,13 @@ public:
     } else {
       F = Function::Create(FT, GlobalValue::ExternalLinkage, Name, M);
       F->setAttributes(AttributeSets);
+      F->setMemoryEffects(MemoryEffects);
       Tags.set(F);
       Pool.insert(It, { Key, F });
     }
 
     // Ensure the function we're returning is as expected
-    revng_assert(F->getType()->getPointerElementType() == FT);
+    revng_assert(F->getFunctionType() == FT);
 
     return F;
   }
@@ -104,7 +109,7 @@ public:
   /// Initialize the pool with all the functions in M that match the tag TheTag,
   /// using the return type as key.
   void initializeFromReturnType(const FunctionTags::Tag &TheTag)
-  requires derived_from<std::remove_pointer_t<KeyT>, llvm::Type> {
+  requires std::derived_from<std::remove_pointer_t<KeyT>, llvm::Type> {
     // clang-format on
     using TypeLike = std::remove_pointer_t<KeyT>;
     for (llvm::Function &F : TheTag.functions(M)) {
@@ -119,7 +124,7 @@ public:
   /// Initialize the pool with all the functions in M that match the tag TheTag,
   /// using the type of the ArgNo-th argument as key.
   void initializeFromNthArgType(const FunctionTags::Tag &TheTag, unsigned ArgNo)
-  requires derived_from<std::remove_pointer_t<KeyT>, llvm::Type> {
+  requires std::derived_from<std::remove_pointer_t<KeyT>, llvm::Type> {
     // clang-format on
     using TypeLike = std::remove_pointer_t<KeyT>;
     for (llvm::Function &F : TheTag.functions(M)) {
@@ -127,5 +132,15 @@ public:
       if (auto *KeyType = dyn_cast<TypeLike>(ArgType))
         record(KeyType, &F);
     }
+  }
+
+  /// Initialize the pool with all the functions in M that match the tag TheTag,
+  /// using the type of the ArgNo-th argument as key.
+  void initializeFromName(const FunctionTags::Tag &TheTag)
+    requires std::is_same_v<KeyT, std::string>
+  {
+    // clang-format on
+    for (llvm::Function &F : TheTag.functions(M))
+      record(F.getName().str(), &F);
   }
 };

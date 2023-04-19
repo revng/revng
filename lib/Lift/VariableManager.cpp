@@ -151,12 +151,15 @@ getTypeAtOffset(const DataLayout *TheLayout, Type *VarType, intptr_t Offset) {
   }
 }
 
-VariableManager::VariableManager(Module &M, bool TargetIsLittleEndian) :
+VariableManager::VariableManager(Module &M,
+                                 bool TargetIsLittleEndian,
+                                 StructType *CPUStruct,
+                                 unsigned EnvOffset) :
   TheModule(M),
   AllocaBuilder(getContext(&M)),
-  CPUStateType(nullptr),
+  CPUStateType(CPUStruct),
   ModuleLayout(&TheModule.getDataLayout()),
-  EnvOffset(0),
+  EnvOffset(EnvOffset),
   Env(nullptr),
   TargetIsLittleEndian(TargetIsLittleEndian) {
 
@@ -165,90 +168,14 @@ VariableManager::VariableManager(Module &M, bool TargetIsLittleEndian) :
   IntegerType *IntPtrTy = AllocaBuilder.getIntPtrTy(*ModuleLayout);
   Env = cast<GlobalVariable>(TheModule.getOrInsertGlobal("env", IntPtrTy));
   Env->setInitializer(ConstantInt::getNullValue(IntPtrTy));
-
-  using ElectionMap = std::map<StructType *, unsigned>;
-  using ElectionMapElement = std::pair<StructType *const, unsigned>;
-  ElectionMap EnvElection;
-
-  std::set<StructType *> Structs;
-  for (Function &HelperFunction : TheModule) {
-    FunctionType *HelperType = HelperFunction.getFunctionType();
-    Type *ReturnType = HelperType->getReturnType();
-    if (ReturnType->isPointerTy())
-      Structs.insert(dyn_cast<StructType>(ReturnType->getPointerElementType()));
-
-    for (Type *Param : HelperType->params())
-      if (Param->isPointerTy())
-        Structs.insert(dyn_cast<StructType>(Param->getPointerElementType()));
-
-    if (FunctionTags::QEMU.isTagOf(&HelperFunction)
-        and HelperFunction.getName().startswith("helper_")
-        and HelperFunction.getFunctionType()->getNumParams() > 1) {
-
-      for (Type *Candidate : HelperType->params()) {
-        Structs.insert(dyn_cast<StructType>(Candidate));
-        if (Candidate->isPointerTy()) {
-          auto *PointeeType = Candidate->getPointerElementType();
-          auto *EnvType = dyn_cast<StructType>(PointeeType);
-          // Ensure it is a struct and not a union
-          if (EnvType != nullptr && EnvType->getNumElements() > 1) {
-
-            auto It = EnvElection.find(EnvType);
-            if (It != EnvElection.end())
-              EnvElection[EnvType]++;
-            else
-              EnvElection[EnvType] = 1;
-          }
-        }
-      }
-    }
-  }
-
-  Structs.erase(nullptr);
-
-  revng_assert(EnvElection.size() > 0);
-
-  auto Compare = [](ElectionMapElement &It1, ElectionMapElement &It2) {
-    return It1.second < It2.second;
-  };
-  auto Max = std::max_element(EnvElection.begin(), EnvElection.end(), Compare);
-  CPUStateType = Max->first;
-
-  // Look for structures containing CPUStateType as a member and promove them
-  // to CPUStateType. Basically this is a flexible way to keep track of the *CPU
-  // struct too (e.g. MIPSCPU).
-  std::set<StructType *> Visited;
-  bool Changed = true;
-  Visited.insert(CPUStateType);
-  while (Changed) {
-    Changed = false;
-    for (StructType *TheStruct : Structs) {
-      if (Visited.find(TheStruct) != Visited.end())
-        continue;
-
-      auto Begin = TheStruct->element_begin();
-      auto End = TheStruct->element_end();
-      auto Found = std::find(Begin, End, CPUStateType);
-      if (Found != End) {
-        unsigned Index = Found - Begin;
-        const StructLayout *Layout = nullptr;
-        Layout = ModuleLayout->getStructLayout(TheStruct);
-        EnvOffset += Layout->getElementOffset(Index);
-        CPUStateType = TheStruct;
-        Visited.insert(CPUStateType);
-        Changed = true;
-        break;
-      }
-    }
-  }
 }
 
-Optional<StoreInst *>
+std::optional<StoreInst *>
 VariableManager::storeToCPUStateOffset(IRBuilder<> &Builder,
                                        unsigned StoreSize,
                                        unsigned Offset,
                                        Value *ToStore) {
-  Value *Target;
+  GlobalVariable *Target = nullptr;
   unsigned Remaining;
   std::tie(Target, Remaining) = getByCPUStateOffsetInternal(Offset);
 
@@ -260,7 +187,7 @@ VariableManager::storeToCPUStateOffset(IRBuilder<> &Builder,
     ShiftAmount = Remaining;
   else {
     // >> (Size1 - Size2) - Remaining;
-    Type *PointeeTy = Target->getType()->getPointerElementType();
+    Type *PointeeTy = Target->getValueType();
     unsigned GlobalSize = cast<IntegerType>(PointeeTy)->getBitWidth() / 8;
     revng_assert(GlobalSize != 0);
     ShiftAmount = (GlobalSize - StoreSize) - Remaining;
@@ -275,7 +202,7 @@ VariableManager::storeToCPUStateOffset(IRBuilder<> &Builder,
   BitMask = ~BitMask;
 
   auto *InputStoreTy = cast<IntegerType>(Builder.getIntNTy(StoreSize * 8));
-  auto *FieldTy = cast<IntegerType>(Target->getType()->getPointerElementType());
+  auto *FieldTy = cast<IntegerType>(Target->getValueType());
   unsigned FieldSize = FieldTy->getBitWidth() / 8;
 
   // Are we trying to store more than it fits?
@@ -296,7 +223,7 @@ VariableManager::storeToCPUStateOffset(IRBuilder<> &Builder,
 
   if (BitMask != 0 and StoreSize != FieldSize) {
     // Load the value
-    auto *LoadEnvField = Builder.CreateLoad(Target);
+    auto *LoadEnvField = createLoad(Builder, Target);
 
     auto *Blanked = Builder.CreateAnd(LoadEnvField, BitMask);
 
@@ -313,7 +240,7 @@ VariableManager::storeToCPUStateOffset(IRBuilder<> &Builder,
 Value *VariableManager::loadFromCPUStateOffset(IRBuilder<> &Builder,
                                                unsigned LoadSize,
                                                unsigned Offset) {
-  Value *Target;
+  GlobalVariable *Target = nullptr;
   unsigned Remaining;
   std::tie(Target, Remaining) = getByCPUStateOffsetInternal(Offset);
 
@@ -321,7 +248,7 @@ Value *VariableManager::loadFromCPUStateOffset(IRBuilder<> &Builder,
     return nullptr;
 
   // Load the whole field
-  auto *LoadEnvField = Builder.CreateLoad(Target);
+  auto *LoadEnvField = createLoad(Builder, Target);
 
   // Extract the desired part
   // Shift right of the desired amount
@@ -401,11 +328,20 @@ bool VariableManager::memcpyAtEnvOffset(llvm::IRBuilder<> &Builder,
     Value *NewAddress = Builder.CreateAdd(OffsetInt, OtherBasePtr);
     Value *OtherPtr = Builder.CreateIntToPtr(NewAddress, EnvVar->getType());
 
-    Value *Dst = EnvIsSrc ? OtherPtr : EnvVar;
-    Value *Src = EnvIsSrc ? EnvVar : OtherPtr;
-    Builder.CreateStore(Builder.CreateLoad(Src), Dst);
+    StoreInst *New = nullptr;
+    if (EnvIsSrc) {
+      New = Builder.CreateStore(createLoad(Builder, EnvVar), OtherPtr);
+    } else {
+      New = Builder.CreateStore(Builder.CreateLoad(EnvVar->getValueType(),
+                                                   OtherPtr),
+                                EnvVar);
+    }
 
-    Type *PointeeTy = EnvVar->getType()->getPointerElementType();
+    if (auto *GV = dyn_cast<GlobalVariable>(New->getPointerOperand())) {
+      revng_assert(New->getValueOperand()->getType() == GV->getValueType());
+    }
+
+    Type *PointeeTy = EnvVar->getValueType();
     Offset += ModuleLayout->getTypeAllocSize(PointeeTy);
   }
 
@@ -477,8 +413,7 @@ void VariableManager::finalize() {
                                       DefaultBB,
                                       CPUStateGlobals.size());
   for (auto &P : CPUStateGlobals) {
-    Type *CSVTy = P.second->getType();
-    auto *CSVIntTy = cast<IntegerType>(CSVTy->getPointerElementType());
+    auto *CSVIntTy = cast<IntegerType>(P.second->getValueType());
     if (CSVIntTy->getBitWidth() <= 64) {
       // Set the value of the CSV
       auto *SetRegisterBB = BasicBlock::Create(Context, "", SetRegister);
@@ -665,11 +600,9 @@ VariableManager::getOrCreate(unsigned TemporaryId, bool Reading) {
 Value *VariableManager::computeEnvAddress(Type *TargetType,
                                           Instruction *InsertBefore,
                                           unsigned Offset) {
-
-  auto *EnvPtrTy = cast<PointerType>(Env->getType());
-  auto *PointeeTy = EnvPtrTy->getElementType();
+  auto *PointeeTy = Env->getValueType();
   auto *LoadEnv = new LoadInst(PointeeTy, Env, "", InsertBefore);
-  Type *EnvType = Env->getType()->getPointerElementType();
+  Type *EnvType = Env->getValueType();
   Value *Integer = LoadEnv;
   if (Offset != 0)
     Integer = BinaryOperator::Create(Instruction::Add,
@@ -681,16 +614,13 @@ Value *VariableManager::computeEnvAddress(Type *TargetType,
 }
 
 Value *VariableManager::cpuStateToEnv(Value *CPUState,
-                                      Type *TargetType,
                                       Instruction *InsertBefore) const {
   using CI = ConstantInt;
 
-  Type *InputType = CPUState->getType()->getPointerElementType();
-  revng_assert(InputType == CPUStateType
-               or InputType == CPUStateType->getTypeAtIndex(0U));
   IRBuilder<> Builder(InsertBefore);
-  Type *IntPtrTy = Builder.getIntPtrTy(*ModuleLayout);
+  auto *OpaquePointer = PointerType::get(TheModule.getContext(), 0);
+  auto *IntPtrTy = Builder.getIntPtrTy(TheModule.getDataLayout());
   Value *CPUIntPtr = Builder.CreatePtrToInt(CPUState, IntPtrTy);
   Value *EnvIntPtr = Builder.CreateAdd(CPUIntPtr, CI::get(IntPtrTy, EnvOffset));
-  return Builder.CreateIntToPtr(EnvIntPtr, TargetType);
+  return Builder.CreateIntToPtr(EnvIntPtr, OpaquePointer);
 }

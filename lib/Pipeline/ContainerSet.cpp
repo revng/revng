@@ -8,6 +8,7 @@
 
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Path.h"
 
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Errors.h"
@@ -30,7 +31,7 @@ ContainerSet ContainerSet::cloneFiltered(const ContainerToTargetsMap &Targets) {
                     Container->cloneFiltered(ExtractedNames) :
                     nullptr;
 
-    ToReturn.add(ContainerName, *Factories[Pair.first()], move(Cloned));
+    ToReturn.add(ContainerName, *Factories[Pair.first()], std::move(Cloned));
   }
   revng_assert(ToReturn.Content.size() == Content.size());
   return ToReturn;
@@ -129,7 +130,7 @@ ContainerToTargetsMap ContainerSet::enumerate() const {
 
 llvm::Error ContainerBase::storeToDisk(llvm::StringRef Path) const {
   std::error_code EC;
-  llvm::raw_fd_ostream OS(Path, EC, llvm::sys::fs::F_None);
+  llvm::raw_fd_ostream OS(Path, EC, llvm::sys::fs::OF_None);
   if (EC)
     return llvm::createStringError(EC,
                                    "could not write file at %s",

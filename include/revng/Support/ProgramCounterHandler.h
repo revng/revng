@@ -13,7 +13,7 @@
 
 inline llvm::IntegerType *getCSVType(llvm::GlobalVariable *CSV) {
   using namespace llvm;
-  return cast<IntegerType>(CSV->getType()->getPointerElementType());
+  return cast<IntegerType>(CSV->getValueType());
 }
 
 namespace NextJumpTarget {
@@ -53,7 +53,7 @@ protected:
   llvm::GlobalVariable *AddressSpaceCSV;
   llvm::GlobalVariable *TypeCSV;
 
-  std::set<llvm::Value *> CSVsAffectingPC;
+  std::set<llvm::GlobalVariable *> CSVsAffectingPC;
 
 public:
   using DispatcherTarget = std::pair<MetaAddress, llvm::BasicBlock *>;
@@ -141,7 +141,7 @@ public:
       return false;
   }
 
-  /// \return an empty Optional if the PC has not changed on at least one path,
+  /// \return an empty optional if the PC has not changed on at least one path,
   ///         an invalid MetaAddress in case there isn't a single next PC, or,
   ///         finally, a valid MetaAddress representing the only possible next
   ///         PC
@@ -153,8 +153,8 @@ public:
 
     // Load and re-store each CSV affecting the PC and then feed them to
     // handleStore
-    for (Value *CSVAffectingPC : CSVsAffectingPC) {
-      auto *FakeLoad = Builder.CreateLoad(CSVAffectingPC);
+    for (GlobalVariable *CSVAffectingPC : CSVsAffectingPC) {
+      auto *FakeLoad = createLoad(Builder, CSVAffectingPC);
       auto *FakeStore = Builder.CreateStore(FakeLoad, CSVAffectingPC);
       bool HasInjectedCode = handleStore(Builder, FakeStore);
       eraseFromParent(FakeStore);
@@ -181,14 +181,14 @@ public:
 
   llvm::Instruction *composeIntegerPC(llvm::IRBuilder<> &B) const {
     return MetaAddress::composeIntegerPC(B,
-                                         align(B, B.CreateLoad(AddressCSV)),
-                                         B.CreateLoad(EpochCSV),
-                                         B.CreateLoad(AddressSpaceCSV),
-                                         B.CreateLoad(TypeCSV));
+                                         align(B, createLoad(B, AddressCSV)),
+                                         createLoad(B, EpochCSV),
+                                         createLoad(B, AddressSpaceCSV),
+                                         createLoad(B, TypeCSV));
   }
 
   bool isPCSizedType(llvm::Type *T) const {
-    return T == AddressCSV->getType()->getPointerElementType();
+    return T == AddressCSV->getValueType();
   }
 
 public:
@@ -203,22 +203,21 @@ public:
   buildDispatcher(DispatcherTargets &Targets,
                   llvm::IRBuilder<> &Builder,
                   llvm::BasicBlock *Default,
-                  llvm::Optional<BlockType::Values> SetBlockType) const;
+                  std::optional<BlockType::Values> SetBlockType) const;
 
   DispatcherInfo
   buildDispatcher(DispatcherTargets &Targets,
                   llvm::BasicBlock *CreateIn,
                   llvm::BasicBlock *Default,
-                  llvm::Optional<BlockType::Values> SetBlockType) const {
+                  std::optional<BlockType::Values> SetBlockType) const {
     llvm::IRBuilder<> Builder(CreateIn);
     return buildDispatcher(Targets, Builder, Default, SetBlockType);
   }
 
   /// \note \p Root must not already contain a case for \p NewTarget
-  void
-  addCaseToDispatcher(llvm::SwitchInst *Root,
-                      const DispatcherTarget &NewTarget,
-                      llvm::Optional<BlockType::Values> SetBlockType) const;
+  void addCaseToDispatcher(llvm::SwitchInst *Root,
+                           const DispatcherTarget &NewTarget,
+                           std::optional<BlockType::Values> SetBlockType) const;
 
   void destroyDispatcher(llvm::SwitchInst *Root) const;
 
@@ -299,7 +298,7 @@ protected:
   static llvm::StoreInst *
   store(llvm::IRBuilder<> &Builder, llvm::GlobalVariable *GV, uint64_t Value) {
     using namespace llvm;
-    auto *Type = cast<IntegerType>(GV->getType()->getPointerElementType());
+    auto *Type = cast<IntegerType>(GV->getValueType());
     return Builder.CreateStore(ConstantInt::get(Type, Value), GV);
   }
 };

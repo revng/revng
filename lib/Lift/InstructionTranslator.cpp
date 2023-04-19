@@ -714,7 +714,7 @@ IT::TranslationResult IT::translateCall(PTCInstruction *Instr) {
     ResultDestination = Variables.getOrCreate(TheCall.OutArguments[0]);
     if (ResultDestination == nullptr)
       return Abort;
-    ResultType = ResultDestination->getType()->getPointerElementType();
+    ResultType = getVariableType(ResultDestination);
   } else {
     ResultType = Builder.getVoidTy();
   }
@@ -893,7 +893,9 @@ IT::translateOpcode(PTCOpcode Opcode,
 
       Pointer = Builder.CreateIntToPtr(InArguments[0],
                                        MemoryType->getPointerTo());
-      auto *Load = Builder.CreateAlignedLoad(Pointer, MaybeAlign(Alignment));
+      auto *Load = Builder.CreateAlignedLoad(MemoryType,
+                                             Pointer,
+                                             MaybeAlign(Alignment));
       Value *Loaded = Load;
 
       if (BSwapFunction != nullptr)
@@ -1310,7 +1312,7 @@ IT::translateOpcode(PTCOpcode Opcode,
 
       // Move it to the bottom
       Fallthrough->removeFromParent();
-      TheFunction->getBasicBlockList().push_back(Fallthrough);
+      TheFunction->insert(TheFunction->end(), Fallthrough);
     }
 
     Builder.CreateBr(Fallthrough);

@@ -44,18 +44,22 @@ BasicBlock *ExternalJumpsHandler::createReturnFromExternal() {
   IRBuilder<> Builder(ReturnFromExternal);
 
   // Identify the global variables to be serialized
-  Constant *SavedRegistersPtr = TheModule.getGlobalVariable("saved_registers");
-  LoadInst *SavedRegisters = Builder.CreateLoad(SavedRegistersPtr);
+  GlobalVariable *SavedRegistersPtr = TheModule.getGlobalVariable("saved_"
+                                                                  "registers");
+  Instruction *SavedRegisters = createLoad(Builder, SavedRegistersPtr);
 
   // TODO: if we do not support this architecture, here things will be
   // completely broken
   using namespace model::Architecture;
   using namespace model::Register;
-  unsigned PCMContextIndex = getPCMContextIndex(Model.Architecture())
-                               .value_or(0);
-  Value *GEP = Builder.CreateGEP(SavedRegisters,
+  auto Architecture = Model.Architecture();
+  unsigned PCMContextIndex = getPCMContextIndex(Architecture).value_or(0);
+  auto *RegisterType = IntegerType::get(Context,
+                                        8 * getPointerSize(Architecture));
+  Value *GEP = Builder.CreateGEP(RegisterType,
+                                 SavedRegisters,
                                  Builder.getInt32(PCMContextIndex));
-  LoadInst *PCAddress = Builder.CreateLoad(GEP);
+  Instruction *PCAddress = Builder.CreateLoad(RegisterType, GEP);
   PCH->deserializePCFromSignalContext(Builder, PCAddress, SavedRegisters);
 
   // Deserialize the ABI registers
@@ -70,8 +74,10 @@ BasicBlock *ExternalJumpsHandler::createReturnFromExternal() {
       if (MaybeMContextIndex) {
 
         Constant *RegisterIndex = Builder.getInt32(*MaybeMContextIndex);
-        Value *GEP = Builder.CreateGEP(SavedRegisters, RegisterIndex);
-        LoadInst *RegisterValue = Builder.CreateLoad(GEP);
+        Value *GEP = Builder.CreateGEP(RegisterType,
+                                       SavedRegisters,
+                                       RegisterIndex);
+        LoadInst *RegisterValue = Builder.CreateLoad(RegisterType, GEP);
         Builder.CreateStore(RegisterValue, CSV);
 
       } else {
@@ -88,7 +94,11 @@ BasicBlock *ExternalJumpsHandler::createReturnFromExternal() {
                                         ConstraintStringStream.str(),
                                         true,
                                         InlineAsm::AsmDialect::AD_ATT);
-        Builder.CreateCall(Asm, CSV);
+        CallInst *AsmCall = Builder.CreateCall(Asm, CSV);
+        AsmCall->addParamAttr(0,
+                              Attribute::get(Context,
+                                             Attribute::ElementType,
+                                             CSV->getValueType()));
       }
     }
   }
@@ -153,7 +163,11 @@ BasicBlock *ExternalJumpsHandler::createSerializeAndJumpOut() {
                                     ConstraintStringStream.str(),
                                     true,
                                     InlineAsm::AsmDialect::AD_ATT);
-    Builder.CreateCall(Asm, CSV);
+    CallInst *AsmCall = Builder.CreateCall(Asm, CSV);
+    AsmCall->addParamAttr(0,
+                          Attribute::get(Context,
+                                         Attribute::ElementType,
+                                         CSV->getValueType()));
   }
 
   // Branch to the Program Counter address
@@ -165,7 +179,11 @@ BasicBlock *ExternalJumpsHandler::createSerializeAndJumpOut() {
                                   "*m,~{dirflag},~{fpsr},~{flags}",
                                   true,
                                   InlineAsm::AsmDialect::AD_ATT);
-  Builder.CreateCall(Asm, JumpablePC);
+  CallInst *AsmCall = Builder.CreateCall(Asm, JumpablePC);
+  AsmCall->addParamAttr(0,
+                        Attribute::get(Context,
+                                       Attribute::ElementType,
+                                       JumpablePC->getValueType()));
 
   Instruction *T = Builder.CreateUnreachable();
   setBlockType(T, BlockType::ExternalJumpsHandlerBlock);
@@ -183,7 +201,7 @@ llvm::BasicBlock *ExternalJumpsHandler::createSetjmp(BasicBlock *FirstReturn,
 
   // Call setjmp
   llvm::Function *SetjmpFunction = TheModule.getFunction("setjmp");
-  auto *SetJmpTy = SetjmpFunction->getType()->getPointerElementType();
+  auto *SetJmpTy = SetjmpFunction->getValueType();
   auto *JmpBuf = CE::getPointerCast(TheModule.getGlobalVariable("jmp_buffer"),
                                     SetJmpTy->getFunctionParamType(0));
   Value *SetjmpRes = Builder.CreateCall(SetjmpFunction, { JmpBuf });

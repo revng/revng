@@ -113,7 +113,7 @@ public:
     if (It == Map.end()) {
       auto *FT = FunctionType::get(ResultType, { ResultType }, false);
       F = Function::Create(FT, GlobalValue::ExternalLinkage, "id", *M);
-      F->addFnAttr(Attribute::ReadOnly);
+      F->setOnlyReadsMemory();
       Map[ResultType] = F;
     } else {
       F = It->second;
@@ -372,7 +372,7 @@ bool CpuLoopFunctionPass::runOnModule(Module &M) {
   auto *Call = cast<CallInst>(CallUser);
   revng_assert(Call->getCalledFunction() == &CpuExec);
   Value *CPUState = Call->getArgOperand(0);
-  Type *TargetType = CpuExec.getReturnType()->getPointerTo();
+  Type *TargetType = CpuExec.getReturnType();
 
   IRBuilder<> Builder(Call);
   Type *IntPtrTy = Builder.getIntPtrTy(TheModule->getDataLayout());
@@ -381,8 +381,8 @@ bool CpuLoopFunctionPass::runOnModule(Module &M) {
   auto Offset = CI::get(IntPtrTy, ExceptionIndexOffset);
   Value *ExceptionIndexIntPtr = Builder.CreateAdd(CPUIntPtr, Offset);
   Value *ExceptionIndexPtr = Builder.CreateIntToPtr(ExceptionIndexIntPtr,
-                                                    TargetType);
-  Value *ExceptionIndex = Builder.CreateLoad(ExceptionIndexPtr);
+                                                    TargetType->getPointerTo());
+  Value *ExceptionIndex = Builder.CreateLoad(TargetType, ExceptionIndexPtr);
   Call->replaceAllUsesWith(ExceptionIndex);
   eraseFromParent(Call);
 
@@ -417,9 +417,7 @@ static void purgeNoReturn(Function *F) {
     if (auto *Call = dyn_cast<CallInst>(U))
       if (Call->hasFnAttr(Attribute::NoReturn)) {
         auto OldAttr = Call->getAttributes();
-        auto NewAttr = OldAttr.removeAttribute(Context,
-                                               AttributeList::FunctionIndex,
-                                               Attribute::NoReturn);
+        auto NewAttr = OldAttr.removeFnAttribute(Context, Attribute::NoReturn);
         Call->setAttributes(NewAttr);
       }
 }
@@ -467,7 +465,7 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
   Function *CpuLoop = M.getFunction("cpu_loop");
   IntegerType *BoolType = Type::getInt1Ty(Context);
   std::set<Function *> FixedCallers;
-  Constant *CpuLoopExitingVariable = nullptr;
+  GlobalVariable *CpuLoopExitingVariable = nullptr;
   CpuLoopExitingVariable = new GlobalVariable(M,
                                               BoolType,
                                               false,
@@ -488,7 +486,7 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
 
     // Call cpu_loop
     auto *FirstArgTy = CpuLoop->getFunctionType()->getParamType(0);
-    auto *EnvPtr = VM->cpuStateToEnv(Call->getArgOperand(0), FirstArgTy, Call);
+    auto *EnvPtr = VM->cpuStateToEnv(Call->getArgOperand(0), Call);
 
     auto *CallCpuLoop = CallInst::Create(CpuLoop, { EnvPtr }, "", Call);
 
@@ -553,8 +551,7 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
 
           // Check value of cpu_loop_exiting
           auto *Branch = cast<BranchInst>(&*++(RecCall->getIterator()));
-          auto *CPULoopExitVarPtrTy = CpuLoopExitingVariable->getType();
-          auto *PointeeTy = CPULoopExitVarPtrTy->getPointerElementType();
+          auto *PointeeTy = CpuLoopExitingVariable->getValueType();
           auto *Compare = new ICmpInst(Branch,
                                        CmpInst::ICMP_EQ,
                                        new LoadInst(PointeeTy,
@@ -579,7 +576,7 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
   return true;
 }
 
-void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
+void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
   using FT = FunctionType;
 
   // Declare the abort function
@@ -706,7 +703,18 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
     using namespace model::Architecture;
     TargetIsLittleEndian = isLittleEndian(TargetArchitecture);
   }
-  VariableManager Variables(*TheModule, TargetIsLittleEndian);
+
+  // TODO: this not very robust. We should have a function with a sensible name
+  //       taking as argument ${ARCH}CPU so that we can easily identify the
+  //       struct.
+  std::string CPUStructName = (Twine("struct.") + ptc.cpu_struct_name).str();
+  auto *CPUStruct = StructType::getTypeByName(TheModule->getContext(),
+                                              CPUStructName);
+  revng_assert(CPUStruct != nullptr);
+  VariableManager Variables(*TheModule,
+                            TargetIsLittleEndian,
+                            CPUStruct,
+                            ptc.env_offset);
   auto CreateCPUStateAccessAnalysisPass = [&Variables]() {
     return new CPUStateAccessAnalysisPass(&Variables, true);
   };
@@ -718,7 +726,8 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
   }
 
   std::set<Function *> CpuLoopExitingUsers;
-  Value *CpuLoopExiting = TheModule->getGlobalVariable("cpu_loop_exiting");
+  GlobalVariable *CpuLoopExiting = TheModule->getGlobalVariable("cpu_loop_"
+                                                                "exiting");
   revng_assert(CpuLoopExiting != nullptr);
   for (User *U : CpuLoopExiting->users())
     if (auto *I = dyn_cast<Instruction>(U))
@@ -761,7 +770,7 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
 
   // Create main function
   auto *MainType = FT::get(Builder.getVoidTy(),
-                           { SPReg->getType()->getPointerElementType() },
+                           { SPReg->getValueType() },
                            false);
   auto *MainFunction = Function::Create(MainType,
                                         Function::ExternalLinkage,
@@ -1064,28 +1073,27 @@ void CodeGenerator::translate(Optional<uint64_t> RawVirtualAddress) {
       SortedBasicBlocks.push_back(BB);
     }
 
-    auto &BasicBlockList = MainFunction->getBasicBlockList();
     std::vector<BasicBlock *> Unreachable;
-    for (BasicBlock &BB : BasicBlockList) {
+    for (BasicBlock &BB : *MainFunction) {
       if (SortedBasicBlocksSet.count(&BB) == 0) {
         Unreachable.push_back(&BB);
       }
     }
 
-    auto Size = BasicBlockList.size();
+    auto Size = MainFunction->size();
     for (unsigned I = 0; I < Size; ++I)
-      BasicBlockList.begin()->removeFromParent();
+      MainFunction->begin()->removeFromParent();
     for (BasicBlock *BB : SortedBasicBlocks)
-      BasicBlockList.push_back(BB);
+      MainFunction->insert(MainFunction->end(), BB);
     for (BasicBlock *BB : Unreachable)
-      BasicBlockList.push_back(BB);
+      MainFunction->insert(MainFunction->end(), BB);
   }
 
   //
   // At this point we have all the code, add store false to cpu_loop_exiting in
   // root
   //
-  auto *BoolType = CpuLoopExiting->getType()->getPointerElementType();
+  auto *BoolType = CpuLoopExiting->getValueType();
   std::queue<User *> WorkList;
   for (Function *Helper : CpuLoopExitingUsers)
     for (User *U : Helper->users())

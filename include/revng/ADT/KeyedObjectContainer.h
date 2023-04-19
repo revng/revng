@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <concepts>
 #include <optional>
 #include <set>
 
@@ -33,7 +34,7 @@ struct IdentityKeyedObjectTraits {
 };
 
 /// Trivial specializations
-template<integral T>
+template<std::integral T>
 struct KeyedObjectTraits<T> : public IdentityKeyedObjectTraits<T> {};
 
 template<>
@@ -43,17 +44,15 @@ struct KeyedObjectTraits<std::string>
 static_assert(KeyedObjectContainerCompatible<int>);
 
 template<typename T>
-concept KeyedObjectContainer = requires(T &&) {
-  T::KeyedObjectContainerTag;
-};
+concept KeyedObjectContainer = requires(T &&) { T::KeyedObjectContainerTag; };
 
 namespace revng::detail {
 
-  template<KeyedObjectContainerCompatible T>
-  using KOT = KeyedObjectTraits<T>;
+template<KeyedObjectContainerCompatible T>
+using KOT = KeyedObjectTraits<T>;
 
-  template<KeyedObjectContainerCompatible T>
-  using Key = std::decay_t<decltype(KOT<T>::key(std::declval<T>()))>;
+template<KeyedObjectContainerCompatible T>
+using Key = std::decay_t<decltype(KOT<T>::key(std::declval<T>()))>;
 
 } // namespace revng::detail
 

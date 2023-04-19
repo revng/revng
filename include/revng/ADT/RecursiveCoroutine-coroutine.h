@@ -4,7 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include <experimental/coroutine>
+#include <coroutine>
 #include <optional>
 #include <type_traits>
 #include <utility>
@@ -45,7 +45,7 @@ template<typename ReturnT>
 struct RecursivePromise : public ReturnBase<ReturnT> {
 
   using promise_type = RecursivePromise<ReturnT>;
-  using coro_handle = std::experimental::coroutine_handle<promise_type>;
+  using coro_handle = std::coroutine_handle<promise_type>;
 
   template<typename>
   friend struct RecursivePromise;
@@ -63,7 +63,7 @@ struct RecursivePromise : public ReturnBase<ReturnT> {
 
   [[noreturn]] void unhandled_exception() const { std::terminate(); }
 
-  auto initial_suspend() const { return std::experimental::suspend_always(); }
+  auto initial_suspend() const { return std::suspend_always(); }
 
   auto final_suspend() noexcept {
     // In principle, we want our RecursiveCoroutine to always suspend at the
@@ -82,15 +82,13 @@ struct RecursivePromise : public ReturnBase<ReturnT> {
     //   (await_resume actuall aborts)
     struct ResumeAwaiter {
 
-      ResumeAwaiter(std::experimental::coroutine_handle<> AwaiterHandle) :
+      ResumeAwaiter(std::coroutine_handle<> AwaiterHandle) :
         Awaiter(AwaiterHandle) {}
 
       bool await_ready() const noexcept { return false; }
 
-      std::experimental::coroutine_handle<>
-      await_suspend(std::experimental::coroutine_handle<>) noexcept {
-        std::experimental::coroutine_handle<>
-          ToResume = std::experimental::noop_coroutine();
+      std::coroutine_handle<> await_suspend(std::coroutine_handle<>) noexcept {
+        std::coroutine_handle<> ToResume = std::noop_coroutine();
         if (Awaiter and not Awaiter.done()) {
           ToResume = Awaiter;
           Awaiter = {};
@@ -101,7 +99,7 @@ struct RecursivePromise : public ReturnBase<ReturnT> {
       void await_resume() const noexcept { revng_abort(); }
 
     private:
-      std::experimental::coroutine_handle<> Awaiter;
+      std::coroutine_handle<> Awaiter;
     };
 
     auto ToResume = AwaiterContinuation;
@@ -109,8 +107,7 @@ struct RecursivePromise : public ReturnBase<ReturnT> {
     return ResumeAwaiter(ToResume);
   }
 
-  RecursivePromise() :
-    AwaiterContinuation(std::experimental::coroutine_handle<>{}) {}
+  RecursivePromise() : AwaiterContinuation(std::coroutine_handle<>{}) {}
   ~RecursivePromise() { revng_assert(not AwaiterContinuation); }
 
   // Not copyable, otherwise AwaiterContinuation could be resumed twice.
@@ -155,7 +152,7 @@ struct RecursivePromise : public ReturnBase<ReturnT> {
 
       bool await_ready() const { return false; }
 
-      auto await_suspend(std::experimental::coroutine_handle<>) {
+      auto await_suspend(std::coroutine_handle<>) {
         // In principle we could clear Awaitee here, before suspending, so
         // that if for some reason `await_suspend` is called twice we don't
         // end up suspending the same coroutine twice (which is a bug).
@@ -182,7 +179,7 @@ struct RecursivePromise : public ReturnBase<ReturnT> {
   }
 
 protected:
-  std::experimental::coroutine_handle<> AwaiterContinuation;
+  std::coroutine_handle<> AwaiterContinuation;
 };
 
 } // namespace revng::detail
@@ -192,7 +189,7 @@ struct RecursiveCoroutine {
 
 public:
   using promise_type = revng::detail::RecursivePromise<ReturnT>;
-  using coro_handle = std::experimental::coroutine_handle<promise_type>;
+  using coro_handle = std::coroutine_handle<promise_type>;
   template<typename T>
   friend struct revng::detail::RecursivePromise;
 

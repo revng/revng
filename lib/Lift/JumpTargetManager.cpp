@@ -39,7 +39,6 @@
 
 #include "revng/ADT/Queue.h"
 #include "revng/BasicAnalyses/AdvancedValueInfo.h"
-#include "revng/BasicAnalyses/CSVAliasAnalysis.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/BasicAnalyses/ShrinkInstructionOperandsPass.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
@@ -251,7 +250,7 @@ bool TDBP::pinAVIResults(Function &F) {
           //       violating some assumption somewhere
           CallInst::Create({ JumpToSymbolMarker },
                            { getUniqueString(M, SymbolName) },
-                           None,
+                           {},
                            "",
                            Call);
         }
@@ -402,11 +401,11 @@ bool TDBP::runOnModule(Module &M) {
   return true;
 }
 
-MaterializedValue
-JumpTargetManager::readFromPointer(Constant *Pointer, bool IsLittleEndian) {
-  Type *LoadedType = Pointer->getType()->getPointerElementType();
+MaterializedValue JumpTargetManager::readFromPointer(Type *Type,
+                                                     Constant *Pointer,
+                                                     bool IsLittleEndian) {
   const DataLayout &DL = TheModule.getDataLayout();
-  unsigned LoadSize = DL.getTypeSizeInBits(LoadedType) / 8;
+  unsigned LoadSize = DL.getTypeSizeInBits(Type) / 8;
   auto NewAPInt = [LoadSize](uint64_t V) { return APInt(LoadSize * 8, V); };
 
   Value *RealPointer = skipCasts(Pointer);
@@ -1463,9 +1462,8 @@ void JumpTargetManager::harvestWithAVI() {
         BasicBlock *Target = Branch->getSuccessor(0);
         Use *U = &Branch->getOperandUse(0);
 
-        // We're after a function call: pretend we're jumping to the
-        // dispatcher
-        U->set(Dispatcher);
+        // We're after a function call: pretend we're jumping to anypc
+        U->set(AnyPC);
 
         // Record Use for later undoing
         Undo[U] = Target;
@@ -1516,7 +1514,7 @@ void JumpTargetManager::harvestWithAVI() {
     }
 
     // Record the size of OptimizedFunction
-    size_t BlocksCount = OptimizedFunction->getBasicBlockList().size();
+    size_t BlocksCount = OptimizedFunction->size();
     BlocksAnalyzedByAVI.push(BlocksCount);
 
     // Reattach the unreachable basic blocks to the original root function
@@ -1563,13 +1561,16 @@ void JumpTargetManager::harvestWithAVI() {
       auto AddressType = TIT::Invalid;
       Value *Pointer = nullptr;
       Instruction *StoredInstruction = nullptr;
+      Type *PointeeType = nullptr;
       if (auto *Load = dyn_cast<LoadInst>(&I)) {
         // It's a load: record the load address
         Pointer = Load->getPointerOperand();
+        PointeeType = Load->getType();
         AddressType = TIT::LoadTarget;
       } else if (auto *Store = dyn_cast<StoreInst>(&I)) {
         // It's a store: record the store address and the stored value
         Pointer = Store->getPointerOperand();
+        PointeeType = Store->getValueOperand()->getType();
         StoredInstruction = dyn_cast<Instruction>(Store->getValueOperand());
         AddressType = TIT::StoreTarget;
       }
@@ -1582,7 +1583,6 @@ void JumpTargetManager::harvestWithAVI() {
           AR.registerValue(Address, nullptr, PointerI, AddressType);
 
         // Register the stored value, if pc-sized
-        Type *PointeeType = Pointer->getType()->getPointerElementType();
         if (StoredInstruction != nullptr and PCH->isPCSizedType(PointeeType))
           AR.registerValue(Address,
                            nullptr,
@@ -1601,7 +1601,7 @@ void JumpTargetManager::harvestWithAVI() {
   std::map<GlobalVariable *, AllocaInst *> CSVMap;
 
   for (GlobalVariable *CSV : NonPCCSVs) {
-    Type *CSVType = CSV->getType()->getPointerElementType();
+    Type *CSVType = CSV->getValueType();
     auto *Alloca = AllocaBuilder.CreateAlloca(CSVType, nullptr, CSV->getName());
     CSVMap[CSV] = Alloca;
 
@@ -1609,7 +1609,7 @@ void JumpTargetManager::harvestWithAVI() {
     replaceAllUsesInFunctionWith(OptimizedFunction, CSV, Alloca);
 
     // Initialize the alloca
-    InitializeBuilder.CreateStore(InitializeBuilder.CreateLoad(CSV), Alloca);
+    InitializeBuilder.CreateStore(createLoad(InitializeBuilder, CSV), Alloca);
   }
 
   //
@@ -1668,26 +1668,6 @@ void JumpTargetManager::harvestWithAVI() {
     eraseFromParent(Call);
 
   //
-  // Update alias analysis
-  //
-  {
-    ModuleAnalysisManager MAM;
-    MAM.registerPass([&] {
-      using LMA = LoadModelAnalysis;
-      return LMA::fromModelWrapper(Model);
-    });
-    MAM.registerPass([&] { return GeneratedCodeBasicInfoAnalysis(); });
-
-    ModulePassManager MPM;
-    MPM.addPass(CSVAliasAnalysisPass());
-
-    PassBuilder PB;
-    PB.registerModuleAnalyses(MAM);
-
-    MPM.run(*M, MAM);
-  }
-
-  //
   // Optimize the hell out of it and collect the possible values of indirect
   // branches
   //
@@ -1702,7 +1682,8 @@ void JumpTargetManager::harvestWithAVI() {
 
   SummaryCallsBuilder SCB(CSVMap);
 
-  // Remove PC initialization from entry block
+  // Remove PC initialization from entry block: this is required otherwise the
+  // dispatcher will be constant-propagated away
   {
     BasicBlock &Entry = OptimizedFunction->getEntryBlock();
     std::vector<Instruction *> ToDelete;
@@ -1725,11 +1706,12 @@ void JumpTargetManager::harvestWithAVI() {
     FPM.addPass(DropHelperCallsPass(SyscallHelper, SyscallIDCSV, SCB));
     FPM.addPass(ShrinkInstructionOperandsPass());
     FPM.addPass(PromotePass());
-    FPM.addPass(InstCombinePass(true));
+    FPM.addPass(InstCombinePass());
     FPM.addPass(TypeShrinking::TypeShrinkingPass());
     FPM.addPass(JumpThreadingPass());
     FPM.addPass(UnreachableBlockElimPass());
-    FPM.addPass(InstCombinePass(true));
+    FPM.addPass(GVNPass());
+    FPM.addPass(InstCombinePass());
     FPM.addPass(EarlyCSEPass(true));
     FPM.addPass(DropRangeMetadataPass());
     FPM.addPass(AdvancedValueInfoPass(this));

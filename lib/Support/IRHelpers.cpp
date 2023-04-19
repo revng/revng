@@ -7,6 +7,8 @@
 
 #include <fstream>
 
+#include "llvm/ADT/SmallSet.h"
+#include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/Support/SHA1.h"
 #include "llvm/Support/raw_os_ostream.h"
@@ -43,12 +45,8 @@ GlobalVariable *buildString(Module *M, StringRef String, const Twine &Name) {
 
 StringRef extractFromConstantStringPtr(Value *V) {
   revng_assert(V->getType()->isPointerTy());
-  auto *ConstantGEP = dyn_cast<ConstantExpr>(V);
-  if (ConstantGEP == nullptr)
-    return {};
 
-  auto *NoCasts = ConstantGEP->stripPointerCasts();
-  auto *GV = dyn_cast_or_null<GlobalVariable>(NoCasts);
+  auto *GV = dyn_cast_or_null<GlobalVariable>(V);
   if (GV == nullptr)
     return {};
 
@@ -221,11 +219,10 @@ void moveBlocksInto(Function &OldFunction, Function &NewFunction) {
   std::vector<BasicBlock *> Body;
   for (BasicBlock &BB : OldFunction)
     Body.push_back(&BB);
-  auto &NewBody = NewFunction.getBasicBlockList();
   for (BasicBlock *BB : Body) {
     BB->removeFromParent();
     revng_assert(BB->getParent() == nullptr);
-    NewBody.push_back(BB);
+    NewFunction.insert(NewFunction.end(), BB);
     revng_assert(BB->getParent() == &NewFunction);
   }
 }
@@ -335,7 +332,7 @@ void dumpUsers(llvm::Value *V) {
   }
 }
 
-inline RecursiveCoroutine<void>
+static RecursiveCoroutine<void>
 findJumpTarget(llvm::BasicBlock *&Result,
                llvm::BasicBlock *BB,
                std::set<BasicBlock *> &Visited) {
@@ -368,32 +365,44 @@ void pruneDICompileUnits(Module &M) {
   if (CUs == nullptr)
     return;
 
-  OnceQueue<MDNode *> Queue;
-  for (Function &F : M)
-    for (BasicBlock &BB : F)
-      for (Instruction &I : BB)
-        if (MDNode *Location = I.getDebugLoc().get())
-          Queue.insert(Location);
+  // Purge CUs list
+  CUs->clearOperands();
 
   std::set<DICompileUnit *> Reachable;
-  while (not Queue.empty()) {
-    MDNode *Entry = Queue.pop();
+  DebugInfoFinder DIFinder;
+  DIFinder.processModule(M);
 
-    if (auto *CU = dyn_cast<DICompileUnit>(Entry))
-      Reachable.insert(CU);
-
-    // Add all the operands to the queue
-    for (const MDOperand &Operand : Entry->operands())
-      if (auto *Node = dyn_cast_or_null<MDNode>(Operand.get()))
-        Queue.insert(Node);
-  }
+  for (DICompileUnit *CU : DIFinder.compile_units())
+    Reachable.insert(CU);
 
   if (Reachable.size() == 0) {
     CUs->eraseFromParent();
   } else {
-    // Purge and recreate CUs list
-    CUs->clearOperands();
+    // Recreate CUs list
     for (DICompileUnit *CU : Reachable)
       CUs->addOperand(CU);
   }
+}
+
+using ValueSet = SmallSet<Value *, 2>;
+
+static RecursiveCoroutine<void>
+findPhiTreeLeavesImpl(ValueSet &Leaves, ValueSet &Visited, llvm::Value *V) {
+  if (auto *Phi = dyn_cast<PHINode>(V)) {
+    revng_assert(Visited.count(V) == 0);
+    Visited.insert(V);
+    for (Value *Operand : Phi->operands())
+      rc_recur findPhiTreeLeavesImpl(Leaves, Visited, Operand);
+  } else {
+    Leaves.insert(V);
+  }
+
+  rc_return;
+}
+
+ValueSet findPhiTreeLeaves(Value *Root) {
+  ValueSet Result;
+  ValueSet Visited;
+  findPhiTreeLeavesImpl(Result, Visited, Root);
+  return Result;
 }

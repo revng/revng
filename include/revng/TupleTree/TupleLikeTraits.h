@@ -22,10 +22,10 @@ struct TupleLikeTraits {
 // clang-format off
 template<typename T>
 concept TraitedTupleLike = requires {
-  { TupleLikeTraits<T>::Name } -> convertible_to<std::string_view>;
-  { TupleLikeTraits<T>::FullName } -> convertible_to<std::string_view>;
+  { TupleLikeTraits<T>::Name } -> std::convertible_to<std::string_view>;
+  { TupleLikeTraits<T>::FullName } -> std::convertible_to<std::string_view>;
   { TupleLikeTraits<T>::FieldNames } ->
-    convertible_to<const std::span<const llvm::StringRef>>;
+    std::convertible_to<const std::span<const llvm::StringRef>>;
 
   typename TupleLikeTraits<T>::tuple;
   typename TupleLikeTraits<T>::Fields;

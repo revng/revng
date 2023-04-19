@@ -35,8 +35,8 @@ public:
 
   const llvm::DataLayout &getDataLayout() const { return DL; }
 
-  MaterializedValue load(llvm::Constant *Address) {
-    return JTM.readFromPointer(Address, IsLittleEndian);
+  MaterializedValue load(llvm::Type *Type, llvm::Constant *Address) {
+    return JTM.readFromPointer(Type, Address, IsLittleEndian);
   }
 };
 
@@ -59,7 +59,7 @@ public:
     FT *Type = FT::get(FT::getVoidTy(C), {}, true);
     FunctionCallee Callee = M->getOrInsertFunction(MarkerName, Type);
     auto *Marker = cast<Function>(Callee.getCallee());
-    Marker->addFnAttr(llvm::Attribute::InaccessibleMemOnly);
+    Marker->setOnlyAccessesInaccessibleMemory();
     return Marker;
   }
 };
@@ -129,7 +129,7 @@ AdvancedValueInfoPass::run(llvm::Function &F,
         or Call->getParent()->getParent() != &F)
       continue;
 
-    revng_assert(Call->getNumArgOperands() >= 1);
+    revng_assert(Call->arg_size() >= 1);
     Value *ToTrack = Call->getArgOperand(0);
 
     AVIPassLogger << "Tracking " << ToTrack << ":";

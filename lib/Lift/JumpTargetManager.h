@@ -13,7 +13,6 @@
 #include "boost/icl/interval_set.hpp"
 #include "boost/type_traits/is_same.hpp"
 
-#include "llvm/ADT/Optional.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
 
@@ -391,8 +390,9 @@ public:
     return Pair.first + Pair.second;
   }
 
-  MaterializedValue
-  readFromPointer(llvm::Constant *Pointer, bool IsLittleEndian);
+  MaterializedValue readFromPointer(llvm::Type *Type,
+                                    llvm::Constant *Pointer,
+                                    bool IsLittleEndian);
 
   /// Increment the counter of emitted branches since the last reset
   void recordNewBranches(llvm::BasicBlock *Source, size_t Count) {

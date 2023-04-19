@@ -12,6 +12,7 @@
 #include "llvm/Pass.h"
 
 #include "revng/Support/CommandLine.h"
+#include "revng/Support/IRHelpers.h"
 
 #include "CPUStateAccessAnalysisPass.h"
 #include "PTCDump.h"
@@ -37,7 +38,10 @@ extern llvm::cl::opt<bool> External;
 /// created on the fly.
 class VariableManager {
 public:
-  VariableManager(llvm::Module &M, bool TargetIsLittleEndian);
+  VariableManager(llvm::Module &M,
+                  bool TargetIsLittleEndian,
+                  llvm::StructType *CPUStruct,
+                  unsigned EnvOffset);
 
   void setAllocaInsertPoint(llvm::Instruction *I) {
     AllocaBuilder.SetInsertPoint(I);
@@ -52,11 +56,11 @@ public:
       return nullptr;
 
     if (IsNew) {
-      auto *Undef = UndefValue::get(V->getType()->getPointerElementType());
+      auto *Undef = UndefValue::get(getVariableType(V));
       Builder.CreateStore(Undef, V);
     }
 
-    return Builder.CreateLoad(V);
+    return createLoadVariable(Builder, V);
   }
 
   /// Get or create the LLVM value associated to a PTC temporary
@@ -124,10 +128,10 @@ public:
     return loadFromCPUStateOffset(Builder, LoadSize, EnvOffset + Offset);
   }
 
-  llvm::Optional<llvm::StoreInst *> storeToEnvOffset(llvm::IRBuilder<> &Builder,
-                                                     unsigned StoreSize,
-                                                     unsigned Offset,
-                                                     llvm::Value *ToStore) {
+  std::optional<llvm::StoreInst *> storeToEnvOffset(llvm::IRBuilder<> &Builder,
+                                                    unsigned StoreSize,
+                                                    unsigned Offset,
+                                                    llvm::Value *ToStore) {
     unsigned ActualOffset = EnvOffset + Offset;
     return storeToCPUStateOffset(Builder, StoreSize, ActualOffset, ToStore);
   }
@@ -147,9 +151,8 @@ public:
 
   bool hasEnv() const { return Env != nullptr; }
 
-  llvm::Value *cpuStateToEnv(llvm::Value *CPUState,
-                             llvm::Type *TargetType,
-                             llvm::Instruction *InsertBefore) const;
+  llvm::Value *
+  cpuStateToEnv(llvm::Value *CPUState, llvm::Instruction *InsertBefore) const;
 
 private:
   std::pair<bool, llvm::Value *>
@@ -159,7 +162,7 @@ private:
                                       unsigned LoadSize,
                                       unsigned Offset);
 
-  llvm::Optional<llvm::StoreInst *>
+  std::optional<llvm::StoreInst *>
   storeToCPUStateOffset(llvm::IRBuilder<> &Builder,
                         unsigned StoreSize,
                         unsigned Offset,

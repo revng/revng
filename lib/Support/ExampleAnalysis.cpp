@@ -54,9 +54,9 @@ public:
     revng_abort();
   }
 
-  llvm::Optional<LatticeElement> handleEdge(const LatticeElement &Original,
-                                            Label *Source,
-                                            Label *Destination) const {
+  std::optional<LatticeElement> handleEdge(const LatticeElement &Original,
+                                           Label *Source,
+                                           Label *Destination) const {
     revng_abort();
   }
   size_t successor_size(Label *, Interrupt &) const { revng_abort(); }

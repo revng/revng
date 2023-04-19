@@ -7,7 +7,6 @@
 #include <set>
 
 #include "llvm/ADT/APInt.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 
@@ -17,7 +16,7 @@
 class MaterializedValue {
 private:
   bool IsValid;
-  llvm::Optional<std::string> SymbolName;
+  std::optional<std::string> SymbolName;
   llvm::APInt Value;
 
 public:
@@ -32,8 +31,8 @@ public:
 public:
   bool operator==(const MaterializedValue &Other) const {
     auto MaxBitWidth = std::max(Value.getBitWidth(), Other.Value.getBitWidth());
-    auto ZExtValue = Value.zextOrSelf(MaxBitWidth);
-    auto ZExtOther = Other.Value.zextOrSelf(MaxBitWidth);
+    auto ZExtValue = Value.zext(MaxBitWidth);
+    auto ZExtOther = Other.Value.zext(MaxBitWidth);
     auto This = std::tie(IsValid, SymbolName, ZExtValue);
     auto That = std::tie(Other.IsValid, Other.SymbolName, ZExtOther);
     return This == That;
@@ -41,7 +40,7 @@ public:
 
   bool operator<(const MaterializedValue &Other) const {
     auto MaxBitWidth = std::max(Value.getBitWidth(), Other.Value.getBitWidth());
-    if (Value.zextOrSelf(MaxBitWidth).ult(Other.Value.zextOrSelf(MaxBitWidth)))
+    if (Value.zext(MaxBitWidth).ult(Other.Value.zext(MaxBitWidth)))
       return true;
     auto This = std::tie(IsValid, SymbolName);
     auto That = std::tie(Other.IsValid, Other.SymbolName);
@@ -54,7 +53,7 @@ public:
   }
 
   bool isValid() const { return IsValid; }
-  bool hasSymbol() const { return SymbolName.hasValue(); }
+  bool hasSymbol() const { return SymbolName.has_value(); }
   std::string symbolName() const {
     revng_assert(isValid());
     revng_assert(hasSymbol());

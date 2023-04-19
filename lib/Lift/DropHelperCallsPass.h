@@ -40,13 +40,13 @@ public:
               std::back_inserter(Arguments));
 
     for (GlobalVariable *CSV : ReadCSVs)
-      Arguments.push_back(Builder.CreateLoad(csvToAlloca(CSV)));
+      Arguments.push_back(createLoadVariable(Builder, csvToAlloca(CSV)));
 
     CallInst *Result = Builder.CreateCall(getRandom(M, ReturnType), Arguments);
 
     // Put a `store getRandom()` targeting each written CSV
     for (GlobalVariable *Written : WrittenCSVs) {
-      Type *PointeeTy = Written->getType()->getPointerElementType();
+      Type *PointeeTy = Written->getValueType();
       Value *Random = Builder.CreateCall(getRandom(M, PointeeTy));
       Builder.CreateStore(Random, csvToAlloca(Written));
     }
@@ -153,7 +153,7 @@ DropHelperCallsPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
         for (Value *Argument : CallArguments)
           BaseArguments.push_back(Argument);
 
-        Optional<uint32_t> SyscallIDArgumentIndex;
+        std::optional<uint32_t> SyscallIDArgumentIndex;
         for (GlobalVariable *CSV : CSVs.Read)
           if (Callee == SyscallHelper and CSV == SyscallIDCSV)
             SyscallIDArgumentIndex = BaseArguments.size();
