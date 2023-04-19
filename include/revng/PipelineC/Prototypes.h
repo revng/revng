@@ -382,7 +382,7 @@ uint64_t rp_targets_list_targets_count(const rp_targets_list *targets_list);
  * \return the n-th target inside the provided \p targets_list or NULL if it's
  *         out of bounds.
  */
-const rp_target *
+const rp_target * /* owning */
 rp_targets_list_get_target(const rp_targets_list *targets_list, uint64_t index);
 
 /** \} */

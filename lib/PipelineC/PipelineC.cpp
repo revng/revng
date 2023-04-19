@@ -508,7 +508,7 @@ rp_target *rp_targets_list_get_target(const rp_targets_list *targets_list,
                                       uint64_t index) {
   revng_check(targets_list != nullptr);
   revng_check(index < targets_list->size());
-  return &(*targets_list)[index];
+  return new rp_target((*targets_list)[index]);
 }
 
 void rp_string_destroy(char *string) {
