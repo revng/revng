@@ -280,7 +280,7 @@ DLATypeSystemLLVMBuilder::getOrCreateLayoutTypes(const Value &V) {
         for (auto &Group : enumerate(ExtractedValues)) {
           const auto &ExtractedSet = Group.value();
           const auto FieldId = Group.index();
-          // Inside here we're working on a signle field of the struct.
+          // Inside here we're working on a single field of the struct.
           // ExtractedSet contains all the ExtractValueInst that extract the
           // same field of the struct.
           // We get or create a layout type for each of them, but they should

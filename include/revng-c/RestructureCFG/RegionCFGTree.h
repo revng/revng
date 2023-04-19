@@ -38,7 +38,7 @@ inline bool isASwitch(BasicBlockNode<llvm::BasicBlock *> *Node) {
     return llvm::isa<llvm::SwitchInst>(TerminatorBB);
   }
 
-  // The node may be an artifical node, therefore not an original switch.
+  // The node may be an artificial node, therefore not an original switch.
   return false;
 }
 

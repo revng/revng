@@ -50,7 +50,7 @@ static opt<std::string> ModelOverride("m",
                                       desc("Model YAML file. It can be used to "
                                            "provide the Model if the input "
                                            "LLVM IR file does not contain it, "
-                                           "or to ovverride the Model in the "
+                                           "or to override the Model in the "
                                            "LLVM IR input file."),
                                       cat(DecompileCategory));
 

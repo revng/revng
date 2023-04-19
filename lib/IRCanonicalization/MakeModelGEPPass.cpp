@@ -263,7 +263,7 @@ computeIRAccessPattern(FunctionMetadataCache &Cache,
   // Now we're ready to initialize the IRAccessPattern
   IRAccessPattern IRPattern{ .BaseOffset = BaseOff.zext(64),
                              .Indices = IRPatternIndices,
-                             // Intially PointeeType is set to None, then we
+                             // Initially PointeeType is set to None, then we
                              // fill it if in some special cases where we have
                              // interesting information on the pointee
                              .PointeeType = std::nullopt };
@@ -879,7 +879,7 @@ static ScoredIndices differenceScore(const model::QualifiedType &BaseType,
         revng_assert(not ChildID.InductionVariable);
 
       } else {
-        // Here we still hav some IRAPIndices, so we're modeling a strided
+        // Here we still have some IRAPIndices, so we're modeling a strided
         // access and we must have a variable Index.
         const auto &[IRCoefficient, IRIndex] = *IRAPIndicesIt;
         revng_assert(IRIndex, "IRAPIndex not present");
@@ -888,7 +888,7 @@ static ScoredIndices differenceScore(const model::QualifiedType &BaseType,
 
         // The IRAccessPattern should always have a Coefficient that is lower
         // than or equal than the array stride, otherwise we'de be modeling a
-        // traversal that breakes type safety, which is what we're trying to
+        // traversal that breaks type safety, which is what we're trying to
         // avoid.
         auto &IRCoefficientVal = IRCoefficient->getValue();
         auto IRCoefficientResized = IRCoefficientVal.zextOrTrunc(MaxBitWidth);
@@ -924,7 +924,7 @@ static ScoredIndices differenceScore(const model::QualifiedType &BaseType,
     }
 
     // Increase the depth for each element in the type system that was traversed
-    // succesfully.
+    // successfully.
     ++Depth;
   }
 
@@ -1176,7 +1176,7 @@ computeBestTAP(model::QualifiedType BaseType,
       // the induction variable, and we have to track it.
       const auto &[Coefficient, Index] = ElemIRPattern.Indices.front();
 
-      // Coefficient represents the stride of the pointer arithemtic pattern on
+      // Coefficient represents the stride of the pointer arithmetic pattern on
       // the IR. If it's larger than ElementSize on the model it means that
       // we're not accessing the array with an induction variable that
       // increments one by one.
@@ -1242,7 +1242,7 @@ computeBestTAP(model::QualifiedType BaseType,
                                                      ElemIRPattern,
                                                      VH);
       revng_assert(ElementScore >= LowerBound);
-      // If it's better or equal, udpate the running best.
+      // If it's better or equal, update the running best.
       // The "or equal" is important, because we score better the traversals
       // that go deeper in the type system.
       if (auto ElementCmp = ElementScore <=> BestScore; ElementCmp <= 0) {
@@ -1345,7 +1345,7 @@ computeBestTAP(model::QualifiedType BaseType,
                                                      VH);
         revng_assert(FieldScore >= LowerBound);
 
-        // If it's better or equal, udpate the running best.
+        // If it's better or equal, update the running best.
         // The "or equal" is important, because we score better the traversals
         // that go deeper in the type system.
         if (auto FieldCmp = FieldScore <=> BestScore; FieldCmp <= 0) {
@@ -1406,7 +1406,7 @@ computeBestTAP(model::QualifiedType BaseType,
                                                                  VH);
         revng_assert(FieldScore >= LowerBound);
 
-        // If it's better or equal, udpate the running best.
+        // If it's better or equal, update the running best.
         // The "or equal" is important, because we score better the traversals
         // that go deeper in the type system.
         if (auto FieldCmp = FieldScore <=> BestScore; FieldCmp <= 0) {
@@ -1464,7 +1464,7 @@ static ModelGEPArgs makeBestGEPArgs(const TypedBaseAddress &TBA,
   // represent the array accesses.
   model::QualifiedType CurrentType = TBA.Type;
 
-  // Holds the remaning constant offset we need to traverse to complete the
+  // Holds the remaining constant offset we need to traverse to complete the
   // traversal of IRAccessPattern
   APInt RestOff = IRPattern.BaseOffset;
 
@@ -2020,7 +2020,7 @@ static UseGEPInfoMap makeGEPReplacements(llvm::Function &F,
         // them.
         const model::QualifiedType &BaseTy = GEPSum.BaseAddress.Type;
 
-        // If the base type is a funcion type we have nothing to do, because
+        // If the base type is a function type we have nothing to do, because
         // function types cannot be "traversed" with ModelGEP.
         if (BaseTy.is(model::TypeKind::RawFunctionType)
             or BaseTy.is(model::TypeKind::CABIFunctionType))
@@ -2048,7 +2048,7 @@ static UseGEPInfoMap makeGEPReplacements(llvm::Function &F,
         revng_log(ModelGEPLog, "Best GEPArgs: " << GEPArgs);
 
         // If GEPSum is an address and I is an "address barrier"
-        // instruction (e.g. an instruction such that pointer arithmetics does
+        // instruction (e.g. an instruction such that pointer arithmetic does
         // not propagate through it), we need to check if we can still deduce
         // a rich pointer type for I starting from GEPSum. An example of an
         // "address barrier" is a xor instruction (where we cannot deduce the

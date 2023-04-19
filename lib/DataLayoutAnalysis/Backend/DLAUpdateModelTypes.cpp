@@ -125,7 +125,7 @@ static bool updateArgumentTypes(model::Binary &Model,
           // Insert a field of the type recovered by DLA at offset 0
           ModelStackStruct->Fields()[0].Type() = DLAStackType;
           revng_log(Log,
-                    "Updated: inserted fields at offest 0 with ID: "
+                    "Updated: inserted fields at offset 0 with ID: "
                       << UnqualifiedType->ID());
         } else {
           revng_log(Log, "Couldn't import the type into the model");

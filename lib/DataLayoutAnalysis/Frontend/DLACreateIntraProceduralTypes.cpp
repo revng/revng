@@ -190,7 +190,7 @@ protected:
       // Nested SCEVAddRecs are not guaranteed to have strides that go from
       // larger to smaller.
       // This code re-orders them so that the larger strides always come first.
-      // TODO: this dance of copies is only necesary because Strides and
+      // TODO: this dance of copies is only necessary because Strides and
       // TripCounts are held as 2 separate vectors in OffsetExpression.
       // Eventually we should change the code so that its a vector of structs
       // instead of two separate vectors.
@@ -708,8 +708,8 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
           continue;
 
         // ExtractValue is special since its operand has struct type, so we
-        // don't handle them explictly.  It will be analyzed only as operands of
-        // its uses.
+        // don't handle them explicitly.  It will be analyzed only as operands
+        // of its uses.
         if (isa<ExtractValueInst>(I))
           continue;
 

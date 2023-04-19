@@ -183,7 +183,7 @@ BOOST_AUTO_TEST_CASE(InsertWithMissingDependency) {
 
   BOOST_TEST(not SM.addStep(std::make_unique<SingleDependencyStep>()));
   BOOST_TEST(SM.getNumSteps() == 0);
-  // This must be true becase the step is not inserted
+  // This must be true because the step is not inserted
   BOOST_TEST(SM.hasValidSchedule());
 }
 
@@ -219,8 +219,8 @@ BOOST_AUTO_TEST_CASE(SimpleInvalidate) {
   // added.
   BOOST_TEST(SM.hasValidSchedule());
 
-  // We then add a new istance of the invalidated StepWithNoDeps, that is
-  // succesfully appended to the end of the schedule.
+  // We then add a new instance of the invalidated StepWithNoDeps, that is
+  // successfully appended to the end of the schedule.
   BOOST_TEST(SM.addStep(std::unique_ptr<Step>(new StepWithNoDeps())));
   BOOST_TEST(SM.getNumSteps() == 4);
   BOOST_TEST(SM.hasValidSchedule());

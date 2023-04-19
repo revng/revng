@@ -1017,7 +1017,7 @@ static bool shouldGenerateDebugInfoAsPTML(const llvm::Instruction &I) {
   if (!I.getDebugLoc() || !I.getDebugLoc()->getScope())
     return false;
 
-  // If the next instruciton in the BB has different DebugLoc, generate the
+  // If the next instruction in the BB has different DebugLoc, generate the
   // PTML location now.
   auto NextInstr = std::next(I.getIterator());
   if (NextInstr == I.getParent()->end() || !NextInstr->getDebugLoc()
@@ -1708,7 +1708,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
   {
     Scope BraceScope(Out, scopeTags::FunctionBody);
 
-    // We expect just one stack type defininition.
+    // We expect just one stack type definition.
     bool IsStackDefined = false;
 
     // Declare the local variable representing the stack frame

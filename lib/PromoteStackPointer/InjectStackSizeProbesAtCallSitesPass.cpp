@@ -21,7 +21,7 @@ bool InjectStackSizeProbesAtCallSitesPass::runOnModule(llvm::Module &M) {
   auto *SP = GCBI.spReg();
   auto *SPType = SP->getValueType();
 
-  // Create marker for recording stack heigh at each call site
+  // Create marker for recording stack height at each call site
   auto *SSACSType = llvm::FunctionType::get(B.getVoidTy(), { SPType }, false);
   auto SSACS = M.getOrInsertFunction("stack_size_at_call_site", SSACSType);
   auto *F = cast<Function>(SSACS.getCallee());

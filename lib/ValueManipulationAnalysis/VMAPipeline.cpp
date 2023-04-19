@@ -313,7 +313,7 @@ void VMAPipeline::run(FunctionMetadataCache &Cache, const llvm::Function *F) {
   // Propagation
   vma::propagateColors(*TFG);
 
-  // Contraint solving
+  // Constraint solving
   if (UseSolver)
     runSolver();
 

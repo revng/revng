@@ -57,7 +57,7 @@ TypeFlowGraph makeTypeFlowGraphFromFunction(FunctionMetadataCache &Cache,
                                             const llvm::Function *F,
                                             const model::Binary *Model);
 
-/// Propagate colors from colored nodes trough colored edges
+/// Propagate colors from colored nodes through colored edges
 void propagateColors(TypeFlowGraph &TG);
 
 /// Propagate a single color

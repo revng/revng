@@ -274,7 +274,7 @@ canPushThrough(const NeighborIterator &AIt, const NeighborIterator &BIt) {
 
 // Helper ordering for NeighborIterators. We need it here because we need to use
 // such iterators and keys in associative containers.
-// Notice that this might have undefined behaviour if dereferncing either LHS
+// Notice that this might have undefined behaviour if dereferencing either LHS
 // or RHS is undefined behaviour itself.
 // The bottom line is that we should never insert invalid iterators into
 // associative containers.
@@ -423,7 +423,8 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
       revng_assert(Parent != FakeRoot);
 
       // If we reach this point we have to analyze Parent, to see if some of its
-      // Instance children can be pushed down some other of its Instance chilren
+      // Instance children can be pushed down some other of its Instance
+      // children
 
       // We want to look at all instance children edges of Parent, and compute a
       // partial ordering between them, with the relationship "A should be
@@ -488,7 +489,7 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
         // be pushed through all of them. The FinalOE in EdgeWithOffset here
         // represents the new offset that AEdgeIt will have after being pushed
         // through them.
-        llvm::SmallVector<EdgeWithOffset> ContainA;
+        llvm::SmallVector<EdgeWithOffset> ContainsA;
 
         for (auto BRootIt = std::next(ARootIt); BRootIt != HierarchyEnd;
              ++BRootIt) {
@@ -507,7 +508,7 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
             // AEdgeIt can be pushed inside BEdgeIt
             auto BWithNewAOffset = EdgeWithOffset{ BEdgeIt,
                                                    std::move(OEAfterPush) };
-            ContainA.push_back(std::move(BWithNewAOffset));
+            ContainsA.push_back(std::move(BWithNewAOffset));
           } else {
             revng_assert(ToPush == BEdgeIt and Through == AEdgeIt);
             // BEdgeIt can be pushed inside AEdgeIt
@@ -527,10 +528,10 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
         // Then, for all the other edges that contain A, A can be pushed through
         // them, along with all the nodes that have already been pushed through
         // A itself (that transitively can be pushed through the others too).
-        // After we've pushed A through all edges in ContainA, we can remove A
+        // After we've pushed A through all edges in ContainsA, we can remove A
         // itelf from ChildrenHierarchy, since it's not a root anymore.
-        if (not ContainA.empty()) {
-          for (const auto &[LargerThanA, FinalOE] : ContainA) {
+        if (not ContainsA.empty()) {
+          for (const auto &[LargerThanA, FinalOE] : ContainsA) {
 
             // If A needs to be pushed through LargerThanA, and all things that
             // were previously pushed pushed through A can now be pushed through

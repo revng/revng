@@ -111,8 +111,8 @@ public:
 /// dla::Step that removes leaf nodes without valid layout information
 //
 // Initially valid layout information is simply represented by accesses, but we
-// expect this to be possibly user provded for leafs that otherwise had no valid
-// layout information, such as calls to external library functions.
+// expect this to be possibly user provided for leafs that otherwise had no
+// valid layout information, such as calls to external library functions.
 class PruneLayoutNodesWithoutLayout : public Step {
   static const char ID;
 
@@ -155,7 +155,7 @@ public:
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
-/// dla::Step that computes and propagates informations on accesses and type
+/// dla::Step that computes and propagates information on accesses and type
 /// sizes.
 class ComputeUpperMemberAccesses : public Step {
   static const char ID;
@@ -219,7 +219,7 @@ public:
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
-/// dla::Step that removes invalide stride edges
+/// dla::Step that removes invalid stride edges
 class RemoveInvalidStrideEdges : public Step {
   static const char ID;
 
@@ -239,7 +239,7 @@ public:
   virtual bool runOnTypeSystem(LayoutTypeSystem &TS) override;
 };
 
-/// dla::Step that removes invalide pointer edges
+/// dla::Step that removes invalid pointer edges
 class RemoveInvalidPointers : public Step {
   static const char ID;
 

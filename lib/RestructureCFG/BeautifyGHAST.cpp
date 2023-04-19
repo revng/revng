@@ -482,7 +482,7 @@ static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
     // Recursive scs nesting handling
     matchDoWhile(Body, AST);
 
-    // We don't want to trasform a do-while in a while
+    // We don't want to transform a do-while in a while
     if (Scs->isWhile())
       return;
 
@@ -592,7 +592,7 @@ static void matchWhile(ASTNode *RootNode, ASTTree &AST) {
     // Recursive scs nesting handling
     matchWhile(Body, AST);
 
-    // We don't want to trasform a while in a do-while
+    // We don't want to transform a while in a do-while
     if (Scs->isDoWhile())
       return;
 
@@ -739,7 +739,7 @@ protected:
 // This node weight computation routine uses a reasonable and at the same time
 // very basilar criterion, which assign a point for each node in the AST
 // subtree. In the future, we might considering using something closer to the
-// defintion of the cyclomatic Complexity iteself, cfr.
+// definition of the cyclomatic Complexity itself, cfr.
 // https://www.sonarsource.com/resources/white-papers/cognitive-complexity.html
 static RecursiveCoroutine<unsigned>
 computeCumulativeNodeWeight(ASTNode *Node,
@@ -981,7 +981,7 @@ promoteNoFallthrough(ASTTree &AST,
   case ASTNode::NK_If: {
     IfNode *If = llvm::cast<IfNode>(Node);
 
-    // First of all, we recusively invoke the analysis on the children of the
+    // First of all, we recursively invoke the analysis on the children of the
     // `IfNode` (we discussed and said that further simplifications down in
     // the AST do not alter the `nofallthrough property`).
     if (If->hasThen()) {
@@ -1042,7 +1042,7 @@ promoteNoFallthrough(ASTTree &AST,
         NewSequence->addNode(If);
 
         // We need to assign a state for the `fallthrough` attribute of the
-        // newly created `SequenceNode`. We also need to assing the `weight`
+        // newly created `SequenceNode`. We also need to assign the `weight`
         // attribute for the same reason.
         FallThroughMap[NewSequence] = FallThroughMap[If];
         NodeWeight[NewSequence] = NodeWeight[If];
@@ -1121,7 +1121,7 @@ collapseSequences(ASTTree &AST, ASTNode *Node) {
       N = rc_recur collapseSequences(AST, N);
 
       // After analyzing the node, we check if the node is a sequence node
-      // itself. If that's the case, we annotate the fact, in order to collpase
+      // itself. If that's the case, we annotate the fact, in order to collapse
       // them in the current sequence node after resizing the vector.
       if (auto *SubSeq = llvm::dyn_cast<SequenceNode>(N)) {
         ReplacementVector.push_back(std::make_pair(I, SubSeq->length()));
@@ -1152,10 +1152,10 @@ collapseSequences(ASTTree &AST, ASTNode *Node) {
       unsigned VecSize = Pair.second;
       Offset += VecSize - 1;
 
-      // The subsitution is done taking an iterator the the old sequence node,
-      // erasing it from the node list vector of the parent sequence, inserting
-      // the nodes of the collapsed sequence node, and then removing the from
-      // the AST.
+      // The substitution is done by taking an iterator the the old sequence
+      // node, erasing it from the node list vector of the parent sequence,
+      // inserting the nodes of the collapsed sequence node, and then removing
+      // it from the AST.
       auto InternalSeqIt = SeqVec.begin() + Index;
       auto *InternalSeq = llvm::cast<SequenceNode>(*InternalSeqIt);
       auto It = SeqVec.erase(InternalSeqIt);
@@ -1176,7 +1176,7 @@ collapseSequences(ASTTree &AST, ASTNode *Node) {
   case ASTNode::NK_If: {
     IfNode *If = llvm::cast<IfNode>(Node);
 
-    // First of all, we recusively invoke the analysis on the children of the
+    // First of all, we recursively invoke the analysis on the children of the
     // `IfNode` (we discussed and said that further simplifications down in
     // the AST do not alter the `nofallthrough property`).
     if (If->hasThen()) {
@@ -1352,7 +1352,7 @@ void beautifyAST(Function &F, ASTTree &CombedAST) {
                             "10-After-fix-switch-breaks");
 
   // Remove empty sequences.
-  revng_log(BeautifyLogger, "Removing emtpy sequence nodes\n");
+  revng_log(BeautifyLogger, "Removing empty sequence nodes\n");
   simplifyAtomicSequence(CombedAST, RootNode);
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpASTOnFile(F.getName().str(),

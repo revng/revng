@@ -467,7 +467,7 @@ public:
           // because one of the two following cases is always true.
           // - The instructions in the taint set were only ever affecting
           // the
-          //   current I. Discarding them means loosing track of them, but
+          //   current I. Discarding them means losing track of them, but
           //   given that the void instructions are always serialized in C,
           //   this does not constitute a problem for side effects.
           // - The instruction in the taint set were also in the taint set

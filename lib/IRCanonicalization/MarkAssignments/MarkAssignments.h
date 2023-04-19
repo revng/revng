@@ -111,7 +111,7 @@ namespace MarkAssignments {
 using AssignmentMap = std::map<llvm::Instruction *, Flags>;
 
 /// Selects in F the Instructions that need an assignment when decompiling to C.
-/// Retuns a map with the selected Instruction, and the reasons of selection.
+/// Returns a map with the selected Instruction, and the reasons of selection.
 AssignmentMap selectAssignments(llvm::Function &);
 
 } // end namespace MarkAssignments

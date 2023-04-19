@@ -111,7 +111,7 @@ void initUnaryMinusPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
 /// Initializes a pool of binary_not functions
 void initBinaryNotPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
 
-/// ModelGEP functions are used to replace pointer arithmetics with a navigation
+/// ModelGEP functions are used to replace pointer arithmetic with a navigation
 /// of the Model.
 ///
 /// \param RetType ModelGEP should return an integer of the size of the gepped

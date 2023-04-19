@@ -7,5 +7,5 @@
 
 #include "revng-c/RestructureCFG/BasicBlockNodeImpl.h"
 
-// Explicit instantation for the `RegionCFG` template class.
+// Explicit instantiation for the `RegionCFG` template class.
 template class BasicBlockNode<llvm::BasicBlock *>;
