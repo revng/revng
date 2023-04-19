@@ -74,6 +74,29 @@ public:
   }
 };
 
+class BooleanNotBuilder {
+
+  OpaqueFunctionsPool<llvm::Type *> Pool;
+  llvm::IRBuilder<> Builder;
+
+public:
+  BooleanNotBuilder(llvm::Function &F) :
+    Pool(F.getParent(), false), Builder(F.getContext()) {
+    initBooleanNotPool(Pool);
+  }
+
+  void SetInsertPoint(llvm::Instruction *I) { Builder.SetInsertPoint(I); }
+
+  llvm::CallInst *operator()(llvm::Type *IntType, llvm::Value *Val) {
+    revng_assert(isa<llvm::IntegerType>(IntType));
+    llvm::Function *Func = Pool.get(IntType,
+                                    Builder.getIntNTy(1),
+                                    IntType,
+                                    "boolean_not");
+    return Builder.CreateCall(Func, { Val });
+  }
+};
+
 using Predicate = llvm::ICmpInst::Predicate;
 
 static bool isGreater(Predicate P) {
@@ -86,6 +109,7 @@ bool TANP::runOnFunction(llvm::Function &F) {
 
   UnaryMinusBuilder BuildUnaryMinus{ F };
   BinaryNotBuilder BuildBinaryNot{ F };
+  BooleanNotBuilder BuildBooleanNot{ F };
   llvm::IRBuilder<> Builder{ F.getContext() };
 
   bool Changed = false;
@@ -179,7 +203,6 @@ bool TANP::runOnFunction(llvm::Function &F) {
 
       } else if (Predicate Pred;
                  match(&I, m_ICmp(Pred, m_Value(Val), m_APInt(Int)))) {
-
         const auto IntType = Val->getType();
 
         llvm::Value *Unknown = nullptr;
@@ -243,12 +266,14 @@ bool TANP::runOnFunction(llvm::Function &F) {
             else
               NewV = Builder.CreateAnd(NewV, WrappingComparison);
           }
-        } else if (Int->isSignBitSet()
-                   and Int->isSignedIntN(IntType->getIntegerBitWidth())) {
+        } else if (Int->isNegative()) {
           BuildUnaryMinus.SetInsertPoint(&I);
           auto UnaryMinus = BuildUnaryMinus(IntType, *Int);
           Builder.SetInsertPoint(UnaryMinus->getNextNonDebugInstruction());
           NewV = Builder.CreateICmp(Pred, Val, UnaryMinus);
+        } else if (Pred == Predicate::ICMP_EQ and Int->isNullValue()) {
+          BuildBooleanNot.SetInsertPoint(&I);
+          NewV = BuildBooleanNot(Val->getType(), Val);
         }
       }
 
