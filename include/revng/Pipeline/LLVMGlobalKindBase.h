@@ -4,21 +4,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include <iterator>
-
-#include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/IR/Function.h"
-#include "llvm/Support/Casting.h"
-#include "llvm/Transforms/Utils/Cloning.h"
 
 #include "revng/Pipeline/ContainerEnumerator.h"
 #include "revng/Pipeline/ContainerSet.h"
-#include "revng/Pipeline/Context.h"
-#include "revng/Pipeline/Kind.h"
-#include "revng/Pipeline/Step.h"
-#include "revng/Pipeline/Target.h"
 
 namespace pipeline {
 
