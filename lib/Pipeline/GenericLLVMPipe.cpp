@@ -9,6 +9,7 @@
 #include "llvm/Passes/PassBuilder.h"
 
 #include "revng/Pipeline/GenericLLVMPipe.h"
+#include "revng/Pipeline/LLVMContainer.h"
 
 using namespace std;
 using namespace llvm;
@@ -25,4 +26,16 @@ void O2Pipe::registerPasses(llvm::legacy::PassManager &Manager) {
 
 std::unique_ptr<LLVMPassWrapperBase> PureLLVMPassWrapper::clone() const {
   return std::make_unique<PureLLVMPassWrapper>(*this);
+}
+
+void GenericLLVMPipe::run(const Context &, LLVMContainer &Container) {
+  llvm::legacy::PassManager Manager;
+  for (const auto &Element : Passes)
+    Element->registerPasses(Manager);
+  Manager.run(Container.getModule());
+}
+
+void PureLLVMPassWrapper::registerPasses(llvm::legacy::PassManager &Manager) {
+  auto *Registry = llvm::PassRegistry::getPassRegistry();
+  Manager.add(Registry->getPassInfo(PassName)->createPass());
 }

@@ -17,12 +17,13 @@
 #include "revng/ADT/Concepts.h"
 #include "revng/Pipeline/ContainerFactorySet.h"
 #include "revng/Pipeline/Contract.h"
-#include "revng/Pipeline/LLVMContainer.h"
 #include "revng/Pipeline/Step.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/ResourceFinder.h"
 
 namespace pipeline {
+
+class LLVMContainer;
 
 class LLVMPassWrapperBase {
 public:
@@ -70,10 +71,7 @@ public:
 
   ~PureLLVMPassWrapper() override = default;
 
-  void registerPasses(llvm::legacy::PassManager &Manager) override {
-    auto *Registry = llvm::PassRegistry::getPassRegistry();
-    Manager.add(Registry->getPassInfo(PassName)->createPass());
-  }
+  void registerPasses(llvm::legacy::PassManager &Manager) override;
 
   const std::vector<ContractGroup> &getContract() const override {
     static const std::vector<ContractGroup> Empty{};
@@ -137,7 +135,6 @@ public:
 
 /// Implementation of the LLVM pipes to be instantiated for a particular LLVM
 /// container
-template<typename LLVMContainer>
 class GenericLLVMPipe {
 private:
   llvm::SmallVector<std::unique_ptr<LLVMPassWrapperBase>, 4> Passes;
@@ -179,12 +176,7 @@ public:
     return Contract;
   }
 
-  void run(const Context &, LLVMContainer &Container) {
-    llvm::legacy::PassManager Manager;
-    for (const auto &Element : Passes)
-      Element->registerPasses(Manager);
-    Manager.run(Container.getModule());
-  }
+  void run(const Context &, LLVMContainer &Container);
 
   void addPass(const PureLLVMPassWrapper &Pass) {
     Passes.emplace_back(Pass.clone());
@@ -241,6 +233,6 @@ public:
   void registerPasses(llvm::legacy::PassManager &Manager);
 };
 
-using LLVMPipe = GenericLLVMPipe<LLVMContainer>;
+using LLVMPipe = GenericLLVMPipe;
 
 } // namespace pipeline

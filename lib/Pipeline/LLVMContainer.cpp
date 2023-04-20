@@ -19,9 +19,6 @@
 
 #include "revng/Pipeline/LLVMContainer.h"
 
-char pipeline::LLVMContainerTypeID = '0';
-
-template<>
 const char pipeline::LLVMContainer::ID = '0';
 
 void pipeline::makeGlobalObjectsArray(llvm::Module &Module,
