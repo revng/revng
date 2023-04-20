@@ -55,14 +55,7 @@ namespace pipeline {
 void makeGlobalObjectsArray(llvm::Module &Module,
                             llvm::StringRef GlobalArrayName);
 
-template<typename LLVMContainer>
-class GenericLLVMPipe;
-
-/// Implementation that can be derived by anyone so that multiple identical
-/// LLVMContainers can exist so that inspector kinds do not pollute each other
-template<char *TypeID>
-class LLVMContainerBase
-  : public EnumerableContainer<LLVMContainerBase<TypeID>> {
+class LLVMContainer : public EnumerableContainer<LLVMContainer> {
 private:
   using LinkageRestoreMap = std::map<std::string,
                                      llvm::GlobalValue::LinkageTypes>;
@@ -71,7 +64,7 @@ public:
   static const char ID;
 
 private:
-  using ThisType = LLVMContainerBase<TypeID>;
+  using ThisType = LLVMContainer;
 
 private:
   std::unique_ptr<llvm::Module> Module;
@@ -79,22 +72,22 @@ private:
 public:
   inline static const llvm::StringRef MIMEType = "text/x.llvm.ir";
 
-  LLVMContainerBase(llvm::StringRef Name,
-                    Context *Ctx,
-                    llvm::LLVMContext *LLVMCtx) :
+  LLVMContainer(llvm::StringRef Name,
+                Context *Ctx,
+                llvm::LLVMContext *LLVMCtx) :
     EnumerableContainer<ThisType>(*Ctx, Name),
     Module(std::make_unique<llvm::Module>("revng.module", *LLVMCtx)) {}
 
-  LLVMContainerBase(llvm::StringRef Name,
-                    Context *Ctx,
-                    std::unique_ptr<llvm::Module> M) :
+  LLVMContainer(llvm::StringRef Name,
+                Context *Ctx,
+                std::unique_ptr<llvm::Module> M) :
     EnumerableContainer<ThisType>(*Ctx, Name), Module(std::move(M)) {}
 
 public:
   template<typename... LLVMPasses>
   static PipeWrapper
   wrapLLVMPasses(std::string LLVMModuleName, LLVMPasses &&...P) {
-    return PipeWrapper::make(GenericLLVMPipe<ThisType>(std::move(P)...),
+    return PipeWrapper::make(GenericLLVMPipe(std::move(P)...),
                              { std::move(LLVMModuleName) });
   }
 
@@ -309,9 +302,6 @@ private:
   }
 };
 
-extern char LLVMContainerTypeID;
-
-using LLVMContainer = LLVMContainerBase<&LLVMContainerTypeID>;
 using LLVMKind = LLVMGlobalKindBase<LLVMContainer>;
 
 } // namespace pipeline
