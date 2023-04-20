@@ -8,6 +8,7 @@
 
 #include "revng/Pipeline/ContainerEnumerator.h"
 #include "revng/Pipeline/ContainerSet.h"
+#include "revng/Pipeline/LLVMContainer.h"
 
 namespace pipeline {
 
@@ -19,7 +20,6 @@ namespace pipeline {
 ///
 /// compactTargets must collapse the targets into the * target if they are all
 /// presents, do no thing otherwise.
-template<typename LLVMContainer>
 class LLVMGlobalKindBase : public KindForContainer<LLVMContainer> {
 public:
   using StaticContainer = llvm::SmallVector<LLVMGlobalKindBase *, 4>;
@@ -159,5 +159,6 @@ private:
     return Container;
   }
 };
+using LLVMKind = LLVMGlobalKindBase;
 
 } // namespace pipeline
