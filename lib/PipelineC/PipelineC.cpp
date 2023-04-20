@@ -115,9 +115,10 @@ static bool _rp_initialize(int argc,
   }
 
   revng_check(not InitRevngInstance.has_value());
-  InitRevngInstance.emplace(argc, argv);
-
-  llvm::cl::ParseCommandLineOptions(argc, argv);
+  InitRevngInstance.emplace(argc,
+                            argv,
+                            "",
+                            llvm::ArrayRef<llvm::cl::OptionCategory *>());
 
   for (const auto &[SigNumber, Handler] : Signals) {
     // All of LLVM's initialization is complete, restore the original signals to

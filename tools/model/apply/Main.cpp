@@ -36,10 +36,7 @@ static cl::opt<std::string> DiffPath(cl::Positional,
 static ModelOutputOptions<false> Options(ThisToolCategory);
 
 int main(int Argc, char *Argv[]) {
-  revng::InitRevng X(Argc, Argv);
-
-  cl::HideUnrelatedOptions({ &ThisToolCategory });
-  cl::ParseCommandLineOptions(Argc, Argv);
+  revng::InitRevng X(Argc, Argv, "", { &ThisToolCategory });
 
   ExitOnError ExitOnError;
 
