@@ -61,18 +61,7 @@ static opt<std::string> TargetFunction("t",
                                        cat(DecompileCategory));
 
 int main(int Argc, const char *Argv[]) {
-  revng::InitRevng X(Argc, Argv);
-
-  // Hide options not related to this tool
-  llvm::cl::HideUnrelatedOptions({ &DecompileCategory });
-
-  // Parse command line
-  bool Ok = llvm::cl::ParseCommandLineOptions(Argc,
-                                              Argv,
-                                              Overview,
-                                              &llvm::errs());
-  if (not Ok)
-    std::exit(EXIT_FAILURE);
+  revng::InitRevng X(Argc, Argv, Overview, { &DecompileCategory });
 
   // Get the IR
   llvm::SMDiagnostic Diag;
