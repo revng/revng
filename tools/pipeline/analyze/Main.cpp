@@ -89,13 +89,10 @@ overrideModel(PipelineManager &Manager, TupleTree<model::Binary> NewModel) {
   return llvm::Error::success();
 }
 
-int main(int argc, const char *argv[]) {
+int main(int argc, char *argv[]) {
   using BinaryRef = TupleTreeGlobal<model::Binary>;
 
-  revng::InitRevng X(argc, argv);
-
-  HideUnrelatedOptions(MainCategory);
-  ParseCommandLineOptions(argc, argv);
+  revng::InitRevng X(argc, argv, "", { &MainCategory });
 
   Registry::runAllInitializationRoutines();
 

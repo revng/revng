@@ -62,11 +62,8 @@ static ToolCLOptions BaseOptions(MainCategory);
 
 static ExitOnError AbortOnError;
 
-int main(int argc, const char *argv[]) {
-  revng::InitRevng X(argc, argv);
-
-  HideUnrelatedOptions(MainCategory);
-  ParseCommandLineOptions(argc, argv);
+int main(int argc, char *argv[]) {
+  revng::InitRevng X(argc, argv, "", { &MainCategory });
 
   Registry::runAllInitializationRoutines();
 

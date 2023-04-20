@@ -57,11 +57,8 @@ static alias OutputA("o",
 
 static llvm::ExitOnError AbortOnError;
 
-int main(int argc, const char *argv[]) {
-  revng::InitRevng X(argc, argv);
-
-  llvm::cl::HideUnrelatedOptions({ &Options::ThisToolCategory });
-  llvm::cl::ParseCommandLineOptions(argc, argv);
+int main(int argc, char *argv[]) {
+  revng::InitRevng X(argc, argv, "", { &Options::ThisToolCategory });
 
   if (Options::ListBuffers xor Options::ExtractBuffer.empty()) {
     dbg << "Please specify either --list-buffers or --extract-buffer\n";

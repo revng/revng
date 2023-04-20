@@ -63,11 +63,9 @@ static void loadPassesList() {
 }
 
 int main(int Argc, char *Argv[]) {
-  revng::InitRevng X(Argc, Argv);
-
   loadPassesList();
-  cl::HideUnrelatedOptions({ &ThisToolCategory, &ModelPassCategory });
-  cl::ParseCommandLineOptions(Argc, Argv);
+
+  revng::InitRevng X(Argc, Argv, "", { &ThisToolCategory, &ModelPassCategory });
 
   ExitOnError ExitOnError;
   auto MaybeModel = ExitOnError(ModelInModule::load(InputFilename));

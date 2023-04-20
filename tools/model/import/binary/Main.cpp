@@ -33,10 +33,7 @@ static opt<std::string> OutputFilename("o",
                                        value_desc("filename"));
 
 int main(int Argc, char *Argv[]) {
-  revng::InitRevng X(Argc, Argv);
-
-  HideUnrelatedOptions({ &MainCategory });
-  ParseCommandLineOptions(Argc, Argv);
+  revng::InitRevng X(Argc, Argv, "", { &MainCategory });
 
   // Open output
   ExitOnError ExitOnError;
