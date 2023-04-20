@@ -7,7 +7,6 @@ add_subdirectory(MarkAssignments)
 revng_add_analyses_library(
   revngcIRCanonicalization
   revngc
-  DuplicateReferences.cpp
   ExitSSAPass.cpp
   FoldModelGEP.cpp
   HoistStructPhis.cpp

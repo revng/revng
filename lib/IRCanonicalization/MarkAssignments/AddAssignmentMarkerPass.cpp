@@ -29,22 +29,24 @@
 
 #include "MarkAssignments.h"
 
-struct AddAssignmentMarkersPass : public llvm::FunctionPass {
+using namespace llvm;
+
+struct AddAssignmentMarkersPass : public FunctionPass {
 public:
   static char ID;
 
-  AddAssignmentMarkersPass() : llvm::FunctionPass(ID) {}
+  AddAssignmentMarkersPass() : FunctionPass(ID) {}
 
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesCFG();
     AU.addRequired<LoadModelWrapperPass>();
     AU.addRequired<FunctionMetadataCachePass>();
   }
 
-  bool runOnFunction(llvm::Function &F) override;
+  bool runOnFunction(Function &F) override;
 };
 
-bool AddAssignmentMarkersPass::runOnFunction(llvm::Function &F) {
+bool AddAssignmentMarkersPass::runOnFunction(Function &F) {
 
   // Skip non-isolated functions
   auto FTags = FunctionTags::TagsSet::from(&F);
@@ -70,18 +72,18 @@ bool AddAssignmentMarkersPass::runOnFunction(llvm::Function &F) {
                                 *Model,
                                 /*PointerOnly*/ false);
 
-  llvm::Module *M = F.getParent();
-  llvm::IRBuilder<> Builder(M->getContext());
+  Module *M = F.getParent();
+  IRBuilder<> Builder(M->getContext());
   bool Changed = false;
 
-  OpaqueFunctionsPool<llvm::Type *> LocalVarPool(M, false);
+  OpaqueFunctionsPool<Type *> LocalVarPool(M, false);
   initLocalVarPool(LocalVarPool);
-  OpaqueFunctionsPool<llvm::Type *> AssignPool(M, false);
+  OpaqueFunctionsPool<Type *> AssignPool(M, false);
   initAssignPool(AssignPool);
-  OpaqueFunctionsPool<llvm::Type *> CopyPool(M, false);
+  OpaqueFunctionsPool<Type *> CopyPool(M, false);
   initCopyPool(CopyPool);
 
-  std::map<llvm::CallInst *, llvm::CallInst *> StructCallToLocalVarType;
+  std::map<CallInst *, CallInst *> StructCallToLocalVarType;
 
   for (auto &[I, Flag] : Assignments) {
     auto *IType = I->getType();
@@ -109,8 +111,27 @@ bool AddAssignmentMarkersPass::runOnFunction(llvm::Function &F) {
       revng_assert(not isCallToTagged(I, FunctionTags::IsRef),
                    dumpToString(I).c_str());
 
-      // First, we have to declare the LocalVariable, in the correct place, i.e.
-      // either the entry block or just before I.
+      // If we're trying to create a new local variable for a copy of another
+      // existing local variable, just reuse the existing one.
+      if (auto *CallToCopy = getCallToTagged(I, FunctionTags::Copy)) {
+        if (auto *CallToLocal = getCallToTagged(CallToCopy->getArgOperand(0),
+                                                FunctionTags::LocalVariable)) {
+
+          // If the existing instruction needs a top scope declaration, that
+          // property is transferred onto the already existing local variable.
+          if (needsTopScopeDeclaration(*CallToCopy)) {
+            BasicBlock *EntryBlock = &F.getEntryBlock();
+            if (CallToLocal->getParent() != EntryBlock)
+              CallToLocal->moveBefore(*EntryBlock, EntryBlock->begin());
+          }
+
+          Changed = true;
+          continue;
+        }
+      }
+
+      // First, we have to declare the LocalVariable, in the correct place,
+      // i.e. either the entry block or just before I.
       if (needsTopScopeDeclaration(*I))
         Builder.SetInsertPoint(&F.getEntryBlock().front());
       else
@@ -122,18 +143,17 @@ bool AddAssignmentMarkersPass::runOnFunction(llvm::Function &F) {
                                                 "LocalVariable");
 
       // Compute the model type returned from the call.
-      llvm::Constant *ModelTypeString = serializeToLLVMString(TypeMap.at(I),
-                                                              *M);
+      Constant *ModelTypeString = serializeToLLVMString(TypeMap.at(I), *M);
 
       // Inject call to LocalVariable
-      auto *LocalVarCall = Builder.CreateCall(LocalVarFunction,
-                                              { ModelTypeString });
+      CallInst *LocalVarCall = Builder.CreateCall(LocalVarFunction,
+                                                  { ModelTypeString });
 
       // Then, we have to replace all the uses of I so that they make a Copy
-      // from the new LocalVariable
-      for (llvm::Use &U : llvm::make_early_inc_range(I->uses())) {
-        revng_assert(isa<llvm::Instruction>(U.getUser()));
-        Builder.SetInsertPoint(cast<llvm::Instruction>(U.getUser()));
+      // from the LocalVariable
+      for (Use &U : llvm::make_early_inc_range(I->uses())) {
+        revng_assert(isa<Instruction>(U.getUser()));
+        Builder.SetInsertPoint(cast<Instruction>(U.getUser()));
 
         // Create a Copy to dereference the LocalVariable
         auto *CopyFnType = getCopyType(LocalVarCall->getType());
@@ -144,7 +164,7 @@ bool AddAssignmentMarkersPass::runOnFunction(llvm::Function &F) {
         U.set(CopyCall);
       }
 
-      // Finally, we have to assign the result of I to the local variable, right
+      // We have to assign the result of I to the local variable, right
       // after I itself.
       Builder.SetInsertPoint(I->getParent(), std::next(I->getIterator()));
 
@@ -164,7 +184,7 @@ bool AddAssignmentMarkersPass::runOnFunction(llvm::Function &F) {
 
 char AddAssignmentMarkersPass::ID = 0;
 
-using Register = llvm::RegisterPass<AddAssignmentMarkersPass>;
+using Register = RegisterPass<AddAssignmentMarkersPass>;
 static Register X("add-assignment-markers",
                   "Pass that adds assignment markers to the IR",
                   false,

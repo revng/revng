@@ -159,7 +159,7 @@ BOOST_AUTO_TEST_CASE(ManyUses) {
 
   ExpectedFlagsType ExpectedFlags{
     BBAssignmentFlags{ "initial_block",
-                       { AlwaysAssign, AlwaysAssign, AlwaysAssign, None } },
+                       { None, AlwaysAssign, AlwaysAssign, None } },
   };
 
   runTestOnFunctionWithExpected(Body, ExpectedFlags);
@@ -194,7 +194,7 @@ BOOST_AUTO_TEST_CASE(Interfering) {
 
   ExpectedFlagsType ExpectedFlags{
     BBAssignmentFlags{ "initial_block",
-                       { AlwaysAssign,
+                       { None,
                          HasInterferingSideEffects,
                          HasSideEffects,
                          HasSideEffects,
@@ -214,8 +214,7 @@ BOOST_AUTO_TEST_CASE(NonInterfering) {
   )LLVM";
 
   ExpectedFlagsType ExpectedFlags{
-    BBAssignmentFlags{ "initial_block",
-                       { AlwaysAssign, None, HasSideEffects, None } },
+    BBAssignmentFlags{ "initial_block", { None, None, HasSideEffects, None } },
   };
 
   runTestOnFunctionWithExpected(Body, ExpectedFlags);
@@ -233,13 +232,9 @@ BOOST_AUTO_TEST_CASE(ComplexNonInterfering) {
   )LLVM";
 
   ExpectedFlagsType ExpectedFlags{
-    BBAssignmentFlags{ /*.BBName =*/"initial_block",
-                       /*.InstrFlags =*/{ AlwaysAssign,
-                                          None,
-                                          None,
-                                          None,
-                                          HasSideEffects,
-                                          None } },
+    BBAssignmentFlags{
+      /*.BBName =*/"initial_block",
+      /*.InstrFlags =*/{ None, None, None, None, HasSideEffects, None } },
   };
 
   runTestOnFunctionWithExpected(Body, ExpectedFlags);
@@ -317,7 +312,7 @@ BOOST_AUTO_TEST_CASE(ConditionalIsNotAssigned1) {
     BBAssignmentFlags{ /*.BBName =*/"initial_block",
                        /*.InstrFlags =*/
                        {
-                         AlwaysAssign,
+                         None,
                          None,
                          None,
                          None,
@@ -363,7 +358,7 @@ BOOST_AUTO_TEST_CASE(ConditionalIsNotAssigned2) {
     BBAssignmentFlags{ /*.BBName =*/"initial_block",
                        /*.InstrFlags =*/
                        {
-                         AlwaysAssign,
+                         None,
                          None,
                          None,
                          None,
