@@ -145,7 +145,7 @@ public:
     }
   }
 
-  ContainerSet::value_type *getArtifactsContainer() {
+  const ContainerSet::value_type *getArtifactsContainer() {
     if (!Artifacts.isValid()) {
       return nullptr;
     }
@@ -159,7 +159,7 @@ public:
     }
   }
 
-  llvm::StringRef getArtifactsSingleTargetFilename() {
+  llvm::StringRef getArtifactsSingleTargetFilename() const {
     if (!Artifacts.isValid()) {
       return llvm::StringRef();
     }

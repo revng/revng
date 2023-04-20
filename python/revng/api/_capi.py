@@ -13,7 +13,7 @@ from cffi import FFI
 from cffi.backend_ctypes import CTypesBackend
 
 from revng.support import AnyPaths, get_root, to_iterable
-from revng.support.collect import collect_libraries, collect_one
+from revng.support.collect import collect_files, collect_libraries, collect_one
 
 
 class AtomicCounterWithCallback:
@@ -128,7 +128,8 @@ for header_path in header_paths:
     with open(header_path, encoding="utf-8") as header_file:
         lines = ""
         for line in header_file:
-            if not line.startswith("#"):
+            # TODO: use a C preprocessor to remove #include-s and macros
+            if not (line.startswith("#") or line.startswith("LENGTH_HINT")):
                 lines += line
             else:
                 # Add newline to preserve line numbers
@@ -148,6 +149,7 @@ _api = ApiWrapper(_raw_api, ffi)
 def initialize(
     args: Iterable[str] = (),
     libraries: Optional[AnyPaths] = None,
+    pipelines: Optional[AnyPaths] = None,
     signals_to_preserve: Iterable[int] = (),
 ):
     """Initialize library, must be called exactly once"""
@@ -157,18 +159,28 @@ def initialize(
     else:
         libraries = to_iterable(libraries)
 
-    path_libraries = [Path(f) for f in libraries]
-    assert all(lib.is_file() for lib in path_libraries), "Analysis libraries must all be present"
+    if pipelines is None:
+        pipelines = collect_files(ROOT, ["share", "revng", "pipelines"], "*.yml")
+    else:
+        pipelines = to_iterable(libraries)
 
-    _libraries = [ffi.new("char[]", str(s.resolve()).encode("utf-8")) for s in path_libraries]
-    _args = [ffi.new("char[]", arg.encode("utf-8")) for arg in args]
+    path_libraries = [Path(f) for f in libraries]
+    path_pipelines = [Path(f) for f in pipelines]
+    assert all(p.is_file() for p in path_libraries), "Analysis libraries must all be present"
+    assert all(p.is_file() for p in path_pipelines), "Pipeline files must all be present"
+
+    args_combined = [
+        "",  # Dummy value to respect argc/argv conventions
+        *args,
+        *[f"-load={p.resolve()}" for p in path_libraries],
+        *[f"-pipeline-path={p}" for p in path_pipelines],
+    ]
+    _args = [ffi.new("char[]", arg.encode("utf-8")) for arg in args_combined]
     _signals_to_preserve = [int(s) for s in signals_to_preserve]
 
     success = _api.rp_initialize(
         len(_args),
         _args,
-        len(_libraries),
-        _libraries,
         len(_signals_to_preserve),
         _signals_to_preserve,
     )

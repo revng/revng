@@ -100,7 +100,7 @@ set(REVNG_CLI_COMMANDS_MODULE_FILES
     revng/cli/_commands/opt.py revng/cli/_commands/pipeline_tools.py
     revng/cli/_commands/override_by_name.py revng/cli/_commands/daemon.py
     revng/cli/_commands/hard_purge.py revng/cli/_commands/import_idb.py
-    revng/cli/_commands/idb_converter.py)
+    revng/cli/_commands/idb_converter.py revng/cli/_commands/trace_run.py)
 
 python_module(TARGET_NAME revng-python-cli-commands MODULE_FILES
               ${REVNG_CLI_COMMANDS_MODULE_FILES})

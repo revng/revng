@@ -14,6 +14,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Support/raw_ostream.h"
@@ -120,7 +121,12 @@ PipelineManager::create(llvm::ArrayRef<std::string> Pipelines,
 
   std::vector<std::string> LoadedPipelines;
 
-  for (const auto &Path : Pipelines) {
+  std::vector<std::string> OrderedPipelines(Pipelines.begin(), Pipelines.end());
+  llvm::sort(OrderedPipelines, [](std::string &Elem1, std::string &Elem2) {
+    return llvm::sys::path::filename(Elem1) < llvm::sys::path::filename(Elem2);
+  });
+
+  for (const auto &Path : OrderedPipelines) {
     auto MaybeBuffer = errorOrToExpected(MemoryBuffer::getFileOrSTDIN(Path));
     if (not MaybeBuffer)
       return MaybeBuffer.takeError();

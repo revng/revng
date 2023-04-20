@@ -1,0 +1,15 @@
+# This file is distributed under the MIT License. See LICENSE.md for details.
+{
+   Cond on ptc_translate
+   Memcheck:Cond
+   ...
+   fun:ptc_translate
+   ...
+}
+{
+   Value8 on ptc_translate
+   Memcheck:Value8
+   ...
+   fun:ptc_translate
+   ...
+}

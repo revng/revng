@@ -379,7 +379,7 @@ class WhitespaceCheckPass(Pass):
                     trailing_whitespace[path].append(index + 1)
                 if "\t" in line:
                     tabs[path].append(index + 1)
-            if content[-1] != "\n":
+            if content == "" or content[-1] != "\n":
                 no_end_newline.append(path)
 
         return PassResult.make_from(
@@ -431,7 +431,8 @@ class CPPCheckPass(Pass):
         return [
             file
             for file, contents in cpp_files.items()
-            if re.search(r"int main\([^)]+\) {", contents) and "InitRevng" not in contents
+            if re.search(r"int main\([^)]+\) {", contents)
+            and ("// rcc-ignore: initrevng" not in contents and "InitRevng" not in contents)
         ]
 
     async def process(self, files: Dict[Path, str], args) -> PassResult:
@@ -491,7 +492,7 @@ def suffix_or_shebang(suffixes: Sequence[str] = (), shebang: str = "") -> FileFi
     def matcher(path: Path, content: str) -> bool:
         if len(suffixes) > 0 and path.suffix.startswith(".") and path.suffix[1:] in suffixes:
             return True
-        if shebang != "":
+        if shebang != "" and content != "":
             first_line = content.splitlines()[0]
             if re.search(r"#!.*" + shebang, first_line):
                 return True

@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+// NOLINTBEGIN
+
 typedef struct rp_manager rp_manager;
 typedef struct rp_kind rp_kind;
 typedef struct rp_rank rp_rank;
@@ -22,3 +24,5 @@ typedef struct rp_invalidations rp_invalidations;
 typedef struct rp_buffer rp_buffer;
 typedef struct rp_container_targets_map rp_container_targets_map;
 typedef struct rp_analyses_list rp_analyses_list;
+
+// NOLINTEND

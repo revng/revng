@@ -8,8 +8,19 @@
 #include <string>
 #include <vector>
 
+#include "llvm/ADT/SmallString.h"
+#include "llvm/Support/Path.h"
+
 std::string getCurrentExecutableFullPath();
 std::string getCurrentRoot();
+
+template<typename... T>
+  requires(std::is_convertible_v<T, llvm::StringRef> && ...)
+std::string joinPath(const llvm::StringRef First, const T... Parts) {
+  llvm::SmallString<128> ResultPath(First);
+  (llvm::sys::path::append(ResultPath, Parts), ...);
+  return ResultPath.str().str();
+}
 
 class PathList {
 public:

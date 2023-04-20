@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
@@ -99,10 +98,7 @@ class DaemonSelfTestCommand(Command):
         return (aiohttp.TCPConnector(), self.url)
 
     async def run_self_test(self, executable_path: str, has_revng_c: bool):
-        try:
-            await self.check_server_up()
-        except ValueError as e:
-            self.fail(e)
+        await self.check_server_up()
 
         connector, address = await self.get_connection()
         transport = AIOHTTPTransport(
