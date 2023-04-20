@@ -20,7 +20,7 @@ target_include_directories(test_lazysmallbitvector
                            PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_lazysmallbitvector revngSupport revngUnitTestHelpers
                       Boost::unit_test_framework ${LLVM_LIBRARIES})
-add_test(NAME test_lazysmallbitvector COMMAND test_lazysmallbitvector)
+revng_add_test(NAME test_lazysmallbitvector COMMAND test_lazysmallbitvector)
 set_tests_properties(test_lazysmallbitvector PROPERTIES LABELS "unit")
 
 #
@@ -32,7 +32,7 @@ target_compile_definitions(test_classsentinel PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(test_classsentinel PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_classsentinel revngSupport revngUnitTestHelpers
                       Boost::unit_test_framework ${LLVM_LIBRARIES})
-add_test(NAME test_classsentinel COMMAND test_classsentinel)
+revng_add_test(NAME test_classsentinel COMMAND test_classsentinel)
 set_tests_properties(test_classsentinel PROPERTIES LABELS "unit")
 
 #
@@ -44,7 +44,7 @@ target_compile_definitions(test_irhelpers PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(test_irhelpers PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_irhelpers revngSupport revngUnitTestHelpers
                       Boost::unit_test_framework ${LLVM_LIBRARIES})
-add_test(NAME test_irhelpers COMMAND test_irhelpers)
+revng_add_test(NAME test_irhelpers COMMAND test_irhelpers)
 set_tests_properties(test_irhelpers PROPERTIES LABELS "unit")
 
 #
@@ -57,7 +57,7 @@ target_compile_definitions(test_advancedvalueinfo
 target_include_directories(test_advancedvalueinfo PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_advancedvalueinfo revngSupport revngBasicAnalyses
                       Boost::unit_test_framework ${LLVM_LIBRARIES})
-add_test(NAME test_advancedvalueinfo COMMAND test_advancedvalueinfo)
+revng_add_test(NAME test_advancedvalueinfo COMMAND test_advancedvalueinfo)
 set_tests_properties(test_advancedvalueinfo PROPERTIES LABELS "unit")
 
 #
@@ -69,7 +69,7 @@ target_compile_definitions(test_zipmapiterator PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(test_zipmapiterator PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_zipmapiterator revngSupport revngUnitTestHelpers
                       Boost::unit_test_framework ${LLVM_LIBRARIES})
-add_test(NAME test_zipmapiterator COMMAND test_zipmapiterator)
+revng_add_test(NAME test_zipmapiterator COMMAND test_zipmapiterator)
 set_tests_properties(test_zipmapiterator PROPERTIES LABELS "unit")
 
 #
@@ -82,7 +82,7 @@ target_compile_definitions(test_constantrangeset
 target_include_directories(test_constantrangeset PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_constantrangeset revngSupport revngUnitTestHelpers
                       Boost::unit_test_framework ${LLVM_LIBRARIES})
-add_test(NAME test_constantrangeset COMMAND test_constantrangeset)
+revng_add_test(NAME test_constantrangeset COMMAND test_constantrangeset)
 set_tests_properties(test_constantrangeset PROPERTIES LABELS "unit")
 
 #
@@ -98,8 +98,8 @@ target_include_directories(test_shrinkinstructionoperands
 target_link_libraries(
   test_shrinkinstructionoperands revngSupport revngUnitTestHelpers
   Boost::unit_test_framework ${LLVM_LIBRARIES})
-add_test(NAME test_shrinkinstructionoperands
-         COMMAND test_shrinkinstructionoperands)
+revng_add_test(NAME test_shrinkinstructionoperands COMMAND
+               test_shrinkinstructionoperands)
 set_tests_properties(test_shrinkinstructionoperands PROPERTIES LABELS "unit")
 
 #
@@ -112,7 +112,7 @@ target_include_directories(test_metaaddress PRIVATE "${CMAKE_SOURCE_DIR}"
 target_compile_definitions(test_metaaddress PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_link_libraries(test_metaaddress revngSupport revngUnitTestHelpers
                       ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY} ${LLVM_LIBRARIES})
-add_test(NAME test_metaaddress COMMAND test_metaaddress)
+revng_add_test(NAME test_metaaddress COMMAND test_metaaddress)
 set_tests_properties(test_metaaddress PROPERTIES LABELS "unit")
 
 #
@@ -128,8 +128,8 @@ target_include_directories(test_filtered_graph_traits
 target_link_libraries(
   test_filtered_graph_traits revngSupport revngUnitTestHelpers
   Boost::unit_test_framework ${LLVM_LIBRARIES})
-add_test(NAME test_filtered_graph_traits COMMAND test_filtered_graph_traits --
-                                                 "${SRC}/test_graphs/")
+revng_add_test(NAME test_filtered_graph_traits COMMAND
+               test_filtered_graph_traits -- "${SRC}/test_graphs/")
 set_tests_properties(test_filtered_graph_traits PROPERTIES LABELS "unit")
 
 #
@@ -141,7 +141,7 @@ target_compile_definitions(test_smallmap PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(test_smallmap PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_smallmap revngSupport revngUnitTestHelpers
                       Boost::unit_test_framework ${LLVM_LIBRARIES})
-add_test(NAME test_smallmap COMMAND test_smallmap)
+revng_add_test(NAME test_smallmap COMMAND test_smallmap)
 set_tests_properties(test_smallmap PROPERTIES LABELS "unit")
 
 #
@@ -153,7 +153,7 @@ target_compile_definitions(test_genericgraph PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(test_genericgraph PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_genericgraph revngSupport Boost::unit_test_framework
                       ${LLVM_LIBRARIES})
-add_test(NAME test_genericgraph COMMAND test_genericgraph)
+revng_add_test(NAME test_genericgraph COMMAND test_genericgraph)
 set_tests_properties(test_genericgraph PROPERTIES LABELS "unit")
 
 #
@@ -181,7 +181,8 @@ target_include_directories(test_keyedobjectscontainers
 target_link_libraries(
   test_keyedobjectscontainers revngSupport revngUnitTestHelpers
   Boost::unit_test_framework ${LLVM_LIBRARIES})
-add_test(NAME test_keyedobjectscontainers COMMAND test_keyedobjectscontainers)
+revng_add_test(NAME test_keyedobjectscontainers COMMAND
+               test_keyedobjectscontainers)
 set_tests_properties(test_keyedobjectscontainers PROPERTIES LABELS "unit")
 
 #
@@ -199,7 +200,7 @@ target_link_libraries(
   revngModelPasses
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME test_model COMMAND test_model)
+revng_add_test(NAME test_model COMMAND test_model)
 set_tests_properties(test_model PROPERTIES LABELS "unit")
 
 #
@@ -212,7 +213,7 @@ target_compile_definitions(test_instantiatepasses
 target_include_directories(test_instantiatepasses PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_instantiatepasses revngSupport revngUnitTestHelpers
                       revngModel Boost::unit_test_framework ${LLVM_LIBRARIES})
-add_test(NAME test_instantiatepasses COMMAND test_instantiatepasses)
+revng_add_test(NAME test_instantiatepasses COMMAND test_instantiatepasses)
 set_tests_properties(test_instantiatepasses PROPERTIES LABELS "unit")
 
 #
@@ -225,7 +226,7 @@ target_compile_definitions(test_upcastablepointer
 target_include_directories(test_upcastablepointer PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_upcastablepointer revngSupport revngUnitTestHelpers
                       revngModel Boost::unit_test_framework ${LLVM_LIBRARIES})
-add_test(NAME test_upcastablepointer COMMAND test_upcastablepointer)
+revng_add_test(NAME test_upcastablepointer COMMAND test_upcastablepointer)
 set_tests_properties(test_upcastablepointer PROPERTIES LABELS "unit")
 
 #
@@ -237,7 +238,7 @@ macro(add_recursive_coroutine_test NAME)
   target_compile_definitions("${NAME}" PRIVATE "BOOST_TEST_DYN_LINK=1")
   target_include_directories("${NAME}" PRIVATE "${CMAKE_SOURCE_DIR}")
   target_link_libraries("${NAME}" revngSupport ${LLVM_LIBRARIES})
-  add_test(NAME "${NAME}" COMMAND "${NAME}")
+  revng_add_test(NAME "${NAME}" COMMAND "${NAME}")
   set_tests_properties("${NAME}" PROPERTIES LABELS "unit")
 endmacro()
 
@@ -260,7 +261,7 @@ target_compile_definitions(test_model_type PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(test_model_type PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_model_type revngSupport revngUnitTestHelpers
                       revngModel Boost::unit_test_framework ${LLVM_LIBRARIES})
-add_test(NAME test_model_type COMMAND test_model_type)
+revng_add_test(NAME test_model_type COMMAND test_model_type)
 set_tests_properties(test_model_type PROPERTIES LABELS "unit")
 
 #
@@ -297,7 +298,7 @@ target_compile_definitions(test_tuple_tree_generator
 target_link_libraries(test_tuple_tree_generator revngUnitTestHelpers revngModel
                       Boost::unit_test_framework)
 
-add_test(NAME test_tuple_tree_generator COMMAND test_tuple_tree_generator)
+revng_add_test(NAME test_tuple_tree_generator COMMAND test_tuple_tree_generator)
 set_tests_properties(test_tuple_tree_generator PROPERTIES LABELS "unit")
 
 #
@@ -309,7 +310,7 @@ target_compile_definitions(test_pipeline PRIVATE "BOOST_TEST_DYN_LINK=1")
 target_include_directories(test_pipeline PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_pipeline revngUnitTestHelpers revngPipeline
                       Boost::unit_test_framework ${LLVM_LIBRARIES})
-add_test(NAME test_pipeline COMMAND test_pipeline)
+revng_add_test(NAME test_pipeline COMMAND test_pipeline)
 set_tests_properties(test_pipeline PROPERTIES LABELS "unit")
 
 #
@@ -324,7 +325,8 @@ target_include_directories(test_diff_invalidation_event
                            PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_diff_invalidation_event revngUnitTestHelpers
                       revngPipes Boost::unit_test_framework ${LLVM_LIBRARIES})
-add_test(NAME test_diff_invalidation_event COMMAND test_diff_invalidation_event)
+revng_add_test(NAME test_diff_invalidation_event COMMAND
+               test_diff_invalidation_event)
 set_tests_properties(test_diff_invalidation_event PROPERTIES LABELS "unit")
 
 #
@@ -342,7 +344,7 @@ target_link_libraries(
   revngStringContainerLibrary
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME test_pipeline_c COMMAND test_pipeline_c)
+revng_add_test(NAME test_pipeline_c COMMAND test_pipeline_c)
 set_tests_properties(test_pipeline_c PROPERTIES LABELS "unit")
 
 #
@@ -363,8 +365,8 @@ target_link_libraries(
   revngUnitTestHelpers
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME test_register_state_deductions
-         COMMAND test_register_state_deductions)
+revng_add_test(NAME test_register_state_deductions COMMAND
+               test_register_state_deductions)
 set_tests_properties(test_register_state_deductions PROPERTIES LABELS
                                                                "unit;abi")
 
@@ -385,7 +387,8 @@ target_link_libraries(
   revngUnitTestHelpers
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME test_location_infrastructure COMMAND test_location_infrastructure)
+revng_add_test(NAME test_location_infrastructure COMMAND
+               test_location_infrastructure)
 set_tests_properties(test_location_infrastructure
                      PROPERTIES LABELS "unit;pipeline;location")
 
@@ -404,7 +407,7 @@ target_link_libraries(
   revngUnitTestHelpers
   Boost::unit_test_framework
   ${LLVM_LIBRARIES})
-add_test(NAME test_alignment COMMAND test_alignment)
+revng_add_test(NAME test_alignment COMMAND test_alignment)
 set_tests_properties(test_alignment PROPERTIES LABELS "unit;abi;alignment")
 
 #
@@ -420,5 +423,5 @@ target_compile_definitions(test_PipelineCTracing
 target_include_directories(test_PipelineCTracing PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(test_PipelineCTracing revngPipelineC revngSupport
                       Boost::unit_test_framework ${LLVM_LIBRARIES})
-add_test(NAME test_PipelineCTracing COMMAND test_PipelineCTracing)
+revng_add_test(NAME test_PipelineCTracing COMMAND test_PipelineCTracing)
 set_tests_properties(test_PipelineCTracing PROPERTIES LABELS "unit")
