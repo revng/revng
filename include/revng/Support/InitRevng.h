@@ -33,7 +33,6 @@ public:
 
     if (not Result)
       std::exit(EXIT_FAILURE);
-
   }
 
 private:

@@ -10,7 +10,7 @@
 #include "revng/Pipeline/GenericLLVMPipe.h"
 #include "revng/Pipeline/Kind.h"
 #include "revng/Pipeline/LLVMContainer.h"
-#include "revng/Pipeline/LLVMGlobalKindBase.h"
+#include "revng/Pipeline/LLVMKind.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
 #include "revng/TupleTree/TupleTreePath.h"
 

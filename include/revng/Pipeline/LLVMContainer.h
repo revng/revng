@@ -12,7 +12,6 @@
 
 #include "revng/Pipeline/ContainerEnumerator.h"
 #include "revng/Pipeline/Pipe.h"
-#include "revng/Pipeline/Pipe.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/ModuleStatistics.h"
 

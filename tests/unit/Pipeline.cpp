@@ -36,7 +36,7 @@
 #include "revng/Pipeline/Kind.h"
 #include "revng/Pipeline/LLVMContainer.h"
 #include "revng/Pipeline/LLVMContainerFactory.h"
-#include "revng/Pipeline/LLVMGlobalKindBase.h"
+#include "revng/Pipeline/LLVMKind.h"
 #include "revng/Pipeline/Loader.h"
 #include "revng/Pipeline/Runner.h"
 #include "revng/Pipeline/Target.h"
@@ -1141,9 +1141,10 @@ BOOST_AUTO_TEST_CASE(EnumerableContainersTest) {
   BOOST_TEST(not Example.contains(T));
 }
 
-class LLVMInspectorExample : public LLVMGlobalKindBase {
+class LLVMInspectorExample : public LLVMKind {
 public:
-  using LLVMGlobalKindBase::LLVMGlobalKindBase;
+  using LLVMKind::LLVMKind;
+
   std::optional<Target>
   symbolToTarget(const llvm::Function &Symbol) const override {
     return Target({ Symbol.getName() }, FunctionKind);
@@ -1156,9 +1157,10 @@ public:
   }
 };
 
-class LLVMRootInspectorExample : public LLVMGlobalKindBase {
+class LLVMRootInspectorExample : public LLVMKind {
 public:
-  using LLVMGlobalKindBase::LLVMGlobalKindBase;
+  using LLVMKind::LLVMKind;
+
   std::optional<Target>
   symbolToTarget(const llvm::Function &Symbol) const override {
     return Target({}, RootKind);
@@ -1205,9 +1207,9 @@ BOOST_AUTO_TEST_CASE(LLVMKindTest) {
   BOOST_TEST(F != nullptr);
 }
 
-class InspectorKindExample : public LLVMGlobalKindBase {
+class InspectorKindExample : public LLVMKind {
 public:
-  InspectorKindExample() : LLVMGlobalKindBase("ExampleName", FunctionRank) {}
+  InspectorKindExample() : LLVMKind("ExampleName", FunctionRank) {}
 
   std::optional<Target>
   symbolToTarget(const llvm::Function &Symbol) const final {

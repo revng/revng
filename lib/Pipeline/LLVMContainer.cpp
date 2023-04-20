@@ -18,7 +18,7 @@
 #include "llvm/IR/Type.h"
 
 #include "revng/Pipeline/LLVMContainer.h"
-#include "revng/Pipeline/LLVMGlobalKindBase.h"
+#include "revng/Pipeline/LLVMKind.h"
 
 const char pipeline::LLVMContainer::ID = '0';
 using namespace pipeline;
@@ -52,7 +52,7 @@ void pipeline::makeGlobalObjectsArray(llvm::Module &Module,
 
 std::unique_ptr<ContainerBase>
 LLVMContainer::cloneFiltered(const TargetsList &Targets) const {
-  using InspectorT = LLVMGlobalKindBase;
+  using InspectorT = LLVMKind;
   auto ToClone = InspectorT::functions(Targets, *this->self());
   auto ToClonedNotOwned = InspectorT::untrackedFunctions(*this->self());
 

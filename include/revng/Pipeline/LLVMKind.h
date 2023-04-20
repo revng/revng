@@ -20,23 +20,23 @@ namespace pipeline {
 ///
 /// compactTargets must collapse the targets into the * target if they are all
 /// presents, do no thing otherwise.
-class LLVMGlobalKindBase : public KindForContainer<LLVMContainer> {
+class LLVMKind : public KindForContainer<LLVMContainer> {
 public:
-  using StaticContainer = llvm::SmallVector<LLVMGlobalKindBase *, 4>;
+  using StaticContainer = llvm::SmallVector<LLVMKind *, 4>;
 
 public:
   template<RankSpecialization BaseRank>
-  LLVMGlobalKindBase(llvm::StringRef Name, const BaseRank &Rank) :
+  LLVMKind(llvm::StringRef Name, const BaseRank &Rank) :
     KindForContainer<LLVMContainer>(Name, Rank) {
     getRegisteredInspectors().push_back(this);
   }
 
   template<RankSpecialization BaseRank>
-  LLVMGlobalKindBase(llvm::StringRef Name, Kind &Parent, const BaseRank &Rank) :
+  LLVMKind(llvm::StringRef Name, Kind &Parent, const BaseRank &Rank) :
     KindForContainer<LLVMContainer>(Name, Parent, Rank) {
     getRegisteredInspectors().push_back(this);
   }
-  ~LLVMGlobalKindBase() override {}
+  ~LLVMKind() override {}
 
 public:
   static bool hasOwner(const llvm::Function &Symbol) {
@@ -159,6 +159,5 @@ private:
     return Container;
   }
 };
-using LLVMKind = LLVMGlobalKindBase;
 
 } // namespace pipeline
