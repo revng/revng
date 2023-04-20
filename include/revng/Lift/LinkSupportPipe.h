@@ -11,7 +11,7 @@
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/LLVMContainer.h"
-#include "revng/Pipeline/LLVMGlobalKindBase.h"
+#include "revng/Pipeline/LLVMKind.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/Kinds.h"
 

@@ -18,7 +18,7 @@
 #include "revng/Pipeline/CopyPipe.h"
 #include "revng/Pipeline/GenericLLVMPipe.h"
 #include "revng/Pipeline/LLVMContainerFactory.h"
-#include "revng/Pipeline/LLVMGlobalKindBase.h"
+#include "revng/Pipeline/LLVMKind.h"
 #include "revng/Pipeline/Loader.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/ModelGlobal.h"
