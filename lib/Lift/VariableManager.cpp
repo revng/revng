@@ -351,18 +351,6 @@ bool VariableManager::memcpyAtEnvOffset(llvm::IRBuilder<> &Builder,
   return Offset == TotalSize;
 }
 
-void VariableManager::rebuildCSVList() {
-  // Register the list of CSVs
-  LLVMContext &Context = getContext(&TheModule);
-  QuickMetadata QMD(Context);
-  NamedMDNode *NamedMD = TheModule.getOrInsertNamedMetadata("revng.csv");
-  std::vector<Metadata *> CSVsMD;
-  for (auto &P : CPUStateGlobals)
-    CSVsMD.push_back(QMD.get(P.second));
-  NamedMD->clearOperands();
-  NamedMD->addOperand(QMD.tuple(CSVsMD));
-}
-
 void VariableManager::finalize() {
   LLVMContext &Context = getContext(&TheModule);
 
@@ -513,6 +501,7 @@ VariableManager::getByCPUStateOffsetInternal(intptr_t Offset,
                                            InitialValue,
                                            Name);
     revng_assert(NewVariable != nullptr);
+    FunctionTags::CSV.addTo(NewVariable);
 
     if (It != CPUStateGlobals.end()) {
       It->second->replaceAllUsesWith(NewVariable);
@@ -520,8 +509,6 @@ VariableManager::getByCPUStateOffsetInternal(intptr_t Offset,
     }
 
     CPUStateGlobals[Offset] = NewVariable;
-
-    rebuildCSVList();
 
     return { NewVariable, Remaining };
   } else {

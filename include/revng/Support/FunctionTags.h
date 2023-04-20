@@ -190,6 +190,8 @@ inline Tag CSVsAsArgumentsWrapper("CSVsAsArgumentsWrapper");
 inline Tag Marker("Marker");
 inline Tag DynamicFunction("DynamicFunction");
 
+inline Tag CSV("CSV");
+
 } // namespace FunctionTags
 
 inline bool isRootOrLifted(const llvm::Function *F) {

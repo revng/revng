@@ -1606,16 +1606,15 @@ void JumpTargetManager::promoteHelpersToIntrinsics(Module *M,
 JumpTargetManager::GlobalToAllocaTy
 JumpTargetManager::promoteCSVsToAlloca(Function *OptimizedFunction) {
   GlobalToAllocaTy CSVMap;
+
+  //
+  // Collect all the non-PC affecting CSVs
+  //
+  DenseSet<GlobalVariable *> NonPCCSVs;
+  for (GlobalVariable &CSV : FunctionTags::CSV.globals(&TheModule))
+    if (not PCH->affectsPC(&CSV))
+      NonPCCSVs.insert(&CSV);
   // Collect all the non-PC affecting CSVs.
-  llvm::DenseSet<GlobalVariable *> NonPCCSVs;
-  QuickMetadata QMD(Context);
-  NamedMDNode *NamedMD = TheModule.getOrInsertNamedMetadata("revng.csv");
-  auto *Tuple = cast<MDTuple>(NamedMD->getOperand(0));
-  for (const MDOperand &Operand : Tuple->operands()) {
-    auto *CSV = cast<GlobalVariable>(QMD.extract<Constant *>(Operand.get()));
-    if (not PCH->affectsPC(CSV))
-      NonPCCSVs.insert(CSV);
-  }
 
   // Create and initialized an alloca per CSV (except for the PC-affecting
   // ones).
