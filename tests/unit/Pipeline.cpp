@@ -1141,9 +1141,9 @@ BOOST_AUTO_TEST_CASE(EnumerableContainersTest) {
   BOOST_TEST(not Example.contains(T));
 }
 
-class LLVMInspectorExample : public LLVMGlobalKindBase<LLVMContainer> {
+class LLVMInspectorExample : public LLVMGlobalKindBase {
 public:
-  using LLVMGlobalKindBase<LLVMContainer>::LLVMGlobalKindBase;
+  using LLVMGlobalKindBase::LLVMGlobalKindBase;
   std::optional<Target>
   symbolToTarget(const llvm::Function &Symbol) const override {
     return Target({ Symbol.getName() }, FunctionKind);
@@ -1156,9 +1156,9 @@ public:
   }
 };
 
-class LLVMRootInspectorExample : public LLVMGlobalKindBase<LLVMContainer> {
+class LLVMRootInspectorExample : public LLVMGlobalKindBase {
 public:
-  using LLVMGlobalKindBase<LLVMContainer>::LLVMGlobalKindBase;
+  using LLVMGlobalKindBase::LLVMGlobalKindBase;
   std::optional<Target>
   symbolToTarget(const llvm::Function &Symbol) const override {
     return Target({}, RootKind);
@@ -1205,10 +1205,9 @@ BOOST_AUTO_TEST_CASE(LLVMKindTest) {
   BOOST_TEST(F != nullptr);
 }
 
-class InspectorKindExample : public LLVMGlobalKindBase<LLVMContainer> {
+class InspectorKindExample : public LLVMGlobalKindBase {
 public:
-  InspectorKindExample() :
-    LLVMGlobalKindBase<LLVMContainer>("ExampleName", FunctionRank) {}
+  InspectorKindExample() : LLVMGlobalKindBase("ExampleName", FunctionRank) {}
 
   std::optional<Target>
   symbolToTarget(const llvm::Function &Symbol) const final {
