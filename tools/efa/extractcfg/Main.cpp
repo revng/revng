@@ -14,7 +14,7 @@
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/InitRevng.h"
 
-#include "./DecoratedFunction.h"
+#include "DecoratedFunction.h"
 
 using namespace llvm;
 
