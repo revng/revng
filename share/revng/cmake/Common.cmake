@@ -166,3 +166,15 @@ function(copy_to_build_and_install INSTALL_TYPE DESTINATION)
     install("${INSTALL_TYPE}" "${INPUT_FILE}" DESTINATION "${DESTINATION}")
   endforeach()
 endfunction()
+
+macro(revng_add_test)
+  set(options OPTIONAL FAST)
+  set(oneValueArgs DESTINATION RENAME)
+  set(multiValueArgs TARGETS CONFIGURATIONS)
+  cmake_parse_arguments(REVNG_TEST "" "NAME" "" ${ARGN})
+  add_test(${ARGN})
+  set_tests_properties(
+    "${REVNG_TEST_NAME}"
+    PROPERTIES ENVIRONMENT
+               "REVNG_OPTIONS=--debug-log=verify $ENV{REVNG_OPTIONS}")
+endmacro()
