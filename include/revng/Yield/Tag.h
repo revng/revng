@@ -37,15 +37,6 @@ class Tag : public generated::Tag {
 public:
   using generated::Tag::Tag;
 
-  std::strong_ordering operator<=>(const Tag &Another) const {
-    if (From() != Another.From())
-      return From() <=> Another.From();
-    else if (To() != Another.To())
-      return Another.To() <=> To(); // reverse order
-    else
-      return Type() <=> Another.Type();
-  }
-
 public:
   bool verify(model::VerifyHelper &VH) const;
   void dump() const debug_function;
