@@ -419,10 +419,12 @@ void revng::verify(const llvm::Function *F) {
 }
 
 void revng::forceVerify(const llvm::Module *M) {
+  // NOLINTNEXTLINE
   revng_check(llvm::verifyModule(*M, &llvm::dbgs()) == 0);
 }
 
 void revng::forceVerify(const llvm::Function *F) {
+  // NOLINTNEXTLINE
   revng_check(llvm::verifyFunction(*F, &llvm::dbgs()) == 0);
 }
 
