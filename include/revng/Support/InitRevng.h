@@ -24,7 +24,9 @@ public:
 
     init();
 
+    // NOLINTNEXTLINE
     llvm::cl::HideUnrelatedOptions(CategoriesToHide);
+    // NOLINTNEXTLINE
     bool Result = llvm::cl::ParseCommandLineOptions(Argc,
                                                     Argv,
                                                     Overview,

@@ -87,6 +87,7 @@ static alias TemporaryRootA("t",
 } // namespace Options
 
 int main(int argc, const char *argv[]) {
+  // NOLINTNEXTLINE
   llvm::cl::HideUnrelatedOptions(Options::TraceRunToolCategory);
   rp_initialize(argc, argv, 0, {});
 
