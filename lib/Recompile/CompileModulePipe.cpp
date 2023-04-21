@@ -25,6 +25,7 @@
 #include "revng/Recompile/CompileModulePipe.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRAnnotators.h"
+#include "revng/Support/IRHelpers.h"
 #include "revng/Support/OriginalAssemblyAnnotationWriter.h"
 
 using namespace llvm;

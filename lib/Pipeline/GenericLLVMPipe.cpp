@@ -10,6 +10,7 @@
 
 #include "revng/Pipeline/GenericLLVMPipe.h"
 #include "revng/Pipeline/LLVMContainer.h"
+#include "revng/Support/IRHelpers.h"
 
 using namespace std;
 using namespace llvm;
