@@ -16,6 +16,34 @@
 #include "revng/Yield/Function.h"
 #include "revng/Yield/PTML.h"
 
+namespace options {
+
+enum class AddressStyles {
+  /// Look for the addresses among basic blocks and functions.
+  /// When a match is found, replace the addresses with relevant labels.
+  /// Otherwise, prints an absolute address instead.
+  Smart,
+  // TODO: extend to support segment lookup as well.
+
+  /// Same as \ref Smart, except when unable to single out the target,
+  /// print a PC-relative address instead.
+  SmartWithPCRelativeFallback,
+
+  /// Same as \ref Smart, except when unable to single out the target,
+  /// print an error token.
+  Strict,
+
+  /// Convert PC relative addresses into global representation.
+  Global,
+
+  /// Print all the addresses exactly how disassembler emitted them
+  /// in PC-relative mode.
+  PCRelative
+};
+static AddressStyles AddressStyle = AddressStyles::Smart;
+
+} // namespace options
+
 using pipeline::serializedLocation;
 using ptml::str;
 using ptml::Tag;
