@@ -190,7 +190,16 @@ def highlight_line(line: str, matches: List[re.Match]) -> str:
 def line_matcher(files: Dict[Path, str], matchers: Mapping[str, Matcher]) -> RuleResult:
     result: Dict[str, List[str]] = defaultdict(list)
     for path, content in files.items():
+        skip_next = False
         for lineno, line in enumerate(content.splitlines()):
+
+            if skip_next:
+                skip_next = False
+                continue
+
+            if "NOLINTNEXTLINE" in line:
+                skip_next = True
+
             for msg, matcher in matchers.items():
                 if matches := matcher(path, line):
                     result[msg].append(
