@@ -165,7 +165,7 @@ private:
 private:
   CSVSet computePreservedCSVs(const CSVSet &ClobberedRegisters) const;
 
-  SortedVector<model::Register::Values>
+  TrackingSortedVector<model::Register::Values>
   computePreservedRegisters(const CSVSet &ClobberedRegisters) const;
   void analyzeABI(llvm::BasicBlock *Entry);
 
@@ -431,13 +431,12 @@ void DetectABI::finalizeModel() {
             // This analysis does not have the power to detect whether an
             // indirect call site is a tail call, noreturn or inline
             bool IsTailCall = false;
-            AttributesSet Attributes = {};
 
             // Register new prototype
             model::CallSitePrototype ThePrototype(BlockAddress,
                                                   Path,
                                                   IsTailCall,
-                                                  Attributes);
+                                                  {});
             Function->CallSitePrototypes().insert(std::move(ThePrototype));
           }
         }
@@ -617,11 +616,11 @@ DetectABI::computePreservedCSVs(const CSVSet &ClobberedRegisters) const {
   return PreservedRegisters;
 }
 
-SortedVector<model::Register::Values>
+TrackingSortedVector<model::Register::Values>
 DetectABI::computePreservedRegisters(const CSVSet &ClobberedRegisters) const {
   using namespace model;
 
-  SortedVector<model::Register::Values> Result;
+  TrackingSortedVector<model::Register::Values> Result;
   CSVSet PreservedRegisters = computePreservedCSVs(ClobberedRegisters);
 
   auto PreservedRegistersInserter = Result.batch_insert();

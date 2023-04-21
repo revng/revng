@@ -55,7 +55,7 @@ paddedSizeOnStack(uint64_t RealSize, uint64_t RegisterSize) {
 /// \return filtered list
 template<derived_from<model::Type> DerivedType>
 std::vector<DerivedType *>
-filterTypes(SortedVector<UpcastablePointer<model::Type>> &Types) {
+filterTypes(TrackingSortedVector<UpcastablePointer<model::Type>> &Types) {
   std::vector<DerivedType *> Result;
   for (model::UpcastableType &Type : Types)
     if (auto *Upscaled = llvm::dyn_cast<DerivedType>(Type.get()))
