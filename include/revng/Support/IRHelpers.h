@@ -1533,3 +1533,5 @@ void forceVerify(const llvm::Module *M);
 void forceVerify(const llvm::Function *F);
 
 } // namespace revng
+
+void collectTypes(llvm::Type *Root, std::set<llvm::Type *> &Set);

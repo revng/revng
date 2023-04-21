@@ -10,6 +10,7 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/TypedPointerType.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/SHA1.h"
 #include "llvm/Support/raw_os_ostream.h"
@@ -423,4 +424,42 @@ void revng::forceVerify(const llvm::Module *M) {
 
 void revng::forceVerify(const llvm::Function *F) {
   revng_check(llvm::verifyFunction(*F, &llvm::dbgs()) == 0);
+}
+
+void collectTypes(Type *Root, std::set<Type *> &Set) {
+  std::queue<Type *> ToVisit;
+  ToVisit.push(Root);
+
+  while (not ToVisit.empty()) {
+    Type *T = ToVisit.front();
+    ToVisit.pop();
+
+    auto [_, IsNew] = Set.insert(T);
+    if (not IsNew)
+      continue;
+
+    if (auto *Array = dyn_cast<ArrayType>(T)) {
+      ToVisit.push(Array->getElementType());
+    } else if (auto *FT = dyn_cast<FunctionType>(T)) {
+      ToVisit.push(FT->getReturnType());
+      for (Type *ParameterType : FT->params())
+        ToVisit.push(ParameterType);
+    } else if (isa<IntegerType>(T)) {
+      // Nothing to do
+    } else if (isa<PointerType>(T)) {
+      // Nothing to do
+    } else if (auto *Struct = dyn_cast<StructType>(T)) {
+      for (Type *ElementType : Struct->elements())
+        ToVisit.push(ElementType);
+    } else if (auto *TET = dyn_cast<TargetExtType>(T)) {
+      for (Type *TypeParam : TET->type_params())
+        ToVisit.push(TypeParam);
+    } else if (auto *TPT = dyn_cast<TypedPointerType>(T)) {
+      ToVisit.push(TPT->getElementType());
+    } else if (auto *Vector = dyn_cast<VectorType>(T)) {
+      ToVisit.push(Vector->getElementType());
+    } else {
+      revng_abort();
+    }
+  }
 }
