@@ -920,7 +920,7 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
   if (isCallToTagged(Call, FunctionTags::UnaryMinus)) {
     auto Operand = Call->getArgOperand(0);
     std::string ToNegate = rc_recur getToken(Operand);
-    rc_return operators::UnaryMinus + constants::constant(ToNegate).serialize();
+    rc_return operators::UnaryMinus + ToNegate;
   }
 
   if (isCallToTagged(Call, FunctionTags::BinaryNot)) {
@@ -928,7 +928,7 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
     std::string ToNegate = rc_recur getToken(Operand);
     rc_return(Operand->getType()->isIntegerTy(1) ? operators::BoolNot :
                                                    operators::BinaryNot)
-      + constants::constant(ToNegate).serialize();
+      + ToNegate;
   }
 
   if (isCallToTagged(Call, FunctionTags::StringLiteral)) {
