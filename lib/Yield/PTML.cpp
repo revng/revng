@@ -5,6 +5,10 @@
 /// \file PTML.cpp
 /// \brief
 
+#include <unordered_map>
+
+#include "llvm/ADT/PostOrderIterator.h"
+
 #include "revng/ADT/Concepts.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
 #include "revng/Model/Binary.h"
@@ -220,47 +224,131 @@ static std::string tagTypeAsString(const yield::TagType::Values &Type) {
   }
 }
 
-static std::string
-tokenTag(std::string &&Buffer, const yield::TagType::Values &Tag) {
-  std::string TagStr = tagTypeAsString(Tag);
-  if (!TagStr.empty()) {
-    return ::Tag(tags::Span, std::move(Buffer))
+struct TaggedString {
+  yield::TagType::Values Type;
+  std::variant<std::string, std::string_view> Content;
+
+public:
+  TaggedString(yield::TagType::Values Type, std::string &&Content) :
+    Type(Type), Content(std::move(Content)) {}
+  TaggedString(yield::TagType::Values Type, std::string_view Content) :
+    Type(Type), Content(Content) {}
+
+  /// Exports the tag as PTML.
+  ///
+  /// \note this consumes \ref Content, so the tag is not usable after this
+  ///       has been called.
+  std::string emit() {
+    std::string TagStr = tagTypeAsString(Type);
+    if (TagStr.empty())
+      return moveContent();
+
+    return ::Tag(tags::Span, moveContent())
       .addAttribute(attributes::Token, TagStr)
       .serialize();
-  } else {
-    return std::move(Buffer);
   }
+
+  std::string_view content() const {
+    return std::visit([](auto &S) -> std::string_view { return S; }, Content);
+  }
+
+private:
+  /// Consume the tag to export its contents.
+  std::string moveContent() {
+    if (std::holds_alternative<std::string>(Content))
+      return std::move(std::get<std::string>(Content));
+    else if (std::holds_alternative<std::string_view>(Content))
+      return std::string(std::get<std::string_view>(Content));
+    else
+      revng_abort("Unknown content type");
+  }
+};
+using TaggedStrings = llvm::SmallVector<TaggedString, 16u>;
+
+static std::vector<yield::Tag> sortTags(const SortedVector<yield::Tag> &Tags) {
+  std::vector<yield::Tag> Result(Tags.begin(), Tags.end());
+  std::sort(Result.begin(),
+            Result.end(),
+            [](const yield::Tag &LHS, const yield::Tag &RHS) {
+              if (LHS.From() != RHS.From())
+                return LHS.From() < RHS.From();
+              else if (LHS.To() != RHS.To())
+                return LHS.To() > RHS.To(); // reverse order
+              else
+                return LHS.Type() < RHS.Type();
+            });
+  return Result;
 }
 
-static std::string taggedText(const yield::Instruction &Instruction) {
+static TaggedStrings embedContentIntoTags(const std::vector<yield::Tag> &Tags,
+                                          llvm::StringRef RawText) {
+  TaggedStrings Result;
+
+  for (const yield::Tag &Tag : Tags)
+    Result.emplace_back(Tag.Type(), RawText.slice(Tag.From(), Tag.To()));
+
+  return Result;
+}
+
+static TaggedStrings
+flattenTags(const SortedVector<yield::Tag> &Tags, llvm::StringRef RawText) {
+  std::vector<yield::Tag> Result = sortTags(Tags);
+  Result.emplace(Result.begin(), yield::TagType::Untagged, 0, RawText.size());
+  for (std::ptrdiff_t Index = Result.size() - 1; Index >= 0; --Index) {
+    yield::Tag &Current = Result[Index];
+    auto IsParentOf = [&Current](const yield::Tag &Next) {
+      if (Current.From() >= Next.From() && Current.To() <= Next.To())
+        return true;
+      else
+        return false;
+    };
+
+    auto It = std::find_if(std::next(Result.rbegin(), Result.size() - Index),
+                           Result.rend(),
+                           IsParentOf);
+    while (It != Result.rend()) {
+      auto [ParentType, ParentFrom, ParentTo] = *It;
+      auto [CurrentType, CurrentFrom, CurrentTo] = Result[Index];
+
+      std::ptrdiff_t ParentIndex = std::distance(It, Result.rend()) - 1;
+      if (ParentFrom == CurrentFrom) {
+        Result.erase(std::next(It).base());
+        It = Result.rend();
+        --Index;
+      } else {
+        Result[ParentIndex].To() = CurrentFrom;
+        It = std::find_if(std::next(Result.rbegin(), Result.size() - Index),
+                          Result.rend(),
+                          IsParentOf);
+      }
+
+      if (ParentTo != CurrentTo) {
+        yield::Tag New(ParentType, CurrentTo, ParentTo);
+        Result.insert(std::next(Result.begin(), Index + 1), std::move(New));
+        Index += 2;
+        break;
+      }
+    }
+  }
+
+  return embedContentIntoTags(Result, RawText);
+}
+
+static std::string taggedText(const yield::Instruction &Instruction,
+                              const yield::BasicBlock &BasicBlock,
+                              const yield::Function &Function,
+                              const model::Binary &Binary) {
   revng_assert(!Instruction.Tags().empty(),
                "Tag-less instructions are not supported");
   revng_assert(!Instruction.Disassembled().empty(),
                "Empty disassembled instructions are not supported");
 
-  std::vector TagMap(Instruction.Disassembled().size(),
-                     yield::TagType::Invalid);
-  for (yield::Tag Tag : Instruction.Tags()) {
-    revng_assert(Tag.Type() != yield::TagType::Invalid,
-                 "\"Invalid\" TagType encountered");
-    for (size_t Index = Tag.From(); Index < Tag.To(); Index++) {
-      TagMap[Index] = Tag.Type();
-    }
-  }
+  TaggedStrings Flattened = flattenTags(Instruction.Tags(),
+                                        Instruction.Disassembled());
 
   std::string Result;
-  std::string Buffer;
-  yield::TagType::Values Tag = yield::TagType::Invalid;
-  for (size_t Index = 0; Index < Instruction.Disassembled().size(); Index++) {
-    if (Tag != TagMap[Index]) {
-      Result += tokenTag(std::move(Buffer), Tag);
-      Buffer.clear();
-
-      Tag = TagMap[Index];
-    }
-    Buffer += Instruction.Disassembled()[Index];
-  }
-  Result += tokenTag(std::move(Buffer), Tag);
+  for (auto &TaggedString : Flattened)
+    Result += TaggedString.emit();
 
   return Result;
 }
@@ -272,7 +360,7 @@ static std::string instruction(const yield::Instruction &Instruction,
                                bool AddTargets = false) {
 
   // Tagged instruction body.
-  std::string Result = taggedText(Instruction);
+  std::string Result = taggedText(Instruction, BasicBlock, Function, Binary);
   size_t Tail = Instruction.Disassembled().size() + 1;
 
   Tag Location = Tag(tags::Span)
