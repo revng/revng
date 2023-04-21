@@ -138,6 +138,18 @@ static std::string labelDefinition(const BasicBlockID &BasicBlock,
              .serialize();
 }
 
+static std::string labelReference(const BasicBlockID &BasicBlock,
+                                  const yield::Function &Function,
+                                  const model::Binary &Binary) {
+  auto [Name, Location, _] = labelImpl(BasicBlock, Function, Binary);
+
+  Tag LabelTag(tags::Span, std::move(Name));
+  LabelTag.addAttribute(attributes::Token, tokenTypes::Label)
+    .addAttribute(attributes::LocationReferences, Location);
+
+  return LabelTag.serialize();
+}
+
 static std::string indent() {
   return Tag(tags::Span, "  ")
     .addAttribute(attributes::Token, ptml::tokens::Indentation)
@@ -334,6 +346,161 @@ flattenTags(const SortedVector<yield::Tag> &Tags, llvm::StringRef RawText) {
   return embedContentIntoTags(Result, RawText);
 }
 
+static int64_t parseImmediate(llvm::StringRef String) {
+  revng_assert(String.size() > 0);
+  if (String[0] == '#')
+    String = String.drop_front();
+
+  revng_assert(String.size() > 0);
+  bool IsNegative = String[0] == '-';
+  if (IsNegative)
+    String = String.drop_front();
+
+  uint64_t Value;
+  bool Failure = String.getAsInteger(0, Value);
+  if (Failure || static_cast<int64_t>(Value) < 0) {
+    std::string Error = "Unsupported immediate: " + String.str();
+    revng_abort(Error.c_str());
+  }
+
+  if (IsNegative)
+    return -static_cast<int64_t>(Value);
+  else
+    return +static_cast<int64_t>(Value);
+}
+
+static MetaAddress
+absoluteAddressFromAbsoluteImmediate(const TaggedString &Input,
+                                     const yield::Instruction &Instruction) {
+  MetaAddress Result = Instruction.getRelativeAddressBase().toGeneric();
+  return Result.replaceAddress(parseImmediate(Input.content()));
+}
+
+static MetaAddress
+absoluteAddressFromPCRelativeImmediate(const TaggedString &Input,
+                                       const yield::Instruction &Instruction) {
+  MetaAddress Result = Instruction.getRelativeAddressBase().toGeneric();
+  return Result += parseImmediate(Input.content());
+}
+
+static TaggedString
+toGlobal(const TaggedString &Input, const MetaAddress &Address) {
+  if (Address.isInvalid())
+    return TaggedString{ yield::TagType::Immediate, std::string("invalid") };
+
+  std::string_view Content = Input.content();
+  std::string Prefix = (!Content.empty() && Content[0] == '#' ? "#0x" : "0x");
+  std::string Body = llvm::utohexstr(Address.address(), true);
+  return TaggedString{ yield::TagType::Immediate, std::move(Prefix += Body) };
+}
+
+static std::optional<TaggedString>
+tryEmitLabel(const MetaAddress &Address,
+             const yield::BasicBlock &BasicBlock,
+             const yield::Function &Function,
+             const model::Binary &Binary) {
+  if (Address.isInvalid())
+    return std::nullopt;
+
+  for (const auto &Successor : BasicBlock.Successors()) {
+    // Ignore address spaces and epochs for now.
+    // TODO: see what can be done about it.
+    if (Successor->Destination().start().isValid()
+        && Successor->Destination().start().address() == Address.address()) {
+      // Since we have no easy way to decide which one of the successors
+      // is better, stop looking after the first match.
+      return TaggedString{
+        yield::TagType::Untagged,
+        labelReference(Successor->Destination(), Function, Binary)
+      };
+    }
+  }
+
+  return std::nullopt;
+}
+
+static TaggedString emitAddress(TaggedString &&Input,
+                                const MetaAddress &Address,
+                                const yield::BasicBlock &BasicBlock,
+                                const yield::Function &Function,
+                                const model::Binary &Binary) {
+  using Styles = options::AddressStyles;
+  if (options::AddressStyle == Styles::SmartWithPCRelativeFallback
+      || options::AddressStyle == Styles::Smart
+      || options::AddressStyle == Styles::Strict) {
+    // "Smart" style selected, try to emit the label.
+    if (std::optional MaybeLabel = tryEmitLabel(Address,
+                                                BasicBlock,
+                                                Function,
+                                                Binary)) {
+      return std::move(*MaybeLabel);
+    }
+  }
+
+  // "Simple" style selected OR "Smart" detection failed.
+  if (options::AddressStyle == Styles::SmartWithPCRelativeFallback
+      || options::AddressStyle == Styles::PCRelative) {
+    // Emit a relative address.
+    Input.Type = yield::TagType::Immediate;
+    return std::move(Input);
+  } else if (options::AddressStyle == Styles::Smart
+             || options::AddressStyle == Styles::Global) {
+    // Emit an absolute address.
+    return toGlobal(Input, Address);
+  } else if (options::AddressStyle == Styles::Strict) {
+    // Emit an `invalid` marker.
+    return TaggedString{ yield::TagType::Immediate, std::string("invalid") };
+  } else {
+    revng_abort("Unsupported addressing style.");
+  }
+}
+
+static TaggedStrings handleSpecialCases(TaggedStrings &&Input,
+                                        const yield::Instruction &Instruction,
+                                        const yield::BasicBlock &BasicBlock,
+                                        const yield::Function &Function,
+                                        const model::Binary &Binary) {
+  TaggedStrings Result(std::move(Input));
+
+  for (auto Iterator = Result.begin(); Iterator != Result.end(); ++Iterator) {
+    if (Iterator->Type == yield::TagType::Address) {
+      auto Address = absoluteAddressFromPCRelativeImmediate(*Iterator,
+                                                            Instruction);
+      *Iterator = emitAddress(std::move(*Iterator),
+                              Address,
+                              BasicBlock,
+                              Function,
+                              Binary);
+    } else if (Iterator->Type == yield::TagType::AbsoluteAddress) {
+      auto Address = absoluteAddressFromAbsoluteImmediate(*Iterator,
+                                                          Instruction);
+      *Iterator = emitAddress(std::move(*Iterator),
+                              Address,
+                              BasicBlock,
+                              Function,
+                              Binary);
+    } else if (Iterator->Type == yield::TagType::PCRelativeAddress) {
+      auto Address = absoluteAddressFromPCRelativeImmediate(*Iterator,
+                                                            Instruction);
+      TaggedStrings NewTags{ TaggedString{ yield::TagType::Helper,
+                                           "offset_to("s },
+                             emitAddress(std::move(*Iterator),
+                                         Address,
+                                         BasicBlock,
+                                         Function,
+                                         Binary),
+                             TaggedString{ yield::TagType::Helper, ")"s } };
+      Iterator = Result.erase(Iterator);
+      Iterator = Result.insert(Iterator, NewTags.begin(), NewTags.end());
+      std::advance(Iterator, NewTags.size() - 1);
+    } else {
+      // TODO: handle other interesting tag types.
+    }
+  }
+
+  return Result;
+}
+
 static std::string taggedText(const yield::Instruction &Instruction,
                               const yield::BasicBlock &BasicBlock,
                               const yield::Function &Function,
@@ -345,9 +512,14 @@ static std::string taggedText(const yield::Instruction &Instruction,
 
   TaggedStrings Flattened = flattenTags(Instruction.Tags(),
                                         Instruction.Disassembled());
+  TaggedStrings Processed = handleSpecialCases(std::move(Flattened),
+                                               Instruction,
+                                               BasicBlock,
+                                               Function,
+                                               Binary);
 
   std::string Result;
-  for (auto &TaggedString : Flattened)
+  for (auto &TaggedString : Processed)
     Result += TaggedString.emit();
 
   return Result;
