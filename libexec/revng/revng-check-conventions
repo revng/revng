@@ -106,22 +106,38 @@ class PassResult:
 class Pass(abc.ABC):
     """Abstraction that describes the operations on a set of files
     When called it will be given a dictionary of <tag>:list<files> and a
-    dictionary of arguments (e.g. dry_run=1), in general the pass can operate on
-    more than one tag, but in most cases it's better to override the `process` method
-    that will give a list of files given the tag attribute"""
+    dictionary of arguments (e.g. dry_run=1)."""
+
+    def __init__(self, name: str):
+        self.name = name
+
+    @abc.abstractmethod
+    async def run(
+        self, files: Dict[str, Dict[Path, str]], args: Dict[str, str | bool]
+    ) -> PassResult:
+        ...
+
+
+class TaggedPass(Pass, abc.ABC):
+    """Specialization of Pass that operates on a single tag.
+    By overriding the `process` method, a list of files with the given tag will
+    be provided. If the file list does not contain any files with the given tag
+    then the `process` method will not be called."""
 
     def __init__(self, name: str, tag: str):
-        self.name = name
+        super().__init__(name)
         self.tag = tag
 
-    async def run(self, files: Dict[str, Dict[Path, str]], args: Dict[str, str]) -> PassResult:
+    async def run(
+        self, files: Dict[str, Dict[Path, str]], args: Dict[str, str | bool]
+    ) -> PassResult:
         file_list = files[self.tag]
         if len(file_list.keys()) == 0:
             return PassResult("", True)
         return await self.process(files[self.tag], args)
 
     @abc.abstractmethod
-    async def process(self, files: Dict[Path, str], args: Dict[str, str]) -> PassResult:
+    async def process(self, files: Dict[Path, str], args: Dict[str, str | bool]) -> PassResult:
         ...
 
 
@@ -139,11 +155,13 @@ def template_iterable(iterable: Iterable[str], args: Dict[str, str]) -> List[str
     return [Template(element).substitute(args) for element in iterable]
 
 
-async def run_with_capture(cmd: Sequence[Union[str, Path]]) -> ProcessResult:
-    proc = await create_subprocess_exec(cmd[0], *cmd[1:], stdout=PIPE, stderr=STDOUT)
+async def run_with_capture(
+    cmd: Sequence[Union[str, Path]], *, input_: None | str = None
+) -> ProcessResult:
+    stdin = PIPE if input_ is not None else None
+    proc = await create_subprocess_exec(cmd[0], *cmd[1:], stdin=stdin, stdout=PIPE, stderr=STDOUT)
+    stdout, _ = await proc.communicate(input_.encode("utf-8") if input_ is not None else None)
     returncode = await proc.wait()
-    assert proc.stdout is not None
-    stdout = await proc.stdout.read()
     return ProcessResult(stdout.decode("utf-8"), returncode)
 
 
@@ -256,7 +274,7 @@ def generate_rule_results(result: RuleResult) -> str:
     return "".join(f"{rule}\n" + join_items(items) for rule, items in result.items())
 
 
-class SingleCommandPass(Pass):
+class SingleCommandPass(TaggedPass):
     def __init__(
         self,
         name: str,
@@ -274,7 +292,7 @@ class SingleCommandPass(Pass):
         return PassResult.from_process(process)
 
 
-class ParallelCommandPass(Pass):
+class ParallelCommandPass(TaggedPass):
     def __init__(
         self,
         name: str,
@@ -318,7 +336,7 @@ class MyPyPass(SingleCommandPass):
         return PassResult.combine(*runs)
 
 
-class LicenseCheckPass(Pass):
+class LicenseCheckPass(TaggedPass):
     def __init__(
         self,
         ignore_suffixes: List[str],
@@ -341,7 +359,7 @@ class LicenseCheckPass(Pass):
     def check_license(content: str) -> bool:
         return any("See LICENSE.md for details" in line for line in content.splitlines()[:10])
 
-    async def process(self, files: Dict[Path, str], args: Dict[str, str]) -> PassResult:
+    async def process(self, files: Dict[Path, str], args: Dict[str, str | bool]) -> PassResult:
         missing_license = []
         for path, content in files.items():
             if self.skip_test(path):
@@ -364,7 +382,7 @@ class BashPass(SingleCommandPass):
             for line in content.splitlines()[:10]
         )
 
-    async def process(self, files: Dict[Path, str], args: Dict[str, str]) -> PassResult:
+    async def process(self, files: Dict[Path, str], args: Dict[str, str | bool]) -> PassResult:
         shellcheck = await super().process(files, args)
         noset_files = [path for path, content in files.items() if not self.check_set(content)]
         output = generate_error_files(
@@ -373,7 +391,7 @@ class BashPass(SingleCommandPass):
         return PassResult.combine(shellcheck, PassResult(output, len(noset_files) == 0))
 
 
-class WhitespaceCheckPass(Pass):
+class WhitespaceCheckPass(TaggedPass):
     def __init__(self):
         super().__init__("whitespace-check", "all")
 
@@ -400,7 +418,7 @@ class WhitespaceCheckPass(Pass):
         )
 
 
-class CPPCheckPass(Pass):
+class CPPCheckPass(TaggedPass):
     def __init__(
         self,
         support_files: List[str],
@@ -495,6 +513,69 @@ class CPPCheckPass(Pass):
                 cpp_object_result,
             ),
         )
+
+
+class CheckCommitPass(Pass):
+    def __init__(self):
+        super().__init__("check-commit")
+
+    async def run(
+        self, files: Dict[str, Dict[Path, str]], args: Dict[str, str | bool]
+    ) -> PassResult:
+        if not args["check_commit"]:
+            return PassResult("", True)
+
+        commit_msg_cmd = await run_with_capture(["git", "show", "--format=%B", "-s"])
+        if commit_msg_cmd.returncode != 0:
+            return PassResult(commit_msg_cmd.output, False)
+
+        parts = commit_msg_cmd.output.splitlines()
+
+        subject = parts.pop(0)
+
+        first_non_link = False
+        message_lines: List[str] = []
+        for line in reversed(parts):
+            if not first_non_link:
+                if re.match(r"\[\d+\] ", line) or line.strip() == "":
+                    continue
+
+                first_non_link = True
+            message_lines.insert(0, line)
+
+        problems = []
+        # Actual content checks
+        if len(subject) > 50:
+            problems.append("Commit subject line exceeds 50 characters")
+
+        if subject[-1] == ".":
+            problems.append("Commit subject should not end with a period")
+
+        if len(message_lines) > 0 and message_lines[0] != "":
+            problems.append("Subject not followed by an empty line")
+
+        for index, line in enumerate(message_lines):
+            if len(line) > 72:
+                problems.append(f"Commit message line {index+2} too long ({len(line)})")
+
+        if message_lines[-1][-1] != ".":
+            problems.append("Last line of the commit does not end with a period")
+
+        commit_joined = f"{subject}\n\n" + "\n".join(message_lines)
+        for index, line in enumerate(commit_joined.splitlines()):
+            if line != line.rstrip():
+                problems.append(f"Trailing whitespace on line {index}")
+
+        # Check commit message with codespell
+        codespell_cmd = await run_with_capture(["codespell", "-c", "-"], input_=commit_joined)
+
+        output = "\n".join(problems) + "\n" if len(problems) > 0 else ""
+        if codespell_cmd.returncode != 0:
+            output += colored("Detected typos in the commit message:\n", "blue")
+            output += codespell_cmd.output
+        status_ok = len(problems) == 0 and codespell_cmd.returncode == 0
+
+        return PassResult(output, status_ok)
 
 
 def suffix_or_shebang(suffixes: Sequence[str] = (), shebang: str = "") -> FileFilter:
@@ -615,7 +696,7 @@ class PassRun:
     time: float
 
 
-async def run_passes(files: Dict[str, Dict[Path, str]], args: Dict[str, str], config: dict):
+async def run_passes(files: Dict[str, Dict[Path, str]], args: Dict[str, str | bool], config: dict):
     async def pass_wrapper(pass_: Pass, *args) -> PassRun:
         start = time.time()
         result = await pass_.run(*args)
@@ -700,6 +781,12 @@ See clang-format documentation for more details.""",
 arguments except for --use-local-clang-format-file.""",
     )
 
+    parser.add_argument(
+        "--check-commit",
+        action="store_true",
+        help="Add additional checks regarding the current HEAD commit",
+    )
+
     parser_file_selection = parser.add_mutually_exclusive_group()
     parser_file_selection.add_argument(
         "--commit-range", metavar="RANGE", help="Check files changed in the specified commit range"
@@ -733,6 +820,7 @@ async def amain():
     new_args = {
         "dry_run": not args.force_format,
         "print_timings": args.print_timings,
+        "check_commit": args.check_commit,
         "clang_style": clang_style,
         "isort_config": str(get_config("isort.cfg")),
         "flake8_config": str(get_config("flake8-config")),

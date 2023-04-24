@@ -157,3 +157,4 @@ read_passes:
       - -c
       - --ignore-regex
       - '\b(ArchType|[Ii]nvokable|\w+I)\b'
+  - type: CheckCommitPass
