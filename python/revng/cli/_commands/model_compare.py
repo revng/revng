@@ -1,9 +1,8 @@
-#!/usr/bin/env python3
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-# This script compares two YAML files. In general, the reference YAML file is
+# This command compares two YAML files. In general, the reference YAML file is
 # supposed to be included in the other one. For instance, {"a": 1, "b": 2}
 # contains {"b": 2}. This is useful for enforcing the content of certain parts
 # of a YAML file, in particular during testing.
@@ -22,13 +21,11 @@ from grandiso import find_motifs
 from networkx import DiGraph
 from networkx.algorithms.shortest_paths.unweighted import all_pairs_shortest_path_length
 
+from revng.cli.commands_registry import Command, CommandsRegistry, Options
+
 args = None
 
 fragile_keys = {"ID"}
-
-
-def log(message):
-    sys.stderr.write(message + "\n")
 
 
 def is_reference(string):
@@ -333,48 +330,56 @@ def open_argument(path):
     return open(path, encoding="utf-8")  # noqa: SIM115
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Compare a YAML file against a reference.")
-    parser.add_argument("reference", metavar="REFERENCE", help="The reference file.")
-    parser.add_argument("input", metavar="INPUT", default="-", nargs="?", help="The input file.")
-    parser.add_argument(
-        "--exact",
-        action="store_true",
-        help=("Match exactly, containing the reference is not enough."),
-    )
-    parser.add_argument("--not", action="store_true", help="If it matches, return an error.")
-    parser.add_argument(
-        "--dump-graphs", action="store_true", help="Dump INPUT.dot and REFERENCE.dot."
-    )
-    parser.add_argument("--selftest", action="store_true", help="Run internal tests.")
+class ModelCompareCommand(Command):
+    def __init__(self):
+        super().__init__(("model", "compare"), "Compare a YAML file against a reference")
 
-    global args
-    args = parser.parse_args()
+    def register_arguments(self, parser: argparse.ArgumentParser):
+        parser.add_argument("reference", metavar="REFERENCE", help="The reference file.")
+        parser.add_argument(
+            "input", metavar="INPUT", default="-", nargs="?", help="The input file."
+        )
+        parser.add_argument(
+            "--exact",
+            action="store_true",
+            help=("Match exactly, containing the reference is not enough."),
+        )
+        parser.add_argument("--not", action="store_true", help="If it matches, return an error.")
+        parser.add_argument(
+            "--dump-graphs", action="store_true", help="Dump INPUT.dot and REFERENCE.dot."
+        )
+        parser.add_argument("--selftest", action="store_true", help="Run internal tests.")
 
-    if args.selftest:
-        return selftest()
+    def run(self, options: Options) -> int:
+        global args
+        args = options.parsed_args
 
-    with open_argument(args.reference) as reference_file, open_argument(args.input) as input_file:
-        reference = yaml.safe_load(reference_file)
-        input_ = yaml.safe_load(input_file)
+        if args.selftest:
+            return selftest()
 
-    reference_graph = YAMLGraph(reference)
-    input_graph = YAMLGraph(input_)
+        with open_argument(args.reference) as reference_file, open_argument(
+            args.input
+        ) as input_file:
+            reference = yaml.safe_load(reference_file)
+            input_ = yaml.safe_load(input_file)
 
-    if args.exact:
-        result = reference_graph.is_equal(input_graph, args.dump_graphs)
-    else:
-        result = reference_graph.is_subgraph(input_graph, args.dump_graphs)
+        reference_graph = YAMLGraph(reference)
+        input_graph = YAMLGraph(input_)
 
-    if args.dump_graphs:
-        reference_graph.write(f"{args.reference}.dot")
-        input_graph.write(f"{args.input}.dot")
+        if args.exact:
+            result = reference_graph.is_equal(input_graph, args.dump_graphs)
+        else:
+            result = reference_graph.is_subgraph(input_graph, args.dump_graphs)
 
-    if args.__dict__["not"]:
-        result = not result
+        if args.dump_graphs:
+            reference_graph.write(f"{args.reference}.dot")
+            input_graph.write(f"{args.input}.dot")
 
-    return 0 if result else 1
+        if args.__dict__["not"]:
+            result = not result
+
+        return 0 if result else 1
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+def setup(commands_registry: CommandsRegistry):
+    commands_registry.register_command(ModelCompareCommand())
