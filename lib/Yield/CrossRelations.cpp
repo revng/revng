@@ -62,7 +62,7 @@ CR::CrossRelations::CrossRelations(const MetadataContainer &Metadata,
               const auto L = serializedLocation(ranks::DynamicFunction,
                                                 CallEdge->DynamicFunction());
               if (auto It = Relations().find(L); It != Relations().end()) {
-                CR::RelationTarget T(CR::RelationType::IsDynamicallyCalledFrom,
+                CR::RelationTarget T(CR::RelationType::IsCalledFrom,
                                      std::move(CallLocation));
                 It->Related().insert(std::move(T));
               }
@@ -89,7 +89,6 @@ static void conversionHelper(const CR::CrossRelations &Input,
     for (const auto &[RelationKind, TargetString] : Related) {
       switch (RelationKind) {
       case CR::RelationType::IsCalledFrom:
-      case CR::RelationType::IsDynamicallyCalledFrom:
         AddEdge(LocationString, TargetString, RelationKind);
         break;
 
@@ -116,8 +115,7 @@ CR::CrossRelations::toCallGraph() const {
   auto AddEdge = [&LookupHelper](std::string_view Callee,
                                  std::string_view Caller,
                                  RelationType::Values Kind) {
-    if (Kind == CR::RelationType::IsCalledFrom
-        || Kind == CR::RelationType::IsDynamicallyCalledFrom) {
+    if (Kind == CR::RelationType::IsCalledFrom) {
       // This assumes all the call sites are represented as basic block
       // locations for all the relations covered by these two kinds.
       using namespace pipeline;
@@ -162,8 +160,7 @@ yield::calls::PreLayoutGraph CR::CrossRelations::toYieldGraph() const {
   auto AddEdge = [&LookupHelper](std::string_view Callee,
                                  std::string_view Caller,
                                  CR::RelationType::Values Kind) {
-    if (Kind == CR::RelationType::IsCalledFrom
-        || Kind == CR::RelationType::IsDynamicallyCalledFrom) {
+    if (Kind == CR::RelationType::IsCalledFrom) {
       // This assumes all the call sites are represented as basic block
       // locations for all the relations covered by these two kinds.
       auto CallerLocation = *locationFromString(ranks::BasicBlock, Caller);
