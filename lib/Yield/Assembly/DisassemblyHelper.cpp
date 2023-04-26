@@ -108,13 +108,13 @@ yield::Function DH::disassemble(const model::Function &Function,
                                 const efa::FunctionMetadata &Metadata,
                                 const RawBinaryView &BinaryView,
                                 const model::Binary &Binary) {
-  auto &Helper = getDisassemblerFor(Function.Entry().type());
-
   yield::Function ResultFunction;
   ResultFunction.Entry() = Function.Entry();
   for (auto BasicBlockInserter =
          ResultFunction.ControlFlowGraph().batch_insert();
        const efa::BasicBlock &BasicBlock : Metadata.ControlFlowGraph()) {
+    auto &Helper = getDisassemblerFor(BasicBlock.ID().start().type());
+
     yield::BasicBlock ResultBasicBlock;
     ResultBasicBlock.ID() = BasicBlock.ID();
     ResultBasicBlock.End() = BasicBlock.End();
