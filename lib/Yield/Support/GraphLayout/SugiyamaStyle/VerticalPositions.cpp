@@ -5,7 +5,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "Layout.h"
+#include "InternalCompute.h"
 
 void setVerticalCoordinates(const LayerContainer &Layers,
                             const LaneContainer &Lanes,
@@ -15,10 +15,10 @@ void setVerticalCoordinates(const LayerContainer &Layers,
   for (size_t Index = 0; Index < Layers.size(); ++Index) {
     float MaxHeight = 0;
     for (auto Node : Layers[Index]) {
-      auto NodeHeight = Node->size().H;
+      auto NodeHeight = Node->Size.H;
       if (MaxHeight < NodeHeight)
         MaxHeight = NodeHeight;
-      Node->center().Y = LastY - Node->size().H / 2;
+      Node->Center.Y = LastY - Node->Size.H / 2;
     }
 
     auto LaneCount = Index < Lanes.Horizontal.size() ?

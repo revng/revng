@@ -13,17 +13,17 @@ revng_add_library_internal(
   ControlFlow/FallthroughDetection.cpp
   ControlFlow/NodeSizeCalculation.cpp
   ControlFlow/SVG.cpp
-  Support/SugiyamaStyleGraphLayout/EdgeRouting.cpp
-  Support/SugiyamaStyleGraphLayout/GraphPreparation.cpp
-  Support/SugiyamaStyleGraphLayout/HorizontalPositions.cpp
-  Support/SugiyamaStyleGraphLayout/LaneDistribution.cpp
-  Support/SugiyamaStyleGraphLayout/LayoutConversion.cpp
-  Support/SugiyamaStyleGraphLayout/LinearSegmentSelection.cpp
-  Support/SugiyamaStyleGraphLayout/NodeRanking.cpp
-  Support/SugiyamaStyleGraphLayout/PermutationSelection.cpp
-  Support/SugiyamaStyleGraphLayout/TopologicalOrdering.cpp
-  Support/SugiyamaStyleGraphLayout/VerticalPositions.cpp
-  Support/SugiyamaStyleGraphLayout.cpp
+  Support/GraphLayout/SugiyamaStyle/Compute.cpp
+  Support/GraphLayout/SugiyamaStyle/EdgeRouting.cpp
+  Support/GraphLayout/SugiyamaStyle/GraphPreparation.cpp
+  Support/GraphLayout/SugiyamaStyle/HorizontalPositions.cpp
+  Support/GraphLayout/SugiyamaStyle/LaneDistribution.cpp
+  Support/GraphLayout/SugiyamaStyle/LayoutConversion.cpp
+  Support/GraphLayout/SugiyamaStyle/LinearSegmentSelection.cpp
+  Support/GraphLayout/SugiyamaStyle/NodeRanking.cpp
+  Support/GraphLayout/SugiyamaStyle/PermutationSelection.cpp
+  Support/GraphLayout/SugiyamaStyle/TopologicalOrdering.cpp
+  Support/GraphLayout/SugiyamaStyle/VerticalPositions.cpp
   CrossRelations.cpp
   Dump.cpp
   Plain.cpp

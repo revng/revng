@@ -30,23 +30,23 @@
 ///     of implementation simplicity this node stores COPIES of the labels.
 ///     It's only suitable to be used with cheap to copy labels which are never
 ///     mutated. There are plans on making them explicitly immutable (TODO),
-///     as such you can consider label mutation a deprecated behaviour.
+///     as such you can consider label mutation a deprecated behavior.
 ///
 ///   - MutableEdgeNode - a double-linked node with dynamically allocated
 ///     labels. It is similar to BidirectionalNode except it stores edge labels
 ///     on the heap. It's slower and uses more memory but allows for safe label
 ///     modification as well as controls that nodes and edges are removed
-///     safely, with the other "halfs" cleaned up as well.
+///     safely, with the other "halves" cleaned up as well.
 ///     Note that it's disallowed to have a mutable edge graph without edge
 ///     labels. Use `BidirectionalNode` in those cases.
 ///
 ///   - The node you're going to write - No-one knows the needs of your
-///     project better than you. That's why the best datastructure is the one
+///     project better than you. That's why the best data structure is the one
 ///     you are going to write. So just inherit one of our nodes, or even copy
 ///     it and modify it so that it suits your graphs as nicely as possible.
 ///
 ///  On the side-note, we're providing a couple of helpful concepts to help
-///  differenciate different node types. This is helpful in the projects that
+///  differentiate different node types. This is helpful in the projects that
 ///  use multiple different graph architectures side by side.
 
 template<typename T>
@@ -155,7 +155,7 @@ namespace revng::detail {
 /// \note At this step Forward edge has not been declared yet, thus we accept a
 ///       template parameter that has the same signature as ForwardEdge that
 ///       will be declared later. This allows us to use it as if it was
-///       delcared, provided that only the real ForwardEdge is used as this
+///       declared, provided that only the real ForwardEdge is used as this
 ///       argument.
 template<typename Node,
          typename EdgeLabel,
@@ -295,6 +295,11 @@ public:
 
   bool hasSuccessors() const { return Successors.size() != 0; }
   size_t successorCount() const { return Successors.size(); }
+  bool hasSuccessor(DerivedType const *S) const {
+    auto Iterator = llvm::find_if(Successors,
+                                  [S](auto &N) { return N.Neighbor == S; });
+    return Iterator != Successors.end();
+  }
 
 protected:
   static llvm::iterator_range<child_iterator>
@@ -320,9 +325,9 @@ namespace revng::detail {
 ///
 /// \note At this step BidirectionalEdge has not been declared yet, thus we
 ///       accept a template parameter that has the same signature as
-///       BidirecationEdge that will be declared later. This allows us to use it
-///       as if it was delcared, provided that only the real BidirecationalEdge
-///       is used as this argument.
+///       BidirectionalNode that will be declared later. This allows us to use
+///       it as if it was declared, provided that only the real
+///       BidirectionalNode is used as this argument.
 template<typename Node,
          typename EdgeLabel,
          bool NeedsParent,
@@ -431,6 +436,11 @@ public:
 
   bool hasPredecessors() const { return Predecessors.size() != 0; }
   size_t predecessorCount() const { return Predecessors.size(); }
+  bool hasPredecessor(BidirectionalNode const *P) const {
+    auto Iterator = llvm::find_if(Predecessors,
+                                  [P](auto &N) { return N.Neighbor == P; });
+    return Iterator != Predecessors.end();
+  }
 
 private:
   NeighborContainer Predecessors;
@@ -438,7 +448,7 @@ private:
 
 namespace revng::detail {
 /// The parameters deciding specifics of the base type `MutableEdgeNode`
-/// extends are non-trivial. That's why those decisiion were wrapped
+/// extends are non-trivial. That's why those decision were wrapped
 /// inside this struct to minimize clutter.
 ///
 /// \note At this step `TheNode` has not been declared yet, thus we accept a

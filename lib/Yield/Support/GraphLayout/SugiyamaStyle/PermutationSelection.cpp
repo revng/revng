@@ -9,7 +9,7 @@
 
 #include "llvm/ADT/PostOrderIterator.h"
 
-#include "Layout.h"
+#include "InternalCompute.h"
 
 /// Converts given rankings to a layer container and updates ranks to remove
 /// the layers that are not required for correct routing.
@@ -32,7 +32,7 @@ optimizeLayers(InternalGraph &Graph, RankContainer &Ranks) {
       //
       // Such nodes always have a single predecessor and a single successor.
       // Additionally, the ranks of those two neighbors have to be different.
-      if (!Node->isVirtual()) {
+      if (!Node->IsVirtual) {
         IsLayerRequired = true;
         break;
       }
@@ -53,8 +53,11 @@ optimizeLayers(InternalGraph &Graph, RankContainer &Ranks) {
       for (auto Node : *Iterator) {
         auto *Predecessor = *Node->predecessors().begin();
         auto *Successor = *Node->successors().begin();
-        auto Label = std::move(*Node->predecessor_edges().begin()->Label);
-        Predecessor->addSuccessor(Successor, std::move(Label));
+
+        // Be careful as to not discard any real edges.
+        revng_assert(Node->predecessor_edges().begin()->Label->isVirtual());
+        auto *Label = Node->successor_edges().begin()->Label;
+        Predecessor->addSuccessor(Successor, std::move(*Label));
         Ranks.erase(Node);
         Graph.removeNode(Node);
       }
@@ -305,7 +308,7 @@ public:
     if (int A = Cluster(LHS), B = Cluster(RHS); A == B) {
       auto BarycenterA = get(LHS), BarycenterB = get(RHS);
       if (std::isnan(BarycenterA) || std::isnan(BarycenterB))
-        return LHS->Index < RHS->Index;
+        return LHS->index() < RHS->index();
       else
         return BarycenterA < BarycenterB;
     } else {
@@ -411,7 +414,7 @@ LayerContainer selectPermutation(InternalGraph &Graph,
 
   // Iteration counts are chosen arbitrarily. If the computation time was not
   // an issue, we could keep iterating until convergence, but since it's not
-  // the case, we have to choose a stoping point.
+  // the case, we have to choose a stopping point.
   //
   // The iteration count logarithmically depends on the layer number.
   size_t Iterations = std::log2(InitialLayers.size());

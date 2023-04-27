@@ -4,7 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "InternalGraph.h"
+#include "Helpers.h"
 
 /// Ranks the nodes using specified ranking strategy.
 template<RankingStrategy Strategy>
@@ -16,7 +16,7 @@ RankContainer rankNodes(InternalGraph &Graph, int64_t DiamondBound);
 
 /// Updates node ranking after the graph was modified.
 ///
-/// Garanties ranking consistency i.e. that each node has
+/// Guaranties ranking consistency i.e. that each node has
 /// a rank greater than its predecessors.
 ///
 /// Be careful, rank order is NOT preserved.

@@ -18,10 +18,9 @@
 #include "revng/Yield/ControlFlow/Extraction.h"
 #include "revng/Yield/ControlFlow/NodeSizeCalculation.h"
 #include "revng/Yield/CrossRelations/CrossRelations.h"
-#include "revng/Yield/Graph.h"
 #include "revng/Yield/PTML.h"
 #include "revng/Yield/SVG.h"
-#include "revng/Yield/Support/SugiyamaStyleGraphLayout.h"
+#include "revng/Yield/Support/GraphLayout/SugiyamaStyle/Compute.h"
 
 using ptml::Tag;
 
@@ -42,30 +41,35 @@ static constexpr auto RefusedArrowHead = "refused-arrow-head";
 
 } // namespace tags
 
-static std::string_view edgeTypeAsString(yield::Graph::EdgeType Type) {
-  switch (Type) {
-  case yield::Graph::EdgeType::Unconditional:
+static std::string_view edgeTypeAsString(const yield::cfg::Edge &Edge) {
+  switch (Edge.Type) {
+  case yield::cfg::EdgeType::Unconditional:
     return tags::UnconditionalEdge;
-  case yield::Graph::EdgeType::Call:
+  case yield::cfg::EdgeType::Call:
     return tags::CallEdge;
-  case yield::Graph::EdgeType::Taken:
+  case yield::cfg::EdgeType::Taken:
     return tags::TakenEdge;
-  case yield::Graph::EdgeType::Refused:
+  case yield::cfg::EdgeType::Refused:
     return tags::RefusedEdge;
   default:
     revng_abort("Unknown edge type");
   }
 }
 
+static std::string_view edgeTypeAsString(const yield::calls::Edge &Edge) {
+  // TODO: we might want to use separate set of tags for call graphs.
+  return Edge.IsBackwards ? tags::RefusedEdge : tags::TakenEdge;
+}
+
 // clang-format off
 template <uintmax_t Numerator = 8, uintmax_t Denominator = 10>
-static std::string cubicBend(const yield::Graph::Point &From,
-                             const yield::Graph::Point &To,
+static std::string cubicBend(const yield::layout::Point &From,
+                             const yield::layout::Point &To,
                              bool VerticalCurves,
                              std::ratio<Numerator, Denominator> &&Bend = {}) {
   // clang-format on
 
-  using Coordinate = yield::Graph::Coordinate;
+  using Coordinate = yield::layout::Coordinate;
   constexpr Coordinate Factor = Coordinate(Numerator) / Denominator;
   Coordinate XModifier = Factor * (To.X - From.X);
   Coordinate YModifier = Factor * (To.Y - From.Y);
@@ -84,8 +88,8 @@ static std::string cubicBend(const yield::Graph::Point &From,
                        -To.Y);
 }
 
-static std::string edge(const std::vector<yield::Graph::Point> &Path,
-                        const yield::Graph::EdgeType &Type,
+static std::string edge(const yield::layout::Path &Path,
+                        const std::string_view Type,
                         bool UseOrthogonalBends = true,
                         bool UseVerticalCurves = false) {
   std::string Points;
@@ -107,22 +111,22 @@ static std::string edge(const std::vector<yield::Graph::Point> &Path,
   revng_assert(Points.back() == ' ');
   Points.pop_back(); // Remove an extra space at the end.
 
-  std::string Marker = llvm::formatv("url(#{0}-arrow-head)",
-                                     edgeTypeAsString(Type));
+  std::string Marker = llvm::formatv("url(#{0}-arrow-head)", Type);
   return Tag("path")
-    .addAttribute("class", std::string(edgeTypeAsString(Type)) += "-edge")
+    .addAttribute("class", std::string(Type) += "-edge")
     .addAttribute("d", std::move(Points))
     .addAttribute("marker-end", std::move(Marker))
     .addAttribute("fill", "none")
     .serialize();
 }
 
-static std::string node(const yield::Node *Node,
-                        std::string &&Content,
-                        const yield::cfg::Configuration &Configuration) {
-  yield::Graph::Size HalfSize{ Node->Size.W / 2, Node->Size.H / 2 };
-  yield::Graph::Point TopLeft{ Node->Center.X - HalfSize.W,
-                               -Node->Center.Y - HalfSize.H };
+template<typename NodeData, typename EdgeData = Empty>
+std::string node(const yield::layout::OutputNode<NodeData, EdgeData> *Node,
+                 std::string &&Content,
+                 const yield::cfg::Configuration &Configuration) {
+  yield::layout::Size HalfSize{ Node->Size.W / 2, Node->Size.H / 2 };
+  yield::layout::Point TopLeft{ Node->Center.X - HalfSize.W,
+                                -Node->Center.Y - HalfSize.H };
 
   Tag Body("body", std::move(Content));
   Body.addAttribute("xmlns", R"(http://www.w3.org/1999/xhtml)");
@@ -147,16 +151,18 @@ static std::string node(const yield::Node *Node,
 }
 
 struct Viewbox {
-  yield::Graph::Point TopLeft = { -1, -1 };
-  yield::Graph::Point BottomRight = { +1, +1 };
+  yield::layout::Point TopLeft = { -1, -1 };
+  yield::layout::Point BottomRight = { +1, +1 };
 };
 
-static Viewbox makeViewbox(const yield::Node *Node) {
-  yield::Graph::Size HalfSize{ Node->Size.W / 2, Node->Size.H / 2 };
-  yield::Graph::Point TopLeft{ Node->Center.X - HalfSize.W,
-                               -Node->Center.Y - HalfSize.H };
-  yield::Graph::Point BottomRight{ Node->Center.X + HalfSize.W,
-                                   -Node->Center.Y + HalfSize.H };
+template<typename NodeData, typename EdgeData = Empty>
+static Viewbox
+makeViewbox(const yield::layout::OutputNode<NodeData, EdgeData> *Node) {
+  yield::layout::Size HalfSize{ Node->Size.W / 2, Node->Size.H / 2 };
+  yield::layout::Point TopLeft{ Node->Center.X - HalfSize.W,
+                                -Node->Center.Y - HalfSize.H };
+  yield::layout::Point BottomRight{ Node->Center.X + HalfSize.W,
+                                    -Node->Center.Y + HalfSize.H };
   return Viewbox{ .TopLeft = std::move(TopLeft),
                   .BottomRight = std::move(BottomRight) };
 }
@@ -172,7 +178,7 @@ static void expandViewbox(Viewbox &LHS, const Viewbox &RHS) {
     LHS.BottomRight.Y = RHS.BottomRight.Y;
 }
 
-static void expandViewbox(Viewbox &Box, const yield::Graph::Point &Point) {
+static void expandViewbox(Viewbox &Box, const yield::layout::Point &Point) {
   if (Box.TopLeft.X > Point.X)
     Box.TopLeft.X = Point.X;
   if (Box.TopLeft.Y > -Point.Y)
@@ -183,7 +189,8 @@ static void expandViewbox(Viewbox &Box, const yield::Graph::Point &Point) {
     Box.BottomRight.Y = -Point.Y;
 }
 
-static Viewbox calculateViewbox(const yield::Graph &Graph) {
+template<StrictSpecializationOf<yield::layout::OutputGraph> GraphType>
+Viewbox calculateViewbox(const GraphType &Graph) {
   revng_assert(Graph.size() != 0);
 
   // Ensure every node fits.
@@ -208,7 +215,7 @@ static Viewbox calculateViewbox(const yield::Graph &Graph) {
 
 /// A really simple arrow head marker generator.
 ///
-/// \param Name: the id of the marker as refered to by the objects using it.
+/// \param Name: the id of the marker as referred to by the objects using it.
 /// \param Size: the size of the marker. It sets both width and height to force
 /// the marker to be square-shaped.
 /// \param Concave: the size of the concave at the rear side of the arrow.
@@ -254,22 +261,23 @@ defaultArrowHeads(const yield::cfg::Configuration &Configuration) {
     return duplicateArrowHeadsImpl(8, 3, 2);
 }
 
-template<typename CallableType>
-concept NodeExporter = requires(CallableType &&Callable,
-                                const yield::Graph::Node &Node) {
+constexpr bool isVertical(yield::layout::sugiyama::Orientation Orientation) {
+  return Orientation == yield::layout::sugiyama::Orientation::TopToBottom
+         || Orientation == yield::layout::sugiyama::Orientation::BottomToTop;
+}
+
+template<typename CallableType, typename NodeType>
+concept NodeExporter = requires(CallableType &&Callable, const NodeType &Node) {
   { Callable(Node) } -> convertible_to<std::string>;
 };
 
-constexpr bool isVertical(yield::sugiyama::LayoutOrientation Orientation) {
-  return Orientation == yield::sugiyama::LayoutOrientation::TopToBottom
-         || Orientation == yield::sugiyama::LayoutOrientation::BottomToTop;
-}
-
-template<bool ShouldEmitEmptyNodes>
-static std::string exportGraph(const yield::Graph &Graph,
+template<bool ShouldEmitEmptyNodes,
+         StrictSpecializationOf<yield::layout::OutputGraph> PostLayoutGraph,
+         NodeExporter<typename PostLayoutGraph::Node> ContentsLambda>
+static std::string exportGraph(const PostLayoutGraph &Graph,
                                const yield::cfg::Configuration &Configuration,
-                               yield::sugiyama::LayoutOrientation Orientation,
-                               NodeExporter auto &&NodeContents) {
+                               yield::layout::sugiyama::Orientation Orientation,
+                               ContentsLambda &&NodeContents) {
   std::string Result;
 
   // Short circuit the execution for an empty graph.
@@ -282,9 +290,8 @@ static std::string exportGraph(const yield::Graph &Graph,
       for (const auto [To, Edge] : From->successor_edges()) {
         if (ShouldEmitEmptyNodes || To->Address.isValid()) {
           revng_assert(Edge != nullptr);
-          revng_assert(Edge->Status != yield::Graph::EdgeStatus::Unrouted);
           Result += edge(Edge->Path,
-                         Edge->Type,
+                         edgeTypeAsString(*Edge),
                          Configuration.UseOrthogonalBends,
                          isVertical(Orientation));
         }
@@ -313,21 +320,60 @@ static std::string exportGraph(const yield::Graph &Graph,
     .serialize();
 }
 
+namespace yield::layout::sugiyama {
+
+/// A helper for invoking sugiyama style layouter with the configuration
+/// filled in based on the relevant cfg::Configuration.
+///
+/// \tparam Node The type of the data attached to each graph node
+/// \tparam Edge The type of the data attached to each graph edge
+///
+/// \param Graph An input graph
+/// \param CFG An object describing the desired CFG configuration
+/// \param LayoutOrientation The direction of the desired layout
+/// \param Ranking The ranking strategy
+/// \param UseSimpleTreeOptimization A flag deciding whether simple tree
+///        optimization should be used.
+///
+/// \return The laid out version of the graph corresponding to \ref Graph
+template<typename Node, typename Edge = Empty>
+inline std::optional<OutputGraph<Node, Edge>>
+compute(const InputGraph<Node, Edge> &Graph,
+        const cfg::Configuration &CFG,
+        Orientation LayoutOrientation = Orientation::TopToBottom,
+        RankingStrategy Ranking = RankingStrategy::DisjointDepthFirstSearch,
+        bool UseSimpleTreeOptimization = false) {
+  return compute(Graph,
+                 Configuration{
+                   .Ranking = Ranking,
+                   .Orientation = LayoutOrientation,
+                   .UseOrthogonalBends = CFG.UseOrthogonalBends,
+                   .PreserveLinearSegments = CFG.PreserveLinearSegments,
+                   .UseSimpleTreeOptimization = UseSimpleTreeOptimization,
+                   .VirtualNodeWeight = CFG.VirtualNodeWeight,
+                   .NodeMarginSize = CFG.ExternalNodeMarginSize,
+                   .EdgeMarginSize = CFG.EdgeMarginSize });
+}
+
+} // namespace yield::layout::sugiyama
+
 std::string
 yield::svg::controlFlowGraph(const yield::Function &InternalFunction,
                              const model::Binary &Binary) {
   constexpr auto Configuration = cfg::Configuration::getDefault();
 
-  yield::Graph Graph = cfg::extractFromInternal(InternalFunction,
-                                                Binary,
-                                                Configuration);
+  using Pre = cfg::PreLayoutGraph;
+  Pre Graph = cfg::extractFromInternal(InternalFunction, Binary, Configuration);
 
   cfg::calculateNodeSizes(Graph, InternalFunction, Binary, Configuration);
 
-  constexpr auto Orientation = yield::sugiyama::LayoutOrientation::TopToBottom;
-  sugiyama::layout(Graph, Configuration, Orientation);
+  constexpr auto TopToBottom = layout::sugiyama::Orientation::TopToBottom;
 
-  auto Content = [&](const yield::Graph::Node &Node) {
+  using Post = std::optional<cfg::PostLayoutGraph>;
+  Post Result = layout::sugiyama::compute(Graph, Configuration, TopToBottom);
+  revng_assert(Result.has_value());
+
+  auto Content = [&](const yield::cfg::PostLayoutNode &Node) {
     if (Node.Address.isValid())
       return yield::ptml::controlFlowNode(Node.Address,
                                           InternalFunction,
@@ -335,7 +381,7 @@ yield::svg::controlFlowGraph(const yield::Function &InternalFunction,
     else
       return std::string{};
   };
-  return exportGraph<true>(Graph, Configuration, Orientation, Content);
+  return exportGraph<true>(*Result, Configuration, TopToBottom, Content);
 }
 
 struct LabelNodeHelper {
@@ -343,7 +389,7 @@ struct LabelNodeHelper {
   const yield::cfg::Configuration Configuration;
   std::optional<BasicBlockID> RootNodeLocation = std::nullopt;
 
-  void computeSizes(yield::Graph &Graph) {
+  void computeSizes(yield::calls::PreLayoutGraph &Graph) {
     for (auto *Node : Graph.nodes()) {
       if (Node->Address.isValid()) {
         // A normal node
@@ -354,14 +400,14 @@ struct LabelNodeHelper {
         size_t NameLength = FunctionIterator->name().size();
         revng_assert(NameLength != 0);
 
-        Node->Size = yield::Graph::Size{
+        Node->Size = yield::layout::Size{
           NameLength * Configuration.LabelFontSize
             * Configuration.HorizontalFontFactor,
           1 * Configuration.LabelFontSize * Configuration.VerticalFontFactor
         };
       } else {
         // An entry node.
-        Node->Size = yield::Graph::Size{ 30, 30 };
+        Node->Size = yield::layout::Size{ 30, 30 };
       }
 
       Node->Size.W += Configuration.InternalNodeMarginSize * 2;
@@ -369,7 +415,7 @@ struct LabelNodeHelper {
     }
   }
 
-  std::string operator()(const yield::Graph::Node &Node) const {
+  std::string operator()(const yield::calls::PostLayoutNode &Node) const {
     revng_assert(Node.Address.isValid());
     if (Node.NextAddress.isValid()) {
       revng_assert(Node.Address == Node.NextAddress);
@@ -394,50 +440,54 @@ std::string yield::svg::callGraph(const CrossRelations &Relations,
   // TODO: make configuration accessible from outside.
   auto Configuration = cfg::Configuration::getDefault();
   Configuration.UseOrthogonalBends = false;
-  constexpr auto Orientation = sugiyama::LayoutOrientation::LeftToRight;
-  constexpr auto Ranking = sugiyama::RankingStrategy::BreadthFirstSearch;
+  constexpr auto LeftToRight = layout::sugiyama::Orientation::LeftToRight;
+  constexpr auto BFS = layout::sugiyama::RankingStrategy::BreadthFirstSearch;
 
   LabelNodeHelper Helper{ Binary, Configuration };
 
-  auto Result = Relations.toYieldGraph();
+  yield::calls::PreLayoutGraph Result = Relations.toYieldGraph();
   auto EntryPoints = entryPoints(&Result);
   revng_assert(!EntryPoints.empty());
   if (EntryPoints.size() > 1) {
     // Add an artificial "root" node to make sure there's a single entry point.
-    yield::Graph::Node *Root = Result.addNode();
-    for (yield::Graph::Node *Entry : EntryPoints)
+    yield::calls::PreLayoutNode *Root = Result.addNode();
+    for (yield::calls::PreLayoutNode *Entry : EntryPoints)
       Root->addSuccessor(Entry);
     Result.setEntryNode(Root);
   } else {
     Result.setEntryNode(EntryPoints.front());
   }
 
-  auto InternalGraph = calls::makeCalleeTree(Result);
-  Helper.computeSizes(InternalGraph);
+  auto Tree = calls::makeCalleeTree(Result);
+  Helper.computeSizes(Tree);
 
-  sugiyama::layout(InternalGraph, Configuration, Orientation, Ranking, true);
-  return exportGraph<false>(InternalGraph, Configuration, Orientation, Helper);
+  namespace sugiyama = layout::sugiyama;
+  auto LT = sugiyama::compute(Tree, Configuration, LeftToRight, BFS, true);
+  revng_assert(LT.has_value());
+
+  return exportGraph<false>(*LT, Configuration, LeftToRight, Helper);
 }
 
-static auto flipPoint(yield::Graph::Point const &Point) {
-  return yield::Graph::Point{ -Point.X, -Point.Y };
+static auto flipPoint(yield::layout::Point const &Point) {
+  return yield::layout::Point{ -Point.X, -Point.Y };
 };
-static auto
-calculateDelta(yield::Graph::Point const &LHS, yield::Graph::Point const &RHS) {
-  return yield::Graph::Point{ RHS.X - LHS.X, RHS.Y - LHS.Y };
+static auto calculateDelta(yield::layout::Point const &LHS,
+                           yield::layout::Point const &RHS) {
+  return yield::layout::Point{ RHS.X - LHS.X, RHS.Y - LHS.Y };
 }
-static auto translatePoint(yield::Graph::Point const &Point,
-                           yield::Graph::Point const &Delta) {
-  return yield::Graph::Point{ Point.X + Delta.X, Point.Y + Delta.Y };
+static auto translatePoint(yield::layout::Point const &Point,
+                           yield::layout::Point const &Delta) {
+  return yield::layout::Point{ Point.X + Delta.X, Point.Y + Delta.Y };
 }
-static auto convertPoint(yield::Graph::Point const &Point,
-                         yield::Graph::Point const &Delta) {
+static auto convertPoint(yield::layout::Point const &Point,
+                         yield::layout::Point const &Delta) {
   return translatePoint(flipPoint(Point), Delta);
 }
 
-static yield::Graph combineHalvesHelper(const BasicBlockID &SlicePoint,
-                                        yield::Graph &&ForwardsSlice,
-                                        yield::Graph &&BackwardsSlice) {
+static yield::calls::PostLayoutGraph
+combineHalvesHelper(const BasicBlockID &SlicePoint,
+                    yield::calls::PostLayoutGraph &&ForwardsSlice,
+                    yield::calls::PostLayoutGraph &&BackwardsSlice) {
   revng_assert(ForwardsSlice.size() != 0 && BackwardsSlice.size() != 0);
 
   auto IsSlicePoint = [&SlicePoint](const auto *Node) {
@@ -468,8 +518,9 @@ static yield::Graph combineHalvesHelper(const BasicBlockID &SlicePoint,
   }
 
   // Define a map for faster node lookup.
-  llvm::DenseMap<yield::Graph::Node *, yield::Graph::Node *> Lookup;
-  auto AccessLookup = [&Lookup](yield::Graph::Node *Key) {
+  using PostNode = yield::calls::PostLayoutGraph::Node;
+  llvm::DenseMap<PostNode *, PostNode *> Lookup;
+  auto AccessLookup = [&Lookup](PostNode *Key) {
     auto Iterator = Lookup.find(Key);
     revng_assert(Iterator != Lookup.end() && Iterator->second != nullptr);
     return Iterator->second;
@@ -506,32 +557,40 @@ std::string yield::svg::callGraphSlice(const BasicBlockID &SlicePoint,
   // TODO: make configuration accessible from outside.
   auto Configuration = cfg::Configuration::getDefault();
   Configuration.UseOrthogonalBends = false;
-  constexpr auto Orientation = sugiyama::LayoutOrientation::LeftToRight;
-  constexpr auto Ranking = sugiyama::RankingStrategy::BreadthFirstSearch;
+  constexpr auto LeftToRight = layout::sugiyama::Orientation::LeftToRight;
+  constexpr auto BFS = layout::sugiyama::RankingStrategy::BreadthFirstSearch;
 
   LabelNodeHelper Helper{ Binary, Configuration, SlicePoint };
 
   // Ready the forwards facing part of the slice
-  auto ForwardsGraph = calls::makeCalleeTree(Relations.toYieldGraph(),
-                                             SlicePoint);
-  for (auto *From : ForwardsGraph.nodes())
+  auto Forward = calls::makeCalleeTree(Relations.toYieldGraph(), SlicePoint);
+  for (auto *From : Forward.nodes())
     for (auto [To, Label] : From->successor_edges())
-      Label->Type = yield::Graph::EdgeType::Taken;
-  Helper.computeSizes(ForwardsGraph);
-  sugiyama::layout(ForwardsGraph, Configuration, Orientation, Ranking, true);
+      Label->IsBackwards = false;
+  Helper.computeSizes(Forward);
+  auto LaidOutForwardsGraph = layout::sugiyama::compute(Forward,
+                                                        Configuration,
+                                                        LeftToRight,
+                                                        BFS,
+                                                        true);
+  revng_assert(LaidOutForwardsGraph.has_value());
 
   // Ready the backwards facing part of the slice
-  auto BackwardsGraph = calls::makeCallerTree(Relations.toYieldGraph(),
-                                              SlicePoint);
-  for (auto *From : BackwardsGraph.nodes())
+  auto Backwards = calls::makeCallerTree(Relations.toYieldGraph(), SlicePoint);
+  for (auto *From : Backwards.nodes())
     for (auto [To, Label] : From->successor_edges())
-      Label->Type = yield::Graph::EdgeType::Refused;
-  Helper.computeSizes(BackwardsGraph);
-  sugiyama::layout(BackwardsGraph, Configuration, Orientation, Ranking, true);
+      Label->IsBackwards = true;
+  Helper.computeSizes(Backwards);
+  auto LaidOutBackwardsGraph = layout::sugiyama::compute(Backwards,
+                                                         Configuration,
+                                                         LeftToRight,
+                                                         BFS,
+                                                         true);
+  revng_assert(LaidOutBackwardsGraph.has_value());
 
   // Consume the halves to produce a combined graph and export it.
   auto CombinedGraph = combineHalvesHelper(SlicePoint,
-                                           std::move(ForwardsGraph),
-                                           std::move(BackwardsGraph));
-  return exportGraph<false>(CombinedGraph, Configuration, Orientation, Helper);
+                                           std::move(*LaidOutForwardsGraph),
+                                           std::move(*LaidOutBackwardsGraph));
+  return exportGraph<false>(CombinedGraph, Configuration, LeftToRight, Helper);
 }

@@ -7,21 +7,21 @@
 
 #include "llvm/ADT/DepthFirstIterator.h"
 
-#include "Layout.h"
+#include "InternalCompute.h"
 
 CornerContainer routeBackwardsCorners(InternalGraph &Graph,
                                       const RankContainer &Ranks,
                                       const LaneContainer &Lanes,
                                       float MarginSize,
                                       float EdgeDistance) {
-  std::vector<DirectedEdgeView> CornerEdges;
+  std::vector<EdgeView> CornerEdges;
 
   // To keep the hierarchy consistent, V-shapes were added using forward
   // direction. So that's what we're going to use to detect them.
   for (auto *From : Graph.nodes())
     for (auto [To, Label] : From->successor_edges())
-      if (!From->isVirtual() != !To->isVirtual() && !Label->IsBackwards)
-        CornerEdges.emplace_back(From, To, Label->Pointer, false);
+      if (!From->IsVirtual != !To->IsVirtual && !Label->IsBackwards)
+        CornerEdges.emplace_back(From, To, *Label);
 
   CornerContainer Corners;
   for (auto &Edge : CornerEdges) {
@@ -34,7 +34,7 @@ CornerContainer routeBackwardsCorners(InternalGraph &Graph,
         LaneIndex = Iterator->second;
     }
 
-    if (Edge.From->isVirtual() && !Edge.To->isVirtual()) {
+    if (Edge.From->IsVirtual && !Edge.To->IsVirtual) {
       if (Edge.From->successorCount() != 2 || Edge.From->hasPredecessors())
         continue;
 
@@ -45,35 +45,36 @@ CornerContainer routeBackwardsCorners(InternalGraph &Graph,
       auto *Second = *std::next(Edge.From->successors().begin());
 
       // Make sure there are no self-loops, otherwise it's not a corner.
-      if (First->Index == Edge.From->Index || Second->Index == Edge.From->Index)
+      if (First->index() == Edge.From->index()
+          || Second->index() == Edge.From->index())
         continue;
 
-      auto ToUpperEdge = First->center().Y + First->size().H / 2;
-      auto FromUpperEdge = Second->center().Y + Second->size().H / 2;
-      Edge.From->center().X = (First->center().X + Second->center().X) / 2;
-      Edge.From->center().Y = std::min(ToUpperEdge, FromUpperEdge) + MarginSize
-                              + LaneIndex * EdgeDistance;
+      auto ToUpperEdge = First->Center.Y + First->Size.H / 2;
+      auto FromUpperEdge = Second->Center.Y + Second->Size.H / 2;
+      Edge.From->Center.X = (First->Center.X + Second->Center.X) / 2;
+      Edge.From->Center.Y = std::min(ToUpperEdge, FromUpperEdge) + MarginSize
+                            + LaneIndex * EdgeDistance;
 
       auto &From = Edge.From;
       for (auto [To, Label] : From->successor_edges()) {
-        auto FromTop = From->center().Y + From->size().H / 2;
-        auto ToTop = To->center().Y + To->size().H / 2;
+        auto FromTop = From->Center.Y + From->Size.H / 2;
+        auto ToTop = To->Center.Y + To->Size.H / 2;
 
         if (Label->IsBackwards) {
           revng_assert(!Corners.contains({ To, From }));
 
-          auto FromPoint = Point{ To->center().X, ToTop };
-          auto CenterPoint = Point{ To->center().X, From->center().Y };
-          auto ToPoint = Point{ From->center().X, FromTop };
+          auto FromPoint = Point{ To->Center.X, ToTop };
+          auto CenterPoint = Point{ To->Center.X, From->Center.Y };
+          auto ToPoint = Point{ From->Center.X, FromTop };
 
           Corners.emplace(NodePair{ To, From },
                           Corner{ FromPoint, CenterPoint, ToPoint });
         } else {
           revng_assert(!Corners.contains({ From, To }));
 
-          auto ToLane = To->center().X;
+          auto ToLane = To->Center.X;
           if (auto It = Lanes.Entries.find(To); It != Lanes.Entries.end()) {
-            auto View = DirectedEdgeView{ From, To, Label->Pointer, false };
+            EdgeDestinationView View(From, *Label);
             revng_assert(It->second.contains(View));
 
             auto EntryIndex = float(It->second.at(View));
@@ -81,7 +82,7 @@ CornerContainer routeBackwardsCorners(InternalGraph &Graph,
 
             auto ToLaneGap = EdgeDistance / 2;
             if (It->second.size() != 0) {
-              auto AlternativeGap = To->size().W / 2 / It->second.size();
+              auto AlternativeGap = To->Size.W / 2 / It->second.size();
               if (AlternativeGap < ToLaneGap)
                 ToLaneGap = AlternativeGap;
             }
@@ -89,8 +90,8 @@ CornerContainer routeBackwardsCorners(InternalGraph &Graph,
             ToLane += ToLaneGap * CenteredIndex;
           }
 
-          auto FromPoint = Point{ From->center().X, FromTop };
-          auto CenterPoint = Point{ ToLane, From->center().Y };
+          auto FromPoint = Point{ From->Center.X, FromTop };
+          auto CenterPoint = Point{ ToLane, From->Center.Y };
           auto ToPoint = Point{ ToLane, ToTop };
 
           Corners.emplace(NodePair{ From, To },
@@ -108,32 +109,33 @@ CornerContainer routeBackwardsCorners(InternalGraph &Graph,
       auto *Second = *std::next(Edge.To->predecessors().begin());
 
       // Make sure there are no self-loops, otherwise it's not a corner.
-      if (First->Index == Edge.To->Index || Second->Index == Edge.To->Index)
+      if (First->index() == Edge.To->index()
+          || Second->index() == Edge.To->index())
         continue;
 
-      Edge.To->center().X = (First->center().X + Second->center().X) / 2;
-      Edge.To->center().Y += MarginSize + LaneIndex * EdgeDistance;
+      Edge.To->Center.X = (First->Center.X + Second->Center.X) / 2;
+      Edge.To->Center.Y += MarginSize + LaneIndex * EdgeDistance;
 
       auto &To = Edge.To;
       for (auto [From, Label] : To->predecessor_edges()) {
-        auto FromBottom = From->center().Y - From->size().H / 2;
-        auto ToBottom = To->center().Y - To->size().H / 2;
+        auto FromBottom = From->Center.Y - From->Size.H / 2;
+        auto ToBottom = To->Center.Y - To->Size.H / 2;
 
         if (Label->IsBackwards) {
           revng_assert(!Corners.contains({ To, From }));
 
-          auto FromPoint = Point{ To->center().X, ToBottom };
-          auto CenterPoint = Point{ From->center().X, To->center().Y };
-          auto ToPoint = Point{ From->center().X, FromBottom };
+          auto FromPoint = Point{ To->Center.X, ToBottom };
+          auto CenterPoint = Point{ From->Center.X, To->Center.Y };
+          auto ToPoint = Point{ From->Center.X, FromBottom };
 
           Corners.emplace(NodePair{ To, From },
                           Corner{ FromPoint, CenterPoint, ToPoint });
         } else {
           revng_assert(!Corners.contains({ From, To }));
 
-          auto FromLane = From->center().X;
+          auto FromLane = From->Center.X;
           if (auto It = Lanes.Exits.find(From); It != Lanes.Exits.end()) {
-            auto View = DirectedEdgeView{ From, To, Label->Pointer, false };
+            EdgeDestinationView View(To, *Label);
             revng_assert(It->second.contains(View));
 
             auto ExitIndex = float(It->second.at(View));
@@ -141,7 +143,7 @@ CornerContainer routeBackwardsCorners(InternalGraph &Graph,
 
             auto FromLaneGap = EdgeDistance / 2;
             if (It->second.size() != 0) {
-              auto AlternativeGap = From->size().W / 2 / It->second.size();
+              auto AlternativeGap = From->Size.W / 2 / It->second.size();
               if (AlternativeGap < FromLaneGap)
                 FromLaneGap = AlternativeGap;
             }
@@ -150,8 +152,8 @@ CornerContainer routeBackwardsCorners(InternalGraph &Graph,
           }
 
           auto FromPoint = Point{ FromLane, FromBottom };
-          auto CenterPoint = Point{ FromLane, To->center().Y };
-          auto ToPoint = Point{ To->center().X, ToBottom };
+          auto CenterPoint = Point{ FromLane, To->Center.Y };
+          auto ToPoint = Point{ To->Center.X, ToBottom };
 
           Corners.emplace(NodePair{ From, To },
                           Corner{ FromPoint, CenterPoint, ToPoint });
@@ -171,33 +173,30 @@ public:
                     CornerContainer &&Prerouted) :
     Ranks(Ranks), Lanes(Lanes), Prerouted(std::move(Prerouted)) {}
 
-  RoutableEdge make(NodeView From, NodeView To, ExternalLabel *Label) {
-    auto View = DirectedEdgeView{ From, To, Label, false };
+  RoutableEdge make(NodeView From, NodeView To, InternalEdge &Label) {
+    revng_assert(Label.IsBackwards == false);
 
     Rank ExitIndex = 0;
     Rank ExitCount = 1;
     if (auto It = Lanes.Exits.find(From); It != Lanes.Exits.end()) {
-      if (It->second.size() != 0) {
-        revng_assert(It->second.contains(View));
-        ExitIndex = It->second.at(View);
-        ExitCount = It->second.size();
-      }
+      revng_assert(It->second.contains({ To, Label }));
+      ExitIndex = It->second.at({ To, Label });
+      ExitCount = It->second.size();
     }
 
     Rank EntryIndex = 0;
     Rank EntryCount = 1;
     if (auto It = Lanes.Entries.find(To); It != Lanes.Entries.end()) {
-      if (It->second.size() != 0) {
-        revng_assert(It->second.contains(View));
-        EntryIndex = It->second.at(View);
-        EntryCount = It->second.size();
-      }
+      revng_assert(It->second.contains({ From, Label }));
+      EntryIndex = It->second.at({ From, Label });
+      EntryCount = It->second.size();
     }
 
     Rank LaneIndex = 0;
     if (auto LayerIndex = std::min(Ranks.at(From), Ranks.at(To));
         LayerIndex < Lanes.Horizontal.size()
         && Lanes.Horizontal[LayerIndex].size()) {
+      EdgeView View(From, To, Label);
       if (auto Iterator = Lanes.Horizontal[LayerIndex].find(View);
           Iterator != Lanes.Horizontal[LayerIndex].end())
         LaneIndex = Iterator->second;
@@ -209,11 +208,11 @@ public:
       CurrentRoute = std::move(Iterator->second);
 
     return RoutableEdge{
-      .Label = Label,
-      .FromCenter = From->center(),
-      .ToCenter = To->center(),
-      .FromSize = From->size(),
-      .ToSize = To->size(),
+      .Label = &Label,
+      .FromCenter = From->Center,
+      .ToCenter = To->Center,
+      .FromSize = From->Size,
+      .ToSize = To->Size,
       .LaneIndex = LaneIndex,
       .ExitCount = ExitCount,
       .EntryCount = EntryCount,
@@ -229,10 +228,7 @@ private:
   CornerContainer &&Prerouted;
 };
 
-OrderedEdgeContainer orderEdges(InternalGraph &&Graph,
-                                CornerContainer &&Prerouted,
-                                const RankContainer &Ranks,
-                                const LaneContainer &Lanes) {
+void restoreEdgeDirections(InternalGraph &Graph) {
   for (auto *From : Graph.nodes()) {
     for (auto Iterator = From->successor_edges().begin();
          Iterator != From->successor_edges().end();) {
@@ -245,68 +241,50 @@ OrderedEdgeContainer orderEdges(InternalGraph &&Graph,
       }
     }
   }
+}
 
+OrderedEdgeContainer orderEdges(InternalGraph &Graph,
+                                CornerContainer &&Prerouted,
+                                const RankContainer &Ranks,
+                                const LaneContainer &Lanes) {
   OrderedEdgeContainer Result;
   RoutableEdgeMaker Maker(Ranks, Lanes, std::move(Prerouted));
   for (auto *From : Graph.nodes()) {
-    if (!From->isVirtual()) {
+    if (!From->IsVirtual) {
       for (auto [To, Label] : From->successor_edges()) {
-        revng_assert(Label->IsBackwards == false);
-        Result.emplace_back(Maker.make(From, To, Label->Pointer));
-        if (To->isVirtual()) {
+        Result.emplace_back(Maker.make(From, To, *Label));
+        if (To->IsVirtual) {
           for (auto *Current : llvm::depth_first(To)) {
-            if (!Current->isVirtual())
+            if (!Current->IsVirtual)
               break;
 
             revng_assert(Current->successorCount() == 1);
             revng_assert(Current->predecessorCount() == 1
                          || (Current->predecessorCount() == 2
                              && Graph.hasEntryNode && Graph.getEntryNode()
-                             && Graph.getEntryNode()->isVirtual()));
+                             && Graph.getEntryNode()->IsVirtual));
 
             auto [Next, NextLabel] = *Current->successor_edges().begin();
-            revng_assert(NextLabel->IsBackwards == false);
-            Result.emplace_back(Maker.make(Current, Next, NextLabel->Pointer));
+            Result.emplace_back(Maker.make(Current, Next, *NextLabel));
           }
         }
       }
     }
   }
 
-  // Move the graph out of an input parameter so that it gets deleted at
-  // the end of the scope of this function.
-  auto GraphOnLocalStack = std::move(Graph);
-
   return Result;
-}
-
-/// Adds a point to the edge path or replaces its last point based
-/// on their coordinates.
-template<typename PathType>
-void appendPoint(PathType &Path, const Point &P) {
-  if (Path.size() > 1) {
-    auto &First = *std::prev(std::prev(Path.end()));
-    auto &Second = *std::prev(Path.end());
-
-    auto LHS = (P.Y - Second.Y) * (Second.X - First.X);
-    auto RHS = (Second.Y - First.Y) * (P.X - Second.X);
-    if (LHS == RHS)
-      Path.pop_back();
-  }
-  Path.push_back(P);
 }
 
 void route(const OrderedEdgeContainer &OrderedListOfEdges,
            float MarginSize,
            float EdgeDistance) {
   for (auto &Edge : OrderedListOfEdges) {
-    if (Edge.Label->Status == ExternalGraph::EdgeStatus::Hidden)
-      continue;
+    revng_assert(Edge.Label->IsRouted == false);
 
     if (Edge.Prerouted != std::nullopt) {
-      appendPoint(Edge.Label->Path, Edge.Prerouted->Start);
-      appendPoint(Edge.Label->Path, Edge.Prerouted->Center);
-      appendPoint(Edge.Label->Path, Edge.Prerouted->End);
+      Edge.Label->appendPoint(Edge.Prerouted->Start);
+      Edge.Label->appendPoint(Edge.Prerouted->Center);
+      Edge.Label->appendPoint(Edge.Prerouted->End);
     } else {
       // Looking for the lowest point of the edge
       auto ToUpperEdge = Edge.ToCenter.Y + Edge.ToSize.H / 2,
@@ -327,33 +305,29 @@ void route(const OrderedEdgeContainer &OrderedListOfEdges,
       float ToLane = Edge.ToCenter.X + ToDisplacement,
             ToTop = Edge.ToCenter.Y + Edge.ToSize.H / 2;
 
-      appendPoint(Edge.Label->Path,
-                  Point{ Edge.FromCenter.X + FromDisplacement,
-                         Edge.FromCenter.Y - Edge.FromSize.H / 2 });
-      appendPoint(Edge.Label->Path,
-                  Point{ Edge.FromCenter.X + FromDisplacement, Corner });
-      appendPoint(Edge.Label->Path, Point{ ToLane, Corner });
-      appendPoint(Edge.Label->Path, Point{ ToLane, ToTop });
+      Edge.Label->appendPoint(Edge.FromCenter.X + FromDisplacement,
+                              Edge.FromCenter.Y - Edge.FromSize.H / 2);
+      Edge.Label->appendPoint(Edge.FromCenter.X + FromDisplacement, Corner);
+      Edge.Label->appendPoint(ToLane, Corner);
+      Edge.Label->appendPoint(ToLane, ToTop);
     }
 
-    Edge.Label->Status = ExternalGraph::EdgeStatus::Routed;
+    Edge.Label->IsRouted = true;
   }
 }
 
 void routeWithStraightLines(const OrderedEdgeContainer &OrderedListOfEdges) {
   for (auto &Edge : OrderedListOfEdges) {
-    if (Edge.Label->Status == ExternalGraph::EdgeStatus::Hidden)
-      continue;
+    revng_assert(Edge.Label->IsRouted == false);
 
     revng_assert(Edge.Prerouted == std::nullopt,
                  "Straight line routing doesn't support prerouted corners");
 
-    appendPoint(Edge.Label->Path,
-                Point{ Edge.FromCenter.X,
-                       Edge.FromCenter.Y - Edge.FromSize.H / 2 });
-    appendPoint(Edge.Label->Path,
-                Point{ Edge.ToCenter.X, Edge.ToCenter.Y + Edge.ToSize.H / 2 });
+    Edge.Label->appendPoint(Edge.FromCenter.X,
+                            Edge.FromCenter.Y - Edge.FromSize.H / 2);
+    Edge.Label->appendPoint(Edge.ToCenter.X,
+                            Edge.ToCenter.Y + Edge.ToSize.H / 2);
 
-    Edge.Label->Status = ExternalGraph::EdgeStatus::Routed;
+    Edge.Label->IsRouted = true;
   }
 }

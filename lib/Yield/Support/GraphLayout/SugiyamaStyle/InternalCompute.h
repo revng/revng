@@ -4,13 +4,13 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "InternalGraph.h"
+#include "Helpers.h"
 #include "NodeClassification.h"
 
 /// Prepares the graph for further processing.
 template<RankingStrategy Strategy>
-std::tuple<InternalGraph, RankContainer, MaybeClassifier<Strategy>>
-prepareGraph(ExternalGraph &Graph, bool OmitClassification);
+std::tuple<RankContainer, MaybeClassifier<Strategy>>
+prepareGraph(InternalGraph &Graph, bool OmitClassification);
 
 /// Approximates an optimal permutation selection.
 template<RankingStrategy Strategy>
@@ -61,7 +61,7 @@ void setHorizontalCoordinates(const LayerContainer &Layers,
 void setStaticOffsetHorizontalCoordinates(const LayerContainer &Layers,
                                           float MarginSize);
 
-/// Distributes "touching" edges accross lanes to minimize the crossing count.
+/// Distributes "touching" edges across lanes to minimize the crossing count.
 LaneContainer assignLanes(InternalGraph &Graph,
                           const SegmentContainer &LinearSegments,
                           const LayoutContainer &Layout);
@@ -81,8 +81,12 @@ CornerContainer routeBackwardsCorners(InternalGraph &Graph,
                                       float MarginSize,
                                       float EdgeDistance);
 
-/// Consumes a DAG to produce the optimal routing order.
-OrderedEdgeContainer orderEdges(InternalGraph &&Graph,
+/// Restores the original edge direction by flipping all the edges marked with
+/// `IsBackwards == true`.
+void restoreEdgeDirections(InternalGraph &Graph);
+
+/// Produce the optimal routing order.
+OrderedEdgeContainer orderEdges(InternalGraph &Graph,
                                 CornerContainer &&Prerouted,
                                 const RankContainer &Ranks,
                                 const LaneContainer &Lanes);
@@ -96,24 +100,30 @@ void routeWithStraightLines(const OrderedEdgeContainer &OrderedListOfEdges);
 /// Computes the layout given a graph and the configuration.
 ///
 /// \note: it only works with `MutableEdgeNode`s.
-template<yield::sugiyama::RankingStrategy RS>
-inline bool calculateSugiyamaLayout(ExternalGraph &Graph,
-                                    const Configuration &Configuration) {
+template<yield::layout::sugiyama::RankingStrategy RS>
+bool computeInternal(InternalGraph &Graph, const Configuration &Configuration) {
   static_assert(StrictSpecializationOfMutableEdgeNode<InternalNode>,
                 "LayouterSugiyama requires mutable edge nodes.");
 
-  // There's nothing to lay out in a graph without any nodes.
+  // There's nothing we can do for a graph without any nodes.
   if (Graph.size() == 0)
     return true;
 
   // Prepare the graph for the layouter: this converts `Graph` into
-  // an internal graph and guaranties that it's has no loops (some of the
-  // edges might have to be temporarily inverted to ensure this), a single
-  // entry point (an extra node might have to be added) and that both
-  // long edges and backwards facing edges are split up into into chunks
-  // that span at most one layer at a time.
+  // a DAG, guaranteeing that it's has no loops (some of the edges might have to
+  // be temporarily inverted to ensure this), with every node having a rank
+  // assigned based on the strategy specified by the template parameter.
+  //
+  // All the long edges (edges where the ranks of `From` and `To` nodes differ
+  // by more than 1) are split into `1-rank` sized chunks by inserting "virtual"
+  // nodes in-between.
+  //
+  // On top of that, all the backwards facing edges, are also split into
+  // multiple chunks and are marked by 'v'-shapes in order to be easily noticed
+  // by the router so they can be treated in a special way.
+  // For more details on this, see `routeBackwardsCorners` function.
   bool ShouldClassify = !Configuration.UseSimpleTreeOptimization;
-  auto [DAG, Ranks, Classified] = prepareGraph<RS>(Graph, !ShouldClassify);
+  auto [Ranks, Classified] = prepareGraph<RS>(Graph, !ShouldClassify);
 
   // Try to select an optimal node permutation per layer.
   // NOTE: since this is the part with the highest complexity, it needs extra
@@ -121,19 +131,19 @@ inline bool calculateSugiyamaLayout(ExternalGraph &Graph,
   // Maybe we should consider something more optimal instead of a simple hill
   // climbing algorithm.
   auto Layers = Configuration.UseSimpleTreeOptimization ?
-                  selectSimpleTreePermutation(DAG, Ranks) :
-                  selectPermutation<RS>(DAG, Ranks, *Classified);
+                  selectSimpleTreePermutation(Graph, Ranks) :
+                  selectPermutation<RS>(Graph, Ranks, *Classified);
 
   // Compute an augmented topological ordering of the nodes of the graph.
-  auto Order = extractAugmentedTopologicalOrder(DAG, Layers);
+  auto Order = extractAugmentedTopologicalOrder(Graph, Layers);
 
   // Decide on which segments of the graph can be made linear, e.g. each edge
   // within the same linear segment is a straight line.
   SegmentContainer LinearSegments;
   if (Configuration.PreserveLinearSegments)
-    LinearSegments = selectLinearSegments(DAG, Ranks, Layers, Order);
+    LinearSegments = selectLinearSegments(Graph, Ranks, Layers, Order);
   else
-    LinearSegments = emptyLinearSegments(DAG);
+    LinearSegments = emptyLinearSegments(Graph);
 
   // Finalize the logical positions for each of the nodes.
   const auto Final = convertToLayout(Layers);
@@ -152,7 +162,7 @@ inline bool calculateSugiyamaLayout(ExternalGraph &Graph,
   }
 
   // Distribute edge lanes in a way that minimizes the number of crossings.
-  auto Lanes = assignLanes(DAG, LinearSegments, Final);
+  auto Lanes = assignLanes(Graph, LinearSegments, Final);
 
   // Set the rest of the coordinates. Node layouting is complete after this.
   const auto &EdgeGap = Configuration.EdgeMarginSize;
@@ -161,13 +171,16 @@ inline bool calculateSugiyamaLayout(ExternalGraph &Graph,
   // Route edges forming backwards facing corners.
   CornerContainer Prerouted;
   if (Configuration.UseOrthogonalBends)
-    Prerouted = routeBackwardsCorners(DAG, Ranks, Lanes, Margin, EdgeGap);
+    Prerouted = routeBackwardsCorners(Graph, Ranks, Lanes, Margin, EdgeGap);
 
-  // Now that the corners are routed, the DAG representation is not needed
-  // anymore, both the graph and the routed corners get consumed to construct
-  // an ordered list of edges with all the information necessary for them
-  // to get routed (see `OrderedEdgeContainer`).
-  auto Edges = orderEdges(std::move(DAG), std::move(Prerouted), Ranks, Lanes);
+  // Restore the original edge directions.
+  // The graph will no longer be a DAG.
+  restoreEdgeDirections(Graph);
+
+  // To simplify routing, order the edges first. This consumes the prerouted
+  // corners to build an ordered list of edges with all the information
+  // necessary for them to get routed (see `OrderedEdgeContainer`).
+  auto Edges = orderEdges(Graph, std::move(Prerouted), Ranks, Lanes);
 
   // Route the edges.
   if (Configuration.UseOrthogonalBends)

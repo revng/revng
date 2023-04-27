@@ -4,10 +4,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/Yield/ControlFlow/Configuration.h"
-#include "revng/Yield/Graph.h"
+#include "revng/Yield/Support/GraphLayout/Graphs.h"
+#include "revng/Yield/Support/GraphLayout/SugiyamaStyle/InternalGraph.h"
 
-namespace yield::sugiyama {
+namespace yield::layout::sugiyama {
 
 /// Lists possible ranking strategies the layouter implements.
 enum class RankingStrategy {
@@ -18,12 +18,7 @@ enum class RankingStrategy {
 };
 
 /// List graph orientation options the layouter implements.
-enum class LayoutOrientation {
-  LeftToRight,
-  RightToLeft,
-  TopToBottom,
-  BottomToTop
-};
+enum class Orientation { LeftToRight, RightToLeft, TopToBottom, BottomToTop };
 
 struct Configuration {
 public:
@@ -33,7 +28,7 @@ public:
   /// Specifies the orientation of the layout, (e.g. left-to-right):
   /// The layers with lower ranks are closer to the first direction (e.g. left)
   /// while those with higher ranks - to the second one (e.g. right).
-  LayoutOrientation Orientation;
+  Orientation Orientation;
 
   /// Specifies whether orthogonal bending rules should be used, if not each
   /// edge is just two points: its start and end.
@@ -71,32 +66,53 @@ public:
   float VirtualNodeWeight;
 
   /// Specifies the minimum possible distance between two nodes.
-  Graph::Dimension NodeMarginSize;
+  layout::Dimension NodeMarginSize;
 
   /// Specifies the minimum possible distance between two edges.
-  Graph::Dimension EdgeMarginSize;
+  layout::Dimension EdgeMarginSize;
 };
+
+namespace detail {
+
+bool computeImpl(InternalGraph &Internal, const Configuration &Configuration);
+
+} // namespace detail
+
+template<layout::HasLayoutableGraphTraits GraphType>
+inline bool
+computeInPlace(GraphType &&Graph, const Configuration &Configuration) {
+  using IG = InternalGraph;
+  auto [Internal, InputNodeLookup] = IG::make(std::forward<GraphType>(Graph));
+  if (!detail::computeImpl(Internal, Configuration))
+    return false;
+
+  Internal.template exportInto<GraphType>(InputNodeLookup);
+  return true;
+}
 
 /// A custom graph layering algorithm designed for pre-calculating majority of
 /// the expensive stuff needed for graph rendering.
-bool layout(Graph &Graph, const Configuration &Configuration);
+///
+/// \tparam Node The type of the data attached to each graph node
+/// \tparam Edge The type of the data attached to each graph edge
+///
+/// \param Graph An input graph
+/// \param Configuration An object configuring the specifics of the layout
+///
+/// \return The laid out version of the graph corresponding to \ref Graph
+template<typename Node, typename Edge = Empty>
+inline std::optional<layout::OutputGraph<Node, Edge>>
+compute(const layout::InputGraph<Node, Edge> &Graph,
+        const Configuration &Configuration) {
+  // TODO: rename into `compute` once `llvm::GraphTraits` has a concept support
+  //       for checking whether it's defined for a given type or not.
 
-inline bool
-layout(Graph &Graph,
-       const cfg::Configuration &CFG,
-       LayoutOrientation Orientation = LayoutOrientation::TopToBottom,
-       RankingStrategy Ranking = RankingStrategy::DisjointDepthFirstSearch,
-       bool UseSimpleTreeOptimization = false) {
-  return layout(Graph,
-                Configuration{
-                  .Ranking = Ranking,
-                  .Orientation = Orientation,
-                  .UseOrthogonalBends = CFG.UseOrthogonalBends,
-                  .PreserveLinearSegments = CFG.PreserveLinearSegments,
-                  .UseSimpleTreeOptimization = UseSimpleTreeOptimization,
-                  .VirtualNodeWeight = CFG.VirtualNodeWeight,
-                  .NodeMarginSize = CFG.ExternalNodeMarginSize,
-                  .EdgeMarginSize = CFG.EdgeMarginSize });
+  using OutputGraph = layout::OutputGraph<Node, Edge>;
+  std::optional<OutputGraph> Result = layout::detail::convert(Graph);
+  if (!computeInPlace(&Result.value(), Configuration))
+    Result = std::nullopt;
+
+  return Result;
 }
 
-} // namespace yield::sugiyama
+} // namespace yield::layout::sugiyama

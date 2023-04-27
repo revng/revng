@@ -7,7 +7,7 @@
 #include <optional>
 #include <unordered_set>
 
-#include "InternalGraph.h"
+#include "Helpers.h"
 
 namespace detail {
 // Contains helper classes for `NodeClassifier`.
@@ -39,7 +39,7 @@ class NodeClassifierStorage<RankingStrategy::DisjointDepthFirstSearch>
 } // namespace detail
 
 /// It is used to classify the nodes by selecting the right cluster depending
-/// on its neighbors. This helps to make routes with edges routed accross
+/// on its neighbors. This helps to make routes with edges routed across
 /// multiple "virtual" nodes that require less bends.
 template<RankingStrategy RS>
 class NodeClassifier : public detail::NodeClassifierStorage<RS> {
