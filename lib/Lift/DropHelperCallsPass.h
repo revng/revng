@@ -6,19 +6,21 @@
 
 #include <map>
 
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
 
 #include "revng/Support/IRHelpers.h"
 
-using CSVToAllocaMap = std::map<llvm::GlobalVariable *, llvm::AllocaInst *>;
+using CSVToAllocaMap = llvm::DenseMap<llvm::GlobalVariable *,
+                                      llvm::AllocaInst *>;
 
 /// Helper class to generate calls that summarize pieces of codes accessing CSVs
 class SummaryCallsBuilder {
 private:
   const CSVToAllocaMap &CSVMap;
-  std::map<llvm::Type *, llvm::Function *> TemporaryFunctions;
+  llvm::DenseMap<llvm::Type *, llvm::Function *> TemporaryFunctions;
 
 public:
   SummaryCallsBuilder(const CSVToAllocaMap &CSVMap) : CSVMap(CSVMap) {}

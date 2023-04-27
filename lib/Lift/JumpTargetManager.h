@@ -6,13 +6,16 @@
 
 #include <cstdint>
 #include <map>
-#include <set>
+#include <unordered_set>
 #include <vector>
 
 #include "boost/icl/interval_map.hpp"
 #include "boost/icl/interval_set.hpp"
 #include "boost/type_traits/is_same.hpp"
 
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
+#include "llvm/Analysis/MemorySSAUpdater.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
 
@@ -37,8 +40,10 @@ class StoreInst;
 class Value;
 } // namespace llvm
 
+class AnalysisRegistry;
 class JumpTargetManager;
 class ProgramCounterHandler;
+class SummaryCallsBuilder;
 
 template<typename Map>
 auto containing(Map const &M, typename Map::key_type const &K) {
@@ -150,7 +155,9 @@ class JumpTargetManager {
 private:
   using interval_set = boost::icl::interval_set<MetaAddress, CompareAddress>;
   using interval = boost::icl::interval<MetaAddress, CompareAddress>;
-  using MetaAddressSet = std::set<MetaAddress>;
+  using MetaAddressSet = std::unordered_set<MetaAddress>;
+  using GlobalToAllocaTy = llvm::DenseMap<llvm::GlobalVariable *,
+                                          llvm::AllocaInst *>;
 
 public:
   using BlockWithAddress = std::pair<MetaAddress, llvm::BasicBlock *>;
@@ -514,7 +521,7 @@ public:
 private:
   void fixPostHelperPC();
 
-  std::set<llvm::BasicBlock *> computeUnreachable() const;
+  llvm::DenseSet<llvm::BasicBlock *> computeUnreachable() const;
 
   void assertNoUnreachable() const;
 
@@ -596,6 +603,24 @@ private:
   MetaAddressSet AVIPCWhiteList;
   const TupleTree<model::Binary> &Model;
   const RawBinaryView &BinaryView;
+
+private:
+  void updateCSAA();
+
+  llvm::Function *createTemporaryRoot(llvm::ValueToValueMapTy &OldToNew);
+
+  void processLoadsAndStores(llvm::Function *OptimizedFunction,
+                             AnalysisRegistry &AR);
+
+  void promoteHelpersToIntrinsics(llvm::Module *M,
+                                  llvm::Function *OptimizedFunction,
+                                  llvm::IRBuilder<> &Builder);
+
+  GlobalToAllocaTy promoteCSVsToAlloca(llvm::Function *OptimizedFunction);
+
+  SummaryCallsBuilder runAdvancedValueInfo(llvm::Function *OptimizedFunction);
+
+  void collectAVIResults(llvm::Module *M, AnalysisRegistry &AR);
 };
 
 template<>
