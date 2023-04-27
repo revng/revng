@@ -8,7 +8,7 @@ from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from sys import executable as py_executable
 
 from revng.cli.commands_registry import Command, CommandsRegistry, Options
-from revng.cli.support import collect_libraries, handle_asan, run
+from revng.cli.support import collect_libraries, exec_run, handle_asan
 
 
 class DaemonCommand(Command):
@@ -93,7 +93,7 @@ REVNG_DATA_DIR and REVNG_PROJECT_ID set: use '$REVNG_DATA_DIR/$REVNG_PROJECT_ID'
             env["STARLETTE_DEBUG"] = "1"
             env["REVNG_ORIGINS"] = "*"
 
-        run(
+        exec_run(
             prefix
             + [
                 py_executable,
@@ -105,7 +105,6 @@ REVNG_DATA_DIR and REVNG_PROJECT_ID set: use '$REVNG_DATA_DIR/$REVNG_PROJECT_ID'
             ],
             options,
             env,
-            True,
         )
 
 
