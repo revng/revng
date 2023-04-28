@@ -1052,7 +1052,6 @@ void JumpTargetManager::setCFGForm(CFGForm::Values NewForm,
   revng_assert(CurrentCFGForm != NewForm);
   revng_assert(NewForm != CFGForm::UnknownForm);
 
-
   CFGForm::Values OldForm = CurrentCFGForm;
   CurrentCFGForm = NewForm;
 
