@@ -89,32 +89,6 @@ void TranslateDirectBranchesPass::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
 }
 
-void JumpTargetManager::assertNoUnreachable() const {
-  llvm::DenseSet<BasicBlock *> Unreachable = computeUnreachable();
-  if (Unreachable.size() != 0) {
-    VerifyLog << "The following basic blocks are unreachable:\n";
-    for (BasicBlock *BB : Unreachable) {
-      VerifyLog << "  " << getName(BB) << " (predecessors:";
-      for (BasicBlock *Predecessor : make_range(pred_begin(BB), pred_end(BB)))
-        VerifyLog << " " << getName(Predecessor);
-
-      MetaAddress PC = getBasicBlockAddress(BB);
-      if (PC.isValid()) {
-        auto It = JumpTargets.find(PC);
-        if (It != JumpTargets.end()) {
-          VerifyLog << ", reasons:";
-          for (const char *Reason : It->second.getReasonNames())
-            VerifyLog << " " << Reason;
-        }
-      }
-
-      VerifyLog << ")\n";
-    }
-    VerifyLog << DoLog;
-    revng_abort();
-  }
-}
-
 static void exitTBCleanup(Instruction *ExitTBCall) {
   // TODO: for some reason we don't always have a terminator
   if (auto *T = nextNonMarker(ExitTBCall))
@@ -1078,11 +1052,6 @@ void JumpTargetManager::setCFGForm(CFGForm::Values NewForm,
   revng_assert(CurrentCFGForm != NewForm);
   revng_assert(NewForm != CFGForm::UnknownForm);
 
-  static bool First = true;
-  if (not First and VerifyLog.isEnabled()) {
-    assertNoUnreachable();
-  }
-  First = false;
 
   CFGForm::Values OldForm = CurrentCFGForm;
   CurrentCFGForm = NewForm;
@@ -1145,10 +1114,6 @@ void JumpTargetManager::setCFGForm(CFGForm::Values NewForm,
   }
 
   rebuildDispatcher(JumpTargetsWhitelist);
-
-  if (VerifyLog.isEnabled()) {
-    assertNoUnreachable();
-  }
 }
 
 void JumpTargetManager::rebuildDispatcher(MetaAddressSet *Whitelist) {
