@@ -194,10 +194,7 @@ void EnforceABIImpl::run() {
     if (not F->isDeclaration())
       EliminateUnreachableBlocks(*F, nullptr, false);
 
-  if (VerifyLog.isEnabled()) {
-    raw_os_ostream Stream(dbg);
-    revng_assert(not verifyModule(M, &Stream));
-  }
+  revng::verify(&M);
 }
 
 static Type *getLLVMTypeForRegister(Module *M, model::Register::Values V) {

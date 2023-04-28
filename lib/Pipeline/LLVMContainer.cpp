@@ -12,17 +12,23 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
+#include "llvm/IRReader/IRReader.h"
+#include "llvm/Linker/Linker.h"
+#include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/ValueMapper.h"
 
 #include "revng/Pipeline/LLVMContainer.h"
+#include "revng/Pipeline/LLVMKind.h"
+#include "revng/Support/IRHelpers.h"
+#include "revng/Support/ModuleStatistics.h"
 
-char pipeline::LLVMContainerTypeID = '0';
-
-template<>
 const char pipeline::LLVMContainer::ID = '0';
+using namespace pipeline;
 
 void pipeline::makeGlobalObjectsArray(llvm::Module &Module,
                                       llvm::StringRef GlobalArrayName) {
@@ -49,4 +55,200 @@ void pipeline::makeGlobalObjectsArray(llvm::Module &Module,
                            llvm::GlobalValue::LinkageTypes::ExternalLinkage,
                            Initilizer,
                            GlobalArrayName);
+}
+
+std::unique_ptr<ContainerBase>
+LLVMContainer::cloneFiltered(const TargetsList &Targets) const {
+  using InspectorT = LLVMKind;
+  auto ToClone = InspectorT::functions(Targets, *this->self());
+  auto ToClonedNotOwned = InspectorT::untrackedFunctions(*this->self());
+
+  const auto Filter = [&ToClone, &ToClonedNotOwned](const auto &GlobalSym) {
+    if (not llvm::isa<llvm::Function>(GlobalSym))
+      return true;
+
+    const auto &F = llvm::cast<llvm::Function>(GlobalSym);
+    return ToClone.count(F) != 0 or ToClonedNotOwned.count(F) != 0;
+  };
+
+  llvm::ValueToValueMapTy Map;
+
+  revng::verify(Module.get());
+  auto Cloned = llvm::CloneModule(*Module, Map, Filter);
+
+  for (auto &Function : Module->functions()) {
+    auto *Other = Cloned->getFunction(Function.getName());
+    if (not Other)
+      continue;
+
+    Other->clearMetadata();
+    llvm::SmallVector<std::pair<unsigned, llvm::MDNode *>, 2> MDs;
+    Function.getAllMetadata(MDs);
+    for (auto &MD : MDs) {
+      // The !dbg attachment from the function defintion cannot be attached to
+      // its declaration.
+      if (Other->isDeclaration() && isa<llvm::DISubprogram>(MD.second))
+        continue;
+
+      Other->addMetadata(MD.first, *llvm::MapMetadata(MD.second, Map));
+    }
+  }
+
+  return std::make_unique<ThisType>(this->name(), this->Ctx, std::move(Cloned));
+}
+
+using LinkageRestoreMap = std::map<std::string,
+                                   llvm::GlobalValue::LinkageTypes>;
+
+static void
+fixGlobals(llvm::Module &Module, LinkageRestoreMap &LinkageRestore) {
+  using namespace llvm;
+
+  for (auto &Global : Module.global_objects()) {
+    // Turn globals with local linkage and external declarations into the
+    // equivalent of inline and record their original linking for it be
+    // restored later
+    if (Global.getLinkage() == GlobalValue::InternalLinkage
+        or Global.getLinkage() == GlobalValue::PrivateLinkage
+        or Global.getLinkage() == GlobalValue::AppendingLinkage
+        or (Global.getLinkage() == GlobalValue::ExternalLinkage
+            and not Global.isDeclaration())) {
+      LinkageRestore[Global.getName().str()] = Global.getLinkage();
+      Global.setLinkage(GlobalValue::LinkOnceODRLinkage);
+    }
+  }
+}
+
+void LLVMContainer::mergeBackImpl(ThisType &&OtherContainer) {
+  llvm::Module *ToMerge = &OtherContainer.getModule();
+  revng::verify(ToMerge);
+
+  // Collect statistics about modules
+  ModuleStatistics PreMergeStatistics;
+  ModuleStatistics ToMergeStatistics;
+  if (ModuleStatisticsLogger.isEnabled()) {
+    PreMergeStatistics = ModuleStatistics::analyze(*Module.get());
+    ToMergeStatistics = ModuleStatistics::analyze(*ToMerge);
+  }
+
+  auto BeforeEnumeration = this->enumerate();
+  auto ToMergeEnumeration = OtherContainer.enumerate();
+
+  // We must ensure that merge(Module1, Module2).enumerate() ==
+  // merge(Module1.enumerate(), Module2.enumerate())
+  //
+  // So we enumerate now to have it later.
+  auto ExpectedEnumeration = BeforeEnumeration;
+  ExpectedEnumeration.merge(ToMergeEnumeration);
+
+  LinkageRestoreMap LinkageRestore;
+
+  // All symbols internal and external symbols myst be transformed into weak
+  // symbols, so that when multiple with the same name exists, one is
+  // dropped.
+  fixGlobals(*ToMerge, LinkageRestore);
+  fixGlobals(*Module, LinkageRestore);
+
+  // Make a global array of all global objects so that they don't get dropped
+  std::string GlobalArray1 = "revng.AllSymbolsArrayLeft";
+  makeGlobalObjectsArray(*Module, GlobalArray1);
+
+  std::string GlobalArray2 = "revng.AllSymbolsArrayRight";
+  makeGlobalObjectsArray(*ToMerge, GlobalArray2);
+
+  // Drop certain LLVM named metadata
+  auto DropNamedMetadata = [](llvm::Module *M, llvm::StringRef Name) {
+    if (auto *MD = M->getNamedMetadata(Name))
+      MD->eraseFromParent();
+  };
+
+  // TODO: check it's identical to the existing one, if present in both
+  DropNamedMetadata(&*Module, "llvm.ident");
+  DropNamedMetadata(&*Module, "llvm.module.flags");
+
+  if (ToMerge->getDataLayout().isDefault())
+    ToMerge->setDataLayout(Module->getDataLayout());
+
+  if (Module->getDataLayout().isDefault())
+    Module->setDataLayout(ToMerge->getDataLayout());
+
+  llvm::Linker TheLinker(*ToMerge);
+
+  // Actually link
+  bool Failure = TheLinker.linkInModule(std::move(Module));
+
+  revng_assert(not Failure, "Linker failed");
+
+  // Restores the initial linkage for local functions
+  for (auto &Global : ToMerge->global_objects()) {
+    auto It = LinkageRestore.find(Global.getName().str());
+    if (It != LinkageRestore.end())
+      Global.setLinkage(It->second);
+  }
+
+  Module = std::move(OtherContainer.Module);
+
+  // Checks that module merging commutes w.r.t. enumeration, as specified in
+  // the first comment.
+  auto ActualEnumeration = this->enumerate();
+  revng_assert(ExpectedEnumeration.contains(ActualEnumeration));
+  revng_assert(ActualEnumeration.contains(ExpectedEnumeration));
+
+  // Remove the global arrays since they are no longer needed.
+  if (auto *Global = Module->getGlobalVariable(GlobalArray1))
+    Global->eraseFromParent();
+
+  if (auto *Global = Module->getGlobalVariable(GlobalArray2))
+    Global->eraseFromParent();
+
+  // Prune llvm.dbg.cu so that they grow exponentially due to multiple cloning
+  // + linking.
+  // Note: an alternative approach would be to pre-populate the
+  //       ValueToValueMap used when we clone in a way that avoids cloning the
+  //       metadata altogether. However, this would lead two distinct modules
+  //       to share debug metadata, which are not always immutable.
+  auto *NamedMDNode = Module->getOrInsertNamedMetadata("llvm.dbg.cu");
+  pruneDICompileUnits(*Module);
+
+  revng::verify(ToMerge);
+
+  if (ModuleStatisticsLogger.isEnabled()) {
+    auto PostMergeStatistics = ModuleStatistics::analyze(*Module.get());
+    {
+      auto Stream = ModuleStatisticsLogger.getAsLLVMStream();
+      *Stream << "PreMergeStatistics:\n";
+      PreMergeStatistics.dump(*Stream, 1);
+      *Stream << "ToMergeStatistics:\n";
+      ToMergeStatistics.dump(*Stream, 1);
+      *Stream << "PostMergeStatistics (vs PreMergeStatistics):\n";
+      PreMergeStatistics.dump(*Stream, 1, &PreMergeStatistics);
+      *Stream << "PostMergeStatistics (vs ToMergeStatistics):\n";
+      PreMergeStatistics.dump(*Stream, 1, &ToMergeStatistics);
+    }
+    ModuleStatisticsLogger << DoLog;
+  }
+}
+
+llvm::Error
+LLVMContainer::extractOne(llvm::raw_ostream &OS, const Target &Target) const {
+  TargetsList List({ Target });
+  auto Module = cloneFiltered(List);
+  return Module->serialize(OS);
+}
+
+llvm::Error LLVMContainer::serialize(llvm::raw_ostream &OS) const {
+  getModule().print(OS, nullptr);
+  OS.flush();
+  return llvm::Error::success();
+}
+
+llvm::Error LLVMContainer::deserialize(const llvm::MemoryBuffer &Buffer) {
+  llvm::SMDiagnostic Error;
+  auto M = llvm::parseIR(Buffer, Error, Module->getContext());
+  if (!M)
+    return llvm::createStringError(llvm::inconvertibleErrorCode(),
+                                   "Could not parse buffer");
+
+  Module = std::move(M);
+  return llvm::Error::success();
 }

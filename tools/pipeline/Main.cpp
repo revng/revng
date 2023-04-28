@@ -21,7 +21,7 @@
 #include "revng/Pipeline/CopyPipe.h"
 #include "revng/Pipeline/GenericLLVMPipe.h"
 #include "revng/Pipeline/LLVMContainerFactory.h"
-#include "revng/Pipeline/LLVMGlobalKindBase.h"
+#include "revng/Pipeline/LLVMKind.h"
 #include "revng/Pipeline/Loader.h"
 #include "revng/Pipeline/Runner.h"
 #include "revng/Pipeline/Target.h"
@@ -152,11 +152,8 @@ static void runPipeline(Runner &Pipeline) {
   }
 }
 
-int main(int argc, const char *argv[]) {
-  revng::InitRevng X(argc, argv);
-
-  HideUnrelatedOptions(MainCategory);
-  ParseCommandLineOptions(argc, argv);
+int main(int argc, char *argv[]) {
+  revng::InitRevng X(argc, argv, "", { &MainCategory });
 
   Registry::runAllInitializationRoutines();
 

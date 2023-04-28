@@ -3029,14 +3029,11 @@ bool CPUStateAccessFixer::run() {
 
   // Fix loads
   correctCPUStateAccesses</* IsLoad = */ true>();
-  if (VerifyLog.isEnabled())
-    revng_assert(not verifyModule(M, &dbgs()));
+  revng::verify(&M);
 
   // Fix stores
   correctCPUStateAccesses</* IsLoad = */ false>();
-
-  if (VerifyLog.isEnabled())
-    revng_assert(not verifyModule(M, &dbgs()));
+  revng::verify(&M);
 
   // Remove fixed accesses
   for (Instruction *Instr : InstructionsToRemove)

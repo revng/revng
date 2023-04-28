@@ -30,10 +30,7 @@ static cl::opt<std::string> InputModulePath(cl::Positional,
                                             cl::value_desc("module"));
 
 int main(int Argc, char *Argv[]) {
-  revng::InitRevng X(Argc, Argv);
-
-  cl::HideUnrelatedOptions({ &ThisToolCategory });
-  cl::ParseCommandLineOptions(Argc, Argv);
+  revng::InitRevng X(Argc, Argv, "", { &ThisToolCategory });
 
   auto OldModel = ModelInModule::loadModule(InputModulePath);
   auto NewModel = ModelInModule::loadYAML(NewModelPath);

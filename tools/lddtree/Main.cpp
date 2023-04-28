@@ -33,11 +33,8 @@ static opt<unsigned> DependencyLevel("dependency-level",
 
 StringPositionalArgument Input("Input binary");
 
-int main(int argc, const char *argv[]) {
-  revng::InitRevng X(argc, argv);
-
-  HideUnrelatedOptions({ &MainCategory });
-  ParseCommandLineOptions(argc, argv);
+int main(int argc, char *argv[]) {
+  revng::InitRevng X(argc, argv, "", { &MainCategory });
 
   LDDTree Dependencies;
   lddtree(Dependencies, Input, DependencyLevel);

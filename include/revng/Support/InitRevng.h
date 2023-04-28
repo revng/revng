@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/PrettyStackTrace.h"
 
@@ -16,15 +17,24 @@ namespace revng {
 class InitRevng : public llvm::InitLLVM {
 public:
   InitRevng(int &Argc,
-            const char **&Argv,
-            bool InstallPipeSignalExitHandler = true) :
-    InitLLVM(Argc, Argv, InstallPipeSignalExitHandler) {
-    init();
-  }
+            auto **&Argv,
+            const char *Overview,
+            llvm::ArrayRef<const llvm::cl::OptionCategory *> CategoriesToHide) :
+    InitLLVM(Argc, Argv, true) {
 
-  InitRevng(int &Argc, char **&Argv, bool InstallPipeSignalExitHandler = true) :
-    InitLLVM(Argc, Argv, InstallPipeSignalExitHandler) {
     init();
+
+    // NOLINTNEXTLINE
+    llvm::cl::HideUnrelatedOptions(CategoriesToHide);
+    // NOLINTNEXTLINE
+    bool Result = llvm::cl::ParseCommandLineOptions(Argc,
+                                                    Argv,
+                                                    Overview,
+                                                    nullptr,
+                                                    "REVNG_OPTIONS");
+
+    if (not Result)
+      std::exit(EXIT_FAILURE);
   }
 
 private:

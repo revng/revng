@@ -67,11 +67,8 @@ static opt<std::string> Artifact(Positional,
 
 } // namespace Options
 
-int main(int argc, const char *argv[]) {
-  revng::InitRevng X(argc, argv);
-
-  llvm::cl::HideUnrelatedOptions(Options::ThisToolCategory);
-  llvm::cl::ParseCommandLineOptions(argc, argv);
+int main(int argc, char *argv[]) {
+  revng::InitRevng X(argc, argv, "", { &Options::ThisToolCategory });
 
   auto InputOrError = llvm::MemoryBuffer::getFileOrSTDIN(Options::Filename);
   if (!InputOrError) {

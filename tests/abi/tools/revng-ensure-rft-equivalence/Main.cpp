@@ -85,10 +85,7 @@ ensureMatchingIDs(const model::Type::Key &Left,
 }
 
 int main(int Argc, char *Argv[]) {
-  revng::InitRevng X(Argc, Argv);
-
-  cl::HideUnrelatedOptions({ &ThisToolCategory });
-  cl::ParseCommandLineOptions(Argc, Argv);
+  revng::InitRevng X(Argc, Argv, "", { &ThisToolCategory });
 
   ExitOnError ExitOnError;
 

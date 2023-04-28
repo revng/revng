@@ -36,18 +36,11 @@
 #include "revng/Pipeline/Kind.h"
 #include "revng/Pipeline/LLVMContainer.h"
 #include "revng/Pipeline/LLVMContainerFactory.h"
-#include "revng/Pipeline/LLVMGlobalKindBase.h"
+#include "revng/Pipeline/LLVMKind.h"
 #include "revng/Pipeline/Loader.h"
 #include "revng/Pipeline/Runner.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Support/Assert.h"
-
-static char LLVMName = ' ';
-
-using ExampleLLVMInspectalbeContainer = pipeline::LLVMContainerBase<&LLVMName>;
-
-template<>
-const char ExampleLLVMInspectalbeContainer::ID = '0';
 
 #define BOOST_TEST_MODULE Pipeline
 bool init_unit_test();
@@ -1148,10 +1141,10 @@ BOOST_AUTO_TEST_CASE(EnumerableContainersTest) {
   BOOST_TEST(not Example.contains(T));
 }
 
-class LLVMInspectorExample
-  : public LLVMGlobalKindBase<ExampleLLVMInspectalbeContainer> {
+class LLVMInspectorExample : public LLVMKind {
 public:
-  using LLVMGlobalKindBase<ExampleLLVMInspectalbeContainer>::LLVMGlobalKindBase;
+  using LLVMKind::LLVMKind;
+
   std::optional<Target>
   symbolToTarget(const llvm::Function &Symbol) const override {
     return Target({ Symbol.getName() }, FunctionKind);
@@ -1164,10 +1157,10 @@ public:
   }
 };
 
-class LLVMRootInspectorExample
-  : public LLVMGlobalKindBase<ExampleLLVMInspectalbeContainer> {
+class LLVMRootInspectorExample : public LLVMKind {
 public:
-  using LLVMGlobalKindBase<ExampleLLVMInspectalbeContainer>::LLVMGlobalKindBase;
+  using LLVMKind::LLVMKind;
+
   std::optional<Target>
   symbolToTarget(const llvm::Function &Symbol) const override {
     return Target({}, RootKind);
@@ -1184,7 +1177,7 @@ static LLVMRootInspectorExample ExampleLLVMRootInspector("dc2", Root);
 
 BOOST_AUTO_TEST_CASE(LLVMKindTest) {
   llvm::LLVMContext C;
-  using Cont = ExampleLLVMInspectalbeContainer;
+  using Cont = LLVMContainer;
 
   Context Ctx;
   Runner Pipeline(Ctx);
@@ -1214,12 +1207,9 @@ BOOST_AUTO_TEST_CASE(LLVMKindTest) {
   BOOST_TEST(F != nullptr);
 }
 
-class InspectorKindExample
-  : public LLVMGlobalKindBase<ExampleLLVMInspectalbeContainer> {
+class InspectorKindExample : public LLVMKind {
 public:
-  InspectorKindExample() :
-    LLVMGlobalKindBase<ExampleLLVMInspectalbeContainer>("ExampleName",
-                                                        FunctionRank) {}
+  InspectorKindExample() : LLVMKind("ExampleName", FunctionRank) {}
 
   std::optional<Target>
   symbolToTarget(const llvm::Function &Symbol) const final {
@@ -1240,7 +1230,7 @@ BOOST_AUTO_TEST_CASE(InspectorKindTest) {
   Context Ctx;
   llvm::LLVMContext C;
 
-  using Cont = ExampleLLVMInspectalbeContainer;
+  using Cont = LLVMContainer;
   auto Factory = ContainerFactory::fromGlobal<Cont>(&Ctx, &C);
 
   auto Container = Factory("dont_care");

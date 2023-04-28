@@ -1517,3 +1517,21 @@ inline llvm::Type *getVariableType(const llvm::Value *Variable) {
 void pruneDICompileUnits(llvm::Module &M);
 
 llvm::SmallSet<llvm::Value *, 2> findPhiTreeLeaves(llvm::Value *Root);
+
+namespace revng {
+
+/// If the verify logger is enabled, assert the module is valid
+void verify(const llvm::Module *M);
+
+/// If the verify logger is enabled, assert the function is valid
+void verify(const llvm::Function *F);
+
+/// Assert the module is valid
+void forceVerify(const llvm::Module *M);
+
+/// Assert the function is valid
+void forceVerify(const llvm::Function *F);
+
+} // namespace revng
+
+void collectTypes(llvm::Type *Root, std::set<llvm::Type *> &Set);

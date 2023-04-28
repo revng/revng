@@ -88,6 +88,7 @@ loadModule(llvm::LLVMContext &C, const char *Body) {
   std::unique_ptr<Module> M = parseIR(Buffer.get()->getMemBufferRef(),
                                       Diagnostic,
                                       C);
+  revng::forceVerify(M.get());
 
   if (M.get() == nullptr) {
     Diagnostic.print("revng", dbgs());

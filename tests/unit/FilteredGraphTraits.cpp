@@ -121,7 +121,6 @@ end:
 
   LLVMContext C;
   std::unique_ptr<llvm::Module> M = loadModule(C, Body.data());
-  revng_check(not verifyModule(*M, &dbgs()));
 
   Function *F = M->getFunction("main");
   BasicBlock *BackBB = &F->back();

@@ -44,11 +44,8 @@ static opt<bool> DryRun("dry-run",
 
 static ExitOnError AbortOnError;
 
-int main(int argc, const char *argv[]) {
-  revng::InitRevng X(argc, argv);
-
-  HideUnrelatedOptions({ &MainCategory });
-  ParseCommandLineOptions(argc, argv);
+int main(int argc, char *argv[]) {
+  revng::InitRevng X(argc, argv, "", { &MainCategory });
 
   auto MaybeModel = TupleTree<model::Binary>::fromFile(ModelFile);
   auto ExpectedModel = llvm::errorOrToExpected(std::move(MaybeModel));

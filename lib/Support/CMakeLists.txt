@@ -16,6 +16,7 @@ revng_add_library_internal(
   IRHelpers.cpp
   LDDTree.cpp
   MetaAddress.cpp
+  ModuleStatistics.cpp
   OriginalAssemblyAnnotationWriter.cpp
   PathList.cpp
   ProgramCounterHandler.cpp

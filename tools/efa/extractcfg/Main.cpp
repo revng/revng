@@ -14,7 +14,7 @@
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/InitRevng.h"
 
-#include "./DecoratedFunction.h"
+#include "DecoratedFunction.h"
 
 using namespace llvm;
 
@@ -30,11 +30,8 @@ static cl::opt<std::string> OutputFilename("o",
                                            llvm::cl::desc("<output file>"),
                                            cl::value_desc("filename"));
 
-int main(int argc, const char **argv) {
-  revng::InitRevng X(argc, argv);
-
-  cl::HideUnrelatedOptions({ &MainCategory });
-  cl::ParseCommandLineOptions(argc, argv);
+int main(int argc, char *argv[]) {
+  revng::InitRevng X(argc, argv, "", { &MainCategory });
 
   auto BufOrError = MemoryBuffer::getFileOrSTDIN(InputModule);
   if (std::error_code EC = BufOrError.getError())

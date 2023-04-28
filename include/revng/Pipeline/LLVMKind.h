@@ -4,21 +4,11 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include <iterator>
-
-#include "llvm/ADT/DenseSet.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/Analysis/ScalarEvolutionExpressions.h"
 #include "llvm/IR/Function.h"
-#include "llvm/Support/Casting.h"
-#include "llvm/Transforms/Utils/Cloning.h"
 
 #include "revng/Pipeline/ContainerEnumerator.h"
 #include "revng/Pipeline/ContainerSet.h"
-#include "revng/Pipeline/Context.h"
-#include "revng/Pipeline/Kind.h"
-#include "revng/Pipeline/Step.h"
-#include "revng/Pipeline/Target.h"
+#include "revng/Pipeline/LLVMContainer.h"
 
 namespace pipeline {
 
@@ -30,24 +20,23 @@ namespace pipeline {
 ///
 /// compactTargets must collapse the targets into the * target if they are all
 /// presents, do no thing otherwise.
-template<typename LLVMContainer>
-class LLVMGlobalKindBase : public KindForContainer<LLVMContainer> {
+class LLVMKind : public KindForContainer<LLVMContainer> {
 public:
-  using StaticContainer = llvm::SmallVector<LLVMGlobalKindBase *, 4>;
+  using StaticContainer = llvm::SmallVector<LLVMKind *, 4>;
 
 public:
   template<RankSpecialization BaseRank>
-  LLVMGlobalKindBase(llvm::StringRef Name, const BaseRank &Rank) :
+  LLVMKind(llvm::StringRef Name, const BaseRank &Rank) :
     KindForContainer<LLVMContainer>(Name, Rank) {
     getRegisteredInspectors().push_back(this);
   }
 
   template<RankSpecialization BaseRank>
-  LLVMGlobalKindBase(llvm::StringRef Name, Kind &Parent, const BaseRank &Rank) :
+  LLVMKind(llvm::StringRef Name, Kind &Parent, const BaseRank &Rank) :
     KindForContainer<LLVMContainer>(Name, Parent, Rank) {
     getRegisteredInspectors().push_back(this);
   }
-  ~LLVMGlobalKindBase() override {}
+  ~LLVMKind() override {}
 
 public:
   static bool hasOwner(const llvm::Function &Symbol) {

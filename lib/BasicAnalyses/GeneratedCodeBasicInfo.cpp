@@ -51,17 +51,8 @@ void GeneratedCodeBasicInfo::run(Module &M) {
   Type *PCType = PC->getValueType();
   PCRegSize = M.getDataLayout().getTypeAllocSize(PCType);
 
-  QuickMetadata QMD(M.getContext());
-  if (auto *NamedMD = M.getNamedMetadata("revng.csv")) {
-    auto *Tuple = cast<MDTuple>(NamedMD->getOperand(0));
-    for (const MDOperand &Operand : Tuple->operands()) {
-      if (Operand.get() == nullptr)
-        continue;
-
-      auto *CSV = cast<GlobalVariable>(QMD.extract<Constant *>(Operand.get()));
-      CSVs.push_back(CSV);
-    }
-  }
+  for (GlobalVariable &CSV : FunctionTags::CSV.globals(&M))
+    CSVs.push_back(&CSV);
 
   revng_log(PassesLog, "Ending GeneratedCodeBasicInfo");
 }

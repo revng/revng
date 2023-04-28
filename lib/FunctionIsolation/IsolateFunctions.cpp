@@ -87,32 +87,6 @@ struct IsolatePipe {
 
 static pipeline::RegisterLLVMPass<IsolatePipe> Y;
 
-class ConstantStringsPool {
-private:
-  Module *M;
-  std::map<std::string, GlobalVariable *> StringsPool;
-
-public:
-  ConstantStringsPool(Module *M) : M(M) {}
-
-  Constant *get(std::string String, const Twine &Name = "") {
-    auto It = StringsPool.find(String);
-    auto &C = M->getContext();
-    if (It == StringsPool.end()) {
-      auto *Initializer = ConstantDataArray::getString(C, String, true);
-      auto *NewVariable = new GlobalVariable(*M,
-                                             Initializer->getType(),
-                                             true,
-                                             GlobalValue::InternalLinkage,
-                                             Initializer);
-      It = StringsPool.insert(It, { String, NewVariable });
-    }
-
-    auto *U8PtrTy = Type::getInt8Ty(C)->getPointerTo();
-    return ConstantExpr::getPointerCast(It->second, U8PtrTy);
-  }
-};
-
 struct Boundary {
   BasicBlock *Block = nullptr;
   BasicBlock *CalleeBlock = nullptr;
@@ -174,7 +148,6 @@ private:
   Function *FunctionDispatcher = nullptr;
   std::map<MetaAddress, Function *> IsolatedFunctionsMap;
   std::map<StringRef, Function *> DynamicFunctionsMap;
-  ConstantStringsPool Strings;
 
   FunctionMetadataCache *Cache;
 
@@ -188,7 +161,6 @@ public:
     Context(TheModule->getContext()),
     GCBI(GCBI),
     Binary(Binary),
-    Strings(TheModule),
     Cache(&Cache) {}
 
 public:
@@ -231,7 +203,7 @@ void IFI::throwException(IRBuilder<> &Builder,
   SmallVector<llvm::Value *, 4> Arguments;
 
   // Create the message string
-  Arguments.push_back(Strings.get(Reason.str()));
+  Arguments.push_back(getUniqueString(TheModule, Reason.str()));
 
   // Populate the source PC
   MetaAddress SourcePC = MetaAddress::invalid();
@@ -663,7 +635,7 @@ void IsolateFunctionsImpl::run() {
     moveBlocksInto(*Outlined.Function, *F);
   }
 
-  revng_check(not verifyModule(*TheModule, &dbgs()));
+  revng::verify(TheModule);
 
   // Create the functions and basic blocks needed for the correct execution of
   // the exception handling mechanism
@@ -674,10 +646,8 @@ void IsolateFunctionsImpl::run() {
   // Cleanup root
   EliminateUnreachableBlocks(*RootFunction, nullptr, false);
 
-  // Before emitting it in output we check that the module in passes the
-  // verifyModule pass
-  if (VerifyLog.isEnabled())
-    revng_assert(not verifyModule(*TheModule, &dbgs()));
+  // Before emitting it in output, verify the module
+  revng::verify(TheModule);
 
   FunctionTags::IsolatedRoot.addTo(RootFunction);
 }

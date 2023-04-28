@@ -23,7 +23,7 @@
 #include "revng/Pipeline/GenericLLVMPipe.h"
 #include "revng/Pipeline/Global.h"
 #include "revng/Pipeline/LLVMContainerFactory.h"
-#include "revng/Pipeline/LLVMGlobalKindBase.h"
+#include "revng/Pipeline/LLVMKind.h"
 #include "revng/Pipeline/Loader.h"
 #include "revng/Pipeline/Step.h"
 #include "revng/Pipeline/Target.h"
@@ -89,13 +89,10 @@ overrideModel(PipelineManager &Manager, TupleTree<model::Binary> NewModel) {
   return llvm::Error::success();
 }
 
-int main(int argc, const char *argv[]) {
+int main(int argc, char *argv[]) {
   using BinaryRef = TupleTreeGlobal<model::Binary>;
 
-  revng::InitRevng X(argc, argv);
-
-  HideUnrelatedOptions(MainCategory);
-  ParseCommandLineOptions(argc, argv);
+  revng::InitRevng X(argc, argv, "", { &MainCategory });
 
   Registry::runAllInitializationRoutines();
 

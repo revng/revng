@@ -236,7 +236,8 @@ void ExternalJumpsHandler::buildExecutableSegmentsList() {
                                                SegmentsArray->getType(),
                                                true,
                                                GlobalValue::InternalLinkage,
-                                               SegmentsArray);
+                                               SegmentsArray,
+                                               "segment_boundaries_data");
 
   // Create a pointer to the array (segment_boundaries) for support.c
   // consumption
