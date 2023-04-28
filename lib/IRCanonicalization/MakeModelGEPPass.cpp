@@ -2312,8 +2312,7 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
     Changed = true;
   }
 
-  if (VerifyLog.isEnabled())
-    revng_assert(not llvm::verifyModule(*F.getParent(), &llvm::dbgs()));
+  revng::verify(F.getParent());
 
   return Changed;
 }

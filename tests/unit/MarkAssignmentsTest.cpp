@@ -40,7 +40,6 @@ static void runTestOnFunctionWithExpected(const char *Body,
 
   llvm::LLVMContext C;
   std::unique_ptr<llvm::Module> M = loadModule(C, Body);
-  revng_check(not llvm::verifyModule(*M, &llvm::dbgs()));
 
   // main is present and has a body
   llvm::Function *F = M->getFunction("main");

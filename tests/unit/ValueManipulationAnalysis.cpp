@@ -159,7 +159,6 @@ static void checkInit(const char *Body,
   // Read the LLVM IR
   LLVMContext C;
   std::unique_ptr<llvm::Module> M = loadModule(C, Body);
-  revng_check(not verifyModule(*M, &dbgs()));
 
   Function *F = M->getFunction("main");
 

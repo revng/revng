@@ -48,18 +48,7 @@ static opt<std::string> TargetFunction("t",
                                        cat(YAMLToCCategory));
 
 int main(int Argc, const char *Argv[]) {
-  revng::InitRevng X(Argc, Argv);
-
-  // Hide options not related to this tool
-  llvm::cl::HideUnrelatedOptions({ &YAMLToCCategory });
-
-  // Parse command line
-  bool Ok = llvm::cl::ParseCommandLineOptions(Argc,
-                                              Argv,
-                                              Overview,
-                                              &llvm::errs());
-  if (not Ok)
-    std::exit(EXIT_FAILURE);
+  revng::InitRevng X(Argc, Argv, Overview, { &YAMLToCCategory });
 
   // Open the output file.
   std::error_code OutEC;

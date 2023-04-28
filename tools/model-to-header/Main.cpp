@@ -44,18 +44,7 @@ using llvm::LLVMContext;
 using llvm::Module;
 
 int main(int Argc, const char *Argv[]) {
-  revng::InitRevng X(Argc, Argv);
-
-  // Hide options not related to this tool
-  llvm::cl::HideUnrelatedOptions({ &ModelToHeaderCategory });
-
-  // Parse command line
-  bool Ok = llvm::cl::ParseCommandLineOptions(Argc,
-                                              Argv,
-                                              Overview,
-                                              &llvm::errs());
-  if (not Ok)
-    std::exit(EXIT_FAILURE);
+  revng::InitRevng X(Argc, Argv, Overview, { &ModelToHeaderCategory });
 
   auto Buffer = llvm::MemoryBuffer::getFileOrSTDIN(InFile);
   if (std::error_code EC = Buffer.getError())
