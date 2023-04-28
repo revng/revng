@@ -121,6 +121,7 @@ fixGlobals(llvm::Module &Module, LinkageRestoreMap &LinkageRestore) {
 
 void LLVMContainer::mergeBackImpl(ThisType &&OtherContainer) {
   llvm::Module *ToMerge = &OtherContainer.getModule();
+  revng::verify(ToMerge);
 
   // Collect statistics about modules
   ModuleStatistics PreMergeStatistics;
@@ -165,10 +166,6 @@ void LLVMContainer::mergeBackImpl(ThisType &&OtherContainer) {
   DropNamedMetadata(&*Module, "llvm.ident");
   DropNamedMetadata(&*Module, "llvm.module.flags");
 
-  // We require inputs to be valid
-  revng::verify(ToMerge);
-  revng::verify(Module.get());
-
   if (ToMerge->getDataLayout().isDefault())
     ToMerge->setDataLayout(Module->getDataLayout());
 
@@ -181,7 +178,6 @@ void LLVMContainer::mergeBackImpl(ThisType &&OtherContainer) {
   bool Failure = TheLinker.linkInModule(std::move(Module));
 
   revng_assert(not Failure, "Linker failed");
-  revng::verify(ToMerge);
 
   // Restores the initial linkage for local functions
   for (auto &Global : ToMerge->global_objects()) {
@@ -190,8 +186,6 @@ void LLVMContainer::mergeBackImpl(ThisType &&OtherContainer) {
       Global.setLinkage(It->second);
   }
 
-  // We must ensure output is valid
-  revng::verify(ToMerge);
   Module = std::move(OtherContainer.Module);
 
   // Checks that module merging commutes w.r.t. enumeration, as specified in
@@ -215,6 +209,8 @@ void LLVMContainer::mergeBackImpl(ThisType &&OtherContainer) {
   //       to share debug metadata, which are not always immutable.
   auto *NamedMDNode = Module->getOrInsertNamedMetadata("llvm.dbg.cu");
   pruneDICompileUnits(*Module);
+
+  revng::verify(ToMerge);
 
   if (ModuleStatisticsLogger.isEnabled()) {
     auto PostMergeStatistics = ModuleStatistics::analyze(*Module.get());
