@@ -523,8 +523,6 @@ private:
 
   llvm::DenseSet<llvm::BasicBlock *> computeUnreachable() const;
 
-  void assertNoUnreachable() const;
-
   /// Translate the non-constant jumps into jumps to the dispatcher
   void translateIndirectJumps();
 
