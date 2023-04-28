@@ -474,7 +474,7 @@ export function _getTypeInfo(
         } else {
             if (type_info.isArray && type_info.ctor === "parse" && "parseKey" in type_info.type) {
                 const key = path[1];
-                const key_parsed = type_info.type["parseKey"](key);
+                const key_parsed = type_info.type.parseKey(key);
                 if ("Kind" in key_parsed) {
                     const specialized_type = Array.from(TYPE_HINTS.keys()).find(
                         (e) => "name" in e && e["name"] === key_parsed.Kind
@@ -594,7 +594,8 @@ export function _applyDiff<T>(
 // Type Hinting
 
 type Constructor = new (rawObject: any) => any;
-type Parsable = { parse: (rawObject: any) => any };
+type SimpleParsable = { parse: (rawObject: any) => any };
+type Parsable = SimpleParsable | (SimpleParsable & { parseKey: (key: string) => any });
 type NativeParsable = (rawObject: any) => any;
 
 export type TupleTreeType = Constructor | Parsable;
