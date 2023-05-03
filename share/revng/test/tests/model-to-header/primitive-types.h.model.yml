@@ -1,0 +1,421 @@
+---
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+Functions:
+  - Entry: "0x400700:Code_x86_64"
+    CustomName: "fn"
+    OriginalName: fn
+    StackFrameType: "/Types/StructType-7"
+    Prototype: "/Types/CABIFunctionType-1"
+    ExportedNames:
+      - fn
+  - Entry: "0x400740:Code_x86_64"
+    CustomName: "fn2"
+    OriginalName: fn2
+    StackFrameType: "/Types/StructType-7"
+    Prototype: "/Types/CABIFunctionType-2"
+    ExportedNames:
+      - fn2
+  - Entry: "0x400749:Code_x86_64"
+    CustomName: "fn3"
+    OriginalName: fn3
+    StackFrameType: "/Types/StructType-7"
+    Prototype: "/Types/CABIFunctionType-3"
+    ExportedNames:
+      - fn3
+  - Entry: "0x400770:Code_x86_64"
+    CustomName: "fn4"
+    OriginalName: fn4
+    StackFrameType: "/Types/StructType-7"
+    Prototype: "/Types/CABIFunctionType-4"
+    ExportedNames:
+      - fn4
+  - Entry: "0x4007e8:Code_x86_64"
+    CustomName: "fn5"
+    OriginalName: fn5
+    StackFrameType: "/Types/StructType-7"
+    Prototype: "/Types/CABIFunctionType-5"
+    ExportedNames:
+      - fn5
+  - Entry: "0x402266:Code_x86_64"
+    CustomName: "fn6"
+    OriginalName: fn6
+    StackFrameType: "/Types/StructType-7"
+    Prototype: "/Types/CABIFunctionType-6"
+    ExportedNames:
+      - fn6
+  - Entry: "0x402288:Code_x86_64"
+    CustomName: "fn7"
+    OriginalName: fn7
+    StackFrameType: "/Types/StructType-7"
+    Prototype: "/Types/CABIFunctionType-8"
+    ExportedNames:
+      - fn7
+Types:
+  - Kind: CABIFunctionType
+    ID: 1
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-256"
+    Arguments:
+      - Index: 0
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1540"
+        CustomName: "b"
+        OriginalName: b
+      - Index: 1
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+        CustomName: "c"
+        OriginalName: c
+      - Index: 2
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1282"
+        CustomName: "d"
+        OriginalName: d
+  - Kind: CABIFunctionType
+    ID: 8
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-256"
+    Arguments:
+      - Index: 0
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-522"
+        CustomName: "arg5"
+        OriginalName: arg5
+      - Index: 1
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-524"
+        CustomName: "arg6"
+        OriginalName: arg6
+  - Kind: CABIFunctionType
+    ID: 2
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-256"
+    Arguments:
+      - Index: 0
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-513"
+        CustomName: "arg1"
+        OriginalName: arg1
+      - Index: 1
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-514"
+        CustomName: "arg2"
+        OriginalName: arg2
+      - Index: 2
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-516"
+        CustomName: "arg3"
+        OriginalName: arg3
+      - Index: 3
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+        CustomName: "arg4"
+        OriginalName: arg4
+  - Kind: CABIFunctionType
+    ID: 3
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-256"
+    Arguments:
+      - Index: 0
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-528"
+        CustomName: "arg1"
+        OriginalName: arg1
+      - Index: 1
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-769"
+        CustomName: "arg2"
+        OriginalName: arg2
+      - Index: 2
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-770"
+        CustomName: "arg3"
+        OriginalName: arg3
+      - Index: 3
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-772"
+        CustomName: "arg4"
+        OriginalName: arg4
+      - Index: 4
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-776"
+        CustomName: "arg5"
+        OriginalName: arg5
+      - Index: 5
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-784"
+        CustomName: "arg6"
+        OriginalName: arg6
+  - Kind: CABIFunctionType
+    ID: 4
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-256"
+    Arguments:
+      - Index: 0
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1025"
+        CustomName: "arg1"
+        OriginalName: arg1
+      - Index: 1
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1026"
+        CustomName: "arg2"
+        OriginalName: arg2
+      - Index: 2
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1028"
+        CustomName: "arg3"
+        OriginalName: arg3
+      - Index: 3
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1032"
+        CustomName: "arg4"
+        OriginalName: arg4
+      - Index: 4
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1040"
+        CustomName: "arg5"
+        OriginalName: arg5
+      - Index: 5
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1281"
+        CustomName: "arg6"
+        OriginalName: arg6
+  - Kind: CABIFunctionType
+    ID: 5
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-256"
+    Arguments:
+      - Index: 0
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1282"
+        CustomName: "arg1"
+        OriginalName: arg1
+      - Index: 1
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1284"
+        CustomName: "arg2"
+        OriginalName: arg2
+      - Index: 2
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1288"
+        CustomName: "arg3"
+        OriginalName: arg3
+      - Index: 3
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1296"
+        CustomName: "arg4"
+        OriginalName: arg4
+      - Index: 4
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1537"
+        CustomName: "arg5"
+        OriginalName: arg5
+      - Index: 5
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1538"
+        CustomName: "arg6"
+        OriginalName: arg6
+  - Kind: CABIFunctionType
+    ID: 6
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/PrimitiveType-256"
+    Arguments:
+      - Index: 0
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1540"
+        CustomName: "arg1"
+        OriginalName: arg1
+      - Index: 1
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1544"
+        CustomName: "arg2"
+        OriginalName: arg2
+      - Index: 2
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1552"
+        CustomName: "arg3"
+        OriginalName: arg3
+      - Index: 3
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1794"
+        CustomName: "arg4"
+        OriginalName: arg4
+      - Index: 4
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1796"
+        CustomName: "arg5"
+        OriginalName: arg5
+      - Index: 5
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1800"
+        CustomName: "arg6"
+        OriginalName: arg6
+      - Index: 6
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1802"
+        CustomName: "arg7"
+        OriginalName: arg7
+      - Index: 7
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1804"
+        CustomName: "arg8"
+        OriginalName: arg8
+      - Index: 8
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-1808"
+        CustomName: "arg9"
+        OriginalName: arg9
+  - Kind: PrimitiveType
+    ID: 256
+    PrimitiveKind: Void
+    Size: 0
+  - Kind: PrimitiveType
+    ID: 513
+    PrimitiveKind: Generic
+    Size: 1
+  - Kind: PrimitiveType
+    ID: 514
+    PrimitiveKind: Generic
+    Size: 2
+  - Kind: PrimitiveType
+    ID: 516
+    PrimitiveKind: Generic
+    Size: 4
+  - Kind: PrimitiveType
+    ID: 520
+    PrimitiveKind: Generic
+    Size: 8
+  - Kind: PrimitiveType
+    ID: 522
+    PrimitiveKind: Generic
+    Size: 10
+  - Kind: PrimitiveType
+    ID: 524
+    PrimitiveKind: Generic
+    Size: 12
+  - Kind: PrimitiveType
+    ID: 528
+    PrimitiveKind: Generic
+    Size: 16
+  - Kind: PrimitiveType
+    ID: 769
+    PrimitiveKind: PointerOrNumber
+    Size: 1
+  - Kind: PrimitiveType
+    ID: 770
+    PrimitiveKind: PointerOrNumber
+    Size: 2
+  - Kind: PrimitiveType
+    ID: 772
+    PrimitiveKind: PointerOrNumber
+    Size: 4
+  - Kind: PrimitiveType
+    ID: 776
+    PrimitiveKind: PointerOrNumber
+    Size: 8
+  - Kind: PrimitiveType
+    ID: 784
+    PrimitiveKind: PointerOrNumber
+    Size: 16
+  - Kind: PrimitiveType
+    ID: 1025
+    PrimitiveKind: Number
+    Size: 1
+  - Kind: PrimitiveType
+    ID: 1026
+    PrimitiveKind: Number
+    Size: 2
+  - Kind: PrimitiveType
+    ID: 1028
+    PrimitiveKind: Number
+    Size: 4
+  - Kind: PrimitiveType
+    ID: 1032
+    PrimitiveKind: Number
+    Size: 8
+  - Kind: PrimitiveType
+    ID: 1040
+    PrimitiveKind: Number
+    Size: 16
+  - Kind: PrimitiveType
+    ID: 1281
+    PrimitiveKind: Unsigned
+    Size: 1
+  - Kind: PrimitiveType
+    ID: 1282
+    PrimitiveKind: Unsigned
+    Size: 2
+  - Kind: PrimitiveType
+    ID: 1284
+    PrimitiveKind: Unsigned
+    Size: 4
+  - Kind: PrimitiveType
+    ID: 1288
+    PrimitiveKind: Unsigned
+    Size: 8
+  - Kind: PrimitiveType
+    ID: 1296
+    PrimitiveKind: Unsigned
+    Size: 16
+  - Kind: PrimitiveType
+    ID: 1537
+    PrimitiveKind: Signed
+    Size: 1
+  - Kind: PrimitiveType
+    ID: 1538
+    PrimitiveKind: Signed
+    Size: 2
+  - Kind: PrimitiveType
+    ID: 1540
+    PrimitiveKind: Signed
+    Size: 4
+  - Kind: PrimitiveType
+    ID: 1544
+    PrimitiveKind: Signed
+    Size: 8
+  - Kind: PrimitiveType
+    ID: 1552
+    PrimitiveKind: Signed
+    Size: 16
+  - Kind: PrimitiveType
+    ID: 1794
+    PrimitiveKind: Float
+    Size: 2
+  - Kind: PrimitiveType
+    ID: 1796
+    PrimitiveKind: Float
+    Size: 4
+  - Kind: PrimitiveType
+    ID: 1800
+    PrimitiveKind: Float
+    Size: 8
+  - Kind: PrimitiveType
+    ID: 1802
+    PrimitiveKind: Float
+    Size: 10
+  - Kind: PrimitiveType
+    ID: 1804
+    PrimitiveKind: Float
+    Size: 12
+  - Kind: PrimitiveType
+    ID: 1808
+    PrimitiveKind: Float
+    Size: 16
+  - Kind: StructType
+    ID: 7
+    Fields:
+      - Offset: 0
+        Type:
+          UnqualifiedType: "/Types/PrimitiveType-520"
+    Size: 16

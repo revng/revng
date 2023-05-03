@@ -61,6 +61,7 @@
 #include "revng-c/Support/ModelHelpers.h"
 #include "revng-c/Support/PTMLC.h"
 #include "revng-c/TypeNames/LLVMTypeNames.h"
+#include "revng-c/TypeNames/ModelToPTMLTypeHelpers.h"
 #include "revng-c/TypeNames/ModelTypeNames.h"
 
 using llvm::cast;
@@ -94,6 +95,11 @@ using tokenDefinition::types::TypeString;
 using TokenMapT = std::map<const llvm::Value *, std::string>;
 using ModelTypesMap = std::map<const llvm::Value *, const model::QualifiedType>;
 using InstrSetVec = llvm::SmallSetVector<const llvm::Instruction *, 8>;
+using InlineableTypesMap = std::unordered_map<const model::Function *,
+                                              std::set<const model::Type *>>;
+using QualifiedTypeNameMap = std::map<model::QualifiedType, std::string>;
+using TypeToNumOfRefsMap = std::unordered_map<const model::Type *, unsigned>;
+using GraphInfo = TypeInlineHelper::GraphInfo;
 
 static constexpr const char *StackFrameVarName = "stack";
 
@@ -489,7 +495,7 @@ public:
       IsOperatorPrecedenceResolutionPassEnabled = true;
   }
 
-  void emitFunction(bool NeedsLocalStateVar);
+  void emitFunction(bool NeedsLocalStateVar, InlineableTypesMap &StackTypes);
 
 private:
   /// Visit a GHAST node and all its children recursively, emitting BBs
@@ -1680,7 +1686,8 @@ static std::string getModelArgIdentifier(const model::Type *ModelFunctionType,
   return "";
 }
 
-void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
+void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
+                                  InlineableTypesMap &StackTypes) {
   revng_log(Log, "========= Emitting Function " << LLVMFunction.getName());
   revng_log(VisitLog, "========= Function " << LLVMFunction.getName());
   LoggerIndent Indent{ VisitLog };
@@ -1701,6 +1708,9 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
   {
     Scope BraceScope(Out, scopeTags::FunctionBody);
 
+    // We expect just one stack type defininition.
+    bool IsStackDefined = false;
+
     // Declare the local variable representing the stack frame
     if (ModelFunction.StackFrameType().isValid()) {
       revng_log(Log, "Stack Frame Declaration");
@@ -1713,7 +1723,30 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
         const auto *Call = &cast<llvm::CallInst>(*It);
         std::string VarName = createTopScopeVarDeclName(Call);
         revng_assert(not VarName.empty());
-        Out << getNamedCInstance(TypeMap.at(Call), VarName) << ";\n";
+        auto *TheType = ModelFunction.StackFrameType().getConst();
+        // This will contain the stack types that we can inline, since
+        // there could be a stack type that is being used somewhere else,
+        // so we do not want to inline it.
+        auto TheStackTypes = StackTypes.at(&ModelFunction);
+        if (TheStackTypes.contains(TheType) and !IsStackDefined) {
+          IsStackDefined = true;
+          QualifiedTypeNameMap AdditionalTypeNames;
+          // For all nested types within stack definition we print forward
+          // declarations.
+          for (auto *Type : TheStackTypes) {
+            revng_assert(isCandidateForInline(Type));
+            printForwardDeclaration(*Type, Out);
+          }
+          printDefinition(Log,
+                          *cast<model::StructType>(TheType),
+                          Out,
+                          TheStackTypes,
+                          AdditionalTypeNames,
+                          Model,
+                          VarName);
+        } else {
+          Out << getNamedCInstance(TypeMap.at(Call), VarName) << ";\n";
+        }
       } else {
 
         revng_log(Log,
@@ -1775,7 +1808,8 @@ static std::string decompileFunction(FunctionMetadataCache &Cache,
                                      const ASTTree &CombedAST,
                                      const Binary &Model,
                                      const InstrSetVec &TopScopeVariables,
-                                     bool NeedsLocalStateVar) {
+                                     bool NeedsLocalStateVar,
+                                     InlineableTypesMap &StackTypes) {
   std::string Result;
 
   llvm::raw_string_ostream Out(Result);
@@ -1785,7 +1819,7 @@ static std::string decompileFunction(FunctionMetadataCache &Cache,
                          CombedAST,
                          TopScopeVariables,
                          Out);
-  Backend.emitFunction(NeedsLocalStateVar);
+  Backend.emitFunction(NeedsLocalStateVar, StackTypes);
   Out.flush();
 
   return Result;
@@ -1796,6 +1830,12 @@ void decompile(FunctionMetadataCache &Cache,
                llvm::Module &Module,
                const model::Binary &Model,
                Container &DecompiledFunctions) {
+  TypeInlineHelper TheTypeInlineHelper(Model);
+
+  // Get all Stack types and all the inlinable types reachable from it,
+  // since we want to emit forward declarations for all of them.
+  auto StackTypes = TheTypeInlineHelper.findStackTypesPerFunction(Model);
+
   for (llvm::Function &F : FunctionTags::Isolated.functions(&Module)) {
 
     if (F.empty())
@@ -1827,7 +1867,8 @@ void decompile(FunctionMetadataCache &Cache,
                                           GHAST,
                                           Model,
                                           TopScopeVariables,
-                                          NeedsLoopStateVar);
+                                          NeedsLoopStateVar,
+                                          StackTypes);
 
     // Push the C code into
     MetaAddress Key = getMetaAddressMetadata(&F, "revng.function.entry");

@@ -127,18 +127,22 @@ TypeString getReturnField(const model::Type &Function,
 
 TypeString
 getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
+  const model::Type &Unqualified = *QT.UnqualifiedType().getConst();
+  std::string UnqualifiedTypeName = ptml::getLocationReference(Unqualified);
+  return getNamedCInstance(UnqualifiedTypeName, QT.Qualifiers(), InstanceName);
+}
+
+TypeString getNamedCInstance(StringRef TypeName,
+                             const std::vector<model::Qualifier> &Qualifiers,
+                             StringRef InstanceName) {
   constexpr auto &isConst = model::Qualifier::isConst;
   constexpr auto &isPointer = model::Qualifier::isPointer;
 
-  bool IsUnqualified = QT.Qualifiers().empty();
-  bool FirstQualifierIsPointer = IsUnqualified
-                                 or isPointer(QT.Qualifiers().front());
+  bool IsUnqualified = Qualifiers.empty();
+  bool FirstQualifierIsPointer = IsUnqualified or isPointer(Qualifiers.front());
   bool PrependWhitespaceToInstanceName = not InstanceName.empty()
                                          and (IsUnqualified
                                               or not FirstQualifierIsPointer);
-
-  const model::Type &Unqualified = *QT.UnqualifiedType().getConst();
-  std::string UnqualifiedTypeName = ptml::getLocationReference(Unqualified);
 
   TypeString Result;
 
@@ -147,8 +151,8 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
   // spiral rule. Luckily all our function types have names, so at least this
   // cannot become too nasty.
 
-  auto QIt = QT.Qualifiers().begin();
-  auto QEnd = QT.Qualifiers().end();
+  auto QIt = Qualifiers.begin();
+  auto QEnd = Qualifiers.end();
   do {
     // Accumulate the result that are outside the array.
     TypeString Partial;
@@ -194,7 +198,7 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
     }
 
     // Print the actual instance name.
-    if (QIt == QT.Qualifiers().begin()) {
+    if (QIt == Qualifiers.begin()) {
       if (PrependWhitespaceToInstanceName)
         Partial.append(" ");
       Result.append(InstanceName.str());
@@ -262,7 +266,7 @@ getNamedCInstance(const model::QualifiedType &QT, StringRef InstanceName) {
     QIt = QPointerIt;
   } while (QIt != QEnd);
 
-  Result = (Twine(UnqualifiedTypeName) + Twine(Result)).str();
+  Result = (Twine(TypeName) + Twine(Result)).str();
 
   return Result;
 }

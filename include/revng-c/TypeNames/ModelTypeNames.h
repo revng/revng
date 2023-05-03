@@ -27,6 +27,11 @@ constexpr const char *const ArrayWrapperFieldName = "the_array";
 extern tokenDefinition::types::TypeString
 getNamedCInstance(const model::QualifiedType &QT, llvm::StringRef InstanceName);
 
+extern tokenDefinition::types::TypeString
+getNamedCInstance(llvm::StringRef TypeName,
+                  const std::vector<model::Qualifier> &Qualifiers,
+                  llvm::StringRef InstanceName);
+
 inline tokenDefinition::types::TypeString
 getTypeName(const model::QualifiedType &QT) {
   return getNamedCInstance(QT, "");

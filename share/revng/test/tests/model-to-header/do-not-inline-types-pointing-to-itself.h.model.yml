@@ -1,0 +1,22 @@
+---
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+Types:
+  - Kind: StructType
+    ID: 1
+    CustomName: "B"
+    OriginalName: B
+    Fields:
+      - Offset: 0
+        CustomName: "next"
+        OriginalName: next
+        Type:
+          UnqualifiedType: "/Types/StructType-1"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 8
+    Size: 8
+---
+
