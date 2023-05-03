@@ -35,8 +35,11 @@ private:
 
 public:
   PECOFFImporter(TupleTree<model::Binary> &Model,
-                 const object::COFFObjectFile &TheBinary) :
-    Model(Model), TheBinary(TheBinary) {}
+                 const object::COFFObjectFile &TheBinary,
+                 uint64_t BaseAddress) :
+    BinaryImporterHelper(Model->Architecture(), BaseAddress),
+    Model(Model),
+    TheBinary(TheBinary) {}
 
   Error import(const ImporterOptions &Options);
 
@@ -526,9 +529,6 @@ Error PECOFFImporter::import(const ImporterOptions &Options) {
 Error importPECOFF(TupleTree<model::Binary> &Model,
                    const object::COFFObjectFile &TheBinary,
                    const ImporterOptions &Options) {
-  // TODO: use Options.BaseAddress if PIC
-  (void) Options.BaseAddress;
-
-  PECOFFImporter Importer(Model, TheBinary);
+  PECOFFImporter Importer(Model, TheBinary, Options.BaseAddress);
   return Importer.import(Options);
 }

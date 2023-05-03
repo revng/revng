@@ -177,6 +177,8 @@ public:
                         size_t Index,
                         size_t AltIndex,
                         uint64_t PreferredBaseAddress) :
+    BinaryImporterHelper(Importer.getModel()->Architecture(),
+                         PreferredBaseAddress),
     Importer(Importer),
     Model(Importer.getModel()),
     Index(Index),
@@ -1442,13 +1444,16 @@ void DwarfImporter::import(const llvm::object::Binary &TheBinary,
                            std::uint64_t PreferredBaseAddress) {
   using namespace llvm::object;
 
-  if (auto *ELF = dyn_cast<ObjectFile>(&TheBinary)) {
+  if (auto *ELF = dyn_cast<ELFObjectFileBase>(&TheBinary)) {
 
     {
       using namespace model::Architecture;
       if (Model->Architecture() == Invalid)
         Model->Architecture() = fromLLVMArchitecture(ELF->getArch());
     }
+
+    if (ELF->getEType() != ELF::ET_DYN)
+      PreferredBaseAddress = 0;
 
     // Check if we already loaded the alt debug info file
     size_t AltIndex = -1;
