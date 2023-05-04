@@ -72,6 +72,10 @@ llvm_map_components_to_libnames(
   support
   transformutils)
 
+# MLIR CMake stuff
+find_package(MLIR REQUIRED CONFIG)
+include_directories(${MLIR_INCLUDE_DIRS})
+
 #
 # share/revng
 #
