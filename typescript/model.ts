@@ -17,7 +17,7 @@ const metaAddressTypes = [
     "Code_aarch64",
     "Code_systemz",
 ] as const;
-type MetaAddressType = typeof metaAddressTypes[number];
+type MetaAddressType = (typeof metaAddressTypes)[number];
 
 const metaAddressRegex = new RegExp(
     "^(?<Address>(0x[0-9a-fA-F]+)|)" +
