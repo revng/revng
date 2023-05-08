@@ -9,4 +9,5 @@ get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
 
 set(MLIR_LIBRARIES ${dialect_libs} ${conversion_libs} MLIROptLib)
 
-target_link_libraries(revng-clift-opt ${MLIR_LIBRARIES} ${LLVM_LIBRARIES})
+target_link_libraries(revng-clift-opt MLIRCliftDialect ${MLIR_LIBRARIES}
+                      ${LLVM_LIBRARIES})
