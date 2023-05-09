@@ -434,14 +434,16 @@ private:
 
   RecursiveCoroutine<const model::QualifiedType *>
   getType(const DWARFDie &Die) {
-    auto MaybeType = Die.find(DW_AT_type);
-    if (MaybeType) {
+    if (auto MaybeType = Die.find(DW_AT_type)) {
       if (MaybeType->getForm() == llvm::dwarf::DW_FORM_GNU_ref_alt) {
         rc_return findAltType(MaybeType->getRawUValue());
       } else {
         DWARFDie InnerDie = DICtx.getDIEForOffset(*MaybeType->getAsReference());
         rc_return rc_recur resolveType(InnerDie, false);
       }
+    } else if (auto MaybeOrigin = Die.find(DW_AT_abstract_origin)) {
+      DWARFDie Origin = DICtx.getDIEForOffset(*MaybeOrigin->getAsReference());
+      rc_return rc_recur getType(Origin);
     } else {
       rc_return nullptr;
     }
