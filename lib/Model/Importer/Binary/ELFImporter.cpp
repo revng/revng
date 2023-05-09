@@ -771,11 +771,16 @@ void ELFImporter<T, HasAddend>::parseDynamicSymbol(Elf_Sym_Impl<T> &Symbol,
     if (IsCode) {
       Address = relocate(fromPC(Symbol.st_value));
       // TODO: record model::Function::IsDynamic = true
+      model::Function *Function = nullptr;
       auto It = Model->Functions().find(Address);
-      if (It == Model->Functions().end()) {
-        model::Function &Function = Model->Functions()[Address];
-        Function.OriginalName() = Name;
+      if (It != Model->Functions().end()) {
+        Function = &*It;
+      } else {
+        Function = &Model->Functions()[Address];
+        Function->OriginalName() = Name;
       }
+
+      Function->ExportedNames().insert(Name.str());
     } else {
       Address = relocate(fromGeneric(Symbol.st_value));
       if (not llvm::is_contained(DataSymbols,

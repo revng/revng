@@ -873,10 +873,10 @@ private:
           if (MaybePath && not Function.Prototype().isValid())
             Function.Prototype() = *MaybePath;
 
-          if (SymbolName.size() != 0 and Function.OriginalName().size() == 0) {
+          if (SymbolName.size() != 0 and Function.OriginalName().size() == 0)
             Function.OriginalName() = SymbolName;
-            Function.ExportedNames().insert(SymbolName);
-          }
+
+          Function.ExportedNames().insert(SymbolName);
 
           if (isNoReturn(*CU.get(), Die))
             Function.Attributes().insert(model::FunctionAttribute::NoReturn);
