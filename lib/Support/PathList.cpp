@@ -2,7 +2,11 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <set>
+
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/GlobPattern.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 
@@ -96,4 +100,36 @@ findFileInPaths(llvm::StringRef FileName,
 
 std::optional<std::string> PathList::findFile(llvm::StringRef FileName) const {
   return findFileInPaths(FileName, SearchPaths);
+}
+
+std::vector<std::string>
+PathList::list(llvm::StringRef Path, llvm::StringRef Suffix) const {
+  using namespace llvm;
+  using namespace sys;
+  using namespace fs;
+  using std::string;
+
+  std::set<string> Visited;
+  std::vector<string> Result;
+  for (const string &SearchPath : SearchPaths) {
+    SmallString<16> FullPath(SearchPath);
+    path::append(FullPath, Path);
+
+    if (is_directory(FullPath)) {
+      std::error_code EC;
+      for (directory_iterator File(FullPath, EC), FileEnd;
+           File != FileEnd && !EC;
+           File.increment(EC)) {
+        if (llvm::StringRef(File->path()).endswith(Suffix)) {
+          bool New = Visited.insert(path::filename(File->path()).str()).second;
+          if (New)
+            Result.push_back(File->path());
+        }
+      }
+
+      revng_assert(!EC);
+    }
+  }
+
+  return Result;
 }
