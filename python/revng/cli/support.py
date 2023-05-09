@@ -5,17 +5,18 @@
 import os
 import shlex
 import signal
-import subprocess
 import sys
 from dataclasses import dataclass
 from shutil import which
-from typing import Any, Dict, Iterable, List, NoReturn, Optional, Union
+from subprocess import Popen
+from typing import Any, Dict, Iterable, List, Mapping, NoReturn, Optional, Tuple, Union
 
 from revng.support import get_root, read_lines
 from revng.support.collect import collect_files, collect_libraries
 from revng.support.elf import is_executable
 
 additional_bin_paths = read_lines(get_root() / "share/revng/additional-bin-paths")
+OptionalEnv = Optional[Mapping[str, str]]
 
 
 @dataclass
@@ -49,9 +50,12 @@ def relative(path: str) -> str:
         return path
 
 
-def try_run(
-    command, options: Options, environment: Optional[Dict[str, str]] = None, do_exec=False
-) -> Union[int, NoReturn]:
+def _run_common(
+    command, options: Options, environment: OptionalEnv = None
+) -> Tuple[List[str], Dict[str, str]]:
+    if not os.path.isfile(command[0]):
+        command[0] = get_command(command[0], options.search_prefixes)
+
     if len(options.command_prefix) > 0:
         if is_executable(command[0]):
             command = wrap(command, options.command_prefix)
@@ -63,33 +67,52 @@ def try_run(
         program_path = relative(command[0])
         sys.stderr.write("{}\n\n".format(" \\\n  ".join([program_path] + command[1:])))
 
-    if options.dry_run:
-        return 0
-
-    if environment is None:
-        environment = dict(os.environ)
+    environment = dict(os.environ if environment is None else environment)
 
     if "valgrind" in command:
         environment["PYTHONMALLOC"] = "malloc"
 
-    if do_exec:
-        return os.execvpe(command[0], command, environment)
-    else:
+    return command, environment
+
+
+def popen(command, options: Options, environment: OptionalEnv = None, **kwargs) -> int | Popen:
+    command, environment = _run_common(command, options, environment)
+
+    if options.dry_run:
+        return 0
+
+    return Popen(command, env=environment, **kwargs)
+
+
+def try_run(command, options: Options, environment: OptionalEnv = None) -> int:
+    try:
         signal.signal(signal.SIGINT, signal.SIG_IGN)
-        process = subprocess.Popen(
+        process = popen(
             command,
+            options,
+            environment,
             preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL),
-            env=environment,
         )
-        return_code = process.wait()
+        if isinstance(process, int):
+            return process
+        return process.wait()
+    finally:
         signal.signal(signal.SIGINT, signal.SIG_DFL)
-        return return_code
 
 
-def run(command, options: Options, environment: Optional[Dict[str, str]] = None, do_exec=False):
-    result = try_run(command, options, environment, do_exec)
+def run(command, options: Options, environment: OptionalEnv = None):
+    result = try_run(command, options, environment)
     if result != 0:
         sys.exit(result)
+
+
+def exec_run(command, options: Options, environment: OptionalEnv) -> Union[int, NoReturn]:
+    command, environment = _run_common(command, options, environment)
+
+    if options.dry_run:
+        return 0
+
+    return os.execvpe(command[0], command, environment)
 
 
 def get_command(command: str, search_prefixes: Iterable[str]) -> str:
