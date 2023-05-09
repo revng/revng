@@ -5,6 +5,7 @@
 AnalysesLists:
   - Name: revng-initial-auto-analysis
     Analyses:
-      - ImportBinary
       - AddPrimitiveTypes
+      - ImportBinary
+      - ImportWellKnownModels
       - DetectABI
