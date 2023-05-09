@@ -179,7 +179,9 @@ static std::string addAlwaysParentheses(llvm::StringRef Expr) {
   return std::string("(") + Expr.str() + ")";
 }
 
-static std::string get128BitIntegerHexConstant(llvm::APInt Value) {
+static std::string
+get128BitIntegerHexConstant(llvm::APInt Value,
+                            const ptml::PTMLCBuilder &ThePTMLCBuilder) {
   revng_assert(Value.getBitWidth() > 64);
   // In C, even if you can have 128-bit variables, you cannot have 128-bit
   // literals, so we need this hack to assign a big constant value to a
@@ -198,14 +200,18 @@ static std::string get128BitIntegerHexConstant(llvm::APInt Value) {
                     /*signed=*/false,
                     /*formatAsCLiteral=*/true);
 
-  auto HighConstant = constants::constant(HighBitsString) + " "
-                      + operators::LShift + " " + constants::number(64);
-  auto CompositeConstant = HighConstant + " " + operators::Or + " "
-                           + constants::constant(LowBitsString);
+  using PTMLOperator = ptml::PTMLCBuilder::Operator;
+  auto HighConstant = ThePTMLCBuilder.getConstantTag(HighBitsString) + " "
+                      + ThePTMLCBuilder.getOperator(PTMLOperator::LShift) + " "
+                      + ThePTMLCBuilder.getNumber(64);
+  auto CompositeConstant = HighConstant + " "
+                           + ThePTMLCBuilder.getOperator(PTMLOperator::Or) + " "
+                           + ThePTMLCBuilder.getConstantTag(LowBitsString);
   return addAlwaysParentheses(CompositeConstant);
 }
 
-static std::string hexLiteral(const llvm::ConstantInt *Int) {
+static std::string hexLiteral(const llvm::ConstantInt *Int,
+                              const ptml::PTMLCBuilder &ThePTMLCBuilder) {
   StringToken Formatted;
   if (Int->getBitWidth() <= 64) {
     Int->getValue().toString(Formatted,
@@ -214,7 +220,7 @@ static std::string hexLiteral(const llvm::ConstantInt *Int) {
                              /*formatAsCLiteral*/ true);
     return Formatted.str().str();
   }
-  return get128BitIntegerHexConstant(Int->getValue());
+  return get128BitIntegerHexConstant(Int->getValue(), ThePTMLCBuilder);
 }
 
 static std::string charLiteral(const llvm::ConstantInt *Int) {
@@ -264,6 +270,8 @@ private:
   /// Where to output the decompiled C code
   ptml::PTMLIndentedOstream Out;
 
+  ptml::PTMLCBuilder ThePTMLCBuilder;
+
   /// Name of the local variable used to break out of loops from within nested
   /// switches
   std::vector<std::string> SwitchStateVars;
@@ -309,7 +317,8 @@ public:
                  const llvm::Function &LLVMFunction,
                  const ASTTree &GHAST,
                  const InstrSetVec &TopScopeVariables,
-                 raw_ostream &Out) :
+                 raw_ostream &Out,
+                 ptml::PTMLCBuilder &ThePTMLCBuilder) :
     Model(Model),
     LLVMFunction(LLVMFunction),
     ModelFunction(*llvmToModelFunction(Model, LLVMFunction)),
@@ -322,13 +331,16 @@ public:
                            Model,
                            /*PointersOnly=*/false)),
     Out(Out, 4),
+    ThePTMLCBuilder(ThePTMLCBuilder),
     SwitchStateVars(),
     Cache(Cache) {
     // TODO: don't use a global loop state variable
     LoopStateVar = getVariableLocationReference("loop_state_var",
-                                                ModelFunction);
+                                                ModelFunction,
+                                                ThePTMLCBuilder);
     LoopStateVarDeclaration = getVariableLocationDefinition("loop_state_var",
-                                                            ModelFunction);
+                                                            ModelFunction,
+                                                            ThePTMLCBuilder);
 
     if (LLVMFunction.getMetadata(ExplicitParenthesesMDName))
       IsOperatorPrecedenceResolutionPassEnabled = true;
@@ -397,8 +409,12 @@ private:
     std::string VarName = isStackFrameDecl(I) ? std::string(StackFrameVarName) :
                                                 NameGenerator.nextVarName();
 
-    TokenMap[I] = getVariableLocationReference(VarName, ModelFunction);
-    return getVariableLocationDefinition(VarName, ModelFunction);
+    TokenMap[I] = getVariableLocationReference(VarName,
+                                               ModelFunction,
+                                               ThePTMLCBuilder);
+    return getVariableLocationDefinition(VarName,
+                                         ModelFunction,
+                                         ThePTMLCBuilder);
   }
 
   std::string createLocalVarDeclName(const llvm::Instruction *I) {
@@ -406,8 +422,12 @@ private:
     std::string VarName = NameGenerator.nextVarName();
     // This may override the entry for I, if I belongs to a "duplicated"
     // BasicBlock that is reachable from many paths on the GHAST.
-    TokenMap[I] = getVariableLocationReference(VarName, ModelFunction);
-    return getVariableLocationDefinition(VarName, ModelFunction);
+    TokenMap[I] = getVariableLocationReference(VarName,
+                                               ModelFunction,
+                                               ThePTMLCBuilder);
+    return getVariableLocationDefinition(VarName,
+                                         ModelFunction,
+                                         ThePTMLCBuilder);
   }
 
   std::string getVarName(const llvm::Instruction *I) const {
@@ -425,11 +445,14 @@ std::string CCodeGenerator::addParentheses(llvm::StringRef Expr) const {
 }
 
 std::string CCodeGenerator::buildDerefExpr(llvm::StringRef Expr) const {
-  return operators::PointerDereference + addParentheses(Expr);
+  using PTMLOperator = ptml::PTMLCBuilder::Operator;
+  return ThePTMLCBuilder.getOperator(PTMLOperator::PointerDereference)
+         + addParentheses(Expr);
 }
 
 std::string CCodeGenerator::buildAddressExpr(llvm::StringRef Expr) const {
-  return operators::AddressOf + addParentheses(Expr);
+  return ThePTMLCBuilder.getOperator(ptml::PTMLCBuilder::Operator::AddressOf)
+         + addParentheses(Expr);
 }
 
 std::string
@@ -443,39 +466,43 @@ CCodeGenerator::buildCastExpr(StringRef ExprToCast,
   revng_assert((SrcType.isScalar() or SrcType.isPointer())
                and (DestType.isScalar() or DestType.isPointer()));
 
-  return addAlwaysParentheses(getTypeName(DestType)) + " "
+  return addAlwaysParentheses(getTypeName(DestType, ThePTMLCBuilder)) + " "
          + addParentheses(ExprToCast);
 }
 
-static std::string getInvalidToken(const llvm::UndefValue *U) {
+static std::string getInvalidToken(const llvm::UndefValue *U,
+                                   const ptml::PTMLCBuilder &ThePTMLCBuilder) {
   revng_assert(U->getType()->isIntOrPtrTy());
 
-  std::string Result = constants::Zero.serialize() + ' ';
+  std::string Result = ThePTMLCBuilder.getZeroTag().serialize() + ' ';
   if (isa<llvm::PoisonValue>(U))
-    Result += helpers::blockComment("poison", false);
+    Result += " " + ThePTMLCBuilder.getBlockComment("poison", false) + " ";
   else
-    Result += helpers::blockComment("undef", false);
+    Result += " " + ThePTMLCBuilder.getBlockComment("undef", false) + " ";
   return Result;
 }
 
-static std::string getFormattedIntegerToken(const llvm::CallInst *Call) {
+static std::string
+getFormattedIntegerToken(const llvm::CallInst *Call,
+                         const ptml::PTMLCBuilder &ThePTMLCBuilder) {
 
   if (isCallToTagged(Call, FunctionTags::HexInteger)) {
     const auto Operand = Call->getArgOperand(0);
     const auto *Value = cast<llvm::ConstantInt>(Operand);
-    return constants::constant(hexLiteral(Value)).serialize();
+    return ThePTMLCBuilder.getConstantTag(hexLiteral(Value, ThePTMLCBuilder))
+      .serialize();
   }
 
   if (isCallToTagged(Call, FunctionTags::CharInteger)) {
     const auto Operand = Call->getArgOperand(0);
     const auto *Value = cast<llvm::ConstantInt>(Operand);
-    return constants::constant(charLiteral(Value)).serialize();
+    return ThePTMLCBuilder.getConstantTag(charLiteral(Value)).serialize();
   }
 
   if (isCallToTagged(Call, FunctionTags::BoolInteger)) {
     const auto Operand = Call->getArgOperand(0);
     const auto *Value = cast<llvm::ConstantInt>(Operand);
-    return constants::constant(boolLiteral(Value)).serialize();
+    return ThePTMLCBuilder.getConstantTag(boolLiteral(Value)).serialize();
   }
 
   std::string Error = "Cannot get token for custom opcode: "
@@ -486,21 +513,20 @@ static std::string getFormattedIntegerToken(const llvm::CallInst *Call) {
 
 RecursiveCoroutine<std::string>
 CCodeGenerator::getConstantToken(const llvm::Value *C) const {
-
   revng_assert(isCConstant(C));
 
   if (auto *Undef = dyn_cast<llvm::UndefValue>(C))
-    rc_return getInvalidToken(Undef);
+    rc_return getInvalidToken(Undef, ThePTMLCBuilder);
 
   if (auto *Null = dyn_cast<llvm::ConstantPointerNull>(C))
-    rc_return constants::Null.serialize();
+    rc_return ThePTMLCBuilder.getNullTag().serialize();
 
   if (auto *Const = dyn_cast<llvm::ConstantInt>(C)) {
     llvm::APInt Value = Const->getValue();
     if (Value.isIntN(64))
-      rc_return constants::number(Value.getLimitedValue()).serialize();
+      rc_return ThePTMLCBuilder.getNumber(Value.getLimitedValue()).serialize();
     else
-      rc_return get128BitIntegerHexConstant(Value);
+      rc_return get128BitIntegerHexConstant(Value, ThePTMLCBuilder);
   }
 
   if (auto *Global = dyn_cast<llvm::GlobalVariable>(C)) {
@@ -558,7 +584,8 @@ CCodeGenerator::getConstantToken(const llvm::Value *C) const {
   }
 
   if (isIntegerConstFormatting(C))
-    rc_return getFormattedIntegerToken(cast<llvm::CallInst>(C));
+    rc_return getFormattedIntegerToken(cast<llvm::CallInst>(C),
+                                       ThePTMLCBuilder);
 
   std::string Error = "Cannot get token for llvm::Constant: ";
   Error += dumpToString(C).c_str();
@@ -630,7 +657,9 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
   }
 
   std::string CurExpr = addParentheses(BaseString);
-  Tag DerefSymbol = IsRef ? operators::Dot : operators::Arrow;
+  using PTMLOperator = ptml::PTMLCBuilder::Operator;
+  Tag DerefSymbol = IsRef ? ThePTMLCBuilder.getOperator(PTMLOperator::Dot) :
+                            ThePTMLCBuilder.getOperator(PTMLOperator::Arrow);
 
   // Traverse the model to decide whether to emit "." or "[]"
   for (; CurArg != Call->arg_end(); ++CurArg) {
@@ -645,7 +674,7 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
 
       std::string IndexExpr;
       if (auto *Const = dyn_cast<llvm::ConstantInt>(CurArg->get())) {
-        IndexExpr = constants::number(Const->getValue()).serialize();
+        IndexExpr = ThePTMLCBuilder.getNumber(Const->getValue()).serialize();
       } else {
         IndexExpr = rc_recur getToken(CurArg->get());
       }
@@ -672,12 +701,12 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
 
       if (auto *Struct = dyn_cast<model::StructType>(UnqualType)) {
         const model::StructField &Field = Struct->Fields().at(FieldIdx);
-        CurExpr += ptml::getLocationReference(*Struct, Field);
+        CurExpr += ThePTMLCBuilder.getLocationReference(*Struct, Field);
         CurType = Struct->Fields().at(FieldIdx).Type();
 
       } else if (auto *Union = dyn_cast<model::UnionType>(UnqualType)) {
         const model::UnionField &Field = Union->Fields().at(FieldIdx);
-        CurExpr += ptml::getLocationReference(*Union, Field);
+        CurExpr += ThePTMLCBuilder.getLocationReference(*Union, Field);
         CurType = Union->Fields().at(FieldIdx).Type();
 
       } else {
@@ -688,7 +717,7 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
 
     // Regardless if the base type was a pointer or not, we are now
     // navigating only references
-    DerefSymbol = operators::Dot;
+    DerefSymbol = ThePTMLCBuilder.getOperator(PTMLOperator::Dot);
   }
 
   rc_return CurExpr;
@@ -700,7 +729,8 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
   if (isAssignment(Call)) {
     const llvm::Value *StoredVal = Call->getArgOperand(0);
     const llvm::Value *PointerVal = Call->getArgOperand(1);
-    rc_return rc_recur getToken(PointerVal) + " " + operators::Assign + " "
+    rc_return rc_recur getToken(PointerVal) + " "
+      + ThePTMLCBuilder.getOperator(ptml::PTMLCBuilder::Operator::Assign) + " "
       + rc_recur getToken(StoredVal);
   }
 
@@ -751,7 +781,9 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
     auto *StructTy = cast<llvm::StructType>(Call->getType());
     revng_assert(Call->getFunction()->getReturnType() == StructTy);
     revng_assert(LLVMFunction.getReturnType() == StructTy);
-    auto StrucTypeName = getNamedInstanceOfReturnType(ParentPrototype, "");
+    auto StrucTypeName = getNamedInstanceOfReturnType(ParentPrototype,
+                                                      "",
+                                                      ThePTMLCBuilder);
     std::string StructInit = addAlwaysParentheses(StrucTypeName);
 
     // Emit RHS
@@ -772,7 +804,7 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
     model::Segment Segment = Model.Segments().at({ StartAddress, VirtualSize });
     auto Name = Segment.name();
 
-    rc_return ptml::getLocationReference(Segment);
+    rc_return ThePTMLCBuilder.getLocationReference(Segment);
   }
 
   if (isCallToTagged(Call, FunctionTags::Copy))
@@ -780,28 +812,31 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
 
   if (isCallToTagged(Call, FunctionTags::OpaqueCSVValue)) {
     auto *Callee = Call->getCalledFunction();
-    std::string HelperRef = getHelperFunctionLocationReference(Callee);
+    std::string HelperRef = getHelperFunctionLocationReference(Callee,
+                                                               ThePTMLCBuilder);
     rc_return rc_recur getCallToken(Call, HelperRef, /*prototype=*/nullptr);
   }
 
+  using PTMLOperator = ptml::PTMLCBuilder::Operator;
   if (isCallToTagged(Call, FunctionTags::UnaryMinus)) {
     auto Operand = Call->getArgOperand(0);
     std::string ToNegate = rc_recur getToken(Operand);
-    rc_return operators::UnaryMinus + ToNegate;
+    rc_return ThePTMLCBuilder.getOperator(PTMLOperator::UnaryMinus) + ToNegate;
   }
 
   if (isCallToTagged(Call, FunctionTags::BinaryNot)) {
     auto Operand = Call->getArgOperand(0);
     std::string ToNegate = rc_recur getToken(Operand);
-    rc_return(Operand->getType()->isIntegerTy(1) ? operators::BoolNot :
-                                                   operators::BinaryNot)
+    rc_return(Operand->getType()->isIntegerTy(1) ?
+                ThePTMLCBuilder.getOperator(PTMLOperator::BoolNot) :
+                ThePTMLCBuilder.getOperator(PTMLOperator::BinaryNot))
       + ToNegate;
   }
 
   if (isCallToTagged(Call, FunctionTags::StringLiteral)) {
     const auto Operand = Call->getArgOperand(0);
     std::string StringLiteral = rc_recur getToken(Operand);
-    rc_return constants::stringLiteral(StringLiteral).serialize();
+    rc_return ThePTMLCBuilder.getStringLiteral(StringLiteral).serialize();
   }
 
   std::string Error = "Cannot get token for custom opcode: "
@@ -831,7 +866,8 @@ CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) const {
       auto &DynamicFunc = Model.ImportedDynamicFunctions().at(DynFuncID);
       std::string Location = serializedLocation(ranks::DynamicFunction,
                                                 DynamicFunc.key());
-      CalleeToken = Tag(tags::Span, DynamicFunc.name().str())
+      CalleeToken = ThePTMLCBuilder
+                      .getTag(ptml::tags::Span, DynamicFunc.name().str())
                       .addAttribute(attributes::Token, tokens::Function)
                       .addAttribute(attributes::ModelEditPath,
                                     getCustomNamePath(DynamicFunc))
@@ -844,7 +880,8 @@ CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) const {
       const model::Function *ModelFunc = llvmToModelFunction(Model,
                                                              *CalledFunc);
       revng_assert(ModelFunc);
-      CalleeToken = Tag(tags::Span, ModelFunc->name().str())
+      CalleeToken = ThePTMLCBuilder
+                      .getTag(ptml::tags::Span, ModelFunc->name().str())
                       .addAttribute(attributes::Token, tokens::Function)
                       .addAttribute(attributes::ModelEditPath,
                                     getCustomNamePath(*ModelFunc))
@@ -868,7 +905,8 @@ CCodeGenerator::getNonIsolatedCallToken(const llvm::CallInst *Call) const {
   revng_assert(CalledFunc and CalledFunc->hasName(),
                "Special functions should all have a name");
 
-  std::string HelperRef = getHelperFunctionLocationReference(CalledFunc);
+  std::string HelperRef = getHelperFunctionLocationReference(CalledFunc,
+                                                             ThePTMLCBuilder);
   rc_return rc_recur getCallToken(Call, HelperRef, /*prototype=*/nullptr);
 }
 
@@ -885,10 +923,11 @@ static bool shouldGenerateDebugInfoAsPTML(const llvm::Instruction &I) {
   return false;
 }
 
-static std::string
-addDebugInfo(const llvm::Instruction *I, const std::string &Str) {
+static std::string addDebugInfo(const llvm::Instruction *I,
+                                const std::string &Str,
+                                const ptml::PTMLCBuilder &ThePTMLCBuilder) {
   if (shouldGenerateDebugInfoAsPTML(*I))
-    return ptml::Tag(ptml::tags::Span, Str)
+    return ThePTMLCBuilder.getTag(ptml::tags::Span, Str)
       .addAttribute(ptml::attributes::LocationReferences,
                     I->getDebugLoc()->getScope()->getName())
       .serialize();
@@ -896,67 +935,77 @@ addDebugInfo(const llvm::Instruction *I, const std::string &Str) {
 }
 
 /// Return the string that represents the given binary operator in C
-static const std::string getBinOpString(const llvm::BinaryOperator *BinOp) {
-  const Tag *Op = [&BinOp]() constexpr {
+static const std::string
+getBinOpString(const llvm::BinaryOperator *BinOp,
+               const ptml::PTMLCBuilder &ThePTMLCBuilder) {
+  const Tag Op = [&BinOp, &ThePTMLCBuilder]() {
     bool IsBool = BinOp->getType()->isIntegerTy(1);
+
+    using PTMLOperator = ptml::PTMLCBuilder::Operator;
 
     switch (BinOp->getOpcode()) {
     case Instruction::Add:
-      return &operators::Add;
+      return ThePTMLCBuilder.getOperator(ptml::PTMLCBuilder::Operator::Add);
     case Instruction::Sub:
-      return &operators::Sub;
+      return ThePTMLCBuilder.getOperator(ptml::PTMLCBuilder::Operator::Sub);
     case Instruction::Mul:
-      return &operators::Mul;
+      return ThePTMLCBuilder.getOperator(ptml::PTMLCBuilder::Operator::Mul);
     case Instruction::SDiv:
     case Instruction::UDiv:
-      return &operators::Div;
+      return ThePTMLCBuilder.getOperator(ptml::PTMLCBuilder::Operator::Div);
     case Instruction::SRem:
     case Instruction::URem:
-      return &operators::Modulo;
+      return ThePTMLCBuilder.getOperator(ptml::PTMLCBuilder::Operator::Modulo);
     case Instruction::LShr:
     case Instruction::AShr:
-      return &operators::RShift;
+      return ThePTMLCBuilder.getOperator(ptml::PTMLCBuilder::Operator::RShift);
     case Instruction::Shl:
-      return &operators::LShift;
+      return ThePTMLCBuilder.getOperator(ptml::PTMLCBuilder::Operator::LShift);
     case Instruction::And:
-      return IsBool ? &operators::BoolAnd : &operators::And;
+      return IsBool ?
+               ThePTMLCBuilder.getOperator(PTMLOperator::BoolAnd) :
+               ThePTMLCBuilder.getOperator(ptml::PTMLCBuilder::Operator::And);
     case Instruction::Or:
-      return IsBool ? &operators::BoolOr : &operators::Or;
+      return IsBool ?
+               ThePTMLCBuilder.getOperator(PTMLOperator::BoolOr) :
+               ThePTMLCBuilder.getOperator(ptml::PTMLCBuilder::Operator::Or);
     case Instruction::Xor:
-      return &operators::Xor;
+      return ThePTMLCBuilder.getOperator(ptml::PTMLCBuilder::Operator::Xor);
     default:
       revng_abort("Unknown const Binary operation");
     }
   }();
-  return " " + *Op + " ";
+  return " " + Op + " ";
 }
 
 /// Return the string that represents the given comparison operator in C
-static const std::string getCmpOpString(const llvm::CmpInst::Predicate &Pred) {
+static const std::string
+getCmpOpString(const llvm::CmpInst::Predicate &Pred,
+               const ptml::PTMLCBuilder &ThePTMLCBuilder) {
   using llvm::CmpInst;
-  const Tag *Op = [&Pred]() constexpr {
+  const Tag Op = [&Pred, &ThePTMLCBuilder]() {
     switch (Pred) {
     case CmpInst::ICMP_EQ: ///< equal
-      return &operators::CmpEq;
+      return ThePTMLCBuilder.getOperator(ptml::PTMLCBuilder::Operator::CmpEq);
     case CmpInst::ICMP_NE: ///< not equal
-      return &operators::CmpNeq;
+      return ThePTMLCBuilder.getOperator(ptml::PTMLCBuilder::Operator::CmpNeq);
     case CmpInst::ICMP_UGT: ///< unsigned greater than
     case CmpInst::ICMP_SGT: ///< signed greater than
-      return &operators::CmpGt;
+      return ThePTMLCBuilder.getOperator(ptml::PTMLCBuilder::Operator::CmpGt);
     case CmpInst::ICMP_UGE: ///< unsigned greater or equal
     case CmpInst::ICMP_SGE: ///< signed greater or equal
-      return &operators::CmpGte;
+      return ThePTMLCBuilder.getOperator(ptml::PTMLCBuilder::Operator::CmpGte);
     case CmpInst::ICMP_ULT: ///< unsigned less than
     case CmpInst::ICMP_SLT: ///< signed less than
-      return &operators::CmpLt;
+      return ThePTMLCBuilder.getOperator(ptml::PTMLCBuilder::Operator::CmpLt);
     case CmpInst::ICMP_ULE: ///< unsigned less or equal
     case CmpInst::ICMP_SLE: ///< signed less or equal
-      return &operators::CmpLte;
+      return ThePTMLCBuilder.getOperator(ptml::PTMLCBuilder::Operator::CmpLte);
     default:
       revng_abort("Unknown comparison operator");
     }
   }();
-  return " " + *Op + " ";
+  return " " + Op + " ";
 }
 
 /// Returns a pair of QualifiedTypes to which LHS and RHS has to be casted to
@@ -1078,13 +1127,15 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
     auto *Bin = dyn_cast<llvm::BinaryOperator>(I);
     auto *Cmp = dyn_cast<llvm::CmpInst>(I);
     revng_assert(Bin or Cmp);
-    auto OperatorString = Bin ? getBinOpString(Bin) :
-                                getCmpOpString(Cmp->getPredicate());
+    auto OperatorString = Bin ? getBinOpString(Bin, ThePTMLCBuilder) :
+                                getCmpOpString(Cmp->getPredicate(),
+                                               ThePTMLCBuilder);
 
     // TODO: Integer promotion
     rc_return addDebugInfo(I,
                            addParentheses(Op0Token) + OperatorString
-                             + addParentheses(Op1Token));
+                             + addParentheses(Op1Token),
+                           ThePTMLCBuilder);
   }
 
   if (isa<llvm::CastInst>(I) or isa<llvm::FreezeInst>(I)) {
@@ -1092,9 +1143,8 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
     const llvm::Value *Op = I->getOperand(0);
     std::string ToCast = rc_recur getToken(Op);
     rc_return addDebugInfo(I,
-                           buildCastExpr(ToCast,
-                                         TypeMap.at(Op),
-                                         TypeMap.at(I)));
+                           buildCastExpr(ToCast, TypeMap.at(Op), TypeMap.at(I)),
+                           ThePTMLCBuilder);
   }
 
   switch (I->getOpcode()) {
@@ -1106,13 +1156,19 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
                  or isCallToNonIsolated(Call));
 
     if (isCallToCustomOpcode(Call))
-      rc_return addDebugInfo(I, rc_recur getCustomOpcodeToken(Call));
+      rc_return addDebugInfo(I,
+                             rc_recur getCustomOpcodeToken(Call),
+                             ThePTMLCBuilder);
 
     if (isCallToIsolatedFunction(Call))
-      rc_return addDebugInfo(I, rc_recur getIsolatedCallToken(Call));
+      rc_return addDebugInfo(I,
+                             rc_recur getIsolatedCallToken(Call),
+                             ThePTMLCBuilder);
 
     if (isCallToNonIsolated(Call))
-      rc_return addDebugInfo(I, rc_recur getNonIsolatedCallToken(Call));
+      rc_return addDebugInfo(I,
+                             rc_recur getNonIsolatedCallToken(Call),
+                             ThePTMLCBuilder);
 
     std::string Error = "Cannot get token for CallInst: " + dumpToString(Call);
     revng_abort(Error.c_str());
@@ -1123,17 +1179,19 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
 
   case llvm::Instruction::Ret: {
 
-    std::string Result = keywords::Return.serialize();
+    std::string Result = ThePTMLCBuilder
+                           .getKeyword(ptml::PTMLCBuilder::Keyword::Return)
+                           .serialize();
     if (auto *Ret = llvm::cast<llvm::ReturnInst>(I);
         llvm::Value *ReturnedVal = Ret->getReturnValue())
       Result += " " + rc_recur getToken(ReturnedVal);
 
-    rc_return addDebugInfo(I, Result);
+    rc_return addDebugInfo(I, Result, ThePTMLCBuilder);
 
   } break;
 
   case llvm::Instruction::Unreachable:
-    rc_return addDebugInfo(I, "__builtin_trap()");
+    rc_return addDebugInfo(I, "__builtin_trap()", ThePTMLCBuilder);
 
   case llvm::Instruction::ExtractValue: {
 
@@ -1155,7 +1213,9 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
       // The call returning a struct is a call to a helper function.
       // It must be a direct call.
       revng_assert(Callee);
-      StructFieldRef = getReturnStructFieldLocationReference(Callee, Idx);
+      StructFieldRef = getReturnStructFieldLocationReference(Callee,
+                                                             Idx,
+                                                             ThePTMLCBuilder);
     } else {
       const model::Type *CalleeType = CalleePrototype.getConst();
       StructFieldRef = getReturnField(*CalleeType, Idx, Model).str().str();
@@ -1163,7 +1223,8 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
 
     rc_return addDebugInfo(I,
                            rc_recur getToken(AggregateOp) + "."
-                             + StructFieldRef);
+                             + StructFieldRef,
+                           ThePTMLCBuilder);
 
   } break;
 
@@ -1186,7 +1247,8 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
     rc_return addDebugInfo(I,
                            addParentheses(Condition) + " ? "
                              + addParentheses(Op1Token) + " : "
-                             + addParentheses(Op2Token));
+                             + addParentheses(Op2Token),
+                           ThePTMLCBuilder);
 
   } break;
 
@@ -1325,8 +1387,9 @@ void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB) {
       revng_assert(Call->getType()->isAggregateType());
       std::string VarName = getVarName(Call);
       revng_assert(not VarName.empty());
-      Out << VarName << " " << operators::Assign << " " << getToken(Call)
-          << ";\n";
+      Out << VarName << " "
+          << ThePTMLCBuilder.getOperator(ptml::PTMLCBuilder::Operator::Assign)
+          << " " << getToken(Call) << ";\n";
       continue;
     }
 
@@ -1343,7 +1406,8 @@ void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB) {
       // Emit missing local variable declarations
       std::string VarName = createLocalVarDeclName(Call);
       revng_assert(not VarName.empty());
-      Out << getNamedCInstance(TypeMap.at(Call), VarName) << ";\n";
+      Out << getNamedCInstance(TypeMap.at(Call), VarName, ThePTMLCBuilder)
+          << ";\n";
       continue;
     }
 
@@ -1389,7 +1453,7 @@ CCodeGenerator::buildGHASTCondition(const ExprNode *E) {
 
     const NotNode *N = cast<NotNode>(E);
     ExprNode *Negated = N->getNegatedNode();
-    rc_return operators::BoolNot
+    rc_return ThePTMLCBuilder.getOperator(ptml::PTMLCBuilder::Operator::BoolNot)
       + addAlwaysParentheses(rc_recur buildGHASTCondition(Negated));
   } break;
 
@@ -1402,8 +1466,10 @@ CCodeGenerator::buildGHASTCondition(const ExprNode *E) {
     const auto &[Child1, Child2] = Binary->getInternalNodes();
     std::string Child1Token = rc_recur buildGHASTCondition(Child1);
     std::string Child2Token = rc_recur buildGHASTCondition(Child2);
-    const Tag &OpToken = E->getKind() == NodeKind::NK_And ? operators::BoolAnd :
-                                                            operators::BoolOr;
+    using PTMLOperator = ptml::PTMLCBuilder::Operator;
+    const Tag &OpToken = E->getKind() == NodeKind::NK_And ?
+                           ThePTMLCBuilder.getOperator(PTMLOperator::BoolAnd) :
+                           ThePTMLCBuilder.getOperator(PTMLOperator::BoolOr);
     rc_return addAlwaysParentheses(Child1Token) + " " + OpToken.serialize()
       + " " + addAlwaysParentheses(Child2Token);
   } break;
@@ -1427,11 +1493,13 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     revng_log(VisitLog, "(NK_Break)");
 
     const BreakNode *Break = llvm::cast<BreakNode>(N);
+    using PTMLOperator = ptml::PTMLCBuilder::Operator;
     if (Break->breaksFromWithinSwitch()) {
       revng_assert(not SwitchStateVars.empty()
                    and not SwitchStateVars.back().empty());
       Out << SwitchStateVars.back()
-          << " " + operators::Assign + " " + constants::True + ";\n";
+          << " " + ThePTMLCBuilder.getOperator(PTMLOperator::Assign) + " "
+               + ThePTMLCBuilder.getTrueTag() + ";\n";
     }
   };
     [[fallthrough]];
@@ -1439,7 +1507,8 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
   case ASTNode::NodeKind::NK_SwitchBreak: {
     revng_log(VisitLog, "(NK_SwitchBreak)");
 
-    Out << keywords::Break << ";\n";
+    Out << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Break)
+        << ";\n";
   } break;
 
   case ASTNode::NodeKind::NK_Continue: {
@@ -1456,7 +1525,8 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     // Actually print the continue statement only if the continue is not
     // implicit (i.e. it is not the last statement of the loop).
     if (not Continue->isImplicit())
-      Out << keywords::Continue << ";\n";
+      Out << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Continue)
+          << ";\n";
   } break;
 
   case ASTNode::NodeKind::NK_Code: {
@@ -1476,19 +1546,21 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     // "If" expression
     // TODO: possibly cast the CondExpr if it's not convertible to boolean?
     revng_assert(not CondExpr.empty());
-    Out << keywords::If << " (" + CondExpr + ") ";
+    Out << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::If)
+        << " (" + CondExpr + ") ";
     {
       Scope TheScope(Out);
       // "Then" expression (always emitted)
       if (nullptr == If->getThen())
-        Out << helpers::lineComment("Empty");
+        Out << ThePTMLCBuilder.getLineComment("Empty");
       else
         rc_recur emitGHASTNode(If->getThen());
     }
 
     // "Else" expression (optional)
     if (If->hasElse()) {
-      Out << " " + keywords::Else + " ";
+      Out << " " + ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Else)
+               + " ";
       Scope TheScope(Out);
       rc_recur emitGHASTNode(If->getElse());
     }
@@ -1502,7 +1574,7 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
 
     // Calculate the string of the condition
     // TODO: possibly cast the CondExpr if it's not convertible to boolean?
-    std::string CondExpr = constants::True.serialize();
+    std::string CondExpr = ThePTMLCBuilder.getTrueTag().serialize();
     if (LoopBody->isDoWhile() or LoopBody->isWhile()) {
       const IfNode *LoopCondition = LoopBody->getRelatedCondition();
       revng_assert(LoopCondition);
@@ -1514,9 +1586,10 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     }
 
     if (LoopBody->isDoWhile())
-      Out << keywords::Do << " ";
+      Out << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Do) << " ";
     else
-      Out << keywords::While + " (" + CondExpr + ") ";
+      Out << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::While)
+               + " (" + CondExpr + ") ";
 
     revng_assert(LoopBody->hasBody());
     {
@@ -1525,7 +1598,9 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     }
 
     if (LoopBody->isDoWhile())
-      Out << " " + keywords::While + " (" + CondExpr + ");";
+      Out << " "
+               + ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::While)
+               + " (" + CondExpr + ");";
     Out << "\n";
 
   } break;
@@ -1549,12 +1624,18 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     if (Switch->needsStateVariable()) {
       revng_assert(Switch->needsLoopBreakDispatcher());
       StringToken NewVarName = NameGenerator.nextSwitchStateVar();
-      std::string SwitchStateVar = getVariableLocationReference(NewVarName,
-                                                                ModelFunction);
+      std::string
+        SwitchStateVar = getVariableLocationReference(NewVarName,
+                                                      ModelFunction,
+                                                      ThePTMLCBuilder);
       SwitchStateVars.push_back(std::move(SwitchStateVar));
-      Out << ptml::tokenTag("bool", tokens::Type) << " "
-          << getVariableLocationDefinition(NewVarName, ModelFunction)
-          << " " + operators::Assign + " " + constants::False + ";\n";
+      using PTMLOperator = ptml::PTMLCBuilder::Operator;
+      Out << ThePTMLCBuilder.tokenTag("bool", ptml::c::tokens::Type) << " "
+          << getVariableLocationDefinition(NewVarName,
+                                           ModelFunction,
+                                           ThePTMLCBuilder)
+          << " " + ThePTMLCBuilder.getOperator(PTMLOperator::Assign) + " "
+               + ThePTMLCBuilder.getFalseTag() + ";\n";
     }
 
     // Generate the condition of the switch
@@ -1595,9 +1676,12 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     }
 
     // Generate the switch statement
-    Out << keywords::Switch + " (" << SwitchVarToken << ") ";
+    Out << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Switch)
+             + " ("
+        << SwitchVarToken << ") ";
     {
       Scope TheScope(Out);
+      using PTMLKeyword = ptml::PTMLCBuilder::Keyword;
 
       // Generate the body of the switch (except for the default)
       for (const auto &[Labels, CaseNode] : Switch->cases_const_range()) {
@@ -1605,16 +1689,17 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
         // Generate the case label(s) (multiple case labels might share the
         // same body)
         for (uint64_t CaseVal : Labels) {
-          Out << keywords::Case + " ";
+          Out << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Case)
+                   + " ";
           if (SwitchVar) {
             llvm::Type *SwitchVarT = SwitchVar->getType();
             auto *IntType = cast<llvm::IntegerType>(SwitchVarT);
             auto *CaseConst = llvm::ConstantInt::get(IntType, CaseVal);
             // TODO: assigned the signedness based on the signedness of the
             // condition
-            Out << constants::number(CaseConst->getValue());
+            Out << ThePTMLCBuilder.getNumber(CaseConst->getValue());
           } else {
-            Out << constants::number(CaseVal);
+            Out << ThePTMLCBuilder.getNumber(CaseVal);
           }
           Out << ":\n";
         }
@@ -1624,17 +1709,18 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
           // Generate the case body
           rc_recur emitGHASTNode(CaseNode);
         }
-        Out << " " + keywords::Break + ";\n";
+        Out << " " + ThePTMLCBuilder.getKeyword(PTMLKeyword::Break) + ";\n";
       }
 
       // Generate the default case if it exists
       if (auto *Default = Switch->getDefault()) {
-        Out << keywords::Default << ":\n";
+        Out << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Default)
+            << ":\n";
         {
           Scope TheScope(Out);
           rc_recur emitGHASTNode(Default);
         }
-        Out << " " + keywords::Break + ";\n";
+        Out << " " + ThePTMLCBuilder.getKeyword(PTMLKeyword::Break) + ";\n";
       }
     }
     Out << "\n";
@@ -1644,11 +1730,14 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     if (Switch->needsLoopBreakDispatcher()) {
       revng_assert(not SwitchStateVars.empty()
                    and not SwitchStateVars.back().empty());
-      Out << keywords::If + " (" + SwitchStateVars.back() + ")";
+      Out << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::If) + " ("
+               + SwitchStateVars.back() + ")";
       {
-        auto Scope = scopeTags::Scope.scope(Out, true);
+        auto Scope = ThePTMLCBuilder.getScope(ptml::PTMLCBuilder::Scopes::Scope)
+                       .scope(Out, true);
         auto IndentScope = Out.scope();
-        Out << keywords::Break + ";";
+        Out << ThePTMLCBuilder.getKeyword(ptml::PTMLCBuilder::Keyword::Break)
+                 + ";";
       }
       Out << "\n";
     }
@@ -1674,8 +1763,9 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     // of code based on which control-flow branch was taken. This, for
     // example, can be used to jump to the middle of a loop
     // instead of at the start, without emitting gotos.
-    Out << LoopStateVar << " " << operators::Assign << " " << StateValue
-        << ";\n";
+    Out << LoopStateVar << " "
+        << ThePTMLCBuilder.getOperator(ptml::PTMLCBuilder::Operator::Assign)
+        << " " << StateValue << ";\n";
   } break;
   }
 
@@ -1714,21 +1804,30 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
   revng_log(VisitLog, "========= Function " << LLVMFunction.getName());
   LoggerIndent Indent{ VisitLog };
 
-  auto FunctionTagScope = scopeTags::Function.scope(Out);
+  auto FunctionTagScope = ThePTMLCBuilder
+                            .getScope(ptml::PTMLCBuilder::Scopes::FunctionBody)
+                            .scope(Out);
 
   // Print function's prototype
-  printFunctionPrototype(ParentPrototype, ModelFunction, Out, Model, true);
+  printFunctionPrototype(ParentPrototype,
+                         ModelFunction,
+                         Out,
+                         ThePTMLCBuilder,
+                         Model,
+                         true);
 
   // Set up the argument identifiers to be used in the function's body.
   for (const auto &Arg : LLVMFunction.args()) {
     std::string ArgString = getModelArgIdentifier(&ParentPrototype, Arg);
-    TokenMap[&Arg] = getArgumentLocationReference(ArgString, ModelFunction);
+    TokenMap[&Arg] = getArgumentLocationReference(ArgString,
+                                                  ModelFunction,
+                                                  ThePTMLCBuilder);
   }
 
   // Print the function body
   Out << " ";
   {
-    Scope BraceScope(Out, scopeTags::FunctionBody);
+    Scope BraceScope(Out, ptml::c::scopes::FunctionBody);
 
     // We expect just one stack type definition.
     bool IsStackDefined = false;
@@ -1757,17 +1856,19 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
           // declarations.
           for (auto *Type : TheStackTypes) {
             revng_assert(isCandidateForInline(Type));
-            printForwardDeclaration(*Type, Out);
+            printForwardDeclaration(*Type, Out, ThePTMLCBuilder);
           }
           printDefinition(Log,
                           *cast<model::StructType>(TheType),
                           Out,
+                          ThePTMLCBuilder,
                           TheStackTypes,
                           AdditionalTypeNames,
                           Model,
                           VarName);
         } else {
-          Out << getNamedCInstance(TypeMap.at(Call), VarName) << ";\n";
+          Out << getNamedCInstance(TypeMap.at(Call), VarName, ThePTMLCBuilder)
+              << ";\n";
         }
       } else {
 
@@ -1790,7 +1891,10 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
 
         auto VarTypeIt = TypeMap.find(VarToDeclare);
         if (VarTypeIt != TypeMap.end()) {
-          Out << getNamedCInstance(TypeMap.at(VarToDeclare), VarName) << ";\n";
+          Out << getNamedCInstance(TypeMap.at(VarToDeclare),
+                                   VarName,
+                                   ThePTMLCBuilder)
+              << ";\n";
         } else {
           // The only types that are allowed to be missing from the TypeMap
           // are LLVM aggregates returned by RawFunctionTypes or by helpers
@@ -1798,13 +1902,16 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
           if (const auto &Prototype = Cache.getCallSitePrototype(Model, Call);
               Prototype.isValid() and not Prototype.empty()) {
             const auto *FunctionType = Prototype.getConst();
-            Out << getNamedInstanceOfReturnType(*FunctionType, VarName)
+            Out << getNamedInstanceOfReturnType(*FunctionType,
+                                                VarName,
+                                                ThePTMLCBuilder)
                 << ";\n";
           } else {
             auto *CalledFunction = Call->getCalledFunction();
             revng_assert(CalledFunction);
-            Out << getReturnTypeLocationReference(CalledFunction) << " "
-                << VarName << ";\n";
+            Out << getReturnTypeLocationReference(CalledFunction,
+                                                  ThePTMLCBuilder)
+                << " " << VarName << ";\n";
           }
         }
       }
@@ -1815,7 +1922,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
     // redirect control flow inside loops (e.g. if we want to jump in the
     // middle of a loop during a certain iteration)
     if (NeedsLocalStateVar)
-      Out << ptml::tokenTag("uint64_t", tokens::Type) << " "
+      Out << ThePTMLCBuilder.tokenTag("uint64_t", ptml::c::tokens::Type) << " "
           << LoopStateVarDeclaration << ";\n";
 
     // Recursively print the body of this function
@@ -1835,12 +1942,15 @@ static std::string decompileFunction(FunctionMetadataCache &Cache,
   std::string Result;
 
   llvm::raw_string_ostream Out(Result);
+  ptml::PTMLCBuilder ThePTMLCBuilder;
+
   CCodeGenerator Backend(Cache,
                          Model,
                          LLVMFunc,
                          CombedAST,
                          TopScopeVariables,
-                         Out);
+                         Out,
+                         ThePTMLCBuilder);
   Backend.emitFunction(NeedsLocalStateVar, StackTypes);
   Out.flush();
 

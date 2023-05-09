@@ -45,12 +45,3 @@ inline constexpr auto SegmentDeclarationsList = "c.segment_"
 } // namespace scopes
 
 } // namespace ptml::c
-
-namespace ptml {
-
-inline Tag tokenTag(const llvm::StringRef Str, const llvm::StringRef Token) {
-  return ptml::Tag(ptml::tags::Span, Str)
-    .addAttribute(ptml::attributes::Token, Token);
-}
-
-} // namespace ptml

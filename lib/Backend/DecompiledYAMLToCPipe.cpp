@@ -25,9 +25,11 @@ void DecompiledYAMLToC::run(const pipeline::Context &Ctx,
 
   auto Out = OutCFile.asStream();
 
+  ptml::PTMLCBuilder ThePTMLCBuilder;
+
   // Make a single C file with an empty set of targets, which means all the
   // functions in DecompiledFunctions
-  printSingleCFile(Out, DecompiledFunctions, {} /* Targets */);
+  printSingleCFile(Out, ThePTMLCBuilder, DecompiledFunctions, {} /* Targets */);
   Out.flush();
 }
 

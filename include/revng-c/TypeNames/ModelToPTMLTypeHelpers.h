@@ -84,7 +84,8 @@ private:
 extern bool declarationIsDefinition(const model::Type *T);
 
 extern void printForwardDeclaration(const model::Type &T,
-                                    ptml::PTMLIndentedOstream &Header);
+                                    ptml::PTMLIndentedOstream &Header,
+                                    ptml::PTMLCBuilder &ThePTMLCBuilder);
 
 // Print a declaration for a Type. The last three arguments (`TypesToInline`
 // `NameOfInlineInstance` and `Qualifiers`) are being used for printing types
@@ -95,6 +96,7 @@ extern void
 printDeclaration(Logger<> &Log,
                  const model::Type &T,
                  ptml::PTMLIndentedOstream &Header,
+                 ptml::PTMLCBuilder &ThePTMLCBuilder,
                  std::map<model::QualifiedType, std::string> &AdditionalNames,
                  const model::Binary &Model,
                  const std::set<const model::Type *> &TypesToInline,
@@ -110,6 +112,7 @@ extern void
 printDefinition(Logger<> &Log,
                 const model::Type &T,
                 ptml::PTMLIndentedOstream &Header,
+                ptml::PTMLCBuilder &ThePTMLCBuilder,
                 std::map<model::QualifiedType, std::string> &AdditionalNames,
                 const model::Binary &Model,
                 const std::set<const model::Type *> &TypesToInline,
@@ -124,6 +127,7 @@ extern void
 printDefinition(Logger<> &Log,
                 const model::StructType &S,
                 ptml::PTMLIndentedOstream &Header,
+                ptml::PTMLCBuilder &ThePTMLCBuilder,
                 const std::set<const model::Type *> &TypesToInline,
                 std::map<model::QualifiedType, std::string> &AdditionalNames,
                 const model::Binary &Model,

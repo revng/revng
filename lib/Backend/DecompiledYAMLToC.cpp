@@ -5,17 +5,18 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng-c/Backend/DecompiledYAMLToC.h"
-#include "revng-c/Support/PTMLC.h"
 
 using namespace revng::pipes;
 
 void printSingleCFile(llvm::raw_ostream &Out,
+                      ptml::PTMLCBuilder &ThePTMLCBuilder,
                       const DecompiledCCodeInYAMLStringMap &Functions,
                       const std::set<MetaAddress> &Targets) {
-  auto Scope = ptml::Tag(ptml::tags::Div).scope(Out);
+  auto Scope = ThePTMLCBuilder.getTag(ptml::tags::Div).scope(Out);
   // Print headers
-  Out << helpers::includeQuote("revng-model-declarations.h")
-      << helpers::includeQuote("revng-qemu-helpers-declarations.h") << "\n";
+  Out << ThePTMLCBuilder.getIncludeQuote("revng-model-declarations.h")
+      << ThePTMLCBuilder.getIncludeQuote("revng-qemu-helpers-declarations.h")
+      << "\n";
 
   if (Targets.empty()) {
     // If Targets is empty print all the Functions' bodies
