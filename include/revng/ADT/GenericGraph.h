@@ -225,6 +225,8 @@ public:
 
   ForwardNode(const ForwardNode &) = default;
   ForwardNode(ForwardNode &&) = default;
+  ForwardNode &operator=(const ForwardNode &) = default;
+  ForwardNode &operator=(ForwardNode &&) = default;
 
   NodeData &data() { return *this; }
   const NodeData &data() const { return *this; }
@@ -1197,6 +1199,13 @@ public:
 private:
   using nodes_iterator_impl = typename NodesContainer::iterator;
   using const_nodes_iterator_impl = typename NodesContainer::const_iterator;
+
+public:
+  GenericGraph() = default;
+  GenericGraph(const GenericGraph &) = delete;
+  GenericGraph(GenericGraph &&) = default;
+  GenericGraph &operator=(const GenericGraph &) = delete;
+  GenericGraph &operator=(GenericGraph &&) = default;
 
 public:
   static NodeT *getNode(std::unique_ptr<NodeT> &E) { return E.get(); }
