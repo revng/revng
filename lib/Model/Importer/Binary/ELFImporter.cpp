@@ -437,7 +437,7 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
                 "Found type for " << Fn.OriginalName() << " in "
                                   << (*TypeLocation).ModuleName);
       auto &TheTypeCopier = TypeCopiers[(*TypeLocation).ModuleName];
-      auto Type = TheTypeCopier->copyPrototypeInto((*TypeLocation).Type, Model);
+      auto Type = TheTypeCopier->copyTypeInto((*TypeLocation).Type, Model);
       if (!Type) {
         revng_log(ELFImporterLog,
                   "Failed to copy prototype " << Fn.OriginalName() << " from "

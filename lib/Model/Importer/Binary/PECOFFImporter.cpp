@@ -463,7 +463,7 @@ void PECOFFImporter::findMissingTypes(const ImporterOptions &Opts) {
     if (TypeLocation) {
       revng_log(Log, "Found type for " << Fn.OriginalName());
       auto &TheTypeCopier = TypeCopiers[(*TypeLocation).ModuleName];
-      auto Type = TheTypeCopier->copyPrototypeInto((*TypeLocation).Type, Model);
+      auto Type = TheTypeCopier->copyTypeInto((*TypeLocation).Type, Model);
       if (!Type) {
         revng_log(Log,
                   "Failed to copy prototype " << Fn.OriginalName() << " from "
