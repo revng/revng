@@ -6,24 +6,25 @@ tags:
   - name: model-to-header
 sources:
   - tags: [model-to-header]
+    prefix: share/revng/test/tests/model-to-header
     members:
-      - tests/model-to-header/struct.h.model.yml
-      - tests/model-to-header/primitive-types.h.model.yml
-      - tests/model-to-header/union.h.model.yml
-      - tests/model-to-header/pointer-to-struct.h.model.yml
-      - tests/model-to-header/inline-struct.h.model.yml
-      - tests/model-to-header/do-not-inline-types-pointing-to-itself.h.model.yml
-      - tests/model-to-header/do-not-generate-struct-for-stack-type.h.model.yml
-      - tests/model-to-header/do-not-inline-used-stack-type.h.model.yml
-      - tests/model-to-header/inline-enum.h.model.yml
-      - tests/model-to-header/inline-union.h.model.yml
+      - struct.h.model.yml
+      - primitive-types.h.model.yml
+      - union.h.model.yml
+      - pointer-to-struct.h.model.yml
+      - inline-struct.h.model.yml
+      - do-not-inline-types-pointing-to-itself.h.model.yml
+      - do-not-generate-struct-for-stack-type.h.model.yml
+      - do-not-inline-used-stack-type.h.model.yml
+      - inline-enum.h.model.yml
+      - inline-union.h.model.yml
 commands:
   - type: revng-c.model-to-header
     from:
       - type: source
         filter: model-to-header
     command: |-
-      revng model to-header < "${SOURCE}" > "${SOURCE}.tmp.h";
-      revng ptml --plain "${SOURCE}.tmp.h" > "${SOURCE}-plain.tmp.h";
-      revng check-decompiled-c "${SOURCE}-plain.tmp.h";
-      FileCheck --input-file="${SOURCE}-plain.tmp.h" "${SOURCE}.filecheck";
+      HEADER="$$(temp)";
+      cat "$INPUT" | revng model to-header | revng ptml --plain > "$$HEADER";
+      revng check-decompiled-c "$$HEADER";
+      FileCheck --input-file="$$HEADER" "${SOURCE}.filecheck";
