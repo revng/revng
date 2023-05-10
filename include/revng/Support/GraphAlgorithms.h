@@ -533,3 +533,15 @@ nodesBetweenNewReverse(GraphT Source,
                                                                    Destination,
                                                                    IgnoreL);
 }
+
+template<class GraphT>
+bool isDAG(GraphT Graph) {
+  for (llvm::scc_iterator<GraphT> I = llvm::scc_begin(Graph),
+                                  IE = llvm::scc_end(Graph);
+       I != IE;
+       ++I) {
+    if (I.hasCycle())
+      return false;
+  }
+  return true;
+}
