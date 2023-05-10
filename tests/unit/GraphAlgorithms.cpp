@@ -13,12 +13,14 @@ bool init_unit_test();
 #include "revng/ADT/GenericGraph.h"
 #include "revng/Support/GraphAlgorithms.h"
 
-using namespace llvm;
-
 struct MyForwardNode {
   MyForwardNode(int Index) : Index(Index) {}
   int Index;
   int getIndex() { return Index; }
+};
+
+struct MyBidirectionalNode : MyForwardNode {
+  MyBidirectionalNode(int Index) : MyForwardNode(Index) {}
 };
 
 template<typename NodeType>
@@ -52,47 +54,14 @@ static LoopGraph<NodeType> createLGGraph() {
 }
 
 template<typename NodeType>
-struct OverLappingLoopGraph {
-  using Node = NodeType;
-  GenericGraph<Node> Graph;
-  Node *Entry;
-  Node *SecondEntry;
-  Node *Latch;
-  Node *SecondLatch;
-  Node *Exit;
-};
-
-template<typename NodeType>
-static OverLappingLoopGraph<NodeType> createOLGGraph() {
-  OverLappingLoopGraph<NodeType> OLG;
-  auto &Graph = OLG.Graph;
-
-  // Create nodes
-  OLG.Entry = Graph.addNode(1);
-  OLG.SecondEntry = Graph.addNode(2);
-  OLG.Latch = Graph.addNode(3);
-  OLG.SecondLatch = Graph.addNode(4);
-  OLG.Exit = Graph.addNode(5);
-
-  // Create edges
-  OLG.Entry->addSuccessor(OLG.SecondEntry);
-  OLG.SecondEntry->addSuccessor(OLG.Latch);
-  OLG.Latch->addSuccessor(OLG.SecondLatch);
-  OLG.Latch->addSuccessor(OLG.Entry);
-  OLG.SecondLatch->addSuccessor(OLG.SecondEntry);
-  OLG.SecondLatch->addSuccessor(OLG.Exit);
-
-  return OLG;
-}
-
-template<typename NodeType>
 struct NestedLoopGraph {
   using Node = NodeType;
   GenericGraph<Node> Graph;
   Node *Entry;
-  Node *SecondEntry;
-  Node *Latch;
-  Node *SecondLatch;
+  Node *LoopHeader;
+  Node *SecondLoopHeader;
+  Node *LoopLatch;
+  Node *SecondLoopLatch;
   Node *Exit;
 };
 
@@ -103,72 +72,36 @@ static NestedLoopGraph<NodeType> createNLGGraph() {
 
   // Create nodes
   NLG.Entry = Graph.addNode(1);
-  NLG.SecondEntry = Graph.addNode(2);
-  NLG.Latch = Graph.addNode(3);
-  NLG.SecondLatch = Graph.addNode(4);
-  NLG.Exit = Graph.addNode(5);
+  NLG.LoopHeader = Graph.addNode(2);
+  NLG.SecondLoopHeader = Graph.addNode(3);
+  NLG.LoopLatch = Graph.addNode(4);
+  NLG.SecondLoopLatch = Graph.addNode(5);
+  NLG.Exit = Graph.addNode(6);
 
   // Create edges
-  NLG.Entry->addSuccessor(NLG.SecondEntry);
-  NLG.SecondEntry->addSuccessor(NLG.Latch);
-  NLG.Latch->addSuccessor(NLG.SecondLatch);
-  NLG.Latch->addSuccessor(NLG.SecondEntry);
-  NLG.SecondLatch->addSuccessor(NLG.Entry);
-  NLG.SecondLatch->addSuccessor(NLG.Exit);
+  NLG.Entry->addSuccessor(NLG.LoopHeader);
+  NLG.LoopHeader->addSuccessor(NLG.SecondLoopHeader);
+  NLG.SecondLoopHeader->addSuccessor(NLG.LoopLatch);
+  NLG.LoopLatch->addSuccessor(NLG.SecondLoopLatch);
+  NLG.LoopLatch->addSuccessor(NLG.SecondLoopHeader);
+  NLG.SecondLoopLatch->addSuccessor(NLG.LoopHeader);
+  NLG.SecondLoopLatch->addSuccessor(NLG.Exit);
 
   return NLG;
 }
 
-template<typename NodeType>
-static NestedLoopGraph<NodeType> createINLGGraph() {
-  NestedLoopGraph<NodeType> INLG = createNLGGraph<NodeType>();
-  auto &Graph = INLG.Graph;
-
-  // Create forward inling edge.
-  INLG.Entry->addSuccessor(INLG.Latch);
-
-  return INLG;
-}
-
-template<class NodeType>
-void printEdge(revng::detail::EdgeDescriptor<NodeType *> &Backedge) {
-  llvm::dbgs() << "Backedge: ";
-  llvm::dbgs() << Backedge.first->getIndex();
-  llvm::dbgs() << " -> ";
-  llvm::dbgs() << Backedge.second->getIndex();
-  llvm::dbgs() << "\n";
-}
-
-template<class NodeType>
-void printRegion(llvm::SmallPtrSet<NodeType *, 4> &Region) {
-  for (auto *Block : Region) {
-    llvm::dbgs() << Block->getIndex() << "\n";
-  }
-}
-
-template<class NodeType>
-void printRegions(llvm::SmallVector<llvm::SmallPtrSet<NodeType *, 4>, 4> &Rs) {
-  using BlockSet = llvm::SmallPtrSet<NodeType *, 4>;
-  size_t RegionIndex = 0;
-  for (BlockSet &Region : Rs) {
-    llvm::dbgs() << "Region idx: " << RegionIndex << " composed by nodes: \n";
-    printRegion(Region);
-    RegionIndex++;
-  }
-}
-
 BOOST_AUTO_TEST_CASE(GetBackedgesTest) {
-  // Create the graph.
+  // Create the graph
   using NodeType = ForwardNode<MyForwardNode>;
   auto LG = createLGGraph<NodeType>();
   using EdgeDescriptor = revng::detail::EdgeDescriptor<NodeType *>;
-  using EdgeSet = llvm::SmallSet<EdgeDescriptor, 4>;
-  using BlockSet = llvm::SmallPtrSet<NodeType *, 4>;
+  using EdgeSet = llvm::SmallSetVector<EdgeDescriptor, 4>;
+  using BlockSet = llvm::SmallSetVector<NodeType *, 4>;
 
-  // Compute the backedges set.
+  // Compute the backedges set
   EdgeSet Backedges = getBackedges(LG.Entry);
 
-  // Check that the only backedge present.
+  // Check that the only backedge present
   revng_check(Backedges.size() == 1);
   EdgeDescriptor Backedge = *Backedges.begin();
   NodeType *Source = Backedge.first;
@@ -176,10 +109,48 @@ BOOST_AUTO_TEST_CASE(GetBackedgesTest) {
   revng_check(Source == LG.LoopLatch);
   revng_check(Target == LG.Entry);
 
-  // Check the reachability set described by the only backedge present.
-  BlockSet Reachables = nodesBetween(Target, Source);
+  // Check the reachability set described by the only backedge present
+  BlockSet Reachables = nodesBetweenNew(Target, Source);
   revng_check(Reachables.size() == 2);
   revng_check(Reachables.contains(LG.Entry));
   revng_check(Reachables.contains(LG.LoopLatch));
   revng_check(LG.Entry != LG.LoopLatch);
+  revng_check(Reachables[0] == LG.LoopLatch);
+  revng_check(Reachables[1] == LG.Entry);
+}
+
+BOOST_AUTO_TEST_CASE(NestedLoopTest) {
+  // Create the graph
+  using NodeType = BidirectionalNode<MyBidirectionalNode>;
+  auto NLG = createNLGGraph<NodeType>();
+  using EdgeDescriptor = revng::detail::EdgeDescriptor<NodeType *>;
+  using EdgeSet = llvm::SmallSetVector<EdgeDescriptor, 4>;
+  using BlockSet = llvm::SmallSetVector<NodeType *, 4>;
+  using BlockSetVect = llvm::SmallVector<BlockSet>;
+
+  // Compute the backedges set
+  EdgeSet Backedges = getBackedges(NLG.Entry);
+  revng_check(Backedges.size() == 2);
+  revng_check(Backedges[0].first == NLG.LoopLatch);
+  revng_check(Backedges[0].second == NLG.SecondLoopHeader);
+  revng_check(Backedges[1].first == NLG.SecondLoopLatch);
+  revng_check(Backedges[1].second == NLG.LoopHeader);
+
+  // Obtain the nodes reachable from the identified backedges
+  BlockSetVect Loops;
+  for (EdgeDescriptor Backedge : Backedges) {
+    BlockSet LoopNodes = nodesBetweenNew(Backedge.second, Backedge.first);
+    Loops.push_back(std::move(LoopNodes));
+  }
+
+  // We want to test that the nodes reachable from the extremities of a
+  // backedge, compose the whole body of the loop. Two loops (one which is
+  // completely nested inside the other) compose the test.
+  revng_check(Loops.size() == 2);
+  revng_check(Loops[0][0] == NLG.LoopLatch);
+  revng_check(Loops[0][1] == NLG.SecondLoopHeader);
+  revng_check(Loops[1][0] == NLG.SecondLoopLatch);
+  revng_check(Loops[1][1] == NLG.LoopHeader);
+  revng_check(Loops[1][2] == NLG.SecondLoopHeader);
+  revng_check(Loops[1][3] == NLG.LoopLatch);
 }
