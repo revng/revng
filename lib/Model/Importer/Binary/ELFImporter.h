@@ -80,7 +80,9 @@ protected:
 
 public:
   ELFImporter(TupleTree<model::Binary> &Model,
-              const llvm::object::ELFObjectFileBase &TheBinary) :
+              const llvm::object::ELFObjectFileBase &TheBinary,
+              uint64_t BaseAddress) :
+    BinaryImporterHelper(Model->Architecture(), BaseAddress),
     File(*Model, toArrayRef(TheBinary.getData())),
     Model(Model),
     TheBinary(TheBinary) {}

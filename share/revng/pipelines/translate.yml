@@ -15,11 +15,14 @@ Branches:
   - Steps:
       - Name: Import
         Analyses:
+          - Name: AddPrimitiveTypes
+            Type: AddPrimitiveTypes
+            UsedContainers: []
           - Name: ImportBinary
             Type: ImportBinary
             UsedContainers: [input]
-          - Name: AddPrimitiveTypes
-            Type: AddPrimitiveTypes
+          - Name: ImportWellKnownModels
+            Type: ImportWellKnownModels
             UsedContainers: []
           - Name: Apply
             Type: Apply

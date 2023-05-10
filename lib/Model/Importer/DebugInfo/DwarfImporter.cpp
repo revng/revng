@@ -177,6 +177,8 @@ public:
                         size_t Index,
                         size_t AltIndex,
                         uint64_t PreferredBaseAddress) :
+    BinaryImporterHelper(Importer.getModel()->Architecture(),
+                         PreferredBaseAddress),
     Importer(Importer),
     Model(Importer.getModel()),
     Index(Index),
@@ -434,14 +436,16 @@ private:
 
   RecursiveCoroutine<const model::QualifiedType *>
   getType(const DWARFDie &Die) {
-    auto MaybeType = Die.find(DW_AT_type);
-    if (MaybeType) {
+    if (auto MaybeType = Die.find(DW_AT_type)) {
       if (MaybeType->getForm() == llvm::dwarf::DW_FORM_GNU_ref_alt) {
         rc_return findAltType(MaybeType->getRawUValue());
       } else {
         DWARFDie InnerDie = DICtx.getDIEForOffset(*MaybeType->getAsReference());
         rc_return rc_recur resolveType(InnerDie, false);
       }
+    } else if (auto MaybeOrigin = Die.find(DW_AT_abstract_origin)) {
+      DWARFDie Origin = DICtx.getDIEForOffset(*MaybeOrigin->getAsReference());
+      rc_return rc_recur getType(Origin);
     } else {
       rc_return nullptr;
     }
@@ -869,10 +873,10 @@ private:
           if (MaybePath && not Function.Prototype().isValid())
             Function.Prototype() = *MaybePath;
 
-          if (SymbolName.size() != 0 and Function.OriginalName().size() == 0) {
+          if (SymbolName.size() != 0 and Function.OriginalName().size() == 0)
             Function.OriginalName() = SymbolName;
-            Function.ExportedNames().insert(SymbolName);
-          }
+
+          Function.ExportedNames().insert(SymbolName);
 
           if (isNoReturn(*CU.get(), Die))
             Function.Attributes().insert(model::FunctionAttribute::NoReturn);
@@ -1440,13 +1444,16 @@ void DwarfImporter::import(const llvm::object::Binary &TheBinary,
                            std::uint64_t PreferredBaseAddress) {
   using namespace llvm::object;
 
-  if (auto *ELF = dyn_cast<ObjectFile>(&TheBinary)) {
+  if (auto *ELF = dyn_cast<ELFObjectFileBase>(&TheBinary)) {
 
     {
       using namespace model::Architecture;
       if (Model->Architecture() == Invalid)
         Model->Architecture() = fromLLVMArchitecture(ELF->getArch());
     }
+
+    if (ELF->getEType() != ELF::ET_DYN)
+      PreferredBaseAddress = 0;
 
     // Check if we already loaded the alt debug info file
     size_t AltIndex = -1;

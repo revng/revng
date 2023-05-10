@@ -18,8 +18,9 @@ private:
 
 public:
   MIPSELFImporter(TupleTree<model::Binary> &Model,
-                  const llvm::object::ELFObjectFileBase &TheBinary) :
-    ELFImporter<T, HasAddend>(Model, TheBinary),
+                  const llvm::object::ELFObjectFileBase &TheBinary,
+                  uint64_t BaseAddress) :
+    ELFImporter<T, HasAddend>(Model, TheBinary, BaseAddress),
     MIPSFirstGotSymbol(std::nullopt),
     MIPSLocalGotEntries(std::nullopt) {}
 

@@ -170,7 +170,9 @@ private:
 
 public:
   MachOImporter(TupleTree<model::Binary> &Model,
-                object::MachOObjectFile &TheBinary) :
+                object::MachOObjectFile &TheBinary,
+                uint64_t BaseAddress) :
+    BinaryImporterHelper(Model->Architecture(), BaseAddress),
     File(*Model, toArrayRef(TheBinary.getData())),
     Model(Model),
     TheBinary(TheBinary) {}
@@ -352,9 +354,6 @@ void MachOImporter::registerBindEntry(const object::MachOBindEntry *Entry) {
 Error importMachO(TupleTree<model::Binary> &Model,
                   object::MachOObjectFile &TheBinary,
                   const ImporterOptions &Options) {
-  // TODO: use Options.BaseAddress if PIC
-  (void) Options.BaseAddress;
-
-  MachOImporter Importer(Model, TheBinary);
+  MachOImporter Importer(Model, TheBinary, Options.BaseAddress);
   return Importer.import();
 }

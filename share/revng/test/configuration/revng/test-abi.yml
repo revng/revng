@@ -17,7 +17,7 @@ commands:
       - [i386-regparm-1-systemv-abi]
       - [arm-aapcs-abi]
     command: |-
-      "${SOURCES_ROOT}/tests/abi/test-layout.sh" "${ABI_NAME}" "${INPUT1}/default.stdout" "${INPUT2}"
+      "${SOURCES_ROOT}/share/revng/test/tests/abi/test-layout.sh" "${ABI_NAME}" "${INPUT1}/default.stdout" "${INPUT2}"
 
   - type: revng.test-conversion
     from:
@@ -33,4 +33,4 @@ commands:
       - [i386-regparm-1-systemv-abi]
       - [arm-aapcs-abi]
     command: |-
-      "${SOURCES_ROOT}/tests/abi/test-conversion.sh" "${ABI_NAME}" "${INPUT1}/default.stdout" "${INPUT2}"
+      "${SOURCES_ROOT}/share/revng/test/tests/abi/test-conversion.sh" "${ABI_NAME}" "${INPUT1}/default.stdout" "${INPUT2}"

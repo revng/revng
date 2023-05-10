@@ -219,6 +219,8 @@ void DetectABI::computeApproximateCallGraph() {
   for (const auto &Function : Binary->Functions()) {
     llvm::SmallSet<BasicBlock *, 8> Visited;
     auto *Entry = GCBI.getBlockAt(Function.Entry());
+    revng_assert(Entry != nullptr);
+
     BasicBlockNode *StartNode = BasicBlockNodeMap[Entry];
     revng_assert(StartNode != nullptr);
     Worklist.emplace_back(Entry);
@@ -237,13 +239,19 @@ void DetectABI::computeApproximateCallGraph() {
           }
         }
         BasicBlock *Next = getFallthrough(Current);
+        revng_assert(Next != nullptr);
+
         if (Visited.count(Next) == 0)
           Worklist.push_back(Next);
+
       } else {
+
         for (BasicBlock *Successor : successors(Current)) {
           if (not isPartOfRootDispatcher(Successor)
-              && !Visited.count(Successor))
+              && !Visited.count(Successor)) {
+            revng_assert(Successor != nullptr);
             Worklist.push_back(Successor);
+          }
         }
       }
     }

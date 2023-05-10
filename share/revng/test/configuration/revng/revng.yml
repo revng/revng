@@ -66,7 +66,7 @@ commands:
         filter: example-executable-1
     command: |-
       TMP="$$(temp)";
-      if ! python3 -m pytest "${SOURCES_ROOT}/tests/daemon/test.py" --binary "$INPUT" >& "$$TMP"; then
+      if ! python3 -m pytest "${SOURCES_ROOT}/share/revng/test/tests/daemon/test.py" --binary "$INPUT" >& "$$TMP"; then
         cat "$$TMP";
         exit 1;
       fi;

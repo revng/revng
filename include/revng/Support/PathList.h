@@ -27,6 +27,8 @@ public:
   PathList(const std::vector<std::string> &Paths) : SearchPaths(Paths) {}
 
   std::optional<std::string> findFile(llvm::StringRef FileName) const;
+  std::vector<std::string>
+  list(llvm::StringRef Path, llvm::StringRef Suffix) const;
 
 private:
   std::vector<std::string> SearchPaths;
