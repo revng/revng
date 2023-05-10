@@ -27,11 +27,7 @@ namespace vma {
 /// Nodes represent `llvm::Value`s and `llvm::Use`s and their candidate types,
 /// edges represent how type information is propagated.
 struct TypeFlowGraph : public GenericGraph<TypeFlowNode> {
-  TypeFlowGraph() = default;
-  TypeFlowGraph(const TypeFlowGraph &N) = default;
-  TypeFlowGraph(TypeFlowGraph &&N) = default;
-  TypeFlowGraph &operator=(const TypeFlowGraph &N) = default;
-  TypeFlowGraph &operator=(TypeFlowGraph &&N) = default;
+  using GenericGraph::GenericGraph;
 
   TypeFlowNode *
   addNodeContaining(FunctionMetadataCache &Cache, const UseOrValue &);
