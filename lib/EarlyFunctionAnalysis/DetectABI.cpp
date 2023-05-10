@@ -9,23 +9,35 @@
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Support/DOTGraphTraits.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/GraphWriter.h"
 
 #include "revng/ABI/Definition.h"
 #include "revng/ADT/Queue.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/EarlyFunctionAnalysis/ABIAnalysis.h"
 #include "revng/EarlyFunctionAnalysis/CFGAnalyzer.h"
 #include "revng/EarlyFunctionAnalysis/CallGraph.h"
 #include "revng/EarlyFunctionAnalysis/CollectFunctionsFromCalleesPass.h"
 #include "revng/EarlyFunctionAnalysis/CollectFunctionsFromUnusedAddressesPass.h"
+#include "revng/EarlyFunctionAnalysis/Common.h"
 #include "revng/EarlyFunctionAnalysis/DetectABI.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
+#include "revng/MFP/MFP.h"
+#include "revng/MFP/SetLattices.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/Generated/Early/Register.h"
+#include "revng/Model/Register.h"
 #include "revng/Pipeline/Pipe.h"
 #include "revng/Pipeline/RegisterAnalysis.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/LLVMAnalysisImplementation.h"
+
+#include "ABISummary.h"
+#include "InterproceduralAnalysis.h"
+#include "InterproceduralGraph.h"
 
 using namespace llvm;
 using namespace llvm::cl;
@@ -104,6 +116,7 @@ using BasicBlockQueue = UniquedQueue<const BasicBlockNode *>;
 class DetectABI {
 private:
   using CSVSet = std::set<llvm::GlobalVariable *>;
+  using IA = InterproceduralAnalysis;
 
 private:
   llvm::Module &M;
@@ -117,6 +130,12 @@ private:
 
   CallGraph ApproximateCallGraph;
 
+  TemporaryOpaqueFunction EntryHook;
+
+  std::map<MetaAddress, OutlinedFunction> OutlinedFunctions;
+
+  std::map<Node::AddressType, ABISummary> FinalResults;
+
 public:
   DetectABI(llvm::Module &M,
             GeneratedCodeBasicInfo &GCBI,
@@ -128,36 +147,26 @@ public:
     GCBI(GCBI),
     Binary(Binary),
     Oracle(Oracle),
-    Analyzer(Analyzer) {}
+    Analyzer(Analyzer),
+    EntryHook(getEntryHookType(M), "entry_hook", &M) {}
 
 public:
-  void run() {
-    computeApproximateCallGraph();
-
-    initializeInterproceduralQueue();
-
-    // Interprocedural analysis over the collected functions in post-order
-    // traversal (leafs first).
-    runInterproceduralAnalysis();
-
-    for (model::Function &Function : Binary->Functions())
-      analyzeABI(GCBI.getBlockAt(Function.Entry()));
-
-    // Propagate results between call-sites and functions
-    interproceduralPropagation();
-
-    // Refine results with ABI-specific information
-    applyABIDeductions();
-
-    // Commit the results onto the model. A non-const model is taken as
-    // argument to be written.
-    finalizeModel();
+  static llvm::FunctionType *getEntryHookType(llvm::Module &M) {
+    auto Int8PtrTy = llvm::Type::getInt8PtrTy(M.getContext());
+    auto VoidTy = llvm::Type::getVoidTy(M.getContext());
+    return llvm::FunctionType::get(VoidTy, { Int8PtrTy }, false);
   }
 
+  void run();
+
 private:
+  void outlineFunction(model::Function &F);
+  void saveFinalResults(InterproceduralNode *Node, const IA::Results &);
   void computeApproximateCallGraph();
   void initializeInterproceduralQueue();
+  InterproceduralGraph constructInterproceduralGraph();
   void runInterproceduralAnalysis();
+  void runMFPAnalysis();
   void interproceduralPropagation();
   void finalizeModel();
   void applyABIDeductions();
@@ -167,19 +176,31 @@ private:
 
   TrackingSortedVector<model::Register::Values>
   computePreservedRegisters(const CSVSet &ClobberedRegisters) const;
-  void analyzeABI(llvm::BasicBlock *Entry);
 
   CSVSet findWrittenRegisters(llvm::Function *F);
 
   UpcastablePointer<model::Type>
   buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
-                                const efa::BasicBlock &CallerBlock);
+                                const efa::BasicBlock &CallerBlock,
+                                const ABISummary &ABI);
 
-  std::optional<abi::RegisterState::Values>
-  tryGetRegisterState(model::Register::Values,
-                      const ABIAnalyses::RegisterStateMap &);
+  // TODO: Concept for both T and Inserter types
+  template<typename T, typename Inserter>
+  void insertTypedRegister(const llvm::GlobalVariable *CSV, Inserter &I) {
+    auto Register = model::Register::fromCSVName(CSV->getName(),
+                                                 Binary->Architecture());
 
-  void initializeMapForDeductions(FunctionSummary &, abi::RegisterState::Map &);
+    if (Register != model::Register::Invalid and CSV != GCBI.spReg()) {
+      const auto Type = CSV->getValueType();
+      const auto Size = Type->getIntegerBitWidth() / 8;
+
+      T TR(Register);
+      TR.Type() = {
+        Binary->getPrimitiveType(model::PrimitiveTypeKind::Generic, Size), {}
+      };
+      I.insert(TR);
+    }
+  }
 };
 
 void DetectABI::initializeInterproceduralQueue() {
@@ -280,9 +301,9 @@ void DetectABI::computeApproximateCallGraph() {
 
 UpcastablePointer<model::Type>
 DetectABI::buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
-                                         const efa::BasicBlock &CallerBlock) {
+                                         const efa::BasicBlock &CallerBlock,
+                                         const ABISummary &ABI) {
   using namespace model;
-  using RegisterState = abi::RegisterState::Values;
 
   auto NewType = makeType<RawFunctionType>();
   auto &CallType = *llvm::cast<RawFunctionType>(NewType.get());
@@ -290,47 +311,13 @@ DetectABI::buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
     auto ArgumentsInserter = CallType.Arguments().batch_insert();
     auto ReturnValuesInserter = CallType.ReturnValues().batch_insert();
 
-    bool Found = false;
-    for (const auto &[PC, CallSites] : CallerSummary.ABIResults.CallSites) {
-      if (PC != CallerBlock.ID())
-        continue;
-
-      revng_assert(!Found);
-      Found = true;
-
-      for (const auto &[Arg, RV] :
-           zipmap_range(CallSites.ArgumentsRegisters,
-                        CallSites.ReturnValuesRegisters)) {
-        auto *CSV = Arg == nullptr ? RV->first : Arg->first;
-        RegisterState RSArg = Arg == nullptr ? RegisterState::Maybe :
-                                               Arg->second;
-        RegisterState RSRV = RV == nullptr ? RegisterState::Maybe : RV->second;
-
-        auto RegisterID = model::Register::fromCSVName(CSV->getName(),
-                                                       Binary->Architecture());
-        if (RegisterID == Register::Invalid || CSV == GCBI.spReg())
-          continue;
-
-        auto *CSVType = CSV->getValueType();
-        auto CSVSize = CSVType->getIntegerBitWidth() / 8;
-
-        using namespace PrimitiveTypeKind;
-        TypePath GenericType = Binary->getPrimitiveType(Generic, CSVSize);
-
-        if (abi::RegisterState::shouldEmit(RSArg)) {
-          NamedTypedRegister TR(RegisterID);
-          TR.Type() = { GenericType, {} };
-          ArgumentsInserter.insert(TR);
-        }
-
-        if (abi::RegisterState::shouldEmit(RSRV)) {
-          TypedRegister TR(RegisterID);
-          TR.Type() = { GenericType, {} };
-          ReturnValuesInserter.insert(TR);
-        }
-      }
-    }
-    revng_assert(Found);
+    using std::ranges::for_each;
+    for_each(ABI.Arguments, [&](auto *CSV) {
+      insertTypedRegister<NamedTypedRegister>(CSV, ArgumentsInserter);
+    });
+    for_each(ABI.Returns, [&](auto *CSV) {
+      insertTypedRegister<TypedRegister>(CSV, ReturnValuesInserter);
+    });
 
     // Import FinalStackOffset and CalleeSavedRegisters from the default
     // prototype
@@ -347,7 +334,6 @@ DetectABI::buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
 /// Finish the population of the model by building the prototype
 void DetectABI::finalizeModel() {
   using namespace model;
-  using RegisterState = abi::RegisterState::Values;
 
   // Fill up the model and build its prototype for each function
   std::set<model::Function *> Functions;
@@ -358,7 +344,8 @@ void DetectABI::finalizeModel() {
 
     MetaAddress EntryPC = Function.Entry();
     revng_assert(EntryPC.isValid());
-    auto &Summary = Oracle.getLocalFunction(EntryPC);
+    auto &OutlinedFunction = OutlinedFunctions[EntryPC];
+    auto Summary = Analyzer.analyze(&OutlinedFunction);
 
     // Replace function attributes
     Function.Attributes() = Summary.Attributes;
@@ -369,39 +356,15 @@ void DetectABI::finalizeModel() {
       auto ArgumentsInserter = FunctionType.Arguments().batch_insert();
       auto ReturnValuesInserter = FunctionType.ReturnValues().batch_insert();
 
-      // Argument and return values
-      for (const auto &[Arg, RV] :
-           zipmap_range(Summary.ABIResults.ArgumentsRegisters,
-                        Summary.ABIResults.FinalReturnValuesRegisters)) {
-        auto *CSV = Arg == nullptr ? RV->first : Arg->first;
-        RegisterState RSArg = Arg == nullptr ? RegisterState::Maybe :
-                                               Arg->second;
-        RegisterState RSRV = RV == nullptr ? RegisterState::Maybe : RV->second;
+      auto &ABI = FinalResults[EntryPC];
 
-        auto RegisterID = model::Register::fromCSVName(CSV->getName(),
-                                                       Binary->Architecture());
-        if (RegisterID == Register::Invalid || CSV == GCBI.spReg())
-          continue;
-
-        auto *CSVType = CSV->getValueType();
-        auto CSVSize = CSVType->getIntegerBitWidth() / 8;
-
-        if (abi::RegisterState::shouldEmit(RSArg)) {
-          NamedTypedRegister TR(RegisterID);
-          TR.Type() = {
-            Binary->getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
-          };
-          ArgumentsInserter.insert(TR);
-        }
-
-        if (abi::RegisterState::shouldEmit(RSRV)) {
-          TypedRegister TR(RegisterID);
-          TR.Type() = {
-            Binary->getPrimitiveType(PrimitiveTypeKind::Generic, CSVSize), {}
-          };
-          ReturnValuesInserter.insert(TR);
-        }
-      }
+      using std::ranges::for_each;
+      for_each(ABI.Arguments, [&](auto *CSV) {
+        insertTypedRegister<NamedTypedRegister>(CSV, ArgumentsInserter);
+      });
+      for_each(ABI.Returns, [&](auto *CSV) {
+        insertTypedRegister<TypedRegister>(CSV, ReturnValuesInserter);
+      });
 
       // Preserved registers
       const auto &ClobberedRegisters = Summary.ClobberedRegisters;
@@ -414,6 +377,8 @@ void DetectABI::finalizeModel() {
 
     Function.Prototype() = Binary->recordNewType(std::move(NewType));
     Functions.insert(&Function);
+
+    Oracle.getLocalFunction(EntryPC) = std::move(Summary);
   }
 
   // Build prototype for indirect function calls
@@ -424,7 +389,11 @@ void DetectABI::finalizeModel() {
       // TODO: we do not detect prototypes for inlined call sites
       if (Block.ID().isInlined())
         continue;
+
       MetaAddress BlockAddress = Block.ID().notInlinedAddress();
+
+      Node::CallSiteAddress Key{ Function->Entry(), BlockAddress };
+      const auto &ABI = FinalResults[Key];
 
       for (auto &Edge : Block.Successors()) {
         if (auto *CE = llvm::dyn_cast<efa::CallEdge>(Edge.get())) {
@@ -434,7 +403,8 @@ void DetectABI::finalizeModel() {
           bool HasInfoOnEdge = CallSitePrototypes.count(BlockAddress) != 0;
           if (not IsDynamic and not IsDirect and not HasInfoOnEdge) {
             // It's an indirect call for which we have now call site information
-            auto Prototype = buildPrototypeForIndirectCall(Summary, Block);
+
+            auto Prototype = buildPrototypeForIndirectCall(Summary, Block, ABI);
             auto Path = Binary->recordNewType(std::move(Prototype));
 
             // This analysis does not have the power to detect whether an
@@ -459,157 +429,15 @@ void DetectABI::finalizeModel() {
   revng_check(Binary->verify(true));
 }
 
-static void combineCrossCallSites(auto &CallSite, auto &Callee) {
-  using namespace ABIAnalyses;
-  using RegisterState = abi::RegisterState::Values;
-
-  for (auto &[FuncArg, CSArg] :
-       zipmap_range(Callee.ArgumentsRegisters, CallSite.ArgumentsRegisters)) {
-    auto *CSV = FuncArg == nullptr ? CSArg->first : FuncArg->first;
-    auto RSFArg = FuncArg == nullptr ? RegisterState::Maybe : FuncArg->second;
-    auto RSCSArg = CSArg == nullptr ? RegisterState::Maybe : CSArg->second;
-
-    Callee.ArgumentsRegisters[CSV] = combine(RSFArg, RSCSArg);
-  }
-}
-
-/// Perform cross-call site propagation
-void DetectABI::interproceduralPropagation() {
-  for (const model::Function &Function : Binary->Functions()) {
-    auto &Summary = Oracle.getLocalFunction(Function.Entry());
-    for (auto &[PC, CallSite] : Summary.ABIResults.CallSites) {
-
-      if (PC.isInlined())
-        continue;
-
-      if (PC.notInlinedAddress() == Function.Entry())
-        combineCrossCallSites(CallSite, Summary.ABIResults);
-    }
-  }
-}
-
-using MaybeRegisterState = std::optional<abi::RegisterState::Values>;
 using ABIAnalyses::RegisterStateMap;
 
-MaybeRegisterState
-DetectABI::tryGetRegisterState(model::Register::Values RegisterValue,
-                               const RegisterStateMap &ABIRegisterMap) {
-  using State = abi::RegisterState::Values;
+using RegistersSet = std::set<model::Register::Values>;
+using RegistersLattice = SetUnionLattice<RegistersSet>;
 
-  llvm::StringRef Name = model::Register::getCSVName(RegisterValue);
-  if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true)) {
-    auto It = ABIRegisterMap.find(CSV);
-    if (It != ABIRegisterMap.end()) {
-      revng_assert(It->second != State::Count && It->second != State::Invalid);
-      return It->second;
-    }
-  }
-
-  return std::nullopt;
-}
-
-void DetectABI::initializeMapForDeductions(FunctionSummary &Summary,
-                                           abi::RegisterState::Map &Map) {
-  auto Arch = model::ABI::getArchitecture(Binary->DefaultABI());
-  revng_assert(Arch == Binary->Architecture());
-
-  for (const auto &Reg : model::Architecture::registers(Arch)) {
-    const auto &ArgRegisters = Summary.ABIResults.ArgumentsRegisters;
-    const auto &RVRegisters = Summary.ABIResults.FinalReturnValuesRegisters;
-
-    if (auto MaybeState = tryGetRegisterState(Reg, ArgRegisters))
-      Map[Reg].IsUsedForPassingArguments = *MaybeState;
-
-    if (auto MaybeState = tryGetRegisterState(Reg, RVRegisters))
-      Map[Reg].IsUsedForReturningValues = *MaybeState;
-  }
-}
-
-void DetectABI::applyABIDeductions() {
-  using namespace abi;
-
-  if (ABIEnforcement == NoABIEnforcement)
-    return;
-
-  for (const model::Function &Function : Binary->Functions()) {
-    auto &Summary = Oracle.getLocalFunction(Function.Entry());
-
-    RegisterState::Map StateMap(Binary->Architecture());
-    initializeMapForDeductions(Summary, StateMap);
-
-    bool EnforceABIConformance = ABIEnforcement == FullABIEnforcement;
-    std::optional<abi::RegisterState::Map> ResultMap;
-
-    // TODO: drop this.
-    // Since function type conversion is capable of handling the holes
-    // internally, there's not much reason to push such invasive changes
-    // this early in the pipeline.
-    auto ABI = abi::Definition::get(Binary->DefaultABI());
-    if (EnforceABIConformance)
-      ResultMap = ABI.enforceRegisterState(StateMap);
-    else
-      ResultMap = ABI.tryDeducingRegisterState(StateMap);
-
-    if (!ResultMap.has_value())
-      continue;
-
-    for (const auto &[Register, State] : *ResultMap) {
-      llvm::StringRef Name = model::Register::getCSVName(Register);
-      if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true)) {
-        auto MaybeArg = State.IsUsedForPassingArguments;
-        auto MaybeRV = State.IsUsedForReturningValues;
-
-        // ABI-refined results per function
-        if (Summary.ABIResults.ArgumentsRegisters.count(CSV) != 0)
-          Summary.ABIResults.ArgumentsRegisters[CSV] = MaybeArg;
-
-        if (Summary.ABIResults.FinalReturnValuesRegisters.count(CSV) != 0)
-          Summary.ABIResults.FinalReturnValuesRegisters[CSV] = MaybeRV;
-
-        // ABI-refined results per indirect call-site
-        for (auto &Block : Summary.CFG) {
-          for (auto &Edge : Block.Successors()) {
-            if (efa::FunctionEdgeType::isCall(Edge->Type())
-                && Edge->Type() != efa::FunctionEdgeType::FunctionCall) {
-              revng_assert(Block.ID().isValid());
-              auto &CSSummary = Summary.ABIResults.CallSites.at(Block.ID());
-
-              if (CSSummary.ArgumentsRegisters.count(CSV) != 0)
-                CSSummary.ArgumentsRegisters[CSV] = MaybeArg;
-
-              if (CSSummary.ReturnValuesRegisters.count(CSV) != 0)
-                CSSummary.ReturnValuesRegisters[CSV] = MaybeRV;
-            }
-          }
-        }
-      }
-    }
-
-    if (Log.isEnabled()) {
-      Log << "Summary for " << Function.OriginalName() << ":\n";
-      Summary.dump(Log);
-      Log << DoLog;
-    }
-  }
-}
-
-std::set<llvm::GlobalVariable *>
-DetectABI::findWrittenRegisters(llvm::Function *F) {
-  using namespace llvm;
-
-  std::set<GlobalVariable *> WrittenRegisters;
-  for (auto &BB : *F) {
-    for (auto &I : BB) {
-      if (auto *SI = dyn_cast<StoreInst>(&I)) {
-        Value *Ptr = skipCasts(SI->getPointerOperand());
-        if (auto *GV = dyn_cast<GlobalVariable>(Ptr))
-          WrittenRegisters.insert(GV);
-      }
-    }
-  }
-
-  return WrittenRegisters;
-}
+struct LatticeElement {
+  RegistersLattice Arguments;
+  RegistersLattice Returns;
+};
 
 std::set<llvm::GlobalVariable *>
 DetectABI::computePreservedCSVs(const CSVSet &ClobberedRegisters) const {
@@ -645,83 +473,6 @@ DetectABI::computePreservedRegisters(const CSVSet &ClobberedRegisters) const {
   return Result;
 }
 
-static void
-suppressCSAndSPRegisters(ABIAnalyses::ABIAnalysesResults &ABIResults,
-                         const std::set<GlobalVariable *> &CalleeSavedRegs) {
-  using RegisterState = abi::RegisterState::Values;
-
-  // Suppress from arguments
-  for (const auto &Reg : CalleeSavedRegs) {
-    auto It = ABIResults.ArgumentsRegisters.find(Reg);
-    if (It != ABIResults.ArgumentsRegisters.end())
-      It->second = RegisterState::No;
-  }
-
-  // Suppress from return values
-  for (const auto &[K, _] : ABIResults.ReturnValuesRegisters) {
-    for (const auto &Reg : CalleeSavedRegs) {
-      auto It = ABIResults.ReturnValuesRegisters[K].find(Reg);
-      if (It != ABIResults.ReturnValuesRegisters[K].end())
-        It->second = RegisterState::No;
-    }
-  }
-
-  // Suppress from call-sites
-  for (const auto &[K, _] : ABIResults.CallSites) {
-    for (const auto &Reg : CalleeSavedRegs) {
-      if (ABIResults.CallSites[K].ArgumentsRegisters.count(Reg) != 0)
-        ABIResults.CallSites[K].ArgumentsRegisters[Reg] = RegisterState::No;
-
-      if (ABIResults.CallSites[K].ReturnValuesRegisters.count(Reg) != 0)
-        ABIResults.CallSites[K].ReturnValuesRegisters[Reg] = RegisterState::No;
-    }
-  }
-}
-
-void DetectABI::analyzeABI(llvm::BasicBlock *Entry) {
-  using namespace llvm;
-  using llvm::BasicBlock;
-  using namespace ABIAnalyses;
-
-  MetaAddress EntryAddress = getBasicBlockAddress(Entry);
-
-  IRBuilder<> Builder(M.getContext());
-  ABIAnalysesResults ABIResults;
-
-  // Detect function boundaries
-  OutlinedFunction OutlinedFunction = Analyzer.outline(Entry);
-
-  // Find registers that may be target of at least one store. This helps
-  // refine the final results.
-  auto WrittenRegisters = findWrittenRegisters(OutlinedFunction.Function.get());
-
-  // Run ABI-independent data-flow analyses
-  ABIResults = analyzeOutlinedFunction(OutlinedFunction.Function.get(),
-                                       GCBI,
-                                       Analyzer.preCallHook(),
-                                       Analyzer.postCallHook(),
-                                       Analyzer.retHook());
-
-  // We say that a register is callee-saved when, besides being preserved by
-  // the callee, there is at least a write onto this register.
-  const auto &Summary = Oracle.getLocalFunction(EntryAddress);
-  auto CalleeSavedRegs = computePreservedCSVs(Summary.ClobberedRegisters);
-  auto ActualCalleeSavedRegs = intersect(CalleeSavedRegs, WrittenRegisters);
-
-  // Union between effective callee-saved registers and SP
-  ActualCalleeSavedRegs.insert(GCBI.spReg());
-
-  // Refine ABI analyses results by suppressing callee-saved and stack
-  // pointer registers.
-  suppressCSAndSPRegisters(ABIResults, ActualCalleeSavedRegs);
-
-  // Merge return values registers
-  ABIAnalyses::finalizeReturnValues(ABIResults);
-
-  // Commit ABI analysis results to the oracle
-  Oracle.getLocalFunction(EntryAddress).ABIResults = ABIResults;
-}
-
 void DetectABI::runInterproceduralAnalysis() {
   std::set<MetaAddress> Set;
 
@@ -738,7 +489,8 @@ void DetectABI::runInterproceduralAnalysis() {
     //       However, `analyze` also computes the CFG. There's a refactoring
     //       opportunity.
     llvm::BasicBlock *BB = GCBI.getBlockAt(EntryNode->Address);
-    FunctionSummary AnalysisResult = Analyzer.analyze(BB);
+    OutlinedFunction OutlinedFunction = Analyzer.outline(BB);
+    FunctionSummary AnalysisResult = Analyzer.analyze(&OutlinedFunction);
 
     if (Log.isEnabled()) {
       AnalysisResult.dump(Log);
@@ -827,6 +579,346 @@ bool DetectABIPass::runOnModule(Module &M) {
   ABIDetector.run();
 
   return false;
+}
+
+void DetectABI::outlineFunction(model::Function &F) {
+  // Outline function and save it for future use
+  MetaAddress Addr = F.Entry();
+  llvm::BasicBlock *Entry = GCBI.getBlockAt(Addr);
+  OutlinedFunctions[Addr] = Analyzer.outline(Entry);
+
+  // Create @entry_hook call at the beginning of entry block
+  auto &OEntry = OutlinedFunctions[Addr].Function->getEntryBlock();
+  IRBuilder<> Builder(&*OEntry.getFirstInsertionPt());
+  Builder.CreateCall(EntryHook.get(), { Addr.toValue(&M) });
+}
+
+void DetectABI::saveFinalResults(InterproceduralNode *Node,
+                                 const IA::Results &MFPResults) {
+
+  revng_assert(Node->isResult());
+
+  const bool IsIndirect = Node->isIndirect();
+
+  // Use OutValue from ...
+  const auto &ResultLattice = MFPResults.OutValue;
+  const llvm::BasicBlock *Entry = Node->BB;
+
+  // Identify entry in FinalResults by address:
+  //  - MetaAddress of Entry for functions
+  //  - (MetaAddress Entry, MetaAddress CallSite) for call sites
+  using RT = InterproceduralNode::ResultType;
+  auto &Results = FinalResults[Node->Address];
+
+  // Depending on type of Results (Arguments or Returns) we save information
+  // from LatticeElement to appropriate set.
+  auto &RegisterSet = (Node->getResultType() == RT::Arguments) ?
+                        Results.Arguments :
+                        Results.Returns;
+
+  const InterproceduralAnalysis::LatticeElement::RegisterSet
+    &LatticeSet = (Node->getResultType() == RT::Arguments) ?
+                    ResultLattice.Arguments :
+                    ResultLattice.Returns;
+
+  auto GetReg =
+    [this](const llvm::GlobalVariable *GV) -> model::Register::Values {
+    return model::Register::fromCSVName(GV->getName(), Binary->Architecture());
+  };
+
+  // Keep all registers from results for Indirect calls. Indirect prototypes
+  // will be built later.
+  if (IsIndirect) {
+    RegisterSet = LatticeSet;
+  } else {
+    const auto &FunctionAddress = Node->getFunctionAddress();
+    auto &Summary = Oracle.getLocalFunction(FunctionAddress);
+
+    auto *Function = OutlinedFunctions[FunctionAddress].Function.get();
+    auto WrittenRegisters = findWrittenRegisters(Function);
+    auto CSR = computePreservedCSVs(Summary.ClobberedRegisters);
+    auto ActualCalleeSaved = intersect(WrittenRegisters, CSR);
+    ActualCalleeSaved.insert(GCBI.spReg());
+
+    auto IsNotPreserved =
+      [&ActualCalleeSaved](const llvm::GlobalVariable *GV) -> bool {
+      llvm::GlobalVariable *NGV = const_cast<llvm::GlobalVariable *>(GV);
+      return ActualCalleeSaved.find(NGV) == ActualCalleeSaved.end();
+    };
+
+    using std::ranges::copy_if;
+    copy_if(LatticeSet,
+            std::inserter(RegisterSet, RegisterSet.begin()),
+            IsNotPreserved);
+  }
+}
+
+void DetectABI::runMFPAnalysis() {
+  // OutlineFunctions
+  InterproceduralAnalysis IA(GCBI, Binary);
+  for_each(Binary->Functions(), [this](auto F) { outlineFunction(F); });
+
+  // Construct
+  auto G = constructInterproceduralGraph();
+  InterproceduralAnalysis::LatticeElement InitialValue{};
+  InterproceduralAnalysis::LatticeElement ExtremalValue{ true };
+  auto Start = G.getEntryNode();
+
+  revng_assert(G.size() != 0);
+  revng_assert(Start != nullptr);
+
+  auto Results = MFP::getMaximalFixedPoint(IA,
+                                           Start,
+                                           InitialValue,
+                                           ExtremalValue,
+                                           { Start },
+                                           { Start });
+
+  for (auto &[Node, MFPResult] : Results) {
+    if (Node->isResult()) {
+      saveFinalResults(Node, MFPResult);
+    }
+  }
+}
+
+void DetectABI::run() {
+  using std::ranges::for_each;
+
+  computeApproximateCallGraph();
+
+  initializeInterproceduralQueue();
+
+  runInterproceduralAnalysis();
+
+  runMFPAnalysis();
+
+  // Commit the results onto the model. A non-const model is taken as
+  // argument to be written.
+  finalizeModel();
+}
+
+InterproceduralGraph DetectABI::constructInterproceduralGraph() {
+  using std::tuple;
+  using Key = tuple<Node::AddressType, const llvm::BasicBlock *, Node::VType>;
+  std::map<Key, ForwardNode<Node> *> Map;
+
+  InterproceduralGraph G;
+
+  auto *EntryNode = G.addNode();
+  G.setEntryNode(EntryNode);
+
+  auto GetNode = [&Map, &G, EntryNode](Node::AddressType Address,
+                                       const llvm::BasicBlock *BB,
+                                       Node::VType V) -> ForwardNode<Node> * {
+    auto It = Map.find(Key{ Address, BB, V });
+    if (It != Map.end()) {
+      return It->second;
+    }
+
+    ForwardNode<Node> *Node = G.addNode(Address, BB, V);
+    Map.emplace(Key{ Address, BB, V }, Node);
+
+    if (std::holds_alternative<Node::AnalysisType>(V)) {
+      EntryNode->addSuccessor(Node);
+    }
+
+    return Node;
+  };
+
+  auto GetAddressFromOperand = [](const llvm::Instruction *I,
+                                  unsigned int N) -> MetaAddress {
+    auto Operand = dyn_cast<llvm::CallInst>(I)->getArgOperand(N);
+    if (Operand) {
+      return BasicBlockID::fromValue(Operand).start();
+    }
+
+    return MetaAddress{};
+  };
+
+  for (auto &[CallerEntry, F] : OutlinedFunctions) {
+    auto &Function = *F.Function;
+
+    auto *EntryBB = &Function.getEntryBlock();
+    auto *CallerArgs = GetNode(CallerEntry,
+                               EntryBB,
+                               Node::ResultType::Arguments);
+    auto *CallerRets = GetNode(CallerEntry, EntryBB, Node::ResultType::Returns);
+
+    for (auto &BB : Function) {
+      using ABIAnalyses::getPreCallHook;
+      using ABIAnalyses::isCallSiteBlock;
+
+      if (auto PreCallHook = getPreCallHook(&BB);
+          PreCallHook != nullptr) { // BB = PreCallHook
+        auto PreCallHookInst = dyn_cast<llvm::CallInst>(PreCallHook);
+
+        auto Callee = PreCallHookInst->getArgOperand(1);
+        auto CalleeAddress = BasicBlockID::fromValue(Callee).start();
+
+        auto CallSite = PreCallHookInst->getArgOperand(0);
+        auto CallSiteAddress = BasicBlockID::fromValue(CallSite).start();
+
+        revng_assert(CallSiteAddress.isValid());
+
+        auto *CallSiteBlock = &BB;
+        revng_assert(isCallSiteBlock(CallSiteBlock));
+        revng_assert(CallSiteBlock->getUniquePredecessor() != nullptr);
+
+        // UAOF
+        // +------------------+
+        // |    C.Argument    |
+        // +------------------+
+        //   |
+        //   | ∀C, C∈F.Callees
+        //   v
+        // #==================#
+        // H     UAOF(F)      H
+        // #==================#
+        //   |
+        //   |
+        //   v
+        // +------------------+
+        // |    F.Argument    |
+        // +------------------+
+        auto CalleeArgs = GetNode(CalleeAddress,
+                                  &BB,
+                                  Node::ResultType::Arguments);
+        auto CallerUAOF = GetNode(CallerEntry,
+                                  EntryBB,
+                                  Node::AnalysisType::UAOF);
+        CalleeArgs->addSuccessor(CallerUAOF);
+        CallerUAOF->addSuccessor(CallerArgs);
+
+        // RAOFC
+        //                                             +---------------------+
+        //                                             | CS1.Caller.Argument |
+        //                                             +---------------------+
+        //                                               |
+        //            ∀CS, CS∈CS1.PreviousCallSites      |
+        //                                   |           v
+        // +-----------------------+         |         #=====================#
+        // | CS.Callee.ReturnValue | ----------------> H     RAOFC(CS1)      H
+        // +-----------------------+                   #=====================#
+        //                                               |
+        //                                               |
+        //                                               v
+        //                                             +---------------------+
+        //                                             | CS1.Callee.Argument |
+        //                                             +---------------------+
+        auto *RAOFC = GetNode(Node::CallSiteAddress{ CallerEntry,
+                                                     CallSiteAddress },
+                              CallSiteBlock,
+                              Node::AnalysisType::RAOFC);
+        CallerArgs->addSuccessor(RAOFC);
+        RAOFC->addSuccessor(CalleeArgs);
+
+        // TODO: (document this) Previous CallSites (RAOFC);
+        if (auto *Start = BB.getUniquePredecessor(); Start != nullptr) {
+          for (llvm::BasicBlock *PrevBB : llvm::inverse_depth_first(Start)) {
+            if (auto *PrevPreCallHook = getPreCallHook(PrevBB);
+                PrevPreCallHook != nullptr) {
+              // TODO: comment this
+              auto Addr = GetAddressFromOperand(PrevPreCallHook, 1);
+              auto Node = GetNode(Node::CallSiteAddress{ CallerEntry, Addr },
+                                  PrevBB,
+                                  Node::ResultType::Returns);
+
+              Node->addSuccessor(RAOFC);
+            }
+          }
+        }
+
+        // URVOF
+        // +------------------+
+        // |  C.ReturnValue   |
+        // +------------------+
+        //   |
+        //   | ∀C, C∈F.Callees
+        //   v
+        // #==================#
+        // H     URVOF(F)     H
+        // #==================#
+        //   |
+        //   |
+        //   v
+        // +------------------+
+        // |  F.ReturnValue   |
+        // +------------------+
+        auto *URVOF = GetNode(CallerEntry, &BB, Node::AnalysisType::URVOF);
+        auto *CalleeRets = GetNode(CalleeAddress,
+                                   &BB,
+                                   Node::ResultType::Returns);
+        CalleeRets->addSuccessor(URVOF);
+        URVOF->addSuccessor(CallerRets);
+
+        // URVOFC
+        //                                        +-----------------------+
+        //                                       | F1.Callee.ReturnValue
+        //                                       |
+        //                                       +-----------------------+
+        //                                         |
+        //          ∀CS, CS∈F1.NextCallSites       |
+        //                             |           v
+        //+--------------------+       | #=======================# |
+        // CS.Callee.Argument | --------------> H      URVOFC(F1)       H
+        //+--------------------+ #=======================#
+        //                                         |
+        //                                         |
+        //                                         v
+        //                                       +-----------------------+
+        //                                       | F1.Caller.ReturnValue
+        //                                       |
+        //                                       +-----------------------+
+        //
+        auto *URVOFC = GetNode(Node::CallSiteAddress{ CallerEntry,
+                                                      CallSiteAddress },
+                               CallSiteBlock,
+                               Node::AnalysisType::URVOFC);
+
+        CalleeRets->addSuccessor(URVOFC);
+        URVOFC->addSuccessor(CallerRets);
+
+        // TODO: (document this) next callsites (URVOFC)
+        if (auto *Start = BB.getUniqueSuccessor(); Start != nullptr) {
+          for (llvm::BasicBlock *NextBB : llvm::depth_first(Start)) {
+            if (auto *NextPreCallHook = getPreCallHook(NextBB);
+                NextPreCallHook != nullptr) {
+              auto Addr = GetAddressFromOperand(NextPreCallHook, 1);
+              auto Node = GetNode(Node::CallSiteAddress{ CallerEntry, Addr },
+                                  NextBB,
+                                  Node::ResultType::Arguments);
+
+              Node->addSuccessor(URVOFC);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  std::error_code EC;
+  llvm::raw_fd_ostream OutputGraph("/tmp/graph.dot", EC);
+  revng_assert(!EC);
+  llvm::WriteGraph(OutputGraph, &G);
+
+  return G;
+}
+
+DetectABI::CSVSet DetectABI::findWrittenRegisters(llvm::Function *F) {
+  using namespace llvm;
+
+  DetectABI::CSVSet WrittenRegisters;
+  for (auto &BB : *F) {
+    for (auto &I : BB) {
+      if (auto *SI = dyn_cast<StoreInst>(&I)) {
+        Value *Ptr = skipCasts(SI->getPointerOperand());
+        if (auto *GV = dyn_cast<GlobalVariable>(Ptr))
+          WrittenRegisters.insert(GV);
+      }
+    }
+  }
+
+  return WrittenRegisters;
 }
 
 char DetectABIPass::ID = 0;

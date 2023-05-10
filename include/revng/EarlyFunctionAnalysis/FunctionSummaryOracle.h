@@ -36,21 +36,16 @@ struct FunctionSummary {
 public:
   AttributesSet Attributes;
   std::set<llvm::GlobalVariable *> ClobberedRegisters;
-  // TODO: this field is populated in a different maneer from all the others,
-  //       consider changing how this works
-  ABIAnalyses::ABIAnalysesResults ABIResults;
   SortedVector<efa::BasicBlock> CFG;
   std::optional<int64_t> ElectedFSO;
 
 public:
   FunctionSummary(MutableSet<model::FunctionAttribute::Values> Attributes,
                   std::set<llvm::GlobalVariable *> ClobberedRegisters,
-                  ABIAnalyses::ABIAnalysesResults ABIResults,
                   SortedVector<efa::BasicBlock> CFG,
                   std::optional<int64_t> ElectedFSO) :
     Attributes(Attributes),
     ClobberedRegisters(std::move(ClobberedRegisters)),
-    ABIResults(std::move(ABIResults)),
     CFG(std::move(CFG)),
     ElectedFSO(ElectedFSO) {}
 
@@ -100,9 +95,6 @@ public:
     for (auto *Reg : ClobberedRegisters)
       Output << " " << Reg->getName().str();
     Output << " ]\n";
-
-    Output << "  ABI info: \n";
-    ABIResults.dump(Output);
   }
 };
 

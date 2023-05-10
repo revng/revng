@@ -113,7 +113,7 @@ public:
   const auto &abiCSVs() const { return ABICSVs; }
 
 public:
-  FunctionSummary analyze(llvm::BasicBlock *Entry);
+  FunctionSummary analyze(OutlinedFunction *OutlinedFunction);
 
   OutlinedFunction outline(llvm::BasicBlock *Entry);
 

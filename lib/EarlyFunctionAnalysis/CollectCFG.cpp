@@ -34,10 +34,13 @@ void CollectCFG::run() {
     auto *Entry = GCBI.getBlockAt(Function.Entry());
     revng_assert(Entry != nullptr);
 
+    // Outline function
+    OutlinedFunction OutlinedFunction = Analyzer.outline(Entry);
+
     // Recover the control-flow graph of the function
     efa::FunctionMetadata New;
     New.Entry() = Function.Entry();
-    New.ControlFlowGraph() = std::move(Analyzer.analyze(Entry).CFG);
+    New.ControlFlowGraph() = std::move(Analyzer.analyze(&OutlinedFunction).CFG);
 
     revng_assert(New.ControlFlowGraph().count(BasicBlockID(New.Entry())) != 0);
 

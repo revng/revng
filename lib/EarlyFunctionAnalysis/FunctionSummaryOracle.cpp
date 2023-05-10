@@ -21,32 +21,13 @@ importPrototype(Module &M,
   using namespace llvm;
   using namespace model;
   using Register = model::Register::Values;
-  using State = abi::RegisterState::Values;
 
   FunctionSummary Summary(Attributes,
                           { ABICSVs.begin(), ABICSVs.end() },
-                          ABIAnalyses::ABIAnalysesResults(),
                           {},
                           0);
 
-  for (GlobalVariable *CSV : ABICSVs) {
-    Summary.ABIResults.ArgumentsRegisters[CSV] = State::No;
-    Summary.ABIResults.FinalReturnValuesRegisters[CSV] = State::No;
-  }
-
   auto Layout = abi::FunctionType::Layout::make(Prototype);
-
-  for (Register ArgumentRegister : Layout.argumentRegisters()) {
-    StringRef Name = model::Register::getCSVName(ArgumentRegister);
-    if (GlobalVariable *CSV = M.getGlobalVariable(Name, true))
-      Summary.ABIResults.ArgumentsRegisters.at(CSV) = State::Yes;
-  }
-
-  for (Register ReturnValueRegister : Layout.returnValueRegisters()) {
-    StringRef Name = model::Register::getCSVName(ReturnValueRegister);
-    if (GlobalVariable *CSV = M.getGlobalVariable(Name, true))
-      Summary.ABIResults.FinalReturnValuesRegisters.at(CSV) = State::Yes;
-  }
 
   std::set<llvm::GlobalVariable *> PreservedRegisters;
   for (Register CalleeSavedRegister : Layout.CalleeSavedRegisters) {

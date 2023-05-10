@@ -51,12 +51,6 @@ ABIAnalyses::ABIAnalysesResults::dump<Logger<true>>(Logger<true> &,
 abi::RegisterState::Values
   combine(abi::RegisterState::Values, abi::RegisterState::Values);
 
-ABIAnalysesResults analyzeOutlinedFunction(llvm::Function *F,
-                                           const GeneratedCodeBasicInfo &,
-                                           llvm::Function *,
-                                           llvm::Function *,
-                                           llvm::Function *);
-
 void finalizeReturnValues(ABIAnalysesResults &);
 
 } // namespace ABIAnalyses

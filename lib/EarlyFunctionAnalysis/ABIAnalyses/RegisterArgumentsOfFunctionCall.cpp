@@ -26,7 +26,7 @@ std::map<const GlobalVariable *, State>
 analyze(const BasicBlock *CallSiteBlock, const GeneratedCodeBasicInfo &GCBI) {
   using MFI = MFIAnalysis<false, CoreLattice>;
 
-  MFI Instance{ { getPostCallHook(CallSiteBlock), GCBI } };
+  MFI Instance{ getPostCallHook(CallSiteBlock), GCBI };
   MFI::LatticeElement InitialValue;
   MFI::LatticeElement ExtremalValue(CoreLattice::ExtremalLatticeElement);
 

@@ -901,26 +901,20 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
 
   return FunctionSummary(Attributes,
                          ClobberedRegisters.getClobberedRegisters(),
-                         {},
                          std::move(CFG),
                          MaybeWinFSO);
 }
 
-FunctionSummary CFGAnalyzer::analyze(llvm::BasicBlock *Entry) {
+FunctionSummary CFGAnalyzer::analyze(OutlinedFunction *OutlinedFunction) {
   using namespace llvm;
   using llvm::BasicBlock;
   using namespace ABIAnalyses;
 
-  BasicBlockID EntryID = getBasicBlockID(Entry);
-
   IRBuilder<> Builder(M.getContext());
   ABIAnalysesResults ABIResults;
 
-  // Detect function boundaries
-  OutlinedFunction OutlinedFunction = outline(Entry);
-
   // Recover the control-flow graph of the function
-  SortedVector<efa::BasicBlock> CFG = collectDirectCFG(&OutlinedFunction);
+  SortedVector<efa::BasicBlock> CFG = collectDirectCFG(OutlinedFunction);
   revng_assert(CFG.size() > 0);
 
   // The analysis aims at identifying the callee-saved registers of a
@@ -941,9 +935,9 @@ FunctionSummary CFGAnalyzer::analyze(llvm::BasicBlock *Entry) {
   // function jumps to its return address (thus, it is not a longjmp /
   // tail call), `rax` register has been clobbered by the callee, whereas
   // `rbx` and `rbp` are callee-saved registers.
-  createIBIMarker(&OutlinedFunction);
+  createIBIMarker(OutlinedFunction);
 
-  Function *F = OutlinedFunction.Function.get();
+  Function *F = OutlinedFunction->Function.get();
 
   // Prevent DCE by making branch conditions opaque
   opaqueBranchConditions(F, Builder);
@@ -956,7 +950,7 @@ FunctionSummary CFGAnalyzer::analyze(llvm::BasicBlock *Entry) {
   runOptimizationPipeline(F);
 
   // Squeeze out the results obtained from the optimization passes
-  auto FunctionInfo = milkInfo(&OutlinedFunction, std::move(CFG));
+  auto FunctionInfo = milkInfo(OutlinedFunction, std::move(CFG));
 
   return FunctionInfo;
 }

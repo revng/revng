@@ -21,6 +21,7 @@ revng_add_analyses_library_internal(
   Outliner.cpp
   PromoteGlobalToLocalVars.cpp
   SegregateDirectStackAccesses.cpp
+  InterproceduralAnalysis.cpp
   ${GENERATED_IMPLS})
 
 llvm_map_components_to_libnames(
@@ -31,6 +32,10 @@ llvm_map_components_to_libnames(
   InstCombine
   Passes
   CodeGen)
+
+add_dependencies(revngEarlyFunctionAnalysis abi-analyses-headers)
+target_include_directories(revngEarlyFunctionAnalysis
+                           PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/ABIAnalyses")
 
 target_link_libraries(
   revngEarlyFunctionAnalysis
