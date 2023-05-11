@@ -205,6 +205,72 @@ void finalizeReturnValues(ABIAnalysesResults &ABIResults) {
   }
 }
 
+// Run the ABI analyses on the outlined function F. This function must have all
+// the original function calls replaced with a basic block starting with a call
+// to `precall_hook` followed by a summary of the side effects of the function
+// followed by a call to `postcall_hook` and a basic block terminating
+// instruction.
+ABIAnalysesResults analyzeOutlinedFunction(Function *F,
+                                           const GeneratedCodeBasicInfo &GCBI,
+                                           Function *PreCallSiteHook,
+                                           Function *PostCallSiteHook,
+                                           Function *RetHook) {
+  namespace UAOF = UsedArgumentsOfFunction;
+  namespace RAOFC = RegisterArgumentsOfFunctionCall;
+  namespace URVOFC = UsedReturnValuesOfFunctionCall;
+  namespace URVOF = UsedReturnValuesOfFunction;
+
+  ABIAnalysesResults FinalResults;
+  PartialAnalysisResults Results;
+
+  // Initial population of partial results
+  Results.UAOF = UAOF::analyze(&F->getEntryBlock(), GCBI);
+  for (auto &I : instructions(F)) {
+    BasicBlock *BB = I.getParent();
+
+    if (auto *Call = dyn_cast<CallInst>(&I)) {
+      BasicBlockID PC;
+      if (isCallTo(Call, PreCallSiteHook) || isCallTo(Call, PostCallSiteHook)
+          || isCallTo(Call, RetHook)) {
+        PC = BasicBlockID::fromValue(Call->getArgOperand(0));
+        revng_assert(PC.isValid());
+      }
+
+      if (isCallTo(Call, PreCallSiteHook)) {
+        Results.RAOFC[{ PC, BB }] = RAOFC::analyze(BB, GCBI);
+      } else if (isCallTo(Call, PostCallSiteHook)) {
+        Results.URVOFC[{ PC, BB }] = URVOFC::analyze(BB, GCBI);
+      } else if (isCallTo(Call, RetHook)) {
+        Results.URVOF[{ PC, BB }] = URVOF::analyze(BB, GCBI);
+      }
+    }
+  }
+
+  if (ABIAnalysesLog.isEnabled()) {
+    ABIAnalysesLog << "Dumping ABIAnalyses results for function "
+                   << F->getName() << ": \n";
+    Results.dump();
+  }
+
+  // Add RAOFC.
+  for (auto &[Key, RSMap] : Results.RAOFC) {
+    BasicBlockID PC = Key.first;
+    revng_assert(PC.isValid());
+    FinalResults.CallSites[PC] = ABIAnalysesResults::CallSiteResults();
+    for (auto &[CSV, RS] : RSMap)
+      FinalResults.CallSites[PC].ArgumentsRegisters[CSV] = RS;
+  }
+
+  // Add URVOF.
+  for (auto &[Key, RSMap] : Results.URVOF) {
+    auto PC = Key.first;
+    for (auto &[CSV, RS] : RSMap)
+      FinalResults.ReturnValuesRegisters[PC][CSV] = RS;
+  }
+
+  return FinalResults;
+}
+
 template<typename T>
 void ABIAnalysesResults::dump(T &Output, const char *Prefix) const {
   Output << Prefix << "Arguments:\n";
