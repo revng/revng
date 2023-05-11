@@ -446,6 +446,7 @@ static void combineCrossCallSites(auto &CallSite, auto &Callee) {
 /// Perform cross-call site propagation
 void DetectABI::interproceduralPropagation() {
   for (const model::Function &Function : Binary->Functions()) {
+    // TODO: get ABIResults from different source
     auto &Summary = Oracle.getLocalFunction(Function.Entry());
     for (auto &[PC, CallSite] : Summary.ABIResults.CallSites) {
 
