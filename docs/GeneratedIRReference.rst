@@ -222,7 +222,7 @@ two values:
 :``string[] ABIRegisters``: list of name of the CSV involved in the ABI, and
                             that, therefore need to be serialized before passing
                             from the translated realm to the native realm and
-                            viceversa.
+                            vice-versa.
 
 Here's how this information appears in our example:
 

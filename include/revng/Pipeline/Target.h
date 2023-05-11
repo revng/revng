@@ -359,18 +359,19 @@ public:
 
 public:
   template<typename OStream>
-  void dump(OStream &OS, size_t Indentation = 0, bool Parentesis = true) const {
-    if (Parentesis) {
+  void
+  dump(OStream &OS, size_t Indentation = 0, bool Parenthesis = true) const {
+    if (Parenthesis) {
       indent(OS, Indentation);
       OS << "{\n";
     }
-    auto ExtraIndentation = Indentation + (Parentesis ? 1 : 0);
+    auto ExtraIndentation = Indentation + (Parenthesis ? 1 : 0);
     for (const auto &Container : Status) {
       indent(OS, ExtraIndentation);
       OS << Container.first().str() << ":\n";
       Container.second.dump(OS, ExtraIndentation + 1);
     }
-    if (Parentesis) {
+    if (Parenthesis) {
       indent(OS, Indentation);
       OS << "}\n";
     }

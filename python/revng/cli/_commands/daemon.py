@@ -39,7 +39,7 @@ Persistence:
 revng needs a directory to preserve progress across restarts, this is controlled
 by the environment variables REVNG_DATA_DIR and REVNG_PROJECT_ID
 Neither of them set: use a uniquely generated temporary directory
-REVNG_DATA_DIR set, REVNG_PROJECT_ID unset: use '$REVNG_DATA_DIR' as persistance folder
+REVNG_DATA_DIR set, REVNG_PROJECT_ID unset: use '$REVNG_DATA_DIR' as persistence folder
 REVNG_PROJECT_ID set, REVNG_DATA_DIR unset: use '$XDG_DATA_HOME/revng/$REVNG_PROJECT_ID'
 REVNG_DATA_DIR and REVNG_PROJECT_ID set: use '$REVNG_DATA_DIR/$REVNG_PROJECT_ID'
 """

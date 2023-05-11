@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
@@ -15,10 +14,5 @@ setup(
     packages=find_namespace_packages(),
     include_package_data=True,
     install_requires=open("requirements.txt", encoding="utf-8").readlines(),  # noqa: SIM115
-    scripts=[
-        "scripts/revng",
-        "scripts/revng-merge-dynamic",
-        "scripts/revng-model-compare",
-        "scripts/revng-model-to-json",
-    ],
+    scripts=["scripts/revng"],
 )

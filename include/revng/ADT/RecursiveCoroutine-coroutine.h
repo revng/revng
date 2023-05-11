@@ -79,7 +79,7 @@ struct RecursivePromise : public ReturnBase<ReturnT> {
     // - return the handle to the awaiter continuation, so that if it's a
     //   valid handle it will be resumed.
     // - never be resumed, because it's the final suspension point
-    //   (await_resume actuall aborts)
+    //   (await_resume actually aborts)
     struct ResumeAwaiter {
 
       ResumeAwaiter(std::coroutine_handle<> AwaiterHandle) :
@@ -136,7 +136,7 @@ struct RecursivePromise : public ReturnBase<ReturnT> {
     // behavior of the awaiter.
     // We want it to always suspend (await_ready should return false); we want
     // it to resume the awaitee straight away after suspending (await_suspend
-    // shoul return a coroutine_handle to the awaitee), and we want the
+    // should return a coroutine_handle to the awaitee), and we want the
     // awaiter to get the result of the awaitee when resuming (await_resume
     // should get the result of the awaitee and return it to the awaiter).
     using AwaiteePromiseT = RecursivePromise<AwaiteeReturnT>;

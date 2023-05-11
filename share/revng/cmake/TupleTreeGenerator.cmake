@@ -425,7 +425,7 @@ endfunction()
 # definition
 
 # EMIT_TRACKING emits in every generated struct all the required wrappers and
-# memebers needed to track accesses to every field.
+# members needed to track accesses to every field.
 function(target_tuple_tree_generator TARGET_ID)
   set(options INSTALL EMIT_TRACKING)
   set(oneValueArgs

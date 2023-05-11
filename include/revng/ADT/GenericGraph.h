@@ -903,18 +903,18 @@ private:
   }
 
   static auto findSuccessorHalf(typename EdgeOwnerContainer::iterator Edge,
-                                EdgeViewContainer &Halfs) {
+                                EdgeViewContainer &Halves) {
     auto Comparator = [Edge](auto const &Half) {
       return Half.Label == Edge->Label.get();
     };
-    return std::find_if(Halfs.begin(), Halfs.end(), Comparator);
+    return std::find_if(Halves.begin(), Halves.end(), Comparator);
   }
   static auto findPredecessorHalf(typename EdgeViewContainer::iterator Edge,
-                                  EdgeOwnerContainer &Halfs) {
+                                  EdgeOwnerContainer &Halves) {
     auto Comparator = [Edge](auto const &Half) {
       return Half.Label.get() == Edge->Label;
     };
-    return std::find_if(Halfs.begin(), Halfs.end(), Comparator);
+    return std::find_if(Halves.begin(), Halves.end(), Comparator);
   }
 
 public:

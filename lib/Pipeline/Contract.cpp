@@ -133,7 +133,7 @@ void Contract::deduceRequirements(const Context &Ctx,
     auto Targets = extracEntriesOfKind(Target, *Kind);
 
     // Transform the forward inputs/backward outputs that match,
-    // they are trasformed by the current Pipe
+    // they are transformed by the current Pipe
     Targets = backward(Ctx, std::move(Targets));
 
     copy(Targets, back_inserter(Source));

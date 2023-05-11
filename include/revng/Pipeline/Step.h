@@ -30,12 +30,12 @@
 
 namespace pipeline {
 
-/// A step is a list of pipes that must be exectuted entirely or not at all.
+/// A step is a list of pipes that must be executed entirely or not at all.
 /// Furthermore a step has a set of containers associated to it as well that
 /// will contain the element used for perform the computations.
 class Step {
 public:
-  // notice we need iterator stability of analyses becase analyses list refers
+  // notice we need iterator stability of analyses because analyses list refers
   // to them
   using AnalysisMapType = llvm::StringMap<AnalysisWrapper>;
   using AnalysisIterator = AnalysisMapType::iterator;
@@ -187,14 +187,14 @@ public:
                           const llvm::StringMap<std::string> &ExtraArgs = {});
 
   /// Clones the Targets from the backing containers of this step
-  /// and excutes all the pipes in sequence contained by this step
+  /// and executes all the pipes in sequence contained by this step
   /// and returns the transformed containers.
   ///
   /// The contained values stays unchanged.
   ContainerSet cloneAndRun(Context &Ctx, ContainerSet &&Targets);
 
   /// Returns the set of goals that are already contained in the backing
-  /// containers of this step, futhermore adds to the container ToLoad those
+  /// containers of this step, furthermore adds to the container ToLoad those
   /// that were not present.
   ContainerToTargetsMap
   analyzeGoals(const Context &Ctx,

@@ -3,28 +3,9 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import os
 import sys
-from pathlib import Path
 
-# Compute Python packages path
-python_libs_path = (
-    Path(__file__).parent.parent
-    / "lib"
-    / f"python{sys.version_info.major}.{sys.version_info.minor}"
-    / "site-packages"
-)
-assert python_libs_path.exists()
-
-# Record in sys.path and PYTHONPATH
-sys.path.insert(0, str(python_libs_path))
-
-prev_pythonpath = os.environ.get("PYTHONPATH")
-os.environ["PYTHONPATH"] = str(python_libs_path)
-if prev_pythonpath:
-    os.environ["PYTHONPATH"] += ":" + prev_pythonpath
-
-from revng.cli.revng import main  # noqa: E402
+from revng.cli.revng import main
 
 if __name__ == "__main__":
     sys.exit(main())

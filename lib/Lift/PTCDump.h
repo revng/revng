@@ -33,7 +33,7 @@ int dumpTranslation(MetaAddress VirtualAddress,
                     std::ostream &Result,
                     PTCInstructionList *Instructions);
 
-/// Write to a stream the dissasembled version of the instruction at the
+/// Write to a stream the disasembled version of the instruction at the
 /// specified program counter.
 ///
 /// \param Result the output stream

@@ -551,14 +551,14 @@ template<UpcastablePointerLike T>
 bool PathMatcher::dispatchToConcreteType(llvm::StringRef String,
                                          PathMatcher &Result) {
 
-  auto Splitted = String.split('/');
+  auto Parts = String.split('/');
 
   bool Res = false;
   auto Dispatch = [&]<typename Upcasted>(const Upcasted *Arg) {
-    Res = PathMatcher::visitTupleTreeNode<Upcasted>(Splitted.second, Result);
+    Res = PathMatcher::visitTupleTreeNode<Upcasted>(Parts.second, Result);
   };
 
-  invokeBySerializedKey<T>(Splitted.first, Dispatch);
+  invokeBySerializedKey<T>(Parts.first, Dispatch);
 
   return Res;
 }

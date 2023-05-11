@@ -274,7 +274,7 @@ Value *VariableManager::loadFromCPUStateOffset(IRBuilder<> &Builder,
   if (auto FieldTy = dyn_cast<IntegerType>(Result->getType())) {
     unsigned FieldSize = FieldTy->getBitWidth() / 8;
     if (FieldSize < LoadSize) {
-      // If after what we are loading ther is something that is not padding we
+      // If after what we are loading there is something that is not padding we
       // cannot load safely
       if (getByCPUStateOffsetInternal(Offset + FieldSize).first != nullptr)
         return nullptr;

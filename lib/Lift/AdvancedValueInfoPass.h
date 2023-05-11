@@ -27,7 +27,7 @@ private:
 public:
   StaticDataMemoryOracle(const llvm::DataLayout &DL, JumpTargetManager &JTM) :
     DL(DL), JTM(JTM) {
-    // Read the value using the endianess of the destination architecture,
+    // Read the value using the endianness of the destination architecture,
     // since, if there's a mismatch, in the stack we will also have a byteswap
     // instruction
     IsLittleEndian = DL.isLittleEndian();

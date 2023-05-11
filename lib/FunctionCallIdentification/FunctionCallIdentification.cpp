@@ -191,7 +191,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
               uint64_t InstructionSize = getLimitedValue(Call->getOperand(1));
 
               // Check that, w.r.t. to the last newpc, we're looking at the
-              // immediately preceeding instruction, if not fail.
+              // immediately preceding instruction, if not fail.
               if (ProgramCounter + InstructionSize != LastPC)
                 return StopNow;
 
@@ -301,7 +301,7 @@ void FunctionCallIdentification::buildFilteredCFG(llvm::Function &F) {
   // We have to create a view on the CFG where:
   //
   // * We only have translate basic blocks
-  // * Function call edges proceed towards the falltrough basic block
+  // * Function call edges proceed towards the fallthrough basic block
   for (BasicBlock &BB : F) {
 
     if (BB.empty() or not GCBI.isTranslated(&BB))

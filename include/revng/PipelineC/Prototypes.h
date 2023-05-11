@@ -325,13 +325,13 @@ uint64_t rp_manager_get_analyses_list_count(rp_manager *manager);
 const char *rp_analyses_list_get_name(rp_analyses_list *list);
 
 /**
- * \return the lenght of the given analyses list
+ * \return the length of the given analyses list
  */
 uint64_t rp_analyses_list_count(rp_analyses_list *list);
 
 /**
  * \param index must be less than rp_analyses_list_count(list)
- * \return the analysis at the index poisition in the given list.
+ * \return the analysis at the index position in the given list.
  */
 rp_analysis *rp_manager_get_analysis(rp_manager *manager,
                                      rp_analyses_list *list,

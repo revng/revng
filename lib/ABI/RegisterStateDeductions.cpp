@@ -184,12 +184,16 @@ private:
 
     bool IsRequired = false;
     if (GPAR.size() > VAR.size()) {
-      for (auto Regist : llvm::reverse(GPAR.drop_front(VAR.size())))
-        offsetPositionBasedArgument<accessArgument>(Regist, IsRequired, State);
+      for (auto Register : llvm::reverse(GPAR.drop_front(VAR.size())))
+        offsetPositionBasedArgument<accessArgument>(Register,
+                                                    IsRequired,
+                                                    State);
       GPAR = GPAR.take_front(VAR.size());
     } else if (VAR.size() > GPAR.size()) {
-      for (auto Regist : llvm::reverse(VAR.drop_front(GPAR.size())))
-        offsetPositionBasedArgument<accessArgument>(Regist, IsRequired, State);
+      for (auto Register : llvm::reverse(VAR.drop_front(GPAR.size())))
+        offsetPositionBasedArgument<accessArgument>(Register,
+                                                    IsRequired,
+                                                    State);
       VAR = VAR.take_front(GPAR.size());
     }
 

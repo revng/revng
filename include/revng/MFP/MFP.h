@@ -95,7 +95,7 @@ getMaximalFixedPoint(const MFI &Instance,
   for (Label Start : InitialNodes) {
     if (Visited.count(Start) == 0) {
       // Fill the worklist with nodes in reverse post order
-      // lauching a visit from each remaining node
+      // launching a visit from each remaining node
       ReversePostOrderTraversalExt<LGT,
                                    llvm::GraphTraits<LGT>,
                                    llvm::SmallSet<Label, 8>>

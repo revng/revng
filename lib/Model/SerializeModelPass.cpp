@@ -27,7 +27,7 @@ void writeModel(const model::Binary &Model, llvm::Module &M) {
   Model.verify(true);
 
   NamedMDNode *NamedMD = M.getNamedMetadata(ModelMetadataName);
-  revng_check(not NamedMD, "The model has alread been serialized");
+  revng_check(not NamedMD, "The model has already been serialized");
 
   std::string Buffer;
   {

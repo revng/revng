@@ -103,7 +103,7 @@ const efa::BasicBlock *FunctionMetadata::findBlock(GeneratedCodeBasicInfo &GCBI,
         auto *NewJT = getJumpTargetBlock(Predecessor);
         if (PredecessorJumpTargetBB != nullptr) {
           revng_assert(PredecessorJumpTargetBB == NewJT,
-                       "Jump target is not in the CFG but it has mutiple "
+                       "Jump target is not in the CFG but it has multiple "
                        "predecessors");
         }
         PredecessorJumpTargetBB = NewJT;

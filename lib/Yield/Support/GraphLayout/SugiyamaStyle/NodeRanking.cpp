@@ -20,7 +20,7 @@
 // As a temporary workaround, the root node rank can be set to a bigger value
 // allowing a couple of "free" layers above it to mitigate the problem.
 // This is not a perfect solution BUT it should be good enough for any
-// resonable graph.
+// reasonable graph.
 constexpr Rank RootNodeRankValue = 4;
 
 /// `RankingStrategy::BreadthFirstSearch` template specialization.
@@ -64,9 +64,9 @@ RankContainer rankNodes<DFS>(InternalGraph &Graph) {
 ///
 /// This ranking can be used to get a layout where each node is on
 /// its own layer. The idea is that it produces a layout with a single
-/// real node per layer while going along a path before vising the brances,
+/// real node per layer while going along a path before visiting the branches,
 /// in opposition to the conventional BFS-based topological order, where
-/// all the brances are visited at the same time
+/// all the branches are visited at the same time
 ///
 /// The goal of this ranking is to produce something similar to what ghidra
 /// does without using a decompiler.

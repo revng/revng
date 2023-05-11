@@ -38,17 +38,6 @@ endfunction()
 #
 # Install scripts
 #
-set(SCRIPTS "scripts/revng-merge-dynamic" "scripts/revng-model-compare"
-            "scripts/revng-model-to-json")
-foreach(SCRIPT ${SCRIPTS})
-  get_filename_component(SCRIPT_FILENAME "${SCRIPT}" NAME)
-  # revng script needs configure_file *without* COPYONLY
-  configure_file("${SCRIPT}"
-                 "${CMAKE_BINARY_DIR}/libexec/revng/${SCRIPT_FILENAME}")
-  install(PROGRAMS "${CMAKE_BINARY_DIR}/libexec/revng/${SCRIPT_FILENAME}"
-          DESTINATION libexec/revng/)
-endforeach()
-
 configure_file("scripts/revng" "${CMAKE_BINARY_DIR}/bin/revng")
 install(PROGRAMS "${CMAKE_BINARY_DIR}/bin/revng" DESTINATION bin/)
 
@@ -69,17 +58,19 @@ python_module(TARGET_NAME python-tupletree MODULE_FILES
               ${PYTHON_TUPLETREE_FILES})
 
 set(MERGE_DYNAMIC_MODULE_FILES
-    revng/cli/merge_dynamic/__init__.py revng/cli/merge_dynamic/log.py
-    revng/cli/merge_dynamic/merge_dynamic.py
-    revng/cli/merge_dynamic/parsed_elf.py revng/cli/merge_dynamic/util.py)
+    revng/cli/_commands/merge_dynamic/__init__.py
+    revng/cli/_commands/merge_dynamic/log.py
+    revng/cli/_commands/merge_dynamic/merge_dynamic.py
+    revng/cli/_commands/merge_dynamic/parsed_elf.py
+    revng/cli/_commands/merge_dynamic/util.py)
 python_module(TARGET_NAME revng-merge-dynamic MODULE_FILES
               ${MERGE_DYNAMIC_MODULE_FILES})
 
 #
 # Install revng.model_dump
 #
-set(DUMP_MODEL_MODULE_FILES "revng/cli/model_dump/__init__.py"
-                            "revng/cli/model_dump/__main__.py")
+set(DUMP_MODEL_MODULE_FILES "revng/cli/_commands/model_to_json/__init__.py"
+                            "revng/cli/_commands/model_to_json/remap.py")
 python_module(TARGET_NAME revng-dump-model MODULE_FILES
               ${DUMP_MODEL_MODULE_FILES})
 
@@ -100,7 +91,7 @@ set(REVNG_CLI_COMMANDS_MODULE_FILES
     revng/cli/_commands/opt.py revng/cli/_commands/pipeline_tools.py
     revng/cli/_commands/override_by_name.py revng/cli/_commands/daemon.py
     revng/cli/_commands/hard_purge.py revng/cli/_commands/import_idb.py
-    revng/cli/_commands/trace_run.py)
+    revng/cli/_commands/trace_run.py revng/cli/_commands/model_compare.py)
 
 python_module(TARGET_NAME revng-python-cli-commands MODULE_FILES
               ${REVNG_CLI_COMMANDS_MODULE_FILES})

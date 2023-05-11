@@ -55,7 +55,7 @@ bool yield::BasicBlock::verify(model::VerifyHelper &VH) const {
   MetaAddress PreviousAddress = MetaAddress::invalid();
   for (const auto &Instruction : Instructions()) {
     if (!Instruction.verify(VH))
-      return VH.fail("Instuction verification failed.");
+      return VH.fail("Instruction verification failed.");
 
     if (PreviousAddress.isValid() && Instruction.Address() >= PreviousAddress) {
       return VH.fail("Instructions must be strongly ordered and their size "

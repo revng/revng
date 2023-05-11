@@ -112,7 +112,7 @@ Therefore, tiny code features a special type of instruction that enables the dev
 Such functions are known as *helper functions*.
 
 To produce a self-contained representation of the input program, in rev.ng, we need helper functions too.
-Therefore, in our fork of QEMU, we do not just produce libtinycode, but also a set of files containing the LLVM IR for the helper functions targetting each of the frontends.
+Therefore, in our fork of QEMU, we do not just produce libtinycode, but also a set of files containing the LLVM IR for the helper functions targeting each of the frontends.
 Producing files like those is rather easy since they are written in C and clang can easily produce LLVM IR from them.
 
 The helper functions in LLVM IR form are collected in files such as ``libtinycode-helpers-arm.bc``, which are then installed and made available to rev.ng.

@@ -19,7 +19,7 @@
 /// Struct returned by Tracking::collect.
 /// The field Read is the set of paths of fields that were accessed.
 /// The exact vectors contains the paths of all vectors that were marked as
-/// requiring beind identical.
+/// requiring being identical.
 struct ReadFields {
   std::set<TupleTreePath> Read;
   std::set<TupleTreePath> ExactVectors;

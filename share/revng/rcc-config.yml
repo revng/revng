@@ -61,6 +61,10 @@ read_passes:
       - --no-error-summary
       - --sqlite-cache
       - --skip-cache-mtime-checks
+      # The following command-line options disable type
+      # inference on untyped functions
+      - --no-check-untyped-defs
+      - --disable-error-code=annotation-unchecked
   - type: LicenseCheckPass
     ignore_suffixes: [".txt", ".md", ".rst", ".dot"]
     ignore_stems: ["LICENSE"]
@@ -145,3 +149,12 @@ read_passes:
             type: regexes_matcher
             regexes: ['^static\s']
   - type: WhitespaceCheckPass
+  - type: SingleCommandPass
+    name: codespell
+    tag: all
+    command:
+      - codespell
+      - -c
+      - --ignore-regex
+      - '\b(ArchType|[Ii]nvokable|\w+I)\b'
+  - type: CheckCommitPass
