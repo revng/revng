@@ -72,7 +72,7 @@ bool RemoveRefDeref::runOnFunction(llvm::Function &F) {
         llvm::Type *CallRetType = Call->getType();
 
         if (BasePtrType != CallRetType) {
-          // We consider pointers and integers on the LLVM IR interchangable,
+          // We consider pointers and integers on the LLVM IR interchangeable,
           // since it's the model who decides whether a values is a pointer or
           // not
           if (BasePtrType->isPointerTy() and CallRetType->isIntegerTy()) {

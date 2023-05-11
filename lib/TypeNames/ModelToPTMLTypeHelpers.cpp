@@ -685,8 +685,8 @@ TypeInlineHelper::getTypesToInlineInTypeTy(const model::Binary &Model,
       } else if (TypesToInline.contains((*ParentNode)->data().T)) {
         // In the case the parent type is not the type RootType itself, make
         // sure that the parent is inlinable into the type RootType. NOTE: This
-        // goes as further as posible in oposite direction in order to find all
-        // types that we should inline into the type RootType.
+        // goes as further as possible in opposite direction in order to find
+        // all types that we should inline into the type RootType.
         auto NestedTypesToInline = getNestedTypesToInline(RootType, Type);
         Result.merge(NestedTypesToInline);
       }

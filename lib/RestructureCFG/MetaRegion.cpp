@@ -7,6 +7,6 @@
 
 #include "revng-c/RestructureCFG/MetaRegionImpl.h"
 
-// Explicit instantation for the `Metaregion` template class for
+// Explicit instantiation for the `Metaregion` template class for
 // llvm::BasicBlock type.
 template class MetaRegion<llvm::BasicBlock *>;

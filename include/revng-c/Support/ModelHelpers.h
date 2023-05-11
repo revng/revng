@@ -66,7 +66,7 @@ createPointerTo(const model::TypePath &BaseT, const model::Binary &Binary) {
   };
 }
 
-/// Drops te last pointer qualifier from \a QT or, if this wraps a
+/// Drops the last pointer qualifier from \a QT or, if this wraps a
 /// typedef, it recursively descends the typedef wrappers until a pointer
 /// qualifier is found.
 extern RecursiveCoroutine<model::QualifiedType>

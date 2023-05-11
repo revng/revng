@@ -182,7 +182,7 @@ struct SegregateStackAccessesMFI : public SetUnionLattice<Lattice> {
   static LatticeElement
   applyTransferFunction(llvm::BasicBlock *BB, const LatticeElement &Value) {
     using namespace llvm;
-    revng_log(Log, "Analzying block " << getName(BB));
+    revng_log(Log, "Analyzing block " << getName(BB));
     LoggerIndent<> Indent(Log);
 
     LatticeElement StackBytes = Value;
@@ -197,7 +197,7 @@ struct SegregateStackAccessesMFI : public SetUnionLattice<Lattice> {
       if (not isa<LoadInst>(&I) and not isa<StoreInst>(&I))
         continue;
 
-      revng_log(Log, "Analzying instruction " << getName(&I));
+      revng_log(Log, "Analyzing instruction " << getName(&I));
       LoggerIndent<> Indent(Log);
 
       // Get stack offset, if available

@@ -7,7 +7,7 @@
 
 #include "revng-c/RestructureCFG/RegionCFGTreeImpl.h"
 
-// Explicit instantation for the `RegionCFG` template class.
+// Explicit instantiation for the `RegionCFG` template class.
 template class RegionCFG<llvm::BasicBlock *>;
 
 unsigned DuplicationCounter = 0;

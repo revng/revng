@@ -475,13 +475,13 @@ bool DeduplicateFields::runOnTypeSystem(LayoutTypeSystem &TS) {
                   CollapseSingleChild::collapseSingle(TS, N);
 
                 // Notice that collapseSingle can actually remove more nodes.
-                // In principle we shoudl add them to Erased and remove them
+                // In principle we should add them to Erased and remove them
                 // from Preserved.
                 // However, in the remainder of the code below, both Preserved
                 // and Erased are only used to update FieldsToCompare and
                 // AnalyzedNodesNotMerged, and to set boolean flags to control
                 // iteration.
-                // Hence, we can get away without updating Preseved and Erased,
+                // Hence, we can get away without updating Preserved and Erased,
                 // since the following assertions hold.
 
                 revng_assert(not Erased.contains(NotMergedNode));

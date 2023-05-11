@@ -16,7 +16,7 @@ using NeighborIterator = LayoutTypeSystem::NeighborIterator;
 // Helper ordering for NeighborIterators. We need it here because we need to use
 // such iterators and keys in associative containers, and we want neighbors with
 // lower offset to come first.
-// Notice that this might have undefined behavior if dereferncing either LHS
+// Notice that this might have undefined behavior if dereferencing either LHS
 // or RHS is undefined behavior itself.
 // The bottom line is that we should never insert invalid iterators into
 // associative containers.
@@ -232,7 +232,7 @@ bool CompactCompatibleArrays::runOnTypeSystem(LayoutTypeSystem &TS) {
             // This shift to the left will be done in 2 stages:
             // - first we align the elements of ArraySibling with the array
             //   range we're tracking, exploiting the AvailableSlack
-            // - then we add a number of entrire elemenents to the left
+            // - then we add a number of entire elements to the left
             uint64_t OffsetDifference = ArrayStartOffset - SiblingOffset;
 
             // If we don't have enough slack we just don't compact ArraySibling

@@ -157,7 +157,7 @@ TypeString getNamedCInstance(StringRef TypeName,
     // Accumulate the result that are outside the array.
     TypeString Partial;
 
-    // Find the first qualifer that is an array.
+    // Find the first qualifier that is an array.
     auto QArrayIt = std::find_if(QIt, QEnd, model::Qualifier::isArray);
     {
       // If we find it, go back to the first previous const-qualifier that

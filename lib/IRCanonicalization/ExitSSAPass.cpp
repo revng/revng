@@ -79,7 +79,7 @@ static std::vector<std::set<PHINode *>> getPHIEquivalenceClasses(Function &F) {
     if (not I->isLeader())
       continue;
 
-    // The interate all over the elements of a class, and build the set of
+    // The iterate all over the elements of a class, and build the set of
     // PHINodes that represent that class.
     std::set<PHINode *> PHISet;
     auto PHIRange = llvm::make_range(PHIEquivalenceClasses.member_begin(I),

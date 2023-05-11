@@ -373,7 +373,7 @@ ModelTypesMap initModelTypes(FunctionMetadataCache &Cache,
         // If the pointer operand is a pointer in the model, we can exploit
         // this information to assign a model type to the loaded value. Note
         // that this makes sense only if the pointee is itself a pointer or a
-        // scalar value: if we find a lod of N bits from a struct pointer, we
+        // scalar value: if we find a load of N bits from a struct pointer, we
         // don't know if we are loading the entire struct or only some of its
         // fields.
         // TODO: inspect the model to understand if we are loading the first

@@ -45,7 +45,7 @@ Logger<> CombLogger("restructure");
 using BasicBlockNodeBB = BasicBlockNode<BasicBlock *>;
 using EdgeDescriptor = std::pair<BasicBlockNodeBB *, BasicBlockNodeBB *>;
 
-// Explicit instantation of template classes `Metaregion` and `RegionCFG`.
+// Explicit instantiation of template classes `Metaregion` and `RegionCFG`.
 template class MetaRegion<BasicBlock *>;
 template class RegionCFG<BasicBlock *>;
 using MetaRegionBB = MetaRegion<BasicBlock *>;
@@ -84,7 +84,7 @@ getBackedges(BasicBlockNodeBB *Entry,
       // pending successor of Vertex.
       ++NextSuccessorToVisit;
 
-      // If the current Successor is not valid, or it's alredy done, skip it.
+      // If the current Successor is not valid, or it's already done, skip it.
       if (not IsValid(Successor) or Done.contains(Successor))
         continue;
 
@@ -190,7 +190,7 @@ static void
 simplifySCSAbnormalRetreating(MetaRegionBBVect &MetaRegions,
                               const std::set<EdgeDescriptor> &Backedges) {
 
-  // Temporary map where to store the corrispondence between the backedge and
+  // Temporary map where to store the correspondence between the backedge and
   // the SCS it gives origin to.
   // HACK: this should be done at the same time of the metaregion creation.
   unsigned MetaRegionIndex = 0;
@@ -799,7 +799,7 @@ bool restructureCFG(Function &F, ASTTree &AST) {
         BasicBlockNodeBB *Clone = RootCFG.cloneNode(*Node);
 
         // In case we are cloning nodes that may become entry candidates of
-        // regions, we need to assing to them a value in the
+        // regions, we need to assign to them a value in the
         // `ShortestPathFromEntry` map.
         if (Node->isCollapsed() or Node->isCode()) {
           ShortestPathFromEntry[Clone] = ShortestPathFromEntry.at(Node);
@@ -914,19 +914,19 @@ bool restructureCFG(Function &F, ASTTree &AST) {
           revng_assert(Succ->successor_size() == 1);
           BasicBlockNodeBB *BackedgeTgt = *Succ->successors().begin();
           // Lookup if wa have already found this backedge target from another
-          // exit succesor.
+          // exit successor.
           const auto &[It, New] = BackedgeToSucc.insert({ BackedgeTgt, Succ });
           if (New) {
             // If we haven't, add the successor in the deduplicated successors
             DeduplicatedRegionSuccessors.insert(Succ);
             DeduplicationMap[Succ] = Succ;
           } else {
-            // If we have, map thie successor to the old successor we've found
+            // If we have, map the successor to the old successor we've found
             // with the same backedge target.
             DeduplicationMap[Succ] = It->second;
 
             // If we are following this way of collapsing the successors edges,
-            // it means tha we are collapsing two different retreatings edges
+            // it means that we are collapsing two different retreating edges
             // on a single retreating, so a backedge entry will remain in the
             // global `Backedges` set as a ghost entry, and we need to take
             // care of removing it now.
@@ -1169,8 +1169,8 @@ bool restructureCFG(Function &F, ASTTree &AST) {
         // Control-flow nodes emit single constructs, so we just increase the
         // weight by one.
         // Control-flow nodes would also have nested scopes (then-else for if,
-        // cases for switch, loop body for scs). However, those nodes are visted
-        // separately, and will be accounted for later.
+        // cases for switch, loop body for scs). However, those nodes are
+        // visited separately, and will be accounted for later.
         ++FinalWeight;
       } break;
       case ASTNode::NK_Set:
@@ -1192,7 +1192,7 @@ bool restructureCFG(Function &F, ASTTree &AST) {
         FinalWeight += WeightTraits<llvm::BasicBlock *>::getWeight(BB);
       } break;
       default:
-        revng_abort("unxpected AST node");
+        revng_abort("unexpected AST node");
       }
     }
 

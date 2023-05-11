@@ -221,7 +221,7 @@ static bool resolveUnion(LayoutTypeSystem &TS,
       }
     }
   }
-  // FIXME: should we remove some nodes alltogether? Or should we merge the
+  // FIXME: should we remove some nodes altogether? Or should we merge the
   // nodes that are killed with the nodes that survive?
   return Changed;
 }

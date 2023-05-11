@@ -371,7 +371,7 @@ createTile(RegionCFG<NodeT> &Graph,
 }
 
 // This was a function template, but it's never instantiated anywhere else with
-// a template paramenter different from llvm::BasicBlock *, so we dropped the
+// a template parameter different from llvm::BasicBlock *, so we dropped the
 // template for now.
 // It will probably come back when we unit-test this.
 //
@@ -871,7 +871,7 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
 
           // In this situation, we don't need to actually add as a successor
           // of the current node the single successor which is not dominated.
-          // Therefore, the successor will not be a succesor on the AST.
+          // Therefore, the successor will not be a successor on the AST.
           revng_assert(not Node->isBreak() and not Node->isContinue());
           if (Node->isSet()) {
             ASTObject.reset(new SetNode(Node));

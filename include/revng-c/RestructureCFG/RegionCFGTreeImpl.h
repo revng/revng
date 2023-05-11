@@ -1083,7 +1083,7 @@ inline void RegionCFG<NodeT>::inflate() {
           revng_assert(DuplicatedSuccSize == 0 or DInl == false);
 
           // Notice: after this call Duplicated is invalid if the call returns
-          // true, meaning that dereferncing it is bad. You can still use it as
+          // true, meaning that dereferencing it is bad. You can still use it as
           // a key or value into maps though.
           if (not purgeIfTrivialDummy(Duplicated)) {
             // Add the cloned node in the equivalence class of the original
@@ -1105,7 +1105,7 @@ inline void RegionCFG<NodeT>::inflate() {
           // remove it.
 
           // Notice: after this call Candidate is invalid if the call returns
-          // true, meaning that dereferncing it is bad. You can still use it as
+          // true, meaning that dereferencing it is bad. You can still use it as
           // a key or value into maps though.
           if (purgeIfTrivialDummy(Candidate)) {
             revng_log(CombLogger, "Candidate is now trivial");
