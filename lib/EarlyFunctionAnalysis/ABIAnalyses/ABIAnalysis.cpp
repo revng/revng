@@ -36,12 +36,10 @@ ABIAnalyses::ABIAnalysesResults::dump<Logger<true>>(Logger<true> &,
 struct PartialAnalysisResults {
   // Per function analysis
   RegisterStateMap UAOF;
-  RegisterStateMap DRAOF;
 
   // Per call site analysis
   std::map<std::pair<BasicBlockID, BasicBlock *>, RegisterStateMap> URVOFC;
   std::map<std::pair<BasicBlockID, BasicBlock *>, RegisterStateMap> RAOFC;
-  std::map<std::pair<BasicBlockID, BasicBlock *>, RegisterStateMap> DRVOFC;
 
   // Per return analysis
   std::map<std::pair<BasicBlockID, BasicBlock *>, RegisterStateMap> URVOF;
