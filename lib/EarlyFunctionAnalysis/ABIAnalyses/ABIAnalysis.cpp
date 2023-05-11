@@ -250,6 +250,9 @@ ABIAnalysesResults analyzeOutlinedFunction(Function *F,
     Results.dump();
   }
 
+  // Add UAOF
+  FinalResults.ArgumentsRegisters = Results.UAOF;
+
   // Add RAOFC.
   for (auto &[Key, RSMap] : Results.RAOFC) {
     BasicBlockID PC = Key.first;
@@ -257,6 +260,14 @@ ABIAnalysesResults analyzeOutlinedFunction(Function *F,
     FinalResults.CallSites[PC] = ABIAnalysesResults::CallSiteResults();
     for (auto &[CSV, RS] : RSMap)
       FinalResults.CallSites[PC].ArgumentsRegisters[CSV] = RS;
+  }
+
+  // Add URVOFC
+  for (auto &[Key, RSMap] : Results.URVOFC) {
+    BasicBlockID PC = Key.first;
+    revng_assert(PC.isValid());
+    for (auto &[CSV, RS] : RSMap)
+      FinalResults.CallSites[PC].ReturnValuesRegisters[CSV] = RS;
   }
 
   // Add URVOF.
