@@ -13,9 +13,9 @@
 
 namespace efa {
 
-using RegisterSet = std::set<const llvm::GlobalVariable *>;
-
 struct ABISummary {
+  using RegisterSet = std::set<const llvm::GlobalVariable *>;
+
   RegisterSet Arguments;
   RegisterSet Returns;
 };

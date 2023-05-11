@@ -12,6 +12,7 @@
 #include "llvm/Support/DOTGraphTraits.h"
 #include "llvm/Support/FormatVariadic.h"
 
+#include "revng/ABI/RegisterState.h"
 #include "revng/EarlyFunctionAnalysis/CFGAnalyzer.h"
 #include "revng/MFP/MFP.h"
 #include "revng/MFP/SetLattices.h"
