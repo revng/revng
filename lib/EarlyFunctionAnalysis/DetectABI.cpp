@@ -164,6 +164,7 @@ private:
   void saveFinalResults(InterproceduralNode *Node, const IA::Results &);
   void computeApproximateCallGraph();
   void initializeInterproceduralQueue();
+  ABIAnalyses::ABIAnalysesResults analyzeABI(llvm::BasicBlock *Entry);
   InterproceduralGraph constructInterproceduralGraph();
   void runInterproceduralAnalysis();
   void runMFPAnalysis();
@@ -649,7 +650,7 @@ suppressCSAndSPRegisters(ABIAnalyses::ABIAnalysesResults &ABIResults,
   }
 }
 
-void DetectABI::analyzeABI(llvm::BasicBlock *Entry) {
+ABIAnalyses::ABIAnalysesResults DetectABI::analyzeABI(llvm::BasicBlock *Entry) {
   using namespace llvm;
   using llvm::BasicBlock;
   using namespace ABIAnalyses;
@@ -689,8 +690,7 @@ void DetectABI::analyzeABI(llvm::BasicBlock *Entry) {
   // Merge return values registers
   ABIAnalyses::finalizeReturnValues(ABIResults);
 
-  // Commit ABI analysis results to the oracle
-  Oracle.getLocalFunction(EntryAddress).ABIResults = ABIResults;
+  return ABIResults;
 }
 
 void DetectABI::runInterproceduralAnalysis() {
