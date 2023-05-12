@@ -964,16 +964,29 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
   if (isa<llvm::BinaryOperator>(I) or isa<llvm::CmpInst>(I)) {
     const llvm::Value *Op0 = I->getOperand(0);
     const llvm::Value *Op1 = I->getOperand(1);
-    const QualifiedType &ResultType = TypeMap.at(I);
 
-    std::string Op0String = rc_recur getToken(Op0);
-    std::string Op0Token = buildCastExpr(Op0String,
-                                         TypeMap.at(Op0),
-                                         ResultType);
-    std::string Op1String = rc_recur getToken(Op1);
-    std::string Op1Token = buildCastExpr(Op1String,
-                                         TypeMap.at(Op1),
-                                         ResultType);
+    std::string Op0Token = rc_recur getToken(Op0);
+    std::string Op1Token = rc_recur getToken(Op1);
+
+    if (auto *ICmp = dyn_cast<llvm::ICmpInst>(I)) {
+      const QualifiedType &OpType0 = TypeMap.at(Op0);
+      const QualifiedType &OpType1 = TypeMap.at(Op1);
+      revng_assert(OpType0.size() == OpType1.size());
+
+      QualifiedType OperandType;
+      using model::PrimitiveTypeKind::Signed;
+      using model::PrimitiveTypeKind::Unsigned;
+      auto K = ICmp->isSigned() ? Signed : Unsigned;
+      OperandType
+        .UnqualifiedType() = Model.getPrimitiveType(K, OpType0.size().value());
+
+      Op0Token = buildCastExpr(Op0Token, OpType0, OperandType);
+      Op1Token = buildCastExpr(Op1Token, OpType1, OperandType);
+    } else {
+      const QualifiedType &ResultType = TypeMap.at(I);
+      Op0Token = buildCastExpr(Op0Token, TypeMap.at(Op0), ResultType);
+      Op1Token = buildCastExpr(Op1Token, TypeMap.at(Op1), ResultType);
+    }
 
     auto *Bin = dyn_cast<llvm::BinaryOperator>(I);
     auto *Cmp = dyn_cast<llvm::CmpInst>(I);
