@@ -5,6 +5,7 @@
 //
 
 #include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/InstIterator.h"
 
 #include "revng/EarlyFunctionAnalysis/ABIAnalysis.h"
 #include "revng/EarlyFunctionAnalysis/Outliner.h"
@@ -50,31 +51,38 @@ InterproceduralAnalysis::applyTransferFunction(Label L,
 
   if (std::holds_alternative<Node::AnalysisType>(L->Type)) {
     LatticeElement Result = E2;
-    std::map<const llvm::GlobalVariable *, abi::RegisterState::Values>
-      ABIResults;
+    // std::map<const llvm::GlobalVariable *, abi::RegisterState::Values>
+    // ABIResults;
     const auto *BB = L->BB;
     revng_assert(BB != nullptr);
     switch (std::get<Node::AnalysisType>(L->Type)) {
     case Node::AnalysisType::UAOF:
-      ABIResults = ABIAnalyses::UsedArgumentsOfFunction::analyze(BB, GCBI);
-      applyResults(Node::ResultType::Arguments, Result, ABIResults);
+      //for (llvm::Instruction *I : llvm::depth_first(BB)) {
+        // if (auto *C = getCallTo(I, PreCallHook)) {
+        //   
+        // } else if (isCallTo(I, PostCallHook)) {
+
+        // } else if (isCallTo(I, RetHook)) {
+
+        // }
+      //}
       break;
 
     case Node::AnalysisType::RAOFC:
-      ABIResults = ABIAnalyses::RegisterArgumentsOfFunctionCall::analyze(L->BB,
-                                                                         GCBI);
-      applyResults(Node::ResultType::Arguments, Result, ABIResults);
+      // ABIResults = ABIAnalyses::RegisterArgumentsOfFunctionCall::analyze(L->BB,
+      //                                                                    GCBI);
+      // applyResults(Node::ResultType::Arguments, Result, ABIResults);
       break;
 
     case Node::AnalysisType::URVOF:
-      ABIResults = ABIAnalyses::UsedReturnValuesOfFunction::analyze(BB, GCBI);
-      applyResults(Node::ResultType::Returns, Result, ABIResults);
+      // ABIResults = ABIAnalyses::UsedReturnValuesOfFunction::analyze(BB, GCBI);
+      // applyResults(Node::ResultType::Returns, Result, ABIResults);
       break;
 
     case Node::AnalysisType::URVOFC:
-      ABIResults = ABIAnalyses::UsedReturnValuesOfFunctionCall::analyze(BB,
-                                                                        GCBI);
-      applyResults(Node::ResultType::Returns, Result, ABIResults);
+      // ABIResults = ABIAnalyses::UsedReturnValuesOfFunctionCall::analyze(BB,
+      //                                                                   GCBI);
+      // applyResults(Node::ResultType::Returns, Result, ABIResults);
       break;
     }
     return Result;

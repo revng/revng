@@ -136,6 +136,8 @@ private:
 
   std::map<Node::AddressType, ABISummary> FinalResults;
 
+  std::map<MetaAddress, ABIAnalyses::ABIAnalysesResults> PartialResults;
+
 public:
   DetectABI(llvm::Module &M,
             GeneratedCodeBasicInfo &GCBI,
@@ -164,7 +166,9 @@ private:
   void saveFinalResults(InterproceduralNode *Node, const IA::Results &);
   void computeApproximateCallGraph();
   void initializeInterproceduralQueue();
-  ABIAnalyses::ABIAnalysesResults analyzeABI(llvm::BasicBlock *Entry);
+  std::pair<OutlinedFunction, ABIAnalyses::ABIAnalysesResults>
+  analyzeABI(llvm::BasicBlock *Entry);
+  void runIntraproceduralAnalysis();
   InterproceduralGraph constructInterproceduralGraph();
   void runInterproceduralAnalysis();
   void runMFPAnalysis();
@@ -650,7 +654,8 @@ suppressCSAndSPRegisters(ABIAnalyses::ABIAnalysesResults &ABIResults,
   }
 }
 
-ABIAnalyses::ABIAnalysesResults DetectABI::analyzeABI(llvm::BasicBlock *Entry) {
+std::pair<OutlinedFunction, ABIAnalyses::ABIAnalysesResults>
+DetectABI::analyzeABI(llvm::BasicBlock *Entry) {
   using namespace llvm;
   using llvm::BasicBlock;
   using namespace ABIAnalyses;
@@ -690,7 +695,7 @@ ABIAnalyses::ABIAnalysesResults DetectABI::analyzeABI(llvm::BasicBlock *Entry) {
   // Merge return values registers
   ABIAnalyses::finalizeReturnValues(ABIResults);
 
-  return ABIResults;
+  return {std::move(OutlinedFunction), ABIResults};
 }
 
 void DetectABI::runInterproceduralAnalysis() {
@@ -875,7 +880,13 @@ void DetectABI::saveFinalResults(InterproceduralNode *Node,
 
 void DetectABI::runMFPAnalysis() {
   // OutlineFunctions
-  InterproceduralAnalysis IA(GCBI, Binary);
+  InterproceduralAnalysis IA(GCBI,
+                             Binary,
+                             PartialResults,
+                             EntryHook.get(),
+                             Analyzer.preCallHook(),
+                             Analyzer.postCallHook(),
+                             Analyzer.retHook());
   for_each(Binary->Functions(), [this](auto F) { outlineFunction(F); });
 
   // Construct
@@ -901,6 +912,17 @@ void DetectABI::runMFPAnalysis() {
   }
 }
 
+void DetectABI::runIntraproceduralAnalysis() {
+  using std::ranges::for_each;
+
+  for_each(Binary->Functions(), [this](model::Function F) {
+    llvm::BasicBlock *Entry = GCBI.getBlockAt(F.Entry());
+    auto [OutlinedFunction, Results] = analyzeABI(Entry);
+    OutlinedFunctions[F.Entry()] = std::move(OutlinedFunction);
+    PartialResults[F.Entry()] = Results;
+  });
+}
+
 void DetectABI::run() {
   using std::ranges::for_each;
 
@@ -909,6 +931,8 @@ void DetectABI::run() {
   initializeInterproceduralQueue();
 
   runInterproceduralAnalysis();
+
+  runIntraproceduralAnalysis();
 
   runMFPAnalysis();
 

@@ -42,9 +42,16 @@ private:
   using CSVSet = std::set<llvm::GlobalVariable *>;
   using ABIMap = std::map<const llvm::GlobalVariable *,
                           abi::RegisterState::Values>;
+  using PartialResultsMap = std::map<MetaAddress, ABIAnalyses::ABIAnalysesResults>;
 
   GeneratedCodeBasicInfo &GCBI;
   TupleTree<model::Binary> &Binary;
+  PartialResultsMap PartialResults;
+
+  llvm::Function *EntryHook;
+  llvm::Function *PreCallHook;
+  llvm::Function *PostCallHook;
+  llvm::Function *RetHook;
 
   InterproceduralGraph InterGraph;
 
@@ -54,8 +61,19 @@ public:
   using Results = MFP::MFPResult<LatticeElement>;
 
   explicit InterproceduralAnalysis(GeneratedCodeBasicInfo &GCBI,
-                                   TupleTree<model::Binary> &Binary) :
-    GCBI{ GCBI }, Binary{ Binary } {}
+                                   TupleTree<model::Binary> &Binary,
+                                   PartialResultsMap &PartialResults,
+                                   llvm::Function *EntryHook,
+                                   llvm::Function *PreCallHook,
+                                   llvm::Function *PostCallHook,
+                                   llvm::Function *RetHook) :
+    GCBI{ GCBI },
+    Binary{ Binary },
+    PartialResults{ PartialResults },
+    EntryHook{ EntryHook },
+    PreCallHook{ PreCallHook },
+    PostCallHook{ PostCallHook },
+    RetHook{ RetHook } {}
 
   LatticeElement
   combineValues(const LatticeElement &E1, const LatticeElement &E2) const;
