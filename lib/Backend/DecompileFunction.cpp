@@ -106,14 +106,6 @@ static constexpr const char *StackFrameVarName = "stack";
 static Logger<> Log{ "c-backend" };
 static Logger<> VisitLog{ "c-backend-visit-order" };
 
-static std::string buildInvalid(const llvm::Value *V, llvm::StringRef Comment) {
-  std::string Result;
-  revng_assert(V->getType()->isIntOrPtrTy());
-  Result = constants::Zero.serialize();
-  Result += " " + helpers::blockComment(Comment, false);
-  return Result;
-}
-
 static bool isAssignment(const llvm::Value *I) {
   return isCallToTagged(I, FunctionTags::Assign);
 }
@@ -146,79 +138,6 @@ static bool isStackFrameDecl(const llvm::Value *I) {
   return Callee->getName().startswith("revng_stack_frame");
 }
 
-/// Visit the node and all its children recursively, checking if a loop
-/// variable is needed.
-// TODO: This could be precomputed and attached to the SCS node in the GHAST.
-static RecursiveCoroutine<bool> needsLoopVar(ASTNode *N) {
-  if (N == nullptr)
-    rc_return false;
-
-  auto Kind = N->getKind();
-  switch (Kind) {
-
-  case ASTNode::NodeKind::NK_Break:
-  case ASTNode::NodeKind::NK_SwitchBreak:
-  case ASTNode::NodeKind::NK_Continue:
-  case ASTNode::NodeKind::NK_Code:
-    rc_return false;
-    break;
-
-  case ASTNode::NodeKind::NK_If: {
-    IfNode *If = cast<IfNode>(N);
-
-    if (nullptr != If->getThen())
-      if (rc_recur needsLoopVar(If->getThen()))
-        rc_return true;
-
-    if (If->hasElse())
-      if (rc_recur needsLoopVar(If->getElse()))
-        rc_return true;
-
-    rc_return false;
-  } break;
-
-  case ASTNode::NodeKind::NK_Scs: {
-    ScsNode *LoopBody = cast<ScsNode>(N);
-    rc_return rc_recur needsLoopVar(LoopBody->getBody());
-  } break;
-
-  case ASTNode::NodeKind::NK_List: {
-    SequenceNode *Seq = cast<SequenceNode>(N);
-    for (ASTNode *Child : Seq->nodes())
-      if (rc_recur needsLoopVar(Child))
-        rc_return true;
-
-    rc_return false;
-  } break;
-
-  case ASTNode::NodeKind::NK_Switch: {
-    SwitchNode *Switch = cast<SwitchNode>(N);
-    llvm::Value *SwitchVar = Switch->getCondition();
-
-    if (not SwitchVar)
-      rc_return true;
-
-    for (const auto &[Labels, CaseNode] : Switch->cases())
-      if (rc_recur needsLoopVar(CaseNode))
-        rc_return true;
-
-    if (auto *Default = Switch->getDefault())
-      if (rc_recur needsLoopVar(Default))
-        rc_return true;
-
-    rc_return false;
-  } break;
-
-  case ASTNode::NodeKind::NK_Set: {
-    rc_return true;
-  } break;
-  }
-}
-
-static bool hasLoopDispatchers(const ASTTree &GHAST) {
-  return needsLoopVar(GHAST.getRoot());
-}
-
 static const llvm::CallInst *isCallToNonIsolated(const llvm::Instruction *I) {
   if (isCallToTagged(I, FunctionTags::QEMU)
       or isCallToTagged(I, FunctionTags::Helper)
@@ -240,36 +159,19 @@ static bool isCallToCustomOpcode(const llvm::Instruction *I) {
          or isCallToTagged(I, FunctionTags::OpaqueCSVValue)
          or isCallToTagged(I, FunctionTags::StructInitializer)
          or isCallToTagged(I, FunctionTags::SegmentRef)
-         or isCallToTagged(I, FunctionTags::HexInteger)
-         or isCallToTagged(I, FunctionTags::CharInteger)
-         or isCallToTagged(I, FunctionTags::BoolInteger)
          or isCallToTagged(I, FunctionTags::UnaryMinus)
          or isCallToTagged(I, FunctionTags::BinaryNot)
          or isCallToTagged(I, FunctionTags::StringLiteral);
 }
 
-static InstrSetVec collectTopScopeVariables(const llvm::Function &F) {
-  InstrSetVec TopScopeVars;
-  for (const BasicBlock &BB : F) {
-    for (const Instruction &I : BB) {
-      if (auto *Call = dyn_cast<llvm::CallInst>(&I)) {
-        // All the others have already been promoted to LocalVariable Copy and
-        // Assign.
-        if (not Call->getType()->isAggregateType())
-          continue;
+static bool isIntegerConstFormatting(const llvm::Value *Call) {
+  return isCallToTagged(Call, FunctionTags::HexInteger)
+         or isCallToTagged(Call, FunctionTags::CharInteger)
+         or isCallToTagged(Call, FunctionTags::BoolInteger);
+}
 
-        if (isCallToNonIsolated(Call) or isCallToIsolatedFunction(Call)) {
-          const auto *Called = Call->getCalledFunction();
-          revng_assert(not Called or not Called->isTargetIntrinsic());
-
-          if (needsTopScopeDeclaration(*Call))
-            TopScopeVars.insert(Call);
-        }
-      }
-    }
-  }
-
-  return TopScopeVars;
+static bool isCConstant(const llvm::Value *V) {
+  return isa<llvm::Constant>(V) or isIntegerConstFormatting(V);
 }
 
 static std::string addAlwaysParentheses(llvm::StringRef Expr) {
@@ -331,91 +233,13 @@ static std::string charLiteral(const llvm::ConstantInt *Int) {
 }
 
 static std::string boolLiteral(const llvm::ConstantInt *Int) {
+  revng_assert(Int->getBitWidth() == 1);
   if (Int->isZero()) {
     return "false";
   } else {
     return "true";
   }
 }
-
-/// Return the string that represents the given binary operator in C
-static const std::string getBinOpString(const llvm::BinaryOperator *BinOp) {
-  const Tag *Op = [&BinOp]() constexpr {
-    bool IsBool = BinOp->getType()->isIntegerTy(1);
-
-    switch (BinOp->getOpcode()) {
-    case Instruction::Add:
-      return &operators::Add;
-    case Instruction::Sub:
-      return &operators::Sub;
-    case Instruction::Mul:
-      return &operators::Mul;
-    case Instruction::SDiv:
-    case Instruction::UDiv:
-      return &operators::Div;
-    case Instruction::SRem:
-    case Instruction::URem:
-      return &operators::Modulo;
-    case Instruction::LShr:
-    case Instruction::AShr:
-      return &operators::RShift;
-    case Instruction::Shl:
-      return &operators::LShift;
-    case Instruction::And:
-      return IsBool ? &operators::BoolAnd : &operators::And;
-    case Instruction::Or:
-      return IsBool ? &operators::BoolOr : &operators::Or;
-    case Instruction::Xor:
-      return &operators::Xor;
-    default:
-      revng_abort("Unknown const Binary operation");
-    }
-  }();
-  return " " + *Op + " ";
-}
-
-/// Return the string that represents the given comparison operator in C
-static const std::string getCmpOpString(const llvm::CmpInst::Predicate &Pred) {
-  using llvm::CmpInst;
-  const Tag *Op = [&Pred]() constexpr {
-    switch (Pred) {
-    case CmpInst::ICMP_EQ: ///< equal
-      return &operators::CmpEq;
-    case CmpInst::ICMP_NE: ///< not equal
-      return &operators::CmpNeq;
-    case CmpInst::ICMP_UGT: ///< unsigned greater than
-    case CmpInst::ICMP_SGT: ///< signed greater than
-      return &operators::CmpGt;
-    case CmpInst::ICMP_UGE: ///< unsigned greater or equal
-    case CmpInst::ICMP_SGE: ///< signed greater or equal
-      return &operators::CmpGte;
-    case CmpInst::ICMP_ULT: ///< unsigned less than
-    case CmpInst::ICMP_SLT: ///< signed less than
-      return &operators::CmpLt;
-    case CmpInst::ICMP_ULE: ///< unsigned less or equal
-    case CmpInst::ICMP_SLE: ///< signed less or equal
-      return &operators::CmpLte;
-    default:
-      revng_abort("Unknown comparison operator");
-    }
-  }();
-  return " " + *Op + " ";
-}
-
-/// Stateful name assignment for local variables.
-class VarNameGenerator {
-private:
-  uint64_t CurVarID = 0;
-
-public:
-  std::string nextVarName() { return "var_" + to_string(CurVarID++); }
-
-  StringToken nextSwitchStateVar() {
-    StringToken StateVar("break_from_loop_");
-    StateVar += to_string(CurVarID++);
-    return StateVar;
-  }
-};
 
 struct CCodeGenerator {
 private:
@@ -446,6 +270,20 @@ private:
   FunctionMetadataCache &Cache;
 
 private:
+  class VarNameGenerator {
+  private:
+    uint64_t CurVarID = 0;
+
+  public:
+    std::string nextVarName() { return "var_" + to_string(CurVarID++); }
+
+    StringToken nextSwitchStateVar() {
+      StringToken StateVar("break_from_loop_");
+      StateVar += to_string(CurVarID++);
+      return StateVar;
+    }
+  };
+
   /// Stateful generator for variable names
   VarNameGenerator NameGenerator;
 
@@ -519,8 +357,7 @@ private:
                const llvm::StringRef FuncName,
                const model::Type *Prototype) const;
 
-  RecursiveCoroutine<std::string>
-  getConstantToken(const llvm::Constant *C) const;
+  RecursiveCoroutine<std::string> getConstantToken(const llvm::Value *V) const;
 
   RecursiveCoroutine<std::string>
   getInstructionToken(const llvm::Instruction *I) const;
@@ -609,14 +446,50 @@ CCodeGenerator::buildCastExpr(StringRef ExprToCast,
          + addParentheses(ExprToCast);
 }
 
+static std::string getInvalidToken(const llvm::UndefValue *U) {
+  revng_assert(U->getType()->isIntOrPtrTy());
+
+  std::string Result = constants::Zero.serialize() + ' ';
+  if (isa<llvm::PoisonValue>(U))
+    Result += helpers::blockComment("poison", false);
+  else
+    Result += helpers::blockComment("undef", false);
+  return Result;
+}
+
+static std::string getFormattedIntegerToken(const llvm::CallInst *Call) {
+
+  if (isCallToTagged(Call, FunctionTags::HexInteger)) {
+    const auto Operand = Call->getArgOperand(0);
+    const auto *Value = cast<llvm::ConstantInt>(Operand);
+    return constants::constant(hexLiteral(Value)).serialize();
+  }
+
+  if (isCallToTagged(Call, FunctionTags::CharInteger)) {
+    const auto Operand = Call->getArgOperand(0);
+    const auto *Value = cast<llvm::ConstantInt>(Operand);
+    return constants::constant(charLiteral(Value)).serialize();
+  }
+
+  if (isCallToTagged(Call, FunctionTags::BoolInteger)) {
+    const auto Operand = Call->getArgOperand(0);
+    const auto *Value = cast<llvm::ConstantInt>(Operand);
+    return constants::constant(boolLiteral(Value)).serialize();
+  }
+
+  std::string Error = "Cannot get token for custom opcode: "
+                      + dumpToString(Call);
+  revng_abort(Error.c_str());
+  return "";
+}
+
 RecursiveCoroutine<std::string>
-CCodeGenerator::getConstantToken(const llvm::Constant *C) const {
+CCodeGenerator::getConstantToken(const llvm::Value *C) const {
 
-  if (isa<llvm::UndefValue>(C))
-    rc_return buildInvalid(C, "undef");
+  revng_assert(isCConstant(C));
 
-  if (isa<llvm::PoisonValue>(C))
-    rc_return buildInvalid(C, "poison");
+  if (auto *Undef = dyn_cast<llvm::UndefValue>(C))
+    rc_return getInvalidToken(Undef);
 
   if (auto *Null = dyn_cast<llvm::ConstantPointerNull>(C))
     rc_return constants::Null.serialize();
@@ -682,6 +555,9 @@ CCodeGenerator::getConstantToken(const llvm::Constant *C) const {
       revng_abort(dumpToString(ConstExpr).c_str());
     }
   }
+
+  if (isIntegerConstFormatting(C))
+    rc_return getFormattedIntegerToken(cast<llvm::CallInst>(C));
 
   std::string Error = "Cannot get token for llvm::Constant: ";
   Error += dumpToString(C).c_str();
@@ -907,24 +783,6 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
     rc_return rc_recur getCallToken(Call, HelperRef, /*prototype=*/nullptr);
   }
 
-  if (isCallToTagged(Call, FunctionTags::HexInteger)) {
-    const auto Operand = Call->getArgOperand(0);
-    const auto *Value = cast<llvm::ConstantInt>(Operand);
-    rc_return constants::constant(hexLiteral(Value)).serialize();
-  }
-
-  if (isCallToTagged(Call, FunctionTags::CharInteger)) {
-    const auto Operand = Call->getArgOperand(0);
-    const auto *Value = cast<llvm::ConstantInt>(Operand);
-    rc_return constants::constant(charLiteral(Value)).serialize();
-  }
-
-  if (isCallToTagged(Call, FunctionTags::BoolInteger)) {
-    const auto Operand = Call->getArgOperand(0);
-    const auto *Value = cast<llvm::ConstantInt>(Operand);
-    rc_return constants::constant(boolLiteral(Value)).serialize();
-  }
-
   if (isCallToTagged(Call, FunctionTags::UnaryMinus)) {
     auto Operand = Call->getArgOperand(0);
     std::string ToNegate = rc_recur getToken(Operand);
@@ -1036,22 +894,99 @@ addDebugInfo(const llvm::Instruction *I, const std::string &Str) {
   return Str;
 }
 
+/// Return the string that represents the given binary operator in C
+static const std::string getBinOpString(const llvm::BinaryOperator *BinOp) {
+  const Tag *Op = [&BinOp]() constexpr {
+    bool IsBool = BinOp->getType()->isIntegerTy(1);
+
+    switch (BinOp->getOpcode()) {
+    case Instruction::Add:
+      return &operators::Add;
+    case Instruction::Sub:
+      return &operators::Sub;
+    case Instruction::Mul:
+      return &operators::Mul;
+    case Instruction::SDiv:
+    case Instruction::UDiv:
+      return &operators::Div;
+    case Instruction::SRem:
+    case Instruction::URem:
+      return &operators::Modulo;
+    case Instruction::LShr:
+    case Instruction::AShr:
+      return &operators::RShift;
+    case Instruction::Shl:
+      return &operators::LShift;
+    case Instruction::And:
+      return IsBool ? &operators::BoolAnd : &operators::And;
+    case Instruction::Or:
+      return IsBool ? &operators::BoolOr : &operators::Or;
+    case Instruction::Xor:
+      return &operators::Xor;
+    default:
+      revng_abort("Unknown const Binary operation");
+    }
+  }();
+  return " " + *Op + " ";
+}
+
+/// Return the string that represents the given comparison operator in C
+static const std::string getCmpOpString(const llvm::CmpInst::Predicate &Pred) {
+  using llvm::CmpInst;
+  const Tag *Op = [&Pred]() constexpr {
+    switch (Pred) {
+    case CmpInst::ICMP_EQ: ///< equal
+      return &operators::CmpEq;
+    case CmpInst::ICMP_NE: ///< not equal
+      return &operators::CmpNeq;
+    case CmpInst::ICMP_UGT: ///< unsigned greater than
+    case CmpInst::ICMP_SGT: ///< signed greater than
+      return &operators::CmpGt;
+    case CmpInst::ICMP_UGE: ///< unsigned greater or equal
+    case CmpInst::ICMP_SGE: ///< signed greater or equal
+      return &operators::CmpGte;
+    case CmpInst::ICMP_ULT: ///< unsigned less than
+    case CmpInst::ICMP_SLT: ///< signed less than
+      return &operators::CmpLt;
+    case CmpInst::ICMP_ULE: ///< unsigned less or equal
+    case CmpInst::ICMP_SLE: ///< signed less or equal
+      return &operators::CmpLte;
+    default:
+      revng_abort("Unknown comparison operator");
+    }
+  }();
+  return " " + *Op + " ";
+}
+
 RecursiveCoroutine<std::string>
 CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
 
   if (isa<llvm::BinaryOperator>(I) or isa<llvm::CmpInst>(I)) {
     const llvm::Value *Op0 = I->getOperand(0);
     const llvm::Value *Op1 = I->getOperand(1);
-    const QualifiedType &ResultType = TypeMap.at(I);
 
-    std::string Op0String = rc_recur getToken(Op0);
-    std::string Op0Token = buildCastExpr(Op0String,
-                                         TypeMap.at(Op0),
-                                         ResultType);
-    std::string Op1String = rc_recur getToken(Op1);
-    std::string Op1Token = buildCastExpr(Op1String,
-                                         TypeMap.at(Op1),
-                                         ResultType);
+    std::string Op0Token = rc_recur getToken(Op0);
+    std::string Op1Token = rc_recur getToken(Op1);
+
+    if (auto *ICmp = dyn_cast<llvm::ICmpInst>(I)) {
+      const QualifiedType &OpType0 = TypeMap.at(Op0);
+      const QualifiedType &OpType1 = TypeMap.at(Op1);
+      revng_assert(OpType0.size() == OpType1.size());
+
+      QualifiedType OperandType;
+      using model::PrimitiveTypeKind::Signed;
+      using model::PrimitiveTypeKind::Unsigned;
+      auto K = ICmp->isSigned() ? Signed : Unsigned;
+      OperandType
+        .UnqualifiedType() = Model.getPrimitiveType(K, OpType0.size().value());
+
+      Op0Token = buildCastExpr(Op0Token, OpType0, OperandType);
+      Op1Token = buildCastExpr(Op1Token, OpType1, OperandType);
+    } else {
+      const QualifiedType &ResultType = TypeMap.at(I);
+      Op0Token = buildCastExpr(Op0Token, TypeMap.at(Op0), ResultType);
+      Op1Token = buildCastExpr(Op1Token, TypeMap.at(Op1), ResultType);
+    }
 
     auto *Bin = dyn_cast<llvm::BinaryOperator>(I);
     auto *Cmp = dyn_cast<llvm::CmpInst>(I);
@@ -1199,11 +1134,11 @@ CCodeGenerator::getToken(const llvm::Value *V) const {
   revng_assert(not isa<llvm::Argument>(V) and not isStackFrameDecl(V)
                and not isCallStackArgumentDecl(V) and not isLocalVarDecl(V));
 
+  if (isCConstant(V))
+    rc_return rc_recur getConstantToken(V);
+
   if (auto *I = dyn_cast<llvm::Instruction>(V))
     rc_return rc_recur getInstructionToken(I);
-
-  if (auto *C = dyn_cast<llvm::Constant>(V))
-    rc_return rc_recur getConstantToken(C);
 
   std::string Error = "Cannot get token for llvm::Value: ";
   Error += dumpToString(V).c_str();
@@ -1823,6 +1758,103 @@ static std::string decompileFunction(FunctionMetadataCache &Cache,
   Out.flush();
 
   return Result;
+}
+
+/// Visit the node and all its children recursively, checking if a loop
+/// variable is needed.
+// TODO: This could be precomputed and attached to the SCS node in the GHAST.
+static RecursiveCoroutine<bool> needsLoopVar(ASTNode *N) {
+  if (N == nullptr)
+    rc_return false;
+
+  auto Kind = N->getKind();
+  switch (Kind) {
+
+  case ASTNode::NodeKind::NK_Break:
+  case ASTNode::NodeKind::NK_SwitchBreak:
+  case ASTNode::NodeKind::NK_Continue:
+  case ASTNode::NodeKind::NK_Code:
+    rc_return false;
+    break;
+
+  case ASTNode::NodeKind::NK_If: {
+    IfNode *If = cast<IfNode>(N);
+
+    if (nullptr != If->getThen())
+      if (rc_recur needsLoopVar(If->getThen()))
+        rc_return true;
+
+    if (If->hasElse())
+      if (rc_recur needsLoopVar(If->getElse()))
+        rc_return true;
+
+    rc_return false;
+  } break;
+
+  case ASTNode::NodeKind::NK_Scs: {
+    ScsNode *LoopBody = cast<ScsNode>(N);
+    rc_return rc_recur needsLoopVar(LoopBody->getBody());
+  } break;
+
+  case ASTNode::NodeKind::NK_List: {
+    SequenceNode *Seq = cast<SequenceNode>(N);
+    for (ASTNode *Child : Seq->nodes())
+      if (rc_recur needsLoopVar(Child))
+        rc_return true;
+
+    rc_return false;
+  } break;
+
+  case ASTNode::NodeKind::NK_Switch: {
+    SwitchNode *Switch = cast<SwitchNode>(N);
+    llvm::Value *SwitchVar = Switch->getCondition();
+
+    if (not SwitchVar)
+      rc_return true;
+
+    for (const auto &[Labels, CaseNode] : Switch->cases())
+      if (rc_recur needsLoopVar(CaseNode))
+        rc_return true;
+
+    if (auto *Default = Switch->getDefault())
+      if (rc_recur needsLoopVar(Default))
+        rc_return true;
+
+    rc_return false;
+  } break;
+
+  case ASTNode::NodeKind::NK_Set: {
+    rc_return true;
+  } break;
+  }
+}
+
+static bool hasLoopDispatchers(const ASTTree &GHAST) {
+  return needsLoopVar(GHAST.getRoot());
+}
+
+static InstrSetVec collectTopScopeVariables(const llvm::Function &F) {
+  InstrSetVec TopScopeVars;
+  for (const BasicBlock &BB : F) {
+    for (const Instruction &I : BB) {
+      if (auto *Call = dyn_cast<llvm::CallInst>(&I)) {
+        // All the others have already been promoted to LocalVariable Copy and
+        // Assign.
+        if (not Call->getType()->isAggregateType())
+          continue;
+
+        if (isCallToNonIsolated(Call) or isCallToIsolatedFunction(Call)) {
+          const auto *Called = Call->getCalledFunction();
+          revng_assert(not Called or not Called->isTargetIntrinsic());
+
+          if (needsTopScopeDeclaration(*Call))
+            TopScopeVars.insert(Call);
+        }
+      }
+    }
+  }
+
+  return TopScopeVars;
 }
 
 using Container = revng::pipes::DecompiledCCodeInYAMLStringMap;
