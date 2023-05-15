@@ -620,29 +620,32 @@ static char *_rp_manager_get_global_name(const rp_manager *manager,
 static bool llvmErrorToRpError(llvm::Error Error,
                                ExistingOrNew<rp_error> &Out) {
   bool Success = true;
-  // clang-format off
+
+  auto DocumentedErrorHandler = [&](const revng::DocumentErrorBase &Error) {
+    rp_document_error ErrorBody(Error.getTypeName(),
+                                Error.getLocationTypeName());
+
+    for (size_t I = 0; I < Error.size(); I++) {
+      rp_error_reason reason(Error.getMessage(I), Error.getLocation(I));
+      ErrorBody.Reasons.emplace_back(reason);
+    }
+
+    *Out = std::move(ErrorBody);
+    Success = false;
+  };
+
+  auto OtherErrorHandler = [&](const llvm::ErrorInfoBase &OtherErrors) {
+    std::string Reason;
+    llvm::raw_string_ostream OS(Reason);
+    OtherErrors.log(OS);
+    OS.flush();
+    *Out = rp_simple_error(Reason, "");
+    Success = false;
+  };
+
   llvm::handleAllErrors(std::move(Error),
-    [&](const revng::DocumentErrorBase &Error) {
-      rp_document_error ErrorBody(Error.getTypeName(),
-                                  Error.getLocationTypeName());
-
-      for (size_t I = 0; I < Error.size(); I++) {
-        rp_error_reason reason(Error.getMessage(I), Error.getLocation(I));
-        ErrorBody.Reasons.emplace_back(reason);
-      }
-
-      *Out = std::move(ErrorBody);
-      Success = false;
-    },
-    [&](const llvm::ErrorInfoBase &OtherErrors) {
-      std::string Reason;
-      llvm::raw_string_ostream OS(Reason);
-      OtherErrors.log(OS);
-      OS.flush();
-      *Out = rp_simple_error(Reason, "");
-      Success = false;
-    });
-  // clang-format on
+                        DocumentedErrorHandler,
+                        OtherErrorHandler);
 
   return Success;
 }

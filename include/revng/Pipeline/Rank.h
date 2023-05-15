@@ -59,11 +59,6 @@ concept RankSpecialization = requires(RankType &&Rank) {
   typename RankType::Tuple;
 };
 
-/// TODO: Remove after updating to clang-format with concept support.
-struct ClangFormatPleaseDoNotBreakMyCode;
-// clang-format off
-// clang-format on
-
 namespace detail {
 
 template<typename... TypesToAppend, typename... InitialTupleTypes>
@@ -157,14 +152,11 @@ public:
 
 } // namespace detail
 
-// clang-format off
 /// A helper concept used for checking whether two ranks have common "roots"
 /// Is evaluated to `true` if and only if the \tparam To rank can be reached
 /// from the \tparam From rank by going up the tree.
 template<typename To, typename From>
-concept RankConvertibleTo = RankSpecialization<From>
-                            && RankSpecialization<To>
+concept RankConvertibleTo = RankSpecialization<From> && RankSpecialization<To>
                             && detail::ReachabilityHelper<From, To>::value;
-// clang-format on
 
 } // namespace pipeline

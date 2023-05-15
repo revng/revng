@@ -24,11 +24,9 @@ namespace FunctionTags {
 
 class Tag;
 
-// clang-format off
 template<typename T>
 concept Taggable = (std::is_same_v<llvm::GlobalVariable, T>
                     or std::is_same_v<llvm::Function, T>);
-// clang-format on
 
 /// Represents a set of Tag that can be attached to an
 /// Instruction/GlobalVariable/Function

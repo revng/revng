@@ -55,11 +55,9 @@ public:
 };
 
 // (Reverse) post order implementation
-// clang-format off
 template<typename Iterated, VisitType Visit>
-  requires (Visit == PostOrder or Visit == ReversePostOrder)
+  requires(Visit == PostOrder or Visit == ReversePostOrder)
 class MonotoneFrameworkWorkList<Iterated, Visit> {
-  // clang-format on
 private:
   /// Class for an entry in the work list
   ///

@@ -7,7 +7,6 @@
 
 #include "revng/ADT/UpcastablePointer.h"
 
-// clang-format off
 template<typename T>
 concept UniquePtrLike = requires(T A, typename T::pointer B) {
   std::is_pointer_v<typename T::pointer>;
@@ -17,7 +16,6 @@ concept UniquePtrLike = requires(T A, typename T::pointer B) {
   { T() };
   { T(B) };
 };
-// clang-format on
 
 class TestClass {
 public:

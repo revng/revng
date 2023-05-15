@@ -62,14 +62,11 @@ static std::string_view edgeTypeAsString(const yield::calls::Edge &Edge) {
   return Edge.IsBackwards ? tags::RefusedEdge : tags::TakenEdge;
 }
 
-// clang-format off
-template <uintmax_t Numerator = 8, uintmax_t Denominator = 10>
+template<uintmax_t Numerator = 8, uintmax_t Denominator = 10>
 static std::string cubicBend(const yield::layout::Point &From,
                              const yield::layout::Point &To,
                              bool VerticalCurves,
                              std::ratio<Numerator, Denominator> &&Bend = {}) {
-  // clang-format on
-
   using Coordinate = yield::layout::Coordinate;
   constexpr Coordinate Factor = Coordinate(Numerator) / Denominator;
   Coordinate XModifier = Factor * (To.X - From.X);

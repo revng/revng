@@ -28,23 +28,18 @@
 template<typename T>
 concept HasValueType = requires(T &&) { typename T::value_type; };
 
-// clang-format off
-
 template<typename T>
 concept HasPushBack = HasValueType<T>
-                      && requires(T &&C,
-                                  const typename T::value_type &V) {
-  { C.push_back(V) };
-};
+                      && requires(T &&C, const typename T::value_type &V) {
+                           { C.push_back(V) };
+                         };
 
 template<typename T>
 concept HasInsertOrAssign = HasValueType<T>
                             && requires(T &&C,
                                         const typename T::value_type &V) {
-  { C.insert_or_assign(V) };
-};
-
-// clang-format on
+                                 { C.insert_or_assign(V) };
+                               };
 
 template<HasPushBack C>
 void addToContainer(C &Container, const typename C::value_type &Value) {

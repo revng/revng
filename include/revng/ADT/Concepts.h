@@ -21,9 +21,8 @@ concept equality_comparable = requires(T &&LHS, T &&RHS) {
   { LHS == RHS } -> std::convertible_to<bool>;
 };
 
-// clang-format off
 template<typename F, typename... Args>
-concept invocable = requires(F&& Function, Args &&...Arguments) {
+concept invocable = requires(F &&Function, Args &&...Arguments) {
   std::invoke(std::forward<F>(Function), std::forward<Args>(Arguments)...);
 };
 
@@ -33,12 +32,6 @@ template<typename F, typename... Args>
 concept predicate = invocable<F, Args...>
                     && std::is_convertible_v<std::invoke_result_t<F, Args...>,
                                              bool>;
-// clang-format on
-
-/// TODO: Remove after updating to clang-format with concept support.
-struct ClangFormatPleaseDoNotBreakMyCode;
-// clang-format off
-// clang-format on
 
 //
 // Concepts to simplify working with tuples.
@@ -75,11 +68,9 @@ constexpr auto checkAllTupleElementTypes() {
 
 } // namespace revng::detail
 
-// clang-format off
 template<class T>
 concept TupleLike = (TupleSizeCompatible<T>
                      and revng::detail::checkAllTupleElementTypes<T>());
-// clang-format on
 
 static_assert(TupleLike<std::tuple<>>);
 static_assert(TupleLike<std::tuple<int, int, long>>);
@@ -110,11 +101,6 @@ static_assert(not TupleLike<std::vector<int>>);
 // static_assert(SpecializationOf<std::string, std::basic_string>);
 // static_assert(SpecializationOf<std::ostream, std::basic_ios>);
 // static_assert(not SpecializationOf<std::string, std::basic_string_view>);
-
-/// TODO: Remove after updating to clang-format with concept support.
-struct ClangFormatPleaseDoNotBreakMyCode;
-// clang-format off
-// clang-format on
 
 namespace revng::detail {
 
@@ -154,9 +140,7 @@ static_assert(not StrictSpecializationOf<std::string, std::basic_string_view>);
 template<typename T, typename R>
 concept ConstOrNot = std::is_same_v<R, T> or std::is_same_v<const R, T>;
 
-// clang-format off
-template<class Range, typename ValueType>
-concept range_with_value_type = std::ranges::range<Range> &&
-                std::is_convertible_v<typename Range::value_type,
-                                      ValueType>;
-// clang-format on
+template<class R, typename ValueType>
+concept range_with_value_type = std::ranges::range<R>
+                                && std::is_convertible_v<typename R::value_type,
+                                                         ValueType>;

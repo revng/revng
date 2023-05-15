@@ -70,8 +70,6 @@ inline ParsedSuccessor parseSuccessor(const T &Edge,
   }
 }
 
-// clang-format off
-
 /// A function for converting EFA's internal CFG representation into a generic
 /// graph.
 ///
@@ -107,7 +105,6 @@ std::pair<GraphType, std::map<BasicBlockID, typename GraphType::Node *>>
 buildControlFlowGraph(const Container<BasicBlockType, OtherTs...> &BB,
                       const MetaAddress &EntryAddress,
                       const model::Binary &Binary) {
-  // clang-format on
   using Node = typename GraphType::Node;
   std::pair<GraphType, std::map<BasicBlockID, Node *>> Res;
 

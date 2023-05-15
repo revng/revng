@@ -183,7 +183,6 @@ template<typename Iterator>
 concept ContiguousOnly = std::is_same_v<Category<Iterator>,
                                         std::contiguous_iterator_tag>;
 
-// clang-format off
 template<typename Iterator>
 concept contiguous_iterator = ContiguousOnly<Iterator>;
 template<typename Iterator>
@@ -200,7 +199,6 @@ concept input_iterator = forward_iterator<Iterator> || InputOnly<Iterator>;
 template<typename Iterator>
 concept input_or_output_iterator = input_iterator<Iterator>
                                    || OutputOnly<Iterator>;
-// clang-format on
 
 template<bool SafeMode, typename IteratorType>
 inline auto skipImpl(IteratorType &&From,

@@ -17,13 +17,11 @@
 template<typename T>
 struct KeyedObjectTraits;
 
-// clang-format off
 template<typename T, typename Traits = KeyedObjectTraits<T>>
 concept KeyedObjectContainerCompatible = requires(T A) {
   { Traits::key(A) };
   { Traits::fromKey(Traits::key(A)) } -> std::same_as<T>;
 } && std::is_same_v<Traits, KeyedObjectTraits<T>>;
-// clang-format on
 
 /// Inherit if T is the key of itself
 template<typename T>

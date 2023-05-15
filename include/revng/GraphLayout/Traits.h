@@ -31,14 +31,14 @@ struct Size {
   constexpr Size(Dimension W = 0, Dimension H = 0) : W(W), H(H) {}
 };
 
-// clang-format off
 template<typename GraphType>
 concept HasLLVMGraphTraits = requires(const GraphType &Graph) {
-  { llvm::GraphTraits<GraphType>::getEntryNode(Graph) } ->
-  std::convertible_to<typename llvm::GraphTraits<GraphType>::NodeRef>;
+  {
+    llvm::GraphTraits<GraphType>::getEntryNode(Graph)
+  } -> std::convertible_to<typename llvm::GraphTraits<GraphType>::NodeRef>;
 };
 
-template <HasLLVMGraphTraits GraphType>
+template<HasLLVMGraphTraits GraphType>
 struct LayoutableGraphTraits {
   using LLVMTrait = llvm::GraphTraits<GraphType>;
 
@@ -55,14 +55,16 @@ struct LayoutableGraphTraits {
   // qualify as both (for computing the layout in-place).
 };
 
-template <typename GraphType>
+// clang-format off
+template<typename GraphType>
 concept HasLayoutableInputGraphTraits = HasLLVMGraphTraits<GraphType>
   && requires(typename llvm::GraphTraits<GraphType>::NodeRef Node) {
-    { LayoutableGraphTraits<GraphType>::getNodeSize(Node) } ->
-      std::convertible_to<Size>;
+    {
+      LayoutableGraphTraits<GraphType>::getNodeSize(Node)
+    } -> std::convertible_to<Size>;
   };
 
-template <typename GraphType>
+template<typename GraphType>
 concept HasLayoutableOutputGraphTraits = HasLLVMGraphTraits<GraphType>
   && requires(typename llvm::GraphTraits<GraphType>::NodeRef Node,
               typename llvm::GraphTraits<GraphType>::EdgeRef Edge) {

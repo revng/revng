@@ -25,8 +25,9 @@ template<typename T>
 concept TraitedTupleLike = requires {
   { TupleLikeTraits<T>::Name } -> std::convertible_to<std::string_view>;
   { TupleLikeTraits<T>::FullName } -> std::convertible_to<std::string_view>;
-  { TupleLikeTraits<T>::FieldNames } ->
-    std::convertible_to<const std::span<const llvm::StringRef>>;
+  {
+    TupleLikeTraits<T>::FieldNames
+  } -> std::convertible_to<const std::span<const llvm::StringRef>>;
 
   typename TupleLikeTraits<T>::tuple;
   typename TupleLikeTraits<T>::Fields;

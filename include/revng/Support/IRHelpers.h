@@ -998,14 +998,12 @@ concept ModFunLikePrintable = requires(F Fun) {
   Fun.print(std::declval<llvm::raw_ostream &>(), nullptr, false, true);
 };
 
-// clang-format off
 template<typename T>
 concept LLVMRawOStreamPrintable = not ValueLikePrintable<T>
-    and not ModFunLikePrintable<T>
-    and requires(T TheT) {
-  TheT.print(std::declval<llvm::raw_ostream &>());
-};
-// clang-format on
+                                  and not ModFunLikePrintable<T>
+                                  and requires(T V, llvm::raw_ostream &S) {
+                                        V.print(S);
+                                      };
 
 // This is enabled only for references to types that inherit from llvm::Value
 // but not from llvm::Function, since llvm::Function has a different prototype
@@ -1041,14 +1039,13 @@ inline std::string dumpToString(T &TheT) {
   return Result;
 }
 
-// clang-format off
 template<typename T>
 concept LLVMRawOStreamDumpable = not ValueLikePrintable<T>
                                  and not ModFunLikePrintable<T>
                                  and requires(T TheT) {
-  TheT.dump(std::declval<llvm::raw_ostream &>());
-};
-// clang-format on
+                                       TheT.dump(std::declval<
+                                                 llvm::raw_ostream &>());
+                                     };
 
 template<bool B, LLVMRawOStreamDumpable Dumpable>
 inline void writeToLog(Logger<B> &L, const Dumpable &P, int /* Ignore */) {

@@ -7,15 +7,12 @@
 #include "revng/ADT/KeyedObjectContainer.h"
 #include "revng/TupleTree/TupleLikeTraits.h"
 
-// clang-format off
 template<typename T>
 concept TupleTreeCompatible = (KeyedObjectContainer<T>
-                               or UpcastablePointerLike<T>
-                               or TupleLike<T>);
+                               or UpcastablePointerLike<T> or TupleLike<T>);
 
 template<typename T>
 concept NotTupleTreeCompatible = not TupleTreeCompatible<T>;
-// clang-format on
 
 template<typename T>
 concept Verifiable = requires(const T &TT) {

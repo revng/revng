@@ -356,11 +356,9 @@ struct CallByPathVisitorWithInstance {
       V.template visitContainerElement<T>(Key, *Element.get());
   }
 
-  // clang-format off
   template<typename T, typename K, typename KeyT>
-    requires (not StrictSpecializationOf<K, UpcastablePointer>)
+    requires(not StrictSpecializationOf<K, UpcastablePointer>)
   void visitContainerElement(KeyT Key, K &Element) {
-    // clang-format on
     PathSize -= 1;
     if (PathSize == 0)
       V.template visitContainerElement<T>(Key, Element);

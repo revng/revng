@@ -36,7 +36,6 @@ concept HasName = requires() {
   { T::Name } -> convertible_to<const char *>;
 };
 
-// clang-format off
 template<typename T>
 concept IsContainer = std::derived_from<std::decay_t<T>, ContainerBase>;
 
@@ -49,15 +48,13 @@ invokableReturnTypeImpl(ReturnType (InvokableType::*F)(Args...)) {
   return ReturnType();
 }
 
-template<typename InvokableType>
-using invokableReturnType =
-    decltype(invokableReturnTypeImpl(&InvokableType::run));
+template<typename Type>
+using invokableReturnType = decltype(invokableReturnTypeImpl(&Type::run));
 
 template<typename Invokable>
 constexpr bool invokableTypeReturnsError() {
   return std::is_same_v<invokableReturnType<Invokable>, llvm::Error>;
 }
-
 
 template<typename Invokable>
 concept ReturnsError = invokableTypeReturnsError<Invokable>();
@@ -80,13 +77,6 @@ concept ReturnsError = invokableTypeReturnsError<Invokable>();
 template<typename InvokableType, typename FirstRunArg, typename... Rest>
 concept Invokable = convertible_to<Context &, std::remove_cv_t<FirstRunArg>>
                     and HasName<InvokableType>;
-
-// clang-format on
-
-/// TODO: Remove after updating to clang-format with concept support.
-struct ClangFormatPleaseDoNotBreakMyCode2;
-// clang-format off
-// clang-format on
 
 namespace detail {
 using StringArrayRef = llvm::ArrayRef<std::string>;

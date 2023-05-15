@@ -132,23 +132,21 @@ struct CompositeScalar {
   }
 };
 
-// clang-format off
+namespace revng::detail {
+using EC = llvm::yaml::EmptyContext;
 template<typename T>
-concept Yamlizable
-  = llvm::yaml::has_DocumentListTraits<T>::value
-    or llvm::yaml::has_MappingTraits<T, llvm::yaml::EmptyContext>::value
-    or llvm::yaml::has_SequenceTraits<T>::value
-    or llvm::yaml::has_BlockScalarTraits<T>::value
-    or llvm::yaml::has_CustomMappingTraits<T>::value
-    or llvm::yaml::has_PolymorphicTraits<T>::value
-    or llvm::yaml::has_ScalarTraits<T>::value
-    or llvm::yaml::has_ScalarEnumerationTraits<T>::value;
-// clang-format on
+concept MappableWithEmptyContext = llvm::yaml::has_MappingTraits<T, EC>::value;
+} // namespace revng::detail
 
-/// TODO: Remove after updating to clang-format with concept support.
-struct ClangFormatPleaseDoNotBreakMyCode;
-// clang-format off
-// clang-format on
+template<typename T>
+concept Yamlizable = llvm::yaml::has_DocumentListTraits<T>::value
+                     or revng::detail::MappableWithEmptyContext<T>
+                     or llvm::yaml::has_SequenceTraits<T>::value
+                     or llvm::yaml::has_BlockScalarTraits<T>::value
+                     or llvm::yaml::has_CustomMappingTraits<T>::value
+                     or llvm::yaml::has_PolymorphicTraits<T>::value
+                     or llvm::yaml::has_ScalarTraits<T>::value
+                     or llvm::yaml::has_ScalarEnumerationTraits<T>::value;
 
 namespace revng::detail {
 
@@ -274,7 +272,6 @@ deserializeFileOrSTDIN(const llvm::StringRef &Path, void *Context = nullptr) {
 
   return deserialize<T>((*MaybeBuffer)->getBuffer(), Context);
 }
-// clang-format on
 
 template<HasScalarTraits T>
 struct llvm::yaml::ScalarTraits<std::tuple<T>> {

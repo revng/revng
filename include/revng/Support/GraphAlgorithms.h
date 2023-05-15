@@ -65,16 +65,12 @@ auto exitless_scc_range(NodeTy Entry) {
   return make_filter_range(Range, Filter);
 }
 
-// clang-format off
-
 /// A generic way to compute a set of entry points to a graph such that any node
 /// in said graph is reachable from at least one of those points.
 template<typename GraphType>
   requires std::is_pointer_v<GraphType>
 std::vector<typename llvm::GraphTraits<GraphType>::NodeRef>
 entryPoints(GraphType &&Graph) {
-  // clang-format on
-
   using NodeRef = typename llvm::GraphTraits<GraphType>::NodeRef;
 
   std::vector<NodeRef> Result;

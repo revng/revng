@@ -45,12 +45,9 @@ concept MonotoneFrameworkInstance = requires(const MFI &I,
 
   std::same_as<typename MFI::Label,
                typename llvm::GraphTraits<typename MFI::GraphType>::NodeRef>;
-  // Disable clang-format, because it does not handle concepts very well yet
-  // clang-format off
   { I.combineValues(E1, E2) } -> std::same_as<LatticeElement>;
   { I.isLessOrEqual(E1, E2) } -> std::same_as<bool>;
   { I.applyTransferFunction(L, E2) } -> std::same_as<LatticeElement>;
-  // clang-format on
 };
 
 /// Compute the maximum fixed points of an instance of monotone framework GT an

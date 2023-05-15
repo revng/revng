@@ -22,7 +22,6 @@ struct concrete_types_traits;
 template<typename T>
 using concrete_types_traits_t = typename concrete_types_traits<T>::type;
 
-// clang-format off
 template<typename T>
 concept ConcreteTypeTraitCompatible = requires {
   typename concrete_types_traits_t<T>;
@@ -43,7 +42,6 @@ template<typename T>
 concept Dereferenceable = requires(T A) {
   { *A };
 };
-// clang-format on
 
 static_assert(Dereferenceable<int *>);
 static_assert(not Dereferenceable<int>);
@@ -51,14 +49,12 @@ static_assert(not Dereferenceable<int>);
 template<typename T>
 concept UpcastablePointerLike = Dereferenceable<T> and Upcastable<pointee<T>>;
 
-// clang-format off
 template<typename T>
 concept NotUpcastablePointerLike = not UpcastablePointerLike<T>;
 
 template<typename ReturnT, typename L, UpcastablePointerLike P, size_t I = 0>
   requires(not std::is_void_v<ReturnT>)
 ReturnT upcast(P &&Upcastable, const L &Callable, ReturnT &&IfNull) {
-  // clang-format on
   using pointee = std::remove_reference_t<decltype(*Upcastable)>;
   using concrete_types = concrete_types_traits_t<pointee>;
   auto *Pointer = &*Upcastable;
@@ -81,7 +77,6 @@ ReturnT upcast(P &&Upcastable, const L &Callable, ReturnT &&IfNull) {
 
 template<typename L, UpcastablePointerLike P, size_t I = 0>
 llvm::Error upcast(P &&Upcastable, const L &Callable, llvm::Error IfNull) {
-  // clang-format on
   using pointee = std::remove_reference_t<decltype(*Upcastable)>;
   using concrete_types = concrete_types_traits_t<pointee>;
   auto *Pointer = &*Upcastable;
