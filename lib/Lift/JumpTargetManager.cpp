@@ -566,9 +566,20 @@ void JumpTargetManager::findCodePointers(MetaAddress StartVirtualAddress,
                                          const unsigned char *End) {
   using support::endianness;
   using support::endian::read;
-  for (auto Pos = Start; Pos < End - sizeof(value_type); Pos++) {
+
+  constexpr auto Step = sizeof(value_type);
+
+  auto Cursor = Start;
+
+  // Align the starting address: we want to scan one step at a time starting
+  // from an aligned size
+  auto Misalignment = StartVirtualAddress.address() % Step;
+  if (Misalignment != 0)
+    Cursor += Step - Misalignment;
+
+  for (; Cursor < End - Step; Cursor += Step) {
     auto Read = read<value_type, static_cast<endianness>(endian), 1>;
-    uint64_t RawValue = Read(Pos);
+    uint64_t RawValue = Read(Cursor);
     MetaAddress Value = fromPC(RawValue);
     if (Value.isInvalid())
       continue;
@@ -576,7 +587,7 @@ void JumpTargetManager::findCodePointers(MetaAddress StartVirtualAddress,
     BasicBlock *Result = registerJT(Value, JTReason::GlobalData);
 
     if (Result != nullptr)
-      UnusedCodePointers.insert(StartVirtualAddress + (Pos - Start));
+      UnusedCodePointers.insert(StartVirtualAddress + (Cursor - Start));
   }
 }
 
