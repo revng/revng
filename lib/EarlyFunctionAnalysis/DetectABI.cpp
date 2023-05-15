@@ -720,10 +720,10 @@ void DetectABI::saveFinalResults(InterproceduralNode *Node,
                         Results.Arguments :
                         Results.Returns;
 
-  const InterproceduralAnalysis::LatticeElement::RegisterSet
+  const ABI::RegisterSet
     &LatticeSet = (Node->getResultType() == RT::Arguments) ?
-                    ResultLattice.Arguments :
-                    ResultLattice.Returns;
+                    ResultLattice.FinalABI.at(Node->Address).Arguments :
+                    ResultLattice.FinalABI.at(Node->Address).Returns;
 
   auto GetReg =
     [this](const llvm::GlobalVariable *GV) -> model::Register::Values {
@@ -770,8 +770,8 @@ void DetectABI::runMFPAnalysis() {
 
   // Construct
   auto G = constructInterproceduralGraph();
-  InterproceduralAnalysis::LatticeElement InitialValue{};
-  InterproceduralAnalysis::LatticeElement ExtremalValue{ true };
+  efa::InterproceduralLattice InitialValue{};
+  efa::InterproceduralLattice ExtremalValue{ true };
   auto Start = G.getEntryNode();
 
   revng_assert(G.size() != 0);
