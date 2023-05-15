@@ -111,7 +111,12 @@ inline bool hasReason(uint32_t Reasons, Values ToCheck) {
 
 namespace KillReason {
 
-enum Values { NonKiller, KillerSyscall, EndlessLoop, LeadsToKiller };
+enum Values {
+  NonKiller,
+  KillerSyscall,
+  EndlessLoop,
+  LeadsToKiller
+};
 
 inline llvm::StringRef getName(Values Reason) {
   switch (Reason) {

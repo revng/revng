@@ -18,15 +18,22 @@ inline llvm::IntegerType *getCSVType(llvm::GlobalVariable *CSV) {
 
 namespace NextJumpTarget {
 
-enum Values { Unique, Multiple, Helper };
-
+enum Values {
+  Unique,
+  Multiple,
+  Helper
 };
+
+}; // namespace NextJumpTarget
 
 namespace PCAffectingCSV {
 
-enum Values { PC, IsThumb };
-
+enum Values {
+  PC,
+  IsThumb
 };
+
+}; // namespace PCAffectingCSV
 
 namespace revng::detail {
 

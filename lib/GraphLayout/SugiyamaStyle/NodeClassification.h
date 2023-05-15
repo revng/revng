@@ -45,7 +45,11 @@ template<RankingStrategy RS>
 class NodeClassifier : public detail::NodeClassifierStorage<RS> {
   using Storage = detail::NodeClassifierStorage<RS>;
 
-  enum Cluster { Left = 0, Middle = 1, Right = 2 };
+  enum Cluster {
+    Left = 0,
+    Middle = 1,
+    Right = 2
+  };
 
 public:
   void addBackwardsEdgePartition(NodeView LHS, NodeView RHS) {

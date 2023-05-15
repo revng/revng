@@ -16,7 +16,8 @@
 /// Trait to provide name of the tuple-like class and its fields
 template<typename T>
 struct TupleLikeTraits {
-  enum class Fields {};
+  enum class Fields {
+  };
 };
 
 // clang-format off

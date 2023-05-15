@@ -43,7 +43,11 @@ namespace PTC {
 template<bool C>
 class InstructionImpl;
 
-enum ArgumentType { In, Out, Const };
+enum ArgumentType {
+  In,
+  Out,
+  Const
+};
 
 template<typename T, typename Q, bool B>
 using RAI = RandomAccessIterator<T, Q, B>;

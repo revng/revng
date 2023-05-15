@@ -41,7 +41,7 @@ enum {
   DissassembledInstruction,
   FirstLocalVariable
 };
-}
+} // namespace NewPCArguments
 
 /// Given \p V, checks if there are uses left and then calls eraseFromParent.
 /// In case of leftover uses, they are pretty printed.

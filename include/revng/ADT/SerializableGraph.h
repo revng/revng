@@ -185,7 +185,8 @@ struct TupleLikeTraits<Empty> {
   static constexpr const llvm::StringRef FullName = "Empty";
   using tuple = std::tuple<>;
   static constexpr std::array<llvm::StringRef, 0> FieldNames{};
-  enum class Fields {};
+  enum class Fields {
+  };
 };
 
 template<>

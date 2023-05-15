@@ -11,7 +11,11 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/CommandLine.h"
 
-enum class DebugInfoLevel { No, Yes, IgnoreLibraries };
+enum class DebugInfoLevel {
+  No,
+  Yes,
+  IgnoreLibraries
+};
 
 struct ImporterOptions {
   const std::uint64_t BaseAddress;

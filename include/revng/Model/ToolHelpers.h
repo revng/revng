@@ -27,7 +27,12 @@
 
 namespace ModelOutputType {
 
-enum Values { Invalid, YAML, LLVMIR, BitCode };
+enum Values {
+  Invalid,
+  YAML,
+  LLVMIR,
+  BitCode
+};
 
 inline bool requiresModule(Values V) {
   switch (V) {

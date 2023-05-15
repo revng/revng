@@ -75,7 +75,12 @@ inline Graph createRandomGraph() {
   Graph Result;
   srandom(1);
 
-  enum Action { NewChildren, LinkToRandom, LinkToUncle, Stop };
+  enum Action {
+    NewChildren,
+    LinkToRandom,
+    LinkToUncle,
+    Stop
+  };
 
   auto GetRandomAction = []() {
     const long int NewChildrenLikelyhood = 20;

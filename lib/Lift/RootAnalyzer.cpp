@@ -133,7 +133,13 @@ public:
 
 namespace TrackedInstructionType {
 
-enum Values { Invalid, WrittenInPC, StoredInMemory, StoreTarget, LoadTarget };
+enum Values {
+  Invalid,
+  WrittenInPC,
+  StoredInMemory,
+  StoreTarget,
+  LoadTarget
+};
 
 inline const char *getName(Values V) {
   switch (V) {

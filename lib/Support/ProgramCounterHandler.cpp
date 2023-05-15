@@ -410,7 +410,11 @@ std::pair<NextJumpTarget::Values, MetaAddress>
 PCH::getUniqueJumpTarget(BasicBlock *BB) {
   std::vector<StackEntry> Stack;
 
-  enum ProcessResult { Proceed, DontProceed, BailOut };
+  enum ProcessResult {
+    Proceed,
+    DontProceed,
+    BailOut
+  };
 
   std::optional<MetaAddress> AgreedMA;
 

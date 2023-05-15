@@ -22,7 +22,11 @@ namespace options {
 
 static bool UseIntelSyntax = true;
 
-enum class ImmediateStyles { Decimal, CHexadecimal, AsmHexadecimal };
+enum class ImmediateStyles {
+  Decimal,
+  CHexadecimal,
+  AsmHexadecimal
+};
 static ImmediateStyles ImmediateStyle = ImmediateStyles::CHexadecimal;
 
 } // namespace options

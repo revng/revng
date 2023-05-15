@@ -49,7 +49,12 @@ public:
   }
 };
 
-enum class EdgeType { Unconditional, Call, Taken, Refused };
+enum class EdgeType {
+  Unconditional,
+  Call,
+  Taken,
+  Refused
+};
 struct Edge {
   EdgeType Type = EdgeType::Unconditional;
 };

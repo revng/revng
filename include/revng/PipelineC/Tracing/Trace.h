@@ -26,7 +26,11 @@ inline T toInt(const llvm::StringRef StrInt) {
 
 namespace revng::tracing {
 
-enum ArgumentState { Invalid, Scalar, Sequence };
+enum ArgumentState {
+  Invalid,
+  Scalar,
+  Sequence
+};
 
 struct Argument {
 private:

@@ -15,7 +15,12 @@ namespace revng {
 
 class DiffLocation : public LocationBase {
 public:
-  enum class KindType { All, New, Old, Path };
+  enum class KindType {
+    All,
+    New,
+    Old,
+    Path
+  };
 
 private:
   size_t DiffEntryIndex;

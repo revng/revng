@@ -231,7 +231,12 @@ private:
     return Importer.recordType({ Index, Die.getOffset() }, QT);
   }
 
-  enum TypeSearchResult { Invalid, Absent, PlaceholderType, RegularType };
+  enum TypeSearchResult {
+    Invalid,
+    Absent,
+    PlaceholderType,
+    RegularType
+  };
 
   std::pair<TypeSearchResult, model::QualifiedType *>
   findType(const DWARFDie &Die) {

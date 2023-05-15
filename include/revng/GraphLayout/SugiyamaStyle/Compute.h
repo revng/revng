@@ -18,7 +18,12 @@ enum class RankingStrategy {
 };
 
 /// List graph orientation options the layouter implements.
-enum class Orientation { LeftToRight, RightToLeft, TopToBottom, BottomToTop };
+enum class Orientation {
+  LeftToRight,
+  RightToLeft,
+  TopToBottom,
+  BottomToTop
+};
 
 struct Configuration {
 public:

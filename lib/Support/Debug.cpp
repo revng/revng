@@ -84,7 +84,8 @@ void Logger<X>::flush(const LogTerminator &LineInfo) {
   }
 }
 
-enum PlaceholderEnum {};
+enum PlaceholderEnum {
+};
 struct DebugLogOptionList : public llvm::cl::list<PlaceholderEnum> {
   using list = llvm::cl::list<PlaceholderEnum>;
   DebugLogOptionList() :

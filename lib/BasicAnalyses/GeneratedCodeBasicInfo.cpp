@@ -115,7 +115,11 @@ GeneratedCodeBasicInfo::blocksByPCRange(MetaAddress Start, MetaAddress End) {
   df_iterator_default_set<BasicBlock *> Visited;
   for (BasicBlock *BB : depth_first_ext(StartBB, Visited)) {
     // Detect if this basic block is a boundary
-    enum { Unknown, Yes, No } IsBoundary = Unknown;
+    enum {
+      Unknown,
+      Yes,
+      No
+    } IsBoundary = Unknown;
 
     auto SuccBegin = succ_begin(BB);
     auto SuccEnd = succ_end(BB);
