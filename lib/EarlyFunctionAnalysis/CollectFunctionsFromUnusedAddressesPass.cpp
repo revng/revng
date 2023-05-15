@@ -5,10 +5,15 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "boost/icl/interval_set.hpp"
+#include "boost/icl/right_open_interval.hpp"
+
 #include "llvm/IR/Module.h"
 
 #include "revng/EarlyFunctionAnalysis/CollectFunctionsFromUnusedAddressesPass.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
+
+using namespace llvm;
 
 using CFFUAWrapperPass = CollectFunctionsFromUnusedAddressesWrapperPass;
 char CFFUAWrapperPass::ID = 0;
@@ -39,13 +44,18 @@ private:
       llvm::BasicBlock *Entry = GCBI.getBlockAt(Function.Entry());
       llvm::Instruction *Term = Entry->getTerminator();
       auto *FMMDNode = Term->getMetadata(FunctionMetadataMDName);
-      // CFG not serialized for this function? Skip it
-      if (not FMMDNode)
-        continue;
+
+      revng_assert(FMMDNode != nullptr);
 
       const efa::FunctionMetadata &FM = MDCache.getFunctionMetadata(Entry);
-      for (const efa::BasicBlock &Block : FM.ControlFlowGraph())
-        VisitedBlocks.insert(Block.ID().start());
+      for (const efa::BasicBlock &Block : FM.ControlFlowGraph()) {
+        auto Start = Block.ID().start();
+        auto End = Block.End();
+        revng_log(Log,
+                  "Registering as used range [" << Start.toString() << ", "
+                                                << End.toString() << ")");
+        UsedRanges += interval::right_open(Start, End);
+      }
     }
   }
 
@@ -63,19 +73,31 @@ private:
 
       uint32_t Reasons = GCBI.getJTReasons(&BB);
       bool IsUnusedGlobalData = hasReason(Reasons, JTReason::UnusedGlobalData);
+      bool IsDirectJump = hasReason(Reasons, JTReason::DirectJump);
       bool IsMemoryStore = hasReason(Reasons, JTReason::MemoryStore);
       bool IsPCStore = hasReason(Reasons, JTReason::PCStore);
       bool IsReturnAddress = hasReason(Reasons, JTReason::ReturnAddress);
       bool IsLoadAddress = hasReason(Reasons, JTReason::LoadAddress);
-      bool IsNotPartOfOtherCFG = VisitedBlocks.count(Entry) == 0;
+      bool IsPartOfOtherCFG = UsedRanges.find(Entry) != UsedRanges.end();
+
+      revng_log(Log,
+                Entry.toString()
+                  << "\n"
+                  << "  IsUnusedGlobalData: " << IsUnusedGlobalData << "\n"
+                  << "  IsDirectJump: " << IsDirectJump << "\n"
+                  << "  IsMemoryStore: " << IsMemoryStore << "\n"
+                  << "  IsPCStore: " << IsPCStore << "\n"
+                  << "  IsReturnAddress: " << IsReturnAddress << "\n"
+                  << "  IsLoadAddress: " << IsLoadAddress << "\n"
+                  << "  IsPartOfOtherCFG: " << IsPartOfOtherCFG << "\n");
 
       // Do not consider addresses found in .rodata that are part of jump
       // tables of a function.
       if (not IsLoadAddress
           and (IsUnusedGlobalData
                or (IsMemoryStore and not IsPCStore and not IsReturnAddress))
-          and IsNotPartOfOtherCFG) {
-        // TODO: keep IsReturnAddress?
+          and not IsPartOfOtherCFG and not IsDirectJump
+          and not IsReturnAddress) {
         // Consider addresses found in global data that have not been used or
         // addresses that are not return addresses and do not end up in the PC
         // directly.
@@ -88,10 +110,14 @@ private:
   }
 
 private:
+  using interval_set = boost::icl::interval_set<MetaAddress>;
+  using interval = boost::icl::interval<MetaAddress>;
+
+private:
   llvm::Module &M;
   GeneratedCodeBasicInfo &GCBI;
   model::Binary &Binary;
-  SortedVector<MetaAddress> VisitedBlocks;
+  interval_set UsedRanges;
 };
 
 bool CFFUAWrapperPass::runOnModule(llvm::Module &M) {
