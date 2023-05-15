@@ -269,10 +269,10 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
 
     using Elf_Dyn = const typename object::ELFFile<T>::Elf_Dyn;
     for (Elf_Dyn &DynamicTag : *DynamicEntries) {
-      auto TheTag = DynamicTag.getTag();
-      auto TheVal = DynamicTag.getVal();
-      MetaAddress Relocated = relocate(fromGeneric(DynamicTag.getPtr()));
-      parseDynamicTag(TheTag, Relocated, NeededLibraryNameOffsets, TheVal);
+      parseDynamicTag(DynamicTag.getTag(),
+                      DynamicTag.getVal(),
+                      DynamicTag.getPtr(),
+                      NeededLibraryNameOffsets);
     }
 
     StringRef Dynstr;
@@ -466,16 +466,18 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
 using Libs = SmallVectorImpl<uint64_t>;
 template<typename T, bool HasAddend>
 void ELFImporter<T, HasAddend>::parseDynamicTag(uint64_t Tag,
-                                                MetaAddress Relocated,
-                                                Libs &NeededLibraryNameOffsets,
-                                                uint64_t Val) {
+                                                uint64_t Val,
+                                                uint64_t Pointer,
+                                                Libs &LibrariesOffsets) {
+  MetaAddress GenericAddress = relocate(fromGeneric(Pointer));
+  MetaAddress PCAddress = relocate(fromPC(Pointer));
   switch (Tag) {
   case ELF::DT_NEEDED:
-    NeededLibraryNameOffsets.push_back(Val);
+    LibrariesOffsets.push_back(Val);
     break;
 
   case ELF::DT_STRTAB:
-    DynstrPortion->setAddress(Relocated);
+    DynstrPortion->setAddress(GenericAddress);
     break;
 
   case ELF::DT_STRSZ:
@@ -483,11 +485,11 @@ void ELFImporter<T, HasAddend>::parseDynamicTag(uint64_t Tag,
     break;
 
   case ELF::DT_SYMTAB:
-    DynsymPortion->setAddress(Relocated);
+    DynsymPortion->setAddress(GenericAddress);
     break;
 
   case ELF::DT_JMPREL:
-    RelpltPortion->setAddress(Relocated);
+    RelpltPortion->setAddress(GenericAddress);
     break;
 
   case ELF::DT_PLTRELSZ:
@@ -502,7 +504,7 @@ void ELFImporter<T, HasAddend>::parseDynamicTag(uint64_t Tag,
       else
         revng_log(ELFImporterLog, "Addend was expected in relocation");
     }
-    ReldynPortion->setAddress(Relocated);
+    ReldynPortion->setAddress(GenericAddress);
     break;
 
   case ELF::DT_RELSZ:
@@ -517,10 +519,16 @@ void ELFImporter<T, HasAddend>::parseDynamicTag(uint64_t Tag,
     break;
 
   case ELF::DT_PLTGOT:
-    GotPortion->setAddress(Relocated);
+    GotPortion->setAddress(GenericAddress);
     break;
+
+  case ELF::DT_INIT:
+  case ELF::DT_FINI:
+    Model->Functions()[PCAddress];
+    break;
+
   default:
-    parseTargetDynamicTags(Tag, Relocated, NeededLibraryNameOffsets, Val);
+    parseTargetDynamicTags(Tag, GenericAddress, LibrariesOffsets, Val);
     break;
   }
 }

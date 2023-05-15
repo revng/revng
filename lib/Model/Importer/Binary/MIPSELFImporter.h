@@ -24,11 +24,10 @@ public:
     MIPSFirstGotSymbol(std::nullopt),
     MIPSLocalGotEntries(std::nullopt) {}
 
-  void
-  parseTargetDynamicTags(uint64_t Tag,
-                         MetaAddress Relocated,
-                         SmallVectorImpl<uint64_t> &NeededLibraryNameOffsets,
-                         uint64_t Val) override {
+  void parseTargetDynamicTags(uint64_t Tag,
+                              MetaAddress Relocated,
+                              SmallVectorImpl<uint64_t> &LibrariesOffsets,
+                              uint64_t Val) override {
     using namespace llvm;
 
     switch (Tag) {
