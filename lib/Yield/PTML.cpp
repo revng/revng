@@ -650,20 +650,20 @@ static constexpr auto ShallowNodeLabel = "call-graph.shallow-node-label";
 
 } // namespace callGraphTokens
 
-static model::Identifier
+static std::string
 functionNameHelper(std::string_view Location, const model::Binary &Binary) {
   if (auto L = pipeline::locationFromString(revng::ranks::DynamicFunction,
                                             Location)) {
     auto Key = std::get<0>(L->at(revng::ranks::DynamicFunction));
     auto Iterator = Binary.ImportedDynamicFunctions().find(Key);
     revng_assert(Iterator != Binary.ImportedDynamicFunctions().end());
-    return Iterator->name();
+    return Iterator->name().str().str();
   } else if (auto L = pipeline::locationFromString(revng::ranks::Function,
                                                    Location)) {
     auto Key = std::get<0>(L->at(revng::ranks::Function));
     auto Iterator = Binary.Functions().find(Key);
     revng_assert(Iterator != Binary.Functions().end());
-    return Iterator->name();
+    return Iterator->name().str().str();
   } else {
     revng_abort("Unsupported function type.");
   }
