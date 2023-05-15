@@ -92,17 +92,4 @@ InterproceduralAnalysis::applyTransferFunction(Label L,
   }
 }
 
-void InterproceduralAnalysis::applyResults(Node::ResultType Type,
-                                           LatticeElement &Result,
-                                           const ABIMap &ABIResults) const {
-
-  auto &R = (Type == Node::ResultType::Arguments) ? Result.Arguments :
-                                                    Result.Returns;
-  for (auto &[CSV, State] : ABIResults) {
-    if (State == abi::RegisterState::Yes) {
-      R.insert(CSV);
-    }
-  }
-}
-
 } // namespace efa

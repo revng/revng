@@ -85,9 +85,6 @@ public:
 private:
   void constructInterproceduralGraph();
 
-  void applyResults(Node::ResultType Type,
-                    LatticeElement &Result,
-                    const ABIMap &ABIResults) const;
 };
 
 } // namespace efa
