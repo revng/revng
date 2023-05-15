@@ -61,6 +61,8 @@ public:
       }
     }
 
+    DestinationModel.initializeReferences();
+
     return Result;
   }
 
