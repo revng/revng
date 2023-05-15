@@ -115,7 +115,7 @@
   PenaltyBreakTemplateDeclaration: 10,
   PenaltyExcessCharacter: 751362,
   PenaltyIndentedWhitespace: 0,
-  PenaltyReturnTypeOnItsOwnLine: 0,
+  PenaltyReturnTypeOnItsOwnLine: 21,
   PointerAlignment: Right,
   PPIndentWidth: -1,
   QualifierAlignment: Leave,

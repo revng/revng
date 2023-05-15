@@ -54,8 +54,8 @@ struct OptionValue<PassName> final
 } // namespace cl
 } // namespace llvm
 
-static cl::list<PassName>
-  PassesList(cl::desc("Optimizations available:"), cl::cat(ThisToolCategory));
+static cl::list<PassName> PassesList(cl::desc("Optimizations available:"),
+                                     cl::cat(ThisToolCategory));
 
 static void loadPassesList() {
   for (const auto &[Name, Description, _] : RegisterModelPass::passes())

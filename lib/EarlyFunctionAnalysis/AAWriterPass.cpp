@@ -24,8 +24,8 @@ class AliasAnalysisAnnotatedWriter : public AssemblyAnnotationWriter {
 public:
   AliasAnalysisAnnotatedWriter(bool StoresOnly) : StoresOnly(StoresOnly) {}
 
-  void
-  emitInstructionAnnot(const Instruction *I, formatted_raw_ostream &) override;
+  void emitInstructionAnnot(const Instruction *I,
+                            formatted_raw_ostream &) override;
 };
 
 using AAAW = AliasAnalysisAnnotatedWriter;

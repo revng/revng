@@ -149,8 +149,8 @@ void Step::removeSatisfiedGoals(ContainerToTargetsMap &Targets,
   }
 }
 
-ContainerToTargetsMap
-Step::deduceResults(const Context &Ctx, ContainerToTargetsMap Input) const {
+ContainerToTargetsMap Step::deduceResults(const Context &Ctx,
+                                          ContainerToTargetsMap Input) const {
   for (const auto &Pipe : Pipes)
     Input = Pipe->deduceResults(Ctx, Input);
   return Input;

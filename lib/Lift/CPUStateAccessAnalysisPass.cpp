@@ -877,8 +877,8 @@ public:
 ///
 /// This function returns `nullptr` if the current source of `Item` is not a
 /// call from `Root`
-static CallInst *
-getCurSourceRootCall(const WorkItem &Item, const Function *Root) {
+static CallInst *getCurSourceRootCall(const WorkItem &Item,
+                                      const Function *Root) {
   revng_log(CSVAccessLog, "getCurSourceRootCall");
   CallInst *RootCall = nullptr;
   if (isa<Argument>(Item.val())) {
@@ -901,8 +901,8 @@ getCurSourceRootCall(const WorkItem &Item, const Function *Root) {
 ///
 /// This function return `nullptr` if the next source of `Item` is not a call
 /// from `Root`
-static CallInst *
-getNextSourceRootCall(const WorkItem &Item, const Function *Root) {
+static CallInst *getNextSourceRootCall(const WorkItem &Item,
+                                       const Function *Root) {
   revng_log(CSVAccessLog, "getNextSourceRootCall");
   CallInst *RootCall = nullptr;
   if (isa<Argument>(Item.val())) {

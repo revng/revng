@@ -124,8 +124,8 @@ private:
 
   void runOptimizationPipeline(llvm::Function *F);
 
-  FunctionSummary
-  milkInfo(OutlinedFunction *F, SortedVector<efa::BasicBlock> &&CFG);
+  FunctionSummary milkInfo(OutlinedFunction *F,
+                           SortedVector<efa::BasicBlock> &&CFG);
 
   struct State {
     llvm::Value *StackPointer;

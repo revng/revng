@@ -233,13 +233,13 @@ struct MFIAnalysis : ABIAnalyses::ABIAnalysis {
   using GT = llvm::GraphTraits<GraphType>;
   using LGT = GraphType;
 
-  LatticeElement
-  combineValues(const LatticeElement &LHS, const LatticeElement &RHS) const {
+  LatticeElement combineValues(const LatticeElement &LHS,
+                               const LatticeElement &RHS) const {
     return LHS.combine(RHS);
   };
 
-  bool
-  isLessOrEqual(const LatticeElement &LHS, const LatticeElement &RHS) const {
+  bool isLessOrEqual(const LatticeElement &LHS,
+                     const LatticeElement &RHS) const {
     return LHS.isLessOrEqual(RHS);
   };
 

@@ -61,8 +61,8 @@ static Context setUpContext(LLVMContext &Context) {
   return Ctx;
 }
 
-static llvm::Error
-pipelineConfigurationCallback(const Loader &Loader, LLVMPipe &NewPass) {
+static llvm::Error pipelineConfigurationCallback(const Loader &Loader,
+                                                 LLVMPipe &NewPass) {
   using Wrapper = revng::ModelGlobal;
   auto &Context = Loader.getContext();
   auto MaybeModelWrapper = Context.getGlobal<Wrapper>(revng::ModelGlobalName);

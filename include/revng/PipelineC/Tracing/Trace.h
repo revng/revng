@@ -135,8 +135,8 @@ public:
   std::vector<BufferLocation> listBuffers() const;
   llvm::Expected<std::vector<char>>
   getBuffer(const BufferLocation &Location) const;
-  llvm::Expected<std::vector<char>>
-  getBuffer(size_t CommandNo, size_t ArgNo) const;
+  llvm::Expected<std::vector<char>> getBuffer(size_t CommandNo,
+                                              size_t ArgNo) const;
   llvm::Error run(const RunTraceOptions Options = {}) const;
 
 public:

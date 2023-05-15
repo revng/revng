@@ -173,8 +173,8 @@ public:
   ptml::Tag getTag(llvm::StringRef Tag, llvm::StringRef Content) const;
 
   ptml::Tag scopeTag(const llvm::StringRef AttributeName) const;
-  ptml::Tag
-  tokenTag(const llvm::StringRef Str, const llvm::StringRef Token) const;
+  ptml::Tag tokenTag(const llvm::StringRef Str,
+                     const llvm::StringRef Token) const;
 };
 
 } // namespace ptml

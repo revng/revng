@@ -326,8 +326,8 @@ makeTypeWithIDImpl(model::TypeKind::Values Kind, uint64_t ID) {
   }
 }
 
-model::UpcastableType
-makeTypeWithID(model::TypeKind::Values Kind, uint64_t ID) {
+model::UpcastableType makeTypeWithID(model::TypeKind::Values Kind,
+                                     uint64_t ID) {
   return makeTypeWithIDImpl(Kind, ID);
 }
 
@@ -396,8 +396,8 @@ bool Qualifier::verify(VerifyHelper &VH) const {
   return VH.fail();
 }
 
-static constexpr bool
-isValidPrimitiveSize(PrimitiveTypeKind::Values PrimKind, uint8_t BS) {
+static constexpr bool isValidPrimitiveSize(PrimitiveTypeKind::Values PrimKind,
+                                           uint8_t BS) {
   switch (PrimKind) {
   case PrimitiveTypeKind::Invalid:
     return false;
@@ -512,8 +512,8 @@ Identifier model::CABIFunctionType::name() const {
   return customNameOrAutomatic(this);
 }
 
-static uint64_t
-makePrimitiveID(PrimitiveTypeKind::Values PrimitiveKind, uint8_t Size) {
+static uint64_t makePrimitiveID(PrimitiveTypeKind::Values PrimitiveKind,
+                                uint8_t Size) {
   return (static_cast<uint8_t>(PrimitiveKind) << 8) | Size;
 }
 
@@ -722,8 +722,8 @@ bool QualifiedType::isPrimitive(PrimitiveTypeKind::Values V) const {
   return isPrimitiveImpl(*this, V);
 }
 
-static RecursiveCoroutine<bool>
-isImpl(const model::QualifiedType &QT, model::TypeKind::Values K) {
+static RecursiveCoroutine<bool> isImpl(const model::QualifiedType &QT,
+                                       model::TypeKind::Values K) {
   if (QT.Qualifiers().size() != 0
       and not llvm::all_of(QT.Qualifiers(), Qualifier::isConst))
     rc_return false;
@@ -843,8 +843,8 @@ Type::trySize(VerifyHelper &VH) const {
   rc_return Size;
 };
 
-static RecursiveCoroutine<bool>
-verifyImpl(VerifyHelper &VH, const PrimitiveType *T) {
+static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
+                                           const PrimitiveType *T) {
   revng_assert(T->Kind() == TypeKind::PrimitiveType);
 
   if (not T->CustomName().empty() or not T->OriginalName().empty())
@@ -894,8 +894,8 @@ bool Identifier::verify(VerifyHelper &VH) const {
                       Twine(*this) + " is not a valid identifier");
 }
 
-static RecursiveCoroutine<bool>
-verifyImpl(VerifyHelper &VH, const EnumType *T) {
+static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
+                                           const EnumType *T) {
   if (T->Kind() != TypeKind::EnumType or T->Entries().empty()
       or not T->CustomName().verify(VH))
     rc_return VH.fail();
@@ -929,8 +929,8 @@ verifyImpl(VerifyHelper &VH, const EnumType *T) {
   rc_return true;
 }
 
-static RecursiveCoroutine<bool>
-verifyImpl(VerifyHelper &VH, const TypedefType *T) {
+static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
+                                           const TypedefType *T) {
   rc_return VH.maybeFail(T->CustomName().verify(VH)
                          and T->Kind() == TypeKind::TypedefType
                          and rc_recur T->UnderlyingType().verify(VH));
@@ -969,8 +969,8 @@ bool model::QualifiedType::isScalar() const {
   return isScalarImpl(*this);
 }
 
-static RecursiveCoroutine<bool>
-verifyImpl(VerifyHelper &VH, const StructType *T) {
+static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
+                                           const StructType *T) {
   using namespace llvm;
 
   revng_assert(T->Kind() == TypeKind::StructType);
@@ -1039,8 +1039,8 @@ verifyImpl(VerifyHelper &VH, const StructType *T) {
   rc_return true;
 }
 
-static RecursiveCoroutine<bool>
-verifyImpl(VerifyHelper &VH, const UnionType *T) {
+static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
+                                           const UnionType *T) {
   revng_assert(T->Kind() == TypeKind::UnionType);
 
   if (not T->CustomName().verify(VH))
@@ -1079,8 +1079,8 @@ verifyImpl(VerifyHelper &VH, const UnionType *T) {
   rc_return true;
 }
 
-static RecursiveCoroutine<bool>
-verifyImpl(VerifyHelper &VH, const CABIFunctionType *T) {
+static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
+                                           const CABIFunctionType *T) {
   if (not T->CustomName().verify(VH) or T->Kind() != TypeKind::CABIFunctionType
       or not rc_recur T->ReturnType().verify(VH))
     rc_return VH.fail();
@@ -1117,8 +1117,8 @@ verifyImpl(VerifyHelper &VH, const CABIFunctionType *T) {
   rc_return true;
 }
 
-static RecursiveCoroutine<bool>
-verifyImpl(VerifyHelper &VH, const RawFunctionType *T) {
+static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
+                                           const RawFunctionType *T) {
 
   for (const NamedTypedRegister &Argument : T->Arguments())
     if (not rc_recur Argument.verify(VH))

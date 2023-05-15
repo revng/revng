@@ -125,8 +125,8 @@ public:
 public:
   // \return if materialization is successful, an non-empty optional composed by
   // a list of values and a list of read memory areas
-  std::optional<MaterializedValues>
-  materialize(Node *N, MemoryOracle &MO) const {
+  std::optional<MaterializedValues> materialize(Node *N,
+                                                MemoryOracle &MO) const {
     using Map = std::map<Node *, std::optional<MaterializedValues>>;
     Map Results;
     return materializeImpl(N, MO, Results);

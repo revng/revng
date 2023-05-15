@@ -95,8 +95,8 @@ private:
   void pinExitTB(llvm::CallInst *ExitTBCall,
                  ProgramCounterHandler::DispatcherTargets &Destinations);
 
-  void
-  pinConstantStoreInternal(MetaAddress Address, llvm::CallInst *ExitTBCall);
+  void pinConstantStoreInternal(MetaAddress Address,
+                                llvm::CallInst *ExitTBCall);
 
 public:
   static char ID;

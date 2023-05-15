@@ -149,8 +149,8 @@ public:
     return true;
   }
 
-  llvm::Error
-  extractOne(llvm::raw_ostream &OS, const Target &Target) const override {
+  llvm::Error extractOne(llvm::raw_ostream &OS,
+                         const Target &Target) const override {
     revng_abort();
     return llvm::Error::success();
   }
@@ -1071,8 +1071,8 @@ public:
     return llvm::Error::success();
   }
 
-  llvm::Error
-  extractOne(llvm::raw_ostream &OS, const Target &Target) const override {
+  llvm::Error extractOne(llvm::raw_ostream &OS,
+                         const Target &Target) const override {
     revng_abort();
     return llvm::Error::success();
   }
@@ -1118,8 +1118,8 @@ public:
     return ErasedAll;
   }
 
-  bool
-  remove(const Target &Target, EnumerableContainerExample &Container) const {
+  bool remove(const Target &Target,
+              EnumerableContainerExample &Container) const {
 
     if (not contains(Target, Container))
       return false;

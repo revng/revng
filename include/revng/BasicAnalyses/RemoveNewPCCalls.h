@@ -11,6 +11,6 @@ class RemoveNewPCCallsPass : public llvm::PassInfoMixin<RemoveNewPCCallsPass> {
 public:
   RemoveNewPCCallsPass() = default;
 
-  llvm::PreservedAnalyses
-  run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM);
+  llvm::PreservedAnalyses run(llvm::Function &F,
+                              llvm::FunctionAnalysisManager &FAM);
 };

@@ -100,8 +100,8 @@ LLVMContainer::cloneFiltered(const TargetsList &Targets) const {
 using LinkageRestoreMap = std::map<std::string,
                                    llvm::GlobalValue::LinkageTypes>;
 
-static void
-fixGlobals(llvm::Module &Module, LinkageRestoreMap &LinkageRestore) {
+static void fixGlobals(llvm::Module &Module,
+                       LinkageRestoreMap &LinkageRestore) {
   using namespace llvm;
 
   for (auto &Global : Module.global_objects()) {
@@ -229,8 +229,8 @@ void LLVMContainer::mergeBackImpl(ThisType &&OtherContainer) {
   }
 }
 
-llvm::Error
-LLVMContainer::extractOne(llvm::raw_ostream &OS, const Target &Target) const {
+llvm::Error LLVMContainer::extractOne(llvm::raw_ostream &OS,
+                                      const Target &Target) const {
   TargetsList List({ Target });
   auto Module = cloneFiltered(List);
   return Module->serialize(OS);

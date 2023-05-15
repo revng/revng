@@ -179,8 +179,8 @@ const inline uint64_t RP_STEP_NOT_FOUND = UINT64_MAX;
  * \return the index of the step with the given name or RP_STEP_NOT_FOUND if no
  *         step with such name was found.
  */
-uint64_t
-rp_manager_step_name_to_index(const rp_manager *manager, const char *name);
+uint64_t rp_manager_step_name_to_index(const rp_manager *manager,
+                                       const char *name);
 
 /**
  * \return the step with the provided index, or NULL if not such step existed.
@@ -264,8 +264,8 @@ rp_manager_get_global_name(const rp_manager *manager, uint64_t index);
  * \return the kind with the provided name, NULL if no kind had the provided
  *         name.
  */
-const rp_kind *
-rp_manager_get_kind_from_name(const rp_manager *manager, const char *kind_name);
+const rp_kind *rp_manager_get_kind_from_name(const rp_manager *manager,
+                                             const char *kind_name);
 
 /**
  * \return the number of kinds present in the manager.
@@ -341,8 +341,8 @@ rp_analysis *rp_manager_get_analysis(rp_manager *manager,
  * \param  index < rp_manager_get_analyses_list_count(manager)
  * \return the number the pointer to the index-nth analysis list.
  */
-rp_analyses_list *
-rp_manager_get_analyses_list(rp_manager *manager, uint64_t index);
+rp_analyses_list *rp_manager_get_analyses_list(rp_manager *manager,
+                                               uint64_t index);
 
 /**
  * Request to run all analyses of the given list on all targets
@@ -427,8 +427,8 @@ const char *rp_step_get_name(const rp_step *step);
  * \return the container associated to the provided \p identifier at the given
  *         \p step or nullptr if not present.
  */
-rp_container *
-rp_step_get_container(rp_step *step, const rp_container_identifier *identifier);
+rp_container *rp_step_get_container(rp_step *step,
+                                    const rp_container_identifier *identifier);
 
 /**
  * \return a \p step 's parent, if present
@@ -585,8 +585,8 @@ uint64_t rp_target_path_components_count(const rp_target *target);
  *
  * \note The returned string must not be freed by the caller.
  */
-const char *
-rp_target_get_path_component(const rp_target *target, uint64_t index);
+const char *rp_target_get_path_component(const rp_target *target,
+                                         uint64_t index);
 
 /**
  * \return true if the provided target is currently cached in the provided
@@ -624,8 +624,8 @@ uint64_t rp_kind_get_defined_location_count(const rp_kind *kind);
 /**
  * \return the rank-location at index or nullptr
  */
-const rp_rank *
-rp_kind_get_defined_location(const rp_kind *kind, uint64_t index);
+const rp_rank *rp_kind_get_defined_location(const rp_kind *kind,
+                                            uint64_t index);
 
 /**
  * \return the number of kinds the kind can reference

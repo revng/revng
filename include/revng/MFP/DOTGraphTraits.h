@@ -84,14 +84,14 @@ struct llvm::DOTGraphTraits<MFP::Graph<MFI> *>
     return Result;
   }
 
-  static std::string
-  getNodeIdentifierLabel(const NodeRef &Arg, const GraphType &G) {
+  static std::string getNodeIdentifierLabel(const NodeRef &Arg,
+                                            const GraphType &G) {
     return UnderlyingDOTGraphTraits::getNodeIdentifierLabel(Arg,
                                                             G->underlying());
   }
 
-  static std::string
-  getNodeDescription(const NodeRef &Arg, const GraphType &G) {
+  static std::string getNodeDescription(const NodeRef &Arg,
+                                        const GraphType &G) {
     return UnderlyingDOTGraphTraits::getNodeDescription(Arg, G->underlying());
   }
 

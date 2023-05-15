@@ -289,8 +289,8 @@ allOrNone(const T &Range, const F &Predicate, bool Default = false) {
 }
 
 template<typename T, typename F>
-static auto
-zeroOrOne(const T &Range, const F &Predicate) -> decltype(&*Range.begin()) {
+static auto zeroOrOne(const T &Range, const F &Predicate)
+  -> decltype(&*Range.begin()) {
   decltype(&*Range.begin()) Result = nullptr;
   for (auto &E : Range) {
     if (Predicate(E)) {
@@ -458,8 +458,8 @@ public:
   }
 
 public:
-  efa::OutlinedFunction
-  outline(MetaAddress Entry, efa::CallHandler *TheCallHandler) {
+  efa::OutlinedFunction outline(MetaAddress Entry,
+                                efa::CallHandler *TheCallHandler) {
     return Outliner.outline(GCBI.getBlockAt(Entry), TheCallHandler);
   }
 };

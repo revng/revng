@@ -390,8 +390,8 @@ yield::Instruction DI::parse(const llvm::MCInst &Instruction,
   return Result;
 }
 
-DI::Disassembled
-DI::instruction(const MetaAddress &Where, llvm::ArrayRef<uint8_t> RawBytes) {
+DI::Disassembled DI::instruction(const MetaAddress &Where,
+                                 llvm::ArrayRef<uint8_t> RawBytes) {
   revng_assert(Where.isValid() && !RawBytes.empty());
 
   auto [Instruction, Size] = disassemble(Where, RawBytes, *Disassembler);

@@ -19,8 +19,8 @@ LayerContainer selectPermutation(InternalGraph &Graph,
                                  const MaybeClassifier<Strategy> &Classifier);
 
 /// A simplified permutation selection to only be used with simple tree.
-LayerContainer
-selectSimpleTreePermutation(InternalGraph &Graph, RankContainer &Ranks);
+LayerContainer selectSimpleTreePermutation(InternalGraph &Graph,
+                                           RankContainer &Ranks);
 
 /// Topologically orders nodes of an augmented graph generated based on a
 /// layered version of the graph.

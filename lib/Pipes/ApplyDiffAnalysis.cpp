@@ -16,8 +16,8 @@
 
 namespace revng::pipes {
 
-llvm::Error
-ApplyDiffAnalysis::run(pipeline::Context &Ctx, std::string DiffLocation) {
+llvm::Error ApplyDiffAnalysis::run(pipeline::Context &Ctx,
+                                   std::string DiffLocation) {
   if (DiffLocation == "")
     return llvm::Error::success();
 

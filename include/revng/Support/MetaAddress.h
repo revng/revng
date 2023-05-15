@@ -525,8 +525,8 @@ public:
                        AddressSpace);
   }
 
-  static constexpr MetaAddress
-  fromGeneric(uint64_t Address, Features Features) {
+  static constexpr MetaAddress fromGeneric(uint64_t Address,
+                                           Features Features) {
     return MetaAddress(Address,
                        MetaAddressType::genericFromArch(Features.Architecture),
                        Features.Epoch,

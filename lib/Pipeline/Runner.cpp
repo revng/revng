@@ -412,8 +412,8 @@ void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
   }
 }
 
-llvm::Error
-Runner::apply(const GlobalTupleTreeDiff &Diff, InvalidationMap &Map) {
+llvm::Error Runner::apply(const GlobalTupleTreeDiff &Diff,
+                          InvalidationMap &Map) {
   getDiffInvalidations(Diff, Map);
   if (auto Error = getInvalidations(Map); Error)
     return Error;

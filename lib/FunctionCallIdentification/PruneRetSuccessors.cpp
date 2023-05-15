@@ -48,8 +48,8 @@ struct SuccessorsList {
   }
 };
 
-static SuccessorsList
-getSuccessors(GeneratedCodeBasicInfo &GCBI, BasicBlock *BB) {
+static SuccessorsList getSuccessors(GeneratedCodeBasicInfo &GCBI,
+                                    BasicBlock *BB) {
   bool IsRoot = BB->getParent() == GCBI.root();
 
   SuccessorsList Result;

@@ -63,8 +63,8 @@ static InvalidationMap getInvalidationMap(Runner &Pipeline) {
   return Invalidations;
 }
 
-static void
-dumpInvalidationMap(llvm::raw_ostream &OS, const InvalidationMap &Map) {
+static void dumpInvalidationMap(llvm::raw_ostream &OS,
+                                const InvalidationMap &Map) {
   for (const auto &Pair : Map) {
     OS << Pair.first();
     Pair.second.dump(OS, 1);

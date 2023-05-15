@@ -105,8 +105,8 @@ inline void purgeBranch(llvm::BasicBlock::iterator I) {
       eraseFromParent(BB);
 }
 
-inline llvm::ConstantInt *
-getConstValue(llvm::Constant *C, const llvm::DataLayout &DL) {
+inline llvm::ConstantInt *getConstValue(llvm::Constant *C,
+                                        const llvm::DataLayout &DL) {
   while (auto *Expr = llvm::dyn_cast<llvm::ConstantExpr>(C)) {
     C = ConstantFoldConstant(Expr, DL);
 
@@ -901,24 +901,24 @@ inline llvm::CallInst *getCallTo(llvm::Instruction *I, llvm::Function *F) {
     return nullptr;
 }
 
-inline const llvm::CallInst *
-getCallTo(const llvm::Instruction *I, llvm::StringRef Name) {
+inline const llvm::CallInst *getCallTo(const llvm::Instruction *I,
+                                       llvm::StringRef Name) {
   if (isCallTo(I, Name))
     return llvm::cast<llvm::CallInst>(I);
   else
     return nullptr;
 }
 
-inline const llvm::CallInst *
-getCallTo(const llvm::Instruction *I, llvm::Function *F) {
+inline const llvm::CallInst *getCallTo(const llvm::Instruction *I,
+                                       llvm::Function *F) {
   if (isCallTo(I, F))
     return llvm::cast<llvm::CallInst>(I);
   else
     return nullptr;
 }
 
-inline std::vector<llvm::GlobalVariable *>
-extractCSVs(llvm::Instruction *Call, unsigned MDKindID) {
+inline std::vector<llvm::GlobalVariable *> extractCSVs(llvm::Instruction *Call,
+                                                       unsigned MDKindID) {
   using namespace llvm;
 
   std::vector<GlobalVariable *> Result;
@@ -1243,13 +1243,13 @@ inline llvm::CallInst *getMarker(llvm::Instruction *T, llvm::Function *Marker) {
   return nullptr;
 }
 
-inline llvm::CallInst *
-getMarker(llvm::Instruction *I, llvm::StringRef MarkerName) {
+inline llvm::CallInst *getMarker(llvm::Instruction *I,
+                                 llvm::StringRef MarkerName) {
   return getMarker(I, getModule(I)->getFunction(MarkerName));
 }
 
-inline llvm::CallInst *
-getMarker(llvm::BasicBlock *BB, llvm::StringRef MarkerName) {
+inline llvm::CallInst *getMarker(llvm::BasicBlock *BB,
+                                 llvm::StringRef MarkerName) {
   return getMarker(BB->getTerminator(), MarkerName);
 }
 
@@ -1454,8 +1454,8 @@ inline llvm::Value *getPointer(llvm::User *U) {
 void moveBlocksInto(llvm::Function &OldFunction, llvm::Function &NewFunction);
 
 /// Create a function identical to \p OldFunction but use \p NewType as type
-llvm::Function &
-moveToNewFunctionType(llvm::Function &OldFunction, llvm::FunctionType &NewType);
+llvm::Function &moveToNewFunctionType(llvm::Function &OldFunction,
+                                      llvm::FunctionType &NewType);
 
 /// Adds NewArguments and changes the return type of \p OldFunction
 ///

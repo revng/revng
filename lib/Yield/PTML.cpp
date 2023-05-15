@@ -305,8 +305,8 @@ static TaggedStrings embedContentIntoTags(const std::vector<yield::Tag> &Tags,
   return Result;
 }
 
-static TaggedStrings
-flattenTags(const SortedVector<yield::Tag> &Tags, llvm::StringRef RawText) {
+static TaggedStrings flattenTags(const SortedVector<yield::Tag> &Tags,
+                                 llvm::StringRef RawText) {
   std::vector<yield::Tag> Result = sortTags(Tags);
   Result.emplace(Result.begin(), yield::TagType::Untagged, 0, RawText.size());
   for (std::ptrdiff_t Index = Result.size() - 1; Index >= 0; --Index) {
@@ -386,8 +386,8 @@ absoluteAddressFromPCRelativeImmediate(const TaggedString &Input,
   return Result += parseImmediate(Input.content());
 }
 
-static TaggedString
-toGlobal(const TaggedString &Input, const MetaAddress &Address) {
+static TaggedString toGlobal(const TaggedString &Input,
+                             const MetaAddress &Address) {
   if (Address.isInvalid())
     return TaggedString{ yield::TagType::Immediate, std::string("invalid") };
 
@@ -696,8 +696,8 @@ static constexpr auto ShallowNodeLabel = "call-graph.shallow-node-label";
 
 } // namespace callGraphTokens
 
-static model::Identifier
-functionNameHelper(std::string_view Location, const model::Binary &Binary) {
+static model::Identifier functionNameHelper(std::string_view Location,
+                                            const model::Binary &Binary) {
   if (auto L = pipeline::locationFromString(revng::ranks::DynamicFunction,
                                             Location)) {
     auto Key = std::get<0>(L->at(revng::ranks::DynamicFunction));

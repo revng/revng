@@ -127,8 +127,8 @@ static bool endsWith(StringRef String, char Last) {
   return not String.empty() and String.back() == Last;
 }
 
-static llvm::StringRef
-extractNullTerminatedStringAt(llvm::StringRef Source, uint64_t Offset) {
+static llvm::StringRef extractNullTerminatedStringAt(llvm::StringRef Source,
+                                                     uint64_t Offset) {
   auto Size = Source.slice(Offset, Source.size()).find('\0');
   return Source.slice(Offset, Offset + Size);
 }

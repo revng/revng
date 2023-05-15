@@ -107,23 +107,23 @@ public:
   Error visitTypeBegin(CVType &Record, TypeIndex TI) override;
 
   Error visitKnownRecord(CVType &Record, ClassRecord &Class) override;
-  Error
-  visitKnownMember(CVMemberRecord &Record, EnumeratorRecord &Member) override;
+  Error visitKnownMember(CVMemberRecord &Record,
+                         EnumeratorRecord &Member) override;
   Error visitKnownRecord(CVType &Record, EnumRecord &Enum) override;
   Error visitKnownRecord(CVType &Record, ProcedureRecord &Proc) override;
   Error visitKnownRecord(CVType &Record, UnionRecord &Union) override;
   Error visitKnownRecord(CVType &Record, ArgListRecord &Args) override;
-  Error
-  visitKnownMember(CVMemberRecord &Record, DataMemberRecord &Member) override;
+  Error visitKnownMember(CVMemberRecord &Record,
+                         DataMemberRecord &Member) override;
   Error visitKnownRecord(CVType &Record, FieldListRecord &FieldList) override;
   Error visitKnownRecord(CVType &Record, PointerRecord &Ptr) override;
   Error visitKnownRecord(CVType &Record, ModifierRecord &Modifier) override;
   Error visitKnownRecord(CVType &Record, ArrayRecord &Array) override;
 
-  Error
-  visitKnownMember(CVMemberRecord &Record, OneMethodRecord &FnMember) override;
-  Error
-  visitKnownRecord(CVType &CVR, MemberFunctionRecord &MemberFnRecord) override;
+  Error visitKnownMember(CVMemberRecord &Record,
+                         OneMethodRecord &FnMember) override;
+  Error visitKnownRecord(CVType &CVR,
+                         MemberFunctionRecord &MemberFnRecord) override;
 
   std::optional<TupleTreeReference<model::Type, model::Binary>>
   getModelTypeForIndex(TypeIndex Index);

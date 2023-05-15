@@ -18,8 +18,8 @@ using namespace llvm;
 char RemoveExceptionalCalls::ID = 0;
 
 using Register = RegisterPass<RemoveExceptionalCalls>;
-static Register
-  X("remove-exceptional-functions", "Remove Exceptional Functions");
+static Register X("remove-exceptional-functions",
+                  "Remove Exceptional Functions");
 
 bool RemoveExceptionalCalls::runOnModule(llvm::Module &M) {
   LLVMContext &C = M.getContext();

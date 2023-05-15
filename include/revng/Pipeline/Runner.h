@@ -68,8 +68,8 @@ public:
 
   const KindsRegistry &getKindsRegistry() const;
 
-  llvm::Error
-  apply(const GlobalTupleTreeDiff &Diff, pipeline::InvalidationMap &Map);
+  llvm::Error apply(const GlobalTupleTreeDiff &Diff,
+                    pipeline::InvalidationMap &Map);
   void getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
                             pipeline::InvalidationMap &Out) const;
 
@@ -146,8 +146,8 @@ public:
 
   Step &addStep(Step &&NewStep);
 
-  llvm::Error
-  run(llvm::StringRef EndingStepName, const ContainerToTargetsMap &Targets);
+  llvm::Error run(llvm::StringRef EndingStepName,
+                  const ContainerToTargetsMap &Targets);
 
   llvm::Error run(const State &ToProduce) {
     for (const auto &Request : ToProduce)
@@ -207,8 +207,8 @@ public:
   llvm::Error storeToDiskDebug(const char *DirPath) const debug_function {
     return storeToDisk(DirPath);
   }
-  llvm::Error
-  storeStepToDisk(llvm::StringRef StepName, llvm::StringRef DirPath) const;
+  llvm::Error storeStepToDisk(llvm::StringRef StepName,
+                              llvm::StringRef DirPath) const;
   llvm::Error loadFromDisk(llvm::StringRef DirPath);
 
 public:

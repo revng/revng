@@ -83,13 +83,13 @@ public:
   void run();
 
 private:
-  Function *
-  handleFunction(Function &OldFunction, const model::Function &FunctionModel);
+  Function *handleFunction(Function &OldFunction,
+                           const model::Function &FunctionModel);
 
   Function *recreateFunction(Function &OldFunction, const FTLayout &Prototype);
 
-  void
-  createPrologue(Function *NewFunction, const model::Function &FunctionModel);
+  void createPrologue(Function *NewFunction,
+                      const model::Function &FunctionModel);
 
   void handleRegularFunctionCall(CallInst *Call);
   CallInst *generateCall(IRBuilder<> &Builder,

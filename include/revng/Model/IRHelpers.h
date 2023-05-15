@@ -17,8 +17,8 @@ inline MetaAddress getMetaAddressOfIsolatedFunction(const llvm::Function &F) {
   return getMetaAddressMetadata(&F, FunctionEntryMDNName);
 }
 
-inline model::Function *
-llvmToModelFunction(model::Binary &Binary, const llvm::Function &F) {
+inline model::Function *llvmToModelFunction(model::Binary &Binary,
+                                            const llvm::Function &F) {
   auto MaybeMetaAddress = getMetaAddressMetadata(&F, FunctionEntryMDNName);
   if (MaybeMetaAddress == MetaAddress::invalid())
     return nullptr;
@@ -29,8 +29,8 @@ llvmToModelFunction(model::Binary &Binary, const llvm::Function &F) {
   return nullptr;
 }
 
-inline const model::Function *
-llvmToModelFunction(const model::Binary &Binary, const llvm::Function &F) {
+inline const model::Function *llvmToModelFunction(const model::Binary &Binary,
+                                                  const llvm::Function &F) {
   auto MaybeMetaAddress = getMetaAddressMetadata(&F, FunctionEntryMDNName);
   if (MaybeMetaAddress == MetaAddress::invalid())
     return nullptr;

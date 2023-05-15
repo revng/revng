@@ -104,8 +104,8 @@ LaneContainer assignLanes(InternalGraph &Graph,
     const LayoutContainer &Layout;
     NodeView FromNode;
 
-    bool
-    operator()(const EdgeDestination &LHS, const EdgeDestination &RHS) const {
+    bool operator()(const EdgeDestination &LHS,
+                    const EdgeDestination &RHS) const {
       const auto &Left = LHS.Label->IsBackwards ? FromNode : LHS.Neighbor;
       const auto &Right = RHS.Label->IsBackwards ? FromNode : RHS.Neighbor;
       return Layout.at(Left).Index < Layout.at(Right).Index;

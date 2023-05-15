@@ -27,6 +27,6 @@ public:
 class CollectFunctionsFromCalleesPass
   : public llvm::PassInfoMixin<CollectFunctionsFromCalleesPass> {
 public:
-  llvm::PreservedAnalyses
-  run(llvm::Module &M, llvm::ModuleAnalysisManager &MAM);
+  llvm::PreservedAnalyses run(llvm::Module &M,
+                              llvm::ModuleAnalysisManager &MAM);
 };

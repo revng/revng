@@ -15,8 +15,8 @@
 #include "revng/Yield/ControlFlow/NodeSizeCalculation.h"
 #include "revng/Yield/Function.h"
 
-static yield::layout::Size
-operator+(const yield::layout::Size &LHS, const yield::layout::Size &RHS) {
+static yield::layout::Size operator+(const yield::layout::Size &LHS,
+                                     const yield::layout::Size &RHS) {
   return yield::layout::Size(LHS.W + RHS.W, LHS.H + RHS.H);
 }
 
@@ -107,8 +107,8 @@ linkSize(const BasicBlockID &Address,
   }
 }
 
-static yield::layout::Size &
-appendSize(yield::layout::Size &Original, const yield::layout::Size &AddOn) {
+static yield::layout::Size &appendSize(yield::layout::Size &Original,
+                                       const yield::layout::Size &AddOn) {
   if (AddOn.W > Original.W)
     Original.W = AddOn.W;
   Original.H += AddOn.H;

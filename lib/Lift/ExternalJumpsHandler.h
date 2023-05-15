@@ -66,8 +66,8 @@ private:
   /// pointer in particular) and then go to serialize_and_jump_out.
   /// The second return of setjmp instead will deserialize the CPU state and go
   /// back to the dispatcher.
-  llvm::BasicBlock *
-  createSetjmp(llvm::BasicBlock *FirstReturn, llvm::BasicBlock *SecondReturn);
+  llvm::BasicBlock *createSetjmp(llvm::BasicBlock *FirstReturn,
+                                 llvm::BasicBlock *SecondReturn);
 
   /// Prepare a list of the executable segments that can be easily consumed
   /// by support.c.

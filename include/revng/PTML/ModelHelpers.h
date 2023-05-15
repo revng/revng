@@ -48,8 +48,8 @@ inline std::string getCustomNamePath(const model::UnionType &Union,
          + "/CustomName";
 }
 
-inline std::string
-getCustomNamePath(const model::EnumType &Type, const model::EnumEntry &Entry) {
+inline std::string getCustomNamePath(const model::EnumType &Type,
+                                     const model::EnumEntry &Entry) {
   return "/Types/" + str(Type.key()) + "/" + str(Entry.key()) + "/CustomName";
 }
 

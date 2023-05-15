@@ -124,8 +124,8 @@ public:
 
 public:
   /// Parse a particularly well-formed GraphViz from a file.
-  void
-  parseDotFromFile(llvm::StringRef FileName, llvm::StringRef EntryName = "");
+  void parseDotFromFile(llvm::StringRef FileName,
+                        llvm::StringRef EntryName = "");
 
   node_range nodes() { return llvm::make_range(begin(), end()); }
 

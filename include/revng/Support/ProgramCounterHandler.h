@@ -129,8 +129,8 @@ public:
                                      const MetaAddress &Address) const;
 
 protected:
-  virtual void
-  initializePCInternal(llvm::IRBuilder<> &Builder, MetaAddress NewPC) const = 0;
+  virtual void initializePCInternal(llvm::IRBuilder<> &Builder,
+                                    MetaAddress NewPC) const = 0;
 
   virtual bool handleStoreInternal(llvm::IRBuilder<> &Builder,
                                    llvm::StoreInst *Store) const = 0;

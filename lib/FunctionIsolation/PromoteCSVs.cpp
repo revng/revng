@@ -433,8 +433,8 @@ struct UsedRegistersMFI : public SetUnionLattice<FunctionNodeData::UsedCSVSet> {
   using Label = FunctionNode *;
   using GraphType = GenericCallGraph *;
 
-  static LatticeElement
-  applyTransferFunction(Label L, const LatticeElement &Value) {
+  static LatticeElement applyTransferFunction(Label L,
+                                              const LatticeElement &Value) {
     return combineValues(L->UsedCSVs, Value);
   }
 };

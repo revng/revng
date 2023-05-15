@@ -94,8 +94,8 @@ getUnsignedOrSigned(const DWARFFormValue &Value) {
     return {};
 }
 
-static std::optional<uint64_t>
-getUnsignedOrSigned(const DWARFDie &Die, dwarf::Attribute Attribute) {
+static std::optional<uint64_t> getUnsignedOrSigned(const DWARFDie &Die,
+                                                   dwarf::Attribute Attribute) {
   auto Value = Die.find(Attribute);
   if (not Value)
     return {};

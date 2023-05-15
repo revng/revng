@@ -46,8 +46,8 @@ TagsSet TagsSet::from(const MDNode *MD) {
 
 } // namespace FunctionTags
 
-const llvm::CallInst *
-getCallToTagged(const llvm::Value *V, const FunctionTags::Tag &T) {
+const llvm::CallInst *getCallToTagged(const llvm::Value *V,
+                                      const FunctionTags::Tag &T) {
   if (auto *Call = llvm::dyn_cast_or_null<llvm::CallInst>(V))
     if (auto *CalledFunc = Call->getCalledFunction())
       if (T.isTagOf(CalledFunc))

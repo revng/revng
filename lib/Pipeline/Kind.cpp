@@ -13,8 +13,8 @@
 
 using namespace pipeline;
 
-llvm::Error
-Kind::verify(const ContainerBase &Container, const Target &T) const {
+llvm::Error Kind::verify(const ContainerBase &Container,
+                         const Target &T) const {
   return llvm::Error::success();
 }
 

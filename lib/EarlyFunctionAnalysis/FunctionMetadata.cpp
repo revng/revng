@@ -396,8 +396,8 @@ template<>
 struct llvm::DOTGraphTraits<efa::FunctionCFG *> : public DefaultDOTGraphTraits {
   DOTGraphTraits(bool Simple = false) : DefaultDOTGraphTraits(Simple) {}
 
-  static std::string
-  getNodeLabel(const efa::FunctionCFGNode *Node, const efa::FunctionCFG *) {
+  static std::string getNodeLabel(const efa::FunctionCFGNode *Node,
+                                  const efa::FunctionCFG *) {
     return Node->ID.toString();
   }
 

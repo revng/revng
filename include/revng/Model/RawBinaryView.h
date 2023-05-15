@@ -34,8 +34,8 @@ public:
   uint64_t size() { return Data.size(); }
 
 public:
-  std::optional<llvm::ArrayRef<uint8_t>>
-  getByOffset(uint64_t Offset, uint64_t Size) const {
+  std::optional<llvm::ArrayRef<uint8_t>> getByOffset(uint64_t Offset,
+                                                     uint64_t Size) const {
     auto Sum = OverflowSafeInt(Offset) + Size;
     if (not Sum or *Sum >= Data.size())
       return std::nullopt;
@@ -43,8 +43,8 @@ public:
     return Data.slice(Offset, Size);
   }
 
-  std::optional<llvm::ArrayRef<uint8_t>>
-  getByAddress(MetaAddress Address, uint64_t Size) const {
+  std::optional<llvm::ArrayRef<uint8_t>> getByAddress(MetaAddress Address,
+                                                      uint64_t Size) const {
     auto Offset = addressToOffset(Address);
     if (not Offset)
       return std::nullopt;
@@ -52,8 +52,8 @@ public:
     return getByOffset(*Offset, Size);
   }
 
-  std::optional<llvm::StringRef>
-  getStringByAddress(MetaAddress Address, uint64_t Size) const {
+  std::optional<llvm::StringRef> getStringByAddress(MetaAddress Address,
+                                                    uint64_t Size) const {
     auto BytesOrNone = getByAddress(Address, Size);
     if (not BytesOrNone.has_value())
       return std::nullopt;
@@ -88,8 +88,8 @@ public:
     }
   }
 
-  std::optional<uint64_t>
-  readInteger(MetaAddress Address, uint64_t Size) const {
+  std::optional<uint64_t> readInteger(MetaAddress Address,
+                                      uint64_t Size) const {
     auto Architecture = Binary.Architecture();
     bool IsLittleEndian = model::Architecture::isLittleEndian(Architecture);
     return readInteger(Address, Size, IsLittleEndian);
@@ -112,8 +112,8 @@ public:
 
   /// \note This function ignores the underlying data, it just performs address
   ///       translation.
-  std::optional<uint64_t>
-  addressToOffset(MetaAddress Address, uint64_t Size = 0) const {
+  std::optional<uint64_t> addressToOffset(MetaAddress Address,
+                                          uint64_t Size = 0) const {
     auto [Segment, OffsetInSegment] = findOffsetInSegment(Address, Size);
     if (Segment == nullptr) {
       return std::nullopt;

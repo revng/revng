@@ -203,11 +203,11 @@ concept input_or_output_iterator = input_iterator<Iterator>
 // clang-format on
 
 template<bool SafeMode, typename IteratorType>
-inline auto
-skipImpl(IteratorType &&From,
-         IteratorType &&To,
-         std::size_t Front = 0,
-         std::size_t Back = 0) -> llvm::iterator_range<IteratorType> {
+inline auto skipImpl(IteratorType &&From,
+                     IteratorType &&To,
+                     std::size_t Front = 0,
+                     std::size_t Back = 0)
+  -> llvm::iterator_range<IteratorType> {
 
   std::ptrdiff_t TotalSkippedCount = Front + Back;
   if constexpr (forward_iterator<IteratorType>) {

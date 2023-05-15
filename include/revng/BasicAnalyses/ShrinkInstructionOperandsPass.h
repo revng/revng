@@ -28,6 +28,6 @@ class ShrinkInstructionOperandsPass
   : public llvm::PassInfoMixin<ShrinkInstructionOperandsPass> {
 
 public:
-  llvm::PreservedAnalyses
-  run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM);
+  llvm::PreservedAnalyses run(llvm::Function &F,
+                              llvm::FunctionAnalysisManager &FAM);
 };

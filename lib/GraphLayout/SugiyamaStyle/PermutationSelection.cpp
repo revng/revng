@@ -13,8 +13,8 @@
 
 /// Converts given rankings to a layer container and updates ranks to remove
 /// the layers that are not required for correct routing.
-static LayerContainer
-optimizeLayers(InternalGraph &Graph, RankContainer &Ranks) {
+static LayerContainer optimizeLayers(InternalGraph &Graph,
+                                     RankContainer &Ranks) {
   LayerContainer Layers;
   for (auto &[Node, Rank] : Ranks) {
     if (Rank >= Layers.size())
@@ -479,8 +479,8 @@ static std::unordered_map<NodeView, size_t> rankSubtrees(InternalGraph &Graph) {
   return Result;
 }
 
-LayerContainer
-selectSimpleTreePermutation(InternalGraph &Graph, RankContainer &Ranks) {
+LayerContainer selectSimpleTreePermutation(InternalGraph &Graph,
+                                           RankContainer &Ranks) {
   // Build a layer container based on a given ranking, then remove layers
   // that can be discarded without losing any important information, for example
   // layers only containing virtual nodes added when splitting long edges.

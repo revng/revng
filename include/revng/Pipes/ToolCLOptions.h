@@ -44,8 +44,8 @@ public:
 
   {}
 
-  llvm::Error
-  overrideModel(llvm::StringRef ModelOverride, PipelineManager &Manager) {
+  llvm::Error overrideModel(llvm::StringRef ModelOverride,
+                            PipelineManager &Manager) {
     const auto &Name = ModelGlobalName;
     auto *Model(cantFail(Manager.context().getGlobal<ModelGlobal>(Name)));
     return Model->loadFromDisk(ModelOverride);

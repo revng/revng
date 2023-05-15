@@ -70,8 +70,8 @@ static TupleTreeGlobal<model::Binary> &getModel(PipelineManager &Manager) {
   return *FinalModel;
 }
 
-static Step *
-getStepOfAnalysis(pipeline::Runner &Runner, llvm::StringRef AnalysisName) {
+static Step *getStepOfAnalysis(pipeline::Runner &Runner,
+                               llvm::StringRef AnalysisName) {
   const auto &StepHasAnalysis = [AnalysisName](const Step &Step) {
     return Step.hasAnalysis(AnalysisName);
   };
@@ -81,8 +81,8 @@ getStepOfAnalysis(pipeline::Runner &Runner, llvm::StringRef AnalysisName) {
   return &*It;
 }
 
-static llvm::Error
-overrideModel(PipelineManager &Manager, TupleTree<model::Binary> NewModel) {
+static llvm::Error overrideModel(PipelineManager &Manager,
+                                 TupleTree<model::Binary> NewModel) {
   const auto &Name = revng::ModelGlobalName;
   auto *Model(cantFail(Manager.context().getGlobal<revng::ModelGlobal>(Name)));
   Model->get() = std::move(NewModel);

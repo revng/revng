@@ -58,8 +58,8 @@ public:
   /// A helper for primitive type selection when binary access is limited.
   ///
   /// It mirrors `model::Binary::makeType`.
-  inline model::TypePath
-  getPrimitiveType(model::PrimitiveTypeKind::Values Kind, uint8_t Size) {
+  inline model::TypePath getPrimitiveType(model::PrimitiveTypeKind::Values Kind,
+                                          uint8_t Size) {
     return Binary.getPrimitiveType(Kind, Size);
   }
 

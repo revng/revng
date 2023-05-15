@@ -162,8 +162,8 @@ public:
   }
 
 public:
-  void
-  dump(std::ostream &OS, size_t Indentation) const override debug_function {
+  void dump(std::ostream &OS,
+            size_t Indentation) const override debug_function {
     Invokable.dump(OS, Indentation);
   }
 

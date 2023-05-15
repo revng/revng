@@ -23,8 +23,8 @@ ptml::Tag PTMLBuilder::getTag(llvm::StringRef Tag) const {
   return EmptyTag;
 }
 
-ptml::Tag
-PTMLBuilder::getTag(llvm::StringRef Tag, llvm::StringRef Content) const {
+ptml::Tag PTMLBuilder::getTag(llvm::StringRef Tag,
+                              llvm::StringRef Content) const {
   if (!GenerateTagLessPTML)
     return ptml::Tag(Tag, Content);
 

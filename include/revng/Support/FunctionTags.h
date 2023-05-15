@@ -204,8 +204,8 @@ inline bool isRootOrLifted(const llvm::Function *F) {
 //
 // {is,get}CallToTagged
 //
-const llvm::CallInst *
-getCallToTagged(const llvm::Value *V, const FunctionTags::Tag &T);
+const llvm::CallInst *getCallToTagged(const llvm::Value *V,
+                                      const FunctionTags::Tag &T);
 
 llvm::CallInst *getCallToTagged(llvm::Value *V, const FunctionTags::Tag &T);
 

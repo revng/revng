@@ -89,8 +89,8 @@ public:
   /// Kinds may provide a override for this method. They must return success if
   /// ToVerify (which always has this kind as a kind), well formed inside
   /// Container (which always contains ToVerify).
-  virtual llvm::Error
-  verify(const ContainerBase &Container, const Target &ToVerify) const;
+  virtual llvm::Error verify(const ContainerBase &Container,
+                             const Target &ToVerify) const;
 
 public:
   size_t depth() const { return TheRank->depth(); }

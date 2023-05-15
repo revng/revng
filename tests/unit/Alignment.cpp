@@ -165,8 +165,8 @@ BOOST_AUTO_TEST_CASE(RemainingPrimitiveTypes) {
   }
 }
 
-static model::UnionField
-makeUnionField(std::uint64_t Index, model::QualifiedType Type) {
+static model::UnionField makeUnionField(std::uint64_t Index,
+                                        model::QualifiedType Type) {
   model::UnionField Result;
   Result.Index() = Index;
   Result.Type() = Type;
@@ -241,8 +241,8 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
   }
 }
 
-static model::StructField
-makeStructField(std::uint64_t Offset, model::QualifiedType Type) {
+static model::StructField makeStructField(std::uint64_t Offset,
+                                          model::QualifiedType Type) {
   model::StructField Result;
   Result.Offset() = Offset;
   Result.Type() = Type;

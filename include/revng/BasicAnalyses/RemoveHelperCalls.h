@@ -16,6 +16,6 @@ class RemoveHelperCallsPass
 public:
   RemoveHelperCallsPass() = default;
 
-  llvm::PreservedAnalyses
-  run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM);
+  llvm::PreservedAnalyses run(llvm::Function &F,
+                              llvm::FunctionAnalysisManager &FAM);
 };

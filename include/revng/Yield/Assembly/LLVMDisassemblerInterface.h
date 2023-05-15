@@ -38,8 +38,8 @@ public:
     bool HasDelaySlot;
     uint64_t Size;
   };
-  Disassembled
-  instruction(const MetaAddress &Where, llvm::ArrayRef<uint8_t> RawBytes);
+  Disassembled instruction(const MetaAddress &Where,
+                           llvm::ArrayRef<uint8_t> RawBytes);
 
 public:
   inline llvm::StringRef getCommentString() const {

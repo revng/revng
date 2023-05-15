@@ -44,8 +44,8 @@ public:
 public:
   virtual ~ContainerEnumerator() = default;
 
-  virtual TargetsList
-  enumerate(const Context &Ctx, const Container &ToInspect) const = 0;
+  virtual TargetsList enumerate(const Context &Ctx,
+                                const Container &ToInspect) const = 0;
 
   /// \return must return true if it was possible to remove the provided target
   virtual bool remove(const Context &Ctx,

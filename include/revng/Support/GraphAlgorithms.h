@@ -306,8 +306,8 @@ protected:
 
 public:
   // Return the insertion iterator on the underlying map.
-  std::pair<typename StatusMap::iterator, bool>
-  insertInMap(NodeT Block, bool OnStack) {
+  std::pair<typename StatusMap::iterator, bool> insertInMap(NodeT Block,
+                                                            bool OnStack) {
     return StatusMap::insert(std::make_pair(Block, OnStack));
   }
 

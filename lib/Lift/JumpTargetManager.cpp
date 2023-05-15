@@ -870,8 +870,8 @@ void JumpTargetManager::purgeTranslation(BasicBlock *Start) {
 }
 
 // TODO: register Reason
-BasicBlock *
-JumpTargetManager::registerJT(MetaAddress PC, JTReason::Values Reason) {
+BasicBlock *JumpTargetManager::registerJT(MetaAddress PC,
+                                          JTReason::Values Reason) {
   revng_check(PC.isValid());
 
   if (not isPC(PC))

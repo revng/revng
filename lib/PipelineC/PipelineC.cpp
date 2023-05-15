@@ -248,8 +248,8 @@ static uint64_t _rp_manager_steps_count(const rp_manager *manager) {
   return manager->getRunner().size();
 }
 
-static uint64_t
-_rp_manager_step_name_to_index(const rp_manager *manager, const char *name) {
+static uint64_t _rp_manager_step_name_to_index(const rp_manager *manager,
+                                               const char *name) {
   revng_check(manager != nullptr);
   revng_check(name != nullptr);
   size_t I = 0;
@@ -262,8 +262,8 @@ _rp_manager_step_name_to_index(const rp_manager *manager, const char *name) {
   return RP_STEP_NOT_FOUND;
 }
 
-static rp_step *
-_rp_manager_get_step(const rp_manager *manager, uint64_t index) {
+static rp_step *_rp_manager_get_step(const rp_manager *manager,
+                                     uint64_t index) {
   revng_check(manager != nullptr);
   revng_check(index < manager->getRunner().size());
   return &(*(std::next(manager->getRunner().begin(), index)));
@@ -278,8 +278,8 @@ static uint64_t _rp_step_get_analyses_count(const rp_step *step) {
   return step->getAnalysesSize();
 }
 
-static const rp_analysis *
-_rp_step_get_analysis(const rp_step *step, uint64_t index) {
+static const rp_analysis *_rp_step_get_analysis(const rp_step *step,
+                                                uint64_t index) {
   revng_check(step != nullptr);
   if (index >= step->getAnalysesSize())
     return nullptr;
@@ -371,8 +371,8 @@ static void _rp_diff_map_destroy(rp_diff_map *to_free) {
   delete to_free;
 }
 
-static char *
-_rp_diff_map_get_diff(const rp_diff_map *map, const char *global_name) {
+static char *_rp_diff_map_get_diff(const rp_diff_map *map,
+                                   const char *global_name) {
   auto It = map->find(global_name);
   if (It == map->end())
     return nullptr;
@@ -439,15 +439,15 @@ static uint64_t _rp_manager_kinds_count(const rp_manager *manager) {
   return manager->getRunner().getKindsRegistry().size();
 }
 
-static rp_kind *
-_rp_manager_get_kind(const rp_manager *manager, uint64_t index) {
+static rp_kind *_rp_manager_get_kind(const rp_manager *manager,
+                                     uint64_t index) {
   revng_check(manager != nullptr);
   revng_check(index < manager->getRunner().getKindsRegistry().size());
   return &*std::next(manager->getRunner().getKindsRegistry().begin(), index);
 }
 
-static bool
-_rp_container_store(const rp_container *container, const char *path) {
+static bool _rp_container_store(const rp_container *container,
+                                const char *path) {
   revng_check(container != nullptr);
   revng_check(path != nullptr);
   auto Error = container->second->storeToDisk(path);
@@ -488,8 +488,8 @@ static uint64_t _rp_target_path_components_count(rp_target *target) {
   revng_check(target != nullptr);
   return target->getPathComponents().size();
 }
-static const char *
-_rp_target_get_path_component(rp_target *target, uint64_t index) {
+static const char *_rp_target_get_path_component(rp_target *target,
+                                                 uint64_t index) {
   revng_check(target != nullptr);
   auto &PathComponents = target->getPathComponents();
   revng_check(index < PathComponents.size());
@@ -567,8 +567,8 @@ static char *_rp_target_create_serialized_string(rp_target *target) {
   return copyString(target->serialize());
 }
 
-static rp_target *
-_rp_target_create_from_string(const rp_manager *manager, const char *string) {
+static rp_target *_rp_target_create_from_string(const rp_manager *manager,
+                                                const char *string) {
   revng_check(manager != nullptr);
   revng_check(string != nullptr);
   TargetsList Targets;
@@ -584,8 +584,8 @@ _rp_target_create_from_string(const rp_manager *manager, const char *string) {
   return nullptr;
 }
 
-static bool
-_rp_target_is_ready(const rp_target *target, const rp_container *container) {
+static bool _rp_target_is_ready(const rp_target *target,
+                                const rp_container *container) {
   revng_assert(target);
   revng_assert(container);
   return container->second->enumerate().contains(*target);
@@ -610,15 +610,15 @@ static uint64_t _rp_manager_get_globals_count(rp_manager *manager) {
   return manager->context().getGlobals().size();
 }
 
-static char *
-_rp_manager_get_global_name(const rp_manager *manager, uint64_t index) {
+static char *_rp_manager_get_global_name(const rp_manager *manager,
+                                         uint64_t index) {
   if (index < manager->context().getGlobals().size())
     return copyString(manager->context().getGlobals().getName(index).str());
   return nullptr;
 }
 
-static bool
-llvmErrorToRpError(llvm::Error Error, ExistingOrNew<rp_error> &Out) {
+static bool llvmErrorToRpError(llvm::Error Error,
+                               ExistingOrNew<rp_error> &Out) {
   bool Success = true;
   // clang-format off
   llvm::handleAllErrors(std::move(Error),
@@ -875,8 +875,8 @@ static uint64_t _rp_analysis_get_arguments_count(const rp_analysis *analysis) {
   return analysis->second->getRunningContainersNames().size();
 }
 
-static char *
-_rp_analysis_get_argument_name(const rp_analysis *analysis, uint64_t index) {
+static char *_rp_analysis_get_argument_name(const rp_analysis *analysis,
+                                            uint64_t index) {
   revng_check(index < analysis->second->getRunningContainersNames().size());
   std::string Name = analysis->second->getRunningContainersNames()[index];
 
@@ -904,8 +904,8 @@ static uint64_t _rp_manager_get_analyses_list_count(rp_manager *manager) {
   return manager->getRunner().getAnalysesListCount();
 }
 
-static rp_analyses_list *
-_rp_manager_get_analyses_list(rp_manager *manager, uint64_t index) {
+static rp_analyses_list *_rp_manager_get_analyses_list(rp_manager *manager,
+                                                       uint64_t index) {
   revng_check(manager != nullptr);
   return &manager->getRunner().getAnalysesList(index);
 }
@@ -1103,8 +1103,8 @@ static uint64_t _rp_kind_get_defined_location_count(const rp_kind *kind) {
   return kind->definedLocations().size();
 }
 
-static const rp_rank *
-_rp_kind_get_defined_location(const rp_kind *kind, uint64_t index) {
+static const rp_rank *_rp_kind_get_defined_location(const rp_kind *kind,
+                                                    uint64_t index) {
   revng_check(kind != nullptr);
   const llvm::ArrayRef<const Rank *> Locations = kind->definedLocations();
   if (index < Locations.size())
@@ -1118,8 +1118,8 @@ static uint64_t _rp_kind_get_preferred_kind_count(const rp_kind *kind) {
   return kind->preferredKinds().size();
 }
 
-static const rp_kind *
-_rp_kind_get_preferred_kind(const rp_kind *kind, uint64_t index) {
+static const rp_kind *_rp_kind_get_preferred_kind(const rp_kind *kind,
+                                                  uint64_t index) {
   revng_check(kind != nullptr);
   const llvm::ArrayRef<const Kind *> PreferredKinds = kind->preferredKinds();
   if (index < PreferredKinds.size())

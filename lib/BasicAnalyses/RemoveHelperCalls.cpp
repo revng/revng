@@ -27,16 +27,16 @@ public:
   }
 
 public:
-  llvm::StoreInst *
-  clobber(llvm::IRBuilder<> &Builder, llvm::GlobalVariable *CSV) {
+  llvm::StoreInst *clobber(llvm::IRBuilder<> &Builder,
+                           llvm::GlobalVariable *CSV) {
     auto *CSVTy = CSV->getValueType();
     std::string Name = "clobber_" + CSV->getName().str();
     llvm::Function *Clobberer = Clobberers.get(Name, CSVTy, {}, Name);
     return Builder.CreateStore(Builder.CreateCall(Clobberer), CSV);
   }
 
-  llvm::StoreInst *
-  clobber(llvm::IRBuilder<> &Builder, model::Register::Values Value) {
+  llvm::StoreInst *clobber(llvm::IRBuilder<> &Builder,
+                           model::Register::Values Value) {
     return clobber(Builder,
                    M->getGlobalVariable(model::Register::getCSVName(Value)));
   }
