@@ -670,7 +670,7 @@ def get_file_list(args) -> List[Path]:
 
 def read_clang_style(args) -> str:
     if not args.use_local_clang_format_file:
-        style = get_config("clang-format-style-file").read_text()
+        style = get_config("clang-format-style-file.yml").read_text()
     else:
         style = "file"
     if args.print_clang_format_config:

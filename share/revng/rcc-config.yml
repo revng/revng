@@ -71,7 +71,7 @@ read_passes:
     ignore_pathnames:
       - .gitignore
       - pyproject.toml
-      - clang-format-style-file
+      - clang-format-style-file.yml
       - .clang-tidy
       - Doxyfile.in
   - type: BashPass
