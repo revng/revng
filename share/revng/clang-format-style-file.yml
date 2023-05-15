@@ -102,7 +102,7 @@
     { Binary: 0, BinaryMinDigits: 0, Decimal: 0, DecimalMinDigits: 0, Hex: 0, HexMinDigits: 0 },
   KeepEmptyLinesAtTheStartOfBlocks: true,
   LambdaBodyIndentation: Signature,
-  LineEnding: DeriveLF,
+  LineEnding: LF,
   MaxEmptyLinesToKeep: 1,
   NamespaceIndentation: None,
   PackConstructorInitializers: NextLine,
