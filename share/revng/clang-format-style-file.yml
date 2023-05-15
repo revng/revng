@@ -110,7 +110,7 @@
   PenaltyBreakBeforeFirstCallParameter: 800000,
   PenaltyBreakComment: 0,
   PenaltyBreakFirstLessLess: 120,
-  PenaltyBreakOpenParenthesis: 0,
+  PenaltyBreakOpenParenthesis: 800000,
   PenaltyBreakString: 10,
   PenaltyBreakTemplateDeclaration: 10,
   PenaltyExcessCharacter: 751362,
