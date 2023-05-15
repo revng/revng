@@ -24,6 +24,7 @@ class DotGraph;
 class DotNode {
 
   // Define the container for the successors and some useful helpers.
+
 public:
   using child_container = std::vector<DotNode *>;
   using child_iterator = typename child_container::iterator;

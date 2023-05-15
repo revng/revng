@@ -39,7 +39,6 @@ template<kinds::FunctionKind *K,
 class FunctionStringMap
   : public pipeline::Container<FunctionStringMap<K, TypeName, MIMETypeParam>> {
 public:
-public:
   using MapType = typename std::map<MetaAddress, MultiLineString>;
   using ValueType = typename MapType::value_type;
   using Iterator = typename MapType::iterator;
