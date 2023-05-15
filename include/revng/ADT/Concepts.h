@@ -12,28 +12,6 @@
 #include <type_traits>
 
 //
-// The concepts from the STL.
-// TODO: remove these after updating the libc++ version.
-//
-
-template<typename T>
-concept equality_comparable = requires(T &&LHS, T &&RHS) {
-  { LHS == RHS } -> std::convertible_to<bool>;
-};
-
-template<typename F, typename... Args>
-concept invocable = requires(F &&Function, Args &&...Arguments) {
-  std::invoke(std::forward<F>(Function), std::forward<Args>(Arguments)...);
-};
-
-// NOTE: this is supposed to use `std::regular_invocable`, but the difference
-//       is not major in most cases, so use `invocable` until we update libc++.
-template<typename F, typename... Args>
-concept predicate = invocable<F, Args...>
-                    && std::is_convertible_v<std::invoke_result_t<F, Args...>,
-                                             bool>;
-
-//
 // Concepts to simplify working with tuples.
 //
 
