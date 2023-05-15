@@ -67,18 +67,11 @@ static_assert(not TupleLike<std::vector<int>>);
 /// `IsRank`) concepts needed since we can now just say
 /// `SpecializationOf<GenericGraph>` on the interface boundaries and get
 /// the expected check.
-///
-/// TODO: this requires clang-13+, uncomment it after the update.
-// template<typename Type, template<typename...> class Ref>
-// concept SpecializationOf = requires(Type &&Value) {
-//   []<typename... Ts>(Ref<Ts...> &){}(Value);
-// };
-//
-// static_assert(SpecializationOf<std::pair<int, long>, std::pair>);
-// static_assert(SpecializationOf<const std::pair<int, long>, std::pair>);
-// static_assert(SpecializationOf<std::string, std::basic_string>);
-// static_assert(SpecializationOf<std::ostream, std::basic_ios>);
-// static_assert(not SpecializationOf<std::string, std::basic_string_view>);
+template<typename Type, template<typename...> class Ref>
+concept SpecializationOf = requires(Type &Value) {
+  []<typename... Ts>(Ref<Ts...> &) {
+  }(const_cast<std::remove_const_t<Type> &>(Value));
+};
 
 namespace revng::detail {
 
@@ -105,11 +98,39 @@ constexpr bool
 template<typename Test, template<typename...> class Ref>
 concept StrictSpecializationOf = revng::detail::StrictSpecialization<Test, Ref>;
 
+namespace examples {
+
+static_assert(SpecializationOf<std::pair<int, long>, std::pair>);
 static_assert(StrictSpecializationOf<std::pair<int, long>, std::pair>);
+static_assert(SpecializationOf<const std::pair<int, long>, std::pair>);
 static_assert(StrictSpecializationOf<const std::pair<int, long>, std::pair>);
+
+static_assert(SpecializationOf<std::string, std::basic_string>);
 static_assert(StrictSpecializationOf<std::string, std::basic_string>);
-static_assert(not StrictSpecializationOf<std::ostream, std::basic_ios>);
+static_assert(not SpecializationOf<std::string, std::basic_string_view>);
 static_assert(not StrictSpecializationOf<std::string, std::basic_string_view>);
+
+using Alias = std::pair<int, long>;
+static_assert(SpecializationOf<Alias, std::pair>);
+static_assert(StrictSpecializationOf<Alias, std::pair>);
+
+template<typename Type>
+struct InheritanceT : std::pair<int, Type> {};
+struct PublicInheritance : public InheritanceT<long> {};
+struct PrivateInheritance : private InheritanceT<long> {};
+struct ProtectedInheritance : protected InheritanceT<long> {};
+
+static_assert(SpecializationOf<PublicInheritance, std::pair>);
+static_assert(SpecializationOf<PublicInheritance, InheritanceT>);
+static_assert(not SpecializationOf<PrivateInheritance, std::pair>);
+static_assert(not SpecializationOf<ProtectedInheritance, std::pair>);
+
+static_assert(not StrictSpecializationOf<PublicInheritance, std::pair>);
+static_assert(not StrictSpecializationOf<PublicInheritance, InheritanceT>);
+static_assert(not StrictSpecializationOf<PrivateInheritance, std::pair>);
+static_assert(not StrictSpecializationOf<ProtectedInheritance, std::pair>);
+
+} // namespace examples
 
 //
 // Other Miscellaneous concepts.
