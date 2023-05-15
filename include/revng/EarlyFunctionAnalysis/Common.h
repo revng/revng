@@ -233,6 +233,8 @@ struct MFIAnalysis : ABIAnalyses::ABIAnalysis {
   using GT = llvm::GraphTraits<GraphType>;
   using LGT = GraphType;
 
+  using ABIAnalyses::ABIAnalysis::ABIAnalysis;
+
   LatticeElement
   combineValues(const LatticeElement &LHS, const LatticeElement &RHS) const {
     return LHS.combine(RHS);
