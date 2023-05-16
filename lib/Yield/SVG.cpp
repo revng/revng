@@ -189,7 +189,7 @@ static void expandViewbox(Viewbox &Box, const yield::layout::Point &Point) {
     Box.BottomRight.Y = -Point.Y;
 }
 
-template<StrictSpecializationOf<yield::layout::OutputGraph> GraphType>
+template<SpecializationOf<yield::layout::OutputGraph> GraphType>
 Viewbox calculateViewbox(const GraphType &Graph) {
   revng_assert(Graph.size() != 0);
 
@@ -285,7 +285,7 @@ concept NodeExporter = requires(CallableType &&Callable, const NodeType &Node) {
 };
 
 template<bool ShouldEmitEmptyNodes,
-         StrictSpecializationOf<yield::layout::OutputGraph> PostLayoutGraph,
+         SpecializationOf<yield::layout::OutputGraph> PostLayoutGraph,
          NodeExporter<typename PostLayoutGraph::Node> ContentsLambda>
 static std::string exportGraph(const PTMLBuilder &ThePTMLBuilder,
                                const PostLayoutGraph &Graph,

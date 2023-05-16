@@ -190,7 +190,6 @@ public:
   llvm::Error apply(TupleTree<T> &M) const;
 };
 
-/// TODO: use non-strict specialization after it's available.
 template<StrictSpecializationOf<TupleTreeDiff> T>
 struct llvm::yaml::MappingTraits<T> {
   static void mapping(IO &IO, T &Info) {
@@ -198,7 +197,6 @@ struct llvm::yaml::MappingTraits<T> {
   }
 };
 
-/// TODO: use non-strict specialization after it's available.
 template<StrictSpecializationOf<Change> T, typename X>
 struct llvm::yaml::SequenceElementTraits<T, X> {
   // NOLINTNEXTLINE
@@ -245,7 +243,6 @@ struct MapDiffVisitor {
 
 } // namespace detail
 
-/// TODO: use non-strict specialization after it's available.
 template<StrictSpecializationOf<Change> T>
 struct llvm::yaml::MappingTraits<T> {
   using EntryType = typename T::EntryType;
