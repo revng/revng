@@ -24,7 +24,7 @@ llvmToModelFunction(model::Binary &Binary, const llvm::Function &F) {
     return nullptr;
   if (auto It = Binary.Functions().find(MaybeMetaAddress);
       It != Binary.Functions().end())
-    return &(*It);
+    return &*It;
 
   return nullptr;
 }

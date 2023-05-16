@@ -20,7 +20,7 @@
 /// look like function calls, i.e., they store the next program counter (the
 /// return address) to a CSV (the link register) or in memory (the stack).
 ///
-/// The pass also injects a call to the "funcion_call" function before
+/// The pass also injects a call to the "function_call" function before
 /// terminator instructions identified. The first argument represents the callee
 /// basic block, the second the return basic block and the third the return
 /// address.

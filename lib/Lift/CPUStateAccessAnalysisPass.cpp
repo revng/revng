@@ -1047,7 +1047,7 @@ public:
             and SrcOffsets[SI].second == nullptr) {
           // This means that one the pairs is empty and we can drop entirely
           // this call. This happens when C == nullptr and one of the sources
-          // has no nullptr Callsite
+          // has no nullptr call site
           EmptyPair = true;
         }
       }

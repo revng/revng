@@ -55,22 +55,21 @@ private:
 public:
   const efa::FunctionMetadata &
   getFunctionMetadata(const llvm::Function *Function) {
-    if (auto Iter = FunctionCache.find(Function); Iter == FunctionCache.end()) {
-      efa::FunctionMetadata FM = *detail::extractFunctionMetadata(Function)
-                                    .get();
-      FunctionCache.try_emplace(Function, FM);
-    }
+    auto Iterator = FunctionCache.find(Function);
+    if (Iterator != FunctionCache.end())
+      return Iterator->second;
 
-    return FunctionCache.find(Function)->second;
+    efa::FunctionMetadata FM = *detail::extractFunctionMetadata(Function).get();
+    return FunctionCache.try_emplace(Function, FM).first->second;
   }
 
   const efa::FunctionMetadata &getFunctionMetadata(const llvm::BasicBlock *BB) {
-    if (auto Iter = FunctionCache.find(BB); Iter == FunctionCache.end()) {
-      efa::FunctionMetadata FM = *detail::extractFunctionMetadata(BB).get();
-      FunctionCache.try_emplace(BB, FM);
-    }
+    auto Iterator = FunctionCache.find(BB);
+    if (Iterator != FunctionCache.end())
+      return Iterator->second;
 
-    return FunctionCache.find(BB)->second;
+    efa::FunctionMetadata FM = *detail::extractFunctionMetadata(BB).get();
+    return FunctionCache.try_emplace(BB, FM).first->second;
   }
 
   /// Given a Call instruction and the model type of its parent function, return
