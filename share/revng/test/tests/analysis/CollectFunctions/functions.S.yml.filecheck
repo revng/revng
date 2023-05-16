@@ -1,0 +1,21 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+# In order to understand this file, see:
+#
+#     share/revng/test/tests/analysis/CollectFunctions/functions.S
+
+CHECK:     Functions:
+CHECK:       - Entry:           "0xab00000000:Code_x86_64"
+CHECK-NOT:   - Entry:           "0xab00000001:Code_x86_64"
+CHECK:       - Entry:           "0xab00000002:Code_x86_64"
+CHECK:       - Entry:           "0xab00000003:Code_x86_64"
+CHECK:       - Entry:           "0xab00000004:Code_x86_64"
+CHECK-NOT:   - Entry:           "0xab00000005:Code_x86_64"
+CHECK:       - Entry:           "0xab00000006:Code_x86_64"
+CHECK-NOT:   - Entry:           "0xab00000010:Code_x86_64"
+CHECK-NOT:   - Entry:           "0xab00000012:Code_x86_64"
+CHECK-NOT:   - Entry:           "0xab00000013:Code_x86_64"
+CHECK-NOT:   - Entry:           "0xab00000014:Code_x86_64"
+CHECK:       - Entry:           "0xab00000015:Code_x86_64"
