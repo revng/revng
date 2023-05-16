@@ -158,48 +158,6 @@ using MapToValueIteratorType = decltype(mapToValueIterator(std::declval<T>()));
 
 namespace revng::detail {
 
-// Remove these incomplete iterator testers after we update to libc++-13+
-// with standard library concept support.
-// NOTE: they are VERY basic, don't rely on them too much.
-
-template<typename Iterator>
-using Category = typename std::iterator_traits<Iterator>::iterator_category;
-
-template<typename Iterator>
-concept InputOnly = std::is_same_v<Category<Iterator>, std::input_iterator_tag>;
-template<typename Iterator>
-concept OutputOnly = std::is_same_v<Category<Iterator>,
-                                    std::output_iterator_tag>;
-template<typename Iterator>
-concept ForwardOnly = std::is_same_v<Category<Iterator>,
-                                     std::forward_iterator_tag>;
-template<typename Iterator>
-concept BidirectionalOnly = std::is_same_v<Category<Iterator>,
-                                           std::bidirectional_iterator_tag>;
-template<typename Iterator>
-concept RandomAccessOnly = std::is_same_v<Category<Iterator>,
-                                          std::random_access_iterator_tag>;
-template<typename Iterator>
-concept ContiguousOnly = std::is_same_v<Category<Iterator>,
-                                        std::contiguous_iterator_tag>;
-
-template<typename Iterator>
-concept contiguous_iterator = ContiguousOnly<Iterator>;
-template<typename Iterator>
-concept random_access_iterator = contiguous_iterator<Iterator>
-                                 || RandomAccessOnly<Iterator>;
-template<typename Iterator>
-concept bidirectional_iterator = random_access_iterator<Iterator>
-                                 || BidirectionalOnly<Iterator>;
-template<typename Iterator>
-concept forward_iterator = bidirectional_iterator<Iterator>
-                           || ForwardOnly<Iterator>;
-template<typename Iterator>
-concept input_iterator = forward_iterator<Iterator> || InputOnly<Iterator>;
-template<typename Iterator>
-concept input_or_output_iterator = input_iterator<Iterator>
-                                   || OutputOnly<Iterator>;
-
 template<bool SafeMode, typename IteratorType>
 inline auto skipImpl(IteratorType &&From,
                      IteratorType &&To,
@@ -208,7 +166,7 @@ inline auto skipImpl(IteratorType &&From,
   -> llvm::iterator_range<IteratorType> {
 
   std::ptrdiff_t TotalSkippedCount = Front + Back;
-  if constexpr (forward_iterator<IteratorType>) {
+  if constexpr (std::forward_iterator<IteratorType>) {
     // We cannot check on the input iterators because it's going to consume
     // them.
 
@@ -232,7 +190,7 @@ inline auto skipImpl(IteratorType &&From,
   return llvm::make_range(std::move(Begin), std::move(End));
 }
 
-template<bidirectional_iterator T>
+template<std::bidirectional_iterator T>
 inline decltype(auto)
 skip(T &&From, T &&To, std::size_t Front = 0, std::size_t Back = 0) {
   return skipImpl<true>(std::forward<T>(From),
@@ -241,7 +199,7 @@ skip(T &&From, T &&To, std::size_t Front = 0, std::size_t Back = 0) {
                         Back);
 }
 
-template<input_iterator T>
+template<std::input_iterator T>
 inline decltype(auto) // NOLINTNEXTLINE
 skip_front(T &&From, T &&To, std::size_t SkippedCount = 1) {
   return skipImpl<true>(std::forward<T>(From),
@@ -250,7 +208,7 @@ skip_front(T &&From, T &&To, std::size_t SkippedCount = 1) {
                         0);
 }
 
-template<bidirectional_iterator T>
+template<std::bidirectional_iterator T>
 inline decltype(auto) // NOLINTNEXTLINE
 skip_back(T &&From, T &&To, std::size_t SkippedCount = 1) {
   return skipImpl<true>(std::forward<T>(From),
