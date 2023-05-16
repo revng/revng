@@ -121,6 +121,25 @@ public:
     return { wrapIterator(Result.first), Result.second };
   }
 
+  template<typename... Types>
+  std::pair<iterator, bool> emplace(Types &&...Values) {
+    T NewElement{ Values... };
+
+    auto Result = TheMap.emplace(KOT::key(NewElement), std::move(NewElement));
+
+    return { wrapIterator(Result.first), Result.second };
+  }
+
+  template<typename... Types>
+  std::pair<iterator, bool> try_emplace(Types &&...Values) {
+    T NewElement{ Values... };
+
+    auto Result = TheMap.try_emplace(KOT::key(NewElement),
+                                     std::move(NewElement));
+
+    return { wrapIterator(Result.first), Result.second };
+  }
+
   std::pair<iterator, bool> insert_or_assign(const T &Value) {
     auto Result = TheMap.insert_or_assign(KOT::key(Value), Value);
     return { wrapIterator(Result.first), Result.second };
@@ -143,6 +162,8 @@ public:
   const_iterator find(const key_type &Key) const {
     return wrapIterator(TheMap.find(Key));
   }
+
+  bool contains(const key_type &Key) const { return find(Key) != end(); }
 
   iterator lower_bound(const key_type &Key) {
     return wrapIterator(TheMap.lower_bound(Key));
