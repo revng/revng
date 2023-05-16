@@ -380,10 +380,10 @@ public:
 
     llvm::SmallVector<model::Register::Values, 8> Result;
     for (auto Register : GeneralPurposeArgumentRegisters())
-      if (Lookup.count(Register) != 0)
+      if (Lookup.contains(Register))
         Result.emplace_back(Register);
     for (auto Register : VectorArgumentRegisters())
-      if (Lookup.count(Register) != 0)
+      if (Lookup.contains(Register))
         Result.emplace_back(Register);
 
     revng_assert(Result.size() == std::size(Registers));
@@ -402,10 +402,10 @@ public:
 
     llvm::SmallVector<model::Register::Values, 8> Result;
     for (auto Register : GeneralPurposeReturnValueRegisters())
-      if (Lookup.count(Register) != 0)
+      if (Lookup.contains(Register))
         Result.emplace_back(Register);
     for (auto Register : VectorReturnValueRegisters())
-      if (Lookup.count(Register) != 0)
+      if (Lookup.contains(Register))
         Result.emplace_back(Register);
 
     revng_assert(Result.size() == std::size(Registers));

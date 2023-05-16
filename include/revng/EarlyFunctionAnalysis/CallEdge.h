@@ -67,11 +67,11 @@ public:
                     model::FunctionAttribute::Values Attribute) const {
     using namespace model;
 
-    if (Attributes().count(Attribute) != 0)
+    if (Attributes().contains(Attribute))
       return true;
 
     if (const auto *CalleeAttributes = calleeAttributes(Binary))
-      return CalleeAttributes->count(Attribute) != 0;
+      return CalleeAttributes->contains(Attribute);
     else
       return false;
   }

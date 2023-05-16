@@ -171,7 +171,7 @@ void EnforceABIImpl::run() {
   }
 
   auto IsInIsolatedFunction = [this](Instruction *I) -> bool {
-    return FunctionsMap.count(I->getParent()->getParent()) != 0;
+    return FunctionsMap.contains(I->getParent()->getParent());
   };
 
   // Handle function calls in isolated functions

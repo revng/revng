@@ -380,7 +380,7 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
     revng_log(ELFImporterLog,
               "Importing Models for dependencies of " << Library.first << ":");
     for (auto &DependencyLibrary : Library.second) {
-      if (ModelsOfLibraries.count(DependencyLibrary))
+      if (ModelsOfLibraries.contains(DependencyLibrary))
         continue;
       revng_log(ELFImporterLog, " Importing Model for: " << DependencyLibrary);
       auto BinaryOrErr = llvm::object::createBinary(DependencyLibrary);
@@ -922,7 +922,7 @@ void ELFImporter<T, HasAddend>::parseEHFrame(MetaAddress EHFrameAddress,
 
       // Optionally parse the EH data if the augmentation string says it's
       // there
-      if (StringRef(AugmentationString).count("eh") != 0)
+      if (StringRef(AugmentationString).contains("eh"))
         EHFrameReader.readNextU();
 
       // CodeAlignmentFactor
@@ -1096,7 +1096,7 @@ void ELFImporter<T, HasAddend>::parseLSDA(MetaAddress FDEStart,
 
     if (LandingPad.isValid()) {
       auto &ExtraCodeAddresses = Model->ExtraCodeAddresses();
-      if (ExtraCodeAddresses.count(LandingPad) == 0)
+      if (!ExtraCodeAddresses.contains(LandingPad))
         logAddress(ELFImporterLog, "New landing pad found: ", LandingPad);
 
       ExtraCodeAddresses.insert(LandingPad);

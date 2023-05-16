@@ -62,7 +62,7 @@ public:
     SmallVector<const FunctionCFGNode *, 4> Result;
 
     for (const FunctionCFGNode *Node : Graph.nodes())
-      if (Visited.count(Node) == 0)
+      if (!Visited.contains(Node))
         Result.push_back(Node);
 
     return Result;
@@ -274,19 +274,13 @@ bool FunctionMetadata::verify(const model::Binary &Binary,
         if (not Call->DynamicFunction().empty()) {
           // It's a dynamic call
           auto &Function = Call->DynamicFunction();
-          auto It = Binary.ImportedDynamicFunctions().find(Function);
-
-          // If missing, fail
-          if (It == Binary.ImportedDynamicFunctions().end())
+          if (!Binary.ImportedDynamicFunctions().contains(Function))
             return VH.fail("Can't find callee \"" + Call->DynamicFunction()
                              + "\"",
                            Edge);
         } else if (Call->isDirect()) {
           // Regular call
-          auto It = Binary.Functions().find(Call->Destination().start());
-
-          // If missing, fail
-          if (It == Binary.Functions().end())
+          if (!Binary.Functions().contains(Call->Destination().start()))
             return VH.fail("Can't find callee", Edge);
         }
       }

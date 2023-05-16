@@ -508,7 +508,7 @@ public:
   /// This function is required when you want to visit a basic block only if
   /// it's part of the current function, or fail otherwise.
   void registerToVisit(Label L) {
-    if (State.count(L) == 0)
+    if (!State.contains(L))
       ToVisit.insert(L);
     else
       WorkList.insert(L);
@@ -677,18 +677,13 @@ public:
         //       only for debugging purposes and the DynamicGraph template
         //       argument should be replaced with an `#ifndef NDEBUG`.
         if (Reachable.size() != State.size()) {
-          for (const Label &L : Reachable) {
-            if (State.count(L) == 0) {
+          for (const Label &L : Reachable)
+            if (!State.contains(L))
               revng_abort("A label is Reachable but not present in State");
-            }
-          }
 
-          for (const auto &P : State) {
-            const Label &L = P.first;
-            if (Reachable.count(L) == 0) {
+          for (const auto &P : State)
+            if (!Reachable.contains(P.first))
               revng_abort("A label is in State but not Reachable");
-            }
-          }
 
           revng_abort();
         }
@@ -696,7 +691,7 @@ public:
         // Merge all the final states, if they are reachable
         bool First = true;
         for (auto &P : FinalStates) {
-          if (Reachable.count(P.first) != 0) {
+          if (Reachable.contains(P.first)) {
 
             if (First)
               FinalResult = std::move(P.second);
@@ -765,7 +760,7 @@ protected:
   size_type erase(const T &El) { return Set.erase(El); }
   const_iterator erase(const_iterator It) { return this->Set.erase(It); }
 
-  bool contains(const T &Key) const { return Set.count(Key); }
+  bool contains(const T &Key) const { return Set.contains(Key); }
 };
 
 /// Lattice for a MonotoneFramework over a set, where combine is set union
@@ -806,7 +801,7 @@ public:
     return std::any_of(this->begin(), this->end(), Predicate);
   }
   bool contains_any_of(const std::set<T> &Other) const {
-    return contains([&Other](const T &El) { return Other.count(El); });
+    return contains([&Other](const T &El) { return Other.contains(El); });
   }
 
   void erase_if(std::function<bool(const T &)> Predicate) {
@@ -898,18 +893,9 @@ public:
       IsBottom = false;
       return;
     }
-    using iterator = typename MonotoneSet<T>::iterator;
-    std::vector<iterator> ToDrop;
-    iterator OtherEnd = Other.end();
-    iterator SetIt = this->Set.begin();
-    iterator SetEnd = this->Set.end();
-    for (; SetIt != SetEnd; ++SetIt) {
-      iterator OtherIt = Other.Set.find(*SetIt);
-      if (OtherIt == OtherEnd)
-        ToDrop.push_back(SetIt);
-    }
-    for (iterator I : ToDrop)
-      this->Set.erase(I);
+
+    llvm::erase_if(this->Set,
+                   [&Other](const auto &E) { return !Other.contains(E); });
   }
 
   bool lowerThanOrEqual(const IntersectionMonotoneSet &Other) const {

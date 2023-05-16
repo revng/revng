@@ -507,7 +507,7 @@ CSVsUsageMap PromoteCSVs::getUsedCSVs(ArrayRef<CallInst *> CallsRange) {
             continue;
 
           // Ensure callee is visited
-          if (NodeMap.count(Callee) == 0)
+          if (!NodeMap.contains(Callee))
             Queue.push(Callee);
 
           // Insert an edge in the call graph
@@ -516,7 +516,7 @@ CSVsUsageMap PromoteCSVs::getUsedCSVs(ArrayRef<CallInst *> CallsRange) {
         }
 
         // If there was a memory access targeting a CSV, record it
-        if (CSVs.count(CSV) != 0) {
+        if (CSVs.contains(CSV)) {
           CallerNode->UsedCSVs.insert({ Write, CSV });
         }
       }

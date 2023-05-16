@@ -178,7 +178,7 @@ void PECOFFImporter::parseSymbols() {
 
     // Relocate the symbol.
     MetaAddress Address = ImageBase + Symbol.getValue();
-    if (Model->Functions().count(Address))
+    if (Model->Functions().contains(Address))
       continue;
 
     model::Function &Function = Model->Functions()[Address];
@@ -208,7 +208,7 @@ void PECOFFImporter::recordImportedFunctions(ImportedSymbolRange Range,
 
     // Dynamic functions must have a name, so skip those without it.
     // TODO: handle imports by ordinal
-    if (Sym.empty() or Model->ImportedDynamicFunctions().count(Sym.str()))
+    if (Sym.empty() or Model->ImportedDynamicFunctions().contains(Sym.str()))
       continue;
 
     // NOTE: This address will occur in the .text section as a target of a jump.
@@ -293,7 +293,7 @@ void PECOFFImporter::recordDelayImportedFunctions(DelayDirectoryRef &I,
 
     // Dynamic functions must have a name, so skip those without it.
     // TODO: handle imports by ordinal
-    if (Sym.empty() or Model->ImportedDynamicFunctions().count(Sym.str()))
+    if (Sym.empty() or Model->ImportedDynamicFunctions().contains(Sym.str()))
       continue;
 
     MetaAddress AddressOfDelayImportEntry = ImageBase + u64(Addr);
@@ -382,7 +382,7 @@ static RecursiveCoroutine<void> getDependenciesHelper(StringRef FileName,
   for (auto &Library : Dependencies) {
     revng_log(Log, "Dependencies for " << Library.first << ":\n");
     for (auto &DependingLibrary : Library.second)
-      if (!Dependencies.count(DependingLibrary))
+      if (!Dependencies.contains(DependingLibrary))
         rc_recur getDependenciesHelper(DependingLibrary,
                                        Dependencies,
                                        CurrentLevel,
@@ -413,7 +413,7 @@ void PECOFFImporter::findMissingTypes(const ImporterOptions &Opts) {
     revng_log(Log,
               "Importing Models for dependencies of " << Library.first << ":");
     for (auto &DependencyLibrary : Library.second) {
-      if (ModelsOfLibraries.count(DependencyLibrary))
+      if (ModelsOfLibraries.contains(DependencyLibrary))
         continue;
       revng_log(Log, " Importing Model for: " << DependencyLibrary);
       auto BinaryOrErr = llvm::object::createBinary(DependencyLibrary);

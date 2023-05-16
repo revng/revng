@@ -311,7 +311,7 @@ private:
 public:
   bool visit(BasicBlock *BB) {
     // Check if we already visited this block
-    if (Visited.count(BB) != 0) {
+    if (Visited.contains(BB)) {
       return true;
     } else {
       // Register as visited

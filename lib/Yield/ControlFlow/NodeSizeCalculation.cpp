@@ -95,16 +95,14 @@ linkSize(const BasicBlockID &Address,
   if (not Address.isValid())
     return Indicator + textSize("an unknown location");
 
-  if (const auto *F = yield::tryGetFunction(Binary, Address)) {
+  if (const auto *F = yield::tryGetFunction(Binary, Address))
     return Indicator + textSize(F->name().str().str());
-  } else if (NextAddress == Address) {
+  else if (NextAddress == Address)
     return Indicator + textSize("the next instruction");
-  } else if (auto Iterator = Function.ControlFlowGraph().find(Address);
-             Iterator != Function.ControlFlowGraph().end()) {
+  else if (Function.ControlFlowGraph().contains(Address))
     return Indicator + textSize("basic_block_at_" + Address.toString());
-  } else {
+  else
     return Indicator + textSize("instruction_at_" + Address.toString());
-  }
 }
 
 static yield::layout::Size &appendSize(yield::layout::Size &Original,

@@ -49,7 +49,7 @@ private:
 public:
   void pushIfNew(int64_t Offset, Value *V) {
     OffsetValuePair Element = { Offset, V };
-    if (!Seen.count(Element)) {
+    if (!Seen.contains(Element)) {
       Seen.insert(Element);
       Stack.push_back(Element);
     }

@@ -43,14 +43,14 @@ public:
       if (not AlreadyCopied.contains(P.get())
           and VisitedFromTheType.contains(TypeToNode.at(P.get()))
           and not(llvm::isa<model::PrimitiveType>(P.get())
-                  and DestinationModel->Types().count(P->key()) != 0)) {
+                  and DestinationModel->Types().contains(P->key()))) {
         // Clone the pointer.
         UpcastablePointer<model::Type> NewType = P;
         NewType->OriginalName() = std::string(NewType->CustomName());
         NewType->CustomName() = "";
         AlreadyCopied.insert(P.get());
 
-        revng_assert(DestinationModel->Types().count(NewType->key()) == 0);
+        revng_assert(!DestinationModel->Types().contains(NewType->key()));
 
         // Record the type.
         auto TheType = DestinationModel->recordNewType(std::move(NewType));

@@ -39,7 +39,7 @@ public:
   bool runOnModule(llvm::Module &M) override;
 
   bool isFallthrough(MetaAddress Address) const {
-    return FallthroughAddresses.count(Address) != 0;
+    return FallthroughAddresses.contains(Address);
   }
 
   bool isFallthrough(llvm::BasicBlock *BB) const {

@@ -89,7 +89,7 @@ getMaximalFixedPoint(const MFI &Instance,
   }
 
   for (Label Start : InitialNodes) {
-    if (Visited.count(Start) == 0) {
+    if (!Visited.contains(Start)) {
       // Fill the worklist with nodes in reverse post order
       // launching a visit from each remaining node
       ReversePostOrderTraversalExt<LGT,
@@ -100,9 +100,8 @@ getMaximalFixedPoint(const MFI &Instance,
         LabelPriority[Node] = LabelPriority.size();
         Worklist.insert({ LabelPriority.at(Node), Node });
         // initialize the analysis value for non extremal nodes
-        if (AnalysisResult.find(Node) == AnalysisResult.end()) {
+        if (!AnalysisResult.contains(Node))
           AnalysisResult[Node].InValue = InitialValue;
-        }
       }
     }
   }

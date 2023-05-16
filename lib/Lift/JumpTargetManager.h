@@ -298,7 +298,7 @@ public:
   /// Return true if the given PC is a jump target
   bool isJumpTarget(MetaAddress PC) const {
     revng_assert(PC.isValid());
-    return JumpTargets.count(PC);
+    return JumpTargets.contains(PC);
   }
 
   /// Return true if the given basic block corresponds to a jump target
@@ -347,7 +347,7 @@ public:
 
   bool hasJT(MetaAddress PC) {
     revng_assert(PC.isValid());
-    return JumpTargets.count(PC) != 0;
+    return JumpTargets.contains(PC);
   }
 
   BlockMap::const_iterator begin() const { return JumpTargets.begin(); }

@@ -66,14 +66,14 @@ public:
     ClobberedRegisters.insert(Other.ClobberedRegisters.begin(),
                               Other.ClobberedRegisters.end());
 
-    if (Other.Attributes.count(model::FunctionAttribute::NoReturn) != 0)
+    if (Other.Attributes.contains(model::FunctionAttribute::NoReturn))
       Attributes.insert(model::FunctionAttribute::NoReturn);
   }
 
   bool containedOrEqual(const FunctionSummary &Other) const {
     const auto NoReturn = model::FunctionAttribute::NoReturn;
 
-    if (Attributes.count(NoReturn) and not Other.Attributes.count(NoReturn))
+    if (Attributes.contains(NoReturn) && !Other.Attributes.contains(NoReturn))
       return false;
 
     return std::includes(Other.ClobberedRegisters.begin(),

@@ -42,12 +42,12 @@ public:
   }
 
   bool isVerified(const model::Type *T) const {
-    return VerifiedCache.count(T) != 0;
+    return VerifiedCache.contains(T);
   }
 
 public:
   bool isVerificationInProgress(const model::Type *T) const {
-    return InProgress.count(T) != 0;
+    return InProgress.contains(T);
   }
 
   void verificationInProgress(const model::Type *T) {

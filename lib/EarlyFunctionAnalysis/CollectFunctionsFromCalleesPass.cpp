@@ -42,7 +42,7 @@ static void collectFunctionsFromCallees(Module &M,
       continue;
 
     MetaAddress Entry = getBasicBlockAddress(getJumpTargetBlock(&BB));
-    if (Binary.Functions().find(Entry) != Binary.Functions().end())
+    if (Binary.Functions().contains(Entry))
       continue;
 
     uint32_t Reasons = GCBI.getJTReasons(&BB);

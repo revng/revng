@@ -250,7 +250,7 @@ private:
     if (Result == nullptr) {
       ResultType = Absent;
     } else {
-      if (Placeholders.count(Offset) != 0)
+      if (Placeholders.contains(Offset))
         ResultType = PlaceholderType;
       else
         ResultType = RegularType;
@@ -474,13 +474,13 @@ private:
     auto Offset = Die.getOffset();
     auto Tag = Die.getTag();
 
-    revng_assert(Placeholders.count(Offset) != 0);
+    revng_assert(Placeholders.contains(Offset));
     revng_assert(TypePath->Qualifiers().empty());
     model::Type *T = TypePath->UnqualifiedType().get();
 
     std::string Name = getName(Die);
 
-    if (InvalidPrimitives.count(T) != 0)
+    if (InvalidPrimitives.contains(T))
       rc_return nullptr;
 
     switch (Tag) {
@@ -779,7 +779,7 @@ private:
       }
 
       auto Offset = Die.getOffset();
-      revng_assert(Placeholders.count(Offset) != 0);
+      revng_assert(Placeholders.contains(Offset));
       // This die is already present in the map. Either it has already been
       // fully imported, or it's a type with an identity on the model.
       // In the latter case, proceed only if explicitly told to do so.
@@ -886,8 +886,7 @@ private:
           if (isNoReturn(*CU.get(), Die))
             Function.Attributes().insert(model::FunctionAttribute::NoReturn);
         } else if (auto &Functions = Model->ImportedDynamicFunctions();
-                   not SymbolName.empty()
-                   and Functions.count(SymbolName) != 0) {
+                   not SymbolName.empty() and Functions.contains(SymbolName)) {
           // It's a dynamic function
           if (not MaybePath) {
             reportIgnoredDie(Die, "Couldn't build subprogram prototype");

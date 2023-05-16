@@ -57,9 +57,12 @@ public:
 
 public:
   bool containsExactly(const Tag &Target) const {
-    return Tags.count(&Target) != 0;
+    return Tags.contains(&Target);
   }
 
+  // TODO: This seems non-obvious to me. I feel like it would be more natural
+  //       for this to be called `containsDescendants`, while `containsExactly`
+  //       could either stay as is or be renamed into just `contains`.
   bool contains(const Tag &Target) const;
 
 public:

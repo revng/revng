@@ -15,7 +15,7 @@ template<typename T>
 class UniquedStack {
 public:
   void insert(T Element) {
-    if (Set.count(Element) == 0) {
+    if (!Set.contains(Element)) {
       revng_assert(Element->getParent() != nullptr);
       Set.insert(Element);
       Queue.push_back(Element);

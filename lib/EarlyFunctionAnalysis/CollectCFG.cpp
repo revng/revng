@@ -39,12 +39,12 @@ void CollectCFG::run() {
     New.Entry() = Function.Entry();
     New.ControlFlowGraph() = std::move(Analyzer.analyze(Entry).CFG);
 
-    revng_assert(New.ControlFlowGraph().count(BasicBlockID(New.Entry())) != 0);
+    revng_assert(New.ControlFlowGraph().contains(BasicBlockID(New.Entry())));
 
     // Run final steps on the CFG
     New.simplify(*Binary);
 
-    revng_assert(New.ControlFlowGraph().count(BasicBlockID(New.Entry())) != 0);
+    revng_assert(New.ControlFlowGraph().contains(BasicBlockID(New.Entry())));
 
     New.serialize(GCBI);
   }

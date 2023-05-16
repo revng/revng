@@ -137,7 +137,7 @@ protected:
 
 public:
   bool affectsPC(llvm::GlobalVariable *GV) const {
-    return CSVsAffectingPC.count(GV) != 0;
+    return CSVsAffectingPC.contains(GV);
   }
 
   bool affectsPC(llvm::StoreInst *Store) const {

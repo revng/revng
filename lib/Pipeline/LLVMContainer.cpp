@@ -68,7 +68,7 @@ LLVMContainer::cloneFiltered(const TargetsList &Targets) const {
       return true;
 
     const auto &F = llvm::cast<llvm::Function>(GlobalSym);
-    return ToClone.count(F) != 0 or ToClonedNotOwned.count(F) != 0;
+    return ToClone.contains(F) or ToClonedNotOwned.contains(F);
   };
 
   llvm::ValueToValueMapTy Map;

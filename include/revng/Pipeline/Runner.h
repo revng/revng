@@ -98,7 +98,7 @@ public:
 
 public:
   bool hasAnalysesList(llvm::StringRef Name) const {
-    return AnalysesLists.count(Name);
+    return AnalysesLists.find(Name) != AnalysesLists.end();
   }
 
   size_t getAnalysesListCount() const { return AnalysesLists.size(); }

@@ -231,7 +231,7 @@ template<typename B>
 struct BlackListTrait<const std::set<B> &, B>
   : BlackListTraitBase<const std::set<B> &> {
   using BlackListTraitBase<const std::set<B> &>::BlackListTraitBase;
-  bool isBlacklisted(B Value) const { return this->Obj.count(Value) != 0; }
+  bool isBlacklisted(B Value) const { return this->Obj.contains(Value); }
 };
 
 template<typename B, typename C>
@@ -339,7 +339,7 @@ public:
       case Continue:
         if (not ExhaustOnly) {
           for (auto *Successor : ThisDerived.successors(Item.BB)) {
-            if (Visited.count(Successor) == 0) {
+            if (!Visited.contains(Successor)) {
               Visited.insert(Successor);
               Queue.push(WorkItem(Successor));
             }

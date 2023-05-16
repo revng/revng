@@ -127,7 +127,7 @@ public:
   llvm::Error setArtifacts(std::string ContainerName,
                            const Kind *ArtifactsKind,
                            std::string SingleTargetFilename) {
-    if (Containers.find(ContainerName) == Containers.end()) {
+    if (Containers.contains(ContainerName)) {
       return llvm::createStringError(llvm::inconvertibleErrorCode(),
                                      "Artifact Container does not exist");
     }

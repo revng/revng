@@ -55,7 +55,7 @@ public:
   }
 
   bool contains(const Target &Target) const {
-    return ContainedStrings.count(Target.getPathComponents().back());
+    return ContainedStrings.contains(Target.getPathComponents().back());
   }
 
   bool remove(const TargetsList &Targets) override {

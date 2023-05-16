@@ -14,7 +14,7 @@ template<typename T, bool Once>
 class QueueImpl {
 public:
   void insert(T Element) {
-    if (Set.count(Element) == 0) {
+    if (!Set.contains(Element)) {
       Set.insert(Element);
       Queue.push(Element);
     }

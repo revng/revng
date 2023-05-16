@@ -886,11 +886,11 @@ static bool allAlphaNumOrUnderscore(const Identifier &Range) {
 };
 
 bool Identifier::verify(VerifyHelper &VH) const {
-  return VH.maybeFail(not(not empty() and std::isdigit((*this)[0]))
+  return VH.maybeFail(not(not empty() and std::isdigit(str()[0]))
                         and not startswith("_")
-                        and allAlphaNumOrUnderscore(*this)
-                        and not beginsWithReservedPrefix(*this)
-                        and not ReservedKeywords.count(llvm::StringRef(*this)),
+                        and allAlphaNumOrUnderscore(str())
+                        and not beginsWithReservedPrefix(str())
+                        and not ReservedKeywords.contains(str()),
                       Twine(*this) + " is not a valid identifier");
 }
 

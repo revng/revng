@@ -568,7 +568,7 @@ BasicBlock *JumpTargetManager::newPC(MetaAddress PC, bool &ShouldContinue) {
           Unexplored.erase(UnexploredIt);
         } else {
           // We do, it will be purged at the next `peek`
-          revng_assert(ToPurge.count(Result) != 0);
+          revng_assert(ToPurge.contains(Result));
         }
 
         return Result;
@@ -586,7 +586,7 @@ BasicBlock *JumpTargetManager::newPC(MetaAddress PC, bool &ShouldContinue) {
   // Check if we already translated this PC even if it's not associated to a
   // basic block (i.e., we have to split its basic block). This typically
   // happens with variable-length instruction encodings.
-  if (OriginalInstructionAddresses.count(PC) != 0) {
+  if (OriginalInstructionAddresses.contains(PC)) {
     ShouldContinue = false;
     return registerJT(PC, JTReason::AmbiguousInstruction);
   }
@@ -601,7 +601,7 @@ void JumpTargetManager::registerInstruction(MetaAddress PC,
   revng_assert(PC.isValid());
 
   // Never save twice a PC
-  revng_assert(!OriginalInstructionAddresses.count(PC));
+  revng_assert(!OriginalInstructionAddresses.contains(PC));
   OriginalInstructionAddresses[PC] = Instruction;
   revng_assert(Instruction->getParent() != nullptr);
 }
@@ -650,8 +650,7 @@ JumpTargetManager::getPC(Instruction *TheInstruction) const {
 
       for (BasicBlock *Predecessor : predecessors(BB)) {
         // Ignore already visited or empty BBs
-        if (!Predecessor->empty()
-            && Visited.find(Predecessor) == Visited.end()) {
+        if (!Predecessor->empty() && !Visited.contains(Predecessor)) {
           WorkList.push(Predecessor->rbegin());
           Visited.insert(Predecessor);
         }
@@ -680,7 +679,7 @@ public:
     DL(Dispatcher->getParent()->getParent()->getParent()->getDataLayout()) {}
 
   void enqueue(BasicBlock *BB) {
-    if (Visited.count(BB))
+    if (Visited.contains(BB))
       return;
     Visited.insert(BB);
 
@@ -996,7 +995,7 @@ llvm::DenseSet<BasicBlock *> JumpTargetManager::computeUnreachable() const {
   // TODO: why is isTranslatedBB(&BB) necessary?
   llvm::DenseSet<BasicBlock *> Unreachable;
   for (BasicBlock &BB : *TheFunction)
-    if (Reachable.count(&BB) == 0 and isTranslatedBB(&BB))
+    if (not Reachable.contains(&BB) and isTranslatedBB(&BB))
       Unreachable.insert(&BB);
 
   return Unreachable;
@@ -1086,7 +1085,7 @@ void JumpTargetManager::rebuildDispatcher(MetaAddressSet *Whitelist) {
   bool IsWhitelistActive = (Whitelist != nullptr);
   for (auto &[PC, JumpTarget] : JumpTargets) {
     BasicBlock *BB = JumpTarget.head();
-    bool IsWhitelisted = (not IsWhitelistActive or Whitelist->count(PC) != 0);
+    bool IsWhitelisted = (not IsWhitelistActive or Whitelist->contains(PC));
     if ((CurrentCFGForm == CFGForm::SemanticPreserving
          or not hasPredecessors(BB))
         and IsWhitelisted) {
@@ -1124,11 +1123,11 @@ void JumpTargetManager::rebuildDispatcher(MetaAddressSet *Whitelist) {
     // Identify all the unreachable jump targets
     for (const auto &[PC, JT] : JumpTargets) {
       BasicBlock *BB = JT.head();
-      bool IsWhitelisted = (not IsWhitelistActive or Whitelist->count(PC) != 0);
+      bool IsWhitelisted = (not IsWhitelistActive or Whitelist->contains(PC));
 
       // Add to the switch all the unreachable jump targets whose reason is not
       // just direct jump
-      if (Reachable.count(BB) == 0 and IsWhitelisted
+      if (not Reachable.contains(BB) and IsWhitelisted
           and not JT.isOnlyReason(JTReason::DirectJump)) {
         PCH->addCaseToDispatcher(DispatcherSwitch,
                                  { PC, BB },

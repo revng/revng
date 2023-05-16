@@ -119,10 +119,7 @@ public:
     return { &FunctionKind, &RootKind };
   }
 
-  bool contains(const Target &T) const {
-    bool Contained = Map.count(T);
-    return Contained;
-  }
+  bool contains(const Target &T) const { return Map.contains(T); }
 
   TargetsList enumerate() const final {
     TargetsList ToReturn;
@@ -142,7 +139,7 @@ public:
   }
 
   bool remove(const Target &Target) {
-    if (Map.find(Target) == Map.end())
+    if (!Map.contains(Target))
       return false;
 
     Map.erase(Target);
@@ -1104,7 +1101,7 @@ public:
 
   bool contains(const Target &Target,
                 const EnumerableContainerExample &Container) const {
-    return Container.Targets.count(Target);
+    return Container.Targets.contains(Target);
   }
 
   bool remove(const Context &Ctx,

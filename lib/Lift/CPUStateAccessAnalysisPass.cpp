@@ -298,8 +298,7 @@ forwardTaintAnalysis(const Module *M,
 
     // Push the first use on the WorkList
     const Function *F = Load->getFunction();
-    if (Load->getNumUses() != 0
-        and ReachableFunctions.find(F) != ReachableFunctions.end()) {
+    if (Load->getNumUses() != 0 and ReachableFunctions.contains(F)) {
       if (TaintLog.isEnabled()) {
         TaintLog << "Tainted origin: " << Load << DoLog;
         TaintLog << dumpToString(Load) << DoLog;
@@ -380,7 +379,7 @@ forwardTaintAnalysis(const Module *M,
           TaintLog << "Just Tainted" << DoLog;
           for (const Use &U : TheUser->uses()) {
             TaintLog << "User: " << U.getUser() << DoLog;
-            if (Results.TaintedValues.count(U.getUser()) == 0) {
+            if (!Results.TaintedValues.contains(U.getUser())) {
               TaintLog << "PUSH" << DoLog;
               ToTaintWorkList.push(&U);
               TaintLog.indent();
@@ -447,7 +446,7 @@ forwardTaintAnalysis(const Module *M,
           Results.IllegalCalls.insert(TheCall);
           break;
         }
-        revng_assert(ReachableFunctions.count(Callee) != 0);
+        revng_assert(ReachableFunctions.contains(Callee));
 
         // Select the correct formal argument associated with this use
         const Argument *FormalArgument = nullptr;
@@ -476,7 +475,7 @@ forwardTaintAnalysis(const Module *M,
               TaintLog << "User: " << U.getUser() << DoLog;
               TaintLog << dumpToString(U.getUser()) << DoLog;
             }
-            if (Results.TaintedValues.count(U.getUser()) == 0) {
+            if (!Results.TaintedValues.contains(U.getUser())) {
               TaintLog << "PUSH" << DoLog;
               ToTaintWorkList.push(&U);
               TaintLog.indent();
@@ -488,7 +487,8 @@ forwardTaintAnalysis(const Module *M,
               break;
             }
           }
-        } else if (FunctionArgTaintsReturn.count({ Callee, FormalArgument })) {
+        } else if (FunctionArgTaintsReturn.contains({ Callee,
+                                                      FormalArgument })) {
           // It means that a previous exploration of the graph has reached this
           // argument, and propagated a taint until a return value. This means
           // that this we must taint the call and start exploring its unexplored
@@ -502,7 +502,7 @@ forwardTaintAnalysis(const Module *M,
             TaintLog << "Just Tainted" << DoLog;
             for (const Use &U : TheUser->uses()) {
               TaintLog << "User: " << U.getUser() << DoLog;
-              if (Results.TaintedValues.count(U.getUser()) == 0) {
+              if (!Results.TaintedValues.contains(U.getUser())) {
                 TaintLog << "PUSH" << DoLog;
                 ToTaintWorkList.push(&U);
                 TaintLog.indent();
@@ -622,8 +622,8 @@ forwardTaintAnalysis(const Module *M,
           // Hence, the taint can propagate to the uses of the call.
           // The same holds if we already know that the pair (Callee, ArgNo)
           // taints the return.
-          if (Results.TaintedValues.count(CallSite) != 0
-              or FunctionArgTaintsReturn.count({ Callee, Arg }) != 0) {
+          if (Results.TaintedValues.contains(CallSite)
+              or FunctionArgTaintsReturn.contains({ Callee, Arg })) {
             if (CallSite->getNumUses() != 0) {
               UnexploredUse = &*CallSite->use_begin();
             }
@@ -733,7 +733,7 @@ public:
           }
         }
 
-        if (ReachableFunctions.find(Caller) != ReachableFunctions.end()) {
+        if (ReachableFunctions.contains(Caller)) {
           revng_log(CSVAccessLog,
                     "Is Reachable CallInst:" << FCall << " : "
                                              << dumpToString(FCall));
@@ -773,7 +773,7 @@ public:
           if (FCall) {
             const Function *Caller = FCall->getFunction();
             revng_log(CSVAccessLog, "Caller: " << Caller);
-            if (ReachableFunctions.find(Caller) != ReachableFunctions.end()) {
+            if (ReachableFunctions.contains(Caller)) {
               const Use &ActualArgUse = FCall->getArgOperandUse(ArgNo);
               revng_log(CSVAccessLog,
                         "ActualUse:" << ActualArgUse.getUser() << " : "
@@ -1016,13 +1016,12 @@ public:
     // Check that each source has all the callsites or nullptr
     for (const auto &CSOffsets : SrcCallSiteOffsetsPtrs) {
       bool FoundNullptr = false;
-      if (CSOffsets->find(nullptr) != CSOffsets->end()) {
+      if (CSOffsets->contains(nullptr))
         FoundNullptr = true;
-      }
 
       bool FoundAllCalls = true;
       for (CallInst *C : CallSites) {
-        if (C != nullptr and CSOffsets->find(C) == CSOffsets->end()) {
+        if (C != nullptr and not CSOffsets->contains(C)) {
           FoundAllCalls = false;
           break;
         }
@@ -1638,7 +1637,6 @@ private:
     // this value, but we don't know which call sites were contained in
     // CrossedCallSites during the last visit.
     const CallSiteOffsetMap &ACSOMap = CallSiteOffsetIt->second;
-    const CallSiteOffsetMap::const_iterator &ACSOMapEnd = ACSOMap.end();
 
     // If NewCallSite is not nullptr, we are crossing a new callsite in the root
     // function, so we start looking in the ValueCallSiteOffsets for an entry
@@ -1646,7 +1644,7 @@ private:
     if (NewCallSite) {
       // If we find that ValueCallSiteOffsets still does not contain an entry
       // associated to NewCallSite this visit is considered new
-      if (ACSOMap.find(NewCallSite) == ACSOMapEnd)
+      if (!ACSOMap.contains(NewCallSite))
         return true;
     }
 
@@ -1659,13 +1657,13 @@ private:
         // ValueCallSiteOffsets
         // still does not contain a result for this value this visit is
         // considered new
-        if (ACSOMap.find(Call) == ACSOMapEnd)
+        if (!ACSOMap.contains(Call))
           return true;
       }
     } else {
       // If CrossedCallSites is empty, we haven't crossed any call site in the
       // root function, so we look for nullptr.
-      if (ACSOMap.find(nullptr) == ACSOMapEnd)
+      if (!ACSOMap.contains(nullptr))
         return true;
     }
 
@@ -1753,7 +1751,7 @@ private:
   }
 
   bool isInExploration(const Value *V) const {
-    return InExploration.count(V) != 0;
+    return InExploration.contains(V);
   }
 
   void computeOffsetsFromSources(const WorkItem &Item, bool IsLoad);
@@ -2093,7 +2091,7 @@ bool CPUSAOA::exploreImmediateSources(Value *V, bool IsLoad) {
     const ConstValuePtrSet &Tainted = TaintedAccesses.TaintedValues;
 
     if (const Argument *Arg = dyn_cast<Argument>(NewItemV)) {
-      revng_assert(Tainted.find(Arg) != Tainted.end());
+      revng_assert(Tainted.contains(Arg));
       revng_assert(Arg->getArgNo() == 0);
       const Function *Fun = Arg->getParent();
       revng_assert(CpuLoop != nullptr);
@@ -2130,7 +2128,7 @@ bool CPUSAOA::exploreImmediateSources(Value *V, bool IsLoad) {
       }
       revng_assert(FoundRecursion);
     } else {
-      revng_assert(Tainted.count(NewItemV) == 0);
+      revng_assert(!Tainted.contains(NewItemV));
       for (const Use *U : NewItem.sources())
         insertCallSiteOffset(U->get(), CSVOffsets(CSVOffsets::Kind::Unknown));
     }
@@ -2261,7 +2259,7 @@ void CPUSAOA::computeAggregatedOffsets() {
     bool IsCallToBuiltinMemcpy = callsBuiltinMemcpy(dyn_cast<Instruction>(I));
     revng_assert(IsInstr and (IsCorrectAccessType or IsCallToBuiltinMemcpy));
     auto *Instr = dyn_cast<Instruction>(I);
-    revng_assert(Tainted.count(Instr) != 0);
+    revng_assert(Tainted.contains(Instr));
 
     int64_t AccessSize;
     if (IsCallToBuiltinMemcpy) {

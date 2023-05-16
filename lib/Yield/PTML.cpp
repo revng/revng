@@ -108,7 +108,7 @@ static LabelDescription labelImpl(const BasicBlockID &BasicBlock,
       .Location = serializedLocation(ranks::Function, ModelFunction->key()),
       .Path = "/Functions/" + str(ModelFunction->key()) + "/CustomName"
     };
-  } else if (CFG.find(BasicBlock) != CFG.end()) {
+  } else if (CFG.contains(BasicBlock)) {
     return LabelDescription{
       .Name = "basic_block_at_" + labelAddress(BasicBlock),
       .Location = serializedLocation(ranks::BasicBlock,
@@ -173,7 +173,7 @@ static std::string targetPath(const BasicBlockID &Target,
                               Iterator->ID());
   } else if (Target.isValid()) {
     for (const auto &Block : Function.ControlFlowGraph()) {
-      if (Block.Instructions().count(Target.start()) != 0) {
+      if (Block.Instructions().contains(Target.start())) {
         // The target is an instruction
         return serializedLocation(ranks::Instruction,
                                   Function.Entry(),

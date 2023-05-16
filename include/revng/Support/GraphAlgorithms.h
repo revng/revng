@@ -49,7 +49,7 @@ auto exitless_scc_range(NodeTy Entry) {
       auto Successors = make_range(GT::child_begin(BB), GT::child_end(BB));
       for (NodeTy Successor : Successors) {
         AtLeastOneEdge = true;
-        if (SCCNodes.count(Successor) == 0) {
+        if (!SCCNodes.contains(Successor)) {
           HasExit = true;
           break;
         }
@@ -195,10 +195,10 @@ nodesBetweenImpl(NodeRef Source,
 
     NodeRef CurrentSuccessor = *Entry->NextSuccessorIt;
 
-    bool Visited = (VisitedNodes.count(CurrentSuccessor) != 0);
+    bool Visited = VisitedNodes.contains(CurrentSuccessor);
     VisitedNodes.insert(CurrentSuccessor);
 
-    if (Selected.count(CurrentSuccessor) != 0) {
+    if (Selected.contains(CurrentSuccessor)) {
 
       // We reached a selected node, select all the nodes on the stack
       for (const StackEntry &E : Stack) {
@@ -210,7 +210,7 @@ nodesBetweenImpl(NodeRef Source,
 
       auto End = Stack.end();
       auto IsCurrent = [CurrentSuccessor](const StackEntry &E) {
-        return E.Set.count(CurrentSuccessor) != 0;
+        return E.Set.contains(CurrentSuccessor);
       };
       auto It = std::find_if(Stack.begin(), End, IsCurrent);
       bool IsAlreadyOnStack = It != End;
@@ -226,7 +226,7 @@ nodesBetweenImpl(NodeRef Source,
       }
 
     } else if (IgnoreList != nullptr
-               and IgnoreList->count(CurrentSuccessor) != 0) {
+               and IgnoreList->contains(CurrentSuccessor)) {
       // Ignore
     } else {
 

@@ -149,9 +149,7 @@ Loader::parseInvocation(Step &Step,
                                ContainerName.c_str());
     }
 
-    const auto &ContainersEnd = Step.containers().end();
-    revng_assert(Step.containers().find(ContainerName) != ContainersEnd);
-
+    revng_assert(Step.containers().containsOrCanCreate(ContainerName));
     const auto &Container = *Step.containers().find(ContainerName);
     PipelineContext->addReadOnlyContainer(RoleName, Container);
   }
@@ -354,10 +352,10 @@ bool Loader::isInvocationUsed(const vector<string> &Invocation) const {
 
   const auto IsStringEnabled = [this](const std::string &Name) {
     if (not Name.starts_with("~"))
-      return EnabledFlags.count(Name) != 0;
+      return EnabledFlags.contains(Name);
 
     string ActualName(Name.begin() + 1, Name.end());
-    return EnabledFlags.count(ActualName) == 0;
+    return !EnabledFlags.contains(ActualName);
   };
   return llvm::any_of(Invocation, IsStringEnabled);
 }

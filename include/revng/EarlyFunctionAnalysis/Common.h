@@ -67,7 +67,7 @@ public:
 
 inline bool ABIAnalysis::isABIRegister(const llvm::Value *V) const {
   if (auto *G = dyn_cast<llvm::GlobalVariable>(V)) {
-    return ABIRegisters.count(G) != 0;
+    return ABIRegisters.contains(G);
   }
   return false;
 }

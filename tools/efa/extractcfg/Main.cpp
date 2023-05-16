@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
   for (Function &F : FunctionTags::Isolated.functions(Module.get())) {
     auto *FMMDNode = F.getMetadata(FunctionMetadataMDName);
     const efa::FunctionMetadata &FM = Cache.getFunctionMetadata(&F);
-    if (not FMMDNode or DecoratedFunctions.count(FM.Entry()) != 0)
+    if (not FMMDNode or DecoratedFunctions.contains(FM.Entry()))
       continue;
 
     auto &Function = Model->Functions().at(FM.Entry());

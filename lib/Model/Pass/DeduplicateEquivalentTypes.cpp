@@ -172,7 +172,7 @@ private:
 
       auto LeaderIt = WeakEquivalence.findLeader(N->T);
       if (LeaderIt != WeakEquivalence.member_end()
-          and Inserted.count(*LeaderIt) == 0) {
+          and not Inserted.contains(*LeaderIt)) {
         VisitOrder.push_back(*LeaderIt);
         Inserted.insert(*LeaderIt);
       }
@@ -365,6 +365,6 @@ void model::deduplicateEquivalentTypes(TupleTree<model::Binary> &Model) {
 
   // Actually drop the types
   llvm::erase_if(Model->Types(), [&ToErase](UpcastablePointer<model::Type> &P) {
-    return ToErase.count(P.get()) != 0;
+    return ToErase.contains(P.get());
   });
 }

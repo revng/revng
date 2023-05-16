@@ -304,7 +304,7 @@ static RecursiveCoroutine<void> lddtreeHelper(LDDTree &Dependencies,
   for (auto &I : Dependencies) {
     revng_log(Log, "Dependencies for " << I.first << ":\n");
     for (auto &J : I.second)
-      if (!Dependencies.count(J))
+      if (!Dependencies.contains(J))
         rc_recur lddtreeHelper(Dependencies, J, CurrentLevel, DepthLevel);
   }
 }
