@@ -9,7 +9,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "revng/Yield/Support/GraphLayout/SugiyamaStyle/Compute.h"
+#include "revng/GraphLayout/SugiyamaStyle/Compute.h"
 
 using RankingStrategy = yield::layout::sugiyama::RankingStrategy;
 using Configuration = yield::layout::sugiyama::Configuration;

@@ -1186,7 +1186,7 @@ void ELFImporter<T, HasAddend>::registerRelocations(Elf_Rel_Array Relocations,
                        << ") not associated to a symbol, ignoring." << DoLog;
       }
     } else if (HasName) {
-      // Symbol-relative relcation
+      // Symbol-relative relocation
       if (SymbolType == ELF::STT_FUNC) {
         auto It = Model->ImportedDynamicFunctions().find(SymbolName.str());
         if (It != Model->ImportedDynamicFunctions().end()) {

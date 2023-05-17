@@ -329,10 +329,10 @@ std::string yield::ptml::functionAssembly(const yield::Function &Function,
     .serialize();
 }
 
-std::string yield::ptml::controlFlowNode(const BasicBlockID &Address,
+std::string yield::ptml::controlFlowNode(const BasicBlockID &BasicBlock,
                                          const yield::Function &Function,
                                          const model::Binary &Binary) {
-  auto Iterator = Function.ControlFlowGraph().find(Address);
+  auto Iterator = Function.ControlFlowGraph().find(BasicBlock);
   revng_assert(Iterator != Function.ControlFlowGraph().end());
 
   auto Result = labeledBlock<false>(*Iterator, Function, Binary);
@@ -348,53 +348,54 @@ static constexpr auto ShallowNodeLabel = "call-graph.shallow-node-label";
 
 } // namespace callGraphTokens
 
-static Tag functionLinkHelper(const model::Function &Function,
-                              llvm::StringRef TokenAttributeValue) {
-  Tag Result(tags::Div, Function.name());
-  Result.addAttribute(attributes::Token, TokenAttributeValue);
-
-  return Result;
+static model::Identifier
+functionNameHelper(std::string_view Location, const model::Binary &Binary) {
+  if (auto L = pipeline::locationFromString(revng::ranks::DynamicFunction,
+                                            Location)) {
+    auto Key = std::get<0>(L->at(revng::ranks::DynamicFunction));
+    auto Iterator = Binary.ImportedDynamicFunctions().find(Key);
+    revng_assert(Iterator != Binary.ImportedDynamicFunctions().end());
+    return Iterator->name();
+  } else if (auto L = pipeline::locationFromString(revng::ranks::Function,
+                                                   Location)) {
+    auto Key = std::get<0>(L->at(revng::ranks::Function));
+    auto Iterator = Binary.Functions().find(Key);
+    revng_assert(Iterator != Binary.Functions().end());
+    return Iterator->name();
+  } else {
+    revng_abort("Unsupported function type.");
+  }
 }
 
-using pipeline::serializedLocation;
-
-std::string
-yield::ptml::functionNameDefinition(const MetaAddress &FunctionEntryPoint,
-                                    const model::Binary &Binary) {
-  if (FunctionEntryPoint.isInvalid())
+std::string yield::ptml::functionNameDefinition(std::string_view Location,
+                                                const model::Binary &Binary) {
+  if (Location.empty())
     return "";
 
-  return functionLinkHelper(Binary.Functions().at(FunctionEntryPoint),
-                            callGraphTokens::NodeLabel)
-    .addAttribute(attributes::LocationDefinition,
-                  serializedLocation(revng::ranks::Function,
-                                     FunctionEntryPoint))
-    .serialize();
+  ::ptml::Tag Result(tags::Div, functionNameHelper(Location, Binary));
+  Result.addAttribute(attributes::Token, callGraphTokens::NodeLabel);
+  Result.addAttribute(attributes::LocationDefinition, Location);
+  return Result.serialize();
 }
 
-std::string yield::ptml::functionLink(const MetaAddress &FunctionEntryPoint,
+std::string yield::ptml::functionLink(std::string_view Location,
                                       const model::Binary &Binary) {
-  if (FunctionEntryPoint.isInvalid())
+  if (Location.empty())
     return "";
 
-  return functionLinkHelper(Binary.Functions().at(FunctionEntryPoint),
-                            callGraphTokens::NodeLabel)
-    .addListAttribute(attributes::LocationReferences,
-                      serializedLocation(revng::ranks::Function,
-                                         FunctionEntryPoint))
-    .serialize();
+  ::ptml::Tag Result(tags::Div, functionNameHelper(Location, Binary));
+  Result.addAttribute(attributes::Token, callGraphTokens::NodeLabel);
+  Result.addAttribute(attributes::LocationReferences, Location);
+  return Result.serialize();
 }
 
-std::string
-yield::ptml::shallowFunctionLink(const MetaAddress &FunctionEntryPoint,
-                                 const model::Binary &Binary) {
-  if (FunctionEntryPoint.isInvalid())
+std::string yield::ptml::shallowFunctionLink(std::string_view Location,
+                                             const model::Binary &Binary) {
+  if (Location.empty())
     return "";
 
-  return functionLinkHelper(Binary.Functions().at(FunctionEntryPoint),
-                            callGraphTokens::ShallowNodeLabel)
-    .addListAttribute(attributes::LocationReferences,
-                      serializedLocation(revng::ranks::Function,
-                                         FunctionEntryPoint))
-    .serialize();
+  ::ptml::Tag Result(tags::Div, functionNameHelper(Location, Binary));
+  Result.addAttribute(attributes::Token, callGraphTokens::ShallowNodeLabel);
+  Result.addAttribute(attributes::LocationReferences, Location);
+  return Result.serialize();
 }

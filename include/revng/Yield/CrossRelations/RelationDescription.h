@@ -5,7 +5,6 @@
 //
 
 #include "revng/ADT/SortedVector.h"
-#include "revng/Yield/CrossRelations/RelationTarget.h"
 
 /* TUPLE-TREE-YAML
 
@@ -14,10 +13,11 @@ type: struct
 fields:
   - name: Location
     type: string
-  - name: Related
+  - name: IsCalledFrom
     sequence:
       type: SortedVector
-      elementType: RelationTarget
+      elementType: string
+    optional: true
 key:
   - Location
 

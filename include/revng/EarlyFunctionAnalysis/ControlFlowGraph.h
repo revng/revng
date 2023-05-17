@@ -75,28 +75,34 @@ inline ParsedSuccessor parseSuccessor(const T &Edge,
 /// A function for converting EFA's internal CFG representation into a generic
 /// graph.
 ///
-/// \p BB An arbitrary container of basic blocks that are verified
-/// using the `IsBasicBlock` concept. These blocks are required to have start
-/// and end addresses as well as a list of their successors. It's expected for
-/// the graph it represents to be self contained, as in "no block can ever
-/// reference another block that is not listed in this container".
+/// \param BB An arbitrary container of basic blocks that are verified
+///        using the `IsBasicBlock` concept. These blocks are required to have
+///        a start and an end addresses as well as a list of their successors.
+///        It's expected for the graph it represents to be self contained, as
+///        in "no block can ever reference another block that is not listed in
+///        this container".
 ///
-/// \p EntryAddress The `Start` address of the first block in the graph.
+/// \param EntryAddress The `Start` address of the first block in the graph.
 ///
-/// \p Binary The model of the binary, current function is a part of.
-/// It's used for accessing the full function list (for the purpose of
-/// identifying calls) as well as their attributes (like `noreturn`).
+/// \param Binary The model of the binary, current function is a part of.
+///        It's used for accessing the full function list (for the purpose of
+///        identifying calls) as well as their attributes (like `noreturn`).
 ///
-/// \returns A pair of the generic graph object (type of which is specified by
-/// the first template parameter) and a map of all the basic block start
-/// addresses to corresponding nodes that were created for them.
+/// \tparam GraphType The type of the graph this function will make.
+///         The node must be constructible from the type of basic block in
+///         the \ref BB container as well as the entry address of the function.
+///
+/// \return A pair of the generic graph object (type of which is specified by
+///         the first template parameter) and a map of all the basic block start
+///         addresses to corresponding nodes that were created for them.
 template<SpecializationOfGenericGraph GraphType,
          SpecializationOfBasicBlock BasicBlockType,
          typename... OtherTs,
          template<typename...>
          typename Container>
   requires std::is_constructible_v<typename GraphType::Node,
-                                   const BasicBlockType &>
+                                   const BasicBlockType &,
+                                   const MetaAddress &>
 std::pair<GraphType, std::map<BasicBlockID, typename GraphType::Node *>>
 buildControlFlowGraph(const Container<BasicBlockType, OtherTs...> &BB,
                       const MetaAddress &EntryAddress,
@@ -105,34 +111,34 @@ buildControlFlowGraph(const Container<BasicBlockType, OtherTs...> &BB,
   using Node = typename GraphType::Node;
   std::pair<GraphType, std::map<BasicBlockID, Node *>> Res;
 
-  auto &[Graph, AddressToNodeMap] = Res;
+  auto &[Graph, NodeLookup] = Res;
   for (const BasicBlockType &Block : BB) {
     revng_assert(Block.ID().isValid());
-    auto *NewNode = Graph.addNode(Node{ Block.ID() });
-    auto [_, Success] = AddressToNodeMap.try_emplace(Block.ID(), NewNode);
+    auto *NewNode = Graph.addNode(Node{ Block.ID(), EntryAddress });
+    auto [_, Success] = NodeLookup.try_emplace(Block.ID(), NewNode);
     revng_assert(Success != false,
                  "Different basic blocks with the same `Start` address");
   }
 
   Node *ExitNode = nullptr;
   for (const BasicBlockType &Block : BB) {
-    auto FromNodeIterator = AddressToNodeMap.find(Block.ID());
-    revng_assert(FromNodeIterator != AddressToNodeMap.end());
+    auto FromNodeIterator = NodeLookup.find(Block.ID());
+    revng_assert(FromNodeIterator != NodeLookup.end());
 
     for (const auto &Edge : Block.Successors()) {
       auto [NextInstruction,
             _] = parseSuccessor(*Edge, Block.nextBlock(), Binary);
       if (NextInstruction.isValid()) {
-        auto ToNodeIterator = AddressToNodeMap.find(NextInstruction);
-        revng_assert(ToNodeIterator != AddressToNodeMap.end());
+        auto ToNodeIterator = NodeLookup.find(NextInstruction);
+        revng_assert(ToNodeIterator != NodeLookup.end());
         FromNodeIterator->second->addSuccessor(ToNodeIterator->second);
       } else {
         if (ExitNode == nullptr) {
           constexpr auto Invalid = BasicBlockID::invalid();
-          ExitNode = Graph.addNode(Node{ Invalid });
-          auto [_, Succ] = AddressToNodeMap.try_emplace(BasicBlockID::invalid(),
-                                                        ExitNode);
-          revng_assert(Succ != false);
+          ExitNode = Graph.addNode(Node{ Invalid, EntryAddress });
+          auto [_, Success] = NodeLookup.try_emplace(BasicBlockID::invalid(),
+                                                     ExitNode);
+          revng_assert(Success != false);
         }
         FromNodeIterator->second->addSuccessor(ExitNode);
       }
@@ -140,8 +146,8 @@ buildControlFlowGraph(const Container<BasicBlockType, OtherTs...> &BB,
   }
 
   revng_assert(EntryAddress.isValid());
-  auto EntryNodeIterator = AddressToNodeMap.find(BasicBlockID(EntryAddress));
-  revng_assert(EntryNodeIterator != AddressToNodeMap.end());
+  auto EntryNodeIterator = NodeLookup.find(BasicBlockID(EntryAddress));
+  revng_assert(EntryNodeIterator != NodeLookup.end());
   Graph.setEntryNode(EntryNodeIterator->second);
 
   return Res;

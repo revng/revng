@@ -33,7 +33,7 @@ std::string controlFlowGraph(const yield::Function &InternalFunction,
                              const model::Binary &Binary);
 std::string callGraph(const detail::CrossRelations &CrossRelationTree,
                       const model::Binary &Binary);
-std::string callGraphSlice(const BasicBlockID &SlicePoint,
+std::string callGraphSlice(std::string_view SlicePoint,
                            const detail::CrossRelations &CrossRelationTree,
                            const model::Binary &Binary);
 

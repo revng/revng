@@ -1389,7 +1389,7 @@ inline void detectAliases(const llvm::object::ObjectFile &ELF,
         std::string Name = AliasSetIt->str();
         CurrentAliases.push_back(Name);
 
-        // Create DynamicFunction, it doesn't exist already
+        // Create DynamicFunction, if it doesn't exist already
         auto It = ImportedDynamicFunctions.find(Name);
         bool Found = It != ImportedDynamicFunctions.end();
 
