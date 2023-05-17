@@ -194,9 +194,10 @@ void DetectABI::initializeInterproceduralQueue() {
     // The intraprocedural analysis will be scheduled only for those functions
     // which have `Invalid` as type.
     auto &Function = Binary->Functions().at(Node->Address);
-    if (not Function.Prototype().isValid())
-      EntrypointsQueue.insert(Node);
+    EntrypointsQueue.insert(Node);
   }
+
+  revng_assert(Binary->Functions().size() == EntrypointsQueue.size());
 }
 
 void DetectABI::computeApproximateCallGraph() {
@@ -744,10 +745,22 @@ void DetectABI::runInterproceduralAnalysis() {
       Log << DoLog;
     }
 
+    // Serialize CFG in root
+    {
+      efa::FunctionMetadata New;
+      New.Entry() = EntryNode->Address;
+      New.ControlFlowGraph() = AnalysisResult.CFG;
+      New.simplify(*Binary);
+      New.serialize(GCBI);
+    }
+
     // Perform some early sanity checks once the CFG is ready
     revng_assert(AnalysisResult.CFG.size() > 0);
     for (const MetaAddress &MA : Set)
       revng_assert(Oracle.getLocalFunction(MA).CFG.size() > 0);
+
+    if (Binary->Functions()[EntryPointAddress].Prototype().isValid())
+      continue;
 
     bool Changed = Oracle.registerLocalFunction(EntryPointAddress,
                                                 std::move(AnalysisResult));

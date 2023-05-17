@@ -15,56 +15,21 @@ using namespace llvm;
 namespace efa {
 class CollectCFG {
 private:
-  llvm::Module &M;
   GeneratedCodeBasicInfo &GCBI;
   const TupleTree<model::Binary> &Binary;
   CFGAnalyzer &Analyzer;
 
 public:
-  CollectCFG(llvm::Module &M,
-             GeneratedCodeBasicInfo &GCBI,
+  CollectCFG(GeneratedCodeBasicInfo &GCBI,
              const TupleTree<model::Binary> &Binary,
              CFGAnalyzer &Analyzer) :
-    M(M), GCBI(GCBI), Binary(Binary), Analyzer(Analyzer) {}
+    GCBI(GCBI), Binary(Binary), Analyzer(Analyzer) {}
 
 public:
-  void run() {
-    auto Result = recoverCFGs();
-    serializeFunctionMetadata(Result);
-  }
-
-private:
-  std::vector<efa::FunctionMetadata> recoverCFGs();
-
-  void
-  serializeFunctionMetadata(const std::vector<efa::FunctionMetadata> &CFGs);
+  void run();
 };
 
-using CFGVector = vector<FunctionMetadata>;
-
-void CollectCFG::serializeFunctionMetadata(const CFGVector &CFGs) {
-  using namespace llvm;
-  using llvm::BasicBlock;
-
-  LLVMContext &Context = M.getContext();
-
-  for (const efa::FunctionMetadata &FM : CFGs) {
-    FM.verify(*Binary, true);
-    BasicBlock *BB = GCBI.getBlockAt(FM.Entry());
-    std::string Buffer;
-    {
-      raw_string_ostream Stream(Buffer);
-      serialize(Stream, FM);
-    }
-
-    Instruction *Term = BB->getTerminator();
-    MDNode *Node = MDNode::get(Context, MDString::get(Context, Buffer));
-    Term->setMetadata(FunctionMetadataMDName, Node);
-  }
-}
-
-std::vector<efa::FunctionMetadata> CollectCFG::recoverCFGs() {
-  std::vector<efa::FunctionMetadata> Result;
+void CollectCFG::run() {
   for (const auto &Function : Binary->Functions()) {
     auto *Entry = GCBI.getBlockAt(Function.Entry());
     revng_assert(Entry != nullptr);
@@ -81,9 +46,8 @@ std::vector<efa::FunctionMetadata> CollectCFG::recoverCFGs() {
 
     revng_assert(New.ControlFlowGraph().count(BasicBlockID(New.Entry())) != 0);
 
-    Result.emplace_back(std::move(New));
+    New.serialize(GCBI);
   }
-  return Result;
 }
 
 bool CollectCFGPass::runOnModule(Module &M) {
@@ -102,7 +66,7 @@ bool CollectCFGPass::runOnModule(Module &M) {
 
   CFGAnalyzer Analyzer(M, GCBI, Binary, Oracle);
 
-  CollectCFG CFGCollector(M, GCBI, Binary, Analyzer);
+  CollectCFG CFGCollector(GCBI, Binary, Analyzer);
 
   CFGCollector.run();
 

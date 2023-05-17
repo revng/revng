@@ -120,6 +120,23 @@ const efa::BasicBlock *FunctionMetadata::findBlock(GeneratedCodeBasicInfo &GCBI,
   return &*It;
 }
 
+void FunctionMetadata::serialize(GeneratedCodeBasicInfo &GCBI) const {
+  using namespace llvm;
+  using llvm::BasicBlock;
+
+  BasicBlock *BB = GCBI.getBlockAt(Entry());
+  LLVMContext &Context = getContext(BB);
+  std::string Buffer;
+  {
+    raw_string_ostream Stream(Buffer);
+    ::serialize(Stream, *this);
+  }
+
+  Instruction *Term = BB->getTerminator();
+  MDNode *Node = MDNode::get(Context, MDString::get(Context, Buffer));
+  Term->setMetadata(FunctionMetadataMDName, Node);
+}
+
 void FunctionMetadata::simplify(const model::Binary &Binary) {
   // If A does not end with a call and A.end == B.start and A is the only
   // predecessor of B and B is the only successor of A, merge
@@ -280,7 +297,7 @@ bool FunctionMetadata::verify(const model::Binary &Binary,
 }
 
 void FunctionMetadata::dump() const {
-  serialize(dbg, *this);
+  ::serialize(dbg, *this);
 }
 
 void FunctionMetadata::dumpCFG(const model::Binary &Binary) const {
