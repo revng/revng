@@ -21,6 +21,9 @@ fields:
   - name: CustomName
     type: Identifier
     optional: true
+  - name: OriginalName
+    type: Identifier
+    optional: true
 key:
   - Location
 TUPLE-TREE-YAML */
