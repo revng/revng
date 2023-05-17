@@ -14,13 +14,13 @@ name: DynamicFunction
 doc: Function defined in a dynamic library
 type: struct
 fields:
-  - name: OriginalName
-    doc: The name of the symbol for this dynamic function
-    type: string
   - name: CustomName
     doc: An optional custom name
     type: Identifier
     optional: true
+  - name: OriginalName
+    doc: The name of the symbol for this dynamic function
+    type: string
   - name: Prototype
     doc: The prototype of the function
     reference:
