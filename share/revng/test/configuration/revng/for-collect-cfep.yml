@@ -1,0 +1,14 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+commands:
+  - type: revng.test-collect-cfep
+    from:
+      - type: revng-qa.compiled-with-debug-info
+        filter: for-collect-cfep
+    command: |-
+      revng analyze
+        list-revng-initial-auto-analysis
+        "${INPUT}" |
+        FileCheck --ignore-case "${SOURCE}".yml.filecheck

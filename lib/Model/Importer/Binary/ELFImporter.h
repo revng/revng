@@ -160,9 +160,9 @@ protected:
                            const FilePortion &Dynstr);
 
   void parseDynamicTag(uint64_t Tag,
-                       MetaAddress Relocated,
-                       SmallVectorImpl<uint64_t> &NeededLibraryNameOffsets,
-                       uint64_t Val);
+                       uint64_t Val,
+                       uint64_t Pointer,
+                       SmallVectorImpl<uint64_t> &LibrariesOffsets);
 
   /// Parse architecture dynamic tags.
   virtual void
