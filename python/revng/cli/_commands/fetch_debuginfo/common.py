@@ -4,8 +4,10 @@
 
 import os
 import sys
+from pathlib import Path
 
 import requests
+from xdg import xdg_cache_home
 
 
 class Logger:
@@ -23,6 +25,13 @@ class Logger:
 logger = Logger()
 log = logger.log
 log_warning = logger.log_warning
+
+
+def cache_directory() -> Path:
+    if "REVNG_CACHE_DIR" in os.environ:
+        return Path(os.environ["REVNG_CACHE_DIR"])
+    else:
+        return xdg_cache_home() / "revng"
 
 
 def download_file(url, local_filename):
