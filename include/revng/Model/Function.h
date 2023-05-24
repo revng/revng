@@ -34,6 +34,9 @@ fields:
   - name: OriginalName
     type: string
     optional: true
+  - name: Comment
+    type: string
+    optional: true
   - name: StackFrameType
     doc: The type of the stack frame
     reference:

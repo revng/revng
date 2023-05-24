@@ -61,7 +61,7 @@ populateSegmentTypeStruct(model::Binary &Binary,
         FieldType = { T, { { model::QualifierKind::Array, Size } } };
       }
 
-      model::StructField Field{ *Offset, {}, Name.str(), FieldType };
+      model::StructField Field{ *Offset, {}, Name.str(), {}, FieldType };
       if (!checkForOverlap(*Struct, Field)) {
         // Discard any symbols that would overlap an already existing one.
         const auto &[_, Success] = Struct->Fields().insert(Field);

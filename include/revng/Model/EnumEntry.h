@@ -21,6 +21,9 @@ fields:
   - name: OriginalName
     type: string
     optional: true
+  - name: Comment
+    type: string
+    optional: true
 key:
   - Value
 TUPLE-TREE-YAML */
