@@ -16,6 +16,9 @@ fields:
     type: Register
   - name: Type
     type: QualifiedType
+  - name: Comment
+    type: string
+    optional: true
 key:
   - Location
 TUPLE-TREE-YAML */

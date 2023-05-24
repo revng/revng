@@ -36,6 +36,9 @@ fields:
   - name: OriginalName
     type: string
     optional: true
+  - name: Comment
+    type: string
+    optional: true
   - name: CanonicalRegisterValues
     optional: true
     sequence:

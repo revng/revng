@@ -24,6 +24,9 @@ fields:
   - name: OriginalName
     type: Identifier
     optional: true
+  - name: Comment
+    type: string
+    optional: true
 key:
   - Location
 TUPLE-TREE-YAML */

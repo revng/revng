@@ -21,6 +21,9 @@ fields:
   - name: OriginalName
     doc: The name of the symbol for this dynamic function
     type: string
+  - name: Comment
+    type: string
+    optional: true
   - name: Prototype
     doc: The prototype of the function
     reference:
