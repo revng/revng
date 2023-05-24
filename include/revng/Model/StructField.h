@@ -22,6 +22,9 @@ fields:
   - name: OriginalName
     type: string
     optional: true
+  - name: Comment
+    type: string
+    optional: true
   - name: Type
     type: QualifiedType
 key:
