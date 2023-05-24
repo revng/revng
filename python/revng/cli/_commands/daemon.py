@@ -36,12 +36,8 @@ REVNG_ORIGINS: comma-separated list of allowed CORS origins
 REVNG_C_API_TRACE_PATH: path to file to use to save api tracing, useful for debugging
 
 Persistence:
-revng needs a directory to preserve progress across restarts, this is controlled
-by the environment variables REVNG_DATA_DIR and REVNG_PROJECT_ID
-Neither of them set: use a uniquely generated temporary directory
-REVNG_DATA_DIR set, REVNG_PROJECT_ID unset: use '$REVNG_DATA_DIR' as persistence folder
-REVNG_PROJECT_ID set, REVNG_DATA_DIR unset: use '$XDG_DATA_HOME/revng/$REVNG_PROJECT_ID'
-REVNG_DATA_DIR and REVNG_PROJECT_ID set: use '$REVNG_DATA_DIR/$REVNG_PROJECT_ID'
+If the REVNG_DATA_DIR environment variable is set, the the data is persisted across
+restarts. Otherwise all progress will be lost on daemon shutdown.
 """
 
         parser.add_argument("-p", "--port", type=int, default=8000, help="Port to use")

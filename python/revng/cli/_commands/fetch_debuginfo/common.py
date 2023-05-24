@@ -2,12 +2,12 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import gzip
 import os
-import shutil
 import sys
+from pathlib import Path
 
 import requests
+from xdg import xdg_cache_home
 
 
 class Logger:
@@ -27,27 +27,24 @@ log = logger.log
 log_warning = logger.log_warning
 
 
+def cache_directory() -> Path:
+    if "REVNG_CACHE_DIR" in os.environ:
+        return Path(os.environ["REVNG_CACHE_DIR"])
+    else:
+        return xdg_cache_home() / "revng"
+
+
 def download_file(url, local_filename):
     log(f"Downloading {local_filename}")
-    with requests.get(url, stream=True) as r:
-        if r.status_code == 200:
-            # TODO: Add support for other types of compressed files.
-            if "Content-Encoding" in r.headers and r.headers["Content-Encoding"] == "gzip":
-                gzip_filename = local_filename + ".gz"
-                with gzip.open(gzip_filename, "wb") as gzip_file:
-                    shutil.copyfileobj(r.raw, gzip_file)
-                with gzip.open(gzip_filename, "rb") as gzip_file:
-                    content = gzip.decompress(gzip_file.read())
-                with open(local_filename, "wb") as debug_file:
-                    debug_file.write(content)
-                os.remove(gzip_filename)
-            else:
-                with open(local_filename, "wb") as debug_file:
-                    shutil.copyfileobj(r.raw, debug_file)
-
+    with requests.get(url, stream=True) as request:
+        if request.status_code == 200:
+            with open(local_filename, "wb") as debug_file:
+                for chunk in request.iter_content(chunk_size=64 * 1024):
+                    debug_file.write(chunk)
             log("Downloaded")
             return True
-        else:
+        elif request.status_code == 404:
             log("URL was not found")
-            return False
+        else:
+            log(f"URL returned status code {request.status_code}")
     return False

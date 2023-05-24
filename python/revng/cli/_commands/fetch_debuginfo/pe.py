@@ -2,14 +2,13 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-from pathlib import Path, PureWindowsPath
+from pathlib import PureWindowsPath
 
 import pefile
-from xdg import xdg_cache_home
 
 from revng.cli.support import log_error
 
-from .common import download_file, log
+from .common import cache_directory, download_file, log
 
 
 def fetch_pdb(file: pefile, file_path, urls):
@@ -23,24 +22,14 @@ def fetch_pdb(file: pefile, file_path, urls):
         log_error(str(exception))
         return None
 
-    # Ensure that we have created `$xdg_cache_home/revng/debug-symbols/pe` directory.
-    path_to_revng_data = Path(str(xdg_cache_home()) + "/revng/")
-    if not path_to_revng_data.exists():
-        path_to_revng_data.mkdir()
-    path_to_revng_debug_data = path_to_revng_data / "debug-symbols/"
-    if not path_to_revng_debug_data.exists():
-        path_to_revng_debug_data.mkdir()
-    path_to_revng_pe_debug_data = path_to_revng_debug_data / "pe/"
-    if not path_to_revng_pe_debug_data.exists():
-        path_to_revng_pe_debug_data.mkdir()
+    # Ensure that we have created `$cache_directory/debug-symbols/pe` directory.
+    path_to_revng_pe_debug_data = cache_directory() / "debug-symbols" / "pe"
+    path_to_revng_pe_debug_data.mkdir(parents=True, exist_ok=True)
 
     for e in pe.DIRECTORY_ENTRY_DEBUG:
         if isinstance(e.entry, pefile.Structure):
-            pdb_file_name = e.entry.PdbFileName.decode("utf-8")
-            pdb_file_name = pdb_file_name.replace("\x00", "")
-
-            full_path = PureWindowsPath(pdb_file_name)
-            pdb_file_name = full_path.name
+            pdb_file_name_raw = e.entry.PdbFileName.decode("utf-8").replace("\x00", "")
+            pdb_file_name = PureWindowsPath(pdb_file_name_raw).name
 
             # Parse the hash that identifies the PDB file.
             def pdb_id_helper(data):
@@ -57,8 +46,7 @@ def fetch_pdb(file: pefile, file_path, urls):
             log("PDBID: " + pdb_id)
 
             path_to_download = path_to_revng_pe_debug_data / pdb_id
-            if not path_to_download.exists():
-                path_to_download.mkdir()
+            path_to_download.mkdir(exist_ok=True)
 
             pdb_file_to_download = path_to_download / pdb_file_name
             if pdb_file_to_download.exists():

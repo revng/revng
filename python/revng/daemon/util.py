@@ -4,12 +4,9 @@
 
 import json
 import os
-import re
 from base64 import b64encode
 from pathlib import Path
 from typing import Dict, List, Optional
-
-from xdg import xdg_data_home
 
 
 def clean_double_dict(dictionary: Dict[str, Dict[str, List]]):
@@ -49,17 +46,8 @@ def clean_container_list(container_list: List):
 
 
 def project_workdir() -> Optional[Path]:
-    data_dir = os.getenv("REVNG_DATA_DIR", "")
-    project_id = os.getenv("REVNG_PROJECT_ID", "")
-
-    if data_dir != "" and project_id == "":
-        return Path(data_dir)
-    elif project_id != "":
-        real_data_dir = Path(data_dir) if data_dir != "" else xdg_data_home() / "revng"
-        if re.match(r"^[\w_-]*$", project_id, re.ASCII):
-            return real_data_dir / project_id
-        else:
-            raise ValueError("Invalid Project ID")
+    if "REVNG_DATA_DIR" in os.environ:
+        return Path(os.environ["REVNG_DATA_DIR"])
     else:
         return None
 

@@ -2,13 +2,10 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-from pathlib import Path
-
 from elftools.elf.elffile import ELFFile
 from elftools.elf.sections import NoteSection
-from xdg import xdg_cache_home
 
-from .common import download_file, log
+from .common import cache_directory, download_file, log
 
 
 def parse_build_id(file):
@@ -34,20 +31,12 @@ def fetch_dwarf(file: ELFFile, file_path, urls):
     log("BUILD-ID: " + build_id)
 
     # Find debug info on the web as `debuginfod` does.
-    # Ensure that we have created `$xdg_cache_home/revng/debug-symbols/elf` directory.
-    path_to_revng_data = Path(str(xdg_cache_home()) + "/revng/")
-    if not path_to_revng_data.exists():
-        path_to_revng_data.mkdir()
-    path_to_revng_debug_data = path_to_revng_data / "debug-symbols/"
-    if not path_to_revng_debug_data.exists():
-        path_to_revng_debug_data.mkdir()
-    path_to_revng_elf_debug_data = path_to_revng_debug_data / "elf/"
-    if not path_to_revng_elf_debug_data.exists():
-        path_to_revng_elf_debug_data.mkdir()
+    # Ensure that we have created `$cache_directory/debug-symbols/elf` directory.
+    path_to_revng_elf_debug_data = cache_directory() / "debug-symbols" / "elf"
+    path_to_revng_elf_debug_data.mkdir(parents=True, exist_ok=True)
 
     directory_path_to_download = path_to_revng_elf_debug_data / build_id
-    if not directory_path_to_download.exists():
-        directory_path_to_download.mkdir()
+    directory_path_to_download.mkdir(exist_ok=True)
 
     debug_file_to_download = directory_path_to_download / "debug"
     if debug_file_to_download.exists():
