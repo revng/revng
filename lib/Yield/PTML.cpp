@@ -49,6 +49,7 @@ static AddressStyles AddressStyle = AddressStyles::Smart;
 } // namespace options
 
 using pipeline::serializedLocation;
+using ptml::PTMLBuilder;
 using ptml::str;
 using ptml::Tag;
 namespace attributes = ptml::attributes;
@@ -119,12 +120,13 @@ static LabelDescription labelImpl(const BasicBlockID &BasicBlock,
   }
 }
 
-static std::string labelDefinition(const BasicBlockID &BasicBlock,
+static std::string labelDefinition(const PTMLBuilder &ThePTMLBuilder,
+                                   const BasicBlockID &BasicBlock,
                                    const yield::Function &Function,
                                    const model::Binary &Binary) {
   auto [Name, Location, Path] = labelImpl(BasicBlock, Function, Binary);
 
-  Tag LabelTag(tags::Span, Name);
+  Tag LabelTag = ThePTMLBuilder.getTag(tags::Span, Name);
   LabelTag.addAttribute(attributes::Token, tokenTypes::Label)
     .addAttribute(attributes::LocationDefinition, Location);
   if (!Path.empty())
@@ -133,25 +135,26 @@ static std::string labelDefinition(const BasicBlockID &BasicBlock,
   using model::Architecture::getAssemblyLabelIndicator;
   std::string Indicator(getAssemblyLabelIndicator(Binary.Architecture()));
   return LabelTag.serialize()
-         + Tag(tags::Span, Indicator)
+         + ThePTMLBuilder.getTag(tags::Span, Indicator)
              .addAttribute(attributes::Token, tokenTypes::LabelIndicator)
              .serialize();
 }
 
-static std::string labelReference(const BasicBlockID &BasicBlock,
+static std::string labelReference(const PTMLBuilder &ThePTMLBuilder,
+                                  const BasicBlockID &BasicBlock,
                                   const yield::Function &Function,
                                   const model::Binary &Binary) {
   auto [Name, Location, _] = labelImpl(BasicBlock, Function, Binary);
 
-  Tag LabelTag(tags::Span, std::move(Name));
+  Tag LabelTag = ThePTMLBuilder.getTag(tags::Span, std::move(Name));
   LabelTag.addAttribute(attributes::Token, tokenTypes::Label)
     .addAttribute(attributes::LocationReferences, Location);
 
   return LabelTag.serialize();
 }
 
-static std::string indent() {
-  return Tag(tags::Span, "  ")
+static std::string indent(const PTMLBuilder &ThePTMLBuilder) {
+  return ThePTMLBuilder.getTag(tags::Span, "  ")
     .addAttribute(attributes::Token, ptml::tokens::Indentation)
     .serialize();
 }
@@ -250,12 +253,12 @@ public:
   ///
   /// \note this consumes \ref Content, so the tag is not usable after this
   ///       has been called.
-  std::string emit() {
+  std::string emit(const PTMLBuilder &ThePTMLBuilder) {
     std::string TagStr = tagTypeAsString(Type);
     if (TagStr.empty())
       return moveContent();
 
-    return ::Tag(tags::Span, moveContent())
+    return ThePTMLBuilder.getTag(tags::Span, moveContent())
       .addAttribute(attributes::Token, TagStr)
       .serialize();
   }
@@ -395,7 +398,8 @@ toGlobal(const TaggedString &Input, const MetaAddress &Address) {
 }
 
 static std::optional<TaggedString>
-tryEmitLabel(const MetaAddress &Address,
+tryEmitLabel(const PTMLBuilder &ThePTMLBuilder,
+             const MetaAddress &Address,
              const yield::BasicBlock &BasicBlock,
              const yield::Function &Function,
              const model::Binary &Binary) {
@@ -409,17 +413,19 @@ tryEmitLabel(const MetaAddress &Address,
         && Successor->Destination().start().address() == Address.address()) {
       // Since we have no easy way to decide which one of the successors
       // is better, stop looking after the first match.
-      return TaggedString{
-        yield::TagType::Untagged,
-        labelReference(Successor->Destination(), Function, Binary)
-      };
+      return TaggedString{ yield::TagType::Untagged,
+                           labelReference(ThePTMLBuilder,
+                                          Successor->Destination(),
+                                          Function,
+                                          Binary) };
     }
   }
 
   return std::nullopt;
 }
 
-static TaggedString emitAddress(TaggedString &&Input,
+static TaggedString emitAddress(const PTMLBuilder &ThePTMLBuilder,
+                                TaggedString &&Input,
                                 const MetaAddress &Address,
                                 const yield::BasicBlock &BasicBlock,
                                 const yield::Function &Function,
@@ -429,7 +435,8 @@ static TaggedString emitAddress(TaggedString &&Input,
       || options::AddressStyle == Styles::Smart
       || options::AddressStyle == Styles::Strict) {
     // "Smart" style selected, try to emit the label.
-    if (std::optional MaybeLabel = tryEmitLabel(Address,
+    if (std::optional MaybeLabel = tryEmitLabel(ThePTMLBuilder,
+                                                Address,
                                                 BasicBlock,
                                                 Function,
                                                 Binary)) {
@@ -455,7 +462,8 @@ static TaggedString emitAddress(TaggedString &&Input,
   }
 }
 
-static TaggedStrings handleSpecialCases(TaggedStrings &&Input,
+static TaggedStrings handleSpecialCases(const PTMLBuilder &ThePTMLBuilder,
+                                        TaggedStrings &&Input,
                                         const yield::Instruction &Instruction,
                                         const yield::BasicBlock &BasicBlock,
                                         const yield::Function &Function,
@@ -466,7 +474,8 @@ static TaggedStrings handleSpecialCases(TaggedStrings &&Input,
     if (Iterator->Type == yield::TagType::Address) {
       auto Address = absoluteAddressFromPCRelativeImmediate(*Iterator,
                                                             Instruction);
-      *Iterator = emitAddress(std::move(*Iterator),
+      *Iterator = emitAddress(ThePTMLBuilder,
+                              std::move(*Iterator),
                               Address,
                               BasicBlock,
                               Function,
@@ -474,7 +483,8 @@ static TaggedStrings handleSpecialCases(TaggedStrings &&Input,
     } else if (Iterator->Type == yield::TagType::AbsoluteAddress) {
       auto Address = absoluteAddressFromAbsoluteImmediate(*Iterator,
                                                           Instruction);
-      *Iterator = emitAddress(std::move(*Iterator),
+      *Iterator = emitAddress(ThePTMLBuilder,
+                              std::move(*Iterator),
                               Address,
                               BasicBlock,
                               Function,
@@ -484,7 +494,8 @@ static TaggedStrings handleSpecialCases(TaggedStrings &&Input,
                                                             Instruction);
       TaggedStrings NewTags{ TaggedString{ yield::TagType::Helper,
                                            "offset_to("s },
-                             emitAddress(std::move(*Iterator),
+                             emitAddress(ThePTMLBuilder,
+                                         std::move(*Iterator),
                                          Address,
                                          BasicBlock,
                                          Function,
@@ -501,7 +512,8 @@ static TaggedStrings handleSpecialCases(TaggedStrings &&Input,
   return Result;
 }
 
-static std::string taggedText(const yield::Instruction &Instruction,
+static std::string taggedText(const PTMLBuilder &ThePTMLBuilder,
+                              const yield::Instruction &Instruction,
                               const yield::BasicBlock &BasicBlock,
                               const yield::Function &Function,
                               const model::Binary &Binary) {
@@ -512,7 +524,8 @@ static std::string taggedText(const yield::Instruction &Instruction,
 
   TaggedStrings Flattened = flattenTags(Instruction.Tags(),
                                         Instruction.Disassembled());
-  TaggedStrings Processed = handleSpecialCases(std::move(Flattened),
+  TaggedStrings Processed = handleSpecialCases(ThePTMLBuilder,
+                                               std::move(Flattened),
                                                Instruction,
                                                BasicBlock,
                                                Function,
@@ -520,28 +533,32 @@ static std::string taggedText(const yield::Instruction &Instruction,
 
   std::string Result;
   for (auto &TaggedString : Processed)
-    Result += TaggedString.emit();
+    Result += TaggedString.emit(ThePTMLBuilder);
 
   return Result;
 }
 
-static std::string instruction(const yield::Instruction &Instruction,
+static std::string instruction(const PTMLBuilder &ThePTMLBuilder,
+                               const yield::Instruction &Instruction,
                                const yield::BasicBlock &BasicBlock,
                                const yield::Function &Function,
                                const model::Binary &Binary,
                                bool AddTargets = false) {
-
   // Tagged instruction body.
-  std::string Result = taggedText(Instruction, BasicBlock, Function, Binary);
+  std::string Result = taggedText(ThePTMLBuilder,
+                                  Instruction,
+                                  BasicBlock,
+                                  Function,
+                                  Binary);
   size_t Tail = Instruction.Disassembled().size() + 1;
 
-  Tag Location = Tag(tags::Span)
+  Tag Location = ThePTMLBuilder.getTag(tags::Span)
                    .addAttribute(attributes::LocationDefinition,
                                  serializedLocation(ranks::Instruction,
                                                     Function.Entry(),
                                                     BasicBlock.ID(),
                                                     Instruction.Address()));
-  Tag Out = Tag(tags::Div, std::move(Result))
+  Tag Out = ThePTMLBuilder.getTag(tags::Div, std::move(Result))
               .addAttribute(attributes::Scope, scopes::Instruction);
 
   if (AddTargets) {
@@ -552,7 +569,8 @@ static std::string instruction(const yield::Instruction &Instruction,
   return Location + Out;
 }
 
-static std::string basicBlock(const yield::BasicBlock &BasicBlock,
+static std::string basicBlock(const PTMLBuilder &ThePTMLBuilder,
+                              const yield::BasicBlock &BasicBlock,
                               const yield::Function &Function,
                               const model::Binary &Binary,
                               std::string Label) {
@@ -566,11 +584,21 @@ static std::string basicBlock(const yield::BasicBlock &BasicBlock,
 
   std::string Result;
   for (auto Iterator = FromIterator; Iterator != ToIterator; ++Iterator) {
-    Result += indent() + instruction(*Iterator, BasicBlock, Function, Binary)
+    Result += indent(ThePTMLBuilder)
+              + instruction(ThePTMLBuilder,
+                            *Iterator,
+                            BasicBlock,
+                            Function,
+                            Binary)
               + "\n";
   }
-  Result += indent()
-            + instruction(*(ToIterator++), BasicBlock, Function, Binary, true)
+  Result += indent(ThePTMLBuilder)
+            + instruction(ThePTMLBuilder,
+                          *(ToIterator++),
+                          BasicBlock,
+                          Function,
+                          Binary,
+                          true)
             + "\n";
 
   std::string LabelString;
@@ -581,25 +609,34 @@ static std::string basicBlock(const yield::BasicBlock &BasicBlock,
                                               model::Function(Function.Entry())
                                                 .key(),
                                               BasicBlock.ID());
-    LabelString = Tag(tags::Span)
+    LabelString = ThePTMLBuilder.getTag(tags::Span)
                     .addAttribute(attributes::LocationDefinition, Location)
                     .serialize();
   }
 
-  return Tag(tags::Div, LabelString + Result)
+  return ThePTMLBuilder.getTag(tags::Div, LabelString + Result)
     .addAttribute(attributes::Scope, scopes::BasicBlock)
     .serialize();
 }
 
 template<bool ShouldMergeFallthroughTargets>
-static std::string labeledBlock(const yield::BasicBlock &FirstBlock,
+static std::string labeledBlock(const PTMLBuilder &ThePTMLBuilder,
+                                const yield::BasicBlock &FirstBlock,
                                 const yield::Function &Function,
                                 const model::Binary &Binary) {
   std::string Result;
-  std::string Label = labelDefinition(FirstBlock.ID(), Function, Binary);
+  std::string Label = labelDefinition(ThePTMLBuilder,
+                                      FirstBlock.ID(),
+                                      Function,
+                                      Binary);
 
   if constexpr (ShouldMergeFallthroughTargets == false) {
-    Result = basicBlock(FirstBlock, Function, Binary, std::move(Label)) + "\n";
+    Result = basicBlock(ThePTMLBuilder,
+                        FirstBlock,
+                        Function,
+                        Binary,
+                        std::move(Label))
+             + "\n";
   } else {
     auto BasicBlocks = yield::cfg::labeledBlock(FirstBlock, Function, Binary);
     if (BasicBlocks.empty())
@@ -607,7 +644,11 @@ static std::string labeledBlock(const yield::BasicBlock &FirstBlock,
 
     bool IsFirst = true;
     for (const auto &BasicBlock : BasicBlocks) {
-      Result += basicBlock(*BasicBlock, Function, Binary, IsFirst ? Label : "");
+      Result += basicBlock(ThePTMLBuilder,
+                           *BasicBlock,
+                           Function,
+                           Binary,
+                           IsFirst ? Label : "");
       IsFirst = false;
     }
     Result += "\n";
@@ -616,28 +657,33 @@ static std::string labeledBlock(const yield::BasicBlock &FirstBlock,
   return Result;
 }
 
-std::string yield::ptml::functionAssembly(const yield::Function &Function,
+std::string yield::ptml::functionAssembly(const PTMLBuilder &ThePTMLBuilder,
+                                          const yield::Function &Function,
                                           const model::Binary &Binary) {
   std::string Result;
 
   for (const auto &BasicBlock : Function.ControlFlowGraph()) {
-    Result += labeledBlock<true>(BasicBlock, Function, Binary);
+    Result += labeledBlock<true>(ThePTMLBuilder, BasicBlock, Function, Binary);
   }
 
   using pipeline::serializedLocation;
   namespace ranks = revng::ranks;
-  return ::Tag(tags::Div, Result)
+  return ThePTMLBuilder.getTag(tags::Div, Result)
     .addAttribute(attributes::Scope, scopes::Function)
     .serialize();
 }
 
-std::string yield::ptml::controlFlowNode(const BasicBlockID &BasicBlock,
+std::string yield::ptml::controlFlowNode(const PTMLBuilder &ThePTMLBuilder,
+                                         const BasicBlockID &BasicBlock,
                                          const yield::Function &Function,
                                          const model::Binary &Binary) {
   auto Iterator = Function.ControlFlowGraph().find(BasicBlock);
   revng_assert(Iterator != Function.ControlFlowGraph().end());
 
-  auto Result = labeledBlock<false>(*Iterator, Function, Binary);
+  auto Result = labeledBlock<false>(ThePTMLBuilder,
+                                    *Iterator,
+                                    Function,
+                                    Binary);
   revng_assert(!Result.empty());
 
   return Result;
@@ -669,34 +715,44 @@ functionNameHelper(std::string_view Location, const model::Binary &Binary) {
   }
 }
 
-std::string yield::ptml::functionNameDefinition(std::string_view Location,
-                                                const model::Binary &Binary) {
+std::string
+yield::ptml::functionNameDefinition(const PTMLBuilder &ThePTMLBuilder,
+                                    std::string_view Location,
+                                    const model::Binary &Binary) {
   if (Location.empty())
     return "";
 
-  ::ptml::Tag Result(tags::Div, functionNameHelper(Location, Binary));
+  ::ptml::Tag Result = ThePTMLBuilder.getTag(tags::Div,
+                                             functionNameHelper(Location,
+                                                                Binary));
   Result.addAttribute(attributes::Token, callGraphTokens::NodeLabel);
   Result.addAttribute(attributes::LocationDefinition, Location);
   return Result.serialize();
 }
 
-std::string yield::ptml::functionLink(std::string_view Location,
+std::string yield::ptml::functionLink(const PTMLBuilder &ThePTMLBuilder,
+                                      std::string_view Location,
                                       const model::Binary &Binary) {
   if (Location.empty())
     return "";
 
-  ::ptml::Tag Result(tags::Div, functionNameHelper(Location, Binary));
+  ::ptml::Tag Result = ThePTMLBuilder.getTag(tags::Div,
+                                             functionNameHelper(Location,
+                                                                Binary));
   Result.addAttribute(attributes::Token, callGraphTokens::NodeLabel);
   Result.addAttribute(attributes::LocationReferences, Location);
   return Result.serialize();
 }
 
-std::string yield::ptml::shallowFunctionLink(std::string_view Location,
+std::string yield::ptml::shallowFunctionLink(const PTMLBuilder &ThePTMLBuilder,
+                                             std::string_view Location,
                                              const model::Binary &Binary) {
   if (Location.empty())
     return "";
 
-  ::ptml::Tag Result(tags::Div, functionNameHelper(Location, Binary));
+  ::ptml::Tag Result = ThePTMLBuilder.getTag(tags::Div,
+                                             functionNameHelper(Location,
+                                                                Binary));
   Result.addAttribute(attributes::Token, callGraphTokens::ShallowNodeLabel);
   Result.addAttribute(attributes::LocationReferences, Location);
   return Result.serialize();

@@ -6,6 +6,7 @@
 
 #include <string>
 
+#include "revng/PTML/Tag.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Support/BasicBlockID.h"
 
@@ -17,11 +18,17 @@ namespace yield {
 class Function;
 }
 
+namespace ptml {
+class PTMLBuilder;
+}
+
 namespace yield::ptml {
 
-std::string functionAssembly(const yield::Function &InternalFunction,
+std::string functionAssembly(const ::ptml::PTMLBuilder &ThePTMLBuilder,
+                             const yield::Function &InternalFunction,
                              const model::Binary &Binary);
-std::string controlFlowNode(const BasicBlockID &BasicBlockAddress,
+std::string controlFlowNode(const ::ptml::PTMLBuilder &ThePTMLBuilder,
+                            const BasicBlockID &BasicBlock,
                             const yield::Function &Function,
                             const model::Binary &Binary);
 
@@ -35,8 +42,9 @@ std::string controlFlowNode(const BasicBlockID &BasicBlockAddress,
 ///     $FUNCTION_NAME
 ///   </div>
 /// ```
-std::string
-functionNameDefinition(std::string_view Location, const model::Binary &Binary);
+std::string functionNameDefinition(const ::ptml::PTMLBuilder &ThePTMLBuilder,
+                                   std::string_view Location,
+                                   const model::Binary &Binary);
 
 /// Emits a PTML containing a function name marked as a reference
 /// (it can be used to jump to any definition of the same function).
@@ -48,8 +56,9 @@ functionNameDefinition(std::string_view Location, const model::Binary &Binary);
 ///     $FUNCTION_NAME
 ///   </div>
 /// ```
-std::string
-functionLink(std::string_view Location, const model::Binary &Binary);
+std::string functionLink(const ::ptml::PTMLBuilder &ThePTMLBuilder,
+                         std::string_view Location,
+                         const model::Binary &Binary);
 
 /// Emits a PTML containing a function name marked as a reference
 /// \see functionLink
@@ -64,7 +73,8 @@ functionLink(std::string_view Location, const model::Binary &Binary);
 ///     $FUNCTION_NAME
 ///   </div>
 /// ```
-std::string
-shallowFunctionLink(std::string_view Location, const model::Binary &Binary);
+std::string shallowFunctionLink(const ::ptml::PTMLBuilder &ThePTMLBuilder,
+                                std::string_view Location,
+                                const model::Binary &Binary);
 
 } // namespace yield::ptml

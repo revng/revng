@@ -6,9 +6,15 @@
 
 #include <string>
 
+#include "revng/PTML/Tag.h"
+
 class BasicBlockID;
 namespace model {
 class Binary;
+}
+
+namespace ptml {
+class PTMLBuilder;
 }
 
 namespace yield {
@@ -29,11 +35,14 @@ using CrossRelations = yield::crossrelations::CrossRelations;
 
 } // namespace detail
 
-std::string controlFlowGraph(const yield::Function &InternalFunction,
+std::string controlFlowGraph(const ::ptml::PTMLBuilder &ThePTMLBuilder,
+                             const yield::Function &InternalFunction,
                              const model::Binary &Binary);
-std::string callGraph(const detail::CrossRelations &CrossRelationTree,
+std::string callGraph(const ::ptml::PTMLBuilder &ThePTMLBuilder,
+                      const detail::CrossRelations &CrossRelationTree,
                       const model::Binary &Binary);
-std::string callGraphSlice(std::string_view SlicePoint,
+std::string callGraphSlice(const ::ptml::PTMLBuilder &ThePTMLBuilder,
+                           std::string_view SlicePoint,
                            const detail::CrossRelations &CrossRelationTree,
                            const model::Binary &Binary);
 
