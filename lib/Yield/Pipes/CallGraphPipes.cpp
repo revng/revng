@@ -20,6 +20,8 @@
 #include "revng/Yield/Pipes/YieldCallGraphSlice.h"
 #include "revng/Yield/SVG.h"
 
+using ptml::PTMLBuilder;
+
 namespace revng::pipes {
 
 void ProcessCallGraph::run(pipeline::Context &Context,
@@ -54,9 +56,10 @@ void YieldCallGraph::run(pipeline::Context &Context,
                          CallGraphSVGFileContainer &Output) {
   // Access the model
   const auto &Model = revng::getModelFromContext(Context);
+  PTMLBuilder ThePTMLBuilder;
 
   // Convert the graph to SVG.
-  auto Result = yield::svg::callGraph(*Relations.get(), *Model);
+  auto Result = yield::svg::callGraph(ThePTMLBuilder, *Relations.get(), *Model);
 
   // Print the result.
   Output.setContent(std::move(Result));
@@ -77,6 +80,7 @@ void YieldCallGraphSlice::run(pipeline::Context &Context,
 
   // Access the llvm module
   const llvm::Module &Module = TargetList.getModule();
+  PTMLBuilder ThePTMLBuilder;
   FunctionMetadataCache Cache;
   for (const auto &LLVMFunction : FunctionTags::Isolated.functions(&Module)) {
     auto &Metadata = Cache.getFunctionMetadata(&LLVMFunction);
@@ -86,7 +90,8 @@ void YieldCallGraphSlice::run(pipeline::Context &Context,
     auto SlicePoint = pipeline::serializedLocation(revng::ranks::Function,
                                                    Metadata.Entry());
     Output.insert_or_assign(Metadata.Entry(),
-                            yield::svg::callGraphSlice(SlicePoint,
+                            yield::svg::callGraphSlice(ThePTMLBuilder,
+                                                       SlicePoint,
                                                        *Relations.get(),
                                                        *Model));
   }

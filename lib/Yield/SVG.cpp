@@ -22,6 +22,7 @@
 #include "revng/Yield/PTML.h"
 #include "revng/Yield/SVG.h"
 
+using ptml::PTMLBuilder;
 using ptml::Tag;
 
 namespace tags {
@@ -88,7 +89,8 @@ static std::string cubicBend(const yield::layout::Point &From,
                        -To.Y);
 }
 
-static std::string edge(const yield::layout::Path &Path,
+static std::string edge(const PTMLBuilder &ThePTMLBuilder,
+                        const yield::layout::Path &Path,
                         const std::string_view Type,
                         bool UseOrthogonalBends = true,
                         bool UseVerticalCurves = false) {
@@ -112,7 +114,7 @@ static std::string edge(const yield::layout::Path &Path,
   Points.pop_back(); // Remove an extra space at the end.
 
   std::string Marker = llvm::formatv("url(#{0}-arrow-head)", Type);
-  return Tag("path")
+  return ThePTMLBuilder.getTag("path")
     .addAttribute("class", std::string(Type) += "-edge")
     .addAttribute("d", std::move(Points))
     .addAttribute("marker-end", std::move(Marker))
@@ -121,24 +123,25 @@ static std::string edge(const yield::layout::Path &Path,
 }
 
 template<typename NodeData, typename EdgeData = Empty>
-std::string node(const yield::layout::OutputNode<NodeData, EdgeData> *Node,
+std::string node(const PTMLBuilder &ThePTMLBuilder,
+                 const yield::layout::OutputNode<NodeData, EdgeData> *Node,
                  std::string &&Content,
                  const yield::cfg::Configuration &Configuration) {
   yield::layout::Size HalfSize{ Node->Size.W / 2, Node->Size.H / 2 };
   yield::layout::Point TopLeft{ Node->Center.X - HalfSize.W,
                                 -Node->Center.Y - HalfSize.H };
 
-  Tag Body("body", std::move(Content));
+  Tag Body = ThePTMLBuilder.getTag("body", std::move(Content));
   Body.addAttribute("xmlns", R"(http://www.w3.org/1999/xhtml)");
 
-  Tag Text("foreignObject", Body.serialize());
+  Tag Text = ThePTMLBuilder.getTag("foreignObject", Body.serialize());
   Text.addAttribute("class", ::tags::NodeContents)
     .addAttribute("x", std::to_string(TopLeft.X))
     .addAttribute("y", std::to_string(TopLeft.Y))
     .addAttribute("width", std::to_string(Node->Size.W))
     .addAttribute("height", std::to_string(Node->Size.H));
 
-  Tag Border("rect");
+  Tag Border = ThePTMLBuilder.getTag("rect");
   Border.addAttribute("class", ::tags::NodeBody)
     .addAttribute("x", std::to_string(TopLeft.X))
     .addAttribute("y", std::to_string(TopLeft.Y))
@@ -215,6 +218,7 @@ Viewbox calculateViewbox(const GraphType &Graph) {
 
 /// A really simple arrow head marker generator.
 ///
+/// \param ThePTMLBuilder: PTML builder that should be used to make ptml::Tags.
 /// \param Name: the id of the marker as referred to by the objects using it.
 /// \param Size: the size of the marker. It sets both width and height to force
 /// the marker to be square-shaped.
@@ -223,18 +227,22 @@ Viewbox calculateViewbox(const GraphType &Graph) {
 /// (arrow origin the same as its tip), positive values shift arrow back,
 /// leaving some space between the tip and its target, negative values shift it
 /// closer to the target possibly causing an overlap.
-static std::string
-arrowHead(llvm::StringRef Name, float Size, float Concave, float Shift = 0) {
+static std::string arrowHead(const ::ptml::PTMLBuilder &ThePTMLBuilder,
+                             llvm::StringRef Name,
+                             float Size,
+                             float Concave,
+                             float Shift = 0) {
   std::string Points = llvm::formatv("{0}, {1} {3}, {2} {0}, {0} {1}, {2}",
                                      "0",
                                      std::to_string(Size),
                                      std::to_string(Size / 2),
                                      std::to_string(Concave));
 
-  return Tag("marker",
-             Tag("polygon")
-               .addAttribute("points", std::move(Points))
-               .serialize())
+  return ThePTMLBuilder
+    .getTag("marker",
+            ThePTMLBuilder.getTag("polygon")
+              .addAttribute("points", std::move(Points))
+              .serialize())
     .addAttribute("id", Name)
     .addAttribute("markerWidth", std::to_string(Size))
     .addAttribute("markerHeight", std::to_string(Size))
@@ -246,19 +254,27 @@ arrowHead(llvm::StringRef Name, float Size, float Concave, float Shift = 0) {
 }
 
 static std::string
-duplicateArrowHeadsImpl(float Size, float Dip, float Shift = 0) {
-  return arrowHead(tags::UnconditionalArrowHead, Size, Dip, Shift)
-         + arrowHead(tags::CallArrowHead, Size, Dip, Shift)
-         + arrowHead(tags::TakenArrowHead, Size, Dip, Shift)
-         + arrowHead(tags::RefusedArrowHead, Size, Dip, Shift);
+duplicateArrowHeadsImpl(const ::ptml::PTMLBuilder &ThePTMLBuilder,
+                        float Size,
+                        float Dip,
+                        float Shift = 0) {
+  return arrowHead(ThePTMLBuilder,
+                   tags::UnconditionalArrowHead,
+                   Size,
+                   Dip,
+                   Shift)
+         + arrowHead(ThePTMLBuilder, tags::CallArrowHead, Size, Dip, Shift)
+         + arrowHead(ThePTMLBuilder, tags::TakenArrowHead, Size, Dip, Shift)
+         + arrowHead(ThePTMLBuilder, tags::RefusedArrowHead, Size, Dip, Shift);
 }
 
 static std::string
-defaultArrowHeads(const yield::cfg::Configuration &Configuration) {
+defaultArrowHeads(const ::ptml::PTMLBuilder &ThePTMLBuilder,
+                  const yield::cfg::Configuration &Configuration) {
   if (Configuration.UseOrthogonalBends == true)
-    return duplicateArrowHeadsImpl(8, 3, 0);
+    return duplicateArrowHeadsImpl(ThePTMLBuilder, 8, 3, 0);
   else
-    return duplicateArrowHeadsImpl(8, 3, 2);
+    return duplicateArrowHeadsImpl(ThePTMLBuilder, 8, 3, 2);
 }
 
 constexpr bool isVertical(yield::layout::sugiyama::Orientation Orientation) {
@@ -274,7 +290,8 @@ concept NodeExporter = requires(CallableType &&Callable, const NodeType &Node) {
 template<bool ShouldEmitEmptyNodes,
          StrictSpecializationOf<yield::layout::OutputGraph> PostLayoutGraph,
          NodeExporter<typename PostLayoutGraph::Node> ContentsLambda>
-static std::string exportGraph(const PostLayoutGraph &Graph,
+static std::string exportGraph(const PTMLBuilder &ThePTMLBuilder,
+                               const PostLayoutGraph &Graph,
                                const yield::cfg::Configuration &Configuration,
                                yield::layout::sugiyama::Orientation Orientation,
                                ContentsLambda &&NodeContents) {
@@ -290,7 +307,8 @@ static std::string exportGraph(const PostLayoutGraph &Graph,
       for (const auto [To, Edge] : From->successor_edges()) {
         if (ShouldEmitEmptyNodes || !To->isEmpty()) {
           revng_assert(Edge != nullptr);
-          Result += edge(Edge->Path,
+          Result += edge(ThePTMLBuilder,
+                         Edge->Path,
                          edgeTypeAsString(*Edge),
                          Configuration.UseOrthogonalBends,
                          isVertical(Orientation));
@@ -302,7 +320,7 @@ static std::string exportGraph(const PostLayoutGraph &Graph,
   // Export all the nodes.
   for (const auto *Node : Graph.nodes())
     if (ShouldEmitEmptyNodes || !Node->isEmpty())
-      Result += node(Node, NodeContents(*Node), Configuration);
+      Result += node(ThePTMLBuilder, Node, NodeContents(*Node), Configuration);
 
   Viewbox Box = calculateViewbox(Graph);
   std::string SerializedBox = llvm::formatv("{0} {1} {2} {3}",
@@ -311,8 +329,11 @@ static std::string exportGraph(const PostLayoutGraph &Graph,
                                             Box.BottomRight.X - Box.TopLeft.X,
                                             Box.BottomRight.Y - Box.TopLeft.Y);
 
-  Tag ArrowHeads("defs", defaultArrowHeads(Configuration));
-  return Tag("svg", ArrowHeads.serialize() + std::move(Result))
+  Tag ArrowHeads = ThePTMLBuilder.getTag("defs",
+                                         defaultArrowHeads(ThePTMLBuilder,
+                                                           Configuration));
+  return ThePTMLBuilder
+    .getTag("svg", ArrowHeads.serialize() + std::move(Result))
     .addAttribute("xmlns", R"(http://www.w3.org/2000/svg)")
     .addAttribute("viewbox", std::move(SerializedBox))
     .addAttribute("width", std::to_string(Box.BottomRight.X - Box.TopLeft.X))
@@ -358,7 +379,8 @@ compute(const InputGraph<Node, Edge> &Graph,
 } // namespace yield::layout::sugiyama
 
 std::string
-yield::svg::controlFlowGraph(const yield::Function &InternalFunction,
+yield::svg::controlFlowGraph(const PTMLBuilder &ThePTMLBuilder,
+                             const yield::Function &InternalFunction,
                              const model::Binary &Binary) {
   constexpr auto Configuration = cfg::Configuration::getDefault();
 
@@ -375,16 +397,22 @@ yield::svg::controlFlowGraph(const yield::Function &InternalFunction,
 
   auto Content = [&](const yield::cfg::PostLayoutNode &Node) {
     if (!Node.isEmpty())
-      return yield::ptml::controlFlowNode(Node.getBasicBlock(),
+      return yield::ptml::controlFlowNode(ThePTMLBuilder,
+                                          Node.getBasicBlock(),
                                           InternalFunction,
                                           Binary);
     else
       return std::string{};
   };
-  return exportGraph<true>(*Result, Configuration, TopToBottom, Content);
+  return exportGraph<true>(ThePTMLBuilder,
+                           *Result,
+                           Configuration,
+                           TopToBottom,
+                           Content);
 }
 
 struct LabelNodeHelper {
+  const PTMLBuilder &ThePTMLBuilder;
   const model::Binary &Binary;
   const yield::cfg::Configuration Configuration;
   std::optional<std::string_view> RootNodeLocation = std::nullopt;
@@ -430,17 +458,20 @@ struct LabelNodeHelper {
     std::string_view Location = Node.getLocationString();
 
     if (Node.IsShallow)
-      return yield::ptml::shallowFunctionLink(Location, Binary);
+      return yield::ptml::shallowFunctionLink(ThePTMLBuilder, Location, Binary);
 
     if (!RootNodeLocation.has_value() || *RootNodeLocation == Location)
-      return yield::ptml::functionNameDefinition(Location, Binary);
+      return yield::ptml::functionNameDefinition(ThePTMLBuilder,
+                                                 Location,
+                                                 Binary);
     else
-      return yield::ptml::functionLink(Location, Binary);
+      return yield::ptml::functionLink(ThePTMLBuilder, Location, Binary);
   }
 };
 
 using CrossRelations = yield::crossrelations::CrossRelations;
-std::string yield::svg::callGraph(const CrossRelations &Relations,
+std::string yield::svg::callGraph(const PTMLBuilder &ThePTMLBuilder,
+                                  const CrossRelations &Relations,
                                   const model::Binary &Binary) {
   // TODO: make configuration accessible from outside.
   auto Configuration = cfg::Configuration::getDefault();
@@ -448,7 +479,7 @@ std::string yield::svg::callGraph(const CrossRelations &Relations,
   constexpr auto LeftToRight = layout::sugiyama::Orientation::LeftToRight;
   constexpr auto BFS = layout::sugiyama::RankingStrategy::BreadthFirstSearch;
 
-  LabelNodeHelper Helper{ Binary, Configuration };
+  LabelNodeHelper Helper{ ThePTMLBuilder, Binary, Configuration };
 
   yield::calls::PreLayoutGraph Result = Relations.toYieldGraph();
   auto EntryPoints = entryPoints(&Result);
@@ -470,7 +501,11 @@ std::string yield::svg::callGraph(const CrossRelations &Relations,
   auto LT = sugiyama::compute(Tree, Configuration, LeftToRight, BFS, true);
   revng_assert(LT.has_value());
 
-  return exportGraph<false>(*LT, Configuration, LeftToRight, Helper);
+  return exportGraph<false>(ThePTMLBuilder,
+                            *LT,
+                            Configuration,
+                            LeftToRight,
+                            Helper);
 }
 
 static auto flipPoint(yield::layout::Point const &Point) {
@@ -556,7 +591,8 @@ combineHalvesHelper(std::string_view SlicePoint,
   return std::move(ForwardsSlice);
 }
 
-std::string yield::svg::callGraphSlice(std::string_view SlicePoint,
+std::string yield::svg::callGraphSlice(const PTMLBuilder &ThePTMLBuilder,
+                                       std::string_view SlicePoint,
                                        const CrossRelations &Relations,
                                        const model::Binary &Binary) {
   // TODO: make configuration accessible from outside.
@@ -565,7 +601,7 @@ std::string yield::svg::callGraphSlice(std::string_view SlicePoint,
   constexpr auto LeftToRight = layout::sugiyama::Orientation::LeftToRight;
   constexpr auto BFS = layout::sugiyama::RankingStrategy::BreadthFirstSearch;
 
-  LabelNodeHelper Helper{ Binary, Configuration, SlicePoint };
+  LabelNodeHelper Helper{ ThePTMLBuilder, Binary, Configuration, SlicePoint };
 
   // Ready the forwards facing part of the slice
   auto Forward = calls::makeCalleeTree(Relations.toYieldGraph(), SlicePoint);
@@ -597,5 +633,9 @@ std::string yield::svg::callGraphSlice(std::string_view SlicePoint,
   auto CombinedGraph = combineHalvesHelper(SlicePoint,
                                            std::move(*LaidOutForwardsGraph),
                                            std::move(*LaidOutBackwardsGraph));
-  return exportGraph<false>(CombinedGraph, Configuration, LeftToRight, Helper);
+  return exportGraph<false>(ThePTMLBuilder,
+                            CombinedGraph,
+                            Configuration,
+                            LeftToRight,
+                            Helper);
 }

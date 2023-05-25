@@ -18,6 +18,7 @@
 
 namespace ptml {
 
+class PTMLBuilder;
 struct ScopeTag;
 
 class Tag {
@@ -26,12 +27,15 @@ private:
   std::string Content;
   llvm::StringMap<std::string> Attributes;
 
-public:
+  friend class PTMLBuilder;
+
+private:
   Tag() {}
   explicit Tag(llvm::StringRef Tag) : TheTag(Tag.str()) {}
   explicit Tag(llvm::StringRef Tag, llvm::StringRef Content) :
     TheTag(Tag.str()), Content(Content.str()) {}
 
+public:
   ScopeTag scope(llvm::raw_ostream &OS, bool Newline = false) const;
 
   Tag &setContent(const llvm::StringRef Content) {
@@ -40,12 +44,18 @@ public:
   }
 
   Tag &addAttribute(llvm::StringRef Name, llvm::StringRef Value) {
+    if (TheTag.empty())
+      return *this;
+
     Attributes[Name] = Value.str();
     return *this;
   }
 
   template<range_with_value_type<llvm::StringRef> T>
   Tag &addListAttribute(llvm::StringRef Name, const T &Values) {
+    if (TheTag.empty())
+      return *this;
+
     for (auto &Value : Values)
       revng_check(!llvm::StringRef(Value).contains(","));
     Attributes[Name] = llvm::join(Values, ",");
@@ -57,11 +67,17 @@ public:
     requires(std::is_convertible_v<T, llvm::StringRef> and ...)
   Tag &addListAttribute(llvm::StringRef Name, const T &...Value) {
     // clang-format on
+    if (TheTag.empty())
+      return *this;
+
     std::initializer_list<llvm::StringRef> Values = { Value... };
     return this->addListAttribute(Name, Values);
   }
 
   std::string open() const {
+    if (TheTag.empty())
+      return "";
+
     llvm::SmallString<128> Out;
     Out.append({ "<", TheTag });
     for (auto &Pair : Attributes)
@@ -70,7 +86,11 @@ public:
     return Out.str().str();
   }
 
-  std::string close() const { return "</" + TheTag + ">"; }
+  std::string close() const {
+    if (TheTag.empty())
+      return "";
+    return "</" + TheTag + ">";
+  }
 
   std::string serialize() const { return open() + Content + close(); }
 
@@ -80,14 +100,7 @@ public:
   void dump(T &Output) const {
     Output << serialize();
   }
-
-  bool verify() const debug_function { return !TheTag.empty(); }
 };
-
-inline Tag scopeTag(const llvm::StringRef AttributeName) {
-  return Tag(ptml::tags::Div)
-    .addAttribute(ptml::attributes::Scope, AttributeName);
-}
 
 inline std::string operator+(const Tag &LHS, const llvm::StringRef RHS) {
   return LHS.serialize() + RHS.str();
@@ -126,7 +139,9 @@ private:
   llvm::raw_ostream &OS;
   const std::string TagClose;
 
-public:
+  friend class Tag;
+
+private:
   ScopeTag(llvm::raw_ostream &OS, const Tag &TheTag, bool Newline) :
     OS(OS), TagClose(TheTag.close()) {
     OS << TheTag.open();
@@ -134,6 +149,7 @@ public:
       OS << "\n";
   }
 
+public:
   ~ScopeTag() { OS << TagClose; }
 };
 
@@ -141,5 +157,24 @@ inline ScopeTag Tag::scope(llvm::raw_ostream &OS, bool Newline) const {
   revng_check(Content.empty());
   return ScopeTag(OS, *this, Newline);
 }
+
+class PTMLBuilder {
+private:
+  const bool GenerateTagLessPTML;
+
+public:
+  PTMLBuilder(bool GenerateTagLessPTML = false);
+
+public:
+  bool isGenerateTagLessPTML() const;
+
+public:
+  ptml::Tag getTag(llvm::StringRef Tag) const;
+  ptml::Tag getTag(llvm::StringRef Tag, llvm::StringRef Content) const;
+
+  ptml::Tag scopeTag(const llvm::StringRef AttributeName) const;
+  ptml::Tag
+  tokenTag(const llvm::StringRef Str, const llvm::StringRef Token) const;
+};
 
 } // namespace ptml

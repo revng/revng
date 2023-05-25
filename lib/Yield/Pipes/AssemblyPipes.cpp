@@ -17,6 +17,8 @@
 #include "revng/Yield/Pipes/ProcessAssembly.h"
 #include "revng/Yield/Pipes/YieldAssembly.h"
 
+using ptml::PTMLBuilder;
+
 namespace revng::pipes {
 
 void ProcessAssembly::run(pipeline::Context &Context,
@@ -66,13 +68,15 @@ void YieldAssembly::run(pipeline::Context &Context,
   // Access the model
   const auto &Model = getModelFromContext(Context);
 
+  PTMLBuilder ThePTMLBuilder;
   for (auto [Address, S] : Input) {
     auto MaybeFunction = TupleTree<yield::Function>::deserialize(S);
     revng_assert(MaybeFunction && MaybeFunction->verify());
     revng_assert((*MaybeFunction)->Entry() == Address);
 
     Output.insert_or_assign((*MaybeFunction)->Entry(),
-                            yield::ptml::functionAssembly(**MaybeFunction,
+                            yield::ptml::functionAssembly(ThePTMLBuilder,
+                                                          **MaybeFunction,
                                                           *Model));
   }
 }
