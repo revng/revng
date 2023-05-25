@@ -76,6 +76,26 @@ public:
     model::VerifyHelper VH(Assert);
     return verify(VH);
   }
+
+public:
+  inline MetaAddress getRelativeAddressBase() const {
+    switch (Address().type()) {
+    case MetaAddressType::Code_x86:
+    case MetaAddressType::Code_x86_64:
+      return Address() + RawBytes().size(); // Start of the next instruction.
+    case MetaAddressType::Code_arm:
+      return Address() + 8; // Two instructions later
+    case MetaAddressType::Code_arm_thumb:
+      return Address() + 4; // Two instructions later
+    case MetaAddressType::Code_aarch64:
+    case MetaAddressType::Code_systemz:
+    case MetaAddressType::Code_mips:
+    case MetaAddressType::Code_mipsel:
+      return Address();
+    default:
+      revng_abort("Unsupported instruction.");
+    }
+  }
 };
 
 } // namespace yield

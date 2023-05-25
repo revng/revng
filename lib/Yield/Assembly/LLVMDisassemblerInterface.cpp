@@ -25,8 +25,6 @@ static bool UseIntelSyntax = true;
 enum class ImmediateStyles { Decimal, CHexadecimal, AsmHexadecimal };
 static ImmediateStyles ImmediateStyle = ImmediateStyles::CHexadecimal;
 
-static bool ShouldSymbolizeOperands = false;
-
 } // namespace options
 
 /// \note: this might cause multithreading problems.
@@ -109,20 +107,18 @@ DI::LLVMDisassemblerInterface(MetaAddressType::Values AddrType) {
   revng_assert(Printer != nullptr, "Printer object creation failed.");
 
   using namespace options;
-  if (ImmediateStyle == ImmediateStyles::Decimal) {
+  if (ImmediateStyle == ImmediateStyles::Decimal)
     Printer->setPrintImmHex(false);
-    Printer->setPrintBranchImmAsAddress(false);
-  } else {
+  else
     Printer->setPrintImmHex(true);
-    Printer->setPrintBranchImmAsAddress(true);
-  }
 
   if (ImmediateStyle == ImmediateStyles::CHexadecimal)
     Printer->setPrintHexStyle(llvm::HexStyle::C);
   else if (ImmediateStyle == ImmediateStyles::AsmHexadecimal)
     Printer->setPrintHexStyle(llvm::HexStyle::Asm);
 
-  Printer->setSymbolizeOperands(ShouldSymbolizeOperands);
+  Printer->setPrintBranchImmAsAddress(false);
+  Printer->setSymbolizeOperands(false);
   Printer->setUseMarkup(true);
 }
 
@@ -154,14 +150,20 @@ DI::disassemble(const MetaAddress &Address,
 }
 
 static yield::TagType::Values parseMarkupTag(llvm::StringRef Input) {
-  if (Input == "imm:")
+  if (Input == "imm")
     return yield::TagType::Immediate;
-  else if (Input == "mem:")
+  else if (Input == "mem")
     return yield::TagType::Memory;
-  else if (Input == "reg:")
+  else if (Input == "reg")
     return yield::TagType::Register;
+  else if (Input == "addr")
+    return yield::TagType::Address;
+  else if (Input == "pcrel")
+    return yield::TagType::PCRelativeAddress;
+  else if (Input == "absolute")
+    return yield::TagType::AbsoluteAddress;
   else
-    revng_abort("Unknown llvm markup tag.");
+    revng_abort(("Unknown llvm markup tag: '" + Input.str() + "'").c_str());
 }
 
 /// Counts the number of consecutive characters satisfying \p Lambda predicate
@@ -283,7 +285,6 @@ tryDetectMnemonic(llvm::StringRef Text, llvm::StringRef Mnemonic) {
 
 yield::Instruction DI::parse(const llvm::MCInst &Instruction,
                              const MetaAddress &Address,
-                             size_t InstructionSize,
                              llvm::MCInstPrinter &Printer,
                              const llvm::MCSubtargetInfo &SI) {
   yield::Instruction Result;
@@ -297,11 +298,6 @@ yield::Instruction DI::parse(const llvm::MCInst &Instruction,
   std::string MarkupStorage;
   llvm::raw_string_ostream MarkupStream(MarkupStorage);
 
-  // Some special considerations might be needed for the second operand.
-  // See the `MCInstPrinter::printInst()` docs.
-  // TODO: Using 0 as second argument makes the jump relative to PC (otherwise
-  // the addresses are wrong). In future implementations we should consider
-  // using labels instead.
   Printer.printInst(&Instruction, 0, "", SI, MarkupStream);
 
   if (MarkupStorage.empty())
@@ -337,10 +333,11 @@ yield::Instruction DI::parse(const llvm::MCInst &Instruction,
 
     if (Markup[Position] == '<') {
       // Opens a new markup tag.
-      llvm::StringRef Tag = Markup.slice(Position + 1, Position + 5);
+      auto TagEndPosition = Markup.find(':', Position + 1);
+      llvm::StringRef Tag = Markup.slice(Position + 1, TagEndPosition);
       yield::TagType::Values TagType = parseMarkupTag(Tag);
       OpenTagStack.emplace_back(TagType, Result.Disassembled().size(), 0);
-      Position += 4;
+      Position = TagEndPosition;
     } else if (Markup[Position] == '>') {
       // Closes the current markup tag
       revng_assert(not OpenTagStack.empty());
@@ -396,7 +393,7 @@ DI::instruction(const MetaAddress &Where, llvm::ArrayRef<uint8_t> RawBytes) {
   auto [Instruction, Size] = disassemble(Where, RawBytes, *Disassembler);
   if (Instruction.has_value()) {
     revng_assert(Size != 0);
-    auto P = parse(*Instruction, Where, Size, *Printer, *SubtargetInformation);
+    auto P = parse(*Instruction, Where, *Printer, *SubtargetInformation);
 
     const auto &Info = InstructionInformation->get(Instruction->getOpcode());
     return { std::move(P), Info.hasDelaySlot(), Size };
