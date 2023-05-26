@@ -294,9 +294,14 @@ bool OPRP::needsParentheses(Instruction *I, Use &U) {
   // Does the current instruction represent a custom operator?
   if (isa<CallInst>(I) && isCustomOpcode(I)) {
     switch (getCustomOpcode(I)) {
+    case CustomInstruction::MemberAccess:
+      // Never emit parenthesis for array indices, because they are already
+      // between square brackets.
+      if (U.getOperandNo() > 1)
+        return false;
+      [[fallthrough]];
     case CustomInstruction::AddressOf:
     case CustomInstruction::Indirection:
-    case CustomInstruction::MemberAccess:
     case CustomInstruction::Cast:
       VerifyParentheses = (U.getOperandNo() == 1);
       break;
