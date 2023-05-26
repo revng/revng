@@ -22,6 +22,9 @@ fields:
     sequence:
       type: SortedVector
       elementType: TypedRegister
+  - name: ReturnValueComment
+    type: string
+    optional: true
   - name: PreservedRegisters
     sequence:
       type: SortedVector

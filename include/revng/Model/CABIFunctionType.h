@@ -26,6 +26,9 @@ fields:
     type: ABI
   - name: ReturnType
     type: QualifiedType
+  - name: ReturnValueComment
+    type: string
+    optional: true
   - name: Arguments
     sequence:
       type: SortedVector
