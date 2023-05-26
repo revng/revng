@@ -12,7 +12,8 @@ revng_add_analyses_library(
   ExprNode.cpp
   MetaRegion.cpp
   RegionCFGTree.cpp
-  RestructureCFG.cpp)
+  RestructureCFG.cpp
+  SimplifyHybridNot.cpp)
 
 target_link_libraries(revngcRestructureCFG revngcSupport revng::revngModel
                       revng::revngSupport ${LLVM_LIBRARIES})

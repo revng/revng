@@ -1,5 +1,5 @@
 /// \file CDecompilerBeautify.cpp
-/// Bautify passes on the final AST
+/// Beautify passes on the final AST
 ///
 
 //
@@ -19,6 +19,7 @@
 #include "revng-c/RestructureCFG/ExprNode.h"
 #include "revng-c/RestructureCFG/GenerateAst.h"
 #include "revng-c/RestructureCFG/RegionCFGTree.h"
+#include "revng-c/RestructureCFG/SimplifyHybridNot.h"
 #include "revng-c/Support/DecompilationHelpers.h"
 
 using std::make_unique;
@@ -1377,6 +1378,16 @@ void beautifyAST(Function &F, ASTTree &CombedAST) {
   flipEmptyThen(RootNode, CombedAST);
   if (BeautifyLogger.isEnabled()) {
     CombedAST.dumpASTOnFile(F.getName().str(), "ast", "13-After-if-flip-3");
+  }
+
+  // Perform the double `not` simplification (`not` on the GHAST and `not` in
+  // the IR).
+  revng_log(BeautifyLogger, "Performing the double not simplification\n");
+  RootNode = simplifyHybridNot(CombedAST, RootNode);
+  if (BeautifyLogger.isEnabled()) {
+    CombedAST.dumpASTOnFile(F.getName().str(),
+                            "ast",
+                            "14-After-double-not-simplify");
   }
 
   // Serialize the collected metrics in the statistics file if necessary

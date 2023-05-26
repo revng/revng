@@ -222,6 +222,8 @@ public:
 
   ExprNode *getCondExpr() const { return ConditionExpression; }
 
+  ExprNode **getCondExprAddress() { return &ConditionExpression; }
+
   void replaceCondExpr(ExprNode *NewExpr) { ConditionExpression = NewExpr; }
 
   void updateCondExprPtr(ExprNodeMap &Map);

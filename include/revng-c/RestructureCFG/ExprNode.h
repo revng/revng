@@ -79,6 +79,10 @@ protected:
 
 public:
   ExprNode *getNegatedNode() const { return Child; }
+
+  ExprNode **getNegatedNodeAddress() { return &Child; }
+
+  void setNegatedNode(ExprNode *NewNegatedNode) { Child = NewNegatedNode; }
 };
 
 class BinaryNode : public ExprNode {
@@ -109,6 +113,15 @@ public:
 
   std::pair<const ExprNode *, const ExprNode *> getInternalNodes() const {
     return std::make_pair(LeftChild, RightChild);
+  }
+
+  std::pair<ExprNode **, ExprNode **> getInternalNodesAddress() {
+    return std::make_pair(&LeftChild, &RightChild);
+  }
+
+  void setInternalNodes(std::pair<ExprNode *, ExprNode *> NewInternalNodes) {
+    LeftChild = NewInternalNodes.first;
+    RightChild = NewInternalNodes.second;
   }
 };
 
