@@ -12,23 +12,59 @@
 namespace model {
 
 template<typename Type>
-concept EntityWithMetadata = requires(Type &&Value) {
+concept EntityWithCustomName = requires(Type &&Value) {
   { Value.CustomName() } -> convertible_to<model::Identifier &>;
+};
+
+template<typename Type>
+concept EntityWithOriginalName = requires(Type &&Value) {
   { Value.OriginalName() } -> convertible_to<std::string &>;
 };
 
-template<EntityWithMetadata LHS, EntityWithMetadata RHS>
+template<typename Type>
+concept EntityWithComment = requires(Type &&Value) {
+  { Value.Comment() } -> convertible_to<std::string &>;
+};
+
+template<typename Type>
+concept EntityWithReturnValueComment = requires(Type &&Value) {
+  { Value.ReturnValueComment() } -> convertible_to<std::string &>;
+};
+
+template<typename LHS, typename RHS>
 LHS &copyMetadata(LHS &To, const RHS &From) {
-  To.CustomName() = From.CustomName();
-  To.OriginalName() = From.OriginalName();
+  if constexpr (EntityWithCustomName<LHS> && EntityWithCustomName<RHS>)
+    To.CustomName() = From.CustomName();
+
+  if constexpr (EntityWithOriginalName<LHS> && EntityWithOriginalName<RHS>)
+    To.OriginalName() = From.OriginalName();
+
+  if constexpr (EntityWithComment<LHS> && EntityWithComment<RHS>)
+    To.Comment() = From.Comment();
+
+  if constexpr (EntityWithReturnValueComment<LHS>
+                && EntityWithReturnValueComment<RHS>) {
+    To.ReturnValueComment() = From.ReturnValueComment();
+  }
 
   return To;
 }
 
-template<EntityWithMetadata LHS, EntityWithMetadata RHS>
+template<typename LHS, typename RHS>
 LHS &moveMetadata(LHS &To, RHS &&From) {
-  To.CustomName() = std::move(From.CustomName());
-  To.OriginalName() = std::move(From.OriginalName());
+  if constexpr (EntityWithCustomName<LHS> && EntityWithCustomName<RHS>)
+    To.CustomName() = std::move(From.CustomName());
+
+  if constexpr (EntityWithOriginalName<LHS> && EntityWithOriginalName<RHS>)
+    To.OriginalName() = std::move(From.OriginalName());
+
+  if constexpr (EntityWithComment<LHS> && EntityWithComment<RHS>)
+    To.Comment() = std::move(From.Comment());
+
+  if constexpr (EntityWithReturnValueComment<LHS>
+                && EntityWithReturnValueComment<RHS>) {
+    To.ReturnValueComment() = std::move(From.ReturnValueComment());
+  }
 
   return To;
 }
