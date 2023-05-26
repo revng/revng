@@ -511,8 +511,9 @@ inline llvm::StringRef getRegisterName(Values V) {
   llvm::StringRef FullName = getName(V);
   auto Architecture = getReferenceArchitecture(V);
   revng_assert(Architecture != model::Architecture::Invalid);
-  auto ArchitectureNameSize = model::Architecture::getName(Architecture).size();
-  return FullName.substr(0, FullName.size() - ArchitectureNameSize - 1);
+  llvm::StringRef Name = model::Architecture::getName(Architecture);
+  revng_assert(FullName.substr(FullName.size() - Name.size()) == Name);
+  return FullName.substr(0, FullName.size() - Name.size() - 1);
 }
 
 /// Return the size of the register in bytes
