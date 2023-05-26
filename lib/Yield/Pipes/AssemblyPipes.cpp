@@ -6,6 +6,9 @@
 #include "revng/EarlyFunctionAnalysis/FunctionMetadataCache.h"
 #include "revng/Lift/LoadBinaryPass.h"
 #include "revng/Model/Binary.h"
+#include "revng/PTML/Constants.h"
+#include "revng/PTML/Doxygen.h"
+#include "revng/PTML/Tag.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Pipe.h"
 #include "revng/Pipeline/RegisterPipe.h"
@@ -74,10 +77,18 @@ void YieldAssembly::run(pipeline::Context &Context,
     revng_assert(MaybeFunction && MaybeFunction->verify());
     revng_assert((*MaybeFunction)->Entry() == Address);
 
-    Output.insert_or_assign((*MaybeFunction)->Entry(),
-                            yield::ptml::functionAssembly(ThePTMLBuilder,
-                                                          **MaybeFunction,
-                                                          *Model));
+    const model::Function &ModelFunction = Model->Functions().at(Address);
+    const model::Architecture::Values A = Model->Architecture();
+    auto CommentIndicator = model::Architecture::getAssemblyCommentIndicator(A);
+    std::string R = ptml::functionComment(ThePTMLBuilder,
+                                          ModelFunction,
+                                          *Model,
+                                          CommentIndicator,
+                                          0,
+                                          80);
+    R += yield::ptml::functionAssembly(ThePTMLBuilder, **MaybeFunction, *Model);
+    R = ThePTMLBuilder.getTag(ptml::tags::Div, std::move(R)).serialize();
+    Output.insert_or_assign((*MaybeFunction)->Entry(), std::move(R));
   }
 }
 
