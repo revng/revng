@@ -41,6 +41,7 @@ public:
   ABIAnalyses::ABIAnalysesResults ABIResults;
   SortedVector<efa::BasicBlock> CFG;
   std::optional<int64_t> ElectedFSO;
+  std::set<llvm::GlobalVariable *> WrittenRegisters;
 
 public:
   FunctionSummary(MutableSet<model::FunctionAttribute::Values> Attributes,
