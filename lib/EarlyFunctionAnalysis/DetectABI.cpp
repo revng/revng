@@ -720,6 +720,7 @@ void DetectABI::analyzeABI(llvm::BasicBlock *Entry) {
 
   // Commit ABI analysis results to the oracle
   Oracle.getLocalFunction(EntryAddress).ABIResults = ABIResults;
+  Oracle.getLocalFunction(EntryAddress).WrittenRegisters = WrittenRegisters;
 }
 
 void DetectABI::runInterproceduralAnalysis() {
