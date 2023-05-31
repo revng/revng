@@ -16,6 +16,7 @@
 #include "revng/PTML/IndentedOstream.h"
 #include "revng/PTML/Tag.h"
 #include "revng/Pipeline/Location.h"
+#include "revng/Yield/PTML.h"
 
 #include "revng-c/Pipes/Ranks.h"
 #include "revng-c/Support/PTML.h"
@@ -591,6 +592,11 @@ public:
   template<typename Aggregate, typename Field>
   std::string getLocationReference(const Aggregate &A, const Field &F) const {
     return getLocation(false, A, F);
+  }
+
+  template<model::EntityWithComment Type>
+  std::string getModelComment(Type T) {
+    return ptml::comment(*this, T, "///", 0, 80);
   }
 };
 } // namespace ptml
