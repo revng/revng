@@ -13,10 +13,10 @@
 #include "revng/ADT/ConstexprString.h"
 #include "revng/Model/Helpers.h"
 #include "revng/PTML/Constants.h"
+#include "revng/PTML/Doxygen.h"
 #include "revng/PTML/IndentedOstream.h"
 #include "revng/PTML/Tag.h"
 #include "revng/Pipeline/Location.h"
-#include "revng/Yield/PTML.h"
 
 #include "revng-c/Pipes/Ranks.h"
 #include "revng-c/Support/PTML.h"
@@ -597,6 +597,11 @@ public:
   template<model::EntityWithComment Type>
   std::string getModelComment(Type T) {
     return ptml::comment(*this, T, "///", 0, 80);
+  }
+
+  std::string getFunctionComment(const model::Function &Function,
+                                 const model::Binary &Binary) {
+    return ptml::functionComment(*this, Function, Binary, "///", 0, 80);
   }
 };
 } // namespace ptml

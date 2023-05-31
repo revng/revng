@@ -48,6 +48,7 @@
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/YAMLTraits.h"
+#include "revng/Yield/PTML.h"
 
 #include "revng-c/Backend/DecompileFunction.h"
 #include "revng-c/InitModelTypes/InitModelTypes.h"
@@ -1926,6 +1927,10 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar,
   auto FunctionTagScope = ThePTMLCBuilder
                             .getScope(ptml::PTMLCBuilder::Scopes::FunctionBody)
                             .scope(Out);
+
+  // Extract user comments from the model and emit them as PTML just before
+  // the prototype.
+  Out << ThePTMLCBuilder.getFunctionComment(ModelFunction, Model);
 
   // Print function's prototype
   printFunctionPrototype(ParentPrototype,
