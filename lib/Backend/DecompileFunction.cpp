@@ -759,7 +759,7 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
       StructInit += Separator.str() + " " + rc_recur getToken(Arg);
       Separator = ",";
     }
-    StructInit += "}\n";
+    StructInit += "}";
 
     rc_return StructInit;
   }
