@@ -119,10 +119,12 @@ CFGAnalyzer::CFGAnalyzer(llvm::Module &M,
   Oracle(Oracle),
   Binary(Binary),
   PreCallHook(createCallMarkerType(M), "precall_hook", &M),
+  EntryHook(createCallMarkerType(M), "entry_hook", &M),
   PostCallHook(PreCallHook.get()->getFunctionType(), "postcall_hook", &M),
   RetHook(createRetMarkerType(M), "retcall_hook", &M),
   Summarizer(&M,
              PreCallHook.get(),
+             EntryHook.get(),
              PostCallHook.get(),
              RetHook.get(),
              GCBI.spReg()),
@@ -963,11 +965,13 @@ FunctionSummary CFGAnalyzer::analyze(llvm::BasicBlock *Entry) {
 
 CallSummarizer::CallSummarizer(llvm::Module *M,
                                Function *PreCallHook,
+                               Function *EntryHook,
                                Function *PostCallHook,
                                llvm::Function *RetHook,
                                GlobalVariable *SPCSV) :
   M(M),
   PreCallHook(PreCallHook),
+  EntryHook(EntryHook),
   PostCallHook(PostCallHook),
   RetHook(RetHook),
   SPCSV(SPCSV),
@@ -1030,6 +1034,7 @@ void CallSummarizer::handleIndirectJump(llvm::IRBuilder<> &Builder,
                        SymbolNamePointer,
                        Builder.getTrue() });
 
+  (void)(EntryHook);
   Builder.CreateCall(RetHook, { Block.toValue(M) });
 }
 

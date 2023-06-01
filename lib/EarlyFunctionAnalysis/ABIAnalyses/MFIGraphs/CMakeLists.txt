@@ -8,7 +8,6 @@
 set(ABIANALYSIS_TEMPLATE "${CMAKE_CURRENT_SOURCE_DIR}/ABIAnalysis.template")
 
 set(ABIANALYSIS_GRAPHS
-    "DeadRegisterArgumentsOfFunction" "DeadReturnValuesOfFunctionCall"
     "RegisterArgumentsOfFunctionCall" "UsedArgumentsOfFunction"
     "UsedReturnValuesOfFunctionCall" "UsedReturnValuesOfFunction")
 

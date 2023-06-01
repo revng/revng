@@ -62,12 +62,6 @@ void PartialAnalysisResults::dump(T &Output, const char *Prefix) const {
            << abi::RegisterState::getName(State).str() << '\n';
   }
 
-  Output << Prefix << "DeadRegisterArgumentsOfFunction:\n";
-  for (auto &[GV, State] : DRAOF) {
-    Output << Prefix << "  " << GV->getName().str() << " = "
-           << abi::RegisterState::getName(State).str() << '\n';
-  }
-
   Output << Prefix << "UsedReturnValuesOfFunctionCall:\n";
   for (auto &[Key, StateMap] : URVOFC) {
     Output << Prefix << "  " << Key.second->getName().str() << '\n';
@@ -79,15 +73,6 @@ void PartialAnalysisResults::dump(T &Output, const char *Prefix) const {
 
   Output << Prefix << "RegisterArgumentsOfFunctionCall:\n";
   for (auto &[Key, StateMap] : RAOFC) {
-    Output << Prefix << "  " << Key.second->getName().str() << '\n';
-    for (auto &[GV, State] : StateMap) {
-      Output << Prefix << "    " << GV->getName().str() << " = "
-             << abi::RegisterState::getName(State).str() << '\n';
-    }
-  }
-
-  Output << Prefix << "DeadReturnValuesOfFunctionCall:\n";
-  for (auto &[Key, StateMap] : DRVOFC) {
     Output << Prefix << "  " << Key.second->getName().str() << '\n';
     for (auto &[GV, State] : StateMap) {
       Output << Prefix << "    " << GV->getName().str() << " = "
@@ -229,12 +214,11 @@ ABIAnalysesResults analyzeOutlinedFunction(Function *F,
                                            const GeneratedCodeBasicInfo &GCBI,
                                            Function *PreCallSiteHook,
                                            Function *PostCallSiteHook,
+                                           Function *EntryHook,
                                            Function *RetHook) {
   namespace UAOF = UsedArgumentsOfFunction;
-  namespace DRAOF = DeadRegisterArgumentsOfFunction;
   namespace RAOFC = RegisterArgumentsOfFunctionCall;
   namespace URVOFC = UsedReturnValuesOfFunctionCall;
-  namespace DRVOFC = DeadReturnValuesOfFunctionCall;
   namespace URVOF = UsedReturnValuesOfFunction;
 
   ABIAnalysesResults FinalResults;
@@ -242,14 +226,13 @@ ABIAnalysesResults analyzeOutlinedFunction(Function *F,
 
   // Initial population of partial results
   Results.UAOF = UAOF::analyze(&F->getEntryBlock(), GCBI);
-  Results.DRAOF = DRAOF::analyze(&F->getEntryBlock(), GCBI);
   for (auto &I : instructions(F)) {
     BasicBlock *BB = I.getParent();
 
     if (auto *Call = dyn_cast<CallInst>(&I)) {
       BasicBlockID PC;
       if (isCallTo(Call, PreCallSiteHook) || isCallTo(Call, PostCallSiteHook)
-          || isCallTo(Call, RetHook)) {
+          || isCallTo(Call, RetHook) | isCallTo(Call, EntryHook)) {
         PC = BasicBlockID::fromValue(Call->getArgOperand(0));
         revng_assert(PC.isValid());
       }
@@ -258,7 +241,6 @@ ABIAnalysesResults analyzeOutlinedFunction(Function *F,
         Results.RAOFC[{ PC, BB }] = RAOFC::analyze(BB, GCBI);
       } else if (isCallTo(Call, PostCallSiteHook)) {
         Results.URVOFC[{ PC, BB }] = URVOFC::analyze(BB, GCBI);
-        Results.DRVOFC[{ PC, BB }] = DRVOFC::analyze(BB, GCBI);
       } else if (isCallTo(Call, RetHook)) {
         Results.URVOF[{ PC, BB }] = URVOF::analyze(BB, GCBI);
       }
@@ -271,14 +253,6 @@ ABIAnalysesResults analyzeOutlinedFunction(Function *F,
     Results.dump();
   }
 
-  // Finalize results. Combine UAOF and DRAOF.
-  for (auto &[Left, Right] : zipmap_range(Results.UAOF, Results.DRAOF)) {
-    auto *CSV = Left == nullptr ? Right->first : Left->first;
-    RegisterState LV = Left == nullptr ? RegisterState::Maybe : Left->second;
-    RegisterState RV = Right == nullptr ? RegisterState::Maybe : Right->second;
-    FinalResults.ArgumentsRegisters[CSV] = combine(LV, RV);
-  }
-
   // Add RAOFC.
   for (auto &[Key, RSMap] : Results.RAOFC) {
     BasicBlockID PC = Key.first;
@@ -286,19 +260,6 @@ ABIAnalysesResults analyzeOutlinedFunction(Function *F,
     FinalResults.CallSites[PC] = ABIAnalysesResults::CallSiteResults();
     for (auto &[CSV, RS] : RSMap)
       FinalResults.CallSites[PC].ArgumentsRegisters[CSV] = RS;
-  }
-
-  // Combine URVOFC and DRVOFC.
-  for (auto &[Key, _] : Results.URVOFC) {
-    auto PC = Key.first;
-    for (auto &[Left, Right] :
-         zipmap_range(Results.URVOFC[Key], Results.DRVOFC[Key])) {
-      auto *CSV = Left == nullptr ? Right->first : Left->first;
-      RegisterState LV = Left == nullptr ? RegisterState::Maybe : Left->second;
-      RegisterState RV = Right == nullptr ? RegisterState::Maybe :
-                                            Right->second;
-      FinalResults.CallSites[PC].ReturnValuesRegisters[CSV] = combine(LV, RV);
-    }
   }
 
   // Add URVOF.

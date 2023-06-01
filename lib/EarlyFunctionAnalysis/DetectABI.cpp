@@ -21,6 +21,7 @@
 #include "revng/EarlyFunctionAnalysis/DetectABI.h"
 #include "revng/EarlyFunctionAnalysis/FunctionMetadata.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
+#include "revng/MFP/SetLattices.h"
 #include "revng/Model/Binary.h"
 #include "revng/Pipeline/Pipe.h"
 #include "revng/Pipeline/RegisterAnalysis.h"
@@ -117,6 +118,8 @@ private:
 
   CallGraph ApproximateCallGraph;
 
+  std::map<MetaAddress, OutlinedFunction> OutlinedFunctions;
+
 public:
   DetectABI(llvm::Module &M,
             GeneratedCodeBasicInfo &GCBI,
@@ -140,8 +143,11 @@ public:
     // traversal (leafs first).
     runInterproceduralAnalysis();
 
-    for (model::Function &Function : Binary->Functions())
-      analyzeABI(GCBI.getBlockAt(Function.Entry()));
+    // outlineFunctions();
+
+    // constructInterproceduralGraph();
+
+    // runMonotoneAnalysis();
 
     // Propagate results between call-sites and functions
     interproceduralPropagation();
@@ -158,6 +164,10 @@ private:
   void computeApproximateCallGraph();
   void initializeInterproceduralQueue();
   void runInterproceduralAnalysis();
+  void outlineFunction(MetaAddress Address);
+  void outlineFunctions();
+  void constructInterproceduralGraph();
+  void runMonotoneAnalysis();
   void interproceduralPropagation();
   void finalizeModel();
   void applyABIDeductions();
@@ -168,6 +178,8 @@ private:
   TrackingSortedVector<model::Register::Values>
   computePreservedRegisters(const CSVSet &ClobberedRegisters) const;
   void analyzeABI(llvm::BasicBlock *Entry);
+
+  OutlinedFunction &getOutlinedFunction(MetaAddress Address);
 
   CSVSet findWrittenRegisters(llvm::Function *F);
 
@@ -488,6 +500,22 @@ void DetectABI::interproceduralPropagation() {
   }
 }
 
+void DetectABI::outlineFunctions() {
+  for (model::Function &F : Binary->Functions()) {
+    outlineFunction(F.Entry());
+  }
+}
+
+void DetectABI::outlineFunction(MetaAddress Address) {
+  auto BasicBlock = GCBI.getBlockAt(Address);
+  OutlinedFunctions.insert({Address, Analyzer.outline(BasicBlock)});
+}
+
+void DetectABI::runMonotoneAnalysis() {
+  auto Start = ApproximateCallGraph.getEntryNode();
+  (void)(Start);
+}
+
 using MaybeRegisterState = std::optional<abi::RegisterState::Values>;
 using ABIAnalyses::RegisterStateMap;
 
@@ -506,6 +534,117 @@ DetectABI::tryGetRegisterState(model::Register::Values RegisterValue,
   }
 
   return std::nullopt;
+}
+
+using RegistersSet = std::set<model::Register::Values>;
+using RegistersLattice = SetUnionLattice<RegistersSet>;
+
+struct LatticeElement {
+  RegistersLattice Arguments;
+  RegistersLattice Returns;
+};
+
+struct Node {
+  enum class AnalysisType {
+    UAOF,
+    RAOFC,
+    URVOF,
+    URVOFC,
+  };
+
+  enum class ResultType {
+    Arguments,
+    Returns
+  };
+
+  MetaAddress Entry;
+  std::variant<AnalysisType, ResultType> Type;
+
+  explicit Node(MetaAddress Entry, AnalysisType AT) : Entry{Entry}, Type{AT} {}
+  explicit Node(MetaAddress Entry, ResultType RT) : Entry{Entry}, Type{RT} {}
+};
+
+using NodeType = ForwardNode<Node>;
+
+struct FunctionNodeSet {
+  using Ptr = std::unique_ptr<NodeType>;
+  Ptr UAOF;
+  Ptr RAOFC;
+  Ptr URVOF;
+  Ptr URVOFC;
+
+  Ptr Args;
+  Ptr Rets;
+};
+
+void DetectABI::constructInterproceduralGraph() {
+  using InterproceduralNode = ForwardNode<Node>;
+  using GraphType = GenericGraph<InterproceduralNode>;
+
+  std::map<MetaAddress, FunctionNodeSet> M;
+
+  auto GetNode = [&M](MetaAddress Entry) -> FunctionNodeSet & {
+    auto It = M.find(Entry);
+    if (It != M.end()) {
+      return It->second;
+    }
+
+    FunctionNodeSet &Nodes = M[Entry];
+
+    Nodes
+      .Args = std::make_unique<ForwardNode<Node>>(Entry,
+                                                  Node::ResultType::Arguments);
+    Nodes.Rets = std::make_unique<ForwardNode<Node>>(Entry,
+        Node::ResultType::Returns);
+
+    Nodes.UAOF = std::make_unique<ForwardNode<Node>>(Entry,
+        Node::AnalysisType::UAOF);
+    Nodes.RAOFC = std::make_unique<ForwardNode<Node>>(Entry,
+        Node::AnalysisType::RAOFC);
+    Nodes.URVOF = std::make_unique<ForwardNode<Node>>(Entry,
+        Node::AnalysisType::URVOF);
+    Nodes.URVOFC = std::make_unique<ForwardNode<Node>>(Entry,
+        Node::AnalysisType::URVOFC);
+
+    Nodes.UAOF->addSuccessor(Nodes.Args.get());
+
+    return Nodes;
+  };
+
+  GraphType G;
+
+  for (auto F : Binary->Functions()) {
+    auto Entry = F.Entry();
+    auto &Nodes = GetNode(Entry);
+
+    G.addNode(std::move(Nodes.Args));
+    G.addNode(std::move(Nodes.Rets));
+    G.addNode(std::move(Nodes.UAOF));
+    G.addNode(std::move(Nodes.RAOFC));
+    G.addNode(std::move(Nodes.URVOF));
+    G.addNode(std::move(Nodes.URVOFC));
+  }
+
+  // for (auto F : Binary->Functions()) {
+  //   auto Function = GCBI.getBlockAt(F.Entry())->getParent();
+  //   for (auto &I : llvm::instructions(Function)) {
+  //     if (auto Call = dyn_cast<llvm::CallInst>(&I)) {
+  //       auto Function = Call->getCalledFunction();
+  //       auto Entry = &Function->getEntryBlock();
+  //       auto Address = getBasicBlockAddress(Entry);
+
+  //       auto &CallerNode = GetNode(F.Entry());
+  //       auto &CalleeNode = GetNode(Address);
+
+  //       CalleeNode.Args->addSuccessor(CallerNode.UAOF.get());
+  //     }
+  //   }
+  // }
+
+  std::error_code EC;
+  raw_fd_ostream OutputGraph("/tmp/graph.dot", EC);
+  revng_assert(!EC);
+  llvm::WriteGraph(OutputGraph, &G);
 }
 
 void DetectABI::initializeMapForDeductions(FunctionSummary &Summary,
@@ -700,6 +839,7 @@ void DetectABI::analyzeABI(llvm::BasicBlock *Entry) {
                                        GCBI,
                                        Analyzer.preCallHook(),
                                        Analyzer.postCallHook(),
+                                       Analyzer.entryHook(),
                                        Analyzer.retHook());
 
   // We say that a register is callee-saved when, besides being preserved by

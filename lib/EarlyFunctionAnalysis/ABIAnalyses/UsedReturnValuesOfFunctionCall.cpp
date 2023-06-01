@@ -26,7 +26,7 @@ analyze(const BasicBlock *CallSiteBlock, const GeneratedCodeBasicInfo &GCBI) {
   using MFI = MFIAnalysis<true, CoreLattice>;
 
   std::map<const GlobalVariable *, State> RegYes{};
-  MFI Instance{ { getPreCallHook(CallSiteBlock), GCBI } };
+  MFI Instance{ getPreCallHook(CallSiteBlock), GCBI };
   MFI::LatticeElement InitialValue;
   MFI::LatticeElement ExtremalValue(CoreLattice::ExtremalLatticeElement);
   auto *Start = CallSiteBlock->getUniqueSuccessor();

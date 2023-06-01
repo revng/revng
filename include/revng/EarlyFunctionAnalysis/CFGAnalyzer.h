@@ -27,15 +27,30 @@ namespace efa {
 class CallSummarizer : public CallHandler {
 private:
   llvm::Module *M = nullptr;
+
+  /* PreCallHook is a function returning void, taking four arguments:
+   *  - MetaAddress * - caller block
+   *  - MetaAddress * - callee pc
+   *  - int8 * - SymbolName
+   *  - bool - indicating if call is a tail call
+   */
   llvm::Function *PreCallHook = nullptr;
+
+  llvm::Function *EntryHook = nullptr;
+
+  // PostCallHook prototype looks same as PreCallHook
   llvm::Function *PostCallHook = nullptr;
+
+  // RetHook is returning void and taking MetaAddress *
   llvm::Function *RetHook = nullptr;
+
   llvm::GlobalVariable *SPCSV = nullptr;
   OpaqueFunctionsPool<llvm::StringRef> RegistersClobberedPool;
 
 public:
   CallSummarizer(llvm::Module *M,
                  llvm::Function *PreCallHook,
+                 llvm::Function *EntryHook,
                  llvm::Function *PostCallHook,
                  llvm::Function *RetHook,
                  llvm::GlobalVariable *SPCSV);
@@ -79,6 +94,7 @@ private:
   /// function called. They take the MetaAddress of the callee and the
   /// call-site.
   TemporaryOpaqueFunction PreCallHook;
+  TemporaryOpaqueFunction EntryHook;
   TemporaryOpaqueFunction PostCallHook;
   TemporaryOpaqueFunction RetHook;
 
@@ -97,6 +113,7 @@ public:
 
 public:
   llvm::Function *preCallHook() const { return PreCallHook.get(); }
+  llvm::Function *entryHook() const { return EntryHook.get(); }
   llvm::Function *postCallHook() const { return PostCallHook.get(); }
   llvm::Function *retHook() const { return RetHook.get(); }
   const auto &abiCSVs() const { return ABICSVs; }

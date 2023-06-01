@@ -22,11 +22,20 @@ namespace ABIAnalyses::RegisterArgumentsOfFunctionCall {
 using namespace llvm;
 using namespace ABIAnalyses;
 
+struct RAOFCAnalysis : MFIAnalysis<true, CoreLattice> {
+  using MFIAnalysis<true, CoreLattice>::MFIAnalysis;
+
+  LatticeElement applyTransferFunction(Label L, const LatticeElement &E) const {
+    LatticeElement Result = E;
+    return Result;
+  }
+};
+
 std::map<const GlobalVariable *, State>
 analyze(const BasicBlock *CallSiteBlock, const GeneratedCodeBasicInfo &GCBI) {
-  using MFI = MFIAnalysis<false, CoreLattice>;
+  using MFI = RAOFCAnalysis;
 
-  MFI Instance{ { getPostCallHook(CallSiteBlock), GCBI } };
+  MFI Instance{getPostCallHook(CallSiteBlock), GCBI};
   MFI::LatticeElement InitialValue;
   MFI::LatticeElement ExtremalValue(CoreLattice::ExtremalLatticeElement);
 
@@ -40,20 +49,20 @@ analyze(const BasicBlock *CallSiteBlock, const GeneratedCodeBasicInfo &GCBI) {
                                                                 { Start },
                                                                 { Start });
 
-  DenseSet<const GlobalVariable *> RegUnknown{};
+  DenseSet<const GlobalVariable *> RegUnused{};
   std::map<const GlobalVariable *, State> RegYes{};
 
   for (auto &[BB, Result] : Results) {
     for (auto &[GV, RegState] : Result.OutValue) {
-      if (RegState == CoreLattice::Unknown) {
-        RegUnknown.insert(GV);
+      if (RegState == CoreLattice::Unused) {
+        RegUnused.insert(GV);
       }
     }
   }
 
   for (auto &[BB, Result] : Results) {
     for (auto &[GV, RegState] : Result.OutValue) {
-      if (RegState == CoreLattice::Yes && RegUnknown.count(GV) == 0) {
+      if (RegState == CoreLattice::Yes && RegUnused.count(GV) == 0) {
         RegYes[GV] = State::Yes;
       }
     }

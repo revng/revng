@@ -83,6 +83,9 @@ private:
   /// `unexpectedpc` of their caller.
   TemporaryOpaqueFunction UnexpectedPCMarker;
 
+  TemporaryOpaqueFunction FunctionEntryHook;
+  TemporaryOpaqueFunction FunctionReturnHook;
+
   llvm::CodeExtractorAnalysisCache CEAC;
 
 public:
@@ -93,12 +96,22 @@ public:
     GCBI(GCBI),
     Oracle(Oracle),
     UnexpectedPCMarker(initializeUnexpectedPCMarker(M)),
+    FunctionEntryHook(initializeHook(M, "function_entry_hook")),
+    FunctionReturnHook(initializeHook(M, "function_return_hook")),
     CEAC(*M.getFunction("root")) {}
 
 public:
   OutlinedFunction outline(llvm::BasicBlock *BB, CallHandler *TheCallHandler);
 
 private:
+  static TemporaryOpaqueFunction
+  initializeHook(llvm::Module &M, const llvm::Twine &Name) {
+    return { llvm::FunctionType::get(llvm::Type::getVoidTy(M.getContext()),
+                                     false),
+             Name.str(),
+             &M };
+  }
+
   static TemporaryOpaqueFunction initializeUnexpectedPCMarker(llvm::Module &M) {
     return { llvm::FunctionType::get(llvm::Type::getVoidTy(M.getContext()),
                                      false),

@@ -4,23 +4,21 @@
 
 digraph RegisterArgumentsOfFunctionCall {
   Bottom;
-  Maybe [peripheries=2];
+  Unused [peripheries=2];
   Yes;
-  Unknown;
+  No;
 
   # Lattice
   Bottom->Yes;
-  Bottom->Maybe;
-  Yes->Unknown;
-  Maybe->Unknown;
+  Bottom->Unused;
+  Yes->No;
+  Unused->No;
 
   # Transfer functions
-  Maybe->Yes [label="Write"];
-  Maybe->Unknown [label="Read"];
-  Maybe->Unknown [label="TheCall"];
+  Unused->Yes [label="Write"];
+  Unused->No [label="Read"];
+  Unused->No [label="TheCall"];
 
   # Prevent return values to become arguments right away
-  Maybe->Maybe [label="WeakWrite"];
-
-  Maybe->Maybe [label="None"];
+  Unused->No [label="WeakWrite"];
 }
