@@ -30,8 +30,8 @@ using NodePredicate = const std::function<bool(const LayoutTypeSystemNode *)>;
 
 using NeighborIterator = LayoutTypeSystemNode::NeighborIterator;
 
-static bool
-neighborLess(const NeighborIterator &AIt, const NeighborIterator &BIt) {
+static bool neighborLess(const NeighborIterator &AIt,
+                         const NeighborIterator &BIt) {
   const auto &[AChild, ATag] = *AIt;
   const auto &[BChild, BTag] = *BIt;
   return (AChild < BChild) or (ATag < BTag);
@@ -76,8 +76,8 @@ static bool isInstanceAtOffset0(const GT::EdgeRef &E) {
 // instance at offset 0 of the type represented by A.
 // Returns equivalent if A == B.
 // Returns unordered in all the other cases.
-static std::partial_ordering
-comparePointee(const LayoutTypeSystemNode *A, const LayoutTypeSystemNode *B) {
+static std::partial_ordering comparePointee(const LayoutTypeSystemNode *A,
+                                            const LayoutTypeSystemNode *B) {
   using CInstance0 = EdgeFilteredGraph<const dla::LayoutTypeSystemNode *,
                                        isInstanceAtOffset0>;
   using NodeSet = llvm::df_iterator_default_set<const LayoutTypeSystemNode *,
@@ -127,8 +127,8 @@ static LeafType getType(const LayoutTypeSystemNode *N) {
 // - less if the type represented by B can model mode traversals on the DLA type
 //   graph than that represented by A
 // - unordered otherwise
-static std::partial_ordering
-compareLeafTypes(const LayoutTypeSystemNode *A, const LayoutTypeSystemNode *B) {
+static std::partial_ordering compareLeafTypes(const LayoutTypeSystemNode *A,
+                                              const LayoutTypeSystemNode *B) {
   LeafType AType = getType(A);
   LeafType BType = getType(B);
 

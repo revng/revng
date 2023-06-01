@@ -682,8 +682,8 @@ struct ReachableExitsAnalysis
   using LatticeElement = typename SetUnionLattice<
     std::set<BasicBlockNode<NodeT> *>>::LatticeElement;
 
-  static LatticeElement
-  applyTransferFunction(const Label &L, const LatticeElement E) {
+  static LatticeElement applyTransferFunction(const Label &L,
+                                              const LatticeElement E) {
 
     const auto IsInlined = [](const auto &NodeLabelPair) {
       return NodeLabelPair.second.Inlined;

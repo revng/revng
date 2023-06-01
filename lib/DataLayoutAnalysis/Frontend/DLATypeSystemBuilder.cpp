@@ -65,8 +65,8 @@ static void assertGetLayoutTypePreConditions(const Value *V, unsigned Id) {
                or cast<Function>(V)->getReturnType()->isStructTy());
 }
 
-LayoutTypeSystemNode *
-DLATypeSystemLLVMBuilder::getLayoutType(const Value *V, unsigned Id) {
+LayoutTypeSystemNode *DLATypeSystemLLVMBuilder::getLayoutType(const Value *V,
+                                                              unsigned Id) {
 
   if (V == nullptr)
     return nullptr;

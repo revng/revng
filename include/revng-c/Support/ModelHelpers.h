@@ -29,8 +29,8 @@ peelConstAndTypedefs(const model::QualifiedType &QT);
 /// or ArrayType.
 ///
 /// \return a valid QualifiedType
-extern const model::QualifiedType
-modelType(const llvm::Value *V, const model::Binary &Model);
+extern const model::QualifiedType modelType(const llvm::Value *V,
+                                            const model::Binary &Model);
 
 /// Convert an LLVM integer type (i1, i8, i16, ...) to the corresponding
 /// primitive type (uint8_t, uint16_t, ...).
@@ -45,20 +45,20 @@ deserializeFromLLVMString(llvm::Value *V, const model::Binary &Model);
 
 /// Create a global string in the given LLVM module that contains a
 /// serialization of \a QT.
-llvm::Constant *
-serializeToLLVMString(const model::QualifiedType &QT, llvm::Module &M);
+llvm::Constant *serializeToLLVMString(const model::QualifiedType &QT,
+                                      llvm::Module &M);
 
 /// Return an LLVM IntegerType that has the size of a pointer in the given
 /// architecture.
-inline llvm::IntegerType *
-getPointerSizedInteger(llvm::LLVMContext &C, const model::Binary &Binary) {
+inline llvm::IntegerType *getPointerSizedInteger(llvm::LLVMContext &C,
+                                                 const model::Binary &Binary) {
   const size_t PtrSize = getPointerSize(Binary.Architecture());
   return llvm::Type::getIntNTy(C, PtrSize * 8);
 }
 
 /// Create a pointer to the given base Type
-inline model::QualifiedType
-createPointerTo(const model::TypePath &BaseT, const model::Binary &Binary) {
+inline model::QualifiedType createPointerTo(const model::TypePath &BaseT,
+                                            const model::Binary &Binary) {
   using Qualifier = model::Qualifier;
 
   return model::QualifiedType{

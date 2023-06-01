@@ -29,15 +29,15 @@ namespace vma {
 struct TypeFlowGraph : public GenericGraph<TypeFlowNode> {
   using GenericGraph::GenericGraph;
 
-  TypeFlowNode *
-  addNodeContaining(FunctionMetadataCache &Cache, const UseOrValue &);
+  TypeFlowNode *addNodeContaining(FunctionMetadataCache &Cache,
+                                  const UseOrValue &);
   TypeFlowNode *getNodeContaining(const UseOrValue &) const;
 
   /// Print the graph on a `.dot` file
   /// \param Title title of the graph
   /// \param FileName if not specified, the default is `/tmp/<random string>`
-  void
-  dump(const llvm::Twine &Title = "", std::string FileName = "") debug_function;
+  void dump(const llvm::Twine &Title = "",
+            std::string FileName = "") debug_function;
 
   /// Dump a dot representation of the graph to the given stream
   void print(llvm::raw_ostream &OS) debug_function;

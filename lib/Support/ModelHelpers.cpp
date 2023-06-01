@@ -74,8 +74,8 @@ model::QualifiedType peelConstAndTypedefs(const model::QualifiedType &QT) {
   return peelConstAndTypedefsImpl(QT);
 }
 
-const model::QualifiedType
-modelType(const llvm::Value *V, const model::Binary &Model) {
+const model::QualifiedType modelType(const llvm::Value *V,
+                                     const model::Binary &Model) {
   using namespace llvm;
 
   Type *T = V->getType();
@@ -116,8 +116,8 @@ modelType(const llvm::Value *V, const model::Binary &Model) {
   return Result;
 }
 
-const model::QualifiedType
-llvmIntToModelType(const llvm::Type *LLVMType, const model::Binary &Model) {
+const model::QualifiedType llvmIntToModelType(const llvm::Type *LLVMType,
+                                              const model::Binary &Model) {
   using namespace model::PrimitiveTypeKind;
 
   const llvm::Type *TypeToConvert = LLVMType;
@@ -181,8 +181,8 @@ llvmIntToModelType(const llvm::Type *LLVMType, const model::Binary &Model) {
   return ModelType;
 }
 
-QualifiedType
-deserializeFromLLVMString(llvm::Value *V, const model::Binary &Model) {
+QualifiedType deserializeFromLLVMString(llvm::Value *V,
+                                        const model::Binary &Model) {
   // Try to get a string out of the llvm::Value
   llvm::StringRef BaseTypeString = extractFromConstantStringPtr(V);
 
@@ -201,8 +201,8 @@ deserializeFromLLVMString(llvm::Value *V, const model::Binary &Model) {
   return ParsedType;
 }
 
-llvm::Constant *
-serializeToLLVMString(const model::QualifiedType &QT, llvm::Module &M) {
+llvm::Constant *serializeToLLVMString(const model::QualifiedType &QT,
+                                      llvm::Module &M) {
   // Create a string containing a serialization of the model type
   std::string SerializedQT;
   {
@@ -281,8 +281,8 @@ getFieldType(const QualifiedType &Parent, uint64_t Idx) {
   revng_abort("Type does not contain fields");
 }
 
-static QualifiedType
-getFieldType(const QualifiedType &Parent, llvm::Value *Idx) {
+static QualifiedType getFieldType(const QualifiedType &Parent,
+                                  llvm::Value *Idx) {
   revng_assert(not Parent.isPointer());
 
   uint64_t NumericIdx = 0;
@@ -300,8 +300,8 @@ getFieldType(const QualifiedType &Parent, llvm::Value *Idx) {
   return getFieldType(Parent, NumericIdx);
 }
 
-static QualifiedType
-traverseModelGEP(const model::Binary &Model, const llvm::CallInst *Call) {
+static QualifiedType traverseModelGEP(const model::Binary &Model,
+                                      const llvm::CallInst *Call) {
   // Deduce the base type from the first argument
   QualifiedType CurType = deserializeFromLLVMString(Call->getArgOperand(0),
                                                     Model);

@@ -193,8 +193,8 @@ struct SegregateStackAccessesMFI : public SetUnionLattice<Lattice> {
   using Label = llvm::BasicBlock *;
   using GraphType = llvm::Function *;
 
-  static LatticeElement
-  applyTransferFunction(llvm::BasicBlock *BB, const LatticeElement &Value) {
+  static LatticeElement applyTransferFunction(llvm::BasicBlock *BB,
+                                              const LatticeElement &Value) {
     using namespace llvm;
     revng_log(Log, "Analyzing block " << getName(BB));
     LoggerIndent<> Indent(Log);
@@ -1110,8 +1110,8 @@ private:
     }
   }
 
-  void
-  handleMemoryAccess(const StackAccessRedirector &Redirector, Instruction *I) {
+  void handleMemoryAccess(const StackAccessRedirector &Redirector,
+                          Instruction *I) {
     revng_log(Log, "Handling memory access " << getName(I));
     LoggerIndent<> Indent(Log);
 

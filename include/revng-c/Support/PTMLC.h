@@ -412,8 +412,8 @@ public:
            + "\n";
   }
 
-  std::string
-  getBlockComment(const llvm::StringRef Str, bool Newline = true) const {
+  std::string getBlockComment(const llvm::StringRef Str,
+                              bool Newline = true) const {
     return ptml::PTMLBuilder::tokenTag("/* " + Str.str() + " */",
                                        ptml::tokens::Comment)
            + (Newline ? "\n" : "");

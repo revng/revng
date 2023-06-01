@@ -75,8 +75,8 @@ struct OffsetExpression {
     return true;
   }
 
-  static OffsetExpression
-  append(OffsetExpression LHS, const OffsetExpression &RHS) {
+  static OffsetExpression append(OffsetExpression LHS,
+                                 const OffsetExpression &RHS) {
     revng_assert(LHS.verify());
     revng_assert(RHS.verify());
     LHS.Offset += RHS.Offset;
@@ -323,8 +323,8 @@ public:
   void dumpDotOnFile(const char *FName,
                      bool ShowCollapsed = false) const debug_function;
 
-  void
-  dumpDotOnFile(const std::string &FName, bool ShowCollapsed = false) const {
+  void dumpDotOnFile(const std::string &FName,
+                     bool ShowCollapsed = false) const {
     dumpDotOnFile(FName.c_str(), ShowCollapsed);
   }
 
@@ -349,8 +349,8 @@ public:
                       NeighborIterator EdgeIt,
                       int64_t OffsetToSum);
 
-  NeighborIterator
-  eraseEdge(LayoutTypeSystemNode *Src, NeighborIterator EdgeIt);
+  NeighborIterator eraseEdge(LayoutTypeSystemNode *Src,
+                             NeighborIterator EdgeIt);
 
   void dropOutgoingEdges(LayoutTypeSystemNode *N);
 

@@ -222,8 +222,8 @@ LayoutTypeSystem::createArtificialLayoutTypes(unsigned N) {
   return Result;
 }
 
-static void
-fixPredSucc(LayoutTypeSystemNode *From, LayoutTypeSystemNode *Into) {
+static void fixPredSucc(LayoutTypeSystemNode *From,
+                        LayoutTypeSystemNode *Into) {
 
   revng_assert(From != Into);
 

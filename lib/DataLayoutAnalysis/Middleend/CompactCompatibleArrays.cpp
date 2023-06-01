@@ -20,8 +20,8 @@ using NeighborIterator = LayoutTypeSystem::NeighborIterator;
 // or RHS is undefined behavior itself.
 // The bottom line is that we should never insert invalid iterators into
 // associative containers.
-static std::weak_ordering
-operator<=>(const NeighborIterator &LHS, const NeighborIterator &RHS) {
+static std::weak_ordering operator<=>(const NeighborIterator &LHS,
+                                      const NeighborIterator &RHS) {
   const auto &[LHSSucc, LHSTag] = *LHS;
   const auto &[RHSSucc, RHSTag] = *RHS;
   if (auto Cmp = LHSTag <=> RHSTag; Cmp != 0)

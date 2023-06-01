@@ -26,8 +26,8 @@ template<typename T, typename Inserter>
 class IRBuilder;
 } // namespace llvm
 
-inline void
-pushInstructionALAP(llvm::DominatorTree &DT, llvm::Instruction *ToMove) {
+inline void pushInstructionALAP(llvm::DominatorTree &DT,
+                                llvm::Instruction *ToMove) {
   using namespace llvm;
 
   std::set<Instruction *> Users;
@@ -67,13 +67,13 @@ inline std::optional<T> getConstantArg(llvm::CallInst *Call, unsigned Index) {
   }
 }
 
-inline std::optional<uint64_t>
-getUnsignedConstantArg(llvm::CallInst *Call, unsigned Index) {
+inline std::optional<uint64_t> getUnsignedConstantArg(llvm::CallInst *Call,
+                                                      unsigned Index) {
   return getConstantArg<uint64_t>(Call, Index);
 }
 
-inline std::optional<int64_t>
-getSignedConstantArg(llvm::CallInst *Call, unsigned Index) {
+inline std::optional<int64_t> getSignedConstantArg(llvm::CallInst *Call,
+                                                   unsigned Index) {
   return getConstantArg<int64_t>(Call, Index);
 }
 

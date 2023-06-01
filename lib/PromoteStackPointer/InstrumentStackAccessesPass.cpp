@@ -170,5 +170,5 @@ void InstrumentStackAccessesPass::getAnalysisUsage(AnalysisUsage &AU) const {
 char InstrumentStackAccessesPass::ID = 0;
 
 using RegisterISA = RegisterPass<InstrumentStackAccessesPass>;
-static RegisterISA
-  R("instrument-stack-accesses", "Instrument Stack Accesses Pass");
+static RegisterISA R("instrument-stack-accesses",
+                     "Instrument Stack Accesses Pass");

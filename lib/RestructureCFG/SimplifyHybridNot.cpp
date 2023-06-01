@@ -57,8 +57,8 @@ static void insertInAssociatedExprs(BBExprsMap &BBExprs,
   }
 }
 
-static RecursiveCoroutine<void>
-collectExprBB(ExprNode **Expr, BBExprsMap &BBExprs) {
+static RecursiveCoroutine<void> collectExprBB(ExprNode **Expr,
+                                              BBExprsMap &BBExprs) {
 
   switch ((*Expr)->getKind()) {
   case ExprNode::NodeKind::NK_Atomic: {

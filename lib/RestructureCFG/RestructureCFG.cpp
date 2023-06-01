@@ -247,8 +247,8 @@ checkMetaregionConsistency(const MetaRegionBBVect &MetaRegions,
   return ComparisonState;
 }
 
-static void
-computeParents(MetaRegionBBVect &MetaRegions, MetaRegionBB *RootMetaRegion) {
+static void computeParents(MetaRegionBBVect &MetaRegions,
+                           MetaRegionBB *RootMetaRegion) {
   for (MetaRegionBB &MetaRegion1 : MetaRegions) {
     bool ParentFound = false;
     for (MetaRegionBB &MetaRegion2 : MetaRegions) {

@@ -47,8 +47,8 @@ struct llvm::DOTGraphTraits<DependencyGraph *>
   : public llvm::DefaultDOTGraphTraits {
   using llvm::DefaultDOTGraphTraits::DefaultDOTGraphTraits;
 
-  std::string
-  getNodeLabel(const TypeDependencyNode *N, const DependencyGraph *G);
+  std::string getNodeLabel(const TypeDependencyNode *N,
+                           const DependencyGraph *G);
 };
 
 DependencyGraph buildDependencyGraph(const TypeVector &Types);
