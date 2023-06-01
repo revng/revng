@@ -28,7 +28,10 @@ struct AssociatedExprs {
 
 using BBExprsMap = llvm::SmallDenseMap<BasicBlock *, AssociatedExprs>;
 
-enum Direction { Direct, Negated };
+enum Direction {
+  Direct,
+  Negated
+};
 
 static void insertInAssociatedExprs(BBExprsMap &BBExprs,
                                     BasicBlock *BB,
@@ -160,7 +163,10 @@ populateAssociatedExprMap(ASTTree &AST, ASTNode *Node, BBExprsMap &BBExprs) {
   rc_return;
 }
 
-enum NotKind { SimpleIR, BooleanNot };
+enum NotKind {
+  SimpleIR,
+  BooleanNot
+};
 
 using BBSet = llvm::SmallPtrSet<BasicBlock *, 4>;
 

@@ -19,7 +19,12 @@ class BasicBlock;
 
 class ExprNode {
 public:
-  enum NodeKind { NK_Atomic, NK_Not, NK_And, NK_Or };
+  enum NodeKind {
+    NK_Atomic,
+    NK_Not,
+    NK_And,
+    NK_Or
+  };
 
 protected:
   const NodeKind Kind;

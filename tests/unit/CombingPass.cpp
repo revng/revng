@@ -43,7 +43,10 @@ struct ArgsFixture {
     argv(boost::unit_test::framework::master_test_suite().argv) {}
 };
 
-enum TestType { Equal, NotEqual };
+enum TestType {
+  Equal,
+  NotEqual
+};
 
 static void runTest(TestType Type,
                     std::string &InputFileName,

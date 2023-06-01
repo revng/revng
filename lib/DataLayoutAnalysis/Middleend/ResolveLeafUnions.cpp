@@ -103,7 +103,10 @@ comparePointee(const LayoutTypeSystemNode *A, const LayoutTypeSystemNode *B) {
 // TODO: One day, when we teach DLA about VMA and model types, we should support
 // all model::PrimitiveTypes here.
 struct LeafType {
-  enum Kind { Generic, Pointer } Kind;
+  enum Kind {
+    Generic,
+    Pointer
+  } Kind;
   // The following should be nullptr if Kind is not Pointer
   const LayoutTypeSystemNode *Pointee;
 };

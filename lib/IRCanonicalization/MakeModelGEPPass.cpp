@@ -843,7 +843,12 @@ public:
   }
 };
 
-enum AggregateKind { Invalid, Struct, Union, Array };
+enum AggregateKind {
+  Invalid,
+  Struct,
+  Union,
+  Array
+};
 
 static std::string toString(AggregateKind K) {
   switch (K) {

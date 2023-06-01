@@ -49,9 +49,17 @@ enum CustomInstruction : unsigned {
   BooleanNot = getInstructionLLVMOpcodeCount() + 11
 };
 
-enum Associativity { LeftToRight, RightToLeft };
+enum Associativity {
+  LeftToRight,
+  RightToLeft
+};
 
-enum Arity : unsigned { Unary, Binary, Ternary, NAry };
+enum Arity : unsigned {
+  Unary,
+  Binary,
+  Ternary,
+  NAry
+};
 
 struct OperatorInfo {
   unsigned Opcode;
@@ -419,7 +427,10 @@ bool OPRP::needsParentheses(Instruction *I, Use &U) {
       revng_assert(isa<BinaryOperator>(I) or isa<CmpInst>(I));
       // If there are 2 operands, Instruction can only be a binary operator
       // (arithmetic or bitwise).
-      enum Side : unsigned { LHS = 0, RHS };
+      enum Side : unsigned {
+        LHS = 0,
+        RHS
+      };
       Side OpSide = U.getOperandNo() == 0 ? LHS : RHS;
       // If the Instruction associativity leads to preserving semantics we don't
       // need parentheses, otherwise we do.
