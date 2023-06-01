@@ -16,6 +16,8 @@ revng_add_library_internal(
   LoadBinaryPass.cpp
   JumpTargetManager.cpp
   PTCDump.cpp
+  RootAnalyzer.cpp
+  ValueMaterializerPass.cpp
   VariableManager.cpp)
 
 target_link_libraries(
@@ -31,4 +33,5 @@ target_link_libraries(
          revngSupport
          revngTypeShrinking
          revngEarlyFunctionAnalysis
+         revngValueMaterializer
          ${LLVM_LIBRARIES})

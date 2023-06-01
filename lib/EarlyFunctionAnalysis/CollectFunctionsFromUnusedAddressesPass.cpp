@@ -91,20 +91,31 @@ private:
                   << "  IsLoadAddress: " << IsLoadAddress << "\n"
                   << "  IsPartOfOtherCFG: " << IsPartOfOtherCFG << "\n");
 
-      // Do not consider addresses found in .rodata that are part of jump
-      // tables of a function.
-      if (not IsLoadAddress
-          and (IsUnusedGlobalData
-               or (IsMemoryStore and not IsPCStore and not IsReturnAddress))
+      // Look for unused global data or address stored in memory that are never
+      // written directly to the PC. Also, ignore code for which we already have
+      // a direct jump or is part of the CFG of another function. Also, ignore
+      // addresses that are return addresses.
+      if ((IsUnusedGlobalData or (IsMemoryStore and not IsPCStore))
           and not IsPartOfOtherCFG and not IsDirectJump
           and not IsReturnAddress) {
-        // Consider addresses found in global data that have not been used or
-        // addresses that are not return addresses and do not end up in the PC
-        // directly.
-        Binary.Functions()[Entry];
-        revng_log(Log,
-                  "Found function from unused addresses: "
-                    << BB.getName().str());
+
+        if (IsLoadAddress) {
+          revng_log(Log,
+                    "Ignoring " << Entry.toString()
+                                << " since it's target of a memory operation");
+
+        } else {
+          if (IsMemoryStore and not IsUnusedGlobalData) {
+            revng_log(Log,
+                      "Creating function due to memory store at "
+                        << Entry.toString());
+          }
+
+          Binary.Functions()[Entry];
+          revng_log(Log,
+                    "Found function from unused addresses: "
+                      << BB.getName().str());
+        }
       }
     }
   }

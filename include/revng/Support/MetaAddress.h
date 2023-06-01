@@ -431,6 +431,17 @@ private:
   friend class ProgramCounterHandler;
 
 public:
+  class Features {
+  public:
+    llvm::Triple::ArchType Architecture = llvm::Triple::UnknownArch;
+    uint32_t Epoch = 0;
+    uint16_t AddressSpace = 0;
+
+  public:
+    bool operator==(const Features &Other) const = default;
+  };
+
+public:
   /// \name Constructors
   ///
   /// @{
@@ -497,6 +508,13 @@ public:
     return fromPC(*Base.arch(), Address, Base.epoch(), Base.addressSpace());
   }
 
+  static MetaAddress fromPC(uint64_t Address, const Features &Features) {
+    return MetaAddress::fromPC(Features.Architecture,
+                               Address,
+                               Features.Epoch,
+                               Features.AddressSpace);
+  }
+
   /// Create a generic MetaAddress for architecture \p Arch
   static constexpr MetaAddress fromGeneric(llvm::Triple::ArchType Arch,
                                            uint64_t Address,
@@ -506,6 +524,14 @@ public:
                        MetaAddressType::genericFromArch(Arch),
                        Epoch,
                        AddressSpace);
+  }
+
+  static constexpr MetaAddress
+  fromGeneric(uint64_t Address, Features Features) {
+    return MetaAddress(Address,
+                       MetaAddressType::genericFromArch(Features.Architecture),
+                       Features.Epoch,
+                       Features.AddressSpace);
   }
 
   /// @}
@@ -542,6 +568,10 @@ public:
 
   constexpr MetaAddress toPC(llvm::Triple::ArchType Arch) const {
     return fromPC(Arch, Address, Epoch, AddressSpace);
+  }
+
+  Features features() const {
+    return Features(*MetaAddressType::arch(type()), Epoch, AddressSpace);
   }
 
 public:

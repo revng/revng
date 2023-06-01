@@ -1353,6 +1353,13 @@ inline cppcoro::generator<llvm::CallBase *> callers(llvm::Function *F) {
   }
 }
 
+inline cppcoro::generator<llvm::CallBase *>
+callersIn(llvm::Function *F, llvm::Function *ContainingFunction) {
+  for (llvm::CallBase *Call : callers(F))
+    if (Call->getParent()->getParent() == ContainingFunction)
+      co_yield Call;
+}
+
 template<typename T>
 concept HasMetadata = requires(T &Value,
                                const T &ConstValue,

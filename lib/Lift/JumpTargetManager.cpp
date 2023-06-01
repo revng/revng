@@ -7,56 +7,14 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include <cstdint>
-#include <fstream>
-#include <queue>
-#include <sstream>
-
-#include "boost/icl/interval_set.hpp"
-#include "boost/icl/right_open_interval.hpp"
-#include "boost/type_traits/is_same.hpp"
-
-#include "llvm/ADT/DepthFirstIterator.h"
-#include "llvm/Analysis/BasicAliasAnalysis.h"
-#include "llvm/Analysis/ScopedNoAliasAA.h"
-#include "llvm/CodeGen/UnreachableBlockElim.h"
-#include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/IRBuilder.h"
+#include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/IR/LegacyPassManager.h"
-#include "llvm/IR/MDBuilder.h"
-#include "llvm/IR/PassManager.h"
-#include "llvm/IR/Verifier.h"
-#include "llvm/Passes/PassBuilder.h"
-#include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar.h"
-#include "llvm/Transforms/Scalar/EarlyCSE.h"
-#include "llvm/Transforms/Scalar/GVN.h"
-#include "llvm/Transforms/Scalar/JumpThreading.h"
-#include "llvm/Transforms/Utils/Cloning.h"
-#include "llvm/Transforms/Utils/Local.h"
-#include "llvm/Transforms/Utils/Mem2Reg.h"
 
-#include "revng/ADT/Queue.h"
-#include "revng/BasicAnalyses/AdvancedValueInfo.h"
-#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
-#include "revng/BasicAnalyses/ShrinkInstructionOperandsPass.h"
-#include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
-#include "revng/Model/LoadModelPass.h"
-#include "revng/Support/Assert.h"
-#include "revng/Support/CommandLine.h"
-#include "revng/Support/Debug.h"
-#include "revng/Support/FunctionTags.h"
-#include "revng/Support/IRHelpers.h"
-#include "revng/Support/MetaAddress.h"
 #include "revng/Support/Statistics.h"
-#include "revng/TypeShrinking/BitLiveness.h"
-#include "revng/TypeShrinking/TypeShrinking.h"
 
-#include "AdvancedValueInfoPass.h"
-#include "CPUStateAccessAnalysisPass.h"
-#include "DropHelperCallsPass.h"
 #include "JumpTargetManager.h"
+#include "RootAnalyzer.h"
 #include "SubGraph.h"
 
 using namespace llvm;
@@ -64,15 +22,9 @@ using namespace llvm;
 namespace {
 
 Logger<> JTCountLog("jtcount");
-Logger<> NewEdgesLog("new-edges");
 Logger<> RegisterJTLog("registerjt");
 
-// NOTE: Setting this to 1 gives us performance improvement. We have tested and
-// realized that there is an impact on performance if setting it to 2.
-constexpr unsigned InstCombineMaxIterations = 1;
-
 CounterMap<std::string> HarvestingStats("harvesting");
-RunningStatistics BlocksAnalyzedByAVI("blocks-analyzed-by-avi");
 
 RegisterPass<TranslateDirectBranchesPass> X("translate-db",
                                             "Translate Direct Branches"
@@ -156,7 +108,7 @@ void TDBP::pinExitTB(CallInst *ExitTBCall, DispatcherTargets &Destinations) {
     JTM->recordNewBranches(Source, Destinations.size() - OldTargetsCount);
 }
 
-bool TDBP::pinAVIResults(Function &F) {
+bool TDBP::pinMaterializedValues(Function &F) {
   QuickMetadata QMD(getContext(&F));
   Module *M = F.getParent();
 
@@ -375,23 +327,14 @@ bool TDBP::forceFallthroughAfterHelper(CallInst *Call) {
 bool TDBP::runOnModule(Module &M) {
   Function &F = *M.getFunction("root");
   pinConstantStore(F);
-  pinAVIResults(F);
+  pinMaterializedValues(F);
   return true;
 }
 
-MaterializedValue JumpTargetManager::readFromPointer(Type *Type,
-                                                     Constant *Pointer,
+MaterializedValue JumpTargetManager::readFromPointer(MetaAddress LoadAddress,
+                                                     unsigned LoadSize,
                                                      bool IsLittleEndian) {
-  const DataLayout &DL = TheModule.getDataLayout();
-  unsigned LoadSize = DL.getTypeSizeInBits(Type) / 8;
   auto NewAPInt = [LoadSize](uint64_t V) { return APInt(LoadSize * 8, V); };
-
-  Value *RealPointer = skipCasts(Pointer);
-  uint64_t RawLoadAddress = 0;
-  if (not isa<ConstantPointerNull>(RealPointer)) {
-    RawLoadAddress = getZExtValue(cast<ConstantInt>(RealPointer), DL);
-  }
-  auto LoadAddress = fromGeneric(RawLoadAddress);
 
   UnusedCodePointers.erase(LoadAddress);
   registerReadRange(LoadAddress, LoadSize);
@@ -415,7 +358,8 @@ MaterializedValue JumpTargetManager::readFromPointer(Type *Type,
       auto RelocationSize = model::RelocationType::getSize(Relocation.Type());
       if (LoadAddress == Relocation.Address() and LoadSize == RelocationSize) {
         revng_assert(not StringRef(Function.name()).contains('\0'));
-        Result = { Function.OriginalName(), NewAPInt(Addend) };
+        Result = MaterializedValue::fromSymbol(Function.OriginalName(),
+                                               NewAPInt(Addend));
         ++MatchCount;
       }
     }
@@ -429,7 +373,7 @@ MaterializedValue JumpTargetManager::readFromPointer(Type *Type,
       if (LoadAddress == Relocation.Address() and LoadSize == RelocationSize) {
         MetaAddress Address = Segment.StartAddress() + Addend;
         if (Address.isValid()) {
-          Result = { NewAPInt(Address.address()) };
+          Result = MaterializedValue::fromConstant(NewAPInt(Address.address()));
           ++MatchCount;
         } else {
           // TODO: log message
@@ -450,9 +394,9 @@ MaterializedValue JumpTargetManager::readFromPointer(Type *Type,
                                            IsLittleEndian);
 
   if (MaybeValue)
-    return { NewAPInt(*MaybeValue) };
+    return MaterializedValue::fromConstant(NewAPInt(*MaybeValue));
   else
-    return {};
+    return MaterializedValue::invalid();
 }
 
 JumpTargetManager::JumpTargetManager(Function *TheFunction,
@@ -992,7 +936,7 @@ JumpTargetManager::registerJT(MetaAddress PC, JTReason::Values Reason) {
   JumpTargets[PC] = JumpTarget(NewBlock, Reason);
 
   // PC was not a jump target, record it as new
-  AVIPCWhiteList.insert(PC);
+  ValueMaterializerPCWhiteList.insert(PC);
 
   return NewBlock;
 }
@@ -1201,157 +1145,6 @@ bool JumpTargetManager::hasPredecessors(BasicBlock *BB) const {
   return false;
 }
 
-/// Simple pass to drop `range` metadata, which is sometimes detrimental
-class DropRangeMetadataPass : public PassInfoMixin<DropRangeMetadataPass> {
-
-public:
-  PreservedAnalyses run(Function &F, FunctionAnalysisManager &) {
-    for (BasicBlock &BB : F)
-      for (Instruction &I : BB)
-        I.setMetadata("range", nullptr);
-    return PreservedAnalyses::none();
-  }
-};
-
-/// Drop all the call to marker functions
-class DropMarkerCalls : public PassInfoMixin<DropMarkerCalls> {
-private:
-  SmallVector<StringRef, 4> ToPreserve;
-
-public:
-  DropMarkerCalls(SmallVector<StringRef, 4> ToPreserve) :
-    ToPreserve(ToPreserve) {}
-
-public:
-  PreservedAnalyses run(Function &F, FunctionAnalysisManager &) {
-    Module *M = F.getParent();
-    std::vector<CallInst *> ToErase;
-
-    for (Function &Marker : FunctionTags::Marker.functions(M)) {
-      //
-      // Check if we should preserve this marker
-      //
-      auto It = std::find(ToPreserve.begin(),
-                          ToPreserve.end(),
-                          Marker.getName());
-      auto End = std::end(ToPreserve);
-      if (It != End) {
-        Marker.setDoesNotReturn();
-        continue;
-      }
-
-      //
-      // Register all the calls to be erased
-      //
-      for (User *U : Marker.users())
-        if (auto *Call = dyn_cast<CallInst>(U))
-          if (Call->getParent()->getParent() == &F)
-            ToErase.push_back(Call);
-    }
-
-    //
-    // Actually drop the calls
-    //
-    for (CallInst *Call : ToErase)
-      eraseFromParent(Call);
-
-    return PreservedAnalyses::none();
-  }
-};
-
-namespace TrackedInstructionType {
-
-enum Values { Invalid, WrittenInPC, StoredInMemory, StoreTarget, LoadTarget };
-
-inline const char *getName(Values V) {
-  switch (V) {
-  case Invalid:
-    return "Invalid";
-  case WrittenInPC:
-    return "WrittenInPC";
-  case StoredInMemory:
-    return "StoredInMemory";
-  case StoreTarget:
-    return "StoreTarget";
-  case LoadTarget:
-    return "LoadTarget";
-  default:
-    revng_abort();
-  }
-}
-
-inline Values fromName(llvm::StringRef Name) {
-  if (Name == "Invalid")
-    return Invalid;
-  else if (Name == "WrittenInPC")
-    return WrittenInPC;
-  else if (Name == "StoredInMemory")
-    return StoredInMemory;
-  else if (Name == "StoreTarget")
-    return StoreTarget;
-  else if (Name == "LoadTarget")
-    return LoadTarget;
-  else
-    revng_abort();
-}
-
-} // namespace TrackedInstructionType
-
-class AnalysisRegistry {
-public:
-  using TrackedValueType = TrackedInstructionType::Values;
-
-  struct TrackedValue {
-    MetaAddress Address;
-    TrackedValueType Type;
-    Instruction *I;
-  };
-
-private:
-  std::vector<TrackedValue> TrackedValues;
-  QuickMetadata QMD;
-  llvm::Function *AVIMarker;
-  IRBuilder<> Builder;
-
-public:
-  AnalysisRegistry(Module *M) : QMD(getContext(M)), Builder(getContext(M)) {
-    AVIMarker = AdvancedValueInfoPass::createMarker(M);
-  }
-
-  llvm::Function *aviMarker() const { return AVIMarker; }
-
-  void registerValue(MetaAddress Address,
-                     Value *OriginalValue,
-                     Value *ValueToTrack,
-                     TrackedValueType Type) {
-    revng_assert(Address.isValid());
-
-    Instruction *InstructionToTrack = dyn_cast<Instruction>(ValueToTrack);
-    if (InstructionToTrack == nullptr)
-      return;
-
-    revng_assert(InstructionToTrack != nullptr);
-
-    // Create the marker call and attach as second argument a unique
-    // identifier. This is necessary since the instruction itself could be
-    // deleted, duplicated and what not. Later on, we will use TrackedValues
-    // to now the values that have been identified to which value in the
-    // original function did they belong to
-    uint32_t AVIID = TrackedValues.size();
-    Builder.SetInsertPoint(InstructionToTrack->getNextNode());
-    Builder.CreateCall(AVIMarker,
-                       { InstructionToTrack, Builder.getInt32(AVIID) });
-    TrackedValue NewTV{ Address,
-                        Type,
-                        cast_or_null<Instruction>(OriginalValue) };
-    TrackedValues.push_back(NewTV);
-  }
-
-  const TrackedValue &rootInstructionById(uint32_t ID) const {
-    return TrackedValues.at(ID);
-  }
-};
-
 CallInst *JumpTargetManager::getJumpTarget(BasicBlock *Target) {
   for (BasicBlock *BB : inverse_depth_first(Target)) {
     if (auto *Call = dyn_cast<CallInst>(&*BB->begin())) {
@@ -1362,493 +1155,6 @@ CallInst *JumpTargetManager::getJumpTarget(BasicBlock *Target) {
   }
 
   return nullptr;
-}
-
-JumpTargetManager::MetaAddressSet JumpTargetManager::inflateAVIWhitelist() {
-  MetaAddressSet Result;
-
-  // We start from all the new basic blocks (i.e., those in
-  // AVIPCWhiteList) and proceed backward in the CFG in order to
-  // whitelist all the jump targets we meet. We stop when we meet the dispatcher
-  // or a function call.
-
-  // Prepare the backward visit
-  df_iterator_default_set<BasicBlock *> VisitSet;
-
-  // Stop at the dispatcher
-  VisitSet.insert(DispatcherSwitch->getParent());
-
-  // TODO: OriginalInstructionAddresses is not reliable, we should drop it
-  for (User *NewPCUser : TheModule.getFunction("newpc")->users()) {
-    auto *I = cast<Instruction>(NewPCUser);
-    auto WhitelistedMA = addressFromNewPC(I);
-    if (WhitelistedMA.isValid()) {
-      if (AVIPCWhiteList.count(WhitelistedMA) != 0) {
-        BasicBlock *BB = I->getParent();
-        auto VisitRange = inverse_depth_first_ext(BB, VisitSet);
-        for (const BasicBlock *Reachable : VisitRange) {
-          auto MA = getBasicBlockAddress(Reachable);
-          if (MA.isValid() and isJumpTarget(MA)) {
-            Result.insert(MA);
-          }
-        }
-      }
-    }
-  }
-
-  return Result;
-}
-
-// Update CPUStateAccessAnalysisPass
-void JumpTargetManager::updateCSAA() {
-  legacy::PassManager PM;
-  PM.add(new LoadModelWrapperPass(ModelWrapper::createConst(Model)));
-  PM.add(CreateCSAA());
-  PM.add(new FunctionCallIdentification);
-  PM.run(TheModule);
-}
-
-// Clone the root function.
-Function *JumpTargetManager::createTemporaryRoot(ValueToValueMapTy &OldToNew) {
-  Function *OptimizedFunction = nullptr;
-  Module *M = TheFunction->getParent();
-  // Break all the call edges. We want to ignore those for CFG recovery
-  // purposes.
-  llvm::DenseSet<BasicBlock *> Callees;
-  llvm::DenseMap<Use *, BasicBlock *> Undo;
-  auto *FunctionCall = TheModule.getFunction("function_call");
-  revng_assert(FunctionCall != nullptr);
-  for (CallBase *Call : callers(FunctionCall)) {
-    auto *T = Call->getParent()->getTerminator();
-
-    Callees.insert(getFunctionCallCallee(Call->getParent()));
-
-    if (auto *Branch = dyn_cast<BranchInst>(T)) {
-      revng_assert(Branch->isUnconditional());
-      BasicBlock *Target = Branch->getSuccessor(0);
-      Use *U = &Branch->getOperandUse(0);
-
-      // We're after a function call: pretend we're jumping to anypc
-      U->set(AnyPC);
-
-      // Record Use for later undoing
-      Undo[U] = Target;
-    }
-  }
-
-  // Compute AVIJumpTargetWhitelist
-  auto AVIJumpTargetWhitelist = inflateAVIWhitelist();
-
-  // Prune the dispatcher
-  setCFGForm(CFGForm::RecoveredOnly, &AVIJumpTargetWhitelist);
-
-  // Detach all the unreachable basic blocks, so they don't get copied
-  llvm::DenseSet<BasicBlock *> UnreachableBBs = computeUnreachable();
-  for (BasicBlock *UnreachableBB : UnreachableBBs)
-    UnreachableBB->removeFromParent();
-
-  // Clone the function
-  OptimizedFunction = CloneFunction(TheFunction, OldToNew);
-
-  // Restore callees after function_call
-  for (auto [U, BB] : Undo)
-    U->set(BB);
-
-  Callees.erase(nullptr);
-  llvm::IRBuilder<> Builder(Context);
-  for (BasicBlock *BB : Callees) {
-    if (OldToNew.count(BB) == 0)
-      continue;
-    BB = cast<BasicBlock>(OldToNew[BB]);
-    revng_assert(BB->getTerminator() != nullptr);
-    Builder.SetInsertPoint(BB->getFirstNonPHI());
-
-    for (const model::Segment &Segment : Model->Segments()) {
-      if (Segment.contains(getBasicBlockAddress(BB))) {
-        for (const auto &CanonicalValue : Segment.CanonicalRegisterValues()) {
-          auto Name = model::Register::getCSVName(CanonicalValue.Register());
-          if (auto *CSV = M->getGlobalVariable(Name)) {
-            auto *Type = getCSVType(CSV);
-            Builder.CreateStore(ConstantInt::get(Type, CanonicalValue.Value()),
-                                CSV);
-          }
-        }
-        break;
-      }
-    }
-  }
-
-  // Record the size of OptimizedFunction
-  size_t BlocksCount = OptimizedFunction->size();
-  BlocksAnalyzedByAVI.push(BlocksCount);
-
-  // Reattach the unreachable basic blocks to the original root function
-  for (BasicBlock *UnreachableBB : UnreachableBBs)
-    UnreachableBB->insertInto(TheFunction);
-
-  // Restore the dispatcher in the original function
-  setCFGForm(CFGForm::SemanticPreserving);
-  revng_assert(computeUnreachable().size() == 0);
-
-  // Clear the whitelist
-  AVIPCWhiteList.clear();
-
-  return OptimizedFunction;
-}
-
-// Register load/store addresses and PC-sized stored value.
-void JumpTargetManager::processLoadsAndStores(Function *OptimizedFunction,
-                                              AnalysisRegistry &AR) {
-  for (BasicBlock &BB : *OptimizedFunction) {
-    for (Instruction &I : BB) {
-      namespace TIT = TrackedInstructionType;
-
-      auto AddressType = TIT::Invalid;
-      Value *Pointer = nullptr;
-      Instruction *StoredInstruction = nullptr;
-      Type *PointeeType = nullptr;
-      if (auto *Load = dyn_cast<LoadInst>(&I)) {
-        // It's a load: record the load address
-        Pointer = Load->getPointerOperand();
-        PointeeType = Load->getType();
-        AddressType = TIT::LoadTarget;
-      } else if (auto *Store = dyn_cast<StoreInst>(&I)) {
-        // It's a store: record the store address and the stored value
-        Pointer = Store->getPointerOperand();
-        PointeeType = Store->getValueOperand()->getType();
-        StoredInstruction = dyn_cast<Instruction>(Store->getValueOperand());
-        AddressType = TIT::StoreTarget;
-      }
-
-      // Exclude memory accesses targeting CSVs
-      if (Pointer != nullptr and isMemory(Pointer)) {
-        MetaAddress Address = getPC(&I).first;
-        // Register the load/store address
-        if (Instruction *PointerI = dyn_cast_or_null<Instruction>(Pointer))
-          AR.registerValue(Address, nullptr, PointerI, AddressType);
-
-        // Register the stored value, if pc-sized
-        if (StoredInstruction != nullptr and PCH->isPCSizedType(PointeeType))
-          AR.registerValue(Address,
-                           nullptr,
-                           StoredInstruction,
-                           TIT::StoredInMemory);
-      }
-    }
-  }
-}
-
-// Helper to intrinsic promotion.
-void JumpTargetManager::promoteHelpersToIntrinsics(Module *M,
-                                                   Function *OptimizedFunction,
-                                                   IRBuilder<> &Builder) {
-  using MapperFunction = std::function<Instruction *(CallInst *)>;
-  std::pair<std::vector<StringRef>, MapperFunction> Mapping[] = {
-    { { "helper_clz", "helper_clz32", "helper_clz64", "helper_dclz" },
-      [&Builder](CallInst *Call) {
-        return Builder.CreateBinaryIntrinsic(Intrinsic::ctlz,
-                                             Call->getArgOperand(0),
-                                             Builder.getFalse());
-      } }
-  };
-
-  for (auto &[HelperNames, Mapper] : Mapping) {
-    for (StringRef HelperName : HelperNames) {
-      if (Function *Original = M->getFunction(HelperName)) {
-
-        SmallVector<std::pair<Instruction *, Instruction *>, 16> Replacements;
-        for (User *U : Original->users()) {
-          if (auto *Call = dyn_cast<CallInst>(U)) {
-            if (Call->getParent()->getParent() == OptimizedFunction) {
-              Builder.SetInsertPoint(Call);
-              Instruction *NewI = Mapper(Call);
-              NewI->copyMetadata(*Call);
-              Replacements.emplace_back(Call, NewI);
-            }
-          }
-        }
-
-        // Apply replacements
-        for (auto &P : Replacements) {
-          P.first->replaceAllUsesWith(P.second);
-          eraseFromParent(P.first);
-        }
-      }
-    }
-  }
-}
-
-JumpTargetManager::GlobalToAllocaTy
-JumpTargetManager::promoteCSVsToAlloca(Function *OptimizedFunction) {
-  GlobalToAllocaTy CSVMap;
-
-  //
-  // Collect all the non-PC affecting CSVs
-  //
-  DenseSet<GlobalVariable *> NonPCCSVs;
-  for (GlobalVariable &CSV : FunctionTags::CSV.globals(&TheModule))
-    if (not PCH->affectsPC(&CSV))
-      NonPCCSVs.insert(&CSV);
-  // Collect all the non-PC affecting CSVs.
-
-  // Create and initialized an alloca per CSV (except for the PC-affecting
-  // ones).
-  BasicBlock *EntryBB = &OptimizedFunction->getEntryBlock();
-  IRBuilder<> AllocaBuilder(&*EntryBB->begin());
-  IRBuilder<> InitializeBuilder(EntryBB->getTerminator());
-
-  for (GlobalVariable *CSV : NonPCCSVs) {
-    Type *CSVType = CSV->getValueType();
-    auto *Alloca = AllocaBuilder.CreateAlloca(CSVType, nullptr, CSV->getName());
-    CSVMap[CSV] = Alloca;
-
-    // Replace all uses of the CSV within OptimizedFunction with the alloca
-    replaceAllUsesInFunctionWith(OptimizedFunction, CSV, Alloca);
-
-    // Initialize the alloca
-    InitializeBuilder.CreateStore(createLoad(InitializeBuilder, CSV), Alloca);
-  }
-
-  return CSVMap;
-}
-
-SummaryCallsBuilder
-JumpTargetManager::runAdvancedValueInfo(llvm::Function *OptimizedFunction) {
-  using namespace model::Architecture;
-  using namespace model::Register;
-
-  auto CSVMap = promoteCSVsToAlloca(OptimizedFunction);
-  SummaryCallsBuilder SCB(CSVMap);
-  auto M = OptimizedFunction->getParent();
-  StringRef SyscallHelperName = getSyscallHelper(Model->Architecture());
-  Function *SyscallHelper = M->getFunction(SyscallHelperName);
-  auto SyscallIDRegister = getSyscallNumberRegister(Model->Architecture());
-  StringRef SyscallIDCSVName = getName(SyscallIDRegister);
-  GlobalVariable *SyscallIDCSV = M->getGlobalVariable(SyscallIDCSVName);
-
-  // Remove PC initialization from entry block: this is required otherwise the
-  // dispatcher will be constant-propagated away
-  {
-    BasicBlock &Entry = OptimizedFunction->getEntryBlock();
-    std::vector<Instruction *> ToDelete;
-    for (Instruction &I : Entry)
-      if (auto *Store = dyn_cast<StoreInst>(&I))
-        if (isa<Constant>(Store->getValueOperand()) and PCH->affectsPC(Store))
-          ToDelete.push_back(&I);
-
-    for (Instruction *I : ToDelete)
-      eraseFromParent(I);
-  }
-
-  {
-    // Note: it is important to let the pass manager go out of scope ASAP:
-    //       LazyValueInfo registers a lot of callbacks to get notified when a
-    //       Value is destroyed, slowing down OptimizedFunction->eraseFromParent
-    //       enormously.
-    FunctionPassManager FPM;
-    FPM.addPass(DropMarkerCalls({ "exitTB" }));
-    FPM.addPass(DropHelperCallsPass(SyscallHelper, SyscallIDCSV, SCB));
-    FPM.addPass(ShrinkInstructionOperandsPass());
-    FPM.addPass(PromotePass());
-    FPM.addPass(InstCombinePass(InstCombineMaxIterations));
-    FPM.addPass(TypeShrinking::TypeShrinkingPass());
-    FPM.addPass(JumpThreadingPass());
-    FPM.addPass(UnreachableBlockElimPass());
-    FPM.addPass(EarlyCSEPass(true));
-    FPM.addPass(DropRangeMetadataPass());
-    FPM.addPass(AdvancedValueInfoPass(this));
-
-    FunctionAnalysisManager FAM;
-    FAM.registerPass([]() { return TypeShrinking::BitLivenessPass(); });
-    FAM.registerPass([] {
-      AAManager AA;
-      AA.registerFunctionAnalysis<BasicAA>();
-      AA.registerFunctionAnalysis<ScopedNoAliasAA>();
-
-      return AA;
-    });
-
-    ModuleAnalysisManager MAM;
-    auto MAMFunactionProxyFactory = [&MAM] {
-      return ModuleAnalysisManagerFunctionProxy(MAM);
-    };
-    FAM.registerPass(MAMFunactionProxyFactory);
-
-    PassBuilder PB;
-    PB.registerFunctionAnalyses(FAM);
-    PB.registerModuleAnalyses(MAM);
-
-    FPM.run(*OptimizedFunction, FAM);
-  }
-
-  return SCB;
-}
-
-void JumpTargetManager::collectAVIResults(llvm::Module *M,
-                                          AnalysisRegistry &AR) {
-  // Iterate over all the AVI markers
-  Function *AVIMarker = AR.aviMarker();
-  for (User *U : AVIMarker->users()) {
-    auto *Call = dyn_cast<CallInst>(U);
-    if (Call == nullptr or skipCasts(Call->getCalledOperand()) != AVIMarker)
-      continue;
-
-    // Get the ID from the marker, and then the original instruction and marker
-    // type
-    uint32_t AVIID = getLimitedValue(cast<ConstantInt>(Call->getArgOperand(1)));
-    auto TV = AR.rootInstructionById(AVIID);
-    auto TIT = TV.Type;
-    Instruction *I = TV.I;
-
-    // Did AVI produce any info?
-    auto *T = dyn_cast_or_null<MDTuple>(Call->getMetadata("revng.avi"));
-    if (T == nullptr)
-      continue;
-
-    // Is this a direct write to PC?
-    bool IsComposedIntegerPC = (TIT == TrackedInstructionType::WrittenInPC);
-
-    // We want to register the results only if *all* of them are good
-    bool AllValid = true;
-    bool AllPCs = true;
-
-    SmallVector<MetaAddress, 16> Targets;
-    QuickMetadata QMD(Context);
-
-    // Iterate over all the generated values
-    for (const MDOperand &Operand : cast<MDTuple>(T)->operands()) {
-      // Extract the value
-      auto *Tuple = QMD.extract<MDTuple *>(Operand.get());
-      auto SymbolName = QMD.extract<StringRef>(Tuple->getOperand(0).get());
-      auto *Value = QMD.extract<ConstantInt *>(Tuple->getOperand(1).get());
-
-      bool HasDynamicSymbol = SymbolName.size() != 0;
-      if (not HasDynamicSymbol) {
-        // Deserialize value into a MetaAddress, depending on the tracked
-        // instruction type
-        auto MA = (IsComposedIntegerPC ?
-                     MetaAddress::decomposeIntegerPC(Value) :
-                     MetaAddress::fromPC(TV.Address, getLimitedValue(Value)));
-
-        if (MA.isInvalid()) {
-          AllValid = false;
-        } else {
-          if (not isPC(MA))
-            AllPCs = false;
-
-          Targets.push_back(MA);
-        }
-      }
-    }
-
-    // Proceed only if all the results are valid
-    if (not AllValid)
-      continue;
-
-    // If it's supposed to be a PC, all of them have to be a PC
-    bool ShouldBePC = (TIT == TrackedInstructionType::WrittenInPC
-                       or TIT == TrackedInstructionType::StoredInMemory);
-    if (ShouldBePC and not AllPCs)
-      continue;
-
-    // Register the resulting addresses
-    for (const MetaAddress &MA : Targets) {
-      switch (TIT) {
-      case TrackedInstructionType::WrittenInPC:
-        registerJT(MA, JTReason::PCStore);
-        break;
-
-      case TrackedInstructionType::StoredInMemory:
-        registerJT(MA, JTReason::MemoryStore);
-        break;
-
-      case TrackedInstructionType::StoreTarget:
-      case TrackedInstructionType::LoadTarget:
-        markJT(MA, JTReason::LoadAddress);
-        break;
-
-      case TrackedInstructionType::Invalid:
-        revng_abort();
-      }
-    }
-
-    if (TIT == TrackedInstructionType::WrittenInPC) {
-      // This is a call to `exit_tb`, transfer the revng.abi metadata on the
-      // call as revng.targets for later processing
-      revng_assert(TV.I != nullptr);
-      TV.I->setMetadata("revng.targets", T);
-    }
-
-    auto OperandsCount = Targets.size();
-    if (OperandsCount != 0 and NewEdgesLog.isEnabled()) {
-      revng_log(NewEdgesLog,
-                OperandsCount << " targets from " << getName(Call));
-    }
-  }
-}
-
-void JumpTargetManager::harvestWithAVI() {
-  Module *M = TheFunction->getParent();
-
-  updateCSAA();
-
-  ValueToValueMapTy OldToNew;
-  auto OptimizedFunction = createTemporaryRoot(OldToNew);
-
-  // Register for analysis the value written in the PC before each exit_tb call.
-  AnalysisRegistry AR(M);
-  IRBuilder<> Builder(Context);
-  for (User *U : ExitTB->users()) {
-    if (auto *Call = dyn_cast<CallInst>(U)) {
-      BasicBlock *BB = Call->getParent();
-      if (BB->getParent() == TheFunction) {
-        auto It = OldToNew.find(Call);
-        if (It == OldToNew.end())
-          continue;
-        Builder.SetInsertPoint(cast<CallInst>(&*It->second));
-        Instruction *ComposedIntegerPC = PCH->composeIntegerPC(Builder);
-        AR.registerValue(getPC(Call).first,
-                         Call,
-                         ComposedIntegerPC,
-                         TrackedInstructionType::WrittenInPC);
-      }
-    }
-  }
-
-  processLoadsAndStores(OptimizedFunction, AR);
-  promoteHelpersToIntrinsics(M, OptimizedFunction, Builder);
-
-  SmallVector<CallInst *, 16> ToErase;
-  for (User *U : M->getFunction("newpc")->users()) {
-    Instruction *I = dyn_cast<Instruction>(U);
-    if (I == nullptr or I->getParent()->getParent() != OptimizedFunction)
-      continue;
-
-    auto *Call = getCallTo(I, "newpc");
-    if (Call == nullptr)
-      continue;
-
-    PCH->expandNewPC(Call);
-    ToErase.push_back(Call);
-  }
-
-  for (CallInst *Call : ToErase)
-    eraseFromParent(Call);
-
-  // Optimize the hell out of it and collect the possible values of indirect
-  // branches.
-  auto SCB = runAdvancedValueInfo(OptimizedFunction);
-
-  revng::verify(OptimizedFunction->getParent());
-
-  // Collect the results.
-  collectAVIResults(M, AR);
-
-  // Drop the optimized function.
-  eraseFromParent(OptimizedFunction);
-
-  // Drop temporary functions.
-  SCB.cleanup();
 }
 
 // Harvesting proceeds trying to avoid to run expensive analyses if not strictly
@@ -1890,7 +1196,8 @@ void JumpTargetManager::harvest() {
       for (User *U : NewPCFunction->users()) {
         auto *Call = cast<CallInst>(U);
         if (Call->getParent() != nullptr) {
-          // Report the instruction on the coverage CSV
+          // Report the instruction on
+          // the coverage CSV
           MetaAddress PC = addressFromNewPC(Call);
           bool IsJT = isJumpTarget(PC);
           Call->setArgOperand(2, Builder.getInt32(static_cast<uint32_t>(IsJT)));
@@ -1915,9 +1222,9 @@ void JumpTargetManager::harvest() {
     PreliminaryBranchesPM.run(TheModule);
 
     if (empty()) {
-      HarvestingStats.push("harvest 3: harvestWithAVI");
+      HarvestingStats.push("harvest 3: cloneOptimizeAndHarvest");
       revng_log(JTCountLog, "Harvesting with Advanced Value Info");
-      harvestWithAVI();
+      RootAnalyzer(*this).cloneOptimizeAndHarvest(TheFunction);
     }
 
     // TODO: eventually, `setCFGForm` should be replaced by using a CustomCFG
