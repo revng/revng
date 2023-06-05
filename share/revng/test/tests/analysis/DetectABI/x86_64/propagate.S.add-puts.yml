@@ -1,0 +1,26 @@
+#
+# This file is distributed under the MIT LIcense. See LICENSE.md for details.
+#
+
+---
+Changes:
+  - Path: "/ImportedDynamicFunctions/puts/Prototype"
+    Add: "/Types/CABIFunctionType-5831792892140344958"
+    Remove: ""
+  - Path: "/Types"
+    Add:
+      Kind: CABIFunctionType
+      ID: 5831792892140344958
+      ABI: SystemV_x86_64
+      ReturnType:
+        UnqualifiedType: "/Types/PrimitiveType-1540"
+      Arguments:
+        - Index: 0
+          Type:
+            UnqualifiedType: "/Types/PrimitiveType-1537"
+            Qualifiers:
+              - Kind: Pointer
+                Size: 8
+              - Kind: Const
+          CustomName: "str"
+          OriginalName: str
