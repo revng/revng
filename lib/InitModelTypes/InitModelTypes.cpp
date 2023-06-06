@@ -179,14 +179,27 @@ static TypeVector getReturnTypes(FunctionMetadataCache &Cache,
   revng_assert(CalledFunc);
 
   if (FunctionTags::Parentheses.isTagOf(CalledFunc)
-      || FunctionTags::Copy.isTagOf(CalledFunc)
-      || FunctionTags::UnaryMinus.isTagOf(CalledFunc)) {
+      or FunctionTags::Copy.isTagOf(CalledFunc)
+      or FunctionTags::UnaryMinus.isTagOf(CalledFunc)) {
+
     const llvm::Value *Arg = Call->getArgOperand(0);
 
-    // Forward the type
-    auto It = TypeMap.find(Arg);
-    if (It != TypeMap.end())
-      ReturnTypes.push_back(It->second);
+    if (auto *ConstInt = dyn_cast<llvm::ConstantInt>(Arg);
+        ConstInt and FunctionTags::UnaryMinus.isTagOf(CalledFunc)) {
+      unsigned BitWidth = ConstInt->getType()->getIntegerBitWidth();
+      unsigned ByteSize = std::max(1U, BitWidth / 8U);
+      using model::PrimitiveTypeKind::Signed;
+      auto SignedInt = model::QualifiedType(Model.getPrimitiveType(Signed,
+                                                                   ByteSize),
+                                            {});
+      revng_assert(SignedInt.verify());
+      ReturnTypes.push_back(std::move(SignedInt));
+    } else {
+      // Forward the type
+      auto It = TypeMap.find(Arg);
+      if (It != TypeMap.end())
+        ReturnTypes.push_back(It->second);
+    }
 
   } else if (FunctionTags::QEMU.isTagOf(CalledFunc)
              or FunctionTags::Helper.isTagOf(CalledFunc)
