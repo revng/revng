@@ -2,7 +2,16 @@
 // Copyright rev.ng Labs Srl. See LICENSE.md for details.
 //
 
+#include <compare>
+#include <map>
+#include <set>
+#include <unordered_map>
+#include <vector>
+
 #include "llvm/ADT/EquivalenceClasses.h"
+#include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SetOperations.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
@@ -12,21 +21,14 @@
 #include "llvm/Support/Casting.h"
 
 #include "revng/ADT/SmallMap.h"
+#include "revng/ADT/ZipMapIterator.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
-using llvm::AllocaInst;
-using llvm::AnalysisUsage;
-using llvm::BasicBlock;
-using llvm::Function;
-using llvm::FunctionPass;
-using llvm::IRBuilder;
-using llvm::PHINode;
-using llvm::RegisterPass;
-using llvm::Use;
-using llvm::User;
-using llvm::Value;
+#include "MarkAssignments/LivenessAnalysis.h"
+
+using namespace llvm;
 
 static Logger<> Log{ "exit-ssa" };
 
@@ -43,26 +45,91 @@ public:
   }
 };
 
-static std::vector<std::set<PHINode *>> getPHIEquivalenceClasses(Function &F) {
+static std::vector<std::set<PHINode *>>
+getPHIEquivalenceClasses(Function &F,
+                         const LivenessAnalysis::LivenessMap &LiveIn) {
 
-  llvm::EquivalenceClasses<PHINode *> PHIEquivalenceClasses;
+  // PHINodes in the same class are mapped onto the same local variable.
+  llvm::EquivalenceClasses<PHINode *> PHISameVariableClasses;
 
-  for (BasicBlock &BB : F) {
-    for (auto &PHI : BB.phis()) {
+  std::unordered_map<const PHINode *, std::set<const BasicBlock *>>
+    VariableLiveSet;
 
-      PHIEquivalenceClasses.insert(&PHI);
+  auto RPOT = llvm::ReversePostOrderTraversal(&F);
 
+  for (const BasicBlock *BB : RPOT) {
+
+    for (const PHINode &PHI : BB->phis())
+      VariableLiveSet[&PHI] = {};
+
+    auto LiveIt = LiveIn.find(BB);
+    if (LiveIt == LiveIn.end())
+      continue;
+
+    for (const Instruction *I : LiveIn.at(BB))
+      if (const PHINode *PHI = dyn_cast<const PHINode>(I))
+        VariableLiveSet[PHI].insert(BB);
+  }
+
+  const auto InitVariableClass = [&PHISameVariableClasses](PHINode *PHI) {
+    if (PHISameVariableClasses.findValue(PHI) != PHISameVariableClasses.end())
+      return;
+
+    PHISameVariableClasses.insert(PHI);
+    return;
+  };
+
+  for (BasicBlock *BB : RPOT) {
+    for (auto &PHI : BB->phis()) {
+
+      // Set up an equivalence class for PHI, if necessary
+      InitVariableClass(&PHI);
+
+      // Then, for each user, if it's a PHINode, try to see if we can insert it
+      // in the same equivalence class as PHI.
       for (User *U : PHI.users()) {
-        if (auto *PHIUser = dyn_cast<PHINode>(U)) {
-          PHIEquivalenceClasses.insert(PHIUser);
-          PHIEquivalenceClasses.unionSets(&PHI, PHIUser);
-        }
-      }
+        auto *PHIUser = dyn_cast<PHINode>(U);
+        if (not PHIUser or PHIUser == &PHI)
+          continue;
 
-      for (Value *Incoming : PHI.incoming_values()) {
-        if (auto *PHIIncoming = dyn_cast<PHINode>(Incoming)) {
-          PHIEquivalenceClasses.insert(PHIIncoming);
-          PHIEquivalenceClasses.unionSets(&PHI, PHIIncoming);
+        // Set up an equivalence class for PHIUser, if necessary.
+        // Sometimes this might not be necessary, because we might have already
+        // seen the PHIUser in case of loops. If this happens everything is
+        // already set up for the PHIUser and the following call is a nop. But
+        // we still have to do it because otherwise the following isEquivalent
+        // call might fail.
+        InitVariableClass(PHIUser);
+
+        // If PHI and PHIUser are already in the same equivalence class, there's
+        // nothing to do.
+        if (PHISameVariableClasses.isEquivalent(&PHI, PHIUser))
+          continue;
+
+        PHINode *PHILeader = PHISameVariableClasses.getLeaderValue(&PHI);
+        PHINode *UserLeader = PHISameVariableClasses.getLeaderValue(PHIUser);
+
+        // Now let's see if there are conflicting live sets.
+        auto PHILiveSetIt = VariableLiveSet.find(PHILeader);
+        revng_assert(PHILiveSetIt != VariableLiveSet.end());
+        auto UserLiveSetIt = VariableLiveSet.find(UserLeader);
+        revng_assert(UserLiveSetIt != VariableLiveSet.end());
+
+        // If there are conflicting live sets it means that the two sets of PHIs
+        // hold different values that must be kept alive at the same time,
+        // otherwise we'll lose one of them on at least one path.
+        // In this case we have to bail out.
+        if (not llvm::set_intersection(PHILiveSetIt->second,
+                                       UserLiveSetIt->second)
+                  .empty())
+          continue;
+
+        // Here the two are compatible so we join the equivalence classes.
+        PHISameVariableClasses.unionSets(&PHI, PHIUser);
+
+        // Finally we do the same with the live ranges.
+        {
+          auto Handle = VariableLiveSet.extract(UserLiveSetIt);
+          PHILiveSetIt->second.merge(std::move(Handle.mapped()));
         }
       }
     }
@@ -70,8 +137,8 @@ static std::vector<std::set<PHINode *>> getPHIEquivalenceClasses(Function &F) {
 
   std::vector<std::set<PHINode *>> Result;
 
-  auto I = PHIEquivalenceClasses.begin();
-  auto E = PHIEquivalenceClasses.end();
+  auto I = PHISameVariableClasses.begin();
+  auto E = PHISameVariableClasses.end();
   // Iterate over all of the members.
   for (; I != E; ++I) {
 
@@ -79,11 +146,11 @@ static std::vector<std::set<PHINode *>> getPHIEquivalenceClasses(Function &F) {
     if (not I->isLeader())
       continue;
 
-    // The iterate all over the elements of a class, and build the set of
+    // Then iterate all over the elements of a class, and build the set of
     // PHINodes that represent that class.
     std::set<PHINode *> PHISet;
-    auto PHIRange = llvm::make_range(PHIEquivalenceClasses.member_begin(I),
-                                     PHIEquivalenceClasses.member_end());
+    auto PHIRange = llvm::make_range(PHISameVariableClasses.member_begin(I),
+                                     PHISameVariableClasses.member_end());
     for (PHINode *PHI : PHIRange)
       PHISet.insert(PHI);
 
@@ -115,13 +182,17 @@ replacePHIEquivalenceClass(const std::set<PHINode *> &PHIs, Function &F) {
       revng_log(Log, "PHI: " << dumpToString(PHI));
       LoggerIndent IndentPHI{ Log };
 
+      // TODO: if there are duplicated incoming values from different blocks, we
+      // should think of inserting a new BasicBlock with only one single store
+      // instead of many StoreInst, one for each incoming block.
       for (Use &IncomingUse : PHI->incoming_values()) {
         Value *Incoming = IncomingUse.get();
         revng_log(Log, "Incoming: " << dumpToString(Incoming));
 
         // Skip PHINodes. They are already part of PHIs and they will be
         // handled in consequent operations.
-        if (llvm::isa<PHINode>(Incoming))
+        if (auto *IncomingPHI = dyn_cast<PHINode>(Incoming);
+            Incoming and PHIs.contains(IncomingPHI))
           continue;
 
         llvm::BasicBlock *BB = PHI->getIncomingBlock(IncomingUse);
@@ -154,7 +225,7 @@ replacePHIEquivalenceClass(const std::set<PHINode *> &PHIs, Function &F) {
 
         Value *NewOperand = nullptr;
         if (isa<PHINode>(U.getUser()))
-          NewOperand = llvm::UndefValue::get(PHI->getType());
+          NewOperand = UndefValue::get(PHI->getType());
         else
           NewOperand = NewLoad;
         revng_log(Log, "replaced with: " << dumpToString(NewOperand));
@@ -187,12 +258,14 @@ bool ExitSSAPass::runOnFunction(Function &F) {
 
   bool Changed = false;
 
+  LivenessAnalysis::LivenessMap LiveIn = computeLiveness(F);
+
   // A vector containing sets of equivalence classes of PHINodes.
   // Each equivalence class is composed of connected PHINodes that can form
   // trees, a DAGs, or even loops.
   // Informally, all the PHINodes in a group hold the same value, and we want to
   // create a single local variable for each DAG.
-  const auto PHIClasses = getPHIEquivalenceClasses(F);
+  const auto PHIClasses = getPHIEquivalenceClasses(F, LiveIn);
   for (const auto &PHIGroup : PHIClasses)
     replacePHIEquivalenceClass(PHIGroup, F);
   Changed |= not PHIClasses.empty();
