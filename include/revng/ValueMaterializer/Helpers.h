@@ -20,9 +20,3 @@ std::string aviFormatter(const llvm::APInt &Value);
 inline bool isPhiLike(llvm::Value *V) {
   return (llvm::isa<llvm::PHINode>(V) or llvm::isa<llvm::SelectInst>(V));
 }
-
-inline bool isMemory(llvm::Value *V) {
-  using namespace llvm;
-  V = skipCasts(V);
-  return not(isa<GlobalVariable>(V) or isa<AllocaInst>(V));
-}
