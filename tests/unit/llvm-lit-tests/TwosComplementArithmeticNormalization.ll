@@ -272,7 +272,7 @@ define i1 @twoscomplement_norm_move_const_uge(i16 %0) !revng.tags !0 {
 define i1 @neg_neg(i16 %0) !revng.tags !0 {
   ; CHECK: %2 = call i16 @unary_minus.2(i16 7)
   ; CHECK-NEXT: %3 = icmp ult i16 %0, %2
-  ; CHECK-NEXT: %4 = icmp ugt i16 %0, 3
+  ; CHECK-NEXT: %4 = icmp uge i16 %0, 4
   ; CHECK-NEXT: %5 = and i1 %3, %4
   %2 = add i16 %0, -4
   %3 = icmp ult i16 %2, -11

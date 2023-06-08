@@ -2,8 +2,10 @@
 // Copyright rev.ng Labs Srl. See LICENSE.md for details.
 //
 
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/MDBuilder.h"
@@ -72,16 +74,10 @@ public:
   }
 };
 
-static bool isSignedComparison(llvm::ICmpInst::Predicate P) {
-  return P == llvm::ICmpInst::Predicate::ICMP_SGE
-         or P == llvm::ICmpInst::Predicate::ICMP_SGT
-         or P == llvm::ICmpInst::Predicate::ICMP_SLE
-         or P == llvm::ICmpInst::Predicate::ICMP_SLT;
-}
+using Predicate = llvm::ICmpInst::Predicate;
 
-static bool isEqualityComparison(llvm::ICmpInst::Predicate P) {
-  return P == llvm::ICmpInst::Predicate::ICMP_EQ
-         or P == llvm::ICmpInst::Predicate::ICMP_NE;
+static bool isGreater(Predicate P) {
+  return llvm::ICmpInst::isGE(P) or llvm::ICmpInst::isGT(P);
 }
 
 bool TANP::runOnFunction(llvm::Function &F) {
@@ -181,95 +177,71 @@ bool TANP::runOnFunction(llvm::Function &F) {
           NewV = Builder.CreateSRem(UnaryMinus, Val);
         }
 
-      } else if (ICmpInst::Predicate Pred;
+      } else if (Predicate Pred;
                  match(&I, m_ICmp(Pred, m_Value(Val), m_APInt(Int)))) {
 
         const auto IntType = Val->getType();
 
-        llvm::Value *LHS = nullptr;
+        llvm::Value *Unknown = nullptr;
         const APInt *RHS = nullptr;
-        if (match(Val, m_Add(m_Value(LHS), m_APInt(RHS)))) {
-          bool Overflow = false;
-          APInt NewInt = isSignedComparison(Pred) ?
-                           Int->ssub_ov(*RHS, Overflow) :
-                           Int->usub_ov(*RHS, Overflow);
+        if (match(Val, m_Add(m_Value(Unknown), m_APInt(RHS)))
+            or match(Val, m_Sub(m_Value(Unknown), m_APInt(RHS)))) {
+          // Compute the new RHS if we move the RHS to the right of the
+          // comparison operator, adusting the old value of Int.
+          using llvm::Instruction::Add;
+          bool IsAdd = cast<llvm::Instruction>(Val)->getOpcode() == Add;
+          APInt NewRHS = IsAdd ? (*Int - *RHS) : (*Int + *RHS);
           Builder.SetInsertPoint(I.getNextNonDebugInstruction());
           NewV = Builder.CreateICmp(Pred,
-                                    LHS,
-                                    ConstantInt::get(IntType, NewInt));
+                                    Unknown,
+                                    ConstantInt::get(IntType, NewRHS));
 
-          if (not isEqualityComparison(Pred) and Overflow) {
-            // Here we don't have overflow, and it's not an equality comparison,
-            // so we have to handle wraparound
-            llvm::ICmpInst::Predicate P;
-            switch (Pred) {
-            case llvm::ICmpInst::Predicate::ICMP_SGE:
-            case llvm::ICmpInst::Predicate::ICMP_SGT: {
-              P = llvm::ICmpInst::Predicate::ICMP_SLT;
-            } break;
+          // If the predicate is relational, I is an inequality, meaning that it
+          // has a range of results, that wraps around, and we have to take care
+          // of that to avoid breaking semantics.
+          if (llvm::ICmpInst::isRelational(Pred)) {
+            unsigned BitWidth = RHS->getBitWidth();
+            bool IsSigned = llvm::ICmpInst::isSigned(Pred);
+            APInt Min = IsSigned ? APInt::getSignedMinValue(BitWidth) :
+                                   /*Unsigned*/ APInt::getMinValue(BitWidth);
+            APInt Max = IsSigned ? APInt::getSignedMaxValue(BitWidth) :
+                                   /*Unsigned*/ APInt::getMaxValue(BitWidth);
+            APInt MinPlusRHS = Min + *RHS;
+            APInt MaxMinusRHS = Max - *RHS;
 
-            case llvm::ICmpInst::Predicate::ICMP_UGE:
-            case llvm::ICmpInst::Predicate::ICMP_UGT: {
-              P = llvm::ICmpInst::Predicate::ICMP_ULT;
-            } break;
+            // The limit for discriminating the two cases of solutions for the
+            // inequalities
+            APInt IntLimit = IsAdd ? MinPlusRHS : /*Sub*/ MaxMinusRHS;
 
-            case llvm::ICmpInst::Predicate::ICMP_SLE:
-            case llvm::ICmpInst::Predicate::ICMP_SLT: {
-              P = llvm::ICmpInst::Predicate::ICMP_SGT;
-            } break;
+            // TODO: if Int and IntLimit have the same value we can avoid
+            // creating two inqualities.
+            // Basically we can ditch Int altogether and only emit expressions
+            // that depend on RHS and MinPlusRHS or MaxMinusRHS.
+            // When checked on tests though, this turned out to never happen so
+            // we haven't implemented this yet.
 
-            case llvm::ICmpInst::Predicate::ICMP_ULE:
-            case llvm::ICmpInst::Predicate::ICMP_ULT: {
-              P = llvm::ICmpInst::Predicate::ICMP_UGT;
-            } break;
+            bool IsGreater = isGreater(Pred);
+            Predicate WrappingPredicate = IsGreater ?
+                                            (IsSigned ? Predicate::ICMP_SLT :
+                                                        Predicate::ICMP_ULT) :
+                                            /*IsLower*/
+                                            (IsSigned ? Predicate::ICMP_SGE :
+                                                        Predicate::ICMP_UGE);
 
-            default:
-              revng_abort();
-            }
-            auto *NotRHS = ConstantInt::get(IntType, ~*RHS);
-            NewV = Builder.CreateAnd(NewV, Builder.CreateICmp(P, LHS, NotRHS));
-          }
-        } else if (match(Val, m_Sub(m_Value(LHS), m_APInt(RHS)))) {
-          bool Overflow = false;
-          APInt NewInt = isSignedComparison(Pred) ?
-                           Int->ssub_ov(-*RHS, Overflow) :
-                           Int->usub_ov(-*RHS, Overflow);
-          Builder.SetInsertPoint(I.getNextNonDebugInstruction());
-          NewV = Builder.CreateICmp(Pred,
-                                    LHS,
-                                    ConstantInt::get(IntType, NewInt));
+            // The value at which Unknown + RHS wraps back
+            APInt WrappingValue = IsAdd ? MaxMinusRHS : /*Sub*/ MinPlusRHS;
+            auto *WrapConst = llvm::ConstantInt::get(IntType, WrappingValue);
+            llvm::Value *WrappingComparison = Builder
+                                                .CreateICmp(WrappingPredicate,
+                                                            Unknown,
+                                                            WrapConst);
 
-          if (not isEqualityComparison(Pred) and Overflow) {
-            // Here we don't have overflow, and it's not an equality comparison,
-            // so we have to handle wraparound
-            llvm::ICmpInst::Predicate P;
-            switch (Pred) {
-            case llvm::ICmpInst::Predicate::ICMP_SGE:
-            case llvm::ICmpInst::Predicate::ICMP_SGT: {
-              P = llvm::ICmpInst::Predicate::ICMP_SLT;
-            } break;
-
-            case llvm::ICmpInst::Predicate::ICMP_UGE:
-            case llvm::ICmpInst::Predicate::ICMP_UGT: {
-              P = llvm::ICmpInst::Predicate::ICMP_ULT;
-            } break;
-
-            case llvm::ICmpInst::Predicate::ICMP_SLE:
-            case llvm::ICmpInst::Predicate::ICMP_SLT: {
-              P = llvm::ICmpInst::Predicate::ICMP_SGT;
-            } break;
-
-            case llvm::ICmpInst::Predicate::ICMP_ULE:
-            case llvm::ICmpInst::Predicate::ICMP_ULT: {
-              P = llvm::ICmpInst::Predicate::ICMP_UGT;
-            } break;
-
-            default:
-              revng_abort();
-            }
-            auto *NotMinusRHS = ConstantInt::get(IntType, ~-*RHS);
-            NewV = Builder.CreateAnd(NewV,
-                                     Builder.CreateICmp(P, LHS, NotMinusRHS));
+            bool IntIntersectsAfterWrap = IsSigned ? Int->slt(IntLimit) :
+                                                     Int->ult(IntLimit);
+            if (IntIntersectsAfterWrap == IsGreater)
+              NewV = Builder.CreateOr(NewV, WrappingComparison);
+            else
+              NewV = Builder.CreateAnd(NewV, WrappingComparison);
           }
         } else if (Int->isSignBitSet()
                    and Int->isSignedIntN(IntType->getIntegerBitWidth())) {
