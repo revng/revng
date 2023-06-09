@@ -104,6 +104,8 @@ read_passes:
               - "verifyModule\\("
               - "verifyFunction\\("
               - "HideUnrelatedOptions\\("
+              - "//+.* clang-format o(?:ff|n)"
+              - "/\\*+.* clang-format o(?:ff|n)"
         - name: Found snippets that shouldn't be at the end of a line
           matcher:
             type: regexes_matcher

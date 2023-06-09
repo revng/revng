@@ -238,11 +238,9 @@ public:
   }
 };
 
-// clang-format off
-using CommandRunner = std::function<void(RunnerContext &Context,
+using CommandRunner = std::function<void(/* format */ RunnerContext &Context,
                                          ArgumentsRef Arguments,
                                          ReturnRef Return)>;
-// clang-format on
 
 static void
 softAssert(const RunnerContext &Context, bool Check, const char *Message) {

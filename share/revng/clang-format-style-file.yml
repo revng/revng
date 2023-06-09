@@ -164,7 +164,7 @@
   SpacesInSquareBrackets: false,
   Standard: Latest,
   StatementAttributeLikeMacros: ["Q_EMIT"],
-  StatementMacros: ["Q_UNUSED", "QT_REQUIRE_VERSION"],
+  StatementMacros: ["Q_UNUSED", "QT_REQUIRE_VERSION", "_Pragma"],
   TabWidth: 2,
   UseTab: Never,
   WhitespaceSensitiveMacros:

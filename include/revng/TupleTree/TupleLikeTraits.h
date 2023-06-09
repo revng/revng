@@ -20,7 +20,16 @@ struct TupleLikeTraits {
   };
 };
 
-// clang-format off
+namespace detail {
+
+template<typename T>
+using Tuple = typename TupleLikeTraits<T>::tuple;
+
+template<typename T>
+concept HasTuple = StrictSpecializationOf<Tuple<T>, std::tuple>;
+
+} // namespace detail
+
 template<typename T>
 concept TraitedTupleLike = requires {
   { TupleLikeTraits<T>::Name } -> std::convertible_to<std::string_view>;
@@ -31,9 +40,7 @@ concept TraitedTupleLike = requires {
 
   typename TupleLikeTraits<T>::tuple;
   typename TupleLikeTraits<T>::Fields;
-} && StrictSpecializationOf<typename TupleLikeTraits<T>::tuple, std::tuple>
-  && std::is_enum_v<typename TupleLikeTraits<T>::Fields>;
-// clang-format on
+} && detail::HasTuple<T> && std::is_enum_v<typename TupleLikeTraits<T>::Fields>;
 
 //
 // Implementation of MappingTraits for TupleLikeTraits implementors

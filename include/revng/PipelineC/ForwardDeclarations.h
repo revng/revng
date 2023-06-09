@@ -37,11 +37,9 @@ public:
     Message(std::move(Message)), ErrorType(std::move(Type)) {}
 };
 
-// clang-format off
-using rp_error = std::variant<std::monostate,
+using rp_error = std::variant<std::monostate /* allows "no value" state */,
                               rp_simple_error,
                               rp_document_error>;
-// clang-format on
 
 typedef revng::pipes::PipelineManager rp_manager;
 typedef const pipeline::Kind rp_kind;
