@@ -42,7 +42,12 @@ struct /*= struct | fullname =*/
 
   /** if struct.inherits **/
   static constexpr const /*= struct.inherits.name =*/Kind::Values AssociatedKind = /*= struct.inherits.name =*/Kind::/*= struct.name =*/;
-  /**- endif **/
+  using Parent = /*= struct.inherits | user_fullname =*/;
+  /**- else **//** if struct.abstract **/
+  using Parent = /*= struct | user_fullname =*/;
+  /**- else **/
+  using Parent = void;
+  /**- endif **//** endif **/
 
   /*#- --- Member list --- #*/
   /**- for field in struct.fields **/
