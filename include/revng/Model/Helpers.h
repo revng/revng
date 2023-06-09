@@ -6,6 +6,7 @@
 
 #include <string>
 
+#include "revng/ADT/CompilationTime.h"
 #include "revng/ADT/Concepts.h"
 #include "revng/Model/DynamicFunction.h"
 #include "revng/Model/Function.h"
@@ -15,23 +16,28 @@
 namespace model {
 
 template<typename Type>
+concept EntityWithKey = requires(Type &&Value) {
+  { Value.key() } -> std::convertible_to<const typename Type::Key &>;
+};
+
+template<typename Type>
 concept EntityWithCustomName = requires(Type &&Value) {
-  { Value.CustomName() } -> convertible_to<model::Identifier &>;
+  { Value.CustomName() } -> std::convertible_to<model::Identifier &>;
 };
 
 template<typename Type>
 concept EntityWithOriginalName = requires(Type &&Value) {
-  { Value.OriginalName() } -> convertible_to<std::string &>;
+  { Value.OriginalName() } -> std::convertible_to<std::string &>;
 };
 
 template<typename Type>
 concept EntityWithComment = requires(Type &&Value) {
-  { Value.Comment() } -> convertible_to<std::string &>;
+  { Value.Comment() } -> std::convertible_to<std::string &>;
 };
 
 template<typename Type>
 concept EntityWithReturnValueComment = requires(Type &&Value) {
-  { Value.ReturnValueComment() } -> convertible_to<std::string &>;
+  { Value.ReturnValueComment() } -> std::convertible_to<std::string &>;
 };
 
 template<typename LHS, typename RHS>
@@ -74,61 +80,113 @@ LHS &moveMetadata(LHS &To, RHS &&From) {
 
 namespace editPath {
 
-template<typename T>
-inline std::string str(const T &Obj) {
-  return getNameFromYAMLScalar(Obj);
+namespace detail {
+
+template<typename Type, typename ValueType>
+concept EntityWithValueType = requires(Type::value_type Value) {
+  { static_cast<Type::value_type>(Value) } -> std::same_as<ValueType>;
 };
 
-inline std::string getCustomNamePath(const model::Segment &Segment) {
-  return "/Segments/" + str(Segment.key()) + "/CustomName";
+template<typename Type, typename ValueType>
+concept EntityWithUpcastableValueType = requires(Type::value_type Value) {
+  {
+    static_cast<Type::value_type>(Value)
+  } -> std::same_as<UpcastablePointer<ValueType>>;
+};
+
+template<typename T, typename RootT>
+struct RootContainerName {
+private:
+  using TLT = TupleLikeTraits<RootT>;
+  static constexpr std::size_t Size = std::tuple_size_v<typename TLT::tuple>;
+  static constexpr auto Index = compile_time::select<Size>([]<std::size_t I> {
+    using Element = typename std::tuple_element_t<I, typename TLT::tuple>;
+    return std::is_same_v<typename T::Parent, void> ?
+             EntityWithValueType<Element, T> :
+             EntityWithUpcastableValueType<Element, typename T::Parent>;
+  });
+  static_assert(Index.has_value());
+
+public:
+  static constexpr llvm::StringRef value = TLT::FieldNames[*Index];
+};
+
+template<typename RootT, EntityWithKey T>
+inline std::string pathImpl(const T &Value, std::string &&FieldName) {
+  return '/' + RootContainerName<T, RootT>::value.str() + '/'
+         + getNameFromYAMLScalar(Value.key()) + '/' + std::move(FieldName);
 }
 
-inline std::string getCustomNamePath(const model::DynamicFunction &DF) {
-  return "/ImportedDynamicFunctions/" + str(DF.key()) + "/CustomName";
+// TODO: it might be worth it to reimplement this in terms of TupleTreePaths
+//       instead of using string concatenation.
+template<typename RootT, typename T, typename KeyT>
+inline std::string pathImpl(const T &Value,
+                            std::string &&FirstFieldName,
+                            const KeyT &FieldKey,
+                            std::string &&SecondFieldName) {
+  return '/' + RootContainerName<T, RootT>::value.str() + '/'
+         + getNameFromYAMLScalar(Value.key()) + '/' + std::move(FirstFieldName)
+         + '/' + getNameFromYAMLScalar(FieldKey) + '/'
+         + std::move(SecondFieldName);
 }
 
-inline std::string getCustomNamePath(const model::Function &Function) {
-  return "/Functions/" + str(Function.key()) + "/CustomName";
+} // namespace detail
+
+template<EntityWithKey T>
+inline std::string customName(const T &Value) {
+  static_assert(EntityWithCustomName<T>);
+  return detail::pathImpl<model::Binary, T>(Value, "CustomName");
 }
 
-inline std::string getCustomNamePath(const model::Type &Type) {
-  return "/Types/" + str(Type.key()) + "/CustomName";
+inline std::string customName(const model::StructType &Struct,
+                              const model::StructField::Key Field) {
+  return detail::pathImpl<model::Binary>(Struct, "Fields", Field, "CustomName");
 }
-
-template<typename T>
-  requires std::same_as<model::UnionType, T>
-           or std::same_as<model::StructType, T>
-inline std::string getCustomNamePath(const T &Obj, uint64_t FieldIdx) {
-  return "/Types/" + str(Obj.key()) + "/Fields/" + std::to_string(FieldIdx)
-         + "/CustomName";
-}
-
-inline std::string getCustomNamePath(const model::StructType &Struct,
-                                     const model::StructField Field) {
-  return "/Types/" + str(Struct.key()) + "/Fields/" + str(Field.key())
-         + "/CustomName";
-}
-
-inline std::string getCustomNamePath(const model::UnionType &Union,
-                                     const model::UnionField Field) {
-  return "/Types/" + str(Union.key()) + "/Fields/" + str(Field.key())
-         + "/CustomName";
+inline std::string
+customName(const model::StructType &Struct, const model::StructField &Field) {
+  return customName(Struct, Field.key());
 }
 
 inline std::string
-getCustomNamePath(const model::EnumType &Type, const model::EnumEntry &Entry) {
-  return "/Types/" + str(Type.key()) + "/" + str(Entry.key()) + "/CustomName";
+customName(const model::UnionType &Union, const model::UnionField::Key Field) {
+  return detail::pathImpl<model::Binary>(Union, "Fields", Field, "CustomName");
+}
+inline std::string
+customName(const model::UnionType &Union, const model::UnionField &Field) {
+  return customName(Union, Field.key());
 }
 
-inline std::string getCustomNamePath(const model::CABIFunctionType &Function,
-                                     const model::Argument &Argument) {
-  return "/Types/" + str(Function.key()) + "/" + str(Argument.key())
-         + "/CustomName";
+inline std::string
+customName(const model::EnumType &Enum, const model::EnumEntry::Key &Entry) {
+  return detail::pathImpl<model::Binary>(Enum, "Entries", Entry, "CustomName");
+}
+inline std::string
+customName(const model::EnumType &Enum, const model::EnumEntry &Entry) {
+  return customName(Enum, Entry.key());
 }
 
-inline std::string getCustomNamePath(const model::RawFunctionType &Function,
-                                     const model::NamedTypedRegister &NTR) {
-  return "/Types/" + str(Function.key()) + "/" + str(NTR.key()) + "/CustomName";
+inline std::string customName(const model::CABIFunctionType &Function,
+                              const model::Argument::Key &Argument) {
+  return detail::pathImpl<model::Binary>(Function,
+                                         "Arguments",
+                                         Argument,
+                                         "CustomName");
+}
+inline std::string customName(const model::CABIFunctionType &Function,
+                              const model::Argument &Argument) {
+  return customName(Function, Argument.key());
+}
+
+inline std::string customName(const model::RawFunctionType &Function,
+                              const model::NamedTypedRegister::Key &Argument) {
+  return detail::pathImpl<model::Binary>(Function,
+                                         "Arguments",
+                                         Argument,
+                                         "CustomName");
+}
+inline std::string customName(const model::RawFunctionType &Function,
+                              const model::NamedTypedRegister &Argument) {
+  return customName(Function, Argument.key());
 }
 
 } // namespace editPath
