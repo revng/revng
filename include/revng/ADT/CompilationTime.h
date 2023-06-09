@@ -31,6 +31,21 @@ repeatOr(std::index_sequence<Indices...>, TemplatedCallableType &&Callable) {
   return (Callable.template operator()<Indices>() || ...);
 }
 
+template<typename TemplatedCallableType, std::size_t... Indices>
+constexpr std::size_t
+count(std::index_sequence<Indices...>, TemplatedCallableType &&Callable) {
+  return ((Callable.template operator()<Indices>() ? 1 : 0) + ...);
+}
+
+template<typename TemplatedCallableType, std::size_t... Indices>
+constexpr std::optional<std::size_t>
+select(std::index_sequence<Indices...> Is, TemplatedCallableType &&Callable) {
+  if (count(Is, Callable) == 1)
+    return ((Callable.template operator()<Indices>() ? Indices : 0) + ...);
+  else
+    return std::nullopt;
+}
+
 } // namespace detail
 
 template<std::size_t IterationCount, typename CallableType>
@@ -49,6 +64,12 @@ template<std::size_t IterationCount, typename CallableType>
 constexpr bool repeatOr(CallableType &&Callable) {
   return detail::repeatOr(std::make_index_sequence<IterationCount>(),
                           std::forward<CallableType>(Callable));
+}
+
+template<std::size_t IterationCount, typename CallableType>
+constexpr std::optional<std::size_t> select(CallableType &&Callable) {
+  return detail::select(std::make_index_sequence<IterationCount>(),
+                        std::forward<CallableType>(Callable));
 }
 
 namespace examples {
