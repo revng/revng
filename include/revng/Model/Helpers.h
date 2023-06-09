@@ -7,7 +7,10 @@
 #include <string>
 
 #include "revng/ADT/Concepts.h"
+#include "revng/Model/DynamicFunction.h"
+#include "revng/Model/Function.h"
 #include "revng/Model/Identifier.h"
+#include "revng/Model/Segment.h"
 
 namespace model {
 
@@ -68,5 +71,66 @@ LHS &moveMetadata(LHS &To, RHS &&From) {
 
   return To;
 }
+
+namespace editPath {
+
+template<typename T>
+inline std::string str(const T &Obj) {
+  return getNameFromYAMLScalar(Obj);
+};
+
+inline std::string getCustomNamePath(const model::Segment &Segment) {
+  return "/Segments/" + str(Segment.key()) + "/CustomName";
+}
+
+inline std::string getCustomNamePath(const model::DynamicFunction &DF) {
+  return "/ImportedDynamicFunctions/" + str(DF.key()) + "/CustomName";
+}
+
+inline std::string getCustomNamePath(const model::Function &Function) {
+  return "/Functions/" + str(Function.key()) + "/CustomName";
+}
+
+inline std::string getCustomNamePath(const model::Type &Type) {
+  return "/Types/" + str(Type.key()) + "/CustomName";
+}
+
+template<typename T>
+  requires std::same_as<model::UnionType, T>
+           or std::same_as<model::StructType, T>
+inline std::string getCustomNamePath(const T &Obj, uint64_t FieldIdx) {
+  return "/Types/" + str(Obj.key()) + "/Fields/" + std::to_string(FieldIdx)
+         + "/CustomName";
+}
+
+inline std::string getCustomNamePath(const model::StructType &Struct,
+                                     const model::StructField Field) {
+  return "/Types/" + str(Struct.key()) + "/Fields/" + str(Field.key())
+         + "/CustomName";
+}
+
+inline std::string getCustomNamePath(const model::UnionType &Union,
+                                     const model::UnionField Field) {
+  return "/Types/" + str(Union.key()) + "/Fields/" + str(Field.key())
+         + "/CustomName";
+}
+
+inline std::string
+getCustomNamePath(const model::EnumType &Type, const model::EnumEntry &Entry) {
+  return "/Types/" + str(Type.key()) + "/" + str(Entry.key()) + "/CustomName";
+}
+
+inline std::string getCustomNamePath(const model::CABIFunctionType &Function,
+                                     const model::Argument &Argument) {
+  return "/Types/" + str(Function.key()) + "/" + str(Argument.key())
+         + "/CustomName";
+}
+
+inline std::string getCustomNamePath(const model::RawFunctionType &Function,
+                                     const model::NamedTypedRegister &NTR) {
+  return "/Types/" + str(Function.key()) + "/" + str(NTR.key()) + "/CustomName";
+}
+
+} // namespace editPath
 
 } // namespace model
