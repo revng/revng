@@ -117,11 +117,6 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Tag &TheTag) {
   return OS;
 }
 
-template<typename T>
-inline std::string str(const T &Obj) {
-  return getNameFromYAMLScalar(Obj);
-};
-
 /// Helper class that allows RAII-style handling of content-less tags, opening
 /// them at construction and closing them when the object goes out of scope
 /// \code{.cpp}
