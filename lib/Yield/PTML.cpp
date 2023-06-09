@@ -105,7 +105,7 @@ static LabelDescription labelImpl(const BasicBlockID &BasicBlock,
     return LabelDescription{
       .Name = ModelFunction->name().str().str(),
       .Location = serializedLocation(ranks::Function, ModelFunction->key()),
-      .Path = model::editPath::getCustomNamePath(*ModelFunction)
+      .Path = model::editPath::customName(*ModelFunction)
     };
   } else if (CFG.contains(BasicBlock)) {
     return LabelDescription{
