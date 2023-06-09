@@ -189,6 +189,81 @@ inline std::string customName(const model::RawFunctionType &Function,
   return customName(Function, Argument.key());
 }
 
+template<EntityWithKey T>
+inline std::string comment(const T &Value) {
+  static_assert(EntityWithComment<T>);
+  return detail::pathImpl<model::Binary, T>(Value, "Comment");
+}
+
+inline std::string comment(const model::StructType &Struct,
+                           const model::StructField::Key Field) {
+  return detail::pathImpl<model::Binary>(Struct, "Fields", Field, "Comment");
+}
+inline std::string comment(const model::StructType &Struct,
+                           const model::StructField &Field) {
+  return comment(Struct, Field.key());
+}
+
+inline std::string comment(const model::UnionType &Union,
+                           const model::UnionField::Key Field) {
+  return detail::pathImpl<model::Binary>(Union, "Fields", Field, "Comment");
+}
+inline std::string comment(const model::UnionType &Union,
+                           const model::UnionField &Field) {
+  return comment(Union, Field.key());
+}
+
+inline std::string comment(const model::EnumType &Enum,
+                           const model::EnumEntry::Key &Entry) {
+  return detail::pathImpl<model::Binary>(Enum, "Entries", Entry, "Comment");
+}
+inline std::string comment(const model::EnumType &Enum,
+                           const model::EnumEntry &Entry) {
+  return comment(Enum, Entry.key());
+}
+
+inline std::string comment(const model::CABIFunctionType &Function,
+                           const model::Argument::Key &Argument) {
+  return detail::pathImpl<model::Binary>(Function,
+                                         "Arguments",
+                                         Argument,
+                                         "Comment");
+}
+inline std::string comment(const model::CABIFunctionType &Function,
+                           const model::Argument &Argument) {
+  return comment(Function, Argument.key());
+}
+
+inline std::string comment(const model::RawFunctionType &Function,
+                           const model::NamedTypedRegister::Key &Argument) {
+  return detail::pathImpl<model::Binary>(Function,
+                                         "Arguments",
+                                         Argument,
+                                         "Comment");
+}
+inline std::string comment(const model::RawFunctionType &Function,
+                           const model::NamedTypedRegister &Argument) {
+  return comment(Function, Argument.key());
+}
+
+inline std::string comment(const model::RawFunctionType &Function,
+                           const model::TypedRegister::Key &ReturnValue) {
+  return detail::pathImpl<model::Binary>(Function,
+                                         "ReturnValues",
+                                         ReturnValue,
+                                         "Comment");
+}
+inline std::string comment(const model::RawFunctionType &Function,
+                           const model::TypedRegister &ReturnValue) {
+  return comment(Function, ReturnValue.key());
+}
+
+template<EntityWithKey T>
+inline std::string returnValueComment(const T &Value) {
+  static_assert(EntityWithReturnValueComment<T>);
+  return detail::pathImpl<model::Binary, T>(Value, "ReturnValueComment");
+}
+
 } // namespace editPath
 
 } // namespace model
