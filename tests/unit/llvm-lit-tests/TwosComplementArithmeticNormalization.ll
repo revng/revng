@@ -279,4 +279,16 @@ define i1 @neg_neg(i16 %0) !revng.tags !0 {
   ret i1 %3
 }
 
+define i1 @twoscomplement_norm_boolean_not(i8 %0) !revng.tags !0 {
+  ; CHECK: %2 = call i1 @boolean_not(i8 %0)
+  ; CHECK-NEXT: br i1 %2, label %If, label %Else
+
+  %2 = icmp eq i8 %0, 0
+  br i1 %2, label %If, label %Else
+  If:
+  ret i1 0
+  Else:
+  ret i1 1
+}
+
 !0 = !{!"Isolated"}

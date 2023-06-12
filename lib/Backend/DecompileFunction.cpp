@@ -162,6 +162,7 @@ static bool isCallToCustomOpcode(const llvm::Instruction *I) {
          or isCallToTagged(I, FunctionTags::SegmentRef)
          or isCallToTagged(I, FunctionTags::UnaryMinus)
          or isCallToTagged(I, FunctionTags::BinaryNot)
+         or isCallToTagged(I, FunctionTags::BooleanNot)
          or isCallToTagged(I, FunctionTags::StringLiteral);
 }
 
@@ -833,6 +834,12 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
       + ToNegate;
   }
 
+  if (isCallToTagged(Call, FunctionTags::BooleanNot)) {
+    auto Operand = Call->getArgOperand(0);
+    std::string ToNegate = rc_recur getToken(Operand);
+    rc_return ThePTMLCBuilder.getOperator(PTMLOperator::BoolNot) + ToNegate;
+  }
+
   if (isCallToTagged(Call, FunctionTags::StringLiteral)) {
     const auto Operand = Call->getArgOperand(0);
     std::string StringLiteral = rc_recur getToken(Operand);
@@ -1445,6 +1452,28 @@ CCodeGenerator::buildGHASTCondition(const ExprNode *E) {
     llvm::Instruction *CondTerminator = BB->getTerminator();
     llvm::BranchInst *Br = cast<llvm::BranchInst>(CondTerminator);
     revng_assert(Br->isConditional());
+
+    // Emit code for x != 0 case with cast.
+    auto *I = dyn_cast<llvm::Instruction>(Br->getCondition());
+    if (I) {
+      auto *Cmp = dyn_cast<llvm::CmpInst>(I);
+      const llvm::Value *Op1 = I->getOperand(1);
+      if (Cmp and Cmp->getPredicate() == llvm::CmpInst::ICMP_NE
+          and dyn_cast<llvm::Constant>(Op1)
+          and dyn_cast<llvm::Constant>(Op1)->isZeroValue()) {
+
+        const llvm::Value *Op0 = I->getOperand(0);
+        std::string Op0String = rc_recur getToken(Op0);
+        model::QualifiedType BoolTy;
+        using model::PrimitiveTypeKind::Unsigned;
+        BoolTy.UnqualifiedType() = Model.getPrimitiveType(Unsigned, 1);
+        rc_return addDebugInfo(I,
+                               buildCastExpr(Op0String,
+                                             TypeMap.at(Op0),
+                                             BoolTy),
+                               ThePTMLCBuilder);
+      }
+    }
     rc_return rc_recur getToken(Br->getCondition());
   } break;
 
