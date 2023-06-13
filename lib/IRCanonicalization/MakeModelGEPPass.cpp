@@ -249,37 +249,24 @@ struct tuple_element<I, IRAddend> {
 
 } // end namespace std
 
-static bool hasCoefficientUGT(const IRAddend &LHS, const IRAddend &RHS) {
-  revng_assert(LHS.coefficient()->getValue().isNonNegative());
-  revng_assert(RHS.coefficient()->getValue().isNonNegative());
-  auto MaxBitWidth = std::max(LHS.coefficient()->getValue().getBitWidth(),
-                              RHS.coefficient()->getValue().getBitWidth());
-  APInt LargeLHS = LHS.coefficient()->getValue().zext(MaxBitWidth);
-  APInt LargeRHS = RHS.coefficient()->getValue().zext(MaxBitWidth);
-
+static bool coefficientUGT(const APInt &LHS, const APInt &RHS) {
+  revng_assert(LHS.isNonNegative());
+  revng_assert(RHS.isNonNegative());
+  auto MaxBitWidth = std::max(LHS.getBitWidth(), RHS.getBitWidth());
+  APInt LargeLHS = LHS.zext(MaxBitWidth);
+  APInt LargeRHS = RHS.zext(MaxBitWidth);
   return LargeLHS.ugt(LargeRHS);
 };
 
-static bool hasCoefficientULT(const IRAddend &LHS, const IRAddend &RHS) {
-  revng_assert(RHS.coefficient()->getValue().isNonNegative());
-  auto MaxBitWidth = std::max(LHS.coefficient()->getValue().getBitWidth(),
-                              RHS.coefficient()->getValue().getBitWidth());
-  APInt LargeLHS = LHS.coefficient()->getValue().zext(MaxBitWidth);
-  APInt LargeRHS = RHS.coefficient()->getValue().zext(MaxBitWidth);
-
-  return LargeLHS.ult(LargeRHS);
-};
-
-static bool hasSameCoefficient(const IRAddend &LHS, const IRAddend &RHS) {
-
-  revng_assert(LHS.coefficient()->getValue().isNonNegative());
-  revng_assert(RHS.coefficient()->getValue().isNonNegative());
-  auto MaxBitWidth = std::max(LHS.coefficient()->getValue().getBitWidth(),
-                              RHS.coefficient()->getValue().getBitWidth());
-  APInt LargeLHS = LHS.coefficient()->getValue().zext(MaxBitWidth);
-  APInt LargeRHS = RHS.coefficient()->getValue().zext(MaxBitWidth);
-  return LargeLHS == LargeRHS;
+static bool hasCoefficientUGT(const IRAddend &LHS, const IRAddend &RHS) {
+  return coefficientUGT(LHS.coefficient()->getValue(),
+                        RHS.coefficient()->getValue());
 }
+
+static bool hasCoefficientULT(const IRAddend &LHS, const IRAddend &RHS) {
+  return coefficientUGT(RHS.coefficient()->getValue(),
+                        LHS.coefficient()->getValue());
+};
 
 class IRSummation {
 private:
@@ -338,7 +325,7 @@ public:
       if (Previous.has_value()) {
         auto MaxBitWidth = std::max(Previous->getBitWidth(),
                                     Current.getBitWidth());
-        if (Current.zext(MaxBitWidth).uge(Previous->zext(MaxBitWidth)))
+        if (Current.zext(MaxBitWidth).ugt(Previous->zext(MaxBitWidth)))
           return false;
       }
       Previous = Current;
@@ -583,37 +570,6 @@ getIRArithmetic(Use &AddressUse, const ModelTypesMap &PointerTypes) {
 
       // Here at least one among LHS and RHS is not an address.
 
-      // If we have at least a common Coefficient in both LHS and RHS, we cannot
-      // currently effectively sum them, since the Index does not have
-      // sufficient expressive power.
-      // So we have to bail out.
-      for (const auto &LHSAddend : LHS.Summation.getIndices()) {
-        for (const auto &RHSAddend : RHS.Summation.getIndices()) {
-          if (hasSameCoefficient(LHSAddend, RHSAddend)) {
-            // If one of them is an address, we have to just give up entirely,
-            // because there's no way to represent it with a valid thing.
-            // FIXME: we should relax the requirements on IRSummation.verify()
-            // to allow equal coefficients, but then we have to fix
-            // computeBestArray to handle it, leaving one as Mismatched.
-            // And we also have to update difference and lowerBound to take this
-            // into account. We cannot use the length of the IRSum to compute
-            // the lowerBound for Depth.
-            // Ideally we can special-case this in the code-generation pass. So
-            // that when we iterate on indices we can use distributive property,
-            // but this is a stretch.
-            //
-            // On the other hand, if non of the two terms of the sum is an
-            // address, we can just return AddrArithmeticInst as an unknown.
-            if (LHSIsAddress or RHSIsAddress)
-              rc_return std::nullopt;
-            else
-              rc_return IRArithmetic::unknown(AddrArithmeticInst);
-          }
-        }
-      }
-
-      // Here at least one among LHS and RHS is not an address, and they can
-      // always be summed successfully, so we do it.
       IRArithmetic Result = LHSIsAddress ? LHS : RHS;
       Result.Summation += LHSIsAddress ? RHS.Summation : LHS.Summation;
       rc_return Result;
@@ -1124,9 +1080,12 @@ static DifferenceScore lowerBound(const ModelGEPReplacementInfo &GEPInfo,
 
   // Given that we have the IRSum to consume to reach a match, we have to assume
   // that all of it will be consumed. So we have to add to the already available
-  // MatchDepth, at least 1 for each element in Indices, plus another one if
-  // BaseOffset is not zero.
-  MatchDepth += Indices.size() + (BaseOffset.isZero() ? 0 : 1);
+  // MatchDepth, at least 1 for each distinct coefficient Indices, or at least
+  // one if we don't have any variable access.
+  if (not Indices.empty())
+    MatchDepth += Indices.size();
+  else
+    MatchDepth += BaseOffset.isZero() ? 0 : 1;
 
   // If the IR doesn't have a pointee type the best case scenario is an inRange.
   // We cannot have a perfectMatch or a sameSizeMatch if we don't have another
@@ -1263,20 +1222,29 @@ computeBestInArray(const model::QualifiedType &BaseType,
 
   // Now, if Indices is not empty, we also have to compute the variable part of
   // the array access.
-  Value *InductionVariable = nullptr;
+  std::optional<SmallVector<IRAddend>> InductionVariable = std::nullopt;
   SmallVector<IRAddend> InnerIndices = Indices;
-  if (not InnerIndices.empty()) {
-    revng_log(ModelGEPLog,
-              "Trying to traverse array index: " << InnerIndices.front());
-    const auto &[Coefficient, Index] = InnerIndices.front();
+  auto It = InnerIndices.begin();
+  // Find the first element in InnerIndices that has a Coefficient that is
+  // smaller than APElementSize.
+  auto End = llvm::upper_bound(InnerIndices,
+                               APElementSize,
+                               [](const APInt &LHS, const IRAddend &RHS) {
+                                 APInt RHSValue = RHS.coefficient()->getValue();
+                                 return coefficientUGT(LHS, RHSValue);
+                               });
+  for (const auto &InnerIndex : llvm::make_range(It, End)) {
+
+    revng_log(ModelGEPLog, "Trying to traverse array index: " << InnerIndex);
+    const auto &[Coefficient, Index] = InnerIndex;
     revng_assert(not isa<Constant>(Index));
 
     // Unwrap the top layer of array indices, since we're traversing the
-    // array. In principle, we should unwrap it only if the Coefficient matches
-    // the size of the element of the array. In practice, this is overly
-    // restrictive, because it doesn't allow us to represent array accesses that
-    // access e.g. all the even elements in an array (for which the Coefficient
-    // would be a multiple of the element size).
+    // array. In principle, we should unwrap it only if the Coefficient
+    // matches the size of the element of the array. In practice, this is
+    // overly restrictive, because it doesn't allow us to represent array
+    // accesses that access e.g. all the even elements in an array (for which
+    // the Coefficient would be a multiple of the element size).
     //
     // So we attempt to unwrap the top layer of array indices in all the cases
     // where Coefficient is larger than the element size.
@@ -1286,8 +1254,8 @@ computeBestInArray(const model::QualifiedType &BaseType,
     // - the array access is done with a Coefficient that is NOT a multiple of
     // the element size: these are bad and we want to discard them.
     //
-    // In all the cases where we can successfully unwrap, the non-constant Index
-    // is the induction variable and we have to track it.
+    // In all the cases where we can successfully unwrap, the non-constant
+    // Index is the induction variable and we have to track it.
     //
     // In all the other cases, where the Coefficient is lower than the element
     // size, we don't unwrap, because the unwrap will occur in a more nested
@@ -1304,6 +1272,7 @@ computeBestInArray(const model::QualifiedType &BaseType,
                      NumMultipleElements,
                      Remainder);
       if (Remainder.getBoolValue()) {
+
         // This is not accessing an exact size of elements at each stride.
         // Just skip this.
         revng_log(ModelGEPLog,
@@ -1311,25 +1280,30 @@ computeBestInArray(const model::QualifiedType &BaseType,
                     << ArrayNotTraversed);
         rc_return ArrayNotTraversed;
       } else {
-        // TODO: in principle we'd like to be able to save the
-        // NumMultipleElement in the result, so that we can emit array
-        // accesses in the form: array[constant + induction_var * multiplier].
-        // or even array[constant + sum(induction_var * multiplier)].
-        // This will be supported in the future.
-        revng_log(ModelGEPLog,
-                  "Array not traversed for coefficient that is multiple of "
-                  "element size. BestInArray: "
-                    << ArrayNotTraversed);
-        rc_return ArrayNotTraversed;
+
+        revng_log(ModelGEPLog, "Coefficient is multiple of element size.");
+        if (not InductionVariable.has_value())
+          InductionVariable = SmallVector<IRAddend>{};
+
+        auto *IntType = Index->getType();
+        IRAddend NewAddend = IRAddend{
+          cast<ConstantInt>(ConstantInt::get(IntType, NumMultipleElements)),
+          Index
+        };
+        InductionVariable->push_back(std::move(NewAddend));
       }
     } else if (Coefficient->getValue() == ElementSize) {
-      revng_log(ModelGEPLog, "Exact coefficient");
-      InductionVariable = Index;
-      InnerIndices.erase(InnerIndices.begin());
+
+      revng_log(ModelGEPLog, "Coefficient is exact");
+      if (not InductionVariable.has_value())
+        InductionVariable = SmallVector<IRAddend>{};
+
+      InductionVariable->push_back(IRAddend(Index));
     } else {
-      revng_log(ModelGEPLog, "Small coefficient");
+      revng_abort();
     }
   }
+  InnerIndices.erase(It, End);
 
   // Here BaseOffset might be larger than the ElementSize.
   // Compute the minimum number of elements that will be skipped by pointer
@@ -1344,8 +1318,8 @@ computeBestInArray(const model::QualifiedType &BaseType,
   auto SummationInElement = IRSummation(BaseOffsetInElement,
                                         std::move(InnerIndices));
   IRSummation ElementSummation = IRSummation(FixedElementIndex);
-  if (InductionVariable)
-    ElementSummation += IRSummation(InductionVariable);
+  if (InductionVariable.has_value())
+    ElementSummation += IRSummation(std::move(InductionVariable.value()));
   auto ArrayAccessInfo = ChildInfo{ .Index = std::move(ElementSummation),
                                     .Type = AggregateKind::Array };
 
