@@ -164,6 +164,16 @@ static std::string toDecimal(const APInt &Number) {
   return Result.str().str();
 }
 
+static ConstantInt *getOneWithSameType(const Value *IntOrPtr) {
+  llvm::Type *TheType = IntOrPtr->getType();
+  revng_assert(TheType->isIntOrPtrTy());
+  unsigned BitWidth = TheType->isIntegerTy() ? TheType->getIntegerBitWidth() :
+                                               64;
+
+  APInt TheOne = APInt(/*NumBits*/ BitWidth, /*Value*/ 1);
+  return ConstantInt::get(IntOrPtr->getContext(), TheOne);
+}
+
 // This struct represents an addend of a summation on the LLVM IR in the form
 // Coefficient * Index, where Coefficient is constant and Index can be whatever
 // but not a constant.
@@ -188,6 +198,7 @@ public:
     // The Coefficient must be non negative
     revng_assert(C->getValue().isNonNegative());
   }
+  IRAddend(Value *V) : IRAddend(getOneWithSameType(V), V) {}
 
   IRAddend(const IRAddend &) = default;
   IRAddend &operator=(const IRAddend &) = default;
@@ -271,17 +282,17 @@ static bool hasSameCoefficient(const IRAddend &LHS, const IRAddend &RHS) {
 }
 
 class IRSummation {
+private:
+  static APInt getZeroAPInt() { return APInt(/*NumBits*/ 64, /*Value*/ 0); }
+
+  APInt Constant = getZeroAPInt();
+  SmallVector<IRAddend> Indices = {};
 
 public:
-  APInt Constant;
-  SmallVector<IRAddend> Indices;
-
-  static APInt getZeroAP() { return APInt(/*NumBits*/ 64, /*Value*/ 0); }
-
   // Construct from constants
   explicit IRSummation(size_t C) : Constant(APInt(64, C)), Indices(){};
   explicit IRSummation(APInt C) : Constant(C), Indices(){};
-  IRSummation() : IRSummation(getZeroAP()){};
+  IRSummation() : IRSummation(getZeroAPInt()){};
 
   // Construct from vectors of indices
   explicit IRSummation(APInt C, const SmallVector<IRAddend> &I) :
@@ -290,9 +301,9 @@ public:
     Constant(C), Indices(std::move(I)) {}
 
   explicit IRSummation(const SmallVector<IRAddend> &I) :
-    IRSummation(getZeroAP(), I) {}
+    IRSummation(getZeroAPInt(), I) {}
   explicit IRSummation(SmallVector<IRAddend> &&I) :
-    IRSummation(getZeroAP(), std::move(I)) {}
+    IRSummation(getZeroAPInt(), std::move(I)) {}
 
   // Construct from single addends
   explicit IRSummation(APInt C, const IRAddend &Addend) :
@@ -301,9 +312,12 @@ public:
     IRSummation(C, SmallVector<IRAddend>{ std::move(Addend) }) {}
 
   explicit IRSummation(const IRAddend &Addend) :
-    IRSummation(getZeroAP(), Addend) {}
+    IRSummation(getZeroAPInt(), Addend) {}
   explicit IRSummation(IRAddend &&Addend) :
-    IRSummation(getZeroAP(), std::move(Addend)) {}
+    IRSummation(getZeroAPInt(), std::move(Addend)) {}
+
+  // Construct from single non-constant Value
+  explicit IRSummation(Value *V) : IRSummation(IRAddend(V)) {}
 
 public:
   IRSummation(const IRSummation &) = default;
@@ -485,20 +499,7 @@ public:
     return IRArithmetic(C->getValue());
   }
 
-  static IRArithmetic unknown(Value *Unknown) {
-
-    // If we're trying to build an offset from Unknown, then Unknown must be an
-    // integer.
-    llvm::Type *TheType = Unknown->getType();
-    revng_assert(TheType->isIntOrPtrTy());
-    unsigned BitWidth = TheType->isIntegerTy() ? TheType->getIntegerBitWidth() :
-                                                 64;
-
-    APInt TheOne = APInt(/*NumBits*/ BitWidth, /*Value*/ 1);
-    auto *One = ConstantInt::get(Unknown->getContext(), TheOne);
-
-    return IRArithmetic(IRAddend(One, Unknown));
-  }
+  static IRArithmetic unknown(Value *Unknown) { return IRArithmetic(Unknown); }
 
   //
   // Debug prints
@@ -586,8 +587,8 @@ getIRArithmetic(Use &AddressUse, const ModelTypesMap &PointerTypes) {
       // currently effectively sum them, since the Index does not have
       // sufficient expressive power.
       // So we have to bail out.
-      for (const auto &LHSAddend : LHS.Summation.Indices) {
-        for (const auto &RHSAddend : RHS.Summation.Indices) {
+      for (const auto &LHSAddend : LHS.Summation.getIndices()) {
+        for (const auto &RHSAddend : RHS.Summation.getIndices()) {
           if (hasSameCoefficient(LHSAddend, RHSAddend)) {
             // If one of them is an address, we have to just give up entirely,
             // because there's no way to represent it with a valid thing.
@@ -1005,26 +1006,21 @@ static std::string toString(AggregateKind K) {
 // This struct represents the information necessary for building an index of a
 // ModelGEP. InductionVariable can be null.
 struct ChildInfo {
-  // TODO: this could be replaced with IRSummation to support any array access
-  // in the form array[ConstantIndex + sum(const_i * induction_var_i)]
-  uint64_t ConstantIndex = 0ULL;
-  Value *InductionVariable = nullptr;
+  IRSummation Index = IRSummation();
   AggregateKind Type = AggregateKind::Invalid;
 
   void dump(llvm::raw_ostream &OS) const debug_function {
-    OS << "ChildInfo{\nConstantIndex: " << ConstantIndex
-       << "\nInductionVariable: ";
-    if (InductionVariable)
-      InductionVariable->print(OS);
-    else
-      OS << "nullptr";
+    OS << "ChildInfo{\nIndex: ";
+    Index.dump(OS);
     OS << "\nType: " << toString(Type) << "\n}";
   }
 
   bool verify() const {
     if (Type == AggregateKind::Invalid)
       return false;
-    return Type == AggregateKind::Array or nullptr == InductionVariable;
+    if (Type == AggregateKind::Array)
+      return true;
+    return Index.isConstant();
   }
 
   void dump() const debug_function { dump(llvm::dbgs()); }
@@ -1347,11 +1343,11 @@ computeBestInArray(const model::QualifiedType &BaseType,
 
   auto SummationInElement = IRSummation(BaseOffsetInElement,
                                         std::move(InnerIndices));
-  auto ArrayAccessInfo = ChildInfo{
-    .ConstantIndex = FixedElementIndex.getZExtValue(),
-    .InductionVariable = InductionVariable,
-    .Type = AggregateKind::Array
-  };
+  IRSummation ElementSummation = IRSummation(FixedElementIndex);
+  if (InductionVariable)
+    ElementSummation += IRSummation(InductionVariable);
+  auto ArrayAccessInfo = ChildInfo{ .Index = std::move(ElementSummation),
+                                    .Type = AggregateKind::Array };
 
   ModelGEPReplacementInfo BestInArray(BaseArray,
                                       { ArrayAccessInfo },
@@ -1466,8 +1462,7 @@ computeBestInStruct(const model::QualifiedType &BaseStruct,
     auto FieldIndent = LoggerIndent{ ModelGEPLog };
 
     // At this point we assume we've accessed at least one field.
-    auto FieldAccessInfo = ChildInfo{ .ConstantIndex = Field.Offset(),
-                                      .InductionVariable = nullptr,
+    auto FieldAccessInfo = ChildInfo{ .Index = IRSummation(Field.Offset()),
                                       .Type = AggregateKind::Struct };
 
     auto &FieldType = Field.Type();
@@ -1577,8 +1572,7 @@ computeBestInUnion(const model::QualifiedType &BaseUnion,
     auto FieldIndent = LoggerIndent{ ModelGEPLog };
 
     // At this point we assume we've accessed at least one field.
-    auto FieldAccessInfo = ChildInfo{ .ConstantIndex = Field.Index(),
-                                      .InductionVariable = nullptr,
+    auto FieldAccessInfo = ChildInfo{ .Index = IRSummation(Field.Index()),
                                       .Type = AggregateKind::Union };
 
     auto &FieldType = Field.Type();
@@ -1713,26 +1707,25 @@ static model::QualifiedType getType(const model::QualifiedType &BaseType,
                                     model::VerifyHelper &VH) {
 
   model::QualifiedType CurrType = BaseType;
-  for (const auto &[FixedIndex, InductionVariable, AggregateType] :
-       IndexVector) {
+  for (const auto &[Index, AggregateType] : IndexVector) {
 
     switch (AggregateType) {
 
     case AggregateKind::Struct: {
 
+      revng_assert(Index.isConstant());
       CurrType = peelConstAndTypedefs(CurrType);
       auto *S = cast<model::StructType>(CurrType.UnqualifiedType().getConst());
-      revng_assert(not InductionVariable);
-      CurrType = S->Fields().at(FixedIndex).Type();
+      CurrType = S->Fields().at(Index.getConstant().getZExtValue()).Type();
 
     } break;
 
     case AggregateKind::Union: {
 
+      revng_assert(Index.isConstant());
       CurrType = peelConstAndTypedefs(CurrType);
       auto *U = cast<model::UnionType>(CurrType.UnqualifiedType().getConst());
-      revng_assert(not InductionVariable);
-      CurrType = U->Fields().at(FixedIndex).Type();
+      CurrType = U->Fields().at(Index.getConstant().getZExtValue()).Type();
 
     } break;
 
@@ -1755,7 +1748,7 @@ static model::QualifiedType getType(const model::QualifiedType &BaseType,
 
       } while (ArrayQualIt == CurrType.Qualifiers().end());
 
-      revng_assert(ArrayQualIt->Size() > FixedIndex);
+      revng_assert(ArrayQualIt->Size() > Index.getConstant().getZExtValue());
       // For arrays we don't need to look at the value of the index, we just
       // unwrap the array and go on.
       CurrType = model::QualifiedType(CurrType.UnqualifiedType(),
@@ -2376,24 +2369,38 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
     }
 
     // The other arguments are the indices in IndexVector
-    for (auto [ConstantIndex, InductionVariable, AggregateTy] :
-         GEPArgs.IndexVector) {
+    for (const auto &[Index, AggregateTy] : GEPArgs.IndexVector) {
+      const auto &[ConstantIndex, InductionVariables] = Index;
+      revng_assert(AggregateTy == AggregateKind::Array
+                   or InductionVariables.empty());
 
-      if (InductionVariable) {
-        revng_assert(AggregateTy == AggregateKind::Array);
-        if (ConstantIndex) {
-          auto *FixedId = ConstantInt::get(InductionVariable->getType(),
-                                           ConstantIndex);
-          Args.push_back(Builder.CreateAdd(InductionVariable, FixedId));
-        } else {
-          Args.push_back(InductionVariable);
+      Value *IndexValue = nullptr;
+      if (InductionVariables.empty() or not ConstantIndex.isNullValue()) {
+        auto *Int64Type = llvm::IntegerType::get(Ctxt, 64 /*NumBits*/);
+        IndexValue = ConstantInt::get(Int64Type, ConstantIndex);
+      }
+
+      for (const auto &[Coefficient, InductionVariable] : InductionVariables) {
+        Value *Addend = InductionVariable;
+        if (not Coefficient->isOne()) {
+          auto *
+            CoefficientConstant = ConstantInt::get(InductionVariable->getType(),
+                                                   Coefficient->getZExtValue());
+          Addend = Builder.CreateMul(CoefficientConstant, InductionVariable);
         }
 
-      } else {
-        auto *Int64Type = llvm::IntegerType::get(Ctxt, 64 /*NumBits*/);
-        auto *FixedId = ConstantInt::get(Int64Type, ConstantIndex);
-        Args.push_back(FixedId);
+        if (IndexValue) {
+          if (auto BitWidth = IndexValue->getType()->getIntegerBitWidth();
+              BitWidth > Addend->getType()->getIntegerBitWidth())
+            Addend = Builder.CreateZExt(Addend, IndexValue->getType());
+
+          IndexValue = Builder.CreateAdd(Addend, IndexValue);
+        } else {
+          IndexValue = Addend;
+        }
       }
+
+      Args.push_back(IndexValue);
     }
 
     Value *ModelGEPRef = Builder.CreateCall(ModelGEPFunction, Args);
