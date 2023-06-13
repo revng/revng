@@ -1062,7 +1062,7 @@ getCastTargetTypesForEqualityComparisons(model::QualifiedType LHS,
 RecursiveCoroutine<std::string>
 CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
 
-  if (isa<llvm::BinaryOperator>(I) or isa<llvm::CmpInst>(I)) {
+  if (isa<llvm::BinaryOperator>(I) or isa<llvm::ICmpInst>(I)) {
     const llvm::Value *Op0 = I->getOperand(0);
     const llvm::Value *Op1 = I->getOperand(1);
 
@@ -1073,11 +1073,13 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
     const QualifiedType &OpType1 = TypeMap.at(Op1);
 
     revng_assert(OpType0.isScalar() and OpType1.isScalar());
-    revng_assert(not OpType0.isFloat() and not OpType1.isFloat());
     revng_assert(*OpType0.size() == *OpType1.size());
     uint64_t ByteSize = *OpType0.size();
 
     if (auto *ICmp = dyn_cast<llvm::ICmpInst>(I)) {
+
+      revng_assert(not OpType0.isFloat() and not OpType1.isFloat());
+
       if (ICmp->isEquality()) {
         // Cast the two operands to a same common type for equality comparison.
         const auto
@@ -1132,7 +1134,7 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
     }
 
     auto *Bin = dyn_cast<llvm::BinaryOperator>(I);
-    auto *Cmp = dyn_cast<llvm::CmpInst>(I);
+    auto *Cmp = dyn_cast<llvm::ICmpInst>(I);
     revng_assert(Bin or Cmp);
     auto OperatorString = Bin ? getBinOpString(Bin, ThePTMLCBuilder) :
                                 getCmpOpString(Cmp->getPredicate(),
