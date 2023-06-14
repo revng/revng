@@ -332,6 +332,8 @@ public:
                 bool Signed = false) const {
     llvm::SmallString<12> Result;
     I.toString(Result, Radix, Signed);
+    if (I.getBitWidth() == 64 and I.isNegative())
+      Result += 'U';
 
     return getConstantTag(Result);
   }

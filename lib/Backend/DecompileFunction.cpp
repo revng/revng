@@ -525,7 +525,7 @@ CCodeGenerator::getConstantToken(const llvm::Value *C) const {
   if (auto *Const = dyn_cast<llvm::ConstantInt>(C)) {
     llvm::APInt Value = Const->getValue();
     if (Value.isIntN(64))
-      rc_return ThePTMLCBuilder.getNumber(Value.getLimitedValue()).serialize();
+      rc_return ThePTMLCBuilder.getNumber(Value).serialize();
     else
       rc_return get128BitIntegerHexConstant(Value, ThePTMLCBuilder);
   }
